@@ -6,9 +6,12 @@
 # the model without spelunking the repo.
 #
 # Prints open plans from the base branch (docs/plans/*.md), urgent first then
-# oldest, each with its urgency/agent/effort frontmatter, plus a one-line
-# suggestion. GitHub issues still outrank plans (harness/AGENTS.md Loop step
-# 2); a shell hook cannot read GitHub, so that stays a pointer.
+# oldest, each with its urgency/agent/effort frontmatter and its edges —
+# `blocked by:` when a needed plan is still open, `claimed on <branch>` when
+# an in-flight workstream file names it in `plan:` — plus a one-line
+# suggestion. Blocked and claimed plans list but never lead. GitHub issues
+# still outrank plans (harness/AGENTS.md Loop step 2); a shell hook cannot
+# read GitHub, so that stays a pointer. Edge model: docs/graph.md.
 #
 # Run by `joharness.sh session-start` after handover-context.sh, which has
 # already fetched — the origin/<base> view read here is fresh.
@@ -57,10 +60,31 @@ printf '\n== Queue (protocol: docs/plans/README.md) ==\n\n'
 
 if [ -z "$plans" ]; then
   printf 'No plans on %s. Entrypoint: open GitHub issues first; none = resume\n' "$ref"
-  printf 'an in-flight branch above, or ask human. Default model tier: sonnet\n'
+  printf 'in-flight branch above, or ask human. Default model tier: sonnet\n'
   printf '(docs/agent-selection.md).\n'
   exit 0
 fi
+
+# Claims: every unmerged remote branch's workstream files, each `plan:`
+# field a claim edge onto a plan here. Read so two fresh sessions do not
+# both pick the queue's top plan — the overlap warning would catch them
+# only later, at first file collision.
+claims="$(
+  git for-each-ref --format='%(refname:short)' refs/remotes 2>/dev/null |
+    while IFS= read -r short; do
+      case "$short" in "origin/HEAD" | "origin/${BASE_BRANCH}") continue ;; esac
+      git merge-base --is-ancestor "$short" "$ref" 2>/dev/null && continue
+      git ls-tree -r --name-only "$short" -- docs/handover 2>/dev/null |
+        grep -E '\.md$' | grep -vE '/(TEMPLATE|README)\.md$' |
+        while IFS= read -r wf; do
+          p="$(git show "${short}:${wf}" 2>/dev/null | field plan)"
+          p="${p##*/}"
+          p="${p%.md}"
+          { [ -n "$p" ] && [ "$p" != "none" ]; } || continue
+          printf '%s\t%s\n' "$p" "$short"
+        done
+    done
+)"
 
 # Open plan names, for dependency edges. A `needs:` entry blocks its plan
 # while the named plan file is still in the queue — done plans get deleted on
@@ -74,8 +98,9 @@ stems="$(
 )"
 
 # One row per plan: rank, added-epoch, path, label. Sorted urgent first, then
-# oldest — the pick order Loop step 2 prescribes — with blocked plans last:
-# listed so the shape of the queue stays visible, never suggested.
+# oldest — the pick order Loop step 2 prescribes — with claimed plans after
+# free ones and blocked plans last: listed so the shape of the queue stays
+# visible, never suggested.
 rows="$(
   while IFS= read -r f; do
     [ -n "$f" ] || continue
@@ -100,13 +125,19 @@ rows="$(
       done
     fi
 
+    stem="${f##*/}"
+    stem="${stem%.md}"
+    claimed_on="$(awk -F'\t' -v s="$stem" '$1 == s { print $2; exit }' <<<"$claims")"
+
     rank=1
     [ "$urgency" = "urgent" ] && rank=0
-    [ -z "$blockers" ] || rank=$((rank + 2))
-    printf '%s\t%s\t%s\t[%s, agent: %s, effort: %s%s]\n' \
+    [ -z "$claimed_on" ] || rank=$((rank + 2))
+    [ -z "$blockers" ] || rank=$((rank + 4))
+    printf '%s\t%s\t%s\t[%s, agent: %s, effort: %s%s%s]\n' \
       "$rank" "${added:-9999999999}" "$f" \
       "${urgency:-normal}" "${agent:-sonnet}" "${effort:-high}" \
-      "${blockers:+, blocked by: ${blockers}}"
+      "${blockers:+, blocked by: ${blockers}}" \
+      "${claimed_on:+, claimed on ${claimed_on}}"
   done <<<"$plans" | sort -t$'\t' -k1,1n -k2,2n | head -n "$MAX_ENTRIES"
 )"
 
@@ -117,6 +148,7 @@ done <<<"$rows"
 
 printf '\nEntrypoint: open GitHub issues outrank plans — check first. Else top\n'
 printf 'plan above; its agent field = model tier to run it. Escalate tier or\n'
-printf 'effort fine, downgrade never (docs/agent-selection.md). Unblocked\n'
-printf 'plans are independent — safe to run in parallel sessions.\n'
+printf 'effort fine, downgrade never (docs/agent-selection.md). Free =\n'
+printf 'neither blocked nor claimed; free plans are independent, safe to run\n'
+printf 'in parallel sessions. Claimed plan: /who before touching.\n'
 exit 0

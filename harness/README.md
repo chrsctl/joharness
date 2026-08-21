@@ -16,6 +16,7 @@ environment sits under [`../env/`](../env/README.md).
 | `../docs/plans/README.md` | Plan queue protocol. |
 | `../docs/plans/TEMPLATE.md` | Plan shape. |
 | `../docs/agent-selection.md` | Agent tiers, selection rules. |
+| `../docs/graph.md` | Node + edge types, one-substrate rules. |
 | `../docs/caveman.md` | House style. |
 
 Harness-owned, copy whole when syncing to a consumer repo. NOT harness-owned:

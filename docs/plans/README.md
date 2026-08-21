@@ -36,7 +36,8 @@ may escalate tier or effort, never downgrade.
 
 ## Dependencies and parallel work
 
-Queue = DAG. `needs: other-plan` blocks a plan while
+Queue = DAG (edge model: [`docs/graph.md`](../graph.md)). `needs:
+other-plan` blocks a plan while
 `docs/plans/other-plan.md` exists — done plans get deleted on merge, so
 file existence IS the edge; no status field to rot. Hook lists blocked
 plans last with `blocked by:`; never suggests them.
@@ -51,10 +52,12 @@ codejunkie99/graph-engineering task-graph rules).
 ## Lifecycle
 
 - **Claim** = normal Loop claim: cut branch, workstream file under
-  `docs/handover/` names the plan in Goal, push. Plan file itself never
-  edited to claim — no status field on purpose: field discipline fails
-  exactly when someone hurries (docs/handover/README.md, Graduation).
-  Overlap visible via hook + `/who`, same as all work.
+  `docs/handover/` names the plan in `plan:` frontmatter, push. Hook reads
+  that edge from every branch; queue marks the plan `claimed on <branch>`
+  and stops suggesting it. Plan file itself never edited to claim — no
+  status field on purpose: field discipline fails exactly when someone
+  hurries (docs/handover/README.md, Graduation). Overlap visible via hook
+  + `/who`, same as all work.
 - **Done** = implementing PR deletes plan file, same PR as code. Plan
   survives in history like workstream files do.
 - **Stale plan** (code moved under it): fix plan in place on `main` via
