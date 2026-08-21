@@ -565,6 +565,34 @@ else
   fail "nothing written through symlinked ancestor ($(ls -A "$outside"))"
 fi
 
+# Regular file squatting an ancestor path: mkdir -p would crash mid-sync
+# after earlier writes — preflight refuses with nothing written.
+syncdst9="${TMP}/syncdst9"
+mkdir -p "$syncdst9"
+printf 'file not dir\n' >"${syncdst9}/docs"
+if out="$(sync "$syncdst9")"; then
+  fail "file squatting ancestor path fails the run"
+else
+  pass "file squatting ancestor path fails the run"
+fi
+expect "squatting ancestor named" "passes through non-directory docs" "$out"
+if [ "$(ls -A "$syncdst9")" = "docs" ]; then
+  pass "refusal wrote nothing past squatting ancestor"
+else
+  fail "refusal wrote nothing past squatting ancestor ($(ls -A "$syncdst9"))"
+fi
+
+# Leftover JOHARNESS_SYNC_ROOT pointing anywhere but a harness canonical
+# dies loudly instead of silently syncing from the wrong tree.
+out="$(JOHARNESS_SYNC_ROOT="${TMP}/not-a-canonical" \
+  bash "${ROOT}/scripts/sync-to-consumer.sh" "$syncdst9" 2>&1)" && rc=0 || rc=$?
+if [ "$rc" -eq 1 ]; then
+  pass "bad JOHARNESS_SYNC_ROOT refused"
+else
+  fail "bad JOHARNESS_SYNC_ROOT refused (got ${rc})"
+fi
+expect "bad JOHARNESS_SYNC_ROOT named" "does not look like a harness canonical" "$out"
+
 # Canonical listed-but-missing file: silent drift is the failure mode, so
 # the run must end nonzero, not whisper to stderr. Mutates the canonical
 # fixture — keep these two cases last.

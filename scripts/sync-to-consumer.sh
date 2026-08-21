@@ -37,8 +37,17 @@ set -euo pipefail
 # JOHARNESS_SYNC_ROOT is a selftest hook: point canonical at a scratch
 # repo. Real use trusts where this script lives — honoring
 # CLAUDE_PROJECT_DIR here would silently re-aim canonical at whatever
-# repo the session is anchored in, wrong direction included.
-ROOT="${JOHARNESS_SYNC_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+# repo the session is anchored in, wrong direction included. The named
+# root must itself look like a harness canonical (carry this script), so
+# a leftover export from a debugging shell dies loudly instead of
+# silently syncing from the wrong tree.
+if [ -n "${JOHARNESS_SYNC_ROOT:-}" ]; then
+  ROOT="$JOHARNESS_SYNC_ROOT"
+  [ -f "${ROOT}/scripts/sync-to-consumer.sh" ] ||
+    { printf '[joharness] ERROR: JOHARNESS_SYNC_ROOT %s does not look like a harness canonical (no scripts/sync-to-consumer.sh); unset it\n' "$ROOT" >&2; exit 1; }
+else
+  ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+fi
 MARKER='# Part 2 — project'
 
 log()  { printf '[joharness] %s\n' "$*" >&2; }
@@ -129,14 +138,19 @@ dir_tracked() {
 # must leave the consumer untouched, never half-synced.
 refuse_bad_dst() {
   local rel="$1" dst="${DEST}/$1" path="$DEST" part rest="$1"
-  # Every ancestor dir too: cp through a symlinked directory writes
-  # outside the consumer tree with a false leaf check.
+  # Every ancestor too: cp through a symlinked directory writes outside
+  # the consumer tree with a false leaf check, and a regular file
+  # squatting an ancestor path would pass preflight only to crash
+  # mkdir -p mid-sync — half-synced, which refusal must never mean.
   while [ "${rest#*/}" != "$rest" ]; do
     part="${rest%%/*}"
     rest="${rest#*/}"
     path="${path}/${part}"
     if [ -h "$path" ]; then
       die "consumer path ${rel} passes through symlinked directory ${path#"$DEST"/}/"
+    fi
+    if [ -e "$path" ] && [ ! -d "$path" ]; then
+      die "consumer path ${rel} passes through non-directory ${path#"$DEST"/}"
     fi
   done
   # A directory at the path would swallow the copy as dir/file reported
@@ -147,17 +161,21 @@ refuse_bad_dst() {
   fi
 }
 
+# Filled once here; sync_dir consumes the same listings, so preflight's
+# guarantee covers exactly the files the sync later walks.
+declare -A TRACKED=()
+
 preflight() {
-  local rel dir tracked
+  local rel dir
   refuse_bad_dst AGENTS.md
   for rel in "${FILES[@]}"; do refuse_bad_dst "$rel"; done
   for dir in "${DIRS[@]}"; do
     [ -d "${ROOT}/${dir}" ] || continue
-    tracked="$(dir_tracked "$dir")"
+    TRACKED["$dir"]="$(dir_tracked "$dir")"
     while IFS= read -r rel; do
       [ -n "$rel" ] || continue
       refuse_bad_dst "$rel"
-    done <<<"$tracked"
+    done <<<"${TRACKED[$dir]}"
   done
 }
 
@@ -184,12 +202,19 @@ copy_mode() {
   if [ -x "$1" ]; then chmod +x "$2"; else chmod -x "$2"; fi
 }
 
+# Stage-and-mv, never an in-place cp: an interrupt between truncate and
+# final write would leave a partial entrypoint or instruction file, and
+# the rerun would read the fragment AHEAD — blocking its own repair.
 place() {
-  local src="$1" dst="$2"
+  local src="$1" dst="$2" stage
   [ "$DRY" -eq 1 ] && return 0
   mkdir -p "$(dirname "$dst")"
-  cp "$src" "$dst"
-  copy_mode "$src" "$dst"
+  stage="${dst}.joharness-sync.$$"
+  TRAP_TMP="$stage"
+  cp "$src" "$stage"
+  copy_mode "$src" "$stage"
+  mv "$stage" "$dst"
+  TRAP_TMP=""
 }
 
 sync_file() {
@@ -244,8 +269,9 @@ sync_dir() {
   else
     # Tracked files only (quotepath=off: a C-quoted non-ASCII name is
     # not a filename), not a find walk: editor backups and gitignored
-    # junk in the canonical working tree must never ship.
-    tracked="$(dir_tracked "$dir")"
+    # junk in the canonical working tree must never ship. The listing is
+    # preflight's — same files it validated.
+    tracked="${TRACKED[$dir]-}"
     while IFS= read -r rel; do
       [ -n "$rel" ] || continue
       sync_file "$rel"
