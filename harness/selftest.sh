@@ -602,10 +602,10 @@ commit_all "$syncsrc" "drop graph doc and commands dir"
 syncdst3="${TMP}/syncdst3"
 mkdir -p "$syncdst3"
 out="$(sync "$syncdst3")"; rc=$?
-if [ "$rc" -eq 1 ]; then
-  pass "listed file missing from canonical exits 1"
+if [ "$rc" -eq 3 ]; then
+  pass "listed file missing from canonical exits 3 (sync ran)"
 else
-  fail "listed file missing from canonical exits 1 (got ${rc})"
+  fail "listed file missing from canonical exits 3 (got ${rc})"
 fi
 expect "missing canonical file named" "canonical has no docs/graph.md" "$out"
 expect "missing canonical dir named" "canonical has no .claude/commands/" "$out"
