@@ -1,11 +1,11 @@
 ---
 workstream: handover-rot-enforcement
-status: in-progress
+status: review
 branch: claude/handover-rot-enforcement-8chuvt
 pr: none
 session: https://claude.ai/code/session_016Fb42AZrNDN76pKG3gNQCP
 updated: 2026-08-21
-next: Run ./joharness.sh ci green, open PR, delete this file in the final commit
+next: Deleted in the next commit; PR body links to this blob. Follow-up branch fixes the hook's own-branch exclusion (see Flag for human)
 ---
 
 ## Goal
@@ -46,7 +46,26 @@ through.
 
 ## Blockers
 
-None.
+None. Note: the author has no push access to `chrsctl/joharness` (403), so
+the branch lives on a fork and the PR is cross-repo.
+
+## Flag for human — two things this work surfaced
+
+1. **The protocol contradicts itself for a PR that ends its own workstream.**
+   "PR body links to the file on the branch" and "file deleted in the final
+   commit" cannot both hold: the link dies with the file. PR #3 resolved it by
+   keeping the file, which is how it reached `main`; PR #4 dropped a stale file
+   by hand without graduating its keeper (the Docker Hub 429 note, recovered
+   here). This branch resolves it a third way — delete in the final commit,
+   link the PR body to the blob at the commit before. Three PRs, three answers;
+   worth writing one of them into `docs/handover/README.md`.
+2. **`harness/handover-context.sh` reports the session's own branch as another
+   session's work when a second remote exists.** It excludes `origin/$branch`,
+   not `*/$branch`, so a contributor working from a fork — the only option
+   without push access — sees their own push listed as in-flight work with a
+   false `TOUCHES THE SAME FILES AS THIS BRANCH`. Found by running the hook on
+   this branch. Not fixed here: separate concern, separate branch, so this PR
+   stays one idea.
 
 ## Where to look
 
