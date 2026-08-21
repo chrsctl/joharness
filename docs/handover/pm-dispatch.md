@@ -7,7 +7,7 @@ plan: none
 session: https://claude.ai/code/session_019M7ypRKWMGi2oaM3XEmGcC
 agent: sonnet
 updated: 2026-08-21
-next: When PR #8 merges (with harness-review.md deleted), re-run queue check; merge order #8 -> #7 -> #5
+next: Human merges #8 -> #7 -> #5 (fix already pushed to #8); then re-run queue check
 ---
 
 ## Goal
@@ -42,8 +42,9 @@ Runs as a loop: research state, decide, record here.
 
 ## Rejected
 
-- Pushing the harness-review.md deletion onto #8's branch from this
-  session — not this session's branch.
+- ~~Pushing the harness-review.md deletion onto #8's branch~~ — human
+  authorized directly ("can we fix pr directly"); pushed ff1b022 to
+  claude/harness-research-review-l4y9vv, ci: pass on the result.
 - subscribe_pr_activity on #8 — PM polls on its own cadence; steward
   posture on another session's PR not wanted.
 
