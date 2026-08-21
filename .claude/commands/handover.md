@@ -8,8 +8,9 @@ Update handover file for this session's work. Protocol:
 1. Find this branch's file under `docs/handover/`. None + real work done?
    Create from `docs/handover/TEMPLATE.md`. Name = workstream, not branch.
 2. Refresh frontmatter: `status`, `updated` (today), `pr` if exists, `session`
-   (this session's claude.ai/code URL if known), `next` = ONE concrete action,
-   phrased as instruction to next session.
+   (this session's claude.ai/code URL if known), `agent` = tier remaining work
+   wants (docs/agent-selection.md), `next` = ONE concrete action, phrased as
+   instruction to next session.
 3. Add learnings to **Decisions**, **Rejected**, **Blockers**. Rejected =
    highest value: what tried, what exactly broke.
 4. Session proved something wrong? Fix it. Dead entries: delete, not annotate.

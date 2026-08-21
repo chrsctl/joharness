@@ -103,7 +103,8 @@ if [ -n "$mine" ]; then
     status="$(field status <"$f")"
     updated="$(field updated <"$f")"
     next="$(field next <"$f")"
-    add "  ${f}  [${status:-?}, updated ${updated:-?}]"
+    agent="$(field agent <"$f")"
+    add "  ${f}  [${status:-?}, updated ${updated:-?}${agent:+, wants ${agent}}]"
     [ -n "$next" ] && add "    next: ${next}"
   done <<<"$mine"
 else
@@ -166,6 +167,7 @@ while IFS= read -r ref; do
     status="$(printf '%s\n' "$doc" | field status)"
     updated="$(printf '%s\n' "$doc" | field updated)"
     session="$(printf '%s\n' "$doc" | field session)"
+    agent="$(printf '%s\n' "$doc" | field agent)"
     [ "$status" = "done" ] && continue
 
     claim=""
@@ -175,7 +177,7 @@ while IFS= read -r ref; do
     fi
 
     others="${others}  ${short}: ${f}"$'\n'
-    others="${others}    [${status:-?}, updated ${updated:-?}] pushed ${pushed_rel:-?}${claim}"$'\n'
+    others="${others}    [${status:-?}, updated ${updated:-?}${agent:+, wants ${agent}}] pushed ${pushed_rel:-?}${claim}"$'\n'
     [ -n "$session" ] && others="${others}    session: ${session}"$'\n'
 
     # Overlap is computed once per ref, not once per file it carries.
@@ -191,7 +193,7 @@ while IFS= read -r ref; do
 
     others="${others}    git show ${short}:${f}"$'\n'
     count=$((count + 1))
-  done < <(files_at "$ref")
+  done <<<"$ws_files"
 done < <(git for-each-ref --sort=-committerdate --format='%(refname)' \
   refs/remotes 2>/dev/null)
 
