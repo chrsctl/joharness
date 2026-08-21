@@ -21,10 +21,17 @@ patching. This branch codifies that as an escalation rule.
 
 ## Decisions
 
-- Trigger = fix undoes earlier round's fix, NOT finding count. Counts
-  dropped 3, 5, 3, 5, 2 through the whole churn — look like convergence
-  while requirements conflict guarantees more rounds. Count signal false
-  both ways.
+- Trigger = fix undoes earlier round's fix, NOT finding count. Counts ran
+  3, 5, 3, 5, 2 through the whole churn — oscillating, yet the churning
+  session read them as dropping toward done. Count signal false both
+  ways.
+- Resolution order in rule: split into per-case rules first (what ended
+  the observed case — both requirements kept), stated correctness
+  priority only for true either-or, ask human when none stated. First
+  draft said "resolve by stated priority" alone — contradicted own
+  evidence case, and this repo states no correctness priority. /code-review
+  (high) caught it, plus the count misread above, plus ambiguous "under
+  one rule" phrasing; all three fixed.
 - Rule body in `docs/agent-selection.md` Selection rules (escalation rules
   live there); one-line pointer from Loop step 5 in `harness/AGENTS.md`
   (where churn is felt). Matches under-thinking rule's split.
