@@ -4,6 +4,7 @@ status: in-progress
 branch: claude/short-kebab-name-abc123
 pr: none
 session: https://claude.ai/code/session_...
+agent: sonnet
 updated: YYYY-MM-DD
 next: One concrete action, phrased as an instruction
 ---
@@ -13,7 +14,9 @@ Copy to docs/handover/<workstream>.md. Protocol: docs/handover/README.md.
 
 Only what git cannot tell next session. No file counts, no "tests passing",
 no diff summaries — derivable, goes stale. Hook reads frontmatter without
-opening file: keep `next` one line.
+opening file: keep `next` one line. `agent` = tier this work wants
+(docs/agent-selection.md); hook shows it, so resuming user picks right
+model.
 
 Push as soon as file exists. Claim does not exist until pushed.
 -->

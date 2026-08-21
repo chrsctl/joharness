@@ -20,7 +20,7 @@ Git + GitHub already record, precisely, no drift:
 | --- | --- |
 | What changed | `git diff`, `git log`, the PR diff |
 | What is in flight | branches, open PRs |
-| Whether it works | CI checks, `env/k8s/smoke-test.sh` |
+| Whether it works | CI checks, `./joharness.sh verify` |
 | Who asked for what | issue and PR bodies, review threads |
 
 Writing any of that into markdown = second copy, rots immediately. Handover
@@ -253,9 +253,10 @@ not stale at all.
 
 Workstream file = scaffolding, not documentation. Work done:
 
-1. Anything mattering in six months moves to `harness/AGENTS.md` (agent needs every
-   session) or `docs/` (background). The "do not bump `K3S_IMAGE` casually"
-   note in `AGENTS.md` is exactly this: rejected approach that graduated.
+1. Anything mattering in six months moves to the right layer's `AGENTS.md`
+   (agent needs every session) or `docs/` (background). The "do not bump
+   `K3S_IMAGE` casually" note in `env/k8s/AGENTS.md` is exactly this:
+   rejected approach that graduated.
 2. Workstream file deleted in final commit.
 
 Files left after merge get read as current — worse than no file. Nothing worth
