@@ -34,5 +34,6 @@ a cluster it is reporting about.
 
 ## Traps
 
-- Overlaps `claude/k8s-136-validation` (same file). `/who` first.
+- `k8s-136-validation` plan touches the same file. Hook shows overlap if
+  claimed; `/who` before starting.
 - Do not touch the containerd/kubelet drop-ins — load bearing (env/k8s/README.md).

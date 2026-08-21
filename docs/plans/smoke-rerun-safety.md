@@ -35,6 +35,6 @@ pass.
 
 ## Traps
 
-- Overlaps `claude/smoke-helm-coverage` (same file). `/who` before
-  starting; hook flags the overlap.
+- `smoke-helm-coverage` plan touches the same file. Hook shows overlap if
+  claimed; `/who` before starting.
 - Trust counted numbers: pass/fail summary must still count every check.
