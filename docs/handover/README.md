@@ -81,6 +81,14 @@ session end; sessions rarely get to say goodbye. Update `status`, `updated`,
 
 Both cheap, no ceremony. `/handover` does the write.
 
+## When NOT to write one
+
+Copy and sync tasks get NO workstream file. Session initially asked to copy
+harness into repo, or sync repo from joharness: diff self-describing, git
+records everything, zero non-derivable reasoning. File would restate the
+diff — exactly what the rule above forbids. Same for any task whose whole
+content is "make X match Y". Commit message carries the source; done.
+
 ## What a workstream file looks like
 
 ```markdown
