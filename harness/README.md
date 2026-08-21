@@ -17,13 +17,16 @@ environment sits under [`../env/`](../env/README.md).
 | `../docs/plans/TEMPLATE.md` | Plan shape. |
 | `../docs/agent-selection.md` | Agent tiers, selection rules. |
 | `../docs/graph.md` | Node + edge types, one-substrate rules. |
+| `../docs/product/README.md` | Requirements tier, branch flow, reconciliation. |
+| `../docs/product/TEMPLATE.md` | Requirement shape. |
 | `../docs/caveman.md` | House style. |
 
 Harness-owned, copy whole when syncing to a consumer repo. NOT harness-owned:
 root `AGENTS.md` (its Part 2 is that repo's project), `README.md`,
 `joharness.conf` (each repo picks its own environment),
-`docs/handover/<workstream>.md` (live work), and `docs/plans/<plan>.md`
-(each repo's own queue).
+`docs/handover/<workstream>.md` (live work), `docs/plans/<plan>.md`
+(each repo's own queue), and `docs/product/<requirement>.md` (each
+repo's own product).
 
 Nothing here names a specific environment. That coupling belongs in
 `joharness.conf` and nowhere else.

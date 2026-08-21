@@ -29,7 +29,8 @@ Copy [`TEMPLATE.md`](TEMPLATE.md). Sections:
 
 Frontmatter: `plan`, `urgency` (`normal` | `urgent`), `agent` (`haiku` |
 `sonnet` | `opus` — which tier implements this plan), `effort`, optional
-`needs` (plan names this one reads results of). Plans get matched to
+`needs` (plan names this one reads results of), optional `req`
+(requirement this plan serves — [`docs/product/`](../product/README.md)). Plans get matched to
 agents, not one agent to all plans; selection rules:
 [`docs/agent-selection.md`](../agent-selection.md). Implementing session
 may escalate tier or effort, never downgrade.
