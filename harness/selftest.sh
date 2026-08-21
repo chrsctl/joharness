@@ -101,6 +101,7 @@ cat >"${work}/docs/handover/rival-ws.md" <<'EOF'
 ---
 workstream: rival-ws
 status: in-progress
+plan: rival-plan
 agent: opus
 updated: 2026-01-01
 next: Keep going
@@ -181,6 +182,12 @@ urgency: urgent
 needs: older-normal, merged-away, none
 ---
 EOF
+cat >"${work}/docs/plans/rival-plan.md" <<'EOF'
+---
+plan: rival-plan
+urgency: urgent
+---
+EOF
 cat >"${work}/docs/plans/TEMPLATE.md" <<'EOF'
 not a plan
 EOF
@@ -204,6 +211,14 @@ else
 fi
 expect "needs on an open plan blocks, merged/none names do not" \
   "docs/plans/blocked-urgent.md  [urgent, agent: sonnet, effort: high, blocked by: older-normal]" "$out"
+expect "workstream plan: field claims its plan" \
+  "docs/plans/rival-plan.md  [urgent, agent: sonnet, effort: high, claimed on origin/rival]" "$out"
+first_free="$(grep -o 'docs/plans/[a-z-]*\.md' <<<"$out" | head -1)"
+if [ "$first_free" = "docs/plans/newer-urgent.md" ]; then
+  pass "claimed urgent plan does not outrank free urgent plan"
+else
+  fail "claimed urgent plan does not outrank free urgent plan (first was: ${first_free:-none})"
+fi
 last_plan="$(grep -o 'docs/plans/[a-z-]*\.md' <<<"$out" | tail -1)"
 if [ "$last_plan" = "docs/plans/blocked-urgent.md" ]; then
   pass "blocked plan sorts last despite urgency"

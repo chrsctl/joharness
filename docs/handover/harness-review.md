@@ -6,7 +6,7 @@ pr: 6
 session: https://claude.ai/code/session_01HBRP6Z9bv2vV1tf5yebWvA
 agent: sonnet
 updated: 2026-08-21
-next: Human review + merge; then fix stale pre-split paths in the three in-flight workstream files (see Blockers)
+next: Human review + merge PR 6; then fix stale pre-split paths in the three in-flight workstream files (see Blockers)
 ---
 
 ## Goal
@@ -46,7 +46,8 @@ front, without spelunking.
   plans (today claim is prose in Goal; two sessions can pick same plan);
   (2) small ontology doc naming node/edge types + carrying field; (3)
   optional `joharness.sh graph` mermaid renderer, derived at read time,
-  never stored. None implemented yet — awaiting human pick.
+  never stored. 1 + 2 implemented (queue marks `claimed on <branch>`,
+  `docs/graph.md`); 3 held until text queue stops being legible.
 
 ## Rejected
 

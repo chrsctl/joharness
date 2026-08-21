@@ -7,7 +7,8 @@ Update handover file for this session's work. Protocol:
 
 1. Find this branch's file under `docs/handover/`. None + real work done?
    Create from `docs/handover/TEMPLATE.md`. Name = workstream, not branch.
-2. Refresh frontmatter: `status`, `updated` (today), `pr` if exists, `session`
+2. Refresh frontmatter: `status`, `updated` (today), `pr` if exists, `plan`
+   = plan this implements (the claim; `none` if not plan work), `session`
    (this session's claude.ai/code URL if known), `agent` = tier remaining work
    wants (docs/agent-selection.md), `next` = ONE concrete action, phrased as
    instruction to next session.

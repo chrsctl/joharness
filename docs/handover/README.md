@@ -97,6 +97,8 @@ workstream: cluster-startup-cost
 status: in-progress          # in-progress | blocked | review | done
 branch: claude/cluster-startup-nlvjqi
 pr: 12                       # or: none
+plan: cluster-startup-cost   # plan this implements = the claim. or: none
+agent: sonnet                # tier remaining work wants
 updated: 2026-08-09
 next: Measure restart path with the node image pre-pulled
 ---
