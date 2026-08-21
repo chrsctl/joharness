@@ -6,7 +6,7 @@ pr: 6
 session: https://claude.ai/code/session_01HBRP6Z9bv2vV1tf5yebWvA
 agent: sonnet
 updated: 2026-08-21
-next: Human review + merge PR 6; then fix stale pre-split paths in the three in-flight workstream files (see Blockers)
+next: Human review + merge PR 8; then fix stale pre-split paths in the three in-flight workstream files (see Blockers)
 ---
 
 ## Goal
