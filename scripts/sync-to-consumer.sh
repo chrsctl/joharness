@@ -128,6 +128,11 @@ place() {
 
 sync_file() {
   local rel="$1" src="${ROOT}/$1" dst="${DEST}/$1" blob
+  # A directory squatting on a file's path would swallow the copy as
+  # dir/file, reported 'new', on every rerun. Human repairs, not cp.
+  if [ -e "$dst" ] && [ ! -f "$dst" ]; then
+    die "consumer path ${rel} exists but is not a regular file"
+  fi
   if [ ! -f "$src" ]; then
     # Loud and fatal at the end of the run: a rename in canonical with a
     # stale list here would otherwise drift that file forever behind a
@@ -177,17 +182,23 @@ sync_dir() {
     return 0
   fi
   # Tracked files only, not a find walk: editor backups and gitignored
-  # junk in the canonical working tree must never ship.
+  # junk in the canonical working tree must never ship. quotepath=off:
+  # git would C-quote a non-ASCII name and the escaped string is not a
+  # filename.
+  local tracked
+  tracked="$(git -C "$ROOT" -c core.quotepath=off ls-files -- "$dir")"
   while IFS= read -r rel; do
+    [ -n "$rel" ] || continue
     sync_file "$rel"
-  done < <(git -C "$ROOT" ls-files -- "$dir")
+  done <<<"$tracked"
   # Consumer files canonical does not track: could be the consumer's own
   # (an extra env layer is legitimate) or a canonical removal. Both are a
-  # human call, so report and leave.
+  # human call, so report and leave. Membership against the listing
+  # already in hand — no subprocess per file.
   [ -d "${DEST}/${dir}" ] || return 0
   while IFS= read -r f; do
     rel="${f#"$DEST"/}"
-    if ! git -C "$ROOT" ls-files --error-unmatch -- "$rel" >/dev/null 2>&1; then
+    if [[ $'\n'"${tracked}"$'\n' != *$'\n'"${rel}"$'\n'* ]]; then
       printf '  consumer-only %s (left in place)\n' "$rel"
       ONLY=$((ONLY + 1))
     fi
@@ -200,6 +211,11 @@ sync_agents_md() {
   local src="${ROOT}/AGENTS.md" dst="${DEST}/AGENTS.md" tmp c dst_head hist_head known
   [ -f "$src" ] || die "canonical AGENTS.md missing"
   grep -qxF "$MARKER" "$src" || die "canonical AGENTS.md lacks marker '${MARKER}'"
+  # Before the bootstrap branch: a directory here passes [ ! -f ] and cp
+  # would drop the file inside it.
+  if [ -e "$dst" ] && [ ! -f "$dst" ]; then
+    die "consumer path AGENTS.md exists but is not a regular file"
+  fi
   if [ ! -f "$dst" ]; then
     # Bootstrap: a consumer without the file gets canonical whole, its
     # Part 2 template included; the consumer rewrites below the marker.
@@ -210,7 +226,11 @@ sync_agents_md() {
   fi
   grep -qxF "$MARKER" "$dst" ||
     die "consumer AGENTS.md lacks marker '${MARKER}'; refusing a partial write"
-  tmp="$(mktemp)"
+  # Build next to the target and mv into place: same filesystem, atomic,
+  # so an interrupt never leaves a truncated root instruction file.
+  # cp -p seeds the consumer's own mode; the truncating writes keep it.
+  tmp="${dst}.joharness-sync.$$"
+  cp -p "$dst" "$tmp"
   awk -v m="$MARKER" '$0 == m { exit } { print }' "$src" >"$tmp"
   awk -v m="$MARKER" 'p { print; next } $0 == m { p = 1; print }' "$dst" >>"$tmp"
   if cmp -s "$tmp" "$dst"; then
@@ -242,12 +262,11 @@ sync_agents_md() {
     rm -f "$tmp"
     return 0
   fi
-  # cat, not mv: the consumer file keeps its own permissions; mktemp's
-  # 0600 must not become the mode of the repo's root instruction file.
   if [ "$DRY" -eq 0 ]; then
-    cat "$tmp" >"$dst"
+    mv "$tmp" "$dst"
+  else
+    rm -f "$tmp"
   fi
-  rm -f "$tmp"
   printf '  update  AGENTS.md (above marker; consumer Part 2 kept)\n'
   UPDATED=$((UPDATED + 1))
 }

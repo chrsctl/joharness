@@ -206,8 +206,11 @@ cmd_ci() {
 # every consumer takes every dir.
 check_targets() {
   printf '%s\n' "${ROOT}/joharness.sh"
+  # || true: under pipefail a missing root fails the pipeline even with
+  # its message silenced, and this function must stay callable from a
+  # status-checking caller.
   find "${ROOT}/harness" "${ENV_ROOT}" "${ROOT}/scripts" \
-    -name '*.sh' -type f 2>/dev/null | sort
+    -name '*.sh' -type f 2>/dev/null | sort || true
 }
 
 have() { command -v "$1" >/dev/null 2>&1; }
