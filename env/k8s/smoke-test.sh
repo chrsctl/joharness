@@ -2,13 +2,14 @@
 #
 # smoke-test.sh - prove the Docker + Kubernetes environment actually works.
 #
-# Checks, in order:
-#   1. docker can run a container
-#   2. docker can pull from a registry through the egress proxy
-#   3. kubectl can reach the cluster and a node is Ready
-#   4. a pod can actually be created (the oom_score_adj regression guard)
-#   5. an image pulls inside the cluster and the deployment rolls out
-#   6. in-cluster Service DNS and networking work
+# Checks, in order - one line per counted check:
+#   1. dockerd is reachable
+#   2. docker pulls an image and runs a container through the egress proxy
+#   3. apiserver responds on /readyz
+#   4. at least one node is Ready
+#   5. a pod sandbox starts (the oom_score_adj regression guard)
+#   6. an image pulls inside the cluster and the deployment rolls out
+#   7. in-cluster Service DNS and networking work
 #
 # Usage: env/k8s/smoke-test.sh [--keep]   (or: ./joharness.sh verify)
 #   --keep  leave the test namespace behind for inspection
@@ -55,7 +56,7 @@ else
   fail "docker could not pull/run alpine:3"
 fi
 
-# --- 3: cluster reachable --------------------------------------------------
+# --- 3/4: cluster reachable ------------------------------------------------
 step "Kubernetes control plane"
 if k get --raw='/readyz' >/dev/null 2>&1; then
   pass "apiserver responds on /readyz"
@@ -71,7 +72,7 @@ else
   fail "no node is Ready"
 fi
 
-# --- 4: pods can be created ------------------------------------------------
+# --- 5: pods can be created ------------------------------------------------
 # This is the regression guard for the containerd restrict_oom_score_adj
 # workaround. Without it the cluster looks healthy but every pod sandbox fails
 # with "can't get final child's PID from pipe: EOF".
@@ -88,7 +89,7 @@ else
   k -n "$NS" describe pod sandbox-probe 2>&1 | grep -A5 'Events:' | tail -6 || true
 fi
 
-# --- 5: image pull + rollout ----------------------------------------------
+# --- 6: image pull + rollout -----------------------------------------------
 step "Workload rollout"
 k -n "$NS" create deployment web --image=nginx:alpine >/dev/null 2>&1 || true
 k -n "$NS" expose deployment web --port=80 >/dev/null 2>&1 || true
@@ -100,7 +101,7 @@ else
   k -n "$NS" describe pod -l app=web 2>&1 | grep -A5 'Events:' | tail -6 || true
 fi
 
-# --- 6: service DNS + networking ------------------------------------------
+# --- 7: service DNS + networking -------------------------------------------
 step "Service DNS and networking"
 if k -n "$NS" run curl-probe --image=curlimages/curl:8.11.1 --restart=Never \
      --command --timeout=60s -- sleep 120 >/dev/null 2>&1 \
