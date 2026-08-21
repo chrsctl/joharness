@@ -152,6 +152,7 @@ step "queue-context.sh"
 
 out="$(CLAUDE_PROJECT_DIR="$work" bash "${ROOT}/harness/queue-context.sh" 2>&1)"
 expect "empty queue points at issues" "No plans on origin/main" "$out"
+expect "empty queue says done" "edge reached: done" "$out"
 
 # The overlap fixture is done with; a clean tree keeps the branch switches
 # below from dragging the edit into the plan commits.
@@ -225,6 +226,10 @@ if [ "$last_plan" = "docs/plans/blocked-urgent.md" ]; then
 else
   fail "blocked plan sorts last despite urgency (last was: ${last_plan:-none})"
 fi
+expect "two free plans = spawn instruction with tiers" \
+  "2 free plans = 2 parallel sessions" "$out"
+expect "spawn list names each free plan's tier" \
+  "newer-urgent (opus), older-normal (haiku)" "$out"
 
 # --- session-start composition ---------------------------------------------
 step "joharness.sh session-start"
