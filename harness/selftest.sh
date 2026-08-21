@@ -101,7 +101,7 @@ cat >"${work}/docs/handover/rival-ws.md" <<'EOF'
 ---
 workstream: rival-ws
 status: in-progress
-plan: rival-plan
+plan: rival-plan   # inline comment must not void the claim
 agent: opus
 updated: 2026-01-01
 next: Keep going
@@ -122,10 +122,19 @@ cat >"${work}/docs/handover/stale-ws.md" <<'EOF'
 ---
 workstream: stale-ws
 status: review
+plan: older-normal
 ---
 EOF
 commit_all "$work" "leave stale ws on main"
 git -C "$work" push -q origin main
+
+# Branch that merely inherits the rotted file: its unchanged copy must not
+# count as a claim on older-normal.
+git -C "$work" checkout -qb inheritor
+echo inherited >"${work}/inheritor.txt"
+commit_all "$work" "inheritor work"
+git -C "$work" push -qu origin inheritor
+git -C "$work" checkout -q main
 
 # This session's branch: cut from before the stale commit so its own tree
 # carries no workstream file, with an uncommitted overlap against rival.
@@ -167,7 +176,18 @@ agent: haiku
 effort: low
 ---
 EOF
-commit_all "$work" "queue older normal plan"
+# rival-plan lands in the OLDER commit on purpose: if claim-ranking ever
+# breaks, this urgent-and-older plan sorts first and the first_free check
+# below catches it. Explicit dates keep the epochs apart even when both
+# commits land in the same second.
+cat >"${work}/docs/plans/rival-plan.md" <<'EOF'
+---
+plan: rival-plan
+urgency: urgent
+---
+EOF
+GIT_COMMITTER_DATE="2026-01-01T00:00:00Z" \
+  commit_all "$work" "queue older normal plan"
 cat >"${work}/docs/plans/newer-urgent.md" <<'EOF'
 ---
 plan: newer-urgent
@@ -183,16 +203,11 @@ urgency: urgent
 needs: older-normal, merged-away, none
 ---
 EOF
-cat >"${work}/docs/plans/rival-plan.md" <<'EOF'
----
-plan: rival-plan
-urgency: urgent
----
-EOF
 cat >"${work}/docs/plans/TEMPLATE.md" <<'EOF'
 not a plan
 EOF
-commit_all "$work" "queue newer urgent plan"
+GIT_COMMITTER_DATE="2026-01-02T00:00:00Z" \
+  commit_all "$work" "queue newer urgent plan"
 git -C "$work" push -q origin main
 git -C "$work" checkout -q feature
 git -C "$work" fetch -q origin
@@ -214,6 +229,7 @@ expect "needs on an open plan blocks, merged/none names do not" \
   "docs/plans/blocked-urgent.md  [urgent, agent: sonnet, effort: high, blocked by: older-normal]" "$out"
 expect "workstream plan: field claims its plan" \
   "docs/plans/rival-plan.md  [urgent, agent: sonnet, effort: high, claimed on origin/rival]" "$out"
+refute "rot inherited from main is not a claim" "claimed on origin/inheritor" "$out"
 first_free="$(grep -o 'docs/plans/[a-z-]*\.md' <<<"$out" | head -1)"
 if [ "$first_free" = "docs/plans/newer-urgent.md" ]; then
   pass "claimed urgent plan does not outrank free urgent plan"

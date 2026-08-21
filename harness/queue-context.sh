@@ -44,12 +44,20 @@ done
 [ -n "$ref" ] || exit 0
 
 # Value of a frontmatter field, from a document on stdin. Same contract as
-# handover-context.sh: stops at the closing delimiter.
+# handover-context.sh: stops at the closing delimiter, strips an inline
+# `# comment` — the template documents fields that way, and a claim carrying
+# its comment would never match a plan stem.
 field() {
   awk -v key="$1" '
     NR == 1 && $0 != "---" { exit }
     NR > 1  && $0 == "---" { exit }
-    match($0, "^" key ":[[:space:]]*") { print substr($0, RLENGTH + 1); exit }
+    match($0, "^" key ":[[:space:]]*") {
+      v = substr($0, RLENGTH + 1)
+      sub(/[[:space:]]+#.*$/, "", v)
+      sub(/[[:space:]]+$/, "", v)
+      print v
+      exit
+    }
   '
 }
 
@@ -77,6 +85,12 @@ claims="$(
       git ls-tree -r --name-only "$short" -- docs/handover 2>/dev/null |
         grep -E '\.md$' | grep -vE '/(TEMPLATE|README)\.md$' |
         while IFS= read -r wf; do
+          # Inherited unchanged from a rotted copy on the base branch = not
+          # this branch's claim; counting it would let one rot event mark a
+          # plan claimed on every branch cut after it.
+          base_blob="$(git rev-parse --quiet --verify "origin/${BASE_BRANCH}:${wf}" 2>/dev/null)"
+          blob="$(git rev-parse --quiet --verify "${short}:${wf}" 2>/dev/null)"
+          [ -n "$base_blob" ] && [ "$base_blob" = "$blob" ] && continue
           p="$(git show "${short}:${wf}" 2>/dev/null | field plan)"
           p="${p##*/}"
           p="${p%.md}"
@@ -120,7 +134,7 @@ rows="$(
         n="${n%.md}"
         # The template's explicit no-dependencies value.
         { [ -n "$n" ] && [ "$n" != "none" ]; } || continue
-        grep -qx -- "$n" <<<"$stems" &&
+        grep -qxF -- "$n" <<<"$stems" &&
           blockers="${blockers:+${blockers}, }${n}"
       done
     fi
@@ -138,13 +152,23 @@ rows="$(
       "${urgency:-normal}" "${agent:-sonnet}" "${effort:-high}" \
       "${blockers:+, blocked by: ${blockers}}" \
       "${claimed_on:+, claimed on ${claimed_on}}"
-  done <<<"$plans" | sort -t$'\t' -k1,1n -k2,2n | head -n "$MAX_ENTRIES"
+  done <<<"$plans" | sort -t$'\t' -k1,1n -k2,2n
 )"
 
+# Display truncates; the free count below does not — a fan-out instruction
+# computed from a truncated list would understate the parallelism.
+total=0
+shown=0
 while IFS=$'\t' read -r _ _ f label; do
   [ -n "$f" ] || continue
+  total=$((total + 1))
+  [ "$shown" -lt "$MAX_ENTRIES" ] || continue
+  shown=$((shown + 1))
   printf '  %s  %s\n' "$f" "$label"
 done <<<"$rows"
+[ "$total" -le "$MAX_ENTRIES" ] ||
+  printf '  (+%d more not shown; raise QUEUE_MAX_ENTRIES to list)\n' \
+    "$((total - MAX_ENTRIES))"
 
 # Fan-out instruction: free plans are independent, so each one is a session
 # the human can spawn NOW, model named per plan. No free plan = DAG edge.
