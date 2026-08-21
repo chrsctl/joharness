@@ -354,6 +354,109 @@ check_lf() {
 check_lf "${crlf}/probe.sh" "shell script"
 check_lf "${crlf}/probe.md" "markdown"
 
+# --- sync-to-consumer.sh ----------------------------------------------------
+# Scratch canonical with real history (two versions of one file), scratch
+# consumer holding one stale copy, one edited copy, one missing file, one
+# file of its own. The script must update, refuse, create, and leave — in
+# that order of importance.
+step "sync-to-consumer.sh"
+
+syncsrc="${TMP}/syncsrc"
+git init -q "$syncsrc"
+mkdir -p "${syncsrc}/harness" "${syncsrc}/docs" "${syncsrc}/scripts" \
+  "${syncsrc}/env/none" "${syncsrc}/.claude/commands"
+printf 'loop v1\n' >"${syncsrc}/harness/AGENTS.md"
+printf 'tiers v1\n' >"${syncsrc}/docs/agent-selection.md"
+printf 'claude rules\n' >"${syncsrc}/CLAUDE.md"
+printf 'entry stub\n' >"${syncsrc}/joharness.sh"
+printf 'sync stub\n' >"${syncsrc}/scripts/sync-to-consumer.sh"
+printf 'layer none\n' >"${syncsrc}/env/none/AGENTS.md"
+printf 'who cmd\n' >"${syncsrc}/.claude/commands/who.md"
+cat >"${syncsrc}/AGENTS.md" <<'EOF'
+CANON-HARNESS-V1
+
+# Part 2 — project
+
+canonical project text
+EOF
+commit_all "$syncsrc" "canonical v1"
+printf 'loop v2 CANON-LOOP-SENTINEL\n' >"${syncsrc}/harness/AGENTS.md"
+cat >"${syncsrc}/AGENTS.md" <<'EOF'
+CANON-HARNESS-V2
+
+# Part 2 — project
+
+canonical project text
+EOF
+commit_all "$syncsrc" "canonical v2"
+
+syncdst="${TMP}/syncdst"
+mkdir -p "${syncdst}/harness" "${syncdst}/env/custom"
+printf 'loop v1\n' >"${syncdst}/harness/AGENTS.md"          # stale: v1 is history
+printf 'consumer hacked\n' >"${syncdst}/CLAUDE.md"          # ahead: never in history
+printf 'own layer\n' >"${syncdst}/env/custom/AGENTS.md"     # consumer-only
+printf 'CONSUMER-README\n' >"${syncdst}/README.md"          # not synced
+cat >"${syncdst}/AGENTS.md" <<'EOF'
+STALE-HARNESS-PART
+
+# Part 2 — project
+
+CONSUMER-PART2-SENTINEL
+EOF
+
+sync() {
+  CLAUDE_PROJECT_DIR="$syncsrc" \
+    bash "${ROOT}/scripts/sync-to-consumer.sh" "$@" 2>&1
+}
+
+out="$(sync --dry-run "$syncdst")"
+expect "dry run announces itself" "dry run, nothing written" "$out"
+expect "dry run reports the stale file" "update  harness/AGENTS.md" "$out"
+if grep -q 'loop v1' "${syncdst}/harness/AGENTS.md"; then
+  pass "dry run writes nothing"
+else
+  fail "dry run writes nothing (stale file changed)"
+fi
+
+out="$(sync "$syncdst")"; rc=$?
+expect "stale file updated to canonical" \
+  "CANON-LOOP-SENTINEL" "$(cat "${syncdst}/harness/AGENTS.md")"
+expect "missing file created" "tiers v1" \
+  "$(cat "${syncdst}/docs/agent-selection.md" 2>/dev/null)"
+expect "ahead file flagged" "AHEAD   CLAUDE.md" "$out"
+expect "ahead file kept" "consumer hacked" "$(cat "${syncdst}/CLAUDE.md")"
+if [ "$rc" -eq 2 ]; then
+  pass "ahead exits 2"
+else
+  fail "ahead exits 2 (got ${rc})"
+fi
+expect "AGENTS.md harness part replaced" \
+  "CANON-HARNESS-V2" "$(cat "${syncdst}/AGENTS.md")"
+expect "AGENTS.md consumer Part 2 kept" \
+  "CONSUMER-PART2-SENTINEL" "$(cat "${syncdst}/AGENTS.md")"
+expect "consumer-only file reported, left" \
+  "consumer-only env/custom/AGENTS.md" "$out"
+expect "consumer README untouched" "CONSUMER-README" \
+  "$(cat "${syncdst}/README.md")"
+
+# Second run on the now-reconciled tree: the AHEAD file still blocks, all
+# else settles to same — reruns must be idempotent.
+out="$(sync "$syncdst")"; rc=$?
+expect "rerun updates nothing" "0 updated, 0 new" "$out"
+
+# Consumer AGENTS.md without the marker: refuse whole-file, touch nothing.
+syncdst2="${TMP}/syncdst2"
+mkdir -p "$syncdst2"
+printf 'no marker here\n' >"${syncdst2}/AGENTS.md"
+if out="$(sync "$syncdst2")"; then
+  fail "missing marker fails the run"
+else
+  pass "missing marker fails the run"
+fi
+expect "missing marker names the problem" "lacks marker" "$out"
+expect "missing marker leaves file untouched" "no marker here" \
+  "$(cat "${syncdst2}/AGENTS.md")"
+
 # --- summary ----------------------------------------------------------------
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
