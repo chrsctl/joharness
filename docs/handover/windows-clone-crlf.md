@@ -1,11 +1,11 @@
 ---
 workstream: windows-clone-crlf
-status: in-progress
+status: review
 branch: claude/windows-clone-crlf-n4tq7c
 pr: none
 session: https://claude.ai/code/session_016Fb42AZrNDN76pKG3gNQCP
 updated: 2026-08-21
-next: Add .gitattributes pinning *.sh to LF, cover it in selftest, fix the Debian-only shellcheck hint
+next: Deleted in the next commit; PR body links to this blob
 ---
 
 ## Goal
@@ -38,6 +38,15 @@ the pull request"; on Windows that instruction fails on contact.
   Claim dropped rather than asserted.
 - Telling `joharness.sh ci` to pass `shellcheck -e SC1017`. That hides the
   symptom and leaves the scripts genuinely CRLF for bash to execute.
+- `grep -q $'\r'` as the selftest's CR probe. It reported clean on a genuinely
+  CRLF file: Git Bash opens files in text mode and drops the CR before the
+  pattern sees it, so the case was green on the one platform it exists for.
+  Caught by running it with the fix removed. Byte-counting with
+  `tr -dc '\r' | wc -c` is exact everywhere. Same trap as `grep -U`, which
+  would have worked here but means something else to BSD grep on Chris's Mac.
+- `cmp`-based comparison of stripped against original: correct, but reads the
+  file twice in one pipeline and shellcheck answers SC2094. The bar is zero
+  findings, so the probe was restructured rather than suppressed.
 
 ## Blockers
 
