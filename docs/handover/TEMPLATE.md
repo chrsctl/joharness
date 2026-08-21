@@ -3,6 +3,7 @@ workstream: short-kebab-name
 status: in-progress
 branch: claude/short-kebab-name-abc123
 pr: none
+plan: none
 session: https://claude.ai/code/session_...
 agent: sonnet
 updated: YYYY-MM-DD
@@ -16,7 +17,8 @@ Only what git cannot tell next session. No file counts, no "tests passing",
 no diff summaries — derivable, goes stale. Hook reads frontmatter without
 opening file: keep `next` one line. `agent` = tier this work wants
 (docs/agent-selection.md); hook shows it, so resuming user picks right
-model.
+model. `plan` = plan this workstream implements — THE claim; queue marks
+that plan taken. Not plan work? Leave `none`.
 
 Push as soon as file exists. Claim does not exist until pushed.
 -->

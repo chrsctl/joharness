@@ -47,12 +47,19 @@ OUT=""
 add() { OUT="${OUT}${1}"$'\n'; }
 
 # Value of a frontmatter field, from a document on stdin. Stops at the closing
-# delimiter so a body line like "status: broken" is not mistaken for metadata.
+# delimiter so a body line like "status: broken" is not mistaken for metadata;
+# strips an inline `# comment` — the template documents fields that way.
 field() {
   awk -v key="$1" '
     NR == 1 && $0 != "---" { exit }
     NR > 1  && $0 == "---" { exit }
-    match($0, "^" key ":[[:space:]]*") { print substr($0, RLENGTH + 1); exit }
+    match($0, "^" key ":[[:space:]]*") {
+      v = substr($0, RLENGTH + 1)
+      sub(/[[:space:]]+#.*$/, "", v)
+      sub(/[[:space:]]+$/, "", v)
+      print v
+      exit
+    }
   '
 }
 

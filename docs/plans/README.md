@@ -28,20 +28,39 @@ Copy [`TEMPLATE.md`](TEMPLATE.md). Sections:
   each.
 
 Frontmatter: `plan`, `urgency` (`normal` | `urgent`), `agent` (`haiku` |
-`sonnet` | `opus` — which tier implements this plan), `effort`. Plans get
-matched to agents, not one agent to all plans; selection rules:
+`sonnet` | `opus` — which tier implements this plan), `effort`, optional
+`needs` (plan names this one reads results of). Plans get matched to
+agents, not one agent to all plans; selection rules:
 [`docs/agent-selection.md`](../agent-selection.md). Implementing session
 may escalate tier or effort, never downgrade.
+
+## Dependencies and parallel work
+
+Queue = DAG (edge model: [`docs/graph.md`](../graph.md)). `needs:
+other-plan` blocks a plan while
+`docs/plans/other-plan.md` exists — done plans get deleted on merge, so
+file existence IS the edge; no status field to rot. Hook lists blocked
+plans last with `blocked by:`; never suggests them.
+
+Write `needs` only when this plan reads the other's RESULT. "Feels related"
+= fake edge; leave it out. Unblocked plans are independent by construction:
+run them in parallel sessions freely. Work where each step needs the full
+picture stays ONE plan, one session — splitting sequential work between
+agents measured worse than not splitting (DeepMind × MIT scaling study, via
+codejunkie99/graph-engineering task-graph rules).
 
 ## Lifecycle
 
 - **Claim** = normal Loop claim: cut branch, workstream file under
-  `docs/handover/` names the plan in Goal, push. Plan file itself never
-  edited to claim — no status field on purpose: field discipline fails
-  exactly when someone hurries (docs/handover/README.md, Graduation).
-  Overlap visible via hook + `/who`, same as all work.
+  `docs/handover/` names the plan in `plan:` frontmatter, push. Hook reads
+  that edge from every branch; queue marks the plan `claimed on <branch>`
+  and stops suggesting it. Plan file itself never edited to claim — no
+  status field on purpose: field discipline fails exactly when someone
+  hurries (docs/handover/README.md, Graduation). Overlap visible via hook
+  + `/who`, same as all work.
 - **Done** = implementing PR deletes plan file, same PR as code. Plan
-  survives in history like workstream files do.
+  survives in history like workstream files do. PR = edge to main:
+  in-depth review first (Loop step 5), every time.
 - **Stale plan** (code moved under it): fix plan in place on `main` via
   small PR, or delete if obsolete. Every claim in a plan = hypothesis until
   checked against code — same staleness rule as handover files.
