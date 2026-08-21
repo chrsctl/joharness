@@ -59,9 +59,9 @@ plans="$(git ls-tree -r --name-only "$ref" -- "$PLANS_DIR" 2>/dev/null |
 printf '\n== Queue (protocol: docs/plans/README.md) ==\n\n'
 
 if [ -z "$plans" ]; then
-  printf 'No plans on %s. Entrypoint: open GitHub issues first; none = resume\n' "$ref"
-  printf 'in-flight branch above, or ask human. Default model tier: sonnet\n'
-  printf '(docs/agent-selection.md).\n'
+  printf 'No plans on %s — plan-queue edge reached: done. Entrypoint: open\n' "$ref"
+  printf 'GitHub issues first; none = resume in-flight branch above, or ask\n'
+  printf 'human. Default model tier: sonnet (docs/agent-selection.md).\n'
   exit 0
 fi
 
@@ -145,6 +145,27 @@ while IFS=$'\t' read -r _ _ f label; do
   [ -n "$f" ] || continue
   printf '  %s  %s\n' "$f" "$label"
 done <<<"$rows"
+
+# Fan-out instruction: free plans are independent, so each one is a session
+# the human can spawn NOW, model named per plan. No free plan = DAG edge.
+free_count=0
+free_list=""
+while IFS=$'\t' read -r rank _ f label; do
+  [ -n "$f" ] || continue
+  [ "$rank" -lt 2 ] || continue
+  free_count=$((free_count + 1))
+  stem="${f##*/}"
+  tier="$(sed -n 's/.*agent: \([a-z]*\).*/\1/p' <<<"$label")"
+  free_list="${free_list:+${free_list}, }${stem%.md} (${tier:-sonnet})"
+done <<<"$rows"
+
+if [ "$free_count" -ge 2 ]; then
+  printf '\n%d free plans = %d parallel sessions. Spawn one per plan, model = its\n' \
+    "$free_count" "$free_count"
+  printf 'tier: %s.\n' "$free_list"
+elif [ "$free_count" -eq 0 ]; then
+  printf '\nEdge reached: no free plan — every plan claimed or blocked. done.\n'
+fi
 
 printf '\nEntrypoint: open GitHub issues outrank plans — check first. Else top\n'
 printf 'plan above; its agent field = model tier to run it. Escalate tier or\n'

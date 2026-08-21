@@ -48,6 +48,9 @@ discipline fails exactly when someone hurries.
 - Fusion manual: graduation ritual, human-reviewed. Wrong merge worse than
   missed merge.
 - Provenance = commits. Never hand-write time or source into a file.
+- Every edge into main passes an in-depth review node: `/code-review`
+  (high) on the full diff, before the PR. Diamond rule — verify outside
+  the context that wrote the code; self-grade alone misses own mistakes.
 
 ## Serving
 

@@ -59,7 +59,8 @@ codejunkie99/graph-engineering task-graph rules).
   hurries (docs/handover/README.md, Graduation). Overlap visible via hook
   + `/who`, same as all work.
 - **Done** = implementing PR deletes plan file, same PR as code. Plan
-  survives in history like workstream files do.
+  survives in history like workstream files do. PR = edge to main:
+  in-depth review first (Loop step 5), every time.
 - **Stale plan** (code moved under it): fix plan in place on `main` via
   small PR, or delete if obsolete. Every claim in a plan = hypothesis until
   checked against code — same staleness rule as handover files.

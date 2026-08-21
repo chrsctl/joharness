@@ -27,6 +27,8 @@ the selected layer — [`env/README.md`](env/README.md).
    GitHub CI runs — run it here, before the pull request, not after.
    `./joharness.sh verify` proves the selected environment. Trust counted
    numbers, never written numbers — including numbers in any instruction file.
+   Edge to main = in-depth review, always: `/code-review` (high) on full
+   diff before PR. Fix findings or record why not — never drop silent.
 6. **Hand over.** Update workstream file in SAME commit as code. Before ending
    any unfinished turn, not only at session end. `/handover` writes it.
 7. **Merge.** Delete workstream file. Still-useful bits go to the right layer's
