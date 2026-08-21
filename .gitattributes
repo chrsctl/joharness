@@ -1,0 +1,10 @@
+# Normalize text in the repository; let git pick the working-tree ending.
+* text=auto
+
+# Shell scripts are the exception: bash executes them and shellcheck lints
+# them, and both want LF. Git for Windows ships core.autocrlf=true as its
+# installer default, so without this line a stock clone there rewrites every
+# script to CRLF and `./joharness.sh ci` answers with SC1017 "Literal carriage
+# return" on every line - 520 findings and a red gate before any work starts.
+# Later patterns win, so this has to stay below the rule above.
+*.sh text eol=lf

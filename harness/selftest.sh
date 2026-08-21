@@ -315,6 +315,36 @@ fi
 expect "session-start prints handover state" "Handover state" "$out"
 expect "session-start prints queue" "== Queue" "$out"
 
+# --- .gitattributes: shell scripts stay LF ---------------------------------
+# Git for Windows defaults to core.autocrlf=true. Without the pin, a stock
+# clone there rewrites every script to CRLF and shellcheck answers SC1017 on
+# every line. The scratch repo sets that default explicitly, so this case
+# fails on any platform if the pin is dropped.
+step ".gitattributes"
+
+crlf="${TMP}/crlfrepo"
+git init -q "$crlf"
+git -C "$crlf" config core.autocrlf true
+cp "${ROOT}/.gitattributes" "${crlf}/.gitattributes" 2>/dev/null
+printf '#!/usr/bin/env bash\necho probe\n' >"${crlf}/probe.sh"
+commit_all "$crlf" "probe"
+
+# Re-materialize from the index: the checkout applies the attributes.
+rm -f "${crlf}/probe.sh"
+git -C "$crlf" checkout -q -- probe.sh
+
+# Not `grep $'\r'`: Git Bash opens files in text mode and drops the CR before
+# the pattern ever sees it, so that spelling reports clean on the one platform
+# this case exists for. Stripping and comparing is byte-exact everywhere.
+has_cr() { [ "$(tr -dc '\r' <"$1" | wc -c)" -gt 0 ]; }
+
+if has_cr "${crlf}/probe.sh"; then
+  fail "shell script checks out LF under core.autocrlf=true"
+  printf '    probe.sh came back with CRLF; is *.sh pinned in .gitattributes?\n'
+else
+  pass "shell script checks out LF under core.autocrlf=true"
+fi
+
 # --- summary ----------------------------------------------------------------
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
