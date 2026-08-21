@@ -174,6 +174,13 @@ agent: opus
 effort: xhigh
 ---
 EOF
+cat >"${work}/docs/plans/blocked-urgent.md" <<'EOF'
+---
+plan: blocked-urgent
+urgency: urgent
+needs: older-normal, merged-away, none
+---
+EOF
 cat >"${work}/docs/plans/TEMPLATE.md" <<'EOF'
 not a plan
 EOF
@@ -194,6 +201,14 @@ if [ "$first_plan" = "docs/plans/newer-urgent.md" ]; then
   pass "urgent plan sorts above older normal plan"
 else
   fail "urgent plan sorts above older normal plan (first was: ${first_plan:-none})"
+fi
+expect "needs on an open plan blocks, merged/none names do not" \
+  "docs/plans/blocked-urgent.md  [urgent, agent: sonnet, effort: high, blocked by: older-normal]" "$out"
+last_plan="$(grep -o 'docs/plans/[a-z-]*\.md' <<<"$out" | tail -1)"
+if [ "$last_plan" = "docs/plans/blocked-urgent.md" ]; then
+  pass "blocked plan sorts last despite urgency"
+else
+  fail "blocked plan sorts last despite urgency (last was: ${last_plan:-none})"
 fi
 
 # --- session-start composition ---------------------------------------------

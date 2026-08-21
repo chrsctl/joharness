@@ -3,6 +3,7 @@ plan: short-kebab-name
 urgency: normal
 agent: sonnet
 effort: high
+needs: none
 ---
 
 <!--
@@ -11,6 +12,9 @@ Copy to docs/plans/<plan>.md. Queue rules: docs/plans/README.md.
 Write for literal reader. Scope and out-of-scope both explicit; acceptance
 = runnable commands with expected output; traps = the Part 2 prohibitions
 this plan can trip, one line each.
+
+`needs` = plan names whose RESULT this plan reads; blocked while those
+files exist. Related-but-independent = fake edge, leave `none`.
 -->
 
 ## Goal

@@ -62,8 +62,20 @@ if [ -z "$plans" ]; then
   exit 0
 fi
 
-# One row per plan: urgency-rank, added-epoch, path, label. Sorted urgent
-# first, then oldest — the pick order Loop step 2 prescribes.
+# Open plan names, for dependency edges. A `needs:` entry blocks its plan
+# while the named plan file is still in the queue — done plans get deleted on
+# merge, so file existence IS the edge, no status field to go stale.
+stems="$(
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    b="${f##*/}"
+    printf '%s\n' "${b%.md}"
+  done <<<"$plans"
+)"
+
+# One row per plan: rank, added-epoch, path, label. Sorted urgent first, then
+# oldest — the pick order Loop step 2 prescribes — with blocked plans last:
+# listed so the shape of the queue stays visible, never suggested.
 rows="$(
   while IFS= read -r f; do
     [ -n "$f" ] || continue
@@ -72,12 +84,29 @@ rows="$(
     urgency="$(printf '%s\n' "$doc" | field urgency)"
     agent="$(printf '%s\n' "$doc" | field agent)"
     effort="$(printf '%s\n' "$doc" | field effort)"
+    needs="$(printf '%s\n' "$doc" | field needs)"
     added="$(git log --diff-filter=A --format=%ct -1 "$ref" -- "$f" 2>/dev/null)"
+
+    blockers=""
+    if [ -n "$needs" ]; then
+      read -ra need_list <<<"${needs//,/ }"
+      for n in "${need_list[@]}"; do
+        n="${n##*/}"
+        n="${n%.md}"
+        # The template's explicit no-dependencies value.
+        { [ -n "$n" ] && [ "$n" != "none" ]; } || continue
+        grep -qx -- "$n" <<<"$stems" &&
+          blockers="${blockers:+${blockers}, }${n}"
+      done
+    fi
+
     rank=1
     [ "$urgency" = "urgent" ] && rank=0
-    printf '%s\t%s\t%s\t[%s, agent: %s, effort: %s]\n' \
+    [ -z "$blockers" ] || rank=$((rank + 2))
+    printf '%s\t%s\t%s\t[%s, agent: %s, effort: %s%s]\n' \
       "$rank" "${added:-9999999999}" "$f" \
-      "${urgency:-normal}" "${agent:-sonnet}" "${effort:-high}"
+      "${urgency:-normal}" "${agent:-sonnet}" "${effort:-high}" \
+      "${blockers:+, blocked by: ${blockers}}"
   done <<<"$plans" | sort -t$'\t' -k1,1n -k2,2n | head -n "$MAX_ENTRIES"
 )"
 
@@ -88,5 +117,6 @@ done <<<"$rows"
 
 printf '\nEntrypoint: open GitHub issues outrank plans — check first. Else top\n'
 printf 'plan above; its agent field = model tier to run it. Escalate tier or\n'
-printf 'effort fine, downgrade never (docs/agent-selection.md).\n'
+printf 'effort fine, downgrade never (docs/agent-selection.md). Unblocked\n'
+printf 'plans are independent — safe to run in parallel sessions.\n'
 exit 0

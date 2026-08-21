@@ -28,10 +28,25 @@ Copy [`TEMPLATE.md`](TEMPLATE.md). Sections:
   each.
 
 Frontmatter: `plan`, `urgency` (`normal` | `urgent`), `agent` (`haiku` |
-`sonnet` | `opus` — which tier implements this plan), `effort`. Plans get
-matched to agents, not one agent to all plans; selection rules:
+`sonnet` | `opus` — which tier implements this plan), `effort`, optional
+`needs` (plan names this one reads results of). Plans get matched to
+agents, not one agent to all plans; selection rules:
 [`docs/agent-selection.md`](../agent-selection.md). Implementing session
 may escalate tier or effort, never downgrade.
+
+## Dependencies and parallel work
+
+Queue = DAG. `needs: other-plan` blocks a plan while
+`docs/plans/other-plan.md` exists — done plans get deleted on merge, so
+file existence IS the edge; no status field to rot. Hook lists blocked
+plans last with `blocked by:`; never suggests them.
+
+Write `needs` only when this plan reads the other's RESULT. "Feels related"
+= fake edge; leave it out. Unblocked plans are independent by construction:
+run them in parallel sessions freely. Work where each step needs the full
+picture stays ONE plan, one session — splitting sequential work between
+agents measured worse than not splitting (DeepMind × MIT scaling study, via
+codejunkie99/graph-engineering task-graph rules).
 
 ## Lifecycle
 
