@@ -7,7 +7,7 @@ plan: none
 session: https://claude.ai/code/session_01KJKDHSDB5YrjCqUMHthgbV
 agent: sonnet
 updated: 2026-08-21
-next: Run /code-review (high) on full diff, then PR to main
+next: Open PR to main (edge review done, findings fixed)
 ---
 
 ## Goal
@@ -36,6 +36,9 @@ setup already fixes for provisioning.
   ever having chosen to.
 - Size threshold (inject small files, point at big ones) — two behaviors
   from one knob, unpredictable from the conf alone.
+- Neutralizing exported knobs inside selftest's jo() via `${VAR-}`
+  pass-through — bash cannot tell a caller's export from a per-call prefix
+  assignment there; global `unset` at script top is the working isolation.
 
 ## Blockers
 
