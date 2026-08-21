@@ -406,6 +406,7 @@ mkdir -p "${syncdst}/harness" "${syncdst}/env/custom"
 printf 'loop v1\n' >"${syncdst}/harness/AGENTS.md"          # stale: v1 is history
 printf 'consumer hacked\n' >"${syncdst}/CLAUDE.md"          # ahead: never in history
 printf 'own layer\n' >"${syncdst}/env/custom/AGENTS.md"     # consumer-only
+ln -s AGENTS.md "${syncdst}/env/custom/link.md"             # consumer-only symlink
 printf 'CONSUMER-README\n' >"${syncdst}/README.md"          # not synced
 printf 'entry stub\n' >"${syncdst}/joharness.sh"            # content current, exec bit lost
 # Above-marker copy of canonical v1: historical, so the splice moves it
@@ -457,6 +458,8 @@ else
 fi
 expect "consumer-only file reported, left" \
   "consumer-only env/custom/AGENTS.md" "$out"
+expect "consumer-only symlink reported" \
+  "consumer-only env/custom/link.md" "$out"
 expect "consumer README untouched" "CONSUMER-README" \
   "$(cat "${syncdst}/README.md")"
 
@@ -538,6 +541,29 @@ fi
 expect "symlink named" "CLAUDE.md is not a regular file" "$out"
 expect "symlink target untouched" "outside content" \
   "$(cat "${TMP}/link-target.md")"
+if [ -e "${syncdst7}/AGENTS.md" ]; then
+  fail "refusal leaves consumer untouched (AGENTS.md was bootstrapped)"
+else
+  pass "refusal leaves consumer untouched"
+fi
+
+# Symlinked ancestor directory: the leaf check alone would let cp write
+# straight through it to a tree outside the consumer.
+syncdst8="${TMP}/syncdst8"
+outside="${TMP}/outside-tree"
+mkdir -p "$syncdst8" "$outside"
+ln -s "$outside" "${syncdst8}/docs"
+if out="$(sync "$syncdst8")"; then
+  fail "symlinked ancestor dir fails the run"
+else
+  pass "symlinked ancestor dir fails the run"
+fi
+expect "symlinked ancestor named" "passes through symlinked directory docs/" "$out"
+if [ -z "$(ls -A "$outside")" ]; then
+  pass "nothing written through symlinked ancestor"
+else
+  fail "nothing written through symlinked ancestor ($(ls -A "$outside"))"
+fi
 
 # Canonical listed-but-missing file: silent drift is the failure mode, so
 # the run must end nonzero, not whisper to stderr. Mutates the canonical
