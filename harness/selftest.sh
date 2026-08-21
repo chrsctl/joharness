@@ -23,7 +23,7 @@ export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 # Knobs exported in the invoking shell must not steer the fixtures; per-call
 # prefix assignments below still apply.
 unset JOHARNESS_ENV JOHARNESS_ENV_SETUP JOHARNESS_ENV_MD \
-  JOHARNESS_CONF JOHARNESS_FORCE_SETUP DEVENV_FORCE
+  JOHARNESS_CONF JOHARNESS_FORCE_SETUP JOHARNESS_SYNC_ROOT DEVENV_FORCE
 
 PASS=0
 FAIL=0
@@ -363,8 +363,9 @@ step "sync-to-consumer.sh"
 
 syncsrc="${TMP}/syncsrc"
 git init -q "$syncsrc"
-mkdir -p "${syncsrc}/harness" "${syncsrc}/docs" "${syncsrc}/scripts" \
-  "${syncsrc}/env/none" "${syncsrc}/.claude/commands"
+mkdir -p "${syncsrc}/harness" "${syncsrc}/scripts" "${syncsrc}/env/none" \
+  "${syncsrc}/.claude/commands" "${syncsrc}/docs/handover" \
+  "${syncsrc}/docs/plans" "${syncsrc}/docs/product"
 printf 'loop v1\n' >"${syncsrc}/harness/AGENTS.md"
 printf 'tiers v1\n' >"${syncsrc}/docs/agent-selection.md"
 printf 'claude rules\n' >"${syncsrc}/CLAUDE.md"
@@ -372,6 +373,15 @@ printf 'entry stub\n' >"${syncsrc}/joharness.sh"
 printf 'sync stub\n' >"${syncsrc}/scripts/sync-to-consumer.sh"
 printf 'layer none\n' >"${syncsrc}/env/none/AGENTS.md"
 printf 'who cmd\n' >"${syncsrc}/.claude/commands/who.md"
+# Every FILES entry must exist: a listed-but-missing file fails the run.
+printf 'attrs\n' >"${syncsrc}/.gitattributes"
+printf '{}\n' >"${syncsrc}/.claude/settings.json"
+for stub in docs/caveman.md docs/graph.md \
+  docs/handover/README.md docs/handover/TEMPLATE.md \
+  docs/plans/README.md docs/plans/TEMPLATE.md \
+  docs/product/README.md docs/product/TEMPLATE.md; do
+  printf 'stub %s\n' "$stub" >"${syncsrc}/${stub}"
+done
 cat >"${syncsrc}/AGENTS.md" <<'EOF'
 CANON-HARNESS-V1
 
@@ -405,7 +415,7 @@ CONSUMER-PART2-SENTINEL
 EOF
 
 sync() {
-  CLAUDE_PROJECT_DIR="$syncsrc" \
+  JOHARNESS_SYNC_ROOT="$syncsrc" \
     bash "${ROOT}/scripts/sync-to-consumer.sh" "$@" 2>&1
 }
 
@@ -443,6 +453,11 @@ expect "consumer README untouched" "CONSUMER-README" \
 # else settles to same — reruns must be idempotent.
 out="$(sync "$syncdst")"; rc=$?
 expect "rerun updates nothing" "0 updated, 0 new" "$out"
+if [ "$rc" -eq 2 ]; then
+  pass "rerun still exits 2 while ahead"
+else
+  fail "rerun still exits 2 while ahead (got ${rc})"
+fi
 
 # Consumer AGENTS.md without the marker: refuse whole-file, touch nothing.
 syncdst2="${TMP}/syncdst2"
@@ -456,6 +471,32 @@ fi
 expect "missing marker names the problem" "lacks marker" "$out"
 expect "missing marker leaves file untouched" "no marker here" \
   "$(cat "${syncdst2}/AGENTS.md")"
+
+# Canonical listed-but-missing file: silent drift is the failure mode, so
+# the run must end nonzero, not whisper to stderr. Mutates the canonical
+# fixture — keep these two cases last.
+git -C "$syncsrc" rm -q docs/graph.md
+commit_all "$syncsrc" "drop graph doc"
+syncdst3="${TMP}/syncdst3"
+mkdir -p "$syncdst3"
+out="$(sync "$syncdst3")"; rc=$?
+if [ "$rc" -eq 1 ]; then
+  pass "listed file missing from canonical exits 1"
+else
+  fail "listed file missing from canonical exits 1 (got ${rc})"
+fi
+expect "missing canonical file named" "canonical has no docs/graph.md" "$out"
+
+# Dirty canonical: working-tree-only content would ship now and read
+# AHEAD on every later run — refused before anything is written.
+printf 'uncommitted\n' >>"${syncsrc}/harness/AGENTS.md"
+out="$(sync "$syncdst3")"; rc=$?
+if [ "$rc" -eq 1 ]; then
+  pass "dirty canonical refused"
+else
+  fail "dirty canonical refused (got ${rc})"
+fi
+expect "dirty canonical names the problem" "uncommitted changes" "$out"
 
 # --- summary ----------------------------------------------------------------
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
