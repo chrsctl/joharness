@@ -2,12 +2,12 @@
 workstream: pm-dispatch
 status: in-progress
 branch: claude/multi-agent-orchestration-pr-jyli0w
-pr: none
+pr: 10
 plan: none
 session: https://claude.ai/code/session_019M7ypRKWMGi2oaM3XEmGcC
 agent: sonnet
 updated: 2026-08-21
-next: Human merges #8 -> #7 -> #5 (fix already pushed to #8); then re-run queue check
+next: Human merges #8 -> #7 -> #5 (fix already pushed to #8); then re-run queue check. PR #10 = this thread's tracker; merges LAST, when PM winds down, deleting this file in that commit
 ---
 
 ## Goal
