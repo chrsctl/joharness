@@ -87,23 +87,22 @@ else
   pass "path-walking layer name rejected"
 fi
 
-# md mode: eager injects the layer's rules whole, lazy points at the file.
+# md mode: lazy (default) points at the layer's rules, eager injects whole.
 cat >"${sel}/env/aaa/AGENTS.md" <<'EOF'
 RULE-SENTINEL unique to this fixture
 EOF
 out="$(jo env)"
-expect "env status shows md mode" "md          : eager (default)" "$out"
+expect "env status shows md mode" "md          : lazy (default)" "$out"
 out="$(jo session-start)"
+refute "default md withholds layer rules" "RULE-SENTINEL" "$out"
+expect "default md points at the file" "Read env/aaa/AGENTS.md" "$out"
+out="$(JOHARNESS_ENV_MD=eager jo session-start)"
 expect "eager md injects layer rules" "RULE-SENTINEL" "$out"
-out="$(JOHARNESS_ENV_MD=lazy jo session-start)"
-refute "lazy md withholds layer rules" "RULE-SENTINEL" "$out"
-expect "lazy md points at the file" "Read env/aaa/AGENTS.md" "$out"
 
-# The conf path too — it is how a repo actually enables lazy md.
-printf 'JOHARNESS_ENV_MD=lazy\n' >>"${sel}/joharness.conf"
+# The conf path too — it is how a repo actually flips the knob.
+printf 'JOHARNESS_ENV_MD=eager\n' >>"${sel}/joharness.conf"
 out="$(jo session-start)"
-refute "conf md=lazy withholds layer rules" "RULE-SENTINEL" "$out"
-expect "conf md=lazy points at the file" "Read env/aaa/AGENTS.md" "$out"
+expect "conf md=eager injects layer rules" "RULE-SENTINEL" "$out"
 
 # --- fixture: origin with main, a rival branch, and this session's branch ---
 origin="${TMP}/origin.git"
