@@ -1,0 +1,51 @@
+# Harness
+
+Caveman file. Short on purpose — ETH AGENTbench (138 repos): long context file
+hurt agent, cost more. Keep only what code cannot tell you. Why-explanations
+live in `docs/` — read there before fighting a rule.
+
+House style for instructions and replies:
+[`docs/caveman.md`](docs/caveman.md). Write new instruction text in it; never
+let style eat a fact.
+
+Environment rules are not here. Entrypoint injects them at session start from
+the selected layer — [`env/README.md`](env/README.md).
+
+## Loop
+
+1. **Orient.** Hook prints handover state before first prompt. Hook names
+   workstream file for this branch? That is your job. Read whole file. Go to 4.
+2. **Pick.** Queue = open GitHub issues. Oldest actionable first, urgent first
+   if marked. No issue, no file: ask human. Not invent work.
+3. **Claim.** Cut branch. Write `docs/handover/<workstream>.md`. Push NOW —
+   no push, no claim. Hook shows overlap? `/who`. Only `RUNNING` session means
+   branch taken.
+4. **Build.**
+5. **Verify.** All green or not done. `./joharness.sh ci` runs exactly what
+   GitHub CI runs — run it here, before the pull request, not after.
+   `./joharness.sh verify` proves the selected environment. Trust counted
+   numbers, never written numbers — including numbers in any instruction file.
+6. **Hand over.** Update workstream file in SAME commit as code. Before ending
+   any unfinished turn, not only at session end. `/handover` writes it.
+7. **Merge.** Delete workstream file. Still-useful bits go to the right layer's
+   `AGENTS.md` or `docs/`.
+
+## Decide alone
+
+- Implementation yours. Interface signatures not yours.
+- Scope change too big to ratify alone? Decide, write down, flag for human.
+  Do not stop.
+- Stop and ask ONLY for: money, credentials, hardware, product direction.
+
+## Handover
+
+- One file per workstream under `docs/handover/`, lives on work branch.
+  Shape: `docs/handover/TEMPLATE.md`.
+- Write only what git cannot tell next session: goal, decisions, rejected
+  paths, blockers, next step. Git knows rest.
+- Same commit as code. Push early — unpushed work invisible to other sessions.
+- Push time not liveness. Wrong both directions. `/who` = truth.
+- Copy or sync task (initial harness copy, sync from joharness): NO
+  workstream file. Diff self-describing. See protocol "When NOT to write
+  one".
+- Full protocol + why: [`docs/handover/README.md`](docs/handover/README.md).
