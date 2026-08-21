@@ -20,6 +20,11 @@ export GIT_AUTHOR_NAME=selftest GIT_AUTHOR_EMAIL=selftest@invalid
 export GIT_COMMITTER_NAME=selftest GIT_COMMITTER_EMAIL=selftest@invalid
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 
+# Knobs exported in the invoking shell must not steer the fixtures; per-call
+# prefix assignments below still apply.
+unset JOHARNESS_ENV JOHARNESS_ENV_SETUP JOHARNESS_ENV_MD \
+  JOHARNESS_CONF JOHARNESS_FORCE_SETUP DEVENV_FORCE
+
 PASS=0
 FAIL=0
 
@@ -93,6 +98,12 @@ expect "eager md injects layer rules" "RULE-SENTINEL" "$out"
 out="$(JOHARNESS_ENV_MD=lazy jo session-start)"
 refute "lazy md withholds layer rules" "RULE-SENTINEL" "$out"
 expect "lazy md points at the file" "Read env/aaa/AGENTS.md" "$out"
+
+# The conf path too — it is how a repo actually enables lazy md.
+printf 'JOHARNESS_ENV_MD=lazy\n' >>"${sel}/joharness.conf"
+out="$(jo session-start)"
+refute "conf md=lazy withholds layer rules" "RULE-SENTINEL" "$out"
+expect "conf md=lazy points at the file" "Read env/aaa/AGENTS.md" "$out"
 
 # --- fixture: origin with main, a rival branch, and this session's branch ---
 origin="${TMP}/origin.git"
