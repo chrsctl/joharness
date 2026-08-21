@@ -29,8 +29,10 @@
 # consumer and is reported as consumer-only.
 #
 # Usage: scripts/sync-to-consumer.sh [--dry-run] <consumer-dir>
-# Exit: 0 synced clean, 1 usage or tree error (dirty canonical, listed
-# file missing from canonical, marker absent), 2 consumer copies AHEAD.
+# Exit: 0 synced clean. 1 refused before any write (usage, dirty
+# canonical, structural problem, marker absent) — consumer untouched.
+# 2 consumer copies AHEAD — other updates applied. 3 listed path missing
+# from canonical — sync ran, fix the FILES/DIRS list or the tree.
 
 set -euo pipefail
 
@@ -108,12 +110,12 @@ DIRS=(
 
 # AHEAD detection compares committed blobs: modified or untracked content
 # at a listed file path would ship from the working tree and read AHEAD
-# on every later run. Under synced dirs only tracked modifications block —
-# ls-files drives those copies, so an untracked scratch file there cannot
-# ship and must not stop the run.
-dirty="$(git -C "$ROOT" status --porcelain -uno -- AGENTS.md "${FILES[@]}" "${DIRS[@]}")"
+# on every later run — any state there blocks. Under synced dirs only
+# tracked modifications block (-uno): ls-files drives those copies, so an
+# untracked scratch file there cannot ship and must not stop the run.
+dir_dirty="$(git -C "$ROOT" status --porcelain -uno -- "${DIRS[@]}")"
 listed_dirty="$(git -C "$ROOT" status --porcelain -- AGENTS.md "${FILES[@]}")"
-if [ -n "$dirty" ] || [ -n "$listed_dirty" ]; then
+if [ -n "$dir_dirty" ] || [ -n "$listed_dirty" ]; then
   die "canonical has uncommitted changes under synced paths; commit first"
 fi
 
@@ -381,7 +383,11 @@ printf '%d updated, %d new, %d ahead, %d consumer-only, %d same\n' \
 if [ "$AHEAD" -gt 0 ]; then
   log "consumer is ahead on ${AHEAD} file(s); reconcile canonical-first, then re-run"
 fi
+# Exit 3, not die's 1: by now the sync has written. 1 is reserved for
+# refusals that leave the consumer untouched.
 if [ "$MISSING" -gt 0 ]; then
-  die "${MISSING} listed path(s) missing from canonical; fix the FILES/DIRS list or the tree"
+  printf '[joharness] ERROR: %s\n' \
+    "${MISSING} listed path(s) missing from canonical; fix the FILES/DIRS list or the tree" >&2
+  exit 3
 fi
 [ "$AHEAD" -eq 0 ] || exit 2

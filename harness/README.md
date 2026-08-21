@@ -13,7 +13,7 @@ environment sits under [`../env/`](../env/README.md).
 | `../joharness.sh` | Entrypoint. Runs this layer, plus the selected environment. |
 | `../scripts/sync-to-consumer.sh` | Sync tool: brings a consumer's harness copy current. |
 | `../.claude/commands/` | `/handover`, `/who`. |
-| `../.claude/settings.json` | SessionStart hook wiring. |
+| `../.claude/settings.json` | SessionStart hook wiring. Consumer-own settings go in `.claude/settings.local.json`, never here — this file syncs whole. |
 | `../.gitattributes` | LF pins. `selftest.sh` asserts them — the two ship as a pair. |
 | `../env/` | All layers, whole. Consumer selects via its own `joharness.conf`. |
 | `../CLAUDE.md` | Harness protocol. No Part 2 marker — synced whole. |
