@@ -36,6 +36,9 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    numbers, never written numbers — including numbers in any instruction file.
    Edge to main = in-depth review, always: `/code-review` (high) on full
    diff before PR. Fix findings or record why not — never drop silent.
+   Fix undoes earlier round's fix? Review churn: stop patching, research
+   step at raised tier or effort first (`docs/agent-selection.md`, review
+   churn rule).
 6. **Hand over.** Update workstream file in SAME commit as code. Before ending
    any unfinished turn, not only at session end. `/handover` writes it.
 7. **Finish.** PR, merge to `main` — every step merges, no long-lived

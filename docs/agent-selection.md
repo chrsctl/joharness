@@ -29,6 +29,18 @@ mapping:
 - effort xhigh when plan touches a Part 2 prohibition's territory — same
   reasoning, cheaper lever than a tier jump.
 - Under-thinking observed: raise effort or tier, never prompt around it.
+- Review churn = one round's fix breaks what earlier round's fix
+  established. Signal: requirements conflict under one rule, not bad code.
+  Patching never converges — each round trades one requirement for
+  another. Finding counts no signal, false both ways. Stop patching.
+  Research step before next fix: list all requirements code must satisfy,
+  check pairs for conflict, resolve conflict by repo's stated priority,
+  then fix once. Step runs at raised tier or effort — same lever as
+  under-thinking. Session cannot switch own model: raise effort in place,
+  or record wanted tier in workstream file and hand step to fresh session.
+  Observed 2026-08-21, `chrsctl/redoct` verify matching rule: 5 review
+  rounds of patching, findings per round 3, 5, 3, 5, 2 — no floor; one
+  conflict diagnosis (union of two rules) ended it.
 - Plan author assigns; implementing session may escalate tier or effort and
   record why in workstream file. Never downgrade to save cost — that
   decision is money, humans only (harness/AGENTS.md: stop and ask for
