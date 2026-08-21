@@ -3,7 +3,7 @@
 # devenv.sh - provision the Docker + Kubernetes environment used by Claude.
 #
 # Subcommands:
-#   up             docker-up + install (what the SessionStart hook runs)
+#   up             docker-up + install (no cluster)
 #   install        install kubectl / k3d / helm (idempotent, pinned versions)
 #   docker-up      start dockerd and wait for it to accept connections
 #   cluster-up     create (or restart, or repair) the Kubernetes cluster
@@ -21,7 +21,7 @@ set -euo pipefail
 # These are pinned rather than "latest" on purpose: this sandbox's egress proxy
 # returns 403 for github.com HTML pages, which breaks the /releases/latest
 # redirect that most install scripts rely on. Direct release ASSET urls do work,
-# so we ask for exact versions. See docs/environment.md.
+# so we ask for exact versions. See env/k8s/README.md.
 # ---------------------------------------------------------------------------
 K3D_VERSION="${K3D_VERSION:-v5.9.0}"
 KUBECTL_VERSION="${KUBECTL_VERSION:-v1.35.8}"
@@ -35,7 +35,7 @@ HELM_VERSION="${HELM_VERSION:-v3.21.4}"
 # drop-in rendered below (failCgroupV1: false) is what lets it start; do not
 # remove that when bumping this. v1.36.3 was measured to start with the same
 # drop-in, but cgroup v1 there is past maintenance mode - validate the full
-# smoke test before pinning it. See docs/environment.md.
+# smoke test before pinning it. See env/k8s/README.md.
 K3S_IMAGE="${K3S_IMAGE:-rancher/k3s:v1.35.7-k3s1}"
 
 CLUSTER_NAME="${DEVENV_CLUSTER_NAME:-claude-dev}"
@@ -206,7 +206,7 @@ render_containerd_dropin() {
   local out="$1"
   mkdir -p "$(dirname "$out")"
   cat >"$out" <<'EOF'
-# Managed by scripts/devenv.sh - see docs/environment.md
+# Managed by env/k8s/devenv.sh - see env/k8s/README.md
 [plugins.'io.containerd.cri.v1.runtime']
   restrict_oom_score_adj = true
 EOF
@@ -226,7 +226,7 @@ render_kubelet_dropin() {
   local out="$1"
   mkdir -p "$(dirname "$out")"
   cat >"$out" <<'EOF'
-# Managed by scripts/devenv.sh - see docs/environment.md
+# Managed by env/k8s/devenv.sh - see env/k8s/README.md
 apiVersion: kubelet.config.k8s.io/v1beta1
 kind: KubeletConfiguration
 failCgroupV1: false
@@ -464,16 +464,16 @@ cmd_up() {
   fi
   cmd_install
   [ "$started" -eq 0 ] || docker_wait
-  # Kubernetes is opt-in at startup: creating the cluster costs time most
-  # sessions do not need. Set DEVENV_START_CLUSTER=1 to have every session start
-  # with a cluster already running.
+  # `up` stops short of the cluster: it is the tools-only entry point. The
+  # layer's setup.sh is what asks for a cluster, by setting DEVENV_START_CLUSTER
+  # (default 1 there) and calling cluster-up.
   if [ "${DEVENV_START_CLUSTER:-0}" = "1" ]; then
     cmd_cluster_up
   elif cluster_responsive; then
     log "docker, CLI tools and cluster '${CLUSTER_NAME}' ready"
   else
     log "docker and CLI tools ready; Kubernetes not started"
-    log "run 'scripts/devenv.sh cluster-up' when you need the cluster"
+    log "run './joharness.sh setup' (or '$0 cluster-up') when you need the cluster"
   fi
 }
 
