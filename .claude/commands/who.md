@@ -1,5 +1,5 @@
 ---
-description: Show which sessions are actually working on this repo right now, and on which branches
+description: Show which sessions work on this repo now, and on which branches
 ---
 
 Report real state of concurrent work. Inline — no subagent.
