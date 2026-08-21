@@ -5,7 +5,7 @@ branch: claude/handover-rot-enforcement-8chuvt
 pr: none
 session: https://claude.ai/code/session_016Fb42AZrNDN76pKG3gNQCP
 updated: 2026-08-21
-next: Add workstream-file rot check to joharness.sh ci; graduate keepers from env-harness-split.md, then delete it
+next: Run ./joharness.sh ci green, open PR, delete this file in the final commit
 ---
 
 ## Goal
@@ -27,9 +27,22 @@ through.
   ON the branch during review (PR body links to it) and deleted in the final
   commit. Failing the PR would fight the protocol's own review flow.
 
+- Base-branch detection prefers GitHub env (`GITHUB_EVENT_NAME` = `push` and
+  `GITHUB_REF_NAME` = base) over the local branch name: a pull request checks
+  out `refs/pull/N/merge`, where `git rev-parse` reports `HEAD` detached, so
+  the local answer is meaningless exactly where the distinction matters.
+- Graduated from env-harness-split.md: Docker Hub 429 trip-wire to
+  `env/k8s/AGENTS.md`. Rename map for the three in-flight branches NOT
+  graduated — recoverable via `git show` from history and from PR #3's body.
+
 ## Rejected
 
-- (none yet)
+- Failing ci on a pull request that carries a workstream file. Protocol wants
+  the file on the branch during review (PR body links to it); a hard fail
+  would force deleting it before review starts, killing the link.
+- New `joharness.sh lint-handover` subcommand. Second entry point to document
+  and to keep wired into ci.yml; `ci` is already "the whole of what GitHub
+  checks".
 
 ## Blockers
 

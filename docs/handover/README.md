@@ -262,8 +262,12 @@ Workstream file = scaffolding, not documentation. Work done:
 Files left after merge get read as current — worse than no file. Nothing worth
 graduating? Fine outcome — delete.
 
-**No workstream file belongs on `main`.** Hook checks, names any there: make
-rot visible, not trust discipline.
+**No workstream file belongs on `main`.** Two checks, neither trusting
+discipline: the session-start hook names any file left there, and
+`joharness.sh ci` refuses — red on a push to `main`, a warning on a pull
+request so deletion lands in the final commit before merge. The hook alone
+proved insufficient: the first PR to skip deletion merged clean and the next
+session read the leftover file as current.
 
 Rule started weaker; first merge broke it in minutes. Original carve-out:
 file on `main` fine while work spans PRs, check only flagged `status: done`.
@@ -280,9 +284,10 @@ Placement decisions that look arbitrary, recorded so not helpfully undone:
 - **Loop in `AGENTS.md`, not `docs/WORKFLOW.md`.** Needed every session;
   `AGENTS.md` loads every session. Separate document read once, by the agent
   least needing it.
-- **The `main` rot check in the hook, not a test suite.** Suite = one more
-  thing to keep in step with file list; hook already fetches and parses these
-  files every session start. Costs nothing extra there.
+- **The `main` rot check in the hook AND in `joharness.sh ci`.** Hook informs
+  the next session; only ci can refuse a merge's aftermath. Both reuse the
+  same filter (everything under `docs/handover/` except `README.md` and
+  `TEMPLATE.md`), so there is no file list to keep in step.
 
 ## Why not the alternatives
 

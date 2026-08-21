@@ -173,6 +173,27 @@ cmd_ci() {
     rc=1
   fi
 
+  # Workstream files must not survive a merge (docs/handover/README.md,
+  # Graduation). The session-start hook reports one left behind, but only to
+  # the session after the mistake; this is the check that can refuse. On a
+  # pull request the file is legitimate mid-review, so it warns instead of
+  # failing — deletion belongs in the final commit before merge.
+  printf '\n== workstream files\n'
+  local rot
+  rot="$(rot_files)"
+  if [ -z "$rot" ]; then
+    printf '  none in tree\n'
+  else
+    printf '%s\n' "$rot" | sed 's/^/  /'
+    if on_base_branch; then
+      printf '  merged work is finished work: move keepers to AGENTS.md or docs/, then delete\n'
+      rc=1
+    else
+      printf '  fine while in flight; delete in the final commit or ci goes red on %s\n' \
+        "${HANDOVER_BASE_BRANCH:-main}"
+    fi
+  fi
+
   printf '\n'
   if [ "$rc" -eq 0 ]; then
     printf 'ci: pass\n'
@@ -183,6 +204,28 @@ cmd_ci() {
   # The environment smoke test is deliberately not part of this: it needs the
   # sandbox, and GitHub runners have none. Run it with `verify`.
   return "$rc"
+}
+
+# Workstream files in the tree, repo-relative. Same filter as
+# harness/handover-context.sh: the protocol README and the template are not
+# workstreams.
+rot_files() {
+  [ -d "${ROOT}/docs/handover" ] || return 0
+  (cd "$ROOT" && find docs/handover -maxdepth 1 -name '*.md' \
+    ! -name 'TEMPLATE.md' ! -name 'README.md' 2>/dev/null | sort)
+}
+
+# Is this run checking the base branch itself, as opposed to work in flight?
+# On GitHub, a pull request checks out refs/pull/N/merge — a preview, not the
+# branch — so only a push event to the base branch counts. Locally, the
+# checked-out branch decides.
+on_base_branch() {
+  local base="${HANDOVER_BASE_BRANCH:-main}"
+  if [ -n "${GITHUB_REF_NAME:-}" ]; then
+    [ "${GITHUB_EVENT_NAME:-}" = "push" ] && [ "${GITHUB_REF_NAME}" = "$base" ]
+  else
+    [ "$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null)" = "$base" ]
+  fi
 }
 
 # Every shell script the harness owns, in a stable order.

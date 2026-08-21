@@ -61,6 +61,8 @@ Sandbox = Firecracker microVM + filtering egress proxy. Workarounds in
 - Download 403? Host blocked by egress policy. Do not route around. Known
   good: `dl.k8s.io`, `get.helm.sh`, `proxy.golang.org`, `registry.k8s.io`,
   `registry-1.docker.io`, `raw.githubusercontent.com`.
+- Image pull `429 Too Many Requests` from Docker Hub = transient throttling of
+  egress IP, not code fault. Retry; do not add registry workaround.
 
 ## Persistence
 
