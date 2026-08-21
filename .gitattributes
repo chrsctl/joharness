@@ -8,3 +8,8 @@
 # return" on every line - 520 findings and a red gate before any work starts.
 # Later patterns win, so this has to stay below the rule above.
 *.sh text eol=lf
+
+# Markdown too: handover-context.sh reads docs/handover/*.md from the working
+# tree, and field() exits on any line 1 not exactly `---`. CRLF checkout empties
+# every field - hook prints `[?, updated ?]`, gate above stays green.
+*.md text eol=lf
