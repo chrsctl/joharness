@@ -20,6 +20,11 @@ export GIT_AUTHOR_NAME=selftest GIT_AUTHOR_EMAIL=selftest@invalid
 export GIT_COMMITTER_NAME=selftest GIT_COMMITTER_EMAIL=selftest@invalid
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 
+# Knobs exported in the invoking shell must not steer the fixtures; per-call
+# prefix assignments below still apply.
+unset JOHARNESS_ENV JOHARNESS_ENV_SETUP JOHARNESS_ENV_MD \
+  JOHARNESS_CONF JOHARNESS_FORCE_SETUP DEVENV_FORCE
+
 PASS=0
 FAIL=0
 
@@ -81,6 +86,23 @@ if jo env 'bad/../name' >/dev/null 2>&1; then
 else
   pass "path-walking layer name rejected"
 fi
+
+# md mode: lazy (default) points at the layer's rules, eager injects whole.
+cat >"${sel}/env/aaa/AGENTS.md" <<'EOF'
+RULE-SENTINEL unique to this fixture
+EOF
+out="$(jo env)"
+expect "env status shows md mode" "md          : lazy (default)" "$out"
+out="$(jo session-start)"
+refute "default md withholds layer rules" "RULE-SENTINEL" "$out"
+expect "default md points at the file" "Read env/aaa/AGENTS.md" "$out"
+out="$(JOHARNESS_ENV_MD=eager jo session-start)"
+expect "eager md injects layer rules" "RULE-SENTINEL" "$out"
+
+# The conf path too — it is how a repo actually flips the knob.
+printf 'JOHARNESS_ENV_MD=eager\n' >>"${sel}/joharness.conf"
+out="$(jo session-start)"
+expect "conf md=eager injects layer rules" "RULE-SENTINEL" "$out"
 
 # --- fixture: origin with main, a rival branch, and this session's branch ---
 origin="${TMP}/origin.git"
