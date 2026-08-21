@@ -149,11 +149,20 @@ cmd_ci() {
   fi
 
   printf '== shellcheck (%d files)\n' "${#targets[@]}"
-  if have shellcheck; then
+  local sc_skipped=0
+  if ensure_shellcheck; then
     shellcheck -x "${targets[@]}" && printf '  zero findings\n' || rc=1
-  else
-    warn "shellcheck not installed: apt-get install -y shellcheck"
+  elif [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+    # The workflow is the gate; a gate that skips its own bar is no gate.
+    warn "shellcheck not installed and not installable on the CI runner"
     rc=1
+  else
+    # A session's problem is the code, not the toolchain. Missing tool =
+    # loud skip, never a fake red. Human decides whether the skip stands.
+    sc_skipped=1
+    warn "shellcheck unavailable, install failed. NOT checked. Install it"
+    warn "(apt-get install -y shellcheck) or ask human before trusting this."
+    printf '  SKIPPED\n'
   fi
 
   printf '\n== bash syntax\n'
@@ -174,10 +183,12 @@ cmd_ci() {
   fi
 
   printf '\n'
-  if [ "$rc" -eq 0 ]; then
-    printf 'ci: pass\n'
-  else
+  if [ "$rc" -ne 0 ]; then
     printf 'ci: FAIL\n'
+  elif [ "$sc_skipped" -eq 1 ]; then
+    printf 'ci: pass (shellcheck SKIPPED — not the full bar)\n'
+  else
+    printf 'ci: pass\n'
   fi
 
   # The environment smoke test is deliberately not part of this: it needs the
@@ -192,6 +203,23 @@ check_targets() {
 }
 
 have() { command -v "$1" >/dev/null 2>&1; }
+
+# The shellcheck binary is the acceptance bar, but its absence is an
+# environment problem, not a code problem. Best effort: install quietly,
+# succeed = have it.
+ensure_shellcheck() {
+  have shellcheck && return 0
+  if have apt-get; then
+    log "installing shellcheck"
+    apt-get install -y shellcheck >/dev/null 2>&1 ||
+      { apt-get update -qq >/dev/null 2>&1 &&
+        apt-get install -y shellcheck >/dev/null 2>&1; }
+  elif have brew; then
+    log "installing shellcheck"
+    brew install shellcheck >/dev/null 2>&1
+  fi
+  have shellcheck
+}
 
 cmd_env() {
   local want="${1:-}" current found=0 name
