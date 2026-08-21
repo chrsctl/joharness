@@ -146,6 +146,56 @@ expect "gives the git show command" "git show origin/rival:docs/handover/rival-w
 expect "flags workstream file rotting on main" "docs/handover/stale-ws.md" "$out"
 expect "rot check ignores status field" "Merged = finished" "$out"
 
+# --- handover hook: a second remote ----------------------------------------
+# Without push access to origin, work happens on a fork, so the checkout has
+# two remotes carrying the same branch names. The hook keys on the branch name
+# with the remote stripped; keying on 'origin/<branch>' reported the session
+# its own push as a rival, overlap warning and all.
+step "handover-context.sh with a fork remote"
+
+fork="${TMP}/fork.git"
+git init -q --bare "$fork"
+git -C "$work" remote add fork "$fork"
+git -C "$work" push -q fork 'refs/remotes/origin/*:refs/heads/*'
+
+# feature has to be genuinely ahead of origin/main before it is pushed: a
+# branch that is an ancestor of the base is already-merged work and gets
+# skipped earlier, which would make the self-entry assertions below pass
+# whether or not the hook is fixed.
+commit_all "$work" "feature work"
+git -C "$work" push -q fork feature
+git -C "$work" fetch -q fork
+
+out="$(CLAUDE_PROJECT_DIR="$work" HANDOVER_FETCH=0 \
+  bash "${ROOT}/harness/handover-context.sh" 2>&1)"
+
+refute "own branch not reported from another remote" "fork/feature" "$out"
+expect "rival branch still listed once" "origin/rival: docs/handover/rival-ws.md" "$out"
+refute "fork's copy of the rival is not a second workstream" "fork/rival" "$out"
+
+# The dedup keys on origin having the name, not on the remote being called
+# 'fork'. A branch that exists only on the fork is real work and stays.
+git -C "$work" checkout -qb fork-only main~1
+mkdir -p "${work}/docs/handover"
+cat >"${work}/docs/handover/fork-only-ws.md" <<'EOF'
+---
+workstream: fork-only-ws
+status: in-progress
+updated: 2026-01-01
+next: Fixture
+---
+EOF
+commit_all "$work" "work that exists only on the fork"
+git -C "$work" push -qu fork fork-only
+git -C "$work" checkout -q feature
+git -C "$work" fetch -q fork
+out="$(CLAUDE_PROJECT_DIR="$work" HANDOVER_FETCH=0 \
+  bash "${ROOT}/harness/handover-context.sh" 2>&1)"
+expect "a branch only the fork has is still reported" "fork/fork-only" "$out"
+
+git -C "$work" remote remove fork
+git -C "$work" branch -qD fork-only
+
 # --- queue hook -------------------------------------------------------------
 step "queue-context.sh"
 
