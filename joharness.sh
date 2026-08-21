@@ -165,7 +165,7 @@ cmd_ci() {
     # loud skip, never a fake red. Human decides whether the skip stands.
     sc_skipped=1
     warn "shellcheck unavailable, install failed. NOT checked. Install it"
-    warn "(apt-get install -y shellcheck) or ask human before trusting this."
+    warn "(github.com/koalaman/shellcheck#installing) or ask human first."
     printf '  SKIPPED\n'
   fi
 
