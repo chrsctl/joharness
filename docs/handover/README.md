@@ -20,7 +20,7 @@ Git + GitHub already record, precisely, no drift:
 | --- | --- |
 | What changed | `git diff`, `git log`, the PR diff |
 | What is in flight | branches, open PRs |
-| Whether it works | CI checks, `scripts/smoke-test.sh` |
+| Whether it works | CI checks, `env/k8s/smoke-test.sh` |
 | Who asked for what | issue and PR bodies, review threads |
 
 Writing any of that into markdown = second copy, rots immediately. Handover
@@ -116,7 +116,7 @@ One paragraph, in the requester's terms. Why this is being done, not what.
 None. (Or: what is blocking, and what would unblock it.)
 
 ## Where to look
-- `scripts/devenv.sh:create_cluster` — the containerd drop-in is load bearing.
+- `env/k8s/devenv.sh:create_cluster` — the containerd drop-in is load bearing.
 ```
 
 `status`, `updated`, `next` in frontmatter — hook reads them without opening
@@ -253,7 +253,7 @@ not stale at all.
 
 Workstream file = scaffolding, not documentation. Work done:
 
-1. Anything mattering in six months moves to `AGENTS.md` (agent needs every
+1. Anything mattering in six months moves to `harness/AGENTS.md` (agent needs every
    session) or `docs/` (background). The "do not bump `K3S_IMAGE` casually"
    note in `AGENTS.md` is exactly this: rejected approach that graduated.
 2. Workstream file deleted in final commit.
@@ -301,7 +301,7 @@ Three layers, each covering previous one's failure mode:
 1. **`CLAUDE.md`** imports `AGENTS.md`, states protocol in two lines. Claude
    Code loads `CLAUDE.md`, not `AGENTS.md` — repo with only `AGENTS.md` not
    loading own instructions.
-2. **`.claude/hooks/handover-context.sh`** runs every session start, injects
+2. **`harness/handover-context.sh`** runs every session start, injects
    live state: current branch, this branch's file with `status`/`next`, every
    other branch's files with command to read them. Instructions get skimmed;
    injected context already in window.

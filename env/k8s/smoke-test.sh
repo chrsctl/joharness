@@ -11,7 +11,7 @@
 #   6. an image pulls inside the cluster and the deployment rolls out
 #   7. in-cluster Service DNS and networking work
 #
-# Usage: scripts/smoke-test.sh [--keep]
+# Usage: env/k8s/smoke-test.sh [--keep]   (or: ./joharness.sh verify)
 #   --keep  leave the test namespace behind for inspection
 
 set -euo pipefail
@@ -45,7 +45,7 @@ step "Docker"
 if docker info >/dev/null 2>&1; then
   pass "dockerd is reachable"
 else
-  fail "dockerd is not reachable (run scripts/devenv.sh docker-up)"
+  fail "dockerd is not reachable (run env/k8s/devenv.sh docker-up)"
   printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
   exit 1
 fi
@@ -61,7 +61,7 @@ step "Kubernetes control plane"
 if k get --raw='/readyz' >/dev/null 2>&1; then
   pass "apiserver responds on /readyz"
 else
-  fail "apiserver is not responding (run scripts/devenv.sh cluster-up)"
+  fail "apiserver is not responding (run env/k8s/devenv.sh cluster-up)"
   printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
   exit 1
 fi
