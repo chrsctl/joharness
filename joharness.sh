@@ -19,12 +19,12 @@
 #   JOHARNESS_ENV=k8s          layer under env/ ('none' = no environment)
 #   JOHARNESS_ENV_SETUP=lazy   'lazy' (provision on demand) or 'eager'
 #                              (provision at session start)
-#   JOHARNESS_ENV_MD=eager     'eager' (inject the layer's AGENTS.md into
-#                              session context) or 'lazy' (inject a
-#                              read-before-touching pointer instead)
+#   JOHARNESS_ENV_MD=lazy      'lazy' (inject a read-before-touching pointer
+#                              to the layer's AGENTS.md) or 'eager' (inject
+#                              the file whole)
 #
-# Default is env 'none', setup 'lazy', md 'eager': a session that never asks
-# for an environment never pays for one.
+# Default is env 'none', setup 'lazy', md 'lazy': a session that never asks
+# for an environment never pays for one — not in provisioning, not in context.
 
 set -uo pipefail
 
@@ -241,7 +241,7 @@ cmd_env() {
   current="$(env_name)"
   effective="$(resolve_env 2>/dev/null)" || effective=""
   mode="$(setup_mode)"; [ -n "$mode" ] || mode="lazy (default)"
-  md="$(md_mode)"; [ -n "$md" ] || md="eager (default)"
+  md="$(md_mode)"; [ -n "$md" ] || md="lazy (default)"
 
   printf 'environment : %s\n' "${current:-none (default)}"
   # An explicit selection that does not resolve is worth saying out loud;
@@ -292,10 +292,10 @@ cmd_session_start() {
 
     printf '== Environment: %s (env/%s) ==\n\n' "$name" "$name"
     if [ -r "${ENV_ROOT}/${name}/AGENTS.md" ]; then
-      # md=lazy: context stays cheap, a pointer replaces the rules. Same bet
-      # as lazy setup — a session that never touches the environment never
-      # pays for its rules either.
-      if [ "$(md_mode)" = "lazy" ]; then
+      # Default md=lazy: context stays cheap, a pointer replaces the rules.
+      # Same bet as lazy setup — a session that never touches the environment
+      # never pays for its rules either. eager injects the file whole.
+      if [ "$(md_mode)" != "eager" ]; then
         printf 'Rules NOT loaded (md=lazy). Touching this environment — setup,\n'
         printf 'its scripts, anything it provisions? Read env/%s/AGENTS.md\n' "$name"
         printf 'FIRST. Whole file, before first command.\n\n'

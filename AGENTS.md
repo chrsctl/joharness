@@ -3,9 +3,9 @@
 @harness/AGENTS.md
 
 Environment rules are NOT in this file. `joharness.sh session-start` injects
-them — or, `JOHARNESS_ENV_MD=lazy`, a read-first pointer — from the layer
-named in `joharness.conf`. See [`env/README.md`](env/README.md); switch with
-`./joharness.sh env <name>`.
+a read-first pointer to them — or, `JOHARNESS_ENV_MD=eager`, the rules
+whole — from the layer named in `joharness.conf`. See
+[`env/README.md`](env/README.md); switch with `./joharness.sh env <name>`.
 
 ---
 
