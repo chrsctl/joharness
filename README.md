@@ -1,5 +1,9 @@
 # joharness
 
+Canonical harness home. Consumer repos (redoct, future ones) copy the harness
+from here; sync = plain copy commit, no handover file. House style:
+[`docs/caveman.md`](docs/caveman.md).
+
 ## Working in this repo
 
 Agent guidance: [`AGENTS.md`](AGENTS.md). `CLAUDE.md` imports it — Claude Code

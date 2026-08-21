@@ -43,6 +43,9 @@ Write new instruction text in it; never let style eat a fact.
   paths, blockers, next step. Git knows rest.
 - Same commit as code. Push early — unpushed work invisible to other sessions.
 - Push time not liveness. Wrong both directions. `/who` = truth.
+- Copy or sync task (initial harness copy, sync from joharness): NO
+  workstream file. Diff self-describing. See protocol "When NOT to write
+  one".
 - Full protocol + why: [`docs/handover/README.md`](docs/handover/README.md).
 
 ## Environment
