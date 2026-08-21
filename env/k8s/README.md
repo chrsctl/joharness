@@ -48,7 +48,7 @@ docker build -t my-app:dev .
 Kubernetes on demand (~20-45s, once per session):
 
 ```bash
-scripts/devenv.sh cluster-up
+env/k8s/devenv.sh cluster-up
 kubectl get nodes
 kubectl apply -f my-manifest.yaml
 helm install my-release ./chart
@@ -57,12 +57,12 @@ helm install my-release ./chart
 By hand:
 
 ```bash
-scripts/devenv.sh status        # what is running
-scripts/devenv.sh up            # everything (what the hook runs)
-scripts/devenv.sh cluster-up    # create/restart/repair the cluster
-scripts/devenv.sh cluster-down  # delete the cluster
-scripts/devenv.sh doctor        # diagnostics when something is wrong
-scripts/smoke-test.sh           # verify the environment end to end
+env/k8s/devenv.sh status        # what is running
+env/k8s/devenv.sh up            # everything (what the hook runs)
+env/k8s/devenv.sh cluster-up    # create/restart/repair the cluster
+env/k8s/devenv.sh cluster-down  # delete the cluster
+env/k8s/devenv.sh doctor        # diagnostics when something is wrong
+./joharness.sh verify          # provision, then verify end to end
 ```
 
 Local image into cluster (cluster has own image store, separate from host
@@ -89,7 +89,7 @@ tools only, so short:
 Cold path downloads kubectl, k3d, helm concurrently, starts dockerd under
 downloads. Wall clock = one download, not three plus docker wait.
 
-`scripts/devenv.sh cluster-up` costs 20-45s; only sessions that need it pay.
+`env/k8s/devenv.sh cluster-up` costs 20-45s; only sessions that need it pay.
 Self-contained: installs tools, starts Docker itself if hook did not.
 
 | Situation                                   | Time |
@@ -132,7 +132,7 @@ docker run --rm --oom-score-adj=0     alpine true  # works
 
 Fix: containerd `restrict_oom_score_adj`, clamps value to one kernel accepts.
 Applied as containerd drop-in written by `render_containerd_dropin` in
-`scripts/devenv.sh`, mounted into node at
+`env/k8s/devenv.sh`, mounted into node at
 `/var/lib/rancher/k3s/agent/etc/containerd/config-v3.toml.d/`.
 
 Must be drop-in, not `config-v3.toml.tmpl` override: k3s renders own config;
@@ -159,7 +159,7 @@ maintenance mode); `false` = supported opt-out. **Config-file only** — no
 `--fail-cgroup-v1` CLI flag, cannot pass via `--kubelet-arg`, attempt fails
 `unknown flag`. k3s runs kubelet with
 `--config-dir=/var/lib/rancher/k3s/agent/etc/kubelet.conf.d`, so
-`render_kubelet_dropin` in `scripts/devenv.sh` writes drop-in there, mounted
+`render_kubelet_dropin` in `env/k8s/devenv.sh` writes drop-in there, mounted
 like containerd drop-in:
 
 ```yaml
@@ -205,7 +205,7 @@ URLs work, so versions pinned explicit, never "latest". Reachable:
 `dl.k8s.io`, `get.helm.sh`, `proxy.golang.org`, `registry.k8s.io`,
 `registry-1.docker.io`, `raw.githubusercontent.com`.
 
-k3d release asset unavailable? `scripts/devenv.sh` falls back to
+k3d release asset unavailable? `env/k8s/devenv.sh` falls back to
 `go install github.com/k3d-io/k3d/v5@<version>`.
 
 ## Notes and limits
