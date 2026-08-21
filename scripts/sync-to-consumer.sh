@@ -15,11 +15,13 @@
 # the '# Part 2 — project' marker. Decision: no file split. The sync
 # replaces everything above the consumer's marker with canonical's content
 # above its own marker and keeps the consumer's marker line and everything
-# below. Above-marker consumer edits are overwritten by design — that
-# region is canonical-owned, project text belongs below the marker. A
-# consumer AGENTS.md without the marker fails the run rather than risking
-# a partial write. CLAUDE.md has no marker: synced whole, protected only
-# by the AHEAD check.
+# below. The above-marker region is canonical-owned, so a consumer copy
+# matching any historical canonical version of that region is spliced
+# forward; one matching none is AHEAD like any other file — an edit that
+# belongs in joharness, or this checkout is stale. Either way, no clobber.
+# A consumer AGENTS.md without the marker fails the run rather than
+# risking a partial write. CLAUDE.md has no marker: synced whole,
+# protected only by the AHEAD check.
 #
 # Not synced, consumer-own: README.md, joharness.conf, .gitignore,
 # .github/workflows/ci.yml, and live docs/handover|plans|product/*.md.
@@ -101,13 +103,27 @@ in_history() {
   git -C "$ROOT" rev-list --objects HEAD -- "$1" | grep "^$2" >/dev/null
 }
 
+# Hash through canonical's clean filters (--path), not literally: a CRLF
+# checkout of a text-normalized file must hash to the committed LF blob,
+# or every Windows consumer reads AHEAD forever.
+consumer_blob() {
+  git -C "$ROOT" hash-object --path="$1" --stdin <"$2"
+}
+
+mode_differs() {
+  { [ -x "$1" ] && [ ! -x "$2" ]; } || { [ ! -x "$1" ] && [ -x "$2" ]; }
+}
+
+copy_mode() {
+  if [ -x "$1" ]; then chmod +x "$2"; else chmod -x "$2"; fi
+}
+
 place() {
   local src="$1" dst="$2"
   [ "$DRY" -eq 1 ] && return 0
   mkdir -p "$(dirname "$dst")"
   cp "$src" "$dst"
-  [ -x "$src" ] && chmod +x "$dst"
-  return 0
+  copy_mode "$src" "$dst"
 }
 
 sync_file() {
@@ -127,10 +143,18 @@ sync_file() {
     return 0
   fi
   if cmp -s "$src" "$dst"; then
-    SAME=$((SAME + 1))
+    # Content current, mode not: a consumer entrypoint without its exec
+    # bit fails 'ci' while the sync claims the copy is current.
+    if mode_differs "$src" "$dst"; then
+      [ "$DRY" -eq 0 ] && copy_mode "$src" "$dst"
+      printf '  update  %s (mode only)\n' "$rel"
+      UPDATED=$((UPDATED + 1))
+    else
+      SAME=$((SAME + 1))
+    fi
     return 0
   fi
-  blob="$(git hash-object -- "$dst")"
+  blob="$(consumer_blob "$rel" "$dst")"
   if in_history "$rel" "$blob"; then
     place "$src" "$dst"
     printf '  update  %s\n' "$rel"
@@ -145,7 +169,13 @@ sync_file() {
 
 sync_dir() {
   local dir="$1" f rel
-  [ -d "${ROOT}/${dir}" ] || { warn "canonical has no ${dir}/"; return 0; }
+  # Same doctrine as a listed file missing: a renamed or mistyped dir
+  # must end the run nonzero, not drift a whole tree behind a warning.
+  if [ ! -d "${ROOT}/${dir}" ]; then
+    warn "canonical has no ${dir}/"
+    MISSING=$((MISSING + 1))
+    return 0
+  fi
   # Tracked files only, not a find walk: editor backups and gitignored
   # junk in the canonical working tree must never ship.
   while IFS= read -r rel; do
@@ -167,7 +197,7 @@ sync_dir() {
 # Canonical above the marker + consumer from the marker down. Byte-compare
 # decides whether anything actually moved.
 sync_agents_md() {
-  local src="${ROOT}/AGENTS.md" dst="${DEST}/AGENTS.md" tmp
+  local src="${ROOT}/AGENTS.md" dst="${DEST}/AGENTS.md" tmp c dst_head hist_head known
   [ -f "$src" ] || die "canonical AGENTS.md missing"
   grep -qxF "$MARKER" "$src" || die "canonical AGENTS.md lacks marker '${MARKER}'"
   if [ ! -f "$dst" ]; then
@@ -188,11 +218,36 @@ sync_agents_md() {
     rm -f "$tmp"
     return 0
   fi
-  if [ "$DRY" -eq 0 ]; then
-    mv "$tmp" "$dst"
-  else
+  # The splice rewrites only above the marker, so AHEAD is judged on that
+  # region alone: a consumer head matching no historical canonical head is
+  # an edit that belongs in joharness — or this checkout is stale. A
+  # whole-file blob check cannot work here: consumer Part 2 makes every
+  # spliced file historically unknown by construction.
+  dst_head="$(awk -v m="$MARKER" '$0 == m { exit } { print }' "$dst")"
+  known=0
+  while IFS= read -r c; do
+    hist_head="$(git -C "$ROOT" show "${c}:AGENTS.md" 2>/dev/null |
+      awk -v m="$MARKER" '$0 == m { exit } { print }' || true)"
+    if [ "$hist_head" = "$dst_head" ]; then
+      known=1
+      break
+    fi
+  done < <(git -C "$ROOT" rev-list HEAD -- AGENTS.md)
+  if [ "$known" -eq 0 ]; then
+    printf '  AHEAD   AGENTS.md (above marker)\n'
+    warn "AGENTS.md: consumer harness section not in canonical history;" \
+      "NOT overwritten. Land the fix in joharness first, or fetch a" \
+      "current canonical."
+    AHEAD=$((AHEAD + 1))
     rm -f "$tmp"
+    return 0
   fi
+  # cat, not mv: the consumer file keeps its own permissions; mktemp's
+  # 0600 must not become the mode of the repo's root instruction file.
+  if [ "$DRY" -eq 0 ]; then
+    cat "$tmp" >"$dst"
+  fi
+  rm -f "$tmp"
   printf '  update  AGENTS.md (above marker; consumer Part 2 kept)\n'
   UPDATED=$((UPDATED + 1))
 }

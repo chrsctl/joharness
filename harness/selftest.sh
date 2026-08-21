@@ -370,6 +370,7 @@ printf 'loop v1\n' >"${syncsrc}/harness/AGENTS.md"
 printf 'tiers v1\n' >"${syncsrc}/docs/agent-selection.md"
 printf 'claude rules\n' >"${syncsrc}/CLAUDE.md"
 printf 'entry stub\n' >"${syncsrc}/joharness.sh"
+chmod +x "${syncsrc}/joharness.sh"
 printf 'sync stub\n' >"${syncsrc}/scripts/sync-to-consumer.sh"
 printf 'layer none\n' >"${syncsrc}/env/none/AGENTS.md"
 printf 'who cmd\n' >"${syncsrc}/.claude/commands/who.md"
@@ -406,8 +407,11 @@ printf 'loop v1\n' >"${syncdst}/harness/AGENTS.md"          # stale: v1 is histo
 printf 'consumer hacked\n' >"${syncdst}/CLAUDE.md"          # ahead: never in history
 printf 'own layer\n' >"${syncdst}/env/custom/AGENTS.md"     # consumer-only
 printf 'CONSUMER-README\n' >"${syncdst}/README.md"          # not synced
+printf 'entry stub\n' >"${syncdst}/joharness.sh"            # content current, exec bit lost
+# Above-marker copy of canonical v1: historical, so the splice moves it
+# forward while keeping the consumer's Part 2.
 cat >"${syncdst}/AGENTS.md" <<'EOF'
-STALE-HARNESS-PART
+CANON-HARNESS-V1
 
 # Part 2 — project
 
@@ -444,6 +448,13 @@ expect "AGENTS.md harness part replaced" \
   "CANON-HARNESS-V2" "$(cat "${syncdst}/AGENTS.md")"
 expect "AGENTS.md consumer Part 2 kept" \
   "CONSUMER-PART2-SENTINEL" "$(cat "${syncdst}/AGENTS.md")"
+expect "lost exec bit repaired as mode-only update" \
+  "update  joharness.sh (mode only)" "$out"
+if [ -x "${syncdst}/joharness.sh" ]; then
+  pass "consumer entrypoint executable again"
+else
+  fail "consumer entrypoint executable again"
+fi
 expect "consumer-only file reported, left" \
   "consumer-only env/custom/AGENTS.md" "$out"
 expect "consumer README untouched" "CONSUMER-README" \
@@ -472,11 +483,28 @@ expect "missing marker names the problem" "lacks marker" "$out"
 expect "missing marker leaves file untouched" "no marker here" \
   "$(cat "${syncdst2}/AGENTS.md")"
 
+# Consumer harness section edited (no historical head matches): AHEAD
+# like any other file, splice refused.
+syncdst4="${TMP}/syncdst4"
+mkdir -p "$syncdst4"
+cat >"${syncdst4}/AGENTS.md" <<'EOF'
+LOCAL-HARNESS-EDIT
+
+# Part 2 — project
+
+whatever
+EOF
+out="$(sync "$syncdst4")"
+expect "edited harness section flagged AHEAD" "AHEAD   AGENTS.md" "$out"
+expect "edited harness section kept" "LOCAL-HARNESS-EDIT" \
+  "$(cat "${syncdst4}/AGENTS.md")"
+
 # Canonical listed-but-missing file: silent drift is the failure mode, so
 # the run must end nonzero, not whisper to stderr. Mutates the canonical
 # fixture — keep these two cases last.
 git -C "$syncsrc" rm -q docs/graph.md
-commit_all "$syncsrc" "drop graph doc"
+git -C "$syncsrc" rm -q -r .claude/commands
+commit_all "$syncsrc" "drop graph doc and commands dir"
 syncdst3="${TMP}/syncdst3"
 mkdir -p "$syncdst3"
 out="$(sync "$syncdst3")"; rc=$?
@@ -486,6 +514,7 @@ else
   fail "listed file missing from canonical exits 1 (got ${rc})"
 fi
 expect "missing canonical file named" "canonical has no docs/graph.md" "$out"
+expect "missing canonical dir named" "canonical has no .claude/commands/" "$out"
 
 # Dirty canonical: working-tree-only content would ship now and read
 # AHEAD on every later run — refused before anything is written.
