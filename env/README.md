@@ -18,7 +18,7 @@ Every file optional. Layer with no `setup.sh` provisions nothing — that is all
 | Path | Used for |
 | --- | --- |
 | `env/<name>/setup.sh` | Provision. Idempotent, safe to repeat. Executable. |
-| `env/<name>/AGENTS.md` | Rules injected into session context when selected. |
+| `env/<name>/AGENTS.md` | Rules injected into session context when selected (or pointed at — see md is lazy-able). |
 | `env/<name>/smoke-test.sh` | `verify`. Exit non-zero on any failure. |
 | `env/<name>/README.md` | What it provides, what it costs, why. |
 
@@ -41,6 +41,14 @@ run happened.
 `eager` provisions at session start instead, and only in the remote sandbox
 (`CLAUDE_CODE_REMOTE=true`) unless `JOHARNESS_FORCE_SETUP=1`. Local machines
 have their own tooling; harness does not fight it.
+
+## md is lazy-able
+
+Same bet for context. Default `JOHARNESS_ENV_MD=eager`: session start injects
+the layer's `AGENTS.md` whole. `lazy` injects a read-this-first pointer
+instead — session that never touches the environment never pays context for
+its rules. Agent touching the environment MUST read `env/<name>/AGENTS.md`
+before first command; pointer says so.
 
 ## Add a layer
 

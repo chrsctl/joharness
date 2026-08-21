@@ -19,9 +19,12 @@
 #   JOHARNESS_ENV=k8s          layer under env/ ('none' = no environment)
 #   JOHARNESS_ENV_SETUP=lazy   'lazy' (provision on demand) or 'eager'
 #                              (provision at session start)
+#   JOHARNESS_ENV_MD=eager     'eager' (inject the layer's AGENTS.md into
+#                              session context) or 'lazy' (inject a
+#                              read-before-touching pointer instead)
 #
-# Default is env 'none', setup 'lazy': a session that never asks for an
-# environment never pays for one.
+# Default is env 'none', setup 'lazy', md 'eager': a session that never asks
+# for an environment never pays for one.
 
 set -uo pipefail
 
@@ -59,6 +62,7 @@ conf_set() {
 
 env_name()  { printf '%s' "${JOHARNESS_ENV:-$(conf_get JOHARNESS_ENV)}"; }
 setup_mode() { printf '%s' "${JOHARNESS_ENV_SETUP:-$(conf_get JOHARNESS_ENV_SETUP)}"; }
+md_mode()   { printf '%s' "${JOHARNESS_ENV_MD:-$(conf_get JOHARNESS_ENV_MD)}"; }
 
 # Layer names are directory names under env/. Reject anything that could walk
 # out of it before it reaches a path.
@@ -233,10 +237,11 @@ cmd_env() {
     return 0
   fi
 
-  local effective mode
+  local effective mode md
   current="$(env_name)"
   effective="$(resolve_env 2>/dev/null)" || effective=""
   mode="$(setup_mode)"; [ -n "$mode" ] || mode="lazy (default)"
+  md="$(md_mode)"; [ -n "$md" ] || md="eager (default)"
 
   printf 'environment : %s\n' "${current:-none (default)}"
   # An explicit selection that does not resolve is worth saying out loud;
@@ -247,6 +252,7 @@ cmd_env() {
     printf '              ! not usable, falls back to: %s\n' "${effective:-nothing}"
   fi
   printf 'setup       : %s\n' "$mode"
+  printf 'md          : %s\n' "$md"
   printf 'config      : %s\n' "$CONF"
   printf 'available   :\n'
   while IFS= read -r name; do
@@ -286,8 +292,17 @@ cmd_session_start() {
 
     printf '== Environment: %s (env/%s) ==\n\n' "$name" "$name"
     if [ -r "${ENV_ROOT}/${name}/AGENTS.md" ]; then
-      cat "${ENV_ROOT}/${name}/AGENTS.md"
-      printf '\n'
+      # md=lazy: context stays cheap, a pointer replaces the rules. Same bet
+      # as lazy setup — a session that never touches the environment never
+      # pays for its rules either.
+      if [ "$(md_mode)" = "lazy" ]; then
+        printf 'Rules NOT loaded (md=lazy). Touching this environment — setup,\n'
+        printf 'its scripts, anything it provisions? Read env/%s/AGENTS.md\n' "$name"
+        printf 'FIRST. Whole file, before first command.\n\n'
+      else
+        cat "${ENV_ROOT}/${name}/AGENTS.md"
+        printf '\n'
+      fi
     fi
     # Say it plainly: nothing has been started, and that was the point.
     if has_setup "$name" && [ "$mode" != "eager" ]; then

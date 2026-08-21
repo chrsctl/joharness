@@ -82,6 +82,18 @@ else
   pass "path-walking layer name rejected"
 fi
 
+# md mode: eager injects the layer's rules whole, lazy points at the file.
+cat >"${sel}/env/aaa/AGENTS.md" <<'EOF'
+RULE-SENTINEL unique to this fixture
+EOF
+out="$(jo env)"
+expect "env status shows md mode" "md          : eager (default)" "$out"
+out="$(jo session-start)"
+expect "eager md injects layer rules" "RULE-SENTINEL" "$out"
+out="$(JOHARNESS_ENV_MD=lazy jo session-start)"
+refute "lazy md withholds layer rules" "RULE-SENTINEL" "$out"
+expect "lazy md points at the file" "Read env/aaa/AGENTS.md" "$out"
+
 # --- fixture: origin with main, a rival branch, and this session's branch ---
 origin="${TMP}/origin.git"
 git init -q --bare "$origin"
