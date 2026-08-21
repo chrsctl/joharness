@@ -36,6 +36,18 @@ front, without spelunking.
   existence the edge, no status field to rot). Hook sorts blocked plans
   last, labels `blocked by:`; unblocked plans = safe parallel sessions.
 
+- Unification research (human ask: "unify both"): knowledge + task graph
+  are already one graph here — files as nodes, frontmatter as edges, git as
+  provenance, hook injection as 1-hop GraphRAG. Tiers map onto Zep/Graphiti
+  agent-memory architecture 1:1: workstream files = episodic, AGENTS.md =
+  semantic, docs/ = community summaries; graduation = fusion. Formalizing
+  = three candidate steps, in value order: (1) `plan:` frontmatter field in
+  workstream files — claim edge machine-readable, queue can mark claimed
+  plans (today claim is prose in Goal; two sessions can pick same plan);
+  (2) small ontology doc naming node/edge types + carrying field; (3)
+  optional `joharness.sh graph` mermaid renderer, derived at read time,
+  never stored. None implemented yet — awaiting human pick.
+
 ## Rejected
 
 - Stop-hook enforcement of "update handover before ending turn" — blocking
