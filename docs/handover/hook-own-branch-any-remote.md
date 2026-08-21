@@ -1,11 +1,11 @@
 ---
 workstream: hook-own-branch-any-remote
-status: in-progress
+status: review
 branch: claude/hook-own-branch-any-remote-k2p9wz
 pr: none
 session: https://claude.ai/code/session_016Fb42AZrNDN76pKG3gNQCP
 updated: 2026-08-21
-next: Exclude */$branch and */$BASE_BRANCH, not just origin/, then verify the hook prints no self-entry
+next: Deleted in the next commit; PR body links to this blob. Expect a conflict with claude/harness-research-review-l4y9vv in the same loop
 ---
 
 ## Goal
@@ -35,9 +35,38 @@ the one the protocol tells them to act on.
   the feature; a contributor genuinely wants to see `origin`'s other branches
   while pushing to a fork.
 
+- Second defect found while verifying the first: a fork mirrors every branch,
+  so each workstream was listed twice. Where `origin` carries the name, that
+  is the entry shown. Same principle as the self-exclusion, so it belongs in
+  the same change rather than a second PR.
+
+## Measured
+
+On this checkout, `origin` plus one fork, six real branches in flight:
+
+- Before: 11 entries listed, 3 of them the session's own branch, 4 branch
+  names duplicated. `MAX_ENTRIES` is 12 — one more fork branch and real work
+  falls off the end silently.
+- After: 6 entries, one per branch, no self-entry.
+- `shellcheck -x harness/handover-context.sh` — zero findings.
+
 ## Blockers
 
 None.
+
+## Overlap — read before resuming
+
+`claude/harness-research-review-l4y9vv` (status `review`, session
+`01HBRP6Z9bv2vV1tf5yebWvA`) edits the same loop in the same file, adding an
+`agent:` frontmatter field and replacing the second `files_at "$ref"` call
+with `<<<"$ws_files"`. Checked its diff before writing: it does not touch
+remote-name handling, so the changes are complementary, but they land within
+a few lines of each other and the second merge will conflict. It also edits
+`joharness.sh:cmd_ci` and `docs/handover/README.md`, both of which
+`claude/handover-rot-enforcement-8chuvt` edits too.
+
+`/who` was not run: this session has no Claude Code Remote tool. Liveness of
+that branch is therefore unknown, not idle — treat it as possibly live.
 
 ## Where to look
 
