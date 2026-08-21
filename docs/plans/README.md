@@ -10,6 +10,10 @@ Written for agents — literal readers. Background:
 [`docs/agent-selection.md`](../agent-selection.md). A plan says scope AND
 out-of-scope explicitly; agent does what plan says, nothing else.
 
+Session-start hook prints the queue — urgent first, then oldest, each with
+its `agent`/`effort` — so a session (or a user starting one from a phone)
+picks entrypoint and model tier without opening files.
+
 ## Shape
 
 Copy [`TEMPLATE.md`](TEMPLATE.md). Sections:
