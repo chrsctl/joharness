@@ -14,20 +14,22 @@ concurrency:
 
 jobs:
   # The harness is shell; shellcheck at zero findings is its acceptance bar
-  # (AGENTS.md). The runner image ships shellcheck, so this is seconds.
+  # (AGENTS.md). Every layer is covered: the entrypoint, harness/, and each
+  # env/<name>/ whether or not this repo selects it. The runner image ships
+  # shellcheck, so this is seconds.
   #
-  # scripts/smoke-test.sh is deliberately NOT here: it needs the sandbox this
-  # repo provisions (Docker-in-Docker, the egress proxy, the cgroup v1 kernel),
-  # and a GitHub runner exercises none of the constraints the scripts exist to
-  # work around. A green run here would claim more than it checked.
+  # The checks live in `joharness.sh ci`, not in this file, so a session can run
+  # exactly what CI runs before opening the pull request instead of finding out
+  # afterwards.
+  #
+  # The environment smoke test is deliberately NOT here: it needs the sandbox
+  # this repo provisions (Docker-in-Docker, the egress proxy, the cgroup v1
+  # kernel), and a GitHub runner exercises none of the constraints the scripts
+  # exist to work around. A green run here would claim more than it checked.
+  # `./joharness.sh verify` is where that gets proven.
   lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: shellcheck
-        run: shellcheck -x scripts/*.sh .claude/hooks/*.sh
-      - name: bash syntax
-        run: |
-          for f in scripts/*.sh .claude/hooks/*.sh; do
-            bash -n "$f"
-          done
+      - name: joharness ci
+        run: ./joharness.sh ci
