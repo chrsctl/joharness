@@ -2,21 +2,28 @@
 #
 # Provision the Docker + Kubernetes environment layer.
 #
-# Starts Docker and installs kubectl/k3d/helm. The Kubernetes cluster itself is
-# NOT created here: it costs 20-45s and most work never needs it. Create it on
-# demand with `env/k8s/devenv.sh cluster-up`, or have this script do it too by
-# setting DEVENV_START_CLUSTER=1.
+# Starts Docker, installs kubectl/k3d/helm, and creates the cluster. Running
+# this at all is the "I need Kubernetes" signal -- the layer is lazy precisely
+# so that nothing gets started until someone says that -- so it provisions the
+# whole environment rather than leaving the caller to find cluster-up.
+#
+# Want only the CLI tools, no cluster? DEVENV_START_CLUSTER=0, or call
+# `env/k8s/devenv.sh up` directly.
 #
 # Called by `./joharness.sh setup` and `verify`, and at session start only when
 # joharness.conf sets JOHARNESS_ENV_SETUP=eager. Assume a cold container.
 #
-# Idempotent; safe to repeat.
+# Idempotent; already-provisioned is a fast no-op.
 
 set -euo pipefail
 
 LAYER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 "${LAYER_DIR}/devenv.sh" up
+
+if [ "${DEVENV_START_CLUSTER:-1}" = "1" ]; then
+  "${LAYER_DIR}/devenv.sh" cluster-up
+fi
 
 # Persist for the rest of the session so kubectl works without extra flags.
 if [ -n "${CLAUDE_ENV_FILE:-}" ]; then

@@ -1,14 +1,13 @@
 ## Environment: Docker + Kubernetes
 
-Not provisioned at session start. Costs nothing until asked. When you need it:
+Not provisioned at session start. Costs nothing until asked. Need it:
 
 ```bash
-./joharness.sh setup              # docker + kubectl/k3d/helm (~seconds, cached)
-env/k8s/devenv.sh cluster-up      # Kubernetes itself (~20-45s, once per session)
+./joharness.sh setup     # docker, kubectl/k3d/helm, cluster. ~20-45s cold
 ```
 
-Both idempotent: already-ready is a no-op, repeat safe. `cluster-up` is
-self-contained — starts Docker and installs tools itself if `setup` never ran.
+Once per session. Idempotent: already-ready is a fast no-op, repeat safe.
+Tools but no cluster: `DEVENV_START_CLUSTER=0 ./joharness.sh setup`.
 
 k3s on k3d. One container, ~350MB image, ~400MB RAM. Context `k3d-claude-dev`
 becomes current.

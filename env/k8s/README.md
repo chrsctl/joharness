@@ -3,15 +3,17 @@
 Self-contained Docker + Kubernetes environment for Claude Code on the web
 sessions: build images, run real workloads.
 
-`SessionStart` hook provisions automatically — `docker`, `kubectl`, `helm`
-work at session start. Cluster created on demand — see
-[Startup cost](#startup-cost).
+One environment layer under [`../README.md`](../README.md). Select it with
+`./joharness.sh env k8s`; provision it with `./joharness.sh setup`.
+
+Nothing starts at session start. Provisioning is the explicit "I need
+Kubernetes" step — see [Startup cost](#startup-cost).
 
 ## What you get
 
 | Component  | Version    | Notes                                        |
 | ---------- | ---------- | -------------------------------------------- |
-| Docker     | preinstalled | daemon started by hook                     |
+| Docker     | preinstalled | daemon started by `setup`                  |
 | k3d        | v5.9.0     | runs k3s on Docker                            |
 | Kubernetes | v1.35.7 (k3s) | single-node cluster named `claude-dev`    |
 | kubectl    | v1.35.8    | context `k3d-claude-dev`, set as current      |
@@ -38,32 +40,27 @@ process, not DaemonSet.
 
 ## Usage
 
-Docker ready immediately:
+Everything, once per session (~20-45s):
 
 ```bash
-docker ps
-docker build -t my-app:dev .
-```
-
-Kubernetes on demand (~20-45s, once per session):
-
-```bash
-env/k8s/devenv.sh cluster-up
+./joharness.sh setup
 kubectl get nodes
-kubectl apply -f my-manifest.yaml
+docker build -t my-app:dev .
 helm install my-release ./chart
 ```
 
-By hand:
+Finer grained:
 
 ```bash
-env/k8s/devenv.sh status        # what is running
-env/k8s/devenv.sh up            # everything (what the hook runs)
-env/k8s/devenv.sh cluster-up    # create/restart/repair the cluster
-env/k8s/devenv.sh cluster-down  # delete the cluster
-env/k8s/devenv.sh doctor        # diagnostics when something is wrong
-./joharness.sh verify          # provision, then verify end to end
+env/k8s/devenv.sh status         # what is running
+env/k8s/devenv.sh up             # Docker + CLI tools, no cluster
+env/k8s/devenv.sh cluster-up     # create/restart/repair the cluster
+env/k8s/devenv.sh cluster-down   # delete the cluster
+env/k8s/devenv.sh doctor         # diagnostics when something is wrong
+./joharness.sh verify            # provision, then verify end to end
 ```
+
+`DEVENV_START_CLUSTER=0 ./joharness.sh setup` stops after the CLI tools.
 
 Local image into cluster (cluster has own image store, separate from host
 Docker):
@@ -78,19 +75,21 @@ cluster tries registry pull.
 
 ## Startup cost
 
-Hook runs **synchronously** — session waits for it. Default: Docker + CLI
-tools only, so short:
+Session start costs **nothing**: the entrypoint reads `AGENTS.md` and stops.
+A session that never touches Kubernetes never pays for it.
+
+`./joharness.sh setup` is where the cost lands. Docker + CLI tools:
 
 | Situation                                   | Time |
 | ------------------------------------------- | ---- |
-| Session start, cold container                | ~9s  |
-| Session start, tools already installed       | <1s  |
+| Cold container                               | ~9s  |
+| Tools already installed                      | <1s  |
 
 Cold path downloads kubectl, k3d, helm concurrently, starts dockerd under
 downloads. Wall clock = one download, not three plus docker wait.
 
-`env/k8s/devenv.sh cluster-up` costs 20-45s; only sessions that need it pay.
-Self-contained: installs tools, starts Docker itself if hook did not.
+Then the cluster, 20-45s. Each step is self-contained — `cluster-up` installs
+tools and starts Docker itself if `setup` never ran.
 
 | Situation                                   | Time |
 | ------------------------------------------- | ---- |
@@ -99,11 +98,11 @@ Self-contained: installs tools, starts Docker itself if hook did not.
 | Restart a cluster from restored state        | ~16s |
 | Cluster already running                      | ~2s  |
 
-`DEVENV_START_CLUSTER=1`: hook creates cluster at session start, no on-demand
-wait.
+Every session uses the cluster? `JOHARNESS_ENV_SETUP=eager` in
+`joharness.conf` provisions at session start instead, and pays the wait there.
 
-Hook provisions remote (web) sessions only. Local machine: exits immediately,
-does not fight existing Docker/Kubernetes. `DEVENV_FORCE=1` overrides.
+Eager provisioning runs in the remote (web) sandbox only. Local machine: skipped,
+does not fight existing Docker/Kubernetes. `JOHARNESS_FORCE_SETUP=1` overrides.
 
 ## Sandbox constraints this works around
 

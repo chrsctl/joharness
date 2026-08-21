@@ -1,11 +1,11 @@
 ---
 workstream: env-harness-split
-status: in-progress
+status: review
 branch: claude/joharness-env-harness-split-w17dtj
 session: https://claude.ai/code/session_019sd2Fkqxu49NKY72TBhgHR
 pr: none
 updated: 2026-08-21
-next: Build root joharness.sh entrypoint, move env scripts under env/k8s/, split AGENTS.md into harness/AGENTS.md + env/<name>/AGENTS.md + per-repo Part 2
+next: Review PR. On merge, delete this file and re-point the three overlapping branches (see Flag for human)
 ---
 
 ## Goal
@@ -29,8 +29,16 @@ Split into layers; environment selected at the entrypoint.
   as `README.md`.
 - Default with no conf = `none`. Silent no-provisioning beats surprise
   Docker start in a repo that never asked.
-- Env layer contract: `setup.sh` required, `AGENTS.md` and `smoke-test.sh`
-  optional.
+- Env layer contract: every file optional. Layer with no `setup.sh` provisions
+  nothing — that is all `none` is, so no name is special-cased in the
+  entrypoint.
+- `./joharness.sh setup` provisions the WHOLE layer, cluster included. Running
+  it at all is the "I need Kubernetes" signal; the laziness is in not running
+  it. First cut stopped at CLI tools and `verify` then failed on a missing
+  apiserver — half a job, and the caller had to know about `cluster-up`.
+  `DEVENV_START_CLUSTER=0` keeps the tools-only path.
+- CI checks live in `./joharness.sh ci`, which `ci.yml` calls. One definition,
+  so a session can run exactly what GitHub runs before opening the PR.
 - Env agent rules injected at runtime by the entrypoint (hook stdout), not
   statically imported by `AGENTS.md`. Static import would hardcode the
   selection the conf exists to make.
@@ -52,6 +60,15 @@ Split into layers; environment selected at the entrypoint.
 ## Blockers
 
 None.
+
+## Measured
+
+- `./joharness.sh ci` — `ci: pass`, 5 scripts, shellcheck zero findings.
+- `./joharness.sh verify` — `7 passed, 0 failed` on the final tree.
+- Repeat `setup` on a provisioned container: 1.9s.
+- Docker Hub answered `429 Too Many Requests` for `alpine:3` during an earlier
+  run and the smoke test failed on it. Transient throttling of the egress IP,
+  not a code fault — it cleared on retry. Do not add a registry workaround.
 
 ## Flag for human — overlap
 
