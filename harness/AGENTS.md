@@ -15,8 +15,10 @@ the selected layer — [`env/README.md`](env/README.md).
 
 1. **Orient.** Hook prints handover state before first prompt. Hook names
    workstream file for this branch? That is your job. Read whole file. Go to 4.
-2. **Pick.** Queue = open GitHub issues. Oldest actionable first, urgent first
-   if marked. No issue, no file: ask human. Not invent work.
+2. **Pick.** Queue = open GitHub issues, then plan files `docs/plans/*.md`
+   (shape + claim rules: `docs/plans/README.md`). Oldest actionable first,
+   urgent first if marked. No issue, no plan, no file: ask human. Not invent
+   work.
 3. **Claim.** Cut branch. Write `docs/handover/<workstream>.md`. Push NOW —
    no push, no claim. Hook shows overlap? `/who`. Only `RUNNING` session means
    branch taken.
@@ -36,6 +38,14 @@ the selected layer — [`env/README.md`](env/README.md).
 - Scope change too big to ratify alone? Decide, write down, flag for human.
   Do not stop.
 - Stop and ask ONLY for: money, credentials, hardware, product direction.
+
+## Agent selection
+
+Plans get matched to agents: each plan's frontmatter names `agent` tier
+(`haiku` | `sonnet` | `opus`) and `effort`. Implementing session may
+escalate tier or effort, never downgrade. Write plans for literal reader:
+scope AND out-of-scope explicit. Lineup + selection rules:
+`docs/agent-selection.md`.
 
 ## Handover
 
