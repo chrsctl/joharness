@@ -499,6 +499,17 @@ expect "edited harness section flagged AHEAD" "AHEAD   AGENTS.md" "$out"
 expect "edited harness section kept" "LOCAL-HARNESS-EDIT" \
   "$(cat "${syncdst4}/AGENTS.md")"
 
+# Directory squatting on a file's path: cp would drop the file inside it
+# as 'new' on every rerun — refused instead.
+syncdst5="${TMP}/syncdst5"
+mkdir -p "${syncdst5}/docs/caveman.md"
+if out="$(sync "$syncdst5")"; then
+  fail "dir squatting on file path fails the run"
+else
+  pass "dir squatting on file path fails the run"
+fi
+expect "squatting dir named" "docs/caveman.md exists but is not a regular file" "$out"
+
 # Canonical listed-but-missing file: silent drift is the failure mode, so
 # the run must end nonzero, not whisper to stderr. Mutates the canonical
 # fixture — keep these two cases last.
