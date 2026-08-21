@@ -2,7 +2,7 @@
 workstream: agent-selection
 status: review
 branch: claude/agent-selection-plans
-pr: none
+pr: https://github.com/chrsctl/joharness/pull/2
 session: https://claude.ai/code/session_018seX9Q742rC3uPtL9qyvtT
 updated: 2026-08-21
 next: Merge, delete this file; then sync consumer repos (redoct PR #3 first consumer)
