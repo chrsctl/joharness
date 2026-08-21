@@ -9,7 +9,8 @@ House style for instructions and replies:
 let style eat a fact.
 
 Environment rules are not here. Entrypoint injects them at session start from
-the selected layer — [`env/README.md`](env/README.md).
+the selected layer — whole, or as a read-first pointer when md=lazy
+([`env/README.md`](env/README.md)).
 
 ## Loop
 
