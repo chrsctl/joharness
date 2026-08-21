@@ -218,6 +218,76 @@ fi
 expect "session-start prints handover state" "Handover state" "$out"
 expect "session-start prints queue" "== Queue" "$out"
 
+# --- entrypoint: the workstream rot check ----------------------------------
+# A scratch repo, not this one: `ci` shells out to ${ROOT}/harness/selftest.sh,
+# which is this script. The scratch copy gets a stub instead, so the check
+# under test runs without the suite re-entering itself.
+step "joharness.sh ci: workstream files"
+
+cir="${TMP}/cirepo"
+mkdir -p "${cir}/harness" "${cir}/docs/handover" "${cir}/env/none"
+cp "${ROOT}/joharness.sh" "${cir}/joharness.sh"
+printf '#!/usr/bin/env bash\nexit 0\n' >"${cir}/harness/selftest.sh"
+chmod +x "${cir}/harness/selftest.sh"
+git init -q "$cir"
+git -C "$cir" symbolic-ref HEAD refs/heads/main
+commit_all "$cir" "scratch harness"
+
+# The linter decides ci's exit code too, so exit-code assertions only mean
+# something where it is installed. The printed verdict is checked either way.
+# (A comment opening with the linter's name would be read as a directive.)
+have_sc=0
+command -v shellcheck >/dev/null 2>&1 && have_sc=1
+
+ci_run() { CLAUDE_PROJECT_DIR="$cir" JOHARNESS_CONF="${cir}/joharness.conf" \
+  "${cir}/joharness.sh" ci 2>&1; }
+
+out="$(ci_run)"
+expect "clean tree reports no workstream files" "none in tree" "$out"
+
+cat >"${cir}/docs/handover/live-ws.md" <<'EOF'
+---
+workstream: live-ws
+status: in-progress
+---
+EOF
+commit_all "$cir" "workstream file in flight"
+
+git -C "$cir" checkout -qb claude/some-work
+out="$(ci_run)"
+expect "in-flight file is named" "docs/handover/live-ws.md" "$out"
+expect "in-flight file is tolerated on a branch" "fine while in flight" "$out"
+if [ "$have_sc" = "1" ]; then
+  if ci_run >/dev/null 2>&1; then
+    pass "ci passes on a branch carrying a workstream file"
+  else
+    fail "ci passes on a branch carrying a workstream file"
+  fi
+fi
+
+git -C "$cir" checkout -q main
+out="$(ci_run)"
+expect "file on the base branch is refused" "merged work is finished work" "$out"
+expect "refusal fails the run" "ci: FAIL" "$out"
+if [ "$have_sc" = "1" ]; then
+  if ci_run >/dev/null 2>&1; then
+    fail "ci fails on the base branch carrying a workstream file"
+  else
+    pass "ci fails on the base branch carrying a workstream file"
+  fi
+fi
+
+# On GitHub a pull request checks out refs/pull/N/merge with HEAD detached, so
+# the branch name says nothing; the event does. Checked from a main checkout,
+# which is the reading that would otherwise be wrong.
+out="$(GITHUB_EVENT_NAME=pull_request GITHUB_REF_NAME=claude/some-work ci_run)"
+expect "a pull request event is not the base branch" "fine while in flight" "$out"
+out="$(GITHUB_EVENT_NAME=push GITHUB_REF_NAME=main ci_run)"
+expect "a push event to main is the base branch" "merged work is finished work" "$out"
+
+refute "the protocol README is not a workstream file" \
+  "docs/handover/README.md" "$(ci_run)"
+
 # --- summary ----------------------------------------------------------------
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

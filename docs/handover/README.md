@@ -299,6 +299,7 @@ Placement decisions that look arbitrary, recorded so not helpfully undone:
 | **GitHub issue as ledger** | Branch-independent — genuinely attractive, fine for *what to do*. But drifts from diff, needs network round trip, not versioned with code. Issues for backlog; branch files for state of work in progress. |
 | **Subagent reconstructing context** | Full exploration pass per session to rediscover what five written lines held — findings die with it. |
 | **`git notes`, orphan branches, JSONL event logs** | Merge-friendly, machine-clean, invisible in normal review. State no human reads = state no human corrects. |
+| **`Stop` hook enforcing "update handover before ending turn"** | Blocking `Stop` hooks need `stop_hook_active` loop guards and JSON parsing. Wrong cost against a discipline that currently holds. Revisit if handover files start arriving stale. |
 
 ## How a session finds this without being told
 
