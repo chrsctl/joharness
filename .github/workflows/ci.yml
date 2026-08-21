@@ -1,0 +1,33 @@
+name: ci
+
+# `main` is built on push, branches by their pull request — the split gx
+# measured (25 of 65 SHAs built twice under `on: [push, pull_request]`) applies
+# here unchanged.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  # The harness is shell; shellcheck at zero findings is its acceptance bar
+  # (AGENTS.md). The runner image ships shellcheck, so this is seconds.
+  #
+  # scripts/smoke-test.sh is deliberately NOT here: it needs the sandbox this
+  # repo provisions (Docker-in-Docker, the egress proxy, the cgroup v1 kernel),
+  # and a GitHub runner exercises none of the constraints the scripts exist to
+  # work around. A green run here would claim more than it checked.
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck
+        run: shellcheck -x scripts/*.sh .claude/hooks/*.sh
+      - name: bash syntax
+        run: |
+          for f in scripts/*.sh .claude/hooks/*.sh; do
+            bash -n "$f"
+          done

@@ -1,0 +1,303 @@
+# Continuous handover between Claude sessions
+
+Every session starts with empty context. Next session knows only what it reads
+from repo + GitHub. This document: how work crosses that gap — what gets
+written, where it lives, how it survives branches and PRs, how new session
+finds it unprompted.
+
+Protocol, hooks, commands developed in sibling repo, copied here. Measurements
+cited were taken there; mechanism repo-independent, works unchanged.
+
+Whole protocol **inline**: no subagents, no orchestration. Session reads file,
+works, updates file, commits. Fan-out (finding what is in flight elsewhere)
+done deterministically by `SessionStart` hook, ~zero tokens.
+
+## The rule that decides everything: store only what cannot be derived
+
+Git + GitHub already record, precisely, no drift:
+
+| Already recorded | Where |
+| --- | --- |
+| What changed | `git diff`, `git log`, the PR diff |
+| What is in flight | branches, open PRs |
+| Whether it works | CI checks, `scripts/smoke-test.sh` |
+| Who asked for what | issue and PR bodies, review threads |
+
+Writing any of that into markdown = second copy, rots immediately. Handover
+file saying "3 files changed, tests passing" worse than nothing: confidently
+wrong at next push.
+
+NOT recoverable from repo: the reasoning —
+
+- goal, in the shape human asked
+- tried and rejected, and why — highest-value item, only thing stopping next
+  session re-walking dead end
+- decisions + rationale, especially load-bearing ones that look arbitrary
+- current blocker
+- next concrete step
+
+**Handover file contains only those five.** Rest, next session derives.
+
+## Layout
+
+```
+docs/handover/README.md          this protocol (stable, rarely changes)
+docs/handover/TEMPLATE.md        the shape of a workstream file
+docs/handover/<workstream>.md    one file per workstream, live on its branch
+```
+
+Everything under `docs/handover/`; protocol = directory's `README.md`, not
+`docs/handover.md` beside it. Deliberate: repo also carrying `docs/HANDOVER.md`
+(common name) collides on case-insensitive filesystem — macOS, Windows —
+where `docs/handover.md` and `docs/HANDOVER.md` are same path. Two branches
+carrying one each cannot check out on same machine. Directory form immune.
+
+One file per workstream, named after **workstream**, not branch. This property
+makes cross-branch work:
+
+- **No merge conflicts.** Two sessions, two branches, two files. Merge clean,
+  either order, forever. Shared `HANDOVER.md`/`TODO.md` conflicts near every
+  merge; usual agent resolution — rewrite — silently drops other workstream's
+  state.
+- **Travels with code.** Updated *same commit* as the change, so rebases,
+  cherry-picks, reverts along with it. Cannot describe diff that is gone.
+- **Survives PR — in history, not on `main`.** File merges with code;
+  reasoning recoverable forever at
+  `git show <merge>:docs/handover/<workstream>.md`. Then deleted: live
+  workstream file on `main` describes finished work. Follow-up = fresh branch,
+  fresh file, seeded from history if useful.
+- **Branch renames and re-cuts free.** Name not branch, so re-cut after merged
+  PR keeps same file.
+
+## The two rituals
+
+**Starting.** Hook says whether branch has workstream file. Has one? Read in
+full before code. Then verify before trusting — see
+[Staleness](#staleness-trust-but-verify).
+
+**Finishing** — before ending any turn that leaves work unfinished, not only
+session end; sessions rarely get to say goodbye. Update `status`, `updated`,
+`next`; add learnings to *Rejected* / *Decisions*. Commit with code.
+
+Both cheap, no ceremony. `/handover` does the write.
+
+## What a workstream file looks like
+
+```markdown
+---
+workstream: cluster-startup-cost
+status: in-progress          # in-progress | blocked | review | done
+branch: claude/cluster-startup-nlvjqi
+pr: 12                       # or: none
+updated: 2026-08-09
+next: Measure restart path with the node image pre-pulled
+---
+
+## Goal
+One paragraph, in the requester's terms. Why this is being done, not what.
+
+## Decisions
+- Cluster is created on demand, not at session start — the hook is synchronous
+  and most sessions never touch Kubernetes.
+
+## Rejected
+- `kind` — 1.45 GB node image against k3s's 347 MB, for no gain here.
+- Pre-pulling the node image in the hook — moves the cost, doesn't remove it.
+
+## Blockers
+None. (Or: what is blocking, and what would unblock it.)
+
+## Where to look
+- `scripts/devenv.sh:create_cluster` — the containerd drop-in is load bearing.
+```
+
+`status`, `updated`, `next` in frontmatter — hook reads them without opening
+file. `next` = one line, concrete action.
+
+## Cross-branch: read without checking out
+
+File on feature branch invisible from another branch. Needs to be *reachable*,
+not visible — git already does:
+
+```bash
+git show origin/claude/other-branch:docs/handover/other-workstream.md
+```
+
+Hook lists every workstream file on every remote branch, with exact `git show`
+command. Session on `main` sees other branch's decisions — no checkout, no
+merge, no subagent.
+
+## Concurrent sessions: who is on what right now
+
+Handover files answer "what is this work?". Parallel sessions raise "someone
+on it *right now*?" — different mechanism, because sessions share only the git
+remote. No shared filesystem, no messaging. Record must be pushed to be seen;
+any session can die without cleanup.
+
+Rules out the obvious: registry file on `main` fails like shared `HANDOVER.md`,
+worse — most-written file in repo, sessions race, dead session leaves claim
+nobody releases.
+
+Tempting substitute: infer liveness from git — branch pushed five minutes ago
+must have session on it. **Do not. Tried, fails both directions**, both
+measured against a live remote, same branch:
+
+| | git says | control plane says |
+| --- | --- | --- |
+| First check | pushed 5 minutes ago, "live" | `IDLE`, `REVIEW_READY` — finished |
+| Three hours later | pushed 3 hours ago, "dormant" | `RUNNING`, `WORKING` — actively working |
+
+False positive, then false negative, one branch, one afternoon. Sessions push
+and keep thinking, or push and stop. Push time measures neither end. Signal
+wrong both directions worse than no signal — agents act on it.
+
+**Liveness = fact you look up, not thing you infer.** Control plane knows:
+
+Claude Code Remote `list_sessions`, `mine: true`. Each session carries
+`session_status` (`RUNNING` = only value meaning working *now*), owned branch
+under `outcomes[].git_repository.git_info.branches`, and
+`post_turn_summary.status_detail` one-liner. `/who` reads that,
+cross-references branches, says which branches actually taken.
+
+Find tool by search, not name: MCP prefix unstable across sessions; hardcoded
+`mcp__Claude_Code_Remote__list_sessions` fails "No such tool available" when
+server registered under hashed name. Bit `/who` first time it ran.
+
+Split forced by platform: `SessionStart` hook = shell script, no shell path to
+cross-session state. `claude agents --json` sees current container only. So
+hook reports **git facts** — pushed what, when, overlaps your files — and
+*session* looks up liveness when a fact matters. Facts cannot be false
+positives.
+
+What this asks of you:
+
+- **Push early, not just at end.** Nothing visible to other sessions until on
+  remote. Push as soon as work has name, even if first commit only adds
+  workstream file.
+- **Record session in frontmatter.** `session: https://claude.ai/code/...`
+  turns "someone was here" into link to that session.
+- **Before work overlapping recently-pushed branch, run `/who`.** Not before
+  every task — only on actual overlap. `RUNNING` session there = leave alone;
+  anything else = carry on.
+
+### Overlap matters more than the claim
+
+Two sessions, same workstream = rare failure. Common one: two sessions,
+different workstreams, same files — nobody notices until second PR conflicts.
+Hook intersects each other branch's changed paths with yours, including
+uncommitted, prints `TOUCHES THE SAME FILES AS THIS BRANCH`. Merge conflict
+announcing itself while still cheap.
+
+### Coverage, and what is still not solved
+
+`list_sessions` sees your account's sessions. Not teammate's local terminal,
+laptop checkout, CI. Git sees all those — why `/who` reads both and reports
+disagreement. Neither sees unpushed work — hour of uncommitted changes in
+another container invisible to everything, no protocol fixes that. Push early.
+
+### If you ever need real mutual exclusion
+
+Above prevents nothing; makes collision visible. Prevention needs lock. Git
+provides one, at remote, atomic — `git push` to a ref = compare-and-swap:
+
+```bash
+git push origin "HEAD:refs/claims/<workstream>"     # fails if someone holds it
+git push origin ":refs/claims/<workstream>"         # release
+```
+
+Verified: second claimant rejected non-fast-forward; `--force-with-lease` on
+stale value rejected too — two sessions cannot both steal expired claim.
+Leases beat locks (crashed holder must not block forever); fencing token
+unnecessary — git refuses stale holder's push as non-fast-forward, resource
+fences itself.
+
+Deliberately **not** implemented. Same-workstream collision rare; common
+collision = same files, different workstreams — lock does not prevent, overlap
+warning catches. Lock also invisible in review, adds release step dying
+session skips. Reach for it only if visible-collision approach actually fails.
+
+## Pull requests: link, never duplicate
+
+PR body = where humans look, must carry state — but copy of handover file in
+PR body rots. Link to file on branch; file stays single source. Reviewers
+click once; link always resolves to current version — same branch as diff.
+
+Live PR work (CI failures, review comments): continuity not a document
+problem — subscribe to PR, stay in one session. Handover documents = the
+*cold* gap between sessions.
+
+## Staleness: trust, but verify
+
+Notes go stale as code moves. GitHub's own agent-memory work converged on
+verify-at-read over curate-offline; same here: **every claim in handover file
+= hypothesis until checked.**
+
+- Names a file, function, line? Open before relying.
+- `updated` older than branch's last commits? *Blockers* + *next* suspect;
+  re-derive from `git log`.
+- Reality contradicts file? Fix file in same commit as your work. Self-healing
+  beats accuracy policing.
+
+Single-commit rule keeps this cheap: file moves with code, so common case =
+not stale at all.
+
+## Graduation: how this avoids becoming a graveyard
+
+Workstream file = scaffolding, not documentation. Work done:
+
+1. Anything mattering in six months moves to `AGENTS.md` (agent needs every
+   session) or `docs/` (background). The "do not bump `K3S_IMAGE` casually"
+   note in `AGENTS.md` is exactly this: rejected approach that graduated.
+2. Workstream file deleted in final commit.
+
+Files left after merge get read as current — worse than no file. Nothing worth
+graduating? Fine outcome — delete.
+
+**No workstream file belongs on `main`.** Hook checks, names any there: make
+rot visible, not trust discipline.
+
+Rule started weaker; first merge broke it in minutes. Original carve-out:
+file on `main` fine while work spans PRs, check only flagged `status: done`.
+This protocol's own file then merged carrying `status: review` — finished
+work, wrong label, guard silent. Any rule depending on leaving session setting
+a field correctly fails exactly when someone hurries. "None on `main`" needs
+no field, so checkable; cross-PR case loses nothing — file in history either
+way.
+
+## Why these things live where they do
+
+Placement decisions that look arbitrary, recorded so not helpfully undone:
+
+- **Loop in `AGENTS.md`, not `docs/WORKFLOW.md`.** Needed every session;
+  `AGENTS.md` loads every session. Separate document read once, by the agent
+  least needing it.
+- **The `main` rot check in the hook, not a test suite.** Suite = one more
+  thing to keep in step with file list; hook already fetches and parses these
+  files every session start. Costs nothing extra there.
+
+## Why not the alternatives
+
+| Approach | Why not here |
+| --- | --- |
+| **Auto memory** (`~/.claude/projects/*/memory/`) | Machine-local, *not shared with cloud environments*. Every web session = fresh container, so empty exactly when handover matters. |
+| **One shared `HANDOVER.md`** | Conflicts on every parallel branch; agents resolve by rewriting — losing other branch's state. |
+| **Uncommitted / gitignored handover file** | Container reclaimed at session end. Uncommitted state does not exist. |
+| **GitHub issue as ledger** | Branch-independent — genuinely attractive, fine for *what to do*. But drifts from diff, needs network round trip, not versioned with code. Issues for backlog; branch files for state of work in progress. |
+| **Subagent reconstructing context** | Full exploration pass per session to rediscover what five written lines held — findings die with it. |
+| **`git notes`, orphan branches, JSONL event logs** | Merge-friendly, machine-clean, invisible in normal review. State no human reads = state no human corrects. |
+
+## How a session finds this without being told
+
+Three layers, each covering previous one's failure mode:
+
+1. **`CLAUDE.md`** imports `AGENTS.md`, states protocol in two lines. Claude
+   Code loads `CLAUDE.md`, not `AGENTS.md` — repo with only `AGENTS.md` not
+   loading own instructions.
+2. **`.claude/hooks/handover-context.sh`** runs every session start, injects
+   live state: current branch, this branch's file with `status`/`next`, every
+   other branch's files with command to read them. Instructions get skimmed;
+   injected context already in window.
+3. **`/handover`** writes the file — finishing ritual is one word.
+
+Hook runs everywhere, local and remote, never fails a session: any error,
+missing directory, non-git checkout exits quietly.
