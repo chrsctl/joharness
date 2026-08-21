@@ -42,6 +42,16 @@ human work.
 - `urgent` = same mechanics, jumps queue.
 - Merge commits on shared branches, never rebase — history rewrite breaks
   other sessions' checkouts.
+- **Conflict at finish** = local view of `main` is from session start; another
+  session's PR may have merged since. Before opening or merging the PR,
+  `git fetch origin main` and check ahead/behind — do not trust a stale
+  clone. Behind = merge `main` into branch (not rebase), resolve, re-run
+  `ci`, push. Conflict does not resolve clean (semantic, unclear intent) =
+  do not force-merge through it — decide-alone exception (`harness/AGENTS.md`),
+  stop, record in workstream file's `Blockers`, ask human.
+- **Long-running session** = re-check `git fetch origin main` ahead/behind
+  periodically during Build too, not only at Finish — a conflict caught
+  mid-build is cheap, one hit at finish after hours of work is not.
 
 ## Reconciliation
 

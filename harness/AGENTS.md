@@ -26,7 +26,10 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    `docs/product/README.md`). Write `docs/handover/<workstream>.md`. Push
    NOW — no push, no claim. Hook shows overlap? `/who`. Only `RUNNING`
    session means branch taken.
-4. **Build.**
+4. **Build.** Long-running? Re-check `git fetch origin main` ahead/behind
+   periodically — another PR merging mid-build is cheap to catch now, one
+   hit at step 7 after hours of work is not (`docs/product/README.md`
+   Branch flow).
 5. **Verify.** All green or not done. `./joharness.sh ci` runs exactly what
    GitHub CI runs — run it here, before the pull request, not after.
    `./joharness.sh verify` proves the selected environment. Trust counted
@@ -36,17 +39,21 @@ the selected layer — as a read-first pointer by default, whole when md=eager
 6. **Hand over.** Update workstream file in SAME commit as code. Before ending
    any unfinished turn, not only at session end. `/handover` writes it.
 7. **Finish.** PR, merge to `main` — every step merges, no long-lived
-   integration branch. Then DELETE the remote branch: dead branch standing
-   = fake in-flight work, poisons claims view. PR's final state deletes
-   workstream file + done plan file (+ requirement file when last plan).
-   Still-useful bits go to the right layer's `AGENTS.md` or `docs/` first.
+   integration branch. Branch conflicts with `main` (another PR merged
+   first)? Reconcile, do not force through — `docs/product/README.md`
+   Branch flow, "Conflict at finish". Then DELETE the remote branch: dead
+   branch standing = fake in-flight work, poisons claims view. PR's final
+   state deletes workstream file + done plan file (+ requirement file when
+   last plan). Still-useful bits go to the right layer's `AGENTS.md` or
+   `docs/` first.
 
 ## Decide alone
 
 - Implementation yours. Interface signatures not yours.
 - Scope change too big to ratify alone? Decide, write down, flag for human.
   Do not stop.
-- Stop and ask ONLY for: money, credentials, hardware, product direction.
+- Stop and ask ONLY for: money, credentials, hardware, product direction,
+  merge conflict into `main` that does not resolve clean.
 
 ## Agent selection
 
