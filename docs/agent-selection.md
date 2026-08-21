@@ -31,7 +31,8 @@ mapping:
 - Under-thinking observed: raise effort or tier, never prompt around it.
 - Plan author assigns; implementing session may escalate tier or effort and
   record why in workstream file. Never downgrade to save cost — that
-  decision is money, humans only (AGENTS.md: stop and ask for money).
+  decision is money, humans only (harness/AGENTS.md: stop and ask for
+  money).
 
 ## Behavior findings (default worker, Sonnet 5)
 

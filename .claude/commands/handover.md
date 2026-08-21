@@ -18,7 +18,8 @@ Update handover file for this session's work. Protocol:
 6. Commit WITH the code it describes. Tree clean? Commit file alone.
 7. Push. Unpushed = invisible.
 
-Work finished? Six-month-worthy bits go to `AGENTS.md` (needed every session) or
-`docs/` (background). Delete workstream file same commit.
+Work finished? Six-month-worthy bits go to the right layer's `AGENTS.md`
+(needed every session) or `docs/` (background). Delete workstream file same
+commit.
 
 $ARGUMENTS

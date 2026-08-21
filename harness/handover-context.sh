@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# SessionStart hook: inject the repo's handover state into the session context.
+# Inject the repo's handover state into the session context.
 #
 # Prints, on stdout (which Claude Code adds to the session's context):
 #   - the current branch and its position relative to the base branch
@@ -8,7 +8,7 @@
 #   - workstream files on every other branch, with how recently each was pushed
 #     and whether its changes overlap this branch's files
 #
-# It reports git facts only. Liveness is deliberately NOT inferred here: push
+# Run by `joharness.sh session-start`. Reports git facts only. Liveness is deliberately NOT inferred here: push
 # time does not correlate with whether a session is working (measured both ways
 # on this repo). A shell hook cannot reach cross-session state, so the session
 # looks that up itself with /who. See docs/handover/README.md.
@@ -24,7 +24,7 @@
 
 set -uo pipefail
 
-PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 HANDOVER_DIR="docs/handover"
 BASE_BRANCH="${HANDOVER_BASE_BRANCH:-main}"
 LIVE_SECONDS="${HANDOVER_LIVE_SECONDS:-3600}"
