@@ -4,7 +4,7 @@ urgency: normal
 agent: sonnet
 effort: high
 needs: none
-req: none
+requirement: none
 ---
 
 <!--
@@ -16,9 +16,9 @@ this plan can trip, one line each.
 
 `needs` = plan names whose RESULT this plan reads; blocked while those
 files exist. Related-but-independent = fake edge, leave `none`.
-`req` = requirement this plan serves (docs/product/); hook stops flagging
-that requirement as unplanned. Last plan of a requirement: its PR deletes
-the requirement file too.
+`requirement` = the one this plan serves (docs/product/); hook stops
+flagging it unplanned. Last plan of a requirement: its PR deletes the
+requirement file too.
 -->
 
 ## Goal

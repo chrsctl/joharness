@@ -174,7 +174,7 @@ plan: older-normal
 urgency: normal
 agent: haiku
 effort: low
-req: served-req
+requirement: served-req
 ---
 EOF
 # rival-plan lands in the OLDER commit on purpose: if claim-ranking ever
@@ -235,7 +235,10 @@ expect "lists a plan with its tier" \
 expect "lists the normal plan" \
   "docs/plans/older-normal.md  [normal, agent: haiku, effort: low]" "$out"
 refute "template is not a plan" "TEMPLATE" "$out"
-expect "issues outrank plans" "issues outrank plans" "$out"
+expect "entrypoint order: issues, requirements, plans" \
+  "GitHub issues, then UNPLANNED requirements above" "$out"
+expect "fan-out adds a planning session for unplanned requirements" \
+  "Plus one planning session" "$out"
 first_plan="$(grep -o 'docs/plans/[a-z-]*\.md' <<<"$out" | head -1)"
 if [ "$first_plan" = "docs/plans/newer-urgent.md" ]; then
   pass "urgent plan sorts above older normal plan"

@@ -1,8 +1,10 @@
 # Plan queue
 
 Pre-scoped work agents execute without human in loop. One file per plan,
-under `docs/plans/`, on `main`. Loop step 2 (harness/AGENTS.md): open GitHub issues
-first, then oldest actionable plan here. Issues = human asks and bugs; plans
+under `docs/plans/`, on `main`. Loop step 2 (harness/AGENTS.md): open
+GitHub issues first, then unplanned requirements
+([`docs/product/`](../product/README.md) — decompose before executing),
+then oldest actionable plan here. Issues = human asks and bugs; plans
 = scoped work with acceptance criteria, written once, executed by any
 session.
 
@@ -29,8 +31,8 @@ Copy [`TEMPLATE.md`](TEMPLATE.md). Sections:
 
 Frontmatter: `plan`, `urgency` (`normal` | `urgent`), `agent` (`haiku` |
 `sonnet` | `opus` — which tier implements this plan), `effort`, optional
-`needs` (plan names this one reads results of), optional `req`
-(requirement this plan serves — [`docs/product/`](../product/README.md)). Plans get matched to
+`needs` (plan names this one reads results of), optional `requirement`
+(the one this plan serves — [`docs/product/`](../product/README.md)). Plans get matched to
 agents, not one agent to all plans; selection rules:
 [`docs/agent-selection.md`](../agent-selection.md). Implementing session
 may escalate tier or effort, never downgrade.
