@@ -508,7 +508,36 @@ if out="$(sync "$syncdst5")"; then
 else
   pass "dir squatting on file path fails the run"
 fi
-expect "squatting dir named" "docs/caveman.md exists but is not a regular file" "$out"
+expect "squatting dir named" "docs/caveman.md is not a regular file" "$out"
+
+# CRLF consumer AGENTS.md (Windows checkout): marker still found, head
+# still recognized as historical, splice lands LF.
+syncdst6="${TMP}/syncdst6"
+mkdir -p "$syncdst6"
+printf 'CANON-HARNESS-V1\r\n\r\n# Part 2 — project\r\n\r\nCRLF-PART2-SENTINEL\r\n' \
+  >"${syncdst6}/AGENTS.md"
+out="$(sync "$syncdst6")"
+expect "CRLF consumer AGENTS.md spliced" \
+  "update  AGENTS.md (above marker; consumer Part 2 kept)" "$out"
+expect "CRLF splice carries canonical head" \
+  "CANON-HARNESS-V2" "$(cat "${syncdst6}/AGENTS.md")"
+expect "CRLF splice keeps consumer Part 2" \
+  "CRLF-PART2-SENTINEL" "$(cat "${syncdst6}/AGENTS.md")"
+
+# Symlink at a listed path: writing through it would modify a file
+# outside the consumer tree — refused, target untouched.
+syncdst7="${TMP}/syncdst7"
+mkdir -p "$syncdst7"
+printf 'outside content\n' >"${TMP}/link-target.md"
+ln -s "${TMP}/link-target.md" "${syncdst7}/CLAUDE.md"
+if out="$(sync "$syncdst7")"; then
+  fail "symlink at listed path fails the run"
+else
+  pass "symlink at listed path fails the run"
+fi
+expect "symlink named" "CLAUDE.md is not a regular file" "$out"
+expect "symlink target untouched" "outside content" \
+  "$(cat "${TMP}/link-target.md")"
 
 # Canonical listed-but-missing file: silent drift is the failure mode, so
 # the run must end nonzero, not whisper to stderr. Mutates the canonical
@@ -526,6 +555,13 @@ else
 fi
 expect "missing canonical file named" "canonical has no docs/graph.md" "$out"
 expect "missing canonical dir named" "canonical has no .claude/commands/" "$out"
+
+# Untracked scratch under a synced dir cannot ship (ls-files drives the
+# copies) and must not block the run.
+printf 'scratch\n' >"${syncsrc}/env/none/notes.tmp"
+out="$(sync "$syncdst3")"
+refute "untracked scratch under synced dir tolerated" \
+  "uncommitted changes" "$out"
 
 # Dirty canonical: working-tree-only content would ship now and read
 # AHEAD on every later run — refused before anything is written.

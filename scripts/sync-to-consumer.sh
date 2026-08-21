@@ -45,6 +45,11 @@ log()  { printf '[joharness] %s\n' "$*" >&2; }
 warn() { printf '[joharness] WARNING: %s\n' "$*" >&2; }
 die()  { printf '[joharness] ERROR: %s\n' "$*" >&2; exit 1; }
 
+# Reaps the splice temp file when a die or interrupt lands inside its
+# build window; empty otherwise.
+TRAP_TMP=""
+trap '[ -z "$TRAP_TMP" ] || rm -f "$TRAP_TMP"' EXIT
+
 usage() { die "usage: $0 [--dry-run] <consumer-dir>"; }
 
 DRY=0
@@ -55,8 +60,13 @@ DEST="$1"
 [ -d "$DEST" ] || die "consumer dir '$DEST' does not exist"
 DEST="$(cd "$DEST" && pwd)"
 [ "$DEST" != "$ROOT" ] || die "consumer dir is the canonical checkout itself"
-git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1 ||
+# Top of its own checkout, not merely inside one: nested in a parent repo,
+# every history query would answer from the parent's tree — permanent
+# false AHEAD with advice that cannot be satisfied.
+top="$(git -C "$ROOT" rev-parse --show-toplevel 2>/dev/null)" ||
   die "canonical '$ROOT' is not a git checkout (history decides stale vs AHEAD)"
+[ "$top" = "$(cd "$ROOT" && pwd -P)" ] ||
+  die "canonical '$ROOT' is nested inside another git checkout (${top})"
 
 # Whole files. AGENTS.md is absent here on purpose: it gets the marker
 # splice below, never a whole-file copy over a consumer's Part 2.
@@ -85,13 +95,16 @@ DIRS=(
   .claude/commands
 )
 
-# AHEAD detection compares committed blobs: content that exists only in
-# the canonical working tree would ship now and read AHEAD on every later
-# run. Untracked files under synced dirs would ship as junk. Both mean
-# the same thing — commit first.
-dirty="$(git -C "$ROOT" status --porcelain -- AGENTS.md "${FILES[@]}" "${DIRS[@]}")"
-[ -z "$dirty" ] ||
+# AHEAD detection compares committed blobs: modified or untracked content
+# at a listed file path would ship from the working tree and read AHEAD
+# on every later run. Under synced dirs only tracked modifications block —
+# ls-files drives those copies, so an untracked scratch file there cannot
+# ship and must not stop the run.
+dirty="$(git -C "$ROOT" status --porcelain -uno -- AGENTS.md "${FILES[@]}" "${DIRS[@]}")"
+listed_dirty="$(git -C "$ROOT" status --porcelain -- AGENTS.md "${FILES[@]}")"
+if [ -n "$dirty" ] || [ -n "$listed_dirty" ]; then
   die "canonical has uncommitted changes under synced paths; commit first"
+fi
 
 UPDATED=0 NEW=0 SAME=0 AHEAD=0 ONLY=0 MISSING=0
 
@@ -108,6 +121,14 @@ in_history() {
 # or every Windows consumer reads AHEAD forever.
 consumer_blob() {
   git -C "$ROOT" hash-object --path="$1" --stdin <"$2"
+}
+
+# Marker match tolerant of a CRLF checkout — the same consumer state
+# consumer_blob normalizes for. Plain grep with stdout dropped, not -q:
+# -q exits at first match and the SIGPIPE fails the pipeline under
+# pipefail exactly when the marker is present.
+has_marker() {
+  tr -d '\r' <"$1" | grep -xF -- "$MARKER" >/dev/null
 }
 
 mode_differs() {
@@ -128,10 +149,11 @@ place() {
 
 sync_file() {
   local rel="$1" src="${ROOT}/$1" dst="${DEST}/$1" blob
-  # A directory squatting on a file's path would swallow the copy as
-  # dir/file, reported 'new', on every rerun. Human repairs, not cp.
-  if [ -e "$dst" ] && [ ! -f "$dst" ]; then
-    die "consumer path ${rel} exists but is not a regular file"
+  # A directory here would swallow the copy as dir/file reported 'new';
+  # a symlink would write through to a target outside the consumer tree
+  # (dangling: create at the target path). Human repairs, not cp.
+  if [ -h "$dst" ] || { [ -e "$dst" ] && [ ! -f "$dst" ]; }; then
+    die "consumer path ${rel} is not a regular file (symlink or directory)"
   fi
   if [ ! -f "$src" ]; then
     # Loud and fatal at the end of the run: a rename in canonical with a
@@ -210,11 +232,12 @@ sync_dir() {
 sync_agents_md() {
   local src="${ROOT}/AGENTS.md" dst="${DEST}/AGENTS.md" tmp c dst_head hist_head known
   [ -f "$src" ] || die "canonical AGENTS.md missing"
-  grep -qxF "$MARKER" "$src" || die "canonical AGENTS.md lacks marker '${MARKER}'"
+  has_marker "$src" || die "canonical AGENTS.md lacks marker '${MARKER}'"
   # Before the bootstrap branch: a directory here passes [ ! -f ] and cp
-  # would drop the file inside it.
-  if [ -e "$dst" ] && [ ! -f "$dst" ]; then
-    die "consumer path AGENTS.md exists but is not a regular file"
+  # would drop the file inside it; a symlink would be written through or
+  # silently replaced by the mv.
+  if [ -h "$dst" ] || { [ -e "$dst" ] && [ ! -f "$dst" ]; }; then
+    die "consumer path AGENTS.md is not a regular file (symlink or directory)"
   fi
   if [ ! -f "$dst" ]; then
     # Bootstrap: a consumer without the file gets canonical whole, its
@@ -224,15 +247,21 @@ sync_agents_md() {
     NEW=$((NEW + 1))
     return 0
   fi
-  grep -qxF "$MARKER" "$dst" ||
+  has_marker "$dst" ||
     die "consumer AGENTS.md lacks marker '${MARKER}'; refusing a partial write"
   # Build next to the target and mv into place: same filesystem, atomic,
   # so an interrupt never leaves a truncated root instruction file.
   # cp -p seeds the consumer's own mode; the truncating writes keep it.
+  # The EXIT trap reaps the temp file if the run dies in between. The
+  # CR-stripping sub keeps a CRLF checkout spliceable; output is LF, the
+  # ending .gitattributes pins anyway.
   tmp="${dst}.joharness-sync.$$"
+  TRAP_TMP="$tmp"
   cp -p "$dst" "$tmp"
-  awk -v m="$MARKER" '$0 == m { exit } { print }' "$src" >"$tmp"
-  awk -v m="$MARKER" 'p { print; next } $0 == m { p = 1; print }' "$dst" >>"$tmp"
+  awk -v m="$MARKER" '{ sub(/\r$/, "") } $0 == m { exit } { print }' \
+    "$src" >"$tmp"
+  awk -v m="$MARKER" '{ sub(/\r$/, "") } p { print; next } $0 == m { p = 1; print }' \
+    "$dst" >>"$tmp"
   if cmp -s "$tmp" "$dst"; then
     SAME=$((SAME + 1))
     rm -f "$tmp"
@@ -243,7 +272,7 @@ sync_agents_md() {
   # an edit that belongs in joharness — or this checkout is stale. A
   # whole-file blob check cannot work here: consumer Part 2 makes every
   # spliced file historically unknown by construction.
-  dst_head="$(awk -v m="$MARKER" '$0 == m { exit } { print }' "$dst")"
+  dst_head="$(awk -v m="$MARKER" '{ sub(/\r$/, "") } $0 == m { exit } { print }' "$dst")"
   known=0
   while IFS= read -r c; do
     hist_head="$(git -C "$ROOT" show "${c}:AGENTS.md" 2>/dev/null |
@@ -284,10 +313,12 @@ for dir in "${DIRS[@]}"; do sync_dir "$dir"; done
 printf '%d updated, %d new, %d ahead, %d consumer-only, %d same\n' \
   "$UPDATED" "$NEW" "$AHEAD" "$ONLY" "$SAME"
 
-if [ "$MISSING" -gt 0 ]; then
-  die "${MISSING} listed file(s) missing from canonical; fix the FILES list or the tree"
-fi
+# AHEAD is reported even when MISSING wins the exit code — a caller fixing
+# the list from exit 1 must not discover the ahead state only on rerun.
 if [ "$AHEAD" -gt 0 ]; then
   log "consumer is ahead on ${AHEAD} file(s); reconcile canonical-first, then re-run"
-  exit 2
 fi
+if [ "$MISSING" -gt 0 ]; then
+  die "${MISSING} listed path(s) missing from canonical; fix the FILES/DIRS list or the tree"
+fi
+[ "$AHEAD" -eq 0 ] || exit 2
