@@ -2,7 +2,7 @@
 workstream: harness-review
 status: review
 branch: claude/harness-research-review-l4y9vv
-pr: 6
+pr: 8
 session: https://claude.ai/code/session_01HBRP6Z9bv2vV1tf5yebWvA
 agent: sonnet
 updated: 2026-08-21
