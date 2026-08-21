@@ -1,6 +1,6 @@
 # joharness
 
-Canonical harness home. Consumer repos (redoct, future ones) copy the harness
+Canonical harness home. Consumer repos copy the harness
 from here; sync = plain copy commit, no handover file. House style:
 [`docs/caveman.md`](docs/caveman.md).
 
