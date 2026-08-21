@@ -200,10 +200,14 @@ cmd_ci() {
   return "$rc"
 }
 
-# Every shell script the harness owns, in a stable order.
+# Every shell script the harness owns, in a stable order. scripts/ is a
+# find root like the others: a script added there must not ship unlinted
+# behind a green `ci: pass`. Missing dirs are fine (2>/dev/null) — not
+# every consumer takes every dir.
 check_targets() {
   printf '%s\n' "${ROOT}/joharness.sh"
-  find "${ROOT}/harness" "${ENV_ROOT}" -name '*.sh' -type f 2>/dev/null | sort
+  find "${ROOT}/harness" "${ENV_ROOT}" "${ROOT}/scripts" \
+    -name '*.sh' -type f 2>/dev/null | sort
 }
 
 have() { command -v "$1" >/dev/null 2>&1; }

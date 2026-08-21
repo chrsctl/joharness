@@ -7,7 +7,7 @@ plan: harness-sync
 session: https://claude.ai/code/session_01TMhPHHGbEUUVfF9kUfZBcu
 agent: sonnet
 updated: 2026-08-21
-next: Build scripts/sync-to-consumer.sh per plan; then human-authorized scope extension: perform sync to chrsctl/redoct
+next: Review rounds (/code-review high) until clean; then perform sync to chrsctl/redoct
 ---
 
 ## Goal
@@ -19,6 +19,23 @@ its `docs/product/README.md` misses conflict-at-finish rules. Loop with
 review each round until reconciled.
 
 ## Decisions
+
+- Stale vs AHEAD = blob identity against canonical git history
+  (`git rev-list` + `rev-parse commit:path`). Shallow canonical degrades
+  safe: more AHEAD warnings, zero clobbers. AHEAD = exit 2, file skipped,
+  no force flag — reconcile canonical-first is doctrine, not option.
+- AGENTS.md: marker splice (`# Part 2 — project`, em dash U+2014), no
+  file split. Above marker canonical-owned, consumer edits there
+  overwritten by design. Missing marker either side = die, no partial
+  write.
+- `check_targets()` extended with `scripts/` — before this, a script
+  there shipped unlinted behind green `ci: pass`.
+- Synced: all env layers (ci covers all, consumer selects via own conf);
+  CLAUDE.md whole (no marker, AHEAD check guards). NOT synced:
+  `.gitignore`, `.github/workflows/ci.yml` (consumer CI wiring),
+  README.md, joharness.conf, live handover/plans/product files.
+- Removals not handled: canonical-deleted file stays in consumer,
+  reported consumer-only.
 
 - Branch name differs from plan (pre-assigned by session, not cut as
   `claude/harness-sync`). Claim edge = this file's `plan:` field, still
