@@ -28,7 +28,7 @@ semantic, summary — convergent, not copied.
 | Edge | Domain → range | Carried by |
 | --- | --- | --- |
 | `needs` | plan → plan | plan frontmatter. Open target file = blocked. |
-| `req` | plan → requirement | plan frontmatter. Requirement nobody serves = unplanned, hook flags. |
+| `requirement` | plan → requirement | plan frontmatter. Requirement nobody serves = unplanned, hook flags. |
 | `plan` | workstream → plan | workstream frontmatter. The claim. |
 | `agent` | plan or workstream → tier | frontmatter. Model that runs it. |
 | touches | branch → branch | computed: changed-path intersection |

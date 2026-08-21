@@ -20,9 +20,9 @@ human work.
 
 - **Add** = write file on `main` (direct or PR — human's call). Hook picks
   it up next session start.
-- **Unplanned** (no open plan carries `req: <requirement>`) = hook flags
-  it. Planning = queue work: session decomposes into plans via PR, plans
-  carry the `req:` edge. Plan queue rules: [`../plans/README.md`](../plans/README.md).
+- **Unplanned** (no open plan's `requirement:` names it) = hook flags it.
+  Planning = queue work: session decomposes into plans via PR, plans carry
+  the `requirement:` edge. Plan queue rules: [`../plans/README.md`](../plans/README.md).
 - **Satisfied** = last plan's PR deletes the requirement file with the
   plan file. Survives in history.
 - Requirement with open plans = silent in hook; its plans speak.
