@@ -9,7 +9,7 @@ from here; sync = plain copy commit, no handover file. House style:
 Agent guidance: [`AGENTS.md`](AGENTS.md). `CLAUDE.md` imports it — Claude Code
 loads it every session.
 
-Two things ready:
+Three things ready:
 
 - **Docker + Kubernetes sandbox.** `SessionStart` hook runs
   `scripts/devenv.sh up`: `docker`, `kubectl`, `k3d`, `helm` work at session
@@ -17,6 +17,11 @@ Two things ready:
   provides, what it costs, four sandbox constraints the scripts work around:
   [`docs/environment.md`](docs/environment.md). Verify:
   `scripts/smoke-test.sh`.
+- **Plan queue for agents.** Pre-scoped work under
+  [`docs/plans/`](docs/plans/README.md), one file per plan, written for
+  literal execution; picked after open issues. Each plan names the agent
+  tier that implements it — plans matched to agents, not one agent to all
+  plans. Lineup + rules: [`docs/agent-selection.md`](docs/agent-selection.md).
 - **Handover protocol between sessions.** One workstream file per work under
   `docs/handover/`, on that work's branch. Second `SessionStart` hook prints
   state — this branch's file, what is in flight elsewhere — before first
