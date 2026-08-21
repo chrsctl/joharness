@@ -15,13 +15,16 @@ the selected layer — [`env/README.md`](env/README.md).
 
 1. **Orient.** Hook prints handover state before first prompt. Hook names
    workstream file for this branch? That is your job. Read whole file. Go to 4.
-2. **Pick.** Queue = open GitHub issues, then plan files `docs/plans/*.md`
-   (shape + claim rules: `docs/plans/README.md`). Hook prints plan queue +
-   wanted agent tier at session start. Oldest actionable first, urgent first
-   if marked. No issue, no plan, no file: ask human. Not invent work.
-3. **Claim.** Cut branch. Write `docs/handover/<workstream>.md`. Push NOW —
-   no push, no claim. Hook shows overlap? `/who`. Only `RUNNING` session means
-   branch taken.
+2. **Pick.** Queue = open GitHub issues, then unplanned requirements
+   `docs/product/*.md` (decompose into plans = the work), then plan files
+   `docs/plans/*.md` (shape + claim rules: `docs/plans/README.md`). Hook
+   prints queue + wanted agent tier at session start. Oldest actionable
+   first, urgent first if marked. No issue, no requirement, no plan: ask
+   human. Not invent work.
+3. **Claim.** Cut branch from `main` (branch flow:
+   `docs/product/README.md`). Write `docs/handover/<workstream>.md`. Push
+   NOW — no push, no claim. Hook shows overlap? `/who`. Only `RUNNING`
+   session means branch taken.
 4. **Build.**
 5. **Verify.** All green or not done. `./joharness.sh ci` runs exactly what
    GitHub CI runs — run it here, before the pull request, not after.
@@ -31,8 +34,11 @@ the selected layer — [`env/README.md`](env/README.md).
    diff before PR. Fix findings or record why not — never drop silent.
 6. **Hand over.** Update workstream file in SAME commit as code. Before ending
    any unfinished turn, not only at session end. `/handover` writes it.
-7. **Merge.** Delete workstream file. Still-useful bits go to the right layer's
-   `AGENTS.md` or `docs/`.
+7. **Finish.** PR, merge to `main` — every step merges, no long-lived
+   integration branch. Then DELETE the remote branch: dead branch standing
+   = fake in-flight work, poisons claims view. PR's final state deletes
+   workstream file + done plan file (+ requirement file when last plan).
+   Still-useful bits go to the right layer's `AGENTS.md` or `docs/` first.
 
 ## Decide alone
 

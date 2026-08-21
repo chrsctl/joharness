@@ -20,7 +20,9 @@ shows what changed. Performing a sync gets NO handover file (protocol:
 
 - `scripts/sync-to-consumer.sh` — copy harness-owned paths (list:
   `harness/README.md` table), print diff summary. One-way: joharness to
-  consumer.
+  consumer. Reconciliation rule (docs/product/README.md): consumer-born
+  fixes land here first, then sync out — script warns when consumer copy
+  is AHEAD of canonical, never overwrites silently.
 - Solve the root `AGENTS.md` problem first: file is part harness import,
   part per-repo Part 2. Blind copy clobbers consumer's Part 2. Split into
   two files, or sync only above the `# Part 2 — project` marker. Decide,
