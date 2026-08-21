@@ -14,7 +14,10 @@ whichever `joharness.conf` names.
   Session start prints the state — this branch's file, what is in flight
   elsewhere — before the first prompt. `/handover` writes the file; `/who`
   reports genuinely running sessions. Protocol + reasoning:
-  [`docs/handover/README.md`](docs/handover/README.md).
+  [`docs/handover/README.md`](docs/handover/README.md). Backlog beyond
+  issues: plan queue under [`docs/plans/`](docs/plans/README.md), each plan
+  naming the agent tier that implements it — lineup + rules:
+  [`docs/agent-selection.md`](docs/agent-selection.md).
 - **[`env/<name>/`](env/README.md) — sandbox environment.** Selected, not
   assumed. [`env/k8s`](env/k8s/README.md) is Docker + a k3d Kubernetes
   cluster, and what it costs, and the four sandbox constraints its scripts
