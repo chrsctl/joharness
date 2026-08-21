@@ -165,7 +165,7 @@ Claude Code Remote `list_sessions`, `mine: true`. Each session carries
 `session_status` (`RUNNING` = only value meaning working *now*), owned branch
 under `outcomes[].git_repository.git_info.branches`, and
 `post_turn_summary.status_detail` one-liner. `/who` reads that,
-cross-references branches, says which branches actually taken.
+cross-references branches, says which branches taken.
 
 Find tool by search, not name: MCP prefix unstable across sessions; hardcoded
 `mcp__Claude_Code_Remote__list_sessions` fails "No such tool available" when
@@ -179,7 +179,7 @@ positives.
 
 What this asks of you:
 
-- **Push early, not just at end.** Nothing visible to other sessions until on
+- **Push early, not only at end.** Nothing visible to other sessions until on
   remote. Push as soon as work has name, even if first commit only adds
   workstream file.
 - **Record session in frontmatter.** `session: https://claude.ai/code/...`
@@ -222,7 +222,7 @@ fences itself.
 Deliberately **not** implemented. Same-workstream collision rare; common
 collision = same files, different workstreams — lock does not prevent, overlap
 warning catches. Lock also invisible in review, adds release step dying
-session skips. Reach for it only if visible-collision approach actually fails.
+session skips. Reach for it only if visible-collision approach fails.
 
 ## Pull requests: link, never duplicate
 
