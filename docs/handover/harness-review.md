@@ -30,6 +30,11 @@ front, without spelunking.
 - Scope excludes what in-flight branches own: helm smoke coverage
   (smoke-helm-coverage), K3S_IMAGE bump (k8s-136-validation), sync script
   (harness-sync).
+- Researched codejunkie99/graph-engineering (human ask). Task-graph half
+  applied: plans get optional `needs:` frontmatter — queue is a DAG,
+  blocked while the needed plan file exists (delete-on-merge makes file
+  existence the edge, no status field to rot). Hook sorts blocked plans
+  last, labels `blocked by:`; unblocked plans = safe parallel sessions.
 
 ## Rejected
 
@@ -41,6 +46,10 @@ front, without spelunking.
   every consumer; queue prints "issues outrank plans" pointer instead.
 - refs/claims mutual exclusion — already weighed and rejected in
   docs/handover/README.md; nothing new changes that.
+- graph-engineering's knowledge-graph half — a KG of the repo is derived
+  state, exactly what the handover protocol's derivability rule forbids.
+  Its other task-graph rules (human gate, one writer per file, judge on
+  numbers) the harness already implements; nothing to add.
 
 ## Blockers
 
