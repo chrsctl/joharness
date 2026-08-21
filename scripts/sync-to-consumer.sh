@@ -27,11 +27,16 @@
 # consumer and is reported as consumer-only.
 #
 # Usage: scripts/sync-to-consumer.sh [--dry-run] <consumer-dir>
-# Exit: 0 synced clean, 1 usage or tree error, 2 consumer copies AHEAD.
+# Exit: 0 synced clean, 1 usage or tree error (dirty canonical, listed
+# file missing from canonical, marker absent), 2 consumer copies AHEAD.
 
 set -euo pipefail
 
-ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+# JOHARNESS_SYNC_ROOT is a selftest hook: point canonical at a scratch
+# repo. Real use trusts where this script lives — honoring
+# CLAUDE_PROJECT_DIR here would silently re-aim canonical at whatever
+# repo the session is anchored in, wrong direction included.
+ROOT="${JOHARNESS_SYNC_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 MARKER='# Part 2 — project'
 
 log()  { printf '[joharness] %s\n' "$*" >&2; }
@@ -78,18 +83,22 @@ DIRS=(
   .claude/commands
 )
 
-UPDATED=0 NEW=0 SAME=0 AHEAD=0 ONLY=0
+# AHEAD detection compares committed blobs: content that exists only in
+# the canonical working tree would ship now and read AHEAD on every later
+# run. Untracked files under synced dirs would ship as junk. Both mean
+# the same thing — commit first.
+dirty="$(git -C "$ROOT" status --porcelain -- AGENTS.md "${FILES[@]}" "${DIRS[@]}")"
+[ -z "$dirty" ] ||
+  die "canonical has uncommitted changes under synced paths; commit first"
+
+UPDATED=0 NEW=0 SAME=0 AHEAD=0 ONLY=0 MISSING=0
 
 # Consumer content that matches some historical canonical blob of the same
-# path is merely behind; no match means a consumer edit.
+# path is merely behind; no match means a consumer edit. Plain grep, not
+# grep -q: -q exits at first match and the SIGPIPE fails the pipeline
+# under pipefail exactly when the answer is yes.
 in_history() {
-  local rel="$1" blob="$2" c
-  while IFS= read -r c; do
-    if [ "$(git -C "$ROOT" rev-parse -q --verify "${c}:${rel}" 2>/dev/null)" = "$blob" ]; then
-      return 0
-    fi
-  done < <(git -C "$ROOT" rev-list HEAD -- "$rel")
-  return 1
+  git -C "$ROOT" rev-list --objects HEAD -- "$1" | grep "^$2" >/dev/null
 }
 
 place() {
@@ -104,7 +113,11 @@ place() {
 sync_file() {
   local rel="$1" src="${ROOT}/$1" dst="${DEST}/$1" blob
   if [ ! -f "$src" ]; then
+    # Loud and fatal at the end of the run: a rename in canonical with a
+    # stale list here would otherwise drift that file forever behind a
+    # clean exit 0.
     warn "canonical has no ${rel}; listed but missing — tree/script mismatch"
+    MISSING=$((MISSING + 1))
     return 0
   fi
   if [ ! -f "$dst" ]; then
@@ -133,16 +146,18 @@ sync_file() {
 sync_dir() {
   local dir="$1" f rel
   [ -d "${ROOT}/${dir}" ] || { warn "canonical has no ${dir}/"; return 0; }
-  while IFS= read -r f; do
-    sync_file "${f#"$ROOT"/}"
-  done < <(find "${ROOT}/${dir}" -type f | sort)
-  # Consumer files canonical does not have: could be the consumer's own
+  # Tracked files only, not a find walk: editor backups and gitignored
+  # junk in the canonical working tree must never ship.
+  while IFS= read -r rel; do
+    sync_file "$rel"
+  done < <(git -C "$ROOT" ls-files -- "$dir")
+  # Consumer files canonical does not track: could be the consumer's own
   # (an extra env layer is legitimate) or a canonical removal. Both are a
   # human call, so report and leave.
   [ -d "${DEST}/${dir}" ] || return 0
   while IFS= read -r f; do
     rel="${f#"$DEST"/}"
-    if [ ! -f "${ROOT}/${rel}" ]; then
+    if ! git -C "$ROOT" ls-files --error-unmatch -- "$rel" >/dev/null 2>&1; then
       printf '  consumer-only %s (left in place)\n' "$rel"
       ONLY=$((ONLY + 1))
     fi
@@ -195,6 +210,9 @@ for dir in "${DIRS[@]}"; do sync_dir "$dir"; done
 printf '%d updated, %d new, %d ahead, %d consumer-only, %d same\n' \
   "$UPDATED" "$NEW" "$AHEAD" "$ONLY" "$SAME"
 
+if [ "$MISSING" -gt 0 ]; then
+  die "${MISSING} listed file(s) missing from canonical; fix the FILES list or the tree"
+fi
 if [ "$AHEAD" -gt 0 ]; then
   log "consumer is ahead on ${AHEAD} file(s); reconcile canonical-first, then re-run"
   exit 2
