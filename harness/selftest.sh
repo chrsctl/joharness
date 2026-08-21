@@ -174,6 +174,7 @@ plan: older-normal
 urgency: normal
 agent: haiku
 effort: low
+req: served-req
 ---
 EOF
 # rival-plan lands in the OLDER commit on purpose: if claim-ranking ever
@@ -205,6 +206,22 @@ needs: older-normal, merged-away, none
 EOF
 cat >"${work}/docs/plans/TEMPLATE.md" <<'EOF'
 not a plan
+EOF
+mkdir -p "${work}/docs/product"
+cat >"${work}/docs/product/served-req.md" <<'EOF'
+---
+requirement: served-req
+priority: normal
+---
+EOF
+cat >"${work}/docs/product/unplanned-req.md" <<'EOF'
+---
+requirement: unplanned-req
+priority: urgent
+---
+EOF
+cat >"${work}/docs/product/TEMPLATE.md" <<'EOF'
+not a requirement
 EOF
 GIT_COMMITTER_DATE="2026-01-02T00:00:00Z" \
   commit_all "$work" "queue newer urgent plan"
@@ -242,6 +259,10 @@ if [ "$last_plan" = "docs/plans/blocked-urgent.md" ]; then
 else
   fail "blocked plan sorts last despite urgency (last was: ${last_plan:-none})"
 fi
+expect "requirement without a plan is flagged for planning" \
+  "docs/product/unplanned-req.md  [urgent, UNPLANNED" "$out"
+refute "requirement served by a plan is silent" "served-req.md" "$out"
+refute "requirement template is not a requirement" "product/TEMPLATE" "$out"
 expect "two free plans = spawn instruction with tiers" \
   "2 free plans = 2 parallel sessions" "$out"
 expect "spawn list names each free plan's tier" \

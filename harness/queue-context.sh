@@ -26,6 +26,7 @@ set -uo pipefail
 
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 PLANS_DIR="docs/plans"
+PRODUCT_DIR="docs/product"
 BASE_BRANCH="${HANDOVER_BASE_BRANCH:-main}"
 MAX_ENTRIES="${QUEUE_MAX_ENTRIES:-10}"
 
@@ -66,10 +67,42 @@ plans="$(git ls-tree -r --name-only "$ref" -- "$PLANS_DIR" 2>/dev/null |
 
 printf '\n== Queue (protocol: docs/plans/README.md) ==\n\n'
 
+# Requirements tier (docs/product/README.md): a requirement no open plan
+# serves is planning work, and planning outranks executing — plans exist
+# so decomposition happens once, up front, per requirement.
+reqs="$(git ls-tree -r --name-only "$ref" -- "$PRODUCT_DIR" 2>/dev/null |
+  grep -E '\.md$' | grep -vE '/(TEMPLATE|README|VISION)\.md$')"
+unplanned=""
+if [ -n "$reqs" ]; then
+  served="$(
+    while IFS= read -r f; do
+      [ -n "$f" ] || continue
+      git show "${ref}:${f}" 2>/dev/null | field req
+    done <<<"$plans"
+  )"
+  while IFS= read -r rf; do
+    [ -n "$rf" ] || continue
+    rstem="${rf##*/}"
+    rstem="${rstem%.md}"
+    grep -qxF -- "$rstem" <<<"$served" && continue
+    rprio="$(git show "${ref}:${rf}" 2>/dev/null | field priority)"
+    unplanned="${unplanned}  ${rf}  [${rprio:-normal}, UNPLANNED — decompose into plans]"$'\n'
+  done <<<"$reqs"
+  if [ -n "$unplanned" ]; then
+    printf 'Requirements without plans — planning outranks the plan queue:\n'
+    printf '%s\n' "$unplanned"
+  fi
+fi
+
 if [ -z "$plans" ]; then
-  printf 'No plans on %s — plan-queue edge reached: done. Entrypoint: open\n' "$ref"
-  printf 'GitHub issues first; none = resume in-flight branch above, or ask\n'
-  printf 'human. Default model tier: sonnet (docs/agent-selection.md).\n'
+  if [ -n "$unplanned" ]; then
+    printf 'No plans on %s. Entrypoint: plan the requirements above (issues\n' "$ref"
+    printf 'still outrank). Default model tier: sonnet (docs/agent-selection.md).\n'
+  else
+    printf 'No plans on %s — plan-queue edge reached: done. Entrypoint: open\n' "$ref"
+    printf 'GitHub issues first; none = resume in-flight branch above, or ask\n'
+    printf 'human. Default model tier: sonnet (docs/agent-selection.md).\n'
+  fi
   exit 0
 fi
 
