@@ -16,9 +16,9 @@ the selected layer — [`env/README.md`](env/README.md).
 1. **Orient.** Hook prints handover state before first prompt. Hook names
    workstream file for this branch? That is your job. Read whole file. Go to 4.
 2. **Pick.** Queue = open GitHub issues, then plan files `docs/plans/*.md`
-   (shape + claim rules: `docs/plans/README.md`). Oldest actionable first,
-   urgent first if marked. No issue, no plan, no file: ask human. Not invent
-   work.
+   (shape + claim rules: `docs/plans/README.md`). Hook prints plan queue +
+   wanted agent tier at session start. Oldest actionable first, urgent first
+   if marked. No issue, no plan, no file: ask human. Not invent work.
 3. **Claim.** Cut branch. Write `docs/handover/<workstream>.md`. Push NOW —
    no push, no claim. Hook shows overlap? `/who`. Only `RUNNING` session means
    branch taken.

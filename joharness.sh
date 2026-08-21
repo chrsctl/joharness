@@ -64,9 +64,15 @@ setup_mode() { printf '%s' "${JOHARNESS_ENV_SETUP:-$(conf_get JOHARNESS_ENV_SETU
 # out of it before it reaches a path.
 valid_name() { printf '%s' "$1" | grep -qE '^[a-z0-9][a-z0-9._-]*$'; }
 
+# Glob, not find -printf: the hook also runs on developer machines, and BSD
+# find (macOS) has no -printf.
 layers() {
-  [ -d "$ENV_ROOT" ] || return 0
-  find "$ENV_ROOT" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | sort
+  local d
+  for d in "${ENV_ROOT}"/*/; do
+    [ -d "$d" ] || continue
+    d="${d%/}"
+    printf '%s\n' "${d##*/}"
+  done
 }
 
 # Selected layer, falling back to 'none'. No name is special here: 'none' is an
@@ -151,10 +157,21 @@ cmd_ci() {
   fi
 
   printf '\n== bash syntax\n'
+  local syntax_rc=0
   for f in "${targets[@]}"; do
-    bash -n "$f" || rc=1
+    bash -n "$f" || { rc=1; syntax_rc=1; }
   done
-  [ "$rc" -eq 0 ] && printf '  clean\n'
+  [ "$syntax_rc" -eq 0 ] && printf '  clean\n'
+
+  # The harness's own regression tests: git-only, so they run on GitHub
+  # runners where the environment smoke test cannot.
+  printf '\n== harness selftest\n'
+  if [ -x "${ROOT}/harness/selftest.sh" ]; then
+    "${ROOT}/harness/selftest.sh" || rc=1
+  else
+    warn "harness/selftest.sh missing or not executable"
+    rc=1
+  fi
 
   printf '\n'
   if [ "$rc" -eq 0 ]; then
@@ -190,15 +207,17 @@ cmd_env() {
 
   local effective mode
   current="$(env_name)"
-  [ -n "$current" ] || current="none (default)"
   effective="$(resolve_env 2>/dev/null)" || effective=""
   mode="$(setup_mode)"; [ -n "$mode" ] || mode="lazy (default)"
 
-  printf 'environment : %s\n' "$current"
-  # A selection that does not resolve is worth saying out loud; silently
-  # running 'none' is how a repo ends up wondering where its cluster went.
-  [ "$current" = "$effective" ] ||
+  printf 'environment : %s\n' "${current:-none (default)}"
+  # An explicit selection that does not resolve is worth saying out loud;
+  # silently running 'none' is how a repo ends up wondering where its cluster
+  # went. No selection at all is not that: the default resolving to 'none' is
+  # the design, not a fallback.
+  if [ -n "$current" ] && [ "$current" != "$effective" ]; then
     printf '              ! not usable, falls back to: %s\n' "${effective:-nothing}"
+  fi
   printf 'setup       : %s\n' "$mode"
   printf 'config      : %s\n' "$CONF"
   printf 'available   :\n'
@@ -252,6 +271,11 @@ cmd_session_start() {
 
   [ -x "${ROOT}/harness/handover-context.sh" ] &&
     "${ROOT}/harness/handover-context.sh"
+
+  # After handover state, so a resumed branch reads its own work first and a
+  # fresh session reads what to pick up and which model tier it wants.
+  [ -x "${ROOT}/harness/queue-context.sh" ] &&
+    "${ROOT}/harness/queue-context.sh"
 
   return 0
 }
