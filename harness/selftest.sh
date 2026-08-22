@@ -140,6 +140,52 @@ printf 'JOHARNESS_ENV_MD=eager\n' >>"${sel}/joharness.conf"
 out="$(jo session-start)"
 expect "conf md=eager injects layer rules" "RULE-SENTINEL" "$out"
 
+# valid_name must judge the whole string, not one matching line. A name with an
+# embedded newline used to pass (grep -qE matches per line, and 'aaa' is a line
+# that matches the anchored pattern), letting a multi-line value masquerade as a
+# single path component. The case test rejects it, so the entrypoint reports it
+# invalid rather than merely "no such directory".
+out="$(JOHARNESS_ENV="$(printf 'aaa\nbad')" jo setup 2>&1)"
+expect "embedded newline in layer name is rejected as invalid" \
+  "ignoring invalid JOHARNESS_ENV" "$out"
+
+# --- entrypoint: setup.sh writes shell-safe env-file lines --------------------
+# The written file is sourced by a later shell; a cluster name carrying a quote
+# and $(...) would run as code there unless setup.sh escapes it. Stub the
+# provisioner so the write path is reachable without Docker.
+step "env/k8s/setup.sh env-file quoting"
+setup_sut="${TMP}/setup-sut"
+mkdir -p "$setup_sut"
+cat >"${setup_sut}/devenv.sh" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+chmod +x "${setup_sut}/devenv.sh" 2>/dev/null || true
+if "${setup_sut}/devenv.sh" up 2>/dev/null; then
+  cp "${ROOT}/env/k8s/setup.sh" "${setup_sut}/setup.sh"
+  envf="${TMP}/claude-env-file"
+  : >"$envf"
+  # This value would run `touch ${TMP}/pwned` if sourced as raw shell.
+  hostile='x";touch '"${TMP}"'/pwned;"'
+  CLAUDE_ENV_FILE="$envf" DEVENV_START_CLUSTER=0 \
+    DEVENV_CLUSTER_NAME="$hostile" \
+    bash "${setup_sut}/setup.sh" >/dev/null 2>&1 || true
+  # shellcheck disable=SC1090  # the file under test is what we deliberately source
+  ( . "$envf" ) >/dev/null 2>&1 || true
+  if [ -e "${TMP}/pwned" ]; then
+    fail "cluster name with quote+\$() executes when the env file is sourced"
+    rm -f "${TMP}/pwned"
+  else
+    pass "cluster name with quote+\$() executes when the env file is sourced"
+  fi
+  # shellcheck disable=SC1090
+  got="$(. "$envf" >/dev/null 2>&1; printf '%s' "${DEVENV_CLUSTER_NAME-}")"
+  expect "hostile cluster name round-trips as inert literal data" \
+    'x";touch' "$got"
+else
+  skip "env/k8s/setup.sh env-file quoting" "cannot exec a stub script here"
+fi
+
 # --- fixture: origin with main, a rival branch, and this session's branch ---
 origin="${TMP}/origin.git"
 git init -q --bare "$origin"

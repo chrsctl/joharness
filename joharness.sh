@@ -67,8 +67,15 @@ setup_mode() { printf '%s' "${JOHARNESS_ENV_SETUP:-$(conf_get JOHARNESS_ENV_SETU
 md_mode()   { printf '%s' "${JOHARNESS_ENV_MD:-$(conf_get JOHARNESS_ENV_MD)}"; }
 
 # Layer names are directory names under env/. Reject anything that could walk
-# out of it before it reaches a path.
-valid_name() { printf '%s' "$1" | grep -qE '^[a-z0-9][a-z0-9._-]*$'; }
+# out of it before it reaches a path. A whole-string case test, not a grep -qE:
+# grep matches per line, so a value carrying a newline ($'k8s\n...') slipped
+# past the anchors when any single line matched. case sees the whole string.
+valid_name() {
+  case "$1" in
+    ''|[!a-z0-9]*|*[!a-z0-9._-]*) return 1 ;;
+    *) return 0 ;;
+  esac
+}
 
 # Glob, not find -printf: the hook also runs on developer machines, and BSD
 # find (macOS) has no -printf.
