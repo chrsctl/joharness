@@ -45,6 +45,13 @@ mapping:
   rounds of patching, findings per round 3, 5, 3, 5, 2 — oscillating, no
   floor; one conflict diagnosis (split into two per-case rules, both
   requirements kept) ended it.
+  Measured, not just noticed: `joharness.sh ci` prints `== churn` — max
+  commits touching one file since merge-base, protocol paths excluded,
+  warning at `JOHARNESS_CHURN_THRESHOLD` (default 5; backtested over every
+  merge on main: the twelve-round sync branch peaks at 13, all others <= 4).
+  Session inside the churn sees it where ci already runs; the handover hook
+  prints the same line for other branches, so a resuming session inherits
+  the signal too.
 - Plan author assigns; implementing session may escalate tier or effort and
   record why in workstream file. Never downgrade to save cost — that
   decision is money, humans only (harness/AGENTS.md: stop and ask for

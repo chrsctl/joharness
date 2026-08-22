@@ -27,6 +27,7 @@ unset JOHARNESS_ENV JOHARNESS_ENV_SETUP JOHARNESS_ENV_MD \
 
 PASS=0
 FAIL=0
+SKIP=0
 
 pass() { printf '  PASS %s\n' "$*"; PASS=$((PASS + 1)); }
 fail() { printf '  FAIL %s\n' "$*"; FAIL=$((FAIL + 1)); }
@@ -53,6 +54,41 @@ refute() {
 }
 
 step() { printf '\n== %s\n' "$*"; }
+
+# Some cases ask questions a filesystem has to be able to answer. Git for
+# Windows cannot represent an exec bit, Windows needs elevation for symlinks,
+# and NTFS rejects backslash and newline in a filename outright - so those
+# fixtures cannot be built there, let alone asserted on. A case that cannot
+# run is not a case that failed: skipping keeps the count honest and lets the
+# Windows CI job be green when the code is right.
+skip() { printf '  SKIP %s (%s)\n' "$1" "$2"; SKIP=$((SKIP + 1)); }
+
+# Probe once, by trying it rather than by guessing from $OSTYPE.
+probe="${TMP}/probe"
+mkdir -p "$probe"
+
+git init -q "${probe}/fm" 2>/dev/null
+if [ "$(git -C "${probe}/fm" config core.filemode 2>/dev/null)" = "true" ]; then
+  HAVE_FILEMODE=1
+else
+  HAVE_FILEMODE=0
+fi
+
+if ln -s target "${probe}/link" 2>/dev/null && [ -L "${probe}/link" ]; then
+  HAVE_SYMLINK=1
+else
+  HAVE_SYMLINK=0
+fi
+
+# Backslash is the strict half of this pair: Windows reads it as a separator,
+# so the redirect fails outright rather than producing an oddly-named file.
+# The newline half is gated with it - both exist to prove one behaviour, and
+# half the block would leave the canonical fixture committed mid-way.
+if : >"${probe}/back\\slash" 2>/dev/null && [ -f "${probe}/back\\slash" ]; then
+  HAVE_ODD_NAMES=1
+else
+  HAVE_ODD_NAMES=0
+fi
 
 # A commit in the repo $1 with message $2, after staging everything.
 commit_all() { git -C "$1" add -A && git -C "$1" commit -qm "$2"; }
@@ -229,6 +265,45 @@ expect "a branch only the fork has is still reported" "fork/fork-only" "$out"
 git -C "$work" remote remove fork
 git -C "$work" branch -qD fork-only
 
+# --- churn line for other branches -----------------------------------------
+# A branch hammering one file is likely in review churn; the hook prints the
+# measurement per branch so a resuming session inherits the signal. Protocol
+# paths are excluded: the workstream file is touched every commit by rule,
+# and counting that reads compliance as churn.
+step "handover-context.sh churn line"
+
+git -C "$work" checkout -qb churny-mc-churn main
+mkdir -p "${work}/docs/handover"
+cat >"${work}/docs/handover/churny-ws.md" <<'EOF'
+---
+workstream: churny-ws
+status: in-progress
+updated: 2026-01-01
+next: Fixture
+---
+EOF
+for i in 1 2 3 4 5 6; do
+  printf 'round %s\n' "$i" >>"${work}/hot-file.txt"
+  printf 'log %s\n' "$i" >>"${work}/docs/handover/churny-ws.md"
+  commit_all "$work" "harden per review round $i"
+done
+git -C "$work" push -qu origin churny-mc-churn
+git -C "$work" checkout -q feature
+
+out="$(CLAUDE_PROJECT_DIR="$work" HANDOVER_FETCH=0 \
+  bash "${ROOT}/harness/handover-context.sh" 2>&1)"
+expect "Churny McChurn carries the churn line" \
+  "churn: hot-file.txt touched in 6 commits" "$out"
+refute "workstream file updates are not churn" "churny-ws.md touched" "$out"
+refute "quiet branch carries no churn line" "rival-ws.md touched" "$out"
+
+out="$(CLAUDE_PROJECT_DIR="$work" HANDOVER_FETCH=0 JOHARNESS_CHURN_THRESHOLD=9 \
+  bash "${ROOT}/harness/handover-context.sh" 2>&1)"
+refute "threshold override silences the line" "churn: hot-file.txt" "$out"
+
+git -C "$work" push -q --delete origin churny-mc-churn 2>/dev/null
+git -C "$work" branch -qD churny-mc-churn
+
 # --- queue hook -------------------------------------------------------------
 step "queue-context.sh"
 
@@ -344,6 +419,29 @@ expect "two free plans = spawn instruction with tiers" \
 expect "spawn list names each free plan's tier" \
   "newer-urgent (opus), older-normal (haiku)" "$out"
 
+# --- graph ------------------------------------------------------------------
+# One picture of the same state the two hooks print: requirements, plans,
+# branches, and the serves/needs/claims edges between them. Derived from the
+# same refs, so the fixture above is already the test bed.
+step "joharness.sh graph"
+
+out="$(CLAUDE_PROJECT_DIR="$work" "${ROOT}/joharness.sh" graph 2>&1)"
+
+expect "graph is fenced mermaid" '```mermaid' "$out"
+expect "plan node carries its tier" \
+  'p_older_normal["plan: older-normal [haiku low]"]' "$out"
+expect "plan serves its requirement" \
+  "p_older_normal -- serves --> r_served_req" "$out"
+expect "unplanned requirement is flagged" "UNPLANNED" "$out"
+expect "needs edge drawn to the open plan" \
+  "p_blocked_urgent -. needs .-> p_older_normal" "$out"
+expect "blocked plan wears the blocked class" \
+  'p_blocked_urgent["plan: blocked-urgent"]:::blocked' "$out"
+refute "a merged-away need is no edge" "p_merged_away" "$out"
+expect "branch claims its plan" \
+  "b_rival_ws -- claims --> p_rival_plan" "$out"
+refute "the template is not a node" "TEMPLATE" "$out"
+
 # --- session-start composition ---------------------------------------------
 step "joharness.sh session-start"
 
@@ -365,6 +463,54 @@ else
 fi
 expect "session-start prints handover state" "Handover state" "$out"
 expect "session-start prints queue" "== Queue" "$out"
+
+# --- entrypoint: the churn measure -----------------------------------------
+# A scratch repo, not this one: `ci` shells out to ${ROOT}/harness/selftest.sh,
+# which is this script — the scratch copy gets a stub so the suite does not
+# re-enter itself. Assertions read the printed section only; the run's exit
+# code belongs to shellcheck and the stub, not to churn (warning by design).
+step "joharness.sh ci: churn"
+
+corigin="${TMP}/churnorigin.git"
+git init -q --bare "$corigin"
+cwork="${TMP}/churnwork"
+mkdir -p "${cwork}/harness" "${cwork}/env/none" "${cwork}/docs/handover"
+cp "${ROOT}/joharness.sh" "${cwork}/joharness.sh"
+printf '#!/usr/bin/env bash\nexit 0\n' >"${cwork}/harness/selftest.sh"
+chmod +x "${cwork}/harness/selftest.sh" "${cwork}/joharness.sh"
+git init -q "$cwork"
+git -C "$cwork" symbolic-ref HEAD refs/heads/main
+commit_all "$cwork" "scratch harness"
+git -C "$cwork" remote add origin "$corigin"
+git -C "$cwork" push -qu origin main
+
+ci_churn() { CLAUDE_PROJECT_DIR="$cwork" JOHARNESS_CONF="${cwork}/joharness.conf" \
+  "${cwork}/joharness.sh" ci 2>&1 | sed -n '/== churn/,/^$/p'; }
+
+out="$(ci_churn)"
+expect "base branch is not measurable" "not measurable here" "$out"
+
+git -C "$cwork" checkout -qb hammering
+for i in 1 2 3 4 5 6; do
+  printf 'round %s\n' "$i" >>"${cwork}/hot-file.txt"
+  printf 'log %s\n' "$i" >>"${cwork}/docs/handover/hammer-ws.md"
+  commit_all "$cwork" "harden per review round $i"
+done
+out="$(ci_churn)"
+expect "churn names the hot file and count" \
+  "hot-file.txt touched in 6 commits on this branch" "$out"
+expect "churn cites the escalation rule" "review churn" "$out"
+refute "workstream file commits are not the count" \
+  "hammer-ws.md touched" "$out"
+
+out="$(JOHARNESS_CHURN_THRESHOLD=9 ci_churn)"
+expect "threshold override reports quiet" "quiet (max 6 commits per file)" "$out"
+
+git -C "$cwork" checkout -qb calm main
+printf 'one\n' >"${cwork}/calm.txt"
+commit_all "$cwork" "single change"
+out="$(ci_churn)"
+expect "a calm branch reports quiet" "quiet (max 1 commits per file)" "$out"
 
 # --- .gitattributes: scripts and markdown stay LF --------------------------
 # Git for Windows defaults to core.autocrlf=true. Without the pins a stock clone
@@ -512,12 +658,16 @@ expect "AGENTS.md harness part replaced" \
   "CANON-HARNESS-V2" "$(cat "${syncdst}/AGENTS.md")"
 expect "AGENTS.md consumer Part 2 kept" \
   "CONSUMER-PART2-SENTINEL" "$(cat "${syncdst}/AGENTS.md")"
-expect "lost exec bit repaired as mode-only update" \
-  "update  joharness.sh (mode only)" "$out"
-if [ -x "${syncdst}/joharness.sh" ]; then
-  pass "consumer entrypoint executable again"
+if [ "$HAVE_FILEMODE" = "1" ]; then
+  expect "lost exec bit repaired as mode-only update" \
+    "update  joharness.sh (mode only)" "$out"
+  if [ -x "${syncdst}/joharness.sh" ]; then
+    pass "consumer entrypoint executable again"
+  else
+    fail "consumer entrypoint executable again"
+  fi
 else
-  fail "consumer entrypoint executable again"
+  skip "exec bit repair" "core.filemode unsupported here"
 fi
 expect "consumer-only file reported, left" \
   "consumer-only env/custom/AGENTS.md" "$out"
@@ -604,42 +754,46 @@ expect "CRLF splice carries canonical head" \
 expect "CRLF splice keeps consumer Part 2" \
   "CRLF-PART2-SENTINEL" "$(cat "${syncdst6}/AGENTS.md")"
 
-# Symlink at a listed path: writing through it would modify a file
-# outside the consumer tree — refused, target untouched.
-syncdst7="${TMP}/syncdst7"
-mkdir -p "$syncdst7"
-printf 'outside content\n' >"${TMP}/link-target.md"
-ln -s "${TMP}/link-target.md" "${syncdst7}/CLAUDE.md"
-if out="$(sync "$syncdst7")"; then
-  fail "symlink at listed path fails the run"
-else
-  pass "symlink at listed path fails the run"
-fi
-expect "symlink named" "CLAUDE.md is not a regular file" "$out"
-expect "symlink target untouched" "outside content" \
-  "$(cat "${TMP}/link-target.md")"
-if [ -e "${syncdst7}/AGENTS.md" ]; then
-  fail "refusal leaves consumer untouched (AGENTS.md was bootstrapped)"
-else
-  pass "refusal leaves consumer untouched"
-fi
+if [ "$HAVE_SYMLINK" = "1" ]; then
+  # Symlink at a listed path: writing through it would modify a file
+  # outside the consumer tree — refused, target untouched.
+  syncdst7="${TMP}/syncdst7"
+  mkdir -p "$syncdst7"
+  printf 'outside content\n' >"${TMP}/link-target.md"
+  ln -s "${TMP}/link-target.md" "${syncdst7}/CLAUDE.md"
+  if out="$(sync "$syncdst7")"; then
+    fail "symlink at listed path fails the run"
+  else
+    pass "symlink at listed path fails the run"
+  fi
+  expect "symlink named" "CLAUDE.md is not a regular file" "$out"
+  expect "symlink target untouched" "outside content" \
+    "$(cat "${TMP}/link-target.md")"
+  if [ -e "${syncdst7}/AGENTS.md" ]; then
+    fail "refusal leaves consumer untouched (AGENTS.md was bootstrapped)"
+  else
+    pass "refusal leaves consumer untouched"
+  fi
 
-# Symlinked ancestor directory: the leaf check alone would let cp write
-# straight through it to a tree outside the consumer.
-syncdst8="${TMP}/syncdst8"
-outside="${TMP}/outside-tree"
-mkdir -p "$syncdst8" "$outside"
-ln -s "$outside" "${syncdst8}/docs"
-if out="$(sync "$syncdst8")"; then
-  fail "symlinked ancestor dir fails the run"
+  # Symlinked ancestor directory: the leaf check alone would let cp write
+  # straight through it to a tree outside the consumer.
+  syncdst8="${TMP}/syncdst8"
+  outside="${TMP}/outside-tree"
+  mkdir -p "$syncdst8" "$outside"
+  ln -s "$outside" "${syncdst8}/docs"
+  if out="$(sync "$syncdst8")"; then
+    fail "symlinked ancestor dir fails the run"
+  else
+    pass "symlinked ancestor dir fails the run"
+  fi
+  expect "symlinked ancestor named" "passes through symlinked directory docs/" "$out"
+  if [ -z "$(ls -A "$outside")" ]; then
+    pass "nothing written through symlinked ancestor"
+  else
+    fail "nothing written through symlinked ancestor ($(ls -A "$outside"))"
+  fi
 else
-  pass "symlinked ancestor dir fails the run"
-fi
-expect "symlinked ancestor named" "passes through symlinked directory docs/" "$out"
-if [ -z "$(ls -A "$outside")" ]; then
-  pass "nothing written through symlinked ancestor"
-else
-  fail "nothing written through symlinked ancestor ($(ls -A "$outside"))"
+  skip "consumer symlink refusals" "symlinks unavailable here"
 fi
 
 # Regular file squatting an ancestor path: mkdir -p would crash mid-sync
@@ -725,40 +879,54 @@ expect "dirty canonical names the problem" "uncommitted changes" "$out"
 # Canonical tracked symlink would ship dereferenced and read false
 # AHEAD forever once its target changes — refused in preflight. Commit
 # also clears the dirty edit above.
-ln -s AGENTS.md "${syncsrc}/env/none/alias.md"
-commit_all "$syncsrc" "track symlink"
-out="$(sync "$syncdst3")"; rc=$?
-if [ "$rc" -eq 1 ]; then
-  pass "canonical symlink refused"
+if [ "$HAVE_SYMLINK" = "1" ]; then
+  ln -s AGENTS.md "${syncsrc}/env/none/alias.md"
+  commit_all "$syncsrc" "track symlink"
+  out="$(sync "$syncdst3")"; rc=$?
+  if [ "$rc" -eq 1 ]; then
+    pass "canonical symlink refused"
+  else
+    fail "canonical symlink refused (got ${rc})"
+  fi
+  expect "canonical symlink named" "env/none/alias.md is a symlink" "$out"
 else
-  fail "canonical symlink refused (got ${rc})"
+  skip "canonical symlink refusal" "symlinks unavailable here"
 fi
-expect "canonical symlink named" "env/none/alias.md is a symlink" "$out"
 
 # Any tracked name ls-files must C-quote (backslash here, newline below)
 # would travel as its quoted string — a path that exists nowhere — and
 # fail MISSING with a misleading message. Both refused up front with the
 # real reason.
-printf 'odd\n' >"${syncsrc}/env/none/back\\nslash.md"
-commit_all "$syncsrc" "track backslash filename"
-out="$(sync "$syncdst3")"; rc=$?
-if [ "$rc" -eq 1 ]; then
-  pass "backslash filename refused up front"
-else
-  fail "backslash filename refused up front (got ${rc})"
-fi
-expect "backslash filename named" "requiring C-quoting" "$out"
+if [ "$HAVE_ODD_NAMES" = "1" ]; then
+  printf 'odd\n' >"${syncsrc}/env/none/back\\nslash.md"
+  commit_all "$syncsrc" "track backslash filename"
+  out="$(sync "$syncdst3")"; rc=$?
+  if [ "$rc" -eq 1 ]; then
+    pass "backslash filename refused up front"
+  else
+    fail "backslash filename refused up front (got ${rc})"
+  fi
+  expect "backslash filename named" "requiring C-quoting" "$out"
 
-printf 'odd\n' >"${syncsrc}/env/none/$(printf 'we\nird').md"
-commit_all "$syncsrc" "track newline filename"
-out="$(sync "$syncdst3")"; rc=$?
-if [ "$rc" -eq 1 ]; then
-  pass "newline filename refused"
+  printf 'odd\n' >"${syncsrc}/env/none/$(printf 'we\nird').md"
+  commit_all "$syncsrc" "track newline filename"
+  out="$(sync "$syncdst3")"; rc=$?
+  if [ "$rc" -eq 1 ]; then
+    pass "newline filename refused"
+  else
+    fail "newline filename refused (got ${rc})"
+  fi
+  expect "newline filename named" "requiring C-quoting" "$out"
 else
-  fail "newline filename refused (got ${rc})"
+  skip "C-quoted filename refusals" "filesystem rejects these names"
 fi
-expect "newline filename named" "requiring C-quoting" "$out"
 
 # --- summary ----------------------------------------------------------------
-printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
+# Skips are printed in the count, never folded into passed: a run that could
+# not ask half its questions must not read like one that asked them all.
+if [ "$SKIP" -gt 0 ]; then
+  printf '\n%d passed, %d failed, %d skipped\n' "$PASS" "$FAIL" "$SKIP"
+else
+  printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
+fi
 [ "$FAIL" -eq 0 ]
