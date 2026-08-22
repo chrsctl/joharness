@@ -43,6 +43,16 @@ review each round until reconciled.
 - Plan's out-of-scope "performing actual sync" overridden by human this
   session — recorded here, not silently.
 
+## Review findings not fixed (recorded, round 8)
+
+- Staging duplicated between place() and sync_agents_md (mode source
+  differs: src vs dst; content source differs: file vs built splice).
+  Parameterizing = indirection for two call sites; kept separate on
+  purpose.
+- Consumer-side newline filenames still fragment the consumer-only
+  REPORT (cosmetic, nothing written wrong); canonical-side newline
+  names refused up front — that direction aborted runs.
+
 ## Rejected
 
 - (From plan, dead branch): git submodule — `.claude/` must sit at

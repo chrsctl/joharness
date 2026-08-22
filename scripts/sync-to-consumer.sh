@@ -30,9 +30,12 @@
 #
 # Usage: scripts/sync-to-consumer.sh [--dry-run] <consumer-dir>
 # Exit: 0 synced clean. 1 refused before any write (usage, dirty
-# canonical, structural problem, marker absent) — consumer untouched.
-# 2 consumer copies AHEAD — other updates applied. 3 listed path missing
-# from canonical — sync ran, fix the FILES/DIRS list or the tree.
+# canonical, structural problem, marker absent) — consumer untouched. An
+# unexpected mid-write tool failure (disk full, permissions) also exits
+# 1 with that tool's error; the missing summary line is the tell that
+# writes may have landed. 2 consumer copies AHEAD — other updates
+# applied. 3 listed path missing from canonical — sync ran, fix the
+# FILES/DIRS list or the tree.
 
 set -euo pipefail
 
@@ -136,6 +139,13 @@ dir_tracked() {
   git -C "$ROOT" -c core.quotepath=off ls-files -- "$1"
 }
 
+# Preflight's per-dir listings, staged as files so sync_dir walks exactly
+# what preflight validated. Plain files, not an associative array: that
+# is a bash-4 construct and macOS system bash is 3.2.
+tracked_file() {
+  printf '%s/tracked-%s' "$SCRATCH" "${1//\//_}"
+}
+
 # Structural refusal happens before the first write: an exit-1 refusal
 # must leave the consumer untouched, never half-synced.
 refuse_bad_dst() {
@@ -163,21 +173,17 @@ refuse_bad_dst() {
   fi
 }
 
-# Filled once here; sync_dir consumes the same listings, so preflight's
-# guarantee covers exactly the files the sync later walks.
-declare -A TRACKED=()
-
 preflight() {
   local rel dir
   refuse_bad_dst AGENTS.md
   for rel in "${FILES[@]}"; do refuse_bad_dst "$rel"; done
   for dir in "${DIRS[@]}"; do
     [ -d "${ROOT}/${dir}" ] || continue
-    TRACKED["$dir"]="$(dir_tracked "$dir")"
+    dir_tracked "$dir" >"$(tracked_file "$dir")"
     while IFS= read -r rel; do
       [ -n "$rel" ] || continue
       refuse_bad_dst "$rel"
-    done <<<"${TRACKED[$dir]}"
+    done <"$(tracked_file "$dir")"
   done
 }
 
@@ -186,6 +192,12 @@ preflight() {
 # or every Windows consumer reads AHEAD forever.
 consumer_blob() {
   git -C "$ROOT" hash-object --path="$1" --stdin <"$2"
+}
+
+# Everything above the marker, CR-stripped — both sides of the splice
+# read through this one definition.
+head_above_marker() {
+  awk -v m="$MARKER" '{ sub(/\r$/, "") } $0 == m { exit } { print }' "$1"
 }
 
 # Marker match tolerant of a CRLF checkout — the same consumer state
@@ -273,7 +285,7 @@ sync_dir() {
     # not a filename), not a find walk: editor backups and gitignored
     # junk in the canonical working tree must never ship. The listing is
     # preflight's — same files it validated.
-    tracked="${TRACKED[$dir]-}"
+    [ -f "$(tracked_file "$dir")" ] && tracked="$(cat "$(tracked_file "$dir")")"
     while IFS= read -r rel; do
       [ -n "$rel" ] || continue
       sync_file "$rel"
@@ -317,8 +329,7 @@ sync_agents_md() {
   # CR-stripping sub keeps a CRLF checkout spliceable; output is LF,
   # the .gitattributes this tool ships pins that anyway.
   tmp="${SCRATCH}/agents-md"
-  awk -v m="$MARKER" '{ sub(/\r$/, "") } $0 == m { exit } { print }' \
-    "$src" >"$tmp"
+  head_above_marker "$src" >"$tmp"
   awk -v m="$MARKER" '{ sub(/\r$/, "") } p { print; next } $0 == m { p = 1; print }' \
     "$dst" >>"$tmp"
   if cmp -s "$tmp" "$dst"; then
@@ -330,7 +341,7 @@ sync_agents_md() {
   # an edit that belongs in joharness — or this checkout is stale. A
   # whole-file blob check cannot work here: consumer Part 2 makes every
   # spliced file historically unknown by construction.
-  dst_head="$(awk -v m="$MARKER" '{ sub(/\r$/, "") } $0 == m { exit } { print }' "$dst")"
+  dst_head="$(head_above_marker "$dst")"
   known=0
   while IFS= read -r c; do
     hist_head="$(git -C "$ROOT" show "${c}:AGENTS.md" 2>/dev/null |
@@ -364,11 +375,27 @@ sync_agents_md() {
   UPDATED=$((UPDATED + 1))
 }
 
+# git C-quotes a control character in ls-files output whatever quotepath
+# says, so a tracked newline filename reaches the sync as the quoted
+# string — a path that exists nowhere — and every run aborts MISSING.
+# Refused up front with the real reason instead. Full-read grep: -q's
+# early exit would SIGPIPE the pipeline under pipefail on a match.
+if git -C "$ROOT" ls-files | grep '^".*\\n' >/dev/null; then
+  die "canonical tracks a filename containing a newline; not supported"
+fi
+
 if [ "$DRY" -eq 1 ]; then
   printf '== sync %s -> %s (dry run, nothing written)\n' "$ROOT" "$DEST"
 else
   printf '== sync %s -> %s\n' "$ROOT" "$DEST"
 fi
+
+# A hard kill (SIGKILL, power loss) can strand a stage file no trap ever
+# reaps; reruns are self-healing, they do not accumulate tool litter.
+while IFS= read -r f; do
+  warn "reaping stale sync stage ${f#"$DEST"/} (hard-killed earlier run)"
+  [ "$DRY" -eq 1 ] || rm -f "$f"
+done < <(find "$DEST" -name '*.joharness-sync.*' -type f 2>/dev/null | sort)
 
 preflight
 sync_agents_md
