@@ -39,6 +39,11 @@
 
 set -euo pipefail
 
+# Tracked names are data, not patterns: without this, a glob
+# metacharacter in a filename lets a SIBLING's history vouch for a
+# consumer edit (silent clobber) — or stops a name matching itself.
+export GIT_LITERAL_PATHSPECS=1
+
 # JOHARNESS_SYNC_ROOT is a selftest hook: point canonical at a scratch
 # repo. Real use trusts where this script lives — honoring
 # CLAUDE_PROJECT_DIR here would silently re-aim canonical at whatever
@@ -83,6 +88,12 @@ top="$(git -C "$ROOT" rev-parse --show-toplevel 2>/dev/null)" ||
   die "canonical '$ROOT' is not a git checkout (history decides stale vs AHEAD)"
 [ "$top" = "$(cd "$ROOT" && pwd -P)" ] ||
   die "canonical '$ROOT' is nested inside another git checkout (${top})"
+# Consumers receive this script too and would pass every structural
+# check, but consumer-to-consumer sync is forbidden
+# (docs/product/README.md, Reconciliation). Only canonical carries the
+# marker; joharness.conf is never synced, so no consumer inherits it.
+grep -q '^JOHARNESS_CANONICAL=1' "${ROOT}/joharness.conf" 2>/dev/null ||
+  die "'$ROOT' is not the canonical harness (no JOHARNESS_CANONICAL=1 in joharness.conf); consumer copies must not sync out"
 
 # Whole files. AGENTS.md is absent here on purpose: it gets the marker
 # splice below, never a whole-file copy over a consumer's Part 2.
@@ -303,7 +314,8 @@ sync_dir() {
       printf '  consumer-only %s (left in place)\n' "$rel"
       ONLY=$((ONLY + 1))
     fi
-  done < <(find "${DEST}/${dir}" \( -type f -o -type l \) | sort)
+  done < <(find "${DEST}/${dir}" \( -type f -o -type l \) \
+    ! -name '*.joharness-sync.*' | sort)
 }
 
 # Canonical above the marker + consumer from the marker down. Byte-compare
@@ -378,9 +390,11 @@ sync_agents_md() {
 # git C-quotes a control character in ls-files output whatever quotepath
 # says, so a tracked newline filename reaches the sync as the quoted
 # string — a path that exists nowhere — and every run aborts MISSING.
-# Refused up front with the real reason instead. Full-read grep: -q's
-# early exit would SIGPIPE the pipeline under pipefail on a match.
-if git -C "$ROOT" ls-files | grep '^".*\\n' >/dev/null; then
+# Refused up front with the real reason instead. Detection on the -z
+# listing, where names are raw: any newline byte left after dropping the
+# NULs sits inside a filename (a quoted-form regex would false-match a
+# literal backslash-n name).
+if [ "$(git -C "$ROOT" ls-files -z | tr -d '\0' | wc -l)" -gt 0 ]; then
   die "canonical tracks a filename containing a newline; not supported"
 fi
 
@@ -392,10 +406,21 @@ fi
 
 # A hard kill (SIGKILL, power loss) can strand a stage file no trap ever
 # reaps; reruns are self-healing, they do not accumulate tool litter.
+# Stages only ever appear next to synced paths — no full-tree walk
+# through .git/ or a consumer's own large trees.
+reap_scan() {
+  local d
+  find "$DEST" -maxdepth 1 -name '*.joharness-sync.*' -type f 2>/dev/null
+  for d in harness env .claude docs scripts; do
+    [ -d "${DEST}/${d}" ] || continue
+    find "${DEST}/${d}" -name '*.joharness-sync.*' -type f 2>/dev/null
+  done
+}
 while IFS= read -r f; do
+  [ -n "$f" ] || continue
   warn "reaping stale sync stage ${f#"$DEST"/} (hard-killed earlier run)"
   [ "$DRY" -eq 1 ] || rm -f "$f"
-done < <(find "$DEST" -name '*.joharness-sync.*' -type f 2>/dev/null | sort)
+done < <(reap_scan | sort)
 
 preflight
 sync_agents_md

@@ -366,8 +366,13 @@ git init -q "$syncsrc"
 mkdir -p "${syncsrc}/harness" "${syncsrc}/scripts" "${syncsrc}/env/none" \
   "${syncsrc}/.claude/commands" "${syncsrc}/docs/handover" \
   "${syncsrc}/docs/plans" "${syncsrc}/docs/product"
+printf 'JOHARNESS_CANONICAL=1\n' >"${syncsrc}/joharness.conf"
 printf 'loop v1\n' >"${syncsrc}/harness/AGENTS.md"
 printf 'tiers v1\n' >"${syncsrc}/docs/agent-selection.md"
+# Glob-metacharacter name beside its glob sibling: pathspecs must be
+# literal or a1.md's history vouches for edits to a[1].md.
+printf 'glob-sib v1\n' >"${syncsrc}/env/none/a1.md"
+printf 'bracket own\n' >"${syncsrc}/env/none/a[1].md"
 printf 'claude rules\n' >"${syncsrc}/CLAUDE.md"
 printf 'entry stub\n' >"${syncsrc}/joharness.sh"
 chmod +x "${syncsrc}/joharness.sh"
@@ -392,6 +397,7 @@ canonical project text
 EOF
 commit_all "$syncsrc" "canonical v1"
 printf 'loop v2 CANON-LOOP-SENTINEL\n' >"${syncsrc}/harness/AGENTS.md"
+printf 'glob-sib v2\n' >"${syncsrc}/env/none/a1.md"
 cat >"${syncsrc}/AGENTS.md" <<'EOF'
 CANON-HARNESS-V2
 
@@ -402,7 +408,10 @@ EOF
 commit_all "$syncsrc" "canonical v2"
 
 syncdst="${TMP}/syncdst"
-mkdir -p "${syncdst}/harness" "${syncdst}/env/custom"
+mkdir -p "${syncdst}/harness" "${syncdst}/env/custom" "${syncdst}/env/none"
+# Content that is the SIBLING a1.md's history, never a[1].md's own: only
+# a glob-leaking pathspec would call this stale.
+printf 'glob-sib v1\n' >"${syncdst}/env/none/a[1].md"
 printf 'loop v1\n' >"${syncdst}/harness/AGENTS.md"          # stale: v1 is history
 printf 'consumer hacked\n' >"${syncdst}/CLAUDE.md"          # ahead: never in history
 printf 'own layer\n' >"${syncdst}/env/custom/AGENTS.md"     # consumer-only
@@ -440,6 +449,9 @@ expect "missing file created" "tiers v1" \
   "$(cat "${syncdst}/docs/agent-selection.md" 2>/dev/null)"
 expect "ahead file flagged" "AHEAD   CLAUDE.md" "$out"
 expect "ahead file kept" "consumer hacked" "$(cat "${syncdst}/CLAUDE.md")"
+expect "glob sibling history does not vouch" "AHEAD   env/none/a[1].md" "$out"
+expect "glob-named consumer edit kept" "glob-sib v1" \
+  "$(cat "${syncdst}/env/none/a[1].md")"
 if [ "$rc" -eq 2 ]; then
   pass "ahead exits 2"
 else
@@ -528,7 +540,12 @@ syncdst6="${TMP}/syncdst6"
 mkdir -p "$syncdst6"
 printf 'CANON-HARNESS-V1\r\n\r\n# Part 2 — project\r\n\r\nCRLF-PART2-SENTINEL\r\n' \
   >"${syncdst6}/AGENTS.md"
-out="$(sync "$syncdst6")"
+out="$(sync "$syncdst6")"; rc=$?
+if [ "$rc" -eq 0 ]; then
+  pass "clean sync exits 0"
+else
+  fail "clean sync exits 0 (got ${rc})"
+fi
 expect "CRLF consumer AGENTS.md spliced" \
   "update  AGENTS.md (above marker; consumer Part 2 kept)" "$out"
 expect "CRLF splice carries canonical head" \
@@ -602,6 +619,23 @@ else
 fi
 expect "bad JOHARNESS_SYNC_ROOT named" "does not look like a harness canonical" "$out"
 
+# A consumer's copy of the script (has scripts/sync-to-consumer.sh, no
+# canonical marker in its conf) must refuse: consumer-to-consumer sync
+# is forbidden.
+noncanon="${TMP}/noncanon"
+mkdir -p "${noncanon}/scripts"
+printf 'stub\n' >"${noncanon}/scripts/sync-to-consumer.sh"
+git init -q "$noncanon"
+out="$(JOHARNESS_SYNC_ROOT="$noncanon" \
+  bash "${ROOT}/scripts/sync-to-consumer.sh" "$syncdst9" 2>&1)" && rc=0 || rc=$?
+if [ "$rc" -eq 1 ]; then
+  pass "consumer copy refuses to sync out"
+else
+  fail "consumer copy refuses to sync out (got ${rc})"
+fi
+expect "consumer copy refusal names the doctrine" \
+  "not the canonical harness" "$out"
+
 # Canonical listed-but-missing file: silent drift is the failure mode, so
 # the run must end nonzero, not whisper to stderr. Mutates the canonical
 # fixture — keep these two cases last.
@@ -637,9 +671,15 @@ else
 fi
 expect "dirty canonical names the problem" "uncommitted changes" "$out"
 
-# Tracked newline filename would split the line-oriented listings into
-# fragment paths — refused up front. Commit also clears the dirty edit
-# above; keep this case last.
+# Literal backslash-n in a name is NOT a newline; the guard must not
+# false-match its quoted form. Commit also clears the dirty edit above.
+printf 'odd\n' >"${syncsrc}/env/none/back\\nslash.md"
+commit_all "$syncsrc" "track backslash-n filename"
+out="$(sync "$syncdst3")"
+refute "backslash-n filename tolerated" "filename containing a newline" "$out"
+
+# Tracked newline filename reaches the sync as its C-quoted string — a
+# path that exists nowhere — refused up front. Keep this case last.
 printf 'odd\n' >"${syncsrc}/env/none/$(printf 'we\nird').md"
 commit_all "$syncsrc" "track newline filename"
 out="$(sync "$syncdst3")"; rc=$?
