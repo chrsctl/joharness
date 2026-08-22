@@ -194,6 +194,33 @@ cmd_ci() {
     rc=1
   fi
 
+  # Review churn, measured rather than noticed. The rule
+  # (docs/agent-selection.md) asks a session to see that a fix undid an
+  # earlier fix — but the session inside the churn is the one least able to
+  # see it: the sync-tool branch ran twelve "harden per review round"
+  # commits over two hours, and ci ran every round without saying so. Git
+  # held the evidence the whole time; this prints it. A warning, never a
+  # red gate — whether churn is real is the session's judgment call, and
+  # the rule's lever (raise tier or effort) is its to pull.
+  printf '\n== churn\n'
+  local churn
+  if churn="$(churn_top)"; then
+    if [ -n "$churn" ]; then
+      local churn_n="${churn%%	*}" churn_f="${churn#*	}"
+      if [ "$churn_n" -ge "${JOHARNESS_CHURN_THRESHOLD:-5}" ]; then
+        printf '  %s touched in %s commits on this branch\n' "$churn_f" "$churn_n"
+        printf '  Fix undoing an earlier fix? Stop patching — research step at raised\n'
+        printf '  tier or effort first (docs/agent-selection.md, review churn).\n'
+      else
+        printf '  quiet (max %s commits per file)\n' "${churn_n:-0}"
+      fi
+    else
+      printf '  quiet\n'
+    fi
+  else
+    printf '  not measurable here (no merge-base; shallow checkout or base branch)\n'
+  fi
+
   printf '\n'
   if [ "$rc" -ne 0 ]; then
     printf 'ci: FAIL\n'
@@ -227,6 +254,26 @@ check_targets() {
 }
 
 have() { command -v "$1" >/dev/null 2>&1; }
+
+# Most-touched file on this branch since it left the base branch, as
+# "count<TAB>path". Empty when the branch has no non-merge commits. Returns
+# non-zero when there is no merge-base to measure against — the base branch
+# itself, or a shallow checkout. docs/(handover|plans|product)/ are excluded:
+# the protocol requires touching the workstream file in the SAME commit as
+# every change, so counting those paths reads compliance as churn (the first
+# unfiltered backtest flagged a branch for exactly that).
+churn_top() {
+  local base branch_ref="origin/${HANDOVER_BASE_BRANCH:-main}"
+  base="$(git -C "$ROOT" merge-base HEAD "$branch_ref" 2>/dev/null)" || return 1
+  [ "$base" != "$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)" ] || return 1
+  git -C "$ROOT" log --no-merges --format='%H' "$base"..HEAD 2>/dev/null |
+    while IFS= read -r c; do
+      git -C "$ROOT" diff-tree --no-commit-id --name-only -r "$c" 2>/dev/null
+    done |
+    { grep -vE '^docs/(handover|plans|product)/' || :; } |
+    sort | uniq -c | sort -rn | head -1 |
+    sed 's/^ *\([0-9][0-9]*\) /\1\t/'
+}
 
 # The shellcheck binary is the acceptance bar, but its absence is an
 # environment problem, not a code problem. Best effort: install quietly,
