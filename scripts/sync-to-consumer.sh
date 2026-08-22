@@ -184,15 +184,30 @@ refuse_bad_dst() {
   fi
 }
 
+# cp dereferences a canonical symlink into a regular file whose content
+# then lives in no blob of that path's history — permanent false AHEAD
+# on the consumer for a file it never touched. The sync ships regular
+# files only.
+refuse_bad_src() {
+  if [ -h "${ROOT}/$1" ]; then
+    die "canonical ${1} is a symlink; the sync ships regular files only"
+  fi
+}
+
 preflight() {
   local rel dir
+  refuse_bad_src AGENTS.md
   refuse_bad_dst AGENTS.md
-  for rel in "${FILES[@]}"; do refuse_bad_dst "$rel"; done
+  for rel in "${FILES[@]}"; do
+    refuse_bad_src "$rel"
+    refuse_bad_dst "$rel"
+  done
   for dir in "${DIRS[@]}"; do
     [ -d "${ROOT}/${dir}" ] || continue
     dir_tracked "$dir" >"$(tracked_file "$dir")"
     while IFS= read -r rel; do
       [ -n "$rel" ] || continue
+      refuse_bad_src "$rel"
       refuse_bad_dst "$rel"
     done <"$(tracked_file "$dir")"
   done
@@ -315,7 +330,7 @@ sync_dir() {
       ONLY=$((ONLY + 1))
     fi
   done < <(find "${DEST}/${dir}" \( -type f -o -type l \) \
-    ! -name '*.joharness-sync.*' | sort)
+    ! -name '*.joharness-sync.[0-9]*' | sort)
 }
 
 # Canonical above the marker + consumer from the marker down. Byte-compare
@@ -387,15 +402,15 @@ sync_agents_md() {
   UPDATED=$((UPDATED + 1))
 }
 
-# git C-quotes a control character in ls-files output whatever quotepath
-# says, so a tracked newline filename reaches the sync as the quoted
-# string — a path that exists nowhere — and every run aborts MISSING.
-# Refused up front with the real reason instead. Detection on the -z
-# listing, where names are raw: any newline byte left after dropping the
-# NULs sits inside a filename (a quoted-form regex would false-match a
-# literal backslash-n name).
-if [ "$(git -C "$ROOT" ls-files -z | tr -d '\0' | wc -l)" -gt 0 ]; then
-  die "canonical tracks a filename containing a newline; not supported"
+# git C-quotes newline, tab, backslash and double quote in ls-files
+# output even with quotepath=off, so such a tracked name reaches the
+# sync as its quoted string — a path that exists nowhere — and every
+# run aborts MISSING with a misleading message. Refused up front with
+# the real reason. quotepath=off keeps plain non-ASCII names unquoted
+# and out of this check; full-read grep avoids -q's SIGPIPE-vs-pipefail
+# trap.
+if git -C "$ROOT" -c core.quotepath=off ls-files | grep '^"' >/dev/null; then
+  die "canonical tracks a filename requiring C-quoting (newline, tab, backslash or double quote); not supported"
 fi
 
 if [ "$DRY" -eq 1 ]; then
@@ -416,11 +431,18 @@ reap_scan() {
     find "${DEST}/${d}" -name '*.joharness-sync.*' -type f 2>/dev/null
   done
 }
+# Strict digit tail = this tool's own pid stamp. A consumer file that
+# merely resembles a stage name (someone's .joharness-sync.bak) is never
+# deleted — it shows up consumer-only instead.
 while IFS= read -r f; do
   [ -n "$f" ] || continue
-  warn "reaping stale sync stage ${f#"$DEST"/} (hard-killed earlier run)"
-  [ "$DRY" -eq 1 ] || rm -f "$f"
-done < <(reap_scan | sort)
+  if [ "$DRY" -eq 1 ]; then
+    warn "stale sync stage ${f#"$DEST"/} (would reap; hard-killed earlier run)"
+  else
+    warn "reaping stale sync stage ${f#"$DEST"/} (hard-killed earlier run)"
+    rm -f "$f"
+  fi
+done < <(reap_scan | grep -E '\.joharness-sync\.[0-9]+$' | sort)
 
 preflight
 sync_agents_md

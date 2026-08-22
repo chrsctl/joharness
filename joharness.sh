@@ -144,9 +144,15 @@ cmd_verify() {
 # ---------------------------------------------------------------------------
 
 cmd_ci() {
-  local rc=0 f
+  local rc=0 f listing
   local -a targets=()
-  while IFS= read -r f; do targets+=("$f"); done < <(check_targets)
+  if ! listing="$(check_targets)"; then
+    warn "could not enumerate all shell scripts; a partial list is no lint bar"
+    rc=1
+  fi
+  while IFS= read -r f; do
+    [ -n "$f" ] && targets+=("$f")
+  done <<<"$listing"
 
   if [ "${#targets[@]}" -eq 0 ]; then
     die "no shell scripts found under ${ROOT}"
@@ -202,15 +208,20 @@ cmd_ci() {
 
 # Every shell script the harness owns, in a stable order. scripts/ is a
 # find root like the others: a script added there must not ship unlinted
-# behind a green `ci: pass`. Missing dirs are fine (2>/dev/null) — not
-# every consumer takes every dir.
+# behind a green `ci: pass`. Missing roots are fine (not every consumer
+# takes every dir); a find FAILURE is not — an unreadable dir would
+# silently drop scripts from the lint list, so the caller sees it and
+# goes red.
 check_targets() {
+  local d listing
+  local -a roots=()
+  for d in "${ROOT}/harness" "${ENV_ROOT}" "${ROOT}/scripts"; do
+    [ -d "$d" ] && roots+=("$d")
+  done
   printf '%s\n' "${ROOT}/joharness.sh"
-  # || true: under pipefail a missing root fails the pipeline even with
-  # its message silenced, and this function must stay callable from a
-  # status-checking caller.
-  find "${ROOT}/harness" "${ENV_ROOT}" "${ROOT}/scripts" \
-    -name '*.sh' -type f 2>/dev/null | sort || true
+  [ "${#roots[@]}" -gt 0 ] || return 0
+  listing="$(find "${roots[@]}" -name '*.sh' -type f | sort)" || return 1
+  [ -z "$listing" ] || printf '%s\n' "$listing"
 }
 
 have() { command -v "$1" >/dev/null 2>&1; }
