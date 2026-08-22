@@ -178,6 +178,45 @@ expect "gives the git show command" "git show origin/rival:docs/handover/rival-w
 expect "flags workstream file rotting on main" "docs/handover/stale-ws.md" "$out"
 expect "rot check ignores status field" "Merged = finished" "$out"
 
+# --- churn line for other branches -----------------------------------------
+# A branch hammering one file is likely in review churn; the hook prints the
+# measurement per branch so a resuming session inherits the signal. Protocol
+# paths are excluded: the workstream file is touched every commit by rule,
+# and counting that reads compliance as churn.
+step "handover-context.sh churn line"
+
+git -C "$work" checkout -qb churny main
+mkdir -p "${work}/docs/handover"
+cat >"${work}/docs/handover/churny-ws.md" <<'EOF'
+---
+workstream: churny-ws
+status: in-progress
+updated: 2026-01-01
+next: Fixture
+---
+EOF
+for i in 1 2 3 4 5 6; do
+  printf 'round %s\n' "$i" >>"${work}/hot-file.txt"
+  printf 'log %s\n' "$i" >>"${work}/docs/handover/churny-ws.md"
+  commit_all "$work" "harden per review round $i"
+done
+git -C "$work" push -qu origin churny
+git -C "$work" checkout -q feature
+
+out="$(CLAUDE_PROJECT_DIR="$work" HANDOVER_FETCH=0 \
+  bash "${ROOT}/harness/handover-context.sh" 2>&1)"
+expect "churny branch carries the churn line" \
+  "churn: hot-file.txt touched in 6 commits" "$out"
+refute "workstream file updates are not churn" "churny-ws.md touched" "$out"
+refute "quiet branch carries no churn line" "rival-ws.md touched" "$out"
+
+out="$(CLAUDE_PROJECT_DIR="$work" HANDOVER_FETCH=0 JOHARNESS_CHURN_THRESHOLD=9 \
+  bash "${ROOT}/harness/handover-context.sh" 2>&1)"
+refute "threshold override silences the line" "churn: hot-file.txt" "$out"
+
+git -C "$work" push -q --delete origin churny 2>/dev/null
+git -C "$work" branch -qD churny
+
 # --- queue hook -------------------------------------------------------------
 step "queue-context.sh"
 
@@ -314,6 +353,54 @@ else
 fi
 expect "session-start prints handover state" "Handover state" "$out"
 expect "session-start prints queue" "== Queue" "$out"
+
+# --- entrypoint: the churn measure -----------------------------------------
+# A scratch repo, not this one: `ci` shells out to ${ROOT}/harness/selftest.sh,
+# which is this script — the scratch copy gets a stub so the suite does not
+# re-enter itself. Assertions read the printed section only; the run's exit
+# code belongs to shellcheck and the stub, not to churn (warning by design).
+step "joharness.sh ci: churn"
+
+corigin="${TMP}/churnorigin.git"
+git init -q --bare "$corigin"
+cwork="${TMP}/churnwork"
+mkdir -p "${cwork}/harness" "${cwork}/env/none" "${cwork}/docs/handover"
+cp "${ROOT}/joharness.sh" "${cwork}/joharness.sh"
+printf '#!/usr/bin/env bash\nexit 0\n' >"${cwork}/harness/selftest.sh"
+chmod +x "${cwork}/harness/selftest.sh" "${cwork}/joharness.sh"
+git init -q "$cwork"
+git -C "$cwork" symbolic-ref HEAD refs/heads/main
+commit_all "$cwork" "scratch harness"
+git -C "$cwork" remote add origin "$corigin"
+git -C "$cwork" push -qu origin main
+
+ci_churn() { CLAUDE_PROJECT_DIR="$cwork" JOHARNESS_CONF="${cwork}/joharness.conf" \
+  "${cwork}/joharness.sh" ci 2>&1 | sed -n '/== churn/,/^$/p'; }
+
+out="$(ci_churn)"
+expect "base branch is not measurable" "not measurable here" "$out"
+
+git -C "$cwork" checkout -qb hammering
+for i in 1 2 3 4 5 6; do
+  printf 'round %s\n' "$i" >>"${cwork}/hot-file.txt"
+  printf 'log %s\n' "$i" >>"${cwork}/docs/handover/hammer-ws.md"
+  commit_all "$cwork" "harden per review round $i"
+done
+out="$(ci_churn)"
+expect "churn names the hot file and count" \
+  "hot-file.txt touched in 6 commits on this branch" "$out"
+expect "churn cites the escalation rule" "review churn" "$out"
+refute "workstream file commits are not the count" \
+  "hammer-ws.md touched" "$out"
+
+out="$(JOHARNESS_CHURN_THRESHOLD=9 ci_churn)"
+expect "threshold override reports quiet" "quiet (max 6 commits per file)" "$out"
+
+git -C "$cwork" checkout -qb calm main
+printf 'one\n' >"${cwork}/calm.txt"
+commit_all "$cwork" "single change"
+out="$(ci_churn)"
+expect "a calm branch reports quiet" "quiet (max 1 commits per file)" "$out"
 
 # --- .gitattributes: scripts and markdown stay LF --------------------------
 # Git for Windows defaults to core.autocrlf=true. Without the pins a stock clone
