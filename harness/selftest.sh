@@ -27,6 +27,7 @@ unset JOHARNESS_ENV JOHARNESS_ENV_SETUP JOHARNESS_ENV_MD \
 
 PASS=0
 FAIL=0
+SKIP=0
 
 pass() { printf '  PASS %s\n' "$*"; PASS=$((PASS + 1)); }
 fail() { printf '  FAIL %s\n' "$*"; FAIL=$((FAIL + 1)); }
@@ -53,6 +54,41 @@ refute() {
 }
 
 step() { printf '\n== %s\n' "$*"; }
+
+# Some cases ask questions a filesystem has to be able to answer. Git for
+# Windows cannot represent an exec bit, Windows needs elevation for symlinks,
+# and NTFS rejects backslash and newline in a filename outright - so those
+# fixtures cannot be built there, let alone asserted on. A case that cannot
+# run is not a case that failed: skipping keeps the count honest and lets the
+# Windows CI job be green when the code is right.
+skip() { printf '  SKIP %s (%s)\n' "$1" "$2"; SKIP=$((SKIP + 1)); }
+
+# Probe once, by trying it rather than by guessing from $OSTYPE.
+probe="${TMP}/probe"
+mkdir -p "$probe"
+
+git init -q "${probe}/fm" 2>/dev/null
+if [ "$(git -C "${probe}/fm" config core.filemode 2>/dev/null)" = "true" ]; then
+  HAVE_FILEMODE=1
+else
+  HAVE_FILEMODE=0
+fi
+
+if ln -s target "${probe}/link" 2>/dev/null && [ -L "${probe}/link" ]; then
+  HAVE_SYMLINK=1
+else
+  HAVE_SYMLINK=0
+fi
+
+# Backslash is the strict half of this pair: Windows reads it as a separator,
+# so the redirect fails outright rather than producing an oddly-named file.
+# The newline half is gated with it - both exist to prove one behaviour, and
+# half the block would leave the canonical fixture committed mid-way.
+if : >"${probe}/back\\slash" 2>/dev/null && [ -f "${probe}/back\\slash" ]; then
+  HAVE_ODD_NAMES=1
+else
+  HAVE_ODD_NAMES=0
+fi
 
 # A commit in the repo $1 with message $2, after staging everything.
 commit_all() { git -C "$1" add -A && git -C "$1" commit -qm "$2"; }
@@ -484,12 +520,16 @@ expect "AGENTS.md harness part replaced" \
   "CANON-HARNESS-V2" "$(cat "${syncdst}/AGENTS.md")"
 expect "AGENTS.md consumer Part 2 kept" \
   "CONSUMER-PART2-SENTINEL" "$(cat "${syncdst}/AGENTS.md")"
-expect "lost exec bit repaired as mode-only update" \
-  "update  joharness.sh (mode only)" "$out"
-if [ -x "${syncdst}/joharness.sh" ]; then
-  pass "consumer entrypoint executable again"
+if [ "$HAVE_FILEMODE" = "1" ]; then
+  expect "lost exec bit repaired as mode-only update" \
+    "update  joharness.sh (mode only)" "$out"
+  if [ -x "${syncdst}/joharness.sh" ]; then
+    pass "consumer entrypoint executable again"
+  else
+    fail "consumer entrypoint executable again"
+  fi
 else
-  fail "consumer entrypoint executable again"
+  skip "exec bit repair" "core.filemode unsupported here"
 fi
 expect "consumer-only file reported, left" \
   "consumer-only env/custom/AGENTS.md" "$out"
@@ -576,42 +616,46 @@ expect "CRLF splice carries canonical head" \
 expect "CRLF splice keeps consumer Part 2" \
   "CRLF-PART2-SENTINEL" "$(cat "${syncdst6}/AGENTS.md")"
 
-# Symlink at a listed path: writing through it would modify a file
-# outside the consumer tree — refused, target untouched.
-syncdst7="${TMP}/syncdst7"
-mkdir -p "$syncdst7"
-printf 'outside content\n' >"${TMP}/link-target.md"
-ln -s "${TMP}/link-target.md" "${syncdst7}/CLAUDE.md"
-if out="$(sync "$syncdst7")"; then
-  fail "symlink at listed path fails the run"
-else
-  pass "symlink at listed path fails the run"
-fi
-expect "symlink named" "CLAUDE.md is not a regular file" "$out"
-expect "symlink target untouched" "outside content" \
-  "$(cat "${TMP}/link-target.md")"
-if [ -e "${syncdst7}/AGENTS.md" ]; then
-  fail "refusal leaves consumer untouched (AGENTS.md was bootstrapped)"
-else
-  pass "refusal leaves consumer untouched"
-fi
+if [ "$HAVE_SYMLINK" = "1" ]; then
+  # Symlink at a listed path: writing through it would modify a file
+  # outside the consumer tree — refused, target untouched.
+  syncdst7="${TMP}/syncdst7"
+  mkdir -p "$syncdst7"
+  printf 'outside content\n' >"${TMP}/link-target.md"
+  ln -s "${TMP}/link-target.md" "${syncdst7}/CLAUDE.md"
+  if out="$(sync "$syncdst7")"; then
+    fail "symlink at listed path fails the run"
+  else
+    pass "symlink at listed path fails the run"
+  fi
+  expect "symlink named" "CLAUDE.md is not a regular file" "$out"
+  expect "symlink target untouched" "outside content" \
+    "$(cat "${TMP}/link-target.md")"
+  if [ -e "${syncdst7}/AGENTS.md" ]; then
+    fail "refusal leaves consumer untouched (AGENTS.md was bootstrapped)"
+  else
+    pass "refusal leaves consumer untouched"
+  fi
 
-# Symlinked ancestor directory: the leaf check alone would let cp write
-# straight through it to a tree outside the consumer.
-syncdst8="${TMP}/syncdst8"
-outside="${TMP}/outside-tree"
-mkdir -p "$syncdst8" "$outside"
-ln -s "$outside" "${syncdst8}/docs"
-if out="$(sync "$syncdst8")"; then
-  fail "symlinked ancestor dir fails the run"
+  # Symlinked ancestor directory: the leaf check alone would let cp write
+  # straight through it to a tree outside the consumer.
+  syncdst8="${TMP}/syncdst8"
+  outside="${TMP}/outside-tree"
+  mkdir -p "$syncdst8" "$outside"
+  ln -s "$outside" "${syncdst8}/docs"
+  if out="$(sync "$syncdst8")"; then
+    fail "symlinked ancestor dir fails the run"
+  else
+    pass "symlinked ancestor dir fails the run"
+  fi
+  expect "symlinked ancestor named" "passes through symlinked directory docs/" "$out"
+  if [ -z "$(ls -A "$outside")" ]; then
+    pass "nothing written through symlinked ancestor"
+  else
+    fail "nothing written through symlinked ancestor ($(ls -A "$outside"))"
+  fi
 else
-  pass "symlinked ancestor dir fails the run"
-fi
-expect "symlinked ancestor named" "passes through symlinked directory docs/" "$out"
-if [ -z "$(ls -A "$outside")" ]; then
-  pass "nothing written through symlinked ancestor"
-else
-  fail "nothing written through symlinked ancestor ($(ls -A "$outside"))"
+  skip "consumer symlink refusals" "symlinks unavailable here"
 fi
 
 # Regular file squatting an ancestor path: mkdir -p would crash mid-sync
@@ -697,40 +741,54 @@ expect "dirty canonical names the problem" "uncommitted changes" "$out"
 # Canonical tracked symlink would ship dereferenced and read false
 # AHEAD forever once its target changes — refused in preflight. Commit
 # also clears the dirty edit above.
-ln -s AGENTS.md "${syncsrc}/env/none/alias.md"
-commit_all "$syncsrc" "track symlink"
-out="$(sync "$syncdst3")"; rc=$?
-if [ "$rc" -eq 1 ]; then
-  pass "canonical symlink refused"
+if [ "$HAVE_SYMLINK" = "1" ]; then
+  ln -s AGENTS.md "${syncsrc}/env/none/alias.md"
+  commit_all "$syncsrc" "track symlink"
+  out="$(sync "$syncdst3")"; rc=$?
+  if [ "$rc" -eq 1 ]; then
+    pass "canonical symlink refused"
+  else
+    fail "canonical symlink refused (got ${rc})"
+  fi
+  expect "canonical symlink named" "env/none/alias.md is a symlink" "$out"
 else
-  fail "canonical symlink refused (got ${rc})"
+  skip "canonical symlink refusal" "symlinks unavailable here"
 fi
-expect "canonical symlink named" "env/none/alias.md is a symlink" "$out"
 
 # Any tracked name ls-files must C-quote (backslash here, newline below)
 # would travel as its quoted string — a path that exists nowhere — and
 # fail MISSING with a misleading message. Both refused up front with the
 # real reason.
-printf 'odd\n' >"${syncsrc}/env/none/back\\nslash.md"
-commit_all "$syncsrc" "track backslash filename"
-out="$(sync "$syncdst3")"; rc=$?
-if [ "$rc" -eq 1 ]; then
-  pass "backslash filename refused up front"
-else
-  fail "backslash filename refused up front (got ${rc})"
-fi
-expect "backslash filename named" "requiring C-quoting" "$out"
+if [ "$HAVE_ODD_NAMES" = "1" ]; then
+  printf 'odd\n' >"${syncsrc}/env/none/back\\nslash.md"
+  commit_all "$syncsrc" "track backslash filename"
+  out="$(sync "$syncdst3")"; rc=$?
+  if [ "$rc" -eq 1 ]; then
+    pass "backslash filename refused up front"
+  else
+    fail "backslash filename refused up front (got ${rc})"
+  fi
+  expect "backslash filename named" "requiring C-quoting" "$out"
 
-printf 'odd\n' >"${syncsrc}/env/none/$(printf 'we\nird').md"
-commit_all "$syncsrc" "track newline filename"
-out="$(sync "$syncdst3")"; rc=$?
-if [ "$rc" -eq 1 ]; then
-  pass "newline filename refused"
+  printf 'odd\n' >"${syncsrc}/env/none/$(printf 'we\nird').md"
+  commit_all "$syncsrc" "track newline filename"
+  out="$(sync "$syncdst3")"; rc=$?
+  if [ "$rc" -eq 1 ]; then
+    pass "newline filename refused"
+  else
+    fail "newline filename refused (got ${rc})"
+  fi
+  expect "newline filename named" "requiring C-quoting" "$out"
 else
-  fail "newline filename refused (got ${rc})"
+  skip "C-quoted filename refusals" "filesystem rejects these names"
 fi
-expect "newline filename named" "requiring C-quoting" "$out"
 
 # --- summary ----------------------------------------------------------------
-printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
+# Skips are printed in the count, never folded into passed: a run that could
+# not ask half its questions must not read like one that asked them all.
+if [ "$SKIP" -gt 0 ]; then
+  printf '\n%d passed, %d failed, %d skipped\n' "$PASS" "$FAIL" "$SKIP"
+else
+  printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
+fi
 [ "$FAIL" -eq 0 ]
