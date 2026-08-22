@@ -7,7 +7,7 @@ plan: none
 session: https://claude.ai/code/session_01BrwFdUJkZs6HCKTu2yL544
 agent: opus
 updated: 2026-08-22
-next: Land scripts/bootstrap-consumer.sh + selftest cases; then review pass (sync-to-consumer.sh comment still says hand-delete marker; consider listing bootstrap script in sync FILES)
+next: Open PR to main; PR deletes this file on merge
 ---
 
 ## Goal
@@ -37,6 +37,21 @@ comment). Human ask: proper move, one command.
   history so later sync splices keep working.
 - Established consumer safety: refusal case (3) is the guard against
   deleting a real consumer's live plans.
+
+- Bootstrap script listed in sync FILES: whole-clone consumers carry it,
+  so it must stay reconciled like sync-to-consumer.sh itself.
+- Review (high) found 4 correctness bugs, all fixed + regression-tested:
+  symlink spelling bypassed self-target guard (whole-clone mode then
+  converts the CANONICAL — pwd -P both sides now); whole-clone wrote
+  before marker check could die (half-converted clone no tool finishes —
+  structural refusal now before first write); missing clone AGENTS.md
+  claimed rewrite on exit 0; fresh mode flattened a pre-existing
+  consumer's own Part 2 to the stub.
+- `.agents/` layout researched on human ask, rejected for now: two-plus
+  competing draft specs, no native tool discovery (Claude Code reads
+  .claude/ only), sync AHEAD detection is per-path so a move orphans
+  every consumer copy. Revisit as own requirement if root clutter in
+  children matters; honest name then is `.joharness/`, not `.agents/`.
 
 ## Rejected
 
