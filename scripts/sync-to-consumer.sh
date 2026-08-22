@@ -91,7 +91,9 @@ top="$(git -C "$ROOT" rev-parse --show-toplevel 2>/dev/null)" ||
 # Consumers receive this script too and would pass every structural
 # check, but consumer-to-consumer sync is forbidden
 # (docs/product/README.md, Reconciliation). Only canonical carries the
-# marker; joharness.conf is never synced, so no consumer inherits it.
+# marker; the conf is never synced, so no sync-born consumer inherits
+# it. A consumer bootstrapped by cloning joharness whole must delete
+# the line — joharness.conf says so at the marker.
 grep -q '^JOHARNESS_CANONICAL=1' "${ROOT}/joharness.conf" 2>/dev/null ||
   die "'$ROOT' is not the canonical harness (no JOHARNESS_CANONICAL=1 in joharness.conf); consumer copies must not sync out"
 
@@ -220,10 +222,11 @@ consumer_blob() {
   git -C "$ROOT" hash-object --path="$1" --stdin <"$2"
 }
 
-# Everything above the marker, CR-stripped — both sides of the splice
-# read through this one definition.
+# Everything above the marker, CR-stripped — every head extraction (both
+# splice sides and history) reads through this one definition. No file
+# argument = stdin.
 head_above_marker() {
-  awk -v m="$MARKER" '{ sub(/\r$/, "") } $0 == m { exit } { print }' "$1"
+  awk -v m="$MARKER" '{ sub(/\r$/, "") } $0 == m { exit } { print }' "$@"
 }
 
 # Marker match tolerant of a CRLF checkout — the same consumer state
@@ -373,7 +376,7 @@ sync_agents_md() {
   known=0
   while IFS= read -r c; do
     hist_head="$(git -C "$ROOT" show "${c}:AGENTS.md" 2>/dev/null |
-      awk -v m="$MARKER" '$0 == m { exit } { print }' || true)"
+      head_above_marker || true)"
     if [ "$hist_head" = "$dst_head" ]; then
       known=1
       break
@@ -441,14 +444,19 @@ reap_scan() {
     find "${DEST}/${d}" -name '*.joharness-sync.*' -type f 2>/dev/null
   done
 }
-# Strict digit tail = this tool's own pid stamp. A consumer file that
-# merely resembles a stage name (someone's .joharness-sync.bak) is never
-# deleted — it shows up consumer-only instead.
+preflight
+
+# After preflight on purpose: reaping deletes, and a structural refusal
+# (exit 1) must leave the consumer byte-identical. Strict digit tail =
+# this tool's own pid stamp; a consumer file that merely resembles a
+# stage name (someone's .joharness-sync.bak) is never deleted — it shows
+# up consumer-only instead.
 while IFS= read -r f; do
   [ -n "$f" ] || continue
   # The digit tail is a pid: a live one means another sync is mid-write
-  # on this consumer — leave its stage alone.
-  if kill -0 "${f##*.}" 2>/dev/null; then
+  # on this consumer — leave its stage alone. ps backs up kill -0, whose
+  # EPERM (another user's live process) reads as failure.
+  if kill -0 "${f##*.}" 2>/dev/null || ps -p "${f##*.}" >/dev/null 2>&1; then
     warn "sync stage ${f#"$DEST"/} belongs to a live process; concurrent sync? left in place"
     continue
   fi
@@ -460,7 +468,6 @@ while IFS= read -r f; do
   fi
 done < <(reap_scan | grep -E '\.joharness-sync\.[0-9]+$' | sort)
 
-preflight
 sync_agents_md
 for rel in "${FILES[@]}"; do sync_file "$rel"; done
 for dir in "${DIRS[@]}"; do sync_dir "$dir"; done
