@@ -33,3 +33,25 @@ jobs:
       - uses: actions/checkout@v4
       - name: joharness ci
         run: ./joharness.sh ci
+
+  # Windows is where the harness breaks silently. Two defects in two days were
+  # invisible from macOS and Linux and fatal on a stock Git for Windows clone:
+  # core.autocrlf=true turning every script CRLF until .gitattributes pinned
+  # them, and `git rev-parse --show-toplevel` answering in Windows form while
+  # `pwd -P` answers in MSYS form, which made sync-to-consumer.sh refuse every
+  # checkout as nested inside itself.
+  #
+  # Different question from the job above, so a separate check rather than a
+  # matrix: that one asks "does the code pass its acceptance bar", this one
+  # asks "does it run on Git Bash". shellcheck is deliberately not repeated
+  # here - the toolchain answer does not change per platform, and installing
+  # it on a Windows runner is a path to maintain for nothing.
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: harness selftest on Git Bash
+        run: ./harness/selftest.sh
