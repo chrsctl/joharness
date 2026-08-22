@@ -671,15 +671,33 @@ else
 fi
 expect "dirty canonical names the problem" "uncommitted changes" "$out"
 
-# Literal backslash-n in a name is NOT a newline; the guard must not
-# false-match its quoted form. Commit also clears the dirty edit above.
-printf 'odd\n' >"${syncsrc}/env/none/back\\nslash.md"
-commit_all "$syncsrc" "track backslash-n filename"
-out="$(sync "$syncdst3")"
-refute "backslash-n filename tolerated" "filename containing a newline" "$out"
+# Canonical tracked symlink would ship dereferenced and read false
+# AHEAD forever once its target changes — refused in preflight. Commit
+# also clears the dirty edit above.
+ln -s AGENTS.md "${syncsrc}/env/none/alias.md"
+commit_all "$syncsrc" "track symlink"
+out="$(sync "$syncdst3")"; rc=$?
+if [ "$rc" -eq 1 ]; then
+  pass "canonical symlink refused"
+else
+  fail "canonical symlink refused (got ${rc})"
+fi
+expect "canonical symlink named" "env/none/alias.md is a symlink" "$out"
 
-# Tracked newline filename reaches the sync as its C-quoted string — a
-# path that exists nowhere — refused up front. Keep this case last.
+# Any tracked name ls-files must C-quote (backslash here, newline below)
+# would travel as its quoted string — a path that exists nowhere — and
+# fail MISSING with a misleading message. Both refused up front with the
+# real reason.
+printf 'odd\n' >"${syncsrc}/env/none/back\\nslash.md"
+commit_all "$syncsrc" "track backslash filename"
+out="$(sync "$syncdst3")"; rc=$?
+if [ "$rc" -eq 1 ]; then
+  pass "backslash filename refused up front"
+else
+  fail "backslash filename refused up front (got ${rc})"
+fi
+expect "backslash filename named" "requiring C-quoting" "$out"
+
 printf 'odd\n' >"${syncsrc}/env/none/$(printf 'we\nird').md"
 commit_all "$syncsrc" "track newline filename"
 out="$(sync "$syncdst3")"; rc=$?
@@ -688,7 +706,7 @@ if [ "$rc" -eq 1 ]; then
 else
   fail "newline filename refused (got ${rc})"
 fi
-expect "newline filename named" "filename containing a newline" "$out"
+expect "newline filename named" "requiring C-quoting" "$out"
 
 # --- summary ----------------------------------------------------------------
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
