@@ -255,24 +255,32 @@ check_targets() {
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
-# Most-touched file on this branch since it left the base branch, as
-# "count<TAB>path". Empty when the branch has no non-merge commits. Returns
-# non-zero when there is no merge-base to measure against — the base branch
-# itself, or a shallow checkout. docs/(handover|plans|product)/ are excluded:
-# the protocol requires touching the workstream file in the SAME commit as
-# every change, so counting those paths reads compliance as churn (the first
-# unfiltered backtest flagged a branch for exactly that).
+# Most-touched file on a branch since it left the base branch, as
+# "count<TAB>path". Measures $1 (default HEAD) against $2 (default
+# origin/<base branch>) — cmd_ci reads the session's own branch, cmd_graph
+# every in-flight one, and both must be the same metric or they disagree
+# about what counts as churn. Empty when the branch has no non-merge
+# commits. Returns non-zero when there is no merge-base to measure against —
+# the base branch itself, or a shallow checkout. docs/(handover|plans|
+# product)/ are excluded: the protocol requires touching the workstream file
+# in the SAME commit as every change, so counting those paths reads
+# compliance as churn (the first unfiltered backtest flagged a branch for
+# exactly that). The tab is awk's, not sed's: BSD sed emits '\t' as a
+# literal 't', which on macOS glued count to path and disarmed the ci gate.
+# awk also keeps a path with spaces whole. The tail sort takes SIGPIPE when
+# head exits on a listing larger than the pipe buffer, and pipefail would
+# read that as "not measurable"; guarded like the grep above it.
 churn_top() {
-  local base branch_ref="origin/${HANDOVER_BASE_BRANCH:-main}"
-  base="$(git -C "$ROOT" merge-base HEAD "$branch_ref" 2>/dev/null)" || return 1
-  [ "$base" != "$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)" ] || return 1
-  git -C "$ROOT" log --no-merges --format='%H' "$base"..HEAD 2>/dev/null |
+  local rev="${1:-HEAD}" over="${2:-origin/${HANDOVER_BASE_BRANCH:-main}}" base
+  base="$(git -C "$ROOT" merge-base "$rev" "$over" 2>/dev/null)" || return 1
+  [ "$base" != "$(git -C "$ROOT" rev-parse "$rev" 2>/dev/null)" ] || return 1
+  git -C "$ROOT" log --no-merges --format='%H' "${base}..${rev}" 2>/dev/null |
     while IFS= read -r c; do
       git -C "$ROOT" diff-tree --no-commit-id --name-only -r "$c" 2>/dev/null
     done |
     { grep -vE '^docs/(handover|plans|product)/' || :; } |
-    sort | uniq -c | sort -rn | head -1 |
-    sed 's/^ *\([0-9][0-9]*\) /\1\t/'
+    sort | uniq -c | { sort -rn || :; } | head -1 |
+    awk '{ c = $1; sub(/^ *[0-9]+ /, ""); printf "%s\t%s\n", c, $0 }'
 }
 
 # The shellcheck binary is the acceptance bar, but its absence is an
@@ -406,7 +414,7 @@ cmd_graph() {
   # the same node twice. One entry per workstream name — the protocol says
   # one file per workstream, so a second ref carrying the same name is the
   # same work, not a second node.
-  local r short bname base ws wdoc wname claim churn churn_n churn_f seen=""
+  local r short bname ws wdoc wname claim churn churn_n churn_f seen=""
   while IFS= read -r r; do
     short="${r#refs/remotes/}"
     bname="${short#*/}"
@@ -424,17 +432,12 @@ cmd_graph() {
     seen="$seen $wname"
     claim="$(printf '%s\n' "$wdoc" | gr_field plan)"
 
-    churn_n=""
-    base="$(git -C "$ROOT" merge-base "$r" "$ref" 2>/dev/null)"
-    if [ -n "$base" ]; then
-      churn="$(git -C "$ROOT" log --no-merges --format='%H' "$base".."$r" 2>/dev/null |
-        while IFS= read -r c; do
-          git -C "$ROOT" diff-tree --no-commit-id --name-only -r "$c" 2>/dev/null
-        done |
-        { grep -vE '^docs/(handover|plans|product)/' || :; } |
-        sort | uniq -c | sort -rn | head -1)"
-      churn_n="$(printf '%s' "$churn" | awk '{print $1}')"
-      churn_f="$(printf '%s' "$churn" | awk '{print $2}')"
+    # Same metric, same code as cmd_ci: churn_top splits count from path on
+    # a tab, so a hot file with a space in its name survives whole.
+    churn_n="" churn_f=""
+    if churn="$(churn_top "$r" "$ref")" && [ -n "$churn" ]; then
+      churn_n="${churn%%$'\t'*}"
+      churn_f="${churn#*$'\t'}"
     fi
     if [ -n "$churn_n" ] && [ "$churn_n" -ge "$threshold" ]; then
       printf '  b_%s(["%s — CHURN: %s ×%s"]):::churn\n' \
