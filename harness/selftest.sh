@@ -478,11 +478,11 @@ expect "consumer README untouched" "CONSUMER-README" \
 # Second run on the now-reconciled tree: the AHEAD file still blocks, all
 # else settles to same — reruns must be idempotent. A stage file stranded
 # by a hard-killed run gets reaped on the way.
-printf 'stranded\n' >"${syncdst}/harness/AGENTS.md.joharness-sync.12345"
+printf 'stranded\n' >"${syncdst}/harness/AGENTS.md.joharness-sync.99999999"
 out="$(sync "$syncdst")"; rc=$?
 expect "stranded stage file reaped" \
-  "reaping stale sync stage harness/AGENTS.md.joharness-sync.12345" "$out"
-if [ -e "${syncdst}/harness/AGENTS.md.joharness-sync.12345" ]; then
+  "reaping stale sync stage harness/AGENTS.md.joharness-sync.99999999" "$out"
+if [ -e "${syncdst}/harness/AGENTS.md.joharness-sync.99999999" ]; then
   fail "stranded stage file removed"
 else
   pass "stranded stage file removed"
