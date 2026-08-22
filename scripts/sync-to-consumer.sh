@@ -294,7 +294,8 @@ sync_file() {
   else
     printf '  AHEAD   %s\n' "$rel"
     warn "${rel}: consumer content not in canonical history; NOT overwritten." \
-      "Land the fix in joharness first (docs/product/README.md, Reconciliation)."
+      "Land the fix in joharness first (docs/product/README.md," \
+      "Reconciliation) — or fetch a current canonical."
     AHEAD=$((AHEAD + 1))
   fi
 }
@@ -406,11 +407,13 @@ sync_agents_md() {
 # output even with quotepath=off, so such a tracked name reaches the
 # sync as its quoted string — a path that exists nowhere — and every
 # run aborts MISSING with a misleading message. Refused up front with
-# the real reason. quotepath=off keeps plain non-ASCII names unquoted
-# and out of this check; full-read grep avoids -q's SIGPIPE-vs-pipefail
-# trap.
-if git -C "$ROOT" -c core.quotepath=off ls-files | grep '^"' >/dev/null; then
-  die "canonical tracks a filename requiring C-quoting (newline, tab, backslash or double quote); not supported"
+# the real reason — but only under paths whose names actually travel;
+# a quotable name elsewhere in the repo is not this tool's business.
+# quotepath=off keeps plain non-ASCII names unquoted and out of this
+# check; full-read grep avoids -q's SIGPIPE-vs-pipefail trap.
+if git -C "$ROOT" -c core.quotepath=off ls-files -- \
+  AGENTS.md "${FILES[@]}" "${DIRS[@]}" | grep '^"' >/dev/null; then
+  die "canonical tracks a synced filename requiring C-quoting (newline, tab, backslash or double quote); not supported"
 fi
 
 if [ "$DRY" -eq 1 ]; then
@@ -423,10 +426,17 @@ fi
 # reaps; reruns are self-healing, they do not accumulate tool litter.
 # Stages only ever appear next to synced paths — no full-tree walk
 # through .git/ or a consumer's own large trees.
+# Roots derived from FILES/DIRS, not a second hand-kept list: a future
+# listed path outside the known prefixes must stay reapable.
 reap_scan() {
   local d
   find "$DEST" -maxdepth 1 -name '*.joharness-sync.*' -type f 2>/dev/null
-  for d in harness env .claude docs scripts; do
+  {
+    printf '%s\n' "${DIRS[@]}"
+    for d in "${FILES[@]}"; do
+      [ "${d%%/*}" = "$d" ] || printf '%s\n' "${d%%/*}"
+    done
+  } | sort -u | while IFS= read -r d; do
     [ -d "${DEST}/${d}" ] || continue
     find "${DEST}/${d}" -name '*.joharness-sync.*' -type f 2>/dev/null
   done
@@ -436,6 +446,12 @@ reap_scan() {
 # deleted — it shows up consumer-only instead.
 while IFS= read -r f; do
   [ -n "$f" ] || continue
+  # The digit tail is a pid: a live one means another sync is mid-write
+  # on this consumer — leave its stage alone.
+  if kill -0 "${f##*.}" 2>/dev/null; then
+    warn "sync stage ${f#"$DEST"/} belongs to a live process; concurrent sync? left in place"
+    continue
+  fi
   if [ "$DRY" -eq 1 ]; then
     warn "stale sync stage ${f#"$DEST"/} (would reap; hard-killed earlier run)"
   else
