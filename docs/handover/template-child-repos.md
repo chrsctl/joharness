@@ -7,7 +7,7 @@ plan: none
 session: https://claude.ai/code/session_01BrwFdUJkZs6HCKTu2yL544
 agent: opus
 updated: 2026-08-22
-next: Implement scripts/bootstrap-consumer.sh + selftest cases + docs per Decisions
+next: Land scripts/bootstrap-consumer.sh + selftest cases; then review pass (sync-to-consumer.sh comment still says hand-delete marker; consider listing bootstrap script in sync FILES)
 ---
 
 ## Goal
