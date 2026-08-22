@@ -214,6 +214,24 @@ while IFS= read -r ref; do
       fi
     fi
 
+    # Same metric ci prints for the session's own branch (joharness.sh,
+    # churn_top): a branch hammering one file is likely in review churn,
+    # and the session inside it is the one least able to notice. Protocol
+    # paths excluded — touching the workstream file every commit is
+    # compliance, not churn.
+    churn="$(git log --no-merges --format='%H' \
+        "$(git merge-base "$ref" "origin/${BASE_BRANCH}" 2>/dev/null)".."$ref" \
+        2>/dev/null |
+      while IFS= read -r c; do
+        git diff-tree --no-commit-id --name-only -r "$c" 2>/dev/null
+      done |
+      { grep -vE '^docs/(handover|plans|product)/' || :; } |
+      sort | uniq -c | sort -rn | head -1)"
+    churn_n="$(printf '%s' "$churn" | awk '{print $1}')"
+    if [ -n "$churn_n" ] && [ "$churn_n" -ge "${JOHARNESS_CHURN_THRESHOLD:-5}" ]; then
+      others="${others}    churn: $(printf '%s' "$churn" | awk '{print $2}') touched in ${churn_n} commits — review churn rule (docs/agent-selection.md)"$'\n'
+    fi
+
     others="${others}    git show ${short}:${f}"$'\n'
     count=$((count + 1))
   done <<<"$ws_files"
