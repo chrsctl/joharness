@@ -59,4 +59,5 @@ Consumer repos carry harness copies. One rule keeps them reconcilable: a
 fix born ANYWHERE lands in joharness `main` first, then syncs out to
 every consumer from there. Never consumer-to-consumer, never
 consumer-only — one canonical line reconciles all copies. Sync mechanism:
-`harness-sync` plan.
+`scripts/sync-to-consumer.sh` (refuses to overwrite a consumer copy
+whose content canonical history does not know).
