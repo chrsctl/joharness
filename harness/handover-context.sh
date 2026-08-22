@@ -138,8 +138,24 @@ now="$(date +%s)"
 while IFS= read -r ref; do
   [ "$count" -ge "$MAX_ENTRIES" ] && break
   short="${ref#refs/remotes/}"
-  [ "$short" = "origin/HEAD" ] && continue
-  [ "$short" = "origin/${branch}" ] && continue
+  # Compare on the branch name with the remote prefix stripped. Matching
+  # 'origin/<branch>' alone reports the session its own branch from any second
+  # remote - which is every contributor working from a fork, the only option
+  # without push access. A same-named branch on another remote is the same
+  # workstream; that is what the naming convention means.
+  name="${short#*/}"
+  [ "$name" = "HEAD" ] && continue
+  [ "$name" = "$branch" ] && continue
+
+  # A fork carries a copy of every branch it was forked from. Listing both
+  # spellings reports one workstream twice and burns two of MAX_ENTRIES, which
+  # drops real branches off the end with nothing said. Where origin has the
+  # name, that is the entry to show; a checkout with no origin loses nothing.
+  if [ "${short%%/*}" != "origin" ] &&
+     git rev-parse --verify --quiet "refs/remotes/origin/${name}" >/dev/null 2>&1
+  then
+    continue
+  fi
 
   # Already merged into the base branch: finished work, not a live claim.
   git merge-base --is-ancestor "$ref" "origin/${BASE_BRANCH}" 2>/dev/null &&
@@ -158,7 +174,7 @@ while IFS= read -r ref; do
   # a session that just started has not written one yet. The base branch is
   # excluded — it moving is a rebase signal, not another session's work.
   if [ -z "$ws_files" ]; then
-    if [ "$fresh" = "1" ] && [ "$short" != "origin/${BASE_BRANCH}" ]; then
+    if [ "$fresh" = "1" ] && [ "$name" != "${BASE_BRANCH}" ]; then
       others="${others}  ${short}: no workstream file, pushed ${pushed_rel}"$'\n'
       recent_count=$((recent_count + 1))
       count=$((count + 1))
