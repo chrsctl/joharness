@@ -13,6 +13,8 @@
 #   setup           provision the selected layer now
 #   ci              run what .github/workflows/ci.yml runs, here
 #   verify          provision, then run the layer's smoke test
+#   graph           print the work graph as fenced mermaid (paste into any
+#                   GitHub comment; rendered natively)
 #   help            this text
 #
 # Selection lives in joharness.conf and is overridden by $JOHARNESS_ENV:
@@ -243,6 +245,164 @@ ensure_shellcheck() {
   have shellcheck
 }
 
+# ---------------------------------------------------------------------------
+# Graph
+#
+# The third formalization step from docs/graph.md, previously held "until
+# text queue stops being legible": requirements, plans, in-flight branches
+# and their edges in one picture, derived at read time from the same refs
+# the hooks read. Nothing stored — run it again, it is current again.
+# Output is fenced mermaid because the consumer is a markdown paste; GitHub
+# renders it natively in comments, so the whole state is one paste away
+# from any PR discussion.
+# ---------------------------------------------------------------------------
+
+# Frontmatter field from a document on stdin; same shape as the hooks use.
+gr_field() {
+  awk -v key="$1" '
+    NR == 1 && $0 != "---" { exit }
+    NR > 1  && $0 == "---" { exit }
+    match($0, "^" key ":[[:space:]]*") {
+      v = substr($0, RLENGTH + 1)
+      sub(/[[:space:]]+#.*$/, "", v)
+      sub(/[[:space:]]+$/, "", v)
+      print v
+      exit
+    }
+  '
+}
+
+# Mermaid node ids must be plain; labels keep the real names.
+gr_id() { printf '%s' "$1" | tr -c 'a-zA-Z0-9' '_'; }
+
+cmd_graph() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" ref="" candidate
+  for candidate in "origin/${base_branch}" "${base_branch}" HEAD; do
+    if git -C "$ROOT" rev-parse --verify --quiet "$candidate" >/dev/null 2>&1; then
+      ref="$candidate"; break
+    fi
+  done
+  [ -n "$ref" ] || die "no base branch to read the graph from"
+
+  local threshold="${JOHARNESS_CHURN_THRESHOLD:-5}"
+
+  printf '```mermaid\n'
+  printf 'flowchart LR\n'
+  printf '  classDef req fill:#e8f0fe,stroke:#1a56b0,color:#1a3c6e\n'
+  printf '  classDef unplanned fill:#fff3cd,stroke:#b8860b,color:#6b5000\n'
+  printf '  classDef plan fill:#e6f4ea,stroke:#1e7e34,color:#14501f\n'
+  printf '  classDef blocked fill:#eceff1,stroke:#78909c,color:#455a64\n'
+  printf '  classDef branch fill:#f3e8fd,stroke:#6f42c1,color:#432874\n'
+  printf '  classDef churn fill:#fdecea,stroke:#c0392b,color:#7b241c\n'
+
+  # --- requirements --------------------------------------------------------
+  local f name prio planned
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    name="$(git -C "$ROOT" show "${ref}:${f}" 2>/dev/null | gr_field requirement)"
+    [ -n "$name" ] || name="${f##*/}"; name="${name%.md}"
+    prio="$(git -C "$ROOT" show "${ref}:${f}" 2>/dev/null | gr_field priority)"
+    # Unplanned = no plan at the base ref names this requirement.
+    planned=0
+    while IFS= read -r p; do
+      [ -n "$p" ] || continue
+      [ "$(git -C "$ROOT" show "${ref}:${p}" 2>/dev/null | gr_field requirement)" = "$name" ] &&
+        { planned=1; break; }
+    done < <(git -C "$ROOT" ls-tree -r --name-only "$ref" -- docs/plans 2>/dev/null |
+             grep -E '\.md$' | grep -vE '/(TEMPLATE|README)\.md$')
+    if [ "$planned" = "1" ]; then
+      printf '  r_%s["req: %s%s"]:::req\n' "$(gr_id "$name")" "$name" "${prio:+ (${prio})}"
+    else
+      printf '  r_%s["req: %s%s — UNPLANNED"]:::unplanned\n' \
+        "$(gr_id "$name")" "$name" "${prio:+ (${prio})}"
+    fi
+  done < <(git -C "$ROOT" ls-tree -r --name-only "$ref" -- docs/product 2>/dev/null |
+           grep -E '\.md$' | grep -vE '/(TEMPLATE|README)\.md$')
+
+  # --- plans, with needs and serves edges ----------------------------------
+  local doc plan agent effort req needs need blocked
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    doc="$(git -C "$ROOT" show "${ref}:${f}" 2>/dev/null)"
+    plan="$(printf '%s\n' "$doc" | gr_field plan)"
+    [ -n "$plan" ] || { plan="${f##*/}"; plan="${plan%.md}"; }
+    agent="$(printf '%s\n' "$doc" | gr_field agent)"
+    effort="$(printf '%s\n' "$doc" | gr_field effort)"
+    req="$(printf '%s\n' "$doc" | gr_field requirement)"
+    needs="$(printf '%s\n' "$doc" | gr_field needs)"
+    blocked=0
+    if [ -n "$needs" ] && [ "$needs" != "none" ]; then
+      # A need blocks only while the needed plan file still exists there.
+      while IFS= read -r need; do
+        need="$(printf '%s' "$need" | tr -d ' ')"
+        if [ -z "$need" ] || [ "$need" = "none" ]; then continue; fi
+        if git -C "$ROOT" cat-file -e "${ref}:docs/plans/${need}.md" 2>/dev/null; then
+          blocked=1
+          printf '  p_%s -. needs .-> p_%s\n' "$(gr_id "$plan")" "$(gr_id "$need")"
+        fi
+      done < <(printf '%s\n' "$needs" | tr ',' '\n')
+    fi
+    if [ "$blocked" = "1" ]; then
+      printf '  p_%s["plan: %s%s"]:::blocked\n' "$(gr_id "$plan")" "$plan" \
+        "${agent:+ [${agent}${effort:+ ${effort}}]}"
+    else
+      printf '  p_%s["plan: %s%s"]:::plan\n' "$(gr_id "$plan")" "$plan" \
+        "${agent:+ [${agent}${effort:+ ${effort}}]}"
+    fi
+    [ -n "$req" ] && [ "$req" != "none" ] &&
+      printf '  p_%s -- serves --> r_%s\n' "$(gr_id "$plan")" "$(gr_id "$req")"
+  done < <(git -C "$ROOT" ls-tree -r --name-only "$ref" -- docs/plans 2>/dev/null |
+           grep -E '\.md$' | grep -vE '/(TEMPLATE|README)\.md$')
+
+  # --- in-flight branches: claims and churn --------------------------------
+  # origin only: a fork mirrors every branch, and a mirrored workstream is
+  # the same node twice. One entry per workstream name — the protocol says
+  # one file per workstream, so a second ref carrying the same name is the
+  # same work, not a second node.
+  local r short bname base ws wdoc wname claim churn churn_n churn_f seen=""
+  while IFS= read -r r; do
+    short="${r#refs/remotes/}"
+    bname="${short#*/}"
+    [ "$bname" = "HEAD" ] && continue
+    [ "$bname" = "$base_branch" ] && continue
+    git -C "$ROOT" merge-base --is-ancestor "$r" "$ref" 2>/dev/null && continue
+
+    ws="$(git -C "$ROOT" ls-tree -r --name-only "$r" -- docs/handover 2>/dev/null |
+      grep -E '\.md$' | grep -vE '/(TEMPLATE|README)\.md$' | head -1)"
+    [ -n "$ws" ] || continue
+    wdoc="$(git -C "$ROOT" show "${r}:${ws}" 2>/dev/null)"
+    wname="$(printf '%s\n' "$wdoc" | gr_field workstream)"
+    [ -n "$wname" ] || { wname="${ws##*/}"; wname="${wname%.md}"; }
+    case " $seen " in *" $wname "*) continue ;; esac
+    seen="$seen $wname"
+    claim="$(printf '%s\n' "$wdoc" | gr_field plan)"
+
+    churn_n=""
+    base="$(git -C "$ROOT" merge-base "$r" "$ref" 2>/dev/null)"
+    if [ -n "$base" ]; then
+      churn="$(git -C "$ROOT" log --no-merges --format='%H' "$base".."$r" 2>/dev/null |
+        while IFS= read -r c; do
+          git -C "$ROOT" diff-tree --no-commit-id --name-only -r "$c" 2>/dev/null
+        done |
+        { grep -vE '^docs/(handover|plans|product)/' || :; } |
+        sort | uniq -c | sort -rn | head -1)"
+      churn_n="$(printf '%s' "$churn" | awk '{print $1}')"
+      churn_f="$(printf '%s' "$churn" | awk '{print $2}')"
+    fi
+    if [ -n "$churn_n" ] && [ "$churn_n" -ge "$threshold" ]; then
+      printf '  b_%s(["%s — CHURN: %s ×%s"]):::churn\n' \
+        "$(gr_id "$wname")" "$wname" "$churn_f" "$churn_n"
+    else
+      printf '  b_%s(["%s"]):::branch\n' "$(gr_id "$wname")" "$wname"
+    fi
+    [ -n "$claim" ] && [ "$claim" != "none" ] &&
+      printf '  b_%s -- claims --> p_%s\n' "$(gr_id "$wname")" "$(gr_id "$claim")"
+  done < <(git -C "$ROOT" for-each-ref --format='%(refname)' \
+    refs/remotes/origin 2>/dev/null)
+
+  printf '```\n'
+}
+
 cmd_env() {
   local want="${1:-}" current found=0 name
 
@@ -353,6 +513,7 @@ main() {
     setup)          cmd_setup ;;
     ci)             cmd_ci ;;
     verify)         cmd_verify ;;
+    graph)          cmd_graph ;;
     -h|--help|help) usage ;;
     *) die "unknown subcommand '$cmd' (try: $0 help)" ;;
   esac
