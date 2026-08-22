@@ -23,7 +23,7 @@ export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 # Knobs exported in the invoking shell must not steer the fixtures; per-call
 # prefix assignments below still apply.
 unset JOHARNESS_ENV JOHARNESS_ENV_SETUP JOHARNESS_ENV_MD \
-  JOHARNESS_CONF JOHARNESS_FORCE_SETUP DEVENV_FORCE
+  JOHARNESS_CONF JOHARNESS_FORCE_SETUP JOHARNESS_SYNC_ROOT DEVENV_FORCE
 
 PASS=0
 FAIL=0
@@ -353,6 +353,360 @@ check_lf() {
 
 check_lf "${crlf}/probe.sh" "shell script"
 check_lf "${crlf}/probe.md" "markdown"
+
+# --- sync-to-consumer.sh ----------------------------------------------------
+# Scratch canonical with real history (two versions of one file), scratch
+# consumer holding one stale copy, one edited copy, one missing file, one
+# file of its own. The script must update, refuse, create, and leave — in
+# that order of importance.
+step "sync-to-consumer.sh"
+
+syncsrc="${TMP}/syncsrc"
+git init -q "$syncsrc"
+mkdir -p "${syncsrc}/harness" "${syncsrc}/scripts" "${syncsrc}/env/none" \
+  "${syncsrc}/.claude/commands" "${syncsrc}/docs/handover" \
+  "${syncsrc}/docs/plans" "${syncsrc}/docs/product"
+printf 'JOHARNESS_CANONICAL=1\n' >"${syncsrc}/joharness.conf"
+printf 'loop v1\n' >"${syncsrc}/harness/AGENTS.md"
+printf 'tiers v1\n' >"${syncsrc}/docs/agent-selection.md"
+# Glob-metacharacter name beside its glob sibling: pathspecs must be
+# literal or a1.md's history vouches for edits to a[1].md.
+printf 'glob-sib v1\n' >"${syncsrc}/env/none/a1.md"
+printf 'bracket own\n' >"${syncsrc}/env/none/a[1].md"
+printf 'claude rules\n' >"${syncsrc}/CLAUDE.md"
+printf 'entry stub\n' >"${syncsrc}/joharness.sh"
+chmod +x "${syncsrc}/joharness.sh"
+printf 'sync stub\n' >"${syncsrc}/scripts/sync-to-consumer.sh"
+printf 'layer none\n' >"${syncsrc}/env/none/AGENTS.md"
+printf 'who cmd\n' >"${syncsrc}/.claude/commands/who.md"
+# Every FILES entry must exist: a listed-but-missing file fails the run.
+printf 'attrs\n' >"${syncsrc}/.gitattributes"
+printf '{}\n' >"${syncsrc}/.claude/settings.json"
+for stub in docs/caveman.md docs/graph.md \
+  docs/handover/README.md docs/handover/TEMPLATE.md \
+  docs/plans/README.md docs/plans/TEMPLATE.md \
+  docs/product/README.md docs/product/TEMPLATE.md; do
+  printf 'stub %s\n' "$stub" >"${syncsrc}/${stub}"
+done
+cat >"${syncsrc}/AGENTS.md" <<'EOF'
+CANON-HARNESS-V1
+
+# Part 2 — project
+
+canonical project text
+EOF
+commit_all "$syncsrc" "canonical v1"
+printf 'loop v2 CANON-LOOP-SENTINEL\n' >"${syncsrc}/harness/AGENTS.md"
+printf 'glob-sib v2\n' >"${syncsrc}/env/none/a1.md"
+cat >"${syncsrc}/AGENTS.md" <<'EOF'
+CANON-HARNESS-V2
+
+# Part 2 — project
+
+canonical project text
+EOF
+commit_all "$syncsrc" "canonical v2"
+
+syncdst="${TMP}/syncdst"
+mkdir -p "${syncdst}/harness" "${syncdst}/env/custom" "${syncdst}/env/none"
+# Content that is the SIBLING a1.md's history, never a[1].md's own: only
+# a glob-leaking pathspec would call this stale.
+printf 'glob-sib v1\n' >"${syncdst}/env/none/a[1].md"
+printf 'loop v1\n' >"${syncdst}/harness/AGENTS.md"          # stale: v1 is history
+printf 'consumer hacked\n' >"${syncdst}/CLAUDE.md"          # ahead: never in history
+printf 'own layer\n' >"${syncdst}/env/custom/AGENTS.md"     # consumer-only
+ln -s AGENTS.md "${syncdst}/env/custom/link.md"             # consumer-only symlink
+printf 'CONSUMER-README\n' >"${syncdst}/README.md"          # not synced
+printf 'entry stub\n' >"${syncdst}/joharness.sh"            # content current, exec bit lost
+# Above-marker copy of canonical v1: historical, so the splice moves it
+# forward while keeping the consumer's Part 2.
+cat >"${syncdst}/AGENTS.md" <<'EOF'
+CANON-HARNESS-V1
+
+# Part 2 — project
+
+CONSUMER-PART2-SENTINEL
+EOF
+
+sync() {
+  JOHARNESS_SYNC_ROOT="$syncsrc" \
+    bash "${ROOT}/scripts/sync-to-consumer.sh" "$@" 2>&1
+}
+
+out="$(sync --dry-run "$syncdst")"
+expect "dry run announces itself" "dry run, nothing written" "$out"
+expect "dry run reports the stale file" "update  harness/AGENTS.md" "$out"
+if grep -q 'loop v1' "${syncdst}/harness/AGENTS.md"; then
+  pass "dry run writes nothing"
+else
+  fail "dry run writes nothing (stale file changed)"
+fi
+
+out="$(sync "$syncdst")"; rc=$?
+expect "stale file updated to canonical" \
+  "CANON-LOOP-SENTINEL" "$(cat "${syncdst}/harness/AGENTS.md")"
+expect "missing file created" "tiers v1" \
+  "$(cat "${syncdst}/docs/agent-selection.md" 2>/dev/null)"
+expect "ahead file flagged" "AHEAD   CLAUDE.md" "$out"
+expect "ahead file kept" "consumer hacked" "$(cat "${syncdst}/CLAUDE.md")"
+expect "glob sibling history does not vouch" "AHEAD   env/none/a[1].md" "$out"
+expect "glob-named consumer edit kept" "glob-sib v1" \
+  "$(cat "${syncdst}/env/none/a[1].md")"
+if [ "$rc" -eq 2 ]; then
+  pass "ahead exits 2"
+else
+  fail "ahead exits 2 (got ${rc})"
+fi
+expect "AGENTS.md harness part replaced" \
+  "CANON-HARNESS-V2" "$(cat "${syncdst}/AGENTS.md")"
+expect "AGENTS.md consumer Part 2 kept" \
+  "CONSUMER-PART2-SENTINEL" "$(cat "${syncdst}/AGENTS.md")"
+expect "lost exec bit repaired as mode-only update" \
+  "update  joharness.sh (mode only)" "$out"
+if [ -x "${syncdst}/joharness.sh" ]; then
+  pass "consumer entrypoint executable again"
+else
+  fail "consumer entrypoint executable again"
+fi
+expect "consumer-only file reported, left" \
+  "consumer-only env/custom/AGENTS.md" "$out"
+expect "consumer-only symlink reported" \
+  "consumer-only env/custom/link.md" "$out"
+expect "consumer README untouched" "CONSUMER-README" \
+  "$(cat "${syncdst}/README.md")"
+
+# Second run on the now-reconciled tree: the AHEAD file still blocks, all
+# else settles to same — reruns must be idempotent. A stage file stranded
+# by a hard-killed run gets reaped on the way.
+printf 'stranded\n' >"${syncdst}/harness/AGENTS.md.joharness-sync.99999999"
+out="$(sync "$syncdst")"; rc=$?
+expect "stranded stage file reaped" \
+  "reaping stale sync stage harness/AGENTS.md.joharness-sync.99999999" "$out"
+if [ -e "${syncdst}/harness/AGENTS.md.joharness-sync.99999999" ]; then
+  fail "stranded stage file removed"
+else
+  pass "stranded stage file removed"
+fi
+expect "rerun updates nothing" "0 updated, 0 new" "$out"
+if [ "$rc" -eq 2 ]; then
+  pass "rerun still exits 2 while ahead"
+else
+  fail "rerun still exits 2 while ahead (got ${rc})"
+fi
+
+# Consumer AGENTS.md without the marker: refuse whole-file, touch nothing.
+syncdst2="${TMP}/syncdst2"
+mkdir -p "$syncdst2"
+printf 'no marker here\n' >"${syncdst2}/AGENTS.md"
+if out="$(sync "$syncdst2")"; then
+  fail "missing marker fails the run"
+else
+  pass "missing marker fails the run"
+fi
+expect "missing marker names the problem" "lacks marker" "$out"
+expect "missing marker leaves file untouched" "no marker here" \
+  "$(cat "${syncdst2}/AGENTS.md")"
+
+# Consumer harness section edited (no historical head matches): AHEAD
+# like any other file, splice refused.
+syncdst4="${TMP}/syncdst4"
+mkdir -p "$syncdst4"
+cat >"${syncdst4}/AGENTS.md" <<'EOF'
+LOCAL-HARNESS-EDIT
+
+# Part 2 — project
+
+whatever
+EOF
+out="$(sync "$syncdst4")"
+expect "edited harness section flagged AHEAD" "AHEAD   AGENTS.md" "$out"
+expect "edited harness section kept" "LOCAL-HARNESS-EDIT" \
+  "$(cat "${syncdst4}/AGENTS.md")"
+
+# Directory squatting on a file's path: cp would drop the file inside it
+# as 'new' on every rerun — refused instead.
+syncdst5="${TMP}/syncdst5"
+mkdir -p "${syncdst5}/docs/caveman.md"
+if out="$(sync "$syncdst5")"; then
+  fail "dir squatting on file path fails the run"
+else
+  pass "dir squatting on file path fails the run"
+fi
+expect "squatting dir named" "docs/caveman.md is not a regular file" "$out"
+
+# CRLF consumer AGENTS.md (Windows checkout): marker still found, head
+# still recognized as historical, splice lands LF.
+syncdst6="${TMP}/syncdst6"
+mkdir -p "$syncdst6"
+printf 'CANON-HARNESS-V1\r\n\r\n# Part 2 — project\r\n\r\nCRLF-PART2-SENTINEL\r\n' \
+  >"${syncdst6}/AGENTS.md"
+out="$(sync "$syncdst6")"; rc=$?
+if [ "$rc" -eq 0 ]; then
+  pass "clean sync exits 0"
+else
+  fail "clean sync exits 0 (got ${rc})"
+fi
+expect "CRLF consumer AGENTS.md spliced" \
+  "update  AGENTS.md (above marker; consumer Part 2 kept)" "$out"
+expect "CRLF splice carries canonical head" \
+  "CANON-HARNESS-V2" "$(cat "${syncdst6}/AGENTS.md")"
+expect "CRLF splice keeps consumer Part 2" \
+  "CRLF-PART2-SENTINEL" "$(cat "${syncdst6}/AGENTS.md")"
+
+# Symlink at a listed path: writing through it would modify a file
+# outside the consumer tree — refused, target untouched.
+syncdst7="${TMP}/syncdst7"
+mkdir -p "$syncdst7"
+printf 'outside content\n' >"${TMP}/link-target.md"
+ln -s "${TMP}/link-target.md" "${syncdst7}/CLAUDE.md"
+if out="$(sync "$syncdst7")"; then
+  fail "symlink at listed path fails the run"
+else
+  pass "symlink at listed path fails the run"
+fi
+expect "symlink named" "CLAUDE.md is not a regular file" "$out"
+expect "symlink target untouched" "outside content" \
+  "$(cat "${TMP}/link-target.md")"
+if [ -e "${syncdst7}/AGENTS.md" ]; then
+  fail "refusal leaves consumer untouched (AGENTS.md was bootstrapped)"
+else
+  pass "refusal leaves consumer untouched"
+fi
+
+# Symlinked ancestor directory: the leaf check alone would let cp write
+# straight through it to a tree outside the consumer.
+syncdst8="${TMP}/syncdst8"
+outside="${TMP}/outside-tree"
+mkdir -p "$syncdst8" "$outside"
+ln -s "$outside" "${syncdst8}/docs"
+if out="$(sync "$syncdst8")"; then
+  fail "symlinked ancestor dir fails the run"
+else
+  pass "symlinked ancestor dir fails the run"
+fi
+expect "symlinked ancestor named" "passes through symlinked directory docs/" "$out"
+if [ -z "$(ls -A "$outside")" ]; then
+  pass "nothing written through symlinked ancestor"
+else
+  fail "nothing written through symlinked ancestor ($(ls -A "$outside"))"
+fi
+
+# Regular file squatting an ancestor path: mkdir -p would crash mid-sync
+# after earlier writes — preflight refuses with nothing written.
+syncdst9="${TMP}/syncdst9"
+mkdir -p "$syncdst9"
+printf 'file not dir\n' >"${syncdst9}/docs"
+if out="$(sync "$syncdst9")"; then
+  fail "file squatting ancestor path fails the run"
+else
+  pass "file squatting ancestor path fails the run"
+fi
+expect "squatting ancestor named" "passes through non-directory docs" "$out"
+if [ "$(ls -A "$syncdst9")" = "docs" ]; then
+  pass "refusal wrote nothing past squatting ancestor"
+else
+  fail "refusal wrote nothing past squatting ancestor ($(ls -A "$syncdst9"))"
+fi
+
+# Leftover JOHARNESS_SYNC_ROOT pointing anywhere but a harness canonical
+# dies loudly instead of silently syncing from the wrong tree.
+out="$(JOHARNESS_SYNC_ROOT="${TMP}/not-a-canonical" \
+  bash "${ROOT}/scripts/sync-to-consumer.sh" "$syncdst9" 2>&1)" && rc=0 || rc=$?
+if [ "$rc" -eq 1 ]; then
+  pass "bad JOHARNESS_SYNC_ROOT refused"
+else
+  fail "bad JOHARNESS_SYNC_ROOT refused (got ${rc})"
+fi
+expect "bad JOHARNESS_SYNC_ROOT named" "does not look like a harness canonical" "$out"
+
+# A consumer's copy of the script (has scripts/sync-to-consumer.sh, no
+# canonical marker in its conf) must refuse: consumer-to-consumer sync
+# is forbidden.
+noncanon="${TMP}/noncanon"
+mkdir -p "${noncanon}/scripts"
+printf 'stub\n' >"${noncanon}/scripts/sync-to-consumer.sh"
+git init -q "$noncanon"
+out="$(JOHARNESS_SYNC_ROOT="$noncanon" \
+  bash "${ROOT}/scripts/sync-to-consumer.sh" "$syncdst9" 2>&1)" && rc=0 || rc=$?
+if [ "$rc" -eq 1 ]; then
+  pass "consumer copy refuses to sync out"
+else
+  fail "consumer copy refuses to sync out (got ${rc})"
+fi
+expect "consumer copy refusal names the doctrine" \
+  "not the canonical harness" "$out"
+
+# Canonical listed-but-missing file: silent drift is the failure mode, so
+# the run must end nonzero, not whisper to stderr. Mutates the canonical
+# fixture — keep these two cases last.
+git -C "$syncsrc" rm -q docs/graph.md
+git -C "$syncsrc" rm -q -r .claude/commands
+commit_all "$syncsrc" "drop graph doc and commands dir"
+syncdst3="${TMP}/syncdst3"
+mkdir -p "$syncdst3"
+out="$(sync "$syncdst3")"; rc=$?
+if [ "$rc" -eq 3 ]; then
+  pass "listed file missing from canonical exits 3 (sync ran)"
+else
+  fail "listed file missing from canonical exits 3 (got ${rc})"
+fi
+expect "missing canonical file named" "canonical has no docs/graph.md" "$out"
+expect "missing canonical dir named" "canonical has no .claude/commands/" "$out"
+
+# Untracked scratch under a synced dir cannot ship (ls-files drives the
+# copies) and must not block the run.
+printf 'scratch\n' >"${syncsrc}/env/none/notes.tmp"
+out="$(sync "$syncdst3")"
+refute "untracked scratch under synced dir tolerated" \
+  "uncommitted changes" "$out"
+
+# Dirty canonical: working-tree-only content would ship now and read
+# AHEAD on every later run — refused before anything is written.
+printf 'uncommitted\n' >>"${syncsrc}/harness/AGENTS.md"
+out="$(sync "$syncdst3")"; rc=$?
+if [ "$rc" -eq 1 ]; then
+  pass "dirty canonical refused"
+else
+  fail "dirty canonical refused (got ${rc})"
+fi
+expect "dirty canonical names the problem" "uncommitted changes" "$out"
+
+# Canonical tracked symlink would ship dereferenced and read false
+# AHEAD forever once its target changes — refused in preflight. Commit
+# also clears the dirty edit above.
+ln -s AGENTS.md "${syncsrc}/env/none/alias.md"
+commit_all "$syncsrc" "track symlink"
+out="$(sync "$syncdst3")"; rc=$?
+if [ "$rc" -eq 1 ]; then
+  pass "canonical symlink refused"
+else
+  fail "canonical symlink refused (got ${rc})"
+fi
+expect "canonical symlink named" "env/none/alias.md is a symlink" "$out"
+
+# Any tracked name ls-files must C-quote (backslash here, newline below)
+# would travel as its quoted string — a path that exists nowhere — and
+# fail MISSING with a misleading message. Both refused up front with the
+# real reason.
+printf 'odd\n' >"${syncsrc}/env/none/back\\nslash.md"
+commit_all "$syncsrc" "track backslash filename"
+out="$(sync "$syncdst3")"; rc=$?
+if [ "$rc" -eq 1 ]; then
+  pass "backslash filename refused up front"
+else
+  fail "backslash filename refused up front (got ${rc})"
+fi
+expect "backslash filename named" "requiring C-quoting" "$out"
+
+printf 'odd\n' >"${syncsrc}/env/none/$(printf 'we\nird').md"
+commit_all "$syncsrc" "track newline filename"
+out="$(sync "$syncdst3")"; rc=$?
+if [ "$rc" -eq 1 ]; then
+  pass "newline filename refused"
+else
+  fail "newline filename refused (got ${rc})"
+fi
+expect "newline filename named" "requiring C-quoting" "$out"
 
 # --- summary ----------------------------------------------------------------
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
