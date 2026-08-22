@@ -464,8 +464,17 @@ expect "consumer README untouched" "CONSUMER-README" \
   "$(cat "${syncdst}/README.md")"
 
 # Second run on the now-reconciled tree: the AHEAD file still blocks, all
-# else settles to same — reruns must be idempotent.
+# else settles to same — reruns must be idempotent. A stage file stranded
+# by a hard-killed run gets reaped on the way.
+printf 'stranded\n' >"${syncdst}/harness/AGENTS.md.joharness-sync.12345"
 out="$(sync "$syncdst")"; rc=$?
+expect "stranded stage file reaped" \
+  "reaping stale sync stage harness/AGENTS.md.joharness-sync.12345" "$out"
+if [ -e "${syncdst}/harness/AGENTS.md.joharness-sync.12345" ]; then
+  fail "stranded stage file removed"
+else
+  pass "stranded stage file removed"
+fi
 expect "rerun updates nothing" "0 updated, 0 new" "$out"
 if [ "$rc" -eq 2 ]; then
   pass "rerun still exits 2 while ahead"
@@ -627,6 +636,19 @@ else
   fail "dirty canonical refused (got ${rc})"
 fi
 expect "dirty canonical names the problem" "uncommitted changes" "$out"
+
+# Tracked newline filename would split the line-oriented listings into
+# fragment paths — refused up front. Commit also clears the dirty edit
+# above; keep this case last.
+printf 'odd\n' >"${syncsrc}/env/none/$(printf 'we\nird').md"
+commit_all "$syncsrc" "track newline filename"
+out="$(sync "$syncdst3")"; rc=$?
+if [ "$rc" -eq 1 ]; then
+  pass "newline filename refused"
+else
+  fail "newline filename refused (got ${rc})"
+fi
+expect "newline filename named" "filename containing a newline" "$out"
 
 # --- summary ----------------------------------------------------------------
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
