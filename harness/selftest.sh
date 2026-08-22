@@ -293,6 +293,29 @@ expect "two free plans = spawn instruction with tiers" \
 expect "spawn list names each free plan's tier" \
   "newer-urgent (opus), older-normal (haiku)" "$out"
 
+# --- graph ------------------------------------------------------------------
+# One picture of the same state the two hooks print: requirements, plans,
+# branches, and the serves/needs/claims edges between them. Derived from the
+# same refs, so the fixture above is already the test bed.
+step "joharness.sh graph"
+
+out="$(CLAUDE_PROJECT_DIR="$work" "${ROOT}/joharness.sh" graph 2>&1)"
+
+expect "graph is fenced mermaid" '```mermaid' "$out"
+expect "plan node carries its tier" \
+  'p_older_normal["plan: older-normal [haiku low]"]' "$out"
+expect "plan serves its requirement" \
+  "p_older_normal -- serves --> r_served_req" "$out"
+expect "unplanned requirement is flagged" "UNPLANNED" "$out"
+expect "needs edge drawn to the open plan" \
+  "p_blocked_urgent -. needs .-> p_older_normal" "$out"
+expect "blocked plan wears the blocked class" \
+  'p_blocked_urgent["plan: blocked-urgent"]:::blocked' "$out"
+refute "a merged-away need is no edge" "p_merged_away" "$out"
+expect "branch claims its plan" \
+  "b_rival_ws -- claims --> p_rival_plan" "$out"
+refute "the template is not a node" "TEMPLATE" "$out"
+
 # --- session-start composition ---------------------------------------------
 step "joharness.sh session-start"
 
