@@ -99,8 +99,8 @@ top="$(cd "$top" 2>/dev/null && pwd -P)" ||
 # check, but consumer-to-consumer sync is forbidden
 # (docs/product/README.md, Reconciliation). Only canonical carries the
 # marker; the conf is never synced, so no sync-born consumer inherits
-# it. A consumer bootstrapped by cloning joharness whole must delete
-# the line — joharness.conf says so at the marker.
+# it. A whole clone of joharness carries it — bootstrap-consumer.sh
+# strips it there, joharness.conf says so at the marker.
 grep -q '^JOHARNESS_CANONICAL=1' "${ROOT}/joharness.conf" 2>/dev/null ||
   die "'$ROOT' is not the canonical harness (no JOHARNESS_CANONICAL=1 in joharness.conf); consumer copies must not sync out"
 
@@ -112,6 +112,7 @@ FILES=(
   .claude/settings.json
   joharness.sh
   scripts/sync-to-consumer.sh
+  scripts/bootstrap-consumer.sh
   docs/agent-selection.md
   docs/caveman.md
   docs/graph.md
