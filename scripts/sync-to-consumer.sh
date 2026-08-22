@@ -86,6 +86,13 @@ DEST="$(cd "$DEST" && pwd)"
 # false AHEAD with advice that cannot be satisfied.
 top="$(git -C "$ROOT" rev-parse --show-toplevel 2>/dev/null)" ||
   die "canonical '$ROOT' is not a git checkout (history decides stale vs AHEAD)"
+# Both sides through the same pwd -P: on Git Bash git answers in Windows form
+# (C:/Users/...) while the shell answers in MSYS form (/c/Users/...), so a
+# plain string compare reports every checkout as nested inside itself. Routing
+# git's answer through cd makes one shell produce both spellings; no-op where
+# the forms already agree.
+top="$(cd "$top" 2>/dev/null && pwd -P)" ||
+  die "canonical '$ROOT' has a toplevel that cannot be entered"
 [ "$top" = "$(cd "$ROOT" && pwd -P)" ] ||
   die "canonical '$ROOT' is nested inside another git checkout (${top})"
 # Consumers receive this script too and would pass every structural
