@@ -185,7 +185,7 @@ expect "rot check ignores status field" "Merged = finished" "$out"
 # and counting that reads compliance as churn.
 step "handover-context.sh churn line"
 
-git -C "$work" checkout -qb churny main
+git -C "$work" checkout -qb churny-mc-churn main
 mkdir -p "${work}/docs/handover"
 cat >"${work}/docs/handover/churny-ws.md" <<'EOF'
 ---
@@ -200,12 +200,12 @@ for i in 1 2 3 4 5 6; do
   printf 'log %s\n' "$i" >>"${work}/docs/handover/churny-ws.md"
   commit_all "$work" "harden per review round $i"
 done
-git -C "$work" push -qu origin churny
+git -C "$work" push -qu origin churny-mc-churn
 git -C "$work" checkout -q feature
 
 out="$(CLAUDE_PROJECT_DIR="$work" HANDOVER_FETCH=0 \
   bash "${ROOT}/harness/handover-context.sh" 2>&1)"
-expect "churny branch carries the churn line" \
+expect "Churny McChurn carries the churn line" \
   "churn: hot-file.txt touched in 6 commits" "$out"
 refute "workstream file updates are not churn" "churny-ws.md touched" "$out"
 refute "quiet branch carries no churn line" "rival-ws.md touched" "$out"
@@ -214,8 +214,8 @@ out="$(CLAUDE_PROJECT_DIR="$work" HANDOVER_FETCH=0 JOHARNESS_CHURN_THRESHOLD=9 \
   bash "${ROOT}/harness/handover-context.sh" 2>&1)"
 refute "threshold override silences the line" "churn: hot-file.txt" "$out"
 
-git -C "$work" push -q --delete origin churny 2>/dev/null
-git -C "$work" branch -qD churny
+git -C "$work" push -q --delete origin churny-mc-churn 2>/dev/null
+git -C "$work" branch -qD churny-mc-churn
 
 # --- queue hook -------------------------------------------------------------
 step "queue-context.sh"
