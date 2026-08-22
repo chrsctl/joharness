@@ -61,3 +61,9 @@ every consumer from there. Never consumer-to-consumer, never
 consumer-only — one canonical line reconciles all copies. Sync mechanism:
 `scripts/sync-to-consumer.sh` (refuses to overwrite a consumer copy
 whose content canonical history does not know).
+
+New consumer starts via `scripts/bootstrap-consumer.sh`, never by using a
+raw joharness clone as-is: a raw clone carries joharness's live plan
+queue, handover files and canonical marker, so its sessions work
+joharness's workstream instead of the child's. Bootstrap places the
+harness set, seeds consumer-own stubs, strips those leaks.
