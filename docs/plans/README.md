@@ -32,7 +32,10 @@ Copy [`TEMPLATE.md`](TEMPLATE.md). Sections:
 Frontmatter: `plan`, `urgency` (`normal` | `urgent`), `agent` (`haiku` |
 `sonnet` | `opus` — which tier implements this plan), `effort`, optional
 `needs` (plan names this one reads results of), optional `requirement`
-(the one this plan serves — [`docs/product/`](../product/README.md)). Plans get matched to
+(the one this plan serves — [`docs/product/`](../product/README.md)),
+optional `scope` (path prefixes the plan will touch; the queue hook proves
+parallel safety inside a wave of disjoint scopes and names the conflict
+across waves — `needs` alone cannot say two plans edit the same file). Plans get matched to
 agents, not one agent to all plans; selection rules:
 [`docs/agent-selection.md`](../agent-selection.md). Implementing session
 may escalate tier or effort, never downgrade.

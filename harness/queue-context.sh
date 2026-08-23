@@ -222,20 +222,108 @@ done <<<"$rows"
   printf '  (+%d more not shown; raise QUEUE_MAX_ENTRIES to list)\n' \
     "$((total - MAX_ENTRIES))"
 
-# Fan-out instruction: free plans are independent, so each one is a session
-# the human can spawn NOW, model named per plan. No free plan and nothing to
-# plan = DAG edge.
+# Fan-out instruction. "Free plans are independent" used to be asserted
+# unconditionally; it is a computed claim now. A plan may declare `scope:` in
+# frontmatter — comma-separated path prefixes it will touch — and free plans
+# are partitioned into waves whose declared scopes are pairwise disjoint.
+# Within a wave, parallel is proven; across waves, the conflicting pair and
+# path are named. A plan without scope stays listed, labeled unprovable,
+# because a missing declaration must neither serialize the queue nor inherit
+# the old unconditional promise. Zero scoped plans = output unchanged.
 free_count=0
 free_list=""
+free_names=()
+free_tiers=()
+free_scopes=()
 while IFS=$'\t' read -r rank _ f label _; do
   [ -n "$f" ] || continue
   [ "$rank" -lt 2 ] || continue
   free_count=$((free_count + 1))
   tier="$(sed -n 's/.*agent: \([a-z]*\).*/\1/p' <<<"$label")"
   free_list="${free_list:+${free_list}, }$(stem "$f") (${tier:-sonnet})"
+  free_names+=("$(stem "$f")")
+  free_tiers+=("${tier:-sonnet}")
+  # Normalized: comma to space, surrounding blanks and trailing slashes gone.
+  free_scopes+=("$(git show "${ref}:${f}" 2>/dev/null | field scope |
+    tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//; s|/*$||' |
+    grep -v '^$' | grep -vx 'none' | paste -sd' ' -)")
 done <<<"$rows"
 
-if [ "$free_count" -ge 2 ]; then
+# Two path prefixes overlap when equal or one contains the other at a
+# boundary. Word-splitting of the scope strings is the point here.
+scopes_overlap() {
+  local a b
+  for a in $1; do
+    for b in $2; do
+      case "$a" in "$b" | "$b"/*) printf '%s' "$b"; return 0 ;; esac
+      case "$b" in "$a"/*) printf '%s' "$a"; return 0 ;; esac
+    done
+  done
+  return 1
+}
+
+scoped_any=0
+for s in "${free_scopes[@]:-}"; do [ -n "$s" ] && scoped_any=1; done
+
+if [ "$free_count" -ge 2 ] && [ "$scoped_any" = "1" ]; then
+  # Greedy first-fit in queue order (urgent first): waves hold member
+  # indices; a plan joins the first wave it conflicts with nobody in.
+  waves=()
+  wave_notes=()
+  unscoped=""
+  i=0
+  while [ "$i" -lt "$free_count" ]; do
+    if [ -z "${free_scopes[$i]}" ]; then
+      unscoped="${unscoped:+${unscoped}, }${free_names[$i]} (${free_tiers[$i]})"
+    else
+      placed=0
+      first_hit=""
+      w=0
+      while [ "$w" -lt "${#waves[@]}" ]; do
+        hit=""
+        for m in ${waves[$w]}; do
+          hit="$(scopes_overlap "${free_scopes[$i]}" "${free_scopes[$m]}")" &&
+            { hit="${free_names[$m]} on ${hit}"; break; }
+          hit=""
+        done
+        if [ -z "$hit" ]; then
+          waves[w]="${waves[$w]} $i"
+          placed=1
+          break
+        fi
+        [ -n "$first_hit" ] || first_hit="$hit"
+        w=$((w + 1))
+      done
+      if [ "$placed" -eq 0 ]; then
+        waves+=("$i")
+        wave_notes+=("$first_hit")
+      fi
+    fi
+    i=$((i + 1))
+  done
+
+  printf '\n%d free plans. Waves — declared scopes disjoint, parallel proven\n' \
+    "$free_count"
+  printf 'within a wave; across waves the conflict is named:\n'
+  w=0
+  while [ "$w" -lt "${#waves[@]}" ]; do
+    line=""
+    for m in ${waves[$w]}; do
+      line="${line:+${line}, }${free_names[$m]} (${free_tiers[$m]})"
+    done
+    if [ "$w" -eq 0 ] || [ -z "${wave_notes[$w]:-}" ]; then
+      printf '  wave %d: %s\n' "$((w + 1))" "$line"
+    else
+      printf '  wave %d: %s — overlaps %s\n' "$((w + 1))" "$line" "${wave_notes[$w]}"
+    fi
+    w=$((w + 1))
+  done
+  [ -z "$unscoped" ] ||
+    printf '  unscoped, independence not provable: %s — declare scope: in\n  the plan file to join a wave.\n' \
+      "$unscoped"
+  [ -z "$unplanned" ] ||
+    printf 'Plus one planning session for the UNPLANNED requirements above.\n'
+elif [ "$free_count" -ge 2 ]; then
   printf '\n%d free plans = %d parallel sessions. Spawn one per plan, model = its\n' \
     "$free_count" "$free_count"
   printf 'tier: %s.\n' "$free_list"
@@ -254,7 +342,7 @@ else
   printf 'top free plan above. Agent field = model\n'
 fi
 printf 'tier to run it. Escalate tier or effort fine, downgrade never\n'
-printf '(docs/agent-selection.md). Free = neither blocked nor claimed; free\n'
-printf 'plans are independent, safe to run in parallel sessions. Claimed\n'
-printf 'plan: /who before touching.\n'
+printf '(docs/agent-selection.md). Free = neither blocked nor claimed. Same\n'
+printf 'wave = declared scopes disjoint, parallel proven; no scope declared =\n'
+printf 'independence assumed, not proven. Claimed plan: /who before touching.\n'
 exit 0
