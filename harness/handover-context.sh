@@ -7,8 +7,6 @@
 #   - this branch's workstream file, if there is one, with status and next step
 #   - workstream files on every other branch, with how recently each was pushed
 #     and whether its changes overlap this branch's files
-#   - dead branches: merged into the base branch but still standing on origin,
-#     with the delete command for the human (sessions never push --delete)
 #
 # Run by `joharness.sh session-start`. Reports git facts only. Liveness is deliberately NOT inferred here: push
 # time does not correlate with whether a session is working (measured both ways
@@ -133,7 +131,6 @@ my_paths="$(
 
 # --- other branches --------------------------------------------------------
 others=""
-dead=""
 recent_count=0
 count=0
 now="$(date +%s)"
@@ -161,14 +158,8 @@ while IFS= read -r ref; do
   fi
 
   # Already merged into the base branch: finished work, not a live claim.
-  # Still standing on origin = deadwood only a human can clear — sessions
-  # never delete remote branches (push --delete permission-blocked, and
-  # policy). Collected here, handed to the human below.
-  if git merge-base --is-ancestor "$ref" "origin/${BASE_BRANCH}" 2>/dev/null; then
-    [ "${short%%/*}" = "origin" ] && [ "$name" != "$BASE_BRANCH" ] &&
-      dead="${dead} ${name}"
+  git merge-base --is-ancestor "$ref" "origin/${BASE_BRANCH}" 2>/dev/null &&
     continue
-  fi
 
   pushed_at="$(git log -1 --format=%ct "$ref" 2>/dev/null)"
   pushed_rel="$(git log -1 --format=%cr "$ref" 2>/dev/null)"
@@ -293,16 +284,6 @@ if [ -n "$stale" ]; then
   add "Workstream files left on origin/${BASE_BRANCH}. Merged = finished. Move"
   add "keepers to AGENTS.md or docs/, then delete. History keeps the rest."
   OUT="${OUT}${stale}"
-fi
-
-if [ -n "$dead" ]; then
-  add ""
-  add "Dead branches on origin: merged into ${BASE_BRANCH}, still standing —"
-  add "finished work posing as in-flight. Human deletes: button on merged PR"
-  add "page, or:"
-  add "  git push origin --delete${dead}"
-  add "Repo setting \"Automatically delete head branches\" ends this for good."
-  add "Sessions: NEVER push --delete — flag to human instead."
 fi
 
 printf '%s' "$OUT"
