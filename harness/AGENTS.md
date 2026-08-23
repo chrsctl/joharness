@@ -48,15 +48,17 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    any unfinished turn, not only at session end. `/handover` writes it.
 7. **Finish.** PR, merge to `main` — every step merges, no long-lived
    integration branch. Session merges its OWN pull request itself, no
-   waiting on human (ratified 2026-08-23), when ALL hold: GitHub checks
-   green on head; `./joharness.sh verify` green when the diff touches any
-   shell script (`joharness.sh`, `harness/`, `env/`, `scripts/`) — CI
-   cannot run it (needs the sandbox); edge review recorded (step 5); no
-   unresolved human review thread; merges clean. Anything less stays
-   open. Merge-commit
+   waiting on human (ratified 2026-08-23). Own = opened by this session,
+   or the human handed it to this session to drive; never any other PR.
+   Merge when ALL hold: GitHub checks green on head; branch 0 behind
+   fresh-fetched `origin/main` (behind = "Conflict at finish" reconcile
+   first — checks do NOT re-run when `main` moves); `./joharness.sh
+   verify` green when the diff touches any non-`*.md` file under
+   `joharness.sh`, `harness/`, `env/`, `scripts/` — CI cannot run it
+   (needs the sandbox); edge review recorded (step 5); no unresolved
+   human review thread. Anything less stays open. Merge-commit
    method ONLY — squash/rebase merge breaks the merged-branch ancestry
-   filter (`docs/product/README.md` Branch flow). Never merge another
-   author's PR. Human veto = revert.
+   filter (`docs/product/README.md` Branch flow). Human veto = revert.
    Branch conflicts with `main` (another PR merged
    first)? Reconcile, do not force through — `docs/product/README.md`
    Branch flow, "Conflict at finish". Merged branch left standing =
