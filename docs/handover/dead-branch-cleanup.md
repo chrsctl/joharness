@@ -2,7 +2,7 @@
 workstream: dead-branch-cleanup
 status: review
 branch: claude/delete-merged-remote-branch-61qy2f
-pr: none
+pr: 32
 plan: none
 agent: sonnet
 updated: 2026-08-23
