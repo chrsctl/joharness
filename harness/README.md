@@ -26,6 +26,7 @@ environment sits under [`../env/`](../env/README.md).
 | `../docs/product/README.md` | Requirements tier, branch flow, reconciliation. |
 | `../docs/product/TEMPLATE.md` | Requirement shape. |
 | `../docs/caveman.md` | House style. |
+| `../docs/consumer-repos.md` | Creating and updating a consumer (child) repo. Entry point for both. |
 
 Harness-owned. Sync with `scripts/sync-to-consumer.sh`, joharness to
 consumer only — consumer-born fixes land in joharness first
@@ -34,7 +35,8 @@ root `AGENTS.md` below its `# Part 2 — project` marker (that repo's
 project; above the marker is harness, sync splices), `README.md`,
 `joharness.conf` (each repo picks its own environment), `.gitignore`,
 `.github/workflows/ci.yml` (consumer CI wiring; harness checks stay
-reachable as `./joharness.sh ci`),
+reachable as `./joharness.sh ci`), `.github/workflows/update.yml`
+(consumer's own sync cadence and canonical),
 `docs/handover/<workstream>.md` (live work), `docs/plans/<plan>.md`
 (each repo's own queue), and `docs/product/<requirement>.md` (each
 repo's own product).
