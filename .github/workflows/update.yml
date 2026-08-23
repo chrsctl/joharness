@@ -50,9 +50,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # The sync engine would refuse a canonical-onto-itself run anyway,
-      # but a red weekly run in canonical is noise. Same marker every sync
-      # tool reads.
+      # This guard is the only line of defense: the sync engine's marker
+      # check covers its ROOT (the clone below — genuinely canonical) and
+      # compares DEST to ROOT by path only, so it would happily run
+      # canonical-onto-canonical here. Same marker every sync tool reads.
       - name: skip on canonical
         id: guard
         run: |
@@ -82,9 +83,13 @@ jobs:
 
       - name: run sync
         if: steps.guard.outputs.canonical == '0'
+        id: sync
         run: |
           set +e
-          bash "$RUNNER_TEMP/canonical/scripts/sync-to-consumer.sh" . |
+          # stderr merged in: the sync's warnings (AHEAD guidance, reap
+          # notices) print there, and the log becomes the pull request
+          # body — a report without its warnings misleads.
+          bash "$RUNNER_TEMP/canonical/scripts/sync-to-consumer.sh" . 2>&1 |
             tee "$RUNNER_TEMP/sync.log"
           rc="${PIPESTATUS[0]}"
           set -e
@@ -95,8 +100,9 @@ jobs:
           # blocking every later update behind it. Anything else is a
           # refusal or a structural problem: fail loudly, commit nothing.
           case "$rc" in
-            0) ;;
-            2) echo "::warning::consumer files AHEAD of canonical; land those fixes in ${CANONICAL_REPO} first (docs/product/README.md, Reconciliation)" ;;
+            0) echo "ahead=0" >>"$GITHUB_OUTPUT" ;;
+            2) echo "ahead=1" >>"$GITHUB_OUTPUT"
+               echo "::warning::consumer files AHEAD of canonical; land those fixes in ${CANONICAL_REPO} first (docs/product/README.md, Reconciliation)" ;;
             *) exit "$rc" ;;
           esac
 
@@ -109,14 +115,24 @@ jobs:
           PAT: ${{ secrets.JOHARNESS_UPDATE_TOKEN }}
         run: |
           if [ -z "$(git status --porcelain)" ]; then
+            # AHEAD with nothing else to apply leaves the tree clean; a
+            # green "current" here would bury the drift forever. Red run =
+            # the durable signal until someone reconciles canonical-first.
+            if [ "${{ steps.sync.outputs.ahead }}" = "1" ]; then
+              echo "::error::nothing to update, but consumer files are AHEAD of canonical; reconcile before the next sync can mean anything"
+              exit 1
+            fi
             echo "harness copy current; nothing to commit"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           # Push with the PAT when provided, so the push triggers ci on the
-          # update branch; the checkout-persisted GITHUB_TOKEN cannot.
+          # update branch; the checkout-persisted GITHUB_TOKEN cannot. The
+          # persisted token rides an http.extraheader that would override
+          # the URL credentials, so it has to go, not just be out-URLed.
           if [ -n "$PAT" ]; then
+            git config --unset-all 'http.https://github.com/.extraheader' || true
             git remote set-url origin \
               "https://x-access-token:${PAT}@github.com/${GITHUB_REPOSITORY}.git"
           fi
@@ -124,16 +140,21 @@ jobs:
           git add -A
           git commit -m "Sync harness from ${CANONICAL_REPO}"
           git push --force -u origin "$UPDATE_BRANCH"
-          if [ -z "$(gh pr list --head "$UPDATE_BRANCH" --state open \
-              --json number --jq '.[].number')" ]; then
-            {
-              printf 'Steady-state harness sync from `%s` %s.\n\n' \
-                "$CANONICAL_REPO" '(`scripts/sync-to-consumer.sh`)'
-              printf 'Sync report:\n\n```\n'
-              cat "$RUNNER_TEMP/sync.log"
-              printf '```\n'
-            } >"$RUNNER_TEMP/pr-body.md"
+          {
+            printf 'Steady-state harness sync from `%s` %s.\n\n' \
+              "$CANONICAL_REPO" '(`scripts/sync-to-consumer.sh`)'
+            printf 'Sync report:\n\n```\n'
+            cat "$RUNNER_TEMP/sync.log"
+            printf '```\n'
+          } >"$RUNNER_TEMP/pr-body.md"
+          # One PR rides the bot branch; a force-push replaces its commits,
+          # so the body is refreshed too or it describes last week's sync.
+          open_pr="$(gh pr list --head "$UPDATE_BRANCH" --state open \
+            --json number --jq '.[].number')"
+          if [ -z "$open_pr" ]; then
             gh pr create --head "$UPDATE_BRANCH" \
               --title "Sync harness from joharness" \
               --body-file "$RUNNER_TEMP/pr-body.md"
+          else
+            gh pr edit "$open_pr" --body-file "$RUNNER_TEMP/pr-body.md"
           fi
