@@ -29,6 +29,23 @@ mapping:
 - effort xhigh when plan touches a Part 2 prohibition's territory — same
   reasoning, cheaper lever than a tier jump.
 - Under-thinking observed: raise effort or tier, never prompt around it.
+- Review depth scales with the plan's tier — the tier already encodes what
+  a wrong-but-plausible outcome costs, so the review budget follows it:
+  - haiku plan: one `/code-review` pass at default effort. Acceptance is
+    executable by definition here; the commands catch what a second pass
+    would. One pass, never zero.
+  - sonnet plan: the default from the Loop — `/code-review` (high) on the
+    full diff before PR.
+  - opus plan: adversarial review, separate lenses (correctness, security,
+    does-it-reproduce) as independent passes, not one combined read.
+    Wrong-but-plausible is the failure mode that picked opus; one reviewer
+    with one lens is how it survives.
+
+  Findings land in the workstream file's `## Review` section, one line
+  each, written BEFORE the fix and committed WITH it
+  (`docs/handover/README.md`, Reviewing). Escalating tier mid-work
+  escalates review depth with it; the reverse never happens — depth, like
+  tier, never downgrades.
 - Review churn = one round's fix breaks what earlier round's fix
   established. Means requirements conflict: no single rule in the code
   satisfies all of them at once. Not bad code — patching never converges,

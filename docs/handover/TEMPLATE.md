@@ -36,6 +36,13 @@ Why work exists, in requester's words. One paragraph.
 - Approach, and what exactly broke. Highest-value section: only thing stopping
   next session walking same dead end.
 
+## Review
+
+One `- r1: ...` bullet per finding, written BEFORE its fix and committed
+WITH it. Mark (fixed) / (open) / (wontfix + why). The review conversation
+evaporates; this is the only record of what each round found. The hook
+counts the bullets under this heading, so leave none here unfilled.
+
 ## Blockers
 
 None. (Or: what blocks, what would unblock.)
