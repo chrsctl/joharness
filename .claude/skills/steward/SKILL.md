@@ -4,7 +4,7 @@ description: Rules for driving this repo's pull requests to merge — read befor
 ---
 
 Harness finish rules, restated for the session driving a pull request.
-Same rules as `harness/AGENTS.md` Loop steps 5-7 — that file wins on any
+Same rules as `.agents/harness/AGENTS.md` Loop steps 5-7 — that file wins on any
 conflict. Why-explanations: `docs/handover/README.md`,
 `docs/product/README.md` Branch flow.
 
@@ -36,7 +36,7 @@ conflict. Why-explanations: `docs/handover/README.md`,
 ## At merge
 
 - Session merges its OWN pull request itself (ratified 2026-08-23).
-  Conditions, merge method, and what counts as own: `harness/AGENTS.md`
+  Conditions, merge method, and what counts as own: `.agents/harness/AGENTS.md`
   step 7 — that file wins, one copy on purpose. Never merge any other
   PR.
 - Merged branch left standing = cosmetic, ignore — hook filters merged

@@ -107,7 +107,7 @@ jobs:
           esac
 
       # No workstream file with this commit, by protocol: a sync from
-      # joharness is self-describing (harness/AGENTS.md, Handover).
+      # joharness is self-describing (.agents/harness/AGENTS.md, Handover).
       - name: commit and open pull request
         if: steps.guard.outputs.canonical == '0'
         env:

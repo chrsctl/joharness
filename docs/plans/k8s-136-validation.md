@@ -19,12 +19,12 @@ either way.
 
 ## Scope
 
-- Run `K3S_IMAGE=rancher/k3s:v1.36.3-k3s1 env/k8s/devenv.sh cluster-up`,
-  then full `env/k8s/smoke-test.sh`.
-- Green: bump `K3S_IMAGE` pin in `env/k8s/devenv.sh` + matching kubectl
+- Run `K3S_IMAGE=rancher/k3s:v1.36.3-k3s1 .agents/env/k8s/devenv.sh cluster-up`,
+  then full `.agents/env/k8s/smoke-test.sh`.
+- Green: bump `K3S_IMAGE` pin in `.agents/env/k8s/devenv.sh` + matching kubectl
   (skew ±1 minor; check dl.k8s.io stable-1.36.txt), update version tables
-  in `env/k8s/README.md`.
-- Red: that IS the result — record verdict in `env/k8s/README.md`
+  in `.agents/env/k8s/README.md`.
+- Red: that IS the result — record verdict in `.agents/env/k8s/README.md`
   constraint 2, keep v1.35.
 
 ## Out of scope
@@ -40,16 +40,16 @@ either way.
 
 - `./joharness.sh verify` — all checks pass under whichever pin the
   verdict picks.
-- `env/k8s/README.md` constraint 2 updated in place — one story, not two.
+- `.agents/env/k8s/README.md` constraint 2 updated in place — one story, not two.
 
 ## Where to look
 
-- `env/k8s/devenv.sh` — K3S_IMAGE/KUBECTL_VERSION pins,
+- `.agents/env/k8s/devenv.sh` — K3S_IMAGE/KUBECTL_VERSION pins,
   render_kubelet_dropin.
-- `env/k8s/README.md` — constraint 2, current measured state.
+- `.agents/env/k8s/README.md` — constraint 2, current measured state.
 
 ## Traps
 
 - Containerd + kubelet drop-ins load bearing. NEVER remove
-  (env/k8s/README.md).
+  (.agents/env/k8s/README.md).
 - Bump only with green smoke test after — AGENTS.md trip-wire.

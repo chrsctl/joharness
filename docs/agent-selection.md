@@ -79,7 +79,7 @@ mapping:
   branches, so a resuming session inherits the signal too.
 - Plan author assigns; implementing session may escalate tier or effort and
   record why in workstream file. Never downgrade to save cost — that
-  decision is money, humans only (harness/AGENTS.md: stop and ask for
+  decision is money, humans only (.agents/harness/AGENTS.md: stop and ask for
   money).
 
 ## Behavior findings (default worker, Sonnet 5)

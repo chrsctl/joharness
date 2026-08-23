@@ -21,7 +21,7 @@ set -euo pipefail
 # These are pinned rather than "latest" on purpose: this sandbox's egress proxy
 # returns 403 for github.com HTML pages, which breaks the /releases/latest
 # redirect that most install scripts rely on. Direct release ASSET urls do work,
-# so we ask for exact versions. See env/k8s/README.md.
+# so we ask for exact versions. See .agents/env/k8s/README.md.
 # ---------------------------------------------------------------------------
 K3D_VERSION_DEFAULT="v5.9.0"
 KUBECTL_VERSION_DEFAULT="v1.35.8"
@@ -35,7 +35,7 @@ HELM_VERSION="${HELM_VERSION:-$HELM_VERSION_DEFAULT}"
 # release's checksums.txt), cross-checked against the downloaded bytes
 # 2026-08-23. Verified before install; a mismatch is a corrupt or tampered
 # download and refuses loudly. Bumping a version bumps its digest in the
-# SAME edit — the pair is one pin (procedure: env/k8s/README.md). An
+# SAME edit — the pair is one pin (procedure: .agents/env/k8s/README.md). An
 # overridden version has no pin here: set KUBECTL_SHA256 / K3D_SHA256 /
 # HELM_SHA256 alongside it, or the install warns and skips verification —
 # loud skip, never a fake red, so a version experiment (k8s-136-validation
@@ -52,7 +52,7 @@ HELM_SHA256_PIN="61f88ab166748cb19604d7884cb100ae9ccb13804ddeb98e08af167eacbb6a1
 # drop-in rendered below (failCgroupV1: false) is what lets it start; do not
 # remove that when bumping this. v1.36.3 was measured to start with the same
 # drop-in, but cgroup v1 there is past maintenance mode - validate the full
-# smoke test before pinning it. See env/k8s/README.md.
+# smoke test before pinning it. See .agents/env/k8s/README.md.
 K3S_IMAGE="${K3S_IMAGE:-rancher/k3s:v1.35.7-k3s1}"
 
 CLUSTER_NAME="${DEVENV_CLUSTER_NAME:-claude-dev}"
@@ -123,10 +123,10 @@ verify_download() {
   if [ "$got" != "$want" ]; then
     rm -f "$file"
     # Both causes named: the innocent one (a default version bumped without
-    # its digest pin — they are ONE pin, env/k8s/README.md) is the common
+    # its digest pin — they are ONE pin, .agents/env/k8s/README.md) is the common
     # case, and a literal reader sent hunting a supply-chain incident for a
     # stale line would burn a session on the wrong story.
-    die "${what}: sha256 mismatch (want ${want}, got ${got}) — corrupt or tampered download, OR a version bump without its digest pin (env/k8s/README.md); refusing to install"
+    die "${what}: sha256 mismatch (want ${want}, got ${got}) — corrupt or tampered download, OR a version bump without its digest pin (.agents/env/k8s/README.md); refusing to install"
   fi
 }
 
@@ -276,7 +276,7 @@ render_containerd_dropin() {
   local out="$1"
   mkdir -p "$(dirname "$out")"
   cat >"$out" <<'EOF'
-# Managed by env/k8s/devenv.sh - see env/k8s/README.md
+# Managed by .agents/env/k8s/devenv.sh - see .agents/env/k8s/README.md
 [plugins.'io.containerd.cri.v1.runtime']
   restrict_oom_score_adj = true
 EOF
@@ -296,7 +296,7 @@ render_kubelet_dropin() {
   local out="$1"
   mkdir -p "$(dirname "$out")"
   cat >"$out" <<'EOF'
-# Managed by env/k8s/devenv.sh - see env/k8s/README.md
+# Managed by .agents/env/k8s/devenv.sh - see .agents/env/k8s/README.md
 apiVersion: kubelet.config.k8s.io/v1beta1
 kind: KubeletConfiguration
 failCgroupV1: false

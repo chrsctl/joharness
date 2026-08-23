@@ -28,15 +28,15 @@ cluster tries registry pull, fails.
 
 | Command | Does |
 | --- | --- |
-| `env/k8s/devenv.sh status` | What runs |
-| `env/k8s/devenv.sh cluster-up` | Start Kubernetes (create/restart/repair) |
-| `env/k8s/devenv.sh cluster-down` | Delete cluster |
-| `env/k8s/devenv.sh doctor` | Diagnostics |
+| `.agents/env/k8s/devenv.sh status` | What runs |
+| `.agents/env/k8s/devenv.sh cluster-up` | Start Kubernetes (create/restart/repair) |
+| `.agents/env/k8s/devenv.sh cluster-down` | Delete cluster |
+| `.agents/env/k8s/devenv.sh doctor` | Diagnostics |
 | `./joharness.sh verify` | Provision, then smoke test end to end |
 
 ## Touch this layer's scripts?
 
-Lint + test first. `shellcheck -x env/k8s/*.sh` = zero findings.
+Lint + test first. `shellcheck -x .agents/env/k8s/*.sh` = zero findings.
 `./joharness.sh verify` = `7 passed, 0 failed`. Trust counted numbers, never
 written numbers — including this one. Image lacks shellcheck:
 `apt-get install -y shellcheck`.
@@ -44,8 +44,8 @@ written numbers — including this one. Image lacks shellcheck:
 ## Trip-wires
 
 Sandbox = Firecracker microVM + filtering egress proxy. Workarounds in
-`env/k8s/devenv.sh` load bearing. NEVER remove. Symptoms + full story:
-[`env/k8s/README.md`](env/k8s/README.md).
+`.agents/env/k8s/devenv.sh` load bearing. NEVER remove. Symptoms + full story:
+[`.agents/env/k8s/README.md`](README.md).
 
 - Stock `kind` / plain k3s fail here. Kernel refuses negative `oom_score_adj`,
   every pod stuck `ContainerCreating` forever, cluster looks healthy.
@@ -60,7 +60,7 @@ Sandbox = Firecracker microVM + filtering egress proxy. Workarounds in
   Direct release asset URLs work.
 - Version pin + sha256 digest = ONE pin, same edit (`devenv.sh`). Bump
   version without digest = install refuses. Procedure:
-  `env/k8s/README.md`.
+  `.agents/env/k8s/README.md`.
 - Download 403? Host blocked by egress policy. Do not route around. Known
   good: `dl.k8s.io`, `get.helm.sh`, `proxy.golang.org`, `registry.k8s.io`,
   `registry-1.docker.io`, `raw.githubusercontent.com`.

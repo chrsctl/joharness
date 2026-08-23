@@ -22,8 +22,9 @@ concurrency:
 
 jobs:
   # The harness is shell; shellcheck at zero findings is its acceptance bar
-  # (AGENTS.md). Every layer is covered: the entrypoint, harness/, and each
-  # env/<name>/ whether or not this repo selects it. The runner image ships
+  # (AGENTS.md). Every layer is covered: the entrypoint, .agents/harness/,
+  # and each .agents/env/<name>/ whether or not this repo selects it. The
+  # runner image ships
   # shellcheck, so this is seconds.
   #
   # The checks live in `joharness.sh ci`, not in this file, so a session can run
@@ -69,4 +70,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: harness selftest on Git Bash
-        run: ./harness/selftest.sh
+        run: ./.agents/harness/selftest.sh
