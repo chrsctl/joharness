@@ -84,5 +84,5 @@ scope AND out-of-scope explicit. Lineup + selection rules:
 - Push time not liveness. Wrong both directions. `/who` = truth.
 - Copy or sync task (initial harness copy, sync from joharness): NO
   workstream file. Diff self-describing. See protocol "When NOT to write
-  one".
+  one". How to run one: `docs/consumer-repos.md`.
 - Full protocol + why: [`docs/handover/README.md`](docs/handover/README.md).
