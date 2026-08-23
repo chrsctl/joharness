@@ -46,7 +46,13 @@ out of scope. Make every main push keep its full CI run.
 
 ## Review
 
-(pending — findings land here before their fixes, same commit)
+- r1: workstream claimed on the already-merged branch name
+  claude/delete-merged-remote-branch-61qy2f instead of a fresh cut — the
+  human deleting that branch (as the docs invite) would evaporate this
+  claim. Constraint, not choice: this session's platform rule pins its
+  designated branch, re-cut from main with the same name. Mitigation: PR
+  opened immediately after review, which makes the branch visibly in-flight
+  and blocks UI deletion while the PR is open (wontfix, constrained)
 
 ## Blockers
 
