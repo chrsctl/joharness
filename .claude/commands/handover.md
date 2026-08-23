@@ -12,8 +12,10 @@ Update handover file for this session's work. Protocol:
    (this session's claude.ai/code URL if known), `agent` = tier remaining work
    wants (docs/agent-selection.md), `next` = ONE concrete action, phrased as
    instruction to next session.
-3. Add learnings to **Decisions**, **Rejected**, **Blockers**. Rejected =
-   highest value: what tried, what exactly broke.
+3. Add learnings to **Decisions**, **Rejected**, **Blockers**, **Review**.
+   Rejected = highest value: what tried, what exactly broke. Review = one
+   line per finding, written BEFORE its fix, marked (fixed) / (open) /
+   (wontfix + why) — `docs/handover/README.md`, Reviewing.
 4. Session proved something wrong? Fix it. Dead entries: delete, not annotate.
 5. Leave out what git/GitHub already knows — diffs, counts, CI state. Claim
    goes stale after next push? Does not belong.
