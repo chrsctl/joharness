@@ -32,9 +32,10 @@ WORKDIR="$(mktemp -d)"
 
 cleanup() {
   if [ "$KEEP" -eq 1 ]; then
-    printf '\n(keeping %s-* containers, network %s, compose project %s)\n' \
-      "$PREFIX" "$NET" "$PREFIX"
-    rm -rf "$WORKDIR"
+    # The --rm containers (pull, built, client) self-remove; what survives is
+    # the server container, the network, the compose project and the files.
+    printf '\n(keeping container %s-server, network %s, compose project %s, files in %s)\n' \
+      "$PREFIX" "$NET" "$PREFIX" "$WORKDIR"
     return
   fi
   if [ -f "${WORKDIR}/compose/compose.yaml" ]; then
@@ -74,24 +75,26 @@ COPY marker /marker
 CMD ["cat", "/marker"]
 EOF
 
-if docker build -t "${PREFIX}-built:latest" "${WORKDIR}/build" >/dev/null 2>&1 \
+if docker build -t "${PREFIX}-built:latest" "${WORKDIR}/build" \
+     >"${WORKDIR}/build.log" 2>&1 \
    && [ "$(docker run --rm --name "${PREFIX}-built" "${PREFIX}-built:latest" 2>/dev/null)" = "smoke-build-ok" ]; then
   pass "built an image and a container ran it"
 else
-  fail "docker build or running the built image failed"
+  fail "docker build or running the built image failed; last build log lines:"
+  tail -n 10 "${WORKDIR}/build.log" 2>/dev/null | sed 's/^/    /' || true
 fi
 
 # --- 4: HTTPS from inside a container ---------------------------------------
 # The egress proxy re-terminates TLS and containers do not inherit the host
 # trust store; mounting the CA bundle is the documented fix (env/docker/README.md).
-# This guards that the mount pattern keeps working.
+# This guards that the mount pattern keeps working. The URL is a pinned tag,
+# not a branch: tags are immutable, so third-party churn cannot turn this red.
+EGRESS_URL="https://raw.githubusercontent.com/docker/compose/v2.0.0/README.md"
 step "Container egress"
 if [ -r "$CA_BUNDLE" ]; then
   if docker run --rm \
        -v "${CA_BUNDLE}:/etc/ssl/certs/ca-certificates.crt:ro" \
-       alpine:3 wget -q -O /dev/null -T 20 \
-       https://raw.githubusercontent.com/docker/compose/main/README.md \
-       >/dev/null 2>&1; then
+       alpine:3 wget -q -O /dev/null -T 20 "$EGRESS_URL" >/dev/null 2>&1; then
     pass "HTTPS from a container works with the CA bundle mounted"
   else
     fail "HTTPS from a container failed even with the CA bundle mounted"
@@ -99,8 +102,7 @@ if [ -r "$CA_BUNDLE" ]; then
 else
   # Outside the sandbox (local machine) there is no proxy and no bundle;
   # plain HTTPS is the same guarantee.
-  if docker run --rm alpine:3 wget -q -O /dev/null -T 20 \
-       https://raw.githubusercontent.com/docker/compose/main/README.md \
+  if docker run --rm alpine:3 wget -q -O /dev/null -T 20 "$EGRESS_URL" \
        >/dev/null 2>&1; then
     pass "HTTPS from a container works (no proxy CA bundle present)"
   else
@@ -110,10 +112,19 @@ fi
 
 # --- 5: container-to-container networking -----------------------------------
 step "Container networking"
-docker network create "$NET" >/dev/null 2>&1 || true
+# Tolerate only "already exists"; any other create failure must surface here,
+# not masquerade as a name-resolution failure below.
+NET_OK=1
+if ! docker network inspect "$NET" >/dev/null 2>&1; then
+  if ! NET_ERR="$(docker network create "$NET" 2>&1 >/dev/null)"; then
+    NET_OK=0
+  fi
+fi
 docker rm -f "${PREFIX}-server" >/dev/null 2>&1 || true
 
-if docker run -d --name "${PREFIX}-server" --network "$NET" \
+if [ "$NET_OK" -eq 0 ]; then
+  fail "could not create network ${NET}: ${NET_ERR}"
+elif docker run -d --name "${PREFIX}-server" --network "$NET" \
      nginx:alpine >/dev/null 2>&1 \
    && docker run --rm --network "$NET" alpine:3 \
         sh -c "for i in 1 2 3 4 5; do wget -q -O /dev/null -T 5 http://${PREFIX}-server && exit 0; sleep 1; done; exit 1" \
