@@ -34,8 +34,12 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    GitHub CI runs — run it here, before the pull request, not after.
    `./joharness.sh verify` proves the selected environment. Trust counted
    numbers, never written numbers — including numbers in any instruction file.
-   Edge to main = in-depth review, always: `/code-review` (high) on full
-   diff before PR. Fix findings or record why not — never drop silent.
+   Edge to main = review, always; depth scales with the plan's tier
+   (`docs/agent-selection.md`, review depth): haiku one pass, sonnet
+   `/code-review` (high) on the full diff, opus adversarial with separate
+   lenses. Findings land in the workstream file's `## Review`, one line
+   each, BEFORE the fix and in the same commit as it. Fix them or record
+   why not — never drop silent.
    Fix undoes earlier round's fix? Review churn: stop patching, research
    step at raised tier or effort first (`docs/agent-selection.md`, review
    churn rule).

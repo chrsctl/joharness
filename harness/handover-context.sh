@@ -203,6 +203,18 @@ while IFS= read -r ref; do
     others="${others}    [${status:-?}, updated ${updated:-?}${agent:+, wants ${agent}}] pushed ${pushed_rel:-?}${claim}"$'\n'
     [ -n "$session" ] && others="${others}    session: ${session}"$'\n'
 
+    # Findings recorded in the file's ## Review section. Only the count, and
+    # only when there is one: a branch churning with NO review line here is
+    # the signal a human reads — rounds running dark. No synthetic metric
+    # pretends to read it for them (docs/handover/README.md, Reviewing).
+    review_n="$(printf '%s\n' "$doc" | awk '
+      /^## Review[[:space:]]*$/ { in_r = 1; next }
+      /^## /                    { in_r = 0 }
+      in_r && /^- /             { n++ }
+      END { print n + 0 }')"
+    [ -n "$review_n" ] && [ "$review_n" -gt 0 ] &&
+      others="${others}    review: ${review_n} finding(s) recorded"$'\n'
+
     # Overlap is computed once per ref, not once per file it carries.
     if [ -z "$ref_paths" ] && [ -n "$my_paths" ]; then
       ref_paths="$(changed_at "$ref")"

@@ -33,10 +33,14 @@ NOT recoverable from repo: the reasoning —
 - tried and rejected, and why — highest-value item, only thing stopping next
   session re-walking dead end
 - decisions + rationale, especially load-bearing ones that look arbitrary
+- review findings, one line each, written BEFORE the fix and committed WITH
+  it — the reviewer conversation evaporates otherwise. Measured: twelve
+  review-round commits on the sync-tool branch, and what round 7 found is
+  gone.
 - current blocker
 - next concrete step
 
-**Handover file contains only those five.** Rest, next session derives.
+**Handover file contains only those six.** Rest, next session derives.
 
 ## Layout
 
@@ -69,7 +73,7 @@ makes cross-branch work:
 - **Branch renames and re-cuts free.** Name not branch, so re-cut after merged
   PR keeps same file.
 
-## The two rituals
+## The three rituals
 
 **Starting.** Hook says whether branch has workstream file. Has one? Read in
 full before code. Then verify before trusting — see
@@ -79,7 +83,15 @@ full before code. Then verify before trusting — see
 session end; sessions rarely get to say goodbye. Update `status`, `updated`,
 `next`; add learnings to *Rejected* / *Decisions*. Commit with code.
 
-Both cheap, no ceremony. `/handover` does the write.
+**Reviewing** — findings land in *Review*, one line each, BEFORE the fix is
+written, committed WITH the fix. Order is the point: findings written after
+the fix describe the fix, not the problem. Depth scales with the plan's
+tier (`docs/agent-selection.md`, review depth). Hook prints the recorded
+count for other branches — this branch's file it already orders read in
+full. A branch visibly churning with an empty *Review* section is the
+human's cue that rounds are running dark.
+
+All cheap, no ceremony. `/handover` does the write.
 
 ## When NOT to write one
 
@@ -113,6 +125,10 @@ One paragraph, in the requester's terms. Why this is being done, not what.
 ## Rejected
 - `kind` — 1.45 GB node image against k3s's 347 MB, for no gain here.
 - Pre-pulling the node image in the hook — moves the cost, doesn't remove it.
+
+## Review
+- r1: restart path re-pulls the node image — cache the digest. (fixed)
+- r2: `cluster-up` races the containerd drop-in on cold start. (fixed)
 
 ## Blockers
 None. (Or: what is blocking, and what would unblock it.)
