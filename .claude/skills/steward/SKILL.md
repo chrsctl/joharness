@@ -4,7 +4,7 @@ description: Rules for driving this repo's pull requests to merge — read befor
 ---
 
 Harness finish rules, restated for the session driving a pull request.
-Same rules as `harness/AGENTS.md` Loop steps 5-7 — that file wins on any
+Same rules as `.agents/harness/AGENTS.md` Loop steps 5-7 — that file wins on any
 conflict. Why-explanations: `docs/handover/README.md`,
 `docs/product/README.md` Branch flow.
 

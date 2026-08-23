@@ -17,16 +17,16 @@ Every file optional. Layer with no `setup.sh` provisions nothing — that is all
 
 | Path | Used for |
 | --- | --- |
-| `env/<name>/setup.sh` | Provision. Idempotent, safe to repeat. Executable. |
-| `env/<name>/AGENTS.md` | Rules for the layer. Session start points at it (default) or injects it whole — see md is lazy too. |
-| `env/<name>/smoke-test.sh` | `verify`. Exit non-zero on any failure. |
-| `env/<name>/README.md` | What it provides, what it costs, why. |
+| `.agents/env/<name>/setup.sh` | Provision. Idempotent, safe to repeat. Executable. |
+| `.agents/env/<name>/AGENTS.md` | Rules for the layer. Session start points at it (default) or injects it whole — see md is lazy too. |
+| `.agents/env/<name>/smoke-test.sh` | `verify`. Exit non-zero on any failure. |
+| `.agents/env/<name>/README.md` | What it provides, what it costs, why. |
 
 Layer is self-contained: everything it owns lives in its directory, so
 selecting it is copying one directory and setting one line.
 
 Nothing outside the layer may name it. Entrypoint resolves by directory name;
-`harness/` never mentions a specific environment.
+`.agents/harness/` never mentions a specific environment.
 
 ## Provisioning is lazy
 
@@ -47,13 +47,13 @@ have their own tooling; harness does not fight it.
 Same bet for context. Default `JOHARNESS_ENV_MD=lazy`: session start injects
 a read-this-first pointer, not the file — session that never touches the
 environment never pays context for its rules. Agent touching the environment
-MUST read `env/<name>/AGENTS.md` before first command; pointer says so.
+MUST read `.agents/env/<name>/AGENTS.md` before first command; pointer says so.
 `eager` injects the file whole — worth it only if every session touches the
 environment.
 
 ## Add a layer
 
-1. `mkdir env/<name>`, write `setup.sh` (executable). Nothing to provision?
+1. `mkdir .agents/env/<name>`, write `setup.sh` (executable). Nothing to provision?
    Leave it out.
 2. Rules an agent cannot read off the code go in `AGENTS.md`. Caveman style:
    [`../docs/caveman.md`](../docs/caveman.md).
