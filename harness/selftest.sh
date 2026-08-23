@@ -598,7 +598,14 @@ commit_all "$cwork" "scratch harness"
 git -C "$cwork" remote add origin "$corigin"
 git -C "$cwork" push -qu origin main
 
-ci_churn() { CLAUDE_PROJECT_DIR="$cwork" JOHARNESS_CONF="${cwork}/joharness.conf" \
+# The fixture's ci is the subject of these cases, not this run's gate, so
+# it must not inherit GITHUB_ACTIONS. With it set, a nested ci on a runner
+# without shellcheck turns the missing tool into rc=1 (cmd_ci, its
+# GITHUB_ACTIONS branch), and both "keeps ci green" cases below fail for a
+# reason that has nothing to do with churn - which is exactly what the
+# windows job has been reporting.
+ci_churn() { env -u GITHUB_ACTIONS CLAUDE_PROJECT_DIR="$cwork" \
+  JOHARNESS_CONF="${cwork}/joharness.conf" \
   "${cwork}/joharness.sh" ci 2>&1 | sed -n '/== churn/,/^$/p'; }
 
 out="$(ci_churn)"
@@ -623,7 +630,8 @@ expect "threshold override reports quiet" "quiet (max 6 commits per file)" "$out
 # The second tier: above the ceiling churn stops being a warning and fails ci,
 # because the session inside the churn is the one that cannot call it. ci_churn
 # drops the exit code (it pipes through sed), so run ci directly for the code.
-ci_rc() { CLAUDE_PROJECT_DIR="$cwork" JOHARNESS_CONF="${cwork}/joharness.conf" \
+ci_rc() { env -u GITHUB_ACTIONS CLAUDE_PROJECT_DIR="$cwork" \
+  JOHARNESS_CONF="${cwork}/joharness.conf" \
   "${cwork}/joharness.sh" ci >/dev/null 2>&1; }
 
 # Default ceiling is 2x the threshold, so six commits stay a warning: ci green.
