@@ -508,6 +508,40 @@ refute "workstream file commits are not the count" \
 out="$(JOHARNESS_CHURN_THRESHOLD=9 ci_churn)"
 expect "threshold override reports quiet" "quiet (max 6 commits per file)" "$out"
 
+# The second tier: above the ceiling churn stops being a warning and fails ci,
+# because the session inside the churn is the one that cannot call it. ci_churn
+# drops the exit code (it pipes through sed), so run ci directly for the code.
+ci_rc() { CLAUDE_PROJECT_DIR="$cwork" JOHARNESS_CONF="${cwork}/joharness.conf" \
+  "${cwork}/joharness.sh" ci >/dev/null 2>&1; }
+
+# Default ceiling is 2x the threshold, so six commits stay a warning: ci green.
+if ci_rc; then
+  pass "warn-band churn keeps ci green"
+else
+  fail "warn-band churn keeps ci green"
+fi
+
+# Drop the ceiling onto the same branch: the warning becomes a hard stop.
+out="$(JOHARNESS_CHURN_LIMIT=6 ci_churn)"
+expect "ceiling turns churn into a hard stop" \
+  "hot-file.txt rewritten in 6 commits on this branch (ceiling 6)" "$out"
+if JOHARNESS_CHURN_LIMIT=6 ci_rc; then
+  fail "churn at the ceiling fails ci"
+else
+  pass "churn at the ceiling fails ci"
+fi
+
+# The visible escape: ceiling=0 lifts the gate back to a warning, ci green.
+out="$(JOHARNESS_CHURN_LIMIT=0 ci_churn)"
+expect "ceiling=0 lifts the gate back to a warning" \
+  "touched in 6 commits on this branch" "$out"
+refute "ceiling=0 prints no hard-stop line" "rewritten in 6 commits" "$out"
+if JOHARNESS_CHURN_LIMIT=0 ci_rc; then
+  pass "ceiling=0 keeps ci green"
+else
+  fail "ceiling=0 keeps ci green"
+fi
+
 git -C "$cwork" checkout -qb calm main
 printf 'one\n' >"${cwork}/calm.txt"
 commit_all "$cwork" "single change"

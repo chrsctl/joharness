@@ -199,15 +199,32 @@ cmd_ci() {
   # earlier fix — but the session inside the churn is the one least able to
   # see it: the sync-tool branch ran twelve "harden per review round"
   # commits over two hours, and ci ran every round without saying so. Git
-  # held the evidence the whole time; this prints it. A warning, never a
-  # red gate — whether churn is real is the session's judgment call, and
-  # the rule's lever (raise tier or effort) is its to pull.
+  # held the evidence the whole time; this prints it. Two tiers, because the
+  # honest answer changes with the number. From the threshold up it is a
+  # warning: whether the churn is real is the session's judgment call, and the
+  # rule's lever (raise tier or effort) is its to pull. From the ceiling up it
+  # is no longer a call — no honest single edit rewrites one file that many
+  # times on one branch (backtest: the runaway sync branch hit 13, every other
+  # merge in this repo's history <=4). The session inside the churn is the one
+  # that cannot see it, so the one gate it cannot skip fails for it.
+  # JOHARNESS_CHURN_LIMIT overrides the ceiling; =0 lifts the gate, the
+  # deliberate and visible escape for a genuine large rework.
   printf '\n== churn\n'
-  local churn
+  local churn threshold ceiling
+  threshold="${JOHARNESS_CHURN_THRESHOLD:-5}"
+  ceiling="${JOHARNESS_CHURN_LIMIT:-$((threshold * 2))}"
   if churn="$(churn_top)"; then
     if [ -n "$churn" ]; then
       local churn_n="${churn%%	*}" churn_f="${churn#*	}"
-      if [ "$churn_n" -ge "${JOHARNESS_CHURN_THRESHOLD:-5}" ]; then
+      if [ "$ceiling" -gt 0 ] && [ "$churn_n" -ge "$ceiling" ]; then
+        printf '  %s rewritten in %s commits on this branch (ceiling %s)\n' \
+          "$churn_f" "$churn_n" "$ceiling"
+        printf '  Past the ceiling this is churn, not a judgment call. Stop\n'
+        printf '  patching — take the research step at a raised tier or effort\n'
+        printf '  (docs/agent-selection.md, review churn). Genuine large rework?\n'
+        printf '  JOHARNESS_CHURN_LIMIT=0 lifts the gate, on the record.\n'
+        rc=1
+      elif [ "$churn_n" -ge "$threshold" ]; then
         printf '  %s touched in %s commits on this branch\n' "$churn_f" "$churn_n"
         printf '  Fix undoing an earlier fix? Stop patching — research step at raised\n'
         printf '  tier or effort first (docs/agent-selection.md, review churn).\n'
