@@ -38,14 +38,16 @@ human work.
   (+ requirement file when last plan). Merged branch may stand: the
   session-start hook filters branches merged into `main` out of the
   claims view, so deadwood is `git branch -r` noise, not fake in-flight
-  work. That filter rests on the merge-commit rule below — squash or
-  rebase merges would hide the ancestry and deadwood would read as
-  in-flight again (three branches did exactly that on 2026-08-21, before
-  the filter; recovered as plans seeded from their workstream files).
+  work. Filter reads ancestry, so it rests on PRs merging by merge
+  commit — GitHub's "Squash and merge" / "Rebase and merge" buttons hide
+  ancestry, and branches merged that way would read as in-flight again.
   Deleting = optional hygiene, human-only, anytime: Delete-branch button
   on merged PR page, or repo setting "Automatically delete head
-  branches". Sessions never `git push --delete` — permission-blocked,
-  human's call.
+  branches". Sessions never `git push --delete` — deletion is the
+  human's call. Abandoned UNMERGED branches are the deadwood the filter
+  cannot hide: they read as in-flight until a human triages — salvage
+  plans from their workstream files, then delete (three recovered
+  exactly that way, 2026-08-21).
 - `urgent` = same mechanics, jumps queue.
 - Merge commits on shared branches, never rebase — history rewrite breaks
   other sessions' checkouts.
