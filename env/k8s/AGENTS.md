@@ -58,6 +58,9 @@ Sandbox = Firecracker microVM + filtering egress proxy. Workarounds in
   bundle only.
 - Pin tool versions. `github.com` HTML 403s, `/releases/latest` broken.
   Direct release asset URLs work.
+- Version pin + sha256 digest = ONE pin, same edit (`devenv.sh`). Bump
+  version without digest = install refuses. Procedure:
+  `env/k8s/README.md`.
 - Download 403? Host blocked by egress policy. Do not route around. Known
   good: `dl.k8s.io`, `get.helm.sh`, `proxy.golang.org`, `registry.k8s.io`,
   `registry-1.docker.io`, `raw.githubusercontent.com`.
