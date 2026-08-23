@@ -5,7 +5,7 @@
 # a session from a phone, reads this block, knows the entrypoint and the
 # model without spelunking the repo.
 #
-# Two tiers, from the base branch (edge model: docs/graph.md):
+# Two tiers, from the base branch (edge model: .agents/docs/graph.md):
 #   docs/product/*.md   requirements. One no open plan serves = UNPLANNED,
 #                       urgent first — planning outranks executing.
 #   docs/plans/*.md     plans, urgent first then oldest, each with its
@@ -82,7 +82,7 @@ queue_files() {
 plans="$(queue_files "$PLANS_DIR")"
 reqs="$(queue_files "$PRODUCT_DIR")"
 
-printf '\n== Queue (protocol: docs/plans/README.md) ==\n\n'
+printf '\n== Queue (protocol: .agents/docs/plans/README.md) ==\n\n'
 
 # Claims: every unmerged remote branch's workstream files, each `plan:`
 # field a claim edge onto a plan here. Read so two fresh sessions do not
@@ -164,7 +164,7 @@ rows="$(
   done <<<"$plans" | sort -t$'\t' -k1,1n -k2,2n
 )"
 
-# Requirements tier (docs/product/README.md): one no open plan serves is
+# Requirements tier (.agents/docs/product/README.md): one no open plan serves is
 # planning work, and planning outranks executing — decomposition happens
 # once, up front, per requirement. Served requirements stay silent; their
 # plans speak. Urgent first, then name.
@@ -200,11 +200,11 @@ fi
 if [ -z "$plans" ]; then
   if [ -n "$unplanned" ]; then
     printf 'No plans on %s. Entrypoint: plan the requirements above (issues\n' "$ref"
-    printf 'still outrank). Default model tier: sonnet (docs/agent-selection.md).\n'
+    printf 'still outrank). Default model tier: sonnet (.agents/docs/agent-selection.md).\n'
   else
     printf 'No plans on %s — plan-queue edge reached: done. Entrypoint: open\n' "$ref"
     printf 'GitHub issues first; none = resume in-flight branch above, or ask\n'
-    printf 'human. Default model tier: sonnet (docs/agent-selection.md).\n'
+    printf 'human. Default model tier: sonnet (.agents/docs/agent-selection.md).\n'
   fi
   exit 0
 fi
@@ -342,7 +342,7 @@ else
   printf 'top free plan above. Agent field = model\n'
 fi
 printf 'tier to run it. Escalate tier or effort fine, downgrade never\n'
-printf '(docs/agent-selection.md). Free = neither blocked nor claimed. Same\n'
+printf '(.agents/docs/agent-selection.md). Free = neither blocked nor claimed. Same\n'
 printf 'wave = declared scopes disjoint, parallel proven; no scope declared =\n'
 printf 'independence assumed, not proven. Claimed plan: /who before touching.\n'
 exit 0

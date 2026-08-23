@@ -43,7 +43,7 @@ mapping:
 
   Findings land in the workstream file's `## Review` section, one line
   each, written BEFORE the fix and committed WITH it
-  (`docs/handover/README.md`, Reviewing). Escalating tier mid-work
+  (`.agents/docs/handover/README.md`, Reviewing). Escalating tier mid-work
   escalates review depth with it; the reverse never happens — depth, like
   tier, never downgrades.
 - Review churn = one round's fix breaks what earlier round's fix
@@ -109,7 +109,7 @@ hook-injected state beats instruction to go look.
 
 ## Writing plans for agents
 
-Rules in `docs/plans/README.md`. Core: an agent executes what the plan
+Rules in `.agents/docs/plans/README.md`. Core: an agent executes what the plan
 says, precisely, and nothing else. Ambiguity does not get resolved in your
 favor — it gets executed literally or asked back to human. Every plan pays
 once at write time so sessions never pay at run time.

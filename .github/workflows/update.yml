@@ -1,9 +1,9 @@
 name: update
 
 # Keeps a consumer repo's harness copy current with its canonical joharness.
-# Runs canonical's scripts/sync-to-consumer.sh against this checkout on a
+# Runs canonical's .agents/scripts/sync-to-consumer.sh against this checkout on a
 # schedule and opens a pull request with whatever changed — the same
-# steady-state sync a session runs by hand (docs/product/README.md,
+# steady-state sync a session runs by hand (.agents/docs/product/README.md,
 # Reconciliation), automated.
 #
 # Consumer-own file, same delivery as ci.yml: seeded once by
@@ -89,7 +89,15 @@ jobs:
           # stderr merged in: the sync's warnings (AHEAD guidance, reap
           # notices) print there, and the log becomes the pull request
           # body — a report without its warnings misleads.
-          bash "$RUNNER_TEMP/canonical/scripts/sync-to-consumer.sh" . 2>&1 |
+          # Probe both spellings: the engine moved from scripts/ to
+          # .agents/scripts/, and this consumer-own file may outlive
+          # another such move — a missing engine must say so, not 127.
+          engine=""
+          for cand in .agents/scripts/sync-to-consumer.sh scripts/sync-to-consumer.sh; do
+            if [ -f "$RUNNER_TEMP/canonical/$cand" ]; then engine="$cand"; break; fi
+          done
+          [ -n "$engine" ] || { echo "::error::no sync engine found in canonical (looked for .agents/scripts/ and scripts/)"; exit 1; }
+          bash "$RUNNER_TEMP/canonical/$engine" . 2>&1 |
             tee "$RUNNER_TEMP/sync.log"
           rc="${PIPESTATUS[0]}"
           set -e
@@ -102,7 +110,7 @@ jobs:
           case "$rc" in
             0) echo "ahead=0" >>"$GITHUB_OUTPUT" ;;
             2) echo "ahead=1" >>"$GITHUB_OUTPUT"
-               echo "::warning::consumer files AHEAD of canonical; land those fixes in ${CANONICAL_REPO} first (docs/product/README.md, Reconciliation)" ;;
+               echo "::warning::consumer files AHEAD of canonical; land those fixes in ${CANONICAL_REPO} first (.agents/docs/product/README.md, Reconciliation)" ;;
             *) exit "$rc" ;;
           esac
 
@@ -142,7 +150,7 @@ jobs:
           git push --force -u origin "$UPDATE_BRANCH"
           {
             printf 'Steady-state harness sync from `%s` %s.\n\n' \
-              "$CANONICAL_REPO" '(`scripts/sync-to-consumer.sh`)'
+              "$CANONICAL_REPO" '(`.agents/scripts/sync-to-consumer.sh`)'
             printf 'Sync report:\n\n```\n'
             cat "$RUNNER_TEMP/sync.log"
             printf '```\n'

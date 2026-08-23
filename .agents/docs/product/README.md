@@ -2,7 +2,7 @@
 
 Requirements above plans, plans above branches. Human adds requirements
 ANY time, mid-flight fine; sessions decompose them into plans; plans run
-the Loop. Every level = graph nodes ([`docs/graph.md`](../graph.md)),
+the Loop. Every level = graph nodes ([`.agents/docs/graph.md`](../graph.md)),
 files as nodes, delete-on-done as state.
 
 ```
@@ -76,7 +76,7 @@ consumer-only — one canonical line reconciles all copies. The sync tool
 enforces it: a consumer copy whose content canonical history does not know
 is never overwritten.
 
-New consumer starts via `scripts/bootstrap-consumer.sh`, never by using a
+New consumer starts via `.agents/scripts/bootstrap-consumer.sh`, never by using a
 raw joharness clone as-is: a raw clone carries joharness's live plan
 queue, handover files and canonical marker, so its sessions work
 joharness's workstream instead of the child's.

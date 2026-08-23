@@ -2,17 +2,17 @@
 description: Decompose work into a plan file the queue can hand to any session
 ---
 
-Write a plan file under `docs/plans/`. Queue rules: `docs/plans/README.md`.
-Reader is a literal agent (`docs/agent-selection.md`): executes what plan
+Write a plan file under `docs/plans/`. Queue rules: `.agents/docs/plans/README.md`.
+Reader is a literal agent (`.agents/docs/agent-selection.md`): executes what plan
 says, precisely, nothing else. Ambiguity = executed wrong or asked back.
 Inline — no subagent.
 
 1. Name = short-kebab, the work not the branch. Copy
-   `docs/plans/TEMPLATE.md` to `docs/plans/<plan>.md`.
+   `.agents/docs/plans/TEMPLATE.md` to `docs/plans/<plan>.md`.
 2. Frontmatter, exact vocabulary (`ci` lints it):
    - `urgency`: `normal` | `urgent`.
    - `agent`: `haiku` | `sonnet` | `opus` — selection rules
-     `docs/agent-selection.md`. haiku ONLY when mechanical AND fully
+     `.agents/docs/agent-selection.md`. haiku ONLY when mechanical AND fully
      specified AND every acceptance criterion runnable. One unclear
      edge = sonnet. opus when wrong-but-plausible code is the failure
      mode.
@@ -40,6 +40,6 @@ Inline — no subagent.
 4. `./joharness.sh ci` — graph lint green (edges resolve, vocabulary
    holds).
 5. Plans land on the base branch: direct push or small PR, human's call
-   for requirements applies (`docs/product/README.md`).
+   for requirements applies (`.agents/docs/product/README.md`).
 
 $ARGUMENTS
