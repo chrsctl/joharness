@@ -131,6 +131,7 @@ DIRS=(
   harness
   env
   .claude/commands
+  .claude/skills
 )
 
 # AHEAD detection compares committed blobs: modified or untracked content

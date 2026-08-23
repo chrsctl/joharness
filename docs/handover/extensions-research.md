@@ -6,62 +6,63 @@ pr: none
 plan: none
 agent: sonnet
 updated: 2026-08-23
-next: Human trims — delete any docs/product/ proposal not wanted, merge rest. Merge = ratification; queue hook picks survivors up.
+next: Human reviews the PR; merge deletes this file, then DELETE the remote branch
 ---
 
 ## Goal
 
-Task: research harness, propose useful extensions. Proposal in repo's own
-shape: one requirement file per proposal under `docs/product/`, this
-branch's PR = the proposal, merge = ratification. Product direction stays
-human's (docs/product/README.md: add via PR = human's call).
+Task: research harness, propose useful extensions — then human ratified
+all six in-session ("Implement all of them"). This branch carries the six
+implementations; the proposal-stage requirement files are deleted here
+(satisfied by the same PR, per delete-on-done) and survive in history.
 
 ## Decisions
 
-- Requirements, not plans. Decomposition comes after ratification, per
-  hierarchy — plans now would pre-commit implementation before direction
-  exists.
-- Rank (chat + PR body carries reasoning): graph-edge-lint first — silent
-  edge kill makes queue lie, exact failure class the ceiling gate exists
-  for. Then handover-stop-guard, pr-steward-skill,
-  plan-authoring-command. download-integrity + bootstrap-purge-guard =
-  security-sweep follow-ups filed so they outlive that merged workstream
-  file, not new ideas.
-- Deleted churn-hard-ceiling.md + security-sweep.md leftovers (hook
-  flagged, merged = finished). Keepers already graduated: ceiling
-  documented in docs/agent-selection.md; sweep follow-ups = the two
-  requirements here.
+- Graph lint red/warn split: never-existed name = red (hard fact);
+  name in HEAD's history = delete-on-merge did its job — silent for
+  `needs`, warn for a claim or served requirement; anchors warn only
+  (staleness rule's territory).
+- Stop guard delivers via one-shot `decision: block` — the ONLY channel a
+  Stop hook has into the session. `stop_hook_active` guards the loop; a
+  session that read the reminder and still means to stop just stops again.
+  "Never blocks" from the proposal became "blocks exactly once".
+- Digest pins: publisher checksum files cross-checked against downloaded
+  bytes (2026-08-23). Overridden version without `*_SHA256` = loud warn,
+  not fail — the k8s-136-validation experiment flow must keep running.
+  k3d go-install fallback unverifiable by digest; Go sumdb covers sources.
+- Bootstrap symlink escape REPRODUCED before fixing (2026-08-23,
+  sandbox): symlinked `docs/` in a whole-clone target had the TARGET's
+  files deleted. Guard refuses `docs` + three purge dirs as symlinks,
+  before first write. Leaves are safe: find -P neither descends a
+  symlinked start point nor lists a symlinked file as -type f.
 
 ## Rejected
 
 - refs/claims mutual exclusion — rejected in docs/handover/README.md
   already; nothing changed since.
 - GitHub issue list in session-start hook — shell hook cannot reach MCP,
-  gh CLI absent in remote sandbox. Signal present locally, absent
-  remotely = inconsistent; pointer stays.
-- Consumer fleet registry (which repos consume, at what version) — state
-  store, rots; update.yml pull requests already surface drift per
-  consumer.
-- Sharper churn metric (revert detection, not commits-per-file) — ceiling
-  landed days ago; sharpen only after it misfires, backtest first.
-- Second env layer to prove the contract — no consumer demand; layer built
-  for proof alone = unexercised code shipped to every consumer.
-- PreToolUse guard enforcing lazy-md read-first — cannot verify a read
-  happened; signal wrong both directions, same failure class as push-time
-  liveness.
-- Scheduled sandbox verify (Routine runs smoke test weekly, opens issue on
-  red) — real gap: `verify` needs sandbox, GitHub CI cannot run it, so it
-  runs only when a session remembers. Costs money (scheduled sessions) =
-  human-only decision. Flagged, not filed; say the word, becomes a
-  requirement.
+  gh CLI absent in remote sandbox; inconsistent signal worse than pointer.
+- Consumer fleet registry — state store, rots; update.yml PRs surface
+  drift per consumer.
+- Sharper churn metric (revert detection) — ceiling landed days ago;
+  sharpen only after it misfires.
+- Second env layer to prove the contract — no consumer demand.
+- PreToolUse lazy-md read-first enforcer — cannot verify a read happened;
+  signal wrong both directions.
+- Scheduled sandbox verify (Routine + issue on red) — real gap, costs
+  money = human-only. Still flagged, still unfiled; say the word.
+- Symbol-half checking in anchor lint — symbols move too often; existence
+  of the path half is the hard fact, rest is verify-at-read.
 
 ## Blockers
 
-None.
+None. `ci: pass` (217 selftests), `verify` 7 passed 0 failed, tamper
+case proven (wrong digest refuses install).
 
 ## Where to look
 
-- `docs/product/graph-edge-lint.md` + five siblings — the proposals.
-- `joharness.sh:cmd_ci` — where graph-edge-lint would live.
-- `scripts/sync-to-consumer.sh:DIRS` — steward skill needs
-  `.claude/skills` added there.
+- `joharness.sh:lint_graph` — the red/warn split lives there.
+- `harness/handover-guard.sh` — one-shot mechanics in the header comment.
+- `scripts/bootstrap-consumer.sh:bootstrap_whole_clone` — the refusal
+  block order is load bearing (before first write).
+- `env/k8s/devenv.sh:verify_download` — warn-vs-die doctrine.
