@@ -85,7 +85,7 @@ if [ ! -d "$DEST" ]; then
   MODE=fresh
   if [ "$DRY" -eq 1 ]; then
     printf '== bootstrap %s -> %s (fresh; dry run, nothing written)\n' "$ROOT" "$DEST"
-    log "consumer dir '$DEST' does not exist; would create it, sync the harness in, and seed AGENTS.md Part 2 stub, joharness.conf, ci.yml, README.md"
+    log "consumer dir '$DEST' does not exist; would create it, sync the harness in, and seed AGENTS.md Part 2 stub, joharness.conf, ci.yml, update.yml, README.md"
     exit 0
   fi
 else
@@ -241,6 +241,16 @@ EOF
     seed .github/workflows/ci.yml "${ROOT}/.github/workflows/ci.yml"
   else
     warn "canonical has no .github/workflows/ci.yml; not seeded"
+  fi
+
+  # Same delivery as ci.yml: the update workflow's canonical pointer and
+  # cadence are the consumer's to edit, so the sync never touches it and
+  # it must land here or never. In canonical itself the workflow is an
+  # inert no-op (its own guard); the copy activates in the consumer.
+  if [ -f "${ROOT}/.github/workflows/update.yml" ]; then
+    seed .github/workflows/update.yml "${ROOT}/.github/workflows/update.yml"
+  else
+    warn "canonical has no .github/workflows/update.yml; not seeded"
   fi
 
   cat >"${SCRATCH}/readme" <<'EOF'

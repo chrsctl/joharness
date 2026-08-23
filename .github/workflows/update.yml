@@ -1,0 +1,139 @@
+name: update
+
+# Keeps a consumer repo's harness copy current with its canonical joharness.
+# Runs canonical's scripts/sync-to-consumer.sh against this checkout on a
+# schedule and opens a pull request with whatever changed — the same
+# steady-state sync a session runs by hand (docs/product/README.md,
+# Reconciliation), automated.
+#
+# Consumer-own file, same delivery as ci.yml: seeded once by
+# bootstrap-consumer.sh, never synced afterwards, so consumer edits here
+# (a fork's canonical, another cadence) stay put. In the canonical
+# joharness checkout the job is a no-op — the guard below reads the
+# canonical marker and stops; the file lives here only to be seeded.
+#
+# Tokens: without a secret, everything runs on the workflow's own
+# GITHUB_TOKEN. That token cannot clone a private canonical, and a pull
+# request it opens gets NO ci runs (GitHub suppresses workflow-on-workflow
+# events). Both are fixed by one repository secret, JOHARNESS_UPDATE_TOKEN:
+# a PAT with contents and pull-requests write on this repo and read on the
+# canonical. Some orgs also disable "Allow GitHub Actions to create and
+# approve pull requests" — the PAT is the remedy there too.
+
+on:
+  schedule:
+    # Weekly is a cadence, not a contract: the sync is idempotent, a quiet
+    # week is one no-op run, and workflow_dispatch covers "now".
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: update-${{ github.repository }}
+  cancel-in-progress: false
+
+env:
+  # The canonical harness this repo syncs from. A consumer following a
+  # fork edits this line; the file is consumer-own, the edit sticks.
+  CANONICAL_REPO: chrsctl/joharness
+  CANONICAL_REF: main
+  # Bot-owned branch, rebuilt from the default branch and force-pushed on
+  # every run with changes; one open pull request rides it.
+  UPDATE_BRANCH: joharness-update
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The sync engine would refuse a canonical-onto-itself run anyway,
+      # but a red weekly run in canonical is noise. Same marker every sync
+      # tool reads.
+      - name: skip on canonical
+        id: guard
+        run: |
+          if grep -q '^JOHARNESS_CANONICAL=1' joharness.conf 2>/dev/null; then
+            echo "canonical=1" >>"$GITHUB_OUTPUT"
+            echo "canonical harness checkout; nothing to update"
+          else
+            echo "canonical=0" >>"$GITHUB_OUTPUT"
+          fi
+
+      # Full history on purpose: the sync decides stale vs AHEAD by blob
+      # identity against canonical history, and a shallow clone reads
+      # honestly-synced consumer copies as AHEAD (sync-to-consumer.sh
+      # header — degrades safely, but every such file would sit unsynced
+      # behind a warning forever). Cloned outside the workspace so the
+      # commit step's `git add -A` can never pick it up.
+      - name: clone canonical
+        if: steps.guard.outputs.canonical == '0'
+        env:
+          TOKEN: ${{ secrets.JOHARNESS_UPDATE_TOKEN }}
+        run: |
+          url="https://github.com/${CANONICAL_REPO}.git"
+          if [ -n "$TOKEN" ]; then
+            url="https://x-access-token:${TOKEN}@github.com/${CANONICAL_REPO}.git"
+          fi
+          git clone --branch "$CANONICAL_REF" "$url" "$RUNNER_TEMP/canonical"
+
+      - name: run sync
+        if: steps.guard.outputs.canonical == '0'
+        run: |
+          set +e
+          bash "$RUNNER_TEMP/canonical/scripts/sync-to-consumer.sh" . |
+            tee "$RUNNER_TEMP/sync.log"
+          rc="${PIPESTATUS[0]}"
+          set -e
+          # 0 = synced clean. 2 = some consumer files AHEAD of canonical:
+          # the other updates were applied and nothing was clobbered, so
+          # the run proceeds — the warning rides the log into the pull
+          # request body, and the fix is reconciling canonical-first, not
+          # blocking every later update behind it. Anything else is a
+          # refusal or a structural problem: fail loudly, commit nothing.
+          case "$rc" in
+            0) ;;
+            2) echo "::warning::consumer files AHEAD of canonical; land those fixes in ${CANONICAL_REPO} first (docs/product/README.md, Reconciliation)" ;;
+            *) exit "$rc" ;;
+          esac
+
+      # No workstream file with this commit, by protocol: a sync from
+      # joharness is self-describing (harness/AGENTS.md, Handover).
+      - name: commit and open pull request
+        if: steps.guard.outputs.canonical == '0'
+        env:
+          GH_TOKEN: ${{ secrets.JOHARNESS_UPDATE_TOKEN || github.token }}
+          PAT: ${{ secrets.JOHARNESS_UPDATE_TOKEN }}
+        run: |
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "harness copy current; nothing to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Push with the PAT when provided, so the push triggers ci on the
+          # update branch; the checkout-persisted GITHUB_TOKEN cannot.
+          if [ -n "$PAT" ]; then
+            git remote set-url origin \
+              "https://x-access-token:${PAT}@github.com/${GITHUB_REPOSITORY}.git"
+          fi
+          git checkout -B "$UPDATE_BRANCH"
+          git add -A
+          git commit -m "Sync harness from ${CANONICAL_REPO}"
+          git push --force -u origin "$UPDATE_BRANCH"
+          if [ -z "$(gh pr list --head "$UPDATE_BRANCH" --state open \
+              --json number --jq '.[].number')" ]; then
+            {
+              printf 'Steady-state harness sync from `%s` %s.\n\n' \
+                "$CANONICAL_REPO" '(`scripts/sync-to-consumer.sh`)'
+              printf 'Sync report:\n\n```\n'
+              cat "$RUNNER_TEMP/sync.log"
+              printf '```\n'
+            } >"$RUNNER_TEMP/pr-body.md"
+            gh pr create --head "$UPDATE_BRANCH" \
+              --title "Sync harness from joharness" \
+              --body-file "$RUNNER_TEMP/pr-body.md"
+          fi
