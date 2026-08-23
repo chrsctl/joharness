@@ -495,12 +495,15 @@ printf '%d updated, %d new, %d ahead, %d consumer-only, %d same\n' \
 # a harness-owned file inside each, not by the bare directory: a consumer's
 # own unrelated env/ must not trip this.
 legacy=""
-[ -f "${DEST}/harness/AGENTS.md" ] && legacy="harness/"
-[ -f "${DEST}/env/README.md" ] && legacy="${legacy}${legacy:+ }env/"
+[ -f "${DEST}/harness/AGENTS.md" ] && legacy="harness"
+[ -f "${DEST}/env/README.md" ] && legacy="${legacy}${legacy:+ }env"
 if [ -n "$legacy" ]; then
+  # The remedy names the directories actually found, not both: `git rm -r`
+  # fails on a path that is not there, and a remedy that errors reads as
+  # advice to ignore.
   warn "consumer still carries pre-.agents layout (${legacy}); the harness now" \
     "runs from .agents/. Nothing reads the old tree — remove it once:" \
-    "git rm -r harness env (docs/consumer-repos.md, Migration)."
+    "git rm -r ${legacy} (docs/consumer-repos.md, Migration)."
 fi
 
 if [ "$AHEAD" -gt 0 ]; then
