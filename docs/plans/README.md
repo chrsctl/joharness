@@ -1,7 +1,7 @@
 # Plan queue
 
 Pre-scoped work agents execute without human in loop. One file per plan,
-under `docs/plans/`, on `main`. Loop step 2 (harness/AGENTS.md): open
+under `docs/plans/`, on `main`. Loop step 2 (.agents/harness/AGENTS.md): open
 GitHub issues first, then unplanned requirements
 ([`docs/product/`](../product/README.md) — decompose before executing),
 then oldest actionable plan here. Issues = human asks and bugs; plans

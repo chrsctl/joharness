@@ -8,7 +8,7 @@ Not provisioned at session start. Costs nothing until asked. Need it:
 
 Once per session. Idempotent: already-running is a fast no-op, repeat safe.
 docker, Compose, buildx ship in sandbox image — setup only starts daemon.
-No Kubernetes here. Need a cluster? That is `env/k8s`, ask human before
+No Kubernetes here. Need a cluster? That is `.agents/env/k8s`, ask human before
 switching layers.
 
 ```bash
@@ -28,7 +28,7 @@ docker compose up -d
 
 ## Touch this layer's scripts?
 
-Lint + test first. `shellcheck -x env/docker/*.sh` = zero findings.
+Lint + test first. `shellcheck -x .agents/env/docker/*.sh` = zero findings.
 `./joharness.sh verify` = `6 passed, 0 failed`. Trust counted numbers, never
 written numbers — including this one. Image lacks shellcheck:
 `apt-get install -y shellcheck`.
@@ -36,7 +36,7 @@ written numbers — including this one. Image lacks shellcheck:
 ## Trip-wires
 
 Sandbox = Firecracker microVM + filtering egress proxy. Symptoms + full
-story: [`env/docker/README.md`](env/docker/README.md).
+story: [`.agents/env/docker/README.md`](README.md).
 
 - HTTPS from INSIDE container fails ("certificate signed by unknown
   authority", or connection reset). Proxy re-terminates TLS; container lacks

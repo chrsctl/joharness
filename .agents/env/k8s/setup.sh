@@ -8,7 +8,7 @@
 # whole environment rather than leaving the caller to find cluster-up.
 #
 # Want only the CLI tools, no cluster? DEVENV_START_CLUSTER=0, or call
-# `env/k8s/devenv.sh up` directly.
+# `.agents/env/k8s/devenv.sh up` directly.
 #
 # Called by `./joharness.sh setup` and `verify`, and at session start only when
 # joharness.conf sets JOHARNESS_ENV_SETUP=eager. Assume a cold container.

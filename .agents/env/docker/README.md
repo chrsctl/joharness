@@ -7,7 +7,7 @@ layer — no Kubernetes, no cluster, none of either's cost.
 One environment layer under [`../README.md`](../README.md). Select it with
 `./joharness.sh env docker`; provision it with `./joharness.sh setup`.
 
-Need a cluster too? [`env/k8s`](../k8s/README.md) is Docker *plus* k3d
+Need a cluster too? [`.agents/env/k8s`](../k8s/README.md) is Docker *plus* k3d
 Kubernetes; this layer is for repos where Docker alone is the runtime.
 
 ## What you get
@@ -36,7 +36,7 @@ docker compose up -d
 ## Sandbox constraints this works around
 
 Web sandbox = Firecracker microVM + filtering egress proxy. Two properties
-bite plain Docker here; both come from the proxy, and `env/k8s/README.md`
+bite plain Docker here; both come from the proxy, and `.agents/env/k8s/README.md`
 tells the same story for cluster nodes.
 
 ### 1. Containers need the proxy CA or HTTPS fails
@@ -97,6 +97,6 @@ Known reachable: `registry-1.docker.io`, `raw.githubusercontent.com`,
   egress with the CA bundle, container-to-container DNS on a user-defined
   network, and a Compose service answering. `./joharness.sh verify` runs it
   after provisioning.
-- The dockerd start logic mirrors `env/k8s/devenv.sh` rather than calling
+- The dockerd start logic mirrors `.agents/env/k8s/devenv.sh` rather than calling
   it: layers are self-contained by contract ([`../README.md`](../README.md)),
   so neither layer may reference the other.

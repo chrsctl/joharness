@@ -126,11 +126,12 @@ FILES=(
   docs/product/TEMPLATE.md
 )
 
-# Every file under these ships. env/ ships all layers, selected or not —
-# ci covers them all and a consumer flips layers via its own joharness.conf.
+# Every file under these ships. .agents/env/ ships all layers, selected or
+# not — ci covers them all and a consumer flips layers via its own
+# joharness.conf.
 DIRS=(
-  harness
-  env
+  .agents/harness
+  .agents/env
   .claude/commands
   .claude/skills
 )
@@ -488,6 +489,35 @@ printf '%d updated, %d new, %d ahead, %d consumer-only, %d same\n' \
 
 # AHEAD is reported even when MISSING wins the exit code — a caller fixing
 # the list from exit 1 must not discover the ahead state only on rerun.
+# Both layers moved under .agents/; the sync places the new tree but never
+# deletes (removals are not handled), so a consumer synced across that move
+# keeps a dead root harness/ and env/ that nothing reads any more. Judged
+# like every stale-vs-AHEAD call — the old file's blob must be a
+# historical canonical blob of that old path: a consumer's OWN
+# harness/AGENTS.md or env/README.md is its own business, and advising
+# `git rm -r` at it would aim the delete at consumer files. Shallow
+# canonical degrades to silence, same safe direction as AHEAD. Gated on
+# the new tree actually standing in the consumer: warning "nothing reads
+# the old tree" during a dry run that has not placed .agents/ yet would
+# advise deleting the LIVE harness.
+is_legacy_layer() {
+  [ -f "${DEST}/$1" ] || return 1
+  in_history "$1" "$(consumer_blob "$1" "${DEST}/$1")"
+}
+legacy=""
+if [ -f "${DEST}/.agents/harness/AGENTS.md" ]; then
+  is_legacy_layer harness/AGENTS.md && legacy="harness"
+  is_legacy_layer env/README.md && legacy="${legacy}${legacy:+ }env"
+fi
+if [ -n "$legacy" ]; then
+  # The remedy names the directories actually found, not both: `git rm -r`
+  # fails on a path that is not there, and a remedy that errors reads as
+  # advice to ignore.
+  warn "consumer still carries pre-.agents layout (${legacy}); the harness now" \
+    "runs from .agents/. Nothing reads the old tree — remove it once:" \
+    "git rm -r ${legacy} (docs/consumer-repos.md, Migration)."
+fi
+
 if [ "$AHEAD" -gt 0 ]; then
   log "consumer is ahead on ${AHEAD} file(s); reconcile canonical-first, then re-run"
 fi

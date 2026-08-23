@@ -2,9 +2,12 @@
 #
 # joharness.sh - the harness entrypoint.
 #
-# Two layers live side by side:
-#   harness/      agent working protocol (loop, handover, style). Always on.
-#   env/<name>/   one sandbox environment. Selected here, not hardcoded.
+# Two layers live side by side under .agents/ — one dotted directory any
+# tool can detect, and every path below is relative to it:
+#   .agents/harness/      agent working protocol (loop, handover, style).
+#                         Always on.
+#   .agents/env/<name>/   one sandbox environment. Selected here, not
+#                         hardcoded.
 #
 # Subcommands:
 #   session-start   what the SessionStart hook runs (.claude/settings.json)
@@ -18,7 +21,8 @@
 #   help            this text
 #
 # Selection lives in joharness.conf and is overridden by $JOHARNESS_ENV:
-#   JOHARNESS_ENV=k8s          layer under env/ ('none' = no environment)
+#   JOHARNESS_ENV=k8s          layer under .agents/env/ ('none' = no
+#                              environment)
 #   JOHARNESS_ENV_SETUP=lazy   'lazy' (provision on demand) or 'eager'
 #                              (provision at session start)
 #   JOHARNESS_ENV_MD=lazy      'lazy' (inject a read-before-touching pointer
@@ -32,7 +36,11 @@ set -uo pipefail
 
 ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 CONF="${JOHARNESS_CONF:-${ROOT}/joharness.conf}"
-ENV_ROOT="${ROOT}/env"
+# Both layers hang off one detectable root. Nothing outside .agents/ is a
+# layer, and no layer path is spelled anywhere but here.
+AGENTS_ROOT="${ROOT}/.agents"
+HARNESS_ROOT="${AGENTS_ROOT}/harness"
+ENV_ROOT="${AGENTS_ROOT}/env"
 
 log()  { printf '[joharness] %s\n' "$*" >&2; }
 warn() { printf '[joharness] WARNING: %s\n' "$*" >&2; }
@@ -66,7 +74,7 @@ env_name()  { printf '%s' "${JOHARNESS_ENV:-$(conf_get JOHARNESS_ENV)}"; }
 setup_mode() { printf '%s' "${JOHARNESS_ENV_SETUP:-$(conf_get JOHARNESS_ENV_SETUP)}"; }
 md_mode()   { printf '%s' "${JOHARNESS_ENV_MD:-$(conf_get JOHARNESS_ENV_MD)}"; }
 
-# Layer names are directory names under env/. Reject anything that could walk
+# Layer names are directory names under .agents/env/. Reject anything that could walk
 # out of it before it reaches a path. A whole-string case test, not a grep -qE:
 # grep matches per line, so a value carrying a newline ($'k8s\n...') slipped
 # past the anchors when any single line matched. case sees the whole string.
@@ -98,7 +106,7 @@ resolve_env() {
     warn "ignoring invalid JOHARNESS_ENV '${name}'"
     name="none"
   elif [ ! -d "${ENV_ROOT}/${name}" ]; then
-    warn "JOHARNESS_ENV '${name}' has no directory env/${name}"
+    warn "JOHARNESS_ENV '${name}' has no directory .agents/env/${name}"
     name="none"
   fi
   [ -d "${ENV_ROOT}/${name}" ] || return 1
@@ -110,8 +118,9 @@ resolve_env() {
 has_setup() { [ -f "${ENV_ROOT}/$1/setup.sh" ]; }
 
 # ---------------------------------------------------------------------------
-# Layer contract: everything under env/<name>/ is optional. setup.sh provisions,
-# smoke-test.sh verifies, AGENTS.md is injected into context. See env/README.md.
+# Layer contract: everything under .agents/env/<name>/ is optional. setup.sh
+# provisions, smoke-test.sh verifies, AGENTS.md is injected into context. See
+# .agents/env/README.md.
 # ---------------------------------------------------------------------------
 
 run_setup() {
@@ -121,7 +130,7 @@ run_setup() {
     return 0
   fi
   if [ ! -x "$script" ]; then
-    warn "env/${name}/setup.sh is not executable; nothing provisioned"
+    warn ".agents/env/${name}/setup.sh is not executable; nothing provisioned"
     return 1
   fi
   log "provisioning environment '${name}'"
@@ -139,7 +148,7 @@ cmd_verify() {
   name="$(resolve_env)" || die "no usable environment layer under ${ENV_ROOT}"
   smoke="${ENV_ROOT}/${name}/smoke-test.sh"
   [ -x "$smoke" ] ||
-    die "env/${name} ships no smoke-test.sh (selected: ${name}; try: $0 env)"
+    die ".agents/env/${name} ships no smoke-test.sh (selected: ${name}; try: $0 env)"
   run_setup "$name" || die "environment '${name}' failed to provision"
   "$smoke"
 }
@@ -194,10 +203,10 @@ cmd_ci() {
   # The harness's own regression tests: git-only, so they run on GitHub
   # runners where the environment smoke test cannot.
   printf '\n== harness selftest\n'
-  if [ -x "${ROOT}/harness/selftest.sh" ]; then
-    "${ROOT}/harness/selftest.sh" || rc=1
+  if [ -x "${HARNESS_ROOT}/selftest.sh" ]; then
+    "${HARNESS_ROOT}/selftest.sh" || rc=1
   else
-    warn "harness/selftest.sh missing or not executable"
+    warn ".agents/harness/selftest.sh missing or not executable"
     rc=1
   fi
 
@@ -274,7 +283,7 @@ cmd_ci() {
 check_targets() {
   local d listing
   local -a roots=()
-  for d in "${ROOT}/harness" "${ENV_ROOT}" "${ROOT}/scripts"; do
+  for d in "${HARNESS_ROOT}" "${ENV_ROOT}" "${ROOT}/scripts"; do
     [ -d "$d" ] && roots+=("$d")
   done
   printf '%s\n' "${ROOT}/joharness.sh"
@@ -668,7 +677,7 @@ cmd_env() {
 
   if [ -n "$want" ]; then
     valid_name "$want" || die "invalid layer name '${want}'"
-    [ -d "${ENV_ROOT}/${want}" ] || die "no such layer env/${want} (try: $0 env)"
+    [ -d "${ENV_ROOT}/${want}" ] || die "no such layer .agents/env/${want} (try: $0 env)"
     conf_set JOHARNESS_ENV "$want"
     log "selected environment '${want}' (${CONF})"
     [ "$want" = "none" ] || log "provision it with: $0 setup"
@@ -728,14 +737,14 @@ cmd_session_start() {
       run_setup "$name" || warn "environment '${name}' did not provision; continuing"
     fi
 
-    printf '== Environment: %s (env/%s) ==\n\n' "$name" "$name"
+    printf '== Environment: %s (.agents/env/%s) ==\n\n' "$name" "$name"
     if [ -r "${ENV_ROOT}/${name}/AGENTS.md" ]; then
       # Default md=lazy: context stays cheap, a pointer replaces the rules.
       # Same bet as lazy setup — a session that never touches the environment
       # never pays for its rules either. eager injects the file whole.
       if [ "$(md_mode)" != "eager" ]; then
         printf 'Rules NOT loaded (md=lazy). Touching this environment — setup,\n'
-        printf 'its scripts, anything it provisions? Read env/%s/AGENTS.md\n' "$name"
+        printf 'its scripts, anything it provisions? Read .agents/env/%s/AGENTS.md\n' "$name"
         printf 'FIRST. Whole file, before first command.\n\n'
       else
         cat "${ENV_ROOT}/${name}/AGENTS.md"
@@ -750,13 +759,13 @@ cmd_session_start() {
     fi
   fi
 
-  [ -x "${ROOT}/harness/handover-context.sh" ] &&
-    "${ROOT}/harness/handover-context.sh"
+  [ -x "${HARNESS_ROOT}/handover-context.sh" ] &&
+    "${HARNESS_ROOT}/handover-context.sh"
 
   # After handover state, so a resumed branch reads its own work first and a
   # fresh session reads what to pick up and which model tier it wants.
-  [ -x "${ROOT}/harness/queue-context.sh" ] &&
-    "${ROOT}/harness/queue-context.sh"
+  [ -x "${HARNESS_ROOT}/queue-context.sh" ] &&
+    "${HARNESS_ROOT}/queue-context.sh"
 
   return 0
 }

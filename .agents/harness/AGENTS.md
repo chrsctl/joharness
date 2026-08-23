@@ -5,12 +5,12 @@ hurt agent, cost more. Keep only what code cannot tell you. Why-explanations
 live in `docs/` — read there before fighting a rule.
 
 House style for instructions and replies:
-[`docs/caveman.md`](docs/caveman.md). Write new instruction text in it; never
+[`docs/caveman.md`](../../docs/caveman.md). Write new instruction text in it; never
 let style eat a fact.
 
 Environment rules are not here. Entrypoint injects them at session start from
 the selected layer — as a read-first pointer by default, whole when md=eager
-([`env/README.md`](env/README.md)).
+([`.agents/env/README.md`](../env/README.md)).
 
 ## Loop
 
@@ -54,7 +54,7 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    fresh-fetched `origin/main` (behind = "Conflict at finish" reconcile
    first — checks do NOT re-run when `main` moves); `./joharness.sh
    verify` green when the diff touches any non-`*.md` file under
-   `joharness.sh`, `harness/`, `env/`, `scripts/` — CI cannot run it
+   `joharness.sh`, `.agents/harness/`, `.agents/env/`, `scripts/` — CI cannot run it
    (needs the sandbox); edge review recorded (step 5); no unresolved
    human review thread. Anything less stays open. Merge-commit
    method ONLY — squash/rebase merge breaks the merged-branch ancestry
@@ -97,4 +97,4 @@ scope AND out-of-scope explicit. Lineup + selection rules:
 - Copy or sync task (initial harness copy, sync from joharness): NO
   workstream file. Diff self-describing. See protocol "When NOT to write
   one". How to run one: `docs/consumer-repos.md`.
-- Full protocol + why: [`docs/handover/README.md`](docs/handover/README.md).
+- Full protocol + why: [`docs/handover/README.md`](../../docs/handover/README.md).

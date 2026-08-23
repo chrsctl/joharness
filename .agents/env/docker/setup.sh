@@ -9,8 +9,8 @@
 # Called by `./joharness.sh setup` and `verify`, and at session start only
 # when joharness.conf sets JOHARNESS_ENV_SETUP=eager. Assume a cold container.
 #
-# The dockerd start/wait logic mirrors env/k8s/devenv.sh on purpose: layers
-# are self-contained (env/README.md), so neither may call into the other.
+# The dockerd start/wait logic mirrors .agents/env/k8s/devenv.sh on purpose: layers
+# are self-contained (.agents/env/README.md), so neither may call into the other.
 
 set -euo pipefail
 
