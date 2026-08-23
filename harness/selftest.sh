@@ -932,6 +932,25 @@ else
   printf '%s\n' "$(indent "$out")"
 fi
 
+# The finishing ritual deletes the workstream file in the PR's final state;
+# the guard must read the committed deletion as the ritual, not as a missing
+# file — it fired on every stop of a finished branch otherwise, merge
+# included. An unpushed ritual commit still trips the unpushed fact.
+git -C "$sgwork" rm -q docs/handover/sgfeat-ws.md
+commit_all "$sgwork" "finish ritual: delete the workstream file"
+out="$(guard "$JSON_STOP")"
+expect "unpushed ritual commit still surfaces" "1 commit(s) not pushed" "$out"
+refute "committed ritual deletion is not a missing file" \
+  "no workstream file" "$out"
+git -C "$sgwork" push -q origin sgfeat
+out="$(guard "$JSON_STOP")"; rc=$?
+if [ "$rc" -eq 0 ] && [ -z "$out" ]; then
+  pass "pushed finish-ritual branch stays silent"
+else
+  fail "pushed finish-ritual branch stays silent (rc=${rc})"
+  printf '%s\n' "$(indent "$out")"
+fi
+
 # A branch that never met the remote is invisible to every other session.
 git -C "$sgwork" checkout -qb sgnew
 printf 'new\n' >"${sgwork}/new.txt"
@@ -948,6 +967,38 @@ commit_all "$sgwork" "work after a push without -u"
 out="$(guard "$JSON_STOP")"
 expect "unpushed commits found without an upstream" \
   "1 commit(s) not pushed" "$out"
+
+# Deleting an INHERITED stale workstream file is cleanup, not the ritual:
+# the excuse requires the branch to have added the file it deletes.
+git -C "$sgwork" checkout -q main
+mkdir -p "${sgwork}/docs/handover"
+printf -- '---\nworkstream: stale\n---\n' >"${sgwork}/docs/handover/stale-ws.md"
+commit_all "$sgwork" "stale workstream file left on main"
+git -C "$sgwork" push -q origin main
+git -C "$sgwork" checkout -qb sgclean
+git -C "$sgwork" rm -q docs/handover/stale-ws.md
+printf 'clean\n' >"${sgwork}/clean.txt"
+commit_all "$sgwork" "cleanup plus code work"
+git -C "$sgwork" push -qu origin sgclean
+out="$(guard "$JSON_STOP")"
+expect "deleting an inherited file is not the ritual" \
+  "no workstream file" "$out"
+
+# Nested files under docs/handover/ are not workstream files (same
+# maxdepth-1 split as has_ws); adding and deleting one excuses nothing.
+# Cut from before the stale-file commit: a checkout carrying main's stale
+# workstream file would satisfy has_ws and never reach the ritual check.
+git -C "$sgwork" checkout -qb sgnested main~1
+mkdir -p "${sgwork}/docs/handover/archive"
+printf 'old\n' >"${sgwork}/docs/handover/archive/old.md"
+printf 'code\n' >"${sgwork}/nested.txt"
+commit_all "$sgwork" "nested file plus code work"
+git -C "$sgwork" rm -q docs/handover/archive/old.md
+commit_all "$sgwork" "delete the nested file"
+git -C "$sgwork" push -qu origin sgnested
+out="$(guard "$JSON_STOP")"
+expect "nested added-and-deleted file is not the ritual" \
+  "no workstream file" "$out"
 
 # No remote at all: scratch checkout, nothing to push to, not a violation.
 sglocal="${TMP}/sglocal"
