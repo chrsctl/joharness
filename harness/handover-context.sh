@@ -183,6 +183,7 @@ while IFS= read -r ref; do
   fi
 
   ref_paths=""
+  churn_done=""
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     doc="$(git show "${ref}:${f}" 2>/dev/null)"
@@ -218,18 +219,31 @@ while IFS= read -r ref; do
     # churn_top): a branch hammering one file is likely in review churn,
     # and the session inside it is the one least able to notice. Protocol
     # paths excluded — touching the workstream file every commit is
-    # compliance, not churn.
-    churn="$(git log --no-merges --format='%H' \
-        "$(git merge-base "$ref" "origin/${BASE_BRANCH}" 2>/dev/null)".."$ref" \
-        2>/dev/null |
-      while IFS= read -r c; do
-        git diff-tree --no-commit-id --name-only -r "$c" 2>/dev/null
-      done |
-      { grep -vE '^docs/(handover|plans|product)/' || :; } |
-      sort | uniq -c | sort -rn | head -1)"
-    churn_n="$(printf '%s' "$churn" | awk '{print $1}')"
-    if [ -n "$churn_n" ] && [ "$churn_n" -ge "${JOHARNESS_CHURN_THRESHOLD:-5}" ]; then
-      others="${others}    churn: $(printf '%s' "$churn" | awk '{print $2}') touched in ${churn_n} commits — review churn rule (docs/agent-selection.md)"$'\n'
+    # compliance, not churn. Computed once per ref like the overlap check
+    # above, not once per workstream file the ref carries. A missing
+    # merge-base (base branch not fetched, shallow checkout) skips the
+    # measurement — an empty base would turn the range into HEAD..ref and
+    # measure against whatever this session has checked out. Count and path
+    # split on awk's tab, so a hot file with a space in its name survives
+    # whole; the tail sort is guarded like the grep because head's exit
+    # would otherwise read as failure under pipefail.
+    if [ -z "$churn_done" ]; then
+      churn_done=1
+      churn_base="$(git merge-base "$ref" "origin/${BASE_BRANCH}" 2>/dev/null)"
+      if [ -n "$churn_base" ]; then
+        churn="$(git log --no-merges --format='%H' "${churn_base}".."$ref" 2>/dev/null |
+          while IFS= read -r c; do
+            git diff-tree --no-commit-id --name-only -r "$c" 2>/dev/null
+          done |
+          { grep -vE '^docs/(handover|plans|product)/' || :; } |
+          sort | uniq -c | { sort -rn || :; } | head -1 |
+          awk '{ c = $1; sub(/^ *[0-9]+ /, ""); printf "%s\t%s\n", c, $0 }')"
+        churn_n="${churn%%$'\t'*}"
+        churn_f="${churn#*$'\t'}"
+        if [ -n "$churn_n" ] && [ "$churn_n" -ge "${JOHARNESS_CHURN_THRESHOLD:-5}" ]; then
+          others="${others}    churn: ${churn_f} touched in ${churn_n} commits — review churn rule (docs/agent-selection.md)"$'\n'
+        fi
+      fi
     fi
 
     others="${others}    git show ${short}:${f}"$'\n'
