@@ -7,11 +7,11 @@
 # suggestion. Git-only — runs on a GitHub runner, no sandbox needed. Called
 # by `joharness.sh ci`.
 #
-# Usage: harness/selftest.sh
+# Usage: .agents/harness/selftest.sh
 
 set -uo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
@@ -97,7 +97,7 @@ commit_all() { git -C "$1" add -A && git -C "$1" commit -qm "$2"; }
 step "joharness.sh env"
 
 sel="${TMP}/envsel"
-mkdir -p "${sel}/env/aaa" "${sel}/env/none"
+mkdir -p "${sel}/.agents/env/aaa" "${sel}/.agents/env/none"
 jo() {
   CLAUDE_PROJECT_DIR="$sel" JOHARNESS_CONF="${sel}/joharness.conf" \
     "${ROOT}/joharness.sh" "$@" 2>&1
@@ -115,7 +115,7 @@ expect "selected layer starred in listing" "* aaa" "$out"
 out="$(JOHARNESS_ENV=missing jo env)"
 expect "broken selection names the fallback" "falls back to: none" "$out"
 out="$(JOHARNESS_ENV=missing jo setup)"
-expect "broken selection is loud on setup" "has no directory env/missing" "$out"
+expect "broken selection is loud on setup" "has no directory .agents/env/missing" "$out"
 
 if jo env 'bad/../name' >/dev/null 2>&1; then
   fail "path-walking layer name rejected"
@@ -124,14 +124,14 @@ else
 fi
 
 # md mode: lazy (default) points at the layer's rules, eager injects whole.
-cat >"${sel}/env/aaa/AGENTS.md" <<'EOF'
+cat >"${sel}/.agents/env/aaa/AGENTS.md" <<'EOF'
 RULE-SENTINEL unique to this fixture
 EOF
 out="$(jo env)"
 expect "env status shows md mode" "md          : lazy (default)" "$out"
 out="$(jo session-start)"
 refute "default md withholds layer rules" "RULE-SENTINEL" "$out"
-expect "default md points at the file" "Read env/aaa/AGENTS.md" "$out"
+expect "default md points at the file" "Read .agents/env/aaa/AGENTS.md" "$out"
 out="$(JOHARNESS_ENV_MD=eager jo session-start)"
 expect "eager md injects layer rules" "RULE-SENTINEL" "$out"
 
@@ -153,7 +153,7 @@ expect "embedded newline in layer name is rejected as invalid" \
 # The written file is sourced by a later shell; a cluster name carrying a quote
 # and $(...) would run as code there unless setup.sh escapes it. Stub the
 # provisioner so the write path is reachable without Docker.
-step "env/k8s/setup.sh env-file quoting"
+step ".agents/env/k8s/setup.sh env-file quoting"
 setup_sut="${TMP}/setup-sut"
 mkdir -p "$setup_sut"
 cat >"${setup_sut}/devenv.sh" <<'EOF'
@@ -162,7 +162,7 @@ exit 0
 EOF
 chmod +x "${setup_sut}/devenv.sh" 2>/dev/null || true
 if "${setup_sut}/devenv.sh" up 2>/dev/null; then
-  cp "${ROOT}/env/k8s/setup.sh" "${setup_sut}/setup.sh"
+  cp "${ROOT}/.agents/env/k8s/setup.sh" "${setup_sut}/setup.sh"
   envf="${TMP}/claude-env-file"
   : >"$envf"
   # This value would run `touch ${TMP}/pwned` if sourced as raw shell.
@@ -183,7 +183,7 @@ if "${setup_sut}/devenv.sh" up 2>/dev/null; then
   expect "hostile cluster name round-trips as inert literal data" \
     'x";touch' "$got"
 else
-  skip "env/k8s/setup.sh env-file quoting" "cannot exec a stub script here"
+  skip ".agents/env/k8s/setup.sh env-file quoting" "cannot exec a stub script here"
 fi
 
 # --- fixture: origin with main, a rival branch, and this session's branch ---
@@ -249,7 +249,7 @@ echo local >>"${work}/shared.txt"
 step "handover-context.sh"
 
 out="$(CLAUDE_PROJECT_DIR="$work" HANDOVER_FETCH=1 \
-  bash "${ROOT}/harness/handover-context.sh" 2>&1)"
+  bash "${ROOT}/.agents/harness/handover-context.sh" 2>&1)"
 
 expect "reports current branch" "Branch: feature" "$out"
 expect "prompts for missing workstream file" "No workstream file on this branch" "$out"
@@ -283,7 +283,7 @@ git -C "$work" push -q fork feature
 git -C "$work" fetch -q fork
 
 out="$(CLAUDE_PROJECT_DIR="$work" HANDOVER_FETCH=0 \
-  bash "${ROOT}/harness/handover-context.sh" 2>&1)"
+  bash "${ROOT}/.agents/harness/handover-context.sh" 2>&1)"
 
 refute "own branch not reported from another remote" "fork/feature" "$out"
 expect "rival branch still listed once" "origin/rival: docs/handover/rival-ws.md" "$out"
@@ -306,7 +306,7 @@ git -C "$work" push -qu fork fork-only
 git -C "$work" checkout -q feature
 git -C "$work" fetch -q fork
 out="$(CLAUDE_PROJECT_DIR="$work" HANDOVER_FETCH=0 \
-  bash "${ROOT}/harness/handover-context.sh" 2>&1)"
+  bash "${ROOT}/.agents/harness/handover-context.sh" 2>&1)"
 expect "a branch only the fork has is still reported" "fork/fork-only" "$out"
 
 # Leave the fixture as the rest of the suite expects to find it.
@@ -344,7 +344,7 @@ git -C "$work" push -qu origin churny-mc-churn
 git -C "$work" checkout -q feature
 
 out="$(CLAUDE_PROJECT_DIR="$work" HANDOVER_FETCH=0 \
-  bash "${ROOT}/harness/handover-context.sh" 2>&1)"
+  bash "${ROOT}/.agents/harness/handover-context.sh" 2>&1)"
 expect "Churny McChurn carries the churn line, space in the name whole" \
   "churn: hot file.txt touched in 6 commits" "$out"
 expect "churn printed once for a branch carrying two workstream files" \
@@ -353,7 +353,7 @@ refute "workstream file updates are not churn" "churny-ws.md touched" "$out"
 refute "quiet branch carries no churn line" "rival-ws.md touched" "$out"
 
 out="$(CLAUDE_PROJECT_DIR="$work" HANDOVER_FETCH=0 JOHARNESS_CHURN_THRESHOLD=9 \
-  bash "${ROOT}/harness/handover-context.sh" 2>&1)"
+  bash "${ROOT}/.agents/harness/handover-context.sh" 2>&1)"
 refute "threshold override silences the line" "churn: hot file.txt" "$out"
 
 git -C "$work" push -q --delete origin churny-mc-churn 2>/dev/null
@@ -391,7 +391,7 @@ git -C "$work" push -qu origin reviewed
 git -C "$work" checkout -q feature
 
 out="$(CLAUDE_PROJECT_DIR="$work" HANDOVER_FETCH=0 \
-  bash "${ROOT}/harness/handover-context.sh" 2>&1)"
+  bash "${ROOT}/.agents/harness/handover-context.sh" 2>&1)"
 expect "review count printed per branch" "review: 2 finding(s) recorded" "$out"
 refute "bullets outside ## Review are not findings" \
   "review: 3 finding(s) recorded" "$out"
@@ -413,7 +413,7 @@ commit_all "$work" "untouched template"
 git -C "$work" push -qu origin templated
 git -C "$work" checkout -q feature
 
-out="$(CLAUDE_PROJECT_DIR="$work" HANDOVER_FETCH=0   bash "${ROOT}/harness/handover-context.sh" 2>&1)"
+out="$(CLAUDE_PROJECT_DIR="$work" HANDOVER_FETCH=0   bash "${ROOT}/.agents/harness/handover-context.sh" 2>&1)"
 refute "unedited template records no findings" "review:" "$out"
 
 git -C "$work" push -q --delete origin templated 2>/dev/null
@@ -422,7 +422,7 @@ git -C "$work" branch -qD templated
 # --- queue hook -------------------------------------------------------------
 step "queue-context.sh"
 
-out="$(CLAUDE_PROJECT_DIR="$work" bash "${ROOT}/harness/queue-context.sh" 2>&1)"
+out="$(CLAUDE_PROJECT_DIR="$work" bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1)"
 expect "empty queue points at issues" "No plans on origin/main" "$out"
 expect "empty queue says done" "edge reached: done" "$out"
 
@@ -492,7 +492,7 @@ git -C "$work" push -q origin main
 git -C "$work" checkout -q feature
 git -C "$work" fetch -q origin
 
-out="$(CLAUDE_PROJECT_DIR="$work" bash "${ROOT}/harness/queue-context.sh" 2>&1)"
+out="$(CLAUDE_PROJECT_DIR="$work" bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1)"
 expect "lists a plan with its tier" \
   "docs/plans/newer-urgent.md  [urgent, agent: opus, effort: xhigh]" "$out"
 expect "lists the normal plan" \
@@ -572,7 +572,7 @@ git -C "$work" push -q origin main
 git -C "$work" checkout -q feature
 git -C "$work" fetch -q origin
 
-out="$(CLAUDE_PROJECT_DIR="$work" bash "${ROOT}/harness/queue-context.sh" 2>&1)"
+out="$(CLAUDE_PROJECT_DIR="$work" bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1)"
 
 expect "waves replace the unconditional promise" \
   "Waves — declared scopes disjoint" "$out"
@@ -621,9 +621,9 @@ step "joharness.sh session-start"
 
 # session-start resolves its scripts under CLAUDE_PROJECT_DIR, so the scratch
 # repo gets its own copies — which also proves the layout consumers receive.
-mkdir -p "${work}/harness"
-cp "${ROOT}/harness/handover-context.sh" "${ROOT}/harness/queue-context.sh" \
-  "${work}/harness/"
+mkdir -p "${work}/.agents/harness"
+cp "${ROOT}/.agents/harness/handover-context.sh" "${ROOT}/.agents/harness/queue-context.sh" \
+  "${work}/.agents/harness/"
 
 # The hook must never fail a session, and with no env layer present it still
 # has to produce the handover and queue sections.
@@ -639,7 +639,7 @@ expect "session-start prints handover state" "Handover state" "$out"
 expect "session-start prints queue" "== Queue" "$out"
 
 # --- entrypoint: the churn measure -----------------------------------------
-# A scratch repo, not this one: `ci` shells out to ${ROOT}/harness/selftest.sh,
+# A scratch repo, not this one: `ci` shells out to ${ROOT}/.agents/harness/selftest.sh,
 # which is this script — the scratch copy gets a stub so the suite does not
 # re-enter itself. Assertions read the printed section only; the run's exit
 # code belongs to shellcheck and the stub, not to churn (warning by design).
@@ -648,10 +648,10 @@ step "joharness.sh ci: churn"
 corigin="${TMP}/churnorigin.git"
 git init -q --bare "$corigin"
 cwork="${TMP}/churnwork"
-mkdir -p "${cwork}/harness" "${cwork}/env/none" "${cwork}/docs/handover"
+mkdir -p "${cwork}/.agents/harness" "${cwork}/.agents/env/none" "${cwork}/docs/handover"
 cp "${ROOT}/joharness.sh" "${cwork}/joharness.sh"
-printf '#!/usr/bin/env bash\nexit 0\n' >"${cwork}/harness/selftest.sh"
-chmod +x "${cwork}/harness/selftest.sh" "${cwork}/joharness.sh"
+printf '#!/usr/bin/env bash\nexit 0\n' >"${cwork}/.agents/harness/selftest.sh"
+chmod +x "${cwork}/.agents/harness/selftest.sh" "${cwork}/joharness.sh"
 git init -q "$cwork"
 git -C "$cwork" symbolic-ref HEAD refs/heads/main
 commit_all "$cwork" "scratch harness"
@@ -731,11 +731,11 @@ expect "a calm branch reports quiet" "quiet (max 1 commits per file)" "$out"
 step "joharness.sh ci: graph lint"
 
 lwork="${TMP}/lintwork"
-mkdir -p "${lwork}/harness" "${lwork}/env/none" \
+mkdir -p "${lwork}/.agents/harness" "${lwork}/.agents/env/none" \
   "${lwork}/docs/plans" "${lwork}/docs/handover" "${lwork}/docs/product"
 cp "${ROOT}/joharness.sh" "${lwork}/joharness.sh"
-printf '#!/usr/bin/env bash\nexit 0\n' >"${lwork}/harness/selftest.sh"
-chmod +x "${lwork}/harness/selftest.sh" "${lwork}/joharness.sh"
+printf '#!/usr/bin/env bash\nexit 0\n' >"${lwork}/.agents/harness/selftest.sh"
+chmod +x "${lwork}/.agents/harness/selftest.sh" "${lwork}/joharness.sh"
 git init -q "$lwork"
 git -C "$lwork" symbolic-ref HEAD refs/heads/main
 commit_all "$lwork" "scratch harness"
@@ -878,7 +878,7 @@ git -C "$sgwork" remote add origin "$sgorigin"
 git -C "$sgwork" push -qu origin main
 
 guard() { printf '%s' "$1" | CLAUDE_PROJECT_DIR="$sgwork" \
-  bash "${ROOT}/harness/handover-guard.sh" 2>&1; }
+  bash "${ROOT}/.agents/harness/handover-guard.sh" 2>&1; }
 JSON_STOP='{"stop_hook_active": false}'
 JSON_ACTIVE='{"stop_hook_active": true}'
 
@@ -1005,7 +1005,7 @@ sglocal="${TMP}/sglocal"
 git init -q "$sglocal"
 printf 'scratch\n' >"${sglocal}/scratch.txt"
 out="$(printf '%s' "$JSON_STOP" | CLAUDE_PROJECT_DIR="$sglocal" \
-  bash "${ROOT}/harness/handover-guard.sh" 2>&1)"; rc=$?
+  bash "${ROOT}/.agents/harness/handover-guard.sh" 2>&1)"; rc=$?
 if [ "$rc" -eq 0 ] && [ -z "$out" ]; then
   pass "remoteless checkout stays silent"
 else
@@ -1060,23 +1060,23 @@ step "sync-to-consumer.sh"
 
 syncsrc="${TMP}/syncsrc"
 git init -q "$syncsrc"
-mkdir -p "${syncsrc}/harness" "${syncsrc}/scripts" "${syncsrc}/env/none" \
+mkdir -p "${syncsrc}/.agents/harness" "${syncsrc}/scripts" "${syncsrc}/.agents/env/none" \
   "${syncsrc}/.claude/commands" "${syncsrc}/.claude/skills/steward" \
   "${syncsrc}/docs/handover" \
   "${syncsrc}/docs/plans" "${syncsrc}/docs/product"
 printf 'JOHARNESS_CANONICAL=1\n' >"${syncsrc}/joharness.conf"
-printf 'loop v1\n' >"${syncsrc}/harness/AGENTS.md"
+printf 'loop v1\n' >"${syncsrc}/.agents/harness/AGENTS.md"
 printf 'tiers v1\n' >"${syncsrc}/docs/agent-selection.md"
 # Glob-metacharacter name beside its glob sibling: pathspecs must be
 # literal or a1.md's history vouches for edits to a[1].md.
-printf 'glob-sib v1\n' >"${syncsrc}/env/none/a1.md"
-printf 'bracket own\n' >"${syncsrc}/env/none/a[1].md"
+printf 'glob-sib v1\n' >"${syncsrc}/.agents/env/none/a1.md"
+printf 'bracket own\n' >"${syncsrc}/.agents/env/none/a[1].md"
 printf 'claude rules\n' >"${syncsrc}/CLAUDE.md"
 printf 'entry stub\n' >"${syncsrc}/joharness.sh"
 chmod +x "${syncsrc}/joharness.sh"
 printf 'sync stub\n' >"${syncsrc}/scripts/sync-to-consumer.sh"
 printf 'boot stub\n' >"${syncsrc}/scripts/bootstrap-consumer.sh"
-printf 'layer none\n' >"${syncsrc}/env/none/AGENTS.md"
+printf 'layer none\n' >"${syncsrc}/.agents/env/none/AGENTS.md"
 printf 'who cmd\n' >"${syncsrc}/.claude/commands/who.md"
 printf 'steward SKILL-SENTINEL\n' >"${syncsrc}/.claude/skills/steward/SKILL.md"
 # Every FILES entry must exist: a listed-but-missing file fails the run.
@@ -1096,8 +1096,8 @@ CANON-HARNESS-V1
 canonical project text
 EOF
 commit_all "$syncsrc" "canonical v1"
-printf 'loop v2 CANON-LOOP-SENTINEL\n' >"${syncsrc}/harness/AGENTS.md"
-printf 'glob-sib v2\n' >"${syncsrc}/env/none/a1.md"
+printf 'loop v2 CANON-LOOP-SENTINEL\n' >"${syncsrc}/.agents/harness/AGENTS.md"
+printf 'glob-sib v2\n' >"${syncsrc}/.agents/env/none/a1.md"
 cat >"${syncsrc}/AGENTS.md" <<'EOF'
 CANON-HARNESS-V2
 
@@ -1108,14 +1108,14 @@ EOF
 commit_all "$syncsrc" "canonical v2"
 
 syncdst="${TMP}/syncdst"
-mkdir -p "${syncdst}/harness" "${syncdst}/env/custom" "${syncdst}/env/none"
+mkdir -p "${syncdst}/.agents/harness" "${syncdst}/.agents/env/custom" "${syncdst}/.agents/env/none"
 # Content that is the SIBLING a1.md's history, never a[1].md's own: only
 # a glob-leaking pathspec would call this stale.
-printf 'glob-sib v1\n' >"${syncdst}/env/none/a[1].md"
-printf 'loop v1\n' >"${syncdst}/harness/AGENTS.md"          # stale: v1 is history
+printf 'glob-sib v1\n' >"${syncdst}/.agents/env/none/a[1].md"
+printf 'loop v1\n' >"${syncdst}/.agents/harness/AGENTS.md"          # stale: v1 is history
 printf 'consumer hacked\n' >"${syncdst}/CLAUDE.md"          # ahead: never in history
-printf 'own layer\n' >"${syncdst}/env/custom/AGENTS.md"     # consumer-only
-ln -s AGENTS.md "${syncdst}/env/custom/link.md"             # consumer-only symlink
+printf 'own layer\n' >"${syncdst}/.agents/env/custom/AGENTS.md"     # consumer-only
+ln -s AGENTS.md "${syncdst}/.agents/env/custom/link.md"             # consumer-only symlink
 printf 'CONSUMER-README\n' >"${syncdst}/README.md"          # not synced
 printf 'entry stub\n' >"${syncdst}/joharness.sh"            # content current, exec bit lost
 # Above-marker copy of canonical v1: historical, so the splice moves it
@@ -1135,8 +1135,8 @@ sync() {
 
 out="$(sync --dry-run "$syncdst")"
 expect "dry run announces itself" "dry run, nothing written" "$out"
-expect "dry run reports the stale file" "update  harness/AGENTS.md" "$out"
-if grep -q 'loop v1' "${syncdst}/harness/AGENTS.md"; then
+expect "dry run reports the stale file" "update  .agents/harness/AGENTS.md" "$out"
+if grep -q 'loop v1' "${syncdst}/.agents/harness/AGENTS.md"; then
   pass "dry run writes nothing"
 else
   fail "dry run writes nothing (stale file changed)"
@@ -1144,16 +1144,16 @@ fi
 
 out="$(sync "$syncdst")"; rc=$?
 expect "stale file updated to canonical" \
-  "CANON-LOOP-SENTINEL" "$(cat "${syncdst}/harness/AGENTS.md")"
+  "CANON-LOOP-SENTINEL" "$(cat "${syncdst}/.agents/harness/AGENTS.md")"
 expect "missing file created" "tiers v1" \
   "$(cat "${syncdst}/docs/agent-selection.md" 2>/dev/null)"
 expect "skills dir ships" "steward SKILL-SENTINEL" \
   "$(cat "${syncdst}/.claude/skills/steward/SKILL.md" 2>/dev/null)"
 expect "ahead file flagged" "AHEAD   CLAUDE.md" "$out"
 expect "ahead file kept" "consumer hacked" "$(cat "${syncdst}/CLAUDE.md")"
-expect "glob sibling history does not vouch" "AHEAD   env/none/a[1].md" "$out"
+expect "glob sibling history does not vouch" "AHEAD   .agents/env/none/a[1].md" "$out"
 expect "glob-named consumer edit kept" "glob-sib v1" \
-  "$(cat "${syncdst}/env/none/a[1].md")"
+  "$(cat "${syncdst}/.agents/env/none/a[1].md")"
 if [ "$rc" -eq 2 ]; then
   pass "ahead exits 2"
 else
@@ -1175,20 +1175,20 @@ else
   skip "exec bit repair" "core.filemode unsupported here"
 fi
 expect "consumer-only file reported, left" \
-  "consumer-only env/custom/AGENTS.md" "$out"
+  "consumer-only .agents/env/custom/AGENTS.md" "$out"
 expect "consumer-only symlink reported" \
-  "consumer-only env/custom/link.md" "$out"
+  "consumer-only .agents/env/custom/link.md" "$out"
 expect "consumer README untouched" "CONSUMER-README" \
   "$(cat "${syncdst}/README.md")"
 
 # Second run on the now-reconciled tree: the AHEAD file still blocks, all
 # else settles to same — reruns must be idempotent. A stage file stranded
 # by a hard-killed run gets reaped on the way.
-printf 'stranded\n' >"${syncdst}/harness/AGENTS.md.joharness-sync.99999999"
+printf 'stranded\n' >"${syncdst}/.agents/harness/AGENTS.md.joharness-sync.99999999"
 out="$(sync "$syncdst")"; rc=$?
 expect "stranded stage file reaped" \
-  "reaping stale sync stage harness/AGENTS.md.joharness-sync.99999999" "$out"
-if [ -e "${syncdst}/harness/AGENTS.md.joharness-sync.99999999" ]; then
+  "reaping stale sync stage .agents/harness/AGENTS.md.joharness-sync.99999999" "$out"
+if [ -e "${syncdst}/.agents/harness/AGENTS.md.joharness-sync.99999999" ]; then
   fail "stranded stage file removed"
 else
   pass "stranded stage file removed"
@@ -1365,14 +1365,14 @@ expect "missing canonical dir named" "canonical has no .claude/commands/" "$out"
 
 # Untracked scratch under a synced dir cannot ship (ls-files drives the
 # copies) and must not block the run.
-printf 'scratch\n' >"${syncsrc}/env/none/notes.tmp"
+printf 'scratch\n' >"${syncsrc}/.agents/env/none/notes.tmp"
 out="$(sync "$syncdst3")"
 refute "untracked scratch under synced dir tolerated" \
   "uncommitted changes" "$out"
 
 # Dirty canonical: working-tree-only content would ship now and read
 # AHEAD on every later run — refused before anything is written.
-printf 'uncommitted\n' >>"${syncsrc}/harness/AGENTS.md"
+printf 'uncommitted\n' >>"${syncsrc}/.agents/harness/AGENTS.md"
 out="$(sync "$syncdst3")"; rc=$?
 if [ "$rc" -eq 1 ]; then
   pass "dirty canonical refused"
@@ -1385,7 +1385,7 @@ expect "dirty canonical names the problem" "uncommitted changes" "$out"
 # AHEAD forever once its target changes — refused in preflight. Commit
 # also clears the dirty edit above.
 if [ "$HAVE_SYMLINK" = "1" ]; then
-  ln -s AGENTS.md "${syncsrc}/env/none/alias.md"
+  ln -s AGENTS.md "${syncsrc}/.agents/env/none/alias.md"
   commit_all "$syncsrc" "track symlink"
   out="$(sync "$syncdst3")"; rc=$?
   if [ "$rc" -eq 1 ]; then
@@ -1393,7 +1393,7 @@ if [ "$HAVE_SYMLINK" = "1" ]; then
   else
     fail "canonical symlink refused (got ${rc})"
   fi
-  expect "canonical symlink named" "env/none/alias.md is a symlink" "$out"
+  expect "canonical symlink named" ".agents/env/none/alias.md is a symlink" "$out"
 else
   skip "canonical symlink refusal" "symlinks unavailable here"
 fi
@@ -1403,7 +1403,7 @@ fi
 # fail MISSING with a misleading message. Both refused up front with the
 # real reason.
 if [ "$HAVE_ODD_NAMES" = "1" ]; then
-  printf 'odd\n' >"${syncsrc}/env/none/back\\nslash.md"
+  printf 'odd\n' >"${syncsrc}/.agents/env/none/back\\nslash.md"
   commit_all "$syncsrc" "track backslash filename"
   out="$(sync "$syncdst3")"; rc=$?
   if [ "$rc" -eq 1 ]; then
@@ -1413,7 +1413,7 @@ if [ "$HAVE_ODD_NAMES" = "1" ]; then
   fi
   expect "backslash filename named" "requiring C-quoting" "$out"
 
-  printf 'odd\n' >"${syncsrc}/env/none/$(printf 'we\nird').md"
+  printf 'odd\n' >"${syncsrc}/.agents/env/none/$(printf 'we\nird').md"
   commit_all "$syncsrc" "track newline filename"
   out="$(sync "$syncdst3")"; rc=$?
   if [ "$rc" -eq 1 ]; then
@@ -1437,20 +1437,20 @@ step "bootstrap-consumer.sh"
 
 bootsrc="${TMP}/bootsrc"
 git init -q "$bootsrc"
-mkdir -p "${bootsrc}/harness" "${bootsrc}/scripts" "${bootsrc}/env/none" \
+mkdir -p "${bootsrc}/.agents/harness" "${bootsrc}/scripts" "${bootsrc}/.agents/env/none" \
   "${bootsrc}/.claude/commands" "${bootsrc}/.claude/skills/steward" \
   "${bootsrc}/docs/handover" \
   "${bootsrc}/docs/plans" "${bootsrc}/docs/product" \
   "${bootsrc}/.github/workflows"
 printf 'JOHARNESS_CANONICAL=1\n' >"${bootsrc}/joharness.conf"
-printf 'loop BOOT-LOOP-SENTINEL\n' >"${bootsrc}/harness/AGENTS.md"
+printf 'loop BOOT-LOOP-SENTINEL\n' >"${bootsrc}/.agents/harness/AGENTS.md"
 printf 'tiers v1\n' >"${bootsrc}/docs/agent-selection.md"
 printf 'claude rules\n' >"${bootsrc}/CLAUDE.md"
 printf 'entry stub\n' >"${bootsrc}/joharness.sh"
 chmod +x "${bootsrc}/joharness.sh"
 printf 'sync stub\n' >"${bootsrc}/scripts/sync-to-consumer.sh"
 printf 'boot stub\n' >"${bootsrc}/scripts/bootstrap-consumer.sh"
-printf 'layer none\n' >"${bootsrc}/env/none/AGENTS.md"
+printf 'layer none\n' >"${bootsrc}/.agents/env/none/AGENTS.md"
 printf 'who cmd\n' >"${bootsrc}/.claude/commands/who.md"
 printf 'steward stub\n' >"${bootsrc}/.claude/skills/steward/SKILL.md"
 printf 'attrs\n' >"${bootsrc}/.gitattributes"
@@ -1494,7 +1494,7 @@ else
   printf '%s\n' "$(indent "$out")"
 fi
 expect "harness files placed" "BOOT-LOOP-SENTINEL" \
-  "$(cat "${bootdst1}/harness/AGENTS.md" 2>/dev/null)"
+  "$(cat "${bootdst1}/.agents/harness/AGENTS.md" 2>/dev/null)"
 expect "AGENTS.md keeps canonical head" "BOOT-HARNESS-HEAD" \
   "$(cat "${bootdst1}/AGENTS.md" 2>/dev/null)"
 expect "AGENTS.md Part 2 is the consumer stub" \

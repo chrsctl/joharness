@@ -18,7 +18,7 @@ every tool the environment installs.
 
 ## Scope
 
-- `env/k8s/smoke-test.sh` — helm check: `helm create` scratch chart +
+- `.agents/env/k8s/smoke-test.sh` — helm check: `helm create` scratch chart +
   install into cluster or --dry-run against apiserver. Local only.
 - Update the header's check list and every written count reference —
   grep for the old count first.
@@ -33,12 +33,12 @@ every tool the environment installs.
 
 - `./joharness.sh verify` — all checks pass, count includes the helm
   check.
-- `shellcheck -x env/k8s/smoke-test.sh` — zero findings.
+- `shellcheck -x .agents/env/k8s/smoke-test.sh` — zero findings.
 
 ## Where to look
 
-- `env/k8s/smoke-test.sh` — PASS/FAIL counters, summary line.
-- `env/k8s/AGENTS.md` — written count appears twice; both move.
+- `.agents/env/k8s/smoke-test.sh` — PASS/FAIL counters, summary line.
+- `.agents/env/k8s/AGENTS.md` — written count appears twice; both move.
 
 ## Traps
 

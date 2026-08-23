@@ -56,7 +56,7 @@ human work.
   `git fetch origin main` and check ahead/behind — do not trust a stale
   clone. Behind = merge `main` into branch (not rebase), resolve, re-run
   `ci`, push. Conflict does not resolve clean (semantic, unclear intent) =
-  do not force-merge through it — decide-alone exception (`harness/AGENTS.md`),
+  do not force-merge through it — decide-alone exception (`.agents/harness/AGENTS.md`),
   stop, record in workstream file's `Blockers`, ask human.
 - **Long-running session** = re-check `git fetch origin main` ahead/behind
   periodically during Build too, not only at Finish — a conflict caught

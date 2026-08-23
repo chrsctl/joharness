@@ -62,11 +62,11 @@ helm install my-release ./chart
 Finer grained:
 
 ```bash
-env/k8s/devenv.sh status         # what is running
-env/k8s/devenv.sh up             # Docker + CLI tools, no cluster
-env/k8s/devenv.sh cluster-up     # create/restart/repair the cluster
-env/k8s/devenv.sh cluster-down   # delete the cluster
-env/k8s/devenv.sh doctor         # diagnostics when something is wrong
+.agents/env/k8s/devenv.sh status         # what is running
+.agents/env/k8s/devenv.sh up             # Docker + CLI tools, no cluster
+.agents/env/k8s/devenv.sh cluster-up     # create/restart/repair the cluster
+.agents/env/k8s/devenv.sh cluster-down   # delete the cluster
+.agents/env/k8s/devenv.sh doctor         # diagnostics when something is wrong
 ./joharness.sh verify            # provision, then verify end to end
 ```
 
@@ -141,7 +141,7 @@ docker run --rm --oom-score-adj=0     alpine true  # works
 
 Fix: containerd `restrict_oom_score_adj`, clamps value to one kernel accepts.
 Applied as containerd drop-in written by `render_containerd_dropin` in
-`env/k8s/devenv.sh`, mounted into node at
+`.agents/env/k8s/devenv.sh`, mounted into node at
 `/var/lib/rancher/k3s/agent/etc/containerd/config-v3.toml.d/`.
 
 Must be drop-in, not `config-v3.toml.tmpl` override: k3s renders own config;
@@ -168,7 +168,7 @@ maintenance mode); `false` = supported opt-out. **Config-file only** — no
 `--fail-cgroup-v1` CLI flag, cannot pass via `--kubelet-arg`, attempt fails
 `unknown flag`. k3s runs kubelet with
 `--config-dir=/var/lib/rancher/k3s/agent/etc/kubelet.conf.d`, so
-`render_kubelet_dropin` in `env/k8s/devenv.sh` writes drop-in there, mounted
+`render_kubelet_dropin` in `.agents/env/k8s/devenv.sh` writes drop-in there, mounted
 like containerd drop-in:
 
 ```yaml
@@ -214,7 +214,7 @@ URLs work, so versions pinned explicit, never "latest". Reachable:
 `dl.k8s.io`, `get.helm.sh`, `proxy.golang.org`, `registry.k8s.io`,
 `registry-1.docker.io`, `raw.githubusercontent.com`.
 
-k3d release asset unavailable? `env/k8s/devenv.sh` falls back to
+k3d release asset unavailable? `.agents/env/k8s/devenv.sh` falls back to
 `go install github.com/k3d-io/k3d/v5@<version>`.
 
 ## Notes and limits

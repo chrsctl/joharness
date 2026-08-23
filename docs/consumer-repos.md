@@ -105,10 +105,29 @@ overwrites it, and re-running changes nothing.
 Fix = the direction rule: land that change in joharness `main`, then sync
 again. Fetching a current canonical settles the stale case.
 
+## Migration: pre-`.agents` consumers
+
+Both layers moved from root `harness/` and `env/` to `.agents/harness/` and
+`.agents/env/` — one dotted root a tool can detect. A consumer synced across
+that move receives the new tree and keeps the old one: removals do not
+travel. Nothing reads the old tree afterwards — the entrypoint, the hook
+wiring in `.claude/settings.json` and the root `AGENTS.md` import all sync
+forward to `.agents/` — so it is dead weight, not a second harness.
+
+Remove it once, after the first sync that brings `.agents/`:
+
+```bash
+git rm -r harness env
+```
+
+The sync warns on every run until that lands. Keep anything of the repo's
+own that lived in `env/<name>/` — a consumer's own layer moves to
+`.agents/env/<name>/` by hand, it is not canonical's to carry.
+
 ## What syncs
 
 Harness-owned vs consumer-own: table in
-[`../harness/README.md`](../harness/README.md). Exact list: `FILES` and
+[`.agents/harness/README.md`](../.agents/harness/README.md). Exact list: `FILES` and
 `DIRS` in `scripts/sync-to-consumer.sh`. Root `AGENTS.md` is spliced, not
 copied — canonical above the `# Part 2 — project` marker, consumer's own
 below. Removals do not travel: a file canonical deleted stays, reported

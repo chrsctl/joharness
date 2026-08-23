@@ -134,7 +134,7 @@ One paragraph, in the requester's terms. Why this is being done, not what.
 None. (Or: what is blocking, and what would unblock it.)
 
 ## Where to look
-- `env/k8s/devenv.sh:create_cluster` — the containerd drop-in is load bearing.
+- `.agents/env/k8s/devenv.sh:create_cluster` — the containerd drop-in is load bearing.
 ```
 
 `status`, `updated`, `next` in frontmatter — hook reads them without opening
@@ -273,7 +273,7 @@ Workstream file = scaffolding, not documentation. Work done:
 
 1. Anything mattering in six months moves to the right layer's `AGENTS.md`
    (agent needs every session) or `docs/` (background). The "do not bump
-   `K3S_IMAGE` casually" note in `env/k8s/AGENTS.md` is exactly this:
+   `K3S_IMAGE` casually" note in `.agents/env/k8s/AGENTS.md` is exactly this:
    rejected approach that graduated.
 2. Workstream file deleted in final commit.
 
@@ -320,7 +320,7 @@ Three layers, each covering previous one's failure mode:
 1. **`CLAUDE.md`** imports `AGENTS.md`, states protocol in two lines. Claude
    Code loads `CLAUDE.md`, not `AGENTS.md` — repo with only `AGENTS.md` not
    loading own instructions.
-2. **`harness/handover-context.sh`** runs every session start, injects
+2. **`.agents/harness/handover-context.sh`** runs every session start, injects
    live state: current branch, this branch's file with `status`/`next`, every
    other branch's files with command to read them. Instructions get skimmed;
    injected context already in window.

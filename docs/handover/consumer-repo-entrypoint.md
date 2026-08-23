@@ -28,14 +28,14 @@ and none of them held the agent-in-the-consumer route at all.
 - Pointers replace prose at the five old sites, not additions. Caveman
   "state each fact once"; two copies of the token rules is how one goes
   stale.
-- `harness/AGENTS.md` gets one pointer on the existing copy-or-sync bullet.
+- `.agents/harness/AGENTS.md` gets one pointer on the existing copy-or-sync bullet.
   It loads every session, so it earns exactly one line.
-- Fixed while here: `harness/README.md` NOT-harness-owned list named
+- Fixed while here: `.agents/harness/README.md` NOT-harness-owned list named
   `ci.yml` but not `update.yml`. Both are seeded-once, consumer-own.
 
 ## Rejected
 
-- Doc under `harness/`. It is instructions ABOUT the harness copy, not part
+- Doc under `.agents/harness/`. It is instructions ABOUT the harness copy, not part
   of the protocol every session runs; `docs/` is where `caveman.md` and
   `agent-selection.md` already sit, and both sync the same way.
 - Leaving it joharness-only (not in `FILES`). Then the agent that most
@@ -54,4 +54,5 @@ None.
 
 - `scripts/sync-to-consumer.sh:FILES` — adding a path here means both
   selftest fixture stub loops need it too, or the run exits 3 MISSING.
-- `harness/selftest.sh:1085` and `:1463` — those two loops.
+- `.agents/harness/selftest.sh` — the two fixture stub loops (`for stub in
+  docs/caveman.md ...`).

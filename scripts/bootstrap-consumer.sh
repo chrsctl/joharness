@@ -100,7 +100,8 @@ else
     # The marker in the target's own conf is the whole-clone tell: only a
     # copy of joharness carries it, and it must not survive — see header.
     MODE=whole-clone
-  elif [ -f "${DEST}/joharness.sh" ] || [ -d "${DEST}/harness" ]; then
+  elif [ -f "${DEST}/joharness.sh" ] || [ -d "${DEST}/.agents/harness" ] ||
+    [ -d "${DEST}/harness" ]; then
     # This refusal is the safety line: a bootstrapped consumer's
     # docs/plans|product|handover hold ITS live work, and whole-clone
     # mode's purge would eat it. Steady state has its own tool.
@@ -221,14 +222,15 @@ bootstrap_fresh() {
 # Per-repo file. NOT copied when syncing the harness — each repo picks its
 # own environment.
 
-# Directory under env/. 'none' = harness only, no environment.
+# Directory under .agents/env/. 'none' = harness only, no environment.
 JOHARNESS_ENV=none
 
 # lazy  = provision on demand (./joharness.sh setup). Session start costs nothing.
 # eager = provision at session start. Only worth it if every session uses it.
 JOHARNESS_ENV_SETUP=lazy
 
-# lazy  = inject a read-before-touching pointer to env/<name>/AGENTS.md.
+# lazy  = inject a read-before-touching pointer to
+#         .agents/env/<name>/AGENTS.md.
 # eager = inject the file whole at session start.
 JOHARNESS_ENV_MD=lazy
 EOF

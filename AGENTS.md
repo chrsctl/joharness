@@ -1,20 +1,22 @@
 # AGENTS.md
 
-@harness/AGENTS.md
+@.agents/harness/AGENTS.md
 
 Environment rules are NOT in this file. `joharness.sh session-start` injects
 a read-first pointer to them — or, `JOHARNESS_ENV_MD=eager`, the rules
 whole — from the layer named in `joharness.conf`. See
-[`env/README.md`](env/README.md); switch with `./joharness.sh env <name>`.
+[`.agents/env/README.md`](.agents/env/README.md); switch with
+`./joharness.sh env <name>`.
 
 ---
 
 # Part 2 — project
 
-This repo IS the harness. Two layers, kept apart on purpose:
-[`harness/`](harness/README.md) always runs, one [`env/<name>/`](env/README.md)
-is selected. Cross-layer coupling is the bug this structure exists to prevent —
-`harness/` must never name a specific environment.
+This repo IS the harness. Both layers live under `.agents/` — one dotted
+root any tool can detect: [`.agents/harness/`](.agents/harness/README.md)
+always runs, one [`.agents/env/<name>/`](.agents/env/README.md) is selected.
+Cross-layer coupling is the bug this structure exists to prevent —
+`.agents/harness/` must never name a specific environment.
 
 Verify (all green or not done):
 

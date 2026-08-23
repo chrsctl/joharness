@@ -12,7 +12,7 @@ point: [`docs/consumer-repos.md`](docs/consumer-repos.md).
 `joharness.sh` is the entrypoint. It runs the harness, and one environment —
 whichever `joharness.conf` names.
 
-- **[`harness/`](harness/README.md) — agent protocol.** Always on. One
+- **[`.agents/harness/`](.agents/harness/README.md) — agent protocol.** Always on. One
   workstream file per work under `docs/handover/`, on that work's branch.
   Session start prints the state — this branch's file, what is in flight
   elsewhere — before the first prompt. `/handover` writes the file; `/who`
@@ -21,12 +21,12 @@ whichever `joharness.conf` names.
   issues: plan queue under [`docs/plans/`](docs/plans/README.md), each plan
   naming the agent tier that implements it — lineup + rules:
   [`docs/agent-selection.md`](docs/agent-selection.md).
-- **[`env/<name>/`](env/README.md) — sandbox environment.** Selected, not
-  assumed. [`env/k8s`](env/k8s/README.md) is Docker + a k3d Kubernetes
+- **[`.agents/env/<name>/`](.agents/env/README.md) — sandbox environment.** Selected, not
+  assumed. [`.agents/env/k8s`](.agents/env/k8s/README.md) is Docker + a k3d Kubernetes
   cluster, and what it costs, and the four sandbox constraints its scripts
-  work around. [`env/docker`](env/docker/README.md) is plain Docker +
+  work around. [`.agents/env/docker`](.agents/env/docker/README.md) is plain Docker +
   Compose — the simple workflow when no cluster is needed.
-  [`env/none`](env/none/) is the empty layer.
+  [`.agents/env/none`](.agents/env/none/) is the empty layer.
 
 ```bash
 ./joharness.sh env          # what is selected, what else exists
@@ -42,5 +42,5 @@ touches Kubernetes never pays for it.
 ## Working in this repo
 
 Agent guidance: [`AGENTS.md`](AGENTS.md), which imports
-[`harness/AGENTS.md`](harness/AGENTS.md). `CLAUDE.md` imports the root file —
+[`.agents/harness/AGENTS.md`](.agents/harness/AGENTS.md). `CLAUDE.md` imports the root file —
 Claude Code loads it every session.

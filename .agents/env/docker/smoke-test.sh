@@ -10,7 +10,7 @@
 #   5. containers reach each other by name on a user-defined bridge network
 #   6. docker compose brings a service up and it answers
 #
-# Usage: env/docker/smoke-test.sh [--keep]   (or: ./joharness.sh verify)
+# Usage: .agents/env/docker/smoke-test.sh [--keep]   (or: ./joharness.sh verify)
 #   --keep  leave the smoke containers/network/project behind for inspection
 
 set -euo pipefail
@@ -86,7 +86,7 @@ fi
 
 # --- 4: HTTPS from inside a container ---------------------------------------
 # The egress proxy re-terminates TLS and containers do not inherit the host
-# trust store; mounting the CA bundle is the documented fix (env/docker/README.md).
+# trust store; mounting the CA bundle is the documented fix (.agents/env/docker/README.md).
 # This guards that the mount pattern keeps working. The URL is a pinned tag,
 # not a branch: tags are immutable, so third-party churn cannot turn this red.
 EGRESS_URL="https://raw.githubusercontent.com/docker/compose/v2.0.0/README.md"

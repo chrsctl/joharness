@@ -126,11 +126,12 @@ FILES=(
   docs/product/TEMPLATE.md
 )
 
-# Every file under these ships. env/ ships all layers, selected or not —
-# ci covers them all and a consumer flips layers via its own joharness.conf.
+# Every file under these ships. .agents/env/ ships all layers, selected or
+# not — ci covers them all and a consumer flips layers via its own
+# joharness.conf.
 DIRS=(
-  harness
-  env
+  .agents/harness
+  .agents/env
   .claude/commands
   .claude/skills
 )
@@ -488,6 +489,20 @@ printf '%d updated, %d new, %d ahead, %d consumer-only, %d same\n' \
 
 # AHEAD is reported even when MISSING wins the exit code — a caller fixing
 # the list from exit 1 must not discover the ahead state only on rerun.
+# Both layers moved under .agents/; the sync places the new tree but never
+# deletes (removals are not handled), so a consumer synced across that move
+# keeps a dead root harness/ and env/ that nothing reads any more. Named by
+# a harness-owned file inside each, not by the bare directory: a consumer's
+# own unrelated env/ must not trip this.
+legacy=""
+[ -f "${DEST}/harness/AGENTS.md" ] && legacy="harness/"
+[ -f "${DEST}/env/README.md" ] && legacy="${legacy}${legacy:+ }env/"
+if [ -n "$legacy" ]; then
+  warn "consumer still carries pre-.agents layout (${legacy}); the harness now" \
+    "runs from .agents/. Nothing reads the old tree — remove it once:" \
+    "git rm -r harness env (docs/consumer-repos.md, Migration)."
+fi
+
 if [ "$AHEAD" -gt 0 ]; then
   log "consumer is ahead on ${AHEAD} file(s); reconcile canonical-first, then re-run"
 fi
