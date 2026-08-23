@@ -116,6 +116,7 @@ FILES=(
   scripts/bootstrap-consumer.sh
   docs/agent-selection.md
   docs/caveman.md
+  docs/consumer-repos.md
   docs/graph.md
   docs/handover/README.md
   docs/handover/TEMPLATE.md

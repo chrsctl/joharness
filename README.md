@@ -4,13 +4,8 @@ Canonical harness home. Consumer repos copy the harness
 from here; sync = plain copy commit, no handover file. House style:
 [`docs/caveman.md`](docs/caveman.md).
 
-New consumer = `scripts/bootstrap-consumer.sh <dir>`: places the harness,
-seeds consumer-own stubs (conf, CI workflow, Part 2), strips joharness's
-own workstream files and canonical marker from a whole clone. Child starts
-on ITS workstream, never joharness's queue. Keep current afterwards:
-`scripts/sync-to-consumer.sh` by hand, or the seeded
-`.github/workflows/update.yml` — same sync weekly in the consumer's CI,
-opens a pull request with the result.
+Creating a consumer, or bringing one current — every route, one entry
+point: [`docs/consumer-repos.md`](docs/consumer-repos.md).
 
 ## Two layers
 
