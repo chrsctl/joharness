@@ -35,7 +35,10 @@ human work.
 - **Start** = Claim (Loop step 3): cut `claude/<plan>`, workstream file,
   push.
 - **Finish** = PR green + reviewed, merge to `main`, PR deletes plan file
-  (+ requirement file when last plan). Merged branch may stand: the
+  (+ requirement file when last plan). The merging click is the session's
+  own for its own PR (ratified 2026-08-23; conditions in
+  `harness/AGENTS.md` step 7), merge-commit method only (why: the filter
+  note below). Human veto = revert. Merged branch may stand: the
   session-start hook filters branches merged into `main` out of the
   claims view, so deadwood is `git branch -r` noise, not fake in-flight
   work. Filter reads ancestry, so it rests on PRs merging by merge

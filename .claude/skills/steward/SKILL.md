@@ -35,6 +35,12 @@ conflict. Why-explanations: `docs/handover/README.md`,
 
 ## At merge
 
+- Session merges its OWN pull request itself (ratified 2026-08-23), when
+  ALL hold: GitHub checks green on head; `./joharness.sh verify` green
+  when the diff touches any shell script (CI cannot run it — needs the
+  sandbox); edge review recorded; no unresolved human review thread;
+  merges clean. Merge-commit method
+  ONLY — never squash or rebase merge. Never merge another author's PR.
 - Merged branch left standing = cosmetic, ignore — hook filters merged
   branches from claims view. Deleting = optional hygiene, human-only
   (`docs/product/README.md` Branch flow). Session NEVER

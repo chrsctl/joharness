@@ -47,7 +47,17 @@ the selected layer — as a read-first pointer by default, whole when md=eager
 6. **Hand over.** Update workstream file in SAME commit as code. Before ending
    any unfinished turn, not only at session end. `/handover` writes it.
 7. **Finish.** PR, merge to `main` — every step merges, no long-lived
-   integration branch. Branch conflicts with `main` (another PR merged
+   integration branch. Session merges its OWN pull request itself, no
+   waiting on human (ratified 2026-08-23), when ALL hold: GitHub checks
+   green on head; `./joharness.sh verify` green when the diff touches any
+   shell script (`joharness.sh`, `harness/`, `env/`, `scripts/`) — CI
+   cannot run it (needs the sandbox); edge review recorded (step 5); no
+   unresolved human review thread; merges clean. Anything less stays
+   open. Merge-commit
+   method ONLY — squash/rebase merge breaks the merged-branch ancestry
+   filter (`docs/product/README.md` Branch flow). Never merge another
+   author's PR. Human veto = revert.
+   Branch conflicts with `main` (another PR merged
    first)? Reconcile, do not force through — `docs/product/README.md`
    Branch flow, "Conflict at finish". Merged branch left standing =
    cosmetic, ignore: hook filters merged branches from claims view.
