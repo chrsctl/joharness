@@ -24,7 +24,8 @@
 # protected only by the AHEAD check.
 #
 # Not synced, consumer-own: README.md, joharness.conf, .gitignore,
-# .github/workflows/ci.yml, and live docs/handover|plans|product/*.md.
+# .github/workflows/ci.yml and update.yml (both seeded by
+# bootstrap-consumer.sh), and live docs/handover|plans|product/*.md.
 # Removals are not handled: a file canonical deleted stays in the
 # consumer and is reported as consumer-only.
 #

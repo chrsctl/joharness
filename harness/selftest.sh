@@ -636,7 +636,7 @@ fi
 # Drop the ceiling onto the same branch: the warning becomes a hard stop.
 out="$(JOHARNESS_CHURN_LIMIT=6 ci_churn)"
 expect "ceiling turns churn into a hard stop" \
-  "hot-file.txt rewritten in 6 commits on this branch (ceiling 6)" "$out"
+  "hot file.txt rewritten in 6 commits on this branch (ceiling 6)" "$out"
 if JOHARNESS_CHURN_LIMIT=6 ci_rc; then
   fail "churn at the ceiling fails ci"
 else
@@ -1097,9 +1097,11 @@ printf 'layer none\n' >"${bootsrc}/env/none/AGENTS.md"
 printf 'who cmd\n' >"${bootsrc}/.claude/commands/who.md"
 printf 'attrs\n' >"${bootsrc}/.gitattributes"
 printf '{}\n' >"${bootsrc}/.claude/settings.json"
-# ci.yml is NOT in sync's FILES list: the bootstrap copies it from the
-# canonical tree itself, so the fixture must carry a recognizable one.
+# ci.yml and update.yml are NOT in sync's FILES list: the bootstrap copies
+# them from the canonical tree itself, so the fixture must carry
+# recognizable ones.
 printf 'BOOT-CI-STUB\n' >"${bootsrc}/.github/workflows/ci.yml"
+printf 'BOOT-UPDATE-STUB\n' >"${bootsrc}/.github/workflows/update.yml"
 for stub in docs/caveman.md docs/graph.md \
   docs/handover/README.md docs/handover/TEMPLATE.md \
   docs/plans/README.md docs/plans/TEMPLATE.md \
@@ -1147,6 +1149,8 @@ refute "seeded conf carries no canonical marker" "JOHARNESS_CANONICAL" \
   "$(cat "${bootdst1}/joharness.conf" 2>/dev/null)"
 expect "ci workflow seeded from canonical" "BOOT-CI-STUB" \
   "$(cat "${bootdst1}/.github/workflows/ci.yml" 2>/dev/null)"
+expect "update workflow seeded from canonical" "BOOT-UPDATE-STUB" \
+  "$(cat "${bootdst1}/.github/workflows/update.yml" 2>/dev/null)"
 expect "README stub seeded" "joharness" \
   "$(cat "${bootdst1}/README.md" 2>/dev/null)"
 
