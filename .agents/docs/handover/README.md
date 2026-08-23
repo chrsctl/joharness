@@ -45,8 +45,8 @@ NOT recoverable from repo: the reasoning —
 ## Layout
 
 ```
-docs/handover/README.md          this protocol (stable, rarely changes)
-docs/handover/TEMPLATE.md        the shape of a workstream file
+.agents/docs/handover/README.md          this protocol (stable, rarely changes)
+.agents/docs/handover/TEMPLATE.md        the shape of a workstream file
 docs/handover/<workstream>.md    one file per workstream, live on its branch
 ```
 
@@ -86,7 +86,7 @@ session end; sessions rarely get to say goodbye. Update `status`, `updated`,
 **Reviewing** — findings land in *Review*, one line each, BEFORE the fix is
 written, committed WITH the fix. Order is the point: findings written after
 the fix describe the fix, not the problem. Depth scales with the plan's
-tier (`docs/agent-selection.md`, review depth). Hook prints the recorded
+tier (`.agents/docs/agent-selection.md`, review depth). Hook prints the recorded
 count for other branches — this branch's file it already orders read in
 full. A branch visibly churning with an empty *Review* section is the
 human's cue that rounds are running dark.

@@ -217,7 +217,7 @@ cmd_ci() {
   lint_graph || rc=1
 
   # Review churn, measured rather than noticed. The rule
-  # (docs/agent-selection.md) asks a session to see that a fix undid an
+  # (.agents/docs/agent-selection.md) asks a session to see that a fix undid an
   # earlier fix — but the session inside the churn is the one least able to
   # see it: the sync-tool branch ran twelve "harden per review round"
   # commits over two hours, and ci ran every round without saying so. Git
@@ -243,13 +243,13 @@ cmd_ci() {
           "$churn_f" "$churn_n" "$ceiling"
         printf '  Past the ceiling this is churn, not a judgment call. Stop\n'
         printf '  patching — take the research step at a raised tier or effort\n'
-        printf '  (docs/agent-selection.md, review churn). Genuine large rework?\n'
+        printf '  (.agents/docs/agent-selection.md, review churn). Genuine large rework?\n'
         printf '  JOHARNESS_CHURN_LIMIT=0 lifts the gate, on the record.\n'
         rc=1
       elif [ "$churn_n" -ge "$threshold" ]; then
         printf '  %s touched in %s commits on this branch\n' "$churn_f" "$churn_n"
         printf '  Fix undoing an earlier fix? Stop patching — research step at raised\n'
-        printf '  tier or effort first (docs/agent-selection.md, review churn).\n'
+        printf '  tier or effort first (.agents/docs/agent-selection.md, review churn).\n'
       else
         printf '  quiet (max %s commits per file)\n' "${churn_n:-0}"
       fi
@@ -274,21 +274,17 @@ cmd_ci() {
   return "$rc"
 }
 
-# Every shell script the harness owns, in a stable order. scripts/ is a
-# find root like the others: a script added there must not ship unlinted
-# behind a green `ci: pass`. Missing roots are fine (not every consumer
-# takes every dir); a find FAILURE is not — an unreadable dir would
-# silently drop scripts from the lint list, so the caller sees it and
-# goes red.
+# Every shell script the harness owns, in a stable order. One find root:
+# everything harness-owned lives under .agents/ (harness, env, scripts),
+# so a script added anywhere in it must not ship unlinted behind a green
+# `ci: pass`. A missing root is fine (a stripped-down consumer); a find
+# FAILURE is not — an unreadable dir would silently drop scripts from
+# the lint list, so the caller sees it and goes red.
 check_targets() {
-  local d listing
-  local -a roots=()
-  for d in "${HARNESS_ROOT}" "${ENV_ROOT}" "${ROOT}/scripts"; do
-    [ -d "$d" ] && roots+=("$d")
-  done
+  local listing
   printf '%s\n' "${ROOT}/joharness.sh"
-  [ "${#roots[@]}" -gt 0 ] || return 0
-  listing="$(find "${roots[@]}" -name '*.sh' -type f | sort)" || return 1
+  [ -d "$AGENTS_ROOT" ] || return 0
+  listing="$(find "$AGENTS_ROOT" -name '*.sh' -type f | sort)" || return 1
   [ -z "$listing" ] || printf '%s\n' "$listing"
 }
 
@@ -522,7 +518,7 @@ ensure_shellcheck() {
 # ---------------------------------------------------------------------------
 # Graph
 #
-# The third formalization step from docs/graph.md, previously held "until
+# The third formalization step from .agents/docs/graph.md, previously held "until
 # text queue stops being legible": requirements, plans, in-flight branches
 # and their edges in one picture, derived at read time from the same refs
 # the hooks read. Nothing stored — run it again, it is current again.

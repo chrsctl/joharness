@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Stop-hook guard for the finishing ritual (docs/handover/README.md):
+# Stop-hook guard for the finishing ritual (.agents/docs/handover/README.md):
 # update the workstream file, commit with the code, push. That ritual is
 # asked of a session exactly when it is least attentive — sessions rarely
 # get to say goodbye — so this hook restates it from git facts at the
@@ -89,7 +89,7 @@ fi
 # nothing. An unpushed ritual commit still trips the unpushed fact above.
 # The excuse then holds for the branch's remaining life — deliberate:
 # post-ritual commits are finish work (base merges, review fixes), and
-# follow-up work re-cuts from the base branch (docs/product/README.md),
+# follow-up work re-cuts from the base branch (.agents/docs/product/README.md),
 # which moves the merge-base past the ritual and re-arms this fact.
 base="$(git merge-base HEAD "origin/${BASE_BRANCH}" 2>/dev/null)"
 if [ -n "$base" ] && [ "$base" != "$(git rev-parse HEAD 2>/dev/null)" ]; then
@@ -116,7 +116,7 @@ if [ -n "$base" ] && [ "$base" != "$(git rev-parse HEAD 2>/dev/null)" ]; then
         sort | uniq -d | head -1
     )"
     [ -n "$ritual" ] ||
-      add_fact "branch changes code but has no workstream file (docs/handover/TEMPLATE.md)"
+      add_fact "branch changes code but has no workstream file (.agents/docs/handover/TEMPLATE.md)"
   fi
 fi
 
@@ -124,6 +124,6 @@ fi
 
 # The facts string is built from fixed words and digits only — nothing
 # repo-controlled — so it embeds in JSON without escaping.
-printf '{"decision": "block", "reason": "Handover guard, git facts: %s. Unfinished work? /handover, commit WITH the change, push (docs/handover/README.md finishing ritual — before ending any unfinished turn). All deliberate? Stop again; this guard fires once per stop."}\n' \
+printf '{"decision": "block", "reason": "Handover guard, git facts: %s. Unfinished work? /handover, commit WITH the change, push (.agents/docs/handover/README.md finishing ritual — before ending any unfinished turn). All deliberate? Stop again; this guard fires once per stop."}\n' \
   "$facts"
 exit 0

@@ -11,7 +11,7 @@
 # Run by `joharness.sh session-start`. Reports git facts only. Liveness is deliberately NOT inferred here: push
 # time does not correlate with whether a session is working (measured both ways
 # on this repo). A shell hook cannot reach cross-session state, so the session
-# looks that up itself with /who. See docs/handover/README.md.
+# looks that up itself with /who. See .agents/docs/handover/README.md.
 #
 # Never fails a session: anything unexpected exits 0 with no output.
 #
@@ -88,7 +88,7 @@ if git rev-parse --verify --quiet "origin/${BASE_BRANCH}" >/dev/null 2>&1; then
   fi
 fi
 
-add "== Handover state (protocol: docs/handover/README.md) =="
+add "== Handover state (protocol: .agents/docs/handover/README.md) =="
 add ""
 add "Branch: ${branch}${position}"
 
@@ -207,7 +207,7 @@ while IFS= read -r ref; do
     # Findings recorded in the file's ## Review section. Only the count, and
     # only when there is one: a branch churning with NO review line here is
     # the signal a human reads — rounds running dark. No synthetic metric
-    # pretends to read it for them (docs/handover/README.md, Reviewing).
+    # pretends to read it for them (.agents/docs/handover/README.md, Reviewing).
     review_n="$(printf '%s\n' "$doc" | awk '
       /^## Review[[:space:]]*$/ { in_r = 1; next }
       /^## /                    { in_r = 0 }
@@ -253,7 +253,7 @@ while IFS= read -r ref; do
         churn_n="${churn%%$'\t'*}"
         churn_f="${churn#*$'\t'}"
         if [ -n "$churn_n" ] && [ "$churn_n" -ge "${JOHARNESS_CHURN_THRESHOLD:-5}" ]; then
-          others="${others}    churn: ${churn_f} touched in ${churn_n} commits — review churn rule (docs/agent-selection.md)"$'\n'
+          others="${others}    churn: ${churn_f} touched in ${churn_n} commits — review churn rule (.agents/docs/agent-selection.md)"$'\n'
         fi
       fi
     fi

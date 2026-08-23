@@ -2,10 +2,10 @@
 
 Canonical harness home. Consumer repos copy the harness
 from here; sync = plain copy commit, no handover file. House style:
-[`docs/caveman.md`](docs/caveman.md).
+[`.agents/docs/caveman.md`](.agents/docs/caveman.md).
 
 Creating a consumer, or bringing one current — every route, one entry
-point: [`docs/consumer-repos.md`](docs/consumer-repos.md).
+point: [`.agents/docs/consumer-repos.md`](.agents/docs/consumer-repos.md).
 
 ## Two layers
 
@@ -17,10 +17,10 @@ whichever `joharness.conf` names.
   Session start prints the state — this branch's file, what is in flight
   elsewhere — before the first prompt. `/handover` writes the file; `/who`
   reports genuinely running sessions. Protocol + reasoning:
-  [`docs/handover/README.md`](docs/handover/README.md). Backlog beyond
-  issues: plan queue under [`docs/plans/`](docs/plans/README.md), each plan
+  [`.agents/docs/handover/README.md`](.agents/docs/handover/README.md). Backlog beyond
+  issues: plan queue under [`docs/plans/`](.agents/docs/plans/README.md), each plan
   naming the agent tier that implements it — lineup + rules:
-  [`docs/agent-selection.md`](docs/agent-selection.md).
+  [`.agents/docs/agent-selection.md`](.agents/docs/agent-selection.md).
 - **[`.agents/env/<name>/`](.agents/env/README.md) — sandbox environment.** Selected, not
   assumed. [`.agents/env/k8s`](.agents/env/k8s/README.md) is Docker + a k3d Kubernetes
   cluster, and what it costs, and the four sandbox constraints its scripts

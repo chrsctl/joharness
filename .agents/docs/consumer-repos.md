@@ -22,7 +22,7 @@ consumer-to-consumer, never consumer-only.
 ## New consumer
 
 ```bash
-scripts/bootstrap-consumer.sh <dir>        # --dry-run first, it reports
+.agents/scripts/bootstrap-consumer.sh <dir>        # --dry-run first, it reports
 ```
 
 Places the harness set, seeds consumer-own stubs (`joharness.conf`,
@@ -56,8 +56,8 @@ disables Actions creating pull requests. Without it the run uses
 From a clean canonical checkout:
 
 ```bash
-scripts/sync-to-consumer.sh --dry-run <dir>
-scripts/sync-to-consumer.sh <dir>
+.agents/scripts/sync-to-consumer.sh --dry-run <dir>
+.agents/scripts/sync-to-consumer.sh <dir>
 ```
 
 Then commit in the consumer. Uncommitted changes under synced paths in
@@ -75,8 +75,8 @@ so never spell a literal here:
 git fetch origin main && git checkout -b claude/harness-sync origin/main
 canon="$(sed -n 's/^ *CANONICAL_REPO: //p' .github/workflows/update.yml)"
 git clone "https://github.com/${canon}.git" /tmp/canonical
-/tmp/canonical/scripts/sync-to-consumer.sh --dry-run .
-/tmp/canonical/scripts/sync-to-consumer.sh .
+/tmp/canonical/.agents/scripts/sync-to-consumer.sh --dry-run .
+/tmp/canonical/.agents/scripts/sync-to-consumer.sh .
 ./joharness.sh ci
 git add -A && git commit -m "Sync harness from ${canon}"
 git push -u origin HEAD
@@ -128,11 +128,34 @@ The sync warns on every run until that lands. Keep anything of the repo's
 own that lived in `env/<name>/` — a consumer's own layer moves to
 `.agents/env/<name>/` by hand, it is not canonical's to carry.
 
+Second wave: the protocol docs and sync tools moved too — `docs/` and
+`scripts/` in a consumer are now entirely its own. The stale copies are
+single files inside dirs that hold live work, so remove exactly the files
+the sync's warning names — NEVER `git rm -r` on `docs/`, that eats the
+repo's own plans and handover:
+
+```bash
+git rm .agents/docs/caveman.md .agents/docs/graph.md .agents/docs/agent-selection.md \
+  .agents/docs/consumer-repos.md .agents/docs/handover/README.md .agents/docs/handover/TEMPLATE.md \
+  .agents/docs/plans/README.md .agents/docs/plans/TEMPLATE.md .agents/docs/product/README.md \
+  .agents/docs/product/TEMPLATE.md .agents/scripts/sync-to-consumer.sh \
+  .agents/scripts/bootstrap-consumer.sh
+```
+
+(Only the ones actually present — the warning's own remedy line lists
+exactly those.)
+
+One more consumer-own edit: a pre-move `update.yml` calls canonical's
+`.agents/scripts/sync-to-consumer.sh`, which no longer exists — the weekly run
+goes red with file-not-found until the workflow's `run sync` step points
+at `.agents/scripts/sync-to-consumer.sh`. Newly seeded `update.yml`
+probes both spellings.
+
 ## What syncs
 
 Harness-owned vs consumer-own: table in
-[`.agents/harness/README.md`](../.agents/harness/README.md). Exact list: `FILES` and
-`DIRS` in `scripts/sync-to-consumer.sh`. Root `AGENTS.md` is spliced, not
+[`.agents/harness/README.md`](../harness/README.md). Exact list: `FILES` and
+`DIRS` in `.agents/scripts/sync-to-consumer.sh`. Root `AGENTS.md` is spliced, not
 copied — canonical above the `# Part 2 — project` marker, consumer's own
 below. Removals do not travel: a file canonical deleted stays, reported
 `consumer-only`.

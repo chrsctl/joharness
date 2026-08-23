@@ -47,7 +47,7 @@ discipline fails exactly when someone hurries.
   need = re-run the value test before adding anything: single-hop lookups
   never justify a graph store.
 - No stored graph, no auto-extraction, no embeddings. Derived state =
-  second copy, rots (derivability rule, `docs/handover/README.md`).
+  second copy, rots (derivability rule, `.agents/docs/handover/README.md`).
 - Fusion manual: graduation ritual, human-reviewed. Wrong merge worse than
   missed merge.
 - Provenance = commits. Never hand-write time or source into a file.
