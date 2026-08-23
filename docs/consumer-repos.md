@@ -66,15 +66,19 @@ canonical abort the run — commit there first.
 ## Update: agent in the consumer
 
 The consumer's own copy of the script refuses to run (no
-`JOHARNESS_CANONICAL=1` in its conf). Clone canonical, run ITS copy:
+`JOHARNESS_CANONICAL=1` in its conf). Clone canonical, run ITS copy.
+Canonical's address = `CANONICAL_REPO` in the consumer's own
+`.github/workflows/update.yml` — a fork's consumer names the fork there,
+so never spell a literal here:
 
 ```bash
 git fetch origin main && git checkout -b claude/harness-sync origin/main
-git clone https://github.com/chrsctl/joharness.git /tmp/canonical
+canon="$(sed -n 's/^ *CANONICAL_REPO: //p' .github/workflows/update.yml)"
+git clone "https://github.com/${canon}.git" /tmp/canonical
 /tmp/canonical/scripts/sync-to-consumer.sh --dry-run .
 /tmp/canonical/scripts/sync-to-consumer.sh .
 ./joharness.sh ci
-git add -A && git commit -m "Sync harness from chrsctl/joharness"
+git add -A && git commit -m "Sync harness from ${canon}"
 git push -u origin HEAD
 ```
 
