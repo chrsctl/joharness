@@ -19,6 +19,16 @@ Kubernetes" step — see [Startup cost](#startup-cost).
 | kubectl    | v1.35.8    | context `k3d-claude-dev`, set as current      |
 | Helm       | v3.21.4    |                                               |
 
+Downloaded binaries are verified: each pinned version's linux-amd64 sha256
+lives in `devenv.sh` beside the version pin, checked before install; a
+mismatch refuses loudly. Version bump = update version AND digest, one
+edit — digests from the publisher's own checksum files:
+`dl.k8s.io/release/<v>/bin/linux/amd64/kubectl.sha256`,
+`get.helm.sh/helm-<v>-linux-amd64.tar.gz.sha256sum`, the k3d release's
+`checksums.txt`. Overriding a version for an experiment
+(`KUBECTL_VERSION=… `): set `KUBECTL_SHA256` / `K3D_SHA256` /
+`HELM_SHA256` alongside, or the install warns and skips verification.
+
 ## Why k3s
 
 [k3s](https://k3s.io) on Docker via [k3d](https://k3d.io), not full kubeadm.
