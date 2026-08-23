@@ -8,7 +8,9 @@ New consumer = `scripts/bootstrap-consumer.sh <dir>`: places the harness,
 seeds consumer-own stubs (conf, CI workflow, Part 2), strips joharness's
 own workstream files and canonical marker from a whole clone. Child starts
 on ITS workstream, never joharness's queue. Keep current afterwards:
-`scripts/sync-to-consumer.sh`.
+`scripts/sync-to-consumer.sh` by hand, or the seeded
+`.github/workflows/update.yml` — same sync weekly in the consumer's CI,
+opens a pull request with the result.
 
 ## Two layers
 
@@ -27,7 +29,9 @@ whichever `joharness.conf` names.
 - **[`env/<name>/`](env/README.md) — sandbox environment.** Selected, not
   assumed. [`env/k8s`](env/k8s/README.md) is Docker + a k3d Kubernetes
   cluster, and what it costs, and the four sandbox constraints its scripts
-  work around. [`env/none`](env/none/) is the empty layer.
+  work around. [`env/docker`](env/docker/README.md) is plain Docker +
+  Compose — the simple workflow when no cluster is needed.
+  [`env/none`](env/none/) is the empty layer.
 
 ```bash
 ./joharness.sh env          # what is selected, what else exists

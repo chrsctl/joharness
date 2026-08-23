@@ -67,8 +67,15 @@ setup_mode() { printf '%s' "${JOHARNESS_ENV_SETUP:-$(conf_get JOHARNESS_ENV_SETU
 md_mode()   { printf '%s' "${JOHARNESS_ENV_MD:-$(conf_get JOHARNESS_ENV_MD)}"; }
 
 # Layer names are directory names under env/. Reject anything that could walk
-# out of it before it reaches a path.
-valid_name() { printf '%s' "$1" | grep -qE '^[a-z0-9][a-z0-9._-]*$'; }
+# out of it before it reaches a path. A whole-string case test, not a grep -qE:
+# grep matches per line, so a value carrying a newline ($'k8s\n...') slipped
+# past the anchors when any single line matched. case sees the whole string.
+valid_name() {
+  case "$1" in
+    ''|[!a-z0-9]*|*[!a-z0-9._-]*) return 1 ;;
+    *) return 0 ;;
+  esac
+}
 
 # Glob, not find -printf: the hook also runs on developer machines, and BSD
 # find (macOS) has no -printf.
@@ -194,20 +201,43 @@ cmd_ci() {
     rc=1
   fi
 
+  # Graph edges, checked rather than trusted: a dangling frontmatter edge
+  # or out-of-vocabulary enum fails silent everywhere else — the hooks
+  # default it and the queue lies. Rules and the warn/red split: lint_graph.
+  printf '\n== graph lint\n'
+  lint_graph || rc=1
+
   # Review churn, measured rather than noticed. The rule
   # (docs/agent-selection.md) asks a session to see that a fix undid an
   # earlier fix — but the session inside the churn is the one least able to
   # see it: the sync-tool branch ran twelve "harden per review round"
   # commits over two hours, and ci ran every round without saying so. Git
-  # held the evidence the whole time; this prints it. A warning, never a
-  # red gate — whether churn is real is the session's judgment call, and
-  # the rule's lever (raise tier or effort) is its to pull.
+  # held the evidence the whole time; this prints it. Two tiers, because the
+  # honest answer changes with the number. From the threshold up it is a
+  # warning: whether the churn is real is the session's judgment call, and the
+  # rule's lever (raise tier or effort) is its to pull. From the ceiling up it
+  # is no longer a call — no honest single edit rewrites one file that many
+  # times on one branch (backtest: the runaway sync branch hit 13, every other
+  # merge in this repo's history <=4). The session inside the churn is the one
+  # that cannot see it, so the one gate it cannot skip fails for it.
+  # JOHARNESS_CHURN_LIMIT overrides the ceiling; =0 lifts the gate, the
+  # deliberate and visible escape for a genuine large rework.
   printf '\n== churn\n'
-  local churn
+  local churn threshold ceiling
+  threshold="${JOHARNESS_CHURN_THRESHOLD:-5}"
+  ceiling="${JOHARNESS_CHURN_LIMIT:-$((threshold * 2))}"
   if churn="$(churn_top)"; then
     if [ -n "$churn" ]; then
       local churn_n="${churn%%	*}" churn_f="${churn#*	}"
-      if [ "$churn_n" -ge "${JOHARNESS_CHURN_THRESHOLD:-5}" ]; then
+      if [ "$ceiling" -gt 0 ] && [ "$churn_n" -ge "$ceiling" ]; then
+        printf '  %s rewritten in %s commits on this branch (ceiling %s)\n' \
+          "$churn_f" "$churn_n" "$ceiling"
+        printf '  Past the ceiling this is churn, not a judgment call. Stop\n'
+        printf '  patching — take the research step at a raised tier or effort\n'
+        printf '  (docs/agent-selection.md, review churn). Genuine large rework?\n'
+        printf '  JOHARNESS_CHURN_LIMIT=0 lifts the gate, on the record.\n'
+        rc=1
+      elif [ "$churn_n" -ge "$threshold" ]; then
         printf '  %s touched in %s commits on this branch\n' "$churn_f" "$churn_n"
         printf '  Fix undoing an earlier fix? Stop patching — research step at raised\n'
         printf '  tier or effort first (docs/agent-selection.md, review churn).\n'
@@ -255,24 +285,212 @@ check_targets() {
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
-# Most-touched file on this branch since it left the base branch, as
-# "count<TAB>path". Empty when the branch has no non-merge commits. Returns
-# non-zero when there is no merge-base to measure against — the base branch
-# itself, or a shallow checkout. docs/(handover|plans|product)/ are excluded:
-# the protocol requires touching the workstream file in the SAME commit as
-# every change, so counting those paths reads compliance as churn (the first
-# unfiltered backtest flagged a branch for exactly that).
+# Most-touched file on a branch since it left the base branch, as
+# "count<TAB>path". Measures $1 (default HEAD) against $2 (default
+# origin/<base branch>) — cmd_ci reads the session's own branch, cmd_graph
+# every in-flight one, and both must be the same metric or they disagree
+# about what counts as churn. Empty when the branch has no non-merge
+# commits. Returns non-zero when there is no merge-base to measure against —
+# the base branch itself, or a shallow checkout. docs/(handover|plans|
+# product)/ are excluded: the protocol requires touching the workstream file
+# in the SAME commit as every change, so counting those paths reads
+# compliance as churn (the first unfiltered backtest flagged a branch for
+# exactly that). The tab is awk's, not sed's: BSD sed emits '\t' as a
+# literal 't', which on macOS glued count to path and disarmed the ci gate.
+# awk also keeps a path with spaces whole. The tail sort takes SIGPIPE when
+# head exits on a listing larger than the pipe buffer, and pipefail would
+# read that as "not measurable"; guarded like the grep above it.
 churn_top() {
-  local base branch_ref="origin/${HANDOVER_BASE_BRANCH:-main}"
-  base="$(git -C "$ROOT" merge-base HEAD "$branch_ref" 2>/dev/null)" || return 1
-  [ "$base" != "$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)" ] || return 1
-  git -C "$ROOT" log --no-merges --format='%H' "$base"..HEAD 2>/dev/null |
+  local rev="${1:-HEAD}" over="${2:-origin/${HANDOVER_BASE_BRANCH:-main}}" base
+  base="$(git -C "$ROOT" merge-base "$rev" "$over" 2>/dev/null)" || return 1
+  [ "$base" != "$(git -C "$ROOT" rev-parse "$rev" 2>/dev/null)" ] || return 1
+  git -C "$ROOT" log --no-merges --format='%H' "${base}..${rev}" 2>/dev/null |
     while IFS= read -r c; do
       git -C "$ROOT" diff-tree --no-commit-id --name-only -r "$c" 2>/dev/null
     done |
     { grep -vE '^docs/(handover|plans|product)/' || :; } |
-    sort | uniq -c | sort -rn | head -1 |
-    sed 's/^ *\([0-9][0-9]*\) /\1\t/'
+    sort | uniq -c | { sort -rn || :; } | head -1 |
+    awk '{ c = $1; sub(/^ *[0-9]+ /, ""); printf "%s\t%s\n", c, $0 }'
+}
+
+# ---------------------------------------------------------------------------
+# Graph lint
+#
+# Edges live in frontmatter; a typo kills one silently — a dangling `needs:`
+# reads as free and runs before its input, a workstream `plan:` typo hides
+# the claim so two fresh sessions pick the same plan, an enum outside its
+# vocabulary silently defaults. All checkable from file existence plus
+# frontmatter at read time — no stored state — and the session that wrote
+# the typo is the one that cannot see it, so the gate it cannot skip checks
+# instead (same argument as the churn ceiling). Three-way resolution per
+# name: open file in the tree = live edge; name in HEAD's history = done
+# work, edge inert by design (delete-on-merge IS the state, so `needs` on a
+# merged plan is silent, a claim on one only warns); never existed = typo,
+# red. Hard facts red, judgment calls warn — a stale `Where to look` anchor
+# is the staleness rule's territory (verify-at-read), so it warns, never
+# fails.
+# ---------------------------------------------------------------------------
+
+LINT_RC=0
+LINT_WARNED=0
+
+lint_red()  { printf '  DEAD %s\n' "$*"; LINT_RC=1; }
+lint_warn() { printf '  warn %s\n' "$*"; LINT_WARNED=1; }
+
+# Working-tree nodes of one type, paths relative to ROOT. The tree, not a
+# ref: ci judges what this branch is about to push, uncommitted included.
+lint_nodes() {
+  [ -d "${ROOT}/$1" ] || return 0
+  (cd "$ROOT" && find "$1" -maxdepth 1 -name '*.md' \
+    ! -name 'TEMPLATE.md' ! -name 'README.md' ! -name 'VISION.md' \
+    2>/dev/null | sort)
+}
+
+# Did <rel-path> ever exist on HEAD's line? Literal pathspec: a stem
+# carrying a glob char must match itself, not a sibling (sync's lesson).
+lint_existed() {
+  [ -n "$(GIT_LITERAL_PATHSPECS=1 git -C "$ROOT" log -1 --format=%H \
+    HEAD -- "$1" 2>/dev/null)" ]
+}
+
+# A name neither in the tree nor in visible history is a typo only when
+# the history is whole. A shallow checkout (GitHub's default fetch-depth
+# is 1, and ci.yml on a consumer is consumer-own — no depth fix there can
+# be assumed) cannot tell a typo from a merged-and-deleted plan, and a red
+# it cannot prove would break the invariant that ci here and ci on GitHub
+# mean the same thing — in the bad direction, green locally and red
+# remotely. Degrade to a warning there; the full-history run stays the
+# gate. Same doctrine as churn's "not measurable here".
+lint_shallow() {
+  [ "$(git -C "$ROOT" rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]
+}
+
+lint_stem() { local s="${1##*/}"; printf '%s' "${s%.md}"; }
+
+# <file> <field> <value> <allowed...>: empty passes (hooks default it),
+# anything else outside the vocabulary is red. Whole-word compare, not a
+# substring test: 'haiku sonnet' must not pass because the vocabulary
+# happens to list those words adjacently.
+lint_enum() {
+  local f="$1" k="$2" v="$3" w; shift 3
+  [ -n "$v" ] || return 0
+  for w in "$@"; do
+    [ "$v" = "$w" ] && return 0
+  done
+  lint_red "${f}: ${k} '${v}' not one of: $*"
+}
+
+# Stale anchors under '## Where to look': existence of the path half only —
+# symbols move too often to police, and the staleness rule already says
+# verify before relying. Only tokens that look like paths (a slash or a
+# dot) are anybody's business here: env vars, knobs and flags are natural
+# anchors too, and a false warning trains sessions to ignore the warn
+# channel the real findings ride on. URLs are skipped before the colon
+# strip (which would eat them); '=' marks an assignment, not a path.
+lint_anchors() {
+  local f="$1" a p
+  while IFS= read -r a; do
+    [ -n "$a" ] || continue
+    case "$a" in *'://'* | *'='*) continue ;; esac
+    p="${a%%:*}"; p="${p%% *}"
+    case "$p" in '' | *'*'* | '<'*) continue ;; esac
+    case "$p" in */* | *.*) ;; *) continue ;; esac
+    [ -e "${ROOT}/${p}" ] ||
+      lint_warn "${f}: anchor '${p}' not in tree — verify, fix in place"
+  done < <(awk '/^## Where to look/ { s = 1; next }
+    /^## / { s = 0 }
+    s && /^- `/ { if (match($0, /`[^`]+`/))
+      print substr($0, RSTART + 1, RLENGTH - 2) }' "${ROOT}/${f}")
+}
+
+lint_graph() {
+  LINT_RC=0
+  LINT_WARNED=0
+  local rel doc val n p r
+  local -a need_list
+  local plans=0 workstreams=0 reqs=0
+
+  while IFS= read -r rel; do
+    [ -n "$rel" ] || continue
+    plans=$((plans + 1))
+    doc="$(cat "${ROOT}/${rel}")"
+    lint_enum "$rel" urgency "$(printf '%s\n' "$doc" | gr_field urgency)" \
+      normal urgent
+    lint_enum "$rel" agent "$(printf '%s\n' "$doc" | gr_field agent)" \
+      haiku sonnet opus
+    lint_enum "$rel" effort "$(printf '%s\n' "$doc" | gr_field effort)" \
+      low medium high xhigh
+    val="$(printf '%s\n' "$doc" | gr_field needs)"
+    if [ -n "$val" ] && [ "$val" != "none" ]; then
+      read -ra need_list <<<"${val//,/ }"
+      # Guarded like cmd_ci's targets: a separators-only value leaves the
+      # array empty, and expanding an empty array under set -u is fatal on
+      # macOS system bash 3.2.
+      [ "${#need_list[@]}" -gt 0 ] || need_list=("")
+      for n in "${need_list[@]}"; do
+        n="$(lint_stem "$n")"
+        { [ -n "$n" ] && [ "$n" != "none" ]; } || continue
+        [ -f "${ROOT}/docs/plans/${n}.md" ] && continue
+        lint_existed "docs/plans/${n}.md" && continue
+        if lint_shallow; then
+          lint_warn "${rel}: needs '${n}' unknown here (shallow history) — typo or merged, cannot tell"
+        else
+          lint_red "${rel}: needs '${n}' — no such plan, never existed. Typo?"
+        fi
+      done
+    fi
+    r="$(lint_stem "$(printf '%s\n' "$doc" | gr_field requirement)")"
+    if [ -n "$r" ] && [ "$r" != "none" ] &&
+       [ ! -f "${ROOT}/docs/product/${r}.md" ]; then
+      if lint_existed "docs/product/${r}.md"; then
+        lint_warn "${rel}: requirement '${r}' gone from tree — satisfied while this plan is open?"
+      elif lint_shallow; then
+        lint_warn "${rel}: requirement '${r}' unknown here (shallow history) — typo or satisfied, cannot tell"
+      else
+        lint_red "${rel}: requirement '${r}' — no such requirement, never existed. Typo?"
+      fi
+    fi
+    lint_anchors "$rel"
+  done < <(lint_nodes docs/plans)
+
+  while IFS= read -r rel; do
+    [ -n "$rel" ] || continue
+    workstreams=$((workstreams + 1))
+    doc="$(cat "${ROOT}/${rel}")"
+    val="$(printf '%s\n' "$doc" | gr_field status)"
+    if [ -z "$val" ]; then
+      lint_warn "${rel}: no status — hooks read '?'"
+    else
+      lint_enum "$rel" status "$val" in-progress blocked review "done"
+    fi
+    lint_enum "$rel" agent "$(printf '%s\n' "$doc" | gr_field agent)" \
+      haiku sonnet opus
+    p="$(lint_stem "$(printf '%s\n' "$doc" | gr_field plan)")"
+    if [ -n "$p" ] && [ "$p" != "none" ] &&
+       [ ! -f "${ROOT}/docs/plans/${p}.md" ]; then
+      if lint_existed "docs/plans/${p}.md"; then
+        lint_warn "${rel}: claims plan '${p}' gone from tree (merged?) — claim reads as none"
+      elif lint_shallow; then
+        lint_warn "${rel}: plan '${p}' unknown here (shallow history) — typo or merged, cannot tell"
+      else
+        lint_red "${rel}: plan '${p}' — no such plan, never existed. Claim invisible; typo?"
+      fi
+    fi
+    lint_anchors "$rel"
+  done < <(lint_nodes docs/handover)
+
+  while IFS= read -r rel; do
+    [ -n "$rel" ] || continue
+    reqs=$((reqs + 1))
+    lint_enum "$rel" priority \
+      "$(gr_field priority <"${ROOT}/${rel}")" normal urgent
+  done < <(lint_nodes docs/product)
+
+  if [ "$LINT_RC" -eq 0 ] && [ "$LINT_WARNED" -eq 0 ]; then
+    printf '  edges sound (%d plans, %d workstreams, %d requirements)\n' \
+      "$plans" "$workstreams" "$reqs"
+  fi
+  return "$LINT_RC"
 }
 
 # The shellcheck binary is the acceptance bar, but its absence is an
@@ -406,7 +624,7 @@ cmd_graph() {
   # the same node twice. One entry per workstream name — the protocol says
   # one file per workstream, so a second ref carrying the same name is the
   # same work, not a second node.
-  local r short bname base ws wdoc wname claim churn churn_n churn_f seen=""
+  local r short bname ws wdoc wname claim churn churn_n churn_f seen=""
   while IFS= read -r r; do
     short="${r#refs/remotes/}"
     bname="${short#*/}"
@@ -424,17 +642,12 @@ cmd_graph() {
     seen="$seen $wname"
     claim="$(printf '%s\n' "$wdoc" | gr_field plan)"
 
-    churn_n=""
-    base="$(git -C "$ROOT" merge-base "$r" "$ref" 2>/dev/null)"
-    if [ -n "$base" ]; then
-      churn="$(git -C "$ROOT" log --no-merges --format='%H' "$base".."$r" 2>/dev/null |
-        while IFS= read -r c; do
-          git -C "$ROOT" diff-tree --no-commit-id --name-only -r "$c" 2>/dev/null
-        done |
-        { grep -vE '^docs/(handover|plans|product)/' || :; } |
-        sort | uniq -c | sort -rn | head -1)"
-      churn_n="$(printf '%s' "$churn" | awk '{print $1}')"
-      churn_f="$(printf '%s' "$churn" | awk '{print $2}')"
+    # Same metric, same code as cmd_ci: churn_top splits count from path on
+    # a tab, so a hot file with a space in its name survives whole.
+    churn_n="" churn_f=""
+    if churn="$(churn_top "$r" "$ref")" && [ -n "$churn" ]; then
+      churn_n="${churn%%$'\t'*}"
+      churn_f="${churn#*$'\t'}"
     fi
     if [ -n "$churn_n" ] && [ "$churn_n" -ge "$threshold" ]; then
       printf '  b_%s(["%s — CHURN: %s ×%s"]):::churn\n' \

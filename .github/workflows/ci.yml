@@ -30,7 +30,14 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
+      # Full history, not the default depth 1: the graph lint resolves
+      # names against HEAD's history to tell a typo from a merged-and-
+      # deleted plan. On a shallow checkout it degrades those reds to
+      # warnings (it cannot prove a typo there), so depth 1 here would
+      # run a weaker gate than a local `./joharness.sh ci`.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: joharness ci
         run: ./joharness.sh ci
 

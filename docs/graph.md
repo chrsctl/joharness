@@ -31,6 +31,7 @@ semantic, summary — convergent, not copied.
 | `requirement` | plan → requirement | plan frontmatter. Requirement nobody serves = unplanned, hook flags. |
 | `plan` | workstream → plan | workstream frontmatter. The claim. |
 | `agent` | plan or workstream → tier | frontmatter. Model that runs it. |
+| `scope` | plan → paths | plan frontmatter. Declared touch-set; disjoint scopes = proven-parallel wave, overlap named at spawn. `touches` is the same edge measured after the fact. |
 | touches | branch → branch | computed: changed-path intersection |
 | graduated | workstream → `AGENTS.md` / `docs/` | merge commit that deletes the file |
 | anchor | any → code | `path:symbol` line in Where to look |
@@ -60,3 +61,6 @@ SessionStart hook = retrieval. Injects the 1-hop neighborhood — this
 branch's workstream, queue with `blocked by:` / `claimed on:` edges,
 overlap warnings — and prints `git show` commands as edge traversals.
 Instructions get skimmed; injected context is already in window.
+
+Whole graph as a picture: `./joharness.sh graph` prints fenced mermaid,
+derived at read time — paste into any GitHub comment, rendered natively.
