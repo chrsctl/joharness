@@ -2,7 +2,7 @@
 workstream: extensions-research
 status: review
 branch: claude/extensions-research-ihryow
-pr: none
+pr: 29
 plan: none
 agent: sonnet
 updated: 2026-08-23
