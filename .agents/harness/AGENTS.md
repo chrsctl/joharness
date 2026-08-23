@@ -5,7 +5,7 @@ hurt agent, cost more. Keep only what code cannot tell you. Why-explanations
 live in `docs/` — read there before fighting a rule.
 
 House style for instructions and replies:
-[`docs/caveman.md`](docs/caveman.md). Write new instruction text in it; never
+[`docs/caveman.md`](../../docs/caveman.md). Write new instruction text in it; never
 let style eat a fact.
 
 Environment rules are not here. Entrypoint injects them at session start from
@@ -97,4 +97,4 @@ scope AND out-of-scope explicit. Lineup + selection rules:
 - Copy or sync task (initial harness copy, sync from joharness): NO
   workstream file. Diff self-describing. See protocol "When NOT to write
   one". How to run one: `docs/consumer-repos.md`.
-- Full protocol + why: [`docs/handover/README.md`](docs/handover/README.md).
+- Full protocol + why: [`docs/handover/README.md`](../../docs/handover/README.md).
