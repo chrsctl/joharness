@@ -382,15 +382,19 @@ lint_enum() {
 
 # Stale anchors under '## Where to look': existence of the path half only —
 # symbols move too often to police, and the staleness rule already says
-# verify before relying. Skips URLs (tested before the colon strip, which
-# would eat them), globs and template placeholders.
+# verify before relying. Only tokens that look like paths (a slash or a
+# dot) are anybody's business here: env vars, knobs and flags are natural
+# anchors too, and a false warning trains sessions to ignore the warn
+# channel the real findings ride on. URLs are skipped before the colon
+# strip (which would eat them); '=' marks an assignment, not a path.
 lint_anchors() {
   local f="$1" a p
   while IFS= read -r a; do
     [ -n "$a" ] || continue
-    case "$a" in *'://'*) continue ;; esac
+    case "$a" in *'://'* | *'='*) continue ;; esac
     p="${a%%:*}"; p="${p%% *}"
     case "$p" in '' | *'*'* | '<'*) continue ;; esac
+    case "$p" in */* | *.*) ;; *) continue ;; esac
     [ -e "${ROOT}/${p}" ] ||
       lint_warn "${f}: anchor '${p}' not in tree — verify, fix in place"
   done < <(awk '/^## Where to look/ { s = 1; next }
@@ -419,6 +423,10 @@ lint_graph() {
     val="$(printf '%s\n' "$doc" | gr_field needs)"
     if [ -n "$val" ] && [ "$val" != "none" ]; then
       read -ra need_list <<<"${val//,/ }"
+      # Guarded like cmd_ci's targets: a separators-only value leaves the
+      # array empty, and expanding an empty array under set -u is fatal on
+      # macOS system bash 3.2.
+      [ "${#need_list[@]}" -gt 0 ] || need_list=("")
       for n in "${need_list[@]}"; do
         n="$(lint_stem "$n")"
         { [ -n "$n" ] && [ "$n" != "none" ]; } || continue

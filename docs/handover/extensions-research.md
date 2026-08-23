@@ -56,8 +56,9 @@ implementations; the proposal-stage requirement files are deleted here
 
 ## Blockers
 
-None. `ci: pass` (217 selftests), `verify` 7 passed 0 failed, tamper
-case proven (wrong digest refuses install).
+None. `ci` green, `verify` green, tamper case proven (wrong digest
+refuses install). Counts live in the runs, not here — trust counted
+numbers, never written ones.
 
 ## Where to look
 
