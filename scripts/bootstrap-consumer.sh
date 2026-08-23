@@ -286,6 +286,19 @@ bootstrap_whole_clone() {
   has_marker "${DEST}/AGENTS.md" ||
     die "AGENTS.md in '$DEST' lacks marker '${MARKER}'; restore it, then re-run"
 
+  # The purge below rm's through whatever these paths resolve to, and the
+  # clone is untrusted input: a symlinked docs/ aimed the delete at files
+  # OUTSIDE the target (reproduced 2026-08-23). Same ancestor rule as the
+  # sync engine's refuse_bad_dst; DEST itself is already physical (pwd -P
+  # above). A symlinked purge dir is refused too — find would not descend
+  # it, so the conversion would silently keep the live files it exists to
+  # remove. Leaves inside are safe as-is: find -P neither crosses a
+  # symlinked subdirectory nor lists a symlinked file as -type f.
+  for rel in docs docs/plans docs/product docs/handover; do
+    [ ! -h "${DEST}/${rel}" ] ||
+      die "'${rel}' in '$DEST' is a symlink; purge would follow it — repair the clone, then re-run"
+  done
+
   # Just the marker line, nothing clever: the comment block above it in a
   # real clone describes the canonical and goes stale, but guessing at
   # comment boundaries risks eating a consumer's own notes. Warned instead.
