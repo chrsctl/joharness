@@ -66,9 +66,17 @@ mapping:
   commits touching one file since merge-base, protocol paths excluded,
   warning at `JOHARNESS_CHURN_THRESHOLD` (default 5; backtested over every
   merge on main: the twelve-round sync branch peaks at 13, all others <= 4).
-  Session inside the churn sees it where ci already runs; the handover hook
-  prints the same line for other branches, so a resuming session inherits
-  the signal too.
+  Two tiers, because the honest reading changes with the count. From the
+  threshold up it is a warning and the lever is the session's to pull —
+  whether the churn is real is its judgment call. From the ceiling up
+  (`JOHARNESS_CHURN_LIMIT`, default 2x the threshold) it is not a call any
+  more, so ci fails: no honest single edit rewrites one file that many times
+  on one branch, and the session inside the churn is exactly the one that
+  cannot see it — the one gate it cannot skip sees it instead. A genuine
+  large rework lifts the gate with `JOHARNESS_CHURN_LIMIT=0`, a deliberate
+  and visible act, not a silent skip. Session inside the churn sees it where
+  ci already runs; the handover hook prints the warning line for other
+  branches, so a resuming session inherits the signal too.
 - Plan author assigns; implementing session may escalate tier or effort and
   record why in workstream file. Never downgrade to save cost — that
   decision is money, humans only (harness/AGENTS.md: stop and ask for
