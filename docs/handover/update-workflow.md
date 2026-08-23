@@ -28,8 +28,16 @@ the sync, opens a pull request with the result. Sibling branch on
   verbatim; a guard step reads `JOHARNESS_CANONICAL=1` and no-ops there,
   so canonical's own weekly run stays green and pointless-red-free.
 - Sync exit 2 (AHEAD) proceeds to commit + PR: updates were applied,
-  nothing clobbered; warning rides the sync log into the PR body. Any
-  other nonzero fails the job before commit.
+  nothing clobbered; warning rides the sync log (stderr merged) into the
+  PR body. Any other nonzero fails the job before commit. AHEAD with a
+  clean tree (drift is the ONLY finding) fails the run instead — a green
+  "current" there would bury the drift forever.
+- Review round (high) applied 5 findings: PAT push de-fanged by
+  checkout's persisted http.extraheader (unset it); sync warnings on
+  stderr missing from PR body (2>&1); AHEAD-only silent green (red run);
+  stale PR body after force-push (gh pr edit); guard comment overclaimed
+  what the engine refuses (engine checks its ROOT, not DEST — guard is
+  the only defense).
 - Canonical cloned full-history into `$RUNNER_TEMP`, outside the
   workspace: shallow reads honest copies AHEAD (sync header), and a clone
   inside the workspace would be swept up by `git add -A`.
