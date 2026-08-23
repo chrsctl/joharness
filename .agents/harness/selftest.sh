@@ -1200,6 +1200,35 @@ else
   fail "rerun still exits 2 while ahead (got ${rc})"
 fi
 
+# Pre-.agents layout left behind: both layers moved under .agents/ and
+# removals do not travel, so a consumer synced across the move keeps a dead
+# root harness/ and env/. Warned every run until it goes, and the remedy
+# names only what is actually there.
+mkdir -p "${syncdst}/harness" "${syncdst}/env"
+printf 'old loop\n' >"${syncdst}/harness/AGENTS.md"
+printf 'old layers\n' >"${syncdst}/env/README.md"
+out="$(sync "$syncdst")" || :
+expect "legacy layout warned" "still carries pre-.agents layout (harness env)" "$out"
+expect "legacy remedy names both dirs" "git rm -r harness env" "$out"
+
+# Only one half left: the remedy must not name a path that is not there —
+# `git rm -r` fails on it, and a remedy that errors reads as advice to skip.
+rm -f "${syncdst}/env/README.md"
+out="$(sync "$syncdst")" || :
+expect "legacy remedy names only what exists" "git rm -r harness" "$out"
+
+# A consumer's own unrelated env/ is not the old layer. Keyed on the
+# harness-owned file inside, never on the bare directory name.
+rm -rf "${syncdst}/harness"
+printf 'app config\n' >"${syncdst}/env/production.yaml"
+out="$(sync "$syncdst")" || :
+if grep -qF 'pre-.agents layout' <<<"$out"; then
+  fail "consumer's own env/ does not trip the legacy warning"
+else
+  pass "consumer's own env/ does not trip the legacy warning"
+fi
+rm -rf "${syncdst}/env"
+
 # Consumer AGENTS.md without the marker: refuse whole-file, touch nothing.
 syncdst2="${TMP}/syncdst2"
 mkdir -p "$syncdst2"
