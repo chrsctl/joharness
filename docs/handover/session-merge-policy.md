@@ -7,7 +7,7 @@ plan: none
 session: https://claude.ai/code/session_01MhevorBe88x3x2wiVMFGJb
 agent: sonnet
 updated: 2026-08-23
-next: Edit the three protocol files, verify, edge review, PR; merge it under its own rule once green
+next: PR; merge it under its own rule once GitHub checks are green
 ---
 
 ## Goal
@@ -45,7 +45,17 @@ working.
 
 ## Review
 
-(pending — findings land here before their fixes, same commit)
+- r1: merge-gate condition list presented as exhaustive but omitted
+  `./joharness.sh verify` — the one check GitHub CI is documented as unable
+  to run; a steward session could self-merge a provisioning-breaking change
+  on green checks alone. Condition added in both files: verify green when
+  the diff touches any shell script (fixed)
+- r2: protocol edits sat uncommitted while the workstream file's `next` and
+  `## Review` were stale against them — same-commit rule; this update lands
+  with the edits (fixed)
+- r3: product README Finish bullet stated the merge-commit-only rationale
+  twice four lines apart; new sentence now points at the existing filter
+  note instead of restating it (fixed)
 
 ## Blockers
 
