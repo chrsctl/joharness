@@ -60,7 +60,10 @@ fix born ANYWHERE lands in joharness `main` first, then syncs out to
 every consumer from there. Never consumer-to-consumer, never
 consumer-only — one canonical line reconciles all copies. Sync mechanism:
 `scripts/sync-to-consumer.sh` (refuses to overwrite a consumer copy
-whose content canonical history does not know).
+whose content canonical history does not know). Automated: seeded
+`.github/workflows/update.yml` runs same sync weekly in consumer's CI,
+opens pull request. Consumer-own file, like ci.yml — never synced,
+consumer edits stick.
 
 New consumer starts via `scripts/bootstrap-consumer.sh`, never by using a
 raw joharness clone as-is: a raw clone carries joharness's live plan
