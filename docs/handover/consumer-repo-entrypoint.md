@@ -7,7 +7,7 @@ plan: none
 session: https://claude.ai/code/session_0178f1MyS7qfR1ovDhqt4pH8
 agent: sonnet
 updated: 2026-08-23
-next: Open PR; if review wants the file named child-repos.md instead, rename and re-point the five links
+next: Merge when GitHub checks green (step 7 conditions; verify already green locally)
 ---
 
 ## Goal
@@ -44,7 +44,11 @@ and none of them held the agent-in-the-consumer route at all.
 
 ## Review
 
-None yet — edge-to-main review still owed.
+- r1: agent route hardcoded `chrsctl/joharness` in a file that syncs to
+  every consumer — a fork's consumer following it verbatim clones the
+  wrong canonical and reads honest files AHEAD forever. Route now derives
+  the address from the consumer's own `update.yml` `CANONICAL_REPO`.
+  (fixed)
 
 ## Blockers
 
