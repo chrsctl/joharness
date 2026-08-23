@@ -285,23 +285,30 @@ next: Fixture
 ---
 EOF
 for i in 1 2 3 4 5 6; do
-  printf 'round %s\n' "$i" >>"${work}/hot-file.txt"
+  printf 'round %s\n' "$i" >>"${work}/hot file.txt"
   printf 'log %s\n' "$i" >>"${work}/docs/handover/churny-ws.md"
   commit_all "$work" "harden per review round $i"
 done
+# A second workstream file on the same branch: churn is measured and printed
+# once per ref, not once per file the ref carries.
+sed 's/churny-ws/churny-second-ws/' "${work}/docs/handover/churny-ws.md" \
+  >"${work}/docs/handover/churny-second-ws.md"
+commit_all "$work" "second workstream file"
 git -C "$work" push -qu origin churny-mc-churn
 git -C "$work" checkout -q feature
 
 out="$(CLAUDE_PROJECT_DIR="$work" HANDOVER_FETCH=0 \
   bash "${ROOT}/harness/handover-context.sh" 2>&1)"
-expect "Churny McChurn carries the churn line" \
-  "churn: hot-file.txt touched in 6 commits" "$out"
+expect "Churny McChurn carries the churn line, space in the name whole" \
+  "churn: hot file.txt touched in 6 commits" "$out"
+expect "churn printed once for a branch carrying two workstream files" \
+  "1" "$(printf '%s\n' "$out" | grep -c 'churn: hot file.txt')"
 refute "workstream file updates are not churn" "churny-ws.md touched" "$out"
 refute "quiet branch carries no churn line" "rival-ws.md touched" "$out"
 
 out="$(CLAUDE_PROJECT_DIR="$work" HANDOVER_FETCH=0 JOHARNESS_CHURN_THRESHOLD=9 \
   bash "${ROOT}/harness/handover-context.sh" 2>&1)"
-refute "threshold override silences the line" "churn: hot-file.txt" "$out"
+refute "threshold override silences the line" "churn: hot file.txt" "$out"
 
 git -C "$work" push -q --delete origin churny-mc-churn 2>/dev/null
 git -C "$work" branch -qD churny-mc-churn
@@ -494,13 +501,13 @@ expect "base branch is not measurable" "not measurable here" "$out"
 
 git -C "$cwork" checkout -qb hammering
 for i in 1 2 3 4 5 6; do
-  printf 'round %s\n' "$i" >>"${cwork}/hot-file.txt"
+  printf 'round %s\n' "$i" >>"${cwork}/hot file.txt"
   printf 'log %s\n' "$i" >>"${cwork}/docs/handover/hammer-ws.md"
   commit_all "$cwork" "harden per review round $i"
 done
 out="$(ci_churn)"
-expect "churn names the hot file and count" \
-  "hot-file.txt touched in 6 commits on this branch" "$out"
+expect "churn names the hot file and count, space in the name whole" \
+  "hot file.txt touched in 6 commits on this branch" "$out"
 expect "churn cites the escalation rule" "review churn" "$out"
 refute "workstream file commits are not the count" \
   "hammer-ws.md touched" "$out"
