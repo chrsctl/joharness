@@ -29,7 +29,9 @@ whichever `joharness.conf` names.
 - **[`env/<name>/`](env/README.md) — sandbox environment.** Selected, not
   assumed. [`env/k8s`](env/k8s/README.md) is Docker + a k3d Kubernetes
   cluster, and what it costs, and the four sandbox constraints its scripts
-  work around. [`env/none`](env/none/) is the empty layer.
+  work around. [`env/docker`](env/docker/README.md) is plain Docker +
+  Compose — the simple workflow when no cluster is needed.
+  [`env/none`](env/none/) is the empty layer.
 
 ```bash
 ./joharness.sh env          # what is selected, what else exists
