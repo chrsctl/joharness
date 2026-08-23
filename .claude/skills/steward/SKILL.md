@@ -35,6 +35,10 @@ conflict. Why-explanations: `docs/handover/README.md`,
 
 ## At merge
 
+- Session merges its OWN pull request itself (ratified 2026-08-23).
+  Conditions, merge method, and what counts as own: `harness/AGENTS.md`
+  step 7 — that file wins, one copy on purpose. Never merge any other
+  PR.
 - Merged branch left standing = cosmetic, ignore — hook filters merged
   branches from claims view. Deleting = optional hygiene, human-only
   (`docs/product/README.md` Branch flow). Session NEVER
