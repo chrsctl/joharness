@@ -44,7 +44,18 @@ the ritual — a git fact — so the guard's third fact should stay silent then.
 
 ## Review
 
-(pending — findings land here before their fixes, same commit)
+- r1: any deletion in branch history counted as the ritual — deleting an
+  inherited stale file excused a branch that never wrote its own; excuse now
+  requires the branch to have ADDED the file it deletes (A-and-D
+  intersection over merge-base..HEAD) (fixed)
+- r2: excuse is permanent for the branch — post-ritual code commits stay
+  silent; deliberate (finish window = PR-body tweaks, base merges; follow-up
+  work re-cuts from base, which moves the merge-base past the ritual and
+  re-arms the fact), now documented in the header comment (wontfix, by
+  design)
+- r3: ritual detector matched nested docs/handover/<subdir>/*.md while
+  has_ws is maxdepth-1; deletion paths now filtered to top-level, same split
+  (fixed)
 
 ## Blockers
 
