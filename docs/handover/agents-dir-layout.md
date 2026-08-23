@@ -7,7 +7,7 @@ plan: none
 session: https://claude.ai/code/session_0178f1MyS7qfR1ovDhqt4pH8
 agent: sonnet
 updated: 2026-08-23
-next: Verify the root AGENTS.md @-import resolves from a dotted path in a FRESH session before merge
+next: Merge when GitHub checks green (step 7 conditions; ci and verify owed green first)
 ---
 
 ## Goal
@@ -49,18 +49,38 @@ place any tool can look to find out this repo runs an agent harness.
 
 ## Review
 
-None yet — edge-to-main review still owed. Diff is wide (moves plus ~150
-re-pointed references); review wants the mechanical pass separated from the
-three hand-edited files: `joharness.sh`, `scripts/sync-to-consumer.sh`,
-`.agents/harness/README.md`.
+`/code-review` (high) on full diff vs `main`, round 1:
+
+- r1: legacy-layout warning keyed on `env/README.md` merely existing — a
+  consumer's OWN file at that path would draw `git rm -r env` advice at
+  consumer files. Old-path files now blob-vouched via `in_history`, the
+  same rule every stale-vs-AHEAD call uses; shallow canonical degrades to
+  silence. (fixed)
+- r2: warning not gated on the new tree standing — a `--dry-run` before
+  the first sync places nothing, so "nothing reads the old tree" would
+  advise deleting the LIVE harness. Gated on
+  `DEST/.agents/harness/AGENTS.md` existing. (fixed)
+- r3: `.agents/env/README.md` caveman link broke in the move
+  (`../docs/` is one level short from the new depth). (fixed)
+- r4: `@.agents/harness/AGENTS.md` import unverified through a dotted
+  dir. Verified empirically: CLI 2.1.241, scratch project with the exact
+  chain `CLAUDE.md → @AGENTS.md → @.agents/harness/AGENTS.md`, sentinel
+  in the imported file comes back from a fresh `claude --print`. (fixed)
+- r5: `.agents/env/k8s/AGENTS.md` self-link `(.agents/env/k8s/README.md)`
+  resolves nested from inside its own dir; same defect was fixed in the
+  docker sibling, this one missed. (fixed)
+- r6: "remedy names only what exists" test needle was a substring of the
+  failure-mode output — could never fail. Needle pins the remedy tail;
+  fixture canonical grew pre-move history so blob-vouching is testable,
+  plus consumer-own-content and dry-run-gate cases. (fixed)
+- r7: recorded in `consumer-repo-entrypoint.md` (hardcoded canonical URL;
+  fixed on that branch, merged in).
+
+Repo-wide relative-link audit after r3/r5: 0 broken.
 
 ## Blockers
 
-One unverifiable-here risk, not a blocker to review: root `AGENTS.md` now
-imports `@.agents/harness/AGENTS.md`. This session's context was built
-BEFORE the move, so it proves nothing about whether Claude Code resolves an
-@-import through a dotted directory. A fresh session in this branch either
-shows the harness rules in context or does not. Check before merge.
+None.
 
 ## Where to look
 

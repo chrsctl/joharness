@@ -1060,6 +1060,16 @@ step "sync-to-consumer.sh"
 
 syncsrc="${TMP}/syncsrc"
 git init -q "$syncsrc"
+# Pre-move history first: the legacy-layout warning vouches for a
+# consumer's old-path files by blob identity against canonical history,
+# so the scratch canonical must have carried harness/ and env/ at the
+# root once — deleted before v1, blobs stay reachable.
+mkdir -p "${syncsrc}/harness" "${syncsrc}/env"
+printf 'old loop\n' >"${syncsrc}/harness/AGENTS.md"
+printf 'old layers\n' >"${syncsrc}/env/README.md"
+commit_all "$syncsrc" "canonical v0, pre-.agents layout"
+git -C "$syncsrc" rm -rq harness env
+git -C "$syncsrc" commit -qm "move layers under .agents/"
 mkdir -p "${syncsrc}/.agents/harness" "${syncsrc}/scripts" "${syncsrc}/.agents/env/none" \
   "${syncsrc}/.claude/commands" "${syncsrc}/.claude/skills/steward" \
   "${syncsrc}/docs/handover" \
@@ -1202,20 +1212,34 @@ fi
 
 # Pre-.agents layout left behind: both layers moved under .agents/ and
 # removals do not travel, so a consumer synced across the move keeps a dead
-# root harness/ and env/. Warned every run until it goes, and the remedy
-# names only what is actually there.
+# root harness/ and env/. Warned every run until it goes; the old files are
+# vouched by blob against canonical history ('old loop' / 'old layers' =
+# scratch canonical's v0), and the remedy names only what is there.
 mkdir -p "${syncdst}/harness" "${syncdst}/env"
 printf 'old loop\n' >"${syncdst}/harness/AGENTS.md"
 printf 'old layers\n' >"${syncdst}/env/README.md"
 out="$(sync "$syncdst")" || :
 expect "legacy layout warned" "still carries pre-.agents layout (harness env)" "$out"
-expect "legacy remedy names both dirs" "git rm -r harness env" "$out"
+expect "legacy remedy names both dirs" "git rm -r harness env (docs" "$out"
 
 # Only one half left: the remedy must not name a path that is not there —
-# `git rm -r` fails on it, and a remedy that errors reads as advice to skip.
+# `git rm -r` fails on it, and a remedy that errors reads as advice to
+# skip. The needle pins the remedy's tail: a plain 'git rm -r harness'
+# grep is a substring of the two-dir remedy and could never fail.
 rm -f "${syncdst}/env/README.md"
 out="$(sync "$syncdst")" || :
-expect "legacy remedy names only what exists" "git rm -r harness" "$out"
+expect "legacy remedy names only what exists" "git rm -r harness (docs" "$out"
+
+# A consumer's own harness/AGENTS.md — content canonical history does not
+# know — is the consumer's business: `git rm -r` advice at it would aim
+# the delete at consumer files. Same blob rule as every AHEAD call.
+printf 'my own agent rules\n' >"${syncdst}/harness/AGENTS.md"
+out="$(sync "$syncdst")" || :
+if grep -qF 'pre-.agents layout' <<<"$out"; then
+  fail "consumer-own content at the old path stays silent"
+else
+  pass "consumer-own content at the old path stays silent"
+fi
 
 # A consumer's own unrelated env/ is not the old layer. Keyed on the
 # harness-owned file inside, never on the bare directory name.
@@ -1228,6 +1252,24 @@ else
   pass "consumer's own env/ does not trip the legacy warning"
 fi
 rm -rf "${syncdst}/env"
+
+# Dry run on a pre-move consumer: .agents/ is not placed (nothing is), so
+# the old tree IS the live harness — 'nothing reads the old tree' would
+# advise deleting it. Gate: warn only once the new tree stands.
+syncdst_pre="${TMP}/syncdst-premove"
+mkdir -p "${syncdst_pre}/harness" "${syncdst_pre}/env"
+printf 'old loop\n' >"${syncdst_pre}/harness/AGENTS.md"
+printf 'old layers\n' >"${syncdst_pre}/env/README.md"
+cp "${syncsrc}/AGENTS.md" "${syncdst_pre}/AGENTS.md"
+out="$(sync --dry-run "$syncdst_pre")" || :
+if grep -qF 'pre-.agents layout' <<<"$out"; then
+  fail "dry run before first sync does not advise deleting the live harness"
+else
+  pass "dry run before first sync does not advise deleting the live harness"
+fi
+# Same consumer after the real sync places .agents/: now the warning is due.
+out="$(sync "$syncdst_pre")" || :
+expect "real sync then warns on the dead tree" "pre-.agents layout (harness env)" "$out"
 
 # Consumer AGENTS.md without the marker: refuse whole-file, touch nothing.
 syncdst2="${TMP}/syncdst2"

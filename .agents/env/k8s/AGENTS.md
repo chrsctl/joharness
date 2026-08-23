@@ -45,7 +45,7 @@ written numbers — including this one. Image lacks shellcheck:
 
 Sandbox = Firecracker microVM + filtering egress proxy. Workarounds in
 `.agents/env/k8s/devenv.sh` load bearing. NEVER remove. Symptoms + full story:
-[`.agents/env/k8s/README.md`](.agents/env/k8s/README.md).
+[`.agents/env/k8s/README.md`](README.md).
 
 - Stock `kind` / plain k3s fail here. Kernel refuses negative `oom_score_adj`,
   every pod stuck `ContainerCreating` forever, cluster looks healthy.
