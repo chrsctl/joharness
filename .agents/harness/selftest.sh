@@ -407,7 +407,7 @@ git -C "$work" branch -qD reviewed
 # the file in.
 git -C "$work" checkout -qb templated main
 mkdir -p "${work}/docs/handover"
-cp "${ROOT}/docs/handover/TEMPLATE.md" "${work}/docs/handover/templated-ws.md"
+cp "${ROOT}/.agents/docs/handover/TEMPLATE.md" "${work}/docs/handover/templated-ws.md"
 echo templated >"${work}/templated.txt"
 commit_all "$work" "untouched template"
 git -C "$work" push -qu origin templated
@@ -1064,19 +1064,23 @@ git init -q "$syncsrc"
 # consumer's old-path files by blob identity against canonical history,
 # so the scratch canonical must have carried harness/ and env/ at the
 # root once — deleted before v1, blobs stay reachable.
-mkdir -p "${syncsrc}/harness" "${syncsrc}/env"
+mkdir -p "${syncsrc}/harness" "${syncsrc}/env" "${syncsrc}/docs/plans" \
+  "${syncsrc}/scripts"
 printf 'old loop\n' >"${syncsrc}/harness/AGENTS.md"
 printf 'old layers\n' >"${syncsrc}/env/README.md"
+printf 'old planq\n' >"${syncsrc}/docs/plans/README.md"
+printf 'old engine\n' >"${syncsrc}/scripts/sync-to-consumer.sh"
 commit_all "$syncsrc" "canonical v0, pre-.agents layout"
-git -C "$syncsrc" rm -rq harness env
+git -C "$syncsrc" rm -rq harness env docs/plans/README.md scripts
 git -C "$syncsrc" commit -qm "move layers under .agents/"
-mkdir -p "${syncsrc}/.agents/harness" "${syncsrc}/scripts" "${syncsrc}/.agents/env/none" \
+mkdir -p "${syncsrc}/.agents/harness" "${syncsrc}/.agents/scripts" \
+  "${syncsrc}/.agents/env/none" \
   "${syncsrc}/.claude/commands" "${syncsrc}/.claude/skills/steward" \
-  "${syncsrc}/docs/handover" \
-  "${syncsrc}/docs/plans" "${syncsrc}/docs/product"
+  "${syncsrc}/.agents/docs/handover" \
+  "${syncsrc}/.agents/docs/plans" "${syncsrc}/.agents/docs/product"
 printf 'JOHARNESS_CANONICAL=1\n' >"${syncsrc}/joharness.conf"
 printf 'loop v1\n' >"${syncsrc}/.agents/harness/AGENTS.md"
-printf 'tiers v1\n' >"${syncsrc}/docs/agent-selection.md"
+printf 'tiers v1\n' >"${syncsrc}/.agents/docs/agent-selection.md"
 # Glob-metacharacter name beside its glob sibling: pathspecs must be
 # literal or a1.md's history vouches for edits to a[1].md.
 printf 'glob-sib v1\n' >"${syncsrc}/.agents/env/none/a1.md"
@@ -1084,18 +1088,19 @@ printf 'bracket own\n' >"${syncsrc}/.agents/env/none/a[1].md"
 printf 'claude rules\n' >"${syncsrc}/CLAUDE.md"
 printf 'entry stub\n' >"${syncsrc}/joharness.sh"
 chmod +x "${syncsrc}/joharness.sh"
-printf 'sync stub\n' >"${syncsrc}/scripts/sync-to-consumer.sh"
-printf 'boot stub\n' >"${syncsrc}/scripts/bootstrap-consumer.sh"
+printf 'sync stub\n' >"${syncsrc}/.agents/scripts/sync-to-consumer.sh"
+printf 'boot stub\n' >"${syncsrc}/.agents/scripts/bootstrap-consumer.sh"
 printf 'layer none\n' >"${syncsrc}/.agents/env/none/AGENTS.md"
 printf 'who cmd\n' >"${syncsrc}/.claude/commands/who.md"
 printf 'steward SKILL-SENTINEL\n' >"${syncsrc}/.claude/skills/steward/SKILL.md"
 # Every FILES entry must exist: a listed-but-missing file fails the run.
 printf 'attrs\n' >"${syncsrc}/.gitattributes"
 printf '{}\n' >"${syncsrc}/.claude/settings.json"
-for stub in docs/caveman.md docs/consumer-repos.md docs/graph.md \
-  docs/handover/README.md docs/handover/TEMPLATE.md \
-  docs/plans/README.md docs/plans/TEMPLATE.md \
-  docs/product/README.md docs/product/TEMPLATE.md; do
+for stub in .agents/docs/caveman.md .agents/docs/consumer-repos.md \
+  .agents/docs/graph.md \
+  .agents/docs/handover/README.md .agents/docs/handover/TEMPLATE.md \
+  .agents/docs/plans/README.md .agents/docs/plans/TEMPLATE.md \
+  .agents/docs/product/README.md .agents/docs/product/TEMPLATE.md; do
   printf 'stub %s\n' "$stub" >"${syncsrc}/${stub}"
 done
 cat >"${syncsrc}/AGENTS.md" <<'EOF'
@@ -1140,7 +1145,7 @@ EOF
 
 sync() {
   JOHARNESS_SYNC_ROOT="$syncsrc" \
-    bash "${ROOT}/scripts/sync-to-consumer.sh" "$@" 2>&1
+    bash "${ROOT}/.agents/scripts/sync-to-consumer.sh" "$@" 2>&1
 }
 
 out="$(sync --dry-run "$syncdst")"
@@ -1156,7 +1161,7 @@ out="$(sync "$syncdst")"; rc=$?
 expect "stale file updated to canonical" \
   "CANON-LOOP-SENTINEL" "$(cat "${syncdst}/.agents/harness/AGENTS.md")"
 expect "missing file created" "tiers v1" \
-  "$(cat "${syncdst}/docs/agent-selection.md" 2>/dev/null)"
+  "$(cat "${syncdst}/.agents/docs/agent-selection.md" 2>/dev/null)"
 expect "skills dir ships" "steward SKILL-SENTINEL" \
   "$(cat "${syncdst}/.claude/skills/steward/SKILL.md" 2>/dev/null)"
 expect "ahead file flagged" "AHEAD   CLAUDE.md" "$out"
@@ -1220,7 +1225,7 @@ printf 'old loop\n' >"${syncdst}/harness/AGENTS.md"
 printf 'old layers\n' >"${syncdst}/env/README.md"
 out="$(sync "$syncdst")" || :
 expect "legacy layout warned" "still carries pre-.agents layout (harness env)" "$out"
-expect "legacy remedy names both dirs" "git rm -r harness env (docs" "$out"
+expect "legacy remedy names both dirs" "git rm -r harness env (.agents/docs" "$out"
 
 # Only one half left: the remedy must not name a path that is not there —
 # `git rm -r` fails on it, and a remedy that errors reads as advice to
@@ -1228,7 +1233,7 @@ expect "legacy remedy names both dirs" "git rm -r harness env (docs" "$out"
 # grep is a substring of the two-dir remedy and could never fail.
 rm -f "${syncdst}/env/README.md"
 out="$(sync "$syncdst")" || :
-expect "legacy remedy names only what exists" "git rm -r harness (docs" "$out"
+expect "legacy remedy names only what exists" "git rm -r harness (.agents/docs" "$out"
 
 # A consumer's own harness/AGENTS.md — content canonical history does not
 # know — is the consumer's business: `git rm -r` advice at it would aim
@@ -1252,6 +1257,35 @@ else
   pass "consumer's own env/ does not trip the legacy warning"
 fi
 rm -rf "${syncdst}/env"
+
+# File tier: protocol docs and sync tools moved OUT of dirs that still
+# hold live consumer work, so the remedy names files and never -r. Blob
+# rule as above: 'old planq' / 'old engine' are canonical v0 blobs.
+mkdir -p "${syncdst}/docs/plans" "${syncdst}/scripts"
+printf 'old planq\n' >"${syncdst}/docs/plans/README.md"
+printf 'old engine\n' >"${syncdst}/scripts/sync-to-consumer.sh"
+out="$(sync "$syncdst")" || :
+expect "legacy protocol files warned" \
+  "pre-.agents protocol files (docs/plans/README.md scripts/sync-to-consumer.sh)" "$out"
+expect "file remedy is git rm without -r" \
+  "git rm docs/plans/README.md scripts/sync-to-consumer.sh (" "$out"
+if grep -qF -- "-r docs" <<<"$out"; then
+  fail "file remedy never aims -r at docs/"
+else
+  pass "file remedy never aims -r at docs/"
+fi
+
+# A consumer's own README at the old path is its own index, not the moved
+# protocol doc — silence, same blob rule as the dir tier.
+printf 'my own index\n' >"${syncdst}/docs/plans/README.md"
+rm -f "${syncdst}/scripts/sync-to-consumer.sh"
+out="$(sync "$syncdst")" || :
+if grep -qF 'pre-.agents protocol files' <<<"$out"; then
+  fail "consumer-own file at old protocol path stays silent"
+else
+  pass "consumer-own file at old protocol path stays silent"
+fi
+rm -rf "${syncdst}/docs" "${syncdst}/scripts"
 
 # Dry run on a pre-move consumer: .agents/ is not placed (nothing is), so
 # the old tree IS the live harness — 'nothing reads the old tree' would
@@ -1303,13 +1337,13 @@ expect "edited harness section kept" "LOCAL-HARNESS-EDIT" \
 # Directory squatting on a file's path: cp would drop the file inside it
 # as 'new' on every rerun — refused instead.
 syncdst5="${TMP}/syncdst5"
-mkdir -p "${syncdst5}/docs/caveman.md"
+mkdir -p "${syncdst5}/.agents/docs/caveman.md"
 if out="$(sync "$syncdst5")"; then
   fail "dir squatting on file path fails the run"
 else
   pass "dir squatting on file path fails the run"
 fi
-expect "squatting dir named" "docs/caveman.md is not a regular file" "$out"
+expect "squatting dir named" ".agents/docs/caveman.md is not a regular file" "$out"
 
 # CRLF consumer AGENTS.md (Windows checkout): marker still found, head
 # still recognized as historical, splice lands LF.
@@ -1356,13 +1390,13 @@ if [ "$HAVE_SYMLINK" = "1" ]; then
   syncdst8="${TMP}/syncdst8"
   outside="${TMP}/outside-tree"
   mkdir -p "$syncdst8" "$outside"
-  ln -s "$outside" "${syncdst8}/docs"
+  ln -s "$outside" "${syncdst8}/.agents"
   if out="$(sync "$syncdst8")"; then
     fail "symlinked ancestor dir fails the run"
   else
     pass "symlinked ancestor dir fails the run"
   fi
-  expect "symlinked ancestor named" "passes through symlinked directory docs/" "$out"
+  expect "symlinked ancestor named" "passes through symlinked directory .agents/" "$out"
   if [ -z "$(ls -A "$outside")" ]; then
     pass "nothing written through symlinked ancestor"
   else
@@ -1376,14 +1410,14 @@ fi
 # after earlier writes — preflight refuses with nothing written.
 syncdst9="${TMP}/syncdst9"
 mkdir -p "$syncdst9"
-printf 'file not dir\n' >"${syncdst9}/docs"
+printf 'file not dir\n' >"${syncdst9}/.agents"
 if out="$(sync "$syncdst9")"; then
   fail "file squatting ancestor path fails the run"
 else
   pass "file squatting ancestor path fails the run"
 fi
-expect "squatting ancestor named" "passes through non-directory docs" "$out"
-if [ "$(ls -A "$syncdst9")" = "docs" ]; then
+expect "squatting ancestor named" "passes through non-directory .agents" "$out"
+if [ "$(ls -A "$syncdst9")" = ".agents" ]; then
   pass "refusal wrote nothing past squatting ancestor"
 else
   fail "refusal wrote nothing past squatting ancestor ($(ls -A "$syncdst9"))"
@@ -1392,7 +1426,7 @@ fi
 # Leftover JOHARNESS_SYNC_ROOT pointing anywhere but a harness canonical
 # dies loudly instead of silently syncing from the wrong tree.
 out="$(JOHARNESS_SYNC_ROOT="${TMP}/not-a-canonical" \
-  bash "${ROOT}/scripts/sync-to-consumer.sh" "$syncdst9" 2>&1)" && rc=0 || rc=$?
+  bash "${ROOT}/.agents/scripts/sync-to-consumer.sh" "$syncdst9" 2>&1)" && rc=0 || rc=$?
 if [ "$rc" -eq 1 ]; then
   pass "bad JOHARNESS_SYNC_ROOT refused"
 else
@@ -1404,11 +1438,11 @@ expect "bad JOHARNESS_SYNC_ROOT named" "does not look like a harness canonical" 
 # canonical marker in its conf) must refuse: consumer-to-consumer sync
 # is forbidden.
 noncanon="${TMP}/noncanon"
-mkdir -p "${noncanon}/scripts"
-printf 'stub\n' >"${noncanon}/scripts/sync-to-consumer.sh"
+mkdir -p "${noncanon}/.agents/scripts"
+printf 'stub\n' >"${noncanon}/.agents/scripts/sync-to-consumer.sh"
 git init -q "$noncanon"
 out="$(JOHARNESS_SYNC_ROOT="$noncanon" \
-  bash "${ROOT}/scripts/sync-to-consumer.sh" "$syncdst9" 2>&1)" && rc=0 || rc=$?
+  bash "${ROOT}/.agents/scripts/sync-to-consumer.sh" "$syncdst9" 2>&1)" && rc=0 || rc=$?
 if [ "$rc" -eq 1 ]; then
   pass "consumer copy refuses to sync out"
 else
@@ -1420,9 +1454,9 @@ expect "consumer copy refusal names the doctrine" \
 # Canonical listed-but-missing file: silent drift is the failure mode, so
 # the run must end nonzero, not whisper to stderr. Mutates the canonical
 # fixture — keep these two cases last.
-git -C "$syncsrc" rm -q docs/graph.md
+git -C "$syncsrc" rm -q CLAUDE.md
 git -C "$syncsrc" rm -q -r .claude/commands
-commit_all "$syncsrc" "drop graph doc and commands dir"
+commit_all "$syncsrc" "drop CLAUDE.md and commands dir"
 syncdst3="${TMP}/syncdst3"
 mkdir -p "$syncdst3"
 out="$(sync "$syncdst3")"; rc=$?
@@ -1431,7 +1465,7 @@ if [ "$rc" -eq 3 ]; then
 else
   fail "listed file missing from canonical exits 3 (got ${rc})"
 fi
-expect "missing canonical file named" "canonical has no docs/graph.md" "$out"
+expect "missing canonical file named" "canonical has no CLAUDE.md" "$out"
 expect "missing canonical dir named" "canonical has no .claude/commands/" "$out"
 
 # Untracked scratch under a synced dir cannot ship (ls-files drives the
@@ -1508,19 +1542,21 @@ step "bootstrap-consumer.sh"
 
 bootsrc="${TMP}/bootsrc"
 git init -q "$bootsrc"
-mkdir -p "${bootsrc}/.agents/harness" "${bootsrc}/scripts" "${bootsrc}/.agents/env/none" \
+mkdir -p "${bootsrc}/.agents/harness" "${bootsrc}/.agents/scripts" \
+  "${bootsrc}/.agents/env/none" "${bootsrc}/.agents/docs/handover" \
+  "${bootsrc}/.agents/docs/plans" "${bootsrc}/.agents/docs/product" \
   "${bootsrc}/.claude/commands" "${bootsrc}/.claude/skills/steward" \
   "${bootsrc}/docs/handover" \
   "${bootsrc}/docs/plans" "${bootsrc}/docs/product" \
   "${bootsrc}/.github/workflows"
 printf 'JOHARNESS_CANONICAL=1\n' >"${bootsrc}/joharness.conf"
 printf 'loop BOOT-LOOP-SENTINEL\n' >"${bootsrc}/.agents/harness/AGENTS.md"
-printf 'tiers v1\n' >"${bootsrc}/docs/agent-selection.md"
+printf 'tiers v1\n' >"${bootsrc}/.agents/docs/agent-selection.md"
 printf 'claude rules\n' >"${bootsrc}/CLAUDE.md"
 printf 'entry stub\n' >"${bootsrc}/joharness.sh"
 chmod +x "${bootsrc}/joharness.sh"
-printf 'sync stub\n' >"${bootsrc}/scripts/sync-to-consumer.sh"
-printf 'boot stub\n' >"${bootsrc}/scripts/bootstrap-consumer.sh"
+printf 'sync stub\n' >"${bootsrc}/.agents/scripts/sync-to-consumer.sh"
+printf 'boot stub\n' >"${bootsrc}/.agents/scripts/bootstrap-consumer.sh"
 printf 'layer none\n' >"${bootsrc}/.agents/env/none/AGENTS.md"
 printf 'who cmd\n' >"${bootsrc}/.claude/commands/who.md"
 printf 'steward stub\n' >"${bootsrc}/.claude/skills/steward/SKILL.md"
@@ -1531,10 +1567,11 @@ printf '{}\n' >"${bootsrc}/.claude/settings.json"
 # recognizable ones.
 printf 'BOOT-CI-STUB\n' >"${bootsrc}/.github/workflows/ci.yml"
 printf 'BOOT-UPDATE-STUB\n' >"${bootsrc}/.github/workflows/update.yml"
-for stub in docs/caveman.md docs/consumer-repos.md docs/graph.md \
-  docs/handover/README.md docs/handover/TEMPLATE.md \
-  docs/plans/README.md docs/plans/TEMPLATE.md \
-  docs/product/README.md docs/product/TEMPLATE.md; do
+for stub in .agents/docs/caveman.md .agents/docs/consumer-repos.md \
+  .agents/docs/graph.md \
+  .agents/docs/handover/README.md .agents/docs/handover/TEMPLATE.md \
+  .agents/docs/plans/README.md .agents/docs/plans/TEMPLATE.md \
+  .agents/docs/product/README.md .agents/docs/product/TEMPLATE.md; do
   printf 'stub %s\n' "$stub" >"${bootsrc}/${stub}"
 done
 cat >"${bootsrc}/AGENTS.md" <<'EOF'
@@ -1548,7 +1585,7 @@ commit_all "$bootsrc" "boot canonical v1"
 
 boot() {
   JOHARNESS_SYNC_ROOT="$bootsrc" \
-    bash "${ROOT}/scripts/bootstrap-consumer.sh" "$@" 2>&1
+    bash "${ROOT}/.agents/scripts/bootstrap-consumer.sh" "$@" 2>&1
 }
 
 tree_sum() { (cd "$1" && find . -type f -exec cksum {} + | sort); }
@@ -1566,6 +1603,12 @@ else
 fi
 expect "harness files placed" "BOOT-LOOP-SENTINEL" \
   "$(cat "${bootdst1}/.agents/harness/AGENTS.md" 2>/dev/null)"
+if [ -d "${bootdst1}/docs/handover" ] && [ -d "${bootdst1}/docs/plans" ] &&
+  [ -d "${bootdst1}/docs/product" ]; then
+  pass "fresh bootstrap stands up the work dirs"
+else
+  fail "fresh bootstrap stands up the work dirs"
+fi
 expect "AGENTS.md keeps canonical head" "BOOT-HARNESS-HEAD" \
   "$(cat "${bootdst1}/AGENTS.md" 2>/dev/null)"
 expect "AGENTS.md Part 2 is the consumer stub" \
@@ -1593,7 +1636,7 @@ else
   fail "re-bootstrap refused (got ${rc})"
 fi
 expect "refusal points at the steady-state tool" \
-  "scripts/sync-to-consumer.sh" "$out"
+  ".agents/scripts/sync-to-consumer.sh" "$out"
 if [ "$(tree_sum "$bootdst1")" = "$before" ]; then
   pass "refusal changes nothing"
 else
@@ -1660,10 +1703,12 @@ else
   fail "live workstream files deleted"
 fi
 expect "each deletion printed" "delete  docs/plans/some-plan.md" "$out"
-expect "docs README survives the purge" "stub docs/plans/README.md" \
-  "$(cat "${bootdst4}/docs/plans/README.md" 2>/dev/null)"
-expect "docs TEMPLATE survives the purge" "stub docs/plans/TEMPLATE.md" \
-  "$(cat "${bootdst4}/docs/plans/TEMPLATE.md" 2>/dev/null)"
+expect "protocol docs outside the purge survive" \
+  "stub .agents/docs/plans/README.md" \
+  "$(cat "${bootdst4}/.agents/docs/plans/README.md" 2>/dev/null)"
+expect "protocol template outside the purge survives" \
+  "stub .agents/docs/plans/TEMPLATE.md" \
+  "$(cat "${bootdst4}/.agents/docs/plans/TEMPLATE.md" 2>/dev/null)"
 expect "clone AGENTS.md keeps canonical head" "BOOT-HARNESS-HEAD" \
   "$(cat "${bootdst4}/AGENTS.md")"
 expect "clone AGENTS.md Part 2 replaced by stub" \
@@ -1699,11 +1744,11 @@ refute "dry run does not claim conversion" "converted to consumer" "$out"
 # A consumer copy of this script (conf without the marker) must not
 # bootstrap other consumers — same doctrine as the sync engine.
 bootnoncanon="${TMP}/bootnoncanon"
-mkdir -p "${bootnoncanon}/scripts"
-printf 'stub\n' >"${bootnoncanon}/scripts/sync-to-consumer.sh"
+mkdir -p "${bootnoncanon}/.agents/scripts"
+printf 'stub\n' >"${bootnoncanon}/.agents/scripts/sync-to-consumer.sh"
 printf 'JOHARNESS_ENV=none\n' >"${bootnoncanon}/joharness.conf"
 out="$(JOHARNESS_SYNC_ROOT="$bootnoncanon" \
-  bash "${ROOT}/scripts/bootstrap-consumer.sh" "$bootdst3" 2>&1)" \
+  bash "${ROOT}/.agents/scripts/bootstrap-consumer.sh" "$bootdst3" 2>&1)" \
   && rc=0 || rc=$?
 if [ "$rc" -eq 1 ]; then
   pass "non-canonical root refused"

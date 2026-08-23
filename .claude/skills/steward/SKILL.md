@@ -5,8 +5,8 @@ description: Rules for driving this repo's pull requests to merge — read befor
 
 Harness finish rules, restated for the session driving a pull request.
 Same rules as `.agents/harness/AGENTS.md` Loop steps 5-7 — that file wins on any
-conflict. Why-explanations: `docs/handover/README.md`,
-`docs/product/README.md` Branch flow.
+conflict. Why-explanations: `.agents/docs/handover/README.md`,
+`.agents/docs/product/README.md` Branch flow.
 
 ## Before every push
 
@@ -22,7 +22,7 @@ conflict. Why-explanations: `docs/handover/README.md`,
   silent.
 - Fix undoes an earlier round's fix = review churn. Stop patching.
   Research step at raised tier or effort first
-  (`docs/agent-selection.md`, review churn rule). `ci` measures it:
+  (`.agents/docs/agent-selection.md`, review churn rule). `ci` measures it:
   warning from threshold, hard stop from ceiling.
 
 ## Merge conflict with base
@@ -41,7 +41,7 @@ conflict. Why-explanations: `docs/handover/README.md`,
   PR.
 - Merged branch left standing = cosmetic, ignore — hook filters merged
   branches from claims view. Deleting = optional hygiene, human-only
-  (`docs/product/README.md` Branch flow). Session NEVER
+  (`.agents/docs/product/README.md` Branch flow). Session NEVER
   `git push --delete`.
 - PR's final state deletes: the plan file this branch implements, the
   requirement file when this was its last plan, the workstream file.

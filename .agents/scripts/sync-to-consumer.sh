@@ -3,7 +3,7 @@
 # sync-to-consumer.sh - bring a consumer repo's harness copy current.
 #
 # One-way: the joharness checkout this script lives in is canonical, the
-# consumer directory receives. Reconciliation rule (docs/product/README.md):
+# consumer directory receives. Reconciliation rule (.agents/docs/product/README.md):
 # a fix born in a consumer lands in joharness first, then syncs out. So a
 # consumer file whose content is not any historical canonical version of
 # that path is treated as AHEAD: warned about, never overwritten. Stale vs
@@ -25,11 +25,12 @@
 #
 # Not synced, consumer-own: README.md, joharness.conf, .gitignore,
 # .github/workflows/ci.yml and update.yml (both seeded by
-# bootstrap-consumer.sh), and live docs/handover|plans|product/*.md.
-# Removals are not handled: a file canonical deleted stays in the
-# consumer and is reported as consumer-only.
+# bootstrap-consumer.sh), and ALL of docs/ — the work dirs
+# docs/handover|plans|product/ hold only the consumer's live files, the
+# harness ships nothing there. Removals are not handled: a file canonical
+# deleted stays in the consumer and is reported as consumer-only.
 #
-# Usage: scripts/sync-to-consumer.sh [--dry-run] <consumer-dir>
+# Usage: .agents/scripts/sync-to-consumer.sh [--dry-run] <consumer-dir>
 # Exit: 0 synced clean. 1 refused before any write (usage, dirty
 # canonical, structural problem, marker absent) — consumer untouched. An
 # unexpected mid-write tool failure (disk full, permissions) also exits
@@ -54,10 +55,10 @@ export GIT_LITERAL_PATHSPECS=1
 # silently syncing from the wrong tree.
 if [ -n "${JOHARNESS_SYNC_ROOT:-}" ]; then
   ROOT="$JOHARNESS_SYNC_ROOT"
-  [ -f "${ROOT}/scripts/sync-to-consumer.sh" ] ||
-    { printf '[joharness] ERROR: JOHARNESS_SYNC_ROOT %s does not look like a harness canonical (no scripts/sync-to-consumer.sh); unset it\n' "$ROOT" >&2; exit 1; }
+  [ -f "${ROOT}/.agents/scripts/sync-to-consumer.sh" ] ||
+    { printf '[joharness] ERROR: JOHARNESS_SYNC_ROOT %s does not look like a harness canonical (no .agents/scripts/sync-to-consumer.sh); unset it\n' "$ROOT" >&2; exit 1; }
 else
-  ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+  ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 fi
 MARKER='# Part 2 — project'
 
@@ -98,7 +99,7 @@ top="$(cd "$top" 2>/dev/null && pwd -P)" ||
   die "canonical '$ROOT' is nested inside another git checkout (${top})"
 # Consumers receive this script too and would pass every structural
 # check, but consumer-to-consumer sync is forbidden
-# (docs/product/README.md, Reconciliation). Only canonical carries the
+# (.agents/docs/product/README.md, Reconciliation). Only canonical carries the
 # marker; the conf is never synced, so no sync-born consumer inherits
 # it. A whole clone of joharness carries it — bootstrap-consumer.sh
 # strips it there, joharness.conf says so at the marker.
@@ -112,26 +113,18 @@ FILES=(
   .gitattributes
   .claude/settings.json
   joharness.sh
-  scripts/sync-to-consumer.sh
-  scripts/bootstrap-consumer.sh
-  docs/agent-selection.md
-  docs/caveman.md
-  docs/consumer-repos.md
-  docs/graph.md
-  docs/handover/README.md
-  docs/handover/TEMPLATE.md
-  docs/plans/README.md
-  docs/plans/TEMPLATE.md
-  docs/product/README.md
-  docs/product/TEMPLATE.md
 )
 
 # Every file under these ships. .agents/env/ ships all layers, selected or
 # not — ci covers them all and a consumer flips layers via its own
-# joharness.conf.
+# joharness.conf. .agents/docs and .agents/scripts ship whole for the
+# same reason FILES stays tiny: a fully harness-owned tree is a DIRS
+# entry, FILES is only for files pinned to the repo root by convention.
 DIRS=(
   .agents/harness
   .agents/env
+  .agents/docs
+  .agents/scripts
   .claude/commands
   .claude/skills
 )
@@ -309,7 +302,7 @@ sync_file() {
   else
     printf '  AHEAD   %s\n' "$rel"
     warn "${rel}: consumer content not in canonical history; NOT overwritten." \
-      "Land the fix in joharness first (docs/product/README.md," \
+      "Land the fix in joharness first (.agents/docs/product/README.md," \
       "Reconciliation) — or fetch a current canonical."
     AHEAD=$((AHEAD + 1))
   fi
@@ -504,10 +497,32 @@ is_legacy_layer() {
   [ -f "${DEST}/$1" ] || return 1
   in_history "$1" "$(consumer_blob "$1" "${DEST}/$1")"
 }
-legacy=""
+# Two tiers. Dir tier: harness/ and env/ were wholly harness-owned, the
+# remedy is `git rm -r`. File tier: the protocol docs and sync tools that
+# moved OUT of docs/ and scripts/ sat inside dirs that still hold live
+# consumer work, so the remedy names each file — `git rm -r` on docs/
+# would eat the consumer's own plans and handover.
+LEGACY_FILES=(
+  docs/agent-selection.md
+  docs/caveman.md
+  docs/consumer-repos.md
+  docs/graph.md
+  docs/handover/README.md
+  docs/handover/TEMPLATE.md
+  docs/plans/README.md
+  docs/plans/TEMPLATE.md
+  docs/product/README.md
+  docs/product/TEMPLATE.md
+  scripts/sync-to-consumer.sh
+  scripts/bootstrap-consumer.sh
+)
+legacy="" legacy_files=""
 if [ -f "${DEST}/.agents/harness/AGENTS.md" ]; then
   is_legacy_layer harness/AGENTS.md && legacy="harness"
   is_legacy_layer env/README.md && legacy="${legacy}${legacy:+ }env"
+  for rel in "${LEGACY_FILES[@]}"; do
+    is_legacy_layer "$rel" && legacy_files="${legacy_files}${legacy_files:+ }${rel}"
+  done
 fi
 if [ -n "$legacy" ]; then
   # The remedy names the directories actually found, not both: `git rm -r`
@@ -515,7 +530,12 @@ if [ -n "$legacy" ]; then
   # advice to ignore.
   warn "consumer still carries pre-.agents layout (${legacy}); the harness now" \
     "runs from .agents/. Nothing reads the old tree — remove it once:" \
-    "git rm -r ${legacy} (docs/consumer-repos.md, Migration)."
+    "git rm -r ${legacy} (.agents/docs/consumer-repos.md, Migration)."
+fi
+if [ -n "$legacy_files" ]; then
+  warn "consumer still carries pre-.agents protocol files (${legacy_files});" \
+    "these moved under .agents/. Remove them once — files only, never -r" \
+    "on docs/: git rm ${legacy_files} (.agents/docs/consumer-repos.md, Migration)."
 fi
 
 if [ "$AHEAD" -gt 0 ]; then

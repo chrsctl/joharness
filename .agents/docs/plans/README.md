@@ -9,7 +9,7 @@ then oldest actionable plan here. Issues = human asks and bugs; plans
 session.
 
 Written for agents — literal readers. Background:
-[`docs/agent-selection.md`](../agent-selection.md). A plan says scope AND
+[`.agents/docs/agent-selection.md`](../agent-selection.md). A plan says scope AND
 out-of-scope explicitly; agent does what plan says, nothing else.
 
 Session-start hook prints the queue — urgent first, then oldest, each with
@@ -37,12 +37,12 @@ optional `scope` (path prefixes the plan will touch; the queue hook proves
 parallel safety inside a wave of disjoint scopes and names the conflict
 across waves — `needs` alone cannot say two plans edit the same file). Plans get matched to
 agents, not one agent to all plans; selection rules:
-[`docs/agent-selection.md`](../agent-selection.md). Implementing session
+[`.agents/docs/agent-selection.md`](../agent-selection.md). Implementing session
 may escalate tier or effort, never downgrade.
 
 ## Dependencies and parallel work
 
-Queue = DAG (edge model: [`docs/graph.md`](../graph.md)). `needs:
+Queue = DAG (edge model: [`.agents/docs/graph.md`](../graph.md)). `needs:
 other-plan` blocks a plan while
 `docs/plans/other-plan.md` exists — done plans get deleted on merge, so
 file existence IS the edge; no status field to rot. Hook lists blocked
@@ -62,7 +62,7 @@ codejunkie99/graph-engineering task-graph rules).
   that edge from every branch; queue marks the plan `claimed on <branch>`
   and stops suggesting it. Plan file itself never edited to claim — no
   status field on purpose: field discipline fails exactly when someone
-  hurries (docs/handover/README.md, Graduation). Overlap visible via hook
+  hurries (.agents/docs/handover/README.md, Graduation). Overlap visible via hook
   + `/who`, same as all work.
 - **Done** = implementing PR deletes plan file, same PR as code. Plan
   survives in history like workstream files do. PR = edge to main:

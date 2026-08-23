@@ -3,7 +3,7 @@
 ## Handover
 
 One workstream file per work, `docs/handover/`, on work branch. Protocol:
-[`docs/handover/README.md`](docs/handover/README.md).
+[`.agents/docs/handover/README.md`](.agents/docs/handover/README.md).
 
 - Hook prints state at session start. Names file for this branch? Read whole
   file before touching code.
