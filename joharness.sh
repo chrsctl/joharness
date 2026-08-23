@@ -201,6 +201,12 @@ cmd_ci() {
     rc=1
   fi
 
+  # Graph edges, checked rather than trusted: a dangling frontmatter edge
+  # or out-of-vocabulary enum fails silent everywhere else — the hooks
+  # default it and the queue lies. Rules and the warn/red split: lint_graph.
+  printf '\n== graph lint\n'
+  lint_graph || rc=1
+
   # Review churn, measured rather than noticed. The rule
   # (docs/agent-selection.md) asks a session to see that a fix undid an
   # earlier fix — but the session inside the churn is the one least able to
@@ -305,6 +311,178 @@ churn_top() {
     { grep -vE '^docs/(handover|plans|product)/' || :; } |
     sort | uniq -c | { sort -rn || :; } | head -1 |
     awk '{ c = $1; sub(/^ *[0-9]+ /, ""); printf "%s\t%s\n", c, $0 }'
+}
+
+# ---------------------------------------------------------------------------
+# Graph lint
+#
+# Edges live in frontmatter; a typo kills one silently — a dangling `needs:`
+# reads as free and runs before its input, a workstream `plan:` typo hides
+# the claim so two fresh sessions pick the same plan, an enum outside its
+# vocabulary silently defaults. All checkable from file existence plus
+# frontmatter at read time — no stored state — and the session that wrote
+# the typo is the one that cannot see it, so the gate it cannot skip checks
+# instead (same argument as the churn ceiling). Three-way resolution per
+# name: open file in the tree = live edge; name in HEAD's history = done
+# work, edge inert by design (delete-on-merge IS the state, so `needs` on a
+# merged plan is silent, a claim on one only warns); never existed = typo,
+# red. Hard facts red, judgment calls warn — a stale `Where to look` anchor
+# is the staleness rule's territory (verify-at-read), so it warns, never
+# fails.
+# ---------------------------------------------------------------------------
+
+LINT_RC=0
+LINT_WARNED=0
+
+lint_red()  { printf '  DEAD %s\n' "$*"; LINT_RC=1; }
+lint_warn() { printf '  warn %s\n' "$*"; LINT_WARNED=1; }
+
+# Working-tree nodes of one type, paths relative to ROOT. The tree, not a
+# ref: ci judges what this branch is about to push, uncommitted included.
+lint_nodes() {
+  [ -d "${ROOT}/$1" ] || return 0
+  (cd "$ROOT" && find "$1" -maxdepth 1 -name '*.md' \
+    ! -name 'TEMPLATE.md' ! -name 'README.md' ! -name 'VISION.md' \
+    2>/dev/null | sort)
+}
+
+# Did <rel-path> ever exist on HEAD's line? Literal pathspec: a stem
+# carrying a glob char must match itself, not a sibling (sync's lesson).
+lint_existed() {
+  [ -n "$(GIT_LITERAL_PATHSPECS=1 git -C "$ROOT" log -1 --format=%H \
+    HEAD -- "$1" 2>/dev/null)" ]
+}
+
+# A name neither in the tree nor in visible history is a typo only when
+# the history is whole. A shallow checkout (GitHub's default fetch-depth
+# is 1, and ci.yml on a consumer is consumer-own — no depth fix there can
+# be assumed) cannot tell a typo from a merged-and-deleted plan, and a red
+# it cannot prove would break the invariant that ci here and ci on GitHub
+# mean the same thing — in the bad direction, green locally and red
+# remotely. Degrade to a warning there; the full-history run stays the
+# gate. Same doctrine as churn's "not measurable here".
+lint_shallow() {
+  [ "$(git -C "$ROOT" rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]
+}
+
+lint_stem() { local s="${1##*/}"; printf '%s' "${s%.md}"; }
+
+# <file> <field> <value> <allowed...>: empty passes (hooks default it),
+# anything else outside the vocabulary is red. Whole-word compare, not a
+# substring test: 'haiku sonnet' must not pass because the vocabulary
+# happens to list those words adjacently.
+lint_enum() {
+  local f="$1" k="$2" v="$3" w; shift 3
+  [ -n "$v" ] || return 0
+  for w in "$@"; do
+    [ "$v" = "$w" ] && return 0
+  done
+  lint_red "${f}: ${k} '${v}' not one of: $*"
+}
+
+# Stale anchors under '## Where to look': existence of the path half only —
+# symbols move too often to police, and the staleness rule already says
+# verify before relying. Skips URLs (tested before the colon strip, which
+# would eat them), globs and template placeholders.
+lint_anchors() {
+  local f="$1" a p
+  while IFS= read -r a; do
+    [ -n "$a" ] || continue
+    case "$a" in *'://'*) continue ;; esac
+    p="${a%%:*}"; p="${p%% *}"
+    case "$p" in '' | *'*'* | '<'*) continue ;; esac
+    [ -e "${ROOT}/${p}" ] ||
+      lint_warn "${f}: anchor '${p}' not in tree — verify, fix in place"
+  done < <(awk '/^## Where to look/ { s = 1; next }
+    /^## / { s = 0 }
+    s && /^- `/ { if (match($0, /`[^`]+`/))
+      print substr($0, RSTART + 1, RLENGTH - 2) }' "${ROOT}/${f}")
+}
+
+lint_graph() {
+  LINT_RC=0
+  LINT_WARNED=0
+  local rel doc val n p r
+  local -a need_list
+  local plans=0 workstreams=0 reqs=0
+
+  while IFS= read -r rel; do
+    [ -n "$rel" ] || continue
+    plans=$((plans + 1))
+    doc="$(cat "${ROOT}/${rel}")"
+    lint_enum "$rel" urgency "$(printf '%s\n' "$doc" | gr_field urgency)" \
+      normal urgent
+    lint_enum "$rel" agent "$(printf '%s\n' "$doc" | gr_field agent)" \
+      haiku sonnet opus
+    lint_enum "$rel" effort "$(printf '%s\n' "$doc" | gr_field effort)" \
+      low medium high xhigh
+    val="$(printf '%s\n' "$doc" | gr_field needs)"
+    if [ -n "$val" ] && [ "$val" != "none" ]; then
+      read -ra need_list <<<"${val//,/ }"
+      for n in "${need_list[@]}"; do
+        n="$(lint_stem "$n")"
+        { [ -n "$n" ] && [ "$n" != "none" ]; } || continue
+        [ -f "${ROOT}/docs/plans/${n}.md" ] && continue
+        lint_existed "docs/plans/${n}.md" && continue
+        if lint_shallow; then
+          lint_warn "${rel}: needs '${n}' unknown here (shallow history) — typo or merged, cannot tell"
+        else
+          lint_red "${rel}: needs '${n}' — no such plan, never existed. Typo?"
+        fi
+      done
+    fi
+    r="$(lint_stem "$(printf '%s\n' "$doc" | gr_field requirement)")"
+    if [ -n "$r" ] && [ "$r" != "none" ] &&
+       [ ! -f "${ROOT}/docs/product/${r}.md" ]; then
+      if lint_existed "docs/product/${r}.md"; then
+        lint_warn "${rel}: requirement '${r}' gone from tree — satisfied while this plan is open?"
+      elif lint_shallow; then
+        lint_warn "${rel}: requirement '${r}' unknown here (shallow history) — typo or satisfied, cannot tell"
+      else
+        lint_red "${rel}: requirement '${r}' — no such requirement, never existed. Typo?"
+      fi
+    fi
+    lint_anchors "$rel"
+  done < <(lint_nodes docs/plans)
+
+  while IFS= read -r rel; do
+    [ -n "$rel" ] || continue
+    workstreams=$((workstreams + 1))
+    doc="$(cat "${ROOT}/${rel}")"
+    val="$(printf '%s\n' "$doc" | gr_field status)"
+    if [ -z "$val" ]; then
+      lint_warn "${rel}: no status — hooks read '?'"
+    else
+      lint_enum "$rel" status "$val" in-progress blocked review "done"
+    fi
+    lint_enum "$rel" agent "$(printf '%s\n' "$doc" | gr_field agent)" \
+      haiku sonnet opus
+    p="$(lint_stem "$(printf '%s\n' "$doc" | gr_field plan)")"
+    if [ -n "$p" ] && [ "$p" != "none" ] &&
+       [ ! -f "${ROOT}/docs/plans/${p}.md" ]; then
+      if lint_existed "docs/plans/${p}.md"; then
+        lint_warn "${rel}: claims plan '${p}' gone from tree (merged?) — claim reads as none"
+      elif lint_shallow; then
+        lint_warn "${rel}: plan '${p}' unknown here (shallow history) — typo or merged, cannot tell"
+      else
+        lint_red "${rel}: plan '${p}' — no such plan, never existed. Claim invisible; typo?"
+      fi
+    fi
+    lint_anchors "$rel"
+  done < <(lint_nodes docs/handover)
+
+  while IFS= read -r rel; do
+    [ -n "$rel" ] || continue
+    reqs=$((reqs + 1))
+    lint_enum "$rel" priority \
+      "$(gr_field priority <"${ROOT}/${rel}")" normal urgent
+  done < <(lint_nodes docs/product)
+
+  if [ "$LINT_RC" -eq 0 ] && [ "$LINT_WARNED" -eq 0 ]; then
+    printf '  edges sound (%d plans, %d workstreams, %d requirements)\n' \
+      "$plans" "$workstreams" "$reqs"
+  fi
+  return "$LINT_RC"
 }
 
 # The shellcheck binary is the acceptance bar, but its absence is an
