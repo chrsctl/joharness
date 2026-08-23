@@ -1082,7 +1082,7 @@ printf 'steward SKILL-SENTINEL\n' >"${syncsrc}/.claude/skills/steward/SKILL.md"
 # Every FILES entry must exist: a listed-but-missing file fails the run.
 printf 'attrs\n' >"${syncsrc}/.gitattributes"
 printf '{}\n' >"${syncsrc}/.claude/settings.json"
-for stub in docs/caveman.md docs/graph.md \
+for stub in docs/caveman.md docs/consumer-repos.md docs/graph.md \
   docs/handover/README.md docs/handover/TEMPLATE.md \
   docs/plans/README.md docs/plans/TEMPLATE.md \
   docs/product/README.md docs/product/TEMPLATE.md; do
@@ -1460,7 +1460,7 @@ printf '{}\n' >"${bootsrc}/.claude/settings.json"
 # recognizable ones.
 printf 'BOOT-CI-STUB\n' >"${bootsrc}/.github/workflows/ci.yml"
 printf 'BOOT-UPDATE-STUB\n' >"${bootsrc}/.github/workflows/update.yml"
-for stub in docs/caveman.md docs/graph.md \
+for stub in docs/caveman.md docs/consumer-repos.md docs/graph.md \
   docs/handover/README.md docs/handover/TEMPLATE.md \
   docs/plans/README.md docs/plans/TEMPLATE.md \
   docs/product/README.md docs/product/TEMPLATE.md; do
