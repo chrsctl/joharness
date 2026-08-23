@@ -26,9 +26,12 @@ if [ "${DEVENV_START_CLUSTER:-1}" = "1" ]; then
 fi
 
 # Persist for the rest of the session so kubectl works without extra flags.
+# %q, not a bare double-quoted echo: this file is sourced by a later shell, so
+# a value carrying a double quote, backtick, or $(...) would otherwise run as
+# code the moment it is read. printf %q shell-escapes it back to inert data.
 if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
   {
-    echo "export KUBECONFIG=\"${KUBECONFIG:-$HOME/.kube/config}\""
-    echo "export DEVENV_CLUSTER_NAME=\"${DEVENV_CLUSTER_NAME:-claude-dev}\""
+    printf 'export KUBECONFIG=%q\n' "${KUBECONFIG:-$HOME/.kube/config}"
+    printf 'export DEVENV_CLUSTER_NAME=%q\n' "${DEVENV_CLUSTER_NAME:-claude-dev}"
   } >>"$CLAUDE_ENV_FILE"
 fi
