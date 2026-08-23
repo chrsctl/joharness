@@ -122,7 +122,11 @@ verify_download() {
   fi
   if [ "$got" != "$want" ]; then
     rm -f "$file"
-    die "${what}: sha256 mismatch (want ${want}, got ${got}) — corrupt or tampered download, refusing to install"
+    # Both causes named: the innocent one (a default version bumped without
+    # its digest pin — they are ONE pin, env/k8s/README.md) is the common
+    # case, and a literal reader sent hunting a supply-chain incident for a
+    # stale line would burn a session on the wrong story.
+    die "${what}: sha256 mismatch (want ${want}, got ${got}) — corrupt or tampered download, OR a version bump without its digest pin (env/k8s/README.md); refusing to install"
   fi
 }
 

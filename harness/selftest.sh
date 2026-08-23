@@ -680,12 +680,14 @@ git init -q "$lwork"
 git -C "$lwork" symbolic-ref HEAD refs/heads/main
 commit_all "$lwork" "scratch harness"
 
+# One full ci run per fixture state: output and exit code from the same
+# invocation, so no state pays shellcheck twice.
 lint_ci() { CLAUDE_PROJECT_DIR="$lwork" JOHARNESS_CONF="${lwork}/joharness.conf" \
   GITHUB_ACTIONS='' "${lwork}/joharness.sh" ci 2>&1; }
-lint_section() { lint_ci | sed -n '/== graph lint/,/^$/p'; }
-lint_rc() { lint_ci >/dev/null 2>&1; }
+lint_section() { sed -n '/== graph lint/,/^$/p' <<<"$1"; }
 
-out="$(lint_section)"
+full="$(lint_ci)"
+out="$(lint_section "$full")"
 expect "empty queue reads sound" "edges sound (0 plans, 0 workstreams, 0 requirements)" "$out"
 
 # Never-existed names and a bad enum: hard facts, red, ci fails.
@@ -711,7 +713,8 @@ plan: never-was-plan
 ## Goal
 Fixture.
 EOF
-out="$(lint_section)"
+full="$(lint_ci)"; rc=$?
+out="$(lint_section "$full")"
 expect "enum outside vocabulary is red" \
   "agent 'gpt5' not one of: haiku sonnet opus" "$out"
 expect "adjacent vocabulary words are not a value" \
@@ -720,10 +723,10 @@ expect "dangling needs is red" \
   "needs 'never-was' — no such plan, never existed" "$out"
 expect "dangling claim is red" \
   "plan 'never-was-plan' — no such plan, never existed" "$out"
-if lint_rc; then
-  fail "dead edges fail ci"
-else
+if [ "$rc" -ne 0 ]; then
   pass "dead edges fail ci"
+else
+  fail "dead edges fail ci"
 fi
 
 # Delete-on-merge history: a needed plan deleted from the tree is done
@@ -760,8 +763,11 @@ Fixture.
 ## Where to look
 - `missing/file.sh:symbol` — anchor probe.
 - `https://k3d.io` — a URL is not a path, never warned.
+- `SOME_KNOB_LIMIT=0` — a knob is not a path, never warned.
+- `SOME_ENV_TOGGLE` — no slash, no dot: not this lint's business.
 EOF
-out="$(lint_section)"
+full="$(lint_ci)"; rc=$?
+out="$(lint_section "$full")"
 refute "needs on a merged plan is silent" "DEAD" "$out"
 expect "claim on a merged plan warns" \
   "claims plan 'dep' gone from tree" "$out"
@@ -770,7 +776,9 @@ expect "serving a vanished requirement warns" \
 expect "stale anchor warns" \
   "anchor 'missing/file.sh' not in tree" "$out"
 refute "URL anchor is not warned" "anchor 'https'" "$out"
-if lint_rc; then
+refute "knob anchor is not warned" "anchor 'SOME_KNOB_LIMIT" "$out"
+refute "bare-word anchor is not warned" "anchor 'SOME_ENV_TOGGLE'" "$out"
+if [ "$rc" -eq 0 ]; then
   pass "warnings keep ci green"
 else
   fail "warnings keep ci green"
