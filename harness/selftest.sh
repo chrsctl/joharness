@@ -625,10 +625,10 @@ expect "threshold override reports quiet" "quiet (max 6 commits per file)" "$out
 # drops the exit code (it pipes through sed), so run ci directly for the code.
 # GITHUB_ACTIONS is cleared for the fixture run: on a runner without shellcheck
 # (the Windows job) cmd_ci reds the gate for the missing tool, and every
-# exit-code assertion here would read shellcheck, not churn. Cleared, a missing
-# shellcheck is a loud skip and the exit code belongs to the churn gate alone.
+# exit-code assertion here would read shellcheck, not churn. Cleared, the
+# missing tool is a loud skip and the exit code belongs to the churn gate alone.
 ci_rc() { CLAUDE_PROJECT_DIR="$cwork" JOHARNESS_CONF="${cwork}/joharness.conf" \
-  GITHUB_ACTIONS= "${cwork}/joharness.sh" ci >/dev/null 2>&1; }
+  GITHUB_ACTIONS='' "${cwork}/joharness.sh" ci >/dev/null 2>&1; }
 
 # Default ceiling is 2x the threshold, so six commits stay a warning: ci green.
 if ci_rc; then
