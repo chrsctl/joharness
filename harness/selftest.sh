@@ -635,8 +635,8 @@ fi
 
 # Drop the ceiling onto the same branch: the warning becomes a hard stop.
 out="$(JOHARNESS_CHURN_LIMIT=6 ci_churn)"
-expect "ceiling turns churn into a hard stop" \
-  "hot-file.txt rewritten in 6 commits on this branch (ceiling 6)" "$out"
+expect "ceiling turns churn into a hard stop, space in the name whole" \
+  "hot file.txt rewritten in 6 commits on this branch (ceiling 6)" "$out"
 if JOHARNESS_CHURN_LIMIT=6 ci_rc; then
   fail "churn at the ceiling fails ci"
 else
