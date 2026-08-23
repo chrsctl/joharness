@@ -37,7 +37,7 @@ human work.
 - **Finish** = PR green + reviewed, merge to `main`, PR deletes plan file
   (+ requirement file when last plan). The merging click is the session's
   own for its own PR (ratified 2026-08-23; conditions in
-  `harness/AGENTS.md` step 7), merge-commit method only (why: the filter
+  `.agents/harness/AGENTS.md` step 7), merge-commit method only (why: the filter
   note below). Human veto = revert. Rule syncs to consumers with the
   harness like every Loop rule; a consumer wanting human-click merges
   overrides in its own `AGENTS.md` Part 2. Merged branch may stand: the
