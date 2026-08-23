@@ -79,6 +79,18 @@ fi
 # Only when the branch actually changes code (protocol dirs excluded, same
 # split as the churn measure): copy/sync tasks legitimately carry no file,
 # and a docs-only branch is its own record.
+#
+# A workstream file the branch both ADDED and DELETED in its own history is
+# the finishing ritual (the PR's final state deletes the file), not a
+# missing file — the guard fired on that state every stop from the finish
+# commit until the branch died, including after merge, where a stale local
+# origin/<base> hides the merged state from the merge-base test. Both
+# sides required: deleting an inherited stale file is cleanup, and excuses
+# nothing. An unpushed ritual commit still trips the unpushed fact above.
+# The excuse then holds for the branch's remaining life — deliberate:
+# post-ritual commits are finish work (base merges, review fixes), and
+# follow-up work re-cuts from the base branch (docs/product/README.md),
+# which moves the merge-base past the ritual and re-arms this fact.
 base="$(git merge-base HEAD "origin/${BASE_BRANCH}" 2>/dev/null)"
 if [ -n "$base" ] && [ "$base" != "$(git rev-parse HEAD 2>/dev/null)" ]; then
   code_changed="$(
@@ -90,7 +102,21 @@ if [ -n "$base" ] && [ "$base" != "$(git rev-parse HEAD 2>/dev/null)" ]; then
   has_ws="$(find docs/handover -maxdepth 1 -name '*.md' \
     ! -name 'TEMPLATE.md' ! -name 'README.md' 2>/dev/null | head -1)"
   if [ -n "$code_changed" ] && [ -z "$has_ws" ]; then
-    add_fact "branch changes code but has no workstream file (docs/handover/TEMPLATE.md)"
+    # Intersection via uniq -d over the two deduplicated name sets. The
+    # top-level filter mirrors has_ws's -maxdepth 1: nested files under
+    # docs/handover/ are not workstream files.
+    ritual="$(
+      {
+        git log --diff-filter=A --format= --name-only "${base}..HEAD" -- \
+          docs/handover 2>/dev/null | sort -u
+        git log --diff-filter=D --format= --name-only "${base}..HEAD" -- \
+          docs/handover 2>/dev/null | sort -u
+      } | { grep -E '^docs/handover/[^/]+\.md$' || :; } |
+        { grep -vE '/(TEMPLATE|README)\.md$' || :; } |
+        sort | uniq -d | head -1
+    )"
+    [ -n "$ritual" ] ||
+      add_fact "branch changes code but has no workstream file (docs/handover/TEMPLATE.md)"
   fi
 fi
 
