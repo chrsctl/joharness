@@ -51,9 +51,9 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    first)? Reconcile, do not force through — `docs/product/README.md`
    Branch flow, "Conflict at finish". Merged branch left standing =
    cosmetic, ignore: hook filters merged branches from claims view.
-   Deleting = optional hygiene, human-only, anytime (Delete-branch
-   button on merged PR page, or repo setting "Automatically delete head
-   branches"). Session NEVER `git push --delete`. PR's final
+   Deleting = optional hygiene, human-only (mechanics:
+   `docs/product/README.md` Branch flow). Session NEVER
+   `git push --delete`. PR's final
    state deletes workstream file + done plan file (+ requirement file when
    last plan). Still-useful bits go to the right layer's `AGENTS.md` or
    `docs/` first.

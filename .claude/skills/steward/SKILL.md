@@ -35,8 +35,10 @@ conflict. Why-explanations: `docs/handover/README.md`,
 
 ## At merge
 
-- DELETE the remote branch. Dead branch standing = fake in-flight work,
-  poisons the claims view (three did exactly that, 2026-08-21).
+- Merged branch left standing = cosmetic, ignore — hook filters merged
+  branches from claims view. Deleting = optional hygiene, human-only
+  (`docs/product/README.md` Branch flow). Session NEVER
+  `git push --delete`.
 - PR's final state deletes: the plan file this branch implements, the
   requirement file when this was its last plan, the workstream file.
   Six-month-worthy learnings move to the right layer's `AGENTS.md` or

@@ -45,8 +45,7 @@ human work.
   Deleting = optional hygiene, human-only, anytime: Delete-branch button
   on merged PR page, or repo setting "Automatically delete head
   branches". Sessions never `git push --delete` — permission-blocked,
-  human's call. One friction: re-cutting a merged branch name over its
-  standing remote needs a force-with-lease push.
+  human's call.
 - `urgent` = same mechanics, jumps queue.
 - Merge commits on shared branches, never rebase — history rewrite breaks
   other sessions' checkouts.

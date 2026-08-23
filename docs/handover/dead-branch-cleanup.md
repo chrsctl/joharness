@@ -7,7 +7,7 @@ plan: none
 agent: sonnet
 updated: 2026-08-23
 session: https://claude.ai/code/session_01MhevorBe88x3x2wiVMFGJb
-next: Open PR, merge. Nothing for the human — deletion is optional.
+next: Merge the PR. Nothing for the human — deletion is optional.
 ---
 
 ## Goal
@@ -39,6 +39,20 @@ actually dependent on deletion? Answer: no. Make the protocol say so.
 - Requiring the "Automatically delete head branches" repo setting — deletion
   is optional, so the setting is mentioned as hygiene, not required. No MCP
   tool can flip it anyway.
+
+## Review
+
+- r1: `.claude/skills/steward/SKILL.md` "At merge" still commanded DELETE the
+  remote branch — the exact rule this branch reverses; updated to match
+  (fixed)
+- r2: Branch flow claimed re-cutting a merged branch name needs
+  force-with-lease — false under the merge-commit rule (old tip is ancestor,
+  push fast-forwards) and taught force-pushing shared names; sentence dropped
+  (fixed)
+- r3: this workstream file lacked the `## Review` section the template
+  requires; added (fixed)
+- r4: `harness/AGENTS.md` step 7 duplicated deletion mechanics from Branch
+  flow verbatim; compressed to a reference (fixed)
 
 ## Blockers
 
