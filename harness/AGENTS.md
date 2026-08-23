@@ -45,8 +45,12 @@ the selected layer — as a read-first pointer by default, whole when md=eager
 7. **Finish.** PR, merge to `main` — every step merges, no long-lived
    integration branch. Branch conflicts with `main` (another PR merged
    first)? Reconcile, do not force through — `docs/product/README.md`
-   Branch flow, "Conflict at finish". Then DELETE the remote branch: dead
-   branch standing = fake in-flight work, poisons claims view. PR's final
+   Branch flow, "Conflict at finish". Merged branch must die — dead
+   branch standing = fake in-flight work. Deleting = human's job, not
+   yours: Delete-branch button on merged PR page, or repo setting
+   "Automatically delete head branches" (once, fixes every future PR).
+   Session NEVER `git push --delete` — permission-blocked; hook names
+   deadwood, flag to human. PR's final
    state deletes workstream file + done plan file (+ requirement file when
    last plan). Still-useful bits go to the right layer's `AGENTS.md` or
    `docs/` first.

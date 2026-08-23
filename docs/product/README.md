@@ -34,11 +34,15 @@ human work.
   job; a second line rots against a fleet of short sessions.
 - **Start** = Claim (Loop step 3): cut `claude/<plan>`, workstream file,
   push.
-- **Finish** = PR green + reviewed, merge to `main`, DELETE the remote
-  branch, PR deletes plan file (+ requirement file when last plan). A dead
-  branch left standing reads as in-flight work and pollutes the claims
-  view — three did exactly that (2026-08-21, recovered as plans seeded
-  from their workstream files).
+- **Finish** = PR green + reviewed, merge to `main`, PR deletes plan file
+  (+ requirement file when last plan). Merged branch then dies — human
+  deletes it (Delete-branch button on merged PR page, or repo setting
+  "Automatically delete head branches", set once). Sessions never
+  `git push --delete`: permission-blocked, and deletion stays a human
+  call. A dead branch left standing reads as in-flight work and pollutes
+  the claims view — three did exactly that (2026-08-21, recovered as
+  plans seeded from their workstream files); session-start hook now names
+  standing deadwood with the delete command.
 - `urgent` = same mechanics, jumps queue.
 - Merge commits on shared branches, never rebase — history rewrite breaks
   other sessions' checkouts.

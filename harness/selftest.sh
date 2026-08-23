@@ -359,6 +359,29 @@ refute "threshold override silences the line" "churn: hot file.txt" "$out"
 git -C "$work" push -q --delete origin churny-mc-churn 2>/dev/null
 git -C "$work" branch -qD churny-mc-churn
 
+# --- dead branches ----------------------------------------------------------
+# A merged branch left standing is finished work posing as in-flight. Only a
+# human can clear it (sessions never push --delete), so the hook names the
+# deadwood and hands over the exact delete command.
+step "handover-context.sh dead branches"
+
+git -C "$work" push -q origin main:deadwood
+git -C "$work" fetch -q origin
+out="$(CLAUDE_PROJECT_DIR="$work" HANDOVER_FETCH=0 \
+  bash "${ROOT}/harness/handover-context.sh" 2>&1)"
+expect "merged standing branch reported dead" "Dead branches on origin" "$out"
+expect "hands human the delete command" \
+  "git push origin --delete deadwood" "$out"
+refute "dead branch not listed as in-flight work" "origin/deadwood:" "$out"
+refute "base branch never counted as deadwood" " main" \
+  "$(printf '%s\n' "$out" | grep -- '--delete')"
+
+git -C "$work" push -q --delete origin deadwood
+git -C "$work" fetch -qp origin
+out="$(CLAUDE_PROJECT_DIR="$work" HANDOVER_FETCH=0 \
+  bash "${ROOT}/harness/handover-context.sh" 2>&1)"
+refute "no deadwood, no block" "Dead branches" "$out"
+
 # --- queue hook -------------------------------------------------------------
 step "queue-context.sh"
 
