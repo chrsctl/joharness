@@ -1456,7 +1456,7 @@ expect "consumer copy refusal names the doctrine" \
 # fixture — keep these two cases last.
 git -C "$syncsrc" rm -q CLAUDE.md
 git -C "$syncsrc" rm -q -r .claude/commands
-commit_all "$syncsrc" "drop graph doc and commands dir"
+commit_all "$syncsrc" "drop CLAUDE.md and commands dir"
 syncdst3="${TMP}/syncdst3"
 mkdir -p "$syncdst3"
 out="$(sync "$syncdst3")"; rc=$?

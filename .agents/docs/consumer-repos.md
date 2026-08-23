@@ -135,18 +135,18 @@ the sync's warning names — NEVER `git rm -r` on `docs/`, that eats the
 repo's own plans and handover:
 
 ```bash
-git rm .agents/docs/caveman.md .agents/docs/graph.md .agents/docs/agent-selection.md \
-  .agents/docs/consumer-repos.md .agents/docs/handover/README.md .agents/docs/handover/TEMPLATE.md \
-  .agents/docs/plans/README.md .agents/docs/plans/TEMPLATE.md .agents/docs/product/README.md \
-  .agents/docs/product/TEMPLATE.md .agents/scripts/sync-to-consumer.sh \
-  .agents/scripts/bootstrap-consumer.sh
+git rm docs/caveman.md docs/graph.md docs/agent-selection.md \
+  docs/consumer-repos.md docs/handover/README.md docs/handover/TEMPLATE.md \
+  docs/plans/README.md docs/plans/TEMPLATE.md docs/product/README.md \
+  docs/product/TEMPLATE.md scripts/sync-to-consumer.sh \
+  scripts/bootstrap-consumer.sh
 ```
 
 (Only the ones actually present — the warning's own remedy line lists
 exactly those.)
 
 One more consumer-own edit: a pre-move `update.yml` calls canonical's
-`.agents/scripts/sync-to-consumer.sh`, which no longer exists — the weekly run
+`scripts/sync-to-consumer.sh`, which no longer exists — the weekly run
 goes red with file-not-found until the workflow's `run sync` step points
 at `.agents/scripts/sync-to-consumer.sh`. Newly seeded `update.yml`
 probes both spellings.

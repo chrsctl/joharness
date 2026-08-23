@@ -2,7 +2,7 @@
 
 Caveman file. Short on purpose — ETH AGENTbench (138 repos): long context file
 hurt agent, cost more. Keep only what code cannot tell you. Why-explanations
-live in `docs/` — read there before fighting a rule.
+live in `.agents/docs/` — read there before fighting a rule.
 
 House style for instructions and replies:
 [`.agents/docs/caveman.md`](../../.agents/docs/caveman.md). Write new instruction text in it; never
