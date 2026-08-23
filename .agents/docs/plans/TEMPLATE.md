@@ -9,7 +9,7 @@ scope: none
 ---
 
 <!--
-Copy to docs/plans/<plan>.md. Queue rules: docs/plans/README.md.
+Copy to docs/plans/<plan>.md. Queue rules: .agents/docs/plans/README.md.
 
 Write for literal reader. Scope and out-of-scope both explicit; acceptance
 = runnable commands with expected output; traps = the Part 2 prohibitions

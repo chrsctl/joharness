@@ -20,12 +20,13 @@
 # still carries JOHARNESS_CANONICAL=1 — the tell, and the danger: a copy
 # with the marker passes as canonical, and consumer-to-consumer sync is
 # forbidden). The marker line is stripped, joharness's live workstream
-# files under docs/plans|product|handover are deleted (README.md and
-# TEMPLATE.md stay — they are harness-owned), and AGENTS.md Part 2 gets
+# files under docs/plans|product|handover are deleted (the dirs hold
+# only live work — protocol docs live in .agents/docs/), and AGENTS.md
+# Part 2 gets
 # the same stub. No sync run: the clone is current by construction, and
 # steady-state sync heals later drift.
 #
-# Usage: scripts/bootstrap-consumer.sh [--dry-run] <consumer-dir>
+# Usage: .agents/scripts/bootstrap-consumer.sh [--dry-run] <consumer-dir>
 # Exit: 0 bootstrapped clean. 1 refused with nothing written (usage, ROOT
 # not canonical, target already a consumer, target is ROOT itself). A
 # nonzero sync engine exit stops the run and is propagated as-is.
@@ -37,10 +38,10 @@ set -euo pipefail
 # the named root does not look like a harness canonical.
 if [ -n "${JOHARNESS_SYNC_ROOT:-}" ]; then
   ROOT="$JOHARNESS_SYNC_ROOT"
-  [ -f "${ROOT}/scripts/sync-to-consumer.sh" ] ||
-    { printf '[joharness] ERROR: JOHARNESS_SYNC_ROOT %s does not look like a harness canonical (no scripts/sync-to-consumer.sh); unset it\n' "$ROOT" >&2; exit 1; }
+  [ -f "${ROOT}/.agents/scripts/sync-to-consumer.sh" ] ||
+    { printf '[joharness] ERROR: JOHARNESS_SYNC_ROOT %s does not look like a harness canonical (no .agents/scripts/sync-to-consumer.sh); unset it\n' "$ROOT" >&2; exit 1; }
 else
-  ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+  ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 fi
 MARKER='# Part 2 — project'
 
@@ -105,7 +106,7 @@ else
     # This refusal is the safety line: a bootstrapped consumer's
     # docs/plans|product|handover hold ITS live work, and whole-clone
     # mode's purge would eat it. Steady state has its own tool.
-    die "'$DEST' already runs the harness; steady-state updates go through scripts/sync-to-consumer.sh, not a re-bootstrap"
+    die "'$DEST' already runs the harness; steady-state updates go through .agents/scripts/sync-to-consumer.sh, not a re-bootstrap"
   else
     MODE=fresh
   fi
@@ -213,6 +214,11 @@ bootstrap_fresh() {
     rewrite_part2
   fi
 
+  # The work dirs are the consumer's own surface; the sync ships nothing
+  # into docs/, so the bootstrap stands them up. Empty dirs vanish from
+  # git — the hooks tolerate that, this is a convenience not a contract.
+  [ "$DRY" -eq 1 ] || mkdir -p "${DEST}/docs/handover" "${DEST}/docs/plans" "${DEST}/docs/product"
+
   # Written inline, not copied: canonical's own conf carries joharness's
   # environment selection and the canonical marker — both wrong here.
   cat >"${SCRATCH}/conf" <<'EOF'
@@ -314,8 +320,9 @@ bootstrap_whole_clone() {
   fi
   warn "the conf comment block above the removed marker may still describe the canonical; tidy it by hand"
 
-  # joharness's live work, meaningless in the child. README.md and
-  # TEMPLATE.md are the harness-owned residents of these dirs and stay.
+  # joharness's live work, meaningless in the child. Every .md goes:
+  # since the .agents/docs move these dirs hold live work only, the
+  # protocol README/TEMPLATE residents are gone from them.
   for rel in docs/plans docs/product docs/handover; do
     [ -d "${DEST}/${rel}" ] || continue
     while IFS= read -r f; do
@@ -327,8 +334,7 @@ bootstrap_whole_clone() {
         printf '  delete  %s\n' "${f#"$DEST"/}"
       fi
       purged=$((purged + 1))
-    done < <(find "${DEST}/${rel}" -type f -name '*.md' \
-      ! -name README.md ! -name TEMPLATE.md | sort)
+    done < <(find "${DEST}/${rel}" -type f -name '*.md' | sort)
   done
 
   rewrite_part2
@@ -342,7 +348,7 @@ bootstrap_whole_clone() {
   fi
   warn "README.md is still joharness's — replace it with this repo's own"
   warn "git history is still joharness's — keep it or re-init; human call"
-  log "ci.yml and env selection left as cloned; steady-state updates: scripts/sync-to-consumer.sh"
+  log "ci.yml and env selection left as cloned; steady-state updates: .agents/scripts/sync-to-consumer.sh"
 }
 
 if [ "$MODE" = "fresh" ]; then

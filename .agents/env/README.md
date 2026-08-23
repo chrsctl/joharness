@@ -56,6 +56,6 @@ environment.
 1. `mkdir .agents/env/<name>`, write `setup.sh` (executable). Nothing to provision?
    Leave it out.
 2. Rules an agent cannot read off the code go in `AGENTS.md`. Caveman style:
-   [`docs/caveman.md`](../../docs/caveman.md).
+   [`.agents/docs/caveman.md`](../../.agents/docs/caveman.md).
 3. `./joharness.sh ci` = `ci: pass`. It checks every layer, selected or not.
 4. `./joharness.sh env <name>`.
