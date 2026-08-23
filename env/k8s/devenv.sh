@@ -23,9 +23,26 @@ set -euo pipefail
 # redirect that most install scripts rely on. Direct release ASSET urls do work,
 # so we ask for exact versions. See env/k8s/README.md.
 # ---------------------------------------------------------------------------
-K3D_VERSION="${K3D_VERSION:-v5.9.0}"
-KUBECTL_VERSION="${KUBECTL_VERSION:-v1.35.8}"
-HELM_VERSION="${HELM_VERSION:-v3.21.4}"
+K3D_VERSION_DEFAULT="v5.9.0"
+KUBECTL_VERSION_DEFAULT="v1.35.8"
+HELM_VERSION_DEFAULT="v3.21.4"
+K3D_VERSION="${K3D_VERSION:-$K3D_VERSION_DEFAULT}"
+KUBECTL_VERSION="${KUBECTL_VERSION:-$KUBECTL_VERSION_DEFAULT}"
+HELM_VERSION="${HELM_VERSION:-$HELM_VERSION_DEFAULT}"
+
+# sha256 of each DEFAULT version's linux-amd64 asset, from the publisher's
+# own checksum files (dl.k8s.io .sha256 / get.helm.sh .sha256sum / the k3d
+# release's checksums.txt), cross-checked against the downloaded bytes
+# 2026-08-23. Verified before install; a mismatch is a corrupt or tampered
+# download and refuses loudly. Bumping a version bumps its digest in the
+# SAME edit — the pair is one pin (procedure: env/k8s/README.md). An
+# overridden version has no pin here: set KUBECTL_SHA256 / K3D_SHA256 /
+# HELM_SHA256 alongside it, or the install warns and skips verification —
+# loud skip, never a fake red, so a version experiment (k8s-136-validation
+# style) still runs.
+KUBECTL_SHA256_PIN="874d5e72dbb819f43cff16bcd1e4f8bac5b7f2361fe1e55049b0a6c676fb0cbf"
+K3D_SHA256_PIN="06d8f25bc3a971c4eb29e0ff08429b180402db0f4dec838c9eac427e296800a0"
+HELM_SHA256_PIN="61f88ab166748cb19604d7884cb100ae9ccb13804ddeb98e08af167eacbb6a14"
 
 # Kubernetes runs as k3s, which is a much smaller footprint than a full kubeadm
 # cluster (~350MB image instead of ~1.5GB).
@@ -75,6 +92,44 @@ installed_version() {
   "$@" 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true
 }
 
+# Digest for a tool: explicit env override first, the pin when the version
+# is the pinned default, empty otherwise (overridden version, no digest).
+expected_sha() { # <override-var-value> <version> <default-version> <pin>
+  if [ -n "$1" ]; then printf '%s' "$1"
+  elif [ "$2" = "$3" ]; then printf '%s' "$4"
+  fi
+}
+
+# verify_download <file> <expected-sha256|empty> <what>. Empty expected =
+# overridden version without a digest: warn and continue, the skip loud in
+# the log. A mismatch deletes the download and dies — corrupt or tampered
+# bytes must not reach BIN_DIR. No sha256 tool on the host is an
+# environment gap, not a code problem: warned, not fatal (same doctrine as
+# joharness.sh ensure_shellcheck).
+verify_download() {
+  local file="$1" want="$2" what="$3" got=""
+  if [ -z "$want" ]; then
+    warn "${what}: version overridden, no pinned digest — download NOT verified (set the tool's *_SHA256 to verify)"
+    return 0
+  fi
+  if have sha256sum; then
+    got="$(sha256sum "$file" | awk '{print $1}')"
+  elif have shasum; then
+    got="$(shasum -a 256 "$file" | awk '{print $1}')"
+  else
+    warn "${what}: no sha256sum/shasum on this host — download NOT verified"
+    return 0
+  fi
+  if [ "$got" != "$want" ]; then
+    rm -f "$file"
+    # Both causes named: the innocent one (a default version bumped without
+    # its digest pin — they are ONE pin, env/k8s/README.md) is the common
+    # case, and a literal reader sent hunting a supply-chain incident for a
+    # stale line would burn a session on the wrong story.
+    die "${what}: sha256 mismatch (want ${want}, got ${got}) — corrupt or tampered download, OR a version bump without its digest pin (env/k8s/README.md); refusing to install"
+  fi
+}
+
 install_kubectl() {
   local want="$KUBECTL_VERSION"
   if [ "$(installed_version kubectl kubectl version --client)" = "$want" ]; then
@@ -85,6 +140,9 @@ install_kubectl() {
   curl -fsSL --retry 3 --retry-delay 2 \
     -o "${BIN_DIR}/.kubectl.tmp" \
     "https://dl.k8s.io/release/${want}/bin/linux/amd64/kubectl"
+  verify_download "${BIN_DIR}/.kubectl.tmp" \
+    "$(expected_sha "${KUBECTL_SHA256:-}" "$want" "$KUBECTL_VERSION_DEFAULT" "$KUBECTL_SHA256_PIN")" \
+    "kubectl ${want}"
   chmod 0755 "${BIN_DIR}/.kubectl.tmp"
   mv "${BIN_DIR}/.kubectl.tmp" "${BIN_DIR}/kubectl"
 }
@@ -101,10 +159,15 @@ install_k3d() {
   if curl -fsSL --retry 3 --retry-delay 2 \
        -o "${BIN_DIR}/.k3d.tmp" \
        "https://github.com/k3d-io/k3d/releases/download/${want}/k3d-linux-amd64"; then
+    verify_download "${BIN_DIR}/.k3d.tmp" \
+      "$(expected_sha "${K3D_SHA256:-}" "$want" "$K3D_VERSION_DEFAULT" "$K3D_SHA256_PIN")" \
+      "k3d ${want}"
     chmod 0755 "${BIN_DIR}/.k3d.tmp"
     mv "${BIN_DIR}/.k3d.tmp" "${BIN_DIR}/k3d"
   elif have go; then
-    # proxy.golang.org is on the allowed list, so this is a reliable fallback.
+    # proxy.golang.org is on the allowed list, so this is a reliable
+    # fallback. No digest to verify on a source build; the Go module
+    # checksum database covers the sources instead.
     log "release asset unavailable, building k3d from source"
     rm -f "${BIN_DIR}/.k3d.tmp"
     GOBIN="$BIN_DIR" go install "github.com/k3d-io/k3d/v5@${want}"
@@ -122,8 +185,15 @@ install_helm() {
   log "installing helm ${want}"
   local tmp
   tmp="$(mktemp -d)"
+  # Downloaded to a file, not piped into tar: bytes must be verified
+  # before anything unpacks them.
   curl -fsSL --retry 3 --retry-delay 2 \
-    "https://get.helm.sh/helm-${want}-linux-amd64.tar.gz" | tar xz -C "$tmp"
+    -o "${tmp}/helm.tar.gz" \
+    "https://get.helm.sh/helm-${want}-linux-amd64.tar.gz"
+  verify_download "${tmp}/helm.tar.gz" \
+    "$(expected_sha "${HELM_SHA256:-}" "$want" "$HELM_VERSION_DEFAULT" "$HELM_SHA256_PIN")" \
+    "helm ${want}"
+  tar xzf "${tmp}/helm.tar.gz" -C "$tmp"
   install -m 0755 "${tmp}/linux-amd64/helm" "${BIN_DIR}/helm"
   rm -rf "$tmp"
 }

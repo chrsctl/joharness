@@ -359,6 +359,66 @@ refute "threshold override silences the line" "churn: hot file.txt" "$out"
 git -C "$work" push -q --delete origin churny-mc-churn 2>/dev/null
 git -C "$work" branch -qD churny-mc-churn
 
+# --- review line for other branches -----------------------------------------
+# Findings live in the workstream file's ## Review section; the hook prints
+# the recorded count per branch. Only when >0: absence next to a churning
+# branch is the signal, and a printed zero would numb it.
+step "handover-context.sh review line"
+
+git -C "$work" checkout -qb reviewed main
+mkdir -p "${work}/docs/handover"
+cat >"${work}/docs/handover/reviewed-ws.md" <<'EOF'
+---
+workstream: reviewed-ws
+status: in-progress
+updated: 2026-01-01
+next: Fixture
+---
+
+## Goal
+Fixture.
+
+## Review
+- r1: restart path re-pulls the node image. (fixed)
+- r2: cluster-up races the containerd drop-in. (open)
+
+## Blockers
+- this bullet is a blocker, not a review finding
+EOF
+echo reviewed >"${work}/reviewed.txt"
+commit_all "$work" "reviewed work"
+git -C "$work" push -qu origin reviewed
+git -C "$work" checkout -q feature
+
+out="$(CLAUDE_PROJECT_DIR="$work" HANDOVER_FETCH=0 \
+  bash "${ROOT}/harness/handover-context.sh" 2>&1)"
+expect "review count printed per branch" "review: 2 finding(s) recorded" "$out"
+refute "bullets outside ## Review are not findings" \
+  "review: 3 finding(s) recorded" "$out"
+refute "branch without findings carries no review line" \
+  "review: 0 finding(s)" "$out"
+
+git -C "$work" push -q --delete origin reviewed 2>/dev/null
+git -C "$work" branch -qD reviewed
+
+# An unedited copy of the template must count zero. A placeholder counted as
+# a finding would print "1 finding(s) recorded" for a branch that reviewed
+# nothing — the signal inverted for exactly the session that never filled
+# the file in.
+git -C "$work" checkout -qb templated main
+mkdir -p "${work}/docs/handover"
+cp "${ROOT}/docs/handover/TEMPLATE.md" "${work}/docs/handover/templated-ws.md"
+echo templated >"${work}/templated.txt"
+commit_all "$work" "untouched template"
+git -C "$work" push -qu origin templated
+git -C "$work" checkout -q feature
+
+out="$(CLAUDE_PROJECT_DIR="$work" HANDOVER_FETCH=0   bash "${ROOT}/harness/handover-context.sh" 2>&1)"
+refute "unedited template records no findings" "review:" "$out"
+
+git -C "$work" push -q --delete origin templated 2>/dev/null
+git -C "$work" branch -qD templated
+
 # --- queue hook -------------------------------------------------------------
 step "queue-context.sh"
 
@@ -598,14 +658,7 @@ commit_all "$cwork" "scratch harness"
 git -C "$cwork" remote add origin "$corigin"
 git -C "$cwork" push -qu origin main
 
-# The fixture's ci is the subject of these cases, not this run's gate, so
-# it must not inherit GITHUB_ACTIONS. With it set, a nested ci on a runner
-# without shellcheck turns the missing tool into rc=1 (cmd_ci, its
-# GITHUB_ACTIONS branch), and both "keeps ci green" cases below fail for a
-# reason that has nothing to do with churn - which is exactly what the
-# windows job has been reporting.
-ci_churn() { env -u GITHUB_ACTIONS CLAUDE_PROJECT_DIR="$cwork" \
-  JOHARNESS_CONF="${cwork}/joharness.conf" \
+ci_churn() { CLAUDE_PROJECT_DIR="$cwork" JOHARNESS_CONF="${cwork}/joharness.conf" \
   "${cwork}/joharness.sh" ci 2>&1 | sed -n '/== churn/,/^$/p'; }
 
 out="$(ci_churn)"
@@ -630,9 +683,12 @@ expect "threshold override reports quiet" "quiet (max 6 commits per file)" "$out
 # The second tier: above the ceiling churn stops being a warning and fails ci,
 # because the session inside the churn is the one that cannot call it. ci_churn
 # drops the exit code (it pipes through sed), so run ci directly for the code.
-ci_rc() { env -u GITHUB_ACTIONS CLAUDE_PROJECT_DIR="$cwork" \
-  JOHARNESS_CONF="${cwork}/joharness.conf" \
-  "${cwork}/joharness.sh" ci >/dev/null 2>&1; }
+# GITHUB_ACTIONS is cleared for the fixture run: on a runner without shellcheck
+# (the Windows job) cmd_ci reds the gate for the missing tool, and every
+# exit-code assertion here would read shellcheck, not churn. Cleared, the
+# missing tool is a loud skip and the exit code belongs to the churn gate alone.
+ci_rc() { CLAUDE_PROJECT_DIR="$cwork" JOHARNESS_CONF="${cwork}/joharness.conf" \
+  GITHUB_ACTIONS='' "${cwork}/joharness.sh" ci >/dev/null 2>&1; }
 
 # Default ceiling is 2x the threshold, so six commits stay a warning: ci green.
 if ci_rc; then
@@ -667,6 +723,243 @@ printf 'one\n' >"${cwork}/calm.txt"
 commit_all "$cwork" "single change"
 out="$(ci_churn)"
 expect "a calm branch reports quiet" "quiet (max 1 commits per file)" "$out"
+
+# --- entrypoint: graph lint -------------------------------------------------
+# Frontmatter edges checked from the working tree: never-existed names and
+# out-of-vocabulary enums red, delete-on-merge history silent or warned,
+# stale anchors warned. Same scratch-harness pattern as the churn cases.
+step "joharness.sh ci: graph lint"
+
+lwork="${TMP}/lintwork"
+mkdir -p "${lwork}/harness" "${lwork}/env/none" \
+  "${lwork}/docs/plans" "${lwork}/docs/handover" "${lwork}/docs/product"
+cp "${ROOT}/joharness.sh" "${lwork}/joharness.sh"
+printf '#!/usr/bin/env bash\nexit 0\n' >"${lwork}/harness/selftest.sh"
+chmod +x "${lwork}/harness/selftest.sh" "${lwork}/joharness.sh"
+git init -q "$lwork"
+git -C "$lwork" symbolic-ref HEAD refs/heads/main
+commit_all "$lwork" "scratch harness"
+
+# One full ci run per fixture state: output and exit code from the same
+# invocation, so no state pays shellcheck twice.
+lint_ci() { CLAUDE_PROJECT_DIR="$lwork" JOHARNESS_CONF="${lwork}/joharness.conf" \
+  GITHUB_ACTIONS='' "${lwork}/joharness.sh" ci 2>&1; }
+lint_section() { sed -n '/== graph lint/,/^$/p' <<<"$1"; }
+
+full="$(lint_ci)"
+out="$(lint_section "$full")"
+expect "empty queue reads sound" "edges sound (0 plans, 0 workstreams, 0 requirements)" "$out"
+
+# Never-existed names and a bad enum: hard facts, red, ci fails.
+cat >"${lwork}/docs/plans/bad.md" <<'EOF'
+---
+plan: bad
+urgency: normal
+agent: gpt5
+effort: low medium
+needs: never-was
+---
+
+## Goal
+Fixture.
+EOF
+cat >"${lwork}/docs/handover/lost-ws.md" <<'EOF'
+---
+workstream: lost-ws
+status: in-progress
+plan: never-was-plan
+---
+
+## Goal
+Fixture.
+EOF
+full="$(lint_ci)"; rc=$?
+out="$(lint_section "$full")"
+expect "enum outside vocabulary is red" \
+  "agent 'gpt5' not one of: haiku sonnet opus" "$out"
+expect "adjacent vocabulary words are not a value" \
+  "effort 'low medium' not one of" "$out"
+expect "dangling needs is red" \
+  "needs 'never-was' — no such plan, never existed" "$out"
+expect "dangling claim is red" \
+  "plan 'never-was-plan' — no such plan, never existed" "$out"
+if [ "$rc" -ne 0 ]; then
+  pass "dead edges fail ci"
+else
+  fail "dead edges fail ci"
+fi
+
+# Delete-on-merge history: a needed plan deleted from the tree is done
+# work — silent by design. A claim or a served requirement pointing at
+# history is odd enough to warn, never red. Anchors warn only.
+printf 'dep plan\n' >"${lwork}/docs/plans/dep.md"
+printf 'req\n' >"${lwork}/docs/product/gone-req.md"
+commit_all "$lwork" "add dep and req"
+git -C "$lwork" rm -q docs/plans/dep.md docs/product/gone-req.md
+commit_all "$lwork" "merge deletes dep and req"
+cat >"${lwork}/docs/plans/bad.md" <<'EOF'
+---
+plan: good
+urgency: normal
+agent: sonnet
+effort: high
+needs: dep
+requirement: gone-req
+---
+
+## Goal
+Fixture.
+EOF
+cat >"${lwork}/docs/handover/lost-ws.md" <<'EOF'
+---
+workstream: lost-ws
+status: review
+plan: dep
+---
+
+## Goal
+Fixture.
+
+## Where to look
+- `missing/file.sh:symbol` — anchor probe.
+- `https://k3d.io` — a URL is not a path, never warned.
+- `SOME_KNOB_LIMIT=0` — a knob is not a path, never warned.
+- `SOME_ENV_TOGGLE` — no slash, no dot: not this lint's business.
+EOF
+full="$(lint_ci)"; rc=$?
+out="$(lint_section "$full")"
+refute "needs on a merged plan is silent" "DEAD" "$out"
+expect "claim on a merged plan warns" \
+  "claims plan 'dep' gone from tree" "$out"
+expect "serving a vanished requirement warns" \
+  "requirement 'gone-req' gone from tree" "$out"
+expect "stale anchor warns" \
+  "anchor 'missing/file.sh' not in tree" "$out"
+refute "URL anchor is not warned" "anchor 'https'" "$out"
+refute "knob anchor is not warned" "anchor 'SOME_KNOB_LIMIT" "$out"
+refute "bare-word anchor is not warned" "anchor 'SOME_ENV_TOGGLE'" "$out"
+if [ "$rc" -eq 0 ]; then
+  pass "warnings keep ci green"
+else
+  fail "warnings keep ci green"
+fi
+
+# A shallow checkout cannot tell a typo from a merged-and-deleted plan:
+# the never-existed red must degrade to a warning there, or ci would be
+# green locally and red on a depth-1 runner — the invariant broken in the
+# bad direction. The clone's HEAD carries the red-case fixtures committed
+# above; only history is missing.
+lshallow="${TMP}/lintshallow"
+if git clone -q --depth 1 "file://${lwork}" "$lshallow" 2>/dev/null; then
+  out="$(CLAUDE_PROJECT_DIR="$lshallow" JOHARNESS_CONF="${lshallow}/joharness.conf" \
+    GITHUB_ACTIONS='' "${lshallow}/joharness.sh" ci 2>&1 |
+    sed -n '/== graph lint/,/^$/p')"
+  expect "shallow history degrades dangling needs to a warning" \
+    "needs 'never-was' unknown here (shallow history)" "$out"
+  refute "shallow history does not claim never existed" \
+    "needs 'never-was' — no such plan" "$out"
+else
+  skip "shallow-history lint degrade" "file:// shallow clone unavailable here"
+fi
+
+# --- handover-guard.sh ------------------------------------------------------
+# Stop-hook guard: git facts only, one-shot via stop_hook_active, silent on
+# a clean pushed tree, never a nonzero exit.
+step "handover-guard.sh"
+
+sgorigin="${TMP}/sgorigin.git"
+git init -q --bare "$sgorigin"
+sgwork="${TMP}/sgwork"
+git init -q "$sgwork"
+git -C "$sgwork" symbolic-ref HEAD refs/heads/main
+printf 'code\n' >"${sgwork}/code.txt"
+commit_all "$sgwork" "base"
+git -C "$sgwork" remote add origin "$sgorigin"
+git -C "$sgwork" push -qu origin main
+
+guard() { printf '%s' "$1" | CLAUDE_PROJECT_DIR="$sgwork" \
+  bash "${ROOT}/harness/handover-guard.sh" 2>&1; }
+JSON_STOP='{"stop_hook_active": false}'
+JSON_ACTIVE='{"stop_hook_active": true}'
+
+out="$(guard "$JSON_STOP")"; rc=$?
+if [ "$rc" -eq 0 ] && [ -z "$out" ]; then
+  pass "clean pushed tree stays silent"
+else
+  fail "clean pushed tree stays silent (rc=${rc})"
+  printf '%s\n' "$(indent "$out")"
+fi
+
+printf 'edit\n' >>"${sgwork}/code.txt"
+out="$(guard "$JSON_STOP")"
+expect "dirty tree blocks with the ritual" '"decision": "block"' "$out"
+expect "dirty tree names the fact" "uncommitted changes" "$out"
+
+out="$(guard "$JSON_ACTIVE")"; rc=$?
+if [ "$rc" -eq 0 ] && [ -z "$out" ]; then
+  pass "stop_hook_active makes the guard one-shot"
+else
+  fail "stop_hook_active makes the guard one-shot (rc=${rc})"
+fi
+git -C "$sgwork" checkout -q -- code.txt
+
+# Committed but unpushed code on a branch with no workstream file: both
+# facts in one reason.
+git -C "$sgwork" checkout -qb sgfeat
+printf 'feat\n' >"${sgwork}/feat.txt"
+commit_all "$sgwork" "feat work"
+git -C "$sgwork" push -qu origin sgfeat
+printf 'more\n' >>"${sgwork}/feat.txt"
+commit_all "$sgwork" "more feat work"
+out="$(guard "$JSON_STOP")"
+expect "unpushed commits named" "1 commit(s) not pushed" "$out"
+expect "code without workstream file named" "no workstream file" "$out"
+
+mkdir -p "${sgwork}/docs/handover"
+cat >"${sgwork}/docs/handover/sgfeat-ws.md" <<'EOF'
+---
+workstream: sgfeat-ws
+status: in-progress
+---
+EOF
+commit_all "$sgwork" "workstream file"
+git -C "$sgwork" push -q origin sgfeat
+out="$(guard "$JSON_STOP")"; rc=$?
+if [ "$rc" -eq 0 ] && [ -z "$out" ]; then
+  pass "pushed branch with workstream file stays silent"
+else
+  fail "pushed branch with workstream file stays silent (rc=${rc})"
+  printf '%s\n' "$(indent "$out")"
+fi
+
+# A branch that never met the remote is invisible to every other session.
+git -C "$sgwork" checkout -qb sgnew
+printf 'new\n' >"${sgwork}/new.txt"
+commit_all "$sgwork" "unpushed branch"
+out="$(guard "$JSON_STOP")"
+expect "never-pushed branch told to push" "no upstream" "$out"
+
+# Pushed once without -u, kept committing: no @{u}, but origin/<branch>
+# knows the branch — the later commits are exactly the invisible work the
+# guard exists to surface.
+git -C "$sgwork" push -q origin sgnew
+printf 'later\n' >>"${sgwork}/new.txt"
+commit_all "$sgwork" "work after a push without -u"
+out="$(guard "$JSON_STOP")"
+expect "unpushed commits found without an upstream" \
+  "1 commit(s) not pushed" "$out"
+
+# No remote at all: scratch checkout, nothing to push to, not a violation.
+sglocal="${TMP}/sglocal"
+git init -q "$sglocal"
+printf 'scratch\n' >"${sglocal}/scratch.txt"
+out="$(printf '%s' "$JSON_STOP" | CLAUDE_PROJECT_DIR="$sglocal" \
+  bash "${ROOT}/harness/handover-guard.sh" 2>&1)"; rc=$?
+if [ "$rc" -eq 0 ] && [ -z "$out" ]; then
+  pass "remoteless checkout stays silent"
+else
+  fail "remoteless checkout stays silent (rc=${rc})"
+fi
 
 # --- .gitattributes: scripts and markdown stay LF --------------------------
 # Git for Windows defaults to core.autocrlf=true. Without the pins a stock clone
@@ -717,7 +1010,8 @@ step "sync-to-consumer.sh"
 syncsrc="${TMP}/syncsrc"
 git init -q "$syncsrc"
 mkdir -p "${syncsrc}/harness" "${syncsrc}/scripts" "${syncsrc}/env/none" \
-  "${syncsrc}/.claude/commands" "${syncsrc}/docs/handover" \
+  "${syncsrc}/.claude/commands" "${syncsrc}/.claude/skills/steward" \
+  "${syncsrc}/docs/handover" \
   "${syncsrc}/docs/plans" "${syncsrc}/docs/product"
 printf 'JOHARNESS_CANONICAL=1\n' >"${syncsrc}/joharness.conf"
 printf 'loop v1\n' >"${syncsrc}/harness/AGENTS.md"
@@ -733,6 +1027,7 @@ printf 'sync stub\n' >"${syncsrc}/scripts/sync-to-consumer.sh"
 printf 'boot stub\n' >"${syncsrc}/scripts/bootstrap-consumer.sh"
 printf 'layer none\n' >"${syncsrc}/env/none/AGENTS.md"
 printf 'who cmd\n' >"${syncsrc}/.claude/commands/who.md"
+printf 'steward SKILL-SENTINEL\n' >"${syncsrc}/.claude/skills/steward/SKILL.md"
 # Every FILES entry must exist: a listed-but-missing file fails the run.
 printf 'attrs\n' >"${syncsrc}/.gitattributes"
 printf '{}\n' >"${syncsrc}/.claude/settings.json"
@@ -801,6 +1096,8 @@ expect "stale file updated to canonical" \
   "CANON-LOOP-SENTINEL" "$(cat "${syncdst}/harness/AGENTS.md")"
 expect "missing file created" "tiers v1" \
   "$(cat "${syncdst}/docs/agent-selection.md" 2>/dev/null)"
+expect "skills dir ships" "steward SKILL-SENTINEL" \
+  "$(cat "${syncdst}/.claude/skills/steward/SKILL.md" 2>/dev/null)"
 expect "ahead file flagged" "AHEAD   CLAUDE.md" "$out"
 expect "ahead file kept" "consumer hacked" "$(cat "${syncdst}/CLAUDE.md")"
 expect "glob sibling history does not vouch" "AHEAD   env/none/a[1].md" "$out"
@@ -1090,7 +1387,8 @@ step "bootstrap-consumer.sh"
 bootsrc="${TMP}/bootsrc"
 git init -q "$bootsrc"
 mkdir -p "${bootsrc}/harness" "${bootsrc}/scripts" "${bootsrc}/env/none" \
-  "${bootsrc}/.claude/commands" "${bootsrc}/docs/handover" \
+  "${bootsrc}/.claude/commands" "${bootsrc}/.claude/skills/steward" \
+  "${bootsrc}/docs/handover" \
   "${bootsrc}/docs/plans" "${bootsrc}/docs/product" \
   "${bootsrc}/.github/workflows"
 printf 'JOHARNESS_CANONICAL=1\n' >"${bootsrc}/joharness.conf"
@@ -1103,11 +1401,14 @@ printf 'sync stub\n' >"${bootsrc}/scripts/sync-to-consumer.sh"
 printf 'boot stub\n' >"${bootsrc}/scripts/bootstrap-consumer.sh"
 printf 'layer none\n' >"${bootsrc}/env/none/AGENTS.md"
 printf 'who cmd\n' >"${bootsrc}/.claude/commands/who.md"
+printf 'steward stub\n' >"${bootsrc}/.claude/skills/steward/SKILL.md"
 printf 'attrs\n' >"${bootsrc}/.gitattributes"
 printf '{}\n' >"${bootsrc}/.claude/settings.json"
-# ci.yml is NOT in sync's FILES list: the bootstrap copies it from the
-# canonical tree itself, so the fixture must carry a recognizable one.
+# ci.yml and update.yml are NOT in sync's FILES list: the bootstrap copies
+# them from the canonical tree itself, so the fixture must carry
+# recognizable ones.
 printf 'BOOT-CI-STUB\n' >"${bootsrc}/.github/workflows/ci.yml"
+printf 'BOOT-UPDATE-STUB\n' >"${bootsrc}/.github/workflows/update.yml"
 for stub in docs/caveman.md docs/graph.md \
   docs/handover/README.md docs/handover/TEMPLATE.md \
   docs/plans/README.md docs/plans/TEMPLATE.md \
@@ -1155,6 +1456,8 @@ refute "seeded conf carries no canonical marker" "JOHARNESS_CANONICAL" \
   "$(cat "${bootdst1}/joharness.conf" 2>/dev/null)"
 expect "ci workflow seeded from canonical" "BOOT-CI-STUB" \
   "$(cat "${bootdst1}/.github/workflows/ci.yml" 2>/dev/null)"
+expect "update workflow seeded from canonical" "BOOT-UPDATE-STUB" \
+  "$(cat "${bootdst1}/.github/workflows/update.yml" 2>/dev/null)"
 expect "README stub seeded" "joharness" \
   "$(cat "${bootdst1}/README.md" 2>/dev/null)"
 
@@ -1369,6 +1672,53 @@ expect "own Part 2 kept" "MY-OWN-PART2-SENTINEL" \
   "$(cat "${bootdst7}/AGENTS.md")"
 refute "stub does not replace own Part 2" "this section is the repo's own" \
   "$(cat "${bootdst7}/AGENTS.md")"
+
+# Whole-clone purge through symlinks: reproduced 2026-08-23 — a clone whose
+# docs/ was a symlink had the TARGET's files deleted, outside the clone.
+# Refusal must land before the first write, files outside must survive. A
+# symlinked purge dir (leaf spelling) is refused too: find would not
+# descend it, so conversion would silently keep the live files it exists
+# to remove.
+if [ "$HAVE_SYMLINK" = "1" ]; then
+  bootvictim="${TMP}/bootvictim"
+  mkdir -p "${bootvictim}/plans" "${bootvictim}/product" "${bootvictim}/handover"
+  printf 'outside the clone\n' >"${bootvictim}/plans/precious.md"
+
+  bootdst8="${TMP}/bootdst8"
+  mkdir -p "$bootdst8"
+  cp -R "${bootsrc}/." "$bootdst8"
+  rm -rf "${bootdst8}/docs"
+  ln -s "$bootvictim" "${bootdst8}/docs"
+  out="$(boot "$bootdst8")" && rc=0 || rc=$?
+  if [ "$rc" -eq 1 ]; then
+    pass "symlinked docs ancestor refused"
+  else
+    fail "symlinked docs ancestor refused (got ${rc})"
+  fi
+  expect "symlink refusal names the path" "'docs' in" "$out"
+  if [ -f "${bootvictim}/plans/precious.md" ]; then
+    pass "purge cannot reach outside the clone"
+  else
+    fail "purge cannot reach outside the clone"
+  fi
+  expect "symlink refusal writes nothing" "JOHARNESS_CANONICAL=1" \
+    "$(cat "${bootdst8}/joharness.conf")"
+
+  bootdst9="${TMP}/bootdst9"
+  mkdir -p "$bootdst9"
+  cp -R "${bootsrc}/." "$bootdst9"
+  rm -rf "${bootdst9}/docs/plans"
+  ln -s "${bootvictim}/plans" "${bootdst9}/docs/plans"
+  out="$(boot "$bootdst9")" && rc=0 || rc=$?
+  if [ "$rc" -eq 1 ]; then
+    pass "symlinked purge dir refused"
+  else
+    fail "symlinked purge dir refused (got ${rc})"
+  fi
+  expect "leaf refusal names the path" "'docs/plans' in" "$out"
+else
+  skip "purge symlink guard" "symlinks unavailable here"
+fi
 
 # --- summary ----------------------------------------------------------------
 # Skips are printed in the count, never folded into passed: a run that could

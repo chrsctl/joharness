@@ -85,7 +85,7 @@ if [ ! -d "$DEST" ]; then
   MODE=fresh
   if [ "$DRY" -eq 1 ]; then
     printf '== bootstrap %s -> %s (fresh; dry run, nothing written)\n' "$ROOT" "$DEST"
-    log "consumer dir '$DEST' does not exist; would create it, sync the harness in, and seed AGENTS.md Part 2 stub, joharness.conf, ci.yml, README.md"
+    log "consumer dir '$DEST' does not exist; would create it, sync the harness in, and seed AGENTS.md Part 2 stub, joharness.conf, ci.yml, update.yml, README.md"
     exit 0
   fi
 else
@@ -243,6 +243,16 @@ EOF
     warn "canonical has no .github/workflows/ci.yml; not seeded"
   fi
 
+  # Same delivery as ci.yml: the update workflow's canonical pointer and
+  # cadence are the consumer's to edit, so the sync never touches it and
+  # it must land here or never. In canonical itself the workflow is an
+  # inert no-op (its own guard); the copy activates in the consumer.
+  if [ -f "${ROOT}/.github/workflows/update.yml" ]; then
+    seed .github/workflows/update.yml "${ROOT}/.github/workflows/update.yml"
+  else
+    warn "canonical has no .github/workflows/update.yml; not seeded"
+  fi
+
   cat >"${SCRATCH}/readme" <<'EOF'
 # Consumer repo
 
@@ -275,6 +285,19 @@ bootstrap_whole_clone() {
     die "'$DEST' has no AGENTS.md; not a joharness clone this tool can convert"
   has_marker "${DEST}/AGENTS.md" ||
     die "AGENTS.md in '$DEST' lacks marker '${MARKER}'; restore it, then re-run"
+
+  # The purge below rm's through whatever these paths resolve to, and the
+  # clone is untrusted input: a symlinked docs/ aimed the delete at files
+  # OUTSIDE the target (reproduced 2026-08-23). Same ancestor rule as the
+  # sync engine's refuse_bad_dst; DEST itself is already physical (pwd -P
+  # above). A symlinked purge dir is refused too — find would not descend
+  # it, so the conversion would silently keep the live files it exists to
+  # remove. Leaves inside are safe as-is: find -P neither crosses a
+  # symlinked subdirectory nor lists a symlinked file as -type f.
+  for rel in docs docs/plans docs/product docs/handover; do
+    [ ! -h "${DEST}/${rel}" ] ||
+      die "'${rel}' in '$DEST' is a symlink; purge would follow it — repair the clone, then re-run"
+  done
 
   # Just the marker line, nothing clever: the comment block above it in a
   # real clone describes the canonical and goes stale, but guessing at
