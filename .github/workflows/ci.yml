@@ -8,8 +8,16 @@ on:
     branches: [main]
   pull_request:
 
+# Main pushes get a per-sha group: GitHub keeps at most one running plus one
+# PENDING run per group, and each newly arriving run evicts the pending one
+# regardless of cancel-in-progress — which dropped two of the three main
+# runs when merges landed 15s apart (2026-08-23), exactly the runs that
+# catch cross-PR collisions no per-PR gate can see. Distinct groups mean
+# nothing shares a queue slot: every merge commit keeps its own verdict,
+# in parallel. Branch/PR runs keep the shared per-ref group and cancel
+# superseded runs as before.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
