@@ -5,6 +5,7 @@ agent: sonnet
 effort: high
 needs: none
 requirement: none
+scope: none
 ---
 
 <!--
@@ -19,6 +20,11 @@ files exist. Related-but-independent = fake edge, leave `none`.
 `requirement` = the one this plan serves (docs/product/); hook stops
 flagging it unplanned. Last plan of a requirement: its PR deletes the
 requirement file too.
+`scope` = comma-separated path prefixes this plan will touch (a file, a
+directory, a layer). The queue hook partitions free plans into waves of
+disjoint scopes — parallel proven inside a wave, the conflicting pair
+named across. `none` = independence stays unprovable; the plan is listed
+but joins no wave.
 -->
 
 ## Goal

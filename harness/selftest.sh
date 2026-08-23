@@ -428,6 +428,65 @@ expect "two free plans = spawn instruction with tiers" \
 expect "spawn list names each free plan's tier" \
   "newer-urgent (opus), older-normal (haiku)" "$out"
 
+# --- scope waves -------------------------------------------------------------
+# With no scoped plan the output above stayed exactly as before — that is
+# what the two assertions just proved. Scoped plans switch the fan-out to
+# waves: point-break and wipeout both surf beach/ (one names the directory,
+# one a file inside — the prefix case), inland stays on dry land.
+step "queue-context.sh scope waves"
+
+git -C "$work" checkout -q main
+mkdir -p "${work}/docs/plans"
+cat >"${work}/docs/plans/point-break.md" <<'EOF'
+---
+plan: point-break
+urgency: urgent
+agent: sonnet
+scope: beach/
+---
+EOF
+cat >"${work}/docs/plans/wipeout.md" <<'EOF'
+---
+plan: wipeout
+urgency: urgent
+agent: sonnet
+scope: beach/surf.txt
+---
+EOF
+cat >"${work}/docs/plans/inland.md" <<'EOF'
+---
+plan: inland
+urgency: urgent
+agent: haiku
+scope: docs/inland.md, meadow/
+---
+EOF
+commit_all "$work" "queue the surf plans"
+git -C "$work" push -q origin main
+git -C "$work" checkout -q feature
+git -C "$work" fetch -q origin
+
+out="$(CLAUDE_PROJECT_DIR="$work" bash "${ROOT}/harness/queue-context.sh" 2>&1)"
+
+expect "waves replace the unconditional promise" \
+  "Waves — declared scopes disjoint" "$out"
+expect "disjoint plans share wave 1" \
+  "wave 1: inland (haiku), point-break (sonnet)" "$out"
+expect "prefix overlap forces wave 2 and names the conflict" \
+  "wave 2: wipeout (sonnet) — overlaps point-break on beach" "$out"
+expect "unscoped plans stay listed as unprovable" \
+  "unscoped, independence not provable: newer-urgent (opus), older-normal (haiku)" "$out"
+refute "the old unconditional line is gone when scopes exist" \
+  "5 free plans = 5 parallel sessions" "$out"
+
+git -C "$work" checkout -q main
+git -C "$work" rm -q docs/plans/point-break.md docs/plans/wipeout.md \
+  docs/plans/inland.md
+git -C "$work" commit -qm "surf plans ride out"
+git -C "$work" push -q origin main
+git -C "$work" checkout -q feature
+git -C "$work" fetch -q origin
+
 # --- graph ------------------------------------------------------------------
 # One picture of the same state the two hooks print: requirements, plans,
 # branches, and the serves/needs/claims edges between them. Derived from the
