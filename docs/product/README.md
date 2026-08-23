@@ -35,14 +35,18 @@ human work.
 - **Start** = Claim (Loop step 3): cut `claude/<plan>`, workstream file,
   push.
 - **Finish** = PR green + reviewed, merge to `main`, PR deletes plan file
-  (+ requirement file when last plan). Merged branch then dies — human
-  deletes it (Delete-branch button on merged PR page, or repo setting
-  "Automatically delete head branches", set once). Sessions never
-  `git push --delete`: permission-blocked, and deletion stays a human
-  call. A dead branch left standing reads as in-flight work and pollutes
-  the claims view — three did exactly that (2026-08-21, recovered as
-  plans seeded from their workstream files); session-start hook now names
-  standing deadwood with the delete command.
+  (+ requirement file when last plan). Merged branch may stand: the
+  session-start hook filters branches merged into `main` out of the
+  claims view, so deadwood is `git branch -r` noise, not fake in-flight
+  work. That filter rests on the merge-commit rule below — squash or
+  rebase merges would hide the ancestry and deadwood would read as
+  in-flight again (three branches did exactly that on 2026-08-21, before
+  the filter; recovered as plans seeded from their workstream files).
+  Deleting = optional hygiene, human-only, anytime: Delete-branch button
+  on merged PR page, or repo setting "Automatically delete head
+  branches". Sessions never `git push --delete` — permission-blocked,
+  human's call. One friction: re-cutting a merged branch name over its
+  standing remote needs a force-with-lease push.
 - `urgent` = same mechanics, jumps queue.
 - Merge commits on shared branches, never rebase — history rewrite breaks
   other sessions' checkouts.

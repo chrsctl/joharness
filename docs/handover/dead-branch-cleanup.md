@@ -7,38 +7,38 @@ plan: none
 agent: sonnet
 updated: 2026-08-23
 session: https://claude.ai/code/session_01MhevorBe88x3x2wiVMFGJb
-next: Open PR, merge. Human: enable repo setting "Automatically delete head branches", run the delete command the hook prints once.
+next: Open PR, merge. Nothing for the human — deletion is optional.
 ---
 
 ## Goal
 
-Finish protocol told the session to delete the merged remote branch. A remote
-session cannot: the permission classifier blocks `git push --delete`, the
-GitHub MCP set has no branch-delete tool, and the human ruled session-side
-deletion out. Make the protocol match reality — deletion is the human's job
-(Delete-branch button on the merged PR page, or the repo's auto-delete
-setting) — and make standing deadwood visible instead of silently rotting.
+Finish protocol told the session to delete the merged remote branch; a remote
+session cannot (`git push --delete` permission-blocked, no branch-delete tool
+in GitHub MCP), and the human ruled it out. Question then raised: is anything
+actually dependent on deletion? Answer: no. Make the protocol say so.
 
 ## Decisions
 
-- Hook (`handover-context.sh`) collects branches merged into the base but
-  still standing on origin, prints them as one ready-to-run
-  `git push origin --delete ...` line for the human. Same philosophy as the
-  main rot check: make rot visible, don't trust discipline.
-- Only `origin/*` refs counted (fork copies skipped), base branch excluded —
-  `origin/main` is trivially its own ancestor.
-- Docs updated to match: `harness/AGENTS.md` Loop step 7,
-  `docs/product/README.md` Branch flow "Finish".
+- Dead merged branches are cosmetic: the session-start hook filters branches
+  merged into the base out of the claims view (`merge-base --is-ancestor`),
+  and `/who` takes liveness from the control plane, not branch existence.
+  Docs (`harness/AGENTS.md` step 7, `docs/product/README.md` Branch flow)
+  now say: ignore deadwood; deleting is optional hygiene, human-only.
+- The filter rests on the merge-commit rule. Squash or rebase merges would
+  hide ancestry and deadwood would pollute claims again — recorded in Branch
+  flow next to the 2026-08-21 incident so the coupling is visible.
+- Sessions never `git push --delete` stays a hard rule.
 
 ## Rejected
 
 - Session-side `git push --delete` (retry or permission grant) — human
-  declined it ("No in child repos"); now codified as never.
-- Enabling "Automatically delete head branches" from the session — GitHub MCP
-  exposes no repo-settings tool; one human click in Settings → General.
-- Listing dead branches one per line — a dozen lines of context every session
-  start; one command line carries the same information and is directly
-  runnable.
+  declined ("No in child repos").
+- Hook block naming deadwood with a ready delete command — built, tested,
+  then removed: a 7-line nag every session start for something cosmetic the
+  human chose to skip. Reverted to the plain merged-branch filter.
+- Requiring the "Automatically delete head branches" repo setting — deletion
+  is optional, so the setting is mentioned as hygiene, not required. No MCP
+  tool can flip it anyway.
 
 ## Blockers
 
@@ -46,6 +46,5 @@ None.
 
 ## Where to look
 
-- `harness/handover-context.sh` — dead-branch collection in the other-branch
-  loop, output block after the main rot check.
-- `harness/selftest.sh` — "handover-context.sh dead branches" step.
+- `harness/handover-context.sh` — the `merge-base --is-ancestor` skip in the
+  other-branches loop is what makes deadwood harmless.
