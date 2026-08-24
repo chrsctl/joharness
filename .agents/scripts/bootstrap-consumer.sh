@@ -87,23 +87,24 @@ done
 [ $# -eq 1 ] || usage
 DEST="$1"
 
-# The layer is checked against canonical here, where every layer exists,
-# rather than at the sync: a typo caught now costs a rerun, one caught
-# after the write costs a consumer that selected a layer it does not
-# have. Same whole-string name guard as everywhere else — a layer name
-# reaches a path.
-case "$LAYER" in
-  '' | [!a-z0-9]* | *[!a-z0-9._-]*)
-    die "invalid layer name '${LAYER}'" ;;
-esac
-[ -d "${ROOT}/.agents/env/${LAYER}" ] ||
-  die "no layer .agents/env/${LAYER} in canonical; available: $(cd "${ROOT}/.agents/env" 2>/dev/null && printf '%s ' */ | tr -d '/')"
-
 # Same doctrine as the sync engine's guard: consumers receive this script
 # too, but a consumer copy must not bootstrap other consumers — only the
 # canonical carries the marker.
 grep -q '^JOHARNESS_CANONICAL=1' "${ROOT}/joharness.conf" 2>/dev/null ||
   die "'$ROOT' is not the canonical harness (no JOHARNESS_CANONICAL=1 in joharness.conf); a consumer copy must not bootstrap other consumers"
+
+# After the canonical guard on purpose: a consumer copy of this script is
+# refused for BEING a consumer copy, whatever layer it was asked for.
+# Checked here rather than left to the sync because canonical is where
+# every layer exists — a typo caught now costs a rerun, one caught after
+# the write costs a consumer selecting a layer it does not have. Same
+# whole-string name guard as everywhere else: a layer name reaches a path.
+case "$LAYER" in
+  '' | [!a-z0-9]* | *[!a-z0-9._-]*)
+    die "invalid layer name '${LAYER}'" ;;
+esac
+[ -d "${ROOT}/.agents/env/${LAYER}" ] ||
+  die "no layer .agents/env/${LAYER} in canonical (try: ls ${ROOT}/.agents/env)"
 
 # Mode detection needs the target readable; a missing target is trivially
 # FRESH. Creating the directory is the run's first write, so it happens
