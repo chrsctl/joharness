@@ -61,6 +61,12 @@ Sandbox = Firecracker microVM + filtering egress proxy. Workarounds in
 - Version pin + sha256 digest = ONE pin, same edit (`devenv.sh`). Bump
   version without digest = install refuses. Procedure:
   `.agents/env/k8s/README.md`.
+- First `verify` after a cold `cluster-up` can fail, and the failures MOVE
+  between runs. Measured, one cold cluster, no edits between: run 1 failed
+  the docker pull only, run 2 failed all three cluster checks (node 92s old),
+  run 3 was 7/7. Node says `Ready` before containerd will serve a pull. Re-run
+  once before believing a red verify — a real break stays red in the same
+  place. Proper fix = verify waits on a pull succeeding, not on `Ready`.
 - Download 403? Host blocked by egress policy. Do not route around. Known
   good: `dl.k8s.io`, `get.helm.sh`, `proxy.golang.org`, `registry.k8s.io`,
   `registry-1.docker.io`, `raw.githubusercontent.com`.
