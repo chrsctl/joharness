@@ -2,7 +2,7 @@
 workstream: steal-joharnessburg
 status: in-progress
 branch: claude/compare-joharnessburg-qdimm7
-pr: none
+pr: 44
 plan: none
 session: https://claude.ai/code/session_0126bZYruEVL7vNBLb7RXF4v
 agent: opus
