@@ -1,6 +1,6 @@
 ---
 workstream: harness-review-step
-status: in-progress
+status: review
 branch: claude/harness-review-step-xrnmu7
 pr: none
 plan: none
@@ -46,7 +46,7 @@ hook output ever notices it is empty. Opt-in gate closes it.
   Loop already puts the review (step 5), so the gate fires when the rule
   comes due, not before.
 - Dodge accepted, on the record: a session that never sets `pr:` and leaves
-  `status: in-progress` never trips the gate. Every alternative that closes
+  `status: review` never trips the gate. Every alternative that closes
   it (fire on any commit) costs the tier above. Lying in the workstream file
   is visible in the diff and to the human, the same bargain
   `JOHARNESS_CHURN_LIMIT=0` already makes.
