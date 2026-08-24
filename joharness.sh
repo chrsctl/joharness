@@ -902,6 +902,7 @@ FB_FIXED=0
 FB_WONTFIX=0
 FB_NOCHANGE=0
 FB_UNMARKED=0
+FB_NOID=0
 
 fb_collect() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" candidate
@@ -916,7 +917,7 @@ fb_collect() {
   local m tip base doc label line marker n all
   FB_PAIRS=""; FB_HIST=""
   FB_EDGES=0; FB_WITHWS=0; FB_RECORDED=0; FB_FINDINGS=0
-  FB_FIXED=0; FB_WONTFIX=0; FB_NOCHANGE=0; FB_UNMARKED=0
+  FB_FIXED=0; FB_WONTFIX=0; FB_NOCHANGE=0; FB_UNMARKED=0; FB_NOID=0
   FB_TOTAL=0; FB_CAPPED=0
 
   all="$(fb_edges "$FB_REF")"
@@ -947,7 +948,14 @@ fb_collect() {
         *) FB_UNMARKED=$((FB_UNMARKED + 1)) ;;
       esac
       # Keyed by the finding's own id so the commit-level map below can say
-      # which file this one landed on.
+      # which file this one landed on. A bullet written without the
+      # TEMPLATE's `r1:` id is still a finding — the handover hook counts it,
+      # and so does the volume above — but nothing can link it to a file, so
+      # it is counted as exactly that rather than quietly dropped.
+      case "${line%%:*}" in
+        r[0-9] | r[0-9][0-9]) ;;
+        *) FB_NOID=$((FB_NOID + 1)) ;;
+      esac
       FB_HIST="${FB_HIST}${label}"$'\t'"${line%%:*}"$'\t'"${line}"$'\n'
     done <<<"$(printf '%s\n' "$doc" | fb_findings)"
 
@@ -977,6 +985,7 @@ cmd_feedback() {
   local recorded="$FB_RECORDED" findings="$FB_FINDINGS"
   local fixed="$FB_FIXED" wontfix="$FB_WONTFIX" nochange="$FB_NOCHANGE"
   local unmarked="$FB_UNMARKED" pairs="$FB_PAIRS" hist="$FB_HIST"
+  local noid="$FB_NOID"
 
   if [ "$want" != "" ]; then
     fb_report_path "$want" "$hist" "$pairs"
@@ -1001,6 +1010,10 @@ cmd_feedback() {
   printf 'coverage   : %d/%d merged edges recorded a review\n' "$recorded" "$withws"
   printf 'volume     : %d findings — %d fixed, %d wontfix, %d no-change, %d unmarked\n' \
     "$findings" "$fixed" "$wontfix" "$nochange" "$unmarked"
+  if [ "${noid:-0}" -gt 0 ]; then
+    printf '             %d carry no r1: id (the TEMPLATE form) — counted here,\n' "$noid"
+    printf '             but nothing links them to the files they landed on\n'
+  fi
 
   # Recurrence, the one number worth watching, and the only one whose
   # direction is unambiguous: a file drawing a finding an earlier edge already

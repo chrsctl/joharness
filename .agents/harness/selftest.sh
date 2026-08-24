@@ -1009,10 +1009,27 @@ expect "a mid-flight merge of main is not a second edge" \
   "4 edges, 4 carrying a workstream file" "$out"
 expect "and does not double its findings" "5 findings" "$out"
 
+# A finding written without the TEMPLATE's id counts in volume but cannot be
+# linked to a file. Silence there would read as a clean edge; the count is
+# printed instead.
+git -C "$fwork" checkout -q main
+git -C "$fwork" checkout -qb noid
+printf 'noid\n' >>"${fwork}/cold.sh"
+mkdir -p "${fwork}/docs/handover"
+{ printf -- '---\nworkstream: zeta\nstatus: review\n---\n\n## Review\n\n'
+  printf -- '- Wrote the finding without an id.\n'; } >"${fwork}/docs/handover/zeta.md"
+commit_all "$fwork" "record without an id"
+git -C "$fwork" checkout -q main
+git -C "$fwork" merge -q --no-ff -m "Merge pull request #5 from scratch/noid" noid
+git -C "$fwork" push -q origin main
+out="$(jf feedback)"
+expect "an unidentified finding still counts as volume" "6 findings" "$out"
+expect "and the measure says it cannot be linked" "1 carry no r1: id" "$out"
+
 # The walk is bounded, and a bounded view says so — a window nobody was told
 # about is how a measure starts lying.
 out="$(JOHARNESS_FEEDBACK_EDGES=2 jf feedback)"
-expect "a capped walk names its window" "newest 2 edges of 4" "$out"
+expect "a capped walk names its window" "newest 2 edges of 5" "$out"
 expect "and names the knob that widens it" "JOHARNESS_FEEDBACK_EDGES=2" "$out"
 out="$(JOHARNESS_FEEDBACK_EDGES=0 jf feedback)"
 refute "0 reads every edge" "older edges NOT read" "$out"
