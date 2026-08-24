@@ -124,6 +124,34 @@ else
   pass "path-walking layer name rejected"
 fi
 
+# A consumer carries only the layer it selected — the sync ships no others
+# — so naming an absent one is a REQUEST, not a typo: refusing to write it
+# would leave no way to ask, since the sync reads this very file to decide
+# what to ship. Canonical is the opposite case and keeps the refusal: every
+# layer exists there, so an unknown name is a typo.
+out="$(jo env bbb)"; rc=$?
+expect "consumer selection of an absent layer warns" \
+  "no .agents/env/bbb here yet" "$out"
+if [ "$rc" -eq 0 ] && grep -q '^JOHARNESS_ENV=bbb' "${sel}/joharness.conf"; then
+  pass "absent layer written to conf for the next sync"
+else
+  fail "absent layer written to conf for the next sync (rc ${rc})"
+fi
+printf 'JOHARNESS_CANONICAL=1\n' >>"${sel}/joharness.conf"
+out="$(jo env ccc)"; rc=$?
+if [ "$rc" -ne 0 ]; then
+  pass "canonical still refuses an unknown layer"
+else
+  fail "canonical still refuses an unknown layer (exited 0)"
+fi
+expect "canonical refusal names the layer" "no such layer .agents/env/ccc" "$out"
+refute "canonical refusal writes nothing" "JOHARNESS_ENV=ccc" \
+  "$(cat "${sel}/joharness.conf")"
+# Back to a consumer conf, and to the layer the rest of this block set.
+grep -v '^JOHARNESS_CANONICAL=1' "${sel}/joharness.conf" >"${sel}/conf.tmp"
+mv "${sel}/conf.tmp" "${sel}/joharness.conf"
+jo env aaa >/dev/null 2>&1
+
 # md mode: lazy (default) points at the layer's rules, eager injects whole.
 cat >"${sel}/.agents/env/aaa/AGENTS.md" <<'EOF'
 RULE-SENTINEL unique to this fixture
@@ -162,7 +190,16 @@ cat >"${setup_sut}/devenv.sh" <<'EOF'
 exit 0
 EOF
 chmod +x "${setup_sut}/devenv.sh" 2>/dev/null || true
-if "${setup_sut}/devenv.sh" up 2>/dev/null; then
+# This is the harness's selftest reaching into ONE environment layer, which
+# the layering rule forbids everywhere else (.agents/env/README.md: nothing
+# outside a layer may name it). It stays because the defect it guards —
+# a hostile cluster name executing when the env file is sourced — is worth
+# a git-only regression test, and a layer's own smoke-test.sh needs the
+# sandbox. What it must NOT do is fail where the layer is absent: consumers
+# receive one layer, so k8s is missing in most of them.
+if [ ! -f "${ROOT}/.agents/env/k8s/setup.sh" ]; then
+  skip ".agents/env/k8s/setup.sh env-file quoting" "this repo does not carry the k8s layer"
+elif "${setup_sut}/devenv.sh" up 2>/dev/null; then
   cp "${ROOT}/.agents/env/k8s/setup.sh" "${setup_sut}/setup.sh"
   envf="${TMP}/claude-env-file"
   : >"$envf"
@@ -1414,6 +1451,13 @@ chmod +x "${syncsrc}/joharness.sh"
 printf 'sync stub\n' >"${syncsrc}/.agents/scripts/sync-to-consumer.sh"
 printf 'boot stub\n' >"${syncsrc}/.agents/scripts/bootstrap-consumer.sh"
 printf 'layer none\n' >"${syncsrc}/.agents/env/none/AGENTS.md"
+# The layer contract doc is a FILES entry: it belongs to no layer, so it
+# travels whichever one a consumer selects. A second real layer gives the
+# selective-sync cases something to NOT ship.
+printf 'layer contract\n' >"${syncsrc}/.agents/env/README.md"
+mkdir -p "${syncsrc}/.agents/env/aaa"
+printf 'layer aaa AAA-SENTINEL\n' >"${syncsrc}/.agents/env/aaa/AGENTS.md"
+printf 'aaa setup\n' >"${syncsrc}/.agents/env/aaa/setup.sh"
 printf 'who cmd\n' >"${syncsrc}/.claude/commands/who.md"
 printf 'steward SKILL-SENTINEL\n' >"${syncsrc}/.claude/skills/steward/SKILL.md"
 # Every FILES entry must exist: a listed-but-missing file fails the run.
@@ -1512,12 +1556,95 @@ if [ "$HAVE_FILEMODE" = "1" ]; then
 else
   skip "exec bit repair" "core.filemode unsupported here"
 fi
-expect "consumer-only file reported, left" \
-  "consumer-only .agents/env/custom/AGENTS.md" "$out"
-expect "consumer-only symlink reported" \
-  "consumer-only .agents/env/custom/link.md" "$out"
+# .agents/env/ is not a synced directory any more: one layer ships, so a
+# layer the consumer does not select is reported as unused rather than
+# walked file by file. Its AGENTS.md was never canonical's, so the report
+# says so and no remove advice points at it.
+expect "unselected consumer-own layer reported" \
+  "unused  .agents/env/custom (not canonical's; left in place)" "$out"
+refute "consumer-own layer not advised for deletion" \
+  "git rm -r .agents/env/custom" "$out"
+if [ -f "${syncdst}/.agents/env/custom/AGENTS.md" ]; then
+  pass "unselected layer left in place"
+else
+  fail "unselected layer left in place"
+fi
+refute "unselected canonical layer does not ship" \
+  "AAA-SENTINEL" "$(cat "${syncdst}/.agents/env/aaa/AGENTS.md" 2>/dev/null)"
+expect "layer contract doc ships whatever the selection" "layer contract" \
+  "$(cat "${syncdst}/.agents/env/README.md" 2>/dev/null)"
 expect "consumer README untouched" "CONSUMER-README" \
   "$(cat "${syncdst}/README.md")"
+
+# --- one layer ships, not every layer ---------------------------------------
+# The consumer's own joharness.conf names it, so what ships and what the
+# entrypoint provisions cannot disagree. Its own consumer dir: the fixture
+# above deliberately has no conf, which is the 'none' default.
+step "sync ships the selected layer only"
+
+layerdst="${TMP}/synclayer"
+mkdir -p "$layerdst"
+printf 'JOHARNESS_ENV=aaa  # trailing comment\n' >"${layerdst}/joharness.conf"
+out="$(sync "$layerdst")"; rc=$?
+expect "run announces the layer it ships" "layer   aaa" "$out"
+expect "selected layer ships" "layer aaa AAA-SENTINEL" \
+  "$(cat "${layerdst}/.agents/env/aaa/AGENTS.md" 2>/dev/null)"
+expect "selected layer ships whole" "aaa setup" \
+  "$(cat "${layerdst}/.agents/env/aaa/setup.sh" 2>/dev/null)"
+if [ -e "${layerdst}/.agents/env/none" ]; then
+  fail "unselected layer stays in canonical"
+else
+  pass "unselected layer stays in canonical"
+fi
+expect "layer contract doc ships anyway" "layer contract" \
+  "$(cat "${layerdst}/.agents/env/README.md" 2>/dev/null)"
+if [ "$rc" -eq 0 ]; then
+  pass "selective sync exits 0"
+else
+  fail "selective sync exits 0 (got ${rc})"
+fi
+
+# A layer left from the days when all of them shipped: canonical's own
+# content at canonical's own path, so the report can safely say delete it.
+mkdir -p "${layerdst}/.agents/env/none"
+printf 'layer none\n' >"${layerdst}/.agents/env/none/AGENTS.md"
+out="$(sync "$layerdst")"
+expect "unused canonical layer reported" \
+  "unused  .agents/env/none (canonical's; nothing here reads it)" "$out"
+expect "unused canonical layer gets the remove line" \
+  "git rm -r .agents/env/none" "$out"
+if [ -f "${layerdst}/.agents/env/none/AGENTS.md" ]; then
+  pass "unused layer is reported, never deleted"
+else
+  fail "unused layer is reported, never deleted"
+fi
+
+# JOHARNESS_SYNC_ENV is bootstrap's channel for a consumer whose conf does
+# not exist yet; it must beat the conf when both speak.
+out="$(JOHARNESS_SYNC_ENV=none sync --dry-run "$layerdst")"
+expect "sync env override beats the conf" "layer   none" "$out"
+
+# A selection canonical does not carry is not an error: it may be the
+# consumer's own layer. Said out loud, and the run still succeeds.
+printf 'JOHARNESS_ENV=mine\n' >"${layerdst}/joharness.conf"
+out="$(sync "$layerdst")"; rc=$?
+expect "unknown selection is announced, not fatal" \
+  "layer   mine (not in canonical; nothing ships for it)" "$out"
+if [ "$rc" -eq 0 ]; then
+  pass "unknown selection still exits 0"
+else
+  fail "unknown selection still exits 0 (got ${rc})"
+fi
+
+# A layer name reaches a path, so a walking one is refused before any write.
+printf 'JOHARNESS_ENV=../../etc\n' >"${layerdst}/joharness.conf"
+out="$(sync "$layerdst")"; rc=$?
+if [ "$rc" -eq 1 ]; then
+  pass "path-walking selection refused"
+else
+  fail "path-walking selection refused (got ${rc})"
+fi
+expect "refusal names the conf to fix" "fix JOHARNESS_ENV in" "$out"
 
 # Second run on the now-reconciled tree: the AHEAD file still blocks, all
 # else settles to same — reruns must be idempotent. A stage file stranded
@@ -1881,6 +2008,9 @@ chmod +x "${bootsrc}/joharness.sh"
 printf 'sync stub\n' >"${bootsrc}/.agents/scripts/sync-to-consumer.sh"
 printf 'boot stub\n' >"${bootsrc}/.agents/scripts/bootstrap-consumer.sh"
 printf 'layer none\n' >"${bootsrc}/.agents/env/none/AGENTS.md"
+printf 'layer contract\n' >"${bootsrc}/.agents/env/README.md"
+mkdir -p "${bootsrc}/.agents/env/aaa"
+printf 'layer aaa BOOT-AAA-SENTINEL\n' >"${bootsrc}/.agents/env/aaa/AGENTS.md"
 printf 'who cmd\n' >"${bootsrc}/.claude/commands/who.md"
 printf 'steward stub\n' >"${bootsrc}/.claude/skills/steward/SKILL.md"
 printf 'attrs\n' >"${bootsrc}/.gitattributes"
@@ -1948,6 +2078,48 @@ expect "update workflow seeded from canonical" "BOOT-UPDATE-STUB" \
   "$(cat "${bootdst1}/.github/workflows/update.yml" 2>/dev/null)"
 expect "README stub seeded" "joharness" \
   "$(cat "${bootdst1}/README.md" 2>/dev/null)"
+
+# --env picks the layer, and the sync ships that one alone: the flag has
+# to reach the engine directly, because the conf it would otherwise be
+# read from does not exist until the seed a few lines later.
+bootenv="${TMP}/bootenv"
+out="$(boot --env aaa "$bootenv")"; rc=$?
+if [ "$rc" -eq 0 ]; then
+  pass "bootstrap --env exits 0"
+else
+  fail "bootstrap --env exits 0 (got ${rc})"
+fi
+expect "--env seeds the conf with that layer" "JOHARNESS_ENV=aaa" \
+  "$(cat "${bootenv}/joharness.conf" 2>/dev/null)"
+expect "--env ships that layer" "BOOT-AAA-SENTINEL" \
+  "$(cat "${bootenv}/.agents/env/aaa/AGENTS.md" 2>/dev/null)"
+if [ -e "${bootenv}/.agents/env/none" ]; then
+  fail "--env leaves the other layers in canonical"
+else
+  pass "--env leaves the other layers in canonical"
+fi
+expect "--env repeats the selection in the next steps" "environment layer: aaa" "$out"
+
+# Canonical holds every layer, so a name it lacks is a typo — caught
+# before the write, not after a consumer already selected it.
+out="$(boot --env nope "${TMP}/bootenv-bad")"; rc=$?
+if [ "$rc" -eq 1 ]; then
+  pass "bootstrap --env refuses an unknown layer"
+else
+  fail "bootstrap --env refuses an unknown layer (got ${rc})"
+fi
+expect "unknown layer refusal names it" "no layer .agents/env/nope" "$out"
+if [ -e "${TMP}/bootenv-bad" ]; then
+  fail "refused bootstrap creates nothing"
+else
+  pass "refused bootstrap creates nothing"
+fi
+out="$(boot --env 'bad/../name' "${TMP}/bootenv-walk")"; rc=$?
+if [ "$rc" -eq 1 ]; then
+  pass "bootstrap --env refuses a path-walking name"
+else
+  fail "bootstrap --env refuses a path-walking name (got ${rc})"
+fi
 
 # Rerun on the bootstrapped dir: a consumer's live plans live under the
 # dirs whole-clone mode purges, so re-bootstrap must refuse untouched.
