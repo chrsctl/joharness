@@ -120,6 +120,48 @@ if [ -n "$base" ] && [ "$base" != "$(git rev-parse HEAD 2>/dev/null)" ]; then
   fi
 fi
 
+# --- unsupervised boundary -------------------------------------------------
+# Under JOHARNESS_MODE=unsupervised the harness layer is off limits: an
+# unattended session may not edit the protocol that governs unattended
+# sessions (docs/product/unsupervised-mode.md, Constraints).
+#
+# Detection, not prevention, and the wording says so. A Stop hook runs
+# after the commit exists, so the honest thing it can do is name a boundary
+# already crossed and ask for the revert — calling this a guarantee would
+# promise a vault where there is a tripwire.
+#
+# Resolution goes through the entrypoint so one function decides what
+# unsupervised means; a checkout without it (or an older copy with no
+# `mode` subcommand) falls back to the environment variable, and both paths
+# normalise to supervised on anything unexpected.
+if [ -x "${PROJECT_DIR}/joharness.sh" ]; then
+  mode="$("${PROJECT_DIR}/joharness.sh" mode 2>/dev/null)"
+else
+  mode="${JOHARNESS_MODE:-}"
+fi
+[ "$mode" = "unsupervised" ] || mode="supervised"
+
+if [ "$mode" = "unsupervised" ] && [ -n "$base" ]; then
+  # Count only, never a path: the reason string below embeds in JSON
+  # without escaping, and a file name is repo-controlled input. A count is
+  # digits, and digits cannot close a JSON string.
+  # Net diff, not the commit log. A session that edited the harness and
+  # then reverted it lands nothing, and the fact's own instruction ("revert
+  # them") is already satisfied — reading the log instead would keep
+  # blocking every stop for the rest of the branch's life, which is the
+  # same false positive the ritual test above exists to prevent.
+  harness_touched="$(
+    {
+      git diff --name-only "$base" HEAD -- .agents/harness 2>/dev/null
+      git diff --name-only HEAD -- .agents/harness 2>/dev/null
+      git diff --name-only --cached -- .agents/harness 2>/dev/null
+    } | { grep -E '^\.agents/harness/' || :; } | sort -u | grep -c . || :
+  )"
+  if [ -n "$harness_touched" ] && [ "$harness_touched" -gt 0 ]; then
+    add_fact "unsupervised mode, but this branch touches ${harness_touched} file(s) under .agents/harness/ — revert them"
+  fi
+fi
+
 [ -n "$facts" ] || exit 0
 
 # The facts string is built from fixed words and digits only — nothing
