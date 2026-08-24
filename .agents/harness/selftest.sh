@@ -189,7 +189,16 @@ cat >"${setup_sut}/devenv.sh" <<'EOF'
 exit 0
 EOF
 chmod +x "${setup_sut}/devenv.sh" 2>/dev/null || true
-if "${setup_sut}/devenv.sh" up 2>/dev/null; then
+# This is the harness's selftest reaching into ONE environment layer, which
+# the layering rule forbids everywhere else (.agents/env/README.md: nothing
+# outside a layer may name it). It stays because the defect it guards —
+# a hostile cluster name executing when the env file is sourced — is worth
+# a git-only regression test, and a layer's own smoke-test.sh needs the
+# sandbox. What it must NOT do is fail where the layer is absent: consumers
+# receive one layer, so k8s is missing in most of them.
+if [ ! -f "${ROOT}/.agents/env/k8s/setup.sh" ]; then
+  skip ".agents/env/k8s/setup.sh env-file quoting" "this repo does not carry the k8s layer"
+elif "${setup_sut}/devenv.sh" up 2>/dev/null; then
   cp "${ROOT}/.agents/env/k8s/setup.sh" "${setup_sut}/setup.sh"
   envf="${TMP}/claude-env-file"
   : >"$envf"
