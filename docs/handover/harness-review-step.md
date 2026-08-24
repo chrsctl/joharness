@@ -83,6 +83,12 @@ does-it-reproduce as separate passes over the full diff.
 - r5: does-it-reproduce — the gate's own selftest fixture proved on/off but
   not the edge tiers or a second workstream file. (fixed: 27 cases, both
   edge signals, two-workstream branch, conf path, tier fallbacks)
+- r6: does-it-reproduce — found by running `JOHARNESS_REVIEW=on
+  ./joharness.sh ci` on this branch: 3 of the new selftest cases failed,
+  because the suite's "knobs exported in the invoking shell must not steer
+  the fixtures" unset list never learned the new name. Same hole already
+  stood open for `JOHARNESS_CHURN_THRESHOLD` and `JOHARNESS_CHURN_LIMIT`.
+  (fixed: all three added to the list)
 
 ## Blockers
 
