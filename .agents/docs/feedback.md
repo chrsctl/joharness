@@ -55,17 +55,18 @@ output, because producing more output is not what makes it fall.
 
 ## Measured here (2026-08-24)
 
-37 merged edges, 27 carrying a workstream file, 41 recorded findings.
+39 merged edges, 28 carrying a workstream file, 46 recorded findings.
 
-- **Coverage: 8/8 since the ledger, 0/19 before it.** The review ledger
+- **Coverage: 9/9 since the ledger, 0/19 before it.** The review ledger
   landed in PR #31. Every merged edge after it recorded findings; not one
   before it did. A step change on the commit that added the mechanism —
   the strongest evidence in this repo that a recording mechanism, not
   exhortation, is what makes recording happen.
-- **Volume: 41 findings — 33 fixed, 6 wontfix, 2 verified-no-change, 0
-  unmarked.**
-  5.1 findings per reviewed branch.
-- **Cost: 0.8 commits per finding, mean churn peak 1.8** against a threshold
+- **Volume: 46 findings — 33 fixed, 6 wontfix, 2 verified-no-change, 5
+  unmarked.** 5.1 findings per reviewed edge. The 5 unmarked all arrived on
+  one edge, written without the TEMPLATE's `r1:` id: counted, but unlinkable
+  to any file. The measure says so rather than dropping them.
+- **Cost: 0.8 commits per finding, mean churn peak 1.7** against a threshold
   of 5. Reviews here are not what drives rework.
 - **Recurrence: 7 of 19 file-level fixes (36%)** landed on a file an earlier
   merged edge had already fixed a finding in.
@@ -112,6 +113,17 @@ Named because a measure that hides its blind spots is worse than no measure:
 - **Commit-level attribution.** A finding is linked to its fix commit, so a
   commit carrying several findings attributes all of them to every file it
   touched.
+- **Findings without the `r1:` id.** Attribution keys on the id the TEMPLATE
+  prescribes. A bullet written without one still counts in volume — the
+  handover hook counts it too — but nothing links it to a file. One of the
+  nine reviewed edges here wrote all five of its findings that way, which is
+  how the gap got noticed; the scorecard prints the count rather than
+  quietly reading those edges as clean.
+- **Disposition read from prose.** `(fixed)`, `wontfix` and "no change" are
+  matched in the finding's text, so a finding saying "fixed; no change to the
+  docs" reads as no-change. The alternative is a structured field per
+  finding, and a field a hurried session fills in wrong is the failure mode
+  delete-on-merge exists to avoid.
 - **Renames.** A path recorded before a move resolves by unique-suffix match
   and otherwise stands as recorded. This repo's own `.agents/` move split one
   hot spot into two cold ones until that was fixed.

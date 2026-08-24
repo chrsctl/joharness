@@ -127,6 +127,16 @@ Second round, over the feedback measure, same three lenses.
   no-change. (wontfix — the alternative is a structured field per finding,
   and a field a hurried session fills in wrong is the failure mode the
   delete-on-merge design exists to avoid. Named in the doc's blind spots)
+- r12: correctness — found by re-running the measure after merging main:
+  the meter held two definitions of a finding. Volume counted any `- ` bullet
+  under `## Review` (matching the handover hook), attribution required the
+  TEMPLATE's `r1:` id, and one merged edge had written all five of its
+  findings without one — counted as volume, invisible to attribution, and
+  the scorecard read that edge as contributing nothing. (fixed: the count of
+  unlinkable findings is printed, and named in the doc's blind spots.
+  Relaxing attribution to any added bullet was rejected — a diff hunk does
+  not say which section the line landed in, so a `## Decisions` bullet would
+  read as a finding)
 - r6: does-it-reproduce — found by running `JOHARNESS_REVIEW=on
   ./joharness.sh ci` on this branch: 3 of the new selftest cases failed,
   because the suite's "knobs exported in the invoking shell must not steer
