@@ -15,6 +15,8 @@
 #   env <name>      select a layer (writes joharness.conf)
 #   setup           provision the selected layer now
 #   ci              run what .github/workflows/ci.yml runs, here
+#   upgrade         fetch canonical and sync this repo's harness forward
+#                   (consumers only; --dry-run to preview)
 #   verify          provision, then run the layer's smoke test
 #   graph           print the work graph as fenced mermaid (paste into any
 #                   GitHub comment; rendered natively)
@@ -161,6 +163,71 @@ cmd_verify() {
 # ones this repo did not select — they still ship to consumers.
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Upgrade
+#
+# A consumer no longer carries the sync engine: it refuses to run outside
+# canonical anyway (.agents/docs/consumer-repos.md). What it carries instead is
+# this command — fetch canonical, run ITS engine against this repo. One
+# command, so a repo that received a minimal harness can still take an
+# update without a recipe.
+#
+# The canonical address is read from .github/workflows/update.yml, the
+# consumer's own single source of truth for it: a fork names its fork
+# there, and a second key in joharness.conf would be a second answer.
+# ---------------------------------------------------------------------------
+
+# Set by cmd_upgrade, reaped by its EXIT trap. A global, not a local: the
+# trap fires after the function has returned, when a local is out of scope
+# and `set -u` turns the cleanup itself into the error.
+UPGRADE_CLONE=""
+
+cmd_upgrade() {
+  local repo engine rc=0 dry=0 a
+  grep -q '^JOHARNESS_CANONICAL=1' "$CONF" 2>/dev/null &&
+    die "this IS the canonical harness; upgrade is for consumers (sync out with .agents/scripts/sync-to-consumer.sh)"
+
+  local wf="${ROOT}/.github/workflows/update.yml"
+  [ -r "$wf" ] ||
+    die "no ${wf#"${ROOT}/"} to read the canonical address from; add it (.agents/docs/consumer-repos.md) or sync by hand"
+  repo="$(sed -n 's/^ *CANONICAL_REPO: *//p' "$wf" | tail -1)"
+  [ -n "$repo" ] ||
+    die "no CANONICAL_REPO in ${wf#"${ROOT}/"}; the update workflow names the canonical this repo follows"
+  case "$repo" in
+    */*) ;;
+    *) die "CANONICAL_REPO '${repo}' is not owner/repo" ;;
+  esac
+
+  have git || die "git is not installed"
+  # Outside the repo, or the clone lands in this tree and a later `git add
+  # -A` swallows it. Full clone, no --depth: stale-vs-AHEAD is decided by
+  # blob identity against canonical history, and a shallow clone reads
+  # honestly-synced files as AHEAD forever.
+  UPGRADE_CLONE="$(mktemp -d)"
+  trap '[ -z "${UPGRADE_CLONE:-}" ] || rm -rf "$UPGRADE_CLONE"' EXIT
+  log "fetching canonical ${repo}"
+  git clone --quiet "https://github.com/${repo}.git" "${UPGRADE_CLONE}/canonical" ||
+    die "could not clone https://github.com/${repo}.git"
+
+  engine="${UPGRADE_CLONE}/canonical/.agents/scripts/sync-to-consumer.sh"
+  [ -x "$engine" ] ||
+    die "${repo} carries no .agents/scripts/sync-to-consumer.sh; is it the canonical harness?"
+
+  for a in "$@"; do
+    [ "$a" = "--dry-run" ] && dry=1
+  done
+
+  "$engine" "$@" "$ROOT" || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    :
+  elif [ "$dry" -eq 1 ]; then
+    log "dry run against ${repo}; nothing written. Re-run without --dry-run to apply"
+  else
+    log "upgraded from ${repo}; review the diff, run '$0 ci', then commit"
+  fi
+  return "$rc"
+}
+
 cmd_ci() {
   local rc=0 f listing
   local -a targets=()
@@ -201,13 +268,18 @@ cmd_ci() {
   [ "$syntax_rc" -eq 0 ] && printf '  clean\n'
 
   # The harness's own regression tests: git-only, so they run on GitHub
-  # runners where the environment smoke test cannot.
+  # runners where the environment smoke test cannot. Canonical-only — a
+  # consumer does not receive them, because they cover harness code it
+  # does not edit. Absent is therefore normal in a consumer and said once;
+  # present but not executable is a broken copy and stays red.
   printf '\n== harness selftest\n'
   if [ -x "${HARNESS_ROOT}/selftest.sh" ]; then
     "${HARNESS_ROOT}/selftest.sh" || rc=1
-  else
-    warn ".agents/harness/selftest.sh missing or not executable"
+  elif [ -e "${HARNESS_ROOT}/selftest.sh" ]; then
+    warn ".agents/harness/selftest.sh is not executable"
     rc=1
+  else
+    printf '  not here (canonical-only; this repo does not carry the harness tests)\n'
   fi
 
   # Graph edges, checked rather than trusted: a dangling frontmatter edge
@@ -797,6 +869,7 @@ main() {
     env)            cmd_env "${1:-}" ;;
     setup)          cmd_setup ;;
     ci)             cmd_ci ;;
+    upgrade)        cmd_upgrade "$@" ;;
     verify)         cmd_verify ;;
     graph)          cmd_graph ;;
     -h|--help|help) usage ;;

@@ -784,6 +784,82 @@ expect "a calm branch reports quiet" "quiet (max 1 commits per file)" "$out"
 # Frontmatter edges checked from the working tree: never-existed names and
 # out-of-vocabulary enums red, delete-on-merge history silent or warned,
 # stale anchors warned. Same scratch-harness pattern as the churn cases.
+# A consumer carries no harness tests: absent is normal and says so, while a
+# present-but-unrunnable copy is a broken tree and stays red.
+step "joharness.sh ci: canonical-only selftest"
+
+mv "${cwork}/.agents/harness/selftest.sh" "${cwork}/selftest.stash"
+out="$(CLAUDE_PROJECT_DIR="$cwork" JOHARNESS_CONF="${cwork}/joharness.conf" \
+  GITHUB_ACTIONS='' "${cwork}/joharness.sh" ci 2>&1)"
+expect "absent selftest is named, not failed" \
+  "not here (canonical-only" "$out"
+if GITHUB_ACTIONS='' ci_rc; then
+  pass "absent selftest keeps ci green"
+else
+  fail "absent selftest keeps ci green"
+fi
+mv "${cwork}/selftest.stash" "${cwork}/.agents/harness/selftest.sh"
+chmod -x "${cwork}/.agents/harness/selftest.sh"
+if GITHUB_ACTIONS='' ci_rc; then
+  fail "a present but unrunnable selftest reds ci"
+else
+  pass "a present but unrunnable selftest reds ci"
+fi
+chmod +x "${cwork}/.agents/harness/selftest.sh"
+
+# --- upgrade: the consumer's route to a newer harness -----------------------
+# It clones canonical and runs ITS engine, so the refusals are what can be
+# proven without a network: canonical must not run it, and a consumer with
+# no canonical address must be told which file names one.
+step "joharness.sh upgrade"
+
+up="${TMP}/upgrade"
+mkdir -p "${up}/.github/workflows"
+cp "${ROOT}/joharness.sh" "${up}/joharness.sh"
+chmod +x "${up}/joharness.sh"
+# No arguments: every case here is a refusal that fires before the clone,
+# which is the whole of what a network-free selftest can prove.
+upg() { CLAUDE_PROJECT_DIR="$up" JOHARNESS_CONF="${up}/joharness.conf" \
+  "${up}/joharness.sh" upgrade 2>&1; }
+
+printf 'JOHARNESS_ENV=none\n' >"${up}/joharness.conf"
+out="$(upg)"; rc=$?
+if [ "$rc" -ne 0 ]; then
+  pass "upgrade without an update workflow refuses"
+else
+  fail "upgrade without an update workflow refuses (exited 0)"
+fi
+expect "refusal names the file that holds the address" \
+  ".github/workflows/update.yml" "$out"
+
+printf 'jobs:\n  sync:\n' >"${up}/.github/workflows/update.yml"
+out="$(upg)"; rc=$?
+if [ "$rc" -ne 0 ]; then
+  pass "upgrade without CANONICAL_REPO refuses"
+else
+  fail "upgrade without CANONICAL_REPO refuses (exited 0)"
+fi
+expect "refusal names the key" "CANONICAL_REPO" "$out"
+
+printf 'env:\n  CANONICAL_REPO: not-owner-repo\n' >"${up}/.github/workflows/update.yml"
+out="$(upg)"; rc=$?
+if [ "$rc" -ne 0 ]; then
+  pass "upgrade refuses an address that is not owner/repo"
+else
+  fail "upgrade refuses an address that is not owner/repo (exited 0)"
+fi
+
+printf 'env:\n  CANONICAL_REPO: someone/harness\n' >"${up}/.github/workflows/update.yml"
+printf 'JOHARNESS_CANONICAL=1\n' >>"${up}/joharness.conf"
+out="$(upg)"; rc=$?
+if [ "$rc" -ne 0 ]; then
+  pass "canonical refuses to upgrade itself"
+else
+  fail "canonical refuses to upgrade itself (exited 0)"
+fi
+expect "canonical refusal points at the outbound tool" \
+  "sync-to-consumer.sh" "$out"
+
 step "joharness.sh ci: graph lint"
 
 lwork="${TMP}/lintwork"
@@ -1144,6 +1220,7 @@ printf 'bracket own\n' >"${syncsrc}/.agents/env/none/a[1].md"
 printf 'claude rules\n' >"${syncsrc}/CLAUDE.md"
 printf 'entry stub\n' >"${syncsrc}/joharness.sh"
 chmod +x "${syncsrc}/joharness.sh"
+printf 'selftest stub SELFTEST-SENTINEL\n' >"${syncsrc}/.agents/harness/selftest.sh"
 printf 'sync stub\n' >"${syncsrc}/.agents/scripts/sync-to-consumer.sh"
 printf 'boot stub\n' >"${syncsrc}/.agents/scripts/bootstrap-consumer.sh"
 printf 'layer none\n' >"${syncsrc}/.agents/env/none/AGENTS.md"
@@ -1313,6 +1390,45 @@ if [ -f "${layerdst}/.agents/env/none/AGENTS.md" ]; then
   pass "unused layer is reported, never deleted"
 else
   fail "unused layer is reported, never deleted"
+fi
+
+# Canonical-only harness code: the sync tools refuse to run outside
+# canonical and the selftest covers code a consumer does not edit, so
+# neither travels. Same test as the layers: does the child run it?
+if [ -e "${layerdst}/.agents/harness/selftest.sh" ]; then
+  fail "the selftest stays in canonical"
+else
+  pass "the selftest stays in canonical"
+fi
+if [ -e "${layerdst}/.agents/scripts" ]; then
+  fail "the sync tools stay in canonical"
+else
+  pass "the sync tools stay in canonical"
+fi
+refute "canonical-only content does not reach the consumer" \
+  "SELFTEST-SENTINEL" "$(cat "${layerdst}/.agents/harness/selftest.sh" 2>/dev/null)"
+
+# A consumer from before that rule still carries them: reported with the
+# remove line when the content is canonical's, named but never targeted
+# when it is the consumer's own.
+mkdir -p "${layerdst}/.agents/scripts"
+printf 'selftest stub SELFTEST-SENTINEL\n' >"${layerdst}/.agents/harness/selftest.sh"
+printf 'sync stub\n' >"${layerdst}/.agents/scripts/sync-to-consumer.sh"
+printf 'my own tool\n' >"${layerdst}/.agents/scripts/mine.sh"
+out="$(sync "$layerdst")"
+expect "leftover selftest reported" \
+  "canonical-only .agents/harness/selftest.sh (nothing here runs it)" "$out"
+expect "leftover sync tools reported" \
+  "canonical-only .agents/scripts/ (nothing here runs it)" "$out"
+expect "consumer's own script under scripts/ named, not targeted" \
+  "canonical-only .agents/scripts/mine.sh (not canonical's; left in place)" "$out"
+expect "remove line names both" \
+  "git rm -r .agents/harness/selftest.sh .agents/scripts" "$out"
+if [ -f "${layerdst}/.agents/scripts/mine.sh" ] &&
+   [ -f "${layerdst}/.agents/harness/selftest.sh" ]; then
+  pass "canonical-only leftovers are reported, never deleted"
+else
+  fail "canonical-only leftovers are reported, never deleted"
 fi
 
 # JOHARNESS_SYNC_ENV is bootstrap's channel for a consumer whose conf does

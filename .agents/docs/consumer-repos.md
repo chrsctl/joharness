@@ -14,6 +14,7 @@ consumer-to-consumer, never consumer-only.
 | Situation | Route |
 | --- | --- |
 | Repo has no harness yet | [New consumer](#new-consumer) |
+| Session sits in the consumer | [Upgrade](#update-upgrade-from-the-consumer) — one command |
 | Consumer has `update.yml` | [Consumer CI](#update-consumer-ci) — no checkout needed |
 | Canonical checkout in reach | [By hand](#update-by-hand) |
 | Agent session sits in the consumer | [Agent](#update-agent-in-the-consumer) |
@@ -37,6 +38,47 @@ Never bootstrap onto a repo already running the harness — script refuses,
 because whole-clone mode's purge eats live `docs/plans|product|handover`.
 Never hand-copy a raw joharness clone either: it carries joharness's queue
 and marker, so the child's sessions work joharness's workstream.
+
+## What a consumer carries
+
+The harness a consumer receives is the part it runs:
+
+| Ships | Why |
+| --- | --- |
+| `joharness.sh`, `.agents/harness/*.sh` hooks | every session runs them |
+| `.agents/harness/AGENTS.md`, `.agents/docs/` | the protocol itself |
+| `.agents/env/README.md` + the selected layer | [Layers](#layers) |
+| `.claude/` settings, commands, skills | Claude Code reads them from the tree |
+| `CLAUDE.md`, `AGENTS.md`, `.gitattributes` | loaded every session |
+
+Canonical-only, never shipped:
+
+| Stays behind | Why |
+| --- | --- |
+| `.agents/scripts/` | both tools refuse to run outside canonical |
+| `.agents/harness/selftest.sh` | tests harness code a consumer does not edit |
+
+That is 132K of the 320K a consumer used to carry. `ci` in a consumer says
+`not here (canonical-only)` for the selftest and runs the rest.
+
+A consumer that predates this rule still carries them; every sync reports
+them, removals never travel, so the delete is a human's:
+`git rm -r .agents/scripts .agents/harness/selftest.sh`.
+
+## Update: upgrade from the consumer
+
+```bash
+./joharness.sh upgrade --dry-run    # reports, writes nothing
+./joharness.sh upgrade              # fetches canonical, syncs this repo forward
+```
+
+Clones the canonical named by `CANONICAL_REPO` in the consumer's own
+`.github/workflows/update.yml` and runs ITS sync engine here — the engine
+this repo no longer carries and could not run anyway. Then review the diff,
+`./joharness.sh ci`, commit.
+
+Refused in canonical: there, syncing out is
+[by hand](#update-by-hand).
 
 ## Update: consumer CI
 
