@@ -29,7 +29,7 @@ the idea; derive it from git instead of from a log.
 ## Scope
 
 - `joharness.sh` — a `scorecard` subcommand beside `graph`
-  (`cmd_graph`, line 548), registered in the dispatch block at line 783 and
+  (`cmd_graph`, line 548), registered in the dispatch block at line 796 and
   in `usage`. Read-only, exit 0 always, derived at read time. Counts for
   the current branch against its merge base: commits; files touched;
   whether a workstream file exists and how many commits touched code

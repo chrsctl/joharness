@@ -7,7 +7,7 @@ plan: none
 session: https://claude.ai/code/session_0126bZYruEVL7vNBLb7RXF4v
 agent: opus
 updated: 2026-08-24
-next: Push, then open PR adding the three plan files to main
+next: Merge own PR once checks green and branch is 0 behind origin/main
 ---
 
 ## Goal
@@ -70,6 +70,11 @@ reproduce.
   `handover-context.sh` 16 / 47, `sync-to-consumer.sh` 114,
   `handover/README.md` 86. Every one lands on the named symbol or line.
   (fixed — none were wrong)
+- r4: PR 43 merged into `main` mid-work and moved three of the anchors —
+  `cmd_session_start` 720 to 733, the dispatch line 783 to 796, and
+  `.claude/settings.json` in the sync list 114 to 165. Found by re-reading
+  all 11 after merging `origin/main`, not by the lint (line anchors are not
+  linted). Repointed and re-verified. (fixed)
 - r3: drift counts in `harness-glossary` are case-insensitive greps, and an
   earlier case-sensitive count of the same term gave 91 rather than 107.
   Plan states the exact command it counted with, and Acceptance requires a

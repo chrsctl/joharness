@@ -41,7 +41,7 @@ Make it run at the other moment too.
   prints the re-read line, a startup-sourced run does not, and neither
   fails a session when git is unreadable (the script's standing contract,
   line 16).
-- `.agents/scripts/sync-to-consumer.sh:114` — `.claude/settings.json` is
+- `.agents/scripts/sync-to-consumer.sh:165` — `.claude/settings.json` is
   already on the synced list, so consumers inherit the new hook. Confirm
   that is still true after the edit rather than assuming it.
 
@@ -76,7 +76,7 @@ Make it run at the other moment too.
 
 - `.claude/settings.json` — both existing hooks, and the exact quoting of
   `"$CLAUDE_PROJECT_DIR"` that makes them work.
-- `joharness.sh:720` — `cmd_session_start`, which prints the environment
+- `joharness.sh:733` — `cmd_session_start`, which prints the environment
   banner before delegating; a compact-time run should not re-print a
   provisioning banner that was already true.
 - `.agents/harness/handover-context.sh:47` — `add()`, how output is
