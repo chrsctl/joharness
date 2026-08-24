@@ -49,7 +49,7 @@ Make it run at the other moment too.
 
 - The `PostToolUse` trace offload, John's other hook (large tool results
   written to `.john/trace/`, a digest pointer returned in their place).
-  Same source, deliberately not stolen: John reads corpora and this repo
+  Same source, deliberately left behind: John reads corpora and this repo
   reads shell scripts, and nobody here has measured context pressure. This
   repo's own bar is counted numbers — an offload built on an unmeasured
   need is a guess with a blast radius across every `Read` and `Bash`
@@ -91,7 +91,8 @@ Make it run at the other moment too.
 - `ci-scope-selftest` and `queue-shared-scope` also touch
   `.agents/harness/selftest.sh`; `ci-scope-selftest` also touches
   `joharness.sh`. Not a wave with either.
-- `process-scorecard` and `harness-glossary` (this steal's siblings) touch
+- `process-scorecard` and `harness-glossary` (the sibling plans from the
+  same comparison) touch
   `.agents/harness/selftest.sh` too. Whichever lands second rebases.
 - Hook output is loaded every session, so it is paid repeatedly. Caveman
   applies (`.agents/docs/caveman.md`); a re-read line that runs four lines

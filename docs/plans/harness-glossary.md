@@ -20,7 +20,7 @@ session. Counted on this repo at plan time, `grep -rnoi <term> --include=*.md
 layer" 2. Every one of those files is written for a literal reader, and the
 Loop's own warning is that ambiguity gets executed wrong or asked back.
 `kitchen-engineer42/joharnessburg` holds this line with `CONTEXT.md`, which
-fixes each term and — the part worth stealing — lists the wordings to
+fixes each term and — the part worth copying — lists the wordings to
 avoid, declaring itself the winner when older prose disagrees. Take the
 avoid-list. Do not take the essay: this repo states each fact once
 (`.agents/docs/caveman.md`), so the glossary indexes and points, it does
