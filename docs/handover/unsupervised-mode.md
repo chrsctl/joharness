@@ -7,7 +7,7 @@ plan: none
 session: https://claude.ai/code/session_0126bZYruEVL7vNBLb7RXF4v
 agent: opus
 updated: 2026-08-24
-next: Open PR once verify is green; unsupervised-edge-work and unsupervised-heartbeat are free
+next: Open PR; unsupervised-edge-work and unsupervised-heartbeat are free for other sessions
 ---
 
 ## Goal
@@ -104,6 +104,17 @@ three plans.
   (fixed)
 - r9: `shellcheck` SC1007 on `JOHARNESS_MODE= ` in the empty-value test.
   Quoted it. (fixed)
+- r10: `./joharness.sh feedback` surfaced PR47 r4 on a file in this diff —
+  a knob value that is neither of the two understood words "read as off in
+  silence, so a repo that believed it had opted in got no gate and no
+  signal". Same class as this knob. `session-start` already named a bad
+  value; the `mode` subcommand did not. Now warns on stderr while stdout
+  keeps returning one clean word, because the guard captures it. (fixed)
+- r11: merged `origin/main` mid-flight (23 behind by then). One conflict,
+  in the entrypoint's header doc where `main` added `JOHARNESS_REVIEW`
+  beside where this branch added `JOHARNESS_MODE`; both kept. Re-proved the
+  byte-identical supervised output against the NEW `main`, since
+  `session-start` itself changed there. (fixed)
 
 ## Blockers
 

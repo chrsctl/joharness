@@ -15,7 +15,14 @@
 #   env <name>      select a layer (writes joharness.conf)
 #   setup           provision the selected layer now
 #   ci              run what .github/workflows/ci.yml runs, here
+#   upgrade         fetch canonical and sync this repo's harness forward
+#                   (consumers only; --dry-run to preview)
 #   verify          provision, then run the layer's smoke test
+#   review          print this branch's review step: depth for its tier, and
+#                   whether its findings are recorded. Gates ci when enabled
+#   feedback        score the review loop from merged history: coverage,
+#                   recurrence, and the files that keep drawing findings
+#   feedback <path> what earlier merged edges found in that file
 #   graph           print the work graph as fenced mermaid (paste into any
 #                   GitHub comment; rendered natively)
 #   mode            print the resolved autonomy mode and exit
@@ -32,9 +39,15 @@
 #   JOHARNESS_MODE=supervised  'supervised' (default) or 'unsupervised'.
 #                              Anything else reads as supervised
 #                              (docs/product/unsupervised-mode.md)
+#   JOHARNESS_REVIEW=off       'off' (default) or 'on'. 'on' makes `ci` fail
+#                              when a workstream reaches the edge (pull
+#                              request open, or status review/done) with no
+#                              review recorded, and session-start say so
 #
-# Default is env 'none', setup 'lazy', md 'lazy': a session that never asks
-# for an environment never pays for one — not in provisioning, not in context.
+# Default is env 'none', setup 'lazy', md 'lazy', review 'off': a session that
+# never asks for an environment never pays for one — not in provisioning, not
+# in context — and a repo that has not opted into the review gate sees nothing
+# of it.
 
 set -uo pipefail
 
@@ -77,6 +90,21 @@ conf_set() {
 env_name()  { printf '%s' "${JOHARNESS_ENV:-$(conf_get JOHARNESS_ENV)}"; }
 setup_mode() { printf '%s' "${JOHARNESS_ENV_SETUP:-$(conf_get JOHARNESS_ENV_SETUP)}"; }
 md_mode()   { printf '%s' "${JOHARNESS_ENV_MD:-$(conf_get JOHARNESS_ENV_MD)}"; }
+review_mode() { printf '%s' "${JOHARNESS_REVIEW:-$(conf_get JOHARNESS_REVIEW)}"; }
+
+# Off unless a repo says otherwise, and only 'on' turns it on: an unreadable or
+# misspelled value must not silently arm a gate that fails ci. It must not
+# silently disarm one either — a repo that believes it opted in and typed
+# 'true' would otherwise get no gate and no signal, so the value is named.
+review_on() {
+  local v; v="$(review_mode)"
+  case "$v" in
+    on) return 0 ;;
+    '' | off) return 1 ;;
+    *) warn "ignoring JOHARNESS_REVIEW='${v}' (want 'on' or 'off'); gate stays off"
+       return 1 ;;
+  esac
+}
 
 # Raw autonomy mode, exactly as configured — empty when unset. Only
 # run_mode() and the session-start banner read this; everything else asks
@@ -94,6 +122,23 @@ run_mode() {
     unsupervised) printf 'unsupervised' ;;
     *)            printf 'supervised' ;;
   esac
+}
+
+# Name a value that was set and not understood. Silence here is how a repo
+# ends up believing it opted in: the operator typed something, the harness
+# ignored it, and nothing said so. Callers decide the channel — stderr for
+# the subcommand, session context for the banner.
+mode_unrecognised() {
+  local raw; raw="$(mode_raw)"
+  case "$raw" in
+    ''|supervised|unsupervised) return 1 ;;
+    *) printf '%s' "$raw" ;;
+  esac
+}
+mode_warn_unrecognised() {
+  local raw
+  raw="$(mode_unrecognised)" || return 0
+  warn "JOHARNESS_MODE='${raw}' not recognised; running supervised"
 }
 
 # Layer names are directory names under .agents/env/. Reject anything that could walk
@@ -183,6 +228,73 @@ cmd_verify() {
 # ones this repo did not select — they still ship to consumers.
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Upgrade
+#
+# A consumer no longer carries the sync engine: it refuses to run outside
+# canonical anyway (.agents/docs/consumer-repos.md). What it carries instead is
+# this command — fetch canonical, run ITS engine against this repo. One
+# command, so a repo that received a minimal harness can still take an
+# update without a recipe.
+#
+# The canonical address is read from .github/workflows/update.yml, the
+# consumer's own single source of truth for it: a fork names its fork
+# there, and a second key in joharness.conf would be a second answer.
+# ---------------------------------------------------------------------------
+
+# Set by cmd_upgrade, reaped by its EXIT trap. A global, not a local: the
+# trap fires after the function has returned, when a local is out of scope
+# and `set -u` turns the cleanup itself into the error.
+UPGRADE_CLONE=""
+
+cmd_upgrade() {
+  local repo engine rc=0 dry=0 a
+  grep -q '^JOHARNESS_CANONICAL=1' "$CONF" 2>/dev/null &&
+    die "this IS the canonical harness; upgrade is for consumers (sync out with .agents/scripts/sync-to-consumer.sh)"
+
+  local wf="${ROOT}/.github/workflows/update.yml"
+  [ -r "$wf" ] ||
+    die "no ${wf#"${ROOT}/"} to read the canonical address from; add it (.agents/docs/consumer-repos.md) or sync by hand"
+  # First token only: a trailing YAML comment or stray whitespace would
+  # otherwise ride into the clone URL and fail as an unresolvable host.
+  repo="$(sed -n 's/^ *CANONICAL_REPO: *//p' "$wf" | tail -1 | awk '{print $1}')"
+  [ -n "$repo" ] ||
+    die "no CANONICAL_REPO in ${wf#"${ROOT}/"}; the update workflow names the canonical this repo follows"
+  case "$repo" in
+    */*) ;;
+    *) die "CANONICAL_REPO '${repo}' is not owner/repo" ;;
+  esac
+
+  have git || die "git is not installed"
+  # Outside the repo, or the clone lands in this tree and a later `git add
+  # -A` swallows it. Full clone, no --depth: stale-vs-AHEAD is decided by
+  # blob identity against canonical history, and a shallow clone reads
+  # honestly-synced files as AHEAD forever.
+  UPGRADE_CLONE="$(mktemp -d)"
+  trap '[ -z "${UPGRADE_CLONE:-}" ] || rm -rf "$UPGRADE_CLONE"' EXIT
+  log "fetching canonical ${repo}"
+  git clone --quiet "https://github.com/${repo}.git" "${UPGRADE_CLONE}/canonical" ||
+    die "could not clone https://github.com/${repo}.git"
+
+  engine="${UPGRADE_CLONE}/canonical/.agents/scripts/sync-to-consumer.sh"
+  [ -x "$engine" ] ||
+    die "${repo} carries no .agents/scripts/sync-to-consumer.sh; is it the canonical harness?"
+
+  for a in "$@"; do
+    [ "$a" = "--dry-run" ] && dry=1
+  done
+
+  "$engine" "$@" "$ROOT" || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    :
+  elif [ "$dry" -eq 1 ]; then
+    log "dry run against ${repo}; nothing written. Re-run without --dry-run to apply"
+  else
+    log "upgraded from ${repo}; review the diff, run '$0 ci', then commit"
+  fi
+  return "$rc"
+}
+
 cmd_ci() {
   local rc=0 f listing
   local -a targets=()
@@ -223,13 +335,18 @@ cmd_ci() {
   [ "$syntax_rc" -eq 0 ] && printf '  clean\n'
 
   # The harness's own regression tests: git-only, so they run on GitHub
-  # runners where the environment smoke test cannot.
+  # runners where the environment smoke test cannot. Canonical-only — a
+  # consumer does not receive them, because they cover harness code it
+  # does not edit. Absent is therefore normal in a consumer and said once;
+  # present but not executable is a broken copy and stays red.
   printf '\n== harness selftest\n'
   if [ -x "${HARNESS_ROOT}/selftest.sh" ]; then
     "${HARNESS_ROOT}/selftest.sh" || rc=1
-  else
-    warn ".agents/harness/selftest.sh missing or not executable"
+  elif [ -e "${HARNESS_ROOT}/selftest.sh" ]; then
+    warn ".agents/harness/selftest.sh is not executable"
     rc=1
+  else
+    printf '  not here (canonical-only; this repo does not carry the harness tests)\n'
   fi
 
   # Graph edges, checked rather than trusted: a dangling frontmatter edge
@@ -280,6 +397,13 @@ cmd_ci() {
     fi
   else
     printf '  not measurable here (no merge-base; shallow checkout or base branch)\n'
+  fi
+
+  # Off by default and silent while off, so a repo that never opted in gets
+  # the same ci output it got before this existed.
+  if review_on; then
+    printf '\n== review\n'
+    review_report || rc=1
   fi
 
   printf '\n'
@@ -538,6 +662,544 @@ ensure_shellcheck() {
 }
 
 # ---------------------------------------------------------------------------
+# Review step
+#
+# The harness has ordered a review at every edge into main since the loop was
+# written (.agents/harness/AGENTS.md step 5, depth by tier in
+# .agents/docs/agent-selection.md). Nothing checked that one happened. The record
+# is the workstream file's `## Review` section, and only a human reading hook
+# output ever noticed it empty — "a branch visibly churning with an empty
+# Review section is the human's cue" (.agents/docs/handover/README.md,
+# Reviewing) is the whole of today's enforcement, and it needs a human looking.
+#
+# Off by default, and silent while off: a repo that has not opted in sees no
+# output and no gate, so `ci` here means exactly what it meant before. On, the
+# check rides in `ci` — the one gate a session cannot skip, same argument the
+# churn ceiling and the graph lint already rest on: the session that skipped
+# its own review is the one that cannot see it skipped.
+#
+# What it checks is the RECORD, never the finding count. Counts carry no
+# signal in either direction (.agents/docs/agent-selection.md, review churn:
+# "Finding counts no signal, false both ways"), so a gate on N>0 findings buys
+# invented findings and nothing else. A clean pass records one line saying it
+# was clean; an empty section is not a clean pass, it is no pass.
+# ---------------------------------------------------------------------------
+
+# Tier the review depth scales with: the workstream file's own `agent:`, else
+# the tier of the plan it claims, else the default from the selection rules.
+# One vocabulary, read where the protocol already writes it — no second field
+# to keep in sync.
+review_tier() {
+  local doc="$1" tier plan
+  tier="$(printf '%s\n' "$doc" | gr_field agent)"
+  if [ -z "$tier" ]; then
+    plan="$(lint_stem "$(printf '%s\n' "$doc" | gr_field plan)")"
+    if [ -n "$plan" ] && [ "$plan" != "none" ] &&
+       [ -f "${ROOT}/docs/plans/${plan}.md" ]; then
+      tier="$(gr_field agent <"${ROOT}/docs/plans/${plan}.md")"
+    fi
+  fi
+  [ -n "$tier" ] || tier="sonnet"
+  printf '%s' "$tier"
+}
+
+# Depth per tier, quoted from the review-depth rule rather than re-invented.
+review_recipe() {
+  case "$1" in
+    haiku)
+      printf 'one /code-review pass at default effort — one pass, never zero' ;;
+    opus)
+      printf 'adversarial: correctness, security, does-it-reproduce as separate passes' ;;
+    *)
+      printf '/code-review (high) on the full diff' ;;
+  esac
+}
+
+# Bullets under `## Review`. Same awk the handover hook counts with, so the
+# gate and the hook can never disagree about what a recorded finding is.
+review_count() {
+  awk '
+    /^## Review[[:space:]]*$/ { in_r = 1; next }
+    /^## /                    { in_r = 0 }
+    in_r && /^- /             { n++ }
+    END { print n + 0 }' "${ROOT}/$1"
+}
+
+# At the edge = this workstream is being handed to `main`: it has a pull
+# request, or its own status says the work is over. Below the edge the review
+# has not come due yet — the loop puts it at step 5, after the build — so the
+# gate warns there and fails here. Two tiers for the same reason churn has
+# them: `ci` runs all through the build, and a check that reds from the claim
+# commit onward makes red the normal state of a working branch, which is how a
+# gate stops being read at all.
+review_at_edge() {
+  local doc="$1" pr status
+  pr="$(printf '%s\n' "$doc" | gr_field pr)"
+  status="$(printf '%s\n' "$doc" | gr_field status)"
+  if [ -n "$pr" ] && [ "$pr" != "none" ]; then
+    printf 'pr %s' "$pr"
+    return 0
+  fi
+  case "$status" in
+    review | done) printf 'status %s' "$status"; return 0 ;;
+  esac
+  return 1
+}
+
+# Prints the step, two-space indented like every other `ci` section, and
+# returns non-zero only when this branch owes a review record. Reads the
+# working tree, not a ref: `ci` judges what the branch is about to push.
+# Every workstream file on the branch, not the first: a branch carrying two
+# workstreams owes two records, and checking one of them would pass the
+# branch on a review that never covered the other half of its diff.
+review_report() {
+  local over="origin/${HANDOVER_BASE_BRANCH:-main}" base head ws doc tier n
+  local edge rc=0 seen=0
+  base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
+  head="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)"
+  if [ -z "$base" ]; then
+    # Same doctrine as churn's: a check that cannot see the history it needs
+    # says so and passes, rather than reding what it cannot prove.
+    printf '  not measurable here (no merge-base; shallow checkout or base branch)\n'
+    return 0
+  fi
+  if [ "$base" = "$head" ]; then
+    printf '  nothing to review yet (no commits past %s)\n' "$over"
+    return 0
+  fi
+
+  while IFS= read -r ws; do
+    [ -n "$ws" ] || continue
+    seen=1
+    doc="$(cat "${ROOT}/${ws}" 2>/dev/null)"
+    tier="$(review_tier "$doc")"
+    n="$(review_count "$ws")"
+    printf '  %s [%s — %s]\n' "$ws" "$tier" "$(review_recipe "$tier")"
+    if [ "${n:-0}" -gt 0 ]; then
+      printf '    %s finding(s) recorded\n' "$n"
+      continue
+    fi
+    if ! edge="$(review_at_edge "$doc")"; then
+      printf '    no record yet — gate fires at the edge (pr set, or status review/done)\n'
+      continue
+    fi
+    printf '    NO findings recorded under ## Review, and this is the edge (%s)\n' "$edge"
+    printf '    Review the full diff at the depth above, then write what it found —\n'
+    printf '    one line per finding, BEFORE its fix, same commit as the fix\n'
+    printf '    (.agents/docs/handover/README.md, Reviewing). Clean pass records that,\n'
+    printf '    one line; an empty section is not a clean pass.\n'
+    rc=1
+  done < <(lint_nodes docs/handover)
+
+  if [ "$seen" -eq 0 ]; then
+    # Not a hole to paper over: copy, sync and plan-queue branches carry no
+    # workstream file BY protocol (.agents/docs/handover/README.md, "When NOT to
+    # write one"), so a record the protocol forbids cannot be the bar. Says
+    # what it did not check instead of passing quietly.
+    printf '  no workstream file on this branch — no record to check\n'
+    printf '  (copy, sync and plan-queue branches carry none by protocol)\n'
+  fi
+  return "$rc"
+}
+
+# Standalone, the step runs whether or not the gate is armed — the recipe on
+# demand costs nothing, and a session may want it before ci ever runs. The
+# knob decides only whether `ci` fails for a missing record, so the header
+# says which of the two this run is.
+# What the files in this diff have already cost other branches. The review
+# step is the moment this pays: the reviewer is about to look at exactly these
+# files, and merged history knows which of them keep drawing findings.
+#
+# Standalone `review` only, never the `ci` gate: this walks all of merged
+# history (seconds, not milliseconds), and the gate runs on every ci. A
+# session that wants the whole picture runs `feedback`.
+review_prior() {
+  local over="origin/${HANDOVER_BASE_BRANCH:-main}" base hot f count shown=0
+  base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
+  [ -n "$base" ] || return 0
+  fb_collect || return 0
+  hot="$(fb_hotspots)"
+  [ -n "$hot" ] || return 0
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    count="$(printf '%s\n' "$hot" | awk -F'\t' -v p="$f" '$2 == p { print $1 }')"
+    [ -n "$count" ] || continue
+    if [ "$shown" -eq 0 ]; then
+      shown=1
+      printf '\n  already cost other branches — read before reviewing:\n'
+    fi
+    printf '    %s (%s edges)  ./joharness.sh feedback %s\n' "$f" "$count" "$f"
+  done <<<"$(git -C "$ROOT" diff --name-only "$base" HEAD 2>/dev/null)"
+}
+
+cmd_review() {
+  local rc=0
+  if review_on; then
+    printf '== review (JOHARNESS_REVIEW=on: ci gates on this)\n'
+  else
+    printf '== review (JOHARNESS_REVIEW=off: report only, ci does not check)\n'
+  fi
+  review_report || rc=1
+  review_prior
+  return "$rc"
+}
+
+# ---------------------------------------------------------------------------
+# Feedback
+#
+# The review step (above) makes a branch record what its review found. The
+# record then dies: the finish ritual deletes the workstream file, by design —
+# a file left on `main` reads as current (.agents/docs/handover/README.md,
+# Graduation). So every finding this repo ever recorded is in merge history and
+# nowhere a session looks, and the next branch re-finds it.
+#
+# Measured on this repo's own history at the time this was written: 41 findings
+# across 8 merged edges, and 9 of 24 file-level fixes (38%) landed on a file an
+# earlier merged branch had already recorded a finding against. `AGENTS.md`
+# under the harness drew findings on 5 of those 8 edges. A file that keeps
+# drawing findings is a rule nobody has written yet.
+#
+# So this is two things, and the second is why the first exists:
+#   feedback          the scorecard — does the loop run, does its output
+#                     survive, does the same file keep coming back
+#   feedback <path>   what earlier merged branches found in that file
+#
+# Nothing is stored. Every number is counted from git at read time, so it
+# cannot rot and cannot be written wrong (the doctrine the churn measure and
+# the graph lint already run on). What it cannot count, it says: finding
+# volume is NOT a quality signal here — the review-churn rule already
+# establishes counts are false in both directions — so the number to watch is
+# recurrence, and the direction to want is down.
+# ---------------------------------------------------------------------------
+
+# Every edge into the base branch: "<merge-sha> <branch-tip-sha>". Any merge
+# with two parents, no subject parsing — GitHub's "Merge pull request" wording
+# is one host's, and a consumer merging by hand makes the same edge.
+#
+# --first-parent is load bearing: without it the walk also descends into the
+# branches themselves, and a branch that merged main in mid-flight (the
+# protocol tells long-running ones to) contributes its own merge as a second
+# edge carrying the same workstream file. Measured while writing this: 51
+# "edges" and 42 findings against a true 37 and 41.
+fb_edges() {
+  git -C "$ROOT" log --first-parent --format='%H %P' --merges "$1" 2>/dev/null |
+    awk 'NF >= 3 { print $1, $3 }'
+}
+
+# Every edge costs a git show per commit, so a repo with thousands of them
+# would make this measure something nobody runs twice. Newest first, bounded,
+# and the bound is printed when it bites — a window nobody was told about is
+# how a measure starts lying. 0 lifts it.
+FB_LIMIT="${JOHARNESS_FEEDBACK_EDGES:-50}"
+FB_TOTAL=0
+FB_CAPPED=0
+
+# Pull request number from a merge subject, else the short sha: the identifier
+# is for a human to go read the branch with, so any stable handle will do.
+fb_label() {
+  local subj n
+  subj="$(git -C "$ROOT" log -1 --format='%s' "$1" 2>/dev/null)"
+  n="$(printf '%s' "$subj" | sed -n 's/.*[Mm]erge pull request #\([0-9][0-9]*\).*/\1/p')"
+  [ -n "$n" ] && { printf 'PR%s' "$n"; return 0; }
+  printf '%s' "${1:0:7}"
+}
+
+# Last surviving version of the branch's workstream file. The ritual deletes
+# it in the final commit, so the newest commit that still HAS it is the one
+# carrying everything the branch learned.
+fb_workstream() {
+  local base="$1" tip="$2" f c
+  for f in $(git -C "$ROOT" log --format='%H' "${base}..${tip}" -- docs/handover 2>/dev/null |
+    while IFS= read -r c; do
+      git -C "$ROOT" diff-tree --no-commit-id --name-only -r "$c" -- docs/handover 2>/dev/null
+    done | grep -E '\.md$' | grep -vE '/(TEMPLATE|README)\.md$' | sort -u); do
+    for c in $(git -C "$ROOT" rev-list "${base}..${tip}" -- "$f" 2>/dev/null); do
+      if git -C "$ROOT" cat-file -e "${c}:${f}" 2>/dev/null; then
+        git -C "$ROOT" show "${c}:${f}" 2>/dev/null
+        return 0
+      fi
+    done
+  done
+  return 1
+}
+
+# One line per finding, wrapped continuations folded back in: a finding's
+# disposition usually sits at the end of its last line, so a reader that stops
+# at the first newline reads every finding as unmarked.
+fb_findings() {
+  awk '
+    /^## Review[[:space:]]*$/ { r = 1; next }
+    /^## /                    { if (r && buf != "") print buf; buf = ""; r = 0 }
+    r && /^- /                { if (buf != "") print buf; buf = substr($0, 3); next }
+    r && /^  [^ ]/            { buf = buf " " $0; gsub(/  +/, " ", buf) }
+    END                       { if (r && buf != "") print buf }'
+}
+
+# wontfix and no-change are decisions, not defects, and they are decided in
+# the finding's own last clause — so the marker is read with wontfix first,
+# and a finding that says both "fixed" and "wontfix" is the compound one it
+# looks like, counted where the human put the verdict.
+fb_marker() {
+  case "$1" in
+    *wontfix*)                 printf 'wontfix' ;;
+    *"no change"* | *"No change"*) printf 'no-change' ;;
+    *'(fixed'*)                printf 'fixed' ;;
+    *)                         printf 'unmarked' ;;
+  esac
+}
+
+# Commits that ADD a finding bullet to a workstream file, paired with the
+# other paths that same commit touched. The protocol puts a finding in the
+# same commit as its fix, so that commit's non-protocol paths are where the
+# finding landed — no parsing of prose, and no new field for a session to
+# fill in wrong.
+#
+# Per commit, not per branch: an edge that fixed nine findings across five
+# commits knows which of them touched which file, and rolling that up to the
+# branch would answer "what did this edge find" when the question a reader
+# asks is "what did anyone find HERE".
+#
+# Emits "<finding-id>\t<path>". The id, not the text: the bullet as committed
+# may predate its own disposition marker, so the text is taken later from the
+# file's final version and joined on the id, which is stable within an edge.
+fb_fix_map() {
+  local base="$1" tip="$2" c ids f
+  git -C "$ROOT" rev-list --no-merges "${base}..${tip}" 2>/dev/null |
+    while IFS= read -r c; do
+      ids="$(git -C "$ROOT" show --format='' --unified=0 "$c" -- docs/handover 2>/dev/null |
+        sed -n 's/^+- \(r[0-9][0-9]*\):.*/\1/p' | sort -u)"
+      [ -n "$ids" ] || continue
+      while IFS= read -r f; do
+        [ -n "$f" ] || continue
+        while IFS= read -r id; do
+          [ -n "$id" ] && printf '%s\t%s\n' "$id" "$f"
+        done <<<"$ids"
+      done <<<"$(git -C "$ROOT" diff-tree --no-commit-id --name-only -r "$c" 2>/dev/null |
+        { grep -vE '^docs/(handover|plans|product)/' || :; })"
+    done | sort -u
+}
+
+# A path recorded before a directory move no longer resolves, and reading it
+# as a different file splits one hot spot into two cold ones (this repo's own
+# .agents/ move did exactly that: 3 branches at one spelling, 2 at the other).
+# Unique-suffix match repairs the prefixed-directory case and refuses to guess
+# anywhere else: no match or several, the path stands as recorded.
+fb_current_path() {
+  local p="$1" hits
+  [ -e "${ROOT}/${p}" ] && { printf '%s' "$p"; return 0; }
+  # String suffix on a path boundary, not a regex: a path carrying `+`, `(`
+  # or `{` must match itself and not its siblings (the literal-pathspec
+  # lesson the sync engine already learned the hard way).
+  hits="$(git -C "$ROOT" ls-files 2>/dev/null | awk -v p="$p" '
+    length($0) >= length(p) &&
+    substr($0, length($0) - length(p) + 1) == p &&
+    (length($0) == length(p) || substr($0, length($0) - length(p), 1) == "/")')"
+  if [ "$(printf '%s\n' "$hits" | grep -c .)" = "1" ]; then
+    printf '%s' "$hits"
+  else
+    printf '%s' "$p"
+  fi
+}
+
+# One walk of merged history, into globals, because two callers need it and
+# it costs a couple of seconds: cmd_feedback prints it, and cmd_review asks
+# it what the files in this branch's diff have already cost other branches.
+FB_REF=""
+FB_PAIRS=""
+FB_HIST=""
+FB_EDGES=0
+FB_WITHWS=0
+FB_RECORDED=0
+FB_FINDINGS=0
+FB_FIXED=0
+FB_WONTFIX=0
+FB_NOCHANGE=0
+FB_UNMARKED=0
+FB_NOID=0
+
+fb_collect() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" candidate
+  FB_REF=""
+  for candidate in "origin/${base_branch}" "${base_branch}" HEAD; do
+    if git -C "$ROOT" rev-parse --verify --quiet "$candidate" >/dev/null 2>&1; then
+      FB_REF="$candidate"; break
+    fi
+  done
+  [ -n "$FB_REF" ] || return 1
+
+  local m tip base doc label line marker n all
+  FB_PAIRS=""; FB_HIST=""
+  FB_EDGES=0; FB_WITHWS=0; FB_RECORDED=0; FB_FINDINGS=0
+  FB_FIXED=0; FB_WONTFIX=0; FB_NOCHANGE=0; FB_UNMARKED=0; FB_NOID=0
+  FB_TOTAL=0; FB_CAPPED=0
+
+  all="$(fb_edges "$FB_REF")"
+  FB_TOTAL="$(printf '%s' "$all" | grep -c . || :)"
+  if [ "${FB_LIMIT:-0}" -gt 0 ] && [ "${FB_TOTAL:-0}" -gt "$FB_LIMIT" ]; then
+    all="$(printf '%s\n' "$all" | head -n "$FB_LIMIT")"
+    FB_CAPPED=1
+  fi
+
+  while read -r m tip; do
+    [ -n "$tip" ] || continue
+    base="$(git -C "$ROOT" merge-base "${m}^1" "$tip" 2>/dev/null)" || continue
+    doc="$(fb_workstream "$base" "$tip")" || doc=""
+    FB_EDGES=$((FB_EDGES + 1))
+    [ -n "$doc" ] || continue
+    FB_WITHWS=$((FB_WITHWS + 1))
+    label="$(fb_label "$m")"
+
+    n=0
+    while IFS= read -r line; do
+      [ -n "$line" ] || continue
+      n=$((n + 1))
+      marker="$(fb_marker "$line")"
+      case "$marker" in
+        fixed) FB_FIXED=$((FB_FIXED + 1)) ;;
+        wontfix) FB_WONTFIX=$((FB_WONTFIX + 1)) ;;
+        no-change) FB_NOCHANGE=$((FB_NOCHANGE + 1)) ;;
+        *) FB_UNMARKED=$((FB_UNMARKED + 1)) ;;
+      esac
+      # Keyed by the finding's own id so the commit-level map below can say
+      # which file this one landed on. A bullet written without the
+      # TEMPLATE's `r1:` id is still a finding — the handover hook counts it,
+      # and so does the volume above — but nothing can link it to a file, so
+      # it is counted as exactly that rather than quietly dropped.
+      case "${line%%:*}" in
+        r[0-9] | r[0-9][0-9]) ;;
+        *) FB_NOID=$((FB_NOID + 1)) ;;
+      esac
+      FB_HIST="${FB_HIST}${label}"$'\t'"${line%%:*}"$'\t'"${line}"$'\n'
+    done <<<"$(printf '%s\n' "$doc" | fb_findings)"
+
+    FB_FINDINGS=$((FB_FINDINGS + n))
+    [ "$n" -gt 0 ] && FB_RECORDED=$((FB_RECORDED + 1))
+
+    while IFS= read -r line; do
+      [ -n "$line" ] || continue
+      FB_PAIRS="${FB_PAIRS}${label}"$'\t'"$(fb_current_path "${line#*	}")"$'\t'"${line%%	*}"$'\n'
+    done <<<"$(fb_fix_map "$base" "$tip")"
+  done <<<"$all"
+  return 0
+}
+
+# "<count><TAB><path>", files that drew findings on more than one edge,
+# hottest first. The signal the whole measure exists for.
+fb_hotspots() {
+  printf '%s' "$FB_PAIRS" | awk -F'\t' 'NF >= 2 { print $1 "\t" $2 }' | sort -u |
+    awk -F'\t' '{ c[$2]++ } END { for (f in c) if (c[f] > 1) printf "%d\t%s\n", c[f], f }' |
+    sort -rn
+}
+
+cmd_feedback() {
+  local want="${1:-}" line
+  fb_collect || die "no base branch to read merged history from"
+  local ref="$FB_REF" edges="$FB_EDGES" withws="$FB_WITHWS"
+  local recorded="$FB_RECORDED" findings="$FB_FINDINGS"
+  local fixed="$FB_FIXED" wontfix="$FB_WONTFIX" nochange="$FB_NOCHANGE"
+  local unmarked="$FB_UNMARKED" pairs="$FB_PAIRS" hist="$FB_HIST"
+  local noid="$FB_NOID"
+
+  if [ "$want" != "" ]; then
+    fb_report_path "$want" "$hist" "$pairs"
+    return 0
+  fi
+
+  if [ "$FB_CAPPED" -eq 1 ]; then
+    printf '== feedback (%s: newest %d edges of %d, %d carrying a workstream file)\n' \
+      "$ref" "$edges" "$FB_TOTAL" "$withws"
+    printf '   older edges NOT read (JOHARNESS_FEEDBACK_EDGES=%s; 0 reads all)\n\n' \
+      "$FB_LIMIT"
+  else
+    printf '== feedback (%s: %d edges, %d carrying a workstream file)\n\n' \
+      "$ref" "$edges" "$withws"
+  fi
+
+  if [ "$withws" -eq 0 ]; then
+    printf '  no merged workstream file to read — nothing to measure yet\n'
+    return 0
+  fi
+
+  printf 'coverage   : %d/%d merged edges recorded a review\n' "$recorded" "$withws"
+  printf 'volume     : %d findings — %d fixed, %d wontfix, %d no-change, %d unmarked\n' \
+    "$findings" "$fixed" "$wontfix" "$nochange" "$unmarked"
+  if [ "${noid:-0}" -gt 0 ]; then
+    printf '             %d carry no r1: id (the TEMPLATE form) — counted here,\n' "$noid"
+    printf '             but nothing links them to the files they landed on\n'
+  fi
+
+  # Recurrence, the one number worth watching, and the only one whose
+  # direction is unambiguous: a file drawing a finding an earlier edge already
+  # drew one against is a rediscovery, and the loop's job is to make those
+  # stop. Volume is deliberately not scored (review-churn rule: counts false
+  # in both directions).
+  local total_pairs repeat_pairs edge_paths
+  edge_paths="$(printf '%s' "$pairs" | awk -F'\t' 'NF >= 2 { print $1 "\t" $2 }' | awk '!s[$0]++')"
+  total_pairs="$(printf '%s' "$edge_paths" | grep -c . || :)"
+  if [ "${total_pairs:-0}" -gt 0 ]; then
+    # Oldest edge first, because "already fixed there" is a question about
+    # what came BEFORE. git log hands them newest first; awk reverses without
+    # tac, which is GNU-only and absent on the macOS machines the harness also
+    # runs on.
+    repeat_pairs="$(printf '%s' "$edge_paths" | awk -F'\t' '
+      { line[NR] = $2 }
+      END { for (i = NR; i >= 1; i--) if (seen[line[i]]) r++; else seen[line[i]] = 1
+            print r + 0 }')"
+    printf 'recurrence : %d/%d file-level fixes landed where an earlier edge\n' \
+      "$repeat_pairs" "$total_pairs"
+    printf '             already fixed a finding (%d%%) — want this falling\n' \
+      $(( repeat_pairs * 100 / total_pairs ))
+  fi
+
+  printf '\nhot spots — a file that keeps drawing findings is a rule nobody\n'
+  printf 'wrote yet. Graduate it (.agents/docs/handover/README.md, Graduation)\n'
+  printf 'or read what those edges found before touching it again:\n\n'
+  local any=0
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    any=1
+    printf '  %s edges  %s\n' "${line%%	*}" "${line#*	}"
+  done <<<"$(fb_hotspots | head -8)"
+  [ "$any" -eq 1 ] || printf '  none yet — no file has drawn findings on two edges\n'
+
+  printf '\n  ./joharness.sh feedback <path>   what those edges found there\n'
+
+  # A loop nobody can see the output of is a loop that does not close, so the
+  # honest limit gets printed with the numbers: only what merged is here.
+  printf '\nread at merge time only — an open branch has recorded nothing yet\n'
+}
+
+# Every finding from merged history whose own fix commit touched this path.
+# The point of the whole file: before editing a file that has cost other
+# branches, read what it cost them.
+fb_report_path() {
+  local want="$1" hist="$2" pairs="$3" resolved keys line key n=0 edges
+  resolved="$(fb_current_path "$want")"
+  # <edge>\t<finding-id> for this path, the join key into hist.
+  keys="$(printf '%s' "$pairs" | awk -F'\t' -v p="$resolved" \
+    'NF >= 3 && $2 == p { print $1 "\t" $3 }' | sort -u)"
+
+  printf '== feedback: %s\n\n' "$resolved"
+  if [ -z "$keys" ]; then
+    printf '  no merged edge recorded a finding whose fix touched this file\n'
+    return 0
+  fi
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    key="${line%%	*}"$'\t'"$(printf '%s' "$line" | cut -f2)"
+    printf '%s\n' "$keys" | grep -qxF "$key" || continue
+    n=$((n + 1))
+    printf '  %s  %s\n\n' "${line%%	*}" "$(printf '%s' "$line" | cut -f3-)"
+  done <<<"$hist"
+  edges="$(printf '%s\n' "$keys" | cut -f1 | sort -u | grep -c .)"
+  printf '  %d findings from %d merged edges\n' "$n" "$edges"
+  printf '  Link is finding-to-commit, not finding-to-file: one commit\n'
+  printf '  carrying several findings attributes all of them to every file\n'
+  printf '  it touched.\n'
+}
+
+
+# ---------------------------------------------------------------------------
 # Graph
 #
 # The third formalization step from .agents/docs/graph.md, previously held "until
@@ -715,11 +1377,12 @@ cmd_env() {
     return 0
   fi
 
-  local effective mode md
+  local effective mode md review
   current="$(env_name)"
   effective="$(resolve_env 2>/dev/null)" || effective=""
   mode="$(setup_mode)"; [ -n "$mode" ] || mode="lazy (default)"
   md="$(md_mode)"; [ -n "$md" ] || md="lazy (default)"
+  review="$(review_mode)"; [ -n "$review" ] || review="off (default)"
 
   printf 'environment : %s\n' "${current:-none (default)}"
   # An explicit selection that does not resolve is worth saying out loud;
@@ -731,6 +1394,7 @@ cmd_env() {
   fi
   printf 'setup       : %s\n' "$mode"
   printf 'md          : %s\n' "$md"
+  printf 'review      : %s\n' "$review"
   printf 'config      : %s\n' "$CONF"
   printf 'available   :\n'
   while IFS= read -r name; do
@@ -761,17 +1425,15 @@ cmd_session_start() {
   # context to be told so, and the rules it already loads are the
   # supervised ones. Only the mode that widens what a session may do
   # announces itself, and it announces the boundary in the same breath.
-  raw="$(mode_raw)"
   if [ "$(run_mode)" = "unsupervised" ]; then
     printf '== Mode: unsupervised ==\n\n'
     printf 'Queue edge is a trigger, not a stop: generate work, run the full\n'
     printf 'Loop, merge your own pull request. NEVER commit under\n'
     printf '.agents/harness/ — protocol edits stay supervised\n'
     printf '(docs/product/unsupervised-mode.md, Constraints).\n\n'
-  elif [ -n "$raw" ] && [ "$raw" != "supervised" ]; then
-    # Say which value was ignored. A silent fallback here looks identical
-    # to a repo that meant supervised, and the operator who typed it is
-    # the one person who would notice the difference.
+  elif raw="$(mode_unrecognised)"; then
+    # Into session context, not stderr: the session is the reader who has
+    # to know its mode is not what the conf appears to say.
     printf 'JOHARNESS_MODE=%s not recognised; running supervised.\n\n' "$raw"
   fi
 
@@ -817,6 +1479,17 @@ cmd_session_start() {
     fi
   fi
 
+  # Armed gates get announced. A session that learns about the review gate
+  # from a red ci has already written the commit it should have reviewed;
+  # off, this costs the context nothing, like every other knob here.
+  if review_on; then
+    printf '== Review gate: ON (JOHARNESS_REVIEW=on) ==\n\n'
+    printf 'Edge to main needs recorded review. Findings to workstream file\n'
+    printf '## Review, one line each, BEFORE fix, same commit as fix. Clean\n'
+    printf 'pass records that, one line. ci checks record, not count.\n'
+    printf 'Depth for this branch: ./joharness.sh review\n\n'
+  fi
+
   [ -x "${HARNESS_ROOT}/handover-context.sh" ] &&
     "${HARNESS_ROOT}/handover-context.sh"
 
@@ -839,9 +1512,17 @@ main() {
     env)            cmd_env "${1:-}" ;;
     setup)          cmd_setup ;;
     ci)             cmd_ci ;;
+    upgrade)        cmd_upgrade "$@" ;;
     verify)         cmd_verify ;;
+    review)         cmd_review ;;
+    feedback)       cmd_feedback "${1:-}" ;;
     graph)          cmd_graph ;;
-    mode)           run_mode; printf '\n' ;;
+    # Warning on stderr, value on stdout: the guard captures stdout and must
+    # keep getting one clean word, while a human running this against a
+    # typo'd conf needs to hear about it. Same lesson the review knob
+    # already paid for (PR47 r4) — a knob that reads as off in silence
+    # leaves a repo believing it opted in.
+    mode)           mode_warn_unrecognised; run_mode; printf '\n' ;;
     -h|--help|help) usage ;;
     *) die "unknown subcommand '$cmd' (try: $0 help)" ;;
   esac
