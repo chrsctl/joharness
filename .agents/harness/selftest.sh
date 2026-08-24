@@ -1340,6 +1340,96 @@ else
   skip "shallow-history lint degrade" "file:// shallow clone unavailable here"
 fi
 
+# --- entrypoint: autonomy mode ----------------------------------------------
+# run_mode() decides what an unattended session may do, so every value that
+# is not exactly 'unsupervised' has to come back supervised. Failing open
+# here means a fleet working unattended in a repo that never asked for one.
+step "autonomy mode"
+
+modeconf="${TMP}/mode.conf"
+: >"$modeconf"
+jmode() { JOHARNESS_CONF="$modeconf" "${ROOT}/joharness.sh" mode; }
+
+expect "absent key reads supervised" "supervised" "$(jmode)"
+
+printf 'JOHARNESS_MODE=unsupervised\n' >"$modeconf"
+expect "conf unsupervised reads unsupervised" "unsupervised" "$(jmode)"
+
+printf 'JOHARNESS_MODE=supervised\n' >"$modeconf"
+expect "conf supervised reads supervised" "supervised" "$(jmode)"
+
+# Fail-closed cases. Each of these is a value someone could plausibly write.
+: >"$modeconf"
+for bad in Unsupervised UNSUPERVISED unsupervized unsupervised-mode true 1 yes; do
+  got="$(JOHARNESS_MODE="$bad" "${ROOT}/joharness.sh" mode)"
+  if [ "$got" = "supervised" ]; then
+    pass "JOHARNESS_MODE='${bad}' fails closed"
+  else
+    fail "JOHARNESS_MODE='${bad}' fails closed (got '${got}')"
+  fi
+done
+
+got="$(JOHARNESS_MODE='' JOHARNESS_CONF="$modeconf" "${ROOT}/joharness.sh" mode)"
+expect "empty value reads supervised" "supervised" "$got"
+
+# The environment variable overrides the conf, same precedence as every
+# other setting the entrypoint resolves.
+printf 'JOHARNESS_MODE=supervised\n' >"$modeconf"
+got="$(JOHARNESS_MODE=unsupervised JOHARNESS_CONF="$modeconf" "${ROOT}/joharness.sh" mode)"
+expect "env overrides conf" "unsupervised" "$got"
+
+# Narrowing for one session has to work against a conf that opted in —
+# otherwise the only way out of unsupervised is editing the file. Asserted
+# against a NON-empty conf, because an empty one would pass this on both
+# sides and prove nothing.
+printf 'JOHARNESS_MODE=unsupervised\n' >"$modeconf"
+got="$(JOHARNESS_MODE=supervised JOHARNESS_CONF="$modeconf" "${ROOT}/joharness.sh" mode)"
+expect "env narrows an opted-in conf" "supervised" "$got"
+# An EMPTY env value is unset to the shell, so the conf still wins. Same
+# semantics as setup_mode/md_mode; the working override is the word.
+got="$(JOHARNESS_MODE='' JOHARNESS_CONF="$modeconf" "${ROOT}/joharness.sh" mode)"
+expect "empty env defers to conf, as the other readers do" "unsupervised" "$got"
+printf 'JOHARNESS_MODE=supervised\n' >"$modeconf"
+
+# Supervised must announce nothing: a session that is not unattended pays
+# no context to be told so, and this is the assertion that keeps a future
+# edit from quietly taxing every session.
+: >"$modeconf"
+out="$(JOHARNESS_CONF="$modeconf" "${ROOT}/joharness.sh" session-start 2>/dev/null)"
+refute "supervised session-start says nothing about mode" "Mode:" "$out"
+
+out="$(JOHARNESS_MODE=unsupervised JOHARNESS_CONF="$modeconf" \
+  "${ROOT}/joharness.sh" session-start 2>/dev/null)"
+expect "unsupervised session-start announces the mode" "== Mode: unsupervised ==" "$out"
+expect "unsupervised banner names the boundary" ".agents/harness/" "$out"
+
+# A misspelled value is indistinguishable from a repo that meant supervised
+# unless the ignored value is named.
+out="$(JOHARNESS_MODE=nonsense JOHARNESS_CONF="$modeconf" \
+  "${ROOT}/joharness.sh" session-start 2>/dev/null)"
+expect "unrecognised value is named" "JOHARNESS_MODE=nonsense not recognised" "$out"
+
+# The `mode` subcommand splits its channels: the guard captures stdout and
+# needs one clean word, a human needs to hear that their value was ignored.
+# Same lesson the review knob paid for — a knob that reads as off in
+# silence leaves a repo believing it opted in.
+out="$(JOHARNESS_MODE=nonsense "${ROOT}/joharness.sh" mode 2>/dev/null)"
+expect "mode stdout stays one clean word" "supervised" "$out"
+if [ "$out" = "supervised" ]; then
+  pass "mode stdout carries no warning text"
+else
+  fail "mode stdout carries no warning text (got '${out}')"
+fi
+err="$(JOHARNESS_MODE=nonsense "${ROOT}/joharness.sh" mode 2>&1 >/dev/null)"
+expect "mode warns on stderr, naming the value" "JOHARNESS_MODE='nonsense'" "$err"
+
+err="$(JOHARNESS_MODE=unsupervised "${ROOT}/joharness.sh" mode 2>&1 >/dev/null)"
+if [ -z "$err" ]; then
+  pass "a recognised value warns about nothing"
+else
+  fail "a recognised value warns about nothing (got '${err}')"
+fi
+
 # --- handover-guard.sh ------------------------------------------------------
 # Stop-hook guard: git facts only, one-shot via stop_hook_active, silent on
 # a clean pushed tree, never a nonzero exit.
@@ -1420,6 +1510,64 @@ out="$(guard "$JSON_STOP")"
 expect "unpushed ritual commit still surfaces" "1 commit(s) not pushed" "$out"
 refute "committed ritual deletion is not a missing file" \
   "no workstream file" "$out"
+
+# The unsupervised boundary: an unattended session may not edit the
+# protocol that governs unattended sessions. Detection after the fact —
+# a Stop hook cannot prevent the commit, only name it — so what is asserted
+# here is that the branch state is seen, in the mode that cares, and not in
+# the mode that does not.
+mkdir -p "${sgwork}/.agents/harness"
+printf 'edit\n' >"${sgwork}/.agents/harness/touched.sh"
+commit_all "$sgwork" "touch the harness layer"
+
+out="$(guard "$JSON_STOP")"
+refute "supervised leaves harness edits alone" ".agents/harness/" "$out"
+
+guard_unsup() { printf '%s' "$1" | CLAUDE_PROJECT_DIR="$sgwork" \
+  JOHARNESS_MODE=unsupervised \
+  bash "${ROOT}/.agents/harness/handover-guard.sh" 2>&1; }
+
+out="$(guard_unsup "$JSON_STOP")"
+expect "unsupervised names the harness boundary" \
+  "file(s) under .agents/harness/" "$out"
+expect "unsupervised counts the files" "touches 1 file(s)" "$out"
+refute "boundary fact carries no path" "touched.sh" "$out"
+
+# The reason string embeds in JSON unescaped, so the count must keep it
+# parseable. A path here would be repo-controlled input in that position.
+if printf '%s' "$out" | python3 -c 'import json,sys; json.load(sys.stdin)' 2>/dev/null; then
+  pass "boundary block is valid JSON"
+else
+  fail "boundary block is valid JSON"
+  printf '%s\n' "$(indent "$out")"
+fi
+
+# No merge-base — a shallow checkout, or a clone with no origin/<base> ref.
+# Gating the whole boundary on the base was a fail-open: the one mode that
+# needs the fact got none at all. The working-tree half still answers.
+sgnobase="${TMP}/sgnobase"
+git init -q "$sgnobase"
+git -C "$sgnobase" symbolic-ref HEAD refs/heads/main
+printf 'code\n' >"${sgnobase}/code.txt"
+commit_all "$sgnobase" "base"
+git -C "$sgnobase" remote add origin "$sgorigin"
+mkdir -p "${sgnobase}/.agents/harness"
+printf 'edit\n' >"${sgnobase}/.agents/harness/thing.sh"
+out="$(printf '%s' "$JSON_STOP" | CLAUDE_PROJECT_DIR="$sgnobase" \
+  JOHARNESS_MODE=unsupervised \
+  bash "${ROOT}/.agents/harness/handover-guard.sh" 2>&1)"
+expect "no merge-base still names the boundary" \
+  "file(s) under .agents/harness/" "$out"
+out="$(printf '%s' "$JSON_STOP" | CLAUDE_PROJECT_DIR="$sgnobase" \
+  bash "${ROOT}/.agents/harness/handover-guard.sh" 2>&1)"
+refute "no merge-base, supervised, still says nothing" ".agents/harness/" "$out"
+
+git -C "$sgwork" rm -q -r .agents
+commit_all "$sgwork" "revert the harness edit"
+out="$(guard_unsup "$JSON_STOP")"
+refute "reverted harness edit clears the boundary fact" \
+  "file(s) under .agents/harness/" "$out"
+
 git -C "$sgwork" push -q origin sgfeat
 out="$(guard "$JSON_STOP")"; rc=$?
 if [ "$rc" -eq 0 ] && [ -z "$out" ]; then
