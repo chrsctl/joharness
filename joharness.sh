@@ -26,6 +26,10 @@
 #   graph           print the work graph as fenced mermaid (paste into any
 #                   GitHub comment; rendered natively)
 #   mode            print the resolved autonomy mode and exit
+#   mode <value>    set it for THIS checkout only: 'supervised',
+#                   'unsupervised', or 'default' to clear. Writes the
+#                   untracked .joharness-mode marker; $JOHARNESS_MODE
+#                   still wins over it
 #   help            this text
 #
 # Selection lives in joharness.conf and is overridden by $JOHARNESS_ENV:
@@ -53,6 +57,10 @@ set -uo pipefail
 
 ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 CONF="${JOHARNESS_CONF:-${ROOT}/joharness.conf}"
+# Session-local autonomy override. Untracked and gitignored, so it never
+# reaches a commit, and in a container it dies with the container — which
+# is what makes "temporary" true rather than merely intended.
+MODE_FILE="${JOHARNESS_MODE_FILE:-${ROOT}/.joharness-mode}"
 # Both layers hang off one detectable root. Nothing outside .agents/ is a
 # layer, and no layer path is spelled anywhere but here.
 AGENTS_ROOT="${ROOT}/.agents"
@@ -109,7 +117,28 @@ review_on() {
 # Raw autonomy mode, exactly as configured — empty when unset. Only
 # run_mode() and the session-start banner read this; everything else asks
 # run_mode(), which normalises.
-mode_raw()  { printf '%s' "${JOHARNESS_MODE:-$(conf_get JOHARNESS_MODE)}"; }
+# Three sources, most immediate first: the environment for one command, the
+# session-local marker for one checkout, the tracked conf for the repo.
+mode_raw() {
+  if [ -n "${JOHARNESS_MODE:-}" ]; then
+    printf '%s' "$JOHARNESS_MODE"
+  elif [ -r "$MODE_FILE" ]; then
+    # First line, trimmed. A marker written by hand can carry a newline or
+    # stray spaces and still mean what it says.
+    sed -n '1s/[[:space:]]*\([^[:space:]]*\).*/\1/p' "$MODE_FILE"
+  else
+    conf_get JOHARNESS_MODE
+  fi
+}
+
+# Where the resolved mode came from. Only used to tell a session that its
+# autonomy is session-local and how to give it back.
+mode_source() {
+  if [ -n "${JOHARNESS_MODE:-}" ]; then printf 'environment'
+  elif [ -r "$MODE_FILE" ];      then printf 'marker'
+  else                                printf 'conf'
+  fi
+}
 
 # Resolved autonomy mode. ONE string means unsupervised; every other value
 # — a typo, an empty setting, an unreadable conf, a key that does not exist
@@ -139,6 +168,39 @@ mode_warn_unrecognised() {
   local raw
   raw="$(mode_unrecognised)" || return 0
   warn "JOHARNESS_MODE='${raw}' not recognised; running supervised"
+}
+
+# `mode` with an argument writes the session-local marker; `default` removes
+# it. Refuses to write anything but the two understood words: a marker
+# carrying a typo would resolve to supervised, which is safe, but it would
+# also read to a human as an opt-in that silently is not one.
+cmd_mode_set() {
+  local want="$1"
+  case "$want" in
+    supervised|unsupervised)
+      printf '%s\n' "$want" >"$MODE_FILE" ||
+        die "cannot write ${MODE_FILE}"
+      printf 'mode: %s (session-local marker %s)\n' "$want" "$MODE_FILE"
+      printf 'Clears with: %s mode default\n' "$0"
+      # The marker cannot narrow what the environment already widened, and
+      # a session that believes it turned autonomy off deserves to hear
+      # that it did not.
+      if [ -n "${JOHARNESS_MODE:-}" ] && [ "$JOHARNESS_MODE" != "$want" ]; then
+        warn "JOHARNESS_MODE='${JOHARNESS_MODE}' is set and wins over the marker; this session still runs $(run_mode)"
+      fi
+      ;;
+    default)
+      if [ -e "$MODE_FILE" ]; then
+        rm -f "$MODE_FILE" || die "cannot remove ${MODE_FILE}"
+        printf 'marker cleared; mode: %s (from %s)\n' "$(run_mode)" "$(mode_source)"
+      else
+        printf 'no marker set; mode: %s (from %s)\n' "$(run_mode)" "$(mode_source)"
+      fi
+      ;;
+    *)
+      die "mode takes 'supervised', 'unsupervised' or 'default' (got '${want}')"
+      ;;
+  esac
 }
 
 # Layer names are directory names under .agents/env/. Reject anything that could walk
@@ -1430,7 +1492,15 @@ cmd_session_start() {
     printf 'Queue edge is a trigger, not a stop: generate work, run the full\n'
     printf 'Loop, merge your own pull request. NEVER commit under\n'
     printf '.agents/harness/ — protocol edits stay supervised\n'
-    printf '(docs/product/unsupervised-mode.md, Constraints).\n\n'
+    printf '(docs/product/unsupervised-mode.md, Constraints).\n'
+    # Session-local autonomy says so. A mode that came from an untracked
+    # marker looks exactly like a repo-wide opt-in otherwise, and the two
+    # want different reactions from whoever reads this.
+    if [ "$(mode_source)" = "marker" ]; then
+      printf 'Session-local (marker, not %s). Off again: ./joharness.sh mode default\n' \
+        "$(basename "$CONF")"
+    fi
+    printf '\n'
   elif raw="$(mode_unrecognised)"; then
     # Into session context, not stderr: the session is the reader who has
     # to know its mode is not what the conf appears to say.
@@ -1522,7 +1592,8 @@ main() {
     # typo'd conf needs to hear about it. Same lesson the review knob
     # already paid for (PR47 r4) — a knob that reads as off in silence
     # leaves a repo believing it opted in.
-    mode)           mode_warn_unrecognised; run_mode; printf '\n' ;;
+    mode)           if [ -n "${1:-}" ]; then cmd_mode_set "$1"
+                    else mode_warn_unrecognised; run_mode; printf '\n'; fi ;;
     -h|--help|help) usage ;;
     *) die "unknown subcommand '$cmd' (try: $0 help)" ;;
   esac
