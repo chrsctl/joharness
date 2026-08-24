@@ -7,7 +7,7 @@ plan: none
 session: https://claude.ai/code/session_01B5Pq9Ps7b9PSzJ3Hf9MjT7
 agent: opus
 updated: 2026-08-24
-next: Implement JOHARNESS_REVIEW knob + `joharness.sh review` + ci gate, then selftest coverage
+next: Human decides whether to open the PR (outer harness forbids opening one unasked); then merge per Loop step 7
 ---
 
 ## Goal
@@ -38,6 +38,18 @@ hook output ever notices it is empty. Opt-in gate closes it.
 - Depth recipe read from the workstream `agent:` tier, falling back to the
   claimed plan's tier, then sonnet. Same tier the review-depth rule already
   keys on; no second vocabulary.
+- Two tiers, like churn's warn/ceiling, decided during r1 below: armed, the
+  gate only warns until the workstream reaches the edge (`pr:` set, or
+  `status:` review/done), and reds there. `ci` runs all through a build, so a
+  one-tier gate would red every push from the claim commit on — red as a
+  branch's normal state is how a gate stops being read. Edge is where the
+  Loop already puts the review (step 5), so the gate fires when the rule
+  comes due, not before.
+- Dodge accepted, on the record: a session that never sets `pr:` and leaves
+  `status: in-progress` never trips the gate. Every alternative that closes
+  it (fire on any commit) costs the tier above. Lying in the workstream file
+  is visible in the diff and to the human, the same bargain
+  `JOHARNESS_CHURN_LIMIT=0` already makes.
 
 ## Rejected
 
@@ -52,11 +64,33 @@ hook output ever notices it is empty. Opt-in gate closes it.
 
 ## Review
 
-(pending — edge review runs before PR)
+Edge review at opus depth (this workstream's tier): correctness, security,
+does-it-reproduce as separate passes over the full diff.
+
+- r1: correctness — one-tier gate reds `ci` from the claim commit onward,
+  and `ci` runs all through the build, so red becomes a working branch's
+  normal state and stops carrying information. (fixed: warn below the edge,
+  red at it — `review_at_edge`)
+- r2: correctness — only the first workstream file was checked (`head -1`),
+  so a branch carrying two records passed on one review that never covered
+  the other half of its diff. (fixed: loops every file `lint_nodes` returns)
+- r3: security — the workstream's `plan:` value reaches a filesystem path in
+  `review_tier`. `lint_stem` takes the basename, so `../../etc/passwd` reads
+  `docs/plans/passwd.md`; no traversal. (no change needed)
+- r4: does-it-reproduce — a knob value that is neither `on` nor `off` (`true`,
+  `yes`) read as off in silence, so a repo that believed it had opted in got
+  no gate and no signal. (fixed: `review_on` warns, naming the value)
+- r5: does-it-reproduce — the gate's own selftest fixture proved on/off but
+  not the edge tiers or a second workstream file. (fixed: 27 cases, both
+  edge signals, two-workstream branch, conf path, tier fallbacks)
 
 ## Blockers
 
-None.
+None for this branch. Found, not this branch's: `./joharness.sh verify` fails
+on an immediate re-run — `devenv-smoke` namespace still Terminating, exactly
+the queued `smoke-rerun-safety` plan. First run also failed once on a cold
+`docker pull alpine:3` that succeeded on retry. Clean run: 7 passed, 0
+failed.
 
 ## Where to look
 

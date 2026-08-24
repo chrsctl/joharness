@@ -46,6 +46,31 @@ mapping:
   (`.agents/docs/handover/README.md`, Reviewing). Escalating tier mid-work
   escalates review depth with it; the reverse never happens — depth, like
   tier, never downgrades.
+
+  Depth for this branch, printed rather than looked up:
+  `./joharness.sh review`. It resolves the tier from the workstream file's
+  `agent:` (else the claimed plan's, else sonnet), prints the matching
+  recipe, and says whether the record exists — for every workstream file the
+  branch carries, since each owes its own. Opt-in gate: `JOHARNESS_REVIEW=on`
+  in `joharness.conf`. Off by default — silent, no check, `ci` output
+  unchanged.
+
+  Armed, it has two tiers, for the reason churn has two: `ci` runs all
+  through the build, and a check that reds from the claim commit onward makes
+  red the normal state of a working branch, which is how a gate stops being
+  read. Below the edge it only says the record is still owed. At the edge —
+  pull request open (`pr:` set), or the workstream's own `status:` review or
+  done — an empty `## Review` fails `ci`. Edge is where the loop puts the
+  review anyway (step 5, after the build), so the gate fires exactly when the
+  rule already came due.
+
+  It checks the RECORD, never the finding count, for the reason the churn
+  rule gives below: finding counts are no signal in either direction. A gate
+  on "N findings" buys invented findings. A clean pass records one line
+  saying it was clean; an empty section is not a clean pass. What the gate
+  cannot check, it says: a branch with no workstream file (copy, sync,
+  plan-queue — the protocol forbids one there) prints that it checked
+  nothing rather than passing quietly.
 - Review churn = one round's fix breaks what earlier round's fix
   established. Means requirements conflict: no single rule in the code
   satisfies all of them at once. Not bad code — patching never converges,
