@@ -29,7 +29,14 @@
 
 set -uo pipefail
 
-PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+# Two levels, not one: this script lives at .agents/harness/, so the repo
+# root is two up. It was one when the harness lived at harness/, and the
+# move left this behind — silently, because the hook always sets
+# CLAUDE_PROJECT_DIR and so did every selftest, so nothing executed the
+# fallback. Resolving to .agents/ makes the queue read the protocol's own
+# docs/plans/ (TEMPLATE and README, both filtered out) and report an empty
+# queue: wrong in the "everything is done" direction.
+PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 PLANS_DIR="docs/plans"
 PRODUCT_DIR="docs/product"
 BASE_BRANCH="${HANDOVER_BASE_BRANCH:-main}"

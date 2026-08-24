@@ -26,7 +26,9 @@
 
 set -uo pipefail
 
-PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+# Two levels: this lives at .agents/harness/, so the repo root is two
+# up (see queue-context.sh for what one level costs).
+PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 BASE_BRANCH="${HANDOVER_BASE_BRANCH:-main}"
 
 cd "$PROJECT_DIR" 2>/dev/null || exit 0
