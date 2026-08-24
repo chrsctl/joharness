@@ -111,6 +111,13 @@ reproduce). Findings against my own diff:
 - r7: `read -r` at EOF must still assign, or `set -u` kills the hook on a
   document missing its last field. Verified under `bash -u` before relying
   on it (no change needed).
+- r8: read what `selftest.sh` cost the four earlier edges
+  (`./joharness.sh feedback .agents/harness/selftest.sh`) before touching it,
+  as the review step asks. Nothing there re-fires against this diff — the two
+  findings nearest it, PR47 r8 ("a measure nobody runs twice measures
+  nothing") and r9 (`--first-parent`), are the shape of this branch's own
+  argument, and the cap and the first-parent walk both survive it unchanged
+  (no change needed).
 
 Green: `./joharness.sh ci` = `ci: pass`, 352 passed 0 failed, zero shellcheck
 findings. `./joharness.sh verify` = 7 passed, 0 failed.
