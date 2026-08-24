@@ -44,6 +44,10 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    `joharness.conf` makes `ci` fail at the edge (PR open, or status
    review/done) without one — off by default, quiet mid-build. Clean pass
    records one line saying clean — empty section not clean pass.
+   `review` names files in this diff that already cost other branches;
+   `./joharness.sh feedback <path>` prints what they found. File keeps
+   drawing findings = rule nobody wrote yet: graduate it
+   (`.agents/docs/feedback.md`).
    Fix undoes earlier round's fix? Review churn: stop patching, research
    step at raised tier or effort first (`.agents/docs/agent-selection.md`, review
    churn rule). NEVER skip, disable, or quarantine a test to get green.

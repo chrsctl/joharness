@@ -292,6 +292,13 @@ graduating? Fine outcome — delete.
 **No workstream file belongs on `main`.** Hook checks, names any there: make
 rot visible, not trust discipline.
 
+Deleting the file deletes the findings with it, which is why `./joharness.sh
+feedback` reads them back out of merge history: coverage, recurrence, and the
+files that keep drawing findings — the shortlist of what still wants
+graduating. Measured here, 2026-08-24: 41 findings across 8 reviewed edges,
+36% of file-level fixes landing where an earlier edge already fixed one.
+Scoring rules and blind spots: [`../feedback.md`](../feedback.md).
+
 Rule started weaker; first merge broke it in minutes. Original carve-out:
 file on `main` fine while work spans PRs, check only flagged `status: done`.
 This protocol's own file then merged carrying `status: review` — finished
