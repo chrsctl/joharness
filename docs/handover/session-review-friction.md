@@ -79,6 +79,13 @@ are repo-owned and stay in `chrsctl/gx`.
   also appears in the other-branches section because the `inheritor` fixture
   carries a copy. It failed for the right answer and the wrong reason. Both
   listing assertions now anchor on the stale list's own two-space indent.
+- Running `verify` for step 7 surfaced a fifth finding on the spot: it took
+  three runs to go green on a cold cluster, and the failure set moved each
+  time (pull only, then all three cluster checks, then 7/7, no edits between).
+  A session reading the Loop would take that first red as its own diff. Filed
+  as a trip-wire with the measurement, not fixed: three data points is not a
+  diagnosis, and the guidance names what a real fix would be (wait on a pull,
+  not on `Ready`).
 - The `scope` finding came out of this session's own review of its own plans,
   not out of a hook failure. It has no test here: the hook proves disjointness
   of what it is told, and nothing can check a declaration against a file the
