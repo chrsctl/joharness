@@ -21,6 +21,14 @@ whichever `joharness.conf` names.
   issues: plan queue under [`docs/plans/`](.agents/docs/plans/README.md), each plan
   naming the agent tier that implements it — lineup + rules:
   [`.agents/docs/agent-selection.md`](.agents/docs/agent-selection.md).
+  `./joharness.sh review` prints the review depth a branch's tier asks for
+  and whether its findings are recorded; `JOHARNESS_REVIEW=on` turns that
+  into a `ci` gate at the edge — off by default, silent while off.
+  `./joharness.sh feedback` scores that loop from merged history — coverage,
+  recurrence, and the files that keep drawing findings — and
+  `feedback <path>` reads what earlier branches found there. How a loop gets
+  scored, and what this repo's history says:
+  [`.agents/docs/feedback.md`](.agents/docs/feedback.md).
 - **[`.agents/env/<name>/`](.agents/env/README.md) — sandbox environment.** Selected, not
   assumed. [`.agents/env/k8s`](.agents/env/k8s/README.md) is Docker + a k3d Kubernetes
   cluster, and what it costs, and the four sandbox constraints its scripts
@@ -35,6 +43,8 @@ whichever `joharness.conf` names.
 ./joharness.sh env k8s      # select
 ./joharness.sh setup        # provision it now
 ./joharness.sh verify       # provision, then smoke test end to end
+./joharness.sh review       # review depth for this branch, and its record
+./joharness.sh feedback     # score the review loop; <path> = what it cost there
 ```
 
 Provisioning is lazy: session start reads the layer's rules and stops. No

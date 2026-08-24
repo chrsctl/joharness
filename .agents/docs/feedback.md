@@ -1,0 +1,133 @@
+# Feedback loops, and how to score one
+
+A harness rule that never gets better is a rule that was guessed once. This
+document: what a feedback loop is here, how to tell a good one from a busy
+one, and what this repo's own history says when you count it.
+
+Measure it yourself: `./joharness.sh feedback`. Every number below is counted
+from git at read time, nothing stored. Trust counted numbers, never written
+numbers — including the ones on this page, which were true on 2026-08-24 and
+are re-derivable in two seconds.
+
+## The four stages
+
+A loop that improves anything has to clear four bars in order. Each one is a
+place a loop dies quietly:
+
+1. **Detect** — something notices the defect. (Review, CI, a gate.)
+2. **Record** — the noticing survives the moment. (Findings in the workstream
+   file's `## Review`.)
+3. **Generalize** — one defect becomes a rule about a class of defects.
+   (Graduation: `.agents/docs/handover/README.md`.)
+4. **Prevent** — the rule reaches the next session before it repeats the
+   defect, not after.
+
+Stages 1 and 2 are cheap and visible, which is why most loops stop there and
+still feel like loops. Stage 4 is the only one that changes an outcome.
+
+## Scoring
+
+Four yields, one outcome. The yields diagnose; only the outcome scores.
+
+| Number | Question | Where it comes from |
+| --- | --- | --- |
+| Coverage | Does the loop run at all? | merged edges recording a review / edges carrying a workstream file |
+| Retention | Does its output survive? | findings a later session can reach without archaeology |
+| Generalization | Did a finding become a rule? | review-fix commits touching an `AGENTS.md` or `docs/` rule file |
+| Cost | What did it take? | commits per finding, churn peak per branch |
+| **Recurrence** | **Did the same thing come back?** | **file-level fixes landing where an earlier edge already fixed a finding** |
+
+**Recurrence is the score. Everything else explains it.** A loop is good if
+the same file stops drawing the same class of finding, and for no other
+reason.
+
+### Volume is not a score
+
+Counting findings and calling more of them better is the trap. The review
+churn rule (`.agents/docs/agent-selection.md`) already establishes it from
+measurement: finding counts are no signal, false in both directions — five
+findings can be one real defect found five ways, and zero can be a review
+nobody ran. A loop scored on volume optimizes for volume; the models under
+this harness are literal enough to deliver exactly that.
+
+Recurrence has the opposite property. It cannot be gamed by producing more
+output, because producing more output is not what makes it fall.
+
+## Measured here (2026-08-24)
+
+39 merged edges, 28 carrying a workstream file, 46 recorded findings.
+
+- **Coverage: 9/9 since the ledger, 0/19 before it.** The review ledger
+  landed in PR #31. Every merged edge after it recorded findings; not one
+  before it did. A step change on the commit that added the mechanism —
+  the strongest evidence in this repo that a recording mechanism, not
+  exhortation, is what makes recording happen.
+- **Volume: 46 findings — 33 fixed, 6 wontfix, 2 verified-no-change, 5
+  unmarked.** 5.1 findings per reviewed edge. The 5 unmarked all arrived on
+  one edge, written without the TEMPLATE's `r1:` id: counted, but unlinkable
+  to any file. The measure says so rather than dropping them.
+- **Cost: 0.8 commits per finding, mean churn peak 1.7** against a threshold
+  of 5. Reviews here are not what drives rework.
+- **Recurrence: 7 of 19 file-level fixes (36%)** landed on a file an earlier
+  merged edge had already fixed a finding in.
+- **Hot spots:** `.agents/harness/AGENTS.md` drew findings on 4 separate
+  edges; `.agents/harness/selftest.sh` on 3. The harness's own rule file is
+  the most defect-prone file in the repo by this measure.
+- **Retention: zero.** The finish ritual deletes the workstream file, by
+  design — a file left on `main` reads as current. So all 41 findings live
+  in merge history and nowhere a session is told to look. Nothing in the
+  harness read them until `feedback` did.
+
+One exact repeat is visible in the record: PR #34's r1 and PR #35's r9 are
+the same defect one edge apart, and the second finding says so in its own
+text. The loop's stages 1 and 2 worked perfectly both times. Stages 3 and 4
+did not exist.
+
+## What the numbers picked
+
+Retention zero and recurrence 36% pick the same intervention: carry findings
+past the merge that deletes them, and put them in front of the next session
+that touches the same file. That is what `feedback` does — the scorecard, and
+`feedback <path>` for what a file has already cost. The review step prints the
+pointer for the files in the branch's own diff, which is the moment it pays.
+
+The alternatives were weighed against these numbers, not against taste:
+
+- **Running the review instead of recording it** (spawn reviewers per lens):
+  coverage is already 8/8. Buys nothing the numbers show missing.
+- **Gate self-measurement** (do the thresholds earn their keep): worth doing,
+  but churn's mean peak of 1.8 against a threshold of 5 says the gates are
+  quiet, not miscalibrated. Later.
+- **Feeding outcomes back into agent selection**: needs recurrence per tier,
+  which needs more edges than 4 days of history holds. Blocked on data this
+  measure now accumulates.
+
+## What this cannot see
+
+Named because a measure that hides its blind spots is worse than no measure:
+
+- **Classes, not files.** Recurrence is measured on paths. Two findings of
+  the same *kind* in different files read as unrelated; the same file drawing
+  two unrelated findings reads as a repeat. Classifying prose needs judgment,
+  and a field for sessions to fill in is a field that rots.
+- **Commit-level attribution.** A finding is linked to its fix commit, so a
+  commit carrying several findings attributes all of them to every file it
+  touched.
+- **Findings without the `r1:` id.** Attribution keys on the id the TEMPLATE
+  prescribes. A bullet written without one still counts in volume — the
+  handover hook counts it too — but nothing links it to a file. One of the
+  nine reviewed edges here wrote all five of its findings that way, which is
+  how the gap got noticed; the scorecard prints the count rather than
+  quietly reading those edges as clean.
+- **Disposition read from prose.** `(fixed)`, `wontfix` and "no change" are
+  matched in the finding's text, so a finding saying "fixed; no change to the
+  docs" reads as no-change. The alternative is a structured field per
+  finding, and a field a hurried session fills in wrong is the failure mode
+  delete-on-merge exists to avoid.
+- **Renames.** A path recorded before a move resolves by unique-suffix match
+  and otherwise stands as recorded. This repo's own `.agents/` move split one
+  hot spot into two cold ones until that was fixed.
+- **Four days.** 8 reviewed edges is enough to see a step change and a
+  36% recurrence rate. It is not enough to see a slope. The number to watch
+  is whether recurrence falls; ask again at 30 edges.
+- **Merged history only.** An open branch has recorded nothing yet.

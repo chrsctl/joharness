@@ -22,7 +22,8 @@ export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 
 # Knobs exported in the invoking shell must not steer the fixtures; per-call
 # prefix assignments below still apply.
-unset JOHARNESS_ENV JOHARNESS_ENV_SETUP JOHARNESS_ENV_MD \
+unset JOHARNESS_ENV JOHARNESS_ENV_SETUP JOHARNESS_ENV_MD JOHARNESS_REVIEW \
+  JOHARNESS_CHURN_THRESHOLD JOHARNESS_CHURN_LIMIT \
   JOHARNESS_CONF JOHARNESS_FORCE_SETUP JOHARNESS_SYNC_ROOT DEVENV_FORCE
 
 PASS=0
@@ -815,6 +816,309 @@ printf 'one\n' >"${cwork}/calm.txt"
 commit_all "$cwork" "single change"
 out="$(ci_churn)"
 expect "a calm branch reports quiet" "quiet (max 1 commits per file)" "$out"
+
+# --- entrypoint: the review step -------------------------------------------
+# Off by default and silent while off; on, ci reds a branch that reaches the
+# edge with no review recorded, and only there. Same scratch-harness pattern as
+# churn: the copy gets a selftest stub so the suite does not re-enter itself,
+# and GITHUB_ACTIONS is cleared so a runner without shellcheck cannot own the
+# exit code the review assertions read.
+step "joharness.sh review"
+
+rorigin="${TMP}/revieworigin.git"
+git init -q --bare "$rorigin"
+rwork="${TMP}/reviewwork"
+mkdir -p "${rwork}/.agents/harness" "${rwork}/.agents/env/none" \
+  "${rwork}/docs/handover" "${rwork}/docs/plans"
+cp "${ROOT}/joharness.sh" "${rwork}/joharness.sh"
+printf '#!/usr/bin/env bash\nexit 0\n' >"${rwork}/.agents/harness/selftest.sh"
+chmod +x "${rwork}/.agents/harness/selftest.sh" "${rwork}/joharness.sh"
+git init -q "$rwork"
+git -C "$rwork" symbolic-ref HEAD refs/heads/main
+commit_all "$rwork" "scratch harness"
+git -C "$rwork" remote add origin "$rorigin"
+git -C "$rwork" push -qu origin main
+
+jr() { CLAUDE_PROJECT_DIR="$rwork" JOHARNESS_CONF="${rwork}/joharness.conf" \
+  GITHUB_ACTIONS='' "${rwork}/joharness.sh" "$@" 2>&1; }
+ci_review() { jr ci | sed -n '/== review/,/^$/p'; }
+ci_rc_review() { CLAUDE_PROJECT_DIR="$rwork" JOHARNESS_CONF="${rwork}/joharness.conf" \
+  GITHUB_ACTIONS='' "${rwork}/joharness.sh" ci >/dev/null 2>&1; }
+
+# <file> <status> <pr> <extra-frontmatter> <review-bullets...>
+write_ws() {
+  local f="$1" status="$2" pr="$3" extra="$4"; shift 4
+  { printf -- '---\nworkstream: %s\nstatus: %s\npr: %s\n' \
+      "$(basename "$f" .md)" "$status" "$pr"
+    [ -n "$extra" ] && printf '%s\n' "$extra"
+    printf -- '---\n\n## Review\n\n'
+    printf '%s\n' "$@"
+  } >"${rwork}/docs/handover/${f}"
+}
+
+# On the base branch there is nothing past main to review.
+out="$(JOHARNESS_REVIEW=on jr review)"
+expect "base branch has nothing to review yet" "nothing to review yet" "$out"
+
+git -C "$rwork" checkout -qb work
+printf 'code\n' >"${rwork}/feature.txt"
+write_ws ws.md in-progress none "agent: opus" ""
+commit_all "$rwork" "work with an empty review section"
+
+# Default: the step reports on demand, ci neither prints nor checks.
+out="$(jr ci)"
+refute "review gate silent by default" "== review" "$out"
+out="$(jr review)"
+expect "standalone review runs with the gate off" "ci does not check" "$out"
+expect "standalone review reads the tier's depth" "docs/handover/ws.md [opus" "$out"
+expect "opus depth is the adversarial recipe" "does-it-reproduce" "$out"
+
+# Armed, but the work is mid-build: the review is not due until the edge, and
+# a gate that reds from the claim commit on makes red a branch's normal state.
+out="$(JOHARNESS_REVIEW=on ci_review)"
+expect "below the edge the gate waits" "no record yet — gate fires at the edge" "$out"
+if JOHARNESS_REVIEW=on ci_rc_review; then
+  pass "mid-build ci stays green with the gate armed"
+else
+  fail "mid-build ci stays green with the gate armed"
+fi
+
+# At the edge by status, then by pull request: an empty section is not a pass.
+write_ws ws.md review none "agent: opus" ""
+commit_all "$rwork" "hand the work to the edge"
+out="$(JOHARNESS_REVIEW=on ci_review)"
+expect "status at the edge reds the missing record" \
+  "NO findings recorded under ## Review, and this is the edge (status review)" "$out"
+if JOHARNESS_REVIEW=on ci_rc_review; then
+  fail "edge without a record fails ci"
+else
+  pass "edge without a record fails ci"
+fi
+
+write_ws ws.md in-progress 12 "agent: opus" ""
+commit_all "$rwork" "open a pull request for it"
+out="$(JOHARNESS_REVIEW=on ci_review)"
+expect "an open pull request is the edge too" "this is the edge (pr 12)" "$out"
+if JOHARNESS_REVIEW=on ci_rc_review; then
+  fail "open pull request without a record fails ci"
+else
+  pass "open pull request without a record fails ci"
+fi
+
+# Only 'on' arms it, and a value that is neither names itself: a repo that
+# believes it opted in must not get silence.
+out="$(JOHARNESS_REVIEW=yes jr ci)"
+refute "a value that is not 'on' leaves the gate off" "== review" "$out"
+expect "an unreadable value names itself" "ignoring JOHARNESS_REVIEW='yes'" "$out"
+
+# The record, not the count: one line is a record, and a clean pass says so.
+write_ws ws.md review 12 "agent: opus" "- r1: clean pass, adversarial, no findings."
+commit_all "$rwork" "record the review"
+out="$(JOHARNESS_REVIEW=on ci_review)"
+expect "a recorded finding satisfies the gate" "1 finding(s) recorded" "$out"
+if JOHARNESS_REVIEW=on ci_rc_review; then
+  pass "recorded review keeps ci green"
+else
+  fail "recorded review keeps ci green"
+fi
+
+# Two workstreams on one branch owe two records. Checking only the first would
+# pass the branch on a review that never covered the other half of its diff.
+write_ws second.md review none "agent: sonnet" ""
+commit_all "$rwork" "a second workstream, unreviewed"
+out="$(JOHARNESS_REVIEW=on ci_review)"
+expect "every workstream file on the branch is checked" \
+  "docs/handover/second.md [sonnet" "$out"
+expect "the reviewed one still reads as recorded" "1 finding(s) recorded" "$out"
+if JOHARNESS_REVIEW=on ci_rc_review; then
+  fail "one unreviewed workstream reds the branch"
+else
+  pass "one unreviewed workstream reds the branch"
+fi
+git -C "$rwork" rm -q "docs/handover/second.md"
+commit_all "$rwork" "drop the second workstream"
+
+# The conf path too — it is how a repo actually opts in.
+printf 'JOHARNESS_REVIEW=on\n' >>"${rwork}/joharness.conf"
+out="$(jr env)"
+expect "env status shows the review knob" "review      : on" "$out"
+git -C "$rwork" rm -q "docs/handover/ws.md"
+printf 'more\n' >>"${rwork}/feature.txt"
+commit_all "$rwork" "drop the workstream file"
+out="$(ci_review)"
+expect "conf opt-in arms the gate" "no workstream file on this branch" "$out"
+expect "the gate says what it did not check" "by protocol" "$out"
+if ci_rc_review; then
+  pass "no workstream file is not a red"
+else
+  fail "no workstream file is not a red"
+fi
+
+# Conf opt-in proven; take it back out so the cases below choose for
+# themselves rather than inheriting it.
+sed -i.bak '/^JOHARNESS_REVIEW=/d' "${rwork}/joharness.conf" && \
+  rm -f "${rwork}/joharness.conf.bak"
+commit_all "$rwork" "conf: gate back off"
+
+# Tier falls back to the claimed plan when the workstream file names none,
+# and to sonnet when neither does.
+git -C "$rwork" checkout -qb tierfall main
+mkdir -p "${rwork}/docs/plans" "${rwork}/docs/handover"
+printf -- '---\nplan: p\nagent: haiku\n---\n' >"${rwork}/docs/plans/p.md"
+write_ws t.md in-progress none "plan: p" "- r1: x (fixed)"
+printf 'code\n' >"${rwork}/tier.txt"
+commit_all "$rwork" "workstream claiming a haiku plan"
+out="$(jr review)"
+expect "tier falls back to the claimed plan's" "docs/handover/t.md [haiku" "$out"
+expect "haiku depth is the one-pass recipe" "one pass, never zero" "$out"
+
+write_ws t.md in-progress none "plan: none" "- r1: x (fixed)"
+commit_all "$rwork" "workstream naming no plan"
+out="$(jr review)"
+expect "tier defaults to sonnet" "docs/handover/t.md [sonnet" "$out"
+
+# Session start says the gate is armed, and says nothing while it is not.
+out="$(JOHARNESS_REVIEW=on jr session-start)"
+expect "session start announces an armed gate" "Review gate: ON" "$out"
+out="$(jr session-start)"
+refute "session start silent while the gate is off" "Review gate" "$out"
+
+# --- entrypoint: the feedback measure ---------------------------------------
+# Reads merged history: how many edges recorded a review, what they found, and
+# which files keep drawing findings. Fixture builds real merge commits, since
+# the whole measure is about what an edge into main carries.
+step "joharness.sh feedback"
+
+fwork="${TMP}/feedbackwork"
+mkdir -p "${fwork}/.agents/harness" "${fwork}/.agents/env/none" "${fwork}/docs/handover"
+cp "${ROOT}/joharness.sh" "${fwork}/joharness.sh"
+printf '#!/usr/bin/env bash\nexit 0\n' >"${fwork}/.agents/harness/selftest.sh"
+chmod +x "${fwork}/.agents/harness/selftest.sh" "${fwork}/joharness.sh"
+git init -q "$fwork"
+git -C "$fwork" symbolic-ref HEAD refs/heads/main
+printf 'one\n' >"${fwork}/hot.sh"
+printf 'one\n' >"${fwork}/cold.sh"
+commit_all "$fwork" "scratch harness"
+forigin="${TMP}/feedbackorigin.git"
+git init -q --bare "$forigin"
+git -C "$fwork" remote add origin "$forigin"
+git -C "$fwork" push -qu origin main
+
+jf() { CLAUDE_PROJECT_DIR="$fwork" JOHARNESS_CONF="${fwork}/joharness.conf" \
+  HANDOVER_BASE_BRANCH=main "${fwork}/joharness.sh" "$@" 2>&1; }
+
+out="$(jf feedback)"
+expect "no merged workstream is nothing to measure" "nothing to measure yet" "$out"
+
+# <branch> <ws> <file> <bullets...>: one edge, protocol-shaped — the finding
+# lands in the same commit as its fix, then the ritual deletes the file.
+edge() {
+  local br="$1" ws="$2" file="$3" pr="$4"; shift 4
+  git -C "$fwork" checkout -q main
+  git -C "$fwork" checkout -qb "$br"
+  printf '%s\n' "$br" >>"${fwork}/${file}"
+  # git drops a directory when a branch switch removes its last tracked file,
+  # and the finish ritual below removes exactly that.
+  mkdir -p "${fwork}/docs/handover"
+  { printf -- '---\nworkstream: %s\nstatus: review\n---\n\n## Review\n\n' "$ws"
+    printf '%s\n' "$@"; } >"${fwork}/docs/handover/${ws}.md"
+  commit_all "$fwork" "fix and record on ${br}"
+  git -C "$fwork" rm -q "docs/handover/${ws}.md"
+  git -C "$fwork" commit -qm "Finish ritual: delete the workstream file"
+  git -C "$fwork" checkout -q main
+  git -C "$fwork" merge -q --no-ff -m "Merge pull request #${pr} from scratch/${br}" "$br"
+  git -C "$fwork" push -q origin main
+}
+
+edge one alpha hot.sh 1 "- r1: hot.sh mishandled the empty case. (fixed)" \
+  "- r2: cold path unproven. (wontfix — costs more than it catches)"
+edge two beta hot.sh 2 "- r1: hot.sh lost an exit code. (fixed)"
+edge three gamma cold.sh 3 "- r1: cold.sh named the wrong flag. (fixed)"
+
+out="$(jf feedback)"
+expect "every edge is counted" "3 edges, 3 carrying a workstream file" "$out"
+expect "coverage counts edges that recorded" "coverage   : 3/3" "$out"
+expect "findings counted with their markers" "4 findings — 3 fixed, 1 wontfix" "$out"
+expect "a file two edges fixed is a hot spot" "2 edges  hot.sh" "$out"
+refute "a file only one edge fixed is not" "1 edges  cold.sh" "$out"
+expect "recurrence is the number to watch" "already fixed a finding (33%)" "$out"
+
+# The per-path reader: what an earlier edge found here, and nothing about a
+# file nobody has found anything in.
+out="$(jf feedback hot.sh)"
+expect "prior findings surface by path" "hot.sh mishandled the empty case" "$out"
+expect "both edges' findings on that path surface" "hot.sh lost an exit code" "$out"
+refute "another file's finding stays out" "cold.sh named the wrong flag" "$out"
+expect "the path report counts its edges" "2 merged edges" "$out"
+out="$(jf feedback .agents/harness/selftest.sh)"
+expect "a file nobody found anything in says so" "no merged edge recorded a finding" "$out"
+
+# A long-running branch merges main mid-flight (the protocol tells it to).
+# That merge is reachable from main and carries the same workstream file, so a
+# walk that is not --first-parent counts the edge twice and doubles its
+# findings. Measured on this repo before the fix: 51 edges and 42 findings
+# against a true 37 and 41.
+git -C "$fwork" checkout -q main
+git -C "$fwork" checkout -qb four
+printf 'four\n' >>"${fwork}/cold.sh"
+mkdir -p "${fwork}/docs/handover"
+{ printf -- '---\nworkstream: delta\nstatus: review\n---\n\n## Review\n\n'
+  printf -- '- r1: cold.sh drifted from its sibling. (fixed)\n'; } \
+  >"${fwork}/docs/handover/delta.md"
+commit_all "$fwork" "fix and record on four"
+git -C "$fwork" checkout -q main
+printf 'moved\n' >>"${fwork}/unrelated.txt"
+commit_all "$fwork" "main moves under the branch"
+git -C "$fwork" checkout -q four
+git -C "$fwork" merge -q --no-ff -m "Merge main into four" main
+git -C "$fwork" rm -q "docs/handover/delta.md"
+git -C "$fwork" commit -qm "Finish ritual: delete the workstream file"
+git -C "$fwork" checkout -q main
+git -C "$fwork" merge -q --no-ff -m "Merge pull request #4 from scratch/four" four
+git -C "$fwork" push -q origin main
+
+out="$(jf feedback)"
+expect "a mid-flight merge of main is not a second edge" \
+  "4 edges, 4 carrying a workstream file" "$out"
+expect "and does not double its findings" "5 findings" "$out"
+
+# A finding written without the TEMPLATE's id counts in volume but cannot be
+# linked to a file. Silence there would read as a clean edge; the count is
+# printed instead.
+git -C "$fwork" checkout -q main
+git -C "$fwork" checkout -qb noid
+printf 'noid\n' >>"${fwork}/cold.sh"
+mkdir -p "${fwork}/docs/handover"
+{ printf -- '---\nworkstream: zeta\nstatus: review\n---\n\n## Review\n\n'
+  printf -- '- Wrote the finding without an id.\n'; } >"${fwork}/docs/handover/zeta.md"
+commit_all "$fwork" "record without an id"
+git -C "$fwork" checkout -q main
+git -C "$fwork" merge -q --no-ff -m "Merge pull request #5 from scratch/noid" noid
+git -C "$fwork" push -q origin main
+out="$(jf feedback)"
+expect "an unidentified finding still counts as volume" "6 findings" "$out"
+expect "and the measure says it cannot be linked" "1 carry no r1: id" "$out"
+
+# The walk is bounded, and a bounded view says so — a window nobody was told
+# about is how a measure starts lying.
+out="$(JOHARNESS_FEEDBACK_EDGES=2 jf feedback)"
+expect "a capped walk names its window" "newest 2 edges of 5" "$out"
+expect "and names the knob that widens it" "JOHARNESS_FEEDBACK_EDGES=2" "$out"
+out="$(JOHARNESS_FEEDBACK_EDGES=0 jf feedback)"
+refute "0 reads every edge" "older edges NOT read" "$out"
+
+# The review step points at what the files in this diff already cost.
+git -C "$fwork" checkout -q main
+git -C "$fwork" checkout -qb five
+printf 'five\n' >>"${fwork}/hot.sh"
+mkdir -p "${fwork}/docs/handover"
+{ printf -- '---\nworkstream: epsilon\nstatus: in-progress\n---\n\n## Review\n\n'
+  printf -- '- r1: recorded. (fixed)\n'; } >"${fwork}/docs/handover/epsilon.md"
+commit_all "$fwork" "touch the hot file"
+out="$(jf review)"
+expect "review names the hot file in this diff" "already cost other branches" "$out"
+expect "review counts the edges it cost" "hot.sh (2 edges)" "$out"
+refute "a cold file in the same diff is not named" "cold.sh (" "$out"
 
 # --- entrypoint: graph lint -------------------------------------------------
 # Frontmatter edges checked from the working tree: never-existed names and
