@@ -29,9 +29,12 @@ file is deleted as the branch's last commit, so no merge commit contains
 it. Verified against three merged PRs from two different sessions — all
 `fatal: path ... does not exist`. And because the file lives and dies on a
 side branch, git's default history simplification prunes it from path
-queries too, so `git log --all -- <path>` returns empty. Counted in that
-range: 47 retired workstream files carrying 106 review findings, none
-reachable by any documented command.
+queries too: `git log -- <path>` from `main` returns empty. `--full-history`
+is the part that recovers it. `git log --all` also finds it for as long as
+the branch ref survives — but step 7 makes deleting the branch optional and
+human-only, so that is luck, not a retrieval method. Counted in that range:
+47 retired workstream files carrying 106 review findings, none reachable by
+any documented command.
 
 Replace the retrieval line with the two-step that works (verified):
 
@@ -88,9 +91,11 @@ produced it, in the same sentence.
 - `./joharness.sh verify` — 7 passed, 0 failed.
 - The retrieval command in the handover README, run against a real
   retired workstream file in this repo's history, prints the file.
-- `.agents/harness/AGENTS.md` grows by no more than ~10 lines total. It is
-  5,617 bytes and every session loads it before its first prompt; four
-  rules must not cost a page.
+- `.agents/harness/AGENTS.md` grows by no more than ~10 lines total. Every
+  session loads it before its first prompt; four rules must not cost a page.
+  Measure it (`wc -c`) at the commit you start from rather than trusting a
+  figure written here — it was 5,617 bytes when this plan was drafted and
+  5,949 by the time the plan merged.
 
 ## Where to look
 
