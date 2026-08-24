@@ -1,5 +1,5 @@
 ---
-workstream: steal-joharnessburg
+workstream: adopt-joharnessburg-practices
 status: in-progress
 branch: claude/compare-joharnessburg-qdimm7
 pr: 44
@@ -13,8 +13,8 @@ next: Merge own PR once checks green and branch is 0 behind origin/main
 ## Goal
 
 Human compared this harness against `kitchen-engineer42/joharnessburg`
-(the John plugin), then said "steal" against the three borrowings the
-comparison named: its `PreCompact`/`PostToolUse` hooks, its lessons ledger
+(the John plugin), then asked for the three practices the comparison
+named to be adopted here: its `PreCompact`/`PostToolUse` hooks, its lessons ledger
 plus process scorecard, and its canonical glossary. Queue work, so it
 enters as plans, not as an implementation branch.
 
