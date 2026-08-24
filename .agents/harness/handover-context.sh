@@ -273,9 +273,20 @@ done < <(git for-each-ref --sort=-committerdate --format='%(refname)' \
 # right up to the moment it merged, and never corrected after. A guard that
 # depends on the leaving session having set a field is a guard that fails
 # exactly when someone is in a hurry.
+#
+# Bounded, because this list only ever grows. Measured in a consumer repo
+# (chrsctl/gx): 17 files at one session's start, 23 at its end, thirteen pull
+# requests merged in between and not one of them deleting its own. The message
+# is right and the reader had already learned to skip it — so printing all 23
+# every session was paying context for a line nobody acts on. Show the count,
+# name a few, and say where the fix actually belongs.
+STALE_SHOWN=${JOHARNESS_STALE_SHOWN:-5}
 stale=""
+stale_count=0
 while IFS= read -r f; do
   [ -n "$f" ] || continue
+  stale_count=$((stale_count + 1))
+  [ "$stale_count" -le "$STALE_SHOWN" ] || continue
   stale="${stale}  ${f}"$'\n'
 done < <(files_at "origin/${BASE_BRANCH}")
 
@@ -291,11 +302,17 @@ if [ -n "$others" ]; then
   fi
 fi
 
-if [ -n "$stale" ]; then
+if [ "$stale_count" -gt 0 ]; then
   add ""
-  add "Workstream files left on origin/${BASE_BRANCH}. Merged = finished. Move"
-  add "keepers to AGENTS.md or docs/, then delete. History keeps the rest."
+  add "${stale_count} workstream file(s) left on origin/${BASE_BRANCH}. Merged = finished:"
+  add "this is not a chore for you, it is step 7 not happening, one merge at a"
+  add "time. YOUR pull request deletes YOUR workstream file — do that and this"
+  add "list stops growing. Move keepers to AGENTS.md or docs/ first; history"
+  add "keeps the rest."
   OUT="${OUT}${stale}"
+  if [ "$stale_count" -gt "$STALE_SHOWN" ]; then
+    add "  ... and $((stale_count - STALE_SHOWN)) more (JOHARNESS_STALE_SHOWN to list)"
+  fi
 fi
 
 printf '%s' "$OUT"
