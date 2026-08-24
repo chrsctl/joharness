@@ -800,7 +800,13 @@ else
 fi
 mv "${cwork}/selftest.stash" "${cwork}/.agents/harness/selftest.sh"
 chmod -x "${cwork}/.agents/harness/selftest.sh"
-if GITHUB_ACTIONS='' ci_rc; then
+# NTFS under Git Bash reports every file executable, so the state this case
+# needs cannot be built there — the same platform limit the exec-bit repair
+# case skips for. Asserted where the bit is real, skipped where it is not,
+# never asserted against a state that was not actually created.
+if [ -x "${cwork}/.agents/harness/selftest.sh" ]; then
+  skip "a present but unrunnable selftest reds ci" "chmod -x does not stick here"
+elif GITHUB_ACTIONS='' ci_rc; then
   fail "a present but unrunnable selftest reds ci"
 else
   pass "a present but unrunnable selftest reds ci"

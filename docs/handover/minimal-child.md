@@ -59,6 +59,11 @@ in a consumer — 41% of the tree is code a child can never execute.
 - r3: the `upgrade` EXIT trap referenced a `local`, which is out of scope when
   the trap fires — `set -u` then made the cleanup itself the error. Caught by
   running it; global with a guarded expansion now. (fixed)
+- r7: the "present but unrunnable selftest reds ci" case went red on the
+  Windows runner: NTFS under Git Bash reports every file executable, so
+  `chmod -x` never creates the state the case asserts against. Skipped where
+  the bit is not real — the same platform limit the exec-bit repair case
+  already skips for. (fixed)
 - r4: `report_canonical_only` lists `-type f`, so a symlink under
   `.agents/scripts/` in a consumer goes unreported. Matches the layer report's
   shape and no consumer has one. No change.
