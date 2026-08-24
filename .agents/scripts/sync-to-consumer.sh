@@ -33,9 +33,9 @@
 # Environment layers are the one selective part: ONE layer ships, the one
 # the consumer's own joharness.conf names, plus the contract doc
 # .agents/env/README.md. Every other layer stays in canonical — a repo
-# gains nothing from scripts it never runs, and its own `ci` would
-# shellcheck them on every push. Layers already in a consumer from before
-# that rule are reported as unused, never deleted.
+# gains nothing from scripts it never runs, and its own `ci` would lint
+# them on every push. Layers already in a consumer from before that rule
+# are reported as unused, never deleted.
 #
 # Usage: .agents/scripts/sync-to-consumer.sh [--dry-run] <consumer-dir>
 # Exit: 0 synced clean. 1 refused before any write (usage, dirty

@@ -22,13 +22,16 @@ consumer-to-consumer, never consumer-only.
 ## New consumer
 
 ```bash
-.agents/scripts/bootstrap-consumer.sh <dir>        # --dry-run first, it reports
+.agents/scripts/bootstrap-consumer.sh --env <layer> <dir>   # --dry-run first, it reports
 ```
 
 Places the harness set, seeds consumer-own stubs (`joharness.conf`,
 `ci.yml`, `update.yml`, `README.md`, AGENTS.md Part 2), strips joharness's
 live workstream files, plans and canonical marker. Script prints the
 remaining steps; follow them.
+
+`--env <layer>` picks the environment layer, and only that layer ships
+([Layers](#layers)). Omit it for `none`; the repo can select one later.
 
 Never bootstrap onto a repo already running the harness — script refuses,
 because whole-clone mode's purge eats live `docs/plans|product|handover`.
@@ -90,6 +93,33 @@ git push -u origin HEAD
 - NO workstream file: sync diff is self-describing
   ([`handover/README.md`](handover/README.md), "When NOT to write one").
   Commit message carries the source.
+
+## Layers
+
+One layer per consumer: the one its own `joharness.conf` names, plus
+`.agents/env/README.md`. Every other layer stays in canonical — a repo gains
+nothing from scripts it never runs, and its own `ci` would shellcheck them
+every push.
+
+Switch layer:
+
+```bash
+./joharness.sh env <name>      # in the consumer; warns the layer is not here yet
+```
+
+Then sync (any route above). The selection is what the sync reads, so writing
+it is how a repo asks for a different layer.
+
+A consumer that predates this rule carries layers it does not select. Every
+sync reports them; removals never travel, so the delete is a human's:
+
+```bash
+git rm -r .agents/env/<name>
+```
+
+Only layers whose content came from canonical are named with that advice. A
+layer the consumer wrote itself is reported and left alone — the sync never
+points a delete at consumer work.
 
 ## Exit codes
 

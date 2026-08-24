@@ -28,6 +28,27 @@ selecting it is copying one directory and setting one line.
 Nothing outside the layer may name it. Entrypoint resolves by directory name;
 `.agents/harness/` never mentions a specific environment.
 
+## One layer per consumer
+
+Canonical carries every layer. A consumer receives ONE — the layer its own
+`joharness.conf` names — plus this file. Scripts a repo never runs are dead
+weight in its tree and its own `ci` shellchecks them on every push.
+
+```bash
+.agents/scripts/bootstrap-consumer.sh --env docker <dir>   # new consumer, that layer
+./joharness.sh env k8s                                     # switch: select first
+# then re-run the harness sync (.agents/docs/consumer-repos.md) — it brings k8s
+```
+
+Selecting a layer the consumer does not have yet is allowed and says so: the
+sync reads that selection to decide what to ship, so writing it IS the
+request. Until the sync runs, the repo falls back to running nothing.
+Canonical refuses the same command — every layer exists there, so an unknown
+name is a typo.
+
+Layers a consumer already carries but does not select are reported by each
+sync, never deleted. Remove them once: `git rm -r .agents/env/<name>`.
+
 ## Provisioning is lazy
 
 Default `JOHARNESS_ENV_SETUP=lazy`: session start reads `AGENTS.md` and stops.
