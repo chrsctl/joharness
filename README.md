@@ -26,6 +26,8 @@ whichever `joharness.conf` names.
   cluster, and what it costs, and the four sandbox constraints its scripts
   work around. [`.agents/env/docker`](.agents/env/docker/README.md) is plain Docker +
   Compose — the simple workflow when no cluster is needed.
+  [`.agents/env/python-rust`](.agents/env/python-rust/README.md) is a project
+  venv plus a Rust toolchain, for a Python package with a pyo3 kernel.
   [`.agents/env/none`](.agents/env/none/) is the empty layer.
 
 ```bash
