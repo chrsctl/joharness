@@ -116,6 +116,25 @@ three plans.
   byte-identical supervised output against the NEW `main`, since
   `session-start` itself changed there. (fixed)
 
+- r12: security/correctness — the boundary check was gated on a merge-base
+  existing, so an unattended session on a shallow checkout, or a clone with
+  no `origin/<base>` ref, got no boundary at all. Fail-open in the one
+  feature whose whole design is fail-closed. The base-relative half is now
+  skipped alone; the working-tree half always answers. Regression case in
+  selftest. (fixed)
+- r13: does-it-reproduce — the r12 regression case then failed for a second
+  reason: `git diff` cannot see an untracked file, so a NEW harness file
+  read as absent right up to the commit the boundary exists to prevent.
+  Added `git ls-files --others`. Found only because the test used an
+  untracked file; a stage-then-test fixture would have passed and hidden
+  it. (fixed)
+- r14: correctness — an empty `JOHARNESS_MODE` defers to the conf rather
+  than narrowing, because `${VAR:-...}` treats empty as unset. Same
+  semantics as `setup_mode`/`md_mode`, and `JOHARNESS_MODE=supervised`
+  narrows correctly, so this stays. The original test proved it against an
+  EMPTY conf, which would have passed either way; both cases now assert
+  against an opted-in conf. (no change needed — test was weak, not the code)
+
 ## Blockers
 
 None. Note the requirement is satisfied only when the last of its three

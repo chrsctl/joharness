@@ -143,7 +143,7 @@ else
 fi
 [ "$mode" = "unsupervised" ] || mode="supervised"
 
-if [ "$mode" = "unsupervised" ] && [ -n "$base" ]; then
+if [ "$mode" = "unsupervised" ]; then
   # Count only, never a path: the reason string below embeds in JSON
   # without escaping, and a file name is repo-controlled input. A count is
   # digits, and digits cannot close a JSON string.
@@ -152,11 +152,22 @@ if [ "$mode" = "unsupervised" ] && [ -n "$base" ]; then
   # them") is already satisfied — reading the log instead would keep
   # blocking every stop for the rest of the branch's life, which is the
   # same false positive the ritual test above exists to prevent.
+  #
+  # The base-relative half is skipped when there is no merge-base (shallow
+  # checkout, a clone with no origin/<base> ref) — but the working-tree half
+  # is NOT, and gating the whole check on the base was a fail-open: an
+  # unattended session on a shallow checkout got no boundary at all. A
+  # partial answer beats silence for a fact whose whole job is to notice.
   harness_touched="$(
     {
-      git diff --name-only "$base" HEAD -- .agents/harness 2>/dev/null
+      [ -z "$base" ] ||
+        git diff --name-only "$base" HEAD -- .agents/harness 2>/dev/null
       git diff --name-only HEAD -- .agents/harness 2>/dev/null
       git diff --name-only --cached -- .agents/harness 2>/dev/null
+      # Untracked too. `git diff` cannot see a file that was never added,
+      # so a new harness file read as absent until the commit that the
+      # boundary exists to prevent.
+      git ls-files --others --exclude-standard -- .agents/harness 2>/dev/null
     } | { grep -E '^\.agents/harness/' || :; } | sort -u | grep -c . || :
   )"
   if [ -n "$harness_touched" ] && [ "$harness_touched" -gt 0 ]; then
