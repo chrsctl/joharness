@@ -71,12 +71,16 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    first)? Reconcile, do not force through — `.agents/docs/product/README.md`
    Branch flow, "Conflict at finish". Merged branch left standing =
    cosmetic, ignore: hook filters merged branches from claims view.
-   Deleting = optional hygiene, human-only (mechanics:
+   Deleting the BRANCH = optional hygiene, human-only (mechanics:
    `.agents/docs/product/README.md` Branch flow). Session NEVER
-   `git push --delete`. PR's final
-   state deletes workstream file + done plan file (+ requirement file when
-   last plan). Still-useful bits go to the right layer's `AGENTS.md` or
-   `docs/` first.
+   `git push --delete`.
+   Deleting the FILES is not optional and is yours: PR's final state
+   deletes workstream file + done plan file (+ requirement file when last
+   plan). Still-useful bits go to the right layer's `AGENTS.md` or `docs/`
+   first. Skip it and the base branch accretes finished workstreams that
+   later sessions read as current — measured at 23 in one consumer repo,
+   thirteen merges adding six and removing none, because "optional,
+   human-only" one sentence up reads as covering this one too.
 
 ## Decide alone
 

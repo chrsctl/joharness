@@ -230,6 +230,14 @@ status: review
 plan: older-normal
 ---
 EOF
+# A second one, so the listing has something to cap. One consumer repo
+# reached 23 of these, printed in full before every first prompt.
+cat >"${work}/docs/handover/stale-ws-two.md" <<'EOF'
+---
+workstream: stale-ws-two
+status: review
+---
+EOF
 commit_all "$work" "leave stale ws on main"
 git -C "$work" push -q origin main
 
@@ -260,6 +268,17 @@ expect "flags file overlap" "TOUCHES THE SAME FILES AS THIS BRANCH: shared.txt" 
 expect "gives the git show command" "git show origin/rival:docs/handover/rival-ws.md" "$out"
 expect "flags workstream file rotting on main" "docs/handover/stale-ws.md" "$out"
 expect "rot check ignores status field" "Merged = finished" "$out"
+expect "rot check counts every file" "2 workstream file(s) left" "$out"
+expect "rot check lists them under the cap" "  docs/handover/stale-ws-two.md" "$out"
+expect "rot check points at step 7" "step 7 not happening" "$out"
+
+# The listing is bounded: 23 files was 23 lines of context in every session,
+# and a wall of paths reads as somebody else's chore. Count is the signal.
+out2="$(CLAUDE_PROJECT_DIR="$work" HANDOVER_FETCH=0 JOHARNESS_STALE_SHOWN=1 \
+  bash "${ROOT}/.agents/harness/handover-context.sh" 2>&1)"
+expect "capped listing still counts every file" "2 workstream file(s) left" "$out2"
+refute "capped listing stops at the cap" "  docs/handover/stale-ws.md" "$out2"
+expect "capped listing names the tail" "... and 1 more" "$out2"
 
 # --- handover hook: a second remote ----------------------------------------
 # Without push access to origin, work happens on a fork, so the checkout has
