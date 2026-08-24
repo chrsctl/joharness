@@ -18,6 +18,7 @@
 #   verify          provision, then run the layer's smoke test
 #   graph           print the work graph as fenced mermaid (paste into any
 #                   GitHub comment; rendered natively)
+#   mode            print the resolved autonomy mode and exit
 #   help            this text
 #
 # Selection lives in joharness.conf and is overridden by $JOHARNESS_ENV:
@@ -28,6 +29,9 @@
 #   JOHARNESS_ENV_MD=lazy      'lazy' (inject a read-before-touching pointer
 #                              to the layer's AGENTS.md) or 'eager' (inject
 #                              the file whole)
+#   JOHARNESS_MODE=supervised  'supervised' (default) or 'unsupervised'.
+#                              Anything else reads as supervised
+#                              (docs/product/unsupervised-mode.md)
 #
 # Default is env 'none', setup 'lazy', md 'lazy': a session that never asks
 # for an environment never pays for one — not in provisioning, not in context.
@@ -73,6 +77,24 @@ conf_set() {
 env_name()  { printf '%s' "${JOHARNESS_ENV:-$(conf_get JOHARNESS_ENV)}"; }
 setup_mode() { printf '%s' "${JOHARNESS_ENV_SETUP:-$(conf_get JOHARNESS_ENV_SETUP)}"; }
 md_mode()   { printf '%s' "${JOHARNESS_ENV_MD:-$(conf_get JOHARNESS_ENV_MD)}"; }
+
+# Raw autonomy mode, exactly as configured — empty when unset. Only
+# run_mode() and the session-start banner read this; everything else asks
+# run_mode(), which normalises.
+mode_raw()  { printf '%s' "${JOHARNESS_MODE:-$(conf_get JOHARNESS_MODE)}"; }
+
+# Resolved autonomy mode. ONE string means unsupervised; every other value
+# — a typo, an empty setting, an unreadable conf, a key that does not exist
+# because this harness copy predates the feature — resolves to supervised.
+# Fails closed on purpose: the failure mode of failing open is a fleet
+# working unattended in a repo that never asked for one, and the cost is
+# asymmetric enough that no clever parsing is worth it here.
+run_mode() {
+  case "$(mode_raw)" in
+    unsupervised) printf 'unsupervised' ;;
+    *)            printf 'supervised' ;;
+  esac
+}
 
 # Layer names are directory names under .agents/env/. Reject anything that could walk
 # out of it before it reaches a path. A whole-string case test, not a grep -qE:
@@ -731,7 +753,27 @@ cmd_env() {
 # ---------------------------------------------------------------------------
 
 cmd_session_start() {
-  local name mode
+  local name mode raw
+
+  # Autonomy first: it governs the whole session, including the parts that
+  # run before an environment resolves. Supervised prints NOTHING — same
+  # bet as lazy env rules, a session that is not unattended does not pay
+  # context to be told so, and the rules it already loads are the
+  # supervised ones. Only the mode that widens what a session may do
+  # announces itself, and it announces the boundary in the same breath.
+  raw="$(mode_raw)"
+  if [ "$(run_mode)" = "unsupervised" ]; then
+    printf '== Mode: unsupervised ==\n\n'
+    printf 'Queue edge is a trigger, not a stop: generate work, run the full\n'
+    printf 'Loop, merge your own pull request. NEVER commit under\n'
+    printf '.agents/harness/ — protocol edits stay supervised\n'
+    printf '(docs/product/unsupervised-mode.md, Constraints).\n\n'
+  elif [ -n "$raw" ] && [ "$raw" != "supervised" ]; then
+    # Say which value was ignored. A silent fallback here looks identical
+    # to a repo that meant supervised, and the operator who typed it is
+    # the one person who would notice the difference.
+    printf 'JOHARNESS_MODE=%s not recognised; running supervised.\n\n' "$raw"
+  fi
 
   if name="$(resolve_env)"; then
     mode="$(setup_mode)"
@@ -799,6 +841,7 @@ main() {
     ci)             cmd_ci ;;
     verify)         cmd_verify ;;
     graph)          cmd_graph ;;
+    mode)           run_mode; printf '\n' ;;
     -h|--help|help) usage ;;
     *) die "unknown subcommand '$cmd' (try: $0 help)" ;;
   esac

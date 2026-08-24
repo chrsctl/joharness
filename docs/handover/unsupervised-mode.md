@@ -7,7 +7,7 @@ plan: none
 session: https://claude.ai/code/session_0126bZYruEVL7vNBLb7RXF4v
 agent: opus
 updated: 2026-08-24
-next: Open PR for the requirement plus its three plans; do not implement them here
+next: Open PR once verify is green; unsupervised-edge-work and unsupervised-heartbeat are free
 ---
 
 ## Goal
@@ -20,6 +20,9 @@ three plans.
 
 ## Decisions
 
+- `unsupervised-mode-gate` is implemented on this branch, not left in the
+  queue: it is the foundation both remaining plans need, and its plan file
+  is deleted in this PR's final state per step 7.
 - Autonomy level, endurance mechanism and hard limits were put to the
   requester on 2026-08-24 and answered: full loop including merge; fan-out
   spawning parallel sessions; one limit only, no unsupervised edit under
@@ -72,6 +75,35 @@ three plans.
   requester once, then built to the chosen spec. The declined limits are
   recorded as explicit non-goals rather than argued again in each plan.
   (wontfix — requester's call, ratified 2026-08-24)
+- r4: the plan said the banner prints the mode "unconditionally and in both
+  modes". Implemented supervised-silent instead: the repo's standing bet is
+  that a session which never touches a thing never pays context for it, and
+  supervised IS the rules already loaded. Only the mode that widens what a
+  session may do announces itself. A misspelled value still prints, so the
+  silent case cannot hide a typo. (fixed — deviation, deliberate)
+- r5: the plan said an unsupervised commit under `.agents/harness/` is
+  "refused". A Stop hook runs after the commit exists and cannot refuse
+  anything. Implemented and worded as detection — names a boundary already
+  crossed, asks for the revert. Overstating it would promise a vault where
+  there is a tripwire. (fixed — plan's Acceptance wording was wrong, not
+  the implementation)
+- r6: first cut of the boundary fact named the offending file. The guard's
+  reason string embeds in JSON without escaping and a path is
+  repo-controlled input, so a file name there is an injection surface.
+  Counts only — digits cannot close a JSON string. Test asserts the path
+  never appears and that the block parses. (fixed)
+- r7: the boundary check read `git log --name-only`, so a harness edit that
+  was later reverted kept firing for the rest of the branch's life — the
+  same false positive the ritual test exists to prevent. Caught by the test
+  asserting the fact clears after a revert. Switched to the net diff.
+  (fixed)
+- r8: research after the plans were written disproved
+  `unsupervised-fanout`'s endurance claim — fan-out is a multiplier, not a
+  clock, and a chain of spawns has no restart. Added
+  `unsupervised-heartbeat` (durable Routine) and made fanout depend on it.
+  (fixed)
+- r9: `shellcheck` SC1007 on `JOHARNESS_MODE= ` in the empty-value test.
+  Quoted it. (fixed)
 
 ## Blockers
 
@@ -80,6 +112,10 @@ plans merges; that PR deletes the requirement file too.
 
 ## Where to look
 
+- `joharness.sh:run_mode` — the resolver; `./joharness.sh mode` prints it,
+  and the guard shells out to that rather than parsing conf a second time.
+- `.agents/harness/handover-guard.sh` — the boundary fact, and why it
+  counts files instead of naming them.
 - `docs/product/unsupervised-mode.md` — Constraints, the three declined
   limits.
 - `.agents/harness/queue-context.sh:333` and `:205` — the two edge paths

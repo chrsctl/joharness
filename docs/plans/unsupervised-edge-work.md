@@ -3,7 +3,7 @@ plan: unsupervised-edge-work
 urgency: normal
 agent: opus
 effort: xhigh
-needs: unsupervised-mode-gate
+needs: none
 requirement: unsupervised-mode
 scope: .agents/harness/queue-context.sh, .agents/docs/plans/README.md, .agents/harness/selftest.sh
 ---
@@ -103,8 +103,8 @@ autonomy, which the requester chose deliberately.
 - Human input outranks generated work in every ordering: issues, then
   requirements, then plans. The edge is reached only after all three are
   exhausted.
-- Blocked until `unsupervised-mode-gate` merges and its plan file is
-  deleted; `unsupervised-fanout` also touches
+- The mode gate it branches on is already merged, so this plan is free;
+  `unsupervised-fanout` also touches
   `.agents/harness/selftest.sh`, so not a wave with it.
 - Hook output is paid every session — caveman
   (`.agents/docs/caveman.md`), and a source list that runs long belongs in

@@ -3,7 +3,7 @@ plan: unsupervised-fanout
 urgency: normal
 agent: opus
 effort: xhigh
-needs: unsupervised-mode-gate
+needs: unsupervised-heartbeat
 requirement: unsupervised-mode
 scope: .agents/harness/queue-context.sh, .agents/docs/unsupervised.md, .agents/harness/selftest.sh
 ---
@@ -20,11 +20,13 @@ sessions by hand, or does not, and the fleet stays at one. This plan makes
 an unsupervised session act on it, and makes the resulting fleet keep
 going for hours without a human turn.
 
-The endurance property the requester asked for falls out of the fan-out
-rather than from a long-lived session: each spawned session runs one plan
-through the Loop, merges it, and ends. Its merge changes the queue that the
-next session reads. State lives in git, as it already does, so a session
-that hangs or dies costs one plan, not the night.
+Endurance is NOT this plan's to deliver, and an earlier draft of it
+claimed otherwise. Fan-out is a multiplier, not a clock: each spawned
+session runs one plan, merges it and ends, so the fleet lives only while
+every generation manages to spawn the next, and one generation that fails
+ends it silently — the queue stops draining and the repo looks idle rather
+than broken. `unsupervised-heartbeat` supplies the clock; this plan
+supplies the width, and depends on it.
 
 ## Scope
 
@@ -110,7 +112,7 @@ that hangs or dies costs one plan, not the night.
   (`.agents/harness/AGENTS.md`, human veto = revert).
 - No new state store for fleet bookkeeping (`.agents/docs/graph.md`,
   Rules). Git holds it or it is not held.
-- Blocked until `unsupervised-mode-gate` merges; `unsupervised-edge-work`
+- Blocked until `unsupervised-heartbeat` merges; `unsupervised-edge-work`
   also touches `.agents/harness/queue-context.sh` and
   `.agents/harness/selftest.sh` — same two files, so these two are never
   parallel with each other.
