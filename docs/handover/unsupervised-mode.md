@@ -2,12 +2,12 @@
 workstream: unsupervised-mode
 status: in-progress
 branch: claude/unsupervised-mode
-pr: none
+pr: 51
 plan: none
 session: https://claude.ai/code/session_0126bZYruEVL7vNBLb7RXF4v
 agent: opus
 updated: 2026-08-24
-next: Open PR; unsupervised-edge-work and unsupervised-heartbeat are free for other sessions
+next: Merge PR 51 when checks green and branch still 0 behind origin/main
 ---
 
 ## Goal
