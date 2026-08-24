@@ -30,6 +30,13 @@
 # harness ships nothing there. Removals are not handled: a file canonical
 # deleted stays in the consumer and is reported as consumer-only.
 #
+# Environment layers are the one selective part: ONE layer ships, the one
+# the consumer's own joharness.conf names, plus the contract doc
+# .agents/env/README.md. Every other layer stays in canonical — a repo
+# gains nothing from scripts it never runs, and its own `ci` would lint
+# them on every push. Layers already in a consumer from before that rule
+# are reported as unused, never deleted.
+#
 # Usage: .agents/scripts/sync-to-consumer.sh [--dry-run] <consumer-dir>
 # Exit: 0 synced clean. 1 refused before any write (usage, dirty
 # canonical, structural problem, marker absent) — consumer untouched. An
@@ -106,28 +113,83 @@ top="$(cd "$top" 2>/dev/null && pwd -P)" ||
 grep -q '^JOHARNESS_CANONICAL=1' "${ROOT}/joharness.conf" 2>/dev/null ||
   die "'$ROOT' is not the canonical harness (no JOHARNESS_CANONICAL=1 in joharness.conf); consumer copies must not sync out"
 
+# --- which environment layer ships -----------------------------------------
+# One layer, not all of them. A consumer whose runtime is the interpreter
+# has no use for the Kubernetes layer, and carrying it is not free: dead
+# weight in its tree, and its own `ci` shellchecks those scripts on every
+# push. The name comes from the consumer's own joharness.conf — the same
+# file joharness.sh reads to decide what to provision, so what ships and
+# what runs cannot disagree.
+#
+# JOHARNESS_SYNC_ENV overrides it, for the one moment the conf cannot
+# answer: bootstrap-consumer.sh --env, whose sync runs before the conf it
+# seeds exists.
+#
+# Unset either way = 'none', the layer that provisions nothing. Same
+# default as the entrypoint's, and the same non-special treatment: 'none'
+# is an ordinary layer that happens to do nothing.
+
+# Last assignment of KEY, inline comments and surrounding whitespace
+# ignored. Same shape as joharness.sh conf_get, deliberately: a second
+# way to read the same key is a second answer to "which layer runs here".
+dest_conf_get() {
+  [ -r "${DEST}/joharness.conf" ] || return 0
+  sed -n "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*\([^#[:space:]]*\).*/\1/p" \
+    "${DEST}/joharness.conf" | tail -1
+}
+
+# A layer name reaches a path, so it gets the entrypoint's guard verbatim:
+# whole-string case test, never a grep -qE — grep matches per line, so a
+# value carrying a newline slips past the anchors when any single line
+# matches.
+valid_layer() {
+  case "$1" in
+    '' | [!a-z0-9]* | *[!a-z0-9._-]*) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+LAYER="${JOHARNESS_SYNC_ENV:-$(dest_conf_get JOHARNESS_ENV)}"
+[ -n "$LAYER" ] || LAYER=none
+valid_layer "$LAYER" ||
+  die "consumer selects invalid layer name '${LAYER}'; fix JOHARNESS_ENV in ${DEST}/joharness.conf"
+ENV_REL=.agents/env
+
 # Whole files. AGENTS.md is absent here on purpose: it gets the marker
 # splice below, never a whole-file copy over a consumer's Part 2.
+# .agents/env/README.md is the layer contract itself — it belongs to no
+# layer, so it travels as a file while the layers travel as a directory.
 FILES=(
   CLAUDE.md
   .gitattributes
   .claude/settings.json
   joharness.sh
+  .agents/env/README.md
 )
 
-# Every file under these ships. .agents/env/ ships all layers, selected or
-# not — ci covers them all and a consumer flips layers via its own
-# joharness.conf. .agents/docs and .agents/scripts ship whole for the
-# same reason FILES stays tiny: a fully harness-owned tree is a DIRS
-# entry, FILES is only for files pinned to the repo root by convention.
+# Every file under these ships. .agents/docs and .agents/scripts ship
+# whole for the same reason FILES stays tiny: a fully harness-owned tree
+# is a DIRS entry, FILES is only for files pinned to the repo root by
+# convention.
 DIRS=(
   .agents/harness
-  .agents/env
   .agents/docs
   .agents/scripts
   .claude/commands
   .claude/skills
 )
+
+# The selected layer joins them; the rest stay in canonical. A consumer
+# naming a layer canonical does not have is not an error — it may be the
+# consumer's own (.agents/env/README.md, "Add a layer"), and a typo is
+# the entrypoint's to complain about at session start, in front of a
+# human. Either way there is nothing here to ship for it, said out loud
+# below rather than passed over.
+LAYER_IN_CANONICAL=0
+if [ -d "${ROOT}/${ENV_REL}/${LAYER}" ]; then
+  LAYER_IN_CANONICAL=1
+  DIRS+=("${ENV_REL}/${LAYER}")
+fi
 
 # AHEAD detection compares committed blobs: modified or untracked content
 # at a listed file path would ship from the working tree and read AHEAD
@@ -429,6 +491,8 @@ if [ "$DRY" -eq 1 ]; then
 else
   printf '== sync %s -> %s\n' "$ROOT" "$DEST"
 fi
+printf '  layer   %s%s\n' "$LAYER" \
+  "$([ "$LAYER_IN_CANONICAL" -eq 1 ] || printf ' (not in canonical; nothing ships for it)')"
 
 # A hard kill (SIGKILL, power loss) can strand a stage file no trap ever
 # reaps; reruns are self-healing, they do not accumulate tool litter.
@@ -482,21 +546,51 @@ printf '%d updated, %d new, %d ahead, %d consumer-only, %d same\n' \
 
 # AHEAD is reported even when MISSING wins the exit code — a caller fixing
 # the list from exit 1 must not discover the ahead state only on rerun.
-# Both layers moved under .agents/; the sync places the new tree but never
-# deletes (removals are not handled), so a consumer synced across that move
-# keeps a dead root harness/ and env/ that nothing reads any more. Judged
-# like every stale-vs-AHEAD call — the old file's blob must be a
-# historical canonical blob of that old path: a consumer's OWN
-# harness/AGENTS.md or env/README.md is its own business, and advising
-# `git rm -r` at it would aim the delete at consumer files. Shallow
-# canonical degrades to silence, same safe direction as AHEAD. Gated on
-# the new tree actually standing in the consumer: warning "nothing reads
-# the old tree" during a dry run that has not placed .agents/ yet would
-# advise deleting the LIVE harness.
-is_legacy_layer() {
+#
+# Two kinds of dead weight get reported below, and both turn on the same
+# question: did this file come from canonical, or did the consumer write
+# it? Judged like every stale-vs-AHEAD call — the file's blob must be a
+# historical canonical blob of that same path. A consumer's OWN file is
+# its own business, and pointing `git rm -r` at it would aim the delete
+# at consumer work. A shallow canonical vouches for nothing and so says
+# nothing: silence, the same safe direction AHEAD degrades in.
+from_canonical() {
   [ -f "${DEST}/$1" ] || return 1
   in_history "$1" "$(consumer_blob "$1" "${DEST}/$1")"
 }
+
+# Layers the consumer carries but does not select. Since the sync ships
+# one layer, every other one under .agents/env/ is either left from the
+# days when all of them shipped, or the consumer's own. Reported, never
+# deleted: removals do not travel (see header), and which of a repo's
+# files are surplus is a human's call.
+#
+# Vouching is per layer on its AGENTS.md, the one file the contract
+# requires an agent to read before touching a layer
+# (.agents/env/README.md). A layer whose AGENTS.md canonical never
+# carried is the consumer's own — named, so the report is complete, but
+# never with advice to delete it.
+report_unused_layers() {
+  local d name vouched=""
+  [ -d "${DEST}/${ENV_REL}" ] || return 0
+  for d in "${DEST}/${ENV_REL}"/*/; do
+    [ -d "$d" ] || continue
+    name="${d%/}"
+    name="${name##*/}"
+    [ "$name" = "$LAYER" ] && continue
+    if from_canonical "${ENV_REL}/${name}/AGENTS.md"; then
+      printf '  unused  %s/%s (canonical'"'"'s; nothing here reads it)\n' "$ENV_REL" "$name"
+      vouched="${vouched}${vouched:+ }${ENV_REL}/${name}"
+    else
+      printf '  unused  %s/%s (not canonical'"'"'s; left in place)\n' "$ENV_REL" "$name"
+    fi
+  done
+  [ -n "$vouched" ] || return 0
+  warn "consumer carries environment layer(s) it does not select; only" \
+    "'${LAYER}' is read here. Remove them once: git rm -r ${vouched}" \
+    "(.agents/docs/consumer-repos.md, Layers)."
+}
+report_unused_layers
 # Two tiers. Dir tier: harness/ and env/ were wholly harness-owned, the
 # remedy is `git rm -r`. File tier: the protocol docs and sync tools that
 # moved OUT of docs/ and scripts/ sat inside dirs that still hold live
@@ -518,10 +612,10 @@ LEGACY_FILES=(
 )
 legacy="" legacy_files=""
 if [ -f "${DEST}/.agents/harness/AGENTS.md" ]; then
-  is_legacy_layer harness/AGENTS.md && legacy="harness"
-  is_legacy_layer env/README.md && legacy="${legacy}${legacy:+ }env"
+  from_canonical harness/AGENTS.md && legacy="harness"
+  from_canonical env/README.md && legacy="${legacy}${legacy:+ }env"
   for rel in "${LEGACY_FILES[@]}"; do
-    is_legacy_layer "$rel" && legacy_files="${legacy_files}${legacy_files:+ }${rel}"
+    from_canonical "$rel" && legacy_files="${legacy_files}${legacy_files:+ }${rel}"
   done
 fi
 if [ -n "$legacy" ]; then
