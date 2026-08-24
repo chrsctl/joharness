@@ -26,7 +26,14 @@
 # the same stub. No sync run: the clone is current by construction, and
 # steady-state sync heals later drift.
 #
-# Usage: .agents/scripts/bootstrap-consumer.sh [--dry-run] <consumer-dir>
+# --env <layer> picks the environment layer the new consumer runs. The
+# sync ships that layer alone, so this is also what the consumer receives
+# under .agents/env/; without the flag it is 'none' and the repo can pick
+# one later (select, then sync). In whole-clone mode the flag rewrites the
+# clone's inherited selection and nothing else — the clone already carries
+# every layer.
+#
+# Usage: .agents/scripts/bootstrap-consumer.sh [--dry-run] [--env <layer>] <consumer-dir>
 # Exit: 0 bootstrapped clean. 1 refused with nothing written (usage, ROOT
 # not canonical, target already a consumer, target is ROOT itself). A
 # nonzero sync engine exit stops the run and is propagated as-is.
@@ -63,12 +70,34 @@ SCRATCH="$(mktemp -d)"
 TRAP_TMP=""
 trap 'rm -rf "$SCRATCH"; [ -z "$TRAP_TMP" ] || rm -f "$TRAP_TMP"' EXIT
 
-usage() { die "usage: $0 [--dry-run] <consumer-dir>"; }
+usage() { die "usage: $0 [--dry-run] [--env <layer>] <consumer-dir>"; }
 
 DRY=0
-[ "${1:-}" = "--dry-run" ] && { DRY=1; shift; }
+LAYER=none
+LAYER_GIVEN=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --dry-run) DRY=1; shift ;;
+    --env) [ $# -ge 2 ] || usage; LAYER="$2"; LAYER_GIVEN=1; shift 2 ;;
+    --env=*) LAYER="${1#--env=}"; LAYER_GIVEN=1; shift ;;
+    --*) usage ;;
+    *) break ;;
+  esac
+done
 [ $# -eq 1 ] || usage
 DEST="$1"
+
+# The layer is checked against canonical here, where every layer exists,
+# rather than at the sync: a typo caught now costs a rerun, one caught
+# after the write costs a consumer that selected a layer it does not
+# have. Same whole-string name guard as everywhere else — a layer name
+# reaches a path.
+case "$LAYER" in
+  '' | [!a-z0-9]* | *[!a-z0-9._-]*)
+    die "invalid layer name '${LAYER}'" ;;
+esac
+[ -d "${ROOT}/.agents/env/${LAYER}" ] ||
+  die "no layer .agents/env/${LAYER} in canonical; available: $(cd "${ROOT}/.agents/env" 2>/dev/null && printf '%s ' */ | tr -d '/')"
 
 # Same doctrine as the sync engine's guard: consumers receive this script
 # too, but a consumer copy must not bootstrap other consumers — only the
@@ -202,10 +231,14 @@ bootstrap_fresh() {
 
   # The engine places the harness-owned set; any nonzero exit (refusal,
   # AHEAD, listed-path missing) stops the bootstrap and speaks for itself.
+  # JOHARNESS_SYNC_ENV, not the conf: the engine decides what to ship
+  # from the consumer's joharness.conf, and on a fresh consumer that file
+  # does not exist until the seed below. Telling the engine directly
+  # keeps one write order — sync, then seed — with no chicken-and-egg.
   if [ "$DRY" -eq 1 ]; then
-    bash "$SYNC_ENGINE" --dry-run "$DEST" || exit
+    JOHARNESS_SYNC_ENV="$LAYER" bash "$SYNC_ENGINE" --dry-run "$DEST" || exit
   else
-    bash "$SYNC_ENGINE" "$DEST" || exit
+    JOHARNESS_SYNC_ENV="$LAYER" bash "$SYNC_ENGINE" "$DEST" || exit
   fi
 
   if [ "$had_agents" -eq 1 ]; then
@@ -221,15 +254,15 @@ bootstrap_fresh() {
 
   # Written inline, not copied: canonical's own conf carries joharness's
   # environment selection and the canonical marker — both wrong here.
-  cat >"${SCRATCH}/conf" <<'EOF'
+  cat >"${SCRATCH}/conf" <<EOF
 # Which harness layers this repo runs. Read by joharness.sh at session start;
-# $JOHARNESS_ENV / $JOHARNESS_ENV_SETUP override for a single session.
+# \$JOHARNESS_ENV / \$JOHARNESS_ENV_SETUP override for a single session.
 #
 # Per-repo file. NOT copied when syncing the harness — each repo picks its
-# own environment.
+# own environment, and the sync ships that layer alone.
 
 # Directory under .agents/env/. 'none' = harness only, no environment.
-JOHARNESS_ENV=none
+JOHARNESS_ENV=${LAYER}
 
 # lazy  = provision on demand (./joharness.sh setup). Session start costs nothing.
 # eager = provision at session start. Only worth it if every session uses it.
@@ -276,7 +309,8 @@ EOF
     printf '\nbootstrap: fresh consumer ready. Next steps:\n'
   fi
   printf '  1. git init + first commit, if this dir is not a repo yet\n'
-  printf '  2. select an environment layer: ./joharness.sh env <name>\n'
+  printf '  2. environment layer: %s (change it with ./joharness.sh env <name>,\n' "$LAYER"
+  printf '     then re-run the sync — one layer ships, not all of them)\n'
   printf '  3. write this repo'\''s Part 2 in AGENTS.md, below the marker\n'
   printf '  4. write requirements under docs/product/ — the queue starts there\n'
   printf '  5. replace the stub README.md\n'
@@ -319,6 +353,24 @@ bootstrap_whole_clone() {
     printf '  strip   joharness.conf (JOHARNESS_CANONICAL line removed)\n'
   fi
   warn "the conf comment block above the removed marker may still describe the canonical; tidy it by hand"
+
+  # A whole clone carries joharness's own environment selection, which is
+  # joharness's answer, not this repo's. Rewritten only when --env said
+  # so: silently forcing 'none' would strip a deliberate selection from a
+  # clone the human already configured. The clone also carries every
+  # layer by construction; the first steady-state sync reports the ones
+  # this repo does not select.
+  if [ "$LAYER_GIVEN" -eq 1 ]; then
+    tmp="${SCRATCH}/conf-env"
+    sed "s|^[[:space:]]*JOHARNESS_ENV[[:space:]]*=.*|JOHARNESS_ENV=${LAYER}|" \
+      "$conf" >"$tmp"
+    place "$tmp" "$conf"
+    if [ "$DRY" -eq 1 ]; then
+      printf '  would set joharness.conf JOHARNESS_ENV=%s\n' "$LAYER"
+    else
+      printf '  set     joharness.conf JOHARNESS_ENV=%s\n' "$LAYER"
+    fi
+  fi
 
   # joharness's live work, meaningless in the child. Every .md goes:
   # since the .agents/docs move these dirs hold live work only, the
