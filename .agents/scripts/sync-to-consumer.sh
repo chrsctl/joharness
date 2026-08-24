@@ -174,10 +174,33 @@ FILES=(
 DIRS=(
   .agents/harness
   .agents/docs
-  .agents/scripts
   .claude/commands
   .claude/skills
 )
+
+# Harness-owned, but canonical-only: never shipped, because a consumer
+# cannot run them. Both sync tools die on a missing JOHARNESS_CANONICAL=1
+# (see the guard above), and selftest.sh tests harness code a consumer
+# never edits — 132K of the 320K a consumer used to carry was code it
+# could not execute. Same test as the layers: does the child run it?
+#
+# A path listed here is skipped inside a synced DIRS tree; whole trees
+# (.agents/scripts) are simply absent from DIRS. Consumers that already
+# carry them are reported below, never deleted.
+CANONICAL_ONLY=(
+  .agents/harness/selftest.sh
+)
+CANONICAL_ONLY_DIRS=(
+  .agents/scripts
+)
+
+canonical_only() {
+  local rel="$1" c
+  for c in "${CANONICAL_ONLY[@]}"; do
+    [ "$rel" = "$c" ] && return 0
+  done
+  return 1
+}
 
 # The selected layer joins them; the rest stay in canonical. A consumer
 # naming a layer canonical does not have is not an error — it may be the
@@ -276,6 +299,7 @@ preflight() {
     dir_tracked "$dir" >"$(tracked_file "$dir")"
     while IFS= read -r rel; do
       [ -n "$rel" ] || continue
+      canonical_only "$rel" && continue
       refuse_bad_src "$rel"
       refuse_bad_dst "$rel"
     done <"$(tracked_file "$dir")"
@@ -385,6 +409,7 @@ sync_dir() {
     [ -f "$(tracked_file "$dir")" ] && tracked="$(cat "$(tracked_file "$dir")")"
     while IFS= read -r rel; do
       [ -n "$rel" ] || continue
+      canonical_only "$rel" && continue
       sync_file "$rel"
     done <<<"$tracked"
   fi
@@ -591,6 +616,46 @@ report_unused_layers() {
     "(.agents/docs/consumer-repos.md, Layers)."
 }
 report_unused_layers
+
+# Canonical-only files a consumer still carries, from before they stopped
+# shipping. Reported on the same terms as an unused layer: vouched against
+# canonical history file by file, so a consumer's own script at one of
+# these paths is named but never has a delete pointed at it, and a shallow
+# canonical says nothing at all.
+report_canonical_only() {
+  local rel dir f vouched="" found
+  for rel in "${CANONICAL_ONLY[@]}"; do
+    [ -f "${DEST}/${rel}" ] || continue
+    if from_canonical "$rel"; then
+      printf '  canonical-only %s (nothing here runs it)\n' "$rel"
+      vouched="${vouched}${vouched:+ }${rel}"
+    else
+      printf '  canonical-only %s (not canonical'"'"'s; left in place)\n' "$rel"
+    fi
+  done
+  for dir in "${CANONICAL_ONLY_DIRS[@]}"; do
+    [ -d "${DEST}/${dir}" ] || continue
+    found=0
+    while IFS= read -r f; do
+      rel="${f#"$DEST"/}"
+      if from_canonical "$rel"; then
+        found=1
+      else
+        printf '  canonical-only %s (not canonical'"'"'s; left in place)\n' "$rel"
+      fi
+    done < <(find "${DEST}/${dir}" -type f | sort)
+    if [ "$found" -eq 1 ]; then
+      printf '  canonical-only %s/ (nothing here runs it)\n' "$dir"
+      vouched="${vouched}${vouched:+ }${dir}"
+    fi
+  done
+  [ -n "$vouched" ] || return 0
+  warn "consumer carries canonical-only harness code: the sync tools refuse to" \
+    "run outside canonical, and the selftest covers code this repo does not" \
+    "edit. Remove it once: git rm -r ${vouched}" \
+    "(.agents/docs/consumer-repos.md, What a consumer carries)."
+}
+report_canonical_only
 # Two tiers. Dir tier: harness/ and env/ were wholly harness-owned, the
 # remedy is `git rm -r`. File tier: the protocol docs and sync tools that
 # moved OUT of docs/ and scripts/ sat inside dirs that still hold live
