@@ -91,6 +91,19 @@ else
   HAVE_ODD_NAMES=0
 fi
 
+# Fixture runs of `joharness.sh ci` shellcheck a copy of joharness.sh they did
+# not write, once per fixture state — measured at 20s of a 50s suite, for a
+# verdict the real `ci` already reached on the real file one section earlier
+# (cmd_ci shellchecks the tree, THEN calls this script). Nothing here asserts
+# on shellcheck output, and the exit codes read below belong to churn, review
+# and the graph lint. So the fixtures get a stub; the shellcheck bar stays
+# exactly where it was, on the real run over the real tree.
+mkdir -p "${TMP}/bin"
+printf '#!/bin/sh\nexit 0\n' >"${TMP}/bin/shellcheck"
+chmod +x "${TMP}/bin/shellcheck"
+PATH="${TMP}/bin:${PATH}"
+export PATH
+
 # A commit in the repo $1 with message $2, after staging everything.
 commit_all() { git -C "$1" add -A && git -C "$1" commit -qm "$2"; }
 
@@ -1502,7 +1515,7 @@ git init -q "$crlf"
 git -C "$crlf" config core.autocrlf true
 cp "${ROOT}/.gitattributes" "${crlf}/.gitattributes" 2>/dev/null
 printf '#!/usr/bin/env bash\necho probe\n' >"${crlf}/probe.sh"
-# Frontmatter is the markdown that breaks: field() exits on any line 1 not
+# Frontmatter is the markdown that breaks: fields() exits on any line 1 not
 # exactly `---`, so a CRLF checkout reports every field empty.
 printf -- '---\nstatus: in-progress\n---\n\nbody\n' >"${crlf}/probe.md"
 commit_all "$crlf" "probe"
