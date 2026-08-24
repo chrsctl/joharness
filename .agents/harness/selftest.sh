@@ -1378,6 +1378,19 @@ printf 'JOHARNESS_MODE=supervised\n' >"$modeconf"
 got="$(JOHARNESS_MODE=unsupervised JOHARNESS_CONF="$modeconf" "${ROOT}/joharness.sh" mode)"
 expect "env overrides conf" "unsupervised" "$got"
 
+# Narrowing for one session has to work against a conf that opted in —
+# otherwise the only way out of unsupervised is editing the file. Asserted
+# against a NON-empty conf, because an empty one would pass this on both
+# sides and prove nothing.
+printf 'JOHARNESS_MODE=unsupervised\n' >"$modeconf"
+got="$(JOHARNESS_MODE=supervised JOHARNESS_CONF="$modeconf" "${ROOT}/joharness.sh" mode)"
+expect "env narrows an opted-in conf" "supervised" "$got"
+# An EMPTY env value is unset to the shell, so the conf still wins. Same
+# semantics as setup_mode/md_mode; the working override is the word.
+got="$(JOHARNESS_MODE='' JOHARNESS_CONF="$modeconf" "${ROOT}/joharness.sh" mode)"
+expect "empty env defers to conf, as the other readers do" "unsupervised" "$got"
+printf 'JOHARNESS_MODE=supervised\n' >"$modeconf"
+
 # Supervised must announce nothing: a session that is not unattended pays
 # no context to be told so, and this is the assertion that keeps a future
 # edit from quietly taxing every session.
@@ -1528,6 +1541,26 @@ else
   fail "boundary block is valid JSON"
   printf '%s\n' "$(indent "$out")"
 fi
+
+# No merge-base — a shallow checkout, or a clone with no origin/<base> ref.
+# Gating the whole boundary on the base was a fail-open: the one mode that
+# needs the fact got none at all. The working-tree half still answers.
+sgnobase="${TMP}/sgnobase"
+git init -q "$sgnobase"
+git -C "$sgnobase" symbolic-ref HEAD refs/heads/main
+printf 'code\n' >"${sgnobase}/code.txt"
+commit_all "$sgnobase" "base"
+git -C "$sgnobase" remote add origin "$sgorigin"
+mkdir -p "${sgnobase}/.agents/harness"
+printf 'edit\n' >"${sgnobase}/.agents/harness/thing.sh"
+out="$(printf '%s' "$JSON_STOP" | CLAUDE_PROJECT_DIR="$sgnobase" \
+  JOHARNESS_MODE=unsupervised \
+  bash "${ROOT}/.agents/harness/handover-guard.sh" 2>&1)"
+expect "no merge-base still names the boundary" \
+  "file(s) under .agents/harness/" "$out"
+out="$(printf '%s' "$JSON_STOP" | CLAUDE_PROJECT_DIR="$sgnobase" \
+  bash "${ROOT}/.agents/harness/handover-guard.sh" 2>&1)"
+refute "no merge-base, supervised, still says nothing" ".agents/harness/" "$out"
 
 git -C "$sgwork" rm -q -r .agents
 commit_all "$sgwork" "revert the harness edit"
