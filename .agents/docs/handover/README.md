@@ -91,6 +91,15 @@ count for other branches — this branch's file it already orders read in
 full. A branch visibly churning with an empty *Review* section is the
 human's cue that rounds are running dark.
 
+That cue needs a human looking, so a repo can arm a machine one instead:
+`JOHARNESS_REVIEW=on` in `joharness.conf` makes `./joharness.sh ci` fail
+when a workstream reaches the edge — `pr:` set, or `status:` review or done —
+with nothing recorded here. Mid-build it only says the record is owed. Off by
+default. `./joharness.sh review` prints the same check plus this branch's
+depth, gate or no gate. Reviewed and found nothing? That is a finding line
+too — `- r1: clean pass, <depth>, no findings`. The section stays empty only
+when no review happened.
+
 All cheap, no ceremony. `/handover` does the write.
 
 ## When NOT to write one

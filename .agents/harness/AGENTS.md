@@ -39,7 +39,11 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    `/code-review` (high) on the full diff, opus adversarial with separate
    lenses. Findings land in the workstream file's `## Review`, one line
    each, BEFORE the fix and in the same commit as it. Fix them or record
-   why not — never drop silent.
+   why not — never drop silent. `./joharness.sh review` prints depth for
+   this branch and whether record exists; `JOHARNESS_REVIEW=on` in
+   `joharness.conf` makes `ci` fail at the edge (PR open, or status
+   review/done) without one — off by default, quiet mid-build. Clean pass
+   records one line saying clean — empty section not clean pass.
    Fix undoes earlier round's fix? Review churn: stop patching, research
    step at raised tier or effort first (`.agents/docs/agent-selection.md`, review
    churn rule). NEVER skip, disable, or quarantine a test to get green.

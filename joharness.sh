@@ -16,6 +16,8 @@
 #   setup           provision the selected layer now
 #   ci              run what .github/workflows/ci.yml runs, here
 #   verify          provision, then run the layer's smoke test
+#   review          print this branch's review step: depth for its tier, and
+#                   whether its findings are recorded. Gates ci when enabled
 #   graph           print the work graph as fenced mermaid (paste into any
 #                   GitHub comment; rendered natively)
 #   help            this text
@@ -28,9 +30,15 @@
 #   JOHARNESS_ENV_MD=lazy      'lazy' (inject a read-before-touching pointer
 #                              to the layer's AGENTS.md) or 'eager' (inject
 #                              the file whole)
+#   JOHARNESS_REVIEW=off       'off' (default) or 'on'. 'on' makes `ci` fail
+#                              when a workstream reaches the edge (pull
+#                              request open, or status review/done) with no
+#                              review recorded, and session-start say so
 #
-# Default is env 'none', setup 'lazy', md 'lazy': a session that never asks
-# for an environment never pays for one — not in provisioning, not in context.
+# Default is env 'none', setup 'lazy', md 'lazy', review 'off': a session that
+# never asks for an environment never pays for one — not in provisioning, not
+# in context — and a repo that has not opted into the review gate sees nothing
+# of it.
 
 set -uo pipefail
 
@@ -73,6 +81,21 @@ conf_set() {
 env_name()  { printf '%s' "${JOHARNESS_ENV:-$(conf_get JOHARNESS_ENV)}"; }
 setup_mode() { printf '%s' "${JOHARNESS_ENV_SETUP:-$(conf_get JOHARNESS_ENV_SETUP)}"; }
 md_mode()   { printf '%s' "${JOHARNESS_ENV_MD:-$(conf_get JOHARNESS_ENV_MD)}"; }
+review_mode() { printf '%s' "${JOHARNESS_REVIEW:-$(conf_get JOHARNESS_REVIEW)}"; }
+
+# Off unless a repo says otherwise, and only 'on' turns it on: an unreadable or
+# misspelled value must not silently arm a gate that fails ci. It must not
+# silently disarm one either — a repo that believes it opted in and typed
+# 'true' would otherwise get no gate and no signal, so the value is named.
+review_on() {
+  local v; v="$(review_mode)"
+  case "$v" in
+    on) return 0 ;;
+    '' | off) return 1 ;;
+    *) warn "ignoring JOHARNESS_REVIEW='${v}' (want 'on' or 'off'); gate stays off"
+       return 1 ;;
+  esac
+}
 
 # Layer names are directory names under .agents/env/. Reject anything that could walk
 # out of it before it reaches a path. A whole-string case test, not a grep -qE:
@@ -258,6 +281,13 @@ cmd_ci() {
     fi
   else
     printf '  not measurable here (no merge-base; shallow checkout or base branch)\n'
+  fi
+
+  # Off by default and silent while off, so a repo that never opted in gets
+  # the same ci output it got before this existed.
+  if review_on; then
+    printf '\n== review\n'
+    review_report || rc=1
   fi
 
   printf '\n'
@@ -516,6 +546,160 @@ ensure_shellcheck() {
 }
 
 # ---------------------------------------------------------------------------
+# Review step
+#
+# The harness has ordered a review at every edge into main since the loop was
+# written (.agents/harness/AGENTS.md step 5, depth by tier in
+# .agents/docs/agent-selection.md). Nothing checked that one happened. The record
+# is the workstream file's `## Review` section, and only a human reading hook
+# output ever noticed it empty — "a branch visibly churning with an empty
+# Review section is the human's cue" (.agents/docs/handover/README.md,
+# Reviewing) is the whole of today's enforcement, and it needs a human looking.
+#
+# Off by default, and silent while off: a repo that has not opted in sees no
+# output and no gate, so `ci` here means exactly what it meant before. On, the
+# check rides in `ci` — the one gate a session cannot skip, same argument the
+# churn ceiling and the graph lint already rest on: the session that skipped
+# its own review is the one that cannot see it skipped.
+#
+# What it checks is the RECORD, never the finding count. Counts carry no
+# signal in either direction (.agents/docs/agent-selection.md, review churn:
+# "Finding counts no signal, false both ways"), so a gate on N>0 findings buys
+# invented findings and nothing else. A clean pass records one line saying it
+# was clean; an empty section is not a clean pass, it is no pass.
+# ---------------------------------------------------------------------------
+
+# Tier the review depth scales with: the workstream file's own `agent:`, else
+# the tier of the plan it claims, else the default from the selection rules.
+# One vocabulary, read where the protocol already writes it — no second field
+# to keep in sync.
+review_tier() {
+  local doc="$1" tier plan
+  tier="$(printf '%s\n' "$doc" | gr_field agent)"
+  if [ -z "$tier" ]; then
+    plan="$(lint_stem "$(printf '%s\n' "$doc" | gr_field plan)")"
+    if [ -n "$plan" ] && [ "$plan" != "none" ] &&
+       [ -f "${ROOT}/docs/plans/${plan}.md" ]; then
+      tier="$(gr_field agent <"${ROOT}/docs/plans/${plan}.md")"
+    fi
+  fi
+  [ -n "$tier" ] || tier="sonnet"
+  printf '%s' "$tier"
+}
+
+# Depth per tier, quoted from the review-depth rule rather than re-invented.
+review_recipe() {
+  case "$1" in
+    haiku)
+      printf 'one /code-review pass at default effort — one pass, never zero' ;;
+    opus)
+      printf 'adversarial: correctness, security, does-it-reproduce as separate passes' ;;
+    *)
+      printf '/code-review (high) on the full diff' ;;
+  esac
+}
+
+# Bullets under `## Review`. Same awk the handover hook counts with, so the
+# gate and the hook can never disagree about what a recorded finding is.
+review_count() {
+  awk '
+    /^## Review[[:space:]]*$/ { in_r = 1; next }
+    /^## /                    { in_r = 0 }
+    in_r && /^- /             { n++ }
+    END { print n + 0 }' "${ROOT}/$1"
+}
+
+# At the edge = this workstream is being handed to `main`: it has a pull
+# request, or its own status says the work is over. Below the edge the review
+# has not come due yet — the loop puts it at step 5, after the build — so the
+# gate warns there and fails here. Two tiers for the same reason churn has
+# them: `ci` runs all through the build, and a check that reds from the claim
+# commit onward makes red the normal state of a working branch, which is how a
+# gate stops being read at all.
+review_at_edge() {
+  local doc="$1" pr status
+  pr="$(printf '%s\n' "$doc" | gr_field pr)"
+  status="$(printf '%s\n' "$doc" | gr_field status)"
+  if [ -n "$pr" ] && [ "$pr" != "none" ]; then
+    printf 'pr %s' "$pr"
+    return 0
+  fi
+  case "$status" in
+    review | done) printf 'status %s' "$status"; return 0 ;;
+  esac
+  return 1
+}
+
+# Prints the step, two-space indented like every other `ci` section, and
+# returns non-zero only when this branch owes a review record. Reads the
+# working tree, not a ref: `ci` judges what the branch is about to push.
+# Every workstream file on the branch, not the first: a branch carrying two
+# workstreams owes two records, and checking one of them would pass the
+# branch on a review that never covered the other half of its diff.
+review_report() {
+  local over="origin/${HANDOVER_BASE_BRANCH:-main}" base head ws doc tier n
+  local edge rc=0 seen=0
+  base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
+  head="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)"
+  if [ -z "$base" ]; then
+    # Same doctrine as churn's: a check that cannot see the history it needs
+    # says so and passes, rather than reding what it cannot prove.
+    printf '  not measurable here (no merge-base; shallow checkout or base branch)\n'
+    return 0
+  fi
+  if [ "$base" = "$head" ]; then
+    printf '  nothing to review yet (no commits past %s)\n' "$over"
+    return 0
+  fi
+
+  while IFS= read -r ws; do
+    [ -n "$ws" ] || continue
+    seen=1
+    doc="$(cat "${ROOT}/${ws}" 2>/dev/null)"
+    tier="$(review_tier "$doc")"
+    n="$(review_count "$ws")"
+    printf '  %s [%s — %s]\n' "$ws" "$tier" "$(review_recipe "$tier")"
+    if [ "${n:-0}" -gt 0 ]; then
+      printf '    %s finding(s) recorded\n' "$n"
+      continue
+    fi
+    if ! edge="$(review_at_edge "$doc")"; then
+      printf '    no record yet — gate fires at the edge (pr set, or status review/done)\n'
+      continue
+    fi
+    printf '    NO findings recorded under ## Review, and this is the edge (%s)\n' "$edge"
+    printf '    Review the full diff at the depth above, then write what it found —\n'
+    printf '    one line per finding, BEFORE its fix, same commit as the fix\n'
+    printf '    (.agents/docs/handover/README.md, Reviewing). Clean pass records that,\n'
+    printf '    one line; an empty section is not a clean pass.\n'
+    rc=1
+  done < <(lint_nodes docs/handover)
+
+  if [ "$seen" -eq 0 ]; then
+    # Not a hole to paper over: copy, sync and plan-queue branches carry no
+    # workstream file BY protocol (.agents/docs/handover/README.md, "When NOT to
+    # write one"), so a record the protocol forbids cannot be the bar. Says
+    # what it did not check instead of passing quietly.
+    printf '  no workstream file on this branch — no record to check\n'
+    printf '  (copy, sync and plan-queue branches carry none by protocol)\n'
+  fi
+  return "$rc"
+}
+
+# Standalone, the step runs whether or not the gate is armed — the recipe on
+# demand costs nothing, and a session may want it before ci ever runs. The
+# knob decides only whether `ci` fails for a missing record, so the header
+# says which of the two this run is.
+cmd_review() {
+  if review_on; then
+    printf '== review (JOHARNESS_REVIEW=on: ci gates on this)\n'
+  else
+    printf '== review (JOHARNESS_REVIEW=off: report only, ci does not check)\n'
+  fi
+  review_report
+}
+
+# ---------------------------------------------------------------------------
 # Graph
 #
 # The third formalization step from .agents/docs/graph.md, previously held "until
@@ -680,11 +864,12 @@ cmd_env() {
     return 0
   fi
 
-  local effective mode md
+  local effective mode md review
   current="$(env_name)"
   effective="$(resolve_env 2>/dev/null)" || effective=""
   mode="$(setup_mode)"; [ -n "$mode" ] || mode="lazy (default)"
   md="$(md_mode)"; [ -n "$md" ] || md="lazy (default)"
+  review="$(review_mode)"; [ -n "$review" ] || review="off (default)"
 
   printf 'environment : %s\n' "${current:-none (default)}"
   # An explicit selection that does not resolve is worth saying out loud;
@@ -696,6 +881,7 @@ cmd_env() {
   fi
   printf 'setup       : %s\n' "$mode"
   printf 'md          : %s\n' "$md"
+  printf 'review      : %s\n' "$review"
   printf 'config      : %s\n' "$CONF"
   printf 'available   :\n'
   while IFS= read -r name; do
@@ -755,6 +941,17 @@ cmd_session_start() {
     fi
   fi
 
+  # Armed gates get announced. A session that learns about the review gate
+  # from a red ci has already written the commit it should have reviewed;
+  # off, this costs the context nothing, like every other knob here.
+  if review_on; then
+    printf '== Review gate: ON (JOHARNESS_REVIEW=on) ==\n\n'
+    printf 'Edge to main needs recorded review. Findings to workstream file\n'
+    printf '## Review, one line each, BEFORE fix, same commit as fix. Clean\n'
+    printf 'pass records that, one line. ci checks record, not count.\n'
+    printf 'Depth for this branch: ./joharness.sh review\n\n'
+  fi
+
   [ -x "${HARNESS_ROOT}/handover-context.sh" ] &&
     "${HARNESS_ROOT}/handover-context.sh"
 
@@ -778,6 +975,7 @@ main() {
     setup)          cmd_setup ;;
     ci)             cmd_ci ;;
     verify)         cmd_verify ;;
+    review)         cmd_review ;;
     graph)          cmd_graph ;;
     -h|--help|help) usage ;;
     *) die "unknown subcommand '$cmd' (try: $0 help)" ;;

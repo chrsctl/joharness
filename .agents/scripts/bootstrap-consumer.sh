@@ -239,6 +239,12 @@ JOHARNESS_ENV_SETUP=lazy
 #         .agents/env/<name>/AGENTS.md.
 # eager = inject the file whole at session start.
 JOHARNESS_ENV_MD=lazy
+
+# off = review step reports only (./joharness.sh review), ci checks nothing.
+# on  = ci fails when a workstream reaches the edge (pull request open, or
+#       status review/done) recording nothing under `## Review`. Mid-build it
+#       only says the record is owed. Record, not count.
+JOHARNESS_REVIEW=off
 EOF
   seed joharness.conf "${SCRATCH}/conf"
 
