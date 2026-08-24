@@ -25,6 +25,7 @@
 #   feedback <path> what earlier merged edges found in that file
 #   graph           print the work graph as fenced mermaid (paste into any
 #                   GitHub comment; rendered natively)
+#   mode            print the resolved autonomy mode and exit
 #   help            this text
 #
 # Selection lives in joharness.conf and is overridden by $JOHARNESS_ENV:
@@ -35,6 +36,9 @@
 #   JOHARNESS_ENV_MD=lazy      'lazy' (inject a read-before-touching pointer
 #                              to the layer's AGENTS.md) or 'eager' (inject
 #                              the file whole)
+#   JOHARNESS_MODE=supervised  'supervised' (default) or 'unsupervised'.
+#                              Anything else reads as supervised
+#                              (docs/product/unsupervised-mode.md)
 #   JOHARNESS_REVIEW=off       'off' (default) or 'on'. 'on' makes `ci` fail
 #                              when a workstream reaches the edge (pull
 #                              request open, or status review/done) with no
@@ -100,6 +104,41 @@ review_on() {
     *) warn "ignoring JOHARNESS_REVIEW='${v}' (want 'on' or 'off'); gate stays off"
        return 1 ;;
   esac
+}
+
+# Raw autonomy mode, exactly as configured — empty when unset. Only
+# run_mode() and the session-start banner read this; everything else asks
+# run_mode(), which normalises.
+mode_raw()  { printf '%s' "${JOHARNESS_MODE:-$(conf_get JOHARNESS_MODE)}"; }
+
+# Resolved autonomy mode. ONE string means unsupervised; every other value
+# — a typo, an empty setting, an unreadable conf, a key that does not exist
+# because this harness copy predates the feature — resolves to supervised.
+# Fails closed on purpose: the failure mode of failing open is a fleet
+# working unattended in a repo that never asked for one, and the cost is
+# asymmetric enough that no clever parsing is worth it here.
+run_mode() {
+  case "$(mode_raw)" in
+    unsupervised) printf 'unsupervised' ;;
+    *)            printf 'supervised' ;;
+  esac
+}
+
+# Name a value that was set and not understood. Silence here is how a repo
+# ends up believing it opted in: the operator typed something, the harness
+# ignored it, and nothing said so. Callers decide the channel — stderr for
+# the subcommand, session context for the banner.
+mode_unrecognised() {
+  local raw; raw="$(mode_raw)"
+  case "$raw" in
+    ''|supervised|unsupervised) return 1 ;;
+    *) printf '%s' "$raw" ;;
+  esac
+}
+mode_warn_unrecognised() {
+  local raw
+  raw="$(mode_unrecognised)" || return 0
+  warn "JOHARNESS_MODE='${raw}' not recognised; running supervised"
 }
 
 # Layer names are directory names under .agents/env/. Reject anything that could walk
@@ -1378,7 +1417,25 @@ cmd_env() {
 # ---------------------------------------------------------------------------
 
 cmd_session_start() {
-  local name mode
+  local name mode raw
+
+  # Autonomy first: it governs the whole session, including the parts that
+  # run before an environment resolves. Supervised prints NOTHING — same
+  # bet as lazy env rules, a session that is not unattended does not pay
+  # context to be told so, and the rules it already loads are the
+  # supervised ones. Only the mode that widens what a session may do
+  # announces itself, and it announces the boundary in the same breath.
+  if [ "$(run_mode)" = "unsupervised" ]; then
+    printf '== Mode: unsupervised ==\n\n'
+    printf 'Queue edge is a trigger, not a stop: generate work, run the full\n'
+    printf 'Loop, merge your own pull request. NEVER commit under\n'
+    printf '.agents/harness/ — protocol edits stay supervised\n'
+    printf '(docs/product/unsupervised-mode.md, Constraints).\n\n'
+  elif raw="$(mode_unrecognised)"; then
+    # Into session context, not stderr: the session is the reader who has
+    # to know its mode is not what the conf appears to say.
+    printf 'JOHARNESS_MODE=%s not recognised; running supervised.\n\n' "$raw"
+  fi
 
   if name="$(resolve_env)"; then
     mode="$(setup_mode)"
@@ -1460,6 +1517,12 @@ main() {
     review)         cmd_review ;;
     feedback)       cmd_feedback "${1:-}" ;;
     graph)          cmd_graph ;;
+    # Warning on stderr, value on stdout: the guard captures stdout and must
+    # keep getting one clean word, while a human running this against a
+    # typo'd conf needs to hear about it. Same lesson the review knob
+    # already paid for (PR47 r4) — a knob that reads as off in silence
+    # leaves a repo believing it opted in.
+    mode)           mode_warn_unrecognised; run_mode; printf '\n' ;;
     -h|--help|help) usage ;;
     *) die "unknown subcommand '$cmd' (try: $0 help)" ;;
   esac
