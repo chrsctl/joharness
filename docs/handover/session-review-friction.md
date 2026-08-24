@@ -2,7 +2,7 @@
 workstream: session-review-friction
 status: review
 branch: claude/session-review-harness-friction
-pr: none
+pr: https://github.com/chrsctl/joharness/pull/41
 plan: none
 session: https://claude.ai/code/session_01Qk5dbNUvkmSB1dj5ufvhNB
 agent: opus
