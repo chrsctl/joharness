@@ -18,6 +18,9 @@
 #   verify          provision, then run the layer's smoke test
 #   review          print this branch's review step: depth for its tier, and
 #                   whether its findings are recorded. Gates ci when enabled
+#   feedback        score the review loop from merged history: coverage,
+#                   recurrence, and the files that keep drawing findings
+#   feedback <path> what earlier merged edges found in that file
 #   graph           print the work graph as fenced mermaid (paste into any
 #                   GitHub comment; rendered natively)
 #   help            this text
@@ -690,14 +693,385 @@ review_report() {
 # demand costs nothing, and a session may want it before ci ever runs. The
 # knob decides only whether `ci` fails for a missing record, so the header
 # says which of the two this run is.
+# What the files in this diff have already cost other branches. The review
+# step is the moment this pays: the reviewer is about to look at exactly these
+# files, and merged history knows which of them keep drawing findings.
+#
+# Standalone `review` only, never the `ci` gate: this walks all of merged
+# history (seconds, not milliseconds), and the gate runs on every ci. A
+# session that wants the whole picture runs `feedback`.
+review_prior() {
+  local over="origin/${HANDOVER_BASE_BRANCH:-main}" base hot f count shown=0
+  base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
+  [ -n "$base" ] || return 0
+  fb_collect || return 0
+  hot="$(fb_hotspots)"
+  [ -n "$hot" ] || return 0
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    count="$(printf '%s\n' "$hot" | awk -F'\t' -v p="$f" '$2 == p { print $1 }')"
+    [ -n "$count" ] || continue
+    if [ "$shown" -eq 0 ]; then
+      shown=1
+      printf '\n  already cost other branches — read before reviewing:\n'
+    fi
+    printf '    %s (%s edges)  ./joharness.sh feedback %s\n' "$f" "$count" "$f"
+  done <<<"$(git -C "$ROOT" diff --name-only "$base" HEAD 2>/dev/null)"
+}
+
 cmd_review() {
+  local rc=0
   if review_on; then
     printf '== review (JOHARNESS_REVIEW=on: ci gates on this)\n'
   else
     printf '== review (JOHARNESS_REVIEW=off: report only, ci does not check)\n'
   fi
-  review_report
+  review_report || rc=1
+  review_prior
+  return "$rc"
 }
+
+# ---------------------------------------------------------------------------
+# Feedback
+#
+# The review step (above) makes a branch record what its review found. The
+# record then dies: the finish ritual deletes the workstream file, by design —
+# a file left on `main` reads as current (.agents/docs/handover/README.md,
+# Graduation). So every finding this repo ever recorded is in merge history and
+# nowhere a session looks, and the next branch re-finds it.
+#
+# Measured on this repo's own history at the time this was written: 41 findings
+# across 8 merged edges, and 9 of 24 file-level fixes (38%) landed on a file an
+# earlier merged branch had already recorded a finding against. `AGENTS.md`
+# under the harness drew findings on 5 of those 8 edges. A file that keeps
+# drawing findings is a rule nobody has written yet.
+#
+# So this is two things, and the second is why the first exists:
+#   feedback          the scorecard — does the loop run, does its output
+#                     survive, does the same file keep coming back
+#   feedback <path>   what earlier merged branches found in that file
+#
+# Nothing is stored. Every number is counted from git at read time, so it
+# cannot rot and cannot be written wrong (the doctrine the churn measure and
+# the graph lint already run on). What it cannot count, it says: finding
+# volume is NOT a quality signal here — the review-churn rule already
+# establishes counts are false in both directions — so the number to watch is
+# recurrence, and the direction to want is down.
+# ---------------------------------------------------------------------------
+
+# Every edge into the base branch: "<merge-sha> <branch-tip-sha>". Any merge
+# with two parents, no subject parsing — GitHub's "Merge pull request" wording
+# is one host's, and a consumer merging by hand makes the same edge.
+#
+# --first-parent is load bearing: without it the walk also descends into the
+# branches themselves, and a branch that merged main in mid-flight (the
+# protocol tells long-running ones to) contributes its own merge as a second
+# edge carrying the same workstream file. Measured while writing this: 51
+# "edges" and 42 findings against a true 37 and 41.
+fb_edges() {
+  git -C "$ROOT" log --first-parent --format='%H %P' --merges "$1" 2>/dev/null |
+    awk 'NF >= 3 { print $1, $3 }'
+}
+
+# Every edge costs a git show per commit, so a repo with thousands of them
+# would make this measure something nobody runs twice. Newest first, bounded,
+# and the bound is printed when it bites — a window nobody was told about is
+# how a measure starts lying. 0 lifts it.
+FB_LIMIT="${JOHARNESS_FEEDBACK_EDGES:-50}"
+FB_TOTAL=0
+FB_CAPPED=0
+
+# Pull request number from a merge subject, else the short sha: the identifier
+# is for a human to go read the branch with, so any stable handle will do.
+fb_label() {
+  local subj n
+  subj="$(git -C "$ROOT" log -1 --format='%s' "$1" 2>/dev/null)"
+  n="$(printf '%s' "$subj" | sed -n 's/.*[Mm]erge pull request #\([0-9][0-9]*\).*/\1/p')"
+  [ -n "$n" ] && { printf 'PR%s' "$n"; return 0; }
+  printf '%s' "${1:0:7}"
+}
+
+# Last surviving version of the branch's workstream file. The ritual deletes
+# it in the final commit, so the newest commit that still HAS it is the one
+# carrying everything the branch learned.
+fb_workstream() {
+  local base="$1" tip="$2" f c
+  for f in $(git -C "$ROOT" log --format='%H' "${base}..${tip}" -- docs/handover 2>/dev/null |
+    while IFS= read -r c; do
+      git -C "$ROOT" diff-tree --no-commit-id --name-only -r "$c" -- docs/handover 2>/dev/null
+    done | grep -E '\.md$' | grep -vE '/(TEMPLATE|README)\.md$' | sort -u); do
+    for c in $(git -C "$ROOT" rev-list "${base}..${tip}" -- "$f" 2>/dev/null); do
+      if git -C "$ROOT" cat-file -e "${c}:${f}" 2>/dev/null; then
+        git -C "$ROOT" show "${c}:${f}" 2>/dev/null
+        return 0
+      fi
+    done
+  done
+  return 1
+}
+
+# One line per finding, wrapped continuations folded back in: a finding's
+# disposition usually sits at the end of its last line, so a reader that stops
+# at the first newline reads every finding as unmarked.
+fb_findings() {
+  awk '
+    /^## Review[[:space:]]*$/ { r = 1; next }
+    /^## /                    { if (r && buf != "") print buf; buf = ""; r = 0 }
+    r && /^- /                { if (buf != "") print buf; buf = substr($0, 3); next }
+    r && /^  [^ ]/            { buf = buf " " $0; gsub(/  +/, " ", buf) }
+    END                       { if (r && buf != "") print buf }'
+}
+
+# wontfix and no-change are decisions, not defects, and they are decided in
+# the finding's own last clause — so the marker is read with wontfix first,
+# and a finding that says both "fixed" and "wontfix" is the compound one it
+# looks like, counted where the human put the verdict.
+fb_marker() {
+  case "$1" in
+    *wontfix*)                 printf 'wontfix' ;;
+    *"no change"* | *"No change"*) printf 'no-change' ;;
+    *'(fixed'*)                printf 'fixed' ;;
+    *)                         printf 'unmarked' ;;
+  esac
+}
+
+# Commits that ADD a finding bullet to a workstream file, paired with the
+# other paths that same commit touched. The protocol puts a finding in the
+# same commit as its fix, so that commit's non-protocol paths are where the
+# finding landed — no parsing of prose, and no new field for a session to
+# fill in wrong.
+#
+# Per commit, not per branch: an edge that fixed nine findings across five
+# commits knows which of them touched which file, and rolling that up to the
+# branch would answer "what did this edge find" when the question a reader
+# asks is "what did anyone find HERE".
+#
+# Emits "<finding-id>\t<path>". The id, not the text: the bullet as committed
+# may predate its own disposition marker, so the text is taken later from the
+# file's final version and joined on the id, which is stable within an edge.
+fb_fix_map() {
+  local base="$1" tip="$2" c ids f
+  git -C "$ROOT" rev-list --no-merges "${base}..${tip}" 2>/dev/null |
+    while IFS= read -r c; do
+      ids="$(git -C "$ROOT" show --format='' --unified=0 "$c" -- docs/handover 2>/dev/null |
+        sed -n 's/^+- \(r[0-9][0-9]*\):.*/\1/p' | sort -u)"
+      [ -n "$ids" ] || continue
+      while IFS= read -r f; do
+        [ -n "$f" ] || continue
+        while IFS= read -r id; do
+          [ -n "$id" ] && printf '%s\t%s\n' "$id" "$f"
+        done <<<"$ids"
+      done <<<"$(git -C "$ROOT" diff-tree --no-commit-id --name-only -r "$c" 2>/dev/null |
+        { grep -vE '^docs/(handover|plans|product)/' || :; })"
+    done | sort -u
+}
+
+# A path recorded before a directory move no longer resolves, and reading it
+# as a different file splits one hot spot into two cold ones (this repo's own
+# .agents/ move did exactly that: 3 branches at one spelling, 2 at the other).
+# Unique-suffix match repairs the prefixed-directory case and refuses to guess
+# anywhere else: no match or several, the path stands as recorded.
+fb_current_path() {
+  local p="$1" hits
+  [ -e "${ROOT}/${p}" ] && { printf '%s' "$p"; return 0; }
+  # String suffix on a path boundary, not a regex: a path carrying `+`, `(`
+  # or `{` must match itself and not its siblings (the literal-pathspec
+  # lesson the sync engine already learned the hard way).
+  hits="$(git -C "$ROOT" ls-files 2>/dev/null | awk -v p="$p" '
+    length($0) >= length(p) &&
+    substr($0, length($0) - length(p) + 1) == p &&
+    (length($0) == length(p) || substr($0, length($0) - length(p), 1) == "/")')"
+  if [ "$(printf '%s\n' "$hits" | grep -c .)" = "1" ]; then
+    printf '%s' "$hits"
+  else
+    printf '%s' "$p"
+  fi
+}
+
+# One walk of merged history, into globals, because two callers need it and
+# it costs a couple of seconds: cmd_feedback prints it, and cmd_review asks
+# it what the files in this branch's diff have already cost other branches.
+FB_REF=""
+FB_PAIRS=""
+FB_HIST=""
+FB_EDGES=0
+FB_WITHWS=0
+FB_RECORDED=0
+FB_FINDINGS=0
+FB_FIXED=0
+FB_WONTFIX=0
+FB_NOCHANGE=0
+FB_UNMARKED=0
+
+fb_collect() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" candidate
+  FB_REF=""
+  for candidate in "origin/${base_branch}" "${base_branch}" HEAD; do
+    if git -C "$ROOT" rev-parse --verify --quiet "$candidate" >/dev/null 2>&1; then
+      FB_REF="$candidate"; break
+    fi
+  done
+  [ -n "$FB_REF" ] || return 1
+
+  local m tip base doc label line marker n all
+  FB_PAIRS=""; FB_HIST=""
+  FB_EDGES=0; FB_WITHWS=0; FB_RECORDED=0; FB_FINDINGS=0
+  FB_FIXED=0; FB_WONTFIX=0; FB_NOCHANGE=0; FB_UNMARKED=0
+  FB_TOTAL=0; FB_CAPPED=0
+
+  all="$(fb_edges "$FB_REF")"
+  FB_TOTAL="$(printf '%s' "$all" | grep -c . || :)"
+  if [ "${FB_LIMIT:-0}" -gt 0 ] && [ "${FB_TOTAL:-0}" -gt "$FB_LIMIT" ]; then
+    all="$(printf '%s\n' "$all" | head -n "$FB_LIMIT")"
+    FB_CAPPED=1
+  fi
+
+  while read -r m tip; do
+    [ -n "$tip" ] || continue
+    base="$(git -C "$ROOT" merge-base "${m}^1" "$tip" 2>/dev/null)" || continue
+    doc="$(fb_workstream "$base" "$tip")" || doc=""
+    FB_EDGES=$((FB_EDGES + 1))
+    [ -n "$doc" ] || continue
+    FB_WITHWS=$((FB_WITHWS + 1))
+    label="$(fb_label "$m")"
+
+    n=0
+    while IFS= read -r line; do
+      [ -n "$line" ] || continue
+      n=$((n + 1))
+      marker="$(fb_marker "$line")"
+      case "$marker" in
+        fixed) FB_FIXED=$((FB_FIXED + 1)) ;;
+        wontfix) FB_WONTFIX=$((FB_WONTFIX + 1)) ;;
+        no-change) FB_NOCHANGE=$((FB_NOCHANGE + 1)) ;;
+        *) FB_UNMARKED=$((FB_UNMARKED + 1)) ;;
+      esac
+      # Keyed by the finding's own id so the commit-level map below can say
+      # which file this one landed on.
+      FB_HIST="${FB_HIST}${label}"$'\t'"${line%%:*}"$'\t'"${line}"$'\n'
+    done <<<"$(printf '%s\n' "$doc" | fb_findings)"
+
+    FB_FINDINGS=$((FB_FINDINGS + n))
+    [ "$n" -gt 0 ] && FB_RECORDED=$((FB_RECORDED + 1))
+
+    while IFS= read -r line; do
+      [ -n "$line" ] || continue
+      FB_PAIRS="${FB_PAIRS}${label}"$'\t'"$(fb_current_path "${line#*	}")"$'\t'"${line%%	*}"$'\n'
+    done <<<"$(fb_fix_map "$base" "$tip")"
+  done <<<"$all"
+  return 0
+}
+
+# "<count><TAB><path>", files that drew findings on more than one edge,
+# hottest first. The signal the whole measure exists for.
+fb_hotspots() {
+  printf '%s' "$FB_PAIRS" | awk -F'\t' 'NF >= 2 { print $1 "\t" $2 }' | sort -u |
+    awk -F'\t' '{ c[$2]++ } END { for (f in c) if (c[f] > 1) printf "%d\t%s\n", c[f], f }' |
+    sort -rn
+}
+
+cmd_feedback() {
+  local want="${1:-}" line
+  fb_collect || die "no base branch to read merged history from"
+  local ref="$FB_REF" edges="$FB_EDGES" withws="$FB_WITHWS"
+  local recorded="$FB_RECORDED" findings="$FB_FINDINGS"
+  local fixed="$FB_FIXED" wontfix="$FB_WONTFIX" nochange="$FB_NOCHANGE"
+  local unmarked="$FB_UNMARKED" pairs="$FB_PAIRS" hist="$FB_HIST"
+
+  if [ "$want" != "" ]; then
+    fb_report_path "$want" "$hist" "$pairs"
+    return 0
+  fi
+
+  if [ "$FB_CAPPED" -eq 1 ]; then
+    printf '== feedback (%s: newest %d edges of %d, %d carrying a workstream file)\n' \
+      "$ref" "$edges" "$FB_TOTAL" "$withws"
+    printf '   older edges NOT read (JOHARNESS_FEEDBACK_EDGES=%s; 0 reads all)\n\n' \
+      "$FB_LIMIT"
+  else
+    printf '== feedback (%s: %d edges, %d carrying a workstream file)\n\n' \
+      "$ref" "$edges" "$withws"
+  fi
+
+  if [ "$withws" -eq 0 ]; then
+    printf '  no merged workstream file to read — nothing to measure yet\n'
+    return 0
+  fi
+
+  printf 'coverage   : %d/%d merged edges recorded a review\n' "$recorded" "$withws"
+  printf 'volume     : %d findings — %d fixed, %d wontfix, %d no-change, %d unmarked\n' \
+    "$findings" "$fixed" "$wontfix" "$nochange" "$unmarked"
+
+  # Recurrence, the one number worth watching, and the only one whose
+  # direction is unambiguous: a file drawing a finding an earlier edge already
+  # drew one against is a rediscovery, and the loop's job is to make those
+  # stop. Volume is deliberately not scored (review-churn rule: counts false
+  # in both directions).
+  local total_pairs repeat_pairs edge_paths
+  edge_paths="$(printf '%s' "$pairs" | awk -F'\t' 'NF >= 2 { print $1 "\t" $2 }' | awk '!s[$0]++')"
+  total_pairs="$(printf '%s' "$edge_paths" | grep -c . || :)"
+  if [ "${total_pairs:-0}" -gt 0 ]; then
+    # Oldest edge first, because "already fixed there" is a question about
+    # what came BEFORE. git log hands them newest first; awk reverses without
+    # tac, which is GNU-only and absent on the macOS machines the harness also
+    # runs on.
+    repeat_pairs="$(printf '%s' "$edge_paths" | awk -F'\t' '
+      { line[NR] = $2 }
+      END { for (i = NR; i >= 1; i--) if (seen[line[i]]) r++; else seen[line[i]] = 1
+            print r + 0 }')"
+    printf 'recurrence : %d/%d file-level fixes landed where an earlier edge\n' \
+      "$repeat_pairs" "$total_pairs"
+    printf '             already fixed a finding (%d%%) — want this falling\n' \
+      $(( repeat_pairs * 100 / total_pairs ))
+  fi
+
+  printf '\nhot spots — a file that keeps drawing findings is a rule nobody\n'
+  printf 'wrote yet. Graduate it (.agents/docs/handover/README.md, Graduation)\n'
+  printf 'or read what those edges found before touching it again:\n\n'
+  local any=0
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    any=1
+    printf '  %s edges  %s\n' "${line%%	*}" "${line#*	}"
+  done <<<"$(fb_hotspots | head -8)"
+  [ "$any" -eq 1 ] || printf '  none yet — no file has drawn findings on two edges\n'
+
+  printf '\n  ./joharness.sh feedback <path>   what those edges found there\n'
+
+  # A loop nobody can see the output of is a loop that does not close, so the
+  # honest limit gets printed with the numbers: only what merged is here.
+  printf '\nread at merge time only — an open branch has recorded nothing yet\n'
+}
+
+# Every finding from merged history whose own fix commit touched this path.
+# The point of the whole file: before editing a file that has cost other
+# branches, read what it cost them.
+fb_report_path() {
+  local want="$1" hist="$2" pairs="$3" resolved keys line key n=0 edges
+  resolved="$(fb_current_path "$want")"
+  # <edge>\t<finding-id> for this path, the join key into hist.
+  keys="$(printf '%s' "$pairs" | awk -F'\t' -v p="$resolved" \
+    'NF >= 3 && $2 == p { print $1 "\t" $3 }' | sort -u)"
+
+  printf '== feedback: %s\n\n' "$resolved"
+  if [ -z "$keys" ]; then
+    printf '  no merged edge recorded a finding whose fix touched this file\n'
+    return 0
+  fi
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    key="${line%%	*}"$'\t'"$(printf '%s' "$line" | cut -f2)"
+    printf '%s\n' "$keys" | grep -qxF "$key" || continue
+    n=$((n + 1))
+    printf '  %s  %s\n\n' "${line%%	*}" "$(printf '%s' "$line" | cut -f3-)"
+  done <<<"$hist"
+  edges="$(printf '%s\n' "$keys" | cut -f1 | sort -u | grep -c .)"
+  printf '  %d findings from %d merged edges\n' "$n" "$edges"
+  printf '  Link is finding-to-commit, not finding-to-file: one commit\n'
+  printf '  carrying several findings attributes all of them to every file\n'
+  printf '  it touched.\n'
+}
+
 
 # ---------------------------------------------------------------------------
 # Graph
@@ -976,6 +1350,7 @@ main() {
     ci)             cmd_ci ;;
     verify)         cmd_verify ;;
     review)         cmd_review ;;
+    feedback)       cmd_feedback "${1:-}" ;;
     graph)          cmd_graph ;;
     -h|--help|help) usage ;;
     *) die "unknown subcommand '$cmd' (try: $0 help)" ;;
