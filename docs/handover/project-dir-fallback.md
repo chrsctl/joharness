@@ -7,7 +7,7 @@ plan: none
 session: https://claude.ai/code/session_019c3kktaEvDBAnDv1K2i65p
 agent: opus
 updated: 2026-08-24
-next: Fix the three PROJECT_DIR fallbacks and add the selftest that exercises them
+next: Open the PR, then merge once checks are green
 ---
 
 ## Goal
@@ -57,7 +57,30 @@ acts on without checking.
 
 ## Review
 
-- (pending — edge review before PR)
+Edge review at opus depth: correctness, blast radius, and
+does-it-reproduce as separate passes.
+
+- r1 (does-it-reproduce): the first version of the test computed the
+  fallback by REPEATING the expression inside `bash -c`. That tests the
+  copy in the test, not the three in the scripts — it would have passed
+  with all three still broken. (fixed: a structural check that greps the
+  real scripts for the one-level form, which covers all three, plus the
+  end-to-end symptom run against this repo's own queue.)
+- r2 (correctness): `skip` takes a name AND a reason; the first version
+  passed one argument, so the skip line would have printed a blank
+  reason on any repo with an empty queue — the exact case the guard
+  exists for. (fixed)
+- r3 (does-it-reproduce): checked by reintroducing the bug in
+  `queue-context.sh` — `283 passed, 2 failed`, naming the file and the
+  symptom; `285 passed, 0 failed` restored. A test that cannot fail pins
+  nothing, and this repo has three of those in its history already.
+
+## Blast radius
+
+Three consumer repos carry this harness. The fix syncs out with it, and
+nothing about the change is consumer-specific: every copy lives at
+`.agents/harness/` by construction, since that is what the sync tool
+writes.
 
 ## Blockers
 
