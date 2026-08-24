@@ -50,6 +50,35 @@ consumer's own `joharness.conf` names.
 
 ## Review
 
+(r1 and r2 were caught by the gates while building, not by the review
+round — recorded here so the ledger is complete, not to claim a process.)
+
+- r1: `bootstrap --env` validated the layer BEFORE the canonical-marker
+  guard, so a consumer copy of the script was refused for naming a layer
+  rather than for being a consumer copy — the doctrine refusal is the one
+  that must speak. Guard order swapped; the selftest that caught it was
+  already there. (fixed)
+- r2: a header comment line began with the word `shellcheck`, which
+  shellcheck reads as a directive — `ci` went red on SC1072. Reworded.
+  (fixed)
+- r3: `printf '  layer   %s%s' "$LAYER" "$([ ... ] || printf ...)"` — a
+  command substitution that exits non-zero inside a command's ARGUMENTS
+  does not trip `set -e` (only assignments take its status). Checked
+  against bash and exercised against celluloid3. No change.
+- r4: CRLF conf. `dest_conf_get` captures `[^#[:space:]]*`, and `\r` is in
+  `[:space:]`, so a Windows checkout does not yield a layer name with a
+  trailing CR that would then fail `valid_layer`. No change.
+- r5: the report runs on `--dry-run` too, unlike the legacy-layout warning
+  which is gated on the new tree standing. That gate exists because the
+  legacy advice could name the LIVE harness mid-bootstrap; this advice
+  names a layer the consumer does not select, which is safe to say at any
+  point. No change.
+- r6: existing consumers keep their unused layers until a human runs the
+  `git rm -r`, so their `ci` keeps linting those scripts in the meantime.
+  Accepted, not fixed: deleting consumer files would be the first
+  destructive act the engine performs, against the rule the design rests
+  on. celluloid3's cleanup rides in its own pull request.
+
 ## Blockers
 
 None.
