@@ -2,7 +2,7 @@
 workstream: minimal-child
 status: in-progress
 branch: claude/celluloid3-update-occ76a
-pr: none
+pr: 49
 plan: none
 session: https://claude.ai/code/session_01JoK1BRUuDsQ2VR9zbJMKHD
 agent: opus
