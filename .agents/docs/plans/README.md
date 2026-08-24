@@ -55,6 +55,15 @@ picture stays ONE plan, one session — splitting sequential work between
 agents measured worse than not splitting (DeepMind × MIT scaling study, via
 codejunkie99/graph-engineering task-graph rules).
 
+`scope` is only as true as it is complete, and the file plans forget is the
+shared one. Three plans each adding a test suite: subjects disjoint, scopes
+disjoint, hook proves a parallel wave — and all three edit
+`.github/workflows/ci.yml`, which none of them declared. Registration is the
+shape to look for: a suite goes in the CI workflow, a doc goes in an index,
+a module goes in a runner list. Write the file the plan REGISTERS itself in
+into `scope`, not only the files it creates. Undeclared, the hook does not
+miss the conflict — it asserts the opposite.
+
 ## Lifecycle
 
 - **Claim** = normal Loop claim: cut branch, workstream file under
