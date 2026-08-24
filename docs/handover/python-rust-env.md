@@ -53,6 +53,27 @@ canonical does not carry.
 
 ## Review
 
+- r1: setup.sh discovered maturin crates by streaming `find` into the build
+  loop through a process substitution. A failing `find` — or the `die` meant
+  to catch it — dies in that subshell only, so an unreadable tree reads as
+  "no crates here", the native module never gets built, and the repo's
+  parity tests skip themselves green. Listing taken by command substitution
+  now, where the failure travels. (fixed)
+- r2: smoke-test.sh's two early bails printed the summary and then leaned on
+  `set -e` noticing it returned non-zero. A bail reached with FAIL at 0 would
+  have exited green. Printing and verdict split; bails `exit 1` themselves.
+  (fixed)
+- r3: `[ cond ] && var=x` under `set -e` — checked both uses against bash,
+  which exempts a non-final command of an `&&` list; a false condition does
+  not end the run. No change.
+- r4: `DEVENV_SKIP_NATIVE=1` and an empty `DEVENV_NATIVE_PROFILE` were
+  unexercised branches. Both run against celluloid3 now — skip logged, debug
+  profile built. No change.
+- r5: `has_dev_extra` reads the PEP 621 `[project.optional-dependencies]`
+  section only, so an inline-table or poetry-group dev extra goes
+  uninstalled. (wontfix — documented in the layer README and AGENTS.md;
+  guessing at every dependency-group dialect is how a layer grows a parser)
+
 ## Blockers
 
 None. Open question for the human, not blocking: celluloid3's default branch

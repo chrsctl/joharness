@@ -68,16 +68,22 @@ uv pip install --python "$PY" --quiet maturin pytest >&2
 # is what a test run expects to import. VIRTUAL_ENV is set explicitly:
 # maturin only auto-detects a venv in the current directory, and a crate
 # usually sits in a subdirectory.
+# A find that fails half way lists SOME of the crates, and a crate that
+# never got built fails later as an import error in a test run -- or worse,
+# as a test that quietly skips itself. So the listing is taken first and its
+# failure is fatal, rather than streamed into a loop that cannot tell an
+# empty repo from an unreadable one.
 maturin_roots() {
-  local py
-  find "$ROOT" -name pyproject.toml -type f \
+  local listing py
+  listing="$(find "$ROOT" -name pyproject.toml -type f \
     -not -path '*/.venv/*' -not -path '*/target/*' \
-    -not -path '*/node_modules/*' -not -path '*/.git/*' 2>/dev/null |
-    sort |
-    while IFS= read -r py; do
-      grep -qE '^[[:space:]]*build-backend[[:space:]]*=[[:space:]]*"maturin"' "$py" &&
-        printf '%s\n' "$py"
-    done
+    -not -path '*/node_modules/*' -not -path '*/.git/*')" ||
+    die "could not search ${ROOT} for pyproject.toml; a partial list would skip a crate silently"
+  [ -n "$listing" ] || return 0
+  while IFS= read -r py; do
+    grep -qE '^[[:space:]]*build-backend[[:space:]]*=[[:space:]]*"maturin"' "$py" &&
+      printf '%s\n' "$py"
+  done <<<"$(printf '%s\n' "$listing" | sort)"
   return 0
 }
 
@@ -89,6 +95,11 @@ NATIVE_BUILT=0
 if [ "$SKIP_NATIVE" = "1" ]; then
   log "DEVENV_SKIP_NATIVE=1; not building native extensions"
 else
+  # Command substitution, not a process substitution feeding the loop: a die
+  # inside a process substitution kills only that subshell, and the loop
+  # would then read an empty list and report a repo with no crates. Here the
+  # failure travels -- the assignment fails, set -e stops the run.
+  NATIVE_LIST="$(maturin_roots)"
   while IFS= read -r pyproject; do
     [ -n "$pyproject" ] || continue
     crate="$(dirname "$pyproject")"
@@ -96,7 +107,7 @@ else
     log "building native extension in ${crate#"${ROOT}/"}"
     ( cd "$crate" && VIRTUAL_ENV="$VENV" "${VENV}/bin/maturin" develop "${PROFILE_ARGS[@]}" >&2 )
     NATIVE_BUILT=$((NATIVE_BUILT + 1))
-  done < <(maturin_roots)
+  done <<<"$NATIVE_LIST"
   if [ "$NATIVE_BUILT" -eq 0 ]; then
     log "no maturin project here; nothing native to build"
   fi

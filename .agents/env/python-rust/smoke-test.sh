@@ -49,10 +49,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
-summary_and_exit() {
-  printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
-  [ "$FAIL" -eq 0 ]
-}
+# Printing and deciding are separate on purpose: an early bail must end the
+# run red by its own `exit 1`, never by leaning on set -e to notice that the
+# summary returned non-zero.
+print_summary() { printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"; }
 
 VENV="${WORKDIR}/venv"
 PY="${VENV}/bin/python"
@@ -61,8 +61,8 @@ PY="${VENV}/bin/python"
 step "Python"
 if ! command -v uv >/dev/null 2>&1; then
   fail "uv is not installed (this layer expects the sandbox image to ship it)"
-  summary_and_exit
-  exit
+  print_summary
+  exit 1
 fi
 
 if uv venv "$VENV" >"${WORKDIR}/venv.log" 2>&1 &&
@@ -72,8 +72,8 @@ else
   fail "uv could not create a usable venv; last log lines:"
   tail -n 5 "${WORKDIR}/venv.log" 2>/dev/null | sed 's/^/    /' || true
   # Nothing below this line can run without an interpreter.
-  summary_and_exit
-  exit
+  print_summary
+  exit 1
 fi
 
 # --- 2: PyPI ----------------------------------------------------------------
@@ -203,4 +203,5 @@ else
 fi
 
 # --- summary ----------------------------------------------------------------
-summary_and_exit
+print_summary
+[ "$FAIL" -eq 0 ]
