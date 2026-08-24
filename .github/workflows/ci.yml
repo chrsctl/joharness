@@ -69,5 +69,13 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
+      # This file is seeded verbatim into every consumer, and the selftest
+      # is canonical-only — a consumer carries no harness tests to run, so
+      # the job says that instead of failing on a missing file.
       - name: harness selftest on Git Bash
-        run: ./.agents/harness/selftest.sh
+        run: |
+          if [ -f ./.agents/harness/selftest.sh ]; then
+            ./.agents/harness/selftest.sh
+          else
+            echo "no .agents/harness/selftest.sh here (canonical-only); nothing to run"
+          fi
