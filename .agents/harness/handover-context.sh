@@ -48,21 +48,28 @@ fi
 OUT=""
 add() { OUT="${OUT}${1}"$'\n'; }
 
-# Value of a frontmatter field, from a document on stdin. Stops at the closing
-# delimiter so a body line like "status: broken" is not mistaken for metadata;
-# strips an inline `# comment` — the template documents fields that way.
-field() {
-  awk -v key="$1" '
+# Frontmatter values from a document on stdin, one per line in the order asked
+# and empty for a field the document lacks. Stops at the closing delimiter so a
+# body line like "status: broken" is not mistaken for metadata; strips an
+# inline `# comment` — the template documents fields that way. All keys in one
+# pass: every caller here wants four of them off the same four lines.
+fields() {
+  awk -v keys="$*" '
+    BEGIN { n = split(keys, k, " ") }
     NR == 1 && $0 != "---" { exit }
     NR > 1  && $0 == "---" { exit }
-    match($0, "^" key ":[[:space:]]*") {
-      v = substr($0, RLENGTH + 1)
-      sub(/[[:space:]]+#.*$/, "", v)
-      sub(/[[:space:]]+$/, "", v)
-      print v
-      exit
+    {
+      for (i = 1; i <= n; i++) {
+        if (i in v) continue
+        if (match($0, "^" k[i] ":[[:space:]]*")) {
+          s = substr($0, RLENGTH + 1)
+          sub(/[[:space:]]+#.*$/, "", s)
+          sub(/[[:space:]]+$/, "", s)
+          v[i] = s
+        }
+      }
     }
-  '
+    END { for (i = 1; i <= n; i++) { if (i in v) print v[i]; else print "" } }'
 }
 
 # Workstream files at a ref. The protocol doc (README.md) and the template are
@@ -109,10 +116,8 @@ if [ -n "$mine" ]; then
   add "commit as the code they describe:"
   while IFS= read -r f; do
     [ -n "$f" ] || continue
-    status="$(field status <"$f")"
-    updated="$(field updated <"$f")"
-    next="$(field next <"$f")"
-    agent="$(field agent <"$f")"
+    { read -r status; read -r updated; read -r next; read -r agent; } \
+      <<<"$(fields status updated next agent <"$f")"
     add "  ${f}  [${status:-?}, updated ${updated:-?}${agent:+, wants ${agent}}]"
     [ -n "$next" ] && add "    next: ${next}"
   done <<<"$mine"
@@ -190,10 +195,8 @@ while IFS= read -r ref; do
     [ -n "$f" ] || continue
     doc="$(git show "${ref}:${f}" 2>/dev/null)"
     [ -n "$doc" ] || continue
-    status="$(printf '%s\n' "$doc" | field status)"
-    updated="$(printf '%s\n' "$doc" | field updated)"
-    session="$(printf '%s\n' "$doc" | field session)"
-    agent="$(printf '%s\n' "$doc" | field agent)"
+    { read -r status; read -r updated; read -r session; read -r agent; } \
+      <<<"$(printf '%s\n' "$doc" | fields status updated session agent)"
     [ "$status" = "done" ] && continue
 
     claim=""

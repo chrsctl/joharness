@@ -182,14 +182,6 @@ cmd_verify() {
 }
 
 # ---------------------------------------------------------------------------
-# Checks
-#
-# ci.yml calls this rather than repeating the commands, so a green run here and
-# a green run on GitHub mean the same thing. Covers every layer, including the
-# ones this repo did not select — they still ship to consumers.
-# ---------------------------------------------------------------------------
-
-# ---------------------------------------------------------------------------
 # Upgrade
 #
 # A consumer no longer carries the sync engine: it refuses to run outside
@@ -255,6 +247,14 @@ cmd_upgrade() {
   fi
   return "$rc"
 }
+
+# ---------------------------------------------------------------------------
+# Checks
+#
+# ci.yml calls this rather than repeating the commands, so a green run here and
+# a green run on GitHub mean the same thing. Covers every layer, including the
+# ones this repo did not select — they still ship to consumers.
+# ---------------------------------------------------------------------------
 
 cmd_ci() {
   local rc=0 f listing
@@ -409,20 +409,26 @@ have() { command -v "$1" >/dev/null 2>&1; }
 # compliance as churn (the first unfiltered backtest flagged a branch for
 # exactly that). The tab is awk's, not sed's: BSD sed emits '\t' as a
 # literal 't', which on macOS glued count to path and disarmed the ci gate.
-# awk also keeps a path with spaces whole. The tail sort takes SIGPIPE when
-# head exits on a listing larger than the pipe buffer, and pipefail would
-# read that as "not measurable"; guarded like the grep above it.
+# awk also keeps a path with spaces whole.
+#
+# One `git log --name-only`, not a diff-tree per commit: the old shape forked
+# once per commit plus a six-stage pipeline, so the cost grew with the branch
+# it was judging — the measure that exists to notice a long branch was the
+# thing that got slow on one. --no-renames keeps it the same metric diff-tree
+# reported (rename shown as its two paths, not one); --format= leaves a blank
+# line per commit, which the awk drops with everything else it filters. Ties
+# on count go to the higher path name, as the old `sort -rn | head -1` did.
 churn_top() {
   local rev="${1:-HEAD}" over="${2:-origin/${HANDOVER_BASE_BRANCH:-main}}" base
   base="$(git -C "$ROOT" merge-base "$rev" "$over" 2>/dev/null)" || return 1
   [ "$base" != "$(git -C "$ROOT" rev-parse "$rev" 2>/dev/null)" ] || return 1
-  git -C "$ROOT" log --no-merges --format='%H' "${base}..${rev}" 2>/dev/null |
-    while IFS= read -r c; do
-      git -C "$ROOT" diff-tree --no-commit-id --name-only -r "$c" 2>/dev/null
-    done |
-    { grep -vE '^docs/(handover|plans|product)/' || :; } |
-    sort | uniq -c | { sort -rn || :; } | head -1 |
-    awk '{ c = $1; sub(/^ *[0-9]+ /, ""); printf "%s\t%s\n", c, $0 }'
+  git -C "$ROOT" log --no-merges --no-renames --format='' --name-only \
+    "${base}..${rev}" 2>/dev/null |
+    awk '
+      !NF || /^docs\/(handover|plans|product)\// { next }
+      { n = ++c[$0]
+        if (n > max || (n == max && $0 > best)) { max = n; best = $0 } }
+      END { if (max) printf "%d\t%s\n", max, best }'
 }
 
 # ---------------------------------------------------------------------------
@@ -518,21 +524,20 @@ lint_anchors() {
 lint_graph() {
   LINT_RC=0
   LINT_WARNED=0
-  local rel doc val n p r
+  local rel val n p r urgency agent effort
   local -a need_list
   local plans=0 workstreams=0 reqs=0
 
+  # One read of the file, one pass over its frontmatter. The older shape cost
+  # a `cat` plus an awk per field, on every plan, on every ci.
   while IFS= read -r rel; do
     [ -n "$rel" ] || continue
     plans=$((plans + 1))
-    doc="$(cat "${ROOT}/${rel}")"
-    lint_enum "$rel" urgency "$(printf '%s\n' "$doc" | gr_field urgency)" \
-      normal urgent
-    lint_enum "$rel" agent "$(printf '%s\n' "$doc" | gr_field agent)" \
-      haiku sonnet opus
-    lint_enum "$rel" effort "$(printf '%s\n' "$doc" | gr_field effort)" \
-      low medium high xhigh
-    val="$(printf '%s\n' "$doc" | gr_field needs)"
+    { read -r urgency; read -r agent; read -r effort; read -r val; read -r r; } \
+      <<<"$(gr_fields urgency agent effort needs requirement <"${ROOT}/${rel}")"
+    lint_enum "$rel" urgency "$urgency" normal urgent
+    lint_enum "$rel" agent "$agent" haiku sonnet opus
+    lint_enum "$rel" effort "$effort" low medium high xhigh
     if [ -n "$val" ] && [ "$val" != "none" ]; then
       read -ra need_list <<<"${val//,/ }"
       # Guarded like cmd_ci's targets: a separators-only value leaves the
@@ -551,7 +556,7 @@ lint_graph() {
         fi
       done
     fi
-    r="$(lint_stem "$(printf '%s\n' "$doc" | gr_field requirement)")"
+    r="$(lint_stem "$r")"
     if [ -n "$r" ] && [ "$r" != "none" ] &&
        [ ! -f "${ROOT}/docs/product/${r}.md" ]; then
       if lint_existed "docs/product/${r}.md"; then
@@ -568,16 +573,15 @@ lint_graph() {
   while IFS= read -r rel; do
     [ -n "$rel" ] || continue
     workstreams=$((workstreams + 1))
-    doc="$(cat "${ROOT}/${rel}")"
-    val="$(printf '%s\n' "$doc" | gr_field status)"
+    { read -r val; read -r agent; read -r p; } \
+      <<<"$(gr_fields status agent plan <"${ROOT}/${rel}")"
     if [ -z "$val" ]; then
       lint_warn "${rel}: no status — hooks read '?'"
     else
       lint_enum "$rel" status "$val" in-progress blocked review "done"
     fi
-    lint_enum "$rel" agent "$(printf '%s\n' "$doc" | gr_field agent)" \
-      haiku sonnet opus
-    p="$(lint_stem "$(printf '%s\n' "$doc" | gr_field plan)")"
+    lint_enum "$rel" agent "$agent" haiku sonnet opus
+    p="$(lint_stem "$p")"
     if [ -n "$p" ] && [ "$p" != "none" ] &&
        [ ! -f "${ROOT}/docs/plans/${p}.md" ]; then
       if lint_existed "docs/plans/${p}.md"; then
@@ -867,20 +871,23 @@ fb_label() {
 
 # Last surviving version of the branch's workstream file. The ritual deletes
 # it in the final commit, so the newest commit that still HAS it is the one
-# carrying everything the branch learned.
+# carrying everything the branch learned — and that is the newest commit that
+# ADDED or MODIFIED it, which git will name directly. Asking for it beats the
+# older walk (a diff-tree per commit to list the files, then a cat-file per
+# commit per file to find one that still resolves) by the length of the branch.
+# `while read`, not `for f in $(...)`: an unquoted expansion splits a path with
+# a space in it into two paths that resolve to nothing.
 fb_workstream() {
   local base="$1" tip="$2" f c
-  for f in $(git -C "$ROOT" log --format='%H' "${base}..${tip}" -- docs/handover 2>/dev/null |
-    while IFS= read -r c; do
-      git -C "$ROOT" diff-tree --no-commit-id --name-only -r "$c" -- docs/handover 2>/dev/null
-    done | grep -E '\.md$' | grep -vE '/(TEMPLATE|README)\.md$' | sort -u); do
-    for c in $(git -C "$ROOT" rev-list "${base}..${tip}" -- "$f" 2>/dev/null); do
-      if git -C "$ROOT" cat-file -e "${c}:${f}" 2>/dev/null; then
-        git -C "$ROOT" show "${c}:${f}" 2>/dev/null
-        return 0
-      fi
-    done
-  done
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    c="$(git -C "$ROOT" log -1 --format='%H' --diff-filter=AM \
+      "${base}..${tip}" -- "$f" 2>/dev/null)"
+    [ -n "$c" ] || continue
+    git -C "$ROOT" show "${c}:${f}" 2>/dev/null && return 0
+  done <<<"$(git -C "$ROOT" log --format='' --name-only "${base}..${tip}" \
+    -- docs/handover 2>/dev/null |
+    awk 'NF && /\.md$/ && !/\/(TEMPLATE|README)\.md$/' | sort -u)"
   return 1
 }
 
@@ -923,21 +930,39 @@ fb_marker() {
 # Emits "<finding-id>\t<path>". The id, not the text: the bullet as committed
 # may predate its own disposition marker, so the text is taken later from the
 # file's final version and joined on the id, which is stable within an edge.
+#
+# One walk, not five processes per commit. `--raw -p` carries both halves in
+# one stream — the commit's changed paths as ':'-prefixed raw lines, then its
+# patch — and a marker line separates commits. Neither marker nor raw line can
+# collide with patch text: every line of a patch body carries a '+', '-' or
+# ' ' prefix. `tformat:` and not a bare string, which git reads as the name of
+# a built-in pretty format and rejects.
 fb_fix_map() {
-  local base="$1" tip="$2" c ids f
-  git -C "$ROOT" rev-list --no-merges "${base}..${tip}" 2>/dev/null |
-    while IFS= read -r c; do
-      ids="$(git -C "$ROOT" show --format='' --unified=0 "$c" -- docs/handover 2>/dev/null |
-        sed -n 's/^+- \(r[0-9][0-9]*\):.*/\1/p' | sort -u)"
-      [ -n "$ids" ] || continue
-      while IFS= read -r f; do
-        [ -n "$f" ] || continue
-        while IFS= read -r id; do
-          [ -n "$id" ] && printf '%s\t%s\n' "$id" "$f"
-        done <<<"$ids"
-      done <<<"$(git -C "$ROOT" diff-tree --no-commit-id --name-only -r "$c" 2>/dev/null |
-        { grep -vE '^docs/(handover|plans|product)/' || :; })"
-    done | sort -u
+  local base="$1" tip="$2"
+  git -C "$ROOT" log --no-merges --format=tformat:'@@joharness-commit@@' \
+    --raw --unified=0 -p "${base}..${tip}" 2>/dev/null |
+    awk '
+      function flush(   i, j) {
+        for (i in id) for (j in path) print i "\t" j
+      }
+      $0 == "@@joharness-commit@@" {
+        # split("", a) and not `delete a`: the awk that ships with older
+        # macOS cannot delete a whole array, and this file runs there.
+        flush(); split("", id); split("", path); hand = 0; next
+      }
+      # ":<modes> <blobs> <status>\t<path>[\t<path>]" — both paths of a
+      # rename, as the older diff-tree walk also counted them.
+      /^:/ {
+        n = split($0, a, "\t")
+        for (i = 2; i <= n; i++)
+          if (a[i] != "" && a[i] !~ /^docs\/(handover|plans|product)\//)
+            path[a[i]] = 1
+        next
+      }
+      /^\+\+\+ / { hand = ($0 ~ /^\+\+\+ b\/docs\/handover\//); next }
+      hand && match($0, /^\+- r[0-9]+:/) { id[substr($0, 4, RLENGTH - 4)] = 1 }
+      END { flush() }' |
+    sort -u
 }
 
 # A path recorded before a directory move no longer resolves, and reading it
@@ -1172,20 +1197,36 @@ fb_report_path() {
 # from any PR discussion.
 # ---------------------------------------------------------------------------
 
-# Frontmatter field from a document on stdin; same shape as the hooks use.
-gr_field() {
-  awk -v key="$1" '
+# Frontmatter fields from a document on stdin, one value per line in the order
+# asked, empty for a field the document does not carry. Same shape as the hooks
+# use, one pass: a caller wanting five fields forked five awks over the same
+# five lines, and cmd_graph and lint_graph are nothing but such callers.
+gr_fields() {
+  awk -v keys="$*" '
+    BEGIN { n = split(keys, k, " ") }
     NR == 1 && $0 != "---" { exit }
     NR > 1  && $0 == "---" { exit }
-    match($0, "^" key ":[[:space:]]*") {
-      v = substr($0, RLENGTH + 1)
-      sub(/[[:space:]]+#.*$/, "", v)
-      sub(/[[:space:]]+$/, "", v)
-      print v
-      exit
+    {
+      for (i = 1; i <= n; i++) {
+        if (i in v) continue
+        if (match($0, "^" k[i] ":[[:space:]]*")) {
+          s = substr($0, RLENGTH + 1)
+          sub(/[[:space:]]+#.*$/, "", s)
+          sub(/[[:space:]]+$/, "", s)
+          v[i] = s
+        }
+      }
     }
-  '
+    END { for (i = 1; i <= n; i++) { if (i in v) print v[i]; else print "" } }'
 }
+
+# One field, the common case. A wrapper and not a second parser: two readers
+# of the same frontmatter is one of them drifting.
+gr_field() { gr_fields "$1"; }
+
+# Node files of one type from a path listing on stdin. The protocol doc and
+# the template are not nodes; four callers said so in two greps each.
+gr_docs() { awk 'NF && /\.md$/ && !/\/(TEMPLATE|README)\.md$/'; }
 
 # Mermaid node ids must be plain; labels keep the real names.
 gr_id() { printf '%s' "$1" | tr -c 'a-zA-Z0-9' '_'; }
@@ -1211,40 +1252,40 @@ cmd_graph() {
   printf '  classDef churn fill:#fdecea,stroke:#c0392b,color:#7b241c\n'
 
   # --- requirements --------------------------------------------------------
-  local f name prio planned
+  # Which requirements a plan names, read once for the whole pass. The
+  # question each requirement asks is "does any plan name me", and asking it
+  # per requirement cost a `git show` per (requirement, plan) pair — the
+  # picture of the queue got quadratically slower as the queue grew.
+  local planned_reqs p
+  planned_reqs="$(while IFS= read -r p; do
+      [ -n "$p" ] || continue
+      git -C "$ROOT" show "${ref}:${p}" 2>/dev/null | gr_field requirement
+    done < <(git -C "$ROOT" ls-tree -r --name-only "$ref" -- docs/plans 2>/dev/null |
+             gr_docs))"
+
+  local f name prio
   while IFS= read -r f; do
     [ -n "$f" ] || continue
-    name="$(git -C "$ROOT" show "${ref}:${f}" 2>/dev/null | gr_field requirement)"
+    { read -r name; read -r prio; } <<<"$(git -C "$ROOT" show "${ref}:${f}" \
+      2>/dev/null | gr_fields requirement priority)"
     [ -n "$name" ] || name="${f##*/}"; name="${name%.md}"
-    prio="$(git -C "$ROOT" show "${ref}:${f}" 2>/dev/null | gr_field priority)"
-    # Unplanned = no plan at the base ref names this requirement.
-    planned=0
-    while IFS= read -r p; do
-      [ -n "$p" ] || continue
-      [ "$(git -C "$ROOT" show "${ref}:${p}" 2>/dev/null | gr_field requirement)" = "$name" ] &&
-        { planned=1; break; }
-    done < <(git -C "$ROOT" ls-tree -r --name-only "$ref" -- docs/plans 2>/dev/null |
-             grep -E '\.md$' | grep -vE '/(TEMPLATE|README)\.md$')
-    if [ "$planned" = "1" ]; then
+    if printf '%s\n' "$planned_reqs" | grep -qxF -- "$name"; then
       printf '  r_%s["req: %s%s"]:::req\n' "$(gr_id "$name")" "$name" "${prio:+ (${prio})}"
     else
       printf '  r_%s["req: %s%s — UNPLANNED"]:::unplanned\n' \
         "$(gr_id "$name")" "$name" "${prio:+ (${prio})}"
     fi
   done < <(git -C "$ROOT" ls-tree -r --name-only "$ref" -- docs/product 2>/dev/null |
-           grep -E '\.md$' | grep -vE '/(TEMPLATE|README)\.md$')
+           gr_docs)
 
   # --- plans, with needs and serves edges ----------------------------------
-  local doc plan agent effort req needs need blocked
+  local plan agent effort req needs need blocked
   while IFS= read -r f; do
     [ -n "$f" ] || continue
-    doc="$(git -C "$ROOT" show "${ref}:${f}" 2>/dev/null)"
-    plan="$(printf '%s\n' "$doc" | gr_field plan)"
+    { read -r plan; read -r agent; read -r effort; read -r req; read -r needs; } \
+      <<<"$(git -C "$ROOT" show "${ref}:${f}" 2>/dev/null |
+            gr_fields plan agent effort requirement needs)"
     [ -n "$plan" ] || { plan="${f##*/}"; plan="${plan%.md}"; }
-    agent="$(printf '%s\n' "$doc" | gr_field agent)"
-    effort="$(printf '%s\n' "$doc" | gr_field effort)"
-    req="$(printf '%s\n' "$doc" | gr_field requirement)"
-    needs="$(printf '%s\n' "$doc" | gr_field needs)"
     blocked=0
     if [ -n "$needs" ] && [ "$needs" != "none" ]; then
       # A need blocks only while the needed plan file still exists there.
@@ -1267,7 +1308,7 @@ cmd_graph() {
     [ -n "$req" ] && [ "$req" != "none" ] &&
       printf '  p_%s -- serves --> r_%s\n' "$(gr_id "$plan")" "$(gr_id "$req")"
   done < <(git -C "$ROOT" ls-tree -r --name-only "$ref" -- docs/plans 2>/dev/null |
-           grep -E '\.md$' | grep -vE '/(TEMPLATE|README)\.md$')
+           gr_docs)
 
   # --- in-flight branches: claims and churn --------------------------------
   # origin only: a fork mirrors every branch, and a mirrored workstream is
@@ -1283,7 +1324,7 @@ cmd_graph() {
     git -C "$ROOT" merge-base --is-ancestor "$r" "$ref" 2>/dev/null && continue
 
     ws="$(git -C "$ROOT" ls-tree -r --name-only "$r" -- docs/handover 2>/dev/null |
-      grep -E '\.md$' | grep -vE '/(TEMPLATE|README)\.md$' | head -1)"
+      gr_docs | head -1)"
     [ -n "$ws" ] || continue
     wdoc="$(git -C "$ROOT" show "${r}:${ws}" 2>/dev/null)"
     wname="$(printf '%s\n' "$wdoc" | gr_field workstream)"
