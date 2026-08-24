@@ -190,7 +190,9 @@ cmd_upgrade() {
   local wf="${ROOT}/.github/workflows/update.yml"
   [ -r "$wf" ] ||
     die "no ${wf#"${ROOT}/"} to read the canonical address from; add it (.agents/docs/consumer-repos.md) or sync by hand"
-  repo="$(sed -n 's/^ *CANONICAL_REPO: *//p' "$wf" | tail -1)"
+  # First token only: a trailing YAML comment or stray whitespace would
+  # otherwise ride into the clone URL and fail as an unresolvable host.
+  repo="$(sed -n 's/^ *CANONICAL_REPO: *//p' "$wf" | tail -1 | awk '{print $1}')"
   [ -n "$repo" ] ||
     die "no CANONICAL_REPO in ${wf#"${ROOT}/"}; the update workflow names the canonical this repo follows"
   case "$repo" in

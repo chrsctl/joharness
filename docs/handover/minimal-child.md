@@ -48,6 +48,28 @@ in a consumer — 41% of the tree is code a child can never execute.
 
 ## Review
 
+- r1: the seeded `.github/workflows/ci.yml` runs the selftest directly, so a
+  consumer that deletes it goes red on a file it is no longer sent. Canonical's
+  own copy guards the step now, and the seed is a verbatim copy — but a
+  consumer seeded BEFORE this must patch its own `ci.yml`, because that file
+  is consumer-own and never synced. celluloid3's cleanup carries the patch.
+  (fixed here, flagged for existing consumers)
+- r2: `CANONICAL_REPO: owner/repo  # comment` would have ridden the comment
+  into the clone URL. First token only now. (fixed)
+- r3: the `upgrade` EXIT trap referenced a `local`, which is out of scope when
+  the trap fires — `set -u` then made the cleanup itself the error. Caught by
+  running it; global with a guarded expansion now. (fixed)
+- r4: `report_canonical_only` lists `-type f`, so a symlink under
+  `.agents/scripts/` in a consumer goes unreported. Matches the layer report's
+  shape and no consumer has one. No change.
+- r5: dropping `.agents/scripts` from `DIRS` also drops it from the
+  dirty-canonical guard. Correct by construction — nothing there ships, so
+  uncommitted work in it cannot reach a consumer. No change.
+- r6: `upgrade` clones over HTTPS with whatever credentials the environment
+  holds; against a private canonical outside a credentialed sandbox it fails
+  with git's own error. Accepted: the alternative is this command growing a
+  token story that `update.yml` already owns.
+
 ## Blockers
 
 None.
