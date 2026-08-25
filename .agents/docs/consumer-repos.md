@@ -102,8 +102,11 @@ Canonical-only, never shipped:
 | `.agents/scripts/` | both tools refuse to run outside canonical |
 | `.agents/harness/selftest.sh` | tests harness code a consumer does not edit |
 
-That is 132K of the 320K a consumer used to carry. `ci` in a consumer says
-`not here (canonical-only)` for the selftest and runs the rest.
+That is more than two fifths of what a consumer used to carry: code it could
+not execute. The fraction is the durable part — the absolute grows with the
+repo, so count it (`du` over the two rows above) rather than quoting one.
+`ci` in a consumer says `not here (canonical-only)` for the selftest and runs
+the rest.
 
 A consumer that predates this rule still carries them; every sync reports
 them, removals never travel, so the delete is a human's:
