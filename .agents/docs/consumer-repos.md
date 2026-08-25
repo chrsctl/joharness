@@ -51,6 +51,7 @@ the rows above it cannot answer.
 | Canonical checkout in reach | [By hand](#update-by-hand) |
 | Agent session sits in the consumer | [Agent](#update-agent-in-the-consumer) |
 | Sync reported `AHEAD` | [Ahead](#ahead) — do not overwrite |
+| The sync branch is pushed and the run ended red | [Drive it to merged](#the-sync-pull-request-drive-it-to-merged) |
 
 A pull request `update.yml` opens carries no CI runs unless the consumer
 holds a `JOHARNESS_UPDATE_TOKEN` secret — GitHub suppresses
@@ -133,6 +134,66 @@ pull-requests write on the consumer, read on canonical) when the canonical
 is private, when the update pull request must run `ci`, or when the org
 disables Actions creating pull requests. Without it the run uses
 `GITHUB_TOKEN` and hits all three limits.
+
+## The sync pull request: drive it to merged
+
+`update.yml` gets the branch pushed. Everything after that is a person or a
+session, and this is what that costs. Walked end to end on a consumer,
+2026-08-25; every failure below is one that happened, not one imagined.
+
+**The branch is bot-owned.** Each run does `git checkout -B joharness-update`
+from the freshly checked-out default branch and `git push --force`. Two
+consequences, and the second is the one that bites:
+
+1. A stale sync branch does not need reconciling. **Re-run the workflow.** It
+   rebuilds from the current default branch, so the result is by construction
+   0 behind, and the open pull request is reused with a refreshed body.
+2. **Anything you commit onto that branch dies at the next run.** Merging the
+   default branch into it by hand works and fights the design — it survives
+   only until the Monday cron, and a sync pull request left open over a weekend
+   loses the merge silently. Do it the way above.
+
+### When the workflow ends red
+
+Three failures, all at the last step, all leaving the branch correctly pushed.
+Read the failing run before assuming the sync itself broke — twice out of three
+it did not.
+
+| what the log says | what it means | what to do |
+| --- | --- | --- |
+| `GitHub Actions is not permitted to create or approve pull requests` | The sync worked. Only the pull request could not be opened. | Open it by hand against `joharness-update`, then fix the cause below. |
+| `consumer files are AHEAD of canonical` | A consumer edited harness-owned files locally. | [Ahead](#ahead) — never overwrite. |
+| the sync step itself failed | A genuine sync failure. | Read the report; the branch is not pushed and there is nothing to merge. |
+
+The first is the common one and its cause is a repository setting: either
+enable *Allow GitHub Actions to create and approve pull requests*, or set
+`JOHARNESS_UPDATE_TOKEN`.
+
+**Prefer the token, and not as a matter of taste.** Enabling the setting alone
+fixes the error you can see and leaves the one you cannot: the pull request
+opens carrying no checks, for the reason the route table above states. Merging
+a sync on the strength of a tick nobody ran is the shape this harness exists to
+refuse. The PAT fixes both halves; the setting fixes the visible one.
+
+### Before merging one
+
+A sync diff is harness-owned files only, so the consumer's own suites are the
+thing that can break, and they are the thing to run:
+
+- `./joharness.sh ci` — the harness's own bar.
+- `./joharness.sh verify` — when the diff touches a non-`*.md` file under
+  `joharness.sh`, `.agents/harness/`, `.agents/env/` or `scripts/`. A sync
+  usually does, and CI cannot run this.
+- The consumer's own loop (`run-all.sh` or whatever it calls its suites). The
+  sync can narrow an enum or tighten a guard that consumer files then fail —
+  one sync narrowed the handover `status` vocabulary and every in-flight
+  branch carrying the old value went red on `graph lint`.
+- `./joharness.sh finish` — green by definition here, and worth a glance: a
+  sync branch carries **no workstream file** by design (protocol § *When NOT
+  to write one*), and this is the command that says so out loud.
+
+Read the diff against canonical rather than trusting the report: the report
+says what was copied, not what it means.
 
 ## Update: by hand
 
