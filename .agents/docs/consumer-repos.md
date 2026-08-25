@@ -138,6 +138,18 @@ canonical abort the run — commit there first.
 
 ## Update: agent in the consumer
 
+Fallback, not the normal route. This is the one that spends a session's
+context on upkeep, so it is for what CI cannot finish: a conflicted sync,
+no `update.yml` seeded, or no network from the runner. Routine updates go
+to [Consumer CI](#update-consumer-ci).
+
+`upgrade` refuses to run when the branch carries a workstream file, because
+that file IS the claim that a session holds product work
+(`.agents/harness/AGENTS.md`, Harness upkeep). The steps below start by
+cutting a sync branch, which carries none by protocol, so they pass. A
+genuine mid-plan sync overrides with `JOHARNESS_UPGRADE_IN_SESSION=1` and
+says why in the commit — deliberate and visible, never silent.
+
 `./joharness.sh upgrade` does all of it — see
 [Upgrade](#update-upgrade-from-the-consumer). A session still owes the rest
 of the ritual around it:

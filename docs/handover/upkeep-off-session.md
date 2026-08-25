@@ -7,7 +7,7 @@ plan: none
 session: https://claude.ai/code/session_0126bZYruEVL7vNBLb7RXF4v
 agent: opus
 updated: 2026-08-25
-next: Open PR for the upkeep context rule
+next: Open PR for the upkeep rule and its enforcement
 ---
 
 ## Goal
@@ -49,6 +49,24 @@ was as reachable as the free one.
   swept them in would read as licence to skip them.
 
 ## Review
+
+- r5: the rule as first written was a preference, and the preference sat
+  above a doc that still spelled the in-conversation ritual out as the
+  normal route — branch, dry-run, upgrade, ci, commit, push. In practice a
+  child updates in conversation, so a preference changes nothing: the
+  convenient path is the one taken. `upgrade` now REFUSES when the branch
+  carries a workstream file, which is the same fact the handover guard and
+  the queue already read as "this session holds claimed work". It fires
+  exactly when there is work to dilute and never on a sync branch, which
+  carries no workstream file by protocol. (fixed)
+- r6: a refusal with no escape turns a genuine mid-plan sync into a dead
+  end. `JOHARNESS_UPGRADE_IN_SESSION=1` overrides, deliberate and visible,
+  the same shape as the churn ceiling's `JOHARNESS_CHURN_LIMIT=0`. Silence
+  is what the rule prevents, not the act. (fixed)
+- r7: the check sits BEFORE the canonical clone, so the selftest proves the
+  refusal with no network. `TEMPLATE.md` and `README.md` are asserted not
+  to count as claims — a fixture that only planted a real workstream file
+  would have passed with a sloppier `find`. (fixed)
 
 - r1: first draft put the rule only in `consumer-repos.md`, which a session
   reads when it already decided to sync. Moved the binding line into
