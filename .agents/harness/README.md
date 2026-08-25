@@ -43,5 +43,9 @@ repo's files; the harness ships nothing there. One sentence for a
 consumer: `.agents/` + `.claude/` + the root instruction files +
 `joharness.sh` = harness, `docs/` = yours.
 
-Nothing here names a specific environment. That coupling belongs in
+Nothing here names a specific environment, and `selftest.sh` fails the run
+when something does. Two exemptions, both by definition: `none`, the harness's
+word for having no layer, and one carve-out for a security regression test
+that needs a real layer's `setup.sh` — spelled once, in the check. That
+coupling belongs in
 `joharness.conf` and nowhere else.
