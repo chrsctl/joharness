@@ -56,6 +56,36 @@ and cannot find out what it does not know.
 
 ## Review
 
+- r5: the first draft had NO verification section, and the harness's own
+  `.agents/docs/graph.md` Rules already carries the diamond rule — verify
+  outside the context that wrote the thing. Two independent practices agree
+  and I had crossed neither over: John's `grounding-checker` is a separate
+  agent because "a model can't reliably audit its own grounding", and
+  Anthropic's own research design runs a separate citation pass after the
+  subagent fan-out. Measured citation accuracy across commercial
+  deep-research systems spans 78% to 94% — the size of the error the
+  section catches. Added to the template and to the requirement's
+  Satisfied-when. (fixed)
+- r6: ADR practice never deletes a record, because superseded ones carry
+  the timeline; this harness deletes the node on graduation. Not a
+  contradiction to resolve by copying ADRs — the graduated file is where
+  the reasoning is supposed to land. But the plan said "graduates to
+  AGENTS.md or docs/" without saying which carries what, and a one-line
+  rule with the reasoning stranded in a deleted file is how a settled
+  question gets re-opened. Now explicit: the rule is what the next session
+  obeys, the why-explanation is what stops the session after that
+  re-litigating it. (fixed)
+- r7: added Echo and Sweep to the template, from John's
+  `self-correction-echo` and `sweep-strategy`. Echo catches the
+  misread-then-reason-competently failure at its cheapest point; Sweep
+  names comprehensive versus goal-directed, without which "complete" is
+  unfalsifiable and the question never closes. (fixed)
+- r8: the out-of-scope line said "no methodology" while I was adding four
+  template sections. Reworded to what is actually true — the sections are
+  fields a reader fills, drawn from measured practice; what stays out is
+  procedure, source lists, confidence scoring and loop shape. Left as
+  written it would have read as contradicting the diff. (fixed)
+
 - r1: the plan's `AGENTS.md` review-churn anchor read MISSING on a grep.
   False alarm — the phrase wraps across lines 54 and 55. Confirmed by
   reading them. Every other anchor in the plan opened and resolved. (no
