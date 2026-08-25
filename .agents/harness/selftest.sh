@@ -1004,7 +1004,8 @@ fi
 
 # 'done' is the session's own word that it has finished, and it is strictly
 # after review — nothing wants this file any more.
-write_ws fin.md done 77 "agent: sonnet" "- r1: clean pass."
+# 'done' quoted: bare, shellcheck reads it as a loop terminator (SC1010).
+write_ws fin.md "done" 77 "agent: sonnet" "- r1: clean pass."
 commit_all "$rwork" "say done with the file still present"
 out="$(jr ci)"
 refute "done is no longer a mere report" "Reported, not failed" "$out"
