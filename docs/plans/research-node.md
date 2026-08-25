@@ -57,11 +57,12 @@ status field, it has gone wrong — `.agents/docs/graph.md` Rules says why.
   self-grade alone misses own mistakes" — and research is where it bites
   hardest. Two independent sources agree: John's `grounding-checker` is a
   separate agent because "a model can't reliably audit its own grounding",
-  and Anthropic's own research design runs a **separate citation pass**
-  after the subagent fan-out. Measured citation accuracy across commercial
-  deep-research systems spans 78% to 94%, which is the size of the error
-  this section exists to catch. A subagent is the cheap way to get the
-  second context (`.agents/docs/subagents.md`).
+  and Anthropic's own research design passes findings to a separate
+  `CitationAgent` after the subagent fan-out, reporting that the
+  lead-plus-subagent setup "outperformed single-agent Claude Opus 4 by
+  90.2% on our internal research eval" — an internal eval on a specific
+  model pairing, not an independent benchmark. A subagent is the cheap way
+  to get the second context (`.agents/docs/subagents.md`).
 
 - Graduating writes a why-explanation under `docs/`, not only a rule line
   in `AGENTS.md`. The rule is what the next session obeys; the
