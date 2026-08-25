@@ -1940,7 +1940,7 @@ cmd_graph() {
   # the same node twice. One entry per workstream name — the protocol says
   # one file per workstream, so a second ref carrying the same name is the
   # same work, not a second node.
-  local r short bname ws wdoc wname claim churn churn_n churn_f seen=""
+  local r short bname ws mb wdoc wname claim churn churn_n churn_f seen=""
   while IFS= read -r r; do
     short="${r#refs/remotes/}"
     bname="${short#*/}"
@@ -1948,8 +1948,29 @@ cmd_graph() {
     [ "$bname" = "$base_branch" ] && continue
     git -C "$ROOT" merge-base --is-ancestor "$r" "$ref" 2>/dev/null && continue
 
-    ws="$(git -C "$ROOT" ls-tree -r --name-only "$r" -- docs/handover 2>/dev/null |
-      gr_docs | head -1)"
+    # Ownership is a DIFF against the merge-base, never a tree read: a branch
+    # inherits every workstream file its base branch carries, so presence in
+    # the tree says nothing about whose work the branch is. Reading the tree
+    # labelled an in-flight branch with a leftover it had merely inherited,
+    # under someone else's workstream name (PR54 r13) — the same class
+    # `upgrade`, `cleanup` and the finish gate each hit separately, and which
+    # `.agents/docs/feedback.md` now carries as a rule.
+    #
+    # The merge-base is between the REMOTE ref and the base ref. This loop
+    # walks refs, not the checkout, so the `HEAD`-vs-base form the other
+    # callers use is the wrong one to copy here.
+    mb="$(git -C "$ROOT" merge-base "$r" "$ref" 2>/dev/null)" || mb=""
+    if [ -n "$mb" ]; then
+      ws="$(git -C "$ROOT" diff --name-only --diff-filter=A "$mb" "$r" \
+        -- docs/handover 2>/dev/null | gr_docs | head -1)"
+    else
+      # No merge-base: introduced and inherited cannot be told apart. `graph`
+      # DESCRIBES, so it shows the branch on presence rather than dropping it
+      # out of the view — the opposite call from `upgrade`, which DECIDES and
+      # therefore refuses on presence. Same split the base_ref comment makes.
+      ws="$(git -C "$ROOT" ls-tree -r --name-only "$r" -- docs/handover \
+        2>/dev/null | gr_docs | head -1)"
+    fi
     [ -n "$ws" ] || continue
     wdoc="$(git -C "$ROOT" show "${r}:${ws}" 2>/dev/null)"
     wname="$(printf '%s\n' "$wdoc" | gr_field workstream)"
