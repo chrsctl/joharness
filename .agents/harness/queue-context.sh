@@ -56,23 +56,32 @@ for candidate in "origin/${BASE_BRANCH}" "${BASE_BRANCH}" HEAD; do
 done
 [ -n "$ref" ] || exit 0
 
-# Value of a frontmatter field, from a document on stdin. Same contract as
-# handover-context.sh: stops at the closing delimiter, strips an inline
-# `# comment` — the template documents fields that way, and a claim carrying
-# its comment would never match a plan stem.
-field() {
-  awk -v key="$1" '
+# Frontmatter values from a document on stdin, one per line in the order asked.
+# Same contract as handover-context.sh: stops at the closing delimiter, strips
+# an inline `# comment` — the template documents fields that way, and a claim
+# carrying its comment would never match a plan stem. All keys in one pass, so
+# reading a plan's five fields forks once rather than five times.
+fields() {
+  awk -v keys="$*" '
+    BEGIN { n = split(keys, k, " ") }
     NR == 1 && $0 != "---" { exit }
     NR > 1  && $0 == "---" { exit }
-    match($0, "^" key ":[[:space:]]*") {
-      v = substr($0, RLENGTH + 1)
-      sub(/[[:space:]]+#.*$/, "", v)
-      sub(/[[:space:]]+$/, "", v)
-      print v
-      exit
+    {
+      for (i = 1; i <= n; i++) {
+        if (i in v) continue
+        if (match($0, "^" k[i] ":[[:space:]]*")) {
+          s = substr($0, RLENGTH + 1)
+          sub(/[[:space:]]+#.*$/, "", s)
+          sub(/[[:space:]]+$/, "", s)
+          v[i] = s
+        }
+      }
     }
-  '
+    END { for (i = 1; i <= n; i++) { if (i in v) print v[i]; else print "" } }'
 }
+
+# One field, the common case. A wrapper and not a second parser.
+field() { fields "$1"; }
 
 # Bare name from a path-or-name-or-file value: strip directories and .md, so
 # `docs/plans/x.md`, `x.md` and `x` all mean x.
@@ -137,11 +146,10 @@ rows="$(
     [ -n "$f" ] || continue
     doc="$(git show "${ref}:${f}" 2>/dev/null)"
     [ -n "$doc" ] || continue
-    urgency="$(printf '%s\n' "$doc" | field urgency)"
-    agent="$(printf '%s\n' "$doc" | field agent)"
-    effort="$(printf '%s\n' "$doc" | field effort)"
-    needs="$(printf '%s\n' "$doc" | field needs)"
-    requirement="$(stem "$(printf '%s\n' "$doc" | field requirement)")"
+    { read -r urgency; read -r agent; read -r effort
+      read -r needs;   read -r requirement; } \
+      <<<"$(printf '%s\n' "$doc" | fields urgency agent effort needs requirement)"
+    requirement="$(stem "$requirement")"
     added="$(git log --diff-filter=A --format=%ct -1 "$ref" -- "$f" 2>/dev/null)"
 
     blockers=""
