@@ -181,8 +181,10 @@ DIRS=(
 # Harness-owned, but canonical-only: never shipped, because a consumer
 # cannot run them. Both sync tools die on a missing JOHARNESS_CANONICAL=1
 # (see the guard above), and selftest.sh tests harness code a consumer
-# never edits — 132K of the 320K a consumer used to carry was code it
-# could not execute. Same test as the layers: does the child run it?
+# never edits — more than two fifths of what a consumer used to carry was
+# code it could not execute. Fraction, not a figure: the absolute grows with
+# the repo and a written one rots. Same test as the layers: does the child
+# run it?
 #
 # A path listed here is skipped inside a synced DIRS tree; whole trees
 # (.agents/scripts) are simply absent from DIRS. Consumers that already
