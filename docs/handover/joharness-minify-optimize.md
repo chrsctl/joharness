@@ -6,8 +6,8 @@ pr: none
 plan: none
 session: https://claude.ai/code/session_01CoyUYZVH6ezxbfyDWhR6bE
 agent: opus
-updated: 2026-08-24
-next: Human decides whether to open the PR (outer harness forbids opening one unasked); then merge per Loop step 7
+updated: 2026-08-25
+next: Human decides whether to open the PR (outer harness forbids opening one unasked), and whether to sweep main's 2 leftover workstream files with `./joharness.sh cleanup --apply`; then merge per Loop step 7
 ---
 
 ## Goal
@@ -61,6 +61,34 @@ Measured, this repo, warm cache:
 | `feedback` subprocesses | 1262 | 639 |
 | `queue-context.sh` subprocesses | 198 | 158 |
 
+### `joharness.sh cleanup` (second ask)
+
+Human: "Maybe try to create cleanup Routine for itself", then chose the
+in-repo subcommand over a scheduled trigger, and "delete workstream files,
+report the rest" over report-only.
+
+- **It removes exactly the one leftover the protocol already assigns to a
+  session.** Step 7 says the pull request's final state deletes the workstream
+  file; `--apply` stages those deletions and nothing else. Plans it asks about
+  (only the reader knows whether a plan that outlived its merge is finished or
+  came back). Branches it counts — deleting one is human-only and a session
+  never pushes a delete, so the command prints the `git push origin --delete`
+  line rather than running it.
+- **Nothing stored.** Same doctrine as the churn measure, the graph lint and
+  the feedback scorecard: every number counted from git at read time, so it
+  cannot rot and cannot be written wrong.
+- **Staged, not committed.** `--apply` leaves the deletions in the index for
+  `git diff --cached`, because the protocol wants still-useful bits moved to
+  the right layer's `AGENTS.md` or `docs/` before the file goes, and that is a
+  reading a command cannot do.
+- **`base_ref()` factored out** rather than adding a third copy of the
+  "origin/main, else main, else HEAD" loop — three callers walking merged
+  history have to agree on where it is.
+- **Not run on this repo's own 2 leftovers.** They belong to other
+  workstreams, and the session-start hook is explicit that they are "not a
+  chore for you". The command reports them; sweeping them is the human's call
+  and a separate pull request.
+
 ## Rejected
 
 - **Stripping the comments.** It is the obvious reading of "minify" and it is
@@ -111,6 +139,33 @@ reproduce). Findings against my own diff:
 - r7: `read -r` at EOF must still assign, or `set -u` kills the hook on a
   document missing its last field. Verified under `bash -u` before relying
   on it (no change needed).
+- r8 (cleanup): `cl_inflight` protected a workstream file if any unmerged
+  branch's TREE carried it — but every branch cut from main inherits main's
+  leftovers, so the first run reported both leftovers as work in flight, on
+  the strength of the branch running the command. Found by running it, not by
+  reading it (fixed: compare the branch's DIFF against the merge-base, so
+  inheriting is not claiming; regression case in selftest.sh).
+- r9 (cleanup): `--apply` on the base branch leaves deletions loose in a
+  working tree no pull request is about to carry. Warn and continue, not die:
+  `git checkout -- .` undoes it and the human may know better (fixed).
+- r10 (cleanup): the unbounded merged-history walk `cl_merged_claims` makes is
+  the one PR47 r8 already found unusable at 3000 edges (fixed: same
+  `JOHARNESS_FEEDBACK_EDGES` cap `feedback` runs under).
+- r11 (cleanup): a `'')` arm in the option loop that `main` can never reach —
+  one untested path for no benefit (fixed: dropped).
+- r12 (cleanup): verified the plan question is not silently empty — exercised
+  `cl_merged_claims` directly on this repo, which finds both merged claims
+  (`agents-docs-move`, `harness-sync`); the report says "none" because both
+  plan files were correctly deleted at their merge. A green section that is
+  green for the wrong reason is the failure mode here (no change needed).
+- r13 (cleanup): pre-existing, found while diffing `graph` against main —
+  `cmd_graph` labels an in-flight branch with `head -1` of the workstream
+  files in its TREE, so this branch shows in the graph as
+  `harness-review-step`, a leftover it merely inherited, not as its own work.
+  Same tree-vs-diff confusion as r8, and the same accretion causes it. NOT
+  fixed here: it is pre-existing (main's own joharness.sh prints the identical
+  graph on today's refs, checked), it is not in this diff, and the fix changes
+  graph output and its selftest cases. Recorded so the next branch has it.
 - r8: read what `selftest.sh` cost the four earlier edges
   (`./joharness.sh feedback .agents/harness/selftest.sh`) before touching it,
   as the review step asks. Nothing there re-fires against this diff — the two
@@ -119,7 +174,7 @@ reproduce). Findings against my own diff:
   argument, and the cap and the first-parent walk both survive it unchanged
   (no change needed).
 
-Green: `./joharness.sh ci` = `ci: pass`, 352 passed 0 failed, zero shellcheck
+Green: `./joharness.sh ci` = `ci: pass`, 372 passed 0 failed, zero shellcheck
 findings. `./joharness.sh verify` = 7 passed, 0 failed.
 
 ## Blockers
@@ -137,3 +192,7 @@ None.
   patch in one stream, split by a marker line.
 - `joharness.sh:gr_fields` — the single-pass reader; `field()` in both hooks
   is now a wrapper over its own copy of it.
+- `joharness.sh:cl_inflight` — why the protection reads the branch's diff and
+  not its tree. Get this wrong and `cleanup` protects everything.
+- `.agents/harness/selftest.sh` — `step "joharness.sh cleanup"`, 20 cases.
+  The inherited-vs-written pair is the regression for r8.

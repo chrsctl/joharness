@@ -25,6 +25,11 @@
 #   feedback <path> what earlier merged edges found in that file
 #   graph           print the work graph as fenced mermaid (paste into any
 #                   GitHub comment; rendered natively)
+#   cleanup         count what the finish ritual left on the base branch:
+#                   workstream files, plans whose work merged, merged
+#                   branches. Reports only
+#   cleanup --apply also `git rm` the workstream files, staged for review.
+#                   Never branches — deleting one is human-only
 #   help            this text
 #
 # Selection lives in joharness.conf and is overridden by $JOHARNESS_ENV:
@@ -396,6 +401,20 @@ check_targets() {
 }
 
 have() { command -v "$1" >/dev/null 2>&1; }
+
+# The ref that stands for merged state: the remote's base branch, else a local
+# branch of the same name, else HEAD. Three callers walk merged history and all
+# three must agree on where it is, or they disagree about what has landed.
+base_ref() {
+  local b="${HANDOVER_BASE_BRANCH:-main}" c
+  for c in "origin/${b}" "$b" HEAD; do
+    if git -C "$ROOT" rev-parse --verify --quiet "$c" >/dev/null 2>&1; then
+      printf '%s' "$c"
+      return 0
+    fi
+  done
+  return 1
+}
 
 # Most-touched file on a branch since it left the base branch, as
 # "count<TAB>path". Measures $1 (default HEAD) against $2 (default
@@ -1004,14 +1023,7 @@ FB_UNMARKED=0
 FB_NOID=0
 
 fb_collect() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" candidate
-  FB_REF=""
-  for candidate in "origin/${base_branch}" "${base_branch}" HEAD; do
-    if git -C "$ROOT" rev-parse --verify --quiet "$candidate" >/dev/null 2>&1; then
-      FB_REF="$candidate"; break
-    fi
-  done
-  [ -n "$FB_REF" ] || return 1
+  FB_REF="$(base_ref)" || return 1
 
   local m tip base doc label line marker n all
   FB_PAIRS=""; FB_HIST=""
@@ -1186,6 +1198,177 @@ fb_report_path() {
 
 
 # ---------------------------------------------------------------------------
+# Cleanup
+#
+# Step 7 ends with the pull request's final state deleting the workstream file,
+# the done plan file, and the requirement file when its last plan lands. It is
+# the step that goes missing, and it goes missing structurally: the session
+# that merged is finished, and a leftover on `main` reads to it as somebody
+# else's. So the base branch accretes files a later session opens and believes
+# are current — measured at 23 in one consumer repo, thirteen merges adding six
+# and removing none.
+#
+# Counted from git at read time, nothing stored, same doctrine as the churn
+# measure and the graph lint. It removes exactly one kind of leftover, the one
+# the protocol already assigns to a session: the workstream file. Branches are
+# NOT its business — deleting one is human-only (.agents/docs/product/README.md,
+# Branch flow) and a session never pushes a delete — so they are counted and
+# named for a human to act on, never touched. Plans are a question it asks and
+# does not answer: only the reader knows whether a plan that outlived its merge
+# is finished or came back.
+# ---------------------------------------------------------------------------
+
+# Workstream paths an unmerged origin branch is WRITING: paths it changed since
+# it left the base branch, not paths its tree happens to hold. Work in flight —
+# its own step 7 has not come due, and removing its file from the base branch
+# would hand it a delete/modify conflict over a file it is still writing.
+#
+# Changed, not carried, because every branch cut from the base branch inherits
+# the base branch's leftovers. Reading the tree protected exactly the files
+# this command exists to remove: the first run here reported both of them as
+# in flight, on the strength of the branch running the command.
+cl_inflight() {
+  local ref="$1" r base
+  git -C "$ROOT" for-each-ref --format='%(refname)' refs/remotes/origin 2>/dev/null |
+    while IFS= read -r r; do
+      [ "${r##*/}" = "HEAD" ] && continue
+      git -C "$ROOT" merge-base --is-ancestor "$r" "$ref" 2>/dev/null && continue
+      base="$(git -C "$ROOT" merge-base "$r" "$ref" 2>/dev/null)" || continue
+      [ -n "$base" ] || continue
+      git -C "$ROOT" diff --name-only "$base" "$r" -- docs/handover 2>/dev/null |
+        gr_docs
+    done | sort -u
+}
+
+# Origin branches already merged into $1, base branch itself excluded. Merged
+# and standing is cosmetic — the handover hook filters them out of its claims
+# view — so this is a list for a human with an idle minute, not a chore.
+cl_merged_branches() {
+  local ref="$1" base_branch="${HANDOVER_BASE_BRANCH:-main}" r name
+  git -C "$ROOT" for-each-ref --format='%(refname)' refs/remotes/origin 2>/dev/null |
+    while IFS= read -r r; do
+      name="${r#refs/remotes/origin/}"
+      { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
+      git -C "$ROOT" merge-base --is-ancestor "$r" "$ref" 2>/dev/null || continue
+      printf '%s\n' "$name"
+    done
+}
+
+# Plan stems claimed by a workstream file that has already merged. The claim is
+# the workstream's own `plan:` field, read from the last version the edge
+# carried — the same walk `feedback` makes, under the same edge cap, because an
+# unbounded walk is a measure nobody runs twice.
+cl_merged_claims() {
+  local ref="$1" all m tip base doc p
+  all="$(fb_edges "$ref")"
+  if [ "${FB_LIMIT:-0}" -gt 0 ]; then
+    all="$(printf '%s\n' "$all" | head -n "$FB_LIMIT")"
+  fi
+  printf '%s\n' "$all" |
+    while read -r m tip; do
+      [ -n "$tip" ] || continue
+      base="$(git -C "$ROOT" merge-base "${m}^1" "$tip" 2>/dev/null)" || continue
+      doc="$(fb_workstream "$base" "$tip")" || continue
+      p="$(lint_stem "$(printf '%s\n' "$doc" | gr_field plan)")"
+      { [ -n "$p" ] && [ "$p" != "none" ]; } || continue
+      printf '%s\n' "$p"
+    done | sort -u
+}
+
+cmd_cleanup() {
+  local apply=0 a ref
+  for a in "$@"; do
+    case "$a" in
+      --apply) apply=1 ;;
+      *) die "unknown option '$a' (try: $0 cleanup [--apply])" ;;
+    esac
+  done
+  ref="$(base_ref)" || die "no base branch to read merged state from"
+
+  if [ "$apply" -eq 1 ]; then
+    printf '== cleanup --apply (%s)\n\n' "$ref"
+    # The removal has to land somewhere a pull request can carry it. On the
+    # base branch there is no such pull request, and `git rm` there leaves the
+    # deletion loose in a working tree nobody is about to review. Loud, not
+    # fatal: `git checkout -- .` undoes it, and the human may know better.
+    [ "$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null)" \
+      != "${HANDOVER_BASE_BRANCH:-main}" ] ||
+      warn "on the base branch: cut a branch and open a pull request for these" \
+        "deletions (Loop step 3), or 'git checkout -- .' to undo them"
+  else
+    printf '== cleanup (%s: report only — --apply removes the workstream files)\n\n' "$ref"
+  fi
+
+  local inflight f stale=0 kept=0 removed=0 gone=0
+  inflight="$(cl_inflight "$ref")"
+
+  printf 'workstream files on %s — the finish ritual should have deleted these\n' "$ref"
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    if printf '%s\n' "$inflight" | grep -qxF -- "$f"; then
+      kept=$((kept + 1))
+      printf '  keep     %s — an unmerged branch still carries it\n' "$f"
+    elif [ ! -f "${ROOT}/${f}" ]; then
+      gone=$((gone + 1))
+      printf '  done     %s — already deleted on this branch\n' "$f"
+    elif [ "$apply" -eq 1 ]; then
+      if git -C "$ROOT" rm -q -- "$f"; then
+        removed=$((removed + 1))
+        printf '  REMOVED  %s\n' "$f"
+      else
+        warn "could not remove ${f}"
+      fi
+    else
+      stale=$((stale + 1))
+      printf '  stale    %s\n' "$f"
+    fi
+  done <<<"$(git -C "$ROOT" ls-tree -r --name-only "$ref" -- docs/handover 2>/dev/null |
+    gr_docs)"
+  if [ "$((stale + kept + removed + gone))" -eq 0 ]; then
+    printf '  none — the ritual ran\n'
+  elif [ "$apply" -eq 1 ] && [ "$removed" -gt 0 ]; then
+    printf '\n  %d staged for deletion. Still-useful bits go to the right\n' "$removed"
+    printf "  layer's AGENTS.md or docs/ first; history keeps the rest.\n"
+    printf '  Review with: git diff --cached\n'
+  elif [ "$stale" -gt 0 ]; then
+    printf '\n  %d removable: %s cleanup --apply\n' "$stale" "$0"
+  fi
+
+  printf '\nplans on %s claimed by work that already merged\n' "$ref"
+  local claims plans_seen=0 p
+  claims="$(cl_merged_claims "$ref")"
+  while IFS= read -r p; do
+    [ -n "$p" ] || continue
+    [ -f "${ROOT}/docs/plans/${p}.md" ] || continue
+    plans_seen=$((plans_seen + 1))
+    printf '  ask      docs/plans/%s.md\n' "$p"
+  done <<<"$claims"
+  if [ "$plans_seen" -eq 0 ]; then
+    printf '  none\n'
+  else
+    printf '\n  Finished, or did the work come back? This cannot tell, and does\n'
+    printf '  not guess. Finished = delete the plan file in the same pull\n'
+    printf '  request (and its requirement file when it was the last plan).\n'
+  fi
+
+  printf '\nmerged branches still standing\n'
+  local b branches n=0
+  branches="$(cl_merged_branches "$ref")"
+  while IFS= read -r b; do
+    [ -n "$b" ] || continue
+    n=$((n + 1))
+  done <<<"$branches"
+  if [ "$n" -eq 0 ]; then
+    printf '  none\n'
+  else
+    printf '  %d — cosmetic: the handover hook already filters merged branches\n' "$n"
+    printf '  out of its claims view. Deleting them is a human hand on a human\n'
+    printf '  keyboard; a session never pushes a branch delete.\n'
+    printf '  git push origin --delete <branch>\n'
+  fi
+}
+
+# ---------------------------------------------------------------------------
 # Graph
 #
 # The third formalization step from .agents/docs/graph.md, previously held "until
@@ -1232,13 +1415,8 @@ gr_docs() { awk 'NF && /\.md$/ && !/\/(TEMPLATE|README)\.md$/'; }
 gr_id() { printf '%s' "$1" | tr -c 'a-zA-Z0-9' '_'; }
 
 cmd_graph() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" ref="" candidate
-  for candidate in "origin/${base_branch}" "${base_branch}" HEAD; do
-    if git -C "$ROOT" rev-parse --verify --quiet "$candidate" >/dev/null 2>&1; then
-      ref="$candidate"; break
-    fi
-  done
-  [ -n "$ref" ] || die "no base branch to read the graph from"
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" ref
+  ref="$(base_ref)" || die "no base branch to read the graph from"
 
   local threshold="${JOHARNESS_CHURN_THRESHOLD:-5}"
 
@@ -1500,6 +1678,7 @@ main() {
     verify)         cmd_verify ;;
     review)         cmd_review ;;
     feedback)       cmd_feedback "${1:-}" ;;
+    cleanup)        cmd_cleanup "$@" ;;
     graph)          cmd_graph ;;
     -h|--help|help) usage ;;
     *) die "unknown subcommand '$cmd' (try: $0 help)" ;;
