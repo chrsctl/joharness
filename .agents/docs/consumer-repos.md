@@ -9,16 +9,54 @@ Direction rule (doctrine + why:
 ANYWHERE lands in joharness `main` first, then syncs out. Never
 consumer-to-consumer, never consumer-only.
 
+Context rule (ratified 2026-08-25): in a CONSUMER, harness upkeep never
+runs inside a session doing product work. A session's context belongs to
+the plan it claimed. Syncing the harness is upkeep of the tool, not the
+work the tool exists for, and a sync diff is large — the harness is
+thousands of lines of shell and docs — so reading one costs the claimed
+work exactly the context it needed.
+
+Off-context first, cheapest first:
+
+1. `update.yml` runs the sync in the consumer's own CI and opens a pull
+   request, so no session reads the diff at all.
+2. A subagent, where the runtime offers one. It clones the consumer, runs
+   `upgrade`, `ci` and the push itself, and only its summary returns — the
+   diff never enters the calling session's context. Cheapest route that
+   still has judgement in the loop, and the right one when CI cannot reach
+   the canonical or there is no `update.yml` seeded.
+3. A session of its own, for a conflicted sync that neither of the above
+   finishes.
+
+A session holding product work reviews the resulting pull request and
+nothing more — reviewing is the part that needs judgement and does not
+delegate.
+
+In CANONICAL (`JOHARNESS_CANONICAL=1` in `joharness.conf`) this rule does
+not apply and cannot: the harness IS the product here, `upgrade` refuses to
+run, and the sync goes outward. A canonical session working on the harness
+is doing the work, not diluting it.
+
 ## Pick route
+
+Routes below in preference order for a consumer. Reach past a row only when
+the rows above it cannot answer.
 
 | Situation | Route |
 | --- | --- |
 | Repo has no harness yet | [New consumer](#new-consumer) |
-| Session sits in the consumer | [Upgrade](#update-upgrade-from-the-consumer) — one command |
-| Consumer has `update.yml` | [Consumer CI](#update-consumer-ci) — no checkout needed |
+| Routine update, `update.yml` present | [Consumer CI](#update-consumer-ci) — no checkout, no session context |
+| CI cannot reach canonical, or none seeded | Subagent — it clones and syncs; only its summary returns |
+| Sync conflicted, or no subagent available | [Upgrade](#update-upgrade-from-the-consumer) — one command, in a session of its own |
 | Canonical checkout in reach | [By hand](#update-by-hand) |
 | Agent session sits in the consumer | [Agent](#update-agent-in-the-consumer) |
 | Sync reported `AHEAD` | [Ahead](#ahead) — do not overwrite |
+
+A pull request `update.yml` opens carries no CI runs unless the consumer
+holds a `JOHARNESS_UPDATE_TOKEN` secret — GitHub suppresses
+workflow-on-workflow events, and the workflow's own comment says so. An
+update pull request with no checks on it is not a green one; check before
+trusting the route.
 
 ## New consumer
 
@@ -109,6 +147,18 @@ Then commit in the consumer. Uncommitted changes under synced paths in
 canonical abort the run — commit there first.
 
 ## Update: agent in the consumer
+
+Fallback, not the normal route. This is the one that spends a session's
+context on upkeep, so it is for what CI cannot finish: a conflicted sync,
+no `update.yml` seeded, or no network from the runner. Routine updates go
+to [Consumer CI](#update-consumer-ci).
+
+`upgrade` refuses to run when the branch carries a workstream file, because
+that file IS the claim that a session holds product work
+(`.agents/harness/AGENTS.md`, Harness upkeep). The steps below start by
+cutting a sync branch, which carries none by protocol, so they pass. A
+genuine mid-plan sync overrides with `JOHARNESS_UPGRADE_IN_SESSION=1` and
+says why in the commit — deliberate and visible, never silent.
 
 `./joharness.sh upgrade` does all of it — see
 [Upgrade](#update-upgrade-from-the-consumer). A session still owes the rest
