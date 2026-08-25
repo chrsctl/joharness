@@ -71,6 +71,12 @@ CA_BUNDLE="${DEVENV_CA_BUNDLE:-/root/.ccr/ca-bundle.crt}"
 DOCKER_WAIT_SECS="${DEVENV_DOCKER_WAIT_SECS:-90}"
 CLUSTER_WAIT_SECS="${DEVENV_CLUSTER_WAIT_SECS:-240}"
 RESTART_WAIT_SECS="${DEVENV_RESTART_WAIT_SECS:-120}"
+# How long the DESCRIBING paths (status, up) will wait on the apiserver before
+# calling it unresponsive. Short on purpose: a healthy cluster answers /readyz
+# in milliseconds, and the only thing this bound costs is a slower verdict on
+# a cluster that is already broken. Repair paths do not use it — see
+# cluster_responsive.
+STATUS_PROBE_TIMEOUT="${DEVENV_STATUS_PROBE_TIMEOUT:-5s}"
 # kubelet renews the node lease about every 10s; anything older than this means
 # the node is not currently reporting.
 LEASE_MAX_AGE_SECS="${DEVENV_LEASE_MAX_AGE_SECS:-30}"
@@ -307,8 +313,25 @@ cluster_exists() {
   k3d cluster list --no-headers 2>/dev/null | awk '{print $1}' | grep -qx "$CLUSTER_NAME"
 }
 
+# cluster_responsive [request-timeout]
+#
+# Unbounded by default, because cluster-up asks this as "is it already up?"
+# and REPAIRS when the answer is no — a probe that gave up early there would
+# restart a cluster that was merely slow to answer, which is a worse failure
+# than waiting.
+#
+# The paths that only DESCRIBE the cluster pass a bound instead. A wedged
+# apiserver accepts the TCP connection and then never answers, so an unbounded
+# probe hangs rather than failing: measured at 10s against a paused k3d node,
+# which is kubectl's own default request timeout doing the work.
 cluster_responsive() {
-  kubectl --context "$KUBE_CONTEXT" get --raw='/readyz' >/dev/null 2>&1
+  local t="${1:-}"
+  if [ -n "$t" ]; then
+    kubectl --context "$KUBE_CONTEXT" --request-timeout="$t" \
+      get --raw='/readyz' >/dev/null 2>&1
+  else
+    kubectl --context "$KUBE_CONTEXT" get --raw='/readyz' >/dev/null 2>&1
+  fi
 }
 
 export_kubeconfig() {
@@ -484,18 +507,31 @@ cmd_status() {
     printf 'docker      : NOT RUNNING\n'
   fi
 
+  # kubectl is the odd one in this loop: without --client it negotiates with
+  # the apiserver, so the version probe waits out kubectl's own 10s request
+  # timeout whenever the kubeconfig points at a wedged cluster. Measured
+  # against a paused k3d node: 10.05s without --client, 0.046s with it, for
+  # the same answer. install_kubectl's own check already passes it.
   for t in kubectl k3d helm; do
-    if have "$t"; then
-      printf '%-12s: %s\n' "$t" "$(installed_version "$t" "$t" version 2>/dev/null || echo present)"
-    else
+    if ! have "$t"; then
       printf '%-12s: MISSING\n' "$t"
+    elif [ "$t" = kubectl ]; then
+      printf '%-12s: %s\n' "$t" \
+        "$(installed_version kubectl kubectl version --client 2>/dev/null || echo present)"
+    else
+      printf '%-12s: %s\n' "$t" "$(installed_version "$t" "$t" version 2>/dev/null || echo present)"
     fi
   done
 
   if have k3d && cluster_exists; then
-    if cluster_responsive; then
+    # Bounded, both of them: status reports on the cluster and must never wait
+    # on it. The node listing is bounded too — readyz answering does not
+    # promise the next call will, and an unbounded one here would move the
+    # hang rather than remove it.
+    if cluster_responsive "$STATUS_PROBE_TIMEOUT"; then
       printf 'cluster     : %s (context %s)\n' "$CLUSTER_NAME" "$KUBE_CONTEXT"
-      kubectl --context "$KUBE_CONTEXT" get nodes 2>&1 | sed 's/^/              /'
+      kubectl --context "$KUBE_CONTEXT" --request-timeout="$STATUS_PROBE_TIMEOUT" \
+        get nodes 2>&1 | sed 's/^/              /'
     else
       printf 'cluster     : %s exists but is not responding (try: %s cluster-up)\n' \
         "$CLUSTER_NAME" "$0"
@@ -539,7 +575,7 @@ cmd_up() {
   # (default 1 there) and calling cluster-up.
   if [ "${DEVENV_START_CLUSTER:-0}" = "1" ]; then
     cmd_cluster_up
-  elif cluster_responsive; then
+  elif cluster_responsive "$STATUS_PROBE_TIMEOUT"; then
     log "docker, CLI tools and cluster '${CLUSTER_NAME}' ready"
   else
     log "docker and CLI tools ready; Kubernetes not started"
