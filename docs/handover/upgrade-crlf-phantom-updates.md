@@ -2,12 +2,12 @@
 workstream: upgrade-crlf-phantom-updates
 status: in-progress
 branch: claude/upgrade-crlf-phantom-updates
-pr: none
+pr: 79
 plan: none
 session: https://claude.ai/code/session_01UTCnacqdtMFMweMANMZuBB
 agent: sonnet
 updated: 2026-08-25
-next: Open the pull request once ./joharness.sh ci is green on Windows
+next: Wait for Chris to approve first-fork workflows on PR 79, then his review
 ---
 
 ## Goal
