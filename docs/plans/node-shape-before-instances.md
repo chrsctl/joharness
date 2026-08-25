@@ -11,10 +11,9 @@ scope: joharness.sh, .agents/harness/selftest.sh
 ## Goal
 
 Instances of a node type can land before the type exists, and nothing
-says so. Measured on `main` 2026-08-25, with `claude/research-sweep`
-open:
+says so. Measured on `main` 2026-08-25, after PR 64 merged:
 
-    docs/research/*.md                 4 files, committed
+    docs/research/*.md                 4 files, on main
     .agents/docs/research/             does not exist
     queue-context.sh                   0 occurrences of "research"
     joharness.sh                       2 occurrences, both the
