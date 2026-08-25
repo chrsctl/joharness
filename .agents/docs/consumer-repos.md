@@ -9,16 +9,44 @@ Direction rule (doctrine + why:
 ANYWHERE lands in joharness `main` first, then syncs out. Never
 consumer-to-consumer, never consumer-only.
 
+Context rule (ratified 2026-08-25): in a CONSUMER, harness upkeep never
+runs inside a session doing product work. A session's context belongs to
+the plan it claimed. Syncing the harness is upkeep of the tool, not the
+work the tool exists for, and a sync diff is large — the harness is
+thousands of lines of shell and docs — so reading one costs the claimed
+work exactly the context it needed.
+
+Off-session first, cheapest first: `update.yml` runs the sync in the
+consumer's own CI and opens a pull request, so no session reads the diff at
+all. A conflicted sync that CI cannot finish gets a session of its own, not
+the one mid-plan. A session holding product work reviews the resulting pull
+request and nothing more — reviewing is the part that needs judgement and
+does not delegate.
+
+In CANONICAL (`JOHARNESS_CANONICAL=1` in `joharness.conf`) this rule does
+not apply and cannot: the harness IS the product here, `upgrade` refuses to
+run, and the sync goes outward. A canonical session working on the harness
+is doing the work, not diluting it.
+
 ## Pick route
+
+Routes below in preference order for a consumer. Reach past a row only when
+the rows above it cannot answer.
 
 | Situation | Route |
 | --- | --- |
 | Repo has no harness yet | [New consumer](#new-consumer) |
-| Session sits in the consumer | [Upgrade](#update-upgrade-from-the-consumer) — one command |
-| Consumer has `update.yml` | [Consumer CI](#update-consumer-ci) — no checkout needed |
+| Routine update, `update.yml` present | [Consumer CI](#update-consumer-ci) — no checkout, no session context |
+| CI sync failed, or none seeded | [Upgrade](#update-upgrade-from-the-consumer) — one command, in a session of its own |
 | Canonical checkout in reach | [By hand](#update-by-hand) |
 | Agent session sits in the consumer | [Agent](#update-agent-in-the-consumer) |
 | Sync reported `AHEAD` | [Ahead](#ahead) — do not overwrite |
+
+A pull request `update.yml` opens carries no CI runs unless the consumer
+holds a `JOHARNESS_UPDATE_TOKEN` secret — GitHub suppresses
+workflow-on-workflow events, and the workflow's own comment says so. An
+update pull request with no checks on it is not a green one; check before
+trusting the route.
 
 ## New consumer
 
