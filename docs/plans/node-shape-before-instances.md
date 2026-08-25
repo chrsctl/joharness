@@ -11,10 +11,9 @@ scope: joharness.sh, .agents/harness/selftest.sh
 ## Goal
 
 Instances of a node type can land before the type exists, and nothing
-says so. Measured on `main` 2026-08-25, with `claude/research-sweep`
-open:
+says so. Measured on `main` 2026-08-25, after PR 64 merged:
 
-    docs/research/*.md                 4 files, committed
+    docs/research/*.md                 4 files, on main
     .agents/docs/research/             does not exist
     queue-context.sh                   0 occurrences of "research"
     joharness.sh                       2 occurrences, both the
@@ -44,7 +43,7 @@ nodes of a type the harness does not implement yet.
 ## Out of scope
 
 - **Deciding what a node type IS.** `research-node` defines the research
-  type; this plan only notices instances of a type nothing implements.
+  type and is still an unimplemented plan; this plan only notices instances of a type nothing implements.
   Hence the `needs:` edge — without that plan there is no second type to
   test against, and the lint would be written against a hypothesis.
 - **Failing `ci`.** Early is not wrong. A warning that names the gap is
