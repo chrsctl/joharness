@@ -155,15 +155,16 @@ consequences, and the second is the one that bites:
 
 ### When the workflow ends red
 
-Three failures, all at the last step, all leaving the branch correctly pushed.
-Read the failing run before assuming the sync itself broke — twice out of three
-it did not.
+Three failures. Read the failing run before assuming the sync itself broke —
+twice out of three it did not. Only the first one commits and pushes: the other
+two leave `joharness-update` exactly as the last successful run left it, so a
+missing branch is not evidence that this run is the one that broke it.
 
 | what the log says | what it means | what to do |
 | --- | --- | --- |
 | `GitHub Actions is not permitted to create or approve pull requests` | The sync worked. Only the pull request could not be opened. | Open it by hand against `joharness-update`, then fix the cause below. |
 | `consumer files are AHEAD of canonical` | A consumer edited harness-owned files locally. | [Ahead](#ahead) — never overwrite. |
-| the sync step itself failed | A genuine sync failure. | Read the report; the branch is not pushed and there is nothing to merge. |
+| the sync step itself failed | A genuine sync failure — and the only one of the three that fails before the commit step. | Read the report; this run pushed nothing. |
 
 The first is the common one and its cause is a repository setting: either
 enable *Allow GitHub Actions to create and approve pull requests*, or set
