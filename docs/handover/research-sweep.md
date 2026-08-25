@@ -7,7 +7,7 @@ plan: none
 session: https://claude.ai/code/session_0126bZYruEVL7vNBLb7RXF4v
 agent: opus
 updated: 2026-08-25
-next: Fill the three Verification sections from the citation pass, then open PR — stacked on PR 63
+next: Open PR — stacked on PR 63; all three Verification sections now filled
 ---
 
 ## Goal
@@ -49,6 +49,38 @@ where external practice plausibly exists.
   precisely what the diamond rule and John's grounding-checker forbid.
 
 ## Review
+
+- r4: the citation pass refuted the central claim of
+  `glossary-enforcement`. Controlled-vocabulary linting is mature and in
+  production — Vale's `accept.txt` plus `Vale.Terms` is exactly the
+  mechanism `harness-glossary` proposed to invent, running at Datadog and
+  Elastic, and `textlint-rule-terminology` does the same for tech writing.
+  A DDD Ubiquitous Language Verifier exists too. The file is rewritten and
+  the plan's question changes from invent-or-not to adopt-or-build.
+  (fixed)
+- r5: `scorecard-without-gaming` quoted DORA for a sentence DORA never
+  wrote. No DORA, Google Cloud or Accelerate source carries "individual
+  metrics create competition while team metrics create collaboration";
+  dora.dev's real text is about team-versus-team siloing, a narrower
+  proposition. Replaced. This was the claim the file had itself flagged for
+  checking, which is the flag working. (fixed)
+- r6: the Goodhart one-liner is not Goodhart's. His 1975 wording is
+  different; the popular sentence is Strathern (1997) citing Hoskin. Now
+  used as "commonly stated as", with Austin cited as the academic anchor
+  instead of an asserted literature consensus. (fixed)
+- r7: "stale language" is not established DDD vocabulary. Retracted rather
+  than reworded — presenting a coinage as a term of art is the same failure
+  class as the DORA misquote. (fixed)
+- r8: the 10% compaction figure was stated as best practice. It is
+  LangChain's default; Inspect AI defaults to 0.8, and no source gives a
+  measured optimum. The verifier also noted the original search summary
+  restated the claim back rather than corroborating it — a search echoing
+  your own phrasing is not a second source, and this branch treated one as
+  such. (fixed)
+- r9: one of six claims survived the pass fully intact. Recorded because
+  the number is the argument for the Verification section existing at all,
+  and a later session weighing whether to keep it should see the ratio.
+  (fixed — no change needed beyond recording)
 
 - r1: the `compact-reorient` finding contradicts a plan already on `main`.
   Recorded in the research file's `Consequence for the queue` rather than
