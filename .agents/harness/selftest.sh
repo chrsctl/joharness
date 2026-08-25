@@ -1741,6 +1741,38 @@ out="$(upg env JOHARNESS_UPGRADE_IN_SESSION=1)"
 refute "the override lets a deliberate sync through" \
   "refused in a session holding product work" "$out"
 
+# A workstream file INHERITED from the base branch is not this session's
+# claim. Base branches accrete finished workstream files — the failure
+# process-scorecard exists to count — and refusing on one would misfire on
+# every sync branch cut from that base, while the refusal told the session
+# to do exactly what it had already done.
+upgorigin="${TMP}/upgorigin.git"
+git init -q --bare "$upgorigin"
+upginh="${TMP}/upginh"
+git init -q "$upginh"
+git -C "$upginh" symbolic-ref HEAD refs/heads/main
+mkdir -p "${upginh}/docs/handover" "${upginh}/.github/workflows"
+cp "${ROOT}/joharness.sh" "${upginh}/joharness.sh"
+printf 'JOHARNESS_ENV=none\n' >"${upginh}/joharness.conf"
+printf 'CANONICAL_REPO: chrsctl/joharness\n' >"${upginh}/.github/workflows/update.yml"
+printf -- '---\nworkstream: someone-elses\n---\n' >"${upginh}/docs/handover/stale.md"
+commit_all "$upginh" "base branch that accreted a finished workstream file"
+git -C "$upginh" remote add origin "$upgorigin"
+git -C "$upginh" push -qu origin main
+git -C "$upginh" checkout -qb claude/harness-sync
+
+inh() { ( cd "$upginh" && ./joharness.sh upgrade --dry-run ) 2>&1; }
+out="$(inh)"
+refute "an inherited workstream file is not this session's claim" \
+  "refused in a session holding product work" "$out"
+
+printf -- '---\nworkstream: mine\n---\n' >"${upginh}/docs/handover/mine.md"
+out="$(inh)"
+expect "a file this branch introduced still refuses" \
+  "refused in a session holding product work" "$out"
+expect "refusal names the introduced file, not the inherited one" \
+  "docs/handover/mine.md" "$out"
+
 # --- handover-guard.sh ------------------------------------------------------
 # Stop-hook guard: git facts only, one-shot via stop_hook_active, silent on
 # a clean pushed tree, never a nonzero exit.
