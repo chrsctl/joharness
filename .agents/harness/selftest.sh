@@ -787,6 +787,17 @@ expect "branch claims its plan" \
   "b_rival_ws -- claims --> p_rival_plan" "$out"
 refute "the template is not a node" "TEMPLATE" "$out"
 
+# Ownership is a diff, not a tree. `inheritor` writes no workstream file of
+# its own; it only carries main's two rotted ones, like every branch cut from
+# a base that accreted them. Reading the tree drew it as a node named after
+# somebody else's finished work (PR54 r13). One refute covers both leftovers:
+# the substring is the stem they share.
+refute "an inherited workstream file is not a branch node" "b_stale_ws" "$out"
+# The other half, or the fix above passes just as well against a graph that
+# stopped drawing branch nodes at all.
+expect "a branch that wrote its own file is still a node" \
+  'b_rival_ws(["rival-ws"]):::branch' "$out"
+
 # --- session-start composition ---------------------------------------------
 step "joharness.sh session-start"
 
