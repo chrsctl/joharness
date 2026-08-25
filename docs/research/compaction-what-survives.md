@@ -44,10 +44,18 @@ best practices what to preserve".
   when agents compact history to stay under token budgets, the compaction
   "may faithfully record task state but quietly drop compliance rules and
   safety constraints". Task state survives; the RULES do not.
-- **The most recent slice must survive verbatim.** Preserving roughly the
-  last 10% of the window uncompacted keeps the active working memory —
-  current tool call, most recent user message, immediate prior reasoning —
-  because summarising those breaks mid-task continuation.
+- **The paper measures the decay, it does not merely assert it.** Violation
+  rates move from 0% to 30% across 7 models and 1,323 episodes; 0% when the
+  constraint survives the summary against 38% when it is dropped; and decay
+  is 8.3x larger for soft organisational policies than for hard safety
+  norms. The quoted sentence is from the body's motivating discussion, not
+  the abstract — attribute it as such.
+- **Keeping a recent slice verbatim is a real technique with NO agreed
+  size.** LangChain retains "10% of available context" and summarises what
+  precedes it; Inspect AI's trim compaction defaults to `preserve=0.8`.
+  Nobody presents a measured optimum. The technique transfers; the number
+  does not, and this file originally stated 10% as though it were a best
+  practice.
 - **Compaction and cross-session memory are different problems.**
   Compaction manages what the agent sees this session; external memory
   manages what it keeps across sessions. This harness already has the
@@ -68,10 +76,21 @@ carry the mode and the boundary, not only the file name.
 
 ## Verification
 
-PENDING — no second context has checked these claims. Under
-`docs/plans/research-node.md` this file is not settled until one has. The
-check to run: confirm arXiv 2606.22528 says what is quoted, and that the
-10% figure is a recommendation rather than a measured optimum.
+Checked 2026-08-25 by an independent context that did not write these
+findings.
+
+- Governance Decay paper, ID, and quoted wording — **GROUNDED**. Body text
+  reads "The summary faithfully records the task state but, optimizing for
+  continuity, quietly drops the 'old' compliance preamble", and the
+  asymmetry is explicit elsewhere: "compaction optimizes for task
+  continuity and treats standing policies as low-salience content". The
+  measurements above came from the same pass.
+- The 10% figure — **WEAK**. One vendor's default, not a measured optimum,
+  and contradicted as a norm by Inspect AI's 0.8. Corrected above.
+
+The verifier also flagged that the original search summary restated the 10%
+claim back rather than corroborating it. A search result echoing your own
+phrasing is not a second source, and this file treated it as one.
 
 ## Graduates to
 

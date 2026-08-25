@@ -22,8 +22,9 @@ proven one.
 
 ## Sweep
 
-Goal-directed. Vocabulary discipline in software practice and whether
-anyone automates it — not the whole of terminology management.
+First pass goal-directed, and it got the answer wrong. Second pass
+comprehensive, run by the verification context specifically to refute the
+first — which it did.
 
 ## What would settle it
 
@@ -32,45 +33,66 @@ it, or an absence, in which case the plan is inventing and should say so.
 
 ## Findings
 
-- **The discipline has a name and strong pedigree.** Ubiquitous Language in
-  Domain-Driven Design: one shared vocabulary spanning conversation,
-  documentation and the code itself.
-- **The drift this repo measured has a name too.** "Stale language" is a
-  recognised pitfall — terminology drifting out of step with the model over
-  time. This repo's own count on 2026-08-25 was "workstream file" 107
-  against "handover file" 10, with five files using both.
-- **Bounded Context is the missing concept.** A term carries a single
-  consistent meaning inside a delimited zone. This harness has two zones
-  already — `.agents/harness/` and `.agents/env/<name>/` — and the
-  glossary plan treats vocabulary as repo-global.
-- **No tooling prior art surfaced.** The search returned no established
-  practice for automated linting or drift detection over a controlled
-  vocabulary; DDD's answer is recurring cross-functional conversation, a
-  human ritual. Absence of evidence in one sweep is not proof none exists,
-  and the sweep was goal-directed.
+- **Controlled-vocabulary linting is mature, named, and in production.**
+  Vale ships the mechanism directly: entries in `accept.txt` are
+  automatically added to a substitution rule, `Vale.Terms`, "ensuring that
+  any occurrences of these words or phrases exactly match their
+  corresponding entry". `textlint-rule-terminology` does the same for tech
+  writing and runs as `textlint --fix --rule terminology`, i.e. CI-ready.
+  Datadog and Elastic both run Vale over their docs; Elastic publishes its
+  house style as a Vale ruleset.
+- **Adjacent enforced-term tooling exists too**: alex, write-good,
+  proselint, woke, retext, and the Microsoft Writing Style Guide packaged
+  as a Vale ruleset.
+- **Even the DDD half has tooling.** A Ubiquitous Language Verifier exists
+  that checks correspondence between vocabulary in code and the domain
+  model. DDD's *canonical* answer is still recurring human conversation,
+  but "no tooling" is false.
+- **Bounded Context, paraphrased not quoted.** Fowler describes contexts
+  "each of which can have a unified model", with different contexts holding
+  "completely different models of common concepts" and explicit mappings
+  between them. No one-line formal definition matches the phrasing this
+  file first used.
+- **"Stale language" is NOT a DDD term of art.** Retracted. No source uses
+  it as established vocabulary; the adjacent sourced ideas are failure to
+  co-evolve the language, technical dominance, and the linguistic divide.
+- **The drift this repo measured is still real and still local**:
+  "workstream file" 107 against "handover file" 10 on 2026-08-25, five
+  files carrying both.
 
 ## Consequence for the queue
 
-`harness-glossary`'s ci lint has no prior art behind it. That is not a
-reason to drop it — the drift is measured and real, and a human ritual does
-not transfer to a repo whose contributors are sessions that never meet.
-But the plan should state that the enforcement half is invented, so a later
-session weighing a finding against it knows it is weighing a local
-invention rather than an industry practice.
+`harness-glossary`'s motivation changes shape. Its plan proposes building a
+ci lint for banned wordings; Vale's `accept.txt` plus `Vale.Terms` is
+precisely that, already built and running at Datadog and Elastic. The open
+question is no longer *invent or not* but **adopt or build** — and adopting
+brings a dependency into a harness whose ci is currently shell and
+shellcheck, which is a real cost to weigh rather than a free win.
 
-The Bounded Context finding is the more useful one: a glossary that fixes
-one meaning repo-wide will fight the layer split the harness is built on.
-Terms that legitimately differ between the harness layer and an environment
-layer need the zone named, not a winner picked.
+Bounded Context remains the finding that matters most and is unaffected by
+the refutation: a glossary fixing one meaning repo-wide will fight the
+layer split this harness is built on. Terms that legitimately differ
+between `.agents/harness/` and an environment layer need the zone named,
+not a winner picked.
 
 ## Verification
 
-PENDING — no second context has checked these claims. The one most worth
-checking is the negative: "no tooling prior art" is a claim about absence
-from a single goal-directed sweep, and a comprehensive sweep by a second
-context could overturn it cheaply.
+Checked 2026-08-25 by an independent context that did not write these
+findings, asked specifically to refute the negative claim.
+
+- Original central claim — "no tooling prior art exists" — **UNGROUNDED,
+  decisively refuted**, with named tools and production adopters. Findings
+  above rewritten from the refutation.
+- "Stale language" as DDD terminology — **UNGROUNDED**. Retracted above.
+- Bounded Context — **GROUNDED in substance**, but paraphrase rather than
+  quote; done.
+
+The negative claim was reached from one goal-directed sweep and stated as
+though it were general. That is the failure this file now records against
+itself: absence from a narrow sweep is not absence.
 
 ## Graduates to
 
 `.agents/docs/caveman.md`, which already owns this repo's rules about
-instruction-file wording, including what must never be reworded.
+instruction-file wording. The adopt-or-build question belongs in
+`harness-glossary` itself and is named there, not settled here.
