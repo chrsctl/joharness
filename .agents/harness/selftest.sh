@@ -2188,7 +2188,13 @@ refute "boundary fact carries no path" "touched.sh" "$out"
 
 # The reason string embeds in JSON unescaped, so the count must keep it
 # parseable. A path here would be repo-controlled input in that position.
-if printf '%s' "$out" | python3 -c 'import json,sys; json.load(sys.stdin)' 2>/dev/null; then
+# Probe python3 first, execution not existence: stock Windows ships a
+# Microsoft Store stub that `command -v` finds and that fails on run, which
+# read here as invalid JSON — red ci on a clean checkout, invisible on a
+# runner (real python installed).
+if ! python3 -c 'import json' >/dev/null 2>&1; then
+  skip "boundary block is valid JSON" "python3 missing or a Store stub here"
+elif printf '%s' "$out" | python3 -c 'import json,sys; json.load(sys.stdin)' 2>/dev/null; then
   pass "boundary block is valid JSON"
 else
   fail "boundary block is valid JSON"
@@ -2306,25 +2312,33 @@ printf '#!/usr/bin/env bash\necho probe\n' >"${crlf}/probe.sh"
 # Frontmatter is the markdown that breaks: fields() exits on any line 1 not
 # exactly `---`, so a CRLF checkout reports every field empty.
 printf -- '---\nstatus: in-progress\n---\n\nbody\n' >"${crlf}/probe.md"
-# Files no suffix pattern pins ride on the catch-all. `upgrade` compares
+# Files no suffix pattern pins need their own path pins. `upgrade` compares
 # working-tree bytes between the canonical clone and the consumer, so a
-# CRLF checkout of these means phantom updates on every Windows run —
-# .claude/settings.json and .gitattributes itself were the two that showed.
-printf '{\n  "probe": true\n}\n' >"${crlf}/probe.json"
+# CRLF checkout of a shipped file means phantom updates on every Windows
+# run — .claude/settings.json and .gitattributes itself were the two that
+# showed.
+mkdir -p "${crlf}/.claude"
+printf '{\n  "probe": true\n}\n' >"${crlf}/.claude/settings.json"
 commit_all "$crlf" "probe"
 
 # Re-materialize from the index: the checkout applies the attributes.
-rm -f "${crlf}/probe.sh" "${crlf}/probe.md" "${crlf}/probe.json" "${crlf}/.gitattributes"
-git -C "$crlf" checkout -q -- probe.sh probe.md probe.json .gitattributes
+rm -f "${crlf}/probe.sh" "${crlf}/probe.md" "${crlf}/.claude/settings.json" "${crlf}/.gitattributes"
+git -C "$crlf" checkout -q -- probe.sh probe.md .claude/settings.json .gitattributes ||
+  fail "CRLF fixture re-checkout succeeds"
 
 # Not `grep $'\r'`: Git Bash opens files in text mode and drops the CR before
 # the pattern ever sees it, so that spelling reports clean on the one platform
 # this case exists for. Stripping and comparing is byte-exact everywhere.
 has_cr() { [ "$(tr -dc '\r' <"$1" | wc -c)" -gt 0 ]; }
 
-# <path> <what>: file must come out of the checkout with no CRs.
+# <path> <what>: file must come out of the checkout with no CRs. A missing
+# file is a fixture bug, not a clean file — has_cr on nothing counts 0 CRs,
+# which once turned a failed checkout into four green lines.
 check_lf() {
-  if has_cr "$1"; then
+  if [ ! -f "$1" ]; then
+    fail "$2 checks out LF under core.autocrlf=true"
+    printf '    %s missing from the checkout; fixture setup failed\n' "${1##*/}"
+  elif has_cr "$1"; then
     fail "$2 checks out LF under core.autocrlf=true"
     printf '    %s came back CRLF; pinned in .gitattributes?\n' "${1##*/}"
   else
@@ -2334,8 +2348,58 @@ check_lf() {
 
 check_lf "${crlf}/probe.sh" "shell script"
 check_lf "${crlf}/probe.md" "markdown"
-check_lf "${crlf}/probe.json" "unpinned text file (catch-all)"
+check_lf "${crlf}/.claude/settings.json" "settings.json (path pin)"
 check_lf "${crlf}/.gitattributes" ".gitattributes itself"
+
+# --- sync manifest stays eol-pinned -----------------------------------------
+# Same failure class, closed for FUTURE files: any file the sync manifest
+# ships must resolve to eol=lf, or a stock Windows checkout renders it CRLF
+# and `upgrade` reports it changed on every run. Walking the manifest from
+# the engine's own arrays means extending FILES/DIRS without extending
+# .gitattributes goes red here, not on the next Windows machine.
+step "sync manifest eol pins"
+
+manifest_paths() {
+  local a
+  for a in FILES DIRS; do
+    sed -n "/^${a}=(/,/^)/p" "${ROOT}/.agents/scripts/sync-to-consumer.sh" |
+      sed '1d;$d;s/^ *//;s/ *#.*$//;/^$/d'
+  done
+}
+
+unpinned=0 shipped=0
+while IFS= read -r rel; do
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    shipped=$((shipped + 1))
+    if [ "$(git -C "$ROOT" check-attr eol -- "$f" | sed 's/.*: eol: //')" != "lf" ]; then
+      unpinned=$((unpinned + 1))
+      printf '    unpinned: %s\n' "$f"
+    fi
+  done < <(git -C "$ROOT" ls-files -- "$rel")
+done < <(manifest_paths)
+
+if [ "$shipped" -eq 0 ]; then
+  fail "manifest walk found the shipped files"
+elif [ "$unpinned" -eq 0 ]; then
+  pass "every shipped file resolves to eol=lf (${shipped} files)"
+else
+  fail "every shipped file resolves to eol=lf (${unpinned} of ${shipped} unpinned)"
+fi
+
+# The other half of the fix: cmd_upgrade's canonical clone must stay
+# byte-faithful regardless of host config. A grep, because the clone target
+# is a hardcoded https URL — no offline fixture can exercise it.
+if grep -q 'git clone --quiet -c core.autocrlf=false -c core.eol=lf' "${ROOT}/joharness.sh"; then
+  pass "upgrade clone pins autocrlf=false and core.eol=lf"
+else
+  fail "upgrade clone pins autocrlf=false and core.eol=lf"
+fi
+if grep -q 'git clone -c core.autocrlf=false -c core.eol=lf' "${ROOT}/.github/workflows/update.yml"; then
+  pass "update.yml clone pins autocrlf=false and core.eol=lf"
+else
+  fail "update.yml clone pins autocrlf=false and core.eol=lf"
+fi
 
 # --- sync-to-consumer.sh ----------------------------------------------------
 # Scratch canonical with real history (two versions of one file), scratch
