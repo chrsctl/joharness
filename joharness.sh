@@ -937,7 +937,7 @@ review_report() {
   head="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)"
   if [ -z "$base" ]; then
     # Same doctrine as churn's: a check that cannot see the history it needs
-    # says so and passes, rather than reding what it cannot prove.
+    # says so and passes, rather than going red on what it cannot prove.
     printf '  not measurable here (no merge-base; shallow checkout or base branch)\n'
     return 0
   fi
@@ -1710,7 +1710,7 @@ fin_gate() {
   local ref adds n=0 f strength="$1"
   if ! ref="$(decide_ref 2>/dev/null)"; then
     # Same doctrine as churn and review: a check that cannot see the
-    # history it needs says so and passes, rather than reding what it
+    # history it needs says so and passes, rather than going red on what it
     # could not prove.
     printf '  not measurable here (no base ref in this checkout)\n'
     return 0
