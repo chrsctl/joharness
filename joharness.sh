@@ -1406,7 +1406,14 @@ cl_inflight() {
       git -C "$ROOT" merge-base --is-ancestor "$r" "$ref" 2>/dev/null && continue
       base="$(git -C "$ROOT" merge-base "$r" "$ref" 2>/dev/null)" || continue
       [ -n "$base" ] || continue
-      git -C "$ROOT" diff --name-only "$base" "$r" -- docs/handover 2>/dev/null |
+      # Files the branch still HAS, not files it touched. --name-only alone
+      # lists deletions too, so a branch that ran the finishing ritual —
+      # deleting its workstream file, the thing this command exists to
+      # complete — read as still carrying it, and the file was protected
+      # from removal forever. Exactly backwards for the one case cleanup is
+      # for.
+      git -C "$ROOT" diff --name-only --diff-filter=ACMRT "$base" "$r" \
+        -- docs/handover 2>/dev/null |
         gr_docs
     done | sort -u
 }
