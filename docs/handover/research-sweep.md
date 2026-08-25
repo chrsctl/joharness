@@ -96,6 +96,32 @@ orchestration, added when the requester asked about it.
   lint does not yet know `docs/research/`, which is `research-node`'s job,
   so these files are linted as ordinary docs today. (no change needed)
 
+- r10: the orchestration file's two throughput figures both failed the
+  citation pass — 6.7 tasks/second is one blog's `20 ÷ 3` thought
+  experiment reprinted verbatim on a second site, and 950ms against 500ms
+  is another blog's hedged estimate. Both dropped. Flagging them before
+  publishing was right; the file would have read as quantified either way.
+  (fixed)
+- r11: "nine orchestrators tested, all use worktrees" is a vendor listicle
+  with no methodology, and one of the nine lists worktrees as optional. The
+  "all" was false. Dropped; the conclusion it supported survives on the
+  file-isolation quote, which verified GROUNDED. (fixed)
+- r12: the centralized-versus-peer trade was written as though it were
+  settled literature. The verifier could not find the quoted phrasing in
+  any source. Reworded as industry consensus. (fixed)
+- r13: the verification found something the research missed entirely —
+  Claude Code ships agent teams with three task states, self-claim and
+  FILE LOCKING against claim races, storing the list at
+  `~/.claude/tasks/{team-name}/`. joharness reimplements that on git. Named
+  as an adopt-or-build question and deliberately not answered here: the
+  built-in is experimental and keeps state outside the repo, against a
+  harness whose doctrine is that git holds the state. (fixed — recorded,
+  not decided)
+- r14: across both passes on this branch, every number that arrived through
+  a search summary was weaker than it read, and every claim that survived
+  came from a primary source stating it directly. Recorded because it is a
+  usable rule for the next researcher, not a one-off. (fixed)
+
 ## Blockers
 
 None, but not finishable: the three Verification sections stay PENDING
