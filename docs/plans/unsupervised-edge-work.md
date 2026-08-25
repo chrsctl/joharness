@@ -3,7 +3,7 @@ plan: unsupervised-edge-work
 urgency: normal
 agent: opus
 effort: xhigh
-needs: none
+needs: unsupervised-sources
 requirement: unsupervised-mode
 scope: .agents/harness/queue-context.sh, .agents/docs/plans/README.md, .agents/harness/selftest.sh
 ---
@@ -25,26 +25,44 @@ under this requirement's full-loop autonomy get implemented and merged
 without a human ever reading them. Bound the surface; do not bound the
 autonomy, which the requester chose deliberately.
 
+Bounding is now also what ends the mode. The requirement carries a
+reachable end — the source sweep goes dry — and `unsupervised-sources`
+builds the sweep. This plan is the consumer of that count: non-zero means
+generate, zero on two consecutive sweeps with an empty queue and no open
+pull request means stop and say so.
+
 ## Scope
 
-- `.agents/harness/queue-context.sh:205` and `:333` — the two edge paths.
-  Under unsupervised, each prints the generate-work entrypoint instead of
-  the ask-human one. Under supervised, byte-identical to today.
+- `.agents/harness/queue-context.sh:"plan-queue edge reached: done"` and
+  `:"Edge reached: no free plan"` — the two edge paths. Under unsupervised,
+  each prints the generate-work entrypoint instead of the ask-human one,
+  UNLESS the sweep is dry, where it prints the terminal line and stops.
+  Under supervised, byte-identical to today.
 - The research surface, defined in `.agents/docs/plans/README.md` as a
   closed list a session may draw a plan from at the edge. Closed, not
   illustrative — a literal reader treats an open list as permission for
-  anything. Sources with evidence already in the repo: a failing or
-  skipped check; a `## Review` finding recorded on a merged branch and
-  never acted on; a documented rule with no test covering it; a TODO or
-  known-gap comment in tracked code; drift between an instruction file and
-  the code it describes. Each generated plan cites which source and the
-  evidence, so a human reading the queue later can tell invented work from
-  observed work.
+  anything. Closed AND counted: every source on the list carries a detector
+  command, and `./joharness.sh sources` (`unsupervised-sources`) is what
+  runs them. A source without a detector never reaches zero and so is not a
+  source — measured 2026-08-25, that drops "a documented rule with no test"
+  and "drift between an instruction file and the code" from the list this
+  plan was written with, leaving failing or skipped checks, unactioned
+  merged review findings, and known-gap comments in tracked code.
+- One finding, one plan, and no plan for a finding no detector emitted. The
+  generated plan carries `source:` (which detector) and `evidence:` (the
+  command and the output line it produced) in frontmatter, so a human
+  re-runs the command and either sees the same finding or does not. Prose
+  citation was the earlier shape here; it explains a plan without making it
+  checkable.
 - `.agents/harness/selftest.sh` — both edge paths in both modes, and the
   supervised wording unchanged.
 
 ## Out of scope
 
+- Building the sweep. `unsupervised-sources` owns `./joharness.sh sources`
+  and the detectors; this plan reads their count and branches on it. Split
+  because a counter that also generates work is two failure modes in one
+  command.
 - Implementing the generated plans. This plan fills the queue; the normal
   Loop empties it. The two stay separate so a bad generator does not also
   become a bad implementer in one step.
@@ -63,8 +81,13 @@ autonomy, which the requester chose deliberately.
 
 - Supervised, empty queue — output byte-identical to a pre-change capture,
   including `Edge reached: no free plan`. Diff and paste.
-- Unsupervised, empty queue — prints the generate-work entrypoint, names
-  the closed source list, and does not print `ask human`.
+- Unsupervised, empty queue, sweep non-zero — prints the generate-work
+  entrypoint, names the closed source list, and does not print `ask human`.
+- Unsupervised, empty queue, sweep dry on two consecutive runs, no open
+  pull request — prints the terminal line and stops. This is the one place
+  the mode asks; prove it with a fixture whose detectors are all zero.
+- A generated plan carries `source:` and `evidence:`; re-running the cited
+  command reproduces the finding. Paste the command and both outputs.
 - Unsupervised, non-empty queue — output unchanged from supervised. The
   edge path is the only behavioural difference.
 - Unsupervised with unplanned requirements present — still routes to
@@ -82,12 +105,16 @@ autonomy, which the requester chose deliberately.
 
 ## Where to look
 
-- `.agents/harness/queue-context.sh:200-207` — the no-plans branch, both
-  arms, including the unplanned-requirements arm that must keep winning.
-- `.agents/harness/queue-context.sh:333` — `Edge reached: no free plan`.
-- `.agents/harness/queue-context.sh:16` — the header comment stating "No
+- `.agents/harness/queue-context.sh:"No plans on"` — the no-plans branch,
+  both arms, including the unplanned-requirements arm that must keep
+  winning.
+- `.agents/harness/queue-context.sh:"Edge reached: no free plan"` — the
+  other edge path.
+- `.agents/harness/queue-context.sh` header — the comment stating "No
   free plan and nothing to plan = done", which this plan makes
   mode-dependent and must therefore update.
+- `joharness.sh:cmd_ci` — how a counted fact is worded to a session, the
+  wording the sweep's verdict should match rather than invent.
 - `.agents/docs/plans/README.md` — plan shape, and where the source list
   lands so a generating session and a reviewing human read the same rules.
 - `docs/product/unsupervised-mode.md` — Constraints, for the three limits
@@ -96,16 +123,17 @@ autonomy, which the requester chose deliberately.
 ## Traps
 
 - Not invent work is still the rule under supervised
-  (`.agents/harness/AGENTS.md:24`). This plan does not weaken it; it
-  branches on a mode that defaults to supervised.
+  (`.agents/harness/AGENTS.md`, Loop step 2). This plan does not weaken it;
+  it branches on a mode that defaults to supervised.
 - An open-ended source list is the failure. A literal reader given
   "sources include..." will treat anything as a source.
 - Human input outranks generated work in every ordering: issues, then
   requirements, then plans. The edge is reached only after all three are
   exhausted.
-- The mode gate it branches on is already merged, so this plan is free;
-  `unsupervised-fanout` also touches
-  `.agents/harness/selftest.sh`, so not a wave with it.
+- Blocked until `unsupervised-sources` merges — this plan reads the sweep's
+  count, so the edge is real, not "feels related". `unsupervised-fanout` and
+  `unsupervised-sources` also touch `.agents/harness/selftest.sh`, so not a
+  wave with either.
 - Hook output is paid every session — caveman
   (`.agents/docs/caveman.md`), and a source list that runs long belongs in
   `docs/`, pointed at rather than printed.
