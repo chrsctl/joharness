@@ -40,8 +40,8 @@ Make it run at the other moment too.
 - `.agents/harness/selftest.sh` — cover the branch: a compact-sourced run
   prints the re-read line, a startup-sourced run does not, and neither
   fails a session when git is unreadable (the script's standing contract,
-  line 16).
-- `.agents/scripts/sync-to-consumer.sh:165` — `.claude/settings.json` is
+  stated in its header).
+- `.agents/scripts/sync-to-consumer.sh:FILES` — `.claude/settings.json` is
   already on the synced list, so consumers inherit the new hook. Confirm
   that is still true after the edit rather than assuming it.
 
@@ -54,9 +54,9 @@ Make it run at the other moment too.
   repo's own bar is counted numbers — an offload built on an unmeasured
   need is a guess with a blast radius across every `Read` and `Bash`
   result. Measure first, in its own plan, if anyone wants it.
-- Anything that infers liveness. `handover-context.sh:11` states why push
-  time is not liveness and `/who` is; compaction changes nothing about
-  that.
+- Anything that infers liveness. `.agents/harness/handover-context.sh`'s
+  header states why push time is not liveness and `/who` is; compaction
+  changes nothing about that.
 - Making the hook fail a session. It reports; it never blocks.
 
 ## Acceptance
@@ -76,12 +76,12 @@ Make it run at the other moment too.
 
 - `.claude/settings.json` — both existing hooks, and the exact quoting of
   `"$CLAUDE_PROJECT_DIR"` that makes them work.
-- `joharness.sh:733` — `cmd_session_start`, which prints the environment
-  banner before delegating; a compact-time run should not re-print a
-  provisioning banner that was already true.
-- `.agents/harness/handover-context.sh:47` — `add()`, how output is
-  accumulated, and `field()` below it.
-- `.agents/harness/handover-context.sh:16` — "Never fails a session:
+- `joharness.sh:cmd_session_start` — prints the environment banner before
+  delegating; a compact-time run should not re-print a provisioning banner
+  that was already true.
+- `.agents/harness/handover-context.sh:add` — how output is accumulated, and
+  `field()` below it.
+- `.agents/harness/handover-context.sh` header — "Never fails a session:
   anything unexpected exits 0 with no output." The new path inherits this.
 - `.agents/docs/handover/README.md` — the protocol the re-read line points
   at.

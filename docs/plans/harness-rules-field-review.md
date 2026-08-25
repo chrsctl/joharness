@@ -23,10 +23,10 @@ Four edits, each named with what it answers.
 
 **1. The documented way to recover a review record does not work.**
 Loop step 7 says the PR's final state deletes the workstream file. The
-handover README (line 69) says the reasoning is "recoverable forever at
-`git show <merge>:docs/handover/<workstream>.md`". Both cannot hold: the
-file is deleted as the branch's last commit, so no merge commit contains
-it. Verified against three merged PRs from two different sessions — all
+handover README's `Survives PR` bullet says the reasoning is "recoverable
+forever at `git show <merge>:docs/handover/<workstream>.md`". Both cannot
+hold: the file is deleted as the branch's last commit, so no merge commit
+contains it. Verified against three merged PRs from two different sessions — all
 `fatal: path ... does not exist`. And because the file lives and dies on a
 side branch, git's default history simplification prunes it from path
 queries too: `git log -- <path>` from `main` returns empty. `--full-history`
@@ -94,16 +94,17 @@ produced it, in the same sentence.
 - `.agents/harness/AGENTS.md` grows by no more than ~10 lines total. Every
   session loads it before its first prompt; four rules must not cost a page.
   Measure it (`wc -c`) at the commit you start from rather than trusting a
-  figure written here — it was 5,617 bytes when this plan was drafted and
-  5,949 by the time the plan merged.
+  figure written here — it was 5,617 bytes when this plan was drafted, 5,949
+  by the time the plan merged, 6,500 at queue cleanup (2026-08-24).
 
 ## Where to look
 
-- `.agents/docs/handover/README.md:69` — the retrieval sentence to replace.
-- `.agents/harness/AGENTS.md:33` — Loop step 5, where the mutation line goes.
-- `.agents/harness/AGENTS.md:45` — the existing never-skip-a-test line, the
-  nearest neighbour in intent.
-- `.agents/harness/AGENTS.md:49` — Loop step 7, for the PR-body pointer and
+- `.agents/docs/handover/README.md`, `Survives PR` bullet — the retrieval
+  sentence to replace.
+- `.agents/harness/AGENTS.md`, Loop step 5 — where the mutation line goes.
+- `.agents/harness/AGENTS.md`, Loop step 5's `NEVER skip, disable, or
+  quarantine a test` line — the nearest neighbour in intent.
+- `.agents/harness/AGENTS.md`, Loop step 7 — for the PR-body pointer and
   the infrastructure-state line.
 - `.agents/docs/handover/README.md` "Survives PR" bullet — the claim that
   edit 1 makes true.

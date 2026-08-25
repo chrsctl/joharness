@@ -12,11 +12,11 @@ scope: .agents/docs/glossary.md, joharness.sh, .agents/harness/selftest.sh, .age
 
 The same node has two names in the instruction files agents load every
 session. Counted on this repo at plan time, `grep -rnoi <term> --include=*.md
---include=*.sh . | grep -v '^./.git' | wc -l`: "workstream file" 107,
-"handover file" 10, and five files use both — `.agents/docs/handover/README.md`,
+--include=*.sh . | grep -v '^./.git' | wc -l`: "workstream file" 146,
+"handover file" 12, and five files use both — `.agents/docs/handover/README.md`,
 `.agents/docs/plans/README.md`, `.agents/docs/product/README.md`,
 `.claude/commands/handover.md`, `README.md`. Same split elsewhere:
-"agent tier" 8 against "model tier" 4, "environment layer" 10 against "env
+"agent tier" 10 against "model tier" 5, "environment layer" 18 against "env
 layer" 2. Every one of those files is written for a literal reader, and the
 Loop's own warning is that ambiguity gets executed wrong or asked back.
 `kitchen-engineer42/joharnessburg` holds this line with `CONTEXT.md`, which
@@ -35,7 +35,7 @@ not redefine.
   definition and rots against the first.
 - `joharness.sh` — a lint stage that fails when a listed non-canonical
   wording appears in a tracked `*.md` or `*.sh` file, so the glossary
-  cannot rot into a wish. Beside `lint_graph` (line 411), reported like the
+  cannot rot into a wish. Beside `lint_graph`, reported like the
   other `ci` stages. The glossary file itself is the one place the
   non-canonical wordings are allowed to appear; exempt it by path, not by a
   marker comment that spreads.
@@ -49,8 +49,8 @@ not redefine.
 
 ## Out of scope
 
-- Choosing canonical terms by count alone. 107 against 10 settles
-  "workstream file"; 8 against 4 does not settle "agent tier", and the
+- Choosing canonical terms by count alone. 146 against 12 settles
+  "workstream file"; 10 against 5 does not settle "agent tier", and the
   frontmatter field is `agent`, which is the stronger evidence. Where the
   code names the thing, the code wins.
 - Renaming anything in code: frontmatter field names, subcommands, function
@@ -74,8 +74,8 @@ not redefine.
   '^./.git' | wc -l` — 0 outside `.agents/docs/glossary.md`. Same for every
   other wording the glossary bans.
 - Re-count the two headline pairs before quoting them anywhere that ships;
-  the 107 / 10 / 8 / 4 / 10 / 2 figures were counted at plan time and the
-  files have moved since.
+  the 146 / 12 / 10 / 5 / 18 / 2 figures were re-counted 2026-08-24 with the
+  command above and move with every merge.
 - `./.agents/harness/selftest.sh` — passes, count higher by the tests added.
 - The lint fails on a deliberately reintroduced banned wording, and the
   failure names the file, the line, and the canonical replacement. Paste
@@ -83,9 +83,9 @@ not redefine.
 
 ## Where to look
 
-- `joharness.sh:411` — `lint_graph()`, for how a lint stage reads tracked
-  files and reports; `joharness.sh:164` — `cmd_ci`, where stages are
-  sequenced and `rc` is set.
+- `joharness.sh:lint_graph` — how a lint stage reads tracked files and
+  reports; `joharness.sh:cmd_ci` — where stages are sequenced and `rc` is
+  set.
 - `.agents/docs/caveman.md`, "Never touch" — technical terms, API names and
   proper nouns are byte-exact, and code blocks are untouchable. A rename
   sweep runs straight at that rule.
