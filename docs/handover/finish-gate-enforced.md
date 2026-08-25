@@ -1,13 +1,13 @@
 ---
 workstream: finish-gate-enforced
-status: in-progress
+status: done
 branch: claude/finish-gate-enforced
 pr: none
 plan: finish-gate-enforced
 session: https://claude.ai/code/session_019c3kktaEvDBAnDv1K2i65p
 agent: sonnet
 updated: 2026-08-25
-next: Factor the adds computation out of cmd_finish and call it from cmd_ci at the edge only.
+next: Open the pull request and merge it; plan and workstream files go with it.
 ---
 
 ## Goal
@@ -44,7 +44,46 @@ on `main` since 2026-08-24 through 22 merges. Plan:
 
 ## Review
 
-(none yet)
+Adversarial, separate lenses. Three findings, and the first changed the
+design the plan asked for.
+
+- r1: **The plan's own premise was wrong, and building it proved so.**
+  The plan said `ci` should FAIL at the edge. Wired that way it broke the
+  existing `recorded review keeps ci green`, because the two gates
+  contradict: the review gate fires at the edge and needs the workstream
+  file PRESENT (it reads `## Review` out of it), while a finish gate at
+  the same edge needs it GONE — and step 7 puts the deletion in the pull
+  request's FINAL state, so through a pull request's life the file is
+  supposed to be there. Redding at the edge would red every pull request
+  from open until its last commit, which is the noise this gate exists
+  because sessions learned to ignore. (fixed: two strengths — reported at
+  the edge, RED once the branch says `done`, which is strictly after
+  review and is the session's own word. Proven by reverting to
+  edge-red and watching the existing review test AND two of mine go red
+  together.)
+- r2: **The gate fired on the branch that built it, wrongly.** First cut
+  asked `review_at_edge` over EVERY workstream file, so another session's
+  inherited `joharness-minify-optimize.md` (status review) put this branch
+  at an edge it was not at. (fixed: `fin_strength` reads only
+  `fin_adds_at`, this branch's own files.)
+- r3: **Two of my own tests passed vacuously and I nearly shipped them.**
+  `write_ws inherited.md` failed with "No such file or directory" — git
+  tracks no empty directory, and the cases above had left `docs/handover`
+  empty — so the fixture was never written and both assertions passed
+  against nothing. Found by reverting the rule they cover and watching
+  them stay green. (fixed: `mkdir -p` first.) Then the repaired fixture
+  failed for a second reason: it committed only to LOCAL main, while the
+  gate compares against `origin/<base>`, so the "inherited" file was
+  genuinely an add. (fixed: the fixture pushes.)
+- r4: `an inherited file does not red the branch` does NOT go red when
+  inherited files are miscounted, because at edge strength the gate
+  reports either way. Its real failure mode is a gate that reds at the
+  edge, which r1's revert already covers. Recorded rather than claimed as
+  proven the same way.
+
+Shared computation, never a second copy: `fin_adds_at` answers "would this
+merge add a workstream file" for both `finish` and `ci`, so the command a
+session runs by hand and the gate that stops the merge cannot drift.
 
 ## Blockers
 
