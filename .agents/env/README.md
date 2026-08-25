@@ -26,7 +26,9 @@ Layer is self-contained: everything it owns lives in its directory, so
 selecting it is copying one directory and setting one line.
 
 Nothing outside the layer may name it. Entrypoint resolves by directory name;
-`.agents/harness/` never mentions a specific environment.
+`.agents/harness/` mentions no specific environment — `none` excepted, which
+names the absence of a layer rather than a layer. `.agents/harness/selftest.sh`
+checks this and holds the single carve-out.
 
 ## One layer per consumer
 
