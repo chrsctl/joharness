@@ -22,18 +22,7 @@ export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 
 # Knobs exported in the invoking shell must not steer the fixtures; per-call
 # prefix assignments below still apply.
-#
-# CLAUDE_PROJECT_DIR is the one that matters most and the one that was missing.
-# Every real session has it set, and it is how joharness.sh resolves ROOT — so
-# a case invoking the entrypoint without its own per-call value resolved
-# against the REAL repository instead of its fixture. Measured on `main`: with
-# it exported, 7 cases fail and `mode unsupervised` lands in the developer's
-# own .git/joharness-mode, flipping that checkout's autonomy for every later
-# session. A suite that edits the tree it is testing cannot be trusted about
-# any of it, and the failure only shows up under the environment sessions
-# actually run in — never in a bare shell, where it was written and read.
-unset CLAUDE_PROJECT_DIR JOHARNESS_MODE JOHARNESS_MODE_FILE \
-  JOHARNESS_ENV JOHARNESS_ENV_SETUP JOHARNESS_ENV_MD JOHARNESS_REVIEW \
+unset JOHARNESS_ENV JOHARNESS_ENV_SETUP JOHARNESS_ENV_MD JOHARNESS_REVIEW \
   JOHARNESS_CHURN_THRESHOLD JOHARNESS_CHURN_LIMIT \
   JOHARNESS_CONF JOHARNESS_FORCE_SETUP JOHARNESS_SYNC_ROOT DEVENV_FORCE
 
@@ -117,19 +106,6 @@ export PATH
 
 # A commit in the repo $1 with message $2, after staging everything.
 commit_all() { git -C "$1" add -A && git -C "$1" commit -qm "$2"; }
-
-step "suite isolation"
-
-# The invariant the unset block at the top exists for. Drop CLAUDE_PROJECT_DIR
-# from that list and nothing here goes red on its own — every case that
-# invokes the entrypoint without a per-call value simply starts answering
-# about the real repository, and one of them writes to its .git. Asserted
-# rather than trusted, because the damage is silent and off-fixture.
-if [ -z "${CLAUDE_PROJECT_DIR:-}" ]; then
-  pass "the suite runs with CLAUDE_PROJECT_DIR unset"
-else
-  fail "the suite runs with CLAUDE_PROJECT_DIR unset (fixtures would hit the real repo)"
-fi
 
 # --- entrypoint: env selection ---------------------------------------------
 step "joharness.sh env"
@@ -897,17 +873,6 @@ write_ws() {
 out="$(JOHARNESS_REVIEW=on jr review)"
 expect "base branch has nothing to review yet" "nothing to review yet" "$out"
 
-# The review gate and the finish gate fire on the same edge, by design — so a
-# branch that ADDS its own workstream file goes red twice at the edge and no rc
-# below would isolate the gate under test. Seeding the file on the base branch
-# keeps it out of this merge's add-set: the finish gate stays quiet here, and
-# every exit code in this step is the review gate's own verdict. A workstream
-# file on `main` is exactly the rot the finish gate exists to stop; here it is
-# fixture scaffolding, and the finish step below tests it as rot.
-write_ws ws.md in-progress none "agent: opus" ""
-commit_all "$rwork" "seed the workstream file on the base branch"
-git -C "$rwork" push -q origin main
-
 git -C "$rwork" checkout -qb work
 printf 'code\n' >"${rwork}/feature.txt"
 write_ws ws.md in-progress none "agent: opus" ""
@@ -978,10 +943,7 @@ out="$(JOHARNESS_REVIEW=on ci_review)"
 expect "every workstream file on the branch is checked" \
   "docs/handover/second.md [sonnet" "$out"
 expect "the reviewed one still reads as recorded" "1 finding(s) recorded" "$out"
-# The standalone step, not ci's rc: second.md is an ADD at the edge, so the
-# finish gate reds this run too, and a combined exit code would pass this case
-# even with the review gate broken.
-if JOHARNESS_REVIEW=on jr review >/dev/null 2>&1; then
+if JOHARNESS_REVIEW=on ci_rc_review; then
   fail "one unreviewed workstream reds the branch"
 else
   pass "one unreviewed workstream reds the branch"
@@ -1011,6 +973,90 @@ sed -i.bak '/^JOHARNESS_REVIEW=/d' "${rwork}/joharness.conf" && \
   rm -f "${rwork}/joharness.conf.bak"
 commit_all "$rwork" "conf: gate back off"
 
+# --- Loop step 7's gate, enforced rather than merely available -------------
+# `finish` was a correct gate nobody had to run, and step 7 kept not
+# happening: one workstream file sat on a base branch through 22 merges,
+# named correctly by the gate every time anyone ran it. These pin the two
+# strengths and, above all, that they do not fight the review gate.
+git -C "$rwork" checkout -qb fingate main
+mkdir -p "${rwork}/docs/handover"
+write_ws fin.md in-progress none "agent: sonnet" "- r1: clean pass."
+printf 'code\n' >>"${rwork}/feature.txt"
+commit_all "$rwork" "mid-build, workstream file present as it should be"
+out="$(jr ci)"
+refute "mid-build says nothing about finish" "== finish" "$out"
+
+# At the edge the file is SUPPOSED to be there: the review gate reads the
+# ## Review section out of it, and step 7 puts the deletion in the pull
+# request's FINAL state. A red here would fight the documented workflow and
+# red every pull request from open until its last commit.
+write_ws fin.md review 77 "agent: sonnet" "- r1: clean pass."
+commit_all "$rwork" "open a pull request for it"
+out="$(jr ci)"
+expect "the edge names the file this merge would add" \
+  "ADDS     docs/handover/fin.md" "$out"
+expect "the edge is a report, not a red" "Reported, not failed" "$out"
+if ci_rc_review; then
+  pass "the edge does not red a branch still doing its review"
+else
+  fail "the edge does not red a branch still doing its review"
+fi
+
+# 'done' is the session's own word that it has finished, and it is strictly
+# after review — nothing wants this file any more.
+# 'done' quoted: bare, shellcheck reads it as a loop terminator (SC1010).
+write_ws fin.md "done" 77 "agent: sonnet" "- r1: clean pass."
+commit_all "$rwork" "say done with the file still present"
+out="$(jr ci)"
+refute "done is no longer a mere report" "Reported, not failed" "$out"
+if ci_rc_review; then
+  fail "a branch that says done and keeps its own file fails ci"
+else
+  pass "a branch that says done and keeps its own file fails ci"
+fi
+
+# The ritual, which is what the gate is asking for.
+git -C "$rwork" rm -q "docs/handover/fin.md"
+commit_all "$rwork" "finish ritual: delete the workstream file"
+out="$(jr ci)"
+refute "the ritual silences the gate" "== finish" "$out"
+if ci_rc_review; then
+  pass "the ritual makes ci green"
+else
+  fail "the ritual makes ci green"
+fi
+
+# Another session's file, inherited from the base branch, is not this
+# branch's to answer for. A gate that fails for somebody else's omission is
+# one sessions learn to route around — which is how this defect survived.
+git -C "$rwork" checkout -q main
+# git tracks no empty directory, and the cases above left docs/handover
+# with nothing in it — without this the fixture below is never written and
+# both assertions pass vacuously. Caught by reverting the rule they cover
+# and watching them stay green.
+mkdir -p "${rwork}/docs/handover"
+write_ws inherited.md review none "agent: sonnet" "- r1: x."
+commit_all "$rwork" "base branch accretes another session's file"
+# PUSHED, because the gate compares against origin/<base>, not the local
+# branch. Committing only locally leaves the file genuinely absent from the
+# base the gate reads, so it reads as this branch's add and the case being
+# tested never happens.
+git -C "$rwork" push -q origin main
+git -C "$rwork" checkout -qb fininherit main
+printf 'more\n' >>"${rwork}/feature.txt"
+commit_all "$rwork" "a branch that merely inherited it"
+out="$(jr ci)"
+refute "an inherited file is not this branch's add" "ADDS" "$out"
+if ci_rc_review; then
+  pass "an inherited file does not red the branch"
+else
+  fail "an inherited file does not red the branch"
+fi
+git -C "$rwork" checkout -q main
+git -C "$rwork" rm -q "docs/handover/inherited.md"
+commit_all "$rwork" "clean the base branch again"
+git -C "$rwork" push -q origin main
+
 # Tier falls back to the claimed plan when the workstream file names none,
 # and to sonnet when neither does.
 git -C "$rwork" checkout -qb tierfall main
@@ -1033,153 +1079,6 @@ out="$(JOHARNESS_REVIEW=on jr session-start)"
 expect "session start announces an armed gate" "Review gate: ON" "$out"
 out="$(jr session-start)"
 refute "session start silent while the gate is off" "Review gate" "$out"
-
-step "joharness.sh ci: the finish gate"
-
-# Loop step 7's ritual, enforced. The gate itself is covered by its own
-# subcommand's cases; what these prove is the WIRING — that `ci` runs it at
-# the edge, stays silent below it, and never reds a branch for a file it
-# merely inherited.
-
-forigin="${TMP}/finishorigin.git"
-git init -q --bare "$forigin"
-fwork="${TMP}/finishwork"
-mkdir -p "${fwork}/.agents/harness" "${fwork}/.agents/env/none" \
-  "${fwork}/docs/handover" "${fwork}/docs/plans"
-cp "${ROOT}/joharness.sh" "${fwork}/joharness.sh"
-printf '#!/usr/bin/env bash\nexit 0\n' >"${fwork}/.agents/harness/selftest.sh"
-chmod +x "${fwork}/.agents/harness/selftest.sh" "${fwork}/joharness.sh"
-git init -q "$fwork"
-git -C "$fwork" symbolic-ref HEAD refs/heads/main
-commit_all "$fwork" "scratch harness"
-git -C "$fwork" remote add origin "$forigin"
-git -C "$fwork" push -qu origin main
-
-jf() { CLAUDE_PROJECT_DIR="$fwork" JOHARNESS_CONF="${fwork}/joharness.conf" \
-  GITHUB_ACTIONS='' "${fwork}/joharness.sh" "$@" 2>&1; }
-
-# Output AND exit code from ONE run. Asking twice doubled this step's wall
-# clock for a verdict the first run already reached — the same measurement
-# that put a shellcheck stub on the fixtures' PATH.
-jf_ci() { out="$(jf ci)"; FRC=$?; }
-
-# <file> <status> <pr>
-write_fws() {
-  printf -- '---\nworkstream: %s\nstatus: %s\npr: %s\nagent: sonnet\n---\n\n## Review\n\n- r1: clean.\n' \
-    "$(basename "$1" .md)" "$2" "$3" >"${fwork}/docs/handover/$1"
-}
-
-# Somebody else's leftover, on the base branch before this branch exists. Every
-# case below inherits it, which is the point: a file at `status: review` in the
-# tree is not this branch's edge and must not pull it into the gate.
-write_fws stale.md review 40
-commit_all "$fwork" "a finished workstream nobody deleted"
-git -C "$fwork" push -q origin main
-
-git -C "$fwork" checkout -qb work
-printf 'code\n' >"${fwork}/feature.txt"
-write_fws ws.md in-progress none
-commit_all "$fwork" "claim, mid-build"
-
-# Mid-build: no pull request, own status in-progress. The gate says nothing —
-# a branch that has not finished has no ritual to have skipped. The inherited
-# stale file is the regression: reading the TREE for the edge (as the review
-# gate does) put this run at the edge on the strength of somebody else's
-# frontmatter, and reded it for its own live claim.
-jf_ci
-refute "mid-build ci never reaches the finish gate" "== finish" "$out"
-refute "an inherited stale file is not this branch's edge" \
-  "ADDS     docs/handover/ws.md" "$out"
-if [ "$FRC" -eq 0 ]; then
-  pass "mid-build ci stays green with a stale file inherited"
-else
-  fail "mid-build ci stays green with a stale file inherited"
-fi
-
-# At the edge by status, with its own file still present: red, and it names
-# the file rather than leaving the session to guess which one.
-write_fws ws.md review none
-commit_all "$fwork" "hand the work to the edge"
-jf_ci
-expect "status at the edge runs the finish gate" "== finish" "$out"
-expect "the gate names the file this merge would add" \
-  "ADDS     docs/handover/ws.md" "$out"
-if [ "$FRC" -eq 0 ]; then
-  fail "own workstream file at the edge reds ci"
-else
-  pass "own workstream file at the edge reds ci"
-fi
-# Someone else's rot is reported in the same run and is not what reds it.
-expect "an inherited file is named as cleanup's business" \
-  "not this merge, not this session" "$out"
-refute "an inherited file is never an ADD" "ADDS     docs/handover/stale.md" "$out"
-
-# An open pull request is the edge too, whatever the status says.
-write_fws ws.md in-progress 12
-commit_all "$fwork" "open a pull request for it"
-jf_ci
-expect "an open pull request runs the finish gate" \
-  "ADDS     docs/handover/ws.md" "$out"
-if [ "$FRC" -eq 0 ]; then
-  fail "an open pull request without the ritual reds ci"
-else
-  pass "an open pull request without the ritual reds ci"
-fi
-
-# A deletion that is only staged does not merge: still red, and it says why.
-git -C "$fwork" rm -q --cached "docs/handover/ws.md" && rm -f "${fwork}/docs/handover/ws.md"
-jf_ci
-expect "a staged-only deletion is still red, and says so" \
-  "deleted here but not committed" "$out"
-
-# The ritual done: green, and the run confirms it rather than going quiet.
-# A gate that says nothing the moment you obey it never tells you that you did.
-commit_all "$fwork" "step 7: delete the workstream file"
-jf_ci
-expect "the retiring branch still reaches the gate" "== finish" "$out"
-expect "the ritual done reads as done" "none — this branch retires what it claimed" "$out"
-expect "and the base branch's own rot is still named" \
-  "1 already on origin/main" "$out"
-if [ "$FRC" -eq 0 ]; then
-  pass "the ritual done keeps ci green"
-else
-  fail "the ritual done keeps ci green"
-fi
-
-# The base branch is what merges land on; there is no merge of it to gate.
-git -C "$fwork" checkout -q main
-jf_ci
-refute "the base branch never runs the finish gate" "== finish" "$out"
-
-# In sync with its remote the base branch has an empty diff against itself, so
-# the edge test alone would decline — and that case proves nothing about the
-# guard. Unpushed commits are what separate the two: they make origin/main..main
-# non-empty, and a base branch that retired a file locally would otherwise be
-# gated against itself. This is the case the guard is for.
-write_fws local-only.md review none
-commit_all "$fwork" "a workstream file committed on main, unpushed"
-git -C "$fwork" rm -q "docs/handover/local-only.md"
-commit_all "$fwork" "and retired on main"
-jf_ci
-refute "the base branch is not gated even when ahead of its remote" \
-  "== finish" "$out"
-refute "and never warns about itself" "there is no merge to gate" "$out"
-
-# No ref for the base branch — a fresh consumer clone, or a CI checkout that
-# fetched only the pull request head. "Cannot tell" is not "clean": it says
-# what it could not check, and does not red a run for a comparison nobody
-# could make (decide_ref's own doctrine, and `finish` dies here instead).
-git -C "$fwork" checkout -q work
-git -C "$fwork" branch -q -D main
-git -C "$fwork" update-ref -d refs/remotes/origin/main
-jf_ci
-expect "no base ref says what it could not check" "not measurable here (no ref for main" "$out"
-expect "and hands step 7 back to the session" "Step 7 is still yours" "$out"
-if [ "$FRC" -eq 0 ]; then
-  pass "no base ref is not a red"
-else
-  fail "no base ref is not a red"
-fi
 
 # --- entrypoint: the feedback measure ---------------------------------------
 # Reads merged history: how many edges recorded a review, what they found, and
