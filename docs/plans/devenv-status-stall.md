@@ -8,15 +8,17 @@ needs: none
 
 ## Goal
 
-`.agents/env/k8s/devenv.sh status` calls `installed_version kubectl kubectl
-version` without `--client`; kubectl then contacts the apiserver and can
+`.agents/env/k8s/devenv.sh status` probes each tool through one loop —
+`installed_version "$t" "$t" version` over kubectl, k3d, helm — so kubectl is
+probed without `--client`; kubectl then contacts the apiserver and can
 hang when a kubeconfig points at a dead cluster. Status must never wait on
 a cluster it is reporting about.
 
 ## Scope
 
-- `.agents/env/k8s/devenv.sh:cmd_status` — version probe for kubectl uses
-  `--client` (match `install_kubectl`'s check). Other tools unchanged.
+- `.agents/env/k8s/devenv.sh:cmd_status` — kubectl's probe in the tool loop
+  uses `--client` (match `install_kubectl`'s check, which already does).
+  Other tools unchanged.
 
 ## Out of scope
 
