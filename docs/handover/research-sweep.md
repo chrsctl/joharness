@@ -13,9 +13,10 @@ next: Open PR — stacked on PR 63; all three Verification sections now filled
 ## Goal
 
 Requester: research, using the new framework, similar approaches for
-everything else in the queue. Three research files, each following the
-shape `docs/plans/research-node.md` defines, on the three queued plans
-where external practice plausibly exists.
+everything else in the queue. Four research files, each following the
+shape `docs/plans/research-node.md` defines: three on queued plans where
+external practice plausibly exists, and one on the harness's own
+orchestration, added when the requester asked about it.
 
 ## Decisions
 
@@ -109,4 +110,6 @@ the framework's own rule is that an unverified finding is not settled.
   things `process-scorecard` does not say.
 - `docs/research/glossary-enforcement.md` — the negative claim, and the
   Bounded Context finding that matters more than it.
-- `docs/plans/research-node.md` — the shape all three follow.
+- `docs/research/orchestration-shape.md` — the harness's own orchestration
+  measured against its architecture class; verification pending.
+- `docs/plans/research-node.md` — the shape all four follow.
