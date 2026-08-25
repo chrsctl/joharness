@@ -26,12 +26,50 @@ status field, it has gone wrong — `.agents/docs/graph.md` Rules says why.
 ## Scope
 
 - `.agents/docs/research/README.md` and `TEMPLATE.md` — new, matching the
-  shape of `.agents/docs/plans/`. The template's sections: the Question, in
-  one sentence, answerable; What would settle it, naming the evidence that
-  would close it either way; Method, the commands to run; Findings, each
-  with its command and that command's output; Graduates to, the file the
-  answer lands in. A question with no settling evidence is not a research
-  question and the README says so in those words.
+  shape of `.agents/docs/plans/`. The template's sections, each earning its
+  place from a measured practice rather than taste:
+
+  - **Question**, one sentence, answerable. A question with no settling
+    evidence is not a research question and the README says so in those
+    words.
+  - **Echo** — the question restated in the researcher's own words before
+    any method runs. John's `self-correction-echo` generalises the pattern:
+    a model that misreads its input then reasons competently on the wrong
+    input produces an answer correct in shape and wrong in substance, and
+    the echo is the cheapest place to catch it.
+  - **Sweep** — `comprehensive` or `goal-directed`, named explicitly.
+    John's `sweep-strategy` makes this the choice that decides what
+    "complete" means: everything there is, or everything needed for what.
+    Unnamed, completeness is unfalsifiable and the question never closes.
+  - **What would settle it** — the evidence that closes the question either
+    way, written before the method runs so the answer cannot be fitted to
+    what was found.
+  - **Method**, the commands to run.
+  - **Findings**, each with its command and that command's output.
+  - **Verification** — who checked, and from where. See below; this is the
+    section the harness's own doctrine already demands and my first draft
+    omitted.
+  - **Graduates to**, the file the answer lands in.
+
+- Verification comes from a different context than the one that produced
+  the finding. `.agents/docs/graph.md` Rules already states the diamond
+  rule for code — "verify outside the context that wrote the code;
+  self-grade alone misses own mistakes" — and research is where it bites
+  hardest. Two independent sources agree: John's `grounding-checker` is a
+  separate agent because "a model can't reliably audit its own grounding",
+  and Anthropic's own research design runs a **separate citation pass**
+  after the subagent fan-out. Measured citation accuracy across commercial
+  deep-research systems spans 78% to 94%, which is the size of the error
+  this section exists to catch. A subagent is the cheap way to get the
+  second context (`.agents/docs/subagents.md`).
+
+- Graduating writes a why-explanation under `docs/`, not only a rule line
+  in `AGENTS.md`. The rule is what the next session obeys; the
+  why-explanation is what stops the session after that from re-opening a
+  settled question. ADR practice keeps superseded records forever for this
+  reason — this harness deletes the node instead and keeps the reasoning in
+  the graduated file, which works only if the graduation actually carries
+  the reasoning.
 - `.agents/docs/graph.md` — one row in Nodes (`Research` |
   `docs/research/<question>.md` on base branch | task), one row in Edges
   (`research` | plan → research | plan frontmatter; open target file =
@@ -52,10 +90,13 @@ status field, it has gone wrong — `.agents/docs/graph.md` Rules says why.
 
 ## Out of scope
 
-- How to research. No method, no source list, no tooling for doing the
-  work. The node is the deliverable; a session already has Bash, the web
-  and subagents (`.agents/docs/subagents.md`). A methodology written before
-  a single research file exists would be invented, not observed.
+- A research methodology beyond the template's sections. Those sections
+  come from measured practice — John's echo and sweep, the harness's own
+  diamond rule, the separate-citation-pass finding — and each one is a
+  field a reader fills, not a procedure to follow. No source list, no
+  confidence scoring, no loop shape. A session already has Bash, the web
+  and subagents; anything further, written before a single research file
+  exists, would be invented rather than observed.
 - Back-filling tonight's mechanism comparison, or any other past research,
   into the new shape. Seeding a node type with retrofitted content proves
   nothing about whether the shape works.
@@ -72,6 +113,9 @@ status field, it has gone wrong — `.agents/docs/graph.md` Rules says why.
 
 - A research file created from `TEMPLATE.md` appears in the session-start
   queue beside plans, with its tier. Paste the hook output.
+- The template refuses to look complete without its Verification section
+  filled: a finding nobody checked from a second context is not settled.
+  The README states this as a rule, not a suggestion.
 - A plan with `research: <open-question>` is listed blocked, is not
   suggested as an entrypoint, and becomes free when that file is deleted.
   Both states pasted.

@@ -37,6 +37,10 @@ graduates into the rules and docs it settles.
 - A plan resting on an unmeasured assumption can point at the research that
   settles it, and the queue shows a plan blocked on an open question the
   same way it shows one blocked on a plan.
+- An answer is checked from a context other than the one that produced it,
+  and the file records who checked and from where. Self-graded research is
+  the failure both the harness's diamond rule and every external practice
+  surveyed name first.
 - Reaching an answer graduates it — into the layer's `AGENTS.md` or
   `docs/` — and deletes the research file, the same terminal action every
   other node in the graph already uses.
