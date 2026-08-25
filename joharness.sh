@@ -306,8 +306,26 @@ cmd_verify() {
   local name smoke
   name="$(resolve_env)" || die "no usable environment layer under ${ENV_ROOT}"
   smoke="${ENV_ROOT}/${name}/smoke-test.sh"
+  # Layer contract: everything under .agents/env/<name>/ is optional, so a
+  # layer shipping no smoke-test.sh has nothing to verify rather than failing
+  # to verify. `none` is that case by definition, and it is a supported
+  # choice, not a misconfiguration — bootstrap-consumer.sh hands it out when
+  # --env is omitted. Reporting it as an error also made step 7 unsatisfiable
+  # for such a repo: the merge rule asks for `verify` green whenever the diff
+  # touches harness code, and a rule that cannot be satisfied teaches the
+  # override. Same doctrine churn, review and the finish gate already follow —
+  # say so and pass, never go red on what could not be proven. has_setup()
+  # does the symmetric thing for setup.sh one screen up.
+  #
+  # A smoke-test.sh that EXISTS but is not executable is the opposite case and
+  # stays fatal: somebody meant that file to run, and passing green over it
+  # would hide a broken layer behind the sentence above.
+  if [ ! -f "$smoke" ]; then
+    log "environment '${name}' ships no smoke-test.sh — nothing to verify"
+    return 0
+  fi
   [ -x "$smoke" ] ||
-    die ".agents/env/${name} ships no smoke-test.sh (selected: ${name}; try: $0 env)"
+    die ".agents/env/${name}/smoke-test.sh is not executable (chmod +x it)"
   run_setup "$name" || die "environment '${name}' failed to provision"
   "$smoke"
 }
