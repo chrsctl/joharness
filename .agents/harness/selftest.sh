@@ -32,22 +32,21 @@ export GIT_COMMITTER_NAME=selftest GIT_COMMITTER_EMAIL=selftest@invalid
 # natural thing to type, silently flipped its own repo into autonomy. Same
 # run with it unset: 448 passed, 0 failed, nothing written.
 unset CLAUDE_PROJECT_DIR
+
+# The same hole, one knob over. JOHARNESS_MODE and JOHARNESS_MODE_FILE steer
+# the autonomy cases the way CLAUDE_PROJECT_DIR steers the fixture path, and
+# both are documented knobs a session has reason to export — JOHARNESS_MODE is
+# in joharness.conf and in the entrypoint's own help. Measured on this
+# checkout with the unset above already in place: JOHARNESS_MODE=unsupervised
+# gives 440 passed / 10 failed, JOHARNESS_MODE_FILE=<path> gives 448 / 2,
+# against 450 / 0 with neither set. Same class, same block, so the next one
+# added to this file is added here too.
+unset JOHARNESS_MODE JOHARNESS_MODE_FILE
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 
 # Knobs exported in the invoking shell must not steer the fixtures; per-call
 # prefix assignments below still apply.
-#
-# CLAUDE_PROJECT_DIR is the one that matters most and the one that was missing.
-# Every real session has it set, and it is how joharness.sh resolves ROOT — so
-# a case invoking the entrypoint without its own per-call value answered about
-# the REAL repository instead of its fixture. Measured before the fix: with it
-# exported, 7 cases fail and `mode unsupervised` lands in the developer's own
-# .git/joharness-mode, flipping that checkout's autonomy for every later
-# session. A suite that edits the tree it is testing cannot be trusted about
-# any of it — and the damage is invisible in the bare shell where the suite
-# gets written and read, which is why it survived this long.
-unset CLAUDE_PROJECT_DIR JOHARNESS_MODE JOHARNESS_MODE_FILE \
-  JOHARNESS_ENV JOHARNESS_ENV_SETUP JOHARNESS_ENV_MD JOHARNESS_REVIEW \
+unset JOHARNESS_ENV JOHARNESS_ENV_SETUP JOHARNESS_ENV_MD JOHARNESS_REVIEW \
   JOHARNESS_CHURN_THRESHOLD JOHARNESS_CHURN_LIMIT \
   JOHARNESS_CONF JOHARNESS_FORCE_SETUP JOHARNESS_SYNC_ROOT DEVENV_FORCE
 
@@ -131,19 +130,6 @@ export PATH
 
 # A commit in the repo $1 with message $2, after staging everything.
 commit_all() { git -C "$1" add -A && git -C "$1" commit -qm "$2"; }
-
-step "suite isolation"
-
-# The invariant the unset block at the top exists for. Drop CLAUDE_PROJECT_DIR
-# from that list and nothing else here goes red — every case that invokes the
-# entrypoint without a per-call value simply starts answering about the real
-# repository, and one of them writes to its .git. Asserted rather than
-# trusted, because the damage is silent and lands off-fixture.
-if [ -z "${CLAUDE_PROJECT_DIR:-}" ]; then
-  pass "the suite runs with CLAUDE_PROJECT_DIR unset"
-else
-  fail "the suite runs with CLAUDE_PROJECT_DIR unset (fixtures would hit the real repo)"
-fi
 
 # --- entrypoint: env selection ---------------------------------------------
 step "joharness.sh env"
@@ -1736,6 +1722,20 @@ if grep -qx 'unset CLAUDE_PROJECT_DIR' "${ROOT}/.agents/harness/selftest.sh"; th
   pass "the unset that keeps it out is still here"
 else
   fail "the unset that keeps it out is still here"
+fi
+
+# The mode knobs get both halves for the same reason: the runtime check is
+# vacuous under a caller that exported nothing, which is every CI run.
+if [ -z "${JOHARNESS_MODE-}${JOHARNESS_MODE_FILE-}" ]; then
+  pass "no mode knob reaches the fixtures"
+else
+  fail "no mode knob reaches the fixtures"
+  printf '    | %s %s\n' "${JOHARNESS_MODE-}" "${JOHARNESS_MODE_FILE-}"
+fi
+if grep -qx 'unset JOHARNESS_MODE JOHARNESS_MODE_FILE' "${ROOT}/.agents/harness/selftest.sh"; then
+  pass "the unset that keeps the mode knobs out is still here"
+else
+  fail "the unset that keeps the mode knobs out is still here"
 fi
 
 jm() { JOHARNESS_MODE_FILE="$markerfile" JOHARNESS_CONF="$modeconf" \
