@@ -9,6 +9,11 @@ Direction rule (doctrine + why:
 ANYWHERE lands in joharness `main` first, then syncs out. Never
 consumer-to-consumer, never consumer-only.
 
+That is where a fix goes. How a consumer session gets it there — deciding
+whether the harness is actually wrong, carrying the measurement canonical
+cannot reproduce, and why the loop closes at the sync rather than the merge —
+is [`feedback.md`](feedback.md) § *When the consumer is the detector*.
+
 Context rule (ratified 2026-08-25): in a CONSUMER, harness upkeep never
 runs inside a session doing product work. A session's context belongs to
 the plan it claimed. Syncing the harness is upkeep of the tool, not the
