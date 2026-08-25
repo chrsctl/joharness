@@ -1430,6 +1430,92 @@ else
   fail "a recognised value warns about nothing (got '${err}')"
 fi
 
+# --- session-local marker ---------------------------------------------------
+# `mode <value>` toggles autonomy for one checkout without touching the
+# tracked conf. Both directions, because a switch that only goes on is a
+# latch, and this one governs how much a session may do unattended.
+markerfile="${TMP}/marker"
+printf 'JOHARNESS_MODE=supervised\n' >"$modeconf"
+jm() { JOHARNESS_MODE_FILE="$markerfile" JOHARNESS_CONF="$modeconf" \
+  "${ROOT}/joharness.sh" "$@"; }
+
+rm -f "$markerfile"
+expect "no marker falls through to conf" "supervised" "$(jm mode)"
+
+jm mode unsupervised >/dev/null
+expect "marker turns autonomy on" "unsupervised" "$(jm mode)"
+if [ -r "$markerfile" ]; then
+  pass "marker file written"
+else
+  fail "marker file written"
+fi
+
+jm mode default >/dev/null
+expect "marker cleared turns it off again" "supervised" "$(jm mode)"
+if [ ! -e "$markerfile" ]; then
+  pass "clearing removes the marker file"
+else
+  fail "clearing removes the marker file"
+fi
+
+# Off is also reachable without clearing: a marker can narrow a conf that
+# opted the whole repo in.
+printf 'JOHARNESS_MODE=unsupervised\n' >"$modeconf"
+jm mode supervised >/dev/null
+expect "marker narrows an opted-in conf" "supervised" "$(jm mode)"
+printf 'JOHARNESS_MODE=supervised\n' >"$modeconf"
+
+# Everything unrecognised inside the marker resolves supervised, same rule
+# as the conf and the environment.
+for bad in yes 1 Unsupervised '' '   '; do
+  printf '%s\n' "$bad" >"$markerfile"
+  got="$(jm mode 2>/dev/null)"
+  if [ "$got" = "supervised" ]; then
+    pass "marker '${bad}' fails closed"
+  else
+    fail "marker '${bad}' fails closed (got '${got}')"
+  fi
+done
+
+printf '  unsupervised  \n' >"$markerfile"
+expect "marker tolerates surrounding whitespace" "unsupervised" "$(jm mode)"
+
+# The environment is the more immediate source and keeps winning, so a
+# session can always be narrowed for one command.
+got="$(JOHARNESS_MODE=supervised JOHARNESS_MODE_FILE="$markerfile" \
+  JOHARNESS_CONF="$modeconf" "${ROOT}/joharness.sh" mode)"
+expect "env still narrows over a marker" "supervised" "$got"
+
+# A session that set the marker while the environment says otherwise has
+# not changed anything, and has to be told.
+err="$(JOHARNESS_MODE=supervised JOHARNESS_MODE_FILE="$markerfile" \
+  JOHARNESS_CONF="$modeconf" "${ROOT}/joharness.sh" mode unsupervised 2>&1 >/dev/null)"
+expect "setting a marker the env overrides says so" "wins over the marker" "$err"
+
+# Refuse to write a marker that would read as supervised while looking like
+# an opt-in.
+if JOHARNESS_MODE_FILE="$markerfile" JOHARNESS_CONF="$modeconf" \
+   "${ROOT}/joharness.sh" mode yes >/dev/null 2>&1; then
+  fail "mode refuses to write an unrecognised value"
+else
+  pass "mode refuses to write an unrecognised value"
+fi
+
+# Session start has to say the autonomy is session-local; a marker and a
+# repo-wide opt-in want different reactions from whoever reads it.
+printf 'unsupervised\n' >"$markerfile"
+out="$(jm session-start 2>/dev/null)"
+expect "banner marks session-local autonomy" "Session-local (marker" "$out"
+expect "banner says how to turn it off" "mode default" "$out"
+rm -f "$markerfile"
+
+# The marker must never reach a commit.
+if git -C "$ROOT" check-ignore -q .joharness-mode; then
+  pass ".joharness-mode is gitignored"
+else
+  fail ".joharness-mode is gitignored"
+fi
+
 # --- handover-guard.sh ------------------------------------------------------
 # Stop-hook guard: git facts only, one-shot via stop_hook_active, silent on
 # a clean pushed tree, never a nonzero exit.
