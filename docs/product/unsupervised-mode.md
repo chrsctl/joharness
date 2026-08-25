@@ -16,6 +16,14 @@ merge, and fan out across the free plans so several run at once. The mode
 is a switch: supervised stays the default and stays exactly as it is
 today.
 
+Work it generates has to be work someone wanted. So autonomy is bounded by
+a goal rather than by a clock or a counter: it runs toward an open
+requirement, every generated plan names the requirement and the bullet it
+advances, and when the last bullet reads true the requirement file is
+deleted and the fleet winds down. A loop whose "done" cannot be stated
+does not converge — it produces plausible work forever, and under full-loop
+autonomy that work merges without anyone reading it.
+
 ## Satisfied when
 
 - `joharness.conf` carries a mode, default supervised, and a session can
@@ -29,9 +37,22 @@ today.
   self-merge.
 - Two or more free plans produce two or more sessions running at once,
   one per plan, using the wave partition the queue hook already computes.
-- Started once, the fleet keeps going for hours with no human turn — an
-  empty queue is a trigger for work, not a stopping point.
+- Started once, the fleet keeps going for hours with no human turn, for as
+  long as a goal is open.
+- The goal is an open requirement in `docs/product/`. An unsupervised
+  session at the queue edge with no open requirement stops and asks,
+  exactly as a supervised one does, and says the goal is reached rather
+  than going quiet.
+- Every plan an unsupervised session generates names the requirement it
+  serves and the `Satisfied when` bullet it advances. A plan that serves no
+  open requirement is not generated.
+- When every `Satisfied when` bullet of a requirement reads true, the next
+  unsupervised session deletes the requirement file rather than inventing
+  more work against it. Reaching the goal is the terminal action, not a
+  state to keep working past.
 - No unsupervised session commits a change under `.agents/harness/`.
+- No unsupervised session writes a requirement. The goal is the human's to
+  set, and a fleet that writes its own finish line has none.
 
 ## Constraints
 
@@ -44,8 +65,15 @@ today.
 - Unsupervised merging uses the step 7 conditions unchanged — green
   checks, zero behind main, review recorded, no open human thread. The
   mode removes the human, never the gate.
+- Autonomy is bounded by a goal, not by a counter. Unsupervised mode is
+  live only while at least one requirement is open; the requirement's
+  `Satisfied when` is the finish line, and delete-on-satisfied is the
+  terminus. This is the stopping condition, added 2026-08-25 at the
+  requester's direction, and it replaces "an empty queue is a trigger for
+  work, not a stopping point" from the first draft.
 - Deliberately NOT constrained, decided 2026-08-24 by the requester after
   being offered each one: no cap on work per run, no halt when main is
-  red, no ban on sessions spawning sessions. A decomposing session must
-  not add these back on its own judgment — propose them to the human
-  instead.
+  red, no ban on sessions spawning sessions. These stay declined — the
+  goal bound above is what answers the runaway risk they were offered
+  for. A decomposing session must not add the three back on its own
+  judgment; propose them to the human instead.
