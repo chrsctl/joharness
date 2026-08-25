@@ -26,14 +26,14 @@ diffs touching `joharness.sh`, `.agents/harness/`, `.agents/env/` or
 
 ## Scope
 
-- `joharness.sh:205` — the `== harness selftest` stage runs `selftest.sh`
+- `joharness.sh:cmd_ci`, the `== harness selftest` stage — runs `selftest.sh`
   when the diff against the merge base touches a harness surface, and
   prints what it skipped and why when it does not. A skip that says
   nothing reads as a pass.
-- `.github/workflows/ci.yml` — the workflow runs `./joharness.sh ci` (line
-  51) AND `./.agents/harness/selftest.sh` as its own job (line 73). Decide
-  and record which side owns the gate. The promise in Part 2 is that `ci`
-  is the whole of what GitHub checks, so a local skip that GitHub does not
+- `.github/workflows/ci.yml` — the `lint` job runs `./joharness.sh ci` AND
+  the `windows` job runs `./.agents/harness/selftest.sh` directly on Git
+  Bash. Decide and record which side owns the gate. The promise in Part 2 is
+  that `ci` is the whole of what GitHub checks, so a local skip GitHub does not
   skip breaks that promise for exactly the diffs the gate lets through.
 - `.agents/harness/selftest.sh` — cover the gate itself: a diff touching a
   harness surface runs it, a diff touching nothing else does not, and the
@@ -66,12 +66,13 @@ diffs touching `joharness.sh`, `.agents/harness/`, `.agents/env/` or
 
 ## Where to look
 
-- `joharness.sh:205` — the `printf '\n== harness selftest\n'` stage and the
-  `rc=1` path under it.
-- `.agents/harness/AGENTS.md:49` — step 7's existing four-path list, the
+- `joharness.sh:cmd_ci` — the `printf '\n== harness selftest\n'` stage and
+  the `rc=1` path under it.
+- `.agents/harness/AGENTS.md`, Loop step 7 — the existing four-path list, the
   wording this gate should match rather than invent.
-- `.github/workflows/ci.yml:51` and `:73` — the two places the selftest can
-  run, and the reason the decision cannot be made in `joharness.sh` alone.
+- `.github/workflows/ci.yml`, jobs `lint` and `windows` — the two places the
+  selftest can run, and the reason the decision cannot be made in
+  `joharness.sh` alone.
 - `AGENTS.md` Part 2 — "it is the whole of what GitHub checks, so a red PR
   after a green run here is a bug in the split". This plan edits the split.
 

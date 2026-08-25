@@ -7,7 +7,7 @@ plan: none
 session: https://claude.ai/code/session_01CoyUYZVH6ezxbfyDWhR6bE
 agent: opus
 updated: 2026-08-25
-next: Human decides whether to open the PR (outer harness forbids opening one unasked), and whether to sweep main's 2 leftover workstream files with `./joharness.sh cleanup --apply`; then merge per Loop step 7
+next: Merge per Loop step 7 once GitHub checks are green and the branch is 0 behind a fresh-fetched origin/main
 ---
 
 ## Goal
@@ -84,10 +84,19 @@ report the rest" over report-only.
 - **`base_ref()` factored out** rather than adding a third copy of the
   "origin/main, else main, else HEAD" loop — three callers walking merged
   history have to agree on where it is.
-- **Not run on this repo's own 2 leftovers.** They belong to other
-  workstreams, and the session-start hook is explicit that they are "not a
-  chore for you". The command reports them; sweeping them is the human's call
-  and a separate pull request.
+- **Not run on this repo's own leftovers.** They belong to other workstreams,
+  and the session-start hook is explicit that they are "not a chore for you".
+  The command reports them; sweeping them is a separate pull request.
+- **Reconciled with `main` at finish**, 12 commits behind by then
+  (unsupervised-mode, PR 51/52/53). One conflict, in the help text: both
+  sides appended a subcommand to the same list. Both kept, no semantic
+  overlap — `mode` and `cleanup` touch nothing in common.
+- **The accretion is not hypothetical, and it is not historical.** The two
+  leftovers this command reported last turn were swept on `main` by another
+  session while this branch was in flight — and PR 53, merging in the same
+  window, left `docs/handover/mode-toggle.md` behind. One merge removed two
+  and the next merge added one. That is the rate the command exists to make
+  visible.
 
 ## Rejected
 
@@ -174,7 +183,8 @@ reproduce). Findings against my own diff:
   argument, and the cap and the first-parent walk both survive it unchanged
   (no change needed).
 
-Green: `./joharness.sh ci` = `ci: pass`, 372 passed 0 failed, zero shellcheck
+Green: `./joharness.sh ci` = `ci: pass`, 420 passed 0 failed (20 of them the
+cleanup cases this branch adds — counted, not estimated), zero shellcheck
 findings. `./joharness.sh verify` = 7 passed, 0 failed.
 
 ## Blockers
