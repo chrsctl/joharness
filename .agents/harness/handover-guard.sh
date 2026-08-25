@@ -77,10 +77,25 @@ if [ -n "$branch" ] && [ "$branch" != "HEAD" ]; then
   fi
 fi
 
-# --- code without a workstream file ----------------------------------------
-# Only when the branch actually changes code (protocol dirs excluded, same
-# split as the churn measure): copy/sync tasks legitimately carry no file,
-# and a docs-only branch is its own record.
+# --- work without a workstream file ----------------------------------------
+# Fires when the branch changes anything outside the protocol dirs
+# (docs/handover|plans|product, the same split as the churn measure), so
+# copy/sync tasks legitimately carry no file.
+#
+# **Everything else counts, documentation included**, and the fact says so in
+# those words. It used to say "changes code", with a comment promising that "a
+# docs-only branch is its own record" — a promise the filter does not keep and
+# never did: MANIFEST, PROJECT-STATE, the open-questions register and every ADR
+# are outside those three dirs, and in a repo whose queue lives in MANIFEST
+# they are the product rather than a note about it. The wording cost a real
+# session two stops: it read "code", saw its own diff was two `.md` files,
+# concluded the guard had misfired, and stopped through a claim it genuinely
+# owed. A fact that invites the reader to exempt themselves is worse than no
+# fact, because it spends the attention and then hands back the wrong answer.
+#
+# Left as it is, deliberately. A branch editing the queue document IS doing
+# queue work; the narrower rule the old comment described would have excused
+# exactly the case that went wrong.
 #
 # A workstream file the branch both ADDED and DELETED in its own history is
 # the finishing ritual (the PR's final state deletes the file), not a
@@ -95,7 +110,7 @@ fi
 # which moves the merge-base past the ritual and re-arms this fact.
 base="$(git merge-base HEAD "origin/${BASE_BRANCH}" 2>/dev/null)"
 if [ -n "$base" ] && [ "$base" != "$(git rev-parse HEAD 2>/dev/null)" ]; then
-  code_changed="$(
+  work_changed="$(
     {
       git diff --name-only "$base" HEAD 2>/dev/null
       git diff --name-only HEAD 2>/dev/null
@@ -103,7 +118,7 @@ if [ -n "$base" ] && [ "$base" != "$(git rev-parse HEAD 2>/dev/null)" ]; then
   )"
   has_ws="$(find docs/handover -maxdepth 1 -name '*.md' \
     ! -name 'TEMPLATE.md' ! -name 'README.md' 2>/dev/null | head -1)"
-  if [ -n "$code_changed" ] && [ -z "$has_ws" ]; then
+  if [ -n "$work_changed" ] && [ -z "$has_ws" ]; then
     # Intersection via uniq -d over the two deduplicated name sets. The
     # top-level filter mirrors has_ws's -maxdepth 1: nested files under
     # docs/handover/ are not workstream files.
@@ -118,7 +133,7 @@ if [ -n "$base" ] && [ "$base" != "$(git rev-parse HEAD 2>/dev/null)" ]; then
         sort | uniq -d | head -1
     )"
     [ -n "$ritual" ] ||
-      add_fact "branch changes code but has no workstream file (.agents/docs/handover/TEMPLATE.md)"
+      add_fact "branch changes files outside docs/handover|plans|product (documentation counts) but has no workstream file (.agents/docs/handover/TEMPLATE.md)"
   fi
 fi
 
