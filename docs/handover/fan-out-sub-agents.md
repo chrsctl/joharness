@@ -7,7 +7,7 @@ plan: none
 session: https://claude.ai/code/session_01VnfQ6Zg1DFomKia7dHUnAb
 agent: opus
 updated: 2026-08-25
-next: Ratify one independent verifier subagent per edge (not three lenses); then it becomes a plan
+next: Hand docs/plans/review-verifier-subagent.md to a fresh session, or claim it here
 ---
 
 ## Goal
@@ -127,6 +127,11 @@ tripling cost buys volume, which this repo already established is no signal.
 Runner-up, and worth doing regardless: nothing about fan-out fixes the 9
 unreviewed edges. `JOHARNESS_REVIEW=on` is one line in `joharness.conf` and
 covers the edges that DO carry a workstream file.
+
+Written up as `docs/plans/review-verifier-subagent.md` (opus, high). Its
+acceptance replays PR54's diff at the verifier and passes only if the escape
+comes back named — the bug that motivated the plan is the plan's own
+regression test.
 
 ## Rejected
 
