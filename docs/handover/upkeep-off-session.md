@@ -50,6 +50,15 @@ was as reachable as the free one.
 
 ## Review
 
+- r8: correctness — the refusal read "is there a workstream file", not "did
+  this branch introduce one". A base branch that accreted a finished
+  workstream file — three times in this repo tonight — refused every sync
+  branch cut from it, while the refusal told the session to run it from a
+  sync branch with no workstream file, which is exactly what it had done. A
+  rule that misfires teaches the override, and an override taken reflexively
+  is no rule. Now compares against the merge-base; inherited files are not
+  claims. With no merge-base the two cannot be told apart, so it refuses on
+  presence and lets the message carry the override. (fixed)
 - r5: the rule as first written was a preference, and the preference sat
   above a doc that still spelled the in-conversation ritual out as the
   normal route — branch, dry-run, upgrade, ci, commit, push. In practice a

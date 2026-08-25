@@ -347,9 +347,32 @@ cmd_upgrade() {
   # mid-plan sync sets JOHARNESS_UPGRADE_IN_SESSION=1 and says so in the
   # commit. Silence is what this exists to prevent, not the act.
   if [ "${JOHARNESS_UPGRADE_IN_SESSION:-0}" != "1" ]; then
-    local ws
-    ws="$(find "${ROOT}/docs/handover" -maxdepth 1 -name '*.md' \
-      ! -name 'TEMPLATE.md' ! -name 'README.md' 2>/dev/null | head -1)"
+    local ws base
+    # The claim is what THIS branch introduced, not what it inherited. A
+    # base branch that accreted a finished workstream file — the failure
+    # process-scorecard exists to count — would otherwise refuse every sync
+    # branch cut from it, while the refusal told the session to do exactly
+    # what it had already done. A rule that misfires teaches the override,
+    # and an override taken reflexively is no rule.
+    base="$(git -C "$ROOT" merge-base HEAD "origin/${HANDOVER_BASE_BRANCH:-main}" 2>/dev/null)" || base=""
+    if [ -n "$base" ]; then
+      ws="$(
+        {
+          git -C "$ROOT" diff --name-only --diff-filter=A "$base" HEAD -- docs/handover
+          git -C "$ROOT" diff --name-only --diff-filter=A --cached -- docs/handover
+          git -C "$ROOT" ls-files --others --exclude-standard -- docs/handover
+        } 2>/dev/null |
+          { grep -E '^docs/handover/[^/]+\.md$' || :; } |
+          { grep -vE '/(TEMPLATE|README)\.md$' || :; } | sort -u | head -1
+      )"
+      [ -z "$ws" ] || ws="${ROOT}/${ws}"
+    else
+      # No merge-base to compare against, so introduced-vs-inherited cannot
+      # be told apart. Refuse on presence and let the message carry the
+      # override, rather than pass a session that may be mid-plan.
+      ws="$(find "${ROOT}/docs/handover" -maxdepth 1 -name '*.md' \
+        ! -name 'TEMPLATE.md' ! -name 'README.md' 2>/dev/null | head -1)"
+    fi
     if [ -n "$ws" ]; then
       log "this branch carries ${ws#"${ROOT}/"} — it holds claimed work"
       log "routes that cost it no context: .agents/docs/consumer-repos.md"
