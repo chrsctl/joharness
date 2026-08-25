@@ -16,7 +16,10 @@ This repo IS the harness. Both layers live under `.agents/` — one dotted
 root any tool can detect: [`.agents/harness/`](.agents/harness/README.md)
 always runs, one [`.agents/env/<name>/`](.agents/env/README.md) is selected.
 Cross-layer coupling is the bug this structure exists to prevent —
-`.agents/harness/` must never name a specific environment.
+`.agents/harness/` names no specific environment. `none` is not one: it is
+the harness's own word for the absence of one. Exactly one carve-out, spelled
+once in the selftest that enforces the rule (`LAYER_CARVE_OUT_*`). A second
+one is a red run, not a judgement call.
 
 Verify (all green or not done):
 

@@ -131,6 +131,87 @@ export PATH
 # A commit in the repo $1 with message $2, after staging everything.
 commit_all() { git -C "$1" add -A && git -C "$1" commit -qm "$2"; }
 
+# --- structure: the layer rule, enforced ------------------------------------
+# Three files state it — root AGENTS.md, .agents/env/README.md and
+# .agents/harness/README.md — and until this check nothing measured it, so the
+# tree drifted from all three: selftest.sh grew a k8s regression test whose
+# justification lived only in a code comment, while every statement of the
+# rule still read as an absolute. A rule with three statements and no test is
+# the shape the finish gate was promoted out of.
+#
+# Two things are NOT couplings, and the difference matters:
+#
+#   none   Not an environment. It is the harness's own word for the absence of
+#          one — resolve_env returns it, so harness code has to say it. Four
+#          harness files do. Exempt by definition, not by exception.
+#
+#   the carve-out below   Spelled ONCE, here, in the check that reads it, so
+#          the three prose statements can point at it instead of each
+#          re-spelling it and drifting apart the way the rule already did.
+LAYER_CARVE_OUT_FILE="selftest.sh"
+LAYER_CARVE_OUT_NAME="k8s"
+
+# One "<file> <layer>" line per violation, nothing when clean. Takes its roots
+# as arguments so the fixture below can plant a violation and prove the check
+# actually fires — a structural check that has only ever been run against a
+# clean tree is a check nobody has tested.
+layer_rule_scan() {
+  local hroot="$1" eroot="$2" d n f
+  [ -d "$eroot" ] || return 0
+  for d in "$eroot"/*/; do
+    [ -d "$d" ] || continue
+    n="$(basename "$d")"
+    [ "$n" = "none" ] && continue
+    while IFS= read -r f; do
+      [ -n "$f" ] || continue
+      if [ "$(basename "$f")" = "$LAYER_CARVE_OUT_FILE" ] &&
+         [ "$n" = "$LAYER_CARVE_OUT_NAME" ]; then
+        continue
+      fi
+      printf '%s %s\n' "${f#"${hroot}/"}" "$n"
+    done <<<"$(grep -rlwE -- "$n" "$hroot" 2>/dev/null || :)"
+  done
+}
+
+step "structure: .agents/harness/ names no environment layer"
+
+lr_out="$(layer_rule_scan "${ROOT}/.agents/harness" "${ROOT}/.agents/env")"
+if [ -z "$lr_out" ]; then
+  pass "this tree couples no harness file to a layer beyond the carve-out"
+else
+  fail "this tree couples no harness file to a layer beyond the carve-out"
+  printf '%s\n' "$(indent "$lr_out")"
+fi
+
+# Fixture: prove each arm. Without these the check above is green on a tree
+# that happens to be clean, which says nothing about whether it can ever fire.
+# The scan takes its roots as arguments, so the fixture invents its own layer
+# rather than borrowing a real one. That is not fastidiousness: the first
+# draft planted a live layer's name here and the check immediately failed the
+# real tree, because test data naming a layer is exactly the coupling being
+# forbidden. It would have been the only violation left in the repo. The
+# rewrite of this very comment was the second — a sentence naming the layer
+# in order to say it must not be named still names it.
+lr="${TMP}/layerrule"
+lr_layer="zzfixture"
+mkdir -p "${lr}/harness" "${lr}/env/${lr_layer}" "${lr}/env/none"
+printf 'harmless\n' >"${lr}/harness/ok.sh"
+printf 'name=none is the absence of a layer\n' >"${lr}/harness/uses-none.sh"
+lr_out="$(layer_rule_scan "${lr}/harness" "${lr}/env")"
+refute "a clean fixture reports nothing" "ok.sh" "$lr_out"
+refute "'none' is the absence of a layer, not a coupling" "uses-none.sh" "$lr_out"
+
+printf '%s up\n' "$lr_layer" >"${lr}/harness/bad.sh"
+lr_out="$(layer_rule_scan "${lr}/harness" "${lr}/env")"
+expect "a harness file naming a layer is caught" "bad.sh ${lr_layer}" "$lr_out"
+
+# The carve-out is one FILE for one LAYER, not a blanket exemption for the
+# file. Without this case, "selftest.sh may name anything" would pass.
+printf '%s up\n' "$lr_layer" >"${lr}/harness/${LAYER_CARVE_OUT_FILE}"
+lr_out="$(layer_rule_scan "${lr}/harness" "${lr}/env")"
+expect "the carve-out file is exempt only for its own layer" \
+  "${LAYER_CARVE_OUT_FILE} ${lr_layer}" "$lr_out"
+
 # --- entrypoint: env selection ---------------------------------------------
 step "joharness.sh env"
 
