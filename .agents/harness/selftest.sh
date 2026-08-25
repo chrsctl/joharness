@@ -1212,6 +1212,32 @@ expect "a file an unmerged branch is writing is kept" \
 expect "a file that branch only inherited is still stale" \
   "stale    docs/handover/alpha.md" "$out"
 
+# The branch that ran the finishing ritual — deleted its own workstream file —
+# and whose pull request merged before the ritual commit. `--name-only` counts
+# a deletion as a difference, so the branch read as still carrying the file
+# and cleanup protected it forever: the ritual, which is the thing this
+# command exists to complete, was what made the file unremovable. Measured on
+# this repo 2026-08-25, upkeep-off-session.md held as `keep` with no branch
+# anywhere containing it.
+git -C "$clwork" checkout -q main
+printf -- '---\nworkstream: gamma\nstatus: done\n---\n' \
+  >"${clwork}/docs/handover/gamma.md"
+commit_all "$clwork" "gamma lands on main"
+git -C "$clwork" push -q origin main
+git -C "$clwork" checkout -qb three
+git -C "$clwork" rm -q docs/handover/gamma.md
+commit_all "$clwork" "finish ritual: delete the gamma workstream file"
+git -C "$clwork" push -qu origin three
+git -C "$clwork" checkout -q main
+
+out="$(jc cleanup)"
+expect "a file its own branch already deleted is stale, not kept" \
+  "stale    docs/handover/gamma.md" "$out"
+refute "the ritual does not protect the file it deleted" \
+  "keep     docs/handover/gamma.md" "$out"
+expect "a file an unmerged branch is still writing stays kept" \
+  "keep     docs/handover/beta.md" "$out"
+
 # --apply, on a branch, where a pull request can carry the deletion.
 git -C "$clwork" checkout -qb sweep
 out="$(jc cleanup --apply)"
