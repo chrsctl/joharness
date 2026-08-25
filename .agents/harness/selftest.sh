@@ -1509,11 +1509,54 @@ expect "banner marks session-local autonomy" "Session-local (marker" "$out"
 expect "banner says how to turn it off" "mode default" "$out"
 rm -f "$markerfile"
 
-# The marker must never reach a commit.
-if git -C "$ROOT" check-ignore -q .joharness-mode; then
-  pass ".joharness-mode is gitignored"
+# The marker must never reach a commit — and not by cooperation from
+# .gitignore, which is consumer-own and never synced, so a consumer would
+# get this toggle without the rule. It lives in the git directory, where
+# git tracks nothing, so the property holds in every checkout that syncs
+# the harness.
+markrepo="${TMP}/markrepo"
+git init -q "$markrepo"
+git -C "$markrepo" symbolic-ref HEAD refs/heads/main
+printf 'code\n' >"${markrepo}/code.txt"
+commit_all "$markrepo" "base"
+cp "${ROOT}/joharness.sh" "${markrepo}/joharness.sh"
+printf 'JOHARNESS_ENV=none\nJOHARNESS_MODE=supervised\n' >"${markrepo}/joharness.conf"
+# No .gitignore at all in this fixture: that is the consumer's situation.
+( cd "$markrepo" && ./joharness.sh mode unsupervised ) >/dev/null 2>&1
+expect "marker works in a repo with no .gitignore" "unsupervised" \
+  "$( cd "$markrepo" && ./joharness.sh mode )"
+dirty="$(git -C "$markrepo" status --porcelain --ignored 2>/dev/null | grep -i 'joharness-mode' || :)"
+if [ -z "$dirty" ]; then
+  pass "marker is invisible to git status, with no .gitignore rule"
 else
-  fail ".joharness-mode is gitignored"
+  fail "marker is invisible to git status, with no .gitignore rule"
+  printf '%s\n' "$(indent "$dirty")"
+fi
+if [ -f "${markrepo}/.git/joharness-mode" ]; then
+  pass "marker defaults into the git directory"
+else
+  fail "marker defaults into the git directory"
+fi
+( cd "$markrepo" && ./joharness.sh mode default ) >/dev/null 2>&1
+expect "cleared again in that repo" "supervised" \
+  "$( cd "$markrepo" && ./joharness.sh mode )"
+
+# A checkout that is not a git repo still gets a marker, at the root, which
+# is what the .gitignore entry covers.
+nogit="${TMP}/nogit"
+mkdir -p "$nogit"
+cp "${ROOT}/joharness.sh" "${nogit}/joharness.sh"
+printf 'JOHARNESS_ENV=none\nJOHARNESS_MODE=supervised\n' >"${nogit}/joharness.conf"
+( cd "$nogit" && ./joharness.sh mode unsupervised ) >/dev/null 2>&1
+if [ -f "${nogit}/.joharness-mode" ]; then
+  pass "non-git checkout falls back to the root marker"
+else
+  fail "non-git checkout falls back to the root marker"
+fi
+if git -C "$ROOT" check-ignore -q .joharness-mode; then
+  pass "the fallback path is gitignored here"
+else
+  fail "the fallback path is gitignored here"
 fi
 
 # --- handover-guard.sh ------------------------------------------------------
