@@ -1464,7 +1464,11 @@ cmd_cleanup() {
       *) die "unknown option '$a' (try: $0 cleanup [--apply])" ;;
     esac
   done
-  ref="$(base_ref)" || die "no base branch to read merged state from"
+  ref="$(decide_ref)" || die \
+    "no ref for base branch '${HANDOVER_BASE_BRANCH:-main}' in this checkout" \
+    "— every line below would be measured against the branch you are on," \
+    "so a live claim reads as stale and --apply deletes it." \
+    "Run: git fetch origin ${HANDOVER_BASE_BRANCH:-main}"
 
   if [ "$apply" -eq 1 ]; then
     printf '== cleanup --apply (%s)\n\n' "$ref"
@@ -1626,9 +1630,47 @@ fin_docs_at() {
   git -C "$ROOT" ls-tree -r --name-only "$1" -- docs/handover 2>/dev/null | gr_docs
 }
 
+# `base_ref` falls back to HEAD when neither `origin/<base>` nor `<base>`
+# resolves. That is right for a command that DESCRIBES — `graph` would rather
+# lint the checkout it has than refuse — and wrong for one that DECIDES,
+# because HEAD compared against HEAD says every file is already on the base
+# branch. Both commands that decide were wrong under it, in opposite
+# directions, and neither said a word:
+#
+#   finish   returned GREEN on a branch carrying a live workstream file, and
+#            printed "already on the base branch — not this merge, not this
+#            session" about the very file the merge was about to strand.
+#   cleanup  called that same live file `stale`, and `--apply` DELETED it.
+#            A session in flight, its claim removed, by the command whose job
+#            is removing claims that are finished.
+#
+# Both found by review of PR60. The `finish` half is a check passing for the
+# wrong reason inside the gate written to enforce that discipline; the
+# `cleanup` half is the older bug the same fallback was hiding, and it loses
+# work rather than missing rot.
+#
+# The case is not exotic. A fresh consumer clone, or CI where
+# `actions/checkout` fetched only the pull request head, has no local base ref
+# — and a session in a fresh clone is exactly who needs both of these. A
+# command that acts on the answer refuses when it has no answer: **"cannot
+# tell" is not "clean", and it is certainly not "delete it".**
+decide_ref() {
+  local b="${HANDOVER_BASE_BRANCH:-main}" c
+  for c in "origin/${b}" "$b"; do
+    if git -C "$ROOT" rev-parse --verify --quiet "$c" >/dev/null 2>&1; then
+      printf '%s' "$c"
+      return 0
+    fi
+  done
+  return 1
+}
+
 cmd_finish() {
   local ref branch rc=0 f adds=0 pre=0 base_docs tip_docs
-  ref="$(base_ref)" || die "no base branch to compare against"
+  ref="$(decide_ref)" || die \
+    "no ref for base branch '${HANDOVER_BASE_BRANCH:-main}' in this checkout" \
+    "— a gate cannot pass on a comparison it could not make." \
+    "Run: git fetch origin ${HANDOVER_BASE_BRANCH:-main}"
   branch="$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || printf '?')"
   printf '== finish (%s -> %s)\n\n' "$branch" "$ref"
 
