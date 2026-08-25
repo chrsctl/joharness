@@ -1,5 +1,12 @@
-# Normalize text in the repository; let git pick the working-tree ending.
-* text=auto
+# Normalize text in the repository AND in every working tree. Not `text=auto`
+# alone: that lets core.autocrlf pick the checkout ending, and Git for Windows
+# defaults to autocrlf=true — a stock clone there renders every file the
+# patterns below do not pin (JSON, YAML, this file) as CRLF. `upgrade` compares
+# canonical working-tree bytes against the consumer's, so those files read as
+# changed on every run: 2 phantom updates per upgrade, CRLF written into the
+# consumer, normalized away at commit, phantom again next run. eol=lf on the
+# catch-all makes every clone byte-identical on every platform.
+* text=auto eol=lf
 
 # Shell scripts are the exception: bash executes them and shellcheck lints
 # them, and both want LF. Git for Windows ships core.autocrlf=true as its
