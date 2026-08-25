@@ -215,6 +215,58 @@ out="$(JOHARNESS_ENV="$(printf 'aaa\nbad')" jo setup 2>&1)"
 expect "embedded newline in layer name is rejected as invalid" \
   "ignoring invalid JOHARNESS_ENV" "$out"
 
+# verify against the layer contract: everything in a layer is optional, so a
+# layer with no smoke-test.sh has NOTHING to verify and must not be reported
+# as failing to verify. `none` is that case permanently, and step 7 asks for
+# `verify` green whenever a diff touches harness code — an env=none repo could
+# otherwise never satisfy its own merge rule.
+out="$(JOHARNESS_ENV=none jo verify)"; rc=$?
+if [ "$rc" -eq 0 ]; then
+  pass "layer with no smoke-test.sh verifies as nothing to do"
+else
+  fail "layer with no smoke-test.sh verifies as nothing to do (exited ${rc})"
+fi
+# Silence would be indistinguishable from a run that did nothing by accident.
+expect "nothing-to-verify says so out loud" "nothing to verify" "$out"
+
+# Present but not executable is the opposite case: somebody meant that file to
+# run, so passing green over it would hide a broken layer behind the rule
+# above. This is the distinction `[ -x ]` alone could not make.
+printf '#!/usr/bin/env bash\nexit 0\n' >"${sel}/.agents/env/aaa/smoke-test.sh"
+chmod -x "${sel}/.agents/env/aaa/smoke-test.sh" 2>/dev/null || true
+# NTFS under Git Bash reports every file executable, so this state cannot be
+# built there — the same platform limit the exec-bit repair and the
+# unrunnable-selftest cases already skip for. Asserted where the bit is real,
+# skipped where it is not, never asserted against a state that was not
+# actually created.
+if [ -x "${sel}/.agents/env/aaa/smoke-test.sh" ]; then
+  skip "smoke-test.sh present but not executable still fails" \
+    "chmod -x does not stick here"
+  skip "non-executable smoke test names the fix" "chmod -x does not stick here"
+else
+  out="$(JOHARNESS_ENV=aaa jo verify)"; rc=$?
+  if [ "$rc" -ne 0 ]; then
+    pass "smoke-test.sh present but not executable still fails"
+  else
+    fail "smoke-test.sh present but not executable still fails (exited 0)"
+  fi
+  expect "non-executable smoke test names the fix" "not executable" "$out"
+fi
+
+# And the happy path still runs the thing, or the two cases above would be
+# green against a verify that had stopped verifying anything at all.
+chmod +x "${sel}/.agents/env/aaa/smoke-test.sh" 2>/dev/null || true
+if [ -x "${sel}/.agents/env/aaa/smoke-test.sh" ]; then
+  printf '#!/usr/bin/env bash\nprintf "SMOKE-SENTINEL ran\\n"\n' \
+    >"${sel}/.agents/env/aaa/smoke-test.sh"
+  chmod +x "${sel}/.agents/env/aaa/smoke-test.sh"
+  out="$(JOHARNESS_ENV=aaa jo verify)"
+  expect "executable smoke test still runs" "SMOKE-SENTINEL ran" "$out"
+else
+  skip "executable smoke test still runs" "cannot set the executable bit here"
+fi
+rm -f "${sel}/.agents/env/aaa/smoke-test.sh"
+
 # --- entrypoint: setup.sh writes shell-safe env-file lines --------------------
 # The written file is sourced by a later shell; a cluster name carrying a quote
 # and $(...) would run as code there unless setup.sh escapes it. Stub the
