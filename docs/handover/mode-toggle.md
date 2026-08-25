@@ -22,6 +22,12 @@ cleared by `./joharness.sh mode <value>`.
 
 ## Decisions
 
+- Marker lives in the git directory, not at the repo root. Git tracks
+  nothing in there, so the marker cannot be committed in ANY checkout that
+  syncs the harness — and a root-level file plus a `.gitignore` line only
+  looks equivalent, because `.gitignore` is consumer-own and never synced.
+  It also does not survive a clone, which is what makes "session-local"
+  true in a fresh container.
 - Marker file, not a second conf layer. `joharness.local.conf` would
   override every key and make each setting ask "which file won"; a
   single-purpose file holding one word answers only the question it is for.
@@ -66,6 +72,20 @@ cleared by `./joharness.sh mode <value>`.
   predicate as the other two sources, so it warns on stderr while stdout
   stays one clean word for the guard. Covered for `yes`, `1`,
   `Unsupervised`, empty and whitespace-only. (fixed)
+- r4: security/correctness — the marker was `${ROOT}/.joharness-mode`,
+  kept out of commits by a `.gitignore` line. But `.gitignore` is
+  consumer-own and explicitly never synced
+  (`.agents/scripts/sync-to-consumer.sh:26`), so every consumer would get
+  this toggle WITHOUT the rule: a temporary opt-in one `git add -A` from
+  becoming that repo's permanent setting, which is the exact failure the
+  ignore rule existed to prevent. Moved into the git directory, where git
+  tracks nothing and no cooperation from an unsynced file is needed. The
+  test now asserts the real property — invisible to `git status` in a
+  fixture with no `.gitignore` at all — instead of asserting that a
+  pattern exists. (fixed)
+- r5: does-it-reproduce — relocating it needed a fallback for a checkout
+  that is not a git repo. Falls back to the root path, which is what the
+  `.gitignore` entry now covers; both paths tested. (fixed)
 - r3: the toggle is a session-granting-itself-autonomy path, and the
   boundary it would escape is the one stopping it editing
   `.agents/harness/`. Raised with the requester before building; they asked

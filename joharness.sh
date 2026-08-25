@@ -57,10 +57,32 @@ set -uo pipefail
 
 ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 CONF="${JOHARNESS_CONF:-${ROOT}/joharness.conf}"
-# Session-local autonomy override. Untracked and gitignored, so it never
-# reaches a commit, and in a container it dies with the container — which
-# is what makes "temporary" true rather than merely intended.
-MODE_FILE="${JOHARNESS_MODE_FILE:-${ROOT}/.joharness-mode}"
+# Session-local autonomy override, kept inside the git directory. Git
+# tracks nothing in there, so the marker cannot reach a commit however
+# hard a hurried session tries — and it does not survive a clone, so
+# "session-local" holds for a fresh container too.
+#
+# The obvious spelling, ${ROOT}/.joharness-mode plus a .gitignore line,
+# looks equivalent and is not: .gitignore is consumer-own and never
+# synced (.agents/scripts/sync-to-consumer.sh), so every consumer would
+# get this toggle WITHOUT the ignore rule, and a temporary opt-in one
+# `git add -A` from becoming that repo's permanent setting. The git dir
+# needs no cooperation from a file the sync does not ship.
+#
+# Fallback for a checkout that is not a git repo at all — the selftest
+# builds those, and the .gitignore entry covers that path.
+mode_file_default() {
+  local gd
+  if gd="$(git -C "$ROOT" rev-parse --git-dir 2>/dev/null)" && [ -n "$gd" ]; then
+    case "$gd" in
+      /*) printf '%s/joharness-mode' "$gd" ;;
+      *)  printf '%s/%s/joharness-mode' "$ROOT" "$gd" ;;
+    esac
+  else
+    printf '%s/.joharness-mode' "$ROOT"
+  fi
+}
+MODE_FILE="${JOHARNESS_MODE_FILE:-$(mode_file_default)}"
 # Both layers hang off one detectable root. Nothing outside .agents/ is a
 # layer, and no layer path is spelled anywhere but here.
 AGENTS_ROOT="${ROOT}/.agents"
