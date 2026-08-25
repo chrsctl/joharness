@@ -7,7 +7,7 @@ plan: none
 session: https://claude.ai/code/session_01VnfQ6Zg1DFomKia7dHUnAb
 agent: opus
 updated: 2026-08-25
-next: Human picks which of the three subagent jobs becomes a plan; review lenses is the recommendation
+next: Ratify one independent verifier subagent per edge (not three lenses); then it becomes a plan
 ---
 
 ## Goal
@@ -88,6 +88,46 @@ re-measure.
   stay alive to merge it. That is the width limit again, wearing a
   different hat.
 
+## Measured — which job is best (2026-08-25)
+
+Scored against this repo's own rule, not taste: recurrence is the score,
+volume is not (`.agents/docs/feedback.md`, Scoring). Every number below from
+`./joharness.sh feedback`, re-derivable.
+
+- Detection is NOT the gap. Coverage since the review ledger (PR31) is 18/19
+  edges recording a review. The scorecard's headline 18/38 is diluted by 19
+  pre-ledger edges that all recorded zero — reading it as decay is wrong.
+- Independence IS the gap, and one escape proves it. `joharness.sh cleanup`
+  shipped in PR54 — 14 findings, opus, the deepest review in this repo's
+  history — carrying `git diff --name-only "$base" "$r" -- docs/handover`,
+  which counts a DELETION as presence. So a branch that ran the finishing
+  ritual read as still carrying its workstream file, and the file was
+  protected from cleanup forever: the feature refused to remove exactly what
+  it exists to remove. Fixed in PR59 by a different session, after the
+  symptom recurred four times in one night. Self-review at maximum depth did
+  not see it; a fresh context saw it immediately.
+- Recurrence 27/46 (58%), up from 7/19 (36%) on 2026-08-24. Confounded, and
+  the doc says so: measured on paths, and `.agents/harness/selftest.sh` (9
+  edges) is touched by nearly every branch by design. Treat as a
+  direction, not a rate.
+- 9 of the 28 post-ledger edges carry no workstream file, so record no
+  review, and `JOHARNESS_REVIEW` is blind there by construction — it prints
+  that it checked nothing rather than passing quietly. PR54's escape was
+  found on one such edge, not by a gate.
+- Price of a reviewer pass: median edge is ~300 changed lines, largest 1267
+  (last 12 edges). One diff-only pass is cheap against a session that ran
+  for hours.
+
+Verdict: ONE independent verifier subagent per edge — fresh context, the
+diff and the rules, not the author's reasoning. Not three lenses: lens
+labels already appear on in-context findings (`security/correctness`,
+`does-it-reproduce` in PR51, PR56), so lenses are not what is missing, and
+tripling cost buys volume, which this repo already established is no signal.
+
+Runner-up, and worth doing regardless: nothing about fan-out fixes the 9
+unreviewed edges. `JOHARNESS_REVIEW=on` is one line in `joharness.conf` and
+covers the edges that DO carry a workstream file.
+
 ## Rejected
 
 - Subagents as the mechanism for `unsupervised-fanout`. Loses endurance (dies
@@ -96,6 +136,14 @@ re-measure.
 - A `SubagentStart` hook that injects the queue the way `SessionStart` does.
   Impossible, not merely awkward: that event cannot return
   `additionalContext` and its stderr goes to the subagent's transcript only.
+- Three lens subagents per edge, which is what round one recommended.
+  Withdrawn on the measurement above: coverage is 95% and lens labels
+  already appear in recorded findings, so the missing property is a context
+  that did not write the code, and one such reader has it. Volume is not a
+  score.
+- The upkeep-subagent job, in THIS repo. `JOHARNESS_CANONICAL=1`, so the
+  context rule does not apply and `upgrade` refuses to run
+  (`.agents/docs/consumer-repos.md`). It pays in consumers only.
 - A `.claude/agents/joharness-worker.md` definition carrying the state. Agent
   frontmatter carries rules, skills, memory, permission mode and its own
   PreToolUse/PostToolUse hooks — all static. The queue changes every run;
@@ -103,6 +151,13 @@ re-measure.
 
 ## Review
 
+- r2: round one recommended three lens subagents from doctrine
+  (`agent-selection.md`, `graph.md`) without checking the repo's own
+  scorecard, which had already weighed and rejected exactly that on
+  2026-08-24 ("coverage is already 8/8. Buys nothing the numbers show
+  missing"). Re-derived the numbers, found the recommendation half wrong:
+  independence survives the evidence, three-lens volume does not.
+  (fixed — narrowed to one verifier)
 - r1: research turn, no code changed. Read-back check on the two claims that
   would be expensive if wrong — hook events and subagent context — done
   against the Claude Code docs rather than memory, both cited above with the
@@ -115,6 +170,12 @@ None. Next step is a human choice, not work.
 
 ## Where to look
 
+- `.agents/docs/feedback.md`, Scoring — recurrence is the score, volume is
+  not. The rule that decided this.
+- `./joharness.sh feedback` and `feedback <path>` — where every number above
+  comes from.
+- PR54 vs PR59 on `cl_inflight` — the escape, and the argument for a reader
+  that did not write the code.
 - `docs/plans/unsupervised-fanout.md` — session fan-out, blocked on
   `unsupervised-heartbeat`. Untouched by this research.
 - `.agents/docs/agent-selection.md`, review depth — the opus recipe that
