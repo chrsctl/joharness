@@ -30,6 +30,9 @@
 #                   branches. Reports only
 #   cleanup --apply also `git rm` the workstream files, staged for review.
 #                   Never branches — deleting one is human-only
+#   finish          Loop step 7 gate: what merging this branch NOW would
+#                   leave on the base branch. Red when the merge would add a
+#                   workstream file. Run it before the merge, not after
 #   mode            print the resolved autonomy mode and exit
 #   mode <value>    set it for THIS checkout only: 'supervised',
 #                   'unsupervised', or 'default' to clear. Writes the
@@ -1589,6 +1592,91 @@ gr_field() { gr_fields "$1"; }
 # the template are not nodes; four callers said so in two greps each.
 gr_docs() { awk 'NF && /\.md$/ && !/\/(TEMPLATE|README)\.md$/'; }
 
+# ---------------------------------------------------------------------------
+# Finish gate
+#
+# "No workstream file belongs on `main`" is settled doctrine
+# (docs/handover/README.md) and every mechanism enforcing it fires AFTER the
+# merge: the session-start hook names the rot to *the next session*, `cleanup`
+# mops it in a pull request of its own, and a consumer that made it a suite
+# assertion turns its own base branch red. All three bill the wrong session.
+# The one moment the file can still be deleted for free — this session's step
+# 7, before it merges — had no check at all, so the rule was enforced on
+# whoever came next and never on whoever broke it.
+#
+# Measured in a consumer, one session, eight pull requests: three merged
+# carrying their workstream file and each turned the base branch red within
+# seconds. The two that did not were the two where the retire commit was the
+# last commit before the pull request opened. Same agent, same rule in front
+# of it, same day — which is what "make rot visible, not trust discipline"
+# already says about relying on a ritual being remembered.
+#
+# **No frontmatter is read, deliberately.** The rule this backstops keyed on
+# `status: done` and leaked in minutes when a finished workstream merged
+# labelled `review`; the protocol's own conclusion was that any rule needing
+# the leaving session to set a field correctly fails exactly when someone
+# hurries. What this diffs is the tree: files under docs/handover in this
+# branch's tip that the base branch does not already have are what THIS merge
+# would add, and that needs no field to be true.
+#
+# Files the base branch already carries are somebody else's rot. Reported,
+# never fatal: failing a session for a mess it did not make is how a gate
+# gets worked around.
+fin_docs_at() {
+  git -C "$ROOT" ls-tree -r --name-only "$1" -- docs/handover 2>/dev/null | gr_docs
+}
+
+cmd_finish() {
+  local ref branch rc=0 f adds=0 pre=0 base_docs tip_docs
+  ref="$(base_ref)" || die "no base branch to compare against"
+  branch="$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || printf '?')"
+  printf '== finish (%s -> %s)\n\n' "$branch" "$ref"
+
+  if [ "$branch" = "${HANDOVER_BASE_BRANCH:-main}" ]; then
+    warn "on the base branch: there is no merge to gate (Loop step 3 cuts one)"
+    return 0
+  fi
+
+  base_docs="$(fin_docs_at "$ref")"
+  tip_docs="$(fin_docs_at HEAD)"
+
+  printf 'workstream files this merge would ADD to %s\n' "$ref"
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    if printf '%s\n' "$base_docs" | grep -qxF -- "$f"; then
+      pre=$((pre + 1))
+      continue
+    fi
+    adds=$((adds + 1))
+    printf '  ADDS     %s\n' "$f"
+  done <<<"$tip_docs"
+
+  if [ "$adds" -eq 0 ]; then
+    printf '  none — this branch retires what it claimed\n'
+  else
+    rc=1
+    printf '\n  %d workstream file(s) would land on %s and be read as current by\n' \
+      "$adds" "$ref"
+    printf '  the next session. Delete them in THIS branch, as the last commit\n'
+    printf '  before the merge — after it, the fix needs its own pull request and\n'
+    printf '  the base branch is wrong until that lands.\n'
+    printf '  Keepers graduate first: .agents/docs/handover/README.md.\n'
+  fi
+
+  if [ "$pre" -gt 0 ]; then
+    printf '\n%d already on %s — not this merge, not this session: %s\n' \
+      "$pre" "$ref" "'$0 cleanup'"
+  fi
+
+  # The plan file is step 7's other deletion and it is a judgment — whether a
+  # plan is *done* is not on disk. Named, never gated: a gate that guesses
+  # teaches the next session to skip the gate.
+  printf '\nplan file: delete it too when this branch finishes its plan (step 7).\n'
+  printf 'Not checked here — "done" is a judgment, and a gate that guesses at one\n'
+  printf 'is a gate the next session learns to ignore.\n'
+  return "$rc"
+}
+
 # Mermaid node ids must be plain; labels keep the real names.
 gr_id() { printf '%s' "$1" | tr -c 'a-zA-Z0-9' '_'; }
 
@@ -1883,6 +1971,7 @@ main() {
     review)         cmd_review ;;
     feedback)       cmd_feedback "${1:-}" ;;
     cleanup)        cmd_cleanup "$@" ;;
+    finish)         cmd_finish ;;
     graph)          cmd_graph ;;
     # Warning on stderr, value on stdout: the guard captures stdout and must
     # keep getting one clean word, while a human running this against a
