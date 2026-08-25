@@ -423,12 +423,15 @@ cmd_upgrade() {
   UPGRADE_CLONE="$(mktemp -d)"
   trap '[ -z "${UPGRADE_CLONE:-}" ] || rm -rf "$UPGRADE_CLONE"' EXIT
   log "fetching canonical ${repo}"
-  # -c core.autocrlf=false: the sync engine compares working-tree bytes, so
-  # this checkout must carry the repository's bytes, not the host's line-ending
-  # taste. Git for Windows defaults to autocrlf=true; without the override every
-  # text file .gitattributes does not pin reads as changed on every upgrade —
-  # phantom updates that write CRLF into the consumer.
-  git clone --quiet -c core.autocrlf=false "https://github.com/${repo}.git" "${UPGRADE_CLONE}/canonical" ||
+  # The sync engine compares working-tree bytes, so this checkout must carry
+  # the repository's bytes, not the host's line-ending taste. Git for Windows
+  # defaults to autocrlf=true; without the overrides every text file
+  # .gitattributes does not pin reads as changed on every upgrade — phantom
+  # updates that write CRLF into the consumer. Both flags, because they fail
+  # separately: autocrlf=false stops the smudge, and core.eol=lf covers a
+  # future attribute that says `text` without `eol` (autocrlf off falls back
+  # to core.eol, which is native = CRLF on Windows).
+  git clone --quiet -c core.autocrlf=false -c core.eol=lf "https://github.com/${repo}.git" "${UPGRADE_CLONE}/canonical" ||
     die "could not clone https://github.com/${repo}.git"
 
   engine="${UPGRADE_CLONE}/canonical/.agents/scripts/sync-to-consumer.sh"
