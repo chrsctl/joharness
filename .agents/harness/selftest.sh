@@ -1695,6 +1695,52 @@ else
   fail "the fallback path is gitignored here"
 fi
 
+# --- entrypoint: upgrade refuses inside claimed work ------------------------
+# Harness upkeep does not run in a session holding product work. The check
+# sits before the clone, so this proves the refusal without a network.
+step "upgrade in a session holding work"
+
+upgrepo="${TMP}/upgrepo"
+mkdir -p "${upgrepo}/docs/handover" "${upgrepo}/.github/workflows"
+cp "${ROOT}/joharness.sh" "${upgrepo}/joharness.sh"
+# No JOHARNESS_CANONICAL: a consumer, which is the only place upgrade runs.
+printf 'JOHARNESS_ENV=none\n' >"${upgrepo}/joharness.conf"
+printf 'CANONICAL_REPO: chrsctl/joharness\n' >"${upgrepo}/.github/workflows/update.yml"
+
+upg() { ( cd "$upgrepo" && "$@" ./joharness.sh upgrade --dry-run ) 2>&1; }
+
+# A sync branch carries no workstream file by protocol, so the refusal must
+# not fire there. Asserted by what it does NOT say: the next thing upgrade
+# does is reach the network, which this fixture cannot depend on.
+out="$(upg)"
+refute "sync branch is not refused" "refused in a session holding product work" "$out"
+
+printf -- '---\nworkstream: w\n---\n' >"${upgrepo}/docs/handover/w.md"
+out="$(upg)"; rc=$?
+expect "claimed work refuses the upgrade" \
+  "refused in a session holding product work" "$out"
+expect "refusal names the workstream file" "docs/handover/w.md" "$out"
+expect "refusal names where the cheap routes are" "consumer-repos.md" "$out"
+if [ "$rc" -ne 0 ]; then
+  pass "refusal exits nonzero"
+else
+  fail "refusal exits nonzero (got ${rc})"
+fi
+
+# The template and the README are not claims, so neither may trip it.
+rm -f "${upgrepo}/docs/handover/w.md"
+printf 'x\n' >"${upgrepo}/docs/handover/TEMPLATE.md"
+printf 'x\n' >"${upgrepo}/docs/handover/README.md"
+out="$(upg)"
+refute "TEMPLATE.md and README.md are not claims" \
+  "refused in a session holding product work" "$out"
+
+# The escape is deliberate and visible, like the churn ceiling's.
+printf -- '---\nworkstream: w\n---\n' >"${upgrepo}/docs/handover/w.md"
+out="$(upg env JOHARNESS_UPGRADE_IN_SESSION=1)"
+refute "the override lets a deliberate sync through" \
+  "refused in a session holding product work" "$out"
+
 # --- handover-guard.sh ------------------------------------------------------
 # Stop-hook guard: git facts only, one-shot via stop_hook_active, silent on
 # a clean pushed tree, never a nonzero exit.

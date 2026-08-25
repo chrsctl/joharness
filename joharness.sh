@@ -333,6 +333,30 @@ cmd_upgrade() {
   grep -q '^JOHARNESS_CANONICAL=1' "$CONF" 2>/dev/null &&
     die "this IS the canonical harness; upgrade is for consumers (sync out with .agents/scripts/sync-to-consumer.sh)"
 
+  # Harness upkeep does not run in a session holding product work
+  # (.agents/harness/AGENTS.md, Harness upkeep). Stated as a preference it stayed
+  # the convenient path; here it is a refusal, because the convenient path
+  # is the one that gets taken.
+  #
+  # A workstream file on this branch IS the claim — the same fact the
+  # handover guard and the queue read — so the refusal fires exactly when
+  # a session has work to dilute, and never on a sync branch, which
+  # carries no workstream file by protocol.
+  #
+  # Escape is deliberate and visible, like the churn ceiling's: a genuine
+  # mid-plan sync sets JOHARNESS_UPGRADE_IN_SESSION=1 and says so in the
+  # commit. Silence is what this exists to prevent, not the act.
+  if [ "${JOHARNESS_UPGRADE_IN_SESSION:-0}" != "1" ]; then
+    local ws
+    ws="$(find "${ROOT}/docs/handover" -maxdepth 1 -name '*.md' \
+      ! -name 'TEMPLATE.md' ! -name 'README.md' 2>/dev/null | head -1)"
+    if [ -n "$ws" ]; then
+      log "this branch carries ${ws#"${ROOT}/"} — it holds claimed work"
+      log "routes that cost it no context: .agents/docs/consumer-repos.md"
+      die "upgrade refused in a session holding product work; run it from a sync branch with no workstream file, or set JOHARNESS_UPGRADE_IN_SESSION=1 to override deliberately"
+    fi
+  fi
+
   local wf="${ROOT}/.github/workflows/update.yml"
   [ -r "$wf" ] ||
     die "no ${wf#"${ROOT}/"} to read the canonical address from; add it (.agents/docs/consumer-repos.md) or sync by hand"
