@@ -22,7 +22,18 @@ export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 
 # Knobs exported in the invoking shell must not steer the fixtures; per-call
 # prefix assignments below still apply.
-unset JOHARNESS_ENV JOHARNESS_ENV_SETUP JOHARNESS_ENV_MD JOHARNESS_REVIEW \
+#
+# CLAUDE_PROJECT_DIR is the one that matters most and the one that was missing.
+# Every real session has it set, and it is how joharness.sh resolves ROOT — so
+# a case invoking the entrypoint without its own per-call value answered about
+# the REAL repository instead of its fixture. Measured before the fix: with it
+# exported, 7 cases fail and `mode unsupervised` lands in the developer's own
+# .git/joharness-mode, flipping that checkout's autonomy for every later
+# session. A suite that edits the tree it is testing cannot be trusted about
+# any of it — and the damage is invisible in the bare shell where the suite
+# gets written and read, which is why it survived this long.
+unset CLAUDE_PROJECT_DIR JOHARNESS_MODE JOHARNESS_MODE_FILE \
+  JOHARNESS_ENV JOHARNESS_ENV_SETUP JOHARNESS_ENV_MD JOHARNESS_REVIEW \
   JOHARNESS_CHURN_THRESHOLD JOHARNESS_CHURN_LIMIT \
   JOHARNESS_CONF JOHARNESS_FORCE_SETUP JOHARNESS_SYNC_ROOT DEVENV_FORCE
 
@@ -106,6 +117,19 @@ export PATH
 
 # A commit in the repo $1 with message $2, after staging everything.
 commit_all() { git -C "$1" add -A && git -C "$1" commit -qm "$2"; }
+
+step "suite isolation"
+
+# The invariant the unset block at the top exists for. Drop CLAUDE_PROJECT_DIR
+# from that list and nothing else here goes red — every case that invokes the
+# entrypoint without a per-call value simply starts answering about the real
+# repository, and one of them writes to its .git. Asserted rather than
+# trusted, because the damage is silent and lands off-fixture.
+if [ -z "${CLAUDE_PROJECT_DIR:-}" ]; then
+  pass "the suite runs with CLAUDE_PROJECT_DIR unset"
+else
+  fail "the suite runs with CLAUDE_PROJECT_DIR unset (fixtures would hit the real repo)"
+fi
 
 # --- entrypoint: env selection ---------------------------------------------
 step "joharness.sh env"

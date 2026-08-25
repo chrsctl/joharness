@@ -21,15 +21,21 @@ the command that had it. Counted from `./joharness.sh feedback`, oldest first:
 - PR60 — `cleanup` called an inherited live file stale and `--apply` DELETED
   it; `finish` in the same review returned green on a branch carrying a live
   claim.
-- PR (finish gate) r1 — the finish gate's edge test, written by copying the
-  review gate's tree reading, reded this repo's own mid-build claim branch
-  for a file it had inherited.
+- PR69 — the finish gate's own edge test, in the merged implementation's
+  words: "Own files only — read from fin_adds_at, so another session's
+  inherited file cannot put this branch at an edge it is not at. That was the
+  first thing this gate got wrong, and it fired on the branch that built it."
+- A second, parallel session building the same plan hit it independently in
+  the same hour, the same way, and for the same reason: it copied the review
+  gate's tree reading because the plan said to.
 
 Same question every time: **does this branch OWN that file, or did it merely
-inherit it from the base branch?** Four sessions asked it wrong, each fixed
-its own caller, and none wrote the rule down. That is stage 4 of
-`.agents/docs/feedback.md` missing — recurrence is the score, and this is the
-repo's highest-recurring class.
+inherit it from the base branch?** Five sessions asked it wrong, each fixed
+its own caller, and none wrote the rule down. Two of those five were building
+the same feature at the same time and each rediscovered it alone — the
+clearest evidence available that the cost is paid per session, not per
+caller. That is stage 4 of `.agents/docs/feedback.md` missing — recurrence is
+the score, and this is the repo's highest-recurring class.
 
 ## Scope
 
@@ -58,8 +64,9 @@ repo's highest-recurring class.
 
 ## Where to look
 
-- `joharness.sh:finish_at_edge` — the newest instance, and the comment that
-  states the rule in one place already. Graduating it means moving that
-  reasoning where the next author reads it BEFORE writing the caller.
+- `joharness.sh:fin_adds_at` / `fin_strength` — the newest instance, and a
+  comment that states the rule in one place already. Graduating it means
+  moving that reasoning where the next author reads it BEFORE writing the
+  caller.
 - `joharness.sh:cl_inflight` — the same fix in `cleanup`, comment included.
 - `.agents/docs/feedback.md` — the four stages; this plan is stage 4.
