@@ -49,43 +49,66 @@ git branch -r | grep -c 'origin/claude/'                         -> 37
 ## Findings
 
 - **The class is decentralized peer, and the harness is a clean example.**
-  No central controller; agents make local decisions. The literature's
-  stated trade is control and observability against resilience and
-  scalability: peer systems "scale to hundreds of agents without
-  architectural changes" and are "significantly harder to debug, observe,
-  and predict".
-- **The costs joharness avoids are real and quantified.** An orchestrator
-  is a single point of failure, a context-window bottleneck holding every
-  worker's result, and a throughput ceiling — one source works it to ~6.7
-  tasks/second at a 3-second lead call with 20 workers, and ~950ms of
-  coordination overhead against 500ms of processing in a 4-agent pipeline.
-  A design with no lead pays none of that.
-- **The cost it does pay showed up in the measurement.** 19 of 39 merges in
-  the window carried a reconcile — just under half. The literature predicts
-  precisely this: "coordinating global behavior becomes challenging...
-  enforcing system-wide priorities gets difficult without central
-  oversight."
-- **Worktrees would not have helped.** Nine open-source orchestrators all
-  isolate with git worktrees, and this harness deliberately does not,
-  isolating by branch plus claim instead. But worktrees give file-level
-  isolation only: "the conflict problem moves to the PR merge stage",
-  which is exactly where this repo's 19 reconciles landed. Adopting them
-  would move nothing.
-- **The field's answer to duplicate work is what joharness already has.** A
-  shared task document every agent reads, where each "picks up a task,
-  marks it in-progress, and marks it done" — the queue plus claim-by-push,
-  one for one.
-- **And it was bypassed tonight anyway.** Two sessions answered the same
-  human request two minutes apart (#55 and #57), producing competing
-  designs for one problem; one was closed. The queue was never consulted,
-  because a request arriving mid-session does not enter it. The shared task
-  document only prevents duplication for work that goes through it.
+  No central controller; sessions decide locally. The centralized/peer
+  trade — predictable and observable against resilient and scalable — is
+  restated across vendor writing, but it is NOT settled literature and no
+  source states it in one coupled formulation. Treat it as the industry's
+  working consensus, not a result.
+- **The costs joharness avoids are real in kind, unquantified in degree.**
+  An orchestrator is a single point of failure, a context-window bottleneck
+  holding every worker's result, and a throughput ceiling. The figures
+  circulating for those costs are blog arithmetic, not measurement — see
+  Verification. A design with no lead avoids the failure modes; how much it
+  saves is not a number anyone has published.
+- **The cost it does pay is measured here, and only here.** 19 of 39 merges
+  in the window carried a reconcile — just under half. That count comes
+  from this repo, reproducible from the commands above, and is the only
+  measured number in this file.
+- **Worktrees would not have helped, and this is the well-sourced finding.**
+  "Git worktrees provide file isolation without removing conflicts when
+  multiple agents touch the same functionality"; "the conflict problem
+  moves to the PR merge stage... where they surface as visible git
+  conflicts instead of silent runtime overwrites." That is exactly where
+  this repo's 19 reconciles landed, so adopting worktrees would move
+  nothing. The claim that nine orchestrators were tested and all use
+  worktrees does not survive checking and is dropped.
+- **Claude Code ships task claiming with file locking, and joharness
+  reimplements it by hand.** Agent teams (experimental,
+  `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`) give tasks three states —
+  pending, in progress, completed — with "self-claim: after finishing a
+  task, a teammate picks up the next unassigned, unblocked task on its
+  own", and "task claiming uses file locking to prevent race conditions
+  when multiple teammates try to claim the same task simultaneously". The
+  task list lives at `~/.claude/tasks/{team-name}/`. joharness's queue plus
+  claim-by-push is the same mechanism built on git instead.
+- **A lead plus subagents measurably beats one agent at breadth-first
+  work.** Anthropic reports a lead spinning up "3-5 subagents in parallel
+  rather than serially", a separate CitationAgent pass, and a multi-agent
+  setup outperforming the single-agent baseline "by 90.2% on our internal
+  research eval". Internal eval, specific model pairing — attributable, not
+  independently reproduced.
+- **The duplication gap was ours, and it was bypassed tonight.** Two
+  sessions answered the same human request two minutes apart (#55 and
+  #57), producing competing designs for one problem; one was closed. The
+  queue was never consulted, because a request arriving mid-session does
+  not enter it. Claim-by-push only prevents duplication for work that goes
+  through the queue.
 
 ## Consequence for the queue
 
-The architecture is coherent and its trade is the right one for a fleet of
+The architecture is coherent and its trade is defensible for a fleet of
 short-lived sessions: no lead means no bottleneck, and 8 sessions ran
-without one. Nothing here argues for adopting an orchestrator or worktrees.
+without one. Nothing here argues for adopting worktrees, and the case
+against an orchestrator is weaker than this file first claimed — the costs
+are real in kind but the numbers behind them are not measurements.
+
+A third option this file did not know about: Claude Code's agent teams
+already implement claim-with-file-locking, the mechanism joharness builds
+on git. Adopt-or-build, the same question `harness-glossary` now faces
+about Vale, and with the same shape — the built-in is experimental and
+stores state outside the repo, against a harness whose whole doctrine is
+that git holds the state. Worth a research node of its own rather than an
+answer here.
 
 Two consequences that do follow.
 
@@ -103,12 +126,33 @@ that mid-session requests never reach it.
 
 ## Verification
 
-PENDING — no second context has checked these claims. The checks that
-matter: whether the ~6.7 tasks/second and ~950ms coordination figures come
-from a measured source or an illustrative one, and whether "nine
-open-source orchestrators all use worktrees" is a real survey result or a
-vendor blog's framing. The local counts are reproducible from the commands
-above and need no external check.
+Checked 2026-08-25 by an independent context that did not write these
+findings. Both figures this file flagged as suspect failed, and so did a
+third claim it had not thought to flag.
+
+- **6.7 tasks/second — ILLUSTRATIVE.** One blog's hypothetical: "if the
+  orchestrator's LLM call takes 3 seconds and you have 20 workers... roughly
+  6.7 tasks per second." No methodology, model or dataset; the arithmetic
+  is 20 ÷ 3. It appears verbatim on a second site, which copied it — one
+  source, not two. Dropped.
+- **950ms against 500ms — ILLUSTRATIVE.** One blog, hedged with "roughly",
+  no experimental setup. Dropped.
+- **"Nine orchestrators tested, all use worktrees" — WEAK, and the "all" is
+  false.** A vendor listicle with no disclosed methodology, and one of the
+  nine lists worktrees as optional. Dropped.
+- **The centralized/peer trade framing — WEAK.** The verifier could not
+  find the quoted phrasing in any source, nor the paired formulation in one
+  document. Vendor consensus, not literature. Reworded above.
+- **Worktrees are file-level only — GROUNDED**, verbatim, and it is the
+  finding this file's conclusion actually rests on.
+- **Task claiming with file locking — GROUNDED**, and better than what it
+  replaced: it is a shipped Claude Code feature, not a pattern to author.
+- **Lead plus 3-5 subagents, separate citation pass, 90.2% — GROUNDED**,
+  with the caveat that the eval is Anthropic-internal and model-specific.
+
+The pattern across both verification passes on this branch: every number
+that arrived through a search summary was weaker than it read, and every
+claim that survived came from a primary source stating it directly.
 
 ## Graduates to
 
