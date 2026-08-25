@@ -16,12 +16,21 @@ work the tool exists for, and a sync diff is large — the harness is
 thousands of lines of shell and docs — so reading one costs the claimed
 work exactly the context it needed.
 
-Off-session first, cheapest first: `update.yml` runs the sync in the
-consumer's own CI and opens a pull request, so no session reads the diff at
-all. A conflicted sync that CI cannot finish gets a session of its own, not
-the one mid-plan. A session holding product work reviews the resulting pull
-request and nothing more — reviewing is the part that needs judgement and
-does not delegate.
+Off-context first, cheapest first:
+
+1. `update.yml` runs the sync in the consumer's own CI and opens a pull
+   request, so no session reads the diff at all.
+2. A subagent, where the runtime offers one. It clones the consumer, runs
+   `upgrade`, `ci` and the push itself, and only its summary returns — the
+   diff never enters the calling session's context. Cheapest route that
+   still has judgement in the loop, and the right one when CI cannot reach
+   the canonical or there is no `update.yml` seeded.
+3. A session of its own, for a conflicted sync that neither of the above
+   finishes.
+
+A session holding product work reviews the resulting pull request and
+nothing more — reviewing is the part that needs judgement and does not
+delegate.
 
 In CANONICAL (`JOHARNESS_CANONICAL=1` in `joharness.conf`) this rule does
 not apply and cannot: the harness IS the product here, `upgrade` refuses to
@@ -37,7 +46,8 @@ the rows above it cannot answer.
 | --- | --- |
 | Repo has no harness yet | [New consumer](#new-consumer) |
 | Routine update, `update.yml` present | [Consumer CI](#update-consumer-ci) — no checkout, no session context |
-| CI sync failed, or none seeded | [Upgrade](#update-upgrade-from-the-consumer) — one command, in a session of its own |
+| CI cannot reach canonical, or none seeded | Subagent — it clones and syncs; only its summary returns |
+| Sync conflicted, or no subagent available | [Upgrade](#update-upgrade-from-the-consumer) — one command, in a session of its own |
 | Canonical checkout in reach | [By hand](#update-by-hand) |
 | Agent session sits in the consumer | [Agent](#update-agent-in-the-consumer) |
 | Sync reported `AHEAD` | [Ahead](#ahead) — do not overwrite |

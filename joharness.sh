@@ -375,7 +375,8 @@ cmd_upgrade() {
     fi
     if [ -n "$ws" ]; then
       log "this branch carries ${ws#"${ROOT}/"} — it holds claimed work"
-      log "routes that cost it no context: .agents/docs/consumer-repos.md"
+      log "cheaper routes, in order: update.yml in CI, a subagent, a session of its own"
+    log "see .agents/docs/consumer-repos.md"
       die "upgrade refused in a session holding product work; run it from a sync branch with no workstream file, or set JOHARNESS_UPGRADE_IN_SESSION=1 to override deliberately"
     fi
   fi

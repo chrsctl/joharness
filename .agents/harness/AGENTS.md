@@ -91,8 +91,10 @@ the selected layer — as a read-first pointer by default, whole when md=eager
 
 Consumer repo: harness upkeep does NOT run in a session holding product
 work. Context belongs to the claimed plan. Sync goes to `update.yml`
-(weekly cron, `workflow_dispatch` for now) or a session of its own; the
-session mid-plan reviews the resulting pull request and nothing more.
+(weekly cron, `workflow_dispatch` for now), else a subagent where the
+runtime offers one — it clones, syncs and pushes, only its summary returns
+— else a session of its own. The session mid-plan reviews the resulting
+pull request and nothing more.
 Routes, preference order:
 [`.agents/docs/consumer-repos.md`](../../.agents/docs/consumer-repos.md).
 

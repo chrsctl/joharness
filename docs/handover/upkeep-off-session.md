@@ -38,9 +38,12 @@ was as reachable as the free one.
 
 ## Rejected
 
-- A subagent for the upgrade. It shares this container and this repo's
-  tree, and an upgrade runs in a consumer — wrong checkout. Worktree
-  isolation isolates a copy of joharness, not of the consumer.
+- (Withdrawn) A subagent for the upgrade, rejected on the grounds that it
+  shares this container and this repo's tree. That reasoning was wrong: a
+  subagent has Bash and clones the consumer itself. It is now route 2. What
+  remains true is narrower — `isolation: worktree` gives a worktree of
+  joharness, not of the consumer, so the isolation flag is not what makes
+  the route work; the clone is.
 - Enforcing the rule in `ci`. Whether a session is "holding product work"
   is not a git fact, so any check would guess. Stated as a rule where the
   route is chosen instead.
@@ -50,6 +53,13 @@ was as reachable as the free one.
 
 ## Review
 
+- r9: the routes omitted the cheapest one that keeps judgement in the loop.
+  I had ruled a subagent out on the grounds that it shares this container
+  and this repo's tree — wrong: a subagent has Bash, so it clones the
+  consumer itself and the checkout objection does not hold. Added as route
+  2, between CI and a session of its own, in the rule, the route table and
+  the refusal message. (fixed — my earlier reasoning was wrong, not the
+  requester's question)
 - r8: correctness — the refusal read "is there a workstream file", not "did
   this branch introduce one". A base branch that accreted a finished
   workstream file — three times in this repo tonight — refused every sync
