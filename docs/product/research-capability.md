@@ -6,12 +6,16 @@ priority: normal
 ## Goal
 
 The harness can execute work it has been given and cannot find out anything
-it does not already know. `research` appears exactly once in the whole
-protocol — the review-churn rule tells a session to take "a research step
-at raised tier or effort" — and names no shape for that step, no output,
-and nowhere to put what it finds. So research happens, produces real
-findings, and evaporates: the session that did it merges a plan whose prose
-happens to carry a trace, and the next session starts from nothing.
+it does not already know. The protocol mentions research three times and
+gives it a shape in none of them: the review-churn rule sends a session to
+"a research step at raised tier or effort"
+(`.agents/harness/AGENTS.md`), `agent-selection.md` repeats that step, and
+`subagents.md` lists "Research sweeps — read many files, return the
+conclusion only" as work a subagent may be handed. The harness knows
+research is an activity and has never said what it produces or where the
+product goes. So research happens, produces real findings, and evaporates:
+the session that did it merges a plan whose prose happens to carry a trace,
+and the next session starts from nothing.
 
 Measured on 2026-08-25, in this repo, in one evening: a mechanism
 comparison across six candidates for running the fleet unattended settled a

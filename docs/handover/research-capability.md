@@ -102,6 +102,30 @@ and cannot find out what it does not know.
   non-`*.md` files under four paths). `ci` covers the graph lint, which is
   what can break here. (no change needed)
 
+- r9: correctness — the motivating claim "research appears exactly once in
+  the whole protocol" is FALSE. Counted on current `main`: once in
+  `.agents/harness/AGENTS.md`, once in `.agents/docs/agent-selection.md`,
+  once in `.agents/docs/subagents.md` — and the third is not a passing
+  mention, it lists "Research sweeps — read many files, return the
+  conclusion only" as work a subagent may be handed. The harness already
+  has a research ACTIVITY; what it lacks is a shape for the product.
+  Overstating the gap made the case look stronger and would have collapsed
+  the first time a reader grepped. Reworded to what the count supports.
+  (fixed)
+- r10: correctness — the plan shipped "citation accuracy across commercial
+  deep-research systems spans 78% to 94%", taken from a search summary and
+  never put through a citation pass. This branch's own sibling recorded the
+  rule that every search-summary number tonight read stronger than it was,
+  and I shipped one anyway, into the file that legislates verification.
+  Replaced with the figure that DID pass an independent pass — Anthropic's
+  separate `CitationAgent` and the 90.2% internal-eval result — carrying
+  its caveat. (fixed)
+- r11: the review that found r9 and r10 was mine, on my own diff, which is
+  exactly what this plan says is not enough. Both findings are the kind a
+  second context is meant to catch, and both survived my first pass over
+  the same text. Recorded as evidence FOR the requirement rather than
+  against it. (no change needed)
+
 ## Blockers
 
 None.
