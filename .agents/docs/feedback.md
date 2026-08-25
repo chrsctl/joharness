@@ -102,6 +102,82 @@ The alternatives were weighed against these numbers, not against taste:
   which needs more edges than 4 days of history holds. Blocked on data this
   measure now accumulates.
 
+## When the consumer is the detector
+
+The four stages assume one repo. A consumer running this harness splits them:
+**Detect** happens where the work is, **Prevent** only reaches it after a sync.
+That extra hop is where this loop dies, and the direction rule
+([`consumer-repos.md`](consumer-repos.md)) says only where the fix goes, not how
+you get it there.
+
+Walked three times in one consumer session, 2026-08-25. What that cost:
+
+### 1. Decide whether the harness is actually wrong
+
+The signal is that you fought it: a gate you argued with, a message you worked
+around, a ritual you skipped. That signal is **not** evidence the harness is
+wrong, and this is the stage that goes wrong.
+
+Ask one question: **does the fact it states match what it measures?**
+
+That session's handover guard said *"branch changes code but has no workstream
+file"* on a branch whose diff was two `.md` files. The session concluded the
+guard had misfired, stopped through it twice, and told its user the harness was
+at fault. The guard was right — the branch was changing the queue documents
+with no claim, which is exactly its job. What was wrong was one word in the
+message and a comment promising an exemption the filter never implemented.
+
+So the feedback was real and it was **about the wording, not the rule**. Had
+the session trusted its irritation, it would have relaxed a check that had just
+caught it — which is the reverse of a feedback loop.
+
+> **Never relax a guard that just caught you.** Fix what made you misread it.
+
+### 2. Carry the measurement, because canonical cannot reproduce it
+
+Canonical has no consumers to measure on. The number is the whole contribution:
+
+| what canonical got | what it could not have found |
+| --- | --- |
+| `finish` gate | *three of eight pull requests merged carrying their workstream file, each turning `main` red within seconds; the two that did not were the two that retired first* |
+| guard wording | *a session read "code", saw two `.md` files, and stopped through a claim it owed — twice* |
+| `decide_ref` | *`cleanup --apply` deleted a live claim on a checkout with no base ref* |
+
+A defect report without its measurement is a preference. With it, the ADR or
+the comment writes itself, and the next reader gets the reason rather than the
+rule.
+
+### 3. Land it in canonical, never in the consumer
+
+Not doctrine for its own sake. **The next sync overwrites every harness-owned
+file in the consumer**, so a harness fix made locally is deleted by the
+mechanism whose job is keeping it current — silently, and usually weeks later
+when nobody connects the two.
+
+### 4. Inline or routed
+
+The context rule keeps *sync* out of a session holding product work because a
+sync diff is thousands of lines. Feedback is the opposite shape: the diff is
+small and specific, and the evidence is in that session's head and nowhere
+else. So:
+
+- **Capture always, immediately.** In the workstream file's `## Review` if the
+  branch has one, in the canonical pull request body otherwise.
+- **Fix inline when it is small** — a message, a comment, a guard's scope.
+- **Route it when it is not**, and carry the measurement into whatever picks
+  it up.
+
+### 5. Stage 4 is the sync, not the merge
+
+A fix merged in canonical has not prevented anything in the consumer that
+found it. It prevents on the sync that lands it, which is the one stage of the
+loop nobody in either repo is watching — the consumer's session has moved on
+and canonical never sees the consumer.
+
+Close the loop by name: when the sync lands, check the thing that bit you is
+gone. That session ran `./joharness.sh finish` on the very sync branch carrying
+`finish`, which is the cheapest possible version of it.
+
 ## What this cannot see
 
 Named because a measure that hides its blind spots is worse than no measure:
