@@ -78,7 +78,8 @@ comparison behind this choice, including the four rejected candidates:
 
 ## Where to look
 
-- `.agents/harness/queue-context.sh:327` — the fan-out line the heartbeat
+- `.agents/harness/queue-context.sh:"free plans = %d parallel sessions"` —
+  the fan-out line the heartbeat
   feeds; the firing session reads exactly this output.
 - `docs/plans/unsupervised-fanout.md` — the plan this one unblocks, and
   whose Goal defers the endurance claim to this file.
