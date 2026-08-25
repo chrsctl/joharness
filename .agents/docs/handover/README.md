@@ -292,6 +292,18 @@ graduating? Fine outcome — delete.
 **No workstream file belongs on `main`.** Hook checks, names any there: make
 rot visible, not trust discipline.
 
+Visible to *the next session*, though, and that is one session too late.
+`./joharness.sh finish` is the same rule asked one moment earlier — before the
+merge, while deleting the file is still a commit rather than a pull request.
+Diffs the tree, reads no frontmatter (below), and is red when merging now
+would add a file. Step 7 requires it green.
+
+Deferring the deletion to "after the merge" is what actually fails. One
+consumer session, eight pull requests: three deferred it and each turned the
+base branch red within seconds; the two that did not were the two whose retire
+commit was the last one before the pull request opened. Same agent, same rule
+in front of it, same day — the ordering is the whole mechanism.
+
 Deleting the file deletes the findings with it, which is why `./joharness.sh
 feedback` reads them back out of merge history: coverage, recurrence, and the
 files that keep drawing findings — the shortlist of what still wants
@@ -316,7 +328,12 @@ Placement decisions that look arbitrary, recorded so not helpfully undone:
   least needing it.
 - **The `main` rot check in the hook, not a test suite.** Suite = one more
   thing to keep in step with file list; hook already fetches and parses these
-  files every session start. Costs nothing extra there.
+  files every session start. Costs nothing extra there. `finish` is not a
+  second copy of it: the hook reports rot that exists, `finish` refuses rot
+  about to be created, and only one of those can still be fixed for free. A
+  consumer that made it a suite assertion instead got the third thing — a red
+  base branch, which names the problem to everyone and lets nobody fix it
+  without another pull request.
 
 ## Why not the alternatives
 
