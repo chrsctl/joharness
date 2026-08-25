@@ -81,6 +81,8 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    later sessions read as current — measured at 23 in one consumer repo,
    thirteen merges adding six and removing none, because "optional,
    human-only" one sentence up reads as covering this one too.
+   `./joharness.sh cleanup` counts what earlier merges left; `--apply`
+   stages the workstream-file deletions. Branches it only counts.
 
 ## Decide alone
 
