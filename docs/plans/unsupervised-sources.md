@@ -88,6 +88,10 @@ counted numbers rather than adjectives.
 
 ## Where to look
 
+- `joharness.sh:cmd_cleanup` — the closest precedent, landed 2026-08-25: a
+  read-only subcommand that counts one class of repo debt, prints every
+  count including the zeroes, and names the command that acts on it. Match
+  its shape rather than inventing one.
 - `joharness.sh:cmd_feedback` — the walk that already separates a finding's
   disposition, and the source of the unmarked count. Reuse it; do not write
   a second walk.
