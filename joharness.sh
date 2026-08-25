@@ -1690,7 +1690,16 @@ cmd_finish() {
       continue
     fi
     adds=$((adds + 1))
-    printf '  ADDS     %s\n' "$f"
+    # A deletion that is only staged does not merge, so this stays red — but
+    # saying so is the difference between a gate and a riddle. The natural
+    # order is `git rm` then run this, and at that exact moment the file is
+    # gone from the tree and still in the tip.
+    if [ -n "$(git -C "$ROOT" status --porcelain -- "$f" 2>/dev/null)" ] &&
+       [ ! -e "${ROOT}/${f}" ]; then
+      printf '  ADDS     %s  (deleted here but not committed — commit it)\n' "$f"
+    else
+      printf '  ADDS     %s\n' "$f"
+    fi
   done <<<"$tip_docs"
 
   if [ "$adds" -eq 0 ]; then
