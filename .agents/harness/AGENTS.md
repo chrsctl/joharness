@@ -87,6 +87,21 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    `./joharness.sh cleanup` counts what earlier merges left; `--apply`
    stages the workstream-file deletions. Branches it only counts.
 
+## Harness upkeep
+
+Consumer repo: harness upkeep does NOT run in a session holding product
+work. Context belongs to the claimed plan. Sync goes to `update.yml`
+(weekly cron, `workflow_dispatch` for now), else a subagent where the
+runtime offers one — it clones, syncs and pushes, only its summary returns
+— else a session of its own. The session mid-plan reviews the resulting
+pull request and nothing more.
+Routes, preference order:
+[`.agents/docs/consumer-repos.md`](../../.agents/docs/consumer-repos.md).
+
+Canonical repo (`JOHARNESS_CANONICAL=1` in `joharness.conf`): rule does not
+apply. Harness IS the product here — upkeep is the work, and `upgrade`
+refuses to run anyway.
+
 ## Decide alone
 
 - Implementation yours. Interface signatures not yours.
