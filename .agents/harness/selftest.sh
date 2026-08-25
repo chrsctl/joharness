@@ -18,6 +18,20 @@ trap 'rm -rf "$TMP"' EXIT
 # Scratch commits only; never touches the user's git identity.
 export GIT_AUTHOR_NAME=selftest GIT_AUTHOR_EMAIL=selftest@invalid
 export GIT_COMMITTER_NAME=selftest GIT_COMMITTER_EMAIL=selftest@invalid
+
+# Inherited CLAUDE_PROJECT_DIR is poison here, and silently so. Cases that
+# need one set it themselves; the ones that do not `cd` into a fixture and
+# run its own copy, and joharness.sh prefers CLAUDE_PROJECT_DIR over the
+# directory it was invoked from. So an exported value redirects those cases
+# at the REAL repo: they write its .git, fail their own assertions about the
+# fixture, and leave the marker behind.
+#
+# Measured, one run with CLAUDE_PROJECT_DIR set to the checkout: 8 of 448
+# failed and .git/joharness-mode came back holding 'unsupervised' — a
+# session that ran `CLAUDE_PROJECT_DIR=$PWD ./joharness.sh ci`, which is a
+# natural thing to type, silently flipped its own repo into autonomy. Same
+# run with it unset: 448 passed, 0 failed, nothing written.
+unset CLAUDE_PROJECT_DIR
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 
 # Knobs exported in the invoking shell must not steer the fixtures; per-call
@@ -1706,6 +1720,24 @@ fi
 # latch, and this one governs how much a session may do unattended.
 markerfile="${TMP}/marker"
 printf 'JOHARNESS_MODE=supervised\n' >"$modeconf"
+# The hygiene the top of this file establishes, asserted where the cases
+# that depend on it live. Two assertions, because neither alone is enough:
+# the value must be gone from this process (what the fixture subshells
+# inherit), and the unset must still be in the file (this one is green
+# when the caller exported nothing, which is every CI run, so on its own
+# it would pass vacuously — the structural check is what carries it there).
+if [ -z "${CLAUDE_PROJECT_DIR-}" ]; then
+  pass "no CLAUDE_PROJECT_DIR reaches the fixtures"
+else
+  fail "no CLAUDE_PROJECT_DIR reaches the fixtures"
+  printf '    | %s\n' "$CLAUDE_PROJECT_DIR"
+fi
+if grep -qx 'unset CLAUDE_PROJECT_DIR' "${ROOT}/.agents/harness/selftest.sh"; then
+  pass "the unset that keeps it out is still here"
+else
+  fail "the unset that keeps it out is still here"
+fi
+
 jm() { JOHARNESS_MODE_FILE="$markerfile" JOHARNESS_CONF="$modeconf" \
   "${ROOT}/joharness.sh" "$@"; }
 
