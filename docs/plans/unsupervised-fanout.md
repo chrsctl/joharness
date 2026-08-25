@@ -13,7 +13,8 @@ scope: .agents/harness/queue-context.sh, .agents/docs/unsupervised.md, .agents/h
 The fan-out instruction already exists. With two or more free plans the
 queue hook prints `%d free plans = %d parallel sessions. Spawn one per
 plan, model = its tier:` and lists them
-(`.agents/harness/queue-context.sh:327`), and the wave partition above it
+(`.agents/harness/queue-context.sh:"free plans = %d parallel sessions"`), and
+the wave partition above it
 has already proved which plans are parallel-safe from disjoint `scope:`
 declarations. Nothing acts on it: a human reads that line and starts
 sessions by hand, or does not, and the fleet stays at one. This plan makes
@@ -30,7 +31,8 @@ supplies the width, and depends on it.
 
 ## Scope
 
-- `.agents/harness/queue-context.sh:327` — under unsupervised, the
+- `.agents/harness/queue-context.sh:"free plans = %d parallel sessions"` —
+  under unsupervised, the
   existing fan-out line becomes an instruction to spawn rather than a
   report that spawning is possible: name the plans, their tiers, and that
   the reading session is to start one session per plan now. Supervised
@@ -89,11 +91,13 @@ supplies the width, and depends on it.
 
 ## Where to look
 
-- `.agents/harness/queue-context.sh:326-331` — the existing fan-out branch
+- `.agents/harness/queue-context.sh`, the `free_count -ge 2` branch — the
+  existing fan-out branch
   and `$free_list`, the wording that becomes mode-dependent.
-- `.agents/harness/queue-context.sh:227` and the wave partition below it —
+- `.agents/harness/queue-context.sh`, the `# Fan-out instruction` comment and
+  the wave partition below it —
   where disjoint scopes are proved and the conflicting pair named.
-- `.agents/harness/queue-context.sh:16` — the header comment describing
+- `.agents/harness/queue-context.sh` header — the comment describing
   fan-out as an instruction, which this plan makes literal.
 - `.agents/docs/handover/README.md` — claim-by-push, the mechanism that
   keeps two spawned sessions off one plan.

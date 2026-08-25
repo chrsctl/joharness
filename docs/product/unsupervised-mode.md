@@ -31,6 +31,12 @@ today.
   one per plan, using the wave partition the queue hook already computes.
 - Started once, the fleet keeps going for hours with no human turn — an
   empty queue is a trigger for work, not a stopping point.
+- The mode has a reachable end: the source sweep goes dry. Every detector
+  zero on two consecutive sweeps, queue empty, no open pull request. There
+  an unsupervised session stops and says so — the one place the mode asks.
+  Empty QUEUE still triggers work; empty SWEEP stops it. Ratified
+  2026-08-25 by the requester, amending this file's earlier reading that
+  the mode had no stopping point at all.
 - No unsupervised session commits a change under `.agents/harness/`.
 
 ## Constraints
@@ -44,6 +50,18 @@ today.
 - Unsupervised merging uses the step 7 conditions unchanged — green
   checks, zero behind main, review recorded, no open human thread. The
   mode removes the human, never the gate.
+- Every source an unsupervised session may draw work from carries a
+  detector command that prints a count. No detector, not a source. An
+  uncountable source never reaches zero, so a mode that draws on one can
+  never terminate. Measured 2026-08-25 against the closed list in
+  `unsupervised-edge-work`, three of its five sources had a command that
+  returns a number and two did not — "a documented rule with no test" and
+  "drift between an instruction file and the code". Those two are judgment
+  calls, and a literal reader always finds one more.
+- A finding that unsupervised-generated work itself introduced is not a
+  source finding. Without this the mode manufactures its own backlog and
+  the sweep never dries. Dedupe against the plans that already cited the
+  finding, open or in history.
 - Deliberately NOT constrained, decided 2026-08-24 by the requester after
   being offered each one: no cap on work per run, no halt when main is
   red, no ban on sessions spawning sessions. A decomposing session must
