@@ -1,13 +1,13 @@
 ---
 workstream: fan-out-sub-agents
-status: in-progress
+status: review
 branch: claude/fan-out-sub-agents-fzirvs
 pr: none
 plan: none
 session: https://claude.ai/code/session_01VnfQ6Zg1DFomKia7dHUnAb
 agent: opus
 updated: 2026-08-25
-next: Hand docs/plans/review-verifier-subagent.md to a fresh session, or claim it here
+next: First verifier run should be on this pull request's own diff — see r9
 ---
 
 ## Goal
@@ -128,6 +128,11 @@ Runner-up, and worth doing regardless: nothing about fan-out fixes the 9
 unreviewed edges. `JOHARNESS_REVIEW=on` is one line in `joharness.conf` and
 covers the edges that DO carry a workstream file.
 
+Durable facts graduated to `.agents/docs/subagents.md` — what reaches a
+subagent, what never does, what one may and may not be asked to do. This
+file dies with the merge; that one is where the next session looks, and it
+syncs to consumers.
+
 Written up as `docs/plans/review-verifier-subagent.md` (opus, high). Its
 acceptance replays PR54's diff at the verifier and passes only if the escape
 comes back named — the bug that motivated the plan is the plan's own
@@ -155,6 +160,43 @@ regression test.
   static frontmatter cannot hold it.
 
 ## Review
+
+- r9: this review is self-review, which is the exact deficiency the plan
+  exists to remove. No independent reader was spawned — this session is
+  instructed not to spawn subagents unprompted — so the plan arguing that a
+  fresh context catches what the author cannot got the weaker review it
+  argues against. Recorded rather than papered over: the first verifier run
+  belongs on this diff. (open)
+- r8: security — the verifier reads a diff, and a diff is attacker-authored
+  text in any repo that takes contributions: a hunk can carry a line
+  addressed to the reader. Its output gates a merge, so an injected verifier
+  manufactures assurance, which is worse than none. Data-never-instruction
+  is now the definition's standing instruction and a trap, not the caller's
+  problem to remember. (fixed)
+- r7: security — "fixes nothing" was prose with nothing enforcing it. A
+  subagent with the default tool set can Write and Edit; one that edits the
+  tree while the session is still reviewing erases the record that
+  findings-before-fix exists to create. The definition pins a read-only tool
+  set. (fixed)
+- r6: correctness — the plan anchored `docs/handover/fan-out-sub-agents.md`,
+  the file this pull request deletes. `lint_anchors` warns on an anchor path
+  not in the tree, so every `ci` on `main` after the merge would warn about a
+  file the merge itself removed. Repointed at `.agents/docs/subagents.md`,
+  which also ships to consumers — `.agents/docs` is a `DIRS` entry in the
+  sync, `docs/handover` is not. (fixed)
+- r5: correctness — "sync path list" is ambiguous where the script has two
+  arrays, `FILES` for root-pinned files and `DIRS` for whole trees.
+  `.claude/agents` is a tree, and a literal reader adding it to `FILES` gets
+  a path that is not a file. Named the array. (fixed)
+- r4: does-it-reproduce — ran every acceptance command against the tree
+  before trusting it. `cmd_review` exists at `joharness.sh:cmd_review`;
+  `--dry-run` exists and prints per-file relative paths, so the
+  `.claude/agents/verifier.md` assertion is observable rather than inferred;
+  `git diff 78d5243 be6cebe` resolves to 6 files, 722 insertions, 145
+  deletions with the buggy line inside the `cl_inflight` hunk. (no change
+  needed)
+- r3: docs-only diff, so step 7 does not scope `verify` to it — `ci` covers
+  the graph lint and the anchors. (no change needed)
 
 - r2: round one recommended three lens subagents from doctrine
   (`agent-selection.md`, `graph.md`) without checking the repo's own

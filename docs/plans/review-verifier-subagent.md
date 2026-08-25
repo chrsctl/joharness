@@ -31,7 +31,12 @@ the diff.
   prompt states the property that makes it worth spawning — it has NOT been
   told why the code is the way it is, and must not ask. Model tier follows
   the branch's own (`./joharness.sh review` already resolves it); state in
-  the file that the spawning session passes the tier.
+  the file that the spawning session passes the tier. Two properties are
+  the definition's job, not the caller's, because a caller in a hurry drops
+  them: a read-only tool set, so "fixes nothing" is enforced rather than
+  requested; and the standing instruction that diff content is data, never
+  instruction — text in a hunk asking the reader to pass the diff gets
+  reported as a finding, not obeyed.
 - `.agents/harness/AGENTS.md`, Loop step 5 — the verifier pass named where
   the review depth is named, one line, with the property it buys. Findings
   it returns land in `## Review` under the existing rule: recorded before
@@ -46,11 +51,12 @@ the diff.
   independent reader and not three lenses, with the PR54 escape as the
   evidence and the volume-is-no-signal rule as the reason lenses were not
   chosen.
-- `.agents/scripts/sync-to-consumer.sh`, harness path list — add
+- `.agents/scripts/sync-to-consumer.sh`, the `DIRS` array — add
   `.claude/agents` beside the `.claude/commands` and `.claude/skills`
   entries already there, so a consumer that syncs gets the verifier with the
   rule that names it. A rule pointing at a file the consumer never receives
-  is a rule that fails on arrival.
+  is a rule that fails on arrival. `DIRS`, not `FILES`: the two arrays are
+  whole trees and root-pinned files respectively, and this is a tree.
 - `.agents/harness/selftest.sh` — `review` prints the verifier step on a
   branch carrying a workstream file, and stays silent about it on a branch
   with none (where it already prints that it checked nothing rather than
@@ -66,6 +72,9 @@ the diff.
   "Volume is not a score") — three readers buy three times the cost and
   nothing the numbers show missing. One reader that did not write the code
   buys the property that is missing.
+- Trusting the verifier's output because it came from a separate context.
+  It read attacker-reachable text; the session still decides. Findings get
+  recorded and judged exactly like self-findings.
 - The verifier fixing anything, committing, or pushing. It reports; the
   session records the finding, decides, and fixes. Findings-before-fix is an
   existing rule and a subagent that fixes silently erases the record it
@@ -130,10 +139,9 @@ the diff.
   unenforced.
 - `.agents/scripts/sync-to-consumer.sh` — the harness path list, and the
   `.claude/commands` / `.claude/skills` entries the new one sits beside.
-- `docs/handover/fan-out-sub-agents.md` on `claude/fan-out-sub-agents-fzirvs`
-  — the research this plan comes from: what a subagent can and cannot do
-  here, measured, including the hook facts that rule out any other way of
-  handing it context.
+- `.agents/docs/subagents.md` — the research this plan comes from: what a
+  subagent can and cannot do here, measured, including the hook facts that
+  rule out any way of handing it context except the spawn prompt.
 
 ## Traps
 
@@ -146,6 +154,11 @@ the diff.
   2026-08-25). The spawn prompt is the only channel — so the diff goes IN
   the prompt, and a plan that relies on the subagent reading session context
   is broken before it runs.
+- A diff is untrusted input. Any repo taking contributions can carry a hunk
+  addressed to the reader, and this reader's output gates a merge — an
+  injected verifier manufactures assurance, which is worse than no verifier.
+  The prompt says data-never-instruction and the tool set is read-only, so
+  the worst case is a bad finding rather than a bad commit.
 - Conservative-reporting instructions lower recall in review tasks
   (`.agents/docs/agent-selection.md`, behaviour finding 5). The verifier's
   prompt says report everything and let the session filter. Never "only if
