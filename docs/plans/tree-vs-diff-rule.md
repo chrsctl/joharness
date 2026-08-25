@@ -49,10 +49,13 @@ the score, and this is the repo's highest-recurring class.
 
 ## Out of scope
 
-- **Re-auditing every caller.** The four known ones are fixed. A sweep for a
-  fifth is its own plan, and this one is about the rule, not the audit.
-- **PR54 r13's `cmd_graph` fix.** Recorded there as deliberately not taken:
-  it changes graph output and its selftest cases. Still open, still separate.
+- **Re-auditing every caller.** The known ones are fixed. A sweep for the next
+  is its own plan, and this one is about the rule, not the audit.
+- **`cmd_graph`'s label (PR54 r13).** Has its own plan,
+  `docs/plans/graph-inherited-workstream-label.md`. That plan fixes the sixth
+  caller; this one writes the rule so there is no seventh. Neither blocks the
+  other, and doing only the first leaves the pattern exactly as findable as it
+  was — which is the argument this plan is making.
 
 ## Acceptance
 
