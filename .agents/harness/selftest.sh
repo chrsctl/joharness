@@ -2306,11 +2306,16 @@ printf '#!/usr/bin/env bash\necho probe\n' >"${crlf}/probe.sh"
 # Frontmatter is the markdown that breaks: fields() exits on any line 1 not
 # exactly `---`, so a CRLF checkout reports every field empty.
 printf -- '---\nstatus: in-progress\n---\n\nbody\n' >"${crlf}/probe.md"
+# Files no suffix pattern pins ride on the catch-all. `upgrade` compares
+# working-tree bytes between the canonical clone and the consumer, so a
+# CRLF checkout of these means phantom updates on every Windows run —
+# .claude/settings.json and .gitattributes itself were the two that showed.
+printf '{\n  "probe": true\n}\n' >"${crlf}/probe.json"
 commit_all "$crlf" "probe"
 
 # Re-materialize from the index: the checkout applies the attributes.
-rm -f "${crlf}/probe.sh" "${crlf}/probe.md"
-git -C "$crlf" checkout -q -- probe.sh probe.md
+rm -f "${crlf}/probe.sh" "${crlf}/probe.md" "${crlf}/probe.json" "${crlf}/.gitattributes"
+git -C "$crlf" checkout -q -- probe.sh probe.md probe.json .gitattributes
 
 # Not `grep $'\r'`: Git Bash opens files in text mode and drops the CR before
 # the pattern ever sees it, so that spelling reports clean on the one platform
@@ -2329,6 +2334,8 @@ check_lf() {
 
 check_lf "${crlf}/probe.sh" "shell script"
 check_lf "${crlf}/probe.md" "markdown"
+check_lf "${crlf}/probe.json" "unpinned text file (catch-all)"
+check_lf "${crlf}/.gitattributes" ".gitattributes itself"
 
 # --- sync-to-consumer.sh ----------------------------------------------------
 # Scratch canonical with real history (two versions of one file), scratch
