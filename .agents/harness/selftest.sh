@@ -973,6 +973,90 @@ sed -i.bak '/^JOHARNESS_REVIEW=/d' "${rwork}/joharness.conf" && \
   rm -f "${rwork}/joharness.conf.bak"
 commit_all "$rwork" "conf: gate back off"
 
+# --- Loop step 7's gate, enforced rather than merely available -------------
+# `finish` was a correct gate nobody had to run, and step 7 kept not
+# happening: one workstream file sat on a base branch through 22 merges,
+# named correctly by the gate every time anyone ran it. These pin the two
+# strengths and, above all, that they do not fight the review gate.
+git -C "$rwork" checkout -qb fingate main
+mkdir -p "${rwork}/docs/handover"
+write_ws fin.md in-progress none "agent: sonnet" "- r1: clean pass."
+printf 'code\n' >>"${rwork}/feature.txt"
+commit_all "$rwork" "mid-build, workstream file present as it should be"
+out="$(jr ci)"
+refute "mid-build says nothing about finish" "== finish" "$out"
+
+# At the edge the file is SUPPOSED to be there: the review gate reads the
+# ## Review section out of it, and step 7 puts the deletion in the pull
+# request's FINAL state. A red here would fight the documented workflow and
+# red every pull request from open until its last commit.
+write_ws fin.md review 77 "agent: sonnet" "- r1: clean pass."
+commit_all "$rwork" "open a pull request for it"
+out="$(jr ci)"
+expect "the edge names the file this merge would add" \
+  "ADDS     docs/handover/fin.md" "$out"
+expect "the edge is a report, not a red" "Reported, not failed" "$out"
+if ci_rc_review; then
+  pass "the edge does not red a branch still doing its review"
+else
+  fail "the edge does not red a branch still doing its review"
+fi
+
+# 'done' is the session's own word that it has finished, and it is strictly
+# after review — nothing wants this file any more.
+# 'done' quoted: bare, shellcheck reads it as a loop terminator (SC1010).
+write_ws fin.md "done" 77 "agent: sonnet" "- r1: clean pass."
+commit_all "$rwork" "say done with the file still present"
+out="$(jr ci)"
+refute "done is no longer a mere report" "Reported, not failed" "$out"
+if ci_rc_review; then
+  fail "a branch that says done and keeps its own file fails ci"
+else
+  pass "a branch that says done and keeps its own file fails ci"
+fi
+
+# The ritual, which is what the gate is asking for.
+git -C "$rwork" rm -q "docs/handover/fin.md"
+commit_all "$rwork" "finish ritual: delete the workstream file"
+out="$(jr ci)"
+refute "the ritual silences the gate" "== finish" "$out"
+if ci_rc_review; then
+  pass "the ritual makes ci green"
+else
+  fail "the ritual makes ci green"
+fi
+
+# Another session's file, inherited from the base branch, is not this
+# branch's to answer for. A gate that fails for somebody else's omission is
+# one sessions learn to route around — which is how this defect survived.
+git -C "$rwork" checkout -q main
+# git tracks no empty directory, and the cases above left docs/handover
+# with nothing in it — without this the fixture below is never written and
+# both assertions pass vacuously. Caught by reverting the rule they cover
+# and watching them stay green.
+mkdir -p "${rwork}/docs/handover"
+write_ws inherited.md review none "agent: sonnet" "- r1: x."
+commit_all "$rwork" "base branch accretes another session's file"
+# PUSHED, because the gate compares against origin/<base>, not the local
+# branch. Committing only locally leaves the file genuinely absent from the
+# base the gate reads, so it reads as this branch's add and the case being
+# tested never happens.
+git -C "$rwork" push -q origin main
+git -C "$rwork" checkout -qb fininherit main
+printf 'more\n' >>"${rwork}/feature.txt"
+commit_all "$rwork" "a branch that merely inherited it"
+out="$(jr ci)"
+refute "an inherited file is not this branch's add" "ADDS" "$out"
+if ci_rc_review; then
+  pass "an inherited file does not red the branch"
+else
+  fail "an inherited file does not red the branch"
+fi
+git -C "$rwork" checkout -q main
+git -C "$rwork" rm -q "docs/handover/inherited.md"
+commit_all "$rwork" "clean the base branch again"
+git -C "$rwork" push -q origin main
+
 # Tier falls back to the claimed plan when the workstream file names none,
 # and to sonnet when neither does.
 git -C "$rwork" checkout -qb tierfall main

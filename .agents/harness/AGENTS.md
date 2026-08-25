@@ -93,6 +93,13 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    and the two that did not were the two that retired first.
    `./joharness.sh cleanup` counts what earlier merges left; `--apply`
    stages the workstream-file deletions. Branches it only counts.
+   `ci` now GATES this, not only `finish`: a branch whose own workstream
+   file would land on the base branch is reported at the edge and RED once
+   the file says `status: done`. Two strengths because one would fight the
+   review gate, which needs that file present while the review happens —
+   `fin_strength` carries the reasoning. Another session's inherited file
+   is reported and never red; that is `cleanup`'s business, and a gate
+   that fails for somebody else's omission is one sessions route around.
 
 ## Harness upkeep
 

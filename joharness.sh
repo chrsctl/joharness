@@ -546,6 +546,26 @@ cmd_ci() {
     review_report || rc=1
   fi
 
+  # Loop step 7's gate, enforced rather than merely available. `finish` was
+  # a correct gate nobody had to run, and step 7 kept not happening:
+  # docs/handover/joharness-minify-optimize.md sat on main from 2026-08-24
+  # through 22 merges, named correctly by the gate every time anyone ran
+  # it. Detect, Record and Generalize had all happened — the step 7 wording
+  # was strengthened after a consumer measured 23 stale files — and it
+  # recurred because stage 4 was missing (.agents/docs/feedback.md).
+  #
+  # Reported at the edge, RED once the branch says done — see
+  # fin_strength for why one trigger could not serve both this and the
+  # review gate. Not behind a flag: whether a review is deep enough is a
+  # judgment, whether a branch that calls itself finished still carries
+  # its own workstream file is not.
+  local fin_strength_now
+  fin_strength_now="$(fin_strength)"
+  if [ -n "$fin_strength_now" ]; then
+    printf '\n== finish\n'
+    fin_gate "$fin_strength_now" || rc=1
+  fi
+
   printf '\n'
   if [ "$rc" -ne 0 ]; then
     printf 'ci: FAIL\n'
@@ -1630,6 +1650,96 @@ fin_docs_at() {
   git -C "$ROOT" ls-tree -r --name-only "$1" -- docs/handover 2>/dev/null | gr_docs
 }
 
+# Workstream files THIS branch would add to the base ref, one per line.
+# Shared by `finish` and by `ci`'s gate so the two cannot drift: a gate
+# that answers a slightly different question from the command a session
+# runs by hand is a gate that gets argued with rather than obeyed.
+# Inherited files are not adds and never appear here — they are another
+# session's, and `cleanup` is what names them.
+fin_adds_at() {
+  local ref="$1" base_docs f
+  base_docs="$(fin_docs_at "$ref")"
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    printf '%s\n' "$base_docs" | grep -qxF -- "$f" && continue
+    printf '%s\n' "$f"
+  done <<<"$(fin_docs_at HEAD)"
+}
+
+# How hard this branch's own workstream files say the gate should bite:
+# 'done' when one declares itself finished, 'edge' when one is merely at
+# the edge, empty otherwise. Own files only — read from fin_adds_at, so
+# another session's inherited file cannot put this branch at an edge it
+# is not at. That was the first thing this gate got wrong, and it fired
+# on the branch that built it.
+#
+# Two strengths rather than one, because the two gates would otherwise
+# contradict each other. The review gate fires at the edge and needs the
+# workstream file PRESENT — it reads the ## Review section out of it.
+# Step 7 puts the deletion in the pull request's FINAL state, so through
+# a pull request's life the file is supposed to be there. A red at the
+# edge would therefore fight the documented workflow and red every pull
+# request from open until its last commit, which is the noise this gate
+# exists because sessions learned to ignore.
+#
+# 'done' is the session's own word that it has finished, and it is
+# strictly after review. A branch that says done and still carries the
+# file is unambiguously the defect, with no other gate wanting that file
+# to exist any more.
+fin_strength() {
+  local ref f doc status strongest=""
+  ref="$(decide_ref 2>/dev/null)" || return 0
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    doc="$(cat "${ROOT}/${f}" 2>/dev/null)"
+    status="$(printf '%s\n' "$doc" | gr_field status)"
+    if [ "$status" = "done" ]; then
+      printf 'done\n'
+      return 0
+    fi
+    review_at_edge "$doc" >/dev/null && strongest="edge"
+  done <<<"$(fin_adds_at "$ref")"
+  [ -n "$strongest" ] && printf '%s\n' "$strongest"
+  return 0
+}
+
+# `ci`'s step 7 gate. Prints two-space indented like every other section
+# and returns non-zero only when this branch would ADD its own finished
+# workstream file to the base branch.
+fin_gate() {
+  local ref adds n=0 f strength="$1"
+  if ! ref="$(decide_ref 2>/dev/null)"; then
+    # Same doctrine as churn and review: a check that cannot see the
+    # history it needs says so and passes, rather than reding what it
+    # could not prove.
+    printf '  not measurable here (no base ref in this checkout)\n'
+    return 0
+  fi
+  adds="$(fin_adds_at "$ref")"
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    n=$((n + 1))
+    printf '  ADDS     %s\n' "$f"
+  done <<<"$adds"
+  if [ "$n" -eq 0 ]; then
+    printf '  none — this branch retires what it claimed\n'
+    return 0
+  fi
+  printf '\n  %d workstream file(s) would land on %s and be read as current\n' \
+    "$n" "$ref"
+  printf '  by the next session (Loop step 7). Delete them in THIS branch, as\n'
+  printf '  the last commit before the merge — after it, the fix needs its own\n'
+  printf '  pull request and the base branch is wrong until that lands.\n'
+  printf '  Keepers graduate first: .agents/docs/handover/README.md.\n'
+  printf '  Full picture, inherited files included: %s\n' "'$0 finish'"
+  if [ "$strength" = "done" ]; then
+    return 1
+  fi
+  printf '  Reported, not failed: this branch has not said done yet, and the\n'
+  printf '  review gate needs this file until it does.\n'
+  return 0
+}
+
 # `base_ref` falls back to HEAD when neither `origin/<base>` nor `<base>`
 # resolves. That is right for a command that DESCRIBES — `graph` would rather
 # lint the checkout it has than refuse — and wrong for one that DECIDES,
@@ -1683,6 +1793,8 @@ cmd_finish() {
   tip_docs="$(fin_docs_at HEAD)"
 
   printf 'workstream files this merge would ADD to %s\n' "$ref"
+  # The adds themselves come from fin_adds_at, which `ci`'s gate also
+  # reads; this loop keeps the per-file reporting the command adds on top.
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     if printf '%s\n' "$base_docs" | grep -qxF -- "$f"; then
