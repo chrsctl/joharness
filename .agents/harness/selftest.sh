@@ -234,13 +234,24 @@ expect "nothing-to-verify says so out loud" "nothing to verify" "$out"
 # above. This is the distinction `[ -x ]` alone could not make.
 printf '#!/usr/bin/env bash\nexit 0\n' >"${sel}/.agents/env/aaa/smoke-test.sh"
 chmod -x "${sel}/.agents/env/aaa/smoke-test.sh" 2>/dev/null || true
-out="$(JOHARNESS_ENV=aaa jo verify)"; rc=$?
-if [ "$rc" -ne 0 ]; then
-  pass "smoke-test.sh present but not executable still fails"
+# NTFS under Git Bash reports every file executable, so this state cannot be
+# built there — the same platform limit the exec-bit repair and the
+# unrunnable-selftest cases already skip for. Asserted where the bit is real,
+# skipped where it is not, never asserted against a state that was not
+# actually created.
+if [ -x "${sel}/.agents/env/aaa/smoke-test.sh" ]; then
+  skip "smoke-test.sh present but not executable still fails" \
+    "chmod -x does not stick here"
+  skip "non-executable smoke test names the fix" "chmod -x does not stick here"
 else
-  fail "smoke-test.sh present but not executable still fails (exited 0)"
+  out="$(JOHARNESS_ENV=aaa jo verify)"; rc=$?
+  if [ "$rc" -ne 0 ]; then
+    pass "smoke-test.sh present but not executable still fails"
+  else
+    fail "smoke-test.sh present but not executable still fails (exited 0)"
+  fi
+  expect "non-executable smoke test names the fix" "not executable" "$out"
 fi
-expect "non-executable smoke test names the fix" "not executable" "$out"
 
 # And the happy path still runs the thing, or the two cases above would be
 # green against a verify that had stopped verifying anything at all.
