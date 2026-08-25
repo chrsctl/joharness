@@ -10,7 +10,7 @@ scope: joharness.sh, .agents/docs/graph.md, .agents/harness/selftest.sh
 
 ## Goal
 
-`ci` already counts one process fact. `== churn` (`joharness.sh:234`) reads
+`ci` already counts one process fact. `== churn` (`joharness.sh:cmd_ci`) reads
 git, counts commits per file since the merge base, warns at a threshold and
 fails at a ceiling — and it earned that gate on evidence: the twelve-round
 sync branch peaked at 13 where every other merge in this repo's history sat
@@ -29,8 +29,8 @@ the idea; derive it from git instead of from a log.
 ## Scope
 
 - `joharness.sh` — a `scorecard` subcommand beside `graph`
-  (`cmd_graph`, line 548), registered in the dispatch block at line 796 and
-  in `usage`. Read-only, exit 0 always, derived at read time. Counts for
+  (`cmd_graph`), registered in the dispatch `case` block and in `usage`.
+  Read-only, exit 0 always, derived at read time. Counts for
   the current branch against its merge base: commits; files touched;
   whether a workstream file exists and how many commits touched code
   without touching it; `## Review` lines present; plan and requirement
@@ -81,17 +81,17 @@ the idea; derive it from git instead of from a log.
 
 ## Where to look
 
-- `joharness.sh:308` — `churn_top()`, the existing merge-base walk with its
-  protocol-path exclusions. Reuse it; do not write a second walk.
-- `joharness.sh:234` — the `== churn` stage, for how a counted process fact
+- `joharness.sh:churn_top` — the existing merge-base walk with its
+  protocol-path exclusions, reused. Reuse it; do not write a second walk.
+- `joharness.sh:cmd_ci`, the `== churn` stage — how a counted process fact
   is already worded to a session.
-- `joharness.sh:548` — `cmd_graph`, the precedent for a read-time derived
+- `joharness.sh:cmd_graph` — the precedent for a read-time derived
   view as its own subcommand.
-- `joharness.sh:411` — `lint_graph()`, for how frontmatter is parsed here.
+- `joharness.sh:lint_graph` — how frontmatter is parsed here.
 - `.agents/docs/graph.md`, Rules and Serving — the two paragraphs that
   decide what this may and may not store.
-- `.agents/docs/handover/README.md:86` — what a `## Review` line is, so the
-  count matches the protocol's definition.
+- `.agents/docs/handover/README.md`, `Reviewing` ritual — what a `## Review`
+  line is, so the count matches the protocol's definition.
 
 ## Traps
 
