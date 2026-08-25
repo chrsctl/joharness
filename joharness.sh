@@ -14,7 +14,8 @@
 #   env             print the selected layer and what else is available
 #   env <name>      select a layer (writes joharness.conf)
 #   setup           provision the selected layer now
-#   ci              run what .github/workflows/ci.yml runs, here
+#   ci              run what .github/workflows/ci.yml runs, here. At the
+#                   edge it also runs the finish gate below
 #   upgrade         fetch canonical and sync this repo's harness forward
 #                   (consumers only; --dry-run to preview)
 #   verify          provision, then run the layer's smoke test
@@ -32,7 +33,8 @@
 #                   Never branches — deleting one is human-only
 #   finish          Loop step 7 gate: what merging this branch NOW would
 #                   leave on the base branch. Red when the merge would add a
-#                   workstream file. Run it before the merge, not after
+#                   workstream file. `ci` runs it at the edge, so the merge
+#                   cannot pass green having skipped the ritual
 #   mode            print the resolved autonomy mode and exit
 #   mode <value>    set it for THIS checkout only: 'supervised',
 #                   'unsupervised', or 'default' to clear. Writes the
@@ -544,6 +546,41 @@ cmd_ci() {
   if review_on; then
     printf '\n== review\n'
     review_report || rc=1
+  fi
+
+  # Loop step 7's ritual, enforced rather than merely available. Measured on
+  # `main` 2026-08-25: one finished workstream file rode 22 merges, announced
+  # by every session-start hook and read by every later session as a live
+  # claim. The gate was correct that whole time and nothing ran it — stage 4
+  # of .agents/docs/feedback.md, the only stage that changes an outcome.
+  #
+  # Unconditional at the edge, unlike the review gate above: no knob, because
+  # step 7 does not offer the deletion as an option. Silent below the edge,
+  # like it: a branch that has not finished has no ritual to have skipped, and
+  # a check that reds from the claim commit onward makes red a branch's normal
+  # state, which is how the last one stopped being read.
+  #
+  # `cmd_finish` unchanged and called whole, not reimplemented here: the whole
+  # defect was that two places disagreed about whether the ritual happened.
+  local fin_ref
+  if on_base_branch; then
+    : # nothing merges into a branch that is the merge target
+  elif fin_ref="$(decide_ref)"; then
+    if finish_at_edge "$fin_ref"; then
+      printf '\n'
+      cmd_finish || rc=1
+    fi
+  elif [ -n "$(lint_nodes docs/handover)" ]; then
+    # Same doctrine as churn's and review's above: a check that cannot see the
+    # history it needs says so and passes. `finish` invoked directly dies here
+    # instead — a session that asked the question gets an answer or an error,
+    # never a guess — but a consumer whose CI checkout has no base ref must not
+    # go red for a comparison nobody could make. Said only where it could
+    # matter: a branch with no workstream file has nothing this gate can say.
+    printf '\n== finish\n'
+    printf '  not measurable here (no ref for %s; shallow checkout)\n' \
+      "${HANDOVER_BASE_BRANCH:-main}"
+    printf '  Step 7 is still yours: %s before the merge.\n' "'$0 finish'"
   fi
 
   printf '\n'
@@ -1665,6 +1702,71 @@ decide_ref() {
   return 1
 }
 
+# The base branch has no merge to gate: it IS the thing merges land on. Two
+# callers ask, and they must agree — `finish` says so and returns green, `ci`
+# stays silent, and a disagreement here would make one of them speak on `main`.
+on_base_branch() {
+  [ "$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || printf '?')" \
+    = "${HANDOVER_BASE_BRANCH:-main}" ]
+}
+
+# Is this branch finishing? The review gate answers the same question off the
+# working tree, and copying it here was tried first and was wrong: every branch
+# cut from a base branch that carries one stale file inherits a frontmatter
+# saying `status: review`, so the first mid-build run of this repo's own claim
+# branch went red for a file it had merely inherited. That is the tree-vs-diff
+# confusion that already cost `cleanup` a deleted live claim and `graph` a
+# wrong label — third time here, found by running it, not by reading it.
+#
+# So: the branch's own diff against the base, never its tree. Two signals, and
+# both are the branch's own work:
+#
+#   1. a workstream file this merge would ADD says `pr:` set, or status
+#      review/done. The work is being handed over and the file is still here —
+#      the case the gate exists to red.
+#   2. this branch created a workstream file and already retired it. The
+#      ritual happened; this run is the one that confirms it did, and names
+#      whatever the base branch is still carrying. A gate that goes silent the
+#      moment you obey it never tells you that you obeyed it.
+#
+# Below both, silence. A branch mid-build has no ritual to have skipped, and a
+# check that speaks from the claim commit onward is a check sessions scroll
+# past — which is exactly how the guard this enforces came to be ignored.
+#
+# HEAD, not the working tree — and this is where the two gates deliberately
+# part company. The review gate reads the working tree, because "have you
+# written your findings down" is a question about the session. This one reads
+# HEAD, because `ci` here has to predict GitHub's verdict on the pushed commit
+# (AGENTS.md step 5), and an uncommitted frontmatter edit merges nothing: read
+# the tree and a local run would go red where CI goes green. `cmd_finish`
+# computes its add-set from HEAD for the same reason, so the edge test and the
+# thing it gates cannot disagree about which state they are talking about.
+finish_at_edge() {
+  local ref="$1" base tip ever f doc
+  base="$(fin_docs_at "$ref")"
+  tip="$(fin_docs_at HEAD)"
+
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    printf '%s\n' "$base" | grep -qxF -- "$f" && continue
+    doc="$(git -C "$ROOT" show "HEAD:$f" 2>/dev/null)"
+    review_at_edge "$doc" >/dev/null 2>&1 && return 0
+  done <<<"$tip"
+
+  # Retired by this branch: touched by one of its commits, in neither tree
+  # now. --no-merges because a merge of the base branch carries the base
+  # branch's own deletions, and those are not this branch's ritual.
+  ever="$(git -C "$ROOT" log --no-merges --name-only --format= \
+    "${ref}..HEAD" -- docs/handover 2>/dev/null | gr_docs | sort -u)"
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    printf '%s\n' "$base" | grep -qxF -- "$f" && continue
+    printf '%s\n' "$tip" | grep -qxF -- "$f" && continue
+    return 0
+  done <<<"$ever"
+  return 1
+}
+
 cmd_finish() {
   local ref branch rc=0 f adds=0 pre=0 base_docs tip_docs
   ref="$(decide_ref)" || die \
@@ -1674,7 +1776,7 @@ cmd_finish() {
   branch="$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || printf '?')"
   printf '== finish (%s -> %s)\n\n' "$branch" "$ref"
 
-  if [ "$branch" = "${HANDOVER_BASE_BRANCH:-main}" ]; then
+  if on_base_branch; then
     warn "on the base branch: there is no merge to gate (Loop step 3 cuts one)"
     return 0
   fi

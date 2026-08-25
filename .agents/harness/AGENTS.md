@@ -66,8 +66,9 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    first — checks do NOT re-run when `main` moves); `./joharness.sh
    verify` green when the diff touches any non-`*.md` file under
    `joharness.sh`, `.agents/harness/`, `.agents/env/`, `scripts/` — CI cannot run it
-   (needs the sandbox); **`./joharness.sh finish` green** — the only guard
-   here that fires while the fix is still a commit; edge review recorded
+   (needs the sandbox); **`./joharness.sh finish` green** — `ci` runs this
+   one for you at the edge, so a green `ci` there IS this guard; the only
+   guard that fires while the fix is still a commit; edge review recorded
    (step 5); no unresolved human review thread. Anything less stays open. Merge-commit
    method ONLY — squash/rebase merge breaks the merged-branch ancestry
    filter (`.agents/docs/product/README.md` Branch flow). Human veto = revert.
@@ -87,8 +88,9 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    human-only" one sentence up reads as covering this one too.
    Do it as the LAST COMMIT BEFORE the pull request opens, never after the
    merge. `./joharness.sh finish` says what merging now would leave and is red
-   when that is anything; every other guard fires after the merge and bills
-   the next session. Measured, one session, eight pull requests: the three
+   when that is anything — and `ci` runs it at the edge, so skipping the
+   deletion now reds your own run, not the next session's. Every other guard
+   fires after the merge and bills that session. Measured, one session, eight pull requests: the three
    that deferred the deletion each turned the base branch red within seconds,
    and the two that did not were the two that retired first.
    `./joharness.sh cleanup` counts what earlier merges left; `--apply`
