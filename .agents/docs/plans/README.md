@@ -25,7 +25,9 @@ Copy [`TEMPLATE.md`](TEMPLATE.md). Sections:
 - **Out of scope** — what a helpful agent would wrongly add. Named so it
   never happens.
 - **Acceptance** — commands with expected output. All pass or not done.
-- **Where to look** — `path:symbol` anchors into existing code.
+- **Where to look** — `path:symbol` anchors into existing code. Symbol,
+  never line number: `lint_anchors` splits an anchor at the first `:` and
+  checks the path only, so a stale line number stays green forever.
 - **Traps** — Part 2 prohibitions that bite this plan, restated one line
   each.
 

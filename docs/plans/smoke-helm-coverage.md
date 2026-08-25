@@ -38,7 +38,8 @@ every tool the environment installs.
 ## Where to look
 
 - `.agents/env/k8s/smoke-test.sh` — PASS/FAIL counters, summary line.
-- `.agents/env/k8s/AGENTS.md` — written count appears twice; both move.
+- `.agents/env/k8s/AGENTS.md` and root `AGENTS.md` — `7 passed, 0 failed`
+  written once in each; both move.
 
 ## Traps
 
