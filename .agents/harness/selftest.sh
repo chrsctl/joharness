@@ -2361,26 +2361,50 @@ step "sync manifest eol pins"
 
 manifest_paths() {
   local a
+  # Tolerant parse on purpose: strip inline comments (space before #),
+  # surrounding whitespace including tabs, and bash quoting — a cosmetic
+  # reformat of the arrays must not silently unmatch an entry (the dead-entry
+  # check below catches whatever still slips through).
   for a in FILES DIRS; do
     sed -n "/^${a}=(/,/^)/p" "${ROOT}/.agents/scripts/sync-to-consumer.sh" |
-      sed '1d;$d;s/^ *//;s/ *#.*$//;/^$/d'
+      sed '1d;$d;s/[[:space:]]#.*$//;s/^[[:space:]]*//;s/[[:space:]]*$//;s/^"\(.*\)"$/\1/;/^$/d'
   done
+  # Shipped at runtime, invisible to the static parse: the consumer-selected
+  # env layer (DIRS+= at sync time — walking all of .agents/env covers every
+  # selectable layer) and root AGENTS.md (the marker splice).
+  printf '%s\n' .agents/env AGENTS.md
 }
 
-unpinned=0 shipped=0
+unpinned=0 shipped=0 dead=0
 while IFS= read -r rel; do
+  matched=0
   while IFS= read -r f; do
     [ -n "$f" ] || continue
-    shipped=$((shipped + 1))
+    matched=$((matched + 1))
     if [ "$(git -C "$ROOT" check-attr eol -- "$f" | sed 's/.*: eol: //')" != "lf" ]; then
       unpinned=$((unpinned + 1))
       printf '    unpinned: %s\n' "$f"
     fi
   done < <(git -C "$ROOT" ls-files -- "$rel")
+  shipped=$((shipped + matched))
+  # An entry matching nothing while the path exists is a malformed pathspec
+  # (stray quote, trailing blank): the walk would skip a shipped file and
+  # stay green — the wrong-PASS this step exists to prevent. A path absent
+  # from the index is a legitimately empty dir, reported but not red.
+  if [ "$matched" -eq 0 ]; then
+    if [ -e "${ROOT}/${rel}" ]; then
+      dead=$((dead + 1))
+      printf '    dead manifest entry (path exists, pathspec matches nothing): %s\n' "$rel"
+    else
+      printf '    empty manifest entry (nothing tracked): %s\n' "$rel"
+    fi
+  fi
 done < <(manifest_paths)
 
 if [ "$shipped" -eq 0 ]; then
   fail "manifest walk found the shipped files"
+elif [ "$dead" -gt 0 ]; then
+  fail "every manifest entry resolves (${dead} dead of ${shipped} matched)"
 elif [ "$unpinned" -eq 0 ]; then
   pass "every shipped file resolves to eol=lf (${shipped} files)"
 else
@@ -2389,17 +2413,19 @@ fi
 
 # The other half of the fix: cmd_upgrade's canonical clone must stay
 # byte-faithful regardless of host config. A grep, because the clone target
-# is a hardcoded https URL — no offline fixture can exercise it.
-if grep -q 'git clone --quiet -c core.autocrlf=false -c core.eol=lf' "${ROOT}/joharness.sh"; then
-  pass "upgrade clone pins autocrlf=false and core.eol=lf"
-else
-  fail "upgrade clone pins autocrlf=false and core.eol=lf"
-fi
-if grep -q 'git clone -c core.autocrlf=false -c core.eol=lf' "${ROOT}/.github/workflows/update.yml"; then
-  pass "update.yml clone pins autocrlf=false and core.eol=lf"
-else
-  fail "update.yml clone pins autocrlf=false and core.eol=lf"
-fi
+# is a hardcoded https URL — no offline fixture can exercise it. Flag
+# presence on the clone line, not an exact literal: a flag reorder or a
+# --quiet/-q spelling change is behavior-preserving and must not go red.
+# <file> <what>: the git clone line must carry both -c overrides.
+check_clone_flags() {
+  if grep -E 'git clone' "$1" | grep -F 'core.autocrlf=false' | grep -qF 'core.eol=lf'; then
+    pass "$2 clone pins autocrlf=false and core.eol=lf"
+  else
+    fail "$2 clone pins autocrlf=false and core.eol=lf"
+  fi
+}
+check_clone_flags "${ROOT}/joharness.sh" "upgrade"
+check_clone_flags "${ROOT}/.github/workflows/update.yml" "update.yml"
 
 # --- sync-to-consumer.sh ----------------------------------------------------
 # Scratch canonical with real history (two versions of one file), scratch

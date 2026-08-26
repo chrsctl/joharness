@@ -259,6 +259,14 @@ git push -u origin HEAD
   `git clone -c core.autocrlf=false -c core.eol=lf`, or renormalize an
   existing checkout (`git checkout -- .` after deleting the affected files,
   or a fresh clone with those flags). `upgrade` gets all three right.
+- The synced `.gitattributes` pins the harness-owned trees (`.agents/**`,
+  `.claude/commands/**`, `.claude/skills/**`) to LF checkouts — including
+  consumer-own files placed inside them, which the sync otherwise leaves
+  alone. A Windows `.bat`/`.cmd` helper inside your own skill will check
+  out LF and break under cmd.exe: keep native-eol files outside the pinned
+  trees, or add your own later-wins pattern below the pinned block (that
+  edit marks your `.gitattributes` AHEAD — deliberate: you took over the
+  file, future pin changes stop arriving).
 
 ## Layers
 
