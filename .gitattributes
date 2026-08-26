@@ -1,4 +1,9 @@
 # Normalize text in the repository; let git pick the working-tree ending.
+# No eol on the catch-all: this file ships to every consumer's ROOT
+# (sync-to-consumer.sh FILES), so a repo-wide pin here would legislate line
+# endings for the consumer's entire codebase — .bat/.cmd checked out LF is
+# the known cmd.exe breakage. Pins below stay scoped to what the harness
+# ships.
 * text=auto
 
 # Shell scripts are the exception: bash executes them and shellcheck lints
@@ -13,3 +18,17 @@
 # tree, and field() exits on any line 1 not exactly `---`. CRLF checkout empties
 # every field - hook prints `[?, updated ?]`, gate above stays green.
 *.md text eol=lf
+
+# Everything else the sync manifest ships, pinned by path instead of a
+# catch-all (see the top comment for why not repo-wide). `upgrade` compares
+# working-tree bytes between the canonical clone and the consumer; any
+# shipped file these patterns miss reads as changed on every stock Windows
+# checkout (autocrlf=true renders it CRLF) — phantom updates on every run,
+# CRLF written into the consumer, normalized away at commit, phantom again.
+# The selftest walks the manifest and goes red on any shipped file left
+# unpinned, so extending FILES/DIRS without extending this file cannot pass.
+.agents/** text=auto eol=lf
+.claude/commands/** text=auto eol=lf
+.claude/skills/** text=auto eol=lf
+.claude/settings.json text eol=lf
+.gitattributes text eol=lf

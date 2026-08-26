@@ -79,7 +79,11 @@ jobs:
           if [ -n "$TOKEN" ]; then
             url="https://x-access-token:${TOKEN}@github.com/${CANONICAL_REPO}.git"
           fi
-          git clone --branch "$CANONICAL_REF" "$url" "$RUNNER_TEMP/canonical"
+          # Byte-faithful checkout, same reasoning as cmd_upgrade's clone in
+          # joharness.sh: the sync engine compares working-tree bytes, and this
+          # file is seeded once per consumer — a Windows or self-hosted runner
+          # here would otherwise sync phantom CRLF updates weekly.
+          git clone -c core.autocrlf=false -c core.eol=lf --branch "$CANONICAL_REF" "$url" "$RUNNER_TEMP/canonical"
 
       - name: run sync
         if: steps.guard.outputs.canonical == '0'
