@@ -252,7 +252,13 @@ git push -u origin HEAD
   [by hand](#update-by-hand). Clone it OUTSIDE the consumer tree, or
   `git add -A` swallows it, and never with `--depth` — stale-vs-`AHEAD` is
   decided by blob identity against canonical history, and a shallow clone
-  reads honestly-synced files as `AHEAD` forever. `upgrade` gets both right.
+  reads honestly-synced files as `AHEAD` forever. On Windows the checkout
+  must also be byte-faithful: the engine compares working-tree bytes, and a
+  clone made under `core.autocrlf=true` (the Git for Windows default) ships
+  CRLF into the consumer. Clone with
+  `git clone -c core.autocrlf=false -c core.eol=lf`, or renormalize an
+  existing checkout (`git checkout -- .` after deleting the affected files,
+  or a fresh clone with those flags). `upgrade` gets all three right.
 
 ## Layers
 
