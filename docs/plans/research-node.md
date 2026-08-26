@@ -5,7 +5,7 @@ agent: opus
 effort: xhigh
 needs: none
 requirement: research-capability
-scope: .agents/docs/research, .agents/docs/graph.md, .agents/harness/AGENTS.md, .agents/harness/queue-context.sh, joharness.sh, .agents/harness/selftest.sh
+scope: .agents/docs/research, .agents/docs/graph.md, .agents/harness/AGENTS.md, .agents/harness/queue-context.sh, joharness.sh, .agents/harness/selftest.sh, docs/research
 ---
 
 ## Goal
@@ -16,6 +16,15 @@ the graph, a line in the queue, and a lint. What a session then does with
 it — how it actually researches — is not here and is not needed for the
 node to be useful, because the node is what makes findings survive the
 session that made them.
+
+The type now has instances before it has a definition. Counted on `main`,
+2026-08-26: `ls docs/research/*.md | wc -l` → 4, landed via the
+research-sweep merges AFTER this plan was written. So this plan no longer
+designs a shape from nothing — it ratifies one that four files already
+agree on, and a definition that fails `ci` on `main`'s own files is wrong
+on arrival. Where the definition deliberately diverges from the instances,
+the same diff migrates them; where they diverge from each other, Scope
+names it.
 
 Everything it needs already exists in the model. Files are nodes,
 frontmatter fields are edges, delete-on-done is the state, and `graduated`
@@ -46,10 +55,18 @@ status field, it has gone wrong — `.agents/docs/graph.md` Rules says why.
     what was found.
   - **Method**, the commands to run.
   - **Findings**, each with its command and that command's output.
+  - **Consequence for the queue** — which plan changes, in what way, or
+    none. Not in this plan's first draft; all four instances grew it
+    unprompted, and it is the hop a plan reader acts on. The shape keeps
+    what practice already built.
   - **Verification** — who checked, and from where. See below; this is the
     section the harness's own doctrine already demands and my first draft
     omitted.
   - **Graduates to**, the file the answer lands in.
+
+- Frontmatter, taken from the four instances rather than invented:
+  `research:` the stem (as `plan:` in plans), `urgency`, `agent`, `effort`,
+  `graduates:` the target file. The tier the queue prints comes from here.
 
 - Verification comes from a different context than the one that produced
   the finding. `.agents/docs/graph.md` Rules already states the diamond
@@ -72,18 +89,29 @@ status field, it has gone wrong — `.agents/docs/graph.md` Rules says why.
   the graduated file, which works only if the graduation actually carries
   the reasoning.
 - `.agents/docs/graph.md` — one row in Nodes (`Research` |
-  `docs/research/<question>.md` on base branch | task), one row in Edges
-  (`research` | plan → research | plan frontmatter; open target file =
-  blocked, the same shape `needs` already uses). Nothing else in that file
-  changes.
+  `docs/research/<question>.md` on base branch | task), two rows in Edges:
+  `research` | plan → research | plan frontmatter; open target file =
+  blocked, the same shape `needs` already uses. And `graduates` | research
+  → `AGENTS.md` / `docs/` file | research frontmatter — the declared
+  target the existing `graduated` edge later completes; the instances
+  already carry it. Nothing else in that file changes.
 - `.agents/harness/queue-context.sh` — research files listed beside plans,
   and a plan carrying `research:` shown blocked while its target exists,
   reusing the `needs` machinery rather than a second implementation.
 - `joharness.sh`, `lint_graph` — research frontmatter linted like a plan's:
-  the file resolves, `research:` edges resolve, vocabulary holds.
+  the file resolves, `research:` edges resolve, vocabulary holds,
+  `graduates:` names a file that exists. The four instances on `main` are
+  the first fixture: they lint clean as merged, or this diff migrates them
+  in the commit that adds the lint. Migration is shape only — frontmatter
+  and sections, never findings. One known divergence:
+  `glossary-enforcement` has no `## Method`; its queries were not recorded,
+  so a migrated Method says that rather than minting them.
 - `.agents/harness/AGENTS.md` — the review-churn rule's "research step"
-  points at the shape. Loop step 2's queue order gains research where it
-  belongs. Caveman: this file loads every session.
+  points at the shape. Loop step 2's queue order gains research: listed
+  beside plans under the same ordering, oldest actionable first, urgent
+  first — no special rank, because a plan blocked on an open question
+  already drops out of the entrypoint, and that is rank enough. Caveman:
+  this file loads every session.
 - `.agents/harness/selftest.sh` — the queue shows a research file; a plan
   blocked on an open question is listed blocked and never suggested; the
   block clears when the file is deleted; the lint catches a `research:`
@@ -98,9 +126,11 @@ status field, it has gone wrong — `.agents/docs/graph.md` Rules says why.
   confidence scoring, no loop shape. A session already has Bash, the web
   and subagents; anything further, written before a single research file
   exists, would be invented rather than observed.
-- Back-filling tonight's mechanism comparison, or any other past research,
-  into the new shape. Seeding a node type with retrofitted content proves
-  nothing about whether the shape works.
+- Back-filling the mechanism comparison that lives outside git, or any
+  other past research not already in `docs/research/`. The four files
+  there are not back-fill — they are in scope as fixtures and for
+  shape-only migration, their findings untouched. Retrofitting anything
+  further proves nothing about whether the shape works.
 - A research index, dashboard or `./joharness.sh research` sweep. The queue
   hook already lists nodes; a second view is the stored-copy failure
   `.agents/docs/graph.md` forbids.
@@ -113,7 +143,10 @@ status field, it has gone wrong — `.agents/docs/graph.md` Rules says why.
 ## Acceptance
 
 - A research file created from `TEMPLATE.md` appears in the session-start
-  queue beside plans, with its tier. Paste the hook output.
+  queue beside plans, with its tier — and so do the four instances already
+  on `main`, which need no synthetic fixture. Paste the hook output.
+- `./joharness.sh ci` is green over the four instance files as this diff
+  leaves them — on this repo, not only in a fixture. Paste the run.
 - The template refuses to look complete without its Verification section
   filled: a finding nobody checked from a second context is not settled.
   The README states this as a rule, not a suggestion.
@@ -142,6 +175,9 @@ status field, it has gone wrong — `.agents/docs/graph.md` Rules says why.
   `blocked by:` is printed.
 - `.agents/harness/AGENTS.md`, the review-churn clause — the one existing
   reference to research, and the dangling pointer this plan closes.
+- `docs/research/*.md` — the four instances that landed ahead of the type.
+  What they agree on is the template's first draft; where they differ (one
+  lacks `## Method`) is the migration list.
 
 ## Traps
 
@@ -153,6 +189,13 @@ status field, it has gone wrong — `.agents/docs/graph.md` Rules says why.
   reasoning goes in `.agents/docs/research/README.md`.
 - A node type nobody uses must cost nothing at session start. Assert the
   byte-identical case, do not assume it.
-- `ci-scope-selftest`, `queue-shared-scope`, `harness-glossary`,
-  `process-scorecard` and `unsupervised-sources` all touch `joharness.sh`
-  or `.agents/harness/selftest.sh`. Not a wave with any of them.
+- The provenance rule and the Verification section pull against each
+  other: `graph.md` Rules says never hand-write time into a file, the
+  requirement demands who checked and from where, and all four instances
+  hand-write "Checked 2026-08-25". The requirement asks for who and
+  where, not when — commits carry when. Decide once, in the README, not
+  file-by-file.
+- Every plan whose `scope:` names `joharness.sh` or
+  `.agents/harness/selftest.sh` conflicts with this one; the session-start
+  hook names them live, and a list written here would rot. Not a wave with
+  any of them.
