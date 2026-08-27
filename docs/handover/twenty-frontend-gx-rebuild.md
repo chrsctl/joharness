@@ -7,7 +7,7 @@ plan: none
 session: https://claude.ai/code/session_01LjH9XpT6c9bHNDJBhnBbbV
 agent: fable
 updated: 2026-08-27
-next: Collect the three research-agent reports, synthesize into docs/research/twenty-frontend-gx-rebuild.md, push
+next: Fill §2 (backend/API) of docs/research/twenty-frontend-gx-rebuild.md from third research agent's report, push
 ---
 
 ## Goal
@@ -39,9 +39,14 @@ on agent runs and workflow surfaces.
 
 ## Blockers
 
-None. Waiting on three background research agents launched this session;
-their reports arrive as task notifications. If session dies before then,
-re-run the research: topics are the three bullets under Decisions.
+None. Two of three research reports landed (frontend architecture, Linear UI
+stacks) and are synthesized into the doc; §2 awaits the third (Twenty
+agent/workflow backend + APIs). If session dies first, re-research just that
+topic: workflow/agent data model, GraphQL core+metadata APIs, REST, SSE
+realtime, auth, headless feasibility.
+
+Chris added mid-session: use Anthropic's frontend-design skill
+(anthropics/claude-code plugins/frontend-design) — done, §4 of the doc.
 
 ## Where to look
 
