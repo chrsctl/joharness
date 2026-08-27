@@ -20,6 +20,10 @@ mapping:
 
 ## Selection rules
 
+- Rules run for EVERY unit of work, not only queue plans. Issue, direct
+  ask, generated work — each decomposes into a plan first (Loop step 2),
+  so each carries `agent` + `effort` before build. No tier = nobody
+  matched a model to the work; do not build it.
 - Default = sonnet, effort high.
 - haiku when plan is mechanical AND fully specified AND every acceptance
   criterion is a runnable command. One unclear edge = sonnet.
@@ -106,6 +110,16 @@ mapping:
   record why in workstream file. Never downgrade to save cost — that
   decision is money, humans only (.agents/harness/AGENTS.md: stop and ask for
   money).
+- Tier binds the builder. Session tier below the plan's `agent`: never
+  implement — record wanted tier in the workstream file's `agent:`, push,
+  hand off; hook prints that tier, so the next session starts on the right
+  model. Session cannot switch its own model mid-run. Effort below the
+  plan's `effort`: raise in place — effort is per-request, tier is not.
+  Unenforced on purpose, decided 2026-08-27: a session cannot read its own
+  tier reliably, so a gate would guess — and a gate that guesses at the
+  answer is one sessions learn to route around (`finish` refuses to guess
+  at "done" for the same reason). Hook printing the wanted tier at session
+  start is the mechanism; the rule is what the reader obeys.
 
 ## Behavior findings (default worker, Sonnet 5)
 
