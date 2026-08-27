@@ -97,11 +97,13 @@ Findings from `twentyhq/twenty` at v2.38.0 (HEAD `80631cc`, 2026-08-27).
 ### What Twenty's UI already does for workflows and agents (the bar to clear)
 
 - **Workflows — mature.** React Flow canvas with dagre auto-layout
-  (editable + readonly variants), step config in a side panel, three trigger
-  families (record events, manual, cron, webhook), **13 action types**
-  (ai-agent, code w/ Monaco, logic-function, HTTP, form/human-in-the-loop,
-  filter, if-else, iterator, delay, find-records, pick-record, record CRUD,
-  email), TipTap-based variable/expression editor, first-class **versions**
+  (editable + readonly variants), step config in a side panel, four trigger
+  families (record events, manual, cron, webhook), **13 action submodules**
+  in the UI (ai-agent, code w/ Monaco, logic-function, HTTP,
+  form/human-in-the-loop, filter, if-else, iterator, delay, find-records,
+  pick-record, record CRUD, email — the backend enum counts 19 step types
+  because record CRUD variants and the EMPTY placeholder are separate there,
+  see §2.2), TipTap-based variable/expression editor, first-class **versions**
   (draft → activate lifecycle), and **run replay**: the executed diagram with
   per-step status and per-step input / output / logs tabs, updating live over
   SSE.
@@ -117,9 +119,117 @@ Findings from `twentyhq/twenty` at v2.38.0 (HEAD `80631cc`, 2026-08-27).
 
 ## 2. Consuming Twenty's backend from a new frontend
 
-*(Pending — backend/API research agent still running; this section is filled in
-from its report: workflow/agent data model, GraphQL core + metadata APIs, REST,
-webhooks, SSE subscriptions, auth, headless feasibility.)*
+Findings from `twenty-server` at the same HEAD, plus docs.twenty.com. Verdict
+up front: **the backend is fully headless-capable, and there is no private
+channel — everything Twenty's own SPA does goes through public endpoints GX
+can use.** The server only serves the official frontend if a `front/` build
+directory happens to exist (`ServeStaticModule` is conditional).
+
+### 2.1 API surface
+
+- **Core GraphQL (`POST /graphql`):** per-workspace generated schema — CRUD,
+  aggregation, groupBy for every standard and custom object (including
+  `workflow`, `workflowVersion`, `workflowRun`, which are ordinary workspace
+  objects) — plus core mutations: `runWorkflowVersion`, `stopWorkflowRun`,
+  `retryWorkflowRun`, `activateWorkflowVersion`, builder ops
+  (`createWorkflowVersionStep`, `updateWorkflowVersionTrigger`,
+  `createWorkflowVersionEdge`, `createDraftFromWorkflowVersion`,
+  `computeStepOutputSchema`, `submitFormStep`, …).
+- **Metadata GraphQL (`POST /metadata`):** object/field management, views,
+  roles — and, importantly, **the whole AI product API lives here**: `agents`
+  CRUD, skills, `chatThreads` / `chatMessages`, `sendChatMessage`,
+  `runAgent`, `stopAgentChatStream`, `chatStreamCatchupChunks`.
+- **Realtime = GraphQL subscriptions over SSE** (`graphql-sse`, on
+  `/metadata`; Redis pub/sub behind it; no WebSockets). Two subscriptions GX
+  needs: **`onAgentChatEvent(threadId)`** — streams AI-SDK `UIMessageChunk`s
+  with sequence numbers, plus `message-persisted`, `stream-error`,
+  `credits-exhausted`, keepalives, and reconnect catch-up via
+  `chatStreamCatchupChunks` — and **`onEventSubscription`** (DB-event stream)
+  for live record updates, which is how live workflow-run status reaches
+  the UI. Multi-node safe (queue worker streams, Redis fans out).
+- **REST (`/rest/*`):** generated per object (filter/order/paginate via
+  query string, batch, groupBy, merge, restore); `/rest/metadata/*` mirror;
+  per-workspace OpenAPI schema. Documented limits: 100 req/min, batch 60.
+- **Outbound webhooks:** `core.webhook` with `operations` patterns
+  (`person.created`, `*.*`), HMAC-SHA256-signed deliveries.
+- **MCP server (`POST /mcp`):** streamable-HTTP MCP exposing the same tool
+  registry agents use (via meta-tools `get_tool_catalog` / `learn_tools` /
+  `execute_tool` / `load_skill`), with OAuth or API-key auth.
+
+### 2.2 Workflow data model (what the GX run UI renders)
+
+- The flow definition is **JSON on `workflowVersion`**: `trigger` +
+  `steps: WorkflowAction[]`, forming a **DAG via `nextStepIds`** (with
+  `position {x,y}` per node — canvas layout is stored, GX can render it
+  directly in React Flow).
+- Trigger types: `DATABASE_EVENT | MANUAL | CRON | WEBHOOK` (inbound endpoint
+  `POST /webhooks/workflows/:workspaceId/:workflowId`).
+- 19 step types incl. `AI_AGENT`, `CODE`, `LOGIC_FUNCTION`, `HTTP_REQUEST`,
+  `FORM` (human-in-the-loop, completed via `submitFormStep`), `IF_ELSE`,
+  `ITERATOR`, `FILTER`, `DELAY`, record CRUD, email, calendar.
+- **`workflowRun`** carries everything the signature run-timeline needs:
+  `status` (`NOT_STARTED | RUNNING | COMPLETED | FAILED | ENQUEUED |
+  STOPPING | STOPPED`), a frozen `state.flow`, per-step
+  `state.stepInfos[stepId] = { status, result, error, history[] }` with
+  step statuses `NOT_STARTED | RUNNING | SUCCESS | STOPPED | FAILED |
+  FAILED_SAFELY | PENDING | SKIPPED` (history captures retries/iterations),
+  and **`stepLogs[stepId]`** with typed per-kind details — for `AI_AGENT`
+  steps that includes `modelId`, full token usage, dollar/credit cost,
+  duration, and **`toolCalls[]` with input/output/state per call**
+  (including `awaiting-approval`). The rich run UI is a rendering problem,
+  not a data problem: the backend already records it all.
+- In-flight migration: workflows are being dual-written from workspace
+  objects to `core`-schema entities (`coreWorkflows` query,
+  `coreWorkflowId` back-references). Expect this API area to move; isolate
+  it behind a GX data-access layer.
+
+### 2.3 Agent model (what the GX agent UI renders)
+
+- **`agent`** is a core-schema entity (not a workspace object), CRUD on
+  `/metadata`: `name`, `prompt`, `modelId` (defaults to auto-select
+  "smart"; per-workspace model preferences; providers: openai, anthropic,
+  google, mistral, xai + custom OpenAI-compatible), `responseFormat`
+  (text or flat JSON schema), native web-search config, `roleId` — agents
+  are permission-bound through the role system.
+- **Tools:** central registry with categories (DATABASE_CRUD, ACTION,
+  WORKFLOW, METADATA, VIEW, WEBHOOK, …) exposed to models via progressive
+  disclosure meta-tools; agents can build and operate workflows themselves
+  (`create_complete_workflow`, `list_workflow_runs`, `get_workflow_run`…).
+  **Skills** are instruction snippets (`core.skill`) loadable at runtime.
+  No handoff concept exists on main (a 2025-era `agentHandoff` is gone —
+  don't build against it); multi-agent = chained AI steps in workflows.
+- **Chat persistence** is exactly the AI-SDK shape: `agentChatThread`
+  (per-user, with token/credit accounting and live-stream bookkeeping) →
+  `agentTurn` (which agent handled it; LLM-judge `evaluations`) →
+  `agentMessage` → **`agentMessagePart` = persisted AI-SDK UIMessage parts**
+  (text, reasoning, tool call with input/output/state, sources, files,
+  errors). A GX chat on **assistant-ui / AI SDK renders this wire format
+  natively** — the §3 stack choice is confirmed, not just convenient.
+- **Agent runs have no unified table:** chat runs live as
+  thread/turn/message rows; workflow-embedded agent runs live inside
+  `workflowRun.stepLogs`; ad-hoc `runAgent` (non-streaming mutation used by
+  apps/integrations) returns results directly. GX's unified "Runs" surface
+  (§5.1) is therefore a **frontend join across these three sources** — the
+  differentiator Twenty's own UI doesn't offer.
+
+### 2.4 Auth and integration posture
+
+- **User JWT flow** (what the SPA uses): login mutations → access/refresh
+  token pair → `renewToken`; SSO/OTP variants; also an httpOnly-cookie mode.
+- **OAuth 2.0** with PKCE + dynamic client registration (RFC 7591) — the
+  cleanest fit for GX as a separate app. **API keys** (role-scoped
+  Bearer) work for server-side use, but user-scoped features — agent chat
+  threads hang off `userWorkspaceId` — need user auth, so GX's UI should use
+  the JWT or OAuth flow, not an API key.
+- **CORS:** wildcard for Bearer-token requests (works out of the box from
+  any GX origin); cookie mode requires adding the GX origin to
+  `AUTH_COOKIE_ALLOWED_ORIGINS`.
+- Boot config from `/client-config` (auth providers, feature flags) — GX
+  should fetch it too. Per-workspace schema means introspection/codegen
+  happens after auth, or via the metadata API.
+- Self-host baseline: postgres + redis + server + worker (Redis required
+  for realtime). AI features need the `AI` permission flag and a configured
+  provider key.
 
 ## 3. The UI stack: existing frameworks that get to "Linear" fastest
 
@@ -271,15 +381,20 @@ Priority-ordered; each maps to backend capabilities in §2.
 
 ## 6. Risks and open questions
 
-- **API stability:** Twenty ships daily; GX must pin API versions where
-  possible and integration-test against upgrades. (§2 details what's public
-  API vs. internal.)
-- **Realtime:** Twenty's realtime is SSE (`graphql-sse`), not WebSocket;
-  community has asked for WS (#14671). GX's live-run UX depends on what SSE
-  exposes headlessly — verify early with a spike.
+- **API stability:** Twenty ships daily, and the workflow objects are mid
+  dual-write migration to core-schema entities (§2.2). Isolate all Twenty
+  access behind a GX data-access layer and integration-test against upgrades.
+- **Realtime:** confirmed viable headlessly — GraphQL subscriptions over SSE
+  with reconnect catch-up (§2.1); no WebSockets (community ask #14671).
+  Remaining spike: verify `onEventSubscription` granularity is enough for
+  live run lists (per-run detail streaming is proven via chat/step events).
+- **Unified runs view is a frontend join** (§2.3): chat turns, workflow
+  `stepLogs`, and `runAgent` results have no shared table. The join logic,
+  pagination, and cross-source filtering carry real complexity — design the
+  data layer for it explicitly.
 - **Workflow authoring depth:** full builder parity (variables/expression
-  editor, 13 action configs, iterators) is the most expensive surface;
-  recommendation is read/run/inspect first, author later.
+  editor, config UIs for all 19 backend step types, iterators) is the most
+  expensive surface; recommendation is read/run/inspect first, author later.
 - **Performance budget:** Linear-feel demands optimistic updates and instant
   navigation; plan the data layer (normalized cache or local-first store) as
   deliberately as the components.
@@ -298,6 +413,18 @@ Twenty: repo clone at v2.38.0 (`80631cc`, 2026-08-27) — `packages/twenty-front
 [WS issue #14671](https://github.com/twentyhq/twenty/issues/14671);
 [HN Jun 2024](https://news.ycombinator.com/item?id=40648082),
 [HN Feb 2026](https://news.ycombinator.com/item?id=46922213).
+
+Twenty backend/API: server code at same HEAD (`packages/twenty-server` —
+workflow entities under `src/modules/workflow/`, AI under
+`src/engine/metadata-modules/ai/`, tool registry under
+`src/engine/core-modules/tool-provider/`, MCP under `src/engine/api/mcp/`);
+[API docs](https://docs.twenty.com/developers/extend/api);
+[workflows concepts](https://docs.twenty.com/getting-started/core-concepts/workflows);
+[AI concepts](https://docs.twenty.com/getting-started/core-concepts/ai);
+[MCP guide](https://docs.twenty.com/user-guide/ai/capabilities/mcp);
+[webhooks](https://docs.twenty.com/developers/extend/webhooks);
+[OAuth](https://docs.twenty.com/developers/extend/oauth);
+[self-host docker-compose](https://docs.twenty.com/developers/self-host/capabilities/docker-compose).
 
 Linear/UI: [Linear redesign write-up](https://linear.app/now/how-we-redesigned-the-linear-ui);
 [shadcn.io/design/linear](https://www.shadcn.io/design/linear);
