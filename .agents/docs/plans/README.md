@@ -1,12 +1,17 @@
 # Plan queue
 
 Pre-scoped work agents execute without human in loop. One file per plan,
-under `docs/plans/`, on `main`. Loop step 2 (.agents/harness/AGENTS.md): open
+under `docs/plans/`, on `main` (same-session plan: on its work branch —
+Lifecycle). Loop step 2 (.agents/harness/AGENTS.md): open
 GitHub issues first, then unplanned requirements
 ([`docs/product/`](../product/README.md) — decompose before executing),
 then oldest actionable plan here. Issues = human asks and bugs; plans
 = scoped work with acceptance criteria, written once, executed by any
-session.
+session. Nothing builds unplanned: an issue or direct ask decomposes into
+a plan before code, same as a requirement — the plan is where a model gets
+matched to the work. One exception, same as workstream files: copy and
+sync tasks get no plan — diff self-describing
+(`.agents/docs/handover/README.md`, "When NOT to write one").
 
 Written for agents — literal readers. Background:
 [`.agents/docs/agent-selection.md`](../agent-selection.md). A plan says scope AND
@@ -78,6 +83,12 @@ miss the conflict — it asserts the opposite.
 - **Done** = implementing PR deletes plan file, same PR as code. Plan
   survives in history like workstream files do. PR = edge to main:
   in-depth review first (Loop step 5), every time.
+- **Same-session plan** = plan for an issue or direct ask the writing
+  session executes itself. Lives on the work branch, never `main`; deleted
+  in the same PR as the code, beside the workstream file. Lands on `main`
+  only when handed off instead — a PR adding only the plan puts it in the
+  queue. Same shape either way: the `agent`/`effort` match is the point,
+  not the queue position.
 - **Stale plan** (code moved under it): fix plan in place on `main` via
   small PR, or delete if obsolete. Every claim in a plan = hypothesis until
   checked against code — same staleness rule as handover files.
