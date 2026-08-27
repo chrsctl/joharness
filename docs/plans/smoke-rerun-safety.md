@@ -4,6 +4,8 @@ urgency: normal
 agent: sonnet
 effort: high
 needs: none
+requirement: none
+scope: .agents/env/k8s/smoke-test.sh
 ---
 
 ## Goal

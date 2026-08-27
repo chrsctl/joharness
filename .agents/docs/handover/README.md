@@ -283,7 +283,10 @@ Workstream file = scaffolding, not documentation. Work done:
 1. Anything mattering in six months moves to the right layer's `AGENTS.md`
    (agent needs every session) or `docs/` (background). The "do not bump
    `K3S_IMAGE` casually" note in `.agents/env/k8s/AGENTS.md` is exactly this:
-   rejected approach that graduated.
+   rejected approach that graduated. Split rule, because `AGENTS.md` is
+   the byte budget every session pays: the trip-wire line (one line,
+   unconditional) goes to `AGENTS.md`; the reasoning behind it goes to the
+   layer's `docs/`.
 2. Workstream file deleted in final commit.
 
 Files left after merge get read as current — worse than no file. Nothing worth

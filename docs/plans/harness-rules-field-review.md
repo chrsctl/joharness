@@ -94,8 +94,9 @@ produced it, in the same sentence.
 - `.agents/harness/AGENTS.md` grows by no more than ~10 lines total. Every
   session loads it before its first prompt; four rules must not cost a page.
   Measure it (`wc -c`) at the commit you start from rather than trusting a
-  figure written here — it was 5,617 bytes when this plan was drafted, 5,949
-  by the time the plan merged, 6,500 at queue cleanup (2026-08-24).
+  figure written here — `wc -c .agents/harness/AGENTS.md` gave 5,617 when
+  this plan was drafted, 6,500 at queue cleanup (2026-08-24), 8,636 on
+  2026-08-27. It grows ~1KB/day; any figure here is already wrong.
 
 ## Where to look
 
@@ -118,3 +119,7 @@ produced it, in the same sentence.
   up in the rule text.
 - The harness must never name a specific environment. None of these four
   come near that, and none may be written in a way that does.
+- `fork-seam-rules` shares BOTH scope files and adds a near-duplicate of
+  edit 2's re-derive rule (its edit 3, fork-state liveness). Never the
+  same wave; whichever plan merges second writes ONE generic re-derive
+  sentence and points at it, instead of landing the near-twin.
