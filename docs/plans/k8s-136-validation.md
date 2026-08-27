@@ -4,6 +4,8 @@ urgency: normal
 agent: sonnet
 effort: high
 needs: none
+requirement: none
+scope: .agents/env/k8s/devenv.sh, .agents/env/k8s/README.md
 ---
 
 <!-- Seeded from dead branch claude/k8s-136-validation (deleted unmerged);

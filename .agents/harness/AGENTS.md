@@ -22,8 +22,10 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    prints queue + wanted agent tier at session start. Oldest actionable
    first, urgent first if marked. No issue, no requirement, no plan: ask
    human. Not invent work. ONE exception, `JOHARNESS_MODE=unsupervised`
-   (session start says so): edge = generate work, never ask. Boundary holds
-   — no commit under `.agents/harness/`
+   (session start says so): edge = generate work, never ask — until the
+   source sweep goes dry (every detector zero twice running, queue empty,
+   no open PR): there stop and say so, the mode's one stop (ratified
+   2026-08-25). Boundary holds — no commit under `.agents/harness/`
    ([`docs/product/unsupervised-mode.md`](../../docs/product/unsupervised-mode.md)).
 3. **Claim.** Cut branch from `main` (branch flow:
    `.agents/docs/product/README.md`). Write `docs/handover/<workstream>.md`. Push
@@ -65,7 +67,7 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    fresh-fetched `origin/main` (behind = "Conflict at finish" reconcile
    first — checks do NOT re-run when `main` moves); `./joharness.sh
    verify` green when the diff touches any non-`*.md` file under
-   `joharness.sh`, `.agents/harness/`, `.agents/env/`, `scripts/` — CI cannot run it
+   `joharness.sh`, `.agents/harness/`, `.agents/env/`, `.agents/scripts/` — CI cannot run it
    (needs the sandbox); **`./joharness.sh finish` green** — the only guard
    here that fires while the fix is still a commit; edge review recorded
    (step 5); no unresolved human review thread. Anything less stays open. Merge-commit

@@ -26,7 +26,7 @@
 # Not synced, consumer-own: README.md, joharness.conf, .gitignore,
 # .github/workflows/ci.yml and update.yml (both seeded by
 # bootstrap-consumer.sh), and ALL of docs/ — the work dirs
-# docs/handover|plans|product/ hold only the consumer's live files, the
+# docs/handover|plans|product|research/ hold only the consumer's live files, the
 # harness ships nothing there. Removals are not handled: a file canonical
 # deleted stays in the consumer and is reported as consumer-only.
 #

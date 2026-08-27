@@ -4,6 +4,8 @@ urgency: normal
 agent: sonnet
 effort: medium
 needs: none
+requirement: none
+scope: .agents/env/k8s/smoke-test.sh, .agents/env/k8s/AGENTS.md
 ---
 
 <!-- Seeded from dead branch claude/smoke-helm-coverage (deleted unmerged);
@@ -38,8 +40,8 @@ every tool the environment installs.
 ## Where to look
 
 - `.agents/env/k8s/smoke-test.sh` — PASS/FAIL counters, summary line.
-- `.agents/env/k8s/AGENTS.md` and root `AGENTS.md` — `7 passed, 0 failed`
-  written once in each; both move.
+- `.agents/env/k8s/AGENTS.md` — `7 passed, 0 failed` written once; it
+  moves. (Root `AGENTS.md` no longer writes a pass total — 2026-08-27.)
 
 ## Traps
 

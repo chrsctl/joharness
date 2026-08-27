@@ -20,7 +20,7 @@ semantic, summary — convergent, not copied.
 | Plan | `docs/plans/<plan>.md` on base branch | task |
 | Workstream | `docs/handover/<workstream>.md` on work branch | episodic memory |
 | Rule, trip-wire | layer's `AGENTS.md` | semantic memory |
-| Why-explanation | `docs/*.md` | summary memory |
+| Why-explanation | `.agents/docs/*.md` | summary memory |
 | Change | commit, branch, PR | execution + provenance |
 
 ## Edges
@@ -51,8 +51,8 @@ discipline fails exactly when someone hurries.
 - Fusion manual: graduation ritual, human-reviewed. Wrong merge worse than
   missed merge.
 - Provenance = commits. Never hand-write time or source into a file.
-- Every edge into main passes an in-depth review node: `/code-review`
-  (high) on the full diff, before the PR. Diamond rule — verify outside
+- Every edge into main passes a review node, depth by the plan's tier
+  (`agent-selection.md`), before the PR. Diamond rule — verify outside
   the context that wrote the code; self-grade alone misses own mistakes.
 
 ## Serving

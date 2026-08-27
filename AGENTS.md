@@ -25,10 +25,11 @@ Verify (all green or not done):
 
 ```bash
 ./joharness.sh ci        # ci: pass — same checks .github/workflows/ci.yml runs
-./joharness.sh verify    # 7 passed, 0 failed — needs the sandbox, so CI cannot
+./joharness.sh verify    # 0 failed — pass count is the layer's; sandbox-only, CI cannot
 ```
 
 Run `ci` before opening a pull request; it is the whole of what GitHub checks,
 so a red PR after a green run here is a bug in the split, not bad luck.
 `verify` provisions the selected environment first, so a cold container is
-fine. Trust counted numbers, never written numbers — including the one above.
+fine. Trust counted numbers, never written numbers — a pass total written
+here would be true for exactly one layer.

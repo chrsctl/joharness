@@ -22,7 +22,7 @@ wall-clock for no signal, before counting re-runs after a fix.
 
 Step 7 already knows this condition. It scopes `./joharness.sh verify` to
 diffs touching `joharness.sh`, `.agents/harness/`, `.agents/env/` or
-`scripts/`. The selftest wants the same gate and does not have it.
+`.agents/scripts/`. The selftest wants the same gate and does not have it.
 
 ## Scope
 
@@ -30,11 +30,16 @@ diffs touching `joharness.sh`, `.agents/harness/`, `.agents/env/` or
   when the diff against the merge base touches a harness surface, and
   prints what it skipped and why when it does not. A skip that says
   nothing reads as a pass.
-- `.github/workflows/ci.yml` — the `lint` job runs `./joharness.sh ci` AND
-  the `windows` job runs `./.agents/harness/selftest.sh` directly on Git
-  Bash. Decide and record which side owns the gate. The promise in Part 2 is
-  that `ci` is the whole of what GitHub checks, so a local skip GitHub does not
-  skip breaks that promise for exactly the diffs the gate lets through.
+- `.github/workflows/ci.yml` — since 2026-08-27 the `windows` job (the
+  only job that ran `selftest.sh` directly) is `if: false`, so the `lint`
+  job's `./joharness.sh ci` is the ONE place the selftest runs in CI.
+  That makes this gate single-sided: a skip here is a skip everywhere,
+  with no second job as backstop. The gate must therefore be provably
+  narrow — skip ONLY when the merge-base diff is computable and clean of
+  every harness surface; any doubt runs the suite. Record in the diff
+  what happens if `windows` is re-enabled (it re-runs the suite
+  unconditionally on Git Bash; the gate lives in `cmd_ci`, so the two
+  cannot disagree about ownership).
 - `.agents/harness/selftest.sh` — cover the gate itself: a diff touching a
   harness surface runs it, a diff touching nothing else does not, and the
   skip prints its reason.
@@ -60,9 +65,10 @@ diffs touching `joharness.sh`, `.agents/harness/`, `.agents/env/` or
 - `./joharness.sh ci` on a diff touching `.agents/harness/` — runs the
   selftest in full, exactly as today.
 - `./joharness.sh ci` — `ci: pass`.
-- `./joharness.sh verify` — 7 passed, 0 failed.
-- GitHub CI green on the pull request, with the workflow's own selftest
-  job doing whatever the recorded decision says it does.
+- `./joharness.sh verify` — 0 failed.
+- GitHub CI green on the pull request, with the `lint` job's run showing
+  the selftest RAN (this plan's own diff touches harness surfaces, so its
+  PR must not exercise the skip).
 
 ## Where to look
 
@@ -70,9 +76,9 @@ diffs touching `joharness.sh`, `.agents/harness/`, `.agents/env/` or
   the `rc=1` path under it.
 - `.agents/harness/AGENTS.md`, Loop step 7 — the existing four-path list, the
   wording this gate should match rather than invent.
-- `.github/workflows/ci.yml`, jobs `lint` and `windows` — the two places the
-  selftest can run, and the reason the decision cannot be made in
-  `joharness.sh` alone.
+- `.github/workflows/ci.yml`, job `lint` — the one place the selftest
+  runs in CI while `windows` is `if: false`; the disabled block's comment
+  carries the re-enable condition.
 - `AGENTS.md` Part 2 — "it is the whole of what GitHub checks, so a red PR
   after a green run here is a bug in the split". This plan edits the split.
 
@@ -86,3 +92,6 @@ diffs touching `joharness.sh`, `.agents/harness/`, `.agents/env/` or
 - Trust counted numbers. The 22.5 / 16.3 / 3.7 / 7.1 figures were measured
   in the consumer at `c79dc82`; re-measure here before quoting them
   anywhere that ships.
+- The `windows` job is off, not gone. Nothing in this plan may assume it
+  runs, and nothing may delete it — the owner turns it back on by
+  deleting one line, and the gate must be correct in both states.
