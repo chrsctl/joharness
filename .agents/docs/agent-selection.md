@@ -115,6 +115,11 @@ mapping:
   hand off; hook prints that tier, so the next session starts on the right
   model. Session cannot switch its own model mid-run. Effort below the
   plan's `effort`: raise in place — effort is per-request, tier is not.
+  Unenforced on purpose, decided 2026-08-27: a session cannot read its own
+  tier reliably, so a gate would guess — and a gate that guesses at the
+  answer is one sessions learn to route around (`finish` refuses to guess
+  at "done" for the same reason). Hook printing the wanted tier at session
+  start is the mechanism; the rule is what the reader obeys.
 
 ## Behavior findings (default worker, Sonnet 5)
 
