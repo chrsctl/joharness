@@ -1,13 +1,13 @@
 ---
 workstream: loop-autonomy-review
-status: in-progress
+status: done
 branch: claude/loop-autonomy-review-toxvcw
 pr: none
 plan: none
 session: https://claude.ai/code/session_01QTY9NV95DPMn45ngwfaJvJ
 agent: opus
 updated: 2026-08-27
-next: Next tick: diff repo state against Findings; go deeper on whatever moved (PRs 81/82, queue, unsupervised branches)
+next: Retire this file (last commit before PR); loop continues in-session, new findings start a fresh workstream
 ---
 
 ## Goal
@@ -23,6 +23,12 @@ chat land here; this file is the loop's memory between ticks and sessions.
 - Findings live in this workstream file, not a research node: the
   research-node shape does not exist until `docs/plans/research-node.md`
   merges. Revisit routing findings there once it does.
+- Graduation (requester asked for a PR): f1/f2/f3 — the actionable,
+  rule-shaped findings — become `docs/plans/fork-seam-rules.md`, same
+  species as `harness-rules-field-review` (field evidence → rule-text
+  edits). f4 is a status observation, f6 self-resolves with research-node,
+  f5 stays a candidate research node once that shape exists; history keeps
+  all three (retrieval command in the PR body).
 - No PR subscription on #81/#82: they are fork PRs this session may not
   drive (own-PR rule); the loop polls state instead of taking watch-posture
   obligations it cannot discharge.
@@ -68,8 +74,23 @@ Tick 1, 2026-08-27. Counted from live GitHub state and tree at
 
 ## Review
 
-No code on this branch to review; findings above are the deliverable.
-Clean pass not applicable yet.
+Edge review of this branch's diff (one plan file + this record), separate
+lenses: scope-conflict, evidence, doctrine-conformance.
+
+- r1: first draft of the plan strengthened the `finish`/`ci` gate to
+  detect human-merge PRs — mechanism, touches `joharness.sh`, undeclared
+  conflict with `ci-scope-selftest`'s wave (fixed: scope cut to rule text
+  only; gate change named in Out of scope as its own plan)
+- r2: `needs: harness-rules-field-review` considered because both plans
+  edit step 7 — fake edge, this plan reads no result of that one; the
+  README says leave it out and declare the file conflict via `scope`
+  (fixed: scope declared, wave conflict named in Traps)
+- r3: every number in the plan re-counted this session — finish printed
+  "1 already on origin/main", list_pull_requests returned 2 open fork
+  PRs, #79 merged_at vs session start = ~21h — none written from memory
+  (no change needed)
+- r4: plan's edit 2 risked a second flag mechanism beside Decide alone's
+  "flag for human" — reworded to point at the existing rule (fixed)
 
 ## Blockers
 
