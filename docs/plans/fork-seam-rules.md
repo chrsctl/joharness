@@ -86,9 +86,10 @@ a scheduled check-in.
   edit 3's anchor.
 - PR #79 and #81 on GitHub — the evidence; #81's body documents the
   broken retire from the fork session's side.
-- `docs/handover/loop-autonomy-review.md`, retired on this plan's own
-  branch — findings f1–f3 with sources
-  (`git log --all --full-history --oneline -- docs/handover/loop-autonomy-review.md`).
+- Findings f1–f3 with sources: the retired `loop-autonomy-review`
+  workstream file, recoverable via
+  `git log --all --full-history --oneline -- "docs/handover/loop-autonomy-review.md"`
+  then `git show <commit>^:<path>`.
 
 ## Traps
 
