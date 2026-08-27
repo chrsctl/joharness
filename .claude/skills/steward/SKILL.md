@@ -43,10 +43,14 @@ conflict. Why-explanations: `.agents/docs/handover/README.md`,
   branches from claims view. Deleting = optional hygiene, human-only
   (`.agents/docs/product/README.md` Branch flow). Session NEVER
   `git push --delete`.
+- `./joharness.sh finish` green is a merge condition like the checks —
+  it fires while the fix is still a commit; nothing else here does.
 - PR's final state deletes: the plan file this branch implements, the
   requirement file when this was its last plan, the workstream file.
-  Six-month-worthy learnings move to the right layer's `AGENTS.md` or
-  `docs/` first.
+  As the LAST COMMIT BEFORE the pull request opens, never after the
+  merge (`.agents/harness/AGENTS.md` step 7 — the measured failure is
+  exactly the post-merge patch). Six-month-worthy learnings move to the
+  right layer's `AGENTS.md` or `docs/` first.
 
 ## Never
 

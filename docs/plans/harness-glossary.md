@@ -75,7 +75,8 @@ not redefine.
   other wording the glossary bans.
 - Re-count the two headline pairs before quoting them anywhere that ships;
   the 146 / 12 / 10 / 5 / 18 / 2 figures were re-counted 2026-08-24 with the
-  command above and move with every merge.
+  command above and drift fast ("workstream file" already 208 by
+  2026-08-27, +42%) — they move with every merge.
 - `./.agents/harness/selftest.sh` — passes, count higher by the tests added.
 - The lint fails on a deliberately reintroduced banned wording, and the
   failure names the file, the line, and the canonical replacement. Paste

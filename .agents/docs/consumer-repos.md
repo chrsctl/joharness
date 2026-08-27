@@ -191,7 +191,7 @@ thing that can break, and they are the thing to run:
 
 - `./joharness.sh ci` — the harness's own bar.
 - `./joharness.sh verify` — when the diff touches a non-`*.md` file under
-  `joharness.sh`, `.agents/harness/`, `.agents/env/` or `scripts/`. A sync
+  `joharness.sh`, `.agents/harness/`, `.agents/env/` or `.agents/scripts/`. A sync
   usually does, and CI cannot run this.
 - The consumer's own loop (`run-all.sh` or whatever it calls its suites). The
   sync can narrow an enum or tighten a guard that consumer files then fail —
