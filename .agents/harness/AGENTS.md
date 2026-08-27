@@ -17,8 +17,16 @@ the selected layer — as a read-first pointer by default, whole when md=eager
 1. **Orient.** Hook prints handover state before first prompt. Hook names
    workstream file for this branch? That is your job. Read whole file. Go to 4.
 2. **Pick.** Queue = open GitHub issues, then unplanned requirements
-   `docs/product/*.md` (decompose into plans = the work), then plan files
-   `docs/plans/*.md` (shape + claim rules: `.agents/docs/plans/README.md`). Hook
+   `docs/product/*.md`, then plan files `docs/plans/*.md` (shape + claim
+   rules: `.agents/docs/plans/README.md`). NOTHING builds unplanned: issue,
+   requirement, direct human ask — decompose into plan first, decompose =
+   the work. Small ask = small plan, still a plan. Plan frontmatter names
+   `agent` + `effort` — the one place a model gets matched to work
+   (`.agents/docs/agent-selection.md`). Tier binds: session below the plan's
+   `agent` never implements — record wanted tier in workstream file, push,
+   hand off (escalation rules: Agent selection below). Copy or sync task =
+   the one no-plan work: diff self-describing, same carve-out as
+   workstream files (protocol "When NOT to write one"). Hook
    prints queue + wanted agent tier at session start. Oldest actionable
    first, urgent first if marked. No issue, no requirement, no plan: ask
    human. Not invent work. ONE exception, `JOHARNESS_MODE=unsupervised`
@@ -31,7 +39,12 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    `.agents/docs/product/README.md`). Write `docs/handover/<workstream>.md`. Push
    NOW — no push, no claim. Hook shows overlap? `/who`. Only `RUNNING`
    session means branch taken.
-4. **Build.** Long-running? Re-check `git fetch origin main` ahead/behind
+4. **Build.** Research before code, every time: open the plan's anchors,
+   check its claims against code — every claim = hypothesis until checked
+   (`.agents/docs/plans/README.md`); `./joharness.sh feedback <path>` on files
+   the diff will touch. Open question that decides the design? Settle it,
+   record in workstream file, THEN code — never mid-code.
+   Long-running? Re-check `git fetch origin main` ahead/behind
    periodically — another PR merging mid-build is cheap to catch now, one
    hit at step 7 after hours of work is not (`.agents/docs/product/README.md`
    Branch flow).
@@ -129,10 +142,12 @@ refuses to run anyway.
 ## Agent selection
 
 Plans get matched to agents: each plan's frontmatter names `agent` tier
-(`haiku` | `sonnet` | `opus`) and `effort`. Implementing session may
-escalate tier or effort, never downgrade. Write plans for literal reader:
-scope AND out-of-scope explicit. Lineup + selection rules:
-`.agents/docs/agent-selection.md`.
+(`haiku` | `sonnet` | `opus`) and `effort`. Every unit of work has a plan
+(step 2), so every unit gets matched — no tier, no build. Implementing
+session may escalate tier or effort, never downgrade; below the plan's
+tier = hand off (step 2), session cannot switch own model. Write plans
+for literal reader: scope AND out-of-scope explicit. Lineup + selection
+rules: `.agents/docs/agent-selection.md`.
 
 ## Handover
 
