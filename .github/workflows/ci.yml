@@ -63,6 +63,10 @@ jobs:
   # here - the toolchain answer does not change per platform, and installing
   # it on a Windows runner is a path to maintain for nothing.
   windows:
+    # Disabled 2026-08-27 at owner request ("for now") — delete the `if`
+    # line to re-enable. Skipped, not removed: the job definition and its
+    # reasoning above stay current.
+    if: false
     runs-on: windows-latest
     defaults:
       run:
