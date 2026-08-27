@@ -41,6 +41,12 @@ Four yields, one outcome. The yields diagnose; only the outcome scores.
 the same file stops drawing the same class of finding, and for no other
 reason.
 
+METRIC UNDER REPAIR: as computed today recurrence cannot fall — the dedup
+set never clears, so the number saturates upward (`./joharness.sh
+feedback` measured 36% on 2026-08-24, 54% on 2026-08-27, coverage steady).
+Read it as volume, not signal, until `docs/plans/recurrence-can-fall.md`
+lands.
+
 ### Volume is not a score
 
 Counting findings and calling more of them better is the trap. The review
@@ -182,6 +188,9 @@ gone. That session ran `./joharness.sh finish` on the very sync branch carrying
 
 Named because a measure that hides its blind spots is worse than no measure:
 
+- **Only the newest 50 edges are read** (`JOHARNESS_FEEDBACK_EDGES`,
+  default 50 — `joharness.sh:cmd_feedback`). Past that, findings fall out
+  of every count above; the output names how many edges went unread.
 - **Classes, not files.** Recurrence is measured on paths. Two findings of
   the same *kind* in different files read as unrelated; the same file drawing
   two unrelated findings reads as a repeat. Classifying prose needs judgment,

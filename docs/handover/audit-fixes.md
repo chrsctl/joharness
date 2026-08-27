@@ -1,13 +1,13 @@
 ---
 workstream: audit-fixes
-status: in-progress
+status: review
 branch: claude/loop-autonomy-review-toxvcw
 pr: none
 plan: none
 session: https://claude.ai/code/session_01QTY9NV95DPMn45ngwfaJvJ
-agent: fable
+agent: opus
 updated: 2026-08-27
-next: Apply the audit's fix list (defects a1-a2, rule fixes a3-a5, line edits a6+), verify, PR
+next: Commit, retire this file, PR, merge on green
 ---
 
 ## Goal
@@ -42,7 +42,38 @@ finding is re-verified against the tree before its fix lands.
 
 ## Review
 
-(pending — recorded before the PR opens)
+Edge review of the full diff, separate lenses (per-edit correctness,
+cross-reference breakage, doctrine conformance), findings recorded before
+their fixes, same commit:
+
+- r1: selftest-split's headline counts (16 scope-declaring plans, 12
+  naming selftest.sh) were stale before the plan was ever committed —
+  this branch's own scope additions moved them to 20/13 (fixed: re-counted,
+  command now carried in the sentence)
+- r2: research-node edit claimed the instance count went stale "twice";
+  it went stale once (#80 counted 4, #84 made it 5) (fixed: reworded)
+- r3: feedback.md under-repair note stated measured percentages without
+  the command that produced them — the exact failure field-review's
+  edit 4 names (fixed: command and dates in the sentence)
+- r4: root AGENTS.md losing its "7 passed" figure orphaned
+  smoke-helm-coverage's "written once in each; both move" bullet (fixed
+  in the same pass: plan now points at the layer file only, scope
+  narrowed to match)
+- r5: graph lint rejects `agent: fable` (enum haiku|sonnet|opus,
+  joharness.sh:778,822) while the session-start hook displays the same
+  value unvalidated — PR #84's workstream carried `fable` and only passed
+  ci because the file was already retired; surfaced by this file's own
+  first commit (open: tier-lineup decision is the human's —
+  agent-selection.md, two enums, selftest fixture all move together;
+  this file switched to opus)
+- r6: `.agents/harness/AGENTS.md` edits add ~250 bytes to the file this
+  same audit flagged for byte creep (wontfix here: the unsupervised stop
+  is a trip-wire line, exactly what the new split rule sends to
+  AGENTS.md; the byte trim belongs to harness-rules-field-review's
+  scope, not this branch)
+- r7: shellcheck zero findings on both touched scripts; full selftest 469
+  passed 0 failed with the upgdry rename in place; verify 7/7 on this
+  layer (clean pass on the code lens)
 
 ## Blockers
 

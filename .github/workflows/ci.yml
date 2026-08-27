@@ -65,7 +65,9 @@ jobs:
   windows:
     # Disabled 2026-08-27 at owner request ("for now") — delete the `if`
     # line to re-enable. Skipped, not removed: the job definition and its
-    # reasoning above stay current.
+    # reasoning above stay current. While off, the Windows-blind-spot
+    # class (CRLF, path-form defects — four found to date) has no gate:
+    # the selftest's CRLF assertions still run, but only on Linux.
     if: false
     runs-on: windows-latest
     defaults:
