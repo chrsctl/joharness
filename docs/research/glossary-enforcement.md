@@ -57,7 +57,7 @@ it, or an absence, in which case the plan is inventing and should say so.
   it as established vocabulary; the adjacent sourced ideas are failure to
   co-evolve the language, technical dominance, and the linguistic divide.
 - **The drift this repo measured is still real and still local**:
-  "workstream file" 107 against the older spelling 10 on 2026-08-25, five
+  "workstream file" 107 against "handover file" 10 on 2026-08-25, five
   files carrying both.
 
 ## Consequence for the queue

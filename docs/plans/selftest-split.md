@@ -39,8 +39,8 @@ partition dissolves without touching what any test asserts.
   every consumer; `CANONICAL_ONLY` currently exempts only the literal
   path `.agents/harness/selftest.sh`.
 - Move `LAYER_CARVE_OUT_FILE` with the k8s topic: the layer rule scans
-  all of `.agents/harness/` for files naming an environment layer, and the k8s
-  test case is exempt today ONLY because it lives in a file literally
+  all of `.agents/harness/` for files naming an environment layer, and the
+  k8s test case is exempt today ONLY because it lives in a file literally
   named `selftest.sh`. The constant must name the new topic file in the
   same commit that creates it, or the split turns the structure test red.
 

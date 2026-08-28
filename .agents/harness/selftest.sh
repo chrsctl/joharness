@@ -2039,6 +2039,43 @@ git -C "$gl" commit -qm "remove it again"
 out="$(ci_gloss)"
 expect "removing it clears the stage" "every contested term" "$out"
 
+# Scope. The vocabulary is harness-owned and ships to consumers, so the scan
+# covers what the harness owns and stops there: everything under `.agents/`,
+# plus root-level `*.md`, which a session loads. A consumer's own product
+# prose is out — a harness sync that reds someone's ci over their docs/ is a
+# sync they stop taking. The nested case is the one that would break silently
+# if the pathspec lost its `:(glob)`, because wildmatch `*` crosses `/`.
+mkdir -p "${gl}/docs" "${gl}/src/deep"
+printf 'Our %s convention.\n' "$gl_bad" >"${gl}/docs/notes.md"
+printf 'See the %s.\n' "$gl_bad" >"${gl}/src/deep/x.md"
+commit_all "$gl" "banned wording outside the harness tree"
+# Non-vacuity: an out-of-scope case proves nothing if the file is untracked,
+# which is the same green a working scope produces.
+expect "the out-of-scope fixtures are tracked" \
+  "docs/notes.md src/deep/x.md" \
+  "$(git -C "$gl" ls-files -- docs src | tr '\n' ' ')"
+out="$(ci_gloss)"
+expect "a consumer's own docs/ is out of scope" "every contested term" "$out"
+refute "docs/ is not even named" "docs/notes.md" "$out"
+refute "a nested non-harness path is not scanned" "src/deep/x.md" "$out"
+
+# Root-level markdown IS in scope: AGENTS.md and README.md are loaded.
+printf '# R\n\nThe %s lives here.\n' "$gl_bad" >"${gl}/README.md"
+commit_all "$gl" "banned wording at the root"
+out="$(ci_gloss)"
+expect "a root-level md is scanned" "README.md:3:" "$out"
+
+git -C "$gl" rm -q README.md docs/notes.md src/deep/x.md
+git -C "$gl" commit -qm "clean the scope fixtures"
+
+# A harness script, not just markdown.
+printf '#!/usr/bin/env bash\n# the %s\n' "$gl_bad" >"${gl}/.agents/harness/note.sh"
+commit_all "$gl" "banned wording in a harness script"
+out="$(ci_gloss)"
+expect "a harness .sh is scanned" ".agents/harness/note.sh:2:" "$out"
+git -C "$gl" rm -q .agents/harness/note.sh
+git -C "$gl" commit -qm "clean it"
+
 # No glossary at all is not an error: a consumer may carry none.
 git -C "$gl" rm -q .agents/docs/glossary.md
 git -C "$gl" commit -qm "no glossary here"
