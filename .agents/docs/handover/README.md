@@ -65,26 +65,31 @@ makes cross-branch work:
   state.
 - **Travels with code.** Updated *same commit* as the change, so rebases,
   cherry-picks, reverts along with it. Cannot describe diff that is gone.
-- **Survives PR — in history, not on `main`.** File merges with code, then
-  is deleted before the merge: a live workstream file on `main` describes
-  finished work. Follow-up = fresh branch, fresh file, seeded from history if
-  useful.
+- **Survives PR — in history, not on `main`.** The file lives on the branch
+  and what merges is its DELETION: no commit on `main` holds it. A live
+  workstream file on `main` would describe finished work. Follow-up = fresh
+  branch, fresh file, seeded from history if useful.
 
-  Recovering it takes two steps, and NOT the merge commit — the file is gone
+  Recovering it takes two steps, and not the merge commit — the file is gone
   by then, so `git show <merge>:docs/handover/<name>.md` answers `does not
-  exist`. It lived and died on a side branch, so git's default history
-  simplification also prunes it from `git log -- <path>` run on `main`;
-  `--full-history` is the part that finds it:
+  exist`. Default history simplification hides it from `git log -- <path>`
+  too, because the path's whole life is on a side branch:
 
   ```bash
   git log --all --full-history --oneline -- docs/handover/<name>.md
   git show <retire-commit>^:docs/handover/<name>.md
   ```
 
-  `--all` needs the branch ref alive, and deleting the branch is optional and
-  human-only, so `--full-history` is what makes this a method rather than
-  luck. Step 7 puts this command in the PR body for the branch's own file, so
-  the record is reachable from the merged artifact instead of a guess.
+  `--full-history` is the flag that finds it: without it both plain
+  `git log` and `git log --all` return nothing (measured, six retired files,
+  2026-08-28). `<retire-commit>` is the NEWEST entry step 1 prints — the
+  commit that deleted the file — and `^` is its parent, the last tree still
+  holding it. `--all` only covers a branch that never merged; a merged file
+  stays reachable through the merge commit's second parent whether or not the
+  branch ref survives. `^` means first parent, so a retire that itself lands
+  as a merge needs the right parent picked by hand. Step 7 puts this command
+  in the PR body for the branch's own file, so the record is reachable from
+  the merged artifact instead of a guess.
 - **Branch renames and re-cuts free.** Name not branch, so re-cut after merged
   PR keeps same file.
 
