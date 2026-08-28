@@ -88,6 +88,9 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    integration branch. Session merges its OWN pull request itself, no
    waiting on human (ratified 2026-08-23). Own = opened by this session,
    or the human handed it to this session to drive; never any other PR.
+   PR whose merge button is not yours (usually a fork PR) = human's clock:
+   retire BEFORE you ask, below. Such a PR whose session ended: flag it to
+   the human, never assume a steward watches it.
    Infrastructure reading (runner up, registry reachable, base green)
    re-derived at every check, never inherited — true this hour, false the
    next. Scheduled check-in states what to RE-CHECK, never what is true.
@@ -122,7 +125,10 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    thirteen merges adding six and removing none, because "optional,
    human-only" one sentence up reads as covering this one too.
    Do it as the LAST COMMIT BEFORE the pull request opens, never after the
-   merge. `./joharness.sh finish` says what merging now would leave and is red
+   merge. Merge not yours? Ready-for-HUMAN is the edge: review record and
+   retire commit land BEFORE you ask, because they merge on their clock and
+   a deferred retire costs a follow-up pull request to undo.
+   `./joharness.sh finish` says what merging now would leave and is red
    when that is anything; every other guard fires after the merge and bills
    the next session. Measured, one session, eight pull requests: the three
    that deferred the deletion each turned the base branch red within seconds,
