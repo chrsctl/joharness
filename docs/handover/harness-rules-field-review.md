@@ -136,6 +136,13 @@ record these, then retired again.
   file's byte trim to THIS workstream by name — and this branch adds 694
   bytes. The four edits are the plan's whole content and exactly its budget,
   so the trim stays owed; recorded here rather than dropped silently.
+- r19: (mine, caught by running the command against its own artifact) the
+  fixed text claimed `--diff-filter=D` gives "one hit for every retired file
+  in this repo". This branch falsified it as it was written: retired,
+  restored to record r11-r18, retired again = two deletions. A count is a
+  property of a history that keeps moving. (fixed: the text says every hit is
+  a real retire and the newest is the one you want, and names this file's own
+  double-retire as the case)
 - r10: (reproduce, not a defect) the pruning is a property of the
   delete-before-merge shape rather than of retired files in general — a file
   retired some other way still shows in a plain log. The text describes the
