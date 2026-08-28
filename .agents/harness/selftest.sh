@@ -3556,7 +3556,7 @@ expect "deleting a protocol tree is a crossing" \
   "file(s) of protocol text" "$out"
 # And the property that makes the net-diff reading defensible: put it back,
 # and the branch is clean again.
-git -C "$sgfull" revert -q --no-edit HEAD
+git -C "$sgfull" revert --no-edit HEAD >/dev/null 2>&1
 out="$(guard_full unsupervised)"
 refute "restoring it clears the crossing" "file(s) of protocol text" "$out"
 git -C "$sgfull" checkout -q -- . 2>/dev/null || true
