@@ -65,11 +65,31 @@ makes cross-branch work:
   state.
 - **Travels with code.** Updated *same commit* as the change, so rebases,
   cherry-picks, reverts along with it. Cannot describe diff that is gone.
-- **Survives PR — in history, not on `main`.** File merges with code;
-  reasoning recoverable forever at
-  `git show <merge>:docs/handover/<workstream>.md`. Then deleted: live
-  workstream file on `main` describes finished work. Follow-up = fresh branch,
-  fresh file, seeded from history if useful.
+- **Survives PR — in history, not on `main`.** A branch that retires its file
+  before merging merges the DELETION: no tree on `main` holds it, and a plain
+  `git log -- <path>` on `main` finds nothing, because the path's whole life
+  was on a side branch. A file retired some other way — a later cleanup
+  commit, a human merge — does sit in `main`'s history and needs none of
+  this. Follow-up = fresh branch, fresh file, seeded from history if useful.
+
+  Recover it by asking for the commit that DELETED it, never the merge:
+
+  ```bash
+  git log --all --full-history --diff-filter=D --oneline -- docs/handover/<name>.md
+  git show <that-commit>^:docs/handover/<name>.md
+  ```
+
+  `--diff-filter=D` is what makes this reliable — it lists only commits that
+  DELETED the file, so every hit is a real retire and the newest is the one
+  you want. (Usually one hit; a workstream retired, restored to record a late
+  review finding, and retired again has two. This file's own history is that
+  case — check the command's output rather than assuming a single line.)
+  Without the filter, step 1 lists merge commits above the retire commit, and
+  taking the newest yields a mid-branch version or `does not exist`. `--full-history` is what finds the
+  path at all. `^` is the first parent, the last tree still holding the file;
+  a retire that itself landed as a merge needs its parent picked by hand.
+  Step 7 puts this command in the PR body for the branch's own file, so the
+  record is reachable from the merged artifact instead of a guess.
 - **Branch renames and re-cuts free.** Name not branch, so re-cut after merged
   PR keeps same file.
 
@@ -254,8 +274,14 @@ session skips. Reach for it only if visible-collision approach fails.
 ## Pull requests: link, never duplicate
 
 PR body = where humans look, must carry state — but copy of handover file in
-PR body rots. Link to file on branch; file stays single source. Reviewers
-click once; link always resolves to current version — same branch as diff.
+PR body rots. Link to file on branch while the branch still carries it; file
+stays single source, reviewers click once, link resolves to the version
+beside the diff.
+
+Step 7 retires that file in the last commit before the PR opens, so the link
+dies as the PR is born. From that point the PR body carries the RECOVERY
+COMMAND above instead of a link or a copy — one line, still not a duplicate,
+and it keeps resolving after the merge when a link never would.
 
 Live PR work (CI failures, review comments): continuity not a document
 problem — subscribe to PR, stay in one session. Handover documents = the
