@@ -1548,6 +1548,120 @@ refute "session start silent while the gate is off" "Review gate" "$out"
 # Reads merged history: how many edges recorded a review, what they found, and
 # which files keep drawing findings. Fixture builds real merge commits, since
 # the whole measure is about what an edge into main carries.
+step "joharness.sh scorecard"
+
+# Counts only, and every number here is asserted EXACTLY. A scorecard whose
+# numbers are approximately right is a scorecard nobody can reproduce by hand,
+# which is the same as a written number.
+scorigin="${TMP}/scoreorigin.git"
+git init -q --bare "$scorigin"
+sc="${TMP}/scorework"
+mkdir -p "${sc}/.agents/harness" "${sc}/docs/handover" "${sc}/docs/plans" \
+  "${sc}/docs/product"
+cp "${ROOT}/joharness.sh" "${sc}/joharness.sh"
+printf '#!/usr/bin/env bash\nexit 0\n' >"${sc}/.agents/harness/selftest.sh"
+chmod +x "${sc}/.agents/harness/selftest.sh" "${sc}/joharness.sh"
+printf 'base\n' >"${sc}/base.txt"
+printf -- '---\nplan: p\n---\n' >"${sc}/docs/plans/p.md"
+printf -- '---\nrequirement: r\n---\n' >"${sc}/docs/product/r.md"
+git init -q "$sc"
+git -C "$sc" symbolic-ref HEAD refs/heads/main
+commit_all "$sc" "scratch harness"
+git -C "$sc" remote add origin "$scorigin"
+git -C "$sc" push -qu origin main
+
+jsc() { CLAUDE_PROJECT_DIR="$sc" JOHARNESS_CONF="${sc}/joharness.conf" \
+  GITHUB_ACTIONS='' "${sc}/joharness.sh" scorecard 2>&1; }
+
+# On the base branch there is nothing past main. A zero would read as measured.
+out="$(jsc)"
+expect "the base branch says there is nothing to count" "no commits past" "$out"
+if CLAUDE_PROJECT_DIR="$sc" JOHARNESS_CONF="${sc}/joharness.conf" GITHUB_ACTIONS='' \
+   "${sc}/joharness.sh" scorecard >/dev/null 2>&1; then
+  pass "scorecard exits 0 on the base branch"
+else
+  fail "scorecard exits 0 on the base branch"
+fi
+
+# Three commits, chosen so every count differs from every other:
+#   A  code.txt + the workstream file, together — the protocol's shape
+#   B  code.txt alone — code with no workstream file in the same commit
+#   C  retires the plan and the requirement — protocol paths only, so NOT
+#      code, the same exclusion churn_top carries
+git -C "$sc" checkout -qb work
+printf 'one\n' >"${sc}/code.txt"
+{ printf -- '---\nworkstream: ws\nstatus: in-progress\nagent: opus\n---\n\n'
+  printf '## Review\n\n- r1: first finding\n- r2: second finding\n'
+} >"${sc}/docs/handover/ws.md"
+commit_all "$sc" "A: code and the workstream file together"
+printf 'two\n' >"${sc}/code.txt"
+commit_all "$sc" "B: code alone"
+git -C "$sc" rm -q docs/plans/p.md docs/product/r.md
+git -C "$sc" commit -qm "C: retire the plan and the requirement"
+
+out="$(jsc)"
+expect "commits counted"            "commits (no merges)                 3" "$out"
+expect "paths counted"              "paths touched by them               4" "$out"
+expect "workstream files counted"   "workstream files on this branch     1" "$out"
+expect "findings counted"           "review findings recorded            2" "$out"
+expect "off-protocol commits counted" \
+  "commits changing code, no workstream file in the same commit  1" "$out"
+expect "retired plan counted"       "plan files this diff deletes        1" "$out"
+expect "retired requirement counted" "requirement files this diff deletes 1" "$out"
+expect "most-touched file named"    "most-touched file                   2  code.txt" "$out"
+
+# Reproduce two of them by hand, so the suite does not just agree with itself.
+expect "commit count matches git rev-list" "3" \
+  "$(git -C "$sc" rev-list --no-merges --count origin/main..HEAD)"
+expect "deleted plan matches git diff" "docs/plans/p.md" \
+  "$(git -C "$sc" diff --name-only --diff-filter=D origin/main HEAD -- docs/plans)"
+
+# It reports, it never gates: the branch above has an off-protocol commit and
+# still exits 0. A scorecard that failed ci would be a gate with no backtest.
+if CLAUDE_PROJECT_DIR="$sc" JOHARNESS_CONF="${sc}/joharness.conf" GITHUB_ACTIONS='' \
+   "${sc}/joharness.sh" scorecard >/dev/null 2>&1; then
+  pass "scorecard exits 0 even when the counts are unflattering"
+else
+  fail "scorecard exits 0 even when the counts are unflattering"
+fi
+
+# A branch with no workstream file at all. A bare 0 reads as a pass, so both
+# zeroes have to say which kind of zero they are.
+git -C "$sc" checkout -q main
+git -C "$sc" checkout -qb bare
+printf 'x\n' >"${sc}/other.txt"
+commit_all "$sc" "code, no workstream file"
+out="$(jsc)"
+expect "the missing workstream file is named, not implied" \
+  "workstream files on this branch     0  (none" "$out"
+expect "the zero says where it is legitimate" "copy or sync branch" "$out"
+expect "no findings says what a clean pass looks like" \
+  "not an empty section" "$out"
+expect "its one commit is off-protocol" \
+  "commits changing code, no workstream file in the same commit  1" "$out"
+
+# No merge base at all: a repo with no origin/main. Says so, prints no number,
+# exits 0 — the same doctrine churn and the review gate already follow.
+scng="${TMP}/scorenogit"
+mkdir -p "${scng}/.agents/harness"
+cp "${sc}/joharness.sh" "${scng}/joharness.sh"
+printf '#!/usr/bin/env bash\nexit 0\n' >"${scng}/.agents/harness/selftest.sh"
+chmod +x "${scng}/.agents/harness/selftest.sh" "${scng}/joharness.sh"
+printf 'lone\n' >"${scng}/a.txt"
+git init -q "$scng"
+git -C "$scng" symbolic-ref HEAD refs/heads/main
+commit_all "$scng" "no remote here"
+out="$(CLAUDE_PROJECT_DIR="$scng" JOHARNESS_CONF="${scng}/joharness.conf" \
+  GITHUB_ACTIONS='' "${scng}/joharness.sh" scorecard 2>&1)"
+expect "no merge base says so" "not measurable here" "$out"
+refute "no merge base prints no count" "commits (no merges)" "$out"
+if CLAUDE_PROJECT_DIR="$scng" JOHARNESS_CONF="${scng}/joharness.conf" \
+   GITHUB_ACTIONS='' "${scng}/joharness.sh" scorecard >/dev/null 2>&1; then
+  pass "no merge base still exits 0"
+else
+  fail "no merge base still exits 0"
+fi
+
 step "joharness.sh feedback"
 
 fwork="${TMP}/feedbackwork"

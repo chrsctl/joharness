@@ -25,6 +25,9 @@
 #   feedback <path> what earlier merged edges found in that file
 #   graph           print the work graph as fenced mermaid (paste into any
 #                   GitHub comment; rendered natively)
+#   scorecard       count how THIS branch behaved against its merge base:
+#                   commits, paths, workstream files, recorded findings,
+#                   retired plans. Reports only, never gates
 #   cleanup         count what the finish ritual left on the base branch:
 #                   workstream files, plans whose work merged, merged
 #                   branches. Reports only
@@ -1917,6 +1920,137 @@ gr_field() { gr_fields "$1"; }
 gr_docs() { awk 'NF && /\.md$/ && !/\/(TEMPLATE|README)\.md$/'; }
 
 # ---------------------------------------------------------------------------
+# Process scorecard
+#
+# `ci` already counts ONE process fact - churn - and it earned its gate on
+# evidence. Every other claim the Loop makes about how a branch behaved is
+# honour-system: step 5 says findings land in `## Review` before the fix and
+# in the same commit as it, step 7 says the pull request's final state deletes
+# the workstream file and the done plan, and no command reported whether
+# either happened. The one measurement anyone did take found the failure real
+# - 23 stale workstream files in one consumer, thirteen merges adding six and
+# removing none.
+#
+# REPORTS, never gates. `churn` earned its ceiling with a backtest over every
+# merge on main; nothing here has one yet, and a number gated before it is
+# understood is a number sessions learn to game. A later plan gates whichever
+# of these the data supports.
+#
+# Derived at read time from commits, or not at all. No store, no cache, no
+# recorded run (.agents/docs/graph.md, Rules: "No stored graph", "Derived
+# state = second copy, rots"). Provenance is the commits themselves.
+#
+# Every count prints, zeroes included: a line that appears only when the
+# number is interesting is indistinguishable from a line nobody wrote.
+# ---------------------------------------------------------------------------
+
+# One walk of base..HEAD, three numbers out of it, newline-separated:
+# commits, distinct paths touched (ALL of them, protocol paths included - the
+# line says paths, so it counts paths), and commits that changed code without
+# touching a workstream file in the same commit - the protocol's "SAME commit"
+# rule, counted.
+#
+# The commit marker is \001 and not an empty `--format=`: `git log --format=
+# --name-only` emits NO separator line here (git 2.55), so blank-line counting
+# would have reported zero commits for every branch. A path may legally carry
+# \001 on Linux; a path that is \001 followed by 40 hex digits is the kind of
+# collision worth accepting over forking a `git show` per commit, which is the
+# cost churn_top exists to avoid.
+sc_walk() {
+  local base="$1" rev="$2" mark
+  mark="$(printf '\001')"
+  git -C "$ROOT" log --no-merges --no-renames --format="${mark}%H" --name-only \
+    "${base}..${rev}" 2>/dev/null |
+    awk -v m="$mark" '
+      function close_commit() { if (open && code && !ws) off++ }
+      index($0, m) == 1 { close_commit(); commits++; open = 1; ws = 0; code = 0; next }
+      !NF { next }
+      {
+        if (!($0 in seen)) { seen[$0] = 1; files++ }
+        # Protocol paths are not code, the same exclusion and the same
+        # reason churn_top carries: the protocol REQUIRES touching the
+        # workstream file in the same commit, so counting a commit that only
+        # retires a plan as "code with no workstream file" reads compliance
+        # as a violation.
+        if ($0 ~ /^docs\/handover\//) ws = 1
+        else if ($0 !~ /^docs\/(plans|product)\//) code = 1
+      }
+      END { close_commit(); print commits + 0; print files + 0; print off + 0 }'
+}
+
+cmd_scorecard() {
+  local over="origin/${HANDOVER_BASE_BRANCH:-main}" base head branch
+  local commits files off ws n findings=0 sheets=0 churn dels plans=0 reqs=0 d
+
+  branch="$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null)" || branch="?"
+  printf '== scorecard (%s -> %s)\n\n' "$branch" "$over"
+
+  base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
+  head="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)"
+  if [ -z "$base" ] || [ -z "$head" ]; then
+    # Same doctrine as churn's and the review gate's: a check that cannot see
+    # the history it needs says so. A zero here would read as a measured zero.
+    printf '  not measurable here (no merge-base; shallow checkout or base branch)\n'
+    return 0
+  fi
+  if [ "$base" = "$head" ]; then
+    printf '  no commits past %s — nothing to count yet\n' "$over"
+    return 0
+  fi
+
+  { read -r commits; read -r files; read -r off; } <<EOF
+$(sc_walk "$base" HEAD)
+EOF
+
+  while IFS= read -r ws; do
+    [ -n "$ws" ] || continue
+    sheets=$((sheets + 1))
+    n="$(review_count "$ws")"
+    findings=$((findings + ${n:-0}))
+  done < <(lint_nodes docs/handover)
+
+  dels="$(git -C "$ROOT" diff --name-only --no-renames --diff-filter=D \
+    "$base" HEAD -- docs/plans docs/product 2>/dev/null)"
+  while IFS= read -r d; do
+    case "$d" in
+      docs/plans/*) plans=$((plans + 1)) ;;
+      docs/product/*) reqs=$((reqs + 1)) ;;
+    esac
+  done <<EOF
+$dels
+EOF
+
+  printf '  commits (no merges)                 %s\n' "${commits:-0}"
+  printf '  paths touched by them               %s\n' "${files:-0}"
+  # A bare 0 reads as a pass. Both zeroes say which kind of zero they are:
+  # no workstream file is legitimate on a copy or sync branch and nowhere
+  # else, and no recorded finding is the review step not yet taken.
+  if [ "$sheets" -eq 0 ]; then
+    printf '  workstream files on this branch     0  (none — legitimate only on a copy or sync branch)\n'
+  else
+    printf '  workstream files on this branch     %s\n' "$sheets"
+  fi
+  if [ "$findings" -eq 0 ]; then
+    printf '  review findings recorded            0  (none recorded; a clean pass is one line, not an empty section)\n'
+  else
+    printf '  review findings recorded            %s\n' "$findings"
+  fi
+  printf '  commits changing code, no workstream file in the same commit  %s\n' "${off:-0}"
+  printf '  plan files this diff deletes        %s\n' "$plans"
+  printf '  requirement files this diff deletes %s\n' "$reqs"
+  if churn="$(churn_top HEAD "$over")" && [ -n "$churn" ]; then
+    printf '  most-touched file                   %s\n' \
+      "$(printf '%s' "$churn" | awk -F'\t' '{ print $1 "  " $2 }')"
+  else
+    printf '  most-touched file                   none\n'
+  fi
+
+  printf '\n  Counts, nothing else — no grade, no gate, nothing stored.\n'
+  printf '  What they mean is Loop steps 5 and 7 (.agents/harness/AGENTS.md).\n'
+  return 0
+}
+
+# ---------------------------------------------------------------------------
 # Finish gate
 #
 # "No workstream file belongs on `main`" is settled doctrine
@@ -2477,6 +2611,7 @@ main() {
     cleanup)        cmd_cleanup "$@" ;;
     finish)         cmd_finish ;;
     graph)          cmd_graph ;;
+    scorecard)      cmd_scorecard ;;
     # Warning on stderr, value on stdout: the guard captures stdout and must
     # keep getting one clean word, while a human running this against a
     # typo'd conf needs to hear about it. Same lesson the review knob

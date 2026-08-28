@@ -70,3 +70,8 @@ Instructions get skimmed; injected context is already in window.
 
 Whole graph as a picture: `./joharness.sh graph` prints fenced mermaid,
 derived at read time — paste into any GitHub comment, rendered natively.
+
+One branch as counts: `./joharness.sh scorecard` reads this branch against
+its merge base — commits, paths, workstream files, recorded findings,
+retired plans. Same rule: derived at read time, nothing stored. Reports
+only; the numbers have no backtest yet, so nothing gates on them.
