@@ -80,8 +80,9 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    fresh-fetched `origin/main` (behind = "Conflict at finish" reconcile
    first — checks do NOT re-run when `main` moves); `./joharness.sh
    verify` green when the diff touches any non-`*.md` file under
-   `joharness.sh`, `.agents/harness/`, `.agents/env/`, `.agents/scripts/` — CI cannot run it
-   (needs the sandbox); **`./joharness.sh finish` green** — the only guard
+   `joharness.sh`, `.agents/harness/`, `.agents/env/`, `.agents/scripts/` — run it
+   yourself unless the selected layer declares itself CI-runnable, in which
+   case the checks already did (`.agents/env/README.md`); **`./joharness.sh finish` green** — the only guard
    here that fires while the fix is still a commit; edge review recorded
    (step 5); no unresolved human review thread. Anything less stays open. Merge-commit
    method ONLY — squash/rebase merge breaks the merged-branch ancestry
