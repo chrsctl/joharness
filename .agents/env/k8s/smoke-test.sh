@@ -14,12 +14,40 @@
 #
 # Usage: .agents/env/k8s/smoke-test.sh [--keep]   (or: ./joharness.sh verify)
 #   --keep  leave the test namespace behind for inspection
+#
+# Each run gets its own namespace. Cleanup deletes with --wait=false (waiting
+# would add ~15s to every green run for nothing), so the previous run's
+# namespace is usually still Terminating when the next one starts. Pods there
+# are admitted and then reaped by the namespace controller, so the checks that
+# wait on one fail: measured on the old script, checks 5, 7 and 8 went red
+# while 6 went GREEN against the previous run's leftover deployment - a false
+# pass, which is the worse half of the bug. A per-run name means back-to-back runs practically never meet;
+# pids do recycle, so a leftover of the same name is still handled rather
+# than assumed away. Pin one with SMOKE_NAMESPACE to choose the name.
+#
+# This run only ever deletes a namespace it created. A pinned namespace that
+# already exists is used and left standing: a smoke test that eats the
+# namespace someone pointed it at is worse than one that does not run.
 
 set -euo pipefail
 
 CLUSTER_NAME="${DEVENV_CLUSTER_NAME:-claude-dev}"
 KUBE_CONTEXT="k3d-${CLUSTER_NAME}"
-NS="${SMOKE_NAMESPACE:-devenv-smoke}"
+# $$ is this run's pid: unique among runs that can overlap on one host, and
+# still a valid DNS-1123 label. Pinned name = the caller's business, honoured
+# verbatim.
+NS="${SMOKE_NAMESPACE:-devenv-smoke-$$}"
+NS_WAIT_SECS="${SMOKE_NS_WAIT_SECS:-90}"
+# Whole seconds only. '90s' and '1m' are the natural things to type here and
+# both make every later comparison error out, which would leave the wait loop
+# below with no bound at all - a suite that hangs instead of failing.
+case "$NS_WAIT_SECS" in
+  ''|*[!0-9]*)
+    printf 'SMOKE_NS_WAIT_SECS must be whole seconds, got: %s\n' "$NS_WAIT_SECS" >&2
+    exit 2 ;;
+esac
+# 1 once this run has created the namespace; cleanup deletes nothing else.
+NS_OWNED=0
 KEEP=0
 [ "${1:-}" = "--keep" ] && KEEP=1
 
@@ -36,15 +64,45 @@ fail() { printf '  \033[31mFAIL\033[0m %s\n' "$*"; FAIL=$((FAIL + 1)); }
 step() { printf '\n== %s\n' "$*"; }
 
 k() { kubectl --context "$KUBE_CONTEXT" "$@"; }
+
+# Wait out a namespace that is still Terminating from an earlier run, where
+# every later check would fail for a reason that has nothing to do with the
+# cluster being broken. Returns non-zero only if it never clears, so the
+# caller can say that instead of reporting eight mystery failures.
+#
+# Terminating is the ONLY state worth waiting on. A namespace that exists and
+# is usable is used, exactly as this script always did - waiting for one to
+# disappear would stall the full timeout and then report it as Terminating,
+# which is both a lie and a delay.
+await_namespace_usable() {
+  local waited=0 phase
+  while :; do
+    phase="$(k get namespace "$NS" -o jsonpath='{.status.phase}' 2>/dev/null)" || phase=""
+    [ -z "$phase" ] && return 0
+    [ "$phase" != "Terminating" ] && return 0
+    if [ "$waited" -ge "$NS_WAIT_SECS" ]; then return 1; fi
+    if [ "$waited" -eq 0 ]; then
+      printf '  namespace %s is Terminating; waiting up to %ss for it to clear\n' \
+        "$NS" "$NS_WAIT_SECS"
+    fi
+    sleep 3
+    waited=$((waited + 3))
+  done
+}
 h() { helm --kube-context "$KUBE_CONTEXT" "$@"; }
 
 cleanup() {
   if [ -n "$CHART_ROOT" ]; then rm -rf "$CHART_ROOT"; fi
   if [ "$KEEP" -eq 1 ]; then
-    printf '\n(keeping namespace %s)\n' "$NS"
+    # Every --keep run leaves its own namespace now, so hand over the command
+    # that removes it rather than leaving a pile nothing reclaims.
+    printf '\n(keeping namespace %s; remove with: kubectl --context %s delete namespace %s)\n' \
+      "$NS" "$KUBE_CONTEXT" "$NS"
     return
   fi
-  k delete namespace "$NS" --wait=false >/dev/null 2>&1 || true
+  if [ "$NS_OWNED" -eq 1 ]; then
+    k delete namespace "$NS" --wait=false >/dev/null 2>&1 || true
+  fi
 }
 trap cleanup EXIT
 
@@ -85,7 +143,16 @@ fi
 # workaround. Without it the cluster looks healthy but every pod sandbox fails
 # with "can't get final child's PID from pipe: EOF".
 step "Pod creation"
-k create namespace "$NS" >/dev/null 2>&1 || true
+if ! await_namespace_usable; then
+  fail "namespace ${NS} is still Terminating after ${NS_WAIT_SECS}s - wait for it, or name another with SMOKE_NAMESPACE"
+  printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
+  exit 1
+fi
+# Owning it is what licenses cleanup to delete it. A pre-existing namespace
+# makes this fail, which is the point: it gets used, not consumed.
+if k create namespace "$NS" >/dev/null 2>&1; then
+  NS_OWNED=1
+fi
 
 if k -n "$NS" run sandbox-probe \
      --image=registry.k8s.io/pause:3.10 --restart=Never >/dev/null 2>&1 \
@@ -111,12 +178,31 @@ fi
 
 # --- 7: service DNS + networking -------------------------------------------
 step "Service DNS and networking"
+# The curl is retried, and that is not papering over a failure. `rollout
+# status` returns when the pods are Available, which is BEFORE kube-proxy has
+# finished programming the Service's ClusterIP rules: DNS already resolves and
+# the endpoints are already populated, the connect just has nowhere to land
+# yet. Measured without a retry, on a cluster where nothing was wrong: 7 red
+# in 38 runs, always here, and an immediate second curl returned 200. A
+# one-shot check of a thing that becomes true milliseconds later tests the
+# race, not the networking. A Service that never answers still fails, ~20s
+# later, which is the honest question this check is asking.
+web_ok=0
 if k -n "$NS" run curl-probe --image=curlimages/curl:8.11.1 --restart=Never \
      --command --timeout=60s -- sleep 120 >/dev/null 2>&1 \
    && k -n "$NS" wait --for=jsonpath='{.status.phase}'=Running \
-        pod/curl-probe --timeout=180s >/dev/null 2>&1 \
-   && k -n "$NS" exec curl-probe -- \
-        curl -sS --max-time 15 -o /dev/null -w '%{http_code}' http://web 2>/dev/null | grep -q '^200$'; then
+        pod/curl-probe --timeout=180s >/dev/null 2>&1; then
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    code="$(k -n "$NS" exec curl-probe -- \
+      curl -sS --max-time 15 -o /dev/null -w '%{http_code}' http://web 2>/dev/null || true)"
+    if [ "$code" = "200" ]; then
+      web_ok=1
+      break
+    fi
+    sleep 2
+  done
+fi
+if [ "$web_ok" -eq 1 ]; then
   pass "resolved Service 'web' by DNS and got HTTP 200"
 else
   fail "could not reach http://web from inside the cluster"
