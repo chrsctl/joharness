@@ -11,12 +11,25 @@ scope: joharness.sh, .agents/harness/selftest.sh
 ## Goal
 
 `.claude/agents/verifier.md`, given PR54's diff and no other context,
-returned eight findings against `cleanup`. Two are already fixed on `main` —
-the `--name-only` deletion bug (`cl_inflight` carries `--diff-filter=ACMRT`
-now) and `base_ref` falling back to `HEAD` (`cmd_cleanup` calls
-`decide_ref()` and dies). **Four were never checked against today's tree.**
-They were true of the 2026-08 diff; whether they survived is unknown, and
-`cleanup --apply` is the one mutating subcommand in the entrypoint.
+returned eight findings against `cleanup`. All eight, accounted for:
+
+- **Two already fixed on `main`**: the `--name-only` deletion bug, fixed by
+  `853f551` (`cl_inflight` carries `--diff-filter=ACMRT`), and `base_ref`
+  falling back to `HEAD`, fixed by `cmd_cleanup` calling `decide_ref()` and
+  dying. Named by defect, not by their number in the replay — the list
+  below renumbers.
+- **Two that are not `cleanup` defects at all**: PR54's own workstream file
+  wrote six findings as `r8 (cleanup):`, which the fix map cannot key on,
+  and gave two different findings the same `r8`. That is the finding-format
+  class, and `docs/plans/finding-id-lint.md` owns it. Out of scope here.
+- **Four never checked against today's tree** — this plan.
+
+**The four were never checked against today's tree.**
+They were true of the 2026-08 diff; whether they survived is unknown.
+`cleanup --apply` is the subcommand that DELETES TRACKED FILES — `env` and
+`setup` mutate too (`joharness.conf`, the provisioned layer) and `upgrade`
+rewrites harness files, so this is not the only mutating one, but it is the
+one whose mistake removes a live claim.
 
 Recorded but not carried: PR #110 left them in a workstream file that step 7
 retired, where `feedback` cannot reach them because no fix commit exists.
@@ -55,8 +68,11 @@ Each is a hypothesis until re-run against `main` — that is the work.
 - Redesigning `cleanup`. Four specific defects, four specific fixes.
 - The `--apply` semantics, the base-branch warning's wording, or which ref
   it measures against. Those are decided and tested.
-- Findings 1 and 2 from that replay, already fixed on `main`. Named in the
-  Goal so nobody re-finds them.
+- The `--name-only` deletion bug and the `base_ref`/`HEAD` fallback, both
+  already fixed. Named by defect in the Goal so nobody re-finds them, and
+  never by replay number — the Goal's list renumbers.
+- The two finding-format defects in PR54's own record. `finding-id-lint`
+  owns that class.
 
 ## Acceptance
 
@@ -75,9 +91,14 @@ Each is a hypothesis until re-run against `main` — that is the work.
   and the two helpers the fixed findings landed in.
 - `.agents/docs/handover/README.md`, the `status:` values — what a live
   workstream file looks like, which finding 1 turns on.
-- PR #110's workstream record, for the replay in full:
-  `git log --all --full-history --diff-filter=D --oneline --
-  docs/handover/review-verifier-subagent.md`
+- PR #110's workstream record, for the replay in full. Two commands: the
+  first finds the retire commit, the second prints the file
+  (`.agents/docs/handover/README.md`, Survives PR).
+
+  ```bash
+  git log --all --full-history --diff-filter=D --oneline -- docs/handover/review-verifier-subagent.md
+  git show ddc33b3^:docs/handover/review-verifier-subagent.md
+  ```
 
 ## Traps
 
@@ -85,5 +106,9 @@ Each is a hypothesis until re-run against `main` — that is the work.
   this checkout.
 - A finding that does not reproduce is a finding to CLOSE with evidence, not
   to quietly drop — the replay is the record that it was once true.
-- Do not widen `cl_inflight`'s filter to serve a new question; PR60 paid for
-  that filter and the tree-vs-diff rule graduated out of it.
+- Do not widen `cl_inflight`'s filter to serve a new question. `853f551`
+  paid for it ("Stop cleanup protecting the file the finishing ritual
+  deleted") and the tree-vs-diff rule graduated out of that class. Cited by
+  commit, not by pull request number — an earlier draft of this Trap said
+  PR60, which is the OTHER already-fixed finding, and a Trap is precisely
+  what a literal reader goes and reads.
