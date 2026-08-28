@@ -2193,22 +2193,12 @@ cmd_session_start() {
   if [ ! -t 0 ]; then
     IFS= read -r -d '' -t 1 src 2>/dev/null || true
   fi
+  # No `head -1`: `sed -n …p` already prints one line per match, and this file
+  # has paid a finding for a pipeline whose exit status it did not need.
   src="$(printf '%s' "$src" |
-    sed -n 's/.*"source"[[:space:]]*:[[:space:]]*"\([a-z]*\)".*/\1/p' | head -1)"
+    sed -n 's/.*"source"[[:space:]]*:[[:space:]]*"\([a-z]*\)".*/\1/p')"
   export JOHARNESS_SESSION_SOURCE="${src:-}"
 
-  # Compaction is the one start the session did not choose. It fires mid-work,
-  # hours in, and takes the orientation step 1 established: what is left is a
-  # session still on a claimed branch, still editing, no longer holding the
-  # workstream file it read at minute zero. Say that first, before any state,
-  # because the session cannot know it lost it.
-  if [ "$src" = "compact" ]; then
-    printf '== Context was compacted ==\n\n'
-    printf 'Orientation from session start is gone; the branch and the work are\n'
-    printf 'not. Re-read this branch'"'"'s workstream file WHOLE before the next\n'
-    printf 'edit — state below is git facts, not what you had decided\n'
-    printf '(.agents/docs/handover/README.md).\n\n'
-  fi
 
   # Autonomy first: it governs the whole session, including the parts that
   # run before an environment resolves. Supervised prints NOTHING — same
@@ -2249,12 +2239,7 @@ cmd_session_start() {
       run_setup "$name" || warn "environment '${name}' did not provision; continuing"
     fi
 
-    # After compaction the environment banner would restate a provisioning
-    # decision made hours ago as if it were news; the layer's rules pointer is
-    # the part still worth repeating, since that context went with everything
-    # else.
-    [ "$src" = "compact" ] ||
-      printf '== Environment: %s (.agents/env/%s) ==\n\n' "$name" "$name"
+    printf '== Environment: %s (.agents/env/%s) ==\n\n' "$name" "$name"
     if [ -r "${ENV_ROOT}/${name}/AGENTS.md" ]; then
       # Default md=lazy: context stays cheap, a pointer replaces the rules.
       # Same bet as lazy setup — a session that never touches the environment
@@ -2269,7 +2254,7 @@ cmd_session_start() {
       fi
     fi
     # Say it plainly: nothing has been started, and that was the point.
-    if has_setup "$name" && [ "$mode" != "eager" ] && [ "$src" != "compact" ]; then
+    if has_setup "$name" && [ "$mode" != "eager" ]; then
       printf 'Not provisioned at session start (setup=lazy).\n'
       printf 'Need it? Run: ./joharness.sh setup\n'
       printf 'Never need it? It cost nothing.\n'
