@@ -7,7 +7,7 @@ plan: none
 session: https://claude.ai/code/session_01JWpBo9HoR5Mn1KgqBL6vqt
 agent: opus
 updated: 2026-08-28
-next: Human ratifies or drops docs/plans/moment-feedback-hooks.md; merge deletes THIS file, plan file stays and enters queue
+next: Human ratifies or drops docs/plans/moment-feedback-hooks.md; merging the PR puts the plan in the queue
 ---
 
 ## Goal
@@ -84,9 +84,50 @@ plan: `docs/plans/moment-feedback-hooks.md`.
 
 ## Review
 
-- r1: clean pass — docs-only diff (this file + plan file), self-reviewed
-  against plans/TEMPLATE.md shape, graph.md rules, caveman.md; anchors
-  checked against joharness.sh symbols. (fixed: n/a)
+Opus adversarial, three lenses (correctness, security, reproduce-the-claim),
+2026-08-28. Every finding below is against `docs/plans/moment-feedback-hooks.md`.
+
+- r1: SUPERSEDED, and it was wrong. The pre-opus pass recorded "clean" on
+  this diff. The opus pass at the edge found five real defects in the same
+  two files. A clean line written by the session that wrote the work is
+  worth what this one was worth. (fixed: replaced by r2-r7 below)
+- r2: (correctness) plan said the hook prints its report to stdout.
+  PreToolUse feeds the model ONLY through
+  `hookSpecificOutput.additionalContext` — plain stdout is transcript-only.
+  Verified in basemode at 22e8b8c: `src/hook/pre_tool_use.rs:15` says so in
+  a comment written after hitting it, `src/hook/mod.rs:141` is the envelope.
+  Shipped as written, the hook would look correct in the transcript and
+  inject nothing. This repo's SessionStart hook IS plain stdout, which is
+  exactly what makes the mistake the default one. (fixed: Scope names the
+  envelope, Traps names the trap, selftest pins it)
+- r3: (reproduce) plan made the `joharness.sh` quiet shape conditional
+  ("only if cmd_feedback needs one"). Ran it: `./joharness.sh feedback
+  docs/nope-nothing-here.md` prints a header plus `no merged edge recorded
+  a finding whose fix touched this file`, exit 0. So piped raw the hook
+  injects a banner before EVERY edit of every file with no findings — the
+  common case. Not conditional; required. (fixed: Scope says REQUIRED and
+  carries the command that shows it)
+- r4: (correctness) plan told the implementer to register the new hook in
+  `.agents/scripts/sync-to-consumer.sh`. Read it: `.agents/harness` is a
+  whole-tree `DIRS` entry, so a new file there needs no registration, and
+  `.agents/scripts` is `CANONICAL_ONLY_DIRS` besides. The line also named a
+  path outside the plan's own `scope:` frontmatter. A literal reader would
+  have edited a file it must not touch. (fixed: moved to Out of scope,
+  Where to look says read-not-edit)
+- r5: (security) `session_id` came straight out of hook JSON into the
+  scratch directory path. Traversal on a malformed or hostile id. (fixed:
+  Scope mandates sanitizing to `[A-Za-z0-9_-]`, acceptance has a `../` case)
+- r6: (reproduce) the cache was written as an optimization on the strength
+  of a code comment ("costs a couple of seconds"). Measured instead:
+  3802 / 3942 / 3783 ms over three runs of `./joharness.sh feedback
+  <path>`, this container, 2026-08-28, 61 edges with 50 read. ~4s before
+  every Edit and Write makes the cache load-bearing, and the number belongs
+  in the plan rather than in a comment. (fixed: Scope carries figure and
+  command; acceptance measures first call against second)
+- r7: (correctness) `.claude/settings.json` is in the sync `FILES` list, so
+  registering the hook ships it to every consumer — unstated in the plan.
+  Intended, since stage 4 has to reach consumers, but unnamed alongside the
+  ~4s cost it would land there. (fixed: named in Scope)
 
 ## Blockers
 
