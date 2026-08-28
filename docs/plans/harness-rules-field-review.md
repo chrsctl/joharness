@@ -88,7 +88,7 @@ produced it, in the same sentence.
 ## Acceptance
 
 - `./joharness.sh ci` — `ci: pass`.
-- `./joharness.sh verify` — 7 passed, 0 failed.
+- `./joharness.sh verify` — all checks pass, 0 failed.
 - The retrieval command in the handover README, run against a real
   retired workstream file in this repo's history, prints the file.
 - `.agents/harness/AGENTS.md` grows by no more than ~10 lines total. Every

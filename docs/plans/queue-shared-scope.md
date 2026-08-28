@@ -51,7 +51,7 @@ hook either ignores the mechanism or serialises work that did not need it.
 ## Acceptance
 
 - `./joharness.sh ci` — `ci: pass`.
-- `./joharness.sh verify` — 7 passed, 0 failed.
+- `./joharness.sh verify` — all checks pass, 0 failed.
 - Two plans whose only overlap is a path marked shared appear in ONE wave,
   with the expected reconcile named in the hook's output.
 - Two plans overlapping on an unmarked path still land in separate waves,
