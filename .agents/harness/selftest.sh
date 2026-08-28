@@ -3464,8 +3464,31 @@ guard_full() { printf '%s' "$JSON_STOP" | CLAUDE_PROJECT_DIR="$sgfull" \
   JOHARNESS_MODE="${1:-unsupervised}" \
   bash "${ROOT}/.agents/harness/handover-guard.sh" 2>&1; }
 
-# One file in each listed tree, one at a time: a single fixture touching all
-# of them would pass even if only one tree were still being looked at.
+# The list itself, pinned. Iterating it (below) proves each entry is
+# enforced; it cannot prove the right entries are there — a verifier removed
+# .agents/harness from protocol_paths and the whole suite stayed green,
+# because zero loop bodies run silently. Assert the contents, then iterate.
+expected_paths=".agents/harness .claude/agents .claude/commands .claude/skills joharness.sh .claude/settings.json"
+actual_paths="$("${ROOT}/joharness.sh" protocol-paths | tr '\n' ' ')"
+if [ "$(printf '%s' "$actual_paths" | tr -s ' ' | sed 's/ $//')" = "$expected_paths" ]; then
+  pass "the protocol path list is exactly what the boundary claims"
+else
+  fail "the protocol path list is exactly what the boundary claims"
+  printf '    wanted: %s\n    got:    %s\n' "$expected_paths" "$actual_paths"
+fi
+# joharness.sh holds the list; .claude/settings.json wires the hook that
+# reads it. A boundary excluding either is switched off from inside.
+for must in joharness.sh .claude/settings.json; do
+  if printf '%s\n' "$actual_paths" | grep -qF -- "$must"; then
+    pass "the boundary covers its own ${must}"
+  else
+    fail "the boundary covers its own ${must}"
+  fi
+done
+
+# One file in each listed path, one at a time: a single fixture touching all
+# of them would pass even if only one were still being looked at.
+seen_paths=0
 while IFS= read -r tree; do
   [ -n "$tree" ] || continue
   mkdir -p "${sgfull}/${tree}"
@@ -3484,18 +3507,46 @@ while IFS= read -r tree; do
   out="$(guard_full supervised)"
   refute "supervised leaves ${tree} alone" "protocol text" "$out"
   rm -rf "${sgfull:?}/${tree}"
-done < <("${ROOT}/joharness.sh" protocol-trees)
+  seen_paths=$((seen_paths + 1))
+done < <("${ROOT}/joharness.sh" protocol-paths)
+# An empty list runs zero loop bodies and reports nothing at all — green by
+# vacuum. Count what ran.
+if [ "$seen_paths" -eq 6 ]; then
+  pass "every listed protocol path was exercised"
+else
+  fail "every listed protocol path was exercised (ran ${seen_paths}, wanted 6)"
+fi
+
+# DELETING a protocol tree is the issue #114 scenario in its plainest form:
+# retire your own reviewer. An earlier version of this diff filtered the path
+# list to what exists in the worktree, which dropped exactly the tree being
+# deleted and went silent — a REGRESSION against origin/main, which caught
+# it. Every case above touches or adds a file; none deleted one, which is why
+# nothing here noticed.
+git -C "$sgfull" checkout -q -- . 2>/dev/null || true
+mkdir -p "${sgfull}/.claude/agents"
+printf 'reviewer\n' >"${sgfull}/.claude/agents/verifier.md"
+commit_all "$sgfull" "a reviewer to retire"
+git -C "$sgfull" rm -q -r .claude/agents
+commit_all "$sgfull" "retire the reviewer"
+out="$(guard_full unsupervised)"
+expect "deleting a protocol tree is a crossing" \
+  "file(s) of protocol text" "$out"
+git -C "$sgfull" checkout -q "$(git -C "$sgfull" rev-parse HEAD~2)" -- . 2>/dev/null || true
+git -C "$sgfull" rm -q -r --cached .claude 2>/dev/null || true
+rm -rf "${sgfull:?}/.claude"
+commit_all "$sgfull" "back to base" 2>/dev/null || true
 
 # The consumer case, which the ship-scope stage asks a shipping plan to name:
 # handover-guard.sh SHIPS, so this code runs in every consumer, and a consumer
-# may carry a joharness.sh older than the protocol-trees subcommand. The
+# may carry a joharness.sh older than the protocol-paths subcommand. The
 # fallback has to leave a boundary standing rather than none, and must not
 # make the guard noisy or non-zero there.
 sgold="${TMP}/sgold"
 git init -q "$sgold"
 git -C "$sgold" symbolic-ref HEAD refs/heads/main
 # An OLDER entrypoint, not a broken one: it answers `mode` (which has always
-# existed) and does not know `protocol-trees`. The first version of this
+# existed) and does not know `protocol-paths`. The first version of this
 # fixture just exited 1, which made the guard resolve the MODE to supervised
 # too — the boundary block never ran and the case failed for the wrong
 # reason. Mode resolution goes through the entrypoint as well; a stub that
@@ -3517,7 +3568,7 @@ printf 'edit\n' >"${sgold}/.agents/harness/thing.sh"
 out="$(printf '%s' "$JSON_STOP" | CLAUDE_PROJECT_DIR="$sgold" \
   JOHARNESS_MODE=unsupervised \
   bash "${ROOT}/.agents/harness/handover-guard.sh" 2>&1)"; rc=$?
-expect "an entrypoint with no protocol-trees still names the boundary" \
+expect "an entrypoint with no protocol-paths still names the boundary" \
   "file(s) of protocol text" "$out"
 if [ "$rc" -eq 0 ]; then
   pass "the fallback path exits clean"
@@ -3546,14 +3597,18 @@ if [ ! -f "${ROOT}/joharness.conf" ] ||
    ! grep -q '^JOHARNESS_CANONICAL=1' "${ROOT}/joharness.conf" 2>/dev/null; then
   skip "every shipped .claude tree is inside the boundary" "consumer checkout"
 else
-  listed="$("${ROOT}/joharness.sh" protocol-trees)"
+  listed="$("${ROOT}/joharness.sh" protocol-paths)"
   unlisted=""
   for d in "${ROOT}"/.claude/*/; do
     [ -d "$d" ] || continue
     rel=".claude/$(basename "$d")"
     # Only trees the sync actually ships. A local-only .claude/ directory is
     # the repo's own business, not protocol every consumer receives.
-    grep -q "^  ${rel}\$" "${ROOT}/.agents/scripts/sync-to-consumer.sh" || continue
+    # Indent-insensitive: matching "^  ${rel}$" hard-coded the DIRS array's
+    # two-space indent, so reindenting that file — a pure style edit — made
+    # every directory `continue` and the check pass over everything.
+    grep -qE "^[[:space:]]*${rel}[[:space:]]*\$" \
+      "${ROOT}/.agents/scripts/sync-to-consumer.sh" || continue
     printf '%s\n' "$listed" | grep -qx -- "$rel" && continue
     unlisted="${unlisted}${unlisted:+ }${rel}"
   done
@@ -3561,7 +3616,7 @@ else
     pass "every shipped .claude tree is inside the boundary"
   else
     fail "every shipped .claude tree is inside the boundary"
-    printf '    unlisted: %s\n    add it to joharness.sh:protocol_trees, or say in\n    docs/product/unsupervised-mode.md why it is not protocol\n' \
+    printf '    unlisted: %s\n    add it to joharness.sh:protocol_paths, or say in\n    docs/product/unsupervised-mode.md why it is not protocol\n' \
       "$unlisted"
   fi
 fi

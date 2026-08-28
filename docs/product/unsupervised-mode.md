@@ -37,22 +37,30 @@ today.
   Empty QUEUE still triggers work; empty SWEEP stops it. Ratified
   2026-08-25 by the requester, amending this file's earlier reading that
   the mode had no stopping point at all.
-- No unsupervised session commits a change under `.agents/harness/`.
+- No unsupervised session commits a change to protocol text — the paths
+  `joharness.sh:protocol_paths` names, whatever they are at the time. Stated
+  as one tree, this line is what a session reads to conclude everything else
+  is fair game; that reading is #114.
 
 ## Constraints
 
 - Protocol text governing a session is off limits to that session while it
   runs unattended, wherever that text lives. A session may not rewrite the
   rules it is being judged by; that edit is supervised work, always. The
-  rule is the role, not the path — `joharness.sh:protocol_trees` carries its
-  current mechanical expression (`.agents/harness/`, `.claude/agents/`), the
-  session-start banner and `.agents/harness/handover-guard.sh` both read that
-  one list, and `selftest.sh` fails when a tree shipping agent-instruction
+  rule is the role, not the path — `joharness.sh:protocol_paths` carries its
+  current mechanical expression — read it there rather than here, because a
+  list restated in prose is a second copy and this one was wrong within an
+  hour of being written. The session-start banner and
+  `.agents/harness/handover-guard.sh` both read that one list, and `selftest.sh` fails when a tree shipping agent-instruction
   text is missing from it. Stated as a path alone this cost issue #114:
   `.claude/agents/verifier.md` became mandatory Loop step 5 protocol outside
   the one named prefix, and nothing detected an edit to the independent
   reader the merge gate leans on. Sandbox configuration (`.agents/env/`) is
   not protocol text and stays outside — a layer does not govern behavior.
+  The list covers its own machinery: the entrypoint that holds it, and the
+  settings file wiring the hook that reads it. A boundary excluding either is
+  switched off from inside, and the old hardcoded one was self-protecting
+  only by accident of where it lived.
 - The exception to "not invent work" is written as an exception, gated on
   the mode, at the rule itself. A rule that quietly stops meaning what it
   says is worse than no rule.

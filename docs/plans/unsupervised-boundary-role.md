@@ -84,7 +84,7 @@ unenforceable; naming both trees alone was declined as stale on the next move.
   files under `joharness.sh` and `.agents/harness/`).
 - The consumer-side check this plan owes, because `handover-guard.sh` SHIPS
   and `ci`'s ship-scope stage says so: a fixture whose `joharness.sh` has no
-  `protocol-trees` subcommand still names the boundary for the historical
+  `protocol-paths` subcommand still names the boundary for the historical
   tree, exits clean, and does NOT claim a tree the old list cannot resolve.
   A consumer running an older entrypoint is the realistic case, not a
   hypothetical one — removals never travel, so it is every consumer between

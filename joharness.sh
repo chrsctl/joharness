@@ -210,6 +210,19 @@ mode_source() {
 # carries a workflow the Loop names, an agent is the reader the merge gate
 # leans on. Each is a rule a session is judged by.
 #
+# Two entries are not trees, and both are here because a boundary that does
+# not cover its own machinery is decoration:
+#   joharness.sh          holds THIS list, plus ci, finish, review and mode.
+#                         Left out, a session edits the list and every other
+#                         entry stops meaning anything. The old hardcoded
+#                         boundary lived inside .agents/harness/ and was
+#                         self-protecting by accident; naming it is how that
+#                         property survives being moved out.
+#   .claude/settings.json wires the Stop hook that runs the guard at all.
+#                         Delete the Stop block and nothing fires — not
+#                         because the boundary passed, but because nothing
+#                         is running to fire.
+#
 # NOT here, deliberately:
 #   .agents/env/    sandbox configuration, not protocol. A layer does not
 #                   govern behavior, and sweeping it in stops the mode
@@ -217,8 +230,10 @@ mode_source() {
 #   .agents/docs/   the reasoning BEHIND rules rather than the rules a
 #                   session executes. Defensible to include, wider blast
 #                   radius, and not a decision to make silently.
-protocol_trees() {
-  printf '%s\n' .agents/harness .claude/agents .claude/commands .claude/skills
+protocol_paths() {
+  printf '%s\n' \
+    .agents/harness .claude/agents .claude/commands .claude/skills \
+    joharness.sh .claude/settings.json
 }
 
 run_mode() {
@@ -3026,8 +3041,8 @@ cmd_session_start() {
     # Derived, never restated. A banner naming its own list is the second
     # copy, and the boundary is exactly what must not disagree with itself.
     while IFS= read -r t; do
-      [ -n "$t" ] && printf '  %s/\n' "$t"
-    done < <(protocol_trees)
+      [ -n "$t" ] && printf '  %s\n' "$t"
+    done < <(protocol_paths)
     # Session-local autonomy says so. A mode that came from an untracked
     # marker looks exactly like a repo-wide opt-in otherwise, and the two
     # want different reactions from whoever reads this.
@@ -3137,7 +3152,7 @@ main() {
     # file. Not in `usage`: it is a seam between two harness files, not a
     # thing a human runs, and a help entry invites a session to treat the
     # list as an input rather than the rule's expression.
-    protocol-trees) protocol_trees ;;
+    protocol-paths) protocol_paths ;;
     -h|--help|help) usage ;;
     *) die "unknown subcommand '$cmd' (try: $0 help)" ;;
   esac

@@ -174,40 +174,47 @@ if [ "$mode" = "unsupervised" ]; then
   # unattended session on a shallow checkout got no boundary at all. A
   # partial answer beats silence for a fact whose whole job is to notice.
   # Every protocol tree, not one. The list lives in joharness.sh
-  # (protocol_trees) so the banner and this guard cannot disagree about
+  # (protocol_paths) so the banner and this guard cannot disagree about
   # where the boundary is — issue #114 is what one hardcoded prefix cost.
   # A checkout without the entrypoint, or an older copy with no such
   # function, falls back to the tree that has always been named: a partial
   # boundary beats none, the same call the base-relative half makes below.
-  trees="$("${PROJECT_DIR}/joharness.sh" protocol-trees 2>/dev/null)"
+  trees="$("${PROJECT_DIR}/joharness.sh" protocol-paths 2>/dev/null)"
   [ -n "$trees" ] || trees=".agents/harness"
 
-  # A consumer carries only some of these, and a pathspec naming a
-  # directory that does not exist makes git exit non-zero and print
-  # nothing — which would read as "boundary not crossed". Filter to what
-  # is actually here before asking git anything.
-  present=""
+  # An ARRAY, and every path passed to git whether or not it exists here.
+  #
+  # The first version of this filtered to paths present in the worktree,
+  # reasoning that a pathspec naming an absent directory makes git exit
+  # non-zero. It does not — `git diff --name-only HEAD -- absent/path` exits
+  # 0 — and the filter cost the exact scenario this boundary exists for:
+  # DELETING a protocol tree removes it from the worktree, so the filter
+  # dropped it and the guard went silent on "retire your own reviewer".
+  # Measured against origin/main's guard on the same branch: the old code
+  # reported the deletion, this code did not. A regression, not a gap.
+  #
+  # Unquoted word-splitting was the other half of that mistake: a path with
+  # a space split into two pathspecs matching nothing, and a path that is a
+  # glob matched whatever happened to be on disk. Both silent.
+  paths=()
   while IFS= read -r t; do
-    [ -n "$t" ] || continue
-    [ -e "${PROJECT_DIR}/${t}" ] || continue
-    present="${present}${present:+ }${t}"
+    [ -n "$t" ] && paths+=("$t")
   done <<EOF
 $trees
 EOF
 
   harness_touched=0
-  if [ -n "$present" ]; then
-    # shellcheck disable=SC2086
+  if [ "${#paths[@]}" -gt 0 ]; then
     harness_touched="$(
       {
         [ -z "$base" ] ||
-          git diff --name-only "$base" HEAD -- $present 2>/dev/null
-        git diff --name-only HEAD -- $present 2>/dev/null
-        git diff --name-only --cached -- $present 2>/dev/null
+          git diff --name-only "$base" HEAD -- "${paths[@]}" 2>/dev/null
+        git diff --name-only HEAD -- "${paths[@]}" 2>/dev/null
+        git diff --name-only --cached -- "${paths[@]}" 2>/dev/null
         # Untracked too. `git diff` cannot see a file that was never added,
         # so a new protocol file read as absent until the commit that the
         # boundary exists to prevent.
-        git ls-files --others --exclude-standard -- $present 2>/dev/null
+        git ls-files --others --exclude-standard -- "${paths[@]}" 2>/dev/null
       } | sort -u | grep -c . || :
     )"
   fi
