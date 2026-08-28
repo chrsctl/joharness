@@ -7,7 +7,7 @@ plan: none
 session: https://claude.ai/code/session_01SHPKsgu5WMHQ4g7MhTwRhm
 agent: sonnet
 updated: 2026-08-28
-next: Decide the perf-budget blocker below with the human, then open the pull request adding docs/plans/plan-ship-scope.md to main.
+next: Record the verifier round, retire plan + workstream files, open the pull request.
 ---
 
 ## Goal
@@ -54,46 +54,59 @@ branch writes the plan for that gap. It does not implement it.
 
 ## Review
 
-Not yet run: no edge. Docs-only diff, no pull request open. Edge review per
-Loop step 5 happens when the PR opens, at sonnet depth with a verifier pass.
+Round 1, self-found while building. Recorded after the fix rather than before
+it, which is not the protocol's order — noted here rather than tidied away.
+
+- r1: `.agents/env/<name>/` read as canonical-only. The selected layer ships
+  (`sync-to-consumer.sh`, LAYER_IN_CANONICAL) but sits in no static array, so
+  membership alone called a layer plan private. A wrong verdict is worse than
+  none: it tells an author to skip a check they needed. (fixed)
+- r2: root `AGENTS.md` read as canonical-only. Spliced, not copied —
+  everything above the Part 2 marker reaches every consumer, which is exactly
+  why it is absent from `FILES`. Same class as r1. (fixed)
+- r3: the new selftest block used fixture variable `swork`, already owned by
+  the perf-budget fixture. Three perf cases then ran against the wrong repo
+  and went red — a failure that reads as "the perf gate broke". Renamed
+  `shipwork`. (fixed)
+- r4: `local -a plans` collided by name with a string `plans` in another
+  function; shellcheck tracks a name file-wide and turned it into SC2178/2128.
+  Would have failed `ci`. Renamed `ship_plans`. (fixed)
+- r5: the layer test named a real layer inside `.agents/harness/selftest.sh` —
+  a second carve-out, which Part 2 makes a red run, not a judgement call. The
+  structure check caught it. Fictional layer name instead. (fixed)
+- r6: test helper `${1:-all}` made an empty argument mean "all", so the
+  default-mode cases silently asserted against all-mode output. Found by the
+  cases themselves failing. `${1}`. (fixed)
 
 ## Blockers
 
-`./joharness.sh ci` is RED on this repo's `main`, before this branch changes
-anything. Measured 2026-08-28 at `ec5cd2c`, tree identical to `origin/main`
-(`git diff --stat origin/main HEAD` empty), `./joharness.sh ci`:
+None. An earlier version of this section claimed this branch reds a third
+perf row; that was wrong and the correction matters more than the claim did.
+
+`./joharness.sh ci` is RED on `main`, and was before this branch existed.
+Measured on a clean worktree of `origin/main` (no plan file, no workstream
+file), `./joharness.sh perf`, 2026-08-28:
 
 ```
-   graph               262      260  OVER by 2
-   queue-context       361      350  OVER by 11
-   session-start       694      700  ok
-639 passed, 1 failed  ("a tree inside budget is green")
+   graph               273      260  OVER by 13
+   session-start       720      700  OVER by 20
+   queue-context       369      350  OVER by 19
+661 passed, 1 failed  ("a tree inside budget is green")
 ```
 
-Two rows were already over. Not this branch's, and not this branch's to fix.
+Same three rows on this branch: `graph` 273, `queue-context` 369 — identical
+— and `session-start` 723, +3 for this branch's two files, both of which the
+retire commit deletes before the pull request opens.
 
-The part that IS this branch's: this branch's two files move `session-start`
-from 694 to 715, over its 700 budget — a third red row. Same command, same
-commit, measured three ways: 694 with neither file, 712 with the plan file
-only, 715 with both. `perf_count` counts shimmed forks, and the session-start
-hook forks per queued plan and per in-flight workstream file, so the cost is
-**18 forks per plan file** at n=10→11 and 3 more for the workstream file.
+The first measurement of this said 262 / 694 / 361 and read as "adding a plan
+takes a third row over". It was taken before `git fetch origin main`: fewer
+refs, fewer forks, every row lower. The rows were already over; the fetch, not
+the plan file, moved the numbers. A measured number carries what produced it —
+the command AND the state — and that one carried only half.
 
-That is the finding, and it outlives this branch: the queue's own growth
-spends the entrypoint budget, so the NEXT plan added to `main` by anyone reds
-`session-start` whether or not this one merges. `queue-context` at +11 over 10
-plans says it already happened once there.
-
-Not fixed here on purpose. `perf_report`'s own remedy text says a budget is a
-ceiling for a regression in kind, that the number is not raised to match, and
-that raising the literal is for genuine new work in an entrypoint — this
-branch adds none; it adds one data file. Bumping `SESSION_START` to fit would
-be exactly the move the text forbids, and would hide a per-plan cost that
-needs its own plan.
-
-Human decision wanted before the pull request opens: land the plan and accept
-a third red row on an already-red `main`, or hold it until the queue-cost
-regression has a plan of its own.
+No `perf_rows` literal raised. The regression is real, it is `main`'s, and it
+wants its own plan: `perf_report`'s own text says find the loop that grew a
+fork rather than raise the number to match.
 
 ## Where to look
 
