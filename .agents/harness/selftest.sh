@@ -3494,7 +3494,19 @@ done < <("${ROOT}/joharness.sh" protocol-trees)
 sgold="${TMP}/sgold"
 git init -q "$sgold"
 git -C "$sgold" symbolic-ref HEAD refs/heads/main
-printf '#!/usr/bin/env bash\nexit 1\n' >"${sgold}/joharness.sh"
+# An OLDER entrypoint, not a broken one: it answers `mode` (which has always
+# existed) and does not know `protocol-trees`. The first version of this
+# fixture just exited 1, which made the guard resolve the MODE to supervised
+# too — the boundary block never ran and the case failed for the wrong
+# reason. Mode resolution goes through the entrypoint as well; a stub that
+# breaks it is not a consumer, it is a broken checkout.
+cat >"${sgold}/joharness.sh" <<'OLDEOF'
+#!/usr/bin/env bash
+case "${1:-}" in
+  mode) printf '%s\n' "${JOHARNESS_MODE:-supervised}" ;;
+  *) exit 1 ;;
+esac
+OLDEOF
 chmod +x "${sgold}/joharness.sh"
 printf 'code\n' >"${sgold}/code.txt"
 commit_all "$sgold" "base"
