@@ -1,13 +1,13 @@
 ---
 workstream: recurrence-can-fall
-status: in-progress
+status: review
 branch: claude/loop-research-plan-execute-o35t4g
 pr: none
 plan: recurrence-can-fall
 session: https://claude.ai/code/session_01AE7grFXQWrQ3Qyr1n522Uf
 agent: opus
 updated: 2026-08-27
-next: Measure same-file finding gaps to set the lookback window, then implement answer 1
+next: Retire this file and the plan, open PR, merge under step 7
 ---
 
 ## Goal
@@ -43,7 +43,34 @@ one of two answers and shipping it.
 
 ## Review
 
-- r1: pending
+Adversarial, opus depth, separate lenses (arithmetic, portability/hostile
+input, doctrine-conformance).
+
+- r1: hostile input — a non-numeric or negative `JOHARNESS_RECURRENCE_WINDOW`
+  fell through awk's silent coercion to `w > 0` false, i.e. all-history: a
+  typo restored the exact reading this plan exists to delete. Now junk and
+  negatives coerce to the default 8; only a literal 0 buys all history.
+  (fixed)
+- r2: portability — the three counters came back tab-joined and were split
+  with literal tab characters inside `${...%%	*}`. Invisible in review and
+  one editor away from silently breaking. Replaced with space-separated awk
+  output and `read -r`. (fixed)
+- r3: arithmetic — verified the implementation against an independent Python
+  model of the same definition over the real pair data: W=8 gives 9/28, W=12
+  gives 18/38, W=0 gives 64/113. All three agree exactly. (no change needed)
+- r4: doctrine — the plan forbids presenting a windowed number as a fall from
+  the old cumulative one. `feedback.md` states both today's readings side by
+  side and says in terms that they are two questions, not a trend. (no
+  change needed)
+- r5: scope — `.agents/docs/handover/README.md:313` still cites "36% of
+  file-level fixes" with no window named, which is the misreading this change
+  exists to prevent. It is outside this plan's declared scope, so not touched
+  here. (wontfix — needs its own one-line change; named so the next session
+  does not have to rediscover it)
+- r6: equivalence — diffed old against new output with the recurrence block
+  removed: byte-identical, across the full report, all 8 hot-spot per-path
+  reports, and EDGES=2/8/16. Only the intended block moved. (no change
+  needed)
 
 ## Blockers
 
