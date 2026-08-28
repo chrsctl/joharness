@@ -3486,6 +3486,44 @@ while IFS= read -r tree; do
   rm -rf "${sgfull:?}/${tree}"
 done < <("${ROOT}/joharness.sh" protocol-trees)
 
+# The consumer case, which the ship-scope stage asks a shipping plan to name:
+# handover-guard.sh SHIPS, so this code runs in every consumer, and a consumer
+# may carry a joharness.sh older than the protocol-trees subcommand. The
+# fallback has to leave a boundary standing rather than none, and must not
+# make the guard noisy or non-zero there.
+sgold="${TMP}/sgold"
+git init -q "$sgold"
+git -C "$sgold" symbolic-ref HEAD refs/heads/main
+printf '#!/usr/bin/env bash\nexit 1\n' >"${sgold}/joharness.sh"
+chmod +x "${sgold}/joharness.sh"
+printf 'code\n' >"${sgold}/code.txt"
+commit_all "$sgold" "base"
+git -C "$sgold" remote add origin "$sgfullorigin"
+git -C "$sgold" checkout -qb sgoldfeat
+mkdir -p "${sgold}/.agents/harness"
+printf 'edit\n' >"${sgold}/.agents/harness/thing.sh"
+out="$(printf '%s' "$JSON_STOP" | CLAUDE_PROJECT_DIR="$sgold" \
+  JOHARNESS_MODE=unsupervised \
+  bash "${ROOT}/.agents/harness/handover-guard.sh" 2>&1)"; rc=$?
+expect "an entrypoint with no protocol-trees still names the boundary" \
+  "file(s) of protocol text" "$out"
+if [ "$rc" -eq 0 ]; then
+  pass "the fallback path exits clean"
+else
+  fail "the fallback path exits clean (rc ${rc})"
+fi
+# Fallback means PARTIAL, not silent — but it must not claim a tree it
+# cannot see. A .claude/agents edit is invisible to the old list, and that
+# is the documented cost, asserted so it stays a known one.
+rm -rf "${sgold:?}/.agents"
+mkdir -p "${sgold}/.claude/agents"
+printf 'protocol\n' >"${sgold}/.claude/agents/verifier.md"
+out="$(printf '%s' "$JSON_STOP" | CLAUDE_PROJECT_DIR="$sgold" \
+  JOHARNESS_MODE=unsupervised \
+  bash "${ROOT}/.agents/harness/handover-guard.sh" 2>&1)"
+refute "the fallback does not claim a tree it cannot resolve" \
+  "file(s) of protocol text" "$out"
+
 # A tree that is protocol but absent from the list is the defect this whole
 # change exists to stop recurring: it arrives unguarded and nothing says so.
 # Every .claude/ tree the sync ships governs a session — a command writes the
