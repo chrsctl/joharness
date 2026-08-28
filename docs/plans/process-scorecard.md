@@ -81,8 +81,15 @@ the idea; derive it from git instead of from a log.
 
 ## Where to look
 
-- `joharness.sh:churn_top` — the existing merge-base walk with its
-  protocol-path exclusions, reused. Reuse it; do not write a second walk.
+- `joharness.sh:churn_top` — the existing merge-base walk. Reuse it for
+  the churn maximum, and write no second walk for THAT number. But read
+  its `awk` before planning the rest: it skips
+  `docs/(handover|plans|product)/`, which is exactly where three of the
+  counts above live — the workstream file, its `## Review` lines, and the
+  plan or requirement files the diff deletes. Those three read the same
+  merge-base range WITHOUT the exclusion. Never widen `churn_top`'s own
+  filter to serve them: that filter is what keeps protocol commits out of
+  the churn gate that already ships, and this plan may not regress it.
 - `joharness.sh:cmd_ci`, the `== churn` stage — how a counted process fact
   is already worded to a session.
 - `joharness.sh:cmd_graph` — the precedent for a read-time derived
