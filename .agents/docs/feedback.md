@@ -35,17 +35,40 @@ Four yields, one outcome. The yields diagnose; only the outcome scores.
 | Retention | Does its output survive? | findings a later session can reach without archaeology |
 | Generalization | Did a finding become a rule? | review-fix commits touching an `AGENTS.md` or `docs/` rule file |
 | Cost | What did it take? | commits per finding, churn peak per branch |
-| **Recurrence** | **Did the same thing come back?** | **file-level fixes landing where an earlier edge already fixed a finding** |
+| **Recurrence** | **Did the same thing come back?** | **file-level fixes landing where another edge IN THE SAME WINDOW already fixed a finding** |
 
 **Recurrence is the score. Everything else explains it.** A loop is good if
 the same file stops drawing the same class of finding, and for no other
 reason.
 
-METRIC UNDER REPAIR: as computed today recurrence cannot fall — the dedup
-set never clears, so the number saturates upward (`./joharness.sh
-feedback` measured 36% on 2026-08-24, 54% on 2026-08-27, coverage steady).
-Read it as volume, not signal, until `docs/plans/recurrence-can-fall.md`
-lands.
+### It is scored over a window, and that is the whole of why it works
+
+Cumulative recurrence is `1 - D/N`: every fix adds to `N`, while `D` — the
+distinct paths that ever drew a finding — saturates, because a repo is
+finite and only a handful of files draw findings at all. So it converges on
+100% however well the loop works. "Want this falling" then describes
+something the arithmetic forbids, and worse, it fights the hot-spot list
+printed directly beneath it: a session that reads what earlier edges found
+and fixes that file properly increments the numerator for doing exactly what
+the harness told it to.
+
+So recurrence is scored over the newest `JOHARNESS_RECURRENCE_WINDOW`
+recorded edges (default 8), both sides of the ratio. A file that is read,
+fixed and then left alone leaves the window and stops counting; a file that
+keeps drawing findings stays. Now the printed advice and the printed score
+point the same way, and the number falls exactly when rediscovery stops.
+
+Why 8: measured on this repo, 2026-08-27, over 26 fix-carrying edges and 93
+repeat events. The gap between one fix on a path and the next is median 2,
+and 86% of repeats fall within 8 edges. 8 to 12 is a plateau that adds no
+repeats; past it sits a separate far tail at 17+, which is a file being
+central rather than a rediscovery. Widen it freely — but a number from one
+window never compares to a number from another, which is the mistake this
+section exists to stop.
+
+Counted under the definition that ships, 2026-08-27: **9/28 (32%)** at the
+default window, against **64/113 (56%)** cumulative over the same history.
+Those are two different questions, not a fall.
 
 ### Volume is not a score
 
@@ -58,6 +81,11 @@ this harness are literal enough to deliver exactly that.
 
 Recurrence has the opposite property. It cannot be gamed by producing more
 output, because producing more output is not what makes it fall.
+
+That defence was aimed at the wrong failure mode while the measure was
+cumulative: producing more output *on the files the harness points you at*
+was precisely what made it rise. The window is what makes the claim true —
+output on a file nobody has touched inside the window does not score.
 
 ## Measured here (2026-08-24)
 
@@ -212,7 +240,11 @@ Named because a measure that hides its blind spots is worse than no measure:
 - **Renames.** A path recorded before a move resolves by unique-suffix match
   and otherwise stands as recorded. This repo's own `.agents/` move split one
   hot spot into two cold ones until that was fixed.
-- **Four days.** 8 reviewed edges is enough to see a step change and a
-  36% recurrence rate. It is not enough to see a slope. The number to watch
-  is whether recurrence falls; ask again at 30 edges.
+- **The window is a choice, and a small one is noisy.** Recurrence scores
+  only the newest `JOHARNESS_RECURRENCE_WINDOW` recorded edges, so a repo
+  with few edges scores few pairs and one rediscovery moves it a long way.
+  The window is named in the output for that reason; two windows never
+  compare. This replaces the old "ask again at 30 edges" deferral, which the
+  cumulative definition could never have answered — a sliding window answers
+  it continuously instead, and there is nothing left to defer.
 - **Merged history only.** An open branch has recorded nothing yet.

@@ -1306,7 +1306,12 @@ expect "coverage counts edges that recorded" "coverage   : 3/3" "$out"
 expect "findings counted with their markers" "4 findings — 3 fixed, 1 wontfix" "$out"
 expect "a file two edges fixed is a hot spot" "2 edges  hot.sh" "$out"
 refute "a file only one edge fixed is not" "1 edges  cold.sh" "$out"
-expect "recurrence is the number to watch" "already fixed a finding (33%)" "$out"
+expect "recurrence is the number to watch" "1/3 (33%)" "$out"
+expect "and names the window it scored" "over the newest 3 recorded edges" "$out"
+# The knob prints its SETTING, not the count scored: with 3 edges and a
+# window of 8 those differ, and conflating them is how a window nobody set
+# gets read as one that was.
+expect "and the knob that moves it" "JOHARNESS_RECURRENCE_WINDOW=" "$out"
 
 # The per-path reader: what an earlier edge found here, and nothing about a
 # file nobody has found anything in.
@@ -1384,6 +1389,68 @@ out="$(jf review)"
 expect "review names the hot file in this diff" "already cost other branches" "$out"
 expect "review counts the edges it cost" "hot.sh (2 edges)" "$out"
 refute "a cold file in the same diff is not named" "cold.sh (" "$out"
+
+# The window is the whole repair: cumulative recurrence is 1 - D/N, so it
+# converges upward however well the loop works, and the line printed under it
+# says "want this falling". Its own fixture, because asserting a falling score
+# needs edges the counts above are pinned to.
+step "joharness.sh feedback: recurrence can fall"
+
+rwork="${TMP}/recurwork"
+mkdir -p "${rwork}/.agents/harness" "${rwork}/.agents/env/none" "${rwork}/docs/handover"
+cp "${ROOT}/joharness.sh" "${rwork}/joharness.sh"
+printf '#!/usr/bin/env bash\nexit 0\n' >"${rwork}/.agents/harness/selftest.sh"
+chmod +x "${rwork}/.agents/harness/selftest.sh" "${rwork}/joharness.sh"
+git init -q "$rwork"
+git -C "$rwork" symbolic-ref HEAD refs/heads/main
+for f in a.sh b.sh c.sh d.sh; do printf 'one\n' >"${rwork}/${f}"; done
+commit_all "$rwork" "scratch harness"
+rorigin="${TMP}/recurorigin.git"
+git init -q --bare "$rorigin"
+git -C "$rwork" remote add origin "$rorigin"
+git -C "$rwork" push -qu origin main
+
+jr() { CLAUDE_PROJECT_DIR="$rwork" JOHARNESS_CONF="${rwork}/joharness.conf" \
+  HANDOVER_BASE_BRANCH=main "${rwork}/joharness.sh" "$@" 2>&1; }
+
+redge() {
+  local br="$1" file="$2" pr="$3"
+  git -C "$rwork" checkout -q main
+  git -C "$rwork" checkout -qb "$br"
+  printf '%s\n' "$br" >>"${rwork}/${file}"
+  mkdir -p "${rwork}/docs/handover"
+  { printf -- '---\nworkstream: %s\nstatus: review\n---\n\n## Review\n\n' "$br"
+    printf -- '- r1: %s drew a finding. (fixed)\n' "$file"; } \
+    >"${rwork}/docs/handover/${br}.md"
+  commit_all "$rwork" "fix and record on ${br}"
+  git -C "$rwork" rm -q "docs/handover/${br}.md"
+  git -C "$rwork" commit -qm "Finish ritual: delete the workstream file"
+  git -C "$rwork" checkout -q main
+  git -C "$rwork" merge -q --no-ff -m "Merge pull request #${pr} from scratch/${br}" "$br"
+  git -C "$rwork" push -q origin main
+}
+
+# Two edges rediscovering a.sh, then three edges each finding a file no
+# earlier edge touched: a loop that stopped rediscovering.
+redge r1 a.sh 1
+redge r2 a.sh 2
+redge r3 b.sh 3
+redge r4 c.sh 4
+redge r5 d.sh 5
+
+out="$(JOHARNESS_RECURRENCE_WINDOW=0 jr feedback)"
+expect "cumulative still carries the old rediscovery" "1/5 (20%)" "$out"
+expect "and says that reading cannot fall" "0 = all history, which" "$out"
+
+out="$(JOHARNESS_RECURRENCE_WINDOW=2 jr feedback)"
+expect "a window the improvement fits in scores zero" "0/2 (0%)" "$out"
+
+# ...and the same window rises the moment a file is rediscovered.
+redge r6 d.sh 6
+out="$(JOHARNESS_RECURRENCE_WINDOW=2 jr feedback)"
+expect "rediscovery inside the window raises it" "1/2 (50%)" "$out"
+out="$(JOHARNESS_RECURRENCE_WINDOW=0 jr feedback)"
+expect "cumulative rises too, and can do nothing else" "2/6 (33%)" "$out"
 
 # --- entrypoint: the cleanup sweep -----------------------------------------
 # What the finish ritual left on the base branch. It removes one kind of

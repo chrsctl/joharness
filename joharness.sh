@@ -1095,6 +1095,25 @@ fb_edges() {
 # and the bound is printed when it bites — a window nobody was told about is
 # how a measure starts lying. 0 lifts it.
 FB_LIMIT="${JOHARNESS_FEEDBACK_EDGES:-50}"
+# Recurrence is scored over a SLIDING window, not all of history. Cumulative
+# recurrence is 1 - D/N: N grows, D saturates on a finite repo, so the number
+# converges to 100% however well the loop works, and "want this falling"
+# describes something arithmetic forbids. A window lets a file that was read,
+# fixed and then left alone age out, so the score falls when rediscovery
+# stops — which is the question the measure is asked.
+# 8: measured on this repo's own gap distribution (2026-08-27, 26 fix-carrying
+# edges, 93 repeat events) — the gap between one fix on a path and the next is
+# median 2, and 86% of repeats fall within 8 edges. 8..12 is a plateau, adding
+# nothing; past it sits a separate far tail (17+) that is a file being central,
+# not a rediscovery. Widening this is fine; comparing two windows is not.
+case "${JOHARNESS_RECURRENCE_WINDOW-8}" in
+  '' | *[!0-9]*)
+    # Junk or negative falls back to the DEFAULT, never to 0: 0 means all of
+    # history, which is the one reading this window exists to replace, and a
+    # typo must not quietly restore it.
+    FB_WINDOW=8 ;;
+  *) FB_WINDOW="${JOHARNESS_RECURRENCE_WINDOW-8}" ;;
+esac
 FB_TOTAL=0
 FB_CAPPED=0
 
@@ -1351,22 +1370,36 @@ cmd_feedback() {
   # drew one against is a rediscovery, and the loop's job is to make those
   # stop. Volume is deliberately not scored (review-churn rule: counts false
   # in both directions).
-  local total_pairs repeat_pairs edge_paths
+  local total_pairs repeat_pairs edge_paths counted win_edges
   edge_paths="$(printf '%s' "$pairs" | awk -F'\t' 'NF >= 2 { print $1 "\t" $2 }' | awk '!s[$0]++')"
-  total_pairs="$(printf '%s' "$edge_paths" | grep -c . || :)"
+  # Scored over the newest FB_WINDOW fix-carrying edges, both sides of the
+  # ratio. Cumulative it cannot fall (see FB_WINDOW); windowed it can, because
+  # a path stops counting once no edge inside the window has fixed it before.
+  # Oldest edge first, because "already fixed there" is a question about what
+  # came BEFORE. git log hands them newest first; awk reverses without tac,
+  # which is GNU-only and absent on the macOS machines the harness also runs
+  # on. Edge index is assigned on first sight, so pairs need not be contiguous.
+  counted="$(printf '%s' "$edge_paths" | awk -F'\t' -v w="$FB_WINDOW" '
+    NF >= 2 {
+      if (!($1 in ei)) { nd++; ei[$1] = nd }
+      if (w > 0 && ei[$1] > w) next
+      n++; line[n] = $2
+      if (ei[$1] > seen_edges) seen_edges = ei[$1]
+    }
+    END { for (i = n; i >= 1; i--) if (s[line[i]]) r++; else s[line[i]] = 1
+          print (r + 0), (n + 0), (seen_edges + 0) }')"
+  read -r repeat_pairs total_pairs win_edges <<EOF
+$counted
+EOF
   if [ "${total_pairs:-0}" -gt 0 ]; then
-    # Oldest edge first, because "already fixed there" is a question about
-    # what came BEFORE. git log hands them newest first; awk reverses without
-    # tac, which is GNU-only and absent on the macOS machines the harness also
-    # runs on.
-    repeat_pairs="$(printf '%s' "$edge_paths" | awk -F'\t' '
-      { line[NR] = $2 }
-      END { for (i = NR; i >= 1; i--) if (seen[line[i]]) r++; else seen[line[i]] = 1
-            print r + 0 }')"
-    printf 'recurrence : %d/%d file-level fixes landed where an earlier edge\n' \
-      "$repeat_pairs" "$total_pairs"
-    printf '             already fixed a finding (%d%%) — want this falling\n' \
-      $(( repeat_pairs * 100 / total_pairs ))
+    printf 'recurrence : %d/%d (%d%%) over the newest %d recorded edges — fixes\n' \
+      "$repeat_pairs" "$total_pairs" \
+      $(( repeat_pairs * 100 / total_pairs )) "$win_edges"
+    printf '             landing where another edge in the window already fixed\n'
+    printf '             that file. Want this falling. Compare only same window\n'
+    printf '             (JOHARNESS_RECURRENCE_WINDOW=%s; 0 = all history, which\n' \
+      "$FB_WINDOW"
+    printf '             cannot fall)\n'
   fi
 
   printf '\nhot spots — a file that keeps drawing findings is a rule nobody\n'
