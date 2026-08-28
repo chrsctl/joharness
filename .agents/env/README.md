@@ -21,6 +21,23 @@ Every file optional. Layer with no `setup.sh` provisions nothing — that is all
 | `.agents/env/<name>/AGENTS.md` | Rules for the layer. Session start points at it (default) or injects it whole — see md is lazy too. |
 | `.agents/env/<name>/smoke-test.sh` | `verify`. Exit non-zero on any failure. |
 | `.agents/env/<name>/README.md` | What it provides, what it costs, why. |
+| `.agents/env/<name>/ci-verify` | Declares this layer provable on a stock CI runner. Presence is the declaration; content says why, for humans. |
+
+`ci-verify` is how a layer gets continuous coverage without any file outside
+it naming it: the CI workflow globs for the marker and runs
+`JOHARNESS_ENV=<name> ./joharness.sh verify` for each layer carrying one.
+Lines of the form `image: <ref>` in the marker are data — every image the
+layer's smoke test runs. CI pulls them with retries first, and skips that
+layer loudly if the registry stays unreachable, so someone else's rate limit
+never reds the gate. Declaring the marker without an executable
+`smoke-test.sh` is red, the same way `verify` treats it as fatal.
+Declaring it promises the layer needs nothing a stock runner lacks — `setup.sh`
+downloads nothing it cannot reach and provisions no sandbox-only facility, and
+`smoke-test.sh` degrades on its own where the sandbox's proxy CA bundle is
+absent. A layer needing Docker-in-Docker, the egress proxy or a particular
+kernel leaves the file out; verify stays the sandbox's job for it. The marker
+never claims more than its own layer: it is coverage for that layer, not a
+stand-in for `verify` on whichever layer a repo selects.
 
 Layer is self-contained: everything it owns lives in its directory, so
 selecting it is copying one directory and setting one line.

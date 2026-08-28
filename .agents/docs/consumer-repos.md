@@ -192,7 +192,11 @@ thing that can break, and they are the thing to run:
 - `./joharness.sh ci` — the harness's own bar.
 - `./joharness.sh verify` — when the diff touches a non-`*.md` file under
   `joharness.sh`, `.agents/harness/`, `.agents/env/` or `.agents/scripts/`. A sync
-  usually does, and CI cannot run this.
+  usually does. CI runs this only where the selected layer declares itself
+  CI-runnable (`.agents/env/README.md`) AND this repo's `ci.yml` carries the
+  job that runs it — that file is consumer-own, seeded once at bootstrap and
+  never synced, so a repo bootstrapped before the job existed does not have
+  it. Read the run; otherwise it is yours to run.
 - The consumer's own loop (`run-all.sh` or whatever it calls its suites). The
   sync can narrow an enum or tighten a guard that consumer files then fail —
   one sync narrowed the handover `status` vocabulary and every in-flight
