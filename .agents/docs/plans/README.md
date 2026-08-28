@@ -42,7 +42,9 @@ Frontmatter: `plan`, `urgency` (`normal` | `urgent`), `agent` (`haiku` |
 (the one this plan serves — [`docs/product/`](../product/README.md)),
 optional `scope` (path prefixes the plan will touch; the queue hook proves
 parallel safety inside a wave of disjoint scopes and names the conflict
-across waves — `needs` alone cannot say two plans edit the same file). Plans get matched to
+across waves — `needs` alone cannot say two plans edit the same file. A
+prefix both plans mark `shared:` names an expected reconcile instead of
+splitting the wave). Plans get matched to
 agents, not one agent to all plans; selection rules:
 [`.agents/docs/agent-selection.md`](../agent-selection.md). Implementing session
 may escalate tier or effort, never downgrade.
@@ -73,10 +75,12 @@ miss the conflict — it asserts the opposite.
 
 Some files every plan touches. A repo whose plans all edit one test file or
 one index has no disjoint pair, so every wave holds one plan and the hook
-advises serialising work that runs fine in parallel — measured in a consumer:
-four sessions, 12.5 hours, one 8,131-line test file named by 4 of 5 plans,
-and 2 of 24 pull requests needed a reconcile merge. An 8% cost, not an
-impossibility. Mark such a path `shared:` inside `scope`:
+advises serialising work that runs fine in parallel. Measured in consumer
+`chrsctl/redocted` at `c79dc82`, one working day (2026-08-24): four sessions
+for 12.5 hours, one 8,131-line test file named by 4 of 5 queued plans, and 2
+of 24 merged pull requests needing a reconcile. A cost, not an impossibility
+— recount it there, not here; this repo is not that queue. Mark such a path
+`shared:` inside `scope`:
 
 ```yaml
 scope: src/parser.py, shared:tests/test_all.py
