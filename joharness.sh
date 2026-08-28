@@ -2178,7 +2178,27 @@ cmd_env() {
 # ---------------------------------------------------------------------------
 
 cmd_session_start() {
-  local name mode raw
+  local name mode raw src
+
+  # Hook input is JSON on stdin, and `source` says which kind of start this
+  # is: startup, resume, clear, compact, fork. Only compaction changes what
+  # this command should SAY, so one field is read the same way the Stop guard
+  # reads its one field — a JSON parser for one string is a dependency, not a
+  # feature. Nothing here depends on stdin existing: run by hand, src is empty
+  # and every branch below takes its ordinary path.
+  # Bounded, and never from a terminal. A plain `cat` here blocks forever when
+  # nobody closes stdin, which is every human who runs this command by hand —
+  # the hook would have hung the very sessions it exists to orient.
+  src=""
+  if [ ! -t 0 ]; then
+    IFS= read -r -d '' -t 1 src 2>/dev/null || true
+  fi
+  # No `head -1`: `sed -n …p` already prints one line per match, and this file
+  # has paid a finding for a pipeline whose exit status it did not need.
+  src="$(printf '%s' "$src" |
+    sed -n 's/.*"source"[[:space:]]*:[[:space:]]*"\([a-z]*\)".*/\1/p')"
+  export JOHARNESS_SESSION_SOURCE="${src:-}"
+
 
   # Autonomy first: it governs the whole session, including the parts that
   # run before an environment resolves. Supervised prints NOTHING — same
