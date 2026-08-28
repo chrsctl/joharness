@@ -224,6 +224,15 @@ hook reports **git facts** — pushed what, when, overlaps your files — and
 *session* looks up liveness when a fact matters. Facts cannot be false
 positives.
 
+**Across a fork seam the BRANCH refs are gone.** Fork session's pushes land on
+its own remote, never in this repo's branch list, so the hook's git facts miss
+them. What is here: `refs/pull/<n>/head`, fetchable — verified 2026-08-28,
+`git fetch origin 'refs/pull/79/head:refs/tmp/pr79'` resolved to that fork
+session's own commit. So the pull request is the only shared state: re-fetch
+it at every check, never inherit a conclusion about it from a workstream file
+or a scheduled check-in. `/who` still finds the fork session when it runs on
+the same account, and nothing when it does not.
+
 What this asks of you:
 
 - **Push early, not only at end.** Nothing visible to other sessions until on
