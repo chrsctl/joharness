@@ -65,11 +65,26 @@ makes cross-branch work:
   state.
 - **Travels with code.** Updated *same commit* as the change, so rebases,
   cherry-picks, reverts along with it. Cannot describe diff that is gone.
-- **Survives PR — in history, not on `main`.** File merges with code;
-  reasoning recoverable forever at
-  `git show <merge>:docs/handover/<workstream>.md`. Then deleted: live
-  workstream file on `main` describes finished work. Follow-up = fresh branch,
-  fresh file, seeded from history if useful.
+- **Survives PR — in history, not on `main`.** File merges with code, then
+  is deleted before the merge: a live workstream file on `main` describes
+  finished work. Follow-up = fresh branch, fresh file, seeded from history if
+  useful.
+
+  Recovering it takes two steps, and NOT the merge commit — the file is gone
+  by then, so `git show <merge>:docs/handover/<name>.md` answers `does not
+  exist`. It lived and died on a side branch, so git's default history
+  simplification also prunes it from `git log -- <path>` run on `main`;
+  `--full-history` is the part that finds it:
+
+  ```bash
+  git log --all --full-history --oneline -- docs/handover/<name>.md
+  git show <retire-commit>^:docs/handover/<name>.md
+  ```
+
+  `--all` needs the branch ref alive, and deleting the branch is optional and
+  human-only, so `--full-history` is what makes this a method rather than
+  luck. Step 7 puts this command in the PR body for the branch's own file, so
+  the record is reachable from the merged artifact instead of a guess.
 - **Branch renames and re-cuts free.** Name not branch, so re-cut after merged
   PR keeps same file.
 

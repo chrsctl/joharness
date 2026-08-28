@@ -7,7 +7,7 @@ plan: harness-rules-field-review
 session: https://claude.ai/code/session_01UcW18iV8drNpkz9rpCT27B
 agent: opus
 updated: 2026-08-28
-next: Write the four rule edits, keep AGENTS.md growth under ~10 lines, review, finish
+next: Adversarial review, then finish
 ---
 
 ## Goal
@@ -37,7 +37,14 @@ consumer `chrsctl/redocted` found four defects in the CURRENT canonical rules
 
 ## Rejected
 
-(pending)
+- Writing edit 2 narrowly (runners only). `fork-seam-rules` shares both scope
+  files and carries a near-twin re-derive rule for fork state; the plan says
+  whichever lands second must point at ONE generic sentence rather than add
+  the twin. Mine is written generically ("infrastructure reading ... re-derived
+  at every check") so that plan can point at it instead of restating it.
+- Putting the recovery command only in the handover README. Step 7 carries the
+  pointer too, because the session that needs the record is reading a merged
+  PR, not the protocol doc.
 
 ## Review
 
