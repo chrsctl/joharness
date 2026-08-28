@@ -27,6 +27,10 @@ named across. `none` = independence stays unprovable; the plan is listed
 but joins no wave. Prefix a path `shared:` when a reconcile merge there is
 routine: marked by BOTH plans, it stops splitting the wave and is named as
 the cost instead (.agents/docs/plans/README.md).
+
+`scope` is also what the ship-scope stage reads to say whether this plan's
+diff reaches consumers. Incomplete scope, wrong verdict — same field, two
+readers.
 -->
 
 ## Goal
@@ -46,6 +50,9 @@ Why this work exists, requester's terms. One paragraph.
 
 - `command` — expected output, exact.
 - Project suite — all green.
+- Plan `ci` calls SHIPS: one check a consumer runs, not only a local one.
+  The diff reaches every consumer at its next sync, so a bar met only here
+  is met in the one repo that was never the risk.
 
 ## Where to look
 
