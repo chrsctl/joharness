@@ -1004,6 +1004,71 @@ expect "a calm branch reports quiet" "quiet (max 1 commits per file)" "$out"
 # churn: the copy gets a selftest stub so the suite does not re-enter itself,
 # and GITHUB_ACTIONS is cleared so a runner without shellcheck cannot own the
 # exit code the review assertions read.
+step "joharness.sh ci: selftest scope"
+
+# The suite is 16s of a 22s ci run and covers harness code only, so a diff that
+# touches none of it should not pay for it. The gate is single-sided (the
+# windows job that also ran the suite is `if: false`), so these cases are the
+# whole proof that it skips ONLY when nothing harness-shaped changed.
+sorigin="${TMP}/scopeorigin.git"
+git init -q --bare "$sorigin"
+swork="${TMP}/scopework"
+mkdir -p "${swork}/.agents/harness" "${swork}/.agents/env/none" "${swork}/docs"
+cp "${ROOT}/joharness.sh" "${swork}/joharness.sh"
+# The stub announces itself, so "did the suite run" is a fact in the output
+# rather than an inference from timing.
+printf '#!/usr/bin/env bash\nprintf "STUB SUITE RAN\\n"\nexit 0\n' \
+  >"${swork}/.agents/harness/selftest.sh"
+chmod +x "${swork}/.agents/harness/selftest.sh" "${swork}/joharness.sh"
+printf 'readme\n' >"${swork}/README.md"
+git init -q "$swork"
+git -C "$swork" symbolic-ref HEAD refs/heads/main
+commit_all "$swork" "scratch harness"
+git -C "$swork" remote add origin "$sorigin"
+git -C "$swork" push -qu origin main
+
+ci_scope() { CLAUDE_PROJECT_DIR="$swork" JOHARNESS_CONF="${swork}/joharness.conf" \
+  GITHUB_ACTIONS='' "${swork}/joharness.sh" ci 2>&1 | sed -n '/== harness selftest/,/^$/p'; }
+
+# On main itself there is no branch to scope against: run it.
+out="$(ci_scope)"
+expect "no merge base runs the suite" "STUB SUITE RAN" "$out"
+
+# Docs-only branch: the case this gate exists for.
+git -C "$swork" checkout -qb docsonly
+printf 'notes\n' >>"${swork}/docs/note.md"
+printf 'more readme\n' >>"${swork}/README.md"
+commit_all "$swork" "docs only"
+out="$(ci_scope)"
+expect "a docs-only branch skips the suite" "skipped: nothing outside" "$out"
+refute "the skipped suite did not run" "STUB SUITE RAN" "$out"
+expect "the skip says how to override it" "JOHARNESS_SELFTEST=always" "$out"
+
+# The override, on the same branch: judgment beats the gate when asked.
+out="$(JOHARNESS_SELFTEST=always ci_scope)"
+expect "JOHARNESS_SELFTEST=always runs it anyway" "STUB SUITE RAN" "$out"
+
+# Uncommitted harness work on that same docs-only branch. The session that has
+# not committed yet is exactly the one that must not skip its own tests.
+printf '# scratch\n' >>"${swork}/joharness.sh"
+out="$(ci_scope)"
+expect "an uncommitted harness edit runs the suite" "STUB SUITE RAN" "$out"
+git -C "$swork" checkout -q -- joharness.sh
+
+# An untracked file nobody has classified is doubt, and doubt runs it.
+printf 'x\n' >"${swork}/mystery.txt"
+out="$(ci_scope)"
+expect "an unrecognised untracked path runs the suite" "STUB SUITE RAN" "$out"
+rm -f "${swork}/mystery.txt"
+
+# A committed harness change: the ordinary case, unchanged behaviour.
+git -C "$swork" checkout -qb harnesswork main
+printf '# real change\n' >>"${swork}/.agents/harness/selftest.sh"
+commit_all "$swork" "harness change"
+out="$(ci_scope)"
+expect "a harness diff runs the suite" "STUB SUITE RAN" "$out"
+refute "a harness diff prints no skip line" "skipped: nothing outside" "$out"
+
 step "joharness.sh review"
 
 rorigin="${TMP}/revieworigin.git"
