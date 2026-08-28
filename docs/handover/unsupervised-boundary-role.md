@@ -31,6 +31,14 @@ detects a crossing does not see an edit to it.
   recording: those files are the reasoning BEHIND rules rather than the rules
   a session executes. Including them is defensible and has a wider blast
   radius, so it is a separate decision rather than a silent widening.
+- The list is FOUR trees, not the two the issue names: `.agents/harness`,
+  `.claude/agents`, `.claude/commands`, `.claude/skills`. This followed from
+  taking the role rule literally rather than from taste — a command writes
+  the workstream file, a skill carries a Loop workflow, an agent is the
+  reader the merge gate leans on. Each is a rule a session is judged by, so
+  a boundary stated by role and then listing only two trees would have been
+  the same defect again, one move later. The plan's scope said two; widening
+  it is recorded here rather than done silently.
 - Same-session plan: implementing here, so plan and workstream file retire in
   the same pull request as the code.
 

@@ -41,9 +41,18 @@ today.
 
 ## Constraints
 
-- `.agents/harness/` is off limits to unsupervised sessions. The harness
-  cannot rewrite the protocol that governs it while unattended; that edit
-  is supervised work, always.
+- Protocol text governing a session is off limits to that session while it
+  runs unattended, wherever that text lives. A session may not rewrite the
+  rules it is being judged by; that edit is supervised work, always. The
+  rule is the role, not the path — `joharness.sh:protocol_trees` carries its
+  current mechanical expression (`.agents/harness/`, `.claude/agents/`), the
+  session-start banner and `.agents/harness/handover-guard.sh` both read that
+  one list, and `selftest.sh` fails when a tree shipping agent-instruction
+  text is missing from it. Stated as a path alone this cost issue #114:
+  `.claude/agents/verifier.md` became mandatory Loop step 5 protocol outside
+  the one named prefix, and nothing detected an edit to the independent
+  reader the merge gate leans on. Sandbox configuration (`.agents/env/`) is
+  not protocol text and stays outside — a layer does not govern behavior.
 - The exception to "not invent work" is written as an exception, gated on
   the mode, at the rule itself. A rule that quietly stops meaning what it
   says is worse than no rule.

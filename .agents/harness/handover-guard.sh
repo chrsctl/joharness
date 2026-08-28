@@ -173,20 +173,50 @@ if [ "$mode" = "unsupervised" ]; then
   # is NOT, and gating the whole check on the base was a fail-open: an
   # unattended session on a shallow checkout got no boundary at all. A
   # partial answer beats silence for a fact whose whole job is to notice.
-  harness_touched="$(
-    {
-      [ -z "$base" ] ||
-        git diff --name-only "$base" HEAD -- .agents/harness 2>/dev/null
-      git diff --name-only HEAD -- .agents/harness 2>/dev/null
-      git diff --name-only --cached -- .agents/harness 2>/dev/null
-      # Untracked too. `git diff` cannot see a file that was never added,
-      # so a new harness file read as absent until the commit that the
-      # boundary exists to prevent.
-      git ls-files --others --exclude-standard -- .agents/harness 2>/dev/null
-    } | { grep -E '^\.agents/harness/' || :; } | sort -u | grep -c . || :
-  )"
+  # Every protocol tree, not one. The list lives in joharness.sh
+  # (protocol_trees) so the banner and this guard cannot disagree about
+  # where the boundary is — issue #114 is what one hardcoded prefix cost.
+  # A checkout without the entrypoint, or an older copy with no such
+  # function, falls back to the tree that has always been named: a partial
+  # boundary beats none, the same call the base-relative half makes below.
+  trees="$("${PROJECT_DIR}/joharness.sh" protocol-trees 2>/dev/null)"
+  [ -n "$trees" ] || trees=".agents/harness"
+
+  # A consumer carries only some of these, and a pathspec naming a
+  # directory that does not exist makes git exit non-zero and print
+  # nothing — which would read as "boundary not crossed". Filter to what
+  # is actually here before asking git anything.
+  present=""
+  while IFS= read -r t; do
+    [ -n "$t" ] || continue
+    [ -e "${PROJECT_DIR}/${t}" ] || continue
+    present="${present}${present:+ }${t}"
+  done <<EOF
+$trees
+EOF
+
+  harness_touched=0
+  if [ -n "$present" ]; then
+    # shellcheck disable=SC2086
+    harness_touched="$(
+      {
+        [ -z "$base" ] ||
+          git diff --name-only "$base" HEAD -- $present 2>/dev/null
+        git diff --name-only HEAD -- $present 2>/dev/null
+        git diff --name-only --cached -- $present 2>/dev/null
+        # Untracked too. `git diff` cannot see a file that was never added,
+        # so a new protocol file read as absent until the commit that the
+        # boundary exists to prevent.
+        git ls-files --others --exclude-standard -- $present 2>/dev/null
+      } | sort -u | grep -c . || :
+    )"
+  fi
   if [ -n "$harness_touched" ] && [ "$harness_touched" -gt 0 ]; then
-    add_fact "unsupervised mode, but this branch touches ${harness_touched} file(s) under .agents/harness/ — revert them"
+    # Still a count, never a path. The reason string embeds in JSON without
+    # escaping and a file name is repo-controlled input; widening the
+    # boundary widens what that input could be, so this matters more now,
+    # not less. Digits cannot close a JSON string.
+    add_fact "unsupervised mode, but this branch touches ${harness_touched} file(s) of protocol text (docs/product/unsupervised-mode.md, Constraints) — revert them"
   fi
 fi
 
