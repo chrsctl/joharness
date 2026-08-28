@@ -7,7 +7,7 @@ live in `.agents/docs/` — read there before fighting a rule.
 House style for instructions and replies:
 [`.agents/docs/caveman.md`](../../.agents/docs/caveman.md). Write new instruction text in it; never
 let style eat a fact. Contested terms have ONE spelling —
-[`.agents/docs/glossary.md`](../docs/glossary.md) fixes them and `ci` fails on
+[`.agents/docs/glossary.md`](../../.agents/docs/glossary.md) fixes them and `ci` fails on
 the others.
 
 Environment rules are not here. Entrypoint injects them at session start from

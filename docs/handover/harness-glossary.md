@@ -1,13 +1,13 @@
 ---
 workstream: harness-glossary
-status: in-progress
+status: review
 branch: claude/backpass-usage-review-sbew6t
 pr: none
 plan: harness-glossary
 session: https://claude.ai/code/session_01UcW18iV8drNpkz9rpCT27B
 agent: opus
 updated: 2026-08-28
-next: Adversarial review, then finish
+next: verify, retire plan + workstream, PR, merge
 ---
 
 ## Goal
@@ -119,6 +119,73 @@ Round 1 — doctrine lens:
   `.agents/harness/AGENTS.md` beside the house-style pointer.
 - r1.12 `.agents/docs/handover/README.md` carried the banned wording split
   across a line break, which a line-based lint can never catch. Rewritten.
+
+Round 2 — correctness lens (both lenses opened on the same defect first):
+- r2.1 FAIL-OPEN. Rename the header, drop the table, or leave it with no
+  rows, and every ban evaporated while the stage printed its green line —
+  output byte-identical to a clean tree. The one defect that makes the whole
+  stage a wish. NOHEADER / NOROWS are reported and red now.
+- r2.2 A second table under a repeated header re-armed the parser and became
+  a second ban list. The glossary's own zone-split section is exactly the
+  shape someone would illustrate with one. First table only.
+- r2.3 GFM makes the outer pipes optional. A legal row written without them
+  ENDED the table, killing every ban below it, silently. Rows are normalised
+  before splitting.
+- r2.4 A row with an empty `Not this` was dropped with no word — a ban
+  rotting to a no-op, which is the defect this stage exists to catch.
+  MALFORMED now.
+- r2.5 `git grep` exits 1 on no-match and 128 on error; `2>/dev/null || :`
+  collapsed both into "found nothing" and printed the green line. Reported
+  with git's own words, and red. Reachable from a fixture only through a
+  stub `git`, which the suite now carries.
+- r2.6 The exemption regex was built from a path unescaped and unanchored, so
+  it also exempted `glossary.mdx` and `glossaryXmd`.
+- r2.7 Unchecked `mktemp` fails the stage open on a full `TMPDIR`.
+- r2.8 A file written this turn was invisible until committed — green ci, red
+  after the commit. `--untracked`.
+- r2.9 SEVEN mutations survived the round-1 suite: deleting the MALFORMED
+  gate, dropping `-F`, dropping the alignment-row skip, dropping the header
+  check, dropping the comma split, dropping the ban trimming, and replacing
+  the non-git message with the green line. All seven passed 14/14. The suite
+  is now 15 mutations wide and every one is caught; the baseline is clean.
+  Measured 2026-08-28 by patching a copy of `joharness.sh` and re-running
+  this step against it.
+
+Round 2 — doctrine lens:
+- r2.10 Scope still reached prose the harness does not own. Root `*.md` is a
+  consumer's own README, and `.agents/env/<their layer>/` is never synced —
+  the sync adds a layer to DIRS only for one canonical carries — so both were
+  unfixable reds after a routine sync. Scope is now canonical-owned synced
+  paths plus `AGENTS.md` and `CLAUDE.md`, which a consumer edits in place.
+- r2.11 And it MISSED `.claude/commands/` and `.claude/skills/`, which do
+  sync — this branch's own fix to `.claude/commands/handover.md` could have
+  been reverted with ci staying green — plus uppercase extensions and the
+  extensionless markers. The extension filter is gone.
+- r2.12 The header comment attributed "205 against 14" to the glossary's
+  scoped command, which yields 131 against 8. Re-attributed to the whole-tree
+  command that produces it, with the date.
+- r2.13 The new stage was inserted ABOVE the graph lint's comment, so that
+  paragraph explained the glossary and graph lint kept a stub.
+- r2.14 The glossary and the lint comment stated the same four facts, and had
+  already diverged — one copy carried a claim about `.agents/` that r2.10
+  proves false. Rationale lives in the glossary; the comment points.
+- r2.15 The zone-split rule could never be built: bans are substrings, so a
+  zoned canonical (`retry (harness)`) contains its own ban (`retry`) and is
+  unwritable. Rule replaced — a zone-split term gets NO row.
+- r2.16 Comma splitting was undocumented, and a bare word bans every phrase
+  containing it. Documented in the glossary, both facts.
+- r2.17 Nothing under `.agents/` can quote a losing spelling — no rename
+  note, no pasted failure. `docs/` is named as where records live, which is
+  why it is out of scope.
+- r2.18 The plan's `scope:` frontmatter understated three touched files, and
+  `queue-context.sh` parses that field to print "parallel is proven".
+  Amended. The three UNRELATED plan files this branch had also reworded are
+  reverted — another plan's prose is not this one's to edit, and the wave
+  model cannot represent that collision at all.
+- r2.19 Acceptance criterion 3 amended in the plan itself, so the retiring
+  plan and this record agree rather than contradict.
+- r2.20 The glossary was the essay its own plan forbids: 31 prose lines for a
+  3-row table, one section a third copy of a `caveman.md` rule. Cut.
 
 Self-caught between rounds, recorded because it changed the design: the
 canonical-only gate called an `is_canonical` that does not exist in this

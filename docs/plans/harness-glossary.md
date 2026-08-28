@@ -5,7 +5,7 @@ agent: sonnet
 effort: high
 needs: none
 requirement: none
-scope: .agents/docs/glossary.md, joharness.sh, .agents/harness/selftest.sh, .agents/docs, .agents/harness/AGENTS.md, AGENTS.md, CLAUDE.md, README.md
+scope: .agents/docs/glossary.md, joharness.sh, .agents/harness/selftest.sh, .agents/docs, .agents/harness/AGENTS.md, .agents/harness/queue-context.sh, .agents/scripts/sync-to-consumer.sh, .claude/commands/handover.md, AGENTS.md, CLAUDE.md, README.md
 ---
 
 ## Goal
@@ -70,9 +70,14 @@ not redefine.
   than no pointer.
 - `./joharness.sh ci` — `ci: pass`, with the new lint stage printing its
   own line whether or not it finds anything.
-- `grep -rnoi "handover file" --include=*.md --include=*.sh . | grep -v
-  '^./.git' | wc -l` — 0 outside `.agents/docs/glossary.md`. Same for every
-  other wording the glossary bans.
+- 0 banned wordings INSIDE the lint's scope, outside
+  `.agents/docs/glossary.md` — which is what `./joharness.sh ci` enforces on
+  every run, so the count is the stage's own green line. AMENDED
+  2026-08-28, during build: this criterion first said 0 whole-tree, and a
+  whole-tree sweep rewrote the recorded measurements under `docs/` that this
+  plan and `docs/research/glossary-enforcement.md` rest on — including this
+  criterion, inverted into a grep for the canonical term. Records keep the
+  wordings they measured. Whole-tree is NOT met and must not be.
 - Re-count the two headline pairs before quoting them anywhere that ships;
   the 146 / 12 / 10 / 5 / 18 / 2 figures were re-counted 2026-08-24 with the
   command above and drift fast ("workstream file" already 208 by
