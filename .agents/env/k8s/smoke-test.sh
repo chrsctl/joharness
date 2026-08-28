@@ -19,8 +19,13 @@
 # would add ~15s to every green run for nothing), so the previous run's
 # namespace is usually still Terminating when the next one starts - and a
 # Terminating namespace accepts no pods, which failed every check after the
-# first two. A per-run name means back-to-back runs never meet. Pin one with
-# SMOKE_NAMESPACE and the run waits that namespace out instead.
+# first two. A per-run name means back-to-back runs practically never meet;
+# pids do recycle, so a leftover of the same name is still handled rather
+# than assumed away. Pin one with SMOKE_NAMESPACE to choose the name.
+#
+# This run only ever deletes a namespace it created. A pinned namespace that
+# already exists is used and left standing: a smoke test that eats the
+# namespace someone pointed it at is worse than one that does not run.
 
 set -euo pipefail
 
@@ -31,6 +36,16 @@ KUBE_CONTEXT="k3d-${CLUSTER_NAME}"
 # verbatim.
 NS="${SMOKE_NAMESPACE:-devenv-smoke-$$}"
 NS_WAIT_SECS="${SMOKE_NS_WAIT_SECS:-90}"
+# Whole seconds only. '90s' and '1m' are the natural things to type here and
+# both make every later comparison error out, which would leave the wait loop
+# below with no bound at all - a suite that hangs instead of failing.
+case "$NS_WAIT_SECS" in
+  ''|*[!0-9]*)
+    printf 'SMOKE_NS_WAIT_SECS must be whole seconds, got: %s\n' "$NS_WAIT_SECS" >&2
+    exit 2 ;;
+esac
+# 1 once this run has created the namespace; cleanup deletes nothing else.
+NS_OWNED=0
 KEEP=0
 [ "${1:-}" = "--keep" ] && KEEP=1
 
@@ -48,32 +63,44 @@ step() { printf '\n== %s\n' "$*"; }
 
 k() { kubectl --context "$KUBE_CONTEXT" "$@"; }
 
-# Wait out a namespace that is still Terminating from an earlier run. Only a
-# pinned SMOKE_NAMESPACE can hit this - the per-run default cannot collide -
-# but when it does, every later check would fail for a reason that has nothing
-# to do with the cluster being broken. Returns non-zero if it never clears, so
-# the caller can say that instead of reporting eight mystery failures.
-await_namespace_gone() {
-  local waited=0
-  k get namespace "$NS" >/dev/null 2>&1 || return 0
-  printf '  namespace %s still exists; waiting up to %ss for it to clear\n' \
-    "$NS" "$NS_WAIT_SECS"
-  while k get namespace "$NS" >/dev/null 2>&1; do
-    [ "$waited" -ge "$NS_WAIT_SECS" ] && return 1
+# Wait out a namespace that is still Terminating from an earlier run, where
+# every later check would fail for a reason that has nothing to do with the
+# cluster being broken. Returns non-zero only if it never clears, so the
+# caller can say that instead of reporting eight mystery failures.
+#
+# Terminating is the ONLY state worth waiting on. A namespace that exists and
+# is usable is used, exactly as this script always did - waiting for one to
+# disappear would stall the full timeout and then report it as Terminating,
+# which is both a lie and a delay.
+await_namespace_usable() {
+  local waited=0 phase
+  while :; do
+    phase="$(k get namespace "$NS" -o jsonpath='{.status.phase}' 2>/dev/null)" || phase=""
+    [ -z "$phase" ] && return 0
+    [ "$phase" != "Terminating" ] && return 0
+    if [ "$waited" -ge "$NS_WAIT_SECS" ]; then return 1; fi
+    if [ "$waited" -eq 0 ]; then
+      printf '  namespace %s is Terminating; waiting up to %ss for it to clear\n' \
+        "$NS" "$NS_WAIT_SECS"
+    fi
     sleep 3
     waited=$((waited + 3))
   done
-  return 0
 }
 h() { helm --kube-context "$KUBE_CONTEXT" "$@"; }
 
 cleanup() {
   if [ -n "$CHART_ROOT" ]; then rm -rf "$CHART_ROOT"; fi
   if [ "$KEEP" -eq 1 ]; then
-    printf '\n(keeping namespace %s)\n' "$NS"
+    # Every --keep run leaves its own namespace now, so hand over the command
+    # that removes it rather than leaving a pile nothing reclaims.
+    printf '\n(keeping namespace %s; remove with: kubectl --context %s delete namespace %s)\n' \
+      "$NS" "$KUBE_CONTEXT" "$NS"
     return
   fi
-  k delete namespace "$NS" --wait=false >/dev/null 2>&1 || true
+  if [ "$NS_OWNED" -eq 1 ]; then
+    k delete namespace "$NS" --wait=false >/dev/null 2>&1 || true
+  fi
 }
 trap cleanup EXIT
 
@@ -114,12 +141,16 @@ fi
 # workaround. Without it the cluster looks healthy but every pod sandbox fails
 # with "can't get final child's PID from pipe: EOF".
 step "Pod creation"
-if ! await_namespace_gone; then
-  fail "namespace ${NS} is still Terminating after ${NS_WAIT_SECS}s - rerun, or unset SMOKE_NAMESPACE to get a per-run one"
+if ! await_namespace_usable; then
+  fail "namespace ${NS} is still Terminating after ${NS_WAIT_SECS}s - wait for it, or name another with SMOKE_NAMESPACE"
   printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
   exit 1
 fi
-k create namespace "$NS" >/dev/null 2>&1 || true
+# Owning it is what licenses cleanup to delete it. A pre-existing namespace
+# makes this fail, which is the point: it gets used, not consumed.
+if k create namespace "$NS" >/dev/null 2>&1; then
+  NS_OWNED=1
+fi
 
 if k -n "$NS" run sandbox-probe \
      --image=registry.k8s.io/pause:3.10 --restart=Never >/dev/null 2>&1 \
