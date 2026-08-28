@@ -1,8 +1,8 @@
 ---
-description: Write or update this branch's handover file so the next session can pick up
+description: Write or update this branch's workstream file so the next session can pick up
 ---
 
-Update handover file for this session's work. Protocol:
+Update workstream file for this session's work. Protocol:
 `.agents/docs/handover/README.md`. Inline — no subagent.
 
 1. Find this branch's file under `docs/handover/`. None + real work done?

@@ -23,9 +23,9 @@ Git + GitHub already record, precisely, no drift:
 | Whether it works | CI checks, `./joharness.sh verify` |
 | Who asked for what | issue and PR bodies, review threads |
 
-Writing any of that into markdown = second copy, rots immediately. Handover
-file saying "3 files changed, tests passing" worse than nothing: confidently
-wrong at next push.
+Writing any of that into markdown = second copy, rots immediately. A
+workstream file saying "3 files changed, tests passing" worse than nothing:
+confidently wrong at next push.
 
 NOT recoverable from repo: the reasoning —
 
@@ -40,7 +40,7 @@ NOT recoverable from repo: the reasoning —
 - current blocker
 - next concrete step
 
-**Handover file contains only those six.** Rest, next session derives.
+**Workstream file contains only those six.** Rest, next session derives.
 
 ## Layout
 
@@ -184,7 +184,7 @@ merge, no subagent.
 
 ## Concurrent sessions: who is on what right now
 
-Handover files answer "what is this work?". Parallel sessions raise "someone
+Workstream files answer "what is this work?". Parallel sessions raise "someone
 on it *right now*?" — different mechanism, because sessions share only the git
 remote. No shared filesystem, no messaging. Record must be pushed to be seen;
 any session can die without cleanup.
@@ -273,7 +273,7 @@ session skips. Reach for it only if visible-collision approach fails.
 
 ## Pull requests: link, never duplicate
 
-PR body = where humans look, must carry state — but copy of handover file in
+PR body = where humans look, must carry state — but copy of workstream file in
 PR body rots. Link to file on branch while the branch still carries it; file
 stays single source, reviewers click once, link resolves to the version
 beside the diff.
@@ -290,7 +290,7 @@ problem — subscribe to PR, stay in one session. Handover documents = the
 ## Staleness: trust, but verify
 
 Notes go stale as code moves. GitHub's own agent-memory work converged on
-verify-at-read over curate-offline; same here: **every claim in handover file
+verify-at-read over curate-offline; same here: **every claim in workstream file
 = hypothesis until checked.**
 
 - Names a file, function, line? Open before relying.
@@ -370,7 +370,7 @@ Placement decisions that look arbitrary, recorded so not helpfully undone:
 | --- | --- |
 | **Auto memory** (`~/.claude/projects/*/memory/`) | Machine-local, *not shared with cloud environments*. Every web session = fresh container, so empty exactly when handover matters. |
 | **One shared `HANDOVER.md`** | Conflicts on every parallel branch; agents resolve by rewriting — losing other branch's state. |
-| **Uncommitted / gitignored handover file** | Container reclaimed at session end. Uncommitted state does not exist. |
+| **Uncommitted / gitignored workstream file** | Container reclaimed at session end. Uncommitted state does not exist. |
 | **GitHub issue as ledger** | Branch-independent — genuinely attractive, fine for *what to do*. But drifts from diff, needs network round trip, not versioned with code. Issues for backlog; branch files for state of work in progress. |
 | **Subagent reconstructing context** | Full exploration pass per session to rediscover what five written lines held — findings die with it. |
 | **`git notes`, orphan branches, JSONL event logs** | Merge-friendly, machine-clean, invisible in normal review. State no human reads = state no human corrects. |
