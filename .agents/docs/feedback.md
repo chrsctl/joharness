@@ -136,6 +136,45 @@ The alternatives were weighed against these numbers, not against taste:
   which needs more edges than 4 days of history holds. Blocked on data this
   measure now accumulates.
 
+## Worked example: tree or diff
+
+Recurrence names classes; this is the first one it named loudly enough to
+graduate. Six merged edges, one question, and every fix local to the caller
+that had it:
+
+| Edge | Caller | What reading the tree cost |
+| --- | --- | --- |
+| PR54 r13 | `graph` | labelled a branch with work it merely inherited |
+| PR58 r8 | `upgrade` | refused every sync branch cut from a base that had accreted a workstream file |
+| PR60 | `cleanup`, `finish` | `--apply` DELETED an inherited live claim; `finish` returned green on a branch carrying one |
+| PR69 r2 | `finish` | fired on the branch that built it — another session's inherited file put it at an edge it was not at |
+| PR72 r1 | `finish` wiring | redded its own branch mid-build, naming its own live claim as the offence |
+| PR77 r2 | `graph` | the same tree read PR54 had already named, fixed at last |
+
+**The rule: a branch inherits every file its base branch carries, so presence
+in the tree says nothing about the branch. Ownership is a DIFF against the
+merge base.**
+
+Then pick the filter, because "owns" is three questions:
+
+- `--diff-filter=ACMRT` — files the branch still HAS. `cleanup` needs this:
+  plain `--name-only` lists deletions too, so a branch that ran the finishing
+  ritual read as still carrying the file it had just deleted, and the file was
+  protected from removal forever (`joharness.sh:cl_inflight`).
+- `--diff-filter=D` — files the branch DELETED. What recovers a retired
+  workstream file (`.agents/docs/handover/README.md`, Survives PR).
+- no filter — files the branch TOUCHED. Rarely the question being asked.
+
+The class was named in PR54 and still bit at PR69 and PR72, on the very gates
+built to read ownership correctly. Stages 1 and 2 worked every time: each
+session detected it and recorded it. Stage 3 never ran, so the seventh caller
+would have paid again. That is this document's own thesis, tested on itself.
+
+Recount rather than trust the table: `./joharness.sh feedback joharness.sh`
+and `./joharness.sh feedback .agents/harness/selftest.sh` reach these
+findings, which is where they live.
+
+
 ## When the consumer is the detector
 
 The four stages assume one repo. A consumer running this harness splits them:
