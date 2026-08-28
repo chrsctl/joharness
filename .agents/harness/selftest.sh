@@ -3491,8 +3491,16 @@ done
 seen_paths=0
 while IFS= read -r tree; do
   [ -n "$tree" ] || continue
-  mkdir -p "${sgfull}/${tree}"
-  printf 'protocol\n' >"${sgfull}/${tree}/thing.md"
+  # Two entries are FILES, not trees (the entrypoint holding the list, and
+  # the settings file wiring the hook). Creating "<file>/thing.md" under them
+  # silently does nothing — mkdir fails on an existing file — so those cases
+  # asserted against a fixture that had not changed.
+  case "$(basename "$tree")" in
+    *.*) mkdir -p "$(dirname "${sgfull}/${tree}")"
+         printf 'protocol\n' >>"${sgfull}/${tree}" ;;
+    *)   mkdir -p "${sgfull}/${tree}"
+         printf 'protocol\n' >"${sgfull}/${tree}/thing.md" ;;
+  esac
   out="$(guard_full unsupervised)"
   expect "unsupervised sees a crossing in ${tree}" \
     "touches 1 file(s) of protocol text" "$out"
@@ -3506,7 +3514,11 @@ while IFS= read -r tree; do
   fi
   out="$(guard_full supervised)"
   refute "supervised leaves ${tree} alone" "protocol text" "$out"
-  rm -rf "${sgfull:?}/${tree}"
+  # Restore rather than rm: `rm -rf` on a FILE entry deleted the entrypoint
+  # the guard reads, so every later iteration fell back to the one-tree list
+  # and proved nothing about the entry it named.
+  git -C "$sgfull" checkout -q -- . 2>/dev/null || true
+  git -C "$sgfull" clean -qfd
   seen_paths=$((seen_paths + 1))
 done < <("${ROOT}/joharness.sh" protocol-paths)
 # An empty list runs zero loop bodies and reports nothing at all — green by
@@ -3521,9 +3533,10 @@ fi
 # retire your own reviewer. An earlier version of this diff filtered the path
 # list to what exists in the worktree, which dropped exactly the tree being
 # deleted and went silent — a REGRESSION against origin/main, which caught
-# it. Every case above touches or adds a file; none deleted one, which is why
-# nothing here noticed.
+# it. Every other case here touches or adds a file; none deleted one, which
+# is why nothing noticed.
 git -C "$sgfull" checkout -q -- . 2>/dev/null || true
+git -C "$sgfull" clean -qfd
 mkdir -p "${sgfull}/.claude/agents"
 printf 'reviewer\n' >"${sgfull}/.claude/agents/verifier.md"
 commit_all "$sgfull" "a reviewer to retire"
@@ -3532,10 +3545,8 @@ commit_all "$sgfull" "retire the reviewer"
 out="$(guard_full unsupervised)"
 expect "deleting a protocol tree is a crossing" \
   "file(s) of protocol text" "$out"
-git -C "$sgfull" checkout -q "$(git -C "$sgfull" rev-parse HEAD~2)" -- . 2>/dev/null || true
-git -C "$sgfull" rm -q -r --cached .claude 2>/dev/null || true
-rm -rf "${sgfull:?}/.claude"
-commit_all "$sgfull" "back to base" 2>/dev/null || true
+git -C "$sgfull" checkout -q -- . 2>/dev/null || true
+git -C "$sgfull" clean -qfd
 
 # The consumer case, which the ship-scope stage asks a shipping plan to name:
 # handover-guard.sh SHIPS, so this code runs in every consumer, and a consumer
