@@ -37,7 +37,8 @@ Verify (all green or not done):
 
 ```bash
 ./joharness.sh ci        # ci: pass — same checks .github/workflows/ci.yml runs
-./joharness.sh verify    # 0 failed — pass count is the layer's; sandbox-only, CI cannot
+./joharness.sh verify    # 0 failed — pass count is the layer's. This repo's layer
+                         # needs the sandbox, so CI cannot run it here
 ```
 
 Run `ci` before opening a pull request; it is the whole of what GitHub checks,

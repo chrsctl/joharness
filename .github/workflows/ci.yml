@@ -31,11 +31,13 @@ jobs:
   # exactly what CI runs before opening the pull request instead of finding out
   # afterwards.
   #
-  # The environment smoke test is deliberately NOT here: it needs the sandbox
-  # this repo provisions (Docker-in-Docker, the egress proxy, the cgroup v1
-  # kernel), and a GitHub runner exercises none of the constraints the scripts
-  # exist to work around. A green run here would claim more than it checked.
-  # `./joharness.sh verify` is where that gets proven.
+  # Environment smoke tests are NOT here — see the verify job below for the
+  # ones that are. A layer needing the sandbox this repo provisions
+  # (Docker-in-Docker, the egress proxy, the cgroup v1 kernel) exercises
+  # constraints a GitHub runner has none of, so a green run here would claim
+  # more than it checked; `./joharness.sh verify` in the sandbox is where
+  # those get proven. A layer that needs none of it says so itself, and the
+  # verify job runs it.
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -49,6 +51,77 @@ jobs:
           fetch-depth: 0
       - name: joharness ci
         run: ./joharness.sh ci
+
+  # Continuous coverage for the environment layers that can prove themselves
+  # on a stock runner. A layer opts in by carrying a `ci-verify` file
+  # (.agents/env/README.md); this job globs for it and names no layer, which
+  # is what lets the file be seeded verbatim into every consumer: a repo
+  # whose layer does not declare it gets a job that says so and passes,
+  # never one flailing at a layer it does not have.
+  #
+  # What a green here means, exactly: THAT layer's setup and smoke test pass
+  # on a runner. It is never a substitute for `./joharness.sh verify` on the
+  # layer a repo selects — this repo selects one that needs the sandbox, so
+  # here the job is layer coverage and step 7 still asks for the real run.
+  # In a consumer that both selects a declaring layer and merges on this
+  # workflow, it is the same check step 7 asks for, run by machine.
+  #
+  # The registry is a precondition, not the thing under test: pulls are
+  # retried, and if the registry stays unreachable (Docker Hub rate-limits
+  # shared runner IPs, and fork pull requests carry no secrets to log in
+  # with) the job warns and passes. A gate that reds on someone else's rate
+  # limit teaches the override. A check that actually fails is still red.
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: layers that declare themselves CI-runnable
+        id: layers
+        run: |
+          set -euo pipefail
+          found=""
+          for d in .agents/env/*/; do
+            [ -d "$d" ] || continue
+            name="$(basename "$d")"
+            [ -f "${d}ci-verify" ] || continue
+            [ -x "${d}smoke-test.sh" ] || continue
+            found="${found}${found:+ }${name}"
+          done
+          if [ -z "$found" ]; then
+            echo "no layer here declares itself CI-runnable; nothing to verify"
+          else
+            echo "declared: ${found}"
+          fi
+          echo "names=${found}" >>"$GITHUB_OUTPUT"
+      - name: pull the images those layers need
+        id: images
+        if: steps.layers.outputs.names != ''
+        run: |
+          set -uo pipefail
+          # Every image any declaring layer runs, pulled here so a registry
+          # problem is one warning instead of a red check per layer.
+          ok=1
+          for image in alpine:3 nginx:alpine; do
+            pulled=0
+            for attempt in 1 2 3; do
+              if docker pull "$image" >/dev/null 2>&1; then pulled=1; break; fi
+              echo "pull of ${image} failed (attempt ${attempt}/3); retrying"
+              sleep $((attempt * 10))
+            done
+            [ "$pulled" -eq 1 ] || { ok=0; echo "::warning::could not pull ${image}"; }
+          done
+          echo "ok=${ok}" >>"$GITHUB_OUTPUT"
+          if [ "$ok" -ne 1 ]; then
+            echo "::warning::registry unreachable or rate-limited — skipping layer verify rather than failing on it"
+          fi
+      - name: joharness verify, per declaring layer
+        if: steps.layers.outputs.names != '' && steps.images.outputs.ok == '1'
+        run: |
+          set -euo pipefail
+          for name in ${{ steps.layers.outputs.names }}; do
+            echo "== verify: ${name}"
+            JOHARNESS_ENV="$name" ./joharness.sh verify
+          done
 
   # Windows is where the harness breaks silently. Two defects in two days were
   # invisible from macOS and Linux and fatal on a stock Git for Windows clone:
