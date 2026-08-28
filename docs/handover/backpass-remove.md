@@ -47,11 +47,26 @@ outlive it.
 
 ## Rejected
 
-(nothing yet)
+- Keeping `.agents/docs/backpass.md` as a record of why the tool was tried.
+  The reasons it failed are worth keeping and the tool's shape is not; they
+  are in this file and in the pull request body, both reachable from
+  history, and a doc describing a tool nobody runs is the stale instruction
+  this repo deletes on sight.
+- Dropping the pure-pointer rule with its reason. The reason changed; the
+  rule did not. Two other justifications for it already sat in the same
+  sentence of the handover protocol.
 
 ## Review
 
-(pending)
+- r1 The comment I wrote into `CLAUDE.md` cited a section
+  "Reaching a fresh session" that does not exist — the heading is "How a
+  session finds this without being told". Invented while replacing a
+  citation, which is the same class as the five unreproducible numbers this
+  session already produced. (fixed: the real heading, read out of the file)
+- r2 `ci`'s graph lint flagged this workstream file's own anchor pointing at
+  the deleted `.agents/docs/backpass.md` — the gate catching the diff that
+  broke it, one run after the deletion. (fixed: the anchor names where to
+  read it in history instead)
 
 ## Blockers
 
@@ -59,7 +74,9 @@ None.
 
 ## Where to look
 
-- `.agents/docs/backpass.md`, `.backpassrc.json` — deleted whole.
+- The two deleted files: read them at the commit before this branch's
+  removal commit. `git log --diff-filter=D --oneline -- <path>` finds it,
+  the same way a retired workstream file is recovered.
 - `.gitignore` — the `.backpass/` block.
 - `CLAUDE.md`, `.agents/docs/handover/README.md` — the two that cite it as a
   reason and must keep the rule.
