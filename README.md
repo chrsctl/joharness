@@ -1,7 +1,7 @@
 # joharness
 
 Canonical harness home. Consumer repos copy the harness
-from here; sync = plain copy commit, no handover file. House style:
+from here; sync = plain copy commit, no workstream file. House style:
 [`.agents/docs/caveman.md`](.agents/docs/caveman.md).
 
 Creating a consumer, or bringing one current — every route, one entry

@@ -215,11 +215,11 @@ fi
 if [ -z "$plans" ]; then
   if [ -n "$unplanned" ]; then
     printf 'No plans on %s. Entrypoint: plan the requirements above (issues\n' "$ref"
-    printf 'still outrank). Default model tier: sonnet (.agents/docs/agent-selection.md).\n'
+    printf 'still outrank). Default agent tier: sonnet (.agents/docs/agent-selection.md).\n'
   else
     printf 'No plans on %s — plan-queue edge reached: done. Entrypoint: open\n' "$ref"
     printf 'GitHub issues first; none = resume in-flight branch above, or ask\n'
-    printf 'human. Default model tier: sonnet (.agents/docs/agent-selection.md).\n'
+    printf 'human. Default agent tier: sonnet (.agents/docs/agent-selection.md).\n'
   fi
   exit 0
 fi

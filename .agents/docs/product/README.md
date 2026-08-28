@@ -78,7 +78,7 @@ is never overwritten.
 
 New consumer starts via `.agents/scripts/bootstrap-consumer.sh`, never by using a
 raw joharness clone as-is: a raw clone carries joharness's live plan
-queue, handover files and canonical marker, so its sessions work
+queue, workstream files and canonical marker, so its sessions work
 joharness's workstream instead of the child's.
 
 Routes, tokens, exit codes, `AHEAD` handling:

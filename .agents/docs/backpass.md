@@ -18,7 +18,7 @@ not here.
   as divergence hazard every run, never optimized. Instruction text goes in
   root `AGENTS.md`, never CLAUDE.md.
 - backpass resolves NO `@` imports. It audits root `AGENTS.md` ONLY —
-  `.agents/harness/AGENTS.md`, env layers, docs invisible to it. Rule backpass
+  `.agents/harness/AGENTS.md`, environment layers, docs invisible to it. Rule backpass
   should see and optimize = rule in root AGENTS.md (Part 1 synced to
   consumers, Part 2 per-repo). Revisit if upstream learns import resolution.
 - Consumer repo: accept backpass edits into Part 2 ONLY. Part 1 (above

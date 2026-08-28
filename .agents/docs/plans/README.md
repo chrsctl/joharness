@@ -19,7 +19,7 @@ out-of-scope explicitly; agent does what plan says, nothing else.
 
 Session-start hook prints the queue — urgent first, then oldest, each with
 its `agent`/`effort` — so a session (or a user starting one from a phone)
-picks entrypoint and model tier without opening files.
+picks entrypoint and agent tier without opening files.
 
 ## Shape
 
@@ -113,7 +113,7 @@ not have is worse than one that claims none.
   not the queue position.
 - **Stale plan** (code moved under it): fix plan in place on `main` via
   small PR, or delete if obsolete. Every claim in a plan = hypothesis until
-  checked against code — same staleness rule as handover files.
+  checked against code — same staleness rule as workstream files.
 
 ## Why files, not issues
 
