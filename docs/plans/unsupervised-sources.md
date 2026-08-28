@@ -83,7 +83,7 @@ counted numbers rather than adjectives.
 - `./.agents/harness/selftest.sh` — passes, count higher than today's by the
   tests added.
 - `./joharness.sh ci` — `ci: pass`.
-- `./joharness.sh verify` — 7 passed, 0 failed. Required: touches a
+- `./joharness.sh verify` — all checks pass, 0 failed. Required: touches a
   non-`*.md` file under `joharness.sh`.
 
 ## Where to look
