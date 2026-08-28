@@ -1946,7 +1946,9 @@ gr_docs() { awk 'NF && /\.md$/ && !/\/(TEMPLATE|README)\.md$/'; }
 # base branch carries, and a base branch accreting them is the failure this
 # command exists to count - so a tree read reports that accretion as this
 # branch's compliance, and reports it in the flattering direction. It is this
-# repo's highest-recurring defect class (docs/plans/tree-vs-diff-rule.md), and
+# repo's highest-recurring defect class - six merged edges paid for the rule
+# (.agents/harness/AGENTS.md step 4; .agents/docs/feedback.md, Worked example:
+# tree or diff) - and
 # the sync guard above already reads the diff for the same reason.
 # ---------------------------------------------------------------------------
 
