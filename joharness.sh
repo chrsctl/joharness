@@ -1227,9 +1227,18 @@ review_report() {
     n="$(review_count <"${ROOT}/${ws}")"
     printf '  %s [%s — %s]\n' "$ws" "$tier" "$(review_recipe "$tier")"
     # The independent reader, printed where the depth is already printed.
-    # This repo's own ledger is the argument for printing rather than
-    # exhorting: recorded reviews went 0/19 before the step was named here
-    # to 18/19 after. Named at the moment it comes due, not in a doc.
+    # No causal number here: the "0/19 -> 18/19" this comment first claimed
+    # does not reproduce, and belongs to the review LEDGER in
+    # .agents/docs/feedback.md, not to this print. Re-derived 2026-08-28 with
+    # this file's own fb_edges/fb_workstream/fb_findings over every
+    # first-parent merge on origin/main: 12/32 recorded before the print
+    # existed, 41/41 after — a real step, and not the one that was written.
+    # `JOHARNESS_FEEDBACK_EDGES=0 ./joharness.sh feedback` re-counts it.
+    # Printed beside the depth on every run, which is what the plan's Scope
+    # asks for — not gated on the edge. An earlier comment here claimed
+    # "at the moment it comes due", which the code never did: this sits
+    # above the review_at_edge test, so mid-build it prints three lines and
+    # then says the gate has not fired yet.
     printf '    verifier: spawn .claude/agents/verifier.md at %s — it did not\n' "$tier"
     printf '    write this diff, which is the whole property. Tag what it\n'
     printf '    returns (verifier).\n'

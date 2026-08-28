@@ -1438,6 +1438,18 @@ refute "review gate silent by default" "== review" "$out"
 out="$(jr review)"
 expect "the verifier step prints beside the depth" \
   "verifier: spawn .claude/agents/verifier.md at opus" "$out"
+# The rule, the printed step and agent-selection.md all name this path, and
+# nothing asserted it exists: deleting it left `ci` green here while every
+# consumer sync died on the missing DIRS entry (exit 3). Canonical-only —
+# a consumer receives the file but does not own it.
+if [ ! -f "${ROOT}/joharness.conf" ] ||
+   ! grep -q '^JOHARNESS_CANONICAL=1' "${ROOT}/joharness.conf" 2>/dev/null; then
+  skip "the file the rule names exists" "consumer checkout"
+elif [ -s "${ROOT}/.claude/agents/verifier.md" ]; then
+  pass "the file the rule names exists"
+else
+  fail "the file the rule names exists"
+fi
 expect "and says what makes it worth spawning" "it did not" "$out"
 expect "and how its findings are marked" "returns (verifier)" "$out"
 expect "standalone review runs with the gate off" "ci does not check" "$out"
@@ -3566,6 +3578,8 @@ expect "missing file created" "tiers v1" \
   "$(cat "${syncdst}/.agents/docs/agent-selection.md" 2>/dev/null)"
 expect "skills dir ships" "steward SKILL-SENTINEL" \
   "$(cat "${syncdst}/.claude/skills/steward/SKILL.md" 2>/dev/null)"
+expect "agents dir ships" "verifier stub" \
+  "$(cat "${syncdst}/.claude/agents/verifier.md" 2>/dev/null)"
 expect "ahead file flagged" "AHEAD   CLAUDE.md" "$out"
 expect "ahead file kept" "consumer hacked" "$(cat "${syncdst}/CLAUDE.md")"
 expect "glob sibling history does not vouch" "AHEAD   .agents/env/none/a[1].md" "$out"
