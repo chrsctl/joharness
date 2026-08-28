@@ -3535,16 +3535,30 @@ fi
 # deleted and went silent — a REGRESSION against origin/main, which caught
 # it. Every other case here touches or adds a file; none deleted one, which
 # is why nothing noticed.
+# The reviewer has to exist at the BASE and be deleted on the branch. Adding
+# and deleting it on the same branch nets to nothing, and the guard reads the
+# NET diff on purpose — a session that edited protocol and reverted it lands
+# nothing, which is the behavior its own comment defends. The first version
+# of this case did exactly that and failed for a reason unrelated to
+# deletion.
 git -C "$sgfull" checkout -q -- . 2>/dev/null || true
 git -C "$sgfull" clean -qfd
+git -C "$sgfull" checkout -q main
 mkdir -p "${sgfull}/.claude/agents"
 printf 'reviewer\n' >"${sgfull}/.claude/agents/verifier.md"
-commit_all "$sgfull" "a reviewer to retire"
+commit_all "$sgfull" "a reviewer at base"
+git -C "$sgfull" push -q origin main
+git -C "$sgfull" checkout -qb sgdelete
 git -C "$sgfull" rm -q -r .claude/agents
 commit_all "$sgfull" "retire the reviewer"
 out="$(guard_full unsupervised)"
 expect "deleting a protocol tree is a crossing" \
   "file(s) of protocol text" "$out"
+# And the property that makes the net-diff reading defensible: put it back,
+# and the branch is clean again.
+git -C "$sgfull" revert -q --no-edit HEAD
+out="$(guard_full unsupervised)"
+refute "restoring it clears the crossing" "file(s) of protocol text" "$out"
 git -C "$sgfull" checkout -q -- . 2>/dev/null || true
 git -C "$sgfull" clean -qfd
 
