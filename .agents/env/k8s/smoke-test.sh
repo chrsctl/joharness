@@ -14,12 +14,23 @@
 #
 # Usage: .agents/env/k8s/smoke-test.sh [--keep]   (or: ./joharness.sh verify)
 #   --keep  leave the test namespace behind for inspection
+#
+# Each run gets its own namespace. Cleanup deletes with --wait=false (waiting
+# would add ~15s to every green run for nothing), so the previous run's
+# namespace is usually still Terminating when the next one starts - and a
+# Terminating namespace accepts no pods, which failed every check after the
+# first two. A per-run name means back-to-back runs never meet. Pin one with
+# SMOKE_NAMESPACE and the run waits that namespace out instead.
 
 set -euo pipefail
 
 CLUSTER_NAME="${DEVENV_CLUSTER_NAME:-claude-dev}"
 KUBE_CONTEXT="k3d-${CLUSTER_NAME}"
-NS="${SMOKE_NAMESPACE:-devenv-smoke}"
+# $$ is this run's pid: unique among runs that can overlap on one host, and
+# still a valid DNS-1123 label. Pinned name = the caller's business, honoured
+# verbatim.
+NS="${SMOKE_NAMESPACE:-devenv-smoke-$$}"
+NS_WAIT_SECS="${SMOKE_NS_WAIT_SECS:-90}"
 KEEP=0
 [ "${1:-}" = "--keep" ] && KEEP=1
 
@@ -36,6 +47,24 @@ fail() { printf '  \033[31mFAIL\033[0m %s\n' "$*"; FAIL=$((FAIL + 1)); }
 step() { printf '\n== %s\n' "$*"; }
 
 k() { kubectl --context "$KUBE_CONTEXT" "$@"; }
+
+# Wait out a namespace that is still Terminating from an earlier run. Only a
+# pinned SMOKE_NAMESPACE can hit this - the per-run default cannot collide -
+# but when it does, every later check would fail for a reason that has nothing
+# to do with the cluster being broken. Returns non-zero if it never clears, so
+# the caller can say that instead of reporting eight mystery failures.
+await_namespace_gone() {
+  local waited=0
+  k get namespace "$NS" >/dev/null 2>&1 || return 0
+  printf '  namespace %s still exists; waiting up to %ss for it to clear\n' \
+    "$NS" "$NS_WAIT_SECS"
+  while k get namespace "$NS" >/dev/null 2>&1; do
+    [ "$waited" -ge "$NS_WAIT_SECS" ] && return 1
+    sleep 3
+    waited=$((waited + 3))
+  done
+  return 0
+}
 h() { helm --kube-context "$KUBE_CONTEXT" "$@"; }
 
 cleanup() {
@@ -85,6 +114,11 @@ fi
 # workaround. Without it the cluster looks healthy but every pod sandbox fails
 # with "can't get final child's PID from pipe: EOF".
 step "Pod creation"
+if ! await_namespace_gone; then
+  fail "namespace ${NS} is still Terminating after ${NS_WAIT_SECS}s - rerun, or unset SMOKE_NAMESPACE to get a per-run one"
+  printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
+  exit 1
+fi
 k create namespace "$NS" >/dev/null 2>&1 || true
 
 if k -n "$NS" run sandbox-probe \
