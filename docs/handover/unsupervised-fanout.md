@@ -7,7 +7,7 @@ plan: unsupervised-fanout
 session: https://claude.ai/code/session_01UcW18iV8drNpkz9rpCT27B
 agent: opus
 updated: 2026-08-28
-next: retire plan + workstream, PR; live-fleet acceptance needs a human go
+next: PR, merge
 ---
 
 ## Goal
@@ -88,7 +88,17 @@ Byte-identity, the one-time check the deleted assertion was reaching for:
 both run against this repo, `diff` clean — 2026-08-28, re-run after the
 review fixes.
 
-NOT met, deliberately: the end-to-end live-fleet run. It starts real
+NOT met, and NOT satisfiable today — measured, not assumed. `main`'s queue
+2026-08-28, `JOHARNESS_RUN_MODE=unsupervised
+./.agents/harness/queue-context.sh`: 5 free plans, 5 waves, every wave
+holding exactly one. A fan-out needs a wave of two or more, so a run right
+now starts no fleet and proves nothing. Carved out as
+`docs/plans/fanout-live-run.md`, which states that precondition and the
+human-go requirement, rather than left as an open criterion under a plan
+whose code has merged — a plan whose build is done invites the next session
+to build it again.
+
+The criterion itself: the end-to-end live-fleet run. It starts real
 sessions that act autonomously and merge their own pull requests. That is a
 resource and blast-radius decision for the human, and this session was not
 asked to make it. Reported unmet rather than quietly dropped or quietly run.
@@ -97,8 +107,8 @@ requests merged, and hours unattended.
 
 ## Blockers
 
-The live-fleet acceptance criterion needs an explicit human go. Nothing
-else blocks the merge.
+None. The unmet criterion is now its own plan, with its precondition
+stated: fanout-live-run.
 
 ## Where to look
 
