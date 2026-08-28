@@ -2867,7 +2867,7 @@ expect "a shipping plan is told what Acceptance owes" \
 # A fictional layer name on purpose: .agents/harness/ names no specific
 # environment layer (AGENTS.md Part 2, LAYER_CARVE_OUT), and the rule holds
 # for a test fixture too. Any name under .agents/env/ proves the same thing.
-expect "the selected env layer ships" \
+expect "the selected environment layer ships" \
   "env-layer: SHIPS to consumers — .agents/env/somelayer/setup.sh" "$out"
 refute "a layer is not called canonical-only" "env-layer: canonical-only" "$out"
 # AGENTS.md is spliced, not copied: everything above the Part 2 marker reaches
