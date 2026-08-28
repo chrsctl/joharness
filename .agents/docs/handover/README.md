@@ -23,9 +23,9 @@ Git + GitHub already record, precisely, no drift:
 | Whether it works | CI checks, `./joharness.sh verify` |
 | Who asked for what | issue and PR bodies, review threads |
 
-Writing any of that into markdown = second copy, rots immediately. Handover
-file saying "3 files changed, tests passing" worse than nothing: confidently
-wrong at next push.
+Writing any of that into markdown = second copy, rots immediately. A
+workstream file saying "3 files changed, tests passing" worse than nothing:
+confidently wrong at next push.
 
 NOT recoverable from repo: the reasoning —
 

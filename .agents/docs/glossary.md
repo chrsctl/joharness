@@ -10,35 +10,43 @@ be a second copy of that definition, and second copies rot against the first
 (`.agents/docs/caveman.md`, state each fact once).
 
 `ci` reads the `Not this` column and fails on any of those wordings in a
-tracked `*.md` or `*.sh` file. This file is the one place they may appear —
-exempted by path, because a marker comment would spread to every file that
-wanted the exemption.
+tracked file under `.agents/`, or a tracked root-level `*.md`. Not the whole
+tree: this vocabulary is harness-owned and ships to consumers, so a sync must
+never red a consumer's CI over the consumer's own product prose. This file is
+the one place the banned wordings may appear — exempted by path, because a
+marker comment would spread to every file that wanted the exemption.
 
 | Canonical | Means | Defined in | Not this |
 | --- | --- | --- | --- |
 | workstream file | one file per work, live on its branch, retired by its own pull request | `.agents/docs/handover/README.md` | handover file |
-| agent tier | which model tier implements a plan: haiku, sonnet, opus | `.agents/docs/agent-selection.md` | model tier |
+| agent tier | which of haiku, sonnet, opus implements a plan | `.agents/docs/agent-selection.md` | model tier |
 | environment layer | one directory under `.agents/env/`, at most one selected per repo | `.agents/env/README.md` | env layer |
 
 ## Where the code names the thing, the code wins
 
-Counts settle a spelling only when they are lopsided. "workstream file" 205
-against "handover file" 14 settles that one; "agent tier" 10 against "model
-tier" 6 does not, and the frontmatter field is `agent`, which is the stronger
-evidence. Re-count before quoting either figure — they move with every merge:
+Counts settle a spelling only when they are lopsided. Whole-tree measurement
+on 2026-08-25, before the sweep that made these rows true, recorded in
+`docs/research/glossary-enforcement.md`: 107 against 10, five files carrying
+both. That settles `workstream file`. It did NOT settle `agent tier` — 10
+against 5 on 2026-08-24 — and the frontmatter field is `agent`, which is the
+stronger evidence and is what decided that row. Re-counting today returns zero
+for every losing spelling; that is the lint working, not evidence. What a
+fresh count is still good for is the winning term, which moves with every
+merge:
 
 ```bash
-grep -rnoi "<term>" --include=*.md --include=*.sh . | grep -v '^./.git' | wc -l
+git grep -Fnoi -- "<term>" -- '.agents/*.md' '.agents/*.sh' ':(glob)*.md' | wc -l
 ```
 
 ## One meaning, or a named zone
 
 A glossary that fixes one meaning repo-wide fights the split this harness is
 built on. Where a term genuinely differs between `.agents/harness/` and an
-environment layer, the row names the zone rather than picking a winner —
-`.agents/docs/graph.md` holds the node vocabulary the rows above lean on. No
-term here is zone-split today; the rule exists so the first one that is does
-not get flattened into a wrong global answer.
+environment layer, it gets TWO rows, each `Canonical` cell carrying its zone
+(`retry (harness)`, `retry (env/k8s)`) so the two spellings differ and neither
+bans the other. No term here is zone-split today; the rule exists so the first
+one that is does not get flattened into a wrong global answer.
+`.agents/docs/graph.md` holds the node vocabulary the rows above lean on.
 
 ## Prose only
 

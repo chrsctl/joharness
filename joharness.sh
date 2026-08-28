@@ -532,6 +532,7 @@ cmd_ci() {
   printf '\n== glossary\n'
   lint_glossary || rc=1
 
+  # Graph edges, checked rather than trusted.
   printf '\n== graph lint\n'
   lint_graph || rc=1
 
@@ -749,8 +750,8 @@ selftest_inert_diff() {
 # Glossary lint
 #
 # The same node had two names in the files every session loads: measured
-# 2026-08-28 with the command the glossary itself carries, "workstream file"
-# 205 against the older spelling 14, five files using both. Instruction files
+# 2026-08-28 with the command the glossary carries, "workstream file" 205
+# against the older spelling 14, EIGHT files using both. Instruction files are
 # written for a literal reader, and a reader who meets two names for one thing
 # either asks or guesses.
 #
@@ -760,48 +761,98 @@ selftest_inert_diff() {
 # is a Go binary in a `ci` whose whole toolchain is shell and shellcheck, and
 # in a sandbox with an egress allowlist, for three substitutions.
 #
+# SCOPED TO WHAT THE HARNESS OWNS: everything under `.agents/` plus the
+# root-level `*.md` a session loads. Not the whole tree. The vocabulary is
+# harness-owned and a consumer cannot fix the glossary — editing it locally
+# makes the file AHEAD on every future sync — so a harness sync must never
+# red a consumer's CI over the consumer's own product prose. Inside
+# `.agents/` a consumer has nothing to fix either, because that tree is
+# synced: a hit there can only be canonical's, which is where it gets fixed.
+# The scope is the reason this stage needs no canonical-only gate.
+#
 # The bans are READ FROM the glossary table, never restated here: a second
 # copy of the list would rot against the first, which is the defect this stage
-# exists to catch.
+# exists to catch. The glossary itself is exempt by path — it must name what
+# it bans, and a marker comment would spread to every file that wanted one.
 # ---------------------------------------------------------------------------
 GLOSSARY_REL=".agents/docs/glossary.md"
 
+# Wildmatch, no `:(glob)` magic, so `*` crosses `/`: the two `.agents/`
+# patterns reach any depth. The third carries `:(glob)` precisely so it does
+# NOT — root-level `*.md` only.
+GLOSSARY_PATHS=('.agents/*.md' '.agents/*.sh' ':(glob)*.md')
+
+GLOSSARY_EXEMPT_RE="^(${GLOSSARY_REL})"
+
 lint_glossary() {
-  local gloss="${ROOT}/${GLOSSARY_REL}" rc=0 rows hits canon bad
+  local gloss="${ROOT}/${GLOSSARY_REL}" rc=0 rows hits canon bads bad gl_fail
   if [ ! -r "$gloss" ]; then
     printf '  no glossary here (%s)\n' "$GLOSSARY_REL"
     return 0
   fi
 
-  # Table rows only: four columns, and the header and its dashes dropped.
-  rows="$(awk -F'|' '/^\|/ && NF >= 5 {
-      c = $2; n = $5
-      gsub(/[`[:space:]]+$/, "", c); gsub(/^[`[:space:]]+/, "", c)
-      gsub(/[`[:space:]]+$/, "", n); gsub(/^[`[:space:]]+/, "", n)
-      if (c == "Canonical" || c ~ /^-+$/ || c == "" || n == "") next
-      print c "\t" n
-    }' "$gloss")"
-
-  if [ -z "$rows" ]; then
-    printf '  glossary has no rows to enforce\n'
+  # Not a git repo: `git grep` cannot run, so say that instead of printing
+  # the green line for a check that never happened.
+  if ! git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+    printf '  not a git checkout here; nothing to scan\n'
     return 0
   fi
 
-  while IFS="$(printf '\t')" read -r canon bad; do
-    [ -n "$bad" ] || continue
-    # Tracked files only, and never the glossary: it must name what it bans.
-    hits="$(git -C "$ROOT" grep -Ini -- "$bad" -- '*.md' '*.sh' 2>/dev/null |
-      grep -v "^${GLOSSARY_REL}:" || :)"
-    if [ -n "$hits" ]; then
-      rc=1
-      printf '%s\n' "$hits" | while IFS= read -r h; do
-        printf '  %s\n' "$h"
-      done
+  # ONE table, the one under the expected header, and every row exactly four
+  # cells. Everything here was a way the parser silently changed what it
+  # enforced: a GFM alignment row (`|:--- | ---: |`) became a row banning
+  # "---" repo-wide, a second table anywhere in the file became a second ban
+  # list, a renamed first column turned the header itself into a ban, and an
+  # escaped pipe inside a cell shifted the columns so the real ban vanished
+  # and a fragment took its place. A malformed row is now loud, never quiet.
+  rows="$(awk -F'|' '
+      function trim(s) { gsub(/^[`[:space:]]+|[`[:space:]]+$/, "", s); return s }
+      /^[[:space:]]*\|/ {
+        if (!intable) {
+          if (trim($2) == "Canonical" && trim($5) == "Not this") { intable = 1 }
+          next
+        }
+        sep = $0; gsub(/[|:[:space:]-]/, "", sep)
+        if (sep == "") next
+        if (NF != 6) { print "MALFORMED\t" trim($0); next }
+        c = trim($2); n = trim($5)
+        if (c != "" && n != "") print c "\t" n
+        next
+      }
+      intable && !/^[[:space:]]*\|/ { intable = 0 }
+    ' "$gloss")"
+
+  if printf '%s\n' "$rows" | grep -q '^MALFORMED'; then
+    printf '%s\n' "$rows" | sed -n 's/^MALFORMED\t/  malformed row: /p'
+    printf '  ^ a glossary row is four cells; a pipe inside one shifts them\n'
+    return 1
+  fi
+
+  gl_fail="$(mktemp)"
+
+  while IFS="$(printf '\t')" read -r canon bads; do
+    [ -n "$bads" ] || continue
+    # One row may ban several wordings; a comma-separated cell taken whole
+    # would be a literal search for "a, b" — a ban that looks live and is dead.
+    printf '%s\n' "$bads" | tr ',' '\n' | while IFS= read -r bad; do
+      bad="$(printf '%s' "$bad" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+      [ -n "$bad" ] || continue
+      # -F: a banned wording is a literal, never a pattern.
+      hits="$(git -C "$ROOT" grep -Fni -- "$bad" -- "${GLOSSARY_PATHS[@]}" 2>/dev/null |
+        grep -vE "$GLOSSARY_EXEMPT_RE" || :)"
+      [ -n "$hits" ] || continue
+      printf '%s\n' "$hits" | while IFS= read -r h; do printf '  %s\n' "$h"; done
       printf '  ^ says "%s"; this repo says "%s" (%s)\n' "$bad" "$canon" "$GLOSSARY_REL"
-    fi
+      printf 'x' >>"$gl_fail"
+    done
   done <<EOF
 $rows
 EOF
+  # The loop above runs in a subshell (pipeline), so the failure travels as a
+  # file rather than a variable — a gate whose rc never escapes is a gate that
+  # is always green.
+  if [ -s "$gl_fail" ]; then rc=1; fi
+  rm -f "$gl_fail"
 
   [ "$rc" -eq 0 ] && printf '  every contested term spelled as the glossary fixes it\n'
   return "$rc"
