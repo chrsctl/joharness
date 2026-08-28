@@ -51,7 +51,7 @@ Sandbox = Firecracker microVM + filtering egress proxy. Workarounds in
   every pod stuck `ContainerCreating` forever, cluster looks healthy.
   containerd drop-in fixes.
 - Host = cgroup v1. Kubelet refuses it from v1.35 by default. Kubelet drop-in
-  (`failCgroupV1: false`, rendered by devenv.sh) lets pinned v1.35 run — load
+  (`failCgroupV1: false`, rendered by devenv.sh) lets the pinned version run — load
   bearing. Bump `K3S_IMAGE` only with green smoke test after.
 - NO proxy env vars in cluster nodes. Proxy lives on host `127.0.0.1` — wrong
   address inside container. Egress intercepted transparently; nodes need CA
