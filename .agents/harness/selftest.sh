@@ -1423,6 +1423,10 @@ write_ws() {
 out="$(JOHARNESS_REVIEW=on jr review)"
 expect "base branch has nothing to review yet" "nothing to review yet" "$out"
 
+# The verifier step prints where the depth prints. A rule naming a reader
+# that never gets named at the moment it comes due is the exhortation this
+# repo's own ledger says does not work.
+
 git -C "$rwork" checkout -qb work
 printf 'code\n' >"${rwork}/feature.txt"
 write_ws ws.md in-progress none "agent: opus" ""
@@ -1432,6 +1436,22 @@ commit_all "$rwork" "work with an empty review section"
 out="$(jr ci)"
 refute "review gate silent by default" "== review" "$out"
 out="$(jr review)"
+expect "the verifier step prints beside the depth" \
+  "verifier: spawn .claude/agents/verifier.md at opus" "$out"
+# The rule, the printed step and agent-selection.md all name this path, and
+# nothing asserted it exists: deleting it left `ci` green here while every
+# consumer sync died on the missing DIRS entry (exit 3). Canonical-only —
+# a consumer receives the file but does not own it.
+if [ ! -f "${ROOT}/joharness.conf" ] ||
+   ! grep -q '^JOHARNESS_CANONICAL=1' "${ROOT}/joharness.conf" 2>/dev/null; then
+  skip "the file the rule names exists" "consumer checkout"
+elif [ -s "${ROOT}/.claude/agents/verifier.md" ]; then
+  pass "the file the rule names exists"
+else
+  fail "the file the rule names exists"
+fi
+expect "and says what makes it worth spawning" "it did not" "$out"
+expect "and how its findings are marked" "returns (verifier)" "$out"
 expect "standalone review runs with the gate off" "ci does not check" "$out"
 expect "standalone review reads the tier's depth" "docs/handover/ws.md [opus" "$out"
 expect "opus depth is the adversarial recipe" "does-it-reproduce" "$out"
@@ -1511,6 +1531,9 @@ commit_all "$rwork" "drop the workstream file"
 out="$(ci_review)"
 expect "conf opt-in arms the gate" "no workstream file on this branch" "$out"
 expect "the gate says what it did not check" "by protocol" "$out"
+# No workstream file, no depth, so no verifier step either — the step is
+# printed beside a depth, and there is none to print beside.
+refute "no verifier step where there is no depth" "verifier: spawn" "$out"
 if ci_rc_review; then
   pass "no workstream file is not a red"
 else
@@ -3457,6 +3480,7 @@ git -C "$syncsrc" commit -qm "move layers under .agents/"
 mkdir -p "${syncsrc}/.agents/harness" "${syncsrc}/.agents/scripts" \
   "${syncsrc}/.agents/env/none" \
   "${syncsrc}/.claude/commands" "${syncsrc}/.claude/skills/steward" \
+  "${syncsrc}/.claude/agents" \
   "${syncsrc}/.agents/docs/handover" \
   "${syncsrc}/.agents/docs/plans" "${syncsrc}/.agents/docs/product"
 printf 'JOHARNESS_CANONICAL=1\n' >"${syncsrc}/joharness.conf"
@@ -3482,6 +3506,7 @@ printf 'layer aaa AAA-SENTINEL\n' >"${syncsrc}/.agents/env/aaa/AGENTS.md"
 printf 'aaa setup\n' >"${syncsrc}/.agents/env/aaa/setup.sh"
 printf 'who cmd\n' >"${syncsrc}/.claude/commands/who.md"
 printf 'steward SKILL-SENTINEL\n' >"${syncsrc}/.claude/skills/steward/SKILL.md"
+printf 'verifier stub\n' >"${syncsrc}/.claude/agents/verifier.md"
 # Every FILES entry must exist: a listed-but-missing file fails the run.
 printf 'attrs\n' >"${syncsrc}/.gitattributes"
 printf '{}\n' >"${syncsrc}/.claude/settings.json"
@@ -3553,6 +3578,8 @@ expect "missing file created" "tiers v1" \
   "$(cat "${syncdst}/.agents/docs/agent-selection.md" 2>/dev/null)"
 expect "skills dir ships" "steward SKILL-SENTINEL" \
   "$(cat "${syncdst}/.claude/skills/steward/SKILL.md" 2>/dev/null)"
+expect "agents dir ships" "verifier stub" \
+  "$(cat "${syncdst}/.claude/agents/verifier.md" 2>/dev/null)"
 expect "ahead file flagged" "AHEAD   CLAUDE.md" "$out"
 expect "ahead file kept" "consumer hacked" "$(cat "${syncdst}/CLAUDE.md")"
 expect "glob sibling history does not vouch" "AHEAD   .agents/env/none/a[1].md" "$out"
@@ -4057,6 +4084,7 @@ mkdir -p "${bootsrc}/.agents/harness" "${bootsrc}/.agents/scripts" \
   "${bootsrc}/.agents/env/none" "${bootsrc}/.agents/docs/handover" \
   "${bootsrc}/.agents/docs/plans" "${bootsrc}/.agents/docs/product" \
   "${bootsrc}/.claude/commands" "${bootsrc}/.claude/skills/steward" \
+  "${bootsrc}/.claude/agents" \
   "${bootsrc}/docs/handover" \
   "${bootsrc}/docs/plans" "${bootsrc}/docs/product" \
   "${bootsrc}/.github/workflows"
@@ -4074,6 +4102,7 @@ mkdir -p "${bootsrc}/.agents/env/aaa"
 printf 'layer aaa BOOT-AAA-SENTINEL\n' >"${bootsrc}/.agents/env/aaa/AGENTS.md"
 printf 'who cmd\n' >"${bootsrc}/.claude/commands/who.md"
 printf 'steward stub\n' >"${bootsrc}/.claude/skills/steward/SKILL.md"
+printf 'verifier stub\n' >"${bootsrc}/.claude/agents/verifier.md"
 printf 'attrs\n' >"${bootsrc}/.gitattributes"
 printf '{}\n' >"${bootsrc}/.claude/settings.json"
 # ci.yml and update.yml are NOT in sync's FILES list: the bootstrap copies
