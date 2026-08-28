@@ -134,6 +134,14 @@ chmod +x "${TMP}/bin/shellcheck"
 PATH="${TMP}/bin:${PATH}"
 export PATH
 
+# Same argument as the stub above, one section later in `ci`: fixture runs
+# would each re-measure five entrypoints for a verdict the real run reaches on
+# the real tree. Measured 2026-08-28: without this the suite ran 70s, with it
+# 47s. The perf gate keeps its own cases below, and the real `ci` still
+# measures the real tree — nothing here lowers that bar.
+JOHARNESS_PERF=off
+export JOHARNESS_PERF
+
 # A commit in the repo $1 with message $2, after staging everything.
 commit_all() { git -C "$1" add -A && git -C "$1" commit -qm "$2"; }
 
@@ -4551,6 +4559,85 @@ if [ "$rc" -eq 1 ]; then pass "a failing layer is red"
 else fail "a failing layer is red (got ${rc})"; fi
 expect "the other layer still ran" "ran fine" "$out"
 expect "the failure names the layer" "layer verify failed: broken" "$out"
+
+step "joharness.sh perf"
+
+# The guard PR 54 never had. These cases exercise it through the real
+# entrypoint, but only ever ONE row at a time: measuring all five costs ~5s,
+# and a suite that re-measures is the waste this whole subcommand exists to
+# notice (JOHARNESS_PERF=off at the top of this file, same argument).
+#
+# `graph` is the row used throughout — cheapest of the five, and the one whose
+# count a reverted gr_fields actually moves.
+pf_run() { ( cd "$ROOT" && JOHARNESS_PERF='' "$@" 2>&1 ); }
+
+out="$(pf_run ./joharness.sh perf graph)" && rc=0 || rc=$?
+expect "perf names the entrypoint it measured" "graph" "$out"
+expect "perf prints a counted number and a budget" "budget" "$out"
+if [ "$rc" -eq 0 ]; then pass "a tree inside budget is green"
+else fail "a tree inside budget is green (got ${rc})"; fi
+
+# The gate fires. A budget of 1 is a stand-in for a regression: what matters
+# is that OVER is reached, named, and carried into the exit status — a guard
+# that prints a breach and exits 0 is not a guard.
+out="$(pf_run env JOHARNESS_PERF_BUDGET_GRAPH=1 ./joharness.sh perf graph)" && rc=0 || rc=$?
+expect "a breach says OVER" "OVER by" "$out"
+expect "a breach names the entrypoint" "graph" "$out"
+expect "a breach says what to do instead of raising the number" "do not raise the number" "$out"
+if [ "$rc" -ne 0 ]; then pass "a breach is a non-zero exit"
+else fail "a breach is a non-zero exit (got 0)"; fi
+
+# A typo must not read as a clean run. Silence over an unknown name would be
+# a green tick over nothing measured at all.
+out="$(pf_run ./joharness.sh perf nosuchentrypoint)" && rc=0 || rc=$?
+expect "an unknown entrypoint is named" "no entrypoint named 'nosuchentrypoint'" "$out"
+expect "the unknown-entrypoint warning lists the real ones" "session-start" "$out"
+if [ "$rc" -ne 0 ]; then pass "an unknown entrypoint is not a pass"
+else fail "an unknown entrypoint is not a pass (got 0)"; fi
+
+# The skips live in `ci`, so they are asserted there — through the SAME
+# scratch copy the selftest-scope cases use, never through this repo's own
+# `ci`. A case that ran the real `ci` would re-enter this suite: `cmd_ci` runs
+# selftest.sh, and selftest.sh would run `cmd_ci` again. The scratch copy
+# carries a stub suite for exactly that reason.
+pf_ci() { CLAUDE_PROJECT_DIR="$swork" JOHARNESS_CONF="${swork}/joharness.conf" \
+  GITHUB_ACTIONS='' JOHARNESS_PERF="${pf_override-off}" \
+  "${swork}/joharness.sh" ci 2>&1 | sed -n '/== perf budget/,/^$/p'; }
+
+out="$(pf_ci)"
+expect "JOHARNESS_PERF=off skips the section" "skipped: JOHARNESS_PERF=off" "$out"
+refute "the skipped section counts nothing" "counted" "$out"
+
+# Docs-only branch, with the off-switch cleared: the OTHER skip has to be the
+# one that fires, or the fixture proves nothing about it.
+# From origin/main, not from wherever the earlier scope cases left this
+# fixture: those committed harness edits onto their own branches, and a branch
+# cut from one of them carries them into its diff — which is not a docs-only
+# branch, however docs-only the last commit looks. Uncommitted leftovers count
+# too (selftest_inert_diff reads `git status` as well), so drop those first.
+# An entrypoint that spawns nothing must report a clean single number. `grep
+# -c` prints its count AND exits non-zero when that count is zero, so a
+# fallback on failure fired on top of the 0 grep had already printed and the
+# count reached the table as two lines — `[: integer expression expected` from
+# the comparison, and a garbled row. Only a repo small enough to produce a
+# zero shows it, which is why this is asserted on the fixture and not here.
+git -C "$swork" checkout -q -- . 2>/dev/null || true
+git -C "$swork" checkout -qb perfzero origin/main
+printf '# harness edit\n' >>"${swork}/joharness.sh"
+commit_all "$swork" "harness edit, so perf actually runs"
+out="$(pf_override='' pf_ci)"
+expect "a zero count is one number, not two" "queue-context         0" "$out"
+refute "a zero count is not compared as a string" "integer expression expected" "$out"
+
+git -C "$swork" checkout -q -- . 2>/dev/null || true
+git -C "$swork" checkout -qb perfdocs2 origin/main
+mkdir -p "${swork}/docs"
+printf 'perf notes 2\n' >>"${swork}/docs/perf-note2.md"
+commit_all "$swork" "docs only, for perf, again"
+out="$(pf_override='' pf_ci)"
+expect "a docs-only branch skips the perf gate" "skipped: nothing outside" "$out"
+expect "the perf skip says how to override it" "JOHARNESS_PERF=always" "$out"
+refute "the docs-only skip counts nothing" "counted" "$out"
 
 # --- summary ----------------------------------------------------------------
 # Skips are printed in the count, never folded into passed: a run that could

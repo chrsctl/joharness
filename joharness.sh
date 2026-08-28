@@ -27,6 +27,11 @@
 #                   GitHub comment; rendered natively)
 #   scorecard       count how THIS branch behaved since its merge base.
 #                   Reports only, never gates
+#   perf            count external commands per harness entrypoint against a
+#                   budget. Counts gate; seconds print and never gate. Runs
+#                   inside `ci` too, skipped on a docs-only branch
+#   perf <name>     measure one entrypoint only (feedback, review, graph,
+#                   session-start, queue-context)
 #   cleanup         count what the finish ritual left on the base branch:
 #                   workstream files, plans whose work merged, merged
 #                   branches. Reports only
@@ -583,6 +588,37 @@ cmd_ci() {
     printf '  not measurable here (no merge-base; shallow checkout or base branch)\n'
   fi
 
+  # Counts, not seconds. Registered here rather than in .github/workflows/ci.yml
+  # because the workflow already runs this command: the guard reaches GitHub
+  # with no workflow edit, and a session gets it BEFORE the pull request by
+  # running `ci` — which is the split ci.yml's own header asks for. A workflow
+  # could not do the second half anyway: GitHub registers a dispatchable
+  # workflow only from the default branch, so a new one cannot run before its
+  # own merge.
+  #
+  # Same skip as the selftest, for the same reason: the counts measure harness
+  # code, and a branch touching only docs/ cannot move them. Measured cost of
+  # running it, 2026-08-28 on this repo: `ci` 61s without, 66s with — the five
+  # entrypoints are ~5s. That is the price of the gate on a harness branch and
+  # zero on a docs branch.
+  printf '\n== perf budget\n'
+  if [ "${JOHARNESS_PERF:-}" = "off" ]; then
+    # Fixture runs of `ci` set this. Same reasoning as the shellcheck stub in
+    # .agents/harness/selftest.sh, and the same measurement behind it: without
+    # it the suite went 47s -> 70s, because ~20 fixture `ci` runs each
+    # re-measured five entrypoints for a verdict the real run reaches on the
+    # real tree one section later. That is the exact waste PR 54 removed,
+    # reintroduced by the guard built to notice it. The bar does not move —
+    # the real `ci` still measures, and perf has its own cases in the suite.
+    printf '  skipped: JOHARNESS_PERF=off\n'
+  elif [ "${JOHARNESS_PERF:-}" != "always" ] &&
+     selftest_inert_diff HEAD "origin/${HANDOVER_BASE_BRANCH:-main}"; then
+    printf '  skipped: nothing outside docs/ and README.md changed on this branch\n'
+    printf '  Run it anyway: JOHARNESS_PERF=always %s ci\n' "$0"
+  else
+    perf_report || rc=1
+  fi
+
   # Off by default and silent while off, so a repo that never opted in gets
   # the same ci output it got before this existed.
   if review_on; then
@@ -751,6 +787,161 @@ selftest_inert_diff() {
 
   [ "$seen" -eq 1 ] || return 1
   return 0
+}
+
+# ---------------------------------------------------------------------------
+# Perf budget
+#
+# PR 54 cut `ci` 61.7s -> 20.2s by removing work per run, and left the proof
+# in a workstream file that merged and was swept. Nothing re-counted it, so
+# the whole optimization was defended by a table no tree carried and no
+# command reproduced — a written number, which step 5 says never to trust.
+# This counts it instead.
+#
+# WHAT is counted: external commands spawned, not seconds. A count is
+# deterministic for a given code path; wall-clock on a shared runner is not,
+# and a gate that reddens for the weather is one sessions re-run instead of
+# read. Seconds are printed beside each count because they are what a human
+# feels, and they never gate.
+#
+# HOW: a directory of shims goes on PATH ahead of the real binaries, each
+# shim appending one line to a counter file before exec'ing the real thing.
+# Same trick as the shellcheck stub in .agents/harness/selftest.sh and the
+# same reason it is sound: the shim changes what is RECORDED, never what is
+# run — exec preserves argv, the streams and the exit status.
+#
+# mktemp -d, 0700: this prepends a directory to PATH and then runs `git` out
+# of it. A predictable path under a shared /tmp is an injection point, not a
+# style question. Real binaries are resolved BEFORE the shim dir goes on
+# PATH, or each shim would exec itself.
+PERF_BINS="git awk sed grep sort wc"
+
+# Caps pinned during measurement, so the number describes the CODE and not
+# how much history this repo has accumulated since. feedback reads at most
+# FB_LIMIT edges (50 by default) and would otherwise drift with every merge.
+PERF_EDGES=20
+
+perf_shims() {
+  local dir="$1" b real
+  for b in $PERF_BINS; do
+    real="$(command -v "$b" 2>/dev/null)" || continue
+    [ -n "$real" ] || continue
+    [ -x "$real" ] || continue
+    # ${VAR:-/dev/null}: a shim that outlives its measurement (a stray PATH,
+    # a nested run) must stay a working binary, never a broken one.
+    cat >"${dir}/${b}" <<SHIM
+#!/bin/sh
+printf '%s\n' "${b}" >>"\${JOHARNESS_PERF_COUNTER:-/dev/null}"
+exec "${real}" "\$@"
+SHIM
+    chmod +x "${dir}/${b}" || return 1
+  done
+  return 0
+}
+
+# Count external commands spawned by one entrypoint. Echoes "<count> <secs>".
+perf_count() {
+  local dir counter n start end secs
+  dir="$(mktemp -d 2>/dev/null)" || return 1
+  chmod 700 "$dir" || { rm -rf "$dir"; return 1; }
+  counter="${dir}/.count"
+  : >"$counter"
+  perf_shims "$dir" || { rm -rf "$dir"; return 1; }
+
+  start="$(date +%s)"
+  # Output discarded, status ignored: this measures how much work an
+  # entrypoint does, and an entrypoint that exits non-zero on this branch
+  # (review with a record owed, finish at the edge) still did the work.
+  #
+  # </dev/null is load bearing. session-start is a hook and reads stdin; run
+  # from inside cmd_perf's `while read` loop it ate the remaining rows out of
+  # the loop's own stdin, and the queue-context row silently vanished from the
+  # table. A measure that quietly drops a metric is worse than no measure.
+  PATH="${dir}:${PATH}" \
+    JOHARNESS_PERF_COUNTER="$counter" \
+    JOHARNESS_FEEDBACK_EDGES="$PERF_EDGES" \
+    "$@" </dev/null >/dev/null 2>&1 || true
+  end="$(date +%s)"
+
+  # `grep -c` prints its count AND exits 1 when the count is zero, so a
+  # `|| printf 0` fallback fires ON TOP of the 0 grep already printed and the
+  # variable becomes two lines. That reached the table as an entrypoint with a
+  # two-line count and `[: integer expression expected` from the comparison.
+  n="$(grep -c . "$counter" 2>/dev/null || true)"
+  case "$n" in ''|*[!0-9]*) n=0 ;; esac
+  secs=$((end - start))
+  rm -rf "$dir"
+  printf '%s %s\n' "${n:-0}" "$secs"
+}
+
+# One row per entrypoint: name, budget literal, then the command.
+#
+# Budgets are CEILINGS with headroom, not targets, and they are literals here
+# beside the churn thresholds rather than in a data file — every other measure
+# in this harness counts from git at read time and stores nothing, and a
+# budget is a threshold (a decision) not a measurement (a fact).
+#
+# What a ceiling catches is a regression IN KIND: a per-item fork put back
+# into a loop, which is what PR 54 removed and what doubles a count. It does
+# not catch a 5% drift, and is not meant to — the counted number is printed
+# every run, so drift stays visible to a reader without a gate that cries.
+perf_rows() {
+  printf '%s\n' \
+    "feedback|${JOHARNESS_PERF_BUDGET_FEEDBACK:-265}|${ROOT}/joharness.sh feedback" \
+    "review|${JOHARNESS_PERF_BUDGET_REVIEW:-265}|${ROOT}/joharness.sh review" \
+    "graph|${JOHARNESS_PERF_BUDGET_GRAPH:-260}|${ROOT}/joharness.sh graph" \
+    "session-start|${JOHARNESS_PERF_BUDGET_SESSION_START:-700}|${ROOT}/joharness.sh session-start" \
+    "queue-context|${JOHARNESS_PERF_BUDGET_QUEUE:-350}|${HARNESS_ROOT}/queue-context.sh"
+}
+
+# The table itself, so `ci` can print its own section banner above it.
+perf_report() {
+  local only="${1:-}" rc=0 seen=0 name budget cmd counted n secs
+  printf '   %-14s %8s %8s  %s\n' "entrypoint" "counted" "budget" "verdict"
+
+  while IFS='|' read -r name budget cmd; do
+    [ -n "$name" ] || continue
+    # One entrypoint by name: what a session wants while optimizing that one
+    # thing, and what keeps the suite's own cases from re-measuring all five.
+    [ -z "$only" ] || [ "$name" = "$only" ] || continue
+    seen=1
+    # shellcheck disable=SC2086
+    if ! counted="$(perf_count $cmd)"; then
+      printf '   %-14s %8s %8s  %s\n' "$name" "?" "$budget" "NOT MEASURED"
+      warn "could not measure ${name} (mktemp or shim failed); a partial table is no budget"
+      rc=1
+      continue
+    fi
+    n="${counted%% *}"
+    secs="${counted##* }"
+    if [ "$n" -gt "$budget" ]; then
+      printf '   %-14s %8s %8s  OVER by %s (%ss)\n' "$name" "$n" "$budget" \
+        "$((n - budget))" "$secs"
+      rc=1
+    else
+      printf '   %-14s %8s %8s  ok (%ss)\n' "$name" "$n" "$budget" "$secs"
+    fi
+  done < <(perf_rows)
+
+  if [ -n "$only" ] && [ "$seen" -eq 0 ]; then
+    warn "no entrypoint named '${only}' (try one of: $(perf_rows | cut -d'|' -f1 | tr '\n' ' '))"
+    return 1
+  fi
+
+  if [ "$rc" -ne 0 ]; then
+    printf '\n  A budget is a ceiling for a regression in kind — a per-item fork\n'
+    printf '  put back inside a loop is what doubles one of these. Find the loop\n'
+    printf '  that grew a fork; do not raise the number to match the code.\n'
+    printf '  Genuine new work in an entrypoint: raise the literal in perf_rows,\n'
+    printf '  in the same commit as the work, with the counted number recorded.\n'
+  fi
+  return "$rc"
+}
+
+cmd_perf() {
+  printf '== perf budget (external commands per entrypoint)\n'
+  printf '   counts gate; seconds are printed and never gate\n\n'
+  perf_report "${1:-}"
 }
 
 # ---------------------------------------------------------------------------
@@ -2681,6 +2872,7 @@ main() {
     finish)         cmd_finish ;;
     graph)          cmd_graph ;;
     scorecard)      cmd_scorecard ;;
+    perf)           cmd_perf "${1:-}" ;;
     # Warning on stderr, value on stdout: the guard captures stdout and must
     # keep getting one clean word, while a human running this against a
     # typo'd conf needs to hear about it. Same lesson the review knob
