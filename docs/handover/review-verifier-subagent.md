@@ -46,6 +46,43 @@ review step one reader that did not write the diff.
 (in flight — the acceptance replay is running; findings land here before
 their fixes and in the same commit, per step 5)
 
+## Acceptance: the replay
+
+PASS, on the plan's own criterion — the verifier was given PR54's diff
+(`git diff 78d5243 be6cebe`, 6 files / 722 insertions / 145 deletions) and
+nothing else, and returned:
+
+> **`joharness.sh:1339-1341` — `git diff --name-only "$base" "$r"` returns
+> deletions, so a branch that *deleted* a file reads as "still carries it",
+> permanently. VERIFIED.** Branch `sweeper` does exactly what `--apply`
+> produces — `git rm docs/handover/alpha.md`, commit, push, unmerged — and
+> `cleanup` from `main` then prints `keep docs/handover/alpha.md — an
+> unmerged branch still carries it`.
+
+That is the escape, named at its line, with the deletion-counts-as-a-
+difference explanation the plan asked for, and reproduced in a scratch repo
+rather than argued. It also caught what the plan did not ask for: that the
+selftest case covering it passes only because the fixture never pushes the
+deletion.
+
+Seven further findings came back, and TWO are already fixed on today's
+`main` — which is the strongest evidence in the run, because it means an
+independent reader re-derived defects this repo found the expensive way:
+
+- The escape itself. `cl_inflight` now carries `--diff-filter=ACMRT` and a
+  comment naming the exact failure (`joharness.sh:1745`).
+- `base_ref()` falling back to `HEAD`, so `--apply` deletes the running
+  session's own live claim. `cmd_cleanup` now calls `decide_ref()` and dies
+  with an error that names that danger in words.
+
+Four I have NOT checked against today's `main` — `status:` never read, a
+failed `git rm` counted nowhere while the run reports success, the
+detached-HEAD guard comparing against `rev-parse --abbrev-ref HEAD`, and the
+plans section filtering on the working tree rather than the ref. They were
+true of the 2026-08 diff. Whether they survived is a separate question and
+its own plan; folding a `cleanup` audit into this PR would widen it past
+the mechanism it exists to prove.
+
 ## Progress
 
 Built and green, not yet reviewed:
