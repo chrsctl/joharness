@@ -24,7 +24,9 @@ requirement file too.
 directory, a layer). The queue hook partitions free plans into waves of
 disjoint scopes — parallel proven inside a wave, the conflicting pair
 named across. `none` = independence stays unprovable; the plan is listed
-but joins no wave.
+but joins no wave. Prefix a path `shared:` when a reconcile merge there is
+routine: marked by BOTH plans, it stops splitting the wave and is named as
+the cost instead (.agents/docs/plans/README.md).
 -->
 
 ## Goal
