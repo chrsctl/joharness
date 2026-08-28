@@ -1,13 +1,13 @@
 ---
 workstream: fanout-plan-sharpen
-status: in-progress
+status: review
 branch: claude/backpass-usage-review-sbew6t
 pr: none
 plan: none
 session: https://claude.ai/code/session_01UcW18iV8drNpkz9rpCT27B
 agent: sonnet
 updated: 2026-08-28
-next: Rewrite unsupervised-fanout's Goal, Scope and scope: frontmatter against what shipped
+next: retire workstream, PR, merge
 ---
 
 ## Goal
@@ -28,11 +28,42 @@ Lifecycle — the same route PR #100 took for `process-scorecard`.
 
 ## Rejected
 
-(nothing yet)
+- Deleting the `needs: unsupervised-heartbeat` frontmatter now that it has
+  merged. The graph model resolves a `needs:` naming a retired plan as an
+  inert edge, not a dangling one, and the field is the provenance of why
+  this plan waited. Removing it would make the plan look like it never had
+  a dependency.
+- Rewriting the Acceptance section. Its criteria are still the right ones,
+  including the live-fleet run — that is a cost to schedule deliberately,
+  not a defect to edit away.
 
 ## Review
 
-(pending)
+Self-review at `sonnet` depth: this diff is one plan file, so `/code-review`
+over it is a read of prose against the code it describes. Every claim the
+sharpened text makes was re-derived from the tree rather than from the plan.
+
+- r1 Checked, not assumed: `.agents/docs/unsupervised.md` exists at 190
+  lines with the six headings the new Scope names. `grep -n JOHARNESS_MODE
+  .agents/harness/queue-context.sh` returns nothing. `joharness.sh:2652`
+  invokes the hook as a child; the export twelve lines above it is
+  `JOHARNESS_SESSION_SOURCE`. All four re-run 2026-08-28.
+- r2 The plan's Goal claimed the fan-out line was "a report that spawning is
+  possible" needing to "become an instruction". The shipped line reads
+  `Spawn one per plan, model = its tier:` — imperative already. Corrected
+  rather than kept, because a plan that misdescribes the code it edits sends
+  its implementer looking for a problem that is not there. (fixed)
+- r3 Three more sections had gone stale the same way heartbeat's merge made
+  the Scope stale: the "Document the stop" trap asks for a stop that ships
+  and is proved; the no-cap bullet asks for an argument that is already
+  written; the "Blocked until unsupervised-heartbeat merges" trap outlived
+  its blocker. All three now cite what exists instead of ordering it
+  written again. (fixed)
+- r4 The `scope:` frontmatter is the field `queue-context.sh` parses to
+  print "parallel is proven", so understating it produces a false
+  independence proof — the same defect PR #100 fixed for
+  `process-scorecard` and PR #102 recorded against itself. `joharness.sh`
+  added. (fixed)
 
 ## Blockers
 

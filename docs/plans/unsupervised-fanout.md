@@ -5,21 +5,24 @@ agent: opus
 effort: xhigh
 needs: unsupervised-heartbeat
 requirement: unsupervised-mode
-scope: .agents/harness/queue-context.sh, .agents/docs/unsupervised.md, .agents/harness/selftest.sh
+scope: .agents/harness/queue-context.sh, .agents/docs/unsupervised.md, .agents/harness/selftest.sh, joharness.sh
 ---
 
 ## Goal
 
-The fan-out instruction already exists. With two or more free plans the
-queue hook prints `%d free plans = %d parallel sessions. Spawn one per
-plan, model = its tier:` and lists them
-(`.agents/harness/queue-context.sh:"free plans = %d parallel sessions"`), and
-the wave partition above it
-has already proved which plans are parallel-safe from disjoint `scope:`
-declarations. Nothing acts on it: a human reads that line and starts
-sessions by hand, or does not, and the fleet stays at one. This plan makes
-an unsupervised session act on it, and makes the resulting fleet keep
-going for hours without a human turn.
+The fan-out line already exists AND already reads as an instruction:
+`%d free plans = %d parallel sessions. Spawn one per plan, model = its
+tier:` (`.agents/harness/queue-context.sh:399`), with the wave partition
+above it already proving which plans are parallel-safe from disjoint
+`scope:` declarations. The gap is NOT the wording — an earlier draft of
+this Goal said it was. The gap is that the line is unconditional: it says
+the same thing to a supervised session, where a human decides whether to
+spawn, as it would to an unsupervised one, where nobody is there to
+decide. Checked 2026-08-28: `grep -n JOHARNESS_MODE
+.agents/harness/queue-context.sh` returns nothing — the hook has no mode
+awareness at all. This plan makes the line mode-dependent, so under
+unsupervised it is an order to spawn now and under supervised it is
+unchanged.
 
 Endurance is NOT this plan's to deliver, and an earlier draft of it
 claimed otherwise. Fan-out is a multiplier, not a clock: each spawned
@@ -31,17 +34,28 @@ supplies the width, and depends on it.
 
 ## Scope
 
-- `.agents/harness/queue-context.sh:"free plans = %d parallel sessions"` —
-  under unsupervised, the
-  existing fan-out line becomes an instruction to spawn rather than a
-  report that spawning is possible: name the plans, their tiers, and that
-  the reading session is to start one session per plan now. Supervised
-  wording unchanged.
-- `.agents/docs/unsupervised.md` — new. How a session actually spawns
-  (the tooling is the agent's, not the shell's — `joharness.sh` cannot
-  call it), what each spawned session is told, how the fleet terminates,
-  and what an operator does to stop it mid-flight. That last one is not
-  optional: a fleet with no documented stop is a fleet nobody can stop.
+- `joharness.sh:cmd_session_start` — export the resolved mode before it
+  invokes the queue hook. This is the enabling change and it comes first:
+  mode resolution (`run_mode`, `MODE_FILE`, the env/conf/marker
+  precedence) lives only in `joharness.sh`, and `queue-context.sh` runs as
+  its child. One export line, the shape `JOHARNESS_SESSION_SOURCE` already
+  uses twelve lines above. Re-resolving the mode inside the hook is the
+  second copy the graph rules forbid — do not.
+- `.agents/harness/queue-context.sh:399` — read that variable and make the
+  fan-out line mode-dependent: under unsupervised, name the plans, their
+  tiers, and that the reading session starts one session per plan NOW.
+  Supervised wording byte-identical.
+- `.agents/docs/unsupervised.md` — EXISTS, 190 lines, shipped by
+  `unsupervised-heartbeat`. Not new; this plan amends it. Already written
+  there and NOT to be written again: `## What the firing session is told`,
+  `## Run a plan, or fan out?`, `## Firing while the previous fleet is
+  still working`, `## Operator procedure`, `## Stop` (proved, not
+  asserted), `## No cap, and the argument for one` (which already makes
+  the wave-size-is-a-natural-bound argument). What is missing is only the
+  half this plan adds: that under unsupervised the hook ORDERS the spawn,
+  and what the ordered session does with a wave it cannot fully claim.
+  Check the file before writing a line of it — an earlier draft of this
+  plan called it new and listed four things it already contains.
 - `.agents/harness/selftest.sh` — the spawn instruction appears under
   unsupervised with two or more free plans, does not appear under
   supervised, and does not appear with fewer than two.
@@ -57,8 +71,9 @@ supplies the width, and depends on it.
   everything else is one at a time. The hook computes this already — use
   its answer, do not recompute it.
 - A concurrency cap. Declined by the requester on 2026-08-24 along with
-  the other two limits; see the requirement's Constraints. Note the wave
-  size is a natural bound and say so, but do not impose a second one.
+  the other two limits; see the requirement's Constraints. The wave-size
+  bound is already argued in `.agents/docs/unsupervised.md` `## No cap, and
+  the argument for one` — cite it, do not restate it, and impose nothing.
 - Cross-session coordination beyond what exists. Claims are pushed
   workstream files and `/who`; this plan adds no new state
   (`.agents/docs/graph.md`: no stored graph).
@@ -91,6 +106,10 @@ supplies the width, and depends on it.
 
 ## Where to look
 
+- `joharness.sh:cmd_session_start` — resolves `run_mode` for its own
+  banner and invokes `.agents/harness/queue-context.sh` as a child
+  (`joharness.sh:2652`) without exporting the mode. That gap is the whole
+  enabling change.
 - `.agents/harness/queue-context.sh`, the `free_count -ge 2` branch — the
   existing fan-out branch
   and `$free_list`, the wording that becomes mode-dependent.
@@ -111,14 +130,17 @@ supplies the width, and depends on it.
 - A wave is proved parallel-safe; an undeclared scope is not. Never treat
   absence of `scope:` as disjoint — the hook already words this
   distinction, match it.
-- Document the stop. An operator who cannot halt the fleet has no veto,
-  and the harness reserves veto to the human
-  (`.agents/harness/AGENTS.md`, human veto = revert).
+- The stop is ALREADY documented and proved — `.agents/docs/unsupervised.md`
+  `## Stop`, with a paused Routine shown carrying no `last_run`. Do not
+  write a second one. Check it still covers the fleet this plan widens; if
+  it does, cite it and move on.
 - No new state store for fleet bookkeeping (`.agents/docs/graph.md`,
   Rules). Git holds it or it is not held.
-- Blocked until `unsupervised-heartbeat` merges; `unsupervised-edge-work`
-  also touches `.agents/harness/queue-context.sh` and
-  `.agents/harness/selftest.sh` — same two files, so these two are never
+- `unsupervised-heartbeat` has merged and retired (2026-08-28), so the
+  `needs:` edge above is inert and this plan is free — the frontmatter
+  keeps it as provenance, per the graph model. `unsupervised-edge-work`
+  still touches `.agents/harness/queue-context.sh` and
+  `.agents/harness/selftest.sh` — same two files, so those two are never
   parallel with each other.
 - Unsupervised sessions must not commit under `.agents/harness/`
   (requirement Constraints), which includes the sessions this plan
