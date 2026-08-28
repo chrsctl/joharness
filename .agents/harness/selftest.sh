@@ -1030,7 +1030,7 @@ ss_src() { printf '{"hook_event_name":"SessionStart","source":"%s"}' "$1" |
 
 out="$(ss_src compact)"
 expect "a compact start says context was compacted" "Context was compacted" "$out"
-expect "and orders the workstream file re-read whole" "WHOLE before the next" "$out"
+expect "and names the state as git facts, not decisions" "not what you had decided" "$out"
 expect "a compact start still prints the state" "Handover state" "$out"
 
 out="$(ss_src startup)"
@@ -1056,6 +1056,25 @@ else
   fail "a malformed payload does not fail the session (got ${rc})"
 fi
 expect "a malformed payload still prints the state" "Handover state" "$out"
+
+# The plan asks for it explicitly: neither source may fail a session when git
+# is unreadable. The hook's standing contract is that anything unexpected
+# exits 0 with no output.
+nogit="${TMP}/session-start-nogit"
+mkdir -p "${nogit}/.agents/harness"
+cp "${ROOT}/.agents/harness/handover-context.sh" "${ROOT}/.agents/harness/queue-context.sh" \
+  "${nogit}/.agents/harness/"
+for s in compact startup; do
+  printf '{"hook_event_name":"SessionStart","source":"%s"}' "$s" |
+    CLAUDE_PROJECT_DIR="$nogit" JOHARNESS_CONF="${nogit}/joharness.conf" \
+    HANDOVER_FETCH=0 "${ROOT}/joharness.sh" session-start >/dev/null 2>&1
+  rc=$?
+  if [ "$rc" -eq 0 ]; then
+    pass "a ${s} start outside a repo does not fail the session"
+  else
+    fail "a ${s} start outside a repo does not fail the session (got ${rc})"
+  fi
+done
 
 # --- entrypoint: the churn measure -----------------------------------------
 # A scratch repo, not this one: `ci` shells out to ${ROOT}/.agents/harness/selftest.sh,
