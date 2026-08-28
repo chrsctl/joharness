@@ -132,11 +132,16 @@ fi
 step "Helm release lifecycle"
 if ! command -v helm >/dev/null 2>&1; then
   fail "helm is not installed (run ./joharness.sh setup)"
+elif ! CHART_ROOT="$(mktemp -d)"; then
+  # Counted, never a bare abort: every other check turns a broken tool into a
+  # FAIL, and an unguarded assignment here would exit before the summary line.
+  fail "could not create a scratch directory for the helm chart"
 else
-  CHART_ROOT="$(mktemp -d)"
-  # Same re-run tolerance the namespace and deployment steps have: after a
-  # --keep run the release is still there, and "name in use" would be this
-  # check failing for the previous run's success.
+  # Same re-run tolerance the namespace and deployment steps have. Not for a
+  # --keep run - this check uninstalls before cleanup sees --keep - but for a
+  # previous run that failed or was interrupted, which strands the release in
+  # `failed` or `pending-install`; "name in use" would then be this check
+  # failing for the last run's breakage. Both states measured as recovered.
   h uninstall "$HELM_RELEASE" -n "$NS" --ignore-not-found >/dev/null 2>&1 || true
   if helm create "${CHART_ROOT}/smoke-chart" >/dev/null 2>&1 \
      && h install "$HELM_RELEASE" "${CHART_ROOT}/smoke-chart" -n "$NS" \
@@ -146,7 +151,7 @@ else
      && h uninstall "$HELM_RELEASE" -n "$NS" >/dev/null 2>&1; then
     pass "helm installed a rendered chart and uninstalled it"
   else
-    fail "helm release lifecycle failed - check 'helm --kube-context $KUBE_CONTEXT status $HELM_RELEASE -n $NS'"
+    fail "helm release lifecycle failed - check namespace $NS is Active, then 'helm --kube-context $KUBE_CONTEXT status $HELM_RELEASE -n $NS'"
     h status "$HELM_RELEASE" -n "$NS" 2>&1 | head -5 || true
   fi
 fi
