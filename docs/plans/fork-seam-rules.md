@@ -52,7 +52,7 @@ push-time-not-liveness section reasons entirely from this repo's refs.
 A fork session's pushes never appear in them, and `/who` cannot see the
 fork session either. Add one line where that reasoning lives: across a
 fork seam the PR on GitHub is the only shared state — re-fetch it at
-every check, never inherit a conclusion about it from a workstream file or
+every check, never inherit a conclusion about it from a handover file or
 a scheduled check-in.
 
 ## Out of scope
