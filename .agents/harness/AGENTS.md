@@ -46,6 +46,10 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    (`.agents/docs/plans/README.md`); `./joharness.sh feedback <path>` on files
    the diff will touch. Open question that decides the design? Settle it,
    record in workstream file, THEN code — never mid-code.
+   Code asking whether a branch owns a file: DIFF against merge base, never
+   read the tree. Branch inherits every file its base branch carries. Six
+   merged edges paid for this one (`.agents/docs/feedback.md`, Worked
+   example: tree or diff).
    Long-running? Re-check `git fetch origin main` ahead/behind
    periodically — another PR merging mid-build is cheap to catch now, one
    hit at step 7 after hours of work is not (`.agents/docs/product/README.md`
