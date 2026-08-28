@@ -7,7 +7,7 @@ plan: ci-scope-selftest
 session: https://claude.ai/code/session_01UcW18iV8drNpkz9rpCT27B
 agent: opus
 updated: 2026-08-28
-next: Gate the selftest stage on a merge-base diff, cover it, measure both timings
+next: Adversarial review, then finish
 ---
 
 ## Goal
@@ -26,6 +26,11 @@ Scope the selftest the way step 7 already scopes `verify`.
 - Reuse `churn_top`'s merge-base shape (`joharness.sh`): it already returns
   non-zero when there is no merge base (shallow checkout, base branch), and
   that case must RUN the suite, never skip it.
+- Measured here, same commit, only the diff differing: docs-only branch
+  `ci` = 6.2s with the suite skipped; one harness file touched = 33.2s with it
+  run. 27s saved per docs-only run. The plan predicted about 16s from the
+  consumer's older figures; this suite has grown since, so the local number is
+  the one the code quotes.
 - The `windows` job is `if: false`, so the `lint` job is the only place the
   selftest runs in CI. The gate lives in `cmd_ci`, so both jobs inherit it and
   cannot disagree; re-enabling `windows` re-runs the suite unconditionally on
