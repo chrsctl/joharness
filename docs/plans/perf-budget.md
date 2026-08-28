@@ -79,9 +79,27 @@ Make the numbers re-countable, and make a regression red.
 - **Wrapping every binary.** Six is enough to pin the hot paths; a shim per
   command in `$PATH` buys precision nobody is spending.
 - **`.github/workflows/ci.yml`.** Deliberately untouched — see Scope.
-- **The `handover-context.sh:files_at` tree-vs-diff defect.** Real, found while
-  scoping this plan, recorded in the workstream file. Different bug, its own
-  plan.
+- **A dispatchable `perf.yml`, or any workflow edit.** Settled by test, not
+  by preference: a session CAN dispatch — `mcp__github__actions_run_trigger`
+  fired `update.yml` on `main` 2026-08-28, HTTP 204, run 33205534752, success
+  in 7s with the canonical guard matching and the three sync steps skipped,
+  so the token has `actions: write`. It buys nothing here. GitHub registers a
+  dispatchable workflow only from the DEFAULT branch (documented behaviour,
+  not tested here), so a workflow added on a work branch cannot run before
+  its own merge — and a guard that cannot fire pre-PR is the failure `ci.yml`
+  was written to avoid. Hence a subcommand in `cmd_ci`, which reaches GitHub
+  with no workflow edit at all.
+- **The `handover-context.sh:files_at` tree-vs-diff defect.** Found while
+  scoping this plan and left open: the in-flight list is built from the TREE
+  (`files_at`, `git ls-tree`) rather than the diff (`changed_at`, already
+  written a few lines below), so a branch that merely INHERITS a workstream
+  file is reported as working on it. That is why `joharness-minify-optimize`
+  reads as claimed on four branches — it merged as PR 54 and was swept from
+  `main` in `a87f137`, and every one of those branches has a merge-base
+  predating the sweep with an empty `git diff --name-only <merge-base>
+  <branch> -- docs/handover/joharness-minify-optimize.md`. PR 54 recorded it
+  as its own r13. Different bug, wants its own plan; noted here because this
+  is the file that survives on `main`.
 
 ## Acceptance
 
