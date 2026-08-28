@@ -7,7 +7,7 @@ plan: none
 session: https://claude.ai/code/session_01UcW18iV8drNpkz9rpCT27B
 agent: sonnet
 updated: 2026-08-28
-next: Remove the five touchpoints, keeping the pure-pointer rule its dead reason justified
+next: retire workstream, PR, merge
 ---
 
 ## Goal
@@ -75,19 +75,6 @@ outlive it.
   as consumer-only. Named here because the diff cannot fix it and a silent
   version of this is how consumers accrete dead docs.
 
-## Rejected` plus graduation, the always-loaded
-     token budget in `.agents/harness/AGENTS.md`'s own header. Verified
-     2026-08-28 against the tree.
-  4. Human constraint, and the repo's own line: no reliance on non-shell
-     workflows. backpass is a Node CLI that WRITES to `AGENTS.md`. The
-     glossary lint comment already refused Vale on exactly this ground —
-     "a Go binary in a `ci` whose whole toolchain is shell and shellcheck".
-- The pure-pointer rule for `CLAUDE.md` STAYS. backpass was its stated
-  reason and is not its only one: harnesses that read `AGENTS.md` natively
-  resolve no imports, and Claude Code loads `CLAUDE.md` rather than
-  `AGENTS.md`. Both already sit in the same sentence of the handover
-  protocol. A rule losing its justification is not a rule losing its point.
-
 ## Rejected
 
 - Keeping `.agents/docs/backpass.md` as a record of why the tool was tried.
@@ -140,9 +127,28 @@ tree" and had not run them.
 - v8 "the same way a retired workstream file is recovered" is a false
   generalization: that needs `--all --full-history`. (fixed)
 - v9 The sonnet-depth `/code-review` pass is owed, and this verifier pass is
-  not it. (open — recorded rather than claimed as done)
+  not it. (fixed: run, and it found three more — c1 to c3 below)
 - v10 Removals do not travel to consumers, so a consumer synced today keeps
   the deleted doc. (recorded in Decisions; this diff cannot fix it)
+
+`/code-review` (high), the depth this branch's tier names, after the
+verifier's fixes were in:
+
+- c1 The Decisions rewrite STRANDED the old bullets: two `## Rejected`
+  headings, and thirteen lines re-asserting the exact three claims the
+  commit existed to retract — one still labelled "Verified 2026-08-28
+  against the tree". The correction shipped the error it corrected, and
+  `ci` cannot see prose. (fixed: the stranded tail is gone, 0 hits for that
+  label)
+- c2 v5 was fixed in ONE of the two files. `.agents/docs/handover/README.md`
+  still said "CLAUDE.md itself stays a pure pointer" — the strong rule
+  backpass enforced — while the CLAUDE.md comment beside it had already
+  dropped to the weaker one. The phrase is line-wrapped between "pure" and
+  "pointer", so a grep for it misses. (fixed: both files now state the
+  weaker rule and call it convention)
+- c3 The `next:` frontmatter still read "keeping the pure-pointer rule",
+  the opposite of the decision, and `handover-context.sh` prints that line
+  at every session start. (fixed)
 
 Caught by me while writing, before the verifier ran:
 
