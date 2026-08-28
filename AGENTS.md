@@ -37,14 +37,17 @@ Verify (all green or not done):
 
 ```bash
 ./joharness.sh ci        # ci: pass — same checks .github/workflows/ci.yml runs
-./joharness.sh verify    # 0 failed — pass count is the layer's. This repo's layer
-                         # needs the sandbox, so CI cannot run it here
+./joharness.sh verify    # 0 failed — pass count is the layer's, so read the
+                         # number this repo's layer actually prints
 ```
 
 Run `ci` before opening a pull request. GitHub also runs `verify` for any
 layer declaring itself CI-runnable (`.agents/env/README.md`), which `ci` does
-not — so run that layer's verify too before believing a green `ci` predicts a
-green PR. Red PR after both green is a bug in the split, not bad luck.
+not. This repo selects one that declares it, so step 7's read-the-run clause
+is reachable here: a head whose checks verified the selected layer has had
+that done for it. READ the run to know — the job names each layer it verified
+and each it skipped, and a skipped layer is a green tick over nothing.
+Red PR after both green is a bug in the split, not bad luck.
 `verify` provisions the selected environment first, so a cold container is
 fine. Trust counted numbers, never written numbers — a pass total written
 here would be true for exactly one layer.
