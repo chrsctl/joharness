@@ -1,0 +1,4 @@
+{
+  "memoryFiles": ["AGENTS.md", "CLAUDE.md"],
+  "skillsDir": ".claude/skills"
+}
