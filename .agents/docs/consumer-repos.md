@@ -132,7 +132,29 @@ Refused in canonical: there, syncing out is
 `.github/workflows/update.yml`, seeded at bootstrap. Runs the same sync
 weekly (Monday 06:00 UTC) and on `workflow_dispatch`, force-pushes branch
 `joharness-update`, opens or refreshes one pull request carrying the sync
-report. Update now = run that workflow from the consumer's Actions tab.
+report. Update now = run that workflow: a human from the consumer's Actions
+tab, or a session directly, which is the cheaper route when a session is
+already open.
+
+Dispatching it from a session needs no new machinery — `update.yml` already
+declares `workflow_dispatch`. Where the runtime offers a GitHub tool that
+runs a workflow (Claude Code: `mcp__github__actions_run_trigger`, method
+`run_workflow`), pass the workflow file name and a `ref`. Proven on canonical
+2026-08-28: HTTP 204, one run, green in 7s, the canonical guard matching and
+the three sync steps skipped.
+
+Two things to know before relying on it:
+
+- **The run wears the human's name.** The token behind the tool is theirs, so
+  a dispatched run is indistinguishable in the Actions tab from someone
+  clicking the button. Say in the session that you dispatched it; the Actions
+  tab will not.
+- **Only the default branch is dispatchable.** GitHub registers a workflow
+  for dispatch from the default branch only, so a workflow added on a work
+  branch cannot be run before its own merge, and `ref` chooses which branch's
+  CODE runs, not whether the workflow exists. A gate that must fire before
+  the pull request therefore belongs in `joharness.sh ci`, never in a new
+  workflow — which is what `.github/workflows/ci.yml`'s own header says.
 
 Consumer-own file, never synced: a fork's own `CANONICAL_REPO` or another
 cadence stays put.
