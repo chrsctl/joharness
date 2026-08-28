@@ -93,6 +93,30 @@ splits, and still says which plan it collided with. Mark only a path where a
 reconcile is genuinely routine — a wave that claims a parallel safety it does
 not have is worse than one that claims none.
 
+## Does this plan reach consumers
+
+`ci`'s ship-scope stage reads a plan's `scope:` and says whether the work
+lands in every consumer at its next sync, or stays in this repo. It matches
+each path against the sync engine's own lists
+(`.agents/scripts/sync-to-consumer.sh`) rather than a list of its own — a
+second copy of that boundary would disagree with the first the day a path
+moves between `DIRS` and `CANONICAL_ONLY`.
+
+Derived, not declared. No `ships:` field, for the reason there is no
+`status:` field either (Lifecycle below): a field is only as fresh as the
+last hurried session, and `scope` is already read by the queue hook and
+already rots visibly in review.
+
+SHIPS changes what Acceptance owes: name a check a consumer runs, not only a
+local one. A bar met only here is met in the one repo that was never the
+risk. The stage reports and never reds — `scope` is only as true as it is
+complete, so a gate built on it fires on the honest plan whose author forgot
+a path.
+
+Canonical-only in a consumer: it carries no sync engine and its plans ship
+nowhere, so the stage has nothing to say and says nothing. Whole queue at
+once, rather than the plans this branch touches: `JOHARNESS_SHIP=all`.
+
 ## Lifecycle
 
 - **Claim** = normal Loop claim: cut branch, workstream file under

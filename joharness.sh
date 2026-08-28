@@ -544,6 +544,12 @@ cmd_ci() {
   printf '\n== graph lint\n'
   lint_graph || rc=1
 
+  # Which plans on this branch land in every consumer. Report only, never
+  # rc — reasoning in lint_ship. Silent in a consumer, which carries neither
+  # the sync engine nor a reason to ask.
+  printf '\n== ship scope\n'
+  lint_ship
+
   # Review churn, measured rather than noticed. The rule
   # (.agents/docs/agent-selection.md) asks a session to see that a fix undid an
   # earlier fix — but the session inside the churn is the one least able to
@@ -1284,6 +1290,163 @@ lint_graph() {
       "$plans" "$workstreams" "$reqs"
   fi
   return "$LINT_RC"
+}
+
+# ---------------------------------------------------------------------------
+# Ship scope: does a plan's work reach consumers?
+# ---------------------------------------------------------------------------
+#
+# This repo IS the harness, so a plan here mostly edits files the sync engine
+# copies into every consumer; a consumer's own plans reach nobody. The
+# difference decides whether a plan's Acceptance owes a consumer-side check,
+# and nothing was saying it — docs/plans/selftest-split.md and
+# docs/plans/moment-feedback-hooks.md each reasoned it out in prose, for their
+# own scope, independently. Same reasoning written twice is the graduation
+# rule (.agents/docs/feedback.md): it becomes a stage.
+#
+# Derived from the plan's own `scope:`, never a new frontmatter field. A field
+# is only as fresh as the last hurried session — the reason plans carry no
+# `status` either (.agents/docs/plans/README.md, Lifecycle).
+SHIP_ENGINE=".agents/scripts/sync-to-consumer.sh"
+SHIP_FILES=()
+SHIP_DIRS=()
+SHIP_CANON=()
+SHIP_CANON_DIRS=()
+SHIP_LOADED=0
+
+# One array literal out of the engine. PARSED, never sourced: the engine dies
+# without the canonical marker, and a copy of these lists in this file would be
+# the second answer to "does it ship" that this stage exists so nobody needs.
+# index()==1 anchors the name without regex-escaping it.
+ship_array() {
+  awk -v name="$1" '
+    index($0, name "=(") == 1 { inside = 1; next }
+    inside && index($0, ")") == 1 { exit }
+    inside { sub(/#.*$/, ""); for (i = 1; i <= NF; i++) print $i }
+  ' "${ROOT}/${SHIP_ENGINE}" 2>/dev/null
+}
+
+# Non-zero = no verdict is available here. A consumer does not carry the engine
+# (it is CANONICAL_ONLY_DIRS), and a consumer needs no verdict anyway: its
+# plans ship nowhere. Silence, never an error — joharness.sh ships, so this
+# code runs in every consumer and must have nothing to say there.
+ship_load() {
+  [ "$SHIP_LOADED" -eq 0 ] || return 0
+  [ -r "${ROOT}/${SHIP_ENGINE}" ] || return 1
+  grep -q '^JOHARNESS_CANONICAL=1' "$CONF" 2>/dev/null || return 1
+  local x
+  SHIP_FILES=(); SHIP_DIRS=(); SHIP_CANON=(); SHIP_CANON_DIRS=()
+  while IFS= read -r x; do [ -n "$x" ] && SHIP_FILES+=("$x"); done < <(ship_array FILES)
+  while IFS= read -r x; do [ -n "$x" ] && SHIP_DIRS+=("$x"); done < <(ship_array DIRS)
+  while IFS= read -r x; do [ -n "$x" ] && SHIP_CANON+=("$x"); done < <(ship_array CANONICAL_ONLY)
+  while IFS= read -r x; do [ -n "$x" ] && SHIP_CANON_DIRS+=("$x"); done < <(ship_array CANONICAL_ONLY_DIRS)
+  # An engine whose lists this parser cannot see would label every path
+  # canonical-only — confidently, and wrongly. Say nothing instead.
+  { [ "${#SHIP_FILES[@]}" -gt 0 ] && [ "${#SHIP_DIRS[@]}" -gt 0 ]; } || return 1
+  SHIP_LOADED=1
+}
+
+# 0 = this path reaches consumers. CANONICAL_ONLY is tested FIRST and beats a
+# DIRS prefix: .agents/harness ships whole EXCEPT its exemptions, so the other
+# order labels every selftest.sh plan as shipping. `shared:` is a wave marker
+# (.agents/docs/plans/README.md), not part of the path.
+ship_path_ships() {
+  local p="${1#shared:}" c
+  p="${p%/}"
+  if [ "${#SHIP_CANON[@]}" -gt 0 ]; then
+    for c in "${SHIP_CANON[@]}"; do [ "$p" = "$c" ] && return 1; done
+  fi
+  if [ "${#SHIP_CANON_DIRS[@]}" -gt 0 ]; then
+    for c in "${SHIP_CANON_DIRS[@]}"; do
+      case "$p" in "$c" | "$c"/*) return 1 ;; esac
+    done
+  fi
+  for c in "${SHIP_FILES[@]}"; do [ "$p" = "$c" ] && return 0; done
+  for c in "${SHIP_DIRS[@]}"; do
+    case "$p" in "$c" | "$c"/*) return 0 ;; esac
+  done
+  return 1
+}
+
+# Plans this branch adds or changes, working tree included. The verdict is
+# worth printing while someone is writing the plan, not on every ci for every
+# plan the queue holds. Same diff-plus-tree pair selftest_inert_diff uses, for
+# the same reason: ci judges what is about to be pushed, uncommitted included.
+ship_changed_plans() {
+  local base entry f
+  base="$(git -C "$ROOT" merge-base HEAD \
+    "origin/${HANDOVER_BASE_BRANCH:-main}" 2>/dev/null)" || base=""
+  {
+    [ -n "$base" ] && git -C "$ROOT" diff --no-renames --name-only \
+      "${base}..HEAD" 2>/dev/null
+    while IFS= read -r -d '' entry; do
+      printf '%s\n' "${entry:3}"
+    done < <(git -C "$ROOT" status --porcelain -z --no-renames 2>/dev/null)
+  } | awk '/^docs\/plans\/[^\/]+\.md$/ { print }' | gr_docs | sort -u
+}
+
+# Report only. A gate here would fight the thing it is measuring: `scope` is
+# only as true as it is complete (.agents/docs/plans/README.md), so a red built
+# on it would fire on an honest plan whose author forgot a path. Same call
+# finding-id-lint makes for its own stage — report first, gate later if the
+# report proves out.
+lint_ship() {
+  # ship_ prefixes, not `plans`/`paths`: shellcheck tracks a name across the
+  # whole file, and a local array here renames-by-collision every string
+  # called `plans` in another function into an array warning.
+  local rel stem scope p shipping ships=0 seen=0
+  local -a ship_plans=()
+  local -a ship_paths=()
+
+  ship_load || return 0
+
+  if [ "${JOHARNESS_SHIP:-}" = "all" ]; then
+    while IFS= read -r rel; do
+      [ -n "$rel" ] && ship_plans+=("$rel")
+    done < <(lint_nodes docs/plans)
+  else
+    while IFS= read -r rel; do
+      [ -n "$rel" ] && ship_plans+=("$rel")
+    done < <(ship_changed_plans)
+  fi
+
+  if [ "${#ship_plans[@]}" -eq 0 ]; then
+    printf '  no plan added or changed on this branch\n'
+    return 0
+  fi
+
+  for rel in "${ship_plans[@]}"; do
+    # A deleted plan is a merged plan. Nothing to advise.
+    [ -f "${ROOT}/${rel}" ] || continue
+    seen=$((seen + 1))
+    stem="$(lint_stem "$rel")"
+    scope="$(gr_field scope <"${ROOT}/${rel}")"
+    if [ -z "$scope" ] || [ "$scope" = "none" ]; then
+      printf '  %s: no scope declared — no verdict\n' "$stem"
+      continue
+    fi
+    shipping=""
+    read -ra ship_paths <<<"${scope//,/ }"
+    if [ "${#ship_paths[@]}" -gt 0 ]; then
+      for p in "${ship_paths[@]}"; do
+        [ -n "$p" ] || continue
+        ship_path_ships "$p" && shipping="${shipping}${shipping:+, }${p}"
+      done
+    fi
+    if [ -n "$shipping" ]; then
+      ships=$((ships + 1))
+      printf '  %s: SHIPS to consumers — %s\n' "$stem" "$shipping"
+    else
+      printf '  %s: canonical-only\n' "$stem"
+    fi
+  done
+
+  [ "$seen" -gt 0 ] || printf '  no plan added or changed on this branch\n'
+  if [ "$ships" -gt 0 ]; then
+    printf '  A shipping plan lands in every consumer at its next sync. Its\n'
+    printf '  Acceptance names the consumer-side check (.agents/docs/plans/README.md).\n'
+  fi
+  return 0
 }
 
 # The shellcheck binary is the acceptance bar, but its absence is an
