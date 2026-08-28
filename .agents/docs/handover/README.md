@@ -79,11 +79,13 @@ makes cross-branch work:
   git show <that-commit>^:docs/handover/<name>.md
   ```
 
-  `--diff-filter=D` is what makes this deterministic — it names the retire
-  commit and nothing else (one hit for every retired file in this repo when
-  the rule was written; re-run the command to re-count). Without it, step 1
-  lists merge commits above the retire commit, and taking the newest yields a
-  mid-branch version or `does not exist`. `--full-history` is what finds the
+  `--diff-filter=D` is what makes this reliable — it lists only commits that
+  DELETED the file, so every hit is a real retire and the newest is the one
+  you want. (Usually one hit; a workstream retired, restored to record a late
+  review finding, and retired again has two. This file's own history is that
+  case — check the command's output rather than assuming a single line.)
+  Without the filter, step 1 lists merge commits above the retire commit, and
+  taking the newest yields a mid-branch version or `does not exist`. `--full-history` is what finds the
   path at all. `^` is the first parent, the last tree still holding the file;
   a retire that itself landed as a merge needs its parent picked by hand.
   Step 7 puts this command in the PR body for the branch's own file, so the
