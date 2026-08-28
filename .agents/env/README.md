@@ -26,6 +26,11 @@ Every file optional. Layer with no `setup.sh` provisions nothing — that is all
 `ci-verify` is how a layer gets continuous coverage without any file outside
 it naming it: the CI workflow globs for the marker and runs
 `JOHARNESS_ENV=<name> ./joharness.sh verify` for each layer carrying one.
+Lines of the form `image: <ref>` in the marker are data — every image the
+layer's smoke test runs. CI pulls them with retries first, and skips that
+layer loudly if the registry stays unreachable, so someone else's rate limit
+never reds the gate. Declaring the marker without an executable
+`smoke-test.sh` is red, the same way `verify` treats it as fatal.
 Declaring it promises the layer needs nothing a stock runner lacks — `setup.sh`
 downloads nothing it cannot reach and provisions no sandbox-only facility, and
 `smoke-test.sh` degrades on its own where the sandbox's proxy CA bundle is

@@ -501,7 +501,7 @@ cmd_ci() {
   [ "$syntax_rc" -eq 0 ] && printf '  clean\n'
 
   # The harness's own regression tests: git-only, so they run on GitHub
-  # runners where the environment smoke test cannot. Canonical-only — a
+  # runners whatever the environment layer needs there. Canonical-only — a
   # consumer does not receive them, because they cover harness code it
   # does not edit. Absent is therefore normal in a consumer and said once;
   # present but not executable is a broken copy and stays red.
@@ -601,8 +601,10 @@ cmd_ci() {
     printf 'ci: pass\n'
   fi
 
-  # The environment smoke test is deliberately not part of this: it needs the
-  # sandbox, and GitHub runners have none. Run it with `verify`.
+  # The environment smoke test is deliberately not part of this. A layer
+  # needing the sandbox has nothing a GitHub runner can prove; one that does
+  # not says so itself and the workflow verifies it separately
+  # (.agents/env/README.md). Either way this command does not: run `verify`.
   return "$rc"
 }
 
