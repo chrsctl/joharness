@@ -41,9 +41,14 @@ today.
 
 ## Constraints
 
-- `.agents/harness/` is off limits to unsupervised sessions. The harness
-  cannot rewrite the protocol that governs it while unattended; that edit
-  is supervised work, always.
+- PROTOCOL TEXT is off limits to unsupervised sessions, wherever it lives.
+  The harness cannot rewrite the rules that govern it while unattended;
+  that edit is supervised work, always. Today protocol text is
+  `.agents/harness/` and `.claude/agents/` — the second joined when the
+  review step started requiring a subagent definition, and one prefix
+  stopped covering the rule. Both named, because a role nobody can grep is
+  a boundary nobody can check, and a path list alone goes stale the next
+  time protocol text moves.
 - The exception to "not invent work" is written as an exception, gated on
   the mode, at the rule itself. A rule that quietly stops meaning what it
   says is worse than no rule.

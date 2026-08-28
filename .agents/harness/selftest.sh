@@ -2839,6 +2839,12 @@ out="$(JOHARNESS_MODE=unsupervised JOHARNESS_CONF="$modeconf" \
   "${ROOT}/joharness.sh" session-start 2>/dev/null)"
 expect "unsupervised session-start announces the mode" "== Mode: unsupervised ==" "$out"
 expect "unsupervised banner names the boundary" ".agents/harness/" "$out"
+# BOTH trees, not one. The boundary was a single prefix in three places, so
+# .claude/agents/ fell outside all three at once when the review step
+# started requiring a subagent definition — issue #114. A test naming only
+# the harness tree is what let that happen.
+expect "and the second tree protocol text lives in" ".claude/agents/" "$out"
+expect "stated as a role, not just a path list" "protocol text" "$out"
 
 # A misspelled value is indistinguishable from a repo that meant supervised
 # unless the ignored value is named.
