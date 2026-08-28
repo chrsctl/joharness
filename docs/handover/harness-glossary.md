@@ -29,16 +29,21 @@ wordings that are not it, and a lint stage keeps it from rotting into a wish.
 - Files using BOTH spellings of the workstream-file term today: eight, not
   the five the plan names — `docs/plans/fork-seam-rules.md`, this plan, and
   `docs/research/glossary-enforcement.md` joined since it was written.
-- The lint SCANS WHAT THE HARNESS OWNS, not the tree: everything under
-  `.agents/`, plus root-level `*.md`. The plan said "a tracked `*.md` or
-  `*.sh` file" and that is a live hazard — `.agents/docs` and
-  `.agents/harness` sync to consumers, so a whole-tree scan means a harness
-  sync reds a consumer's ci over the consumer's own product prose, which the
-  consumer cannot fix by editing the glossary (that would make the file
-  AHEAD on every future sync). Narrowing was preferred over a canonical-only
-  gate: a gate leaves the rule unenforced in the place a synced `.agents/`
-  hit would actually appear, and it cannot be exercised by the selftest
-  fixture without also teaching the fixture to fake a canonical marker.
+- The lint SCANS WHAT CANONICAL OWNS AND SYNCS, not the tree: the exact list
+  is `joharness.sh:GLOSSARY_PATHS` — `.agents/docs`, `.agents/harness`,
+  `.agents/scripts`, `.agents/env/README.md`, `.claude/commands`,
+  `.claude/skills`, `joharness.sh`, plus `AGENTS.md` and `CLAUDE.md`. The
+  plan said "a tracked `*.md` or `*.sh` file" and that is a live hazard: a
+  whole-tree scan means a harness sync reds a consumer's ci over the
+  consumer's own product prose, which the consumer cannot fix by editing the
+  glossary (that would make the file AHEAD on every future sync). The two
+  root files are in anyway — a consumer edits Part 2 in place, and they are
+  what every session loads. `.agents/env/<layer>/` is OUT: the sync ships a
+  layer only when canonical carries one by that name, so a consumer's own
+  layer is the consumer's prose. Narrowing beat a canonical-only gate, which
+  would leave the rule unenforced exactly where a synced hit appears and
+  could not be exercised without teaching the fixture to fake a canonical
+  marker.
 - Records are therefore untouched rather than exempted by name. An earlier
   cut rewrote `docs/research/glossary-enforcement.md`'s measured wording and
   the plan's own figures to satisfy the lint; both are restored verbatim
