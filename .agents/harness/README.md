@@ -9,7 +9,7 @@ environment sits under [`.agents/env/`](../env/README.md).
 | `.agents/harness/AGENTS.md` | Loop, decide-alone, handover rules. Imported by root `AGENTS.md`. |
 | `.agents/harness/handover-context.sh` | SessionStart: prints handover state into context. |
 | `.agents/harness/queue-context.sh` | SessionStart: prints plan queue + wanted agent tier. |
-| `.agents/harness/selftest.sh` | Regression tests for these scripts. Run by `joharness.sh ci`. |
+| `.agents/harness/selftest.sh` | Regression tests for these scripts. Run by `joharness.sh ci` when the branch changes anything outside `docs/` and `README.md`; `JOHARNESS_SELFTEST=always` runs it regardless. Canonical only. |
 | `joharness.sh` | Entrypoint. Runs this layer, plus the selected environment. |
 | `.agents/scripts/sync-to-consumer.sh` | Sync tool: brings a consumer's harness copy current. |
 | `.claude/commands/` | `/handover`, `/who`. |
