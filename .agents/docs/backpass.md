@@ -2,10 +2,13 @@
 
 [backpass](https://github.com/kunchenguid/backpass) = transcript-driven,
 evidence-gated editor for AGENTS.md: reads past agent sessions from local
-harness stores, proposes at most five evidence-backed edits per run, human
-accepts or rejects each (`backpass apply` = only writing command). Adopted for
+harness stores, proposes a capped batch of evidence-backed edits per run (5
+near budget; up to 20 when shrinking an over-budget file — cap is adaptive),
+human accepts or rejects each (`backpass apply` = only writing command). Adopted for
 local use 2026-08-28; this file = repo shape it depends on. Break the shape,
-backpass degrades silently — nothing else in `ci` checks it.
+backpass degrades silently — nothing else in `ci` checks it. Behavior facts
+here verified against backpass 0.1.8 source — newer backpass, re-check there,
+not here.
 
 ## Repo shape
 
@@ -18,10 +21,15 @@ backpass degrades silently — nothing else in `ci` checks it.
   `.agents/harness/AGENTS.md`, env layers, docs invisible to it. Rule backpass
   should see and optimize = rule in root AGENTS.md (Part 1 synced to
   consumers, Part 2 per-repo). Revisit if upstream learns import resolution.
-- `.backpassrc.json` (repo root, per-repo like `joharness.conf`, not synced):
-  pins `skillsDir` to `.claude/skills` — repo skills live there and sync to
-  consumers; backpass default `.agents/skills` names a tree this repo does
-  not have.
+- Consumer repo: accept backpass edits into Part 2 ONLY. Part 1 (above
+  `# Part 2 — project` marker) is canonical-owned — a consumer-side edit
+  there makes AGENTS.md AHEAD on every future sync, harness updates stop
+  flowing. Part 1 fixes land in joharness first.
+- `.backpassrc.json` (repo root, per-repo like `joharness.conf`, NOT synced —
+  consumer adopting backpass creates its own): pins `skillsDir` to
+  `.claude/skills` — repo skills live there and sync to consumers; backpass
+  default `.agents/skills` names a tree this repo does not have, and skills
+  written there would never sync.
 - `.backpass/` = state dir, gitignored. Never commit it.
 
 ## Where it runs

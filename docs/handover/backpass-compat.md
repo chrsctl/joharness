@@ -1,13 +1,13 @@
 ---
 workstream: backpass-compat
-status: in-progress
+status: review
 branch: claude/backpass-usage-review-sbew6t
 pr: none
 plan: backpass-compat
 session: https://claude.ai/code/session_01UcW18iV8drNpkz9rpCT27B
 agent: sonnet
 updated: 2026-08-28
-next: Implement plan edits, run ci, record review, finish
+next: Finish — delete plan + workstream files, open PR, merge
 ---
 
 ## Goal
@@ -44,7 +44,22 @@ shape this repo so backpass runs clean here and in consumers. Plan:
 
 ## Review
 
-(pending — recorded before merge)
+/code-review high, full branch diff vs main, 2026-08-28. Reviewer verified
+pointer purity, splice-marker safety, sync propagation against backpass
+source + sync script. Four doc-accuracy findings, no functional bugs:
+
+- r1: backpass.md sends optimizable rules to root AGENTS.md without warning
+  a consumer-side Part 1 edit breaks sync (AHEAD forever, updates stop).
+  (fixed: consumer bullet — Part 2 only, Part 1 fixes land in joharness)
+- r2: backpass.md described canonical's `.backpassrc.json` but file is not
+  synced — consumer following doc gets colliding `.agents/skills` default.
+  (fixed: consumer creates own rc file, stated in bullet)
+- r3: "at most five edits per run" false over budget — backpass cap is
+  adaptive, up to 20 in shrink plan. Written number, wrong in reachable
+  case. (fixed: adaptive cap stated)
+- r4: .gitignore comment said only `backpass init` writes
+  `.git/info/exclude`; backpass writes it idempotently on every command.
+  (fixed: comment reworded)
 
 ## Blockers
 
