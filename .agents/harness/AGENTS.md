@@ -72,10 +72,10 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    step at raised tier or effort first (`.agents/docs/agent-selection.md`, review
    churn rule). NEVER skip, disable, or quarantine a test to get green.
    NEVER kick CI: no empty commit, no close-reopen.
-   Test written for a fix must FAIL without it: disable fix, run test,
-   restore. Green both sides = test pins nothing.
-   Measured number carries what produced it, same sentence — command,
-   date, tree. Number nobody can re-count is a written number.
+   Test written for a fix must FAIL without it: revert the fix, run the
+   test, put it back. Green both ways = test pins nothing.
+   Measured number carries what produced it, same sentence — the command,
+   and when. Number nobody can re-count is a written number.
 6. **Hand over.** Update workstream file in SAME commit as code. Before ending
    any unfinished turn, not only at session end. `/handover` writes it.
 7. **Finish.** PR, merge to `main` — every step merges, no long-lived
@@ -86,8 +86,8 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    re-derived at every check, never inherited — true this hour, false the
    next. Scheduled check-in states what to RE-CHECK, never what is true.
    PR body carries the command that recovers its own workstream file
-   (`.agents/docs/handover/README.md`, Survives PR): the file is deleted
-   before the merge, so nothing in the merge commit holds the review record.
+   (`.agents/docs/handover/README.md`, Survives PR): retired before the
+   merge, the record is in history and not in any tree on `main`.
    Merge when ALL hold: GitHub checks green on head; branch 0 behind
    fresh-fetched `origin/main` (behind = "Conflict at finish" reconcile
    first — checks do NOT re-run when `main` moves); `./joharness.sh
