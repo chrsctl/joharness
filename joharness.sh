@@ -1320,7 +1320,20 @@ SHIP_LOADED=0
 # index()==1 anchors the name without regex-escaping it.
 ship_array() {
   awk -v name="$1" '
-    index($0, name "=(") == 1 { inside = 1; next }
+    index($0, name "=(") == 1 {
+      # A one-line declaration closes on its own line — NAME=() most of all.
+      # Falling through to the multi-line branch here ran the scanner on into
+      # the NEXT array and returned its declaration as entries of this one.
+      rest = substr($0, length(name) + 3)
+      if (index(rest, ")") > 0) {
+        sub(/\).*$/, "", rest)
+        sub(/#.*$/, "", rest)
+        n = split(rest, parts, /[ \t]+/)
+        for (i = 1; i <= n; i++) if (parts[i] != "") print parts[i]
+        exit
+      }
+      inside = 1; next
+    }
     inside && index($0, ")") == 1 { exit }
     inside { sub(/#.*$/, ""); for (i = 1; i <= NF; i++) print $i }
   ' "${ROOT}/${SHIP_ENGINE}" 2>/dev/null
@@ -1343,6 +1356,13 @@ ship_load() {
   # An engine whose lists this parser cannot see would label every path
   # canonical-only — confidently, and wrongly. Say nothing instead.
   { [ "${#SHIP_FILES[@]}" -gt 0 ] && [ "${#SHIP_DIRS[@]}" -gt 0 ]; } || return 1
+  # A path is a path. An entry carrying shell syntax means the parse ran past
+  # its array and scraped the next declaration — silent corruption otherwise,
+  # because a garbage exact-match string simply never matches anything.
+  for x in ${SHIP_FILES[@]+"${SHIP_FILES[@]}"} ${SHIP_DIRS[@]+"${SHIP_DIRS[@]}"} \
+    ${SHIP_CANON[@]+"${SHIP_CANON[@]}"} ${SHIP_CANON_DIRS[@]+"${SHIP_CANON_DIRS[@]}"}; do
+    case "$x" in *'('* | *'='* | *')'*) return 1 ;; esac
+  done
   SHIP_LOADED=1
 }
 
@@ -1353,19 +1373,6 @@ ship_load() {
 ship_path_ships() {
   local p="${1#shared:}" c
   p="${p%/}"
-  # Two paths the engine ships by logic, not by array membership, so testing
-  # the arrays alone calls them canonical-only — wrongly, and confidently.
-  # Handled here rather than by widening the arrays: they are the engine's,
-  # and this file does not get to edit what they mean.
-  #
-  # A layer under .agents/env/ ships to every consumer that SELECTS it
-  # (sync-to-consumer.sh, LAYER_IN_CANONICAL). Which consumer that is, is not
-  # canonical's to know, so the verdict is "ships" — the plan owes the
-  # consumer-side check either way. .agents/env/README.md is already in FILES.
-  case "$p" in .agents/env/*) return 0 ;; esac
-  # AGENTS.md is spliced, not copied: everything above the Part 2 marker
-  # reaches every consumer. It is absent from FILES on purpose.
-  [ "$p" = "AGENTS.md" ] && return 0
   if [ "${#SHIP_CANON[@]}" -gt 0 ]; then
     for c in "${SHIP_CANON[@]}"; do [ "$p" = "$c" ] && return 1; done
   fi
@@ -1378,6 +1385,22 @@ ship_path_ships() {
   for c in "${SHIP_DIRS[@]}"; do
     case "$p" in "$c" | "$c"/*) return 0 ;; esac
   done
+  # Two paths the engine ships by logic, not by array membership, so the
+  # arrays alone call them canonical-only — wrongly, and confidently. Placed
+  # AFTER the exemptions, not before: the rule this function states for itself
+  # is that CANONICAL_ONLY beats everything, and a fast path that returned
+  # first would quietly exempt these two from it the day a sub-path of either
+  # is marked canonical-only. Handled here rather than by widening the arrays:
+  # those are the engine's, and this file does not get to edit what they mean.
+  #
+  # A layer under .agents/env/ ships to every consumer that SELECTS it
+  # (sync-to-consumer.sh, LAYER_IN_CANONICAL). Which consumer that is, is not
+  # canonical's to know, so the verdict is "ships" — the plan owes the
+  # consumer-side check either way. .agents/env/README.md is already in FILES.
+  case "$p" in .agents/env/*) return 0 ;; esac
+  # AGENTS.md is spliced, not copied: everything above the Part 2 marker
+  # reaches every consumer. It is absent from FILES on purpose.
+  [ "$p" = "AGENTS.md" ] && return 0
   return 1
 }
 

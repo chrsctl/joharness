@@ -2794,9 +2794,16 @@ chmod +x "${shipwork}/.agents/harness/selftest.sh" "${shipwork}/joharness.sh"
 # would test the stub. Canonical marker, because a consumer gets no verdict.
 cp "${ROOT}/.agents/scripts/sync-to-consumer.sh" "${shipwork}/.agents/scripts/"
 printf 'JOHARNESS_ENV=none\nJOHARNESS_CANONICAL=1\n' >"${shipwork}/joharness.conf"
+shiporigin="${TMP}/shiporigin.git"
+git init -q --bare "$shiporigin"
 git init -q "$shipwork"
 git -C "$shipwork" symbolic-ref HEAD refs/heads/main
 commit_all "$shipwork" "scratch harness"
+# A real origin/main, because without one `base` is always empty and the
+# `git diff base..HEAD` half of ship_changed_plans is never executed by any
+# case below — the working-tree half would carry the whole suite.
+git -C "$shipwork" remote add origin "$shiporigin"
+git -C "$shipwork" push -qu origin main
 
 ship_ci() { CLAUDE_PROJECT_DIR="$shipwork" JOHARNESS_CONF="${shipwork}/joharness.conf" \
   GITHUB_ACTIONS='' JOHARNESS_SHIP="$1" "${shipwork}/joharness.sh" ci 2>&1; }
@@ -2882,7 +2889,11 @@ fi
 
 # Default mode reports the plans this branch touches, not the whole queue.
 # Committed with no origin/main to diff against, every plan above is old news.
+# Onto origin/main, not just onto local main: with a real origin the diff
+# half measures against it, and a plan committed but unpushed is a CHANGED
+# plan — correctly. "Nothing changed" means the base carries them too.
 commit_all "$shipwork" "plans"
+git -C "$shipwork" push -q origin main
 out="$(ship_section "$(ship_ci "")")"
 expect "default mode is quiet when no plan changed" \
   "no plan added or changed on this branch" "$out"
@@ -2895,6 +2906,49 @@ out="$(ship_section "$(ship_ci "")")"
 expect "an uncommitted plan is reported" \
   "just-written: SHIPS to consumers — joharness.sh" "$out"
 refute "an unchanged plan stays out of the default report" "own-docs:" "$out"
+
+# The merge-base half, on its own. Cut a branch from origin/main, commit a
+# plan onto it, leave the working tree clean: `git status` reports nothing, so
+# a verdict here can only have come from `git diff base..HEAD`. Without this
+# the whole block tested one of the function's two halves.
+git -C "$shipwork" checkout -q -- . 2>/dev/null || true
+git -C "$shipwork" checkout -qb shipdiff origin/main
+ship_plan committed-only "joharness.sh"
+commit_all "$shipwork" "plan committed, working tree clean"
+expect "the working tree really is clean" "" "$(git -C "$shipwork" status --porcelain)"
+out="$(ship_section "$(ship_ci "")")"
+expect "a plan committed on the branch is reported" \
+  "committed-only: SHIPS to consumers — joharness.sh" "$out"
+
+# A one-line array declaration closes on its own line. Scanning past it ran
+# into the NEXT array and returned its declaration as entries of this one —
+# silent, because a garbage exact-match string simply never matches anything.
+# A minimal engine rather than an edit to the real one: the shape under test
+# is the one-liner, and writing it directly says so.
+ship_engine="${shipwork}/.agents/scripts/sync-to-consumer.sh"
+cp "$ship_engine" "${TMP}/ship-engine-backup.sh"
+cat >"$ship_engine" <<'EOF'
+#!/usr/bin/env bash
+FILES=(
+  joharness.sh
+)
+DIRS=(
+  .agents/harness
+)
+CANONICAL_ONLY=()
+CANONICAL_ONLY_DIRS=(
+  .agents/scripts
+)
+EOF
+out="$(ship_section "$(ship_ci all)")"
+refute "a one-line array does not leak the next declaration" \
+  "CANONICAL_ONLY_DIRS=(" "$out"
+# CANONICAL_ONLY is empty here, so .agents/harness/selftest.sh is no longer
+# exempt and ships with its tree — the point being that the NEIGHBOURING list
+# survived the one-liner, which is what the old parser ate.
+expect "the neighbouring array survives a one-line declaration" \
+  "canon-tree: canonical-only" "$out"
+cp "${TMP}/ship-engine-backup.sh" "$ship_engine"
 
 # A consumer carries no sync engine (CANONICAL_ONLY_DIRS) and its plans ship
 # nowhere. joharness.sh DOES ship, so this code runs there and must be silent
