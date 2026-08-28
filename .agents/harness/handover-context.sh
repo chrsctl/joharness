@@ -99,6 +99,16 @@ fi
 
 add "== Handover state (protocol: .agents/docs/handover/README.md) =="
 add ""
+# Compaction is the one start the session did not choose. It fires mid-work
+# and takes the orientation step 1 established, leaving a session on a claimed
+# branch, still editing, no longer holding what it read at minute zero. Said
+# once, here, so it reaches a branch carrying no workstream file too — that
+# session lost its orientation the same way.
+if [ "${JOHARNESS_SESSION_SOURCE:-}" = "compact" ]; then
+  add "Context was compacted: the orientation is gone, the branch and the work"
+  add "are not. Below is git state, not what you had decided."
+  add ""
+fi
 add "Branch: ${branch}${position}"
 
 # --- this branch -----------------------------------------------------------
@@ -112,8 +122,19 @@ fi
 
 if [ -n "$mine" ]; then
   add ""
-  add "Workstream file(s) on this branch. Read in full FIRST. Update in same"
-  add "commit as the code they describe:"
+  # A compaction is the one start the session did not choose: it fires
+  # mid-work and takes the orientation step 1 established, leaving a session
+  # on a claimed branch, still editing, no longer holding the file it read at
+  # minute zero. Same facts either way; only the lead line changes, and it
+  # orders a re-read of a file the next lines NAME rather than of something
+  # the session has to go looking for.
+  if [ "${JOHARNESS_SESSION_SOURCE:-}" = "compact" ]; then
+    add "Re-read WHOLE before the next edit — this is the file you were"
+    add "holding when the context went:"
+  else
+    add "Workstream file(s) on this branch. Read in full FIRST. Update in same"
+    add "commit as the code they describe:"
+  fi
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     { read -r status; read -r updated; read -r next; read -r agent; } \
