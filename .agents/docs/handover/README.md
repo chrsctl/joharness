@@ -389,10 +389,10 @@ Placement decisions that look arbitrary, recorded so not helpfully undone:
 Three layers, each covering previous one's failure mode:
 
 1. **`CLAUDE.md`** imports `AGENTS.md`; root `AGENTS.md` Part 1 states
-   protocol in a short `## Handover` section. CLAUDE.md itself stays a pure
-   pointer — backpass compatibility ([`backpass.md`](../backpass.md)), and
-   harnesses that read `AGENTS.md` natively resolve no imports, so the
-   summary only reaches them from there. Claude Code loads `CLAUDE.md`, not
+   protocol in a short `## Handover` section. Instruction text stays out of
+   CLAUDE.md: a harness that reads `AGENTS.md` natively resolves no imports
+   and never sees CLAUDE.md's body, so the summary only reaches it from
+   `AGENTS.md`. Convention, not a gate — nothing checks that file's shape. Claude Code loads `CLAUDE.md`, not
    `AGENTS.md` — repo with only `AGENTS.md` not loading own instructions.
 2. **`.agents/harness/handover-context.sh`** runs every session start, injects
    live state: current branch, this branch's file with `status`/`next`, every
