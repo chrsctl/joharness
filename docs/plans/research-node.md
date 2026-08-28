@@ -17,11 +17,17 @@ it — how it actually researches — is not here and is not needed for the
 node to be useful, because the node is what makes findings survive the
 session that made them.
 
-The type now has instances before it has a definition. Counted on `main`,
-2026-08-27: `ls docs/research/*.md | wc -l` → 4. All four landed via the
-research-sweep merges AFTER this plan was written and agree on a shape, so
-what they already share is the template's first draft. A definition that
-fails `ci` on `main`'s own files is wrong on arrival.
+The type now has instances before it has a definition. Counted on this
+branch, 2026-08-28: `ls docs/research/*.md | wc -l` → 5. Four landed via the
+research-sweep merges AFTER this plan was written and agree on a shape —
+`## Question`, `## Echo`, `## Sweep`, `## What would settle it`, verified in
+all four the same day. The fifth (`twenty-frontend-gx-rebuild.md`, PR #84)
+shares NONE of them: `## TL;DR — Recommendation` and numbered sections. So
+ratifying "what the files agree on" is not mechanical: this plan must first
+DECIDE, and record in its diff, whether the fifth is a research node to
+migrate to the shape or a different artifact that moves out of
+`docs/research/`. A definition that fails `ci` on `main`'s own files is wrong
+on arrival — and with the fifth unclassified, any definition does.
 Where the definition deliberately diverges from the four, the same diff
 migrates them; where they diverge from each other, Scope names it.
 Re-count before starting: this paragraph's count went stale within a day
