@@ -71,6 +71,24 @@ a module goes in a runner list. Write the file the plan REGISTERS itself in
 into `scope`, not only the files it creates. Undeclared, the hook does not
 miss the conflict — it asserts the opposite.
 
+Some files every plan touches. A repo whose plans all edit one test file or
+one index has no disjoint pair, so every wave holds one plan and the hook
+advises serialising work that runs fine in parallel — measured in a consumer:
+four sessions, 12.5 hours, one 8,131-line test file named by 4 of 5 plans,
+and 2 of 24 pull requests needed a reconcile merge. An 8% cost, not an
+impossibility. Mark such a path `shared:` inside `scope`:
+
+```yaml
+scope: src/parser.py, shared:tests/test_all.py
+```
+
+`shared:` means "a reconcile merge is expected here", so the path stops
+splitting waves and the hook names it on the wave line instead. Everything
+unmarked keeps its meaning exactly: an undeclared or unmarked overlap still
+splits, and still says which plan it collided with. Mark only a path where a
+reconcile is genuinely routine — a wave that claims a parallel safety it does
+not have is worse than one that claims none.
+
 ## Lifecycle
 
 - **Claim** = normal Loop claim: cut branch, workstream file under

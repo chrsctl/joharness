@@ -250,6 +250,7 @@ free_list=""
 free_names=()
 free_tiers=()
 free_scopes=()
+free_shared=()
 while IFS=$'\t' read -r rank _ f label _; do
   [ -n "$f" ] || continue
   [ "$rank" -lt 2 ] || continue
@@ -259,9 +260,18 @@ while IFS=$'\t' read -r rank _ f label _; do
   free_names+=("$(stem "$f")")
   free_tiers+=("${tier:-sonnet}")
   # Normalized: comma to space, surrounding blanks and trailing slashes gone.
-  free_scopes+=("$(git show "${ref}:${f}" 2>/dev/null | field scope |
+  # A `shared:` prefix splits the declaration in two. Exclusive paths decide
+  # whether two plans may run in parallel; shared paths are named as an
+  # expected reconcile instead of splitting the wave, because a queue where
+  # every plan touches the same test file has no disjoint pair and reports
+  # waves of one — advice that serialises work the repo has run in parallel.
+  scope_raw="$(git show "${ref}:${f}" 2>/dev/null | field scope |
     tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//; s|/*$||' |
-    grep -v '^$' | grep -vx 'none' | paste -sd' ' -)")
+    grep -v '^$' | grep -vx 'none')"
+  free_scopes+=("$(printf '%s\n' "$scope_raw" | grep -v '^shared:' |
+    paste -sd' ' -)")
+  free_shared+=("$(printf '%s\n' "$scope_raw" | sed -n 's/^shared:[[:space:]]*//p' |
+    paste -sd' ' -)")
 done <<<"$rows"
 
 # Two path prefixes overlap when equal or one contains the other at a
@@ -285,6 +295,7 @@ if [ "$free_count" -ge 2 ] && [ "$scoped_any" = "1" ]; then
   # indices; a plan joins the first wave it conflicts with nobody in.
   waves=()
   wave_notes=()
+  wave_shared=()
   unscoped=""
   i=0
   while [ "$i" -lt "$free_count" ]; do
@@ -302,6 +313,15 @@ if [ "$free_count" -ge 2 ] && [ "$scoped_any" = "1" ]; then
           hit=""
         done
         if [ -z "$hit" ]; then
+          # Joining is decided; now record any shared path this plan meets in
+          # the wave, so the line can say what reconcile the parallelism costs.
+          for m in ${waves[$w]}; do
+            sh="$(scopes_overlap "${free_shared[$i]}" "${free_shared[$m]}")" || continue
+            case " ${wave_shared[$w]:-} " in
+              *" $sh "*) ;;
+              *) wave_shared[w]="${wave_shared[$w]:-}${wave_shared[$w]:+ }$sh" ;;
+            esac
+          done
           waves[w]="${waves[$w]} $i"
           placed=1
           break
@@ -326,10 +346,14 @@ if [ "$free_count" -ge 2 ] && [ "$scoped_any" = "1" ]; then
     for m in ${waves[$w]}; do
       line="${line:+${line}, }${free_names[$m]} (${free_tiers[$m]})"
     done
+    sh_note=""
+    [ -z "${wave_shared[$w]:-}" ] ||
+      sh_note=" — reconcile expected on ${wave_shared[$w]}"
     if [ "$w" -eq 0 ] || [ -z "${wave_notes[$w]:-}" ]; then
-      printf '  wave %d: %s\n' "$((w + 1))" "$line"
+      printf '  wave %d: %s%s\n' "$((w + 1))" "$line" "$sh_note"
     else
-      printf '  wave %d: %s — overlaps %s\n' "$((w + 1))" "$line" "${wave_notes[$w]}"
+      printf '  wave %d: %s — overlaps %s%s\n' \
+        "$((w + 1))" "$line" "${wave_notes[$w]}" "$sh_note"
     fi
     w=$((w + 1))
   done

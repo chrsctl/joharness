@@ -848,6 +848,55 @@ expect "unscoped plans stay listed as unprovable" \
 refute "the old unconditional line is gone when scopes exist" \
   "5 free plans = 5 parallel sessions" "$out"
 
+# A path marked `shared:` is a reconcile the wave accepts, not a wall. Without
+# this a queue where every plan names the same test file reports waves of one
+# and tells sessions to serialise work that has been run in parallel.
+git -C "$work" checkout -q main
+mkdir -p "${work}/docs/plans"
+cat >"${work}/docs/plans/tow-in.md" <<'EOF'
+---
+plan: tow-in
+urgency: urgent
+agent: sonnet
+scope: reef/, shared:beach/surf.txt
+---
+EOF
+cat >"${work}/docs/plans/paddle-out.md" <<'EOF'
+---
+plan: paddle-out
+urgency: urgent
+agent: sonnet
+scope: lagoon/, shared:beach/surf.txt
+---
+EOF
+git -C "$work" add -A docs/plans
+git -C "$work" commit -qm "queue two plans sharing one file"
+git -C "$work" push -q origin main
+git -C "$work" checkout -q feature
+git -C "$work" fetch -q origin
+out="$(CLAUDE_PROJECT_DIR="$work" bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1)"
+
+# Assert against the one wave line, not the whole output, and never on the
+# order of its members: wave membership order follows queue order, so an
+# assertion naming both in sequence passes or fails by luck.
+sharedline="$(printf '%s\n' "$out" | grep 'reconcile expected on beach/surf.txt' || :)"
+expect "the wave names the reconcile it accepts" \
+  "reconcile expected on beach/surf.txt" "$out"
+expect "tow-in is on that wave" "tow-in (sonnet)" "$sharedline"
+expect "paddle-out is on the same wave" "paddle-out (sonnet)" "$sharedline"
+refute "a shared path is not reported as a wave-splitting overlap" \
+  "overlaps tow-in on beach/surf.txt" "$out"
+# The unmarked case must be untouched: wipeout still splits off point-break.
+expect "an unmarked overlap still splits the wave" \
+  "overlaps point-break on beach" "$out"
+
+git -C "$work" checkout -q main
+git -C "$work" rm -q docs/plans/tow-in.md docs/plans/paddle-out.md
+git -C "$work" commit -qm "the tow-in crew go home"
+git -C "$work" push -q origin main
+git -C "$work" checkout -q feature
+git -C "$work" fetch -q origin
+
 git -C "$work" checkout -q main
 git -C "$work" rm -q docs/plans/point-break.md docs/plans/wipeout.md \
   docs/plans/inland.md

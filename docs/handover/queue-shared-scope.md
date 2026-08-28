@@ -7,7 +7,7 @@ plan: queue-shared-scope
 session: https://claude.ai/code/session_01UcW18iV8drNpkz9rpCT27B
 agent: opus
 updated: 2026-08-28
-next: Add shared: marking, stop it splitting waves, name the reconcile, cover both
+next: Adversarial review, then finish
 ---
 
 ## Goal
@@ -35,7 +35,16 @@ requests needing a reconcile, an 8% cost rather than an impossibility.
 
 ## Rejected
 
-(pending)
+- A suffix or bare-symbol spelling (`tests/foo.py~`, `+tests/foo.py`). The
+  prefix reads as a word in frontmatter a human skims, and an older hook
+  degrades safely with it — `shared:foo` matches no path, so it over-splits
+  rather than claiming safety it cannot prove. A stripped symbol would make
+  the same declaration read as an ordinary exclusive path.
+- Asserting wave membership by naming both plans in sequence. Wave order
+  follows queue order, so the first version of that assertion passed on one
+  run and failed on the next. Now it extracts the wave line and checks each
+  member separately — the flake was caught by running the suite three times
+  rather than once, which is the rule this session merged an hour ago.
 
 ## Review
 
