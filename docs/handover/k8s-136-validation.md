@@ -35,7 +35,16 @@ rejections: fail-cgroup-v1 flag does not exist, drop-in removal fatal)
 
 ## Review
 
-(pending)
+/code-review high, full branch diff vs main, 2026-08-28. Reviewer
+independently re-fetched the publisher kubectl.sha256 (matches pin),
+audited removed caveats for surviving invariants, checked pin/README/
+smoke-count consistency — all clean. One finding:
+
+- r1: `.agents/env/k8s/AGENTS.md` trip-wire still said the drop-in "lets
+  pinned v1.35 run" while the diff pins v1.36.3 — session-injected rules
+  describing a pin that no longer exists invites a future session to
+  "correct" the bump. (fixed: wording version-neutral, "lets the pinned
+  version run")
 
 ## Blockers
 
