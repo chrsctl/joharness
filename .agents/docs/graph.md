@@ -48,6 +48,12 @@ discipline fails exactly when someone hurries.
   never justify a graph store.
 - No stored graph, no auto-extraction, no embeddings. Derived state =
   second copy, rots (derivability rule, `.agents/docs/handover/README.md`).
+  Measured elsewhere, 2026-08-28: basemode
+  (github.com/ChristopherKahler/base, at 22e8b8c) stores its graph, and its
+  own `docs/workspace-scoping.md` records that store stamping foreign
+  projects into the wrong named graph, every session-start re-polluting
+  what was cleaned by hand, ending in a planned full reset. Failure mode
+  derive-at-read-time cannot have.
 - Fusion manual: graduation ritual, human-reviewed. Wrong merge worse than
   missed merge.
 - Provenance = commits. Never hand-write time or source into a file.
