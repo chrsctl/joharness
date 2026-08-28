@@ -2783,27 +2783,27 @@ fi
 # "canonical-only" skips the consumer-side check its diff actually needed.
 step "joharness.sh ci: ship scope"
 
-swork="${TMP}/shipwork"
-mkdir -p "${swork}/.agents/harness" "${swork}/.agents/env/none" \
-  "${swork}/.agents/scripts" "${swork}/docs/plans" "${swork}/docs/handover" \
-  "${swork}/docs/product"
-cp "${ROOT}/joharness.sh" "${swork}/joharness.sh"
-printf '#!/usr/bin/env bash\nexit 0\n' >"${swork}/.agents/harness/selftest.sh"
-chmod +x "${swork}/.agents/harness/selftest.sh" "${swork}/joharness.sh"
+shipwork="${TMP}/shipwork"
+mkdir -p "${shipwork}/.agents/harness" "${shipwork}/.agents/env/none" \
+  "${shipwork}/.agents/scripts" "${shipwork}/docs/plans" "${shipwork}/docs/handover" \
+  "${shipwork}/docs/product"
+cp "${ROOT}/joharness.sh" "${shipwork}/joharness.sh"
+printf '#!/usr/bin/env bash\nexit 0\n' >"${shipwork}/.agents/harness/selftest.sh"
+chmod +x "${shipwork}/.agents/harness/selftest.sh" "${shipwork}/joharness.sh"
 # The real engine: the stage parses ITS lists, so a hand-written stub here
 # would test the stub. Canonical marker, because a consumer gets no verdict.
-cp "${ROOT}/.agents/scripts/sync-to-consumer.sh" "${swork}/.agents/scripts/"
-printf 'JOHARNESS_ENV=none\nJOHARNESS_CANONICAL=1\n' >"${swork}/joharness.conf"
-git init -q "$swork"
-git -C "$swork" symbolic-ref HEAD refs/heads/main
-commit_all "$swork" "scratch harness"
+cp "${ROOT}/.agents/scripts/sync-to-consumer.sh" "${shipwork}/.agents/scripts/"
+printf 'JOHARNESS_ENV=none\nJOHARNESS_CANONICAL=1\n' >"${shipwork}/joharness.conf"
+git init -q "$shipwork"
+git -C "$shipwork" symbolic-ref HEAD refs/heads/main
+commit_all "$shipwork" "scratch harness"
 
-ship_ci() { CLAUDE_PROJECT_DIR="$swork" JOHARNESS_CONF="${swork}/joharness.conf" \
-  GITHUB_ACTIONS='' JOHARNESS_SHIP="$1" "${swork}/joharness.sh" ci 2>&1; }
+ship_ci() { CLAUDE_PROJECT_DIR="$shipwork" JOHARNESS_CONF="${shipwork}/joharness.conf" \
+  GITHUB_ACTIONS='' JOHARNESS_SHIP="$1" "${shipwork}/joharness.sh" ci 2>&1; }
 ship_section() { sed -n '/== ship scope/,/^$/p' <<<"$1"; }
 
 ship_plan() {
-  cat >"${swork}/docs/plans/$1.md" <<EOF
+  cat >"${shipwork}/docs/plans/$1.md" <<EOF
 ---
 plan: $1
 urgency: normal
@@ -2824,6 +2824,10 @@ ship_plan canon-exempt ".agents/harness/selftest.sh"
 ship_plan canon-tree ".agents/scripts/sync-to-consumer.sh"
 ship_plan shared-marked "shared:joharness.sh"
 ship_plan no-scope "none"
+# The engine ships these two by logic, not by array membership. Testing the
+# arrays alone called both canonical-only — confidently, and wrongly.
+ship_plan env-layer ".agents/env/somelayer/setup.sh"
+ship_plan spliced-agents "AGENTS.md"
 
 out="$(ship_section "$(ship_ci all)")"
 
@@ -2850,6 +2854,21 @@ expect "no scope declares no verdict" "no-scope: no scope declared — no verdic
 refute "no scope is not called canonical-only" "no-scope: canonical-only" "$out"
 expect "a shipping plan is told what Acceptance owes" \
   "Acceptance names the consumer-side check" "$out"
+# A layer ships to every consumer that SELECTS it (sync-to-consumer.sh,
+# LAYER_IN_CANONICAL). It is in no static array, so array membership alone
+# reads a layer plan as this repo's private business.
+# A fictional layer name on purpose: .agents/harness/ names no specific
+# environment layer (AGENTS.md Part 2, LAYER_CARVE_OUT), and the rule holds
+# for a test fixture too. Any name under .agents/env/ proves the same thing.
+expect "the selected env layer ships" \
+  "env-layer: SHIPS to consumers — .agents/env/somelayer/setup.sh" "$out"
+refute "a layer is not called canonical-only" "env-layer: canonical-only" "$out"
+# AGENTS.md is spliced, not copied: everything above the Part 2 marker reaches
+# every consumer. Absent from FILES on purpose, which is the trap.
+expect "spliced AGENTS.md ships" \
+  "spliced-agents: SHIPS to consumers — AGENTS.md" "$out"
+refute "the spliced file is not called canonical-only" \
+  "spliced-agents: canonical-only" "$out"
 
 # Report only, never red: scope is only as true as it is complete, so a gate
 # on it fires on the honest plan whose author forgot a path.
@@ -2863,7 +2882,7 @@ fi
 
 # Default mode reports the plans this branch touches, not the whole queue.
 # Committed with no origin/main to diff against, every plan above is old news.
-commit_all "$swork" "plans"
+commit_all "$shipwork" "plans"
 out="$(ship_section "$(ship_ci "")")"
 expect "default mode is quiet when no plan changed" \
   "no plan added or changed on this branch" "$out"
@@ -2880,17 +2899,17 @@ refute "an unchanged plan stays out of the default report" "own-docs:" "$out"
 # A consumer carries no sync engine (CANONICAL_ONLY_DIRS) and its plans ship
 # nowhere. joharness.sh DOES ship, so this code runs there and must be silent
 # rather than guessing or erroring.
-rm -rf "${swork}/.agents/scripts"
+rm -rf "${shipwork}/.agents/scripts"
 out="$(ship_section "$(ship_ci all)")"
 refute "no engine, no verdict" "SHIPS to consumers" "$out"
 refute "no engine, no canonical-only either" "canonical-only" "$out"
 
 # Engine present but no canonical marker: a consumer that predates the
 # canonical-only rule still carries the file. Still not its question.
-git -C "$swork" checkout -q -- .agents/scripts 2>/dev/null ||
-  cp "${ROOT}/.agents/scripts/sync-to-consumer.sh" "${swork}/.agents/scripts/" 2>/dev/null ||
-  mkdir -p "${swork}/.agents/scripts"
-printf 'JOHARNESS_ENV=none\n' >"${swork}/joharness.conf"
+git -C "$shipwork" checkout -q -- .agents/scripts 2>/dev/null ||
+  cp "${ROOT}/.agents/scripts/sync-to-consumer.sh" "${shipwork}/.agents/scripts/" 2>/dev/null ||
+  mkdir -p "${shipwork}/.agents/scripts"
+printf 'JOHARNESS_ENV=none\n' >"${shipwork}/joharness.conf"
 out="$(ship_section "$(ship_ci all)")"
 refute "a consumer carrying the engine still gets no verdict" \
   "SHIPS to consumers" "$out"

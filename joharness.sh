@@ -1353,6 +1353,19 @@ ship_load() {
 ship_path_ships() {
   local p="${1#shared:}" c
   p="${p%/}"
+  # Two paths the engine ships by logic, not by array membership, so testing
+  # the arrays alone calls them canonical-only — wrongly, and confidently.
+  # Handled here rather than by widening the arrays: they are the engine's,
+  # and this file does not get to edit what they mean.
+  #
+  # A layer under .agents/env/ ships to every consumer that SELECTS it
+  # (sync-to-consumer.sh, LAYER_IN_CANONICAL). Which consumer that is, is not
+  # canonical's to know, so the verdict is "ships" — the plan owes the
+  # consumer-side check either way. .agents/env/README.md is already in FILES.
+  case "$p" in .agents/env/*) return 0 ;; esac
+  # AGENTS.md is spliced, not copied: everything above the Part 2 marker
+  # reaches every consumer. It is absent from FILES on purpose.
+  [ "$p" = "AGENTS.md" ] && return 0
   if [ "${#SHIP_CANON[@]}" -gt 0 ]; then
     for c in "${SHIP_CANON[@]}"; do [ "$p" = "$c" ] && return 1; done
   fi
