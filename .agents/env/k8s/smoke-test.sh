@@ -17,9 +17,11 @@
 #
 # Each run gets its own namespace. Cleanup deletes with --wait=false (waiting
 # would add ~15s to every green run for nothing), so the previous run's
-# namespace is usually still Terminating when the next one starts - and a
-# Terminating namespace accepts no pods, which failed every check after the
-# first two. A per-run name means back-to-back runs practically never meet;
+# namespace is usually still Terminating when the next one starts. Pods there
+# are admitted and then reaped by the namespace controller, so the checks that
+# wait on one fail: measured on the old script, checks 5, 7 and 8 went red
+# while 6 went GREEN against the previous run's leftover deployment - a false
+# pass, which is the worse half of the bug. A per-run name means back-to-back runs practically never meet;
 # pids do recycle, so a leftover of the same name is still handled rather
 # than assumed away. Pin one with SMOKE_NAMESPACE to choose the name.
 #
@@ -176,12 +178,31 @@ fi
 
 # --- 7: service DNS + networking -------------------------------------------
 step "Service DNS and networking"
+# The curl is retried, and that is not papering over a failure. `rollout
+# status` returns when the pods are Available, which is BEFORE kube-proxy has
+# finished programming the Service's ClusterIP rules: DNS already resolves and
+# the endpoints are already populated, the connect just has nowhere to land
+# yet. Measured without a retry, on a cluster where nothing was wrong: 7 red
+# in 38 runs, always here, and an immediate second curl returned 200. A
+# one-shot check of a thing that becomes true milliseconds later tests the
+# race, not the networking. A Service that never answers still fails, ~20s
+# later, which is the honest question this check is asking.
+web_ok=0
 if k -n "$NS" run curl-probe --image=curlimages/curl:8.11.1 --restart=Never \
      --command --timeout=60s -- sleep 120 >/dev/null 2>&1 \
    && k -n "$NS" wait --for=jsonpath='{.status.phase}'=Running \
-        pod/curl-probe --timeout=180s >/dev/null 2>&1 \
-   && k -n "$NS" exec curl-probe -- \
-        curl -sS --max-time 15 -o /dev/null -w '%{http_code}' http://web 2>/dev/null | grep -q '^200$'; then
+        pod/curl-probe --timeout=180s >/dev/null 2>&1; then
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    code="$(k -n "$NS" exec curl-probe -- \
+      curl -sS --max-time 15 -o /dev/null -w '%{http_code}' http://web 2>/dev/null || true)"
+    if [ "$code" = "200" ]; then
+      web_ok=1
+      break
+    fi
+    sleep 2
+  done
+fi
+if [ "$web_ok" -eq 1 ]; then
   pass "resolved Service 'web' by DNS and got HTTP 200"
 else
   fail "could not reach http://web from inside the cluster"
