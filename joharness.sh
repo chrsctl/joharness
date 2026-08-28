@@ -2564,6 +2564,13 @@ cmd_session_start() {
     sed -n 's/.*"source"[[:space:]]*:[[:space:]]*"\([a-z]*\)".*/\1/p')"
   export JOHARNESS_SESSION_SOURCE="${src:-}"
 
+  # The RESOLVED mode, for the hooks this command runs as children. They
+  # cannot re-derive it: precedence across $JOHARNESS_MODE, the marker file
+  # and the conf lives in run_mode() alone, and a second resolver in a hook
+  # is the second copy that rots against the first. Resolved once here,
+  # read as ${JOHARNESS_RUN_MODE:-supervised} there.
+  export JOHARNESS_RUN_MODE
+  JOHARNESS_RUN_MODE="$(run_mode)"
 
   # Autonomy first: it governs the whole session, including the parts that
   # run before an environment resolves. Supervised prints NOTHING — same
@@ -2571,7 +2578,7 @@ cmd_session_start() {
   # context to be told so, and the rules it already loads are the
   # supervised ones. Only the mode that widens what a session may do
   # announces itself, and it announces the boundary in the same breath.
-  if [ "$(run_mode)" = "unsupervised" ]; then
+  if [ "$JOHARNESS_RUN_MODE" = "unsupervised" ]; then
     printf '== Mode: unsupervised ==\n\n'
     printf 'Queue edge is a trigger, not a stop: generate work, run the full\n'
     printf 'Loop, merge your own pull request. NEVER commit under\n'

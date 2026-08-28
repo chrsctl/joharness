@@ -14,7 +14,9 @@
 #                       in-flight workstream names it. Blocked and claimed
 #                       list but never lead.
 # Two or more free plans = fan-out instruction (one session per free plan,
-# model named). No free plan and nothing to plan = done. GitHub issues
+# model named), and under JOHARNESS_RUN_MODE=unsupervised that instruction
+# becomes an order to start them now, for wave 1 only. No free plan and
+# nothing to plan = done. GitHub issues
 # outrank everything; a shell hook cannot read GitHub, so that stays a
 # pointer.
 #
@@ -245,6 +247,17 @@ done <<<"$rows"
 # path are named. A plan without scope stays listed, labeled unprovable,
 # because a missing declaration must neither serialize the queue nor inherit
 # the old unconditional promise. Zero scoped plans = output unchanged.
+# Supervised REPORTS what is possible; unsupervised ORDERS it. Same facts,
+# different speech act — nobody is reading the supervised line and deciding
+# when the mode is unsupervised. Every mode-dependent line below sits inside
+# a branch this variable guards, so supervised output stays byte-identical.
+# Resolved by joharness.sh (run_mode) and exported to this hook; never
+# re-derived here, because precedence across the env var, the marker and the
+# conf lives in exactly one place. Unset (hook run directly) = supervised,
+# the safe direction: a session that is not unattended is never ordered to
+# spawn a fleet.
+qc_mode="${JOHARNESS_RUN_MODE:-supervised}"
+
 free_count=0
 free_list=""
 free_names=()
@@ -395,12 +408,52 @@ if [ "$free_count" -ge 2 ] && [ "$scoped_any" = "1" ]; then
       "$unscoped"
   [ -z "$unplanned" ] ||
     printf 'Plus one planning session for the UNPLANNED requirements above.\n'
+  if [ "$qc_mode" = "unsupervised" ]; then
+    # Wave 1 ONLY. A later wave conflicts with wave 1 on a named path, so it
+    # is the next generation, never this one — the hook already proved which
+    # plans are pairwise disjoint and this must not widen that answer.
+    w1=""
+    w1_n=0
+    for m in ${waves[0]}; do
+      w1="${w1:+${w1}, }${free_names[$m]} (${free_tiers[$m]})"
+      w1_n=$((w1_n + 1))
+    done
+    if [ "$w1_n" -ge 2 ]; then
+      printf '\nUNSUPERVISED: start one session per wave-1 plan NOW, each on the\n'
+      printf 'tier named: %s.\n' "$w1"
+    else
+      # One plan is not a fan-out. Spawning a child to do what this session
+      # can do costs a container for nothing
+      # (.agents/docs/unsupervised.md, Run a plan, or fan out?).
+      printf '\nUNSUPERVISED: one plan is parallel-safe right now — claim and run\n'
+      printf '%s in THIS session. Do not spawn for one.\n' "$w1"
+    fi
+    [ "${#waves[@]}" -le 1 ] ||
+      printf 'Later waves conflict with wave 1 on the paths named above: next\ngeneration, not this one.\n'
+    [ -z "$unscoped" ] ||
+      printf 'Never the unscoped plans: independence unproven, and unproven is\nnot disjoint.\n'
+    # A resumed or compacted session may already hold a claim, and this hook
+    # cannot see it — the claim lives in a workstream file on the branch,
+    # which handover-context.sh prints and this one does not read. Loop step
+    # 1 wins there, so say so rather than order a fleet on top of work in
+    # progress.
+    printf 'Holding a claim on this branch already? Step 1 wins: finish it,\nspawn nothing.\n'
+  fi
 elif [ "$free_count" -ge 2 ]; then
   printf '\n%d free plans = %d parallel sessions. Spawn one per plan, model = its\n' \
     "$free_count" "$free_count"
   printf 'tier: %s.\n' "$free_list"
   [ -z "$unplanned" ] ||
     printf 'Plus one planning session for the UNPLANNED requirements above.\n'
+  if [ "$qc_mode" = "unsupervised" ]; then
+    # No plan here declares scope:, so nothing above is a proof — the line
+    # this branch prints is the old unconditional promise, kept for the
+    # supervised reader who can judge it. An unattended session cannot, so
+    # it is told the one safe thing instead.
+    printf '\nUNSUPERVISED: no plan here declares scope:, so independence is\n'
+    printf 'unproven — take ONE piece of work in THIS session, requirements\n'
+    printf 'above first. Never spawn on an assumption the queue has not proved.\n'
+  fi
 elif [ "$free_count" -eq 0 ] && [ -z "$unplanned" ]; then
   printf '\nEdge reached: no free plan — every plan claimed or blocked. done.\n'
 fi

@@ -91,11 +91,25 @@ The queue hook already decides and prints it. No judgment to add:
 
 - `N free plans = N parallel sessions. Spawn one per plan, model = its
   tier.` — two or more free plans, so fan out, one session per plan,
-  each on the tier its plan names.
+  each on the tier its plan names. That line is the queue's answer only
+  when the queue proved it; with no `scope:` anywhere it proved nothing,
+  and the unsupervised reader is told so below.
 - One free plan — run it in this session. Spawning one child to do what
   the firing session can do costs a container for nothing.
 - Waves. Same wave = declared scopes disjoint, parallel proven. Never
   spawn across waves in one generation; the hook names the conflict.
+
+Supervised, that line REPORTS. Unsupervised, it ORDERS: the hook names
+wave 1's plans and their tiers and says start them now. Wave 1 only — a
+later wave conflicts with it on a path the hook prints, so it is the next
+generation, not this one. No plan declares `scope:`? Nothing is proved, so
+nothing is spawned: claim one, run it here.
+
+Ordered N, fewer claims land? No repair. The claim is a pushed workstream
+file, so a plan nobody took is still free and the next generation takes it.
+Never re-spawn to "finish" a generation — a second session on a plan whose
+claim is merely slow to push is the double-claim the push rule exists to
+prevent.
 
 ## Firing while the previous fleet is still working
 
