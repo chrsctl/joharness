@@ -29,7 +29,7 @@ the diff.
   reads the branch diff and the harness rules, reports every suspected
   defect with the concrete input that breaks it, fixes nothing. Its system
   prompt states the property that makes it worth spawning — it has NOT been
-  told why the code is the way it is, and must not ask. Model tier follows
+  told why the code is the way it is, and must not ask. Agent tier follows
   the branch's own (`./joharness.sh review` already resolves it); state in
   the file that the spawning session passes the tier. Two properties are
   the definition's job, not the caller's, because a caller in a hurry drops

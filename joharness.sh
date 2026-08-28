@@ -529,6 +529,9 @@ cmd_ci() {
   # Graph edges, checked rather than trusted: a dangling frontmatter edge
   # or out-of-vocabulary enum fails silent everywhere else — the hooks
   # default it and the queue lies. Rules and the warn/red split: lint_graph.
+  printf '\n== glossary\n'
+  lint_glossary || rc=1
+
   printf '\n== graph lint\n'
   lint_graph || rc=1
 
@@ -740,6 +743,68 @@ selftest_inert_diff() {
 
   [ "$seen" -eq 1 ] || return 1
   return 0
+}
+
+# ---------------------------------------------------------------------------
+# Glossary lint
+#
+# The same node had two names in the files every session loads: measured
+# 2026-08-28 with the command the glossary itself carries, "workstream file"
+# 205 against the older spelling 14, five files using both. Instruction files
+# written for a literal reader, and a reader who meets two names for one thing
+# either asks or guesses.
+#
+# Adopt or build was a real question: Vale's accept.txt plus Vale.Terms does
+# exactly this and runs in production at Datadog and Elastic
+# (docs/research/glossary-enforcement.md). Built instead, deliberately - that
+# is a Go binary in a `ci` whose whole toolchain is shell and shellcheck, and
+# in a sandbox with an egress allowlist, for three substitutions.
+#
+# The bans are READ FROM the glossary table, never restated here: a second
+# copy of the list would rot against the first, which is the defect this stage
+# exists to catch.
+# ---------------------------------------------------------------------------
+GLOSSARY_REL=".agents/docs/glossary.md"
+
+lint_glossary() {
+  local gloss="${ROOT}/${GLOSSARY_REL}" rc=0 rows hits canon bad
+  if [ ! -r "$gloss" ]; then
+    printf '  no glossary here (%s)\n' "$GLOSSARY_REL"
+    return 0
+  fi
+
+  # Table rows only: four columns, and the header and its dashes dropped.
+  rows="$(awk -F'|' '/^\|/ && NF >= 5 {
+      c = $2; n = $5
+      gsub(/[`[:space:]]+$/, "", c); gsub(/^[`[:space:]]+/, "", c)
+      gsub(/[`[:space:]]+$/, "", n); gsub(/^[`[:space:]]+/, "", n)
+      if (c == "Canonical" || c ~ /^-+$/ || c == "" || n == "") next
+      print c "\t" n
+    }' "$gloss")"
+
+  if [ -z "$rows" ]; then
+    printf '  glossary has no rows to enforce\n'
+    return 0
+  fi
+
+  while IFS="$(printf '\t')" read -r canon bad; do
+    [ -n "$bad" ] || continue
+    # Tracked files only, and never the glossary: it must name what it bans.
+    hits="$(git -C "$ROOT" grep -Ini -- "$bad" -- '*.md' '*.sh' 2>/dev/null |
+      grep -v "^${GLOSSARY_REL}:" || :)"
+    if [ -n "$hits" ]; then
+      rc=1
+      printf '%s\n' "$hits" | while IFS= read -r h; do
+        printf '  %s\n' "$h"
+      done
+      printf '  ^ says "%s"; this repo says "%s" (%s)\n' "$bad" "$canon" "$GLOSSARY_REL"
+    fi
+  done <<EOF
+$rows
+EOF
+
+  [ "$rc" -eq 0 ] && printf '  every contested term spelled as the glossary fixes it\n'
+  return "$rc"
 }
 
 # ---------------------------------------------------------------------------
@@ -2283,7 +2348,7 @@ cmd_session_start() {
     "${HARNESS_ROOT}/handover-context.sh"
 
   # After handover state, so a resumed branch reads its own work first and a
-  # fresh session reads what to pick up and which model tier it wants.
+  # fresh session reads what to pick up and which agent tier it wants.
   [ -x "${HARNESS_ROOT}/queue-context.sh" ] &&
     "${HARNESS_ROOT}/queue-context.sh"
 

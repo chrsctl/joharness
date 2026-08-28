@@ -1007,7 +1007,7 @@ mkdir -p "${work}/.agents/harness"
 cp "${ROOT}/.agents/harness/handover-context.sh" "${ROOT}/.agents/harness/queue-context.sh" \
   "${work}/.agents/harness/"
 
-# The hook must never fail a session, and with no env layer present it still
+# The hook must never fail a session, and with no environment layer present it still
 # has to produce the handover and queue sections.
 out="$(CLAUDE_PROJECT_DIR="$work" JOHARNESS_CONF="${work}/joharness.conf" \
   HANDOVER_FETCH=0 "${ROOT}/joharness.sh" session-start 2>/dev/null)"
@@ -1983,6 +1983,68 @@ fi
 expect "canonical refusal points at the outbound tool" \
   "sync-to-consumer.sh" "$out"
 
+step "joharness.sh ci: glossary"
+
+# A glossary nothing enforces is a wish. The stage reads its bans out of the
+# glossary table rather than restating them, so these cases also prove the
+# table is what drives it.
+gl="${TMP}/glossary"
+mkdir -p "${gl}/.agents/docs" "${gl}/.agents/harness"
+cp "${ROOT}/joharness.sh" "${gl}/joharness.sh"
+printf '#!/usr/bin/env bash\nexit 0\n' >"${gl}/.agents/harness/selftest.sh"
+chmod +x "${gl}/.agents/harness/selftest.sh" "${gl}/joharness.sh"
+# The banned wording is ASSEMBLED, never written: this file is tracked, the
+# stage reads tracked files, and the one path exemption belongs to the
+# glossary. A fixture that spells its own ban would red the gate it tests.
+gl_bad="handover"; gl_bad="${gl_bad} file"
+cat >"${gl}/.agents/docs/glossary.md" <<GLOSS
+# Glossary
+
+| Canonical | Means | Defined in | Not this |
+| --- | --- | --- | --- |
+| workstream file | one file per work | \`x.md\` | ${gl_bad} |
+GLOSS
+git init -q "$gl"
+git -C "$gl" symbolic-ref HEAD refs/heads/main
+commit_all "$gl" "scratch glossary repo"
+
+ci_gloss() { CLAUDE_PROJECT_DIR="$gl" JOHARNESS_CONF="${gl}/joharness.conf" \
+  GITHUB_ACTIONS='' JOHARNESS_SELFTEST='' "${gl}/joharness.sh" ci 2>&1 |
+  sed -n '/== glossary/,/^$/p'; }
+
+# The glossary names what it bans; it must not trip on its own rows.
+out="$(ci_gloss)"
+expect "a clean tree passes the glossary stage" "every contested term" "$out"
+refute "the glossary's own row does not trip it" "glossary.md:" "$out"
+
+# A banned wording in a tracked file: red, and the failure has to be
+# actionable — which file, which line, and what to write instead.
+printf 'Update the %s before stopping.\n' "$gl_bad" >"${gl}/.agents/docs/note.md"
+commit_all "$gl" "reintroduce the banned wording"
+out="$(ci_gloss)"
+expect "a banned wording is caught" ".agents/docs/note.md:1:" "$out"
+expect "the failure names the wording" "says \"${gl_bad}\"" "$out"
+expect "the failure names the replacement" 'this repo says "workstream file"' "$out"
+
+# And it must actually fail ci, not merely mention it.
+if CLAUDE_PROJECT_DIR="$gl" JOHARNESS_CONF="${gl}/joharness.conf" GITHUB_ACTIONS='' \
+   JOHARNESS_SELFTEST='' "${gl}/joharness.sh" ci >/dev/null 2>&1; then
+  fail "a banned wording fails ci"
+else
+  pass "a banned wording fails ci"
+fi
+
+git -C "$gl" rm -q .agents/docs/note.md
+git -C "$gl" commit -qm "remove it again"
+out="$(ci_gloss)"
+expect "removing it clears the stage" "every contested term" "$out"
+
+# No glossary at all is not an error: a consumer may carry none.
+git -C "$gl" rm -q .agents/docs/glossary.md
+git -C "$gl" commit -qm "no glossary here"
+out="$(ci_gloss)"
+expect "a repo with no glossary says so and passes" "no glossary here" "$out"
+
 step "joharness.sh ci: graph lint"
 
 lwork="${TMP}/lintwork"
@@ -2732,7 +2794,7 @@ manifest_paths() {
       sed '1d;$d;s/[[:space:]]#.*$//;s/^[[:space:]]*//;s/[[:space:]]*$//;/^$/d'
   done
   # Shipped at runtime, invisible to the static parse: the consumer-selected
-  # env layer (DIRS+= at sync time — walking all of .agents/env covers every
+  # environment layer (DIRS+= at sync time — walking all of .agents/env covers every
   # selectable layer) and root AGENTS.md (the marker splice).
   printf '%s\n' .agents/env AGENTS.md
 }

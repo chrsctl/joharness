@@ -13,10 +13,10 @@ scope: .agents/docs/glossary.md, joharness.sh, .agents/harness/selftest.sh, .age
 The same node has two names in the instruction files agents load every
 session. Counted on this repo at plan time, `grep -rnoi <term> --include=*.md
 --include=*.sh . | grep -v '^./.git' | wc -l`: "workstream file" 146,
-"handover file" 12, and five files use both — `.agents/docs/handover/README.md`,
+"workstream file" 12, and five files use both — `.agents/docs/handover/README.md`,
 `.agents/docs/plans/README.md`, `.agents/docs/product/README.md`,
 `.claude/commands/handover.md`, `README.md`. Same split elsewhere:
-"agent tier" 10 against "model tier" 5, "environment layer" 18 against "env
+"agent tier" 10 against "agent tier" 5, "environment layer" 18 against "env
 layer" 2. Every one of those files is written for a literal reader, and the
 Loop's own warning is that ambiguity gets executed wrong or asked back.
 `kitchen-engineer42/joharnessburg` holds this line with `CONTEXT.md`, which
@@ -70,7 +70,7 @@ not redefine.
   than no pointer.
 - `./joharness.sh ci` — `ci: pass`, with the new lint stage printing its
   own line whether or not it finds anything.
-- `grep -rnoi "handover file" --include=*.md --include=*.sh . | grep -v
+- `grep -rnoi "workstream file" --include=*.md --include=*.sh . | grep -v
   '^./.git' | wc -l` — 0 outside `.agents/docs/glossary.md`. Same for every
   other wording the glossary bans.
 - Re-count the two headline pairs before quoting them anywhere that ships;
