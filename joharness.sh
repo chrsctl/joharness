@@ -2788,9 +2788,10 @@ cmd_session_start() {
   if [ "$JOHARNESS_RUN_MODE" = "unsupervised" ]; then
     printf '== Mode: unsupervised ==\n\n'
     printf 'Queue edge is a trigger, not a stop: generate work, run the full\n'
-    printf 'Loop, merge your own pull request. NEVER commit protocol text:\n'
-    printf '.agents/harness/ and .claude/agents/ — those edits stay\n'
-    printf 'supervised (docs/product/unsupervised-mode.md, Constraints).\n'
+    printf 'Loop, merge your own pull request. NEVER commit protocol text —\n'
+    printf 'all of .agents/ except .agents/env/, and all of .claude/. Those\n'
+    printf 'edits stay supervised\n'
+    printf '(docs/product/unsupervised-mode.md, Constraints).\n'
     # Session-local autonomy says so. A mode that came from an untracked
     # marker looks exactly like a repo-wide opt-in otherwise, and the two
     # want different reactions from whoever reads this.

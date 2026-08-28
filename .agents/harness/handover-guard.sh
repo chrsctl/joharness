@@ -138,9 +138,10 @@ if [ -n "$base" ] && [ "$base" != "$(git rev-parse HEAD 2>/dev/null)" ]; then
 fi
 
 # --- unsupervised boundary -------------------------------------------------
-# Under JOHARNESS_MODE=unsupervised the harness layer is off limits: an
-# unattended session may not edit the protocol that governs unattended
-# sessions (docs/product/unsupervised-mode.md, Constraints).
+# Under JOHARNESS_MODE=unsupervised protocol text is off limits: an
+# unattended session may not edit the rules that govern unattended sessions
+# (docs/product/unsupervised-mode.md, Constraints). Extent and carve-out
+# come from there; this counts, it does not decide.
 #
 # Detection, not prevention, and the wording says so. A Stop hook runs
 # after the commit exists, so the honest thing it can do is name a boundary
@@ -177,16 +178,22 @@ if [ "$mode" = "unsupervised" ]; then
     {
       [ -z "$base" ] ||
         git diff --name-only "$base" HEAD -- .agents/harness 2>/dev/null
-      git diff --name-only HEAD -- .agents/harness 2>/dev/null
-      git diff --name-only --cached -- .agents/harness 2>/dev/null
+      git diff --name-only HEAD -- .agents .claude 2>/dev/null
+      git diff --name-only --cached -- .agents .claude 2>/dev/null
       # Untracked too. `git diff` cannot see a file that was never added,
-      # so a new harness file read as absent until the commit that the
+      # so new protocol text read as absent until the commit that the
       # boundary exists to prevent.
-      git ls-files --others --exclude-standard -- .agents/harness 2>/dev/null
-    } | { grep -E '^\.agents/harness/' || :; } | sort -u | grep -c . || :
+      git ls-files --others --exclude-standard -- .agents .claude 2>/dev/null
+      # The extent the requirement states, and the carve-out with it: an
+      # environment layer is a repo's own infrastructure, not rules that
+      # govern the harness. This gate was `.agents/harness` alone while the
+      # prose named more, so the one tree with a tripwire was not the one
+      # the rule had grown to cover (issue #114).
+    } | { grep -E '^(\.agents/|\.claude/)' || :; } |
+      { grep -vE '^\.agents/env/' || :; } | sort -u | grep -c . || :
   )"
   if [ -n "$harness_touched" ] && [ "$harness_touched" -gt 0 ]; then
-    add_fact "unsupervised mode, but this branch touches ${harness_touched} file(s) under .agents/harness/ — revert them"
+    add_fact "unsupervised mode, but this branch touches ${harness_touched} file(s) of protocol text — revert them"
   fi
 fi
 

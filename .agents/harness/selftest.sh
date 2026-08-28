@@ -2838,13 +2838,17 @@ refute "supervised session-start says nothing about mode" "Mode:" "$out"
 out="$(JOHARNESS_MODE=unsupervised JOHARNESS_CONF="$modeconf" \
   "${ROOT}/joharness.sh" session-start 2>/dev/null)"
 expect "unsupervised session-start announces the mode" "== Mode: unsupervised ==" "$out"
-expect "unsupervised banner names the boundary" ".agents/harness/" "$out"
-# BOTH trees, not one. The boundary was a single prefix in three places, so
-# .claude/agents/ fell outside all three at once when the review step
-# started requiring a subagent definition — issue #114. A test naming only
-# the harness tree is what let that happen.
-expect "and the second tree protocol text lives in" ".claude/agents/" "$out"
-expect "stated as a role, not just a path list" "protocol text" "$out"
+# Scoped to the BANNER BLOCK, never the whole output. `expect` greps
+# everything session-start prints, and that includes workstream `next:`
+# lines and plan `scope:` paths — so an assertion over `$out` is satisfied
+# by any repo-controlled text that happens to carry the string. Measured:
+# with the banner reverted and one decoy word in a workstream `next:` line,
+# all three boundary assertions passed against the unfixed banner.
+banner="$(printf '%s\n' "$out" | sed -n '/== Mode: unsupervised ==/,/^== /p')"
+expect "unsupervised banner names the boundary" ".agents/" "$banner"
+expect "and carves out an environment layer" ".agents/env/" "$banner"
+expect "and the other tree protocol text lives in" ".claude/" "$banner"
+expect "stated as a role, not just a path list" "protocol text" "$banner"
 
 # A misspelled value is indistinguishable from a repo that meant supervised
 # unless the ignored value is named.
@@ -3212,9 +3216,21 @@ guard_unsup() { printf '%s' "$1" | CLAUDE_PROJECT_DIR="$sgwork" \
   bash "${ROOT}/.agents/harness/handover-guard.sh" 2>&1; }
 
 out="$(guard_unsup "$JSON_STOP")"
-expect "unsupervised names the harness boundary" \
-  "file(s) under .agents/harness/" "$out"
+expect "unsupervised names the boundary" \
+  "file(s) of protocol text" "$out"
 expect "unsupervised counts the files" "touches 1 file(s)" "$out"
+# The case that opened issue #114: the gate counted .agents/harness alone
+# while the prose had grown to cover more, so the tree the rule newly named
+# was the one tree with no tripwire. Both halves asserted — the second tree
+# counts, and an environment layer stays carved out.
+mkdir -p "${sgwork}/.claude/agents" "${sgwork}/.agents/env/mine"
+printf 'defn\n' >"${sgwork}/.claude/agents/verifier.md"
+out="$(guard_unsup "$JSON_STOP")"
+expect "protocol text under .claude/ counts too" "touches 2 file(s)" "$out"
+printf 'layer\n' >"${sgwork}/.agents/env/mine/setup.sh"
+out="$(guard_unsup "$JSON_STOP")"
+expect "an environment layer is carved out, not counted" "touches 2 file(s)" "$out"
+rm -rf "${sgwork}/.claude/agents" "${sgwork}/.agents/env/mine"
 refute "boundary fact carries no path" "touched.sh" "$out"
 
 # The reason string embeds in JSON unescaped, so the count must keep it
@@ -3247,7 +3263,7 @@ out="$(printf '%s' "$JSON_STOP" | CLAUDE_PROJECT_DIR="$sgnobase" \
   JOHARNESS_MODE=unsupervised \
   bash "${ROOT}/.agents/harness/handover-guard.sh" 2>&1)"
 expect "no merge-base still names the boundary" \
-  "file(s) under .agents/harness/" "$out"
+  "file(s) of protocol text" "$out"
 out="$(printf '%s' "$JSON_STOP" | CLAUDE_PROJECT_DIR="$sgnobase" \
   bash "${ROOT}/.agents/harness/handover-guard.sh" 2>&1)"
 refute "no merge-base, supervised, still says nothing" ".agents/harness/" "$out"

@@ -35,8 +35,8 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    (session start says so): edge = generate work, never ask — until the
    source sweep goes dry (every detector zero twice running, queue empty,
    no open PR): there stop and say so, the mode's one stop (ratified
-   2026-08-25). Boundary holds — no commit on protocol text, today
-   `.agents/harness/` and `.claude/agents/`
+   2026-08-25). Boundary holds — no commit on protocol text: all of
+   `.agents/` bar `.agents/env/`, all of `.claude/`
    ([`docs/product/unsupervised-mode.md`](../../docs/product/unsupervised-mode.md)).
 3. **Claim.** Cut branch from `main` (branch flow:
    `.agents/docs/product/README.md`). Write `docs/handover/<workstream>.md`. Push
