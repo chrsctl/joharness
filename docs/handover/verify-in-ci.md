@@ -1,13 +1,13 @@
 ---
 workstream: verify-in-ci
-status: in-progress
+status: review
 branch: claude/backpass-usage-review-sbew6t
 pr: none
 plan: verify-in-ci
 session: https://claude.ai/code/session_01UcW18iV8drNpkz9rpCT27B
 agent: opus
 updated: 2026-08-28
-next: Check does-it-reproduce lens against these fixes, then finish
+next: Finish — retire plan, workstream and requirement, PR, merge
 ---
 
 ## Goal
