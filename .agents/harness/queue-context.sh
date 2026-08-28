@@ -268,10 +268,13 @@ while IFS=$'\t' read -r rank _ f label _; do
   scope_raw="$(git show "${ref}:${f}" 2>/dev/null | field scope |
     tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//; s|/*$||' |
     grep -v '^$' | grep -vx 'none')"
-  free_scopes+=("$(printf '%s\n' "$scope_raw" | grep -v '^shared:' |
-    paste -sd' ' -)")
-  free_shared+=("$(printf '%s\n' "$scope_raw" | sed -n 's/^shared:[[:space:]]*//p' |
-    paste -sd' ' -)")
+  # Case-blind on the prefix: `Shared:x` spelled as an exclusive path would
+  # match nothing real, so a capitalisation typo would read as MORE parallel
+  # safety, not less.
+  free_scopes+=("$(printf '%s\n' "$scope_raw" |
+    grep -v '^[Ss][Hh][Aa][Rr][Ee][Dd]:' | paste -sd' ' -)")
+  free_shared+=("$(printf '%s\n' "$scope_raw" |
+    sed -n 's/^[Ss][Hh][Aa][Rr][Ee][Dd]:[[:space:]]*//p' | paste -sd' ' -)")
 done <<<"$rows"
 
 # Two path prefixes overlap when equal or one contains the other at a
@@ -287,8 +290,36 @@ scopes_overlap() {
   return 1
 }
 
+# Splits a wave unless the only thing two plans share is a path BOTH marked
+# shared. One plan's marking cannot void another plan's exclusive claim on the
+# same path: that author declared it without ever reading this plan.
+wave_split_hit() {
+  local mine_x="$1" mine_s="$2" theirs_x="$3" theirs_s="$4" hit
+  hit="$(scopes_overlap "$mine_x" "$theirs_x")" && { printf '%s' "$hit"; return 0; }
+  hit="$(scopes_overlap "$mine_x" "$theirs_s")" && { printf '%s' "$hit"; return 0; }
+  hit="$(scopes_overlap "$mine_s" "$theirs_x")" && { printf '%s' "$hit"; return 0; }
+  return 1
+}
+
+# F1: a plan whose scope is ENTIRELY shared paths is scoped, not unscoped.
+# Counting it unscoped printed the unconditional "N free plans = N parallel
+# sessions" for exactly the queue this marking exists to describe.
+# Every overlap, not the first: a pair sharing two paths named only one, and
+# which one depended on declaration order.
+scopes_overlap_all() {
+  local a b out=""
+  for a in $1; do
+    for b in $2; do
+      case "$a" in "$b" | "$b"/*) out="${out:+${out} }$b"; continue ;; esac
+      case "$b" in "$a"/*) out="${out:+${out} }$a" ;; esac
+    done
+  done
+  printf '%s' "$out"
+}
+
 scoped_any=0
 for s in "${free_scopes[@]:-}"; do [ -n "$s" ] && scoped_any=1; done
+for s in "${free_shared[@]:-}"; do [ -n "$s" ] && scoped_any=1; done
 
 if [ "$free_count" -ge 2 ] && [ "$scoped_any" = "1" ]; then
   # Greedy first-fit in queue order (urgent first): waves hold member
@@ -299,7 +330,7 @@ if [ "$free_count" -ge 2 ] && [ "$scoped_any" = "1" ]; then
   unscoped=""
   i=0
   while [ "$i" -lt "$free_count" ]; do
-    if [ -z "${free_scopes[$i]}" ]; then
+    if [ -z "${free_scopes[$i]}" ] && [ -z "${free_shared[$i]}" ]; then
       unscoped="${unscoped:+${unscoped}, }${free_names[$i]} (${free_tiers[$i]})"
     else
       placed=0
@@ -308,7 +339,8 @@ if [ "$free_count" -ge 2 ] && [ "$scoped_any" = "1" ]; then
       while [ "$w" -lt "${#waves[@]}" ]; do
         hit=""
         for m in ${waves[$w]}; do
-          hit="$(scopes_overlap "${free_scopes[$i]}" "${free_scopes[$m]}")" &&
+          hit="$(wave_split_hit "${free_scopes[$i]}" "${free_shared[$i]}" \
+                  "${free_scopes[$m]}" "${free_shared[$m]}")" &&
             { hit="${free_names[$m]} on ${hit}"; break; }
           hit=""
         done
@@ -316,11 +348,12 @@ if [ "$free_count" -ge 2 ] && [ "$scoped_any" = "1" ]; then
           # Joining is decided; now record any shared path this plan meets in
           # the wave, so the line can say what reconcile the parallelism costs.
           for m in ${waves[$w]}; do
-            sh="$(scopes_overlap "${free_shared[$i]}" "${free_shared[$m]}")" || continue
-            case " ${wave_shared[$w]:-} " in
-              *" $sh "*) ;;
-              *) wave_shared[w]="${wave_shared[$w]:-}${wave_shared[$w]:+ }$sh" ;;
-            esac
+            for sh in $(scopes_overlap_all "${free_shared[$i]}" "${free_shared[$m]}"); do
+              case " ${wave_shared[$w]:-} " in
+                *" $sh "*) ;;
+                *) wave_shared[w]="${wave_shared[$w]:-}${wave_shared[$w]:+ }$sh" ;;
+              esac
+            done
           done
           waves[w]="${waves[$w]} $i"
           placed=1
@@ -337,9 +370,9 @@ if [ "$free_count" -ge 2 ] && [ "$scoped_any" = "1" ]; then
     i=$((i + 1))
   done
 
-  printf '\n%d free plans. Waves — declared scopes disjoint, parallel proven\n' \
+  printf '\n%d free plans. Waves — parallel proven within a wave, except\n' \
     "$free_count"
-  printf 'within a wave; across waves the conflict is named:\n'
+  printf 'where a reconcile is named; across waves the conflict is named:\n'
   w=0
   while [ "$w" -lt "${#waves[@]}" ]; do
     line=""
@@ -348,7 +381,7 @@ if [ "$free_count" -ge 2 ] && [ "$scoped_any" = "1" ]; then
     done
     sh_note=""
     [ -z "${wave_shared[$w]:-}" ] ||
-      sh_note=" — reconcile expected on ${wave_shared[$w]}"
+      sh_note="; reconcile expected inside this wave on ${wave_shared[$w]}"
     if [ "$w" -eq 0 ] || [ -z "${wave_notes[$w]:-}" ]; then
       printf '  wave %d: %s%s\n' "$((w + 1))" "$line" "$sh_note"
     else
@@ -382,6 +415,7 @@ else
 fi
 printf 'tier to run it. Escalate tier or effort fine, downgrade never\n'
 printf '(.agents/docs/agent-selection.md). Free = neither blocked nor claimed. Same\n'
-printf 'wave = declared scopes disjoint, parallel proven; no scope declared =\n'
+printf 'wave = parallel proven, except a named reconcile which is a cost to\n'
+printf 'accept, not a collision ruled out; no scope declared =\n'
 printf 'independence assumed, not proven. Claimed plan: /who before touching.\n'
 exit 0

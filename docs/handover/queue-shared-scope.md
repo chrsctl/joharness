@@ -1,13 +1,13 @@
 ---
 workstream: queue-shared-scope
-status: in-progress
+status: review
 branch: claude/backpass-usage-review-sbew6t
 pr: none
 plan: queue-shared-scope
 session: https://claude.ai/code/session_01UcW18iV8drNpkz9rpCT27B
 agent: opus
 updated: 2026-08-28
-next: Adversarial review, then finish
+next: Finish — retire plan and workstream, PR, merge
 ---
 
 ## Goal
@@ -48,7 +48,68 @@ requests needing a reconcile, an 8% cost rather than an impossibility.
 
 ## Review
 
-(pending)
+Opus tier = adversarial, separate lenses; both run 2026-08-28. They found the
+SAME top three independently, and all three were the feature quietly claiming
+a parallel safety it had not proven — the plan's hardest trap, failed three
+ways in the first cut.
+
+- r1: a plan whose scope was ENTIRELY shared paths counted as UNSCOPED, so a
+  queue where every plan marks the same file skipped the wave block and
+  printed "N free plans = N parallel sessions" — the unconditional promise
+  the wave partition exists to replace, emitted for exactly the queue this
+  marking describes, with no reconcile named. (fixed: shared paths count as
+  scope; such a plan conflicts with nobody exclusively, so it joins wave 1
+  and the wave names the reconcile. Covered both ways)
+- r2: one plan's `shared:` SILENTLY VOIDED another plan's unmarked claim on
+  the same path. The split test compared exclusive against exclusive only, so
+  a marked path vanished from every comparison — including with an author who
+  never consented to a reconcile. Measured: a named split became a silent
+  merge, and at directory granularity `shared:beach` swallowed every unmarked
+  path beneath it. This directly contradicted the sentence the same diff
+  added. (fixed: a path stops splitting only when BOTH plans mark it;
+  exclusive-versus-shared still splits and still names the path)
+- r3: a shared-only plan was told "declare scope: in the plan file to join a
+  wave" — advice whose only compliance is to delete the marking. (fixed by
+  r1's fix)
+- r4: (doctrine) the wave header and the always-printed trailer still read
+  "declared scopes disjoint, parallel proven", unqualified, directly above a
+  wave naming a reconcile — so for a literal reader the proof outranked the
+  footnote and "reconcile expected" read as an aside about something already
+  safe. Fixing r1-r3 without this would have left the doctrine claim false.
+  (fixed: both lines now say parallel proven EXCEPT where a reconcile is
+  named, and that it is a cost accepted rather than a collision ruled out)
+- r5: (correctness) a pair sharing TWO paths named only the first, because
+  the overlap helper returns on first hit — and which one surfaced depended
+  on declaration order. (fixed: a variant that collects every overlap)
+- r6: (correctness) `Shared:` with a capital letter matched neither the strip
+  nor the extract, so it survived as an exclusive path matching nothing real
+  — a capitalisation typo made a plan read MORE parallel-safe, the unsafe
+  direction. (fixed: the prefix is matched case-blind)
+- r7: (doctrine) the new consumer figures carried no command, date or repo —
+  the rule this session merged an hour ago — and their only provenance was
+  the plan file this PR deletes. (fixed: repo, commit and date inline, with
+  "recount it there, not here", since a consumer reading `.agents/docs` could
+  otherwise take "measured in a consumer" to mean itself)
+- r8: (doctrine) `TEMPLATE.md` is the documented path for a plan author and
+  never mentioned the marking, so the feature only existed for someone who
+  read the protocol's parallel-work section in full. (fixed)
+- r9: (doctrine) the protocol's own frontmatter blurb two screens above still
+  described `scope` in terms the marking had made false. (fixed)
+- r10: (doctrine) a wave carrying both notes printed two em-dash clauses that
+  merged: the intra-wave reconcile read as qualifying the cross-wave overlap.
+  (fixed: the reconcile is a semicolon clause naming "inside this wave")
+- r11: (doctrine, caveman) "genuinely routine" — hedging on the drop list.
+  (fixed)
+- r12: two of my own assertions were order-dependent and would have flaked in
+  the harness's own suite: the first named both wave members in sequence, the
+  second named which counterpart a conflict cites. Wave order follows queue
+  order, and adding two plans reshuffled it. (fixed: both assert the property
+  against an extracted line; suite run twice, 513 passed both times)
+- r13: (correctness, clean) `set -u` on the sparse wave array, dedupe against
+  substring paths, glob injection in the dedupe pattern, bare `shared:`,
+  padding after the colon, a path containing `shared:` mid-string, and
+  byte-identical output against origin/main's hook on six no-marking
+  fixtures — none broke.
 
 ## Blockers
 
