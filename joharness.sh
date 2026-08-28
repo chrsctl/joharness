@@ -25,6 +25,8 @@
 #   feedback <path> what earlier merged edges found in that file
 #   graph           print the work graph as fenced mermaid (paste into any
 #                   GitHub comment; rendered natively)
+#   scorecard       count how THIS branch behaved since its merge base.
+#                   Reports only, never gates
 #   cleanup         count what the finish ritual left on the base branch:
 #                   workstream files, plans whose work merged, merged
 #                   branches. Reports only
@@ -672,9 +674,13 @@ base_ref() {
 # once per commit plus a six-stage pipeline, so the cost grew with the branch
 # it was judging — the measure that exists to notice a long branch was the
 # thing that got slow on one. --no-renames keeps it the same metric diff-tree
-# reported (rename shown as its two paths, not one); --format= leaves a blank
-# line per commit, which the awk drops with everything else it filters. Ties
-# on count go to the higher path name, as the old `sort -rn | head -1` did.
+# reported (rename shown as its two paths, not one). `--format=` emits NO
+# separator line - this comment claimed a blank line per commit until it was
+# measured, 2026-08-28 on git 2.43.0, `git log --no-merges --no-renames
+# --format= --name-only HEAD~3..HEAD | cat -A` in this repo - and the awk's
+# `!NF` drops blanks either way, so the walk was never wrong, only the
+# comment. Ties on count go to the higher path name, as the old
+# `sort -rn | head -1` did.
 churn_top() {
   local rev="${1:-HEAD}" over="${2:-origin/${HANDOVER_BASE_BRANCH:-main}}" base
   base="$(git -C "$ROOT" merge-base "$rev" "$over" 2>/dev/null)" || return 1
@@ -1167,7 +1173,7 @@ review_count() {
     /^## Review[[:space:]]*$/ { in_r = 1; next }
     /^## /                    { in_r = 0 }
     in_r && /^- /             { n++ }
-    END { print n + 0 }' "${ROOT}/$1"
+    END { print n + 0 }'
 }
 
 # At the edge = this workstream is being handed to `main`: it has a pull
@@ -1218,7 +1224,7 @@ review_report() {
     seen=1
     doc="$(cat "${ROOT}/${ws}" 2>/dev/null)"
     tier="$(review_tier "$doc")"
-    n="$(review_count "$ws")"
+    n="$(review_count <"${ROOT}/${ws}")"
     printf '  %s [%s — %s]\n' "$ws" "$tier" "$(review_recipe "$tier")"
     if [ "${n:-0}" -gt 0 ]; then
       printf '    %s finding(s) recorded\n' "$n"
@@ -1917,6 +1923,194 @@ gr_field() { gr_fields "$1"; }
 gr_docs() { awk 'NF && /\.md$/ && !/\/(TEMPLATE|README)\.md$/'; }
 
 # ---------------------------------------------------------------------------
+# Process scorecard
+#
+# `ci` counts ONE process fact - churn - and it earned that gate on a
+# backtest. Every other claim the Loop makes about how a branch behaved is
+# honour-system: step 5 puts findings in `## Review` before the fix and in the
+# same commit as it, step 7 has the pull request's final state delete the
+# workstream file and the done plan, and no command reported whether either
+# happened. The failure is measured, not suspected: .agents/harness/AGENTS.md
+# step 7 carries the count and the merges it came from.
+#
+# REPORTS, never gates. Churn's ceiling came from a backtest over every merge
+# on main; nothing here has one, and a number gated before it is understood is
+# a number sessions learn to game.
+#
+# Derived at read time or not at all - no store, no cache, no recorded run
+# (.agents/docs/graph.md, Rules). Every count prints, zeroes included: a line
+# that appears only when the number is interesting cannot be told from a line
+# nobody wrote.
+#
+# DIFF, never the working tree. A branch inherits every workstream file its
+# base branch carries, and a base branch accreting them is the failure this
+# command exists to count - so a tree read reports that accretion as this
+# branch's compliance, and reports it in the flattering direction. It is this
+# repo's highest-recurring defect class (docs/plans/tree-vs-diff-rule.md), and
+# the sync guard above already reads the diff for the same reason.
+# ---------------------------------------------------------------------------
+
+# Workstream files this branch's COMMITS touch - added, modified or deleted.
+# Deleted counts: step 7 retires the file in the last commit before the pull
+# request opens, so at the one moment these numbers matter most, the tree
+# holds nothing.
+#
+# The log, not a `diff base HEAD`: a workstream file added and then retired on
+# the same branch - which is every branch that follows step 7 - appears in
+# neither endpoint, so the endpoint diff reports zero for the branch that
+# obeyed the protocol exactly. Same node vocabulary as lint_nodes: top level,
+# `*.md`, and the protocol doc and template are not nodes. A path carrying a
+# newline fails the pattern and is dropped rather than miscounted.
+sc_sheets() {
+  local base="$1" rev="$2"
+  git -C "$ROOT" -c core.quotePath=false log --no-merges --no-renames \
+    --format='' --name-only "${base}..${rev}" -- docs/handover 2>/dev/null |
+    awk '/^docs\/handover\/[^\/]+\.md$/ &&
+         !/\/(README|TEMPLATE|VISION)\.md$/ && !seen[$0]++ { print }'
+}
+
+# Newest content of a path on this branch: HEAD when it still exists there,
+# else the parent of the commit that removed it. Without the second half a
+# retired workstream file reads as zero findings, which is the accusing zero
+# for the branch that followed the protocol exactly.
+sc_show() {
+  local path="$1" del
+  if git -C "$ROOT" cat-file -e "HEAD:${path}" 2>/dev/null; then
+    git -C "$ROOT" show "HEAD:${path}" 2>/dev/null
+    return 0
+  fi
+  del="$(GIT_LITERAL_PATHSPECS=1 git -C "$ROOT" log -1 --format=%H HEAD \
+    -- "$path" 2>/dev/null)"
+  [ -n "$del" ] || return 1
+  git -C "$ROOT" show "${del}^:${path}" 2>/dev/null
+}
+
+# One walk of base..HEAD, three numbers out of it, newline-separated: commits,
+# distinct paths touched (ALL of them, protocol paths included - the line says
+# paths, so it counts paths), and commits that changed code without touching a
+# workstream file in the same commit.
+#
+# Commit boundaries come from a `\001%H` marker. Not from blank lines: `git
+# log --format= --name-only` emits no separator at all - measured 2026-08-28
+# on git 2.43.0 with `git log --no-merges --no-renames --format= --name-only
+# HEAD~3..HEAD | cat -A` in this repo - so blank-line counting would have read
+# 0 commits for every branch. A path cannot collide with the marker: git
+# C-quotes control characters unconditionally, so a path holding \001 arrives
+# wrapped in quotes and never starts with the byte.
+#
+# --no-merges matches churn_top, and the printed line says so. The cost is
+# real and known: a change made only inside a merge commit is invisible here.
+sc_walk() {
+  local base="$1" rev="$2" mark
+  mark="$(printf '\001')"
+  git -C "$ROOT" -c core.quotePath=false log --no-merges --no-renames \
+    --format="${mark}%H" --name-only "${base}..${rev}" 2>/dev/null |
+    awk -v m="$mark" '
+      function close_commit() { if (open && code && !ws) off++ }
+      index($0, m) == 1 { close_commit(); commits++; open = 1; ws = 0; code = 0; next }
+      !NF { next }
+      {
+        if (!($0 in seen)) { seen[$0] = 1; files++ }
+        # Protocol paths are not code, the same exclusion and the same reason
+        # churn_top carries: the protocol REQUIRES the workstream file in the
+        # same commit as a change, so counting a commit that only retires a
+        # plan as "code with no workstream file" reads compliance as a
+        # violation. The protocol doc and the template are not workstream
+        # files either - touching one would otherwise launder a commit.
+        if ($0 ~ /^docs\/handover\/[^\/]+\.md$/ &&
+            $0 !~ /\/(README|TEMPLATE|VISION)\.md$/) ws = 1
+        else if ($0 !~ /^docs\/(handover|plans|product)\//) code = 1
+      }
+      END { close_commit(); print commits + 0; print files + 0; print off + 0 }'
+}
+
+cmd_scorecard() {
+  local over base head branch walk
+  local commits files off ws n findings=0 sheets=0 churn dels plans=0 reqs=0 d
+
+  over="$(base_ref)" || over=""
+  branch="$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null)" || branch="?"
+  printf '== scorecard (%s -> %s)\n\n' "$branch" "${over:-?}"
+
+  [ -n "$over" ] && base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
+  head="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)"
+  if [ -z "${base:-}" ] || [ -z "$head" ]; then
+    # Same doctrine as churn's and the review gate's: a check that cannot see
+    # the history it needs says so. A zero here would read as measured.
+    printf '  not measurable here (no merge-base; shallow checkout or unrelated history)\n'
+    return 0
+  fi
+  [ "$base" = "$head" ] && printf '  no commits past %s — every count below is that, not a result\n\n' "$over"
+
+  # The walk's rc has to survive two layers that throw it away, `$( )` and the
+  # heredoc, or a git that fails halfway prints a short count as a measured
+  # one. `pipefail` is already on, so the pipeline carries git's failure out.
+  if ! walk="$(sc_walk "$base" HEAD)" ||
+     [ "$(printf '%s\n' "$walk" | grep -c .)" -ne 3 ]; then
+    printf '  could not read %s..HEAD; no counts rather than short ones\n' "$over"
+    return 0
+  fi
+  { read -r commits; read -r files; read -r off; } <<EOF
+$walk
+EOF
+
+  while IFS= read -r ws; do
+    [ -n "$ws" ] || continue
+    sheets=$((sheets + 1))
+    n="$(sc_show "$ws" | review_count)"
+    findings=$((findings + ${n:-0}))
+  done < <(sc_sheets "$base" HEAD)
+
+  # Node files only, top level: `docs/plans/README.md` and a note under
+  # `docs/plans/sub/` are not retired plans. -z and quotePath=false because
+  # git C-quotes a non-ASCII path, and `"docs/plans/caf\303\251.md"` matches
+  # no prefix test.
+  dels="$(git -C "$ROOT" -c core.quotePath=false diff -z --name-only \
+    --no-renames --diff-filter=D "$base" HEAD -- docs/plans docs/product \
+    2>/dev/null | tr '\0' '\n' |
+    awk '/^docs\/(plans|product)\/[^\/]+\.md$/ &&
+         !/\/(README|TEMPLATE|VISION)\.md$/ { print }')"
+  while IFS= read -r d; do
+    case "$d" in
+      docs/plans/*) plans=$((plans + 1)) ;;
+      docs/product/*) reqs=$((reqs + 1)) ;;
+    esac
+  done <<EOF
+$dels
+EOF
+
+  printf '  commits (no merges)                 %s\n' "${commits:-0}"
+  printf '  paths touched by them               %s\n' "${files:-0}"
+  # A bare 0 reads as a pass. Both zeroes say which kind of zero they are,
+  # and neither judges: the protocol's own list of work that carries no
+  # workstream file lives in .agents/docs/handover/README.md, so this points
+  # at it rather than keeping a second copy that drifts.
+  if [ "$sheets" -eq 0 ]; then
+    printf '  workstream files this diff touches  0  (some work carries none by protocol — .agents/docs/handover/README.md)\n'
+  else
+    printf '  workstream files this diff touches  %s\n' "$sheets"
+  fi
+  if [ "$findings" -eq 0 ]; then
+    printf '  review findings recorded            0  (a clean pass is one line; an empty section is not one)\n'
+  else
+    printf '  review findings recorded            %s\n' "$findings"
+  fi
+  printf '  commits changing code, no workstream file in the same commit  %s\n' "${off:-0}"
+  printf '  plan files this diff retires        %s\n' "$plans"
+  printf '  requirement files this diff retires %s\n' "$reqs"
+  if churn="$(churn_top HEAD "$over")" && [ -n "$churn" ]; then
+    printf '  most-touched file, protocol paths excluded  %s\n' \
+      "$(printf '%s' "$churn" | awk -F'\t' '{ print $1 " commits  " $2 }')"
+  else
+    printf '  most-touched file, protocol paths excluded  none\n'
+  fi
+
+  printf '\n  Counts, nothing else — no grade, no gate, nothing stored.\n'
+  printf '  What they mean is Loop steps 5 and 7 (.agents/harness/AGENTS.md).\n'
+  return 0
+}
+
+# ---------------------------------------------------------------------------
 # Finish gate
 #
 # "No workstream file belongs on `main`" is settled doctrine
@@ -2477,6 +2671,7 @@ main() {
     cleanup)        cmd_cleanup "$@" ;;
     finish)         cmd_finish ;;
     graph)          cmd_graph ;;
+    scorecard)      cmd_scorecard ;;
     # Warning on stderr, value on stdout: the guard captures stdout and must
     # keep getting one clean word, while a human running this against a
     # typo'd conf needs to hear about it. Same lesson the review knob
