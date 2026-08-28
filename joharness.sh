@@ -681,12 +681,16 @@ churn_top() {
 # ---------------------------------------------------------------------------
 # Selftest scope
 #
-# The selftest covers harness code, and `ci` ran all 16s of it on every diff.
-# Measured in consumer chrsctl/redocted at c79dc82: ci 22.5s, selftest 16.3s of
-# it, against 7.1s for that project's own suite - and across 104 commits and 24
-# merged pull requests that day, none touched `.agents/`, `joharness.sh` or
-# `scripts/`. Step 7 already scopes `verify` by the same question; this asks it
-# for the suite.
+# The selftest covers harness code, and `ci` ran all of it on every diff.
+# Measured HERE 2026-08-28, same commit, only the diff differing: a docs-only
+# branch 6.2s, a branch touching one harness file 33.2s. The consumer
+# measurement that motivated this (chrsctl/redocted at c79dc82: ci 22.5s,
+# selftest 16.3s of it, against 7.1s for that project's own suite) is smaller
+# because this suite has grown since; both are counts, neither is a promise.
+# What made it worth doing is the other number from that day: across 104
+# commits and 24 merged pull requests, none touched `.agents/`, `joharness.sh`
+# or `scripts/`. Step 7 already scopes `verify` by the same question; this asks
+# it for the suite.
 #
 # An ALLOW-list, deliberately, not a deny-list of harness surfaces. This gate is
 # single-sided: the `windows` job that also ran the suite is `if: false`, so a
