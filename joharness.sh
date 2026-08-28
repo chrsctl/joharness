@@ -55,6 +55,11 @@
 #                              when a workstream reaches the edge (pull
 #                              request open, or status review/done) with no
 #                              review recorded, and session-start say so
+#   JOHARNESS_SELFTEST=        unset (default) runs the harness selftest only
+#                              when the branch changes something outside
+#                              docs/ and README.md; 'always' runs it whatever
+#                              the diff. Canonical only - a consumer carries
+#                              no selftest to run
 #
 # Default is env 'none', setup 'lazy', md 'lazy', review 'off': a session that
 # never asks for an environment never pays for one — not in provisioning, not
@@ -681,37 +686,59 @@ churn_top() {
 # ---------------------------------------------------------------------------
 # Selftest scope
 #
-# The selftest covers harness code, and `ci` ran all of it on every diff.
-# Measured HERE 2026-08-28, same commit, only the diff differing: a docs-only
-# branch 6.2s, a branch touching one harness file 33.2s. The consumer
-# measurement that motivated this (chrsctl/redocted at c79dc82: ci 22.5s,
-# selftest 16.3s of it, against 7.1s for that project's own suite) is smaller
-# because this suite has grown since; both are counts, neither is a promise.
-# What made it worth doing is the other number from that day: across 104
-# commits and 24 merged pull requests, none touched `.agents/`, `joharness.sh`
-# or `scripts/`. Step 7 already scopes `verify` by the same question; this asks
-# it for the suite.
+# The selftest covers harness code, and `ci` ran all of it on every diff. It
+# is the dominant cost: `time .agents/harness/selftest.sh` against `time
+# ./joharness.sh ci` on this repo, and the suite is most of the run. What made
+# scoping it worth doing was measured in a consumer over one working day - 104
+# commits, 24 merged pull requests, not one touching a harness surface, every
+# run paying for the suite anyway. Step 7 already scopes `verify` by the same
+# question; this asks it for the suite.
 #
-# An ALLOW-list, deliberately, not a deny-list of harness surfaces. This gate is
-# single-sided: the `windows` job that also ran the suite is `if: false`, so a
-# skip here is a skip everywhere with no backstop. A deny-list would skip for
-# whatever path gets added next; an allow-list runs the suite for anything it
-# does not recognise. Any doubt runs it - no merge base (a shallow checkout, or
-# main itself), an unreadable diff, or one unfamiliar path.
+# Canonical only, in practice: the suite is never synced to a consumer, so
+# there the stage takes the "not here" path before this is reached.
+#
+# An ALLOW-list, not a deny-list of harness surfaces. This gate is
+# single-sided - the `windows` job that also ran the suite is `if: false`, so a
+# skip here is a skip everywhere with no backstop, and re-enabling that job
+# runs the suite unconditionally on Git Bash because it calls `selftest.sh`
+# directly rather than through `ci`. A deny-list would skip for whatever path
+# gets added next; an allow-list runs the suite for anything it does not
+# recognise. Any doubt runs it: no merge base (a shallow checkout, or main
+# itself), an unreadable diff, or one unfamiliar path.
+#
+# --no-renames is load bearing, the same way it is for churn_top: git would
+# otherwise report a harness file moved under docs/ as the destination path
+# ALONE, and deleting a harness surface by moving it would read as inert.
 #
 # Uncommitted work counts, because a session that has edited harness code and
 # not committed yet is exactly the one that must not skip its own tests.
-SELFTEST_INERT_RE='^(docs/|README\.md$)'
-
 selftest_inert_diff() {
-  local rev="${1:-HEAD}" over="${2:-origin/${HANDOVER_BASE_BRANCH:-main}}" base files
+  local rev="${1:-HEAD}" over="${2:-origin/${HANDOVER_BASE_BRANCH:-main}}" base f entry seen=0
   base="$(git -C "$ROOT" merge-base "$rev" "$over" 2>/dev/null)" || return 1
   [ "$base" != "$(git -C "$ROOT" rev-parse "$rev" 2>/dev/null)" ] || return 1
-  files="$( { git -C "$ROOT" diff --name-only "${base}..${rev}" 2>/dev/null
-              git -C "$ROOT" status --porcelain 2>/dev/null | awk '{print $NF}'; } )"
-  [ -n "$files" ] || return 1
-  printf '%s\n' "$files" | grep -v '^[[:space:]]*$' |
-    grep -qvE "$SELFTEST_INERT_RE" && return 1
+
+  # Two plain loops, not one `grep -q` pipeline: `grep -q` exits at its first
+  # match and SIGPIPEs the stage feeding it, which under `pipefail` flipped the
+  # verdict to "inert" once the diff was long enough to fill the pipe buffer -
+  # and a long diff is the one that most needs the suite.
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    seen=1
+    case "$f" in docs/*|README.md) ;; *) return 1 ;; esac
+  done < <(git -C "$ROOT" diff --no-renames --name-only "${base}..${rev}" 2>/dev/null)
+
+  # -z, and strip the fixed three-character status prefix, rather than taking
+  # the last whitespace field: porcelain QUOTES a path containing a space, so
+  # `.agents/harness/new docs/x.sh` arrived as `docs/x.sh"` and read as inert.
+  # --no-renames for the same reason it is on the diff above.
+  while IFS= read -r -d '' entry; do
+    f="${entry:3}"
+    [ -n "$f" ] || continue
+    seen=1
+    case "$f" in docs/*|README.md) ;; *) return 1 ;; esac
+  done < <(git -C "$ROOT" status --porcelain -z --no-renames 2>/dev/null)
+
+  [ "$seen" -eq 1 ] || return 1
   return 0
 }
 
