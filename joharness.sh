@@ -506,13 +506,19 @@ cmd_ci() {
   # does not edit. Absent is therefore normal in a consumer and said once;
   # present but not executable is a broken copy and stays red.
   printf '\n== harness selftest\n'
-  if [ -x "${HARNESS_ROOT}/selftest.sh" ]; then
-    "${HARNESS_ROOT}/selftest.sh" || rc=1
-  elif [ -e "${HARNESS_ROOT}/selftest.sh" ]; then
+  if [ ! -e "${HARNESS_ROOT}/selftest.sh" ]; then
+    printf '  not here (canonical-only; this repo does not carry the harness tests)\n'
+  elif [ ! -x "${HARNESS_ROOT}/selftest.sh" ]; then
     warn ".agents/harness/selftest.sh is not executable"
     rc=1
+  elif [ "${JOHARNESS_SELFTEST:-}" != "always" ] &&
+       selftest_inert_diff HEAD "origin/${HANDOVER_BASE_BRANCH:-main}"; then
+    # A skip that prints nothing is indistinguishable from a pass, so it says
+    # what it skipped and how to override it.
+    printf '  skipped: nothing outside docs/ and README.md changed on this branch\n'
+    printf '  Run it anyway: JOHARNESS_SELFTEST=always %s ci\n' "$0"
   else
-    printf '  not here (canonical-only; this repo does not carry the harness tests)\n'
+    "${HARNESS_ROOT}/selftest.sh" || rc=1
   fi
 
   # Graph edges, checked rather than trusted: a dangling frontmatter edge
@@ -670,6 +676,39 @@ churn_top() {
       { n = ++c[$0]
         if (n > max || (n == max && $0 > best)) { max = n; best = $0 } }
       END { if (max) printf "%d\t%s\n", max, best }'
+}
+
+# ---------------------------------------------------------------------------
+# Selftest scope
+#
+# The selftest covers harness code, and `ci` ran all 16s of it on every diff.
+# Measured in consumer chrsctl/redocted at c79dc82: ci 22.5s, selftest 16.3s of
+# it, against 7.1s for that project's own suite - and across 104 commits and 24
+# merged pull requests that day, none touched `.agents/`, `joharness.sh` or
+# `scripts/`. Step 7 already scopes `verify` by the same question; this asks it
+# for the suite.
+#
+# An ALLOW-list, deliberately, not a deny-list of harness surfaces. This gate is
+# single-sided: the `windows` job that also ran the suite is `if: false`, so a
+# skip here is a skip everywhere with no backstop. A deny-list would skip for
+# whatever path gets added next; an allow-list runs the suite for anything it
+# does not recognise. Any doubt runs it - no merge base (a shallow checkout, or
+# main itself), an unreadable diff, or one unfamiliar path.
+#
+# Uncommitted work counts, because a session that has edited harness code and
+# not committed yet is exactly the one that must not skip its own tests.
+SELFTEST_INERT_RE='^(docs/|README\.md$)'
+
+selftest_inert_diff() {
+  local rev="${1:-HEAD}" over="${2:-origin/${HANDOVER_BASE_BRANCH:-main}}" base files
+  base="$(git -C "$ROOT" merge-base "$rev" "$over" 2>/dev/null)" || return 1
+  [ "$base" != "$(git -C "$ROOT" rev-parse "$rev" 2>/dev/null)" ] || return 1
+  files="$( { git -C "$ROOT" diff --name-only "${base}..${rev}" 2>/dev/null
+              git -C "$ROOT" status --porcelain 2>/dev/null | awk '{print $NF}'; } )"
+  [ -n "$files" ] || return 1
+  printf '%s\n' "$files" | grep -v '^[[:space:]]*$' |
+    grep -qvE "$SELFTEST_INERT_RE" && return 1
+  return 0
 }
 
 # ---------------------------------------------------------------------------
