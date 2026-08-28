@@ -48,8 +48,10 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    periodically — another PR merging mid-build is cheap to catch now, one
    hit at step 7 after hours of work is not (`.agents/docs/product/README.md`
    Branch flow).
-5. **Verify.** All green or not done. `./joharness.sh ci` runs exactly what
-   GitHub CI runs — run it here, before the pull request, not after.
+5. **Verify.** All green or not done. `./joharness.sh ci` runs what GitHub's
+   lint check runs — here, before the pull request, not after. GitHub also
+   verifies any layer declaring itself CI-runnable, which `ci` does not: run
+   that layer's `verify` too, or the first news is a red PR.
    `./joharness.sh verify` proves the selected environment. Trust counted
    numbers, never written numbers — including numbers in any instruction file.
    Edge to main = review, always; depth scales with the plan's tier
@@ -80,9 +82,11 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    fresh-fetched `origin/main` (behind = "Conflict at finish" reconcile
    first — checks do NOT re-run when `main` moves); `./joharness.sh
    verify` green when the diff touches any non-`*.md` file under
-   `joharness.sh`, `.agents/harness/`, `.agents/env/`, `.agents/scripts/` — run it
-   yourself unless the selected layer declares itself CI-runnable, in which
-   case the checks already did (`.agents/env/README.md`); **`./joharness.sh finish` green** — the only guard
+   `joharness.sh`, `.agents/harness/`, `.agents/env/`, `.agents/scripts/` — yours to
+   run unless THIS head's checks actually verified the selected layer: read
+   the run, never infer it from the layer declaring itself CI-runnable
+   (`.agents/env/README.md`). A run that skipped that layer, or a repo whose
+   workflow has no such job, proves nothing; **`./joharness.sh finish` green** — the only guard
    here that fires while the fix is still a commit; edge review recorded
    (step 5); no unresolved human review thread. Anything less stays open. Merge-commit
    method ONLY — squash/rebase merge breaks the merged-branch ancestry

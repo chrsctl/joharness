@@ -41,8 +41,10 @@ Verify (all green or not done):
                          # needs the sandbox, so CI cannot run it here
 ```
 
-Run `ci` before opening a pull request; it is the whole of what GitHub checks,
-so a red PR after a green run here is a bug in the split, not bad luck.
+Run `ci` before opening a pull request. GitHub also runs `verify` for any
+layer declaring itself CI-runnable (`.agents/env/README.md`), which `ci` does
+not — so run that layer's verify too before believing a green `ci` predicts a
+green PR. Red PR after both green is a bug in the split, not bad luck.
 `verify` provisions the selected environment first, so a cold container is
 fine. Trust counted numbers, never written numbers — a pass total written
 here would be true for exactly one layer.

@@ -1,14 +1,28 @@
 This layer declares itself runnable by CI on a stock GitHub runner.
 
-Presence of this file is the declaration; the workflow globs for it and
-never names a layer. What it promises (contract: ../README.md):
+Presence of this file is the declaration; the CI job globs for it and never
+names a layer. `image:` lines are data the job reads — every image this
+layer's smoke test runs, pulled with retries before verify so a rate-limited
+registry skips this layer loudly instead of reddening the gate. Everything
+else here is prose for humans.
+
+image: alpine:3
+image: nginx:alpine
+
+What declaring it promises (contract: ../README.md):
 
 - `setup.sh` is a no-op wherever dockerd is already running, and the runner
   image runs dockerd. Provisioning downloads nothing.
 - `smoke-test.sh` needs no sandbox-only facility. It degrades on its own
   where the egress proxy's CA bundle is absent, which is the runner's case.
-- The images it needs are `alpine:3` and `nginx:alpine`, both public.
+
+Known soft spot, deliberately not hidden: the container-egress check fetches
+a file from `raw.githubusercontent.com`, and that is a hard failure inside
+the smoke test, so an outage there reds this job. The `image:` softening
+cannot reach it — a precondition inside the test is the test's own business,
+and changing what a smoke test checks belongs to the layer's own work.
 
 What it does NOT promise: that a green run here substitutes for
 `./joharness.sh verify` on the layer a repo actually selects. It is coverage
-for THIS layer, nothing wider.
+for THIS layer, nothing wider — and a run that skipped this layer proves
+nothing at all, which is why step 7 says read the run, never the marker.
