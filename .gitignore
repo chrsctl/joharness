@@ -9,3 +9,7 @@ node_modules/
 # Session-local autonomy marker (./joharness.sh mode <value>). Never
 # committed: the mode a repo ships with lives in joharness.conf.
 /.joharness-mode
+
+# backpass state (.agents/docs/backpass.md). backpass init writes
+# .git/info/exclude; tracked entry covers clones that never ran init.
+.backpass/
