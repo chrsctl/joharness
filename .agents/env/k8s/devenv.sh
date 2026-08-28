@@ -24,7 +24,7 @@ set -euo pipefail
 # so we ask for exact versions. See .agents/env/k8s/README.md.
 # ---------------------------------------------------------------------------
 K3D_VERSION_DEFAULT="v5.9.0"
-KUBECTL_VERSION_DEFAULT="v1.35.8"
+KUBECTL_VERSION_DEFAULT="v1.36.4"
 HELM_VERSION_DEFAULT="v3.21.4"
 K3D_VERSION="${K3D_VERSION:-$K3D_VERSION_DEFAULT}"
 KUBECTL_VERSION="${KUBECTL_VERSION:-$KUBECTL_VERSION_DEFAULT}"
@@ -33,14 +33,14 @@ HELM_VERSION="${HELM_VERSION:-$HELM_VERSION_DEFAULT}"
 # sha256 of each DEFAULT version's linux-amd64 asset, from the publisher's
 # own checksum files (dl.k8s.io .sha256 / get.helm.sh .sha256sum / the k3d
 # release's checksums.txt), cross-checked against the downloaded bytes
-# 2026-08-23. Verified before install; a mismatch is a corrupt or tampered
+# (2026-08-23; kubectl v1.36.4 on 2026-08-28). Verified before install; a mismatch is a corrupt or tampered
 # download and refuses loudly. Bumping a version bumps its digest in the
 # SAME edit — the pair is one pin (procedure: .agents/env/k8s/README.md). An
 # overridden version has no pin here: set KUBECTL_SHA256 / K3D_SHA256 /
 # HELM_SHA256 alongside it, or the install warns and skips verification —
 # loud skip, never a fake red, so a version experiment (k8s-136-validation
 # style) still runs.
-KUBECTL_SHA256_PIN="874d5e72dbb819f43cff16bcd1e4f8bac5b7f2361fe1e55049b0a6c676fb0cbf"
+KUBECTL_SHA256_PIN="8b8f088da2dab964f853b38464033b1be15ede2839eca751482357c45abdd05a"
 K3D_SHA256_PIN="06d8f25bc3a971c4eb29e0ff08429b180402db0f4dec838c9eac427e296800a0"
 HELM_SHA256_PIN="61f88ab166748cb19604d7884cb100ae9ccb13804ddeb98e08af167eacbb6a14"
 
@@ -50,10 +50,12 @@ HELM_SHA256_PIN="61f88ab166748cb19604d7884cb100ae9ccb13804ddeb98e08af167eacbb6a1
 # This host uses cgroup v1, which the kubelet refuses by default from v1.35
 # ("kubelet is configured to not run on a host using cgroup v1"). The kubelet
 # drop-in rendered below (failCgroupV1: false) is what lets it start; do not
-# remove that when bumping this. v1.36.3 was measured to start with the same
-# drop-in, but cgroup v1 there is past maintenance mode - validate the full
-# smoke test before pinning it. See .agents/env/k8s/README.md.
-K3S_IMAGE="${K3S_IMAGE:-rancher/k3s:v1.35.7-k3s1}"
+# remove that when bumping this. v1.36.3-k3s1 validated on this host
+# 2026-08-28: full smoke suite green with the same drop-in. cgroup v1 in
+# v1.36 is past maintenance mode, so the drop-in stays load bearing; any
+# future bump revalidates the full smoke test first. See
+# .agents/env/k8s/README.md.
+K3S_IMAGE="${K3S_IMAGE:-rancher/k3s:v1.36.3-k3s1}"
 
 CLUSTER_NAME="${DEVENV_CLUSTER_NAME:-claude-dev}"
 KUBE_CONTEXT="k3d-${CLUSTER_NAME}"
