@@ -1226,6 +1226,13 @@ review_report() {
     tier="$(review_tier "$doc")"
     n="$(review_count <"${ROOT}/${ws}")"
     printf '  %s [%s — %s]\n' "$ws" "$tier" "$(review_recipe "$tier")"
+    # The independent reader, printed where the depth is already printed.
+    # This repo's own ledger is the argument for printing rather than
+    # exhorting: recorded reviews went 0/19 before the step was named here
+    # to 18/19 after. Named at the moment it comes due, not in a doc.
+    printf '    verifier: spawn .claude/agents/verifier.md at %s — it did not\n' "$tier"
+    printf '    write this diff, which is the whole property. Tag what it\n'
+    printf '    returns (verifier).\n'
     if [ "${n:-0}" -gt 0 ]; then
       printf '    %s finding(s) recorded\n' "$n"
       continue

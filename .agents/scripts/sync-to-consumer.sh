@@ -176,6 +176,7 @@ DIRS=(
   .agents/docs
   .claude/commands
   .claude/skills
+  .claude/agents
 )
 
 # Harness-owned, but canonical-only: never shipped, because a consumer

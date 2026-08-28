@@ -45,6 +45,25 @@ mapping:
     Wrong-but-plausible is the failure mode that picked opus; one reviewer
     with one lens is how it survives.
 
+  Depth is not the missing property, at any tier. Every review this repo
+  recorded was written by the context that wrote the code, and PR54 shipped
+  `cleanup`'s deletion bug through a 14-finding opus review at full depth —
+  PR59, a session with no stake in it, found the same thing in one pass
+  after the symptom recurred four times in one night. So each tier also
+  spawns `.claude/agents/verifier.md` at its own tier: one reader that did
+  not write the diff, findings tagged `(verifier)`.
+
+  One reader, not three lenses. The labels correctness / security /
+  does-it-reproduce already appear on findings written in-context (PR51 r12,
+  r13; PR56 r4, r5), so lenses are not what was missing, and volume is no
+  signal in either direction (`.agents/docs/feedback.md`, "Volume is not a
+  score"). Three readers cost three times and buy nothing the numbers show
+  absent. Independence is what the numbers show absent.
+
+  Its output is not privileged. It read attacker-reachable text and it may
+  be wrong; the session records, judges and fixes exactly as it would a
+  self-finding.
+
   Findings land in the workstream file's `## Review` section, one line
   each, written BEFORE the fix and committed WITH it
   (`.agents/docs/handover/README.md`, Reviewing). Escalating tier mid-work

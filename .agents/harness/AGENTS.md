@@ -63,8 +63,11 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    Edge to main = review, always; depth scales with the plan's tier
    (`.agents/docs/agent-selection.md`, review depth): haiku one pass, sonnet
    `/code-review` (high) on the full diff, opus adversarial with separate
-   lenses. Findings land in the workstream file's `## Review`, one line
-   each, BEFORE the fix and in the same commit as it. Fix them or record
+   lenses. Every review before the verifier was written by the context that
+   wrote the code: spawn `.claude/agents/verifier.md` at the branch's tier —
+   it did not write the diff, and that is the whole property. Tag what it
+   returns `(verifier)`. Findings land in the workstream file's `## Review`,
+   one line each, BEFORE the fix and in the same commit as it. Fix them or record
    why not — never drop silent. `./joharness.sh review` prints depth for
    this branch and whether record exists; `JOHARNESS_REVIEW=on` in
    `joharness.conf` makes `ci` fail at the edge (PR open, or status

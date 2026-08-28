@@ -7,7 +7,7 @@ plan: review-verifier-subagent
 session: https://claude.ai/code/session_01UcW18iV8drNpkz9rpCT27B
 agent: opus
 updated: 2026-08-28
-next: Check the plan's anchors, then write the verifier definition and the four rule/code edits
+next: record the acceptance replay result, then review, retire, PR
 ---
 
 ## Goal
@@ -30,11 +30,40 @@ review step one reader that did not write the diff.
 
 ## Rejected
 
-(nothing yet)
+- `model:` in the verifier definition's frontmatter. The plan says the tier
+  follows the branch's own and the spawning session passes it, so pinning a
+  model in the file would silently outrank `./joharness.sh review`.
+- Withholding `Bash` to make "fixes nothing" airtight. A verifier that
+  cannot re-run a claim is the failure this repo keeps paying for — four
+  false numbers this session, every one formally compliant with the rule
+  that governs them, every one caught by someone executing the command. The
+  trade is recorded in the definition itself: Edit/Write/NotebookEdit are
+  withheld so a patch is out of reach, Bash is present so a claim can be
+  reproduced, and using Bash to edit is named there as a defect.
 
 ## Review
 
-(pending)
+(in flight — the acceptance replay is running; findings land here before
+their fixes and in the same commit, per step 5)
+
+## Progress
+
+Built and green, not yet reviewed:
+
+- `.claude/agents/verifier.md` — the definition.
+- `.agents/harness/AGENTS.md` step 5, `.agents/docs/agent-selection.md`
+  review depth — the rule and its reasoning.
+- `joharness.sh:review_report` — the step printed beside the depth.
+- `.agents/scripts/sync-to-consumer.sh` `DIRS` — `.claude/agents` ships.
+- `.agents/harness/selftest.sh` — four cases; 617 -> 621.
+
+The sync entry turned 20 tests red on the first run, which is the mechanism
+working: a `DIRS` entry with no directory behind it warns and exits
+non-zero, and the two scratch canonical fixtures carried no
+`.claude/agents`. Fixed in the fixtures, never by dropping the entry.
+
+`./joharness.sh ci` — ci: pass, 621 passed / 0 failed.
+`./joharness.sh verify` — 8 passed, 0 failed.
 
 ## Blockers
 
