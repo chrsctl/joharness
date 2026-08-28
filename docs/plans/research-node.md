@@ -157,7 +157,7 @@ status field, it has gone wrong — `.agents/docs/graph.md` Rules says why.
 - `./joharness.sh ci` fails on a `research:` edge naming a file that does
   not exist, and passes when it resolves. Paste both runs.
 - `./joharness.sh ci` — `ci: pass`.
-- `./joharness.sh verify` — 7 passed, 0 failed. Required: this diff touches
+- `./joharness.sh verify` — all checks pass, 0 failed. Required: this diff touches
   non-`*.md` files under `joharness.sh` and `.agents/harness/`.
 - `./.agents/harness/selftest.sh` — passes, count higher by the tests added.
 - Supervised session-start output for a repo with no research files is

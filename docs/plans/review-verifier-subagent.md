@@ -116,7 +116,7 @@ the diff.
 - `./.agents/harness/selftest.sh` — passes, count higher by the tests added.
   Trust the counted number, not this line.
 - `./joharness.sh ci` — `ci: pass`.
-- `./joharness.sh verify` — 7 passed, 0 failed. Required: the diff touches
+- `./joharness.sh verify` — all checks pass, 0 failed. Required: the diff touches
   `joharness.sh`, a non-`*.md` file in step 7's list, and CI cannot run this
   one.
 - `.agents/scripts/sync-to-consumer.sh --dry-run` against a scratch consumer
