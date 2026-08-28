@@ -416,7 +416,7 @@ sync_dir() {
     done <<<"$tracked"
   fi
   # Consumer files canonical does not track: could be the consumer's own
-  # (an extra env layer is legitimate) or a canonical removal. Both are a
+  # (an extra environment layer is legitimate) or a canonical removal. Both are a
   # human call, so report and leave — even when the canonical dir is gone,
   # and symlinks included: an unreported path defeats the report. The
   # membership test runs against the listing in hand, no subprocess.
