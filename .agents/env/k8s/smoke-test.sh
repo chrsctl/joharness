@@ -10,6 +10,7 @@
 #   5. a pod sandbox starts (the oom_score_adj regression guard)
 #   6. an image pulls inside the cluster and the deployment rolls out
 #   7. in-cluster Service DNS and networking work
+#   8. helm renders a chart and drives a release through install/uninstall
 #
 # Usage: .agents/env/k8s/smoke-test.sh [--keep]   (or: ./joharness.sh verify)
 #   --keep  leave the test namespace behind for inspection
@@ -22,6 +23,11 @@ NS="${SMOKE_NAMESPACE:-devenv-smoke}"
 KEEP=0
 [ "${1:-}" = "--keep" ] && KEEP=1
 
+# Scratch chart dir for the helm check; removed by cleanup even on --keep,
+# because the cluster-side release is what --keep is for, not a temp dir.
+CHART_ROOT=""
+HELM_RELEASE="${SMOKE_HELM_RELEASE:-smoke-helm}"
+
 PASS=0
 FAIL=0
 
@@ -30,8 +36,10 @@ fail() { printf '  \033[31mFAIL\033[0m %s\n' "$*"; FAIL=$((FAIL + 1)); }
 step() { printf '\n== %s\n' "$*"; }
 
 k() { kubectl --context "$KUBE_CONTEXT" "$@"; }
+h() { helm --kube-context "$KUBE_CONTEXT" "$@"; }
 
 cleanup() {
+  if [ -n "$CHART_ROOT" ]; then rm -rf "$CHART_ROOT"; fi
   if [ "$KEEP" -eq 1 ]; then
     printf '\n(keeping namespace %s)\n' "$NS"
     return
@@ -112,6 +120,35 @@ if k -n "$NS" run curl-probe --image=curlimages/curl:8.11.1 --restart=Never \
   pass "resolved Service 'web' by DNS and got HTTP 200"
 else
   fail "could not reach http://web from inside the cluster"
+fi
+
+# --- 8: helm ---------------------------------------------------------------
+# The environment installs helm, so the suite proves it works: render a chart,
+# drive a real release to Ready, then remove it. The chart is `helm create`
+# scaffolding, never a public repo - the egress allowlist carries no chart
+# repos, and a network fetch would put flake in a deterministic suite.
+# image.tag=alpine reuses the image check 6 already pulled, so this measures
+# helm rather than the registry a second time.
+step "Helm release lifecycle"
+if ! command -v helm >/dev/null 2>&1; then
+  fail "helm is not installed (run ./joharness.sh setup)"
+else
+  CHART_ROOT="$(mktemp -d)"
+  # Same re-run tolerance the namespace and deployment steps have: after a
+  # --keep run the release is still there, and "name in use" would be this
+  # check failing for the previous run's success.
+  h uninstall "$HELM_RELEASE" -n "$NS" --ignore-not-found >/dev/null 2>&1 || true
+  if helm create "${CHART_ROOT}/smoke-chart" >/dev/null 2>&1 \
+     && h install "$HELM_RELEASE" "${CHART_ROOT}/smoke-chart" -n "$NS" \
+          --set image.repository=nginx --set image.tag=alpine \
+          --wait --timeout 180s >/dev/null 2>&1 \
+     && h status "$HELM_RELEASE" -n "$NS" 2>/dev/null | grep -q 'STATUS: deployed' \
+     && h uninstall "$HELM_RELEASE" -n "$NS" >/dev/null 2>&1; then
+    pass "helm installed a rendered chart and uninstalled it"
+  else
+    fail "helm release lifecycle failed - check 'helm --kube-context $KUBE_CONTEXT status $HELM_RELEASE -n $NS'"
+    h status "$HELM_RELEASE" -n "$NS" 2>&1 | head -5 || true
+  fi
 fi
 
 # --- summary ---------------------------------------------------------------
