@@ -7,7 +7,7 @@ plan: k8s-136-validation
 session: https://claude.ai/code/session_01UcW18iV8drNpkz9rpCT27B
 agent: sonnet
 updated: 2026-08-28
-next: Provision env, run v1.36.3-k3s1 cluster-up + full smoke suite, record verdict
+next: Edge review, then finish (delete plan + workstream, PR, merge)
 ---
 
 ## Goal
@@ -20,6 +20,13 @@ suite unmeasured. Decide bump vs stay on v1.35.7, evidence either way.
 
 - Branch reuses claude/backpass-usage-review-sbew6t (prior PR #89 merged;
   platform rule: same branch restarts from origin/main for follow-up work).
+- Verdict: BUMP. v1.36.3-k3s1 on this cgroup v1 host, same failCgroupV1
+  drop-in: full smoke suite 7 passed 0 failed (2026-08-28), server reports
+  v1.36.3+k3s1. Cold-path proof: cluster-down then verify under the new
+  default pin, 7/7 first run (known cold-verify flake did not fire).
+- kubectl v1.36.4 = dl.k8s.io stable-1.36.txt; sha256 from publisher's
+  kubectl.sha256, proven by fresh install (verify_download dies on
+  mismatch). Skew server v1.36.3 / client v1.36.4 within ±1 minor.
 
 ## Rejected
 

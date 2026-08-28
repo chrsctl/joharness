@@ -15,8 +15,8 @@ Kubernetes" step — see [Startup cost](#startup-cost).
 | ---------- | ---------- | -------------------------------------------- |
 | Docker     | preinstalled | daemon started by `setup`                  |
 | k3d        | v5.9.0     | runs k3s on Docker                            |
-| Kubernetes | v1.35.7 (k3s) | single-node cluster named `claude-dev`    |
-| kubectl    | v1.35.8    | context `k3d-claude-dev`, set as current      |
+| Kubernetes | v1.36.3 (k3s) | single-node cluster named `claude-dev`    |
+| kubectl    | v1.36.4    | context `k3d-claude-dev`, set as current      |
 | Helm       | v3.21.4    |                                               |
 
 Downloaded binaries are verified: each pinned version's linux-amd64 sha256
@@ -181,10 +181,13 @@ Without it, creation fails opaque: k3d waits for log line node never prints,
 times out ~4 minutes, rolls cluster back. Kubelet error only visible in
 `docker logs` of server node while still up.
 
-v1.36.3+k3s1 measured: starts, goes `Ready` with same drop-in. Override still
-exists there, but cgroup v1 in v1.36 past maintenance mode, full smoke test
-not run against it. v1.35 = pin; v1.36 = "possible, validate first". Real fix
-= cgroup v2 host — [Notes and limits](#notes-and-limits) says why not done.
+v1.36.3+k3s1 validated on this host 2026-08-28: full smoke suite green
+(`.agents/env/k8s/smoke-test.sh`, all checks — pod creation, rollout, Service
+DNS included) with the same drop-in; now the pin. cgroup v1 in v1.36 is past
+maintenance mode — override works today, upstream owes it nothing, so the
+drop-in stays load bearing and any future bump revalidates the full smoke
+suite first. Real fix = cgroup v2 host —
+[Notes and limits](#notes-and-limits) says why not done.
 
 ### 3. k3d copies the host proxy into nodes, where it is unreachable
 
