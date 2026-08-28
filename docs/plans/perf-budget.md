@@ -32,22 +32,31 @@ Make the numbers re-countable, and make a regression red.
   compares each against a budget, prints a table of metric / counted /
   budget / verdict, exits non-zero on breach.
 - Counting method: a PATH shim directory, same trick and same reasoning as
-  the shellcheck stub at `.agents/harness/selftest.sh:128`. One shim per
+  the shellcheck stub above `.agents/harness/selftest.sh:commit_all`. One shim per
   wrapped binary (`git`, `awk`, `sed`, `grep`, `sort`, `wc`); each appends a
   line to a counter file, then `exec`s the real binary at an absolute path
-  resolved once before the shim dir goes on PATH. Deterministic: the same
+  resolved once BEFORE the shim dir goes on PATH. The dir is `mktemp -d`
+  with 0700 — this guard prepends it to `PATH` and then runs `git` out of
+  it, so a predictable path under a shared temp dir is an injection point,
+  not a style question. Deterministic: the same
   code path yields the same count on any machine, which is the property
   wall-clock does not have.
 - Budgets live as literals in `joharness.sh`, beside the churn thresholds
-  (`joharness.sh:559`), with the same env override shape
+  in `joharness.sh:cmd_ci`, with the same env override shape
   (`JOHARNESS_PERF_BUDGET_*`). NOT a data file — see Out of scope.
 - Registration is `cmd_ci`, not `ci.yml`: the workflow already runs
   `./joharness.sh ci`, so the guard reaches GitHub with no workflow edit and
   a session runs it pre-PR by running `ci`, which is the split ci.yml's own
   header asks for.
-- Skip on a docs-only branch by reusing `selftest_inert_diff`
-  (`joharness.sh:726`) — the guard measures harness code, and a docs branch
-  cannot move the counts.
+- Skip on a docs-only branch by reusing `joharness.sh:selftest_inert_diff`
+  — the guard measures harness code, and a docs branch cannot move the
+  counts. Know its limit before relying on it: with no merge-base (shallow
+  checkout, or the base branch itself) that skip cannot decide, and the work
+  runs anyway. Observed 2026-08-28 on this branch — `./joharness.sh ci`
+  printed `churn: not measurable here (no merge-base; shallow checkout or
+  base branch)` and ran the full selftest against a diff touching only
+  `docs/`. Once the merge-base resolved, the same command on the same diff
+  skipped it. Fails safe, but do not promise a docs-only branch never pays.
 - `.agents/harness/selftest.sh` — cases: a shim counts what the entrypoint
   actually spawns; a budget breach exits non-zero and names the metric; the
   docs-only branch skips and says so; `perf` runs with no network.
@@ -70,7 +79,7 @@ Make the numbers re-countable, and make a regression red.
 - **Wrapping every binary.** Six is enough to pin the hot paths; a shim per
   command in `$PATH` buys precision nobody is spending.
 - **`.github/workflows/ci.yml`.** Deliberately untouched — see Scope.
-- **The `handover-context.sh:199` tree-vs-diff defect.** Real, found while
+- **The `handover-context.sh:files_at` tree-vs-diff defect.** Real, found while
   scoping this plan, recorded in the workstream file. Different bug, its own
   plan.
 
@@ -102,8 +111,9 @@ Make the numbers re-countable, and make a regression red.
 - `joharness.sh:churn_top` — a threshold with a warn tier, a red tier and an
   env override that can lift it. The precedent for how a number is allowed
   to live in this script.
-- `.agents/harness/selftest.sh:128` — the PATH stub, with the comment saying
-  why stubbing does not lower the bar. The shim dir is this, generalized.
+- `.agents/harness/selftest.sh:commit_all` — the PATH stub sits above it,
+  with the comment saying why stubbing does not lower the bar. The shim dir
+  is that trick, generalized.
 - `joharness.sh:fb_fix_map`, `joharness.sh:gr_fields` — two of the hot paths
   the budget exists to pin.
 - `joharness.sh:check_targets` — how a subcommand enumerates its own subject
