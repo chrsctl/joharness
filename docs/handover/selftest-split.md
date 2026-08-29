@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01SHPKsgu5WMHQ4g7MhTwRhm
 agent: opus
 updated: 2026-08-29
-next: Prove the consumer sync ships no topic file, then review.
+next: Fold the verifier round into ## Review, then retire and open the PR.
 ---
 
 ## Goal
@@ -69,6 +69,48 @@ each other. A move, not a rewrite: same assertions, same order, same count.
 - **Counting the integrity checks as assertions.** They print and `exit 1`
   instead. The plan requires the total to be unchanged, and a dropped source
   counted as one failure among 820 is exactly how it would be missed.
+
+## Acceptance: one item is NOT met, and the reason is the plan's own trigger
+
+"Two queued plans that both name `selftest.sh` re-declare their scopes to
+disjoint topic files and land in the same wave." They re-declared —
+`cleanup-audit` to `selftest/cleanup.sh`, `finding-id-lint` to
+`selftest/review.sh` — and they still do not share a wave, because both also
+scope `joharness.sh` and always did.
+
+What the split actually bought, from the hook's own output:
+
+```
+before   wave 2: moment-feedback-hooks — overlaps selftest-split on .agents/harness
+         wave 3: cleanup-audit — overlaps selftest-split on .agents/harness/selftest.sh
+         wave 4: finding-id-lint — overlaps selftest-split on .agents/harness/selftest.sh
+after    wave 2: cleanup-audit — overlaps moment-feedback-hooks on joharness.sh
+         wave 3: finding-id-lint — overlaps moment-feedback-hooks on joharness.sh
+```
+
+**No wave line names `.agents/harness/selftest.sh` any more.** The serializer
+moved rather than disappeared, which is the honest result and not the one the
+acceptance is worded for. Marking `joharness.sh` `shared:` in both plans would
+have produced the sentence the acceptance asks for; it would also be a claim
+about parallel safety for work I am not doing, made to satisfy my own
+acceptance criterion. Not done.
+
+The plan's Out of scope says of splitting `joharness.sh`: "no queued plan is
+blocked on it alone — do it when one is." Three now are. That is the
+follow-up this plan earned, and it belongs in a plan of its own.
+
+## A perf regression the split exposed, and did not cause
+
+`ci` went red on the `review` row: **278 against a 265 ceiling**, counted
+2026-08-29. `review_prior` forks an `awk` per file in the branch's diff, and
+every branch measured until now changed a handful of files; this one changes
+42. The loop did not grow a fork — the diff grew items — and the budget was
+right either way.
+
+Fixed at the loop, not at the literal: one awk over both lists instead of one
+per file. **237 against 265** now, and the printed output is unchanged. The
+doctrine's own words are why: "Find the loop that grew a fork; do not raise
+the number to match the code."
 
 ## Review
 
