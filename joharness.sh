@@ -40,6 +40,9 @@
 #                   branches. Reports only
 #   cleanup --apply also `git rm` the workstream files, staged for review.
 #                   Never branches — deleting one is human-only
+#   drain           what the Loop takes next, and whether the queue is
+#                   drained FOR THIS MODE. Report-only; re-read it between
+#                   items rather than remembering it
 #   finish          Loop step 7 gate: what merging this branch NOW would
 #                   leave on the base branch. Red when the merge would add a
 #                   workstream file. Run it before the merge, not after
@@ -3262,6 +3265,89 @@ cmd_finish() {
   return "$rc"
 }
 
+# Loop step 2, answered in one line: is there anything left to take, and what
+# is it. The queue stops draining while it still holds work — counted on
+# origin/main 2026-08-29 over the last 120 merges, 5 of 119 gaps exceed three
+# hours and the two longest are 32.2h and 24.0h, with 18, 18, 19 and 11 plan
+# files on the tree at the four longest stalls' first commit. Idle holding a
+# full queue is the failure .agents/docs/unsupervised.md names; this is the
+# status a drain loop re-reads between items.
+#
+# Report-only, like `cleanup` and `scorecard`. A drain that GATED would be red
+# for the whole of every run, which is how a gate stops being read.
+#
+# It DERIVES NOTHING. The queue is ranked in one place (queue-context.sh) and
+# the in-flight edge in another (handover-context.sh); this runs both and
+# reads their answers. A fourth ordering over the same files is how two
+# readers of one fact start disagreeing — the cost `owned_at` already paid.
+# The strings it keys on are pinned by those hooks' own selftests, so a
+# reword goes red there rather than silently emptying this.
+drain_hook() {
+  local h="${HARNESS_ROOT}/$1"
+  [ -x "$h" ] || return 0
+  CLAUDE_PROJECT_DIR="$ROOT" HANDOVER_FETCH="${DRAIN_FETCH:-0}" "$h" 2>/dev/null
+}
+
+# First FREE row in the queue hook's own order. Claimed and blocked rows are
+# listed there but never lead (.agents/docs/plans/README.md), so the first row
+# carrying neither marker is the next thing to take. Plans and questions rank
+# together and both match — a question may be the oldest actionable thing.
+drain_next() {
+  printf '%s\n' "$1" |
+    # Delimiter is # and not |, because | is also BRE's alternation: with
+    # s|...| the \| below reads as an escaped delimiter and the expression
+    # silently matches nothing, which reports a full queue as drained.
+    sed -n 's#^  \(docs/\(plans\|research\)/[^ ]*\.md\)  \(.*\)$#\1 \3#p' |
+    { grep -v 'claimed on\|blocked by' || :; } | head -1
+}
+
+cmd_drain() {
+  local mode qout hout edge next free
+  mode="$(run_mode)"
+  printf '== drain (mode: %s)\n\n' "$mode"
+
+  hout="$(drain_hook handover-context.sh)"
+  qout="$(drain_hook queue-context.sh)"
+
+  # Finishing outranks starting, so the edge is reported FIRST — and reported,
+  # not returned on. A session that stopped here would spin forever on an edge
+  # branch belonging to a live session, which is not its to merge (step 7).
+  # Naming it and carrying on is what lets the loop make progress either way.
+  edge="$(printf '%s\n' "$hout" |
+    sed -n 's/^  FINISH BEFORE STARTING: \(.*\)$/\1/p' | head -1)"
+  if [ -n "$edge" ]; then
+    printf 'edge work in flight — outranks the queue (step 2):\n'
+    printf '  %s\n' "$edge"
+    printf '  Yours, or its session gone (/who)? Take it first. Another session\n'
+    printf '  LIVE on it: say so to the human and skip it.\n\n'
+  fi
+
+  next="$(drain_next "$qout")"
+  if [ -n "$next" ]; then
+    free="$(printf '%s\n' "$qout" |
+      sed -n 's/^\([0-9][0-9]*\) free plans.*/\1/p' | head -1)"
+    printf 'NOT DRAINED%s\n' "${free:+ — ${free} free plan(s)}"
+    printf '  next: %s\n' "$next"
+    return 0
+  fi
+
+  # Nothing free. What that MEANS is the mode's to say, and the two modes
+  # disagree on purpose: supervised stops at the edge and asks, unsupervised
+  # treats an empty queue as a trigger and stops only on a dry sweep
+  # (docs/product/unsupervised-mode.md, ratified 2026-08-25).
+  if [ "$mode" = "unsupervised" ]; then
+    printf 'queue empty — under unsupervised that is a trigger, not a stop.\n'
+    printf 'The stop is a dry sweep, so this defers to it (slow: runs ci).\n\n'
+    cmd_sources
+    return 0
+  fi
+
+  printf 'DRAINED — no free plan, no open question.\n'
+  printf '  Supervised stops here and asks (step 2). It does NOT invent work;\n'
+  printf '  that is unsupervised mode, and this repo is not in it.\n'
+  return 0
+}
+
 # Mermaid node ids must be plain; labels keep the real names.
 gr_id() { printf '%s' "$1" | tr -c 'a-zA-Z0-9' '_'; }
 
@@ -3645,6 +3731,7 @@ main() {
     feedback)       cmd_feedback "${1:-}" ;;
     cleanup)        cmd_cleanup "$@" ;;
     finish)         cmd_finish ;;
+    drain)          cmd_drain ;;
     graph)          cmd_graph ;;
     scorecard)      cmd_scorecard ;;
     perf)           cmd_perf "${1:-}" ;;
