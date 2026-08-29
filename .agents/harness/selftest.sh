@@ -3137,6 +3137,17 @@ lwork="${TMP}/lintwork"
 mkdir -p "${lwork}/.agents/harness" "${lwork}/.agents/env/none" \
   "${lwork}/docs/plans" "${lwork}/docs/handover" "${lwork}/docs/product"
 cp "${ROOT}/joharness.sh" "${lwork}/joharness.sh"
+# The four implemented node types, as a synced consumer carries them
+# (.agents/docs is in the sync engine's DIRS). Without these the fixture is a
+# tree whose types are all undefined, and the unknown-type check below warns
+# on every one — which the suite would not have caught, because it greps
+# lint_section for specific edge strings. It surfaced in the SHALLOW clone
+# further down: git does not track an empty directory, so a `mkdir -p` here
+# is invisible there and the clone warned three times.
+for _t in plans research product handover; do
+  mkdir -p "${lwork}/.agents/docs/${_t}"
+  printf '# %s\n' "$_t" >"${lwork}/.agents/docs/${_t}/README.md"
+done
 printf '#!/usr/bin/env bash\nexit 0\n' >"${lwork}/.agents/harness/selftest.sh"
 chmod +x "${lwork}/.agents/harness/selftest.sh" "${lwork}/joharness.sh"
 git init -q "$lwork"
@@ -3469,7 +3480,7 @@ fi
 # clone's HEAD, where it must still say `needs: never-was`. An `add -A` here
 # committed that edit and the shallow case started asserting against a
 # fixture nobody meant to change. Second time this session.
-mkdir -p "${lwork}/.agents/docs/plans" "${lwork}/docs/decisions"
+mkdir -p "${lwork}/docs/decisions"
 cat >"${lwork}/docs/decisions/pick-a-database.md" <<'EOF'
 ---
 decision: pick-a-database
@@ -3493,6 +3504,9 @@ git -C "$lwork" commit -qm "two nodes of a type nothing implements"
 full="$(lint_ci)"; rc=$?
 out="$(lint_section "$full")"
 expect "an unimplemented node type is named" "docs/decisions/" "$out"
+# The other half, and the one the suite missed: types this fixture DOES
+# implement must stay quiet while an unimplemented one is being reported.
+refute "an implemented type is not swept up with it" "docs/plans/:" "$out"
 expect "the warning counts the instances" "2 file(s)" "$out"
 expect "the warning names the field they use" "'decision:' field" "$out"
 expect "the warning says what is missing" "no .agents/docs/decisions/" "$out"
@@ -3559,12 +3573,27 @@ git -C "$lwork" commit -qm "one self-naming file beside one that is not"
 out="$(lint_section "$(lint_ci)")"
 expect "only self-naming files are counted" "docs/mixed/: 1 file(s)" "$out"
 
+# Through git, not rm -rf: `.agents/docs/decisions/README.md` is TRACKED
+# here, and removing it from disk alone leaves the fixture with an
+# uncommitted deletion that later states inherit. fixture_rm exists for this
+# (PR 125 r19) and using rm here was the same lesson unlearned two hundred
+# lines later.
 fixture_rm "$lwork" "clear the node-type fixtures" \
   docs/decisions/pick-a-database.md docs/decisions/pick-a-queue.md \
   docs/notes/how-we-deploy.md docs/notes/scratch.md \
-  docs/mixed/real-node.md docs/mixed/not-a-node.md
-rm -rf "${lwork:?}/docs/decisions" "${lwork:?}/docs/notes" "${lwork:?}/docs/mixed" \
-  "${lwork:?}/.agents/docs/decisions"
+  docs/mixed/real-node.md docs/mixed/not-a-node.md \
+  .agents/docs/decisions/README.md
+rmdir "${lwork}/docs/decisions" "${lwork}/docs/notes" "${lwork}/docs/mixed" \
+  "${lwork}/.agents/docs/decisions" 2>/dev/null || :
+
+# The guard that makes all of the above answerable: no .agents/docs at all,
+# no verdict. Untested until now, and removing the guard left the suite green
+# — while a tree missing the harness docs is a sync problem, not an early
+# node type, and warning there is a guess dressed as a finding.
+mv "${lwork}/.agents/docs" "${lwork}/.agents/docs-hidden"
+out="$(lint_section "$(lint_ci)")"
+refute "no harness docs at all means no verdict" "name themselves" "$out"
+mv "${lwork}/.agents/docs-hidden" "${lwork}/.agents/docs"
 
 # A shallow checkout cannot tell a typo from a merged-and-deleted plan:
 # the never-existed red must degrade to a warning there, or ci would be

@@ -1321,11 +1321,16 @@ lint_anchors() {
 #
 #   Is this a directory of NODES?  Every node in this graph names itself in
 #     its first frontmatter key — `plan: <stem>`, `research: <stem>`,
-#     `requirement: <stem>`, `workstream: <stem>`. Counted across all 11 node
-#     files and 4 templates on origin/main f806d5b: no exceptions. "Has
-#     frontmatter" would have fired on any docs/adr/ a consumer keeps, and a
-#     false warning trains sessions to ignore the channel the real findings
-#     ride on (lint_anchors carries that lesson already).
+#     `requirement: <stem>`, `workstream: <stem>`. Counted 2026-08-29 with
+#     `git ls-tree -r --name-only <ref> | grep -E '^docs/.*\.md$'`: 12 node
+#     files on f806d5b, 11 on 287914e after the satisfied requirement was
+#     retired, every one of them self-naming. An earlier draft of this
+#     comment said 11 at f806d5b and added "and 4 templates"; the first was
+#     the wrong ref's count and the second is false — no TEMPLATE.md
+#     self-names, they are excluded by the filter below, not by the property.
+#     "Has frontmatter" would have fired on any docs/adr/ a consumer keeps,
+#     and a false warning trains sessions to ignore the channel the real
+#     findings ride on (lint_anchors carries that lesson already).
 #   Does the harness KNOW the type?  `.agents/docs/<type>/` exists. That is
 #     where every implemented type keeps its README and TEMPLATE, and it is
 #     true of all four.
@@ -1334,7 +1339,7 @@ lint_anchors() {
 # would punish the session that did the research for doing it before anybody
 # had written down where research goes.
 lint_unknown_types() {
-  local d name out n key
+  local d name f l1 l2 k v stem n keys phrase
   [ -d "${ROOT}/docs" ] || return 0
   # Only where the harness's own docs are present. `.agents/docs` is in the
   # sync engine's DIRS, so every consumer carries it; a tree without it is
@@ -1348,36 +1353,50 @@ lint_unknown_types() {
     name="${d##*/}"
     [ -n "$name" ] || continue
     [ -d "${ROOT}/.agents/docs/${name}" ] && continue
-    # One awk over the directory's files, not a read per file: this runs on
-    # every ci, and the count is the whole answer.
-    out="$(cd "$ROOT" && find "docs/${name}" -maxdepth 1 -name '*.md' \
+    n=0
+    keys=""
+    # Two builtin reads per file, no forks and no awk. The first version
+    # passed the file list to one awk as an unquoted word-split string, which
+    # made a filename with a space abort awk before END ran: no count, no
+    # warning, a raw awk error on stderr, and the directory the check exists
+    # to report silently skipped. A filename holding a glob character was
+    # counted twice by the same expansion.
+    while IFS= read -r f; do
+      [ -n "$f" ] || continue
+      l1=""
+      l2=""
+      { IFS= read -r l1; IFS= read -r l2; } <"${ROOT}/${f}" 2>/dev/null || :
+      # A CRLF checkout is a checkout, not a different repo: Git for Windows
+      # defaults to core.autocrlf=true, and `---\r` is not `---`.
+      l1="${l1%$'\r'}"
+      l2="${l2%$'\r'}"
+      [ "$l1" = "---" ] || continue
+      case "$l2" in *:*) ;; *) continue ;; esac
+      k="${l2%%:*}"
+      v="${l2#*:}"
+      v="${v#"${v%%[![:space:]]*}"}"
+      v="${v%"${v##*[![:space:]]}"}"
+      case "$k" in [a-z]*) ;; *) continue ;; esac
+      case "$k" in *[!a-z_-]*) continue ;; esac
+      stem="${f##*/}"
+      stem="${stem%.md}"
+      [ "$v" = "$stem" ] || continue
+      n=$((n + 1))
+      case " ${keys} " in *" ${k} "*) ;; *) keys="${keys:+${keys} }${k}" ;; esac
+      # -type f: a DIRECTORY named `something.md` was read as a file and took
+      # the whole directory's answer down with it.
+    done < <(cd "$ROOT" && find "docs/${name}" -maxdepth 1 -type f -name '*.md' \
       ! -name 'TEMPLATE.md' ! -name 'README.md' ! -name 'VISION.md' \
-      2>/dev/null | sort | tr '\n' ' ' | {
-        read -r files
-        [ -n "$files" ] || { printf '0 \n'; exit 0; }
-        # shellcheck disable=SC2086
-        awk '
-          FNR == 1 { hdr = ($0 == "---"); next }
-          FNR == 2 && hdr {
-            stem = FILENAME
-            sub(/.*\//, "", stem)
-            sub(/\.md$/, "", stem)
-            i = index($0, ":")
-            if (i > 1) {
-              k = substr($0, 1, i - 1)
-              v = substr($0, i + 1)
-              gsub(/^[ \t]+|[ \t]+$/, "", v)
-              if (v == stem && k ~ /^[a-z][a-z_-]*$/) { n++; key = k }
-            }
-          }
-          END { printf "%d %s\n", n + 0, key }
-        ' $files
-      })"
-    n="${out%% *}"
-    key="${out#* }"
-    case "$n" in ''|*[!0-9]*) n=0 ;; esac
+      2>/dev/null | sort)
     [ "$n" -gt 0 ] || continue
-    lint_warn "docs/${name}/: ${n} file(s) name themselves in a '${key}:' field, but no .agents/docs/${name}/ defines that type — instances of a node type the harness does not implement yet"
+    # Every key seen, not the last one. Naming one key over a count that
+    # covers two makes the sentence false for the other file.
+    phrase="a '${keys}:' field"
+    case "$keys" in
+      *' '*) phrase="'$(printf '%s' "$keys" | sed "s/ /:'\/'/g"):' fields" ;;
+    esac
+    lint_warn "docs/${name}/: ${n} file(s) name themselves in ${phrase}," \
+      "but no .agents/docs/${name}/ defines that type"
   done < <(cd "$ROOT" && find docs -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort)
 }
 
