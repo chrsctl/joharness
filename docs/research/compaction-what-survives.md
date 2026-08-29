@@ -76,7 +76,7 @@ carry the mode and the boundary, not only the file name.
 
 ## Verification
 
-Checked 2026-08-25 by an independent context that did not write these
+Checked by an independent context that did not write these
 findings.
 
 - Governance Decay paper, ID, and quoted wording — **GROUNDED**. Body text

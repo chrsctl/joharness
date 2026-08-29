@@ -21,7 +21,10 @@ the selected layer — as a read-first pointer by default, whole when md=eager
 2. **Pick.** Queue = open GitHub issues (hook lists which are already
    CLAIMED — an unlisted one may still be taken unpushed, `/who`), then unplanned requirements
    `docs/product/*.md`, then plan files `docs/plans/*.md` (shape + claim
-   rules: `.agents/docs/plans/README.md`). NOTHING builds unplanned: issue,
+   rules: `.agents/docs/plans/README.md`) and open questions
+   `docs/research/*.md`, same order, no special rank
+   (`.agents/docs/research/README.md`). Plan naming one in `research:` is
+   blocked while it is open — answering it is queue work. NOTHING builds unplanned: issue,
    requirement, direct human ask — decompose into plan first, decompose =
    the work. Small ask = small plan, still a plan. Plan frontmatter names
    `agent` + `effort` — the one place a model gets matched to work
@@ -80,7 +83,9 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    (`.agents/docs/feedback.md`).
    Fix undoes earlier round's fix? Review churn: stop patching, research
    step at raised tier or effort first (`.agents/docs/agent-selection.md`, review
-   churn rule). NEVER skip, disable, or quarantine a test to get green.
+   churn rule; shape of a research file:
+   `.agents/docs/research/README.md`). NEVER skip, disable, or quarantine a
+   test to get green.
    NEVER kick CI: no empty commit, no close-reopen.
    Test written for a fix must FAIL without it: revert the fix, run the
    test, put it back. Green both ways = test pins nothing.

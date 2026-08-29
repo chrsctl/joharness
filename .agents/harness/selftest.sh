@@ -156,6 +156,27 @@ export JOHARNESS_PERF
 # A commit in the repo $1 with message $2, after staging everything.
 commit_all() { git -C "$1" add -A && git -C "$1" commit -qm "$2"; }
 
+# `git rm` in a fixture, with the directories put back.
+#
+# git removes a directory when its last tracked file goes. Every fixture here
+# then writes into that directory with `cat >`, which fails — and the case
+# reads the PREVIOUS state's output and reports a mismatch that names
+# something else entirely. Four times in one session: docs/plans twice,
+# docs/handover once, docs/research once, each costing a run to diagnose and
+# each looking like a different bug.
+#
+# So the rule is code now rather than a comment somebody remembers: remove
+# through this, and the shape cannot recur.
+fixture_rm() {
+  local repo="$1" msg="$2" f
+  shift 2
+  git -C "$repo" rm -q "$@" || return 1
+  git -C "$repo" commit -qm "$msg" || return 1
+  for f in "$@"; do
+    case "$f" in */*) mkdir -p "${repo}/${f%/*}" ;; esac
+  done
+}
+
 # --- structure: the layer rule, enforced ------------------------------------
 # Three files state it — root AGENTS.md, .agents/env/README.md and
 # .agents/harness/README.md — and until this check nothing measured it, so the
@@ -1013,6 +1034,127 @@ expect "spawn list names each free plan's tier" \
 # what the two assertions just proved. Scoped plans switch the fan-out to
 # waves: point-break and wipeout both surf beach/ (one names the directory,
 # one a file inside — the prefix case), inland stays on dry land.
+step "queue-context.sh research nodes"
+
+# Own fixture: adding research files to $work would move the assertions
+# above, and a case that only passes because a neighbour changed is not a
+# case. Two commits, so the added-epoch ordering is real rather than a tie.
+rwork="${TMP}/researchwork"
+rorigin="${TMP}/researchorigin.git"
+git init -q --bare "$rorigin"
+git init -q "$rwork"
+git -C "$rwork" symbolic-ref HEAD refs/heads/main
+mkdir -p "${rwork}/docs/plans" "${rwork}/docs/research"
+cat >"${rwork}/docs/plans/free-plan.md" <<'EOF'
+---
+plan: free-plan
+urgency: normal
+agent: sonnet
+effort: high
+---
+EOF
+commit_all "$rwork" "one free plan"
+git -C "$rwork" remote add origin "$rorigin"
+git -C "$rwork" push -qu origin main
+
+rq() { CLAUDE_PROJECT_DIR="$rwork" bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1; }
+
+# A node type nobody uses must cost nothing. Not a style point: this hook's
+# output is paid by every session in every consumer, and most consumers will
+# never write a research file.
+#
+# NO-REGRESSION checks, and labelled so nobody reads them as regression
+# guards: both pass on a hook that knows nothing about research, because
+# that hook prints nothing about research either. What they pin is that the
+# feature stays quiet where it is unused — real, and not the same claim.
+out="$(rq)"
+refute "no research files, no research output" "Open questions" "$out"
+refute "no research files, no research protocol pointer" "research/README.md" "$out"
+
+cat >"${rwork}/docs/research/open-question.md" <<'EOF'
+---
+research: open-question
+urgency: normal
+agent: opus
+effort: xhigh
+graduates: .agents/docs/graph.md
+---
+EOF
+cat >"${rwork}/docs/research/TEMPLATE.md" <<'EOF'
+not a question
+EOF
+cat >"${rwork}/docs/plans/waiting-plan.md" <<'EOF'
+---
+plan: waiting-plan
+urgency: normal
+agent: haiku
+effort: low
+research: open-question, none
+---
+EOF
+GIT_COMMITTER_DATE="2026-02-02T00:00:00Z" commit_all "$rwork" "a question and a plan waiting on it"
+git -C "$rwork" push -q origin main
+
+out="$(rq)"
+expect "a question is listed with its tier" \
+  "docs/research/open-question.md  [normal, agent: opus, effort: xhigh, graduates: .agents/docs/graph.md]" \
+  "$out"
+expect "the question list names its protocol" \
+  "Open questions (protocol: .agents/docs/research/README.md)" "$out"
+# Also a no-regression check: the filter it exercises is queue_files', which
+# already excluded TEMPLATE for plans. Here to catch a research listing that
+# grew its own file walk.
+refute "the research template is not a question" "TEMPLATE" "$out"
+expect "a plan waiting on a question is blocked by it" \
+  "docs/plans/waiting-plan.md  [normal, agent: haiku, effort: low, blocked by: open-question (open question)]" \
+  "$out"
+# Blocked means NOT suggested, which is the half a listing cannot show. One
+# free plan, so the fan-out line must name one session, not two.
+refute "a blocked plan is not offered as a parallel session" \
+  "2 free plans" "$out"
+
+# The edge. A question is queue work, so an empty PLAN queue with an open
+# question is not an empty queue — and saying "done" there is the false
+# negative that under unsupervised reads as an order to invent a backlog.
+git -C "$rwork" rm -q docs/plans/free-plan.md docs/plans/waiting-plan.md
+commit_all "$rwork" "every plan gone, the question stays"
+git -C "$rwork" push -q origin main
+out="$(rq)"
+refute "open question is not the plan-queue edge" "edge reached: done" "$out"
+expect "no plans but an open question says the queue is not empty" \
+  "the queue is not empty" "$out"
+expect "and still points at issues first" "open GitHub issues first" "$out"
+
+# Deleting the file is the only thing that closes the edge — no status
+# field, same as a plan.
+# An unreadable question is not an absent question. The plans path already
+# paid for this — a zero-byte plan file made the edge fire while an unclaimed
+# plan sat in the queue — and counting rows instead of files rebuilt it here.
+: >"${rwork}/docs/research/unreadable.md"
+git -C "$rwork" add -A
+commit_all "$rwork" "a zero-byte question"
+git -C "$rwork" push -q origin main
+out="$(rq)"
+refute "an unreadable question is not the plan-queue edge" "edge reached: done" "$out"
+expect "an unreadable question is counted and named" \
+  "could not be read" "$out"
+fixture_rm "$rwork" "drop the unreadable one" docs/research/unreadable.md
+git -C "$rwork" push -q origin main
+
+git -C "$rwork" rm -q docs/research/open-question.md
+commit_all "$rwork" "question answered"
+git -C "$rwork" push -q origin main
+out="$(rq)"
+# The second half of a pair. On its own this passes on a hook with no
+# research support at all — such a hook says "done" in every state. What
+# makes it evidence is the case above, which fails there: together they say
+# the edge tracks the FILE, opening and closing with it.
+expect "an answered question leaves the plan-queue edge reachable" \
+  "edge reached: done" "$out"
+# Same no-regression shape as its neighbour above, and for the same reason:
+# a hook that never lists questions never lists this one either.
+refute "an answered question is gone from the list" "open-question" "$out"
+
 step "queue-context.sh scope waves"
 
 git -C "$work" checkout -q main
@@ -3009,7 +3151,155 @@ lint_section() { sed -n '/== graph lint/,/^$/p' <<<"$1"; }
 
 full="$(lint_ci)"
 out="$(lint_section "$full")"
-expect "empty queue reads sound" "edges sound (0 plans, 0 workstreams, 0 requirements)" "$out"
+expect "empty queue reads sound" "edges sound (0 plans, 0 research, 0 workstreams, 0 requirements)" "$out"
+
+# Research nodes and the `research:` edge. Same three-way answer `needs`
+# gets, because it is the same question about a different directory — and
+# the failure direction is the dangerous one: a typo here reads as "nothing
+# blocks this plan", which is a plan running on an unsettled question.
+mkdir -p "${lwork}/docs/research"
+cat >"${lwork}/docs/plans/waits-on-nothing.md" <<'EOF'
+---
+plan: waits-on-nothing
+urgency: normal
+agent: sonnet
+effort: high
+research: no-such-question
+---
+EOF
+commit_all "$lwork" "plan naming a question that never existed"
+out="$(lint_section "$(lint_ci)")"
+expect "a research edge to nothing is red" \
+  "research 'no-such-question' — no such question, never existed" "$out"
+expect "the red says what the typo costs" "Plan reads as unblocked" "$out"
+
+cat >"${lwork}/docs/research/no-such-question.md" <<'EOF'
+---
+research: no-such-question
+urgency: normal
+agent: opus
+effort: high
+graduates: joharness.sh
+---
+EOF
+commit_all "$lwork" "the question exists now"
+out="$(lint_section "$(lint_ci)")"
+# NO-REGRESSION, labelled: "no such question" is a string only this diff can
+# print, so this refute passes with joharness.sh reverted too. It guards the
+# resolving case against a future edit, it does not prove the current one.
+refute "a resolving research edge is not red" "no such question" "$out"
+expect "research nodes are counted in the summary" "1 research," "$out"
+
+# graduates: is the one edge only this node type carries, and the whole
+# reason the node exists is that the answer outlives the session.
+#
+# The DIRECTORY is the gate, not the file. The README tells a graduating
+# session to write a new why-explanation, so requiring the target to exist
+# already reds exactly the questions this node is for — while a wrong
+# directory is still the typo that loses the answer.
+cat >"${lwork}/docs/research/nowhere-to-land.md" <<'EOF'
+---
+research: nowhere-to-land
+urgency: normal
+agent: opus
+effort: high
+graduates: docs/does-not-exist.md
+---
+EOF
+commit_all "$lwork" "question graduating into a file the PR will write"
+out="$(lint_section "$(lint_ci)")"
+expect "a target the graduating PR will create is a warning" \
+  "graduates 'docs/does-not-exist.md' — not in the tree yet" "$out"
+refute "and not a red" \
+  "DEAD docs/research/nowhere-to-land.md: graduates" "$out"
+
+cat >"${lwork}/docs/research/nowhere-to-land.md" <<'EOF'
+---
+research: nowhere-to-land
+urgency: normal
+agent: opus
+effort: high
+graduates: docs/no-such-dir/answer.md
+---
+EOF
+commit_all "$lwork" "question graduating into a directory that is not there"
+out="$(lint_section "$(lint_ci)")"
+expect "a target directory that is not in the tree is red" \
+  "graduates 'docs/no-such-dir/answer.md' — its directory is not in this tree" "$out"
+
+# A root-level target is legitimate — a question about the entrypoint
+# graduates into the entrypoint — and the first version of the directory
+# check reded it, because stripping the last path segment off a name with no
+# slash leaves the name.
+cat >"${lwork}/docs/research/nowhere-to-land.md" <<'EOF'
+---
+research: nowhere-to-land
+urgency: normal
+agent: opus
+effort: high
+graduates: joharness.sh
+---
+EOF
+commit_all "$lwork" "question graduating into a root-level file"
+out="$(lint_section "$(lint_ci)")"
+refute "a root-level graduation target is not red" \
+  "graduates 'joharness.sh'" "$out"
+
+cat >"${lwork}/docs/research/nowhere-to-land.md" <<'EOF'
+---
+research: nowhere-to-land
+urgency: normal
+agent: opus
+effort: high
+---
+EOF
+commit_all "$lwork" "question with no graduates at all"
+out="$(lint_section "$(lint_ci)")"
+expect "no graduates at all is red" "no graduates:" "$out"
+expect "the red says why that matters" "does not survive the session" "$out"
+
+# Vocabulary, the same three fields a plan is held to.
+cat >"${lwork}/docs/research/nowhere-to-land.md" <<'EOF'
+---
+research: nowhere-to-land
+urgency: normal
+agent: gpt
+effort: high
+graduates: joharness.sh
+---
+EOF
+commit_all "$lwork" "question on a tier that does not exist"
+out="$(lint_section "$(lint_ci)")"
+expect "a research file's agent tier is vocabulary-checked" \
+  "agent 'gpt' not one of: haiku sonnet opus" "$out"
+
+# A question is queue work a session PICKS, so a session settling one has to
+# be able to record the claim. The workstream file's `plan:` is the only
+# claim edge the hook reads, so it carries both — before this, `plan:
+# <question>` was DEAD and reded ci, and `plan: none` left the question
+# listing as free for a second session to pick up. That is #119's duplicate
+# claim, rebuilt for the new node type.
+cat >"${lwork}/docs/handover/settling-a-question.md" <<'EOF'
+---
+workstream: settling-a-question
+status: in-progress
+agent: opus
+plan: no-such-question
+---
+
+## Goal
+Fixture.
+EOF
+commit_all "$lwork" "a workstream claiming a question"
+out="$(lint_section "$(lint_ci)")"
+refute "claiming a question is not a dead edge" \
+  "settling-a-question" "$out"
+
+fixture_rm "$lwork" "drop the claim fixture" docs/handover/settling-a-question.md
+
+fixture_rm "$lwork" "back to a clean fixture" \
+  docs/research/nowhere-to-land.md docs/research/no-such-question.md \
+  docs/plans/waits-on-nothing.md
 
 # The issue claim's validator (#119). Untested until now — deleting the whole
 # case block from lint_graph left the suite at 728 passed, which is the
@@ -3103,7 +3393,7 @@ expect "adjacent vocabulary words are not a value" \
 expect "dangling needs is red" \
   "needs 'never-was' — no such plan, never existed" "$out"
 expect "dangling claim is red" \
-  "plan 'never-was-plan' — no such plan, never existed" "$out"
+  "plan 'never-was-plan' — no such plan or question, never existed" "$out"
 if [ "$rc" -ne 0 ]; then
   pass "dead edges fail ci"
 else
@@ -3170,6 +3460,26 @@ fi
 # green locally and red on a depth-1 runner — the invariant broken in the
 # bad direction. The clone's HEAD carries the red-case fixtures committed
 # above; only history is missing.
+# The research edge takes the same three-way answer, so it needs the same
+# case: without one, a consumer's depth-1 CI could red on a merged-and-
+# deleted question and no local run would ever show it.
+cat >"${lwork}/docs/plans/waits-shallow.md" <<'EOF'
+---
+plan: waits-shallow
+urgency: normal
+agent: sonnet
+effort: high
+research: never-asked
+---
+EOF
+# This ONE file, not `add -A`. The case below reads the clone's HEAD, and the
+# state it needs is one the block above left UNCOMMITTED on purpose: `bad.md`
+# carries `needs: never-was` in HEAD and `needs: dep` only in the working
+# tree. A `commit_all` here swept that working-tree edit into HEAD and the
+# neighbour started asserting against a fixture nobody meant to change.
+git -C "$lwork" add docs/plans/waits-shallow.md
+git -C "$lwork" commit -qm "plan waiting on a question with no history here"
+
 lshallow="${TMP}/lintshallow"
 if git clone -q --depth 1 "file://${lwork}" "$lshallow" 2>/dev/null; then
   out="$(CLAUDE_PROJECT_DIR="$lshallow" JOHARNESS_CONF="${lshallow}/joharness.conf" \
@@ -3179,6 +3489,10 @@ if git clone -q --depth 1 "file://${lwork}" "$lshallow" 2>/dev/null; then
     "needs 'never-was' unknown here (shallow history)" "$out"
   refute "shallow history does not claim never existed" \
     "needs 'never-was' — no such plan" "$out"
+  expect "shallow history degrades a dangling research edge too" \
+    "research 'never-asked' unknown here (shallow history)" "$out"
+  refute "shallow history does not call a question a typo" \
+    "research 'never-asked' — no such question" "$out"
 else
   skip "shallow-history lint degrade" "file:// shallow clone unavailable here"
 fi

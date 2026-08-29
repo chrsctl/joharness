@@ -31,6 +31,15 @@ first — which it did.
 Either a named practice with tooling, in which case the plan should follow
 it, or an absence, in which case the plan is inventing and should say so.
 
+## Method
+
+Not recorded. Both passes were web searches and the queries were not kept,
+so there is nothing to quote here — this section says so rather than
+reconstructing plausible queries after the fact, which would read as a
+record and be a guess. The shape came later than the file
+(`.agents/docs/research/README.md`); the cost of that is exactly this: the
+findings below cannot be re-run as written.
+
 ## Findings
 
 - **Controlled-vocabulary linting is mature, named, and in production.**
@@ -77,7 +86,7 @@ not a winner picked.
 
 ## Verification
 
-Checked 2026-08-25 by an independent context that did not write these
+Checked by an independent context that did not write these
 findings, asked specifically to refute the negative claim.
 
 - Original central claim — "no tooling prior art exists" — **UNGROUNDED,

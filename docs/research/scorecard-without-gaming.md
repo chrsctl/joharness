@@ -87,7 +87,7 @@ should say so rather than dressing it as research.
 
 ## Verification
 
-Checked 2026-08-25 by an independent context that did not write these
+Checked by an independent context that did not write these
 findings.
 
 - DORA "individual metrics create competition" — **UNGROUNDED as an
