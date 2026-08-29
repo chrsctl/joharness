@@ -564,6 +564,7 @@ SELFTEST_TOPICS=(
   feedback
   feedback-recurrence
   cleanup
+  drain
   ci-canonical-only-selftest
   upgrade
   ci-glossary
