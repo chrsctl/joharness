@@ -10,9 +10,12 @@
 #                       urgent first — planning outranks executing.
 #   docs/plans/*.md     plans, urgent first then oldest, each with its
 #                       urgency/agent/effort and edges: `blocked by:` while
-#                       a needed plan is open, `claimed on <branch>` when an
-#                       in-flight workstream names it. Blocked and claimed
-#                       list but never lead.
+#                       a needed plan or an open research question is open,
+#                       `claimed on <branch>` when an in-flight workstream
+#                       names it. Blocked and claimed list but never lead.
+#   docs/research/*.md  open questions, same ordering, same tier field. A
+#                       plan naming one in `research:` is blocked while it
+#                       exists (.agents/docs/research/README.md).
 # Two or more free plans = fan-out instruction (one session per free plan,
 # model named), and under JOHARNESS_RUN_MODE=unsupervised that instruction
 # becomes an order to start them now, for wave 1 only. No free plan and
@@ -41,6 +44,7 @@ set -uo pipefail
 # queue: wrong in the "everything is done" direction.
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 PLANS_DIR="docs/plans"
+RESEARCH_DIR="docs/research"
 PRODUCT_DIR="docs/product"
 BASE_BRANCH="${HANDOVER_BASE_BRANCH:-main}"
 MAX_ENTRIES="${QUEUE_MAX_ENTRIES:-10}"
@@ -99,6 +103,7 @@ queue_files() {
 }
 
 plans="$(queue_files "$PLANS_DIR")"
+research="$(queue_files "$RESEARCH_DIR")"
 reqs="$(queue_files "$PRODUCT_DIR")"
 
 printf '\n== Queue (protocol: .agents/docs/plans/README.md) ==\n\n'
@@ -140,6 +145,17 @@ stems="$(
   done <<<"$plans"
 )"
 
+# Open question names, for the `research:` edge. Same shape as `stems`
+# above and the same rule: the file existing IS the block, so a question
+# answered and deleted unblocks its plan with no field to update.
+rstems="$(
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    stem "$f"
+    printf '\n'
+  done <<<"$research"
+)"
+
 # One row per plan: rank, added-epoch, path, label, served requirement.
 # Sorted urgent first, then oldest — the pick order Loop step 2 prescribes —
 # with claimed plans after free ones and blocked plans last: listed so the
@@ -155,20 +171,39 @@ rows="$(
     # Counted on stderr so the row list stays machine-shaped.
     [ -n "$doc" ] || continue
     { read -r urgency; read -r agent; read -r effort
-      read -r needs;   read -r requirement; } \
-      <<<"$(printf '%s\n' "$doc" | fields urgency agent effort needs requirement)"
+      read -r needs;   read -r requirement; read -r rneeds; } \
+      <<<"$(printf '%s\n' "$doc" | fields urgency agent effort needs requirement research)"
     requirement="$(stem "$requirement")"
     added="$(git log --diff-filter=A --format=%ct -1 "$ref" -- "$f" 2>/dev/null)"
 
     blockers=""
     if [ -n "$needs" ]; then
       read -ra need_list <<<"${needs//,/ }"
+      # A separators-only value ("," on its own) leaves the array empty, and
+      # expanding an empty array under set -u is fatal on bash 3.2 — which
+      # is the shell macOS ships and this hook runs under. Same guard
+      # joharness.sh:lint_graph carries for the same field.
+      [ "${#need_list[@]}" -gt 0 ] || need_list=("")
       for n in "${need_list[@]}"; do
         n="$(stem "$n")"
         # 'none' = the template's explicit no-dependencies value.
         { [ -n "$n" ] && [ "$n" != "none" ]; } || continue
         grep -qxF -- "$n" <<<"$stems" &&
           blockers="${blockers:+${blockers}, }${n}"
+      done
+    fi
+
+    # The `research:` edge, through the same loop rather than a second one:
+    # one blockers string, so a plan waiting on a plan and a plan waiting on
+    # a question rank identically and read identically.
+    if [ -n "$rneeds" ]; then
+      read -ra rneed_list <<<"${rneeds//,/ }"
+      [ "${#rneed_list[@]}" -gt 0 ] || rneed_list=("")
+      for n in "${rneed_list[@]}"; do
+        n="$(stem "$n")"
+        { [ -n "$n" ] && [ "$n" != "none" ]; } || continue
+        grep -qxF -- "$n" <<<"$rstems" &&
+          blockers="${blockers:+${blockers}, }${n} (open question)"
       done
     fi
 
@@ -186,6 +221,48 @@ rows="$(
       "${requirement:-none}"
   done <<<"$plans" | sort -t$'\t' -k1,1n -k2,2n
 )"
+
+# Open questions, same ordering as plans and the same tier field. Not folded
+# into `rows`: the two are ranked together but a question has no `needs`, no
+# `scope` and no claim, so a shared row shape would carry four empty columns
+# and invite somebody to fill them.
+rrows="$(
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    doc="$(git show "${ref}:${f}" 2>/dev/null)"
+    [ -n "$doc" ] || continue
+    { read -r urgency; read -r agent; read -r effort; read -r grad; } \
+      <<<"$(printf '%s\n' "$doc" | fields urgency agent effort graduates)"
+    added="$(git log --diff-filter=A --format=%ct -1 "$ref" -- "$f" 2>/dev/null)"
+    rank=1
+    [ "$urgency" = "urgent" ] && rank=0
+    printf '%s\t%s\t%s\t[%s, agent: %s, effort: %s, graduates: %s]\n' \
+      "$rank" "${added:-9999999999}" "$f" \
+      "${urgency:-normal}" "${agent:-opus}" "${effort:-high}" \
+      "${grad:-none}"
+  done <<<"$research" | sort -t$'\t' -k1,1n -k2,2n
+)"
+research_count="$(printf '%s\n' "$rrows" | grep -c . || :)"
+case "$research_count" in ''|*[!0-9]*) research_count=0 ;; esac
+
+# One printer, two call sites: the plans-empty branch prints questions and
+# exits, the normal path prints them under the plan table. A second copy
+# would drift, and the drift shows only in the repo state that reaches the
+# other one.
+qc_print_research() {
+  [ "$research_count" -gt 0 ] || return 0
+  printf '\nOpen questions (protocol: .agents/docs/research/README.md):\n'
+  local rt=0 rf rlabel
+  while IFS=$'\t' read -r _ _ rf rlabel; do
+    [ -n "$rf" ] || continue
+    rt=$((rt + 1))
+    [ "$rt" -le "$MAX_ENTRIES" ] || continue
+    printf '  %s  %s\n' "$rf" "$rlabel"
+  done <<<"$rrows"
+  [ "$rt" -le "$MAX_ENTRIES" ] ||
+    printf '  (+%d more not shown; raise QUEUE_MAX_ENTRIES to list)\n' \
+      "$((rt - MAX_ENTRIES))"
+}
 
 # Requirements tier (.agents/docs/product/README.md): one no open plan serves is
 # planning work, and planning outranks executing — decomposition happens
@@ -282,6 +359,20 @@ qc_edge_unsupervised() {
 }
 
 if [ -z "$plans" ]; then
+  if [ "$research_count" -gt 0 ]; then
+    # NOT an edge. An open question is queue work (Loop step 2), so a hook
+    # that said "done" here would report an empty queue over a queue that
+    # is not empty — and under unsupervised that reads as an order to
+    # invent a backlog on top of real work nobody has done.
+    printf 'No plans on %s, but the queue is not empty:\n' "$ref"
+    qc_print_research
+    printf '\nEntrypoint: open GitHub issues first, then a question above —\n'
+    printf 'settle it, graduate the answer, delete the file\n'
+    printf '(.agents/docs/research/README.md). Agent field = tier to run it.\n'
+    [ -z "$unplanned" ] ||
+      printf 'UNPLANNED requirements above outrank both.\n'
+    exit 0
+  fi
   if [ -n "$unplanned" ]; then
     printf 'No plans on %s. Entrypoint: plan the requirements above (issues\n' "$ref"
     printf 'still outrank). Default agent tier: sonnet (.agents/docs/agent-selection.md).\n'
@@ -326,6 +417,7 @@ done <<<"$rows"
   printf '  (+%d more not shown; raise QUEUE_MAX_ENTRIES to list)\n' \
     "$((total - MAX_ENTRIES))"
 
+qc_print_research
 
 free_count=0
 free_list=""
@@ -523,6 +615,14 @@ elif [ "$free_count" -ge 2 ]; then
     printf 'unproven — take ONE piece of work in THIS session, requirements\n'
     printf 'above first. Never spawn on an assumption the queue has not proved.\n'
   fi
+elif [ "$free_count" -eq 0 ] && [ -z "$unplanned" ] &&
+     [ "$qc_unreadable" -eq 0 ] && [ "$research_count" -gt 0 ]; then
+  # Every plan claimed or blocked, questions still open. Not the edge, for
+  # the reason above: research is queue work, and a plan blocked on an open
+  # question is unblocked by somebody answering it.
+  printf '\nNo free plan, but %d open question(s) above — not the edge.\n' \
+    "$research_count"
+  printf 'Settling one is queue work, and a plan blocked on it goes free.\n'
 elif [ "$free_count" -eq 0 ] && [ -z "$unplanned" ] &&
      [ "$qc_unreadable" -eq 0 ]; then
   if [ "$qc_mode" = "unsupervised" ]; then

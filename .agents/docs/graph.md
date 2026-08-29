@@ -18,6 +18,7 @@ semantic, summary — convergent, not copied.
 | --- | --- | --- |
 | Requirement | `docs/product/<requirement>.md` on base branch | product |
 | Plan | `docs/plans/<plan>.md` on base branch | task |
+| Research | `docs/research/<question>.md` on base branch | task |
 | Workstream | `docs/handover/<workstream>.md` on work branch | episodic memory |
 | Rule, trip-wire | layer's `AGENTS.md` | semantic memory |
 | Why-explanation | `.agents/docs/*.md` | summary memory |
@@ -28,6 +29,8 @@ semantic, summary — convergent, not copied.
 | Edge | Domain → range | Carried by |
 | --- | --- | --- |
 | `needs` | plan → plan | plan frontmatter. Open target file = blocked. |
+| `research` | plan → research | plan frontmatter. Open target file = blocked. |
+| `graduates` | research → `AGENTS.md` / `docs/` file | research frontmatter. Declared target; the `graduated` edge below completes it. |
 | `requirement` | plan → requirement | plan frontmatter. Requirement nobody serves = unplanned, hook flags. |
 | `plan` | workstream → plan | workstream frontmatter. The claim. |
 | `agent` | plan or workstream → tier | frontmatter. Model that runs it. |

@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01SHPKsgu5WMHQ4g7MhTwRhm
 agent: opus
 updated: 2026-08-29
-next: Read the four instances whole, then write README/TEMPLATE from what they agree on.
+next: Refute every new gate, then review at opus depth with the verifier.
 ---
 
 ## Goal
@@ -25,6 +25,24 @@ makes findings survive the session that made them.
   not fired again. Their frontmatter already agrees on five fields
   (`research`, `urgency`, `agent`, `effort`, `graduates`) — that is the
   template's first draft, not an invention.
+
+## Decisions (continued)
+
+- **Research counts as queue work at the EDGE, not only in the listing.**
+  The plan's scope for the hook says "listed beside plans" and stops there.
+  Listing alone leaves two false negatives: no plans plus open questions
+  printed "edge reached: done", and no FREE plan plus open questions did the
+  same — under unsupervised that reads as an order to invent a backlog while
+  real queue work sits unclaimed. Both branches now check the question count.
+- **Questions are not folded into the plan `rows` table.** They are ranked
+  the same way (urgent, then oldest) but carry no `needs`, no `scope` and no
+  claim, so a shared row would have four empty columns inviting somebody to
+  fill them.
+- **Verification records who and where, never when.** The plan names this
+  collision (provenance rule against the requirement's "who checked") and
+  says decide once, in the README. Decided there; the same commit removed
+  the hand-written `Checked 2026-08-25` from all four instances and changed
+  nothing else in them.
 
 ## Rejected
 

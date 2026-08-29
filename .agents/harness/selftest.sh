@@ -1013,6 +1013,99 @@ expect "spawn list names each free plan's tier" \
 # what the two assertions just proved. Scoped plans switch the fan-out to
 # waves: point-break and wipeout both surf beach/ (one names the directory,
 # one a file inside — the prefix case), inland stays on dry land.
+step "queue-context.sh research nodes"
+
+# Own fixture: adding research files to $work would move the assertions
+# above, and a case that only passes because a neighbour changed is not a
+# case. Two commits, so the added-epoch ordering is real rather than a tie.
+rwork="${TMP}/researchwork"
+rorigin="${TMP}/researchorigin.git"
+git init -q --bare "$rorigin"
+git init -q "$rwork"
+git -C "$rwork" symbolic-ref HEAD refs/heads/main
+mkdir -p "${rwork}/docs/plans" "${rwork}/docs/research"
+cat >"${rwork}/docs/plans/free-plan.md" <<'EOF'
+---
+plan: free-plan
+urgency: normal
+agent: sonnet
+effort: high
+---
+EOF
+commit_all "$rwork" "one free plan"
+git -C "$rwork" remote add origin "$rorigin"
+git -C "$rwork" push -qu origin main
+
+rq() { CLAUDE_PROJECT_DIR="$rwork" bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1; }
+
+# A node type nobody uses must cost nothing. Not a style point: this hook's
+# output is paid by every session in every consumer, and most consumers will
+# never write a research file.
+out="$(rq)"
+refute "no research files, no research output" "Open questions" "$out"
+refute "no research files, no research protocol pointer" "research/README.md" "$out"
+
+cat >"${rwork}/docs/research/open-question.md" <<'EOF'
+---
+research: open-question
+urgency: normal
+agent: opus
+effort: xhigh
+graduates: .agents/docs/graph.md
+---
+EOF
+cat >"${rwork}/docs/research/TEMPLATE.md" <<'EOF'
+not a question
+EOF
+cat >"${rwork}/docs/plans/waiting-plan.md" <<'EOF'
+---
+plan: waiting-plan
+urgency: normal
+agent: haiku
+effort: low
+research: open-question, none
+---
+EOF
+GIT_COMMITTER_DATE="2026-02-02T00:00:00Z" commit_all "$rwork" "a question and a plan waiting on it"
+git -C "$rwork" push -q origin main
+
+out="$(rq)"
+expect "a question is listed with its tier" \
+  "docs/research/open-question.md  [normal, agent: opus, effort: xhigh, graduates: .agents/docs/graph.md]" \
+  "$out"
+expect "the question list names its protocol" \
+  "Open questions (protocol: .agents/docs/research/README.md)" "$out"
+refute "the research template is not a question" "TEMPLATE" "$out"
+expect "a plan waiting on a question is blocked by it" \
+  "docs/plans/waiting-plan.md  [normal, agent: haiku, effort: low, blocked by: open-question (open question)]" \
+  "$out"
+# Blocked means NOT suggested, which is the half a listing cannot show. One
+# free plan, so the fan-out line must name one session, not two.
+refute "a blocked plan is not offered as a parallel session" \
+  "2 free plans" "$out"
+
+# The edge. A question is queue work, so an empty PLAN queue with an open
+# question is not an empty queue — and saying "done" there is the false
+# negative that under unsupervised reads as an order to invent a backlog.
+git -C "$rwork" rm -q docs/plans/free-plan.md docs/plans/waiting-plan.md
+commit_all "$rwork" "every plan gone, the question stays"
+git -C "$rwork" push -q origin main
+out="$(rq)"
+refute "open question is not the plan-queue edge" "edge reached: done" "$out"
+expect "no plans but an open question says the queue is not empty" \
+  "the queue is not empty" "$out"
+expect "and still points at issues first" "open GitHub issues first" "$out"
+
+# Deleting the file is the only thing that closes the edge — no status
+# field, same as a plan.
+git -C "$rwork" rm -q docs/research/open-question.md
+commit_all "$rwork" "question answered"
+git -C "$rwork" push -q origin main
+out="$(rq)"
+expect "an answered question leaves the plan-queue edge reachable" \
+  "edge reached: done" "$out"
+refute "an answered question is gone from the list" "open-question" "$out"
+
 step "queue-context.sh scope waves"
 
 git -C "$work" checkout -q main
@@ -3009,7 +3102,96 @@ lint_section() { sed -n '/== graph lint/,/^$/p' <<<"$1"; }
 
 full="$(lint_ci)"
 out="$(lint_section "$full")"
-expect "empty queue reads sound" "edges sound (0 plans, 0 workstreams, 0 requirements)" "$out"
+expect "empty queue reads sound" "edges sound (0 plans, 0 research, 0 workstreams, 0 requirements)" "$out"
+
+# Research nodes and the `research:` edge. Same three-way answer `needs`
+# gets, because it is the same question about a different directory — and
+# the failure direction is the dangerous one: a typo here reads as "nothing
+# blocks this plan", which is a plan running on an unsettled question.
+mkdir -p "${lwork}/docs/research"
+cat >"${lwork}/docs/plans/waits-on-nothing.md" <<'EOF'
+---
+plan: waits-on-nothing
+urgency: normal
+agent: sonnet
+effort: high
+research: no-such-question
+---
+EOF
+commit_all "$lwork" "plan naming a question that never existed"
+out="$(lint_section "$(lint_ci)")"
+expect "a research edge to nothing is red" \
+  "research 'no-such-question' — no such question, never existed" "$out"
+expect "the red says what the typo costs" "Plan reads as unblocked" "$out"
+
+cat >"${lwork}/docs/research/no-such-question.md" <<'EOF'
+---
+research: no-such-question
+urgency: normal
+agent: opus
+effort: high
+graduates: joharness.sh
+---
+EOF
+commit_all "$lwork" "the question exists now"
+out="$(lint_section "$(lint_ci)")"
+refute "a resolving research edge is not red" "no such question" "$out"
+expect "research nodes are counted in the summary" "1 research," "$out"
+
+# graduates: is the one edge only this node type carries, and the whole
+# reason the node exists is that the answer outlives the session. A target
+# that is not there means it does not.
+cat >"${lwork}/docs/research/nowhere-to-land.md" <<'EOF'
+---
+research: nowhere-to-land
+urgency: normal
+agent: opus
+effort: high
+graduates: docs/does-not-exist.md
+---
+EOF
+commit_all "$lwork" "question graduating into thin air"
+out="$(lint_section "$(lint_ci)")"
+expect "graduates to a missing file is red" \
+  "graduates 'docs/does-not-exist.md' — no such file in the tree" "$out"
+
+cat >"${lwork}/docs/research/nowhere-to-land.md" <<'EOF'
+---
+research: nowhere-to-land
+urgency: normal
+agent: opus
+effort: high
+---
+EOF
+commit_all "$lwork" "question with no graduates at all"
+out="$(lint_section "$(lint_ci)")"
+expect "no graduates at all is red" "no graduates:" "$out"
+expect "the red says why that matters" "does not survive the session" "$out"
+
+# Vocabulary, the same three fields a plan is held to.
+cat >"${lwork}/docs/research/nowhere-to-land.md" <<'EOF'
+---
+research: nowhere-to-land
+urgency: normal
+agent: gpt
+effort: high
+graduates: joharness.sh
+---
+EOF
+commit_all "$lwork" "question on a tier that does not exist"
+out="$(lint_section "$(lint_ci)")"
+expect "a research file's agent tier is vocabulary-checked" \
+  "agent 'gpt' not one of: haiku sonnet opus" "$out"
+
+git -C "$lwork" rm -q docs/research/nowhere-to-land.md \
+  docs/research/no-such-question.md docs/plans/waits-on-nothing.md
+commit_all "$lwork" "back to a clean fixture"
+# git removes a directory when its last tracked file goes, and every case
+# below writes into docs/plans/ with `cat >` — which fails, silently as far
+# as the assertion is concerned, and the case then reads the PREVIOUS
+# state's lint output. Cost four green cases into red for a reason none of
+# them named. Same shape as PR 123 r9.
+mkdir -p "${lwork}/docs/plans" "${lwork}/docs/research"
 
 # The issue claim's validator (#119). Untested until now — deleting the whole
 # case block from lint_graph left the suite at 728 passed, which is the

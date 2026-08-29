@@ -1309,17 +1309,18 @@ lint_anchors() {
 lint_graph() {
   LINT_RC=0
   LINT_WARNED=0
-  local rel val n p r urgency agent effort iss
-  local -a need_list
-  local plans=0 workstreams=0 reqs=0
+  local rel val n p r urgency agent effort iss rq grad
+  local -a need_list rq_list
+  local plans=0 workstreams=0 reqs=0 research=0
 
   # One read of the file, one pass over its frontmatter. The older shape cost
   # a `cat` plus an awk per field, on every plan, on every ci.
   while IFS= read -r rel; do
     [ -n "$rel" ] || continue
     plans=$((plans + 1))
-    { read -r urgency; read -r agent; read -r effort; read -r val; read -r r; } \
-      <<<"$(gr_fields urgency agent effort needs requirement <"${ROOT}/${rel}")"
+    { read -r urgency; read -r agent; read -r effort; read -r val; read -r r
+      read -r rq; } \
+      <<<"$(gr_fields urgency agent effort needs requirement research <"${ROOT}/${rel}")"
     lint_enum "$rel" urgency "$urgency" normal urgent
     lint_enum "$rel" agent "$agent" haiku sonnet opus
     lint_enum "$rel" effort "$effort" low medium high xhigh
@@ -1341,6 +1342,26 @@ lint_graph() {
         fi
       done
     fi
+    # The `research:` edge (.agents/docs/research/README.md). Same three-way
+    # answer as `needs`, because it is the same question about a different
+    # directory: in the tree = open, gone from a whole history = answered,
+    # never there = a typo. A typo here reads as "nothing blocks this plan",
+    # so it is red where the history can prove it.
+    if [ -n "$rq" ] && [ "$rq" != "none" ]; then
+      read -ra rq_list <<<"${rq//,/ }"
+      [ "${#rq_list[@]}" -gt 0 ] || rq_list=("")
+      for n in "${rq_list[@]}"; do
+        n="$(lint_stem "$n")"
+        { [ -n "$n" ] && [ "$n" != "none" ]; } || continue
+        [ -f "${ROOT}/docs/research/${n}.md" ] && continue
+        lint_existed "docs/research/${n}.md" && continue
+        if lint_shallow; then
+          lint_warn "${rel}: research '${n}' unknown here (shallow history) — typo or answered, cannot tell"
+        else
+          lint_red "${rel}: research '${n}' — no such question, never existed. Plan reads as unblocked; typo?"
+        fi
+      done
+    fi
     r="$(lint_stem "$r")"
     if [ -n "$r" ] && [ "$r" != "none" ] &&
        [ ! -f "${ROOT}/docs/product/${r}.md" ]; then
@@ -1354,6 +1375,27 @@ lint_graph() {
     fi
     lint_anchors "$rel"
   done < <(lint_nodes docs/plans)
+
+  # Research nodes. Vocabulary like a plan's, plus the one edge only this
+  # type carries: `graduates` must name a file that exists. A question whose
+  # answer has nowhere to land is a question nobody will act on, and the
+  # whole point of the node is that the finding outlives the session
+  # (.agents/docs/research/README.md).
+  while IFS= read -r rel; do
+    [ -n "$rel" ] || continue
+    research=$((research + 1))
+    { read -r urgency; read -r agent; read -r effort; read -r grad; } \
+      <<<"$(gr_fields urgency agent effort graduates <"${ROOT}/${rel}")"
+    lint_enum "$rel" urgency "$urgency" normal urgent
+    lint_enum "$rel" agent "$agent" haiku sonnet opus
+    lint_enum "$rel" effort "$effort" low medium high xhigh
+    if [ -z "$grad" ] || [ "$grad" = "none" ]; then
+      lint_red "${rel}: no graduates: — an answer with nowhere to land does not survive the session that found it"
+    elif [ ! -e "${ROOT}/${grad}" ]; then
+      lint_red "${rel}: graduates '${grad}' — no such file in the tree"
+    fi
+    lint_anchors "$rel"
+  done < <(lint_nodes docs/research)
 
   while IFS= read -r rel; do
     [ -n "$rel" ] || continue
@@ -1406,8 +1448,8 @@ lint_graph() {
   done < <(lint_nodes docs/product)
 
   if [ "$LINT_RC" -eq 0 ] && [ "$LINT_WARNED" -eq 0 ]; then
-    printf '  edges sound (%d plans, %d workstreams, %d requirements)\n' \
-      "$plans" "$workstreams" "$reqs"
+    printf '  edges sound (%d plans, %d research, %d workstreams, %d requirements)\n' \
+      "$plans" "$research" "$workstreams" "$reqs"
   fi
   return "$LINT_RC"
 }

@@ -126,7 +126,7 @@ that mid-session requests never reach it.
 
 ## Verification
 
-Checked 2026-08-25 by an independent context that did not write these
+Checked by an independent context that did not write these
 findings. Both figures this file flagged as suspect failed, and so did a
 third claim it had not thought to flag.
 
