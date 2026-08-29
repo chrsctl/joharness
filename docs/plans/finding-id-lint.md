@@ -5,7 +5,7 @@ agent: sonnet
 effort: medium
 needs: none
 requirement: none
-scope: joharness.sh, .agents/harness/selftest.sh, .agents/docs/handover/TEMPLATE.md
+scope: joharness.sh, .agents/harness/selftest/review.sh, .agents/docs/handover/TEMPLATE.md
 ---
 
 ## Goal
