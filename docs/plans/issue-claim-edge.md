@@ -89,8 +89,13 @@ that caused the duplicate.
   non-`*.md` file under `.agents/harness/` and `joharness.sh`.
 - The consumer-side check this plan owes, because every file in scope except
   the plan itself SHIPS: a consumer whose workstream files carry no `issue:`
-  field gets identical output to today. The field is additive or it is a
-  sync that changes what every consumer's hook prints.
+  field claims nothing and its entries are unchanged. Its session start does
+  gain the three-line block, saying none — measured at +127 bytes. That is
+  deliberate, not additive-by-accident: a section that appears only when it
+  has something to say is indistinguishable from one that failed to run, and
+  "no claims" is the answer a session acts on. An earlier draft of this line
+  promised byte-identical output, which was wrong and is corrected here
+  rather than quietly met.
 
 ## Where to look
 
