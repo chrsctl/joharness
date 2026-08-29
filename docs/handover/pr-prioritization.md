@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01MLSUtdZ6AhAVXLK5zin1j5
 agent: opus
 updated: 2026-08-29
-next: Open the pull request, then merge it once checks are green
+next: Merge the pull request once GitHub checks are green
 ---
 
 ## Goal
@@ -40,6 +40,11 @@ reader not to trust.
 - Unmerged `status: done` is listed rather than skipped. Merged branches are
   filtered by ancestry one step earlier, so anything still reaching the rank
   is work declared finished that never landed.
+- Tests live in their own topic file with their own scratch repo
+  (`.agents/harness/selftest/handover-context-rank.sh`, `$rankwork`), not in
+  the runner's shared `$work`. Order is what they assert, so a fixture
+  carrying branches other topics built would make the expected sequence a
+  property of what ran before them.
 
 ## Rejected
 
@@ -82,6 +87,15 @@ consumer/security). Findings written before their fixes, committed with them.
   value as the edge and prints it verbatim — matching it is deliberate, since
   a stricter reader here would rank a branch below the edge that `ci` gates as
   at it. Noted, not changed. (wontfix)
+- r8: `./joharness.sh ci` went red on `perf` — feedback 1783 and review 1790
+  against a budget of 265 — with nothing in this diff touching either
+  entrypoint. It was not a regression: `origin/main` had moved (PR #128) and
+  the breach reproduced on this branch's BASE commit with the whole diff
+  stashed, while a worktree at the new `origin/main` measured 229. A red
+  `perf` on a branch behind the base is a reconcile signal, not a code
+  finding — check `git rev-list --left-right --count origin/main...HEAD`
+  before reading it as one. Merging `origin/main` in cleared it.
+  (fixed by reconcile)
 - r7: the `.claude/agents/verifier.md` subagent step 5 asks for was NOT
   spawned. This session runs under an instruction not to call the Agent tool
   unless the human asks, and the human asked for research and implementation,
