@@ -602,6 +602,87 @@ git -C "$work" branch -qD churny-mc-churn
 
 # --- review line for other branches -----------------------------------------
 # Findings live in the workstream file's ## Review section; the hook prints
+# Issue #119: a claim on a PLAN was representable and a claim on an ISSUE was
+# not, so two sessions solved #114 in parallel and one threw the work away.
+# Every case here fails toward saying MORE — a claim the hook cannot see reads
+# as "this issue is free", which is the defect itself.
+step "handover-context.sh issue claim"
+
+git -C "$work" checkout -qb claiming main
+mkdir -p "${work}/docs/handover"
+cat >"${work}/docs/handover/claiming-ws.md" <<'EOF'
+---
+workstream: claiming-ws
+status: in-progress
+updated: 2026-01-01
+issue: 114
+next: Fixture
+---
+
+## Goal
+Fixture.
+EOF
+echo claiming >"${work}/claiming.txt"
+commit_all "$work" "work that claims an issue"
+git -C "$work" push -qu origin claiming
+git -C "$work" checkout -q feature
+
+ic() { CLAUDE_PROJECT_DIR="$work" HANDOVER_FETCH=0 \
+  bash "${ROOT}/.agents/harness/handover-context.sh" 2>&1; }
+
+out="$(ic)"
+expect "another branch's claim shows on its entry" "claims issue #114" "$out"
+# The consolidated block is the point. Scanning entries to answer "is #114
+# taken?" is exactly what nobody did.
+expect "and in the consolidated block" "#114 — origin/claiming" "$out"
+expect "the block says where its answer comes from" \
+  "from workstream files, not GitHub" "$out"
+expect "and warns that an unlisted issue may still be taken" \
+  "may still be" "$out"
+
+# A leading # is what a literal reader writes. Both spellings, one claim.
+git -C "$work" checkout -q claiming
+sed -i.bak 's/^issue: 114$/issue: #114/' "${work}/docs/handover/claiming-ws.md"
+rm -f "${work}/docs/handover/claiming-ws.md.bak"
+commit_all "$work" "spell it with a hash"
+git -C "$work" push -qf origin claiming
+git -C "$work" checkout -q feature
+expect "a leading # is not significant" "claims issue #114" "$(ic)"
+
+# A value the hook cannot parse is DROPPED here — which is why ci reds it.
+# What must never happen is a mangled claim rendering as a real one.
+git -C "$work" checkout -q claiming
+sed -i.bak 's/^issue: #114$/issue: fourteen/' "${work}/docs/handover/claiming-ws.md"
+rm -f "${work}/docs/handover/claiming-ws.md.bak"
+commit_all "$work" "an unparseable claim"
+git -C "$work" push -qf origin claiming
+git -C "$work" checkout -q feature
+out="$(ic)"
+refute "an unparseable claim renders no claim" "claims issue #fourteen" "$out"
+refute "and reaches the consolidated block as nothing" "— origin/claiming" "$out"
+
+# The consumer case this plan owes: handover-context.sh SHIPS, and no
+# consumer's workstream file carries the field. Additive, or this is a sync
+# that changes what every consumer's session start prints.
+git -C "$work" checkout -q claiming
+sed -i.bak '/^issue: /d' "${work}/docs/handover/claiming-ws.md"
+rm -f "${work}/docs/handover/claiming-ws.md.bak"
+commit_all "$work" "no issue field at all, as every consumer file has today"
+git -C "$work" push -qf origin claiming
+git -C "$work" checkout -q feature
+out="$(ic)"
+refute "a file with no issue field claims nothing" "claims issue" "$out"
+# Printed even with nothing to report: a section that vanishes when empty is
+# indistinguishable from one that failed to run, and "none" is the answer a
+# session acts on.
+expect "and the block still prints, saying none" \
+  "none found — no workstream file this hook can see claims an issue" "$out"
+# The hedge is the point of the empty case, not decoration: "none" alone is
+# the unqualified absolute that sends a session to duplicate work.
+expect "and the empty case is hedged, not absolute" \
+  "Not proof an issue is free" "$out"
+git -C "$work" push -q origin --delete claiming 2>/dev/null || :
+
 # the recorded count per branch. Only when >0: absence next to a churning
 # branch is the signal, and a printed zero would numb it.
 step "handover-context.sh review line"
@@ -2664,6 +2745,66 @@ lint_section() { sed -n '/== graph lint/,/^$/p' <<<"$1"; }
 full="$(lint_ci)"
 out="$(lint_section "$full")"
 expect "empty queue reads sound" "edges sound (0 plans, 0 workstreams, 0 requirements)" "$out"
+
+# The issue claim's validator (#119). Untested until now — deleting the whole
+# case block from lint_graph left the suite at 728 passed, which is the
+# "green both ways = pins nothing" the Loop warns about. It matters because
+# the hook DROPS what it cannot parse, and a dropped claim reads as "this
+# issue is free": the failure the field exists to prevent.
+cat >"${lwork}/docs/handover/claim-ok.md" <<'EOF'
+---
+workstream: claim-ok
+status: in-progress
+issue: #114
+---
+
+## Goal
+Fixture.
+EOF
+cat >"${lwork}/docs/handover/claim-bad.md" <<'EOF'
+---
+workstream: claim-bad
+status: in-progress
+issue: fourteen
+---
+
+## Goal
+Fixture.
+EOF
+cat >"${lwork}/docs/handover/claim-padded.md" <<'EOF'
+---
+workstream: claim-padded
+status: in-progress
+issue: 0114
+---
+
+## Goal
+Fixture.
+EOF
+cat >"${lwork}/docs/handover/claim-none.md" <<'EOF'
+---
+workstream: claim-none
+status: in-progress
+issue: none
+---
+
+## Goal
+Fixture.
+EOF
+full="$(lint_ci)"
+out="$(lint_section "$full")"
+expect "a word is not an issue number" \
+  "claim-bad.md: issue 'fourteen' — not a number" "$out"
+# Padded renders fine and still gets duplicated: a reader scanning for #114
+# does not match #0114. The severe direction wearing the harmless one's face.
+expect "a padded number is red, with the reason" \
+  "leading zero" "$out"
+refute "a hash-prefixed number is fine" "claim-ok.md: issue" "$out"
+refute "and so is none" "claim-none.md: issue" "$out"
+rm -f "${lwork}/docs/handover/claim-bad.md" "${lwork}/docs/handover/claim-padded.md"
+out="$(lint_section "$(lint_ci)")"
+refute "clearing them clears the lint" "not a number" "$out"
+rm -f "${lwork}/docs/handover/claim-ok.md" "${lwork}/docs/handover/claim-none.md"
 
 # Never-existed names and a bad enum: hard facts, red, ci fails.
 cat >"${lwork}/docs/plans/bad.md" <<'EOF'

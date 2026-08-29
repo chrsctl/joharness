@@ -4,6 +4,7 @@ status: in-progress
 branch: claude/short-kebab-name-abc123
 pr: none
 plan: none
+issue: none                  # GitHub issue this work claims, or: none
 session: https://claude.ai/code/session_...
 agent: sonnet
 updated: YYYY-MM-DD
@@ -19,6 +20,10 @@ opening file: keep `next` one line. `agent` = tier this work wants
 (.agents/docs/agent-selection.md); hook shows it, so resuming user picks right
 model. `plan` = plan this workstream implements — THE claim; queue marks
 that plan taken. Not plan work? Leave `none`.
+`issue` = GitHub issue this work claims. The hook lists it so another
+session sees the issue is taken. Write it when the work STARTS. `#114` and
+`114` both work; rules and the seam it does not cover: README, "Claiming an
+issue".
 
 Push as soon as file exists. Claim does not exist until pushed.
 -->

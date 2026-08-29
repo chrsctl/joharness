@@ -53,6 +53,36 @@ add() { OUT="${OUT}${1}"$'\n'; }
 # body line like "status: broken" is not mistaken for metadata; strips an
 # inline `# comment` — the template documents fields that way. All keys in one
 # pass: every caller here wants four of them off the same four lines.
+# An issue claim, normalised. A literal reader writes `issue: #114` as
+# naturally as `issue: 114` and both are unambiguous, so the `#` is stripped
+# rather than argued with. Anything that is not a number is dropped HERE and
+# reported by `ci`'s graph lint, which is where a malformed value gets a name
+# and a file — this hook's job is to print claims, not to teach.
+# Initialised HERE, above every writer. Declared beside the ref loop's state
+# it sat AFTER the current-branch block that also appends to it, and under
+# `set -u` that killed the whole handover section — session start printed no
+# workstream file, no in-flight work and no claims at all. A hook whose job
+# is to prevent a false "nobody is on this" failed by reporting nothing
+# whatsoever.
+claimed_issues=""
+
+issue_num() {
+  local v="${1#\#}"
+  case "$v" in
+    '' | none)  return 0 ;;
+    *[!0-9]* )  return 0 ;;
+    0 )         return 0 ;;
+    0* )        return 0 ;;
+  esac
+  printf '%s' "$v"
+}
+
+# Why 0 and 0114 are rejected rather than normalised: GitHub has no issue #0,
+# and #0114 is not #114. A reader scanning the block for their own issue
+# number does not match a padded one, so a padded claim is a claim that
+# renders and still gets duplicated — the severe direction, dressed as the
+# harmless one. Rejecting sends it to ci, which names the file.
+
 fields() {
   awk -v keys="$*" '
     BEGIN { n = split(keys, k, " ") }
@@ -137,9 +167,18 @@ if [ -n "$mine" ]; then
   fi
   while IFS= read -r f; do
     [ -n "$f" ] || continue
-    { read -r status; read -r updated; read -r next; read -r agent; } \
-      <<<"$(fields status updated next agent <"$f")"
-    add "  ${f}  [${status:-?}, updated ${updated:-?}${agent:+, wants ${agent}}]"
+    { read -r status; read -r updated; read -r next; read -r agent
+      read -r issue; } \
+      <<<"$(fields status updated next agent issue <"$f")"
+    issue="$(issue_num "$issue")"
+    # This branch's own claim goes in the block too. Left out, the hook said
+    # "claims issue #119" on the entry line and "none — no in-flight
+    # workstream file claims an issue" six lines below, in one run, on the
+    # branch that added the field. A reader trusts the summary; a summary
+    # that contradicts the detail above it is worse than no summary.
+    [ -z "$issue" ] ||
+      claimed_issues="${claimed_issues}  #${issue} — this branch (${f})"$'\n'
+    add "  ${f}  [${status:-?}, updated ${updated:-?}${agent:+, wants ${agent}}${issue:+, claims issue #${issue}}]"
     [ -n "$next" ] && add "    next: ${next}"
   done <<<"$mine"
 else
@@ -164,7 +203,13 @@ count=0
 now="$(date +%s)"
 
 while IFS= read -r ref; do
-  [ "$count" -ge "$MAX_ENTRIES" ] && break
+  # NOT a break. The cap bounds the entry LISTING; breaking here stopped the
+  # claim scan too, and refs are sorted newest-first, so the oldest claim —
+  # the one most likely to be duplicated — was the first to vanish. Measured
+  # on this repo: 12 entries printed against 46 branches carrying workstream
+  # files. Entries past the cap are skipped below; their claims are not.
+  capped=0
+  [ "$count" -ge "$MAX_ENTRIES" ] && capped=1
   short="${ref#refs/remotes/}"
   # Compare on the branch name with the remote prefix stripped. Matching
   # 'origin/<branch>' alone reports the session its own branch from any second
@@ -216,9 +261,30 @@ while IFS= read -r ref; do
     [ -n "$f" ] || continue
     doc="$(git show "${ref}:${f}" 2>/dev/null)"
     [ -n "$doc" ] || continue
-    { read -r status; read -r updated; read -r session; read -r agent; } \
-      <<<"$(printf '%s\n' "$doc" | fields status updated session agent)"
+    { read -r status; read -r updated; read -r session; read -r agent
+      read -r issue; } \
+      <<<"$(printf '%s\n' "$doc" | fields status updated session agent issue)"
+    issue="$(issue_num "$issue")"
+    # BEFORE the done-skip, deliberately. `status: done` is set before the
+    # pull request merges, and step 7 leaves a merge the session cannot click
+    # sitting on a human's clock — throughout that window the issue is
+    # claimed, pushed, and would otherwise read as free. The claim outlives
+    # the status.
+    #
+    # Carries the FILE, not just the branch. One workstream file inherited
+    # across branches is one claim; naming only branches fanned it into five
+    # and sent a reader to /who the wrong sessions. Whether a branch OWNS a
+    # file it merely inherited is the tree-versus-diff rule
+    # (.agents/harness/AGENTS.md step 4) and belongs to the queued
+    # handover-inflight-diff plan, which changes `files_at` for every reader
+    # at once; printing the file is what this change can honestly do about it.
+    [ -z "$issue" ] ||
+      claimed_issues="${claimed_issues}  #${issue} — ${short} (${f})"$'\n'
     [ "$status" = "done" ] && continue
+    # Past the cap the claim is already banked; the rest of this entry —
+    # session line, review count, overlap, churn — is listing, and listing is
+    # what the cap bounds.
+    [ "$capped" -eq 1 ] && continue
 
     claim=""
     if [ "$fresh" = "1" ]; then
@@ -227,7 +293,7 @@ while IFS= read -r ref; do
     fi
 
     others="${others}  ${short}: ${f}"$'\n'
-    others="${others}    [${status:-?}, updated ${updated:-?}${agent:+, wants ${agent}}] pushed ${pushed_rel:-?}${claim}"$'\n'
+    others="${others}    [${status:-?}, updated ${updated:-?}${agent:+, wants ${agent}}${issue:+, claims issue #${issue}}] pushed ${pushed_rel:-?}${claim}"$'\n'
     [ -n "$session" ] && others="${others}    session: ${session}"$'\n'
 
     # Findings recorded in the file's ## Review section. Only the count, and
@@ -326,6 +392,28 @@ if [ -n "$others" ]; then
     add "directions: fresh push often = finished session, live session can go"
     add "hours silent. Overlap with another branch? /who before touching."
   fi
+fi
+
+# Issues claimed by work in flight. Printed as its own block, and printed
+# EVEN WHEN EMPTY, because a section that vanishes when it finds nothing is
+# indistinguishable from one that failed to run — and "no claims" is the
+# answer a session acts on. Issue #119: two sessions solved #114 in parallel
+# because the hook listed both facts and connected neither.
+#
+# What the tree claims, not what GitHub says. This hook reads refs and
+# nothing else, in every consumer; one that needed a token to answer would
+# fail closed exactly where it matters most. Whether the issue is still open
+# is the session's to check, and it checks already.
+add ""
+add "Issues claimed by work in flight (from workstream files, not GitHub):"
+if [ -n "$claimed_issues" ]; then
+  OUT="${OUT}${claimed_issues}"
+  add "  An issue listed here is taken. One that is NOT listed may still be"
+  add "  taken by a session that has not pushed — /who before starting."
+else
+  add "  none found — no workstream file this hook can see claims an issue."
+  add "  Not proof an issue is free: a session that has not pushed, or whose"
+  add "  pull request already retired its file, claims nothing here. /who."
 fi
 
 if [ "$stale_count" -gt 0 ]; then
