@@ -522,6 +522,85 @@ expect "capped listing names the tail" "... and 1 more" "$out2"
 # self-entry assertion passes whether or not the hook is fixed (an ancestor
 # of the base is skipped earlier as already-merged work). The scratch file
 # makes that true regardless of what earlier blocks left uncommitted.
+# --- entrypoint: in-flight is ownership, not inheritance --------------------
+# Every branch inherits every file its base carried when it was cut, so
+# reading the TREE reported a workstream file that merged and was swept as
+# live work on every branch older than the sweep. Counted on this repo
+# 2026-08-29: one dead workstream, 18 carriers, 5 unmerged — five false
+# claims from one file.
+#
+# Three cases and only three, because the naive fix passes two of them: a
+# bare --name-only lists deletions, so a branch that RETIRED an inherited
+# file reads as still carrying it. That third case is why this block exists.
+step "handover-context.sh lists what a branch owns"
+
+owork="${TMP}/ownwork"
+oorigin="${TMP}/ownorigin.git"
+git init -q --bare "$oorigin"
+mkdir -p "${owork}/docs/handover"
+git init -q "$owork"
+git -C "$owork" symbolic-ref HEAD refs/heads/main
+printf 'code\n' >"${owork}/code.txt"
+# The swept file lands on main FIRST, so every branch cut after it inherits
+# it — which is the condition the bug needs and the reason this is not just
+# three branches in isolation.
+printf -- '---\nworkstream: swept\nstatus: review\nagent: opus\n---\n\n## Goal\nMerged and swept.\n' \
+  >"${owork}/docs/handover/swept.md"
+commit_all "$owork" "base carrying a workstream file"
+git -C "$owork" remote add origin "$oorigin"
+git -C "$owork" push -qu origin main
+
+# 1. WROTE one of its own.
+git -C "$owork" checkout -qb writer
+printf -- '---\nworkstream: mine\nstatus: in-progress\nagent: sonnet\n---\n\n## Goal\nReal work.\n' \
+  >"${owork}/docs/handover/mine.md"
+commit_all "$owork" "write a workstream file"
+git -C "$owork" push -qu origin writer
+
+# 2. INHERITED the swept file and touched something else entirely.
+git -C "$owork" checkout -q main
+git -C "$owork" checkout -qb inheritor
+printf 'unrelated\n' >"${owork}/other.txt"
+commit_all "$owork" "work that is not a workstream file"
+git -C "$owork" push -qu origin inheritor
+
+# 3. RETIRED the inherited file — ran the finishing ritual. The case the
+# naive swap gets wrong: the path IS in this branch's diff, as a deletion.
+git -C "$owork" checkout -q main
+git -C "$owork" checkout -qb retirer
+git -C "$owork" rm -q docs/handover/swept.md
+commit_all "$owork" "finishing ritual: retire the file"
+git -C "$owork" push -qu origin retirer
+
+git -C "$owork" checkout -q main
+out="$(CLAUDE_PROJECT_DIR="$owork" \
+  bash "${ROOT}/.agents/harness/handover-context.sh" 2>&1)"
+
+expect "a branch that wrote its file is in flight" \
+  "origin/writer: docs/handover/mine.md" "$out"
+expect "and its metadata survives the change" "wants sonnet" "$out"
+refute "a branch that merely inherited a file is not in flight" \
+  "origin/inheritor: docs/handover/swept.md" "$out"
+# The plan calls this the case that has to exist, because a bare --name-only
+# lists deletions. Measured: it does return the deleted path, and the entry
+# is dropped anyway — `git show "$ref:$f"` comes back empty for a file the
+# branch deleted and the row is skipped. Naive and filtered both give 0 here.
+# So this pins the DOWNSTREAM guard, not the filter, and says so rather than
+# claiming a fix it does not test. --diff-filter=ACMRT stays because it
+# states the intent and skips a git show that can only fail.
+refute "and a branch that RETIRED it is not in flight either" \
+  "origin/retirer: docs/handover/swept.md" "$out"
+# The retirer must not vanish for the wrong reason: it IS a recent branch, so
+# the hook still surfaces it — just not as a claim on a file it deleted.
+refute "the swept file is not claimed by anyone" \
+  "docs/handover/swept.md" "$out"
+
+# The rot check is a DIFFERENT question and keeps reading the tree: what does
+# the base branch still carry? A blanket substitution breaks the caller that
+# was already right.
+expect "the base branch's own leftovers are still counted" \
+  "workstream file(s) left on origin/main" "$out"
+
 step "handover-context.sh with a fork remote"
 
 fork="${TMP}/fork.git"

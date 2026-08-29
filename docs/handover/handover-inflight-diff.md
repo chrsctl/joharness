@@ -39,9 +39,32 @@ never read the tree — and the hook that teaches it does not follow it.
   skimmed past it, which is the plan's stated cost happening to the reader
   who was fixing it.
 
+- `--diff-filter=ACMRT` in ONE call, not `files_at` intersected with
+  `changed_at`. Same three-case semantics, one git invocation per ref instead
+  of two, and copied verbatim from `joharness.sh:cl_inflight`, which learned
+  it as PR 54 r8. The plan says "the fix is to intersect… not to add a new
+  walk" and "model the new cases on it rather than inventing a second fixture
+  shape" — deriving a second answer to a question this repo already answered
+  is how two readers of one fact start disagreeing.
+
 ## Rejected
 
-- Nothing yet.
+- The plan's stated justification for the third fixture. It says a naive
+  `changed_at` swap "reports a file the branch DELETED as live work" and
+  calls that the case that has to exist. Measured: the naive diff DOES return
+  the deleted path, and the entry is dropped anyway — the hook's own
+  `git show "$ref:$f"` returns empty for a file the branch deleted, and the
+  row is skipped. Naive and filtered both give 0.
+
+      # old hook (tree) vs naive swap vs ACMRT, on a retirer branch
+      -> 0 / 0 / 0
+      # the same three, on an inheritor branch
+      -> 1 / 0 / 0
+
+  So the retired case is guarded downstream, by accident rather than design.
+  The filter stays — it states the intent and skips a `git show` that can
+  only fail — but the fixture now says it pins the guard, not the filter. A
+  test claiming to catch a bug it cannot catch is worse than no test.
 
 ## Review
 

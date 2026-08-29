@@ -109,6 +109,39 @@ files_at() {
     grep -E '\.md$' | grep -vE '/(TEMPLATE|README)\.md$'
 }
 
+# Workstream files a ref OWNS: ones it wrote or edited since it diverged from
+# the base branch. Not what it carries — every branch inherits every file its
+# base held when it was cut, so reading the tree reported a workstream file
+# that merged and was swept as live work on every branch older than the
+# sweep. Counted 2026-08-29 on this repo, `joharness-minify-optimize` was
+# carried by 18 branches with an empty diff on all 18, five of them unmerged:
+# one dead workstream reported as five live claims.
+#
+#   for b in $(git for-each-ref --format='%(refname:short)' refs/remotes/origin); do
+#     git ls-tree -r --name-only "$b" docs/handover/ | grep -q joharness-minify-optimize &&
+#     git diff --name-only "$(git merge-base "$b" origin/main)" "$b" \
+#       -- docs/handover/joharness-minify-optimize.md
+#   done
+#
+# --diff-filter=ACMRT is the whole fix and it is not decoration: a bare
+# --name-only lists DELETIONS too, so a branch that ran the finishing ritual
+# would read as still carrying the file it just retired — the bug inverted
+# rather than fixed. Three cases, one command: wrote it (A/M, listed),
+# inherited it (absent from the diff, not listed), retired it (D, filtered
+# out, not listed).
+#
+# Copied from joharness.sh:cl_inflight, which learned this as PR 54 r8. Same
+# question, same answer; deriving a second one is how two readers of one fact
+# start disagreeing.
+owned_at() {
+  local base
+  base="$(git merge-base "$1" "origin/${BASE_BRANCH}" 2>/dev/null)" || return 0
+  [ -n "$base" ] || return 0
+  git diff --name-only --diff-filter=ACMRT "$base" "$1" \
+    -- "$HANDOVER_DIR" 2>/dev/null |
+    grep -E '\.md$' | grep -vE '/(TEMPLATE|README)\.md$'
+}
+
 # Paths a ref has changed since it diverged from the base branch.
 changed_at() {
   local base
@@ -241,7 +274,11 @@ while IFS= read -r ref; do
     fresh=1
   fi
 
-  ws_files="$(files_at "$ref")"
+  # OWNS, not carries. The rot check at the bottom of this file keeps
+  # files_at on purpose: there the question really is what the tree holds.
+  # Two callers, two different questions — a blanket substitution breaks the
+  # one that was already right.
+  ws_files="$(owned_at "$ref")"
 
   # A branch pushed recently is worth surfacing even with no workstream file:
   # a session that just started has not written one yet. The base branch is
@@ -276,8 +313,10 @@ while IFS= read -r ref; do
     # and sent a reader to /who the wrong sessions. Whether a branch OWNS a
     # file it merely inherited is the tree-versus-diff rule
     # (.agents/harness/AGENTS.md step 4) and belongs to the queued
-    # handover-inflight-diff plan, which changes `files_at` for every reader
-    # at once; printing the file is what this change can honestly do about it.
+    # handover-inflight-diff plan, done: the listing now asks owned_at, so an
+    # inherited file is no longer reported as a claim at all. The file is
+    # still printed beside each claim, which stays useful — one workstream
+    # file legitimately owned by two branches reads as one claim, twice.
     [ -z "$issue" ] ||
       claimed_issues="${claimed_issues}  #${issue} — ${short} (${f})"$'\n'
     [ "$status" = "done" ] && continue
