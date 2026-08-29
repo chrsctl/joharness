@@ -1041,6 +1041,11 @@ rq() { CLAUDE_PROJECT_DIR="$rwork" bash "${ROOT}/.agents/harness/queue-context.s
 # A node type nobody uses must cost nothing. Not a style point: this hook's
 # output is paid by every session in every consumer, and most consumers will
 # never write a research file.
+#
+# NO-REGRESSION checks, and labelled so nobody reads them as regression
+# guards: both pass on a hook that knows nothing about research, because
+# that hook prints nothing about research either. What they pin is that the
+# feature stays quiet where it is unused — real, and not the same claim.
 out="$(rq)"
 refute "no research files, no research output" "Open questions" "$out"
 refute "no research files, no research protocol pointer" "research/README.md" "$out"
@@ -1075,6 +1080,9 @@ expect "a question is listed with its tier" \
   "$out"
 expect "the question list names its protocol" \
   "Open questions (protocol: .agents/docs/research/README.md)" "$out"
+# Also a no-regression check: the filter it exercises is queue_files', which
+# already excluded TEMPLATE for plans. Here to catch a research listing that
+# grew its own file walk.
 refute "the research template is not a question" "TEMPLATE" "$out"
 expect "a plan waiting on a question is blocked by it" \
   "docs/plans/waiting-plan.md  [normal, agent: haiku, effort: low, blocked by: open-question (open question)]" \
@@ -1102,6 +1110,10 @@ git -C "$rwork" rm -q docs/research/open-question.md
 commit_all "$rwork" "question answered"
 git -C "$rwork" push -q origin main
 out="$(rq)"
+# The second half of a pair. On its own this passes on a hook with no
+# research support at all — such a hook says "done" in every state. What
+# makes it evidence is the case above, which fails there: together they say
+# the edge tracks the FILE, opening and closing with it.
 expect "an answered question leaves the plan-queue edge reachable" \
   "edge reached: done" "$out"
 refute "an answered question is gone from the list" "open-question" "$out"
