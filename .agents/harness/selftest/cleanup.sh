@@ -119,7 +119,7 @@ expect "apply removes the stale workstream file" \
   "REMOVED  docs/handover/alpha.md" "$out"
 refute "apply leaves work in flight alone" "REMOVED  docs/handover/beta.md" "$out"
 refute "apply on a branch does not warn about the base branch" \
-  "cut a branch" "$out"
+  "no branch to carry these deletions" "$out"
 if [ -f "${clwork}/docs/handover/alpha.md" ]; then
   fail "apply removes the file from the working tree"
 else
@@ -150,8 +150,117 @@ git -C "$clwork" reset -q --hard
 git -C "$clwork" checkout -q main
 out="$(jc cleanup --apply)"
 expect "apply on the base branch says where the deletion belongs" \
-  "cut a branch and open a pull request" "$out"
+  "no branch to carry these deletions" "$out"
 git -C "$clwork" reset -q --hard
+
+# --- the four PR54 findings, re-run against main and carried -----------------
+# Each was reported by .claude/agents/verifier.md against PR54's diff and never
+# checked afterwards. All four reproduced on main 2026-08-29 before these
+# fixes; the reproduction for each is the case below it.
+
+# 1. `status:` was never read. cl_inflight sees a claim only through an
+# unmerged branch, so it cannot see the sequence this covers: part 1 of a
+# multi-PR workstream merges, the session cuts part 2 and has not pushed, and
+# the file it is actively writing is the one sitting on the base branch.
+git -C "$clwork" reset -q --hard
+git -C "$clwork" checkout -q main
+printf -- '---\nworkstream: delta\nstatus: in-progress\n---\n' \
+  >"${clwork}/docs/handover/delta.md"
+commit_all "$clwork" "delta lands on main mid-workstream"
+git -C "$clwork" push -q origin main
+
+out="$(jc cleanup)"
+expect "a file whose own status says it is not done is kept" \
+  "keep     docs/handover/delta.md" "$out"
+expect "and the keep line names the status it read" \
+  "status: in-progress on" "$out"
+refute "a live file is never called stale" \
+  "stale    docs/handover/delta.md" "$out"
+git -C "$clwork" checkout -qb sweepdelta
+out="$(jc cleanup --apply)"
+refute "apply does not stage a file that says it is not done" \
+  "REMOVED  docs/handover/delta.md" "$out"
+if [ -f "${clwork}/docs/handover/delta.md" ]; then
+  pass "the live file survives apply"
+else
+  fail "the live file survives apply"
+fi
+git -C "$clwork" reset -q --hard
+git -C "$clwork" checkout -q main
+
+# 4. The plans section tested the WORKING TREE while its heading says the ref,
+# so a plan this branch has already deleted vanished from a report about the
+# base branch. p-one is claimed by merged work and is on main.
+git -C "$clwork" checkout -qb planref
+git -C "$clwork" rm -q docs/plans/p-one.md
+commit_all "$clwork" "retire the plan on this branch"
+out="$(jc cleanup)"
+expect "a plan still on the ref is asked about even when this branch deleted it" \
+  "ask      docs/plans/p-one.md" "$out"
+git -C "$clwork" checkout -q main
+
+# 2 and 3 need a base branch carrying exactly ONE leftover, because both turn
+# on what the run says when nothing else is there to say it for them: the
+# "none — the ritual ran" line only prints when every counter is zero.
+clsolo="${TMP}/cleanupsolo"
+clsoloorigin="${TMP}/cleanupsoloorigin.git"
+git init -q --bare "$clsoloorigin"
+mkdir -p "${clsolo}/docs/handover"
+cp "${ROOT}/joharness.sh" "${clsolo}/joharness.sh"
+chmod +x "${clsolo}/joharness.sh"
+git init -q "$clsolo"
+git -C "$clsolo" symbolic-ref HEAD refs/heads/main
+printf 'code\n' >"${clsolo}/app.sh"
+commit_all "$clsolo" "solo scratch"
+git -C "$clsolo" remote add origin "$clsoloorigin"
+git -C "$clsolo" push -qu origin main
+printf -- '---\nworkstream: solo\nstatus: done\n---\n' \
+  >"${clsolo}/docs/handover/solo.md"
+commit_all "$clsolo" "solo leftover lands on main"
+git -C "$clsolo" push -q origin main
+
+jcs() { CLAUDE_PROJECT_DIR="$clsolo" JOHARNESS_CONF="${clsolo}/joharness.conf" \
+  HANDOVER_BASE_BRANCH=main "${clsolo}/joharness.sh" "$@" 2>&1; }
+
+# 2. A removal git refused was counted nowhere, so a run whose only file could
+# not be removed fell through to "none — the ritual ran" and exited 0 — the
+# command reporting success for work it did not do. Local modifications on the
+# leftover are the ordinary way in, and are the state its own advice invites.
+git -C "$clsolo" checkout -qb solosweep
+printf 'a local edit\n' >>"${clsolo}/docs/handover/solo.md"
+out="$(jcs cleanup --apply)"; rc=$?
+expect "a removal git refused is named" "FAILED   docs/handover/solo.md" "$out"
+refute "a run whose only removal failed never says the ritual ran" \
+  "none — the ritual ran" "$out"
+if [ "$rc" -ne 0 ]; then pass "and the run exits non-zero"
+else fail "and the run exits non-zero (got ${rc})"; fi
+if [ -f "${clsolo}/docs/handover/solo.md" ]; then
+  pass "the file git refused to remove is still there"
+else
+  fail "the file git refused to remove is still there"
+fi
+git -C "$clsolo" checkout -q -- docs/handover/solo.md
+
+# 3. The base-branch guard read `rev-parse --abbrev-ref HEAD`, which prints the
+# string HEAD when detached — so it read "not the base branch, carry on" in
+# exactly the checkout CI produces, where the deletion has no branch to land on
+# at all.
+git -C "$clsolo" checkout -q main
+out="$(jcs cleanup --apply)"
+expect "apply on the base branch has no branch to carry the deletion" \
+  "no branch to carry these deletions" "$out"
+git -C "$clsolo" reset -q --hard
+git -C "$clsolo" checkout -q --force "$(git -C "$clsolo" rev-parse HEAD)"
+out="$(jcs cleanup --apply)"
+expect "and a detached HEAD has none either" \
+  "no branch to carry these deletions" "$out"
+git -C "$clsolo" reset -q --hard
+git -C "$clsolo" checkout -q --force -B solobranch
+out="$(jcs cleanup --apply)"
+refute "a named branch that is not the base one carries it fine" \
+  "no branch to carry these deletions" "$out"
+git -C "$clsolo" reset -q --hard
+git -C "$clsolo" checkout -q main
 
 out="$(jc cleanup --wat)"
 expect "an unknown option is refused by name" "unknown option '--wat'" "$out"
