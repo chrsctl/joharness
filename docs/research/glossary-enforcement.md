@@ -33,12 +33,30 @@ it, or an absence, in which case the plan is inventing and should say so.
 
 ## Method
 
-Not recorded. Both passes were web searches and the queries were not kept,
-so there is nothing to quote here — this section says so rather than
-reconstructing plausible queries after the fact, which would read as a
-record and be a guess. The shape came later than the file
-(`.agents/docs/research/README.md`); the cost of that is exactly this: the
-findings below cannot be re-run as written.
+The first two passes were web searches whose queries were not kept, and this
+section said so rather than reconstructing plausible ones after the fact. A
+third pass, run by the closing session, re-ran the findings with the queries
+recorded — because a graduation resting on unreproducible findings inherits
+their unreproducibility, and `.agents/docs/research/README.md` names this file
+as its one instance of that.
+
+Queries, verbatim:
+
+```
+WebSearch: Vale linter accept.txt Vale.Terms substitution rule enforce terminology docs
+WebSearch: textlint-rule-terminology npm enforce consistent technical terms CI
+WebSearch: Elastic docs Vale ruleset house style guide GitHub elastic/vale-rules
+WebFetch:  https://docs.vale.sh/keys/vocabularies
+WebFetch:  https://martinfowler.com/bliki/BoundedContext.html
+```
+
+Repo counts, on the tree at this branch:
+
+```
+git grep -icF -- 'workstream file' -- '*.md' | awk -F: '{s+=$2} END {print s}'
+git grep -icF -- 'handover file'   -- '*.md' | awk -F: '{s+=$2} END {print s}'
+git grep -lF  -- 'handover file'   -- '*.md'
+```
 
 ## Findings
 
@@ -57,37 +75,44 @@ findings below cannot be re-run as written.
   that checks correspondence between vocabulary in code and the domain
   model. DDD's *canonical* answer is still recurring human conversation,
   but "no tooling" is false.
-- **Bounded Context, paraphrased not quoted.** Fowler describes contexts
-  "each of which can have a unified model", with different contexts holding
-  "completely different models of common concepts" and explicit mappings
-  between them. No one-line formal definition matches the phrasing this
-  file first used.
+- **Bounded Context, now quoted.** Fowler: contexts "each of which can have
+  a unified model", and "Different contexts may have completely different
+  models of common concepts with mechanisms to map between these polysemic
+  concepts for integration." (`WebFetch martinfowler.com/bliki/BoundedContext.html`).
+  The earlier passes paraphrased because they had not fetched the page; the
+  paraphrase was accurate and is now the source's own words.
 - **"Stale language" is NOT a DDD term of art.** Retracted. No source uses
   it as established vocabulary; the adjacent sourced ideas are failure to
   co-evolve the language, technical dominance, and the linguistic divide.
-- **The drift this repo measured is still real and still local**:
-  "workstream file" 107 against "handover file" 10 on 2026-08-25, five
-  files carrying both.
+- **The drift is now measured twice, and it closed.** 107 against 10 with
+  five files carrying both when this question was filed; **77 against 2**
+  on the tree at this branch, two files carrying both. Both survivors are
+  required: `.agents/docs/glossary.md`, whose `Not this` cell must spell the
+  banned form, and this file, which quotes it. The mechanism shipped in the
+  interval and the drift it was built for is gone.
 
 ## Consequence for the queue
 
-`harness-glossary`'s motivation changes shape. Its plan proposes building a
-ci lint for banned wordings; Vale's `accept.txt` plus `Vale.Terms` is
-precisely that, already built and running at Datadog and Elastic. The open
-question is no longer *invent or not* but **adopt or build** — and adopting
-brings a dependency into a harness whose ci is currently shell and
-shellcheck, which is a real cost to weigh rather than a free win.
+**None left, and the earlier answer here was overtaken by events.** It said
+the question had become *adopt or build* for `docs/plans/harness-glossary.md`.
+That plan is retired and the thing is built: `.agents/docs/glossary.md` and
+`joharness.sh:lint_glossary` are on `main`, and `ci` runs a `== glossary`
+stage. So the choice was made — **build** — and what this file owes its
+reader is the reasoning behind it, not a decision still pending.
 
 Bounded Context remains the finding that matters most and is unaffected by
 the refutation: a glossary fixing one meaning repo-wide will fight the
 layer split this harness is built on. Terms that legitimately differ
 between `.agents/harness/` and an environment layer need the zone named,
-not a winner picked.
+not a winner picked. That is what graduates.
 
 ## Verification
 
 Checked by an independent context that did not write these
-findings, asked specifically to refute the negative claim.
+findings, asked specifically to refute the negative claim. The third pass
+that closed the file re-ran the sources rather than re-deriving them, so its
+own claims carry the fetch that produced each; the independent context is
+still the one that refuted the original.
 
 - Original central claim — "no tooling prior art exists" — **UNGROUNDED,
   decisively refuted**, with named tools and production adopters. Findings

@@ -66,6 +66,53 @@ Yes: "Bug in auth middleware. Token expiry check use `<` not `<=`. Fix:"
   messages, issue / PR / review text, third-party messages. Upstream boundary
   rule; kept here.
 
+## Controlled vocabulary: built, not invented, and not adopted
+
+`.agents/docs/glossary.md` fixes contested terms; `ci` fails on the banned
+spellings (`joharness.sh:lint_glossary`). That mechanism is not this repo's
+invention, and knowing so is the point of this section — a session that
+thinks the harness invented it will either distrust it or rebuild it.
+
+Prior art, named and in production. Vale: entries in `accept.txt` are
+"automatically added to a substitution rule (`Vale.Terms`), ensuring that any
+occurrences of these words or phrases exactly match their corresponding entry
+in `accept.txt`" ([docs.vale.sh/keys/vocabularies](https://docs.vale.sh/keys/vocabularies)).
+`textlint-rule-terminology` does the same for tech writing and runs in CI.
+Datadog lints its docs with Vale; Elastic publishes its house style AS a Vale
+ruleset ([elastic/vale-rules](https://github.com/elastic/vale-rules)).
+
+So the choice was adopt or build, and this repo **built**. Reason, kept
+because it is the part that decides whether to re-open: `ci` here is shell
+and shellcheck, and every consumer that syncs this harness would inherit a Go
+or Node toolchain with it. Cost of building = one table parser, paid once.
+Cost of adopting = a runtime in every consumer, paid forever. Re-open only if
+that trade changes — not because the mechanism looks home-made.
+
+It worked, and this paragraph cannot quote the evidence — which is the
+mechanism proving itself. The canonical spelling against the one the glossary
+bans: 107 / 10 across markdown, five files carrying both, when the question
+was filed; 77 / 2 once the lint shipped. Both survivors are required, the
+glossary's own `Not this` cell and the file that recorded the question.
+Recount without hard-coding the ban, so there is no second copy of it:
+
+```bash
+./joharness.sh ci   # every occurrence, in the paths the lint governs
+git grep -icF -- "$(awk -F'|' '$2 ~ /workstream file/ {
+  gsub(/^ +| +$/, "", $5); print $5 }' .agents/docs/glossary.md)" -- '*.md'
+```
+
+**One term, one spelling — and this repo has two layers.** A glossary fixes
+one meaning repo-wide, which is exactly what a layer split does not want.
+Fowler's Bounded Context is the name for it: contexts "each of which can have
+a unified model", and "Different contexts may have completely different
+models of common concepts with mechanisms to map between these polysemic
+concepts for integration"
+([martinfowler.com/bliki/BoundedContext.html](https://martinfowler.com/bliki/BoundedContext.html)).
+A term that legitimately differs between `.agents/harness/` and an
+environment layer needs the ZONE named, not a winner picked. Banning a
+spelling that is correct in one layer is a row that fights the split the
+harness exists to keep, and the lint cannot tell the two apart.
+
 ## Honest numbers (upstream's own warning)
 
 Style compresses output and re-read input. It proves nothing about quality —
