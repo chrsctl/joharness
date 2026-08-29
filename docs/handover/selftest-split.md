@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01SHPKsgu5WMHQ4g7MhTwRhm
 agent: opus
 updated: 2026-08-29
-next: Split topics 4-40 into .agents/harness/selftest/, keeping 1-3 in the runner.
+next: Prove the consumer sync ships no topic file, then review.
 ---
 
 ## Goal
@@ -44,9 +44,31 @@ each other. A move, not a rewrite: same assertions, same order, same count.
   `selftest.sh` — and topic 2 sits between them, where moving it alone would
   mean interleaving a `source` between two inline topics for nothing.
 
+## Decisions (continued)
+
+- **Two plan claims turned out to be hypotheses, and both were wrong.**
+  (1) "add `.agents/harness/selftest` to `CANONICAL_ONLY_DIRS`" is not
+  sufficient: that array was read only by the report telling a consumer what
+  it already carries. `.agents/scripts` stays out of consumers by being
+  absent from `DIRS` entirely — but `.agents/harness/selftest/` sits INSIDE a
+  synced tree, so the list alone would have shipped all 37 topic files while
+  exempting the runner that sources them. `canonical_only()` now matches
+  directory prefixes too. (2) "the shellcheck wiring: new topic files are
+  linted with zero changes" — they are linted, and they were not clean: 15
+  SC2154 and 3 SC2034, because shellcheck lints each fragment alone and every
+  shared fixture is assigned in another file.
+- **The SC2154 silences are per file and carry the reason.** Not repo-wide:
+  the cost is a typo'd variable going unflagged in that one file, and it is
+  accepted where the alternative is dropping the check everywhere.
+
 ## Rejected
 
-- (nothing yet)
+- **A glob instead of an ordered list.** The order IS behaviour — topics
+  build fixtures later topics read — and a glob makes it a property of
+  filenames. The list is explicit and two fatal checks keep it honest.
+- **Counting the integrity checks as assertions.** They print and `exit 1`
+  instead. The plan requires the total to be unchanged, and a dropped source
+  counted as one failure among 820 is exactly how it would be missed.
 
 ## Review
 
