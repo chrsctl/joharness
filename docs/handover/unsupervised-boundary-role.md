@@ -1,13 +1,13 @@
 ---
 workstream: unsupervised-boundary-role
-status: review
+status: done
 branch: claude/joharness-framework-plans-lkpf4q
 pr: none
 plan: unsupervised-boundary-role
 session: https://claude.ai/code/session_01SHPKsgu5WMHQ4g7MhTwRhm
 agent: opus
-updated: 2026-08-28
-next: Re-run the suite on the verifier fixes, then retire plan + workstream file and open the pull request.
+updated: 2026-08-29
+next: Merge when checks are green — the branch is finished and retired.
 ---
 
 ## Goal
@@ -102,11 +102,13 @@ found more by reading than the suite found by running.
   claim a path it cannot resolve.
 - r14: verified clean — the three constraints declined 2026-08-24 are intact.
 - r15: verified clean — no environment layer named under `.agents/harness/`.
-- r16 (open, wontfix here): the guard now forks `joharness.sh` twice per Stop
-  and runs 4 git commands per listed path. `handover-guard.sh` is not in
-  `perf_rows`, so nothing budgets it. Real, and out of this plan's scope —
-  the plan's Out of scope says changing WHEN the guard fires is not this
-  work. Worth its own plan; noted here so it is not lost.
+- r16 (wontfix here, planned): the guard now forks `joharness.sh` twice per
+  Stop and runs up to 4 git commands per listed path, and
+  `handover-guard.sh` is in no `perf_rows` row — the one entrypoint a session
+  pays on every turn is the one nothing budgets. Real, and out of this plan's
+  scope, which says changing WHEN the guard fires is not this work. Carried
+  out of this workstream rather than lost with it:
+  `docs/plans/guard-perf-budget.md`, added in this same pull request.
 
 ## Blockers
 
