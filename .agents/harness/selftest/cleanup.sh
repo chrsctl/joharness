@@ -118,7 +118,7 @@ out="$(jc cleanup --apply)"
 expect "apply removes the stale workstream file" \
   "REMOVED  docs/handover/alpha.md" "$out"
 refute "apply leaves work in flight alone" "REMOVED  docs/handover/beta.md" "$out"
-refute "apply on a branch does not warn about the base branch" \
+refute "apply on a branch with somewhere to land does not warn" \
   "no branch to carry these deletions" "$out"
 if [ -f "${clwork}/docs/handover/alpha.md" ]; then
   fail "apply removes the file from the working tree"
@@ -158,35 +158,23 @@ git -C "$clwork" reset -q --hard
 # checked afterwards. All four reproduced on main 2026-08-29 before these
 # fixes; the reproduction for each is the case below it.
 
-# 1. `status:` was never read. cl_inflight sees a claim only through an
-# unmerged branch, so it cannot see the sequence this covers: part 1 of a
-# multi-PR workstream merges, the session cuts part 2 and has not pushed, and
-# the file it is actively writing is the one sitting on the base branch.
-git -C "$clwork" reset -q --hard
-git -C "$clwork" checkout -q main
-printf -- '---\nworkstream: delta\nstatus: in-progress\n---\n' \
-  >"${clwork}/docs/handover/delta.md"
-commit_all "$clwork" "delta lands on main mid-workstream"
-git -C "$clwork" push -q origin main
-
-out="$(jc cleanup)"
-expect "a file whose own status says it is not done is kept" \
-  "keep     docs/handover/delta.md" "$out"
-expect "and the keep line names the status it read" \
-  "status: in-progress on" "$out"
-refute "a live file is never called stale" \
-  "stale    docs/handover/delta.md" "$out"
-git -C "$clwork" checkout -qb sweepdelta
-out="$(jc cleanup --apply)"
-refute "apply does not stage a file that says it is not done" \
-  "REMOVED  docs/handover/delta.md" "$out"
-if [ -f "${clwork}/docs/handover/delta.md" ]; then
-  pass "the live file survives apply"
-else
-  fail "the live file survives apply"
-fi
-git -C "$clwork" reset -q --hard
-git -C "$clwork" checkout -q main
+# 1. `status:` is NOT read, and that is the answer, not an omission. The
+# behaviour reproduces — a file saying in-progress, merged to main with no
+# branch carrying it, is stale and --apply stages it — but the repo has
+# recorded three times that keying on `status:` was tried and rejected:
+# .agents/docs/handover/README.md ("Original carve-out ... guard silent"),
+# joharness.sh's finish gate ("No frontmatter is read, deliberately") and
+# handover-context.sh ("This deliberately does not look at status"). A rule
+# that needs the leaving session to have set a field right fails exactly when
+# someone hurries — measured on this repo 2026-08-29: of the 13 workstream
+# files ever retired from origin/main, 8 said in-progress and 5 said review.
+# ZERO said done. Reading status: would have made --apply a no-op on every
+# leftover the command has ever existed to remove. The multi-PR case is
+# covered where the protocol puts it: push the branch and cl_inflight sees it
+# (Loop step 3, "no push, no claim").
+#
+# beta.md below carries `status: review` on purpose, and the four cases that
+# depend on it are the ones a status carve-out silently unpins.
 
 # 4. The plans section tested the WORKING TREE while its heading says the ref,
 # so a plan this branch has already deleted vanished from a report about the
@@ -247,7 +235,9 @@ git -C "$clsolo" checkout -q -- docs/handover/solo.md
 # at all.
 git -C "$clsolo" checkout -q main
 out="$(jcs cleanup --apply)"
-expect "apply on the base branch has no branch to carry the deletion" \
+# The baseline for the detached case below, in this fixture — the branch case
+# is already asserted on clwork. Both must hold or the comparison says nothing.
+expect "the solo fixture warns on the base branch too" \
   "no branch to carry these deletions" "$out"
 git -C "$clsolo" reset -q --hard
 git -C "$clsolo" checkout -q --force "$(git -C "$clsolo" rev-parse HEAD)"

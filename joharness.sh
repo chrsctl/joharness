@@ -39,7 +39,8 @@
 #                   workstream files, plans whose work merged, merged
 #                   branches. Reports only
 #   cleanup --apply also `git rm` the workstream files, staged for review.
-#                   Never branches — deleting one is human-only
+#                   Never branches — deleting one is human-only.
+#                   Exits 1 if git refused a removal
 #   drain           what the Loop takes next, and whether the queue is
 #                   drained FOR THIS MODE. Report-only; re-read it between
 #                   items rather than remembering it
@@ -2699,8 +2700,12 @@ cmd_cleanup() {
     # A NAMED branch that is not the base one, or the warning fires. The test
     # used to be `rev-parse --abbrev-ref HEAD != main`, which prints the string
     # `HEAD` on a detached checkout — so it read "not the base branch, carry
-    # on" in exactly the checkout CI produces, where the deletion has no branch
-    # to land on at all. symbolic-ref prints nothing and fails when detached.
+    # on" wherever HEAD is detached, which is where there is no branch to land
+    # the deletion on at all. symbolic-ref prints nothing and fails there.
+    # Reachable by a human or a session in a detached checkout; an earlier
+    # version of this comment said "exactly the checkout CI produces", which
+    # sounds sharper and is not true — CI reaches cleanup only through
+    # selftest.sh, which never runs it detached outside its own case.
     local cur
     cur="$(git -C "$ROOT" symbolic-ref --quiet --short HEAD 2>/dev/null)" || cur=""
     { [ -n "$cur" ] && [ "$cur" != "${HANDOVER_BASE_BRANCH:-main}" ]; } ||
@@ -2710,7 +2715,7 @@ cmd_cleanup() {
     printf '== cleanup (%s: report only — --apply removes the workstream files)\n\n' "$ref"
   fi
 
-  local inflight f st stale=0 kept=0 removed=0 gone=0 live=0 failed=0
+  local inflight f stale=0 kept=0 removed=0 gone=0 failed=0
   inflight="$(cl_inflight "$ref")"
 
   printf 'workstream files on %s — the finish ritual should have deleted these\n' "$ref"
@@ -2722,16 +2727,6 @@ cmd_cleanup() {
     elif [ ! -f "${ROOT}/${f}" ]; then
       gone=$((gone + 1))
       printf '  done     %s — already deleted on this branch\n' "$f"
-    elif st="$(git -C "$ROOT" show "${ref}:${f}" 2>/dev/null | gr_field status)" &&
-      [ -n "$st" ] && [ "$st" != "done" ]; then
-      # The file SAYS it is not finished, and nothing here used to read that.
-      # cl_inflight sees a claim only through an unmerged branch, so it cannot
-      # see the case this covers: part 1 of a multi-PR workstream merges, the
-      # session cuts part 2 and has not pushed yet, and the file it is actively
-      # writing is the one on the base branch. Reported stale, staged for
-      # deletion by --apply. `status:` is the one signal left, so it is read.
-      live=$((live + 1))
-      printf '  keep     %s — status: %s on %s, not done\n' "$f" "$st" "$ref"
     elif [ "$apply" -eq 1 ]; then
       if git -C "$ROOT" rm -q -- "$f"; then
         removed=$((removed + 1))
@@ -2751,7 +2746,7 @@ cmd_cleanup() {
     fi
   done <<<"$(git -C "$ROOT" ls-tree -r --name-only "$ref" -- docs/handover 2>/dev/null |
     gr_docs)"
-  if [ "$((stale + kept + removed + gone + live + failed))" -eq 0 ]; then
+  if [ "$((stale + kept + removed + gone + failed))" -eq 0 ]; then
     printf '  none — the ritual ran\n'
   elif [ "$apply" -eq 1 ] && [ "$removed" -gt 0 ]; then
     printf '\n  %d staged for deletion. Still-useful bits go to the right\n' "$removed"
@@ -3486,7 +3481,8 @@ cmd_finish() {
 # full queue is the failure .agents/docs/unsupervised.md names; this is the
 # status a drain loop re-reads between items.
 #
-# Report-only, like `cleanup` and `scorecard`. A drain that GATED would be red
+# Report-only, like `scorecard` (and like `cleanup` without `--apply`; with
+# it, cleanup returns 1 when git refused a removal). A drain that GATED would be red
 # for the whole of every run, which is how a gate stops being read.
 #
 # It DERIVES NOTHING. The queue is ranked in one place (queue-context.sh) and
