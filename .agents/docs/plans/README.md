@@ -135,11 +135,24 @@ invents make-work — which under full-loop autonomy gets implemented and
 merged with no human ever reading it. Bound the surface; the autonomy is
 deliberate and stays.
 
-Something else belongs on the list? It arrives with a detector command that
-prints a number, in its own plan, reviewed like anything else. That is the
-entry fee, and it is what stopped "a documented rule with no test" and
-"drift between an instruction file and the code" being sources: both are
-judgment calls, and a literal reader always finds one more.
+Something else belongs on the list? **A human adds it.** Not a session, and
+not under `JOHARNESS_MODE=unsupervised` at all.
+
+The reason is mechanical, not ceremonial. `.agents/docs/` sits outside
+`joharness.sh:protocol_paths` on purpose — it holds the reasoning behind
+rules rather than rules a session executes — so an unattended session may
+commit to THIS FILE. An earlier draft of this paragraph said a new source
+"arrives in its own plan, reviewed like anything else"; under full-loop
+autonomy a session reviews and merges its own pull request, so that read as
+a procedure for widening its own source surface, self-approved, after which
+no sweep ever goes dry again. The one bound this mode has, removable by the
+thing it bounds.
+
+The entry fee is a detector command that prints a number — that is what
+stopped "a documented rule with no test" and "drift between an instruction
+file and the code" being sources, both judgment calls where a literal reader
+always finds one more. But the fee is paid to a human, in a supervised
+session.
 
 ### At the edge
 

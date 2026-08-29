@@ -43,10 +43,21 @@ unset CLAUDE_PROJECT_DIR
 # added to this file is added here too. JOHARNESS_RUN_MODE joined them for
 # the same reason and is measured the same way — with the unset REMOVED,
 # since with it in place the knob cannot leak and both runs read 617/0.
-# Measured 2026-08-28 on a copy with this line cut back to the other two:
-# JOHARNESS_RUN_MODE=unsupervised gives 604 passed / 12 failed / 1 skipped,
-# against 617 / 0 with the line whole. The fan-out cases below invoke the
-# hook bare on purpose, to prove what an exporting-nothing client gets.
+# The counts are NOT written here any more, and that is the fix rather than
+# laziness. They change every time a case is added to this file — the rule
+# two lines up says so — so they shipped stale inside the very commit that
+# staled them, twice: `./joharness.sh feedback .agents/harness/selftest.sh`
+# has it as PR94 r10, and a later diff adding 20 cases plus a bare hook call
+# repeated it. A number nobody re-counts is a written number.
+#
+# Re-count instead, whenever the claim matters:
+#   cp selftest.sh /tmp/leak.sh
+#   # cut JOHARNESS_RUN_MODE from the unset line below in the copy
+#   JOHARNESS_RUN_MODE=unsupervised bash /tmp/leak.sh | tail -1   # leaks
+#   JOHARNESS_RUN_MODE=unsupervised bash selftest.sh   | tail -1   # does not
+# The first fails; the second does not. That difference is the claim, and it
+# survives every case anyone adds. The fan-out and edge cases below invoke
+# the hook bare on purpose, to prove what an exporting-nothing client gets.
 unset JOHARNESS_MODE JOHARNESS_MODE_FILE JOHARNESS_RUN_MODE
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 
@@ -1097,6 +1108,11 @@ expect "the sweep is named as the first step" "./joharness.sh sources" "$out"
 expect "dry alone is not sold as a stop" "NOT a stop on its own" "$out"
 expect "and INCOMPLETE is explicitly not a stop" "not dry, so not a stop" "$out"
 expect "the source list is called closed" "CLOSED source list" "$out"
+# The pointer that went missing. Its absence was untested in both directions,
+# which is how it shipped: a session told to generate work with no
+# instruction to check what a human already asked for.
+expect "issues still outrank the edge, in the output itself" \
+  "Open GitHub issues STILL outrank this" "$out"
 expect "and a generated plan owes its evidence" "evidence:" "$out"
 
 # --- human input still outranks invented work ---
@@ -1113,6 +1129,26 @@ expect "an unplanned requirement outranks the edge" \
 refute "and the edge behaviour does not fire" "UNSUPERVISED edge" "$out"
 git -C "$ework" rm -q docs/product/r.md
 commit_all "$ework" "requirement planned"
+git -C "$ework" push -q origin main
+
+# --- an unreadable plan is not an empty queue ---
+# A zero-byte plan file is dropped from the row list, which left free_count
+# at 0 and fired the edge — inert under supervised, an order to invent a
+# backlog under unsupervised, on top of a plan neither claimed nor blocked.
+: >"${ework}/docs/plans/unreadable.md"
+commit_all "$ework" "a plan nothing can read"
+git -C "$ework" push -q origin main
+out="$(eq unsupervised)"
+expect "an unreadable plan is reported, not swallowed" \
+  "could not be read" "$out"
+expect "and says a queue that cannot be read is not empty" \
+  "not a queue that is" "$out"
+refute "and does NOT reach the generate-work edge" "UNSUPERVISED edge" "$out"
+out="$(eq supervised)"
+refute "supervised does not call it an edge either" \
+  "every plan claimed or blocked" "$out"
+git -C "$ework" rm -q docs/plans/unreadable.md
+commit_all "$ework" "remove it"
 git -C "$ework" push -q origin main
 
 # --- edge path two: plans exist, none free ---

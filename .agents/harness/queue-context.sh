@@ -16,7 +16,8 @@
 # Two or more free plans = fan-out instruction (one session per free plan,
 # model named), and under JOHARNESS_RUN_MODE=unsupervised that instruction
 # becomes an order to start them now, for wave 1 only. No free plan and
-# nothing to plan = done. GitHub issues
+# nothing to plan = done under supervised; under unsupervised that same edge
+# is where work is GENERATED instead (qc_edge_unsupervised). GitHub issues
 # outrank everything; a shell hook cannot read GitHub, so that stays a
 # pointer.
 #
@@ -147,6 +148,11 @@ rows="$(
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     doc="$(git show "${ref}:${f}" 2>/dev/null)"
+    # An unreadable plan is NOT an absent plan. Dropped silently, it left
+    # free_count at 0 and the edge fired — inert under supervised ("every
+    # plan claimed or blocked"), an order to invent a backlog under
+    # unsupervised, on top of a plan that is neither claimed nor blocked.
+    # Counted on stderr so the row list stays machine-shaped.
     [ -n "$doc" ] || continue
     { read -r urgency; read -r agent; read -r effort
       read -r needs;   read -r requirement; } \
@@ -238,25 +244,40 @@ qc_mode="${JOHARNESS_RUN_MODE:-supervised}"
 # the drift would be invisible because each path is reached in a different
 # repo state.
 #
-# This NAMES the sweep and does not run it. `sources` costs 78s against this
-# hook's 3s (measured 2026-08-29) because it runs `ci`, and hook output is
-# paid by every session — the same reason GitHub is a pointer here rather
-# than a lookup. The session runs it; the hook says which one and what the
-# answers mean.
+# This NAMES the sweep and does not run it, because it runs `ci`:
+#   s=$SECONDS; ./joharness.sh sources >/dev/null 2>&1; echo $((SECONDS-s))
+#     -> 78s   (this repo, 2026-08-29)
+#   s=$SECONDS; bash .agents/harness/queue-context.sh >/dev/null 2>&1; …
+#     -> 1s    (same repo, same day — session-start's 3s is the WHOLE hook
+#              chain, which an earlier version of this comment mis-attributed
+#              to this file alone)
+# Hook output is paid by every session, so the sweep is a pointer for the
+# same reason GitHub is. The session runs it; the hook says which one.
 qc_edge_unsupervised() {
+  # OPEN ISSUES FIRST, in both modes. The first version of this printed the
+  # generate-work order and exited, dropping the issue pointer the supervised
+  # arm carries — so an unattended session was told to invent work with no
+  # instruction to check what a human had already asked for. That is the
+  # ordering this whole change exists to preserve, broken by the change
+  # itself. A hook cannot read GitHub, so it stays a pointer; a pointer is
+  # not optional.
   printf 'UNSUPERVISED edge on %s (%s): a trigger, not a stop.\n' "$1" "$2"
-  printf 'Generate work — research the CLOSED source list, write plan files,\n'
-  printf 'open a pull request. One finding, one plan; each carries source: and\n'
-  printf 'evidence: (.agents/docs/plans/README.md, "Where unsupervised work\n'
-  printf 'comes from"). No plan for a finding no detector emitted.\n'
+  printf 'Open GitHub issues STILL outrank this — check them first; any open\n'
+  printf 'issue is work a human asked for and beats work you invent.\n'
+  printf 'None? Then generate: research the CLOSED source list, write plan\n'
+  printf 'files, open a pull request. One finding, one plan; each carries\n'
+  printf 'source: and evidence: (.agents/docs/plans/README.md, "Where\n'
+  printf 'unsupervised work comes from"). No plan for a finding no detector\n'
+  printf 'emitted.\n'
   printf '\n'
+  # The verdicts are NOT restated here. cmd_sources prints them and the
+  # protocol doc states them; a third copy in a hook is the drift this
+  # function's own existence argues against, and hook output is paid every
+  # session.
   printf 'First run the sweep:  ./joharness.sh sources\n'
-  printf '  NOT dry     generate, from what it names\n'
-  printf '  INCOMPLETE  a source could not be counted — not dry, so not a stop\n'
-  printf '  dry         NOT a stop on its own. The mode ends on a SECOND dry\n'
-  printf '              sweep, an empty queue and no open pull request,\n'
-  printf '              together. Then stop and say so — the mode asks here,\n'
-  printf '              and nowhere else.\n'
+  printf 'It prints what each verdict means. dry alone is NOT a stop: the mode\n'
+  printf 'ends on a SECOND dry sweep, an empty queue and no open pull request,\n'
+  printf 'together — and nowhere else.\n'
   printf 'Default agent tier: sonnet (.agents/docs/agent-selection.md).\n'
 }
 
@@ -274,6 +295,22 @@ if [ -z "$plans" ]; then
     fi
   fi
   exit 0
+fi
+
+# A plan the row loop could not read is dropped from `rows`, and the loop
+# drops a plan for exactly one other reason (an empty line), so the shortfall
+# IS the unreadable count. It matters because free_count cannot tell "no plan
+# is free" from "no plan could be read": a zero-byte plan file made the edge
+# fire while an unclaimed, unblocked plan sat in the queue — inert under
+# supervised, an order to invent a backlog under unsupervised.
+qc_unreadable=$(( $(printf '%s\n' "$plans" | grep -c . || :) -
+                  $(printf '%s\n' "$rows"  | grep -c . || :) ))
+[ "$qc_unreadable" -ge 0 ] || qc_unreadable=0
+if [ "$qc_unreadable" -gt 0 ]; then
+  printf '\n%d plan file(s) on %s could not be read — not counted as free,\n' \
+    "$qc_unreadable" "$ref"
+  printf 'and NOT an edge. A queue that cannot be read is not a queue that is\n'
+  printf 'empty. Fix or delete them before treating this queue as exhausted.\n'
 fi
 
 # Display truncates; the free count below does not — a fan-out instruction
@@ -486,10 +523,17 @@ elif [ "$free_count" -ge 2 ]; then
     printf 'unproven — take ONE piece of work in THIS session, requirements\n'
     printf 'above first. Never spawn on an assumption the queue has not proved.\n'
   fi
-elif [ "$free_count" -eq 0 ] && [ -z "$unplanned" ]; then
+elif [ "$free_count" -eq 0 ] && [ -z "$unplanned" ] &&
+     [ "$qc_unreadable" -eq 0 ]; then
   if [ "$qc_mode" = "unsupervised" ]; then
     printf '\n'
     qc_edge_unsupervised "$ref" "no free plan"
+    # Terminal, like the other edge path. Falling through printed "top free
+    # plan above" under an order to generate work, naming a free plan that by
+    # definition does not exist here — the two paths shared the function and
+    # then delivered it in incompatible contexts.
+    printf '\n'
+    exit 0
   else
     printf '\nEdge reached: no free plan — every plan claimed or blocked. done.\n'
   fi
