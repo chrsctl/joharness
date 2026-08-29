@@ -102,8 +102,8 @@ that caused the duplicate.
   for how an out-of-vocabulary value is already reported.
 - `.agents/docs/handover/README.md` — the `plan:` edge this mirrors, and
   Graduation for why a field beats discipline here.
-- `docs/plans/README.md`, Lifecycle — the same-session plan rule that made
-  #114's claim invisible.
+- `.agents/docs/plans/README.md`, Lifecycle — the same-session plan rule
+  that made #114's claim invisible.
 
 ## Traps
 
