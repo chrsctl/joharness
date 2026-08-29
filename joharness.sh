@@ -1961,16 +1961,38 @@ review_prior() {
   fb_collect || return 0
   hot="$(fb_hotspots)"
   [ -n "$hot" ] || return 0
-  while IFS= read -r f; do
+  # ONE awk over both lists, not one per changed file. The old shape forked
+  # an awk inside the loop, which is the regression the perf budget exists to
+  # name — and it went unnoticed because every branch measured so far changed
+  # a handful of files. The branch that split the selftest changed 41 and put
+  # `review` 13 over its ceiling: 278 against 265, counted 2026-08-29. The
+  # loop did not grow a fork, the diff grew items; the budget was right either
+  # way, and raising it to match would have been raising the number to match
+  # the code.
+  #
+  # \034 is the sentinel between the two lists — a file separator that cannot
+  # appear in a path.
+  local rows
+  rows="$(
+    {
+      printf '%s\n' "$hot"
+      printf '\034\n'
+      git -C "$ROOT" diff --name-only "$base" HEAD 2>/dev/null
+    } | awk -F'\t' '
+      $0 == "\034" { d = 1; next }
+      !d { c[$2] = $1; next }
+      $0 != "" && ($0 in c) { printf "%s\t%s\n", $0, c[$0] }
+    '
+  )"
+  [ -n "$rows" ] || return 0
+  while IFS="$(printf '\t')" read -r f count; do
     [ -n "$f" ] || continue
-    count="$(printf '%s\n' "$hot" | awk -F'\t' -v p="$f" '$2 == p { print $1 }')"
-    [ -n "$count" ] || continue
     if [ "$shown" -eq 0 ]; then
       shown=1
       printf '\n  already cost other branches — read before reviewing:\n'
     fi
     printf '    %s (%s edges)  ./joharness.sh feedback %s\n' "$f" "$count" "$f"
-  done <<<"$(git -C "$ROOT" diff --name-only "$base" HEAD 2>/dev/null)"
+  done <<<"$rows"
 }
 
 cmd_review() {

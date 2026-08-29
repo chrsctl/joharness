@@ -195,12 +195,28 @@ CANONICAL_ONLY=(
 )
 CANONICAL_ONLY_DIRS=(
   .agents/scripts
+  # The selftest's topic files. CANONICAL_ONLY above exempts the literal path
+  # .agents/harness/selftest.sh and nothing else, so without this line the
+  # split that moved 37 topics out of that file would have shipped all 37 to
+  # every consumer at its next sync — the runner exempt and its whole body
+  # not.
+  .agents/harness/selftest
 )
 
 canonical_only() {
   local rel="$1" c
   for c in "${CANONICAL_ONLY[@]}"; do
     [ "$rel" = "$c" ] && return 0
+  done
+  # And anything inside a canonical-only DIRECTORY. Not symmetry for its own
+  # sake: .agents/scripts is kept out of consumers by being absent from DIRS
+  # entirely, so until now CANONICAL_ONLY_DIRS was read only by the report
+  # that tells a consumer what it is already carrying. .agents/harness/selftest
+  # is different — it sits INSIDE a synced tree, so listing it there and
+  # nowhere else would have shipped all 37 topic files while exempting the
+  # runner that sources them.
+  for c in "${CANONICAL_ONLY_DIRS[@]}"; do
+    case "$rel" in "$c"/*) return 0 ;; esac
   done
   return 1
 }

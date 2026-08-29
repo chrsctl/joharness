@@ -5,7 +5,7 @@ agent: sonnet
 effort: medium
 needs: none
 requirement: none
-scope: joharness.sh, .agents/harness/selftest.sh
+scope: joharness.sh, .agents/harness/selftest/cleanup.sh
 ---
 
 ## Goal
@@ -60,7 +60,7 @@ Each is a hypothesis until re-run against `main` — that is the work.
   which reproduce. A finding that no longer reproduces is closed with the
   commit that fixed it named.
 - Fix the ones that do, smallest change each, in `joharness.sh`.
-- `.agents/harness/selftest.sh` — a regression case per reproduced finding,
+- `.agents/harness/selftest/cleanup.sh` — a regression case per reproduced finding,
   each failing without its fix (revert it, run it, put it back).
 
 ## Out of scope
