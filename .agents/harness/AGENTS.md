@@ -18,7 +18,12 @@ the selected layer — as a read-first pointer by default, whole when md=eager
 
 1. **Orient.** Hook prints handover state before first prompt. Hook names
    workstream file for this branch? That is your job. Read whole file. Go to 4.
-2. **Pick.** Queue = open GitHub issues (hook lists which are already
+2. **Pick.** Finishing outranks starting. Edge work in flight leads the
+   hook's in-flight block — `pr:` set, or `status:` review or done — oldest
+   first, because the oldest edge branch is the one closest to abandoned.
+   Yours, or its session gone (`/who`)? Finish it before taking anything
+   below. Another session LIVE on it = not yours to merge (step 7): say so
+   to the human, pick on. Then queue = open GitHub issues (hook lists which are already
    CLAIMED — an unlisted one may still be taken unpushed, `/who`), then unplanned requirements
    `docs/product/*.md`, then plan files `docs/plans/*.md` (shape + claim
    rules: `.agents/docs/plans/README.md`) and open questions

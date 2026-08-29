@@ -548,6 +548,7 @@ SELFTEST_TOPICS=(
   handover-context-churn-line
   handover-context-issue-claim
   handover-context-review-line
+  handover-context-rank
   project-dir-fallback
   queue-context
   queue-context-research-nodes
