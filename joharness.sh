@@ -39,7 +39,8 @@
 #                   workstream files, plans whose work merged, merged
 #                   branches. Reports only
 #   cleanup --apply also `git rm` the workstream files, staged for review.
-#                   Never branches — deleting one is human-only
+#                   Never branches — deleting one is human-only.
+#                   Exits 1 if git refused a removal
 #   drain           what the Loop takes next, and whether the queue is
 #                   drained FOR THIS MODE. Report-only; re-read it between
 #                   items rather than remembering it
@@ -2695,15 +2696,26 @@ cmd_cleanup() {
     # base branch there is no such pull request, and `git rm` there leaves the
     # deletion loose in a working tree nobody is about to review. Loud, not
     # fatal: `git checkout -- .` undoes it, and the human may know better.
-    [ "$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null)" \
-      != "${HANDOVER_BASE_BRANCH:-main}" ] ||
-      warn "on the base branch: cut a branch and open a pull request for these" \
-        "deletions (Loop step 3), or 'git checkout -- .' to undo them"
+    #
+    # A NAMED branch that is not the base one, or the warning fires. The test
+    # used to be `rev-parse --abbrev-ref HEAD != main`, which prints the string
+    # `HEAD` on a detached checkout — so it read "not the base branch, carry
+    # on" wherever HEAD is detached, which is where there is no branch to land
+    # the deletion on at all. symbolic-ref prints nothing and fails there.
+    # Reachable by a human or a session in a detached checkout; an earlier
+    # version of this comment said "exactly the checkout CI produces", which
+    # sounds sharper and is not true — CI reaches cleanup only through
+    # selftest.sh, which never runs it detached outside its own case.
+    local cur
+    cur="$(git -C "$ROOT" symbolic-ref --quiet --short HEAD 2>/dev/null)" || cur=""
+    { [ -n "$cur" ] && [ "$cur" != "${HANDOVER_BASE_BRANCH:-main}" ]; } ||
+      warn "no branch to carry these deletions: cut one and open a pull request" \
+        "(Loop step 3), or 'git checkout -- .' to undo them"
   else
     printf '== cleanup (%s: report only — --apply removes the workstream files)\n\n' "$ref"
   fi
 
-  local inflight f stale=0 kept=0 removed=0 gone=0
+  local inflight f stale=0 kept=0 removed=0 gone=0 failed=0
   inflight="$(cl_inflight "$ref")"
 
   printf 'workstream files on %s — the finish ritual should have deleted these\n' "$ref"
@@ -2720,7 +2732,13 @@ cmd_cleanup() {
         removed=$((removed + 1))
         printf '  REMOVED  %s\n' "$f"
       else
-        warn "could not remove ${f}"
+        # COUNTED. A failed removal used to increment nothing, so a run whose
+        # only file could not be removed fell through to "none — the ritual
+        # ran" and exited 0 — the command reporting success for work it did
+        # not do. Local modifications on the leftover are the ordinary way in,
+        # and they are the state this command's own advice invites.
+        failed=$((failed + 1))
+        printf '  FAILED   %s — git refused; see the error above\n' "$f"
       fi
     else
       stale=$((stale + 1))
@@ -2728,7 +2746,7 @@ cmd_cleanup() {
     fi
   done <<<"$(git -C "$ROOT" ls-tree -r --name-only "$ref" -- docs/handover 2>/dev/null |
     gr_docs)"
-  if [ "$((stale + kept + removed + gone))" -eq 0 ]; then
+  if [ "$((stale + kept + removed + gone + failed))" -eq 0 ]; then
     printf '  none — the ritual ran\n'
   elif [ "$apply" -eq 1 ] && [ "$removed" -gt 0 ]; then
     printf '\n  %d staged for deletion. Still-useful bits go to the right\n' "$removed"
@@ -2743,7 +2761,12 @@ cmd_cleanup() {
   claims="$(cl_merged_claims "$ref")"
   while IFS= read -r p; do
     [ -n "$p" ] || continue
-    [ -f "${ROOT}/docs/plans/${p}.md" ] || continue
+    # On the REF, not in the working tree. The heading says "plans on <ref>"
+    # and the test read `-f ${ROOT}/docs/plans/...`, so a plan this branch has
+    # already deleted vanished from a report about the base branch, and one
+    # this branch added appeared in it. Same tree-vs-diff class
+    # .agents/docs/feedback.md graduated.
+    git -C "$ROOT" cat-file -e "${ref}:docs/plans/${p}.md" 2>/dev/null || continue
     plans_seen=$((plans_seen + 1))
     printf '  ask      docs/plans/%s.md\n' "$p"
   done <<<"$claims"
@@ -2770,6 +2793,13 @@ cmd_cleanup() {
     printf '  keyboard; a session never pushes a branch delete.\n'
     printf '  git push origin --delete <branch>\n'
   fi
+
+  # A removal git refused is the one outcome that must not exit 0. The count
+  # above already stops the run claiming "the ritual ran"; this stops a caller
+  # reading success from a status it never earned. Report-only runs still exit
+  # 0 — nothing was attempted, so nothing failed.
+  [ "$failed" -eq 0 ] || return 1
+  return 0
 }
 
 # ---------------------------------------------------------------------------
@@ -3451,7 +3481,8 @@ cmd_finish() {
 # full queue is the failure .agents/docs/unsupervised.md names; this is the
 # status a drain loop re-reads between items.
 #
-# Report-only, like `cleanup` and `scorecard`. A drain that GATED would be red
+# Report-only, like `scorecard` (and like `cleanup` without `--apply`; with
+# it, cleanup returns 1 when git refused a removal). A drain that GATED would be red
 # for the whole of every run, which is how a gate stops being read.
 #
 # It DERIVES NOTHING. The queue is ranked in one place (queue-context.sh) and
