@@ -590,10 +590,14 @@ refute "a branch that merely inherited a file is not in flight" \
 # states the intent and skips a git show that can only fail.
 refute "and a branch that RETIRED it is not in flight either" \
   "origin/retirer: docs/handover/swept.md" "$out"
-# The retirer must not vanish for the wrong reason: it IS a recent branch, so
-# the hook still surfaces it — just not as a claim on a file it deleted.
-refute "the swept file is not claimed by anyone" \
-  "docs/handover/swept.md" "$out"
+# NOT a blanket refute on the path. An earlier version of this refuted
+# swept.md anywhere in the output and failed — correctly, because the file
+# genuinely IS a leftover on main and the rot check says so. A refute wide
+# enough to catch the bug was also wide enough to forbid the behaviour the
+# plan requires keeping. The two claim-shaped refutes above are the precise
+# ones; this asserts the signal that must SURVIVE.
+expect "but the rot check still reports it as a leftover on main" \
+  "workstream file(s) left on origin/main" "$out"
 
 # The rot check is a DIFFERENT question and keeps reading the tree: what does
 # the base branch still carry? A blanket substitution breaks the caller that
