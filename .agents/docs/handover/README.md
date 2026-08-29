@@ -334,6 +334,57 @@ Live PR work (CI failures, review comments): continuity not a document
 problem — subscribe to PR, stay in one session. Handover documents = the
 *cold* gap between sessions.
 
+## Compaction: task state survives, the rules decay
+
+Compaction and this protocol solve different problems. The workstream file is
+memory ACROSS sessions; compaction is what happens to what one session can
+still see WITHIN itself. The harness had the second and nothing for the first.
+
+What decays is not orientation. "Governance Decay: How Context Compaction
+Silently Erases Safety Constraints in Long-Horizon LLM Agents" (arXiv
+2606.22528) measures the asymmetry: a compaction summary "faithfully records
+the task state but, optimizing for continuity, quietly drops the 'old'
+compliance preamble". Violation rates move from 0% to 30% across 7 models and
+1,323 episodes — 0% where the constraint survived the summary against 38%
+where it was dropped — and the decay is 8.3x larger for soft organisational
+policy than for hard safety norms. This repo's Loop IS soft organisational
+policy in that sense, which is the bad half of that ratio.
+
+So the half a compacted session keeps is the half a re-orientation would
+restore anyway, and the half it loses is the Loop, the `.agents/harness/`
+boundary and the mode. A session that keeps its task and loses its boundary is
+precisely what unsupervised mode exists to prevent. A re-read line naming only
+the workstream file restores what was never lost.
+
+Keeping a recent slice verbatim is a real technique with NO agreed size:
+LangChain retains 10% of available context, Inspect AI's trim compaction
+defaults to `preserve=0.8`, and nobody publishes a measured optimum. This page
+therefore names no number, and a number quoted here later wants a measurement
+behind it.
+
+### A third thing it can take: work already done
+
+Observed once on this repo, and recorded because it is not either half above.
+A session reported three deliverables as still outstanding when they were
+complete, merged, and sitting on `main` — pull request #131, whose own body
+lists them; the turns that finished them were not in its context. The rules held throughout — it ran the Loop, the gates and the
+finishing ritual correctly. What it lost was the record of work ALREADY DONE.
+
+One instance, not a measurement, and no contradiction of the paper. What makes
+it worth a heading is where the record went: the workstream file that carried
+it had been retired by step 7, one commit before the pull request opened,
+exactly as the ritual requires. The ritual is right — a finished workstream
+must not land on the base branch — but it means a compacted session cannot
+recover its own recent past from the tree.
+
+The mitigation already exists and step 7 already mandates it: the pull request
+body carries the command that recovers its own retired workstream file. In the
+observed case that command was in the body and the session did not reach for
+it, because nothing told it to. So: **after a compact start, before reporting
+what is done or outstanding, check the branch's own merged pull requests
+rather than your memory of them.** Cheap, and it is the difference between
+reporting a shipped feature as half-built and reporting it as shipped.
+
 ## Staleness: trust, but verify
 
 Notes go stale as code moves. GitHub's own agent-memory work converged on
