@@ -93,6 +93,37 @@ splits, and still says which plan it collided with. Mark only a path where a
 reconcile is genuinely routine — a wave that claims a parallel safety it does
 not have is worse than one that claims none.
 
+## Where unsupervised work comes from
+
+A **source** is somewhere an unattended session may draw work from. `sources`
+sweeps them: one counted line each, then a verdict.
+
+A source without a detector that prints a number is not a source. This is the
+whole rule and it is not style — an uncountable source never reaches zero, so
+a mode drawing on one runs forever whatever else it is told
+([`docs/product/`](../product/README.md), the unsupervised requirement).
+"A documented rule with no test" is a judgment call, and a literal reader
+always finds one more of those.
+
+The verdict has three states and the middle one carries the weight:
+
+- `sweep dry` — every detector zero. **One condition, not the stop signal.**
+  The requirement also wants a second dry sweep, an empty queue and no open
+  pull request; `sources` counts none of those and remembers no earlier
+  sweep.
+- `sweep NOT dry` — work is there, named per source.
+- `sweep INCOMPLETE` — a source could not be read. Never dry: a session that
+  stops here stops because it failed to look, not because nothing is left.
+  Two rules keep that honest, and both were learned by getting them wrong:
+  read the whole history rather than a fast window, and call a source blind
+  only where blindness is the honest answer — a zero that was measured is a
+  zero.
+
+A plan a session generates from a sweep carries `source:` (which detector
+found it) and `evidence:` (the exact command, so a human re-runs it and sees
+the same finding). A generated plan whose evidence does not reproduce is not
+a plan, it is a guess.
+
 ## Does this plan reach consumers
 
 `ci`'s ship-scope stage reads a plan's `scope:` and says whether the work
