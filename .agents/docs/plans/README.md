@@ -119,10 +119,48 @@ The verdict has three states and the middle one carries the weight:
   only where blindness is the honest answer — a zero that was measured is a
   zero.
 
+### The list is closed
+
+Three sources, and only these three:
+
+| Source | Detector |
+| --- | --- |
+| failing or skipped checks | `JOHARNESS_SELFTEST=always ./joharness.sh ci` |
+| merged review findings never acted on | `JOHARNESS_FEEDBACK_EDGES=0 ./joharness.sh feedback` |
+| known-gap markers in tracked code | the `git grep` `sources` prints beside the count |
+
+Closed, not illustrative. A literal reader handed "sources include…" treats
+anything as a source, and an unattended session that invents its own backlog
+invents make-work — which under full-loop autonomy gets implemented and
+merged with no human ever reading it. Bound the surface; the autonomy is
+deliberate and stays.
+
+Something else belongs on the list? It arrives with a detector command that
+prints a number, in its own plan, reviewed like anything else. That is the
+entry fee, and it is what stopped "a documented rule with no test" and
+"drift between an instruction file and the code" being sources: both are
+judgment calls, and a literal reader always finds one more.
+
+### At the edge
+
+Empty queue under `JOHARNESS_MODE=unsupervised` is a trigger, not a stop.
+Run the sweep, then:
+
+- **NOT dry** — generate. One finding, one plan. No plan for a finding no
+  detector emitted.
+- **dry** — not on its own a stop. The mode ends on a second dry sweep, an
+  empty queue and no open pull request, together.
+- **INCOMPLETE** — not dry, so not a stop. Fix what could not be counted.
+
+The hook names this check; it does not run it. The sweep costs 78s against
+session start's 3s (measured 2026-08-29), and hook output is paid by every
+session — so the sweep is a pointer, for the same reason GitHub is.
+
 A plan a session generates from a sweep carries `source:` (which detector
 found it) and `evidence:` (the exact command, so a human re-runs it and sees
 the same finding). A generated plan whose evidence does not reproduce is not
-a plan, it is a guess.
+a plan, it is a guess. Human input outranks generated work at every level:
+issues, then requirements, then plans, then the edge.
 
 ## Does this plan reach consumers
 

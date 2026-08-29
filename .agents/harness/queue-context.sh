@@ -214,31 +214,6 @@ if [ -n "$unplanned" ]; then
   printf '\n'
 fi
 
-if [ -z "$plans" ]; then
-  if [ -n "$unplanned" ]; then
-    printf 'No plans on %s. Entrypoint: plan the requirements above (issues\n' "$ref"
-    printf 'still outrank). Default agent tier: sonnet (.agents/docs/agent-selection.md).\n'
-  else
-    printf 'No plans on %s — plan-queue edge reached: done. Entrypoint: open\n' "$ref"
-    printf 'GitHub issues first; none = resume in-flight branch above, or ask\n'
-    printf 'human. Default agent tier: sonnet (.agents/docs/agent-selection.md).\n'
-  fi
-  exit 0
-fi
-
-# Display truncates; the free count below does not — a fan-out instruction
-# computed from a truncated list would understate the parallelism.
-total=0
-while IFS=$'\t' read -r _ _ f label _; do
-  [ -n "$f" ] || continue
-  total=$((total + 1))
-  [ "$total" -le "$MAX_ENTRIES" ] || continue
-  printf '  %s  %s\n' "$f" "$label"
-done <<<"$rows"
-[ "$total" -le "$MAX_ENTRIES" ] ||
-  printf '  (+%d more not shown; raise QUEUE_MAX_ENTRIES to list)\n' \
-    "$((total - MAX_ENTRIES))"
-
 # Fan-out instruction. "Free plans are independent" used to be asserted
 # unconditionally; it is a computed claim now. A plan may declare `scope:` in
 # frontmatter — comma-separated path prefixes it will touch — and free plans
@@ -257,6 +232,63 @@ done <<<"$rows"
 # the safe direction: a session that is not unattended is never ordered to
 # spawn a fleet.
 qc_mode="${JOHARNESS_RUN_MODE:-supervised}"
+
+# The edge, under unsupervised. Both edge paths reach the same instruction,
+# so it is written once: two copies of a rule this consequential drift, and
+# the drift would be invisible because each path is reached in a different
+# repo state.
+#
+# This NAMES the sweep and does not run it. `sources` costs 78s against this
+# hook's 3s (measured 2026-08-29) because it runs `ci`, and hook output is
+# paid by every session — the same reason GitHub is a pointer here rather
+# than a lookup. The session runs it; the hook says which one and what the
+# answers mean.
+qc_edge_unsupervised() {
+  printf 'UNSUPERVISED edge on %s (%s): a trigger, not a stop.\n' "$1" "$2"
+  printf 'Generate work — research the CLOSED source list, write plan files,\n'
+  printf 'open a pull request. One finding, one plan; each carries source: and\n'
+  printf 'evidence: (.agents/docs/plans/README.md, "Where unsupervised work\n'
+  printf 'comes from"). No plan for a finding no detector emitted.\n'
+  printf '\n'
+  printf 'First run the sweep:  ./joharness.sh sources\n'
+  printf '  NOT dry     generate, from what it names\n'
+  printf '  INCOMPLETE  a source could not be counted — not dry, so not a stop\n'
+  printf '  dry         NOT a stop on its own. The mode ends on a SECOND dry\n'
+  printf '              sweep, an empty queue and no open pull request,\n'
+  printf '              together. Then stop and say so — the mode asks here,\n'
+  printf '              and nowhere else.\n'
+  printf 'Default agent tier: sonnet (.agents/docs/agent-selection.md).\n'
+}
+
+if [ -z "$plans" ]; then
+  if [ -n "$unplanned" ]; then
+    printf 'No plans on %s. Entrypoint: plan the requirements above (issues\n' "$ref"
+    printf 'still outrank). Default agent tier: sonnet (.agents/docs/agent-selection.md).\n'
+  else
+    if [ "$qc_mode" = "unsupervised" ]; then
+      qc_edge_unsupervised "$ref" "no plans"
+    else
+      printf 'No plans on %s — plan-queue edge reached: done. Entrypoint: open\n' "$ref"
+      printf 'GitHub issues first; none = resume in-flight branch above, or ask\n'
+      printf 'human. Default agent tier: sonnet (.agents/docs/agent-selection.md).\n'
+    fi
+  fi
+  exit 0
+fi
+
+# Display truncates; the free count below does not — a fan-out instruction
+# computed from a truncated list would understate the parallelism.
+total=0
+while IFS=$'\t' read -r _ _ f label _; do
+  [ -n "$f" ] || continue
+  total=$((total + 1))
+  [ "$total" -le "$MAX_ENTRIES" ] || continue
+  printf '  %s  %s\n' "$f" "$label"
+done <<<"$rows"
+[ "$total" -le "$MAX_ENTRIES" ] ||
+  printf '  (+%d more not shown; raise QUEUE_MAX_ENTRIES to list)\n' \
+    "$((total - MAX_ENTRIES))"
+
 
 free_count=0
 free_list=""
@@ -455,7 +487,12 @@ elif [ "$free_count" -ge 2 ]; then
     printf 'above first. Never spawn on an assumption the queue has not proved.\n'
   fi
 elif [ "$free_count" -eq 0 ] && [ -z "$unplanned" ]; then
-  printf '\nEdge reached: no free plan — every plan claimed or blocked. done.\n'
+  if [ "$qc_mode" = "unsupervised" ]; then
+    printf '\n'
+    qc_edge_unsupervised "$ref" "no free plan"
+  else
+    printf '\nEdge reached: no free plan — every plan claimed or blocked. done.\n'
+  fi
 fi
 
 printf '\n'

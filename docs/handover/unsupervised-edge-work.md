@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01SHPKsgu5WMHQ4g7MhTwRhm
 agent: opus
 updated: 2026-08-29
-next: Read queue-context.sh's two edge paths and the no-plans branch against the plan's claims before writing code.
+next: Add selftest fixtures for both edge paths in both modes, then review.
 ---
 
 ## Goal
@@ -23,9 +23,24 @@ pull request. Unless the sweep is dry, which is where the mode stops.
 - Claimed at the plan's own tier (opus). No escalation needed.
 - Checked every remote branch for a competing claim before cutting. Free.
 
+- The hook NAMES the sweep; it does not run it. The plan says the edge
+  prints the terminal line "UNLESS the sweep is dry", which requires the
+  hook to know. Knowing means running `./joharness.sh sources`, measured
+  2026-08-29 at **78s against session-start's 3s** — 26x, at every session
+  start, and it runs `ci` so the 700-fork budget goes with it. The plan's
+  own Traps say hook output is paid every session, and this hook already
+  makes GitHub a pointer for the same reason. Deviation from the plan's
+  letter, recorded rather than quietly taken.
+
 ## Rejected
 
-- Nothing yet.
+- Verifying "supervised is byte-identical" on this repo alone. The diff came
+  back IDENTICAL while the code was fatally broken: `qc_mode` was used at
+  the no-plans edge and defined 40 lines below it, so under `set -u` the
+  hook died — but this repo HAS plans, so that branch is never reached and
+  the comparison never executed the changed line. A fixture with no plans
+  found it in one run. A passing check on a state that cannot reach the
+  change is worse than no check.
 
 ## Review
 
