@@ -65,6 +65,11 @@ add() { OUT="${OUT}${1}"$'\n'; }
 # is to prevent a false "nobody is on this" failed by reporting nothing
 # whatsoever.
 claimed_issues=""
+# Set by owned_at when it could not compute ownership and fell back to the
+# tree. Reported, never swallowed: the fallback is the SAFE direction, but a
+# reader who is not told cannot know an entry may be inherited rather than
+# claimed — and on a shallow clone that is most of them.
+OWNED_UNVERIFIED=0
 
 issue_num() {
   local v="${1#\#}"
@@ -106,6 +111,60 @@ fields() {
 # not workstreams. Empty if the ref has none.
 files_at() {
   git ls-tree -r --name-only "$1" -- "$HANDOVER_DIR" 2>/dev/null |
+    grep -E '\.md$' | grep -vE '/(TEMPLATE|README)\.md$'
+}
+
+# Workstream files a ref OWNS: ones it wrote or edited since it diverged from
+# the base branch. Not what it carries — every branch inherits every file its
+# base held when it was cut, so reading the tree reported a workstream file
+# that merged and was swept as live work on every branch older than the
+# sweep. Counted 2026-08-29 on this repo, `joharness-minify-optimize` was
+# carried by 18 branches with an empty diff on all 18, five of them unmerged:
+# one dead workstream reported as five live claims.
+#
+#   for b in $(git for-each-ref --format='%(refname:short)' refs/remotes/origin); do
+#     git ls-tree -r --name-only "$b" docs/handover/ | grep -q joharness-minify-optimize &&
+#     git diff --name-only "$(git merge-base "$b" origin/main)" "$b" \
+#       -- docs/handover/joharness-minify-optimize.md
+#   done
+#
+# --diff-filter=ACMRT is the whole fix and it is not decoration: a bare
+# --name-only lists DELETIONS too, so a branch that ran the finishing ritual
+# would read as still carrying the file it just retired — the bug inverted
+# rather than fixed. Three cases, one command: wrote it (A/M, listed),
+# inherited it (absent from the diff, not listed), retired it (D, filtered
+# out, not listed).
+#
+# Copied from joharness.sh:cl_inflight, which learned this as PR 54 r8. Same
+# question, same answer; deriving a second one is how two readers of one fact
+# start disagreeing.
+owned_at() {
+  local base
+  # NO merge-base: fall back to the tree. A shallow clone has grafted
+  # history, so `git merge-base` fails for most refs — measured on THIS
+  # checkout, 27 of them — and returning nothing there did not report
+  # "unknown", it reported "this branch claims nothing". The in-flight
+  # listing went from 12 entries to 3 and I read the drop as the inheritance
+  # fix working; most of it was real claims disappearing, including a branch
+  # that provably authored its file.
+  #
+  # Over-report when ownership cannot be computed. A false claim costs
+  # someone a `/who`; a MISSING claim is two sessions duplicating work, which
+  # is what issue #119 was filed for. The safe direction is the noisy one.
+  #
+  # Inherited from cl_inflight, which has the same `continue` and the same
+  # hole — copying a precedent copies its blind spots too.
+  base="$(git merge-base "$1" "origin/${BASE_BRANCH}" 2>/dev/null)" || base=""
+  if [ -z "$base" ]; then
+    files_at "$1"
+    # Signalled by STATUS, not by setting a global: this function is called
+    # inside a command substitution, so an assignment here dies with the
+    # subshell — the warning about unreliable data silently never printed,
+    # which is the same false-negative shape as the bug being fixed.
+    return 3
+  fi
+  git diff --name-only --diff-filter=ACMRT "$base" "$1" \
+    -- "$HANDOVER_DIR" 2>/dev/null |
     grep -E '\.md$' | grep -vE '/(TEMPLATE|README)\.md$'
 }
 
@@ -241,7 +300,22 @@ while IFS= read -r ref; do
     fresh=1
   fi
 
-  ws_files="$(files_at "$ref")"
+  # OWNS, not carries. The rot check at the bottom of this file keeps
+  # files_at on purpose: there the question really is what the tree holds.
+  # Two callers, two different questions — a blanket substitution breaks the
+  # one that was already right.
+  ws_files="$(owned_at "$ref")" || [ "$?" -ne 3 ] || OWNED_UNVERIFIED=1
+  # Inherited but not owned: carried by the branch, authored by nobody on it.
+  # NOT a claim, and not nothing either — it lands on the base branch if this
+  # merges, which is what `cleanup` and the ci edge gate exist for. The plan
+  # asks for it demoted rather than dropped: losing the signal trades one
+  # wrong report for a missing one. Counted, never listed — the count is the
+  # demotion, and a per-file list here would restore the noise this removes.
+  inherited_n=0
+  if [ "$OWNED_UNVERIFIED" -eq 0 ]; then
+    inherited_n="$(comm -13 <(printf '%s\n' "$ws_files" | sort -u) \
+      <(files_at "$ref" | sort -u) 2>/dev/null | grep -c . || :)"
+  fi
 
   # A branch pushed recently is worth surfacing even with no workstream file:
   # a session that just started has not written one yet. The base branch is
@@ -276,8 +350,10 @@ while IFS= read -r ref; do
     # and sent a reader to /who the wrong sessions. Whether a branch OWNS a
     # file it merely inherited is the tree-versus-diff rule
     # (.agents/harness/AGENTS.md step 4) and belongs to the queued
-    # handover-inflight-diff plan, which changes `files_at` for every reader
-    # at once; printing the file is what this change can honestly do about it.
+    # handover-inflight-diff plan, done: the listing now asks owned_at, so an
+    # inherited file is no longer reported as a claim at all. The file is
+    # still printed beside each claim, which stays useful — one workstream
+    # file legitimately owned by two branches reads as one claim, twice.
     [ -z "$issue" ] ||
       claimed_issues="${claimed_issues}  #${issue} — ${short} (${f})"$'\n'
     [ "$status" = "done" ] && continue
@@ -295,6 +371,8 @@ while IFS= read -r ref; do
     others="${others}  ${short}: ${f}"$'\n'
     others="${others}    [${status:-?}, updated ${updated:-?}${agent:+, wants ${agent}}${issue:+, claims issue #${issue}}] pushed ${pushed_rel:-?}${claim}"$'\n'
     [ -n "$session" ] && others="${others}    session: ${session}"$'\n'
+    [ "${inherited_n:-0}" -gt 0 ] &&
+      others="${others}    (also carries ${inherited_n} inherited workstream file(s) — not claims, but they land on ${BASE_BRANCH} if this merges)"$'\n'
 
     # Findings recorded in the file's ## Review section. Only the count, and
     # only when there is one: a branch churning with NO review line here is
@@ -385,6 +463,12 @@ done < <(files_at "origin/${BASE_BRANCH}")
 if [ -n "$others" ]; then
   add ""
   add "Work in flight on other branches (git show reads without checkout):"
+  if [ "$OWNED_UNVERIFIED" -eq 1 ]; then
+    add "  NOTE: this clone is shallow for at least one branch, so ownership"
+    add "  could not be computed there and the TREE was listed instead. Those"
+    add "  entries may be inherited rather than claimed. A full clone"
+    add "  distinguishes them; git fetch --unshallow."
+  fi
   OUT="${OUT}${others}"
   if [ "$recent_count" -gt 0 ]; then
     add ""
