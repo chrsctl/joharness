@@ -41,8 +41,10 @@ write_ws() {
   # git removes a directory when its last tracked file goes, and this topic
   # `git rm`s the last workstream file twice and then checks out main. The
   # redirect below would fail silently into the gap and every case downstream
-  # would assert against a file that does not exist. Six occurrences in one
-  # session before it went into the helper that owns the path.
+  # would assert against a file that does not exist. It kept happening because
+  # every caller had to remember it; here it cannot be forgotten.
+  # Count what still does it by hand:
+  #   grep -c "mkdir -p .*docs/handover" .agents/harness/selftest/*.sh
   mkdir -p "${rwork}/docs/handover"
   { printf -- '---\nworkstream: %s\nstatus: %s\npr: %s\n' \
       "$(basename "$f" .md)" "$status" "$pr"
@@ -185,7 +187,6 @@ commit_all "$rwork" "conf: gate back off"
 # named correctly by the gate every time anyone ran it. These pin the two
 # strengths and, above all, that they do not fight the review gate.
 git -C "$rwork" checkout -qb fingate main
-mkdir -p "${rwork}/docs/handover"
 write_ws fin.md in-progress none "agent: sonnet" "- r1: clean pass."
 printf 'code\n' >>"${rwork}/feature.txt"
 commit_all "$rwork" "mid-build, workstream file present as it should be"
@@ -237,10 +238,11 @@ fi
 # one sessions learn to route around — which is how this defect survived.
 git -C "$rwork" checkout -q main
 # git tracks no empty directory, and the cases above left docs/handover
-# with nothing in it — without this the fixture below is never written and
-# both assertions pass vacuously. Caught by reverting the rule they cover
-# and watching them stay green.
-mkdir -p "${rwork}/docs/handover"
+# with nothing in it — and then the fixture below is never written and both
+# assertions pass vacuously. Caught by reverting the rule they cover and
+# watching them stay green. write_ws now makes the directory itself, so this
+# no longer needs saying at every call site; the comment stays because the
+# hazard is why the helper does it.
 write_ws inherited.md review none "agent: sonnet" "- r1: x."
 commit_all "$rwork" "base branch accretes another session's file"
 # PUSHED, because the gate compares against origin/<base>, not the local
@@ -363,19 +365,128 @@ expect "a file with no review section is clean, not a finding" \
 # carries; linting those means naming somebody else's findings on every ci run
 # of every branch. review_report next door enumerates with a find over the
 # tree — that is the pattern this must not copy.
+#
+# The branch writes its OWN workstream file here, and that is the whole point.
+# An earlier version of this block did not, so the stage printed "no workstream
+# file in this branch's diff" and BOTH assertions passed on silence — the
+# refute because nothing was named, the expect because nothing was named. The
+# fixture could be deleted outright and the suite stayed green. A refute needs
+# the stage to be speaking before it means anything.
 git -C "$rwork" checkout -q main
 write_ws inheritedids.md review none "" "- v9: somebody else's malformed finding. (fixed)"
 commit_all "$rwork" "a malformed record lands on the base branch"
 git -C "$rwork" push -q origin main
+if git -C "$rwork" show "origin/main:docs/handover/inheritedids.md" 2>/dev/null |
+  grep -q 'v9: somebody else'; then
+  pass "the base branch really carries the inherited malformed finding"
+else
+  fail "the base branch really carries the inherited malformed finding"
+fi
 git -C "$rwork" checkout -qb idinherit main
+write_ws ownids.md review none "" "- c7: this branch's own malformed finding. (fixed)"
 printf 'more\n' >>"${rwork}/idlint.txt"
-commit_all "$rwork" "a branch that merely inherited it"
+commit_all "$rwork" "a branch with its own record, inheriting another"
 out="$(ci_ids)"
+expect "the branch's own malformed finding is named" "c7: this branch" "$out"
 refute "an inherited malformed finding is not this branch's to answer for" \
   "v9: somebody else" "$out"
+refute "and the inherited file is not even listed" "inheritedids.md" "$out"
+expect "the count covers this branch's findings only" \
+  "1 finding(s) nothing can key on" "$out"
+
+# A branch that touched no workstream file at all says so, rather than
+# reporting the base branch's.
+git -C "$rwork" checkout -q main
+git -C "$rwork" checkout -qb idnone main
+printf 'more\n' >>"${rwork}/idlint.txt"
+commit_all "$rwork" "code only, no record"
+out="$(ci_ids)"
 expect "a branch whose own diff carries no workstream file says so" \
   "no workstream file in this branch" "$out"
+
 git -C "$rwork" checkout -q main
 git -C "$rwork" rm -q docs/handover/inheritedids.md
 commit_all "$rwork" "clean the base branch again"
 git -C "$rwork" push -q origin main
+
+# THE RETIRE COMMIT. Step 7 has the pull request's final state delete the
+# workstream file, so `ci` runs for the record with the file already gone —
+# and a file this branch both added and deleted is absent from
+# `git diff base HEAD` entirely. Sourcing the list from the endpoint diff made
+# the stage silent at the one moment it is read.
+git -C "$rwork" checkout -qb idretire main
+write_ws retired.md "done" none "" "- v5: recorded, then the file was retired. (fixed)"
+printf 'code\n' >"${rwork}/retire.txt"
+commit_all "$rwork" "record findings"
+out="$(ci_ids)"
+expect "before the retire commit the finding is named" "v5: recorded, then" "$out"
+git -C "$rwork" rm -q docs/handover/retired.md
+commit_all "$rwork" "Finish ritual: delete the workstream file"
+out="$(ci_ids)"
+expect "and it is still named after the file is deleted" \
+  "v5: recorded, then" "$out"
+expect "the retired file is still named as the one carrying it" \
+  "docs/handover/retired.md" "$out"
+
+# INDENTED bullets. fb_findings folds a continuation into the bullet above it,
+# so a nested `- v2:` reads as part of the previous finding and vanished
+# entirely — the stage printed "clean" over a bullet fb_fix_map keys no better
+# than a bare one. Folding is right for reading a finding, wrong for counting.
+git -C "$rwork" checkout -q main
+git -C "$rwork" checkout -qb idindent main
+mkdir -p "${rwork}/docs/handover"
+{ printf -- '---\nworkstream: indent\nstatus: review\npr: none\n---\n\n## Review\n\n'
+  printf -- '- r1: a well-formed finding. (fixed)\n'
+  printf -- '  - v2: an indented bullet nothing can key on. (fixed)\n'
+  printf -- '  a real continuation line, which is not a bullet.\n'; } \
+  >"${rwork}/docs/handover/indent.md"
+printf 'code\n' >"${rwork}/indent.txt"
+commit_all "$rwork" "an indented bullet under Review"
+out="$(ci_ids)"
+expect "an indented bullet is named" "v2: an indented bullet" "$out"
+expect "and is named as indented, with the reason" \
+  "the map keys a bullet at column 0 only" "$out"
+refute "a real continuation line is not a finding" "a real continuation line" "$out"
+refute "the well-formed bullet above it is still not named" \
+  "r1: a well-formed" "$out"
+
+# TRUNCATION BY CHARACTER, not by byte. `printf '%.72s'` counts bytes and left
+# a lone continuation byte where an em dash straddled the cut — and findings
+# here carry em dashes constantly. The dash below starts at character 71, so a
+# 72-BYTE slice takes two of its three bytes and a 72-character slice takes it
+# whole.
+git -C "$rwork" checkout -q main
+git -C "$rwork" checkout -qb idlong main
+mkdir -p "${rwork}/docs/handover"
+{ printf -- '---\nworkstream: long\nstatus: review\npr: none\n---\n\n## Review\n\n'
+  printf -- '%s%s\n' \
+    '- v1: a finding with real words in it and one em dash placed at ' \
+    'exactly — where a byte cut lands, plus more. (fixed)'; } \
+  >"${rwork}/docs/handover/long.md"
+printf 'code\n' >"${rwork}/long.txt"
+commit_all "$rwork" "a finding longer than the cut"
+out="$(ci_ids)"
+# The em dash starts at byte 70 of the bullet, so a 72-byte cut takes two of
+# its three bytes; a cut at the last space before 72 takes none of it.
+# The whole assertion is the CONTIGUITY of "exactly" and the marker. A byte
+# cut leaves two of the em dash's three bytes between them, so this needle
+# fails there and passes here — where the cut fell on the space before it.
+expect "the line is cut at a space, not through a multibyte character" \
+  "placed at exactly …" "$out"
+git -C "$rwork" checkout -q main
+git -C "$rwork" checkout -q idindent
+
+# CONTENT FROM GIT, not from the working tree. A tree read inside a diff walk
+# is the bug this stage exists to avoid, and it made the stage contradict git
+# outright: an uncommitted `rm` of a file the commits name printed "no
+# workstream file in this branch's diff" while git still listed it. Everything
+# else in this topic is committed, so this is the only case where the two
+# sources can disagree — without it, swapping `git show HEAD:` for `cat` is
+# invisible.
+rm -f "${rwork}/docs/handover/indent.md"
+out="$(ci_ids)"
+expect "an uncommitted rm does not blind the stage" "v2: an indented bullet" "$out"
+refute "and it does not claim the branch touched no workstream file" \
+  "no workstream file in this branch" "$out"
+git -C "$rwork" checkout -q -- docs/handover/indent.md
+git -C "$rwork" checkout -q main

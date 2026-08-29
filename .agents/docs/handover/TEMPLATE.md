@@ -55,11 +55,17 @@ then a COLON. `feedback` attributes a finding to the files its fix commit
 touched by matching exactly that (`joharness.sh:fb_fix_map`), so a bullet
 without it is counted and then never served back to anyone editing that file
 again — the one stage that changes an outcome
-([`../feedback.md`](../feedback.md), Prevent). Measured on `origin/main`
-2026-08-28 over the newest 50 of 107 edges: 343 findings, **122** unkeyable.
-Both the shapes in that number look right while reading: `- r4 text` with the
-colon dropped, and per-round prefixes like `- v1:` or `- c3:` that exist
-nowhere in this protocol. `./joharness.sh ci` names them on your own diff.
+([`../feedback.md`](../feedback.md), Prevent).
+
+Both shapes that break it look right while reading: `- r4 text` with the colon
+dropped, and per-round prefixes like `- v1:` or `- c3:` that exist nowhere in
+this protocol. It was a third of the record in the repo where this was first
+counted. Count your own, and trust that rather than this sentence:
+
+```bash
+./joharness.sh feedback | grep 'carry no r1'   # this repo, default window
+./joharness.sh ci                              # names them on your own diff
+```
 
 ## Blockers
 

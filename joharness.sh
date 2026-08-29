@@ -1895,38 +1895,91 @@ review_count() {
 # Never rewrite a recorded finding to satisfy this. The form is fixed going
 # forward; a record edited to match a later rule stops being a record.
 lint_finding_ids() {
-  local over="origin/${HANDOVER_BASE_BRANCH:-main}" base ws line
-  local bad=0 seen=0 here
+  local over="origin/${HANDOVER_BASE_BRANCH:-main}" base ws content c line
+  local flag text short bad=0 seen=0 here
   base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
   if [ -z "$base" ]; then
     # Churn's doctrine: a check that cannot see the history it needs says so
-    # and passes, rather than going red on what it cannot prove.
-    printf '  not measurable here (no merge-base; shallow checkout or base branch)\n'
+    # and passes, rather than going red on what it cannot prove. "No
+    # merge-base" is the only cause, and naming a wrong one is worse than
+    # naming none — on the base branch itself there IS a merge-base and this
+    # line never prints.
+    printf '  not measurable here (no merge-base with %s; unrelated history)\n' "$over"
     return 0
   fi
   # The DIFF, never the tree. A branch inherits every workstream file its base
   # carries, and linting those means naming somebody else's findings on every
   # ci run — noise a session learns to scroll past. review_report next door
   # enumerates with a find over the tree; that is the pattern this must not
-  # copy, and not this function's to change.
+  # copy, and not this function'"'"'s to change.
+  #
+  # From the COMMITS, not from the endpoint diff. Step 7 puts the workstream
+  # file'"'"'s deletion in the last commit before the pull request opens, which is
+  # exactly when `ci` runs for the record — and a file this branch both added
+  # and deleted is absent from `git diff base HEAD` entirely, so the stage
+  # printed "no workstream file in this branch'"'"'s diff" at that moment and
+  # linted the branch'"'"'s own findings never. `log --name-only` still carries
+  # it, which is also how fb_fix_map sees it.
   while IFS= read -r ws; do
     [ -n "$ws" ] || continue
-    [ -f "${ROOT}/${ws}" ] || continue
+    # From git, not from the working tree. A tree read inside a diff walk is
+    # the bug this stage was written to avoid, and it made the stage contradict
+    # git outright: an uncommitted `rm` of a file the diff names printed
+    # "no workstream file" while git listed it. HEAD first; for a file this
+    # branch retired, the commit before the one that removed it.
+    content="$(git -C "$ROOT" show "HEAD:${ws}" 2>/dev/null)" || content=""
+    if [ -z "$content" ]; then
+      c="$(git -C "$ROOT" rev-list -1 HEAD -- "$ws" 2>/dev/null)"
+      if [ -n "$c" ]; then
+        content="$(git -C "$ROOT" show "${c}^:${ws}" 2>/dev/null)" || content=""
+      fi
+    fi
+    [ -n "$content" ] || continue
     seen=$((seen + 1))
     here=0
-    while IFS= read -r line; do
-      [ -n "$line" ] || continue
-      # fb_keyable, not a second copy of its rule. The defect this stage
-      # exists to name was itself caused by that rule living in two places.
-      fb_keyable "$line" && continue
+    # Each bullet'"'"'s FIRST line, and indented bullets separately. fb_findings
+    # folds a continuation (`^  [^ ]`) into the bullet above it, so an indented
+    # `- v2:` reads as part of the previous finding and disappears — the stage
+    # then printed "clean" over bullets fb_fix_map keys no more than it keys a
+    # bare `- v2:`. Folding is right for reading a finding and wrong for
+    # counting them, so this does not reuse it.
+    while IFS="$(printf '\t')" read -r flag text; do
+      [ -n "$text" ] || continue
+      if [ "$flag" = "0" ] && fb_keyable "$text"; then
+        continue
+      fi
       bad=$((bad + 1))
       # The file once, then its bullets. Repeating the path per finding is
       # what a reader skips, and this stage runs on every ci.
       [ "$here" -eq 1 ] || { here=1; printf '  %s\n' "$ws"; }
-      printf '    %.72s\n' "$line"
-    done <<<"$(fb_findings <"${ROOT}/${ws}")"
-  done <<<"$(git -C "$ROOT" diff --name-only --diff-filter=ACMRT "$base" HEAD \
-    -- docs/handover 2>/dev/null | gr_docs)"
+      # Cut at a SPACE, which is ASCII and so can never land inside a
+      # multibyte character. `printf '%.72s'` counts bytes and left two of an
+      # em dash's three behind; `${text:0:72}` does the same, because bash
+      # slices by character only in a multibyte locale and `ci` does not set
+      # one. Findings here carry em dashes constantly. No space in the first
+      # 72 bytes means no sentence, and the line goes out whole rather than
+      # broken.
+      short=""
+      if [ "${#text}" -gt 76 ]; then
+        short="${text:0:72}"
+        case "$short" in
+          *' '*) short="${short% *}" ;;
+          *) short="" ;;
+        esac
+      fi
+      if [ -n "$short" ]; then
+        printf '    %s …\n' "$short"
+      else
+        printf '    %s\n' "$text"
+      fi
+      [ "$flag" = "1" ] && printf '      ^ indented; the map keys a bullet at column 0 only\n'
+    done <<<"$(printf '%s\n' "$content" | awk '
+      /^## Review[[:space:]]*$/ { r = 1; next }
+      /^## /                    { r = 0 }
+      r && /^- /                { print "0\t" substr($0, 3); next }
+      r && /^[ \t]+- /          { t = $0; sub(/^[ \t]+- /, "", t); print "1\t" t }')"
+  done <<<"$(git -C "$ROOT" log --format= --name-only --diff-filter=ACMRT \
+    "${base}..HEAD" -- docs/handover 2>/dev/null | sort -u | gr_docs)"
 
   if [ "$seen" -eq 0 ]; then
     printf '  no workstream file in this branch'"'"'s diff\n'
