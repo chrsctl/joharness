@@ -213,18 +213,31 @@ if [ "${JOHARNESS_SESSION_SOURCE:-}" = "compact" ]; then
   # Gated on the compact source and staying that way. Every line here is paid
   # by every session that reads it, and a session that did not compact has
   # its rules already.
-  add "What a compaction takes is the RULES; the task state is what survives,"
-  add "and the task state is everything below. Re-read before the next edit:"
+  add "What a compaction takes is the RULES; everything below is the half"
+  add "that survives. Re-read before the next edit:"
   add ""
-  add "  .agents/harness/AGENTS.md — the Loop, and the boundary that layer"
-  add "  keeps: it names no environment, and the one carve-out is spelled"
-  add "  once in the selftest that enforces it."
+  # THE BOUNDARY THE MODE KEEPS, not the layer-coupling one. The graduated
+  # page is specific: "a session that keeps its task and loses its boundary is
+  # precisely what unsupervised mode exists to prevent" — that is step 2's
+  # `no commit under .agents/harness/`, not Part 2's "names no environment".
+  # The first version of this line shipped the second rule, and worse for a
+  # consumer: Part 2 lives in the ROOT AGENTS.md, which the sync splices
+  # ABOVE and never overwrites, so the rule it pointed at does not exist
+  # there at all. Both facts below are in .agents/harness/AGENTS.md, which
+  # ships whole.
+  add "  .agents/harness/AGENTS.md — the Loop, and the boundary step 2"
+  add "  keeps: no commit under .agents/harness/."
   add ""
   # Read, never re-resolved. cmd_session_start exports JOHARNESS_RUN_MODE
   # after resolving it once; a hook that worked the mode out again is two
   # readers of one fact, and they drift.
-  add "  Mode: ${JOHARNESS_RUN_MODE:-supervised} — its rules are in AGENTS.md"
-  add "  step 2 and .agents/docs/unsupervised.md."
+  add "  Mode: ${JOHARNESS_RUN_MODE:-supervised}."
+  # The mode's own page only to the session in that mode. Handing a
+  # supervised session .agents/docs/unsupervised.md is context for a mode it
+  # is not in, and every line here is paid on read.
+  if [ "${JOHARNESS_RUN_MODE:-supervised}" = "unsupervised" ]; then
+    add "  Its rules and its one stop: .agents/docs/unsupervised.md."
+  fi
   add ""
   # The third thing, which is neither the rules nor the task state: a session
   # here reported three merged deliverables as outstanding, because step 7
