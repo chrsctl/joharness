@@ -38,6 +38,12 @@ ci_rc_review() { CLAUDE_PROJECT_DIR="$rwork" JOHARNESS_CONF="${rwork}/joharness.
 # <file> <status> <pr> <extra-frontmatter> <review-bullets...>
 write_ws() {
   local f="$1" status="$2" pr="$3" extra="$4"; shift 4
+  # git removes a directory when its last tracked file goes, and this topic
+  # `git rm`s the last workstream file twice and then checks out main. The
+  # redirect below would fail silently into the gap and every case downstream
+  # would assert against a file that does not exist. Six occurrences in one
+  # session before it went into the helper that owns the path.
+  mkdir -p "${rwork}/docs/handover"
   { printf -- '---\nworkstream: %s\nstatus: %s\npr: %s\n' \
       "$(basename "$f" .md)" "$status" "$pr"
     [ -n "$extra" ] && printf '%s\n' "$extra"
@@ -279,3 +285,97 @@ out="$(JOHARNESS_REVIEW=on jr session-start)"
 expect "session start announces an armed gate" "Review gate: ON" "$out"
 out="$(jr session-start)"
 refute "session start silent while the gate is off" "Review gate" "$out"
+
+# --- ci: findings nothing can key on ----------------------------------------
+# fb_fix_map attributes a finding by matching `^\+- r[0-9]+:` on the line the
+# fix commit ADDED. Nothing checked that the form was written, and a third of
+# the record was dark because of it. This stage names them on the branch's own
+# diff. WARN, never red — the plan that gates it comes after the number falls.
+# To the NEXT section, not to the first blank line: the stage puts a blank
+# line before its summary, and a slice that stops there cuts off the count,
+# the valid form and the reason — the three things the plan asks it to print.
+ci_ids() { jr ci | awk '/^== finding ids/ { f = 1; next } f && /^== / { exit } f'; }
+
+git -C "$rwork" checkout -q main
+git -C "$rwork" checkout -qb idlint main
+write_ws ids.md review none "" \
+  "- r1: a well-formed finding. (fixed)" \
+  "- r12: two digits are fine. (fixed)" \
+  "- r101: and three — the fix map takes r[0-9]+, not one or two. (fixed)" \
+  "- v1: a prefix nobody defined, of the ten one file carried. (fixed)" \
+  "- c3: and the other invented one. (fixed)" \
+  "- r4 the colon dropped, which is the shape ddc33b3 had fourteen of. (fixed)" \
+  "- no id at all, just prose. (fixed)" \
+  "- r: an r with no number. (fixed)"
+printf 'code\n' >"${rwork}/idlint.txt"
+commit_all "$rwork" "record findings in several shapes"
+
+out="$(ci_ids)"
+# Named by file AND by the bullet's own text: a count alone tells a session
+# there is a problem and not which line to look at.
+expect "the stage names the file" "docs/handover/ids.md" "$out"
+expect "an invented prefix is named by its own text" \
+  "v1: a prefix nobody defined" "$out"
+expect "a second invented prefix is named too" "c3: and the other" "$out"
+expect "a dropped colon is named" "r4 the colon dropped" "$out"
+expect "a bullet with no id at all is named" "no id at all" "$out"
+expect "an r with no digits is named" "r: an r with no number" "$out"
+# The valid ones are NOT named. A linter that reports its own passes is a
+# linter whose output nobody reads to the end.
+refute "a one-digit id is not named" "r1: a well-formed" "$out"
+refute "a two-digit id is not named" "r12: two digits" "$out"
+refute "a three-digit id is not named" "r101: and three" "$out"
+expect "the count is exact" "5 finding(s) nothing can key on" "$out"
+expect "and the stage says what the valid form is" "- r<N>: text" "$out"
+expect "and why it matters, by name" "fb_fix_map" "$out"
+
+# Warn, never red. A gate that reds a working branch is a gate sessions route
+# around, and this one has no backtest behind it — churn and review both do.
+if ci_rc_review; then
+  pass "malformed findings do not red ci"
+else
+  fail "malformed findings do not red ci"
+fi
+
+# A well-formed file produces nothing but the clean line.
+write_ws ids.md review none "" "- r1: the only finding, well formed. (fixed)"
+commit_all "$rwork" "a clean review section"
+out="$(ci_ids)"
+expect "a well-formed review section reports clean" \
+  "every finding on this branch carries an id" "$out"
+refute "and names no file" "docs/handover/ids.md" "$out"
+
+# A workstream file with no ## Review section at all is silent, not a finding
+# with an empty id. The review gate is what asks whether a review happened.
+git -C "$rwork" checkout -q main
+git -C "$rwork" checkout -qb idnoreview main
+mkdir -p "${rwork}/docs/handover"
+{ printf -- '---\nworkstream: noreview\nstatus: in-progress\npr: none\n---\n\n'
+  printf '## Goal\n\nNo review section yet.\n'; } \
+  >"${rwork}/docs/handover/noreview.md"
+printf 'code\n' >"${rwork}/noreview.txt"
+commit_all "$rwork" "a workstream file with no review section"
+out="$(ci_ids)"
+expect "a file with no review section is clean, not a finding" \
+  "every finding on this branch carries an id" "$out"
+
+# THE DIFF, NEVER THE TREE. A branch inherits every workstream file its base
+# carries; linting those means naming somebody else's findings on every ci run
+# of every branch. review_report next door enumerates with a find over the
+# tree — that is the pattern this must not copy.
+git -C "$rwork" checkout -q main
+write_ws inheritedids.md review none "" "- v9: somebody else's malformed finding. (fixed)"
+commit_all "$rwork" "a malformed record lands on the base branch"
+git -C "$rwork" push -q origin main
+git -C "$rwork" checkout -qb idinherit main
+printf 'more\n' >>"${rwork}/idlint.txt"
+commit_all "$rwork" "a branch that merely inherited it"
+out="$(ci_ids)"
+refute "an inherited malformed finding is not this branch's to answer for" \
+  "v9: somebody else" "$out"
+expect "a branch whose own diff carries no workstream file says so" \
+  "no workstream file in this branch" "$out"
+git -C "$rwork" checkout -q main
+git -C "$rwork" rm -q docs/handover/inheritedids.md
+commit_all "$rwork" "clean the base branch again"
+git -C "$rwork" push -q origin main

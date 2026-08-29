@@ -599,6 +599,12 @@ cmd_ci() {
   printf '\n== graph lint\n'
   lint_graph || rc=1
 
+  # Findings recorded on this branch that the fix map cannot key on, so
+  # nothing ever serves them back. Report only, never rc — lint_finding_ids
+  # carries why, and why it is not review_count's question.
+  printf '\n== finding ids\n'
+  lint_finding_ids
+
   # Which plans on this branch land in every consumer. Report only, never
   # rc — reasoning in lint_ship. Silent in a consumer, which carries neither
   # the sync engine nor a reason to ask.
@@ -1866,6 +1872,79 @@ review_count() {
     END { print n + 0 }'
 }
 
+# Findings this branch recorded that nothing can ever serve back.
+#
+# fb_fix_map keys attribution on `^\+- r[0-9]+:` and nothing checked that the
+# form was written. Measured on origin/main 2026-08-28, newest 50 of 107
+# edges: 343 findings, 122 with no id the map can key on — a third of the
+# record counted and then dark. Two shapes, both in that number: the colon
+# dropped from the prescribed `- r1:`, and prefixes invented per round (one
+# file carried 10 `vN` and 3 `cN`). .agents/docs/feedback.md scores stage 4,
+# Prevent, as the only stage that changes an outcome, and an unattributable
+# finding is exactly what cannot reach it.
+#
+# WARN, never red. `churn` and `review` each earned their gate on a backtest
+# and this has none; a gate that reds a working branch is a gate sessions
+# route around, and the plan that adds one comes after the number falls.
+#
+# TWO COUNTERS, TWO QUESTIONS. review_count asks whether a review happened
+# and matches a looser `^- ` on purpose; this asks whether what it counted can
+# be reached later. Conflating them turns a formatting slip into "no review
+# recorded" and reds a compliant branch.
+#
+# Never rewrite a recorded finding to satisfy this. The form is fixed going
+# forward; a record edited to match a later rule stops being a record.
+lint_finding_ids() {
+  local over="origin/${HANDOVER_BASE_BRANCH:-main}" base ws line
+  local bad=0 seen=0 here
+  base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
+  if [ -z "$base" ]; then
+    # Churn's doctrine: a check that cannot see the history it needs says so
+    # and passes, rather than going red on what it cannot prove.
+    printf '  not measurable here (no merge-base; shallow checkout or base branch)\n'
+    return 0
+  fi
+  # The DIFF, never the tree. A branch inherits every workstream file its base
+  # carries, and linting those means naming somebody else's findings on every
+  # ci run — noise a session learns to scroll past. review_report next door
+  # enumerates with a find over the tree; that is the pattern this must not
+  # copy, and not this function's to change.
+  while IFS= read -r ws; do
+    [ -n "$ws" ] || continue
+    [ -f "${ROOT}/${ws}" ] || continue
+    seen=$((seen + 1))
+    here=0
+    while IFS= read -r line; do
+      [ -n "$line" ] || continue
+      # fb_keyable, not a second copy of its rule. The defect this stage
+      # exists to name was itself caused by that rule living in two places.
+      fb_keyable "$line" && continue
+      bad=$((bad + 1))
+      # The file once, then its bullets. Repeating the path per finding is
+      # what a reader skips, and this stage runs on every ci.
+      [ "$here" -eq 1 ] || { here=1; printf '  %s\n' "$ws"; }
+      printf '    %.72s\n' "$line"
+    done <<<"$(fb_findings <"${ROOT}/${ws}")"
+  done <<<"$(git -C "$ROOT" diff --name-only --diff-filter=ACMRT "$base" HEAD \
+    -- docs/handover 2>/dev/null | gr_docs)"
+
+  if [ "$seen" -eq 0 ]; then
+    printf '  no workstream file in this branch'"'"'s diff\n'
+    return 0
+  fi
+  if [ "$bad" -eq 0 ]; then
+    printf '  every finding on this branch carries an id the fix map can key on\n'
+    return 0
+  fi
+  printf '\n  %d finding(s) nothing can key on. The form is: - r<N>: text\n' "$bad"
+  printf '  (joharness.sh:fb_fix_map) — without the id and its colon a finding\n'
+  printf '  is counted and then never served back to the file it landed on\n'
+  printf '  (.agents/docs/feedback.md, stage 4).\n'
+  printf '  Warn, not red. Fix the form going forward; never rewrite a finding\n'
+  printf '  already recorded.\n'
+  return 0
+}
+
 # At the edge = this workstream is being handed to `main`: it has a pull
 # request, or its own status says the work is over. Below the edge the review
 # has not come due yet — the loop puts it at step 5, after the build — so the
@@ -2149,6 +2228,30 @@ fb_marker() {
   esac
 }
 
+# ONE definition of the form fb_fix_map can key on: an `r`, one or more
+# digits, then a COLON, read off a bullet fb_findings has already stripped.
+#
+# It is a function because the rule was spelled twice and drifted. The map
+# below matches `r[0-9]+:`; fb_collect's NOID classifier matched
+# `r[0-9] | r[0-9][0-9]` — one or two digits only. Counted 2026-08-29 over
+# every merged workstream file in this repo's history: 23 findings carry a
+# three-digit id, so they are attributed correctly by the map and reported as
+# unattributable by the counter that exists to measure exactly that. The
+# volume line's own number was wrong by those 23. A rule spelled twice drifts;
+# spelled once it cannot, and lint_finding_ids reads the same spelling.
+fb_keyable() {
+  local id="${1%%:*}" rest
+  # No colon at all and `%%:*` hands the whole line back — the `- rN text`
+  # shape, fourteen of which sat in one file.
+  [ "$id" != "$1" ] || return 1
+  rest="${id#r}"
+  [ "$rest" != "$id" ] || return 1
+  case "$rest" in
+    '' | *[!0-9]*) return 1 ;;
+  esac
+  return 0
+}
+
 # Commits that ADD a finding bullet to a workstream file, paired with the
 # other paths that same commit touched. The protocol puts a finding in the
 # same commit as its fix, so that commit's non-protocol paths are where the
@@ -2278,10 +2381,7 @@ fb_collect() {
       # TEMPLATE's `r1:` id is still a finding — the handover hook counts it,
       # and so does the volume above — but nothing can link it to a file, so
       # it is counted as exactly that rather than quietly dropped.
-      case "${line%%:*}" in
-        r[0-9] | r[0-9][0-9]) ;;
-        *) FB_NOID=$((FB_NOID + 1)) ;;
-      esac
+      fb_keyable "$line" || FB_NOID=$((FB_NOID + 1))
       FB_HIST="${FB_HIST}${label}"$'\t'"${line%%:*}"$'\t'"${line}"$'\n'
     done <<<"$(printf '%s\n' "$doc" | fb_findings)"
 
