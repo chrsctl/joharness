@@ -15,6 +15,45 @@ This file documents the mechanism. It does NOT create the Routine —
 that is an operator action with money attached
 (`.agents/harness/AGENTS.md`: stop and ask for money).
 
+## Two halves: `/drain` and the heartbeat
+
+They are not alternatives and neither replaces the other. The chain has two
+ways to stop, and each mechanism fixes one.
+
+| | `/drain` | Heartbeat Routine |
+| --- | --- | --- |
+| Makes | one SESSION long | the FLEET long |
+| Stops when | the mode says stop | the operator deletes it |
+| Survives its session? | no | yes |
+| Costs | nothing | money — operator action |
+| Available | now, on command | needs a human decision |
+
+A session drains one item and ends; the next item waits for a human to start
+a session. `/drain` is the loop that does not — it re-reads
+`./joharness.sh drain` between items and keeps taking the next one. That
+removes the gap BETWEEN items inside a session. It does nothing about the gap
+after the session, which is what the table above is about, and it must not be
+sold as if it did.
+
+The mode still decides everything the command does not. Supervised drains
+serially and stops at the queue edge; unsupervised carries the fan-out order
+this file already describes and stops only on a dry sweep. Width is therefore
+not a setting of its own — asking for fan-out under supervised is asking for
+the mode boundary the requirement calls byte-identical.
+
+Measured on `origin/main` 2026-08-29, last 120 merges:
+
+```bash
+git log --merges --format='%ct' origin/main -120 |
+  awk 'NR>1{d=(prev-$1)/3600; if(d>3) n++} {prev=$1} END{print n+0" of "NR-1}'
+```
+
+5 of 119 gaps exceed three hours; the longest are 32.2h and 24.0h. At the
+first commit of each of the four longest, the tree carried 18, 18, 19 and 11
+plan files and 4 research files. The queue was full the whole time — which is
+the shape of failure this file predicted in its opening paragraph, now
+counted.
+
 ## The one question that separates the five
 
 Does it survive the session that created it? Everything else is detail.
