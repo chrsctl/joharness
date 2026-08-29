@@ -19,6 +19,18 @@
           }
         ]
       }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.agents/harness/pretool-feedback.sh || exit 0",
+            "timeout": 20
+          }
+        ]
+      }
     ]
   }
 }

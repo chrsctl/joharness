@@ -65,7 +65,8 @@ export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 # prefix assignments below still apply.
 unset JOHARNESS_ENV JOHARNESS_ENV_SETUP JOHARNESS_ENV_MD JOHARNESS_REVIEW \
   JOHARNESS_CHURN_THRESHOLD JOHARNESS_CHURN_LIMIT \
-  JOHARNESS_CONF JOHARNESS_FORCE_SETUP JOHARNESS_SYNC_ROOT DEVENV_FORCE
+  JOHARNESS_CONF JOHARNESS_FORCE_SETUP JOHARNESS_SYNC_ROOT DEVENV_FORCE \
+  JOHARNESS_FEEDBACK_CACHE JOHARNESS_PRETOOL_SCRATCH
 
 PASS=0
 FAIL=0
@@ -574,6 +575,7 @@ SELFTEST_TOPICS=(
   autonomy-mode
   upgrade-holding-work
   handover-guard
+  pretool-feedback
   gitattributes
   sync-manifest-eol-pins
   sync-to-consumer
@@ -598,29 +600,49 @@ if [ -n "$selftest_dup_names" ]; then
   exit 1
 fi
 
-# Tracked files, not a `find` walk. An interrupted edit or a copy left by a
-# rebase is not a topic, and reding ci for a file git does not know about is
-# the failure .agents/scripts/sync-to-consumer.sh already refuses ("editor
-# backups and gitignored junk in the canonical working tree must never ship").
-# No git, or no checkout: fall back to the walk rather than skip the check.
-selftest_on_disk="$(
-  git -C "$ROOT" ls-files -- '.agents/harness/selftest/*.sh' 2>/dev/null |
-    sed 's|.*/||; s|\.sh$||' | sort
-)"
-[ -n "$selftest_on_disk" ] || selftest_on_disk="$(
+# Two directions, two sets, because the honest answer differs by direction.
+#
+# A LISTED name with no file is a typo or a dropped source, and a topic file
+# being written right now is untracked — so this side counts the worktree too,
+# or the suite reds on a new topic until somebody remembers to `git add`.
+#
+# A FILE nobody lists is a topic nobody runs, and that is worth a fatal — but
+# only for a TRACKED file. An interrupted edit or a copy left by a rebase is
+# not a topic, and reding ci for a file git does not know about is what
+# .agents/scripts/sync-to-consumer.sh already refuses ("editor backups and
+# gitignored junk in the canonical working tree must never ship").
+selftest_present="$(
   find "$selftest_topics_dir" -maxdepth 1 -name '*.sh' -type f 2>/dev/null |
     sed 's|.*/||; s|\.sh$||' | sort
 )"
+selftest_tracked="$(
+  git -C "$ROOT" ls-files -- '.agents/harness/selftest/*.sh' 2>/dev/null |
+    sed 's|.*/||; s|\.sh$||' | sort
+)"
+# No git, or no checkout: the worktree is the only answer there is.
+[ -n "$selftest_tracked" ] || selftest_tracked="$selftest_present"
+
+selftest_missing="$(
+  { printf '%s\n' "${SELFTEST_TOPICS[@]}"; printf '%s\n' "$selftest_present"
+    printf '%s\n' "$selftest_present"; } | sort | uniq -u
+)"
+if [ -n "$selftest_missing" ]; then
+  printf 'selftest: listed topic with no file:\n%s\n' "$selftest_missing" >&2
+  printf 'A name with no file is a typo, and the source it should have run\n' >&2
+  printf 'is a whole topic nobody notices is missing.\n' >&2
+  exit 1
+fi
 
 selftest_unsourced="$(
-  { printf '%s\n' "${SELFTEST_TOPICS[@]}"; printf '%s\n' "$selftest_on_disk"; } |
+  { printf '%s\n' "$selftest_tracked"
+    printf '%s\n' "${SELFTEST_TOPICS[@]}"; printf '%s\n' "${SELFTEST_TOPICS[@]}"; } |
     sort | uniq -u
 )"
 if [ -n "$selftest_unsourced" ]; then
-  printf 'selftest: topic list and topic files disagree:\n%s\n' \
+  printf 'selftest: tracked topic file nobody sources:\n%s\n' \
     "$selftest_unsourced" >&2
   printf 'A file nobody sources is a topic nobody runs, and the only tell\n' >&2
-  printf 'would be the summary count. A name with no file is a typo.\n' >&2
+  printf 'would be the summary count.\n' >&2
   exit 1
 fi
 

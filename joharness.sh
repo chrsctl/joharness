@@ -2237,6 +2237,7 @@ FB_NOID=0
 
 fb_collect() {
   FB_REF="$(base_ref)" || return 1
+  fb_cache_load && return 0
 
   local m tip base doc label line marker n all
   FB_PAIRS=""; FB_HIST=""
@@ -2291,6 +2292,7 @@ fb_collect() {
       FB_PAIRS="${FB_PAIRS}${label}"$'\t'"$(fb_current_path "${line#*	}")"$'\t'"${line%%	*}"$'\n'
     done <<<"$(fb_fix_map "$base" "$tip")"
   done <<<"$all"
+  fb_cache_save
   return 0
 }
 
@@ -2303,7 +2305,33 @@ fb_hotspots() {
 }
 
 cmd_feedback() {
-  local want="${1:-}" line
+  local want="${1:-}" quiet=0 line
+  # Three or more arguments is a typo, and it used to be a SILENT one: the
+  # dispatch passed only "$1" "$2", so `feedback <path> --quiet extra` dropped
+  # `extra` on the floor while `feedback <path> bogus` died with the usage
+  # line. A guard the argument order decides is not a guard.
+  [ "$#" -le 2 ] || die "usage: $0 feedback [<path>] [--quiet]"
+  # --quiet in either position. `feedback --quiet` used to be read as a
+  # request for a file named --quiet, which printed the full banner for it.
+  case "$want" in
+    --quiet) quiet=1; want="${2:-}" ;;
+    *) case "${2:-}" in
+         --quiet) quiet=1 ;;
+         '') ;;
+         *) die "usage: $0 feedback [<path>] [--quiet]" ;;
+       esac ;;
+  esac
+  # Quiet is for a caller that pastes this into someone's context, not for a
+  # reader: the PreToolUse hook fires before every edit, and a banner plus
+  # "no merged edge recorded a finding" ahead of every one of them is the
+  # noise that gets a hook turned off. No findings, no output, no exit code
+  # to distinguish it — silence is the whole answer.
+  if [ "$quiet" -eq 1 ]; then
+    [ -n "$want" ] || die "feedback --quiet needs a path"
+    fb_collect || return 0
+    fb_report_path "$want" "$FB_HIST" "$FB_PAIRS" 1
+    return 0
+  fi
   fb_collect || die "no base branch to read merged history from"
   local ref="$FB_REF" edges="$FB_EDGES" withws="$FB_WITHWS"
   local recorded="$FB_RECORDED" findings="$FB_FINDINGS"
@@ -2397,30 +2425,168 @@ EOF
 # Every finding from merged history whose own fix commit touched this path.
 # The point of the whole file: before editing a file that has cost other
 # branches, read what it cost them.
+# <path> <hist> <pairs> [quiet]
 fb_report_path() {
-  local want="$1" hist="$2" pairs="$3" resolved keys line key n=0 edges
+  local want="$1" hist="$2" pairs="$3" quiet="${4:-0}"
+  local resolved keys line key n=0 edges
   resolved="$(fb_current_path "$want")"
   # <edge>\t<finding-id> for this path, the join key into hist.
   keys="$(printf '%s' "$pairs" | awk -F'\t' -v p="$resolved" \
     'NF >= 3 && $2 == p { print $1 "\t" $3 }' | sort -u)"
 
-  printf '== feedback: %s\n\n' "$resolved"
   if [ -z "$keys" ]; then
+    [ "$quiet" -eq 1 ] && return 0
+    printf '== feedback: %s\n\n' "$resolved"
     printf '  no merged edge recorded a finding whose fix touched this file\n'
     return 0
   fi
+  [ "$quiet" -eq 1 ] || printf '== feedback: %s\n\n' "$resolved"
+  # ONE awk over both lists. The old shape forked a `grep -qxF` and two `cut`s
+  # for every line of history — around 750 forks on this repo — which is what
+  # made a cached call still cost 2.8s, and this report is now read by a hook
+  # that fires before every edit. Same regression shape as review_prior, found
+  # the same way: by measuring, once something started calling it often.
+  local matched
+  matched="$(
+    { printf '%s\n' "$keys"; printf '\034\n'; printf '%s' "$hist"; } |
+      awk -F'\t' '
+        $0 == "\034" { h = 1; next }
+        !h { k[$1 "\t" $2] = 1; next }
+        NF >= 3 && (($1 "\t" $2) in k) {
+          rest = $3
+          for (i = 4; i <= NF; i++) rest = rest "\t" $i
+          printf "%s\t%s\n", $1, rest
+        }'
+  )"
+  # The banner waits for a match. `keys` non-empty only says this path appears
+  # in some fix commit; whether any surviving bullet joins to it is the
+  # question the loop answers. Printing first produced an injection reading
+  # "This file has drawn review findings before:" followed by nothing but the
+  # summary — a claim with no evidence under it.
+  [ -n "$matched" ] || { [ "$quiet" -eq 1 ] && return 0; }
+  if [ "$quiet" -eq 1 ]; then
+    printf 'This file has drawn review findings before. They are attributed by\n'
+    printf 'COMMIT, so some may concern another file the same fix touched:\n\n'
+  fi
   while IFS= read -r line; do
     [ -n "$line" ] || continue
-    key="${line%%	*}"$'\t'"$(printf '%s' "$line" | cut -f2)"
-    printf '%s\n' "$keys" | grep -qxF "$key" || continue
     n=$((n + 1))
-    printf '  %s  %s\n\n' "${line%%	*}" "$(printf '%s' "$line" | cut -f3-)"
-  done <<<"$hist"
+    printf '  %s  %s\n\n' "${line%%	*}" "${line#*	}"
+  done <<<"$matched"
   edges="$(printf '%s\n' "$keys" | cut -f1 | sort -u | grep -c .)"
   printf '  %d findings from %d merged edges\n' "$n" "$edges"
   printf '  Link is finding-to-commit, not finding-to-file: one commit\n'
   printf '  carrying several findings attributes all of them to every file\n'
   printf '  it touched.\n'
+}
+
+# ---------------------------------------------------------------------------
+# fb_collect's cache
+#
+# Off unless JOHARNESS_FEEDBACK_CACHE names a directory, so every command-line
+# run walks history exactly as it did before. The PreToolUse hook sets it,
+# because the walk is what a hook cannot afford: measured on this repo,
+# 2026-08-29, `./joharness.sh feedback joharness.sh` took 4847 / 4507 / 4326 ms
+# over three runs at 123 edges with 50 read. Uncached that is a ~4.5s stall in
+# front of every Edit and Write — a harness nobody would keep switched on.
+# (An earlier revision of this comment said 6774 / 6648 / 6846 at 121 edges,
+# measured before the fb_report_path rewrite below and never re-run after it.
+# A number nobody re-counts is a written number, including in a comment that
+# names the command beside it.)
+#
+# Keyed by the base branch tip and the edge cap, because those are what the
+# walk reads. NOT by HEAD: a session commits often, and keying on HEAD would
+# pay the walk again after every commit, which is most of the cost back. The
+# cost of that choice is real and bounded — fb_current_path resolves a
+# recorded path against the CURRENT tree, so a file renamed mid-session keeps
+# being reported under its old name until the base branch moves. An advisory
+# injection naming a stale path is worth 4.5 seconds an edit.
+#
+# This is memoisation, not the stored graph .agents/docs/graph.md forbids.
+# That rule is about the REPO: no second copy of the graph committed anywhere,
+# every view derived at read time. This cache is off by default, lives in
+# session scratch that dies with the container, is keyed on the exact input
+# the walk reads (base tip + edge cap) so a moved base invalidates it, and is
+# never a source anything else reads. The rot it can carry is the one named
+# above and is bounded by that key.
+fb_cache_key() {
+  local tip
+  tip="$(git -C "$ROOT" rev-parse --verify --quiet "$FB_REF" 2>/dev/null)" || return 1
+  [ -n "$tip" ] || return 1
+  printf '%s-%s' "$tip" "${FB_LIMIT:-0}"
+}
+
+FB_CACHE_VARS="FB_EDGES FB_WITHWS FB_RECORDED FB_FINDINGS FB_FIXED FB_WONTFIX \
+FB_NOCHANGE FB_UNMARKED FB_NOID FB_TOTAL FB_CAPPED"
+
+fb_cache_load() {
+  local dir="${JOHARNESS_FEEDBACK_CACHE:-}" key f k v ok
+  [ -n "$dir" ] && [ -d "$dir" ] || return 1
+  key="$(fb_cache_key)" || return 1
+  f="${dir}/fb-${key}"
+  # ALL THREE, not just .vars. The saver publishes .vars last for the same
+  # reason: with .vars alone present, this used to load the counters, read
+  # two empty blobs, and report a repo with 449 findings as having none —
+  # authoritatively, for the rest of the session, with the hook's own
+  # already-seen marker suppressing any second chance.
+  [ -f "${f}.vars" ] && [ -f "${f}.hist" ] && [ -f "${f}.pairs" ] || return 1
+
+  # NO eval, and no `case` glob standing in for validation. The first version
+  # of this ran `eval "$k=$v"` behind `case "$k" in FB_[A-Z_]*)`, which is
+  # `FB_`, one character, and then `*` — it matches anything. A cache file
+  # holding `FB_A$(command)=1` executed that command, and the cache directory
+  # is a predictable name under a shared /tmp. The comment above it said
+  # "digits and names only, never arbitrary text"; it was not true, and a
+  # comment asserting a property the code lacks is what stops the next reader
+  # checking. Assignment is now by an explicit case over the names this
+  # function is allowed to set, so an unknown name cannot become one.
+  while IFS='=' read -r k v; do
+    case "$v" in '' | *[!0-9]*) return 1 ;; esac
+    ok=1
+    case "$k" in
+      FB_EDGES)    FB_EDGES="$v" ;;
+      FB_WITHWS)   FB_WITHWS="$v" ;;
+      FB_RECORDED) FB_RECORDED="$v" ;;
+      FB_FINDINGS) FB_FINDINGS="$v" ;;
+      FB_FIXED)    FB_FIXED="$v" ;;
+      FB_WONTFIX)  FB_WONTFIX="$v" ;;
+      FB_NOCHANGE) FB_NOCHANGE="$v" ;;
+      FB_UNMARKED) FB_UNMARKED="$v" ;;
+      FB_NOID)     FB_NOID="$v" ;;
+      FB_TOTAL)    FB_TOTAL="$v" ;;
+      FB_CAPPED)   FB_CAPPED="$v" ;;
+      *) ok=0 ;;
+    esac
+    [ "$ok" -eq 1 ] || return 1
+  done <"${f}.vars"
+  FB_HIST="$(cat "${f}.hist" 2>/dev/null)" || return 1
+  FB_PAIRS="$(cat "${f}.pairs" 2>/dev/null)" || return 1
+  # Command substitution eats trailing newlines; both readers split on them.
+  [ -z "$FB_HIST" ] || FB_HIST="${FB_HIST}"$'\n'
+  [ -z "$FB_PAIRS" ] || FB_PAIRS="${FB_PAIRS}"$'\n'
+  return 0
+}
+
+fb_cache_save() {
+  local dir="${JOHARNESS_FEEDBACK_CACHE:-}" key f v
+  [ -n "$dir" ] && [ -d "$dir" ] || return 0
+  key="$(fb_cache_key)" || return 0
+  f="${dir}/fb-${key}"
+  # Write then rename: two hooks firing at once must never read half a cache.
+  {
+    for v in $FB_CACHE_VARS; do
+      eval "printf '%s=%s\n' \"\$v\" \"\${$v}\""
+    done
+  } >"${f}.vars.$$" 2>/dev/null || return 0
+  printf '%s' "$FB_HIST" >"${f}.hist.$$" 2>/dev/null || return 0
+  printf '%s' "$FB_PAIRS" >"${f}.pairs.$$" 2>/dev/null || return 0
+  # .vars LAST, because the loader gates on all three and this is the one it
+  # checks first. Published first, a crash between renames left a cache that
+  # loaded clean and answered "no findings" for the rest of the session.
+  mv -f "${f}.hist.$$" "${f}.hist" 2>/dev/null || return 0
+  mv -f "${f}.pairs.$$" "${f}.pairs" 2>/dev/null || return 0
+  mv -f "${f}.vars.$$" "${f}.vars" 2>/dev/null || :
+  return 0
 }
 
 
@@ -3740,7 +3906,7 @@ main() {
     upgrade)        cmd_upgrade "$@" ;;
     verify)         cmd_verify ;;
     review)         cmd_review ;;
-    feedback)       cmd_feedback "${1:-}" ;;
+    feedback)       cmd_feedback "$@" ;;
     cleanup)        cmd_cleanup "$@" ;;
     finish)         cmd_finish ;;
     drain)          cmd_drain ;;
