@@ -68,7 +68,21 @@ refute "supervised session-start says nothing about mode" "Mode:" "$out"
 out="$(JOHARNESS_MODE=unsupervised JOHARNESS_CONF="$modeconf" \
   "${ROOT}/joharness.sh" session-start 2>/dev/null)"
 expect "unsupervised session-start announces the mode" "== Mode: unsupervised ==" "$out"
-expect "unsupervised banner names the boundary" ".agents/harness/" "$out"
+# No trailing slash, and that is the whole point of the assertion. The banner
+# used to print one hardcoded line — ".agents/harness/ — protocol edits stay
+# supervised" — and this expected its slash. 1fd7730 replaced that line with
+# the list DERIVED from protocol_paths, which emits directory names bare, so
+# the slash stopped existing while the assertion kept demanding it. Red on
+# main from PR 128 (run 318, head 892c4e9) until this.
+#
+# Two entries, not one: a single name could still come from a hardcoded
+# string, and "derived, never restated" is the property that matters here —
+# the boundary is exactly what must not disagree with itself. Both come off
+# protocol_paths, so a list that stops printing goes red rather than passing
+# on its first element.
+expect "unsupervised banner names the boundary" ".agents/harness" "$out"
+expect "unsupervised banner names the whole boundary, not one entry" \
+  ".claude/commands" "$out"
 
 # A misspelled value is indistinguishable from a repo that meant supervised
 # unless the ignored value is named.
