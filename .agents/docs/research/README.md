@@ -126,14 +126,21 @@ alone loses it, and then the question comes back.
   status field. The queue hook already lists these nodes; a second view is
   the stored-copy failure [`../graph.md`](../graph.md) forbids.
 
-## The one instance that does not meet this shape
+## An unrecorded method is a failed file
 
-`docs/research/glossary-enforcement.md` carries `## Method: Not recorded`.
-Its two passes were web searches whose queries were not kept, so its
-findings cannot be re-run as written — which the section says, rather than
-reconstructing plausible queries after the fact and reading as a record.
+One instance carried `## Method: Not recorded` — two web-search passes whose
+queries were not kept, so its findings could not be re-run as written. It
+predated this rule, and the section naming it said so rather than
+reconstructing plausible queries after the fact, which would read as a record
+and be a guess.
 
-Named here because the alternative is a reader finding the contradiction
-alone and concluding the rule is soft. It is not: the file predates the rule
-and the migration was shape only. A NEW research file with an unrecorded
-method is a research file that failed.
+It closed by re-running the sources with the queries kept, because a
+graduation resting on unreproducible findings inherits that. The re-run also
+caught what an unreproducible method hides: two of the file's own counts did
+not reproduce, and one of them reproduces at no commit in this repo's
+history. The findings were sound; the numbers beside them were not, and
+nothing had ever re-run them.
+
+So the rule, with the instance closed: a NEW research file with an unrecorded
+method is a research file that failed. Its findings may still be right, and
+nobody will ever be able to tell.

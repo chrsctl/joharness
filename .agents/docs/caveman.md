@@ -66,6 +66,41 @@ Yes: "Bug in auth middleware. Token expiry check use `<` not `<=`. Fix:"
   messages, issue / PR / review text, third-party messages. Upstream boundary
   rule; kept here.
 
+## Controlled vocabulary: built, not invented, and not adopted
+
+`.agents/docs/glossary.md` fixes contested terms; `ci` fails on the banned
+spellings (`joharness.sh:lint_glossary`). That mechanism is not this repo's
+invention, and knowing so is the point of this section — a session that thinks
+the harness invented it will either distrust it or rebuild it.
+
+Prior art, named and in production. Vale: entries in `accept.txt` are
+"automatically added to a substitution rule (`Vale.Terms`), ensuring that any
+occurrences of these words or phrases exactly match their corresponding entry
+in `accept.txt`" ([docs.vale.sh/keys/vocabularies](https://docs.vale.sh/keys/vocabularies)).
+`textlint-rule-terminology` does the same for tech writing, `textlint --fix
+--rule terminology`. Datadog lints its docs with Vale; Elastic publishes its
+house style AS a Vale ruleset ([elastic/vale-rules](https://github.com/elastic/vale-rules)).
+
+So the choice was adopt or build, and this repo **built**. Reason, kept
+because it is the part that decides whether to re-open: `ci` here is shell and
+shellcheck, and `.agents/scripts/sync-to-consumer.sh` ships `joharness.sh` to
+every consumer — so adopting puts a Go or Node runtime in all of them. One
+table parser paid once against a runtime paid forever. Re-open only if that
+trade changes, not because the mechanism looks home-made.
+
+**A term that means different things in two layers gets NO row.** That is
+settled in `.agents/docs/glossary.md`, "One meaning, or nothing", and the
+reason is mechanical: bans are substrings, so a zoned canonical
+(`retry (harness)`) contains the bare ban (`retry`) and could never be
+written. The table cannot express a zone split and must not fake one.
+Fowler's Bounded Context is the name for the underlying thing — contexts
+"each of which can have a unified model", and "Different contexts may have
+completely different models of common concepts with mechanisms to map between
+these polysemic concepts for integration"
+([martinfowler.com/bliki/BoundedContext.html](https://martinfowler.com/bliki/BoundedContext.html)).
+The glossary's answer to it is silence, not a zone label: the term is defined
+in the file owning the zone, and silence beats a wrong global answer.
+
 ## Honest numbers (upstream's own warning)
 
 Style compresses output and re-read input. It proves nothing about quality —
