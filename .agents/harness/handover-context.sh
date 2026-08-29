@@ -197,6 +197,45 @@ if [ "${JOHARNESS_SESSION_SOURCE:-}" = "compact" ]; then
   add "Context was compacted: the orientation is gone, the branch and the work"
   add "are not. Below is git state, not what you had decided."
   add ""
+  # THE RULES, because everything else this hook prints is the half that
+  # already survives. A compaction summary "faithfully records the task state
+  # but, optimizing for continuity, quietly drops the old compliance
+  # preamble": 0% to 30% violation across 7 models and 1,323 episodes, and
+  # 8.3x worse for soft organisational policy than for hard safety norms
+  # (arXiv 2606.22528, read in .agents/docs/handover/README.md, Compaction).
+  # This Loop is soft organisational policy — the bad half of that ratio.
+  #
+  # AGENTS.md step 1 owns the rule. It is not enough by itself: AGENTS.md
+  # reaches a session through the same context a compaction summarises, so
+  # the rule most needed after one is the rule most likely to have been
+  # dropped. This hook is the channel that is re-injected whole.
+  #
+  # Gated on the compact source and staying that way. Every line here is paid
+  # by every session that reads it, and a session that did not compact has
+  # its rules already.
+  add "What a compaction takes is the RULES; the task state is what survives,"
+  add "and the task state is everything below. Re-read before the next edit:"
+  add ""
+  add "  .agents/harness/AGENTS.md — the Loop, and the boundary that layer"
+  add "  keeps: it names no environment, and the one carve-out is spelled"
+  add "  once in the selftest that enforces it."
+  add ""
+  # Read, never re-resolved. cmd_session_start exports JOHARNESS_RUN_MODE
+  # after resolving it once; a hook that worked the mode out again is two
+  # readers of one fact, and they drift.
+  add "  Mode: ${JOHARNESS_RUN_MODE:-supervised} — its rules are in AGENTS.md"
+  add "  step 2 and .agents/docs/unsupervised.md."
+  add ""
+  # The third thing, which is neither the rules nor the task state: a session
+  # here reported three merged deliverables as outstanding, because step 7
+  # had retired the workstream file that carried them one commit before the
+  # pull request opened. The ritual is right; it just means a compacted
+  # session cannot recover its own recent past from the tree.
+  add "Your own finished work may be missing from what you hold. Before"
+  add "reporting anything done or outstanding, read this branch's merged"
+  add "pull requests — not your memory of them. A pull request body carries"
+  add "the command that recovers its own retired workstream file."
+  add ""
 fi
 add "Branch: ${branch}${position}"
 
