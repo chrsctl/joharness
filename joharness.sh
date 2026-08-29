@@ -2404,6 +2404,17 @@ src_run_checks() {
 # uncapped, so three findings sat outside the window with no knob set), and
 # a shallow clone has history it cannot read at all.
 src_unmarked() {
+  # Read EVERY edge, overriding FB_LIMIT. The cap exists so `feedback` stays
+  # quick for a human reading a report; a sweep that decides whether a fleet
+  # may stop has no business trading completeness for speed, and this command
+  # already says it is not quick.
+  #
+  # Reporting a capped walk as blind was the first fix and it was not enough:
+  # this repo carries 60 edges against a default cap of 50, so the sweep went
+  # permanently INCOMPLETE and the mode could never stop — the same "never
+  # terminates" failure the requirement forbids, reached from the other side.
+  # The capped branch below stays as a guard, not as the normal path.
+  local FB_LIMIT=0
   fb_collect >/dev/null 2>&1 || return 1
   [ "${FB_CAPPED:-0}" -eq 0 ] || return 2
   ! lint_shallow || return 3
@@ -2457,7 +2468,7 @@ cmd_sources() {
 
   # --- unacted findings ---------------------------------------------------
   printf '\nmerged review findings never acted on\n'
-  printf '  %s feedback\n' "$0"
+  printf '  JOHARNESS_FEEDBACK_EDGES=0 %s feedback\n' "$0"
   unmarked="$(src_unmarked)"; urc=$?
   case "$urc" in
     0) printf '  %s unmarked\n' "$unmarked"
