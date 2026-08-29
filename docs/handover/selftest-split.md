@@ -1,6 +1,6 @@
 ---
 workstream: selftest-split
-status: in-progress
+status: done
 branch: claude/joharness-framework-plans-lkpf4q
 pr: none
 plan: selftest-split
@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01SHPKsgu5WMHQ4g7MhTwRhm
 agent: opus
 updated: 2026-08-29
-next: Fold the verifier round into ## Review, then retire and open the PR.
+next: Merge the pull request once checks are green.
 ---
 
 ## Goal
