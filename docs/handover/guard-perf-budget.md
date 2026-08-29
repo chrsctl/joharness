@@ -57,7 +57,8 @@ budget is a ceiling, never a target.
 
 Round 1, this session, three lenses (correctness, does-it-reproduce, cost).
 Every new case was then re-run with the row deleted from `perf_rows`: 6 of 6
-fail without it (774 passed / 6 failed against 780 / 0 with it).
+fail without it: 773 passed / 6 failed, against 779 / 0 with the row in
+place (`./.agents/harness/selftest.sh`, 2026-08-29).
 
 - r1: `expect "the guard has a row of its own" "handover-guard" "$out"` passed
   on a tree with NO such row — `perf` quotes the unknown name back in its own
