@@ -77,6 +77,88 @@ passed / 15 failed, against 802 / 0 with the code.
 - r1 and r2 were recorded AFTER their fixes, in the commit after. The
   protocol says before, same commit. Noted rather than tidied away.
 
+Round 2, `.claude/agents/verifier.md` at opus, fed round 1's results. 15
+findings, 12 verified against fixtures it built. Every one below is a real
+defect or a false claim of mine except r18, which did not reproduce as filed
+and is recorded as checked.
+
+- r4: **an unreadable research file made the hook report the edge as
+  reached.** `research_count` counted rows, not files, so a zero-byte
+  question was silently dropped — no counterpart to the `qc_unreadable`
+  guard that exists on the plans path for exactly this. Under unsupervised:
+  the full generate-work order over a queue holding an open question. (fixed:
+  `qc_research_unreadable`, counted from the file list, suppresses the edge
+  and says so)
+- r5: **the new "not the edge" branch fell through to a tail naming a free
+  plan that does not exist.** The unsupervised edge below it carries a
+  comment about having made this exact mistake once; my branch made it again,
+  ten lines above the comment. (fixed: the branch prints its own entrypoint
+  and exits)
+- r6: **unplanned requirements lost the entrypoint when a question was
+  open.** I tested research before unplanned, so the hook said "settle a
+  question" and then, as a footnote, "requirements outrank both" — an
+  entrypoint sentence reversed by its own next line, against "planning
+  outranks executing". (fixed: unplanned is tested first)
+- r7: **a research file was queue-pickable but not claimable.** `plan:
+  <question>` in a workstream was DEAD and reded `ci`; `plan: none` left the
+  question listed free for a second session to pick up. That is #119's
+  duplicate claim, rebuilt for the new node type, by the same session that
+  fixed #119. (fixed: one claim field covers both directories — lint, hook
+  and `.agents/docs/handover/TEMPLATE.md` in lockstep)
+- r8: **`graduates:` naming a file the graduating pull request will create
+  was red on arrival.** The README tells a graduating session to write a NEW
+  why-explanation; the lint demanded the target already exist. The plan
+  spec'd "names a file that exists" — spec and README cannot both be right,
+  and the one that reds honest repos loses. (fixed: the DIRECTORY is the
+  gate, a missing file is a warning; a root-level target reded too, because
+  stripping the last segment off a name with no slash leaves the name)
+- r9: **`./joharness.sh graph` did not render the node this diff adds to
+  `graph.md`.** The same file calls that command "whole graph as a picture";
+  a declared node type absent from it reads as "no open questions", which is
+  the one wrong answer. (fixed: questions, `graduates` edges, and a plan
+  blocked on a question rendered blocked)
+- r10: **the README miscounted its own provenance** — "six sections from
+  practice, three earn their place here". Counted: three instances carry all
+  nine headings, one carries eight. Nothing came from here. (fixed)
+- r11: **"removed the dates and changed nothing else" was false** — the same
+  commit added a nine-line `## Method` to `glossary-enforcement`. Written
+  before the migration was finished and never re-read. (fixed, in both places
+  it was claimed)
+- r12: **the template minted a verdict vocabulary the instances do not use**
+  — GROUNDED or WEAK, while two instances mark claims UNGROUNDED, which is
+  the verdict the README's own argument leans on. A filled template had no
+  word for "refuted". (fixed: three words)
+- r13: **the one migrated instance that does not meet the shape was
+  unnamed.** `glossary-enforcement`'s Method says "Not recorded" while the
+  template says a finding with no command is an opinion. The plan authorised
+  the divergence; the README did not carry it, so shape and first fixture
+  disagreed in the tree. (fixed: a section naming it, and saying a NEW file
+  with an unrecorded method is a file that failed)
+- r14: **two ordering answers shipped together** — the docs say questions
+  rank beside plans, the hook tail only ever said "top free plan above". A
+  question older than every free plan could not be reached from hook output.
+  (fixed)
+- r15: **a sixth new case passes with the code reverted and a seventh was
+  unlabelled** — my r3 said five and four. Recounted. (fixed: labels; the
+  count in r3 stands corrected here rather than edited there)
+- r16: the shallow-history branch of the new lint had no case while its
+  `needs` twin does. A consumer's depth-1 CI could red where no local run
+  ever would. (fixed: a case, which cost r17)
+- r17: found while fixing r16 — the `commit_all` I added before the shallow
+  clone did `git add -A` and swept up a working-tree edit the neighbouring
+  case depended on being UNCOMMITTED. Two green cases went red naming
+  something else. (fixed: stage the one file)
+- r18: **did not reproduce as filed.** "A consumer that already keeps
+  freeform notes in `docs/research/*.md` goes red on first sync" was offered
+  as context rather than a defect, and it is true — but it is the lint doing
+  its job, and the README says what the directory now means. Recorded so
+  nobody re-files it.
+- r19: fourth occurrence this session of "git removes a directory with its
+  last tracked file" (docs/plans twice, docs/handover, docs/research). A file
+  that keeps drawing findings is a rule nobody wrote yet
+  (`.agents/docs/feedback.md`), so it is code now: `fixture_rm` in the suite
+  removes and puts the directories back. (fixed)
+
 ## Blockers
 
 None.

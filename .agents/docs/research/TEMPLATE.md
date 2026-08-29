@@ -59,8 +59,8 @@ acts on.
 ## Verification
 
 Who checked, and from where — a context that did not produce the findings
-above. Each claim marked GROUNDED or WEAK, with what the second context
-actually read. No date: the commit carries when.
+above. Each claim marked GROUNDED, WEAK or UNGROUNDED, with what the second
+context actually read. No date: the commit carries when.
 
 ## Graduates to
 

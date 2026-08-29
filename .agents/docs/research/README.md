@@ -15,9 +15,19 @@ survives is the harness's.
 
 ## Shape
 
-Copy [`TEMPLATE.md`](TEMPLATE.md). Nine sections, in order. Six of them are
-the four files that landed before this definition did, agreeing without
-being told to; three earn their place below.
+Copy [`TEMPLATE.md`](TEMPLATE.md). Nine sections, in order — **all nine**
+taken from the four files that landed before this definition did, agreeing
+without being told to. This page adds no section; it says why three of them
+are load-bearing, and one of the four gains the `## Method` heading the
+other three already had. An earlier draft of this paragraph claimed six came
+from practice and three from here. Counted: three instances carry all nine
+headings, one carries eight.
+
+Both names are in use and both stay. A **research file** is the node — what
+the graph, the lint and this page call it. **Open questions** is the queue
+hook's label for the same files, because that is what a session reading the
+hook is being offered. No glossary row: the two are not rival spellings of
+one term, and a substring ban on either would fire on prose that is correct.
 
 - **Question** — one sentence, answerable. A question with no evidence that
   could settle it is not a research question. It is a topic, and a topic
@@ -67,8 +77,16 @@ source. It corroborated nothing. The verification pass found it.
 ([`../graph.md`](../graph.md) Rules, "never hand-write time into a file"),
 and a hand-written date is a second copy of what `git log` already knows —
 wrong the first time somebody edits the file without touching the date. The
-four instances that predate this rule each carried one; the commit that
-added this paragraph removed them and changed nothing else in those files.
+four instances that predate this rule each carried one, and the commit that
+added this paragraph removed all four. That commit also added a `## Method`
+section to `glossary-enforcement` — the shape migration below, not a change
+to any finding, and named here because "removed the dates and nothing else"
+was written first and was false.
+
+Mark each claim **GROUNDED**, **WEAK** or **UNGROUNDED**. Three words, not
+two: the instances use all three, and the failure this section exists to
+catch is a claim that turned out refuted — a vocabulary with no word for it
+would push that into prose nobody greps.
 
 ## Edges
 
@@ -107,3 +125,15 @@ alone loses it, and then the question comes back.
 - **Not an index.** There is no `./joharness.sh research`, no dashboard, no
   status field. The queue hook already lists these nodes; a second view is
   the stored-copy failure [`../graph.md`](../graph.md) forbids.
+
+## The one instance that does not meet this shape
+
+`docs/research/glossary-enforcement.md` carries `## Method: Not recorded`.
+Its two passes were web searches whose queries were not kept, so its
+findings cannot be re-run as written — which the section says, rather than
+reconstructing plausible queries after the fact and reading as a record.
+
+Named here because the alternative is a reader finding the contradiction
+alone and concluding the rule is soft. It is not: the file predates the rule
+and the migration was shape only. A NEW research file with an unrecorded
+method is a research file that failed.

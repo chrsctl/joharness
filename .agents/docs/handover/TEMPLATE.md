@@ -19,7 +19,9 @@ no diff summaries — derivable, goes stale. Hook reads frontmatter without
 opening file: keep `next` one line. `agent` = tier this work wants
 (.agents/docs/agent-selection.md); hook shows it, so resuming user picks right
 model. `plan` = plan this workstream implements — THE claim; queue marks
-that plan taken. Not plan work? Leave `none`.
+that plan taken. A research file under `docs/research/` is claimed through
+this same field, by its stem (`.agents/docs/research/README.md`). Not plan
+work? Leave `none`.
 `issue` = GitHub issue this work claims. The hook lists it so another
 session sees the issue is taken. Write it when the work STARTS. `#114` and
 `114` both work; rules and the seam it does not cover: README, "Claiming an

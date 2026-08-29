@@ -1391,8 +1391,21 @@ lint_graph() {
     lint_enum "$rel" effort "$effort" low medium high xhigh
     if [ -z "$grad" ] || [ "$grad" = "none" ]; then
       lint_red "${rel}: no graduates: — an answer with nowhere to land does not survive the session that found it"
+    elif [ ! -d "${ROOT}/$(case "$grad" in */*) printf '%s' "${grad%/*}" ;; *) printf '.' ;; esac)" ]; then
+      # The DIRECTORY, not the file. The README tells a graduating session to
+      # write a new why-explanation under .agents/docs/, so requiring the
+      # target to exist already reds every question whose answer needs a new
+      # page — the shape this node is for. The plan said "names a file that
+      # exists"; that spelling and the README cannot both be right, and the
+      # one that reds honest repos loses. A wrong directory is still a typo
+      # this catches.
+      # `${grad%/*}` is the whole string when there is no slash, so a
+      # root-level target (AGENTS.md, joharness.sh) tested as a directory
+      # named after itself and reded. Legitimate: the answer to a question
+      # about the entrypoint graduates into the entrypoint.
+      lint_red "${rel}: graduates '${grad}' — its directory is not in this tree; typo?"
     elif [ ! -e "${ROOT}/${grad}" ]; then
-      lint_red "${rel}: graduates '${grad}' — no such file in the tree"
+      lint_warn "${rel}: graduates '${grad}' — not in the tree yet; the graduating pull request creates it"
     fi
     lint_anchors "$rel"
   done < <(lint_nodes docs/research)
@@ -1409,14 +1422,27 @@ lint_graph() {
     fi
     lint_enum "$rel" agent "$agent" haiku sonnet opus
     p="$(lint_stem "$p")"
+    # A research file is queue work a session picks (Loop step 2), so a
+    # session settling one has to be able to record the claim — and the
+    # workstream file's `plan:` is the only claim edge the hook reads. Before
+    # this, `plan: <question>` was DEAD and reded ci, `plan: none` left the
+    # question listed as free, and a second session was told to settle it:
+    # issue #119's duplicate-claim failure, rebuilt for the new node type.
+    # One field, two directories, because two claim fields would need the
+    # hook, the lint and the template to agree about which one is live.
     if [ -n "$p" ] && [ "$p" != "none" ] &&
+       [ -f "${ROOT}/docs/research/${p}.md" ]; then
+      :
+    elif [ -n "$p" ] && [ "$p" != "none" ] &&
        [ ! -f "${ROOT}/docs/plans/${p}.md" ]; then
-      if lint_existed "docs/plans/${p}.md"; then
+      if lint_existed "docs/research/${p}.md"; then
+        lint_warn "${rel}: claims research '${p}' gone from tree (answered?) — claim reads as none"
+      elif lint_existed "docs/plans/${p}.md"; then
         lint_warn "${rel}: claims plan '${p}' gone from tree (merged?) — claim reads as none"
       elif lint_shallow; then
         lint_warn "${rel}: plan '${p}' unknown here (shallow history) — typo or merged, cannot tell"
       else
-        lint_red "${rel}: plan '${p}' — no such plan, never existed. Claim invisible; typo?"
+        lint_red "${rel}: plan '${p}' — no such plan or question, never existed. Claim invisible; typo?"
       fi
     fi
     # The issue claim (#119). Validated rather than tolerated: a value the
@@ -3135,6 +3161,8 @@ cmd_graph() {
   printf '  classDef blocked fill:#eceff1,stroke:#78909c,color:#455a64\n'
   printf '  classDef branch fill:#f3e8fd,stroke:#6f42c1,color:#432874\n'
   printf '  classDef churn fill:#fdecea,stroke:#c0392b,color:#7b241c\n'
+  printf '  classDef question fill:#fef3f8,stroke:#b0179c,color:#6e1a5c\n'
+  printf '  classDef graduates fill:#f7f7f7,stroke:#9e9e9e,color:#424242\n'
 
   # --- requirements --------------------------------------------------------
   # Which requirements a plan names, read once for the whole pass. The
@@ -3163,13 +3191,34 @@ cmd_graph() {
   done < <(git -C "$ROOT" ls-tree -r --name-only "$ref" -- docs/product 2>/dev/null |
            gr_docs)
 
-  # --- plans, with needs and serves edges ----------------------------------
-  local plan agent effort req needs need blocked
+  # --- research nodes ------------------------------------------------------
+  # The picture is the whole graph or it is misleading, and .agents/docs/graph.md
+  # says so in its Serving section. A node type declared in that file's Nodes
+  # table and absent from the command the same file calls "whole graph as a
+  # picture" reads as "no open questions", which is the one wrong answer.
+  local q qagent qeffort qgrad
   while IFS= read -r f; do
     [ -n "$f" ] || continue
-    { read -r plan; read -r agent; read -r effort; read -r req; read -r needs; } \
+    { read -r q; read -r qagent; read -r qeffort; read -r qgrad; } \
       <<<"$(git -C "$ROOT" show "${ref}:${f}" 2>/dev/null |
-            gr_fields plan agent effort requirement needs)"
+            gr_fields research agent effort graduates)"
+    [ -n "$q" ] || { q="${f##*/}"; q="${q%.md}"; }
+    printf '  q_%s(["question: %s%s"]):::question\n' "$(gr_id "$q")" "$q" \
+      "${qagent:+ [${qagent}${qeffort:+ ${qeffort}}]}"
+    [ -n "$qgrad" ] && [ "$qgrad" != "none" ] &&
+      printf '  q_%s -. graduates .-> g_%s["%s"]:::graduates\n' \
+        "$(gr_id "$q")" "$(gr_id "$qgrad")" "$qgrad"
+  done < <(git -C "$ROOT" ls-tree -r --name-only "$ref" -- docs/research 2>/dev/null |
+           gr_docs)
+
+  # --- plans, with needs and serves edges ----------------------------------
+  local plan agent effort req needs need blocked rneeds rneed
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    { read -r plan; read -r agent; read -r effort; read -r req; read -r needs
+      read -r rneeds; } \
+      <<<"$(git -C "$ROOT" show "${ref}:${f}" 2>/dev/null |
+            gr_fields plan agent effort requirement needs research)"
     [ -n "$plan" ] || { plan="${f##*/}"; plan="${plan%.md}"; }
     blocked=0
     if [ -n "$needs" ] && [ "$needs" != "none" ]; then
@@ -3182,6 +3231,18 @@ cmd_graph() {
           printf '  p_%s -. needs .-> p_%s\n' "$(gr_id "$plan")" "$(gr_id "$need")"
         fi
       done < <(printf '%s\n' "$needs" | tr ',' '\n')
+    fi
+    # A plan waiting on an open question is blocked exactly as one waiting on
+    # a plan is; rendering it green said the opposite of the queue.
+    if [ -n "$rneeds" ] && [ "$rneeds" != "none" ]; then
+      while IFS= read -r rneed; do
+        rneed="$(printf '%s' "$rneed" | tr -d ' ')"
+        if [ -z "$rneed" ] || [ "$rneed" = "none" ]; then continue; fi
+        if git -C "$ROOT" cat-file -e "${ref}:docs/research/${rneed}.md" 2>/dev/null; then
+          blocked=1
+          printf '  p_%s -. research .-> q_%s\n' "$(gr_id "$plan")" "$(gr_id "$rneed")"
+        fi
+      done < <(printf '%s\n' "$rneeds" | tr ',' '\n')
     fi
     if [ "$blocked" = "1" ]; then
       printf '  p_%s["plan: %s%s"]:::blocked\n' "$(gr_id "$plan")" "$plan" \

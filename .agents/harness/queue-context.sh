@@ -234,21 +234,46 @@ rrows="$(
     { read -r urgency; read -r agent; read -r effort; read -r grad; } \
       <<<"$(printf '%s\n' "$doc" | fields urgency agent effort graduates)"
     added="$(git log --diff-filter=A --format=%ct -1 "$ref" -- "$f" 2>/dev/null)"
+    # Same claims map as plans, read with the same key. A workstream claims a
+    # question through its `plan:` field (joharness.sh:lint_graph says why one
+    # field covers both directories); without this the question kept listing
+    # as free and a second session was told to settle it — #119's duplicate
+    # claim, rebuilt for the new node type.
+    rclaimed="$(awk -F'\t' -v s="$(stem "$f")" '$1 == s { print $2; exit }' <<<"$claims")"
     rank=1
     [ "$urgency" = "urgent" ] && rank=0
-    printf '%s\t%s\t%s\t[%s, agent: %s, effort: %s, graduates: %s]\n' \
+    [ -z "$rclaimed" ] || rank=$((rank + 2))
+    printf '%s\t%s\t%s\t[%s, agent: %s, effort: %s, graduates: %s%s]\n' \
       "$rank" "${added:-9999999999}" "$f" \
       "${urgency:-normal}" "${agent:-opus}" "${effort:-high}" \
-      "${grad:-none}"
+      "${grad:-none}" "${rclaimed:+, claimed on ${rclaimed}}"
   done <<<"$research" | sort -t$'\t' -k1,1n -k2,2n
 )"
 research_count="$(printf '%s\n' "$rrows" | grep -c . || :)"
 case "$research_count" in ''|*[!0-9]*) research_count=0 ;; esac
 
+# A question the loop could not read is NOT an absent question. The plans
+# path already paid for this — a zero-byte plan file made the edge fire while
+# an unclaimed plan sat in the queue — and a count taken from `rrows` rather
+# than from the file list reproduces it for the new node type. The loop drops
+# a file for exactly one other reason (an empty line), so the shortfall IS
+# the unreadable count.
+qc_research_unreadable=$(( $(printf '%s\n' "$research" | grep -c . || :) -
+                           research_count ))
+[ "$qc_research_unreadable" -ge 0 ] || qc_research_unreadable=0
+
 # One printer, two call sites: the plans-empty branch prints questions and
 # exits, the normal path prints them under the plan table. A second copy
 # would drift, and the drift shows only in the repo state that reaches the
 # other one.
+qc_warn_research_unreadable() {
+  [ "$qc_research_unreadable" -gt 0 ] || return 0
+  printf '\n%d research file(s) on %s could not be read — not counted, and\n' \
+    "$qc_research_unreadable" "$ref"
+  printf 'NOT an edge. A queue that cannot be read is not a queue that is\n'
+  printf 'empty. Fix or delete them before treating this queue as exhausted.\n'
+}
+
 qc_print_research() {
   [ "$research_count" -gt 0 ] || return 0
   printf '\nOpen questions (protocol: .agents/docs/research/README.md):\n'
@@ -359,23 +384,26 @@ qc_edge_unsupervised() {
 }
 
 if [ -z "$plans" ]; then
-  if [ "$research_count" -gt 0 ]; then
+  # Unplanned requirements FIRST, before questions: planning outranks
+  # executing, and an entrypoint sentence whose next line reverses it is
+  # worse than either order stated plainly.
+  if [ -n "$unplanned" ]; then
+    qc_print_research
+    printf '\nNo plans on %s. Entrypoint: plan the requirements above (issues\n' "$ref"
+    printf 'still outrank). Default agent tier: sonnet (.agents/docs/agent-selection.md).\n'
+    [ "$research_count" -eq 0 ] ||
+      printf 'The open questions above are queue work too, after the planning.\n'
+  elif [ "$research_count" -gt 0 ] || [ "$qc_research_unreadable" -gt 0 ]; then
     # NOT an edge. An open question is queue work (Loop step 2), so a hook
     # that said "done" here would report an empty queue over a queue that
     # is not empty — and under unsupervised that reads as an order to
     # invent a backlog on top of real work nobody has done.
     printf 'No plans on %s, but the queue is not empty:\n' "$ref"
     qc_print_research
+    qc_warn_research_unreadable
     printf '\nEntrypoint: open GitHub issues first, then a question above —\n'
     printf 'settle it, graduate the answer, delete the file\n'
     printf '(.agents/docs/research/README.md). Agent field = tier to run it.\n'
-    [ -z "$unplanned" ] ||
-      printf 'UNPLANNED requirements above outrank both.\n'
-    exit 0
-  fi
-  if [ -n "$unplanned" ]; then
-    printf 'No plans on %s. Entrypoint: plan the requirements above (issues\n' "$ref"
-    printf 'still outrank). Default agent tier: sonnet (.agents/docs/agent-selection.md).\n'
   else
     if [ "$qc_mode" = "unsupervised" ]; then
       qc_edge_unsupervised "$ref" "no plans"
@@ -620,9 +648,19 @@ elif [ "$free_count" -eq 0 ] && [ -z "$unplanned" ] &&
   # Every plan claimed or blocked, questions still open. Not the edge, for
   # the reason above: research is queue work, and a plan blocked on an open
   # question is unblocked by somebody answering it.
+  #
+  # TERMINAL, and that is the whole point of the exit. Falling through here
+  # reached the tail, which says "top free plan above" — naming a free plan
+  # that by definition does not exist in this state, and never naming the
+  # question that does. The unsupervised edge below carries a comment about
+  # having made exactly this mistake once already; this branch made it again.
   printf '\nNo free plan, but %d open question(s) above — not the edge.\n' \
     "$research_count"
   printf 'Settling one is queue work, and a plan blocked on it goes free.\n'
+  printf '\nEntrypoint: open GitHub issues first, then a question above.\n'
+  printf 'Agent field = tier to run it; escalate fine, downgrade never\n'
+  printf '(.agents/docs/agent-selection.md). Claimed plan: /who before touching.\n'
+  exit 0
 elif [ "$free_count" -eq 0 ] && [ -z "$unplanned" ] &&
      [ "$qc_unreadable" -eq 0 ]; then
   if [ "$qc_mode" = "unsupervised" ]; then
@@ -652,4 +690,10 @@ printf '(.agents/docs/agent-selection.md). Free = neither blocked nor claimed. S
 printf 'wave = parallel proven, except a named reconcile which is a cost to\n'
 printf 'accept, not a collision ruled out; no scope declared =\n'
 printf 'independence assumed, not proven. Claimed plan: /who before touching.\n'
+# Questions rank beside plans and carry no special rank
+# (.agents/docs/research/README.md), so a tail naming only "top free plan"
+# states the opposite of the protocol it points at — and a question older
+# than every free plan could never be reached from hook output.
+[ "$research_count" -eq 0 ] ||
+  printf 'Open questions above rank beside the plans, same order: one may be\nthe oldest actionable thing here.\n'
 exit 0
