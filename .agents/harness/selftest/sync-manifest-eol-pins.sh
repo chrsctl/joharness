@@ -2,11 +2,17 @@
 # order that file lists.
 #
 # Not runnable alone and not meant to be: the runner defines the
-# assertion helpers, the counters and the shared fixtures, and
-# sourcing is inlining — a topic that builds state a later topic
-# reads behaves exactly as it did when they shared one file.
+# assertion helpers, the counters and the shared fixtures, and sourcing
+# is inlining — a topic that builds state a later topic reads behaves
+# exactly as it did when they shared one file.
 # shellcheck shell=bash
 
+# --- sync manifest stays eol-pinned -----------------------------------------
+# Same failure class, closed for FUTURE files: any file the sync manifest
+# ships must resolve to eol=lf, or a stock Windows checkout renders it CRLF
+# and `upgrade` reports it changed on every run. Walking the manifest from
+# the engine's own arrays means extending FILES/DIRS without extending
+# .gitattributes goes red here, not on the next Windows machine.
 step "sync manifest eol pins"
 
 manifest_paths() {
@@ -87,9 +93,3 @@ check_clone_flags() {
 }
 check_clone_flags "${ROOT}/joharness.sh" "upgrade"
 check_clone_flags "${ROOT}/.github/workflows/update.yml" "update.yml"
-
-# --- sync-to-consumer.sh ----------------------------------------------------
-# Scratch canonical with real history (two versions of one file), scratch
-# consumer holding one stale copy, one edited copy, one missing file, one
-# file of its own. The script must update, refuse, create, and leave — in
-# that order of importance.

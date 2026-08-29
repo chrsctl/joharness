@@ -2,11 +2,15 @@
 # order that file lists.
 #
 # Not runnable alone and not meant to be: the runner defines the
-# assertion helpers, the counters and the shared fixtures, and
-# sourcing is inlining — a topic that builds state a later topic
-# reads behaves exactly as it did when they shared one file.
+# assertion helpers, the counters and the shared fixtures, and sourcing
+# is inlining — a topic that builds state a later topic reads behaves
+# exactly as it did when they shared one file.
 # shellcheck shell=bash
 
+# --- entrypoint: ship scope -------------------------------------------------
+# Which plans reach consumers. The verdict decides what a plan's Acceptance
+# owes, so getting it backwards is worse than not printing it: a plan told
+# "canonical-only" skips the consumer-side check its diff actually needed.
 step "joharness.sh ci: ship scope"
 
 shipwork="${TMP}/shipwork"
@@ -193,9 +197,3 @@ printf 'JOHARNESS_ENV=none\n' >"${shipwork}/joharness.conf"
 out="$(ship_section "$(ship_ci all)")"
 refute "a consumer carrying the engine still gets no verdict" \
   "SHIPS to consumers" "$out"
-
-# --- entrypoint: sources ----------------------------------------------------
-# The sweep that decides whether unsupervised mode may stop. Two properties
-# matter more than the counts: a zero must be a real zero, and a source that
-# could not be read must NOT read as zero. The mode's only stopping point
-# rests on the second one.

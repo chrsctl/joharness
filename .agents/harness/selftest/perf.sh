@@ -2,9 +2,9 @@
 # order that file lists.
 #
 # Not runnable alone and not meant to be: the runner defines the
-# assertion helpers, the counters and the shared fixtures, and
-# sourcing is inlining — a topic that builds state a later topic
-# reads behaves exactly as it did when they shared one file.
+# assertion helpers, the counters and the shared fixtures, and sourcing
+# is inlining — a topic that builds state a later topic reads behaves
+# exactly as it did when they shared one file.
 #
 # Reads $swork, the scratch harness copy built by ci-selftest-scope.sh. A
 # dependency ACROSS topic files: this topic cannot run unless that one ran
@@ -12,9 +12,13 @@
 # guarantees it. The split made the coupling visible; it did not create it.
 #
 # SC2154 is off for that reason and only that reason: every name it would
-# flag here is assigned in the runner or in an earlier topic, and shellcheck
-# lints this file alone. The cost is real — a typo in a variable name goes
-# unflagged in this file — and is accepted per file, not repo-wide.
+# flag here is assigned in the runner or in an earlier topic, while this
+# file is linted on its own. The cost is real — a typo in a variable name
+# goes unflagged here — and is accepted per file, not repo-wide.
+#
+# The wording matters: a comment line STARTING with the linter's own name
+# is read as a directive, and an earlier draft of this paragraph began one
+# that way. Thirteen files failed to parse.
 # shellcheck shell=bash disable=SC2154
 
 step "joharness.sh perf"

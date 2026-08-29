@@ -2,11 +2,17 @@
 # order that file lists.
 #
 # Not runnable alone and not meant to be: the runner defines the
-# assertion helpers, the counters and the shared fixtures, and
-# sourcing is inlining — a topic that builds state a later topic
-# reads behaves exactly as it did when they shared one file.
+# assertion helpers, the counters and the shared fixtures, and sourcing
+# is inlining — a topic that builds state a later topic reads behaves
+# exactly as it did when they shared one file.
 # shellcheck shell=bash
 
+# --- entrypoint: the review step -------------------------------------------
+# Off by default and silent while off; on, ci reds a branch that reaches the
+# edge with no review recorded, and only there. Same scratch-harness pattern as
+# churn: the copy gets a selftest stub so the suite does not re-enter itself,
+# and GITHUB_ACTIONS is cleared so a runner without shellcheck cannot own the
+# exit code the review assertions read.
 step "joharness.sh review"
 
 rorigin="${TMP}/revieworigin.git"
@@ -273,8 +279,3 @@ out="$(JOHARNESS_REVIEW=on jr session-start)"
 expect "session start announces an armed gate" "Review gate: ON" "$out"
 out="$(jr session-start)"
 refute "session start silent while the gate is off" "Review gate" "$out"
-
-# --- entrypoint: the feedback measure ---------------------------------------
-# Reads merged history: how many edges recorded a review, what they found, and
-# which files keep drawing findings. Fixture builds real merge commits, since
-# the whole measure is about what an edge into main carries.

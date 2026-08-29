@@ -2,11 +2,16 @@
 # order that file lists.
 #
 # Not runnable alone and not meant to be: the runner defines the
-# assertion helpers, the counters and the shared fixtures, and
-# sourcing is inlining — a topic that builds state a later topic
-# reads behaves exactly as it did when they shared one file.
+# assertion helpers, the counters and the shared fixtures, and sourcing
+# is inlining — a topic that builds state a later topic reads behaves
+# exactly as it did when they shared one file.
 # shellcheck shell=bash
 
+# --- entrypoint: the unsupervised edge -------------------------------------
+# Supervised, the queue edge is where a session stops and asks. Unsupervised
+# it is where work begins. Two edge paths reach it — no plans at all, and no
+# FREE plan — and both must branch, because a session hits whichever one its
+# repo state produces and neither is more real than the other.
 step "queue-context.sh edge is mode-dependent"
 
 ework="${TMP}/edgework"

@@ -2,11 +2,16 @@
 # order that file lists.
 #
 # Not runnable alone and not meant to be: the runner defines the
-# assertion helpers, the counters and the shared fixtures, and
-# sourcing is inlining — a topic that builds state a later topic
-# reads behaves exactly as it did when they shared one file.
+# assertion helpers, the counters and the shared fixtures, and sourcing
+# is inlining — a topic that builds state a later topic reads behaves
+# exactly as it did when they shared one file.
 # shellcheck shell=bash
 
+# --- .gitattributes: scripts and markdown stay LF --------------------------
+# Git for Windows defaults to core.autocrlf=true. Without the pins a stock clone
+# there checks out scripts as CRLF (shellcheck SC1017 on every line) and
+# workstream files too, emptying the frontmatter the handover hook reads. The
+# scratch repo sets that default explicitly, so these fail on any platform.
 step ".gitattributes"
 
 crlf="${TMP}/crlfrepo"
@@ -55,10 +60,3 @@ check_lf "${crlf}/probe.sh" "shell script"
 check_lf "${crlf}/probe.md" "markdown"
 check_lf "${crlf}/.claude/settings.json" "settings.json (path pin)"
 check_lf "${crlf}/.gitattributes" ".gitattributes itself"
-
-# --- sync manifest stays eol-pinned -----------------------------------------
-# Same failure class, closed for FUTURE files: any file the sync manifest
-# ships must resolve to eol=lf, or a stock Windows checkout renders it CRLF
-# and `upgrade` reports it changed on every run. Walking the manifest from
-# the engine's own arrays means extending FILES/DIRS without extending
-# .gitattributes goes red here, not on the next Windows machine.

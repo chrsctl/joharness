@@ -2,11 +2,14 @@
 # order that file lists.
 #
 # Not runnable alone and not meant to be: the runner defines the
-# assertion helpers, the counters and the shared fixtures, and
-# sourcing is inlining — a topic that builds state a later topic
-# reads behaves exactly as it did when they shared one file.
+# assertion helpers, the counters and the shared fixtures, and sourcing
+# is inlining — a topic that builds state a later topic reads behaves
+# exactly as it did when they shared one file.
 # shellcheck shell=bash
 
+# --- handover-guard.sh ------------------------------------------------------
+# Stop-hook guard: git facts only, one-shot via stop_hook_active, silent on
+# a clean pushed tree, never a nonzero exit.
 step "handover-guard.sh"
 
 sgorigin="${TMP}/sgorigin.git"
@@ -533,9 +536,3 @@ else
   printf '    supervised: %s git call(s), unsupervised: %s\n' \
     "$sgcost_sup" "$sgcost_one"
 fi
-
-# --- .gitattributes: scripts and markdown stay LF --------------------------
-# Git for Windows defaults to core.autocrlf=true. Without the pins a stock clone
-# there checks out scripts as CRLF (shellcheck SC1017 on every line) and
-# workstream files too, emptying the frontmatter the handover hook reads. The
-# scratch repo sets that default explicitly, so these fail on any platform.

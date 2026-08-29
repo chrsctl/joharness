@@ -2,11 +2,15 @@
 # order that file lists.
 #
 # Not runnable alone and not meant to be: the runner defines the
-# assertion helpers, the counters and the shared fixtures, and
-# sourcing is inlining — a topic that builds state a later topic
-# reads behaves exactly as it did when they shared one file.
+# assertion helpers, the counters and the shared fixtures, and sourcing
+# is inlining — a topic that builds state a later topic reads behaves
+# exactly as it did when they shared one file.
 # shellcheck shell=bash
 
+# --- entrypoint: the feedback measure ---------------------------------------
+# Reads merged history: how many edges recorded a review, what they found, and
+# which files keep drawing findings. Fixture builds real merge commits, since
+# the whole measure is about what an edge into main carries.
 step "joharness.sh scorecard"
 
 # Counts only, every number asserted EXACTLY. A scorecard whose numbers are

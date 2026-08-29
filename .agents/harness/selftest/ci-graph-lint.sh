@@ -2,9 +2,9 @@
 # order that file lists.
 #
 # Not runnable alone and not meant to be: the runner defines the
-# assertion helpers, the counters and the shared fixtures, and
-# sourcing is inlining — a topic that builds state a later topic
-# reads behaves exactly as it did when they shared one file.
+# assertion helpers, the counters and the shared fixtures, and sourcing
+# is inlining — a topic that builds state a later topic reads behaves
+# exactly as it did when they shared one file.
 # shellcheck shell=bash
 
 step "joharness.sh ci: graph lint"
@@ -512,8 +512,3 @@ if git clone -q --depth 1 "file://${lwork}" "$lshallow" 2>/dev/null; then
 else
   skip "shallow-history lint degrade" "file:// shallow clone unavailable here"
 fi
-
-# --- entrypoint: ship scope -------------------------------------------------
-# Which plans reach consumers. The verdict decides what a plan's Acceptance
-# owes, so getting it backwards is worse than not printing it: a plan told
-# "canonical-only" skips the consumer-side check its diff actually needed.

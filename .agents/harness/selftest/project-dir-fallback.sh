@@ -2,11 +2,16 @@
 # order that file lists.
 #
 # Not runnable alone and not meant to be: the runner defines the
-# assertion helpers, the counters and the shared fixtures, and
-# sourcing is inlining — a topic that builds state a later topic
-# reads behaves exactly as it did when they shared one file.
+# assertion helpers, the counters and the shared fixtures, and sourcing
+# is inlining — a topic that builds state a later topic reads behaves
+# exactly as it did when they shared one file.
 # shellcheck shell=bash
 
+# --- the CLAUDE_PROJECT_DIR fallback ----------------------------------------
+# Every other case in this file sets the variable, and so does the hook, so
+# the fallback each script carries had never been executed by a test. That
+# is how the move to .agents/ left it resolving one level short — to
+# .agents/ rather than the repo root — without anything going red.
 step "PROJECT_DIR fallback (CLAUDE_PROJECT_DIR unset)"
 
 # Structural, and it covers all three scripts rather than the one exercised
@@ -37,5 +42,3 @@ if [ -n "$(git -C "$ROOT" ls-tree -r --name-only origin/main -- docs/plans 2>/de
 else
   skip "queue fallback end to end" "this repo has no plans to find"
 fi
-
-# --- queue hook -------------------------------------------------------------

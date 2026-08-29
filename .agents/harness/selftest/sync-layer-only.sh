@@ -2,9 +2,9 @@
 # order that file lists.
 #
 # Not runnable alone and not meant to be: the runner defines the
-# assertion helpers, the counters and the shared fixtures, and
-# sourcing is inlining — a topic that builds state a later topic
-# reads behaves exactly as it did when they shared one file.
+# assertion helpers, the counters and the shared fixtures, and sourcing
+# is inlining — a topic that builds state a later topic reads behaves
+# exactly as it did when they shared one file.
 #
 # Reads $syncsrc and $syncdst, both built by sync-to-consumer.sh. A
 # dependency ACROSS topic files: this topic cannot run unless that one ran
@@ -12,11 +12,19 @@
 # guarantees it. The split made the coupling visible; it did not create it.
 #
 # SC2154 is off for that reason and only that reason: every name it would
-# flag here is assigned in the runner or in an earlier topic, and shellcheck
-# lints this file alone. The cost is real — a typo in a variable name goes
-# unflagged in this file — and is accepted per file, not repo-wide.
+# flag here is assigned in the runner or in an earlier topic, while this
+# file is linted on its own. The cost is real — a typo in a variable name
+# goes unflagged here — and is accepted per file, not repo-wide.
+#
+# The wording matters: a comment line STARTING with the linter's own name
+# is read as a directive, and an earlier draft of this paragraph began one
+# that way. Thirteen files failed to parse.
 # shellcheck shell=bash disable=SC2154
 
+# --- one layer ships, not every layer ---------------------------------------
+# The consumer's own joharness.conf names it, so what ships and what the
+# entrypoint provisions cannot disagree. Its own consumer dir: the fixture
+# above deliberately has no conf, which is the 'none' default.
 step "sync ships the selected layer only"
 
 layerdst="${TMP}/synclayer"
@@ -456,11 +464,3 @@ if [ "$HAVE_ODD_NAMES" = "1" ]; then
 else
   skip "C-quoted filename refusals" "filesystem rejects these names"
 fi
-
-# --- bootstrap-consumer.sh --------------------------------------------------
-# First contact only: fresh dirs get the harness synced in plus the seeds
-# the sync never touches; whole clones of joharness get de-canonicalized.
-# A fresh canonical fixture on purpose: the sync cases above mutate theirs
-# (removed files, symlinks, odd names) and a bootstrap must start clean.
-# The bootstrap under test is ${ROOT}'s; it must run its co-located real
-# sync engine, not the stub the fixture carries at scripts/.

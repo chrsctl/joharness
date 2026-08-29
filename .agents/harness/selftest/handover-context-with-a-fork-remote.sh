@@ -2,19 +2,40 @@
 # order that file lists.
 #
 # Not runnable alone and not meant to be: the runner defines the
-# assertion helpers, the counters and the shared fixtures, and
-# sourcing is inlining — a topic that builds state a later topic
-# reads behaves exactly as it did when they shared one file.
+# assertion helpers, the counters and the shared fixtures, and sourcing
+# is inlining — a topic that builds state a later topic reads behaves
+# exactly as it did when they shared one file.
 #
 # Reads $work, the shared scratch repo the runner builds before any topic
 # is sourced (../selftest.sh, `work=`).
 #
 # SC2154 is off for that reason and only that reason: every name it would
-# flag here is assigned in the runner or in an earlier topic, and shellcheck
-# lints this file alone. The cost is real — a typo in a variable name goes
-# unflagged in this file — and is accepted per file, not repo-wide.
+# flag here is assigned in the runner or in an earlier topic, while this
+# file is linted on its own. The cost is real — a typo in a variable name
+# goes unflagged here — and is accepted per file, not repo-wide.
+#
+# The wording matters: a comment line STARTING with the linter's own name
+# is read as a directive, and an earlier draft of this paragraph began one
+# that way. Thirteen files failed to parse.
 # shellcheck shell=bash disable=SC2154
 
+# --- handover hook: a second remote ----------------------------------------
+# Without push access to origin, work happens on a fork, so the checkout has
+# two remotes carrying the same branch names. The hook keys on the branch name
+# with the remote stripped; keying on 'origin/<branch>' reported the session
+# its own push as a rival, false overlap warning and all.
+# This block stays BEFORE the churn block, and commits a scratch file of its
+# own: feature must be genuinely ahead of origin/main when pushed, or the
+# self-entry assertion passes whether or not the hook is fixed (an ancestor
+# of the base is skipped earlier as already-merged work). The scratch file
+# makes that true regardless of what earlier blocks left uncommitted.
+#
+# This block sat 95 lines and two topics above the code it describes,
+# with only one copy in the file and no header of its own down here.
+# The split moved it back: it is the one content change in a diff that
+# is otherwise a verbatim move, it alters no assertion and no count,
+# and leaving it would have put this topic's reasoning in another
+# file for a reader who scopes this one by name.
 step "handover-context.sh with a fork remote"
 
 fork="${TMP}/fork.git"
@@ -57,9 +78,3 @@ expect "a branch only the fork has is still reported" "fork/fork-only" "$out"
 # Leave the fixture as the rest of the suite expects to find it.
 git -C "$work" remote remove fork
 git -C "$work" branch -qD fork-only
-
-# --- churn line for other branches -----------------------------------------
-# A branch hammering one file is likely in review churn; the hook prints the
-# measurement per branch so a resuming session inherits the signal. Protocol
-# paths are excluded: the workstream file is touched every commit by rule,
-# and counting that reads compliance as churn.

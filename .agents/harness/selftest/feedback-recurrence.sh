@@ -2,11 +2,15 @@
 # order that file lists.
 #
 # Not runnable alone and not meant to be: the runner defines the
-# assertion helpers, the counters and the shared fixtures, and
-# sourcing is inlining — a topic that builds state a later topic
-# reads behaves exactly as it did when they shared one file.
+# assertion helpers, the counters and the shared fixtures, and sourcing
+# is inlining — a topic that builds state a later topic reads behaves
+# exactly as it did when they shared one file.
 # shellcheck shell=bash
 
+# The window is the whole repair: cumulative recurrence is 1 - D/N, so it
+# converges upward however well the loop works, and the line printed under it
+# says "want this falling". Its own fixture, because asserting a falling score
+# needs edges the counts above are pinned to.
 step "joharness.sh feedback: recurrence can fall"
 
 rwork="${TMP}/recurwork"
@@ -25,9 +29,10 @@ git -C "$rwork" push -qu origin main
 
 # recur_jr, not jr: review.sh defines a `jr` of its own against its own
 # $rwork, with a different environment (GITHUB_ACTIONS='' there,
-# HANDOVER_BASE_BRANCH=main here). One file made that invisible and safe only
-# by position — this topic is sourced after that one, so the redefinition
-# won. The split's duplicate-name check caught it on its first run.
+# HANDOVER_BASE_BRANCH=main here). One file made that invisible and safe
+# only by position — this topic is sourced after that one, so the
+# redefinition won. The split's duplicate-name check caught it on its
+# first run.
 recur_jr() { CLAUDE_PROJECT_DIR="$rwork" JOHARNESS_CONF="${rwork}/joharness.conf" \
   HANDOVER_BASE_BRANCH=main "${rwork}/joharness.sh" "$@" 2>&1; }
 
@@ -69,8 +74,3 @@ out="$(JOHARNESS_RECURRENCE_WINDOW=2 recur_jr feedback)"
 expect "rediscovery inside the window raises it" "1/2 (50%)" "$out"
 out="$(JOHARNESS_RECURRENCE_WINDOW=0 recur_jr feedback)"
 expect "cumulative rises too, and can do nothing else" "2/6 (33%)" "$out"
-
-# --- entrypoint: the cleanup sweep -----------------------------------------
-# What the finish ritual left on the base branch. It removes one kind of
-# leftover (the workstream file, which the protocol already assigns to a
-# session) and only counts the rest. Same scratch-harness pattern as churn.

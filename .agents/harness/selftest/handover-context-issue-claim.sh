@@ -2,19 +2,29 @@
 # order that file lists.
 #
 # Not runnable alone and not meant to be: the runner defines the
-# assertion helpers, the counters and the shared fixtures, and
-# sourcing is inlining — a topic that builds state a later topic
-# reads behaves exactly as it did when they shared one file.
+# assertion helpers, the counters and the shared fixtures, and sourcing
+# is inlining — a topic that builds state a later topic reads behaves
+# exactly as it did when they shared one file.
 #
 # Reads $work, the shared scratch repo the runner builds before any topic
 # is sourced (../selftest.sh, `work=`).
 #
 # SC2154 is off for that reason and only that reason: every name it would
-# flag here is assigned in the runner or in an earlier topic, and shellcheck
-# lints this file alone. The cost is real — a typo in a variable name goes
-# unflagged in this file — and is accepted per file, not repo-wide.
+# flag here is assigned in the runner or in an earlier topic, while this
+# file is linted on its own. The cost is real — a typo in a variable name
+# goes unflagged here — and is accepted per file, not repo-wide.
+#
+# The wording matters: a comment line STARTING with the linter's own name
+# is read as a directive, and an earlier draft of this paragraph began one
+# that way. Thirteen files failed to parse.
 # shellcheck shell=bash disable=SC2154
 
+# --- review line for other branches -----------------------------------------
+# Findings live in the workstream file's ## Review section; the hook prints
+# Issue #119: a claim on a PLAN was representable and a claim on an ISSUE was
+# not, so two sessions solved #114 in parallel and one threw the work away.
+# Every case here fails toward saying MORE — a claim the hook cannot see reads
+# as "this issue is free", which is the defect itself.
 step "handover-context.sh issue claim"
 
 git -C "$work" checkout -qb claiming main
@@ -91,6 +101,3 @@ expect "and the block still prints, saying none" \
 expect "and the empty case is hedged, not absolute" \
   "Not proof an issue is free" "$out"
 git -C "$work" push -q origin --delete claiming 2>/dev/null || :
-
-# the recorded count per branch. Only when >0: absence next to a churning
-# branch is the signal, and a printed zero would numb it.

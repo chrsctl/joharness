@@ -2,11 +2,21 @@
 # order that file lists.
 #
 # Not runnable alone and not meant to be: the runner defines the
-# assertion helpers, the counters and the shared fixtures, and
-# sourcing is inlining — a topic that builds state a later topic
-# reads behaves exactly as it did when they shared one file.
+# assertion helpers, the counters and the shared fixtures, and sourcing
+# is inlining — a topic that builds state a later topic reads behaves
+# exactly as it did when they shared one file.
 # shellcheck shell=bash
 
+# --- entrypoint: in-flight is ownership, not inheritance --------------------
+# Every branch inherits every file its base carried when it was cut, so
+# reading the TREE reported a workstream file that merged and was swept as
+# live work on every branch older than the sweep. Counted on this repo
+# 2026-08-29: one dead workstream, 18 carriers, 5 unmerged — five false
+# claims from one file.
+#
+# Three cases and only three, because the naive fix passes two of them: a
+# bare --name-only lists deletions, so a branch that RETIRED an inherited
+# file reads as still carrying it. That third case is why this block exists.
 step "handover-context.sh lists what a branch owns"
 
 owork="${TMP}/ownwork"

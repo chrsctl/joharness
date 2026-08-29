@@ -2,11 +2,16 @@
 # order that file lists.
 #
 # Not runnable alone and not meant to be: the runner defines the
-# assertion helpers, the counters and the shared fixtures, and
-# sourcing is inlining — a topic that builds state a later topic
-# reads behaves exactly as it did when they shared one file.
+# assertion helpers, the counters and the shared fixtures, and sourcing
+# is inlining — a topic that builds state a later topic reads behaves
+# exactly as it did when they shared one file.
 # shellcheck shell=bash
 
+# --- sync-to-consumer.sh ----------------------------------------------------
+# Scratch canonical with real history (two versions of one file), scratch
+# consumer holding one stale copy, one edited copy, one missing file, one
+# file of its own. The script must update, refuse, create, and leave — in
+# that order of importance.
 step "sync-to-consumer.sh"
 
 syncsrc="${TMP}/syncsrc"
@@ -41,6 +46,14 @@ printf 'claude rules\n' >"${syncsrc}/CLAUDE.md"
 printf 'entry stub\n' >"${syncsrc}/joharness.sh"
 chmod +x "${syncsrc}/joharness.sh"
 printf 'selftest stub SELFTEST-SENTINEL\n' >"${syncsrc}/.agents/harness/selftest.sh"
+# The selftest's TOPIC files. CANONICAL_ONLY exempts the runner by exact
+# path; everything under it needed its own rule, and until this fixture
+# carried a topic file nothing could tell whether the rule worked — the
+# split that created 37 of them shipped a manual --dry-run as its evidence,
+# which is a number nobody can re-count.
+mkdir -p "${syncsrc}/.agents/harness/selftest"
+printf 'topic stub TOPIC-SENTINEL\n' \
+  >"${syncsrc}/.agents/harness/selftest/a-topic.sh"
 printf 'sync stub\n' >"${syncsrc}/.agents/scripts/sync-to-consumer.sh"
 printf 'boot stub\n' >"${syncsrc}/.agents/scripts/bootstrap-consumer.sh"
 printf 'layer none\n' >"${syncsrc}/.agents/env/none/AGENTS.md"
@@ -127,6 +140,24 @@ expect "skills dir ships" "steward SKILL-SENTINEL" \
   "$(cat "${syncdst}/.claude/skills/steward/SKILL.md" 2>/dev/null)"
 expect "agents dir ships" "verifier stub" \
   "$(cat "${syncdst}/.claude/agents/verifier.md" 2>/dev/null)"
+# The selftest's runner is canonical-only by exact path, and everything under
+# it by directory. Both halves asserted here, because until the split there
+# was one file and the directory rule had nothing to act on — CANONICAL_ONLY
+# exempted the runner, CANONICAL_ONLY_DIRS was read only by the report that
+# tells a consumer what it already carries, and a consumer would have received
+# all 37 topic files while the runner that sources them stayed behind.
+if [ ! -e "${syncdst}/.agents/harness/selftest/a-topic.sh" ]; then
+  pass "a selftest topic file does not ship"
+else
+  fail "a selftest topic file does not ship"
+fi
+if [ ! -e "${syncdst}/.agents/harness/selftest.sh" ]; then
+  pass "the selftest runner does not ship either"
+else
+  fail "the selftest runner does not ship either"
+fi
+refute "no topic file is even named in the plan" \
+  ".agents/harness/selftest/a-topic.sh" "$out"
 expect "ahead file flagged" "AHEAD   CLAUDE.md" "$out"
 expect "ahead file kept" "consumer hacked" "$(cat "${syncdst}/CLAUDE.md")"
 expect "glob sibling history does not vouch" "AHEAD   .agents/env/none/a[1].md" "$out"
@@ -171,8 +202,3 @@ expect "layer contract doc ships whatever the selection" "layer contract" \
   "$(cat "${syncdst}/.agents/env/README.md" 2>/dev/null)"
 expect "consumer README untouched" "CONSUMER-README" \
   "$(cat "${syncdst}/README.md")"
-
-# --- one layer ships, not every layer ---------------------------------------
-# The consumer's own joharness.conf names it, so what ships and what the
-# entrypoint provisions cannot disagree. Its own consumer dir: the fixture
-# above deliberately has no conf, which is the 'none' default.

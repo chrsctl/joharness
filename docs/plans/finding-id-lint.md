@@ -53,7 +53,7 @@ varies it never learns.
   gate that reds a working branch is a gate sessions route around.
 - `.agents/docs/handover/TEMPLATE.md` — state the form as a requirement
   with its reason (`- r<N>: text`), not as an example a reader may vary.
-- `.agents/harness/selftest.sh` — a fixture whose `## Review` mixes valid
+- `.agents/harness/selftest/review.sh` — a fixture whose `## Review` mixes valid
   and invalid bullets: the invalid ones are named, the valid ones are not,
   and a file with no `## Review` section is silent.
 

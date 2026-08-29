@@ -2,19 +2,24 @@
 # order that file lists.
 #
 # Not runnable alone and not meant to be: the runner defines the
-# assertion helpers, the counters and the shared fixtures, and
-# sourcing is inlining — a topic that builds state a later topic
-# reads behaves exactly as it did when they shared one file.
+# assertion helpers, the counters and the shared fixtures, and sourcing
+# is inlining — a topic that builds state a later topic reads behaves
+# exactly as it did when they shared one file.
 #
 # Reads $work, the shared scratch repo the runner builds before any topic
 # is sourced (../selftest.sh, `work=`).
 #
 # SC2154 is off for that reason and only that reason: every name it would
-# flag here is assigned in the runner or in an earlier topic, and shellcheck
-# lints this file alone. The cost is real — a typo in a variable name goes
-# unflagged in this file — and is accepted per file, not repo-wide.
+# flag here is assigned in the runner or in an earlier topic, while this
+# file is linted on its own. The cost is real — a typo in a variable name
+# goes unflagged here — and is accepted per file, not repo-wide.
+#
+# The wording matters: a comment line STARTING with the linter's own name
+# is read as a directive, and an earlier draft of this paragraph began one
+# that way. Thirteen files failed to parse.
 # shellcheck shell=bash disable=SC2154
 
+# --- queue hook -------------------------------------------------------------
 step "queue-context.sh"
 
 out="$(CLAUDE_PROJECT_DIR="$work" bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1)"
@@ -128,9 +133,3 @@ expect "two free plans = spawn instruction with tiers" \
   "2 free plans = 2 parallel sessions" "$out"
 expect "spawn list names each free plan's tier" \
   "newer-urgent (opus), older-normal (haiku)" "$out"
-
-# --- scope waves -------------------------------------------------------------
-# With no scoped plan the output above stayed exactly as before — that is
-# what the two assertions just proved. Scoped plans switch the fan-out to
-# waves: point-break and wipeout both surf beach/ (one names the directory,
-# one a file inside — the prefix case), inland stays on dry land.

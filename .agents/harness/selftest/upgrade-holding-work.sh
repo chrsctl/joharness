@@ -2,11 +2,14 @@
 # order that file lists.
 #
 # Not runnable alone and not meant to be: the runner defines the
-# assertion helpers, the counters and the shared fixtures, and
-# sourcing is inlining — a topic that builds state a later topic
-# reads behaves exactly as it did when they shared one file.
+# assertion helpers, the counters and the shared fixtures, and sourcing
+# is inlining — a topic that builds state a later topic reads behaves
+# exactly as it did when they shared one file.
 # shellcheck shell=bash
 
+# --- entrypoint: upgrade refuses inside claimed work ------------------------
+# Harness upkeep does not run in a session holding product work. The check
+# sits before the clone, so this proves the refusal without a network.
 step "upgrade in a session holding work"
 
 upgrepo="${TMP}/upgrepo"
@@ -81,7 +84,3 @@ expect "a file this branch introduced still refuses" \
   "refused in a session holding product work" "$out"
 expect "refusal names the introduced file, not the inherited one" \
   "docs/handover/mine.md" "$out"
-
-# --- handover-guard.sh ------------------------------------------------------
-# Stop-hook guard: git facts only, one-shot via stop_hook_active, silent on
-# a clean pushed tree, never a nonzero exit.

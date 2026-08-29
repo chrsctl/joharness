@@ -2,9 +2,9 @@
 # order that file lists.
 #
 # Not runnable alone and not meant to be: the runner defines the
-# assertion helpers, the counters and the shared fixtures, and
-# sourcing is inlining — a topic that builds state a later topic
-# reads behaves exactly as it did when they shared one file.
+# assertion helpers, the counters and the shared fixtures, and sourcing
+# is inlining — a topic that builds state a later topic reads behaves
+# exactly as it did when they shared one file.
 # shellcheck shell=bash
 
 step "joharness.sh feedback"
@@ -144,8 +144,3 @@ out="$(jf review)"
 expect "review names the hot file in this diff" "already cost other branches" "$out"
 expect "review counts the edges it cost" "hot.sh (2 edges)" "$out"
 refute "a cold file in the same diff is not named" "cold.sh (" "$out"
-
-# The window is the whole repair: cumulative recurrence is 1 - D/N, so it
-# converges upward however well the loop works, and the line printed under it
-# says "want this falling". Its own fixture, because asserting a falling score
-# needs edges the counts above are pinned to.

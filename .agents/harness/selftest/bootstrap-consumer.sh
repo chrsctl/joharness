@@ -2,11 +2,18 @@
 # order that file lists.
 #
 # Not runnable alone and not meant to be: the runner defines the
-# assertion helpers, the counters and the shared fixtures, and
-# sourcing is inlining — a topic that builds state a later topic
-# reads behaves exactly as it did when they shared one file.
+# assertion helpers, the counters and the shared fixtures, and sourcing
+# is inlining — a topic that builds state a later topic reads behaves
+# exactly as it did when they shared one file.
 # shellcheck shell=bash
 
+# --- bootstrap-consumer.sh --------------------------------------------------
+# First contact only: fresh dirs get the harness synced in plus the seeds
+# the sync never touches; whole clones of joharness get de-canonicalized.
+# A fresh canonical fixture on purpose: the sync cases above mutate theirs
+# (removed files, symlinks, odd names) and a bootstrap must start clean.
+# The bootstrap under test is ${ROOT}'s; it must run its co-located real
+# sync engine, not the stub the fixture carries at scripts/.
 step "bootstrap-consumer.sh"
 
 bootsrc="${TMP}/bootsrc"

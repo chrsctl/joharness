@@ -2,11 +2,16 @@
 # order that file lists.
 #
 # Not runnable alone and not meant to be: the runner defines the
-# assertion helpers, the counters and the shared fixtures, and
-# sourcing is inlining — a topic that builds state a later topic
-# reads behaves exactly as it did when they shared one file.
+# assertion helpers, the counters and the shared fixtures, and sourcing
+# is inlining — a topic that builds state a later topic reads behaves
+# exactly as it did when they shared one file.
 # shellcheck shell=bash
 
+# --- entrypoint: sources ----------------------------------------------------
+# The sweep that decides whether unsupervised mode may stop. Two properties
+# matter more than the counts: a zero must be a real zero, and a source that
+# could not be read must NOT read as zero. The mode's only stopping point
+# rests on the second one.
 step "joharness.sh sources"
 
 swwork="${TMP}/sweepwork"
@@ -132,8 +137,3 @@ if [ "$rc" -eq 0 ]; then
 else
   fail "an incomplete sweep still exits 0 (rc ${rc})"
 fi
-
-# --- entrypoint: autonomy mode ----------------------------------------------
-# run_mode() decides what an unattended session may do, so every value that
-# is not exactly 'unsupervised' has to come back supervised. Failing open
-# here means a fleet working unattended in a repo that never asked for one.

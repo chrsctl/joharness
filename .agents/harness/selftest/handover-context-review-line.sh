@@ -2,19 +2,25 @@
 # order that file lists.
 #
 # Not runnable alone and not meant to be: the runner defines the
-# assertion helpers, the counters and the shared fixtures, and
-# sourcing is inlining — a topic that builds state a later topic
-# reads behaves exactly as it did when they shared one file.
+# assertion helpers, the counters and the shared fixtures, and sourcing
+# is inlining — a topic that builds state a later topic reads behaves
+# exactly as it did when they shared one file.
 #
 # Reads $work, the shared scratch repo the runner builds before any topic
 # is sourced (../selftest.sh, `work=`).
 #
 # SC2154 is off for that reason and only that reason: every name it would
-# flag here is assigned in the runner or in an earlier topic, and shellcheck
-# lints this file alone. The cost is real — a typo in a variable name goes
-# unflagged in this file — and is accepted per file, not repo-wide.
+# flag here is assigned in the runner or in an earlier topic, while this
+# file is linted on its own. The cost is real — a typo in a variable name
+# goes unflagged here — and is accepted per file, not repo-wide.
+#
+# The wording matters: a comment line STARTING with the linter's own name
+# is read as a directive, and an earlier draft of this paragraph began one
+# that way. Thirteen files failed to parse.
 # shellcheck shell=bash disable=SC2154
 
+# the recorded count per branch. Only when >0: absence next to a churning
+# branch is the signal, and a printed zero would numb it.
 step "handover-context.sh review line"
 
 git -C "$work" checkout -qb reviewed main
@@ -70,9 +76,3 @@ refute "unedited template records no findings" "review:" "$out"
 
 git -C "$work" push -q --delete origin templated 2>/dev/null
 git -C "$work" branch -qD templated
-
-# --- the CLAUDE_PROJECT_DIR fallback ----------------------------------------
-# Every other case in this file sets the variable, and so does the hook, so
-# the fallback each script carries had never been executed by a test. That
-# is how the move to .agents/ left it resolving one level short — to
-# .agents/ rather than the repo root — without anything going red.

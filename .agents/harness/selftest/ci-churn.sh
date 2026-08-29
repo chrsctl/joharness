@@ -2,11 +2,16 @@
 # order that file lists.
 #
 # Not runnable alone and not meant to be: the runner defines the
-# assertion helpers, the counters and the shared fixtures, and
-# sourcing is inlining — a topic that builds state a later topic
-# reads behaves exactly as it did when they shared one file.
+# assertion helpers, the counters and the shared fixtures, and sourcing
+# is inlining — a topic that builds state a later topic reads behaves
+# exactly as it did when they shared one file.
 # shellcheck shell=bash
 
+# --- entrypoint: the churn measure -----------------------------------------
+# A scratch repo, not this one: `ci` shells out to ${ROOT}/.agents/harness/selftest.sh,
+# which is this script — the scratch copy gets a stub so the suite does not
+# re-enter itself. Assertions read the printed section only; the run's exit
+# code belongs to shellcheck and the stub, not to churn (warning by design).
 step "joharness.sh ci: churn"
 
 corigin="${TMP}/churnorigin.git"

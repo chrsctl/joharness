@@ -2,11 +2,15 @@
 # order that file lists.
 #
 # Not runnable alone and not meant to be: the runner defines the
-# assertion helpers, the counters and the shared fixtures, and
-# sourcing is inlining — a topic that builds state a later topic
-# reads behaves exactly as it did when they shared one file.
+# assertion helpers, the counters and the shared fixtures, and sourcing
+# is inlining — a topic that builds state a later topic reads behaves
+# exactly as it did when they shared one file.
 # shellcheck shell=bash
 
+# --- entrypoint: autonomy mode ----------------------------------------------
+# run_mode() decides what an unattended session may do, so every value that
+# is not exactly 'unsupervised' has to come back supervised. Failing open
+# here means a fleet working unattended in a repo that never asked for one.
 step "autonomy mode"
 
 modeconf="${TMP}/mode.conf"
@@ -255,7 +259,3 @@ if git -C "$ROOT" check-ignore -q .joharness-mode; then
 else
   fail "the fallback path is gitignored here"
 fi
-
-# --- entrypoint: upgrade refuses inside claimed work ------------------------
-# Harness upkeep does not run in a session holding product work. The check
-# sits before the clone, so this proves the refusal without a network.

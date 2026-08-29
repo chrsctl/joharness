@@ -2,19 +2,24 @@
 # order that file lists.
 #
 # Not runnable alone and not meant to be: the runner defines the
-# assertion helpers, the counters and the shared fixtures, and
-# sourcing is inlining — a topic that builds state a later topic
-# reads behaves exactly as it did when they shared one file.
+# assertion helpers, the counters and the shared fixtures, and sourcing
+# is inlining — a topic that builds state a later topic reads behaves
+# exactly as it did when they shared one file.
 #
 # Reads $work, the shared scratch repo the runner builds before any topic
 # is sourced (../selftest.sh, `work=`).
 #
 # SC2154 is off for that reason and only that reason: every name it would
-# flag here is assigned in the runner or in an earlier topic, and shellcheck
-# lints this file alone. The cost is real — a typo in a variable name goes
-# unflagged in this file — and is accepted per file, not repo-wide.
+# flag here is assigned in the runner or in an earlier topic, while this
+# file is linted on its own. The cost is real — a typo in a variable name
+# goes unflagged here — and is accepted per file, not repo-wide.
+#
+# The wording matters: a comment line STARTING with the linter's own name
+# is read as a directive, and an earlier draft of this paragraph began one
+# that way. Thirteen files failed to parse.
 # shellcheck shell=bash disable=SC2154
 
+# --- session-start composition ---------------------------------------------
 step "joharness.sh session-start"
 
 # session-start resolves its scripts under CLAUDE_PROJECT_DIR, so the scratch
@@ -91,9 +96,3 @@ for s in compact startup; do
     fail "a ${s} start outside a repo does not fail the session (got ${rc})"
   fi
 done
-
-# --- entrypoint: the churn measure -----------------------------------------
-# A scratch repo, not this one: `ci` shells out to ${ROOT}/.agents/harness/selftest.sh,
-# which is this script — the scratch copy gets a stub so the suite does not
-# re-enter itself. Assertions read the printed section only; the run's exit
-# code belongs to shellcheck and the stub, not to churn (warning by design).

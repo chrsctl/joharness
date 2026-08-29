@@ -2,11 +2,15 @@
 # order that file lists.
 #
 # Not runnable alone and not meant to be: the runner defines the
-# assertion helpers, the counters and the shared fixtures, and
-# sourcing is inlining — a topic that builds state a later topic
-# reads behaves exactly as it did when they shared one file.
+# assertion helpers, the counters and the shared fixtures, and sourcing
+# is inlining — a topic that builds state a later topic reads behaves
+# exactly as it did when they shared one file.
 # shellcheck shell=bash
 
+# --- entrypoint: the cleanup sweep -----------------------------------------
+# What the finish ritual left on the base branch. It removes one kind of
+# leftover (the workstream file, which the protocol already assigns to a
+# session) and only counts the rest. Same scratch-harness pattern as churn.
 step "joharness.sh cleanup"
 
 clorigin="${TMP}/cleanuporigin.git"
@@ -151,10 +155,3 @@ git -C "$clwork" reset -q --hard
 
 out="$(jc cleanup --wat)"
 expect "an unknown option is refused by name" "unknown option '--wat'" "$out"
-
-# --- entrypoint: graph lint -------------------------------------------------
-# Frontmatter edges checked from the working tree: never-existed names and
-# out-of-vocabulary enums red, delete-on-merge history silent or warned,
-# stale anchors warned. Same scratch-harness pattern as the churn cases.
-# A consumer carries no harness tests: absent is normal and says so, while a
-# present-but-unrunnable copy is a broken tree and stays red.

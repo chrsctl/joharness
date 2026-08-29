@@ -522,7 +522,6 @@ git -C "$work" checkout -q main
 git -C "$work" checkout -qb feature main~1
 echo local >>"${work}/shared.txt"
 
-# --- handover hook ----------------------------------------------------------
 # --- topics -----------------------------------------------------------------
 # One file per `step` topic under .agents/harness/selftest/, sourced here in
 # the order below. Sourcing is inlining: a topic that builds a fixture a later
@@ -584,12 +583,36 @@ SELFTEST_TOPICS=(
 
 selftest_topics_dir="${ROOT}/.agents/harness/selftest"
 
+# Duplicates in the LIST first, on their own. `sort | uniq -u` below prints
+# names occurring exactly once, so a name listed twice cancels itself out of
+# the comparison entirely: listed twice with a file present reads as agreement
+# and sources that topic twice, and listed twice with NO file reads as
+# agreement while the topic never runs at all. The second is precisely the
+# failure this whole block exists to stop, and it survived the first version
+# of it.
+selftest_dup_names="$(printf '%s\n' "${SELFTEST_TOPICS[@]}" | sort | uniq -d)"
+if [ -n "$selftest_dup_names" ]; then
+  printf 'selftest: topic listed more than once:\n%s\n' "$selftest_dup_names" >&2
+  exit 1
+fi
+
+# Tracked files, not a `find` walk. An interrupted edit or a copy left by a
+# rebase is not a topic, and reding ci for a file git does not know about is
+# the failure .agents/scripts/sync-to-consumer.sh already refuses ("editor
+# backups and gitignored junk in the canonical working tree must never ship").
+# No git, or no checkout: fall back to the walk rather than skip the check.
+selftest_on_disk="$(
+  git -C "$ROOT" ls-files -- '.agents/harness/selftest/*.sh' 2>/dev/null |
+    sed 's|.*/||; s|\.sh$||' | sort
+)"
+[ -n "$selftest_on_disk" ] || selftest_on_disk="$(
+  find "$selftest_topics_dir" -maxdepth 1 -name '*.sh' -type f 2>/dev/null |
+    sed 's|.*/||; s|\.sh$||' | sort
+)"
+
 selftest_unsourced="$(
-  {
-    printf '%s\n' "${SELFTEST_TOPICS[@]}"
-    find "$selftest_topics_dir" -maxdepth 1 -name '*.sh' -type f 2>/dev/null |
-      while IFS= read -r _f; do _f="${_f##*/}"; printf '%s\n' "${_f%.sh}"; done
-  } | sort | uniq -u
+  { printf '%s\n' "${SELFTEST_TOPICS[@]}"; printf '%s\n' "$selftest_on_disk"; } |
+    sort | uniq -u
 )"
 if [ -n "$selftest_unsourced" ]; then
   printf 'selftest: topic list and topic files disagree:\n%s\n' \
@@ -603,10 +626,18 @@ fi
 # and the earlier topic runs against a body written for another one. The
 # renamed `upgdry` fixture exists because that hazard already bit once inside
 # a single file; across files it is invisible.
-selftest_dupes="$(grep -hoE '^[a-z_][a-z0-9_]*\(\)' \
-  "$selftest_topics_dir"/*.sh 2>/dev/null | sort | uniq -d)"
+#
+# THIS FILE is in the comparison too. A topic redefining `commit_all` (75 call
+# sites) or `pass` would shadow the runner's for every topic sourced after it,
+# and a check that only compares topics to each other cannot see that at all.
+# Three definition forms, because bash accepts all three and each one shadows.
+selftest_dupes="$(
+  grep -hoE '^(function[[:space:]]+)?[A-Za-z_][A-Za-z0-9_]*[[:space:]]*\(\)' \
+    "$0" "$selftest_topics_dir"/*.sh 2>/dev/null |
+    sed 's/^function[[:space:]]*//; s/[[:space:]]*()$//' | sort | uniq -d
+)"
 if [ -n "$selftest_dupes" ]; then
-  printf 'selftest: function name defined in more than one topic:\n%s\n' \
+  printf 'selftest: function name defined in more than one file:\n%s\n' \
     "$selftest_dupes" >&2
   exit 1
 fi

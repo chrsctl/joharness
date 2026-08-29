@@ -2,11 +2,15 @@
 # order that file lists.
 #
 # Not runnable alone and not meant to be: the runner defines the
-# assertion helpers, the counters and the shared fixtures, and
-# sourcing is inlining — a topic that builds state a later topic
-# reads behaves exactly as it did when they shared one file.
+# assertion helpers, the counters and the shared fixtures, and sourcing
+# is inlining — a topic that builds state a later topic reads behaves
+# exactly as it did when they shared one file.
 # shellcheck shell=bash
 
+# --- upgrade: the consumer's route to a newer harness -----------------------
+# It clones canonical and runs ITS engine, so the refusals are what can be
+# proven without a network: canonical must not run it, and a consumer with
+# no canonical address must be told which file names one.
 step "joharness.sh upgrade"
 
 up="${TMP}/upgrade"
