@@ -465,14 +465,38 @@ mkdir -p "${rwork}/docs/handover"
   >"${rwork}/docs/handover/long.md"
 printf 'code\n' >"${rwork}/long.txt"
 commit_all "$rwork" "a finding longer than the cut"
-out="$(ci_ids)"
-# The em dash starts at byte 70 of the bullet, so a 72-byte cut takes two of
-# its three bytes; a cut at the last space before 72 takes none of it.
-# The whole assertion is the CONTIGUITY of "exactly" and the marker. A byte
-# cut leaves two of the em dash's three bytes between them, so this needle
-# fails there and passes here — where the cut fell on the space before it.
-expect "the line is cut at a space, not through a multibyte character" \
+# TWO LOCALES, because the cut POINT is locale-dependent and the property is
+# not. Bash slices `${x:0:72}` by character in a multibyte locale and by byte
+# in C, so the words kept differ between a developer's shell and the CI
+# runner's — an earlier version of this case asserted one exact cut and went
+# red on GitHub while passing locally. What holds everywhere is that the cut
+# lands on a space, so it can never fall inside a multibyte character.
+#
+# The C locale is the one that broke: there the slice takes two of the em
+# dash's three bytes, and only the backoff to the last space saves it. Pinned
+# by an exact needle, in a subshell so the locale cannot leak into later cases.
+out="$( export LC_ALL=C; ci_ids )"
+expect "in a byte locale the cut lands before the multibyte character" \
   "placed at exactly …" "$out"
+# And in whatever locale this runner uses, the PROPERTY holds: no partial
+# multibyte sequence reaches the output. Counted, not eyeballed — every 0xE2
+# lead byte must belong to a complete em dash or a complete ellipsis. A byte
+# cut leaves a lead byte with one continuation and no third, so the counts
+# disagree there and agree here, in any locale.
+#
+# "ends on a word character" was the first attempt and was simply wrong: under
+# C.UTF-8 the cut lands right after the em dash, which is a whole word.
+out="$(ci_ids)"
+rv_lead="$(printf '%s' "$out" | LC_ALL=C tr -cd '\342' | wc -c | tr -d ' ')"
+rv_whole="$(printf '%s' "$out" |
+  LC_ALL=C grep -oF "$(printf '\342\200\224')" | wc -l | tr -d ' ')"
+rv_ell="$(printf '%s' "$out" |
+  LC_ALL=C grep -oF "$(printf '\342\200\246')" | wc -l | tr -d ' ')"
+if [ "$rv_lead" -eq "$((rv_whole + rv_ell))" ] && [ "$rv_ell" -ge 1 ]; then
+  pass "no partial multibyte sequence reaches the output"
+else
+  fail "no partial multibyte sequence reaches the output (${rv_lead} lead bytes, $((rv_whole + rv_ell)) complete)"
+fi
 git -C "$rwork" checkout -q main
 git -C "$rwork" checkout -q idindent
 
