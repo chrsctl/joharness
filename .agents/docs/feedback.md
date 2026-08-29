@@ -25,6 +25,12 @@ place a loop dies quietly:
 Stages 1 and 2 are cheap and visible, which is why most loops stop there and
 still feel like loops. Stage 4 is the only one that changes an outcome.
 
+Stage 4 has machinery here, not just a rule: `.agents/harness/pretool-feedback.sh`
+is a PreToolUse hook that serves a file's recorded findings before Edit, Write
+or NotebookEdit touches it, once per file per session. `./joharness.sh feedback
+<path>` is the same report on demand, and the hook is what stops stage 4 riding
+on somebody remembering to type it.
+
 ## Scoring
 
 Four yields, one outcome. The yields diagnose; only the outcome scores.

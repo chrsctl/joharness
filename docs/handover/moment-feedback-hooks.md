@@ -134,6 +134,13 @@ commit as it.
 - r14: (verifier) `feedback --quiet` with no path was read as a request for
   a file named `--quiet`. (fixed — `--quiet` in either position)
 
+## Scope notes
+
+- One file outside the plan's `scope:` — `.agents/docs/feedback.md`. It
+  describes stage 4 as a bar the loop has to clear and named no machinery for
+  it, which stopped being true in this diff. Two sentences naming the hook.
+  Decided alone, small, flagged here.
+
 ## Blockers
 
 None.
