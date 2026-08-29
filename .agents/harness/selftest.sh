@@ -146,7 +146,7 @@ PATH="${TMP}/bin:${PATH}"
 export PATH
 
 # Same argument as the stub above, one section later in `ci`: fixture runs
-# would each re-measure five entrypoints for a verdict the real run reaches on
+# would each re-measure every entrypoint for a verdict the real run reaches on
 # the real tree. Measured 2026-08-28: without this the suite ran 70s, with it
 # 47s. The perf gate keeps its own cases below, and the real `ci` still
 # measures the real tree — nothing here lowers that bar.
@@ -1608,7 +1608,16 @@ cp "${ROOT}/joharness.sh" "${swork}/joharness.sh"
 # rather than an inference from timing.
 printf '#!/usr/bin/env bash\nprintf "STUB SUITE RAN\\n"\nexit 0\n' \
   >"${swork}/.agents/harness/selftest.sh"
-chmod +x "${swork}/.agents/harness/selftest.sh" "${swork}/joharness.sh"
+# A REAL queue-context that spawns nothing, for the perf zero-count case
+# below. Before this the fixture had no such file at all, so its `0` came
+# from an entrypoint that never ran — the case read as pinning "zero counts
+# print as one number" while actually pinning a missing entrypoint reported
+# as a clean zero. perf_count treats 127 as NOT FOUND now, so the zero has
+# to be earned.
+printf '#!/usr/bin/env bash\nexit 0\n' \
+  >"${swork}/.agents/harness/queue-context.sh"
+chmod +x "${swork}/.agents/harness/selftest.sh" \
+  "${swork}/.agents/harness/queue-context.sh" "${swork}/joharness.sh"
 printf 'readme\n' >"${swork}/README.md"
 git init -q "$swork"
 git -C "$swork" symbolic-ref HEAD refs/heads/main
@@ -4255,6 +4264,12 @@ fi
 # regression in kind the perf row exists to catch, and it would land as a
 # CONSUMER cost first — a consumer carries a different set of protocol trees
 # than this repo, so a number counted only here would not see it.
+#
+# GROWTH only. A guard that ignored protocol-paths altogether and went back to
+# the hardcoded prefix would count the same for one path and for six, and pass
+# here. That direction is somebody else's case, and it exists: "deleting a
+# protocol tree is a crossing" and "every listed protocol path was exercised"
+# above both red on it.
 sgcostorigin="${TMP}/sgcostorigin.git"
 git init -q --bare "$sgcostorigin"
 sgcost="${TMP}/sgcost"
@@ -4324,9 +4339,10 @@ else
   printf '    1 path: %s git call(s), 6 paths: %s\n' "$sgcost_one" "$sgcost_six"
 fi
 
-# Five of those six paths are absent from this checkout — which is the point
-# of measuring here rather than in canonical, and which the case above cannot
-# state for itself. It is a check on the FIXTURE, not on the guard: a run
+# Four of those six paths are absent from this checkout (`.agents/harness` and
+# `joharness.sh` the fixture does carry) — which is the point of measuring
+# here rather than in canonical, and which the case above cannot state for
+# itself. It is a check on the FIXTURE, not on the guard: a run
 # where all six happened to exist would still pass the count comparison while
 # proving nothing about a consumer. What stops the cheaper-looking fix (drop
 # absent paths before calling git) is "deleting a protocol tree is a
@@ -5694,16 +5710,43 @@ esac
 #
 # The row pins the mode. These two runs differ only in what the surrounding
 # environment says the mode is; an unpinned row answers them differently.
+# Both counts must be DIGITS, not merely equal and non-empty: perf_report
+# prints `?` in the count column when perf_count could not measure at all
+# (mktemp or the shim failing), and `? = ?` is an equal, non-empty, entirely
+# unmeasured pass. Reproducible with TMPDIR pointed at a path that does not
+# exist.
 pf_guard_n() { pf_run env "JOHARNESS_MODE=$1" ./joharness.sh perf handover-guard |
   awk '$1 == "handover-guard" { print $2 }'; }
 pf_sup="$(pf_guard_n supervised)"
 pf_uns="$(pf_guard_n unsupervised)"
-if [ -n "$pf_sup" ] && [ "$pf_sup" = "$pf_uns" ]; then
-  pass "the guard's count does not move with the repo's mode"
-else
-  fail "the guard's count does not move with the repo's mode"
-  printf '    supervised env: %s, unsupervised env: %s\n' "$pf_sup" "$pf_uns"
-fi
+case "${pf_sup}/${pf_uns}" in
+  [0-9]*/[0-9]*)
+    if [ "$pf_sup" = "$pf_uns" ]; then
+      pass "the guard's count does not move with the repo's mode"
+    else
+      fail "the guard's count does not move with the repo's mode"
+      printf '    supervised env: %s, unsupervised env: %s\n' "$pf_sup" "$pf_uns"
+    fi ;;
+  *)
+    fail "the guard's count does not move with the repo's mode"
+    printf '    nothing was counted: %s and %s\n' \
+      "${pf_sup:-<no row>}" "${pf_uns:-<no row>}" ;;
+esac
+
+# An entrypoint that is not on disk must not read as a clean run. ROOT is
+# ${CLAUDE_PROJECT_DIR:-<script dir>} and Claude Code exports that variable,
+# so `perf` from a session whose project dir is another checkout resolved
+# every row into a repo with no harness in it — and every row counted 0 and
+# printed `ok`, six green ticks over nothing run. Zero stays a legitimate
+# answer (the fixture case further down asserts one); 127 does not.
+pf_elsewhere="${TMP}/pfelsewhere"
+git init -q "$pf_elsewhere"
+printf 'scratch\n' >"${pf_elsewhere}/scratch.txt"
+out="$(pf_run env "CLAUDE_PROJECT_DIR=${pf_elsewhere}" ./joharness.sh perf)" && rc=0 || rc=$?
+expect "a missing entrypoint is named, not counted as zero" "NOT FOUND" "$out"
+refute "a missing entrypoint does not print a clean count" "  0 " "$out"
+if [ "$rc" -ne 0 ]; then pass "a missing entrypoint is a non-zero exit"
+else fail "a missing entrypoint is a non-zero exit (got 0)"; fi
 
 # Which path it pins is the half the two runs above cannot see: a row pinned
 # to supervised answers them identically too. Asserted against the source
@@ -5738,6 +5781,8 @@ refute "the skipped section counts nothing" "counted" "$out"
 # count reached the table as two lines — `[: integer expression expected` from
 # the comparison, and a garbled row. Only a repo small enough to produce a
 # zero shows it, which is why this is asserted on the fixture and not here.
+# The fixture's queue-context.sh is a real file that exits 0 — an ABSENT one
+# also counts zero, and that is NOT FOUND now, not a clean run.
 git -C "$swork" checkout -q -- . 2>/dev/null || true
 git -C "$swork" checkout -qb perfzero origin/main
 printf '# harness edit\n' >>"${swork}/joharness.sh"
