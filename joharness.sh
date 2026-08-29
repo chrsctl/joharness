@@ -2371,15 +2371,21 @@ SRC_MARKERS="\\b(TO""DO|FIX""ME|XX""X|HA""CK)\\b"
 
 # `ci` once, not `ci` plus a second selftest run: ci already runs the suite,
 # and two runs of a 60-second suite to answer one question is the waste the
-# perf budget exists to notice. Output to a file because three numbers come
-# out of one run.
+# perf budget exists to notice. Output to a file because four facts come out
+# of one run.
+#
+# JOHARNESS_SELFTEST=always is load bearing. Without it `ci` skips the suite
+# on a docs-only branch, which left this permanently INCOMPLETE for exactly
+# the session most likely to sweep: one that has just committed a generated
+# plan and nothing else. The mode's only stopping point was unreachable from
+# its own most common state.
 src_checks_out=""
 src_checks_rc=0
 src_run_checks() {
   local tmp
   tmp="$(mktemp 2>/dev/null)" || return 1
   # Status is data here, not an error: a red check IS the finding.
-  "${ROOT}/joharness.sh" ci >"$tmp" 2>&1
+  JOHARNESS_SELFTEST=always "${ROOT}/joharness.sh" ci >"$tmp" 2>&1
   src_checks_rc=$?
   src_checks_out="$(cat "$tmp")"
   rm -f "$tmp"
@@ -2390,34 +2396,59 @@ src_run_checks() {
 # fb_collect's existing walk — a second walk over the same edges would be a
 # second answer to the same question, and they would disagree the first time
 # fb_marker changed.
+#
+# Returns non-zero when the walk could not see the whole history, because a
+# partially-read source is not a zero. Two ways that happens and both are
+# live: fb_collect caps at FB_LIMIT edges (measured on origin/main
+# 2026-08-29 — 60 edges, default cap 50, 83 unmarked capped against 86
+# uncapped, so three findings sat outside the window with no knob set), and
+# a shallow clone has history it cannot read at all.
 src_unmarked() {
   fb_collect >/dev/null 2>&1 || return 1
+  [ "${FB_CAPPED:-0}" -eq 0 ] || return 2
+  ! lint_shallow || return 3
   printf '%s' "$FB_UNMARKED"
 }
 
 cmd_sources() {
-  local failing="" skipped="" unmarked="" markers=0
-  local dry=1 blind=0
+  local failing="" skipped="" unmarked="" markers="" mrc=0 mout=""
+  local dry=1 blind=0 urc=0 red=0
 
   printf '== sources (read-only: counts, never acts)\n\n'
 
   # --- failing or skipped checks -----------------------------------------
   printf 'failing or skipped checks\n'
-  printf '  %s ci\n' "$0"
+  printf '  JOHARNESS_SELFTEST=always %s ci\n' "$0"
   if src_run_checks; then
-    # "N passed, M failed" is the suite's own line. Absent when ci skipped
-    # the suite (a docs-only branch), which is not zero — it is unknown, and
-    # saying zero there would report a dry sweep off a suite that never ran.
     if printf '%s\n' "$src_checks_out" | grep -qE '^[0-9]+ passed, [0-9]+ failed'; then
       failing="$(printf '%s\n' "$src_checks_out" |
         sed -n 's/^[0-9]* passed, \([0-9]*\) failed.*/\1/p' | tail -1)"
-      skipped="$(printf '%s\n' "$src_checks_out" | grep -c '^  SKIP ' || :)"
-      printf '  %s failing, %s skipped (ci exit %s)\n' \
+      # The suite prints its skipped total only when it is non-zero, so an
+      # absent field is 0 and not unknown. Counting `  SKIP ` lines instead
+      # missed ci's OWN skips, which are spelled SKIPPED.
+      skipped="$(printf '%s\n' "$src_checks_out" |
+        sed -n 's/^[0-9]* passed, [0-9]* failed, \([0-9]*\) skipped.*/\1/p' | tail -1)"
+      [ -n "$skipped" ] || skipped=0
+      if printf '%s\n' "$src_checks_out" | grep -q 'SKIPPED'; then
+        skipped=$((skipped + 1))
+      fi
+      # ci's exit status is its own signal. The suite is one stage of nine;
+      # the linters, the glossary, the graph lint, churn, perf and the
+      # finish gate each turn ci red without moving "N passed, M failed" —
+      # a comment that opened with the linter's own name here was read as a
+      # directive and broke the parse. Reading
+      # the counts alone reported a red tree as dry — the worst outcome this
+      # command can produce, and the one input the plan named that the first
+      # version dropped.
+      [ "$src_checks_rc" -eq 0 ] || red=1
+      printf '  %s failing, %s skipped, ci exit %s\n' \
         "$failing" "$skipped" "$src_checks_rc"
-      [ "$failing" -eq 0 ] && [ "$skipped" -eq 0 ] || dry=0
+      if [ "$failing" -gt 0 ] || [ "$skipped" -gt 0 ] || [ "$red" -eq 1 ]; then
+        dry=0
+      fi
     else
       blind=1
-      printf '  cannot count — ci did not run the suite here (docs-only branch?)\n'
+      printf '  cannot count — ci printed no suite summary\n'
     fi
   else
     blind=1
@@ -2427,45 +2458,70 @@ cmd_sources() {
   # --- unacted findings ---------------------------------------------------
   printf '\nmerged review findings never acted on\n'
   printf '  %s feedback\n' "$0"
-  if unmarked="$(src_unmarked)"; then
-    printf '  %s unmarked\n' "$unmarked"
-    [ "$unmarked" -eq 0 ] || dry=0
-  else
-    blind=1
-    printf '  cannot count — no base branch to read merged history from\n'
-  fi
+  unmarked="$(src_unmarked)"; urc=$?
+  case "$urc" in
+    0) printf '  %s unmarked\n' "$unmarked"
+       [ "$unmarked" -eq 0 ] || dry=0 ;;
+    2) blind=1; unmarked=""
+       printf '  cannot count — the walk is capped at %s edges; raise it with\n' \
+         "${FB_LIMIT}"
+       printf '  JOHARNESS_FEEDBACK_EDGES=0 (0 reads all)\n' ;;
+    3) blind=1; unmarked=""
+       printf '  cannot count — shallow checkout, history not present\n' ;;
+    *) blind=1; unmarked=""
+       printf '  cannot count — no base branch to read merged history from\n' ;;
+  esac
 
   # --- known-gap markers --------------------------------------------------
   printf '\nknown-gap markers in tracked code\n'
   printf "  git grep -nE '%s' -- ':!*.md'\n" "$SRC_MARKERS"
-  markers="$(git -C "$ROOT" grep -nE "$SRC_MARKERS" -- ':!*.md' 2>/dev/null |
-    grep -c . || :)"
-  printf '  %s\n' "$markers"
-  [ "$markers" -eq 0 ] || dry=0
+  mout="$(git -C "$ROOT" grep -nE "$SRC_MARKERS" -- ':!*.md' 2>/dev/null)"
+  mrc=$?
+  # 0 = matched, 1 = no match. Anything above is git failing to look (not a
+  # work tree, unreadable object, bad pathspec), and swallowing that into a
+  # zero made this the one detector that could not say it was blind.
+  if [ "$mrc" -le 1 ]; then
+    markers="$(printf '%s' "$mout" | grep -c . || :)"
+    printf '  %s\n' "$markers"
+    [ "$markers" -eq 0 ] || dry=0
+  else
+    blind=1
+    printf '  cannot count — git grep exited %s\n' "$mrc"
+  fi
 
   # --- verdict ------------------------------------------------------------
+  # Built as a list, not a chain of && and ||: the first version mixed the
+  # two and bash's left-to-right precedence fired the checks clause on a dry
+  # checks source. Built even when blind, because a sweep that could not read
+  # one source still found what it found, and hiding it helps nobody.
+  local carrying=""
+  if [ -n "$failing" ] && { [ "$failing" -gt 0 ] || [ "$skipped" -gt 0 ]; }; then
+    carrying="${carrying} checks(${failing} failing, ${skipped} skipped)"
+  fi
+  [ "$red" -eq 0 ] || carrying="${carrying} ci-red(exit ${src_checks_rc})"
+  if [ -n "$unmarked" ] && [ "$unmarked" -gt 0 ]; then
+    carrying="${carrying} findings(${unmarked} unmarked)"
+  fi
+  if [ -n "$markers" ] && [ "$markers" -gt 0 ]; then
+    carrying="${carrying} markers(${markers})"
+  fi
+
+  printf '\n'
   # Blind beats dry. A sweep that could not read one of its sources has not
   # gone dry, it has gone quiet, and the mode's one stopping point must not
   # rest on the difference being blurred.
-  printf '\n'
   if [ "$blind" -eq 1 ]; then
-    printf 'sweep INCOMPLETE — a source could not be counted; not dry\n'
+    printf 'sweep INCOMPLETE — a source could not be counted; not dry%s\n' "$carrying"
   elif [ "$dry" -eq 1 ]; then
     printf 'sweep dry — every detector zero\n'
+    # One conjunct, not the stop signal. The requirement asks for every
+    # detector zero on TWO consecutive sweeps, an empty queue, and no open
+    # pull request. This command counts none of those three and stores no
+    # prior sweep, so a session reading this line as "stop" stops early.
+    printf '  Not on its own a reason to stop: the mode also needs a second\n'
+    printf '  dry sweep, an empty queue and no open pull request\n'
+    printf '  (docs/product/unsupervised-mode.md, Satisfied when).\n'
   else
-    # Built as a list, not as a chain of && and ||: the first version of this
-    # line mixed the two and bash's left-to-right precedence made the checks
-    # clause fire on a dry checks source.
-    local carrying=""
-    if [ -n "$failing" ] && { [ "$failing" -gt 0 ] || [ "${skipped:-0}" -gt 0 ]; }; then
-      carrying="${carrying} checks(${failing} failing, ${skipped} skipped)"
-    fi
-    if [ -n "$unmarked" ] && [ "$unmarked" -gt 0 ]; then
-      carrying="${carrying} findings(${unmarked} unmarked)"
-    fi
-    if [ "$markers" -gt 0 ]; then
-      carrying="${carrying} markers(${markers})"
-    fi
     printf 'sweep NOT dry —%s\n' "$carrying"
   fi
   return 0
@@ -3290,8 +3346,8 @@ main() {
     # file. Not in `usage`: it is a seam between two harness files, not a
     # thing a human runs, and a help entry invites a session to treat the
     # list as an input rather than the rule's expression.
-    sources)        cmd_sources ;;
     protocol-paths) protocol_paths ;;
+    sources)        cmd_sources ;;
     -h|--help|help) usage ;;
     *) die "unknown subcommand '$cmd' (try: $0 help)" ;;
   esac
