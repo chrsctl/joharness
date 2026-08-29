@@ -157,6 +157,15 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    is reported and never red; that is `cleanup`'s business, and a gate
    that fails for somebody else's omission is one sessions route around.
 
+Queue still holds work after the merge? `/drain` runs the Loop again, item
+after item, until the MODE says stop — supervised at the queue edge,
+unsupervised on a dry sweep. Measured reason it exists: 5 of the last 119
+merge gaps on `main` exceed three hours, the two longest 32.2h and 24.0h, and
+the tree held 18, 18, 19 and 11 plan files at the four longest stalls' first
+commit (`git log --merges --format=%ct origin/main -120`, 2026-08-29). Idle
+holding a full queue. Drives THIS session only; the fleet outliving its
+sessions is the heartbeat's job (`.agents/docs/unsupervised.md`).
+
 ## Harness upkeep
 
 Consumer repo: harness upkeep does NOT run in a session holding product
