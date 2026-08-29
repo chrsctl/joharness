@@ -676,7 +676,11 @@ refute "a file with no issue field claims nothing" "claims issue" "$out"
 # indistinguishable from one that failed to run, and "none" is the answer a
 # session acts on.
 expect "and the block still prints, saying none" \
-  "none — no in-flight workstream file claims an issue" "$out"
+  "none found — no workstream file this hook can see claims an issue" "$out"
+# The hedge is the point of the empty case, not decoration: "none" alone is
+# the unqualified absolute that sends a session to duplicate work.
+expect "and the empty case is hedged, not absolute" \
+  "Not proof an issue is free" "$out"
 git -C "$work" push -q origin --delete claiming 2>/dev/null || :
 
 # the recorded count per branch. Only when >0: absence next to a churning
@@ -2741,6 +2745,66 @@ lint_section() { sed -n '/== graph lint/,/^$/p' <<<"$1"; }
 full="$(lint_ci)"
 out="$(lint_section "$full")"
 expect "empty queue reads sound" "edges sound (0 plans, 0 workstreams, 0 requirements)" "$out"
+
+# The issue claim's validator (#119). Untested until now — deleting the whole
+# case block from lint_graph left the suite at 728 passed, which is the
+# "green both ways = pins nothing" the Loop warns about. It matters because
+# the hook DROPS what it cannot parse, and a dropped claim reads as "this
+# issue is free": the failure the field exists to prevent.
+cat >"${lwork}/docs/handover/claim-ok.md" <<'EOF'
+---
+workstream: claim-ok
+status: in-progress
+issue: #114
+---
+
+## Goal
+Fixture.
+EOF
+cat >"${lwork}/docs/handover/claim-bad.md" <<'EOF'
+---
+workstream: claim-bad
+status: in-progress
+issue: fourteen
+---
+
+## Goal
+Fixture.
+EOF
+cat >"${lwork}/docs/handover/claim-padded.md" <<'EOF'
+---
+workstream: claim-padded
+status: in-progress
+issue: 0114
+---
+
+## Goal
+Fixture.
+EOF
+cat >"${lwork}/docs/handover/claim-none.md" <<'EOF'
+---
+workstream: claim-none
+status: in-progress
+issue: none
+---
+
+## Goal
+Fixture.
+EOF
+full="$(lint_ci)"
+out="$(lint_section "$full")"
+expect "a word is not an issue number" \
+  "claim-bad.md: issue 'fourteen' — not a number" "$out"
+# Padded renders fine and still gets duplicated: a reader scanning for #114
+# does not match #0114. The severe direction wearing the harmless one's face.
+expect "a padded number is red, with the reason" \
+  "leading zero" "$out"
+refute "a hash-prefixed number is fine" "claim-ok.md: issue" "$out"
+refute "and so is none" "claim-none.md: issue" "$out"
+rm -f "${lwork}/docs/handover/claim-bad.md" "${lwork}/docs/handover/claim-padded.md"
+out="$(lint_section "$(lint_ci)")"
+refute "clearing them clears the lint" "not a number" "$out"
+rm -f "${lwork}/docs/handover/claim-ok.md" "${lwork}/docs/handover/claim-none.md"
 
 # Never-existed names and a bad enum: hard facts, red, ci fails.
 cat >"${lwork}/docs/plans/bad.md" <<'EOF'

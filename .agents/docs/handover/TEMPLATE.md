@@ -20,11 +20,10 @@ opening file: keep `next` one line. `agent` = tier this work wants
 (.agents/docs/agent-selection.md); hook shows it, so resuming user picks right
 model. `plan` = plan this workstream implements — THE claim; queue marks
 that plan taken. Not plan work? Leave `none`.
-`issue` = GitHub issue this work claims, same shape and same job: the hook
-lists it so another session can see the issue is taken. A plan on `main`
-shows as claimed through `plan:`; an issue has no other way to say it, and
-two sessions solved #114 twice for want of this line. Write it when the work
-starts, not when the pull request opens. `#114` and `114` both work.
+`issue` = GitHub issue this work claims. The hook lists it so another
+session sees the issue is taken. Write it when the work STARTS. `#114` and
+`114` both work; rules and the seam it does not cover: README, "Claiming an
+issue".
 
 Push as soon as file exists. Claim does not exist until pushed.
 -->

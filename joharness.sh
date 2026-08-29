@@ -1333,8 +1333,14 @@ lint_graph() {
     case "$iss" in
       '' | none) ;;
       '#'[0-9]* | [0-9]*)
+        # Kept in lockstep with handover-context.sh:issue_num. Two validators
+        # of one format is already one too many; letting them disagree means
+        # a value that lints clean and renders as nothing — a claim that
+        # looks accepted and silently is not.
         case "${iss#\#}" in
           *[!0-9]*) lint_red "${rel}: issue '${iss}' — not a number; the hook drops it and the issue reads as unclaimed" ;;
+          0) lint_red "${rel}: issue '${iss}' — there is no issue #0; the hook drops it and the issue reads as unclaimed" ;;
+          0*) lint_red "${rel}: issue '${iss}' — leading zero; #${iss#\#} is not #${iss##*0}, so a reader scanning for their own number misses it" ;;
         esac ;;
       *) lint_red "${rel}: issue '${iss}' — not a number; the hook drops it and the issue reads as unclaimed" ;;
     esac

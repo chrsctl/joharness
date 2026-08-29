@@ -328,10 +328,21 @@ issue, because the link lived only in prose inside its Goal.
 - Write it **when the work starts**, with the rest of the frontmatter, not
   when the pull request opens. A claim that arrives at the end claims
   nothing — the window it needs to cover is the one before anyone else looks.
+- **It covers the front of the window, not the back.** Step 7 retires the
+  workstream file in the last commit before the pull request opens, and the
+  hook reads claims out of that file — so from the moment the pull request
+  opens until the issue closes, this says nothing, while the issue is still
+  open in the queue a picking session reads. What covers that stretch is the
+  pull request itself: write `Closes #N` in its body and GitHub shows the
+  link on the issue. Two mechanisms, one handover between them, and the seam
+  is worth knowing about rather than discovering.
 - `#114` and `114` both work. `none`, or no field at all, claims nothing.
-- Anything else is red in `ci`. The hook drops a value it cannot parse, and
-  a dropped claim reads as "this issue is free" — the failure the field
-  exists to prevent, so it is never silent.
+- Anything else is red in `ci`, including `#0` and a padded `#0114` — that
+  one renders fine and still gets duplicated, because a reader scanning for
+  `#114` does not match it. The hook itself is silent about a value it
+  cannot parse; the noise is `ci`'s, on the branch that owns the file. So a
+  malformed claim is loud to its author and invisible to everyone else,
+  which is the right way round but worth knowing.
 - The hook reports what the TREE claims, never what GitHub says. It reads
   refs and nothing else, in every consumer; one that needed a token to
   answer would fail closed exactly where it matters most. Whether the issue

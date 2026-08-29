@@ -69,11 +69,19 @@ claimed_issues=""
 issue_num() {
   local v="${1#\#}"
   case "$v" in
-    '' | none) return 0 ;;
-    *[!0-9]* ) return 0 ;;
+    '' | none)  return 0 ;;
+    *[!0-9]* )  return 0 ;;
+    0 )         return 0 ;;
+    0* )        return 0 ;;
   esac
   printf '%s' "$v"
 }
+
+# Why 0 and 0114 are rejected rather than normalised: GitHub has no issue #0,
+# and #0114 is not #114. A reader scanning the block for their own issue
+# number does not match a padded one, so a padded claim is a claim that
+# renders and still gets duplicated — the severe direction, dressed as the
+# harmless one. Rejecting sends it to ci, which names the file.
 
 fields() {
   awk -v keys="$*" '
