@@ -942,13 +942,40 @@ perf_count() {
 # into a loop, which is what PR 54 removed and what doubles a count. It does
 # not catch a 5% drift, and is not meant to — the counted number is printed
 # every run, so drift stays visible to a reader without a gate that cries.
+#
+# The guard row forces JOHARNESS_MODE=unsupervised, and that is the row, not
+# a variant of it. The unsupervised boundary block is where the loop over
+# protocol paths lives — the exact shape a ceiling exists to catch — and it
+# does not run at all under supervised. A row that inherited the repo's own
+# `joharness.conf` would measure whichever path that repo happens to take,
+# so the same code would carry two different numbers in two consumers and
+# the block that motivated the row would go unmeasured in every supervised
+# one. Supervised is a strict subset of the same code, so the forced number
+# dominates it: nothing is left unbudgeted by measuring only this path.
+#
+# Counted 2026-08-29, `./joharness.sh perf handover-guard` on this repo:
+# 22 with a workstream file present, 29 without one (the ritual block runs
+# then — that is every branch between step 3's cut and its claim), 29 on a
+# never-pushed branch and 29 with an untracked protocol file. 16 supervised.
+# So the honest range is 22-29 and the ceiling has to clear 29: a number set
+# at the quiet state reds every branch that has not written its file yet,
+# which is a gate sessions learn to route around.
+#
+# The budget is 33, and the 4 is not spare change. Same day, same command,
+# with the boundary block's single `git diff` put back inside a `for path`
+# loop — the regression in kind this row is for: 37 from the quiet state.
+# 40 would have printed `ok` for it. A ceiling has to sit between the state
+# swing and the cheapest regression, and 30-36 is the whole of that gap.
+# Deterministic detection of that same loop lives in selftest.sh, where the
+# path count is the only thing that varies; this row is the coarse net.
 perf_rows() {
   printf '%s\n' \
     "feedback|${JOHARNESS_PERF_BUDGET_FEEDBACK:-265}|${ROOT}/joharness.sh feedback" \
     "review|${JOHARNESS_PERF_BUDGET_REVIEW:-265}|${ROOT}/joharness.sh review" \
     "graph|${JOHARNESS_PERF_BUDGET_GRAPH:-260}|${ROOT}/joharness.sh graph" \
     "session-start|${JOHARNESS_PERF_BUDGET_SESSION_START:-700}|${ROOT}/joharness.sh session-start" \
-    "queue-context|${JOHARNESS_PERF_BUDGET_QUEUE:-350}|${HARNESS_ROOT}/queue-context.sh"
+    "queue-context|${JOHARNESS_PERF_BUDGET_QUEUE:-350}|${HARNESS_ROOT}/queue-context.sh" \
+    "handover-guard|${JOHARNESS_PERF_BUDGET_GUARD:-33}|env JOHARNESS_MODE=unsupervised ${HARNESS_ROOT}/handover-guard.sh"
 }
 
 # The table itself, so `ci` can print its own section banner above it.

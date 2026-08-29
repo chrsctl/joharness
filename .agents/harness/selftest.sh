@@ -4250,6 +4250,106 @@ else
   fail "remoteless checkout stays silent (rc=${rc})"
 fi
 
+# Cost must not scale with the number of protocol paths. One `git diff` over
+# all of them is what keeps this guard's budget flat; one call per path is the
+# regression in kind the perf row exists to catch, and it would land as a
+# CONSUMER cost first — a consumer carries a different set of protocol trees
+# than this repo, so a number counted only here would not see it.
+sgcostorigin="${TMP}/sgcostorigin.git"
+git init -q --bare "$sgcostorigin"
+sgcost="${TMP}/sgcost"
+git init -q "$sgcost"
+git -C "$sgcost" symbolic-ref HEAD refs/heads/main
+printf 'code\n' >"${sgcost}/code.txt"
+mkdir -p "${sgcost}/.agents/harness" "${sgcost}/docs/handover"
+printf 'h\n' >"${sgcost}/.agents/harness/thing.sh"
+printf -- '---\nstatus: in-progress\n---\n' >"${sgcost}/docs/handover/w.md"
+# An entrypoint whose protocol-paths list is settable per run. Only the
+# LENGTH of the list varies between the two measurements below; everything
+# else the guard reads is held still.
+cat >"${sgcost}/joharness.sh" <<'COSTEOF'
+#!/usr/bin/env bash
+case "${1:-}" in
+  mode) printf '%s\n' "${JOHARNESS_MODE:-supervised}" ;;
+  protocol-paths) printf '%s\n' ${SG_COST_PATHS:-} ;;
+  *) exit 1 ;;
+esac
+COSTEOF
+chmod +x "${sgcost}/joharness.sh"
+commit_all "$sgcost" "base"
+git -C "$sgcost" remote add origin "$sgcostorigin"
+git -C "$sgcost" push -qu origin main
+git -C "$sgcost" checkout -qb sgcostfeat
+printf 'edit\n' >>"${sgcost}/.agents/harness/thing.sh"
+
+# A counting git on PATH. The guard calls git unqualified, so this sees every
+# invocation; it execs the real binary, so the guard still reads true facts.
+sgbin="${TMP}/sgbin"
+mkdir -p "$sgbin"
+sg_real_git="$(command -v git)"
+cat >"${sgbin}/git" <<GITEOF
+#!/bin/sh
+printf 'g\n' >>"\${SG_GIT_COUNTER:-/dev/null}"
+exec "${sg_real_git}" "\$@"
+GITEOF
+chmod +x "${sgbin}/git"
+
+# Echoes the git-call count; the guard's own output lands in a FILE. The
+# count alone cannot tell a cheap run from a run that exited before the
+# boundary block, and 0 = 0 is the vacuous pass this fixture is most likely
+# to produce — so the caller checks both. A global for the output would not
+# survive: this runs in a command substitution, and PR 123 r6 is the same
+# assignment dying in the same subshell.
+sg_cost_run() {
+  : >"${TMP}/sgcostcount"
+  printf '%s' "$JSON_STOP" | CLAUDE_PROJECT_DIR="$sgcost" \
+    JOHARNESS_MODE="$1" SG_COST_PATHS="$2" \
+    SG_GIT_COUNTER="${TMP}/sgcostcount" PATH="${sgbin}:${PATH}" \
+    bash "${ROOT}/.agents/harness/handover-guard.sh" >"${TMP}/sgcostout" 2>&1
+  # Not `grep -c`: it prints 0 AND exits non-zero on an empty file, so the
+  # usual `|| printf 0` fallback fires on top and the count arrives two lines
+  # long (joharness.sh:perf_count carries the same scar).
+  wc -l <"${TMP}/sgcostcount" | tr -d ' '
+}
+
+sgcost_one="$(sg_cost_run unsupervised '.agents/harness')"
+sgcost_one_out="$(cat "${TMP}/sgcostout")"
+sgcost_six="$(sg_cost_run unsupervised '.agents/harness .claude/agents .claude/commands .claude/skills joharness.sh .claude/settings.json')"
+expect "the boundary block actually ran in the cost fixture" \
+  "file(s) of protocol text" "$sgcost_one_out"
+if [ "${sgcost_one:-0}" -gt 0 ] && [ "$sgcost_one" = "$sgcost_six" ]; then
+  pass "guard cost does not scale with the number of protocol paths"
+else
+  fail "guard cost does not scale with the number of protocol paths"
+  printf '    1 path: %s git call(s), 6 paths: %s\n' "$sgcost_one" "$sgcost_six"
+fi
+
+# Five of those six paths are absent from this checkout — which is the point
+# of measuring here rather than in canonical, and which the case above cannot
+# state for itself. It is a check on the FIXTURE, not on the guard: a run
+# where all six happened to exist would still pass the count comparison while
+# proving nothing about a consumer. What stops the cheaper-looking fix (drop
+# absent paths before calling git) is "deleting a protocol tree is a
+# crossing" further up, not this line.
+if [ ! -e "${sgcost}/.claude" ]; then
+  pass "the cost fixture really is missing most protocol paths"
+else
+  fail "the cost fixture really is missing most protocol paths"
+fi
+
+# Supervised is the strict subset: fewer git calls, same code. The perf row
+# forces unsupervised because of this — a row inheriting the repo's own conf
+# would measure the cheaper path here and the dearer one in an unsupervised
+# consumer, from identical code.
+sgcost_sup="$(sg_cost_run supervised '.agents/harness')"
+if [ "$sgcost_sup" -lt "$sgcost_one" ]; then
+  pass "the unsupervised path costs strictly more than the supervised one"
+else
+  fail "the unsupervised path costs strictly more than the supervised one"
+  printf '    supervised: %s git call(s), unsupervised: %s\n' \
+    "$sgcost_sup" "$sgcost_one"
+fi
+
 # --- .gitattributes: scripts and markdown stay LF --------------------------
 # Git for Windows defaults to core.autocrlf=true. Without the pins a stock clone
 # there checks out scripts as CRLF (shellcheck SC1017 on every line) and
@@ -5520,12 +5620,14 @@ expect "the failure names the layer" "layer verify failed: broken" "$out"
 step "joharness.sh perf"
 
 # The guard PR 54 never had. These cases exercise it through the real
-# entrypoint, but only ever ONE row at a time: measuring all five costs ~5s,
+# entrypoint, but only ever ONE row at a time: measuring every row costs ~5s,
 # and a suite that re-measures is the waste this whole subcommand exists to
 # notice (JOHARNESS_PERF=off at the top of this file, same argument).
 #
-# `graph` is the row used throughout — cheapest of the five, and the one whose
-# count a reverted gr_fields actually moves.
+# `graph` is the row used for the generic cases — the one whose count a
+# reverted gr_fields actually moves. handover-guard is cheaper still (22
+# against 166) but its own cases below measure it four times, so the generic
+# ones do not add a fifth.
 pf_run() { ( cd "$ROOT" && JOHARNESS_PERF='' "$@" 2>&1 ); }
 
 out="$(pf_run ./joharness.sh perf graph)" && rc=0 || rc=$?
@@ -5551,6 +5653,45 @@ expect "an unknown entrypoint is named" "no entrypoint named 'nosuchentrypoint'"
 expect "the unknown-entrypoint warning lists the real ones" "session-start" "$out"
 if [ "$rc" -ne 0 ]; then pass "an unknown entrypoint is not a pass"
 else fail "an unknown entrypoint is not a pass (got 0)"; fi
+
+# The Stop guard's row. It fires more often than the other five combined —
+# once per stop, in every consumer — and until this row existed nothing
+# counted it.
+out="$(pf_run ./joharness.sh perf handover-guard)" && rc=0 || rc=$?
+expect "the guard has a row of its own" "handover-guard" "$out"
+if [ "$rc" -eq 0 ]; then pass "the guard is inside its budget"
+else fail "the guard is inside its budget (got ${rc})"; printf '%s\n' "$(indent "$out")"; fi
+
+out="$(pf_run env JOHARNESS_PERF_BUDGET_GUARD=1 ./joharness.sh perf handover-guard)" && rc=0 || rc=$?
+expect "the guard's budget is a gate, not a print" "OVER by" "$out"
+if [ "$rc" -ne 0 ]; then pass "a guard breach is a non-zero exit"
+else fail "a guard breach is a non-zero exit (got 0)"; fi
+
+# The number must describe the CODE, not the repo reading it. The guard's
+# dearest path is the unsupervised boundary block, and whether a repo takes
+# it is a line in its own joharness.conf — so a row that inherited the mode
+# would carry two different numbers for one unchanged script, and would
+# measure the cheap path in every supervised repo, this one included.
+#
+# The row pins the mode. These two runs differ only in what the surrounding
+# environment says the mode is; an unpinned row answers them differently.
+pf_guard_n() { pf_run env "JOHARNESS_MODE=$1" ./joharness.sh perf handover-guard |
+  awk '$1 == "handover-guard" { print $2 }'; }
+pf_sup="$(pf_guard_n supervised)"
+pf_uns="$(pf_guard_n unsupervised)"
+if [ -n "$pf_sup" ] && [ "$pf_sup" = "$pf_uns" ]; then
+  pass "the guard's count does not move with the repo's mode"
+else
+  fail "the guard's count does not move with the repo's mode"
+  printf '    supervised env: %s, unsupervised env: %s\n' "$pf_sup" "$pf_uns"
+fi
+
+# Which path it pins is the half the two runs above cannot see: a row pinned
+# to supervised answers them identically too. Asserted against the source
+# because that is where the choice lives, and deleting the prefix is exactly
+# the edit that would silently unmeasure the block.
+expect "the guard row pins the dearer path" "JOHARNESS_MODE=unsupervised" \
+  "$(grep 'handover-guard|' "${ROOT}/joharness.sh" || :)"
 
 # The skips live in `ci`, so they are asserted there — through the SAME
 # scratch copy the selftest-scope cases use, never through this repo's own
