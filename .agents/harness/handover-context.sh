@@ -197,6 +197,58 @@ if [ "${JOHARNESS_SESSION_SOURCE:-}" = "compact" ]; then
   add "Context was compacted: the orientation is gone, the branch and the work"
   add "are not. Below is git state, not what you had decided."
   add ""
+  # THE RULES, because everything else this hook prints is the half that
+  # already survives. A compaction summary "faithfully records the task state
+  # but, optimizing for continuity, quietly drops the old compliance
+  # preamble": 0% to 30% violation across 7 models and 1,323 episodes, and
+  # 8.3x worse for soft organisational policy than for hard safety norms
+  # (arXiv 2606.22528, read in .agents/docs/handover/README.md, Compaction).
+  # This Loop is soft organisational policy — the bad half of that ratio.
+  #
+  # AGENTS.md step 1 owns the rule. It is not enough by itself: AGENTS.md
+  # reaches a session through the same context a compaction summarises, so
+  # the rule most needed after one is the rule most likely to have been
+  # dropped. This hook is the channel that is re-injected whole.
+  #
+  # Gated on the compact source and staying that way. Every line here is paid
+  # by every session that reads it, and a session that did not compact has
+  # its rules already.
+  add "What a compaction takes is the RULES; everything below is the half"
+  add "that survives. Re-read before the next edit:"
+  add ""
+  # THE BOUNDARY THE MODE KEEPS, not the layer-coupling one. The graduated
+  # page is specific: "a session that keeps its task and loses its boundary is
+  # precisely what unsupervised mode exists to prevent" — that is step 2's
+  # `no commit under .agents/harness/`, not Part 2's "names no environment".
+  # The first version of this line shipped the second rule, and worse for a
+  # consumer: Part 2 lives in the ROOT AGENTS.md, which the sync splices
+  # ABOVE and never overwrites, so the rule it pointed at does not exist
+  # there at all. Both facts below are in .agents/harness/AGENTS.md, which
+  # ships whole.
+  add "  .agents/harness/AGENTS.md — the Loop, and the boundary step 2"
+  add "  keeps: no commit under .agents/harness/."
+  add ""
+  # Read, never re-resolved. cmd_session_start exports JOHARNESS_RUN_MODE
+  # after resolving it once; a hook that worked the mode out again is two
+  # readers of one fact, and they drift.
+  add "  Mode: ${JOHARNESS_RUN_MODE:-supervised}."
+  # The mode's own page only to the session in that mode. Handing a
+  # supervised session .agents/docs/unsupervised.md is context for a mode it
+  # is not in, and every line here is paid on read.
+  if [ "${JOHARNESS_RUN_MODE:-supervised}" = "unsupervised" ]; then
+    add "  Its rules and its one stop: .agents/docs/unsupervised.md."
+  fi
+  add ""
+  # The third thing, which is neither the rules nor the task state: a session
+  # here reported three merged deliverables as outstanding, because step 7
+  # had retired the workstream file that carried them one commit before the
+  # pull request opened. The ritual is right; it just means a compacted
+  # session cannot recover its own recent past from the tree.
+  add "Your own finished work may be missing from what you hold. Before"
+  add "reporting anything done or outstanding, read this branch's merged"
+  add "pull requests — not your memory of them. A pull request body carries"
+  add "the command that recovers its own retired workstream file."
+  add ""
 fi
 add "Branch: ${branch}${position}"
 
