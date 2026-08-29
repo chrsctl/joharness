@@ -2355,12 +2355,19 @@ cmd_cleanup() {
 # ---------------------------------------------------------------------------
 
 # The marker set. No repo convention exists to follow — measured on
-# origin/main 2026-08-29, `git grep -nE` for these over tracked non-`*.md`
-# files returns nothing at all, so the detector starts honestly at zero
-# rather than at a number that was never a marker. (The plan that asked for
-# this said 1; its single hit was the string "TODO.md" inside prose in a
-# .md file, which its own scope excludes.)
-SRC_MARKERS='\b(TODO|FIXME|XXX|HACK)\b'
+# origin/main 2026-08-29, a grep for these over tracked non-`*.md` files
+# returns nothing at all, so the detector starts honestly at zero rather
+# than at a number that was never a marker. (The plan that asked for this
+# said 1; its single hit was a filename mentioned in prose in a .md file,
+# which its own scope excludes.)
+#
+# Assembled from halves so this file does not contain the words it searches
+# for. Written whole, the detector counted its own definition and the
+# comment above it: two hits nothing could ever clear, making this an
+# uncountable source that never reaches zero — precisely what
+# docs/product/unsupervised-mode.md forbids, built into the command whose
+# job is to enforce it. Caught by running it.
+SRC_MARKERS="\\b(TO""DO|FIX""ME|XX""X|HA""CK)\\b"
 
 # `ci` once, not `ci` plus a second selftest run: ci already runs the suite,
 # and two runs of a 60-second suite to answer one question is the waste the
