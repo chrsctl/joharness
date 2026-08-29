@@ -3058,24 +3058,29 @@ sw_edge acted "- r1: something, and it was dealt with. (fixed)"
 out="$(sw)"
 expect "an acted finding does not hold the sweep open" "0 unmarked" "$out"
 expect "and the sweep is dry again" "sweep dry" "$out"
+
+# ci's exit status is its own signal, separate from the suite's counts. Run
+# HERE, while every other detector is zero, so nothing else can produce the
+# verdict: the first attempt ran it after an unacted finding was already in
+# place and passed off that instead — the vacuous pass this section exists to
+# avoid. A stub that prints a clean count and exits non-zero is the only way
+# to move one signal without the other.
+sw_suite 3 0 1
+commit_all "$swwork" "suite counts clean, suite exits red" 2>/dev/null || true
+out="$(sw)"
+expect "suite green but ci red still flips the sweep" "sweep NOT dry" "$out"
+expect "and the verdict names ci itself" "ci-red(exit" "$out"
+expect "with the suite counts still zero" "0 failing, 0 skipped" "$out"
+refute "and blames nothing else" "findings(" "$out"
+sw_suite 3 0 0
+commit_all "$swwork" "suite green again" 2>/dev/null || true
+expect "a green ci goes dry again" "sweep dry" "$(sw)"
+
 sw_edge unacted "- r1: nobody ever came back to this one."
 out="$(sw)"
 expect "an unacted finding is counted" "1 unmarked" "$out"
 expect "and flips the sweep" "sweep NOT dry" "$out"
 expect "and the verdict names findings" "findings(1 unmarked)" "$out"
-
-# ci's exit status is its own signal, separate from the suite's counts. The
-# earlier fixture moved both at once and so could not tell which one the
-# detector read — and reading only the counts was the worst defect review
-# found. Suite green, ci red: nothing else can produce this.
-printf '#!/usr/bin/env bash\nif [ 1 -eq 1 ]; then\n' >"${swwork}/broken.sh"
-commit_all "$swwork" "a file that fails bash -n"
-out="$(sw)"
-expect "suite green but ci red still flips the sweep" "sweep NOT dry" "$out"
-expect "and the verdict names ci itself" "ci-red(exit" "$out"
-expect "with the suite counts still zero" "0 failing, 0 skipped" "$out"
-git -C "$swwork" rm -q broken.sh
-commit_all "$swwork" "unbreak it"
 
 # The property the whole command exists for: a source that could not be read
 # is NOT dry. A suite that prints no count line leaves the checks detector
