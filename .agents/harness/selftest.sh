@@ -1105,8 +1105,15 @@ refute "and does not tell an unattended session to ask a human" \
 # output is paid every session. A hook that ran it would be the caveman rule
 # broken by the change that cites it.
 expect "the sweep is named as the first step" "./joharness.sh sources" "$out"
-expect "dry alone is not sold as a stop" "NOT a stop on its own" "$out"
-expect "and INCOMPLETE is explicitly not a stop" "not dry, so not a stop" "$out"
+expect "dry alone is not sold as a stop" "dry alone is NOT a stop" "$out"
+# The hook does NOT restate what each verdict means — cmd_sources prints
+# them, the protocol doc states them, and a third copy in output paid every
+# session is the drift this function's own comment argues against. What the
+# hook owns is the STOP rule, which is not a verdict definition.
+expect "the verdict meanings are deferred, not copied" \
+  "It prints what each verdict means" "$out"
+expect "and the stop rule needs all three conditions" \
+  "no open pull request" "$out"
 expect "the source list is called closed" "CLOSED source list" "$out"
 # The pointer that went missing. Its absence was untested in both directions,
 # which is how it shipped: a session told to generate work with no
@@ -1152,6 +1159,11 @@ commit_all "$ework" "remove it"
 git -C "$ework" push -q origin main
 
 # --- edge path two: plans exist, none free ---
+# mkdir first: the unreadable case above removed the last tracked file in
+# docs/plans, and git drops the directory with it. Without this the write
+# below fails silently, the fixture falls into the NO-PLANS path, and four
+# assertions fail for a reason unrelated to what they test.
+mkdir -p "${ework}/docs/plans"
 cat >"${ework}/docs/plans/taken.md" <<'EOF'
 ---
 plan: taken
