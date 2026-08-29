@@ -1,6 +1,6 @@
 ---
 workstream: handover-inflight-diff
-status: in-progress
+status: review
 branch: claude/joharness-framework-plans-lkpf4q
 pr: none
 plan: handover-inflight-diff
@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01SHPKsgu5WMHQ4g7MhTwRhm
 agent: opus
 updated: 2026-08-29
-next: Intersect files_at with changed_at at the in-flight listing; keep files_at at the rot check.
+next: Retire plan + workstream file, open the pull request, merge on green checks.
 ---
 
 ## Goal
@@ -68,7 +68,66 @@ never read the tree — and the hook that teaches it does not follow it.
 
 ## Review
 
-Not yet run: no edge, no pull request open.
+Round 1, opus verifier. Nine findings; two severe, and both were mine turning
+an over-report into an UNDER-report — the worse direction, and the one I had
+explicitly told the reviewer to hunt for.
+
+- r1 (verifier): `owned_at` returned nothing when `git merge-base` fails. A
+  shallow clone has grafted history — 27 of this checkout's refs — and
+  nothing was read as "claims nothing", not "unknown". The listing went 12
+  entries to 3 and I reported that as the report becoming true. Most of the
+  drop was real claims vanishing, one from a branch that provably authored
+  its file. Falls back to the tree now: over-report when ownership cannot be
+  computed, because a false claim costs a `/who` and a missing one is two
+  sessions duplicating work (#119). (fixed)
+- r2 (verifier): a branch still committing after its own pull request merged
+  loses its claim — the merge base becomes the merge commit, which contains
+  the file. The fallback does not cover it; the merge base exists. Judged
+  CORRECT rather than fixed: after a merge and sweep that workstream is
+  finished, and listing it as in flight is the original bug. Recorded so a
+  reader who disagrees has something to argue with. (wontfix, reasoned)
+- r3 (verifier): the plan's "keep reporting an inherited file, demoted"
+  bullet was dropped with no record, and a code comment asserted the opposite
+  of what shipped. Inherited files are counted and demoted on their own line
+  now. (fixed)
+- r4 (verifier): five of six new assertions were green against the UNFIXED
+  hook — no-regression checks wearing regression-guard labels. The plan's
+  Acceptance was wrong too: a writer's tree holds its file, so the
+  tree-reading hook printed that line identically. Labelled honestly, and the
+  demotion assertions added, which only the fix can satisfy. (fixed)
+- r5 (verifier): a fixture comment claimed to pin the downstream guard.
+  Measured: green with either the filter or the guard removed, failing only
+  with both. It pins the outcome; the comment says so now. (fixed)
+- r6 (verifier): two assertions, one needle, one `$out`. Replaced with one
+  asserting the leftover COUNT, which the duplicate never did. (fixed)
+- r7 (verifier): the new block was spliced between another block's comment
+  header and its code, orphaning that header. Second time this session.
+  (fixed)
+- r8 (verifier): the only hook call in the suite without `HANDOVER_FETCH=0` —
+  network-shaped I/O behind a 15s ceiling, buying nothing. (fixed)
+- r9 (verifier): `next:` described the approach this file rejects, and it is
+  the line the hook prints without opening the file. (fixed)
+
+Round 2, mine.
+
+- r10: the shallow-clone warning never printed. `owned_at` runs inside a
+  command substitution, so the global it set died with the subshell.
+  Signalled by exit status now. A false negative inside the fix for a false
+  negative. (fixed)
+- r11: the commit that claimed to record this round recorded nothing — the
+  edit failed and the commit ran anyway, so its message asserted work that
+  had not happened. Caught on the next read. A commit message is a claim like
+  any other and this one was false. (fixed, here)
+
+## What this does NOT fix, on this checkout
+
+The clone here is shallow, so `merge-base` fails for 27 of 28 refs and every
+branch takes the fallback. **The inheritance fix is inert in this container**
+and the false claims remain — visible, and labelled as possibly-inherited
+rather than asserted as claims. It works on a full clone, which is what the
+fixtures exercise. `git fetch --unshallow` is the operator action, and the
+hook now says so in its own output rather than leaving a reader wondering why
+the numbers do not move.
 
 ## Blockers
 
