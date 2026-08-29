@@ -65,6 +65,11 @@ add() { OUT="${OUT}${1}"$'\n'; }
 # is to prevent a false "nobody is on this" failed by reporting nothing
 # whatsoever.
 claimed_issues=""
+# Set by owned_at when it could not compute ownership and fell back to the
+# tree. Reported, never swallowed: the fallback is the SAFE direction, but a
+# reader who is not told cannot know an entry may be inherited rather than
+# claimed — and on a shallow clone that is most of them.
+OWNED_UNVERIFIED=0
 
 issue_num() {
   local v="${1#\#}"
@@ -135,8 +140,29 @@ files_at() {
 # start disagreeing.
 owned_at() {
   local base
-  base="$(git merge-base "$1" "origin/${BASE_BRANCH}" 2>/dev/null)" || return 0
-  [ -n "$base" ] || return 0
+  # NO merge-base: fall back to the tree. A shallow clone has grafted
+  # history, so `git merge-base` fails for most refs — measured on THIS
+  # checkout, 27 of them — and returning nothing there did not report
+  # "unknown", it reported "this branch claims nothing". The in-flight
+  # listing went from 12 entries to 3 and I read the drop as the inheritance
+  # fix working; most of it was real claims disappearing, including a branch
+  # that provably authored its file.
+  #
+  # Over-report when ownership cannot be computed. A false claim costs
+  # someone a `/who`; a MISSING claim is two sessions duplicating work, which
+  # is what issue #119 was filed for. The safe direction is the noisy one.
+  #
+  # Inherited from cl_inflight, which has the same `continue` and the same
+  # hole — copying a precedent copies its blind spots too.
+  base="$(git merge-base "$1" "origin/${BASE_BRANCH}" 2>/dev/null)" || base=""
+  if [ -z "$base" ]; then
+    files_at "$1"
+    # Signalled by STATUS, not by setting a global: this function is called
+    # inside a command substitution, so an assignment here dies with the
+    # subshell — the warning about unreliable data silently never printed,
+    # which is the same false-negative shape as the bug being fixed.
+    return 3
+  fi
   git diff --name-only --diff-filter=ACMRT "$base" "$1" \
     -- "$HANDOVER_DIR" 2>/dev/null |
     grep -E '\.md$' | grep -vE '/(TEMPLATE|README)\.md$'
@@ -278,7 +304,7 @@ while IFS= read -r ref; do
   # files_at on purpose: there the question really is what the tree holds.
   # Two callers, two different questions — a blanket substitution breaks the
   # one that was already right.
-  ws_files="$(owned_at "$ref")"
+  ws_files="$(owned_at "$ref")" || [ "$?" -ne 3 ] || OWNED_UNVERIFIED=1
 
   # A branch pushed recently is worth surfacing even with no workstream file:
   # a session that just started has not written one yet. The base branch is
@@ -424,6 +450,12 @@ done < <(files_at "origin/${BASE_BRANCH}")
 if [ -n "$others" ]; then
   add ""
   add "Work in flight on other branches (git show reads without checkout):"
+  if [ "$OWNED_UNVERIFIED" -eq 1 ]; then
+    add "  NOTE: this clone is shallow for at least one branch, so ownership"
+    add "  could not be computed there and the TREE was listed instead. Those"
+    add "  entries may be inherited rather than claimed. A full clone"
+    add "  distinguishes them; git fetch --unshallow."
+  fi
   OUT="${OUT}${others}"
   if [ "$recent_count" -gt 0 ]; then
     add ""
