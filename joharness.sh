@@ -2222,6 +2222,7 @@ FB_NOID=0
 
 fb_collect() {
   FB_REF="$(base_ref)" || return 1
+  fb_cache_load && return 0
 
   local m tip base doc label line marker n all
   FB_PAIRS=""; FB_HIST=""
@@ -2276,6 +2277,7 @@ fb_collect() {
       FB_PAIRS="${FB_PAIRS}${label}"$'\t'"$(fb_current_path "${line#*	}")"$'\t'"${line%%	*}"$'\n'
     done <<<"$(fb_fix_map "$base" "$tip")"
   done <<<"$all"
+  fb_cache_save
   return 0
 }
 
@@ -2288,7 +2290,23 @@ fb_hotspots() {
 }
 
 cmd_feedback() {
-  local want="${1:-}" line
+  local want="${1:-}" quiet=0 line
+  case "${2:-}" in
+    --quiet) quiet=1 ;;
+    '') ;;
+    *) die "usage: $0 feedback [<path>] [--quiet]" ;;
+  esac
+  # Quiet is for a caller that pastes this into someone's context, not for a
+  # reader: the PreToolUse hook fires before every edit, and a banner plus
+  # "no merged edge recorded a finding" ahead of every one of them is the
+  # noise that gets a hook turned off. No findings, no output, no exit code
+  # to distinguish it — silence is the whole answer.
+  if [ "$quiet" -eq 1 ]; then
+    [ -n "$want" ] || die "feedback --quiet needs a path"
+    fb_collect || return 0
+    fb_report_path "$want" "$FB_HIST" "$FB_PAIRS" 1
+    return 0
+  fi
   fb_collect || die "no base branch to read merged history from"
   local ref="$FB_REF" edges="$FB_EDGES" withws="$FB_WITHWS"
   local recorded="$FB_RECORDED" findings="$FB_FINDINGS"
@@ -2382,30 +2400,125 @@ EOF
 # Every finding from merged history whose own fix commit touched this path.
 # The point of the whole file: before editing a file that has cost other
 # branches, read what it cost them.
+# <path> <hist> <pairs> [quiet]
 fb_report_path() {
-  local want="$1" hist="$2" pairs="$3" resolved keys line key n=0 edges
+  local want="$1" hist="$2" pairs="$3" quiet="${4:-0}"
+  local resolved keys line key n=0 edges
   resolved="$(fb_current_path "$want")"
   # <edge>\t<finding-id> for this path, the join key into hist.
   keys="$(printf '%s' "$pairs" | awk -F'\t' -v p="$resolved" \
     'NF >= 3 && $2 == p { print $1 "\t" $3 }' | sort -u)"
 
-  printf '== feedback: %s\n\n' "$resolved"
   if [ -z "$keys" ]; then
+    [ "$quiet" -eq 1 ] && return 0
+    printf '== feedback: %s\n\n' "$resolved"
     printf '  no merged edge recorded a finding whose fix touched this file\n'
     return 0
   fi
+  if [ "$quiet" -eq 1 ]; then
+    printf 'This file has drawn review findings before:\n\n'
+  else
+    printf '== feedback: %s\n\n' "$resolved"
+  fi
+  # ONE awk over both lists. The old shape forked a `grep -qxF` and two `cut`s
+  # for every line of history — around 750 forks on this repo — which is what
+  # made a cached call still cost 2.8s, and this report is now read by a hook
+  # that fires before every edit. Same regression shape as review_prior, found
+  # the same way: by measuring, once something started calling it often.
+  local matched
+  matched="$(
+    { printf '%s\n' "$keys"; printf '\034\n'; printf '%s' "$hist"; } |
+      awk -F'\t' '
+        $0 == "\034" { h = 1; next }
+        !h { k[$1 "\t" $2] = 1; next }
+        NF >= 3 && (($1 "\t" $2) in k) {
+          rest = $3
+          for (i = 4; i <= NF; i++) rest = rest "\t" $i
+          printf "%s\t%s\n", $1, rest
+        }'
+  )"
   while IFS= read -r line; do
     [ -n "$line" ] || continue
-    key="${line%%	*}"$'\t'"$(printf '%s' "$line" | cut -f2)"
-    printf '%s\n' "$keys" | grep -qxF "$key" || continue
     n=$((n + 1))
-    printf '  %s  %s\n\n' "${line%%	*}" "$(printf '%s' "$line" | cut -f3-)"
-  done <<<"$hist"
+    printf '  %s  %s\n\n' "${line%%	*}" "${line#*	}"
+  done <<<"$matched"
   edges="$(printf '%s\n' "$keys" | cut -f1 | sort -u | grep -c .)"
   printf '  %d findings from %d merged edges\n' "$n" "$edges"
   printf '  Link is finding-to-commit, not finding-to-file: one commit\n'
   printf '  carrying several findings attributes all of them to every file\n'
   printf '  it touched.\n'
+}
+
+# ---------------------------------------------------------------------------
+# fb_collect's cache
+#
+# Off unless JOHARNESS_FEEDBACK_CACHE names a directory, so every command-line
+# run walks history exactly as it did before. The PreToolUse hook sets it,
+# because the walk is what a hook cannot afford: measured on this repo,
+# 2026-08-29, `./joharness.sh feedback joharness.sh` took 6774 / 6648 / 6846 ms
+# over three runs at 121 edges with 50 read. Uncached that is a ~6.8s stall in
+# front of every Edit and Write — a harness nobody would keep switched on.
+#
+# Keyed by the base branch tip and the edge cap, because those are what the
+# walk reads. NOT by HEAD: a session commits often, and keying on HEAD would
+# pay the walk again after every commit, which is most of the cost back. The
+# cost of that choice is real and bounded — fb_current_path resolves a
+# recorded path against the CURRENT tree, so a file renamed mid-session keeps
+# being reported under its old name until the base branch moves. An advisory
+# injection naming a stale path is worth 6.8 seconds an edit.
+fb_cache_key() {
+  local tip
+  tip="$(git -C "$ROOT" rev-parse --verify --quiet "$FB_REF" 2>/dev/null)" || return 1
+  [ -n "$tip" ] || return 1
+  printf '%s-%s' "$tip" "${FB_LIMIT:-0}"
+}
+
+FB_CACHE_VARS="FB_EDGES FB_WITHWS FB_RECORDED FB_FINDINGS FB_FIXED FB_WONTFIX \
+FB_NOCHANGE FB_UNMARKED FB_NOID FB_TOTAL FB_CAPPED"
+
+fb_cache_load() {
+  local dir="${JOHARNESS_FEEDBACK_CACHE:-}" key f
+  [ -n "$dir" ] && [ -d "$dir" ] || return 1
+  key="$(fb_cache_key)" || return 1
+  f="${dir}/fb-${key}"
+  [ -f "${f}.vars" ] || return 1
+  # Digits and names only, never arbitrary text: the two blobs live in their
+  # own files precisely so nothing sourced here can carry a quote.
+  while IFS='=' read -r k v; do
+    case "$k" in
+      FB_[A-Z_]*) ;;
+      *) return 1 ;;
+    esac
+    case "$v" in
+      '' | *[!0-9]*) return 1 ;;
+    esac
+    eval "$k=$v"
+  done <"${f}.vars"
+  FB_HIST="$(cat "${f}.hist" 2>/dev/null)"
+  FB_PAIRS="$(cat "${f}.pairs" 2>/dev/null)"
+  # Command substitution eats trailing newlines; both readers split on them.
+  [ -z "$FB_HIST" ] || FB_HIST="${FB_HIST}"$'\n'
+  [ -z "$FB_PAIRS" ] || FB_PAIRS="${FB_PAIRS}"$'\n'
+  return 0
+}
+
+fb_cache_save() {
+  local dir="${JOHARNESS_FEEDBACK_CACHE:-}" key f v
+  [ -n "$dir" ] && [ -d "$dir" ] || return 0
+  key="$(fb_cache_key)" || return 0
+  f="${dir}/fb-${key}"
+  # Write then rename: two hooks firing at once must never read half a cache.
+  {
+    for v in $FB_CACHE_VARS; do
+      eval "printf '%s=%s\n' \"\$v\" \"\${$v}\""
+    done
+  } >"${f}.vars.$$" 2>/dev/null || return 0
+  printf '%s' "$FB_HIST" >"${f}.hist.$$" 2>/dev/null || return 0
+  printf '%s' "$FB_PAIRS" >"${f}.pairs.$$" 2>/dev/null || return 0
+  mv -f "${f}.vars.$$" "${f}.vars" 2>/dev/null || :
+  mv -f "${f}.hist.$$" "${f}.hist" 2>/dev/null || :
+  mv -f "${f}.pairs.$$" "${f}.pairs" 2>/dev/null || :
+  return 0
 }
 
 
@@ -3642,7 +3755,7 @@ main() {
     upgrade)        cmd_upgrade "$@" ;;
     verify)         cmd_verify ;;
     review)         cmd_review ;;
-    feedback)       cmd_feedback "${1:-}" ;;
+    feedback)       cmd_feedback "${1:-}" "${2:-}" ;;
     cleanup)        cmd_cleanup "$@" ;;
     finish)         cmd_finish ;;
     graph)          cmd_graph ;;
