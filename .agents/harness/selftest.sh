@@ -3034,6 +3034,49 @@ out="$(sw)"
 expect "a failing check flips the sweep" "sweep NOT dry" "$out"
 expect "and the verdict names the checks" "checks(1 failing" "$out"
 
+# The unmarked-findings detector, pinned. Until this, the whole section
+# passed with src_unmarked replaced by `printf 0`: swwork had no merged
+# edges, so both the zero assertion and the dry case rode an unread source.
+# That missing test is what let a capped walk and an unreachable blind path
+# through review.
+sw_edge() {
+  git -C "$swwork" checkout -q main
+  git -C "$swwork" checkout -qb "$1"
+  printf 'change\n' >>"${swwork}/touched.sh"
+  mkdir -p "${swwork}/docs/handover"
+  { printf -- '---\nworkstream: %s\nstatus: review\n---\n\n## Review\n\n' "$1"
+    printf '%s\n' "$2"; } >"${swwork}/docs/handover/$1.md"
+  commit_all "$swwork" "record a finding on $1"
+  git -C "$swwork" rm -q "docs/handover/$1.md"
+  git -C "$swwork" commit -qm "Finish ritual: delete the workstream file"
+  git -C "$swwork" checkout -q main
+  git -C "$swwork" merge -q --no-ff -m "Merge pull request #1 from scratch/$1" "$1"
+}
+sw_suite 3 0 0
+commit_all "$swwork" "suite back to green" 2>/dev/null || true
+sw_edge acted "- r1: something, and it was dealt with. (fixed)"
+out="$(sw)"
+expect "an acted finding does not hold the sweep open" "0 unmarked" "$out"
+expect "and the sweep is dry again" "sweep dry" "$out"
+sw_edge unacted "- r1: nobody ever came back to this one."
+out="$(sw)"
+expect "an unacted finding is counted" "1 unmarked" "$out"
+expect "and flips the sweep" "sweep NOT dry" "$out"
+expect "and the verdict names findings" "findings(1 unmarked)" "$out"
+
+# ci's exit status is its own signal, separate from the suite's counts. The
+# earlier fixture moved both at once and so could not tell which one the
+# detector read — and reading only the counts was the worst defect review
+# found. Suite green, ci red: nothing else can produce this.
+printf '#!/usr/bin/env bash\nif [ 1 -eq 1 ]; then\n' >"${swwork}/broken.sh"
+commit_all "$swwork" "a file that fails bash -n"
+out="$(sw)"
+expect "suite green but ci red still flips the sweep" "sweep NOT dry" "$out"
+expect "and the verdict names ci itself" "ci-red(exit" "$out"
+expect "with the suite counts still zero" "0 failing, 0 skipped" "$out"
+git -C "$swwork" rm -q broken.sh
+commit_all "$swwork" "unbreak it"
+
 # The property the whole command exists for: a source that could not be read
 # is NOT dry. A suite that prints no count line leaves the checks detector
 # blind, and blind must beat dry or a session stops because it failed to
