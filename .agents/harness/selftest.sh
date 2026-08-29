@@ -5625,9 +5625,9 @@ step "joharness.sh perf"
 # notice (JOHARNESS_PERF=off at the top of this file, same argument).
 #
 # `graph` is the row used for the generic cases — the one whose count a
-# reverted gr_fields actually moves. handover-guard is cheaper still (22
-# against 166) but its own cases below measure it four times, so the generic
-# ones do not add a fifth.
+# reverted gr_fields actually moves. handover-guard is cheaper still, but its
+# own cases below already measure it four times, so the generic ones do not
+# add a fifth.
 pf_run() { ( cd "$ROOT" && JOHARNESS_PERF='' "$@" 2>&1 ); }
 
 out="$(pf_run ./joharness.sh perf graph)" && rc=0 || rc=$?
@@ -5654,18 +5654,37 @@ expect "the unknown-entrypoint warning lists the real ones" "session-start" "$ou
 if [ "$rc" -ne 0 ]; then pass "an unknown entrypoint is not a pass"
 else fail "an unknown entrypoint is not a pass (got 0)"; fi
 
-# The Stop guard's row. It fires more often than the other five combined —
-# once per stop, in every consumer — and until this row existed nothing
-# counted it.
+# The Stop guard's row. Nothing counted it before: the other five are run by
+# a session on purpose, this one runs on every stop whether anybody asked.
+#
+# Matched as a TABLE ROW, not as the name anywhere in the output. Searching
+# the output for "handover-guard" passes on a tree that has no such row at
+# all, because the unknown-entrypoint warning quotes the name back at you —
+# a green tick over nothing measured, which is the failure this section's own
+# "an unknown entrypoint is not a pass" case exists to prevent.
 out="$(pf_run ./joharness.sh perf handover-guard)" && rc=0 || rc=$?
-expect "the guard has a row of its own" "handover-guard" "$out"
+pf_guard_row="$(printf '%s\n' "$out" | awk '$1 == "handover-guard" { print $2 "/" $3 }')"
+case "$pf_guard_row" in
+  [0-9]*/[0-9]*) pass "the guard has a row of its own" ;;
+  *) fail "the guard has a row of its own"
+     printf '    counted/budget came back as: %s\n' "${pf_guard_row:-<no row>}" ;;
+esac
 if [ "$rc" -eq 0 ]; then pass "the guard is inside its budget"
 else fail "the guard is inside its budget (got ${rc})"; printf '%s\n' "$(indent "$out")"; fi
 
 out="$(pf_run env JOHARNESS_PERF_BUDGET_GUARD=1 ./joharness.sh perf handover-guard)" && rc=0 || rc=$?
 expect "the guard's budget is a gate, not a print" "OVER by" "$out"
-if [ "$rc" -ne 0 ]; then pass "a guard breach is a non-zero exit"
-else fail "a guard breach is a non-zero exit (got 0)"; fi
+# The exit code is only evidence of a breach if a breach was printed. A tree
+# with no such row exits non-zero too — for the unknown name — so a bare
+# rc test here passes on a tree that budgets nothing.
+case "$out" in
+  *"OVER by"*)
+    if [ "$rc" -ne 0 ]; then pass "a guard breach is a non-zero exit"
+    else fail "a guard breach is a non-zero exit (got 0)"; fi ;;
+  *)
+    fail "a guard breach is a non-zero exit"
+    printf '    nothing breached; rc %s came from somewhere else\n' "$rc" ;;
+esac
 
 # The number must describe the CODE, not the repo reading it. The guard's
 # dearest path is the unsupervised boundary block, and whether a repo takes

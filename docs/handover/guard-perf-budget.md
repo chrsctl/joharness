@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01SHPKsgu5WMHQ4g7MhTwRhm
 agent: opus
 updated: 2026-08-29
-next: Review at opus depth (adversarial lenses + verifier), then open the PR.
+next: Fold the verifier round into ## Review, then retire and open the PR.
 ---
 
 ## Goal
@@ -55,7 +55,47 @@ budget is a ceiling, never a target.
 
 ## Review
 
-(no round yet)
+Round 1, this session, three lenses (correctness, does-it-reproduce, cost).
+Every new case was then re-run with the row deleted from `perf_rows`: 6 of 6
+fail without it (774 passed / 6 failed against 780 / 0 with it).
+
+- r1: `expect "the guard has a row of its own" "handover-guard" "$out"` passed
+  on a tree with NO such row — `perf` quotes the unknown name back in its own
+  warning, so the assertion matched the failure message. A green tick over
+  nothing measured, which is the exact thing the neighbouring
+  "an unknown entrypoint is not a pass" case exists to prevent. (fixed: the
+  row is matched as a table row, counted and budget both numeric)
+- r2: `a guard breach is a non-zero exit` passed with no row too — an unknown
+  entrypoint also exits non-zero, so the assertion could not tell a breach
+  from a typo. Found by running the refutation, not by reading. (fixed: the
+  exit code only counts as evidence when an OVER row was printed; the
+  refutation went 5 failures to 6)
+- r3: the budget was first set at 40 — above the 29 the state swing reaches,
+  and chosen from that alone. Then measured the regression the row exists to
+  catch: the boundary block's `git diff` inside a `for path` loop costs 37,
+  and 40 printed `ok` for it. A ceiling that misses its own motivating
+  regression is decoration. (fixed: 33, in the 30-36 gap)
+- r4: the new comment claimed the guard "fires more often than the other five
+  combined". Plausible, never counted. (fixed: says what is true — the other
+  five are run on purpose, this one runs whether anybody asked)
+- r5: same comment carried "22 against 166" with no command and no date — a
+  written number, which this repo treats as no number. (fixed: dropped)
+- r6: the first `sg_cost_run` returned the guard's output through a global set
+  inside a command substitution, so it died with the subshell. Identical to
+  PR 123 r6, one plan later; `set -u` caught it this time instead of a silent
+  empty string. (fixed: the output goes to a file)
+- r7: the "cost fixture really is missing most protocol paths" case was
+  commented as pinning the guard's no-filter rule. It pins the FIXTURE. The
+  no-filter rule is pinned by "deleting a protocol tree is a crossing",
+  already in the suite. An over-claimed comment is how a real gap gets read as
+  covered. (fixed: the comment says which of the two it is)
+- r8: the perf section's own comment said "measuring all five" and "cheapest
+  of the five" — false the moment a sixth row exists. (fixed)
+- r9: pre-existing, not this plan's: a `perf_rows` row naming a file that does
+  not exist counts 0 and reports `ok`. All six rows share it, and the suite's
+  "a zero count is one number, not two" case depends on zero being a
+  legitimate answer, so closing it is a change to what zero means. (open —
+  recorded, not fixed here)
 
 ## Blockers
 
