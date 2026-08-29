@@ -183,6 +183,43 @@ Hook lists every workstream file on every remote branch, with exact `git show`
 command. Session on `main` sees other branch's decisions — no checkout, no
 merge, no subagent.
 
+## In-flight order: closest to merging first
+
+The listing is ranked, not chronological. Rank reads two frontmatter fields
+and nothing else — the same two `joharness.sh:at_edge` reads, so the edge has
+one definition and this is downstream of it:
+
+| Rank | State | What is left |
+| --- | --- | --- |
+| 0 | `status: done`, unmerged | the merge, and nothing else |
+| 1 | `status: review` | record findings, then merge |
+| 2 | `pr:` set | drive the pull request green, then merge |
+| 3 | `status: in-progress`, no `pr:` | building |
+| 4 | `status: blocked` | lists, never leads |
+| 5 | branch pushed recently, no workstream file | somebody to `/who` |
+
+Ties break on push time ASCENDING — oldest first, the inverse of the ref
+order this replaced. Within one rank the oldest push is the entry closest to
+abandoned, and an abandoned branch at the edge reads as in-flight until a
+human triages it ([`../product/README.md`](../product/README.md), Branch flow).
+
+Ranks 0-2 are the edge. A branch there leads the block under FINISH BEFORE
+STARTING, because finishing outranks starting
+([`.agents/harness/AGENTS.md`](../../harness/AGENTS.md) step 2). The line names the
+work and stops: step 7 gives a session its OWN pull request to merge and no
+other, so whether that branch is yours is `/who`'s answer, never a rank's.
+
+Merged branches never reach the rank — they are filtered one step earlier, by
+ancestry. That is what makes rank 0 safe to print rather than skip: an
+unmerged `status: done` is not finished work, it is work declared finished
+that never landed, and hiding it is how it becomes deadwood. It used to be
+skipped outright — the single most finishable state was the one state the
+listing would not show.
+
+`HANDOVER_MAX_ENTRIES` caps the listing AFTER the ranking, so what it hides is
+the least finishable work rather than the oldest push, and the hook says how
+many it hid.
+
 ## Concurrent sessions: who is on what right now
 
 Workstream files answer "what is this work?". Parallel sessions raise "someone

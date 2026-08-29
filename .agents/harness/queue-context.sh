@@ -678,6 +678,14 @@ elif [ "$free_count" -eq 0 ] && [ -z "$unplanned" ] &&
 fi
 
 printf '\n'
+# Static, deliberately. The in-flight state this defers to is computed one
+# script earlier (handover-context.sh runs first in `session-start`), and
+# re-deriving it here would mean a second walk over every ref to answer a
+# question already answered above — two readers of one fact, which is how
+# they start disagreeing. A pointer costs nothing and cannot drift.
+printf 'Finishing outranks starting: edge work in the in-flight block above\n'
+printf '(pull request open, or status review or done) comes before anything\n'
+printf 'here. Another session LIVE on it? Not yours — /who, then pick below.\n\n'
 if [ -n "$unplanned" ]; then
   printf 'Entrypoint: GitHub issues, then UNPLANNED requirements above (plan\n'
   printf 'first — outranks plans), then top free plan. Agent field = model\n'

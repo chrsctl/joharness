@@ -256,19 +256,72 @@ my_paths="$(
 )"
 
 # --- other branches --------------------------------------------------------
-others=""
+# Two passes, and the split is the fix.
+#
+# This listing used to print in ref order, `--sort=-committerdate`: newest
+# push first. The paragraph the hook prints under it tells the reader push
+# time is "NOT liveness — wrong both directions", so the entries were ordered
+# by the one signal the hook itself disclaims. What that costs is not
+# theoretical. Measured on this repo 2026-08-29 on a full clone, six unmerged
+# branches owned a workstream file and exactly one was at the edge — `pr: 10`,
+# pushed 8 days earlier, 575 commits behind main. Oldest push of the six, so
+# it sorted LAST; with HANDOVER_MAX_ENTRIES at 12, a dozen fresher branches
+# would have pushed the only nearly-done work off the listing entirely. The
+# ordering buried precisely what it should have led with.
+#
+#   for ref in $(git for-each-ref --format='%(refname:short)' refs/remotes/origin); do
+#     git merge-base --is-ancestor "$ref" origin/main 2>/dev/null && continue
+#     base=$(git merge-base "$ref" origin/main) || continue
+#     for f in $(git diff --name-only --diff-filter=ACMRT "$base" "$ref" \
+#                  -- docs/handover | grep -vE '/(TEMPLATE|README)\.md$'); do
+#       git show "$ref:$f" | sed -n 's/^pr:[[:space:]]*//p' | head -1
+#     done
+#   done
+#
+# So: pass 1 walks every ref, banks claims, and collects one cheap row per
+# listable workstream file — every field read off the document already
+# fetched, not one extra process. Pass 2 sorts those rows by how close the
+# work is to merging and pays for the per-entry extras (behind-count,
+# overlap, churn) only on the rows that survive the cap. Cap the RANKED list,
+# never the ref-order one: capping first is the bug, not the budget.
+# Field separator for the collected rows. NOT a tab: tab is IFS whitespace,
+# so `IFS=$'\t' read` collapses a run of them into one and drops every empty
+# field between. Every row here has empty fields — `pr:` is unset on most
+# branches — and the collapse shifted each later value one slot left, so the
+# listing printed a session URL under "claims issue #" and a 0 under
+# "session:". Unit separator is not whitespace, so a run of them stays a run.
+US=$'\x1f'
+rows=""
 recent_count=0
-count=0
 now="$(date +%s)"
 
+# How close to merging, low first. Reads the same two fields joharness.sh's
+# at_edge reads and redefines neither: `pr:` set, or `status:` review or done,
+# is the edge, and everything here is downstream of that one definition.
+# `blocked` is tested first and lands last on purpose — the plan queue lists a
+# blocked item and never leads with it (.agents/docs/plans/README.md), and an
+# in-flight listing that led with blocked work would contradict its own queue.
+rank_of() {
+  case "$1" in
+    blocked )   printf 4 ;;
+    "done" )    printf 0 ;;
+    review )    printf 1 ;;
+    * )         if [ -n "$2" ]; then printf 2; else printf 3; fi ;;
+  esac
+}
+
+# A `pr:` value a reader wrote by hand. `#12` and `12` are both natural and
+# both unambiguous, same as issue_num above; `none` and an empty field are the
+# same fact. Anything else is left alone rather than argued with — this hook
+# prints claims, it does not teach, and ci's graph lint is where a malformed
+# value gets a name and a file.
+pr_num() {
+  local v="${1#\#}"
+  case "$v" in '' | none | NONE ) return 0 ;; esac
+  printf '%s' "$v"
+}
+
 while IFS= read -r ref; do
-  # NOT a break. The cap bounds the entry LISTING; breaking here stopped the
-  # claim scan too, and refs are sorted newest-first, so the oldest claim —
-  # the one most likely to be duplicated — was the first to vanish. Measured
-  # on this repo: 12 entries printed against 46 branches carrying workstream
-  # files. Entries past the cap are skipped below; their claims are not.
-  capped=0
-  [ "$count" -ge "$MAX_ENTRIES" ] && capped=1
   short="${ref#refs/remotes/}"
   # Compare on the branch name with the remote prefix stripped. Matching
   # 'origin/<branch>' alone reports the session its own branch from any second
@@ -290,6 +343,9 @@ while IFS= read -r ref; do
   fi
 
   # Already merged into the base branch: finished work, not a live claim.
+  # This filter is why the `done` rank below is safe to print rather than
+  # skip — anything reaching it is UNMERGED, so `status: done` there means
+  # work declared finished that never landed, not work that is over.
   git merge-base --is-ancestor "$ref" "origin/${BASE_BRANCH}" 2>/dev/null &&
     continue
 
@@ -320,59 +376,48 @@ while IFS= read -r ref; do
   # A branch pushed recently is worth surfacing even with no workstream file:
   # a session that just started has not written one yet. The base branch is
   # excluded — it moving is a rebase signal, not another session's work.
+  # Rank 5: below every branch that has a file to read, because there is
+  # nothing here to finish, only somebody to /who.
   if [ -z "$ws_files" ]; then
     if [ "$fresh" = "1" ] && [ "$name" != "${BASE_BRANCH}" ]; then
-      others="${others}  ${short}: no workstream file, pushed ${pushed_rel}"$'\n'
-      recent_count=$((recent_count + 1))
-      count=$((count + 1))
+      # Fourteen fields like every other row, and the empty ones are counted
+      # rather than eyeballed: f, status, pr, updated, agent, issue and
+      # session are all blank here, which is 8 separators between `short` and
+      # `fresh`, not 7. At 7 this row was short by one, so `fresh` was read as
+      # `session` and `pushed_rel` as `review_n` — the entry printed "pushed "
+      # with no time and stopped counting toward `recent_count`, which is the
+      # one thing a branch with no workstream file is listed FOR.
+      rows="${rows}5${US}${pushed_at:-9999999999}${US}${short}${US}${US}${US}${US}${US}${US}${US}${US}${fresh}${US}0${US}0${US}${pushed_rel}"$'\n'
     fi
     continue
   fi
 
-  ref_paths=""
-  churn_done=""
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     doc="$(git show "${ref}:${f}" 2>/dev/null)"
     [ -n "$doc" ] || continue
     { read -r status; read -r updated; read -r session; read -r agent
-      read -r issue; } \
-      <<<"$(printf '%s\n' "$doc" | fields status updated session agent issue)"
+      read -r issue; read -r pr; } \
+      <<<"$(printf '%s\n' "$doc" | fields status updated session agent issue pr)"
     issue="$(issue_num "$issue")"
-    # BEFORE the done-skip, deliberately. `status: done` is set before the
-    # pull request merges, and step 7 leaves a merge the session cannot click
-    # sitting on a human's clock — throughout that window the issue is
-    # claimed, pushed, and would otherwise read as free. The claim outlives
-    # the status.
+    pr="$(pr_num "$pr")"
+    # Claims are banked for EVERY ref, uncapped and unranked. The cap bounds
+    # the listing; it never bounded this scan, and the reordering below must
+    # not start. Refs used to arrive newest-first, so a break here took the
+    # oldest claim first — the one most likely to be duplicated. Measured on
+    # this repo: 12 entries printed against 46 branches carrying workstream
+    # files.
+    #
+    # `status: done` banks too. That status is set before the pull request
+    # merges, and step 7 leaves a merge the session cannot click sitting on a
+    # human's clock — throughout that window the issue is claimed, pushed, and
+    # would otherwise read as free. The claim outlives the status.
     #
     # Carries the FILE, not just the branch. One workstream file inherited
     # across branches is one claim; naming only branches fanned it into five
-    # and sent a reader to /who the wrong sessions. Whether a branch OWNS a
-    # file it merely inherited is the tree-versus-diff rule
-    # (.agents/harness/AGENTS.md step 4) and belongs to the queued
-    # handover-inflight-diff plan, done: the listing now asks owned_at, so an
-    # inherited file is no longer reported as a claim at all. The file is
-    # still printed beside each claim, which stays useful — one workstream
-    # file legitimately owned by two branches reads as one claim, twice.
+    # and sent a reader to /who the wrong sessions.
     [ -z "$issue" ] ||
       claimed_issues="${claimed_issues}  #${issue} — ${short} (${f})"$'\n'
-    [ "$status" = "done" ] && continue
-    # Past the cap the claim is already banked; the rest of this entry —
-    # session line, review count, overlap, churn — is listing, and listing is
-    # what the cap bounds.
-    [ "$capped" -eq 1 ] && continue
-
-    claim=""
-    if [ "$fresh" = "1" ]; then
-      claim="  <- recent"
-      recent_count=$((recent_count + 1))
-    fi
-
-    others="${others}  ${short}: ${f}"$'\n'
-    others="${others}    [${status:-?}, updated ${updated:-?}${agent:+, wants ${agent}}${issue:+, claims issue #${issue}}] pushed ${pushed_rel:-?}${claim}"$'\n'
-    [ -n "$session" ] && others="${others}    session: ${session}"$'\n'
-    [ "${inherited_n:-0}" -gt 0 ] &&
-      others="${others}    (also carries ${inherited_n} inherited workstream file(s) — not claims, but they land on ${BASE_BRANCH} if this merges)"$'\n'
 
     # Findings recorded in the file's ## Review section. Only the count, and
     # only when there is one: a branch churning with NO review line here is
@@ -383,56 +428,140 @@ while IFS= read -r ref; do
       /^## /                    { in_r = 0 }
       in_r && /^- /             { n++ }
       END { print n + 0 }')"
-    [ -n "$review_n" ] && [ "$review_n" -gt 0 ] &&
-      others="${others}    review: ${review_n} finding(s) recorded"$'\n'
 
-    # Overlap is computed once per ref, not once per file it carries.
-    if [ -z "$ref_paths" ] && [ -n "$my_paths" ]; then
-      ref_paths="$(changed_at "$ref")"
-      if [ -n "$ref_paths" ]; then
-        overlap="$(comm -12 <(printf '%s\n' "$my_paths") \
-          <(printf '%s\n' "$ref_paths") | head -4 | paste -sd', ' -)"
-        [ -n "$overlap" ] &&
-          others="${others}    TOUCHES THE SAME FILES AS THIS BRANCH: ${overlap}"$'\n'
-      fi
-    fi
-
-    # Same metric ci prints for the session's own branch (joharness.sh,
-    # churn_top): a branch hammering one file is likely in review churn,
-    # and the session inside it is the one least able to notice. Protocol
-    # paths excluded — touching the workstream file every commit is
-    # compliance, not churn. Computed once per ref like the overlap check
-    # above, not once per workstream file the ref carries. A missing
-    # merge-base (base branch not fetched, shallow checkout) skips the
-    # measurement — an empty base would turn the range into HEAD..ref and
-    # measure against whatever this session has checked out. Count and path
-    # split on awk's tab, so a hot file with a space in its name survives
-    # whole; the tail sort is guarded like the grep because head's exit
-    # would otherwise read as failure under pipefail.
-    if [ -z "$churn_done" ]; then
-      churn_done=1
-      churn_base="$(git merge-base "$ref" "origin/${BASE_BRANCH}" 2>/dev/null)"
-      if [ -n "$churn_base" ]; then
-        churn="$(git log --no-merges --format='%H' "${churn_base}".."$ref" 2>/dev/null |
-          while IFS= read -r c; do
-            git diff-tree --no-commit-id --name-only -r "$c" 2>/dev/null
-          done |
-          { grep -vE '^docs/(handover|plans|product)/' || :; } |
-          sort | uniq -c | { sort -rn || :; } | head -1 |
-          awk '{ c = $1; sub(/^ *[0-9]+ /, ""); printf "%s\t%s\n", c, $0 }')"
-        churn_n="${churn%%$'\t'*}"
-        churn_f="${churn#*$'\t'}"
-        if [ -n "$churn_n" ] && [ "$churn_n" -ge "${JOHARNESS_CHURN_THRESHOLD:-5}" ]; then
-          others="${others}    churn: ${churn_f} touched in ${churn_n} commits — review churn rule (.agents/docs/agent-selection.md)"$'\n'
-        fi
-      fi
-    fi
-
-    others="${others}    git show ${short}:${f}"$'\n'
-    count=$((count + 1))
+    rows="${rows}$(rank_of "$status" "$pr")${US}${pushed_at:-9999999999}${US}${short}${US}${f}${US}${status}${US}${pr}${US}${updated}${US}${agent}${US}${issue}${US}${session}${US}${fresh}${US}${inherited_n}${US}${review_n}${US}${pushed_rel}"$'\n'
   done <<<"$ws_files"
-done < <(git for-each-ref --sort=-committerdate --format='%(refname)' \
-  refs/remotes 2>/dev/null)
+done < <(git for-each-ref --format='%(refname)' refs/remotes 2>/dev/null)
+
+# --- pass 2: rank, cap, then pay for the extras ----------------------------
+# Sorted by rank, then by push time ASCENDING — oldest first, the deliberate
+# inverse of the ref order this replaced. Within one rank the oldest push is
+# the entry closest to being abandoned, and abandonment is the failure this
+# block exists to catch: a branch at the edge that nobody came back to reads
+# as in-flight until a human triages it (.agents/docs/product/README.md,
+# Branch flow).
+others=""
+count=0
+hidden=0
+extras_done=""
+lead_ref=""
+lead_file=""
+lead_why=""
+
+while IFS="$US" read -r rank _ short f status pr updated agent issue \
+  session fresh inherited_n review_n pushed_rel; do
+  [ -n "$short" ] || continue
+
+  if [ "$count" -ge "$MAX_ENTRIES" ]; then
+    hidden=$((hidden + 1))
+    continue
+  fi
+  count=$((count + 1))
+
+  if [ -z "$f" ]; then
+    others="${others}  ${short}: no workstream file, pushed ${pushed_rel}"$'\n'
+    [ "$fresh" = "1" ] && recent_count=$((recent_count + 1))
+    continue
+  fi
+
+  claim=""
+  if [ "$fresh" = "1" ]; then
+    claim="  <- recent"
+    recent_count=$((recent_count + 1))
+  fi
+
+  others="${others}  ${short}: ${f}"$'\n'
+  others="${others}    [${status:-?}, updated ${updated:-?}${agent:+, wants ${agent}}${pr:+, pr #${pr}}${issue:+, claims issue #${issue}}] pushed ${pushed_rel:-?}${claim}"$'\n'
+
+  # What "finish" would mean here, in the words of the step that does it.
+  # Only for the three ranks at the edge: a line on every entry would make
+  # the edge unreadable, which is the state this block replaced.
+  case "$rank" in
+    0 ) others="${others}    EDGE: status done, unmerged — merging is all that is left (step 7)"$'\n' ;;
+    1 ) others="${others}    EDGE: at review — record findings, then merge (step 5, then 7)"$'\n' ;;
+    2 ) others="${others}    EDGE: pull request #${pr} open — drive it green, then merge (step 7)"$'\n' ;;
+  esac
+
+  if [ -z "$lead_ref" ] && [ "$rank" -le 2 ]; then
+    lead_ref="$short"
+    lead_file="$f"
+    case "$rank" in
+      0 ) lead_why="status done and unmerged" ;;
+      1 ) lead_why="at review" ;;
+      2 ) lead_why="pull request #${pr} open" ;;
+    esac
+  fi
+
+  [ -n "$session" ] && others="${others}    session: ${session}"$'\n'
+  [ "${inherited_n:-0}" -gt 0 ] &&
+    others="${others}    (also carries ${inherited_n} inherited workstream file(s) — not claims, but they land on ${BASE_BRANCH} if this merges)"$'\n'
+  [ -n "$review_n" ] && [ "$review_n" -gt 0 ] &&
+    others="${others}    review: ${review_n} finding(s) recorded"$'\n'
+
+  # Per-REF extras, and a ref can carry two files, so this is keyed on a
+  # seen-list rather than on adjacency: ranking splits a ref's files apart
+  # whenever their statuses differ, and the reset-per-iteration flag this
+  # replaced would then have measured the same ref twice.
+  case " ${extras_done} " in
+    *" ${short} "* ) continue ;;
+  esac
+  extras_done="${extras_done} ${short}"
+
+  # Behind the base branch, for edge entries only. Checks do NOT re-run when
+  # the base moves, so a green tick on a branch this far back was computed
+  # against a tree that no longer exists — reconcile before merging
+  # (.agents/docs/product/README.md, "Conflict at finish"). Bought here and
+  # not in pass 1 because it is one process per ref and only the capped,
+  # ranked survivors can use it.
+  if [ "$rank" -le 2 ]; then
+    behind_n="$(git rev-list --count "${short}..origin/${BASE_BRANCH}" 2>/dev/null)"
+    [ -n "${behind_n:-}" ] && [ "$behind_n" -gt 0 ] &&
+      others="${others}    ${behind_n} behind ${BASE_BRANCH} — reconcile before the merge; checks do not re-run when ${BASE_BRANCH} moves"$'\n'
+  fi
+
+  if [ -n "$my_paths" ]; then
+    ref_paths="$(changed_at "$short")"
+    if [ -n "$ref_paths" ]; then
+      overlap="$(comm -12 <(printf '%s\n' "$my_paths") \
+        <(printf '%s\n' "$ref_paths") | head -4 | paste -sd', ' -)"
+      [ -n "$overlap" ] &&
+        others="${others}    TOUCHES THE SAME FILES AS THIS BRANCH: ${overlap}"$'\n'
+    fi
+  fi
+
+  # Same metric ci prints for the session's own branch (joharness.sh,
+  # churn_top): a branch hammering one file is likely in review churn,
+  # and the session inside it is the one least able to notice. Protocol
+  # paths excluded — touching the workstream file every commit is
+  # compliance, not churn. A missing merge-base (base branch not fetched,
+  # shallow checkout) skips the measurement — an empty base would turn the
+  # range into HEAD..ref and measure against whatever this session has
+  # checked out. Count and path split on awk's tab, so a hot file with a
+  # space in its name survives whole; the tail sort is guarded like the grep
+  # because head's exit would otherwise read as failure under pipefail.
+  churn_base="$(git merge-base "$short" "origin/${BASE_BRANCH}" 2>/dev/null)"
+  if [ -n "$churn_base" ]; then
+    churn="$(git log --no-merges --format='%H' "${churn_base}".."$short" 2>/dev/null |
+      while IFS= read -r c; do
+        git diff-tree --no-commit-id --name-only -r "$c" 2>/dev/null
+      done |
+      { grep -vE '^docs/(handover|plans|product)/' || :; } |
+      sort | uniq -c | { sort -rn || :; } | head -1 |
+      awk '{ c = $1; sub(/^ *[0-9]+ /, ""); printf "%s\t%s\n", c, $0 }')"
+    churn_n="${churn%%$'\t'*}"
+    churn_f="${churn#*$'\t'}"
+    if [ -n "$churn_n" ] && [ "$churn_n" -ge "${JOHARNESS_CHURN_THRESHOLD:-5}" ]; then
+      others="${others}    churn: ${churn_f} touched in ${churn_n} commits — review churn rule (.agents/docs/agent-selection.md)"$'\n'
+    fi
+  fi
+
+  others="${others}    git show ${short}:${f}"$'\n'
+# Ref name is the third key, and it is not decoration: `sort` is not stable,
+# so two branches sharing a rank AND a commit timestamp would swap places
+# between runs of the same hook on the same tree. A listing that reorders
+# itself for no reason is one a reader stops trusting the order of.
+done < <(printf '%s' "$rows" | sort -t"$US" -k1,1n -k2,2n -k3,3)
+
 
 # --- rot check ------------------------------------------------------------
 # No workstream file belongs on the base branch: merged work is finished work,
@@ -462,7 +591,26 @@ done < <(files_at "origin/${BASE_BRANCH}")
 
 if [ -n "$others" ]; then
   add ""
-  add "Work in flight on other branches (git show reads without checkout):"
+  add "Work in flight on other branches, closest to merging FIRST"
+  add "(git show reads without checkout):"
+  # The lead line, and only when something is actually at the edge. No edge,
+  # no line: a listing that manufactures a "finish this first" out of three
+  # branches that are all mid-build teaches a reader to skip the line, and
+  # then it is not there on the day it matters.
+  #
+  # It stops at naming the work. It does NOT say "merge it" — step 7 gives a
+  # session its OWN pull request to merge and no other, so a hook that told
+  # every session to finish whatever sorted first would be ordering exactly
+  # the thing the Loop forbids. Whose it is, is /who's answer, not a ref
+  # order's.
+  if [ -n "$lead_ref" ]; then
+    add ""
+    add "  FINISH BEFORE STARTING: ${lead_ref} (${lead_file}) — ${lead_why}."
+    add "  Yours, or its session gone (/who)? Then it outranks a fresh plan"
+    add "  (step 2). Another session's live branch is not yours to merge"
+    add "  (step 7) — say so to the human instead."
+    add ""
+  fi
   if [ "$OWNED_UNVERIFIED" -eq 1 ]; then
     add "  NOTE: this clone is shallow for at least one branch, so ownership"
     add "  could not be computed there and the TREE was listed instead. Those"
@@ -475,6 +623,13 @@ if [ -n "$others" ]; then
     add "'recent' = pushed in last $((LIVE_SECONDS / 60))m. NOT liveness — wrong both"
     add "directions: fresh push often = finished session, live session can go"
     add "hours silent. Overlap with another branch? /who before touching."
+  fi
+  # The cap bounds the RANKED list, so what it hides is the least finishable
+  # work, not the oldest push. Saying how many is what makes that safe to
+  # trust — a silent truncation reads as an empty repo.
+  if [ "$hidden" -gt 0 ]; then
+    add ""
+    add "  ... and ${hidden} more, ranked below these (HANDOVER_MAX_ENTRIES to list)."
   fi
 fi
 
