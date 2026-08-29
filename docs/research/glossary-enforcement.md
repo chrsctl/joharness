@@ -84,12 +84,26 @@ git grep -lF  -- 'handover file'   -- '*.md'
 - **"Stale language" is NOT a DDD term of art.** Retracted. No source uses
   it as established vocabulary; the adjacent sourced ideas are failure to
   co-evolve the language, technical dominance, and the linguistic divide.
-- **The drift is now measured twice, and it closed.** 107 against 10 with
-  five files carrying both when this question was filed; **77 against 2**
-  on the tree at this branch, two files carrying both. Both survivors are
-  required: `.agents/docs/glossary.md`, whose `Not this` cell must spell the
-  banned form, and this file, which quotes it. The mechanism shipped in the
-  interval and the drift it was built for is gone.
+- **The drift closed, and the earlier count of it was wrong.** This file
+  first said "107 against 10 ... five files carrying both". The 10 and the
+  five reproduce at `2fa0ba5`, the tree where this question was filed. The
+  107 reproduces nowhere: at that tree the canonical spelling appears **39**
+  times across markdown, and a sweep of all 651 commits on `origin/main`
+  finds no commit where it reaches 107 — the maximum ever is 104. Half a
+  measurement, carried three days and nearly graduated.
+  What reproduces, and what the lint is actually about, is the count in the
+  paths `GLOSSARY_PATHS` governs, with the lint's own flags:
+
+  ```
+  git grep -FniI -- '<the Not this cell>' 2fa0ba5 -- <GLOSSARY_PATHS>
+  ```
+
+  **9 occurrences across 4 files** at `2fa0ba5` —
+  `.agents/docs/handover/README.md` 5, `.agents/docs/plans/README.md` 1,
+  `.agents/docs/product/README.md` 1, `.claude/commands/handover.md` 2 — and
+  **0** on this branch outside the glossary's own `Not this` cell, which the
+  lint exempts by path. That is the mechanism doing the thing it was built
+  for, counted where it acts.
 
 ## Consequence for the queue
 
