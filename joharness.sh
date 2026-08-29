@@ -655,15 +655,17 @@ cmd_ci() {
   #
   # Same skip as the selftest, for the same reason: the counts measure harness
   # code, and a branch touching only docs/ cannot move them. Measured cost of
-  # running it, 2026-08-28 on this repo: `ci` 61s without, 66s with — the five
-  # entrypoints are ~5s. That is the price of the gate on a harness branch and
-  # zero on a docs branch.
+  # running it, 2026-08-28 on this repo: `ci` 61s without, 66s with — the rows
+  # then were ~5s. That is the price of the gate on a harness branch and zero
+  # on a docs branch. Count of rows deliberately not written here: it went
+  # five to six on 2026-08-29 and this sentence did not, which is what a
+  # written number does.
   printf '\n== perf budget\n'
   if [ "${JOHARNESS_PERF:-}" = "off" ]; then
     # Fixture runs of `ci` set this. Same reasoning as the shellcheck stub in
     # .agents/harness/selftest.sh, and the same measurement behind it: without
     # it the suite went 47s -> 70s, because ~20 fixture `ci` runs each
-    # re-measured five entrypoints for a verdict the real run reaches on the
+    # re-measured every entrypoint for a verdict the real run reaches on the
     # real tree one section later. That is the exact waste PR 54 removed,
     # reintroduced by the guard built to notice it. The bar does not move —
     # the real `ci` still measures, and perf has its own cases in the suite.
@@ -898,7 +900,7 @@ SHIM
 
 # Count external commands spawned by one entrypoint. Echoes "<count> <secs>".
 perf_count() {
-  local dir counter n start end secs
+  local dir counter n start end secs status
   dir="$(mktemp -d 2>/dev/null)" || return 1
   chmod 700 "$dir" || { rm -rf "$dir"; return 1; }
   counter="${dir}/.count"
@@ -914,11 +916,21 @@ perf_count() {
   # from inside cmd_perf's `while read` loop it ate the remaining rows out of
   # the loop's own stdin, and the queue-context row silently vanished from the
   # table. A measure that quietly drops a metric is worse than no measure.
+  #
+  # Status ignored EXCEPT 127. An entrypoint that ran and failed still did the
+  # work; an entrypoint that was never found did none, and its 0 is a green
+  # tick over nothing. Reachable, not hypothetical: ROOT is
+  # ${CLAUDE_PROJECT_DIR:-<script dir>} and Claude Code exports that variable,
+  # so `perf` run with it aimed at another checkout printed `0 <budget> ok`
+  # for all six rows (counted 2026-08-29). Zero itself stays legitimate — a
+  # small enough repo really does spawn nothing, and a case pins that.
   PATH="${dir}:${PATH}" \
     JOHARNESS_PERF_COUNTER="$counter" \
     JOHARNESS_FEEDBACK_EDGES="$PERF_EDGES" \
-    "$@" </dev/null >/dev/null 2>&1 || true
+    "$@" </dev/null >/dev/null 2>&1
+  status=$?
   end="$(date +%s)"
+  if [ "$status" -eq 127 ]; then rm -rf "$dir"; return 2; fi
 
   # `grep -c` prints its count AND exits 1 when the count is zero, so a
   # `|| printf 0` fallback fires ON TOP of the 0 grep already printed and the
@@ -942,13 +954,47 @@ perf_count() {
 # into a loop, which is what PR 54 removed and what doubles a count. It does
 # not catch a 5% drift, and is not meant to — the counted number is printed
 # every run, so drift stays visible to a reader without a gate that cries.
+#
+# The guard row pins JOHARNESS_MODE=unsupervised in its own command, and that
+# is the row rather than decoration on it. The boundary block is where the loop over
+# protocol paths lives — the shape a ceiling exists to catch — and it does not
+# run at all under supervised. A row inheriting the repo's `joharness.conf`
+# would carry two different numbers for one unchanged script and would leave
+# that block unmeasured in every supervised repo, this one included.
+#
+# Counted 2026-08-29, `./joharness.sh perf handover-guard` on this repo, one
+# state per line:
+#   14  supervised (what the row does NOT measure)
+#   22  workstream file present
+#   23  no upstream configured (@{u} unset, origin/<branch> exists)
+#   29  no workstream file — the ritual block runs
+#   30  both: no upstream AND no workstream file
+# 30 is the max any branch state reaches, and it is not an exotic one: it is
+# every branch between step 3's cut and its claim that was pushed without -u.
+# A ceiling set at the quiet 22 reds all of them, which is a gate sessions
+# learn to route around.
+#
+# The budget is 33. Same day, same command, with the boundary block's single
+# `git diff` put back inside a `for path` loop — the regression in kind this
+# row is for — the count is 37 from the quiet state. So the ceiling has to
+# sit in 31-36, between the state swing and the cheapest regression, and 33
+# does. An earlier draft said 40, reasoning from the state swing alone; 40
+# printed `ok` for that loop.
+#
+# What this row does NOT cover, stated because "forced mode" invites the
+# opposite conclusion: pinning the mode in the ENVIRONMENT short-circuits
+# mode_raw before its conf branch, so the two conf reads a repo that opts in
+# through joharness.conf actually pays are outside this number — counted, 24
+# that way against 22 here. That branch is not unbudgeted: session-start
+# resolves the mode the same way and its row does not pin it.
 perf_rows() {
   printf '%s\n' \
     "feedback|${JOHARNESS_PERF_BUDGET_FEEDBACK:-265}|${ROOT}/joharness.sh feedback" \
     "review|${JOHARNESS_PERF_BUDGET_REVIEW:-265}|${ROOT}/joharness.sh review" \
     "graph|${JOHARNESS_PERF_BUDGET_GRAPH:-260}|${ROOT}/joharness.sh graph" \
     "session-start|${JOHARNESS_PERF_BUDGET_SESSION_START:-700}|${ROOT}/joharness.sh session-start" \
-    "queue-context|${JOHARNESS_PERF_BUDGET_QUEUE:-350}|${HARNESS_ROOT}/queue-context.sh"
+    "queue-context|${JOHARNESS_PERF_BUDGET_QUEUE:-350}|${HARNESS_ROOT}/queue-context.sh" \
+    "handover-guard|${JOHARNESS_PERF_BUDGET_GUARD:-33}|env JOHARNESS_MODE=unsupervised ${HARNESS_ROOT}/handover-guard.sh"
 }
 
 # The table itself, so `ci` can print its own section banner above it.
@@ -963,12 +1009,17 @@ perf_report() {
     [ -z "$only" ] || [ "$name" = "$only" ] || continue
     seen=1
     # shellcheck disable=SC2086
-    if ! counted="$(perf_count $cmd)"; then
-      printf '   %-14s %8s %8s  %s\n' "$name" "?" "$budget" "NOT MEASURED"
-      warn "could not measure ${name} (mktemp or shim failed); a partial table is no budget"
+    counted="$(perf_count $cmd)" || {
+      if [ "$?" -eq 2 ]; then
+        printf '   %-14s %8s %8s  %s\n' "$name" "?" "$budget" "NOT FOUND"
+        warn "nothing to run for ${name} (\`${cmd}\` came back 127); a 0 here would not be a clean run"
+      else
+        printf '   %-14s %8s %8s  %s\n' "$name" "?" "$budget" "NOT MEASURED"
+        warn "could not measure ${name} (mktemp or shim failed); a partial table is no budget"
+      fi
       rc=1
       continue
-    fi
+    }
     n="${counted%% *}"
     secs="${counted##* }"
     if [ "$n" -gt "$budget" ]; then
