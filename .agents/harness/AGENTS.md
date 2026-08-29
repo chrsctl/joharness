@@ -18,7 +18,8 @@ the selected layer — as a read-first pointer by default, whole when md=eager
 
 1. **Orient.** Hook prints handover state before first prompt. Hook names
    workstream file for this branch? That is your job. Read whole file. Go to 4.
-2. **Pick.** Queue = open GitHub issues, then unplanned requirements
+2. **Pick.** Queue = open GitHub issues (hook lists which are already
+   CLAIMED — an unlisted one may still be taken unpushed, `/who`), then unplanned requirements
    `docs/product/*.md`, then plan files `docs/plans/*.md` (shape + claim
    rules: `.agents/docs/plans/README.md`). NOTHING builds unplanned: issue,
    requirement, direct human ask — decompose into plan first, decompose =

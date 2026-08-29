@@ -139,6 +139,7 @@ status: in-progress          # in-progress | blocked | review | done
 branch: claude/cluster-startup-nlvjqi
 pr: 12                       # or: none
 plan: cluster-startup-cost   # plan this implements = the claim. or: none
+issue: 114                   # GitHub issue this claims. or: none
 agent: sonnet                # tier remaining work wants
 updated: 2026-08-09
 next: Measure restart path with the node image pre-pulled
@@ -310,6 +311,33 @@ verify-at-read over curate-offline; same here: **every claim in workstream file
 
 Single-commit rule keeps this cheap: file moves with code, so common case =
 not stale at all.
+
+## Claiming an issue
+
+`plan:` claims a plan. `issue:` claims a GitHub issue, and it exists because
+the two were not symmetric: a plan on `main` shows as taken through its
+`plan:` edge, an issue showed as taken through nothing at all.
+
+That asymmetry cost real work on 2026-08-28. Two sessions solved issue #114
+in parallel; the first filed its plan on its own branch — a same-session
+plan, which the queue rules permit — so `main`'s queue never saw it and the
+issue read as free to the second. The session-start hook listed the first
+session's workstream file the whole time. Nothing tied that file to the
+issue, because the link lived only in prose inside its Goal.
+
+- Write it **when the work starts**, with the rest of the frontmatter, not
+  when the pull request opens. A claim that arrives at the end claims
+  nothing — the window it needs to cover is the one before anyone else looks.
+- `#114` and `114` both work. `none`, or no field at all, claims nothing.
+- Anything else is red in `ci`. The hook drops a value it cannot parse, and
+  a dropped claim reads as "this issue is free" — the failure the field
+  exists to prevent, so it is never silent.
+- The hook reports what the TREE claims, never what GitHub says. It reads
+  refs and nothing else, in every consumer; one that needed a token to
+  answer would fail closed exactly where it matters most. Whether the issue
+  is still open is yours to check, and you check already.
+- An issue not listed may still be taken by a session that has not pushed.
+  The hook says so. `/who` before starting, same as any other overlap.
 
 ## Graduation: how this avoids becoming a graveyard
 
