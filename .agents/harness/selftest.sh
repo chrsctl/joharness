@@ -573,10 +573,19 @@ commit_all "$owork" "finishing ritual: retire the file"
 git -C "$owork" push -qu origin retirer
 
 git -C "$owork" checkout -q main
-out="$(CLAUDE_PROJECT_DIR="$owork" \
-  bash "${ROOT}/.agents/harness/handover-context.sh" 2>&1)"
+# HANDOVER_FETCH=0 like every other hook call in this suite bar one. The
+# fixture pushes before it reads, so a fetch buys nothing and this was the
+# single case doing network-shaped I/O behind a 15s timeout.
+ohook() { CLAUDE_PROJECT_DIR="$owork" HANDOVER_FETCH=0 \
+  bash "${ROOT}/.agents/harness/handover-context.sh" 2>&1; }
+out="$(ohook)"
 
-expect "a branch that wrote its file is in flight" \
+# Green against the OLD hook too — a writer's tree holds the file, so the
+# tree-reading version printed this line as well. Kept as a no-regression
+# check, labelled so nobody mistakes it for a pin on the fix. Measured: of
+# the six assertions here, only the inheritor refute below fails against the
+# unfixed hook, and the plan's Acceptance was wrong to claim otherwise.
+expect "a branch that wrote its file is in flight (no-regression, not a pin)" \
   "origin/writer: docs/handover/mine.md" "$out"
 expect "and its metadata survives the change" "wants sonnet" "$out"
 refute "a branch that merely inherited a file is not in flight" \
@@ -596,14 +605,27 @@ refute "and a branch that RETIRED it is not in flight either" \
 # enough to catch the bug was also wide enough to forbid the behaviour the
 # plan requires keeping. The two claim-shaped refutes above are the precise
 # ones; this asserts the signal that must SURVIVE.
+# The plan requires an inherited file stay REPORTED, demoted — it lands on
+# the base branch if that branch merges, which is cleanup's business. Dropped
+# entirely, one wrong report becomes a missing one. Only the fix can print
+# this: the old hook called the file a claim, so it had nothing to demote.
+expect "an inherited file is demoted, not dropped" \
+  "also carries 1 inherited workstream file(s)" "$out"
+refute "and the demotion does not call it a claim" \
+  "origin/inheritor: docs/handover/swept.md" "$out"
+
 expect "but the rot check still reports it as a leftover on main" \
   "workstream file(s) left on origin/main" "$out"
 
 # The rot check is a DIFFERENT question and keeps reading the tree: what does
 # the base branch still carry? A blanket substitution breaks the caller that
 # was already right.
-expect "the base branch's own leftovers are still counted" \
-  "workstream file(s) left on origin/main" "$out"
+# The rot check must keep reading the TREE (the plan's first Trap). Swapping
+# it to owned_at makes the base branch its own merge-base, the diff empty and
+# the count zero — so this asserts the count, not just the sentence, which is
+# what the duplicate assertion it replaces failed to do.
+expect "the base branch's leftover COUNT survives the change" \
+  "1 workstream file(s) left on origin/main" "$out"
 
 step "handover-context.sh with a fork remote"
 

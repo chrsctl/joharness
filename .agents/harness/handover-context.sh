@@ -305,6 +305,17 @@ while IFS= read -r ref; do
   # Two callers, two different questions — a blanket substitution breaks the
   # one that was already right.
   ws_files="$(owned_at "$ref")" || [ "$?" -ne 3 ] || OWNED_UNVERIFIED=1
+  # Inherited but not owned: carried by the branch, authored by nobody on it.
+  # NOT a claim, and not nothing either — it lands on the base branch if this
+  # merges, which is what `cleanup` and the ci edge gate exist for. The plan
+  # asks for it demoted rather than dropped: losing the signal trades one
+  # wrong report for a missing one. Counted, never listed — the count is the
+  # demotion, and a per-file list here would restore the noise this removes.
+  inherited_n=0
+  if [ "$OWNED_UNVERIFIED" -eq 0 ]; then
+    inherited_n="$(comm -13 <(printf '%s\n' "$ws_files" | sort -u) \
+      <(files_at "$ref" | sort -u) 2>/dev/null | grep -c . || :)"
+  fi
 
   # A branch pushed recently is worth surfacing even with no workstream file:
   # a session that just started has not written one yet. The base branch is
@@ -360,6 +371,8 @@ while IFS= read -r ref; do
     others="${others}  ${short}: ${f}"$'\n'
     others="${others}    [${status:-?}, updated ${updated:-?}${agent:+, wants ${agent}}${issue:+, claims issue #${issue}}] pushed ${pushed_rel:-?}${claim}"$'\n'
     [ -n "$session" ] && others="${others}    session: ${session}"$'\n'
+    [ "${inherited_n:-0}" -gt 0 ] &&
+      others="${others}    (also carries ${inherited_n} inherited workstream file(s) — not claims, but they land on ${BASE_BRANCH} if this merges)"$'\n'
 
     # Findings recorded in the file's ## Review section. Only the count, and
     # only when there is one: a branch churning with NO review line here is
