@@ -58,6 +58,14 @@ add() { OUT="${OUT}${1}"$'\n'; }
 # rather than argued with. Anything that is not a number is dropped HERE and
 # reported by `ci`'s graph lint, which is where a malformed value gets a name
 # and a file — this hook's job is to print claims, not to teach.
+# Initialised HERE, above every writer. Declared beside the ref loop's state
+# it sat AFTER the current-branch block that also appends to it, and under
+# `set -u` that killed the whole handover section — session start printed no
+# workstream file, no in-flight work and no claims at all. A hook whose job
+# is to prevent a false "nobody is on this" failed by reporting nothing
+# whatsoever.
+claimed_issues=""
+
 issue_num() {
   local v="${1#\#}"
   case "$v" in
@@ -155,6 +163,13 @@ if [ -n "$mine" ]; then
       read -r issue; } \
       <<<"$(fields status updated next agent issue <"$f")"
     issue="$(issue_num "$issue")"
+    # This branch's own claim goes in the block too. Left out, the hook said
+    # "claims issue #119" on the entry line and "none — no in-flight
+    # workstream file claims an issue" six lines below, in one run, on the
+    # branch that added the field. A reader trusts the summary; a summary
+    # that contradicts the detail above it is worse than no summary.
+    [ -z "$issue" ] ||
+      claimed_issues="${claimed_issues}  #${issue} — this branch (${f})"$'\n'
     add "  ${f}  [${status:-?}, updated ${updated:-?}${agent:+, wants ${agent}}${issue:+, claims issue #${issue}}]"
     [ -n "$next" ] && add "    next: ${next}"
   done <<<"$mine"
@@ -176,12 +191,17 @@ my_paths="$(
 # --- other branches --------------------------------------------------------
 others=""
 recent_count=0
-claimed_issues=""
 count=0
 now="$(date +%s)"
 
 while IFS= read -r ref; do
-  [ "$count" -ge "$MAX_ENTRIES" ] && break
+  # NOT a break. The cap bounds the entry LISTING; breaking here stopped the
+  # claim scan too, and refs are sorted newest-first, so the oldest claim —
+  # the one most likely to be duplicated — was the first to vanish. Measured
+  # on this repo: 12 entries printed against 46 branches carrying workstream
+  # files. Entries past the cap are skipped below; their claims are not.
+  capped=0
+  [ "$count" -ge "$MAX_ENTRIES" ] && capped=1
   short="${ref#refs/remotes/}"
   # Compare on the branch name with the remote prefix stripped. Matching
   # 'origin/<branch>' alone reports the session its own branch from any second
@@ -236,12 +256,27 @@ while IFS= read -r ref; do
     { read -r status; read -r updated; read -r session; read -r agent
       read -r issue; } \
       <<<"$(printf '%s\n' "$doc" | fields status updated session agent issue)"
-    [ "$status" = "done" ] && continue
     issue="$(issue_num "$issue")"
-    # Collected as well as printed per entry. The question a session actually
-    # asks is "is #119 taken?", and answering it by scanning entries is
-    # exactly what nobody did before two sessions solved #114 twice.
-    [ -z "$issue" ] || claimed_issues="${claimed_issues}  #${issue} — ${short}"$'\n'
+    # BEFORE the done-skip, deliberately. `status: done` is set before the
+    # pull request merges, and step 7 leaves a merge the session cannot click
+    # sitting on a human's clock — throughout that window the issue is
+    # claimed, pushed, and would otherwise read as free. The claim outlives
+    # the status.
+    #
+    # Carries the FILE, not just the branch. One workstream file inherited
+    # across branches is one claim; naming only branches fanned it into five
+    # and sent a reader to /who the wrong sessions. Whether a branch OWNS a
+    # file it merely inherited is the tree-versus-diff rule
+    # (.agents/harness/AGENTS.md step 4) and belongs to the queued
+    # handover-inflight-diff plan, which changes `files_at` for every reader
+    # at once; printing the file is what this change can honestly do about it.
+    [ -z "$issue" ] ||
+      claimed_issues="${claimed_issues}  #${issue} — ${short} (${f})"$'\n'
+    [ "$status" = "done" ] && continue
+    # Past the cap the claim is already banked; the rest of this entry —
+    # session line, review count, overlap, churn — is listing, and listing is
+    # what the cap bounds.
+    [ "$capped" -eq 1 ] && continue
 
     claim=""
     if [ "$fresh" = "1" ]; then
@@ -368,7 +403,9 @@ if [ -n "$claimed_issues" ]; then
   add "  An issue listed here is taken. One that is NOT listed may still be"
   add "  taken by a session that has not pushed — /who before starting."
 else
-  add "  none — no in-flight workstream file claims an issue"
+  add "  none found — no workstream file this hook can see claims an issue."
+  add "  Not proof an issue is free: a session that has not pushed, or whose"
+  add "  pull request already retired its file, claims nothing here. /who."
 fi
 
 if [ "$stale_count" -gt 0 ]; then
