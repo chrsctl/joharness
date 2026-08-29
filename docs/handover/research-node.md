@@ -1,6 +1,6 @@
 ---
 workstream: research-node
-status: review
+status: done
 branch: claude/joharness-framework-plans-lkpf4q
 pr: none
 plan: research-node
@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01SHPKsgu5WMHQ4g7MhTwRhm
 agent: opus
 updated: 2026-08-29
-next: Fold the verifier round in, then retire and open the PR.
+next: Merge the pull request once checks are green.
 ---
 
 ## Goal
