@@ -32,6 +32,9 @@
 #                   inside `ci` too, skipped on a docs-only branch
 #   perf <name>     measure one entrypoint only (feedback, review, graph,
 #                   session-start, queue-context)
+#   sources         sweep the sources unsupervised work may be drawn from:
+#                   one counted line each, then whether the sweep is dry.
+#                   Read-only, never acts. Runs ci, so it is not quick
 #   cleanup         count what the finish ritual left on the base branch:
 #                   workstream files, plans whose work merged, merged
 #                   branches. Reports only
@@ -2334,6 +2337,134 @@ cmd_cleanup() {
 }
 
 # ---------------------------------------------------------------------------
+# Sources
+#
+# Unsupervised mode has a stated end — the source sweep goes dry — and until
+# this nothing computed it (docs/product/unsupervised-mode.md, Constraints).
+# A source without a detector that prints a number is not a source: an
+# uncountable one never reaches zero, so a mode drawing on it runs forever
+# whatever else it is told.
+#
+# Read-only, exits 0 always, derived at read time. Nothing stored: a cached
+# sweep is the second copy .agents/docs/graph.md forbids, and a sweep is only
+# worth anything if it is current.
+#
+# This counts. It never acts, and it never decides what to do with a non-zero
+# count — that is unsupervised-edge-work's, and a counter that also generates
+# work is two failure modes in one command.
+# ---------------------------------------------------------------------------
+
+# The marker set. No repo convention exists to follow — measured on
+# origin/main 2026-08-29, `git grep -nE` for these over tracked non-`*.md`
+# files returns nothing at all, so the detector starts honestly at zero
+# rather than at a number that was never a marker. (The plan that asked for
+# this said 1; its single hit was the string "TODO.md" inside prose in a
+# .md file, which its own scope excludes.)
+SRC_MARKERS='\b(TODO|FIXME|XXX|HACK)\b'
+
+# `ci` once, not `ci` plus a second selftest run: ci already runs the suite,
+# and two runs of a 60-second suite to answer one question is the waste the
+# perf budget exists to notice. Output to a file because three numbers come
+# out of one run.
+src_checks_out=""
+src_checks_rc=0
+src_run_checks() {
+  local tmp
+  tmp="$(mktemp 2>/dev/null)" || return 1
+  # Status is data here, not an error: a red check IS the finding.
+  "${ROOT}/joharness.sh" ci >"$tmp" 2>&1
+  src_checks_rc=$?
+  src_checks_out="$(cat "$tmp")"
+  rm -f "$tmp"
+  return 0
+}
+
+# Findings recorded on merged edges and never acted on. FB_UNMARKED, from
+# fb_collect's existing walk — a second walk over the same edges would be a
+# second answer to the same question, and they would disagree the first time
+# fb_marker changed.
+src_unmarked() {
+  fb_collect >/dev/null 2>&1 || return 1
+  printf '%s' "$FB_UNMARKED"
+}
+
+cmd_sources() {
+  local failing="" skipped="" unmarked="" markers=0
+  local dry=1 blind=0
+
+  printf '== sources (read-only: counts, never acts)\n\n'
+
+  # --- failing or skipped checks -----------------------------------------
+  printf 'failing or skipped checks\n'
+  printf '  %s ci\n' "$0"
+  if src_run_checks; then
+    # "N passed, M failed" is the suite's own line. Absent when ci skipped
+    # the suite (a docs-only branch), which is not zero — it is unknown, and
+    # saying zero there would report a dry sweep off a suite that never ran.
+    if printf '%s\n' "$src_checks_out" | grep -qE '^[0-9]+ passed, [0-9]+ failed'; then
+      failing="$(printf '%s\n' "$src_checks_out" |
+        sed -n 's/^[0-9]* passed, \([0-9]*\) failed.*/\1/p' | tail -1)"
+      skipped="$(printf '%s\n' "$src_checks_out" | grep -c '^  SKIP ' || :)"
+      printf '  %s failing, %s skipped (ci exit %s)\n' \
+        "$failing" "$skipped" "$src_checks_rc"
+      [ "$failing" -eq 0 ] && [ "$skipped" -eq 0 ] || dry=0
+    else
+      blind=1
+      printf '  cannot count — ci did not run the suite here (docs-only branch?)\n'
+    fi
+  else
+    blind=1
+    printf '  cannot count — mktemp failed\n'
+  fi
+
+  # --- unacted findings ---------------------------------------------------
+  printf '\nmerged review findings never acted on\n'
+  printf '  %s feedback\n' "$0"
+  if unmarked="$(src_unmarked)"; then
+    printf '  %s unmarked\n' "$unmarked"
+    [ "$unmarked" -eq 0 ] || dry=0
+  else
+    blind=1
+    printf '  cannot count — no base branch to read merged history from\n'
+  fi
+
+  # --- known-gap markers --------------------------------------------------
+  printf '\nknown-gap markers in tracked code\n'
+  printf "  git grep -nE '%s' -- ':!*.md'\n" "$SRC_MARKERS"
+  markers="$(git -C "$ROOT" grep -nE "$SRC_MARKERS" -- ':!*.md' 2>/dev/null |
+    grep -c . || :)"
+  printf '  %s\n' "$markers"
+  [ "$markers" -eq 0 ] || dry=0
+
+  # --- verdict ------------------------------------------------------------
+  # Blind beats dry. A sweep that could not read one of its sources has not
+  # gone dry, it has gone quiet, and the mode's one stopping point must not
+  # rest on the difference being blurred.
+  printf '\n'
+  if [ "$blind" -eq 1 ]; then
+    printf 'sweep INCOMPLETE — a source could not be counted; not dry\n'
+  elif [ "$dry" -eq 1 ]; then
+    printf 'sweep dry — every detector zero\n'
+  else
+    # Built as a list, not as a chain of && and ||: the first version of this
+    # line mixed the two and bash's left-to-right precedence made the checks
+    # clause fire on a dry checks source.
+    local carrying=""
+    if [ -n "$failing" ] && { [ "$failing" -gt 0 ] || [ "${skipped:-0}" -gt 0 ]; }; then
+      carrying="${carrying} checks(${failing} failing, ${skipped} skipped)"
+    fi
+    if [ -n "$unmarked" ] && [ "$unmarked" -gt 0 ]; then
+      carrying="${carrying} findings(${unmarked} unmarked)"
+    fi
+    if [ "$markers" -gt 0 ]; then
+      carrying="${carrying} markers(${markers})"
+    fi
+    printf 'sweep NOT dry —%s\n' "$carrying"
+  fi
+  return 0
+}
+
+# ---------------------------------------------------------------------------
 # Graph
 #
 # The third formalization step from .agents/docs/graph.md, previously held "until
@@ -3152,6 +3283,7 @@ main() {
     # file. Not in `usage`: it is a seam between two harness files, not a
     # thing a human runs, and a help entry invites a session to treat the
     # list as an input rather than the rule's expression.
+    sources)        cmd_sources ;;
     protocol-paths) protocol_paths ;;
     -h|--help|help) usage ;;
     *) die "unknown subcommand '$cmd' (try: $0 help)" ;;
