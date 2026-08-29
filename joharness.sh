@@ -1306,6 +1306,81 @@ lint_anchors() {
       print substr($0, RSTART + 1, RLENGTH - 2) }' "${ROOT}/${f}")
 }
 
+# Node files of a type the harness does not implement.
+#
+# lint_graph checks EDGES between nodes and had nothing to say about a
+# DIRECTORY of nodes whose type does not exist yet. Measured on `main`
+# 2026-08-25: four files under docs/research/, no .agents/docs/research/, no
+# listing, no lint, no shape — reachable only by a human who already knew to
+# look, which is one notch better than the "research evaporates" failure the
+# requirement was written to fix, and only because they were in git.
+#
+# Two questions, both answered from the tree at read time. There is no list
+# of known types anywhere, because a list is a second copy that goes stale
+# against the thing it describes (.agents/docs/graph.md, Rules).
+#
+#   Is this a directory of NODES?  Every node in this graph names itself in
+#     its first frontmatter key — `plan: <stem>`, `research: <stem>`,
+#     `requirement: <stem>`, `workstream: <stem>`. Counted across all 11 node
+#     files and 4 templates on origin/main f806d5b: no exceptions. "Has
+#     frontmatter" would have fired on any docs/adr/ a consumer keeps, and a
+#     false warning trains sessions to ignore the channel the real findings
+#     ride on (lint_anchors carries that lesson already).
+#   Does the harness KNOW the type?  `.agents/docs/<type>/` exists. That is
+#     where every implemented type keeps its README and TEMPLATE, and it is
+#     true of all four.
+#
+# WARN, never red. The files are not wrong, they are early, and reding `ci`
+# would punish the session that did the research for doing it before anybody
+# had written down where research goes.
+lint_unknown_types() {
+  local d name out n key
+  [ -d "${ROOT}/docs" ] || return 0
+  # Only where the harness's own docs are present. `.agents/docs` is in the
+  # sync engine's DIRS, so every consumer carries it; a tree without it is
+  # not a repo whose research type is undefined, it is a repo with no harness
+  # docs at all — a sync problem this lint cannot tell apart from an early
+  # node type. Blind is not zero, and a check that cannot distinguish them
+  # says nothing rather than guessing.
+  [ -d "${ROOT}/.agents/docs" ] || return 0
+  while IFS= read -r d; do
+    [ -n "$d" ] || continue
+    name="${d##*/}"
+    [ -n "$name" ] || continue
+    [ -d "${ROOT}/.agents/docs/${name}" ] && continue
+    # One awk over the directory's files, not a read per file: this runs on
+    # every ci, and the count is the whole answer.
+    out="$(cd "$ROOT" && find "docs/${name}" -maxdepth 1 -name '*.md' \
+      ! -name 'TEMPLATE.md' ! -name 'README.md' ! -name 'VISION.md' \
+      2>/dev/null | sort | tr '\n' ' ' | {
+        read -r files
+        [ -n "$files" ] || { printf '0 \n'; exit 0; }
+        # shellcheck disable=SC2086
+        awk '
+          FNR == 1 { hdr = ($0 == "---"); next }
+          FNR == 2 && hdr {
+            stem = FILENAME
+            sub(/.*\//, "", stem)
+            sub(/\.md$/, "", stem)
+            i = index($0, ":")
+            if (i > 1) {
+              k = substr($0, 1, i - 1)
+              v = substr($0, i + 1)
+              gsub(/^[ \t]+|[ \t]+$/, "", v)
+              if (v == stem && k ~ /^[a-z][a-z_-]*$/) { n++; key = k }
+            }
+          }
+          END { printf "%d %s\n", n + 0, key }
+        ' $files
+      })"
+    n="${out%% *}"
+    key="${out#* }"
+    case "$n" in ''|*[!0-9]*) n=0 ;; esac
+    [ "$n" -gt 0 ] || continue
+    lint_warn "docs/${name}/: ${n} file(s) name themselves in a '${key}:' field, but no .agents/docs/${name}/ defines that type — instances of a node type the harness does not implement yet"
+  done < <(cd "$ROOT" && find docs -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort)
+}
+
 lint_graph() {
   LINT_RC=0
   LINT_WARNED=0
@@ -1472,6 +1547,8 @@ lint_graph() {
     lint_enum "$rel" priority \
       "$(gr_field priority <"${ROOT}/${rel}")" normal urgent
   done < <(lint_nodes docs/product)
+
+  lint_unknown_types
 
   if [ "$LINT_RC" -eq 0 ] && [ "$LINT_WARNED" -eq 0 ]; then
     printf '  edges sound (%d plans, %d research, %d workstreams, %d requirements)\n' \

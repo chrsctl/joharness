@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01SHPKsgu5WMHQ4g7MhTwRhm
 agent: opus
 updated: 2026-08-29
-next: Implement the unknown-type warning in lint_graph, derived from the tree.
+next: Fold the verifier round into ## Review, then retire and open the PR.
 ---
 
 ## Goal
@@ -32,9 +32,27 @@ checked that a directory of nodes has a type at all.
   from the tree at read time, no registry to maintain — the trap the plan
   names. True of all four current types.
 
+## Decisions (continued)
+
+- **The check declines when `.agents/docs/` is absent entirely.** Found by
+  running it: the selftest's scratch harness fixture carries `joharness.sh`
+  and a stub suite and no harness docs, so every `docs/<type>/` in it read as
+  undefined. That is not an early node type, it is a tree with no harness
+  docs — a sync problem — and a check that cannot tell the two apart should
+  say nothing rather than guess. `.agents/docs` is in the sync engine's
+  `DIRS` (`.agents/scripts/sync-to-consumer.sh:174`), so every consumer
+  carries it and the gate costs real repos nothing.
+
 ## Rejected
 
-- (nothing yet)
+- **"Has frontmatter" as the node signal.** Simpler and wrong: any
+  `docs/adr/` or `docs/notes/` a consumer keeps would warn, and
+  `joharness.sh:lint_anchors` already carries the lesson that a false
+  warning trains sessions to ignore the channel the real findings ride on. A
+  case pins the difference.
+- **A list of known types.** The trap the plan names: a registry is a second
+  copy that goes stale against the thing it describes. Both signals are read
+  from the tree.
 
 ## Review
 
