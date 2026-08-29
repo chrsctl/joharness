@@ -53,6 +53,20 @@ add() { OUT="${OUT}${1}"$'\n'; }
 # body line like "status: broken" is not mistaken for metadata; strips an
 # inline `# comment` — the template documents fields that way. All keys in one
 # pass: every caller here wants four of them off the same four lines.
+# An issue claim, normalised. A literal reader writes `issue: #114` as
+# naturally as `issue: 114` and both are unambiguous, so the `#` is stripped
+# rather than argued with. Anything that is not a number is dropped HERE and
+# reported by `ci`'s graph lint, which is where a malformed value gets a name
+# and a file — this hook's job is to print claims, not to teach.
+issue_num() {
+  local v="${1#\#}"
+  case "$v" in
+    '' | none) return 0 ;;
+    *[!0-9]* ) return 0 ;;
+  esac
+  printf '%s' "$v"
+}
+
 fields() {
   awk -v keys="$*" '
     BEGIN { n = split(keys, k, " ") }
@@ -137,9 +151,11 @@ if [ -n "$mine" ]; then
   fi
   while IFS= read -r f; do
     [ -n "$f" ] || continue
-    { read -r status; read -r updated; read -r next; read -r agent; } \
-      <<<"$(fields status updated next agent <"$f")"
-    add "  ${f}  [${status:-?}, updated ${updated:-?}${agent:+, wants ${agent}}]"
+    { read -r status; read -r updated; read -r next; read -r agent
+      read -r issue; } \
+      <<<"$(fields status updated next agent issue <"$f")"
+    issue="$(issue_num "$issue")"
+    add "  ${f}  [${status:-?}, updated ${updated:-?}${agent:+, wants ${agent}}${issue:+, claims issue #${issue}}]"
     [ -n "$next" ] && add "    next: ${next}"
   done <<<"$mine"
 else
@@ -160,6 +176,7 @@ my_paths="$(
 # --- other branches --------------------------------------------------------
 others=""
 recent_count=0
+claimed_issues=""
 count=0
 now="$(date +%s)"
 
@@ -216,9 +233,15 @@ while IFS= read -r ref; do
     [ -n "$f" ] || continue
     doc="$(git show "${ref}:${f}" 2>/dev/null)"
     [ -n "$doc" ] || continue
-    { read -r status; read -r updated; read -r session; read -r agent; } \
-      <<<"$(printf '%s\n' "$doc" | fields status updated session agent)"
+    { read -r status; read -r updated; read -r session; read -r agent
+      read -r issue; } \
+      <<<"$(printf '%s\n' "$doc" | fields status updated session agent issue)"
     [ "$status" = "done" ] && continue
+    issue="$(issue_num "$issue")"
+    # Collected as well as printed per entry. The question a session actually
+    # asks is "is #119 taken?", and answering it by scanning entries is
+    # exactly what nobody did before two sessions solved #114 twice.
+    [ -z "$issue" ] || claimed_issues="${claimed_issues}  #${issue} — ${short}"$'\n'
 
     claim=""
     if [ "$fresh" = "1" ]; then
@@ -227,7 +250,7 @@ while IFS= read -r ref; do
     fi
 
     others="${others}  ${short}: ${f}"$'\n'
-    others="${others}    [${status:-?}, updated ${updated:-?}${agent:+, wants ${agent}}] pushed ${pushed_rel:-?}${claim}"$'\n'
+    others="${others}    [${status:-?}, updated ${updated:-?}${agent:+, wants ${agent}}${issue:+, claims issue #${issue}}] pushed ${pushed_rel:-?}${claim}"$'\n'
     [ -n "$session" ] && others="${others}    session: ${session}"$'\n'
 
     # Findings recorded in the file's ## Review section. Only the count, and
@@ -326,6 +349,26 @@ if [ -n "$others" ]; then
     add "directions: fresh push often = finished session, live session can go"
     add "hours silent. Overlap with another branch? /who before touching."
   fi
+fi
+
+# Issues claimed by work in flight. Printed as its own block, and printed
+# EVEN WHEN EMPTY, because a section that vanishes when it finds nothing is
+# indistinguishable from one that failed to run — and "no claims" is the
+# answer a session acts on. Issue #119: two sessions solved #114 in parallel
+# because the hook listed both facts and connected neither.
+#
+# What the tree claims, not what GitHub says. This hook reads refs and
+# nothing else, in every consumer; one that needed a token to answer would
+# fail closed exactly where it matters most. Whether the issue is still open
+# is the session's to check, and it checks already.
+add ""
+add "Issues claimed by work in flight (from workstream files, not GitHub):"
+if [ -n "$claimed_issues" ]; then
+  OUT="${OUT}${claimed_issues}"
+  add "  An issue listed here is taken. One that is NOT listed may still be"
+  add "  taken by a session that has not pushed — /who before starting."
+else
+  add "  none — no in-flight workstream file claims an issue"
 fi
 
 if [ "$stale_count" -gt 0 ]; then

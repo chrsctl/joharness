@@ -1258,7 +1258,7 @@ lint_anchors() {
 lint_graph() {
   LINT_RC=0
   LINT_WARNED=0
-  local rel val n p r urgency agent effort
+  local rel val n p r urgency agent effort iss
   local -a need_list
   local plans=0 workstreams=0 reqs=0
 
@@ -1307,8 +1307,8 @@ lint_graph() {
   while IFS= read -r rel; do
     [ -n "$rel" ] || continue
     workstreams=$((workstreams + 1))
-    { read -r val; read -r agent; read -r p; } \
-      <<<"$(gr_fields status agent plan <"${ROOT}/${rel}")"
+    { read -r val; read -r agent; read -r p; read -r iss; } \
+      <<<"$(gr_fields status agent plan issue <"${ROOT}/${rel}")"
     if [ -z "$val" ]; then
       lint_warn "${rel}: no status — hooks read '?'"
     else
@@ -1326,6 +1326,18 @@ lint_graph() {
         lint_red "${rel}: plan '${p}' — no such plan, never existed. Claim invisible; typo?"
       fi
     fi
+    # The issue claim (#119). Validated rather than tolerated: a value the
+    # hook cannot parse is DROPPED there, and a dropped claim reads as "this
+    # issue is free" — which is the exact failure this field exists to stop,
+    # so silence here would reproduce it. A leading # is fine; a word is not.
+    case "$iss" in
+      '' | none) ;;
+      '#'[0-9]* | [0-9]*)
+        case "${iss#\#}" in
+          *[!0-9]*) lint_red "${rel}: issue '${iss}' — not a number; the hook drops it and the issue reads as unclaimed" ;;
+        esac ;;
+      *) lint_red "${rel}: issue '${iss}' — not a number; the hook drops it and the issue reads as unclaimed" ;;
+    esac
     lint_anchors "$rel"
   done < <(lint_nodes docs/handover)
 
