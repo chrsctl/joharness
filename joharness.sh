@@ -2417,7 +2417,19 @@ src_unmarked() {
   local FB_LIMIT=0
   fb_collect >/dev/null 2>&1 || return 1
   [ "${FB_CAPPED:-0}" -eq 0 ] || return 2
-  ! lint_shallow || return 3
+  # Shallow matters only where it could BE the answer. Zero edges in a
+  # shallow clone is indistinguishable from history that was never fetched,
+  # so that is blind. Edges actually read are real findings whatever the
+  # clone depth, and reporting them beats reporting nothing.
+  #
+  # Blanket-blinding every shallow checkout was the third over-correction in
+  # a row: each fix for a wrong zero reached for "call it blind", and twice
+  # that turned into a sweep no repo could ever complete — the same failure
+  # from the other side. Blind only where blindness is the honest answer.
+  # This container's own checkout is shallow and carries 60 readable edges.
+  if [ "${FB_EDGES:-0}" -eq 0 ] && lint_shallow; then
+    return 3
+  fi
   printf '%s' "$FB_UNMARKED"
 }
 
