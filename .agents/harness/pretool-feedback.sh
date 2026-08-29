@@ -39,14 +39,27 @@ cd "$PROJECT_DIR" 2>/dev/null || exit 0
 # whole path, and both failures are silent — the hook simply never fires on a
 # machine where the checkout lives under a symlink.
 PROJECT_DIR="${PROJECT_DIR%/}"
+# A project root of "/" leaves that empty, and an empty prefix makes the arms
+# below match every absolute path on the machine. Refuse rather than guess —
+# the earlier version fell back to PROJECT_DIR, which is the empty value.
+[ -n "$PROJECT_DIR" ] || exit 0
 PROJECT_PHYS="$(pwd -P 2>/dev/null)" || PROJECT_PHYS=""
 PROJECT_PHYS="${PROJECT_PHYS%/}"
-# Never empty: an empty prefix makes the `"${PROJECT_PHYS}"/*` arm below match
-# every absolute path on the machine and strip one slash off it.
 [ -n "$PROJECT_PHYS" ] || PROJECT_PHYS="$PROJECT_DIR"
 
 input="$(cat 2>/dev/null || true)"
 [ -n "$input" ] || exit 0
+# ONE line before any key is read. `grep`'s ^ is a LINE anchor, so on a
+# multi-line payload the "start of the payload" alternative in hook_key
+# silently widens to "start of any line" — and a Write whose content has a
+# line beginning "file_path": "..." then steers the hook to a file the tool
+# never touched. Measured: a Write to README.md injected joharness.sh's
+# findings and told the model to run feedback on joharness.sh.
+#
+# Deleting raw newlines is safe because JSON forbids them inside a string: in
+# a well-formed payload they are whitespace between tokens, and the pretty-
+# printed case that needed the ^ alternative now needs nothing.
+input="$(printf '%s' "$input" | tr -d '\n\r')"
 
 # One key each, by grep, no JSON parser — handover-guard.sh's precedent. A
 # parser is a dependency; three greps are not.
@@ -100,7 +113,15 @@ session="$(hook_key session_id | tr -cd 'A-Za-z0-9_-')"
 
 scratch="${JOHARNESS_PRETOOL_SCRATCH:-${TMPDIR:-/tmp}}/joharness-feedback-${session}"
 mkdir -p "$scratch" 2>/dev/null || exit 0
-chmod 700 "$scratch" 2>/dev/null || :
+# OWNERSHIP, not just a mode we asked for. This directory holds the cached
+# history blobs, and those go into the model's context verbatim — so whoever
+# can write them chooses that text. The name is predictable (session_id falls
+# back to the fixed `nosession`), the root is usually a shared /tmp, and
+# `mkdir -p` is happy to adopt a directory somebody else made. So: not a
+# symlink, owned by this user, and a chmod that does not take is fatal here
+# rather than swallowed by `|| :`.
+[ -d "$scratch" ] && [ ! -L "$scratch" ] && [ -O "$scratch" ] || exit 0
+chmod 700 "$scratch" 2>/dev/null || exit 0
 
 # One injection per file per session. The findings do not change while the
 # session runs, and repeating them before every edit of the same file spends
@@ -109,8 +130,14 @@ seen="${scratch}/seen-$(printf '%s' "$rel" | tr -cd 'A-Za-z0-9_.-' | tail -c 120
 [ -e "$seen" ] && exit 0
 # BEFORE the walk, not after. A cold cache costs seconds; if the hook's
 # timeout kills it there, marking afterwards means the next edit of the same
-# file pays the same seconds, and the one after that. Marking first spends
-# one file's findings to bound the stall at one occurrence.
+# file pays the same seconds, and the one after that.
+#
+# The bound is PER FILE, and that is worse than it first reads: fb_cache_save
+# only runs on a walk that finished, so a killed run leaves no cache at all.
+# Measured with `timeout 1`: the scratch dir afterwards held the seen marker
+# and no fb-* triple, so that file is silent for the rest of the session and
+# the next file is still cold. Marking first trades one file's findings for a
+# stall that cannot repeat on it; marking last trades nothing and repeats.
 : >"$seen" 2>/dev/null || :
 
 report="$(JOHARNESS_FEEDBACK_CACHE="$scratch" \
@@ -134,11 +161,13 @@ report="$(JOHARNESS_FEEDBACK_CACHE="$scratch" \
 # more than anyone reads. The findings come newest-first, the count of what
 # was left out is exact, and the command that shows the rest is one line down.
 #
-# The 1 MB stdout limit is a separate reason the cap cannot be optional: over
-# it, output is truncated silently, and a truncated JSON envelope parses as
-# nothing at all — the hook would go quiet on exactly the files with the most
-# to say.
-printf '%s' "$report" | awk -v keep=8 '
+# TWO caps, because a count is not a byte budget. The 1 MB stdout limit
+# truncates silently and a truncated envelope parses as nothing, so the hook
+# would go quiet on exactly the files with the most to say — but nothing
+# bounds a single finding's length, so eight pathological bullets clear 1 MB
+# with `keep` never reached. The byte budget is what actually holds that line;
+# `keep` is the context bill.
+printf '%s' "$report" | JOH_REL="$rel" awk -v keep=8 -v maxbytes=20000 '
   function esc(x,   i, n, c, r) {
     n = length(x); r = ""
     for (i = 1; i <= n; i++) {
@@ -157,13 +186,17 @@ printf '%s' "$report" | awk -v keep=8 '
   }
   /^  [^ ].*  r[0-9]+:/ {
     found++
-    if (found > keep) { over++; next }
+    if (found > keep || length(out) + length($0) > maxbytes) { over++; next }
     out = out esc($0) "\\n\\n"
     next
   }
-  found == 0 && NF { out = out esc($0) "\\n" }
+  found == 0 && NF { out = out esc(substr($0, 1, 400)) "\\n" }
   END {
-    if (over) out = out esc(sprintf("  +%d older finding(s) — ./joharness.sh feedback %s", over, path)) "\\n"
+    # ENVIRON, not `-v` and not an operand assignment: both run escape
+    # processing on the value, so a path carrying a backslash reaches awk as
+    # whatever that backslash spelled. The path is only advice here, but
+    # advice naming a file the tool did not touch is worse than none.
+    if (over) out = out esc(sprintf("  +%d older finding(s) — ./joharness.sh feedback %s", over, ENVIRON["JOH_REL"])) "\\n"
     printf "\"additionalContext\":\"%s\"}}\n", out
-  }' path="$rel"
+  }'
 exit 0

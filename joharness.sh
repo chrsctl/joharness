@@ -2306,6 +2306,11 @@ fb_hotspots() {
 
 cmd_feedback() {
   local want="${1:-}" quiet=0 line
+  # Three or more arguments is a typo, and it used to be a SILENT one: the
+  # dispatch passed only "$1" "$2", so `feedback <path> --quiet extra` dropped
+  # `extra` on the floor while `feedback <path> bogus` died with the usage
+  # line. A guard the argument order decides is not a guard.
+  [ "$#" -le 2 ] || die "usage: $0 feedback [<path>] [--quiet]"
   # --quiet in either position. `feedback --quiet` used to be read as a
   # request for a file named --quiet, which printed the full banner for it.
   case "$want" in
@@ -2481,9 +2486,13 @@ fb_report_path() {
 # Off unless JOHARNESS_FEEDBACK_CACHE names a directory, so every command-line
 # run walks history exactly as it did before. The PreToolUse hook sets it,
 # because the walk is what a hook cannot afford: measured on this repo,
-# 2026-08-29, `./joharness.sh feedback joharness.sh` took 6774 / 6648 / 6846 ms
-# over three runs at 121 edges with 50 read. Uncached that is a ~6.8s stall in
+# 2026-08-29, `./joharness.sh feedback joharness.sh` took 4847 / 4507 / 4326 ms
+# over three runs at 123 edges with 50 read. Uncached that is a ~4.5s stall in
 # front of every Edit and Write — a harness nobody would keep switched on.
+# (An earlier revision of this comment said 6774 / 6648 / 6846 at 121 edges,
+# measured before the fb_report_path rewrite below and never re-run after it.
+# A number nobody re-counts is a written number, including in a comment that
+# names the command beside it.)
 #
 # Keyed by the base branch tip and the edge cap, because those are what the
 # walk reads. NOT by HEAD: a session commits often, and keying on HEAD would
@@ -2491,7 +2500,15 @@ fb_report_path() {
 # cost of that choice is real and bounded — fb_current_path resolves a
 # recorded path against the CURRENT tree, so a file renamed mid-session keeps
 # being reported under its old name until the base branch moves. An advisory
-# injection naming a stale path is worth 6.8 seconds an edit.
+# injection naming a stale path is worth 4.5 seconds an edit.
+#
+# This is memoisation, not the stored graph .agents/docs/graph.md forbids.
+# That rule is about the REPO: no second copy of the graph committed anywhere,
+# every view derived at read time. This cache is off by default, lives in
+# session scratch that dies with the container, is keyed on the exact input
+# the walk reads (base tip + edge cap) so a moved base invalidates it, and is
+# never a source anything else reads. The rot it can carry is the one named
+# above and is bounded by that key.
 fb_cache_key() {
   local tip
   tip="$(git -C "$ROOT" rev-parse --verify --quiet "$FB_REF" 2>/dev/null)" || return 1
@@ -3889,7 +3906,7 @@ main() {
     upgrade)        cmd_upgrade "$@" ;;
     verify)         cmd_verify ;;
     review)         cmd_review ;;
-    feedback)       cmd_feedback "${1:-}" "${2:-}" ;;
+    feedback)       cmd_feedback "$@" ;;
     cleanup)        cmd_cleanup "$@" ;;
     finish)         cmd_finish ;;
     drain)          cmd_drain ;;

@@ -220,9 +220,76 @@ ptf_dir="${TMP}/ptflink"
 out="$(ptf_hook m "{\"session_id\":\"s16\",\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"${ptf_phys}/hot.txt\"}}")"
 expect "a symlinked project dir still resolves it" "additionalContext" "$out"
 ptf_dir="$ptf"
+# Empty output is NOT the assertion here: /etc/hosts has no findings whether
+# the guard refuses it or the hook happily looks it up, so the case stayed
+# green with the whole `/*) exit 0` arm deleted. The guard runs before the
+# scratch directory is created, so the directory's absence is the observable
+# that separates them.
+ptf_out_scratch="${ptf_scratch}/n"
 out="$(ptf_hook n '{"session_id":"s17","tool_name":"Edit","tool_input":{"file_path":"/etc/hosts"}}')"
 if [ -z "$out" ]; then pass "an absolute path outside the project emits nothing"
 else fail "an absolute path outside the project emits nothing"; fi
+if [ ! -d "$ptf_out_scratch" ]; then
+  pass "and is refused before the hook does any work"
+else
+  fail "and is refused before the hook does any work"
+fi
+
+# Write is in the registered matcher and had no case that could see it die:
+# both content cases below assert EMPTY output, so they pass harder when the
+# Write arm is deleted. This one needs the arm alive.
+out="$(ptf_hook n2 '{"session_id":"s19","tool_name":"Write","tool_input":{"file_path":"hot.txt"}}')"
+expect "a Write to a file with findings emits them" "additionalContext" "$out"
+
+# grep's ^ is a LINE anchor, so a multi-line payload turns "start of the
+# payload" into "start of any line". Measured on the real repo before the
+# fix: a Write to README.md injected joharness.sh's findings.
+out="$(ptf_hook n3 "$(printf '%s' '{"session_id":"s20","tool_name":"Write","tool_input":{"content":"x
+"file_path": "hot.txt"
+y","file_path":"cold.txt"}}')")"
+if [ -z "$out" ]; then pass "a key on its own line inside content is not read as the path"
+else fail "a key on its own line inside content is not read as the path"; printf '%s\n' "$(indent "$out")"; fi
+
+# ...and the pretty-printed payload that the ^ alternative existed for still
+# resolves, because raw newlines are illegal inside a JSON string and so mean
+# nothing but whitespace between tokens.
+out="$(ptf_hook n4 "$(printf '%s' '{
+  "session_id": "s21",
+  "tool_name": "Edit",
+  "tool_input": {
+    "file_path": "hot.txt"
+  }
+}')")"
+expect "a pretty-printed payload still resolves its path" "additionalContext" "$out"
+
+# The scratch root holds the cached blobs, and those reach the model verbatim.
+# Its name is predictable — session_id falls back to a fixed word — so a
+# directory somebody else placed there is somebody else choosing that text.
+mkdir -p "${ptf_scratch}/o"
+ln -s /etc "${ptf_scratch}/o/joharness-feedback-s22"
+out="$(ptf_hook o '{"session_id":"s22","tool_name":"Edit","tool_input":{"file_path":"hot.txt"}}')"; rc=$?
+if [ -z "$out" ] && [ "$rc" -eq 0 ]; then
+  pass "a scratch dir that is a symlink is refused, silently and open"
+else
+  fail "a scratch dir that is a symlink is refused, silently and open (rc=${rc})"
+fi
+
+# A path carrying a backslash: JSON spells it \\, and the extractor has to
+# hand back the one character the tool meant.
+#
+# Asserted on the dedup MARKER, not on findings. git records such a path
+# C-quoted ("od\\d.txt") in its own output, so `feedback` never matches it —
+# a limitation of the report that predates this hook and is not the hook's to
+# fix here. The marker is keyed on the resolved path's checksum, so it says
+# exactly what the extractor handed back and nothing else.
+ptf_bs_sum="$(printf '%s' 'od\d.txt' | cksum | cut -d' ' -f1)"
+ptf_hook p '{"session_id":"s23","tool_name":"Edit","tool_input":{"file_path":"od\\d.txt"}}' >/dev/null
+if [ -e "${ptf_scratch}/p/joharness-feedback-s23/seen-odd.txt-${ptf_bs_sum}" ]; then
+  pass "a backslash in the path is unescaped to one character"
+else
+  fail "a backslash in the path is unescaped to one character"
+  find "${ptf_scratch}/p" -name 'seen-*' 2>/dev/null | sed 's/^/    /'
+fi
 
 # The cache. Deleting fb_cache_load and fb_cache_save left the whole suite
 # green, which is the definition of untested: the thing that makes this hook
@@ -248,6 +315,17 @@ if [ -n "$ptf_vars" ]; then pass "a cached run writes the cache"
 else fail "a cached run writes the cache"; fi
 ptf_base="${ptf_vars%.vars}"
 
+# EVERY case below writes to "${ptf_base}.something", so an empty ptf_base
+# turns each of them into a write to the INVOKING working directory — the
+# user's own checkout under `./joharness.sh ci`. It happened: with the r4 fix
+# reverted so .vars is never published, this scan found nothing and the block
+# left .pairs and .vars lying in the cwd while two of its cases stayed green,
+# comparing an always-missing cache against an always-missing cache. The
+# assertion at the top was made and then not used.
+if [ -z "$ptf_base" ]; then
+  fail "the cache cases have a cache to mutate (skipped: no fb-*.vars found)"
+else
+
 # Proof the cache is READ, not merely written: empty the blob the report joins
 # against and the answer must change. A cache nothing consults would keep
 # reporting the findings and this case would pass while measuring nothing.
@@ -259,11 +337,16 @@ expect "the cached blobs are what the report actually reads" \
 cp "${TMP}/ptfpairs.keep" "${ptf_base}.pairs"
 
 # Half a cache is the dangerous state, because the missing half reads as
-# "nothing found" rather than as an error. All three files or none.
+# "nothing found" rather than as an error. All three files or none — and both
+# halves, because the loader gates on .vars first and each blob separately.
 mv "${ptf_base}.hist" "${TMP}/ptfhist.keep"
 out="$(ptf_fb)"
-if [ "$out" = "$ptf_cold" ]; then pass "a half-written cache is refused, not trusted"
-else fail "a half-written cache is refused, not trusted"; fi
+if [ "$out" = "$ptf_cold" ]; then pass "a cache missing its history blob is refused"
+else fail "a cache missing its history blob is refused"; fi
+rm -f "${ptf_base}.pairs"
+out="$(ptf_fb)"
+if [ "$out" = "$ptf_cold" ]; then pass "a cache missing its pairs blob is refused"
+else fail "a cache missing its pairs blob is refused"; fi
 
 # The counters file is attacker-writable in principle: it lives at a
 # predictable name under a shared temp root. It must be data.
@@ -281,17 +364,146 @@ out="$(ptf_fb)"
 if [ "$out" = "$ptf_cold" ]; then pass "a non-numeric counter makes the cache refuse the file"
 else fail "a non-numeric counter makes the cache refuse the file"; fi
 
+fi
+
+# PUBLISH ORDER, which the loader-side cases above cannot see. .vars is what
+# the loader checks first, so it must be renamed into place LAST: published
+# first, a crash between the renames leaves a cache that loads clean and
+# answers "no findings" for the rest of the session. A `mv` shim that fails on
+# the .pairs rename is the crash — with the right order .vars never lands,
+# with the wrong one it is already there.
+ptf_shim="${TMP}/ptfshim"
+mkdir -p "$ptf_shim"
+{ printf '#!/bin/sh\n'
+  # The shim's own text, not this shell's: it must reach the file unexpanded.
+  # shellcheck disable=SC2016
+  printf 'for a in "$@"; do case "$a" in *.pairs) exit 1 ;; esac; done\n'
+  printf 'exec /bin/mv "$@"\n'; } >"${ptf_shim}/mv"
+chmod +x "${ptf_shim}/mv"
+ptf_order="${TMP}/ptforder"
+mkdir -p "$ptf_order"
+( cd "$ptf" && PATH="${ptf_shim}:$PATH" JOHARNESS_FEEDBACK_CACHE="$ptf_order" \
+    bash ./joharness.sh feedback hot.txt >/dev/null 2>&1 )
+ptf_left=""
+for ptf_f in "${ptf_order}"/fb-*.vars; do [ -f "$ptf_f" ] && ptf_left="$ptf_f"; done
+if [ -z "$ptf_left" ]; then
+  pass "a save that dies mid-publish leaves no loadable cache"
+else
+  fail "a save that dies mid-publish leaves no loadable cache (${ptf_left} exists)"
+fi
+
+# The quiet shape, which is the whole reason `feedback` grew an option. Each
+# of these three pins one round-1 fix that had nothing holding it: reverting
+# any of them left the suite green.
+#
+# r10 — the caveat. Findings are attributed by COMMIT, so some may concern
+# another file the same fix touched. The reader of an injection nobody asked
+# for is exactly who needs that said.
+out="$( cd "$ptf" && bash ./joharness.sh feedback hot.txt --quiet 2>&1 )"
+expect "quiet output carries the attributed-by-commit caveat" \
+  "so some may concern another file the same fix touched" "$out"
+
+# r14 — --quiet in either position, and a bare --quiet is a usage error, not
+# a request for a file named --quiet.
+out2="$( cd "$ptf" && bash ./joharness.sh feedback --quiet hot.txt 2>&1 )"
+if [ "$out2" = "$out" ]; then pass "--quiet before the path means the same thing"
+else fail "--quiet before the path means the same thing"; fi
+out3="$( cd "$ptf" && bash ./joharness.sh feedback --quiet 2>&1 )"; rc=$?
+expect "a bare --quiet is a usage error, not a path" "needs a path" "$out3"
+if [ "$rc" -ne 0 ]; then pass "and it exits non-zero"
+else fail "and it exits non-zero"; fi
+out4="$( cd "$ptf" && bash ./joharness.sh feedback hot.txt --quiet extra 2>&1 )"
+expect "a third argument is a usage error, whatever the order" \
+  "usage:" "$out4"
+
+# r9 — the banner waits for a match. `keys` non-empty says only that the path
+# appears in a fix commit that recorded SOME finding id; whether any surviving
+# bullet joins to it is a second question. Printing first produced an
+# injection reading "this file has drawn review findings before" with nothing
+# under it — a claim with no evidence, ahead of an edit.
+#
+# Reaching that state takes a withdrawn finding, and nothing less does: an
+# empty-text bullet still lands in history, so the obvious fixture is green
+# either way. Here the first commit records r1 and touches quiet.txt; the
+# second replaces the whole ## Review with r2 and touches another file. The
+# fix map pairs quiet.txt with r1 because that commit added it; history at
+# the merge carries only r2. Nothing joins.
+git -C "$ptf" checkout -q main
+git -C "$ptf" checkout -qb ptbanner
+printf 'quiet\n' >"${ptf}/quiet.txt"
+mkdir -p "${ptf}/docs/handover"
+{ printf -- '---\nworkstream: ptbanner\nstatus: review\n---\n\n## Review\n\n'
+  printf -- '- r1: withdrawn on the next round.\n'; } \
+  >"${ptf}/docs/handover/ptbanner.md"
+commit_all "$ptf" "first pass"
+printf 'more\n' >>"${ptf}/cold.txt"
+mkdir -p "${ptf}/docs/handover"
+{ printf -- '---\nworkstream: ptbanner\nstatus: review\n---\n\n## Review\n\n'
+  printf -- '- r2: the finding that survived. (fixed)\n'; } \
+  >"${ptf}/docs/handover/ptbanner.md"
+commit_all "$ptf" "second pass"
+git -C "$ptf" rm -q docs/handover/ptbanner.md
+git -C "$ptf" commit -qm "Finish ritual"
+git -C "$ptf" checkout -q main
+git -C "$ptf" merge -q --no-ff -m "Merge pull request #16 from scratch/ptbanner" ptbanner
+git -C "$ptf" push -q origin main
+out="$( cd "$ptf" && bash ./joharness.sh feedback quiet.txt 2>&1 )"
+expect "the withdrawn-finding state is reached, not assumed" \
+  "0 findings from 1 merged edges" "$out"
+out="$( cd "$ptf" && bash ./joharness.sh feedback quiet.txt --quiet 2>&1 )"
+if [ -z "$out" ]; then pass "quiet says nothing rather than a banner over nothing"
+else fail "quiet says nothing rather than a banner over nothing"; printf '%s\n' "$(indent "$out")"; fi
+
+# The seen marker is written BEFORE the walk, so a run the timeout kills does
+# not hand the same stall to the next edit of that file. A stub entrypoint
+# that never returns is the kill, deterministically.
+ptf_real="${TMP}/ptfreal.sh"
+cp "${ptf}/joharness.sh" "$ptf_real"
+{ printf '#!/bin/sh\n'; printf 'sleep 30\n'; } >"${ptf}/joharness.sh"
+chmod +x "${ptf}/joharness.sh"
+ptf_killed="${ptf_scratch}/q/joharness-feedback-s24"
+printf '%s' '{"session_id":"s24","tool_name":"Edit","tool_input":{"file_path":"hot.txt"}}' |
+  CLAUDE_PROJECT_DIR="$ptf" JOHARNESS_PRETOOL_SCRATCH="${ptf_scratch}/q" \
+  timeout 3 bash "${ROOT}/.agents/harness/pretool-feedback.sh" >/dev/null 2>&1
+if [ -n "$(find "$ptf_killed" -maxdepth 1 -name 'seen-*' -print -quit 2>/dev/null)" ]; then
+  pass "a killed walk still leaves the seen marker"
+else
+  fail "a killed walk still leaves the seen marker"
+fi
+cp "$ptf_real" "${ptf}/joharness.sh"
+chmod +x "${ptf}/joharness.sh"
+
 # Registration. A hook nobody registered is a script.
 ptf_settings="$(cat "${ROOT}/.claude/settings.json")"
 expect "the hook is registered for PreToolUse" '"PreToolUse"' "$ptf_settings"
 expect "it is registered on the editing tools only" \
   '"matcher": "Edit|Write|NotebookEdit"' "$ptf_settings"
 expect "registration points at the hook" "pretool-feedback.sh" "$ptf_settings"
+
+# THE PreToolUse BLOCK, not the whole file. Grepping the file for a substring
+# says only that the characters exist somewhere in it: both assertions below
+# passed with `|| exit 0` moved onto the Stop hook and with "timeout" deleted
+# from this hook and put on Stop instead. The slice is from the "PreToolUse"
+# key to the line that closes its array.
+ptf_block="$(printf '%s\n' "$ptf_settings" | awk '
+  /"PreToolUse"/ { inblk = 1 }
+  inblk { print }
+  inblk && /^    \]/ { exit }')"
 # The never-blocks promise needs a shell OUTSIDE the script to hold it: a
 # truncated or CRLF-mangled copy dies at parse time with status 2, which is
 # the one code Claude Code reads as "deny this tool call".
-expect "registration fails open even if the script never parses" \
-  "|| exit 0" "$ptf_settings"
+expect "the PreToolUse command itself fails open" "pretool-feedback.sh || exit 0" "$ptf_block"
 # A cold cache is seconds. Unbounded, that is a stall in front of an edit with
-# nothing to end it.
-expect "registration bounds the stall" '"timeout"' "$ptf_settings"
+# nothing to end it. Measured on this repo: 4.3-4.8s warm-tree cold walk, 8.0s
+# with JOHARNESS_FEEDBACK_EDGES=0, so 20 is room and not decoration.
+expect "the PreToolUse hook bounds its own stall" '"timeout": 20' "$ptf_block"
+if printf '%s\n' "$ptf_settings" | grep -q '"Stop"'; then
+  ptf_stop="$(printf '%s\n' "$ptf_settings" | awk '
+    /"Stop"/ { inblk = 1 }
+    inblk { print }
+    inblk && /^    \]/ { exit }')"
+  case "$ptf_stop" in
+    *pretool-feedback.sh*) fail "this hook is not also registered on Stop" ;;
+    *) pass "this hook is not also registered on Stop" ;;
+  esac
+fi
