@@ -277,6 +277,14 @@ Named because a measure that hides its blind spots is worse than no measure:
   nine reviewed edges here wrote all five of its findings that way, which is
   how the gap got noticed; the scorecard prints the count rather than
   quietly reading those edges as clean.
+  This one is no longer only reported. `./joharness.sh ci` has a
+  `== finding ids` stage that names the unkeyable bullets on the branch's own
+  diff, by file and by their own text, while the branch can still fix the
+  form (`joharness.sh:lint_finding_ids`). It warns and never reds: the count
+  has no backtest behind it, and the plan that gates it comes after the number
+  falls. It does not close the blind spot for findings already merged, and
+  nothing rewrites those — a record edited to satisfy a later rule stops being
+  a record.
 - **Disposition read from prose.** `(fixed)`, `wontfix` and "no change" are
   matched in the finding's text, so a finding saying "fixed; no change to the
   docs" reads as no-change. The alternative is a structured field per

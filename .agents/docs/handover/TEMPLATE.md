@@ -45,10 +45,27 @@ Why work exists, in requester's words. One paragraph.
 
 ## Review
 
-One `- r1: ...` bullet per finding, written BEFORE its fix and committed
-WITH it. Mark (fixed) / (open) / (wontfix + why). The review conversation
-evaporates; this is the only record of what each round found. The hook
-counts the bullets under this heading, so leave none here unfilled.
+One bullet per finding, written BEFORE its fix and committed WITH it. Mark
+(fixed) / (open) / (wontfix + why). The review conversation evaporates; this
+is the only record of what each round found. The hook counts the bullets
+under this heading, so leave none here unfilled.
+
+**The form is required, not illustrative: `- r<N>: text`.** An `r`, digits,
+then a COLON. `feedback` attributes a finding to the files its fix commit
+touched by matching exactly that (`joharness.sh:fb_fix_map`), so a bullet
+without it is counted and then never served back to anyone editing that file
+again — the one stage that changes an outcome
+([`../feedback.md`](../feedback.md), Prevent).
+
+Both shapes that break it look right while reading: `- r4 text` with the colon
+dropped, and per-round prefixes like `- v1:` or `- c3:` that exist nowhere in
+this protocol. It was a third of the record in the repo where this was first
+counted. Count your own, and trust that rather than this sentence:
+
+```bash
+./joharness.sh feedback | grep 'carry no r1'   # this repo, default window
+./joharness.sh ci                              # names them on your own diff
+```
 
 ## Blockers
 

@@ -124,10 +124,31 @@ out="$(jf feedback)"
 expect "an unidentified finding still counts as volume" "6 findings" "$out"
 expect "and the measure says it cannot be linked" "1 carry no r1: id" "$out"
 
+# THREE DIGITS. The rule was spelled twice and drifted: fb_fix_map attributes
+# on `r[0-9]+:` while the counter took `r[0-9] | r[0-9][0-9]`, so a review that
+# numbered past r99 was attributed correctly and reported as unattributable.
+# Counted on this repo 2026-08-29, 23 findings in merged history sat in that
+# gap and the volume line was wrong by exactly that. fb_keyable is now the one
+# spelling both read.
+# `hundred`, not a short ordinal: this topic already merged a branch called
+# `four`, and `git checkout -qb` on an existing branch fails, leaves the
+# fixture on main and writes the next edge's commits straight onto the base
+# branch. Silent, and every count downstream is then measuring something else.
+edge hundred eta cold.sh 6 "- r100: the hundredth finding of a long round. (fixed)" \
+  "- r101: and the next one. (fixed)"
+out="$(jf feedback)"
+expect "a three-digit id counts as volume like any other" "8 findings" "$out"
+expect "and is NOT counted as unlinkable" "1 carry no r1: id" "$out"
+expect "a three-digit id is attributed to the file its fix touched" \
+  "the hundredth finding" "$(jf feedback cold.sh)"
+
 # The walk is bounded, and a bounded view says so — a window nobody was told
 # about is how a measure starts lying.
 out="$(JOHARNESS_FEEDBACK_EDGES=2 jf feedback)"
-expect "a capped walk names its window" "newest 2 edges of 5" "$out"
+# 6, not 5: the three-digit edge above grew this fixture. The number is the
+# assertion — a window that names the wrong total is the lie this case exists
+# to catch — so it moves with the fixture rather than being loosened.
+expect "a capped walk names its window" "newest 2 edges of 6" "$out"
 expect "and names the knob that widens it" "JOHARNESS_FEEDBACK_EDGES=2" "$out"
 out="$(JOHARNESS_FEEDBACK_EDGES=0 jf feedback)"
 refute "0 reads every edge" "older edges NOT read" "$out"
