@@ -18,6 +18,10 @@ the selected layer — as a read-first pointer by default, whole when md=eager
 
 1. **Orient.** Hook prints handover state before first prompt. Hook names
    workstream file for this branch? That is your job. Read whole file. Go to 4.
+   Compacted start? Rules decay, task state survives — measured
+   (`.agents/docs/handover/README.md`, Compaction). Re-read THIS file and the
+   mode, not just the workstream file. Finished work can be missing too: read
+   the branch's merged pull requests before saying what is done.
 2. **Pick.** Finishing outranks starting. Edge work in flight leads the
    hook's in-flight block — `pr:` set, or `status:` review or done — oldest
    first, because the oldest edge branch is the one closest to abandoned.
