@@ -3397,8 +3397,8 @@ guard_unsup() { printf '%s' "$1" | CLAUDE_PROJECT_DIR="$sgwork" \
   bash "${ROOT}/.agents/harness/handover-guard.sh" 2>&1; }
 
 out="$(guard_unsup "$JSON_STOP")"
-expect "unsupervised names the harness boundary" \
-  "file(s) under .agents/harness/" "$out"
+expect "unsupervised names the protocol boundary" \
+  "file(s) of protocol text" "$out"
 expect "unsupervised counts the files" "touches 1 file(s)" "$out"
 refute "boundary fact carries no path" "touched.sh" "$out"
 
@@ -3432,16 +3432,225 @@ out="$(printf '%s' "$JSON_STOP" | CLAUDE_PROJECT_DIR="$sgnobase" \
   JOHARNESS_MODE=unsupervised \
   bash "${ROOT}/.agents/harness/handover-guard.sh" 2>&1)"
 expect "no merge-base still names the boundary" \
-  "file(s) under .agents/harness/" "$out"
+  "file(s) of protocol text" "$out"
 out="$(printf '%s' "$JSON_STOP" | CLAUDE_PROJECT_DIR="$sgnobase" \
   bash "${ROOT}/.agents/harness/handover-guard.sh" 2>&1)"
 refute "no merge-base, supervised, still says nothing" ".agents/harness/" "$out"
+
+# Issue #114: the boundary named .agents/harness/ alone while
+# .claude/agents/verifier.md was mandatory Loop step 5 protocol outside it,
+# so an unattended session could retire its own independent reviewer and the
+# guard saw nothing. The fixtures above carry no joharness.sh, which is the
+# FALLBACK path (one tree, the historical name) — this one carries the
+# entrypoint, so the guard reads the real list.
+sgfullorigin="${TMP}/sgfullorigin.git"
+git init -q --bare "$sgfullorigin"
+sgfull="${TMP}/sgfull"
+git init -q "$sgfull"
+git -C "$sgfull" symbolic-ref HEAD refs/heads/main
+cp "${ROOT}/joharness.sh" "${sgfull}/joharness.sh"
+chmod +x "${sgfull}/joharness.sh"
+printf 'code\n' >"${sgfull}/code.txt"
+commit_all "$sgfull" "base"
+# An origin, because the guard exits silently without one (line 47) — the
+# first version of this fixture had none and every case below "passed" its
+# refute against empty output while its expect failed. A refute on silence
+# is not evidence.
+git -C "$sgfull" remote add origin "$sgfullorigin"
+git -C "$sgfull" push -qu origin main
+git -C "$sgfull" checkout -qb sgfullfeat
+
+guard_full() { printf '%s' "$JSON_STOP" | CLAUDE_PROJECT_DIR="$sgfull" \
+  JOHARNESS_MODE="${1:-unsupervised}" \
+  bash "${ROOT}/.agents/harness/handover-guard.sh" 2>&1; }
+
+# The list itself, pinned. Iterating it (below) proves each entry is
+# enforced; it cannot prove the right entries are there — a verifier removed
+# .agents/harness from protocol_paths and the whole suite stayed green,
+# because zero loop bodies run silently. Assert the contents, then iterate.
+expected_paths=".agents/harness .claude/agents .claude/commands .claude/skills joharness.sh .claude/settings.json"
+actual_paths="$("${ROOT}/joharness.sh" protocol-paths | tr '\n' ' ')"
+if [ "$(printf '%s' "$actual_paths" | tr -s ' ' | sed 's/ $//')" = "$expected_paths" ]; then
+  pass "the protocol path list is exactly what the boundary claims"
+else
+  fail "the protocol path list is exactly what the boundary claims"
+  printf '    wanted: %s\n    got:    %s\n' "$expected_paths" "$actual_paths"
+fi
+# joharness.sh holds the list; .claude/settings.json wires the hook that
+# reads it. A boundary excluding either is switched off from inside.
+for must in joharness.sh .claude/settings.json; do
+  if printf '%s\n' "$actual_paths" | grep -qF -- "$must"; then
+    pass "the boundary covers its own ${must}"
+  else
+    fail "the boundary covers its own ${must}"
+  fi
+done
+
+# One file in each listed path, one at a time: a single fixture touching all
+# of them would pass even if only one were still being looked at.
+seen_paths=0
+while IFS= read -r tree; do
+  [ -n "$tree" ] || continue
+  # Two entries are FILES, not trees (the entrypoint holding the list, and
+  # the settings file wiring the hook). Creating "<file>/thing.md" under them
+  # silently does nothing — mkdir fails on an existing file — so those cases
+  # asserted against a fixture that had not changed.
+  case "$(basename "$tree")" in
+    *.*) mkdir -p "$(dirname "${sgfull}/${tree}")"
+         printf 'protocol\n' >>"${sgfull}/${tree}" ;;
+    *)   mkdir -p "${sgfull}/${tree}"
+         printf 'protocol\n' >"${sgfull}/${tree}/thing.md" ;;
+  esac
+  out="$(guard_full unsupervised)"
+  expect "unsupervised sees a crossing in ${tree}" \
+    "touches 1 file(s) of protocol text" "$out"
+  # Only meaningful once the guard actually spoke: a refute against empty
+  # output passes for the wrong reason, which is exactly how the first
+  # version of this fixture looked green on a silent guard.
+  if [ -n "$out" ]; then
+    refute "the ${tree} fact carries no path" "thing.md" "$out"
+  else
+    fail "the ${tree} fact carries no path (guard said nothing)"
+  fi
+  out="$(guard_full supervised)"
+  refute "supervised leaves ${tree} alone" "protocol text" "$out"
+  # Restore rather than rm: `rm -rf` on a FILE entry deleted the entrypoint
+  # the guard reads, so every later iteration fell back to the one-tree list
+  # and proved nothing about the entry it named.
+  git -C "$sgfull" checkout -q -- . 2>/dev/null || true
+  git -C "$sgfull" clean -qfd
+  seen_paths=$((seen_paths + 1))
+done < <("${ROOT}/joharness.sh" protocol-paths)
+# An empty list runs zero loop bodies and reports nothing at all — green by
+# vacuum. Count what ran.
+if [ "$seen_paths" -eq 6 ]; then
+  pass "every listed protocol path was exercised"
+else
+  fail "every listed protocol path was exercised (ran ${seen_paths}, wanted 6)"
+fi
+
+# DELETING a protocol tree is the issue #114 scenario in its plainest form:
+# retire your own reviewer. An earlier version of this diff filtered the path
+# list to what exists in the worktree, which dropped exactly the tree being
+# deleted and went silent — a REGRESSION against origin/main, which caught
+# it. Every other case here touches or adds a file; none deleted one, which
+# is why nothing noticed.
+# The reviewer has to exist at the BASE and be deleted on the branch. Adding
+# and deleting it on the same branch nets to nothing, and the guard reads the
+# NET diff on purpose — a session that edited protocol and reverted it lands
+# nothing, which is the behavior its own comment defends. The first version
+# of this case did exactly that and failed for a reason unrelated to
+# deletion.
+git -C "$sgfull" checkout -q -- . 2>/dev/null || true
+git -C "$sgfull" clean -qfd
+git -C "$sgfull" checkout -q main
+mkdir -p "${sgfull}/.claude/agents"
+printf 'reviewer\n' >"${sgfull}/.claude/agents/verifier.md"
+commit_all "$sgfull" "a reviewer at base"
+git -C "$sgfull" push -q origin main
+git -C "$sgfull" checkout -qb sgdelete
+git -C "$sgfull" rm -q -r .claude/agents
+commit_all "$sgfull" "retire the reviewer"
+out="$(guard_full unsupervised)"
+expect "deleting a protocol tree is a crossing" \
+  "file(s) of protocol text" "$out"
+# And the property that makes the net-diff reading defensible: put it back,
+# and the branch is clean again.
+git -C "$sgfull" revert --no-edit HEAD >/dev/null 2>&1
+out="$(guard_full unsupervised)"
+refute "restoring it clears the crossing" "file(s) of protocol text" "$out"
+git -C "$sgfull" checkout -q -- . 2>/dev/null || true
+git -C "$sgfull" clean -qfd
+
+# The consumer case, which the ship-scope stage asks a shipping plan to name:
+# handover-guard.sh SHIPS, so this code runs in every consumer, and a consumer
+# may carry a joharness.sh older than the protocol-paths subcommand. The
+# fallback has to leave a boundary standing rather than none, and must not
+# make the guard noisy or non-zero there.
+sgold="${TMP}/sgold"
+git init -q "$sgold"
+git -C "$sgold" symbolic-ref HEAD refs/heads/main
+# An OLDER entrypoint, not a broken one: it answers `mode` (which has always
+# existed) and does not know `protocol-paths`. The first version of this
+# fixture just exited 1, which made the guard resolve the MODE to supervised
+# too — the boundary block never ran and the case failed for the wrong
+# reason. Mode resolution goes through the entrypoint as well; a stub that
+# breaks it is not a consumer, it is a broken checkout.
+cat >"${sgold}/joharness.sh" <<'OLDEOF'
+#!/usr/bin/env bash
+case "${1:-}" in
+  mode) printf '%s\n' "${JOHARNESS_MODE:-supervised}" ;;
+  *) exit 1 ;;
+esac
+OLDEOF
+chmod +x "${sgold}/joharness.sh"
+printf 'code\n' >"${sgold}/code.txt"
+commit_all "$sgold" "base"
+git -C "$sgold" remote add origin "$sgfullorigin"
+git -C "$sgold" checkout -qb sgoldfeat
+mkdir -p "${sgold}/.agents/harness"
+printf 'edit\n' >"${sgold}/.agents/harness/thing.sh"
+out="$(printf '%s' "$JSON_STOP" | CLAUDE_PROJECT_DIR="$sgold" \
+  JOHARNESS_MODE=unsupervised \
+  bash "${ROOT}/.agents/harness/handover-guard.sh" 2>&1)"; rc=$?
+expect "an entrypoint with no protocol-paths still names the boundary" \
+  "file(s) of protocol text" "$out"
+if [ "$rc" -eq 0 ]; then
+  pass "the fallback path exits clean"
+else
+  fail "the fallback path exits clean (rc ${rc})"
+fi
+# Fallback means PARTIAL, not silent — but it must not claim a tree it
+# cannot see. A .claude/agents edit is invisible to the old list, and that
+# is the documented cost, asserted so it stays a known one.
+rm -rf "${sgold:?}/.agents"
+mkdir -p "${sgold}/.claude/agents"
+printf 'protocol\n' >"${sgold}/.claude/agents/verifier.md"
+out="$(printf '%s' "$JSON_STOP" | CLAUDE_PROJECT_DIR="$sgold" \
+  JOHARNESS_MODE=unsupervised \
+  bash "${ROOT}/.agents/harness/handover-guard.sh" 2>&1)"
+refute "the fallback does not claim a tree it cannot resolve" \
+  "file(s) of protocol text" "$out"
+
+# A tree that is protocol but absent from the list is the defect this whole
+# change exists to stop recurring: it arrives unguarded and nothing says so.
+# Every .claude/ tree the sync ships governs a session — a command writes the
+# workstream file, a skill carries a Loop workflow, an agent is the reader
+# the merge gate leans on — so each must be listed. Canonical-only: a
+# consumer receives these trees but does not own the list.
+if [ ! -f "${ROOT}/joharness.conf" ] ||
+   ! grep -q '^JOHARNESS_CANONICAL=1' "${ROOT}/joharness.conf" 2>/dev/null; then
+  skip "every shipped .claude tree is inside the boundary" "consumer checkout"
+else
+  listed="$("${ROOT}/joharness.sh" protocol-paths)"
+  unlisted=""
+  for d in "${ROOT}"/.claude/*/; do
+    [ -d "$d" ] || continue
+    rel=".claude/$(basename "$d")"
+    # Only trees the sync actually ships. A local-only .claude/ directory is
+    # the repo's own business, not protocol every consumer receives.
+    # Indent-insensitive: matching "^  ${rel}$" hard-coded the DIRS array's
+    # two-space indent, so reindenting that file — a pure style edit — made
+    # every directory `continue` and the check pass over everything.
+    grep -qE "^[[:space:]]*${rel}[[:space:]]*\$" \
+      "${ROOT}/.agents/scripts/sync-to-consumer.sh" || continue
+    printf '%s\n' "$listed" | grep -qx -- "$rel" && continue
+    unlisted="${unlisted}${unlisted:+ }${rel}"
+  done
+  if [ -z "$unlisted" ]; then
+    pass "every shipped .claude tree is inside the boundary"
+  else
+    fail "every shipped .claude tree is inside the boundary"
+    printf '    unlisted: %s\n    add it to joharness.sh:protocol_paths, or say in\n    docs/product/unsupervised-mode.md why it is not protocol\n' \
+      "$unlisted"
+  fi
+fi
 
 git -C "$sgwork" rm -q -r .agents
 commit_all "$sgwork" "revert the harness edit"
 out="$(guard_unsup "$JSON_STOP")"
 refute "reverted harness edit clears the boundary fact" \
-  "file(s) under .agents/harness/" "$out"
+  "file(s) of protocol text" "$out"
 
 git -C "$sgwork" push -q origin sgfeat
 out="$(guard "$JSON_STOP")"; rc=$?

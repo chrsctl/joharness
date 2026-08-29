@@ -188,6 +188,54 @@ mode_source() {
 # Fails closed on purpose: the failure mode of failing open is a fleet
 # working unattended in a repo that never asked for one, and the cost is
 # asymmetric enough that no clever parsing is worth it here.
+# ---------------------------------------------------------------------------
+# The unsupervised boundary
+# ---------------------------------------------------------------------------
+#
+# The RULE is a role, stated in docs/product/unsupervised-mode.md: protocol
+# text governing a session is off limits to that session while it runs
+# unattended. A session may not rewrite the rules it is being judged by.
+#
+# This is that rule's mechanical expression, and the two are not the same
+# thing. Issue #114 is what a path-shaped rule costs: the boundary named
+# `.agents/harness/` alone, `.claude/agents/verifier.md` became mandatory
+# Loop step 5 protocol outside it, and nothing detected an edit to the one
+# reader the merge gate leans on.
+#
+# One list, here, read by the session-start banner and by
+# .agents/harness/handover-guard.sh. A second copy is the copy that rots.
+#
+# Every .claude/ tree the sync ships is here, and that follows from the
+# role rather than from taste: a command writes the workstream file, a skill
+# carries a workflow the Loop names, an agent is the reader the merge gate
+# leans on. Each is a rule a session is judged by.
+#
+# Two entries are not trees, and both are here because a boundary that does
+# not cover its own machinery is decoration:
+#   joharness.sh          holds THIS list, plus ci, finish, review and mode.
+#                         Left out, a session edits the list and every other
+#                         entry stops meaning anything. The old hardcoded
+#                         boundary lived inside .agents/harness/ and was
+#                         self-protecting by accident; naming it is how that
+#                         property survives being moved out.
+#   .claude/settings.json wires the Stop hook that runs the guard at all.
+#                         Delete the Stop block and nothing fires — not
+#                         because the boundary passed, but because nothing
+#                         is running to fire.
+#
+# NOT here, deliberately:
+#   .agents/env/    sandbox configuration, not protocol. A layer does not
+#                   govern behavior, and sweeping it in stops the mode
+#                   provisioning anything.
+#   .agents/docs/   the reasoning BEHIND rules rather than the rules a
+#                   session executes. Defensible to include, wider blast
+#                   radius, and not a decision to make silently.
+protocol_paths() {
+  printf '%s\n' \
+    .agents/harness .claude/agents .claude/commands .claude/skills \
+    joharness.sh .claude/settings.json
+}
+
 run_mode() {
   case "$(mode_raw)" in
     unsupervised) printf 'unsupervised' ;;
@@ -2987,9 +3035,14 @@ cmd_session_start() {
   if [ "$JOHARNESS_RUN_MODE" = "unsupervised" ]; then
     printf '== Mode: unsupervised ==\n\n'
     printf 'Queue edge is a trigger, not a stop: generate work, run the full\n'
-    printf 'Loop, merge your own pull request. NEVER commit under\n'
-    printf '.agents/harness/ — protocol edits stay supervised\n'
-    printf '(docs/product/unsupervised-mode.md, Constraints).\n'
+    printf 'Loop, merge your own pull request. NEVER edit the protocol that\n'
+    printf 'governs you — protocol edits stay supervised\n'
+    printf '(docs/product/unsupervised-mode.md, Constraints). Here:\n'
+    # Derived, never restated. A banner naming its own list is the second
+    # copy, and the boundary is exactly what must not disagree with itself.
+    while IFS= read -r t; do
+      [ -n "$t" ] && printf '  %s\n' "$t"
+    done < <(protocol_paths)
     # Session-local autonomy says so. A mode that came from an untracked
     # marker looks exactly like a repo-wide opt-in otherwise, and the two
     # want different reactions from whoever reads this.
@@ -3095,6 +3148,11 @@ main() {
     # leaves a repo believing it opted in.
     mode)           if [ -n "${1:-}" ]; then cmd_mode_set "$1"
                     else mode_warn_unrecognised; run_mode; printf '\n'; fi ;;
+    # Read by .agents/harness/handover-guard.sh, which cannot source this
+    # file. Not in `usage`: it is a seam between two harness files, not a
+    # thing a human runs, and a help entry invites a session to treat the
+    # list as an input rather than the rule's expression.
+    protocol-paths) protocol_paths ;;
     -h|--help|help) usage ;;
     *) die "unknown subcommand '$cmd' (try: $0 help)" ;;
   esac

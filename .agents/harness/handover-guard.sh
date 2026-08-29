@@ -173,20 +173,57 @@ if [ "$mode" = "unsupervised" ]; then
   # is NOT, and gating the whole check on the base was a fail-open: an
   # unattended session on a shallow checkout got no boundary at all. A
   # partial answer beats silence for a fact whose whole job is to notice.
-  harness_touched="$(
-    {
-      [ -z "$base" ] ||
-        git diff --name-only "$base" HEAD -- .agents/harness 2>/dev/null
-      git diff --name-only HEAD -- .agents/harness 2>/dev/null
-      git diff --name-only --cached -- .agents/harness 2>/dev/null
-      # Untracked too. `git diff` cannot see a file that was never added,
-      # so a new harness file read as absent until the commit that the
-      # boundary exists to prevent.
-      git ls-files --others --exclude-standard -- .agents/harness 2>/dev/null
-    } | { grep -E '^\.agents/harness/' || :; } | sort -u | grep -c . || :
-  )"
+  # Every protocol tree, not one. The list lives in joharness.sh
+  # (protocol_paths) so the banner and this guard cannot disagree about
+  # where the boundary is — issue #114 is what one hardcoded prefix cost.
+  # A checkout without the entrypoint, or an older copy with no such
+  # function, falls back to the tree that has always been named: a partial
+  # boundary beats none, the same call the base-relative half makes below.
+  trees="$("${PROJECT_DIR}/joharness.sh" protocol-paths 2>/dev/null)"
+  [ -n "$trees" ] || trees=".agents/harness"
+
+  # An ARRAY, and every path passed to git whether or not it exists here.
+  #
+  # The first version of this filtered to paths present in the worktree,
+  # reasoning that a pathspec naming an absent directory makes git exit
+  # non-zero. It does not — `git diff --name-only HEAD -- absent/path` exits
+  # 0 — and the filter cost the exact scenario this boundary exists for:
+  # DELETING a protocol tree removes it from the worktree, so the filter
+  # dropped it and the guard went silent on "retire your own reviewer".
+  # Measured against origin/main's guard on the same branch: the old code
+  # reported the deletion, this code did not. A regression, not a gap.
+  #
+  # Unquoted word-splitting was the other half of that mistake: a path with
+  # a space split into two pathspecs matching nothing, and a path that is a
+  # glob matched whatever happened to be on disk. Both silent.
+  paths=()
+  while IFS= read -r t; do
+    [ -n "$t" ] && paths+=("$t")
+  done <<EOF
+$trees
+EOF
+
+  harness_touched=0
+  if [ "${#paths[@]}" -gt 0 ]; then
+    harness_touched="$(
+      {
+        [ -z "$base" ] ||
+          git diff --name-only "$base" HEAD -- "${paths[@]}" 2>/dev/null
+        git diff --name-only HEAD -- "${paths[@]}" 2>/dev/null
+        git diff --name-only --cached -- "${paths[@]}" 2>/dev/null
+        # Untracked too. `git diff` cannot see a file that was never added,
+        # so a new protocol file read as absent until the commit that the
+        # boundary exists to prevent.
+        git ls-files --others --exclude-standard -- "${paths[@]}" 2>/dev/null
+      } | sort -u | grep -c . || :
+    )"
+  fi
   if [ -n "$harness_touched" ] && [ "$harness_touched" -gt 0 ]; then
-    add_fact "unsupervised mode, but this branch touches ${harness_touched} file(s) under .agents/harness/ — revert them"
+    # Still a count, never a path. The reason string embeds in JSON without
+    # escaping and a file name is repo-controlled input; widening the
+    # boundary widens what that input could be, so this matters more now,
+    # not less. Digits cannot close a JSON string.
+    add_fact "unsupervised mode, but this branch touches ${harness_touched} file(s) of protocol text (docs/product/unsupervised-mode.md, Constraints) — revert them"
   fi
 fi
 
