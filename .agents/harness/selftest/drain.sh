@@ -106,3 +106,25 @@ out="$(ddrain)"
 expect "an open question alone is not drained" "NOT DRAINED" "$out"
 expect "drain reaches a question through the alternation branch" \
   "next: docs/research/open-q.md" "$out"
+
+# --- claimed work is listed by the queue but must never be handed out -------
+# The queue lists a claimed plan and never leads with it
+# (.agents/docs/plans/README.md). drain hands out the NEXT thing to take, so
+# a claimed row reaching `next:` would send a second session at work another
+# session is already holding — the duplication claim-by-push exists to stop.
+rm -f "${dwork}/docs/research/"*.md
+dplan taken
+commit_all "$dwork" "one plan, about to be claimed"
+git -C "$dwork" push -q origin main
+
+git -C "$dwork" checkout -qb claimer
+printf -- '---\nworkstream: taken\nstatus: in-progress\nplan: taken\nagent: sonnet\nupdated: 2026-01-01\n---\n\n## Goal\nFixture.\n' \
+  >"${dwork}/docs/handover/taken.md"
+commit_all "$dwork" "claim it"
+git -C "$dwork" push -qu origin claimer
+git -C "$dwork" checkout -q main
+
+out="$(ddrain)"
+refute "a claimed plan is never handed out as next" "next: docs/plans/taken.md" "$out"
+expect "a queue holding only claimed work is drained" \
+  "DRAINED — no free plan, no open question." "$out"

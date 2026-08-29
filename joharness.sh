@@ -946,6 +946,17 @@ perf_count() {
   printf '%s %s\n' "${n:-0}" "$secs"
 }
 
+# `drain` carries session-start's budget and for session-start's reason: it
+# runs the same two hooks. Measured 2026-08-29 with `JOHARNESS_PERF=always
+# ./joharness.sh perf drain` -> 465, against session-start's 468 the same
+# minute. It is budgeted at all because a drain loop reads it between every
+# item, so a per-item fork inside it is paid once per queue entry instead of
+# once per session.
+#
+# Comments do not go INSIDE the row list below. Those lines are one command's
+# continued argument list, where a leading # is an argument and not a comment:
+# putting this paragraph there fed printf five junk rows and emptied the table
+# for every name the filter looked up.
 # One row per entrypoint: name, budget literal, then the command.
 #
 # Budgets are CEILINGS with headroom, not targets, and they are literals here
@@ -997,6 +1008,7 @@ perf_rows() {
     "graph|${JOHARNESS_PERF_BUDGET_GRAPH:-260}|${ROOT}/joharness.sh graph" \
     "session-start|${JOHARNESS_PERF_BUDGET_SESSION_START:-700}|${ROOT}/joharness.sh session-start" \
     "queue-context|${JOHARNESS_PERF_BUDGET_QUEUE:-350}|${HARNESS_ROOT}/queue-context.sh" \
+    "drain|${JOHARNESS_PERF_BUDGET_DRAIN:-700}|${ROOT}/joharness.sh drain" \
     "handover-guard|${JOHARNESS_PERF_BUDGET_GUARD:-33}|env JOHARNESS_MODE=unsupervised ${HARNESS_ROOT}/handover-guard.sh"
 }
 
