@@ -31,6 +31,12 @@ today.
   one per plan, using the wave partition the queue hook already computes.
 - Started once, the fleet keeps going for hours with no human turn — an
   empty queue is a trigger for work, not a stopping point.
+  **Partly measured, 2026-08-30** (`fanout-live-run`): two sessions spawned per
+  wave-1 plan both ran the full Loop and merged their own pull requests
+  unattended, 53 minutes end to end, no collision and one reconcile. What that
+  run did NOT show is the "for hours" or the empty-queue trigger: the fleet was
+  bounded to one plan each and stopped when the work ran out, and the repo mode
+  was not flipped. Endurance and work-generation remain unmeasured.
 - The mode has a reachable end: the source sweep goes dry. Every detector
   zero on two consecutive sweeps, queue empty, no open pull request. There
   an unsupervised session stops and says so — the one place the mode asks.
