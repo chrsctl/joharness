@@ -165,6 +165,55 @@ Findings also explain harness fit: caveman imperatives suit literal reader;
 prohibitions-with-reasons = exactly what literal model follows best;
 hook-injected state beats instruction to go look.
 
+## Counting sessions that can read the count
+
+`./joharness.sh scorecard` counts per-branch process facts. The sessions it
+counts read this repo's rules, so they can read what is counted and optimise
+for it. That is not a hypothetical: it is the defining condition here, and it
+is why the command REPORTS and never gates.
+
+**The mechanism is Goodhart's Law, and the attribution matters.** The sentence
+everyone quotes — "when a measure becomes a target, it ceases to be a good
+measure" — is Strathern's (1997, citing Hoskin), not Goodhart's. Goodhart's
+1975 original is "Any observed statistical regularity will tend to collapse
+once pressure is placed upon it for control purposes". Use the short form as
+*commonly stated as*, never as his words. The academic anchor for the failure
+under partial observability is Robert Austin, *Measuring and Managing
+Performance in Organizations*; industry writing frames gaming as a design
+failure rather than a discipline failure, which is a reasonable stance and NOT
+a literature consensus — do not cite it as one.
+
+**What DORA supports, and what it does not.** It supports metrics being team-
+and system-level and not tied to individual performance review, and dora.dev
+warns against isolating teams with specific metrics because that "can lead to
+friction and finger-pointing". It does NOT say "individual metrics create
+competition while team metrics create collaboration" — that sentence traces to
+no DORA, Google Cloud or *Accelerate* source and was removed from this repo's
+reasoning when a verification pass failed it.
+
+So: report first. A number nobody is graded on is not yet a target, and
+reporting is what keeps the counts honest long enough to backtest them. That
+is the same bar `churn` cleared before it earned a ceiling, and the reason
+`scorecard` has not earned one.
+
+Two gaps are known and open, named here so the next session does not rediscover
+them:
+
+- **A count wants a counterweight.** "Review findings recorded" alone rewards
+  recording noise. Pair a count with one representing the harm its gaming would
+  displace, so the displacement shows up instead of hiding.
+- **No count is retired.** Long-lived metrics accumulate gaming strategies, so
+  a count that has served its purpose should be removed. Nothing retires one
+  today, which makes every number permanent by default.
+
+Both are industry practice rather than sourced study, and both survive the
+verification pass because neither rests on the DORA sentence that failed.
+
+One method note, because it is the reason the attributions above are hedged so
+precisely: of the claims in the research behind this section, the one its author
+flagged as needing a check is exactly the one that failed. Flagging it was
+right. Publishing it unflagged would not have been.
+
 ## Writing plans for agents
 
 Rules in `.agents/docs/plans/README.md`. Core: an agent executes what the plan
