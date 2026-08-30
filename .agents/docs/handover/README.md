@@ -203,6 +203,16 @@ order this replaced. Within one rank the oldest push is the entry closest to
 abandoned, and an abandoned branch at the edge reads as in-flight until a
 human triages it ([`../product/README.md`](../product/README.md), Branch flow).
 
+An entry whose last push is `HANDOVER_STALE_SECONDS` old or older (default
+518400 — 6 days) AND that sits `HANDOVER_STALE_BEHIND` commits or more behind
+the base branch (default 50) is marked `STALE` and sorts AFTER every live
+entry of its own rank — oldest-push-first still breaks ties within the live
+group and within the stale group separately. Both thresholds read git alone,
+never session status, which stays `/who`'s answer. Demoted, never dropped: a
+stale entry still prints, and still leads under FINISH BEFORE STARTING when
+it is the only entry at its rank — hiding it is how deadwood becomes
+permanent.
+
 Ranks 0-2 are the edge. A branch there leads the block under FINISH BEFORE
 STARTING, because finishing outranks starting
 ([`.agents/harness/AGENTS.md`](../../harness/AGENTS.md) step 2). The line names the
