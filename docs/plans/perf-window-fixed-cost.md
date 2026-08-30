@@ -1,3 +1,13 @@
+---
+plan: perf-window-fixed-cost
+urgency: normal
+agent: sonnet
+effort: medium
+needs: none
+requirement: none
+scope: shared:joharness.sh, shared:.agents/harness/selftest.sh
+---
+
 ## Goal
 
 `feedback` and `review` cost about **11 commands per merged edge**, and

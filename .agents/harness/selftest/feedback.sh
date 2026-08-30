@@ -165,3 +165,52 @@ out="$(jf review)"
 expect "review names the hot file in this diff" "already cost other branches" "$out"
 expect "review counts the edges it cost" "hot.sh (2 edges)" "$out"
 refute "a cold file in the same diff is not named" "cold.sh (" "$out"
+
+# --- the edge label, and the fork it no longer costs ------------------------
+# fb_label used to spend a `git log -1` and a `sed` per edge asking for the
+# merge subject. fb_edges already walked past it, so it now carries the
+# subject as a third field and fb_label parses it with shell builtins alone.
+# Two forks per edge-with-a-workstream-file, and most edges have one: measured
+# on origin/main 2026-08-30, per-edge cost fell from ~10.8 commands to ~8.8
+# (PERF_EDGES 10/20/30 -> 164/276/380 before, 152/240/328 after).
+#
+# Both branches of the label are asserted. The PR form is what a reader keys
+# on; the short-sha fallback is what a merge made without the GitHub button
+# gets, and nothing exercised it before this.
+#
+# Each merge is PUSHED, like the `edge` helper above does: feedback walks
+# base_ref, which is origin/main here, so a merge left unpushed is a merge the
+# walk never sees. Without it these cases assert against the fixture as it
+# stood three edges ago and fail while the code is right.
+git -C "$fwork" checkout -q main
+git -C "$fwork" checkout -qb labelled
+printf 'labelled\n' >>"${fwork}/hot.sh"
+mkdir -p "${fwork}/docs/handover"
+{ printf -- '---\nworkstream: labelled\nstatus: in-progress\n---\n\n## Review\n\n'
+  printf -- '- r1: carried by a numbered pull request. (fixed)\n'; } \
+  >"${fwork}/docs/handover/labelled.md"
+commit_all "$fwork" "labelled work"
+git -C "$fwork" checkout -q main
+git -C "$fwork" merge -q --no-ff -m "Merge pull request #77 from scratch/labelled" labelled
+git -C "$fwork" push -q origin main
+
+git -C "$fwork" checkout -qb unlabelled
+printf 'unlabelled\n' >>"${fwork}/cold.sh"
+{ printf -- '---\nworkstream: unlabelled\nstatus: in-progress\n---\n\n## Review\n\n'
+  printf -- '- r1: carried by an unnumbered merge. (fixed)\n'; } \
+  >"${fwork}/docs/handover/unlabelled.md"
+commit_all "$fwork" "unlabelled work"
+git -C "$fwork" checkout -q main
+git -C "$fwork" merge -q --no-ff -m "a merge nobody numbered" unlabelled
+git -C "$fwork" push -q origin main
+
+expect "a numbered merge labels its finding with the pull request" \
+  "PR77" "$(jf feedback hot.sh)"
+
+# The refute is scoped to the ONE line carrying this finding. Over the whole
+# output it could never pass: earlier edges in this fixture are numbered and
+# print PR4 and PR6 correctly, so a bare "PR" needle asserts the opposite of
+# what it reads as.
+unl="$(jf feedback cold.sh | { grep -F 'carried by an unnumbered merge' || :; })"
+expect "an unnumbered merge still reports its finding" "r1:" "$unl"
+refute "an unnumbered merge invents no pull request number" "PR" "$unl"
