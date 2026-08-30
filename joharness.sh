@@ -1052,6 +1052,26 @@ perf_count() {
 # paragraph measured at ~11 each. Ceiling = max + branch overhead (0 for
 # feedback, +5 for review) + that ~18: feedback 249 -> 267, review 257 -> 275.
 #
+# Resampled again 2026-08-30, the three merges since #145, same loop:
+#
+#   #146 bfedce8 270/273   #147 d9d741d 255/258   #148 f2e82af 255/258
+#
+# #146 is the merge that SET 267/275, and its own head counts 270 — `feedback`
+# OVER by 3. Nothing caught it, and the reason is structural rather than bad
+# luck: on `main` HEAD is origin/main, so `selftest_inert_diff` is true and
+# `ci` skips this whole section. The budget is measured on branches only, and
+# a branch is measured BEFORE its own merge enters the 20-edge window. Green
+# pre-merge, red after, with no run that looks. Worth a plan; not this diff's
+# to fix.
+#
+# The ceiling STAYS at 267/275 on the post-fix numbers below, for the reason
+# the paragraph above already gives: `feedback` 202 / `review` 208 is ONE
+# sample of a band nobody has sized since the fork per missing path came out,
+# and lowering onto one sample is the mistake that made this flap twice. It is
+# a loose ceiling on purpose until several merges have been sampled the way
+# the six above were — and 267 is no longer inside the post-fix band, which is
+# the property it lost when the band drifted up to 255-270.
+#
 # One row per entrypoint: name, budget literal, then the command.
 #
 # Budgets are CEILINGS with headroom, not targets, and they are literals here
@@ -2506,21 +2526,66 @@ fb_fix_map() {
 # .agents/ move did exactly that: 3 branches at one spelling, 2 at the other).
 # Unique-suffix match repairs the prefixed-directory case and refuses to guess
 # anywhere else: no match or several, the path stands as recorded.
+# ONE `git ls-files` for the whole run, and no fork at all per path after it.
+# The index is read on first miss and kept; a run with no missing path never
+# reads it.
+#
+# The answer goes into FB_CUR and is printed as well, because the hot caller
+# is a loop and `$(fb_current_path ...)` would run it in a SUBSHELL — where
+# `FB_LS_READ=1` dies with the subshell and the next miss forks `git ls-files`
+# again. That is what the first version of this hoist did: measured 18 forks
+# on this repo, not the one its own comment claimed. A cache a command
+# substitution throws away is not a cache, and nothing in the counted budget
+# says which of the two you have.
+FB_LS=""
+FB_LS_READ=0
+FB_CUR=""
+
 fb_current_path() {
-  local p="$1" hits
+  local p="$1" f hit="" n=0
+  FB_CUR="$p"
   [ -e "${ROOT}/${p}" ] && { printf '%s' "$p"; return 0; }
+  # This used to fork `git ls-files`, an `awk` and a `grep -c` for every
+  # MISSING path, inside the loop over recorded pairs — and a path goes
+  # missing exactly when the finish ritual retires a file, so the fork count
+  # grew by one group for every workstream file and plan this repo has ever
+  # completed. Third instance of this shape after review_prior and
+  # fb_report_path, and the third time the budget named it rather than a
+  # reader.
+  #
+  # Counted on the merge base this landed on (f2e82af, 2026-08-30, a `git
+  # ls-files` shim logging argv): 18 missing recorded paths, and 18 forks
+  # under a comment that claimed one — see FB_CUR above. Both windows give
+  # 18, the default 50 and the budget's pinned 20, because the misses sit in
+  # the recent edges either way. `feedback` 255 -> 202 and `review` 258 ->
+  # 208 across the whole change (`./joharness.sh perf`, same commit).
+  #
+  # An earlier version of this paragraph said 86 paths in the default
+  # window and a budget breach of `feedback` 268 against 265. Neither
+  # reproduces here: the count is 18, and the ceiling has been 267/275 since
+  # PR 146. The saving is real and larger than the one first claimed; the
+  # numbers describing it were not re-counted after the branch sat 46
+  # commits behind.
+  if [ "$FB_LS_READ" -eq 0 ]; then
+    FB_LS="$(git -C "$ROOT" ls-files 2>/dev/null)"
+    FB_LS_READ=1
+  fi
   # String suffix on a path boundary, not a regex: a path carrying `+`, `(`
   # or `{` must match itself and not its siblings (the literal-pathspec
-  # lesson the sync engine already learned the hard way).
-  hits="$(git -C "$ROOT" ls-files 2>/dev/null | awk -v p="$p" '
-    length($0) >= length(p) &&
-    substr($0, length($0) - length(p) + 1) == p &&
-    (length($0) == length(p) || substr($0, length($0) - length(p), 1) == "/")')"
-  if [ "$(printf '%s\n' "$hits" | grep -c .)" = "1" ]; then
-    printf '%s' "$hits"
-  else
-    printf '%s' "$p"
-  fi
+  # lesson the sync engine already learned the hard way). `case` globs are
+  # the same literal match the awk did, and fork nothing.
+  while IFS= read -r f; do
+    case "$f" in
+      "$p" | *"/$p") ;;
+      *) continue ;;
+    esac
+    n=$((n + 1))
+    hit="$f"
+  done <<<"$FB_LS"
+  # Exactly one match resolves; none or several leave the path as recorded,
+  # because guessing between siblings is how one hot spot became two.
+  [ "$n" -eq 1 ] && FB_CUR="$hit"
+  printf '%s' "$FB_CUR"
 }
 
 # One walk of merged history, into globals, because two callers need it and
@@ -2590,7 +2655,10 @@ fb_collect() {
 
     while IFS= read -r line; do
       [ -n "$line" ] || continue
-      FB_PAIRS="${FB_PAIRS}${label}"$'\t'"$(fb_current_path "${line#*	}")"$'\t'"${line%%	*}"$'\n'
+      # Plain call, not `$( )`: the substitution would fork a subshell per
+      # pair and throw away the ls-files cache with it (see fb_current_path).
+      fb_current_path "${line#*	}" >/dev/null
+      FB_PAIRS="${FB_PAIRS}${label}"$'\t'"${FB_CUR}"$'\t'"${line%%	*}"$'\n'
     done <<<"$(fb_fix_map "$base" "$tip")"
   done <<<"$all"
   fb_cache_save

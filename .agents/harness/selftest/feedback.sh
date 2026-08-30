@@ -142,13 +142,103 @@ expect "and is NOT counted as unlinkable" "1 carry no r1: id" "$out"
 expect "a three-digit id is attributed to the file its fix touched" \
   "the hundredth finding" "$(jf feedback cold.sh)"
 
+# fb_current_path: a recorded path that has since MOVED still resolves, and an
+# ambiguous one does not guess. Untested until now, which mattered when the
+# `git ls-files` fork inside it was hoisted out of the loop — a change with no
+# case under it can only be checked by reading, and this file's own history is
+# an argument against that.
+#
+# The fork is the reason it is reachable at all: a path goes missing exactly
+# when the finish ritual retires a file, so every completed workstream adds one
+# more miss to every later run.
+# The PREFIXED-DIRECTORY case, which is the only move this repairs — recorded
+# `moved.sh`, now `sub/moved.sh`. An arbitrary move (`old/x` to `new/x`) is
+# NOT repaired and must not be: the recorded path is not a suffix of the new
+# one, and matching on basename alone would guess between siblings. This repo's
+# own `.agents/` move is the case that paid for it.
+git -C "$fwork" checkout -q main
+printf 'moved\n' >"${fwork}/moved.sh"
+commit_all "$fwork" "a file that will gain a directory"
+git -C "$fwork" push -q origin main
+edge mover theta moved.sh 7 "- r1: the moved file drew a finding. (fixed)"
+git -C "$fwork" checkout -q main
+mkdir -p "${fwork}/sub"
+git -C "$fwork" mv moved.sh sub/moved.sh
+commit_all "$fwork" "put it under a directory"
+git -C "$fwork" push -q origin main
+out="$(jf feedback sub/moved.sh)"
+expect "a finding recorded before the file gained a directory still reaches it" \
+  "the moved file drew a finding" "$out"
+
+# SEVERAL suffix matches, which is the case the refusal exists for. The
+# recorded path has to match more than one file for that branch to be reached
+# at all: an earlier version of this case removed the recorded file and added
+# an unrelated sibling, which produces ZERO matches, not several — green
+# whether the code guesses or not. Caught by loosening the `-eq 1` to `-ge 1`
+# and watching it stay green.
+git -C "$fwork" checkout -q main
+printf 'twin\n' >"${fwork}/twin.sh"
+commit_all "$fwork" "a file that will become ambiguous"
+git -C "$fwork" push -q origin main
+edge twin iota twin.sh 8 "- r1: the twin drew a finding. (fixed)"
+git -C "$fwork" checkout -q main
+mkdir -p "${fwork}/one" "${fwork}/two"
+git -C "$fwork" mv twin.sh one/twin.sh
+printf 'other\n' >"${fwork}/two/twin.sh"
+commit_all "$fwork" "now two files carry that name"
+git -C "$fwork" push -q origin main
+out="$(jf feedback one/twin.sh)"
+refute "an ambiguous recorded path is never guessed onto a sibling" \
+  "the twin drew a finding" "$out"
+out="$(jf feedback two/twin.sh)"
+refute "and not onto the other sibling either" \
+  "the twin drew a finding" "$out"
+
+# ONE `git ls-files` for the whole walk, however many recorded paths have gone
+# missing. Counted, not read: the first version of the hoist put the cache in a
+# global and then called `fb_current_path` from inside `$( )`, so `FB_LS_READ=1`
+# died with every subshell and the fork came back once per miss — 18 of them on
+# the real repo, under a comment claiming one. The perf budget cannot tell the
+# two apart (it counts `git`, not `git ls-files`), so this case is the only
+# thing that can.
+#
+# The fixture earns the assertion: every edge above retires its workstream
+# file, so the walk hits several missing paths, and the count below is 1 only
+# because the cache survives the loop.
+lsdir="${TMP}/lsshim"
+mkdir -p "$lsdir"
+lslog="${TMP}/lsshim.log"
+: >"$lslog"
+realgit="$(command -v git)"
+cat >"${lsdir}/git" <<SHIM
+#!/bin/sh
+printf '%s\n' "\$*" >>"${lslog}"
+exec "${realgit}" "\$@"
+SHIM
+chmod +x "${lsdir}/git"
+out="$(PATH="${lsdir}:${PATH}" jf feedback)"
+n_ls="$(grep -c ' ls-files' "$lslog" || true)"
+# Every carrying edge retired its workstream file, so each is one recorded
+# path the walk will not find. More than one of them, or the count above is
+# green whether the cache works or not.
+n_carry="$(sed -n 's/.*, \([0-9][0-9]*\) carrying a workstream file.*/\1/p' <<<"$out" | head -1)"
+expect "the index is read once for the whole walk, not once per missing path" \
+  "ls-files=1" "ls-files=${n_ls}"
+if [ "${n_carry:-0}" -gt 1 ]; then
+  pass "and the fixture retired ${n_carry} files, so that 1 was not free"
+else
+  fail "the fixture must retire more than one file or the count above is free"
+fi
+
 # The walk is bounded, and a bounded view says so — a window nobody was told
 # about is how a measure starts lying.
 out="$(JOHARNESS_FEEDBACK_EDGES=2 jf feedback)"
 # 6, not 5: the three-digit edge above grew this fixture. The number is the
 # assertion — a window that names the wrong total is the lie this case exists
 # to catch — so it moves with the fixture rather than being loosened.
-expect "a capped walk names its window" "newest 2 edges of 6" "$out"
+# 8: the two fb_current_path edges above grew this fixture again. The number
+# is the assertion, so it moves with the fixture rather than being loosened.
+expect "a capped walk names its window" "newest 2 edges of 8" "$out"
 expect "and names the knob that widens it" "JOHARNESS_FEEDBACK_EDGES=2" "$out"
 out="$(JOHARNESS_FEEDBACK_EDGES=0 jf feedback)"
 refute "0 reads every edge" "older edges NOT read" "$out"
