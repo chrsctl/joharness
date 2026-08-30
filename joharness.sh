@@ -964,6 +964,39 @@ perf_count() {
 # continued argument list, where a leading # is an argument and not a comment:
 # putting this paragraph there fed printf five junk rows and emptied the table
 # for every name the filter looked up.
+# Two of these ceilings are sized against NOISE, not against code, and that is
+# a different thing from the rest of this table.
+#
+# `feedback` and `review` score a sliding window of merged edges — FB_LIMIT, 50
+# by default. The window is fixed in SIZE and not in COST: every merge slides
+# it, and what slides in costs a different number of commands from what slid
+# out. So the total moves with repo content while the code stands still.
+# Measured on six consecutive origin/main commits, 2026-08-30, each in a
+# detached worktree:
+#
+#   for c in $(git log --merges --format=%h origin/main -6 | tac); do
+#     git worktree add -q --detach "$W" "$c"
+#     (cd "$W" && JOHARNESS_PERF=always ./joharness.sh perf review)
+#   done
+#
+#   #133 253/250   #134 271/268   #135 271/268
+#   #136 250/247   #137 271/268            (review/feedback)
+#
+# joharness.sh and .agents/harness/ are byte-identical between #136 and #137 —
+# `git diff --name-only b52a800 3e45c5a` lists three markdown files and nothing
+# else — and the count moves 21. The old ceiling was 265, INSIDE both bands
+# (247-268 and 250-271). A ceiling inside the noise band does not detect
+# regressions; it flaps, and GitHub run 336 green against run 338 red is that
+# flap costing a red base branch.
+#
+# 300 clears the observed maximum plus the overhead a working branch adds for
+# its own workstream files (measured at +5 on one graduation branch the same
+# day). This is NOT the licence the paragraph below withholds: that one forbids
+# raising a ceiling to cover code that grew a fork, and here the code did not
+# change at all. The real fix is to bound per-edge cost so the window is fixed
+# in cost as well as size, which is queued as `perf-window-fixed-cost`; when it
+# lands, this comes back down and the number below is re-measured, not guessed.
+#
 # One row per entrypoint: name, budget literal, then the command.
 #
 # Budgets are CEILINGS with headroom, not targets, and they are literals here
@@ -1010,8 +1043,8 @@ perf_count() {
 # resolves the mode the same way and its row does not pin it.
 perf_rows() {
   printf '%s\n' \
-    "feedback|${JOHARNESS_PERF_BUDGET_FEEDBACK:-265}|${ROOT}/joharness.sh feedback" \
-    "review|${JOHARNESS_PERF_BUDGET_REVIEW:-265}|${ROOT}/joharness.sh review" \
+    "feedback|${JOHARNESS_PERF_BUDGET_FEEDBACK:-300}|${ROOT}/joharness.sh feedback" \
+    "review|${JOHARNESS_PERF_BUDGET_REVIEW:-300}|${ROOT}/joharness.sh review" \
     "graph|${JOHARNESS_PERF_BUDGET_GRAPH:-260}|${ROOT}/joharness.sh graph" \
     "session-start|${JOHARNESS_PERF_BUDGET_SESSION_START:-700}|${ROOT}/joharness.sh session-start" \
     "queue-context|${JOHARNESS_PERF_BUDGET_QUEUE:-350}|${HARNESS_ROOT}/queue-context.sh" \
