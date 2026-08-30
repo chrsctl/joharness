@@ -74,8 +74,8 @@ sorder="$(printf '%s\n' "$sout" |
 expect "the live entry leads over the stale one at the same rank" \
   "blivedge,bstaleedge" "$sorder"
 expect "the stale entry is marked, not silently reordered" \
-  "STALE: no push in" "$sout"
-stale_marks="$(printf '%s\n' "$sout" | grep -c 'STALE: no push in')"
+  "STALE: pushed" "$sout"
+stale_marks="$(printf '%s\n' "$sout" | grep -c 'STALE: pushed')"
 expect "only the stale entry is marked, not the live one" "1" "$stale_marks"
 expect "FINISH BEFORE STARTING follows the live entry, not the older push" \
   "FINISH BEFORE STARTING: origin/blivedge" "$sout"
@@ -98,7 +98,7 @@ expect "a stale entry alone at its rank still prints" \
 expect "a stale entry alone at its rank still leads" \
   "FINISH BEFORE STARTING: origin/bstaleedge" "$salone_out"
 expect "the lead line says it is stale rather than implying live work" \
-  "STALE, no push in" "$salone_out"
+  "STALE, pushed" "$salone_out"
 
 # --- thresholds are env-overridable -----------------------------------------
 # Same tree, relaxed enough that neither condition holds any more: the branch
@@ -113,7 +113,7 @@ wide="$(CLAUDE_PROJECT_DIR="$stalework" HANDOVER_FETCH=0 \
   HANDOVER_STALE_SECONDS=86400 HANDOVER_STALE_BEHIND=999999 \
   bash "${ROOT}/.agents/harness/handover-context.sh" 2>&1)"
 refute "a relaxed behind-threshold turns staleness off" \
-  "STALE: no push in" "$wide"
+  "STALE: pushed" "$wide"
 worder="$(printf '%s\n' "$wide" |
   sed -n 's|^  origin/\([a-z]*\): docs/handover/.*|\1|p' | paste -sd, -)"
 expect "with staleness off, oldest push leads again" \

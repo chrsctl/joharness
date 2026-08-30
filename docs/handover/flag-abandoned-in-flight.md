@@ -1,6 +1,6 @@
 ---
 workstream: flag-abandoned-in-flight
-status: in-progress
+status: review
 branch: claude/flag-abandoned-in-flight
 pr: none
 plan: flag-abandoned-in-flight
@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01HLUEzTRWX9SahJwiMrhDS4
 agent: sonnet
 updated: 2026-08-30
-next: Implement the STALE demotion in handover-context.sh:rank_of's sort, add a selftest topic, update the rank table doc, then verify.
+next: Open the pull request, drive ./joharness.sh ci and verify green, then merge (step 7) and retire this file + the plan file in the final commit.
 ---
 
 ## Goal
@@ -63,6 +63,15 @@ branches carrying a workstream file (`unsupervised-goal`, `upkeep-off-session`,
   in the case the new selftest itself exercises — a stale entry alone at its
   rank, with nothing to demote it below. (fixed — reworded to a claim that
   holds either way.)
+
+`.claude/agents/verifier.md` at sonnet, independent pass:
+
+- r5: `pushed_rel` (`git log -1 --format=%cr`) already ends in "ago" — the
+  STALE lines' "no push in ${pushed_rel}" construction rendered as "no push
+  in 7 years ago", stacking a redundant "ago". Every other use of
+  `pushed_rel` in this file prefixes it with "pushed", which reads correctly.
+  (fixed — both STALE lines and the selftest assertions matching them now
+  say "STALE: pushed ${pushed_rel}" / "STALE, pushed ${pushed_rel}".)
 
 ## Blockers
 

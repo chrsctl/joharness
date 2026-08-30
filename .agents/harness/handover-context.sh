@@ -577,7 +577,7 @@ while IFS="$US" read -r rank _ short f status pr updated agent issue \
   # scope for this hook) — true, and worth saying, even when this is the only
   # entry at its rank and it still leads below.
   [ "$entry_stale" = "1" ] &&
-    others="${others}    STALE: no push in ${pushed_rel} — read as abandoned from git alone, never hidden even when it is the only entry at this rank (.agents/docs/product/README.md, Branch flow)"$'\n'
+    others="${others}    STALE: pushed ${pushed_rel} — read as abandoned from git alone, never hidden even when it is the only entry at this rank (.agents/docs/product/README.md, Branch flow)"$'\n'
 
   if [ -z "$lead_ref" ] && [ "$rank" -le 2 ]; then
     lead_ref="$short"
@@ -587,7 +587,7 @@ while IFS="$US" read -r rank _ short f status pr updated agent issue \
       1 ) lead_why="at review" ;;
       2 ) lead_why="pull request #${pr} open" ;;
     esac
-    [ "$entry_stale" = "1" ] && lead_why="${lead_why} — STALE, no push in ${pushed_rel}"
+    [ "$entry_stale" = "1" ] && lead_why="${lead_why} — STALE, pushed ${pushed_rel}"
   fi
 
   [ -n "$session" ] && others="${others}    session: ${session}"$'\n'
