@@ -31,9 +31,11 @@ regression again.
   review 257 against #145's base 252 — confirms +5. feedback stayed flat
   (249 vs 249) because its walk is merged edges only, unaffected by an
   unmerged commit.
-- New ceilings sit above (observed max + overhead) with a few counts of
-  headroom, not maximal padding like the old 300: feedback 254->260,
-  review 257->263.
+- New ceilings sit above (observed max + overhead) with headroom sized to
+  the file's own two-edge content-swing estimate (~18 at current ~8.8
+  commands/edge), not one sample's noise or maximal padding like the old
+  300: feedback 249->267, review 257->275 (see r3 below — revised up from
+  an initial 260/263 after verifier review).
 
 ## Rejected
 
@@ -45,6 +47,24 @@ regression again.
   were not updated in the same commit as the `joharness.sh` ceiling change,
   violating the same-commit handover rule. (fixed: this commit updates both
   together.)
+- r2: (verifier) the sampling comment's loop reused `$W` across all five
+  iterations with no `git worktree remove` between them; run verbatim it
+  fails on iteration 2 with `fatal: '$W' already exists`. Reproduced.
+  (fixed: added `git worktree remove --force "$W"` to the loop, re-ran it
+  across two of the five commits to confirm it now completes.)
+- r3: (verifier) the first ceiling (260/263, +6 over max+overhead) was only
+  reasoned to be safe, not reproduced against it — the file's own earlier
+  paragraph says two edges' worth of content can swing the pinned-20 total
+  by ~20 at the pre-cut ~11 commands/edge, ~16-18 at the current ~8.8, well
+  past a 6-point margin. No commit past #145 exists to reproduce an
+  over-263 count, so this was speculative, but grounded in this file's own
+  math. (fixed: widened headroom to that ~18 swing — feedback 267, review
+  275 — still well under the old 300 stopgap.)
+- r4: (verifier) the comment applied the same +5 branch-overhead figure to
+  feedback right after stating feedback's measured overhead is 0 (its walk
+  doesn't see an unmerged commit) — internally inconsistent. (fixed:
+  feedback's ceiling is now built from max + variance margin only, no
+  overhead term.)
 
 ## Blockers
 

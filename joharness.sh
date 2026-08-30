@@ -1025,25 +1025,32 @@ perf_count() {
 # six above were, and record them here when you do.
 #
 # Resampled 2026-08-30, five origin/main merges landed since the per-edge cut
-# above (#141-#145), each in a detached worktree:
+# above (#141-#145), each in a detached worktree, removed between runs so the
+# loop is re-runnable (reusing $W without removing it fails on the second
+# iteration with "already exists" — confirmed by running it without the
+# remove line first):
 #
 #   for c in 1a648c8 84638a9 81d0391 b8c1cd7 f88cd94; do
 #     git worktree add -q --detach "$W" "$c"
 #     (cd "$W" && JOHARNESS_PERF=always ./joharness.sh perf feedback)
 #     (cd "$W" && JOHARNESS_PERF=always ./joharness.sh perf review)
+#     git worktree remove --force "$W"
 #   done
 #
 #   #141 234/237   #142 234/237   #143 234/237
 #   #144 249/252   #145 249/252            (feedback/review)
 #
 # Band: feedback 234-249, review 237-252. feedback's walk is merged edges
-# only, so an unmerged branch commit does not move it; review does see one:
-# this workstream's own branch, one commit ahead of #145, measured review 257
-# against #145's 252 — the same +5 the paragraph above found on a different
-# branch the same day.
+# only, so an unmerged branch commit does not move it — confirmed on this
+# workstream's own branch, one commit ahead of #145: feedback stayed 249.
+# review does see one: same branch measured review 257 against #145's 252,
+# the same +5 the paragraph above found on a different branch the same day.
 #
-# Ceiling sits above max plus that overhead — 254 for feedback, 257 for
-# review — with headroom past both: 260 and 263.
+# Headroom past the band is sized to the swing this file already derives
+# above, not to one sample's noise: two edges' worth of content at the
+# current ~8.8 commands each is ~18, the same order as the ~20 the pre-cut
+# paragraph measured at ~11 each. Ceiling = max + branch overhead (0 for
+# feedback, +5 for review) + that ~18: feedback 249 -> 267, review 257 -> 275.
 #
 # One row per entrypoint: name, budget literal, then the command.
 #
@@ -1091,8 +1098,8 @@ perf_count() {
 # resolves the mode the same way and its row does not pin it.
 perf_rows() {
   printf '%s\n' \
-    "feedback|${JOHARNESS_PERF_BUDGET_FEEDBACK:-260}|${ROOT}/joharness.sh feedback" \
-    "review|${JOHARNESS_PERF_BUDGET_REVIEW:-263}|${ROOT}/joharness.sh review" \
+    "feedback|${JOHARNESS_PERF_BUDGET_FEEDBACK:-267}|${ROOT}/joharness.sh feedback" \
+    "review|${JOHARNESS_PERF_BUDGET_REVIEW:-275}|${ROOT}/joharness.sh review" \
     "graph|${JOHARNESS_PERF_BUDGET_GRAPH:-260}|${ROOT}/joharness.sh graph" \
     "session-start|${JOHARNESS_PERF_BUDGET_SESSION_START:-700}|${ROOT}/joharness.sh session-start" \
     "queue-context|${JOHARNESS_PERF_BUDGET_QUEUE:-350}|${HARNESS_ROOT}/queue-context.sh" \
