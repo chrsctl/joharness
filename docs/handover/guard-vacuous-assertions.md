@@ -1,6 +1,6 @@
 ---
 workstream: guard-vacuous-assertions
-status: review
+status: done
 branch: claude/guard-vacuous-assertions
 pr: none
 plan: none
