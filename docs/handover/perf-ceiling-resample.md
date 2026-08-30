@@ -1,6 +1,6 @@
 ---
 workstream: perf-ceiling-resample
-status: in-progress
+status: review
 branch: claude/perf-ceiling-resample
 pr: none
 plan: perf-ceiling-resample
@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01TX1g3uTiU2k5ttr7WcQypK
 agent: sonnet
 updated: 2026-08-30
-next: Sample perf feedback/review on >=5 detached origin/main worktrees (#141-#145), record in perf_rows comment, set new ceilings above the band + ~5 branch overhead.
+next: Open PR once ./joharness.sh ci is green; merge own PR once checks green and 0 behind origin/main.
 ---
 
 ## Goal
@@ -22,15 +22,29 @@ regression again.
 
 ## Decisions
 
-(none yet — recording as work proceeds)
+- Sampled 5 origin/main merge commits since the per-edge cut (#141-#145,
+  hashes 1a648c8/84638a9/81d0391/b8c1cd7/f88cd94), each in a detached
+  worktree, `JOHARNESS_PERF=always ./joharness.sh perf feedback`/`review`.
+  Result: feedback 234/234/234/249/249, review 237/237/237/252/252.
+- Measured the branch overhead directly instead of assuming the earlier
+  `~+5`: this workstream's own branch (one commit ahead of #145) measures
+  review 257 against #145's base 252 — confirms +5. feedback stayed flat
+  (249 vs 249) because its walk is merged edges only, unaffected by an
+  unmerged commit.
+- New ceilings sit above (observed max + overhead) with a few counts of
+  headroom, not maximal padding like the old 300: feedback 254->260,
+  review 257->263.
 
 ## Rejected
 
-(none yet)
+(none)
 
 ## Review
 
-(none yet — findings land here before their fix, same commit)
+- r1 (code-review, high, self): workstream file's `status`/`next`/`Decisions`
+  were not updated in the same commit as the `joharness.sh` ceiling change,
+  violating the same-commit handover rule. (fixed: this commit updates both
+  together.)
 
 ## Blockers
 
