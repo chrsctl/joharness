@@ -87,8 +87,17 @@ expect "status done says what is left" \
   "EDGE: status done, unmerged — merging is all that is left (step 7)" "$rout"
 expect "review edge says what is left" \
   "EDGE: at review — record findings, then merge (step 5, then 7)" "$rout"
-expect "an open pull request is an edge" \
-  "EDGE: pull request #7 open — drive it green, then merge (step 7)" "$rout"
+# "names", not "is open". This hook reads git; a `pr:` field is a workstream
+# file's word about a pull request, and the file is as fresh as the last
+# session that touched it. The line said "pull request #10 open" for nine days
+# about a pull request closed on 2026-08-21, at the rank step 2 puts above the
+# whole queue.
+expect "a pull request field is an edge" \
+  "EDGE: names pull request #7 — CHECK IT IS OPEN, then drive it green and merge (step 7)" "$rout"
+expect "and the hook says why it cannot check" \
+  "this hook reads git, never GitHub" "$rout"
+refute "the hook never calls a pull request open" \
+  "pull request #7 open" "$rout"
 expect "the pull request number reaches the entry line" "pr #7" "$rout"
 
 expect "the block leads with the closest to merging" \
@@ -103,8 +112,24 @@ expect "the lead line stops at naming it" \
 # Blocked lists and never leads, the same as the plan queue.
 refute "blocked work never leads" \
   "FINISH BEFORE STARTING: origin/bblocked" "$rout"
+# This one was VACUOUS and had been since it was written. `none` and an empty
+# `pr:` are normalised to the same thing, so the hook prints `#` and never
+# `#none` — the needle exists in NO state, which is green whatever the code
+# does. Proved by forcing `rank_of` to return 2 for every in-progress entry
+# and watching it stay green.
+#
+# What it was reaching for needs the entry, not the whole report: an entry
+# with no pull request must carry no EDGE line at all.
+rblock() { printf '%s\n' "$rout" | awk -v r="  origin/$1: " '
+  index($0, r) == 1 { on = 1; next }
+  on && /^  origin\// { on = 0 }
+  on { print }'; }
 refute "work still building is not an edge" \
-  "EDGE: pull request #none" "$rout"
+  "EDGE:" "$(rblock bwipold)"
+expect "and the entry it was checking really is in the report" \
+  "in-progress" "$(rblock bwipold)"
+# The normalisation the old needle was accidentally pinning, said plainly.
+refute "a pr: of none is normalised, not printed" "#none" "$rout"
 
 # Only edge entries buy the behind-count: it is one process per ref, and a
 # branch still building has nothing to reconcile for yet.

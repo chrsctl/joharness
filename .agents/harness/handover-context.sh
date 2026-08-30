@@ -564,10 +564,22 @@ while IFS="$US" read -r rank _ short f status pr updated agent issue \
   # What "finish" would mean here, in the words of the step that does it.
   # Only for the three ranks at the edge: a line on every entry would make
   # the edge unreadable, which is the state this block replaced.
+  #
+  # Rank 2 says "names" and not "is open", because this hook reads git and
+  # a `pr:` field is a workstream file's word, not a state. It used to print
+  # "pull request #N open — drive it green". PR 10 had been CLOSED and
+  # unmerged since 2026-08-21 (GitHub API, read 2026-08-30) with its session
+  # idle needing a human, and the line said open for nine days — at rank 2,
+  # which step 2 puts above the entire queue. A hook that cannot check a
+  # fact must not assert it: the reader is told to check, and told why the
+  # hook could not. The RANK stays, because git cannot tell a closed pull
+  # request from an open one and the field is still the best signal that a
+  # branch reached an edge; only the certainty was wrong.
   case "$rank" in
     0 ) others="${others}    EDGE: status done, unmerged — merging is all that is left (step 7)"$'\n' ;;
     1 ) others="${others}    EDGE: at review — record findings, then merge (step 5, then 7)"$'\n' ;;
-    2 ) others="${others}    EDGE: pull request #${pr} open — drive it green, then merge (step 7)"$'\n' ;;
+    2 ) others="${others}    EDGE: names pull request #${pr} — CHECK IT IS OPEN, then drive it green and merge (step 7)"$'\n'
+        others="${others}         this hook reads git, never GitHub: closed, open and merged-elsewhere are the same bytes here"$'\n' ;;
   esac
 
   # Demoted, never dropped — worded to hold whether or not there was
@@ -585,7 +597,7 @@ while IFS="$US" read -r rank _ short f status pr updated agent issue \
     case "$rank" in
       0 ) lead_why="status done and unmerged" ;;
       1 ) lead_why="at review" ;;
-      2 ) lead_why="pull request #${pr} open" ;;
+      2 ) lead_why="names pull request #${pr}, state unverified" ;;
     esac
     [ "$entry_stale" = "1" ] && lead_why="${lead_why} — STALE, pushed ${pushed_rel}"
   fi
