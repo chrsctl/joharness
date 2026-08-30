@@ -1,6 +1,6 @@
 ---
 workstream: perf-base-branch-unmeasured
-status: review
+status: done
 branch: claude/perf-base-branch-unmeasured
 pr: none
 plan: none
