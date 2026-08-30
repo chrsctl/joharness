@@ -967,10 +967,26 @@ perf_count() {
 # Two of these ceilings are sized against NOISE, not against code, and that is
 # a different thing from the rest of this table.
 #
-# `feedback` and `review` score a sliding window of merged edges — FB_LIMIT, 50
-# by default. The window is fixed in SIZE and not in COST: every merge slides
-# it, and what slides in costs a different number of commands from what slid
-# out. So the total moves with repo content while the code stands still.
+# `feedback` and `review` walk merged edges, and PERF_EDGES above already pins
+# that walk to 20 during measurement, so the number does NOT drift with repo
+# size. What it does track is the CONTENT of whichever 20 edges are newest,
+# because per-edge cost is not constant: an edge costs about 11 commands, and
+# edges differ (a merge base, a name-only walk, then a log and a show per
+# candidate workstream file — 0, 1 or 2 of those, measured 7/42/2 across 51
+# edges). Swap two edges' worth of content through the pinned window and the
+# total moves ~20.
+#
+#   for n in 5 10 20 30; do sed -i "s/^PERF_EDGES=.*/PERF_EDGES=$n/" joharness.sh
+#     JOHARNESS_PERF=always ./joharness.sh perf feedback; done
+#   5 -> 94   10 -> 164   20 -> 276   30 -> 380   (main fbae21d, 2026-08-30)
+#
+# An earlier version of this paragraph said the drift came from FB_LIMIT's
+# 50-edge window sliding with every merge. That is wrong twice over: the
+# measured path never sees FB_LIMIT, because perf_count overrides
+# JOHARNESS_FEEDBACK_EDGES with PERF_EDGES, and the window is pinned rather
+# than sliding. It read plausibly, which is why it survived a review — sweeping
+# JOHARNESS_FEEDBACK_EDGES from outside shows a flat line and looks like
+# confirmation, when it is the override.
 # Measured on six consecutive origin/main commits, 2026-08-30, each in a
 # detached worktree:
 #
@@ -993,9 +1009,11 @@ perf_count() {
 # its own workstream files (measured at +5 on one graduation branch the same
 # day). This is NOT the licence the paragraph below withholds: that one forbids
 # raising a ceiling to cover code that grew a fork, and here the code did not
-# change at all. The real fix is to bound per-edge cost so the window is fixed
-# in cost as well as size, which is queued as `perf-window-fixed-cost`; when it
-# lands, this comes back down and the number below is re-measured, not guessed.
+# change at all — the finding that the ceiling sat inside its own band
+# (247-276 observed, ceiling 265) survives the correction above unchanged; only
+# the mechanism was misnamed. The real fix is to cut the ~11 commands an edge
+# costs, which is queued as `perf-window-fixed-cost`; when it lands, this comes
+# back down and the number below is re-measured, not guessed.
 #
 # One row per entrypoint: name, budget literal, then the command.
 #
