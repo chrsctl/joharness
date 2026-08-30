@@ -1,6 +1,6 @@
 ---
 workstream: dispatch-name-the-plan
-status: review
+status: done
 branch: claude/dispatch-name-the-plan
 pr: none
 plan: none
