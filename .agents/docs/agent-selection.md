@@ -196,18 +196,29 @@ reporting is what keeps the counts honest long enough to backtest them. That
 is the same bar `churn` cleared before it earned a ceiling, and the reason
 `scorecard` has not earned one.
 
-Two gaps are known and open, named here so the next session does not rediscover
-them:
+Both gaps the research named are now closed in `scorecard` itself, and how
+they were closed is the part worth keeping:
 
 - **A count wants a counterweight.** "Review findings recorded" alone rewards
-  recording noise. Pair a count with one representing the harm its gaming would
-  displace, so the displacement shows up instead of hiding.
-- **No count is retired.** Long-lived metrics accumulate gaming strategies, so
-  a count that has served its purpose should be removed. Nothing retires one
-  today, which makes every number permanent by default.
+  recording noise, so it prints paired with how many of those findings are
+  UNMARKED — no fix, no decision, no reason. That is the cheapest kind to
+  write, so noise lands there and the pair shows a shape the total hides.
+  Marking everything to flatten it is a second act, and a visible one. The
+  pairing prints even at zero: a parenthetical that appears only when
+  something is wrong is one readers learn to skip.
+- **Counts now carry a retirement condition.** Retire one when it stops being
+  able to surprise anyone — once every branch scores the same it is a ritual,
+  and reading it costs more than skipping it. Long-lived counts collect gaming
+  strategies, so removal is maintenance rather than loss; history keeps what
+  it measured. `scorecard` states this beside its own counts rather than in a
+  field, because the judgment is prose and a field would invite a gate.
 
-Both are industry practice rather than sourced study, and both survive the
-verification pass because neither rests on the DORA sentence that failed.
+Both remedies are industry practice rather than sourced study, and both survive
+the verification pass because neither rests on the DORA sentence that failed.
+
+What did NOT change: `scorecard` still reports and never gates. Pairing exists
+to survive pressure, not to create it — a gate here would manufacture the
+target the pairing is built to withstand.
 
 One method note, because it is the reason the attributions above are hedged so
 precisely: of the claims in the research behind this section, the one its author

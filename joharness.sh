@@ -3404,6 +3404,7 @@ sc_walk() {
 cmd_scorecard() {
   local over base head branch walk
   local commits files off ws n findings=0 sheets=0 churn dels plans=0 reqs=0 d
+  local unmarked=0
 
   over="$(base_ref)" || over=""
   branch="$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null)" || branch="?"
@@ -3431,11 +3432,26 @@ cmd_scorecard() {
 $walk
 EOF
 
+  # `unmarked` is a COUNTERWEIGHT, not a second statistic. "Findings recorded"
+  # rises with a review that records noise, and the sessions this counts read
+  # the rules that say it is counted (.agents/docs/agent-selection.md,
+  # "Counting sessions that can read the count"). An unmarked finding is the
+  # cheapest kind to write — no fix, no decision, no reason — so noise lands
+  # here and the pair shows a shape the total alone hides. Marking everything
+  # to flatten it is a second act, and a visible one.
+  #
+  # fb_findings and fb_marker, not a third parser: the disposition rule is
+  # spelled once, and this file has already paid for spelling one twice.
+  local line
   while IFS= read -r ws; do
     [ -n "$ws" ] || continue
     sheets=$((sheets + 1))
     n="$(sc_show "$ws" | review_count)"
     findings=$((findings + ${n:-0}))
+    while IFS= read -r line; do
+      [ -n "$line" ] || continue
+      [ "$(fb_marker "$line")" = "unmarked" ] && unmarked=$((unmarked + 1))
+    done < <(sc_show "$ws" | fb_findings)
   done < <(sc_sheets "$base" HEAD)
 
   # Node files only, top level: `docs/plans/README.md` and a note under
@@ -3470,7 +3486,8 @@ EOF
   if [ "$findings" -eq 0 ]; then
     printf '  review findings recorded            0  (a clean pass is one line; an empty section is not one)\n'
   else
-    printf '  review findings recorded            %s\n' "$findings"
+    printf '  review findings recorded            %s  (%s unmarked — the cheapest kind to write)\n' \
+      "$findings" "$unmarked"
   fi
   printf '  commits changing code, no workstream file in the same commit  %s\n' "${off:-0}"
   printf '  plan files this diff retires        %s\n' "$plans"
@@ -3484,6 +3501,16 @@ EOF
 
   printf '\n  Counts, nothing else — no grade, no gate, nothing stored.\n'
   printf '  What they mean is Loop steps 5 and 7 (.agents/harness/AGENTS.md).\n'
+  printf '\n'
+  printf '  Retire a count when it stops being able to surprise anyone: once\n'
+  printf '  every branch scores the same, it has become a ritual and reading it\n'
+  printf '  costs more than skipping it. Long-lived counts collect gaming\n'
+  printf '  strategies, so removing one is maintenance, not loss — history keeps\n'
+  printf '  what it measured. Concretely: retire the unmarked pairing once\n'
+  printf '  unmarked findings stop appearing, and the no-workstream-file count\n'
+  printf '  once it sits at 0 across a season of branches. Why:\n'
+  printf '  .agents/docs/agent-selection.md, "Counting sessions that can read\n'
+  printf '  the count".\n'
   return 0
 }
 
