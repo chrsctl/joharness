@@ -1052,25 +1052,49 @@ perf_count() {
 # paragraph measured at ~11 each. Ceiling = max + branch overhead (0 for
 # feedback, +5 for review) + that ~18: feedback 249 -> 267, review 257 -> 275.
 #
-# Resampled again 2026-08-30, the three merges since #145, same loop:
+# WHAT THE WORKTREE LOOP ABOVE ACTUALLY MEASURES — read this before adding a
+# row to any table above it.
 #
-#   #146 bfedce8 270/273   #147 d9d741d 255/258   #148 f2e82af 255/258
+# `git worktree add --detach <old-sha>` shares the repository's refs. The walk
+# reads `origin/main`, so a sample taken that way is that commit's CODE
+# against TODAY's history, not the state that commit's CI saw. The two differ
+# by more than the ceiling's headroom: #146 (`bfedce8`) counts `feedback` 270
+# in a worktree of a repo whose `origin/main` had moved on two merges, and
+# **255** in a clone with the ref pinned where it stood at that merge —
+# 2026-08-30, both:
 #
-# #146 is the merge that SET 267/275, and its own head counts 270 — `feedback`
-# OVER by 3. Nothing caught it, and the reason is structural rather than bad
-# luck: on `main` HEAD is origin/main, so `selftest_inert_diff` is true and
-# `ci` skips this whole section. The budget is measured on branches only, and
-# a branch is measured BEFORE its own merge enters the 20-edge window. Green
-# pre-merge, red after, with no run that looks. Worth a plan; not this diff's
-# to fix.
+#   git clone --no-local . "$C" && cd "$C"
+#   git checkout -q <sha> && git update-ref refs/remotes/origin/main <sha>
+#   JOHARNESS_PERF=always ./joharness.sh perf
 #
-# The ceiling STAYS at 267/275 on the post-fix numbers below, for the reason
-# the paragraph above already gives: `feedback` 202 / `review` 208 is ONE
-# sample of a band nobody has sized since the fork per missing path came out,
-# and lowering onto one sample is the mistake that made this flap twice. It is
-# a loose ceiling on purpose until several merges have been sampled the way
-# the six above were — and 267 is no longer inside the post-fix band, which is
-# the property it lost when the band drifted up to 255-270.
+# Holding history constant is right for comparing CODE, which is what the
+# bands above are for. It is wrong for "what did CI see", and it drifts: the
+# same worktree sample re-taken next week holds a different history constant.
+# Say which question a number answers, in the row.
+#
+# A retraction, because both claims reached `main` in PR 149 and PR 150 and
+# a wrong mechanism repeats until someone counts:
+#
+#   "#146's own merge counts 270, OVER by 3" — NO. 255, ok. Measured with the
+#   contaminated method above, and the runner agrees with the correction: the
+#   `lint` job for `bfedce8` (which runs `./joharness.sh ci`, `fetch-depth:
+#   0`) concluded SUCCESS.
+#
+#   "on `main` HEAD is origin/main, so `selftest_inert_diff` is true and `ci`
+#   skips this whole section" — NO. `selftest_inert_diff` returns 1 when the
+#   merge base EQUALS the rev, which is exactly the case on `main`, so the
+#   skip does not fire and `ci` measures. Checked by running `./joharness.sh
+#   ci` in a worktree standing on `main`: the perf table prints.
+#
+# Both were written from reading, and both read plausibly. This is the third
+# wrong perf mechanism in this file's history (see the FB_LIMIT paragraph
+# above, corrected in place for the same reason).
+#
+# The ceiling STAYS at 267/275 on the post-fix numbers below. `feedback` 202 /
+# `review` 208 is ONE sample of a band nobody has sized since the fork per
+# missing path came out, and lowering onto one sample is the mistake that made
+# this flap twice. Loose on purpose until several merges have been sampled —
+# and sampled saying which question the number answers.
 #
 # One row per entrypoint: name, budget literal, then the command.
 #
