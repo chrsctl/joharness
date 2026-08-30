@@ -1,6 +1,6 @@
 ---
 workstream: pr-state-unverifiable
-status: review
+status: done
 branch: claude/pr-state-unverifiable
 pr: none
 plan: docs/plans/pr-state-unverifiable.md
