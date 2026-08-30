@@ -5,77 +5,118 @@ branch: claude/joharness-framework-plans-lkpf4q
 pr: none
 plan: none
 issue: none
-session: https://claude.ai/code/session_01SHPKsgu5WMHQ4g7MhTwRhm
+session: https://claude.ai/code/session_01MLSUtdZ6AhAVXLK5zin1j5
 agent: opus
 updated: 2026-08-30
-next: Open the pull request and merge it; the base branch is red until it lands.
+next: Retire this file, open the pull request, merge.
 ---
 
 ## Goal
 
-`origin/main` is red on the perf budget — `feedback` 268 against 265,
-`review` 271 — and it crossed on the merge that added the 129th edge. Root
-cause and fix, no plan, because the base branch is red now and every branch
-cut from it inherits that.
+`fb_current_path` forked `git ls-files`, an `awk` and a `printf | grep -c`
+for every recorded path that no longer exists, inside the loop over recorded
+pairs. A path goes missing exactly when the finish ritual retires a file, so
+the fork count grows by one group for every workstream file and plan this
+repo has ever completed. Unbounded, and the fix is to cut the cost rather
+than raise the ceiling.
+
+Picked up from an IDLE session (`session_01SHPKsgu5WMHQ4g7MhTwRhm`,
+disconnected, last turn 21h before this one) under step 2: finishing
+outranks starting, and a session that is not `RUNNING` is not holding its
+branch.
 
 ## Decisions
 
-- **No plan, and that is the carve-out being used.** The Loop's "NOTHING
-  builds unplanned" has one exception this is not (copy or sync), so the
-  honest statement is: this is a base-branch failure found by `ci` at the
-  edge of another piece of work, root-caused, minimal, and its own pull
-  request rather than folded into the research graduation it interrupted —
-  `.agents/docs/research/README.md` forbids a research diff touching
-  anything but itself and its graduation target.
-- **`fb_current_path` forked per MISSING path, inside the loop over recorded
-  pairs.** `git ls-files` + an `awk` + a `printf | grep -c`, once per path
-  that no longer exists. A path goes missing exactly when the finish ritual
-  retires a file, so the count grows by one group for every workstream file
-  and plan this repo has ever completed: **86** such paths in the default
-  window on 2026-08-30.
-- **Third instance of this exact shape**, after `review_prior` and
-  `fb_report_path` earlier this session — and the third time the perf budget
-  named it rather than a reader. The budget is doing the job it was built
-  for.
-- **The number was not raised.** `feedback` 268 → **242**, `review` 271 →
-  **245**, both under the 265 that was already there. One `git ls-files` for
-  the whole run, cached, and the suffix match moved into `case` globs that
-  fork nothing — the same literal, path-boundary semantics the awk had.
-- **Output is byte-identical**, proved by `diff` against a worktree at the
-  pre-fix commit: the full report, and per-path reports for five paths
-  including one that no longer exists.
+- **No plan, and that is the carve-out being used.** Base-branch cost found
+  by `ci` at the edge of other work, root-caused, minimal, its own pull
+  request.
+- **The original framing is dead and stayed dead.** It said `main` was RED —
+  `feedback` 268 against a 265 ceiling. Neither number survives: PR 146 moved
+  the ceilings to 267/275 while this branch sat 46 commits behind, and
+  `main` at `f2e82af` counts 255/258, green. The fix stands on its own —
+  it removes an unbounded cost — but not on the urgency it was written with.
+- **`case` globs instead of the awk.** Same literal, path-boundary semantics:
+  a path carrying `+`, `(` or `{` matches itself and not its siblings.
+- **`FB_CUR`, because the cache did not survive the caller.** The hot call
+  site was `$(fb_current_path ...)`, and a command substitution is a
+  subshell — `FB_LS_READ=1` died in it every time, so `git ls-files` forked
+  once per miss anyway. Measured 18 forks under a comment claiming one. The
+  function now assigns the answer to a global and the loop calls it plainly.
+- **Numbers, re-counted on the merge base this actually lands on**
+  (`./joharness.sh perf`, `f2e82af`, 2026-08-30): `feedback` 255 -> 202,
+  `review` 258 -> 208. Wall clock moves far less — `feedback` 3.44/3.64/3.47s
+  before against 3.42/3.39/3.35s after — because the merged-history walk
+  dominates and the forks were never the wall-clock cost.
+- **The ceiling was not lowered onto 202.** One post-fix sample cannot size a
+  band, which is the rule the perf block already states and the mistake that
+  made it flap twice.
+- **Output is byte-identical**, checked against a worktree at the pre-fix
+  commit: the full report, plus per-path reports for five paths.
 
 ## Rejected
 
-- **Raising the budget to match.** Its own breach message forbids exactly
-  that, and the growth is unbounded — every future retirement adds another
-  miss, so a raised ceiling would be breached again on a schedule.
+- **Raising the budget to match.** Its own breach message forbids it, and the
+  growth is unbounded — a raised ceiling would be breached again on a
+  schedule.
+- **Reading `git ls-files` unconditionally at the top of `fb_walk`.** One
+  fork always, including for the run with nothing missing. `FB_CUR` keeps
+  the laziness and costs the same one fork when it is needed.
 
 ## Review
 
-Round 1, opus, self — the verifier round is owed and named in Blockers.
+Round 1, opus, self — the inherited session's own round, kept verbatim.
 
 - r1: `fb_current_path` had no test at all, so the hoist could have changed
-  its semantics silently. (fixed — two cases: a recorded path that gained a
-  directory still resolves, and an ambiguous one is never guessed onto a
-  sibling)
-- r2: the ambiguity case as first written was green over nothing. It removed
-  the recorded file and added an unrelated sibling, which produces ZERO
-  suffix matches, not several — so the refusal branch was never reached.
-  Caught by loosening `-eq 1` to `-ge 1` and watching it stay green. (fixed
-  — the fixture now makes the recorded path match two files, and the
-  loosening reds it)
+  its semantics silently. (fixed — two cases)
+- r2: the ambiguity case as first written was green over nothing: it produced
+  ZERO suffix matches, not several, so the refusal branch was never reached.
+  (fixed — the fixture now makes the recorded path match two files)
 - r3: the first "moved file" case asserted a repair the code does not do and
-  must not: an arbitrary move (`old/x` to `new/x`) leaves the recorded path
-  as no suffix of the new one. Only the prefixed-directory case is repaired.
-  (fixed — the case is the one that exists, and reverting the suffix match
-  reds it)
+  must not. (fixed — the case is the prefixed-directory one that exists)
+
+Round 2, opus, this session, on the reconciled diff.
+
+- r4: the branch's premise was stale — `main` is not red, and the 265 ceiling
+  it names has not existed since PR 146. A fix whose stated reason is false
+  gets merged on a reason nobody can check. (fixed — re-measured against
+  `f2e82af`; the goal is now the unbounded cost, not an outage)
+- r5: **the cache never worked.** `$(fb_current_path ...)` runs in a subshell,
+  so the global it sets is discarded before the next call. 18 `git ls-files`
+  forks measured, under a comment asserting one. (fixed — `FB_CUR`; 18 -> 1,
+  and `feedback` 219 -> 202 on top of what the branch had already saved)
+- r6: nothing could have caught r5. The perf shim logs the binary name, not
+  its argv, so 18 `git ls-files` and 1 are both just "git". (fixed — a case
+  shims `git`, counts `ls-files`, and asserts 1; it goes red at 8 when the
+  substitution is put back, checked by putting it back)
+- r7: that case would be free if the fixture retired only one file. (fixed —
+  it asserts the carrying-edge count is above 1, and prints it: 8)
+- r8: the hoist trades forks for bash-loop iterations, ~103 tracked files per
+  miss, and the counted budget cannot see the cost it moved. (recorded, no
+  change — timed three runs each way, no wall-clock regression; the counted
+  saving is 53 commands and the wall-clock saving is ~4%, and the second
+  number is the one a reader would otherwise infer from the first)
+- r9: "86 such paths in the default window" does not reproduce — 18, both
+  windows, counted with a shim. (fixed — the comment now carries the number
+  and the command that produced it)
+- r10: PR 146's own merge commit breaches the ceiling that PR set —
+  `feedback` 270 against 267 at `bfedce8` — and no run looks, because on
+  `main` HEAD is `origin/main`, `selftest_inert_diff` is true, and `ci` skips
+  the perf section entirely. A branch is also measured before its own merge
+  enters the pinned 20-edge window, so green-before and red-after is
+  structural. (recorded in the perf block, NOT fixed here — it is a plan,
+  not this diff)
+- r11: verifier round owed and NOT run. This session is under a standing
+  instruction not to spawn subagents unless asked, so the one reader that did
+  not write the diff is missing. Same gap recorded on the last several edges;
+  the diff has had two adversarial rounds from the author instead.
 
 ## Blockers
 
-None, but a verifier round on this diff is owed before merge.
+None.
 
 ## Where to look
 
-- `joharness.sh:fb_current_path` — the hoist.
-- `joharness.sh:perf_rows` — the budget that caught it; unchanged.
+- `joharness.sh:fb_current_path` — the hoist, `FB_CUR`, and the re-counted
+  numbers.
+- `joharness.sh` perf block — the three-merge resample and r10.
+- `.agents/harness/selftest/feedback.sh` — the fork-count case.

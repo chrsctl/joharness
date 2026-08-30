@@ -194,6 +194,42 @@ out="$(jf feedback two/twin.sh)"
 refute "and not onto the other sibling either" \
   "the twin drew a finding" "$out"
 
+# ONE `git ls-files` for the whole walk, however many recorded paths have gone
+# missing. Counted, not read: the first version of the hoist put the cache in a
+# global and then called `fb_current_path` from inside `$( )`, so `FB_LS_READ=1`
+# died with every subshell and the fork came back once per miss — 18 of them on
+# the real repo, under a comment claiming one. The perf budget cannot tell the
+# two apart (it counts `git`, not `git ls-files`), so this case is the only
+# thing that can.
+#
+# The fixture earns the assertion: every edge above retires its workstream
+# file, so the walk hits several missing paths, and the count below is 1 only
+# because the cache survives the loop.
+lsdir="${TMP}/lsshim"
+mkdir -p "$lsdir"
+lslog="${TMP}/lsshim.log"
+: >"$lslog"
+realgit="$(command -v git)"
+cat >"${lsdir}/git" <<SHIM
+#!/bin/sh
+printf '%s\n' "\$*" >>"${lslog}"
+exec "${realgit}" "\$@"
+SHIM
+chmod +x "${lsdir}/git"
+out="$(PATH="${lsdir}:${PATH}" jf feedback)"
+n_ls="$(grep -c ' ls-files' "$lslog" || true)"
+# Every carrying edge retired its workstream file, so each is one recorded
+# path the walk will not find. More than one of them, or the count above is
+# green whether the cache works or not.
+n_carry="$(sed -n 's/.*, \([0-9][0-9]*\) carrying a workstream file.*/\1/p' <<<"$out" | head -1)"
+expect "the index is read once for the whole walk, not once per missing path" \
+  "ls-files=1" "ls-files=${n_ls}"
+if [ "${n_carry:-0}" -gt 1 ]; then
+  pass "and the fixture retired ${n_carry} files, so that 1 was not free"
+else
+  fail "the fixture must retire more than one file or the count above is free"
+fi
+
 # The walk is bounded, and a bounded view says so — a window nobody was told
 # about is how a measure starts lying.
 out="$(JOHARNESS_FEEDBACK_EDGES=2 jf feedback)"
