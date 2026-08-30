@@ -181,6 +181,40 @@ and `./joharness.sh feedback .agents/harness/selftest.sh` reach these
 findings, which is where they live.
 
 
+## Worked example: the hoist that did not hoist
+
+Second class the recurrence named. A fork put inside a loop, four times, each
+found by the perf budget rather than by a reader:
+
+| Edge | Caller | The loop it was in |
+| --- | --- | --- |
+| PR128 `07424a0` | `review_prior` | an `awk` per file in the diff |
+| PR132 `d3af200` | `fb_report_path` | once per reported path |
+| PR149 | `fb_current_path` | `git ls-files` + `awk` + `grep -c`, once per recorded path that no longer exists — and one goes missing every time the finish ritual retires a file, so the count grows with the repo's own history |
+| PR149 r5 | `fb_current_path` again | the hoist itself. The cache went into a global, and the hot caller was `$(fb_current_path ...)` — a SUBSHELL, so the global died before the next call and the fork came back once per miss |
+
+**The rule: a fork inside a loop over history costs one per unit of history,
+so it grows without bound. Hoist it — and then check the hoist ran, because a
+global assigned inside `$( )` is discarded when the substitution ends.**
+
+The fourth row is the one worth the table. The fix was correct, its comment
+said "ONE `git ls-files` for the whole run", the budget went down, and it was
+still forking 18 times. Everything agreed except the machine.
+
+Two things follow, and both are about what a measure can see:
+
+- **The budget counts binaries, not argv.** `perf_shims` logs `git`, so 18
+  `git ls-files` and 1 are the same number to it. It caught the class and
+  could not have caught the regression inside the fix. A case that shims
+  `git` and counts `ls-files` can (`.agents/harness/selftest/feedback.sh`).
+- **The count fell anyway**, because two of the three forks per miss really
+  did go. A number moving the right way is not evidence the stated mechanism
+  is the one that moved it — the same session had already published a wrong
+  mechanism behind a right number (`joharness.sh`, the FB_LIMIT paragraph the
+  perf block corrects in place).
+
+Recount rather than trust the table: `./joharness.sh feedback joharness.sh`.
+
 ## When the consumer is the detector
 
 The four stages assume one repo. A consumer running this harness splits them:
