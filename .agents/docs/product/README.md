@@ -67,6 +67,68 @@ human work.
   periodically during Build too, not only at Finish — a conflict caught
   mid-build is cheap, one hit at finish after hours of work is not.
 
+## Orchestration: peers, no lead, and what that costs
+
+The architecture class is **decentralized peer**, and it is a considered
+position rather than an accident. There is no orchestrator anywhere: each
+session cuts a branch from `main`, claims by pushing a workstream file, and
+merges its own pull request. Parallel safety comes from `scope:` prefixes the
+queue hook proves disjoint.
+
+**The costs this avoids are real in kind and unquantified in degree.** An
+orchestrator is a single point of failure, a context-window bottleneck holding
+every worker's result, and a throughput ceiling. Those are qualitative claims
+worth believing; the figures that circulate for them are blog arithmetic and do
+not survive checking, so no number for them appears here.
+
+**The cost it does pay is measurable, and it is the reconcile.** About one merge
+in four arrives only after its branch pulled `main` in first:
+
+```bash
+git log --oneline origin/main --grep='^Merge origin/main\|^Merge remote-tracking branch' | wc -l
+git log --oneline --merges origin/main | wc -l
+```
+
+51 of 201 merges all-time (25.4%), and 14 of 60 (23.3%) over the most recent
+window, on `origin/main` 2026-08-30 in a full clone. Stable across both, which
+is what makes it usable as a baseline: fan-out raises session count, and
+contention at the merge stage is the cost that scales with it. A plan that
+widens the fleet should carry this number and say what it expects to happen to
+it, rather than treating width as free.
+
+**Do not measure this with `--grep=reconcile`.** That counts commits whose
+message *discusses* reconciling, which a session working on the reconcile rules
+produces many of. Match the reconcile merge's own subject, as above.
+
+**Worktrees would not help, and this is the best-sourced finding.** They provide
+file isolation without removing conflicts when agents touch the same
+functionality; the conflict moves to the pull request merge stage "where they
+surface as visible git conflicts instead of silent runtime overwrites". That is
+exactly where this repo's reconciles already land, so adopting them would move
+nothing.
+
+**Claude Code ships the mechanism this repo hand-builds.** Agent teams
+(experimental) give tasks pending/in-progress/completed states with self-claim,
+and "task claiming uses file locking to prevent race conditions". The queue plus
+claim-by-push is the same mechanism built on git instead. Adopt-or-build is a
+live question and is NOT answered here: the built-in is experimental and stores
+state outside the repo, against a doctrine that git holds the state.
+
+**A lead with subagents does beat one agent at breadth-first work** — 3-5
+subagents in parallel, a separate citation pass, and a multi-agent setup
+outperforming the single-agent baseline "by 90.2% on our internal research
+eval". Anthropic-internal, model-specific: attributable, not independently
+reproduced. It argues for fan-out *within* a unit of work, not for a lead over
+the fleet.
+
+**The gap none of this closes: claim-by-push only covers work that enters
+through the queue.** A request typed at a running session enters nowhere, and
+two sessions once answered the same one two minutes apart, producing competing
+designs for one problem. Neither more isolation nor a lead fixes that — the
+queue is the shared document, and a mid-session request never reaches it. The
+mitigation available today is the Loop's own rule that nothing builds unplanned:
+a request decomposed into a plan file enters the queue and becomes claimable.
+
 ## Reconciliation
 
 Consumer repos carry harness copies. One rule keeps them reconcilable: a

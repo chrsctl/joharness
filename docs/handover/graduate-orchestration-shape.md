@@ -1,6 +1,6 @@
 ---
 workstream: graduate-orchestration-shape
-status: in-progress
+status: review
 branch: claude/graduate-orchestration-shape
 pr: none
 plan: orchestration-shape
@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01MLSUtdZ6AhAVXLK5zin1j5
 agent: opus
 updated: 2026-08-30
-next: Write the graduation into .agents/docs/product/README.md, then retire the research file
+next: Merge once green
 ---
 
 ## Goal
@@ -35,7 +35,33 @@ in a node scheduled for deletion.
 
 ## Review
 
-None yet.
+opus, adversarial. Lenses: is the replacement number sound, does the
+graduation carry what was verified, and does it withdraw anything that still
+holds.
+
+- r1: the file's central number could not be re-run — `87d130a` is not an
+  object in a full, unshallowed clone. Checked that before replacing it rather
+  than assuming staleness: `git cat-file -e` and
+  `git rev-parse --disambiguate` both find nothing. A number nobody can
+  re-count is a written number by this repo's own rule, so it is replaced, not
+  hedged. (fixed)
+- r2: my first replacement proxy was `--grep=reconcile` over commit messages,
+  which returned ~10% and is wrong in a way worth recording: it counts commits
+  DISCUSSING reconciling, and this session has authored many. Matching the
+  reconcile merge's own subject gives 25.4%. Two proxies, 2.5x apart, and the
+  plausible one was the wrong one. The graduated text warns against it by
+  name. (fixed)
+- r3: the new number is stable across two windows (51/201 all-time, 14/60
+  recent) which is what makes it usable as a baseline. A single window would
+  have repeated the sampling error #138 was about. (no action)
+- r4: checked the graduation does not quietly restore any figure the
+  verification pass dropped — the 6.7 tasks/second, the 950ms/500ms pair and
+  the "nine orchestrators" claim are all absent, and the qualitative costs are
+  stated as qualitative. (no action)
+- r5: the adopt-or-build question about agent teams is carried as OPEN rather
+  than resolved. The research explicitly declined to answer it and said it
+  wants a node of its own; graduating it as settled would invent a conclusion
+  nobody reached. (no action)
 
 ## Blockers
 
@@ -43,5 +69,4 @@ None.
 
 ## Where to look
 
-- `docs/research/orchestration-shape.md` — the finding to graduate.
 - `.agents/docs/product/README.md` — where it lands, beside Branch flow.
