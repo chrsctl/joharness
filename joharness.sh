@@ -1365,6 +1365,28 @@ lint_enum() {
   lint_red "${f}: ${k} '${v}' not one of: $*"
 }
 
+# A key the node type cannot be scheduled without. lint_enum above returns 0
+# on an EMPTY value — correct for an optional field, wrong for one the queue
+# reads — so a node carrying no frontmatter at all passed every check in
+# silence.
+#
+# Not hypothetical, and the cost was a whole plan: an edit merged in PR 140
+# rebuilt docs/plans/perf-window-fixed-cost.md from its `## Goal` heading
+# onward and dropped the frontmatter block with it. `ci` stayed green. The
+# queue hook then listed the plan as `unscoped, independence not provable`,
+# dropped it out of every wave and printed a defaulted tier — a plan the queue
+# could no longer schedule, with nothing red anywhere to say so. Repaired in
+# PR 141; this is the guard that would have caught it at the edge.
+#
+# `scope` is deliberately NOT here: the hook already reports an unscoped plan
+# and says what to do about it, which is a warning by design.
+lint_required() {
+  local f="$1" k="$2" v="$3"
+  [ -n "$v" ] && return 0
+  lint_red "${f}: no ${k}: — the queue schedules on it, and an absent key" \
+    "reads as a default rather than as a mistake"
+}
+
 # Stale anchors under '## Where to look': existence of the path half only —
 # symbols move too often to police, and the staleness rule already says
 # verify before relying. Only tokens that look like paths (a slash or a
@@ -1485,7 +1507,7 @@ lint_unknown_types() {
 lint_graph() {
   LINT_RC=0
   LINT_WARNED=0
-  local rel val n p r urgency agent effort iss rq grad
+  local rel val n p r urgency agent effort iss rq grad pstem rstem
   local -a need_list rq_list
   local plans=0 workstreams=0 reqs=0 research=0
 
@@ -1495,8 +1517,12 @@ lint_graph() {
     [ -n "$rel" ] || continue
     plans=$((plans + 1))
     { read -r urgency; read -r agent; read -r effort; read -r val; read -r r
-      read -r rq; } \
-      <<<"$(gr_fields urgency agent effort needs requirement research <"${ROOT}/${rel}")"
+      read -r rq; read -r pstem; } \
+      <<<"$(gr_fields urgency agent effort needs requirement research plan <"${ROOT}/${rel}")"
+    lint_required "$rel" plan "$pstem"
+    lint_required "$rel" urgency "$urgency"
+    lint_required "$rel" agent "$agent"
+    lint_required "$rel" effort "$effort"
     lint_enum "$rel" urgency "$urgency" normal urgent
     lint_enum "$rel" agent "$agent" haiku sonnet opus
     lint_enum "$rel" effort "$effort" low medium high xhigh
@@ -1560,8 +1586,16 @@ lint_graph() {
   while IFS= read -r rel; do
     [ -n "$rel" ] || continue
     research=$((research + 1))
-    { read -r urgency; read -r agent; read -r effort; read -r grad; } \
-      <<<"$(gr_fields urgency agent effort graduates <"${ROOT}/${rel}")"
+    { read -r urgency; read -r agent; read -r effort; read -r grad
+      read -r rstem; } \
+      <<<"$(gr_fields urgency agent effort graduates research <"${ROOT}/${rel}")"
+    # Same gap, same fix, one type over: a research node the queue lists is
+    # scheduled on these too. `graduates` keeps its own red below — it carries
+    # a reason of its own, not just presence.
+    lint_required "$rel" research "$rstem"
+    lint_required "$rel" urgency "$urgency"
+    lint_required "$rel" agent "$agent"
+    lint_required "$rel" effort "$effort"
     lint_enum "$rel" urgency "$urgency" normal urgent
     lint_enum "$rel" agent "$agent" haiku sonnet opus
     lint_enum "$rel" effort "$effort" low medium high xhigh
