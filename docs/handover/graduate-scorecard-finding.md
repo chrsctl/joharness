@@ -34,7 +34,34 @@ shipped `scorecard` lives only in a research node scheduled for deletion.
 
 ## Review
 
-None yet.
+opus, adversarial. Lenses: did the graduation carry the corrected attributions
+intact, is it accurate about the command that now exists, and does the queued
+follow-up scope cleanly.
+
+- r1: the graduated section asserts Goodhart 1975, Strathern 1997 citing
+  Hoskin, Austin, and dora.dev's siloing wording. I did NOT re-verify any of
+  them from source; they are carried from the research file's independent
+  verification pass, which corrected two of them and marked the DORA sentence
+  UNGROUNDED. Correct per the protocol — graduation carries a finding, it does
+  not re-ground it — but this branch adds no new grounding and says so.
+  (wontfix)
+- r2: checked that the section does not quietly restore the sentence the
+  verification pass killed. It does not: "individual metrics create competition
+  while team metrics create collaboration" appears nowhere, and the section
+  states explicitly that DORA does not say it. That claim was the whole reason
+  the research needed a second context, so re-introducing it in the graduation
+  would have wasted the pass. (no action)
+- r3: the section claims `scorecard` reports and never gates. Verified against
+  the shipped command rather than the plan's intent — `joharness.sh` usage
+  reads "Reports only, never gates". (no action)
+- r4: the workstream file anchors `docs/research/scorecard-without-gaming.md`,
+  which this branch deletes, and `ci` warns twice about it. Harmless — the file
+  retires before the merge — but a warning a reader has to learn to ignore is
+  the same failure this repo keeps paying for. Anchor moved to the graduation
+  target. (fixed)
+- r5: `scorecard-counterweights` could read as licence to add a gate later. Its
+  Out of scope says the opposite in the plan's own words, and names why: a gate
+  creates the pressure the pairing exists to survive. (no action)
 
 ## Blockers
 
@@ -42,6 +69,5 @@ None.
 
 ## Where to look
 
-- `docs/research/scorecard-without-gaming.md` — the finding to graduate.
 - `.agents/docs/agent-selection.md` — where it lands.
 - `joharness.sh:cmd_scorecard` — the command the finding now governs.
