@@ -1,6 +1,6 @@
 ---
 workstream: salvage-abandoned-branches
-status: review
+status: done
 branch: claude/salvage-abandoned-branches
 pr: none
 plan: docs/plans/salvage-abandoned-branches.md
