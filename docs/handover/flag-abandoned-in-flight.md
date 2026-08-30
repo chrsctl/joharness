@@ -25,8 +25,8 @@ branches carrying a workstream file (`unsupervised-goal`, `upkeep-off-session`,
 
 ## Decisions
 
-- Demote via sort key, not a new rank tier: add a `stale` boolean as a new
-  row field (inserted right after `fresh`), sorted between rank and push-time
+- Demote via sort key, not a new rank tier: add an `entry_stale` boolean as a
+  new row field (inserted right after `fresh`), sorted between rank and push-time
   (`-k1,1n -k12,12n -k2,2n -k3,3`). A stale entry never leaves its rank, it
   just sorts after non-stale entries of the same rank — this makes "still
   prints when nothing else is in flight" and "still leads when it's the only
@@ -47,7 +47,22 @@ branches carrying a workstream file (`unsupervised-goal`, `upkeep-off-session`,
 
 ## Review
 
-(pending)
+`/code-review` (high) on the full diff, one round so far:
+
+- r1: age gate ran for every old ref before checking for a workstream file,
+  so an old file-less branch still paid for the extra `git rev-list --count`
+  with nothing to show for it. (fixed — moved the whole STALE block past the
+  `ws_files` empty-check continue.)
+- r2: the "Fourteen fields like every other row" comment on the no-file row
+  went stale the moment the row grew to fifteen fields. (fixed)
+- r3: the new per-ref boolean reused the bare name `stale`, already used
+  lower in the file by the rot-check's unrelated string accumulator — no
+  live bug (the rot-check resets it first), but a name collision waiting on
+  a future reorder. (fixed — renamed to `entry_stale`.)
+- r4: the STALE marker text said "demoted below live work at this rank" even
+  in the case the new selftest itself exercises — a stale entry alone at its
+  rank, with nothing to demote it below. (fixed — reworded to a claim that
+  holds either way.)
 
 ## Blockers
 
