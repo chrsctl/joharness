@@ -188,3 +188,19 @@ out="$(pf_override='' pf_ci)"
 expect "a docs-only branch skips the perf gate" "skipped: nothing outside" "$out"
 expect "the perf skip says how to override it" "JOHARNESS_PERF=always" "$out"
 refute "the docs-only skip counts nothing" "counted" "$out"
+
+# STANDING ON THE BASE BRANCH, the gate does NOT skip. `selftest_inert_diff`
+# returns 1 when the merge base equals the rev — which is exactly the case on
+# `main` — so the skip never fires there and `ci` measures the base branch
+# like anything else.
+#
+# Pinned because the opposite was asserted, twice, from reading rather than
+# running: PR 149 put "on `main` HEAD is origin/main, so selftest_inert_diff
+# is true and ci skips this whole section" into a code comment, and PR 150
+# built a plan on it. Both wrong, and nothing in the suite contradicted them.
+git -C "$swork" checkout -q -- . 2>/dev/null || true
+git -C "$swork" checkout -q main
+git -C "$swork" reset -q --hard origin/main
+out="$(pf_override='' pf_ci)"
+expect "the base branch is measured, not skipped" "counted" "$out"
+refute "and the docs-only skip does not fire there" "skipped: nothing outside" "$out"
