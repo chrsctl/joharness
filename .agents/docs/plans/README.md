@@ -217,6 +217,15 @@ once, rather than the plans this branch touches: `JOHARNESS_SHIP=all`.
   only when handed off instead — a PR adding only the plan puts it in the
   queue. Same shape either way: the `agent`/`effort` match is the point,
   not the queue position.
+- **Spawning in parallel** = the CALLER names each session's plan in its
+  prompt. Queue self-selection is for ONE session: a claim exists only after
+  the spawned session's first push (Loop step 3, "no push, no claim"), so
+  two sessions started against the same queue can both pick the top plan and
+  neither can see the other. Nothing here can fix that — every measure in
+  this harness counts from git at read time and stores nothing, so a
+  pre-push claim would need shared state the harness does not have. The
+  spawned session is behaving correctly when it self-selects; the caller is
+  the one who must not tell two of them to.
 - **Stale plan** (code moved under it): fix plan in place on `main` via
   small PR, or delete if obsolete. Every claim in a plan = hypothesis until
   checked against code — same staleness rule as workstream files.
