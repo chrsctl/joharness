@@ -1011,9 +1011,18 @@ perf_count() {
 # raising a ceiling to cover code that grew a fork, and here the code did not
 # change at all — the finding that the ceiling sat inside its own band
 # (247-276 observed, ceiling 265) survives the correction above unchanged; only
-# the mechanism was misnamed. The real fix is to cut the ~11 commands an edge
-# costs, which is queued as `perf-window-fixed-cost`; when it lands, this comes
-# back down and the number below is re-measured, not guessed.
+# the mechanism was misnamed.
+#
+# Per-edge cost has since been cut from ~10.8 commands to ~8.8 by carrying the
+# merge subject through fb_edges instead of re-fetching it in fb_label (same
+# sweep, main 72dd911: 10/20/30 edges -> 164/276/380 before, 152/240/328
+# after). At the pinned 20 that is feedback 276 -> 240 and review 271 -> 243.
+#
+# The ceiling STAYS at 300 anyway, and that is the point of the number above.
+# One post-change measurement cannot size a band, and lowering a ceiling onto a
+# band nobody has sampled is precisely the mistake that made this flap in the
+# first place. Lower it only after several merges have been sampled the way the
+# six above were, and record them here when you do.
 #
 # One row per entrypoint: name, budget literal, then the command.
 #
@@ -2243,9 +2252,23 @@ cmd_review() {
 # protocol tells long-running ones to) contributes its own merge as a second
 # edge carrying the same workstream file. Measured while writing this: 51
 # "edges" and 42 findings against a true 37 and 41.
+# Third field is the merge SUBJECT, carried here so fb_label does not spend a
+# `git log -1` per edge asking for what this walk already had in hand. Tab
+# separates it because a subject holds spaces and the parents do not; the
+# subject is taken as everything after the FIRST tab, so a subject containing
+# one survives whole rather than being cut at it.
+#
+# Callers read three fields. `read -r m tip` puts the remainder in `tip`, so a
+# caller that was not updated gets "<parent> <subject>" where it wants a sha
+# and computes a merge base against nothing — silently, on every edge.
 fb_edges() {
-  git -C "$ROOT" log --first-parent --format='%H %P' --merges "$1" 2>/dev/null |
-    awk 'NF >= 3 { print $1, $3 }'
+  git -C "$ROOT" log --first-parent --format='%H %P%x09%s' --merges "$1" 2>/dev/null |
+    awk -F'\t' '{
+      n = split($1, a, " ")
+      if (n < 3) next
+      i = index($0, "\t")
+      print a[1], a[3], (i ? substr($0, i + 1) : "")
+    }'
 }
 
 # Every edge costs a git show per commit, so a repo with thousands of them
@@ -2277,11 +2300,22 @@ FB_CAPPED=0
 
 # Pull request number from a merge subject, else the short sha: the identifier
 # is for a human to go read the branch with, so any stable handle will do.
+# Takes the subject rather than fetching it: fb_edges already carried it. Two
+# forks per edge became none — a `git log -1` and a `sed`, paid once for every
+# edge that has a workstream file, which is most of them.
+#
+# `##` and not `#`, so the LAST occurrence wins. The sed this replaced anchored
+# on a greedy `.*`, which also takes the last; a subject quoting one merge
+# inside another would otherwise change label between the two versions.
 fb_label() {
-  local subj n
-  subj="$(git -C "$ROOT" log -1 --format='%s' "$1" 2>/dev/null)"
-  n="$(printf '%s' "$subj" | sed -n 's/.*[Mm]erge pull request #\([0-9][0-9]*\).*/\1/p')"
-  [ -n "$n" ] && { printf 'PR%s' "$n"; return 0; }
+  local subj="$2" n
+  case "$subj" in
+    *[Mm]"erge pull request #"*)
+      n="${subj##*erge pull request #}"
+      n="${n%%[!0-9]*}"
+      [ -n "$n" ] && { printf 'PR%s' "$n"; return 0; }
+      ;;
+  esac
   printf '%s' "${1:0:7}"
 }
 
@@ -2460,14 +2494,14 @@ fb_collect() {
     FB_CAPPED=1
   fi
 
-  while read -r m tip; do
+  while read -r m tip subj; do
     [ -n "$tip" ] || continue
     base="$(git -C "$ROOT" merge-base "${m}^1" "$tip" 2>/dev/null)" || continue
     doc="$(fb_workstream "$base" "$tip")" || doc=""
     FB_EDGES=$((FB_EDGES + 1))
     [ -n "$doc" ] || continue
     FB_WITHWS=$((FB_WITHWS + 1))
-    label="$(fb_label "$m")"
+    label="$(fb_label "$m" "$subj")"
 
     n=0
     while IFS= read -r line; do
@@ -2870,7 +2904,7 @@ cl_merged_claims() {
     all="$(printf '%s\n' "$all" | head -n "$FB_LIMIT")"
   fi
   printf '%s\n' "$all" |
-    while read -r m tip; do
+    while read -r m tip _; do
       [ -n "$tip" ] || continue
       base="$(git -C "$ROOT" merge-base "${m}^1" "$tip" 2>/dev/null)" || continue
       doc="$(fb_workstream "$base" "$tip")" || continue
