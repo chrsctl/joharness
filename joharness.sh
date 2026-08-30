@@ -2359,18 +2359,44 @@ fb_fix_map() {
 # .agents/ move did exactly that: 3 branches at one spelling, 2 at the other).
 # Unique-suffix match repairs the prefixed-directory case and refuses to guess
 # anywhere else: no match or several, the path stands as recorded.
+# ONE `git ls-files` for the whole run, and no fork at all per path after it.
+# The index is read on first miss and kept; a run with no missing path never
+# reads it.
+FB_LS=""
+FB_LS_READ=0
+
 fb_current_path() {
-  local p="$1" hits
+  local p="$1" f hit="" n=0
   [ -e "${ROOT}/${p}" ] && { printf '%s' "$p"; return 0; }
+  # This used to fork `git ls-files`, an `awk` and a `grep -c` for every
+  # MISSING path, inside the loop over recorded pairs — and a path goes
+  # missing exactly when the finish ritual retires a file, so the fork count
+  # grew by one group for every workstream file and plan this repo has ever
+  # completed. 86 such paths in the default window on 2026-08-30, and the
+  # budget went over on the merge that added the 129th edge: `feedback` 268
+  # against 265, `review` 271. Third instance of this shape after
+  # review_prior and fb_report_path, and the third time the budget named it
+  # rather than a reader.
+  if [ "$FB_LS_READ" -eq 0 ]; then
+    FB_LS="$(git -C "$ROOT" ls-files 2>/dev/null)"
+    FB_LS_READ=1
+  fi
   # String suffix on a path boundary, not a regex: a path carrying `+`, `(`
   # or `{` must match itself and not its siblings (the literal-pathspec
-  # lesson the sync engine already learned the hard way).
-  hits="$(git -C "$ROOT" ls-files 2>/dev/null | awk -v p="$p" '
-    length($0) >= length(p) &&
-    substr($0, length($0) - length(p) + 1) == p &&
-    (length($0) == length(p) || substr($0, length($0) - length(p), 1) == "/")')"
-  if [ "$(printf '%s\n' "$hits" | grep -c .)" = "1" ]; then
-    printf '%s' "$hits"
+  # lesson the sync engine already learned the hard way). `case` globs are
+  # the same literal match the awk did, and fork nothing.
+  while IFS= read -r f; do
+    case "$f" in
+      "$p" | *"/$p") ;;
+      *) continue ;;
+    esac
+    n=$((n + 1))
+    hit="$f"
+  done <<<"$FB_LS"
+  # Exactly one match resolves; none or several leave the path as recorded,
+  # because guessing between siblings is how one hot spot became two.
+  if [ "$n" -eq 1 ]; then
+    printf '%s' "$hit"
   else
     printf '%s' "$p"
   fi
