@@ -1,6 +1,6 @@
 ---
 workstream: perf-claim-retraction
-status: review
+status: done
 branch: claude/perf-base-branch-unmeasured-fix
 pr: none
 plan: none
