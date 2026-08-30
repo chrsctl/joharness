@@ -964,6 +964,94 @@ perf_count() {
 # continued argument list, where a leading # is an argument and not a comment:
 # putting this paragraph there fed printf five junk rows and emptied the table
 # for every name the filter looked up.
+# Two of these ceilings are sized against NOISE, not against code, and that is
+# a different thing from the rest of this table.
+#
+# `feedback` and `review` walk merged edges, and PERF_EDGES above already pins
+# that walk to 20 during measurement, so the number does NOT drift with repo
+# size. What it does track is the CONTENT of whichever 20 edges are newest,
+# because per-edge cost is not constant: an edge costs about 11 commands, and
+# edges differ (a merge base, a name-only walk, then a log and a show per
+# candidate workstream file — 0, 1 or 2 of those, measured 7/42/2 across 51
+# edges). Swap two edges' worth of content through the pinned window and the
+# total moves ~20.
+#
+#   for n in 5 10 20 30; do sed -i "s/^PERF_EDGES=.*/PERF_EDGES=$n/" joharness.sh
+#     JOHARNESS_PERF=always ./joharness.sh perf feedback; done
+#   5 -> 94   10 -> 164   20 -> 276   30 -> 380   (main fbae21d, 2026-08-30)
+#
+# An earlier version of this paragraph said the drift came from FB_LIMIT's
+# 50-edge window sliding with every merge. That is wrong twice over: the
+# measured path never sees FB_LIMIT, because perf_count overrides
+# JOHARNESS_FEEDBACK_EDGES with PERF_EDGES, and the window is pinned rather
+# than sliding. It read plausibly, which is why it survived a review — sweeping
+# JOHARNESS_FEEDBACK_EDGES from outside shows a flat line and looks like
+# confirmation, when it is the override.
+# Measured on six consecutive origin/main commits, 2026-08-30, each in a
+# detached worktree:
+#
+#   for c in $(git log --merges --format=%h origin/main -6 | tac); do
+#     git worktree add -q --detach "$W" "$c"
+#     (cd "$W" && JOHARNESS_PERF=always ./joharness.sh perf review)
+#   done
+#
+#   #133 253/250   #134 271/268   #135 271/268
+#   #136 250/247   #137 271/268            (review/feedback)
+#
+# joharness.sh and .agents/harness/ are byte-identical between #136 and #137 —
+# `git diff --name-only b52a800 3e45c5a` lists three markdown files and nothing
+# else — and the count moves 21. The old ceiling was 265, INSIDE both bands
+# (247-268 and 250-271). A ceiling inside the noise band does not detect
+# regressions; it flaps, and GitHub run 336 green against run 338 red is that
+# flap costing a red base branch.
+#
+# 300 clears the observed maximum plus the overhead a working branch adds for
+# its own workstream files (measured at +5 on one graduation branch the same
+# day). This is NOT the licence the paragraph below withholds: that one forbids
+# raising a ceiling to cover code that grew a fork, and here the code did not
+# change at all — the finding that the ceiling sat inside its own band
+# (247-276 observed, ceiling 265) survives the correction above unchanged; only
+# the mechanism was misnamed.
+#
+# Per-edge cost has since been cut from ~10.8 commands to ~8.8 by carrying the
+# merge subject through fb_edges instead of re-fetching it in fb_label (same
+# sweep, main 72dd911: 10/20/30 edges -> 164/276/380 before, 152/240/328
+# after). At the pinned 20 that is feedback 276 -> 240 and review 271 -> 243.
+#
+# The ceiling STAYS at 300 anyway, and that is the point of the number above.
+# One post-change measurement cannot size a band, and lowering a ceiling onto a
+# band nobody has sampled is precisely the mistake that made this flap in the
+# first place. Lower it only after several merges have been sampled the way the
+# six above were, and record them here when you do.
+#
+# Resampled 2026-08-30, five origin/main merges landed since the per-edge cut
+# above (#141-#145), each in a detached worktree, removed between runs so the
+# loop is re-runnable (reusing $W without removing it fails on the second
+# iteration with "already exists" — confirmed by running it without the
+# remove line first):
+#
+#   for c in 1a648c8 84638a9 81d0391 b8c1cd7 f88cd94; do
+#     git worktree add -q --detach "$W" "$c"
+#     (cd "$W" && JOHARNESS_PERF=always ./joharness.sh perf feedback)
+#     (cd "$W" && JOHARNESS_PERF=always ./joharness.sh perf review)
+#     git worktree remove --force "$W"
+#   done
+#
+#   #141 234/237   #142 234/237   #143 234/237
+#   #144 249/252   #145 249/252            (feedback/review)
+#
+# Band: feedback 234-249, review 237-252. feedback's walk is merged edges
+# only, so an unmerged branch commit does not move it — confirmed on this
+# workstream's own branch, one commit ahead of #145: feedback stayed 249.
+# review does see one: same branch measured review 257 against #145's 252,
+# the same +5 the paragraph above found on a different branch the same day.
+#
+# Headroom past the band is sized to the swing this file already derives
+# above, not to one sample's noise: two edges' worth of content at the
+# current ~8.8 commands each is ~18, the same order as the ~20 the pre-cut
+# paragraph measured at ~11 each. Ceiling = max + branch overhead (0 for
+# feedback, +5 for review) + that ~18: feedback 249 -> 267, review 257 -> 275.
+#
 # One row per entrypoint: name, budget literal, then the command.
 #
 # Budgets are CEILINGS with headroom, not targets, and they are literals here
@@ -1010,8 +1098,8 @@ perf_count() {
 # resolves the mode the same way and its row does not pin it.
 perf_rows() {
   printf '%s\n' \
-    "feedback|${JOHARNESS_PERF_BUDGET_FEEDBACK:-265}|${ROOT}/joharness.sh feedback" \
-    "review|${JOHARNESS_PERF_BUDGET_REVIEW:-265}|${ROOT}/joharness.sh review" \
+    "feedback|${JOHARNESS_PERF_BUDGET_FEEDBACK:-267}|${ROOT}/joharness.sh feedback" \
+    "review|${JOHARNESS_PERF_BUDGET_REVIEW:-275}|${ROOT}/joharness.sh review" \
     "graph|${JOHARNESS_PERF_BUDGET_GRAPH:-260}|${ROOT}/joharness.sh graph" \
     "session-start|${JOHARNESS_PERF_BUDGET_SESSION_START:-700}|${ROOT}/joharness.sh session-start" \
     "queue-context|${JOHARNESS_PERF_BUDGET_QUEUE:-350}|${HARNESS_ROOT}/queue-context.sh" \
@@ -1305,6 +1393,28 @@ lint_enum() {
   lint_red "${f}: ${k} '${v}' not one of: $*"
 }
 
+# A key the node type cannot be scheduled without. lint_enum above returns 0
+# on an EMPTY value — correct for an optional field, wrong for one the queue
+# reads — so a node carrying no frontmatter at all passed every check in
+# silence.
+#
+# Not hypothetical, and the cost was a whole plan: an edit merged in PR 140
+# rebuilt docs/plans/perf-window-fixed-cost.md from its `## Goal` heading
+# onward and dropped the frontmatter block with it. `ci` stayed green. The
+# queue hook then listed the plan as `unscoped, independence not provable`,
+# dropped it out of every wave and printed a defaulted tier — a plan the queue
+# could no longer schedule, with nothing red anywhere to say so. Repaired in
+# PR 141; this is the guard that would have caught it at the edge.
+#
+# `scope` is deliberately NOT here: the hook already reports an unscoped plan
+# and says what to do about it, which is a warning by design.
+lint_required() {
+  local f="$1" k="$2" v="$3"
+  [ -n "$v" ] && return 0
+  lint_red "${f}: no ${k}: — the queue schedules on it, and an absent key" \
+    "reads as a default rather than as a mistake"
+}
+
 # Stale anchors under '## Where to look': existence of the path half only —
 # symbols move too often to police, and the staleness rule already says
 # verify before relying. Only tokens that look like paths (a slash or a
@@ -1425,7 +1535,7 @@ lint_unknown_types() {
 lint_graph() {
   LINT_RC=0
   LINT_WARNED=0
-  local rel val n p r urgency agent effort iss rq grad
+  local rel val n p r urgency agent effort iss rq grad pstem rstem
   local -a need_list rq_list
   local plans=0 workstreams=0 reqs=0 research=0
 
@@ -1435,8 +1545,12 @@ lint_graph() {
     [ -n "$rel" ] || continue
     plans=$((plans + 1))
     { read -r urgency; read -r agent; read -r effort; read -r val; read -r r
-      read -r rq; } \
-      <<<"$(gr_fields urgency agent effort needs requirement research <"${ROOT}/${rel}")"
+      read -r rq; read -r pstem; } \
+      <<<"$(gr_fields urgency agent effort needs requirement research plan <"${ROOT}/${rel}")"
+    lint_required "$rel" plan "$pstem"
+    lint_required "$rel" urgency "$urgency"
+    lint_required "$rel" agent "$agent"
+    lint_required "$rel" effort "$effort"
     lint_enum "$rel" urgency "$urgency" normal urgent
     lint_enum "$rel" agent "$agent" haiku sonnet opus
     lint_enum "$rel" effort "$effort" low medium high xhigh
@@ -1500,8 +1614,16 @@ lint_graph() {
   while IFS= read -r rel; do
     [ -n "$rel" ] || continue
     research=$((research + 1))
-    { read -r urgency; read -r agent; read -r effort; read -r grad; } \
-      <<<"$(gr_fields urgency agent effort graduates <"${ROOT}/${rel}")"
+    { read -r urgency; read -r agent; read -r effort; read -r grad
+      read -r rstem; } \
+      <<<"$(gr_fields urgency agent effort graduates research <"${ROOT}/${rel}")"
+    # Same gap, same fix, one type over: a research node the queue lists is
+    # scheduled on these too. `graduates` keeps its own red below — it carries
+    # a reason of its own, not just presence.
+    lint_required "$rel" research "$rstem"
+    lint_required "$rel" urgency "$urgency"
+    lint_required "$rel" agent "$agent"
+    lint_required "$rel" effort "$effort"
     lint_enum "$rel" urgency "$urgency" normal urgent
     lint_enum "$rel" agent "$agent" haiku sonnet opus
     lint_enum "$rel" effort "$effort" low medium high xhigh
@@ -2192,9 +2314,23 @@ cmd_review() {
 # protocol tells long-running ones to) contributes its own merge as a second
 # edge carrying the same workstream file. Measured while writing this: 51
 # "edges" and 42 findings against a true 37 and 41.
+# Third field is the merge SUBJECT, carried here so fb_label does not spend a
+# `git log -1` per edge asking for what this walk already had in hand. Tab
+# separates it because a subject holds spaces and the parents do not; the
+# subject is taken as everything after the FIRST tab, so a subject containing
+# one survives whole rather than being cut at it.
+#
+# Callers read three fields. `read -r m tip` puts the remainder in `tip`, so a
+# caller that was not updated gets "<parent> <subject>" where it wants a sha
+# and computes a merge base against nothing — silently, on every edge.
 fb_edges() {
-  git -C "$ROOT" log --first-parent --format='%H %P' --merges "$1" 2>/dev/null |
-    awk 'NF >= 3 { print $1, $3 }'
+  git -C "$ROOT" log --first-parent --format='%H %P%x09%s' --merges "$1" 2>/dev/null |
+    awk -F'\t' '{
+      n = split($1, a, " ")
+      if (n < 3) next
+      i = index($0, "\t")
+      print a[1], a[3], (i ? substr($0, i + 1) : "")
+    }'
 }
 
 # Every edge costs a git show per commit, so a repo with thousands of them
@@ -2226,11 +2362,22 @@ FB_CAPPED=0
 
 # Pull request number from a merge subject, else the short sha: the identifier
 # is for a human to go read the branch with, so any stable handle will do.
+# Takes the subject rather than fetching it: fb_edges already carried it. Two
+# forks per edge became none — a `git log -1` and a `sed`, paid once for every
+# edge that has a workstream file, which is most of them.
+#
+# `##` and not `#`, so the LAST occurrence wins. The sed this replaced anchored
+# on a greedy `.*`, which also takes the last; a subject quoting one merge
+# inside another would otherwise change label between the two versions.
 fb_label() {
-  local subj n
-  subj="$(git -C "$ROOT" log -1 --format='%s' "$1" 2>/dev/null)"
-  n="$(printf '%s' "$subj" | sed -n 's/.*[Mm]erge pull request #\([0-9][0-9]*\).*/\1/p')"
-  [ -n "$n" ] && { printf 'PR%s' "$n"; return 0; }
+  local subj="$2" n
+  case "$subj" in
+    *[Mm]"erge pull request #"*)
+      n="${subj##*erge pull request #}"
+      n="${n%%[!0-9]*}"
+      [ -n "$n" ] && { printf 'PR%s' "$n"; return 0; }
+      ;;
+  esac
   printf '%s' "${1:0:7}"
 }
 
@@ -2435,14 +2582,14 @@ fb_collect() {
     FB_CAPPED=1
   fi
 
-  while read -r m tip; do
+  while read -r m tip subj; do
     [ -n "$tip" ] || continue
     base="$(git -C "$ROOT" merge-base "${m}^1" "$tip" 2>/dev/null)" || continue
     doc="$(fb_workstream "$base" "$tip")" || doc=""
     FB_EDGES=$((FB_EDGES + 1))
     [ -n "$doc" ] || continue
     FB_WITHWS=$((FB_WITHWS + 1))
-    label="$(fb_label "$m")"
+    label="$(fb_label "$m" "$subj")"
 
     n=0
     while IFS= read -r line; do
@@ -2845,7 +2992,7 @@ cl_merged_claims() {
     all="$(printf '%s\n' "$all" | head -n "$FB_LIMIT")"
   fi
   printf '%s\n' "$all" |
-    while read -r m tip; do
+    while read -r m tip _; do
       [ -n "$tip" ] || continue
       base="$(git -C "$ROOT" merge-base "${m}^1" "$tip" 2>/dev/null)" || continue
       doc="$(fb_workstream "$base" "$tip")" || continue
@@ -3345,6 +3492,7 @@ sc_walk() {
 cmd_scorecard() {
   local over base head branch walk
   local commits files off ws n findings=0 sheets=0 churn dels plans=0 reqs=0 d
+  local unmarked=0
 
   over="$(base_ref)" || over=""
   branch="$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null)" || branch="?"
@@ -3372,11 +3520,26 @@ cmd_scorecard() {
 $walk
 EOF
 
+  # `unmarked` is a COUNTERWEIGHT, not a second statistic. "Findings recorded"
+  # rises with a review that records noise, and the sessions this counts read
+  # the rules that say it is counted (.agents/docs/agent-selection.md,
+  # "Counting sessions that can read the count"). An unmarked finding is the
+  # cheapest kind to write — no fix, no decision, no reason — so noise lands
+  # here and the pair shows a shape the total alone hides. Marking everything
+  # to flatten it is a second act, and a visible one.
+  #
+  # fb_findings and fb_marker, not a third parser: the disposition rule is
+  # spelled once, and this file has already paid for spelling one twice.
+  local line
   while IFS= read -r ws; do
     [ -n "$ws" ] || continue
     sheets=$((sheets + 1))
     n="$(sc_show "$ws" | review_count)"
     findings=$((findings + ${n:-0}))
+    while IFS= read -r line; do
+      [ -n "$line" ] || continue
+      [ "$(fb_marker "$line")" = "unmarked" ] && unmarked=$((unmarked + 1))
+    done < <(sc_show "$ws" | fb_findings)
   done < <(sc_sheets "$base" HEAD)
 
   # Node files only, top level: `docs/plans/README.md` and a note under
@@ -3411,7 +3574,8 @@ EOF
   if [ "$findings" -eq 0 ]; then
     printf '  review findings recorded            0  (a clean pass is one line; an empty section is not one)\n'
   else
-    printf '  review findings recorded            %s\n' "$findings"
+    printf '  review findings recorded            %s  (%s unmarked — the cheapest kind to write)\n' \
+      "$findings" "$unmarked"
   fi
   printf '  commits changing code, no workstream file in the same commit  %s\n' "${off:-0}"
   printf '  plan files this diff retires        %s\n' "$plans"
@@ -3425,6 +3589,16 @@ EOF
 
   printf '\n  Counts, nothing else — no grade, no gate, nothing stored.\n'
   printf '  What they mean is Loop steps 5 and 7 (.agents/harness/AGENTS.md).\n'
+  printf '\n'
+  printf '  Retire a count when it stops being able to surprise anyone: once\n'
+  printf '  every branch scores the same, it has become a ritual and reading it\n'
+  printf '  costs more than skipping it. Long-lived counts collect gaming\n'
+  printf '  strategies, so removing one is maintenance, not loss — history keeps\n'
+  printf '  what it measured. Concretely: retire the unmarked pairing once\n'
+  printf '  unmarked findings stop appearing, and the no-workstream-file count\n'
+  printf '  once it sits at 0 across a season of branches. Why:\n'
+  printf '  .agents/docs/agent-selection.md, "Counting sessions that can read\n'
+  printf '  the count".\n'
   return 0
 }
 

@@ -512,3 +512,52 @@ if git clone -q --depth 1 "file://${lwork}" "$lshallow" 2>/dev/null; then
 else
   skip "shallow-history lint degrade" "file:// shallow clone unavailable here"
 fi
+
+# --- a node with no frontmatter at all --------------------------------------
+# lint_enum returns 0 on an EMPTY value — right for an optional field, wrong
+# for one the queue schedules on — so a node carrying no frontmatter passed
+# every check in silence. It cost a whole plan: an edit merged in PR 140
+# rebuilt a plan file from its `## Goal` heading onward and took the
+# frontmatter with it, `ci` stayed green, and the queue then listed the plan
+# unscoped with a defaulted tier. Nothing red anywhere said so.
+printf '## Goal\n\nA plan whose frontmatter went missing.\n' \
+  >"${lwork}/docs/plans/no-frontmatter.md"
+git -C "$lwork" add docs/plans/no-frontmatter.md
+git -C "$lwork" commit -qm "a plan with no frontmatter"
+out="$(lint_section "$(lint_ci)")"
+expect "a plan with no frontmatter is red on its plan key" \
+  "no-frontmatter.md: no plan:" "$out"
+expect "and on its tier, which is what the queue schedules on" \
+  "no-frontmatter.md: no agent:" "$out"
+expect "and on effort" "no-frontmatter.md: no effort:" "$out"
+expect "and the message says why an absent key is not a default" \
+  "reads as a default rather than as a mistake" "$out"
+
+# One key missing, the rest present: the check has to be per key, not a single
+# "has frontmatter" test, or a node that loses only its tier stays green.
+printf -- '---\nplan: tierless\nurgency: normal\neffort: medium\n---\n\n## Goal\nx\n' \
+  >"${lwork}/docs/plans/tierless.md"
+git -C "$lwork" rm -q docs/plans/no-frontmatter.md
+git -C "$lwork" add docs/plans/tierless.md
+git -C "$lwork" commit -qm "a plan missing only its tier"
+out="$(lint_section "$(lint_ci)")"
+expect "a plan missing only its tier is still red" "tierless.md: no agent:" "$out"
+refute "and is not reported for the keys it has" "tierless.md: no effort:" "$out"
+
+# scope stays OPTIONAL. The hook already reports an unscoped plan and says what
+# to do; making it red here would turn a by-design warning into a gate.
+refute "an absent scope is not red" "tierless.md: no scope:" "$out"
+
+# The same gap one node type over. A research file the queue lists is
+# scheduled on the same three fields.
+git -C "$lwork" rm -q docs/plans/tierless.md
+mkdir -p "${lwork}/docs/research"
+printf -- '---\nresearch: tierless-q\nurgency: normal\neffort: high\ngraduates: .agents/docs/plans/README.md\n---\n\n## Question\nx\n' \
+  >"${lwork}/docs/research/tierless-q.md"
+git -C "$lwork" add docs/research/tierless-q.md
+git -C "$lwork" commit -qm "a research node missing only its tier"
+out="$(lint_section "$(lint_ci)")"
+expect "a research node missing its tier is red too" \
+  "tierless-q.md: no agent:" "$out"
+git -C "$lwork" rm -q docs/research/tierless-q.md
+git -C "$lwork" commit -qm "clear the fixture"

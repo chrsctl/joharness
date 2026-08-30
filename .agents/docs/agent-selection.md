@@ -165,6 +165,66 @@ Findings also explain harness fit: caveman imperatives suit literal reader;
 prohibitions-with-reasons = exactly what literal model follows best;
 hook-injected state beats instruction to go look.
 
+## Counting sessions that can read the count
+
+`./joharness.sh scorecard` counts per-branch process facts. The sessions it
+counts read this repo's rules, so they can read what is counted and optimise
+for it. That is not a hypothetical: it is the defining condition here, and it
+is why the command REPORTS and never gates.
+
+**The mechanism is Goodhart's Law, and the attribution matters.** The sentence
+everyone quotes — "when a measure becomes a target, it ceases to be a good
+measure" — is Strathern's (1997, citing Hoskin), not Goodhart's. Goodhart's
+1975 original is "Any observed statistical regularity will tend to collapse
+once pressure is placed upon it for control purposes". Use the short form as
+*commonly stated as*, never as his words. The academic anchor for the failure
+under partial observability is Robert Austin, *Measuring and Managing
+Performance in Organizations*; industry writing frames gaming as a design
+failure rather than a discipline failure, which is a reasonable stance and NOT
+a literature consensus — do not cite it as one.
+
+**What DORA supports, and what it does not.** It supports metrics being team-
+and system-level and not tied to individual performance review, and dora.dev
+warns against isolating teams with specific metrics because that "can lead to
+friction and finger-pointing". It does NOT say "individual metrics create
+competition while team metrics create collaboration" — that sentence traces to
+no DORA, Google Cloud or *Accelerate* source and was removed from this repo's
+reasoning when a verification pass failed it.
+
+So: report first. A number nobody is graded on is not yet a target, and
+reporting is what keeps the counts honest long enough to backtest them. That
+is the same bar `churn` cleared before it earned a ceiling, and the reason
+`scorecard` has not earned one.
+
+Both gaps the research named are now closed in `scorecard` itself, and how
+they were closed is the part worth keeping:
+
+- **A count wants a counterweight.** "Review findings recorded" alone rewards
+  recording noise, so it prints paired with how many of those findings are
+  UNMARKED — no fix, no decision, no reason. That is the cheapest kind to
+  write, so noise lands there and the pair shows a shape the total hides.
+  Marking everything to flatten it is a second act, and a visible one. The
+  pairing prints even at zero: a parenthetical that appears only when
+  something is wrong is one readers learn to skip.
+- **Counts now carry a retirement condition.** Retire one when it stops being
+  able to surprise anyone — once every branch scores the same it is a ritual,
+  and reading it costs more than skipping it. Long-lived counts collect gaming
+  strategies, so removal is maintenance rather than loss; history keeps what
+  it measured. `scorecard` states this beside its own counts rather than in a
+  field, because the judgment is prose and a field would invite a gate.
+
+Both remedies are industry practice rather than sourced study, and both survive
+the verification pass because neither rests on the DORA sentence that failed.
+
+What did NOT change: `scorecard` still reports and never gates. Pairing exists
+to survive pressure, not to create it — a gate here would manufacture the
+target the pairing is built to withstand.
+
+One method note, because it is the reason the attributions above are hedged so
+precisely: of the claims in the research behind this section, the one its author
+flagged as needing a check is exactly the one that failed. Flagging it was
+right. Publishing it unflagged would not have been.
+
 ## Writing plans for agents
 
 Rules in `.agents/docs/plans/README.md`. Core: an agent executes what the plan

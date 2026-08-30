@@ -166,6 +166,48 @@ commit_all "$sc" "bullets in three sections"
 out="$(jsc)"
 expect "only bullets under ## Review count" "review findings recorded            1" "$out"
 
+# The counterweight. "Findings recorded" rises with a review that records
+# noise, and the sessions this counts read the rule that says it is counted, so
+# the total alone is a target. An unmarked finding is the cheapest kind to
+# write — no fix, no decision, no reason — so the pair shows the shape the
+# total hides (.agents/docs/agent-selection.md, "Counting sessions that can
+# read the count").
+#
+# Three dispositions and one absence in one file: fixed, wontfix and no-change
+# all count as marked, because the cost being measured is having decided, not
+# which way. Only the bare bullet is unmarked.
+git -C "$sc" checkout -q main
+git -C "$sc" checkout -qb marked
+write_sheet "$sc" docs/handover/m.md \
+  "r1: decided one way. (fixed)" \
+  "r2: decided the other. (wontfix — costs more than it catches)" \
+  "r3: decided nothing needed. (no change)" \
+  "r4: recorded and never resolved"
+commit_all "$sc" "four findings, one unmarked"
+out="$(jsc)"
+expect "the findings total still counts every bullet" \
+  "review findings recorded            4" "$out"
+expect "and the unmarked count is paired onto the same line" \
+  "4  (1 unmarked" "$out"
+
+# All marked: the pairing must reach 0 rather than vanish, or a reader learns
+# the parenthetical only appears when something is wrong and stops reading it.
+git -C "$sc" checkout -q main
+git -C "$sc" checkout -qb allmarked
+write_sheet "$sc" docs/handover/am.md \
+  "r1: one. (fixed)" "r2: two. (fixed)"
+commit_all "$sc" "everything marked"
+out="$(jsc)"
+expect "a fully marked review still prints the pairing" "2  (0 unmarked" "$out"
+
+# Every count carries a condition under which it should be removed. A count
+# nobody can retire is the second gap the research named, and the wording is
+# the deliverable — there is no field to assert on.
+expect "the scorecard says when to retire a count" \
+  "Retire a count when it stops being able to surprise anyone" "$out"
+expect "and points at the reasoning rather than restating it" \
+  "Counting sessions that can read" "$out"
+
 # A non-ASCII path: git C-quotes it in --name-only, and an unquoted reader
 # makes the same commit compliant to one counter and off-protocol to another.
 git -C "$sc" checkout -q main

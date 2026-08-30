@@ -21,6 +21,10 @@
 #                          flagging as recent               (default: 3600)
 #   HANDOVER_MAX_ENTRIES   cap on other-branch entries      (default: 12)
 #   HANDOVER_FETCH         0 to skip the session-start fetch (default: 1)
+#   HANDOVER_STALE_SECONDS age of last push, at or above
+#                          which a branch is stale-eligible  (default: 518400)
+#   HANDOVER_STALE_BEHIND  commits behind the base branch,
+#                          at or above which it IS stale     (default: 50)
 
 set -uo pipefail
 
@@ -31,6 +35,15 @@ HANDOVER_DIR="docs/handover"
 BASE_BRANCH="${HANDOVER_BASE_BRANCH:-main}"
 LIVE_SECONDS="${HANDOVER_LIVE_SECONDS:-3600}"
 MAX_ENTRIES="${HANDOVER_MAX_ENTRIES:-12}"
+# Defaults measured on this repo 2026-08-30, full clone: the branch that
+# prompted this (`pm-dispatch` on multi-agent-orchestration-pr-jyli0w,
+# pr #10, closed) sat pushed 9 days, 662 commits behind main. Four more
+# branches carrying a workstream file sat pushed 5 days, 374-432 behind. A
+# branch just cut sits near 0 behind regardless of age, so 50 cannot fire on
+# live work that has not diverged yet — the age gate below is what keeps this
+# cheap on everything else (git rev-list only runs past that gate).
+STALE_SECONDS="${HANDOVER_STALE_SECONDS:-518400}"   # 6 days
+STALE_BEHIND="${HANDOVER_STALE_BEHIND:-50}"
 
 cd "$PROJECT_DIR" 2>/dev/null || exit 0
 git rev-parse --git-dir >/dev/null 2>&1 || exit 0
@@ -432,16 +445,34 @@ while IFS= read -r ref; do
   # nothing here to finish, only somebody to /who.
   if [ -z "$ws_files" ]; then
     if [ "$fresh" = "1" ] && [ "$name" != "${BASE_BRANCH}" ]; then
-      # Fourteen fields like every other row, and the empty ones are counted
+      # Fifteen fields like every other row, and the empty ones are counted
       # rather than eyeballed: f, status, pr, updated, agent, issue and
       # session are all blank here, which is 8 separators between `short` and
       # `fresh`, not 7. At 7 this row was short by one, so `fresh` was read as
       # `session` and `pushed_rel` as `review_n` — the entry printed "pushed "
       # with no time and stopped counting toward `recent_count`, which is the
-      # one thing a branch with no workstream file is listed FOR.
-      rows="${rows}5${US}${pushed_at:-9999999999}${US}${short}${US}${US}${US}${US}${US}${US}${US}${US}${fresh}${US}0${US}0${US}${pushed_rel}"$'\n'
+      # one thing a branch with no workstream file is listed FOR. `stale`
+      # hardcodes 0: nothing here ever reads it — a file-less rank-5 row
+      # never reaches the STALE marker or the sort key's live-before-stale
+      # split, both of which only fire on a row carrying a workstream file.
+      rows="${rows}5${US}${pushed_at:-9999999999}${US}${short}${US}${US}${US}${US}${US}${US}${US}${US}${fresh}${US}0${US}0${US}0${US}${pushed_rel}"$'\n'
     fi
     continue
+  fi
+
+  # STALE: last push old AND far enough behind the base branch that a
+  # reconcile is certain — both from git alone, never from session status
+  # (liveness stays /who's answer, out of scope for this hook). Gated behind
+  # the `ws_files` continue above and the age check below, so the extra
+  # `git rev-list --count` is paid only for a branch that both carries a
+  # workstream file and pushed long enough ago to be a candidate — not for
+  # every old file-less branch this loop passes over.
+  entry_stale=0
+  if [ -n "$pushed_at" ] && [ $((now - pushed_at)) -ge "$STALE_SECONDS" ]; then
+    behind_stale="$(git rev-list --count "${ref}..origin/${BASE_BRANCH}" 2>/dev/null)"
+    if [ -n "$behind_stale" ] && [ "$behind_stale" -ge "$STALE_BEHIND" ]; then
+      entry_stale=1
+    fi
   fi
 
   while IFS= read -r f; do
@@ -481,17 +512,22 @@ while IFS= read -r ref; do
       in_r && /^- /             { n++ }
       END { print n + 0 }')"
 
-    rows="${rows}$(rank_of "$status" "$pr")${US}${pushed_at:-9999999999}${US}${short}${US}${f}${US}${status}${US}${pr}${US}${updated}${US}${agent}${US}${issue}${US}${session}${US}${fresh}${US}${inherited_n}${US}${review_n}${US}${pushed_rel}"$'\n'
+    rows="${rows}$(rank_of "$status" "$pr")${US}${pushed_at:-9999999999}${US}${short}${US}${f}${US}${status}${US}${pr}${US}${updated}${US}${agent}${US}${issue}${US}${session}${US}${fresh}${US}${entry_stale}${US}${inherited_n}${US}${review_n}${US}${pushed_rel}"$'\n'
   done <<<"$ws_files"
 done < <(git for-each-ref --format='%(refname)' refs/remotes 2>/dev/null)
 
 # --- pass 2: rank, cap, then pay for the extras ----------------------------
-# Sorted by rank, then by push time ASCENDING — oldest first, the deliberate
-# inverse of the ref order this replaced. Within one rank the oldest push is
-# the entry closest to being abandoned, and abandonment is the failure this
-# block exists to catch: a branch at the edge that nobody came back to reads
-# as in-flight until a human triages it (.agents/docs/product/README.md,
-# Branch flow).
+# Sorted by rank, then by STALE (live before stale — see field 12, `entry_stale`),
+# then by push time ASCENDING — oldest first, the deliberate inverse of the
+# ref order this replaced. Within one rank the oldest LIVE push is the entry
+# closest to being abandoned, and abandonment is the failure this block
+# exists to catch: a branch at the edge that nobody came back to reads as
+# in-flight until a human triages it (.agents/docs/product/README.md, Branch
+# flow) — which is exactly what a STALE entry already is, so it sorts after
+# every live entry of its own rank instead of leading on push time alone.
+# Demoted, never dropped: with nothing else in flight at that rank, a STALE
+# row is still the first row and still leads (out of scope: hiding it — see
+# handover-context-stale.sh).
 others=""
 count=0
 hidden=0
@@ -501,7 +537,7 @@ lead_file=""
 lead_why=""
 
 while IFS="$US" read -r rank _ short f status pr updated agent issue \
-  session fresh inherited_n review_n pushed_rel; do
+  session fresh entry_stale inherited_n review_n pushed_rel; do
   [ -n "$short" ] || continue
 
   if [ "$count" -ge "$MAX_ENTRIES" ]; then
@@ -534,6 +570,15 @@ while IFS="$US" read -r rank _ short f status pr updated agent issue \
     2 ) others="${others}    EDGE: pull request #${pr} open — drive it green, then merge (step 7)"$'\n' ;;
   esac
 
+  # Demoted, never dropped — worded to hold whether or not there was
+  # anything to demote below: nobody has pushed to it in HANDOVER_STALE_SECONDS
+  # and it is HANDOVER_STALE_BEHIND+ commits behind ${BASE_BRANCH}, both read
+  # straight off git (never session status; that stays /who's answer, out of
+  # scope for this hook) — true, and worth saying, even when this is the only
+  # entry at its rank and it still leads below.
+  [ "$entry_stale" = "1" ] &&
+    others="${others}    STALE: pushed ${pushed_rel} — read as abandoned from git alone, never hidden even when it is the only entry at this rank (.agents/docs/product/README.md, Branch flow)"$'\n'
+
   if [ -z "$lead_ref" ] && [ "$rank" -le 2 ]; then
     lead_ref="$short"
     lead_file="$f"
@@ -542,6 +587,7 @@ while IFS="$US" read -r rank _ short f status pr updated agent issue \
       1 ) lead_why="at review" ;;
       2 ) lead_why="pull request #${pr} open" ;;
     esac
+    [ "$entry_stale" = "1" ] && lead_why="${lead_why} — STALE, pushed ${pushed_rel}"
   fi
 
   [ -n "$session" ] && others="${others}    session: ${session}"$'\n'
@@ -608,11 +654,16 @@ while IFS="$US" read -r rank _ short f status pr updated agent issue \
   fi
 
   others="${others}    git show ${short}:${f}"$'\n'
-# Ref name is the third key, and it is not decoration: `sort` is not stable,
-# so two branches sharing a rank AND a commit timestamp would swap places
-# between runs of the same hook on the same tree. A listing that reorders
-# itself for no reason is one a reader stops trusting the order of.
-done < <(printf '%s' "$rows" | sort -t"$US" -k1,1n -k2,2n -k3,3)
+# stale (field 12) sorts right after rank and before push time: within one
+# rank, every live entry sorts before every STALE one, and only THEN does
+# push time break ties. Sorting on push time first would keep doing exactly
+# what this topic exists to stop — an old stale push outranking a newer live
+# one just for being older.
+# Ref name is the fourth key, and it is not decoration: `sort` is not stable,
+# so two branches sharing a rank, staleness AND a commit timestamp would swap
+# places between runs of the same hook on the same tree. A listing that
+# reorders itself for no reason is one a reader stops trusting the order of.
+done < <(printf '%s' "$rows" | sort -t"$US" -k1,1n -k12,12n -k2,2n -k3,3)
 
 
 # --- rot check ------------------------------------------------------------
