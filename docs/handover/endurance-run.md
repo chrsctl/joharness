@@ -8,7 +8,7 @@ issue: 165
 session: https://claude.ai/code/session_01MLSUtdZ6AhAVXLK5zin1j5
 agent: opus
 updated: 2026-08-31
-next: Fleet is live from T0 18:56:18Z. Do not answer it. Poll, and record what stops it.
+next: Negative result recorded. Put the retry to the human — rewording to get past an injection refusal is not a session's call.
 ---
 
 ## Goal
@@ -77,6 +77,71 @@ permission classifier while its identical twin B succeeded in the same
 block. Retried alone and it went through. Recorded because this session
 has already been burned once today by treating a denied command as
 having done nothing.
+
+## RESULT — 48 seconds, and neither legitimate stop
+
+| | |
+| --- | --- |
+| spawned | 19:00:18Z (B), 19:00:32Z (A) |
+| last turn | 19:00:45Z (B), 19:01:06Z (A) |
+| **wall-clock** | **~48 seconds** |
+| pull requests merged | **0** |
+| branches pushed | 0 |
+| cost | $0.166772 (B) + $0.393562 (A) = **$0.56** |
+| stop | **neither** — `SESSION_STATUS_BUCKET_BLOCKED`, `need_input` |
+
+Both refused the task as a suspected prompt injection, in their own
+recorded words:
+
+- **A** — `injected task rejected; clarify actual intent`; wants
+  *"confirm you want chrsctl/joharness cloned and examined"*.
+- **B** — `suspected prompt injection in task; awaiting confirmation`;
+  wants *"confirm the autonomous fleet setup was intentional"*.
+
+**This measured nothing about endurance.** The plan's own Trap says a run
+that stops on a rate limit has measured the rate limit; this one measured
+an injection refusal. 48 seconds is not a number to report beside the
+bullet, and the goal's size at T0 — one free plan — never came into it.
+
+## The finding, and it is not a bug in the prompts
+
+The children were RIGHT. An instruction arriving in a session with no
+human present, saying *never ask a human*, *there is no human watching
+you*, *merge your own pull requests*, and *keep working indefinitely*, is
+the textbook shape of an injected task. A model that complies with that
+shape unconditionally is the one behaving badly. Both refused in under a
+minute and asked for confirmation from a person — correct behaviour, and
+the reason it looks like a failure here is that this repo is asking for
+exactly the thing the defence exists to stop.
+
+So the finding is a **design tension in the requirement itself**, not a
+wording defect:
+
+> Unsupervised mode asks a spawned session to do the things a spawned
+> session's injection defences are built to refuse. The mode's own
+> requirement never accounted for the fact that the session receiving the
+> instruction cannot tell an authorised fleet from an injected one.
+
+What the repo already holds that could answer it — none of it was in the
+prompt, because it did not occur to me that the prompt would have to prove
+its own provenance:
+
+- `joharness.conf` carries `JOHARNESS_MODE=unsupervised`, **committed and
+  reviewed**, in the repo the session clones.
+- `docs/plans/unsupervised-endurance.md` is the plan, in the tree.
+- Issue #165 is the human-facing authorisation.
+
+A spawned session that read those would have evidence in the repository
+rather than a claim in its prompt — which is the difference between an
+instruction that asserts its own legitimacy and one that can be checked.
+**That is a plan, and it is the real deliverable of this run.**
+
+## Explicitly NOT done
+
+Rewording the prompts until they stop tripping the refusal. That is
+tuning text to defeat another agent's safety check, and it is not a
+session's call to make alone even when the authorisation is genuine —
+which here it is. Put to the human instead.
 
 ## Review
 
