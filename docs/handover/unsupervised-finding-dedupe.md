@@ -1,6 +1,6 @@
 ---
 workstream: unsupervised-finding-dedupe
-status: review
+status: done
 branch: claude/unsupervised-finding-dedupe
 pr: none
 plan: docs/plans/unsupervised-finding-dedupe.md
