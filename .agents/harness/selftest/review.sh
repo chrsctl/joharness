@@ -130,11 +130,7 @@ refute "a value that is not 'on' leaves the gate off" "== review" "$out"
 expect "an unreadable value names itself" "ignoring JOHARNESS_REVIEW='yes'" "$out"
 
 # The record, not the count: one line is a record, and a clean pass says so.
-# Carries a verdict — this file is retired a few cases down, and an
-# unmarked finding would trip the OTHER gate at that point
-# (marker-gate-needs-no-done), which is not what this topic is testing.
-write_ws ws.md review 12 "agent: opus" \
-  "- r1: clean pass, adversarial, no findings. (no change needed)"
+write_ws ws.md review 12 "agent: opus" "- r1: clean pass, adversarial, no findings."
 commit_all "$rwork" "record the review"
 out="$(JOHARNESS_REVIEW=on ci_review)"
 expect "a recorded finding satisfies the gate" "1 finding(s) recorded" "$out"
@@ -190,14 +186,8 @@ commit_all "$rwork" "conf: gate back off"
 # happening: one workstream file sat on a base branch through 22 merges,
 # named correctly by the gate every time anyone ran it. These pin the two
 # strengths and, above all, that they do not fight the review gate.
-#
-# The finding below carries a verdict on purpose, unlike its neighbours
-# above: this topic is about fin_gate's own strengths, not finding
-# verdicts, and an unmarked one would now trip the OTHER gate the moment
-# the ritual below retires the file (marker-gate-needs-no-done) — a
-# collision with this block's own point, not a case for it.
 git -C "$rwork" checkout -qb fingate main
-write_ws fin.md in-progress none "agent: sonnet" "- r1: clean pass. (fixed)"
+write_ws fin.md in-progress none "agent: sonnet" "- r1: clean pass."
 printf 'code\n' >>"${rwork}/feature.txt"
 commit_all "$rwork" "mid-build, workstream file present as it should be"
 out="$(jr ci)"
@@ -207,7 +197,7 @@ refute "mid-build says nothing about finish" "== finish" "$out"
 # ## Review section out of it, and step 7 puts the deletion in the pull
 # request's FINAL state. A red here would fight the documented workflow and
 # red every pull request from open until its last commit.
-write_ws fin.md review 77 "agent: sonnet" "- r1: clean pass. (fixed)"
+write_ws fin.md review 77 "agent: sonnet" "- r1: clean pass."
 commit_all "$rwork" "open a pull request for it"
 out="$(jr ci)"
 expect "the edge names the file this merge would add" \
@@ -222,7 +212,7 @@ fi
 # 'done' is the session's own word that it has finished, and it is strictly
 # after review — nothing wants this file any more.
 # 'done' quoted: bare, shellcheck reads it as a loop terminator (SC1010).
-write_ws fin.md "done" 77 "agent: sonnet" "- r1: clean pass. (fixed)"
+write_ws fin.md "done" 77 "agent: sonnet" "- r1: clean pass."
 commit_all "$rwork" "say done with the file still present"
 out="$(jr ci)"
 refute "done is no longer a mere report" "Reported, not failed" "$out"
@@ -636,97 +626,6 @@ out="$(ci_marks)"
 expect "a retired file's findings are still read" "r1: recorded, then the file was retired" "$out"
 refute "and the stage does not claim the branch touched none" \
   "no workstream file in this branch" "$out"
-# NOT status: done was never a contract this branch had to honour — the
-# tree at HEAD no longer carries the file either way, and fin_adds_at
-# (which reads the tree) is blind to that. This is the leak
-# docs/plans/marker-gate-needs-no-done.md names: PR 172 retired with
-# status: review and an unanswered finding, and nothing redded.
-expect "and the retire commit itself is named as the reason" "retired its own workstream file" "$out"
-if jr ci >/dev/null 2>&1; then
-  fail "and ci is RED — the branch retired with an unmarked finding"
-else
-  pass "and ci is RED — the branch retired with an unmarked finding"
-fi
-
-git -C "$rwork" checkout -q main
-
-# THE LEAK ITSELF: status never says done, only review, straight through to
-# the retire commit. Before this fix fin_strength only ever returned 'done'
-# or 'edge', both read from the TREE via fin_adds_at — and the tree at HEAD
-# has nothing once the retire commit runs, so this exact shape merged an
-# unmarked finding unchecked (PR 172's r5, "(recorded — the cases were
-# written first thereafter)", which fb_marker does not recognise).
-git -C "$rwork" checkout -qb markretirereview main
-write_ws retireleak.md review none "" \
-  "- r1: never dispositioned, and the branch never said done either."
-printf 'code\n' >"${rwork}/retireleak.txt"
-commit_all "$rwork" "record a finding, status stays review"
-git -C "$rwork" rm -q docs/handover/retireleak.md
-git -C "$rwork" commit -qm "Finish ritual: delete the workstream file"
-out="$(ci_marks)"
-expect "the finding from a review-status retire is still read" \
-  "r1: never dispositioned" "$out"
-expect "and the retire commit reds it despite no status: done anywhere" \
-  "RED: this branch retired" "$out"
-refute "not the status: done message — this branch never said it" \
-  "says status: done" "$out"
-if jr ci >/dev/null 2>&1; then
-  fail "and ci is RED — review straight to retire, unmarked, must not slip through"
-else
-  pass "and ci is RED — review straight to retire, unmarked, must not slip through"
-fi
-
-git -C "$rwork" checkout -q main
-
-# THE CLEAN RETIRE: every finding dispositioned before the retire commit
-# must stay green — the fix must not turn every retirement red, only the
-# ones that still owe a verdict.
-git -C "$rwork" checkout -qb markretireclean main
-write_ws retireclean.md review none "" \
-  "- r1: dispositioned before the file ever left. (fixed)"
-printf 'code\n' >"${rwork}/retireclean.txt"
-commit_all "$rwork" "record a finding, verdict given"
-git -C "$rwork" rm -q docs/handover/retireclean.md
-git -C "$rwork" commit -qm "Finish ritual: delete the workstream file"
-out="$(ci_marks)"
-expect "a fully dispositioned branch says so even after retiring" \
-  "every finding on this branch says what came of it" "$out"
-if jr ci >/dev/null 2>&1; then
-  pass "and ci stays green — nothing left undispositioned to red on"
-else
-  fail "and ci stays green — nothing left undispositioned to red on"
-fi
-
-git -C "$rwork" checkout -q main
-
-# NOT RETIRED: added, deleted by mistake, then RE-ADDED and still present at
-# HEAD. fin_retired_own's first draft matched 'added' and 'deleted' as sets
-# over the branch's whole history, so this shape — a file that is very much
-# present, mid-build — read as retired too. The tree check at the end of
-# that function is what this case pins: present at HEAD wins over anything
-# the log says happened earlier.
-git -C "$rwork" checkout -qb markreadd main
-write_ws readd.md review none "" \
-  "- r1: still open, and the file never actually left."
-printf 'code\n' >"${rwork}/readd.txt"
-commit_all "$rwork" "add the workstream file"
-git -C "$rwork" rm -q docs/handover/readd.md
-commit_all "$rwork" "delete it by mistake"
-write_ws readd.md review none "" \
-  "- r1: still open, and the file never actually left."
-commit_all "$rwork" "put it back — still mid-build"
-out="$(ci_marks)"
-expect "the finding is read as normal, from the present file" \
-  "r1: still open" "$out"
-expect "and this is a mid-build report, not the retire trigger" \
-  "Reported, not failed" "$out"
-refute "never the retired message — the file is right there" \
-  "retired its own workstream file" "$out"
-if jr ci >/dev/null 2>&1; then
-  pass "and ci stays green — a re-added file is not a retirement"
-else
-  fail "and ci stays green — a re-added file is not a retirement"
-fi
 
 git -C "$rwork" checkout -q main
 

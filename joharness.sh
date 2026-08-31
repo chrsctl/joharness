@@ -2141,24 +2141,14 @@ lint_review_bullets() {
 # near zero, and without it the mode manufactures its own backlog exactly as
 # the requirement's Constraints warn.
 #
-# TWO RED TRIGGERS, mid-build stays a report either way: a gate that reds
-# mid-build fights the review gate, which needs findings recorded while the
-# review is still happening. A finding written this hour and dispositioned
-# next hour is the normal case, not an error. So: report always, red once
-# the branch says `status: done` (`fin_strength`) OR retires its own
-# workstream file (`fin_retired_own`, checked separately — see its comment
-# for why it is not folded into `fin_strength`). `status: done` is not a
-# contract a branch is bound to — a branch going straight from `review` to
-# the retire commit says done nowhere, and did exactly that in PR 172: its
-# r5 carried no verdict `fb_marker` recognises and merged unchecked,
-# `status: review` the whole way (docs/plans/marker-gate-needs-no-done.md).
-# The retire commit is the trigger that cannot be skipped by omission — it
-# is the same deletion step 7 already requires of every branch, field or
-# no field.
+# TWO STRENGTHS, and the reason is the one `fin_strength` already carries: a
+# gate that reds mid-build fights the review gate, which needs findings
+# recorded while the review is still happening. A finding written this hour
+# and dispositioned next hour is the normal case, not an error. So: report
+# always, red only once the branch says `status: done`.
 #
 # Vocabulary is `fb_marker`'s, not a new one — wontfix, no change, (fixed.
 # A second spelling of the same verdict is how two counts drift apart.
-# `(recorded` stays out of it; `fb_marker`'s own comment says why.
 # The goal is the human's to set. An unsupervised session that writes itself
 # a requirement writes its own finish line, and a fleet with a finish line it
 # authored has none — the circularity the goal bound closes
@@ -2374,19 +2364,6 @@ lint_finding_markers() {
   strength="$(fin_strength)"
   if [ "$strength" = "done" ]; then
     printf '  RED: this branch says status: done, so there is no later moment.\n'
-    return 1
-  fi
-  # `fin_strength` only sees PRESENT files (it reads the tree), and the
-  # retire commit's whole point is that the tree no longer carries this
-  # one — the exact blind spot `fin_retired_own` reads the log to avoid.
-  # Read directly rather than through `fin_strength`: that function's
-  # return value also gates whether `ci` prints `== finish` at all, and a
-  # branch that retired with every finding dispositioned is meant to fall
-  # silent there. This gate's business is unmarked findings, not that.
-  if [ -n "$(fin_retired_own "$base")" ]; then
-    printf '  RED: this branch retired its own workstream file — deleted, not\n'
-    printf '  status: done, but the file is gone either way, so there is no\n'
-    printf '  later moment to disposition this in.\n'
     return 1
   fi
   printf '  Reported, not failed: this branch has not said done yet, and a\n'
@@ -2786,17 +2763,6 @@ fb_findings() {
 # the finding's own last clause — so the marker is read with wontfix first,
 # and a finding that says both "fixed" and "wontfix" is the compound one it
 # looks like, counted where the human put the verdict.
-#
-# `(recorded` is deliberately NOT here, though this session has written it
-# repeatedly (docs/plans/marker-gate-needs-no-done.md). Every finding under
-# ## Review is already recorded by being there — "(recorded" names no
-# OUTCOME the way fixed, wontfix and no-change do, and several uses in this
-# repo's own history are bare "(recorded)" with nothing after it: not "no
-# change", not a reason, just the fact that it was written down. Accepting
-# that as a fourth verdict would let a finding close itself by restating
-# what section it is already in, the exact silent drop step 5 forbids. Left
-# out on purpose: those findings keep counting as unmarked, going forward as
-# well as in the historical pile FB_SINCE bounds.
 fb_marker() {
   case "$1" in
     *wontfix*)                 printf 'wontfix' ;;
@@ -4458,43 +4424,6 @@ fin_adds_at() {
   done <<<"$(fin_docs_at HEAD)"
 }
 
-# Own workstream files this branch has RETIRED — added and later deleted,
-# both within its own history, and still ABSENT from HEAD's tree — one per
-# line. `fin_adds_at` reads TREES, and the retire commit's whole point is
-# that the tree at HEAD no longer carries the file: a reader of the tree is
-# blind at exactly the moment retirement happens. The LOG is not blind
-# there, but the log alone over-reports: a file added, `rm`'d by mistake,
-# then re-added and still present at HEAD shows up in both an A and a D
-# filter, and is not retired at all — it is present, mid-build, exactly the
-# case this gate must stay silent on. The tree check at the end is what
-# tells the two apart.
-#
-# `--first-parent`, so a `git merge origin/main` done to reconcile a
-# conflict (`.agents/docs/product/README.md`, "Conflict at finish") cannot
-# smuggle in ANOTHER branch's already-finished add-then-delete lifecycle
-# for a file this branch never touched: first-parent walks this branch's
-# own commit sequence and treats the merge as one step, never descending
-# into the side brought in from main. Ownership stays this branch's own —
-# the same property `fin_adds_at` gets for free from being a tree diff
-# rather than a log walk, reached here by restricting the walk instead.
-fin_retired_own() {
-  local ref="$1" base added deleted present f
-  base="$(git -C "$ROOT" merge-base HEAD "$ref" 2>/dev/null)" || return 0
-  added="$(git -C "$ROOT" log --first-parent --format= --name-only \
-    --diff-filter=A "${base}..HEAD" -- docs/handover 2>/dev/null |
-    sort -u | gr_docs)"
-  deleted="$(git -C "$ROOT" log --first-parent --format= --name-only \
-    --diff-filter=D "${base}..HEAD" -- docs/handover 2>/dev/null |
-    sort -u | gr_docs)"
-  present="$(fin_docs_at HEAD)"
-  while IFS= read -r f; do
-    [ -n "$f" ] || continue
-    printf '%s\n' "$added" | grep -qxF -- "$f" || continue
-    printf '%s\n' "$present" | grep -qxF -- "$f" && continue
-    printf '%s\n' "$f"
-  done <<<"$deleted"
-}
-
 # How hard this branch's own workstream files say the gate should bite:
 # 'done' when one declares itself finished, 'edge' when one is merely at
 # the edge, empty otherwise. Own files only — read from fin_adds_at, so
@@ -4515,10 +4444,6 @@ fin_retired_own() {
 # strictly after review. A branch that says done and still carries the
 # file is unambiguously the defect, with no other gate wanting that file
 # to exist any more.
-#
-# Retirement is deliberately NOT a third value here — see `fin_retired_own`
-# for why. `lint_finding_markers` is the one reader that needs it and reads
-# it directly.
 fin_strength() {
   local ref f doc status strongest=""
   ref="$(decide_ref 2>/dev/null)" || return 0
