@@ -612,6 +612,13 @@ cmd_ci() {
   # Which plans on this branch land in every consumer. Report only, never
   # rc — reasoning in lint_ship. Silent in a consumer, which carries neither
   # the sync engine nor a reason to ask.
+  # Beside the ids stage, because both read this branch's own findings and a
+  # reader wants them together. Its own section: keyable and dispositioned are
+  # different questions, and one heading over two verdicts is how a reader
+  # stops telling them apart.
+  printf '\n== finding verdicts\n'
+  lint_finding_markers || rc=1
+
   printf '\n== ship scope\n'
   lint_ship
 
@@ -2064,6 +2071,137 @@ review_count() {
 #
 # Never rewrite a recorded finding to satisfy this. The form is fixed going
 # forward; a record edited to match a later rule stops being a record.
+# The workstream files THIS branch touched, from the commits rather than the
+# endpoint diff. Step 7 puts the file's deletion in the last commit before the
+# pull request opens — exactly when `ci` runs for the record — and a file a
+# branch both added and deleted is absent from `git diff base HEAD` entirely.
+# `log --name-only` still carries it, which is also how fb_fix_map sees it.
+#
+# The DIFF, never the tree: a branch inherits every workstream file its base
+# carries, and reading the tree means naming somebody else's findings on every
+# run. Two stages read this now, so it is one function rather than two copies
+# that drift.
+lint_ws_in_diff() {
+  git -C "$ROOT" log --format= --name-only --diff-filter=ACMRT \
+    "${1}..HEAD" -- docs/handover 2>/dev/null | sort -u | gr_docs
+}
+
+# From git, not the working tree. HEAD first; for a file this branch retired,
+# the commit before the one that removed it.
+lint_ws_content() {
+  local ws="$1" content c
+  content="$(git -C "$ROOT" show "HEAD:${ws}" 2>/dev/null)" || content=""
+  if [ -z "$content" ]; then
+    c="$(git -C "$ROOT" rev-list -1 HEAD -- "$ws" 2>/dev/null)"
+    if [ -n "$c" ]; then
+      content="$(git -C "$ROOT" show "${c}^:${ws}" 2>/dev/null)" || content=""
+    fi
+  fi
+  printf '%s' "$content"
+}
+
+# Every `## Review` bullet in one workstream file, as "<indented>\t<text>".
+# Indented bullets separately: fb_findings folds a continuation into the
+# bullet above it, which is right for READING a finding and wrong for
+# counting them.
+lint_review_bullets() {
+  printf '%s\n' "$1" | awk '
+    /^## Review[[:space:]]*$/ { r = 1; next }
+    /^## /                    { r = 0 }
+    r && /^- /                { print "0\t" substr($0, 3); next }
+    r && /^[ \t]+- /          { t = $0; sub(/^[ \t]+- /, "", t); print "1\t" t }'
+}
+
+# Findings recorded on this branch with no disposition. Step 5 already says
+# "Fix them or record why not — never drop silent", and nothing enforced it:
+# 155 findings across this repo's history are unmarked, 62 of them without an
+# id. Every one was a session that wrote a bullet and never said what came of
+# it.
+#
+# It matters beyond tidiness because an unmarked finding is a SOURCE OF WORK.
+# `cmd_sources` counts them, and a non-zero count sets `dry=0` — so under
+# unsupervised mode the fleet cannot stop while any is outstanding. The
+# baseline (FB_SINCE) bounded the historical pile; this keeps the new count
+# near zero, and without it the mode manufactures its own backlog exactly as
+# the requirement's Constraints warn.
+#
+# TWO STRENGTHS, and the reason is the one `fin_strength` already carries: a
+# gate that reds mid-build fights the review gate, which needs findings
+# recorded while the review is still happening. A finding written this hour
+# and dispositioned next hour is the normal case, not an error. So: report
+# always, red only once the branch says `status: done`.
+#
+# Vocabulary is `fb_marker`'s, not a new one — wontfix, no change, (fixed.
+# A second spelling of the same verdict is how two counts drift apart.
+lint_finding_markers() {
+  local over="origin/${HANDOVER_BASE_BRANCH:-main}" base ws content text
+  local unmarked=0 seen=0 here strength short
+  base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
+  if [ -z "$base" ]; then
+    printf '  not measurable here (no merge-base with %s; unrelated history)\n' "$over"
+    return 0
+  fi
+  while IFS= read -r ws; do
+    [ -n "$ws" ] || continue
+    content="$(lint_ws_content "$ws")"
+    [ -n "$content" ] || continue
+    seen=$((seen + 1))
+    here=0
+    # fb_findings, which FOLDS continuation lines into the bullet above —
+    # not lint_review_bullets, which does not. The two are both right for
+    # their own question and this one needs the folded form: a verdict is
+    # usually the finding's LAST clause, and a multi-line finding carries it
+    # on a continuation. Reading first lines only, this stage flagged r1..r4
+    # of its own workstream file as unmarked while every one of them ends in
+    # "(fixed" or "(recorded".
+    #
+    # Deeper reason, and the one that settles it: `fb_collect` applies
+    # `fb_marker` to exactly this folded form to produce the count `sources`
+    # reports. A gate that extracted findings differently would enforce a
+    # different number from the one it cites.
+    while IFS= read -r text; do
+      [ -n "$text" ] || continue
+      [ "$(fb_marker "$text")" = "unmarked" ] || continue
+      unmarked=$((unmarked + 1))
+      [ "$here" -eq 1 ] || { here=1; printf '  %s\n' "$ws"; }
+      # Cut at a SPACE, which is ASCII and so can never land inside a
+      # multibyte character — the same reason lint_finding_ids does, and
+      # findings here carry em dashes constantly.
+      short=""
+      if [ "${#text}" -gt 76 ]; then
+        short="${text:0:72}"
+        case "$short" in
+          *' '*) short="${short% *}" ;;
+          *) short="" ;;
+        esac
+      fi
+      if [ -n "$short" ]; then printf '    %s …\n' "$short"
+      else printf '    %s\n' "$text"; fi
+    done <<<"$(printf '%s\n' "$content" | fb_findings)"
+  done <<<"$(lint_ws_in_diff "$base")"
+
+  if [ "$seen" -eq 0 ]; then
+    printf '  no workstream file in this branch'"'"'s diff\n'
+    return 0
+  fi
+  if [ "$unmarked" -eq 0 ]; then
+    printf '  every finding on this branch says what came of it\n'
+    return 0
+  fi
+  printf '\n  %d finding(s) with no verdict. One of: (fixed, wontfix, no change\n' "$unmarked"
+  printf '  (joharness.sh:fb_marker). An unmarked finding is counted as a\n'
+  printf '  SOURCE of work by sources, and a non-zero count is a fleet that\n'
+  printf '  cannot stop (docs/product/unsupervised-mode.md, Constraints).\n'
+  strength="$(fin_strength)"
+  if [ "$strength" = "done" ]; then
+    printf '  RED: this branch says status: done, so there is no later moment.\n'
+    return 1
+  fi
+  printf '  Reported, not failed: this branch has not said done yet, and a\n'
+  printf '  finding recorded now and dispositioned later is the normal case.\n'
+  return 0
+}
+
 lint_finding_ids() {
   local over="origin/${HANDOVER_BASE_BRANCH:-main}" base ws content c line
   local flag text short bad=0 seen=0 here
@@ -2097,13 +2235,7 @@ lint_finding_ids() {
     # git outright: an uncommitted `rm` of a file the diff names printed
     # "no workstream file" while git listed it. HEAD first; for a file this
     # branch retired, the commit before the one that removed it.
-    content="$(git -C "$ROOT" show "HEAD:${ws}" 2>/dev/null)" || content=""
-    if [ -z "$content" ]; then
-      c="$(git -C "$ROOT" rev-list -1 HEAD -- "$ws" 2>/dev/null)"
-      if [ -n "$c" ]; then
-        content="$(git -C "$ROOT" show "${c}^:${ws}" 2>/dev/null)" || content=""
-      fi
-    fi
+    content="$(lint_ws_content "$ws")"
     [ -n "$content" ] || continue
     seen=$((seen + 1))
     here=0
@@ -2143,13 +2275,8 @@ lint_finding_ids() {
         printf '    %s\n' "$text"
       fi
       [ "$flag" = "1" ] && printf '      ^ indented; the map keys a bullet at column 0 only\n'
-    done <<<"$(printf '%s\n' "$content" | awk '
-      /^## Review[[:space:]]*$/ { r = 1; next }
-      /^## /                    { r = 0 }
-      r && /^- /                { print "0\t" substr($0, 3); next }
-      r && /^[ \t]+- /          { t = $0; sub(/^[ \t]+- /, "", t); print "1\t" t }')"
-  done <<<"$(git -C "$ROOT" log --format= --name-only --diff-filter=ACMRT \
-    "${base}..HEAD" -- docs/handover 2>/dev/null | sort -u | gr_docs)"
+    done <<<"$(lint_review_bullets "$content")"
+  done <<<"$(lint_ws_in_diff "$base")"
 
   if [ "$seen" -eq 0 ]; then
     printf '  no workstream file in this branch'"'"'s diff\n'
