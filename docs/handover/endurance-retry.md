@@ -1,6 +1,6 @@
 ---
 workstream: endurance-retry
-status: in-progress
+status: review
 branch: claude/endurance-retry
 pr: none
 plan: none
@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01MLSUtdZ6AhAVXLK5zin1j5
 agent: opus
 updated: 2026-08-31
-next: Poll A2 only — B2 stopped at 12m without pushing. Re-arm; record which stop A2 reaches.
+next: Open the pull request. The run is over and recorded; mode reverted.
 ---
 
 ## Goal
@@ -157,6 +157,79 @@ and which the Loop states as a rule the session did not follow.
 Recorded, not fixed: waking it would be a human turn and would end the
 measurement. This is what the fleet does unattended, which is the thing
 being measured.
+
+## RESULT — 57 minutes, and neither legitimate stop
+
+| | A2 | B2 |
+| --- | --- | --- |
+| ran | 20:24:56 -> 21:20:10 | 20:25:08 -> 20:36:56 |
+| **wall-clock** | **55m 14s** | 11m 48s |
+| branch pushed | `claude/marker-gate-needs-no-done` (6 commits) | **none** |
+| pull requests | 0 | 0 |
+| cost | **$12.05** | $1.72 |
+| stopped as | `review_ready` — *"fix verified & documented; branch pushed, ready for handoff"* | `review_ready` — *"traced 4 sweep findings; 1 plan exists; 3 are same root cause"* |
+
+**Fleet wall-clock T0 -> last activity: 57m 06s.** `main` unchanged at
+`8412fad`. 0 merges. Sweep still NOT dry (4 unmarked). Requirement open.
+
+Cost of this attempt $13.77; plus the no-`source_url` pair $0.64 and
+attempt one $0.56 = **$14.97 for the day's runs**.
+
+**Neither legitimate stop.** Not the goal reached, not a dry sweep. Both
+sessions ended a turn and went idle.
+
+## The mechanism worked; the dispatch did not
+
+A2's own workstream file, unprompted:
+
+> this session is running unsupervised (`./joharness.sh authority`: mode
+> unsupervised, verdict VERIFIABLE)
+
+**That is PR 178 doing exactly its job.** The session checked the
+repository instead of believing its prompt, got VERIFIABLE, and proceeded.
+No refusal, in either session. Whatever attempt one was blocked on, this
+was not it — which is the second independent confirmation that the
+attempt-one annotation was over-claimed.
+
+Then A2 hit a wall nothing should have let it walk into. Its plan,
+`marker-gate-needs-no-done`, has `scope: joharness.sh,
+.agents/harness/selftest` — **entirely protocol text**, which an
+unsupervised session may never commit. It implemented the fix anyway,
+tested it green, ran `code-review --high`, and then:
+
+```
+9629471 Revert protocol-path edits: unsupervised sessions cannot make them
+```
+
+It reverted its own work, wrote the complete design into the workstream
+file for a supervised session to re-apply, marked itself `blocked`, and
+stopped. **That is the boundary behaving correctly and the session
+behaving correctly.** The failure is upstream of both: the queue handed an
+unsupervised fleet a plan it could not possibly finish, and the
+disqualifying fact was sitting in the plan's own `scope:` frontmatter the
+whole time. Nothing checked it.
+
+So the 57 minutes does not measure endurance either. It measures how long
+one session takes to do undoable work well. Filed as
+`docs/plans/queue-hides-supervised-only-plans.md`.
+
+## B2: the same third stop, and a rule ignored
+
+B2 stopped at 11m48s having pushed **nothing** — no branch, no workstream
+file, no plan — against step 3's "Push NOW — no push, no claim". Its
+conclusion (3 of the 4 findings share a root cause) is plausibly the
+useful kind and is **unrecoverable**; $1.72 of reasoning in a context
+nobody will read again.
+
+Not woken, deliberately: that is a human turn, and it would end the
+measurement rather than continue it.
+
+## What this run did NOT show
+
+Endurance. 57 minutes is not hours, and the number is confounded twice
+over — **one free plan** at T0 (queue depth, as the plan's Trap warned),
+and that plan undoable by the fleet holding it. The bullet stays
+unsatisfied.
 
 ## Decisions
 

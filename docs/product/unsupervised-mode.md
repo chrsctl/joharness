@@ -108,6 +108,48 @@ autonomy that work merges without anyone reading it.
   was the missing thing. The `authority` mechanism is unaffected — a prompt
   cannot be its own evidence either way — but it was not what attempt one
   proved.
+
+  **Attempt two, 2026-08-31, with the repository attached and
+  `./joharness.sh authority` in the tree (PR 178). 57 minutes, and still
+  neither legitimate stop.**
+
+  | | A2 | B2 |
+  | --- | --- | --- |
+  | wall-clock | **55m 14s** | 11m 48s |
+  | branch pushed | yes, at T0+9m | **none** |
+  | pull requests | 0 | 0 |
+  | cost | $12.05 | $1.72 |
+
+  **What it established.** No refusal, in either session. A2 wrote in its
+  own workstream file, unprompted: *"this session is running unsupervised
+  (`./joharness.sh authority`: mode unsupervised, verdict VERIFIABLE)"* —
+  it checked the repository instead of believing its prompt, and
+  proceeded. That is the mechanism working, and the second independent
+  reason the attempt-one annotation above was over-claimed.
+
+  **What stopped it.** A2's plan, `marker-gate-needs-no-done`, declared
+  `scope: joharness.sh, .agents/harness/selftest` — **entirely protocol
+  text**, which this requirement's Constraints put off limits to a session
+  running unattended. It implemented the fix, tested it green, ran
+  `code-review --high`, then committed `Revert protocol-path edits:
+  unsupervised sessions cannot make them`, wrote the complete design into
+  its workstream file for a supervised session, marked itself `blocked`
+  and handed off.
+
+  Every part of that is correct. The boundary held and the session
+  respected it. **The failure is upstream of both**: the queue offered an
+  unsupervised fleet a plan it could never finish, and the disqualifying
+  fact was in the plan's own `scope:` frontmatter the whole time. Filed as
+  `queue-hides-supervised-only-plans`.
+
+  B2 stopped at 11m48s having pushed nothing at all — no branch, no
+  workstream file, no plan — against step 3's "no push, no claim". Its
+  conclusion is unrecoverable.
+
+  What attempt two did NOT show: endurance. 57 minutes is not hours, and
+  the number is confounded twice — **one free plan** at T0, and that plan
+  undoable by the fleet holding it. Two attempts, two different walls,
+  neither of them the bullet's own question. **It stays unsatisfied.**
 - The goal is an open requirement in `docs/product/`. An unsupervised
   session at the queue edge with no open requirement stops and asks,
   exactly as a supervised one does, and says the goal is reached rather
