@@ -24,6 +24,24 @@ today.
   mode is read. A supervised session cannot tell the feature shipped.
 - An unsupervised session that finds the queue empty writes new plan files
   and opens a pull request for them, rather than stopping to ask.
+  **Measured 2026-08-31** (`edge-generates-work`, PR 163): with every plan
+  claimed or blocked — `Edge reached: no free plan` — `drain` deferred to the
+  source sweep instead of stopping, the sweep named two sources, and the
+  session wrote `docs/plans/selftest-mode-marker-leak.md` from one of them
+  and opened this pull request for it. The plan is not filler: it reproduces
+  a real red (`mode unsupervised` → 1105 passed, 1 failed; `mode default` →
+  1106, 0) and its fix direction was verified before filing.
+
+  What that run did NOT show. **Self-measurement**: the session that
+  generated the work is the one measuring it, and it knew the bullet — an
+  independent session would be better evidence. **One cycle**, not that it
+  keeps generating. **The second source produced no plan**: the unmarked
+  finding is the verifier gap, whose disposition is a human's, so it was
+  recorded rather than turned into a plan nobody could take — a source that
+  cannot become work is worth knowing about. And the flip used the
+  **session-local marker**, not `joharness.conf`, so "the repo is set to
+  unsupervised" was never literally true; what was true is that the session
+  read unsupervised, which is what the bullet is about.
 - An unsupervised session runs the full Loop on a free plan, merging its
   own pull request under the step 7 conditions that already govern
   self-merge.
