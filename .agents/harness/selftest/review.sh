@@ -628,3 +628,132 @@ refute "and the stage does not claim the branch touched none" \
   "no workstream file in this branch" "$out"
 
 git -C "$rwork" checkout -q main
+
+# --- requirement authorship ------------------------------------------------
+# The goal is the human's to set. An unsupervised session that writes itself a
+# requirement writes its own finish line, and a fleet with a finish line it
+# authored has none — the circularity the goal bound closes. Nothing enforced
+# it: protocol_paths covers protocol TEXT and docs/product/ is not in it,
+# correctly, because a requirement is product rather than protocol.
+ci_req() { jr ci | awk '/^== requirement authorship/ { f = 1; next } f && /^== / { exit } f'; }
+
+git -C "$rwork" checkout -q main
+git -C "$rwork" checkout -qb reqwrite main
+mkdir -p "${rwork}/docs/product"
+printf -- '---\nrequirement: selfwritten\npriority: normal\n---\n\n## Goal\nA goal nobody set.\n\n## Satisfied when\n\n- something observable.\n' \
+  >"${rwork}/docs/product/selfwritten.md"
+commit_all "$rwork" "a session writes itself a goal"
+
+# SUPERVISED: untouched. Writing requirements is what a human-attended session
+# does with a human, and a gate that fired here would stop the normal case.
+out="$(JOHARNESS_MODE=supervised ci_req)"
+expect "supervised says why it is not checking" "a human is there to write it" "$out"
+if JOHARNESS_MODE=supervised jr ci >/dev/null 2>&1; then
+  pass "supervised ci is green with a requirement added"
+else
+  fail "supervised ci is green with a requirement added"
+fi
+
+out="$(JOHARNESS_MODE=unsupervised ci_req)"
+expect "an added requirement is named" "docs/product/selfwritten.md" "$out"
+expect "and counted" "1 requirement(s) ADDED" "$out"
+expect "and says why it matters" "writes its own finish line" "$out"
+if JOHARNESS_MODE=unsupervised jr ci >/dev/null 2>&1; then
+  fail "unsupervised ci is RED with a requirement added"
+else
+  pass "unsupervised ci is RED with a requirement added"
+fi
+
+# EDITING one is fine, and the distinction is load-bearing: PR 163 annotated a
+# Satisfied when bullet with a measured result while unsupervised, which is
+# the mode reporting its own results. A guard that caught that would stop
+# exactly the feedback the requirement asks for.
+git -C "$rwork" checkout -q main
+mkdir -p "${rwork}/docs/product"
+printf -- '---\nrequirement: preexisting\npriority: normal\n---\n\n## Goal\nSet by a human.\n\n## Satisfied when\n\n- something observable.\n' \
+  >"${rwork}/docs/product/preexisting.md"
+commit_all "$rwork" "a goal a human set"
+git -C "$rwork" push -q origin main
+git -C "$rwork" checkout -qb reqedit main
+printf -- '---\nrequirement: preexisting\npriority: normal\n---\n\n## Goal\nSet by a human.\n\n## Satisfied when\n\n- something observable. Measured 2026-08-31: it holds.\n' \
+  >"${rwork}/docs/product/preexisting.md"
+commit_all "$rwork" "annotate the bullet with a measured result"
+out="$(JOHARNESS_MODE=unsupervised ci_req)"
+expect "editing a requirement is not writing one" "no requirement added" "$out"
+if JOHARNESS_MODE=unsupervised jr ci >/dev/null 2>&1; then
+  pass "and unsupervised ci stays green for an edit"
+else
+  fail "and unsupervised ci stays green for an edit"
+fi
+
+# A TEMPLATE is not a goal — same exclusion the queue hook and drain_goals
+# apply. Three readers of "what counts as a requirement" that must agree.
+git -C "$rwork" checkout -q main
+git -C "$rwork" checkout -qb reqtemplate main
+printf -- '---\nrequirement: TEMPLATE\n---\n\n## Goal\nShape only.\n' \
+  >"${rwork}/docs/product/TEMPLATE.md"
+commit_all "$rwork" "add a requirement template"
+out="$(JOHARNESS_MODE=unsupervised ci_req)"
+expect "a TEMPLATE is not a requirement" "no requirement added" "$out"
+
+git -C "$rwork" checkout -q main
+
+# --- plan provenance: which bullet does it advance -------------------------
+# Naming the requirement says which goal; naming the BULLET says which part of
+# it, which is what makes "every bullet reads true" checkable at all. Only for
+# a plan that serves a requirement — one recorded with no goal open names
+# neither, because recording is always allowed and there is nothing to name.
+ci_adv() { jr ci | awk '/^== plan provenance/ { f = 1; next } f && /^== / { exit } f'; }
+
+git -C "$rwork" checkout -q main
+git -C "$rwork" checkout -qb advmissing main
+mkdir -p "${rwork}/docs/plans"
+printf -- '---\nplan: noadv\nurgency: normal\nagent: sonnet\neffort: low\nrequirement: preexisting\n---\n\n## Goal\nFixture.\n' \
+  >"${rwork}/docs/plans/noadv.md"
+commit_all "$rwork" "a plan serving a goal, naming no bullet"
+out="$(JOHARNESS_MODE=unsupervised ci_adv)"
+expect "a plan serving a requirement must name its bullet" "names no bullet" "$out"
+if JOHARNESS_MODE=unsupervised jr ci >/dev/null 2>&1; then
+  fail "and unsupervised ci is RED without it"
+else
+  pass "and unsupervised ci is RED without it"
+fi
+# Recording is always allowed: a plan with NO requirement names nothing and is
+# not the risk. Without this case the gate would red a session for writing
+# down what it found with no goal open — the exact behaviour PR 171 restored.
+printf -- '---\nplan: nogoal\nurgency: normal\nagent: sonnet\neffort: low\nrequirement: none\n---\n\n## Goal\nA note for a human.\n' \
+  >"${rwork}/docs/plans/nogoal.md"
+git -C "$rwork" rm -q docs/plans/noadv.md
+commit_all "$rwork" "a plan recorded with no goal to serve"
+out="$(JOHARNESS_MODE=unsupervised ci_adv)"
+expect "a plan serving no requirement names nothing and is fine" \
+  "no plan serving a requirement added" "$out"
+
+# A FRAGMENT of the bullet, checked against the requirement. The staleness
+# failure is chosen, not discovered: an index rots SILENTLY when a bullet is
+# inserted above it and points at the wrong one while linting green; a
+# fragment rots LOUDLY, which is a session's cue to re-read what it serves.
+git -C "$rwork" checkout -q main
+git -C "$rwork" checkout -qb advok main
+# git drops a directory when its last tracked file goes, and the `git rm`
+# above took it. write_ws does this for docs/handover and nothing does it for
+# docs/plans — third time this trap has bitten in one session.
+mkdir -p "${rwork}/docs/plans"
+printf -- '---\nplan: withadv\nurgency: normal\nagent: sonnet\neffort: low\nrequirement: preexisting\nadvances: something observable\n---\n\n## Goal\nFixture.\n' \
+  >"${rwork}/docs/plans/withadv.md"
+commit_all "$rwork" "a plan naming the bullet it advances"
+out="$(JOHARNESS_MODE=unsupervised ci_adv)"
+expect "a fragment that is really in the bullet passes" \
+  "every plan added here names the bullet" "$out"
+
+git -C "$rwork" checkout -q main
+git -C "$rwork" checkout -qb advstale main
+mkdir -p "${rwork}/docs/plans"
+printf -- '---\nplan: stale\nurgency: normal\nagent: sonnet\neffort: low\nrequirement: preexisting\nadvances: a bullet that was reworded away\n---\n\n## Goal\nFixture.\n' \
+  >"${rwork}/docs/plans/stale.md"
+commit_all "$rwork" "a plan naming a bullet that is not there"
+out="$(JOHARNESS_MODE=unsupervised ci_adv)"
+expect "a fragment that is NOT in the bullet reds loudly" "no such text in" "$out"
+expect "and says the two ways that happens" "reworded, or a typo" "$out"
+
+git -C "$rwork" checkout -q main

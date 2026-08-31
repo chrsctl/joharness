@@ -619,6 +619,12 @@ cmd_ci() {
   printf '\n== finding verdicts\n'
   lint_finding_markers || rc=1
 
+  printf '\n== requirement authorship\n'
+  lint_requirement_writes || rc=1
+
+  printf '\n== plan provenance\n'
+  lint_plan_advances || rc=1
+
   printf '\n== ship scope\n'
   lint_ship
 
@@ -2133,6 +2139,159 @@ lint_review_bullets() {
 #
 # Vocabulary is `fb_marker`'s, not a new one — wontfix, no change, (fixed.
 # A second spelling of the same verdict is how two counts drift apart.
+# The goal is the human's to set. An unsupervised session that writes itself
+# a requirement writes its own finish line, and a fleet with a finish line it
+# authored has none — the circularity the goal bound closes
+# (docs/product/unsupervised-mode.md, Satisfied when).
+#
+# Nothing enforced it. `protocol_paths` covers protocol TEXT and
+# `docs/product/` is not in it, correctly: a requirement is product, not
+# protocol, and the boundary's own Constraint says the rule is the role.
+# So this is a different guard with a different reason, not a widening of
+# that list.
+#
+# In `ci` rather than in handover-guard.sh, and the asymmetry is deliberate.
+# The guard reports facts at turn end and does not prevent — its documented
+# shape, and the Constraint keeps it that way. But a report does not stop a
+# merge, and a self-written goal reaching the base branch is where the damage
+# lands. Step 7 requires green checks, so `ci` is the gate that actually
+# holds. (Protocol text itself is still only reported, which is a gap this
+# diff does not close — it is out of this plan's scope and named in its
+# record.)
+#
+# ADDED, not edited. PR 163 annotated a `Satisfied when` bullet with a
+# measured result while unsupervised, and that is the mode reporting its own
+# results — useful, and a guard that caught it would stop exactly the
+# feedback the requirement asks for. Adding a NEW goal is the circularity.
+lint_requirement_writes() {
+  local over="origin/${HANDOVER_BASE_BRANCH:-main}" base added n
+  [ "$(run_mode)" = "unsupervised" ] || {
+    printf '  supervised — a requirement is a human'"'"'s to write, and this is
+'
+    printf '  the mode where a human is there to write it
+'
+    return 0
+  }
+  base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
+  if [ -z "$base" ]; then
+    printf '  not measurable here (no merge-base with %s; unrelated history)
+' "$over"
+    return 0
+  fi
+  # The DIFF from the COMMITS, and only additions. Same walk the finding
+  # stages use, for the same reason: a branch inherits every file its base
+  # carries, and the endpoint diff loses a file added and later removed.
+  added="$(git -C "$ROOT" log --format= --name-only --diff-filter=A \
+    "${base}..HEAD" -- docs/product 2>/dev/null | sort -u |
+    { grep -E '\.md$' || :; } |
+    { grep -vE '/(TEMPLATE|README|VISION)\.md$' || :; })"
+  n="$(printf '%s' "$added" | grep -c . || :)"
+  case "$n" in ''|*[!0-9]*) n=0 ;; esac
+  if [ "$n" -eq 0 ]; then
+    printf '  no requirement added on this branch
+'
+    return 0
+  fi
+  printf '%s
+' "$added" | sed 's/^/  /'
+  printf '
+  %d requirement(s) ADDED by an unsupervised branch. The goal is
+' "$n"
+  printf '  the human'"'"'s to set: a fleet that writes its own finish line has
+'
+  printf '  none (docs/product/unsupervised-mode.md, Satisfied when).
+'
+  printf '  Editing one is fine — annotating a Satisfied when bullet with a
+'
+  printf '  measured result is the mode reporting its own results.
+'
+  return 1
+}
+
+# A plan an unsupervised session generates WHILE A GOAL IS OPEN names the
+# `Satisfied when` bullet it advances, not just the requirement. Naming the
+# requirement says which goal; naming the bullet says which part of it, which
+# is what makes "every bullet reads true" checkable by a human at all.
+#
+# One recorded with NO goal open names neither, because there is nothing to
+# name — recording is always allowed and a note for a human is not required
+# to cite a goal that does not exist (Satisfied when, amended 2026-08-31).
+# So this fires only on a plan that HAS a `requirement:`.
+#
+# THE STALENESS FAILURE, CHOSEN RATHER THAN DISCOVERED. `advances:` carries a
+# fragment of the bullet's own text, and this checks the fragment still
+# appears in that requirement's `Satisfied when`. The alternative — an index
+# — rots SILENTLY the moment a bullet is inserted above it, and points at the
+# wrong bullet while still linting green. A fragment rots LOUDLY: reword the
+# bullet and this reds, which is a session's cue to re-read what it is
+# serving. Noisier, and the noise is the point.
+lint_plan_advances() {
+  local over="origin/${HANDOVER_BASE_BRANCH:-main}" base f doc req adv sat bad=0 seen=0
+  [ "$(run_mode)" = "unsupervised" ] || {
+    printf '  supervised — a human writing a plan by hand is not the risk
+'
+    return 0
+  }
+  base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
+  if [ -z "$base" ]; then
+    printf '  not measurable here (no merge-base with %s; unrelated history)
+' "$over"
+    return 0
+  fi
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    doc="$(git -C "$ROOT" show "HEAD:${f}" 2>/dev/null)" || continue
+    req="$(printf '%s
+' "$doc" | gr_field requirement)"
+    case "$req" in ''|none) continue ;; esac
+    seen=$((seen + 1))
+    adv="$(printf '%s
+' "$doc" | gr_field advances)"
+    if [ -z "$adv" ]; then
+      bad=$((bad + 1))
+      printf '  %s
+    serves %s and names no bullet
+' "$f" "$req"
+      continue
+    fi
+    sat="$(git -C "$ROOT" show "HEAD:docs/product/${req}.md" 2>/dev/null |
+      awk '/^## Satisfied when/ { r = 1; next } /^## / { r = 0 } r')"
+    if ! printf '%s
+' "$sat" | grep -qF -- "$adv"; then
+      bad=$((bad + 1))
+      printf '  %s
+    advances: %s
+' "$f" "$adv"
+      printf '    no such text in %s Satisfied when — reworded, or a typo
+' "$req"
+    fi
+  done <<<"$(git -C "$ROOT" log --format= --name-only --diff-filter=A \
+    "${base}..HEAD" -- docs/plans 2>/dev/null | sort -u |
+    { grep -E '\.md$' || :; } |
+    { grep -vE '/(TEMPLATE|README)\.md$' || :; })"
+
+  if [ "$seen" -eq 0 ]; then
+    printf '  no plan serving a requirement added on this branch
+'
+    return 0
+  fi
+  if [ "$bad" -eq 0 ]; then
+    printf '  every plan added here names the bullet it advances
+'
+    return 0
+  fi
+  printf '
+  %d plan(s) cannot say which bullet they advance. Add
+' "$bad"
+  printf '  an advances: field carrying a fragment of the bullet text (a
+'
+  printf '  not an index: an index rots silently when a bullet is inserted
+'
+  printf '  above it, and points at the wrong one while linting green).
+'
+  return 1
+}
+
 lint_finding_markers() {
   local over="origin/${HANDOVER_BASE_BRANCH:-main}" base ws content text
   local unmarked=0 seen=0 here strength short
