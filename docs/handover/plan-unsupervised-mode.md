@@ -1,6 +1,6 @@
 ---
 workstream: plan-unsupervised-mode
-status: review
+status: done
 branch: claude/plan-unsupervised-mode
 pr: none
 plan: none
