@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01MLSUtdZ6AhAVXLK5zin1j5
 agent: opus
 updated: 2026-08-31
-next: Poll A2/B2. Do not answer them. Correct the requirement's attempt-one annotation, which over-claimed.
+next: Poll A2 only — B2 stopped at 12m without pushing. Re-arm; record which stop A2 reaches.
 ---
 
 ## Goal
@@ -116,6 +116,47 @@ requirement bullet:
   argument for attaching the source.
 
 That annotation needs correcting, and this run is what corrects it.
+
+## Check-in 1 — T0+38m (21:01Z)
+
+| | A2 | B2 |
+| --- | --- | --- |
+| status | **RUNNING** | **IDLE** since 20:36:56Z |
+| elapsed working | 37 min | ~12 min |
+| branch pushed | `claude/marker-gate-needs-no-done` 20:32Z | **none** |
+| pull requests | 0 | 0 |
+| cost so far | — | $1.72 |
+| last summary | `selftest passing; running shellcheck + joharness ci` | `traced 4 sweep findings; 1 plan exists; 3 are same root cause` |
+
+`main` unchanged at `8412fad`. Sweep still NOT dry — 4 unmarked, 0 checks,
+0 markers. Requirement still open.
+
+**A2 is the first session in either attempt to get past the first minute.**
+It claimed by pushing at T0+9m, exactly as step 3 requires, and is at the
+verify step 28 minutes later. Whatever attempt one was blocked on, this is
+not it.
+
+### B2 stopped, and it is a third kind of stop
+
+`status_category: review_ready`, `needs_action: ""` — not blocked, not
+asking. It finished a turn and went idle, and 24 minutes later it is still
+idle. In a fleet an idle session is a stopped session: nothing wakes it.
+
+It is **neither legitimate stop**. The sweep is not dry and the queue is not
+empty. It is a session that did the analysis and then stopped:
+
+> traced 4 sweep findings; 1 plan exists; 3 are same root cause
+
+That analysis may well be correct and useful — three of four findings
+sharing a root cause is exactly the shape the sweep should surface. **It is
+also unrecoverable.** B2 pushed nothing. No branch, no workstream file, no
+plan. $1.72 of reasoning exists only in a context nobody will read again,
+which is precisely what step 3's "no push, no claim" exists to prevent,
+and which the Loop states as a rule the session did not follow.
+
+Recorded, not fixed: waking it would be a human turn and would end the
+measurement. This is what the fleet does unattended, which is the thing
+being measured.
 
 ## Decisions
 
