@@ -306,3 +306,21 @@ out="$(st --open-prs notanumber)"
 expect "a non-numeric count is an error" "usage:" "$out"
 out="$(st --bogus)"
 expect "an unknown flag is an error" "usage:" "$out"
+
+
+# --- the cycle that burned a runner for 42 minutes -------------------------
+# ci -> perf measures the `drain` row -> drain, unsupervised with an empty
+# free queue, defers to the sweep -> sources runs `ci` -> perf measures
+# `drain` ... Every link correct on its own; the cycle closes only when the
+# mode is unsupervised AND the free queue is empty, which is why it sat
+# latent on a supervised main and fired the moment the mode was committed
+# for an endurance run (GitHub run 33414519009, killed after 42 minutes with
+# hundreds of orphan bash processes).
+out="$(JOHARNESS_IN_SWEEP=1 sw)"
+expect "a sweep started from inside a sweep refuses" "refusing to recurse" "$out"
+expect "and says which call started it" "it runs ci, and ci" "$out"
+# It must count NOTHING. A guard that still ran the detectors would have
+# stopped the recursion and kept the cost, which is most of what was wrong.
+refute "and counts nothing" "failing or skipped checks" "$out"
+refute "and reaches no verdict" "sweep dry" "$out"
+refute "and reaches no other verdict either" "sweep NOT dry" "$out"

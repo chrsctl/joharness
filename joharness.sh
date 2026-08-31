@@ -951,8 +951,13 @@ perf_count() {
   # so `perf` run with it aimed at another checkout printed `0 <budget> ok`
   # for all six rows (counted 2026-08-29). Zero itself stays legitimate — a
   # small enough repo really does spawn nothing, and a case pins that.
+  # JOHARNESS_IN_SWEEP so the `drain` row measures DRAIN. Unsupervised with
+  # an empty queue, drain defers to `sources`, which runs a whole nested `ci`
+  # — a number that describes the suite rather than the entrypoint, and the
+  # cycle above besides.
   PATH="${dir}:${PATH}" \
     JOHARNESS_PERF_COUNTER="$counter" \
+    JOHARNESS_IN_SWEEP=1 \
     JOHARNESS_FEEDBACK_EDGES="$PERF_EDGES" \
     "$@" </dev/null >/dev/null 2>&1
   status=$?
@@ -3624,7 +3629,10 @@ src_run_checks() {
   local tmp
   tmp="$(mktemp 2>/dev/null)" || return 1
   # Status is data here, not an error: a red check IS the finding.
-  JOHARNESS_SELFTEST=always "${ROOT}/joharness.sh" ci >"$tmp" 2>&1
+  #
+  # JOHARNESS_IN_SWEEP marks the nested run so it cannot come back here. See
+  # cmd_sources for the cycle this closes.
+  JOHARNESS_IN_SWEEP=1 JOHARNESS_SELFTEST=always "${ROOT}/joharness.sh" ci >"$tmp" 2>&1
   src_checks_rc=$?
   src_checks_out="$(cat "$tmp")"
   rm -f "$tmp"
@@ -3695,6 +3703,33 @@ cmd_sources() {
       *) die "usage: $0 sources [--prev-dry] [--open-prs <n>]" ;;
     esac
   done
+
+  # RECURSION GUARD, and it is not theoretical: this exact cycle burned a
+  # GitHub runner for 42 minutes and was killed with hundreds of orphan bash
+  # processes (run 33414519009, 2026-08-31).
+  #
+  #   ci -> perf measures the `drain` row
+  #      -> drain, unsupervised with an empty free queue, defers to the sweep
+  #      -> sources runs `ci`
+  #      -> perf measures `drain` ...
+  #
+  # Every link was correct on its own. The cycle only closes when the mode is
+  # unsupervised AND the free queue is empty, which is why it sat latent on a
+  # supervised main and fired the moment the mode was committed for an
+  # endurance run.
+  #
+  # Guarded HERE rather than in drain, because this is the link that costs:
+  # any future caller reaching `sources` from inside a run of `ci` closes the
+  # same cycle by a different path, and a guard at the cheap end catches all
+  # of them.
+  if [ "${JOHARNESS_IN_SWEEP:-0}" = "1" ]; then
+    printf '== sources (read-only: counts, never acts)\n\n'
+    printf 'already inside a sweep — refusing to recurse.\n'
+    printf '  This run was started by sources itself: it runs ci, and ci\n'
+    printf '  measures drain, which defers here. One sweep per invocation;\n'
+    printf '  the outer one has the answer.\n'
+    return 0
+  fi
 
   printf '== sources (read-only: counts, never acts)\n\n'
 
