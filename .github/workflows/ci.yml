@@ -27,18 +27,18 @@ jobs:
   # runner image ships
   # shellcheck, so this is seconds.
   #
-  # THIS job's checks live in `joharness.sh ci`, not in this file, so a session
-  # can run them before opening the pull request instead of finding out
-  # afterwards. The verify job below is the part `ci` does not cover — run that
+  # THIS job's FIRST step lives in `joharness.sh ci`, not in this file, so a
+  # session can run it before opening the pull request instead of finding out
+  # afterwards. The second step is the part `ci` does not cover — run that
   # layer's `verify` too before reading a green `ci` as a green PR.
   #
-  # Environment smoke tests are NOT here — see the verify job below for the
+  # Environment smoke tests are NOT here — see the verify step below for the
   # ones that are. A layer needing the sandbox this repo provisions
   # (Docker-in-Docker, the egress proxy, the cgroup v1 kernel) exercises
   # constraints a GitHub runner has none of, so a green run here would claim
   # more than it checked; `./joharness.sh verify` in the sandbox is where
   # those get proven. A layer that needs none of it says so itself, and the
-  # verify job runs it.
+  # verify step runs it.
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -52,33 +52,52 @@ jobs:
           fetch-depth: 0
       - name: joharness ci
         run: ./joharness.sh ci
-
-  # Continuous coverage for the environment layers that can prove themselves
-  # on a stock runner. A layer opts in by carrying a `ci-verify` file
-  # (.agents/env/README.md); this job globs for it and names no layer, which
-  # is what lets the file be seeded verbatim into every consumer: a repo
-  # whose layer does not declare it gets a job that says so and passes,
-  # never one flailing at a layer it does not have. The images a layer needs
-  # are declared in its own marker, so this file carries no layer's data
-  # either.
-  #
-  # What a green here means, exactly: for each declaring layer, either its
-  # setup and smoke test passed on a runner, or the log says that layer was
-  # SKIPPED. Nothing here is a substitute for `./joharness.sh verify` on the
-  # layer a repo selects, and a session must read this run rather than infer
-  # from the marker that a machine did the work (.agents/harness/AGENTS.md
-  # step 7) — a skipped layer is a green tick over an unproven layer.
-  #
-  # The logic lives in .agents/scripts/ci-verify-layers.sh, not in a block
-  # of YAML here: shell inline in a workflow is shell nothing shellchecks and
-  # nothing tests, and this gate grew a silent hole there before the move.
-  # That script's header states what a green means, how an unreachable
-  # registry is absorbed, and which cases stay red.
-  verify-declared-layers:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+      # Continuous coverage for the environment layers that can prove themselves
+      # on a stock runner. A layer opts in by carrying a `ci-verify` file
+      # (.agents/env/README.md); this step globs for it and names no layer, which
+      # is what lets the file be seeded verbatim into every consumer: a repo
+      # whose layer does not declare it gets a step that says so and passes,
+      # never one flailing at a layer it does not have. The images a layer needs
+      # are declared in its own marker, so this file carries no layer's data
+      # either.
+      #
+      # What a green here means, exactly: for each declaring layer, either its
+      # setup and smoke test passed on a runner, or the log says that layer was
+      # SKIPPED. Nothing here is a substitute for `./joharness.sh verify` on the
+      # layer a repo selects, and a session must read this run rather than infer
+      # from the marker that a machine did the work (.agents/harness/AGENTS.md
+      # step 7) — a skipped layer is a green tick over an unproven layer.
+      #
+      # The logic lives in .agents/scripts/ci-verify-layers.sh, not in a block
+      # of YAML here: shell inline in a workflow is shell nothing shellchecks and
+      # nothing tests, and this gate grew a silent hole there before the move.
+      # That script's header states what a green means, how an unreachable
+      # registry is absorbed, and which cases stay red.
+      #
+      # A STEP of `lint` rather than a job of its own, since 2026-08-31. It
+      # is eight seconds of work (measured, run 33422323923) and Actions
+      # bills per job rounded up to the minute, so as a job it charged a
+      # third of a healthy run's bill for a fortieth of its work — a
+      # round-up, with nothing in it to make faster. Nothing here needed a
+      # runner of its own: the header above argues why this check exists and
+      # why its logic is a script rather than inline YAML, neither of which
+      # is an argument for a second machine. Free in this public repo and
+      # not in the private consumers bootstrap-consumer.sh seeds this file
+      # into, which is who pays it.
+      #
+      # `!cancelled()`, so a red first step still produces the layer
+      # verdict. As a separate job it could not be hidden that way, and a
+      # fold that quietly made one red mask the other would be buying the
+      # minute with coverage. It does NOT mask the red: the condition
+      # decides whether this step RUNS, never what the job concludes, so a
+      # failed `joharness ci` still fails the job.
+      #
+      # Not `always()`, which is the same thing plus cancellation — and a
+      # cancelled run is one nobody will read a verdict from. Three of this
+      # repo's 28 runs on 2026-08-31 were cancelled, so that case is not
+      # hypothetical here.
       - name: verify each layer that declares itself CI-runnable
+        if: ${{ !cancelled() }}
         run: .agents/scripts/ci-verify-layers.sh
 
   # Windows is where the harness breaks silently. Two defects in two days were
@@ -94,11 +113,11 @@ jobs:
   # here - the toolchain answer does not change per platform, and installing
   # it on a Windows runner is a path to maintain for nothing.
   windows:
-    # Disabled 2026-08-27 at owner request ("for now") — delete the `if`
-    # line to re-enable. Skipped, not removed: the job definition and its
-    # reasoning above stay current. While off, the Windows-blind-spot
-    # class (CRLF, path-form defects — four found to date) has no gate:
-    # the selftest's CRLF assertions still run, but only on Linux.
+      # Disabled 2026-08-27 at owner request ("for now") — delete the `if`
+      # line to re-enable. Skipped, not removed: the job definition and its
+      # reasoning above stay current. While off, the Windows-blind-spot
+      # class (CRLF, path-form defects — four found to date) has no gate:
+      # the selftest's CRLF assertions still run, but only on Linux.
     if: false
     runs-on: windows-latest
     defaults:
