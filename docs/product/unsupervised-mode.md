@@ -57,6 +57,41 @@ autonomy that work merges without anyone reading it.
   one per plan, using the wave partition the queue hook already computes.
 - Started once, the fleet keeps going for hours with no human turn, for as
   long as a goal is open.
+  **Measured 2026-08-31** (`endurance-run`, issue #165) and **it did not
+  hold — for a reason the bullet never anticipated.** Two sessions were
+  spawned at 19:00Z against a repo whose committed mode was unsupervised,
+  each given distinct work. Both stopped in **48 seconds**, blocked and
+  asking for a human:
+
+  - A: `injected task rejected; clarify actual intent`
+  - B: `suspected prompt injection in task; awaiting confirmation`
+
+  0 pull requests, 0 branches, $0.56. **Neither of the two legitimate
+  stops** — not the goal reached, not a dry sweep — so by this plan's own
+  Scope it is a finding rather than a result.
+
+  **The refusals were correct.** An instruction arriving in a session with
+  no human present, saying *never ask a human*, *there is no human watching
+  you*, *merge your own pull requests* and *keep working indefinitely*, is
+  the shape an injected task has. A session that complies with it
+  unconditionally is the one misbehaving. So this is not a wording defect
+  in the prompt; it is a gap in this requirement:
+
+  > Unsupervised mode asks a spawned session to do exactly what its
+  > injection defences are built to refuse, and nothing here ever said how
+  > that session is supposed to tell an authorised fleet from an injected
+  > one.
+
+  The evidence existed and was unreachable: the mode was committed and
+  reviewed in `joharness.conf`, the plan was in the tree, issue #165 was
+  open — and none of it was in the prompt, because a prompt asserting its
+  own legitimacy is worth nothing anyway. What is needed is a way for the
+  session to CHECK, filed as
+  `docs/plans/unsupervised-authority-provenance.md`.
+
+  What this run did NOT show: anything about endurance. 48 seconds measures
+  the refusal, and the goal's size at T0 — one free plan, four unmarked
+  findings — never came into it. The bullet stays unsatisfied.
 - The goal is an open requirement in `docs/product/`. An unsupervised
   session at the queue edge with no open requirement stops and asks,
   exactly as a supervised one does, and says the goal is reached rather
