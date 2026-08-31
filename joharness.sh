@@ -30,6 +30,10 @@
 #   perf            count external commands per harness entrypoint against a
 #                   budget. Counts gate; seconds print and never gate. Runs
 #                   inside `ci` too, skipped on a docs-only branch
+#   mutate <file> <line> <text>
+#                   Loop step 5's rule as a command: change one LINE, run the
+#                   suite, name the cases that redded, put the line back.
+#                   Nothing redded = nothing pins that line
 #   perf <name>     measure one entrypoint only (feedback, review, graph,
 #                   session-start, queue-context)
 #   sources         sweep the sources unsupervised work may be drawn from:
@@ -4343,6 +4347,108 @@ cmd_session_start() {
 }
 
 # The comment header above is the help text; print it rather than repeating it.
+# ---------------------------------------------------------------------------
+# mutate: Loop step 5's rule, as a command.
+#
+#   Test written for a fix must FAIL without it: revert the fix, run the
+#   test, put it back. Green both ways = test pins nothing.
+#
+# Nothing enforced it and nothing made it cheap, and three assertions in
+# three days passed for the wrong reason (docs/plans/mutation-check-the-fix.md
+# names them). Worse, doing it by hand is easy to aim WRONG: `churn_top` and
+# `selftest_inert_diff` carry a byte-identical guard line, and a
+# replace-first-occurrence patch hit the wrong one — two correct cases stayed
+# green and were nearly reported as vacuous.
+#
+# So the target is a LINE, never a pattern. There is no way to ask this for
+# "the first occurrence of".
+#
+# Two runs, and the first is not optional: "green both ways" is a claim about
+# both, and a mutated run alone cannot tell a case this mutation redded from
+# one that was already red. The baseline must be green, or the question is
+# not answerable yet and the tool says so instead of guessing.
+MUTATE_SUITE_DEFAULT=".agents/harness/selftest.sh"
+
+# Restores the file whatever happens — a normal return, a failing suite, or
+# ^C midway. A mutation left in the tree is worse than no tool: the next
+# command reads a repo nobody edited on purpose.
+MUTATE_FILE=""
+MUTATE_SAVED=""
+mutate_restore() {
+  [ -n "$MUTATE_FILE" ] || return 0
+  printf '%s\n' "$MUTATE_SAVED" >"$MUTATE_FILE"
+  MUTATE_FILE=""
+}
+
+# Case labels the suite reported as failing, one per line.
+mutate_fails() { printf '%s\n' "$1" | sed -n 's/^  FAIL //p'; }
+
+cmd_mutate() {
+  local file="${1:-}" line="${2:-}" new="${3:-}" suite abs total out base_out
+  local base_fail mut_fail old n
+  [ "$#" -eq 3 ] || die "usage: $0 mutate <file> <line> <replacement>"
+  case "$line" in ''|*[!0-9]*) die "line must be a number, got '${line}'" ;; esac
+  [ "$line" -ge 1 ] || die "line must be 1 or greater"
+
+  abs="$file"
+  case "$abs" in /*) ;; *) abs="${ROOT}/${file}" ;; esac
+  [ -f "$abs" ] || die "no such file: ${file}"
+
+  suite="${JOHARNESS_MUTATE_SUITE:-${ROOT}/${MUTATE_SUITE_DEFAULT}}"
+  [ -f "$suite" ] || die "no suite to run: ${suite}"
+
+  MUTATE_SAVED="$(cat "$abs")"
+  total="$(printf '%s\n' "$MUTATE_SAVED" | wc -l)"
+  [ "$line" -le "$total" ] ||
+    die "${file} has ${total} line(s); asked for ${line}"
+
+  old="$(printf '%s\n' "$MUTATE_SAVED" | sed -n "${line}p")"
+  # A mutation that changes nothing runs a green suite and reads as "no case
+  # pins this line" — the wrong conclusion, reached faster and with a number
+  # behind it. An error, not a result.
+  [ "$old" != "$new" ] ||
+    die "line ${line} of ${file} is already that text — the mutation would change nothing"
+
+  printf '== mutate %s:%s\n' "$file" "$line"
+  printf '  before: %s\n' "$old"
+  printf '  after:  %s\n' "$new"
+  printf '  suite:  %s\n' "${suite#"${ROOT}/"}"
+
+  base_out="$(bash "$suite" 2>&1)" || true
+  base_fail="$(mutate_fails "$base_out")"
+  if [ -n "$base_fail" ]; then
+    printf '\n  BASELINE IS NOT GREEN — nothing can be attributed to a mutation\n'
+    printf '%s\n' "$base_fail" | sed 's/^/    already failing: /'
+    return 1
+  fi
+  printf '  baseline: green\n'
+
+  MUTATE_FILE="$abs"
+  trap mutate_restore EXIT INT TERM
+  printf '%s\n' "$MUTATE_SAVED" |
+    awk -v n="$line" -v r="$new" 'NR == n { print r; next } { print }' >"$abs"
+  out="$(bash "$suite" 2>&1)" || true
+  mutate_restore
+  trap - EXIT INT TERM
+
+  mut_fail="$(mutate_fails "$out")"
+  # Labels, not a count. The near miss that produced this tool was a wrong
+  # reading of "one case failed": the list would have shown a churn case
+  # where two hook cases were expected, and named the wrong target at once.
+  n="$(printf '%s' "$mut_fail" | grep -c . || true)"
+  case "$n" in ''|*[!0-9]*) n=0 ;; esac
+
+  printf '\n'
+  if [ "$n" -eq 0 ]; then
+    printf '  NOTHING REDDED — the suite is green with this line changed.\n'
+    printf '  Every case passes both ways, so none of them pins it.\n'
+    return 1
+  fi
+  printf '  %d case(s) redded by this mutation:\n' "$n"
+  printf '%s\n' "$mut_fail" | sed '/^$/d;s/^/    /'
+  return 0
+}
+
 usage() { awk 'NR > 1 && /^#/ { sub(/^#[[:space:]]?/, ""); print; next } NR > 1 { exit }' "$0"; }
 
 main() {
@@ -4363,6 +4469,7 @@ main() {
     graph)          cmd_graph ;;
     scorecard)      cmd_scorecard ;;
     perf)           cmd_perf "${1:-}" ;;
+    mutate)         cmd_mutate "$@" ;;
     # Warning on stderr, value on stdout: the guard captures stdout and must
     # keep getting one clean word, while a human running this against a
     # typo'd conf needs to hear about it. Same lesson the review knob
