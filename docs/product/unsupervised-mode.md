@@ -40,6 +40,12 @@ today.
 - The mode has a reachable end: the source sweep goes dry. Every detector
   zero on two consecutive sweeps, queue empty, no open pull request. There
   an unsupervised session stops and says so — the one place the mode asks.
+  **Reachable is now literal**: `./joharness.sh sources` states all four
+  parts with a verdict (PR 160), and the detector that could never be zero is
+  bounded by a baseline (PR 161). The two parts this harness cannot count —
+  no `gh` on the runner, and a previous run is not a thing git holds — are
+  `--open-prs <n>` and `--prev-dry`, and their ABSENCE reads `CANNOT TELL`,
+  never `STOP`.
   Empty QUEUE still triggers work; empty SWEEP stops it. Ratified
   2026-08-25 by the requester, amending this file's earlier reading that
   the mode had no stopping point at all.
@@ -83,8 +89,25 @@ today.
   calls, and a literal reader always finds one more.
 - A finding that unsupervised-generated work itself introduced is not a
   source finding. Without this the mode manufactures its own backlog and
-  the sweep never dries. Dedupe against the plans that already cited the
-  finding, open or in history.
+  the sweep never dries.
+
+  **The mechanism is a BASELINE, not the dedupe this bullet first
+  prescribed.** Ratified 2026-08-31 by the requester, who delegated the
+  decision after the research below. Dedupe against citing plans cannot work:
+  a finding lives in a `## Review` section of a workstream file that step 7
+  deletes, so it survives only inside a merged commit that nothing can edit,
+  and **62 of the 155 unmarked findings carry no `rN:` id** — no citation
+  could ever name them. The count was therefore monotonically non-decreasing
+  and could never be zero, so the sweep could never be dry and the fleet
+  could never stop. That is this file's own "an uncountable source never
+  reaches zero" reached from the countable side. Working:
+  `docs/research/unmarked-detector-unreachable.md`, answered in PR 161.
+
+  The source is now measured from `joharness.sh:FB_SINCE`, a literal commit
+  in a reviewed diff rather than state a session can write. Findings merged
+  at or before it are history, not the mode's backlog — which is this
+  bullet's own scope. A repo that has no such commit, a synced consumer among
+  them, counts ALL of its history and says so: never blind, and never zero.
 - Deliberately NOT constrained, decided 2026-08-24 by the requester after
   being offered each one: no cap on work per run, no halt when main is
   red, no ban on sessions spawning sessions. A decomposing session must

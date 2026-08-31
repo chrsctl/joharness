@@ -129,6 +129,42 @@ out="$(sw)"
 expect "an unacted finding is counted" "1 unmarked" "$out"
 expect "and flips the sweep" "sweep NOT dry" "$out"
 expect "and the verdict names findings" "findings(1 unmarked)" "$out"
+expect "and says it counted all history, having no baseline" \
+  "ALL history — no baseline in this repo" "$out"
+
+# --- the baseline the source is measured from ------------------------------
+# A finding lives in a `## Review` section of a workstream file that step 7
+# deletes, so it survives only inside a merged commit and nothing can edit
+# it. Counted across all history the number is monotonically non-decreasing
+# and can never be zero — and `cmd_sources` sets dry=0 on any non-zero count,
+# so the sweep could never be dry and an unsupervised fleet could never stop.
+# Working: docs/research/unmarked-detector-unreachable.md.
+#
+# SAME repo, two baselines, different counts. One fixture with one baseline
+# could not tell a bound that works from a count that happens to be right.
+sw_since() { JOHARNESS_FEEDBACK_SINCE="$1" sw; }
+sw_root="$(git -C "$swwork" rev-list --max-parents=0 HEAD | head -1)"
+sw_tip="$(git -C "$swwork" rev-parse HEAD)"
+
+out="$(sw_since "$sw_root")"
+expect "measured from the root, the finding is still counted" "1 unmarked" "$out"
+expect "and the line names the baseline it counted from" \
+  "counted since" "$out"
+refute "and does not claim it had none" "ALL history" "$out"
+
+out="$(sw_since "$sw_tip")"
+expect "measured from the tip, that same finding is history" "0 unmarked" "$out"
+expect "and the sweep can go dry" "sweep dry" "$out"
+
+# An UNRESOLVABLE baseline counts everything. Not blind, and never zero: this
+# file ships, so a consumer that synced it holds none of canonical's shas,
+# and blinding it would leave its sweep permanently INCOMPLETE — the same
+# unreachability from the other side. Zero would be worse still, a dry sweep
+# over a backlog nobody bounded.
+out="$(sw_since 0000000000000000000000000000000000000000)"
+expect "an unresolvable baseline counts every finding" "1 unmarked" "$out"
+expect "and says the count is unbounded" "ALL history" "$out"
+refute "and never reads as dry" "sweep dry" "$out"
 
 # The property the whole command exists for: a source that could not be read
 # is NOT dry. A suite that prints no count line leaves the checks detector
