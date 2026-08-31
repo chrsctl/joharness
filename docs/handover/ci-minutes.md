@@ -1,6 +1,6 @@
 ---
 workstream: ci-minutes
-status: in-progress
+status: review
 branch: claude/ci-minutes
 pr: none
 plan: ci-billed-minutes
@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01MLSUtdZ6AhAVXLK5zin1j5
 agent: sonnet
 updated: 2026-08-31
-next: Fold verify-declared-layers into lint, run ci, open the pull request
+next: Open the pull request; read its checks to confirm the folded step reports
 ---
 
 ## Goal
@@ -43,6 +43,32 @@ rather than by assuming it, then take the part of the bill that is real.
   saving for real machinery.
 
 ## Review
+
+- r1: `if: always()` also fires on a CANCELLED run, spending the step's
+  seconds on a verdict nobody will read. Three of this repo's 28 runs on
+  2026-08-31 were cancelled, so the case is live rather than theoretical.
+  (fixed — `${{ !cancelled() }}`, which is success-or-failure and not
+  cancellation.)
+- r2: folding removes the check NAME `verify-declared-layers`. A branch
+  protection requiring it by name would block every future pull request
+  forever, and the symptom is a check stuck at "Expected", not a red.
+  Checked rather than assumed: `list_branches` reports `main` as
+  `"protected": false`, so no rule names it. (fixed — nothing to fix; the
+  risk was real and the fact refutes it.)
+- r3: the two checks now run in SERIES on one runner, so a healthy run's
+  wall clock goes ~99s to ~107s where it used to overlap. (wontfix — that
+  is the trade, stated: 8s of latency for a third of the bill, and the
+  bill is the thing that was asked about.)
+- r4: verifier not spawned. Twenty-eighth consecutive edge. The session
+  instruction in force forbids calling the Agent tool unasked, and Loop
+  step 5 requires one reader that did not write the diff; they contradict,
+  and only the human can lift either. (wontfix — issue #168, still open.)
+- r5: `ci.yml` is seeded by `bootstrap-consumer.sh` and never synced
+  afterwards, so this saving reaches only consumers created from here on.
+  Every existing private consumer keeps its three-job bill. (wontfix —
+  making it synced would clobber the consumer edits the seed-not-sync rule
+  exists to protect. The recursion guard, which is the larger number, is in
+  `joharness.sh` and IS synced, so the expensive half does reach them.)
 
 ## Blockers
 
