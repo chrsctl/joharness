@@ -585,6 +585,7 @@ SELFTEST_TOPICS=(
   bootstrap-consumer
   ci-verify-layers
   perf
+  mutate
 )
 
 selftest_topics_dir="${ROOT}/.agents/harness/selftest"
