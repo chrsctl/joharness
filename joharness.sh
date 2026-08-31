@@ -2631,6 +2631,58 @@ FB_WONTFIX=0
 FB_NOCHANGE=0
 FB_UNMARKED=0
 FB_NOID=0
+# Unmarked findings on edges merged AFTER FB_SINCE — the number the source
+# sweep reads. See FB_SINCE for why the all-history count cannot be it.
+# FB_SINCE_OK is 0 when the baseline is not in this history, which is BLIND
+# and never zero.
+FB_UNMARKED_SINCE=0
+FB_SINCE_OK=0
+
+# The commit the unmarked-findings SOURCE is measured from. A literal, and
+# beside the code that reads it, for the same reason the perf budgets are
+# literals: this is a threshold — a decision — not a measurement.
+#
+# Why a baseline exists at all. `src_unmarked` counts findings across all of
+# merged history, and a finding lives in a `## Review` section of a workstream
+# file that step 7 deletes — so the text survives only inside merged commits,
+# which nothing can edit. The count is monotonically non-decreasing, and 62 of
+# the 155 unmarked findings carry no `rN:` id, so no citation could ever name
+# them either. That made the count unreachable, and `cmd_sources` sets `dry=0`
+# on any non-zero unmarked count — so the sweep could never be dry and an
+# unsupervised fleet could never stop. The requirement's own words for that
+# failure: "An uncountable source never reaches zero, so a mode that draws on
+# one can never terminate." Full working:
+# docs/research/unmarked-detector-unreachable.md, answered in PR 161.
+#
+# What the baseline means: findings merged at or before it are HISTORY, not
+# the mode's backlog. That is the constraint's own scope — "a finding that
+# unsupervised-generated work itself introduced" — and history from before
+# this decision was never the mode's to clear.
+#
+# Moving it forward silently would erase real backlog, which is why it is a
+# literal in a reviewed diff rather than a file a session can write. Move it
+# only with the reasoning in the same commit.
+#
+# PER REPO, because this file SHIPS. A sha from canonical's history means
+# nothing in a consumer that synced this file, and the first version of this
+# fell into exactly the trap it was written to fix: an unresolvable baseline
+# produced an EMPTY set of recent edges, so nothing counted as recent, the
+# count read 0, and the sweep went dry over real backlog. Caught by three
+# fixture cases whose repos have no such commit — the same "absent is not
+# empty" the queue part learned one merge earlier, and the dangerous
+# direction of it. Unresolvable is BLIND now, never zero.
+FB_SINCE="${JOHARNESS_FEEDBACK_SINCE:-bcebb325e92f3e5da8c2df3da8323965857798e1}"
+
+# Exit status, not a global. `src_unmarked` runs inside `$( )` and a
+# command substitution is a SUBSHELL — a global it sets is gone before the
+# caller reads it. That is the third time this shape has cost something here
+# (PR 149's ls-files cache was the first, .agents/docs/feedback.md records the
+# class), and it cost the honest half of this message: the count was right
+# and the line under it said "no baseline in this repo" about a baseline
+# that resolves.
+fb_since_ok() {
+  git -C "$ROOT" rev-parse --verify --quiet "${FB_SINCE}^{commit}" >/dev/null 2>&1
+}
 
 fb_collect() {
   FB_REF="$(base_ref)" || return 1
@@ -2640,7 +2692,23 @@ fb_collect() {
   FB_PAIRS=""; FB_HIST=""
   FB_EDGES=0; FB_WITHWS=0; FB_RECORDED=0; FB_FINDINGS=0
   FB_FIXED=0; FB_WONTFIX=0; FB_NOCHANGE=0; FB_UNMARKED=0; FB_NOID=0
-  FB_TOTAL=0; FB_CAPPED=0
+  FB_TOTAL=0; FB_CAPPED=0; FB_UNMARKED_SINCE=0
+
+  # ONE fork for the whole walk, not an ancestry test per edge: 150 edges
+  # would be 150 `git merge-base --is-ancestor` calls inside the loop, which
+  # is the fork-in-a-loop shape .agents/docs/feedback.md graduated a rule
+  # against and the perf budget names.
+  #
+  # FB_SINCE_OK says whether the baseline is in this history at all. Without
+  # it an unresolvable sha and a repo with no recent edges are the same empty
+  # string, and the count reads 0 either way — dry over real backlog.
+  local since_set=""
+  FB_SINCE_OK=0
+  if fb_since_ok; then
+    FB_SINCE_OK=1
+    since_set="$(git -C "$ROOT" log --first-parent --merges --format='%H' \
+      "${FB_SINCE}..${FB_REF}" 2>/dev/null)"
+  fi
 
   all="$(fb_edges "$FB_REF")"
   FB_TOTAL="$(printf '%s' "$all" | grep -c . || :)"
@@ -2667,7 +2735,21 @@ fb_collect() {
         fixed) FB_FIXED=$((FB_FIXED + 1)) ;;
         wontfix) FB_WONTFIX=$((FB_WONTFIX + 1)) ;;
         no-change) FB_NOCHANGE=$((FB_NOCHANGE + 1)) ;;
-        *) FB_UNMARKED=$((FB_UNMARKED + 1)) ;;
+        *) FB_UNMARKED=$((FB_UNMARKED + 1))
+           # No baseline in this history: count EVERYTHING. Not blind — a
+           # consumer that synced this file has none of canonical's shas, and
+           # blinding it would leave its sweep permanently INCOMPLETE, the
+           # same unreachability from the other side. Counting all of its
+           # history is the truthful answer until it sets its own baseline,
+           # and it errs toward reporting MORE work rather than going dry
+           # over a backlog nobody bounded.
+           if [ "$FB_SINCE_OK" -eq 0 ]; then
+             FB_UNMARKED_SINCE=$((FB_UNMARKED_SINCE + 1))
+           else
+             case "$since_set" in
+               *"$m"*) FB_UNMARKED_SINCE=$((FB_UNMARKED_SINCE + 1)) ;;
+             esac
+           fi ;;
       esac
       # Keyed by the finding's own id so the commit-level map below can say
       # which file this one landed on. A bullet written without the
@@ -2914,7 +2996,8 @@ fb_cache_key() {
 }
 
 FB_CACHE_VARS="FB_EDGES FB_WITHWS FB_RECORDED FB_FINDINGS FB_FIXED FB_WONTFIX \
-FB_NOCHANGE FB_UNMARKED FB_NOID FB_TOTAL FB_CAPPED"
+FB_NOCHANGE FB_UNMARKED FB_NOID FB_TOTAL FB_CAPPED FB_UNMARKED_SINCE \
+FB_SINCE_OK"
 
 fb_cache_load() {
   local dir="${JOHARNESS_FEEDBACK_CACHE:-}" key f k v ok
@@ -2937,6 +3020,12 @@ fb_cache_load() {
   # comment asserting a property the code lacks is what stops the next reader
   # checking. Assignment is now by an explicit case over the names this
   # function is allowed to set, so an unknown name cannot become one.
+  #
+  # This list and FB_CACHE_VARS move TOGETHER. A name added to the saver and
+  # not here makes every cache load fail — silently, because a failed load is
+  # a full re-walk and the report is still correct, only slower. Caught by
+  # the case below that empties a cached blob and expects the report to
+  # change: with the cache never loading, it did not.
   while IFS='=' read -r k v; do
     case "$v" in '' | *[!0-9]*) return 1 ;; esac
     ok=1
@@ -2952,6 +3041,8 @@ fb_cache_load() {
       FB_NOID)     FB_NOID="$v" ;;
       FB_TOTAL)    FB_TOTAL="$v" ;;
       FB_CAPPED)   FB_CAPPED="$v" ;;
+      FB_UNMARKED_SINCE) FB_UNMARKED_SINCE="$v" ;;
+      FB_SINCE_OK)       FB_SINCE_OK="$v" ;;
       *) ok=0 ;;
     esac
     [ "$ok" -eq 1 ] || return 1
@@ -3292,7 +3383,10 @@ src_unmarked() {
   if [ "${FB_EDGES:-0}" -eq 0 ] && lint_shallow; then
     return 3
   fi
-  printf '%s' "$FB_UNMARKED"
+  # The BOUNDED count, not FB_UNMARKED. The all-history number can never
+  # reach zero (see FB_SINCE), and a source that can never reach zero is a
+  # mode that can never stop.
+  printf '%s' "$FB_UNMARKED_SINCE"
 }
 
 cmd_sources() {
@@ -3363,6 +3457,14 @@ cmd_sources() {
   unmarked="$(src_unmarked)"; urc=$?
   case "$urc" in
     0) printf '  %s unmarked\n' "$unmarked"
+       # Visible, because the number means something different either way and
+       # a reader comparing two repos would otherwise not know which they had.
+       if fb_since_ok; then
+         printf '  counted since %s (joharness.sh:FB_SINCE)\n' "${FB_SINCE:0:12}"
+       else
+         printf '  ALL history — no baseline in this repo. Set\n'
+         printf '  JOHARNESS_FEEDBACK_SINCE to bound it (joharness.sh:FB_SINCE)\n'
+       fi
        [ "$unmarked" -eq 0 ] || dry=0 ;;
     2) blind=1; unmarked=""
        printf '  cannot count — the walk is capped at %s edges; raise it with\n' \
@@ -3370,6 +3472,7 @@ cmd_sources() {
        printf '  JOHARNESS_FEEDBACK_EDGES=0 (0 reads all)\n' ;;
     3) blind=1; unmarked=""
        printf '  cannot count — shallow checkout, history not present\n' ;;
+
     *) blind=1; unmarked=""
        printf '  cannot count — no base branch to read merged history from\n' ;;
   esac
