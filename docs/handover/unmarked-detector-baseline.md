@@ -1,6 +1,6 @@
 ---
 workstream: unmarked-detector-baseline
-status: review
+status: done
 branch: claude/unmarked-detector-baseline
 pr: none
 plan: none
