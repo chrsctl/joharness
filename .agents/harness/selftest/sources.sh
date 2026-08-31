@@ -316,7 +316,11 @@ expect "an unknown flag is an error" "usage:" "$out"
 # latent on a supervised main and fired the moment the mode was committed
 # for an endurance run (GitHub run 33414519009, killed after 42 minutes with
 # hundreds of orphan bash processes).
-out="$(JOHARNESS_IN_SWEEP=1 sw)"
+#
+# The marker names the ROOT it was set for, so the fixture's own root is what
+# arms it here. A bare 1 would arm it for EVERY repo at once, which is the
+# defect the next block pins.
+out="$(JOHARNESS_IN_SWEEP="$swwork" sw)"
 expect "a sweep started from inside a sweep refuses" "refusing to recurse" "$out"
 expect "and says which call started it" "it runs ci, and ci" "$out"
 # It must count NOTHING. A guard that still ran the detectors would have
@@ -324,3 +328,26 @@ expect "and says which call started it" "it runs ci, and ci" "$out"
 refute "and counts nothing" "failing or skipped checks" "$out"
 refute "and reaches no verdict" "sweep dry" "$out"
 refute "and reaches no other verdict either" "sweep NOT dry" "$out"
+
+# --- and the leak that shipped with it -------------------------------------
+# The marker is EXPORTED into the nested `ci`, and that `ci` runs the
+# selftest, whose fixtures call `sources` in scratch repos of their own. Under
+# the bare `=1` form every one of them inherited the marker and got the
+# refusal instead of a sweep: 52 cases red, on a `main` whose own `ci` was
+# green, because `ci` does not set the marker and `sources` does. The guard
+# found its own defect one merge after shipping (PR 174 -> PR 176).
+#
+# A marker naming SOMEONE ELSE'S root is not this repo's cycle, so it must not
+# guard. That is the whole fix, and this is the case that fails without it.
+out="$(JOHARNESS_IN_SWEEP="${TMP}/some-other-checkout" sw)"
+refute "a marker from another root does not guard this one" \
+  "refusing to recurse" "$out"
+# Asserts the DETECTORS ran, not the verdict: earlier cases in this topic
+# have already moved the fixture off dry, and pinning a verdict here would
+# pin their state instead of this guard.
+expect "and the sweep actually counts" "failing or skipped checks" "$out"
+# Same shape one step out: an operator with the variable exported in their
+# shell must not have `sources` silently refuse in every repo they own.
+out="$(JOHARNESS_IN_SWEEP=1 sw)"
+refute "a bare 1 guards nothing" "refusing to recurse" "$out"
+expect "and that sweep counts too" "failing or skipped checks" "$out"
