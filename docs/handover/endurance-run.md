@@ -53,6 +53,31 @@ carry it further is the sweep: 4 unmarked findings are a live source, and
 under the goal bound a session may generate plans from them while the
 requirement is open.
 
+## The fleet
+
+Spawned 19:00Z, two sessions, `claude-sonnet-5`, tag
+`endurance-run-2026-08-31`:
+
+| | assigned | session |
+| --- | --- | --- |
+| A | `docs/plans/marker-gate-needs-no-done.md` | `session_012mjq4ob55cmhbg238oHSoH` |
+| B | the sweep's 4 unmarked findings | `session_01KkkoSEgRMrMZb7Gq2S9URv` |
+
+**Work named per session in the prompt, deliberately** — PR 154's rule: a
+claim exists only after the spawned session's first push, so two sessions
+started against one queue can both take the top plan. There is exactly one
+free plan at T0, so without naming them they would have collided on it.
+
+Each prompt states the two legitimate stops and forbids asking a human,
+because "no human turn" is the measurement and a session that asks has
+ended the run rather than failed it.
+
+**A denied spawn is not a no-op** — the first A call was refused by the
+permission classifier while its identical twin B succeeded in the same
+block. Retried alone and it went through. Recorded because this session
+has already been burned once today by treating a denied command as
+having done nothing.
+
 ## Review
 
 To be recorded before the merge.
