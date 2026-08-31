@@ -86,30 +86,35 @@ be able to re-apply it directly rather than redesign it.
   running the full selftest suite before assuming the change was done.
   (fixed — `fin_strength` reverted to its original two-value shape;
   `lint_finding_markers` reads `fin_retired_own` directly instead)
-- r2 (code-review, high): `fin_retired_own` matched "added" and "deleted"
-  as SETS over the branch's whole history, so a file added, `rm`'d by
-  mistake, then re-added and still present at HEAD read as retired too —
-  a false RED on a branch that is mid-build with the file right there,
-  exactly the case this gate must stay silent on. Confirmed by simulation
-  before the fix. (fixed — added a tree check: retired now means absent
-  from `fin_docs_at HEAD`, not merely deleted at some point in the log;
-  pinned by a new selftest case, `markreadd`)
-- r3 (code-review, high): unlike `fin_adds_at` (a tree diff, "own files
-  only" by construction), the log walk in `fin_retired_own` had no
-  ownership guard — a `git merge origin/main` done to reconcile a conflict
-  at finish (`.agents/docs/product/README.md`, "Conflict at finish") could
-  in principle pull in another branch's own already-finished
-  add-then-delete lifecycle for a file this branch never touched, if the
-  merge-base computation raced a stale local `origin/main` ref. (fixed —
-  `--first-parent` on both log calls keeps the walk on this branch's own
-  commit sequence; not folded into a fixture — a realistic multi-branch
-  merge race is expensive to construct and the mitigation is a standard,
-  well-understood git technique, verified by re-reading rather than by a
-  dedicated case)
-- r4: verifier spawned (a94344e5d137e30ed) — findings pending. Its report
-  lands in this session, not on the branch (no pull request opens from
-  here — see Blockers). Whoever picks this up should ask this session
-  (or re-spawn the verifier) for the result before opening the PR.
+- r2: found by `code-review --high`. `fin_retired_own` matched "added" and
+  "deleted" as SETS over the branch's whole history, so a file added,
+  `rm`'d by mistake, then re-added and still present at HEAD read as
+  retired too — a false RED on a branch that is mid-build with the file
+  right there, exactly the case this gate must stay silent on. Confirmed
+  by simulation before the fix. (fixed — added a tree check: retired now
+  means absent from `fin_docs_at HEAD`, not merely deleted at some point
+  in the log; pinned by a new selftest case, `markreadd`)
+- r3: found by `code-review --high`. Unlike `fin_adds_at` (a tree diff,
+  "own files only" by construction), the log walk in `fin_retired_own` had
+  no ownership guard — a `git merge origin/main` done to reconcile a
+  conflict at finish (`.agents/docs/product/README.md`, "Conflict at
+  finish") could in principle pull in another branch's own already-
+  finished add-then-delete lifecycle for a file this branch never touched,
+  if the merge-base computation raced a stale local `origin/main` ref.
+  (fixed — `--first-parent` on both log calls keeps the walk on this
+  branch's own commit sequence; not folded into a fixture — a realistic
+  multi-branch merge race is expensive to construct and the mitigation is
+  a standard, well-understood git technique, verified by re-reading rather
+  than by a dedicated case)
+- r4: verifier spawned (a94344e5d137e30ed), independently re-derived and
+  ran the fix end to end against commit `a6ef911` in its own scratch
+  fixtures (leak scenario reds, clean-retire stays green and `== finish`
+  never prints, r2's false positive confirmed fixed) and confirmed the
+  `1170 passed, 1 failed` selftest number by an independent run at
+  `b8ed495`. One finding: r2/r3 above originally broke the `- r<N>: text`
+  form `fb_fix_map` keys on (`(code-review, high)` sat between the number
+  and the colon) — `lint_finding_ids` correctly warned rather than redded.
+  (fixed — reworded above, attribution moved after the colon)
 
 ## Blockers
 
