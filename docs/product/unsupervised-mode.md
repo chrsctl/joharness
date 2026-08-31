@@ -61,9 +61,30 @@ autonomy that work merges without anyone reading it.
   session at the queue edge with no open requirement stops and asks,
   exactly as a supervised one does, and says the goal is reached rather
   than going quiet.
-- Every plan an unsupervised session generates names the requirement it
-  serves and the `Satisfied when` bullet it advances. A plan that serves no
-  open requirement is not generated.
+- **Recording is always allowed. Generating is what the bound governs.**
+  Directed 2026-08-31 by the requester — "we should allow to always create
+  items in the queue" — amending the line this bullet first carried, which
+  said a plan serving no open requirement is not generated.
+
+  Those are two different acts, and the first draft conflated them:
+
+  - **Recording** — a session found something and writes it down as a plan,
+    a research node or an issue. Never blocked, in any mode, goal or no
+    goal. Dropping a real finding is the failure, not writing it down: Loop
+    step 5 says "fix them or record why not — never drop silent", and `ci`
+    reds a branch that leaves one undispositioned.
+  - **Generating** — a session with nothing left to do manufactures work to
+    stay busy. That is what the goal bounds, and it stays bounded.
+
+  A fleet does not fail to converge by writing down what it found. It fails
+  by inventing work to remain alive.
+
+- A plan an unsupervised session generates while a goal is open names the
+  requirement it serves and the `Satisfied when` bullet it advances. One
+  recorded with no goal open names neither, because there is nothing to name
+  — it is a note for a human, and it does NOT restart the fleet. Otherwise
+  recording would be a way to manufacture a goal, which is the circularity
+  the bound closes.
 - When every `Satisfied when` bullet of a requirement reads true, the next
   unsupervised session deletes the requirement file rather than inventing
   more work against it. Reaching the goal is the terminal action, not a
