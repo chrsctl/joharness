@@ -15,7 +15,27 @@ step "autonomy mode"
 
 modeconf="${TMP}/mode.conf"
 : >"$modeconf"
-jmode() { JOHARNESS_CONF="$modeconf" "${ROOT}/joharness.sh" mode; }
+
+# An ABSENT path, never created. Every call below that runs the real
+# entrypoint pins MODE_FILE here unless it is deliberately exercising the
+# marker, because the default resolves to the REAL repository's
+# .git/joharness-mode — and the marker outranks the conf these cases set.
+#
+# Set the marker in your own checkout and the suite went red on a case about
+# something else entirely:
+#
+#   ./joharness.sh mode unsupervised
+#   bash .agents/harness/selftest.sh
+#     FAIL supervised session-start says nothing about mode
+#     1105 passed, 1 failed     (1106, 0 with the marker cleared)
+#
+# The runner unsets JOHARNESS_MODE and JOHARNESS_MODE_FILE at the top, which
+# is what made this easy to miss: the ENV is neutralised and the FILE the
+# default resolves to is not. Found by the source sweep, which forces the
+# suite a docs-only branch skips — `ci: pass` and "1 failing" were both true.
+modenomarker="${TMP}/autonomy-no-marker"
+jmode() { JOHARNESS_MODE_FILE="$modenomarker" JOHARNESS_CONF="$modeconf" \
+  "${ROOT}/joharness.sh" mode; }
 
 expect "absent key reads supervised" "supervised" "$(jmode)"
 
@@ -54,7 +74,10 @@ got="$(JOHARNESS_MODE=supervised JOHARNESS_CONF="$modeconf" "${ROOT}/joharness.s
 expect "env narrows an opted-in conf" "supervised" "$got"
 # An EMPTY env value is unset to the shell, so the conf still wins. Same
 # semantics as setup_mode/md_mode; the working override is the word.
-got="$(JOHARNESS_MODE='' JOHARNESS_CONF="$modeconf" "${ROOT}/joharness.sh" mode)"
+# An EMPTY env value is unset to the shell, so the MARKER would win here too
+# if one were in play — this case is about the conf, so it pins the file.
+got="$(JOHARNESS_MODE='' JOHARNESS_MODE_FILE="$modenomarker" \
+  JOHARNESS_CONF="$modeconf" "${ROOT}/joharness.sh" mode)"
 expect "empty env defers to conf, as the other readers do" "unsupervised" "$got"
 printf 'JOHARNESS_MODE=supervised\n' >"$modeconf"
 
@@ -62,7 +85,8 @@ printf 'JOHARNESS_MODE=supervised\n' >"$modeconf"
 # no context to be told so, and this is the assertion that keeps a future
 # edit from quietly taxing every session.
 : >"$modeconf"
-out="$(JOHARNESS_CONF="$modeconf" "${ROOT}/joharness.sh" session-start 2>/dev/null)"
+out="$(JOHARNESS_MODE_FILE="$modenomarker" JOHARNESS_CONF="$modeconf" \
+  "${ROOT}/joharness.sh" session-start 2>/dev/null)"
 refute "supervised session-start says nothing about mode" "Mode:" "$out"
 
 out="$(JOHARNESS_MODE=unsupervised JOHARNESS_CONF="$modeconf" \
@@ -272,4 +296,35 @@ if git -C "$ROOT" check-ignore -q .joharness-mode; then
   pass "the fallback path is gitignored here"
 else
   fail "the fallback path is gitignored here"
+fi
+
+
+# --- no case here may read the operator's own marker -----------------------
+# The invariant, checked rather than trusted: every invocation of the real
+# entrypoint in THIS topic pins JOHARNESS_MODE_FILE, or pins JOHARNESS_MODE
+# (which outranks the marker anyway), or is one of the marker cases that sets
+# its own. Without this the next case added here inherits the same exposure
+# and reds somebody's suite for a reason they cannot see.
+#
+# Continuations joined first: the exposed call that started this was written
+# across two lines with the env on the first, so a line-at-a-time scan would
+# have called it unpinned and a naive fix would have "pinned" the wrong line.
+mode_unpinned="$(awk '
+  { line = line $0 }
+  /\\$/ { sub(/\\$/, " ", line); next }
+  { if (line ~ /\$\{ROOT\}\/joharness\.sh/ &&
+        line !~ /JOHARNESS_MODE_FILE/ && line !~ /JOHARNESS_MODE=/ &&
+        line !~ /^[[:space:]]*#/ &&
+        # `cp` COPIES the entrypoint into a scratch repo; it does not run it,
+        # and a copy reads nothing. Excluded by what the line does rather than
+        # by loosening the test until it passed — the two hits here were both
+        # cp, and widening the pin to satisfy them would have pinned nothing.
+        line !~ /^[[:space:]]*cp[[:space:]]/) print NR ": " line
+    line = "" }
+' "${ROOT}/.agents/harness/selftest/autonomy-mode.sh")"
+if [ -z "$mode_unpinned" ]; then
+  pass "every call here pins the mode source it is testing"
+else
+  fail "every call here pins the mode source it is testing"
+  printf '    reads the real .git marker:\n%s\n' "$(indent "$mode_unpinned")"
 fi
