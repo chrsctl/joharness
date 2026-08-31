@@ -954,10 +954,11 @@ perf_count() {
   # JOHARNESS_IN_SWEEP so the `drain` row measures DRAIN. Unsupervised with
   # an empty queue, drain defers to `sources`, which runs a whole nested `ci`
   # — a number that describes the suite rather than the entrypoint, and the
-  # cycle above besides.
+  # cycle above besides. Carries THIS repo's root, never a bare 1: see
+  # cmd_sources for what the bare form cost.
   PATH="${dir}:${PATH}" \
     JOHARNESS_PERF_COUNTER="$counter" \
-    JOHARNESS_IN_SWEEP=1 \
+    JOHARNESS_IN_SWEEP="$ROOT" \
     JOHARNESS_FEEDBACK_EDGES="$PERF_EDGES" \
     "$@" </dev/null >/dev/null 2>&1
   status=$?
@@ -3630,9 +3631,10 @@ src_run_checks() {
   tmp="$(mktemp 2>/dev/null)" || return 1
   # Status is data here, not an error: a red check IS the finding.
   #
-  # JOHARNESS_IN_SWEEP marks the nested run so it cannot come back here. See
-  # cmd_sources for the cycle this closes.
-  JOHARNESS_IN_SWEEP=1 JOHARNESS_SELFTEST=always "${ROOT}/joharness.sh" ci >"$tmp" 2>&1
+  # JOHARNESS_IN_SWEEP marks the nested run so it cannot come back here. It
+  # carries THIS repo's root rather than a bare 1, because the value is
+  # inherited by everything the nested run spawns — see cmd_sources.
+  JOHARNESS_IN_SWEEP="$ROOT" JOHARNESS_SELFTEST=always "${ROOT}/joharness.sh" ci >"$tmp" 2>&1
   src_checks_rc=$?
   src_checks_out="$(cat "$tmp")"
   rm -f "$tmp"
@@ -3722,7 +3724,20 @@ cmd_sources() {
   # any future caller reaching `sources` from inside a run of `ci` closes the
   # same cycle by a different path, and a guard at the cheap end catches all
   # of them.
-  if [ "${JOHARNESS_IN_SWEEP:-0}" = "1" ]; then
+  # The marker names the ROOT it was set for, and this fires only on a match.
+  # A bare 1 was the first shape and it was wrong within the day: the value
+  # is exported into the nested `ci`, and that `ci` runs the SELFTEST, whose
+  # sources fixtures call this command in a scratch repo of their own. They
+  # inherited the marker, every one of them got this refusal instead of a
+  # sweep, and 52 cases went red on a `main` whose own `ci` was green —
+  # because `ci` does not set the marker and the sweep does. Found by the
+  # sweep itself, one merge after the guard shipped (PR 174).
+  #
+  # Same class as PR 164, one day later: the operator's environment deciding
+  # the suite's verdict. The root scope fixes it for a person too — an
+  # exported JOHARNESS_IN_SWEEP in a shell would otherwise silence `sources`
+  # in every repo, permanently and without saying so.
+  if [ -n "${JOHARNESS_IN_SWEEP:-}" ] && [ "${JOHARNESS_IN_SWEEP}" = "$ROOT" ]; then
     printf '== sources (read-only: counts, never acts)\n\n'
     printf 'already inside a sweep — refusing to recurse.\n'
     printf '  This run was started by sources itself: it runs ci, and ci\n'
