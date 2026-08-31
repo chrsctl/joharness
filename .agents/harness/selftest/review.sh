@@ -699,6 +699,37 @@ fi
 
 git -C "$rwork" checkout -q main
 
+# NOT RETIRED: added, deleted by mistake, then RE-ADDED and still present at
+# HEAD. fin_retired_own's first draft matched 'added' and 'deleted' as sets
+# over the branch's whole history, so this shape — a file that is very much
+# present, mid-build — read as retired too. The tree check at the end of
+# that function is what this case pins: present at HEAD wins over anything
+# the log says happened earlier.
+git -C "$rwork" checkout -qb markreadd main
+write_ws readd.md review none "" \
+  "- r1: still open, and the file never actually left."
+printf 'code\n' >"${rwork}/readd.txt"
+commit_all "$rwork" "add the workstream file"
+git -C "$rwork" rm -q docs/handover/readd.md
+commit_all "$rwork" "delete it by mistake"
+write_ws readd.md review none "" \
+  "- r1: still open, and the file never actually left."
+commit_all "$rwork" "put it back — still mid-build"
+out="$(ci_marks)"
+expect "the finding is read as normal, from the present file" \
+  "r1: still open" "$out"
+expect "and this is a mid-build report, not the retire trigger" \
+  "Reported, not failed" "$out"
+refute "never the retired message — the file is right there" \
+  "retired its own workstream file" "$out"
+if jr ci >/dev/null 2>&1; then
+  pass "and ci stays green — a re-added file is not a retirement"
+else
+  fail "and ci stays green — a re-added file is not a retirement"
+fi
+
+git -C "$rwork" checkout -q main
+
 # --- requirement authorship ------------------------------------------------
 # The goal is the human's to set. An unsupervised session that writes itself a
 # requirement writes its own finish line, and a fleet with a finish line it

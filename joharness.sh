@@ -4459,31 +4459,39 @@ fin_adds_at() {
 }
 
 # Own workstream files this branch has RETIRED — added and later deleted,
-# both within its own history — one per line. `fin_adds_at` reads TREES, and
-# the retire commit's whole point is that the tree at HEAD no longer carries
-# the file: a reader of the tree is blind at exactly the moment retirement
-# happens. The LOG is not blind there. A file this branch's own commits both
-# added and deleted is unambiguously its own — the same ownership test
-# `fin_adds_at` applies via `fin_docs_at HEAD` minus `fin_docs_at "$ref"`,
-# reached here through the commits instead of the endpoints so the deleted
-# state is still visible.
+# both within its own history, and still ABSENT from HEAD's tree — one per
+# line. `fin_adds_at` reads TREES, and the retire commit's whole point is
+# that the tree at HEAD no longer carries the file: a reader of the tree is
+# blind at exactly the moment retirement happens. The LOG is not blind
+# there, but the log alone over-reports: a file added, `rm`'d by mistake,
+# then re-added and still present at HEAD shows up in both an A and a D
+# filter, and is not retired at all — it is present, mid-build, exactly the
+# case this gate must stay silent on. The tree check at the end is what
+# tells the two apart.
 #
-# Not folded into `fin_strength`: that function's return value also decides
-# whether `ci` prints the `== finish` section at all, and a branch that
-# retired cleanly (every finding dispositioned) is meant to fall silent
-# there — nothing left for step 7's own gate to say once the file is gone.
-# Only `lint_finding_markers` needs to know retirement happened; it calls
-# this directly.
+# `--first-parent`, so a `git merge origin/main` done to reconcile a
+# conflict (`.agents/docs/product/README.md`, "Conflict at finish") cannot
+# smuggle in ANOTHER branch's already-finished add-then-delete lifecycle
+# for a file this branch never touched: first-parent walks this branch's
+# own commit sequence and treats the merge as one step, never descending
+# into the side brought in from main. Ownership stays this branch's own —
+# the same property `fin_adds_at` gets for free from being a tree diff
+# rather than a log walk, reached here by restricting the walk instead.
 fin_retired_own() {
-  local ref="$1" base added deleted f
+  local ref="$1" base added deleted present f
   base="$(git -C "$ROOT" merge-base HEAD "$ref" 2>/dev/null)" || return 0
-  added="$(git -C "$ROOT" log --format= --name-only --diff-filter=A \
-    "${base}..HEAD" -- docs/handover 2>/dev/null | sort -u | gr_docs)"
-  deleted="$(git -C "$ROOT" log --format= --name-only --diff-filter=D \
-    "${base}..HEAD" -- docs/handover 2>/dev/null | sort -u | gr_docs)"
+  added="$(git -C "$ROOT" log --first-parent --format= --name-only \
+    --diff-filter=A "${base}..HEAD" -- docs/handover 2>/dev/null |
+    sort -u | gr_docs)"
+  deleted="$(git -C "$ROOT" log --first-parent --format= --name-only \
+    --diff-filter=D "${base}..HEAD" -- docs/handover 2>/dev/null |
+    sort -u | gr_docs)"
+  present="$(fin_docs_at HEAD)"
   while IFS= read -r f; do
     [ -n "$f" ] || continue
-    printf '%s\n' "$added" | grep -qxF -- "$f" && printf '%s\n' "$f"
+    printf '%s\n' "$added" | grep -qxF -- "$f" || continue
+    printf '%s\n' "$present" | grep -qxF -- "$f" && continue
+    printf '%s\n' "$f"
   done <<<"$deleted"
 }
 
