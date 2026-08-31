@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01MLSUtdZ6AhAVXLK5zin1j5
 agent: opus
 updated: 2026-08-31
-next: Poll the fleet. Do not answer it. Record what stops it and which stop it was.
+next: Poll A2/B2. Do not answer them. Correct the requirement's attempt-one annotation, which over-claimed.
 ---
 
 ## Goal
@@ -69,6 +69,53 @@ Spawned 20:23Z, `claude-sonnet-5`, tag `endurance-retry-2026-08-31`:
 | --- | --- | --- |
 | A | `marker-gate-needs-no-done` | `session_0137L3YQtzVWGWbmosFUsAtP` |
 | B | the 4 unmarked findings | `session_015pPkxM8Z8TeieEpiBGJGM2` |
+
+## A2/B2 — the first pair of THIS attempt also died, on my bug
+
+A and B were spawned at 20:23Z **without `source_url`**. Both blocked in
+~40 seconds:
+
+- A: `no repo attached; cannot read AGENTS.md or run joharness.sh`
+- B: `no repository in working directory; cannot read joharness.sh or AGENTS.md`
+
+`create_session` does not inherit this session's checkout, and I did not
+pass it. Respawned 20:25Z as **A2 `session_01Samg4LcLJBw1jg4RfCtT8Z`** and
+**B2 `session_0155gZ7auYMhmJr2KrRSKdsn`**, both with
+`source_url=https://github.com/chrsctl/joharness`, `revision=main`.
+
+Cost of the mistake: $0.25 + $0.39 = **$0.64**, on top of attempt one's
+$0.56.
+
+## This confounds attempt one, and the requirement says otherwise
+
+Attempt one's sessions had **no repository either** — I made the same
+omission there and did not notice, because their refusals came dressed in
+injection language and I read the language rather than the state.
+
+Look again at what attempt one's A actually asked for:
+
+> confirm you want chrsctl/joharness **cloned** and examined
+
+That is a session saying it has no repo, not only a session suspecting its
+prompt. B's *"suspected prompt injection in task"* is unambiguous and that
+part stands — but **neither session could read `AGENTS.md`, `joharness.conf`
+or run anything**, so neither could have checked a claim even had it wanted
+to. A missing clone is on its own sufficient to produce "clarify intent".
+
+So the honest statement is narrower than the one PR 177 wrote onto the
+requirement bullet:
+
+- **Stands**: both stopped, neither legitimate stop, a finding.
+- **Over-claimed**: that the run *measured an injection refusal*. It
+  measured two sessions with no repository, at least one of which also
+  read its prompt as injected.
+- **Unaffected**: the `authority` mechanism (PR 178). A prompt still
+  cannot be its own evidence, and a session still needs something to
+  check. Attempt one just did not prove that was the blocker — and with
+  no repo, `./joharness.sh authority` was unrunnable, which is its own
+  argument for attaching the source.
+
+That annotation needs correcting, and this run is what corrects it.
 
 ## Decisions
 

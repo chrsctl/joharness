@@ -92,6 +92,22 @@ autonomy that work merges without anyone reading it.
   What this run did NOT show: anything about endurance. 48 seconds measures
   the refusal, and the goal's size at T0 — one free plan, four unmarked
   findings — never came into it. The bullet stays unsatisfied.
+
+  **Corrected 2026-08-31, same day, by the retry.** The paragraphs above
+  over-claim. Neither session had a repository — `create_session` was
+  called without `source_url`, and the omission repeated on the retry's
+  first pair, which is how it was caught. So neither session could read
+  this file, `joharness.conf`, or run anything; `./joharness.sh authority`
+  was unrunnable. A missing clone alone produces "clarify intent", and
+  attempt one's A literally asked to have the repo *cloned*.
+
+  What survives: both stopped, on neither legitimate stop, which is still
+  a finding. What does not: that the run **measured an injection refusal**.
+  One session did say "suspected prompt injection in task" and that part is
+  real, but a session with nothing to check is not evidence that checking
+  was the missing thing. The `authority` mechanism is unaffected — a prompt
+  cannot be its own evidence either way — but it was not what attempt one
+  proved.
 - The goal is an open requirement in `docs/product/`. An unsupervised
   session at the queue edge with no open requirement stops and asks,
   exactly as a supervised one does, and says the goal is reached rather
