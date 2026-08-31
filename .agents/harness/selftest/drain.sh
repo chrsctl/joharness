@@ -72,7 +72,7 @@ out="$(ddrain)"
 # The full line, not the bare word: "NOT DRAINED" contains "DRAINED", so a
 # substring assertion on it passes in exactly the case it is meant to catch.
 expect "an empty queue under supervised is drained" \
-  "DRAINED — no free plan, no open question." "$out"
+  "DRAINED — no unplanned requirement, no free plan, no open question." "$out"
 expect "supervised says it stops rather than inventing work" \
   "It does NOT invent work" "$out"
 # The sweep runs ci and takes a minute. Calling it on a supervised drain would
@@ -127,4 +127,48 @@ git -C "$dwork" checkout -q main
 out="$(ddrain)"
 refute "a claimed plan is never handed out as next" "next: docs/plans/taken.md" "$out"
 expect "a queue holding only claimed work is drained" \
-  "DRAINED — no free plan, no open question." "$out"
+  "DRAINED — no unplanned requirement, no free plan, no open question." "$out"
+
+# --- an UNPLANNED REQUIREMENT is the top of the queue, not an extra ---------
+# Step 2: "planning outranks the plan queue". drain read `docs/plans` and
+# `docs/research` only, so a requirement waiting to be decomposed was
+# invisible and DRAINED printed over it — a supervised session then stops and
+# tells the human there is nothing to do, which is the idle-with-a-full-queue
+# state this command exists to prevent. Measured on main 4bb6949 before the
+# fix: `drain` said DRAINED while queue-context said "Entrypoint: plan the
+# requirements above".
+mkdir -p "${dwork}/docs/product"
+printf -- '---\nrequirement: needsplans\nurgency: normal\n---\n\n## Goal\nFixture.\n\n## Satisfied when\n\n- something observable.\n' \
+  >"${dwork}/docs/product/needsplans.md"
+commit_all "$dwork" "a requirement with no plans"
+git -C "$dwork" push -q origin main
+
+out="$(ddrain)"
+refute "an unplanned requirement is not drained" "DRAINED — no unplanned" "$out"
+expect "it is handed out as next" "next: docs/product/needsplans.md" "$out"
+expect "and the line says why it outranks the plan queue" \
+  "planning outranks the plan queue" "$out"
+# The count on the NOT DRAINED line comes from the hook's "N free plans", which
+# a requirement does not have. Printing one beside a requirement says the wrong
+# thing about what is next.
+refute "no plan count is printed beside a requirement" "free plan(s)" "$out"
+
+# Both present: the requirement still wins. Ordering is the whole claim here —
+# a fixture with only one of the two cannot tell rank from availability.
+dplan freeone
+commit_all "$dwork" "a free plan beside the requirement"
+git -C "$dwork" push -q origin main
+out="$(ddrain)"
+expect "a requirement outranks a free plan" "next: docs/product/needsplans.md" "$out"
+refute "and the plan is not what is offered" "next: docs/plans/freeone.md" "$out"
+
+# Planned: the hook stops listing it as unplanned, so drain must stop offering
+# it and fall through to the plan queue. Without this the fix would hand out
+# the same requirement forever.
+printf -- '---\nplan: forreq\nurgency: normal\nagent: sonnet\neffort: low\nrequirement: needsplans\n---\n\n## Goal\nFixture.\n' \
+  >"${dwork}/docs/plans/forreq.md"
+commit_all "$dwork" "now the requirement has a plan"
+git -C "$dwork" push -q origin main
+out="$(ddrain)"
+refute "a requirement WITH plans is no longer offered" "next: docs/product/needsplans.md" "$out"
+expect "and the plan queue is reached again" "next: docs/plans/" "$out"
