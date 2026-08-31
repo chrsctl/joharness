@@ -574,6 +574,7 @@ SELFTEST_TOPICS=(
   ci-graph-lint
   ci-ship-scope
   sources
+  authority
   autonomy-mode
   upgrade-holding-work
   handover-guard
