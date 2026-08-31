@@ -3924,13 +3924,50 @@ drain_hook() {
 # listed there but never lead (.agents/docs/plans/README.md), so the first row
 # carrying neither marker is the next thing to take. Plans and questions rank
 # together and both match — a question may be the oldest actionable thing.
-drain_next() {
+# The queue hook's output, reduced to the ONE thing to do next.
+#
+# Requirements first, and not as an extra: step 2 ranks an unplanned
+# requirement above every plan — "planning outranks the plan queue", the
+# hook's own words. This function used to read `docs/plans` and
+# `docs/research` only, so a requirement waiting to be decomposed was
+# invisible and `drain` printed DRAINED over it. Measured on main 4bb6949,
+# 2026-08-31: `drain` said DRAINED while queue-context said
+# "Entrypoint: plan the requirements above". A supervised session stops
+# there and tells the human there is nothing to do — the exact
+# idle-with-a-full-queue state this command was built to prevent.
+#
+# The requirement scan is anchored to the hook's SECTION, not to the path,
+# so that only lines under "Requirements without plans" can be offered.
+#
+# That anchor is DELIBERATELY UNPINNED, and saying so is cheaper than a case
+# that pretends otherwise: `queue-context.sh` prints a `docs/product/` path in
+# exactly one block, and skips any requirement a plan already serves, so
+# nothing reachable through the public interface can tell anchored from
+# unanchored. Measured — `./joharness.sh mutate joharness.sh 3945 "    cat |"`
+# replies NOTHING REDDED (2026-08-31). It stays because the invariant it
+# depends on belongs to another file: a future block printing served
+# requirements would otherwise hand this one out forever, and the anchor
+# costs one sed.
+drain_requirement() {
+  printf '%s\n' "$1" |
+    sed -n '/^Requirements without plans/,/^$/p' |
+    sed -n 's#^  \(docs/product/[^ ]*\.md\)  \(.*\)$#\1 \2#p' | head -1
+}
+
+drain_plan() {
   printf '%s\n' "$1" |
     # Delimiter is # and not |, because | is also BRE's alternation: with
     # s|...| the \| below reads as an escaped delimiter and the expression
     # silently matches nothing, which reports a full queue as drained.
     sed -n 's#^  \(docs/\(plans\|research\)/[^ ]*\.md\)  \(.*\)$#\1 \3#p' |
     { grep -v 'claimed on\|blocked by' || :; } | head -1
+}
+
+drain_next() {
+  local req
+  req="$(drain_requirement "$1")"
+  [ -n "$req" ] && { printf '%s' "$req"; return 0; }
+  drain_plan "$1"
 }
 
 cmd_drain() {
@@ -3956,9 +3993,18 @@ cmd_drain() {
 
   next="$(drain_next "$qout")"
   if [ -n "$next" ]; then
-    free="$(printf '%s\n' "$qout" |
-      sed -n 's/^\([0-9][0-9]*\) free plans.*/\1/p' | head -1)"
-    printf 'NOT DRAINED%s\n' "${free:+ — ${free} free plan(s)}"
+    # The count comes from the hook's "N free plans" line, which a
+    # REQUIREMENT does not have — printing a plan count beside one says the
+    # wrong thing about what is next. So the count is only for the case it
+    # describes, and the requirement gets the word that tells a session what
+    # the work actually is.
+    if [ -n "$(drain_requirement "$qout")" ]; then
+      printf 'NOT DRAINED — a requirement has no plans, and planning outranks the plan queue\n'
+    else
+      free="$(printf '%s\n' "$qout" |
+        sed -n 's/^\([0-9][0-9]*\) free plans.*/\1/p' | head -1)"
+      printf 'NOT DRAINED%s\n' "${free:+ — ${free} free plan(s)}"
+    fi
     printf '  next: %s\n' "$next"
     return 0
   fi
@@ -3974,7 +4020,10 @@ cmd_drain() {
     return 0
   fi
 
-  printf 'DRAINED — no free plan, no open question.\n'
+  # Names every entrypoint it checked. The old wording was "no free plan, no
+  # open question" — true, and silent about the requirement queue it was not
+  # reading, so it read as a statement about the whole queue.
+  printf 'DRAINED — no unplanned requirement, no free plan, no open question.\n'
   printf '  Supervised stops here and asks (step 2). It does NOT invent work;\n'
   printf '  that is unsupervised mode, and this repo is not in it.\n'
   return 0
