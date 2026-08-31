@@ -17,7 +17,7 @@ dorigin="${TMP}/drainorigin.git"
 git init -q --bare "$dorigin"
 git init -q "$dwork"
 git -C "$dwork" symbolic-ref HEAD refs/heads/main
-mkdir -p "${dwork}/docs/plans" "${dwork}/docs/handover" "${dwork}/docs/research"
+mkdir -p "${dwork}/docs/plans" "${dwork}/docs/handover" "${dwork}/docs/handover" "${dwork}/docs/research"
 printf 'code\n' >"${dwork}/code.txt"
 cp "${ROOT}/joharness.sh" "${dwork}/joharness.sh"
 mkdir -p "${dwork}/.agents/harness" "${dwork}/.agents/env/none"
@@ -80,15 +80,78 @@ expect "supervised says it stops rather than inventing work" \
 # the loop.
 refute "supervised does not pay for the sweep" "sources" "$out"
 
-# Same tree, other mode: an empty queue is a trigger, and the stop is the
-# sweep (docs/product/unsupervised-mode.md, ratified 2026-08-25). Asserting
-# the deferral, not the sweep's own verdict — that is cmd_sources' topic.
+# Same tree, other mode. An empty queue is a trigger ONLY WHILE A GOAL IS
+# OPEN — autonomy is bounded by an open requirement (the goal bound, adopted
+# in PR 169). These two cases used to pass with no requirement in the fixture
+# at all, which was the pre-bound rule; under the bound that state is the
+# GOAL REACHED stop below, and they failed for exactly the right reason.
+# Asserting the deferral, not the sweep's own verdict — that is cmd_sources'
+# topic.
+# The goal must be PLANNED, or it is queue work itself: an unplanned
+# requirement outranks the plan queue (PR 157), so drain would report it as
+# next and never reach the unsupervised branch. So: a requirement, a plan
+# serving it, and that plan claimed — which is an empty queue with a goal
+# still open, the state these two cases are about.
+mkdir -p "${dwork}/docs/product"
+printf -- '---\nrequirement: agoal\npriority: normal\n---\n\n## Goal\nFixture.\n\n## Satisfied when\n\n- something observable.\n' \
+  >"${dwork}/docs/product/agoal.md"
+printf -- '---\nplan: serves-goal\nurgency: normal\nagent: sonnet\neffort: low\nrequirement: agoal\n---\n\n## Goal\nFixture.\n' \
+  >"${dwork}/docs/plans/serves-goal.md"
+commit_all "$dwork" "a goal to run toward, and a plan serving it"
+git -C "$dwork" push -q origin main
+git -C "$dwork" checkout -qb goalclaimer
+printf -- '---\nworkstream: serves-goal\nstatus: in-progress\nplan: serves-goal\nagent: sonnet\nupdated: 2026-01-01\n---\n\n## Goal\nFixture.\n' \
+  >"${dwork}/docs/handover/serves-goal.md"
+commit_all "$dwork" "claim it"
+git -C "$dwork" push -qu origin goalclaimer
+git -C "$dwork" checkout -q main
+# Switching back removed docs/handover/serves-goal.md, and git drops a
+# directory when its last tracked file goes — so docs/handover is gone from
+# the worktree and every later `cat >` into it fails silently. The same trap
+# write_ws documents, reached by a BRANCH SWITCH rather than a delete.
+mkdir -p "${dwork}/docs/handover"
+
 out="$(ddrain env JOHARNESS_MODE=unsupervised)"
 expect "drain reads the mode from the environment too" \
   "== drain (mode: unsupervised)" "$out"
 expect "an empty queue under unsupervised is a trigger, not a stop" \
   "not a stop" "$out"
 expect "unsupervised defers its stop to the sweep" "dry sweep" "$out"
+expect "and says how many goals kept it going" "1 goal(s) open" "$out"
+
+# NO goal: the other stop. Its own message, because a dry sweep and a reached
+# goal are different facts — exhausted sources against finished work — and a
+# session acts on which one fired. A shared wording would make them
+# indistinguishable in the report a human reads to decide whether to set a
+# new goal.
+git -C "$dwork" rm -q docs/product/agoal.md
+commit_all "$dwork" "the goal is reached"
+git -C "$dwork" push -q origin main
+out="$(ddrain env JOHARNESS_MODE=unsupervised)"
+expect "no open requirement stops the fleet" "GOAL REACHED" "$out"
+expect "and says it is not the sweep's stop" "This is NOT a dry sweep" "$out"
+refute "and does not pay for the sweep it did not need" "== sources" "$out"
+refute "and never reads as the trigger" "not a stop." "$out"
+
+# TEMPLATE, README and VISION are not goals — same exclusion the queue hook
+# applies. Without this a repo that keeps a requirement TEMPLATE around would
+# never reach its goal, and the bound would be unreachable rather than
+# bounding.
+printf -- '---\nrequirement: TEMPLATE\n---\n\n## Goal\nShape only.\n' \
+  >"${dwork}/docs/product/TEMPLATE.md"
+commit_all "$dwork" "a template is not a goal"
+git -C "$dwork" push -q origin main
+out="$(ddrain env JOHARNESS_MODE=unsupervised)"
+expect "a TEMPLATE does not count as an open goal" "GOAL REACHED" "$out"
+git -C "$dwork" rm -q docs/product/TEMPLATE.md docs/plans/serves-goal.md
+commit_all "$dwork" "drop the template and the serving plan"
+git -C "$dwork" push -q origin main
+git -C "$dwork" push -q origin --delete goalclaimer 2>/dev/null || true
+# git drops a directory when its last tracked file goes, and the deletion
+# above took the last plan with it. Every case below writes into docs/plans
+# with `cat >`, which fails silently into the gap — the trap write_ws exists
+# to stop, hit here by a cleanup rather than a fixture write.
+mkdir -p "${dwork}/docs/plans"
 
 # --- the regression that made this command a no-op -------------------------
 # drain_next's sed used | as its delimiter, which is also BRE's alternation:

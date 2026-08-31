@@ -4309,6 +4309,28 @@ drain_next() {
   drain_plan "$1"
 }
 
+# Open requirements on the base branch — the GOAL the bound in
+# docs/product/unsupervised-mode.md makes autonomy conditional on.
+#
+# Same definition the queue hook uses (`queue_files`): tracked `.md` under
+# docs/product/, minus TEMPLATE, README and VISION. From the REF rather than
+# the worktree, because a session's own uncommitted requirement is not a goal
+# anyone set — and under the bound no session may write one at all.
+#
+# Prints the count. Returns 1 when the ref cannot be read, because ABSENT is
+# not ZERO: reporting "no goal" from a ref this cannot resolve would wind a
+# fleet down over a question nobody answered, which is the same mistake the
+# queue part of the stop condition made and the unmarked detector made from
+# the other side.
+drain_goals() {
+  local ref
+  ref="$(base_ref)" || return 1
+  git -C "$ROOT" ls-tree -r --name-only "$ref" -- docs/product 2>/dev/null |
+    { grep -E '\.md$' || :; } |
+    { grep -vE '/(TEMPLATE|README|VISION)\.md$' || :; } |
+    grep -c . || :
+}
+
 cmd_drain() {
   local mode qout hout edge next free
   mode="$(run_mode)"
@@ -4353,8 +4375,40 @@ cmd_drain() {
   # treats an empty queue as a trigger and stops only on a dry sweep
   # (docs/product/unsupervised-mode.md, ratified 2026-08-25).
   if [ "$mode" = "unsupervised" ]; then
-    printf 'queue empty — under unsupervised that is a trigger, not a stop.\n'
-    printf 'The stop is a dry sweep, so this defers to it (slow: runs ci).\n\n'
+    # THE GOAL FIRST, because it is the cheaper stop and the more final one.
+    # Autonomy is live only while a requirement is open
+    # (docs/product/unsupervised-mode.md, Constraints — the goal bound). With
+    # every goal satisfied a fleet that ran the sweep anyway would keep
+    # generating work against nothing, which is the failure the bound exists
+    # to prevent.
+    #
+    # Its own message, never the sweep's. They are different facts and a
+    # session acts on WHICH one fired: a dry sweep means the sources are
+    # exhausted, a reached goal means the work is finished. A shared wording
+    # would make them indistinguishable in exactly the report a human reads
+    # to decide whether to set a new goal.
+    local goals
+    if goals="$(drain_goals)"; then
+      if [ "${goals:-0}" -eq 0 ]; then
+        printf 'GOAL REACHED — no open requirement in docs/product/.\n'
+        printf '  Unsupervised is live only while a goal is open, so this\n'
+        printf '  stops and asks exactly as supervised does.\n'
+        printf '  This is NOT a dry sweep — the sources were not counted,\n'
+        printf '  because finished work and exhausted sources are different\n'
+        printf '  facts and a session acts on which one fired.\n'
+        printf '  Set a requirement under docs/product/, or leave it stopped\n'
+        printf '  (docs/product/unsupervised-mode.md, Satisfied when).\n'
+        return 0
+      fi
+      printf 'queue empty, %s goal(s) open — under unsupervised that is a\n' "$goals"
+      printf 'trigger, not a stop. The stop is a dry sweep, so this defers to\n'
+      printf 'it (slow: runs ci).\n\n'
+    else
+      # Unreadable ref: not zero goals, and not a stop.
+      printf 'queue empty — cannot count open requirements (no base ref to\n'
+      printf 'read), so the goal bound cannot be checked. Deferring to the\n'
+      printf 'sweep rather than winding down on a question nobody answered.\n\n'
+    fi
     cmd_sources
     return 0
   fi
