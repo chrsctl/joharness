@@ -1,6 +1,6 @@
 ---
 workstream: unsupervised-stop-condition
-status: review
+status: done
 branch: claude/unsupervised-stop-condition
 pr: none
 plan: docs/plans/unsupervised-stop-condition.md
