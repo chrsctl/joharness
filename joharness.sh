@@ -951,8 +951,14 @@ perf_count() {
   # so `perf` run with it aimed at another checkout printed `0 <budget> ok`
   # for all six rows (counted 2026-08-29). Zero itself stays legitimate — a
   # small enough repo really does spawn nothing, and a case pins that.
+  # JOHARNESS_IN_SWEEP so the `drain` row measures DRAIN. Unsupervised with
+  # an empty queue, drain defers to `sources`, which runs a whole nested `ci`
+  # — a number that describes the suite rather than the entrypoint, and the
+  # cycle above besides. Carries THIS repo's root, never a bare 1: see
+  # cmd_sources for what the bare form cost.
   PATH="${dir}:${PATH}" \
     JOHARNESS_PERF_COUNTER="$counter" \
+    JOHARNESS_IN_SWEEP="$ROOT" \
     JOHARNESS_FEEDBACK_EDGES="$PERF_EDGES" \
     "$@" </dev/null >/dev/null 2>&1
   status=$?
@@ -3624,7 +3630,11 @@ src_run_checks() {
   local tmp
   tmp="$(mktemp 2>/dev/null)" || return 1
   # Status is data here, not an error: a red check IS the finding.
-  JOHARNESS_SELFTEST=always "${ROOT}/joharness.sh" ci >"$tmp" 2>&1
+  #
+  # JOHARNESS_IN_SWEEP marks the nested run so it cannot come back here. It
+  # carries THIS repo's root rather than a bare 1, because the value is
+  # inherited by everything the nested run spawns — see cmd_sources.
+  JOHARNESS_IN_SWEEP="$ROOT" JOHARNESS_SELFTEST=always "${ROOT}/joharness.sh" ci >"$tmp" 2>&1
   src_checks_rc=$?
   src_checks_out="$(cat "$tmp")"
   rm -f "$tmp"
@@ -3695,6 +3705,46 @@ cmd_sources() {
       *) die "usage: $0 sources [--prev-dry] [--open-prs <n>]" ;;
     esac
   done
+
+  # RECURSION GUARD, and it is not theoretical: this exact cycle burned a
+  # GitHub runner for 42 minutes and was killed with hundreds of orphan bash
+  # processes (run 33414519009, 2026-08-31).
+  #
+  #   ci -> perf measures the `drain` row
+  #      -> drain, unsupervised with an empty free queue, defers to the sweep
+  #      -> sources runs `ci`
+  #      -> perf measures `drain` ...
+  #
+  # Every link was correct on its own. The cycle only closes when the mode is
+  # unsupervised AND the free queue is empty, which is why it sat latent on a
+  # supervised main and fired the moment the mode was committed for an
+  # endurance run.
+  #
+  # Guarded HERE rather than in drain, because this is the link that costs:
+  # any future caller reaching `sources` from inside a run of `ci` closes the
+  # same cycle by a different path, and a guard at the cheap end catches all
+  # of them.
+  # The marker names the ROOT it was set for, and this fires only on a match.
+  # A bare 1 was the first shape and it was wrong within the day: the value
+  # is exported into the nested `ci`, and that `ci` runs the SELFTEST, whose
+  # sources fixtures call this command in a scratch repo of their own. They
+  # inherited the marker, every one of them got this refusal instead of a
+  # sweep, and 52 cases went red on a `main` whose own `ci` was green —
+  # because `ci` does not set the marker and the sweep does. Found by the
+  # sweep itself, one merge after the guard shipped (PR 174).
+  #
+  # Same class as PR 164, one day later: the operator's environment deciding
+  # the suite's verdict. The root scope fixes it for a person too — an
+  # exported JOHARNESS_IN_SWEEP in a shell would otherwise silence `sources`
+  # in every repo, permanently and without saying so.
+  if [ -n "${JOHARNESS_IN_SWEEP:-}" ] && [ "${JOHARNESS_IN_SWEEP}" = "$ROOT" ]; then
+    printf '== sources (read-only: counts, never acts)\n\n'
+    printf 'already inside a sweep — refusing to recurse.\n'
+    printf '  This run was started by sources itself: it runs ci, and ci\n'
+    printf '  measures drain, which defers here. One sweep per invocation;\n'
+    printf '  the outer one has the answer.\n'
+    return 0
+  fi
 
   printf '== sources (read-only: counts, never acts)\n\n'
 
