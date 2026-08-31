@@ -1,6 +1,6 @@
 ---
 workstream: drain-misses-requirements
-status: review
+status: done
 branch: claude/drain-misses-requirements
 pr: none
 plan: docs/plans/drain-misses-requirements.md
