@@ -1,6 +1,6 @@
 ---
 workstream: mutation-check-the-fix
-status: review
+status: done
 branch: claude/mutation-check-the-fix
 pr: none
 plan: docs/plans/mutation-check-the-fix.md
