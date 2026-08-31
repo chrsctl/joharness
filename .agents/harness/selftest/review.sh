@@ -514,3 +514,117 @@ refute "and it does not claim the branch touched no workstream file" \
   "no workstream file in this branch" "$out"
 git -C "$rwork" checkout -q -- docs/handover/indent.md
 git -C "$rwork" checkout -q main
+
+# --- finding verdicts ------------------------------------------------------
+# Step 5 says "Fix them or record why not — never drop silent", and nothing
+# enforced it: 155 findings across this repo's history are unmarked. That is
+# not tidiness — `cmd_sources` counts an unmarked finding as a SOURCE of work
+# and a non-zero count sets dry=0, so under unsupervised mode the fleet cannot
+# stop while one is outstanding. The baseline bounded the historical pile
+# (PR 161); this is what keeps the new count near zero.
+ci_marks() { jr ci | awk '/^== finding verdicts/ { f = 1; next } f && /^== / { exit } f'; }
+
+git -C "$rwork" checkout -q main
+git -C "$rwork" checkout -qb markmix main
+write_ws marks.md review none "" \
+  "- r1: this one was dealt with. (fixed)" \
+  "- r2: this one was declined. (wontfix — costs more than it catches)" \
+  "- r3: and this one needed nothing. (no change needed)" \
+  "- r4: nobody ever said what came of this one."
+printf 'code\n' >"${rwork}/marks.txt"
+commit_all "$rwork" "record four findings, one without a verdict"
+out="$(ci_marks)"
+expect "an unmarked finding is named" "r4: nobody ever said" "$out"
+expect "and counted" "1 finding(s) with no verdict" "$out"
+# The vocabulary is fb_marker's, not a second spelling of the same verdicts.
+# A case that only tested `(fixed` would pass against a gate that counted the
+# other two as unmarked and reported 3.
+refute "a fixed finding is not unmarked" "r1: this one was dealt with" "$out"
+refute "nor a wontfix one" "r2: this one was declined" "$out"
+refute "nor a no-change one" "r3: and this one needed nothing" "$out"
+
+# TWO STRENGTHS. Reporting mid-build and failing at done is the same split
+# fin_strength already carries: a gate that reds while the review is still
+# happening fights the review gate, which needs the findings recorded.
+expect "mid-build it reports rather than fails" "Reported, not failed" "$out"
+if jr ci >/dev/null 2>&1; then
+  pass "and ci stays green while the branch is still building"
+else
+  fail "and ci stays green while the branch is still building"
+fi
+
+write_ws marks.md "done" none "" \
+  "- r1: this one was dealt with. (fixed)" \
+  "- r4: nobody ever said what came of this one."
+commit_all "$rwork" "the same branch now says done"
+out="$(ci_marks)"
+expect "at done there is no later moment" "RED: this branch says status: done" "$out"
+refute "and it no longer offers one" "Reported, not failed" "$out"
+if jr ci >/dev/null 2>&1; then
+  fail "and ci is RED once the branch says done"
+else
+  pass "and ci is RED once the branch says done"
+fi
+
+# Every finding dispositioned is the clean pass, and it says so rather than
+# printing nothing — a silent stage is indistinguishable from one that never
+# ran, which is the rule `sources` already applies to its own zeroes.
+# Back to `review`, not `done`, for the green case: a branch that says done
+# while still carrying its own workstream file is red at the FINISH gate
+# whatever this stage thinks, so asserting ci's exit at done would be
+# asserting somebody else's verdict. The first version of this case did
+# exactly that and failed for a reason that had nothing to do with markers.
+write_ws marks.md review none "" \
+  "- r1: this one was dealt with. (fixed)" \
+  "- r4: and so was this one, in the end. (fixed)"
+commit_all "$rwork" "give the last finding a verdict"
+out="$(ci_marks)"
+expect "a fully dispositioned branch says so" "every finding on this branch says what came of it" "$out"
+if jr ci >/dev/null 2>&1; then
+  pass "and ci goes green again"
+else
+  fail "and ci goes green again"
+fi
+
+# A verdict on a CONTINUATION line still counts. fb_findings folds a
+# continuation into the bullet above it and `fb_collect` applies fb_marker to
+# exactly that folded form to produce the count `sources` reports — so this
+# stage must fold too, or it enforces a different number from the one it
+# cites. Reading first lines only, it flagged four findings of its own
+# workstream file as unmarked while every one of them ended in "(fixed".
+#
+# Every other case here uses one-line findings, which is why none of them
+# caught it. Real findings wrap.
+git -C "$rwork" checkout -q main
+git -C "$rwork" checkout -qb markwrap main
+write_ws wrap.md review none "" \
+  "- r1: a finding long enough that its verdict lands on the next line,
+  which is where a verdict usually goes. (fixed)" \
+  "- r2: and one that wraps without ever saying what came of it,
+  because the second line is more description."
+printf 'code\n' >"${rwork}/wrap.txt"
+commit_all "$rwork" "two wrapped findings, one with a verdict"
+out="$(ci_marks)"
+refute "a verdict on a continuation line counts" "r1: a finding long enough" "$out"
+expect "and a wrapped finding with no verdict still does not" \
+  "r2: and one that wraps" "$out"
+expect "so the count is one, not two" "1 finding(s) with no verdict" "$out"
+
+# THE RETIRE COMMIT, again. The workstream file is deleted in the last commit
+# before the pull request opens, which is exactly when this runs for the
+# record. Reading the endpoint diff would find nothing and pass over a branch
+# that says done and carries an unmarked finding — the one case that matters.
+git -C "$rwork" checkout -q main
+git -C "$rwork" checkout -qb markretire main
+write_ws mretire.md "done" none "" \
+  "- r1: recorded, then the file was retired, and never answered."
+printf 'code\n' >"${rwork}/mretire.txt"
+commit_all "$rwork" "record a finding with no verdict"
+git -C "$rwork" rm -q docs/handover/mretire.md
+git -C "$rwork" commit -qm "Finish ritual: delete the workstream file"
+out="$(ci_marks)"
+expect "a retired file's findings are still read" "r1: recorded, then the file was retired" "$out"
+refute "and the stage does not claim the branch touched none" \
+  "no workstream file in this branch" "$out"
+
+git -C "$rwork" checkout -q main
