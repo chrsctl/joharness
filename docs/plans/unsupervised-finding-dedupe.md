@@ -4,9 +4,23 @@ urgency: normal
 agent: sonnet
 effort: medium
 needs: none
+research: unmarked-detector-unreachable
 requirement: unsupervised-mode
 scope: shared:joharness.sh, .agents/harness/selftest/feedback.sh
 ---
+
+## BLOCKED — the detector this plan improves cannot reach zero
+
+`docs/research/unmarked-detector-unreachable.md`, filed 2026-08-31 from the
+research this plan's own step 4 required. The count is a function of MERGED
+history, which no commit can change, and **62 of the 155 unmarked findings
+carry no `rN:` id** — so no citation can ever name them. Implementing this
+plan as written moves 155 to 62 and leaves the mode unable to stop, which is
+the failure the requirement forbids.
+
+Do not implement until that question closes. What is written below is still
+the right shape for the dedupe itself; what it cannot do alone is make the
+sweep dry.
 
 ## Goal
 
