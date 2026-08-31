@@ -3299,6 +3299,23 @@ cmd_sources() {
   local failing="" skipped="" unmarked="" markers="" mrc=0 mout=""
   local dry=1 blind=0 urc=0 red=0
 
+  # The two parts of the stop condition this command cannot count, supplied
+  # by the caller that can. See src_stop_condition for why they are flags.
+  SRC_OPEN_PRS=""
+  SRC_PREV_DRY=0
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --prev-dry) SRC_PREV_DRY=1; shift ;;
+      --open-prs)
+        shift
+        case "${1:-}" in
+          ''|*[!0-9]*) die "usage: $0 sources [--prev-dry] [--open-prs <n>]" ;;
+        esac
+        SRC_OPEN_PRS="$1"; shift ;;
+      *) die "usage: $0 sources [--prev-dry] [--open-prs <n>]" ;;
+    esac
+  done
+
   printf '== sources (read-only: counts, never acts)\n\n'
 
   # --- failing or skipped checks -----------------------------------------
@@ -3399,17 +3416,109 @@ cmd_sources() {
     printf 'sweep INCOMPLETE — a source could not be counted; not dry%s\n' "$carrying"
   elif [ "$dry" -eq 1 ]; then
     printf 'sweep dry — every detector zero\n'
-    # One conjunct, not the stop signal. The requirement asks for every
-    # detector zero on TWO consecutive sweeps, an empty queue, and no open
-    # pull request. This command counts none of those three and stores no
-    # prior sweep, so a session reading this line as "stop" stops early.
-    printf '  Not on its own a reason to stop: the mode also needs a second\n'
-    printf '  dry sweep, an empty queue and no open pull request\n'
-    printf '  (docs/product/unsupervised-mode.md, Satisfied when).\n'
   else
     printf 'sweep NOT dry —%s\n' "$carrying"
   fi
+
+  src_stop_condition "$dry" "$blind"
   return 0
+}
+
+# The whole stop condition, part by part, because this is the ONE place an
+# unattended fleet is allowed to stop and a session assembling it by hand
+# either halts a fleet that should run or runs one that should have halted.
+#
+# The requirement asks for four things (docs/product/unsupervised-mode.md,
+# Satisfied when): every detector zero, on TWO consecutive sweeps, an empty
+# queue, and no open pull request. This command counted the first and printed
+# prose about the other three — honest, and not countable.
+#
+# TWO of the four cannot be counted from here, and they are handed to the
+# caller rather than guessed:
+#
+#   - **no open pull request.** Nothing in this harness reaches GitHub; there
+#     is no `gh` on the runner and every measure here reads git. Git cannot
+#     tell an open pull request from a closed one — the same bytes, which is
+#     what PR 151 corrected in the handover hook after it advertised a pull
+#     request closed nine days earlier as open.
+#   - **two consecutive sweeps.** That is a fact about a PREVIOUS run, and
+#     every measure in this harness counts from git at read time and stores
+#     nothing. A state file would be the first exception in the codebase, and
+#     the caller already knows: it ran the previous sweep.
+#
+# So they are flags, and their ABSENCE is CANNOT TELL — never STOP. A verdict
+# that treated unreachable as satisfied would be the failure documented in
+# docs/research/unmarked-detector-unreachable.md, reached from the other
+# side: there a detector could never be zero, so the fleet could never stop;
+# here a fleet could stop on a condition nobody checked.
+#
+# They are flags rather than something this command derives, so STOP stays
+# REACHABLE. A part that can never be satisfied makes the whole verdict
+# unreachable, which is the same defect wearing the opposite sign.
+src_stop_condition() {
+  local dry="$1" blind="$2" qout next queue_empty=0 verdict
+  printf '\n== stop condition (docs/product/unsupervised-mode.md, Satisfied when)\n'
+
+  if [ "$blind" -eq 1 ]; then
+    printf '  every detector zero  : CANNOT COUNT — a source could not be read\n'
+  elif [ "$dry" -eq 1 ]; then
+    printf '  every detector zero  : yes\n'
+  else
+    printf '  every detector zero  : no\n'
+  fi
+
+  # The queue, counted rather than assumed. `drain_next` ranks an unplanned
+  # requirement above the plan queue, which is what PR 157 fixed after
+  # `drain` reported DRAINED over one.
+  #
+  # A MISSING hook is not an empty queue. `drain_hook` returns nothing and
+  # exits 0 when the file is absent or not executable, so reading its silence
+  # as "empty" reports the strongest possible fact — nothing left to do —
+  # from the weakest possible evidence. Found by a fixture that had no
+  # queue-context.sh in it: the empty-queue case passed for that reason and
+  # not because any queue was read.
+  if [ -x "${HARNESS_ROOT}/queue-context.sh" ]; then
+    qout="$(drain_hook queue-context.sh)"
+    next="$(drain_next "$qout")"
+    if [ -n "$next" ]; then
+      printf '  queue empty          : no — next: %s\n' "$next"
+    else
+      queue_empty=1
+      printf '  queue empty          : yes\n'
+    fi
+  else
+    printf '  queue empty          : CANNOT COUNT — no queue-context.sh to read\n'
+  fi
+
+  if [ -n "${SRC_OPEN_PRS:-}" ]; then
+    printf '  no open pull request : %s (--open-prs %s)\n' \
+      "$([ "$SRC_OPEN_PRS" -eq 0 ] && printf yes || printf no)" "$SRC_OPEN_PRS"
+  else
+    printf '  no open pull request : CANNOT COUNT — this command never reaches\n'
+    printf '                         GitHub, and git cannot tell open from closed.\n'
+    printf '                         Count them and pass --open-prs <n>\n'
+  fi
+
+  if [ "${SRC_PREV_DRY:-0}" -eq 1 ]; then
+    printf '  second dry sweep     : yes (--prev-dry, asserted by the caller)\n'
+  else
+    printf '  second dry sweep     : CANNOT COUNT — a previous run is not a thing\n'
+    printf '                         this reads from git. Pass --prev-dry when the\n'
+    printf '                         sweep before this one was also dry\n'
+  fi
+
+  # DO NOT STOP outranks CANNOT TELL: a part that is known false settles it,
+  # and saying "cannot tell" over a non-empty queue would send a session
+  # looking for flags it does not need.
+  if [ "$blind" -eq 1 ] || [ "$dry" -eq 0 ] || [ "$queue_empty" -eq 0 ] ||
+     { [ -n "${SRC_OPEN_PRS:-}" ] && [ "$SRC_OPEN_PRS" -gt 0 ]; }; then
+    verdict='DO NOT STOP'
+  elif [ -z "${SRC_OPEN_PRS:-}" ] || [ "${SRC_PREV_DRY:-0}" -eq 0 ]; then
+    verdict='CANNOT TELL — not a reason to stop'
+  else
+    verdict='STOP — every part of the condition holds'
+  fi
+  printf '  => %s\n' "$verdict"
 }
 
 # ---------------------------------------------------------------------------
@@ -4531,7 +4640,7 @@ main() {
     # thing a human runs, and a help entry invites a session to treat the
     # list as an input rather than the rule's expression.
     protocol-paths) protocol_paths ;;
-    sources)        cmd_sources ;;
+    sources)        cmd_sources "$@" ;;
     -h|--help|help) usage ;;
     *) die "unknown subcommand '$cmd' (try: $0 help)" ;;
   esac
