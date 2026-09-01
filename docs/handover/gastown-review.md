@@ -54,16 +54,30 @@ context, all GROUNDED.
 - r4: (verifier) all twelve findings GROUNDED, none WEAK or UNGROUNDED at
   the finding level; the one declared WEAK item (docs-only sweep, practice
   unverified) stands as written (fixed)
+- r5: (code-review) F15 cited escalation beads to gastown `AGENTS.md`,
+  which contains no escalation content; real source is gastown `README.md`
+  Escalation (fixed)
+- r6: (code-review) reverse findings F13–F16 used verdict labels outside
+  the file's declared set and had no settle criterion; round-2 paragraph
+  added to "What would settle it", verdicts recast to record/keep (fixed)
+- r7: (code-review) Verification section's "checked by a spawned subagent"
+  silently extended over F13–F16, which that subagent never saw; a second
+  grounding pass was run and recorded as Round 2 (fixed)
+- r8: (code-review) two citation code spans split across line wraps broke
+  grep-ability of the cited paths (fixed)
+- r9: (session) the original Blockers claim here — ci red pre-existing on
+  `main` — was scope-wrong: GitHub's ci on `main` is green (run 424,
+  conclusion success), and PR #181's commit message records this exact
+  perf red as container-local; Blockers rewritten (fixed)
 
 ## Blockers
 
-`./joharness.sh ci` is red on the perf budget BEFORE this diff exists:
-session-start counts 1145 against budget 700 (graph, queue-context, drain
-also over) on a tree 0 ahead of `origin/main` — measured 2026-09-01 by
-running `./joharness.sh ci` with the research file moved aside. This
-branch's file adds +12 (per-item cost of one more queue node, not a
-regression in kind). Unblock: fix the budget breach on `main`, or a human
-merges accepting the pre-existing red.
+None. Local `./joharness.sh ci` is red on the perf budget in THIS container
+(session-start counted 1145 against budget 700 with this branch's files
+moved aside, so pre-existing here, +12 from this branch's node — per-item
+cost, not a regression in kind). GitHub's ci on `main` is green (run 424,
+head `d05947d`, conclusion success), and PR #181's merge message records
+the same local perf red as container-local. Merge on GitHub's checks.
 
 ## Where to look
 

@@ -28,7 +28,10 @@ closed.
 `goal-directed` — everything needed to decide adopt / already-have / reject
 for joharness. NOT everything gastown contains: implementation quality,
 `internal/` Go code, and most of `docs/design/` were not audited. Findings
-are about stated ideas, read from gastown's own docs.
+are about stated ideas, read from gastown's own docs. Two rounds: F1–F12
+grade gastown's ideas for joharness; F13–F16 are the reverse direction —
+joharness ideas gastown lacks — added when the requester asked for the
+comparison both ways.
 
 ## What would settle it
 
@@ -40,6 +43,13 @@ counterpart and real value is an adopt-candidate; an idea joharness's own
 measured rules argue against is a recorded rejection. Unsettleable here:
 whether gastown's mechanisms work well in practice — that needs running it,
 out of this sweep's scope.
+
+Round 2, declared with that round rather than before the whole file (the
+requester's follow-up asked for it): a joharness idea counts as a settled
+reverse finding when gastown's own docs show the gap — or show the failure
+the joharness rule predicts. Reverse verdicts come from a two-word set:
+`record` (prior-art contrast worth graduating) or `keep` (joharness-only
+idea, keep investing).
 
 ## Method
 
@@ -199,6 +209,51 @@ All gastown paths below are relative to that clone at `649b832`.
   working / idle, `README.md` "Problems View") is a good vocabulary for the
   unsupervised heartbeat's checks.
 
+Reverse direction — joharness ideas gastown lacks:
+
+- **F13 — In-repo harness vs host-town service.** joharness embeds under
+  `.agents/` in the repo it governs — "one dotted root any tool can detect"
+  (root `AGENTS.md`, Part 2) — so any clone, runner, or CI job carries the
+  whole harness. Gastown wraps repos as "rigs" inside a host workspace:
+  `gt install ~/gt`, then `gt up` "boots Dolt, the daemon, the Deacon, the
+  Mayor, and per-rig Witnesses and Refineries" (`README.md`). Coordination
+  exists only where the town is installed and its services run. The trade:
+  gastown buys live processes (watchdogs, queues, nudges); joharness buys
+  zero-install portability and gates that CI itself can run. Verdict:
+  record — this split explains most of the other differences.
+
+- **F14 — Measured-numbers discipline.** joharness: "Measured number
+  carries what produced it, same sentence — the command, and when"
+  (`.agents/harness/AGENTS.md` step 5) and "Trust counted numbers, never
+  written numbers" (root `AGENTS.md`). Gastown's docs carry load-bearing
+  numbers with no reproduction path beside them: "~6,000+ rows/day →
+  ~400/day" (`docs/concepts/molecules.md`, no producing command in the
+  surrounding section) and "Scale comfortably to 20-30 agents" (`README.md`
+  problem table, a bare cell). joharness's rule exists because exactly such
+  numbers rot unre-counted. Verdict: keep.
+
+- **F15 — Feedback graduation.** joharness turns repeated review findings
+  into rules: findings attach to the files their fix touched,
+  `./joharness.sh feedback <path>` serves them back to the next editor, and
+  "File keeps drawing findings = rule nobody wrote yet: graduate it"
+  (`.agents/harness/AGENTS.md` step 5; loop in `.agents/docs/feedback.md`).
+  Gastown's nearest mechanisms are `bd remember` for "persistent knowledge"
+  (gastown `AGENTS.md`) and escalation beads (`README.md`, Escalation) —
+  storage and routing, not a loop that promotes recurring findings into
+  enforcement; nothing found in its `docs/` describes one. Verdict: keep.
+
+- **F16 — State as file existence, no status field to rot.** joharness:
+  "file existence IS the state, so there is no status field to go stale"
+  (`.agents/docs/research/README.md`, Edges); done means deleted. Gastown
+  runs on status fields — bead `--status`, the convoy open/closed lifecycle
+  (`docs/concepts/convoy.md`), the molecule lifecycle — and its own docs
+  record the failure joharness's rule predicts: the `heartbeat:<EPOCH>`
+  bead label that "leaves this label stale for hours even though the agent
+  is healthy" (`docs/concepts/heartbeats.md`, Gotcha), plus the wisp-row
+  accumulation in F7. Verdict: record — gastown's gotcha list is
+  independent evidence for joharness's stored-state rules, the strongest
+  cross-validation in this review.
+
 ## Consequence for the queue
 
 No existing plan changes. Two adopt-candidates, both small, neither filed as
@@ -258,6 +313,28 @@ whether any gastown mechanism works in practice (the declared WEAK below).
   gastown `AGENTS.md` Session Completion.
 - F12 GROUNDED — health-state table in `README.md` Problems View; feature
   list as described.
+
+Round 2 (F13–F16): checked by a second spawned subagent, again a context
+that did not write them; a `/code-review` (high) pass over the full diff
+ran alongside it, and both passes' findings are dispositioned in this
+branch's workstream file `## Review` (retired with the branch, recoverable
+by the command in the pull request body).
+
+- F13 GROUNDED — "one dotted root any tool can detect" verbatim in root
+  `AGENTS.md` Part 2; the `gt up` boot sentence verbatim in gastown
+  `README.md`; host-install requirement confirmed from the install steps
+  and the tmux prerequisite row.
+- F14 GROUNDED — both joharness rules verbatim where cited; both gastown
+  numbers verbatim, no producing command in their surrounding lines.
+- F15 WEAK at check, citation fixed in the same commit — the draft cited
+  escalation beads to gastown `AGENTS.md`, which has no escalation content
+  (`grep -ci escalat` on it returns 0); the real source is `README.md`'s
+  Escalation section, cited now. Substance held either way; note the
+  absence claim rests on searches of gastown `docs/` for "graduate",
+  "recurring", "feedback" — not a read of every doc end to end.
+- F16 GROUNDED — both quotes verbatim; the open/closed lifecycle table
+  lives in `docs/concepts/convoy.md`, cited now (the checker could not
+  find that phrase in the files the draft named).
 - WEAK (cross-cutting) — claims about gastown mechanisms WORKING (refinery
   bisect behavior, seance in practice) rest on gastown's docs, not on
   running it or reading `internal/`; the sweep declared this out of scope.
@@ -267,5 +344,6 @@ whether any gastown mechanism works in practice (the declared WEAK below).
 `.agents/docs/prior-art.md` — a why-explanation recording what comparable
 systems chose and why joharness differs, so the rejections here (F1, F6,
 F9) stay closed with reasoning instead of being re-litigated by the next
-session that discovers gastown. The two adopt-candidates graduate as plans
-only if the human queues them.
+session that discovers gastown. The `record`-verdict reverse findings (F13,
+F16) are the content that file should carry alongside them. The two
+adopt-candidates graduate as plans only if the human queues them.
