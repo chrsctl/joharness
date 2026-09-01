@@ -1,6 +1,6 @@
 ---
 workstream: gastown-review
-status: review
+status: done
 branch: claude/gastown-review-owjgzg
 pr: none
 plan: gastown-ideas
@@ -8,15 +8,18 @@ issue: none
 session: https://claude.ai/code/session_01JU2E2vNtdyc5di2jrZfBRg
 agent: sonnet
 updated: 2026-09-01
-next: Merge to land the research node; graduating it to .agents/docs/prior-art.md is follow-up queue work
+next: Retire this file, open the pull request, merge on green; graduating the node to .agents/docs/prior-art.md is follow-up queue work
 ---
 
 ## Goal
 
-Human asked: "Review ideas of https://github.com/gastownhall/gastown".
-Deliverable is the review itself, filed so it outlives this session:
-`docs/research/gastown-ideas.md` — twelve findings, verified from a second
-context, all GROUNDED.
+Human asked: "Review ideas of https://github.com/gastownhall/gastown",
+then "Compare to our ideas, review, and improve. Create pr." Deliverable is
+the review itself, filed so it outlives this session:
+`docs/research/gastown-ideas.md` — sixteen findings (F1–F12 gastown ideas
+graded for joharness, F13–F16 the reverse direction), each verified from a
+second context; fifteen GROUNDED, F15 WEAK at check with its citation
+fixed in the same commit.
 
 ## Decisions
 
@@ -69,15 +72,38 @@ context, all GROUNDED.
   `main` — was scope-wrong: GitHub's ci on `main` is green (run 424,
   conclusion success), and PR #181's commit message records this exact
   perf red as container-local; Blockers rewritten (fixed)
+- r10: (verifier) round 2's settle criterion in "What would settle it" was
+  written with its round, not before the whole file — the section's own
+  rule (wontfix: the deviation is stated in the paragraph itself; the
+  round was a requester scope extension, and faking a pre-declared
+  criterion would comply in form by lying in substance)
+- r11: (verifier) F13–F16 verdicts did not use the declared record/keep
+  set — true of the intermediate tree it read; recast in 322243b before
+  this record (fixed)
+- r12: (verifier) F13–F16 carried no GROUNDED/WEAK/UNGROUNDED mark — same
+  race; Round 2 verification block landed in 322243b (fixed)
+- r13: (verifier) Goal here said "twelve findings ... all GROUNDED" over a
+  sixteen-finding file with one WEAK-at-check — count and grades corrected
+  (fixed)
+- r14: (verifier) Blockers' measured number no longer carried a command
+  that reproduces it — the stated re-run now skips perf as docs-only;
+  provenance rewritten with the pre-commit condition and the
+  JOHARNESS_PERF=always re-run path (fixed)
+- r15: (verifier) no PR existed, which step 7 has no carve-out for — PR
+  opened and driven this round (fixed)
 
 ## Blockers
 
-None. Local `./joharness.sh ci` is red on the perf budget in THIS container
-(session-start counted 1145 against budget 700 with this branch's files
-moved aside, so pre-existing here, +12 from this branch's node — per-item
-cost, not a regression in kind). GitHub's ci on `main` is green (run 424,
-head `d05947d`, conclusion success), and PR #181's merge message records
-the same local perf red as container-local. Merge on GitHub's checks.
+None. Local perf-budget red is container-local, not a blocker: measured
+2026-09-01 in this container by `./joharness.sh ci` run BEFORE this
+branch's first commit (HEAD equal to origin/main, the new file untracked
+and moved aside) — session-start counted 1145 against budget 700. Once the
+branch carries commits the perf section skips as docs-only; re-measuring
+here needs `JOHARNESS_PERF=always ./joharness.sh ci` (the verifier's
+re-run without it prints the skip, not numbers). GitHub's ci on `main` is
+green (run 424, head `d05947d`, conclusion success), and PR #181's merge
+message records the same local perf red as container-local. Merge on
+GitHub's checks.
 
 ## Where to look
 
