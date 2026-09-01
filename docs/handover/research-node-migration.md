@@ -48,6 +48,42 @@ chrsctl/gx#226.
 
 ## Review
 
+`/code-review high` on the full diff; five findings, all triaged.
+
+- r1: the queue test captured `out` with PLAIN-DOC present, then removed the
+  document and pushed but never re-read, so the following blocked-plan and
+  2-free-plans assertions measured a fixture state no longer on the ref.
+  (fixed — re-capture `out="$(rq)"` after the revert, restoring the state
+  those assertions were written against.)
+- r2: the filters strip a trailing `\r` before comparing to `---`, which the
+  awk parsers (`fields`, `gr_fields`) do not. (wontfix — the strip is the
+  established convention for first-line frontmatter detection in this file:
+  `lint_unknown_types` strips it too, "a CRLF checkout is a checkout, not a
+  different repo". Keeping it leaves a CRLF-corrupted `---\r` node a
+  node-candidate that the parser then reds for unreadable keys — fail-loud —
+  where dropping the strip would misclassify it as a plain document and
+  silently exempt it. The lenient classifier is deliberate.)
+- r3: each research file is `git show`n twice — once for line 1 in
+  `frontmatter_only`, again for the whole document in the rrows loop.
+  (wontfix — research dirs are small (gx's largest consumer has 13) and
+  queue-context sits at 202-209 against a 350 budget with room to spare;
+  threading the read through the filter pipe to save one object read per
+  file trades clarity for I/O the budget does not need.)
+- r4: the "first line is `---`" rule now lives at four sites — two awk
+  parsers and two shell filters. (wontfix — the two access methods differ
+  irreducibly (working-tree read in shell for the lint, `git show` for the
+  hook) and the awk parsers answer a different question (parse the fields)
+  than the filters (is this a node at all); one helper cannot span both. r2
+  settles the one place they could disagree.)
+- r5: `frontmatter_only`'s comment said the unreadable detector "counts and
+  names" a kept file, but `qc_warn_research_unreadable` prints only a count.
+  (fixed — comment now says "counts it (as a number, not by name)".)
+- r6: verifier not spawned by this session. This is the divergence the last
+  edge (#181 r3) flagged — the instruction forbids calling the Agent tool
+  unasked, and Loop step 5 asks for a reader that did not write the diff.
+  (wontfix — issue #168, the human's to lift; the code-review pass above is
+  the closest available substitute and ran as a fork.)
+
 ## Blockers
 
 None.
