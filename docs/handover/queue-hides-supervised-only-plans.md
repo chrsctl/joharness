@@ -64,8 +64,57 @@ offering it to an unsupervised fleet.
 
 ## Review
 
-Pending — depth is `./joharness.sh review` for this branch, plus a verifier
-that did not write the diff.
+Depth is opus-adversarial (`./joharness.sh review`), plus a verifier that did
+not write this diff.
+
+- r1: **`drain` was reading a queue it never asked about.** `drain_hook` set
+  `CLAUDE_PROJECT_DIR` and `HANDOVER_FETCH` and nothing else, so
+  `queue-context.sh` fell back to `${JOHARNESS_RUN_MODE:-supervised}` and
+  answered as supervised no matter what mode `drain` had just resolved and
+  printed in its own banner. Every mode-dependent line in the hook was
+  therefore invisible to `drain`, and the SUPERVISED ONLY row arrived here
+  ranked free. Not a defect this change introduced — it predates it, and it
+  means the session banner and `drain` have been describing different queues
+  from one tree. Found because the new cases failed on a `next:` line that
+  should have been filtered. (fixed — the resolved mode is passed to the
+  child, exactly as `cmd_session_start` passes it; +2 external commands on
+  the `drain` row, counted below)
+- r2: two of my own first-draft assertions were vacuous, both in the shapes
+  this repo has already paid for. `refute ... "1 free plans"` named a line
+  the hook only prints at two or more free plans, so it could never have
+  matched; and the unreadable-boundary `refute` matched the explanatory note
+  that itself contains the words "marked SUPERVISED ONLY". Caught by running
+  them, not by reading them. (fixed — the first asserts on the tail line the
+  hook does print, the second reads the plan ROW)
+- r3: my ordering case asserted the marked plan leads under supervised, and
+  it did not: both plans were committed within the same second, so `added`
+  tied and `sort`'s last-resort whole-line comparison decided it on the
+  filename. That is PR129 r3's tie, walked into while writing a case about
+  ordering. (fixed — the free plan is named `ztakeable` so the tie-break
+  gives the OPPOSITE answer, which makes the rank the only thing that can
+  produce the result asserted)
+- r4: `ci` is RED on this branch and red on `origin/main` in this same
+  container, on one case: the `graph` perf row, 422 counted against a budget
+  of 260. It is the ref count, and that is now measured rather than called
+  container-local: a `--single-branch` clone of this repo has 1
+  remote-tracking ref and counts `graph` 31, `session-start` 86,
+  `queue-context` 61, `drain` 83 — every row far inside budget. This
+  container has 107, because 44 merged branches and their tracking refs are
+  still standing (issue #167). The budgets were calibrated against a CI
+  checkout, which fetches one branch. (wontfix on this branch — raising a
+  literal to match an operator's ref count is what the row's own comment
+  forbids, and the fix is deleting branches, which is human-only. Verified
+  the other way instead: the whole suite is green in a single-ref clone.)
+- r5: the change costs 0 external commands in the queue hook and +2 in
+  `drain` — that row moved 1186 -> 1188 for r1's two `run_mode` calls, while
+  `queue-context` and `session-start` did not move at all (497 -> 497,
+  1188 -> 1188). Zero in the hook is the design and not luck: the boundary
+  list is read once per run rather than per plan, `scope:` rides the
+  `fields` call that was already there, and the classifier sets a global
+  instead of being called in a `$( )` that would fork per plan. Measured on ONE tree by swapping only the two
+  changed files, because these counts drift with repo state and a
+  before/after taken across a commit is not a measurement of the code.
+  (fixed — nothing to change; the design intent, counted)
 
 ## Blockers
 

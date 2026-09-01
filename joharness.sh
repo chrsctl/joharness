@@ -4691,10 +4691,21 @@ cmd_finish() {
 # readers of one fact start disagreeing — the cost `owned_at` already paid.
 # The strings it keys on are pinned by those hooks' own selftests, so a
 # reword goes red there rather than silently emptying this.
+# The RESOLVED mode goes to the child, exactly as cmd_session_start passes it.
+# Without it the hook read `${JOHARNESS_RUN_MODE:-supervised}` and answered as
+# if supervised, so an unsupervised `drain` was reporting a queue nobody had
+# asked it about — and the two commands a session reads, the session banner
+# and this one, described different queues from the same tree. Caught by the
+# SUPERVISED ONLY cases: a plan the hook de-ranks for this mode still arrived
+# here ranked free, because the hook was never told which mode it was in.
+#
+# Resolved by run_mode() and passed, never re-derived in the hook: precedence
+# across the env var, the marker and the conf lives in one place.
 drain_hook() {
   local h="${HARNESS_ROOT}/$1"
   [ -x "$h" ] || return 0
-  CLAUDE_PROJECT_DIR="$ROOT" HANDOVER_FETCH="${DRAIN_FETCH:-0}" "$h" 2>/dev/null
+  CLAUDE_PROJECT_DIR="$ROOT" HANDOVER_FETCH="${DRAIN_FETCH:-0}" \
+    JOHARNESS_RUN_MODE="$(run_mode)" "$h" 2>/dev/null
 }
 
 # First FREE row in the queue hook's own order. Claimed and blocked rows are
@@ -4737,7 +4748,15 @@ drain_plan() {
     # s|...| the \| below reads as an escaped delimiter and the expression
     # silently matches nothing, which reports a full queue as drained.
     sed -n 's#^  \(docs/\(plans\|research\)/[^ ]*\.md\)  \(.*\)$#\1 \3#p' |
-    { grep -v 'claimed on\|blocked by' || :; } | head -1
+    # SUPERVISED ONLY joins the two markers that were always here. The hook
+    # ranks such a plan below every free row under unsupervised, so without
+    # this filter the one state the marking exists for — a single plan,
+    # scoped entirely to protocol text — would still be handed out as `next`,
+    # and the two readers of one queue would disagree.
+    #
+    # Inert under supervised: the hook only ever writes that string in the
+    # other mode, so nothing this filters can appear.
+    { grep -v 'claimed on\|blocked by\|SUPERVISED ONLY' || :; } | head -1
 }
 
 drain_next() {
@@ -4813,6 +4832,30 @@ cmd_drain() {
   # treats an empty queue as a trigger and stops only on a dry sweep
   # (docs/product/unsupervised-mode.md, ratified 2026-08-25).
   if [ "$mode" = "unsupervised" ]; then
+    # The queue can hold work this MODE cannot take. A plan whose whole
+    # declared `scope:` is protocol text is one an unattended session may
+    # never commit, so the hook marks it SUPERVISED ONLY and ranks it out of
+    # the free list — and every line below this point would then describe the
+    # queue as empty over a plan sitting in the tree. That is the defect
+    # drain_requirement already paid for: a status line reading "nothing to
+    # do" while work is right there.
+    #
+    # Read from the hook's own output. The marking belongs to queue-context.sh
+    # and re-deriving it here would be the second reader of one fact this
+    # command exists not to be. Anchored to the row shape so the hook's own
+    # prose about the marking is not counted as a plan.
+    local sup
+    sup="$(printf '%s\n' "$qout" |
+      sed -n 's#^  \(docs/plans/[^ ]*\.md\)  .*SUPERVISED ONLY.*#  \1#p')"
+    if [ -n "$sup" ]; then
+      printf 'NOT YOURS — the queue holds plan(s) marked SUPERVISED ONLY:\n'
+      printf '%s\n' "$sup"
+      printf '  Scope is entirely protocol text, which a session running\n'
+      printf '  unattended may not commit (docs/product/unsupervised-mode.md,\n'
+      printf '  Constraints). Leave them for a supervised session, and do NOT\n'
+      printf '  re-file the same work as a new plan.\n\n'
+    fi
+
     # THE GOAL FIRST, because it is the cheaper stop and the more final one.
     # Autonomy is live only while a requirement is open
     # (docs/product/unsupervised-mode.md, Constraints — the goal bound). With

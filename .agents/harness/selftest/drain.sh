@@ -235,3 +235,78 @@ git -C "$dwork" push -q origin main
 out="$(ddrain)"
 refute "a requirement WITH plans is no longer offered" "next: docs/product/needsplans.md" "$out"
 expect "and the plan queue is reached again" "next: docs/plans/" "$out"
+
+# --- a plan this MODE cannot take is never handed out ----------------------
+# The endurance retry's queue, rebuilt: a plan scoped entirely to protocol
+# text, which a session running unattended may never commit. The hook marks
+# it SUPERVISED ONLY and ranks it below every free row; drain hands out the
+# next thing to TAKE, so a marked row reaching `next:` would send an
+# unattended fleet at 55 minutes of work it has to revert. Read from the
+# hook's own output, never re-derived here.
+#
+# This fixture repo carries a copy of joharness.sh, which is what lets the
+# hook read the boundary at all (`protocol-paths`).
+fixture_rm "$dwork" "clear the queue for the boundary cases" \
+  docs/plans/forreq.md docs/plans/freeone.md docs/plans/taken.md \
+  docs/product/needsplans.md
+git -C "$dwork" push -q origin main
+git -C "$dwork" push -q origin --delete claimer 2>/dev/null || true
+
+# Committed ALONE, and first. Rows sort by rank then oldest, so two plans
+# added in one commit share a timestamp and their order is whatever sort's
+# last-resort comparison says — the tie PR129 r3 already paid for once.
+printf -- '---\nplan: protocolonly\nurgency: normal\nagent: sonnet\neffort: low\nscope: joharness.sh, .agents/harness/selftest\n---\n\n## Goal\nFixture.\n' \
+  >"${dwork}/docs/plans/protocolonly.md"
+commit_all "$dwork" "a plan scoped entirely to protocol text"
+git -C "$dwork" push -q origin main
+
+out="$(ddrain)"
+expect "supervised still hands out a protocol-text plan" \
+  "next: docs/plans/protocolonly.md" "$out"
+refute "and says nothing about a boundary" "SUPERVISED ONLY" "$out"
+refute "nor prints the block that names one" "NOT YOURS" "$out"
+
+# A goal, and a plan serving it — both required to reach the unsupervised
+# branch at all: with no open requirement drain stops at GOAL REACHED, and
+# with an unplanned one it hands out the requirement instead. The serving
+# plan is scoped to protocol text too, so the queue holds two plans and no
+# free one.
+mkdir -p "${dwork}/docs/product"
+printf -- '---\nrequirement: boundarygoal\npriority: normal\n---\n\n## Goal\nFixture.\n\n## Satisfied when\n\n- something observable.\n' \
+  >"${dwork}/docs/product/boundarygoal.md"
+printf -- '---\nplan: servesit\nurgency: normal\nagent: sonnet\neffort: low\nrequirement: boundarygoal\nscope: .agents/harness\n---\n\n## Goal\nFixture.\n' \
+  >"${dwork}/docs/plans/servesit.md"
+commit_all "$dwork" "a goal, and a second plan inside the boundary"
+git -C "$dwork" push -q origin main
+
+out="$(ddrain env JOHARNESS_MODE=unsupervised)"
+refute "unsupervised is never handed the plan it cannot commit" \
+  "next: docs/plans/protocolonly.md" "$out"
+refute "nor the second one" "next: docs/plans/servesit.md" "$out"
+# Silence here would be the defect drain_requirement already fixed: a status
+# line reading "nothing to do" over work sitting in the tree.
+expect "the plans it cannot take are named" "NOT YOURS" "$out"
+expect "and named by path" "docs/plans/protocolonly.md" "$out"
+expect "and the reason given is the boundary, not availability" \
+  "Scope is entirely protocol text" "$out"
+expect "and it says not to re-file the same work" \
+  "re-file the same work" "$out"
+
+# A takeable plan beside them. This is the case that separates de-ranked
+# from hidden: `next:` must reach the free plan rather than stopping on the
+# marked ones.
+dplan takeable
+commit_all "$dwork" "a plan an unattended session can finish"
+git -C "$dwork" push -q origin main
+out="$(ddrain env JOHARNESS_MODE=unsupervised)"
+expect "the takeable plan is what unsupervised is handed" \
+  "next: docs/plans/takeable.md" "$out"
+# And the block does NOT print here, deliberately. This command answers one
+# question — the next thing to take — and when there is an answer, a marked
+# plan changes nothing about it. The queue hook's table carries the marking
+# for a reader who wants the shape of the whole queue; repeating it on every
+# NOT DRAINED line is noise in the common path, and the block exists for the
+# one state where its absence would be a lie: nothing free, and a plan in
+# the tree that this mode cannot take.
+refute "and the block stays out of the path that has an answer" \
+  "NOT YOURS" "$out"
