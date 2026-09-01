@@ -67,10 +67,25 @@ Candidates, with the objection to each:
 4. **Warn, never red, for a file with no frontmatter**, red once it has
    any. Degrades like the shallow-history case `lint_graph` already has a
    precedent for. Weakest gate.
+5. **Routing decides nodehood** (human proposal, 2026-09-01): a file in
+   `docs/research/` is a node when the graph routes through it — it
+   self-names (`research: <stem>` as its first frontmatter key, the node
+   definition `lint_unknown_types` already counts on) OR an open plan's
+   `research:` edge names its stem. gx's 13 files do neither, so they read
+   as documents and the sync lands green with zero consumer migration —
+   the one cost candidate 2 cannot avoid. A node a plan is waiting on that
+   drops its whole frontmatter block STAYS a node, because the plan's edge
+   convicts it — candidate 1's escape hatch closes wherever anything
+   references the file. Objection: an UNREFERENCED node that loses its
+   entire block leaves the queue silently, the PR 140 shape again — and an
+   open question no plan names yet is a normal state here, not a corner.
+   Narrower hole than 1's, wider than 2's none.
 
-Recommendation: **2**, with a documented migration in `consumer-repos.md`
-following the pre-`.agents` precedent, because it is the only one where
-neither a real node nor a plain document can end up silently mis-classified.
+Recommendation: **5**, with **2** as the fallback if the unreferenced-node
+hole is judged disqualifying. 5 is the only candidate that both migrates
+every consumer for free and keeps a referenced node from escaping by
+omission; 2 remains the only one with no hole at all, at the price of a
+per-file edit in every consumer.
 Decide from the candidates rather than inheriting this line.
 
 ## Scope
@@ -86,6 +101,10 @@ Decide from the candidates rather than inheriting this line.
 
 - Authoring frontmatter for any consumer's documents.
 - Changing what a research node means once it IS one.
+- Filtering by file TYPE — not a lever. `lint_nodes` already reads only
+  `*.md` minus TEMPLATE/README/VISION, and `gr_docs` keeps only `.md`
+  minus TEMPLATE/README; every one of gx's 65 DEAD lines is a `.md` file,
+  so ignoring non-markdown or meta files fixes nothing here.
 
 ## Acceptance
 
@@ -93,7 +112,10 @@ Decide from the candidates rather than inheriting this line.
   `ci`, reproduced against gx's 13 files as the fixture case.
 - A real research node missing a key is still DEAD.
 - Whichever candidate is chosen, the escape-by-omission case has a test
-  that fails without the fix.
+  that fails without the fix. Candidate 5 chosen? The test pins the
+  referenced half — a plan-named research file with no frontmatter is
+  DEAD — and the unreferenced hole is written down in
+  `.agents/docs/research/README.md`, not left implicit.
 - `mutate` reds them.
 
 ## Traps
