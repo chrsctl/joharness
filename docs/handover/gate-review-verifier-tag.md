@@ -111,6 +111,14 @@ merged PR 196 and PR 197.
   (fixed — the comment names the commit, says which half is re-countable, and
   says the pair is kept for its shape rather than as a measurement)
 
+Mutations re-run on the final tree, since three of these fixes landed after
+the first set (`./joharness.sh mutate`, 2026-09-02): the tag short-circuit
+reds 5 cases, the continuation fold 1, the inherited carve-out 2, the edge
+guard 2. The any-line mutation reds 8, and only two of those isolate the
+bound it targets — that line also carries `n++`, so replacing it disturbs the
+count as well. The clean pins for the bound are "prose and pasted output are
+not findings" and "pasting the gate's own red does not satisfy it".
+
 ## Blockers
 
 None.
