@@ -24,18 +24,21 @@ every depth spawns, tagged `(verifier)`. So a branch that only self-reviews
 passes the gate exactly as if the verifier had run.
 
 That gap is not hypothetical — it is r6's own history. The branch that
-built the unmarked-findings baseline (merged as PR 161) recorded five
-self-review findings, satisfied `review_report`'s `n>0` check, and never
-spawned the verifier — a lapse its own author caught and wrote down as "the
-second in a row." Nothing short of a human reading the diff catches the
-first one, or the next. Close the gap the finding names: `review_report`
-should read the SAME thing it prints instructions about.
+built the unmarked-findings baseline (merged as PR 161) recorded six
+self-review findings under one `Round 1, opus, self` heading — r6 among
+them — satisfied `review_report`'s `n>0` check, and never spawned the
+verifier: a lapse its own author caught and wrote down, in that same
+self-review, as "the second in a row." Nothing short of a human reading
+the diff catches the first one, or the next. Close the gap the finding
+names: `review_report` should read the SAME thing it prints instructions
+about.
 
 ## Scope
 
-- `joharness.sh` — `review_report()` (~`joharness.sh:2914`) and
-  `review_count()` (~`joharness.sh:2457`, or a sibling function reading the
-  same bullets): when a workstream file's `## Review` section has findings
+- `joharness.sh` — `review_report()` (~`joharness.sh:2914`), reading
+  finding text via `fb_findings()` (`joharness.sh:3173` — folds wrapped
+  continuation lines, unlike `review_count()`, which only ever returns a
+  bare count): when a workstream file's `## Review` section has findings
   (`n>0`) but none of them contain the literal tag `(verifier)`, the branch
   has not satisfied the step. At the edge (`review_at_edge` true — `pr` set,
   or `status: review`/`done`) this is a gate failure, same class as zero
@@ -90,13 +93,23 @@ should read the SAME thing it prints instructions about.
 - `joharness.sh:review_report` — where `n` (finding count) currently decides
   pass/fail at the edge; the new check reads the same bullets `review_count`
   already isolates.
-- `joharness.sh:review_count` — the awk that isolates `## Review` bullets;
-  the tag check can reuse this rather than re-parsing.
+- `joharness.sh:fb_findings` — extracts `## Review` bullet TEXT, folding
+  wrapped continuation lines back in. Use this for the tag check, not
+  `review_count` (`joharness.sh:2457`): that function only ever returns a
+  bare count (`END { print n + 0 }`) and never exposes the text a
+  `(verifier)` tag would be matched against, so it cannot answer "is one of
+  them tagged" without being rewritten into something closer to
+  `fb_findings`. The wrap-folding matters — see the next anchor.
+- `.agents/harness/selftest/review.sh` — the case "Real findings wrap …
+  a verdict on a continuation line counts" is why `fb_findings`, not a
+  naive line-by-line scan, is the right base: a `(verifier)` tag placed on
+  a wrapped line must still count.
 - `joharness.sh:fb_marker` — a sibling case-statement pattern (matching a
   literal substring in a finding line) already used for `wontfix`/`(fixed`;
   same shape fits `(verifier)`.
-- `.agents/harness/selftest/review.sh:~130` — "a recorded finding satisfies
-  the gate", the case this plan changes the meaning of.
+- `.agents/harness/selftest/review.sh` — the case named "a recorded finding
+  satisfies the gate" (`write_ws ws.md review 12 ...`), the one this plan
+  changes the meaning of.
 - `.agents/docs/agent-selection.md` — states the rule this gate is
   enforcing ("spawns `.claude/agents/verifier.md` at its own tier ...
   findings tagged `(verifier)`").
