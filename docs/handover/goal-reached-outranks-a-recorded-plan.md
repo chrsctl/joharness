@@ -1,6 +1,6 @@
 ---
 workstream: goal-reached-outranks-a-recorded-plan
-status: in-progress
+status: done
 branch: claude/current-state-review-oxfb7f
 pr: none
 plan: goal-reached-outranks-a-recorded-plan
@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_011LSGxqQsZyuMYSqxa3jVT5
 agent: opus
 updated: 2026-09-02
-next: Move the goal check ahead of the free-plan branch in cmd_drain, then say the same in the queue hook
+next: Nothing — merged behaviour; the graduation note in Review is the only loose thread
 ---
 
 ## Goal
@@ -79,6 +79,7 @@ one run each:
 | `drain_goal_reached "$next"` in `cmd_drain` | 7 |
 | `qc_goal_reached` at the hook's free-plan path | 3 |
 | `qc_goal_reached` at the hook's no-plans path | 5 |
+| the marked-plan argument to `drain_goal_reached` (r1's fix) | 2 |
 
 - r1 (verifier): **the stop printed over a queue holding work and named
   nothing.** In a tree whose only plans are marked SUPERVISED ONLY, `next` is
