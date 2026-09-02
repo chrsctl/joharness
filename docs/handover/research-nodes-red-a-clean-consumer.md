@@ -67,8 +67,21 @@ that keep the graph sound long term, not just at this edge.
 
 ## Review
 
-(One bullet per finding, `- r<N>:` form, before its fix and committed
-with it.)
+- r1: cmd_graph read `research:` values raw where lint_stem and the
+  hook's stem() strip path and .md — a plan writing
+  `research: docs/research/x.md` counted for routing in lint and queue
+  but not in graph, so the one picture skipped a node the queue lists,
+  and the pre-existing blocked-edge/existence checks in the same loop
+  missed path form too. Stemmed once at the top of the rneed loop, all
+  readers now tolerate path, name or stem alike; graph selftest pins the
+  path-form case. (fixed)
+- r2: residual decay false positive — a document whose OLD revision
+  mentioned `research: <its-stem>` in prose and whose current content
+  does not reds as decayed; the content guard can only see the tree. No
+  such file can be distinguished from a real dropped block by machine,
+  the red names both remedies, and candidate 2 was rejected knowing
+  routing carries residuals. (wontfix — accepted, limits stated in
+  .agents/docs/research/README.md)
 
 ## Blockers
 

@@ -208,3 +208,28 @@ out="$(rq)"
 expect "and still listed as an open question" "docs/research/real-q.md" "$out"
 refute "while the document beside it stays unlisted" \
   "docs/research/postgres-stack.md" "$out"
+
+# A path-form edge means the same stem everywhere: lint_stem and this
+# hook's stem() both strip directory and .md, and the graph must not be
+# the one reader that takes the value raw (workstream r1 — read raw, a
+# path-form edge drew nothing and blocked nothing while the queue listed
+# and blocked on it).
+mkdir -p "${rwork}/docs/plans"
+cat >"${rwork}/docs/plans/path-form.md" <<'EOF'
+---
+plan: path-form
+urgency: normal
+agent: sonnet
+effort: high
+research: docs/research/postgres-stack.md
+---
+EOF
+commit_all "$rwork" "a plan routing by path"
+git -C "$rwork" push -q origin main
+gout="$(CLAUDE_PROJECT_DIR="$rwork" "${ROOT}/joharness.sh" graph 2>&1)"
+expect "a path-form edge still draws the question" \
+  'q_postgres_stack(["question: postgres-stack"]):::question' "$gout"
+expect "and blocks the plan through it" \
+  "p_path_form -. research .-> q_postgres_stack" "$gout"
+fixture_rm "$rwork" "drop the path-form plan" docs/plans/path-form.md
+git -C "$rwork" push -q origin main

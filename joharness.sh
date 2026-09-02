@@ -5039,6 +5039,11 @@ cmd_graph() {
       while IFS= read -r rneed; do
         rneed="$(printf '%s' "$rneed" | tr -d ' ')"
         if [ -z "$rneed" ] || [ "$rneed" = "none" ]; then continue; fi
+        # Path, name or stem — one spelling before any reader here, the
+        # tolerance lint_stem and the hook's stem() already give the other
+        # two. Read raw, a path-form edge drew nothing and marked nothing
+        # blocked while the queue listed and blocked on it (r1).
+        rneed="${rneed##*/}"; rneed="${rneed%.md}"
         graph_rrefs="${graph_rrefs}${rneed}
 "
         if git -C "$ROOT" cat-file -e "${ref}:docs/research/${rneed}.md" 2>/dev/null; then
