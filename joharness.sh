@@ -1624,7 +1624,7 @@ lint_graph() {
   LINT_RC=0
   LINT_WARNED=0
   local rel val n p r urgency agent effort iss rq grad pstem rstem fstem
-  local -a need_list rq_list
+  local -a need_list
   local plans=0 workstreams=0 reqs=0 research=0 rdocs=0
   # Stems the open plans' `research:` edges name, one per line. Routing
   # decides nodehood one loop down, and the referenced half of the answer
