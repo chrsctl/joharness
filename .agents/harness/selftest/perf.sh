@@ -204,3 +204,73 @@ git -C "$swork" reset -q --hard origin/main
 out="$(pf_override='' pf_ci)"
 expect "the base branch is measured, not skipped" "counted" "$out"
 refute "and the docs-only skip does not fire there" "skipped: nothing outside" "$out"
+
+# --- the number describes the CODE, not the operator's branch list ---------
+# `ci` was RED on a clean `main` in every session container of this repo, and
+# had been for as long as the container carried the repo's branches: four rows
+# count a fork per remote-tracking ref, and the budgets were calibrated
+# against a GitHub checkout, which fetches one branch. Measured 2026-09-02,
+# same tree: a single-branch clone counted `graph` 19 where the 107-ref
+# container counted 422, against a budget of 260.
+#
+# The fix is a pinned measurement shape, so the count cannot move with a
+# checkout nobody chose. These cases are the claim: same code, two very
+# different checkouts, one number.
+pf_shape_a="${TMP}/pfshapea"
+git init -q "$pf_shape_a"
+git -C "$pf_shape_a" symbolic-ref HEAD refs/heads/main
+cp "${ROOT}/joharness.sh" "${pf_shape_a}/joharness.sh"
+mkdir -p "${pf_shape_a}/.agents"
+cp -R "${ROOT}/.agents/harness" "${pf_shape_a}/.agents/harness"
+mkdir -p "${pf_shape_a}/.agents/env/none"
+printf '# none\n' >"${pf_shape_a}/.agents/env/none/AGENTS.md"
+printf 'JOHARNESS_ENV=none\n' >"${pf_shape_a}/joharness.conf"
+commit_all "$pf_shape_a" "base"
+git -C "$pf_shape_a" update-ref refs/remotes/origin/main HEAD
+
+pf_count_of() {
+  ( cd "$ROOT" && CLAUDE_PROJECT_DIR="$1" JOHARNESS_PERF='' \
+      ./joharness.sh perf graph 2>&1 ) |
+    sed -n 's/^ *graph *\([0-9][0-9]*\) .*/\1/p' | head -1
+}
+
+pf_one="$(pf_count_of "$pf_shape_a")"
+# The SAME tree, with a pile of remote refs bolted on. Before the pinned
+# shape this alone moved the number by one per ref.
+i=0
+while [ "$i" -lt 40 ]; do
+  git -C "$pf_shape_a" update-ref "refs/remotes/origin/noise-${i}" HEAD
+  i=$((i + 1))
+done
+pf_many="$(pf_count_of "$pf_shape_a")"
+
+if [ -n "$pf_one" ] && [ "$pf_one" = "$pf_many" ]; then
+  pass "the count does not move with the checkout's ref list"
+else
+  fail "the count does not move with the checkout's ref list"
+  printf '    1 ref: %s    41 refs: %s\n' "${pf_one:-<none>}" "${pf_many:-<none>}"
+fi
+
+# And it SAYS which tree it measured, both ways. A number nobody can place is
+# a written number, and a reader who assumes it came from their own checkout
+# will go looking for a regression that is not there.
+out="$(pf_run ./joharness.sh perf graph)"
+expect "the table names the pinned shape" "measured against a pinned shape" "$out"
+expect "and reports what this checkout carries" "would count higher" "$out"
+out="$(pf_run ./joharness.sh perf --live graph)"
+expect "--live measures this checkout instead" "measured against THIS checkout" "$out"
+refute "and says so rather than claiming the shape" \
+  "measured against a pinned shape" "$out"
+
+# A shape that cannot be built REFUSES. Falling back to the live tree would
+# silently restore the defect: an unpinned count under a pinned budget is
+# exactly the red every container was seeing.
+pf_noshape="${TMP}/pfnoshape"
+mkdir -p "$pf_noshape"
+out="$(pf_run env "CLAUDE_PROJECT_DIR=${pf_noshape}" ./joharness.sh perf graph)" &&
+  rc=0 || rc=$?
+expect "an unbuildable shape is named" "cannot build the pinned measurement shape" "$out"
+expect "and points at the flag that asks for the live tree" "--live" "$out"
+refute "and no row is printed as measured" "ok (" "$out"
+if [ "$rc" -ne 0 ]; then pass "an unbuildable shape is a non-zero exit"
+else fail "an unbuildable shape is a non-zero exit (got ${rc})"; fi
