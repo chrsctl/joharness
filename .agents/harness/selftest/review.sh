@@ -166,11 +166,15 @@ fi
 
 # Mid-build the new check is as silent as the zero-findings case: the count,
 # and not a word about a reader that is not due yet.
+# TWO findings, so the count in the assertion below belongs to THIS file:
+# ws.md above is also printing "1 finding(s) recorded", and a case that greps
+# the whole block for that string passes with mid.md's section empty.
 write_ws mid.md in-progress none "agent: opus" \
-  "- r2: found it myself, still building. (fixed)"
+  "- r2: found it myself, still building. (fixed)" \
+  "- r3: and a second one. (fixed)"
 commit_all "$rwork" "an untagged finding mid-build"
 out="$(JOHARNESS_REVIEW=on ci_review)"
-expect "mid-build counts the finding" "1 finding(s) recorded" "$out"
+expect "mid-build counts the finding" "2 finding(s) recorded" "$out"
 refute "mid-build says nothing about the tag" "none of them tagged" "$out"
 if JOHARNESS_REVIEW=on ci_rc_review; then
   pass "an untagged finding mid-build keeps ci green"
@@ -192,9 +196,9 @@ else
   fail "one tagged finding among untagged ones satisfies the gate"
 fi
 
-# fb_findings folds continuation lines back into their bullet, so a tag
-# written on the second line of a long finding counts. A line-by-line scan
-# would red this branch.
+# A bullet is folded before the tag is tested — the same `^  [^ ]` rule
+# fb_findings uses — so a tag written on the second line of a long finding
+# counts. Testing only the bullet's own first line would red this branch.
 write_ws mid.md review none "agent: opus" \
   "- r5: a finding long enough that the verdict and the attribution wrap onto" \
   "  the next line, which is where the tag ends up. (verifier) (fixed)"
@@ -204,8 +208,77 @@ if JOHARNESS_REVIEW=on ci_rc_review; then
 else
   fail "a (verifier) tag on a wrapped line counts"
 fi
+# The SECTION bound. A tag outside `## Review` is not a recorded finding, and
+# this file's own Goal says `(verifier)` in prose — so without the `in_r`
+# guard the gate passes itself.
+# Written out rather than through write_ws: this is the one fixture that
+# needs a section BEFORE `## Review`, which the helper does not build.
+cat >"${rwork}/docs/handover/mid.md" <<'WSEOF'
+---
+workstream: mid
+status: review
+pr: none
+agent: opus
+---
+
+## Goal
+
+What the (verifier) tag is for.
+
+## Review
+
+- r6: mine only. (fixed)
+WSEOF
+commit_all "$rwork" "a tag outside the review section"
+if JOHARNESS_REVIEW=on ci_rc_review; then
+  fail "a (verifier) tag outside ## Review does not satisfy the gate"
+else
+  pass "a (verifier) tag outside ## Review does not satisfy the gate"
+fi
+
+# The FINDING bound. The rule is that one FINDING carries the tag, so a line
+# that is not a finding must not clear it — including the gate's own failure
+# text, which a session has in its terminal at exactly the moment it is
+# tempted to paste it.
+write_ws mid.md review none "agent: opus" "- r7: mine only. (fixed)" "" \
+  "Round 2 (verifier) ran." "" \
+  "none of them tagged (verifier), and this is the edge (status review)"
+commit_all "$rwork" "prose and a pasted red under the review heading"
+out="$(JOHARNESS_REVIEW=on ci_review)"
+expect "prose and pasted output are not findings" \
+  "1 finding(s) recorded" "$out"
+if JOHARNESS_REVIEW=on ci_rc_review; then
+  fail "pasting the gate's own red does not satisfy it"
+else
+  pass "pasting the gate's own red does not satisfy it"
+fi
+
 git -C "$rwork" rm -q "docs/handover/mid.md"
 commit_all "$rwork" "drop the wrapped-tag workstream"
+
+# A workstream file the branch INHERITED. Its findings predate the tag rule
+# and are not this branch's to answer for: 44 of 70 versions on this repo's
+# own main carry findings and no tag. Redding here is the carve-out fin_gate
+# already spells out.
+write_ws inheritedtag.md review 31 "agent: sonnet" \
+  "- r1: recorded before the tag rule existed. (fixed)"
+commit_all "$rwork" "a record from before the rule"
+git -C "$rwork" checkout -q main
+git -C "$rwork" merge -q --no-edit work
+git -C "$rwork" push -q origin main
+git -C "$rwork" checkout -q work
+printf 'more\n' >>"${rwork}/feature.txt"
+commit_all "$rwork" "work on top of the inherited record"
+out="$(JOHARNESS_REVIEW=on ci_review)"
+expect "an inherited untagged record is named, not redded" \
+  "inherited from origin/main, not this" "$out"
+if JOHARNESS_REVIEW=on ci_rc_review; then
+  pass "an inherited untagged record does not red the branch"
+else
+  fail "an inherited untagged record does not red the branch"
+fi
+git -C "$rwork" rm -q "docs/handover/inheritedtag.md"
+commit_all "$rwork" "drop the inherited record"
 
 # Two workstreams on one branch owe two records. Checking only the first would
 # pass the branch on a review that never covered the other half of its diff.

@@ -50,6 +50,12 @@ One bullet per finding, written BEFORE its fix and committed WITH it. Mark
 is the only record of what each round found. The hook counts the bullets
 under this heading, so leave none here unfilled.
 
+**Tag what the independent reader returns `(verifier)`.** Step 5 spawns it at
+every depth, and with `JOHARNESS_REVIEW=on` the gate reds a section at the
+edge that holds only your own findings. ONE finding carrying the tag is the
+bar, not every line — and it must be a FINDING: prose under this heading, a
+heading, or the gate's own red pasted back does not count.
+
 **The form is required, not illustrative: `- r<N>: text`.** An `r`, digits,
 then a COLON. `feedback` attributes a finding to the files its fix commit
 touched by matching exactly that (`joharness.sh:fb_fix_map`), so a bullet
