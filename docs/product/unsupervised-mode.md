@@ -52,9 +52,26 @@ autonomy that work merges without anyone reading it.
   read unsupervised, which is what the bullet is about.
 - An unsupervised session runs the full Loop on a free plan, merging its
   own pull request under the step 7 conditions that already govern
-  self-merge.
+  self-merge. **Measured 2026-08-30** — see the fan-out annotation on the
+  bullet below, which measured both at once.
 - Two or more free plans produce two or more sessions running at once,
   one per plan, using the wave partition the queue hook already computes.
+
+  **Partly measured, 2026-08-30** (`fanout-live-run`): two sessions spawned per
+  wave-1 plan both ran the full Loop and merged their own pull requests
+  unattended, 53 minutes end to end, no collision and one reconcile. What that
+  run did NOT show is the "for hours" or the empty-queue trigger: the fleet was
+  bounded to one plan each and stopped when the work ran out, and the repo mode
+  was not flipped. Endurance and work-generation remain unmeasured.
+
+  **Moved 2026-09-02, not rewritten.** This annotation sat under "No
+  unsupervised session writes a requirement", which it says nothing about.
+  Its own text measures these two bullets — sessions running at once, each
+  running the full Loop and merging its own pull request. Misfiled it made
+  three bullets read wrong at once: two that ARE measured read as unmeasured,
+  and one with no evidence behind it read as measured. The terminus of this
+  requirement is "when every bullet reads true", so where an annotation sits
+  is part of the answer, not presentation.
 - Started once, the fleet keeps going for hours with no human turn, for as
   long as a goal is open.
   **Measured 2026-08-31** (`endurance-run`, issue #165) and **it did not
@@ -184,12 +201,6 @@ autonomy that work merges without anyone reading it.
   state to keep working past.
 - No unsupervised session writes a requirement. The goal is the human's to
   set, and a fleet that writes its own finish line has none.
-  **Partly measured, 2026-08-30** (`fanout-live-run`): two sessions spawned per
-  wave-1 plan both ran the full Loop and merged their own pull requests
-  unattended, 53 minutes end to end, no collision and one reconcile. What that
-  run did NOT show is the "for hours" or the empty-queue trigger: the fleet was
-  bounded to one plan each and stopped when the work ran out, and the repo mode
-  was not flipped. Endurance and work-generation remain unmeasured.
 - The mode has a reachable end: the source sweep goes dry. Every detector
   zero on two consecutive sweeps, queue empty, no open pull request. There
   an unsupervised session stops and says so — the one place the mode asks.
