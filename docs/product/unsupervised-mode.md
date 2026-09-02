@@ -68,10 +68,13 @@ autonomy that work merges without anyone reading it.
   unsupervised session writes a requirement", which it says nothing about.
   Its own text measures these two bullets — sessions running at once, each
   running the full Loop and merging its own pull request. Misfiled it made
-  three bullets read wrong at once: two that ARE measured read as unmeasured,
-  and one with no evidence behind it read as measured. The terminus of this
-  requirement is "when every bullet reads true", so where an annotation sits
-  is part of the answer, not presentation.
+  these two read as unmeasured when they are measured. The bullet it left
+  keeps its own evidence, which is a gate and its tests rather than a run
+  (`joharness.sh:lint_requirement_writes`, cases in
+  `.agents/harness/selftest/review.sh`) — an earlier draft of this note said
+  that bullet had none, which was wrong and is the second thing a misfiled
+  annotation costs. The terminus of this requirement is "when every bullet
+  reads true", so where the evidence sits is part of the answer.
 - Started once, the fleet keeps going for hours with no human turn, for as
   long as a goal is open.
   **Measured 2026-08-31** (`endurance-run`, issue #165) and **it did not

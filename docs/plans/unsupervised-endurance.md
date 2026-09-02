@@ -6,7 +6,7 @@ effort: xhigh
 needs: none
 requirement: unsupervised-mode
 advances: Started once, the fleet keeps going for hours with no human turn
-scope: docs/product
+scope: docs/product, joharness.conf
 ---
 
 ## Goal
@@ -27,12 +27,15 @@ different wall:
 | attempt two | 2026-08-31 | 57m | the queue's only free plan was one the fleet could never commit |
 
 **Two of those three walls are gone.** `./joharness.sh authority` lets a
-spawned session check the repository instead of believing its prompt, and
-attempt two's A2 used it unprompted and proceeded. PR 187 stops the queue
-offering an unattended fleet a plan whose whole scope is protocol text,
-which is what attempt two spent 55 minutes and $12.05 on.
+spawned session check the repository instead of believing its prompt: A2 was
+told to run it, ran it, got VERIFIABLE and proceeded, and wrote that fact
+into its workstream file unprompted. The mechanism worked; what was
+unprompted was the recording, not the check. PR 187 stops the queue offering
+an unattended fleet a plan whose whole scope is protocol text, which is what
+attempt two spent 55 minutes and $12.05 on.
 
-**The third has not been touched, and it is not this plan's to fix.**
+**The first row's wall has not been touched, and it is not this plan's to
+fix.**
 `.agents/docs/unsupervised.md` is explicit: fan-out makes the fleet WIDE and
 nothing in it makes the fleet LONG. Each session claims, merges, ends; the
 fleet survives only while every generation spawns the next, and one
@@ -44,36 +47,61 @@ So a fourth attempt run the way the first three were run measures the same
 thing again: how long one generation lasts. That is the finding this plan
 starts from rather than the one it should end with.
 
+**And the stop it can reach is the sweep, not the goal.** Say this to the
+human plainly, because the shape of the spend depends on it: the bullet this
+run measures is itself one of the requirement's two open bullets, so "goal
+reached" cannot fire while the run is in progress. Under the bound the fleet
+runs while a goal is open, and this goal stays open by construction until the
+run ends. The reachable stop is therefore a dry sweep — and the sweep is not
+dry today.
+
 ## BEFORE YOU START — what the human decides
 
 Both gates are money, which `.agents/harness/AGENTS.md` says to stop and ask
 about. Neither is a session's call, and this plan must not invent either:
 
-1. **Whether to spawn at all.** Under the goal bound the run is bounded by
-   the requirement rather than by a clock, so the cost is what the remaining
-   work against `unsupervised-mode` costs. A cap is still the human's to add
-   if they want one; the run no longer needs an arbitrary figure to be safe
-   (issue #165).
+1. **Whether to spawn at all, and against what bound.** Issue #165 was
+   answered with "the goal bounds it, so the cost is the remaining work
+   against `unsupervised-mode`". That answer does not hold for THIS run, and
+   the paragraph above says why: the goal cannot be reached while the run is
+   what would reach it. What actually bounds the spend is the dry sweep, and
+   a sweep goes dry only after the fleet has cleared every source it can
+   count. Put that to the human, with `./joharness.sh sources` output beside
+   it, rather than the goal-bound estimate. A cap is still the human's to
+   add; it is a better idea for this run than it was for the last one.
 2. **Whether a heartbeat exists for this run.** Without one, report the
    result as one generation and say so — do not quietly re-run the same
    experiment and call the number endurance. With one, the run is the first
    that could show what the bullet asks.
 
-## The queue this run would start from
+## The queue this run would start from, and the trap in it
 
-Checked 2026-09-02, not assumed: `docs/plans/` holds this plan alone, so a
-fleet starting now reaches the **generate-work edge** on its first turn.
-That is deliberate and it is the second thing this run measures. Bullet
-three of `Satisfied when` — an unsupervised session that finds the queue
-empty writes plans rather than stopping — was measured once, in PR 163, and
-its own annotation records three caveats: the session measuring the bullet
-was the session that knew it, one cycle only, and the flip used the
-session-local marker rather than `joharness.conf`. A fleet started from a
+**A fleet started today claims THIS PLAN first.** Checked rather than
+assumed — `JOHARNESS_MODE=unsupervised ./joharness.sh drain` on a clone
+standing where this branch's merge would put `main` answers
+`next: docs/plans/unsupervised-endurance.md` (2026-09-02). One free plan is
+not the generate-work edge; the edge is reached only when nothing is free.
+So the first spawned session claims the plan that says spawning is the
+human's call, reads `BEFORE YOU START`, and stops to ask — which this plan's
+own Scope calls a finding. That is the fourth wall, and it is in this file.
+
+**So the session driving the run claims this plan itself**, by pushing a
+workstream file naming it, before any session is spawned. The queue then
+shows it claimed, the fleet cannot take it, and what the fleet meets is the
+queue behind it.
+
+What is behind it decides what else the run measures. With nothing free, the
+fleet reaches the **generate-work edge** on its first turn, and that is worth
+having: bullet three of `Satisfied when` — an unsupervised session that finds
+the queue empty writes plans rather than stopping — was measured once, in
+PR 163, and its own annotation records three caveats: the session measuring
+the bullet was the session that knew it, one cycle only, and the flip used
+the session-local marker rather than `joharness.conf`. A fleet started from a
 committed mode, generating work it was not told about, answers all three.
 
-`./joharness.sh sources` is the thing to run first and to record, because a
-dry sweep is one of the two legitimate stops and the run cannot be read
-without knowing whether it started dry.
+Run `./joharness.sh sources` first and record it. A dry sweep is one of the
+two legitimate stops, and the run cannot be read without knowing whether it
+started dry.
 
 ## Scope
 
@@ -84,7 +112,13 @@ without knowing whether it started dry.
   error, a session asking a question it should not have asked, a generation
   that failed to spawn — is a finding, and a finding is the result.
 - Wall-clock, session count, generations, pull requests merged, reconciles,
-  and cost. The table at the top of this file is the format to match.
+  and cost. The fan-out annotation in the requirement is the format to match
+  — the table at the top of this file records only what stopped each run.
+- **The goal's size at T0, beside the wall-clock.** A fleet that stops in ten
+  minutes because the goal was nearly reached has not failed the bullet, and
+  a number without the queue depth beside it reads as endurance when it is
+  really queue depth. This is the confound the requirement already records
+  twice against attempt two.
 - Annotate the `Satisfied when` bullet with the result AND with what the run
   did not show. Every previous annotation on this requirement that omitted
   the second half had to be corrected later.
@@ -117,7 +151,13 @@ without knowing whether it started dry.
   says what produced it.
 - The requirement bullet carries the result and the not-shown.
 - `joharness.conf` is back to `supervised` when the run ends. Both previous
-  attempts set that precedent and the second one's Acceptance required it.
+  attempts did this and recorded doing it; neither was required to by an
+  Acceptance, because attempt two ran on a direct human instruction with no
+  plan file at all. It is a precedent, not an inherited rule, and it is
+  written here so the next run has one.
+- A fleet that kept going because a human answered something is not a fleet
+  that kept going. Any human turn during the run ends the measurement at
+  that point, and the number is reported up to it.
 
 ## Where to look
 
@@ -141,7 +181,8 @@ without knowing whether it started dry.
   authorised.
 - **Attach the repository.** Attempts one and two's first pair were spawned
   without one, so nothing could be read and nothing could be checked. It is
-  why 48 seconds was reported as an injection refusal for a day.
+  why 48 seconds was reported as an injection refusal until the retry, the
+  same day, corrected it.
 - **A number nobody can re-count is a written number.** Carry the command
   and the date in the same sentence as the figure.
 - **57 minutes is not hours.** If the run is short, the bullet stays
