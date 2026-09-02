@@ -23,42 +23,26 @@ export GIT_COMMITTER_NAME=selftest GIT_COMMITTER_EMAIL=selftest@invalid
 # need one set it themselves; the ones that do not `cd` into a fixture and
 # run its own copy, and joharness.sh prefers CLAUDE_PROJECT_DIR over the
 # directory it was invoked from. So an exported value redirects those cases
-# at the REAL repo: they write its .git, fail their own assertions about the
-# fixture, and leave the marker behind.
-#
-# Measured, one run with CLAUDE_PROJECT_DIR set to the checkout: 8 of 448
-# failed and .git/joharness-mode came back holding 'unsupervised' — a
-# session that ran `CLAUDE_PROJECT_DIR=$PWD ./joharness.sh ci`, which is a
-# natural thing to type, silently flipped its own repo into autonomy. Same
-# run with it unset: 448 passed, 0 failed, nothing written.
+# at the REAL repo: they read its conf and its refs and fail their own
+# assertions about the fixture. Measured once at 8 of 448 red with it set
+# against 448 green without; the count is not kept current here, because a
+# number nobody re-counts is a written number.
 unset CLAUDE_PROJECT_DIR
 
-# The same hole, one knob over. JOHARNESS_MODE and JOHARNESS_MODE_FILE steer
-# the autonomy cases the way CLAUDE_PROJECT_DIR steers the fixture path, and
-# both are documented knobs a session has reason to export — JOHARNESS_MODE is
-# in joharness.conf and in the entrypoint's own help. Measured on this
-# checkout with the unset above already in place: JOHARNESS_MODE=unsupervised
-# gives 440 passed / 10 failed, JOHARNESS_MODE_FILE=<path> gives 448 / 2,
-# against 450 / 0 with neither set. Same class, same block, so the next one
-# added to this file is added here too. JOHARNESS_RUN_MODE joined them for
-# the same reason and is measured the same way — with the unset REMOVED,
-# since with it in place the knob cannot leak and both runs read 617/0.
-# The counts are NOT written here any more, and that is the fix rather than
-# laziness. They change every time a case is added to this file — the rule
-# two lines up says so — so they shipped stale inside the very commit that
-# staled them, twice: `./joharness.sh feedback .agents/harness/selftest.sh`
-# has it as PR94 r10, and a later diff adding 20 cases plus a bare hook call
-# repeated it. A number nobody re-counts is a written number.
-#
-# Re-count instead, whenever the claim matters:
+# The same hole, one knob over. JOHARNESS_MODE steers the autonomy cases
+# the way CLAUDE_PROJECT_DIR steers the fixture path, and it is a documented
+# knob a session has reason to export — it is in joharness.conf and in the
+# entrypoint's own help. JOHARNESS_RUN_MODE joined it for the same reason.
+# No counts written here: they change with every case added, and shipped
+# stale inside the very commit that staled them, twice. Re-count instead,
+# whenever the claim matters:
 #   cp selftest.sh /tmp/leak.sh
 #   # cut JOHARNESS_RUN_MODE from the unset line below in the copy
 #   JOHARNESS_RUN_MODE=unsupervised bash /tmp/leak.sh | tail -1   # leaks
 #   JOHARNESS_RUN_MODE=unsupervised bash selftest.sh   | tail -1   # does not
-# The first fails; the second does not. That difference is the claim, and it
-# survives every case anyone adds. The fan-out and edge cases below invoke
-# the hook bare on purpose, to prove what an exporting-nothing client gets.
-unset JOHARNESS_MODE JOHARNESS_MODE_FILE JOHARNESS_RUN_MODE
+# The first fails; the second does not. The hook cases below invoke the hook
+# bare on purpose, to prove what an exporting-nothing client gets.
+unset JOHARNESS_MODE JOHARNESS_RUN_MODE
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 
 # Knobs exported in the invoking shell must not steer the fixtures; per-call
