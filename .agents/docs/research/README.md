@@ -32,24 +32,27 @@ one term, and a substring ban on either would fire on prose that is correct.
 ### What makes a file a node
 
 `docs/research/` may also hold plain reference documents — prose a session
-wrote that is not a scheduled question. **A node opens with a `---`
-frontmatter block; a document does not.** The lint
-(`joharness.sh:lint_nodes`) and the queue hook
-(`.agents/harness/queue-context.sh`) both draw the line there, so a document
-is neither reded for missing a node's keys nor listed as an open question.
-This is the one queue directory with that split: `docs/plans/` and
-`docs/handover/` hold nothing but nodes, and a frontmatter-less file there
-is malformed, not exempt.
+wrote that is not a scheduled question. This is the one queue directory
+with that split: `docs/plans/` and `docs/handover/` hold nothing but nodes,
+and a frontmatter-less file there is malformed, not exempt.
 
-Why by the block and not by a marker: a consumer synced before this protocol
-existed carries research prose with no frontmatter at all, and a rule keyed
-on the block leaves those files alone with no edit — where a required
-opt-out marker would red every one until a human touched it
-(`chrsctl/gx#226`: 13 documents, a green consumer turned red by the sync
-alone). The block cannot be dropped by accident to dodge the queue and still
-be a node: a node stripped of its `---` is a legibly-not-a-node document in
-the directory, while a node that keeps the block and forgets one key is
-still DEAD.
+Which side a file falls on is decided by ROUTING, spelled out under "Which
+files are nodes" below. A consumer synced before this protocol carries
+research prose with no frontmatter at all, and routing leaves those files
+alone with no edit — where a required opt-out marker would red every one
+until a human touched it (`chrsctl/gx#226`: 13 documents, a green consumer
+turned red by the sync alone).
+
+An earlier rule here read **"a node opens with a `---` block; a document
+does not"** and claimed a node could not lose the block by accident and
+still be a node — "a node stripped of its `---` is a legibly-not-a-node
+document". That is the claim routing replaces, and it did not hold.
+Measured against it as merged (`3144936`), fixture identical to the
+suite's `decayed-q.md`: a real node rebuilt from its `## Question`
+heading onward — the PR 140 shape, which is how a node actually loses its
+block — printed `edges sound (0 plans, 0 research, ...)`. No red, not
+listed, not counted. Legible to a human reading the directory; invisible
+to every reader that schedules.
 
 - **Question** — one sentence, answerable. A question with no evidence that
   could settle it is not a research question. It is a topic, and a topic
@@ -77,6 +80,39 @@ still DEAD.
 Frontmatter: `research` (the stem), `urgency` (`normal` | `urgent`), `agent`
 (`haiku` | `sonnet` | `opus`), `effort`, `graduates` (the file the answer
 lands in). The tier the queue prints comes from `agent`, same as a plan's.
+
+## Which files are nodes
+
+Routing decides. A file under `docs/research/` is a NODE when the graph
+routes through it — either of:
+
+- it carries a `research:` key (self-names; a value naming a DIFFERENT
+  file is a typo and red, never a document — a key that exists is intent);
+- an open plan's `research:` edge names its stem. A node a plan waits on
+  cannot leave the queue by dropping its frontmatter: the reference alone
+  keeps it a node, and its missing keys go red.
+
+Neither = a DOCUMENT. Consumers keep their own domain documents under
+`docs/research/` from before this protocol existed; those lint green, are
+never listed as open questions, and never block or get scheduled.
+`joharness.sh:lint_graph`, `queue-context.sh` and `joharness.sh graph`
+apply the identical test — one rule, three readers.
+
+An unreferenced node cannot escape by omission either: a file whose own
+history carried `research: <stem>` and whose tree no longer does was a
+node — DECAYED, red until the frontmatter is restored or the file is
+deleted. `./joharness.sh cleanup` counts documents and decayed nodes the
+base branch already carries.
+
+Known limits, stated rather than implied: a rename that drops the
+frontmatter in the same change defeats the history check (the new path
+has no history carrying the old self-name), and a shallow checkout that
+finds no removal says nothing — blind is not zero, so a depth-1 CI can
+read a decayed node as a document where a full-history run reds it. The
+full-history run is the gate.
+
+In the canonical repo a plain document here is warned: consumers keep
+documents in this directory legitimately, canonical keeps only nodes.
 
 ## Verification is not optional
 
