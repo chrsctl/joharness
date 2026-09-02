@@ -170,6 +170,61 @@ autonomy that work merges without anyone reading it.
   the number is confounded twice — **one free plan** at T0, and that plan
   undoable by the fleet holding it. Two attempts, two different walls,
   neither of them the bullet's own question. **It stays unsatisfied.**
+  **Attempt four, 2026-09-02. 60 minutes, three pull requests merged, and
+  still neither legitimate stop.** Run from a committed mode merged before
+  either session was spawned, so `./joharness.sh authority` read VERIFIABLE
+  from the repository rather than from a prompt.
+
+  | | A | B |
+  | --- | --- | --- |
+  | wall-clock | 56m | 60m |
+  | pull requests merged | 1 (#193) | 2 (#192, #194) |
+  | reconciles | 1 | 1 |
+  | cost | $10.07 | $13.69 |
+
+  T0, counted before the flip merged: `ci` 0 failing, 4 unmarked findings, 0
+  gap markers, 1 plan (claimed, so the queue was empty FOR A FLEET), 1 open
+  requirement, sweep NOT dry.
+
+  **What it showed, and it is more than any run before it.** Both sessions
+  ran the whole Loop unattended and merged their own pull requests, each
+  reconciling with `main` first — the fan-out result reproduced, now with
+  work the fleet chose rather than work it was handed. Both reached the
+  **generate-work edge** on their first turn and wrote plans from the sweep:
+  `gate-review-verifier-tag` and `advance-feedback-baseline`. That is bullet
+  three measured again, and this time against all three of its recorded
+  caveats — a committed mode rather than a session-local marker, work nobody
+  told them about, and a session other than the one measuring.
+
+  Both generated plans came out **SUPERVISED ONLY** — their whole scope is
+  protocol text — so the fleet could not carry them further and `sources`
+  named them rather than reporting an empty queue. The two mechanisms merged
+  earlier the same day (PR 187, PR 189) did the thing they were built for,
+  unattended, on work nobody had planned.
+
+  **Why it stopped, and it is not one of the two stops.** A ended saying
+  "attempt four complete"; B ended saying "queue clear, no pending work" —
+  and an empty queue is this mode's TRIGGER, not its stop. What actually
+  ended the run is what the plan said would end it: **no heartbeat**, so each
+  generation ends with its session and nothing spawns the next. That was
+  verified impossible from a session before the run started, from two
+  sessions independently and at zero cost — `create_trigger` refuses the
+  `connectors` parameter for this organization, and without it a fired
+  session carries no `mcp__*` tools and cannot reach GitHub, so Loop step 7
+  is unreachable.
+
+  **What it did NOT show: endurance.** 60 minutes is not hours, and the
+  number is one generation's length, which is the same quantity the three
+  runs before it measured. The bullet stays unsatisfied.
+
+  **And a new wall, the fifth.** A spent its first fourteen minutes refusing
+  to start: it read `authority` as VERIFIABLE and judged the verdict
+  **self-referential**, because the commit that set the mode was written by a
+  Claude session. It is a fair objection and nothing in the mechanism answers
+  it — `authority` proves the claim is committed, reviewed and merged, not
+  that a human is behind it. A then found work and ran the Loop anyway, which
+  makes the refusal a delay rather than a stop, and leaves the question open.
+
 - The goal is an open requirement in `docs/product/`. An unsupervised
   session at the queue edge with no open requirement stops and asks,
   exactly as a supervised one does, and says the goal is reached rather
