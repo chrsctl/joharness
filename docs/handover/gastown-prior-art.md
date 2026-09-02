@@ -1,14 +1,14 @@
 ---
 workstream: gastown-prior-art
-status: in-progress
+status: review
 branch: claude/gastown-review-owjgzg
 pr: none
 plan: gastown-ideas
 issue: none
 session: https://claude.ai/code/session_01JU2E2vNtdyc5di2jrZfBRg
 agent: sonnet
-updated: 2026-09-01
-next: Write .agents/docs/prior-art.md, delete the research node, ci, review, merge
+updated: 2026-09-02
+next: Retire this file as the last commit before the pull request, then merge on green
 ---
 
 ## Goal
@@ -48,12 +48,52 @@ slot until its `graduates:` target exists. This branch writes
 
 ## Review
 
+- r1: (code-review) F10's specifics died in the generalization — the node
+  held that merge-commit-only is prose with no gate, verified by two greps
+  with zero hits, remedy a forge setting. Deleting the node loses it
+  (fixed — stated concretely under "Open, not rejected")
+- r2: (code-review) the second adopt-candidate (liveness cross-check rule
+  plus health taxonomy for a future heartbeat monitor) was dropped
+  entirely; prior-art recorded the scars as vindication only, not as
+  direction (fixed — its own bullet, pointing at `unsupervised.md`)
+- r3: (code-review, verifier) "Reviewed whole at commit 649b832"
+  contradicts the node's declared goal-directed sweep, which excluded
+  `internal/` and most of its `docs/design/`; the qualifier dies with the
+  node, leaving an overstated coverage claim permanent (fixed — scope and
+  exclusions stated)
+- r4: (code-review) claims the node marked WEAK — that Gas Town's
+  mechanisms work in practice — graduated unhedged, including the sentence
+  carrying the file's own re-open condition (fixed — both hedged to what
+  was actually checked)
+- r5: (code-review, verifier) zero inbound links: every sibling under
+  `.agents/docs/` is reachable from a caller, this page was reachable only
+  by browsing, so the rule it defends does not point at its own reasoning
+  (fixed — linked from `product/README.md` Branch flow, the integration
+  branch rule)
+- r6: (verifier) GUPP quote altered — source reads "If you find something
+  on your hook, YOU RUN IT." with capital If and a full stop; caveman
+  "Never touch" makes quoted strings byte-exact (fixed)
+- r7: (verifier) "Work is data" quote substituted an em dash for the
+  source's ASCII hyphen; same rule, and the checker confirmed the source
+  uses em dashes elsewhere, so this was not house-style normalization
+  (fixed)
+- r8: (code-review) `next:` ended at merge with no retire commit, which
+  `finish` already reported would land this file on `origin/main` (fixed)
+- r9: (code-review) "Where to look" anchored the node this same tree
+  deletes; graph lint warned (fixed — anchors the surviving page)
+- r10: (session) the perf-budget red recorded on the previous branch as
+  container-local was really SHALLOW-CLONE-local: same code, session-start
+  counted 1145 before `git fetch --depth=2000` and 618 after, both by
+  `./joharness.sh ci` in this container. Corrected here because the earlier
+  record now sits in merged history and cannot be edited (no action — the
+  claim it corrects merged with PR 183)
+
 ## Blockers
 
 None.
 
 ## Where to look
 
-- `.agents/docs/prior-art.md` — the file this branch creates.
-- `docs/research/gastown-ideas.md` — deleted here; full sixteen findings
-  stay in history via the retire commit.
+- `.agents/docs/prior-art.md` — the page this branch creates; it must stand
+  alone, because it syncs to consumers that never had the node.
+- `.agents/docs/product/README.md` Branch flow — the one inbound link.
