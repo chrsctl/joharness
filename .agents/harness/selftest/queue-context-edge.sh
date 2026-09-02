@@ -40,32 +40,29 @@ out="$(CLAUDE_PROJECT_DIR="$ework" \
   bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1)"
 refute "an unset mode does not reach the edge behaviour" "UNSUPERVISED edge" "$out"
 
+# No plans AND no requirement is not the edge — it is the STOP. Autonomy is
+# live only while a goal is open (the goal bound, PR 169), so a fleet here has
+# nothing to generate work FOR. `drain` was brought under the bound in PR 170
+# and this hook was not: it printed the generate-work order whatever
+# docs/product/ held. These cases asserted that older rule, and they failed
+# for exactly the right reason when the bound reached the hook.
 out="$(eq unsupervised)"
-expect "unsupervised turns the edge into a trigger" \
-  "UNSUPERVISED edge" "$out"
-expect "and says which path it reached" "(no plans)" "$out"
-refute "and does not tell an unattended session to ask a human" \
-  "or ask" "$out"
-# The sweep is NAMED, not run: it costs 78s against this hook's 3s, and hook
-# output is paid every session. A hook that ran it would be the caveman rule
-# broken by the change that cites it.
-expect "the sweep is named as the first step" "./joharness.sh sources" "$out"
-expect "dry alone is not sold as a stop" "dry alone is NOT a stop" "$out"
-# The hook does NOT restate what each verdict means — cmd_sources prints
-# them, the protocol doc states them, and a third copy in output paid every
-# session is the drift this function's own comment argues against. What the
-# hook owns is the STOP rule, which is not a verdict definition.
-expect "the verdict meanings are deferred, not copied" \
-  "It prints what each verdict means" "$out"
-expect "and the stop rule needs all three conditions" \
-  "no open pull request" "$out"
-expect "the source list is called closed" "CLOSED source list" "$out"
-# The pointer that went missing. Its absence was untested in both directions,
-# which is how it shipped: a session told to generate work with no
-# instruction to check what a human already asked for.
-expect "issues still outrank the edge, in the output itself" \
+expect "no plans and no goal is the stop, not the trigger" \
+  "GOAL REACHED" "$out"
+refute "and it is not sold as the generate-work edge" "UNSUPERVISED edge" "$out"
+expect "and it says which fact fired" "not the sweep" "$out"
+expect "and does not send the session to the sweep to carry on" \
+  "Do not run the sweep" "$out"
+# Recording is the half that must NOT stop. A fleet that may not generate work
+# may still write down what it found, in any mode, goal or no goal.
+expect "recording stays allowed at the stop" "Recording itself stays allowed" "$out"
+expect "and the stop says how to start a fleet again" "Set a requirement" "$out"
+expect "and issues still outrank it here too" \
   "Open GitHub issues STILL outrank this" "$out"
-expect "and a generated plan owes its evidence" "evidence:" "$out"
+# The label that went with the deleted arm. It can no longer appear in any
+# output, so a case expecting it would be asserting against unreachable code.
+refute "the no-plans edge label is gone, not merely unused" \
+  "(no plans)" "$out"
 
 # --- human input still outranks invented work ---
 # The requirement a human wrote wins over work the session would invent. If
@@ -108,19 +105,26 @@ git -C "$ework" push -q origin main
 # docs/plans, and git drops the directory with it. Without this the write
 # below fails silently, the fixture falls into the NO-PLANS path, and four
 # assertions fail for a reason unrelated to what they test.
-mkdir -p "${ework}/docs/plans"
+mkdir -p "${ework}/docs/plans" "${ework}/docs/product"
+# A goal, and a plan that SERVES it. Both are load-bearing now: with no
+# requirement the hook stops instead of reaching the edge, and with an
+# unserved one it says to plan instead. The edge is the state where a goal is
+# open, its plans exist, and none of them is free.
+printf -- '---\nrequirement: g\npriority: normal\n---\n\n## Goal\nFixture.\n\n## Satisfied when\n\n- something observable.\n' \
+  >"${ework}/docs/product/g.md"
 cat >"${ework}/docs/plans/taken.md" <<'EOF'
 ---
 plan: taken
 urgency: normal
 agent: sonnet
 effort: low
+requirement: g
 ---
 
 ## Goal
 Fixture.
 EOF
-commit_all "$ework" "one plan"
+commit_all "$ework" "one plan, and the goal it serves"
 git -C "$ework" push -q origin main
 # Free while nothing claims it: proves the none-free case below is produced
 # by the claim and not by the plan being invisible.
@@ -139,10 +143,86 @@ expect "supervised keeps today's no-free-plan wording" \
   "Edge reached: no free plan" "$out"
 refute "and orders nothing there either" "UNSUPERVISED edge" "$out"
 out="$(eq unsupervised)"
-expect "unsupervised triggers on the no-free-plan edge too" \
+expect "unsupervised triggers on the no-free-plan edge" \
   "UNSUPERVISED edge" "$out"
 expect "and names that path" "(no free plan)" "$out"
-# Both paths reach one function on purpose. Asserting each separately is what
-# catches a future edit that branches only one of them.
 refute "and never keeps the supervised wording beside it" \
   "every plan claimed or blocked. done." "$out"
+refute "and does not tell an unattended session to ask a human" \
+  "or ask" "$out"
+# The sweep is NAMED, not run: it costs 78s against this hook's 3s, and hook
+# output is paid every session. A hook that ran it would be the caveman rule
+# broken by the change that cites it.
+expect "the sweep is named as the first step" "./joharness.sh sources" "$out"
+expect "dry alone is not sold as a stop" "dry alone is NOT a stop" "$out"
+# The hook does NOT restate what each verdict means — cmd_sources prints
+# them, the protocol doc states them, and a third copy in output paid every
+# session is the drift this function's own comment argues against. What the
+# hook owns is the STOP rule, which is not a verdict definition.
+expect "the verdict meanings are deferred, not copied" \
+  "It prints what each verdict means" "$out"
+expect "and the stop rule needs all three conditions" \
+  "no open pull request" "$out"
+expect "the source list is called closed" "CLOSED source list" "$out"
+# The pointer that went missing. Its absence was untested in both directions,
+# which is how it shipped: a session told to generate work with no
+# instruction to check what a human already asked for.
+expect "issues still outrank the edge, in the output itself" \
+  "Open GitHub issues STILL outrank this" "$out"
+expect "and a generated plan owes its evidence" "evidence:" "$out"
+# The goal is what makes this the edge rather than the stop. Same tree, same
+# claim, requirement removed: the generate-work order must give way.
+fixture_rm "$ework" "the goal is reached" docs/product/g.md
+git -C "$ework" push -q origin main
+out="$(eq unsupervised)"
+expect "with the goal gone the edge gives way to the stop" "GOAL REACHED" "$out"
+refute "and nothing is ordered generated" "UNSUPERVISED edge" "$out"
+printf -- '---\nrequirement: g\npriority: normal\n---\n\n## Goal\nFixture.\n\n## Satisfied when\n\n- something observable.\n' \
+  >"${ework}/docs/product/g.md"
+commit_all "$ework" "put the goal back"
+git -C "$ework" push -q origin main
+
+# --- a FREE plan with no goal open: the case this stop exists for ----------
+# Recording is always allowed, so a plan recorded with no goal open is a free
+# row. Before the bound reached this hook, the queue pointed an unattended
+# session straight at it — and that note became the only thing keeping the
+# fleet alive, which is the circularity the bound closes.
+git -C "$ework" push -q origin --delete claimer 2>/dev/null || true
+fixture_rm "$ework" "no goal, and a free plan recorded for a human" \
+  docs/product/g.md
+git -C "$ework" push -q origin main
+out="$(eq unsupervised)"
+expect "a free plan with no goal open does not restart the fleet" \
+  "GOAL REACHED" "$out"
+refute "and is not offered as the next thing to take" \
+  "top free plan above" "$out"
+# NOT a refute on "UNSUPERVISED:" — one free plan declaring no scope reaches
+# neither the wave branch nor the parallel-sessions branch, so that line
+# cannot print whatever this code does. It would pass against the defect.
+# Third time this file has drawn that finding (PR187 r2 is the same shape).
+# What the stop must keep instead is everything ABOVE the queue in step 2's
+# order, because a terminal path that prints only the bound reads as
+# "nothing to do".
+expect "the stop still points at open GitHub issues" \
+  "Open GitHub issues STILL outrank this" "$out"
+expect "and says a hook cannot read them" "cannot read GitHub" "$out"
+expect "and still ranks edge work in flight above it" \
+  "outranks starting" "$out"
+# Scoped to the QUEUE. session-start prints the in-flight block above this
+# one, so "anything listed above" told a session its own open pull request
+# was a note for a human.
+expect "the stop names the queue as the thing that stops" \
+  "The QUEUE above is what stops" "$out"
+# LISTED, though. Recording is not what stops, and a stop that hid the note
+# would report an empty queue over a queue that is not.
+expect "the recorded plan is still listed" "docs/plans/taken.md" "$out"
+# The needle is what fits on ONE line of the message. expect is grep -F, and
+# this phrase wraps across two printf calls in the source — a wrapped message
+# and a needle written from the source read identically until one is run
+# (PR170 r5, same file family).
+expect "and the stop says what it is" "manufacture a goal" "$out"
+# Supervised takes it, exactly as it does today. The bound is the mode's, and
+# a human-directed session has a human.
+out="$(eq supervised)"
+refute "supervised never reaches the stop" "GOAL REACHED" "$out"
+expect "and is still pointed at the free plan" "top free plan above" "$out"

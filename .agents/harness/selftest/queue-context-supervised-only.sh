@@ -26,17 +26,23 @@ soorigin="${TMP}/superonly.git"
 git init -q --bare "$soorigin"
 git init -q "$sowork"
 git -C "$sowork" symbolic-ref HEAD refs/heads/main
-mkdir -p "${sowork}/docs/plans" "${sowork}/docs/handover"
+mkdir -p "${sowork}/docs/plans" "${sowork}/docs/handover" "${sowork}/docs/product"
 printf 'code\n' >"${sowork}/code.txt"
 cp "${ROOT}/joharness.sh" "${sowork}/joharness.sh"
-commit_all "$sowork" "base"
+# A goal, open throughout. Unsupervised is live only while one is, so without
+# this every case below would meet the goal-reached stop instead of the
+# marking it is about. Every plan `soplan` writes SERVES it, which also keeps
+# the requirement off the unplanned list and the tail wording unchanged.
+printf -- '---\nrequirement: g\npriority: normal\n---\n\n## Goal\nFixture.\n\n## Satisfied when\n\n- something observable.\n' \
+  >"${sowork}/docs/product/g.md"
+commit_all "$sowork" "base, and a goal to keep the mode live"
 git -C "$sowork" remote add origin "$soorigin"
 git -C "$sowork" push -qu origin main
 
 # <name> <scope-line>. An empty scope argument writes NO scope: key at all,
 # which is the undeclared case and not the same as `scope: none`.
 soplan() {
-  { printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: low\n' "$1"
+  { printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: low\nrequirement: g\n' "$1"
     [ -z "${2-}" ] || printf 'scope: %s\n' "$2"
     printf -- '---\n\n## Goal\nFixture.\n'
   } >"${sowork}/docs/plans/${1}.md"
@@ -270,10 +276,12 @@ nborigin="${TMP}/superonly-noboundary.git"
 git init -q --bare "$nborigin"
 git init -q "$nbwork"
 git -C "$nbwork" symbolic-ref HEAD refs/heads/main
-mkdir -p "${nbwork}/docs/plans"
-printf -- '---\nplan: allprotocol\nurgency: normal\nagent: sonnet\neffort: low\nscope: joharness.sh\n---\n\n## Goal\nFixture.\n' \
+mkdir -p "${nbwork}/docs/plans" "${nbwork}/docs/product"
+printf -- '---\nrequirement: g\npriority: normal\n---\n\n## Goal\nFixture.\n\n## Satisfied when\n\n- something observable.\n' \
+  >"${nbwork}/docs/product/g.md"
+printf -- '---\nplan: allprotocol\nurgency: normal\nagent: sonnet\neffort: low\nrequirement: g\nscope: joharness.sh\n---\n\n## Goal\nFixture.\n' \
   >"${nbwork}/docs/plans/allprotocol.md"
-commit_all "$nbwork" "a plan, and no entrypoint to check it against"
+commit_all "$nbwork" "a plan, a goal, and no entrypoint to check it against"
 git -C "$nbwork" remote add origin "$nborigin"
 git -C "$nbwork" push -qu origin main
 
