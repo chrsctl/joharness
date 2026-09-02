@@ -20,7 +20,10 @@
 #                       check, which is not the same as nothing to find.
 #   docs/research/*.md  open questions, same ordering, same tier field. A
 #                       plan naming one in `research:` is blocked while it
-#                       exists (.agents/docs/research/README.md).
+#                       exists (.agents/docs/research/README.md). Listed
+#                       only when routing says the file is a NODE — it
+#                       carries a `research:` key or a plan names its stem;
+#                       a consumer's own documents here are never scheduled.
 # Two or more free plans = fan-out instruction (one session per free plan,
 # model named), and under JOHARNESS_RUN_MODE=unsupervised that instruction
 # becomes an order to start them now, for wave 1 only. No free plan and
@@ -107,30 +110,13 @@ queue_files() {
     grep -E '\.md$' | grep -vE '/(TEMPLATE|README|VISION)\.md$'
 }
 
-# docs/research also holds plain reference documents, not only scheduled
-# nodes: a node opens with a `---` frontmatter block, a document does not.
-# The lint (joharness.sh:lint_nodes) draws the same line for the same
-# reason — a consumer synced before the research-node protocol carries
-# prose the queue must not schedule (chrsctl/gx#226). Read the first line
-# of each candidate from the ref and keep only the ones that open the
-# block. Scoped to research: plans and requirements are nodes only.
-frontmatter_only() {
-  local f l1
-  while IFS= read -r f; do
-    [ -n "$f" ] || continue
-    l1="$(git show "${ref}:${f}" 2>/dev/null | head -1)"
-    l1="${l1%$'\r'}"
-    # Keep a file unless it has a readable, non-empty first line that is not
-    # the block opener. An empty or unreadable file has no first line: keep
-    # it, so the downstream unreadable detector still counts it (as a number,
-    # not by name) rather than the filter dropping it into silence.
-    if [ -n "$l1" ] && [ "$l1" != "---" ]; then continue; fi
-    printf '%s\n' "$f"
-  done
-}
-
+# The frontmatter_only filter that sat here (PR 184) is GONE: routing
+# decides nodehood in the rrows loop below, one test shared with
+# joharness.sh:lint_graph and cmd_graph. "Opens with ---" answered a
+# cheaper question than "is a node", and it also cost a `git show` per
+# candidate file on top of the one the loop already does.
 plans="$(queue_files "$PLANS_DIR")"
-research="$(queue_files "$RESEARCH_DIR" | frontmatter_only)"
+research="$(queue_files "$RESEARCH_DIR")"
 reqs="$(queue_files "$PRODUCT_DIR")"
 
 printf '\n== Queue (protocol: .agents/docs/plans/README.md) ==\n\n'
@@ -312,7 +298,13 @@ qc_scope_class() {
 # Sorted urgent first, then oldest — the pick order Loop step 2 prescribes —
 # with claimed plans after free ones and blocked plans last: listed so the
 # shape of the queue stays visible, never suggested.
-rows="$(
+#
+# ROW/REF-prefixed, split below: the research listing needs the stems the
+# plans' `research:` edges name (routing decides which files there are
+# nodes at all), this loop already parses every plan, and a second read
+# per plan is the per-item fork the perf budget exists to catch. A
+# subshell cannot hand a variable out, so the edges ride the same stream.
+rows_raw="$(
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     doc="$(git show "${ref}:${f}" 2>/dev/null)"
@@ -357,6 +349,7 @@ rows="$(
       for n in "${rneed_list[@]}"; do
         n="$(stem "$n")"
         { [ -n "$n" ] && [ "$n" != "none" ]; } || continue
+        printf 'REF\t%s\n' "$n"
         grep -qxF -- "$n" <<<"$rstems" &&
           blockers="${blockers:+${blockers}, }${n} (open question)"
       done
@@ -405,27 +398,44 @@ rows="$(
     # plan's scope is out of scope, and de-ranking on a guess would hide work
     # nobody proved was unreachable.
     [ -z "$scope_derank" ] || rank=$((rank + 2))
-    printf '%s\t%s\t%s\t[%s, agent: %s, effort: %s%s%s%s]\t%s\n' \
+    printf 'ROW\t%s\t%s\t%s\t[%s, agent: %s, effort: %s%s%s%s]\t%s\n' \
       "$rank" "${added:-9999999999}" "$f" \
       "${urgency:-normal}" "${agent:-sonnet}" "${effort:-high}" \
       "$scope_note" \
       "${blockers:+, blocked by: ${blockers}}" \
       "${claimed_on:+, claimed on ${claimed_on}}" \
       "${requirement:-none}"
-  done <<<"$plans" | sort -t$'\t' -k1,1n -k2,2n
+  done <<<"$plans"
 )"
+rows="$(awk -F'\t' '$1 == "ROW"' <<<"$rows_raw" | cut -f2- |
+  sort -t$'\t' -k1,1n -k2,2n)"
+# Stems the open plans route to, one per line — the referenced half of the
+# node test the research listing applies below.
+plan_rrefs="$(awk -F'\t' '$1 == "REF" { print $2 }' <<<"$rows_raw")"
 
 # Open questions, same ordering as plans and the same tier field. Not folded
 # into `rows`: the two are ranked together but a question has no `needs`, no
 # `scope` and no claim, so a shared row shape would carry four empty columns
 # and invite somebody to fill them.
-rrows="$(
+#
+# ROW/DOC-prefixed like the plans loop, and for the same subshell reason:
+# routing decides which files here are nodes (a `research:` key, or a plan
+# whose `research:` edge names the stem — joharness.sh:lint_graph applies
+# the identical test), a skipped document is NOT unreadable, and the
+# shortfall arithmetic below needs the two apart or every consumer
+# document would print as a file that could not be read.
+rrows_raw="$(
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     doc="$(git show "${ref}:${f}" 2>/dev/null)"
     [ -n "$doc" ] || continue
-    { read -r urgency; read -r agent; read -r effort; read -r grad; } \
-      <<<"$(printf '%s\n' "$doc" | fields urgency agent effort graduates)"
+    { read -r urgency; read -r agent; read -r effort; read -r grad
+      read -r rq; } \
+      <<<"$(printf '%s\n' "$doc" | fields urgency agent effort graduates research)"
+    if [ -z "$rq" ] && ! grep -qxF -- "$(stem "$f")" <<<"$plan_rrefs"; then
+      printf 'DOC\t%s\n' "$f"
+      continue
+    fi
     added="$(git log --diff-filter=A --format=%ct -1 "$ref" -- "$f" 2>/dev/null)"
     # Same claims map as plans, read with the same key. A workstream claims a
     # question through its `plan:` field (joharness.sh:lint_graph says why one
@@ -436,23 +446,30 @@ rrows="$(
     rank=1
     [ "$urgency" = "urgent" ] && rank=0
     [ -z "$rclaimed" ] || rank=$((rank + 2))
-    printf '%s\t%s\t%s\t[%s, agent: %s, effort: %s, graduates: %s%s]\n' \
+    printf 'ROW\t%s\t%s\t%s\t[%s, agent: %s, effort: %s, graduates: %s%s]\n' \
       "$rank" "${added:-9999999999}" "$f" \
       "${urgency:-normal}" "${agent:-opus}" "${effort:-high}" \
       "${grad:-none}" "${rclaimed:+, claimed on ${rclaimed}}"
-  done <<<"$research" | sort -t$'\t' -k1,1n -k2,2n
+  done <<<"$research"
 )"
+rrows="$(awk -F'\t' '$1 == "ROW"' <<<"$rrows_raw" | cut -f2- |
+  sort -t$'\t' -k1,1n -k2,2n)"
 research_count="$(printf '%s\n' "$rrows" | grep -c . || :)"
 case "$research_count" in ''|*[!0-9]*) research_count=0 ;; esac
+# Documents routing skipped: real files, deliberately not questions, and
+# subtracted below so they never masquerade as unreadable ones.
+qc_research_docs="$(awk -F'\t' '$1 == "DOC" { c++ } END { print c + 0 }' <<<"$rrows_raw")"
+case "$qc_research_docs" in ''|*[!0-9]*) qc_research_docs=0 ;; esac
 
 # A question the loop could not read is NOT an absent question. The plans
 # path already paid for this — a zero-byte plan file made the edge fire while
 # an unclaimed plan sat in the queue — and a count taken from `rrows` rather
 # than from the file list reproduces it for the new node type. The loop drops
-# a file for exactly one other reason (an empty line), so the shortfall IS
-# the unreadable count.
+# a file for exactly two other reasons — an empty line, and a document the
+# routing test skipped, counted above — so the remaining shortfall IS the
+# unreadable count.
 qc_research_unreadable=$(( $(printf '%s\n' "$research" | grep -c . || :) -
-                           research_count ))
+                           research_count - qc_research_docs ))
 [ "$qc_research_unreadable" -ge 0 ] || qc_research_unreadable=0
 
 # One printer, two call sites: the plans-empty branch prints questions and
