@@ -1,6 +1,6 @@
 ---
 workstream: perf-budget-pins-the-ref-shape
-status: in-progress
+status: done
 branch: claude/current-state-review-oxfb7f
 pr: none
 plan: perf-budget-pins-the-ref-shape
@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_011LSGxqQsZyuMYSqxa3jVT5
 agent: opus
 updated: 2026-09-02
-next: Verify the rebuilt version in a clean clone, then finish
+next: Nothing — merged behaviour
 ---
 
 ## Goal
