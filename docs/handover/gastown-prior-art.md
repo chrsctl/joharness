@@ -1,6 +1,6 @@
 ---
 workstream: gastown-prior-art
-status: review
+status: done
 branch: claude/gastown-review-owjgzg
 pr: none
 plan: gastown-ideas
