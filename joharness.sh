@@ -910,7 +910,8 @@ selftest_inert_diff() {
 # described the operator's branch list rather than the code. Measured
 # 2026-09-02, same tree: a single-branch clone counts `graph` 19 and
 # `session-start` 62; this repo's session container, carrying 107 refs, counts
-# 422 and 1179 against budgets of 260 and 700. `ci` was therefore red on a
+# 406 and 1163 against budgets of 260 and 700 — re-counted, because the first
+# figures written here (422 and 1179) did not reproduce. `ci` was therefore red on a
 # clean `main` in every container, which is how a gate stops being read.
 #
 # PERF_EDGES below already made this decision for history. The ref shape and
@@ -945,8 +946,29 @@ PERF_SHAPE_OPEN=5
 # Build it in $1. Prints nothing; returns non-zero when the shape cannot be
 # built, and the caller REFUSES to measure rather than falling back to the
 # live repo — a fallback would silently restore the defect this exists to fix.
+# One commit, and every way the caller's git config can stop it turned off.
+# Pinning the identity was not enough: `commit.gpgsign = true` in a global
+# config, or a `core.hooksPath` holding a failing pre-commit, each made the
+# shape unbuildable and `perf` refuse — on a developer laptop, for a reason
+# nothing in the output named.
+perf_git_commit() {
+  git -C "$1" add -A >/dev/null 2>&1 || return 1
+  git -C "$1" -c user.name=perf -c user.email=perf@local \
+    -c commit.gpgsign=false \
+    commit -q --no-verify -m "$2" >/dev/null 2>&1
+}
+
 perf_shape() {
   local d="$1" o="${1}/origin.git" w="${1}/work" i b refspecs=""
+  # An inherited GIT_DIR or GIT_WORK_TREE points every `git -C` below at the
+  # caller's repository instead of the shape — GIT_DIR wins over -C — and the
+  # shape then fails to build for a reason nothing in the output names.
+  #
+  # Unset, NOT declared local first: `local VAR=` on an exported variable
+  # keeps the export and hands the child an empty GIT_DIR, and unsetting a
+  # local can unshadow the outer one. This unsets them for the rest of the
+  # process, which nothing here reads.
+  unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY
   git init -q --bare "$o" 2>/dev/null || return 1
   git -C "$o" symbolic-ref HEAD refs/heads/main 2>/dev/null || return 1
   git init -q "$w" 2>/dev/null || return 1
@@ -980,12 +1002,7 @@ perf_shape() {
   printf -- '---\nresearch: shape-question\nurgency: normal\nagent: opus\neffort: low\ngraduates: .agents/docs/caveman.md\n---\n\n## Question\nShape.\n' \
     >"${w}/docs/research/shape-question.md" || return 1
 
-  git -C "$w" add -A >/dev/null 2>&1 || return 1
-  # Identity on the command line: a runner with no git config would otherwise
-  # fail here, and the shape would be reported unbuildable on a machine where
-  # nothing is wrong.
-  git -C "$w" -c user.name=perf -c user.email=perf@local \
-    commit -qm "shape base" >/dev/null 2>&1 || return 1
+  perf_git_commit "$w" "shape base" || return 1
   git -C "$w" push -q origin main >/dev/null 2>&1 || return 1
 
   # Open branches first, then ONE push carrying every ref this shape needs.
@@ -1004,9 +1021,7 @@ perf_shape() {
     mkdir -p "${w}/docs/handover" || return 1
     printf -- '---\nworkstream: %s\nstatus: in-progress\nplan: none\nagent: sonnet\nupdated: 2026-01-01\n---\n\n## Goal\nShape.\n' \
       "$b" >"${w}/docs/handover/${b}.md" || return 1
-    git -C "$w" add -A >/dev/null 2>&1 || return 1
-    git -C "$w" -c user.name=perf -c user.email=perf@local \
-      commit -qm "shape ${b}" >/dev/null 2>&1 || return 1
+    perf_git_commit "$w" "shape ${b}" || return 1
     refspecs="${refspecs} refs/heads/${b}:refs/heads/${b}"
     i=$((i + 1))
   done
@@ -1022,11 +1037,43 @@ perf_shape() {
   # shellcheck disable=SC2086
   git -C "$w" push -q origin $refspecs >/dev/null 2>&1 || return 1
 
+  # A PINNED HISTORY, so `feedback` and `review` are measured here too.
+  #
+  # They walk merged edges rather than refs, so an earlier round left them on
+  # the operator's checkout with a floor beneath them. That was wrong three
+  # ways, each reproduced: a shallow clone counted 9 and 6 and went RED; a
+  # repo with fewer than four merges did the same, which is every consumer for
+  # its first four; and `review` went OVER at twelve workstream files on the
+  # branch, which is the very defect this change exists to remove, still
+  # driven by the operator's tree. On `main` it also measured an early exit at
+  # 207 — four times any floor worth setting — because its per-file loop never
+  # runs there.
+  #
+  # PERF_EDGES caps the walk at 20, so the shape carries 22: the cap binds,
+  # and the number stops moving as a repo merges. It costs about 5s a run,
+  # which `ci` does not pay — measuring the pinned shape instead of a 107-ref
+  # checkout took the whole subcommand from 23.6s to 8s.
+  i=0
+  while [ "$i" -lt 22 ]; do
+    b="perf-edge-${i}"
+    git -C "$w" checkout -q -B "$b" main 2>/dev/null || return 1
+    mkdir -p "${w}/docs/handover" || return 1
+    printf -- '---\nworkstream: %s\nstatus: done\nplan: shape-plan-0\nagent: sonnet\nupdated: 2026-01-01\n---\n\n## Goal\nShape.\n\n## Review\n\n- r1: a finding. (fixed)\n- r2: another finding. (wontfix — shape)\n' \
+      "$b" >"${w}/docs/handover/${b}.md" || return 1
+    perf_git_commit "$w" "shape edge ${b}" || return 1
+    git -C "$w" checkout -q main 2>/dev/null || return 1
+    git -C "$w" -c user.name=perf -c user.email=perf@local \
+      -c commit.gpgsign=false \
+      merge -q --no-ff --no-verify -m "Merge ${b}" "$b" >/dev/null 2>&1 ||
+      return 1
+    git -C "$w" branch -q -D "$b" >/dev/null 2>&1 || return 1
+    i=$((i + 1))
+  done
+  git -C "$w" push -q -f origin main >/dev/null 2>&1 || return 1
+
   git -C "$w" checkout -q -B perf-work main 2>/dev/null || return 1
   printf 'shape\n' >"${w}/perf-shape.txt" || return 1
-  git -C "$w" add -A >/dev/null 2>&1 || return 1
-  git -C "$w" -c user.name=perf -c user.email=perf@local \
-    commit -qm "shape work commit" >/dev/null 2>&1 || return 1
+  perf_git_commit "$w" "shape work commit" || return 1
   return 0
 }
 
@@ -1324,48 +1371,69 @@ perf_count() {
 # they were taken against whatever tree the operator had.
 #
 # Counted twice, identically, `./joharness.sh perf` on this branch:
-#   feedback 204   review 210   graph 104   session-start 299
-#   queue-context 127   drain 301   handover-guard 29
+#   feedback 214   review 260   graph 104   session-start 322
+#   queue-context 127   drain 324   handover-guard 22
 #
-# Headroom is 14 on every row but the guard, and it is sized from the
-# regression it must catch rather than from taste:
-#   per REF   the shape carries 26, so a fork put back in a ref loop adds 26.
-#             Measured, a `git rev-parse` back in queue-context.sh's claims
-#             loop: queue-context, session-start and drain each +26.
+# Headroom is 14 on every row except two, and both exceptions are deliberate:
+# `review` sits at 274 over 260 and `handover-guard` at 33 over 22, whose
+# documented cheapest regression is 37 and whose ceiling therefore still sits
+# under the thing it exists to catch.
+#
+# 14 is sized from the regression it must catch, not from taste:
+#   per REF   the shape carries 26, so a fork in a ref loop adds up to 26.
+#             Measured, a `git rev-parse` in queue-context.sh's claims loop
+#             placed after the origin/main skip: queue-context, session-start
+#             and drain each +25. Placed before the skip it is +26; the
+#             difference is that one skipped ref, and 14 catches either.
 #   per EDGE  PERF_EDGES caps the walk at 20, so a fork in an edge loop adds
 #             20, and 14 sits under it.
 #
-# WHAT IT DOES NOT CATCH, said plainly rather than left to be discovered: a
-# fork per OPEN BRANCH costs 5, because the shape carries five. Measured —
-# a `git rev-parse` inside cmd_graph's branch loop moves graph 104 -> 109 and
-# the row still reads ok. Fifteen open branches would catch it and cost 17s a
-# run against 7s; the ceiling is for a regression in kind, and five forks is
-# not one. A row whose number moves at all is still worth reading: the count
-# is printed every run and nothing environmental moves it any more.
-#
-# handover-guard keeps 33 over a counted 29. Its state no longer swings — the
-# shape pins the branch to one commit ahead with no workstream file — and its
-# documented cheapest regression is 37, so the ceiling still sits under the
-# thing it exists to catch.
+# WHAT IT DOES NOT CATCH, said plainly rather than left to be discovered. The
+# shape pins some collections small, and a fork per item in one of those costs
+# less than the headroom: five open branches, three plans, one question, one
+# requirement. Measured: a `git rev-parse` inside cmd_graph's branch loop
+# moves graph 104 -> 109, and inside its plan loop 104 -> 107; both still read
+# ok. Fifteen open branches would catch the first and cost 17s a run against
+# 8s. The ceiling is for a regression in kind — a fork per REF or per EDGE,
+# where the collection is large — and five forks is not one. The counted
+# number is printed every run and nothing environmental moves it, so a row
+# that drifts is still visible to a reader who looks.
 perf_rows() {
   printf '%s\n' \
-    "feedback|${JOHARNESS_PERF_BUDGET_FEEDBACK:-218}|live|${ROOT}/joharness.sh feedback" \
-    "review|${JOHARNESS_PERF_BUDGET_REVIEW:-230}|live|${ROOT}/joharness.sh review" \
+    "feedback|${JOHARNESS_PERF_BUDGET_FEEDBACK:-228}|live|${ROOT}/joharness.sh feedback" \
+    "review|${JOHARNESS_PERF_BUDGET_REVIEW:-274}|live|${ROOT}/joharness.sh review" \
     "graph|${JOHARNESS_PERF_BUDGET_GRAPH:-118}|shape|${ROOT}/joharness.sh graph" \
-    "session-start|${JOHARNESS_PERF_BUDGET_SESSION_START:-313}|shape|${ROOT}/joharness.sh session-start" \
+    "session-start|${JOHARNESS_PERF_BUDGET_SESSION_START:-336}|shape|${ROOT}/joharness.sh session-start" \
     "queue-context|${JOHARNESS_PERF_BUDGET_QUEUE:-141}|shape|env JOHARNESS_RUN_MODE=unsupervised ${HARNESS_ROOT}/queue-context.sh" \
-    "drain|${JOHARNESS_PERF_BUDGET_DRAIN:-315}|shape|${ROOT}/joharness.sh drain" \
+    "drain|${JOHARNESS_PERF_BUDGET_DRAIN:-338}|shape|${ROOT}/joharness.sh drain" \
     "handover-guard|${JOHARNESS_PERF_BUDGET_GUARD:-33}|shape|env JOHARNESS_MODE=unsupervised ${HARNESS_ROOT}/handover-guard.sh"
 }
 
 # The table itself, so `ci` can print its own section banner above it.
+# The shape path lives here rather than in a local, for the reason the upgrade
+# clone's trap records: a trap fires after the function has returned, when a
+# local is out of scope and `set -u` turns the cleanup itself into the error.
+PERF_SHAPE_DIR=""
+
+perf_cleanup() {
+  [ -z "$PERF_SHAPE_DIR" ] || rm -rf "$PERF_SHAPE_DIR"
+  PERF_SHAPE_DIR=""
+}
+
 perf_report() {
   local only="${1:-}" live="${2:-0}" rc=0 seen=0 name budget ctx cmd counted n secs
-  local shape="" live_refs
+  local live_refs
 
   live_refs="$(git -C "$ROOT" for-each-ref refs/remotes 2>/dev/null |
     grep -c . || :)"
   case "$live_refs" in ''|*[!0-9]*) live_refs=0 ;; esac
+
+  # The name is checked BEFORE anything is built: `perf nosuchrow` used to
+  # build and throw away a 4MB shape before saying it did not know the name.
+  if [ -n "$only" ] && ! perf_rows | cut -d'|' -f1 | grep -qxF -- "$only"; then
+    warn "no entrypoint named '${only}' (try one of: $(perf_rows | cut -d'|' -f1 | tr '\n' ' '))"
+    return 1
+  fi
 
   if [ "$live" -eq 1 ]; then
     # `perf --live` measures THIS checkout for every row. The numbers are not
@@ -1376,24 +1444,34 @@ perf_report() {
     printf '   measured against THIS checkout (%s ref(s)) — reported, not gated\n' \
       "$live_refs"
   else
-    shape="$(mktemp -d 2>/dev/null)" || {
+    PERF_SHAPE_DIR="$(mktemp -d 2>/dev/null)" || {
       warn "cannot measure: no temp dir for the pinned shape"
       return 1
     }
-    # Cleared at the end of this function. Without it an interrupted `ci` —
-    # the common interrupt — left megabytes of shape behind every time.
-    trap 'rm -rf "$shape"' EXIT INT TERM
-    if ! perf_shape "$shape"; then
-      rm -rf "$shape"
-      trap - EXIT INT TERM
+    # The signal traps EXIT, because a trap that only cleans up lets bash
+    # resume the loop — and every remaining row was then measured against a
+    # project directory that had just been deleted. Counted, before this:
+    # `./joharness.sh perf & sleep 4; kill -INT $!` printed `queue-context 0
+    # ok`, `handover-guard 0 ok`, and exit 0. A gate that answers green to a
+    # signal is worse than one that is red for everybody.
+    trap 'perf_cleanup; exit 130' INT
+    trap 'perf_cleanup; exit 143' TERM
+    trap 'perf_cleanup' EXIT
+    if ! perf_shape "$PERF_SHAPE_DIR"; then
+      perf_cleanup
       # No fallback to the live tree, on purpose. Measuring an unpinned
       # checkout under these budgets is how this gate came to be red in every
       # container in the first place.
       warn "cannot build the pinned measurement shape; refusing to measure the live tree instead (\`perf --live\` asks for that on purpose)"
       return 1
     fi
-    printf '   measured against a built shape: %s ref(s), 3 plan(s)\n' \
-      "$((PERF_SHAPE_MERGED + PERF_SHAPE_OPEN + 1))"
+    printf '   measured against a built shape: %s ref(s), %s plan(s), %s edge(s)\n' \
+      "$(git -C "${PERF_SHAPE_DIR}/work" for-each-ref refs/remotes 2>/dev/null |
+         grep -c . || :)" \
+      "$(git -C "${PERF_SHAPE_DIR}/work" ls-tree -r --name-only origin/main \
+         -- docs/plans 2>/dev/null | grep -c . || :)" \
+      "$(git -C "${PERF_SHAPE_DIR}/work" rev-list --merges --count origin/main \
+         2>/dev/null || printf 0)"
     printf '   Not this checkout, which carries %s ref(s) (perf --live)\n' \
       "$live_refs"
   fi
@@ -1403,15 +1481,13 @@ perf_report() {
 
   while IFS='|' read -r name budget ctx cmd; do
     [ -n "$name" ] || continue
-    # One entrypoint by name: what a session wants while optimizing that one
-    # thing, and what keeps the suite's own cases from re-measuring all five.
     [ -z "$only" ] || [ "$name" = "$only" ] || continue
     seen=1
-    if [ "$live" -eq 1 ] || [ "$ctx" = "live" ]; then
+    if [ "$live" -eq 1 ]; then
       PERF_PROJECT="$ROOT"
       ctx="live"
     else
-      PERF_PROJECT="${shape}/work"
+      PERF_PROJECT="${PERF_SHAPE_DIR}/work"
       ctx="pinned"
     fi
     # shellcheck disable=SC2086
@@ -1428,19 +1504,15 @@ perf_report() {
     }
     n="${counted%% *}"
     secs="${counted##* }"
-    # A FLOOR for the rows measured against this checkout. They walk history
-    # rather than refs, so PERF_EDGES already pins them — 204 and 214 in a
-    # 107-ref container against 204 and 216 in a two-ref clone — and building
-    # them a synthetic history cost 5s a run to gate a loop the cap already
-    # bounds. What that leaves is the degenerate tree: measured in a clone
-    # where `review` finds nothing to read, the row printed `6 ... ok`, a
-    # green tick over an entrypoint that exited early. Below the floor the row
-    # is not a clean run, and 127 is not the only way to fail to measure.
-    if [ "$live" -ne 1 ] && [ "$ctx" = "live" ] &&
-       [ "$n" -lt "${PERF_FLOOR:-50}" ]; then
+    # A FLOOR under every gated row. 127 catches an entrypoint that is not
+    # there; nothing caught one that ran and did nothing, and a count near
+    # zero on a pinned shape means the measurement broke rather than that the
+    # code got fast. Deliberately far below the smallest real count (22) and
+    # far above what a broken run produces (0 to 7).
+    if [ "$live" -ne 1 ] && [ "$n" -lt "${JOHARNESS_PERF_FLOOR:-15}" ]; then
       printf '   %-14s %8s %8s %6s  TOO LOW (floor %s)\n' \
-        "$name" "$n" "$budget" "$ctx" "${PERF_FLOOR:-50}"
-      warn "${name} spawned ${n} commands, under the floor: it exited early rather than doing the work, and a count that low is a green tick over nothing"
+        "$name" "$n" "$budget" "$ctx" "${JOHARNESS_PERF_FLOOR:-15}"
+      warn "${name} spawned ${n} commands against the pinned shape, under the floor: it did not do the work, and a count that low is a green tick over nothing"
       rc=1
       continue
     fi
@@ -1456,15 +1528,7 @@ perf_report() {
     fi
   done < <(perf_rows)
 
-  if [ -n "$shape" ]; then
-    rm -rf "$shape"
-    trap - EXIT INT TERM
-  fi
-
-  if [ -n "$only" ] && [ "$seen" -eq 0 ]; then
-    warn "no entrypoint named '${only}' (try one of: $(perf_rows | cut -d'|' -f1 | tr '\n' ' '))"
-    return 1
-  fi
+  perf_cleanup
 
   if [ "$rc" -ne 0 ]; then
     printf '\n  A budget is a ceiling for a regression in kind — a per-item fork\n'

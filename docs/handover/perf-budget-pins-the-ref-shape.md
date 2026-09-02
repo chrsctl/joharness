@@ -144,3 +144,82 @@ written by hand.
   records — and SC1007 for `VAR= \` in the pinned-environment block.
   (fixed)
 
+
+### Second verifier round
+
+It found the first rebuild still broken in two ways that mattered, and both
+reproduce. The compromise at the heart of them — leaving `feedback` and
+`review` on the operator's checkout with a floor beneath them — is gone: every
+row is measured against the shape, which now carries a pinned history of 22
+merged edges.
+
+- v1: **a signal turned the whole gate into a green tick over nothing.** The
+  trap deleted the shape and let bash resume the loop, so every remaining row
+  measured a project directory that no longer existed:
+  `./joharness.sh perf & sleep 4; kill -INT $!` printed
+  `queue-context 0 ... ok`, `handover-guard 0 ... ok`, and exited **0**.
+  Neither the 127 guard nor the floor could see it. (fixed — the signal traps
+  clean up and EXIT, 130 and 143; re-run, the interrupt now stops after two
+  rows and exits 130. A floor under every gated row is the second half.)
+- v2: **the floor redded legitimate repositories**, three ways, each
+  reproduced: a `--depth 1` clone counted 9 and 6; a repo with fewer than four
+  merged edges did the same, which is every consumer for its first four
+  merges; and a base branch not named `main` took `review` to 6, because
+  `perf_count` pins `HANDOVER_BASE_BRANCH=main` — right for the shape, wrong
+  for a row measured against the operator's tree. (fixed by removing the
+  cause: those rows are measured against the shape now, where the pin is true
+  by construction)
+- v3: **`review` still went OVER driven by the operator's tree** — 12
+  workstream files on the branch took it to 232 against 230, and this repo's
+  own AGENTS.md records 23 accreted in one consumer. The defect this plan
+  exists to remove, still live in a row I had left unpinned. (fixed)
+- v4: **on the base branch `review` measured an early exit** at 207 and
+  printed ok — four times any floor worth setting, because its per-file loop
+  never runs there. (fixed — the shape's work branch is one commit ahead, so
+  the loop runs every time)
+- v5: pinned rows had no floor at all; a pinned row counting 0 printed ok.
+  (fixed — the floor is under every gated row, at 15, far below the smallest
+  real count of 22 and far above what a broken run produces)
+- v6: **`PERF_FLOOR` was an unprefixed environment input** that silently
+  disabled the new gate — verbatim the class recorded as fixed under r6, moved
+  rather than fixed. The verifier was right to challenge that disposition.
+  (fixed — `JOHARNESS_PERF_FLOOR`, and it is the only knob, since `--live` is
+  a flag)
+- v7: **the shape build depended on the caller's git config.** A global
+  `commit.gpgsign = true`, a `core.hooksPath` with a failing pre-commit, or an
+  inherited `GIT_DIR` each made it unbuildable, on a developer laptop, for a
+  reason nothing in the output named. (fixed — one commit helper with
+  `-c commit.gpgsign=false --no-verify`, and the git location variables unset
+  rather than shadowed: `local VAR=` on an exported variable keeps the export
+  and hands the child an empty `GIT_DIR`)
+- v8: "headroom is 14 on every row but the guard" was false — `review` is 20.
+  (fixed — both exceptions are named)
+- v9: "+26" reproduces as +25 when the fork sits after the `origin/main` skip.
+  (fixed — both placements and the reason for the difference)
+- v10: the origin-story numbers (422, 1179, 494) re-count as 406, 1163, 490.
+  (fixed — re-counted, and the correction says it is one)
+- v11: the banner's shape numbers were written, not counted. (fixed — refs,
+  plans and edges are all counted from the built shape)
+- v12: `perf nosuchrow` built and discarded a 4MB shape before saying it did
+  not know the name. (fixed — the name is checked first)
+- v13: two selftest needles proved less than their names — one matched the
+  `--live` header rather than a row verdict, the other passed because nothing
+  was printed at all. (fixed, and the second now says which path it covers
+  and which it does not)
+- v14: the plan's Acceptance asks for the regression to be proved by `mutate`
+  and nothing recorded one. (fixed — two runs, below)
+
+`./joharness.sh mutate`, on this branch, baseline green:
+
+| line replaced | cases redded |
+| --- | --- |
+| `PERF_PROJECT="${PERF_SHAPE_DIR}/work"` -> `"$ROOT"` | 2 |
+| the floor comparison -> `if false` | 4 |
+
+**Cost, re-counted with nothing else running.** `perf` 8.0 / 8.4 / 8.8s
+against a baseline of 3.4s — but the baseline was measuring a 107-ref
+checkout, and on the old code in this container the whole subcommand took
+23.6s and was RED. So `ci` here gets both faster and green. The shape build
+alone is 1.4s. The suite is 127s before this change and about 165s after,
+measured once each; roughly 15s of that is the new cases and the rest is
+every existing perf case now building a shape.

@@ -273,7 +273,9 @@ expect "and each row says which tree its number came from" "pinned" "$out"
 # thing this whole change exists to stop being a red.
 out="$(pf_run ./joharness.sh perf --live graph)" && rc=0 || rc=$?
 expect "--live measures this checkout instead" "measured against THIS checkout" "$out"
-expect "and reports rather than gating" "reported" "$out"
+# On the ROW, not the header: the header says "reported, not gated" too, so a
+# needle of "reported" alone would pass with a row printing OVER.
+expect "and every row is reported rather than gated" "live  reported" "$out"
 refute "and does not claim the shape" "measured against a built shape" "$out"
 if [ "$rc" -eq 0 ]; then pass "--live is green whatever it counts"
 else fail "--live is green whatever it counts (got ${rc})"; fi
@@ -284,13 +286,15 @@ out="$(pf_run ./joharness.sh perf graph --live)"
 expect "the flag is read after the name too" "measured against THIS checkout" "$out"
 refute "and the name is still honoured beside it" "session-start" "$out"
 
-# A row measured against this checkout can still exit early — in a clone with
-# nothing to review it counted 6 and printed ok, a green tick over nothing.
-# The floor catches what 127 cannot.
-out="$(pf_run env "JOHARNESS_PERF_BUDGET_FEEDBACK=999" "PERF_FLOOR=100000" \
-  ./joharness.sh perf feedback)" && rc=0 || rc=$?
-expect "a live row under the floor is named" "TOO LOW" "$out"
-expect "and says why a low count is not a clean run" "exited early" "$out"
+# A row that RAN and did nothing is not a clean run, and 127 cannot see it:
+# the entrypoint is there, it just did no work. Reproduced before the floor by
+# interrupting a run — the remaining rows measured a project directory that
+# had been deleted and printed `queue-context 0 ... ok`, exit 0.
+out="$(pf_run env "JOHARNESS_PERF_FLOOR=100000" ./joharness.sh perf graph)" &&
+  rc=0 || rc=$?
+expect "a row under the floor is named" "TOO LOW" "$out"
+expect "and says it did not do the work" "did not do the work" "$out"
+refute "and is not also printed as ok" "ok (" "$out"
 if [ "$rc" -ne 0 ]; then pass "and is a non-zero exit"
 else fail "and is a non-zero exit (got ${rc})"; fi
 
@@ -302,7 +306,13 @@ else fail "and is a non-zero exit (got ${rc})"; fi
 # path that is not there.
 out="$(pf_run env "TMPDIR=${TMP}/pfnoshape-absent" ./joharness.sh perf graph)" &&
   rc=0 || rc=$?
-expect "an unbuildable shape is named" "cannot" "$out"
-refute "and no row is printed as measured" "ok (" "$out"
+expect "an unbuildable shape is named" "cannot measure" "$out"
+# The COLUMN header. "entrypoint" alone appears in the subcommand's own
+# banner two lines above, so a refute on it fails against a run that refused
+# correctly. Which path is covered: this is the mktemp failure, the one a
+# suite running as root can actually produce. The `perf_shape` returns-1 path
+# is not covered here — every way to reach it needs a filesystem this suite
+# cannot build as root, and saying so is better than a case that pretends.
+refute "and the table is never opened" "counted   budget" "$out"
 if [ "$rc" -ne 0 ]; then pass "an unbuildable shape is a non-zero exit"
 else fail "an unbuildable shape is a non-zero exit (got ${rc})"; fi
