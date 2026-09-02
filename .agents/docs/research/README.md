@@ -56,6 +56,39 @@ Frontmatter: `research` (the stem), `urgency` (`normal` | `urgent`), `agent`
 (`haiku` | `sonnet` | `opus`), `effort`, `graduates` (the file the answer
 lands in). The tier the queue prints comes from `agent`, same as a plan's.
 
+## Which files are nodes
+
+Routing decides. A file under `docs/research/` is a NODE when the graph
+routes through it — either of:
+
+- it carries a `research:` key (self-names; a value naming a DIFFERENT
+  file is a typo and red, never a document — a key that exists is intent);
+- an open plan's `research:` edge names its stem. A node a plan waits on
+  cannot leave the queue by dropping its frontmatter: the reference alone
+  keeps it a node, and its missing keys go red.
+
+Neither = a DOCUMENT. Consumers keep their own domain documents under
+`docs/research/` from before this protocol existed; those lint green, are
+never listed as open questions, and never block or get scheduled.
+`joharness.sh:lint_graph`, `queue-context.sh` and `joharness.sh graph`
+apply the identical test — one rule, three readers.
+
+An unreferenced node cannot escape by omission either: a file whose own
+history carried `research: <stem>` and whose tree no longer does was a
+node — DECAYED, red until the frontmatter is restored or the file is
+deleted. `./joharness.sh cleanup` counts documents and decayed nodes the
+base branch already carries.
+
+Known limits, stated rather than implied: a rename that drops the
+frontmatter in the same change defeats the history check (the new path
+has no history carrying the old self-name), and a shallow checkout that
+finds no removal says nothing — blind is not zero, so a depth-1 CI can
+read a decayed node as a document where a full-history run reds it. The
+full-history run is the gate.
+
+In the canonical repo a plain document here is warned: consumers keep
+documents in this directory legitimately, canonical keeps only nodes.
+
 ## Verification is not optional
 
 A finding nobody checked from a second context is not settled, and this file

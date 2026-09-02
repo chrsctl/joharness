@@ -561,3 +561,211 @@ expect "a research node missing its tier is red too" \
   "tierless-q.md: no agent:" "$out"
 git -C "$lwork" rm -q docs/research/tierless-q.md
 git -C "$lwork" commit -qm "clear the fixture"
+
+# --- routing decides nodehood ------------------------------------------------
+# A consumer's own documents lived under docs/research/ before the protocol
+# existed, and reding five keys per file is how a sync turned a green
+# consumer red (docs/plans/research-nodes-red-a-clean-consumer.md measured
+# 13 files x 5 keys against gx at 847f64e). Routing is the fix: a file
+# there is a node when it carries a `research:` key or an open plan's
+# `research:` edge names its stem — and NOTHING else is.
+#
+# The earlier states deliberately leave red and warned fixtures in the
+# tree; the first case below needs the clean-pass summary, which prints
+# only when nothing is red or warned. -f because bad.md carries a
+# working-tree edit an earlier case left on purpose.
+git -C "$lwork" rm -qf docs/plans/bad.md docs/plans/waits-shallow.md \
+  docs/handover/lost-ws.md
+git -C "$lwork" commit -qm "clear the red fixtures"
+# Removing a directory's last file removes the directory — the same trap
+# fixture_rm restores after, restored here by hand for the same reason.
+mkdir -p "${lwork}/docs/plans" "${lwork}/docs/handover"
+
+mkdir -p "${lwork}/docs/research"
+printf '# Postgres stack\n\nAnswered history; a domain document.\n' \
+  >"${lwork}/docs/research/POSTGRES-STACK-2026.md"
+cat >"${lwork}/docs/research/adr-notes.md" <<'EOF'
+---
+title: ADR notes
+author: someone
+---
+
+Prose with unrelated frontmatter — intent to be a document, not a node.
+EOF
+git -C "$lwork" add docs/research
+git -C "$lwork" commit -qm "two consumer documents that predate the protocol"
+full="$(lint_ci)"; rc=$?
+out="$(lint_section "$full")"
+refute "a consumer document is not linted for node keys" \
+  "DEAD docs/research/POSTGRES-STACK-2026.md" "$out"
+refute "unrelated frontmatter is not node intent" \
+  "DEAD docs/research/adr-notes.md" "$out"
+expect "the skip is counted, not silent" \
+  "2 document(s) under docs/research/" "$out"
+if [ "$rc" -eq 0 ]; then
+  pass "a tree of consumer documents lints green"
+else
+  fail "a tree of consumer documents lints green (got ${rc})"
+fi
+
+# The referenced half of the escape hatch: a node a plan waits on cannot
+# leave the queue by dropping its frontmatter, because the plan's edge
+# alone makes it a node and its missing keys red.
+#
+# NO-REGRESSION, labelled: the two expects below pass on the pre-routing
+# tree too, where EVERY file here was a node. The evidence is the pair —
+# the refute after them reds there, and together they say the reds come
+# from the reference, not from the directory.
+cat >"${lwork}/docs/plans/waits-routing.md" <<'EOF'
+---
+plan: waits-routing
+urgency: normal
+agent: sonnet
+effort: high
+research: POSTGRES-STACK-2026
+---
+EOF
+git -C "$lwork" add docs/plans/waits-routing.md
+git -C "$lwork" commit -qm "a plan routes to the frontmatterless file"
+out="$(lint_section "$(lint_ci)")"
+expect "a plan's edge makes the file a node" \
+  "POSTGRES-STACK-2026.md: no research:" "$out"
+expect "and reds the tier the queue would schedule on" \
+  "POSTGRES-STACK-2026.md: no agent:" "$out"
+fixture_rm "$lwork" "the plan is gone again" docs/plans/waits-routing.md
+out="$(lint_section "$(lint_ci)")"
+# Second half of the pair: same file, reference withdrawn, document again.
+refute "unreferenced again reads as a document again" \
+  "POSTGRES-STACK-2026.md: no research:" "$out"
+
+# A `research:` key that names a DIFFERENT file is a typo, never a
+# document — a mis-named node skipped as prose would leave the queue
+# wearing a document's face.
+cat >"${lwork}/docs/research/mis-named.md" <<'EOF'
+---
+research: some-other-name
+urgency: normal
+agent: opus
+effort: high
+graduates: joharness.sh
+---
+EOF
+git -C "$lwork" add docs/research/mis-named.md
+git -C "$lwork" commit -qm "a node naming something other than itself"
+out="$(lint_section "$(lint_ci)")"
+expect "a mis-named node is red, not a document" \
+  "mis-named.md: research 'some-other-name' — does not name this file" "$out"
+fixture_rm "$lwork" "drop the mis-named node" docs/research/mis-named.md
+
+# The unreferenced half: history convicts. A file whose own line once
+# carried its self-name and no longer does was a node — the PR 140 shape
+# (a file rebuilt from its first heading onward), which before this check
+# silently left the queue.
+cat >"${lwork}/docs/research/decayed-q.md" <<'EOF'
+---
+research: decayed-q
+urgency: normal
+agent: opus
+effort: high
+graduates: joharness.sh
+---
+
+## Question
+x
+EOF
+git -C "$lwork" add docs/research/decayed-q.md
+git -C "$lwork" commit -qm "a real node, committed"
+printf '## Question\n\nrebuilt from the heading onward\n' \
+  >"${lwork}/docs/research/decayed-q.md"
+out="$(lint_section "$(lint_ci)")"
+expect "an uncommitted frontmatter drop is a decayed node" \
+  "decayed-q.md: was a node" "$out"
+git -C "$lwork" add docs/research/decayed-q.md
+git -C "$lwork" commit -qm "the drop is committed"
+out="$(lint_section "$(lint_ci)")"
+expect "a committed frontmatter drop is a decayed node" \
+  "decayed-q.md: was a node" "$out"
+expect "and the red names the remedy" \
+  "Restore the frontmatter or delete the file" "$out"
+# Both remedies close it: restore first, then delete. NO-REGRESSION,
+# labelled: a tree with no decay check never prints "was a node" either;
+# what these pin is that the red is ACTIONABLE — doing what it asks ends
+# it — beside the two expects above, which red without the check.
+cat >"${lwork}/docs/research/decayed-q.md" <<'EOF'
+---
+research: decayed-q
+urgency: normal
+agent: opus
+effort: high
+graduates: joharness.sh
+---
+
+## Question
+x
+EOF
+git -C "$lwork" add docs/research/decayed-q.md
+git -C "$lwork" commit -qm "the frontmatter is restored"
+out="$(lint_section "$(lint_ci)")"
+refute "restoring the frontmatter closes the decay red" "was a node" "$out"
+fixture_rm "$lwork" "the node is deleted instead" docs/research/decayed-q.md
+out="$(lint_section "$(lint_ci)")"
+refute "deleting the file closes it too" "was a node" "$out"
+
+# Prose mentioning the magic string is not decay: the file still CONTAINS
+# its would-be self-name, so history proving the string was ever added
+# proves nothing about a dropped block. The guard is the current-content
+# check. NO-REGRESSION against the whole diff (a tree with no decay check
+# passes trivially); what it pins is the guard inside it — mutate the
+# grep away and this is the case that reds.
+printf '# Notes\n\nThe old format used a line like research: prose-doc up top.\n' \
+  >"${lwork}/docs/research/prose-doc.md"
+git -C "$lwork" add docs/research/prose-doc.md
+git -C "$lwork" commit -qm "a document whose prose mentions its own stem"
+out="$(lint_section "$(lint_ci)")"
+refute "prose mentioning the self-name is not a decayed node" \
+  "prose-doc.md: was a node" "$out"
+fixture_rm "$lwork" "drop the prose document" docs/research/prose-doc.md
+
+# Canonical is the one tree where a plain document here warns: consumers
+# keep documents in this directory legitimately, canonical keeps only
+# nodes, and routing's silence would otherwise be a new blind spot there.
+# Only the lint section is asserted — the flag switches other ci parts
+# this fixture does not carry.
+printf 'JOHARNESS_CANONICAL=1\n' >"${lwork}/joharness.conf"
+out="$(lint_section "$(lint_ci)")"
+expect "canonical warns on a stray document" \
+  "a document, not a node" "$out"
+refute "and it is a warning, not a red" \
+  "DEAD docs/research/POSTGRES-STACK-2026.md" "$out"
+rm -f "${lwork}/joharness.conf"
+
+# cleanup counts what the base branch already carries — the lint guards
+# edges, and what main accreted before this feature never crosses one
+# again until touched. A decayed node on the ref for the DECAYED row:
+# built and dropped like the case above, then left standing.
+cat >"${lwork}/docs/research/rotted-q.md" <<'EOF'
+---
+research: rotted-q
+urgency: normal
+agent: opus
+effort: high
+graduates: joharness.sh
+---
+EOF
+git -C "$lwork" add docs/research/rotted-q.md
+git -C "$lwork" commit -qm "a node that will rot"
+printf '## Question\n\ngone\n' >"${lwork}/docs/research/rotted-q.md"
+git -C "$lwork" add docs/research/rotted-q.md
+git -C "$lwork" commit -qm "and rotted"
+out="$(CLAUDE_PROJECT_DIR="$lwork" JOHARNESS_CONF="${lwork}/joharness.conf" \
+  "${lwork}/joharness.sh" cleanup 2>&1)"
+expect "cleanup counts a document" \
+  "doc      docs/research/POSTGRES-STACK-2026.md" "$out"
+expect "cleanup flags a decayed node" \
+  "DECAYED  docs/research/rotted-q.md" "$out"
+# NO-REGRESSION, labelled: report-only cleanup never prints REMOVED
+# anywhere; this pins that the new section stays counting when the verbs
+# around it grow an --apply.
+refute "cleanup never stages either" "REMOVED  docs/research" "$out"
+fixture_rm "$lwork" "close the rot for the states below" \
+  docs/research/rotted-q.md

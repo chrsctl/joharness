@@ -132,3 +132,79 @@ expect "an answered question leaves the plan-queue edge reachable" \
 # Same no-regression shape as its neighbour above, and for the same reason:
 # a hook that never lists questions never lists this one either.
 refute "an answered question is gone from the list" "open-question" "$out"
+
+# --- routing: documents are not questions ------------------------------------
+# The lint's node test, applied where the scheduling happens: a file under
+# docs/research/ with no `research:` key that no plan routes to is a
+# consumer document. Listing it as an open question would schedule work
+# nobody filed — the same wrong answer the lint just stopped reding.
+printf '# Postgres stack\n\nA domain document, not a node.\n' \
+  >"${rwork}/docs/research/postgres-stack.md"
+commit_all "$rwork" "a consumer document under docs/research"
+git -C "$rwork" push -q origin main
+out="$(rq)"
+refute "a document is not listed as an open question" "postgres-stack" "$out"
+# The counting seam: a skipped document must not fall into the shortfall
+# arithmetic, or every consumer document prints as a file that could not
+# be read — the warning that tells sessions to fix or delete it.
+# NO-REGRESSION, labelled: the pre-routing hook listed the file instead,
+# so it passes there too; the refute above is the half that reds.
+refute "a document is not an unreadable question" "could not be read" "$out"
+expect "documents alone leave the plan-queue edge reachable" \
+  "edge reached: done" "$out"
+
+# Referenced = a node again, listed and blocking, exactly as the lint
+# reads it — one rule, three readers.
+#
+# NO-REGRESSION, labelled (this case and the graph-draws one below): the
+# pre-routing hook listed and drew every file, so both pass there. The
+# evidence is each one's pair — the document unlisted above, undrawn
+# below — and together they say listing follows the reference.
+# The earlier edge case removed docs/plans/'s last file, and git took the
+# directory with it.
+mkdir -p "${rwork}/docs/plans"
+cat >"${rwork}/docs/plans/needs-the-doc.md" <<'EOF'
+---
+plan: needs-the-doc
+urgency: normal
+agent: sonnet
+effort: high
+research: postgres-stack
+---
+EOF
+commit_all "$rwork" "a plan routes to the document"
+git -C "$rwork" push -q origin main
+out="$(rq)"
+expect "a plan's edge makes the document a question" \
+  "docs/research/postgres-stack.md" "$out"
+expect "and blocks the plan on it" \
+  "blocked by: postgres-stack (open question)" "$out"
+
+# The graph applies the same test: the referenced file is drawn, and once
+# the plan withdraws its edge the document vanishes from the picture.
+gout="$(CLAUDE_PROJECT_DIR="$rwork" "${ROOT}/joharness.sh" graph 2>&1)"
+expect "graph draws the referenced question" "q_postgres_stack" "$gout"
+fixture_rm "$rwork" "the plan is gone" docs/plans/needs-the-doc.md
+git -C "$rwork" push -q origin main
+gout="$(CLAUDE_PROJECT_DIR="$rwork" "${ROOT}/joharness.sh" graph 2>&1)"
+refute "graph does not draw a document" "q_postgres_stack" "$gout"
+# The other half, or the fix above passes against a graph that stopped
+# drawing research nodes at all.
+cat >"${rwork}/docs/research/real-q.md" <<'EOF'
+---
+research: real-q
+urgency: normal
+agent: opus
+effort: high
+graduates: .agents/docs/graph.md
+---
+EOF
+commit_all "$rwork" "a self-naming node beside the document"
+git -C "$rwork" push -q origin main
+gout="$(CLAUDE_PROJECT_DIR="$rwork" "${ROOT}/joharness.sh" graph 2>&1)"
+expect "a self-naming node is still drawn" \
+  'q_real_q(["question: real-q [opus high]"]):::question' "$gout"
+out="$(rq)"
+expect "and still listed as an open question" "docs/research/real-q.md" "$out"
+refute "while the document beside it stays unlisted" \
+  "docs/research/postgres-stack.md" "$out"

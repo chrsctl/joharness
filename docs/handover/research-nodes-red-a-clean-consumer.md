@@ -7,8 +7,8 @@ plan: research-nodes-red-a-clean-consumer
 issue: none
 session: https://claude.ai/code/session_01Tf1txC8UWbDudKu12aPUfA
 agent: opus
-updated: 2026-09-01
-next: Implement routing nodehood in lint_graph, then queue-context.sh, cmd_graph, cleanup
+updated: 2026-09-02
+next: Spawn the verifier on the full diff, record findings under Review, then set status review
 ---
 
 ## Goal
@@ -45,6 +45,16 @@ that keep the graph sound long term, not just at this edge.
   (lint only guards edges; what main accreted before this feature never
   crosses an edge again until touched). Count only — never staged by
   --apply: a consumer's documents are not the harness's to delete.
+- Verified 2026-09-02, this branch: suite 1199 passed / 1 failed
+  (`bash .agents/harness/selftest.sh`; the 1 is `perf graph` over budget
+  on UNMODIFIED main in this container too — environmental, green on
+  GitHub). Both ways: fix stashed, tests kept, 17 new cases red. Mutate
+  (suite wrapper controlling that one environmental red): joharness.sh
+  1717→`false` reds 10, 1717→`true` reds 2 (the escape-hatch pair),
+  content-guard deleted reds 1 (the prose case), 1720 pickaxe blinded
+  reds 3, queue-context.sh 259→`false` reds 3. Perf counted same day:
+  queue-context 505→509 (+4 constant), graph 432→432
+  (`./joharness.sh perf <entrypoint>`, this container).
 
 ## Rejected
 

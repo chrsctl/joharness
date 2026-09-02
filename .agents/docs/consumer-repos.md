@@ -381,6 +381,24 @@ goes red with file-not-found until the workflow's `run sync` step points
 at `.agents/scripts/sync-to-consumer.sh`. Newly seeded `update.yml`
 probes both spellings.
 
+## Migration: research routing
+
+Nothing to run. A consumer whose `docs/research/` held its own documents
+before the research-node protocol existed syncs to a green `ci`: routing
+decides nodehood (`.agents/docs/research/README.md`, "Which files are
+nodes"), and a file with no `research:` key that no plan routes to is a
+document — never linted for node keys, never listed as an open question,
+never drawn in the graph. An earlier harness reded five keys per such
+file; this migration is the sync itself.
+
+Two things a consumer may still see, both correct:
+
+- **DEAD ... was a node** — a file here once carried `research: <stem>`
+  and no longer does. That is a real node that lost its frontmatter, not
+  a document; restore the block or delete the file.
+- `./joharness.sh cleanup` lists `doc` rows for the documents. A count,
+  not a warning — nothing to act on.
+
 ## What syncs
 
 Harness-owned vs consumer-own: table in

@@ -1606,9 +1606,15 @@ lint_unknown_types() {
 lint_graph() {
   LINT_RC=0
   LINT_WARNED=0
-  local rel val n p r urgency agent effort iss rq grad pstem rstem
+  local rel val n p r urgency agent effort iss rq grad pstem rstem fstem
   local -a need_list rq_list
-  local plans=0 workstreams=0 reqs=0 research=0
+  local plans=0 workstreams=0 reqs=0 research=0 rdocs=0
+  # Stems the open plans' `research:` edges name, one per line. Routing
+  # decides nodehood one loop down, and the referenced half of the answer
+  # is collected here, in the pass that already parses every plan — a
+  # second read per plan would be the per-item fork the perf budget exists
+  # to catch.
+  local rrefs=""
 
   # One read of the file, one pass over its frontmatter. The older shape cost
   # a `cat` plus an awk per field, on every plan, on every ci.
@@ -1654,6 +1660,8 @@ lint_graph() {
       for n in "${rq_list[@]}"; do
         n="$(lint_stem "$n")"
         { [ -n "$n" ] && [ "$n" != "none" ]; } || continue
+        rrefs="${rrefs}${n}
+"
         [ -f "${ROOT}/docs/research/${n}.md" ] && continue
         lint_existed "docs/research/${n}.md" && continue
         if lint_shallow; then
@@ -1682,16 +1690,59 @@ lint_graph() {
   # answer has nowhere to land is a question nobody will act on, and the
   # whole point of the node is that the finding outlives the session
   # (.agents/docs/research/README.md).
+  #
+  # ROUTING decides what is a node at all (.agents/docs/research/README.md,
+  # "Which files are nodes"): a file here is a node when it carries a
+  # `research:` key, or an open plan's `research:` edge names its stem.
+  # Neither = a DOCUMENT — consumers keep their own domain documents under
+  # docs/research/ from before this protocol existed, and reding 13 of them
+  # five keys each is how a sync turned a green consumer red (the plan this
+  # implements measured it against gx at 847f64e). Two guards keep the
+  # skip from becoming an escape hatch:
+  #   - a node a plan waits on cannot leave by dropping its frontmatter —
+  #     the reference alone makes it a node, and its missing keys red below;
+  #   - an unreferenced one cannot either, because history convicts it: a
+  #     file whose own line once carried its self-name and no longer does
+  #     was a node, and is red until restored or deleted. Shallow history
+  #     that finds no removal says NOTHING — same doctrine as
+  #     lint_unknown_types: blind is not zero, and a check that cannot
+  #     distinguish a document from a decayed node does not guess.
   while IFS= read -r rel; do
     [ -n "$rel" ] || continue
-    research=$((research + 1))
     { read -r urgency; read -r agent; read -r effort; read -r grad
       read -r rstem; } \
       <<<"$(gr_fields urgency agent effort graduates research <"${ROOT}/${rel}")"
+    fstem="$(lint_stem "$rel")"
+    if [ -z "$rstem" ] &&
+       ! printf '%s' "$rrefs" | grep -qxF -- "$fstem"; then
+      if ! grep -qF -- "research: ${fstem}" "${ROOT}/${rel}" 2>/dev/null &&
+         [ -n "$(GIT_LITERAL_PATHSPECS=1 git -C "$ROOT" log -1 --format=%H \
+           -S"research: ${fstem}" HEAD -- "$rel" 2>/dev/null)" ]; then
+        lint_red "${rel}: was a node — this history carried 'research: ${fstem}'" \
+          "and the file no longer does. Restore the frontmatter or delete the" \
+          "file; dropping the block is not how a node leaves the queue"
+      elif grep -q '^JOHARNESS_CANONICAL=1' "$CONF" 2>/dev/null; then
+        # Silent in a consumer, where the document is the legitimate case.
+        # In canonical the same silence is a new blind spot — before routing
+        # a stray file here was red, after it nothing would ever mention it.
+        lint_warn "${rel}: a document, not a node — no research: key and no" \
+          "plan routes to it. A consumer keeps documents here; canonical does not"
+      else
+        rdocs=$((rdocs + 1))
+      fi
+      continue
+    fi
+    research=$((research + 1))
     # Same gap, same fix, one type over: a research node the queue lists is
     # scheduled on these too. `graduates` keeps its own red below — it carries
     # a reason of its own, not just presence.
     lint_required "$rel" research "$rstem"
+    # A key that exists is intent to be a node, so a value that names some
+    # OTHER file is a typo, never a document: skipped instead, a mis-named
+    # node would leave the queue wearing a document's face.
+    [ -z "$rstem" ] || [ "$(lint_stem "$rstem")" = "$fstem" ] ||
+      lint_red "${rel}: research '${rstem}' — does not name this file. A node" \
+        "names itself; the queue reads this one as '${fstem}' and nothing reads it as '${rstem}'"
     lint_required "$rel" urgency "$urgency"
     lint_required "$rel" agent "$agent"
     lint_required "$rel" effort "$effort"
@@ -1787,6 +1838,11 @@ lint_graph() {
   if [ "$LINT_RC" -eq 0 ] && [ "$LINT_WARNED" -eq 0 ]; then
     printf '  edges sound (%d plans, %d research, %d workstreams, %d requirements)\n' \
       "$plans" "$research" "$workstreams" "$reqs"
+    # Counted here, in the run that skipped them, so the skip stays visible
+    # without a warning a consumer could never act on.
+    [ "$rdocs" -eq 0 ] ||
+      printf '  %d document(s) under docs/research/ — not nodes, never scheduled (.agents/docs/research/README.md)\n' \
+        "$rdocs"
   fi
   return "$LINT_RC"
 }
@@ -3595,6 +3651,50 @@ cmd_cleanup() {
     printf '  request (and its requirement file when it was the last plan).\n'
   fi
 
+  # Files under docs/research the routing test reads as documents, not
+  # nodes (.agents/docs/research/README.md, "Which files are nodes"). The
+  # lint guards edges; what the base branch already carried before this
+  # feature never crosses an edge again until somebody touches it, so this
+  # is the one command that counts it. COUNTED, never staged by --apply:
+  # a consumer's documents are not the harness's to delete, and a decayed
+  # node needs a judgement — restore or delete — no batch flag should make.
+  printf '\ndocs/research on %s — files routing reads as documents, not nodes\n' "$ref"
+  local rf rq rstem cl_rrefs docs_n=0 decayed=0
+  cl_rrefs="$(while IFS= read -r rf; do
+      [ -n "$rf" ] || continue
+      git -C "$ROOT" show "${ref}:${rf}" 2>/dev/null | gr_field research
+    done < <(git -C "$ROOT" ls-tree -r --name-only "$ref" -- docs/plans 2>/dev/null |
+             gr_docs) | tr ',' '\n' | tr -d ' ' | sed 's#.*/##; s#\.md$##')"
+  while IFS= read -r rf; do
+    [ -n "$rf" ] || continue
+    rq="$(git -C "$ROOT" show "${ref}:${rf}" 2>/dev/null | gr_field research)"
+    rstem="$(lint_stem "$rf")"
+    if [ -n "$rq" ] || printf '%s\n' "$cl_rrefs" | grep -qxF -- "$rstem"; then
+      continue
+    fi
+    if ! git -C "$ROOT" show "${ref}:${rf}" 2>/dev/null |
+         grep -qF -- "research: ${rstem}" &&
+       [ -n "$(GIT_LITERAL_PATHSPECS=1 git -C "$ROOT" log -1 --format=%H \
+         -S"research: ${rstem}" "$ref" -- "$rf" 2>/dev/null)" ]; then
+      decayed=$((decayed + 1))
+      printf "  DECAYED  %s — carried 'research: %s' before and does not now; restore the frontmatter or delete the file\n" \
+        "$rf" "$rstem"
+    else
+      docs_n=$((docs_n + 1))
+      printf '  doc      %s\n' "$rf"
+    fi
+  done < <(git -C "$ROOT" ls-tree -r --name-only "$ref" -- docs/research 2>/dev/null |
+           gr_docs)
+  if [ "$((docs_n + decayed))" -eq 0 ]; then
+    printf '  none — everything here is a node\n'
+  else
+    printf '\n  Documents are fine in a consumer and never scheduled. DECAYED is\n'
+    printf '  not: it was a node on this history, and the next edge that touches\n'
+    printf '  it goes red until it is restored or deleted.\n'
+    lint_shallow &&
+      printf '  Shallow history here — a decayed node can read as doc; a\n  full-history run settles it (git fetch --unshallow).\n'
+  fi
+
   printf '\nmerged branches still standing\n'
   local b branches n=0
   branches="$(cl_merged_branches "$ref")"
@@ -4907,28 +5007,13 @@ cmd_graph() {
   done < <(git -C "$ROOT" ls-tree -r --name-only "$ref" -- docs/product 2>/dev/null |
            gr_docs)
 
-  # --- research nodes ------------------------------------------------------
-  # The picture is the whole graph or it is misleading, and .agents/docs/graph.md
-  # says so in its Serving section. A node type declared in that file's Nodes
-  # table and absent from the command the same file calls "whole graph as a
-  # picture" reads as "no open questions", which is the one wrong answer.
-  local q qagent qeffort qgrad
-  while IFS= read -r f; do
-    [ -n "$f" ] || continue
-    { read -r q; read -r qagent; read -r qeffort; read -r qgrad; } \
-      <<<"$(git -C "$ROOT" show "${ref}:${f}" 2>/dev/null |
-            gr_fields research agent effort graduates)"
-    [ -n "$q" ] || { q="${f##*/}"; q="${q%.md}"; }
-    printf '  q_%s(["question: %s%s"]):::question\n' "$(gr_id "$q")" "$q" \
-      "${qagent:+ [${qagent}${qeffort:+ ${qeffort}}]}"
-    [ -n "$qgrad" ] && [ "$qgrad" != "none" ] &&
-      printf '  q_%s -. graduates .-> g_%s["%s"]:::graduates\n' \
-        "$(gr_id "$q")" "$(gr_id "$qgrad")" "$qgrad"
-  done < <(git -C "$ROOT" ls-tree -r --name-only "$ref" -- docs/research 2>/dev/null |
-           gr_docs)
-
   # --- plans, with needs and serves edges ----------------------------------
-  local plan agent effort req needs need blocked rneeds rneed
+  # Before the research nodes, though the picture reads the other way: the
+  # `research:` stems collected here are the referenced half of the routing
+  # test that decides which files under docs/research are nodes at all.
+  # Mermaid does not care — an edge naming q_x first and a q_x declaration
+  # arriving later style the same node.
+  local plan agent effort req needs need blocked rneeds rneed graph_rrefs=""
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     { read -r plan; read -r agent; read -r effort; read -r req; read -r needs
@@ -4954,6 +5039,8 @@ cmd_graph() {
       while IFS= read -r rneed; do
         rneed="$(printf '%s' "$rneed" | tr -d ' ')"
         if [ -z "$rneed" ] || [ "$rneed" = "none" ]; then continue; fi
+        graph_rrefs="${graph_rrefs}${rneed}
+"
         if git -C "$ROOT" cat-file -e "${ref}:docs/research/${rneed}.md" 2>/dev/null; then
           blocked=1
           printf '  p_%s -. research .-> q_%s\n' "$(gr_id "$plan")" "$(gr_id "$rneed")"
@@ -4970,6 +5057,37 @@ cmd_graph() {
     [ -n "$req" ] && [ "$req" != "none" ] &&
       printf '  p_%s -- serves --> r_%s\n' "$(gr_id "$plan")" "$(gr_id "$req")"
   done < <(git -C "$ROOT" ls-tree -r --name-only "$ref" -- docs/plans 2>/dev/null |
+           gr_docs)
+
+  # --- research nodes ------------------------------------------------------
+  # The picture is the whole graph or it is misleading, and .agents/docs/graph.md
+  # says so in its Serving section. A node type declared in that file's Nodes
+  # table and absent from the command the same file calls "whole graph as a
+  # picture" reads as "no open questions", which is the one wrong answer.
+  #
+  # Whole graph, not whole directory: routing decides which files here are
+  # nodes (a `research:` key, or a plan whose edge names the stem — the test
+  # lint_graph and queue-context.sh apply), and a consumer's own documents
+  # drawn as open questions would be the same wrong answer from the other
+  # side.
+  local q qagent qeffort qgrad qstem
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    { read -r q; read -r qagent; read -r qeffort; read -r qgrad; } \
+      <<<"$(git -C "$ROOT" show "${ref}:${f}" 2>/dev/null |
+            gr_fields research agent effort graduates)"
+    qstem="${f##*/}"; qstem="${qstem%.md}"
+    if [ -z "$q" ] &&
+       ! printf '%s' "$graph_rrefs" | grep -qxF -- "$qstem"; then
+      continue
+    fi
+    [ -n "$q" ] || q="$qstem"
+    printf '  q_%s(["question: %s%s"]):::question\n' "$(gr_id "$q")" "$q" \
+      "${qagent:+ [${qagent}${qeffort:+ ${qeffort}}]}"
+    [ -n "$qgrad" ] && [ "$qgrad" != "none" ] &&
+      printf '  q_%s -. graduates .-> g_%s["%s"]:::graduates\n' \
+        "$(gr_id "$q")" "$(gr_id "$qgrad")" "$qgrad"
+  done < <(git -C "$ROOT" ls-tree -r --name-only "$ref" -- docs/research 2>/dev/null |
            gr_docs)
 
   # --- in-flight branches: claims and churn --------------------------------

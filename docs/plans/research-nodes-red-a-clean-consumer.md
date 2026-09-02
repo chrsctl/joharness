@@ -5,7 +5,7 @@ agent: opus
 effort: high
 needs: none
 requirement: none
-scope: joharness.sh, .agents/docs/research, .agents/docs/consumer-repos.md, .agents/harness/selftest
+scope: joharness.sh, .agents/harness, .agents/docs/research, .agents/docs/consumer-repos.md
 ---
 
 ## Goal
