@@ -526,10 +526,12 @@ fi
 # Supervised REPORTS what is possible; unsupervised ORDERS it — the speech
 # act is `qc_mode`'s, resolved above.
 
-# The edge, under unsupervised. Both edge paths reach the same instruction,
-# so it is written once: two copies of a rule this consequential drift, and
-# the drift would be invisible because each path is reached in a different
-# repo state.
+# The edge, under unsupervised. ONE call site since the goal bound reached
+# this hook: the no-plans path can no longer reach it, because a tree with no
+# plans either has an unserved requirement (planning outranks) or no
+# requirement at all (the goal is reached). It stays a function because the
+# argument it takes names which state produced it, and because a second edge
+# path is exactly what a later change would add.
 #
 # This NAMES the sweep and does not run it, because it runs `ci`:
 #   s=$SECONDS; ./joharness.sh sources >/dev/null 2>&1; echo $((SECONDS-s))
@@ -549,17 +551,34 @@ fi
 # there is nothing left to take and work may be generated; this means the work
 # is finished and none may be. A session acts on which one it read.
 qc_goal_reached() {
-  printf '\nGOAL REACHED — no requirement in %s on %s.\n\n' "$PRODUCT_DIR" "$1"
+  printf '\nGOAL REACHED — no open requirement in %s on %s.\n\n' \
+    "$PRODUCT_DIR" "$1"
   printf 'Unsupervised is live only while a goal is open, so this is a STOP,\n'
   printf 'and it is not the sweep: finished work and exhausted sources are\n'
   printf 'different facts. Do not run the sweep looking for a way to carry on.\n'
   printf '\n'
-  printf 'Anything listed above is a note for a human, not work for this mode.\n'
-  printf 'A plan recorded with no goal open does not restart the fleet, or\n'
-  printf 'recording would be a way to manufacture a goal — the circularity the\n'
-  printf 'bound closes (docs/product/unsupervised-mode.md, Satisfied when).\n'
-  printf 'Recording itself stays allowed, in every mode: write down what you\n'
-  printf 'found, and stop.\n'
+  # What the stop does NOT stop, said before what it does. A terminal path
+  # that prints only the bound reads as "there is nothing to do", and two
+  # things above the queue are unaffected by a goal being reached: an issue a
+  # human filed, and a branch already at the edge. qc_edge_unsupervised
+  # records shipping exactly this omission once; this is the same exit in the
+  # same file.
+  printf 'Open GitHub issues STILL outrank this — check them first. A hook\n'
+  printf 'cannot read GitHub, and an issue is work a human asked for.\n'
+  printf 'Edge work in the in-flight block above outranks it too: finishing\n'
+  printf 'outranks starting, and a pull request at review is not finished by\n'
+  printf 'a goal being reached (step 7).\n'
+  printf '\n'
+  # Scoped to the QUEUE, deliberately. An earlier wording said "anything
+  # listed above", and session-start prints the in-flight block above this
+  # one — so it told a session its own open pull request was a note for a
+  # human.
+  printf 'The QUEUE above is what stops. Anything in it — a plan, an open\n'
+  printf 'question — is a note for a human until a goal is set: with none\n'
+  printf 'open it does not restart the fleet, or recording would be a way to\n'
+  printf 'manufacture a goal (docs/product/unsupervised-mode.md, Satisfied\n'
+  printf 'when). Recording itself stays allowed, in every mode: write down\n'
+  printf 'what you found, and stop.\n'
   printf '\n'
   printf 'Set a requirement under %s to start a fleet again.\n' "$PRODUCT_DIR"
 }
@@ -630,23 +649,19 @@ if [ -z "$plans" ]; then
     printf 'settle it, graduate the answer, delete the file\n'
     printf '(.agents/docs/research/README.md). Agent field = tier to run it.\n'
   else
-    if [ "$qc_mode" = "unsupervised" ]; then
-      # Narrowed by the goal check at the top of this block, and NOT dead
-      # weight: reaching here means a requirement IS open, which is the one
-      # state where generating work is allowed. It is also unreachable today
-      # by a second route — with no plans, every requirement is unserved, so
-      # `unplanned` is non-empty and the first branch takes it. Probed
-      # 2026-09-02: no plans plus one requirement prints "Requirements
-      # without plans", and no plans plus no requirement prints GOAL REACHED.
-      # Kept because it is the correct answer for the state it names, and
-      # because a fleet reaching it through some later route must be told to
-      # generate rather than told nothing.
-      qc_edge_unsupervised "$ref" "no plans"
-    else
-      printf 'No plans on %s — plan-queue edge reached: done. Entrypoint: open\n' "$ref"
-      printf 'GitHub issues first; none = resume in-flight branch above, or ask\n'
-      printf 'human. Default agent tier: sonnet (.agents/docs/agent-selection.md).\n'
-    fi
+    # SUPERVISED ONLY here, and that is a deletion rather than an omission.
+    # This arm used to call qc_edge_unsupervised with "no plans", and under
+    # the goal bound no unsupervised session can reach it: with no plans every
+    # requirement is unserved, so `unplanned` is non-empty and the first
+    # branch takes it — and with no requirement the goal check at the top of
+    # this block stops first. Probed 2026-09-02: no plans plus one requirement
+    # prints "Requirements without plans" and no plans plus no requirement
+    # prints GOAL REACHED, so `(no plans)` never appears in any output. Code
+    # no state can reach is a promise no test can keep, and the label it
+    # carried is not assertable from anywhere.
+    printf 'No plans on %s — plan-queue edge reached: done. Entrypoint: open\n' "$ref"
+    printf 'GitHub issues first; none = resume in-flight branch above, or ask\n'
+    printf 'human. Default agent tier: sonnet (.agents/docs/agent-selection.md).\n'
   fi
   exit 0
 fi

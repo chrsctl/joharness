@@ -124,8 +124,14 @@ expect "and says how many goals kept it going" "1 goal(s) open" "$out"
 # session acts on which one fired. A shared wording would make them
 # indistinguishable in the report a human reads to decide whether to set a
 # new goal.
-git -C "$dwork" rm -q docs/product/agoal.md
-commit_all "$dwork" "the goal is reached"
+# Through fixture_rm: this takes the last tracked file in docs/product, git
+# drops the directory with it, and the TEMPLATE write below then lands
+# nowhere. Measured on origin/main before this change — the write printed
+# "No such file or directory", the TEMPLATE case passed because the directory
+# was genuinely empty rather than because a TEMPLATE was excluded, and the
+# `git rm` after it aborted on the missing pathspec so the serving plan was
+# never removed either.
+fixture_rm "$dwork" "the goal is reached" docs/product/agoal.md
 git -C "$dwork" push -q origin main
 out="$(ddrain env JOHARNESS_MODE=unsupervised)"
 expect "no open requirement stops the fleet" "GOAL REACHED" "$out"
@@ -143,8 +149,8 @@ commit_all "$dwork" "a template is not a goal"
 git -C "$dwork" push -q origin main
 out="$(ddrain env JOHARNESS_MODE=unsupervised)"
 expect "a TEMPLATE does not count as an open goal" "GOAL REACHED" "$out"
-git -C "$dwork" rm -q docs/product/TEMPLATE.md docs/plans/serves-goal.md
-commit_all "$dwork" "drop the template and the serving plan"
+fixture_rm "$dwork" "drop the template and the serving plan" \
+  docs/product/TEMPLATE.md docs/plans/serves-goal.md
 git -C "$dwork" push -q origin main
 git -C "$dwork" push -q origin --delete goalclaimer 2>/dev/null || true
 # git drops a directory when its last tracked file goes, and the deletion
@@ -407,3 +413,25 @@ out="$(ddrain env JOHARNESS_MODE=unsupervised)"
 refute "with a goal open the fleet is not stopped" "GOAL REACHED" "$out"
 expect "and the note is handed out again, oldest first" \
   "next: docs/plans/recorded-note.md" "$out"
+
+# --- the stop must still name work it is declining -------------------------
+# A tree whose only plans are SUPERVISED ONLY has an EMPTY `next` — drain_plan
+# filters the marker — so the "queue is NOT empty" paragraph stays quiet, and
+# moving the goal check above the free-plan branch stranded the NOT YOURS
+# block below it. The hook lists that work; this command must not go silent
+# about it, or the two readers describe one tree differently.
+fixture_rm "$dwork" "leave only work this mode may not commit" \
+  docs/plans/recorded-note.md docs/plans/serves-livegoal.md \
+  docs/product/livegoal.md
+printf -- '---\nplan: onlyprotocol\nurgency: normal\nagent: sonnet\neffort: low\nscope: joharness.sh\n---\n\n## Goal\nFixture.\n' \
+  >"${dwork}/docs/plans/onlyprotocol.md"
+commit_all "$dwork" "no goal, and only a protocol-text plan"
+git -C "$dwork" push -q origin main
+out="$(ddrain env JOHARNESS_MODE=unsupervised)"
+expect "no goal and only marked work is still the stop" "GOAL REACHED" "$out"
+expect "and the stop names the marked plan" \
+  "docs/plans/onlyprotocol.md" "$out"
+expect "and says why it is not this mode to take" \
+  "may not commit in any case" "$out"
+expect "and the stop keeps the issue pointer" \
+  "Open GitHub issues outrank all of it" "$out"

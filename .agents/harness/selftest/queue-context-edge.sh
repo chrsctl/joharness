@@ -57,6 +57,12 @@ expect "and does not send the session to the sweep to carry on" \
 # may still write down what it found, in any mode, goal or no goal.
 expect "recording stays allowed at the stop" "Recording itself stays allowed" "$out"
 expect "and the stop says how to start a fleet again" "Set a requirement" "$out"
+expect "and issues still outrank it here too" \
+  "Open GitHub issues STILL outrank this" "$out"
+# The label that went with the deleted arm. It can no longer appear in any
+# output, so a case expecting it would be asserting against unreachable code.
+refute "the no-plans edge label is gone, not merely unused" \
+  "(no plans)" "$out"
 
 # --- human input still outranks invented work ---
 # The requirement a human wrote wins over work the session would invent. If
@@ -190,12 +196,31 @@ expect "a free plan with no goal open does not restart the fleet" \
   "GOAL REACHED" "$out"
 refute "and is not offered as the next thing to take" \
   "top free plan above" "$out"
-refute "and no fan-out is ordered over it" "UNSUPERVISED:" "$out"
+# NOT a refute on "UNSUPERVISED:" — one free plan declaring no scope reaches
+# neither the wave branch nor the parallel-sessions branch, so that line
+# cannot print whatever this code does. It would pass against the defect.
+# Third time this file has drawn that finding (PR187 r2 is the same shape).
+# What the stop must keep instead is everything ABOVE the queue in step 2's
+# order, because a terminal path that prints only the bound reads as
+# "nothing to do".
+expect "the stop still points at open GitHub issues" \
+  "Open GitHub issues STILL outrank this" "$out"
+expect "and says a hook cannot read them" "cannot read GitHub" "$out"
+expect "and still ranks edge work in flight above it" \
+  "outranks starting" "$out"
+# Scoped to the QUEUE. session-start prints the in-flight block above this
+# one, so "anything listed above" told a session its own open pull request
+# was a note for a human.
+expect "the stop names the queue as the thing that stops" \
+  "The QUEUE above is what stops" "$out"
 # LISTED, though. Recording is not what stops, and a stop that hid the note
 # would report an empty queue over a queue that is not.
 expect "the recorded plan is still listed" "docs/plans/taken.md" "$out"
-expect "and the stop says what it is" \
-  "recording would be a way to manufacture a goal" "$out"
+# The needle is what fits on ONE line of the message. expect is grep -F, and
+# this phrase wraps across two printf calls in the source — a wrapped message
+# and a needle written from the source read identically until one is run
+# (PR170 r5, same file family).
+expect "and the stop says what it is" "manufacture a goal" "$out"
 # Supervised takes it, exactly as it does today. The bound is the mode's, and
 # a human-directed session has a human.
 out="$(eq supervised)"

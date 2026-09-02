@@ -4842,7 +4842,7 @@ drain_supervised_only() {
 # its other face — a session reads GOAL REACHED over a tree holding plans and
 # concludes the plans are gone.
 drain_goal_reached() {
-  local offered="$1"
+  local offered="$1" marked="${2-}"
   printf 'GOAL REACHED — no open requirement in docs/product/.\n'
   printf '  Unsupervised is live only while a goal is open, so this\n'
   printf '  stops and asks exactly as supervised does.\n'
@@ -4852,10 +4852,28 @@ drain_goal_reached() {
   if [ -n "$offered" ]; then
     printf '  The queue is NOT empty. It still offers:\n'
     printf '    %s\n' "$offered"
-    printf '  That is a note for a human, and not work for this mode. A plan\n'
-    printf '  recorded with no goal open does not restart the fleet, or\n'
-    printf '  recording would be a way to manufacture a goal.\n'
+    printf '  With no goal open that does not restart the fleet, or recording\n'
+    printf '  would be a way to manufacture a goal. It is a note for a human\n'
+    printf '  until somebody sets one — whatever kind of node it is.\n'
   fi
+  # The marked plans, NAMED here too. Moving the goal check above the free-plan
+  # branch stranded the NOT YOURS block below it: in a tree whose only plans
+  # are SUPERVISED ONLY, `next` is empty (drain_plan filters the marker), so
+  # the paragraph above stays quiet and the block below is never reached — and
+  # the queue hook lists that work while this command says nothing about it.
+  # Two readers, one tree, different answers, which is the defect this command
+  # exists not to have.
+  if [ -n "$marked" ]; then
+    printf '  It also holds plan(s) marked SUPERVISED ONLY, which this mode\n'
+    printf '  may not commit in any case:\n'
+    printf '%s\n' "$marked"
+  fi
+  # A hook cannot read GitHub and neither can this. Dropping the pointer at a
+  # stop is how a session concludes there is nothing to do while an issue a
+  # human filed sits open — the failure qc_edge_unsupervised already records
+  # having shipped once.
+  printf '  Open GitHub issues outrank all of it and are not readable from\n'
+  printf '  here (step 2): check them before concluding there is nothing.\n'
   printf '  Set a requirement under docs/product/, or leave it stopped\n'
   printf '  (docs/product/unsupervised-mode.md, Satisfied when).\n'
 }
@@ -4933,12 +4951,15 @@ cmd_drain() {
   #
   # Counted ONCE and reused below: two calls are two answers to one question,
   # and a reader trusts whichever they read second.
-  local goals="" goals_read=0
+  local goals="" goals_read=0 sup=""
   if [ "$mode" = "unsupervised" ]; then
+    # Read before the stop can fire, because the stop has to name it. Under
+    # supervised neither line runs and neither fork is paid.
+    sup="$(drain_supervised_only "$qout")"
     if goals="$(drain_goals)"; then
       goals_read=1
       if [ "${goals:-0}" -eq 0 ]; then
-        drain_goal_reached "$next"
+        drain_goal_reached "$next" "$sup"
         return 0
       fi
     fi
@@ -4978,8 +4999,7 @@ cmd_drain() {
     # and re-deriving it here would be the second reader of one fact this
     # command exists not to be. Anchored to the row shape so the hook's own
     # prose about the marking is not counted as a plan.
-    local sup
-    sup="$(drain_supervised_only "$qout")"
+    # Already read above, where the stop needed it too.
     if [ -n "$sup" ]; then
       printf 'NOT YOURS — the queue holds plan(s) marked SUPERVISED ONLY:\n'
       printf '%s\n' "$sup"
