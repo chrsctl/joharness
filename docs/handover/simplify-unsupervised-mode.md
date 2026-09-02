@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01EoG4neinP69y2mzeumTgvk
 agent: opus
 updated: 2026-09-02
-next: Cut joharness.sh (marker, authority, sources, drain, banner), then the queue hook, then selftests, then docs
+next: Run ci and verify green, then review at opus depth (code-review high, verifier agent), record findings under Review, fix, retire, pull request
 ---
 
 ## Goal
@@ -33,6 +33,19 @@ Direct ask 2026-09-02: simplify joharness, unsupervised mode first. Plan:
 - Mode sources: conf and `$JOHARNESS_MODE`. The marker was a third route
   `authority` then had to distrust; PR 163's own annotation records that a
   marker-flipped run never made "the repo is set to unsupervised" true.
+- `drain` never runs `sources`. That call is what closed the ci, perf,
+  drain, sources cycle (42-minute runner, run 33414519009); with drain
+  naming the sweep instead, the recursion guard and its root-scoped marker
+  go too. The sweep stays a session's explicit command.
+- The queue hook keeps exactly two mode-dependent outputs: the SUPERVISED
+  ONLY marking (with the undeclared-scope and boundary-unread notes that
+  belong to it) and nothing else. The identity test in
+  `queue-context-edge.sh` pins that, on fixtures carrying the entrypoint
+  and scoped plans, so the marking notes cannot hide a new order.
+- The endurance plan file is untouched: claimed on a RUNNING session's
+  branch that retires it. Its "Where to look" names two symbols this
+  branch removed; `lint_anchors` checks paths only, and the file leaves
+  with that branch.
 
 ## Rejected
 

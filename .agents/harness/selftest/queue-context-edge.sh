@@ -1,5 +1,5 @@
-# queue-context.sh edge is mode-dependent — one selftest topic, sourced by ../selftest.sh in the
-# order that file lists.
+# queue-context.sh reports in both modes — one selftest topic, sourced by
+# ../selftest.sh in the order that file lists.
 #
 # Not runnable alone and not meant to be: the runner defines the
 # assertion helpers, the counters and the shared fixtures, and sourcing
@@ -7,12 +7,15 @@
 # exactly as it did when they shared one file.
 # shellcheck shell=bash
 
-# --- entrypoint: the unsupervised edge -------------------------------------
-# Supervised, the queue edge is where a session stops and asks. Unsupervised
-# it is where work begins. Two edge paths reach it — no plans at all, and no
-# FREE plan — and both must branch, because a session hits whichever one its
-# repo state produces and neither is more real than the other.
-step "queue-context.sh edge is mode-dependent"
+# --- entrypoint: the hook orders nothing -----------------------------------
+# The hook REPORTS the queue; what an unsupervised session does with the
+# report — fan out, generate, or stop — is `joharness.sh drain`'s to say
+# (selftest/drain.sh). Two readers of one queue used to print two rules, and
+# each was reached in a repo state the other was not. So the property here
+# is IDENTITY: with nothing to mark (every plan declares a scope outside the
+# boundary), the two modes print the same bytes, and an unset mode prints
+# what supervised prints.
+step "queue-context.sh reports in both modes"
 
 ework="${TMP}/edgework"
 eorigin="${TMP}/edgeorigin.git"
@@ -21,6 +24,10 @@ mkdir -p "${ework}/docs/plans" "${ework}/docs/product" "${ework}/docs/handover"
 git init -q "$ework"
 git -C "$ework" symbolic-ref HEAD refs/heads/main
 printf 'code\n' >"${ework}/code.txt"
+# The entrypoint, so the hook can read the boundary: without it the hook
+# says so under unsupervised (the one line that mode adds when nothing is
+# marked), and the identity below would be testing a missing reader.
+cp "${ROOT}/joharness.sh" "${ework}/joharness.sh"
 commit_all "$ework" "base"
 git -C "$ework" remote add origin "$eorigin"
 git -C "$ework" push -qu origin main
@@ -28,108 +35,84 @@ git -C "$ework" push -qu origin main
 eq() { CLAUDE_PROJECT_DIR="$ework" JOHARNESS_RUN_MODE="${1-}" \
   bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1; }
 
-# --- edge path one: no plans at all ---
+# <label>: the two modes agree byte for byte on the current fixture, and
+# neither orders or stops. Diffed on failure so the drift is named.
+eq_same() {
+  local sup uns bare
+  sup="$(eq supervised)"
+  uns="$(eq unsupervised)"
+  bare="$(CLAUDE_PROJECT_DIR="$ework" bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1)"
+  if [ "$sup" = "$uns" ]; then
+    pass "$1: unsupervised prints what supervised prints"
+  else
+    fail "$1: unsupervised prints what supervised prints"
+    diff <(printf '%s\n' "$sup") <(printf '%s\n' "$uns") | sed 's/^/    | /'
+  fi
+  if [ "$sup" = "$bare" ]; then
+    pass "$1: an unset mode reads as supervised"
+  else
+    fail "$1: an unset mode reads as supervised"
+  fi
+  refute "$1: no order in the output" "UNSUPERVISED" "$uns"
+  refute "$1: no stop in the output" "GOAL REACHED" "$uns"
+}
+
+# No plans, no requirement.
 out="$(eq supervised)"
-expect "supervised keeps today's no-plans wording" \
-  "plan-queue edge reached: done" "$out"
+expect "no plans keeps the edge wording" "plan-queue edge reached: done" "$out"
 expect "and still says ask human" "ask" "$out"
-refute "and orders nothing" "UNSUPERVISED edge" "$out"
-# An unset mode is a client that exports nothing. It must read as supervised:
-# the safe direction is the one that does not set a fleet generating work.
-out="$(CLAUDE_PROJECT_DIR="$ework" \
-  bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1)"
-refute "an unset mode does not reach the edge behaviour" "UNSUPERVISED edge" "$out"
+eq_same "no plans, no goal"
 
-# No plans AND no requirement is not the edge — it is the STOP. Autonomy is
-# live only while a goal is open (the goal bound, PR 169), so a fleet here has
-# nothing to generate work FOR. `drain` was brought under the bound in PR 170
-# and this hook was not: it printed the generate-work order whatever
-# docs/product/ held. These cases asserted that older rule, and they failed
-# for exactly the right reason when the bound reached the hook.
-out="$(eq unsupervised)"
-expect "no plans and no goal is the stop, not the trigger" \
-  "GOAL REACHED" "$out"
-refute "and it is not sold as the generate-work edge" "UNSUPERVISED edge" "$out"
-expect "and it says which fact fired" "not the sweep" "$out"
-expect "and does not send the session to the sweep to carry on" \
-  "Do not run the sweep" "$out"
-# Recording is the half that must NOT stop. A fleet that may not generate work
-# may still write down what it found, in any mode, goal or no goal.
-expect "recording stays allowed at the stop" "Recording itself stays allowed" "$out"
-expect "and the stop says how to start a fleet again" "Set a requirement" "$out"
-expect "and issues still outrank it here too" \
-  "Open GitHub issues STILL outrank this" "$out"
-# The label that went with the deleted arm. It can no longer appear in any
-# output, so a case expecting it would be asserting against unreachable code.
-refute "the no-plans edge label is gone, not merely unused" \
-  "(no plans)" "$out"
-
-# --- human input still outranks invented work ---
-# The requirement a human wrote wins over work the session would invent. If
-# this ever flips, an unattended fleet starts generating its own backlog
-# while a human's requirement sits unplanned.
+# An unplanned requirement: planning outranks executing, in both modes.
 printf -- '---\nrequirement: r\npriority: normal\n---\n\n## Goal\nHuman wrote this.\n' \
   >"${ework}/docs/product/r.md"
 commit_all "$ework" "an unplanned requirement"
 git -C "$ework" push -q origin main
-out="$(eq unsupervised)"
-expect "an unplanned requirement outranks the edge" \
-  "planning outranks the plan queue" "$out"
-refute "and the edge behaviour does not fire" "UNSUPERVISED edge" "$out"
+expect "an unplanned requirement is planning work" \
+  "planning outranks the plan queue" "$(eq unsupervised)"
+eq_same "unplanned requirement"
 git -C "$ework" rm -q docs/product/r.md
 commit_all "$ework" "requirement planned"
 git -C "$ework" push -q origin main
 
-# --- an unreadable plan is not an empty queue ---
-# A zero-byte plan file is dropped from the row list, which left free_count
-# at 0 and fired the edge — inert under supervised, an order to invent a
-# backlog under unsupervised, on top of a plan neither claimed nor blocked.
+# An unreadable plan is not an empty queue: a zero-byte plan file is dropped
+# from the row list, which once left free_count at 0 and fired the edge over
+# a plan neither claimed nor blocked.
 : >"${ework}/docs/plans/unreadable.md"
 commit_all "$ework" "a plan nothing can read"
 git -C "$ework" push -q origin main
 out="$(eq unsupervised)"
-expect "an unreadable plan is reported, not swallowed" \
-  "could not be read" "$out"
+expect "an unreadable plan is reported, not swallowed" "could not be read" "$out"
 expect "and says a queue that cannot be read is not empty" \
   "not a queue that is" "$out"
-refute "and does NOT reach the generate-work edge" "UNSUPERVISED edge" "$out"
-out="$(eq supervised)"
-refute "supervised does not call it an edge either" \
-  "every plan claimed or blocked" "$out"
+refute "and does NOT reach the edge" "every plan claimed or blocked" "$out"
+eq_same "unreadable plan"
 git -C "$ework" rm -q docs/plans/unreadable.md
 commit_all "$ework" "remove it"
 git -C "$ework" push -q origin main
 
-# --- edge path two: plans exist, none free ---
-# mkdir first: the unreadable case above removed the last tracked file in
-# docs/plans, and git drops the directory with it. Without this the write
-# below fails silently, the fixture falls into the NO-PLANS path, and four
-# assertions fail for a reason unrelated to what they test.
+# Plans exist, none free. mkdir first: the removal above took the last
+# tracked file in docs/plans, and git drops the directory with it.
 mkdir -p "${ework}/docs/plans" "${ework}/docs/product"
-# A goal, and a plan that SERVES it. Both are load-bearing now: with no
-# requirement the hook stops instead of reaching the edge, and with an
-# unserved one it says to plan instead. The edge is the state where a goal is
-# open, its plans exist, and none of them is free.
 printf -- '---\nrequirement: g\npriority: normal\n---\n\n## Goal\nFixture.\n\n## Satisfied when\n\n- something observable.\n' \
   >"${ework}/docs/product/g.md"
-cat >"${ework}/docs/plans/taken.md" <<'EOF'
+cat >"${ework}/docs/plans/taken.md" <<'PLAN'
 ---
 plan: taken
 urgency: normal
 agent: sonnet
 effort: low
 requirement: g
+scope: code/
 ---
 
 ## Goal
 Fixture.
-EOF
+PLAN
 commit_all "$ework" "one plan, and the goal it serves"
 git -C "$ework" push -q origin main
-# Free while nothing claims it: proves the none-free case below is produced
-# by the claim and not by the plan being invisible.
-out="$(eq unsupervised)"
-refute "a free plan is not an edge" "UNSUPERVISED edge" "$out"
+expect "a free plan is pointed at" "top free plan above" "$(eq unsupervised)"
+eq_same "one free plan"
 
 git -C "$ework" checkout -qb claimer
 printf -- '---\nworkstream: w\nstatus: in-progress\nplan: taken\n---\n\n## Goal\nF.\n' \
@@ -137,92 +120,16 @@ printf -- '---\nworkstream: w\nstatus: in-progress\nplan: taken\n---\n\n## Goal\
 commit_all "$ework" "claim it"
 git -C "$ework" push -qu origin claimer
 git -C "$ework" checkout -q main
-
-out="$(eq supervised)"
-expect "supervised keeps today's no-free-plan wording" \
-  "Edge reached: no free plan" "$out"
-refute "and orders nothing there either" "UNSUPERVISED edge" "$out"
 out="$(eq unsupervised)"
-expect "unsupervised triggers on the no-free-plan edge" \
-  "UNSUPERVISED edge" "$out"
-expect "and names that path" "(no free plan)" "$out"
-refute "and never keeps the supervised wording beside it" \
-  "every plan claimed or blocked. done." "$out"
-refute "and does not tell an unattended session to ask a human" \
-  "or ask" "$out"
-# The sweep is NAMED, not run: it costs 78s against this hook's 3s, and hook
-# output is paid every session. A hook that ran it would be the caveman rule
-# broken by the change that cites it.
-expect "the sweep is named as the first step" "./joharness.sh sources" "$out"
-expect "dry alone is not sold as a stop" "dry alone is NOT a stop" "$out"
-# The hook does NOT restate what each verdict means — cmd_sources prints
-# them, the protocol doc states them, and a third copy in output paid every
-# session is the drift this function's own comment argues against. What the
-# hook owns is the STOP rule, which is not a verdict definition.
-expect "the verdict meanings are deferred, not copied" \
-  "It prints what each verdict means" "$out"
-expect "and the stop rule needs all three conditions" \
-  "no open pull request" "$out"
-expect "the source list is called closed" "CLOSED source list" "$out"
-# The pointer that went missing. Its absence was untested in both directions,
-# which is how it shipped: a session told to generate work with no
-# instruction to check what a human already asked for.
-expect "issues still outrank the edge, in the output itself" \
-  "Open GitHub issues STILL outrank this" "$out"
-expect "and a generated plan owes its evidence" "evidence:" "$out"
-# The goal is what makes this the edge rather than the stop. Same tree, same
-# claim, requirement removed: the generate-work order must give way.
-fixture_rm "$ework" "the goal is reached" docs/product/g.md
-git -C "$ework" push -q origin main
-out="$(eq unsupervised)"
-expect "with the goal gone the edge gives way to the stop" "GOAL REACHED" "$out"
-refute "and nothing is ordered generated" "UNSUPERVISED edge" "$out"
-printf -- '---\nrequirement: g\npriority: normal\n---\n\n## Goal\nFixture.\n\n## Satisfied when\n\n- something observable.\n' \
-  >"${ework}/docs/product/g.md"
-commit_all "$ework" "put the goal back"
-git -C "$ework" push -q origin main
+expect "no free plan is the edge, in both modes" "Edge reached: no free plan" "$out"
+eq_same "no free plan"
 
-# --- a FREE plan with no goal open: the case this stop exists for ----------
-# Recording is always allowed, so a plan recorded with no goal open is a free
-# row. Before the bound reached this hook, the queue pointed an unattended
-# session straight at it — and that note became the only thing keeping the
-# fleet alive, which is the circularity the bound closes.
+# A free plan with no goal open. The hook still lists and points at it —
+# recording is always allowed — and drain is where the goal stop lives.
 git -C "$ework" push -q origin --delete claimer 2>/dev/null || true
 fixture_rm "$ework" "no goal, and a free plan recorded for a human" \
   docs/product/g.md
 git -C "$ework" push -q origin main
 out="$(eq unsupervised)"
-expect "a free plan with no goal open does not restart the fleet" \
-  "GOAL REACHED" "$out"
-refute "and is not offered as the next thing to take" \
-  "top free plan above" "$out"
-# NOT a refute on "UNSUPERVISED:" — one free plan declaring no scope reaches
-# neither the wave branch nor the parallel-sessions branch, so that line
-# cannot print whatever this code does. It would pass against the defect.
-# Third time this file has drawn that finding (PR187 r2 is the same shape).
-# What the stop must keep instead is everything ABOVE the queue in step 2's
-# order, because a terminal path that prints only the bound reads as
-# "nothing to do".
-expect "the stop still points at open GitHub issues" \
-  "Open GitHub issues STILL outrank this" "$out"
-expect "and says a hook cannot read them" "cannot read GitHub" "$out"
-expect "and still ranks edge work in flight above it" \
-  "outranks starting" "$out"
-# Scoped to the QUEUE. session-start prints the in-flight block above this
-# one, so "anything listed above" told a session its own open pull request
-# was a note for a human.
-expect "the stop names the queue as the thing that stops" \
-  "The QUEUE above is what stops" "$out"
-# LISTED, though. Recording is not what stops, and a stop that hid the note
-# would report an empty queue over a queue that is not.
 expect "the recorded plan is still listed" "docs/plans/taken.md" "$out"
-# The needle is what fits on ONE line of the message. expect is grep -F, and
-# this phrase wraps across two printf calls in the source — a wrapped message
-# and a needle written from the source read identically until one is run
-# (PR170 r5, same file family).
-expect "and the stop says what it is" "manufacture a goal" "$out"
-# Supervised takes it, exactly as it does today. The bound is the mode's, and
-# a human-directed session has a human.
-out="$(eq supervised)"
-refute "supervised never reaches the stop" "GOAL REACHED" "$out"
-expect "and is still pointed at the free plan" "top free plan above" "$out"
+eq_same "free plan, no goal"

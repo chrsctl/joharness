@@ -55,20 +55,19 @@ expect "and says it is the RULES that a compaction takes" \
 expect "and points at the Loop by file" ".agents/harness/AGENTS.md" "$out"
 # THE BOUNDARY THE MODE KEEPS. The graduated page is specific — "a session
 # that keeps its task and loses its boundary is precisely what unsupervised
-# mode exists to prevent" — so this is step 2's `no commit under
-# .agents/harness/`, not Part 2's layer-coupling rule. The first version of
-# this case asserted the second one and passed on the wrong text.
+# mode exists to prevent" — so this is step 2's `no commit to protocol
+# text`, not Part 2's layer-coupling rule. The first version of this case
+# asserted the second one and passed on the wrong text.
 #
 # It also has to be a rule the pointer's own file carries: the sync splices
 # ABOVE `# Part 2 — project` and keeps the consumer's Part 2, so a line
 # pointing there is a line pointing at nothing in every consumer repo.
 expect "and at the boundary the mode keeps" \
-  "no commit under .agents/harness/" "$out"
+  "no commit to protocol text" "$out"
 refute "not the layer-coupling rule, which is a different boundary" \
   "names no environment" "$out"
-# The needle is the rule's own literal text, backticks and all.
-# shellcheck disable=SC2016
-if grep -q 'no commit under `.agents/harness/`' "${ROOT}/.agents/harness/AGENTS.md"; then
+# The needle is the rule's own literal text, on one line of the file.
+if grep -q 'no commit to protocol text' "${ROOT}/.agents/harness/AGENTS.md"; then
   pass "and the file the hook points at really carries that rule"
 else
   fail "and the file the hook points at really carries that rule"

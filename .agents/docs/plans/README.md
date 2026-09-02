@@ -107,10 +107,9 @@ always finds one more of those.
 
 The verdict has three states and the middle one carries the weight:
 
-- `sweep dry` — every detector zero. **One condition, not the stop signal.**
-  The requirement also wants a second dry sweep, an empty queue and no open
-  pull request; `sources` counts none of those and remembers no earlier
-  sweep.
+- `sweep dry` — every detector zero. One of the two unsupervised stops, with
+  the queue empty and no edge work in flight — `drain` reads both from the
+  hooks; `sources` counts only its three.
 - `sweep NOT dry` — work is there, named per source.
 - `sweep INCOMPLETE` — a source could not be read. Never dry: a session that
   stops here stops because it failed to look, not because nothing is left.
@@ -157,17 +156,15 @@ session.
 ### At the edge
 
 Empty queue under `JOHARNESS_MODE=unsupervised` is a trigger, not a stop.
-Run the sweep, then:
+`./joharness.sh drain` says so and names the sweep; the hook never runs it
+(78s against session start's 3s, measured 2026-08-29, paid by every
+session). Then:
 
 - **NOT dry** — generate. One finding, one plan. No plan for a finding no
-  detector emitted.
-- **dry** — not on its own a stop. The mode ends on a second dry sweep, an
-  empty queue and no open pull request, together.
+  detector emitted, none for work a `SUPERVISED ONLY` plan already covers.
+- **dry** — STOP, with the queue empty and no edge work in flight. Say which
+  stop fired.
 - **INCOMPLETE** — not dry, so not a stop. Fix what could not be counted.
-
-The hook names this check; it does not run it. The sweep costs 78s against
-session start's 3s (measured 2026-08-29), and hook output is paid by every
-session — so the sweep is a pointer, for the same reason GitHub is.
 
 A plan a session generates from a sweep carries `source:` (which detector
 found it) and `evidence:` (the exact command, so a human re-runs it and sees

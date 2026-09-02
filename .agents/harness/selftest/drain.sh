@@ -85,8 +85,6 @@ refute "supervised does not pay for the sweep" "sources" "$out"
 # in PR 169). These two cases used to pass with no requirement in the fixture
 # at all, which was the pre-bound rule; under the bound that state is the
 # GOAL REACHED stop below, and they failed for exactly the right reason.
-# Asserting the deferral, not the sweep's own verdict — that is cmd_sources'
-# topic.
 # The goal must be PLANNED, or it is queue work itself: an unplanned
 # requirement outranks the plan queue (PR 157), so drain would report it as
 # next and never reach the unsupervised branch. So: a requirement, a plan
@@ -116,8 +114,14 @@ expect "drain reads the mode from the environment too" \
   "== drain (mode: unsupervised)" "$out"
 expect "an empty queue under unsupervised is a trigger, not a stop" \
   "not a stop" "$out"
-expect "unsupervised defers its stop to the sweep" "dry sweep" "$out"
 expect "and says how many goals kept it going" "1 goal(s) open" "$out"
+# NAMED, never run. The sweep runs ci; a status command a loop reads between
+# items must not be the slowest thing in the loop, and drain calling sources
+# calling ci calling perf calling drain once burned a runner for 42 minutes.
+expect "unsupervised names the sweep" "./joharness.sh sources" "$out"
+refute "and never runs it" "== sources" "$out"
+expect "and says what dry means" "STOP" "$out"
+expect "and what NOT dry means" "one finding, one plan" "$out"
 
 # NO goal: the other stop. Its own message, because a dry sweep and a reached
 # goal are different facts — exhausted sources against finished work — and a
@@ -322,9 +326,7 @@ done
 commit_all "$dwork" "eleven plans this mode may not commit"
 git -C "$dwork" push -q origin main
 out="$(ddrain env JOHARNESS_MODE=unsupervised)"
-# The ELEVENTH by name. A count over the whole output would count the
-# sweep's own list too — this command defers to `sources` in this state, and
-# that report names them as well.
+# The ELEVENTH by name.
 expect "the eleventh marked plan is named, not dropped at ten" \
   "docs/plans/bulk10.md" "$out"
 i=0
@@ -435,3 +437,64 @@ expect "and says why it is not this mode to take" \
   "may not commit in any case" "$out"
 expect "and the stop keeps the issue pointer" \
   "Open GitHub issues outrank all of it" "$out"
+
+# --- the ORDER: fan out, run here, or take one ------------------------------
+# The hook proves the waves and prints them in both modes; drain reads wave 1
+# and says what to do with it. Wave 1 only, one plan is not a fan-out, and an
+# unscoped queue proves nothing.
+fixture_rm "$dwork" "clear the queue for the order cases" \
+  docs/plans/onlyprotocol.md
+mkdir -p "${dwork}/docs/product" "${dwork}/docs/plans"
+printf -- '---\nrequirement: fangoal\npriority: normal\n---\n\n## Goal\nFixture.\n\n## Satisfied when\n\n- something observable.\n' \
+  >"${dwork}/docs/product/fangoal.md"
+dfan() {
+  printf -- '---\nplan: %s\nurgency: normal\nagent: %s\neffort: low\nrequirement: fangoal\nscope: %s\n---\n\n## Goal\nFixture.\n' \
+    "$1" "$2" "$3" >"${dwork}/docs/plans/${1}.md"
+}
+dfan fan-a haiku 'a/'
+commit_all "$dwork" "a goal and the first scoped plan"
+dfan fan-b sonnet 'b/'
+commit_all "$dwork" "a second, disjoint"
+dfan fan-c sonnet 'a/sub'
+commit_all "$dwork" "a third that overlaps the first"
+git -C "$dwork" push -q origin main
+
+out="$(ddrain env JOHARNESS_MODE=unsupervised)"
+expect "two disjoint plans are a fan-out order" \
+  "start one session per wave-1 plan NOW" "$out"
+orderline="$(printf '%s\n' "$out" | sed -n 's/^tier named: //p')"
+expect "the order names the first with its tier" "fan-a (haiku)" "$orderline"
+expect "and the second with its tier" "fan-b (sonnet)" "$orderline"
+refute "and does not reach into wave 2" "fan-c" "$orderline"
+expect "and says why the later wave waits" "next generation" "$out"
+expect "and never the unscoped plans" "Never the" "$out"
+expect "and defers to a claim already held" "Step 1 wins" "$out"
+out="$(ddrain)"
+refute "supervised orders nothing" "UNSUPERVISED" "$out"
+expect "and still names the next item" "next: docs/plans/fan-a.md" "$out"
+
+# A wave of one: two plans on one path. Run it here; do not spawn for one.
+fixture_rm "$dwork" "drop the disjoint plan and the overlap" \
+  docs/plans/fan-b.md docs/plans/fan-c.md
+dfan fan-d sonnet 'a/'
+commit_all "$dwork" "a second plan on the same path"
+git -C "$dwork" push -q origin main
+out="$(ddrain env JOHARNESS_MODE=unsupervised)"
+expect "a single-plan wave is run here, not spawned" "claim and run" "$out"
+expect "and names the plan" "fan-a (haiku) in THIS session" "$out"
+expect "and says so plainly" "Do not spawn for one." "$out"
+refute "no fan-out order for a wave of one" "start one session per wave-1 plan" "$out"
+
+# No scope anywhere: nothing is proved, so nothing is spawned.
+fixture_rm "$dwork" "drop the scoped plans" docs/plans/fan-a.md docs/plans/fan-d.md
+printf -- '---\nplan: bare-a\nurgency: normal\nagent: sonnet\neffort: low\nrequirement: fangoal\n---\n\n## Goal\nFixture.\n' \
+  >"${dwork}/docs/plans/bare-a.md"
+printf -- '---\nplan: bare-b\nurgency: normal\nagent: sonnet\neffort: low\nrequirement: fangoal\n---\n\n## Goal\nFixture.\n' \
+  >"${dwork}/docs/plans/bare-b.md"
+commit_all "$dwork" "two plans declaring no scope"
+git -C "$dwork" push -q origin main
+out="$(ddrain env JOHARNESS_MODE=unsupervised)"
+expect "an unscoped queue proves no wave" "no wave proven" "$out"
+expect "and says to take one here" "Take next in THIS session" "$out"
+expect "spelled as a prohibition" "Never spawn on an" "$out"
+refute "and orders no spawn" "start one session per wave-1 plan" "$out"

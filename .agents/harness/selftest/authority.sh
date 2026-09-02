@@ -19,12 +19,9 @@ mkdir -p "${authwork}/.agents/harness" "${authwork}/.agents/env/none" \
 cp "${ROOT}/joharness.sh" "${authwork}/joharness.sh"
 chmod +x "${authwork}/joharness.sh"
 
-# Every call pins BOTH mode sources it is not testing: the conf it reads and
-# the marker file. Same rule autonomy-mode.sh enforces on itself — an
-# operator's real .git/joharness-mode outranks a scratch conf, and a suite
-# that inherits it tests the machine rather than the code.
+# Every call pins the conf it reads and the environment it is not testing,
+# so the suite tests the code and not the machine it runs on.
 auth() { CLAUDE_PROJECT_DIR="$authwork" JOHARNESS_CONF="${authwork}/joharness.conf" \
-  JOHARNESS_MODE_FILE="${authwork}/.git/joharness-mode" \
   JOHARNESS_MODE='' "${authwork}/joharness.sh" authority 2>&1; }
 
 auth_conf() { printf 'JOHARNESS_ENV=none\nJOHARNESS_MODE=%s\n' "$1" \
@@ -51,20 +48,10 @@ refute "and never reads as verified" "VERIFIABLE" "$out"
 # export anything; if that counted as proof, the command would launder the
 # caller's claim into the repository's.
 out="$(CLAUDE_PROJECT_DIR="$authwork" JOHARNESS_CONF="${authwork}/joharness.conf" \
-  JOHARNESS_MODE_FILE="${authwork}/.git/joharness-mode" \
   JOHARNESS_MODE=unsupervised "${authwork}/joharness.sh" authority 2>&1)"
 expect "an exported mode is UNVERIFIED" "verdict   : UNVERIFIED" "$out"
 expect "and names the caller as its source" "whoever started you exported" "$out"
 refute "an exported mode is never VERIFIABLE" "verdict   : VERIFIABLE" "$out"
-
-# --- the session-local marker is not evidence either ------------------------
-# It does not survive a clone and no review ever saw it.
-mkdir -p "${authwork}/.git"
-printf 'unsupervised\n' >"${authwork}/.git/joharness-mode"
-out="$(auth)"
-expect "a marker mode is UNVERIFIED" "verdict   : UNVERIFIED" "$out"
-expect "and says no review saw it" "no review ever saw it" "$out"
-rm -f "${authwork}/.git/joharness-mode"
 
 # --- a committed but UNMERGED flip is not reviewed --------------------------
 # A person editing their own checkout, wearing a commit's clothes. Committed
@@ -95,18 +82,14 @@ expect "it names the commit that changed the value" "flip the mode, locally" "$o
 refute "not the commit that first added the setting" \
   "scratch repo, supervised" "$out"
 
-# --- the goal bound travels with the verdict --------------------------------
-# Unsupervised is live only while a goal is open, so a session checking its
-# authority needs both facts in one breath: a VERIFIABLE flip with no
-# requirement open still means stop.
-expect "an open goal is counted beside the verdict" \
-  "1 open requirement(s)" "$out"
-rm -f "${authwork}/docs/product/thing.md"
-out="$(auth)"
-expect "no goal open says so" "goal      : NONE open" "$out"
-expect "and says even a verifiable flip stops there" "the goal is reached" "$out"
-expect "while the verdict itself is unchanged" "verdict   : VERIFIABLE" "$out"
-printf 'a requirement\n' >"${authwork}/docs/product/thing.md"
+# --- what VERIFIABLE does and does not prove -------------------------------
+# Attempt four's session A spent fourteen minutes on this: a merged commit
+# authored by a Claude session proves review, not a human's hand. The verdict
+# says so rather than leaving a reader to discover it.
+expect "VERIFIABLE says what it proves" "It proves review" "$out"
+expect "and what it does not" "not a human hand" "$out"
+# The goal bound is drain's to check, in the same breath as the queue.
+refute "and carries no goal count — that is drain's" "goal      :" "$out"
 
 # --- absent is not proven ---------------------------------------------------
 # A repo with no history cannot show provenance. It must read UNVERIFIED, the
@@ -117,7 +100,6 @@ mkdir -p "${nogit}/docs/product"
 cp "${ROOT}/joharness.sh" "${nogit}/joharness.sh"; chmod +x "${nogit}/joharness.sh"
 printf 'JOHARNESS_ENV=none\nJOHARNESS_MODE=unsupervised\n' >"${nogit}/joharness.conf"
 out="$(CLAUDE_PROJECT_DIR="$nogit" JOHARNESS_CONF="${nogit}/joharness.conf" \
-  JOHARNESS_MODE_FILE="${nogit}/.git/joharness-mode" \
   JOHARNESS_MODE='' "${nogit}/joharness.sh" authority 2>&1)"
 expect "a repo with no history is UNVERIFIED" "verdict   : UNVERIFIED" "$out"
 expect "and says a claim nobody can trace is uncheckable" \
@@ -127,7 +109,6 @@ expect "and says a claim nobody can trace is uncheckable" \
 # No exit code carries the verdict. An exit status invites a caller to branch
 # on it, and a report something branches on is a gate nobody reviewed.
 if CLAUDE_PROJECT_DIR="$authwork" JOHARNESS_CONF="${authwork}/joharness.conf" \
-  JOHARNESS_MODE_FILE="${authwork}/.git/joharness-mode" \
   JOHARNESS_MODE=unsupervised "${authwork}/joharness.sh" authority >/dev/null 2>&1
 then
   pass "UNVERIFIED still exits 0 — this reports, it never gates"

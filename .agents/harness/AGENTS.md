@@ -45,11 +45,11 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    prints queue + wanted agent tier at session start. Oldest actionable
    first, urgent first if marked. No issue, no requirement, no plan: ask
    human. Not invent work. ONE exception, `JOHARNESS_MODE=unsupervised`
-   (session start says so): edge = generate work, never ask — until the
-   source sweep goes dry (every detector zero twice running, queue empty,
-   no open PR): there stop and say so, the mode's one stop (ratified
-   2026-08-25). Boundary holds — no commit under `.agents/harness/`
-   ([`docs/product/unsupervised-mode.md`](../../docs/product/unsupervised-mode.md)).
+   (session start says so): edge = generate work, never ask.
+   `./joharness.sh drain` orders it — take, fan out, sweep, or stop — and
+   names the two stops: goal reached, sweep dry. Boundary holds:
+   no commit to protocol text (`./joharness.sh protocol-paths`,
+   [`docs/product/unsupervised-mode.md`](../../docs/product/unsupervised-mode.md)).
 3. **Claim.** Cut branch from `main` (branch flow:
    `.agents/docs/product/README.md`). Write `docs/handover/<workstream>.md`. Push
    NOW — no push, no claim. Hook shows overlap? `/who`. Only `RUNNING`

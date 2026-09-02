@@ -1,5 +1,5 @@
-# queue-context.sh fan-out is mode-dependent — one selftest topic, sourced by ../selftest.sh in the
-# order that file lists.
+# queue-context.sh fan-out is a report — one selftest topic, sourced by
+# ../selftest.sh in the order that file lists.
 #
 # Not runnable alone and not meant to be: the runner defines the
 # assertion helpers, the counters and the shared fixtures, and sourcing
@@ -19,43 +19,34 @@
 # that way. Thirteen files failed to parse.
 # shellcheck shell=bash disable=SC2154
 
-step "queue-context.sh fan-out is mode-dependent"
+step "queue-context.sh fan-out is a report in both modes"
 
-# Supervised REPORTS what is possible; unsupervised ORDERS it. The surf
-# fixture above is still live: wave 1 holds inland + point-break, wave 2
-# holds wipeout, and some plans are unscoped — every case this needs.
+# The wave partition is the hook's; the ORDER to spawn is drain's
+# (selftest/drain.sh). The surf fixture above is still live: wave 1 holds
+# inland + point-break, wave 2 holds wipeout, and some plans are unscoped —
+# the shape a fan-out order would read.
 qc() { CLAUDE_PROJECT_DIR="$work" JOHARNESS_RUN_MODE="${1-}" \
   bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1; }
 
-# Unset is the safe direction: a hook run directly, by a client that does not
-# export the mode, must never order a fleet.
-out="$(CLAUDE_PROJECT_DIR="$work" bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1)"
-refute "an unset mode orders nothing" "UNSUPERVISED" "$out"
-out="$(qc supervised)"
-refute "supervised orders nothing" "UNSUPERVISED" "$out"
-# Unset and explicit-supervised must agree, which is a real property: the
-# default is what a client that exports nothing gets.
-expect "unset and explicit supervised agree" "IDENTICAL" \
-  "$(if [ "$(CLAUDE_PROJECT_DIR="$work" bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1)" \
-        = "$(qc supervised)" ]; then printf 'IDENTICAL'; fi)"
-# What is NOT asserted here: byte-identity against the pre-change hook. Two
-# post-change supervised runs agree even if supervised output changed, and a
-# comparison against origin/main turns tautological the moment this merges.
-# The supervised wording is pinned by the wave and fan-out assertions above;
-# the one-time pre-change diff is in the workstream record.
-
 out="$(qc unsupervised)"
-expect "unsupervised orders the spawn" "start one session per wave-1 plan NOW" "$out"
-# Order-independent: assert the property against the extracted line, never a
-# fixed member sequence — wave membership follows queue order, which earlier
-# tests in this file have already been reshuffled by.
-orderline="$(printf '%s\n' "$out" | sed -n '/start one session per wave-1 plan NOW/,+1p' | tail -1)"
-expect "the order names inland with its tier" "inland (haiku)" "$orderline"
-expect "the order names point-break with its tier" "point-break (sonnet)" "$orderline"
-refute "the order does not reach into wave 2" "wipeout" "$orderline"
-expect "and says why the later wave waits" "generation, not this one" "$out"
-expect "unscoped plans are never ordered spawned" \
-  "Never the unscoped plans" "$out"
+expect "the waves are printed" "wave 1:" "$out"
+refute "and nothing is ordered spawned" "UNSUPERVISED" "$out"
+# The wave LINES, not the whole output: this fixture carries unscoped plans
+# and no entrypoint, so unsupervised adds the marking notes the boundary
+# owns. The partition itself must not move with the mode.
+waves() { printf '%s\n' "$1" | grep '^  wave \|free plans'; }
+if [ "$(waves "$(qc supervised)")" = "$(waves "$out")" ]; then
+  pass "the wave partition is the same in both modes"
+else
+  fail "the wave partition is the same in both modes"
+  diff <(waves "$(qc supervised)") <(waves "$out") | sed 's/^/    | /'
+fi
+if [ "$(CLAUDE_PROJECT_DIR="$work" bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1)" \
+     = "$(qc supervised)" ]; then
+  pass "unset and explicit supervised agree"
+else
+  fail "unset and explicit supervised agree"
+fi
 
 git -C "$work" checkout -q main
 git -C "$work" rm -q docs/plans/point-break.md docs/plans/wipeout.md \
@@ -65,44 +56,8 @@ git -C "$work" push -q origin main
 git -C "$work" checkout -q feature
 git -C "$work" fetch -q origin
 
-# With no plan declaring scope: the queue proves nothing, so the branch that
-# prints the old unconditional promise must not become an order.
+# With no plan declaring scope: the unconditional line prints, as a report,
+# in both modes alike.
 out="$(qc unsupervised)"
-expect "the unconditional branch still prints its line" \
-  "free plans = " "$out"
-expect "but unsupervised is told independence is unproven" \
-  "so independence is" "$out"
-expect "and told to take one piece of work here" "take ONE piece of work in THIS session" "$out"
-expect "spelled as a prohibition, not a preference" "Never spawn on an" "$out"
-out="$(qc supervised)"
-refute "supervised sees none of that" "UNSUPERVISED" "$out"
-
-# A wave of one is not a fan-out: spawning a child to do what this session can
-# do costs a container for nothing.
-git -C "$work" checkout -q main
-for plan in solo-a solo-b; do
-  cat >"${work}/docs/plans/${plan}.md" <<EOF
----
-plan: ${plan}
-urgency: urgent
-agent: sonnet
-scope: solo/
----
-EOF
-done
-git -C "$work" add -A docs/plans
-git -C "$work" commit -qm "two plans, one path, so one per wave"
-git -C "$work" push -q origin main
-git -C "$work" checkout -q feature
-git -C "$work" fetch -q origin
-out="$(qc unsupervised)"
-expect "a single-plan wave is run here, not spawned" \
-  "claim and run" "$out"
-expect "and says so plainly" "Do not spawn for one." "$out"
-refute "no fan-out order for a wave of one" "start one session per wave-1 plan" "$out"
-git -C "$work" checkout -q main
-git -C "$work" rm -q docs/plans/solo-a.md docs/plans/solo-b.md
-git -C "$work" commit -qm "solo plans go home"
-git -C "$work" push -q origin main
-git -C "$work" checkout -q feature
-git -C "$work" fetch -q origin
+expect "the unconditional branch still prints its line" "free plans = " "$out"
+refute "and orders nothing either" "UNSUPERVISED" "$out"
