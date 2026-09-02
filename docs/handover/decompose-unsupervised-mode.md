@@ -1,6 +1,6 @@
 ---
 workstream: decompose-unsupervised-mode
-status: in-progress
+status: done
 branch: claude/current-state-review-oxfb7f
 pr: none
 plan: none
@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_011LSGxqQsZyuMYSqxa3jVT5
 agent: opus
 updated: 2026-09-02
-next: File the endurance plan and correct the misplaced fan-out annotation
+next: Nothing — the plans are filed; the queue takes it from here
 ---
 
 ## Goal
