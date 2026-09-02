@@ -3,51 +3,74 @@ workstream: implement-gate-review-verifier-tag
 status: in-progress
 branch: claude/implement-gate-review-verifier-tag
 pr: none
-plan: gate-review-verifier-tag
+plan: none
 issue: none
 session: https://claude.ai/code/session_01U5n5yq7MV37GaiAmj6szbx
 agent: sonnet
 updated: 2026-09-02
-next: Implement per the plan's Scope, then retire this file and the plan file together, open the pull request, merge.
+next: Retire this file, open the pull request, merge. Plan stays free on main.
 ---
 
 ## Goal
 
-Implement `docs/plans/gate-review-verifier-tag.md` (merged in PR 192, same
-session, this generation): the review gate accepts a branch's recorded
-findings at the edge with no check that any came from the independent
-verifier. Add that check.
+Claimed `docs/plans/gate-review-verifier-tag.md` intending to implement it
+in this same generation. **Aborted mid-build**: the plan's own scope
+(`joharness.sh`, `.agents/harness/selftest/review.sh`) is protocol text,
+and this session is running `JOHARNESS_MODE=unsupervised`
+(`./joharness.sh authority`: VERIFIABLE, confirmed at session start).
+`docs/product/unsupervised-mode.md` Constraints: "Protocol text governing
+a session is off limits to that session while it runs unattended... that
+edit is supervised work, always." `joharness.sh:protocol_paths` lists both
+paths. This build had already written the fix, gotten `ci: pass`
+(including a fixed perf-budget regression and a mutate-confirmed pin), and
+was about to open a pull request when the handover-guard stop hook named
+the violation. Reverted before anything but the claim commit reached
+`origin`.
 
 ## Decisions
 
-- Following the plan's own correction (its r4/r6 verifier findings): read
-  finding text via `fb_findings()`, not `review_count()` — the latter only
-  ever returns a bare count and cannot see whether any finding is tagged
-  `(verifier)`, and does not fold wrapped continuation lines the way
-  `fb_findings` does.
-- New small helper rather than inlining an awk pipeline into
-  `review_report`: `review_has_verifier()` takes the doc, extracts findings
-  via `fb_findings`, and reports whether any contains the literal tag
-  `(verifier)`. Mirrors how `review_count()` already isolates the same
-  section for a different question, keeping `review_report` a caller of
-  small predicates rather than growing another parsing block.
-- Gate fires only where the existing `n>0` / edge check already fires — no
-  new mid-build noise, matching the plan's Out of scope and Acceptance.
+- **Revert, don't push.** `git checkout -- joharness.sh
+  .agents/harness/selftest/review.sh` on this branch, before any second
+  commit. The working tree is clean; nothing beyond the claim commit
+  (`435b29f`) is on `origin`.
+- **Un-claim `plan: none` rather than leave it claimed.** The plan stays
+  on `main`, free, for a supervised session (or this session running
+  supervised) to pick up — leaving it claimed by a branch this generation
+  is about to retire would block it from anyone else for no reason.
+- **Flag it in the plan itself.** Added a Traps bullet to
+  `docs/plans/gate-review-verifier-tag.md` naming the protocol-text
+  constraint explicitly, so the next session — supervised or not — reads
+  it before repeating this. `docs/plans/*.md` is not itself protocol text
+  (absent from `protocol_paths`), so editing the plan from here is fine;
+  only its two SCOPE paths are the trap.
 
 ## Rejected
 
-(fill during build if something concrete gets tried and reverted)
+- **Finishing the implementation anyway, since `ci` was already green.**
+  A green `ci` proves the code works; it says nothing about whether an
+  unattended session was the one allowed to write it. The Constraints
+  section is explicit and unconditional ("always") — not a risk to weigh
+  against how close the work was to done.
 
 ## Review
 
+Round 1, sonnet, self.
+
+- r1: caught by the stop hook, not by reading the plan before claiming it.
+  `docs/plans/README.md`'s Shape section and the plan's own frontmatter
+  (`scope: joharness.sh, .agents/harness/selftest/review.sh`) both named
+  the paths; nothing in this session's own generate-work build stopped to
+  check them against `protocol_paths` before claiming and starting.
+  (fixed — reverted, un-claimed, and the plan now carries a Traps bullet
+  so the check does not depend on a session remembering to make it)
+
 ## Blockers
 
-None.
+None — releasing the claim is the resolution, not a blocker on it.
 
 ## Where to look
 
-- `docs/plans/gate-review-verifier-tag.md` — the plan.
-- `joharness.sh:review_report`, `joharness.sh:fb_findings`,
-  `joharness.sh:fb_marker` — implementation anchors the plan names.
-- `.agents/harness/selftest/review.sh` — the case to update plus the new
-  one to add.
+- `docs/product/unsupervised-mode.md`, `## Constraints` — the rule.
+- `joharness.sh:protocol_paths` — its mechanical list.
+- `docs/plans/gate-review-verifier-tag.md`, `## Traps` — where this is now
+  recorded for the plan's next reader.

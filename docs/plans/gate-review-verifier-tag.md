@@ -116,6 +116,18 @@ about.
 
 ## Traps
 
+- **This plan's scope is protocol text.** `joharness.sh` and
+  `.agents/harness/` are both in `joharness.sh:protocol_paths`; per
+  `docs/product/unsupervised-mode.md` Constraints, "protocol text
+  governing a session is off limits to that session while it runs
+  unattended... that edit is supervised work, always." An unsupervised
+  session may pick this plan up from the queue like any other, but must
+  stop and hand it to a human/supervised session rather than implement it
+  — never edit `joharness.sh` or `.agents/harness/selftest/review.sh`
+  while running unattended. (Found the hard way: the session that
+  generated this plan started implementing it in the same run, got as far
+  as a passing `ci`, and only caught the violation at the handover-guard
+  stop hook — reverted before any of it was pushed.)
 - Never mark or retire `docs/handover/unmarked-detector-baseline.md` or any
   other already-merged workstream file — merged history is immutable
   (`.agents/harness/AGENTS.md` Part 2). This plan changes a gate for future
