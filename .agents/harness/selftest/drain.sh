@@ -282,7 +282,14 @@ git -C "$dwork" push -q origin main
 out="$(ddrain env JOHARNESS_MODE=unsupervised)"
 refute "unsupervised is never handed the plan it cannot commit" \
   "next: docs/plans/protocolonly.md" "$out"
-refute "nor the second one" "next: docs/plans/servesit.md" "$out"
+# Not a refute on the second path: `protocolonly` is committed first and
+# alone, so it precedes `servesit` under every classification and no ordering
+# this fixture can produce would ever hand out the second one. An assertion
+# that cannot fail is worse than none. What IS load-bearing is that BOTH
+# marked plans are named, including the one whose scope is a protocol TREE
+# rather than the entrypoint file.
+expect "both plans it cannot take are named, not just the first" \
+  "docs/plans/servesit.md" "$out"
 # Silence here would be the defect drain_requirement already fixed: a status
 # line reading "nothing to do" over work sitting in the tree.
 expect "the plans it cannot take are named" "NOT YOURS" "$out"
@@ -291,6 +298,37 @@ expect "and the reason given is the boundary, not availability" \
   "Scope is entirely protocol text" "$out"
 expect "and it says not to re-file the same work" \
   "re-file the same work" "$out"
+
+# The queue hook TRUNCATES its listing for a human at QUEUE_MAX_ENTRIES, and
+# this command parses that listing. Reading the display view capped the list
+# at 10 of 11 with no count to notice the loss by, and would have hidden a
+# free plan sitting behind ten claimed ones from `next:` as well.
+# Zero-padded, so the name order IS the numeric order and the eleventh row
+# is the one a cap of ten drops. Unpadded, bulk10 sorts third and the case
+# would pass over a truncated list.
+i=0
+while [ "$i" -lt 11 ]; do
+  n="$(printf 'bulk%02d' "$i")"
+  printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: low\nscope: joharness.sh\n---\n\n## Goal\nFixture.\n' \
+    "$n" >"${dwork}/docs/plans/${n}.md"
+  i=$((i + 1))
+done
+commit_all "$dwork" "eleven plans this mode may not commit"
+git -C "$dwork" push -q origin main
+out="$(ddrain env JOHARNESS_MODE=unsupervised)"
+# The ELEVENTH by name. A count over the whole output would count the
+# sweep's own list too — this command defers to `sources` in this state, and
+# that report names them as well.
+expect "the eleventh marked plan is named, not dropped at ten" \
+  "docs/plans/bulk10.md" "$out"
+i=0
+while [ "$i" -lt 11 ]; do
+  git -C "$dwork" rm -q "docs/plans/$(printf 'bulk%02d' "$i").md"
+  i=$((i + 1))
+done
+commit_all "$dwork" "drop the bulk plans"
+git -C "$dwork" push -q origin main
+mkdir -p "${dwork}/docs/plans"
 
 # A takeable plan beside them. This is the case that separates de-ranked
 # from hidden: `next:` must reach the free plan rather than stopping on the

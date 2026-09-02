@@ -13,6 +13,11 @@
 #                       a needed plan or an open research question is open,
 #                       `claimed on <branch>` when an in-flight workstream
 #                       names it. Blocked and claimed list but never lead.
+#                       Under unsupervised only, two more: `SUPERVISED ONLY`
+#                       when every path in `scope:` is protocol text, which
+#                       that mode may not commit — listed, never leading —
+#                       and `scope undeclared` when there is nothing to
+#                       check, which is not the same as nothing to find.
 #   docs/research/*.md  open questions, same ordering, same tier field. A
 #                       plan naming one in `research:` is blocked while it
 #                       exists (.agents/docs/research/README.md).
@@ -227,23 +232,56 @@ qc_boundary=1
 #
 # `shared:` paths count. A plan declaring only `shared: joharness.sh` is
 # still a plan whose whole scope is protocol text — that prefix says how a
-# path is shared with other plans, not what kind of file it is. Both
-# spellings reach here: with a space the prefix splits off as its own empty
-# entry, without one it is stripped.
+# path is shared with other plans, not what kind of file it is. It is
+# stripped per entry, case-blind, with or without the space after the colon.
 qc_scope_class() {
-  local raw="$1" entry p seen=0 protocol=0
-  local IFS=', '
+  local raw="$1" entry p seen=0 protocol=0 unset_f=""
   qc_class=unknown
   [ "$qc_boundary" -eq 1 ] || return 0
+
+  # Split on the COMMA alone, then trim. Splitting on space as well — which
+  # the first version of this did — was wrong in the direction that matters:
+  # `scope: .agents/harness/two words.sh` became two entries, the second of
+  # them not a protocol path, so an all-protocol plan read `mixed` and was
+  # handed to the fleet as free work. `shared: x` only appeared to work
+  # under that split because the prefix happened to land in a word of its
+  # own.
+  #
+  # Globbing OFF across the split, restored only if this shell had it on.
+  # `scope: joharness.*` is otherwise expanded against whatever sits in the
+  # CHECKOUT, so the same plan on the same ref classifies one way beside an
+  # untracked file and the other way without it — a queue answer that is not
+  # a function of the queue. handover-guard.sh paid for exactly this on this
+  # same list: "a path that is a glob matched whatever happened to be on
+  # disk. Both silent."
+  case $- in *f*) ;; *) unset_f=1 ;; esac
+  set -f
+  local IFS=','
   for entry in $raw; do
-    entry="${entry#[Ss][Hh][Aa][Rr][Ee][Dd]:}"
-    while [ "${entry%/}" != "$entry" ]; do entry="${entry%/}"; done
-    { [ -n "$entry" ] && [ "$entry" != "none" ]; } || continue
+    entry="${entry#"${entry%%[![:space:]]*}"}"
+    entry="${entry%"${entry##*[![:space:]]}"}"
+    case "$entry" in
+      [Ss][Hh][Aa][Rr][Ee][Dd]:*)
+        entry="${entry#*:}"
+        entry="${entry#"${entry%%[![:space:]]*}"}" ;;
+    esac
+    # `none` is the template's explicit no-paths value and it is the same
+    # answer as no key at all. Case-blind, because the `shared:` strip above
+    # is: one spelling rule read two ways in adjacent lines is how `NONE`
+    # became a path nobody named, classifying its plan `mixed` and leaving
+    # the row with no label of either kind.
+    case "$entry" in '' | [Nn][Oo][Nn][Ee]) continue ;; esac
     seen=$((seen + 1))
+    # git's pathspec rule, and nothing more. The `/*` arm covers a trailing
+    # slash on its own — `*` matches the empty string — so there is no
+    # separate normalisation step here; one was written, and a mutation
+    # proved every case passed without it.
     for p in "${qc_protocol[@]}"; do
       case "$entry" in "$p" | "$p"/*) protocol=$((protocol + 1)); break ;; esac
     done
   done
+  [ -z "$unset_f" ] || set +f
+
   [ "$seen" -gt 0 ] || return 0
   if [ "$seen" -eq "$protocol" ]; then qc_class=only; else qc_class=mixed; fi
 }
@@ -315,6 +353,14 @@ rows="$(
     # label would tell a reader that nobody declared a scope when what
     # actually happened is that nothing could read the boundary. The note
     # above says that once, correctly.
+    # The two conditions are REDUNDANT and stay that way. Under supervised
+    # the array is never populated, so either one alone would do the job —
+    # which also means no case can pin them separately, because the state
+    # where they disagree cannot be built through this hook's interface. A
+    # mutation removing either reports NOTHING REDDED and both are load
+    # bearing to a reader: one says which mode this is for, the other says
+    # what it needs to be true. Deleting either because a mutation calls it
+    # unpinned is the refactor this paragraph exists to stop.
     scope_note=""
     scope_derank=""
     if [ "$qc_mode" = "unsupervised" ] && [ "$qc_boundary" -eq 1 ]; then

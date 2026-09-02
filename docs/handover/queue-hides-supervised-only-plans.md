@@ -94,8 +94,10 @@ not write this diff.
   gives the OPPOSITE answer, which makes the rank the only thing that can
   produce the result asserted)
 - r4: `ci` is RED on this branch and red on `origin/main` in this same
-  container, on one case: the `graph` perf row, 422 counted against a budget
-  of 260. It is the ref count, and that is now measured rather than called
+  container. One selftest CASE fails — the `graph` row's — but FOUR perf rows
+  are over, and the first draft of this bullet said "on one case" about both:
+  `graph` 422/260, `session-start` 1179/700, `queue-context` 494/350,
+  `drain` 1179/700, with `feedback`, `review` and `handover-guard` inside. It is the ref count, and that is now measured rather than called
   container-local: a `--single-branch` clone of this repo has 1
   remote-tracking ref and counts `graph` 31, `session-start` 86,
   `queue-context` 61, `drain` 83 — every row far inside budget. This
@@ -128,3 +130,87 @@ None.
   subcommand.
 - `joharness.sh:drain_plan` — the filter that keeps claimed and blocked rows
   out of `next:`.
+
+### Verifier round (`.claude/agents/verifier.md`, opus, did not write this diff)
+
+It confirmed the Acceptance line that would have sunk this: supervised output
+is byte-identical, diffed over a queue carrying urgent, normal, blocked,
+claimed, requirement-served, unplanned, a zero-byte plan and every scope
+shape, under `supervised`, unset and a bogus mode. Then it found eight real
+defects.
+
+- r6 (verifier): **`sources` printed `queue empty : yes` over a marked plan,
+  naming nothing.** `drain_hook` passing the mode reaches `cmd_sources` too,
+  so the de-rank made the queue read empty in the ONE report that decides
+  whether an unattended fleet may stop — the "status line reading nothing to
+  do while work is right there" defect this change's own comment says it
+  exists to prevent, reintroduced one function away. Reproduced: one goal,
+  one all-protocol plan, `queue empty : yes` here against `no — next:` on
+  `origin/main`'s code. (fixed — the same NOT YOURS naming, from one shared
+  extractor `drain_supervised_only`, so the marking still has one reader)
+- r7 (verifier): **`for entry in $raw` was unquoted, so a scope was
+  pathname-expanded against the working tree.** `scope: joharness.*` marked
+  the plan; creating an UNTRACKED `joharness.conf` beside it un-marked the
+  same plan on the same ref. `handover-guard.sh` carries a paragraph about
+  paying for this on this same list. (fixed — globbing off across the split,
+  restored only if this shell had it on; a glob is now just a path that
+  matches nothing)
+- r8 (verifier): **a space in a path silently un-marked an all-protocol
+  plan.** `scope: .agents/harness/two words.sh` split into two entries, the
+  second not a protocol path, so the plan read `mixed` and went to the fleet
+  as free work — the exact failure direction this change exists to stop.
+  (fixed — split on the comma alone, then trim; the `shared:` prefix is
+  stripped per entry rather than relying on the space to split it off)
+- r9 (verifier): **`drain`'s list was capped at `QUEUE_MAX_ENTRIES`.** It
+  parses the hook's DISPLAY table, which truncates at 10 for a human: 11
+  marked plans listed as 10, with no count to notice the loss by. The same
+  cap could hide a free plan at row 11 from `next:`. (fixed — `drain_hook`
+  raises the cap for a reader that parses rather than displays, which fixes
+  the `next:` case too)
+- r10 (verifier): **the `queue-context` perf row measured the mode this
+  change does not take.** Unpinned it inherited the repo's conf, so the new
+  fork was unbudgeted: 494 supervised against 500 unsupervised on one tree.
+  (fixed — the row pins the mode, exactly as the `handover-guard` row two
+  lines below already does, and for the reason its comment gives)
+- r11 (verifier): r4 above said `ci` is red "on one case" while four perf
+  rows are over. (fixed — r4 now carries all four counted numbers)
+- r12 (verifier): **`scope: NONE` read as a real path**, so the plan
+  classified `mixed` and its row carried no label of either kind — checked
+  and clean, which is what the plan's own Trap forbids. The `shared:` strip
+  on the line above was case-blind and this was not. (fixed — case-blind,
+  and the asymmetry is named in the code)
+- r13 (verifier): **neither guard on the byte-identity property is pinned
+  alone.** Removing the mode check leaves 38/38 green, and so does
+  populating the array unconditionally; only removing both reds. (wontfix —
+  the state where the two disagree cannot be built through this hook's
+  interface, so no case can separate them, and a test asserting an
+  unreachable state is worse than none. The redundancy is deliberate and now
+  says so in the code, addressed to the refactor that would otherwise delete
+  one on a NOTHING REDDED verdict.)
+- r14 (verifier): **`refute "nor the second one"` in the drain cases could
+  never fail** — the first plan is committed alone and precedes the second
+  under every classification. (fixed — re-aimed at what is load-bearing:
+  BOTH marked plans are named, including the one scoped to a protocol tree
+  rather than the entrypoint file)
+- r15 (verifier): **the trailing-slash normalisation was dead code and its
+  comment claimed otherwise** — `case "$e" in "$p"/*` already matches a bare
+  trailing slash because `*` matches the empty string, proved by a mutation
+  that left the topic green. (fixed — loop removed, the case kept as an
+  assertion about the `/*` arm, and the comment now says why no separate
+  step is needed)
+- r16 (verifier): the hook's own header lists the label vocabulary and did
+  not carry the two new labels. (fixed)
+- r17 (verifier): the drain fixture runs `git push --delete` against its own
+  bare origin, and step 7 says a session never does that. (wontfix — the
+  rule is about a real remote, and the same file already carried this call
+  for `goalclaimer` before this branch; it is the fixture deleting its own
+  scratch ref, not a session deleting anybody's branch)
+- r18: two fixture bugs of my own, both in shapes this repo has already
+  paid for. `sources.sh` wrote a plan into `docs/plans/` after a plain
+  `git rm` had taken the last file there, so git had dropped the directory
+  and five cases read the previous state — the trap `fixture_rm` exists for,
+  reached by not using it. And the truncation case counted rows over the
+  whole output, which now also carries the sweep's own list, so it asserted
+  11 and got 21. (fixed — `mkdir -p` plus `fixture_rm`, and an assertion on
+  the eleventh plan BY NAME with zero-padded names so the eleventh is the
+  one a cap of ten drops)

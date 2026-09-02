@@ -188,6 +188,42 @@ sopush "a plan scoped to a protocol tree with a trailing slash"
 out="$(soq unsupervised)"
 expect "a trailing slash does not hide a protocol tree" "SUPERVISED ONLY" "$out"
 
+# --- a scope is a list of paths, not a shell pattern ------------------------
+# `scope: joharness.*` was expanded against the CHECKOUT, so the same plan on
+# the same ref classified one way beside an untracked joharness.conf and the
+# other way without it. A queue answer that moves with a file nobody
+# committed is not an answer about the queue.
+fixture_rm "$sowork" "drop the trailing-slash plan" docs/plans/trailing.md
+soplan globscope 'joharness.*'
+sopush "a plan whose scope is a glob"
+out="$(soq unsupervised)"
+refute "a glob is not expanded into protocol paths" "SUPERVISED ONLY" "$out"
+: >"${sowork}/joharness.conf"
+out="$(soq unsupervised)"
+refute "and an untracked file beside it changes nothing" \
+  "SUPERVISED ONLY" "$out"
+rm -f "${sowork}/joharness.conf"
+
+# A path with a space in it is ONE path. Splitting on whitespace turned an
+# all-protocol scope into a mixed one and handed the plan to the fleet as
+# free work — the failure direction this whole change exists to stop.
+fixture_rm "$sowork" "drop the glob plan" docs/plans/globscope.md
+soplan spacey '.agents/harness/two words.sh'
+sopush "a plan scoped to a protocol path with a space in it"
+out="$(soq unsupervised)"
+expect "a space in a path does not split it into two" "SUPERVISED ONLY" "$out"
+
+# `none` is case-blind, because the `shared:` strip beside it is. Read
+# case-sensitively, NONE was a path nobody named: the plan classified mixed
+# and its row carried no label of either kind.
+fixture_rm "$sowork" "drop the spacey plan" docs/plans/spacey.md
+soplan loudnone 'NONE'
+sopush "a plan whose scope is none, shouted"
+out="$(soq unsupervised)"
+expect "an uppercase none still reads as undeclared" "scope undeclared" "$out"
+refute "and is not treated as a path that was checked" \
+  "SUPERVISED ONLY" "$out"
+
 # --- a marked plan never leads, and never crowds out real work -------------
 # Two plans, one takeable. The fleet must be pointed at the one it can
 # finish, and the queue must still SHOW the other.
@@ -196,10 +232,13 @@ expect "a trailing slash does not hide a protocol tree" "SUPERVISED ONLY" "$out"
 # sort falls back to comparing the whole row — which puts `ztakeable` LAST.
 # Under supervised that leaves the marked plan leading, and the only thing
 # that can move it below is the rank this change adds.
+fixture_rm "$sowork" "drop the shouted-none plan" docs/plans/loudnone.md
+soplan marked '.agents/harness'
+sopush "a marked plan, committed first"
 soplan ztakeable 'docs/product/elsewhere.md'
 sopush "a takeable plan beside the marked one"
 out="$(soq unsupervised)"
-expect "the marked plan is still listed" "docs/plans/trailing.md" "$out"
+expect "the marked plan is still listed" "docs/plans/marked.md" "$out"
 refute "the edge does not fire while real work is free" \
   "UNSUPERVISED edge" "$out"
 # ORDER, not presence. Both rows print; the question this marking answers is
@@ -212,13 +251,13 @@ refute "the edge does not fire while real work is free" \
 lead="$(printf '%s\n' "$out" |
   sed -n 's#^  \(docs/plans/[^ ]*\.md\).*#\1#p' | head -1)"
 expect "the takeable plan leads the queue" "docs/plans/ztakeable.md" "$lead"
-refute "and the marked plan does not" "docs/plans/trailing.md" "$lead"
+refute "and the marked plan does not" "docs/plans/marked.md" "$lead"
 # Same tree, supervised: nothing de-ranks the marked plan there, so it leads
 # again. The mode is the whole difference, and this is the pair that says so
 # — the same two files, the same order in the tree, two answers.
 lead="$(printf '%s\n' "$(soq supervised)" |
   sed -n 's#^  \(docs/plans/[^ ]*\.md\).*#\1#p' | head -1)"
-expect "supervised puts it back at the front" "docs/plans/trailing.md" "$lead"
+expect "supervised puts it back at the front" "docs/plans/marked.md" "$lead"
 
 # --- the boundary this checkout cannot read --------------------------------
 # A consumer carrying a joharness.sh older than the subcommand, or none at

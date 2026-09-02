@@ -1167,13 +1167,21 @@ perf_count() {
 # through joharness.conf actually pays are outside this number — counted, 24
 # that way against 22 here. That branch is not unbudgeted: session-start
 # resolves the mode the same way and its row does not pin it.
+#
+# The queue-context row pins the mode for the same reason, added when the
+# hook grew a mode-gated read of protocol_paths. Unpinned it inherited this
+# repo's conf, so the dearer path was the one path no row measured: counted
+# 2026-09-02 on one tree, 494 supervised against 500 unsupervised. Six
+# commands is not the point — an unbudgeted branch is, and the fork it adds
+# sits where a later edit would be tempted to put it inside the row loop.
+# session-start covers the unpinned resolution, exactly as above.
 perf_rows() {
   printf '%s\n' \
     "feedback|${JOHARNESS_PERF_BUDGET_FEEDBACK:-267}|${ROOT}/joharness.sh feedback" \
     "review|${JOHARNESS_PERF_BUDGET_REVIEW:-275}|${ROOT}/joharness.sh review" \
     "graph|${JOHARNESS_PERF_BUDGET_GRAPH:-260}|${ROOT}/joharness.sh graph" \
     "session-start|${JOHARNESS_PERF_BUDGET_SESSION_START:-700}|${ROOT}/joharness.sh session-start" \
-    "queue-context|${JOHARNESS_PERF_BUDGET_QUEUE:-350}|${HARNESS_ROOT}/queue-context.sh" \
+    "queue-context|${JOHARNESS_PERF_BUDGET_QUEUE:-350}|env JOHARNESS_RUN_MODE=unsupervised ${HARNESS_ROOT}/queue-context.sh" \
     "drain|${JOHARNESS_PERF_BUDGET_DRAIN:-700}|${ROOT}/joharness.sh drain" \
     "handover-guard|${JOHARNESS_PERF_BUDGET_GUARD:-33}|env JOHARNESS_MODE=unsupervised ${HARNESS_ROOT}/handover-guard.sh"
 }
@@ -4112,6 +4120,23 @@ src_stop_condition() {
     else
       queue_empty=1
       printf '  queue empty          : yes\n'
+      # Empty FOR THIS MODE is not empty. A plan scoped entirely to protocol
+      # text is real work an unattended session may not commit, so the hook
+      # ranks it out of the free list and `drain_next` returns nothing — and
+      # this line is one quarter of the ONE condition under which a fleet is
+      # allowed to stop. Reporting it bare would retire a queue that still
+      # holds work, from the strongest word this command has.
+      local sup
+      sup="$(drain_supervised_only "$qout")"
+      if [ -n "$sup" ]; then
+        printf '                         %d plan(s) are SUPERVISED ONLY and are NOT\n' \
+          "$(printf '%s\n' "$sup" | grep -c . || :)"
+        printf '                         this mode'"'"'s work to count. A supervised\n'
+        printf '                         session takes them; re-filing them is not\n'
+        printf '                         new work (docs/product/unsupervised-mode.md,\n'
+        printf '                         Constraints):\n'
+        printf '  %s\n' "$sup"
+      fi
     fi
   else
     printf '  queue empty          : CANNOT COUNT — no queue-context.sh to read\n'
@@ -4701,10 +4726,16 @@ cmd_finish() {
 #
 # Resolved by run_mode() and passed, never re-derived in the hook: precedence
 # across the env var, the marker and the conf lives in one place.
+# QUEUE_MAX_ENTRIES is raised because this reader does not DISPLAY the table,
+# it parses it. The hook truncates its listing for a human at 10, and every
+# answer taken from that view was silently capped: the marked-plan list below
+# reported 10 of 11 with no count to notice it by, and `drain_plan` would miss
+# a free plan sitting at row 11 behind ten claimed ones.
 drain_hook() {
   local h="${HARNESS_ROOT}/$1"
   [ -x "$h" ] || return 0
   CLAUDE_PROJECT_DIR="$ROOT" HANDOVER_FETCH="${DRAIN_FETCH:-0}" \
+    QUEUE_MAX_ENTRIES="${DRAIN_MAX_ENTRIES:-10000}" \
     JOHARNESS_RUN_MODE="$(run_mode)" "$h" 2>/dev/null
 }
 
@@ -4757,6 +4788,21 @@ drain_plan() {
     # Inert under supervised: the hook only ever writes that string in the
     # other mode, so nothing this filters can appear.
     { grep -v 'claimed on\|blocked by\|SUPERVISED ONLY' || :; } | head -1
+}
+
+# Plans the queue hook marked SUPERVISED ONLY, one indented path per line.
+#
+# ONE extractor, because two commands need the answer and a second copy is
+# the copy that rots — the defect issue #114 already paid for, in miniature.
+# The marking itself belongs to queue-context.sh and is never re-derived
+# here: this reads the row it printed.
+#
+# Anchored to the ROW shape (path, two spaces, label) so the hook's own prose
+# about the marking — which names paths on their own line — is not counted as
+# a plan.
+drain_supervised_only() {
+  printf '%s\n' "$1" |
+    sed -n 's#^  \(docs/plans/[^ ]*\.md\)  .*SUPERVISED ONLY.*#  \1#p'
 }
 
 drain_next() {
@@ -4845,8 +4891,7 @@ cmd_drain() {
     # command exists not to be. Anchored to the row shape so the hook's own
     # prose about the marking is not counted as a plan.
     local sup
-    sup="$(printf '%s\n' "$qout" |
-      sed -n 's#^  \(docs/plans/[^ ]*\.md\)  .*SUPERVISED ONLY.*#  \1#p')"
+    sup="$(drain_supervised_only "$qout")"
     if [ -n "$sup" ]; then
       printf 'NOT YOURS — the queue holds plan(s) marked SUPERVISED ONLY:\n'
       printf '%s\n' "$sup"
