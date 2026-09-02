@@ -104,7 +104,18 @@ Made this session, while writing the plan:
 
 ## Review
 
-None yet.
+Round 1, self, adversarial (correctness, does-it-reproduce):
+
+- r1: acceptance grep listed `docs/product/*.md`, and the endurance
+  annotation the plan keeps byte-for-byte quotes `SUPERVISED ONLY` three
+  times — the bar failed the plan's own Out of scope. (fixed: requirement
+  dropped from that grep; own check on the deleted bullets' first lines,
+  each measured to hit only its bullet)
+- r2: `cmd_session_start`'s unsupervised banner orders "generate work" and
+  the plan named it nowhere — the one copy of the order outside the hook,
+  left standing by a literal implementer. (fixed: scoped, anchored)
+- r3: "Delete the wave-1 paragraph and ... stays" read as one instruction
+  with two verbs. (fixed)
 
 ## Blockers
 

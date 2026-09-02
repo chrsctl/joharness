@@ -79,6 +79,12 @@ Decision 1 — the edge exits:
   reach the same `DRAINED` line. Unsupervised adds ONE line after it:
   exit, say DRAINED, the heartbeat re-seeds — and nothing is invented.
   The usage-header text for `drain` says the same.
+- `joharness.sh` — `cmd_session_start`, the `== Mode: unsupervised ==`
+  banner: the two lines "Queue edge is a trigger, not a stop: generate
+  work, run the full Loop, merge your own pull request" become one that
+  says the queue is the whole of the work — take one item, run the full
+  Loop, merge your own pull request, exit at the edge. The header line and
+  the boundary lines after it stay; `autonomy-mode.sh` pins the header.
 - `.agents/harness/queue-context.sh` — delete `qc_edge_unsupervised`,
   `qc_goal_reached`, and the two `[ "$qc_mode" = "unsupervised" ]` arms
   that call them (the `[ -z "$plans" ]` block, and the `free_count -eq 0`
@@ -191,7 +197,7 @@ Decision 3 — claim by push, detect at merge:
   per free plan, every wave, model = its tier; one free plan runs in the
   firing session; a collision between two claimed plans is the reconcile
   step 7 already requires and the stop-hook boundary already detects.
-  Delete the wave-1 paragraph and "Ordered N, fewer claims land" stays.
+  Delete the wave-1 paragraph; "Ordered N, fewer claims land" stays.
 - `docs/product/unsupervised-mode.md` — the fan-out bullet: strip "using
   the wave partition the queue hook already computes"; its annotation
   stays.
@@ -233,8 +239,13 @@ Decision 3 — claim by push, detect at merge:
 - `./joharness.sh ci` — `ci: pass`; the selftest summary line reads
   `<N> passed, 0 failed`, N counted from the run.
 - `./joharness.sh verify` — `0 failed`.
-- `grep -n 'cmd_sources\|src_run_checks\|src_unmarked\|src_stop_condition\|FB_SINCE\|FB_UNMARKED_SINCE\|FEEDBACK_SINCE\|lint_plan_advances\|drain_goal\|drain_supervised_only\|qc_scope_class\|qc_edge_unsupervised\|qc_goal_reached\|SUPERVISED ONLY\|scope undeclared\|prev-dry\|open-prs' joharness.sh .agents/harness/*.sh .agents/harness/selftest/*.sh .agents/harness/AGENTS.md .claude/commands/*.md .agents/docs/*.md .agents/docs/plans/*.md docs/product/*.md`
-  — no output.
+- `grep -n 'cmd_sources\|src_run_checks\|src_unmarked\|src_stop_condition\|FB_SINCE\|FB_UNMARKED_SINCE\|FEEDBACK_SINCE\|lint_plan_advances\|drain_goal\|drain_supervised_only\|qc_scope_class\|qc_edge_unsupervised\|qc_goal_reached\|SUPERVISED ONLY\|scope undeclared\|prev-dry\|open-prs\|generate work' joharness.sh .agents/harness/*.sh .agents/harness/selftest/*.sh .agents/harness/AGENTS.md .claude/commands/*.md .agents/docs/*.md .agents/docs/plans/*.md`
+  — no output. The requirement is NOT in that list on purpose: its
+  surviving annotations quote `SUPERVISED ONLY` and stay byte-for-byte.
+- `grep -n 'writes new plan files\|source sweep goes dry\|Recording is always allowed\|bounded by a goal\|No detector, not a source\|written as an exception\|manufactures its own backlog' docs/product/unsupervised-mode.md`
+  — no output. Each phrase is the first line of a bullet the plan
+  deletes; measured 2026-09-02 on `main` every one hits exactly that
+  bullet and nothing else.
 - `./joharness.sh sources` — exits non-zero, prints
   `unknown subcommand 'sources'`.
 - `JOHARNESS_MODE=unsupervised ./joharness.sh drain` on a tree where every
@@ -277,6 +288,8 @@ Decision 3 — claim by push, detect at merge:
 - `joharness.sh:cmd_drain` — the unsupervised arm after "Nothing free" is
   what turns into one line; `drain_goals`, `drain_goal_reached`,
   `drain_supervised_only` and the filter in `drain_plan` feed only that arm.
+- `joharness.sh:cmd_session_start` — the unsupervised banner's
+  generate-work lines; the one copy of that order outside the hook.
 - `joharness.sh:drain_hook` — passes `JOHARNESS_RUN_MODE` to both hooks;
   keep, `handover-context.sh` reads it for the compaction pointer.
 - `.agents/harness/queue-context.sh:qc_scope_class` — the marking, and
