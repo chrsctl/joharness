@@ -129,7 +129,11 @@ out="$(JOHARNESS_REVIEW=yes jr ci)"
 refute "a value that is not 'on' leaves the gate off" "== review" "$out"
 expect "an unreadable value names itself" "ignoring JOHARNESS_REVIEW='yes'" "$out"
 
-# The record, not the count: one line is a record, and a clean pass says so.
+# A record is counted, and counting it is no longer the whole gate: step 5
+# spawns the independent reader at every depth, so a section holding only the
+# author's own findings has not run the step. This case used to end here and
+# pass; it is split in two because "a review happened" and "the reader read
+# it" are different questions.
 # Carries a verdict — this file is retired a few cases down, and an
 # unmarked finding would trip the OTHER gate at that point
 # (marker-gate-needs-no-done), which is not what this topic is testing.
@@ -137,12 +141,71 @@ write_ws ws.md review 12 "agent: opus" \
   "- r1: clean pass, adversarial, no findings. (no change needed)"
 commit_all "$rwork" "record the review"
 out="$(JOHARNESS_REVIEW=on ci_review)"
+expect "a recorded finding is still counted" "1 finding(s) recorded" "$out"
+expect "self-review alone does not satisfy the gate" \
+  "none of them tagged (verifier), and this is the edge (pr 12)" "$out"
+if JOHARNESS_REVIEW=on ci_rc_review; then
+  fail "self-review-only findings red the edge"
+else
+  pass "self-review-only findings red the edge"
+fi
+
+# The same section with the reader's own finding in it. ONE tag is the bar.
+write_ws ws.md review 12 "agent: opus" \
+  "- r1: clean pass, adversarial, no findings. (verifier) (no change needed)"
+commit_all "$rwork" "record what the reader returned"
+out="$(JOHARNESS_REVIEW=on ci_review)"
 expect "a recorded finding satisfies the gate" "1 finding(s) recorded" "$out"
+refute "a tagged finding says nothing about the edge" \
+  "none of them tagged (verifier)" "$out"
 if JOHARNESS_REVIEW=on ci_rc_review; then
   pass "recorded review keeps ci green"
 else
   fail "recorded review keeps ci green"
 fi
+
+# Mid-build the new check is as silent as the zero-findings case: the count,
+# and not a word about a reader that is not due yet.
+write_ws mid.md in-progress none "agent: opus" \
+  "- r2: found it myself, still building. (fixed)"
+commit_all "$rwork" "an untagged finding mid-build"
+out="$(JOHARNESS_REVIEW=on ci_review)"
+expect "mid-build counts the finding" "1 finding(s) recorded" "$out"
+refute "mid-build says nothing about the tag" "none of them tagged" "$out"
+if JOHARNESS_REVIEW=on ci_rc_review; then
+  pass "an untagged finding mid-build keeps ci green"
+else
+  fail "an untagged finding mid-build keeps ci green"
+fi
+
+# Not one tag per finding. A branch that found five things itself and one
+# through the reader has run the step.
+write_ws mid.md review none "agent: opus" \
+  "- r2: mine. (fixed)" "- r3: mine too. (fixed)" \
+  "- r4: (verifier) the one it caught. (fixed)"
+commit_all "$rwork" "five of mine, one of theirs"
+out="$(JOHARNESS_REVIEW=on ci_review)"
+expect "a mixed section counts every finding" "3 finding(s) recorded" "$out"
+if JOHARNESS_REVIEW=on ci_rc_review; then
+  pass "one tagged finding among untagged ones satisfies the gate"
+else
+  fail "one tagged finding among untagged ones satisfies the gate"
+fi
+
+# fb_findings folds continuation lines back into their bullet, so a tag
+# written on the second line of a long finding counts. A line-by-line scan
+# would red this branch.
+write_ws mid.md review none "agent: opus" \
+  "- r5: a finding long enough that the verdict and the attribution wrap onto" \
+  "  the next line, which is where the tag ends up. (verifier) (fixed)"
+commit_all "$rwork" "a tag on a continuation line"
+if JOHARNESS_REVIEW=on ci_rc_review; then
+  pass "a (verifier) tag on a wrapped line counts"
+else
+  fail "a (verifier) tag on a wrapped line counts"
+fi
+git -C "$rwork" rm -q "docs/handover/mid.md"
+commit_all "$rwork" "drop the wrapped-tag workstream"
 
 # Two workstreams on one branch owe two records. Checking only the first would
 # pass the branch on a review that never covered the other half of its diff.
