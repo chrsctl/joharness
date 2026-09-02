@@ -204,3 +204,115 @@ git -C "$swork" reset -q --hard origin/main
 out="$(pf_override='' pf_ci)"
 expect "the base branch is measured, not skipped" "counted" "$out"
 refute "and the docs-only skip does not fire there" "skipped: nothing outside" "$out"
+
+# --- the number describes the CODE, not the operator's branch list ---------
+# `ci` was RED on a clean `main` in every session container of this repo, and
+# had been for as long as the container carried the repo's branches: four rows
+# count a fork per remote-tracking ref, and the budgets were calibrated
+# against a GitHub checkout, which fetches one branch. Measured 2026-09-02,
+# same tree: a single-branch clone counted `graph` 19 where the 107-ref
+# container counted 422, against a budget of 260.
+#
+# The fix is a measurement shape built from nothing, so the count cannot move
+# with a checkout nobody chose. These cases are the claim.
+pf_shape_a="${TMP}/pfshapea"
+git init -q "$pf_shape_a"
+git -C "$pf_shape_a" symbolic-ref HEAD refs/heads/main
+cp "${ROOT}/joharness.sh" "${pf_shape_a}/joharness.sh"
+mkdir -p "${pf_shape_a}/.agents"
+cp -R "${ROOT}/.agents/harness" "${pf_shape_a}/.agents/harness"
+mkdir -p "${pf_shape_a}/.agents/env/none" "${pf_shape_a}/docs/plans"
+printf '# none\n' >"${pf_shape_a}/.agents/env/none/AGENTS.md"
+printf 'JOHARNESS_ENV=none\n' >"${pf_shape_a}/joharness.conf"
+commit_all "$pf_shape_a" "base"
+git -C "$pf_shape_a" update-ref refs/remotes/origin/main HEAD
+
+pf_count_of() {
+  ( cd "$ROOT" && CLAUDE_PROJECT_DIR="$1" JOHARNESS_PERF='' \
+      ./joharness.sh perf "${2:-graph}" 2>&1 ) |
+    sed -n "s/^ *${2:-graph} *\\([0-9][0-9]*\\) .*/\\1/p" | head -1
+}
+
+pf_one="$(pf_count_of "$pf_shape_a")"
+# The SAME tree, with a pile of remote refs bolted on and a queue filled up.
+# Before the shape, EITHER of these moved the number — the refs by one fork
+# each, the plans by twelve.
+i=0
+while [ "$i" -lt 40 ]; do
+  git -C "$pf_shape_a" update-ref "refs/remotes/origin/noise-${i}" HEAD
+  i=$((i + 1))
+done
+i=0
+while [ "$i" -lt 12 ]; do
+  printf -- '---\nplan: noise-%s\nurgency: normal\nagent: sonnet\neffort: low\n---\n\n## Goal\nNoise.\n' \
+    "$i" >"${pf_shape_a}/docs/plans/noise-${i}.md"
+  i=$((i + 1))
+done
+commit_all "$pf_shape_a" "a queue, and a pile of refs"
+git -C "$pf_shape_a" update-ref refs/remotes/origin/main HEAD
+pf_many="$(pf_count_of "$pf_shape_a")"
+
+if [ -n "$pf_one" ] && [ "$pf_one" = "$pf_many" ]; then
+  pass "a pinned count follows neither the ref list nor the queue"
+else
+  fail "a pinned count follows neither the ref list nor the queue"
+  printf '    1 ref / 0 plans: %s    41 refs / 12 plans: %s\n' \
+    "${pf_one:-<none>}" "${pf_many:-<none>}"
+fi
+
+# And it SAYS which tree it measured. A number nobody can place is a written
+# number, and a reader who assumes it came from their own checkout goes
+# looking for a regression that is not there.
+out="$(pf_run ./joharness.sh perf graph)"
+expect "the table names the shape it measured" "measured against a built shape" "$out"
+expect "and says it is not this checkout" "Not this checkout" "$out"
+expect "and each row says which tree its number came from" "pinned" "$out"
+
+# --live REPORTS and never gates. A session reaching for a debugging flag
+# must not be handed a red for its own container's branch list, which is the
+# thing this whole change exists to stop being a red.
+out="$(pf_run ./joharness.sh perf --live graph)" && rc=0 || rc=$?
+expect "--live measures this checkout instead" "measured against THIS checkout" "$out"
+# On the ROW, not the header: the header says "reported, not gated" too, so a
+# needle of "reported" alone would pass with a row printing OVER.
+expect "and every row is reported rather than gated" "live  reported" "$out"
+refute "and does not claim the shape" "measured against a built shape" "$out"
+if [ "$rc" -eq 0 ]; then pass "--live is green whatever it counts"
+else fail "--live is green whatever it counts (got ${rc})"; fi
+# Both orders, because the flag used to be dropped by whichever position the
+# dispatch did not read: `main` passed only "$1", so `perf graph --live`
+# measured the shape and `perf --live graph` measured all seven rows.
+out="$(pf_run ./joharness.sh perf graph --live)"
+expect "the flag is read after the name too" "measured against THIS checkout" "$out"
+refute "and the name is still honoured beside it" "session-start" "$out"
+
+# A row that RAN and did nothing is not a clean run, and 127 cannot see it:
+# the entrypoint is there, it just did no work. Reproduced before the floor by
+# interrupting a run — the remaining rows measured a project directory that
+# had been deleted and printed `queue-context 0 ... ok`, exit 0.
+out="$(pf_run env "JOHARNESS_PERF_FLOOR=100000" ./joharness.sh perf graph)" &&
+  rc=0 || rc=$?
+expect "a row under the floor is named" "TOO LOW" "$out"
+expect "and says it did not do the work" "did not do the work" "$out"
+refute "and is not also printed as ok" "ok (" "$out"
+if [ "$rc" -ne 0 ]; then pass "and is a non-zero exit"
+else fail "and is a non-zero exit (got ${rc})"; fi
+
+# A shape that cannot be built REFUSES. Falling back to the live tree would
+# silently restore the defect: an unpinned count under a pinned budget is
+# exactly the red every container was seeing.
+# A TMPDIR that does not exist, not one made read-only: this suite runs as
+# root in CI, where a mode bit stops nothing. mktemp fails for everybody on a
+# path that is not there.
+out="$(pf_run env "TMPDIR=${TMP}/pfnoshape-absent" ./joharness.sh perf graph)" &&
+  rc=0 || rc=$?
+expect "an unbuildable shape is named" "cannot measure" "$out"
+# The COLUMN header. "entrypoint" alone appears in the subcommand's own
+# banner two lines above, so a refute on it fails against a run that refused
+# correctly. Which path is covered: this is the mktemp failure, the one a
+# suite running as root can actually produce. The `perf_shape` returns-1 path
+# is not covered here — every way to reach it needs a filesystem this suite
+# cannot build as root, and saying so is better than a case that pretends.
+refute "and the table is never opened" "counted   budget" "$out"
+if [ "$rc" -ne 0 ]; then pass "an unbuildable shape is a non-zero exit"
+else fail "an unbuildable shape is a non-zero exit (got ${rc})"; fi

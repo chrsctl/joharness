@@ -904,6 +904,183 @@ selftest_inert_diff() {
 # of it. A predictable path under a shared /tmp is an injection point, not a
 # style question. Real binaries are resolved BEFORE the shim dir goes on
 # PATH, or each shim would exec itself.
+# The pinned measurement SHAPE.
+#
+# Four rows count one fork per remote-tracking ref, so before this the number
+# described the operator's branch list rather than the code. Measured
+# 2026-09-02, same tree: a single-branch clone counts `graph` 19 and
+# `session-start` 62; this repo's session container, carrying 107 refs, counts
+# 406 and 1163 against budgets of 260 and 700 — re-counted, because the first
+# figures written here (422 and 1179) did not reproduce. `ci` was therefore red on a
+# clean `main` in every container, which is how a gate stops being read.
+#
+# PERF_EDGES below already made this decision for history. The ref shape and
+# the queue were the halves nobody pinned.
+#
+# BUILT FROM NOTHING, not cloned. A clone was the first attempt and it carried
+# the source's HEAD as `origin/main` — so every entrypoint that resolves the
+# base ref read the OPERATOR'S QUEUE, and the count still moved with it:
+# measured, +12 per plan file against 14 of headroom, which re-created the
+# defect this exists to remove one dimension over. It also inherited the
+# source's shallowness, its detached HEAD in CI, and a refs/remotes list that
+# only converged after some row happened to fetch.
+#
+# What the shape holds, and why each part earns its place:
+#   this tree's harness   the child resolves HARNESS_ROOT from the project
+#                         directory it is pointed at, so without the copy the
+#                         rows would measure the shape's own files rather than
+#                         the code under test.
+#   a pinned queue        three plans, a question, a requirement. `graph` and
+#                         `queue-context` walk every node, so an unpinned tree
+#                         walks the count up as the repo fills.
+#   origin/main           the base ref every entrypoint resolves, pointing at
+#                         that pinned tree.
+#   merged refs           the cheap path: one ancestor check each.
+#   open branches         the DEAR path, each carrying a workstream file. The
+#                         claims loop and the ownership walk are what cost.
+#   a work branch         one commit ahead, no workstream file. A session's
+#                         checkout is never the base branch.
+PERF_SHAPE_MERGED=20
+PERF_SHAPE_OPEN=5
+
+# Build it in $1. Prints nothing; returns non-zero when the shape cannot be
+# built, and the caller REFUSES to measure rather than falling back to the
+# live repo — a fallback would silently restore the defect this exists to fix.
+# One commit, and every way the caller's git config can stop it turned off.
+# Pinning the identity was not enough: `commit.gpgsign = true` in a global
+# config, or a `core.hooksPath` holding a failing pre-commit, each made the
+# shape unbuildable and `perf` refuse — on a developer laptop, for a reason
+# nothing in the output named.
+perf_git_commit() {
+  git -C "$1" add -A >/dev/null 2>&1 || return 1
+  git -C "$1" -c user.name=perf -c user.email=perf@local \
+    -c commit.gpgsign=false \
+    commit -q --no-verify -m "$2" >/dev/null 2>&1
+}
+
+perf_shape() {
+  local d="$1" o="${1}/origin.git" w="${1}/work" i b refspecs=""
+  # An inherited GIT_DIR or GIT_WORK_TREE points every `git -C` below at the
+  # caller's repository instead of the shape — GIT_DIR wins over -C — and the
+  # shape then fails to build for a reason nothing in the output names.
+  #
+  # Unset, NOT declared local first: `local VAR=` on an exported variable
+  # keeps the export and hands the child an empty GIT_DIR, and unsetting a
+  # local can unshadow the outer one. This unsets them for the rest of the
+  # process, which nothing here reads.
+  unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY
+  git init -q --bare "$o" 2>/dev/null || return 1
+  git -C "$o" symbolic-ref HEAD refs/heads/main 2>/dev/null || return 1
+  git init -q "$w" 2>/dev/null || return 1
+  git -C "$w" symbolic-ref HEAD refs/heads/main 2>/dev/null || return 1
+  git -C "$w" remote add origin "$o" 2>/dev/null || return 1
+
+  # Copied only where there is something to copy. A project directory with no
+  # harness in it is a real state — the one the NOT FOUND row exists for,
+  # where every entrypoint comes back 127 — and a shape that refused to build
+  # there would replace a named verdict with a warning about the shape.
+  [ ! -f "${ROOT}/joharness.sh" ] ||
+    cp "${ROOT}/joharness.sh" "${w}/joharness.sh" 2>/dev/null || return 1
+  if [ -d "${ROOT}/.agents" ]; then
+    cp -R "${ROOT}/.agents" "${w}/.agents" 2>/dev/null || return 1
+  fi
+  [ ! -f "${ROOT}/joharness.conf" ] ||
+    cp "${ROOT}/joharness.conf" "${w}/joharness.conf" 2>/dev/null || return 1
+
+  mkdir -p "${w}/docs/plans" "${w}/docs/research" "${w}/docs/product" \
+    "${w}/docs/handover" || return 1
+  printf -- '---\nrequirement: shape-goal\npriority: normal\n---\n\n## Goal\nShape.\n\n## Satisfied when\n\n- something observable.\n' \
+    >"${w}/docs/product/shape-goal.md" || return 1
+  # THREE plans, not one: a per-item fork in a loop over a single item is
+  # invisible, and two scopes so the wave partition actually runs.
+  i=0
+  while [ "$i" -lt 3 ]; do
+    printf -- '---\nplan: shape-plan-%s\nurgency: normal\nagent: sonnet\neffort: low\nneeds: none\nrequirement: shape-goal\nadvances: something observable\nscope: docs/shape-%s\n---\n\n## Goal\nShape.\n\n## Scope\n- nothing.\n\n## Out of scope\n- everything.\n\n## Acceptance\n- none.\n\n## Where to look\n- joharness.sh:perf_shape, which writes this file.\n' \
+      "$i" "$i" >"${w}/docs/plans/shape-plan-${i}.md" || return 1
+    i=$((i + 1))
+  done
+  printf -- '---\nresearch: shape-question\nurgency: normal\nagent: opus\neffort: low\ngraduates: .agents/docs/caveman.md\n---\n\n## Question\nShape.\n' \
+    >"${w}/docs/research/shape-question.md" || return 1
+
+  perf_git_commit "$w" "shape base" || return 1
+  git -C "$w" push -q origin main >/dev/null 2>&1 || return 1
+
+  # Open branches first, then ONE push carrying every ref this shape needs.
+  # Pushing from the work clone rather than writing into the bare repo is what
+  # keeps the two in step: a ref created directly in the origin does not reach
+  # the work clone until something fetches, and the first row that fetches is
+  # session-start — so rows before it saw 7 refs and rows after it saw 27, and
+  # the same row read 94 alone against 114 in the table.
+  i=0
+  while [ "$i" -lt "$PERF_SHAPE_OPEN" ]; do
+    b="perf-open-${i}"
+    git -C "$w" checkout -q -B "$b" main 2>/dev/null || return 1
+    # INSIDE the loop, after the checkout: git drops a directory the
+    # checked-out commit does not carry, so one mkdir before the loop survives
+    # exactly one iteration and every later write lands nowhere.
+    mkdir -p "${w}/docs/handover" || return 1
+    printf -- '---\nworkstream: %s\nstatus: in-progress\nplan: none\nagent: sonnet\nupdated: 2026-01-01\n---\n\n## Goal\nShape.\n' \
+      "$b" >"${w}/docs/handover/${b}.md" || return 1
+    perf_git_commit "$w" "shape ${b}" || return 1
+    refspecs="${refspecs} refs/heads/${b}:refs/heads/${b}"
+    i=$((i + 1))
+  done
+  i=0
+  while [ "$i" -lt "$PERF_SHAPE_MERGED" ]; do
+    # EXPLICIT names on both sides. A wildcard refspec substitutes the
+    # captured glob, so `+refs/heads/perf-open-*:refs/heads/*` named the
+    # origin's branches `0` through `4` — harmless to a count, and exactly the
+    # kind of thing a later filter keyed on the name reads as absent.
+    refspecs="${refspecs} refs/heads/main:refs/heads/perf-merged-${i}"
+    i=$((i + 1))
+  done
+  # shellcheck disable=SC2086
+  git -C "$w" push -q origin $refspecs >/dev/null 2>&1 || return 1
+
+  # A PINNED HISTORY, so `feedback` and `review` are measured here too.
+  #
+  # They walk merged edges rather than refs, so an earlier round left them on
+  # the operator's checkout with a floor beneath them. That was wrong three
+  # ways, each reproduced: a shallow clone counted 9 and 6 and went RED; a
+  # repo with fewer than four merges did the same, which is every consumer for
+  # its first four; and `review` went OVER at twelve workstream files on the
+  # branch, which is the very defect this change exists to remove, still
+  # driven by the operator's tree. On `main` it also measured an early exit at
+  # 207 — four times any floor worth setting — because its per-file loop never
+  # runs there.
+  #
+  # PERF_EDGES caps the walk at 20, so the shape carries 22: the cap binds,
+  # and the number stops moving as a repo merges. It costs about 5s a run,
+  # which `ci` does not pay — measuring the pinned shape instead of a 107-ref
+  # checkout took the whole subcommand from 23.6s to 8s.
+  i=0
+  while [ "$i" -lt 22 ]; do
+    b="perf-edge-${i}"
+    git -C "$w" checkout -q -B "$b" main 2>/dev/null || return 1
+    mkdir -p "${w}/docs/handover" || return 1
+    printf -- '---\nworkstream: %s\nstatus: done\nplan: shape-plan-0\nagent: sonnet\nupdated: 2026-01-01\n---\n\n## Goal\nShape.\n\n## Review\n\n- r1: a finding. (fixed)\n- r2: another finding. (wontfix — shape)\n' \
+      "$b" >"${w}/docs/handover/${b}.md" || return 1
+    perf_git_commit "$w" "shape edge ${b}" || return 1
+    git -C "$w" checkout -q main 2>/dev/null || return 1
+    git -C "$w" -c user.name=perf -c user.email=perf@local \
+      -c commit.gpgsign=false \
+      merge -q --no-ff --no-verify -m "Merge ${b}" "$b" >/dev/null 2>&1 ||
+      return 1
+    git -C "$w" branch -q -D "$b" >/dev/null 2>&1 || return 1
+    i=$((i + 1))
+  done
+  git -C "$w" push -q -f origin main >/dev/null 2>&1 || return 1
+
+  git -C "$w" checkout -q -B perf-work main 2>/dev/null || return 1
+  printf 'shape\n' >"${w}/perf-shape.txt" || return 1
+  perf_git_commit "$w" "shape work commit" || return 1
+  return 0
+}
+
+# Where the rows are measured. Set by perf_report per row: the pinned shape,
+# or this checkout for the rows whose number does not move with it.
+PERF_PROJECT=""
+
 PERF_BINS="git awk sed grep sort wc"
 
 # Caps pinned during measurement, so the number describes the CODE and not
@@ -960,10 +1137,25 @@ perf_count() {
   # — a number that describes the suite rather than the entrypoint, and the
   # cycle above besides. Carries THIS repo's root, never a bare 1: see
   # cmd_sources for what the bare form cost.
+  # CLAUDE_PROJECT_DIR aims the entrypoint at the measured tree; the
+  # entrypoint itself still comes from THIS one, so the number describes this
+  # code. JOHARNESS_IN_SWEEP carries the SAME root — it is compared against
+  # the child's own, and a mismatch would let the drain row run a nested `ci`
+  # (see cmd_sources for what the bare form cost).
+  # Every environment input that moves a count is pinned here, or the number
+  # describes the operator's shell. Measured: HANDOVER_BASE_BRANCH=develop
+  # took session-start to 450 and review to 6 — a green tick over an
+  # entrypoint that exited early — and JOHARNESS_MODE=unsupervised moved
+  # session-start by 8 of its 14 headroom. A row that wants a mode says so in
+  # its own command, and that `env` prefix runs after these and wins.
   PATH="${dir}:${PATH}" \
     JOHARNESS_PERF_COUNTER="$counter" \
-    JOHARNESS_IN_SWEEP="$ROOT" \
+    CLAUDE_PROJECT_DIR="$PERF_PROJECT" \
+    JOHARNESS_IN_SWEEP="$PERF_PROJECT" \
     JOHARNESS_FEEDBACK_EDGES="$PERF_EDGES" \
+    HANDOVER_BASE_BRANCH=main \
+    JOHARNESS_MODE=supervised \
+    JOHARNESS_RUN_MODE='' \
     "$@" </dev/null >/dev/null 2>&1
   status=$?
   end="$(date +%s)"
@@ -1175,35 +1367,136 @@ perf_count() {
 # commands is not the point — an unbudgeted branch is, and the fork it adds
 # sits where a later edit would be tempted to put it inside the row loop.
 # session-start covers the unpinned resolution, exactly as above.
+# RECALIBRATED 2026-09-02, and the old numbers are not comparable with these:
+# they were taken against whatever tree the operator had.
+#
+# Counted twice, identically, `./joharness.sh perf` on this branch:
+#   feedback 214   review 260   graph 104   session-start 322
+#   queue-context 127   drain 324   handover-guard 22
+#
+# Headroom is 14 on every row except two, and both exceptions are deliberate:
+# `review` sits at 274 over 260 and `handover-guard` at 33 over 22, whose
+# documented cheapest regression is 37 and whose ceiling therefore still sits
+# under the thing it exists to catch.
+#
+# 14 is sized from the regression it must catch, not from taste:
+#   per REF   the shape carries 26, so a fork in a ref loop adds up to 26.
+#             Measured, a `git rev-parse` in queue-context.sh's claims loop
+#             placed after the origin/main skip: queue-context, session-start
+#             and drain each +25. Placed before the skip it is +26; the
+#             difference is that one skipped ref, and 14 catches either.
+#   per EDGE  PERF_EDGES caps the walk at 20, so a fork in an edge loop adds
+#             20, and 14 sits under it.
+#
+# WHAT IT DOES NOT CATCH, said plainly rather than left to be discovered. The
+# shape pins some collections small, and a fork per item in one of those costs
+# less than the headroom: five open branches, three plans, one question, one
+# requirement. Measured: a `git rev-parse` inside cmd_graph's branch loop
+# moves graph 104 -> 109, and inside its plan loop 104 -> 107; both still read
+# ok. Fifteen open branches would catch the first and cost 17s a run against
+# 8s. The ceiling is for a regression in kind — a fork per REF or per EDGE,
+# where the collection is large — and five forks is not one. The counted
+# number is printed every run and nothing environmental moves it, so a row
+# that drifts is still visible to a reader who looks.
 perf_rows() {
   printf '%s\n' \
-    "feedback|${JOHARNESS_PERF_BUDGET_FEEDBACK:-267}|${ROOT}/joharness.sh feedback" \
-    "review|${JOHARNESS_PERF_BUDGET_REVIEW:-275}|${ROOT}/joharness.sh review" \
-    "graph|${JOHARNESS_PERF_BUDGET_GRAPH:-260}|${ROOT}/joharness.sh graph" \
-    "session-start|${JOHARNESS_PERF_BUDGET_SESSION_START:-700}|${ROOT}/joharness.sh session-start" \
-    "queue-context|${JOHARNESS_PERF_BUDGET_QUEUE:-350}|env JOHARNESS_RUN_MODE=unsupervised ${HARNESS_ROOT}/queue-context.sh" \
-    "drain|${JOHARNESS_PERF_BUDGET_DRAIN:-700}|${ROOT}/joharness.sh drain" \
-    "handover-guard|${JOHARNESS_PERF_BUDGET_GUARD:-33}|env JOHARNESS_MODE=unsupervised ${HARNESS_ROOT}/handover-guard.sh"
+    "feedback|${JOHARNESS_PERF_BUDGET_FEEDBACK:-228}|live|${ROOT}/joharness.sh feedback" \
+    "review|${JOHARNESS_PERF_BUDGET_REVIEW:-274}|live|${ROOT}/joharness.sh review" \
+    "graph|${JOHARNESS_PERF_BUDGET_GRAPH:-118}|shape|${ROOT}/joharness.sh graph" \
+    "session-start|${JOHARNESS_PERF_BUDGET_SESSION_START:-336}|shape|${ROOT}/joharness.sh session-start" \
+    "queue-context|${JOHARNESS_PERF_BUDGET_QUEUE:-141}|shape|env JOHARNESS_RUN_MODE=unsupervised ${HARNESS_ROOT}/queue-context.sh" \
+    "drain|${JOHARNESS_PERF_BUDGET_DRAIN:-338}|shape|${ROOT}/joharness.sh drain" \
+    "handover-guard|${JOHARNESS_PERF_BUDGET_GUARD:-33}|shape|env JOHARNESS_MODE=unsupervised ${HARNESS_ROOT}/handover-guard.sh"
 }
 
 # The table itself, so `ci` can print its own section banner above it.
-perf_report() {
-  local only="${1:-}" rc=0 seen=0 name budget cmd counted n secs
-  printf '   %-14s %8s %8s  %s\n' "entrypoint" "counted" "budget" "verdict"
+# The shape path lives here rather than in a local, for the reason the upgrade
+# clone's trap records: a trap fires after the function has returned, when a
+# local is out of scope and `set -u` turns the cleanup itself into the error.
+PERF_SHAPE_DIR=""
 
-  while IFS='|' read -r name budget cmd; do
+perf_cleanup() {
+  [ -z "$PERF_SHAPE_DIR" ] || rm -rf "$PERF_SHAPE_DIR"
+  PERF_SHAPE_DIR=""
+}
+
+perf_report() {
+  local only="${1:-}" live="${2:-0}" rc=0 seen=0 name budget ctx cmd counted n secs
+  local live_refs
+
+  live_refs="$(git -C "$ROOT" for-each-ref refs/remotes 2>/dev/null |
+    grep -c . || :)"
+  case "$live_refs" in ''|*[!0-9]*) live_refs=0 ;; esac
+
+  # The name is checked BEFORE anything is built: `perf nosuchrow` used to
+  # build and throw away a 4MB shape before saying it did not know the name.
+  if [ -n "$only" ] && ! perf_rows | cut -d'|' -f1 | grep -qxF -- "$only"; then
+    warn "no entrypoint named '${only}' (try one of: $(perf_rows | cut -d'|' -f1 | tr '\n' ' '))"
+    return 1
+  fi
+
+  if [ "$live" -eq 1 ]; then
+    # `perf --live` measures THIS checkout for every row. The numbers are not
+    # comparable with anybody else's and the budgets do not fit them — it is
+    # how a session sees what its own container actually pays, which is the
+    # information the pinned shape deliberately drops. It REPORTS and never
+    # gates: a session reaching for a debugging flag must not be handed a red.
+    printf '   measured against THIS checkout (%s ref(s)) — reported, not gated\n' \
+      "$live_refs"
+  else
+    PERF_SHAPE_DIR="$(mktemp -d 2>/dev/null)" || {
+      warn "cannot measure: no temp dir for the pinned shape"
+      return 1
+    }
+    # The signal traps EXIT, because a trap that only cleans up lets bash
+    # resume the loop — and every remaining row was then measured against a
+    # project directory that had just been deleted. Counted, before this:
+    # `./joharness.sh perf & sleep 4; kill -INT $!` printed `queue-context 0
+    # ok`, `handover-guard 0 ok`, and exit 0. A gate that answers green to a
+    # signal is worse than one that is red for everybody.
+    trap 'perf_cleanup; exit 130' INT
+    trap 'perf_cleanup; exit 143' TERM
+    trap 'perf_cleanup' EXIT
+    if ! perf_shape "$PERF_SHAPE_DIR"; then
+      perf_cleanup
+      # No fallback to the live tree, on purpose. Measuring an unpinned
+      # checkout under these budgets is how this gate came to be red in every
+      # container in the first place.
+      warn "cannot build the pinned measurement shape; refusing to measure the live tree instead (\`perf --live\` asks for that on purpose)"
+      return 1
+    fi
+    printf '   measured against a built shape: %s ref(s), %s plan(s), %s edge(s)\n' \
+      "$(git -C "${PERF_SHAPE_DIR}/work" for-each-ref refs/remotes 2>/dev/null |
+         grep -c . || :)" \
+      "$(git -C "${PERF_SHAPE_DIR}/work" ls-tree -r --name-only origin/main \
+         -- docs/plans 2>/dev/null | grep -c . || :)" \
+      "$(git -C "${PERF_SHAPE_DIR}/work" rev-list --merges --count origin/main \
+         2>/dev/null || printf 0)"
+    printf '   Not this checkout, which carries %s ref(s) (perf --live)\n' \
+      "$live_refs"
+  fi
+
+  printf '   %-14s %8s %8s %6s  %s\n' \
+    "entrypoint" "counted" "budget" "tree" "verdict"
+
+  while IFS='|' read -r name budget ctx cmd; do
     [ -n "$name" ] || continue
-    # One entrypoint by name: what a session wants while optimizing that one
-    # thing, and what keeps the suite's own cases from re-measuring all five.
     [ -z "$only" ] || [ "$name" = "$only" ] || continue
     seen=1
+    if [ "$live" -eq 1 ]; then
+      PERF_PROJECT="$ROOT"
+      ctx="live"
+    else
+      PERF_PROJECT="${PERF_SHAPE_DIR}/work"
+      ctx="pinned"
+    fi
     # shellcheck disable=SC2086
     counted="$(perf_count $cmd)" || {
       if [ "$?" -eq 2 ]; then
-        printf '   %-14s %8s %8s  %s\n' "$name" "?" "$budget" "NOT FOUND"
+        printf '   %-14s %8s %8s %6s  %s\n' "$name" "?" "$budget" "$ctx" "NOT FOUND"
         warn "nothing to run for ${name} (\`${cmd}\` came back 127); a 0 here would not be a clean run"
       else
-        printf '   %-14s %8s %8s  %s\n' "$name" "?" "$budget" "NOT MEASURED"
+        printf '   %-14s %8s %8s %6s  %s\n' "$name" "?" "$budget" "$ctx" "NOT MEASURED"
         warn "could not measure ${name} (mktemp or shim failed); a partial table is no budget"
       fi
       rc=1
@@ -1211,19 +1504,31 @@ perf_report() {
     }
     n="${counted%% *}"
     secs="${counted##* }"
-    if [ "$n" -gt "$budget" ]; then
-      printf '   %-14s %8s %8s  OVER by %s (%ss)\n' "$name" "$n" "$budget" \
-        "$((n - budget))" "$secs"
+    # A FLOOR under every gated row. 127 catches an entrypoint that is not
+    # there; nothing caught one that ran and did nothing, and a count near
+    # zero on a pinned shape means the measurement broke rather than that the
+    # code got fast. Deliberately far below the smallest real count (22) and
+    # far above what a broken run produces (0 to 7).
+    if [ "$live" -ne 1 ] && [ "$n" -lt "${JOHARNESS_PERF_FLOOR:-15}" ]; then
+      printf '   %-14s %8s %8s %6s  TOO LOW (floor %s)\n' \
+        "$name" "$n" "$budget" "$ctx" "${JOHARNESS_PERF_FLOOR:-15}"
+      warn "${name} spawned ${n} commands against the pinned shape, under the floor: it did not do the work, and a count that low is a green tick over nothing"
       rc=1
+      continue
+    fi
+    if [ "$live" -ne 1 ] && [ "$n" -gt "$budget" ]; then
+      printf '   %-14s %8s %8s %6s  OVER by %s (%ss)\n' "$name" "$n" "$budget" \
+        "$ctx" "$((n - budget))" "$secs"
+      rc=1
+    elif [ "$live" -eq 1 ]; then
+      printf '   %-14s %8s %8s %6s  reported (%ss)\n' "$name" "$n" "$budget" \
+        "$ctx" "$secs"
     else
-      printf '   %-14s %8s %8s  ok (%ss)\n' "$name" "$n" "$budget" "$secs"
+      printf '   %-14s %8s %8s %6s  ok (%ss)\n' "$name" "$n" "$budget" "$ctx" "$secs"
     fi
   done < <(perf_rows)
 
-  if [ -n "$only" ] && [ "$seen" -eq 0 ]; then
-    warn "no entrypoint named '${only}' (try one of: $(perf_rows | cut -d'|' -f1 | tr '\n' ' '))"
-    return 1
-  fi
+  perf_cleanup
 
   if [ "$rc" -ne 0 ]; then
     printf '\n  A budget is a ceiling for a regression in kind — a per-item fork\n'
@@ -1236,9 +1541,23 @@ perf_report() {
 }
 
 cmd_perf() {
+  local only="" live=0 a
+  # --live anywhere in the arguments, so `perf --live graph` and
+  # `perf graph --live` both work; a session reaching for it is debugging its
+  # own container and should not have to guess the order. A LOCAL, never an
+  # environment variable: an exported PERF_LIVE would silently switch the gate
+  # to the unpinned tree, which is the one thing this subcommand exists to
+  # prevent.
+  for a in "$@"; do
+    case "$a" in
+      --live) live=1 ;;
+      '') ;;
+      *) only="$a" ;;
+    esac
+  done
   printf '== perf budget (external commands per entrypoint)\n'
   printf '   counts gate; seconds are printed and never gate\n\n'
-  perf_report "${1:-}"
+  perf_report "$only" "$live"
 }
 
 # ---------------------------------------------------------------------------
@@ -1431,36 +1750,18 @@ lint_warn() { printf '  warn %s\n' "$*"; LINT_WARNED=1; }
 
 # Working-tree nodes of one type, paths relative to ROOT. The tree, not a
 # ref: ci judges what this branch is about to push, uncommitted included.
+# The frontmatter-presence filter this function briefly carried (PR 184, a
+# second 'frontmatter' arg) is GONE, subsumed by routing in lint_graph:
+# "opens with ---" and "is a node" are not the same question, and the gap
+# between them was the escape hatch the plan named. Measured on that
+# implementation at 3144936, fixture identical to the selftest's
+# decayed-q.md: a real node rebuilt from its `## Question` heading onward —
+# the PR 140 shape — printed `edges sound (0 plans, 0 research, ...)`. No
+# red, not listed, not counted. Routing decides nodehood instead, and
+# history convicts a dropped block (lint_graph, "was a node").
 lint_nodes() {
   [ -d "${ROOT}/$1" ] || return 0
-  local f l1
-  # A second arg 'frontmatter' keeps only files that open with a `---`
-  # block. docs/research is the one queue dir that also holds plain
-  # reference documents (prose a session wrote, not a scheduled node), and
-  # those predate the research-node protocol in every consumer synced
-  # before it — reding them turns a green consumer red over files it never
-  # meant as nodes (chrsctl/gx#226). A document with no frontmatter is not a
-  # node: not scheduled, not linted. Escaping the queue this way is not the
-  # silent drop it looks like — a real finding written from TEMPLATE.md
-  # carries the block, and a node stripped of its whole identity is a
-  # legibly-not-a-node document in the directory, while a node that KEEPS
-  # `---` and forgets one key still reds below. NOT applied to docs/plans or
-  # docs/handover: those hold nothing but nodes, so a frontmatter-less file
-  # there is malformed and must still red rather than vanish.
-  while IFS= read -r f; do
-    [ -n "$f" ] || continue
-    if [ "${2:-}" = "frontmatter" ]; then
-      l1=""
-      IFS= read -r l1 <"${ROOT}/${f}" 2>/dev/null || :
-      l1="${l1%$'\r'}"
-      # Drop only a file with a readable, non-empty first line that is not
-      # the block opener — a plain document. An empty or unreadable file has
-      # no first line: keep it, so the missing-keys lint still reds it as a
-      # malformed node rather than the filter swallowing it.
-      [ -n "$l1" ] && [ "$l1" != "---" ] && continue
-    fi
-    printf '%s\n' "$f"
-  done < <(cd "$ROOT" && find "$1" -maxdepth 1 -name '*.md' \
+  (cd "$ROOT" && find "$1" -maxdepth 1 -name '*.md' \
     ! -name 'TEMPLATE.md' ! -name 'README.md' ! -name 'VISION.md' \
     2>/dev/null | sort)
 }
@@ -1641,9 +1942,15 @@ lint_unknown_types() {
 lint_graph() {
   LINT_RC=0
   LINT_WARNED=0
-  local rel val n p r urgency agent effort iss rq grad pstem rstem
-  local -a need_list rq_list
-  local plans=0 workstreams=0 reqs=0 research=0
+  local rel val n p r urgency agent effort iss rq grad pstem rstem fstem
+  local -a need_list
+  local plans=0 workstreams=0 reqs=0 research=0 rdocs=0
+  # Stems the open plans' `research:` edges name, one per line. Routing
+  # decides nodehood one loop down, and the referenced half of the answer
+  # is collected here, in the pass that already parses every plan — a
+  # second read per plan would be the per-item fork the perf budget exists
+  # to catch.
+  local rrefs=""
 
   # One read of the file, one pass over its frontmatter. The older shape cost
   # a `cat` plus an awk per field, on every plan, on every ci.
@@ -1684,11 +1991,10 @@ lint_graph() {
     # never there = a typo. A typo here reads as "nothing blocks this plan",
     # so it is red where the history can prove it.
     if [ -n "$rq" ] && [ "$rq" != "none" ]; then
-      read -ra rq_list <<<"${rq//,/ }"
-      [ "${#rq_list[@]}" -gt 0 ] || rq_list=("")
-      for n in "${rq_list[@]}"; do
-        n="$(lint_stem "$n")"
-        { [ -n "$n" ] && [ "$n" != "none" ]; } || continue
+      while IFS= read -r n; do
+        [ -n "$n" ] || continue
+        rrefs="${rrefs}${n}
+"
         [ -f "${ROOT}/docs/research/${n}.md" ] && continue
         lint_existed "docs/research/${n}.md" && continue
         if lint_shallow; then
@@ -1696,7 +2002,7 @@ lint_graph() {
         else
           lint_red "${rel}: research '${n}' — no such question, never existed. Plan reads as unblocked; typo?"
         fi
-      done
+      done < <(gr_edge_stems "$rq")
     fi
     r="$(lint_stem "$r")"
     if [ -n "$r" ] && [ "$r" != "none" ] &&
@@ -1717,16 +2023,67 @@ lint_graph() {
   # answer has nowhere to land is a question nobody will act on, and the
   # whole point of the node is that the finding outlives the session
   # (.agents/docs/research/README.md).
+  #
+  # ROUTING decides what is a node at all (.agents/docs/research/README.md,
+  # "Which files are nodes"): a file here is a node when it carries a
+  # `research:` key, or an open plan's `research:` edge names its stem.
+  # Neither = a DOCUMENT — consumers keep their own domain documents under
+  # docs/research/ from before this protocol existed, and reding 13 of them
+  # five keys each is how a sync turned a green consumer red (the plan this
+  # implements measured it against gx at 847f64e). Two guards keep the
+  # skip from becoming an escape hatch:
+  #   - a node a plan waits on cannot leave by dropping its frontmatter —
+  #     the reference alone makes it a node, and its missing keys red below;
+  #   - an unreferenced one cannot either, because history convicts it: a
+  #     file whose own line once carried its self-name and no longer does
+  #     was a node, and is red until restored or deleted. Shallow history
+  #     that finds no removal says NOTHING — same doctrine as
+  #     lint_unknown_types: blind is not zero, and a check that cannot
+  #     distinguish a document from a decayed node does not guess.
   while IFS= read -r rel; do
     [ -n "$rel" ] || continue
-    research=$((research + 1))
     { read -r urgency; read -r agent; read -r effort; read -r grad
       read -r rstem; } \
       <<<"$(gr_fields urgency agent effort graduates research <"${ROOT}/${rel}")"
+    fstem="$(lint_stem "$rel")"
+    if [ -z "$rstem" ] &&
+       ! printf '%s' "$rrefs" | grep -qxF -- "$fstem"; then
+      # Both halves anchored to the FRONTMATTER LINE, not to a substring
+      # (r5). `-S"research: <stem>"` missed a key written `research:x` with
+      # no space — gr_fields accepts it, so it was a green node that
+      # decayed silently — and the plain grep let unrelated prose reading
+      # `see research: qr-followup` contain `research: qr` and mask qr.md's
+      # own real decay. Optional space, end-anchored stem, both sides.
+      if ! grep -qE "^research:[[:space:]]*${fstem//./\\.}[[:space:]]*(#.*)?$" \
+           "${ROOT}/${rel}" 2>/dev/null &&
+         [ -n "$(GIT_LITERAL_PATHSPECS=1 git -C "$ROOT" log -1 --format=%H \
+           -G"^research:[[:space:]]*${fstem//./\\.}[[:space:]]*$" HEAD -- "$rel" \
+           2>/dev/null)" ]; then
+        lint_red "${rel}: was a node — this history carried 'research: ${fstem}'" \
+          "and the file no longer does. Restore the frontmatter or delete the" \
+          "file; dropping the block is not how a node leaves the queue"
+      elif grep -q '^JOHARNESS_CANONICAL=1' "$CONF" 2>/dev/null; then
+        # Silent in a consumer, where the document is the legitimate case.
+        # In canonical the same silence is a new blind spot — before routing
+        # a stray file here was red, after it nothing would ever mention it.
+        lint_warn "${rel}: a document, not a node — no research: key and no" \
+          "plan routes to it. A consumer keeps documents here; canonical does not"
+      else
+        rdocs=$((rdocs + 1))
+      fi
+      continue
+    fi
+    research=$((research + 1))
     # Same gap, same fix, one type over: a research node the queue lists is
     # scheduled on these too. `graduates` keeps its own red below — it carries
     # a reason of its own, not just presence.
     lint_required "$rel" research "$rstem"
+    # A key that exists is intent to be a node, so a value that names some
+    # OTHER file is a typo, never a document: skipped instead, a mis-named
+    # node would leave the queue wearing a document's face.
+    [ -z "$rstem" ] || [ "$(lint_stem "$rstem")" = "$fstem" ] ||
+      lint_red "${rel}: research '${rstem}' — does not name this file. A node" \
+        "names itself; the queue reads this one as '${fstem}' and nothing reads it as '${rstem}'"
     lint_required "$rel" urgency "$urgency"
     lint_required "$rel" agent "$agent"
     lint_required "$rel" effort "$effort"
@@ -1752,7 +2109,7 @@ lint_graph() {
       lint_warn "${rel}: graduates '${grad}' — not in the tree yet; the graduating pull request creates it"
     fi
     lint_anchors "$rel"
-  done < <(lint_nodes docs/research frontmatter)
+  done < <(lint_nodes docs/research)
 
   while IFS= read -r rel; do
     [ -n "$rel" ] || continue
@@ -1822,6 +2179,11 @@ lint_graph() {
   if [ "$LINT_RC" -eq 0 ] && [ "$LINT_WARNED" -eq 0 ]; then
     printf '  edges sound (%d plans, %d research, %d workstreams, %d requirements)\n' \
       "$plans" "$research" "$workstreams" "$reqs"
+    # Counted here, in the run that skipped them, so the skip stays visible
+    # without a warning a consumer could never act on.
+    [ "$rdocs" -eq 0 ] ||
+      printf '  %d document(s) under docs/research/ — not nodes, never scheduled (.agents/docs/research/README.md)\n' \
+        "$rdocs"
   fi
   return "$LINT_RC"
 }
@@ -3630,6 +3992,58 @@ cmd_cleanup() {
     printf '  request (and its requirement file when it was the last plan).\n'
   fi
 
+  # Files under docs/research the routing test reads as documents, not
+  # nodes (.agents/docs/research/README.md, "Which files are nodes"). The
+  # lint guards edges; what the base branch already carried before this
+  # feature never crosses an edge again until somebody touches it, so this
+  # is the one command that counts it. COUNTED, never staged by --apply:
+  # a consumer's documents are not the harness's to delete, and a decayed
+  # node needs a judgement — restore or delete — no batch flag should make.
+  printf '\ndocs/research on %s — files routing reads as documents, not nodes\n' "$ref"
+  local rf rq rstem cl_rrefs docs_n=0 decayed=0
+  # gr_edge_stems, not a local tr/sed pipeline: that one flattened
+  # `alpha beta` to `alphabeta` (r4) and kept the literal `none`, so a
+  # document named none.md read as referenced (r7).
+  cl_rrefs="$(while IFS= read -r rf; do
+      [ -n "$rf" ] || continue
+      gr_edge_stems "$(git -C "$ROOT" show "${ref}:${rf}" 2>/dev/null | gr_field research)"
+    done < <(git -C "$ROOT" ls-tree -r --name-only "$ref" -- docs/plans 2>/dev/null |
+             gr_docs))"
+  while IFS= read -r rf; do
+    [ -n "$rf" ] || continue
+    # gr_docs keeps VISION.md where lint_nodes and the queue hook drop it
+    # (r9): counting a file the lint never sees would be a row nobody can
+    # act on. Widening gr_docs itself touches every caller — not here.
+    case "${rf##*/}" in VISION.md) continue ;; esac
+    rq="$(git -C "$ROOT" show "${ref}:${rf}" 2>/dev/null | gr_field research)"
+    rstem="$(lint_stem "$rf")"
+    if [ -n "$rq" ] || printf '%s\n' "$cl_rrefs" | grep -qxF -- "$rstem"; then
+      continue
+    fi
+    if ! git -C "$ROOT" show "${ref}:${rf}" 2>/dev/null |
+         grep -qE "^research:[[:space:]]*${rstem//./\\.}[[:space:]]*(#.*)?$" &&
+       [ -n "$(GIT_LITERAL_PATHSPECS=1 git -C "$ROOT" log -1 --format=%H \
+         -G"^research:[[:space:]]*${rstem//./\\.}[[:space:]]*$" "$ref" -- "$rf" \
+         2>/dev/null)" ]; then
+      decayed=$((decayed + 1))
+      printf "  DECAYED  %s — carried 'research: %s' before and does not now; restore the frontmatter or delete the file\n" \
+        "$rf" "$rstem"
+    else
+      docs_n=$((docs_n + 1))
+      printf '  doc      %s\n' "$rf"
+    fi
+  done < <(git -C "$ROOT" ls-tree -r --name-only "$ref" -- docs/research 2>/dev/null |
+           gr_docs)
+  if [ "$((docs_n + decayed))" -eq 0 ]; then
+    printf '  none — everything here is a node\n'
+  else
+    printf '\n  Documents are fine in a consumer and never scheduled. DECAYED is\n'
+    printf '  not: it was a node on this history, and the next edge that touches\n'
+    printf '  it goes red until it is restored or deleted.\n'
+    lint_shallow &&
+      printf '  Shallow history here — a decayed node can read as doc; a\n  full-history run settles it (git fetch --unshallow).\n'
+  fi
+
   printf '\nmerged branches still standing\n'
   local b branches n=0
   branches="$(cl_merged_branches "$ref")"
@@ -4243,6 +4657,26 @@ gr_field() { gr_fields "$1"; }
 # the template are not nodes; four callers said so in two greps each.
 gr_docs() { awk 'NF && /\.md$/ && !/\/(TEMPLATE|README)\.md$/'; }
 
+# Stems named by an EDGE field's value, one per line, `none` dropped.
+#
+# One helper because four readers of one field is three chances to
+# disagree, and they did (review r4): `research: alpha beta` split two
+# ways in lint_graph and queue-context and flattened to `alphabeta` in
+# cmd_graph and cleanup, so the graph drew no question and painted the
+# waiting plan unblocked. Separator is a comma OR whitespace — the
+# template writes commas, prose writes spaces, and a field nobody linted
+# gets both. Each entry is reduced to a stem, so path, name and stem
+# spellings all mean the same node.
+gr_edge_stems() {
+  local v="${1:-}" n
+  [ -n "$v" ] || return 0
+  for n in ${v//,/ }; do
+    n="${n##*/}"; n="${n%.md}"
+    { [ -n "$n" ] && [ "$n" != "none" ]; } || continue
+    printf '%s\n' "$n"
+  done
+}
+
 # ---------------------------------------------------------------------------
 # Process scorecard
 #
@@ -4832,6 +5266,52 @@ drain_supervised_only() {
     sed -n 's#^  \(docs/plans/[^ ]*\.md\)  .*SUPERVISED ONLY.*#  \1#p'
 }
 
+# The reached-goal stop, printed from ONE place. Two commands say it and the
+# wording is load-bearing: a session acts on WHICH stop fired, and "the work is
+# finished" against "the sources are exhausted" is the whole reason this is not
+# the sweep's message.
+#
+# Takes what the queue would otherwise have handed out, so it can say the queue
+# is not empty when it is not. Silence there would be this same defect wearing
+# its other face — a session reads GOAL REACHED over a tree holding plans and
+# concludes the plans are gone.
+drain_goal_reached() {
+  local offered="$1" marked="${2-}"
+  printf 'GOAL REACHED — no open requirement in docs/product/.\n'
+  printf '  Unsupervised is live only while a goal is open, so this\n'
+  printf '  stops and asks exactly as supervised does.\n'
+  printf '  This is NOT a dry sweep — the sources were not counted,\n'
+  printf '  because finished work and exhausted sources are different\n'
+  printf '  facts and a session acts on which one fired.\n'
+  if [ -n "$offered" ]; then
+    printf '  The queue is NOT empty. It still offers:\n'
+    printf '    %s\n' "$offered"
+    printf '  With no goal open that does not restart the fleet, or recording\n'
+    printf '  would be a way to manufacture a goal. It is a note for a human\n'
+    printf '  until somebody sets one — whatever kind of node it is.\n'
+  fi
+  # The marked plans, NAMED here too. Moving the goal check above the free-plan
+  # branch stranded the NOT YOURS block below it: in a tree whose only plans
+  # are SUPERVISED ONLY, `next` is empty (drain_plan filters the marker), so
+  # the paragraph above stays quiet and the block below is never reached — and
+  # the queue hook lists that work while this command says nothing about it.
+  # Two readers, one tree, different answers, which is the defect this command
+  # exists not to have.
+  if [ -n "$marked" ]; then
+    printf '  It also holds plan(s) marked SUPERVISED ONLY, which this mode\n'
+    printf '  may not commit in any case:\n'
+    printf '%s\n' "$marked"
+  fi
+  # A hook cannot read GitHub and neither can this. Dropping the pointer at a
+  # stop is how a session concludes there is nothing to do while an issue a
+  # human filed sits open — the failure qc_edge_unsupervised already records
+  # having shipped once.
+  printf '  Open GitHub issues outrank all of it and are not readable from\n'
+  printf '  here (step 2): check them before concluding there is nothing.\n'
+  printf '  Set a requirement under docs/product/, or leave it stopped\n'
+  printf '  (docs/product/unsupervised-mode.md, Satisfied when).\n'
+}
+
 drain_next() {
   local req
   req="$(drain_requirement "$1")"
@@ -4883,6 +5363,42 @@ cmd_drain() {
   fi
 
   next="$(drain_next "$qout")"
+
+  # THE GOAL, BEFORE THE QUEUE. Autonomy is live only while a requirement is
+  # open, so with none open there is nothing here for an unattended session to
+  # take — whatever the queue still holds.
+  #
+  # This check used to sit BELOW the free-plan branch, which returns on the
+  # first free row. A plan RECORDED with no goal open is a free row —
+  # recording is always allowed, in any mode, goal or no goal — so the note a
+  # session wrote for a human was handed straight back to the fleet as its
+  # next job and became the only thing keeping it alive. That is the
+  # circularity the bound closes: one recorded with no goal open "does NOT
+  # restart the fleet" (docs/product/unsupervised-mode.md, Satisfied when).
+  #
+  # Reproduced on a scratch clone 2026-09-02: no files under docs/product/,
+  # one plan carrying `requirement: none`, and
+  # `JOHARNESS_MODE=unsupervised ./joharness.sh drain` answered
+  # `next: docs/plans/recorded-note.md`. Deleting that one plan from the same
+  # tree answered GOAL REACHED, so the note was the whole of the fleet's
+  # reason to continue.
+  #
+  # Counted ONCE and reused below: two calls are two answers to one question,
+  # and a reader trusts whichever they read second.
+  local goals="" goals_read=0 sup=""
+  if [ "$mode" = "unsupervised" ]; then
+    # Read before the stop can fire, because the stop has to name it. Under
+    # supervised neither line runs and neither fork is paid.
+    sup="$(drain_supervised_only "$qout")"
+    if goals="$(drain_goals)"; then
+      goals_read=1
+      if [ "${goals:-0}" -eq 0 ]; then
+        drain_goal_reached "$next" "$sup"
+        return 0
+      fi
+    fi
+  fi
+
   if [ -n "$next" ]; then
     # The count comes from the hook's "N free plans" line, which a
     # REQUIREMENT does not have — printing a plan count beside one says the
@@ -4917,8 +5433,7 @@ cmd_drain() {
     # and re-deriving it here would be the second reader of one fact this
     # command exists not to be. Anchored to the row shape so the hook's own
     # prose about the marking is not counted as a plan.
-    local sup
-    sup="$(drain_supervised_only "$qout")"
+    # Already read above, where the stop needed it too.
     if [ -n "$sup" ]; then
       printf 'NOT YOURS — the queue holds plan(s) marked SUPERVISED ONLY:\n'
       printf '%s\n' "$sup"
@@ -4940,19 +5455,11 @@ cmd_drain() {
     # exhausted, a reached goal means the work is finished. A shared wording
     # would make them indistinguishable in exactly the report a human reads
     # to decide whether to set a new goal.
-    local goals
-    if goals="$(drain_goals)"; then
-      if [ "${goals:-0}" -eq 0 ]; then
-        printf 'GOAL REACHED — no open requirement in docs/product/.\n'
-        printf '  Unsupervised is live only while a goal is open, so this\n'
-        printf '  stops and asks exactly as supervised does.\n'
-        printf '  This is NOT a dry sweep — the sources were not counted,\n'
-        printf '  because finished work and exhausted sources are different\n'
-        printf '  facts and a session acts on which one fired.\n'
-        printf '  Set a requirement under docs/product/, or leave it stopped\n'
-        printf '  (docs/product/unsupervised-mode.md, Satisfied when).\n'
-        return 0
-      fi
+    # Already counted above, where the zero case returned. Reaching here means
+    # a goal IS open, or the ref could not be read — and those two stay
+    # different: absent is not zero, so an unreadable ref defers rather than
+    # winding a fleet down over a question nobody answered.
+    if [ "$goals_read" -eq 1 ]; then
       printf 'queue empty, %s goal(s) open — under unsupervised that is a\n' "$goals"
       printf 'trigger, not a stop. The stop is a dry sweep, so this defers to\n'
       printf 'it (slow: runs ci).\n\n'
@@ -5022,28 +5529,13 @@ cmd_graph() {
   done < <(git -C "$ROOT" ls-tree -r --name-only "$ref" -- docs/product 2>/dev/null |
            gr_docs)
 
-  # --- research nodes ------------------------------------------------------
-  # The picture is the whole graph or it is misleading, and .agents/docs/graph.md
-  # says so in its Serving section. A node type declared in that file's Nodes
-  # table and absent from the command the same file calls "whole graph as a
-  # picture" reads as "no open questions", which is the one wrong answer.
-  local q qagent qeffort qgrad
-  while IFS= read -r f; do
-    [ -n "$f" ] || continue
-    { read -r q; read -r qagent; read -r qeffort; read -r qgrad; } \
-      <<<"$(git -C "$ROOT" show "${ref}:${f}" 2>/dev/null |
-            gr_fields research agent effort graduates)"
-    [ -n "$q" ] || { q="${f##*/}"; q="${q%.md}"; }
-    printf '  q_%s(["question: %s%s"]):::question\n' "$(gr_id "$q")" "$q" \
-      "${qagent:+ [${qagent}${qeffort:+ ${qeffort}}]}"
-    [ -n "$qgrad" ] && [ "$qgrad" != "none" ] &&
-      printf '  q_%s -. graduates .-> g_%s["%s"]:::graduates\n' \
-        "$(gr_id "$q")" "$(gr_id "$qgrad")" "$qgrad"
-  done < <(git -C "$ROOT" ls-tree -r --name-only "$ref" -- docs/research 2>/dev/null |
-           gr_docs)
-
   # --- plans, with needs and serves edges ----------------------------------
-  local plan agent effort req needs need blocked rneeds rneed
+  # Before the research nodes, though the picture reads the other way: the
+  # `research:` stems collected here are the referenced half of the routing
+  # test that decides which files under docs/research are nodes at all.
+  # Mermaid does not care — an edge naming q_x first and a q_x declaration
+  # arriving later style the same node.
+  local plan agent effort req needs need blocked rneeds rneed graph_rrefs=""
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     { read -r plan; read -r agent; read -r effort; read -r req; read -r needs
@@ -5066,14 +5558,19 @@ cmd_graph() {
     # A plan waiting on an open question is blocked exactly as one waiting on
     # a plan is; rendering it green said the opposite of the queue.
     if [ -n "$rneeds" ] && [ "$rneeds" != "none" ]; then
+      # gr_edge_stems, like every other reader of this field: read raw, a
+      # path-form edge drew nothing (r1) and `alpha beta` flattened to one
+      # nonexistent `alphabeta` (r4) — both leaving the waiting plan
+      # painted green while the queue showed it blocked.
       while IFS= read -r rneed; do
-        rneed="$(printf '%s' "$rneed" | tr -d ' ')"
-        if [ -z "$rneed" ] || [ "$rneed" = "none" ]; then continue; fi
+        [ -n "$rneed" ] || continue
+        graph_rrefs="${graph_rrefs}${rneed}
+"
         if git -C "$ROOT" cat-file -e "${ref}:docs/research/${rneed}.md" 2>/dev/null; then
           blocked=1
           printf '  p_%s -. research .-> q_%s\n' "$(gr_id "$plan")" "$(gr_id "$rneed")"
         fi
-      done < <(printf '%s\n' "$rneeds" | tr ',' '\n')
+      done < <(gr_edge_stems "$rneeds")
     fi
     if [ "$blocked" = "1" ]; then
       printf '  p_%s["plan: %s%s"]:::blocked\n' "$(gr_id "$plan")" "$plan" \
@@ -5085,6 +5582,41 @@ cmd_graph() {
     [ -n "$req" ] && [ "$req" != "none" ] &&
       printf '  p_%s -- serves --> r_%s\n' "$(gr_id "$plan")" "$(gr_id "$req")"
   done < <(git -C "$ROOT" ls-tree -r --name-only "$ref" -- docs/plans 2>/dev/null |
+           gr_docs)
+
+  # --- research nodes ------------------------------------------------------
+  # The picture is the whole graph or it is misleading, and .agents/docs/graph.md
+  # says so in its Serving section. A node type declared in that file's Nodes
+  # table and absent from the command the same file calls "whole graph as a
+  # picture" reads as "no open questions", which is the one wrong answer.
+  #
+  # Whole graph, not whole directory: routing decides which files here are
+  # nodes (a `research:` key, or a plan whose edge names the stem — the test
+  # lint_graph and queue-context.sh apply), and a consumer's own documents
+  # drawn as open questions would be the same wrong answer from the other
+  # side.
+  local q qagent qeffort qgrad qstem
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    { read -r q; read -r qagent; read -r qeffort; read -r qgrad; } \
+      <<<"$(git -C "$ROOT" show "${ref}:${f}" 2>/dev/null |
+            gr_fields research agent effort graduates)"
+    qstem="${f##*/}"; qstem="${qstem%.md}"
+    if [ -z "$q" ] &&
+       ! printf '%s' "$graph_rrefs" | grep -qxF -- "$qstem"; then
+      continue
+    fi
+    # The node's OWN key through the same stem: drawn raw, a path-form
+    # self-name made q_docs_research_foo_md while every edge pointed at
+    # q_foo — two mermaid nodes for one question (r8).
+    q="$(gr_edge_stems "$q" | head -1)"
+    [ -n "$q" ] || q="$qstem"
+    printf '  q_%s(["question: %s%s"]):::question\n' "$(gr_id "$q")" "$q" \
+      "${qagent:+ [${qagent}${qeffort:+ ${qeffort}}]}"
+    [ -n "$qgrad" ] && [ "$qgrad" != "none" ] &&
+      printf '  q_%s -. graduates .-> g_%s["%s"]:::graduates\n' \
+        "$(gr_id "$q")" "$(gr_id "$qgrad")" "$qgrad"
+  done < <(git -C "$ROOT" ls-tree -r --name-only "$ref" -- docs/research 2>/dev/null |
            gr_docs)
 
   # --- in-flight branches: claims and churn --------------------------------
@@ -5463,7 +5995,7 @@ main() {
     drain)          cmd_drain ;;
     graph)          cmd_graph ;;
     scorecard)      cmd_scorecard ;;
-    perf)           cmd_perf "${1:-}" ;;
+    perf)           cmd_perf "$@" ;;
     mutate)         cmd_mutate "$@" ;;
     # Warning on stderr, value on stdout: the guard captures stdout and must
     # keep getting one clean word, while a human running this against a
