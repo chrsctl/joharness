@@ -3398,7 +3398,19 @@ FB_SINCE_OK=0
 # fixture cases whose repos have no such commit — the same "absent is not
 # empty" the queue part learned one merge earlier, and the dangerous
 # direction of it. Unresolvable is BLIND now, never zero.
-FB_SINCE="${JOHARNESS_FEEDBACK_SINCE:-bcebb325e92f3e5da8c2df3da8323965857798e1}"
+#
+# Moved a second time, 2026-09-02, from bcebb325e92f to 847f64e3 (PR #181's
+# own merge commit). PR #181 closed a second, later loophole: a branch could
+# retire — deleting its own workstream file, delete-on-merge — without ever
+# tripping the marker gate, because that gate fired only at `status: done`
+# and a branch could go straight from `review` to its retire commit. Four
+# findings merged in that gap (PR161 r6, PR172 r5, PR173 r2, PR174 r2, all
+# ending in prose `fb_marker` does not read as a disposition) and are gone
+# from every tree the same way the first 155 were: structurally
+# undispositionable, not neglected. PR #181 stops new instances of this
+# class; it cannot reach backward, so the same "history, not backlog" scope
+# applies. docs/plans/advance-feedback-baseline.md has the trace.
+FB_SINCE="${JOHARNESS_FEEDBACK_SINCE:-847f64e32e8153e5a9e330ab0d84615c578e80c3}"
 
 # Exit status, not a global. `src_unmarked` runs inside `$( )` and a
 # command substitution is a SUBSHELL — a global it sets is gone before the

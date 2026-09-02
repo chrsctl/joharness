@@ -46,6 +46,12 @@ executed on this branch per Lifecycle.
   (`git log --first-parent --merges bcebb325e92f..origin/main`) and
   matching each PR number to its merge date against PR #181's. (fixed —
   reasoning recorded in the plan's Traps section)
+- r2: (session) applied the `FB_SINCE` bump in `joharness.sh`, then
+  re-ran `JOHARNESS_FEEDBACK_EDGES=0 ./joharness.sh feedback` with no
+  override — `0 unmarked, counted since 847f64e3` — confirming the literal
+  change alone (not the env override used to validate the choice
+  beforehand) produces the acceptance criterion. `ci` still running at this
+  commit; full selftest result to follow before the PR opens. (fixed)
 
 ## Blockers
 
