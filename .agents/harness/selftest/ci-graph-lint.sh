@@ -812,3 +812,111 @@ expect "cleanup flags a decayed node" \
 refute "cleanup never stages either" "REMOVED  docs/research" "$out"
 fixture_rm "$lwork" "close the rot for the states below" \
   docs/research/rotted-q.md
+
+# --- the edge field parses the same way for every reader ---------------------
+# Four readers of `research:` is three chances to disagree, and they did
+# (review r4): lint and the queue split `alpha beta` into two stems while
+# cmd_graph and cleanup flattened it to one nonexistent `alphabeta`, so
+# the graph painted the waiting plan green while the queue showed it
+# blocked. gr_edge_stems is the one parser now.
+mkdir -p "${lwork}/docs/plans" "${lwork}/docs/research"
+cat >"${lwork}/docs/plans/two-edges.md" <<'EOF'
+---
+plan: two-edges
+urgency: normal
+agent: sonnet
+effort: high
+research: alpha beta
+---
+EOF
+printf '# alpha\n\nprose\n' >"${lwork}/docs/research/alpha.md"
+printf '# beta\n\nprose\n' >"${lwork}/docs/research/beta.md"
+git -C "$lwork" add docs/plans/two-edges.md docs/research
+git -C "$lwork" commit -qm "one plan, two whitespace-separated edges"
+out="$(lint_section "$(lint_ci)")"
+expect "a whitespace-separated edge routes to the first file" \
+  "alpha.md: no research:" "$out"
+expect "and to the second" "beta.md: no research:" "$out"
+gout="$(CLAUDE_PROJECT_DIR="$lwork" "${lwork}/joharness.sh" graph 2>&1)"
+expect "the graph draws both, not one flattened stem" \
+  "p_two_edges -. research .-> q_alpha" "$gout"
+expect "the graph draws the second too" \
+  "p_two_edges -. research .-> q_beta" "$gout"
+refute "and never the flattened spelling" "alphabeta" "$gout"
+fixture_rm "$lwork" "drop the two-edge fixture" \
+  docs/plans/two-edges.md docs/research/alpha.md docs/research/beta.md
+
+# The decay guard reads the frontmatter LINE, not a substring (r5). Two
+# escapes closed: a key written with no space, and unrelated prose whose
+# text contains the would-be self-name as a prefix.
+mkdir -p "${lwork}/docs/research"
+printf -- '---\nresearch:tight\nurgency: normal\nagent: opus\neffort: high\ngraduates: joharness.sh\n---\n' \
+  >"${lwork}/docs/research/tight.md"
+git -C "$lwork" add docs/research/tight.md
+git -C "$lwork" commit -qm "a node whose key is written without a space"
+printf '## Question\n\nrebuilt\n' >"${lwork}/docs/research/tight.md"
+git -C "$lwork" add docs/research/tight.md
+git -C "$lwork" commit -qm "and it drops the block"
+out="$(lint_section "$(lint_ci)")"
+expect "an unspaced key still decays into a red" "tight.md: was a node" "$out"
+fixture_rm "$lwork" "drop the unspaced node" docs/research/tight.md
+
+mkdir -p "${lwork}/docs/research"
+printf -- '---\nresearch: qr\nurgency: normal\nagent: opus\neffort: high\ngraduates: joharness.sh\n---\n' \
+  >"${lwork}/docs/research/qr.md"
+git -C "$lwork" add docs/research/qr.md
+git -C "$lwork" commit -qm "a node named with a short stem"
+printf '## Question\n\nsee research: qr-followup for the rest\n' \
+  >"${lwork}/docs/research/qr.md"
+git -C "$lwork" add docs/research/qr.md
+git -C "$lwork" commit -qm "block dropped, prose mentions a longer stem"
+out="$(lint_section "$(lint_ci)")"
+expect "a longer stem in prose does not mask a real decay" \
+  "qr.md: was a node" "$out"
+fixture_rm "$lwork" "drop the short-stem node" docs/research/qr.md
+
+# cleanup: `none` is the template's no-edge value, not a reference (r7),
+# and VISION.md is not a node for any other reader (r9).
+mkdir -p "${lwork}/docs/plans" "${lwork}/docs/research"
+cat >"${lwork}/docs/plans/no-edges.md" <<'EOF'
+---
+plan: no-edges
+urgency: normal
+agent: sonnet
+effort: high
+research: none
+---
+EOF
+printf '# none\n\nA document that happens to be named none.\n' \
+  >"${lwork}/docs/research/none.md"
+printf '# Vision\n\nNot a node for any reader.\n' \
+  >"${lwork}/docs/research/VISION.md"
+git -C "$lwork" add docs/plans/no-edges.md docs/research
+git -C "$lwork" commit -qm "a none edge, a none.md document and a VISION"
+out="$(CLAUDE_PROJECT_DIR="$lwork" JOHARNESS_CONF="${lwork}/joharness.conf" \
+  "${lwork}/joharness.sh" cleanup 2>&1)"
+expect "a document named none is still a document" \
+  "doc      docs/research/none.md" "$out"
+refute "and VISION.md is not counted at all" "VISION.md" "$out"
+fixture_rm "$lwork" "drop the none fixtures" \
+  docs/plans/no-edges.md docs/research/none.md docs/research/VISION.md
+
+# A node whose OWN key is path form draws one mermaid node, not two (r8).
+mkdir -p "${lwork}/docs/research"
+cat >"${lwork}/docs/research/pathself.md" <<'EOF'
+---
+research: docs/research/pathself.md
+urgency: normal
+agent: opus
+effort: high
+graduates: joharness.sh
+---
+EOF
+git -C "$lwork" add docs/research/pathself.md
+git -C "$lwork" commit -qm "a node naming itself by path"
+gout="$(CLAUDE_PROJECT_DIR="$lwork" "${lwork}/joharness.sh" graph 2>&1)"
+expect "a path-form self-name draws the stem node" \
+  'q_pathself(["question: pathself' "$gout"
+refute "and not a second node named after the path" \
+  "q_docs_research_pathself_md" "$gout"
+fixture_rm "$lwork" "drop the path-self node" docs/research/pathself.md
