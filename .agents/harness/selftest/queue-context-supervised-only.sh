@@ -64,18 +64,18 @@ expect "an all-protocol scope is marked SUPERVISED ONLY" \
   "SUPERVISED ONLY" "$out"
 expect "and the mark says why" "scope is all protocol text" "$out"
 # The mark alone is not the fix. De-ranking is: this plan must stop being
-# the thing an unattended session is pointed at. With it as the only plan,
-# that is exactly the endurance retry's queue — and the edge is what a fleet
-# should have met there instead of 55 minutes of undoable work.
+# free. With it as the only plan, that is exactly the endurance retry's
+# queue — and the edge is what a fleet should have met there instead of 55
+# minutes of undoable work.
+expect "the edge is reached instead" "Edge reached: no free plan" "$out"
+expect "and the edge names the marking as a reason" \
+  "blocked or SUPERVISED ONLY" "$out"
 refute "and it is not offered as free work" "top free plan above" "$out"
-expect "the unsupervised edge fires instead" "UNSUPERVISED edge" "$out"
-expect "and the edge names the plan rather than hiding it" \
+expect "and the plan is listed rather than hidden" \
   "docs/plans/allprotocol.md" "$out"
-# The failure this marking could CREATE: a fleet told to generate work, with
-# the one plan covering that work de-ranked out of sight, writes it again.
-expect "the edge says it is not a gap to fill" "NOT a gap to fill" "$out"
-expect "and forbids re-filing the same work" \
-  "do NOT file a new plan" "$out"
+expect "and the last word points at drain" "./joharness.sh drain orders" "$out"
+# What the edge MEANS under unsupervised — not a gap to fill, do not re-file
+# — is drain's to say, from this row (selftest/drain.sh, NOT YOURS).
 
 # Same tree, other mode. The requirement's Acceptance: a supervised session
 # cannot tell this shipped.
@@ -106,7 +106,7 @@ sopush "a plan with one protocol path and one other"
 out="$(soq unsupervised)"
 refute "a mixed scope is not marked" "SUPERVISED ONLY" "$out"
 expect "and stays free work" "top free plan above" "$out"
-refute "so the edge does not fire over it" "UNSUPERVISED edge" "$out"
+refute "so the edge is not reached over it" "Edge reached: no free plan" "$out"
 
 # --- absent is not empty ---------------------------------------------------
 # A plan with no scope: could be entirely protocol text; nobody wrote it
@@ -245,8 +245,8 @@ soplan ztakeable 'docs/product/elsewhere.md'
 sopush "a takeable plan beside the marked one"
 out="$(soq unsupervised)"
 expect "the marked plan is still listed" "docs/plans/marked.md" "$out"
-refute "the edge does not fire while real work is free" \
-  "UNSUPERVISED edge" "$out"
+refute "the edge is not reached while real work is free" \
+  "Edge reached: no free plan" "$out"
 # ORDER, not presence. Both rows print; the question this marking answers is
 # which one leads, and the rank is the only thing that decides it. Reading
 # the first plan row is how that becomes an assertion rather than a hope.

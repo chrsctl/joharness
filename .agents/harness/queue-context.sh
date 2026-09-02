@@ -24,11 +24,10 @@
 #                       only when routing says the file is a NODE — it
 #                       carries a `research:` key or a plan names its stem;
 #                       a consumer's own documents here are never scheduled.
-# Two or more free plans = fan-out instruction (one session per free plan,
-# model named), and under JOHARNESS_RUN_MODE=unsupervised that instruction
-# becomes an order to start them now, for wave 1 only. No free plan and
-# nothing to plan = done under supervised; under unsupervised that same edge
-# is where work is GENERATED instead (qc_edge_unsupervised). GitHub issues
+# Two or more free plans = fan-out line (one session per free plan, model
+# named). No free plan and nothing to plan = the edge. This hook REPORTS in
+# both modes; what an unsupervised session does with the report — fan out,
+# generate, or stop — is `joharness.sh drain`'s to say. GitHub issues
 # outrank everything; a shell hook cannot read GitHub, so that stays a
 # pointer.
 #
@@ -169,21 +168,24 @@ rstems="$(
   done <<<"$research"
 )"
 
-# Which mode this hook speaks in. Supervised REPORTS what is possible;
-# unsupervised ORDERS it. Same facts, different speech act — nobody is
-# reading the supervised line and deciding when the mode is unsupervised.
-# Every mode-dependent line below sits inside a branch this variable guards,
-# so supervised output stays byte-identical.
+# The mode changes ONE thing here: a plan an unattended session cannot
+# commit is marked SUPERVISED ONLY and ranked out of the free list, because
+# rank is a property of the listing. Everything the mode ORDERS — fan out,
+# generate, stop — lives in `joharness.sh drain`, which reads this output.
+# Every mode-dependent line sits inside a branch this variable guards, so
+# supervised output stays byte-identical.
 # Resolved by joharness.sh (run_mode) and exported to this hook; never
-# re-derived here, because precedence across the env var, the marker and the
-# conf lives in exactly one place. Unset (hook run directly) = supervised,
-# the safe direction: a session that is not unattended is never ordered to
-# spawn a fleet.
-#
-# Read HERE, above the row loop, and not beside the fan-out block it used to
-# sit in: a row's RANK now depends on it. The rank of a plan an unsupervised
-# fleet cannot take is not the same as its rank for a human-directed one.
+# re-derived here. Unset (hook run directly) = supervised, the safe
+# direction.
 qc_mode="${JOHARNESS_RUN_MODE:-supervised}"
+# Under unsupervised the LAST line is always the pointer at the reader that
+# orders. A trap, so every exit path below carries it — this hook has four —
+# and the report above it stays the same bytes in both modes. Without it a
+# session read "Spawn one per plan" or "ask human" as the last word, from a
+# hook that no longer knows what the mode does with either.
+if [ "$qc_mode" = "unsupervised" ]; then
+  trap 'printf "\nUNSUPERVISED: this hook reports; ./joharness.sh drain orders — take,\nfan out, generate, or stop.\n"' EXIT
+fi
 
 # The unsupervised boundary, as the queue sees it: protocol text is off
 # limits to a session running unattended (docs/product/unsupervised-mode.md,
@@ -540,111 +542,7 @@ fi
 # path are named. A plan without scope stays listed, labeled unprovable,
 # because a missing declaration must neither serialize the queue nor inherit
 # the old unconditional promise. Zero scoped plans = output unchanged.
-# Supervised REPORTS what is possible; unsupervised ORDERS it — the speech
-# act is `qc_mode`'s, resolved above.
-
-# The edge, under unsupervised. ONE call site since the goal bound reached
-# this hook: the no-plans path can no longer reach it, because a tree with no
-# plans either has an unserved requirement (planning outranks) or no
-# requirement at all (the goal is reached). It stays a function because the
-# argument it takes names which state produced it, and because a second edge
-# path is exactly what a later change would add.
-#
-# This NAMES the sweep and does not run it, because it runs `ci`:
-#   s=$SECONDS; ./joharness.sh sources >/dev/null 2>&1; echo $((SECONDS-s))
-#     -> 78s   (this repo, 2026-08-29)
-#   s=$SECONDS; bash .agents/harness/queue-context.sh >/dev/null 2>&1; …
-#     -> 1s    (same repo, same day — session-start's 3s is the WHOLE hook
-#              chain, which an earlier version of this comment mis-attributed
-#              to this file alone)
-# Hook output is paid by every session, so the sweep is a pointer for the
-# same reason GitHub is. The session runs it; the hook says which one.
-# The reached-goal stop. Written once and reached from both terminal paths,
-# for the reason the edge printer beside it gives: two copies of a rule this
-# consequential drift, and each path is reached in a repo state the other is
-# not, so the drift shows up nowhere until it matters.
-#
-# NOT the edge, and the wording keeps them apart on purpose. The edge means
-# there is nothing left to take and work may be generated; this means the work
-# is finished and none may be. A session acts on which one it read.
-qc_goal_reached() {
-  printf '\nGOAL REACHED — no open requirement in %s on %s.\n\n' \
-    "$PRODUCT_DIR" "$1"
-  printf 'Unsupervised is live only while a goal is open, so this is a STOP,\n'
-  printf 'and it is not the sweep: finished work and exhausted sources are\n'
-  printf 'different facts. Do not run the sweep looking for a way to carry on.\n'
-  printf '\n'
-  # What the stop does NOT stop, said before what it does. A terminal path
-  # that prints only the bound reads as "there is nothing to do", and two
-  # things above the queue are unaffected by a goal being reached: an issue a
-  # human filed, and a branch already at the edge. qc_edge_unsupervised
-  # records shipping exactly this omission once; this is the same exit in the
-  # same file.
-  printf 'Open GitHub issues STILL outrank this — check them first. A hook\n'
-  printf 'cannot read GitHub, and an issue is work a human asked for.\n'
-  printf 'Edge work in the in-flight block above outranks it too: finishing\n'
-  printf 'outranks starting, and a pull request at review is not finished by\n'
-  printf 'a goal being reached (step 7).\n'
-  printf '\n'
-  # Scoped to the QUEUE, deliberately. An earlier wording said "anything
-  # listed above", and session-start prints the in-flight block above this
-  # one — so it told a session its own open pull request was a note for a
-  # human.
-  printf 'The QUEUE above is what stops. Anything in it — a plan, an open\n'
-  printf 'question — is a note for a human until a goal is set: with none\n'
-  printf 'open it does not restart the fleet, or recording would be a way to\n'
-  printf 'manufacture a goal (docs/product/unsupervised-mode.md, Satisfied\n'
-  printf 'when). Recording itself stays allowed, in every mode: write down\n'
-  printf 'what you found, and stop.\n'
-  printf '\n'
-  printf 'Set a requirement under %s to start a fleet again.\n' "$PRODUCT_DIR"
-}
-
-qc_edge_unsupervised() {
-  # OPEN ISSUES FIRST, in both modes. The first version of this printed the
-  # generate-work order and exited, dropping the issue pointer the supervised
-  # arm carries — so an unattended session was told to invent work with no
-  # instruction to check what a human had already asked for. That is the
-  # ordering this whole change exists to preserve, broken by the change
-  # itself. A hook cannot read GitHub, so it stays a pointer; a pointer is
-  # not optional.
-  printf 'UNSUPERVISED edge on %s (%s): a trigger, not a stop.\n' "$1" "$2"
-  printf 'Open GitHub issues STILL outrank this — check them first; any open\n'
-  printf 'issue is work a human asked for and beats work you invent.\n'
-  printf 'None? Then generate: research the CLOSED source list, write plan\n'
-  printf 'files, open a pull request. One finding, one plan; each carries\n'
-  printf 'source: and evidence: (.agents/docs/plans/README.md, "Where\n'
-  printf 'unsupervised work comes from"). No plan for a finding no detector\n'
-  printf 'emitted.\n'
-  printf '\n'
-  # The verdicts are NOT restated here. cmd_sources prints them and the
-  # protocol doc states them; a third copy in a hook is the drift this
-  # function's own existence argues against, and hook output is paid every
-  # session.
-  printf 'First run the sweep:  ./joharness.sh sources\n'
-  printf 'It prints what each verdict means. dry alone is NOT a stop: the mode\n'
-  printf 'ends on a SECOND dry sweep, an empty queue and no open pull request,\n'
-  printf 'together — and nowhere else.\n'
-  printf 'Default agent tier: sonnet (.agents/docs/agent-selection.md).\n'
-}
-
 if [ -z "$plans" ]; then
-  # The goal, before any of the three answers below. With no requirement on
-  # the ref there is no goal, and unsupervised is live only while one is open
-  # — so this state is the STOP, not the generate-work edge. The edge printer
-  # below was reached here whatever `docs/product/` held, which is the same
-  # half-implemented bullet `drain` was brought under the bound for in PR 170
-  # and this hook was not.
-  #
-  # Questions still print. They are queue work for a human or a supervised
-  # session, and hiding them behind the stop would report an empty queue over
-  # a queue that is not.
-  if [ "$qc_mode" = "unsupervised" ] && [ -z "$reqs" ]; then
-    qc_print_research
-    qc_warn_research_unreadable
-    qc_goal_reached "$ref"
-    exit 0
-  fi
   # Unplanned requirements FIRST, before questions: planning outranks
   # executing, and an entrypoint sentence whose next line reverses it is
   # worse than either order stated plainly.
@@ -666,16 +564,7 @@ if [ -z "$plans" ]; then
     printf 'settle it, graduate the answer, delete the file\n'
     printf '(.agents/docs/research/README.md). Agent field = tier to run it.\n'
   else
-    # SUPERVISED ONLY here, and that is a deletion rather than an omission.
-    # This arm used to call qc_edge_unsupervised with "no plans", and under
-    # the goal bound no unsupervised session can reach it: with no plans every
-    # requirement is unserved, so `unplanned` is non-empty and the first
-    # branch takes it — and with no requirement the goal check at the top of
-    # this block stops first. Probed 2026-09-02: no plans plus one requirement
-    # prints "Requirements without plans" and no plans plus no requirement
-    # prints GOAL REACHED, so `(no plans)` never appears in any output. Code
-    # no state can reach is a promise no test can keep, and the label it
-    # carried is not assertable from anywhere.
+    # The edge: nothing to plan, nothing to take.
     printf 'No plans on %s — plan-queue edge reached: done. Entrypoint: open\n' "$ref"
     printf 'GitHub issues first; none = resume in-flight branch above, or ask\n'
     printf 'human. Default agent tier: sonnet (.agents/docs/agent-selection.md).\n'
@@ -725,16 +614,6 @@ done <<<"$rows"
     "$((total - MAX_ENTRIES))"
 
 qc_print_research
-
-# The goal, before anything below can order work against it. Everything the
-# queue holds has been LISTED by now, which is the half that must not change:
-# recording is always allowed, so a recorded plan stays visible in every mode.
-# What stops is the ordering — the fan-out order, and the tail that points a
-# session at the top free plan.
-if [ "$qc_mode" = "unsupervised" ] && [ -z "$reqs" ]; then
-  qc_goal_reached "$ref"
-  exit 0
-fi
 
 free_count=0
 free_list=""
@@ -886,52 +765,12 @@ if [ "$free_count" -ge 2 ] && [ "$scoped_any" = "1" ]; then
       "$unscoped"
   [ -z "$unplanned" ] ||
     printf 'Plus one planning session for the UNPLANNED requirements above.\n'
-  if [ "$qc_mode" = "unsupervised" ]; then
-    # Wave 1 ONLY. A later wave conflicts with wave 1 on a named path, so it
-    # is the next generation, never this one — the hook already proved which
-    # plans are pairwise disjoint and this must not widen that answer.
-    w1=""
-    w1_n=0
-    for m in ${waves[0]}; do
-      w1="${w1:+${w1}, }${free_names[$m]} (${free_tiers[$m]})"
-      w1_n=$((w1_n + 1))
-    done
-    if [ "$w1_n" -ge 2 ]; then
-      printf '\nUNSUPERVISED: start one session per wave-1 plan NOW, each on the\n'
-      printf 'tier named: %s.\n' "$w1"
-    else
-      # One plan is not a fan-out. Spawning a child to do what this session
-      # can do costs a container for nothing
-      # (.agents/docs/unsupervised.md, Run a plan, or fan out?).
-      printf '\nUNSUPERVISED: one plan is parallel-safe right now — claim and run\n'
-      printf '%s in THIS session. Do not spawn for one.\n' "$w1"
-    fi
-    [ "${#waves[@]}" -le 1 ] ||
-      printf 'Later waves conflict with wave 1 on the paths named above: next\ngeneration, not this one.\n'
-    [ -z "$unscoped" ] ||
-      printf 'Never the unscoped plans: independence unproven, and unproven is\nnot disjoint.\n'
-    # A resumed or compacted session may already hold a claim, and this hook
-    # cannot see it — the claim lives in a workstream file on the branch,
-    # which handover-context.sh prints and this one does not read. Loop step
-    # 1 wins there, so say so rather than order a fleet on top of work in
-    # progress.
-    printf 'Holding a claim on this branch already? Step 1 wins: finish it,\nspawn nothing.\n'
-  fi
 elif [ "$free_count" -ge 2 ]; then
   printf '\n%d free plans = %d parallel sessions. Spawn one per plan, model = its\n' \
     "$free_count" "$free_count"
   printf 'tier: %s.\n' "$free_list"
   [ -z "$unplanned" ] ||
     printf 'Plus one planning session for the UNPLANNED requirements above.\n'
-  if [ "$qc_mode" = "unsupervised" ]; then
-    # No plan here declares scope:, so nothing above is a proof — the line
-    # this branch prints is the old unconditional promise, kept for the
-    # supervised reader who can judge it. An unattended session cannot, so
-    # it is told the one safe thing instead.
-    printf '\nUNSUPERVISED: no plan here declares scope:, so independence is\n'
-    printf 'unproven — take ONE piece of work in THIS session, requirements\n'
-    printf 'above first. Never spawn on an assumption the queue has not proved.\n'
-  fi
 elif [ "$free_count" -eq 0 ] && [ -z "$unplanned" ] &&
      [ "$qc_unreadable" -eq 0 ] && [ "$research_count" -gt 0 ]; then
   # Every plan claimed or blocked, questions still open. Not the edge, for
@@ -941,8 +780,7 @@ elif [ "$free_count" -eq 0 ] && [ -z "$unplanned" ] &&
   # TERMINAL, and that is the whole point of the exit. Falling through here
   # reached the tail, which says "top free plan above" — naming a free plan
   # that by definition does not exist in this state, and never naming the
-  # question that does. The unsupervised edge below carries a comment about
-  # having made exactly this mistake once already; this branch made it again.
+  # question that does.
   printf '\nNo free plan, but %d open question(s) above — not the edge.\n' \
     "$research_count"
   printf 'Settling one is queue work, and a plan blocked on it goes free.\n'
@@ -953,37 +791,14 @@ elif [ "$free_count" -eq 0 ] && [ -z "$unplanned" ] &&
 elif [ "$free_count" -eq 0 ] && [ -z "$unplanned" ] &&
      [ "$qc_unreadable" -eq 0 ]; then
   if [ "$qc_mode" = "unsupervised" ]; then
-    printf '\n'
-    qc_edge_unsupervised "$ref" "no free plan"
-    # The de-ranked plans, NAMED at the one place the mode is told to invent
-    # work. Silence here is the failure this whole change exists to stop,
-    # wearing its other face: the fleet reaches the edge, cannot see the plan
-    # it was just de-ranked away from, and writes a second plan for the same
-    # finding. The row list is the source — one reader of that fact, and the
-    # marking above is it.
-    # awk on the tab-separated row, not a sed with a `\t` in its pattern:
-    # BSD sed does not read that escape as a tab, and this hook runs on the
-    # bash and sed macOS ships.
-    supervised_only="$(awk -F'\t' '$4 ~ /SUPERVISED ONLY/ { print "  " $3 }' <<<"$rows")"
-    if [ -n "$supervised_only" ]; then
-      printf '\nNOT a gap to fill — %d plan(s) here are SUPERVISED ONLY:\n' \
-        "$(printf '%s\n' "$supervised_only" | grep -c . || :)"
-      printf '%s\n' "$supervised_only"
-      printf 'Every path in their scope: is protocol text, which a session\n'
-      printf 'running unattended may not commit (docs/product/unsupervised-mode.md,\n'
-      printf 'Constraints). They are real work and they are not yours: leave\n'
-      printf 'them for a supervised session, and do NOT file a new plan for\n'
-      printf 'what one of them already covers.\n'
-    fi
-    # Terminal, like the other edge path. Falling through printed "top free
-    # plan above" under an order to generate work, naming a free plan that by
-    # definition does not exist here — the two paths shared the function and
-    # then delivered it in incompatible contexts.
-    printf '\n'
+    # Nothing here is free FOR THIS MODE, and the supervised tail below
+    # ("top free plan above") would point at a plan that is not. The marked
+    # rows are why the edge is reached; say so and stop — the trap prints
+    # the pointer, and drain says what the edge means.
+    printf '\nEdge reached: no free plan — every plan claimed, blocked or SUPERVISED ONLY.\n'
     exit 0
-  else
-    printf '\nEdge reached: no free plan — every plan claimed or blocked. done.\n'
   fi
+  printf '\nEdge reached: no free plan — every plan claimed or blocked. done.\n'
 fi
 
 printf '\n'

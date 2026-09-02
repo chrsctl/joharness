@@ -27,17 +27,19 @@ the next item waits for a human. This command is the loop that does not.
 
 ## What stops it
 
-The mode, not this command. `./joharness.sh mode` says which.
+The mode, not this command. `./joharness.sh mode` says which; `drain` prints
+the stop.
 
-- **supervised** — DRAINED means no free plan and no open question. Stop and
-  ask. Do NOT invent work; that is the other mode.
-- **unsupervised** — an empty queue is a trigger, not a stop. `drain` defers
-  to the source sweep and stops only when it is dry (every detector zero
-  twice, queue empty, no open pull request).
+- **supervised** — DRAINED means no unplanned requirement, no free plan, no
+  open question. Stop and ask. Do NOT invent work; that is the other mode.
+- **unsupervised** — an empty queue is a trigger. `drain` prints GOAL
+  REACHED (no open requirement) itself, and names the other stop: sweep dry
+  (`./joharness.sh sources`, run by you) with the queue empty and no edge
+  work in flight. Say which fired.
 
-Width is the mode's too, and is not a separate setting. Supervised drains
-serially in this session. Unsupervised carries the queue hook's own fan-out
-order, one session per wave-1 plan.
+Width is the mode's too. Under unsupervised `drain` prints the wave-1
+order — first plan here, one session per other member; supervised drains
+serially in this session.
 
 ## Limits, stated rather than engineered around
 

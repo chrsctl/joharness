@@ -232,14 +232,14 @@ if [ "${JOHARNESS_SESSION_SOURCE:-}" = "compact" ]; then
   # THE BOUNDARY THE MODE KEEPS, not the layer-coupling one. The graduated
   # page is specific: "a session that keeps its task and loses its boundary is
   # precisely what unsupervised mode exists to prevent" — that is step 2's
-  # `no commit under .agents/harness/`, not Part 2's "names no environment".
+  # `no commit to protocol text`, not Part 2's "names no environment".
   # The first version of this line shipped the second rule, and worse for a
   # consumer: Part 2 lives in the ROOT AGENTS.md, which the sync splices
   # ABOVE and never overwrites, so the rule it pointed at does not exist
   # there at all. Both facts below are in .agents/harness/AGENTS.md, which
   # ships whole.
   add "  .agents/harness/AGENTS.md — the Loop, and the boundary step 2"
-  add "  keeps: no commit under .agents/harness/."
+  add "  keeps: no commit to protocol text (./joharness.sh protocol-paths)."
   add ""
   # Read, never re-resolved. cmd_session_start exports JOHARNESS_RUN_MODE
   # after resolving it once; a hook that worked the mode out again is two
@@ -249,7 +249,7 @@ if [ "${JOHARNESS_SESSION_SOURCE:-}" = "compact" ]; then
   # supervised session .agents/docs/unsupervised.md is context for a mode it
   # is not in, and every line here is paid on read.
   if [ "${JOHARNESS_RUN_MODE:-supervised}" = "unsupervised" ]; then
-    add "  Its rules and its one stop: .agents/docs/unsupervised.md."
+    add "  Its rules and its two stops: .agents/docs/unsupervised.md."
   fi
   add ""
   # The third thing, which is neither the rules nor the task state: a session
