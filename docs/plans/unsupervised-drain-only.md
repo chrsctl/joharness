@@ -72,14 +72,22 @@ Decision 1 — the edge is the stop:
 - `joharness.sh` — delete the baseline: `FB_SINCE`, `fb_since_ok`,
   `FB_SINCE_OK`, `FB_UNMARKED_SINCE`, the `since_set` walk inside
   `fb_collect`, `JOHARNESS_FEEDBACK_SINCE`, and every reader of those
-  names. They ride the on-disk feedback cache (`FB_CACHE_VARS`,
-  `fb_cache_load`, `fb_cache_save`): dropping two fields changes that
-  format, so a cache written before this change must not load after it —
-  make `fb_cache_key` or the loader reject the old shape rather than read
-  it wrong. `FB_UNMARKED` (all history) stays; `feedback` keeps printing it.
+  names. Two of them ride the on-disk feedback cache: drop them from
+  `FB_CACHE_VARS` and from the `case` arms in `fb_cache_load`. Nothing
+  else changes there — that loader already answers an unknown name with
+  `ok=0` and `return 1`, so a cache written before this change is a miss
+  and a re-walk, never a misread. `FB_UNMARKED` (all history) stays;
+  `feedback` keeps printing it.
 - `joharness.sh` — delete `lint_plan_advances` and its `== plan provenance`
   stage in `cmd_ci`. `source:`, `evidence:` and `advances:` existed only on
   generated plans; a plan a human writes carries none.
+- Comments in KEPT code that name a deleted symbol get reworded, not
+  left: the comment block above `lint_requirement_writes` (names
+  `cmd_sources` and `FB_SINCE`), the comment above `fb_marker` (`FB_SINCE`),
+  the comment block above `qc_mode` in `queue-context.sh` (`SUPERVISED
+  ONLY`), and the case comments in `review.sh` on the finding-verdicts
+  and requirement-authorship cases (`cmd_sources`, `drain_goals`). The
+  acceptance grep is the completeness check and it reads comments too.
 - `joharness.sh` — `cmd_drain`: delete the goal block (GOAL REACHED) and
   `drain_goals`; delete the whole unsupervised arm after "Nothing free"
   (NOT YOURS, "queue empty, N goal(s) open — trigger", the sweep menu).
@@ -88,14 +96,18 @@ Decision 1 — the edge is the stop:
   under supervised ONLY, unchanged; under unsupervised they are replaced
   by ONE line: exit, the heartbeat re-seeds, nothing is invented. Printed
   as they are to an unsupervised session they would tell it it is not in
-  unsupervised mode. The usage-header text for `drain` says the same.
+  unsupervised mode. The usage-header text for `drain` says the same, and
+  so does the `description:` line of `.claude/commands/drain.md`.
 - `joharness.sh` — `cmd_session_start`, the `== Mode: unsupervised ==`
   banner: the three lines "Queue edge is a trigger, not a stop ... which
   stop fired (goal reached, or sweep dry)" become one that says the queue
   is the whole of the work — `./joharness.sh drain` names the item, take
   it, run the full Loop, merge your own pull request, exit at the edge.
-  The header line and the boundary lines after it stay; `autonomy-mode.sh`
-  pins the header.
+  The header line and the boundary lines after it stay.
+  `.agents/harness/selftest/autonomy-mode.sh` pins both: its case "and
+  names both stops" asserts `sweep dry` in the banner and goes, replaced
+  by one case asserting the new line; the header case stays. That is the
+  only edit that file gets.
 - `.agents/harness/handover-context.sh` — the compaction pointer "Its
   rules and its two stops: .agents/docs/unsupervised.md." loses "and its
   two stops".
@@ -109,25 +121,42 @@ Decision 1 — the edge is the stop:
   FATAL on a listed topic with no file and on a tracked file nobody lists,
   so file and list entry go in the same commit.
 - `.agents/harness/selftest/drain.sh` — delete every case that pins GOAL
-  REACHED, the goal count, the sweep menu, or the NOT YOURS block: "drain
-  reads the mode from the environment too" through "and what NOT dry
-  means", "no open requirement stops the fleet" through "a TEMPLATE does
-  not count as an open goal", "unsupervised is never handed the plan it
-  cannot commit", "both plans it cannot take are named". The supervised
-  cases stay untouched, "supervised does not pay for the sweep" included.
+  REACHED, the goal count, the sweep menu, or the NOT YOURS block, BY
+  NAME: "drain reads the mode from the environment too", "an empty queue
+  under unsupervised is a trigger, not a stop", "and says how many goals
+  kept it going", "unsupervised names the sweep", "and never runs it",
+  "and says what dry means", "and what NOT dry means", "no open
+  requirement stops the fleet", "and says it is not the sweep's stop",
+  "and does not pay for the sweep it did not need", "and never reads as
+  the trigger", "a TEMPLATE does not count as an open goal", "unsupervised
+  is never handed the plan it cannot commit", "both plans it cannot take
+  are named". Fixture lines between those cases are a CHAIN: a file
+  written there (the TEMPLATE write, `serves-goal.md`, `goalclaimer`) is
+  removed by a `fixture_rm` further down, and `fixture_rm` is `git rm`
+  that aborts on a missing path, leaving every later case on a different
+  tree — the comment beside that `fixture_rm` records it biting once.
+  Trace each fixture file written inside a deleted stretch to its
+  removal; delete write and removal together, or keep both. Run the topic
+  after each case removed, not once at the end. The supervised cases stay
+  untouched, except "supervised does not pay for the sweep": it refutes a
+  string no mode can print once `cmd_sources` is gone, so it goes too.
   Add one case: under `JOHARNESS_MODE=unsupervised` with every plan
   claimed and no unplanned requirement, `drain` prints `DRAINED`, exits 0,
   and its output contains no `sources`. Add one case: on the same fixture,
   the supervised output is the exact `DRAINED` block text of today.
-- `.agents/harness/selftest/queue-context-edge.sh` — the identity case
-  "queue-context.sh reports in both modes" STAYS and is the pin for the
-  requirement's byte-identical bullet; delete the cases asserting a
-  divergence ("and unsupervised stops short of the tail", "supervised
-  keeps its tail"), and rewrite "no free plan is the edge, in both modes"
-  to assert the identical edge line.
+- `.agents/harness/selftest/queue-context-edge.sh` — the `eq_same`
+  helper (under the step "queue-context.sh reports in both modes", called
+  five times) is the pin for the requirement's byte-identical bullet and
+  STAYS — but two of its lines go: the assertion that the unsupervised
+  output's last line is "./joharness.sh drain orders" (the `trap` this
+  plan deletes) and the `uns="${uns%...}"` strip under it. After that the
+  helper diffs the two outputs whole, which is the stricter pin. Delete
+  the cases asserting a divergence ("and unsupervised stops short of the
+  tail", "supervised keeps its tail"), and rewrite "no free plan is the
+  edge, in both modes" to assert the identical edge line.
 - `.agents/harness/selftest/review.sh` — delete the `lint_plan_advances`
-  cases (the `withadv` and `stale` plan fixtures, `review.sh:843` and
-  `:853` on 15c5df8). The `lint_requirement_writes` cases STAY.
+  cases (the ones writing the `withadv` and `stale` plan fixtures). The
+  `lint_requirement_writes` cases STAY.
 - `.agents/docs/plans/README.md` — delete the section "Where unsupervised
   work comes from" whole (its two subsections included). In its place,
   one short paragraph under "Lifecycle": unsupervised drains this queue
@@ -141,10 +170,13 @@ Decision 1 — the edge is the stop:
   or stop — and names the two stops: goal reached, sweep dry.": rewrite
   to say the one difference — at the edge an unsupervised session exits
   and says DRAINED instead of asking, and invents nothing; the boundary
-  sentence after it stays. The `/drain` paragraph below the Loop:
-  "unsupervised when `drain` names a stop, goal reached or sweep dry"
-  becomes one item per session in both modes (decision 2); keep the
-  measured stall numbers, they are the reason the heartbeat exists.
+  sentence after it stays. The `/drain` paragraph below the Loop: its
+  first sentence ("`/drain` runs the Loop again, item after item, until
+  the MODE says stop — supervised at the queue edge, unsupervised when
+  `drain` names a stop, goal reached or sweep dry") becomes one item per
+  session in both modes, the next item being the next session's
+  (decision 2); keep the measured stall numbers, they are the reason the
+  heartbeat exists.
 - `docs/product/unsupervised-mode.md` — Goal, both paragraphs: the edge
   is DRAINED and exit; the heartbeat, not generation, keeps the fleet
   alive; the mode stays a switch with supervised the default; the second
@@ -214,13 +246,16 @@ Decision 3 — claim by push, detect at merge:
   branch (`drain_wave1`, "take it in THIS session", "spawn NOW: one session
   per remaining wave-1 plan", "Later waves", "no wave proven",
   "Holding a claim"). Both modes print `next:`. Under unsupervised ONE
-  line follows it: every other free row the hook printed (the same filter
-  `drain_plan` uses, every match rather than `head -1`), as "spawn one
-  session per: <plans with tiers>; a collision is the reconcile step 7
-  already requires" — omitted when there is none. Keep the edge-first
-  line when edge work is in flight. Delete `drain_supervised_only`,
-  `drain_wave1`, and the `SUPERVISED ONLY` alternative in `drain_plan`'s
-  filter.
+  line follows it: every other free PLAN row the hook printed — rows
+  matching `^  \(docs/plans/[^ ]*\.md\)  \(.*\)$` that carry neither
+  `claimed on` nor `blocked by`, all of them, minus the one `next:` named;
+  research rows never (they carry no tier and are a session's question,
+  not a fan-out) — as "spawn one session per: <path (agent: tier)>, ...;
+  a collision is the reconcile step 7 already requires". Omitted when the
+  list is empty. Keep the edge-first line when edge work is in flight.
+  Delete `drain_supervised_only`, `drain_wave1`, and the `SUPERVISED ONLY`
+  alternative in `drain_plan`'s filter — that filter change lands in the
+  same commit as the spawn line, so "free" means one thing.
 - `.agents/harness/selftest/queue-context-supervised-only.sh` — delete,
   with its `SELFTEST_TOPICS` entry.
 - `.agents/harness/selftest/queue-context-fanout.sh` — delete the two
@@ -247,11 +282,11 @@ Decision 3 — claim by push, detect at merge:
   `.agents/docs/unsupervised.md`, the `authority` constraint of the
   requirement, the `authority` sentence in `joharness.conf`. Decision 4
   is a credential decision and the human's. Leave every line.
-- `run_mode`, `cmd_mode_set`, the `mode` subcommand, the session-start
-  `== Mode: unsupervised ==` header line,
-  `.agents/harness/selftest/autonomy-mode.sh` (146 lines; it tests the
-  switch, not authority — `grep -c authority` on it is 0). The switch
-  stays exactly as it is.
+- `run_mode`, the `mode)` dispatch arm, the session-start
+  `== Mode: unsupervised ==` header line, and every case of
+  `.agents/harness/selftest/autonomy-mode.sh` but the one Scope names
+  (146 lines on 15c5df8; it tests the switch, not authority — `grep -c
+  authority` on it is 1, a comment). The switch stays exactly as it is.
 - `.agents/harness/handover-guard.sh`'s unsupervised boundary and
   `joharness.sh:protocol_paths`. They ARE the detect half of decision 3.
   Not one line.
@@ -307,22 +342,26 @@ Decision 3 — claim by push, detect at merge:
 - `diff <(JOHARNESS_RUN_MODE=supervised bash .agents/harness/queue-context.sh) <(JOHARNESS_RUN_MODE=unsupervised bash .agents/harness/queue-context.sh)`
   — empty, on this repo and on every fixture the identity case in
   `queue-context-edge.sh` builds.
-- `git worktree add ../before origin/main && diff <(cd ../before && JOHARNESS_MODE=supervised ./joharness.sh drain | sed -n '/^NOT DRAINED\|^DRAINED/,$p') <(JOHARNESS_MODE=supervised ./joharness.sh drain | sed -n '/^NOT DRAINED\|^DRAINED/,$p')`
-  — empty. Compared from the verdict line down, because the in-flight
-  block above it legitimately differs: the worktree is detached, so
-  `handover-context.sh` excludes this branch on one side and not the other.
-  Both sides read the queue rows from `origin/main`.
+- Supervised `drain` unchanged: every supervised case in `drain.sh`
+  passes untouched, plus the new exact-text `DRAINED` case. A before/after
+  diff of `drain` on THIS repo proves nothing — the unplanned requirement
+  makes it return at `drain_requirement` before any rewritten line — so
+  the fixture cases are the bar, not a live run.
 - `./joharness.sh feedback` — the `volume` line still prints
-  `<N> findings` and an `unmarked` count (the all-history count survives;
-  only the baseline goes). `JOHARNESS_FEEDBACK_SINCE=15c5df8 ./joharness.sh
-  feedback` prints the same numbers as without it — the variable reads
-  nowhere.
+  `<N> findings` and an `unmarked` count. A guard that the all-history
+  count survived, not a pin on the baseline's deletion: `feedback` never
+  printed the baseline (only `cmd_sources` did), so no runtime bar can
+  observe it going; the acceptance grep is that pin.
 - `wc -l joharness.sh .agents/harness/queue-context.sh` and
   `cat .agents/harness/selftest/*.sh | wc -l` — each smaller than the
   baseline in Goal; write all six numbers with the command and date in the
   workstream file.
-- The new `drain.sh` cases FAIL with the `cmd_drain` change reverted and
-  pass with it back (Loop step 5: green both ways pins nothing).
+- Two of the new `drain.sh` cases FAIL with the `cmd_drain` change
+  reverted and pass with it back: the unsupervised `DRAINED` case and the
+  two-free-plans spawn-line case (Loop step 5: green both ways pins
+  nothing). The other two — the exact-text supervised `DRAINED` case and
+  the one-free-plan no-spawn case — are guards and pass both ways by
+  design; do not bend them to fail.
 - `./joharness.sh finish` — green at the edge; this plan file,
   `docs/plans/advance-feedback-baseline.md` and the workstream file are
   deleted in the last commit before the pull request opens.
@@ -356,8 +395,10 @@ Decision 3 — claim by push, detect at merge:
 - `.agents/harness/queue-context.sh:qc_scope_class` — the marking, the
   row-loop lines under it that read `qc_class`, and the `qc_protocol` read
   above it.
-- `.agents/harness/queue-context.sh:qc_mode` — read at the top and by the
-  `trap` right under it; the last thing to delete.
+- `.agents/harness/queue-context.sh:qc_mode` — six readers on 15c5df8
+  (the assignment, the `trap`, the `protocol-paths` read, the row-loop
+  marking, the boundary-unread block, the edge arm); the variable is the
+  last thing to delete.
 - `.agents/harness/queue-context.sh:scopes_overlap` — STAYS; the wave
   partition the supervised report is built on.
 - `.agents/harness/handover-context.sh` — the "Its rules and its two
@@ -372,14 +413,16 @@ Decision 3 — claim by push, detect at merge:
   whole.
 - `.agents/harness/selftest/drain.sh` — the `ddrain` helper; the cases
   named above to cut, and the three to add.
-- `.agents/harness/selftest/queue-context-edge.sh` — the identity case,
-  which is the pin for byte-identical supervised output.
+- `.agents/harness/selftest/queue-context-edge.sh` — the `eq_same`
+  helper, which is the pin for byte-identical supervised output; the two
+  trap lines inside it go.
 - `.agents/harness/selftest/queue-context-fanout.sh` — the two trap cases.
 - `.agents/harness/selftest/review.sh` — the `withadv` / `stale` fixtures
   are the `lint_plan_advances` cases; the requirement-authorship cases
   above them stay.
-- `.agents/harness/selftest/autonomy-mode.sh` — STAYS; named here so
-  nobody deletes it as "the authority test".
+- `.agents/harness/selftest/autonomy-mode.sh` — STAYS but for the one
+  banner case "and names both stops"; named here so nobody deletes the
+  file as "the authority test".
 - `.claude/commands/drain.md` — the command decision 2 rewrites.
 - `.agents/docs/unsupervised.md` — "What the mode changes", "The two
   stops", "Heartbeat" change; "Authority", "Runs", "Not constrained"
@@ -409,12 +452,9 @@ Decision 3 — claim by push, detect at merge:
   keeps that case. Cutting a case to get green is the thing step 5 forbids.
 - `SELFTEST_TOPICS` and the files are checked both ways and the check is
   FATAL, not one failure among hundreds. Same commit, always.
-- Do not touch `cmd_authority`, `authority.sh`, `autonomy-mode.sh`,
-  `run_mode`, the guard, `protocol_paths`. Named in Out of scope for a
-  reason each.
-- The feedback cache: a field dropped from `FB_CACHE_VARS` is a format
-  change. A cache from before this change loading after it reads garbage
-  into the surviving counters. Reject, do not read.
+- Do not touch `cmd_authority`, `authority.sh`, `run_mode`, the guard,
+  `protocol_paths`; in `autonomy-mode.sh` only the one banner case. Named
+  in Out of scope for a reason each.
 - Requirement file: EDIT, never add one, never delete this one.
   `lint_requirement_writes` reds an added file under unsupervised, and this
   is not the last plan.

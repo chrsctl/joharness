@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_017oZ8o5q2YRzjFT1eTnx4Cs
 agent: opus
 updated: 2026-09-02
-next: Spawn the verifier on the rewritten plan, record and fix, retire this file again, open the pull request.
+next: Retire this file, open the pull request, hand the merge to the human.
 ---
 
 ## Goal
@@ -82,9 +82,10 @@ Made this session, while writing the plan:
   invents; a session that invents nothing is bounded by the queue.
   `lint_requirement_writes` stays — cheap, and still true.
 - Correction to the earlier line under decision 4: `selftest/autonomy-mode.sh`
-  (330) tests `run_mode`, the marker and the conf — the switch, which stays.
-  `grep -c authority` on it = 0. The file decision 4 deletes is
-  `selftest/authority.sh` (136). Fixed above.
+  tests `run_mode` and the conf — the switch, which stays (`grep -c
+  authority` on it: 0 at 4cae61a, 1 at 15c5df8, a comment). The file
+  decision 4 deletes is `selftest/authority.sh` (136 at 4cae61a, 117 at
+  15c5df8, `wc -l`). Fixed above.
 - Reconciled 2026-09-02 with PR `simplify-unsupervised-mode` (`main`
   15c5df8), which merged mid-session: one switch, `drain` orders, two
   stops, marking kept. It is the first cut inside the old design; decisions
@@ -201,6 +202,55 @@ Round 3, self, after `main` moved (merge 7cc2409):
   `drain` listing every other free row, no wave gate — decision 3 as
   written, and `drain` stays the one reader that orders)
 
+Round 4, verifier at opus on the rewrite, 13 findings + 5 minor:
+
+- r25: (verifier) `autonomy-mode.sh` pins `sweep dry` in the banner the
+  plan rewrites, and Out of scope forbade touching the file — acceptance
+  and Out of scope unsatisfiable together. (fixed: that one case scoped,
+  the rest of the file stays)
+- r26: (verifier) `queue-context-edge.sh`'s `eq_same` asserts the trap's
+  last line five times; the plan deletes the trap and named neither.
+  (fixed: the two trap lines in the helper scoped; the helper diffs whole)
+- r27: (verifier) `JOHARNESS_FEEDBACK_SINCE` acceptance green before the
+  change — `feedback` never read the baseline. r7 back in a new coat.
+  (fixed: bullet says so; the grep is the pin, no runtime bar exists)
+- r28: (verifier) acceptance grep hits comments in kept code
+  (`lint_requirement_writes`, `fb_marker`, `review.sh` cases, the block
+  above `qc_mode`). (fixed: rewording those comments is in Scope)
+- r29: (verifier) `drain.sh` "through" ranges cut a fixture chain; a
+  `fixture_rm` then aborts and every later case runs on the wrong tree.
+  (fixed: cases named one by one, the chain rule and the file's own trap
+  comment stated, run the topic after each removal)
+- r30: (verifier) "new cases fail without the change" false for the two
+  guard cases. (fixed: the two that pin named, the two guards named as
+  guards)
+- r31: (verifier) before/after `drain` diff vacuous here — the unplanned
+  requirement returns before any rewritten line. r11's fix did not go
+  far enough. (fixed: bullet replaced by the fixture cases)
+- r32: (verifier) cache premise false — `fb_cache_load` already rejects
+  unknown names, a stale cache is a miss. (fixed: scope and trap
+  rewritten; no key change)
+- r33: (verifier) `grep -c authority` on `autonomy-mode.sh` is 1 on
+  15c5df8, 0 was 4cae61a's. (fixed, both files)
+- r34: (verifier) spawn-line filter would also list research rows.
+  (fixed: plan rows only, regex given, commit order stated)
+- r35: (verifier) `drain.md` `description:` and AGENTS.md "item after
+  item" survive the rewrite and contradict decision 2. (fixed: both
+  scoped)
+- r36: (verifier) this file's Where to look anchored `src_stop_condition`
+  and `qc_edge_unsupervised`, gone on 15c5df8. (fixed)
+- r37: (verifier) `cmd_drain` 140 / `cmd_authority` 86 carried no ref;
+  152 / 51 on 15c5df8. (fixed: both refs beside both numbers)
+- r38: (verifier) `cmd_mode_set` does not exist. (fixed: the `mode)`
+  dispatch arm)
+- r39: (verifier) `review.sh:843`/`:853` line numbers where the plan
+  README wants symbols. (fixed: fixture names only)
+- r40: (verifier) "identity case" is a step title, the cases are inside
+  `eq_same`. (fixed)
+- r41: (verifier) `qc_mode` has six readers, not two. (fixed)
+- r42: (verifier) "supervised does not pay for the sweep" refutes a string
+  no mode can print after the change. (fixed: the refute goes too)
+
 ## Blockers
 
 Decision 4 needs human: PAT or GitHub App secret in repo. Without it,
@@ -208,14 +258,17 @@ heartbeat stays Routine at 1h floor and `cmd_authority` stays.
 
 ## Where to look
 
-- `joharness.sh:cmd_sources` — with `src_stop_condition` 459 lines, largest
-  unsupervised cost, goes with decision 1.
-- `joharness.sh:cmd_drain` — 140 lines, rewrite to claim-one-exit.
-- `joharness.sh:cmd_authority` — 86 lines, goes with decision 4.
+- `joharness.sh:cmd_sources` — 122 lines on 15c5df8 (459 with
+  `src_stop_condition` on 4cae61a, since folded), largest unsupervised
+  cost, goes with decision 1.
+- `joharness.sh:cmd_drain` — 152 lines on 15c5df8 (140 on 4cae61a; `awk`
+  from the function line to its `}`), rewrite to claim-one-exit.
+- `joharness.sh:cmd_authority` — 51 lines on 15c5df8 (86 on 4cae61a), goes
+  with decision 4.
 - `.agents/harness/queue-context.sh:qc_scope_class` — wave partition
-  marking, decision 3.
-- `.agents/harness/queue-context.sh:qc_edge_unsupervised` — edge
-  generation, decision 1.
+  marking, decision 3. The edge-generation printer it sat beside
+  (`qc_edge_unsupervised`) is already gone on 15c5df8; the edge arm and
+  the EXIT trap are what remain.
 - `.agents/harness/selftest/sources.sh` — with `drain.sh`,
   `queue-context-edge.sh`, `queue-context-fanout.sh`,
   `queue-context-supervised-only.sh`: the selftests decisions 1-3 delete
