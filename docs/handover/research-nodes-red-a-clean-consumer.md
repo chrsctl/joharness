@@ -1,6 +1,6 @@
 ---
 workstream: research-nodes-red-a-clean-consumer
-status: in-progress
+status: review
 branch: claude/document-routing-metadata-ib6nfc
 pr: none
 plan: research-node-routing-supersedes-frontmatter
@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01Tf1txC8UWbDudKu12aPUfA
 agent: opus
 updated: 2026-09-02
-next: Re-run mutate on the reconciled tree, then open the pull request
+next: Open the pull request and merge it
 ---
 
 ## Reconcile with main (2026-09-02)
@@ -73,7 +73,18 @@ that keep the graph sound long term, not just at this edge.
   (lint only guards edges; what main accreted before this feature never
   crosses an edge again until touched). Count only — never staged by
   --apply: a consumer's documents are not the harness's to delete.
-- Verified 2026-09-02, this branch: suite 1199 passed / 1 failed
+- Verified on the RECONCILED tree, 2026-09-02: suite 1275 passed / 1
+  failed / 1 skipped. The 1 failed is `perf graph`, 412 counted against
+  a 260 budget — measured at 412 on clean `origin/main` (db481b2) in
+  this same container, so it is main's and this diff adds nothing to it.
+  The 1 skipped is `queue fallback end to end`, which guards on
+  origin/main carrying a plan; main's queue is currently empty.
+  Both ways: `git checkout origin/main -- joharness.sh
+  .agents/harness/queue-context.sh` with the tests kept reds 25 of the
+  new cases (26th is that perf one). Mutate on the reconciled tree:
+  the shared parser's split reds 4, the anchored content guard reds 1.
+- Earlier numbers, pre-reconcile, kept because they measured the
+  candidate-5 diff against the OLD base: suite 1199 passed / 1 failed
   (`bash .agents/harness/selftest.sh`; the 1 is `perf graph` over budget
   on UNMODIFIED main in this container too — environmental, green on
   GitHub). Both ways: fix stashed, tests kept, 17 new cases red. Mutate
