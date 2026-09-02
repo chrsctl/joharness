@@ -29,6 +29,31 @@ hook's label for the same files, because that is what a session reading the
 hook is being offered. No glossary row: the two are not rival spellings of
 one term, and a substring ban on either would fire on prose that is correct.
 
+### What makes a file a node
+
+`docs/research/` may also hold plain reference documents — prose a session
+wrote that is not a scheduled question. This is the one queue directory
+with that split: `docs/plans/` and `docs/handover/` hold nothing but nodes,
+and a frontmatter-less file there is malformed, not exempt.
+
+Which side a file falls on is decided by ROUTING, spelled out under "Which
+files are nodes" below. A consumer synced before this protocol carries
+research prose with no frontmatter at all, and routing leaves those files
+alone with no edit — where a required opt-out marker would red every one
+until a human touched it (`chrsctl/gx#226`: 13 documents, a green consumer
+turned red by the sync alone).
+
+An earlier rule here read **"a node opens with a `---` block; a document
+does not"** and claimed a node could not lose the block by accident and
+still be a node — "a node stripped of its `---` is a legibly-not-a-node
+document". That is the claim routing replaces, and it did not hold.
+Measured against it as merged (`3144936`), fixture identical to the
+suite's `decayed-q.md`: a real node rebuilt from its `## Question`
+heading onward — the PR 140 shape, which is how a node actually loses its
+block — printed `edges sound (0 plans, 0 research, ...)`. No red, not
+listed, not counted. Legible to a human reading the directory; invisible
+to every reader that schedules.
+
 - **Question** — one sentence, answerable. A question with no evidence that
   could settle it is not a research question. It is a topic, and a topic
   never closes.

@@ -105,6 +105,11 @@ queue_files() {
     grep -E '\.md$' | grep -vE '/(TEMPLATE|README|VISION)\.md$'
 }
 
+# The frontmatter_only filter that sat here (PR 184) is GONE: routing
+# decides nodehood in the rrows loop below, one test shared with
+# joharness.sh:lint_graph and cmd_graph. "Opens with ---" answered a
+# cheaper question than "is a node", and it also cost a `git show` per
+# candidate file on top of the one the loop already does.
 plans="$(queue_files "$PLANS_DIR")"
 research="$(queue_files "$RESEARCH_DIR")"
 reqs="$(queue_files "$PRODUCT_DIR")"

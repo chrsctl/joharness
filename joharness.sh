@@ -1423,6 +1423,15 @@ lint_warn() { printf '  warn %s\n' "$*"; LINT_WARNED=1; }
 
 # Working-tree nodes of one type, paths relative to ROOT. The tree, not a
 # ref: ci judges what this branch is about to push, uncommitted included.
+# The frontmatter-presence filter this function briefly carried (PR 184, a
+# second 'frontmatter' arg) is GONE, subsumed by routing in lint_graph:
+# "opens with ---" and "is a node" are not the same question, and the gap
+# between them was the escape hatch the plan named. Measured on that
+# implementation at 3144936, fixture identical to the selftest's
+# decayed-q.md: a real node rebuilt from its `## Question` heading onward —
+# the PR 140 shape — printed `edges sound (0 plans, 0 research, ...)`. No
+# red, not listed, not counted. Routing decides nodehood instead, and
+# history convicts a dropped block (lint_graph, "was a node").
 lint_nodes() {
   [ -d "${ROOT}/$1" ] || return 0
   (cd "$ROOT" && find "$1" -maxdepth 1 -name '*.md' \
@@ -1655,11 +1664,8 @@ lint_graph() {
     # never there = a typo. A typo here reads as "nothing blocks this plan",
     # so it is red where the history can prove it.
     if [ -n "$rq" ] && [ "$rq" != "none" ]; then
-      read -ra rq_list <<<"${rq//,/ }"
-      [ "${#rq_list[@]}" -gt 0 ] || rq_list=("")
-      for n in "${rq_list[@]}"; do
-        n="$(lint_stem "$n")"
-        { [ -n "$n" ] && [ "$n" != "none" ]; } || continue
+      while IFS= read -r n; do
+        [ -n "$n" ] || continue
         rrefs="${rrefs}${n}
 "
         [ -f "${ROOT}/docs/research/${n}.md" ] && continue
@@ -1669,7 +1675,7 @@ lint_graph() {
         else
           lint_red "${rel}: research '${n}' — no such question, never existed. Plan reads as unblocked; typo?"
         fi
-      done
+      done < <(gr_edge_stems "$rq")
     fi
     r="$(lint_stem "$r")"
     if [ -n "$r" ] && [ "$r" != "none" ] &&
@@ -1715,9 +1721,17 @@ lint_graph() {
     fstem="$(lint_stem "$rel")"
     if [ -z "$rstem" ] &&
        ! printf '%s' "$rrefs" | grep -qxF -- "$fstem"; then
-      if ! grep -qF -- "research: ${fstem}" "${ROOT}/${rel}" 2>/dev/null &&
+      # Both halves anchored to the FRONTMATTER LINE, not to a substring
+      # (r5). `-S"research: <stem>"` missed a key written `research:x` with
+      # no space — gr_fields accepts it, so it was a green node that
+      # decayed silently — and the plain grep let unrelated prose reading
+      # `see research: qr-followup` contain `research: qr` and mask qr.md's
+      # own real decay. Optional space, end-anchored stem, both sides.
+      if ! grep -qE "^research:[[:space:]]*${fstem//./\\.}[[:space:]]*(#.*)?$" \
+           "${ROOT}/${rel}" 2>/dev/null &&
          [ -n "$(GIT_LITERAL_PATHSPECS=1 git -C "$ROOT" log -1 --format=%H \
-           -S"research: ${fstem}" HEAD -- "$rel" 2>/dev/null)" ]; then
+           -G"^research:[[:space:]]*${fstem//./\\.}[[:space:]]*$" HEAD -- "$rel" \
+           2>/dev/null)" ]; then
         lint_red "${rel}: was a node — this history carried 'research: ${fstem}'" \
           "and the file no longer does. Restore the frontmatter or delete the" \
           "file; dropping the block is not how a node leaves the queue"
@@ -3660,22 +3674,30 @@ cmd_cleanup() {
   # node needs a judgement — restore or delete — no batch flag should make.
   printf '\ndocs/research on %s — files routing reads as documents, not nodes\n' "$ref"
   local rf rq rstem cl_rrefs docs_n=0 decayed=0
+  # gr_edge_stems, not a local tr/sed pipeline: that one flattened
+  # `alpha beta` to `alphabeta` (r4) and kept the literal `none`, so a
+  # document named none.md read as referenced (r7).
   cl_rrefs="$(while IFS= read -r rf; do
       [ -n "$rf" ] || continue
-      git -C "$ROOT" show "${ref}:${rf}" 2>/dev/null | gr_field research
+      gr_edge_stems "$(git -C "$ROOT" show "${ref}:${rf}" 2>/dev/null | gr_field research)"
     done < <(git -C "$ROOT" ls-tree -r --name-only "$ref" -- docs/plans 2>/dev/null |
-             gr_docs) | tr ',' '\n' | tr -d ' ' | sed 's#.*/##; s#\.md$##')"
+             gr_docs))"
   while IFS= read -r rf; do
     [ -n "$rf" ] || continue
+    # gr_docs keeps VISION.md where lint_nodes and the queue hook drop it
+    # (r9): counting a file the lint never sees would be a row nobody can
+    # act on. Widening gr_docs itself touches every caller — not here.
+    case "${rf##*/}" in VISION.md) continue ;; esac
     rq="$(git -C "$ROOT" show "${ref}:${rf}" 2>/dev/null | gr_field research)"
     rstem="$(lint_stem "$rf")"
     if [ -n "$rq" ] || printf '%s\n' "$cl_rrefs" | grep -qxF -- "$rstem"; then
       continue
     fi
     if ! git -C "$ROOT" show "${ref}:${rf}" 2>/dev/null |
-         grep -qF -- "research: ${rstem}" &&
+         grep -qE "^research:[[:space:]]*${rstem//./\\.}[[:space:]]*(#.*)?$" &&
        [ -n "$(GIT_LITERAL_PATHSPECS=1 git -C "$ROOT" log -1 --format=%H \
-         -S"research: ${rstem}" "$ref" -- "$rf" 2>/dev/null)" ]; then
+         -G"^research:[[:space:]]*${rstem//./\\.}[[:space:]]*$" "$ref" -- "$rf" \
+         2>/dev/null)" ]; then
       decayed=$((decayed + 1))
       printf "  DECAYED  %s — carried 'research: %s' before and does not now; restore the frontmatter or delete the file\n" \
         "$rf" "$rstem"
@@ -4290,6 +4312,26 @@ gr_field() { gr_fields "$1"; }
 # Node files of one type from a path listing on stdin. The protocol doc and
 # the template are not nodes; four callers said so in two greps each.
 gr_docs() { awk 'NF && /\.md$/ && !/\/(TEMPLATE|README)\.md$/'; }
+
+# Stems named by an EDGE field's value, one per line, `none` dropped.
+#
+# One helper because four readers of one field is three chances to
+# disagree, and they did (review r4): `research: alpha beta` split two
+# ways in lint_graph and queue-context and flattened to `alphabeta` in
+# cmd_graph and cleanup, so the graph drew no question and painted the
+# waiting plan unblocked. Separator is a comma OR whitespace — the
+# template writes commas, prose writes spaces, and a field nobody linted
+# gets both. Each entry is reduced to a stem, so path, name and stem
+# spellings all mean the same node.
+gr_edge_stems() {
+  local v="${1:-}" n
+  [ -n "$v" ] || return 0
+  for n in ${v//,/ }; do
+    n="${n##*/}"; n="${n%.md}"
+    { [ -n "$n" ] && [ "$n" != "none" ]; } || continue
+    printf '%s\n' "$n"
+  done
+}
 
 # ---------------------------------------------------------------------------
 # Process scorecard
@@ -5036,21 +5078,19 @@ cmd_graph() {
     # A plan waiting on an open question is blocked exactly as one waiting on
     # a plan is; rendering it green said the opposite of the queue.
     if [ -n "$rneeds" ] && [ "$rneeds" != "none" ]; then
+      # gr_edge_stems, like every other reader of this field: read raw, a
+      # path-form edge drew nothing (r1) and `alpha beta` flattened to one
+      # nonexistent `alphabeta` (r4) — both leaving the waiting plan
+      # painted green while the queue showed it blocked.
       while IFS= read -r rneed; do
-        rneed="$(printf '%s' "$rneed" | tr -d ' ')"
-        if [ -z "$rneed" ] || [ "$rneed" = "none" ]; then continue; fi
-        # Path, name or stem — one spelling before any reader here, the
-        # tolerance lint_stem and the hook's stem() already give the other
-        # two. Read raw, a path-form edge drew nothing and marked nothing
-        # blocked while the queue listed and blocked on it (r1).
-        rneed="${rneed##*/}"; rneed="${rneed%.md}"
+        [ -n "$rneed" ] || continue
         graph_rrefs="${graph_rrefs}${rneed}
 "
         if git -C "$ROOT" cat-file -e "${ref}:docs/research/${rneed}.md" 2>/dev/null; then
           blocked=1
           printf '  p_%s -. research .-> q_%s\n' "$(gr_id "$plan")" "$(gr_id "$rneed")"
         fi
-      done < <(printf '%s\n' "$rneeds" | tr ',' '\n')
+      done < <(gr_edge_stems "$rneeds")
     fi
     if [ "$blocked" = "1" ]; then
       printf '  p_%s["plan: %s%s"]:::blocked\n' "$(gr_id "$plan")" "$plan" \
@@ -5086,6 +5126,10 @@ cmd_graph() {
        ! printf '%s' "$graph_rrefs" | grep -qxF -- "$qstem"; then
       continue
     fi
+    # The node's OWN key through the same stem: drawn raw, a path-form
+    # self-name made q_docs_research_foo_md while every edge pointed at
+    # q_foo — two mermaid nodes for one question (r8).
+    q="$(gr_edge_stems "$q" | head -1)"
     [ -n "$q" ] || q="$qstem"
     printf '  q_%s(["question: %s%s"]):::question\n' "$(gr_id "$q")" "$q" \
       "${qagent:+ [${qagent}${qeffort:+ ${qeffort}}]}"

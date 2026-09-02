@@ -31,7 +31,9 @@ human work.
 
 - `main` = the only long-lived line. One branch per plan, cut from `main`.
   No long-lived integration branch: PR + `ci` + review-at-edge do that
-  job; a second line rots against a fleet of short sessions.
+  job; a second line rots against a fleet of short sessions. Systems that
+  chose otherwise, and why this repo did not:
+  [`../prior-art.md`](../prior-art.md).
 - **Start** = Claim (Loop step 3): cut `claude/<plan>`, workstream file,
   push.
 - **Finish** = PR green + reviewed, merge to `main`, PR deletes plan file

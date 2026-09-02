@@ -3,13 +3,41 @@ workstream: research-nodes-red-a-clean-consumer
 status: in-progress
 branch: claude/document-routing-metadata-ib6nfc
 pr: none
-plan: research-nodes-red-a-clean-consumer
+plan: research-node-routing-supersedes-frontmatter
 issue: none
 session: https://claude.ai/code/session_01Tf1txC8UWbDudKu12aPUfA
 agent: opus
 updated: 2026-09-02
-next: Spawn the verifier on the full diff, record findings under Review, then set status review
+next: Re-run mutate on the reconciled tree, then open the pull request
 ---
+
+## Reconcile with main (2026-09-02)
+
+Main merged a COMPETING implementation of the same plan mid-build — PR
+184 (`3144936`), candidate 1: a node is a file whose first line is
+`---`. It also retired the plan file. Merged main in (branch flow,
+"Conflict at finish" — merge, never rebase); one conflict, the retired
+plan file, resolved by accepting the deletion. Human directed routing to
+supersede (2026-09-02), so PR 184's two filters are removed:
+`lint_nodes`' `frontmatter` arg and `queue-context.sh:frontmatter_only`.
+Its TESTS stay and pass unchanged under routing — its plain-document and
+keeps-block-forgets-one-key cases are correct under both rules.
+
+Two defects in the merged implementation, both reproduced against
+`3144936` before removing it:
+
+- a node rebuilt from its `## Question` heading onward (the PR 140
+  shape) printed `edges sound (0 plans, 0 research, ...)`: no red, not
+  listed, not counted. Its own code comment claimed such a node is "a
+  legibly-not-a-node document"; legible to a human, invisible to every
+  reader that schedules.
+- `cmd_graph` was never converted — it reads `gr_docs`, not
+  `lint_nodes` — so `joharness.sh graph` drew a plain document as
+  `q_POSTGRES_STACK_2026(["question: POSTGRES-STACK-2026"])` while lint
+  and queue correctly ignored it. Two readers converted of three.
+
+New plan file `docs/plans/research-node-routing-supersedes-frontmatter.md`,
+because the old one is retired and nothing builds unplanned.
 
 ## Goal
 
@@ -80,8 +108,47 @@ that keep the graph sound long term, not just at this edge.
   does not reds as decayed; the content guard can only see the tree. No
   such file can be distinguished from a real dropped block by machine,
   the red names both remedies, and candidate 2 was rejected knowing
-  routing carries residuals. (wontfix — accepted, limits stated in
-  .agents/docs/research/README.md)
+  routing carries residuals. (wontfix — accepted; now stated in
+  .agents/docs/research/README.md, which r6 found it was not)
+- r3: (verifier) origin/main merged PR 184, a competing implementation
+  of this same plan, and retired the plan file; the auto-merge was clean
+  everywhere but the plan file and would have landed main's
+  frontmatter filter AHEAD of routing, silently disabling the decay
+  guard. Loop step 4's periodic ahead/behind re-check would have caught
+  it hours earlier; this session never ran one. (fixed — reconciled per
+  the section above; the re-check is the lesson, recorded here because
+  it cost the most)
+- r4: (verifier) whitespace-separated `research: alpha beta` split four
+  ways across readers — lint and queue treated it as two stems,
+  cmd_graph and cleanup flattened it to `alphabeta`, so the graph drew
+  no question and painted the plan unblocked. The README's "one rule,
+  three readers" was false for that input. (fixed — one `gr_edge_stems`
+  helper, comma OR whitespace, path/name/stem, used by all four)
+- r5: (verifier) two decay escapes: a key written `research:decayed`
+  with no space defeated the pickaxe (it searches the spaced spelling),
+  and the content guard's substring grep let prose reading
+  `see research: qr-followup` mask the real decay of `qr.md`.
+  (fixed — pickaxe and guard both anchored to the frontmatter line
+  shape, optional space, end-anchored stem)
+- r6: (verifier) r2's disposition cited README limits that did not
+  mention the prose-history false positive at all. (fixed — stated,
+  with both remedies and why neither is right for a consumer)
+- r7: (verifier) `cleanup` did not filter `none` from its reference
+  set, so a document literally named `docs/research/none.md` read as
+  referenced. (fixed — shares the same helper, which drops `none`)
+- r8: (verifier) `cmd_graph` normalised the plan side only, so a node
+  whose OWN key is path form drew `q_docs_research_foo_md` while a
+  plan's edge pointed at `q_foo` — two nodes for one question.
+  (fixed — the node's own key goes through the same stem)
+- r9: (verifier) `gr_docs` does not exclude `VISION.md` while
+  `lint_nodes` and `queue_files` do, so cleanup would count a
+  consumer's `docs/research/VISION.md` as a document lint never sees.
+  Pre-existing filter split, newly visible. (fixed here for the new
+  section only — cleanup's research walk excludes VISION; widening
+  `gr_docs` itself touches every caller and is not this plan's scope)
+- r10: (verifier) a document committed at a path that once held a
+  deleted node reds DECAYED forever, and neither remedy fits.
+  (wontfix — same class as r2, same residual; stated in the README)
 
 ## Blockers
 
