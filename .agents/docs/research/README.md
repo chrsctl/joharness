@@ -29,6 +29,28 @@ hook's label for the same files, because that is what a session reading the
 hook is being offered. No glossary row: the two are not rival spellings of
 one term, and a substring ban on either would fire on prose that is correct.
 
+### What makes a file a node
+
+`docs/research/` may also hold plain reference documents — prose a session
+wrote that is not a scheduled question. **A node opens with a `---`
+frontmatter block; a document does not.** The lint
+(`joharness.sh:lint_nodes`) and the queue hook
+(`.agents/harness/queue-context.sh`) both draw the line there, so a document
+is neither reded for missing a node's keys nor listed as an open question.
+This is the one queue directory with that split: `docs/plans/` and
+`docs/handover/` hold nothing but nodes, and a frontmatter-less file there
+is malformed, not exempt.
+
+Why by the block and not by a marker: a consumer synced before this protocol
+existed carries research prose with no frontmatter at all, and a rule keyed
+on the block leaves those files alone with no edit — where a required
+opt-out marker would red every one until a human touched it
+(`chrsctl/gx#226`: 13 documents, a green consumer turned red by the sync
+alone). The block cannot be dropped by accident to dodge the queue and still
+be a node: a node stripped of its `---` is a legibly-not-a-node document in
+the directory, while a node that keeps the block and forgets one key is
+still DEAD.
+
 - **Question** — one sentence, answerable. A question with no evidence that
   could settle it is not a research question. It is a topic, and a topic
   never closes.

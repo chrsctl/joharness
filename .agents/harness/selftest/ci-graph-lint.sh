@@ -160,6 +160,49 @@ out="$(lint_section "$(lint_ci)")"
 expect "a research file's agent tier is vocabulary-checked" \
   "agent 'gpt' not one of: haiku sonnet opus" "$out"
 
+# A plain document in docs/research is NOT a node. docs/research is the one
+# queue dir that also holds prose a session wrote — reference material, not
+# a scheduled question — and a consumer synced before the research-node
+# protocol carries such files with no frontmatter at all. Reding them turns
+# a green consumer red over files it never meant as nodes (chrsctl/gx#226:
+# 13 documents, 65 DEAD, ci pass -> FAIL, measured both ways). A file whose
+# first line is NOT `---` is a document: not linted, not scheduled.
+#
+# Fixed here so a well-formed question still linting is what makes the pass
+# meaningful: nowhere-to-land above stays a node and its `graduates` red
+# still fires; only the prose is exempt.
+cat >"${lwork}/docs/research/PLAIN-NOTES.md" <<'EOF'
+# Three Postgres technologies, priced against the CRM
+
+**Status:** research input — findings taken, ADR 0085 turned them into
+decisions. No frontmatter: this is a document, not a queue node.
+EOF
+commit_all "$lwork" "a plain document with no frontmatter"
+out="$(lint_section "$(lint_ci)")"
+refute "a frontmatter-less document is not reded as a node" \
+  "PLAIN-NOTES" "$out"
+
+# THE ESCAPE HATCH the plan flagged (research-nodes-red-a-clean-consumer):
+# frontmatter-presence must not let a real node dodge the gate by dropping
+# ONE key. A node that KEEPS its `---` block and forgets `graduates` is
+# still DEAD — the exemption is for prose with no block at all, never for a
+# node shedding a field. This is the case that fails if the filter is drawn
+# at "any missing key" instead of "no frontmatter block".
+cat >"${lwork}/docs/research/half-a-node.md" <<'EOF'
+---
+research: half-a-node
+urgency: normal
+agent: opus
+effort: high
+---
+EOF
+commit_all "$lwork" "a node with a block but no graduates"
+out="$(lint_section "$(lint_ci)")"
+expect "a node that keeps its block but forgets a key is still DEAD" \
+  "DEAD docs/research/half-a-node.md: no graduates:" "$out"
+git -C "$lwork" rm -q docs/research/PLAIN-NOTES.md docs/research/half-a-node.md
+commit_all "$lwork" "drop the plain-document cases"
+
 # A question is queue work a session PICKS, so a session settling one has to
 # be able to record the claim. The workstream file's `plan:` is the only
 # claim edge the hook reads, so it carries both — before this, `plan:

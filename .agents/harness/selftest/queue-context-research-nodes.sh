@@ -83,6 +83,33 @@ expect "the question list names its protocol" \
 # already excluded TEMPLATE for plans. Here to catch a research listing that
 # grew its own file walk.
 refute "the research template is not a question" "TEMPLATE" "$out"
+
+# A plain document alongside the real node is NOT scheduled. docs/research
+# holds prose too — reference material a session wrote, which a consumer
+# synced before this protocol carries with no frontmatter (chrsctl/gx#226).
+# A file whose first line is not `---` is a document, not a question: the
+# hook must list open-question above and stay silent about this one, in the
+# same run, so the exemption is proven not to also hide real nodes.
+cat >"${rwork}/docs/research/PLAIN-DOC.md" <<'EOF'
+# A reference note with no frontmatter
+
+Prose a session wrote. Not a queue node.
+EOF
+GIT_COMMITTER_DATE="2026-02-03T00:00:00Z" \
+  commit_all "$rwork" "a plain document beside the question"
+git -C "$rwork" push -q origin main
+out="$(rq)"
+expect "the real question is still listed with the document present" \
+  "docs/research/open-question.md  [normal" "$out"
+refute "a frontmatter-less document is not scheduled as a question" \
+  "PLAIN-DOC" "$out"
+fixture_rm "$rwork" "drop the plain document" docs/research/PLAIN-DOC.md
+git -C "$rwork" push -q origin main
+# Re-read after the revert: the assertions below were written against the
+# fixture WITHOUT the plain document, and reusing the out captured while it
+# was present would measure them against a state that is no longer on the
+# ref (code-review r1).
+out="$(rq)"
 expect "a plan waiting on a question is blocked by it" \
   "docs/plans/waiting-plan.md  [normal, agent: haiku, effort: low, blocked by: open-question (open question)]" \
   "$out"
