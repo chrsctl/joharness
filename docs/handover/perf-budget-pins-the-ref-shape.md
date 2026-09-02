@@ -87,8 +87,8 @@ written by hand.
   step by construction. Verified: single-row and in-table now agree.)
 - r3 (verifier): **`graph` no longer caught the regression its budget is
   for** — it saw 7 refs, so a per-ref fork cost 7 against 34 of headroom.
-  (partly fixed, and the rest is recorded rather than hidden: a fork per
-  open branch costs 5 and the row still reads ok. Fifteen open branches would
+  (fixed as far as it goes, and the rest is recorded rather than hidden: a
+  fork per open branch costs 5 and the row still reads ok. Fifteen open branches would
   catch it at 17s a run against 7s. The limit is now stated in `perf_rows`,
   with the measured 104 -> 109, instead of being left for the next reader to
   find.)
