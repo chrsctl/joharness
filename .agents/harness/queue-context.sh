@@ -107,8 +107,30 @@ queue_files() {
     grep -E '\.md$' | grep -vE '/(TEMPLATE|README|VISION)\.md$'
 }
 
+# docs/research also holds plain reference documents, not only scheduled
+# nodes: a node opens with a `---` frontmatter block, a document does not.
+# The lint (joharness.sh:lint_nodes) draws the same line for the same
+# reason — a consumer synced before the research-node protocol carries
+# prose the queue must not schedule (chrsctl/gx#226). Read the first line
+# of each candidate from the ref and keep only the ones that open the
+# block. Scoped to research: plans and requirements are nodes only.
+frontmatter_only() {
+  local f l1
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    l1="$(git show "${ref}:${f}" 2>/dev/null | head -1)"
+    l1="${l1%$'\r'}"
+    # Keep a file unless it has a readable, non-empty first line that is not
+    # the block opener. An empty or unreadable file has no first line: keep
+    # it, so the downstream unreadable detector still counts it (as a number,
+    # not by name) rather than the filter dropping it into silence.
+    if [ -n "$l1" ] && [ "$l1" != "---" ]; then continue; fi
+    printf '%s\n' "$f"
+  done
+}
+
 plans="$(queue_files "$PLANS_DIR")"
-research="$(queue_files "$RESEARCH_DIR")"
+research="$(queue_files "$RESEARCH_DIR" | frontmatter_only)"
 reqs="$(queue_files "$PRODUCT_DIR")"
 
 printf '\n== Queue (protocol: .agents/docs/plans/README.md) ==\n\n'

@@ -1433,7 +1433,34 @@ lint_warn() { printf '  warn %s\n' "$*"; LINT_WARNED=1; }
 # ref: ci judges what this branch is about to push, uncommitted included.
 lint_nodes() {
   [ -d "${ROOT}/$1" ] || return 0
-  (cd "$ROOT" && find "$1" -maxdepth 1 -name '*.md' \
+  local f l1
+  # A second arg 'frontmatter' keeps only files that open with a `---`
+  # block. docs/research is the one queue dir that also holds plain
+  # reference documents (prose a session wrote, not a scheduled node), and
+  # those predate the research-node protocol in every consumer synced
+  # before it — reding them turns a green consumer red over files it never
+  # meant as nodes (chrsctl/gx#226). A document with no frontmatter is not a
+  # node: not scheduled, not linted. Escaping the queue this way is not the
+  # silent drop it looks like — a real finding written from TEMPLATE.md
+  # carries the block, and a node stripped of its whole identity is a
+  # legibly-not-a-node document in the directory, while a node that KEEPS
+  # `---` and forgets one key still reds below. NOT applied to docs/plans or
+  # docs/handover: those hold nothing but nodes, so a frontmatter-less file
+  # there is malformed and must still red rather than vanish.
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    if [ "${2:-}" = "frontmatter" ]; then
+      l1=""
+      IFS= read -r l1 <"${ROOT}/${f}" 2>/dev/null || :
+      l1="${l1%$'\r'}"
+      # Drop only a file with a readable, non-empty first line that is not
+      # the block opener — a plain document. An empty or unreadable file has
+      # no first line: keep it, so the missing-keys lint still reds it as a
+      # malformed node rather than the filter swallowing it.
+      [ -n "$l1" ] && [ "$l1" != "---" ] && continue
+    fi
+    printf '%s\n' "$f"
+  done < <(cd "$ROOT" && find "$1" -maxdepth 1 -name '*.md' \
     ! -name 'TEMPLATE.md' ! -name 'README.md' ! -name 'VISION.md' \
     2>/dev/null | sort)
 }
@@ -1725,7 +1752,7 @@ lint_graph() {
       lint_warn "${rel}: graduates '${grad}' — not in the tree yet; the graduating pull request creates it"
     fi
     lint_anchors "$rel"
-  done < <(lint_nodes docs/research)
+  done < <(lint_nodes docs/research frontmatter)
 
   while IFS= read -r rel; do
     [ -n "$rel" ] || continue
