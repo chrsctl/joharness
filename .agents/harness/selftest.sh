@@ -23,14 +23,10 @@ export GIT_COMMITTER_NAME=selftest GIT_COMMITTER_EMAIL=selftest@invalid
 # need one set it themselves; the ones that do not `cd` into a fixture and
 # run its own copy, and joharness.sh prefers CLAUDE_PROJECT_DIR over the
 # directory it was invoked from. So an exported value redirects those cases
-# at the REAL repo: they write its .git, fail their own assertions about the
-# fixture, and leave the marker behind.
-#
-# Measured, one run with CLAUDE_PROJECT_DIR set to the checkout: 8 of 448
-# failed and .git/joharness-mode came back holding 'unsupervised' — a
-# session that ran `CLAUDE_PROJECT_DIR=$PWD ./joharness.sh ci`, which is a
-# natural thing to type, silently flipped its own repo into autonomy. Same
-# run with it unset: 448 passed, 0 failed, nothing written.
+# at the REAL repo: they read its conf and its refs and fail their own
+# assertions about the fixture. Measured once at 8 of 448 red with it set
+# against 448 green without; the count is not kept current here, because a
+# number nobody re-counts is a written number.
 unset CLAUDE_PROJECT_DIR
 
 # The same hole, one knob over. JOHARNESS_MODE steers the autonomy cases

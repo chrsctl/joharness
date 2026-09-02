@@ -451,8 +451,14 @@ dfan() {
   printf -- '---\nplan: %s\nurgency: normal\nagent: %s\neffort: low\nrequirement: fangoal\nscope: %s\n---\n\n## Goal\nFixture.\n' \
     "$1" "$2" "$3" >"${dwork}/docs/plans/${1}.md"
 }
+# An UNSCOPED plan first, and oldest. The hook's oldest free row is this one,
+# no wave holds it, and an unattended session may not spawn on it — so what
+# drain names as next under unsupervised must be wave 1's first member.
+printf -- '---\nplan: bare-first\nurgency: normal\nagent: sonnet\neffort: low\nrequirement: fangoal\n---\n\n## Goal\nFixture.\n' \
+  >"${dwork}/docs/plans/bare-first.md"
+commit_all "$dwork" "a goal and an unscoped plan, oldest"
 dfan fan-a haiku 'a/'
-commit_all "$dwork" "a goal and the first scoped plan"
+commit_all "$dwork" "the first scoped plan"
 dfan fan-b sonnet 'b/'
 commit_all "$dwork" "a second, disjoint"
 dfan fan-c sonnet 'a/sub'
@@ -461,29 +467,49 @@ git -C "$dwork" push -q origin main
 
 out="$(ddrain env JOHARNESS_MODE=unsupervised)"
 expect "two disjoint plans are a fan-out order" \
-  "start one session per wave-1 plan NOW" "$out"
-orderline="$(printf '%s\n' "$out" | sed -n 's/^tier named: //p')"
-expect "the order names the first with its tier" "fan-a (haiku)" "$orderline"
-expect "and the second with its tier" "fan-b (sonnet)" "$orderline"
+  "spawn NOW: one session per remaining wave-1 plan" "$out"
+expect "this session takes wave 1's first member" \
+  "next: docs/plans/fan-a.md — take it in THIS session" "$out"
+refute "and never the unscoped oldest row" "next: docs/plans/bare-first.md" "$out"
+orderline="$(printf '%s\n' "$out" | sed -n 's/.*tier as named: //p')"
+expect "the spawn names the second with its tier" "fan-b (sonnet)" "$orderline"
+refute "and not the one this session took" "fan-a" "$orderline"
 refute "and does not reach into wave 2" "fan-c" "$orderline"
 expect "and says why the later wave waits" "next generation" "$out"
 expect "and never the unscoped plans" "Never the" "$out"
 expect "and defers to a claim already held" "Step 1 wins" "$out"
+refute "and no edge-first line without edge work" "Edge work above first" "$out"
 out="$(ddrain)"
-refute "supervised orders nothing" "UNSUPERVISED" "$out"
-expect "and still names the next item" "next: docs/plans/fan-a.md" "$out"
+refute "supervised orders nothing" "spawn NOW" "$out"
+expect "and supervised still names the oldest free row" \
+  "next: docs/plans/bare-first.md" "$out"
+
+# Edge work in flight outranks the order, and the order says so rather than
+# leaving the conjunction to the reader.
+git -C "$dwork" checkout -qb edger
+mkdir -p "${dwork}/docs/handover"
+printf -- '---\nworkstream: edger\nstatus: review\nplan: none\nagent: sonnet\nupdated: 2026-01-01\n---\n\n## Goal\nFixture.\n' \
+  >"${dwork}/docs/handover/edger.md"
+commit_all "$dwork" "a branch at the edge"
+git -C "$dwork" push -qu origin edger
+git -C "$dwork" checkout -q main
+mkdir -p "${dwork}/docs/handover"
+out="$(ddrain env JOHARNESS_MODE=unsupervised)"
+expect "edge work is named first" "edge work in flight" "$out"
+expect "and the order defers to it" "Edge work above first" "$out"
+git -C "$dwork" push -q origin --delete edger 2>/dev/null || true
 
 # A wave of one: two plans on one path. Run it here; do not spawn for one.
-fixture_rm "$dwork" "drop the disjoint plan and the overlap" \
-  docs/plans/fan-b.md docs/plans/fan-c.md
+fixture_rm "$dwork" "drop the disjoint plan, the overlap and the unscoped" \
+  docs/plans/fan-b.md docs/plans/fan-c.md docs/plans/bare-first.md
 dfan fan-d sonnet 'a/'
 commit_all "$dwork" "a second plan on the same path"
 git -C "$dwork" push -q origin main
 out="$(ddrain env JOHARNESS_MODE=unsupervised)"
-expect "a single-plan wave is run here, not spawned" "claim and run" "$out"
-expect "and names the plan" "fan-a (haiku) in THIS session" "$out"
+expect "a single-plan wave is run here, not spawned" "run it in THIS" "$out"
+expect "and names the plan" "next: docs/plans/fan-a.md" "$out"
 expect "and says so plainly" "Do not spawn for one." "$out"
-refute "no fan-out order for a wave of one" "start one session per wave-1 plan" "$out"
+refute "no fan-out order for a wave of one" "spawn NOW" "$out"
 
 # No scope anywhere: nothing is proved, so nothing is spawned.
 fixture_rm "$dwork" "drop the scoped plans" docs/plans/fan-a.md docs/plans/fan-d.md
@@ -497,4 +523,4 @@ out="$(ddrain env JOHARNESS_MODE=unsupervised)"
 expect "an unscoped queue proves no wave" "no wave proven" "$out"
 expect "and says to take one here" "Take next in THIS session" "$out"
 expect "spelled as a prohibition" "Never spawn on an" "$out"
-refute "and orders no spawn" "start one session per wave-1 plan" "$out"
+refute "and orders no spawn" "spawn NOW" "$out"

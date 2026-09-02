@@ -178,6 +178,14 @@ rstems="$(
 # re-derived here. Unset (hook run directly) = supervised, the safe
 # direction.
 qc_mode="${JOHARNESS_RUN_MODE:-supervised}"
+# Under unsupervised the LAST line is always the pointer at the reader that
+# orders. A trap, so every exit path below carries it — this hook has four —
+# and the report above it stays the same bytes in both modes. Without it a
+# session read "Spawn one per plan" or "ask human" as the last word, from a
+# hook that no longer knows what the mode does with either.
+if [ "$qc_mode" = "unsupervised" ]; then
+  trap 'printf "\nUNSUPERVISED: this hook reports; ./joharness.sh drain orders — take,\nfan out, generate, or stop.\n"' EXIT
+fi
 
 # The unsupervised boundary, as the queue sees it: protocol text is off
 # limits to a session running unattended (docs/product/unsupervised-mode.md,
@@ -782,6 +790,14 @@ elif [ "$free_count" -eq 0 ] && [ -z "$unplanned" ] &&
   exit 0
 elif [ "$free_count" -eq 0 ] && [ -z "$unplanned" ] &&
      [ "$qc_unreadable" -eq 0 ]; then
+  if [ "$qc_mode" = "unsupervised" ]; then
+    # Nothing here is free FOR THIS MODE, and the supervised tail below
+    # ("top free plan above") would point at a plan that is not. The marked
+    # rows are why the edge is reached; say so and stop — the trap prints
+    # the pointer, and drain says what the edge means.
+    printf '\nEdge reached: no free plan — every plan claimed, blocked or SUPERVISED ONLY.\n'
+    exit 0
+  fi
   printf '\nEdge reached: no free plan — every plan claimed or blocked. done.\n'
 fi
 

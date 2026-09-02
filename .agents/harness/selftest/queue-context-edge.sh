@@ -13,8 +13,12 @@
 # (selftest/drain.sh). Two readers of one queue used to print two rules, and
 # each was reached in a repo state the other was not. So the property here
 # is IDENTITY: with nothing to mark (every plan declares a scope outside the
-# boundary), the two modes print the same bytes, and an unset mode prints
-# what supervised prints.
+# boundary), the two modes print the same bytes above the one pointer line
+# unsupervised appends, and an unset mode prints what supervised prints.
+#
+# The no-free-plan edge is the exception the marking owns, and it has its
+# own topic (queue-context-supervised-only.sh): there the supervised tail
+# would point at a plan this mode cannot take, so unsupervised stops short.
 step "queue-context.sh reports in both modes"
 
 ework="${TMP}/edgework"
@@ -42,10 +46,15 @@ eq_same() {
   sup="$(eq supervised)"
   uns="$(eq unsupervised)"
   bare="$(CLAUDE_PROJECT_DIR="$ework" bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1)"
+  # The pointer is the one line unsupervised adds, and it is the LAST line
+  # on every exit path (an EXIT trap): the report above it is identical.
+  expect "$1: the last word under unsupervised is the pointer at drain" \
+    "./joharness.sh drain orders" "$(printf '%s\n' "$uns" | tail -2)"
+  uns="${uns%$'\n\n'UNSUPERVISED: this hook reports*}"
   if [ "$sup" = "$uns" ]; then
-    pass "$1: unsupervised prints what supervised prints"
+    pass "$1: unsupervised prints what supervised prints, above the pointer"
   else
-    fail "$1: unsupervised prints what supervised prints"
+    fail "$1: unsupervised prints what supervised prints, above the pointer"
     diff <(printf '%s\n' "$sup") <(printf '%s\n' "$uns") | sed 's/^/    | /'
   fi
   if [ "$sup" = "$bare" ]; then
@@ -53,7 +62,7 @@ eq_same() {
   else
     fail "$1: an unset mode reads as supervised"
   fi
-  refute "$1: no order in the output" "UNSUPERVISED" "$uns"
+  refute "$1: no order in the output" "spawn NOW" "$uns"
   refute "$1: no stop in the output" "GOAL REACHED" "$uns"
 }
 
@@ -122,7 +131,13 @@ git -C "$ework" push -qu origin claimer
 git -C "$ework" checkout -q main
 out="$(eq unsupervised)"
 expect "no free plan is the edge, in both modes" "Edge reached: no free plan" "$out"
-eq_same "no free plan"
+# Claimed, not marked: nothing here is SUPERVISED ONLY, so the supervised
+# tail is not pointing at a plan this mode cannot take — but a claimed plan
+# is not free either, and the tail's "top free plan above" was never true at
+# the edge in any mode. Unsupervised stops short of it; supervised keeps
+# its wording (byte-identical is the requirement).
+refute "and unsupervised stops short of the tail" "top free plan above" "$out"
+expect "supervised keeps its tail" "top free plan above" "$(eq supervised)"
 
 # A free plan with no goal open. The hook still lists and points at it —
 # recording is always allowed — and drain is where the goal stop lives.

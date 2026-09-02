@@ -4279,7 +4279,7 @@ cmd_sources() {
 
   printf '\n'
   # Blind beats dry. A sweep that could not read one of its sources has not
-  # gone dry, it has gone quiet, and the mode's one stopping point must not
+  # gone dry, it has gone quiet, and one of the mode's two stops must not
   # rest on the difference being blurred.
   if [ "$blind" -eq 1 ]; then
     printf 'sweep INCOMPLETE — a source could not be counted; not dry%s\n' "$carrying"
@@ -4942,7 +4942,7 @@ drain_wave1() {
 # modes; this reads their output and says what an unsupervised session does
 # with it — take, fan out, generate, or stop — so the rule lives once.
 cmd_drain() {
-  local mode qout hout edge next free goals="" goals_read=0 sup="" w1 n
+  local mode qout hout edge next free goals="" goals_read=0 sup="" w1 n first
   mode="$(run_mode)"
   printf '== drain (mode: %s)\n\n' "$mode"
 
@@ -5005,26 +5005,40 @@ cmd_drain() {
     free="$(printf '%s\n' "$qout" |
       sed -n 's/^\([0-9][0-9]*\) free plans.*/\1/p' | head -1)"
     printf 'NOT DRAINED%s\n' "${free:+ — ${free} free plan(s)}"
-    printf '  next: %s\n' "$next"
-    [ "$mode" = "unsupervised" ] || return 0
+    if [ "$mode" != "unsupervised" ]; then
+      printf '  next: %s\n' "$next"
+      return 0
+    fi
 
     # The ORDER. The hook proved the waves (scopes pairwise disjoint); this
     # reads wave 1 and never widens it. Wave 1 ONLY — a later wave conflicts
-    # with it on a named path, so it is the next generation. One plan is not
-    # a fan-out: spawning a child to do what this session can do costs a
-    # container for nothing (.agents/docs/unsupervised.md).
+    # with it on a named path, so it is the next generation. This session
+    # takes wave 1's first plan itself and spawns one session per other
+    # member: a spawner that then idles costs a container for nothing, and
+    # one plan is not a fan-out at all. `next` is overridden here because the
+    # oldest free row may be UNSCOPED — no wave holds it and no unattended
+    # session may spawn on it — and a next the same report forbids is two
+    # answers in one output.
     w1="$(drain_wave1 "$qout")"
     n="$(printf '%s' "$w1" | tr ',' '\n' | grep -c . || :)"
-    printf '\n'
+    first="${w1%%,*}"
+    first="${first%% *}"
+    # Finishing outranks starting (step 2). The edge block above said so
+    # once; the order is what comes AFTER it, and says so — a live session's
+    # edge work is skipped, not waited on, so the order still prints.
+    [ -z "$edge" ] ||
+      printf '  Edge work above first — yours or abandoned; a live session'"'"'s you skip.\n'
     if [ "$n" -ge 2 ]; then
-      printf 'UNSUPERVISED: start one session per wave-1 plan NOW, each on the\n'
-      printf 'tier named: %s.\n' "$w1"
+      printf '  next: docs/plans/%s.md — take it in THIS session\n' "$first"
+      printf '  spawn NOW: one session per remaining wave-1 plan, tier as named: %s\n' \
+        "${w1#*, }"
       printf 'Later waves are the next generation, not this one. Never the\n'
       printf 'unscoped plans: independence unproven, and unproven is not disjoint.\n'
     elif [ -n "$w1" ]; then
-      printf 'UNSUPERVISED: one plan is parallel-safe right now — claim and run\n'
-      printf '%s in THIS session. Do not spawn for one.\n' "$w1"
+      printf '  next: docs/plans/%s.md — one plan is parallel-safe; run it in THIS\n' "$first"
+      printf '  session. Do not spawn for one.\n'
     else
+      printf '  next: %s\n' "$next"
       printf 'UNSUPERVISED: no wave proven here (no plan declares scope:, or one\n'
       printf 'plan is free). Take next in THIS session. Never spawn on an\n'
       printf 'assumption the queue has not proved.\n'
@@ -5058,10 +5072,17 @@ cmd_drain() {
     printf '  NOT dry     generate: one finding, one plan, each carrying source:\n'
     printf '              and evidence: (.agents/docs/plans/README.md). Never a\n'
     printf '              plan for a finding no detector emitted, never one a\n'
-    printf '              SUPERVISED ONLY plan already covers.\n'
+    printf '              SUPERVISED ONLY plan already covers. Then re-run drain\n'
+    printf '              BEFORE claiming anything: a plan you wrote may be marked,\n'
+    printf '              and attempt four claimed two such plans unread.\n'
     printf '  INCOMPLETE  not dry: fix what could not be counted.\n'
-    printf '  dry         STOP — with the queue empty and no edge work above.\n'
-    printf '              Say which stop fired: sweep dry, not goal reached.\n'
+    if [ -n "$edge" ]; then
+      printf '  dry         not a stop while the edge work above is in flight:\n'
+      printf '              finish it (yours or abandoned) or say so, then re-run drain.\n'
+    else
+      printf '  dry         STOP — the queue is empty and no edge work is in flight.\n'
+      printf '              Say which stop fired: sweep dry, not goal reached.\n'
+    fi
     return 0
   fi
 

@@ -66,11 +66,14 @@ expect "and the mark says why" "scope is all protocol text" "$out"
 # The mark alone is not the fix. De-ranking is: this plan must stop being
 # free. With it as the only plan, that is exactly the endurance retry's
 # queue — and the edge is what a fleet should have met there instead of 55
-# minutes of undoable work. The tail wording is the supervised tail in both
-# modes now; what an unsupervised session does at the edge is drain's.
+# minutes of undoable work.
 expect "the edge is reached instead" "Edge reached: no free plan" "$out"
+expect "and the edge names the marking as a reason" \
+  "blocked or SUPERVISED ONLY" "$out"
+refute "and it is not offered as free work" "top free plan above" "$out"
 expect "and the plan is listed rather than hidden" \
   "docs/plans/allprotocol.md" "$out"
+expect "and the last word points at drain" "./joharness.sh drain orders" "$out"
 # What the edge MEANS under unsupervised — not a gap to fill, do not re-file
 # — is drain's to say, from this row (selftest/drain.sh, NOT YOURS).
 

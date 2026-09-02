@@ -60,7 +60,7 @@ reader of the queue that orders, two stops.
 - `JOHARNESS_MODE=unsupervised ./joharness.sh drain` on a clone with an
   open goal and no free plan — names the sweep and both stops, runs no `ci`.
 - `./joharness.sh sources` — three counts, one verdict line, exit 0.
-- `./joharness.sh mode unsupervised` — unknown subcommand.
+- `./joharness.sh mode unsupervised` — dies "takes no argument"; `mode` reads only.
 - Plan `ci` calls SHIPS: `joharness.sh` and `.agents/harness/` sync to
   every consumer. Consumer check: `./joharness.sh mode` prints one word and
   `./joharness.sh drain` under supervised is unchanged.

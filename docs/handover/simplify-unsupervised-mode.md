@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01EoG4neinP69y2mzeumTgvk
 agent: opus
 updated: 2026-09-02
-next: Run ci and verify green, then review at opus depth (code-review high, verifier agent), record findings under Review, fix, retire, pull request
+next: Suite and ci green on the reconciled head, then retire the plan and workstream file and open the pull request
 ---
 
 ## Goal
@@ -55,6 +55,25 @@ Direct ask 2026-09-02: simplify joharness, unsupervised mode first. Plan:
   Reconcile at finish instead.
 
 ## Review
+
+Opus depth: `/code-review` high, plus `.claude/agents/verifier.md` driven
+over six scratch fixtures. Both ran `ci` on the head: pass, 1259 passed, 0
+failed (2026-09-02).
+
+- r1: (verifier) hook at the unsupervised edge printed the supervised tail — "top free plan above", "every plan claimed or blocked" — over a SUPERVISED ONLY plan, and the rewritten test pinned it. (fixed: unsupervised edge line names the marking and exits; the refute is back)
+- r2: (verifier) hook under unsupervised with two unscoped plans said "Spawn one per plan" while drain said never, and no counter-order remained in the output a session reads first. (fixed: under unsupervised the hook's last line is always the pointer at drain, via an EXIT trap; edge test asserts it)
+- r3: (verifier) drain printed "dry STOP — no edge work above" unconditionally, under edge work it had named; docs said drain "prints which stop fired" though it never runs the sweep. (fixed: dry line reads the edge; docs say drain prints GOAL REACHED and names the sweep beside the parts it read)
+- r4: (verifier) the stop condition moved from the ratified two-sweeps, no-open-pull-request form without a flag to the human. (recorded: product direction, decided and written down per Decide alone; flagged in the pull request and the closing report)
+- r5: (verifier, code-review) `.agents/harness/AGENTS.md` /drain paragraph still said one stop. (fixed)
+- r6: (verifier, code-review) 78s/3s and "5 of 119 gaps" lost the commands that produced them. (fixed: commands restored beside the numbers)
+- r7: (verifier) drain named an unscoped oldest plan as next while ordering a wave-1 spawn and forbidding unscoped plans. (fixed: under unsupervised next is wave 1's first member, taken here; the rest are spawned)
+- r8: (verifier) drain ordered a spawn under edge work it had just said outranks the queue. (fixed: the order carries an edge-first line when edge work is in flight)
+- r9: (verifier) `cmd_sources` comment still said "the mode's one stopping point". (fixed)
+- r10: (verifier) plan Acceptance said "unknown subcommand" for `mode unsupervised`; it dies "takes no argument". (fixed: plan text)
+- r11: (verifier, code-review) `selftest.sh` CLAUDE_PROJECT_DIR note still narrated the marker file. (fixed)
+- r12: (verifier) the deleted case "does not tell an unattended session to ask a human" left the no-plans wording unpinned. (fixed: the pointer follows every exit, and the edge test asserts it is the last line)
+- r14: (PR 195, folded at reconcile) attempt four's real finding: both generated plans were SUPERVISED ONLY and both sessions claimed and edited them without reading the marking — a session that writes a plan at the edge and claims it passes through neither hook nor drain. (fixed: drain's NOT dry line says re-run drain before claiming; recorded in the runs table. The mechanical gate the annotation asks for is a plan of its own, not this one)
+- r13: (code-review) SUPERVISED ONLY prose appears in both the GOAL REACHED and NOT YOURS blocks of `cmd_drain`. (no change needed: two stops, one extractor, different sentences)
 
 ## Blockers
 

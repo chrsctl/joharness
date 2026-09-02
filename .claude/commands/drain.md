@@ -32,12 +32,14 @@ the stop.
 
 - **supervised** — DRAINED means no unplanned requirement, no free plan, no
   open question. Stop and ask. Do NOT invent work; that is the other mode.
-- **unsupervised** — an empty queue is a trigger. `drain` names the sweep
-  and the two stops: GOAL REACHED (no open requirement), or sweep dry with
-  the queue empty and no edge work in flight. Say which fired.
+- **unsupervised** — an empty queue is a trigger. `drain` prints GOAL
+  REACHED (no open requirement) itself, and names the other stop: sweep dry
+  (`./joharness.sh sources`, run by you) with the queue empty and no edge
+  work in flight. Say which fired.
 
 Width is the mode's too. Under unsupervised `drain` prints the wave-1
-order, one session per plan; supervised drains serially in this session.
+order — first plan here, one session per other member; supervised drains
+serially in this session.
 
 ## Limits, stated rather than engineered around
 

@@ -12,7 +12,7 @@ One thing per layer, nothing else. Supervised output is byte-identical.
 | --- | --- |
 | `session-start` banner | Says the mode, lists the protocol boundary, points at `drain`. |
 | Queue hook | Marks a plan whose whole `scope:` is protocol text `SUPERVISED ONLY` and ranks it out of the free list. Everything else it prints is the same report. |
-| `./joharness.sh drain` | The ONE place the mode orders: take, fan out (wave 1, one session per plan), run one here, generate (sweep), or stop. Prints which stop fired. |
+| `./joharness.sh drain` | The ONE place the mode orders: take; fan out (wave 1: first plan in this session, one session per other member); run one here; generate (names the sweep); or stop. Prints GOAL REACHED itself; for sweep dry it names the sweep beside the two parts it read, queue and edge work. |
 | `ci` | Two extra gates: no requirement added on the branch; a generated plan names the bullet it advances. |
 | Stop guard | Names protocol-text edits on the branch. Detection, not prevention. |
 
@@ -27,8 +27,14 @@ same tree got two answers (PR 170, PR 187, PR 190 each fixed one side).
 2. **Sweep dry** — `./joharness.sh sources` every detector zero, queue empty,
    no edge work in flight. The sources are exhausted.
 
-`drain` prints which, and they are different facts a human reads to decide
-whether to set a new goal. Anything else that ends a run — a rate limit, a
+NOT dry means generate — and then re-run `drain` before claiming: the plan a
+session just wrote may be `SUPERVISED ONLY`, and a session that reaches the
+edge, writes a plan and claims it never passes through the output that says
+so. That is how attempt four crossed the boundary twice.
+
+`drain` prints the first and names the second — it never runs the sweep —
+and they are different facts a human reads to decide whether to set a new
+goal. Anything else that ends a run — a rate limit, a
 session asking a question, a generation that failed to spawn — is a finding,
 not a stop.
 
@@ -58,7 +64,7 @@ the prompt until a session stops refusing is not the remedy.
 | fan-out | 2026-08-30 | 53m | bounded work ran out; two sessions, two merges, one reconcile |
 | attempt one | 2026-08-31 | 48s | no repository attached; both sessions asked a human |
 | attempt two | 2026-08-31 | 57m | the only free plan was protocol text; the session reverted its own work (now marked `SUPERVISED ONLY`, never offered) |
-| attempt four | 2026-09-02 | 60m | one generation: three pull requests merged, two plans generated from the sweep, then nothing spawned the next session |
+| attempt four | 2026-09-02 | 60m | one generation: three pull requests merged, two plans generated from the sweep, then each session declared itself done and nothing spawned the next. Both generated plans were `SUPERVISED ONLY` and both sessions claimed and edited them anyway — the marking was printed, never read at claim time; one crossing reached `origin` before its revert (PR 195) |
 
 Every run measured how long ONE generation lasts. The bullet asks for hours,
 and hours need the heartbeat below, which no run has had.
@@ -67,9 +73,15 @@ and hours need the heartbeat below, which no run has had.
 
 Fan-out makes the fleet WIDE. Nothing makes it LONG: each session claims,
 merges, ends, and the fleet survives only while every generation spawns the
-next. Measured on `origin/main` 2026-08-29, last 120 merges: 5 of 119 gaps
-exceed three hours (longest 32.2h and 24.0h) with 11 to 19 plan files in the
-tree at each — a full queue, idle.
+next. Measured on `origin/main` 2026-08-29, last 120 merges:
+
+```bash
+git log --merges --format='%ct' origin/main -120 |
+  awk 'NR>1{d=(prev-$1)/3600; if(d>3) n++} {prev=$1} END{print n+0" of "NR-1}'
+```
+
+5 of 119 gaps exceed three hours (longest 32.2h and 24.0h), with 11 to 19
+plan files in the tree at each — a full queue, idle.
 
 The heartbeat is a scheduled Routine (`create_trigger` on the
 claude-code-remote MCP server, `create_new_session_on_fire: true`) firing a

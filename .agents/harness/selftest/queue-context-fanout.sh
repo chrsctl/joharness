@@ -30,7 +30,8 @@ qc() { CLAUDE_PROJECT_DIR="$work" JOHARNESS_RUN_MODE="${1-}" \
 
 out="$(qc unsupervised)"
 expect "the waves are printed" "wave 1:" "$out"
-refute "and nothing is ordered spawned" "UNSUPERVISED" "$out"
+refute "and nothing is ordered spawned" "spawn NOW" "$out"
+expect "and the last word points at drain" "./joharness.sh drain orders" "$out"
 # The wave LINES, not the whole output: this fixture carries unscoped plans
 # and no entrypoint, so unsupervised adds the marking notes the boundary
 # owns. The partition itself must not move with the mode.
@@ -60,4 +61,4 @@ git -C "$work" fetch -q origin
 # in both modes alike.
 out="$(qc unsupervised)"
 expect "the unconditional branch still prints its line" "free plans = " "$out"
-refute "and orders nothing either" "UNSUPERVISED" "$out"
+refute "and orders nothing either" "spawn NOW" "$out"

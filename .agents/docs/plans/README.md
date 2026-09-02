@@ -156,9 +156,11 @@ session.
 ### At the edge
 
 Empty queue under `JOHARNESS_MODE=unsupervised` is a trigger, not a stop.
-`./joharness.sh drain` says so and names the sweep; the hook never runs it
-(78s against session start's 3s, measured 2026-08-29, paid by every
-session). Then:
+`./joharness.sh drain` says so and names the sweep; neither it nor the hook
+runs it. Measured 2026-08-29 with
+`s=$SECONDS; ./joharness.sh sources >/dev/null 2>&1; echo $((SECONDS-s))`:
+78s, against 3s for the whole session-start chain — and hook output is paid
+by every session. Then:
 
 - **NOT dry** — generate. One finding, one plan. No plan for a finding no
   detector emitted, none for work a `SUPERVISED ONLY` plan already covers.
