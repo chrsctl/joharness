@@ -78,6 +78,12 @@ should read the SAME thing it prints instructions about.
 - Mid-build (below the edge) stays silent under the new check exactly as it
   does today — no case in `review.sh` before the edge may start asserting
   gate output.
+- SHIPS (`joharness.sh` syncs to every consumer): a consumer that sets
+  `JOHARNESS_REVIEW=on` in its own `joharness.conf` and runs `./joharness.sh
+  ci` or `./joharness.sh review` at the edge sees the same check — a
+  self-review-only `## Review` section reds, one carrying a `(verifier)`-
+  tagged finding stays green. No consumer-only file to update; the check
+  travels with `joharness.sh` itself.
 
 ## Where to look
 
