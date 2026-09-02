@@ -348,3 +348,62 @@ expect "the takeable plan is what unsupervised is handed" \
 # the tree that this mode cannot take.
 refute "and the block stays out of the path that has an answer" \
   "NOT YOURS" "$out"
+
+# --- a plan recorded with no goal open must not restart the fleet ----------
+# Recording is always allowed, in any mode and whether or not a goal is open,
+# so a note a session wrote for a human is a FREE row. cmd_drain returned on
+# the first free row and checked the goal BELOW that return, so the note was
+# handed straight back to an unattended fleet as its next job and became the
+# only thing keeping it alive — the circularity the bound closes
+# (docs/product/unsupervised-mode.md: one recorded with no goal open "does
+# NOT restart the fleet"). Reproduced on a scratch clone 2026-09-02 before
+# the fix: no docs/product/ at all, and drain answered
+# `next: docs/plans/recorded-note.md`.
+# Exactly the files alive at this point, and no more: `fixture_rm` wraps a
+# single `git rm`, so one pathspec that matches nothing aborts the whole
+# removal and every case below then reads the PREVIOUS queue. It cost a run
+# here — the list named three files an earlier block had already removed.
+fixture_rm "$dwork" "clear the queue and the goal for the recorded-note cases" \
+  docs/plans/takeable.md docs/plans/protocolonly.md docs/plans/servesit.md \
+  docs/product/boundarygoal.md
+git -C "$dwork" push -q origin main
+printf -- '---\nplan: recorded-note\nurgency: normal\nagent: sonnet\neffort: low\nrequirement: none\n---\n\n## Goal\nA note for a human.\n' \
+  >"${dwork}/docs/plans/recorded-note.md"
+commit_all "$dwork" "a note recorded with no goal open"
+git -C "$dwork" push -q origin main
+
+out="$(ddrain env JOHARNESS_MODE=unsupervised)"
+expect "a recorded note does not restart the fleet" "GOAL REACHED" "$out"
+refute "and is never handed out as the next thing to take" \
+  "next: docs/plans/recorded-note.md" "$out"
+# NAMED, though. A stop printed over a queue that is not empty is this same
+# defect from the other side: the session reads GOAL REACHED and concludes
+# the note is gone.
+expect "the stop says the queue is not empty" "The queue is NOT empty" "$out"
+expect "and names what it is declining" "docs/plans/recorded-note.md" "$out"
+expect "and says why recording cannot restart it" "manufacture a goal" "$out"
+# The goal stop is not the sweep's stop, and it must not pay for the sweep to
+# say so — cmd_sources runs ci.
+refute "and does not pay for the sweep it did not need" "== sources" "$out"
+
+# Supervised is untouched: a human-directed session takes the note, because
+# there is a human.
+out="$(ddrain)"
+expect "supervised still hands out the recorded note" \
+  "next: docs/plans/recorded-note.md" "$out"
+refute "and never reaches the stop" "GOAL REACHED" "$out"
+
+# A goal open again, same note, same tree. The bound is the only thing that
+# changed the answer, which is what this pair proves and neither case proves
+# alone. The requirement is SERVED, or planning would outrank the plan queue
+# and drain would offer the requirement instead.
+printf -- '---\nrequirement: livegoal\npriority: normal\n---\n\n## Goal\nFixture.\n\n## Satisfied when\n\n- something observable.\n' \
+  >"${dwork}/docs/product/livegoal.md"
+printf -- '---\nplan: serves-livegoal\nurgency: normal\nagent: sonnet\neffort: low\nrequirement: livegoal\n---\n\n## Goal\nFixture.\n' \
+  >"${dwork}/docs/plans/serves-livegoal.md"
+commit_all "$dwork" "a goal, served, beside the note"
+git -C "$dwork" push -q origin main
+out="$(ddrain env JOHARNESS_MODE=unsupervised)"
+refute "with a goal open the fleet is not stopped" "GOAL REACHED" "$out"
+expect "and the note is handed out again, oldest first" \
+  "next: docs/plans/recorded-note.md" "$out"

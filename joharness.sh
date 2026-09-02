@@ -4832,6 +4832,34 @@ drain_supervised_only() {
     sed -n 's#^  \(docs/plans/[^ ]*\.md\)  .*SUPERVISED ONLY.*#  \1#p'
 }
 
+# The reached-goal stop, printed from ONE place. Two commands say it and the
+# wording is load-bearing: a session acts on WHICH stop fired, and "the work is
+# finished" against "the sources are exhausted" is the whole reason this is not
+# the sweep's message.
+#
+# Takes what the queue would otherwise have handed out, so it can say the queue
+# is not empty when it is not. Silence there would be this same defect wearing
+# its other face — a session reads GOAL REACHED over a tree holding plans and
+# concludes the plans are gone.
+drain_goal_reached() {
+  local offered="$1"
+  printf 'GOAL REACHED — no open requirement in docs/product/.\n'
+  printf '  Unsupervised is live only while a goal is open, so this\n'
+  printf '  stops and asks exactly as supervised does.\n'
+  printf '  This is NOT a dry sweep — the sources were not counted,\n'
+  printf '  because finished work and exhausted sources are different\n'
+  printf '  facts and a session acts on which one fired.\n'
+  if [ -n "$offered" ]; then
+    printf '  The queue is NOT empty. It still offers:\n'
+    printf '    %s\n' "$offered"
+    printf '  That is a note for a human, and not work for this mode. A plan\n'
+    printf '  recorded with no goal open does not restart the fleet, or\n'
+    printf '  recording would be a way to manufacture a goal.\n'
+  fi
+  printf '  Set a requirement under docs/product/, or leave it stopped\n'
+  printf '  (docs/product/unsupervised-mode.md, Satisfied when).\n'
+}
+
 drain_next() {
   local req
   req="$(drain_requirement "$1")"
@@ -4883,6 +4911,39 @@ cmd_drain() {
   fi
 
   next="$(drain_next "$qout")"
+
+  # THE GOAL, BEFORE THE QUEUE. Autonomy is live only while a requirement is
+  # open, so with none open there is nothing here for an unattended session to
+  # take — whatever the queue still holds.
+  #
+  # This check used to sit BELOW the free-plan branch, which returns on the
+  # first free row. A plan RECORDED with no goal open is a free row —
+  # recording is always allowed, in any mode, goal or no goal — so the note a
+  # session wrote for a human was handed straight back to the fleet as its
+  # next job and became the only thing keeping it alive. That is the
+  # circularity the bound closes: one recorded with no goal open "does NOT
+  # restart the fleet" (docs/product/unsupervised-mode.md, Satisfied when).
+  #
+  # Reproduced on a scratch clone 2026-09-02: no files under docs/product/,
+  # one plan carrying `requirement: none`, and
+  # `JOHARNESS_MODE=unsupervised ./joharness.sh drain` answered
+  # `next: docs/plans/recorded-note.md`. Deleting that one plan from the same
+  # tree answered GOAL REACHED, so the note was the whole of the fleet's
+  # reason to continue.
+  #
+  # Counted ONCE and reused below: two calls are two answers to one question,
+  # and a reader trusts whichever they read second.
+  local goals="" goals_read=0
+  if [ "$mode" = "unsupervised" ]; then
+    if goals="$(drain_goals)"; then
+      goals_read=1
+      if [ "${goals:-0}" -eq 0 ]; then
+        drain_goal_reached "$next"
+        return 0
+      fi
+    fi
+  fi
+
   if [ -n "$next" ]; then
     # The count comes from the hook's "N free plans" line, which a
     # REQUIREMENT does not have — printing a plan count beside one says the
@@ -4940,19 +5001,11 @@ cmd_drain() {
     # exhausted, a reached goal means the work is finished. A shared wording
     # would make them indistinguishable in exactly the report a human reads
     # to decide whether to set a new goal.
-    local goals
-    if goals="$(drain_goals)"; then
-      if [ "${goals:-0}" -eq 0 ]; then
-        printf 'GOAL REACHED — no open requirement in docs/product/.\n'
-        printf '  Unsupervised is live only while a goal is open, so this\n'
-        printf '  stops and asks exactly as supervised does.\n'
-        printf '  This is NOT a dry sweep — the sources were not counted,\n'
-        printf '  because finished work and exhausted sources are different\n'
-        printf '  facts and a session acts on which one fired.\n'
-        printf '  Set a requirement under docs/product/, or leave it stopped\n'
-        printf '  (docs/product/unsupervised-mode.md, Satisfied when).\n'
-        return 0
-      fi
+    # Already counted above, where the zero case returned. Reaching here means
+    # a goal IS open, or the ref could not be read — and those two stay
+    # different: absent is not zero, so an unreadable ref defers rather than
+    # winding a fleet down over a question nobody answered.
+    if [ "$goals_read" -eq 1 ]; then
       printf 'queue empty, %s goal(s) open — under unsupervised that is a\n' "$goals"
       printf 'trigger, not a stop. The stop is a dry sweep, so this defers to\n'
       printf 'it (slow: runs ci).\n\n'

@@ -540,6 +540,30 @@ fi
 #              to this file alone)
 # Hook output is paid by every session, so the sweep is a pointer for the
 # same reason GitHub is. The session runs it; the hook says which one.
+# The reached-goal stop. Written once and reached from both terminal paths,
+# for the reason the edge printer beside it gives: two copies of a rule this
+# consequential drift, and each path is reached in a repo state the other is
+# not, so the drift shows up nowhere until it matters.
+#
+# NOT the edge, and the wording keeps them apart on purpose. The edge means
+# there is nothing left to take and work may be generated; this means the work
+# is finished and none may be. A session acts on which one it read.
+qc_goal_reached() {
+  printf '\nGOAL REACHED — no requirement in %s on %s.\n\n' "$PRODUCT_DIR" "$1"
+  printf 'Unsupervised is live only while a goal is open, so this is a STOP,\n'
+  printf 'and it is not the sweep: finished work and exhausted sources are\n'
+  printf 'different facts. Do not run the sweep looking for a way to carry on.\n'
+  printf '\n'
+  printf 'Anything listed above is a note for a human, not work for this mode.\n'
+  printf 'A plan recorded with no goal open does not restart the fleet, or\n'
+  printf 'recording would be a way to manufacture a goal — the circularity the\n'
+  printf 'bound closes (docs/product/unsupervised-mode.md, Satisfied when).\n'
+  printf 'Recording itself stays allowed, in every mode: write down what you\n'
+  printf 'found, and stop.\n'
+  printf '\n'
+  printf 'Set a requirement under %s to start a fleet again.\n' "$PRODUCT_DIR"
+}
+
 qc_edge_unsupervised() {
   # OPEN ISSUES FIRST, in both modes. The first version of this printed the
   # generate-work order and exited, dropping the issue pointer the supervised
@@ -569,6 +593,22 @@ qc_edge_unsupervised() {
 }
 
 if [ -z "$plans" ]; then
+  # The goal, before any of the three answers below. With no requirement on
+  # the ref there is no goal, and unsupervised is live only while one is open
+  # — so this state is the STOP, not the generate-work edge. The edge printer
+  # below was reached here whatever `docs/product/` held, which is the same
+  # half-implemented bullet `drain` was brought under the bound for in PR 170
+  # and this hook was not.
+  #
+  # Questions still print. They are queue work for a human or a supervised
+  # session, and hiding them behind the stop would report an empty queue over
+  # a queue that is not.
+  if [ "$qc_mode" = "unsupervised" ] && [ -z "$reqs" ]; then
+    qc_print_research
+    qc_warn_research_unreadable
+    qc_goal_reached "$ref"
+    exit 0
+  fi
   # Unplanned requirements FIRST, before questions: planning outranks
   # executing, and an entrypoint sentence whose next line reverses it is
   # worse than either order stated plainly.
@@ -591,6 +631,16 @@ if [ -z "$plans" ]; then
     printf '(.agents/docs/research/README.md). Agent field = tier to run it.\n'
   else
     if [ "$qc_mode" = "unsupervised" ]; then
+      # Narrowed by the goal check at the top of this block, and NOT dead
+      # weight: reaching here means a requirement IS open, which is the one
+      # state where generating work is allowed. It is also unreachable today
+      # by a second route — with no plans, every requirement is unserved, so
+      # `unplanned` is non-empty and the first branch takes it. Probed
+      # 2026-09-02: no plans plus one requirement prints "Requirements
+      # without plans", and no plans plus no requirement prints GOAL REACHED.
+      # Kept because it is the correct answer for the state it names, and
+      # because a fleet reaching it through some later route must be told to
+      # generate rather than told nothing.
       qc_edge_unsupervised "$ref" "no plans"
     else
       printf 'No plans on %s — plan-queue edge reached: done. Entrypoint: open\n' "$ref"
@@ -643,6 +693,16 @@ done <<<"$rows"
     "$((total - MAX_ENTRIES))"
 
 qc_print_research
+
+# The goal, before anything below can order work against it. Everything the
+# queue holds has been LISTED by now, which is the half that must not change:
+# recording is always allowed, so a recorded plan stays visible in every mode.
+# What stops is the ordering — the fan-out order, and the tail that points a
+# session at the top free plan.
+if [ "$qc_mode" = "unsupervised" ] && [ -z "$reqs" ]; then
+  qc_goal_reached "$ref"
+  exit 0
+fi
 
 free_count=0
 free_list=""
