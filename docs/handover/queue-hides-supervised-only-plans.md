@@ -1,14 +1,14 @@
 ---
 workstream: queue-hides-supervised-only-plans
-status: in-progress
+status: done
 branch: claude/current-state-review-oxfb7f
 pr: none
 plan: queue-hides-supervised-only-plans
 issue: none
 session: https://claude.ai/code/session_011LSGxqQsZyuMYSqxa3jVT5
 agent: opus
-updated: 2026-09-01
-next: Implement the SUPERVISED ONLY mark in queue-context.sh, then teach drain to read it
+updated: 2026-09-02
+next: Open the pull request and merge it; the work is done and verified
 ---
 
 ## Goal
