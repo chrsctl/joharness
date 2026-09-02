@@ -100,14 +100,16 @@ Decision 1 — the edge is the stop:
 - Comments in KEPT code that name a deleted symbol get reworded, not
   left: the comment block above `lint_requirement_writes` (names
   `cmd_sources` and `FB_SINCE`), the comment above `fb_marker` (`FB_SINCE`),
-  the comment block above `qc_mode` in `queue-context.sh` (`SUPERVISED
-  ONLY`), and the case comments in `review.sh` on the finding-verdicts
+  and the case comments in `review.sh` on the finding-verdicts
   and requirement-authorship cases (`cmd_sources`, `drain_goals`). The
   acceptance grep is the completeness check and it reads comments too.
 - `joharness.sh` — `cmd_drain`: delete the goal block (GOAL REACHED) and
-  `drain_goals`; delete the whole unsupervised arm after "Nothing free"
-  (NOT YOURS, "queue empty, N goal(s) open — trigger", the sweep menu).
-  Both modes reach the same `DRAINED —` line. The two lines under it today
+  `drain_goals`; in the unsupervised arm after "Nothing free" delete the
+  "queue empty, N goal(s) open — trigger" lines and the sweep menu. The
+  NOT YOURS block STAYS — it belongs to the marking (decision 3), and
+  without it a session reads DRAINED over a tree that still holds plans,
+  which is the defect `drain_goal_reached` was written against.
+  Both modes then reach the same `DRAINED —` line. The two lines under it today
   ("Supervised stops here and asks ... this repo is not in it") print
   under supervised ONLY, unchanged; under unsupervised they are replaced
   by ONE line: exit, the heartbeat re-seeds, nothing is invented. Printed
@@ -137,16 +139,18 @@ Decision 1 — the edge is the stop:
   FATAL on a listed topic with no file and on a tracked file nobody lists,
   so file and list entry go in the same commit.
 - `.agents/harness/selftest/drain.sh` — delete every case that pins GOAL
-  REACHED, the goal count, the sweep menu, or the NOT YOURS block, BY
-  NAME: "drain reads the mode from the environment too", "an empty queue
-  under unsupervised is a trigger, not a stop", "and says how many goals
-  kept it going", "unsupervised names the sweep", "and never runs it",
-  "and says what dry means", "and what NOT dry means", "no open
-  requirement stops the fleet", "and says it is not the sweep's stop",
-  "and does not pay for the sweep it did not need", "and never reads as
-  the trigger", "a TEMPLATE does not count as an open goal", "unsupervised
-  is never handed the plan it cannot commit", "both plans it cannot take
-  are named". Fixture lines between those cases are a CHAIN: a file
+  REACHED, the goal count or the sweep menu, BY NAME: "drain reads the
+  mode from the environment too", "an empty queue under unsupervised is a
+  trigger, not a stop", "and says how many goals kept it going",
+  "unsupervised names the sweep", "and never runs it", "and says what dry
+  means", "and what NOT dry means", "no open requirement stops the fleet",
+  "and says it is not the sweep's stop", "and does not pay for the sweep
+  it did not need", "and never reads as the trigger", "a TEMPLATE does not
+  count as an open goal". The NOT YOURS cases — "unsupervised is never
+  handed the plan it cannot commit", "both plans it cannot take are
+  named", "the plans it cannot take are named", "and named by path", "and
+  the reason given is the boundary, not availability", "and it says not to
+  re-file the same work" — STAY: that block survives (decision 3). Fixture lines between those cases are a CHAIN: a file
   written there (the TEMPLATE write, `serves-goal.md`, `goalclaimer`) is
   removed by a `fixture_rm` further down, and `fixture_rm` is `git rm`
   that aborts on a missing path, leaving every later case on a different
@@ -403,9 +407,10 @@ Decision 3 — claim by push, detect at merge:
 - `joharness.sh:lint_plan_advances` — stage only generated plans could
   trip.
 - `joharness.sh:cmd_drain` — 152 lines on 15c5df8; the goal block, the
-  unsupervised free-path order and the whole arm after "Nothing free" go;
-  `drain_goals`, `drain_wave1`, `drain_supervised_only` and the filter in
-  `drain_plan` feed only those.
+  unsupervised free-path order, and the goal and sweep lines of the arm
+  after "Nothing free" go. `drain_goals` and `drain_wave1` feed only
+  those; `drain_supervised_only`, the filter in `drain_plan` and the NOT
+  YOURS block feed the marking and stay.
 - `joharness.sh:drain_hook` — passes `JOHARNESS_RUN_MODE` to both hooks;
   keep, `handover-context.sh` reads it for the compaction pointer.
 - `joharness.sh:cmd_session_start` — the unsupervised banner's

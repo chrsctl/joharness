@@ -61,7 +61,32 @@ solved here and one raised for the human.
 
 ## Review
 
-None yet.
+Round 1, self, adversarial (correctness, does-it-reproduce, second-order):
+
+- r1: `cmd_drain`'s NOT YOURS block explains the marked rows with "Scope
+  is entirely protocol text" — false for a `some` plan the moment this
+  lands, and the block is the one place a session reads the reason.
+  (fixed: "Scope holds protocol text ... the row above says whether that
+  is all of it or part"; `drain.sh` pin moved with it)
+- r2: the corrected `unsupervised-drain-only.md` still listed the comment
+  above `qc_mode` among comments naming DELETED symbols. The marking
+  stays, so that comment names nothing deleted. (fixed)
+- r3: its Where to look still said `drain_supervised_only` and the
+  `drain_plan` filter "feed only" code the plan deletes. (fixed: they feed
+  the marking and stay)
+- r4: its decision 1 deleted the whole unsupervised arm of `cmd_drain`
+  after "Nothing free" — including the NOT YOURS block, which belongs to
+  the marking decision 3 now keeps. Without it a session reads DRAINED
+  over a tree still holding plans, the defect `drain_goal_reached` was
+  written against. (fixed: the goal and sweep lines go, NOT YOURS stays)
+- r5: same split missed in its `drain.sh` bullet, which listed the six
+  NOT YOURS cases among those to delete. (fixed: named as STAY)
+- r6: second-order effect, recorded not fixed. All three plans on `main`
+  are now marked, so an unattended fleet here reaches the generate-work
+  edge instead of taking work it could not finish. That is the designed
+  behaviour of the current tree and it is transitional — once
+  `unsupervised-drain-only` lands, that edge is a stop. Dispatching
+  unfinishable work is the worse of the two. (no change needed)
 
 ## Blockers
 
