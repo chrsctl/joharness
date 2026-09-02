@@ -25,7 +25,9 @@ not from zero. This session writes the plan for Decisions 1-3
   andyrewlee/awesome-agent-orchestrators (aeon, cyrus, sortie, symphony,
   open-swe, Factory) pulls from external queue, stops when empty. Work
   generation moves to supervised research tier that files plans via PR.
-  Deletes: `cmd_sources` (459 lines), detectors, `FB_SINCE` baseline, dry
+  Deletes: `cmd_sources` + `src_stop_condition` (459 lines, 4325-4783 on
+  `main` 4cae61a, `sed -n | wc -l` 2026-09-02) and the detectors above
+  `authority_commit` (105 more), `FB_SINCE` baseline, dry
   sweep, "manufactures own backlog" constraint, `qc_edge_unsupervised`.
   Termination becomes: no free plan = exit. Goal-bounded stop no longer
   needed.
@@ -43,7 +45,7 @@ not from zero. This session writes the plan for Decisions 1-3
   credential. Rejection in `.agents/docs/unsupervised.md` rests on
   `GITHUB_TOKEN` PRs get no CI. aeon, gh-aw run unattended on Actions today
   via GitHub App or PAT. Buys: sub-hour cadence; `cmd_authority` (87 lines
-  + `selftest/authority.sh` 136) deleted, because session started by
+  + `selftest/authority.sh` 136 — `wc -l`, same day) deleted, because session started by
   repo's own workflow on repo's own event has structural provenance, no
   prompt claims anything. gh-aw read-only-default + sanitized safe-outputs
   ≈ `protocol_paths` as workflow config not shell. Propose, do not do.
@@ -93,8 +95,10 @@ Made this session, while writing the plan:
 - Ruflo as replacement. 250k+ LOC TS + Rust/WASM, benchmarks self-reported,
   not container-locked, coding-oriented. Opposite direction from "slimmer".
 - Keeping generate-at-edge with better detectors. Constraint bullet already
-  proved it: uncountable source never reaches zero; 62 of 155 findings
-  carry no `rN:` id; sweep never dry. Fix was baseline, still 459 lines.
+  proved it: uncountable source never reaches zero; 62 of 155 unmarked
+  findings carried no `rN:` id (the requirement's own Constraints, counted
+  for PR 161; `./joharness.sh feedback` 2026-09-02 on `main` 4cae61a: 266
+  findings, 50 without id); sweep never dry. Fix was baseline, still 459 lines.
   Structural fix is not generating.
 - Tuning spawn prompt until sessions stop refusing. `unsupervised.md`
   already says no; 2026-08-31 refusals correct. Only structural provenance
@@ -117,6 +121,58 @@ Round 1, self, adversarial (correctness, does-it-reproduce):
 - r3: "Delete the wave-1 paragraph and ... stays" read as one instruction
   with two verbs. (fixed)
 
+Round 2, verifier at opus, 16 findings:
+
+- r4: (verifier) `qc_goal_reached` has THREE guarded callers, the plan named
+  two; the top-level one fires in any tree with plans and no requirement —
+  every consumer — and deleting `qc_mode` with it left under `set -u`
+  aborts the hook in supervised too. (fixed: third arm named, variable
+  goes last, `qc_mode` in the acceptance grep)
+- r5: (verifier) acceptance grep hit the kept annotations — same as r1,
+  read on the commit before r1's fix. (fixed in r1; annotations that name
+  `./joharness.sh sources` are dated history, Traps say leave them)
+- r6: (verifier) "459 lines" for `cmd_sources` reproduced from no command;
+  `cmd_drain` 144 and `cmd_authority` 87 also off by a few. (fixed:
+  459 = `cmd_sources` + `src_stop_condition` 4325-4783, detectors 105
+  more; 140; 86 — command and date beside each)
+- r7: (verifier) `feedback | grep -c 'counted since'` is 0 before the
+  change — `feedback` never printed it, `sources` did. Green both ways.
+  (fixed: bullet replaced by the surviving volume line and a
+  `JOHARNESS_FEEDBACK_SINCE` no-op check)
+- r8: (verifier) "62 of 155" carries no command and today's `feedback`
+  says 266 / 50. (fixed: attributed to the requirement's PR 161 count,
+  today's number beside it)
+- r9: (verifier) `JOHARNESS_MODE=unsupervised ./joharness.sh ci` red on
+  this branch — the plan names a requirement and no `advances:`. (fixed:
+  `advances:` names the endurance bullet's surviving text; Traps say why)
+- r10: (verifier) `queue-context-scope-waves.sh` has zero unsupervised
+  cases; the plan told an implementer to cut some. (fixed: STAYS whole,
+  named so; only `queue-context-fanout.sh` is cut, its count given)
+- r11: (verifier) before/after `drain` diff not controlled — detached
+  worktree changes the in-flight block, not the verdict. (fixed: compare
+  from the verdict line down, reason stated)
+- r12: (verifier) "same DRAINED line" would print "this repo is not in
+  it" to an unsupervised session. (fixed: sub-lines supervised-only,
+  unsupervised gets its one line)
+- r13: (verifier) acceptance grep omitted ten names Scope deletes;
+  `perf_count`'s `JOHARNESS_IN_SWEEP` export and comment not in Scope.
+  (fixed: names added, `perf_count` scoped and anchored)
+- r14: (verifier) deleting `drain.md` "Limits" whole drops "fleet
+  outliving sessions is the heartbeat's job" and "stop when the human says
+  stop". (fixed: those two lines stay)
+- r15: (verifier) `review.sh` is edited by this plan and by
+  `gate-review-verifier-tag`, which Out of scope called unrelated. (fixed:
+  named as a wave split with a reconcile expected)
+- r16: (verifier) the DRAINED acceptance is unreachable on this repo's
+  tree — the requirement is unplanned again after the retire. (fixed:
+  fixture stated, the selftest case named as the runnable form)
+- r17: (verifier) README section has two subsections, not three. (fixed)
+- r18: (verifier) `perf_rows` runs the queue-context row under
+  `JOHARNESS_RUN_MODE=unsupervised`, a path that no longer differs after
+  decision 3. (fixed: drop the prefix, budgets untouched)
+- r19: (verifier) `## Review` read "None yet." — not the `- rN:` form.
+  (fixed before this round landed; this section is the record)
+
 ## Blockers
 
 Decision 4 needs human: PAT or GitHub App secret in repo. Without it,
@@ -124,18 +180,19 @@ heartbeat stays Routine at 1h floor and `cmd_authority` stays.
 
 ## Where to look
 
-- `joharness.sh:cmd_sources` — 459 lines, largest unsupervised cost, goes
-  with decision 1.
-- `joharness.sh:cmd_drain` — 144 lines, rewrite to claim-one-exit.
-- `joharness.sh:cmd_authority` — 87 lines, goes with decision 4.
+- `joharness.sh:cmd_sources` — with `src_stop_condition` 459 lines, largest
+  unsupervised cost, goes with decision 1.
+- `joharness.sh:cmd_drain` — 140 lines, rewrite to claim-one-exit.
+- `joharness.sh:cmd_authority` — 86 lines, goes with decision 4.
 - `.agents/harness/queue-context.sh:qc_scope_class` — wave partition
   marking, decision 3.
 - `.agents/harness/queue-context.sh:qc_edge_unsupervised` — edge
   generation, decision 1.
 - `.agents/harness/selftest/sources.sh` — with `drain.sh`,
-  `queue-context-scope-waves.sh`, `queue-context-edge.sh`,
-  `queue-context-fanout.sh`, `queue-context-supervised-only.sh`: the
-  selftests decisions 1-3 delete or cut.
+  `queue-context-edge.sh`, `queue-context-fanout.sh`,
+  `queue-context-supervised-only.sh`: the selftests decisions 1-3 delete
+  or cut. `queue-context-scope-waves.sh` has no unsupervised case and
+  stays.
 - `.agents/docs/unsupervised.md` — heartbeat mechanism + GH Actions
   rejection; rewrite under decision 4.
 - `docs/product/unsupervised-mode.md` — Constraints: "not invent work

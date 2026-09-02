@@ -5,6 +5,7 @@ agent: opus
 effort: xhigh
 needs: none
 requirement: unsupervised-mode
+advances: Started once, the fleet keeps going for hours
 scope: joharness.sh, .agents/harness/queue-context.sh, .agents/harness/selftest.sh, .agents/harness/selftest, .agents/harness/AGENTS.md, .claude/commands/drain.md, .agents/docs/unsupervised.md, .agents/docs/plans/README.md, docs/product/unsupervised-mode.md, docs/plans/advance-feedback-baseline.md
 ---
 
@@ -21,7 +22,9 @@ then `git show <that-commit>^:docs/handover/unsupervised-slim.md`):
    it is empty. Here the edge under unsupervised is an order to invent
    work, and four runs measured the cost of that: a source sweep that took
    78s against a 3s hook, a detector whose count could never reach zero
-   until a 459-line command grew a baseline, and a fleet that left the tree
+   until the sweep grew a baseline (the sweep is 564 lines of
+   `joharness.sh`: 4102-4206 and 4325-4783 on `main` 4cae61a, `sed -n | wc
+   -l`, 2026-09-02), and a fleet that left the tree
    with more unfinishable plans than it started with
    (`docs/product/unsupervised-mode.md`, attempt four, "Residue"). Work
    generation is a supervised job that files plans through pull requests.
@@ -62,6 +65,14 @@ Decision 1 — the edge exits:
   `src_stop_condition`, `SRC_MARKERS`, the `src_checks_*` globals, the
   `--prev-dry` / `--open-prs` parsing, the `JOHARNESS_IN_SWEEP` recursion
   guard, the `sources)` dispatch arm and its lines in the usage header.
+- `joharness.sh` — `perf_count` exports `JOHARNESS_IN_SWEEP` so the
+  `drain` perf row measures drain and not a nested sweep; delete that line
+  and the comment paragraph above it that names `cmd_sources`. `perf_rows`:
+  the `queue-context` row runs the hook under
+  `env JOHARNESS_RUN_MODE=unsupervised` because that was the expensive
+  path; after decision 3 both modes run the same code, so drop the `env`
+  prefix from that row. Budgets stay as they are — a deletion cannot need
+  a raise, and the stage reports drift on its own.
 - `joharness.sh` — delete the baseline: `FB_SINCE`, `fb_since_ok`,
   `FB_SINCE_OK`, `FB_UNMARKED_SINCE`, the `since_set` walk inside
   `fb_collect`, `JOHARNESS_FEEDBACK_SINCE`, and every reader of those
@@ -76,9 +87,12 @@ Decision 1 — the edge exits:
 - `joharness.sh` — delete `drain_goals`, `drain_goal_reached`, and in
   `cmd_drain` the goal check and the whole unsupervised arm after "Nothing
   free": no `cmd_sources` call, no GOAL REACHED, no deferral. Both modes
-  reach the same `DRAINED` line. Unsupervised adds ONE line after it:
-  exit, say DRAINED, the heartbeat re-seeds — and nothing is invented.
-  The usage-header text for `drain` says the same.
+  reach the same `DRAINED —` line. The two lines under it today
+  ("Supervised stops here and asks ... this repo is not in it") print
+  under supervised ONLY, unchanged; under unsupervised they are replaced
+  by ONE line: exit, the heartbeat re-seeds, nothing is invented. Printed
+  as they are to an unsupervised session they would tell it it is not in
+  unsupervised mode. The usage-header text for `drain` says the same.
 - `joharness.sh` — `cmd_session_start`, the `== Mode: unsupervised ==`
   banner: the two lines "Queue edge is a trigger, not a stop: generate
   work, run the full Loop, merge your own pull request" become one that
@@ -86,10 +100,15 @@ Decision 1 — the edge exits:
   Loop, merge your own pull request, exit at the edge. The header line and
   the boundary lines after it stay; `autonomy-mode.sh` pins the header.
 - `.agents/harness/queue-context.sh` — delete `qc_edge_unsupervised`,
-  `qc_goal_reached`, and the two `[ "$qc_mode" = "unsupervised" ]` arms
-  that call them (the `[ -z "$plans" ]` block, and the `free_count -eq 0`
-  edge block). Under unsupervised the hook prints exactly what it prints
-  under supervised at the edge.
+  `qc_goal_reached`, and the THREE `[ "$qc_mode" = "unsupervised" ]` arms
+  that call them: inside the `[ -z "$plans" ]` block; the top-level arm
+  between `qc_print_research` and the free-plan loop (reached in a tree
+  with plans and no requirement — every consumer); and the
+  `free_count -eq 0` edge block. Under unsupervised the hook prints
+  exactly what it prints under supervised at the edge. The hook runs under
+  `set -u`: a reader of `qc_mode` left behind after the variable goes
+  aborts the hook in EVERY mode, so the variable is the last thing to go,
+  after the acceptance grep finds no reader.
 - `.agents/harness/selftest/sources.sh` — delete, and its `sources` entry
   in `SELFTEST_TOPICS` (`.agents/harness/selftest.sh`). The runner is
   FATAL on a listed topic with no file and on a tracked file nobody lists,
@@ -109,7 +128,7 @@ Decision 1 — the edge exits:
   cases (the `withadv` and `stale` plan fixtures). The
   `lint_requirement_writes` cases STAY.
 - `.agents/docs/plans/README.md` — delete the section "Where unsupervised
-  work comes from" whole (its three subsections included). In its place,
+  work comes from" whole (its two subsections included). In its place,
   one short paragraph under "Lifecycle" or a new heading: unsupervised
   drains this queue and exits at its edge; work enters the queue the same
   three ways in every mode — issue, requirement, plan through a pull
@@ -157,8 +176,10 @@ Decision 2 — one item per session:
   edge work named outranks the queue (unchanged text); run the FULL Loop
   on that ONE item; report what merged and what is left. Delete step 4's
   loop-back and "Re-read `drain`, never remember it", the width paragraph,
-  and the whole "Limits" section (compaction guidance, two-consecutive-
-  failures rule). "What stops it": the item finishing, in both modes;
+  and from the "Limits" section the compaction paragraph and the
+  two-consecutive-failures clause. Two lines there stay: this drives THIS
+  session and the fleet outliving it is the heartbeat's job, and stop
+  when the human says stop. "What stops it": the item finishing, in both modes;
   supervised, the human re-invokes; unsupervised, the heartbeat re-seeds
   (`.agents/docs/unsupervised.md`). Keep the measured stall numbers in the
   opening paragraph.
@@ -187,12 +208,14 @@ Decision 3 — claim by push, detect at merge:
   `cmd_drain` (the rest of that arm goes under decision 1 above).
 - `.agents/harness/selftest/queue-context-supervised-only.sh` — delete,
   with its `SELFTEST_TOPICS` entry.
-- `.agents/harness/selftest/queue-context-fanout.sh`,
-  `.agents/harness/selftest/queue-context-scope-waves.sh` — delete every
+- `.agents/harness/selftest/queue-context-fanout.sh` — delete every
   case that asserts unsupervised-only output (the ORDER lines, wave-1-only,
-  unscoped refusals). Cases pinning the supervised "Waves —" report and the
-  "N free plans = N parallel sessions" line stay. A file left with no case
-  is deleted with its list entry; a file left with cases keeps its entry.
+  unscoped refusals; `grep -c unsupervised` on it is 6, 2026-09-02). Cases
+  pinning the supervised "Waves —" report and the "N free plans = N
+  parallel sessions" line stay. A file left with no case is deleted with
+  its list entry; a file left with cases keeps its entry.
+  `queue-context-scope-waves.sh` has NO unsupervised case (`grep -c` is 0)
+  and is not touched.
 - `.agents/docs/unsupervised.md` — "Run a plan, or fan out?": one session
   per free plan, every wave, model = its tier; one free plan runs in the
   firing session; a collision between two claimed plans is the reconcile
@@ -229,8 +252,10 @@ Decision 3 — claim by push, detect at merge:
 - Retiring `docs/product/unsupervised-mode.md`. Bullets survive it, so it
   is not the last plan.
 - Creating a heartbeat Routine. Operator action, money.
-- `docs/plans/gate-review-verifier-tag.md`. Claimed elsewhere, touches the
-  review gate, unrelated.
+- `docs/plans/gate-review-verifier-tag.md`. Claimed elsewhere. Both plans
+  edit `.agents/harness/selftest/review.sh` — that one adds a verifier-tag
+  case, this one deletes the two `advances` fixtures — so the hook splits
+  the wave and a reconcile there is the expected cost, not a collision.
 - `feedback`'s other counts and `fb_hotspots`. Only the baseline goes.
 - Any new subcommand, flag or hook line. This plan only removes.
 
@@ -239,7 +264,7 @@ Decision 3 — claim by push, detect at merge:
 - `./joharness.sh ci` — `ci: pass`; the selftest summary line reads
   `<N> passed, 0 failed`, N counted from the run.
 - `./joharness.sh verify` — `0 failed`.
-- `grep -n 'cmd_sources\|src_run_checks\|src_unmarked\|src_stop_condition\|FB_SINCE\|FB_UNMARKED_SINCE\|FEEDBACK_SINCE\|lint_plan_advances\|drain_goal\|drain_supervised_only\|qc_scope_class\|qc_edge_unsupervised\|qc_goal_reached\|SUPERVISED ONLY\|scope undeclared\|prev-dry\|open-prs\|generate work' joharness.sh .agents/harness/*.sh .agents/harness/selftest/*.sh .agents/harness/AGENTS.md .claude/commands/*.md .agents/docs/*.md .agents/docs/plans/*.md`
+- `grep -n 'cmd_sources\|src_run_checks\|src_unmarked\|src_stop_condition\|FB_SINCE\|FB_UNMARKED_SINCE\|FEEDBACK_SINCE\|lint_plan_advances\|drain_goal\|drain_supervised_only\|qc_scope_class\|qc_edge_unsupervised\|qc_goal_reached\|SUPERVISED ONLY\|scope undeclared\|prev-dry\|open-prs\|generate work\|qc_mode\|qc_boundary\|qc_protocol\|qc_class\|scope_note\|scope_derank\|SRC_MARKERS\|src_checks_\|JOHARNESS_IN_SWEEP\|fb_since_ok' joharness.sh .agents/harness/*.sh .agents/harness/selftest/*.sh .agents/harness/AGENTS.md .claude/commands/*.md .agents/docs/*.md .agents/docs/plans/*.md`
   — no output. The requirement is NOT in that list on purpose: its
   surviving annotations quote `SUPERVISED ONLY` and stay byte-for-byte.
 - `grep -n 'writes new plan files\|source sweep goes dry\|Recording is always allowed\|bounded by a goal\|No detector, not a source\|written as an exception\|manufactures its own backlog' docs/product/unsupervised-mode.md`
@@ -248,17 +273,25 @@ Decision 3 — claim by push, detect at merge:
   bullet and nothing else.
 - `./joharness.sh sources` — exits non-zero, prints
   `unknown subcommand 'sources'`.
-- `JOHARNESS_MODE=unsupervised ./joharness.sh drain` on a tree where every
-  plan is claimed — prints `DRAINED`, exits 0, output contains no
-  `== sources` and no `stop condition`; finishes without running `ci`
-  (seconds, not the 78s sweep).
+- `JOHARNESS_MODE=unsupervised ./joharness.sh drain` on a fixture tree
+  where every plan is claimed and no requirement is unplanned (the new
+  `drain.sh` case is the runnable form; on THIS repo the requirement is
+  unplanned again once this plan retires, so `drain` here answers
+  `next: docs/product/unsupervised-mode.md`) — prints `DRAINED`, exits 0,
+  output contains no `== sources` and no `stop condition`; finishes
+  without running `ci` (seconds, not the 78s sweep).
 - `diff <(JOHARNESS_RUN_MODE=supervised bash .agents/harness/queue-context.sh) <(JOHARNESS_RUN_MODE=unsupervised bash .agents/harness/queue-context.sh)`
   — empty.
-- `git worktree add ../before origin/main && diff <(cd ../before && JOHARNESS_MODE=supervised ./joharness.sh drain) <(JOHARNESS_MODE=supervised ./joharness.sh drain)`
-  — empty, run BEFORE the retire commit (both read the queue from
-  `origin/main`, so the tree under test does not change the rows).
-- `./joharness.sh feedback | grep -c 'counted since'` — `0`; the
-  `unmarked` line still prints a number.
+- `git worktree add ../before origin/main && diff <(cd ../before && JOHARNESS_MODE=supervised ./joharness.sh drain | sed -n '/^NOT DRAINED\|^DRAINED/,$p') <(JOHARNESS_MODE=supervised ./joharness.sh drain | sed -n '/^NOT DRAINED\|^DRAINED/,$p')`
+  — empty. Compared from the verdict line down, because the in-flight
+  block above it legitimately differs: the worktree is detached, so
+  `handover-context.sh` excludes this branch on one side and not the other.
+  Both sides read the queue rows from `origin/main`.
+- `./joharness.sh feedback` — the `volume` line still prints
+  `<N> findings` and an `unmarked` count (the all-history count survives;
+  only the baseline goes). `JOHARNESS_FEEDBACK_SINCE=4cae61a ./joharness.sh
+  feedback` prints the same numbers as without it — the variable reads
+  nowhere.
 - `wc -l joharness.sh .agents/harness/queue-context.sh` and
   `cat .agents/harness/selftest/*.sh | wc -l` — each smaller than the
   baseline in Goal; write all six numbers with the command and date in the
@@ -276,8 +309,10 @@ Decision 3 — claim by push, detect at merge:
 
 ## Where to look
 
-- `joharness.sh:cmd_sources` — the 459 lines decision 1 removes; its
-  detectors sit just above it and `src_stop_condition` just below.
+- `joharness.sh:cmd_sources` — with `src_stop_condition` under it, 459
+  lines (4325-4783); the detectors `src_run_checks` and `src_unmarked`
+  with `SRC_MARKERS` above `authority_commit`, 105 more (4102-4206).
+  `main` 4cae61a, `sed -n | wc -l`, 2026-09-02.
 - `joharness.sh:FB_SINCE` — the baseline literal and the comment block
   that argues for it; both go. `fb_collect` is the one reader that walks
   history with it.
@@ -288,6 +323,10 @@ Decision 3 — claim by push, detect at merge:
 - `joharness.sh:cmd_drain` — the unsupervised arm after "Nothing free" is
   what turns into one line; `drain_goals`, `drain_goal_reached`,
   `drain_supervised_only` and the filter in `drain_plan` feed only that arm.
+- `joharness.sh:perf_count` — the `JOHARNESS_IN_SWEEP` export and its
+  comment; `perf_rows` two screens below, the `queue-context` row.
+- `.agents/harness/selftest/queue-context-scope-waves.sh` — STAYS whole;
+  it pins the supervised wave report and nothing else.
 - `joharness.sh:cmd_session_start` — the unsupervised banner's
   generate-work lines; the one copy of that order outside the hook.
 - `joharness.sh:drain_hook` — passes `JOHARNESS_RUN_MODE` to both hooks;
@@ -357,6 +396,15 @@ Decision 3 — claim by push, detect at merge:
 - Merge-commit method only; `finish` green; this plan and
   `advance-feedback-baseline` deleted in the last commit before the pull
   request opens. Squash breaks the merged-branch filter.
+- `JOHARNESS_MODE=unsupervised ./joharness.sh ci` is red on a branch
+  carrying this plan without `advances:` — `lint_plan_advances` fires on
+  every plan naming a requirement, and this plan deletes that stage. The
+  frontmatter names a surviving bullet's text so both modes are green
+  until the stage is gone; reword that bullet and the fragment must move
+  with it.
+- Surviving annotations tell a reader to run `./joharness.sh sources`
+  (the endurance bullet, attempt four). Dated history of a run, not an
+  instruction; leave it for decision 5's plan.
 - `lint_anchors` warns on a `Where to look` path that left the tree. The
   deleted selftest files are anchors above on purpose; once they are gone
   this plan file is gone too (same commit), so nothing rots.
