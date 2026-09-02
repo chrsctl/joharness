@@ -6,6 +6,3 @@ venv/
 .pytest_cache/
 node_modules/
 
-# Session-local autonomy marker (./joharness.sh mode <value>). Never
-# committed: the mode a repo ships with lives in joharness.conf.
-/.joharness-mode
