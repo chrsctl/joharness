@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_017oZ8o5q2YRzjFT1eTnx4Cs
 agent: opus
 updated: 2026-09-02
-next: Run ci, spawn verifier on the plan diff, record findings, retire this file, open the pull request.
+next: Record the verifier findings under Review, fix or disposition each, retire this file, open the pull request.
 ---
 
 ## Goal
