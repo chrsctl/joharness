@@ -213,16 +213,15 @@ refute "and the docs-only skip does not fire there" "skipped: nothing outside" "
 # same tree: a single-branch clone counted `graph` 19 where the 107-ref
 # container counted 422, against a budget of 260.
 #
-# The fix is a pinned measurement shape, so the count cannot move with a
-# checkout nobody chose. These cases are the claim: same code, two very
-# different checkouts, one number.
+# The fix is a measurement shape built from nothing, so the count cannot move
+# with a checkout nobody chose. These cases are the claim.
 pf_shape_a="${TMP}/pfshapea"
 git init -q "$pf_shape_a"
 git -C "$pf_shape_a" symbolic-ref HEAD refs/heads/main
 cp "${ROOT}/joharness.sh" "${pf_shape_a}/joharness.sh"
 mkdir -p "${pf_shape_a}/.agents"
 cp -R "${ROOT}/.agents/harness" "${pf_shape_a}/.agents/harness"
-mkdir -p "${pf_shape_a}/.agents/env/none"
+mkdir -p "${pf_shape_a}/.agents/env/none" "${pf_shape_a}/docs/plans"
 printf '# none\n' >"${pf_shape_a}/.agents/env/none/AGENTS.md"
 printf 'JOHARNESS_ENV=none\n' >"${pf_shape_a}/joharness.conf"
 commit_all "$pf_shape_a" "base"
@@ -230,47 +229,80 @@ git -C "$pf_shape_a" update-ref refs/remotes/origin/main HEAD
 
 pf_count_of() {
   ( cd "$ROOT" && CLAUDE_PROJECT_DIR="$1" JOHARNESS_PERF='' \
-      ./joharness.sh perf graph 2>&1 ) |
-    sed -n 's/^ *graph *\([0-9][0-9]*\) .*/\1/p' | head -1
+      ./joharness.sh perf "${2:-graph}" 2>&1 ) |
+    sed -n "s/^ *${2:-graph} *\\([0-9][0-9]*\\) .*/\\1/p" | head -1
 }
 
 pf_one="$(pf_count_of "$pf_shape_a")"
-# The SAME tree, with a pile of remote refs bolted on. Before the pinned
-# shape this alone moved the number by one per ref.
+# The SAME tree, with a pile of remote refs bolted on and a queue filled up.
+# Before the shape, EITHER of these moved the number — the refs by one fork
+# each, the plans by twelve.
 i=0
 while [ "$i" -lt 40 ]; do
   git -C "$pf_shape_a" update-ref "refs/remotes/origin/noise-${i}" HEAD
   i=$((i + 1))
 done
+i=0
+while [ "$i" -lt 12 ]; do
+  printf -- '---\nplan: noise-%s\nurgency: normal\nagent: sonnet\neffort: low\n---\n\n## Goal\nNoise.\n' \
+    "$i" >"${pf_shape_a}/docs/plans/noise-${i}.md"
+  i=$((i + 1))
+done
+commit_all "$pf_shape_a" "a queue, and a pile of refs"
+git -C "$pf_shape_a" update-ref refs/remotes/origin/main HEAD
 pf_many="$(pf_count_of "$pf_shape_a")"
 
 if [ -n "$pf_one" ] && [ "$pf_one" = "$pf_many" ]; then
-  pass "the count does not move with the checkout's ref list"
+  pass "a pinned count follows neither the ref list nor the queue"
 else
-  fail "the count does not move with the checkout's ref list"
-  printf '    1 ref: %s    41 refs: %s\n' "${pf_one:-<none>}" "${pf_many:-<none>}"
+  fail "a pinned count follows neither the ref list nor the queue"
+  printf '    1 ref / 0 plans: %s    41 refs / 12 plans: %s\n' \
+    "${pf_one:-<none>}" "${pf_many:-<none>}"
 fi
 
-# And it SAYS which tree it measured, both ways. A number nobody can place is
-# a written number, and a reader who assumes it came from their own checkout
-# will go looking for a regression that is not there.
+# And it SAYS which tree it measured. A number nobody can place is a written
+# number, and a reader who assumes it came from their own checkout goes
+# looking for a regression that is not there.
 out="$(pf_run ./joharness.sh perf graph)"
-expect "the table names the pinned shape" "measured against a pinned shape" "$out"
-expect "and reports what this checkout carries" "would count higher" "$out"
-out="$(pf_run ./joharness.sh perf --live graph)"
+expect "the table names the shape it measured" "measured against a built shape" "$out"
+expect "and says it is not this checkout" "Not this checkout" "$out"
+expect "and each row says which tree its number came from" "pinned" "$out"
+
+# --live REPORTS and never gates. A session reaching for a debugging flag
+# must not be handed a red for its own container's branch list, which is the
+# thing this whole change exists to stop being a red.
+out="$(pf_run ./joharness.sh perf --live graph)" && rc=0 || rc=$?
 expect "--live measures this checkout instead" "measured against THIS checkout" "$out"
-refute "and says so rather than claiming the shape" \
-  "measured against a pinned shape" "$out"
+expect "and reports rather than gating" "reported" "$out"
+refute "and does not claim the shape" "measured against a built shape" "$out"
+if [ "$rc" -eq 0 ]; then pass "--live is green whatever it counts"
+else fail "--live is green whatever it counts (got ${rc})"; fi
+# Both orders, because the flag used to be dropped by whichever position the
+# dispatch did not read: `main` passed only "$1", so `perf graph --live`
+# measured the shape and `perf --live graph` measured all seven rows.
+out="$(pf_run ./joharness.sh perf graph --live)"
+expect "the flag is read after the name too" "measured against THIS checkout" "$out"
+refute "and the name is still honoured beside it" "session-start" "$out"
+
+# A row measured against this checkout can still exit early — in a clone with
+# nothing to review it counted 6 and printed ok, a green tick over nothing.
+# The floor catches what 127 cannot.
+out="$(pf_run env "JOHARNESS_PERF_BUDGET_FEEDBACK=999" "PERF_FLOOR=100000" \
+  ./joharness.sh perf feedback)" && rc=0 || rc=$?
+expect "a live row under the floor is named" "TOO LOW" "$out"
+expect "and says why a low count is not a clean run" "exited early" "$out"
+if [ "$rc" -ne 0 ]; then pass "and is a non-zero exit"
+else fail "and is a non-zero exit (got ${rc})"; fi
 
 # A shape that cannot be built REFUSES. Falling back to the live tree would
 # silently restore the defect: an unpinned count under a pinned budget is
 # exactly the red every container was seeing.
-pf_noshape="${TMP}/pfnoshape"
-mkdir -p "$pf_noshape"
-out="$(pf_run env "CLAUDE_PROJECT_DIR=${pf_noshape}" ./joharness.sh perf graph)" &&
+# A TMPDIR that does not exist, not one made read-only: this suite runs as
+# root in CI, where a mode bit stops nothing. mktemp fails for everybody on a
+# path that is not there.
+out="$(pf_run env "TMPDIR=${TMP}/pfnoshape-absent" ./joharness.sh perf graph)" &&
   rc=0 || rc=$?
-expect "an unbuildable shape is named" "cannot build the pinned measurement shape" "$out"
-expect "and points at the flag that asks for the live tree" "--live" "$out"
+expect "an unbuildable shape is named" "cannot" "$out"
 refute "and no row is printed as measured" "ok (" "$out"
 if [ "$rc" -ne 0 ]; then pass "an unbuildable shape is a non-zero exit"
 else fail "an unbuildable shape is a non-zero exit (got ${rc})"; fi
