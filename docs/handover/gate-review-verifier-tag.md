@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_011LSGxqQsZyuMYSqxa3jVT5
 agent: opus
 updated: 2026-09-02
-next: Read review_report, fb_findings and review.sh, then make review_report red at the edge when no finding carries a (verifier) tag
+next: Record the verifier round under ## Review, fix what it finds, then retire this file and the plan and open the pull request
 ---
 
 ## Goal
@@ -32,6 +32,17 @@ the gap the plan's own source finding (r6) names.
   branch owes its own verifier round under the rule it is enforcing.
 
 ## Rejected
+
+- **Asking the question with a second parser beside the existing one.** The
+  first cut ran `fb_findings | grep -qF '(verifier)'` next to `review_count`,
+  which is what the plan's Where to look recommends. Two extra awks per
+  workstream file, and `review` went 260 to 348 against a 274 ceiling
+  (`./joharness.sh perf`, 2026-09-02) — a per-item fork put back inside a
+  loop, which is the one thing that budget exists to name.
+- **Raising the budget to match.** Available and wrong here: the forks were
+  removable. `review_at_edge` was forking one awk per field over the same
+  frontmatter, which `gr_fields`' own comment already calls the defect it
+  exists to fix.
 
 ## Review
 
