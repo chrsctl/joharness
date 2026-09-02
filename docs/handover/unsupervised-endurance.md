@@ -90,8 +90,8 @@ Cap value is also still outstanding, but it is downstream of the above.
   own warning, and the fire-once check tests end-to-end reachability, which
   a grant read cannot)
 
-## Review round two (verifier at opus on 921af62; each finding re-checked
-## by this session against its source before being accepted)
+Round two — verifier at opus on 921af62; each finding re-checked by this
+session against its source before being accepted:
 
 - r4: (verifier) `next:` and Goal named one blocker while the cap value
   was still unknown; a next session reading only the hook line would see
