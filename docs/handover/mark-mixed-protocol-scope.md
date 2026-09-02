@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_017oZ8o5q2YRzjFT1eTnx4Cs
 agent: opus
 updated: 2026-09-02
-next: Implement qc_scope_class any-semantics, invert the selftest block, fix unsupervised-drain-only.md in place.
+next: Record verifier findings, fix or disposition each, retire this file and the plan, open the pull request.
 ---
 
 ## Goal
@@ -33,6 +33,13 @@ solved here and one raised for the human.
 - `unsupervised-drain-only.md` gets a stale-plan fix in place, not a new
   plan: `.agents/docs/plans/README.md` names that route, and the file is
   already on `main`.
+- Its `advances:` is REMOVED rather than repointed. It advances no bullet:
+  it rewrites the requirement. `lint_plan_advances` only fires on plans a
+  branch ADDS, so a merged plan losing the field reds nothing.
+- Found while building: `cmd_drain`'s NOT YOURS block explains the marked
+  rows with "Scope is entirely protocol text", false for a `some` plan the
+  moment this lands. Fixed with the block, not left for the next reader —
+  `joharness.sh` and `selftest/drain.sh` joined the plan's scope for it.
 - Finding 4 of the review — after that plan lands, the mode is one line of
   `drain` text, the spawn line, the `ci` requirement gate, the guard and
   the banner — is NOT acted on. Whether a mode that thin earns its switch

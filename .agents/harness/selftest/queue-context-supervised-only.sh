@@ -19,7 +19,7 @@
 #
 # shellcheck shell=bash disable=SC2154
 
-step "queue-context.sh marks a plan whose scope is all protocol text"
+step "queue-context.sh marks a plan whose scope holds protocol text"
 
 sowork="${TMP}/superonly"
 soorigin="${TMP}/superonly.git"
@@ -94,19 +94,37 @@ out="$(CLAUDE_PROJECT_DIR="$sowork" \
   bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1)"
 refute "an unset mode marks nothing" "SUPERVISED ONLY" "$out"
 
-# --- partial overlap is a different case -----------------------------------
-# A plan touching one protocol file and one other is not undoable: the
-# session does the rest and records the remainder. Only an ENTIRELY
-# protocol-path scope disqualifies, and that distinction has to survive in
-# the code rather than in this comment.
+# --- partial overlap disqualifies too, and that REVERSES the first rule ----
+# This block used to assert the opposite: a plan touching one protocol file
+# and one other "is not undoable — the session does the rest and records the
+# remainder". That is partial credit the Loop does not model. Acceptance is
+# all-or-nothing (.agents/docs/plans/README.md), step 5 is all green or not
+# done, step 7 deletes a plan file only when it IS done, and
+# handover-guard.sh counts ANY protocol path in the diff — so a session that
+# starts one of these finishes nothing and hands off, which is the failure
+# docs/product/unsupervised-mode.md names: "the queue offered an unsupervised
+# fleet a plan it could never finish". The old rule drew the line at
+# can-it-be-STARTED; the requirement draws it at can-it-be-FINISHED.
+#
+# Measured 2026-09-02 on main f9fb932, which is what sent this looking:
+# docs/plans/unsupervised-drain-only.md declares one protocol path among
+# several, read `mixed`, went unmarked, and `JOHARNESS_MODE=unsupervised
+# ./joharness.sh drain` answered `next:` with it — a plan whose own Traps
+# say "Supervised session only".
 fixture_rm "$sowork" "drop the all-protocol plan" docs/plans/allprotocol.md
 soplan mixed 'joharness.sh, docs/product/thing.md'
 sopush "a plan with one protocol path and one other"
 
 out="$(soq unsupervised)"
-refute "a mixed scope is not marked" "SUPERVISED ONLY" "$out"
-expect "and stays free work" "top free plan above" "$out"
-refute "so the edge is not reached over it" "Edge reached: no free plan" "$out"
+expect "a partly-protocol scope is marked too" "SUPERVISED ONLY" "$out"
+# The two labels stay distinct. An `only` plan is supervised work for good;
+# a `some` plan may be splittable along the boundary, and a reader who
+# cannot tell them apart cannot tell which fix applies.
+expect "and the mark says it is only part of the scope" \
+  "scope includes protocol text" "$out"
+refute "never the all-protocol wording" "scope is all protocol text" "$out"
+refute "and it stops being free work" "top free plan above" "$out"
+expect "so the edge is reached over it" "Edge reached: no free plan" "$out"
 
 # --- absent is not empty ---------------------------------------------------
 # A plan with no scope: could be entirely protocol text; nobody wrote it
@@ -118,10 +136,20 @@ sopush "a plan that declares no scope at all"
 out="$(soq unsupervised)"
 expect "an undeclared scope says the boundary went unchecked" \
   "scope undeclared: protocol boundary unchecked" "$out"
+# ROW-scoped, not output-scoped. The marked `mixed` plan from the block
+# above is still in this tree and its row carries the string, so a refute
+# over the whole output would fail for a reason that has nothing to do with
+# the plan this case is about.
+noscope_row="$(printf '%s\n' "$out" | grep 'docs/plans/noscope\.md' || :)"
+expect "the undeclared plan has a row to read" "docs/plans/noscope.md" \
+  "$noscope_row"
 refute "and is never marked SUPERVISED ONLY on a guess" \
-  "SUPERVISED ONLY" "$out"
+  "SUPERVISED ONLY" "$noscope_row"
+# Not de-ranked: it is the one free plan here, so the queue points at it.
+# The count was 2 while a partly-protocol plan still counted as free; it is
+# 1 now, and the plan it names is this one.
 expect "and is not de-ranked out of the queue on one either" \
-  "2 free plans" "$out"
+  "top free plan above" "$out"
 out="$(soq supervised)"
 refute "supervised sees no undeclared-scope note" "protocol boundary" "$out"
 

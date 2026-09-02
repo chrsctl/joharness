@@ -6,7 +6,7 @@ effort: high
 needs: none
 requirement: unsupervised-mode
 advances: No unsupervised session commits protocol text
-scope: .agents/harness/queue-context.sh, .agents/harness/selftest/queue-context-supervised-only.sh
+scope: joharness.sh, .agents/harness/queue-context.sh, .agents/harness/selftest/queue-context-supervised-only.sh, .agents/harness/selftest/drain.sh, .agents/docs/unsupervised.md, docs/product/unsupervised-mode.md
 ---
 
 ## Goal
@@ -66,6 +66,25 @@ the requirement draws it at "can it be finished".
   all-protocol label is still the `is all` wording, so the two shapes
   cannot collapse into one string.
 
+- `docs/product/unsupervised-mode.md` — the Constraints bullet reading "A
+  plan whose whole `scope:` is protocol text is marked SUPERVISED ONLY"
+  states the rule this plan changes; it becomes ANY protocol path, with the
+  one-line reason (the guard counts any, acceptance is all-or-nothing).
+  Nothing else in that file moves — EDIT, never add or delete a
+  requirement.
+- `.agents/docs/unsupervised.md` — the "What the mode changes" queue-hook
+  row says the same thing and gets the same correction, plus the note that
+  the label distinguishes the two shapes. Every other row, the Runs table
+  and every dated number stay byte-for-byte.
+
+- `joharness.sh` — `cmd_drain`'s NOT YOURS block explains the marked rows
+  with "Scope is entirely protocol text", which is false for a partly-
+  protocol plan the moment this lands. It becomes "Scope holds protocol
+  text ... the row above says whether that is all of it or part", so the
+  explanation cannot contradict the row it explains.
+  `.agents/harness/selftest/drain.sh` pins that string in the case "and
+  the reason given is the boundary, not availability" and moves with it.
+
 ## Out of scope
 
 - `handover-guard.sh`, `joharness.sh:protocol_paths`. The guard is the
@@ -87,6 +106,8 @@ the requirement draws it at "can it be finished".
 
 - `./joharness.sh ci` — `ci: pass`, `<N> passed, 0 failed`.
 - `./joharness.sh verify` — `0 failed`.
+- `grep -rn 'whole .scope' docs/product/unsupervised-mode.md .agents/docs/unsupervised.md .agents/harness/queue-context.sh`
+  — no output; no file still states the all-protocol rule.
 - `JOHARNESS_RUN_MODE=unsupervised bash .agents/harness/queue-context.sh`
   on this repo — the row for `docs/plans/unsupervised-drain-only.md`
   carries `SUPERVISED ONLY: scope includes protocol text`; the rows for

@@ -305,7 +305,7 @@ expect "both plans it cannot take are named, not just the first" \
 expect "the plans it cannot take are named" "NOT YOURS" "$out"
 expect "and named by path" "docs/plans/protocolonly.md" "$out"
 expect "and the reason given is the boundary, not availability" \
-  "Scope is entirely protocol text" "$out"
+  "Scope holds protocol text" "$out"
 expect "and it says not to re-file the same work" \
   "re-file the same work" "$out"
 

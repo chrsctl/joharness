@@ -5054,9 +5054,13 @@ cmd_drain() {
     if [ -n "$sup" ]; then
       printf 'NOT YOURS — the queue holds plan(s) marked SUPERVISED ONLY:\n'
       printf '%s\n' "$sup"
-      printf '  Scope is entirely protocol text, which a session running\n'
+      # "holds", not "is entirely". The queue marks a plan with ANY
+      # protocol path in scope, and each row above says which shape it is;
+      # a blanket sentence here would contradict the row it explains.
+      printf '  Scope holds protocol text, which a session running\n'
       printf '  unattended may not commit (docs/product/unsupervised-mode.md,\n'
-      printf '  Constraints). Leave them for a supervised session, and do NOT\n'
+      printf '  Constraints) — the row above says whether that is all of it\n'
+      printf '  or part. Leave them for a supervised session, and do NOT\n'
       printf '  re-file the same work as a new plan.\n\n'
     fi
     if [ "$goals_read" -eq 1 ]; then

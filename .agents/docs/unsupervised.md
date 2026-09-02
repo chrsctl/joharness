@@ -11,7 +11,7 @@ One thing per layer, nothing else. Supervised output is byte-identical.
 | Where | Change |
 | --- | --- |
 | `session-start` banner | Says the mode, lists the protocol boundary, points at `drain`. |
-| Queue hook | Marks a plan whose whole `scope:` is protocol text `SUPERVISED ONLY` and ranks it out of the free list. Everything else it prints is the same report. |
+| Queue hook | Marks a plan with ANY protocol path in `scope:` `SUPERVISED ONLY` — the label says whether that is the whole scope or part of it — and ranks it out of the free list. Everything else it prints is the same report. |
 | `./joharness.sh drain` | The ONE place the mode orders: take; fan out (wave 1: first plan in this session, one session per other member); run one here; generate (names the sweep); or stop. Prints GOAL REACHED itself; for sweep dry it names the sweep beside the two parts it read, queue and edge work. |
 | `ci` | Two extra gates: no requirement added on the branch; a generated plan names the bullet it advances. |
 | Stop guard | Names protocol-text edits on the branch. Detection, not prevention. |

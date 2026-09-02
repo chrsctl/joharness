@@ -5,7 +5,6 @@ agent: opus
 effort: xhigh
 needs: none
 requirement: unsupervised-mode
-advances: Started once, the fleet keeps going for hours
 scope: joharness.sh, joharness.conf, .agents/harness/queue-context.sh, .agents/harness/handover-context.sh, .agents/harness/selftest.sh, .agents/harness/selftest, .agents/harness/AGENTS.md, .claude/commands/drain.md, .agents/docs/unsupervised.md, .agents/docs/plans/README.md, docs/product/unsupervised-mode.md, docs/plans/advance-feedback-baseline.md
 ---
 
@@ -38,16 +37,33 @@ then `git show <that-commit>^:docs/handover/unsupervised-slim.md`):
    imitation. `/drain` takes one item, runs the Loop on it, exits. The next
    item is the next session's: the heartbeat under unsupervised, the human
    re-invoking under supervised.
-3. **Claim-then-detect, not wave partition.** swarm-protocol, wit and gnap
-   claim by push and detect conflicts at write or merge time. This repo
-   already has both halves: the pushed workstream file is the claim, the
-   reconcile at step 7 and the stop-hook boundary are the detection. The
-   SUPERVISED ONLY marking, the de-rank, the "scope undeclared" note, the
-   boundary-unread note and the wave-1 spawn order are a second copy of
-   the same guarantee, and attempt four measured that copy stopping
-   nothing: both sessions edited protocol text past the marking, one edit
-   reached `origin`. Fan-out becomes one session per free plan, every
-   wave; a collision is the reconcile step 7 already requires.
+3. **Claim-then-detect replaces the wave ORDER, and only that.**
+   swarm-protocol, wit and gnap claim by push and detect conflicts at
+   write or merge time. This repo already has both halves: the pushed
+   workstream file is the claim, the reconcile at step 7 is the detection.
+   The wave-1-only spawn order is a second copy of that, so it goes: fan
+   out one session per free plan, every wave, and a collision is the
+   reconcile step 7 already requires.
+
+   **The SUPERVISED ONLY marking is NOT part of it and stays.** An earlier
+   draft bundled the two and cited attempt four for both. They are
+   different guarantees: claim-by-push answers *who owns this plan*, the
+   marking answers *may this mode do this plan at all*. Attempt four shows
+   the marking being ignored, which argues for making it bite, not for
+   removing it — and attempt two shows the other face, a session that
+   respected the boundary and spent 55 minutes reaching a hand-off.
+   Deleting the marking makes that the expected path for every
+   protocol-scoped plan. It was widened instead, to mark any protocol path
+   rather than only an all-protocol scope
+   (`docs/plans/mark-mixed-protocol-scope.md`, merged first).
+
+This plan carries no `advances:`. It does not advance a `Satisfied when`
+bullet — it rewrites the requirement, a different act, and the field is for
+a plan generated against an open bullet
+(`.agents/docs/plans/README.md`). An earlier draft named the endurance
+bullet, which decision 2 moves FURTHER away rather than nearer: one item
+per session means a long run needs the heartbeat, and the heartbeat is an
+operator action nobody has taken.
 
 Decision 4 of that record (GitHub Actions as heartbeat and provenance,
 which would also delete `cmd_authority`) is a credential decision and is
@@ -193,10 +209,9 @@ Decision 1 — the edge is the stop:
   at the queue edge prints DRAINED and exits; it writes no plan, no
   research file and no requirement there. Constraints: delete "The
   exception to 'not invent work'" and "Every source ... carries a detector
-  that prints a count" (the whole bullet, `FB_SINCE` included); in the
-  first bullet drop "and the queue hook" from the readers and the sentence
-  "A plan whose whole `scope:` is protocol text is marked SUPERVISED ONLY
-  and never offered unattended (attempt two spent 55 minutes on one)".
+  that prints a count" (the whole bullet, `FB_SINCE` included). The first
+  bullet stays WHOLE, its marking sentence included: the marking is not
+  this plan's to remove (decision 3).
   Keep: step 7 unchanged; the `authority` bullet (decision 4);
   "Deliberately NOT constrained".
 - `docs/plans/advance-feedback-baseline.md` — delete. It moves a literal
@@ -218,8 +233,8 @@ Decision 2 — one item per session:
   heartbeat re-seeds (`.agents/docs/unsupervised.md`). Keep the measured
   stall numbers in the opening paragraph.
 - `.agents/docs/unsupervised.md` — "What the mode changes" table: the
-  banner row says what the new banner says; the queue-hook row becomes
-  "nothing — the same report in both modes"; the `drain` row becomes "the
+  banner row says what the new banner says; the queue-hook row is
+  UNCHANGED — the marking stays (decision 3); the `drain` row becomes "the
   same verdict; at DRAINED one line says exit, the heartbeat re-seeds";
   the `ci` row keeps only "no requirement added on the branch". Delete
   "## The two stops" whole and the sentence under the table "Hooks
@@ -230,38 +245,35 @@ Decision 2 — one item per session:
 
 Decision 3 — claim by push, detect at merge:
 
-- `.agents/harness/queue-context.sh` — delete `qc_scope_class`, the
-  `qc_protocol` / `qc_boundary` read of `protocol-paths`, the
-  `scope_note` / `scope_derank` marking in the row loop, the "Protocol
-  boundary NOT read" block, the unsupervised `trap ... EXIT` pointer at
-  `drain`, and the unsupervised arm of the edge ("every plan claimed,
-  blocked or SUPERVISED ONLY"). The header comment's lines about
-  SUPERVISED ONLY and scope undeclared go with them. The hook then reads
-  `qc_mode` nowhere. It runs under `set -u`: a reader of `qc_mode` left
-  behind after the variable goes aborts the hook in EVERY mode, so the
-  variable is the last thing to go, after the acceptance grep finds no
-  reader. `drain_hook` in `joharness.sh` keeps passing
-  `JOHARNESS_RUN_MODE`, because `handover-context.sh` still reads it.
+- `.agents/harness/queue-context.sh` — NOTHING. `qc_scope_class`, the
+  `qc_protocol` / `qc_boundary` read, the `scope_note` / `scope_derank`
+  marking, the "Protocol boundary NOT read" block, the `trap ... EXIT`
+  pointer and the unsupervised edge arm all stay: they are the marking and
+  the pointer at the reader that orders, not the wave order. The hook
+  keeps reading `qc_mode`.
 - `joharness.sh` — `cmd_drain`, the free path: delete the unsupervised
   branch (`drain_wave1`, "take it in THIS session", "spawn NOW: one session
   per remaining wave-1 plan", "Later waves", "no wave proven",
   "Holding a claim"). Both modes print `next:`. Under unsupervised ONE
-  line follows it: every other free PLAN row the hook printed — rows
+  line follows it: every other free PLAN row the hook printed — the
+  marking already keeps a SUPERVISED ONLY plan off that list, which is why
+  the list can be taken as-is — rows
   matching `^  \(docs/plans/[^ ]*\.md\)  \(.*\)$` that carry neither
   `claimed on` nor `blocked by`, all of them, minus the one `next:` named;
   research rows never (they carry no tier and are a session's question,
   not a fan-out) — as "spawn one session per: <path (agent: tier)>, ...;
   a collision is the reconcile step 7 already requires". Omitted when the
   list is empty. Keep the edge-first line when edge work is in flight.
-  Delete `drain_supervised_only`, `drain_wave1`, and the `SUPERVISED ONLY`
-  alternative in `drain_plan`'s filter — that filter change lands in the
-  same commit as the spawn line, so "free" means one thing.
-- `.agents/harness/selftest/queue-context-supervised-only.sh` — delete,
-  with its `SELFTEST_TOPICS` entry.
-- `.agents/harness/selftest/queue-context-fanout.sh` — delete the two
-  cases "and the last word points at drain" (the trap); "the waves are
+  Delete `drain_wave1` and nothing else here: `drain_supervised_only` and
+  the `SUPERVISED ONLY` alternative in `drain_plan`'s filter belong to the
+  marking and stay.
+- `.agents/harness/selftest/queue-context-supervised-only.sh` — STAYS
+  whole. It pins the marking, which this plan no longer removes.
+- `.agents/harness/selftest/queue-context-fanout.sh` — the two cases "and
+  the last word points at drain" (the trap) STAY with it; "the waves are
   printed", "nothing is ordered spawned" and "the unconditional branch
-  still prints its line" stay. `queue-context-scope-waves.sh` has NO
+  still prints its line" stay too, so this file is untouched.
+  `queue-context-scope-waves.sh` has NO
   unsupervised case (`grep -c unsupervised` is 0, 2026-09-02) and is not
   touched.
 - `.agents/harness/selftest/drain.sh` — delete the wave-1 order cases
@@ -287,6 +299,12 @@ Decision 3 — claim by push, detect at merge:
   `.agents/harness/selftest/autonomy-mode.sh` but the one Scope names
   (146 lines on 15c5df8; it tests the switch, not authority — `grep -c
   authority` on it is 1, a comment). The switch stays exactly as it is.
+- The SUPERVISED ONLY marking in every form: `qc_scope_class`, the
+  `scope_note` / `scope_derank` pair, the "scope undeclared" note, the
+  boundary-unread block, `drain_supervised_only`, the filter in
+  `drain_plan`, `queue-context-supervised-only.sh`, and the sentences
+  describing them in the requirement and `.agents/docs/unsupervised.md`.
+  Decision 3 keeps all of it.
 - `.agents/harness/handover-guard.sh`'s unsupervised boundary and
   `joharness.sh:protocol_paths`. They ARE the detect half of decision 3.
   Not one line.
@@ -322,12 +340,12 @@ Decision 3 — claim by push, detect at merge:
   `<N> passed, 0 failed`, N counted from the run. Also green with
   `JOHARNESS_MODE=unsupervised` in front of it.
 - `./joharness.sh verify` — `0 failed`.
-- `grep -n 'cmd_sources\|src_run_checks\|src_unmarked\|src_checks_\|SRC_MARKERS\|FB_SINCE\|FB_UNMARKED_SINCE\|FEEDBACK_SINCE\|fb_since_ok\|lint_plan_advances\|drain_goal\|drain_wave1\|drain_supervised_only\|qc_scope_class\|qc_mode\|qc_boundary\|qc_protocol\|qc_class\|scope_note\|scope_derank\|SUPERVISED ONLY\|scope undeclared\|GOAL REACHED\|sweep dry\|generate work' joharness.sh joharness.conf .agents/harness/*.sh .agents/harness/selftest/*.sh .agents/harness/AGENTS.md .claude/commands/*.md .agents/docs/plans/*.md`
+- `grep -n 'cmd_sources\|src_run_checks\|src_unmarked\|src_checks_\|SRC_MARKERS\|FB_SINCE\|FB_UNMARKED_SINCE\|FEEDBACK_SINCE\|fb_since_ok\|lint_plan_advances\|drain_goal\|drain_wave1\|GOAL REACHED\|sweep dry\|generate work' joharness.sh joharness.conf .agents/harness/*.sh .agents/harness/selftest/*.sh .agents/harness/AGENTS.md .claude/commands/*.md .agents/docs/plans/*.md`
   — no output.
-- `awk '/^## Runs/{r=1} /^## Heartbeat/{r=0} !r' .agents/docs/unsupervised.md | grep -n 'SUPERVISED ONLY\|sweep\|GOAL REACHED\|wave 1\|generate\|two stops'`
+- `awk '/^## Runs/{r=1} /^## Heartbeat/{r=0} !r' .agents/docs/unsupervised.md | grep -n 'sweep\|GOAL REACHED\|wave 1\|generate\|two stops'`
   — no output. The Runs table is excluded on purpose: it is dated history
   and quotes the marking twice (decision 5's plan moves it).
-- `grep -n 'writes new plan files\|The goal is an open requirement\|Recording is always allowed\|every bullet reads true\|reachable end\|written as an exception\|detector that prints a count\|marked SUPERVISED ONLY\|wave partition\|long as a goal is open' docs/product/unsupervised-mode.md`
+- `grep -n 'writes new plan files\|The goal is an open requirement\|Recording is always allowed\|every bullet reads true\|reachable end\|written as an exception\|detector that prints a count\|wave partition\|long as a goal is open' docs/product/unsupervised-mode.md`
   — no output. Each phrase sits in a bullet, sentence or clause the plan
   deletes or rewords; measured 2026-09-02 on 15c5df8 every one hits
   exactly that place and nothing else.
@@ -392,13 +410,9 @@ Decision 3 — claim by push, detect at merge:
   keep, `handover-context.sh` reads it for the compaction pointer.
 - `joharness.sh:cmd_session_start` — the unsupervised banner's
   generate lines; the one copy of that order outside `drain`.
-- `.agents/harness/queue-context.sh:qc_scope_class` — the marking, the
-  row-loop lines under it that read `qc_class`, and the `qc_protocol` read
-  above it.
-- `.agents/harness/queue-context.sh:qc_mode` — six readers on 15c5df8
-  (the assignment, the `trap`, the `protocol-paths` read, the row-loop
-  marking, the boundary-unread block, the edge arm); the variable is the
-  last thing to delete.
+- `.agents/harness/queue-context.sh:qc_scope_class` — STAYS, and marks on
+  any protocol path since `mark-mixed-protocol-scope`. It is what keeps
+  this plan itself off an unattended fleet's queue.
 - `.agents/harness/queue-context.sh:scopes_overlap` — STAYS; the wave
   partition the supervised report is built on.
 - `.agents/harness/handover-context.sh` — the "Its rules and its two
@@ -409,8 +423,6 @@ Decision 3 — claim by push, detect at merge:
   topic file must leave in the same commit; the two fatal checks under it
   say why.
 - `.agents/harness/selftest/sources.sh` — goes whole.
-- `.agents/harness/selftest/queue-context-supervised-only.sh` — goes
-  whole.
 - `.agents/harness/selftest/drain.sh` — the `ddrain` helper; the cases
   named above to cut, and the three to add.
 - `.agents/harness/selftest/queue-context-edge.sh` — the `eq_same`
@@ -436,13 +448,16 @@ Decision 3 — claim by push, detect at merge:
 
 ## Traps
 
-- Protocol text, all of it: `joharness.sh`, `.agents/harness/`,
+- Protocol text, most of it: `joharness.sh`, `.agents/harness/`,
   `.claude/commands/` are in `protocol_paths`. A session running
   unattended may not commit any of this
   (`docs/product/unsupervised-mode.md`, Constraints), and
-  `handover-guard.sh` blocks its stop if it does. Supervised session only.
-  Once this plan lands the queue no longer marks it, so this line is the
-  marking.
+  `handover-guard.sh` blocks its stop if it does. Supervised session only —
+  and the queue says so on the row, since `mark-mixed-protocol-scope`
+  widened the marking to any protocol path. An earlier draft of this line
+  claimed the queue marked the plan while the rule was still
+  all-or-nothing and this scope is mixed; it did not, and `drain` handed
+  the plan out as `next:` under unsupervised.
 - Supervised output byte-identical (requirement, second bullet). Every
   deletion here sits inside an `unsupervised` arm or in a function only
   such an arm called. The two `diff` acceptance lines and the identity
