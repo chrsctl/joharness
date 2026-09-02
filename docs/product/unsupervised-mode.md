@@ -69,10 +69,13 @@ Design, mechanism and the runs so far: `.agents/docs/unsupervised.md`.
   runs unattended, wherever it lives. The rule is the role;
   `joharness.sh:protocol_paths` is its mechanical expression, read by the
   banner, the Stop guard and the queue hook. A plan with ANY protocol path
-  in `scope:` is marked SUPERVISED ONLY and never offered unattended
-  (attempt two spent 55 minutes on one): the guard counts any such path in
-  the diff and acceptance is all-or-nothing, so a partly-protocol plan
-  cannot be finished unattended either. Sandbox configuration
+  in `scope:` is marked SUPERVISED ONLY and never offered unattended: the
+  guard counts any such path in the diff and acceptance is all-or-nothing,
+  so a partly-protocol plan cannot be finished either. Attempt two, 55
+  minutes, measures the all-protocol shape; the partly-protocol one was
+  measured 2026-09-02 on `main` f9fb932, where `drain` answered `next:`
+  with a plan whose own Traps said supervised session only. Sandbox
+  configuration
   (`.agents/env/`) is not protocol. The list covers its own machinery:
   `joharness.sh` and `.claude/settings.json`.
 - The exception to "not invent work" is written as an exception, gated on

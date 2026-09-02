@@ -6,7 +6,7 @@ effort: high
 needs: none
 requirement: unsupervised-mode
 advances: No unsupervised session commits protocol text
-scope: joharness.sh, .agents/harness/queue-context.sh, .agents/harness/selftest/queue-context-supervised-only.sh, .agents/harness/selftest/drain.sh, .agents/docs/unsupervised.md, docs/product/unsupervised-mode.md
+scope: joharness.sh, .agents/harness/queue-context.sh, .agents/harness/selftest/queue-context-supervised-only.sh, .agents/harness/selftest/drain.sh, .agents/docs/unsupervised.md, docs/product/unsupervised-mode.md, docs/plans/unsupervised-drain-only.md
 ---
 
 ## Goal
@@ -41,10 +41,12 @@ the requirement draws it at "can it be finished".
 
 ## Scope
 
-- `.agents/harness/queue-context.sh` — `qc_scope_class`: keep the three
-  classes but change what the counts mean. `only` when every declared path
-  is protocol text (unchanged), a new `some` when at least one is and at
-  least one is not, `unknown` when nothing is declared (unchanged). The
+- `.agents/harness/queue-context.sh` — `qc_scope_class`: four classes
+  where there were three. `only` when every declared path is protocol text
+  (unchanged), a new `some` when at least one is and at least one is not,
+  a new `clear` for a declaration holding no protocol path (what the old
+  `mixed` also covered, and the only one of the two that stays free),
+  `unknown` when nothing is declared (unchanged). The
   row loop marks and de-ranks `only` AND `some`; labels stay distinct so
   the output still says which shape it is:
   - `only` → `, SUPERVISED ONLY: scope is all protocol text` (unchanged
@@ -96,9 +98,10 @@ the requirement draws it at "can it be finished".
   this plan does not move that condition. The requirement's
   byte-identical bullet is pinned by `queue-context-edge.sh`'s `eq_same`
   and must stay green.
-- `docs/plans/unsupervised-drain-only.md`'s own content. Correcting it is
-  the other half of this branch and is a stale-plan fix in place
-  (`.agents/docs/plans/README.md`), not this plan's scope.
+- `docs/plans/unsupervised-drain-only.md` beyond the stale-plan fix in
+  place that this branch makes (`.agents/docs/plans/README.md`): its
+  `advances:`, the decision-3 split, and the lines those two moved.
+  Implementing that plan is not this one's work.
 - Any change to how `shared:` is stripped, how globs are refused, or how
   `none` is read. Those cases stay green untouched.
 
@@ -159,3 +162,12 @@ the requirement draws it at "can it be finished".
   condition while editing it.
 - Never delete a case to get green. The inverted case replaces the old
   one because its subject changed, not because it failed.
+- KNOWN COST, recorded not fixed: `.agents/docs/plans/README.md` tells an
+  author to declare the file a plan REGISTERS itself in, and to mark a
+  routine-reconcile path `shared:`. In a harness-carrying repo those are
+  usually protocol paths, so honest declaration now costs an unattended
+  fleet the plan. Measured on a fixture: `scope: src.py,
+  shared:joharness.sh` marks, the same plan without the shared entry leads
+  the queue. The incentive to under-declare is real and it is the lesser
+  evil — under-declaring costs a reconcile, dispatching an unfinishable
+  plan costs the run. Do NOT answer it by narrowing the marking back.

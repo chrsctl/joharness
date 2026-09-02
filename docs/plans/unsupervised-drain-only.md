@@ -332,9 +332,9 @@ Decision 3 — claim by push, detect at merge:
   the wave and a reconcile there is the expected cost, not a collision.
 - `feedback`'s other counts and `fb_hotspots`. Only the baseline goes.
 - `perf_rows`. Its `queue-context` row runs the hook under
-  `JOHARNESS_RUN_MODE=unsupervised`; after decision 3 that measures the
-  same path as supervised, which is a true number, not a wrong one.
-  Budgets untouched.
+  `JOHARNESS_RUN_MODE=unsupervised` because that path costs more, and it
+  still does: decision 3 keeps the marking, so the row keeps measuring the
+  fork and the per-plan classify. Budgets untouched.
 - Any new subcommand, flag or hook line. This plan only removes, plus the
   one spawn line in `drain`.
 
@@ -361,9 +361,11 @@ Decision 3 — claim by push, detect at merge:
   unplanned again once this plan retires, so `drain` here answers
   `next: docs/product/unsupervised-mode.md`) — prints `DRAINED`, exits 0,
   output contains no `sources`; finishes without running `ci`.
-- `diff <(JOHARNESS_RUN_MODE=supervised bash .agents/harness/queue-context.sh) <(JOHARNESS_RUN_MODE=unsupervised bash .agents/harness/queue-context.sh)`
-  — empty, on this repo and on every fixture the identity case in
-  `queue-context-edge.sh` builds.
+- `.agents/harness/selftest/queue-context-edge.sh`'s `eq_same` cases stay
+  green: on a fixture that declares no protocol path the two modes' hook
+  output is identical. A whole-repo `diff` of the two modes is NOT the bar
+  — decision 3 keeps the marking, so on a repo holding a marked plan the
+  modes differ by design, on exactly the rows it marks.
 - Supervised `drain` unchanged: every supervised case in `drain.sh`
   passes untouched, plus the new exact-text `DRAINED` case. A before/after
   diff of `drain` on THIS repo proves nothing — the unplanned requirement
@@ -374,10 +376,11 @@ Decision 3 — claim by push, detect at merge:
   count survived, not a pin on the baseline's deletion: `feedback` never
   printed the baseline (only `cmd_sources` did), so no runtime bar can
   observe it going; the acceptance grep is that pin.
-- `wc -l joharness.sh .agents/harness/queue-context.sh` and
-  `cat .agents/harness/selftest/*.sh | wc -l` — each smaller than the
-  baseline in Goal; write all six numbers with the command and date in the
-  workstream file.
+- `wc -l joharness.sh` and `cat .agents/harness/selftest/*.sh | wc -l` —
+  both smaller than the baseline in Goal. NOT
+  `.agents/harness/queue-context.sh`: decision 3 leaves it alone, so its
+  count is expected to hold or grow. Write every number with the command
+  and date in the workstream file.
 - Two of the new `drain.sh` cases FAIL with the `cmd_drain` change
   reverted and pass with it back: the unsupervised `DRAINED` case and the
   two-free-plans spawn-line case (Loop step 5: green both ways pins
@@ -465,8 +468,9 @@ Decision 3 — claim by push, detect at merge:
   the plan out as `next:` under unsupervised.
 - Supervised output byte-identical (requirement, second bullet). Every
   deletion here sits inside an `unsupervised` arm or in a function only
-  such an arm called. The two `diff` acceptance lines and the identity
-  case are the proof; run them, do not reason about them.
+  such an arm called. The `eq_same` cases in `queue-context-edge.sh` are
+  the proof; run them, do not reason about them. Not a whole-repo diff of
+  the two modes: the marking makes those differ on purpose.
 - Never delete a test whose subject survives. A selftest file goes only
   when every case in it pins deleted code; a file with one surviving case
   keeps that case. Cutting a case to get green is the thing step 5 forbids.
@@ -483,12 +487,6 @@ Decision 3 — claim by push, detect at merge:
   history is one nobody can review as deletions.
 - Tests for the drain change must fail without it: revert `cmd_drain`,
   run the cases, put it back. Green both ways = pins nothing.
-- `JOHARNESS_MODE=unsupervised ./joharness.sh ci` is red on a branch
-  carrying this plan without `advances:` — `lint_plan_advances` fires on
-  every plan naming a requirement, and this plan deletes that stage. The
-  frontmatter names the endurance bullet's surviving text so both modes
-  are green until the stage is gone; reword that bullet and the fragment
-  must move with it.
 - Merge-commit method only; `finish` green; this plan and
   `advance-feedback-baseline` deleted in the last commit before the pull
   request opens. Squash breaks the merged-branch filter.

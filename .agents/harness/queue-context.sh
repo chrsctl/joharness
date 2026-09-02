@@ -269,7 +269,7 @@ qc_scope_class() {
   # Split on the COMMA alone, then trim. Splitting on space as well — which
   # the first version of this did — was wrong in the direction that matters:
   # `scope: .agents/harness/two words.sh` became two entries, the second of
-  # them not a protocol path, so an all-protocol plan read `mixed` and was
+  # them not a protocol path, so an all-protocol plan read `some` and was
   # handed to the fleet as free work. `shared: x` only appeared to work
   # under that split because the prefix happened to land in a word of its
   # own.
@@ -295,7 +295,7 @@ qc_scope_class() {
     # `none` is the template's explicit no-paths value and it is the same
     # answer as no key at all. Case-blind, because the `shared:` strip above
     # is: one spelling rule read two ways in adjacent lines is how `NONE`
-    # became a path nobody named, classifying its plan `mixed` and leaving
+    # became a path nobody named, classifying its plan `some` and leaving
     # the row with no label of either kind.
     case "$entry" in '' | [Nn][Oo][Nn][Ee]) continue ;; esac
     seen=$((seen + 1))
@@ -627,8 +627,8 @@ fi
 if [ "$qc_mode" = "unsupervised" ] && [ "$qc_boundary" -eq 0 ]; then
   printf '\nProtocol boundary NOT read (./joharness.sh protocol-paths listed\n'
   printf 'nothing here), so no plan below is marked SUPERVISED ONLY. That is\n'
-  printf 'this checkout, not the plans: a plan scoped entirely to protocol\n'
-  printf 'text is one this mode cannot finish, and nothing checked.\n'
+  printf 'this checkout, not the plans: a plan whose scope holds protocol\n'
+  printf 'text at all is one this mode cannot finish, and nothing checked.\n'
 fi
 
 # Display truncates; the free count below does not — a fan-out instruction

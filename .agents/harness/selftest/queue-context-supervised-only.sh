@@ -184,12 +184,18 @@ fixture_rm "$sowork" "drop the near-miss plan" docs/plans/nearmiss.md
 soplan undertree '.agents/harness/selftest/drain.sh'
 sopush "a plan scoped inside a protocol tree"
 out="$(soq unsupervised)"
-expect "a file inside a protocol tree is protocol text" "SUPERVISED ONLY" "$out"
+# The LABEL, not the bare marker. Since any protocol path marks, a parse bug
+# that fragments an all-protocol scope still marks — as `some` — and a case
+# asserting only "SUPERVISED ONLY" would pass through it. Measured: with the
+# split-on-space bug reintroduced, the marker assertion below stays green and
+# the label assertion reds. Every all-protocol fixture here asserts the label.
+expect "a file inside a protocol tree is protocol text" \
+  "scope is all protocol text" "$out"
 
 # A directory CONTAINING a protocol path is not itself one: .agents holds
 # .agents/env, which the boundary deliberately excludes. Marking it would
-# de-rank a plan the fleet can partly do, on the strength of a path that
-# reaches outside the boundary.
+# de-rank a plan on the strength of a path that reaches outside the
+# boundary — a guess, which is the one thing this marking never makes.
 fixture_rm "$sowork" "drop the in-tree plan" docs/plans/undertree.md
 soplan overtree '.agents'
 sopush "a plan scoped to a directory that merely contains a protocol tree"
@@ -206,13 +212,15 @@ fixture_rm "$sowork" "drop the over-tree plan" docs/plans/overtree.md
 soplan sharedspace 'shared: joharness.sh'
 sopush "a plan sharing a protocol path, spelled with a space"
 out="$(soq unsupervised)"
-expect "a shared protocol path still marks the plan" "SUPERVISED ONLY" "$out"
+expect "a shared protocol path still marks the plan" \
+  "scope is all protocol text" "$out"
 
 fixture_rm "$sowork" "drop the shared-space plan" docs/plans/sharedspace.md
 soplan sharedtight 'shared:joharness.sh'
 sopush "a plan sharing a protocol path, spelled without one"
 out="$(soq unsupervised)"
-expect "the tight spelling marks it too" "SUPERVISED ONLY" "$out"
+expect "the tight spelling marks it too" \
+  "scope is all protocol text" "$out"
 
 # A trailing slash is how a person writes a directory, and the scope reader
 # elsewhere in this hook strips one. It cannot decide the boundary.
@@ -220,7 +228,8 @@ fixture_rm "$sowork" "drop the shared-tight plan" docs/plans/sharedtight.md
 soplan trailing '.agents/harness/'
 sopush "a plan scoped to a protocol tree with a trailing slash"
 out="$(soq unsupervised)"
-expect "a trailing slash does not hide a protocol tree" "SUPERVISED ONLY" "$out"
+expect "a trailing slash does not hide a protocol tree" \
+  "scope is all protocol text" "$out"
 
 # --- a scope is a list of paths, not a shell pattern ------------------------
 # `scope: joharness.*` was expanded against the CHECKOUT, so the same plan on
@@ -239,13 +248,15 @@ refute "and an untracked file beside it changes nothing" \
 rm -f "${sowork}/joharness.conf"
 
 # A path with a space in it is ONE path. Splitting on whitespace turned an
-# all-protocol scope into a mixed one and handed the plan to the fleet as
-# free work — the failure direction this whole change exists to stop.
+# all-protocol scope into a partly-protocol one. That used to hand the plan
+# to the fleet as free work; now both shapes mark, so only the LABEL still
+# tells the two apart — which is why this asserts the label.
 fixture_rm "$sowork" "drop the glob plan" docs/plans/globscope.md
 soplan spacey '.agents/harness/two words.sh'
 sopush "a plan scoped to a protocol path with a space in it"
 out="$(soq unsupervised)"
-expect "a space in a path does not split it into two" "SUPERVISED ONLY" "$out"
+expect "a space in a path does not split it into two" \
+  "scope is all protocol text" "$out"
 
 # `none` is case-blind, because the `shared:` strip beside it is. Read
 # case-sensitively, NONE was a path nobody named: the plan classified mixed

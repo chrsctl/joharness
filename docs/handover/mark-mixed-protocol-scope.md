@@ -88,6 +88,49 @@ Round 1, self, adversarial (correctness, does-it-reproduce, second-order):
   `unsupervised-drain-only` lands, that edge is a stop. Dispatching
   unfinishable work is the worse of the two. (no change needed)
 
+Round 2, verifier at opus, 12 findings:
+
+- r7: (verifier) my own r1 fix was false. `drain_supervised_only` strips
+  the label, so drain's block prints bare paths — and the replacement text
+  said "the row above says whether that is all of it or part". I read that
+  output and did not see it. (fixed: clause dropped, comment says why the
+  block cannot make that claim)
+- r8: (verifier) the boundary-unread block in `queue-context.sh` still
+  printed the old rule ("a plan scoped entirely to protocol text"), and
+  the completeness grep could not see it. (fixed)
+- r9: (verifier) the change silently un-pinned the space-split
+  regression: every all-protocol case asserted only `SUPERVISED ONLY`, and
+  a fragmenting bug now yields `some`, which still marks. (fixed: the five
+  all-protocol fixtures assert the LABEL; re-verified by mutation —
+  `local IFS=', '` reds "a space in a path does not split it into two",
+  1273 passed 1 failed)
+- r10: (verifier) `unsupervised-drain-only`'s acceptance demanding the two
+  modes' hook output diff empty is unsatisfiable once the marking stays.
+  (fixed: the `eq_same` fixtures are the pin; a whole-repo diff is not)
+- r11: (verifier) its size acceptance demanded `queue-context.sh` shrink
+  while decision 3 now touches nothing there. (fixed)
+- r12: (verifier) its `perf_rows` bullet claimed the unsupervised row
+  measures the same path as supervised. (fixed: the marking stays, so it
+  does not)
+- r13: (verifier) its Trap still explained an `advances:` this branch
+  removed. (fixed: deleted)
+- r14: (verifier) honest declaration now costs dispatchability — the plan
+  protocol tells authors to declare registration files and `shared:`
+  paths, which in this repo are protocol text, so declaring them marks the
+  plan. (recorded as a KNOWN COST in the plan, not designed around:
+  under-declaring costs a reconcile, dispatching an unfinishable plan
+  costs the run)
+- r15: (verifier) the requirement cited attempt two for the ANY rule;
+  attempt two's plan was all-protocol. (fixed: attempt two measures the
+  all shape, the f9fb932 drain run measures the partly shape)
+- r16: (verifier) this plan's `scope:` omitted
+  `docs/plans/unsupervised-drain-only.md`, which the branch edits, and its
+  Scope said "three classes" where the code returns four. (fixed)
+- r17: (verifier) two comments still named the removed class `mixed`.
+  (fixed)
+- r18: (verifier) drain's block grew two lines against the style guide.
+  (fixed by r7)
+
 ## Blockers
 
 None.
