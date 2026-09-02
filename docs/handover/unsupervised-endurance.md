@@ -60,6 +60,13 @@ Cap value is also still outstanding, but it is downstream of the above.
   is unreachable, the fleet cannot finish a plan, and a run started this way
   would measure a fleet that cannot merge rather than endurance (open —
   needs the operator)
+- r3: (session, review) the claim-time T0 line said the queue held two
+  plans. After reconciling with `main` it holds one — this plan, claimed —
+  so the fleet's first act would be generating work, not taking a plan.
+  That is the run the plan calls "worth having" (it answers bullet three's
+  three caveats), but the T0 recorded beside any wall-clock has to be the
+  depth at spawn time, which this file now states as zero free (fixed —
+  Where to look rewritten)
 - r2: (session) `.agents/docs/unsupervised.md` says to settle this by
   firing one throwaway and checking it could reach GitHub. Reading the
   stored grant back is strictly cheaper and strictly earlier — it costs no
@@ -73,6 +80,9 @@ Cap value is also still outstanding, but it is downstream of the above.
   and the fourth wall it names in itself.
 - `.agents/docs/unsupervised.md` — operator procedure and the connector
   trap.
-- T0 evidence recorded at claim time: `./joharness.sh sources` says sweep
-  NOT dry, findings(4 unmarked); queue holds two plans, both serving
-  `unsupervised-mode`.
+- T0 evidence, re-read after reconciling with `main` (27 commits, PRs 186,
+  189, 190): `./joharness.sh sources` says sweep NOT dry, findings(4
+  unmarked), and **queue empty: yes** — `goal-reached-outranks-a-recorded-
+  plan` was retired on `main`, so the only plan left is this one, claimed
+  here. A fleet started now meets the generate-work edge on its first turn,
+  with nothing free behind this claim.
