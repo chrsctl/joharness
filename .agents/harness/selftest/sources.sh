@@ -273,6 +273,38 @@ git -C "$stwork" rm -q docs/plans/sweepplan.md
 commit_all "$stwork" "clear the queue"
 git -C "$stwork" push -q origin main
 
+# EMPTY FOR THIS MODE is not empty. A plan scoped entirely to protocol text
+# is work an unattended session may never commit, so the queue hook ranks it
+# out of the free list and drain_next returns nothing — and this line is one
+# quarter of the only condition under which a fleet may stop. Reporting it
+# bare retires a queue that still holds work, using the strongest word this
+# command has.
+# mkdir first: the removal above took the last file in docs/plans and git
+# drops a directory with its last tracked file, so this write lands nowhere
+# and every case below reads the PREVIOUS state. It cost a run here — the
+# trap `fixture_rm` exists for, reached through a plain `git rm`.
+mkdir -p "${stwork}/docs/plans"
+printf -- '---\nplan: onlyprotocol\nurgency: normal\nagent: sonnet\neffort: low\nscope: joharness.sh\n---\n\n## Goal\nFixture.\n' \
+  >"${stwork}/docs/plans/onlyprotocol.md"
+commit_all "$stwork" "a plan this mode may not commit"
+git -C "$stwork" push -q origin main
+out="$(JOHARNESS_MODE=unsupervised st)"
+expect "a plan this mode cannot take still empties the queue" \
+  "queue empty          : yes" "$out"
+expect "but the sweep names it rather than retiring it silently" \
+  "SUPERVISED ONLY" "$out"
+expect "and names it by path" "docs/plans/onlyprotocol.md" "$out"
+# One LINE of the needle: expect is grep -F, so a \n in it is a backslash
+# and an n, and the assertion passes against nothing.
+expect "and says re-filing it is not new work" "re-filing them is not" "$out"
+# Supervised counts it as ordinary queue work, because it is.
+out="$(st)"
+expect "supervised counts the same plan as a queue that is not empty" \
+  "queue empty          : no" "$out"
+refute "and says nothing about a boundary" "SUPERVISED ONLY" "$out"
+fixture_rm "$stwork" "clear the queue again" docs/plans/onlyprotocol.md
+git -C "$stwork" push -q origin main
+
 # Dry, empty queue, and NEITHER flag: the two honest unknowns dominate.
 out="$(st)"
 expect "unsupplied parts read as CANNOT TELL" "=> CANNOT TELL" "$out"

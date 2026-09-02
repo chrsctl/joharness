@@ -13,6 +13,11 @@
 #                       a needed plan or an open research question is open,
 #                       `claimed on <branch>` when an in-flight workstream
 #                       names it. Blocked and claimed list but never lead.
+#                       Under unsupervised only, two more: `SUPERVISED ONLY`
+#                       when every path in `scope:` is protocol text, which
+#                       that mode may not commit — listed, never leading —
+#                       and `scope undeclared` when there is nothing to
+#                       check, which is not the same as nothing to find.
 #   docs/research/*.md  open questions, same ordering, same tier field. A
 #                       plan naming one in `research:` is blocked while it
 #                       exists (.agents/docs/research/README.md).
@@ -178,6 +183,131 @@ rstems="$(
   done <<<"$research"
 )"
 
+# Which mode this hook speaks in. Supervised REPORTS what is possible;
+# unsupervised ORDERS it. Same facts, different speech act — nobody is
+# reading the supervised line and deciding when the mode is unsupervised.
+# Every mode-dependent line below sits inside a branch this variable guards,
+# so supervised output stays byte-identical.
+# Resolved by joharness.sh (run_mode) and exported to this hook; never
+# re-derived here, because precedence across the env var, the marker and the
+# conf lives in exactly one place. Unset (hook run directly) = supervised,
+# the safe direction: a session that is not unattended is never ordered to
+# spawn a fleet.
+#
+# Read HERE, above the row loop, and not beside the fan-out block it used to
+# sit in: a row's RANK now depends on it. The rank of a plan an unsupervised
+# fleet cannot take is not the same as its rank for a human-directed one.
+qc_mode="${JOHARNESS_RUN_MODE:-supervised}"
+
+# The unsupervised boundary, as the queue sees it: protocol text is off
+# limits to a session running unattended (docs/product/unsupervised-mode.md,
+# Constraints), so a plan whose whole declared scope is protocol text is a
+# plan that fleet can never finish.
+#
+# Measured, 2026-08-31: the endurance retry spent 55 minutes and $12.05 on
+# `marker-gate-needs-no-done`, whose frontmatter reads
+# `scope: joharness.sh, .agents/harness/selftest`. The session implemented
+# the fix, tested it green, then correctly reverted its own edits and handed
+# off. Every fact needed to know that before dispatch was in the plan file.
+#
+# ONE list, read from the entrypoint that holds it
+# (joharness.sh:protocol_paths) — the same call .agents/harness/handover-guard.sh
+# makes, for the same reason. A second copy is the copy that rots, and issue
+# #114 is what one costs.
+#
+# An ARRAY read once per run, never per plan: a fork inside the row loop is
+# the regression in kind this hook's perf budget exists to catch. Supervised
+# does not even pay the one fork, because nothing that reads this fires.
+qc_protocol=()
+if [ "$qc_mode" = "unsupervised" ]; then
+  while IFS= read -r qc_p; do
+    [ -n "$qc_p" ] && qc_protocol+=("$qc_p")
+  done < <("${PROJECT_DIR}/joharness.sh" protocol-paths 2>/dev/null)
+fi
+# A checkout whose entrypoint cannot list the boundary — a consumer carrying
+# a joharness.sh older than the subcommand, or none at all. Nothing is marked
+# there, and the queue SAYS so: silently marking every plan "unchecked" would
+# report a missing reader as a missing declaration, which is a different
+# defect wearing the same words.
+qc_boundary=1
+[ "${#qc_protocol[@]}" -gt 0 ] || qc_boundary=0
+
+# Where one plan's declared scope sits relative to that boundary. Three
+# answers, and the third is the point:
+#
+#   only     every declared path is at or under a protocol path
+#   mixed    at least one is not — the session does that part and records
+#            the remainder, so the plan is not undoable
+#   unknown  nothing declared. NOT "safe": absent is not empty, the rule this
+#            repo keeps relearning, and a plan whose scope nobody wrote could
+#            be entirely protocol text
+#
+# Sets a global instead of printing one. A `$(qc_scope_class ...)` per plan is
+# a subshell per plan, which is the same fork-in-a-loop the array above
+# avoids; the awkwardness is the price and it is named here rather than
+# rediscovered by the budget.
+#
+# Comparison is git's pathspec rule, matching how handover-guard.sh compares
+# this same list against a diff: EQUAL, or under it at a slash boundary.
+# Prefix alone would read `joharness.shX` as protocol text and let a
+# near-miss decide a dispatch.
+#
+# `shared:` paths count. A plan declaring only `shared: joharness.sh` is
+# still a plan whose whole scope is protocol text — that prefix says how a
+# path is shared with other plans, not what kind of file it is. It is
+# stripped per entry, case-blind, with or without the space after the colon.
+qc_scope_class() {
+  local raw="$1" entry p seen=0 protocol=0 unset_f=""
+  qc_class=unknown
+  [ "$qc_boundary" -eq 1 ] || return 0
+
+  # Split on the COMMA alone, then trim. Splitting on space as well — which
+  # the first version of this did — was wrong in the direction that matters:
+  # `scope: .agents/harness/two words.sh` became two entries, the second of
+  # them not a protocol path, so an all-protocol plan read `mixed` and was
+  # handed to the fleet as free work. `shared: x` only appeared to work
+  # under that split because the prefix happened to land in a word of its
+  # own.
+  #
+  # Globbing OFF across the split, restored only if this shell had it on.
+  # `scope: joharness.*` is otherwise expanded against whatever sits in the
+  # CHECKOUT, so the same plan on the same ref classifies one way beside an
+  # untracked file and the other way without it — a queue answer that is not
+  # a function of the queue. handover-guard.sh paid for exactly this on this
+  # same list: "a path that is a glob matched whatever happened to be on
+  # disk. Both silent."
+  case $- in *f*) ;; *) unset_f=1 ;; esac
+  set -f
+  local IFS=','
+  for entry in $raw; do
+    entry="${entry#"${entry%%[![:space:]]*}"}"
+    entry="${entry%"${entry##*[![:space:]]}"}"
+    case "$entry" in
+      [Ss][Hh][Aa][Rr][Ee][Dd]:*)
+        entry="${entry#*:}"
+        entry="${entry#"${entry%%[![:space:]]*}"}" ;;
+    esac
+    # `none` is the template's explicit no-paths value and it is the same
+    # answer as no key at all. Case-blind, because the `shared:` strip above
+    # is: one spelling rule read two ways in adjacent lines is how `NONE`
+    # became a path nobody named, classifying its plan `mixed` and leaving
+    # the row with no label of either kind.
+    case "$entry" in '' | [Nn][Oo][Nn][Ee]) continue ;; esac
+    seen=$((seen + 1))
+    # git's pathspec rule, and nothing more. The `/*` arm covers a trailing
+    # slash on its own — `*` matches the empty string — so there is no
+    # separate normalisation step here; one was written, and a mutation
+    # proved every case passed without it.
+    for p in "${qc_protocol[@]}"; do
+      case "$entry" in "$p" | "$p"/*) protocol=$((protocol + 1)); break ;; esac
+    done
+  done
+  [ -z "$unset_f" ] || set +f
+
+  [ "$seen" -gt 0 ] || return 0
+  if [ "$seen" -eq "$protocol" ]; then qc_class=only; else qc_class=mixed; fi
+}
+
 # One row per plan: rank, added-epoch, path, label, served requirement.
 # Sorted urgent first, then oldest — the pick order Loop step 2 prescribes —
 # with claimed plans after free ones and blocked plans last: listed so the
@@ -192,9 +322,12 @@ rows="$(
     # unsupervised, on top of a plan that is neither claimed nor blocked.
     # Counted on stderr so the row list stays machine-shaped.
     [ -n "$doc" ] || continue
+    # `scope` rides the SAME pass. This call already reads six keys in one
+    # awk; a seventh costs nothing, and reading it in a second fork here
+    # would put one per plan inside the loop.
     { read -r urgency; read -r agent; read -r effort
-      read -r needs;   read -r requirement; read -r rneeds; } \
-      <<<"$(printf '%s\n' "$doc" | fields urgency agent effort needs requirement research)"
+      read -r needs;   read -r requirement; read -r rneeds; read -r scope; } \
+      <<<"$(printf '%s\n' "$doc" | fields urgency agent effort needs requirement research scope)"
     requirement="$(stem "$requirement")"
     added="$(git log --diff-filter=A --format=%ct -1 "$ref" -- "$f" 2>/dev/null)"
 
@@ -231,13 +364,51 @@ rows="$(
 
     claimed_on="$(awk -F'\t' -v s="$(stem "$f")" '$1 == s { print $2; exit }' <<<"$claims")"
 
+    # The boundary, applied to this plan — and ONLY under unsupervised. A
+    # human-directed session may legitimately work a protocol-text plan, so
+    # marking one for a supervised reader would be noise, and the
+    # requirement's own Acceptance says a supervised session cannot tell
+    # this shipped. Not called at all there: the label gains nothing and the
+    # rank does not move, so supervised output stays byte-identical.
+    # qc_boundary is in the condition, not only inside qc_scope_class: with
+    # no list to compare against, EVERY plan classifies unknown, and the
+    # label would tell a reader that nobody declared a scope when what
+    # actually happened is that nothing could read the boundary. The note
+    # above says that once, correctly.
+    # The two conditions are REDUNDANT and stay that way. Under supervised
+    # the array is never populated, so either one alone would do the job —
+    # which also means no case can pin them separately, because the state
+    # where they disagree cannot be built through this hook's interface. A
+    # mutation removing either reports NOTHING REDDED and both are load
+    # bearing to a reader: one says which mode this is for, the other says
+    # what it needs to be true. Deleting either because a mutation calls it
+    # unpinned is the refactor this paragraph exists to stop.
+    scope_note=""
+    scope_derank=""
+    if [ "$qc_mode" = "unsupervised" ] && [ "$qc_boundary" -eq 1 ]; then
+      qc_scope_class "$scope"
+      case "$qc_class" in
+        only)    scope_note=", SUPERVISED ONLY: scope is all protocol text"
+                 scope_derank=1 ;;
+        unknown) scope_note=", scope undeclared: protocol boundary unchecked" ;;
+      esac
+    fi
+
     rank=1
     [ "$urgency" = "urgent" ] && rank=0
     [ -z "$claimed_on" ] || rank=$((rank + 2))
     [ -z "$blockers" ] || rank=$((rank + 4))
-    printf '%s\t%s\t%s\t[%s, agent: %s, effort: %s%s%s]\t%s\n' \
+    # Not free FOR THIS MODE. Same weight `claimed on` carries — listed so
+    # the shape of the queue stays visible, never leading — and deliberately
+    # not `blocked by`'s: nothing blocks this plan, and a supervised session
+    # can take it today. UNDECLARED does not move the rank at all; guessing a
+    # plan's scope is out of scope, and de-ranking on a guess would hide work
+    # nobody proved was unreachable.
+    [ -z "$scope_derank" ] || rank=$((rank + 2))
+    printf '%s\t%s\t%s\t[%s, agent: %s, effort: %s%s%s%s]\t%s\n' \
       "$rank" "${added:-9999999999}" "$f" \
       "${urgency:-normal}" "${agent:-sonnet}" "${effort:-high}" \
+      "$scope_note" \
       "${blockers:+, blocked by: ${blockers}}" \
       "${claimed_on:+, claimed on ${claimed_on}}" \
       "${requirement:-none}"
@@ -352,16 +523,8 @@ fi
 # path are named. A plan without scope stays listed, labeled unprovable,
 # because a missing declaration must neither serialize the queue nor inherit
 # the old unconditional promise. Zero scoped plans = output unchanged.
-# Supervised REPORTS what is possible; unsupervised ORDERS it. Same facts,
-# different speech act — nobody is reading the supervised line and deciding
-# when the mode is unsupervised. Every mode-dependent line below sits inside
-# a branch this variable guards, so supervised output stays byte-identical.
-# Resolved by joharness.sh (run_mode) and exported to this hook; never
-# re-derived here, because precedence across the env var, the marker and the
-# conf lives in exactly one place. Unset (hook run directly) = supervised,
-# the safe direction: a session that is not unattended is never ordered to
-# spawn a fleet.
-qc_mode="${JOHARNESS_RUN_MODE:-supervised}"
+# Supervised REPORTS what is possible; unsupervised ORDERS it — the speech
+# act is `qc_mode`'s, resolved above.
 
 # The edge, under unsupervised. Both edge paths reach the same instruction,
 # so it is written once: two copies of a rule this consequential drift, and
@@ -452,6 +615,18 @@ if [ "$qc_unreadable" -gt 0 ]; then
     "$qc_unreadable" "$ref"
   printf 'and NOT an edge. A queue that cannot be read is not a queue that is\n'
   printf 'empty. Fix or delete them before treating this queue as exhausted.\n'
+fi
+
+# Said once, not marked per plan. An entrypoint that cannot list the
+# boundary is a missing READER; a plan with no `scope:` is a missing
+# DECLARATION. Labelling every row "unchecked" here would spell the first as
+# the second, and a session would go looking in the plan files for a fault
+# that is in its own checkout.
+if [ "$qc_mode" = "unsupervised" ] && [ "$qc_boundary" -eq 0 ]; then
+  printf '\nProtocol boundary NOT read (./joharness.sh protocol-paths listed\n'
+  printf 'nothing here), so no plan below is marked SUPERVISED ONLY. That is\n'
+  printf 'this checkout, not the plans: a plan scoped entirely to protocol\n'
+  printf 'text is one this mode cannot finish, and nothing checked.\n'
 fi
 
 # Display truncates; the free count below does not — a fan-out instruction
@@ -688,6 +863,26 @@ elif [ "$free_count" -eq 0 ] && [ -z "$unplanned" ] &&
   if [ "$qc_mode" = "unsupervised" ]; then
     printf '\n'
     qc_edge_unsupervised "$ref" "no free plan"
+    # The de-ranked plans, NAMED at the one place the mode is told to invent
+    # work. Silence here is the failure this whole change exists to stop,
+    # wearing its other face: the fleet reaches the edge, cannot see the plan
+    # it was just de-ranked away from, and writes a second plan for the same
+    # finding. The row list is the source — one reader of that fact, and the
+    # marking above is it.
+    # awk on the tab-separated row, not a sed with a `\t` in its pattern:
+    # BSD sed does not read that escape as a tab, and this hook runs on the
+    # bash and sed macOS ships.
+    supervised_only="$(awk -F'\t' '$4 ~ /SUPERVISED ONLY/ { print "  " $3 }' <<<"$rows")"
+    if [ -n "$supervised_only" ]; then
+      printf '\nNOT a gap to fill — %d plan(s) here are SUPERVISED ONLY:\n' \
+        "$(printf '%s\n' "$supervised_only" | grep -c . || :)"
+      printf '%s\n' "$supervised_only"
+      printf 'Every path in their scope: is protocol text, which a session\n'
+      printf 'running unattended may not commit (docs/product/unsupervised-mode.md,\n'
+      printf 'Constraints). They are real work and they are not yours: leave\n'
+      printf 'them for a supervised session, and do NOT file a new plan for\n'
+      printf 'what one of them already covers.\n'
+    fi
     # Terminal, like the other edge path. Falling through printed "top free
     # plan above" under an order to generate work, naming a free plan that by
     # definition does not exist here — the two paths shared the function and
