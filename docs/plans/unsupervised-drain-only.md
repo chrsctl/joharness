@@ -5,7 +5,7 @@ agent: opus
 effort: xhigh
 needs: none
 requirement: unsupervised-mode
-scope: joharness.sh, joharness.conf, .agents/harness/queue-context.sh, .agents/harness/handover-context.sh, .agents/harness/selftest.sh, .agents/harness/selftest, .agents/harness/AGENTS.md, .claude/commands/drain.md, .agents/docs/unsupervised.md, .agents/docs/plans/README.md, docs/product/unsupervised-mode.md, docs/plans/advance-feedback-baseline.md
+scope: joharness.sh, joharness.conf, .agents/harness/handover-context.sh, .agents/harness/selftest.sh, .agents/harness/selftest, .agents/harness/AGENTS.md, .claude/commands/drain.md, .agents/docs/unsupervised.md, .agents/docs/plans/README.md, docs/product/unsupervised-mode.md
 ---
 
 ## Goal
@@ -71,11 +71,14 @@ the human's. NOT this plan. Decision 5 (moving the Runs table and the
 remaining dated numbers out of `.agents/docs/unsupervised.md`) is its own
 plan later, so this one stays reviewable as deletions.
 
-Sizes this plan cuts from, measured 2026-09-02 on `main` 15c5df8 with
-`wc -l`: `joharness.sh` 5624, `.agents/harness/queue-context.sh` 831,
-`cat .agents/harness/selftest/*.sh | wc -l` 9697 over 45 files. Count
-again on the branch when done and write both numbers with the command in
-the workstream file. A number nobody re-counted is a written number.
+Sizes this plan cuts from, measured 2026-09-02 on `main` a6decc1:
+`wc -l joharness.sh` 5770, `cat .agents/harness/selftest/*.sh | wc -l`
+9872 over 45 files. They moved twice while this plan waited (5624 and
+9697 at 15c5df8) and they will move again — re-count before quoting them,
+and count again on the branch when done, writing every number with its
+command in the workstream file. A number nobody re-counted is a written
+number. `.agents/harness/queue-context.sh` is deliberately absent: decision
+3 leaves that file alone, so its count is not a number this plan cuts.
 
 ## Scope
 
@@ -218,10 +221,6 @@ Decision 1 — the edge is the stop:
   this plan's to remove (decision 3).
   Keep: step 7 unchanged; the `authority` bullet (decision 4);
   "Deliberately NOT constrained".
-- `docs/plans/advance-feedback-baseline.md` — delete. It moves a literal
-  this plan removes, so it is obsolete the moment this merges
-  (`.agents/docs/plans/README.md`, Stale plan). If a session has already
-  merged it, nothing to do.
 
 Decision 2 — one item per session:
 
@@ -387,9 +386,11 @@ Decision 3 — claim by push, detect at merge:
   nothing). The other two — the exact-text supervised `DRAINED` case and
   the one-free-plan no-spawn case — are guards and pass both ways by
   design; do not bend them to fail.
-- `./joharness.sh finish` — green at the edge; this plan file,
-  `docs/plans/advance-feedback-baseline.md` and the workstream file are
-  deleted in the last commit before the pull request opens.
+- `./joharness.sh finish` — green at the edge; this plan file and the
+  workstream file are deleted in the last commit before the pull request
+  opens. Those two paths and no others: `git rm` is fatal on a pathspec
+  that matches nothing and stages NOTHING when it aborts, so a retire
+  commit naming a file already gone produces no retire commit at all.
 - SHIPS (`joharness.sh`, `.agents/harness/`, `.claude/commands/` sync to
   every consumer): in a consumer clone after its next sync,
   `./joharness.sh ci` passes, and `JOHARNESS_MODE=unsupervised
@@ -487,13 +488,18 @@ Decision 3 — claim by push, detect at merge:
   history is one nobody can review as deletions.
 - Tests for the drain change must fail without it: revert `cmd_drain`,
   run the cases, put it back. Green both ways = pins nothing.
-- Merge-commit method only; `finish` green; this plan and
-  `advance-feedback-baseline` deleted in the last commit before the pull
-  request opens. Squash breaks the merged-branch filter.
+- Merge-commit method only; `finish` green; this plan and the workstream
+  file deleted in the last commit before the pull request opens. Squash
+  breaks the merged-branch filter.
 - `lint_anchors` warns on a `Where to look` path that left the tree. The
   deleted selftest files are anchors above on purpose; once they are gone
   this plan file is gone too (same commit), so nothing rots.
-- This plan was rewritten once already because `main` moved under it
-  (PR `simplify-unsupervised-mode`, 2026-09-02). Every symbol above is a
-  hypothesis: `grep -n` each one before the first deletion, and if `main`
-  has moved again, fix the plan in place first.
+- `main` has moved under this plan THREE times in one day: PR
+  `simplify-unsupervised-mode` forced a rewrite, then PR 198 split its
+  decision 3, then `gate-review-verifier-tag` and
+  `advance-feedback-baseline` staled its sizes and its retire list
+  (2026-09-02). It is xhigh and entirely protocol-scoped, so every merge
+  touching `joharness.sh` moves the ground under it. Every symbol above is
+  a hypothesis: `grep -n` each one before the first deletion, and if
+  `main` has moved again, fix the plan in place first
+  (`.agents/docs/plans/README.md`, Stale plan).
