@@ -55,21 +55,30 @@ branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null)"
 # liveness is the whole point of the other-branch section. Cheap (~1s), and
 # failure is not interesting: the stale refs still work.
 if [ "${HANDOVER_FETCH:-1}" = "1" ]; then
-  # A shallow clone first. Every remote session starts on one, and with
-  # grafted history `git merge-base` fails, so owned_at below falls back to
-  # the tree and reports every INHERITED workstream file as a claim.
-  # Measured on this repo 2026-09-03: shallow, the hook led with a branch
-  # that is a strict ancestor of main (945 behind, 0 ahead, empty diff) as
-  # "FINISH BEFORE STARTING" and listed 42 entries; unshallowed (1.3s for a
-  # 3.8 MiB pack) it listed 5 and the ghost was gone. Own timeout, own call:
-  # a repo whose history does not arrive in 15s still gets its refs pruned
-  # below and tries again next session, and the tree fallback still covers
-  # this one. `--git-path shallow` rather than --is-shallow-repository: the
-  # latter prints its own name on git older than 2.15, which reads as true.
-  if [ -f "$(git rev-parse --git-path shallow 2>/dev/null)" ]; then
-    timeout 15 git fetch --quiet --unshallow origin >/dev/null 2>&1 || true
+  # A shallow clone is unshallowed in the same call. Every remote session
+  # starts on one, and with grafted history `git merge-base` fails, so
+  # owned_at below falls back to the tree and reports every INHERITED
+  # workstream file as a claim. Measured on this repo 2026-09-03, shallow:
+  # the hook led with claude/pr-review-cloud-setup-operator-l3lgge as
+  # "FINISH BEFORE STARTING" and printed 12 entries plus "... and 30 more",
+  # while `git rev-list --left-right --count origin/main...<that ref>` reads
+  # 945 behind, 0 ahead — a strict ancestor of main, owning nothing. After
+  # `time git fetch --unshallow origin` (1.3s; `git count-objects -vH` 3.78
+  # MiB) the same hook printed 5 entries and the ghost was gone.
+  # One round trip when it works: --unshallow fetches every ref the refspec
+  # names, so a second --prune fetch would re-ask for what just arrived.
+  # The plain prune is the FALLBACK, taken when the unshallow fails or
+  # times out (`timeout` returns 124): refs still get pruned this session,
+  # the tree fallback in owned_at still covers the branches, and the next
+  # session tries again. Shallow test is lint_shallow's (joharness.sh):
+  # the string compare is what makes it safe on git older than 2.15, where
+  # --is-shallow-repository echoes its own name.
+  if [ "$(git rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
+    timeout 15 git fetch --quiet --prune --unshallow origin >/dev/null 2>&1 ||
+      timeout 15 git fetch --quiet --prune origin >/dev/null 2>&1 || true
+  else
+    timeout 15 git fetch --quiet --prune origin >/dev/null 2>&1 || true
   fi
-  timeout 15 git fetch --quiet --prune origin >/dev/null 2>&1 || true
 fi
 
 OUT=""
@@ -741,11 +750,25 @@ if [ -n "$others" ]; then
     add ""
   fi
   if [ "$OWNED_UNVERIFIED" -eq 1 ]; then
-    add "  NOTE: this clone is shallow for at least one branch, so ownership"
-    add "  could not be computed there and the TREE was listed instead. Those"
-    add "  entries may be inherited rather than claimed. The hook unshallows"
-    add "  when it may fetch (HANDOVER_FETCH=1, 15s); it could not here, so"
-    add "  run git fetch --unshallow origin yourself and read this again."
+    # Three reasons a merge-base can be missing, and only one of them is
+    # cured by the command this used to prescribe unconditionally: on a
+    # complete clone `git fetch --unshallow` is a fatal ("does not make
+    # sense"), and under drain (HANDOVER_FETCH=0) the hook never tried.
+    add "  NOTE: ownership could not be computed for at least one branch (no"
+    add "  merge-base with origin/${BASE_BRANCH}), so the TREE was listed instead."
+    add "  Those entries may be inherited rather than claimed."
+    if [ "$(git rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
+      if [ "${HANDOVER_FETCH:-1}" = "1" ]; then
+        add "  This clone is shallow and the hook's unshallow did not finish in 15s:"
+      else
+        add "  This clone is shallow and HANDOVER_FETCH=0 skipped the fetch that"
+        add "  unshallows it:"
+      fi
+      add "  run git fetch --unshallow origin, then read this again."
+    else
+      add "  History is complete: that branch shares no ancestor with"
+      add "  origin/${BASE_BRANCH}, or the ref is missing. Unshallowing cannot help."
+    fi
   fi
   OUT="${OUT}${others}"
   if [ "$recent_count" -gt 0 ]; then
