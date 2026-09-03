@@ -9,7 +9,7 @@
 
 # --- entrypoint: the hook orders nothing -----------------------------------
 # The hook REPORTS the queue; what an unsupervised session does with the
-# report — fan out, generate, or stop — is `joharness.sh drain`'s to say
+# report — take, fan out, or exit — is `joharness.sh drain`'s to say
 # (selftest/drain.sh). Two readers of one queue used to print two rules, and
 # each was reached in a repo state the other was not. So the property here
 # is IDENTITY: with nothing to mark (every plan declares a scope outside the
@@ -138,8 +138,8 @@ expect "no free plan is the edge, in both modes" "Edge reached: no free plan" "$
 refute "and unsupervised stops short of the tail" "top free plan above" "$out"
 expect "supervised keeps its tail" "top free plan above" "$(eq supervised)"
 
-# A free plan with no goal open. The hook still lists and points at it —
-# recording is always allowed — and drain is where the goal stop lives.
+# A free plan with no requirement open. The hook lists and points at it in
+# both modes: a plan is a plan, whatever it serves.
 git -C "$ework" push -q origin --delete claimer 2>/dev/null || true
 fixture_rm "$ework" "no goal, and a free plan recorded for a human" \
   docs/product/g.md

@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_017oZ8o5q2YRzjFT1eTnx4Cs
 agent: opus
 updated: 2026-09-03
-next: Verifier at opus on the diff, record and fix, retire this file and the plan, open the pull request, merge.
+next: Retire this file and the plan, open the pull request, merge under step 7.
 ---
 
 ## Goal
@@ -81,14 +81,70 @@ times and never built. Building it now ends the staling.
 ## Review
 
 Measured on the branch, 2026-09-03, `wc -l joharness.sh` 5251 (from 5770),
-`cat .agents/harness/selftest/*.sh | wc -l` 9513 over 44 files (from 9872
+`cat .agents/harness/selftest/*.sh | wc -l` 9512 over 44 files (from 9872
 over 45). Suite: `JOHARNESS_SELFTEST=always ./joharness.sh ci` 1221
 passed, 0 failed, both modes; `./joharness.sh verify` 6 passed, 0 failed.
-Step 5 revert: `git stash push -- joharness.sh` then the suite reds ten
-cases — the DRAINED exit cases, the spawn-line cases, the banner case —
-and none of them with the change restored.
+Step 5 revert, reproducible: `git checkout origin/main -- joharness.sh`
+then `bash .agents/harness/selftest.sh` gives 1202 passed, 19 failed — the
+DRAINED exit cases, the spawn-line cases, the banner case — and
+`git checkout HEAD -- joharness.sh` restores it (2026-09-03). An earlier
+draft of this line said ten, from a filtered grep of a `git stash` that a
+clean tree cannot re-run; r5 below.
 
-None yet.
+Round 1, verifier at opus, 17 findings:
+
+- r1: (verifier) the hook's EXIT trap — deliberately the last line every
+  unsupervised session reads — still said "take, fan out, generate, or
+  stop"; the acceptance grep matched `generate work`, not `generate`.
+  (fixed: "take, fan out, or exit", and the two comments echoing it; the
+  plan's "queue-context.sh: NOTHING" protected the marking, not a stale
+  word)
+- r2: (verifier) `lint_finding_markers`'s live `ci` text pointed a session
+  at `./joharness.sh sources` and at a Constraints bullet this diff
+  deleted; its comment was reworded, its printf was not. (fixed)
+- r3: (verifier) `drain_goals`' five-line docstring survived the function
+  and read as `drain_free_others`'s — the cut started at the function
+  line. (fixed)
+- r4: (verifier) two comments in `cmd_drain` still stated the goal bound
+  and the trigger. (fixed)
+- r5: (verifier) "the suite reds ten cases" was wrong — 19 — and the
+  `git stash` command beside it stashes nothing on a clean tree. (fixed:
+  re-taken with `git checkout origin/main -- joharness.sh`, 19 counted)
+- r6: (verifier) the `drain` row in `.agents/docs/unsupervised.md` said
+  the modes differ by one line; with marked plans present they differ by
+  the NOT YOURS block and the edge-first line too. (fixed: row names all
+  of them)
+- r7: (verifier) AGENTS.md's `/drain` sentence answered "queue still holds
+  work after the merge?" with "takes ONE item" — licensing the second item
+  decision 2 forbids. (fixed: the next item is the next session's)
+- r8: (verifier) the `drain` perf budget's stated reason — a drain loop
+  reads it between items — is no longer true. (fixed: it is the first
+  thing every heartbeat-fired session reads)
+- r9: (verifier) two supervised cases went beyond the plan's one
+  authorised deletion, and with them the only `requirement: none` fixture
+  — the hook's `none` arm had no pin. (fixed: a case in both modes, the
+  plan serving no requirement is next like any other)
+- r10: (verifier) seven comments in kept tests still named `sources`, the
+  goal bound or the goal stop. (fixed, each)
+- r11: (verifier) "Hooks report; `drain` orders." survived though the plan
+  said delete it with the two-stops section. (wontfix — the sentence is
+  still true: `drain` orders the spawn line and the exit; the plan bundled
+  it with text that stopped being true)
+- r12: (verifier) selftest line count 9513; the command gives 9512.
+  (fixed)
+- r13: (verifier) supervised `ci` output changed — the `== plan
+  provenance` stage is gone — which the plan authorised but its own Trap
+  ("every deletion sits inside an unsupervised arm") denied. (no change
+  needed to the code; recorded here as the second supervised-visible
+  change, beside the DRAINED line)
+- r14: (verifier) `perf_shape` still wrote `advances:` into its fixture
+  plans, a field nothing reads. (fixed)
+- r15: (verifier) `drain_free_others` reported an unrecognised tier as
+  `sonnet`. (fixed: echoes the declared value; the row loop already
+  defaults an absent one)
+- r16: (verifier) `drain.md`'s stall numbers sat under a claim they no
+  longer support. (fixed: they argue for the heartbeat, not a second item)
+- r17: (verifier) two lines over the wrap width. (fixed)
 
 ## Blockers
 

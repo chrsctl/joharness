@@ -920,7 +920,7 @@ perf_shape() {
   # invisible, and two scopes so the wave partition actually runs.
   i=0
   while [ "$i" -lt 3 ]; do
-    printf -- '---\nplan: shape-plan-%s\nurgency: normal\nagent: sonnet\neffort: low\nneeds: none\nrequirement: shape-goal\nadvances: something observable\nscope: docs/shape-%s\n---\n\n## Goal\nShape.\n\n## Scope\n- nothing.\n\n## Out of scope\n- everything.\n\n## Acceptance\n- none.\n\n## Where to look\n- joharness.sh:perf_shape, which writes this file.\n' \
+    printf -- '---\nplan: shape-plan-%s\nurgency: normal\nagent: sonnet\neffort: low\nneeds: none\nrequirement: shape-goal\nscope: docs/shape-%s\n---\n\n## Goal\nShape.\n\n## Scope\n- nothing.\n\n## Out of scope\n- everything.\n\n## Acceptance\n- none.\n\n## Where to look\n- joharness.sh:perf_shape, which writes this file.\n' \
       "$i" "$i" >"${w}/docs/plans/shape-plan-${i}.md" || return 1
     i=$((i + 1))
   done
@@ -1092,9 +1092,9 @@ perf_count() {
 # `drain` carries session-start's budget and for session-start's reason: it
 # runs the same two hooks. Measured 2026-08-29 with `JOHARNESS_PERF=always
 # ./joharness.sh perf drain` -> 465, against session-start's 468 the same
-# minute. It is budgeted at all because a drain loop reads it between every
-# item, so a per-item fork inside it is paid once per queue entry instead of
-# once per session.
+# minute. It is budgeted at all because it is the first thing a heartbeat-
+# fired session reads, every generation, so a per-item fork inside it is
+# paid by every session the fleet ever starts.
 #
 # Comments do not go INSIDE the row list below. Those lines are one command's
 # continued argument list, where a leading # is an argument and not a comment:
@@ -2600,9 +2600,9 @@ lint_finding_markers() {
     return 0
   fi
   printf '\n  %d finding(s) with no verdict. One of: (fixed, wontfix, no change\n' "$unmarked"
-  printf '  (joharness.sh:fb_marker). An unmarked finding is counted as a\n'
-  printf '  SOURCE of work by sources, and a non-zero count is a fleet that\n'
-  printf '  cannot stop (docs/product/unsupervised-mode.md, Constraints).\n'
+  printf '  (joharness.sh:fb_marker). An unmarked finding is a silent drop made\n'
+  printf '  durable: feedback counts it across merged history for good, and\n'
+  printf '  this branch is the last place it can still be answered.\n'
   strength="$(fin_strength)"
   if [ "$strength" = "done" ]; then
     printf '  RED: this branch says status: done, so there is no later moment.\n'
@@ -4537,7 +4537,8 @@ cmd_finish() {
 # hours and the two longest are 32.2h and 24.0h, with 18, 18, 19 and 11 plan
 # files on the tree at the four longest stalls' first commit. Idle holding a
 # full queue is the failure .agents/docs/unsupervised.md names; this is the
-# status a drain loop re-reads between items.
+# status every session reads first, and it names ONE item — the next is the
+# next session's.
 #
 # Report-only, like `scorecard` (and like `cleanup` without `--apply`; with
 # it, cleanup returns 1 when git refused a removal). A drain that GATED would be red
@@ -4608,11 +4609,6 @@ drain_next() {
   drain_plan "$1"
 }
 
-# Open requirements on the base branch — the GOAL unsupervised is bounded by.
-# Same definition the queue hook uses: tracked `.md` under docs/product/,
-# minus TEMPLATE, README and VISION, from the REF rather than the worktree.
-# Returns 1 when the ref cannot be read: ABSENT is not ZERO, and "no goal"
-# from an unreadable ref would wind a fleet down over nothing.
 # Every other free plan row, for the spawn line under unsupervised. Same
 # filter as drain_plan — claimed, blocked and SUPERVISED ONLY rows are not
 # free, and "free" has to mean one thing — every match rather than the first,
@@ -4626,8 +4622,11 @@ drain_free_others() {
     { grep -v 'claimed on\|blocked by\|SUPERVISED ONLY' || :; } |
     awk -F'|' -v skip="$next_path" '
       $1 != "" && $1 != skip {
-        agent = "sonnet"
-        if (match($2, /agent: [a-z]+/)) agent = substr($2, RSTART + 7, RLENGTH - 7)
+        # The declared tier, whatever it says; the row loop already filled
+        # in sonnet for an ABSENT one, so a default here would only hide a
+        # tier nobody wrote.
+        agent = "unreadable"
+        if (match($2, /agent: [^,\]]+/)) agent = substr($2, RSTART + 7, RLENGTH - 7)
         out = out (out == "" ? "" : ", ") $1 " (agent: " agent ")"
       }
       END { printf "%s", out }'
@@ -4655,11 +4654,8 @@ cmd_drain() {
 
   next="$(drain_next "$qout")"
 
-  # THE GOAL, BEFORE THE QUEUE. Autonomy is live only while a requirement is
-  # open. A plan recorded with no goal open is a free row — recording is
-  # always allowed — and checking the goal below the free-plan return handed
-  # that note back to the fleet as its next job (reproduced 2026-09-02). So
-  # the stop fires first, and names what it declines.
+  # The marked plans, read once here and printed only at the edge below:
+  # while there is a free plan they change nothing about the answer.
   [ "$mode" != "unsupervised" ] || sup="$(drain_supervised_only "$qout")"
 
   if [ -n "$next" ]; then
@@ -4690,8 +4686,7 @@ cmd_drain() {
     return 0
   fi
 
-  # Nothing free. What that MEANS is the mode's to say: supervised stops at
-  # the edge and asks, unsupervised treats an empty queue as a trigger.
+  # Nothing free: the edge, in both modes.
   # The marked plans, NAMED before the verdict, in the one mode that cannot
   # take them. Silence here is a session reading DRAINED over a tree that
   # still holds plans and concluding the plans are gone.

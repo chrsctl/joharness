@@ -28,8 +28,8 @@
 #                       a consumer's own documents here are never scheduled.
 # Two or more free plans = fan-out line (one session per free plan, model
 # named). No free plan and nothing to plan = the edge. This hook REPORTS in
-# both modes; what an unsupervised session does with the report — fan out,
-# generate, or stop — is `joharness.sh drain`'s to say. GitHub issues
+# both modes; what an unsupervised session does with the report — take,
+# fan out, or exit — is `joharness.sh drain`'s to say. GitHub issues
 # outrank everything; a shell hook cannot read GitHub, so that stays a
 # pointer.
 #
@@ -172,8 +172,8 @@ rstems="$(
 
 # The mode changes ONE thing here: a plan an unattended session cannot
 # commit is marked SUPERVISED ONLY and ranked out of the free list, because
-# rank is a property of the listing. Everything the mode ORDERS — fan out,
-# generate, stop — lives in `joharness.sh drain`, which reads this output.
+# rank is a property of the listing. Everything the mode ORDERS — take,
+# fan out, exit — lives in `joharness.sh drain`, which reads this output.
 # Every mode-dependent line sits inside a branch this variable guards, so
 # supervised output stays byte-identical.
 # Resolved by joharness.sh (run_mode) and exported to this hook; never
@@ -186,7 +186,7 @@ qc_mode="${JOHARNESS_RUN_MODE:-supervised}"
 # session read "Spawn one per plan" or "ask human" as the last word, from a
 # hook that no longer knows what the mode does with either.
 if [ "$qc_mode" = "unsupervised" ]; then
-  trap 'printf "\nUNSUPERVISED: this hook reports; ./joharness.sh drain orders — take,\nfan out, generate, or stop.\n"' EXIT
+  trap 'printf "\nUNSUPERVISED: this hook reports; ./joharness.sh drain orders — take,\nfan out, or exit.\n"' EXIT
 fi
 
 # The unsupervised boundary, as the queue sees it: protocol text is off

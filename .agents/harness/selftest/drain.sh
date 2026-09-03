@@ -308,6 +308,22 @@ fixture_rm "$dwork" "clear the queue for the marked-only case" \
   docs/product/boundarygoal.md
 git -C "$dwork" push -q origin main
 mkdir -p "${dwork}/docs/plans"
+
+# A plan serving NO requirement is ordinary free work in both modes. It used
+# to be "a note for a human" that one mode declined; now a plan is a plan,
+# and the `none` arm of the hook's served-requirement read has a fixture.
+printf -- '---\nplan: recorded-note\nurgency: normal\nagent: sonnet\neffort: low\nrequirement: none\n---\n\n## Goal\nA note for a human.\n' \
+  >"${dwork}/docs/plans/recorded-note.md"
+commit_all "$dwork" "a plan serving no requirement"
+git -C "$dwork" push -q origin main
+out="$(ddrain env JOHARNESS_MODE=unsupervised)"
+expect "a plan serving no requirement is next under unsupervised" \
+  "next: docs/plans/recorded-note.md" "$out"
+out="$(ddrain)"
+expect "and under supervised" "next: docs/plans/recorded-note.md" "$out"
+fixture_rm "$dwork" "drop the note" docs/plans/recorded-note.md
+git -C "$dwork" push -q origin main
+mkdir -p "${dwork}/docs/plans"
 printf -- '---\nplan: onlyprotocol\nurgency: normal\nagent: sonnet\neffort: low\nscope: joharness.sh\n---\n\n## Goal\nFixture.\n' \
   >"${dwork}/docs/plans/onlyprotocol.md"
 commit_all "$dwork" "only a protocol-text plan"

@@ -163,9 +163,10 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    is reported and never red; that is `cleanup`'s business, and a gate
    that fails for somebody else's omission is one sessions route around.
 
-Queue still holds work after the merge? `/drain` takes ONE item, runs the
-Loop on it, exits — both modes. The next item is the next session's: the
-human re-invoking under supervised, the heartbeat under unsupervised.
+Queue still holds work after the merge? It is the NEXT session's — the
+human re-invoking `/drain` under supervised, the heartbeat under
+unsupervised. One item per session, both modes; a session that merged one
+does not take another.
 Measured reason the heartbeat exists: 5 of the last 119
 merge gaps on `main` exceed three hours, the two longest 32.2h and 24.0h, and
 the tree held 18, 18, 19 and 11 plan files at the four longest stalls' first

@@ -36,7 +36,8 @@ Design, mechanism and the runs so far: `.agents/docs/unsupervised.md`.
   plan. Measured 2026-08-30: two sessions, both merged, 53 minutes, no
   collision.
 - Started once, the fleet keeps going for hours with no human turn, for as
-  long as the queue holds a free plan. NOT shown. Four runs, none longer than one
+  long as the queue holds a free plan. NOT shown. Four runs, none longer
+  than one
   generation (`.agents/docs/unsupervised.md`, Runs). The fleet outliving
   its sessions needs a heartbeat, which is an operator action no session
   may take.

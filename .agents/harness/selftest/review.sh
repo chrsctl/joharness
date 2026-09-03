@@ -713,7 +713,7 @@ fi
 
 # Every finding dispositioned is the clean pass, and it says so rather than
 # printing nothing — a silent stage is indistinguishable from one that never
-# ran, which is the rule `sources` already applies to its own zeroes.
+# ran, which is the rule the perf stage already applies to its own zeroes.
 # Back to `review`, not `done`, for the green case: a branch that says done
 # while still carrying its own workstream file is red at the FINISH gate
 # whatever this stage thinks, so asserting ci's exit at done would be
@@ -733,7 +733,7 @@ fi
 
 # A verdict on a CONTINUATION line still counts. fb_findings folds a
 # continuation into the bullet above it and `fb_collect` applies fb_marker to
-# exactly that folded form to produce the count `sources` reports — so this
+# exactly that folded form to produce the count `feedback` reports — so this
 # stage must fold too, or it enforces a different number from the one it
 # cites. Reading first lines only, it flagged four findings of its own
 # workstream file as unmarked while every one of them ended in "(fixed".
@@ -868,7 +868,7 @@ git -C "$rwork" checkout -q main
 # --- requirement authorship ------------------------------------------------
 # The goal is the human's to set. An unsupervised session that writes itself a
 # requirement writes its own finish line, and a fleet with a finish line it
-# authored has none — the circularity the goal bound closes. Nothing enforced
+# authored has none — a fleet writing its own work has no edge. Nothing enforced
 # it: protocol_paths covers protocol TEXT and docs/product/ is not in it,
 # correctly, because a requirement is product rather than protocol.
 ci_req() { jr ci | awk '/^== requirement authorship/ { f = 1; next } f && /^== / { exit } f'; }

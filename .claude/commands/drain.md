@@ -8,10 +8,10 @@ itself; the Loop's own review step spawns what it spawns.
 The queue stops draining while it still holds work. Counted on `origin/main`
 2026-08-29, last 120 merges: 5 of 119 gaps exceed three hours, the two
 longest 32.2h and 24.0h, and the tree carried 18, 18, 19 and 11 plan files at
-the four longest stalls' first commit. A session drains one item and ends;
-the next item waits for the next session. This command makes one session
-take one item cleanly; the fleet outliving its sessions is the heartbeat's
-job (`.agents/docs/unsupervised.md`).
+the four longest stalls' first commit. Those numbers argue for the
+heartbeat, which fires the next session; they are not an argument for this
+session taking a second item. This command makes one session take one item
+cleanly, and stop (`.agents/docs/unsupervised.md`).
 
 1. `./joharness.sh drain`. It names the next item, or says DRAINED.
 2. Edge work named? Finishing outranks starting (step 2). `/who` it:

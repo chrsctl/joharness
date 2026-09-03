@@ -12,7 +12,7 @@ One thing per layer, nothing else. Supervised output is byte-identical.
 | --- | --- |
 | `session-start` banner | Says the mode, lists the protocol boundary, and says the queue is the whole of the work: `drain` names the item, take it, merge your own pull request, at DRAINED exit. |
 | Queue hook | Marks a plan with ANY protocol path in `scope:` `SUPERVISED ONLY` — the label says whether that is the whole scope or part of it — and ranks it out of the free list. Everything else it prints is the same report. |
-| `./joharness.sh drain` | The same verdict as supervised, plus one line: under `next:`, a spawn line naming every other free plan with its tier (claim by push, detect at merge — a collision is the reconcile step 7 already requires); at DRAINED, exit — the heartbeat re-seeds, nothing is invented. |
+| `./joharness.sh drain` | The same verdict as supervised, with the mode's lines around it: under `next:`, the edge-first line when edge work is in flight, then a spawn line naming every other free plan with its tier (claim by push, detect at merge — a collision is the reconcile step 7 already requires); before DRAINED, the NOT YOURS block naming the marked plans; under DRAINED, exit — the heartbeat re-seeds, nothing is invented. |
 | `ci` | One extra gate: no requirement added on the branch. |
 | Stop guard | Names protocol-text edits on the branch. Detection, not prevention. |
 
@@ -64,7 +64,8 @@ and hours need the heartbeat below, which no run has had.
 Fan-out makes the fleet WIDE: one session per free plan as `drain` lists
 them, every wave, and a collision between two is the reconcile step 7
 already requires. Nothing makes it LONG: each session claims, merges, ends,
-and the fleet survives only while every generation spawns the next. Measured on `origin/main` 2026-08-29, last 120 merges:
+and the fleet survives only while every generation spawns the next. Measured
+on `origin/main` 2026-08-29, last 120 merges:
 
 ```bash
 git log --merges --format='%ct' origin/main -120 |

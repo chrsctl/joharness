@@ -88,13 +88,12 @@ refute "not the commit that first added the setting" \
 # says so rather than leaving a reader to discover it.
 expect "VERIFIABLE says what it proves" "It proves review" "$out"
 expect "and what it does not" "not a human hand" "$out"
-# The goal bound is drain's to check, in the same breath as the queue.
-refute "and carries no goal count — that is drain's" "goal      :" "$out"
+# What the queue holds is drain's to say, not this command's.
+refute "and carries no queue count — that is drain's" "goal      :" "$out"
 
 # --- absent is not proven ---------------------------------------------------
 # A repo with no history cannot show provenance. It must read UNVERIFIED, the
-# same way `sources` reads an uncountable source as CANNOT COUNT rather than
-# as zero.
+# same way an uncountable thing reads as CANNOT COUNT rather than as zero.
 nogit="${TMP}/authwork-nogit"
 mkdir -p "${nogit}/docs/product"
 cp "${ROOT}/joharness.sh" "${nogit}/joharness.sh"; chmod +x "${nogit}/joharness.sh"
