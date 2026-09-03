@@ -54,7 +54,23 @@ the merges that landed while it waited.
 
 ## Review
 
-None yet.
+Round 1, self, adversarial (correctness, does-it-reproduce):
+
+- r1: clean pass, no findings. What was checked rather than assumed, all
+  at a6decc1: every symbol the plan names still exists (`cmd_sources`,
+  `src_run_checks`, `src_unmarked`, `SRC_MARKERS`, `FB_SINCE`,
+  `fb_since_ok`, `FB_UNMARKED_SINCE`, `since_set`, `FB_CACHE_VARS`,
+  `fb_cache_load`, `lint_plan_advances`, `drain_goals`, `drain_wave1`,
+  `drain_supervised_only`, `qc_scope_class` — non-zero counts for each);
+  all twelve `drain.sh` case names it lists for deletion and all six NOT
+  YOURS cases it says STAY are present (`grep -cF` per name, none
+  missing); its requirement phrase grep hits nine bullets, one each, every
+  one a bullet the plan deletes or rewords; its `awk` grep over
+  `.agents/docs/unsupervised.md` hits only the table rows and the section
+  the plan rewrites, and no longer the queue-hook row it now leaves alone.
+  The marking still reads `SUPERVISED ONLY: scope includes protocol text`
+  after the scope trim, and ship-scope drops `queue-context.sh` from the
+  SHIPS list, which is the point of trimming it. (no change needed)
 
 ## Blockers
 
