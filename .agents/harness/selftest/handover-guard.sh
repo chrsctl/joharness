@@ -349,7 +349,7 @@ else
     pass "every shipped .claude tree is inside the boundary"
   else
     fail "every shipped .claude tree is inside the boundary"
-    printf '    unlisted: %s\n    add it to joharness.sh:protocol_paths, or say in\n    docs/product/unsupervised-mode.md why it is not protocol\n' \
+    printf '    unlisted: %s\n    add it to joharness.sh:protocol_paths, or say in\n    .agents/docs/unsupervised.md why it is not protocol\n' \
       "$unlisted"
   fi
 fi

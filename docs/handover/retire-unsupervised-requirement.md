@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_017oZ8o5q2YRzjFT1eTnx4Cs
 agent: opus
 updated: 2026-09-03
-next: Move the three rules into Bounds, repoint 16 citations, delete the requirement, run ci and verify.
+next: Verifier at opus, record and fix, retire the plan and this file, open the pull request, merge.
 ---
 
 ## Goal
@@ -68,6 +68,18 @@ branch for deleting the file that held it.
   and both comments are now in the plan's Scope — they are citations of a
   file that will not exist, the same defect as the path citations this
   plan already repoints)
+
+## Measured
+
+On the branch, 2026-09-03: `JOHARNESS_SELFTEST=always ./joharness.sh ci`
+1221 passed, 0 failed, 1 skipped, `ci: pass`; `./joharness.sh verify`
+6 passed, 0 failed. Three of the four runtime citations verified by
+running them — the session-start banner, `lint_requirement_writes`'s
+printed line and the guard's `add_fact` all name
+`.agents/docs/unsupervised.md, Bounds`. The fourth, `drain`'s NOT YOURS
+block, cannot be observed before the merge: the queue hook reads the base
+ref, where the requirement still exists, so `drain` here still names the
+old path. It is verified post-merge, and the plan's Acceptance says so.
 
 ## Blockers
 

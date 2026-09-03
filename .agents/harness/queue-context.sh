@@ -190,7 +190,7 @@ if [ "$qc_mode" = "unsupervised" ]; then
 fi
 
 # The unsupervised boundary, as the queue sees it: protocol text is off
-# limits to a session running unattended (docs/product/unsupervised-mode.md,
+# limits to a session running unattended (.agents/docs/unsupervised.md,
 # Constraints), so a plan whose declared scope holds protocol text AT ALL is
 # a plan that fleet can never finish — see the class list below for why any
 # rather than all.
@@ -237,7 +237,7 @@ qc_boundary=1
 #            handover-guard.sh counts ANY protocol path in the diff, so a
 #            session starting one of these finishes nothing and hands off
 #            — "the queue offered an unsupervised fleet a plan it could
-#            never finish" (docs/product/unsupervised-mode.md), which is
+#            never finish" (.agents/docs/unsupervised.md), which is
 #            the sentence this marking exists to obey. The old rule drew
 #            the line at can-it-be-started; the requirement draws it at
 #            can-it-be-finished

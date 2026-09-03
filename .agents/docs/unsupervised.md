@@ -2,7 +2,11 @@
 
 Switch: `JOHARNESS_MODE=unsupervised` in `joharness.conf` (per repo, never
 synced), or exported for one command. Any other value reads as supervised.
-Requirement and what it has to satisfy: `docs/product/unsupervised-mode.md`.
+Bounds, design, mechanism and the runs so far are all below. The
+requirement that specified this mode retired once the harness had
+delivered everything it could; what it asked for that no code can deliver
+— a fleet that runs for hours — needs the heartbeat, and lives in issue
+165.
 
 ## What the mode changes
 
@@ -27,6 +31,32 @@ the edge: work enters the queue as an issue, a requirement, or a plan through
 a pull request, and only there. Anything else that ends a run — a rate
 limit, a session asking a question, a generation that failed to spawn — is
 a finding, not a stop.
+
+## Bounds
+
+Three rules the mode does not relax. They outlive any spec that asked for
+the mode, which is why they are here rather than in a requirement that
+retires.
+
+- **Protocol text is off limits to a session running unattended**, wherever
+  it lives. The rule is the role; `joharness.sh:protocol_paths` is its
+  mechanical expression, read by the banner, the Stop guard and the queue
+  hook. A plan with ANY protocol path in `scope:` is marked SUPERVISED ONLY
+  and never offered unattended: the guard counts any such path in the diff
+  and acceptance is all-or-nothing, so a partly-protocol plan cannot be
+  finished either. Attempt two, 55 minutes, measures the all-protocol
+  shape; the partly-protocol one was measured 2026-09-02 on `main`
+  f9fb932, where `drain` answered `next:` with a plan whose own Traps said
+  supervised session only. Sandbox configuration (`.agents/env/`) is not
+  protocol. The list covers its own machinery: `joharness.sh` and
+  `.claude/settings.json`.
+- **Merging uses the step 7 conditions unchanged.** The mode removes the
+  human, never the gate.
+- **No unsupervised session writes a requirement**, and `ci` reds the
+  branch that does (`joharness.sh:lint_requirement_writes`). The queue is
+  the human's to fill, and a fleet that writes its own work has no edge to
+  stop at. Editing one is fine — annotating it with a measured result is
+  the mode reporting its own results; ADDING one is the circularity.
 
 ## Authority: the prompt routes, the repository authorises
 

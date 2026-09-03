@@ -76,8 +76,8 @@ expect "and the last word points at drain" "./joharness.sh drain orders" "$out"
 # What the edge MEANS under unsupervised — not a gap to fill, do not re-file
 # — is drain's to say, from this row (selftest/drain.sh, NOT YOURS).
 
-# Same tree, other mode. The requirement's Acceptance: a supervised session
-# cannot tell this shipped.
+# Same tree, other mode. The mode's Bounds: a branch on the mode may not
+# change what a supervised session sees.
 out="$(soq supervised)"
 refute "supervised does not mark it" "SUPERVISED ONLY" "$out"
 refute "supervised says nothing about a protocol boundary" \
@@ -101,7 +101,7 @@ refute "an unset mode marks nothing" "SUPERVISED ONLY" "$out"
 # done, step 7 deletes a plan file only when it IS done, and
 # handover-guard.sh counts ANY protocol path in the diff — so a session that
 # starts one of these finishes nothing and hands off, which is the failure
-# docs/product/unsupervised-mode.md names: "the queue offered an unsupervised
+# .agents/docs/unsupervised.md names: "the queue offered an unsupervised
 # fleet a plan it could never finish". The old rule drew the line at
 # can-it-be-STARTED; the requirement draws it at can-it-be-FINISHED.
 #

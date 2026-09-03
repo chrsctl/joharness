@@ -140,7 +140,7 @@ fi
 # --- unsupervised boundary -------------------------------------------------
 # Under JOHARNESS_MODE=unsupervised the harness layer is off limits: an
 # unattended session may not edit the protocol that governs unattended
-# sessions (docs/product/unsupervised-mode.md, Constraints).
+# sessions (.agents/docs/unsupervised.md, Bounds).
 #
 # Detection, not prevention, and the wording says so. A Stop hook runs
 # after the commit exists, so the honest thing it can do is name a boundary
@@ -223,7 +223,7 @@ EOF
     # escaping and a file name is repo-controlled input; widening the
     # boundary widens what that input could be, so this matters more now,
     # not less. Digits cannot close a JSON string.
-    add_fact "unsupervised mode, but this branch touches ${harness_touched} file(s) of protocol text (docs/product/unsupervised-mode.md, Constraints) — revert them"
+    add_fact "unsupervised mode, but this branch touches ${harness_touched} file(s) of protocol text (.agents/docs/unsupervised.md, Bounds) — revert them"
   fi
 fi
 
