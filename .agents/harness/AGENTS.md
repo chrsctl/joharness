@@ -49,7 +49,7 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    asking, and invent nothing — the heartbeat re-seeds
    (`.agents/docs/unsupervised.md`). Boundary holds:
    no commit to protocol text (`./joharness.sh protocol-paths`,
-   [`docs/product/unsupervised-mode.md`](../../docs/product/unsupervised-mode.md)).
+   [`.agents/docs/unsupervised.md`](../../.agents/docs/unsupervised.md)).
 3. **Claim.** Cut branch from `main` (branch flow:
    `.agents/docs/product/README.md`). Write `docs/handover/<workstream>.md`. Push
    NOW — no push, no claim. Hook shows overlap? `/who`. Only `RUNNING`

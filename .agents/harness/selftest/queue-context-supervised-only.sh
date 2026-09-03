@@ -76,8 +76,8 @@ expect "and the last word points at drain" "./joharness.sh drain orders" "$out"
 # What the edge MEANS under unsupervised — not a gap to fill, do not re-file
 # — is drain's to say, from this row (selftest/drain.sh, NOT YOURS).
 
-# Same tree, other mode. The requirement's Acceptance: a supervised session
-# cannot tell this shipped.
+# Same tree, other mode. The marking is unsupervised-only, so a supervised
+# reader sees no label and no de-rank.
 out="$(soq supervised)"
 refute "supervised does not mark it" "SUPERVISED ONLY" "$out"
 refute "supervised says nothing about a protocol boundary" \
@@ -100,10 +100,10 @@ refute "an unset mode marks nothing" "SUPERVISED ONLY" "$out"
 # all-or-nothing (.agents/docs/plans/README.md), step 5 is all green or not
 # done, step 7 deletes a plan file only when it IS done, and
 # handover-guard.sh counts ANY protocol path in the diff — so a session that
-# starts one of these finishes nothing and hands off, which is the failure
-# docs/product/unsupervised-mode.md names: "the queue offered an unsupervised
-# fleet a plan it could never finish". The old rule drew the line at
-# can-it-be-STARTED; the requirement draws it at can-it-be-FINISHED.
+# starts one of these finishes nothing and hands off — the queue offering a
+# fleet a plan it could never finish, which is what the marking exists to
+# stop (.agents/docs/unsupervised.md, Bounds). The first rule drew the line
+# at can-it-be-STARTED; this one draws it at can-it-be-FINISHED.
 #
 # Measured 2026-09-02 on main f9fb932, which is what sent this looking:
 # docs/plans/unsupervised-drain-only.md declares one protocol path among

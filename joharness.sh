@@ -65,7 +65,7 @@
 #                              the file whole)
 #   JOHARNESS_MODE=supervised  'supervised' (default) or 'unsupervised'.
 #                              Anything else reads as supervised
-#                              (docs/product/unsupervised-mode.md)
+#                              (.agents/docs/unsupervised.md)
 #   JOHARNESS_REVIEW=off       'off' (default) or 'on'. 'on' makes `ci` fail
 #                              when a workstream this branch wrote reaches the
 #                              edge (pull request open, or status review/done)
@@ -164,9 +164,9 @@ mode_source() {
 # The unsupervised boundary
 # ---------------------------------------------------------------------------
 #
-# The RULE is a role, stated in docs/product/unsupervised-mode.md: protocol
-# text governing a session is off limits to that session while it runs
-# unattended. A session may not rewrite the rules it is being judged by.
+# The RULE is a role, stated in .agents/docs/unsupervised.md (Bounds):
+# protocol text governing a session is off limits to that session while it
+# runs unattended. A session may not rewrite the rules it is being judged by.
 #
 # This is that rule's mechanical expression, and the two are not the same
 # thing. Issue #114 is what a path-shaped rule costs: the boundary named
@@ -2478,7 +2478,7 @@ lint_review_bullets() {
 # The goal is the human's to set. An unsupervised session that writes itself
 # a requirement writes its own finish line, and a fleet with a finish line it
 # authored has none — the circularity the goal bound closes
-# (docs/product/unsupervised-mode.md, Satisfied when).
+# (.agents/docs/unsupervised.md, Bounds).
 #
 # Nothing enforced it. `protocol_paths` covers protocol TEXT and
 # `docs/product/` is not in it, correctly: a requirement is product, not
@@ -2535,7 +2535,7 @@ lint_requirement_writes() {
 ' "$n"
   printf '  the human'"'"'s to set: a fleet that writes its own finish line has
 '
-  printf '  none (docs/product/unsupervised-mode.md, Satisfied when).
+  printf '  none (.agents/docs/unsupervised.md, Bounds).
 '
   printf '  Editing one is fine — annotating a Satisfied when bullet with a
 '
@@ -4694,8 +4694,8 @@ cmd_drain() {
     printf 'NOT YOURS — the queue holds plan(s) marked SUPERVISED ONLY:\n'
     printf '%s\n' "$sup"
     printf '  Scope holds protocol text, which a session running\n'
-    printf '  unattended may not commit (docs/product/unsupervised-mode.md,\n'
-    printf '  Constraints). Leave them for a supervised session, and do NOT\n'
+    printf '  unattended may not commit (.agents/docs/unsupervised.md,\n'
+    printf '  Bounds). Leave them for a supervised session, and do NOT\n'
     printf '  re-file the same work as a new plan.\n\n'
   fi
 
@@ -5023,7 +5023,7 @@ cmd_session_start() {
     printf 'item: take it, run the full Loop, merge your own pull request, and\n'
     printf 'at DRAINED exit — the heartbeat re-seeds. NEVER edit the\n'
     printf 'protocol that governs you — protocol edits stay supervised\n'
-    printf '(docs/product/unsupervised-mode.md, Constraints). Here:\n'
+    printf '(.agents/docs/unsupervised.md, Bounds). Here:\n'
     # Derived, never restated. A banner naming its own list is the second
     # copy, and the boundary is exactly what must not disagree with itself.
     while IFS= read -r t; do
