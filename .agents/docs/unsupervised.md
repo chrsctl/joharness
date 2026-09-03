@@ -5,18 +5,21 @@ synced), or exported for one command. Any other value reads as supervised.
 Bounds, design, mechanism and the runs so far are all below. The
 requirement that specified this mode retired once the harness had
 delivered everything it could; what it asked for that no code can deliver
-— a fleet that runs for hours — needs the heartbeat, and lives in issue
-165.
+— a fleet that runs for hours — needs the heartbeat, and lives in issue 165
+of the canonical repo (`chrsctl/joharness`), not of whatever repo is
+reading this.
 
 The mode is thin on purpose and earns its switch on ONE distinction: is a
 human present. Every piece of it is something a heartbeat-fired session
-needs and an attended one must not have — the exit at the edge, the spawn
-line, the requirement gate, the Stop guard, the banner. A sixth piece that
-does not turn on that question belongs somewhere else.
+needs and an attended one must not have: the table below is the list, and
+a row that does not turn on that question belongs somewhere else.
 
 ## What the mode changes
 
-One thing per layer, nothing else. Supervised output is byte-identical.
+One row per layer, and the rows are the whole difference. Supervised sees
+none of them: no branch on the mode changes what an attended session gets
+out of the same tree. That is a claim about one tree — removing the mode's
+machinery changes supervised output like any other edit.
 
 | Where | Change |
 | --- | --- |
@@ -47,13 +50,15 @@ retires.
 - **Protocol text is off limits to a session running unattended**, wherever
   it lives. The rule is the role; `joharness.sh:protocol_paths` is its
   mechanical expression, read by the banner, the Stop guard and the queue
-  hook. A plan with ANY protocol path in `scope:` is marked SUPERVISED ONLY
-  and never offered unattended: the guard counts any such path in the diff
-  and acceptance is all-or-nothing, so a partly-protocol plan cannot be
-  finished either. Attempt two, 55 minutes, measures the all-protocol
-  shape; the partly-protocol one was measured 2026-09-02 on `main`
-  f9fb932, where `drain` answered `next:` with a plan whose own Traps said
-  supervised session only. Sandbox configuration (`.agents/env/`) is not
+  hook. The consequence — a plan with any protocol path in `scope:` is
+  marked and de-ranked — is the queue-hook row in the table above; the
+  reason it marks on ANY is here: the guard counts any such path in the
+  diff and acceptance is all-or-nothing, so a partly-protocol plan cannot
+  be finished either. Measured in this repo: attempt two spent 55 minutes
+  on the all-protocol shape, and the partly-protocol one was found on
+  2026-09-02 (canonical `main` f9fb932) with `drain` answering `next:` on a
+  plan whose own Traps said supervised session only. Sandbox configuration
+  (`.agents/env/`) is not
   protocol. The list covers its own machinery: `joharness.sh` and
   `.claude/settings.json`.
 - **Merging uses the step 7 conditions unchanged.** The mode removes the
@@ -158,3 +163,10 @@ whether or not the last generation converged, so a bug that makes
 generations fail fast becomes a firing every hour until the Routine is
 paused. The lever is the pause above, which is why it is proved and not
 merely written.
+
+**Propose them with evidence; never add them on a session's own judgment.**
+Declining them was the requester's call and re-taking it is theirs too — a
+session that adds a cap because a run looked expensive has decided a
+question of money, which the Loop reserves for the human
+(`.agents/harness/AGENTS.md`, Decide alone). This is why the budget in
+issue 165 is not a number a session may pick.

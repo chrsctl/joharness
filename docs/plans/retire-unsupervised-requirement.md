@@ -15,11 +15,14 @@ Direct ask 2026-09-03: does the repo still need the requirement inside
 the finding.
 
 `docs/product/unsupervised-mode.md` mixes two things with different
-lifecycles. A SPEC that completes — eight `Satisfied when` bullets, seven
-of which the harness satisfies and pins — and PERMANENT RULES that no
-completion retires. The rules have accreted 14 citations from running
-code, four of them in output a session reads at the moment it is told it
-crossed a boundary (`cmd_drain`'s NOT YOURS block, the session-start
+lifecycles. A SPEC that completes — eight `Satisfied when` bullets, of
+which two are rules rather than conditions, four are conditions the harness
+meets (two of those pinned by the suite, two field observations of live
+runs that no test pins), one is false, and one is open — and PERMANENT
+RULES that no completion retires. The rules have accreted 14 citations from running
+code — 15, counted with an unfiltered `grep -rn`; an earlier draft said 14
+and missed `joharness.conf` — four of them in output a session reads at the
+moment it is told it crossed a boundary (`cmd_drain`'s NOT YOURS block, the session-start
 banner, `lint_requirement_writes`, `handover-guard.sh`'s blocking fact).
 Deleting the file alone points all four at nothing.
 
@@ -71,6 +74,8 @@ citation, delete the file.
   which stays true; only the attribution moves.
 - `.agents/harness/selftest/handover-guard.sh` — the fail diagnostic
   telling a maintainer where to justify an unlisted tree (~352).
+- `joharness.conf` — the `JOHARNESS_MODE` comment's pointer at the
+  requirement, the citation an `--include`-filtered grep cannot see.
 - `docs/product/unsupervised-mode.md` — deleted. `docs/product/` then holds
   no requirement, which is the honest state: the queue's remaining work is
   an operator's.
@@ -98,8 +103,10 @@ citation, delete the file.
 
 ## Acceptance
 
-- `grep -rn 'docs/product/unsupervised-mode' --include='*.sh' --include='*.md' .`
-  excluding `.git` and `docs/handover/` — no output.
+- `grep -rn 'docs/product/unsupervised-mode' .` excluding `.git` and this
+  plan — no output. NO `--include` filter: an earlier draft filtered to
+  `*.sh` and `*.md`, which made it blind to `joharness.conf`, the one file
+  that was actually missed.
 - `./joharness.sh ci` — `ci: pass`, `0 failed`; same under
   `JOHARNESS_MODE=unsupervised`.
 - `./joharness.sh verify` — `0 failed`.

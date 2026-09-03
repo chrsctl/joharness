@@ -134,7 +134,8 @@ expect "no free plan is the edge, in both modes" "Edge reached: no free plan" "$
 # tail is not pointing at a plan this mode cannot take — but a claimed plan
 # is not free either, and the tail's "top free plan above" was never true at
 # the edge in any mode. Unsupervised stops short of it; supervised keeps
-# its wording (the two modes agreeing on one tree is the Bound).
+# its wording. The two modes agreeing on one tree is what eq_same pins;
+# this fixture is the one place they are asserted to differ.
 refute "and unsupervised stops short of the tail" "top free plan above" "$out"
 expect "supervised keeps its tail" "top free plan above" "$(eq supervised)"
 

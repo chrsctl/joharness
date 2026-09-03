@@ -73,13 +73,12 @@ branch for deleting the file that held it.
 
 On the branch, 2026-09-03: `JOHARNESS_SELFTEST=always ./joharness.sh ci`
 1221 passed, 0 failed, 1 skipped, `ci: pass`; `./joharness.sh verify`
-6 passed, 0 failed. Three of the four runtime citations verified by
-running them — the session-start banner, `lint_requirement_writes`'s
-printed line and the guard's `add_fact` all name
-`.agents/docs/unsupervised.md, Bounds`. The fourth, `drain`'s NOT YOURS
-block, cannot be observed before the merge: the queue hook reads the base
-ref, where the requirement still exists, so `drain` here still names the
-old path. It is verified post-merge, and the plan's Acceptance says so.
+6 passed, 0 failed. All FOUR runtime citations verified by running
+them: the session-start banner, `lint_requirement_writes`'s printed line,
+the guard's `add_fact`, and `drain`'s NOT YOURS block — the last in a
+scratch clone whose `origin/main` is this branch, with a fixture plan
+scoped to `joharness.sh` so the block fires. All four name
+`.agents/docs/unsupervised.md, Bounds`.
 
 ## Blockers
 

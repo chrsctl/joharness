@@ -236,10 +236,10 @@ qc_boundary=1
 #            done, and step 7 deletes a plan file only when it IS done.
 #            handover-guard.sh counts ANY protocol path in the diff, so a
 #            session starting one of these finishes nothing and hands off
-#            — "the queue offered an unsupervised fleet a plan it could
-#            never finish" (.agents/docs/unsupervised.md), which is
-#            the sentence this marking exists to obey. The old rule drew
-#            the line at can-it-be-started; the requirement draws it at
+#            — the queue would have offered an unsupervised fleet a plan it
+#            could never finish, which is what this marking exists to stop
+#            (.agents/docs/unsupervised.md, Bounds). The first rule drew the
+#            line at can-it-be-started; this one draws it at
 #            can-it-be-finished
 #   clear    a declaration, and no path in it is protocol text. Free work
 #            in either mode

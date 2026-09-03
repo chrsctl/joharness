@@ -4695,7 +4695,7 @@ cmd_drain() {
     printf '%s\n' "$sup"
     printf '  Scope holds protocol text, which a session running\n'
     printf '  unattended may not commit (.agents/docs/unsupervised.md,\n'
-    printf '  Constraints). Leave them for a supervised session, and do NOT\n'
+    printf '  Bounds). Leave them for a supervised session, and do NOT\n'
     printf '  re-file the same work as a new plan.\n\n'
   fi
 
