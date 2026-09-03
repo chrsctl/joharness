@@ -55,7 +55,8 @@ then `git show <that-commit>^:docs/handover/unsupervised-slim.md`):
    Deleting the marking makes that the expected path for every
    protocol-scoped plan. It was widened instead, to mark any protocol path
    rather than only an all-protocol scope
-   (`docs/plans/mark-mixed-protocol-scope.md`, merged first).
+   (`mark-mixed-protocol-scope`, merged as PR 198 and retired with it, so
+   the file is in history rather than the tree).
 
 This plan carries no `advances:`. It does not advance a `Satisfied when`
 bullet — it rewrites the requirement, a different act, and the field is for
@@ -71,7 +72,7 @@ the human's. NOT this plan. Decision 5 (moving the Runs table and the
 remaining dated numbers out of `.agents/docs/unsupervised.md`) is its own
 plan later, so this one stays reviewable as deletions.
 
-Sizes this plan cuts from, measured 2026-09-02 on `main` a6decc1:
+Sizes this plan cuts from, measured 2026-09-03 on `main` a6decc1:
 `wc -l joharness.sh` 5770, `cat .agents/harness/selftest/*.sh | wc -l`
 9872 over 45 files. They moved twice while this plan waited (5624 and
 9697 at 15c5df8) and they will move again — re-count before quoting them,
@@ -84,8 +85,8 @@ number. `.agents/harness/queue-context.sh` is deliberately absent: decision
 
 Decision 1 — the edge is the stop:
 
-- `joharness.sh` — delete `cmd_sources` (122 lines, `awk` from
-  `cmd_sources() {` to its `}`, 2026-09-02), `SRC_MARKERS`, the
+- `joharness.sh` — delete `cmd_sources` (122 lines at a6decc1, `awk` from
+  `cmd_sources() {` to its `}`, 2026-09-03), `SRC_MARKERS`, the
   `src_checks_*` globals, `src_run_checks`, `src_unmarked`, the `sources)`
   dispatch arm, and the `sources` lines in the usage header.
 - `joharness.sh` — delete the baseline: `FB_SINCE`, `fb_since_ok`,
@@ -170,9 +171,13 @@ Decision 1 — the edge is the stop:
 - `.agents/harness/selftest/queue-context-edge.sh` — the `eq_same`
   helper (under the step "queue-context.sh reports in both modes", called
   five times) is the pin for the requirement's byte-identical bullet and
-  STAYS — but two of its lines go: the assertion that the unsupervised
+  STAYS — but three of its lines go: the assertion that the unsupervised
   output's last line is "./joharness.sh drain orders" (the `trap` this
-  plan deletes) and the `uns="${uns%...}"` strip under it. After that the
+  plan deletes), the `uns="${uns%...}"` strip under it, and
+  `refute "$1: no stop in the output" "GOAL REACHED" "$uns"`, which refutes
+  a string no mode can print once the goal stop is deleted — a refute that
+  cannot fail, the same shape as "supervised does not pay for the sweep"
+  below. After that the
   helper diffs the two outputs whole, which is the stricter pin. Delete
   the cases asserting a divergence ("and unsupervised stops short of the
   tail", "supervised keeps its tail"), and rewrite "no free plan is the
@@ -272,8 +277,8 @@ Decision 3 — claim by push, detect at merge:
   marking and stay.
 - `.agents/harness/selftest/queue-context-supervised-only.sh` — STAYS
   whole. It pins the marking, which this plan no longer removes.
-- `.agents/harness/selftest/queue-context-fanout.sh` — the two cases "and
-  the last word points at drain" (the trap) STAY with it; "the waves are
+- `.agents/harness/selftest/queue-context-fanout.sh` — the one case "and
+  the last word points at drain" (the trap) STAYS with it; "the waves are
   printed", "nothing is ordered spawned" and "the unconditional branch
   still prints its line" stay too, so this file is untouched.
   `queue-context-scope-waves.sh` has NO
@@ -292,7 +297,7 @@ Decision 3 — claim by push, detect at merge:
 
 ## Out of scope
 
-- `cmd_authority`, `authority_commit`, `authority_merged`,
+- `cmd_authority`, `authority_commit`,
   `.agents/harness/selftest/authority.sh`, the "Authority" section of
   `.agents/docs/unsupervised.md`, the `authority` constraint of the
   requirement, the `authority` sentence in `joharness.conf`. Decision 4
@@ -325,10 +330,11 @@ Decision 3 — claim by push, detect at merge:
 - Retiring `docs/product/unsupervised-mode.md`. Bullets survive it, so it
   is not the last plan.
 - Creating a heartbeat Routine. Operator action, money.
-- `docs/plans/gate-review-verifier-tag.md`. Claimed elsewhere. Both plans
-  edit `.agents/harness/selftest/review.sh` — that one adds a verifier-tag
-  case, this one deletes the two `advances` fixtures — so the hook splits
-  the wave and a reconcile there is the expected cost, not a collision.
+- The `(verifier)` review gate. `gate-review-verifier-tag` merged and
+  retired (PR 194), so there is no second plan, no wave to split and no
+  reconcile to expect — its cases are already in
+  `.agents/harness/selftest/review.sh`, beside the `advances` fixtures
+  this plan deletes. Leave the gate and its cases alone.
 - `feedback`'s other counts and `fb_hotspots`. Only the baseline goes.
 - `perf_rows`. Its `queue-context` row runs the hook under
   `JOHARNESS_RUN_MODE=unsupervised` because that path costs more, and it
@@ -410,7 +416,8 @@ Decision 3 — claim by push, detect at merge:
   in; the reason the loader must reject an old cache.
 - `joharness.sh:lint_plan_advances` — stage only generated plans could
   trip.
-- `joharness.sh:cmd_drain` — 152 lines on 15c5df8; the goal block, the
+- `joharness.sh:cmd_drain` — 156 lines at a6decc1 (152 at 15c5df8; same
+  `awk`, 2026-09-03); the goal block, the
   unsupervised free-path order, and the goal and sweep lines of the arm
   after "Nothing free" go. `drain_goals` and `drain_wave1` feed only
   those; `drain_supervised_only`, the filter in `drain_plan` and the NOT
@@ -437,7 +444,7 @@ Decision 3 — claim by push, detect at merge:
 - `.agents/harness/selftest/queue-context-edge.sh` — the `eq_same`
   helper, which is the pin for byte-identical supervised output; the two
   trap lines inside it go.
-- `.agents/harness/selftest/queue-context-fanout.sh` — the two trap cases.
+- `.agents/harness/selftest/queue-context-fanout.sh` — its one trap case.
 - `.agents/harness/selftest/review.sh` — the `withadv` / `stale` fixtures
   are the `lint_plan_advances` cases; the requirement-authorship cases
   above them stay.
@@ -494,12 +501,19 @@ Decision 3 — claim by push, detect at merge:
 - `lint_anchors` warns on a `Where to look` path that left the tree. The
   deleted selftest files are anchors above on purpose; once they are gone
   this plan file is gone too (same commit), so nothing rots.
-- `main` has moved under this plan THREE times in one day: PR
-  `simplify-unsupervised-mode` forced a rewrite, then PR 198 split its
-  decision 3, then `gate-review-verifier-tag` and
-  `advance-feedback-baseline` staled its sizes and its retire list
-  (2026-09-02). It is xhigh and entirely protocol-scoped, so every merge
-  touching `joharness.sh` moves the ground under it. Every symbol above is
-  a hypothesis: `grep -n` each one before the first deletion, and if
-  `main` has moved again, fix the plan in place first
+- `main` moves under this plan faster than it gets implemented. It has
+  been rewritten or corrected in place three times already — for a
+  rewritten `cmd_drain`, for a decision that bundled two guarantees, and
+  for a retire list naming a plan that had since been retired itself.
+  Count the merges since it was last touched rather than trusting this
+  sentence:
+
+  ```bash
+  git log --first-parent --format='%h %ci %s' origin/main
+  ```
+
+  It is xhigh and entirely protocol-scoped, so every merge touching
+  `joharness.sh` moves the ground under it. Every symbol above is a
+  hypothesis: `grep -n` each one before the first deletion, and if `main`
+  has moved again, fix the plan in place first
   (`.agents/docs/plans/README.md`, Stale plan).
