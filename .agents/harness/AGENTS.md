@@ -44,10 +44,10 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    workstream files (protocol "When NOT to write one"). Hook
    prints queue + wanted agent tier at session start. Oldest actionable
    first, urgent first if marked. No issue, no requirement, no plan: ask
-   human. Not invent work. ONE exception, `JOHARNESS_MODE=unsupervised`
-   (session start says so): edge = generate work, never ask.
-   `./joharness.sh drain` orders it — take, fan out, sweep, or stop — and
-   names the two stops: goal reached, sweep dry. Boundary holds:
+   human. Not invent work. ONE difference, `JOHARNESS_MODE=unsupervised`
+   (session start says so): at the edge, exit and say DRAINED instead of
+   asking, and invent nothing — the heartbeat re-seeds
+   (`.agents/docs/unsupervised.md`). Boundary holds:
    no commit to protocol text (`./joharness.sh protocol-paths`,
    [`docs/product/unsupervised-mode.md`](../../docs/product/unsupervised-mode.md)).
 3. **Claim.** Cut branch from `main` (branch flow:
@@ -163,10 +163,10 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    is reported and never red; that is `cleanup`'s business, and a gate
    that fails for somebody else's omission is one sessions route around.
 
-Queue still holds work after the merge? `/drain` runs the Loop again, item
-after item, until the MODE says stop — supervised at the queue edge,
-unsupervised when `drain` names a stop, goal reached or sweep dry.
-Measured reason it exists: 5 of the last 119
+Queue still holds work after the merge? `/drain` takes ONE item, runs the
+Loop on it, exits — both modes. The next item is the next session's: the
+human re-invoking under supervised, the heartbeat under unsupervised.
+Measured reason the heartbeat exists: 5 of the last 119
 merge gaps on `main` exceed three hours, the two longest 32.2h and 24.0h, and
 the tree held 18, 18, 19 and 11 plan files at the four longest stalls' first
 commit (`git log --merges --format=%ct origin/main -120`, 2026-08-29). Idle

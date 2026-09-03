@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_017oZ8o5q2YRzjFT1eTnx4Cs
 agent: opus
 updated: 2026-09-03
-next: Implement decision 1 (sources, baseline, plan provenance, drain edge, banner), suite green, then decisions 2 and 3.
+next: Verifier at opus on the diff, record and fix, retire this file and the plan, open the pull request, merge.
 ---
 
 ## Goal
@@ -41,6 +41,32 @@ times and never built. Building it now ends the staling.
   reconcile against the others.
 - Tier: the plan says opus; this session is above it. Escalation is
   allowed, downgrade never. Review depth stays the opus recipe.
+- Deviations from the plan as written, each a place the plan's own split
+  (PR 198) or its literal reading would have produced a wrong tree:
+  - `queue-context-edge.sh`: the plan says three lines of `eq_same` go —
+    the trap assertion, the strip, the GOAL REACHED refute. Only the refute
+    goes. The `trap` STAYS (decision 3 keeps it), so the assertion and the
+    strip that read it stay too; the plan's edge bullet was written before
+    the split and never re-read after it. The two divergence cases ("stops
+    short of the tail", "keeps its tail") stay for the same reason: the
+    hook's unsupervised edge arm they pin is kept.
+  - `drain.sh`: the plan lists twelve GOAL REACHED cases by name; the file
+    held six more under "a plan recorded with no goal open" and "the stop
+    must still name work", all pinning the goal bound. Deleted by the
+    plan's rule (every case pinning GOAL REACHED), not by its list.
+  - The supervised DRAINED block's second line is CHANGED, against the
+    plan's "unchanged": it read "It does NOT invent work; that is
+    unsupervised mode" — after this change no mode invents work, so the
+    sentence became a lie in the most-read status line. Now "neither does
+    unsupervised — that mode exits here instead of asking". The first line
+    and the "It does NOT invent work" pin are byte-identical.
+  - The unsupervised exit line carries the GitHub-issues pointer the old
+    stops carried. A hook cannot read GitHub; dropping the pointer at a
+    stop is how a session concludes there is nothing to do over an open
+    issue — the defect `drain_goal_reached`'s own comment recorded.
+  - Fixture kept: the `mkdir -p docs/plans` after the emptied queue. The
+    plan's stretch deletion would have taken it with the goal cases, and
+    every later `cat >` into `docs/plans` fails silently without it.
 - Session merges its own pull request (step 7). The plan is ratified —
   PR 197 put it in the queue and the human merged that — so the earlier
   "product direction, human merges" reasoning no longer applies to the
@@ -53,6 +79,14 @@ times and never built. Building it now ends the staling.
   one-distinction argument above holds.
 
 ## Review
+
+Measured on the branch, 2026-09-03, `wc -l joharness.sh` 5251 (from 5770),
+`cat .agents/harness/selftest/*.sh | wc -l` 9513 over 44 files (from 9872
+over 45). Suite: `JOHARNESS_SELFTEST=always ./joharness.sh ci` 1221
+passed, 0 failed, both modes; `./joharness.sh verify` 6 passed, 0 failed.
+Step 5 revert: `git stash push -- joharness.sh` then the suite reds ten
+cases — the DRAINED exit cases, the spawn-line cases, the banner case —
+and none of them with the change restored.
 
 None yet.
 

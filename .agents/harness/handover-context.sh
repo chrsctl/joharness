@@ -249,7 +249,7 @@ if [ "${JOHARNESS_SESSION_SOURCE:-}" = "compact" ]; then
   # supervised session .agents/docs/unsupervised.md is context for a mode it
   # is not in, and every line here is paid on read.
   if [ "${JOHARNESS_RUN_MODE:-supervised}" = "unsupervised" ]; then
-    add "  Its rules and its two stops: .agents/docs/unsupervised.md."
+    add "  Its rules: .agents/docs/unsupervised.md."
   fi
   add ""
   # The third thing, which is neither the rules nor the task state: a session

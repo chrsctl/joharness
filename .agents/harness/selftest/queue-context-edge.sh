@@ -63,7 +63,6 @@ eq_same() {
     fail "$1: an unset mode reads as supervised"
   fi
   refute "$1: no order in the output" "spawn NOW" "$uns"
-  refute "$1: no stop in the output" "GOAL REACHED" "$uns"
 }
 
 # No plans, no requirement.

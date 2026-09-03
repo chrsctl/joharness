@@ -558,7 +558,6 @@ SELFTEST_TOPICS=(
   ci-glossary
   ci-graph-lint
   ci-ship-scope
-  sources
   authority
   autonomy-mode
   upgrade-holding-work

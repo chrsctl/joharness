@@ -83,7 +83,8 @@ expect "unsupervised session-start announces the mode" "== Mode: unsupervised ==
 # The banner ROUTES: the hooks report the queue, drain says what the mode
 # does with it, and the banner is the one place a fresh session learns that.
 expect "and points at drain for the order" "./joharness.sh drain" "$out"
-expect "and names both stops" "sweep dry" "$out"
+# One edge, one word for it: exit. The banner used to name two stops here.
+expect "and says the edge is the exit" "at DRAINED exit" "$out"
 # Two boundary entries, not one: a single name could still come from a
 # hardcoded string, and "derived, never restated" is the property that
 # matters here — the boundary is exactly what must not disagree with itself.

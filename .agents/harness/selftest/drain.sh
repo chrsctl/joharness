@@ -75,92 +75,30 @@ expect "an empty queue under supervised is drained" \
   "DRAINED — no unplanned requirement, no free plan, no open question." "$out"
 expect "supervised says it stops rather than inventing work" \
   "It does NOT invent work" "$out"
-# The sweep runs ci and takes a minute. Calling it on a supervised drain would
-# turn a status command a loop reads between items into the slowest thing in
-# the loop.
-refute "supervised does not pay for the sweep" "sources" "$out"
+expect "and says the other mode exits at this edge instead" \
+  "neither does unsupervised — that mode exits here instead of asking" "$out"
 
-# Same tree, other mode. An empty queue is a trigger ONLY WHILE A GOAL IS
-# OPEN — autonomy is bounded by an open requirement (the goal bound, adopted
-# in PR 169). These two cases used to pass with no requirement in the fixture
-# at all, which was the pre-bound rule; under the bound that state is the
-# GOAL REACHED stop below, and they failed for exactly the right reason.
-# The goal must be PLANNED, or it is queue work itself: an unplanned
-# requirement outranks the plan queue (PR 157), so drain would report it as
-# next and never reach the unsupervised branch. So: a requirement, a plan
-# serving it, and that plan claimed — which is an empty queue with a goal
-# still open, the state these two cases are about.
-mkdir -p "${dwork}/docs/product"
-printf -- '---\nrequirement: agoal\npriority: normal\n---\n\n## Goal\nFixture.\n\n## Satisfied when\n\n- something observable.\n' \
-  >"${dwork}/docs/product/agoal.md"
-printf -- '---\nplan: serves-goal\nurgency: normal\nagent: sonnet\neffort: low\nrequirement: agoal\n---\n\n## Goal\nFixture.\n' \
-  >"${dwork}/docs/plans/serves-goal.md"
-commit_all "$dwork" "a goal to run toward, and a plan serving it"
-git -C "$dwork" push -q origin main
-git -C "$dwork" checkout -qb goalclaimer
-printf -- '---\nworkstream: serves-goal\nstatus: in-progress\nplan: serves-goal\nagent: sonnet\nupdated: 2026-01-01\n---\n\n## Goal\nFixture.\n' \
-  >"${dwork}/docs/handover/serves-goal.md"
-commit_all "$dwork" "claim it"
-git -C "$dwork" push -qu origin goalclaimer
-git -C "$dwork" checkout -q main
-# Switching back removed docs/handover/serves-goal.md, and git drops a
-# directory when its last tracked file goes — so docs/handover is gone from
-# the worktree and every later `cat >` into it fails silently. The same trap
-# write_ws documents, reached by a BRANCH SWITCH rather than a delete.
-mkdir -p "${dwork}/docs/handover"
-
+# Same tree, other mode. The edge is the STOP in both modes; unsupervised
+# differs by one line under the verdict — exit, the heartbeat re-seeds —
+# and by what it must not say: the supervised sentence, which would tell an
+# unattended session it is not in unsupervised mode. Nothing is generated
+# here and nothing is swept: work enters the queue as an issue, a
+# requirement or a plan through a pull request, never from a detector.
 out="$(ddrain env JOHARNESS_MODE=unsupervised)"
 expect "drain reads the mode from the environment too" \
   "== drain (mode: unsupervised)" "$out"
-expect "an empty queue under unsupervised is a trigger, not a stop" \
-  "not a stop" "$out"
-expect "and says how many goals kept it going" "1 goal(s) open" "$out"
-# NAMED, never run. The sweep runs ci; a status command a loop reads between
-# items must not be the slowest thing in the loop, and drain calling sources
-# calling ci calling perf calling drain once burned a runner for 42 minutes.
-expect "unsupervised names the sweep" "./joharness.sh sources" "$out"
-refute "and never runs it" "== sources" "$out"
-expect "and says what dry means" "STOP" "$out"
-expect "and what NOT dry means" "one finding, one plan" "$out"
+expect "an empty queue under unsupervised is DRAINED too" \
+  "DRAINED — no unplanned requirement, no free plan, no open question." "$out"
+expect "and the word under it is exit" "Exit — after open GitHub issues" "$out"
+expect "and the heartbeat is what continues" "The heartbeat re-seeds" "$out"
+refute "and nothing is generated at the edge" "generate" "$out"
+refute "and nothing is swept" "sources" "$out"
+refute "and the supervised sentence is not printed to it" \
+  "It does NOT invent work" "$out"
 
-# NO goal: the other stop. Its own message, because a dry sweep and a reached
-# goal are different facts — exhausted sources against finished work — and a
-# session acts on which one fired. A shared wording would make them
-# indistinguishable in the report a human reads to decide whether to set a
-# new goal.
-# Through fixture_rm: this takes the last tracked file in docs/product, git
-# drops the directory with it, and the TEMPLATE write below then lands
-# nowhere. Measured on origin/main before this change — the write printed
-# "No such file or directory", the TEMPLATE case passed because the directory
-# was genuinely empty rather than because a TEMPLATE was excluded, and the
-# `git rm` after it aborted on the missing pathspec so the serving plan was
-# never removed either.
-fixture_rm "$dwork" "the goal is reached" docs/product/agoal.md
-git -C "$dwork" push -q origin main
-out="$(ddrain env JOHARNESS_MODE=unsupervised)"
-expect "no open requirement stops the fleet" "GOAL REACHED" "$out"
-expect "and says it is not the sweep's stop" "This is NOT a dry sweep" "$out"
-refute "and does not pay for the sweep it did not need" "== sources" "$out"
-refute "and never reads as the trigger" "not a stop." "$out"
-
-# TEMPLATE, README and VISION are not goals — same exclusion the queue hook
-# applies. Without this a repo that keeps a requirement TEMPLATE around would
-# never reach its goal, and the bound would be unreachable rather than
-# bounding.
-printf -- '---\nrequirement: TEMPLATE\n---\n\n## Goal\nShape only.\n' \
-  >"${dwork}/docs/product/TEMPLATE.md"
-commit_all "$dwork" "a template is not a goal"
-git -C "$dwork" push -q origin main
-out="$(ddrain env JOHARNESS_MODE=unsupervised)"
-expect "a TEMPLATE does not count as an open goal" "GOAL REACHED" "$out"
-fixture_rm "$dwork" "drop the template and the serving plan" \
-  docs/product/TEMPLATE.md docs/plans/serves-goal.md
-git -C "$dwork" push -q origin main
-git -C "$dwork" push -q origin --delete goalclaimer 2>/dev/null || true
-# git drops a directory when its last tracked file goes, and the deletion
-# above took the last plan with it. Every case below writes into docs/plans
-# with `cat >`, which fails silently into the gap — the trap write_ws exists
-# to stop, hit here by a cleanup rather than a fixture write.
+# `rm -f` above took the last plan and git dropped the directory with it.
+# Every case below writes into docs/plans with `cat >`, which fails silently
+# into the gap — the trap write_ws exists to stop.
 mkdir -p "${dwork}/docs/plans"
 
 # --- the regression that made this command a no-op -------------------------
@@ -276,11 +214,11 @@ expect "supervised still hands out a protocol-text plan" \
 refute "and says nothing about a boundary" "SUPERVISED ONLY" "$out"
 refute "nor prints the block that names one" "NOT YOURS" "$out"
 
-# A goal, and a plan serving it — both required to reach the unsupervised
-# branch at all: with no open requirement drain stops at GOAL REACHED, and
-# with an unplanned one it hands out the requirement instead. The serving
-# plan is scoped to protocol text too, so the queue holds two plans and no
-# free one.
+# A requirement, and a plan serving it — the plan is what keeps the
+# requirement off the unplanned list, or planning would outrank the queue
+# and drain would hand out the requirement instead. The serving plan is
+# scoped to protocol text too, so the queue holds two plans and no free
+# one.
 mkdir -p "${dwork}/docs/product"
 printf -- '---\nrequirement: boundarygoal\npriority: normal\n---\n\n## Goal\nFixture.\n\n## Satisfied when\n\n- something observable.\n' \
   >"${dwork}/docs/product/boundarygoal.md"
@@ -357,91 +295,39 @@ expect "the takeable plan is what unsupervised is handed" \
 refute "and the block stays out of the path that has an answer" \
   "NOT YOURS" "$out"
 
-# --- a plan recorded with no goal open must not restart the fleet ----------
-# Recording is always allowed, in any mode and whether or not a goal is open,
-# so a note a session wrote for a human is a FREE row. cmd_drain returned on
-# the first free row and checked the goal BELOW that return, so the note was
-# handed straight back to an unattended fleet as its next job and became the
-# only thing keeping it alive — the circularity the bound closes
-# (docs/product/unsupervised-mode.md: one recorded with no goal open "does
-# NOT restart the fleet"). Reproduced on a scratch clone 2026-09-02 before
-# the fix: no docs/product/ at all, and drain answered
-# `next: docs/plans/recorded-note.md`.
+# --- the verdict must still name work it is declining ----------------------
+# A tree whose only plans are SUPERVISED ONLY has an EMPTY `next` — drain_plan
+# filters the marker — so DRAINED is the verdict. The hook lists that work;
+# this command must not go silent about it, or the two readers describe one
+# tree differently: the NOT YOURS block prints before the verdict.
 # Exactly the files alive at this point, and no more: `fixture_rm` wraps a
 # single `git rm`, so one pathspec that matches nothing aborts the whole
-# removal and every case below then reads the PREVIOUS queue. It cost a run
-# here — the list named three files an earlier block had already removed.
-fixture_rm "$dwork" "clear the queue and the goal for the recorded-note cases" \
+# removal and every case below then reads the PREVIOUS queue.
+fixture_rm "$dwork" "clear the queue for the marked-only case" \
   docs/plans/takeable.md docs/plans/protocolonly.md docs/plans/servesit.md \
   docs/product/boundarygoal.md
 git -C "$dwork" push -q origin main
-printf -- '---\nplan: recorded-note\nurgency: normal\nagent: sonnet\neffort: low\nrequirement: none\n---\n\n## Goal\nA note for a human.\n' \
-  >"${dwork}/docs/plans/recorded-note.md"
-commit_all "$dwork" "a note recorded with no goal open"
-git -C "$dwork" push -q origin main
-
-out="$(ddrain env JOHARNESS_MODE=unsupervised)"
-expect "a recorded note does not restart the fleet" "GOAL REACHED" "$out"
-refute "and is never handed out as the next thing to take" \
-  "next: docs/plans/recorded-note.md" "$out"
-# NAMED, though. A stop printed over a queue that is not empty is this same
-# defect from the other side: the session reads GOAL REACHED and concludes
-# the note is gone.
-expect "the stop says the queue is not empty" "The queue is NOT empty" "$out"
-expect "and names what it is declining" "docs/plans/recorded-note.md" "$out"
-expect "and says why recording cannot restart it" "manufacture a goal" "$out"
-# The goal stop is not the sweep's stop, and it must not pay for the sweep to
-# say so — cmd_sources runs ci.
-refute "and does not pay for the sweep it did not need" "== sources" "$out"
-
-# Supervised is untouched: a human-directed session takes the note, because
-# there is a human.
-out="$(ddrain)"
-expect "supervised still hands out the recorded note" \
-  "next: docs/plans/recorded-note.md" "$out"
-refute "and never reaches the stop" "GOAL REACHED" "$out"
-
-# A goal open again, same note, same tree. The bound is the only thing that
-# changed the answer, which is what this pair proves and neither case proves
-# alone. The requirement is SERVED, or planning would outrank the plan queue
-# and drain would offer the requirement instead.
-printf -- '---\nrequirement: livegoal\npriority: normal\n---\n\n## Goal\nFixture.\n\n## Satisfied when\n\n- something observable.\n' \
-  >"${dwork}/docs/product/livegoal.md"
-printf -- '---\nplan: serves-livegoal\nurgency: normal\nagent: sonnet\neffort: low\nrequirement: livegoal\n---\n\n## Goal\nFixture.\n' \
-  >"${dwork}/docs/plans/serves-livegoal.md"
-commit_all "$dwork" "a goal, served, beside the note"
-git -C "$dwork" push -q origin main
-out="$(ddrain env JOHARNESS_MODE=unsupervised)"
-refute "with a goal open the fleet is not stopped" "GOAL REACHED" "$out"
-expect "and the note is handed out again, oldest first" \
-  "next: docs/plans/recorded-note.md" "$out"
-
-# --- the stop must still name work it is declining -------------------------
-# A tree whose only plans are SUPERVISED ONLY has an EMPTY `next` — drain_plan
-# filters the marker — so the "queue is NOT empty" paragraph stays quiet, and
-# moving the goal check above the free-plan branch stranded the NOT YOURS
-# block below it. The hook lists that work; this command must not go silent
-# about it, or the two readers describe one tree differently.
-fixture_rm "$dwork" "leave only work this mode may not commit" \
-  docs/plans/recorded-note.md docs/plans/serves-livegoal.md \
-  docs/product/livegoal.md
+mkdir -p "${dwork}/docs/plans"
 printf -- '---\nplan: onlyprotocol\nurgency: normal\nagent: sonnet\neffort: low\nscope: joharness.sh\n---\n\n## Goal\nFixture.\n' \
   >"${dwork}/docs/plans/onlyprotocol.md"
-commit_all "$dwork" "no goal, and only a protocol-text plan"
+commit_all "$dwork" "only a protocol-text plan"
 git -C "$dwork" push -q origin main
 out="$(ddrain env JOHARNESS_MODE=unsupervised)"
-expect "no goal and only marked work is still the stop" "GOAL REACHED" "$out"
-expect "and the stop names the marked plan" \
+expect "only marked work is DRAINED for this mode" \
+  "DRAINED — no unplanned requirement, no free plan, no open question." "$out"
+expect "and the verdict names the marked plan" \
   "docs/plans/onlyprotocol.md" "$out"
 expect "and says why it is not this mode to take" \
-  "may not commit in any case" "$out"
-expect "and the stop keeps the issue pointer" \
-  "Open GitHub issues outrank all of it" "$out"
+  "unattended may not commit" "$out"
+expect "and the exit keeps the issue pointer" \
+  "after open GitHub issues" "$out"
 
-# --- the ORDER: fan out, run here, or take one ------------------------------
-# The hook proves the waves and prints them in both modes; drain reads wave 1
-# and says what to do with it. Wave 1 only, one plan is not a fan-out, and an
-# unscoped queue proves nothing.
+# --- the spawn line: one session per other free plan, every wave -------------
+# The hook proves the waves and prints them in both modes as a REPORT. drain
+# used to read wave 1 and order that and nothing else; claim by push and
+# detect at merge is the guarantee the Loop already carries, so the order is
+# now one line naming every other free plan with its tier, whatever wave it
+# sits in, and a collision between two is the reconcile step 7 requires.
 fixture_rm "$dwork" "clear the queue for the order cases" \
   docs/plans/onlyprotocol.md
 mkdir -p "${dwork}/docs/product" "${dwork}/docs/plans"
@@ -451,9 +337,9 @@ dfan() {
   printf -- '---\nplan: %s\nurgency: normal\nagent: %s\neffort: low\nrequirement: fangoal\nscope: %s\n---\n\n## Goal\nFixture.\n' \
     "$1" "$2" "$3" >"${dwork}/docs/plans/${1}.md"
 }
-# An UNSCOPED plan first, and oldest. The hook's oldest free row is this one,
-# no wave holds it, and an unattended session may not spawn on it — so what
-# drain names as next under unsupervised must be wave 1's first member.
+# An UNSCOPED plan first, and oldest. The hook's oldest free row is this one
+# and it is what drain names as next in both modes: a scope declared or not
+# no longer decides who takes what, only where a reconcile may land.
 printf -- '---\nplan: bare-first\nurgency: normal\nagent: sonnet\neffort: low\nrequirement: fangoal\n---\n\n## Goal\nFixture.\n' \
   >"${dwork}/docs/plans/bare-first.md"
 commit_all "$dwork" "a goal and an unscoped plan, oldest"
@@ -466,21 +352,20 @@ commit_all "$dwork" "a third that overlaps the first"
 git -C "$dwork" push -q origin main
 
 out="$(ddrain env JOHARNESS_MODE=unsupervised)"
-expect "two disjoint plans are a fan-out order" \
-  "spawn NOW: one session per remaining wave-1 plan" "$out"
-expect "this session takes wave 1's first member" \
-  "next: docs/plans/fan-a.md — take it in THIS session" "$out"
-refute "and never the unscoped oldest row" "next: docs/plans/bare-first.md" "$out"
-orderline="$(printf '%s\n' "$out" | sed -n 's/.*tier as named: //p')"
-expect "the spawn names the second with its tier" "fan-b (sonnet)" "$orderline"
-refute "and not the one this session took" "fan-a" "$orderline"
-refute "and does not reach into wave 2" "fan-c" "$orderline"
-expect "and says why the later wave waits" "next generation" "$out"
-expect "and never the unscoped plans" "Never the" "$out"
-expect "and defers to a claim already held" "Step 1 wins" "$out"
+expect "unsupervised names the oldest free row, scoped or not" \
+  "next: docs/plans/bare-first.md" "$out"
+spawnline="$(printf '%s\n' "$out" | sed -n 's/.*spawn one session per: //p')"
+expect "and spawns one session per other free plan, with its tier" \
+  "docs/plans/fan-a.md (agent: haiku)" "$spawnline"
+expect "every wave, not only the first" "docs/plans/fan-c.md (agent: sonnet)" "$spawnline"
+refute "and not the one this session takes" "bare-first" "$spawnline"
+expect "and names the cost of a collision" \
+  "a collision is the reconcile" "$out"
+refute "and orders no wave" "spawn NOW" "$out"
+refute "and withholds no later wave" "next generation" "$out"
 refute "and no edge-first line without edge work" "Edge work above first" "$out"
 out="$(ddrain)"
-refute "supervised orders nothing" "spawn NOW" "$out"
+refute "supervised orders nothing" "spawn one session per" "$out"
 expect "and supervised still names the oldest free row" \
   "next: docs/plans/bare-first.md" "$out"
 
@@ -499,19 +384,21 @@ expect "edge work is named first" "edge work in flight" "$out"
 expect "and the order defers to it" "Edge work above first" "$out"
 git -C "$dwork" push -q origin --delete edger 2>/dev/null || true
 
-# A wave of one: two plans on one path. Run it here; do not spawn for one.
+# Two plans on ONE path: a collision the old wave gate withheld. Now both
+# run and the reconcile is the cost, named on the line.
 fixture_rm "$dwork" "drop the disjoint plan, the overlap and the unscoped" \
   docs/plans/fan-b.md docs/plans/fan-c.md docs/plans/bare-first.md
 dfan fan-d sonnet 'a/'
 commit_all "$dwork" "a second plan on the same path"
 git -C "$dwork" push -q origin main
 out="$(ddrain env JOHARNESS_MODE=unsupervised)"
-expect "a single-plan wave is run here, not spawned" "run it in THIS" "$out"
-expect "and names the plan" "next: docs/plans/fan-a.md" "$out"
-expect "and says so plainly" "Do not spawn for one." "$out"
-refute "no fan-out order for a wave of one" "spawn NOW" "$out"
+expect "the older of two colliding plans is next" "next: docs/plans/fan-a.md" "$out"
+expect "and the other is spawned anyway" "docs/plans/fan-d.md (agent: sonnet)" "$out"
+refute "with no wave gate holding it back" "run it in THIS" "$out"
 
-# No scope anywhere: nothing is proved, so nothing is spawned.
+# No scope anywhere: nothing is proved and nothing needs to be — every other
+# free plan is spawned, and an undeclared scope is a reconcile risk, not a
+# reason to idle. Then ONE free plan: no spawn line at all.
 fixture_rm "$dwork" "drop the scoped plans" docs/plans/fan-a.md docs/plans/fan-d.md
 printf -- '---\nplan: bare-a\nurgency: normal\nagent: sonnet\neffort: low\nrequirement: fangoal\n---\n\n## Goal\nFixture.\n' \
   >"${dwork}/docs/plans/bare-a.md"
@@ -520,7 +407,11 @@ printf -- '---\nplan: bare-b\nurgency: normal\nagent: sonnet\neffort: low\nrequi
 commit_all "$dwork" "two plans declaring no scope"
 git -C "$dwork" push -q origin main
 out="$(ddrain env JOHARNESS_MODE=unsupervised)"
-expect "an unscoped queue proves no wave" "no wave proven" "$out"
-expect "and says to take one here" "Take next in THIS session" "$out"
-expect "spelled as a prohibition" "Never spawn on an" "$out"
-refute "and orders no spawn" "spawn NOW" "$out"
+expect "an unscoped queue still spawns the other plan" \
+  "spawn one session per: docs/plans/bare-b.md (agent: sonnet)" "$out"
+refute "and never says a wave was needed" "no wave proven" "$out"
+fixture_rm "$dwork" "leave one free plan" docs/plans/bare-b.md
+git -C "$dwork" push -q origin main
+out="$(ddrain env JOHARNESS_MODE=unsupervised)"
+expect "one free plan is next" "next: docs/plans/bare-a.md" "$out"
+refute "and there is nobody to spawn for" "spawn one session per" "$out"
