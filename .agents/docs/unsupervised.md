@@ -6,7 +6,11 @@ Requirement and what it has to satisfy: `docs/product/unsupervised-mode.md`.
 
 ## What the mode changes
 
-One thing per layer, nothing else. Supervised output is byte-identical.
+One thing per layer, nothing else. On one tree, supervised output matches
+what that tree prints with the mode unset, and the rows below are the whole
+difference. Across trees nothing is promised: removing the mode's machinery
+changes what a supervised session sees wherever it was visible
+(`docs/product/unsupervised-mode.md`, second bullet).
 
 | Where | Change |
 | --- | --- |

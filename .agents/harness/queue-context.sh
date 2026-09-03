@@ -386,8 +386,8 @@ rows_raw="$(
     # The boundary, applied to this plan — and ONLY under unsupervised. A
     # human-directed session may legitimately work a protocol-text plan, so
     # marking one for a supervised reader would be noise, and the
-    # requirement's own Acceptance says a supervised session cannot tell
-    # this shipped. Not called at all there: the label gains nothing and the
+    # requirement forbids a mode branch from changing what a supervised
+    # session sees. Not called at all there: the label gains nothing and the
     # rank does not move, so supervised output stays byte-identical.
     # qc_boundary is in the condition, not only inside qc_scope_class: with
     # no list to compare against, EVERY plan classifies unknown, and the
