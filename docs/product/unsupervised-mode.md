@@ -23,9 +23,18 @@ Design, mechanism and the runs so far: `.agents/docs/unsupervised.md`.
 - `joharness.conf` carries a mode, default supervised, and a session sees
   which mode it is in from session-start output alone. Holds: the banner
   prints under unsupervised only; `./joharness.sh mode` prints the word.
-- Supervised behaviour is byte-identical at every point the mode is read.
-  Pinned: `.agents/harness/selftest/queue-context-edge.sh` diffs the two
-  modes' hook output on every fixture it builds.
+- Supervised behaviour does not change WITH THE MODE: on one tree, a
+  supervised session sees what the same tree shows with the mode unset,
+  and no branch on the mode alters it. Pinned:
+  `.agents/harness/selftest/queue-context-edge.sh:eq_same` compares all
+  three — supervised, unsupervised, unset — on every fixture it builds.
+  Across TREES it promises nothing, and cannot: adding or removing the
+  mode's machinery changes what a supervised session sees wherever that
+  machinery was visible. PR 202 did it three times (measured 2026-09-03,
+  `568a0b9` against `5e71e79`) — `ci` lost its plan-provenance stage and
+  its `sources` selftest topic, and `drain`'s second line under DRAINED
+  was reworded because the old one called inventing work "unsupervised
+  mode" and no mode invents work now.
 - An unsupervised session at the queue edge prints DRAINED and exits. It
   writes no plan, no research file and no requirement there; the heartbeat
   fires the next session.
