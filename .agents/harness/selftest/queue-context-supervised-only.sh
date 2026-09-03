@@ -19,7 +19,7 @@
 #
 # shellcheck shell=bash disable=SC2154
 
-step "queue-context.sh marks a plan whose scope is all protocol text"
+step "queue-context.sh marks a plan whose scope holds protocol text"
 
 sowork="${TMP}/superonly"
 soorigin="${TMP}/superonly.git"
@@ -94,19 +94,37 @@ out="$(CLAUDE_PROJECT_DIR="$sowork" \
   bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1)"
 refute "an unset mode marks nothing" "SUPERVISED ONLY" "$out"
 
-# --- partial overlap is a different case -----------------------------------
-# A plan touching one protocol file and one other is not undoable: the
-# session does the rest and records the remainder. Only an ENTIRELY
-# protocol-path scope disqualifies, and that distinction has to survive in
-# the code rather than in this comment.
+# --- partial overlap disqualifies too, and that REVERSES the first rule ----
+# This block used to assert the opposite: a plan touching one protocol file
+# and one other "is not undoable — the session does the rest and records the
+# remainder". That is partial credit the Loop does not model. Acceptance is
+# all-or-nothing (.agents/docs/plans/README.md), step 5 is all green or not
+# done, step 7 deletes a plan file only when it IS done, and
+# handover-guard.sh counts ANY protocol path in the diff — so a session that
+# starts one of these finishes nothing and hands off, which is the failure
+# docs/product/unsupervised-mode.md names: "the queue offered an unsupervised
+# fleet a plan it could never finish". The old rule drew the line at
+# can-it-be-STARTED; the requirement draws it at can-it-be-FINISHED.
+#
+# Measured 2026-09-02 on main f9fb932, which is what sent this looking:
+# docs/plans/unsupervised-drain-only.md declares one protocol path among
+# several, read `mixed`, went unmarked, and `JOHARNESS_MODE=unsupervised
+# ./joharness.sh drain` answered `next:` with it — a plan whose own Traps
+# say "Supervised session only".
 fixture_rm "$sowork" "drop the all-protocol plan" docs/plans/allprotocol.md
 soplan mixed 'joharness.sh, docs/product/thing.md'
 sopush "a plan with one protocol path and one other"
 
 out="$(soq unsupervised)"
-refute "a mixed scope is not marked" "SUPERVISED ONLY" "$out"
-expect "and stays free work" "top free plan above" "$out"
-refute "so the edge is not reached over it" "Edge reached: no free plan" "$out"
+expect "a partly-protocol scope is marked too" "SUPERVISED ONLY" "$out"
+# The two labels stay distinct. An `only` plan is supervised work for good;
+# a `some` plan may be splittable along the boundary, and a reader who
+# cannot tell them apart cannot tell which fix applies.
+expect "and the mark says it is only part of the scope" \
+  "scope includes protocol text" "$out"
+refute "never the all-protocol wording" "scope is all protocol text" "$out"
+refute "and it stops being free work" "top free plan above" "$out"
+expect "so the edge is reached over it" "Edge reached: no free plan" "$out"
 
 # --- absent is not empty ---------------------------------------------------
 # A plan with no scope: could be entirely protocol text; nobody wrote it
@@ -118,10 +136,20 @@ sopush "a plan that declares no scope at all"
 out="$(soq unsupervised)"
 expect "an undeclared scope says the boundary went unchecked" \
   "scope undeclared: protocol boundary unchecked" "$out"
+# ROW-scoped, not output-scoped. The marked `mixed` plan from the block
+# above is still in this tree and its row carries the string, so a refute
+# over the whole output would fail for a reason that has nothing to do with
+# the plan this case is about.
+noscope_row="$(printf '%s\n' "$out" | grep 'docs/plans/noscope\.md' || :)"
+expect "the undeclared plan has a row to read" "docs/plans/noscope.md" \
+  "$noscope_row"
 refute "and is never marked SUPERVISED ONLY on a guess" \
-  "SUPERVISED ONLY" "$out"
+  "SUPERVISED ONLY" "$noscope_row"
+# Not de-ranked: it is the one free plan here, so the queue points at it.
+# The count was 2 while a partly-protocol plan still counted as free; it is
+# 1 now, and the plan it names is this one.
 expect "and is not de-ranked out of the queue on one either" \
-  "2 free plans" "$out"
+  "top free plan above" "$out"
 out="$(soq supervised)"
 refute "supervised sees no undeclared-scope note" "protocol boundary" "$out"
 
@@ -156,12 +184,18 @@ fixture_rm "$sowork" "drop the near-miss plan" docs/plans/nearmiss.md
 soplan undertree '.agents/harness/selftest/drain.sh'
 sopush "a plan scoped inside a protocol tree"
 out="$(soq unsupervised)"
-expect "a file inside a protocol tree is protocol text" "SUPERVISED ONLY" "$out"
+# The LABEL, not the bare marker. Since any protocol path marks, a parse bug
+# that fragments an all-protocol scope still marks — as `some` — and a case
+# asserting only "SUPERVISED ONLY" would pass through it. Measured: with the
+# split-on-space bug reintroduced, the marker assertion below stays green and
+# the label assertion reds. Every all-protocol fixture here asserts the label.
+expect "a file inside a protocol tree is protocol text" \
+  "scope is all protocol text" "$out"
 
 # A directory CONTAINING a protocol path is not itself one: .agents holds
 # .agents/env, which the boundary deliberately excludes. Marking it would
-# de-rank a plan the fleet can partly do, on the strength of a path that
-# reaches outside the boundary.
+# de-rank a plan on the strength of a path that reaches outside the
+# boundary — a guess, which is the one thing this marking never makes.
 fixture_rm "$sowork" "drop the in-tree plan" docs/plans/undertree.md
 soplan overtree '.agents'
 sopush "a plan scoped to a directory that merely contains a protocol tree"
@@ -178,13 +212,15 @@ fixture_rm "$sowork" "drop the over-tree plan" docs/plans/overtree.md
 soplan sharedspace 'shared: joharness.sh'
 sopush "a plan sharing a protocol path, spelled with a space"
 out="$(soq unsupervised)"
-expect "a shared protocol path still marks the plan" "SUPERVISED ONLY" "$out"
+expect "a shared protocol path still marks the plan" \
+  "scope is all protocol text" "$out"
 
 fixture_rm "$sowork" "drop the shared-space plan" docs/plans/sharedspace.md
 soplan sharedtight 'shared:joharness.sh'
 sopush "a plan sharing a protocol path, spelled without one"
 out="$(soq unsupervised)"
-expect "the tight spelling marks it too" "SUPERVISED ONLY" "$out"
+expect "the tight spelling marks it too" \
+  "scope is all protocol text" "$out"
 
 # A trailing slash is how a person writes a directory, and the scope reader
 # elsewhere in this hook strips one. It cannot decide the boundary.
@@ -192,7 +228,8 @@ fixture_rm "$sowork" "drop the shared-tight plan" docs/plans/sharedtight.md
 soplan trailing '.agents/harness/'
 sopush "a plan scoped to a protocol tree with a trailing slash"
 out="$(soq unsupervised)"
-expect "a trailing slash does not hide a protocol tree" "SUPERVISED ONLY" "$out"
+expect "a trailing slash does not hide a protocol tree" \
+  "scope is all protocol text" "$out"
 
 # --- a scope is a list of paths, not a shell pattern ------------------------
 # `scope: joharness.*` was expanded against the CHECKOUT, so the same plan on
@@ -211,13 +248,15 @@ refute "and an untracked file beside it changes nothing" \
 rm -f "${sowork}/joharness.conf"
 
 # A path with a space in it is ONE path. Splitting on whitespace turned an
-# all-protocol scope into a mixed one and handed the plan to the fleet as
-# free work — the failure direction this whole change exists to stop.
+# all-protocol scope into a partly-protocol one. That used to hand the plan
+# to the fleet as free work; now both shapes mark, so only the LABEL still
+# tells the two apart — which is why this asserts the label.
 fixture_rm "$sowork" "drop the glob plan" docs/plans/globscope.md
 soplan spacey '.agents/harness/two words.sh'
 sopush "a plan scoped to a protocol path with a space in it"
 out="$(soq unsupervised)"
-expect "a space in a path does not split it into two" "SUPERVISED ONLY" "$out"
+expect "a space in a path does not split it into two" \
+  "scope is all protocol text" "$out"
 
 # `none` is case-blind, because the `shared:` strip beside it is. Read
 # case-sensitively, NONE was a path nobody named: the plan classified mixed

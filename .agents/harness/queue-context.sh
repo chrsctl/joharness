@@ -14,10 +14,12 @@
 #                       `claimed on <branch>` when an in-flight workstream
 #                       names it. Blocked and claimed list but never lead.
 #                       Under unsupervised only, two more: `SUPERVISED ONLY`
-#                       when every path in `scope:` is protocol text, which
-#                       that mode may not commit — listed, never leading —
-#                       and `scope undeclared` when there is nothing to
-#                       check, which is not the same as nothing to find.
+#                       when ANY path in `scope:` is protocol text, which
+#                       that mode may not commit — listed, never leading,
+#                       the label saying whether that is the whole scope or
+#                       part of it — and `scope undeclared` when there is
+#                       nothing to check, which is not the same as nothing
+#                       to find.
 #   docs/research/*.md  open questions, same ordering, same tier field. A
 #                       plan naming one in `research:` is blocked while it
 #                       exists (.agents/docs/research/README.md). Listed
@@ -189,8 +191,9 @@ fi
 
 # The unsupervised boundary, as the queue sees it: protocol text is off
 # limits to a session running unattended (docs/product/unsupervised-mode.md,
-# Constraints), so a plan whose whole declared scope is protocol text is a
-# plan that fleet can never finish.
+# Constraints), so a plan whose declared scope holds protocol text AT ALL is
+# a plan that fleet can never finish — see the class list below for why any
+# rather than all.
 #
 # Measured, 2026-08-31: the endurance retry spent 55 minutes and $12.05 on
 # `marker-gate-needs-no-done`, whose frontmatter reads
@@ -220,12 +223,26 @@ fi
 qc_boundary=1
 [ "${#qc_protocol[@]}" -gt 0 ] || qc_boundary=0
 
-# Where one plan's declared scope sits relative to that boundary. Three
-# answers, and the third is the point:
+# Where one plan's declared scope sits relative to that boundary. Four
+# answers, and the two that disqualify are `only` and `some`:
 #
 #   only     every declared path is at or under a protocol path
-#   mixed    at least one is not — the session does that part and records
-#            the remainder, so the plan is not undoable
+#   some     at least one is, at least one is not. ALSO disqualifying, and
+#            that REVERSES the rule this shipped with, which read "the
+#            session does that part and records the remainder, so the plan
+#            is not undoable". That is partial credit the Loop does not
+#            model: acceptance is all-or-nothing
+#            (.agents/docs/plans/README.md), step 5 is all green or not
+#            done, and step 7 deletes a plan file only when it IS done.
+#            handover-guard.sh counts ANY protocol path in the diff, so a
+#            session starting one of these finishes nothing and hands off
+#            — "the queue offered an unsupervised fleet a plan it could
+#            never finish" (docs/product/unsupervised-mode.md), which is
+#            the sentence this marking exists to obey. The old rule drew
+#            the line at can-it-be-started; the requirement draws it at
+#            can-it-be-finished
+#   clear    a declaration, and no path in it is protocol text. Free work
+#            in either mode
 #   unknown  nothing declared. NOT "safe": absent is not empty, the rule this
 #            repo keeps relearning, and a plan whose scope nobody wrote could
 #            be entirely protocol text
@@ -252,7 +269,7 @@ qc_scope_class() {
   # Split on the COMMA alone, then trim. Splitting on space as well — which
   # the first version of this did — was wrong in the direction that matters:
   # `scope: .agents/harness/two words.sh` became two entries, the second of
-  # them not a protocol path, so an all-protocol plan read `mixed` and was
+  # them not a protocol path, so an all-protocol plan read `some` and was
   # handed to the fleet as free work. `shared: x` only appeared to work
   # under that split because the prefix happened to land in a word of its
   # own.
@@ -278,7 +295,7 @@ qc_scope_class() {
     # `none` is the template's explicit no-paths value and it is the same
     # answer as no key at all. Case-blind, because the `shared:` strip above
     # is: one spelling rule read two ways in adjacent lines is how `NONE`
-    # became a path nobody named, classifying its plan `mixed` and leaving
+    # became a path nobody named, classifying its plan `some` and leaving
     # the row with no label of either kind.
     case "$entry" in '' | [Nn][Oo][Nn][Ee]) continue ;; esac
     seen=$((seen + 1))
@@ -293,7 +310,14 @@ qc_scope_class() {
   [ -z "$unset_f" ] || set +f
 
   [ "$seen" -gt 0 ] || return 0
-  if [ "$seen" -eq "$protocol" ]; then qc_class=only; else qc_class=mixed; fi
+  # Three-way, and the zero arm is why `clear` exists as its own answer: the
+  # old two-way folded "no protocol path" and "some protocol paths" into one
+  # class, which was harmless while neither was marked and is the whole
+  # question now that one of them is.
+  if [ "$protocol" -eq 0 ]; then qc_class=clear
+  elif [ "$seen" -eq "$protocol" ]; then qc_class=only
+  else qc_class=some
+  fi
 }
 
 # One row per plan: rank, added-epoch, path, label, served requirement.
@@ -382,8 +406,15 @@ rows_raw="$(
     scope_derank=""
     if [ "$qc_mode" = "unsupervised" ] && [ "$qc_boundary" -eq 1 ]; then
       qc_scope_class "$scope"
+      # Two marked classes, two labels, one de-rank. The labels stay
+      # distinct because the shapes want different fixes: an `only` plan is
+      # supervised work for good, a `some` plan may be splittable along the
+      # boundary. One string for both would erase that at the only place a
+      # reader sees it.
       case "$qc_class" in
         only)    scope_note=", SUPERVISED ONLY: scope is all protocol text"
+                 scope_derank=1 ;;
+        some)    scope_note=", SUPERVISED ONLY: scope includes protocol text"
                  scope_derank=1 ;;
         unknown) scope_note=", scope undeclared: protocol boundary unchecked" ;;
       esac
@@ -596,8 +627,8 @@ fi
 if [ "$qc_mode" = "unsupervised" ] && [ "$qc_boundary" -eq 0 ]; then
   printf '\nProtocol boundary NOT read (./joharness.sh protocol-paths listed\n'
   printf 'nothing here), so no plan below is marked SUPERVISED ONLY. That is\n'
-  printf 'this checkout, not the plans: a plan scoped entirely to protocol\n'
-  printf 'text is one this mode cannot finish, and nothing checked.\n'
+  printf 'this checkout, not the plans: a plan whose scope holds protocol\n'
+  printf 'text at all is one this mode cannot finish, and nothing checked.\n'
 fi
 
 # Display truncates; the free count below does not — a fan-out instruction
