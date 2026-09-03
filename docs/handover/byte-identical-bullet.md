@@ -1,6 +1,6 @@
 ---
 workstream: byte-identical-bullet
-status: blocked
+status: done
 branch: claude/unsupervised-slim-down-nqfie4
 pr: none
 plan: none
@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_017oZ8o5q2YRzjFT1eTnx4Cs
 agent: opus
 updated: 2026-09-03
-next: HUMAN — the requirement's second bullet is false and has been since before PR 202. Fixing it rewrites the requester's words. Decide; a session should not.
+next: Superseded by retire-unsupervised-requirement on this branch; retired with it.
 ---
 
 ## Goal
@@ -20,6 +20,11 @@ is the whole deliverable.** The verifier round below is why.
 
 ## Decisions
 
+- **ABANDONED, not patched — and SUPERSEDED.** The blocker below dissolved
+  when the requirement itself was retired
+  (`docs/plans/retire-unsupervised-requirement.md`, same branch): the
+  bullet's text stops existing, so nobody has to rewrite the requester's
+  words to fix it.
 - **ABANDONED, not patched.** The bullet fix was wrong at its premise, its
   remedy and its evidence, each independently. Patching it would have kept
   a change whose reason for existing does not hold.
@@ -90,6 +95,12 @@ Round 1, verifier at opus, 13 findings. The first four end the branch.
   requirement has `Satisfied when`. (open — real, and left for whoever
   fixes the bullet; correcting comments around a claim nobody has settled
   would be the same mistake one layer down)
+  **(fixed — carried into `retire-unsupervised-requirement` on this same
+  branch.** The Goal line goes with the requirement when it retires, and
+  both selftest comments are in that plan's Scope: they cite a file that
+  will not exist, which is the defect that plan already repoints 14 other
+  citations for. Dispositioned here rather than dropped, because retiring
+  this file is the last moment it could be.)
 - r6: (verifier) the workstream rejected "recording dated annotations in
   the requirement" and then wrote a dated three-item changelog into it.
   (fixed by reverting)
