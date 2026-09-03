@@ -111,3 +111,47 @@ expect "but the rot check still reports it as a leftover on main" \
 # what the duplicate assertion it replaces failed to do.
 expect "the base branch's leftover COUNT survives the change" \
   "1 workstream file(s) left on origin/main" "$out"
+
+# --- shallow clone: the hook unshallows before it reads ----------------------
+# Every remote session starts on a shallow clone, and on one `git merge-base`
+# fails for most refs, so owned_at falls back to the tree and the inheritor
+# above reads as a CLAIM again — the bug this whole topic pins, back through
+# a different door. Measured 2026-09-03 on the real repo: shallow, the hook
+# led with a branch `git rev-list --left-right --count` puts 945 behind and
+# 0 ahead of main; after `git fetch --unshallow origin` it printed 5 entries.
+# The fetch block is the fix: shallow clone, `git fetch --unshallow` first.
+# `file://` on purpose — a plain-path clone ignores --depth with a warning,
+# and the case would then be testing a full clone and pass against anything.
+# The bare origin's HEAD is set first: `git init --bare` points it at master
+# under GIT_CONFIG_GLOBAL=/dev/null, so the clone had no checkout, ran the
+# hook on an unborn HEAD ("Branch: HEAD"), and passed on the other-branch
+# section alone — not the shape any session has. Guarded like the sibling
+# in ci-graph-lint.sh: a host where a file:// shallow clone cannot be made
+# skips, and does not red a fix it never ran.
+git -C "$oorigin" symbolic-ref HEAD refs/heads/main
+oshallow="${TMP}/ownshallow"
+if git clone -q --depth=1 --no-single-branch "file://${oorigin}" "$oshallow" 2>/dev/null; then
+  # lint_shallow's idiom (joharness.sh): the string compare is the guard.
+  oshallow_is() { git -C "$oshallow" rev-parse --is-shallow-repository 2>/dev/null; }
+  expect "fixture: the clone really is shallow before the hook runs" \
+    "true" "$(oshallow_is)"
+  # HANDOVER_FETCH=1: the unshallow lives in the fetch block, and the origin
+  # is a local bare repo, so this is the second fetch-on call in the suite
+  # and still no network.
+  sout="$(CLAUDE_PROJECT_DIR="$oshallow" HANDOVER_FETCH=1 \
+    bash "${ROOT}/.agents/harness/handover-context.sh" 2>&1)"
+  expect "the hook ran on a checked-out branch, not an unborn HEAD" \
+    "Branch: main" "$sout"
+  expect "after the hook, the clone is full" \
+    "false" "$(oshallow_is)"
+  # The three below go red with the fetch block reverted: the tree fallback
+  # prints the inheritor as a claim, and the NOTE.
+  refute "on a shallow clone the inheritor is still not a claim" \
+    "origin/inheritor: docs/handover/swept.md" "$sout"
+  expect "and is still demoted rather than dropped" \
+    "also carries 1 inherited workstream file(s)" "$sout"
+  refute "and the NOTE is not printed, because the hook fixed it" \
+    "TREE was listed" "$sout"
+else
+  skip "shallow clone unshallowed by the hook" "file:// shallow clone unavailable here"
+fi
