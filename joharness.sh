@@ -70,9 +70,11 @@
 #                              Anything else reads as supervised
 #                              (docs/product/unsupervised-mode.md)
 #   JOHARNESS_REVIEW=off       'off' (default) or 'on'. 'on' makes `ci` fail
-#                              when a workstream reaches the edge (pull
-#                              request open, or status review/done) with no
-#                              review recorded, and session-start say so
+#                              when a workstream this branch wrote reaches the
+#                              edge (pull request open, or status review/done)
+#                              with no review recorded, or with findings none
+#                              of which carry the `(verifier)` tag, and
+#                              session-start say so
 #   JOHARNESS_SELFTEST=        unset (default) runs the harness selftest only
 #                              when the branch changes something outside
 #                              docs/ and README.md; 'always' runs it whatever
@@ -2347,9 +2349,13 @@ ensure_shellcheck() {
 # the tier of the plan it claims, else the default from the selection rules.
 # One vocabulary, read where the protocol already writes it — no second field
 # to keep in sync.
+# The agent value comes in rather than being fetched here: review_report reads
+# `agent pr status` in ONE gr_fields pass per workstream file, which is the
+# defect gr_fields' own comment names — "a caller wanting five fields forked
+# five awks over the same five lines". The plan fallback below still forks,
+# and only for a file that named no tier.
 review_tier() {
-  local doc="$1" tier plan
-  tier="$(printf '%s\n' "$doc" | gr_field agent)"
+  local doc="$1" tier="$2" plan
   if [ -z "$tier" ]; then
     plan="$(lint_stem "$(printf '%s\n' "$doc" | gr_field plan)")"
     if [ -n "$plan" ] && [ "$plan" != "none" ] &&
@@ -2812,10 +2818,63 @@ lint_finding_ids() {
 # them: `ci` runs all through the build, and a check that reds from the claim
 # commit onward makes red the normal state of a working branch, which is how a
 # gate stops being read at all.
+# Step 5 spawns the independent reader at every depth and says to tag what it
+# returns `(verifier)`. The gate could only ever check that a review HAPPENED
+# — n>0 — so a branch that self-reviewed passed exactly as if the reader had
+# run. That gap is r6 of the unmarked-detector-baseline record in its own
+# words: six findings under one `Round 1, opus, self` heading, the gate
+# satisfied, the verifier never spawned, and the author calling it "the second
+# in a row". Nothing short of a human reading the diff caught it.
+#
+# ONE tag is the bar, never one per finding: a branch recording five of its own
+# findings and one the reader returned has run the step.
+#
+# ONE PASS, two answers, because this runs per workstream file inside
+# review_report's loop. The first cut asked the question with
+# `fb_findings | grep -qF` beside the existing review_count: two extra forks
+# per workstream file, and the `review` row went 260 to 348 against a 274
+# ceiling — the per-item fork inside a loop the perf budget exists to name,
+# put there by the change that added the check. Both numbers were counted with
+# `./joharness.sh perf` on 2026-09-02 at 84b492a, this branch's commit before
+# the change; the 348 tree was never committed, so only the 260 half of that
+# pair is re-countable, and at the base this file now sits on the same command
+# prints 259. The pair is kept for the SHAPE it records, not as a measurement
+# a reader can reproduce.
+#
+# Prints `<count> <0|1>`. The count keeps review_count's `^- ` rule exactly.
+# They agree today — 180 workstream-file versions from
+# `git rev-list origin/main -400`, 0 mismatches, counted 2026-09-02 — and
+# nothing enforces that they keep agreeing: this is a third literal copy of an
+# awk the handover hook also carries inline. Recorded rather than fixed here;
+# folding the three is its own change.
+#
+# The tag is read on a FINDING, never on a line. The bar the rule states is
+# "one finding carries it", and a line scan answers a different question: a
+# session that pastes this gate's own failure text into its `## Review`
+# section clears the gate, and so does a fenced block, a heading, or a
+# sentence of prose. Continuation lines still count, because a bullet is
+# folded before it is tested — the same `^  [^ ]` rule fb_findings uses, so a
+# tag written on the second line of a long finding counts.
+#
+# Reads what got WRITTEN, the same limit the n>0 check already has and not a
+# new one. Nothing here observes whether a session spawned the agent.
+review_marks() {
+  awk '
+    /^## Review[[:space:]]*$/ { in_r = 1; next }
+    /^## /                    { if (in_r && index(buf, "(verifier)")) t = 1
+                                buf = ""; in_r = 0 }
+    in_r && /^- /             { if (index(buf, "(verifier)")) t = 1
+                                buf = substr($0, 3); n++; next }
+    in_r && /^  [^ ]/         { buf = buf " " $0 }
+    END                       { if (in_r && index(buf, "(verifier)")) t = 1
+                                print (n + 0) " " (t + 0) }'
+}
+
+# Takes the two field VALUES, not the document: it was forking one awk per
+# field over the same frontmatter, and the gate now asks this question for
+# every workstream file rather than only the ones with an empty section.
 review_at_edge() {
-  local doc="$1" pr status
-  pr="$(printf '%s\n' "$doc" | gr_field pr)"
-  status="$(printf '%s\n' "$doc" | gr_field status)"
+  local pr="$1" status="$2"
   if [ -n "$pr" ] && [ "$pr" != "none" ]; then
     printf 'pr %s' "$pr"
     return 0
@@ -2834,7 +2893,7 @@ review_at_edge() {
 # branch on a review that never covered the other half of its diff.
 review_report() {
   local over="origin/${HANDOVER_BASE_BRANCH:-main}" base head ws doc tier n
-  local edge rc=0 seen=0
+  local edge rc=0 seen=0 marks tagged agent pr status own mine
   base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
   head="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)"
   if [ -z "$base" ]; then
@@ -2848,12 +2907,35 @@ review_report() {
     return 0
   fi
 
+  # Files THIS branch wrote, for the tag gate below. The loop still reports on
+  # every workstream file in the tree, because a branch that inherits one and
+  # leaves its ## Review empty is the case the n==0 red already covered. The
+  # TAG red cannot work that way: 44 of 70 workstream-file versions on
+  # origin/main carry findings and no tag (git rev-list origin/main -200 with
+  # this file's own review_marks, counted 2026-09-02) — every record written
+  # before the rule existed. Redding a branch for one it merely inherited is
+  # step 4's "DIFF against merge base, never read the tree", and it is the
+  # carve-out fin_gate already spells: a gate that fails for somebody else's
+  # omission is one sessions route around.
+  own="$(lint_ws_in_diff "$base")"
+
   while IFS= read -r ws; do
     [ -n "$ws" ] || continue
     seen=1
+    case $'\n'"${own}"$'\n' in
+      *$'\n'"${ws}"$'\n'*) mine=1 ;;
+      *) mine=0 ;;
+    esac
     doc="$(cat "${ROOT}/${ws}" 2>/dev/null)"
-    tier="$(review_tier "$doc")"
-    n="$(review_count <"${ROOT}/${ws}")"
+    # ONE frontmatter pass and ONE section pass per file, both feeding
+    # everything below. Two awks per file, which is what this loop cost
+    # before the verifier check existed.
+    { read -r agent; read -r pr; read -r status; } < <(
+      printf '%s\n' "$doc" | gr_fields agent pr status)
+    tier="$(review_tier "$doc" "$agent")"
+    marks="$(review_marks <"${ROOT}/${ws}")"
+    n="${marks%% *}"; tagged="${marks##* }"
+    edge="$(review_at_edge "$pr" "$status")" || edge=""
     printf '  %s [%s — %s]\n' "$ws" "$tier" "$(review_recipe "$tier")"
     # The independent reader, printed where the depth is already printed.
     # No causal number here: the "0/19 -> 18/19" this comment first claimed
@@ -2873,9 +2955,25 @@ review_report() {
     printf '    returns (verifier).\n'
     if [ "${n:-0}" -gt 0 ]; then
       printf '    %s finding(s) recorded\n' "$n"
+      [ "$tagged" = 1 ] && continue
+      if [ "$mine" = 0 ]; then
+        printf '    none tagged (verifier) — inherited from %s, not this\n' "$over"
+        printf '    branch to answer for\n'
+        continue
+      fi
+      # Mid-build stays exactly as silent as the zero-findings case: one line,
+      # the count, no gate output. The reader comes due at the edge, and a
+      # branch still writing its own findings is not owed the lecture yet.
+      [ -n "$edge" ] || continue
+      printf '    none of them tagged (verifier), and this is the edge (%s)\n' "$edge"
+      printf '    The independent reader is step 5 at EVERY depth, and this gate\n'
+      printf '    can only read what got written. Spawn the agent at the depth\n'
+      printf '    above, then tag what it returns — one finding carrying\n'
+      printf '    (verifier) is the bar, not every line.\n'
+      rc=1
       continue
     fi
-    if ! edge="$(review_at_edge "$doc")"; then
+    if [ -z "$edge" ]; then
       printf '    no record yet — gate fires at the edge (pr set, or status review/done)\n'
       continue
     fi
@@ -4696,7 +4794,9 @@ fin_strength() {
       printf 'done\n'
       return 0
     fi
-    review_at_edge "$doc" >/dev/null && strongest="edge"
+    review_at_edge "$(printf '%s\n' "$doc" | gr_field pr)" \
+      "$(printf '%s\n' "$doc" | gr_field status)" >/dev/null &&
+      strongest="edge"
   done <<<"$(fin_adds_at "$ref")"
   [ -n "$strongest" ] && printf '%s\n' "$strongest"
   return 0
@@ -5464,7 +5564,9 @@ cmd_session_start() {
     printf '== Review gate: ON (JOHARNESS_REVIEW=on) ==\n\n'
     printf 'Edge to main needs recorded review. Findings to workstream file\n'
     printf '## Review, one line each, BEFORE fix, same commit as fix. Clean\n'
-    printf 'pass records that, one line. ci checks record, not count.\n'
+    printf 'pass records that, one line. ci checks record, not count — and\n'
+    printf 'that ONE finding carries (verifier): step 5 spawns the reader at\n'
+    printf 'every depth, so a section holding only your own findings reds.\n'
     printf 'Depth for this branch: ./joharness.sh review\n\n'
   fi
 

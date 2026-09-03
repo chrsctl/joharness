@@ -84,8 +84,10 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    why not — never drop silent. `./joharness.sh review` prints depth for
    this branch and whether record exists; `JOHARNESS_REVIEW=on` in
    `joharness.conf` makes `ci` fail at the edge (PR open, or status
-   review/done) without one — off by default, quiet mid-build. Clean pass
-   records one line saying clean — empty section not clean pass.
+   review/done) without one, or with no finding tagged `(verifier)` — off by
+   default, quiet mid-build, and never red for a workstream file this branch
+   only inherited. Clean pass records one line saying clean — empty section
+   not clean pass.
    `review` names files in this diff that already cost other branches;
    `./joharness.sh feedback <path>` prints what they found. File keeps
    drawing findings = rule nobody wrote yet: graduate it

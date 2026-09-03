@@ -275,9 +275,12 @@ JOHARNESS_ENV_SETUP=lazy
 JOHARNESS_ENV_MD=lazy
 
 # off = review step reports only (./joharness.sh review), ci checks nothing.
-# on  = ci fails when a workstream reaches the edge (pull request open, or
-#       status review/done) recording nothing under `## Review`. Mid-build it
-#       only says the record is owed. Record, not count.
+# on  = ci fails when a workstream THIS branch wrote reaches the edge (pull
+#       request open, or status review/done) recording nothing under
+#       '## Review', or recording findings none of which carry the
+#       '(verifier)' tag the independent reader's findings are marked with.
+#       Mid-build it only says the record is owed. Record, not count — and
+#       one of them from a reader that did not write the diff.
 JOHARNESS_REVIEW=off
 EOF
   seed joharness.conf "${SCRATCH}/conf"

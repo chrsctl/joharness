@@ -83,9 +83,13 @@ mapping:
   red the normal state of a working branch, which is how a gate stops being
   read. Below the edge it only says the record is still owed. At the edge —
   pull request open (`pr:` set), or the workstream's own `status:` review or
-  done — an empty `## Review` fails `ci`. Edge is where the loop puts the
-  review anyway (step 5, after the build), so the gate fires exactly when the
-  rule already came due.
+  done — an empty `## Review` fails `ci`, and so does one whose findings are
+  all the branch's own: ONE must carry `(verifier)`, because step 5 spawns
+  that reader at every depth. A FINDING, not a line — prose or a pasted red
+  does not clear it. Only files the branch itself wrote; an inherited record
+  is named, never redded. Edge is where the loop puts the review anyway
+  (step 5, after the build), so the gate fires exactly when the rule already
+  came due.
 
   It checks the RECORD, never the finding count, for the reason the churn
   rule gives below: finding counts are no signal in either direction. A gate
