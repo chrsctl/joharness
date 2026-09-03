@@ -87,9 +87,15 @@ Round 1, verifier at opus, 15 findings. Three were serious.
   changes it, and removing the machinery changes it like any other edit)
 - r6: (verifier) the retirement does not meet the lifecycle it cites: no
   plan named this requirement, the endurance bullet reads NOT shown, and
-  the queue said decompose rather than delete. (recorded, not overridden —
-  see Decisions: the human delegated this file specifically, and the fix
-  for the substance is r7, making the rehousing real rather than intended)
+  the queue said decompose rather than delete. (wontfix, and flagged to the
+  human in the pull request: they asked about this file specifically and
+  said implement, after being shown that the two options were retire or
+  leave it — so the deletion is delegated, not assumed. What the finding is
+  right about is that "satisfied" is being read as "the harness delivered
+  everything it can", which is a reading and not the README's definition.
+  The substance — that the open bullet must not evaporate — is answered by
+  r7, which makes the rehousing real. If the human reads the delegation
+  differently, `git revert` restores the file and the branch is one commit)
 - r7: (verifier) the plan said it "adds a comment" to issue 165 and no
   such comment existed. (fixed: posted, and it carries what the issue
   needs to stand alone now that the file it quotes is gone)
