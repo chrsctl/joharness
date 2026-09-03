@@ -3379,8 +3379,10 @@ FB_UNMARKED=0
 FB_NOID=0
 # Unmarked findings on edges merged AFTER FB_SINCE — the number the source
 # sweep reads. See FB_SINCE for why the all-history count cannot be it.
-# FB_SINCE_OK is 0 when the baseline is not in this history, which is BLIND
-# and never zero.
+# FB_SINCE_OK is 0 when the baseline is not in this history. That counts EVERY
+# finding and says so ("ALL history"), which is never zero and never dry — it
+# is not blindness, and `.agents/harness/selftest/sources.sh` pins the
+# difference.
 FB_UNMARKED_SINCE=0
 FB_SINCE_OK=0
 
@@ -3416,29 +3418,41 @@ FB_SINCE_OK=0
 # count read 0, and the sweep went dry over real backlog. Caught by three
 # fixture cases whose repos have no such commit — the same "absent is not
 # empty" the queue part learned one merge earlier, and the dangerous
-# direction of it. Unresolvable is BLIND now, never zero.
+# direction of it. An unresolvable baseline now counts ALL history and labels
+# the count as unbounded, so it can never read dry over a backlog nobody
+# bounded. Not blind — blind is what a capped walk reports, and the two say
+# different things on purpose.
 # Moved 2026-09-03, from bcebb325e92f (PR 161's own base) to 847f64e3 — the
 # merge of PR 181, which is the commit the retire-commit gate went live on.
-# Before that gate, a branch could go from `review` straight to its retire
-# commit without ever tripping `lint_finding_markers`, and four findings did:
+# Four findings merged in the gap it closed:
 #
-#   PR 161 r6  docs/handover/unmarked-detector-baseline.md  (no verdict)
+#   PR 161 r6  docs/handover/unmarked-detector-baseline.md  no verdict at all
 #   PR 172 r5  docs/handover/plan-provenance.md             (recorded — ...)
 #   PR 173 r2  docs/handover/endurance-mode-flip.md         (recorded — ...)
-#   PR 174 r2  docs/handover/sweep-recursion-guard.md       (recorded — ...)
+#   PR 174 r2  docs/handover/sweep-recursion-guard.md       bare (recorded)
+#
+# Three of them escaped a SKIPPABLE gate: before PR 181 a branch could go from
+# `review` straight to its retire commit without tripping
+# `lint_finding_markers`. PR 161's r6 escaped an ABSENT one — that function
+# arrived in `8a45fe3`, which is not an ancestor of PR 161's merge (checked
+# 2026-09-03, `git merge-base --is-ancestor 8a45fe3 d0716e7`).
 #
 # `(recorded` is not a verdict `fb_marker` accepts, and the comment above it
-# says why. All four workstream files are deleted from every tree — verified
-# 2026-09-03, `git cat-file -e origin/main:<path>` fails for each — so the
-# text survives only inside those four merged commits and cannot be edited
-# where it was written. That is the same structurally-undispositionable shape
-# this baseline was created for, one gate later.
+# names the bare form as the strongest case for refusing it. All four
+# workstream files are deleted from every tree — verified 2026-09-03,
+# `git cat-file -e origin/main:<path>` fails for each — so the text survives
+# only inside those four merged commits and cannot be edited where it was
+# written. That is the same structurally-undispositionable shape this baseline
+# was created for, one gate later.
 #
 # What the bump does NOT hide, which is the check that matters: everything
-# merged after 847f64e3 still counts, PR 195's seventeen findings and PR 199's
-# eleven included. Measured 2026-09-03 on `main` at d604d8f:
-# `./joharness.sh sources` reads `4 unmarked` at the old baseline and
-# `0 unmarked` with `JOHARNESS_FEEDBACK_SINCE=847f64e3`.
+# merged after 847f64e3 still counts. Counted 2026-09-03 on `main` at d604d8f
+# with `JOHARNESS_FEEDBACK_EDGES=0 ./joharness.sh feedback`, PR 195 recorded
+# 17 findings and PR 199 recorded 11, all dispositioned and all still in
+# range. `./joharness.sh sources` the same day reads `4 unmarked` at the old
+# literal and `0 unmarked` at this one — with JOHARNESS_FEEDBACK_CACHE unset,
+# because `fb_cache_key` keys on the ref tip and the edge limit only, so a
+# populated cache serves the other baseline's number without saying so.
 #
 # PR 161 r6 is also the finding `gate-review-verifier-tag` was written from,
 # and PR 199 merged that gate — so it is answered in code even though its
