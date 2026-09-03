@@ -86,93 +86,20 @@ of 24 merged pull requests needing a reconcile. A cost, not an impossibility
 scope: src/parser.py, shared:tests/test_all.py
 ```
 
+A protocol path in `scope:` — `shared:` or not — marks the plan `SUPERVISED
+ONLY` under unsupervised and ranks it out of the free list. Declare it
+anyway. Hiding the path does not make the plan unattended-doable:
+`.agents/harness/handover-guard.sh` blocks the stop on the diff, so the fleet
+spends a session reaching a hand-off (attempt two, 55 minutes) instead of
+skipping the plan. Honest declaration costs the fleet a plan it could never
+finish; the omission costs it a run.
+
 `shared:` means "a reconcile merge is expected here", so the path stops
 splitting waves and the hook names it on the wave line instead. Everything
 unmarked keeps its meaning exactly: an undeclared or unmarked overlap still
 splits, and still says which plan it collided with. Mark only a path where a
 reconcile is genuinely routine — a wave that claims a parallel safety it does
 not have is worse than one that claims none.
-
-## Where unsupervised work comes from
-
-A **source** is somewhere an unattended session may draw work from. `sources`
-sweeps them: one counted line each, then a verdict.
-
-A source without a detector that prints a number is not a source. This is the
-whole rule and it is not style — an uncountable source never reaches zero, so
-a mode drawing on one runs forever whatever else it is told
-([`docs/product/`](../product/README.md), the unsupervised requirement).
-"A documented rule with no test" is a judgment call, and a literal reader
-always finds one more of those.
-
-The verdict has three states and the middle one carries the weight:
-
-- `sweep dry` — every detector zero. One of the two unsupervised stops, with
-  the queue empty and no edge work in flight — `drain` reads both from the
-  hooks; `sources` counts only its three.
-- `sweep NOT dry` — work is there, named per source.
-- `sweep INCOMPLETE` — a source could not be read. Never dry: a session that
-  stops here stops because it failed to look, not because nothing is left.
-  Two rules keep that honest, and both were learned by getting them wrong:
-  read the whole history rather than a fast window, and call a source blind
-  only where blindness is the honest answer — a zero that was measured is a
-  zero.
-
-### The list is closed
-
-Three sources, and only these three:
-
-| Source | Detector |
-| --- | --- |
-| failing or skipped checks | `JOHARNESS_SELFTEST=always ./joharness.sh ci` |
-| merged review findings never acted on | `JOHARNESS_FEEDBACK_EDGES=0 ./joharness.sh feedback` |
-| known-gap markers in tracked code | the `git grep` `sources` prints beside the count |
-
-Closed, not illustrative. A literal reader handed "sources include…" treats
-anything as a source, and an unattended session that invents its own backlog
-invents make-work — which under full-loop autonomy gets implemented and
-merged with no human ever reading it. Bound the surface; the autonomy is
-deliberate and stays.
-
-Something else belongs on the list? **A human adds it.** Not a session, and
-not under `JOHARNESS_MODE=unsupervised` at all.
-
-The reason is mechanical, not ceremonial. `.agents/docs/` sits outside
-`joharness.sh:protocol_paths` on purpose — it holds the reasoning behind
-rules rather than rules a session executes — so an unattended session may
-commit to THIS FILE. An earlier draft of this paragraph said a new source
-"arrives in its own plan, reviewed like anything else"; under full-loop
-autonomy a session reviews and merges its own pull request, so that read as
-a procedure for widening its own source surface, self-approved, after which
-no sweep ever goes dry again. The one bound this mode has, removable by the
-thing it bounds.
-
-The entry fee is a detector command that prints a number — that is what
-stopped "a documented rule with no test" and "drift between an instruction
-file and the code" being sources, both judgment calls where a literal reader
-always finds one more. But the fee is paid to a human, in a supervised
-session.
-
-### At the edge
-
-Empty queue under `JOHARNESS_MODE=unsupervised` is a trigger, not a stop.
-`./joharness.sh drain` says so and names the sweep; neither it nor the hook
-runs it. Measured 2026-08-29 with
-`s=$SECONDS; ./joharness.sh sources >/dev/null 2>&1; echo $((SECONDS-s))`:
-78s, against 3s for the whole session-start chain — and hook output is paid
-by every session. Then:
-
-- **NOT dry** — generate. One finding, one plan. No plan for a finding no
-  detector emitted, none for work a `SUPERVISED ONLY` plan already covers.
-- **dry** — STOP, with the queue empty and no edge work in flight. Say which
-  stop fired.
-- **INCOMPLETE** — not dry, so not a stop. Fix what could not be counted.
-
-A plan a session generates from a sweep carries `source:` (which detector
-found it) and `evidence:` (the exact command, so a human re-runs it and sees
-the same finding). A generated plan whose evidence does not reproduce is not
-a plan, it is a guess. Human input outranks generated work at every level:
-issues, then requirements, then plans, then the edge.
 
 ## Does this plan reach consumers
 
@@ -225,6 +152,11 @@ once, rather than the plans this branch touches: `JOHARNESS_SHIP=all`.
   pre-push claim would need shared state the harness does not have. The
   spawned session is behaving correctly when it self-selects; the caller is
   the one who must not tell two of them to.
+- **Unsupervised** drains this queue and exits at its edge. Work enters
+  the queue the same three ways in every mode — an issue, a requirement, a
+  plan through a pull request — and no session in any mode writes a plan
+  from a detector. An unattended session at the edge prints DRAINED and
+  exits; the heartbeat fires the next one (`.agents/docs/unsupervised.md`).
 - **Stale plan** (code moved under it): fix plan in place on `main` via
   small PR, or delete if obsolete. Every claim in a plan = hypothesis until
   checked against code — same staleness rule as workstream files.

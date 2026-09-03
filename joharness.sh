@@ -36,9 +36,6 @@
 #                   Nothing redded = nothing pins that line
 #   perf <name>     measure one entrypoint only (feedback, review, graph,
 #                   session-start, queue-context)
-#   sources         sweep the three sources unsupervised work is drawn from:
-#                   one count each, one verdict. Read-only. Runs ci, so it
-#                   is not quick
 #   authority       whether this repo's unsupervised claim is a merged line
 #                   in joharness.conf. A spawned session runs this before
 #                   believing a prompt that says it may work unattended.
@@ -49,9 +46,9 @@
 #   cleanup --apply also `git rm` the workstream files, staged for review.
 #                   Never branches — deleting one is human-only.
 #                   Exits 1 if git refused a removal
-#   drain           what the Loop takes next. Under unsupervised also the
-#                   fan-out order and which stop fired. Report-only;
-#                   re-read it between items rather than remembering it
+#   drain           what the Loop takes next, or DRAINED. Under unsupervised
+#                   also one spawn line naming the other free plans, and at
+#                   DRAINED the word: exit, the heartbeat re-seeds. Report-only
 #   finish          Loop step 7 gate: what merging this branch NOW would
 #                   leave on the base branch. Red when the merge would add a
 #                   workstream file. Run it before the merge, not after
@@ -557,9 +554,6 @@ cmd_ci() {
   printf '\n== requirement authorship\n'
   lint_requirement_writes || rc=1
 
-  printf '\n== plan provenance\n'
-  lint_plan_advances || rc=1
-
   printf '\n== ship scope\n'
   lint_ship
 
@@ -926,7 +920,7 @@ perf_shape() {
   # invisible, and two scopes so the wave partition actually runs.
   i=0
   while [ "$i" -lt 3 ]; do
-    printf -- '---\nplan: shape-plan-%s\nurgency: normal\nagent: sonnet\neffort: low\nneeds: none\nrequirement: shape-goal\nadvances: something observable\nscope: docs/shape-%s\n---\n\n## Goal\nShape.\n\n## Scope\n- nothing.\n\n## Out of scope\n- everything.\n\n## Acceptance\n- none.\n\n## Where to look\n- joharness.sh:perf_shape, which writes this file.\n' \
+    printf -- '---\nplan: shape-plan-%s\nurgency: normal\nagent: sonnet\neffort: low\nneeds: none\nrequirement: shape-goal\nscope: docs/shape-%s\n---\n\n## Goal\nShape.\n\n## Scope\n- nothing.\n\n## Out of scope\n- everything.\n\n## Acceptance\n- none.\n\n## Where to look\n- joharness.sh:perf_shape, which writes this file.\n' \
       "$i" "$i" >"${w}/docs/plans/shape-plan-${i}.md" || return 1
     i=$((i + 1))
   done
@@ -1098,9 +1092,9 @@ perf_count() {
 # `drain` carries session-start's budget and for session-start's reason: it
 # runs the same two hooks. Measured 2026-08-29 with `JOHARNESS_PERF=always
 # ./joharness.sh perf drain` -> 465, against session-start's 468 the same
-# minute. It is budgeted at all because a drain loop reads it between every
-# item, so a per-item fork inside it is paid once per queue entry instead of
-# once per session.
+# minute. It is budgeted at all because it is the first thing a heartbeat-
+# fired session reads, every generation, so a per-item fork inside it is
+# paid by every session the fleet ever starts.
 #
 # Comments do not go INSIDE the row list below. Those lines are one command's
 # continued argument list, where a leading # is an argument and not a comment:
@@ -2458,12 +2452,10 @@ lint_review_bullets() {
 # id. Every one was a session that wrote a bullet and never said what came of
 # it.
 #
-# It matters beyond tidiness because an unmarked finding is a SOURCE OF WORK.
-# `cmd_sources` counts them, and a non-zero count sets `dry=0` — so under
-# unsupervised mode the fleet cannot stop while any is outstanding. The
-# baseline (FB_SINCE) bounded the historical pile; this keeps the new count
-# near zero, and without it the mode manufactures its own backlog exactly as
-# the requirement's Constraints warn.
+# It matters beyond tidiness because an unmarked finding is a session's
+# silent drop made durable: `feedback` counts every one across merged
+# history, and the count only ever grows. This keeps the new count near
+# zero at the one moment it can still be changed.
 #
 # TWO RED TRIGGERS, mid-build stays a report either way: a gate that reds
 # mid-build fights the review gate, which needs findings recorded while the
@@ -2552,90 +2544,6 @@ lint_requirement_writes() {
   return 1
 }
 
-# A plan an unsupervised session generates WHILE A GOAL IS OPEN names the
-# `Satisfied when` bullet it advances, not just the requirement. Naming the
-# requirement says which goal; naming the bullet says which part of it, which
-# is what makes "every bullet reads true" checkable by a human at all.
-#
-# One recorded with NO goal open names neither, because there is nothing to
-# name — recording is always allowed and a note for a human is not required
-# to cite a goal that does not exist (Satisfied when, amended 2026-08-31).
-# So this fires only on a plan that HAS a `requirement:`.
-#
-# THE STALENESS FAILURE, CHOSEN RATHER THAN DISCOVERED. `advances:` carries a
-# fragment of the bullet's own text, and this checks the fragment still
-# appears in that requirement's `Satisfied when`. The alternative — an index
-# — rots SILENTLY the moment a bullet is inserted above it, and points at the
-# wrong bullet while still linting green. A fragment rots LOUDLY: reword the
-# bullet and this reds, which is a session's cue to re-read what it is
-# serving. Noisier, and the noise is the point.
-lint_plan_advances() {
-  local over="origin/${HANDOVER_BASE_BRANCH:-main}" base f doc req adv sat bad=0 seen=0
-  [ "$(run_mode)" = "unsupervised" ] || {
-    printf '  supervised — a human writing a plan by hand is not the risk
-'
-    return 0
-  }
-  base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
-  if [ -z "$base" ]; then
-    printf '  not measurable here (no merge-base with %s; unrelated history)
-' "$over"
-    return 0
-  fi
-  while IFS= read -r f; do
-    [ -n "$f" ] || continue
-    doc="$(git -C "$ROOT" show "HEAD:${f}" 2>/dev/null)" || continue
-    req="$(printf '%s
-' "$doc" | gr_field requirement)"
-    case "$req" in ''|none) continue ;; esac
-    seen=$((seen + 1))
-    adv="$(printf '%s
-' "$doc" | gr_field advances)"
-    if [ -z "$adv" ]; then
-      bad=$((bad + 1))
-      printf '  %s
-    serves %s and names no bullet
-' "$f" "$req"
-      continue
-    fi
-    sat="$(git -C "$ROOT" show "HEAD:docs/product/${req}.md" 2>/dev/null |
-      awk '/^## Satisfied when/ { r = 1; next } /^## / { r = 0 } r')"
-    if ! printf '%s
-' "$sat" | grep -qF -- "$adv"; then
-      bad=$((bad + 1))
-      printf '  %s
-    advances: %s
-' "$f" "$adv"
-      printf '    no such text in %s Satisfied when — reworded, or a typo
-' "$req"
-    fi
-  done <<<"$(git -C "$ROOT" log --format= --name-only --diff-filter=A \
-    "${base}..HEAD" -- docs/plans 2>/dev/null | sort -u |
-    { grep -E '\.md$' || :; } |
-    { grep -vE '/(TEMPLATE|README)\.md$' || :; })"
-
-  if [ "$seen" -eq 0 ]; then
-    printf '  no plan serving a requirement added on this branch
-'
-    return 0
-  fi
-  if [ "$bad" -eq 0 ]; then
-    printf '  every plan added here names the bullet it advances
-'
-    return 0
-  fi
-  printf '
-  %d plan(s) cannot say which bullet they advance. Add
-' "$bad"
-  printf '  an advances: field carrying a fragment of the bullet text (a
-'
-  printf '  not an index: an index rots silently when a bullet is inserted
-'
-  printf '  above it, and points at the wrong one while linting green).
-'
-  return 1
-}
-
 lint_finding_markers() {
   local over="origin/${HANDOVER_BASE_BRANCH:-main}" base ws content text
   local unmarked=0 seen=0 here strength short
@@ -2692,9 +2600,9 @@ lint_finding_markers() {
     return 0
   fi
   printf '\n  %d finding(s) with no verdict. One of: (fixed, wontfix, no change\n' "$unmarked"
-  printf '  (joharness.sh:fb_marker). An unmarked finding is counted as a\n'
-  printf '  SOURCE of work by sources, and a non-zero count is a fleet that\n'
-  printf '  cannot stop (docs/product/unsupervised-mode.md, Constraints).\n'
+  printf '  (joharness.sh:fb_marker). An unmarked finding is a silent drop made\n'
+  printf '  durable: feedback counts it across merged history for good, and\n'
+  printf '  this branch is the last place it can still be answered.\n'
   strength="$(fin_strength)"
   if [ "$strength" = "done" ]; then
     printf '  RED: this branch says status: done, so there is no later moment.\n'
@@ -3211,8 +3119,7 @@ fb_findings() {
 # change", not a reason, just the fact that it was written down. Accepting
 # that as a fourth verdict would let a finding close itself by restating
 # what section it is already in, the exact silent drop step 5 forbids. Left
-# out on purpose: those findings keep counting as unmarked, going forward as
-# well as in the historical pile FB_SINCE bounds.
+# out on purpose: those findings keep counting as unmarked.
 fb_marker() {
   case "$1" in
     *wontfix*)                 printf 'wontfix' ;;
@@ -3377,98 +3284,6 @@ FB_WONTFIX=0
 FB_NOCHANGE=0
 FB_UNMARKED=0
 FB_NOID=0
-# Unmarked findings on edges merged AFTER FB_SINCE — the number the source
-# sweep reads. See FB_SINCE for why the all-history count cannot be it.
-# FB_SINCE_OK is 0 when the baseline is not in this history. That counts EVERY
-# finding and says so ("ALL history"), which is never zero and never dry — it
-# is not blindness, and `.agents/harness/selftest/sources.sh` pins the
-# difference.
-FB_UNMARKED_SINCE=0
-FB_SINCE_OK=0
-
-# The commit the unmarked-findings SOURCE is measured from. A literal, and
-# beside the code that reads it, for the same reason the perf budgets are
-# literals: this is a threshold — a decision — not a measurement.
-#
-# Why a baseline exists at all. `src_unmarked` counts findings across all of
-# merged history, and a finding lives in a `## Review` section of a workstream
-# file that step 7 deletes — so the text survives only inside merged commits,
-# which nothing can edit. The count is monotonically non-decreasing, and 62 of
-# the 155 unmarked findings carry no `rN:` id, so no citation could ever name
-# them either. That made the count unreachable, and `cmd_sources` sets `dry=0`
-# on any non-zero unmarked count — so the sweep could never be dry and an
-# unsupervised fleet could never stop. The requirement's own words for that
-# failure: "An uncountable source never reaches zero, so a mode that draws on
-# one can never terminate." Full working:
-# docs/research/unmarked-detector-unreachable.md, answered in PR 161.
-#
-# What the baseline means: findings merged at or before it are HISTORY, not
-# the mode's backlog. That is the constraint's own scope — "a finding that
-# unsupervised-generated work itself introduced" — and history from before
-# this decision was never the mode's to clear.
-#
-# Moving it forward silently would erase real backlog, which is why it is a
-# literal in a reviewed diff rather than a file a session can write. Move it
-# only with the reasoning in the same commit.
-#
-# PER REPO, because this file SHIPS. A sha from canonical's history means
-# nothing in a consumer that synced this file, and the first version of this
-# fell into exactly the trap it was written to fix: an unresolvable baseline
-# produced an EMPTY set of recent edges, so nothing counted as recent, the
-# count read 0, and the sweep went dry over real backlog. Caught by three
-# fixture cases whose repos have no such commit — the same "absent is not
-# empty" the queue part learned one merge earlier, and the dangerous
-# direction of it. An unresolvable baseline now counts ALL history and labels
-# the count as unbounded, so it can never read dry over a backlog nobody
-# bounded. Not blind — blind is what a capped walk reports, and the two say
-# different things on purpose.
-# Moved 2026-09-03, from bcebb325e92f (PR 161's own base) to 847f64e3 — the
-# merge of PR 181, which is the commit the retire-commit gate went live on.
-# Four findings merged in the gap it closed:
-#
-#   PR 161 r6  docs/handover/unmarked-detector-baseline.md  no verdict at all
-#   PR 172 r5  docs/handover/plan-provenance.md             (recorded — ...)
-#   PR 173 r2  docs/handover/endurance-mode-flip.md         (recorded — ...)
-#   PR 174 r2  docs/handover/sweep-recursion-guard.md       bare (recorded)
-#
-# Three of them escaped a SKIPPABLE gate: before PR 181 a branch could go from
-# `review` straight to its retire commit without tripping
-# `lint_finding_markers`. PR 161's r6 escaped an ABSENT one — that function
-# arrived in `8a45fe3`, which is not an ancestor of PR 161's merge (checked
-# 2026-09-03, `git merge-base --is-ancestor 8a45fe3 d0716e7`).
-#
-# `(recorded` is not a verdict `fb_marker` accepts, and the comment above it
-# names the bare form as the strongest case for refusing it. All four
-# workstream files are deleted from every tree — verified 2026-09-03,
-# `git cat-file -e origin/main:<path>` fails for each — so the text survives
-# only inside those four merged commits and cannot be edited where it was
-# written. That is the same structurally-undispositionable shape this baseline
-# was created for, one gate later.
-#
-# What the bump does NOT hide, which is the check that matters: everything
-# merged after 847f64e3 still counts. Counted 2026-09-03 on `main` at d604d8f
-# with `JOHARNESS_FEEDBACK_EDGES=0 ./joharness.sh feedback`, PR 195 recorded
-# 17 findings and PR 199 recorded 11, all dispositioned and all still in
-# range. `./joharness.sh sources` the same day reads `4 unmarked` at the old
-# literal and `0 unmarked` at this one — with JOHARNESS_FEEDBACK_CACHE unset,
-# because `fb_cache_key` keys on the ref tip and the edge limit only, so a
-# populated cache serves the other baseline's number without saying so.
-#
-# PR 161 r6 is also the finding `gate-review-verifier-tag` was written from,
-# and PR 199 merged that gate — so it is answered in code even though its
-# text can never carry a verdict.
-FB_SINCE="${JOHARNESS_FEEDBACK_SINCE:-847f64e32e8153e5a9e330ab0d84615c578e80c3}"
-
-# Exit status, not a global. `src_unmarked` runs inside `$( )` and a
-# command substitution is a SUBSHELL — a global it sets is gone before the
-# caller reads it. That is the third time this shape has cost something here
-# (PR 149's ls-files cache was the first, .agents/docs/feedback.md records the
-# class), and it cost the honest half of this message: the count was right
-# and the line under it said "no baseline in this repo" about a baseline
-# that resolves.
-fb_since_ok() {
-  git -C "$ROOT" rev-parse --verify --quiet "${FB_SINCE}^{commit}" >/dev/null 2>&1
-}
 
 fb_collect() {
   FB_REF="$(base_ref)" || return 1
@@ -3478,23 +3293,7 @@ fb_collect() {
   FB_PAIRS=""; FB_HIST=""
   FB_EDGES=0; FB_WITHWS=0; FB_RECORDED=0; FB_FINDINGS=0
   FB_FIXED=0; FB_WONTFIX=0; FB_NOCHANGE=0; FB_UNMARKED=0; FB_NOID=0
-  FB_TOTAL=0; FB_CAPPED=0; FB_UNMARKED_SINCE=0
-
-  # ONE fork for the whole walk, not an ancestry test per edge: 150 edges
-  # would be 150 `git merge-base --is-ancestor` calls inside the loop, which
-  # is the fork-in-a-loop shape .agents/docs/feedback.md graduated a rule
-  # against and the perf budget names.
-  #
-  # FB_SINCE_OK says whether the baseline is in this history at all. Without
-  # it an unresolvable sha and a repo with no recent edges are the same empty
-  # string, and the count reads 0 either way — dry over real backlog.
-  local since_set=""
-  FB_SINCE_OK=0
-  if fb_since_ok; then
-    FB_SINCE_OK=1
-    since_set="$(git -C "$ROOT" log --first-parent --merges --format='%H' \
-      "${FB_SINCE}..${FB_REF}" 2>/dev/null)"
-  fi
+  FB_TOTAL=0; FB_CAPPED=0
 
   all="$(fb_edges "$FB_REF")"
   FB_TOTAL="$(printf '%s' "$all" | grep -c . || :)"
@@ -3521,21 +3320,7 @@ fb_collect() {
         fixed) FB_FIXED=$((FB_FIXED + 1)) ;;
         wontfix) FB_WONTFIX=$((FB_WONTFIX + 1)) ;;
         no-change) FB_NOCHANGE=$((FB_NOCHANGE + 1)) ;;
-        *) FB_UNMARKED=$((FB_UNMARKED + 1))
-           # No baseline in this history: count EVERYTHING. Not blind — a
-           # consumer that synced this file has none of canonical's shas, and
-           # blinding it would leave its sweep permanently INCOMPLETE, the
-           # same unreachability from the other side. Counting all of its
-           # history is the truthful answer until it sets its own baseline,
-           # and it errs toward reporting MORE work rather than going dry
-           # over a backlog nobody bounded.
-           if [ "$FB_SINCE_OK" -eq 0 ]; then
-             FB_UNMARKED_SINCE=$((FB_UNMARKED_SINCE + 1))
-           else
-             case "$since_set" in
-               *"$m"*) FB_UNMARKED_SINCE=$((FB_UNMARKED_SINCE + 1)) ;;
-             esac
-           fi ;;
+        *) FB_UNMARKED=$((FB_UNMARKED + 1)) ;;
       esac
       # Keyed by the finding's own id so the commit-level map below can say
       # which file this one landed on. A bullet written without the
@@ -3782,8 +3567,7 @@ fb_cache_key() {
 }
 
 FB_CACHE_VARS="FB_EDGES FB_WITHWS FB_RECORDED FB_FINDINGS FB_FIXED FB_WONTFIX \
-FB_NOCHANGE FB_UNMARKED FB_NOID FB_TOTAL FB_CAPPED FB_UNMARKED_SINCE \
-FB_SINCE_OK"
+FB_NOCHANGE FB_UNMARKED FB_NOID FB_TOTAL FB_CAPPED"
 
 fb_cache_load() {
   local dir="${JOHARNESS_FEEDBACK_CACHE:-}" key f k v ok
@@ -3827,8 +3611,6 @@ fb_cache_load() {
       FB_NOID)     FB_NOID="$v" ;;
       FB_TOTAL)    FB_TOTAL="$v" ;;
       FB_CAPPED)   FB_CAPPED="$v" ;;
-      FB_UNMARKED_SINCE) FB_UNMARKED_SINCE="$v" ;;
-      FB_SINCE_OK)       FB_SINCE_OK="$v" ;;
       *) ok=0 ;;
     esac
     [ "$ok" -eq 1 ] || return 1
@@ -4128,107 +3910,6 @@ cmd_cleanup() {
 }
 
 # ---------------------------------------------------------------------------
-# Sources
-#
-# Unsupervised mode has a stated end — the source sweep goes dry — and until
-# this nothing computed it (docs/product/unsupervised-mode.md, Constraints).
-# A source without a detector that prints a number is not a source: an
-# uncountable one never reaches zero, so a mode drawing on it runs forever
-# whatever else it is told.
-#
-# Read-only, exits 0 always, derived at read time. Nothing stored: a cached
-# sweep is the second copy .agents/docs/graph.md forbids, and a sweep is only
-# worth anything if it is current.
-#
-# This counts. It never acts, and it never decides what to do with a non-zero
-# count — that is unsupervised-edge-work's, and a counter that also generates
-# work is two failure modes in one command.
-# ---------------------------------------------------------------------------
-
-# The marker set. No repo convention exists to follow — measured on
-# origin/main 2026-08-29, a grep for these over tracked non-`*.md` files
-# returns nothing at all, so the detector starts honestly at zero rather
-# than at a number that was never a marker. (The plan that asked for this
-# said 1; its single hit was a filename mentioned in prose in a .md file,
-# which its own scope excludes.)
-#
-# Assembled from halves so this file does not contain the words it searches
-# for. Written whole, the detector counted its own definition and the
-# comment above it: two hits nothing could ever clear, making this an
-# uncountable source that never reaches zero — precisely what
-# docs/product/unsupervised-mode.md forbids, built into the command whose
-# job is to enforce it. Caught by running it.
-SRC_MARKERS="\\b(TO""DO|FIX""ME|XX""X|HA""CK)\\b"
-
-# `ci` once, not `ci` plus a second selftest run: ci already runs the suite,
-# and two runs of a 60-second suite to answer one question is the waste the
-# perf budget exists to notice. Output to a file because four facts come out
-# of one run.
-#
-# JOHARNESS_SELFTEST=always is load bearing. Without it `ci` skips the suite
-# on a docs-only branch, which left this permanently INCOMPLETE for exactly
-# the session most likely to sweep: one that has just committed a generated
-# plan and nothing else. The mode's only stopping point was unreachable from
-# its own most common state.
-src_checks_out=""
-src_checks_rc=0
-src_run_checks() {
-  local tmp
-  tmp="$(mktemp 2>/dev/null)" || return 1
-  # Status is data here, not an error: a red check IS the finding.
-  JOHARNESS_SELFTEST=always "${ROOT}/joharness.sh" ci >"$tmp" 2>&1
-  src_checks_rc=$?
-  src_checks_out="$(cat "$tmp")"
-  rm -f "$tmp"
-  return 0
-}
-
-
-# Findings recorded on merged edges and never acted on. FB_UNMARKED, from
-# fb_collect's existing walk — a second walk over the same edges would be a
-# second answer to the same question, and they would disagree the first time
-# fb_marker changed.
-#
-# Returns non-zero when the walk could not see the whole history, because a
-# partially-read source is not a zero. Two ways that happens and both are
-# live: fb_collect caps at FB_LIMIT edges (measured on origin/main
-# 2026-08-29 — 60 edges, default cap 50, 83 unmarked capped against 86
-# uncapped, so three findings sat outside the window with no knob set), and
-# a shallow clone has history it cannot read at all.
-src_unmarked() {
-  # Read EVERY edge, overriding FB_LIMIT. The cap exists so `feedback` stays
-  # quick for a human reading a report; a sweep that decides whether a fleet
-  # may stop has no business trading completeness for speed, and this command
-  # already says it is not quick.
-  #
-  # Reporting a capped walk as blind was the first fix and it was not enough:
-  # this repo carries 60 edges against a default cap of 50, so the sweep went
-  # permanently INCOMPLETE and the mode could never stop — the same "never
-  # terminates" failure the requirement forbids, reached from the other side.
-  # The capped branch below stays as a guard, not as the normal path.
-  local FB_LIMIT=0
-  fb_collect >/dev/null 2>&1 || return 1
-  [ "${FB_CAPPED:-0}" -eq 0 ] || return 2
-  # Shallow matters only where it could BE the answer. Zero edges in a
-  # shallow clone is indistinguishable from history that was never fetched,
-  # so that is blind. Edges actually read are real findings whatever the
-  # clone depth, and reporting them beats reporting nothing.
-  #
-  # Blanket-blinding every shallow checkout was the third over-correction in
-  # a row: each fix for a wrong zero reached for "call it blind", and twice
-  # that turned into a sweep no repo could ever complete — the same failure
-  # from the other side. Blind only where blindness is the honest answer.
-  # This container's own checkout is shallow and carries 60 readable edges.
-  if [ "${FB_EDGES:-0}" -eq 0 ] && lint_shallow; then
-    return 3
-  fi
-  # The BOUNDED count, not FB_UNMARKED. The all-history number can never
-  # reach zero (see FB_SINCE), and a source that can never reach zero is a
-  # mode that can never stop.
-  printf '%s' "$FB_UNMARKED_SINCE"
-}
-
-# ---------------------------------------------------------------------------
 # authority — is the unsupervised claim the repository's, or the caller's?
 # ---------------------------------------------------------------------------
 #
@@ -4301,135 +3982,6 @@ cmd_authority() {
     printf '  That commit is NOT an ancestor of %s. The flip exists\n' "$base"
     printf '  only on this checkout, so no review has seen it.\n'
   fi
-}
-
-# Three counted sources and one verdict. Runs ci, so it is slow, and neither
-# a hook nor drain ever runs it for that reason — the session runs it when
-# drain says to. The counted-not-guessed rule is the whole design: a source
-# without a detector that prints a number never reaches zero, so a mode
-# drawing on one never stops (.agents/docs/plans/README.md, "Where
-# unsupervised work comes from").
-cmd_sources() {
-  local failing="" skipped="" unmarked="" markers="" mrc=0 mout=""
-  local dry=1 blind=0 urc=0 red=0
-  [ "$#" -eq 0 ] || die "usage: $0 sources"
-
-  printf '== sources (read-only: counts, never acts)\n\n'
-
-  # --- failing or skipped checks -----------------------------------------
-  printf 'failing or skipped checks\n'
-  printf '  JOHARNESS_SELFTEST=always %s ci\n' "$0"
-  if src_run_checks; then
-    if printf '%s\n' "$src_checks_out" | grep -qE '^[0-9]+ passed, [0-9]+ failed'; then
-      failing="$(printf '%s\n' "$src_checks_out" |
-        sed -n 's/^[0-9]* passed, \([0-9]*\) failed.*/\1/p' | tail -1)"
-      # The suite prints its skipped total only when it is non-zero, so an
-      # absent field is 0 and not unknown. Counting `  SKIP ` lines instead
-      # missed ci's OWN skips, which are spelled SKIPPED.
-      skipped="$(printf '%s\n' "$src_checks_out" |
-        sed -n 's/^[0-9]* passed, [0-9]* failed, \([0-9]*\) skipped.*/\1/p' | tail -1)"
-      [ -n "$skipped" ] || skipped=0
-      if printf '%s\n' "$src_checks_out" | grep -q 'SKIPPED'; then
-        skipped=$((skipped + 1))
-      fi
-      # ci's exit status is its own signal. The suite is one stage of nine;
-      # the linters, the glossary, the graph lint, churn, perf and the
-      # finish gate each turn ci red without moving "N passed, M failed" —
-      # a comment that opened with the linter's own name here was read as a
-      # directive and broke the parse. Reading
-      # the counts alone reported a red tree as dry — the worst outcome this
-      # command can produce, and the one input the plan named that the first
-      # version dropped.
-      [ "$src_checks_rc" -eq 0 ] || red=1
-      printf '  %s failing, %s skipped, ci exit %s\n' \
-        "$failing" "$skipped" "$src_checks_rc"
-      if [ "$failing" -gt 0 ] || [ "$skipped" -gt 0 ] || [ "$red" -eq 1 ]; then
-        dry=0
-      fi
-    else
-      blind=1
-      printf '  cannot count — ci printed no suite summary\n'
-    fi
-  else
-    blind=1
-    printf '  cannot count — mktemp failed\n'
-  fi
-
-  # --- unacted findings ---------------------------------------------------
-  printf '\nmerged review findings never acted on\n'
-  printf '  JOHARNESS_FEEDBACK_EDGES=0 %s feedback\n' "$0"
-  unmarked="$(src_unmarked)"; urc=$?
-  case "$urc" in
-    0) printf '  %s unmarked\n' "$unmarked"
-       # Visible, because the number means something different either way and
-       # a reader comparing two repos would otherwise not know which they had.
-       if fb_since_ok; then
-         printf '  counted since %s (joharness.sh:FB_SINCE)\n' "${FB_SINCE:0:12}"
-       else
-         printf '  ALL history — no baseline in this repo. Set\n'
-         printf '  JOHARNESS_FEEDBACK_SINCE to bound it (joharness.sh:FB_SINCE)\n'
-       fi
-       [ "$unmarked" -eq 0 ] || dry=0 ;;
-    2) blind=1; unmarked=""
-       printf '  cannot count — the walk is capped at %s edges; raise it with\n' \
-         "${FB_LIMIT}"
-       printf '  JOHARNESS_FEEDBACK_EDGES=0 (0 reads all)\n' ;;
-    3) blind=1; unmarked=""
-       printf '  cannot count — shallow checkout, history not present\n' ;;
-
-    *) blind=1; unmarked=""
-       printf '  cannot count — no base branch to read merged history from\n' ;;
-  esac
-
-  # --- known-gap markers --------------------------------------------------
-  printf '\nknown-gap markers in tracked code\n'
-  printf "  git grep -nE '%s' -- ':!*.md'\n" "$SRC_MARKERS"
-  mout="$(git -C "$ROOT" grep -nE "$SRC_MARKERS" -- ':!*.md' 2>/dev/null)"
-  mrc=$?
-  # 0 = matched, 1 = no match. Anything above is git failing to look (not a
-  # work tree, unreadable object, bad pathspec), and swallowing that into a
-  # zero made this the one detector that could not say it was blind.
-  if [ "$mrc" -le 1 ]; then
-    markers="$(printf '%s' "$mout" | grep -c . || :)"
-    printf '  %s\n' "$markers"
-    [ "$markers" -eq 0 ] || dry=0
-  else
-    blind=1
-    printf '  cannot count — git grep exited %s\n' "$mrc"
-  fi
-
-  # --- verdict ------------------------------------------------------------
-  # Built as a list, not a chain of && and ||: the first version mixed the
-  # two and bash's left-to-right precedence fired the checks clause on a dry
-  # checks source. Built even when blind, because a sweep that could not read
-  # one source still found what it found, and hiding it helps nobody.
-  local carrying=""
-  if [ -n "$failing" ] && { [ "$failing" -gt 0 ] || [ "$skipped" -gt 0 ]; }; then
-    carrying="${carrying} checks(${failing} failing, ${skipped} skipped)"
-  fi
-  [ "$red" -eq 0 ] || carrying="${carrying} ci-red(exit ${src_checks_rc})"
-  if [ -n "$unmarked" ] && [ "$unmarked" -gt 0 ]; then
-    carrying="${carrying} findings(${unmarked} unmarked)"
-  fi
-  if [ -n "$markers" ] && [ "$markers" -gt 0 ]; then
-    carrying="${carrying} markers(${markers})"
-  fi
-
-  printf '\n'
-  # Blind beats dry. A sweep that could not read one of its sources has not
-  # gone dry, it has gone quiet, and one of the mode's two stops must not
-  # rest on the difference being blurred.
-  if [ "$blind" -eq 1 ]; then
-    printf 'sweep INCOMPLETE — a source could not be counted; not dry%s\n' "$carrying"
-  elif [ "$dry" -eq 1 ]; then
-    printf 'sweep dry — every detector zero\n'
-  else
-    printf 'sweep NOT dry —%s\n' "$carrying"
-  fi
-
-  printf 'A dry sweep is one of the two unsupervised stops; drain says whether\n'
-  printf 'the rest holds (queue empty, no edge work in flight).\n'
-  return 0
 }
 
 # ---------------------------------------------------------------------------
@@ -4985,7 +4537,8 @@ cmd_finish() {
 # hours and the two longest are 32.2h and 24.0h, with 18, 18, 19 and 11 plan
 # files on the tree at the four longest stalls' first commit. Idle holding a
 # full queue is the failure .agents/docs/unsupervised.md names; this is the
-# status a drain loop re-reads between items.
+# status every session reads first, and it names ONE item — the next is the
+# next session's.
 #
 # Report-only, like `scorecard` (and like `cleanup` without `--apply`; with
 # it, cleanup returns 1 when git refused a removal). A drain that GATED would be red
@@ -5056,33 +4609,31 @@ drain_next() {
   drain_plan "$1"
 }
 
-# Open requirements on the base branch — the GOAL unsupervised is bounded by.
-# Same definition the queue hook uses: tracked `.md` under docs/product/,
-# minus TEMPLATE, README and VISION, from the REF rather than the worktree.
-# Returns 1 when the ref cannot be read: ABSENT is not ZERO, and "no goal"
-# from an unreadable ref would wind a fleet down over nothing.
-drain_goals() {
-  local ref
-  ref="$(base_ref)" || return 1
-  git -C "$ROOT" ls-tree -r --name-only "$ref" -- docs/product 2>/dev/null |
-    { grep -E '\.md$' || :; } |
-    { grep -vE '/(TEMPLATE|README|VISION)\.md$' || :; } |
-    grep -c . || :
+# Every other free plan row, for the spawn line under unsupervised. Same
+# filter as drain_plan — claimed, blocked and SUPERVISED ONLY rows are not
+# free, and "free" has to mean one thing — every match rather than the first,
+# PLAN rows only (a research row is a session's question, not a fan-out, and
+# carries no tier), minus the one drain named as next. `|` as the field
+# separator because a label never holds one and BSD sed reads no `\t`.
+drain_free_others() {
+  local next_path="${2%% *}"
+  printf '%s\n' "$1" |
+    sed -n 's#^  \(docs/plans/[^ ]*\.md\)  \(\[.*\]\)$#\1|\2#p' |
+    { grep -v 'claimed on\|blocked by\|SUPERVISED ONLY' || :; } |
+    awk -F'|' -v skip="$next_path" '
+      $1 != "" && $1 != skip {
+        # The declared tier, whatever it says; the row loop already filled
+        # in sonnet for an ABSENT one, so a default here would only hide a
+        # tier nobody wrote.
+        agent = "unreadable"
+        if (match($2, /agent: [^,\]]+/)) agent = substr($2, RSTART + 7, RLENGTH - 7)
+        out = out (out == "" ? "" : ", ") $1 " (agent: " agent ")"
+      }
+      END { printf "%s", out }'
 }
 
-# The hook's wave-1 members, when it proved a wave: "  wave 1: a (haiku),
-# b (sonnet); reconcile expected ...". Empty when no wave was proved — no
-# plan declares scope:, or one plan is free.
-drain_wave1() {
-  printf '%s\n' "$1" | sed -n 's/^  wave 1: //p' | head -1 |
-    sed 's/;.*$//; s/[[:space:]]*$//'
-}
-
-# The one place the mode ORDERS anything. The hooks report the queue in both
-# modes; this reads their output and says what an unsupervised session does
-# with it — take, fan out, generate, or stop — so the rule lives once.
 cmd_drain() {
-  local mode qout hout edge next free goals="" goals_read=0 sup="" w1 n first
+  local mode qout hout edge next free sup="" others
   mode="$(run_mode)"
   printf '== drain (mode: %s)\n\n' "$mode"
 
@@ -5103,37 +4654,9 @@ cmd_drain() {
 
   next="$(drain_next "$qout")"
 
-  # THE GOAL, BEFORE THE QUEUE. Autonomy is live only while a requirement is
-  # open. A plan recorded with no goal open is a free row — recording is
-  # always allowed — and checking the goal below the free-plan return handed
-  # that note back to the fleet as its next job (reproduced 2026-09-02). So
-  # the stop fires first, and names what it declines.
-  if [ "$mode" = "unsupervised" ]; then
-    sup="$(drain_supervised_only "$qout")"
-    if goals="$(drain_goals)"; then
-      goals_read=1
-      if [ "${goals:-0}" -eq 0 ]; then
-        printf 'GOAL REACHED — no open requirement in docs/product/.\n'
-        printf '  Unsupervised is live only while a goal is open: STOP and say\n'
-        printf '  so. This is NOT a dry sweep; the sources were not counted.\n'
-        if [ -n "$next" ]; then
-          printf '  The queue is NOT empty. It still offers:\n'
-          printf '    %s\n' "$next"
-          printf '  With no goal open that is a note for a human, not work: recorded\n'
-          printf '  work does not restart the fleet, or recording would be a way to\n'
-          printf '  manufacture a goal.\n'
-        fi
-        if [ -n "$sup" ]; then
-          printf '  It also holds plan(s) marked SUPERVISED ONLY, which this mode\n'
-          printf '  may not commit in any case:\n'
-          printf '%s\n' "$sup"
-        fi
-        printf '  Open GitHub issues outrank all of it (step 2) — check them.\n'
-        printf '  A requirement under docs/product/ starts a fleet again.\n'
-        return 0
-      fi
-    fi
-  fi
+  # The marked plans, read once here and printed only at the edge below:
+  # while there is a free plan they change nothing about the answer.
+  [ "$mode" != "unsupervised" ] || sup="$(drain_supervised_only "$qout")"
 
   if [ -n "$next" ]; then
     # A requirement has no plan count; the count is for the case it describes.
@@ -5145,96 +4668,50 @@ cmd_drain() {
     free="$(printf '%s\n' "$qout" |
       sed -n 's/^\([0-9][0-9]*\) free plans.*/\1/p' | head -1)"
     printf 'NOT DRAINED%s\n' "${free:+ — ${free} free plan(s)}"
-    if [ "$mode" != "unsupervised" ]; then
-      printf '  next: %s\n' "$next"
-      return 0
-    fi
-
-    # The ORDER. The hook proved the waves (scopes pairwise disjoint); this
-    # reads wave 1 and never widens it. Wave 1 ONLY — a later wave conflicts
-    # with it on a named path, so it is the next generation. This session
-    # takes wave 1's first plan itself and spawns one session per other
-    # member: a spawner that then idles costs a container for nothing, and
-    # one plan is not a fan-out at all. `next` is overridden here because the
-    # oldest free row may be UNSCOPED — no wave holds it and no unattended
-    # session may spawn on it — and a next the same report forbids is two
-    # answers in one output.
-    w1="$(drain_wave1 "$qout")"
-    n="$(printf '%s' "$w1" | tr ',' '\n' | grep -c . || :)"
-    first="${w1%%,*}"
-    first="${first%% *}"
-    # Finishing outranks starting (step 2). The edge block above said so
-    # once; the order is what comes AFTER it, and says so — a live session's
-    # edge work is skipped, not waited on, so the order still prints.
-    [ -z "$edge" ] ||
+    # Unsupervised: the same next, then ONE more line. Claim by push, detect
+    # at merge: every other free plan gets a session, every wave, and a
+    # collision between two of them is the reconcile step 7 already
+    # requires. The wave partition the hook prints stays a report — it
+    # ordered wave 1 only here once, and that gate was a second copy of the
+    # claim-and-reconcile guarantee the Loop already carries.
+    if [ "$mode" = "unsupervised" ] && [ -n "$edge" ]; then
       printf '  Edge work above first — yours or abandoned; a live session'"'"'s you skip.\n'
-    if [ "$n" -ge 2 ]; then
-      printf '  next: docs/plans/%s.md — take it in THIS session\n' "$first"
-      printf '  spawn NOW: one session per remaining wave-1 plan, tier as named: %s\n' \
-        "${w1#*, }"
-      printf 'Later waves are the next generation, not this one. Never the\n'
-      printf 'unscoped plans: independence unproven, and unproven is not disjoint.\n'
-    elif [ -n "$w1" ]; then
-      printf '  next: docs/plans/%s.md — one plan is parallel-safe; run it in THIS\n' "$first"
-      printf '  session. Do not spawn for one.\n'
-    else
-      printf '  next: %s\n' "$next"
-      printf 'UNSUPERVISED: no wave proven here (no plan declares scope:, or one\n'
-      printf 'plan is free). Take next in THIS session. Never spawn on an\n'
-      printf 'assumption the queue has not proved.\n'
     fi
-    printf 'Holding a claim on this branch already? Step 1 wins: finish it,\n'
-    printf 'spawn nothing.\n'
-    return 0
-  fi
-
-  # Nothing free. What that MEANS is the mode's to say: supervised stops at
-  # the edge and asks, unsupervised treats an empty queue as a trigger.
-  if [ "$mode" = "unsupervised" ]; then
-    if [ -n "$sup" ]; then
-      printf 'NOT YOURS — the queue holds plan(s) marked SUPERVISED ONLY:\n'
-      printf '%s\n' "$sup"
-      # "holds", not "is entirely": the queue marks a plan with ANY
-      # protocol path in scope. It does NOT say which shape each one is —
-      # drain_supervised_only prints bare paths, having stripped the label —
-      # so this says only what the lines above it can back up.
-      printf '  Scope holds protocol text, which a session running\n'
-      printf '  unattended may not commit (docs/product/unsupervised-mode.md,\n'
-      printf '  Constraints). Leave them for a supervised session, and do NOT\n'
-      printf '  re-file the same work as a new plan.\n\n'
-    fi
-    if [ "$goals_read" -eq 1 ]; then
-      printf 'queue empty, %s goal(s) open — under unsupervised that is a\n' "$goals"
-      printf 'trigger, not a stop.\n'
-    else
-      # Unreadable ref: not zero goals, and not a stop.
-      printf 'queue empty — cannot count open requirements (no base ref to\n'
-      printf 'read); not a stop.\n'
-    fi
-    printf 'Open GitHub issues outrank generated work — check them first.\n'
-    printf 'Then sweep:  ./joharness.sh sources   (slow: it runs ci)\n'
-    printf '  NOT dry     generate: one finding, one plan, each carrying source:\n'
-    printf '              and evidence: (.agents/docs/plans/README.md). Never a\n'
-    printf '              plan for a finding no detector emitted, never one a\n'
-    printf '              SUPERVISED ONLY plan already covers. Then re-run drain\n'
-    printf '              BEFORE claiming anything: a plan you wrote may be marked,\n'
-    printf '              and attempt four claimed two such plans unread.\n'
-    printf '  INCOMPLETE  not dry: fix what could not be counted.\n'
-    if [ -n "$edge" ]; then
-      printf '  dry         not a stop while the edge work above is in flight:\n'
-      printf '              finish it (yours or abandoned) or say so, then re-run drain.\n'
-    else
-      printf '  dry         STOP — the queue is empty and no edge work is in flight.\n'
-      printf '              Say which stop fired: sweep dry, not goal reached.\n'
+    printf '  next: %s\n' "$next"
+    if [ "$mode" = "unsupervised" ]; then
+      others="$(drain_free_others "$qout" "$next")"
+      [ -z "$others" ] ||
+        printf '  spawn one session per: %s; a collision is the reconcile\n  step 7 already requires.\n' "$others"
     fi
     return 0
   fi
 
-  # Names every entrypoint it checked, so it does not read as a statement
-  # about a queue it was not reading.
+  # Nothing free: the edge, in both modes.
+  # The marked plans, NAMED before the verdict, in the one mode that cannot
+  # take them. Silence here is a session reading DRAINED over a tree that
+  # still holds plans and concluding the plans are gone.
+  if [ "$mode" = "unsupervised" ] && [ -n "$sup" ]; then
+    printf 'NOT YOURS — the queue holds plan(s) marked SUPERVISED ONLY:\n'
+    printf '%s\n' "$sup"
+    printf '  Scope holds protocol text, which a session running\n'
+    printf '  unattended may not commit (docs/product/unsupervised-mode.md,\n'
+    printf '  Constraints). Leave them for a supervised session, and do NOT\n'
+    printf '  re-file the same work as a new plan.\n\n'
+  fi
+
+  # One verdict line in both modes; the line under it is the mode's. The
+  # edge is the stop: supervised asks, unsupervised exits and the heartbeat
+  # fires the next session (.agents/docs/unsupervised.md). Neither invents
+  # work — the sentence under supervised used to say inventing was the other
+  # mode's business, and after this change no mode has that business.
   printf 'DRAINED — no unplanned requirement, no free plan, no open question.\n'
-  printf '  Supervised stops here and asks (step 2). It does NOT invent work;\n'
-  printf '  that is unsupervised mode, and this repo is not in it.\n'
+  if [ "$mode" = "unsupervised" ]; then
+    printf '  Exit — after open GitHub issues, which this cannot read (step 2).\n'
+    printf '  The heartbeat re-seeds; nothing is invented here.\n'
+  else
+    printf '  Supervised stops here and asks (step 2). It does NOT invent work;\n'
+    printf '  neither does unsupervised — that mode exits here instead of asking.\n'
+  fi
   return 0
 }
 
@@ -5542,9 +5019,9 @@ cmd_session_start() {
   # announces itself, and it announces the boundary in the same breath.
   if [ "$JOHARNESS_RUN_MODE" = "unsupervised" ]; then
     printf '== Mode: unsupervised ==\n\n'
-    printf 'Queue edge is a trigger, not a stop. ./joharness.sh drain says what\n'
-    printf 'is next: the work, the fan-out order, or which stop fired (goal\n'
-    printf 'reached, or sweep dry). Merge your own pull request. NEVER edit the\n'
+    printf 'The queue is the whole of the work. ./joharness.sh drain names the\n'
+    printf 'item: take it, run the full Loop, merge your own pull request, and\n'
+    printf 'at DRAINED exit — the heartbeat re-seeds. NEVER edit the\n'
     printf 'protocol that governs you — protocol edits stay supervised\n'
     printf '(docs/product/unsupervised-mode.md, Constraints). Here:\n'
     # Derived, never restated. A banner naming its own list is the second
@@ -5760,7 +5237,6 @@ main() {
     # thing a human runs, and a help entry invites a session to treat the
     # list as an input rather than the rule's expression.
     protocol-paths) protocol_paths ;;
-    sources)        cmd_sources "$@" ;;
     authority)      cmd_authority ;;
     -h|--help|help) usage ;;
     *) die "unknown subcommand '$cmd' (try: $0 help)" ;;

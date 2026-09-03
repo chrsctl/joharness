@@ -10,33 +10,23 @@ One thing per layer, nothing else. Supervised output is byte-identical.
 
 | Where | Change |
 | --- | --- |
-| `session-start` banner | Says the mode, lists the protocol boundary, points at `drain`. |
+| `session-start` banner | Says the mode, lists the protocol boundary, and says the queue is the whole of the work: `drain` names the item, take it, merge your own pull request, at DRAINED exit. |
 | Queue hook | Marks a plan with ANY protocol path in `scope:` `SUPERVISED ONLY` — the label says whether that is the whole scope or part of it — and ranks it out of the free list. Everything else it prints is the same report. |
-| `./joharness.sh drain` | The ONE place the mode orders: take; fan out (wave 1: first plan in this session, one session per other member); run one here; generate (names the sweep); or stop. Prints GOAL REACHED itself; for sweep dry it names the sweep beside the two parts it read, queue and edge work. |
-| `ci` | Two extra gates: no requirement added on the branch; a generated plan names the bullet it advances. |
+| `./joharness.sh drain` | The same verdict as supervised, with the mode's lines around it: under `next:`, the edge-first line when edge work is in flight, then a spawn line naming every other free plan with its tier (claim by push, detect at merge — a collision is the reconcile step 7 already requires); before DRAINED, the NOT YOURS block naming the marked plans; under DRAINED, exit — the heartbeat re-seeds, nothing is invented. |
+| `ci` | One extra gate: no requirement added on the branch. |
 | Stop guard | Names protocol-text edits on the branch. Detection, not prevention. |
 
 Hooks report; `drain` orders. Two readers printing two rules was how the
 same tree got two answers (PR 170, PR 187, PR 190 each fixed one side).
 
-## The two stops
+## The one stop
 
-1. **GOAL REACHED** — no open requirement under `docs/product/`. The work is
-   finished. Recorded plans with no goal open are notes for a human; they do
-   not restart the fleet.
-2. **Sweep dry** — `./joharness.sh sources` every detector zero, queue empty,
-   no edge work in flight. The sources are exhausted.
-
-NOT dry means generate — and then re-run `drain` before claiming: the plan a
-session just wrote may be `SUPERVISED ONLY`, and a session that reaches the
-edge, writes a plan and claims it never passes through the output that says
-so. That is how attempt four crossed the boundary twice.
-
-`drain` prints the first and names the second — it never runs the sweep —
-and they are different facts a human reads to decide whether to set a new
-goal. Anything else that ends a run — a rate limit, a
-session asking a question, a generation that failed to spawn — is a finding,
-not a stop.
+DRAINED, at the queue edge, in both modes. A session takes one item, runs
+the Loop on it, exits; the heartbeat fires the next. Nothing is invented at
+the edge: work enters the queue as an issue, a requirement, or a plan through
+a pull request, and only there. Anything else that ends a run — a rate
+limit, a session asking a question, a generation that failed to spawn — is
+a finding, not a stop.
 
 ## Authority: the prompt routes, the repository authorises
 
@@ -71,9 +61,11 @@ and hours need the heartbeat below, which no run has had.
 
 ## Heartbeat: making the fleet long
 
-Fan-out makes the fleet WIDE. Nothing makes it LONG: each session claims,
-merges, ends, and the fleet survives only while every generation spawns the
-next. Measured on `origin/main` 2026-08-29, last 120 merges:
+Fan-out makes the fleet WIDE: one session per free plan as `drain` lists
+them, every wave, and a collision between two is the reconcile step 7
+already requires. Nothing makes it LONG: each session claims, merges, ends,
+and the fleet survives only while every generation spawns the next. Measured
+on `origin/main` 2026-08-29, last 120 merges:
 
 ```bash
 git log --merges --format='%ct' origin/main -120 |

@@ -29,10 +29,9 @@ git -C "$sowork" symbolic-ref HEAD refs/heads/main
 mkdir -p "${sowork}/docs/plans" "${sowork}/docs/handover" "${sowork}/docs/product"
 printf 'code\n' >"${sowork}/code.txt"
 cp "${ROOT}/joharness.sh" "${sowork}/joharness.sh"
-# A goal, open throughout. Unsupervised is live only while one is, so without
-# this every case below would meet the goal-reached stop instead of the
-# marking it is about. Every plan `soplan` writes SERVES it, which also keeps
-# the requirement off the unplanned list and the tail wording unchanged.
+# A requirement, open throughout, and every plan `soplan` writes SERVES it:
+# that keeps it off the unplanned list, so the tail wording stays the one
+# these cases are about.
 printf -- '---\nrequirement: g\npriority: normal\n---\n\n## Goal\nFixture.\n\n## Satisfied when\n\n- something observable.\n' \
   >"${sowork}/docs/product/g.md"
 commit_all "$sowork" "base, and a goal to keep the mode live"
