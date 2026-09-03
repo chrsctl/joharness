@@ -111,3 +111,32 @@ expect "but the rot check still reports it as a leftover on main" \
 # what the duplicate assertion it replaces failed to do.
 expect "the base branch's leftover COUNT survives the change" \
   "1 workstream file(s) left on origin/main" "$out"
+
+# --- shallow clone: the hook unshallows before it reads ----------------------
+# Every remote session starts on a shallow clone, and on one `git merge-base`
+# fails for most refs, so owned_at falls back to the tree and the inheritor
+# above reads as a CLAIM again — the bug this whole topic pins, back through
+# a different door. Measured 2026-09-03 on the real repo: shallow, the hook
+# led with a branch that is a strict ancestor of main; unshallowed, 5 entries.
+# The fetch block is the fix: shallow clone, `git fetch --unshallow` first.
+# `file://` on purpose — a plain-path clone ignores --depth with a warning,
+# and the case would then be testing a full clone and pass against anything.
+oshallow="${TMP}/ownshallow"
+git clone -q --depth=1 --no-single-branch "file://${oorigin}" "$oshallow" 2>/dev/null
+expect "fixture: the clone really is shallow before the hook runs" \
+  "shallow" "$([ -f "${oshallow}/.git/shallow" ] && echo shallow || echo full)"
+# HANDOVER_FETCH=1: the unshallow lives in the fetch block, and the origin is
+# a local bare repo, so this is the second fetch-on call in the suite and
+# still no network.
+sout="$(CLAUDE_PROJECT_DIR="$oshallow" HANDOVER_FETCH=1 \
+  bash "${ROOT}/.agents/harness/handover-context.sh" 2>&1)"
+expect "after the hook, the clone is full" \
+  "full" "$([ -f "${oshallow}/.git/shallow" ] && echo shallow || echo full)"
+# The three assertions below are the ones that go red with the fetch block
+# reverted: tree fallback prints the inheritor as a claim and the NOTE.
+refute "on a shallow clone the inheritor is still not a claim" \
+  "origin/inheritor: docs/handover/swept.md" "$sout"
+expect "and is still demoted rather than dropped" \
+  "also carries 1 inherited workstream file(s)" "$sout"
+refute "and the shallow NOTE is not printed, because the hook fixed it" \
+  "this clone is shallow" "$sout"

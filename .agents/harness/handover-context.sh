@@ -55,6 +55,20 @@ branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null)"
 # liveness is the whole point of the other-branch section. Cheap (~1s), and
 # failure is not interesting: the stale refs still work.
 if [ "${HANDOVER_FETCH:-1}" = "1" ]; then
+  # A shallow clone first. Every remote session starts on one, and with
+  # grafted history `git merge-base` fails, so owned_at below falls back to
+  # the tree and reports every INHERITED workstream file as a claim.
+  # Measured on this repo 2026-09-03: shallow, the hook led with a branch
+  # that is a strict ancestor of main (945 behind, 0 ahead, empty diff) as
+  # "FINISH BEFORE STARTING" and listed 42 entries; unshallowed (1.3s for a
+  # 3.8 MiB pack) it listed 5 and the ghost was gone. Own timeout, own call:
+  # a repo whose history does not arrive in 15s still gets its refs pruned
+  # below and tries again next session, and the tree fallback still covers
+  # this one. `--git-path shallow` rather than --is-shallow-repository: the
+  # latter prints its own name on git older than 2.15, which reads as true.
+  if [ -f "$(git rev-parse --git-path shallow 2>/dev/null)" ]; then
+    timeout 15 git fetch --quiet --unshallow origin >/dev/null 2>&1 || true
+  fi
   timeout 15 git fetch --quiet --prune origin >/dev/null 2>&1 || true
 fi
 
@@ -729,8 +743,9 @@ if [ -n "$others" ]; then
   if [ "$OWNED_UNVERIFIED" -eq 1 ]; then
     add "  NOTE: this clone is shallow for at least one branch, so ownership"
     add "  could not be computed there and the TREE was listed instead. Those"
-    add "  entries may be inherited rather than claimed. A full clone"
-    add "  distinguishes them; git fetch --unshallow."
+    add "  entries may be inherited rather than claimed. The hook unshallows"
+    add "  when it may fetch (HANDOVER_FETCH=1, 15s); it could not here, so"
+    add "  run git fetch --unshallow origin yourself and read this again."
   fi
   OUT="${OUT}${others}"
   if [ "$recent_count" -gt 0 ]; then
