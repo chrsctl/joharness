@@ -8,6 +8,12 @@ delivered everything it could; what it asked for that no code can deliver
 — a fleet that runs for hours — needs the heartbeat, and lives in issue
 165.
 
+The mode is thin on purpose and earns its switch on ONE distinction: is a
+human present. Every piece of it is something a heartbeat-fired session
+needs and an attended one must not have — the exit at the edge, the spawn
+line, the requirement gate, the Stop guard, the banner. A sixth piece that
+does not turn on that question belongs somewhere else.
+
 ## What the mode changes
 
 One thing per layer, nothing else. Supervised output is byte-identical.
