@@ -56,3 +56,8 @@ touches Kubernetes never pays for it.
 Agent guidance: [`AGENTS.md`](AGENTS.md), which imports
 [`.agents/harness/AGENTS.md`](.agents/harness/AGENTS.md). `CLAUDE.md` imports the root file —
 Claude Code loads it every session.
+
+## License
+
+MIT — [`LICENSE`](LICENSE). Harness files a consumer repo copies carry no
+per-file header; the consumer's own license governs its tree.
