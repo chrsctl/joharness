@@ -78,12 +78,30 @@ remaining steps; follow them.
 `--env <layer>` picks the environment layer, and only that layer ships
 ([Layers](#layers)). Omit it for `none`; the repo can select one later.
 
-`--mode <supervised|unsupervised>` is the child's autonomy answer, and the
-run ASKS for it when the flag is absent and a terminal is there to answer on.
-Off unless somebody says otherwise: a fresh conf is seeded `supervised`, and
-a whole clone's INHERITED answer is overwritten rather than kept. A run with
-no terminal — CI, a script, a session — takes the default and says why.
-Saying yes configures a child; it starts nothing
+Every switch the child runs under is ASKED at first contact, when a terminal
+is there to answer on. Each has a flag that answers it instead, and the
+interview asks only what no flag answered:
+
+| Question | Flag | Default |
+| --- | --- | --- |
+| environment layer | `--env <layer>` | `none` |
+| provision it when | `--env-setup <lazy\|eager>` | `lazy` |
+| inject its rules when | `--env-md <lazy\|eager>` | `lazy` |
+| gate the review record | `--review <off\|on>` | `off` |
+| autonomy | `--mode <supervised\|unsupervised>` | `supervised` |
+
+The two layer-shaped questions are skipped when the selected layer is `none`,
+where they configure nothing. A run with no terminal — CI, a script, a
+session — takes every default and says why it did not ask.
+
+A question offers the value ALREADY IN FORCE as its default, read from the
+target's own conf, so pressing Enter never strips a selection somebody made
+for that repo. For the same reason a key is written into an existing conf
+only when a flag gave it or the interview answered it.
+
+`--mode` is the exception twice: its default is always `supervised` rather
+than an inherited answer, and it is written either way. Saying yes there
+configures a child; it starts nothing
 ([`unsupervised.md`](unsupervised.md)).
 
 Never bootstrap onto a repo already running the harness — script refuses,
