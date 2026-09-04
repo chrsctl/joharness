@@ -382,6 +382,25 @@ goes red with file-not-found until the workflow's `run sync` step points
 at `.agents/scripts/sync-to-consumer.sh`. Newly seeded `update.yml`
 probes both spellings.
 
+## Migration: the prior-art file
+
+A consumer synced before 2026-09-04 carries `.agents/docs/prior-art.md`.
+Canonical deleted it — its arguments moved into the documents that own each
+decision (branch shape to [`product/README.md`](product/README.md), the
+no-datastore rule and the in-repo trade to [`graph.md`](graph.md), session
+interrogation to [`handover/README.md`](handover/README.md), liveness to
+[`unsupervised.md`](unsupervised.md)) — and removals do not travel, so the
+sync reports the leftover as `consumer-only` and leaves it.
+
+Remove it once. This one is worth doing rather than leaving as dead weight:
+the file quotes third-party documentation, and the `.agents/NOTICE` arriving
+with your next sync no longer carries the entry that covered those
+quotations.
+
+```bash
+git rm .agents/docs/prior-art.md
+```
+
 ## Migration: research routing
 
 Nothing to run. A consumer whose `docs/research/` held its own documents

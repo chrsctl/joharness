@@ -146,6 +146,12 @@ documents; it never creates one.
   paused Routine keeps a stale `next_run_at` that reads like a missed
   firing. Proved on a throwaway Routine. A human who cannot halt the fleet
   has no veto.
+- **If a monitor is ever added**: never judge a session dead from one
+  signal. Push time is not liveness in either direction — the handover
+  protocol's own rule, and why `/who` exists — so a monitor built on a
+  single store reads healthy sessions as stuck and ended ones as working,
+  and acts on both. Cross-check a second signal before anything acts on the
+  verdict.
 - **Firing over a live fleet**: nothing special. The new session reads the
   queue; claimed plans are not free. The gap that stays open is the handover
   protocol's own: a claim not yet pushed is invisible, so push the

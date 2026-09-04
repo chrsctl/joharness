@@ -59,6 +59,19 @@ discipline fails exactly when someone hurries.
   projects into the wrong named graph, every session-start re-polluting
   what was cleaned by hand, ending in a planned full reset. Failure mode
   derive-at-read-time cannot have.
+- No datastore for the work queue either. Storing every work item as a row
+  and every action with an actor buys queries — attribution, work histories,
+  audit trails — and costs a database, a daemon and a CLI as install
+  prerequisites in every repo that runs the harness. This is a shell script
+  plus markdown so that a clone, a runner or CI carries the whole thing with
+  nothing installed, which is also what lets its own gates run inside CI.
+  Re-open only if a question arrives that files cannot answer, never because
+  querying looks convenient.
+- A harness that lives in the repo has no long-running service, so it cannot
+  watch, nudge, queue or schedule anything by itself; it travels everywhere
+  instead, CI included. Neither side of that trade is more correct. Know
+  which side a mechanism assumes before importing it from a system built on
+  the other one.
 - Fusion manual: graduation ritual, human-reviewed. Wrong merge worse than
   missed merge.
 - Provenance = commits. Never hand-write time or source into a file.

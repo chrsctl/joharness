@@ -38,12 +38,8 @@ together with the copyright line given for it.
   (https://github.com/JuliusBrussee/caveman): rules, the pattern line and
   the Not/Yes example from skills/caveman/SKILL.md, reproduced or closely
   paraphrased, and the motto from its README.md. MIT License,
-  Copyright (c) 2026 Julius Brussee.
-
-- .agents/docs/prior-art.md quotes short passages from the documentation of
-  Gas Town (https://github.com/gastownhall/gastown, at commit 649b832);
-  the path each came from is given beside the quotation. MIT License,
-  Copyright (c) 2025 Steve Yegge.
+  Copyright (c) 2026 Julius Brussee. That file reproduces the full notice
+  itself, in a closing section, so a copy of it made on its own is complete.
 
 - .agents/docs/graph.md and .agents/docs/plans/README.md adapt task-graph
   rules from Graph Engineering

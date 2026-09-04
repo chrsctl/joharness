@@ -36,6 +36,21 @@ if grep -qF "Copyright (c) 2026 ${holder}" "${ROOT}/.agents/docs/caveman.md"; th
 else
   fail "caveman.md carries its upstream copyright line (${holder})"
 fi
+# BOTH halves, asserted separately. MIT names the copyright notice AND the
+# permission notice, and the failure this pins is a later trim keeping the
+# holder line — which reads like attribution — while dropping the grant or
+# the disclaimer under it. Half a notice satisfies the eye and not the
+# condition.
+if grep -qF 'Permission is hereby granted, free of charge' "${ROOT}/.agents/docs/caveman.md"; then
+  pass "caveman.md reproduces the upstream permission grant"
+else
+  fail "caveman.md reproduces the upstream permission grant"
+fi
+if grep -qF 'THE SOFTWARE IS PROVIDED "AS IS"' "${ROOT}/.agents/docs/caveman.md"; then
+  pass "caveman.md reproduces the upstream warranty disclaimer"
+else
+  fail "caveman.md reproduces the upstream warranty disclaimer"
+fi
 if grep -qF "${holder}" "${ROOT}/.agents/NOTICE"; then
   pass "NOTICE names the same upstream holder"
 else

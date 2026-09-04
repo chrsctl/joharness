@@ -520,6 +520,7 @@ Placement decisions that look arbitrary, recorded so not helpfully undone:
 | **GitHub issue as ledger** | Branch-independent — genuinely attractive, fine for *what to do*. But drifts from diff, needs network round trip, not versioned with code. Issues for backlog; branch files for state of work in progress. |
 | **Subagent reconstructing context** | Full exploration pass per session to rediscover what five written lines held — findings die with it. |
 | **`git notes`, orphan branches, JSONL event logs** | Merge-friendly, machine-clean, invisible in normal review. State no human reads = state no human corrects. |
+| **Interrogating the previous session** (event log, successor questions a predecessor) | Recovery for what the handover already failed to carry. This protocol bets the other way: the workstream file holds everything not derivable from git, written in the same commit as the change, and compaction decay is designed for rather than patched afterwards. A session that needs to interrogate its predecessor is a workstream file that failed. The honest re-open condition: if these files are found losing decisions in practice, reconsider. |
 
 ## How a session finds this without being told
 
