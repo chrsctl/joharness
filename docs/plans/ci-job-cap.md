@@ -37,8 +37,11 @@ six hours of a machine nobody was watching.
 ## Acceptance
 
 - `./joharness.sh ci` — `ci: pass`.
-- The `lint` job carries `timeout-minutes`, and the value is at least five
-  times the slowest run measured below.
+- The `lint` job carries `timeout-minutes` at least five times the slowest
+  run in this range: runs 471 to 482 spanned **2m04s to 2m41s**, counted from
+  the Actions API as `updated_at - run_started_at`, counted 2026-09-04. The
+  range is stated here rather than pointed at, because the workstream file
+  holding it is deleted before the pull request opens.
 - The pull request's own run is green, which is the only way this file's
   syntax gets proven — nothing in the suite parses the workflow.
 - SHIPS: nothing. This file is consumer-own and never synced; the plan states

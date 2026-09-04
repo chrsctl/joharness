@@ -41,6 +41,27 @@ jobs:
   # verify step runs it.
   lint:
     runs-on: ubuntu-latest
+    # The backstop for a job that hangs rather than fails. Without it the
+    # ceiling is GitHub's default of 360 minutes, which is six hours of a
+    # machine nobody is watching for a suite that finishes in under three.
+    # Not hypothetical: a selftest change on #209 blocked on a pty read that
+    # never returned — a pty reports no end of file while its master is open —
+    # and a local kill was the only thing that ended it.
+    #
+    # 15 because the twelve consecutive completed runs before this one spanned
+    # 2m04s to 2m41s, counted as `updated_at - run_started_at` over runs 471
+    # to 482 of THIS repo from the Actions API, counted 2026-09-04. That is
+    # 5.6x the slowest of them, which leaves a cold runner and an image pull
+    # room to be slow without leaving a hang room to run for hours.
+    #
+    # Whose runs matters: this file is seeded verbatim into every consumer and
+    # never synced afterwards, so a repo that took it inherited canonical's
+    # numbers and not its own. A consumer whose `ci` does more, or whose
+    # layers pull more images, should re-count here and raise this — a
+    # legitimate run killed at 15 minutes reads exactly like the hang this
+    # guards. Re-count before moving it either way: a number here that nobody
+    # can reproduce is worse than no number.
+    timeout-minutes: 15
     steps:
       # Full history, not the default depth 1: the graph lint resolves
       # names against HEAD's history to tell a typo from a merged-and-
@@ -96,6 +117,14 @@ jobs:
       # cancelled run is one nobody will read a verdict from. Three of this
       # repo's 28 runs on 2026-08-31 were cancelled, so that case is not
       # hypothetical here.
+      #
+      # The job's `timeout-minutes` counts as cancellation too, so a run that
+      # hits the cap skips this step and produces no layer verdict. That is
+      # the same trade as above rather than an exception to it: a job killed
+      # for hanging is one nobody reads a verdict from, and the thing to read
+      # is which step it died in. Written down because the cap and this
+      # condition were added by different changes and the interaction is
+      # invisible from either one alone.
       - name: verify each layer that declares itself CI-runnable
         if: ${{ !cancelled() }}
         run: .agents/scripts/ci-verify-layers.sh
@@ -113,11 +142,20 @@ jobs:
   # here - the toolchain answer does not change per platform, and installing
   # it on a Windows runner is a path to maintain for nothing.
   windows:
-      # Disabled 2026-08-27 at owner request ("for now") — delete the `if`
-      # line to re-enable. Skipped, not removed: the job definition and its
-      # reasoning above stay current. While off, the Windows-blind-spot
-      # class (CRLF, path-form defects — four found to date) has no gate:
-      # the selftest's CRLF assertions still run, but only on Linux.
+    # NOT a measurement, unlike the cap above: this job is disabled and has no
+    # runs to count. 60 is a bound picked to be strictly better than the
+    # 360-minute default while staying clear of the first re-enabled run —
+    # this job calls selftest.sh directly with no inert-diff skip, on a
+    # platform several times slower at spawning the processes that suite
+    # spawns, and a cap that cancelled that run would destroy the very count
+    # the next line asks for. Whoever re-enables the job takes the count and
+    # replaces this number with one.
+    timeout-minutes: 60
+    # Disabled 2026-08-27 at owner request ("for now") — delete the `if`
+    # line to re-enable. Skipped, not removed: the job definition and its
+    # reasoning above stay current. While off, the Windows-blind-spot
+    # class (CRLF, path-form defects — four found to date) has no gate:
+    # the selftest's CRLF assertions still run, but only on Linux.
     if: false
     runs-on: windows-latest
     defaults:
