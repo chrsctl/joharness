@@ -1,6 +1,6 @@
 ---
 workstream: mit-license
-status: in-progress
+status: done
 branch: claude/mit-license-ijf0vy
 pr: none
 plan: mit-license
@@ -64,7 +64,7 @@ so the harness a consumer copies has an explicit grant.
 - r1: (verifier) independent haiku reader over the same diff returned a clean
   pass — MIT text byte-exact, frontmatter and anchors valid, acceptance
   commands pass. It did not reach any finding above; recorded as the clean pass
-  it was, not as agreement.
+  it was, not as agreement. (no change needed)
 
 ## Blockers
 
