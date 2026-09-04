@@ -60,7 +60,11 @@ without anyone choosing it.
 - A whole clone whose conf carries `JOHARNESS_MODE=unsupervised` comes out
   `supervised` when the flag is absent.
 - `--mode nonsense` exits 1 having written nothing.
-- Each new case was made to fail by injection before it was trusted.
+- Each new case was made to fail by injection before it was trusted
+  (`./joharness.sh mutate` on each line the cases claim to pin).
+- SHIPS: `.agents/harness/selftest.sh` in a consumer — the bootstrap script
+  and its selftest topic both sync, so the autonomy cases run there too, and
+  that is the check a consumer runs rather than one only canonical can.
 
 ## Where to look
 
