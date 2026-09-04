@@ -15,6 +15,8 @@ separately is evidence for the rule, and evidence is cheap to state.
 ## Gas Town
 
 [gastownhall/gastown](https://github.com/gastownhall/gastown), Steve Yegge.
+MIT License, Copyright (c) 2025 Steve Yegge; the quotations below are short
+excerpts of its docs, each with its path, listed in `.agents/NOTICE`.
 Reviewed at commit `649b832`, goal-directed: its stated ideas, read from its
 own docs. NOT audited — `internal/` Go code, implementation quality, most of
 its `docs/design/`. Nothing below rests on running it.

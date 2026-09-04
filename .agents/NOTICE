@@ -1,0 +1,53 @@
+joharness — notices
+
+This file travels with the harness. It is copied into every consumer
+repository by the sync engine (.agents/scripts/sync-to-consumer.sh) together
+with LICENSE beside it, so that the grant reaches every copy, which is the
+one condition the MIT License sets.
+
+Grant
+
+The harness is licensed under the MIT License. The license text and its
+copyright notice are in LICENSE beside this file, a byte-identical copy of
+the canonical repository's root LICENSE:
+
+  Copyright (c) 2026 Christian Westhoff and joharness contributors
+
+In a consumer repository the grant covers exactly the files the sync ships:
+joharness.sh, CLAUDE.md, root AGENTS.md above its "# Part 2 — project"
+marker, .gitattributes, .claude/settings.json, .claude/commands/,
+.claude/skills/, .claude/agents/, and everything under .agents/ (this file
+and LICENSE included). It covers nothing else. The consumer repository's own
+tree — its root LICENSE, AGENTS.md below the marker, docs/, its code — is
+licensed by that repository, not by this one.
+
+Third-party material
+
+The MIT License text in LICENSE beside this file applies to each item below
+together with the copyright line given for it.
+
+- .agents/docs/caveman.md is distilled from the caveman skill
+  (https://github.com/JuliusBrussee/caveman, file skills/caveman/SKILL.md).
+  Several rules, the motto, the pattern line and the Not/Yes example are
+  reproduced or closely paraphrased. MIT License,
+  Copyright (c) 2026 Julius Brussee.
+
+- .agents/docs/prior-art.md quotes short passages from the documentation of
+  Gas Town (https://github.com/gastownhall/gastown, at commit 649b832), each
+  with the path it came from. MIT License, Copyright (c) 2025 Steve Yegge.
+
+- .agents/docs/graph.md and .agents/docs/plans/README.md adapt task-graph
+  rules from Graph Engineering
+  (https://github.com/codejunkie99/graph-engineering). Ideas, cited at the
+  point of use; no text is reproduced. MIT License,
+  Copyright (c) 2026 codejunkie99.
+
+Short quotations elsewhere in .agents/docs/ (Vale's documentation, Martin
+Fowler's Bounded Context page, arXiv abstracts) are attributed with a link
+where they appear and carry no license condition into this repository.
+
+Not distributed here
+
+Environment layers under .agents/env/ download tools at provisioning time
+(kubectl, helm, k3d, Docker images). Those are fetched from their own
+sources under their own licenses and are not part of this repository.

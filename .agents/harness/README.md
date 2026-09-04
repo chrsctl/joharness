@@ -15,6 +15,8 @@ environment sits under [`.agents/env/`](../env/README.md).
 | `.claude/commands/` | `/handover`, `/who`. |
 | `.claude/settings.json` | SessionStart hook wiring. Consumer-own settings go in `.claude/settings.local.json`, never here — this file syncs whole. |
 | `.gitattributes` | LF pins. `selftest.sh` asserts them — the two ship as a pair. |
+| `.agents/LICENSE` | MIT grant, byte-identical to root `LICENSE` (`selftest.sh` asserts it). Ships beside the files it covers; a consumer's root `LICENSE` is its own. |
+| `.agents/NOTICE` | What that grant covers in a consumer, and the third-party material distilled into `.agents/docs/`. |
 | `.agents/env/` | All layers, whole. Consumer selects via its own `joharness.conf`. |
 | `CLAUDE.md` | Harness protocol. No Part 2 marker — synced whole. |
 | `.agents/docs/handover/README.md` | Protocol + reasoning. |

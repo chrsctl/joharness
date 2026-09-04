@@ -70,6 +70,11 @@ printf 'verifier stub\n' >"${syncsrc}/.claude/agents/verifier.md"
 # Every FILES entry must exist: a listed-but-missing file fails the run.
 printf 'attrs\n' >"${syncsrc}/.gitattributes"
 printf '{}\n' >"${syncsrc}/.claude/settings.json"
+# The grant ships under .agents/; the root LICENSE exists in the fixture so
+# the "never lands at the consumer root" case has something to not ship.
+printf 'canonical root license\n' >"${syncsrc}/LICENSE"
+printf 'MIT stub SYNC-LICENSE-SENTINEL\n' >"${syncsrc}/.agents/LICENSE"
+printf 'notice stub\n' >"${syncsrc}/.agents/NOTICE"
 for stub in .agents/docs/caveman.md .agents/docs/consumer-repos.md \
   .agents/docs/graph.md \
   .agents/docs/handover/README.md .agents/docs/handover/TEMPLATE.md \
@@ -140,6 +145,18 @@ expect "skills dir ships" "steward SKILL-SENTINEL" \
   "$(cat "${syncdst}/.claude/skills/steward/SKILL.md" 2>/dev/null)"
 expect "agents dir ships" "verifier stub" \
   "$(cat "${syncdst}/.claude/agents/verifier.md" 2>/dev/null)"
+# MIT's one condition: the notice travels with every copy. It lands beside
+# the files it covers, and nothing lands at the consumer's root — a root
+# LICENSE there is the consumer's own.
+expect "license ships under .agents" "SYNC-LICENSE-SENTINEL" \
+  "$(cat "${syncdst}/.agents/LICENSE" 2>/dev/null)"
+expect "notice ships under .agents" "notice stub" \
+  "$(cat "${syncdst}/.agents/NOTICE" 2>/dev/null)"
+if [ ! -e "${syncdst}/LICENSE" ]; then
+  pass "no LICENSE lands at the consumer root"
+else
+  fail "no LICENSE lands at the consumer root"
+fi
 # The selftest's runner is canonical-only by exact path, and everything under
 # it by directory. Both halves asserted here, because until the split there
 # was one file and the directory rule had nothing to act on — CANONICAL_ONLY

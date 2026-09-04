@@ -94,6 +94,7 @@ The harness a consumer receives is the part it runs:
 | `.agents/env/README.md` + the selected layer | [Layers](#layers) |
 | `.claude/` settings, commands, skills | Claude Code reads them from the tree |
 | `CLAUDE.md`, `AGENTS.md`, `.gitattributes` | loaded every session |
+| `.agents/LICENSE`, `.agents/NOTICE` | the grant the copy travels under (MIT's one condition); the consumer's root `LICENSE` stays its own |
 
 Canonical-only, never shipped:
 

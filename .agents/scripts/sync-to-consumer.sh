@@ -165,12 +165,18 @@ FILES=(
   .claude/settings.json
   joharness.sh
   .agents/env/README.md
+  # The grant and its notice travel with the files they cover, and land
+  # under .agents/, never at the consumer's root: a root LICENSE there is the
+  # consumer's own, and shipping one would overwrite it on every sync.
+  .agents/LICENSE
+  .agents/NOTICE
 )
 
 # Every file under these ships. .agents/docs and .agents/scripts ship
 # whole for the same reason FILES stays tiny: a fully harness-owned tree
 # is a DIRS entry, FILES is only for files pinned to the repo root by
-# convention.
+# convention, or belonging to no synced directory (the layer contract, the
+# license and its notice).
 DIRS=(
   .agents/harness
   .agents/docs

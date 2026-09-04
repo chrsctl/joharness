@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01BgxrYUJru5VR12hRuPxkdV
 agent: sonnet
 updated: 2026-09-04
-next: Build the plan's scope, then run ci and verify
+next: Review the diff at sonnet depth (code-review high + verifier), record findings, fix
 ---
 
 ## Goal

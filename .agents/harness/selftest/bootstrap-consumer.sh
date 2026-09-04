@@ -43,6 +43,11 @@ printf 'steward stub\n' >"${bootsrc}/.claude/skills/steward/SKILL.md"
 printf 'verifier stub\n' >"${bootsrc}/.claude/agents/verifier.md"
 printf 'attrs\n' >"${bootsrc}/.gitattributes"
 printf '{}\n' >"${bootsrc}/.claude/settings.json"
+# Root LICENSE is canonical-only; the whole-clone warning below needs one
+# to fire on. The shipped pair travels under .agents/.
+printf 'BOOT-ROOT-LICENSE\n' >"${bootsrc}/LICENSE"
+printf 'MIT stub BOOT-LICENSE-SENTINEL\n' >"${bootsrc}/.agents/LICENSE"
+printf 'notice stub\n' >"${bootsrc}/.agents/NOTICE"
 # ci.yml and update.yml are NOT in sync's FILES list: the bootstrap copies
 # them from the canonical tree itself, so the fixture must carry
 # recognizable ones.
@@ -106,6 +111,17 @@ expect "update workflow seeded from canonical" "BOOT-UPDATE-STUB" \
   "$(cat "${bootdst1}/.github/workflows/update.yml" 2>/dev/null)"
 expect "README stub seeded" "joharness" \
   "$(cat "${bootdst1}/README.md" 2>/dev/null)"
+# The grant arrives with the sync, under .agents/. Nothing seeds a root
+# LICENSE: which license the consumer's own tree carries is its choice.
+expect "license ships under .agents" "BOOT-LICENSE-SENTINEL" \
+  "$(cat "${bootdst1}/.agents/LICENSE" 2>/dev/null)"
+if [ ! -e "${bootdst1}/LICENSE" ]; then
+  pass "root LICENSE is never seeded"
+else
+  fail "root LICENSE is never seeded (consumer's own choice)"
+fi
+expect "next steps say the root license is the consumer's" \
+  "root LICENSE is this repo's own choice" "$out"
 
 # --env picks the layer, and the sync ships that one alone: the flag has
 # to reach the engine directly, because the conf it would otherwise be
@@ -240,6 +256,13 @@ refute "joharness's Part 2 removed from clone" "BOOT-CANON-PART2-SENTINEL" \
   "$(cat "${bootdst4}/AGENTS.md")"
 expect "warns that README is still joharness's" \
   "README.md is still joharness's" "$out"
+expect "warns that LICENSE is still joharness's" \
+  "LICENSE is still joharness's" "$out"
+if [ -f "${bootdst4}/LICENSE" ]; then
+  pass "whole-clone root LICENSE warned about, never deleted"
+else
+  fail "whole-clone root LICENSE warned about, never deleted"
+fi
 
 # Whole-clone dry run: the purge and the strip are announced, not done.
 bootdst5="${TMP}/bootdst5"
