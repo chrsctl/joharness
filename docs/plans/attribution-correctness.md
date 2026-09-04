@@ -59,11 +59,16 @@ decision.
 
 - `grep -c 'Permission is hereby granted' .agents/docs/caveman.md` — `1`.
 - `grep -c 'THE SOFTWARE IS PROVIDED "AS IS"' .agents/docs/caveman.md` — `1`.
-- `git grep -l 'prior-art' -- '*.md' '*.sh'` — no hit outside `docs/`.
+- `git grep -l 'prior-art' -- '*.md' '*.sh'` — exactly three files: the
+  migration section in `.agents/docs/consumer-repos.md`, and this branch's
+  own plan and workstream files. No other file names it.
 - `./joharness.sh ci` — `ci: pass`.
 - `./joharness.sh verify` — `0 failed`.
-- SHIPS: every path above reaches consumers at the next sync. Consumer-side
-  check: the two greps in the consumer tree after `./joharness.sh upgrade`.
+- SHIPS: every `.agents/docs/` path above and `.agents/NOTICE` reach
+  consumers at the next sync; `.agents/harness/selftest/license-notice.sh`
+  is canonical-only and reaches none, which is why `ci`'s ship-scope verdict
+  omits it. Consumer-side check: the two greps above in the consumer tree
+  after `./joharness.sh upgrade`.
 
 ## Where to look
 

@@ -384,8 +384,11 @@ probes both spellings.
 
 ## Migration: the prior-art file
 
-A consumer synced before 2026-09-04 carries `.agents/docs/prior-art.md`.
-Canonical deleted it — its arguments moved into the documents that own each
+A consumer that synced between 2026-09-02 and 2026-09-04 carries
+`.agents/docs/prior-art.md` — the days the file existed on `main`
+(`git log --diff-filter=A -- .agents/docs/prior-art.md`). Any other consumer
+never received it and has nothing to do here; the reliable tell is the sync
+naming it `consumer-only`, not the dates. Canonical deleted it — its arguments moved into the documents that own each
 decision (branch shape to [`product/README.md`](product/README.md), the
 no-datastore rule and the in-repo trade to [`graph.md`](graph.md), session
 interrogation to [`handover/README.md`](handover/README.md), liveness to

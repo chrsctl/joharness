@@ -22,34 +22,42 @@ else
   fail "shipped .agents/LICENSE is byte-identical to root LICENSE"
 fi
 
-# The style guide is a derivative of an MIT-licensed skill. MIT's condition
-# has two halves, the copyright line and the permission text; the permission
-# text is LICENSE beside the file, the copyright line lives in the file
-# itself, so a copy made with .agents/LICENSE beside it is complete and one
-# made without it says in its own header what is missing. The NOTICE names
-# the same holder so the two never tell different stories. The holder is
-# upstream's own LICENSE line (JuliusBrussee/caveman, read 2026-09-04) — a
-# fact, not a count.
+# The style guide is a derivative of an MIT-licensed skill, so it carries
+# that skill's notice — BOTH halves, in the file itself: MIT names the
+# copyright notice and the permission notice as what travels with every
+# copy, and the file gets copied on its own (into a consumer's docs/, into a
+# gist), which a pointer to a neighbouring LICENSE does not survive. The
+# NOTICE names the same holder so the two never tell different stories. The
+# holder is upstream's own LICENSE line (JuliusBrussee/caveman, read
+# 2026-09-04) — a fact, not a count.
 holder='Julius Brussee'
 if grep -qF "Copyright (c) 2026 ${holder}" "${ROOT}/.agents/docs/caveman.md"; then
   pass "caveman.md carries its upstream copyright line"
 else
   fail "caveman.md carries its upstream copyright line (${holder})"
 fi
-# BOTH halves, asserted separately. MIT names the copyright notice AND the
-# permission notice, and the failure this pins is a later trim keeping the
-# holder line — which reads like attribution — while dropping the grant or
-# the disclaimer under it. Half a notice satisfies the eye and not the
-# condition.
-if grep -qF 'Permission is hereby granted, free of charge' "${ROOT}/.agents/docs/caveman.md"; then
-  pass "caveman.md reproduces the upstream permission grant"
+# The whole notice, byte for byte, not a phrase from each half. A grep for
+# two opening sentences stays green through a style pass that compresses
+# what follows them, and a trimmed permission notice reads like attribution
+# while failing the condition. MIT text is MIT text: the embedded block must
+# equal this repo's own copy with upstream's holder line in place of ours.
+cav_expected="${TMP}/caveman-notice-expected"
+cav_actual="${TMP}/caveman-notice-actual"
+sed 's/^Copyright (c) 2026 .*/Copyright (c) 2026 Julius Brussee/' \
+  "${ROOT}/.agents/LICENSE" >"$cav_expected"
+# The block is indented as a markdown code block; dedent it back before
+# comparing. Anchored on its own first and last lines so surrounding prose
+# cannot drift into the comparison.
+sed -n '/^    MIT License$/,/^    SOFTWARE\.$/p' "${ROOT}/.agents/docs/caveman.md" |
+  sed 's/^    //' >"$cav_actual"
+if [ ! -s "$cav_actual" ]; then
+  fail "caveman.md embeds the upstream notice"
+  printf '    no indented MIT block found in the file\n'
+elif cmp -s "$cav_expected" "$cav_actual"; then
+  pass "caveman.md embeds the upstream notice byte for byte"
 else
-  fail "caveman.md reproduces the upstream permission grant"
-fi
-if grep -qF 'THE SOFTWARE IS PROVIDED "AS IS"' "${ROOT}/.agents/docs/caveman.md"; then
-  pass "caveman.md reproduces the upstream warranty disclaimer"
-else
-  fail "caveman.md reproduces the upstream warranty disclaimer"
+  fail "caveman.md embeds the upstream notice byte for byte"
+  printf '%s\n' "$(diff "$cav_expected" "$cav_actual" | head -5)"
 fi
 if grep -qF "${holder}" "${ROOT}/.agents/NOTICE"; then
   pass "NOTICE names the same upstream holder"
