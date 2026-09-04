@@ -33,18 +33,31 @@
 # clone's inherited selection and nothing else — the clone already carries
 # every layer.
 #
-# --mode <supervised|unsupervised> is the child's autonomy answer, and the
-# run ASKS for it when the flag is absent and there is a terminal to ask on.
-# Off unless somebody says otherwise, in both bootstrap modes: a fresh conf
-# is seeded supervised, and a whole clone's inherited answer is overwritten
-# rather than kept, because canonical is flipped for its own endurance runs
-# and a child must not go unattended by inheritance. Scripted and CI runs
-# have nobody to ask, so they take the default and say so.
+# EVERY switch the child runs under is put to whoever stands the child up:
+# the environment layer, when that layer is provisioned, how its rules are
+# injected, whether ci gates the review record, and the autonomy mode. Each
+# has a flag, and the interview asks only the ones no flag answered. The two
+# layer-shaped questions are skipped when the selected layer is 'none', where
+# they configure nothing.
+#
+# A question offers the value already in force as its default, read from the
+# target's own conf, so Enter never strips a selection somebody made for that
+# repo. A key is written to an existing conf only when a flag gave it or the
+# interview answered it.
+#
+# --mode is the exception twice over: its default is always supervised rather
+# than the clone's inherited answer, and it is written whether or not anybody
+# decided it. Canonical is flipped for its own endurance runs and reverted
+# after, so a clone taken mid-attempt must not come up unattended because of
+# WHEN it was copied. Scripted and CI runs have nobody to ask, so they take
+# the defaults and say so.
 #
 # Usage: .agents/scripts/bootstrap-consumer.sh [--dry-run] [--env <layer>]
-#            [--mode <supervised|unsupervised>] <consumer-dir>
+#            [--env-setup <lazy|eager>] [--env-md <lazy|eager>]
+#            [--review <off|on>] [--mode <supervised|unsupervised>]
+#            <consumer-dir>
 # Exit: 0 bootstrapped clean. 1 refused with nothing written (usage, ROOT
-# not canonical, an unknown layer or mode name, target already a consumer,
+# not canonical, an unknown layer or switch value, target already a consumer,
 # target is ROOT itself). A nonzero sync engine exit stops the run and is
 # propagated as-is.
 
@@ -80,13 +93,25 @@ SCRATCH="$(mktemp -d)"
 TRAP_TMP=""
 trap 'rm -rf "$SCRATCH"; [ -z "$TRAP_TMP" ] || rm -f "$TRAP_TMP"' EXIT
 
-usage() { die "usage: $0 [--dry-run] [--env <layer>] [--mode <supervised|unsupervised>] <consumer-dir>"; }
+usage() {
+  die "usage: $0 [--dry-run] [--env <layer>] [--env-setup <lazy|eager>] [--env-md <lazy|eager>] [--review <off|on>] [--mode <supervised|unsupervised>] <consumer-dir>"
+}
 
 DRY=0
-LAYER=none
-LAYER_GIVEN=0
+# One variable and one GIVEN flag per conf key the child runs under. The
+# defaults here are the values a repo has always been seeded with; the
+# interview moves who is ASKED, never what is assumed when nobody answers.
+#
 # AUTONOMY, not MODE: MODE already names fresh-vs-whole-clone in this script,
 # and one variable carrying two meanings is how the wrong one gets written.
+LAYER=none
+LAYER_GIVEN=0
+ENV_SETUP=lazy
+ENV_SETUP_GIVEN=0
+ENV_MD=lazy
+ENV_MD_GIVEN=0
+REVIEW=off
+REVIEW_GIVEN=0
 AUTONOMY=supervised
 AUTONOMY_GIVEN=0
 while [ $# -gt 0 ]; do
@@ -94,6 +119,12 @@ while [ $# -gt 0 ]; do
     --dry-run) DRY=1; shift ;;
     --env) [ $# -ge 2 ] || usage; LAYER="$2"; LAYER_GIVEN=1; shift 2 ;;
     --env=*) LAYER="${1#--env=}"; LAYER_GIVEN=1; shift ;;
+    --env-setup) [ $# -ge 2 ] || usage; ENV_SETUP="$2"; ENV_SETUP_GIVEN=1; shift 2 ;;
+    --env-setup=*) ENV_SETUP="${1#--env-setup=}"; ENV_SETUP_GIVEN=1; shift ;;
+    --env-md) [ $# -ge 2 ] || usage; ENV_MD="$2"; ENV_MD_GIVEN=1; shift 2 ;;
+    --env-md=*) ENV_MD="${1#--env-md=}"; ENV_MD_GIVEN=1; shift ;;
+    --review) [ $# -ge 2 ] || usage; REVIEW="$2"; REVIEW_GIVEN=1; shift 2 ;;
+    --review=*) REVIEW="${1#--review=}"; REVIEW_GIVEN=1; shift ;;
     --mode) [ $# -ge 2 ] || usage; AUTONOMY="$2"; AUTONOMY_GIVEN=1; shift 2 ;;
     --mode=*) AUTONOMY="${1#--mode=}"; AUTONOMY_GIVEN=1; shift ;;
     --*) usage ;;
@@ -122,97 +153,255 @@ esac
 [ -d "${ROOT}/.agents/env/${LAYER}" ] ||
   die "no layer .agents/env/${LAYER} in canonical (try: ls ${ROOT}/.agents/env)"
 
-# An explicit --mode is checked, never normalised. run_mode() in joharness.sh
-# resolves anything but 'unsupervised' to supervised, so a typo would be
-# accepted there in silence and the repo would believe it had opted in; the
-# one place a human types the word is the place to refuse a misspelling.
-if [ "$AUTONOMY_GIVEN" -eq 1 ]; then
-  case "$AUTONOMY" in
-    supervised|unsupervised) ;;
-    *) die "invalid mode '${AUTONOMY}' (expected: supervised | unsupervised)" ;;
+# Every explicit value is checked, never normalised. Each of these keys is
+# read by something that fails closed on an unrecognised value —
+# joharness.sh:run_mode resolves anything but 'unsupervised' to supervised,
+# and the two-value keys behave the same way — so a typo is silent for the
+# life of the repo unless it is refused where a human types it.
+check_choice() {
+  local given="$1" name="$2" value="$3" a="$4" b="$5"
+  [ "$given" -eq 1 ] || return 0
+  case "$value" in
+    "$a"|"$b") ;;
+    *) die "invalid ${name} '${value}' (expected: ${a} | ${b})" ;;
   esac
-fi
+}
+check_choice "$ENV_SETUP_GIVEN" env-setup "$ENV_SETUP" lazy eager
+check_choice "$ENV_MD_GIVEN" env-md "$ENV_MD" lazy eager
+check_choice "$REVIEW_GIVEN" review "$REVIEW" off on
+check_choice "$AUTONOMY_GIVEN" mode "$AUTONOMY" supervised unsupervised
 
 # Defined before the target is even looked at, and called from both places
 # that can be the end of the run: the missing-target dry run exits early, and
-# a preview that never mentions the autonomy answer hides the one thing this
-# flag exists to decide. Idempotent, so the second call is free.
+# a preview that never mentions the answers hides what this run decides.
+# Idempotent, so the second call is free.
 #
 # Order inside: the terminal check comes BEFORE the dry-run check on purpose.
 # A dry run is a preview of what the real run does in the same context, and
-# the real run in a context with no terminal does not ask — saying "would
-# ask" there would preview a question nobody would be asked.
+# the real run in a context with no terminal asks nothing — saying "would
+# ask" there would preview questions nobody would be asked.
 #
 # `read` returns nonzero at end of file and this script runs under `set -e`:
-# a stdin that closes mid-prompt defaults the answer rather than killing the
-# run. The question goes to stderr, where log/warn/die already are, so
-# redirecting stdout to a file does not leave a human staring at a blank
-# terminal while the script waits on an answer.
-AUTONOMY_RESOLVED=0
-resolve_autonomy() {
-  local ans=''
-  [ "$AUTONOMY_RESOLVED" -eq 0 ] || return 0
-  AUTONOMY_RESOLVED=1
-  [ "$AUTONOMY_GIVEN" -eq 0 ] || return 0
+# a stdin that closes mid-interview defaults the rest rather than killing the
+# run. Questions go to stderr, where log/warn/die already are, so redirecting
+# stdout to a file does not leave a human staring at a blank terminal.
+
+# Read one key out of the target's own conf, the same way joharness.sh's
+# conf_get reads it, so the two never disagree about what a repo currently
+# says. This is what a question offers as its default: Enter then changes
+# nothing, and a selection somebody made for that repo survives being asked
+# about.
+conf_value_of() {
+  local conf="$1" key="$2"
+  [ -r "$conf" ] || return 0
+  sed -n "s/^[[:space:]]*${key}[[:space:]]*=[[:space:]]*\\([^#[:space:]]*\\).*/\\1/p" \
+    "$conf" | tail -1
+}
+
+# Question on stderr, answer on stdout. Empty answer means the default, and
+# the caller supplies the value already in force as that default.
+ask_line() {
+  local heading="$1" detail="$2" choices="$3" cur="$4" ans=''
+  printf '\n%s\n' "$heading" >&2
+  printf '%s\n' "$detail" >&2
+  printf '%s [%s]: ' "$choices" "$cur" >&2
+  read -r ans || ans=''
+  printf '%s' "$ans"
+}
+
+# One two-choice question, asked until it has an answer it can use.
+#
+# Enter takes the value already in force. Either word takes itself. y and n
+# take the SECOND and FIRST option: the second is the more-doing one in every
+# pair here (on, eager, eager, unsupervised), and the question this interview
+# grew out of was a [y/N] one whose habitual answers would otherwise now be
+# refused outright.
+#
+# A word that is none of those is asked AGAIN rather than fatal. The old
+# prompt defaulted instead of dying, and discarding four already-answered
+# questions over one typo is worse than either — but a run that cannot get an
+# answer must not loop forever, so three tries and then it is an error.
+ask_choice() {
+  local heading="$1" detail="$2" a="$3" b="$4" cur="$5" ans='' tries=0
+  while [ "$tries" -lt 3 ]; do
+    tries=$((tries + 1))
+    ans="$(ask_line "$heading" "$detail" "  ${a} | ${b}" "$cur")"
+    case "$ans" in
+      '')              printf '%s' "$cur"; return 0 ;;
+      "$a"|"$b")       printf '%s' "$ans"; return 0 ;;
+      y|Y|yes|YES|Yes) printf '%s' "$b"; return 0 ;;
+      n|N|no|NO|No)    printf '%s' "$a"; return 0 ;;
+      *) printf '  not %s or %s (y and n work too; Enter keeps %s)\n' \
+           "$a" "$b" "$cur" >&2 ;;
+    esac
+  done
+  die "no usable answer for '${heading}' after 3 tries"
+}
+
+INTERVIEW_DONE=0
+interview() {
+  local conf="${DEST}/joharness.conf" cur ans layers
+  [ "$INTERVIEW_DONE" -eq 0 ] || return 0
+  INTERVIEW_DONE=1
   if [ ! -t 0 ]; then
-    log "not a terminal; JOHARNESS_MODE=supervised (pass --mode unsupervised to choose it)"
+    log "not a terminal; asking nothing. A conf seeded here gets the defaults (env ${LAYER}, setup ${ENV_SETUP}, md ${ENV_MD}, review ${REVIEW}); a conf that already exists keeps its own values, and only JOHARNESS_MODE is written, as ${AUTONOMY}. The flags decide either way."
     return 0
   fi
   if [ "$DRY" -eq 1 ]; then
-    log "would ask for JOHARNESS_MODE (default supervised)"
+    log "would ask for JOHARNESS_ENV, JOHARNESS_ENV_SETUP, JOHARNESS_ENV_MD, JOHARNESS_REVIEW and JOHARNESS_MODE"
     return 0
   fi
+  printf '\n== the switches this repo will run under\n' >&2
+  printf 'Enter keeps the value in brackets. Flags answer these without asking.\n' >&2
+
+  if [ "$LAYER_GIVEN" -eq 0 ]; then
+    cur="$(conf_value_of "$conf" JOHARNESS_ENV)"
+    [ -n "$cur" ] || cur="$LAYER"
+    # A glob, not `ls | grep`: shellcheck refuses the pipe (SC2010) and the
+    # glob answers the question better anyway — a layer IS a directory, so
+    # */ excludes the contract README without naming it.
+    layers=''
+    for d in "${ROOT}"/.agents/env/*/; do
+      [ -d "$d" ] || continue
+      d="${d%/}"
+      layers="${layers}${d##*/} "
+    done
+    ans="$(ask_line 'Environment layer' \
+      "  The sandbox this repo provisions. Only the one you pick ships;
+  'none' is the harness with no environment." \
+      "  available: ${layers}" "$cur")"
+    # Typing back what the brackets offer is the same decision as pressing
+    # Enter, and has to cost the same. A repo whose conf names a layer this
+    # canonical does not carry — one it selected before the layer moved, or
+    # one of its own — would otherwise be told its own answer is invalid the
+    # moment somebody is asked about it.
+    if [ -n "$ans" ] && [ "$ans" != "$cur" ]; then
+      LAYER="$ans"
+      LAYER_GIVEN=1
+      case "$LAYER" in
+        '' | [!a-z0-9]* | *[!a-z0-9._-]*) die "invalid layer name '${LAYER}'" ;;
+      esac
+      [ -d "${ROOT}/.agents/env/${LAYER}" ] ||
+        die "no layer .agents/env/${LAYER} in canonical (try: ls ${ROOT}/.agents/env)"
+    else
+      LAYER="$cur"
+    fi
+  fi
+
+  # Both of these configure a LAYER. With none selected they configure
+  # nothing, so they are not put to somebody who just said they want no
+  # environment; the seeded defaults stand and apply if a layer is selected
+  # later with ./joharness.sh env.
+  if [ "$LAYER" != none ]; then
+    if [ "$ENV_SETUP_GIVEN" -eq 0 ]; then
+      cur="$(conf_value_of "$conf" JOHARNESS_ENV_SETUP)"
+      [ -n "$cur" ] || cur="$ENV_SETUP"
+      ans="$(ask_choice 'Provision the layer when?' \
+        "  lazy  = on demand, ./joharness.sh setup. Session start costs nothing.
+  eager = at session start. Worth it only if every session uses it." \
+        lazy eager "$cur")"
+      ENV_SETUP="$ans"
+      [ "$ans" = "$cur" ] || ENV_SETUP_GIVEN=1
+    fi
+    if [ "$ENV_MD_GIVEN" -eq 0 ]; then
+      cur="$(conf_value_of "$conf" JOHARNESS_ENV_MD)"
+      [ -n "$cur" ] || cur="$ENV_MD"
+      ans="$(ask_choice "Inject the layer's rules when?" \
+        "  lazy  = a read-before-touching pointer to them at session start.
+  eager = the whole file, every session, whether or not it is touched." \
+        lazy eager "$cur")"
+      ENV_MD="$ans"
+      [ "$ans" = "$cur" ] || ENV_MD_GIVEN=1
+    fi
+  fi
+
+  if [ "$REVIEW_GIVEN" -eq 0 ]; then
+    cur="$(conf_value_of "$conf" JOHARNESS_REVIEW)"
+    [ -n "$cur" ] || cur="$REVIEW"
+    ans="$(ask_choice 'Gate the review record?' \
+      "  off = ./joharness.sh review reports; ci checks nothing.
+  on  = ci fails a branch reaching a pull request with no review recorded
+        under its workstream file's '## Review'." \
+      off on "$cur")"
+    REVIEW="$ans"
+    [ "$ans" = "$cur" ] || REVIEW_GIVEN=1
+  fi
+
+  if [ "$AUTONOMY_GIVEN" -eq 0 ]; then
+    # The one question that does NOT read the conf for its default. A clone
+    # carries canonical's answer, and canonical is flipped for its endurance
+    # runs, so offering that back would hand a child an autonomy it never
+    # chose. Deliberately not a conf_value_of call: there is nothing here to
+    # read, and a line that read it and then discarded the answer would read
+    # like a bug to delete.
+    cur=supervised
+    ans="$(ask_choice 'Unsupervised mode for this consumer?' \
+      "  A session takes one queue item, runs the Loop, merges its own pull
+  request, and at the queue edge exits instead of asking a human.
+  It automates nothing by itself: something has to fire the next
+  session (.agents/docs/unsupervised.md, Heartbeat)." \
+      supervised unsupervised "$cur")"
+    AUTONOMY="$ans"
+    [ "$ans" = "$cur" ] || AUTONOMY_GIVEN=1
+  fi
   printf '\n' >&2
-  printf 'Unsupervised mode for this consumer?\n' >&2
-  printf '  A session takes one queue item, runs the Loop, merges its own pull\n' >&2
-  printf '  request, and at the queue edge exits instead of asking a human.\n' >&2
-  printf '  It automates nothing by itself: something has to fire the next\n' >&2
-  printf '  session (.agents/docs/unsupervised.md, Heartbeat).\n' >&2
-  printf 'Enable it? [y/N] ' >&2
-  read -r ans || ans=''
-  case "$ans" in
-    y|Y|yes|YES|Yes) AUTONOMY=unsupervised ;;
-    *)               AUTONOMY=supervised ;;
-  esac
 }
 
-# One writer for the child's autonomy line, shared by both bootstrap shapes.
-# Fresh mode cannot simply seed it: seed() never overwrites, so a target that
-# already carries a conf of its own kept whatever that file said and dropped
-# the answer this run was given — the same fail-open the whole-clone branch
-# exists to prevent, one shape over, and silent because the run still said
-# 'ready'.
-set_conf_mode() {
-  local conf="$1" tmp="${SCRATCH}/conf-mode"
+# One writer for any conf key, used by every shape that edits a conf rather
+# than seeding one. Fresh mode cannot simply seed: seed() never overwrites,
+# so a target that already carries a joharness.conf keeps whatever that file
+# says and drops the answers this run was given.
+set_conf_key() {
+  local conf="$1" key="$2" value="$3" comment="$4" tmp="${SCRATCH}/conf-key"
   [ -f "$conf" ] || return 0
-  if grep -q '^[[:space:]]*JOHARNESS_MODE[[:space:]]*=' "$conf"; then
+  if grep -q "^[[:space:]]*${key}[[:space:]]*=" "$conf"; then
     # Rewrites every match, exactly as joharness.sh:conf_set does for any
     # key. A conf carrying the key twice ends with both lines holding the
     # resolved answer, so conf_get's tail -1 reads the same value either way.
     # The rewritten line loses a CRLF file's \r while its neighbours keep
     # theirs; conf_get's own capture stops at the carriage return, so the
-    # value reads the same, and the JOHARNESS_ENV rewrite below has always
-    # done this. Cosmetic, named rather than fixed here: making it right is
-    # one change for both keys and is not this plan's.
-    sed "s|^[[:space:]]*JOHARNESS_MODE[[:space:]]*=.*|JOHARNESS_MODE=${AUTONOMY}|" \
-      "$conf" >"$tmp"
+    # value reads the same. Cosmetic, and the same for every key here.
+    sed "s|^[[:space:]]*${key}[[:space:]]*=.*|${key}=${value}|" "$conf" >"$tmp"
   else
-    # An absent line already resolves to supervised, so appending changes no
-    # behaviour today. Written anyway: the conf a human opens should state
-    # the answer it runs under, and --mode on a conf that predates the switch
-    # has to land somewhere.
     { cat "$conf"
-      printf '\n# Autonomy. Any value but unsupervised reads as supervised.\n'
-      printf '# .agents/docs/unsupervised.md carries the bounds and the heartbeat.\n'
-      printf 'JOHARNESS_MODE=%s\n' "$AUTONOMY"
+      printf '\n# %s\n' "$comment"
+      printf '%s=%s\n' "$key" "$value"
     } >"$tmp"
   fi
   place "$tmp" "$conf"
   if [ "$DRY" -eq 1 ]; then
-    printf '  would set joharness.conf JOHARNESS_MODE=%s\n' "$AUTONOMY"
+    printf '  would set joharness.conf %s=%s\n' "$key" "$value"
   else
-    printf '  set     joharness.conf JOHARNESS_MODE=%s\n' "$AUTONOMY"
+    printf '  set     joharness.conf %s=%s\n' "$key" "$value"
   fi
+}
+
+# What lands in a conf that already exists. A key is written only when a flag
+# gave it or the interview answered it: a value nobody was asked about is the
+# consumer's own, which is what the cases carrying JOHARNESS_ENV=custom-own
+# through a bootstrap pin.
+#
+# JOHARNESS_MODE is the exception and is always written. A whole clone
+# carries canonical's own conf, canonical is flipped for its endurance runs
+# and reverted after, so a clone taken mid-attempt would come up unattended
+# because of WHEN it was copied. That is the failure joharness.sh:run_mode
+# already fails closed against.
+write_decided_keys() {
+  local conf="$1"
+  [ "$LAYER_GIVEN" -eq 0 ] ||
+    set_conf_key "$conf" JOHARNESS_ENV "$LAYER" \
+      "Directory under .agents/env/. 'none' = harness only, no environment."
+  [ "$ENV_SETUP_GIVEN" -eq 0 ] ||
+    set_conf_key "$conf" JOHARNESS_ENV_SETUP "$ENV_SETUP" \
+      "lazy = provision on demand; eager = provision at session start."
+  [ "$ENV_MD_GIVEN" -eq 0 ] ||
+    set_conf_key "$conf" JOHARNESS_ENV_MD "$ENV_MD" \
+      "lazy = inject a pointer to the layer's rules; eager = the file whole."
+  [ "$REVIEW_GIVEN" -eq 0 ] ||
+    set_conf_key "$conf" JOHARNESS_REVIEW "$REVIEW" \
+      "off = review reports only; on = ci gates the record at the edge."
+  set_conf_key "$conf" JOHARNESS_MODE "$AUTONOMY" \
+    "Autonomy. Any value but unsupervised reads as supervised."
 }
 
 # Mode detection needs the target readable; a missing target is trivially
@@ -225,8 +414,8 @@ if [ ! -d "$DEST" ]; then
   MODE=fresh
   if [ "$DRY" -eq 1 ]; then
     printf '== bootstrap %s -> %s (fresh; dry run, nothing written)\n' "$ROOT" "$DEST"
-    resolve_autonomy
-    log "consumer dir '$DEST' does not exist; would create it, sync the harness in, and seed AGENTS.md Part 2 stub, joharness.conf (JOHARNESS_MODE=${AUTONOMY}), ci.yml, update.yml, README.md"
+    interview
+    log "consumer dir '$DEST' does not exist; would create it, sync the harness in, and seed AGENTS.md Part 2 stub, joharness.conf (env ${LAYER}, setup ${ENV_SETUP}, md ${ENV_MD}, review ${REVIEW}, mode ${AUTONOMY}), ci.yml, update.yml, README.md"
     exit 0
   fi
 else
@@ -257,7 +446,7 @@ if [ "$DRY" -eq 1 ]; then
 else
   printf '== bootstrap %s -> %s (%s)\n' "$ROOT" "$DEST" "$MODE"
 fi
-resolve_autonomy
+interview
 
 
 # Said once, whoever chose it and however: the switch is the smaller half of
@@ -388,12 +577,12 @@ JOHARNESS_ENV=${LAYER}
 
 # lazy  = provision on demand (./joharness.sh setup). Session start costs nothing.
 # eager = provision at session start. Only worth it if every session uses it.
-JOHARNESS_ENV_SETUP=lazy
+JOHARNESS_ENV_SETUP=${ENV_SETUP}
 
 # lazy  = inject a read-before-touching pointer to
 #         .agents/env/<name>/AGENTS.md.
 # eager = inject the file whole at session start.
-JOHARNESS_ENV_MD=lazy
+JOHARNESS_ENV_MD=${ENV_MD}
 
 # off = review step reports only (./joharness.sh review), ci checks nothing.
 # on  = ci fails when a workstream THIS branch wrote reaches the edge (pull
@@ -402,7 +591,7 @@ JOHARNESS_ENV_MD=lazy
 #       '(verifier)' tag the independent reader's findings are marked with.
 #       Mid-build it only says the record is owed. Record, not count — and
 #       one of them from a reader that did not write the diff.
-JOHARNESS_REVIEW=off
+JOHARNESS_REVIEW=${REVIEW}
 
 # Autonomy. 'supervised' (default) = a session stops at the queue edge and
 # asks. 'unsupervised' = it takes queue work, runs the full Loop, merges its
@@ -420,7 +609,7 @@ EOF
   # The seeded conf already carries the answer, so this is for the other
   # case only: a target that brought its own conf keeps it, and would
   # otherwise keep an autonomy line this run was explicitly told to change.
-  [ "$conf_existed" -eq 0 ] || set_conf_mode "${DEST}/joharness.conf"
+  [ "$conf_existed" -eq 0 ] || write_decided_keys "${DEST}/joharness.conf"
 
   # Canonical's workflow verbatim: it is generic (runs ./joharness.sh ci
   # plus the windows selftest), only its delivery is consumer-own — the
@@ -503,33 +692,12 @@ bootstrap_whole_clone() {
   fi
   warn "the conf comment block above the removed marker may still describe the canonical; tidy it by hand"
 
-  # A whole clone carries joharness's own environment selection, which is
-  # joharness's answer, not this repo's. Rewritten only when --env said
-  # so: silently forcing 'none' would strip a deliberate selection from a
-  # clone the human already configured. The clone also carries every
-  # layer by construction; the first steady-state sync reports the ones
-  # this repo does not select.
-  if [ "$LAYER_GIVEN" -eq 1 ]; then
-    tmp="${SCRATCH}/conf-env"
-    sed "s|^[[:space:]]*JOHARNESS_ENV[[:space:]]*=.*|JOHARNESS_ENV=${LAYER}|" \
-      "$conf" >"$tmp"
-    place "$tmp" "$conf"
-    if [ "$DRY" -eq 1 ]; then
-      printf '  would set joharness.conf JOHARNESS_ENV=%s\n' "$LAYER"
-    else
-      printf '  set     joharness.conf JOHARNESS_ENV=%s\n' "$LAYER"
-    fi
-  fi
-
-  # The clone also carries canonical's OWN autonomy answer, and canonical is
-  # flipped for its endurance runs and reverted after. So this is written
-  # whether or not a flag was given — the opposite of JOHARNESS_ENV above,
-  # and deliberately. Not rewriting an inherited selection protects a choice
-  # the human made for that repo; not rewriting an inherited MODE would hand
-  # a child the answer a different repo gave on a different day, which is the
-  # failure joharness.sh:run_mode already fails closed against: a repo
-  # working unattended because nobody said not to.
-  set_conf_mode "$conf"
+  # A whole clone carries joharness's own answers to every one of these,
+  # which are joharness's and not this repo's. Each key is written only when
+  # a flag gave it or the interview answered it, so a clone somebody already
+  # configured keeps what it was configured with; JOHARNESS_MODE is the one
+  # exception and is always written. Reasoning at write_decided_keys.
+  write_decided_keys "$conf"
 
   # joharness's live work, meaningless in the child. Every .md goes:
   # since the .agents/docs move these dirs hold live work only, the
