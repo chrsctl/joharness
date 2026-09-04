@@ -3,10 +3,8 @@
 Rules for all instruction files and agent replies in this repo. Distilled from
 [JuliusBrussee/caveman](https://github.com/JuliusBrussee/caveman): rules from
 `skills/caveman/SKILL.md`, motto from its `README.md`.
-MIT License, Copyright (c) 2026 Julius Brussee. Permission text:
-`.agents/LICENSE` beside this file; notice: `.agents/NOTICE`. Copy this file
-elsewhere = carry `.agents/LICENSE` with it; the copyright line above is the
-half of MIT's condition that stays in the file.
+MIT License, Copyright (c) 2026 Julius Brussee — full notice at the end of
+this file, so a copy of it carries the whole condition wherever it goes.
 Motto: why use many token when few do trick.
 
 ## Core
@@ -112,3 +110,34 @@ Style compresses output and re-read input. It proves nothing about quality —
 compress only where every load-bearing fact survives. When compressed text
 loses a symptom, a number, or a negation, verbose wins. Upstream:
 [HONEST-NUMBERS.md](https://github.com/JuliusBrussee/caveman/blob/main/docs/HONEST-NUMBERS.md).
+
+## Upstream license
+
+This file is a derivative of the caveman skill. MIT names two things that
+travel with every copy — the copyright notice and the permission notice — so
+both are here rather than in a neighbouring file a copy would leave behind.
+
+    MIT License
+
+    Copyright (c) 2026 Julius Brussee
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+
+The harness's own grant is separate and unaffected: `.agents/LICENSE`, with
+`.agents/NOTICE` beside it.

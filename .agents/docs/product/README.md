@@ -31,9 +31,15 @@ human work.
 
 - `main` = the only long-lived line. One branch per plan, cut from `main`.
   No long-lived integration branch: PR + `ci` + review-at-edge do that
-  job; a second line rots against a fleet of short sessions. Systems that
-  chose otherwise, and why this repo did not:
-  [`../prior-art.md`](../prior-art.md).
+  job; a second line rots against a fleet of short sessions. The shape is
+  not worthless and the rejection is not a reflex — grouping an epic's
+  children on a shared branch and landing it as one commit buys three real
+  things: children build on each other, rollback is one commit, CI runs
+  once on the combined work. All three are priced in what this repo
+  optimizes hardest against. Work stays invisible on `main` for the epic's
+  whole life, and an abandoned integration branch is the abandoned-edge
+  problem multiplied by its child count. Re-open on a measurement that
+  serializing costs more than that, never on the appeal of the shape.
 - **Start** = Claim (Loop step 3): cut `claude/<plan>`, workstream file,
   push.
 - **Finish** = PR green + reviewed, merge to `main`, PR deletes plan file
@@ -48,6 +54,12 @@ human work.
   work. Filter reads ancestry, so it rests on PRs merging by merge
   commit — GitHub's "Squash and merge" / "Rebase and merge" buttons hide
   ancestry, and branches merged that way would read as in-flight again.
+  Prose, not a gate: nothing in this repo can enforce the method, and one
+  session squashing once breaks the filter for every session after it. An
+  instruction is the weakest place to put a rule a tool could hold. The
+  remedy is a forge setting rather than code — restrict the allowed merge
+  methods on the repository — and until someone sets it, this bullet is
+  all there is.
   Deleting = optional hygiene, human-only, anytime: Delete-branch button
   on merged PR page, or repo setting "Automatically delete head
   branches". Sessions never `git push --delete` — deletion is the
@@ -64,7 +76,12 @@ human work.
   clone. Behind = merge `main` into branch (not rebase), resolve, re-run
   `ci`, push. Conflict does not resolve clean (semantic, unclear intent) =
   do not force-merge through it — decide-alone exception (`.agents/harness/AGENTS.md`),
-  stop, record in workstream file's `Blockers`, ask human.
+  stop, record in workstream file's `Blockers`, ask human. A merge queue
+  would remove this reconcile entirely. Not built: the failure this repo
+  measured is starvation, not merge contention — the count and the command
+  that produced it are in `.agents/harness/AGENTS.md`, `/drain` paragraph.
+  Adopt one only when a measurement shows sessions losing time to
+  reconciles, and prefer the forge's own to building one.
 - **Long-running session** = re-check `git fetch origin main` ahead/behind
   periodically during Build too, not only at Finish — a conflict caught
   mid-build is cheap, one hit at finish after hours of work is not.

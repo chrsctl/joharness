@@ -63,5 +63,8 @@ MIT — [`LICENSE`](LICENSE). The grant travels with the harness: the sync
 ships [`.agents/LICENSE`](.agents/LICENSE), byte-identical to the root file
 (`selftest.sh` asserts it), and [`.agents/NOTICE`](.agents/NOTICE), which
 says what the grant covers in a consumer and names the third-party material
-distilled into `.agents/docs/`. No per-file headers: a consumer repo's own
-tree, its root `LICENSE` included, is licensed by that repo, not by this one.
+distilled into `.agents/docs/`. No per-file headers for this repo's own grant: a consumer repo's own tree,
+its root `LICENSE` included, is licensed by that repo, not by this one. A
+file distilled from someone else's MIT-licensed work is the one exception
+and carries that upstream's notice in full — `.agents/docs/caveman.md`, last
+section.
