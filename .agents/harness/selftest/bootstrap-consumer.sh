@@ -569,7 +569,13 @@ else
 fi
 expect "dry run announces the mode write" \
   "would set joharness.conf JOHARNESS_MODE=supervised" "$out"
-expect "dry run says it would have asked" "would ask for JOHARNESS_MODE" "$out"
+# boot() closes stdin, so this run has nobody to ask and says so — the same
+# sentence the real run prints in the same context. "would ask" belongs to a
+# dry run that HAS a terminal, which is asserted under the pty below.
+expect "a dry run with nobody to ask previews the default" \
+  "not a terminal" "$out"
+refute "and does not promise a question nobody would be asked" \
+  "would ask for JOHARNESS_MODE" "$out"
 expect "dry run leaves the clone's own answer alone" "JOHARNESS_MODE=unsupervised" \
   "$(cat "${bootmode7}/joharness.conf")"
 
@@ -609,4 +615,80 @@ if command -v script >/dev/null 2>&1 &&
     "$(cat "${bootask3}/joharness.conf" 2>/dev/null)"
 else
   skip "the autonomy prompt itself" "no usable script(1) to allocate a tty"
+fi
+
+# seed() never overwrites, so a target that brought its own conf is the one
+# shape where a fresh bootstrap can drop the answer it was given. It said
+# "ready" while doing it, which is what made this worth a case.
+bootmode8="${TMP}/bootmode8"
+mkdir -p "$bootmode8"
+printf 'JOHARNESS_ENV=custom-own\nJOHARNESS_MODE=unsupervised\n' \
+  >"${bootmode8}/joharness.conf"
+out="$(boot --mode supervised "$bootmode8")"; rc=$?
+if [ "$rc" -eq 0 ]; then
+  pass "fresh bootstrap over an existing conf exits 0"
+else
+  fail "fresh bootstrap over an existing conf exits 0 (got ${rc})"
+  printf '%s\n' "$(indent "$out")"
+fi
+expect "the answer reaches a conf the seed would not overwrite" \
+  "JOHARNESS_MODE=supervised" "$(cat "${bootmode8}/joharness.conf")"
+refute "and the old answer is gone" "JOHARNESS_MODE=unsupervised" \
+  "$(cat "${bootmode8}/joharness.conf")"
+expect "the rest of that conf is left alone" "JOHARNESS_ENV=custom-own" \
+  "$(cat "${bootmode8}/joharness.conf")"
+
+# A dry run against a directory that does not exist yet exits early — the
+# most ordinary way to preview a new consumer, and the one path that used to
+# report everything it would seed except the answer this flag decides.
+bootmode9="${TMP}/bootmode9-missing"
+out="$(boot --dry-run --mode unsupervised "$bootmode9")"; rc=$?
+if [ "$rc" -eq 0 ]; then
+  pass "dry run on a missing dir exits 0"
+else
+  fail "dry run on a missing dir exits 0 (got ${rc})"
+fi
+expect "and names the mode it would seed" "JOHARNESS_MODE=unsupervised" "$out"
+# With --mode given, the value is already set at parse time and the line above
+# reads the same whether or not the resolver ran on this branch — it passed
+# both ways under `mutate` on the call site, which is a case pinning nothing.
+# Without the flag the resolver is the ONLY thing that speaks here, so its
+# sentence is what proves the early-exit branch reaches it.
+out="$(boot --dry-run "${TMP}/bootmode10-missing")"; rc=$?
+if [ "$rc" -eq 0 ]; then
+  pass "dry run on a missing dir without a flag exits 0"
+else
+  fail "dry run on a missing dir without a flag exits 0 (got ${rc})"
+fi
+expect "the missing-dir preview resolves the answer at all" \
+  "not a terminal" "$out"
+expect "and reports the default it would seed" "JOHARNESS_MODE=supervised" "$out"
+if [ ! -e "$bootmode9" ]; then
+  pass "dry run on a missing dir creates nothing"
+else
+  fail "dry run on a missing dir creates nothing"
+fi
+
+if command -v script >/dev/null 2>&1 &&
+  script -qec true /dev/null >/dev/null 2>&1; then
+  # The question has to survive a redirected stdout: log, warn and die are
+  # all on stderr, and a run whose stdout goes to a file would otherwise sit
+  # at a prompt the human cannot see.
+  bootask4="${TMP}/bootask4"
+  out="$(printf 'y\n' | script -qec \
+    "JOHARNESS_SYNC_ROOT='${bootsrc}' bash '${ROOT}/.agents/scripts/bootstrap-consumer.sh' '${bootask4}' >/dev/null" \
+    /dev/null 2>&1)" || :
+  expect "the question is on stderr, not stdout" \
+    "Unsupervised mode for this consumer?" "$out"
+
+  # And a dry run that DOES have a terminal says it would ask.
+  bootask5="${TMP}/bootask5"
+  mkdir -p "$bootask5"
+  out="$(printf '\n' | script -qec \
+    "JOHARNESS_SYNC_ROOT='${bootsrc}' bash '${ROOT}/.agents/scripts/bootstrap-consumer.sh' --dry-run '${bootask5}'" \
+    /dev/null 2>&1)" || :
+  expect "a dry run with a terminal says it would ask" \
+    "would ask for JOHARNESS_MODE" "$out"
+else
+  skip "the stderr prompt and the terminal dry run" "no usable script(1)"
 fi

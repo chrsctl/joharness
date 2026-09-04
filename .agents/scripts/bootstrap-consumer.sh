@@ -44,8 +44,9 @@
 # Usage: .agents/scripts/bootstrap-consumer.sh [--dry-run] [--env <layer>]
 #            [--mode <supervised|unsupervised>] <consumer-dir>
 # Exit: 0 bootstrapped clean. 1 refused with nothing written (usage, ROOT
-# not canonical, target already a consumer, target is ROOT itself). A
-# nonzero sync engine exit stops the run and is propagated as-is.
+# not canonical, an unknown layer or mode name, target already a consumer,
+# target is ROOT itself). A nonzero sync engine exit stops the run and is
+# propagated as-is.
 
 set -euo pipefail
 
@@ -132,6 +133,88 @@ if [ "$AUTONOMY_GIVEN" -eq 1 ]; then
   esac
 fi
 
+# Defined before the target is even looked at, and called from both places
+# that can be the end of the run: the missing-target dry run exits early, and
+# a preview that never mentions the autonomy answer hides the one thing this
+# flag exists to decide. Idempotent, so the second call is free.
+#
+# Order inside: the terminal check comes BEFORE the dry-run check on purpose.
+# A dry run is a preview of what the real run does in the same context, and
+# the real run in a context with no terminal does not ask — saying "would
+# ask" there would preview a question nobody would be asked.
+#
+# `read` returns nonzero at end of file and this script runs under `set -e`:
+# a stdin that closes mid-prompt defaults the answer rather than killing the
+# run. The question goes to stderr, where log/warn/die already are, so
+# redirecting stdout to a file does not leave a human staring at a blank
+# terminal while the script waits on an answer.
+AUTONOMY_RESOLVED=0
+resolve_autonomy() {
+  local ans=''
+  [ "$AUTONOMY_RESOLVED" -eq 0 ] || return 0
+  AUTONOMY_RESOLVED=1
+  [ "$AUTONOMY_GIVEN" -eq 0 ] || return 0
+  if [ ! -t 0 ]; then
+    log "not a terminal; JOHARNESS_MODE=supervised (pass --mode unsupervised to choose it)"
+    return 0
+  fi
+  if [ "$DRY" -eq 1 ]; then
+    log "would ask for JOHARNESS_MODE (default supervised)"
+    return 0
+  fi
+  printf '\n' >&2
+  printf 'Unsupervised mode for this consumer?\n' >&2
+  printf '  A session takes one queue item, runs the Loop, merges its own pull\n' >&2
+  printf '  request, and at the queue edge exits instead of asking a human.\n' >&2
+  printf '  It automates nothing by itself: something has to fire the next\n' >&2
+  printf '  session (.agents/docs/unsupervised.md, Heartbeat).\n' >&2
+  printf 'Enable it? [y/N] ' >&2
+  read -r ans || ans=''
+  case "$ans" in
+    y|Y|yes|YES|Yes) AUTONOMY=unsupervised ;;
+    *)               AUTONOMY=supervised ;;
+  esac
+}
+
+# One writer for the child's autonomy line, shared by both bootstrap shapes.
+# Fresh mode cannot simply seed it: seed() never overwrites, so a target that
+# already carries a conf of its own kept whatever that file said and dropped
+# the answer this run was given — the same fail-open the whole-clone branch
+# exists to prevent, one shape over, and silent because the run still said
+# 'ready'.
+set_conf_mode() {
+  local conf="$1" tmp="${SCRATCH}/conf-mode"
+  [ -f "$conf" ] || return 0
+  if grep -q '^[[:space:]]*JOHARNESS_MODE[[:space:]]*=' "$conf"; then
+    # Rewrites every match, exactly as joharness.sh:conf_set does for any
+    # key. A conf carrying the key twice ends with both lines holding the
+    # resolved answer, so conf_get's tail -1 reads the same value either way.
+    # The rewritten line loses a CRLF file's \r while its neighbours keep
+    # theirs; conf_get's own capture stops at the carriage return, so the
+    # value reads the same, and the JOHARNESS_ENV rewrite below has always
+    # done this. Cosmetic, named rather than fixed here: making it right is
+    # one change for both keys and is not this plan's.
+    sed "s|^[[:space:]]*JOHARNESS_MODE[[:space:]]*=.*|JOHARNESS_MODE=${AUTONOMY}|" \
+      "$conf" >"$tmp"
+  else
+    # An absent line already resolves to supervised, so appending changes no
+    # behaviour today. Written anyway: the conf a human opens should state
+    # the answer it runs under, and --mode on a conf that predates the switch
+    # has to land somewhere.
+    { cat "$conf"
+      printf '\n# Autonomy. Any value but unsupervised reads as supervised.\n'
+      printf '# .agents/docs/unsupervised.md carries the bounds and the heartbeat.\n'
+      printf 'JOHARNESS_MODE=%s\n' "$AUTONOMY"
+    } >"$tmp"
+  fi
+  place "$tmp" "$conf"
+  if [ "$DRY" -eq 1 ]; then
+    printf '  would set joharness.conf JOHARNESS_MODE=%s\n' "$AUTONOMY"
+  else
+    printf '  set     joharness.conf JOHARNESS_MODE=%s\n' "$AUTONOMY"
+  fi
+}
+
 # Mode detection needs the target readable; a missing target is trivially
 # FRESH. Creating the directory is the run's first write, so it happens
 # after every refusal above and below can no longer fire — and never on a
@@ -142,7 +225,8 @@ if [ ! -d "$DEST" ]; then
   MODE=fresh
   if [ "$DRY" -eq 1 ]; then
     printf '== bootstrap %s -> %s (fresh; dry run, nothing written)\n' "$ROOT" "$DEST"
-    log "consumer dir '$DEST' does not exist; would create it, sync the harness in, and seed AGENTS.md Part 2 stub, joharness.conf, ci.yml, update.yml, README.md"
+    resolve_autonomy
+    log "consumer dir '$DEST' does not exist; would create it, sync the harness in, and seed AGENTS.md Part 2 stub, joharness.conf (JOHARNESS_MODE=${AUTONOMY}), ci.yml, update.yml, README.md"
     exit 0
   fi
 else
@@ -173,41 +257,8 @@ if [ "$DRY" -eq 1 ]; then
 else
   printf '== bootstrap %s -> %s (%s)\n' "$ROOT" "$DEST" "$MODE"
 fi
-
-# Asked here: after every refusal above, so a run that is going to die does
-# not stop to ask first, and before the first write, so the answer is known
-# by the time either bootstrap mode writes a conf. Asked ONCE, ever — the
-# conf is consumer-own and the steady-state sync never touches it, so this
-# is the only prompt in the harness that decides a repo's autonomy.
-#
-# `read` returns nonzero at end of file and this script runs under `set -e`:
-# a stdin that closes mid-prompt must default the answer, not kill a run
-# that has already written nothing yet but is about to.
-resolve_autonomy() {
-  local ans=''
-  [ "$AUTONOMY_GIVEN" -eq 0 ] || return 0
-  if [ "$DRY" -eq 1 ]; then
-    printf '  would ask for JOHARNESS_MODE (default supervised)\n'
-    return 0
-  fi
-  if [ ! -t 0 ]; then
-    log "not a terminal; JOHARNESS_MODE=supervised (pass --mode unsupervised to choose it)"
-    return 0
-  fi
-  printf '\n'
-  printf 'Unsupervised mode for this consumer?\n'
-  printf '  A session takes one queue item, runs the Loop, merges its own pull\n'
-  printf '  request, and at the queue edge exits instead of asking a human.\n'
-  printf '  It automates nothing by itself: something has to fire the next\n'
-  printf '  session (.agents/docs/unsupervised.md, Heartbeat).\n'
-  printf 'Enable it? [y/N] '
-  read -r ans || ans=''
-  case "$ans" in
-    y|Y|yes|YES|Yes) AUTONOMY=unsupervised ;;
-    *)               AUTONOMY=supervised ;;
-  esac
-}
 resolve_autonomy
+
 
 # Said once, whoever chose it and however: the switch is the smaller half of
 # what an unattended fleet needs, and a child whose conf says unsupervised
@@ -361,7 +412,15 @@ JOHARNESS_REVIEW=off
 # switch fails closed on purpose.
 JOHARNESS_MODE=${AUTONOMY}
 EOF
+  # Recorded BEFORE the seed, because seed() is the thing that makes the
+  # difference invisible afterwards: it writes only when the file is absent.
+  conf_existed=0
+  if [ -f "${DEST}/joharness.conf" ]; then conf_existed=1; fi
   seed joharness.conf "${SCRATCH}/conf"
+  # The seeded conf already carries the answer, so this is for the other
+  # case only: a target that brought its own conf keeps it, and would
+  # otherwise keep an autonomy line this run was explicitly told to change.
+  [ "$conf_existed" -eq 0 ] || set_conf_mode "${DEST}/joharness.conf"
 
   # Canonical's workflow verbatim: it is generic (runs ./joharness.sh ci
   # plus the windows selftest), only its delivery is consumer-own — the
@@ -466,31 +525,11 @@ bootstrap_whole_clone() {
   # flipped for its endurance runs and reverted after. So this is written
   # whether or not a flag was given — the opposite of JOHARNESS_ENV above,
   # and deliberately. Not rewriting an inherited selection protects a choice
-  # the human made; not rewriting an inherited MODE would hand a child the
-  # answer a different repo gave on a different day, which is the failure
-  # joharness.sh:run_mode already fails closed against: a repo working
-  # unattended because nobody said not to.
-  tmp="${SCRATCH}/conf-mode"
-  if grep -q '^[[:space:]]*JOHARNESS_MODE[[:space:]]*=' "$conf"; then
-    sed "s|^[[:space:]]*JOHARNESS_MODE[[:space:]]*=.*|JOHARNESS_MODE=${AUTONOMY}|" \
-      "$conf" >"$tmp"
-  else
-    # An absent line already resolves to supervised, so appending changes no
-    # behaviour today. It is written anyway: the conf a human opens should
-    # state the answer it is running under, and --mode unsupervised on a
-    # clone whose conf predates the switch has to land somewhere.
-    { cat "$conf"
-      printf '\n# Autonomy. Any value but unsupervised reads as supervised.\n'
-      printf '# .agents/docs/unsupervised.md carries the bounds and the heartbeat.\n'
-      printf 'JOHARNESS_MODE=%s\n' "$AUTONOMY"
-    } >"$tmp"
-  fi
-  place "$tmp" "$conf"
-  if [ "$DRY" -eq 1 ]; then
-    printf '  would set joharness.conf JOHARNESS_MODE=%s\n' "$AUTONOMY"
-  else
-    printf '  set     joharness.conf JOHARNESS_MODE=%s\n' "$AUTONOMY"
-  fi
+  # the human made for that repo; not rewriting an inherited MODE would hand
+  # a child the answer a different repo gave on a different day, which is the
+  # failure joharness.sh:run_mode already fails closed against: a repo
+  # working unattended because nobody said not to.
+  set_conf_mode "$conf"
 
   # joharness's live work, meaningless in the child. Every .md goes:
   # since the .agents/docs move these dirs hold live work only, the

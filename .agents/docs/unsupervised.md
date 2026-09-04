@@ -114,7 +114,8 @@ oppositely on purpose:
 
 | Bootstrap shape | The mode line |
 | --- | --- |
-| fresh | seeded with the answer |
+| fresh, empty target | seeded with the answer |
+| fresh, target brought its own conf | that conf keeps everything else; its mode line is SET |
 | whole clone | inherited line OVERWRITTEN with the answer |
 
 The whole clone is the reason this is forced rather than optional. It carries
