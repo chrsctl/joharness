@@ -14,8 +14,8 @@ Human asked, verbatim: "Verify that alle pieces Matches licensing also when
 distilled if not fix. And attribution." Two directions. Inbound: text this
 repo distilled from other projects must carry the notice those projects'
 licenses require. Outbound: the harness files the sync distils into a
-consumer must carry this repo's own MIT notice, which `LICENSE` line 11
-requires in every copy or substantial portion and which today no consumer
+consumer must carry this repo's own MIT notice, which `LICENSE` requires
+"in all copies or substantial portions" and which today no consumer
 receives.
 
 ## Scope

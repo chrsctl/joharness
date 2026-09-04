@@ -1,11 +1,12 @@
 # Caveman style guide
 
 Rules for all instruction files and agent replies in this repo. Distilled from
-the skill in [JuliusBrussee/caveman](https://github.com/JuliusBrussee/caveman)
-(`skills/caveman/SKILL.md`). MIT License, Copyright (c) 2026 Julius Brussee.
-License text: `.agents/LICENSE`; notice: `.agents/NOTICE`. Copyright line
-stays in THIS file: a derivative carries its upstream's notice in every copy,
-and this file gets copied on its own.
+[JuliusBrussee/caveman](https://github.com/JuliusBrussee/caveman): rules from
+`skills/caveman/SKILL.md`, motto from its `README.md`.
+MIT License, Copyright (c) 2026 Julius Brussee. Permission text:
+`.agents/LICENSE` beside this file; notice: `.agents/NOTICE`. Copy this file
+elsewhere = carry `.agents/LICENSE` with it; the copyright line above is the
+half of MIT's condition that stays in the file.
 Motto: why use many token when few do trick.
 
 ## Core

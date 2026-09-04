@@ -8,8 +8,9 @@
 # shellcheck shell=bash
 
 # --- license notice: the shipped grant is the root grant --------------------
-# MIT's one condition (LICENSE line 11) is that the notice travels with every
-# copy. The sync ships .agents/LICENSE and never the root file, so the repo
+# MIT's one condition ("shall be included in all copies or substantial
+# portions") is that the notice travels with every copy. The sync ships
+# .agents/LICENSE and never the root file, so the repo
 # holds the grant twice, and two copies of a legal text are two chances to
 # disagree: a holder or a year fixed in one and not the other ships a grant
 # the repo does not declare. Byte-identical, or red.
@@ -21,12 +22,14 @@ else
   fail "shipped .agents/LICENSE is byte-identical to root LICENSE"
 fi
 
-# The style guide is a derivative of an MIT-licensed skill, and a markdown
-# file gets copied on its own (into a consumer's docs/, into a gist). The
-# upstream copyright line therefore lives in the file itself, not only in
-# the NOTICE beside it, and the NOTICE names the same holder so the two
-# never tell different stories. The holder is upstream's own LICENSE line
-# (JuliusBrussee/caveman, read 2026-09-04) — a fact, not a count.
+# The style guide is a derivative of an MIT-licensed skill. MIT's condition
+# has two halves, the copyright line and the permission text; the permission
+# text is LICENSE beside the file, the copyright line lives in the file
+# itself, so a copy made with .agents/LICENSE beside it is complete and one
+# made without it says in its own header what is missing. The NOTICE names
+# the same holder so the two never tell different stories. The holder is
+# upstream's own LICENSE line (JuliusBrussee/caveman, read 2026-09-04) — a
+# fact, not a count.
 holder='Julius Brussee'
 if grep -qF "Copyright (c) 2026 ${holder}" "${ROOT}/.agents/docs/caveman.md"; then
   pass "caveman.md carries its upstream copyright line"

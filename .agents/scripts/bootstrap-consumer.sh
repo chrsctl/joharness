@@ -414,9 +414,18 @@ bootstrap_whole_clone() {
   # Same shape as README: a whole clone carries joharness's root LICENSE,
   # which puts this repo's copyright over the consumer's product code.
   # Warned, never deleted — a consumer may keep MIT on purpose, and the
-  # harness's own grant travels in .agents/LICENSE either way.
-  [ ! -f "${DEST}/LICENSE" ] ||
-    warn "LICENSE is still joharness's — the harness's grant travels in .agents/LICENSE; the root file is this repo's to replace or keep"
+  # harness's own grant travels in .agents/LICENSE either way. Unlike
+  # README there is a cheap discriminator: the shipped copy is byte-identical
+  # to joharness's root file, so a root LICENSE that still matches it is
+  # still joharness's, and one that differs was already replaced. A clone
+  # old enough to carry no shipped copy cannot be told apart and is warned.
+  if [ -f "${DEST}/LICENSE" ]; then
+    if [ ! -f "${DEST}/.agents/LICENSE" ] || cmp -s "${DEST}/LICENSE" "${DEST}/.agents/LICENSE"; then
+      warn "LICENSE is still joharness's — the harness's grant travels in .agents/LICENSE; the root file is this repo's to replace or keep"
+    else
+      log "root LICENSE differs from the harness grant in .agents/LICENSE; kept as this repo's own"
+    fi
+  fi
   warn "git history is still joharness's — keep it or re-init; human call"
   log "ci.yml and env selection left as cloned; steady-state updates: .agents/scripts/sync-to-consumer.sh"
 }
