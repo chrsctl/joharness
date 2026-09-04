@@ -122,9 +122,15 @@ CANON-HARNESS-V1
 CONSUMER-PART2-SENTINEL
 EOF
 
+# </dev/null on purpose: the engine ASKS about settings a consumer's conf does
+# not answer when it has a terminal, and a selftest run from one would sit at
+# that prompt. Closing stdin makes every case below take the reporting path,
+# which is also the path update.yml takes. The ask itself is driven under a
+# pty at the end of this topic, where it is the subject rather than an
+# obstacle.
 sync() {
   JOHARNESS_SYNC_ROOT="$syncsrc" \
-    bash "${ROOT}/.agents/scripts/sync-to-consumer.sh" "$@" 2>&1
+    bash "${ROOT}/.agents/scripts/sync-to-consumer.sh" "$@" </dev/null 2>&1
 }
 
 out="$(sync --dry-run "$syncdst")"
@@ -219,3 +225,93 @@ expect "layer contract doc ships whatever the selection" "layer contract" \
   "$(cat "${syncdst}/.agents/env/README.md" 2>/dev/null)"
 expect "consumer README untouched" "CONSUMER-README" \
   "$(cat "${syncdst}/README.md")"
+
+# --- settings the consumer does not answer -------------------------------
+# A child is asked about every switch at first contact and never again, and
+# the conf is consumer-own so this engine does not sync it. Without this
+# stage a child bootstrapped before a key existed takes the fail-closed
+# default in silence forever.
+step "sync-to-consumer.sh conf keys"
+
+printf 'JOHARNESS_ENV=none\nJOHARNESS_ENV_SETUP=lazy\n' >"${syncdst}/joharness.conf"
+confbefore="$(cat "${syncdst}/joharness.conf")"
+out="$(sync "$syncdst")"
+expect "the stage names itself" "settings this repo does not answer" "$out"
+for k in JOHARNESS_ENV_MD JOHARNESS_REVIEW JOHARNESS_MODE; do
+  expect "names the missing key ${k}" "$k" "$out"
+done
+expect "with the default it would take" "default supervised" "$out"
+expect "and what the key means" "a session asks at the queue edge" "$out"
+refute "a key the conf answers is not named" "JOHARNESS_ENV_SETUP (default" "$out"
+expect "a run with nobody to ask says nothing was written" \
+  "not a terminal: nothing written" "$out"
+if [ "$confbefore" = "$(cat "${syncdst}/joharness.conf")" ]; then
+  pass "and the conf is untouched"
+else
+  fail "and the conf is untouched"
+fi
+
+out="$(sync --dry-run "$syncdst")"
+expect "a dry run says it would ask" "would ask about these" "$out"
+if [ "$confbefore" = "$(cat "${syncdst}/joharness.conf")" ]; then
+  pass "and a dry run writes nothing either"
+else
+  fail "and a dry run writes nothing either"
+fi
+
+# A conf that answers everything gets no stage at all — the common case, and
+# the reason this cannot become noise every consumer learns to scroll past.
+{ printf 'JOHARNESS_ENV=none\nJOHARNESS_ENV_SETUP=lazy\nJOHARNESS_ENV_MD=lazy\n'
+  printf 'JOHARNESS_REVIEW=off\nJOHARNESS_MODE=supervised\n'
+} >"${syncdst}/joharness.conf"
+out="$(sync "$syncdst")"
+refute "a conf answering every key gets no stage" \
+  "settings this repo does not answer" "$out"
+
+# The ask. Everything above drives the reporting path; this is where the
+# question is put, so it needs a terminal.
+if command -v script >/dev/null 2>&1 &&
+  script -qec true /dev/null >/dev/null 2>&1; then
+  # One line per question plus a tail of blanks: a pty reports no end of file
+  # while its master is open, so a read with nothing left to consume blocks
+  # rather than defaulting. timeout is the belt.
+  sync_tty() {
+    local dest="$1" a
+    shift
+    { for a in "$@"; do printf '%s\n' "$a"; done
+      printf '\n\n\n\n\n\n\n\n'
+    } | timeout 60 script -qec \
+      "JOHARNESS_SYNC_ROOT='${syncsrc}' bash '${ROOT}/.agents/scripts/sync-to-consumer.sh' '${dest}'" \
+      /dev/null 2>&1
+  }
+
+  # Declining leaves the file exactly as it was.
+  printf 'JOHARNESS_ENV=none\n' >"${syncdst}/joharness.conf"
+  confbefore="$(cat "${syncdst}/joharness.conf")"
+  out="$(sync_tty "$syncdst" n n n n)" || :
+  expect "the question is put when there is somebody to ask" \
+    "write JOHARNESS_MODE=supervised ? [y/N]" "$out"
+  expect "declining says so" "nothing written" "$out"
+  if [ "$confbefore" = "$(cat "${syncdst}/joharness.conf")" ]; then
+    pass "and declining leaves the conf byte-identical"
+  else
+    fail "and declining leaves the conf byte-identical"
+  fi
+
+  # Answering adopts that key and only that key.
+  printf 'JOHARNESS_ENV=none\n' >"${syncdst}/joharness.conf"
+  out="$(sync_tty "$syncdst" n n n y)" || :
+  expect "answering writes the key" "wrote   JOHARNESS_MODE=supervised" "$out"
+  expect "and it lands in the conf" "JOHARNESS_MODE=supervised" \
+    "$(cat "${syncdst}/joharness.conf")"
+  refute "a key that was declined does not land" "JOHARNESS_REVIEW=" \
+    "$(cat "${syncdst}/joharness.conf")"
+  expect "the conf keeps what it already answered" "JOHARNESS_ENV=none" \
+    "$(cat "${syncdst}/joharness.conf")"
+  # Written with its meaning beside it, so the next reader of that file does
+  # not have to come back here to learn what the line does.
+  expect "the written line carries what the key means" \
+    "a session asks at the queue edge" "$(cat "${syncdst}/joharness.conf")"
+else
+  skip "the conf-key ask itself" "no usable script(1) to allocate a tty"
+fi

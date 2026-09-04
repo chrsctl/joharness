@@ -82,6 +82,15 @@ MARKER='# Part 2 — project'
 # resolves the same canonical this run did.
 SYNC_ENGINE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/sync-to-consumer.sh"
 
+# The settings a child runs under, declared once and read by the sync engine
+# too. Sourced from beside this script for the same reason the engine is:
+# script location is code, ROOT is data. The defaults below come from there
+# rather than being typed here again — this file held the list twice already
+# (the interview and the seeded heredoc), and the sync engine naming a key
+# this one does not seed is the drift the declaration exists to stop.
+# shellcheck source=.agents/scripts/conf-keys.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/conf-keys.sh"
+
 log()  { printf '[joharness] %s\n' "$*" >&2; }
 warn() { printf '[joharness] WARNING: %s\n' "$*" >&2; }
 die()  { printf '[joharness] ERROR: %s\n' "$*" >&2; exit 1; }
@@ -104,15 +113,15 @@ DRY=0
 #
 # AUTONOMY, not MODE: MODE already names fresh-vs-whole-clone in this script,
 # and one variable carrying two meanings is how the wrong one gets written.
-LAYER=none
+LAYER="$(conf_key_default JOHARNESS_ENV)"
 LAYER_GIVEN=0
-ENV_SETUP=lazy
+ENV_SETUP="$(conf_key_default JOHARNESS_ENV_SETUP)"
 ENV_SETUP_GIVEN=0
-ENV_MD=lazy
+ENV_MD="$(conf_key_default JOHARNESS_ENV_MD)"
 ENV_MD_GIVEN=0
-REVIEW=off
+REVIEW="$(conf_key_default JOHARNESS_REVIEW)"
 REVIEW_GIVEN=0
-AUTONOMY=supervised
+AUTONOMY="$(conf_key_default JOHARNESS_MODE)"
 AUTONOMY_GIVEN=0
 while [ $# -gt 0 ]; do
   case "$1" in

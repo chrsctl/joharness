@@ -716,3 +716,27 @@ if command -v script >/dev/null 2>&1 &&
 else
   skip "the interview itself" "no usable script(1) to allocate a tty"
 fi
+
+# The drift this declaration exists to stop: a key added to the seeded conf
+# and not to conf-keys.sh, or the other way round. The sync engine names what
+# the declaration lists, and the bootstrap seeds what the heredoc writes, so
+# the two disagreeing means a consumer is told about a key nothing seeds, or
+# runs under one no update will ever mention.
+step "bootstrap-consumer.sh conf keys match the declaration"
+
+bootdecl="${TMP}/bootdecl"
+out="$(boot "$bootdecl")"; rc=$?
+if [ "$rc" -eq 0 ]; then
+  pass "bootstrap for the declaration check exits 0"
+else
+  fail "bootstrap for the declaration check exits 0 (got ${rc})"
+fi
+seeded="$(grep -oE '^JOHARNESS_[A-Z_]+' "${bootdecl}/joharness.conf" 2>/dev/null | sort)"
+declared="$(bash -c ". '${ROOT}/.agents/scripts/conf-keys.sh'; conf_keys_names" | sort)"
+if [ "$seeded" = "$declared" ]; then
+  pass "the seeded conf and conf-keys.sh name the same keys"
+else
+  fail "the seeded conf and conf-keys.sh name the same keys"
+  printf '    seeded:   %s\n' "$(printf '%s' "$seeded" | tr '\n' ' ')"
+  printf '    declared: %s\n' "$(printf '%s' "$declared" | tr '\n' ' ')"
+fi

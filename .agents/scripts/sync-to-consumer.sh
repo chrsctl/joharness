@@ -82,6 +82,12 @@ trap 'rm -rf "$SCRATCH"; [ -z "$TRAP_TMP" ] || rm -f "$TRAP_TMP"' EXIT
 
 usage() { die "usage: $0 [--dry-run] <consumer-dir>"; }
 
+# Beside this script, never under ROOT: script location is code and ROOT is
+# data, the same split the engine already makes for its own resolution. Under
+# a selftest ROOT names a fixture that carries no declaration.
+# shellcheck source=.agents/scripts/conf-keys.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/conf-keys.sh"
+
 DRY=0
 [ "${1:-}" = "--dry-run" ] && { DRY=1; shift; }
 [ $# -eq 1 ] || usage
@@ -681,6 +687,79 @@ report_canonical_only() {
     "(.agents/docs/consumer-repos.md, What a consumer carries)."
 }
 report_canonical_only
+
+# Settings the consumer's conf does not answer.
+#
+# The gap this closes: a child is asked about every switch at first contact
+# and never again, because the conf is consumer-own and this engine does not
+# sync it. A child bootstrapped before a key existed therefore takes the
+# fail-closed default in silence forever — JOHARNESS_MODE landed with every
+# older child in exactly that position, and no update would have said so.
+#
+# Report ALWAYS, ask only with a terminal, write only what was answered.
+# update.yml runs this on a cron with nobody to ask and already carries this
+# report into its pull request body, so the report is the half that works
+# everywhere; the ask is for a human running the sync by hand. A dry run must
+# leave the consumer byte-identical, so it reports and never asks.
+#
+# Appending an answered key is the whole licence this stage takes with a
+# consumer-own file. A key the conf already answers is not named, not asked
+# about and not touched, whatever its value.
+report_conf_keys() {
+  local conf="${DEST}/joharness.conf" missing key def ans wrote=0
+  missing="$(conf_keys_missing_from "$conf")"
+  [ -n "$missing" ] || return 0
+  printf '\n== settings this repo does not answer\n'
+  while IFS= read -r key; do
+    [ -n "$key" ] || continue
+    printf '  %s (default %s)\n' "$key" "$(conf_key_default "$key")"
+    printf '      %s\n' "$(conf_key_meaning "$key")"
+  done <<<"$missing"
+
+  if [ "$DRY" -eq 1 ]; then
+    printf '  dry run: would ask about these, and write nothing without an answer\n'
+    return 0
+  fi
+  if [ ! -t 0 ]; then
+    printf '  not a terminal: nothing written. Each key above is absent, and\n'
+    printf '  every reader resolves an absent value to the default shown, so\n'
+    printf '  this repo runs as if it had answered that. Add the lines you want\n'
+    printf '  to joharness.conf, or run this sync from a terminal to be asked.\n'
+    return 0
+  fi
+
+  printf '\n  Add them? Enter or n leaves the conf alone; the default applies\n'
+  printf '  either way, so this only writes down what is already true.\n'
+  # Collected into an array FIRST, and the questions asked from a `for` loop.
+  # A `while read key` fed by a here-string owns the loop body's stdin, so the
+  # `read` below took its answer from the list of remaining keys instead of
+  # from the human: the questions vanished two at a time and the answers were
+  # key names. Caught by the pty cases, which is what they are for.
+  local -a keys=()
+  while IFS= read -r key; do
+    [ -n "$key" ] || continue
+    keys+=("$key")
+  done <<<"$missing"
+  for key in "${keys[@]}"; do
+    def="$(conf_key_default "$key")"
+    ans=''
+    printf '  write %s=%s ? [y/N] ' "$key" "$def" >&2
+    read -r ans || ans=''
+    case "$ans" in
+      y|Y|yes|YES|Yes) ;;
+      *) continue ;;
+    esac
+    { [ "$wrote" -eq 1 ] || printf '\n# Added by a joharness sync, from .agents/scripts/conf-keys.sh.\n'
+      printf '# %s\n' "$(conf_key_meaning "$key")"
+      printf '%s=%s\n' "$key" "$def"
+    } >>"$conf"
+    wrote=1
+    printf '  wrote   %s=%s\n' "$key" "$def"
+  done
+  [ "$wrote" -eq 1 ] || printf '  nothing written\n'
+}
+report_conf_keys
+
 # Two tiers. Dir tier: harness/ and env/ were wholly harness-owned, the
 # remedy is `git rm -r`. File tier: the protocol docs and sync tools that
 # moved OUT of docs/ and scripts/ sat inside dirs that still hold live
