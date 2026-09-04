@@ -78,6 +78,14 @@ remaining steps; follow them.
 `--env <layer>` picks the environment layer, and only that layer ships
 ([Layers](#layers)). Omit it for `none`; the repo can select one later.
 
+`--mode <supervised|unsupervised>` is the child's autonomy answer, and the
+run ASKS for it when the flag is absent and a terminal is there to answer on.
+Off unless somebody says otherwise: a fresh conf is seeded `supervised`, and
+a whole clone's INHERITED answer is overwritten rather than kept. A run with
+no terminal — CI, a script, a session — takes the default and says why.
+Saying yes configures a child; it starts nothing
+([`unsupervised.md`](unsupervised.md)).
+
 Never bootstrap onto a repo already running the harness — script refuses,
 because whole-clone mode's purge eats live `docs/plans|product|handover`.
 Never hand-copy a raw joharness clone either: it carries joharness's queue

@@ -100,6 +100,35 @@ the prompt until a session stops refusing is not the remedy.
 Every run measured how long ONE generation lasts. The bullet asks for hours,
 and hours need the heartbeat below, which no run has had.
 
+## Getting it into a child
+
+`bootstrap-consumer.sh` asks, once, at first contact, and writes the answer
+into the child's own `joharness.conf`. That file is consumer-own and the
+steady-state sync never touches it, so nothing re-asks and no later sync
+overwrites what the child answered. `--mode <supervised|unsupervised>`
+answers for a run with nobody at a terminal; a run with neither flag nor
+terminal takes supervised and says why it did not ask.
+
+One default, two bootstrap shapes, and they treat what the child inherits
+oppositely on purpose:
+
+| Bootstrap shape | The mode line |
+| --- | --- |
+| fresh, empty target | seeded with the answer |
+| fresh, target brought its own conf | that conf keeps everything else; its mode line is SET |
+| whole clone | inherited line OVERWRITTEN with the answer |
+
+The whole clone is the reason this is forced rather than optional. It carries
+canonical's own conf; canonical is flipped for the attempts in the table
+above and reverted when each ends; so a clone taken mid-attempt would come up
+unattended because of WHEN it was copied. `--env` is deliberately the other
+way — an inherited environment layer selection is a choice somebody made for
+that repo, so it stands unless the flag says otherwise. Autonomy is not that
+kind of inheritance.
+
+Saying yes configures; it starts nothing. The child still needs the heartbeat
+below, and the bootstrap says so both at the prompt and after the answer.
+
 ## Heartbeat: making the fleet long
 
 Fan-out makes the fleet WIDE: one session per free plan as `drain` lists
