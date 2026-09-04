@@ -56,14 +56,21 @@ conf_key_field() {
   printf '%s' "$line" | cut -d'|' -f"$field"
 }
 conf_key_default() { conf_key_field "$1" 2; }
-conf_key_meaning() { conf_key_field "$1" 3; }
+# `3-`, not `3`: a meaning is prose and the separator is a character prose
+# uses. Taking the rest of the line means a row can say `on | off` without
+# the reader silently keeping the half before the pipe.
+conf_key_meaning() { conf_key_field "$1" 3-; }
 
 # Whether a conf file already answers a key. Reads it the way
 # joharness.sh:conf_get does, so the two never disagree about what a repo
 # currently says. A commented-out line is not an answer.
 conf_file_has_key() {
   local conf="$1" key="$2"
-  [ -r "$conf" ] || return 1
+  # -f, not -r: a directory at this path is readable, and `grep` on one exits
+  # 2 with a message the caller folds into "missing" — five times, into a
+  # report a consumer reads. A path that is not a regular file answers no key,
+  # and the caller is the one that decides what to say about it.
+  [ -f "$conf" ] || return 1
   grep -q "^[[:space:]]*${key}[[:space:]]*=" "$conf"
 }
 
