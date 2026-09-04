@@ -1,6 +1,6 @@
 ---
 workstream: license-notice
-status: in-progress
+status: done
 branch: claude/licensing-matches-verify-qtamqe
 pr: none
 plan: license-notice
@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01BgxrYUJru5VR12hRuPxkdV
 agent: sonnet
 updated: 2026-09-04
-next: Retire plan and workstream file in the last commit before the pull request opens, then open it
+next: Retire plan and this file in the last commit before the pull request opens, then open it
 ---
 
 ## Goal
