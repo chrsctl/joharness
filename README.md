@@ -59,5 +59,8 @@ Claude Code loads it every session.
 
 ## License
 
-MIT — [`LICENSE`](LICENSE). Harness files a consumer repo copies carry no
-per-file header; the consumer's own license governs its tree.
+MIT — [`LICENSE`](LICENSE). No per-file headers: harness files carry none, and
+a consumer repo's own tree is licensed by that repo, not by this one. The sync
+tool ships no notice with the copied files
+([`.agents/scripts/sync-to-consumer.sh`](.agents/scripts/sync-to-consumer.sh)
+`FILES`) — carrying one to consumers is unbuilt work, not a claim made here.
