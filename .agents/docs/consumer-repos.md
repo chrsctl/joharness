@@ -91,8 +91,15 @@ interview asks only what no flag answered:
 | autonomy | `--mode <supervised\|unsupervised>` | `supervised` |
 
 The two layer-shaped questions are skipped when the selected layer is `none`,
-where they configure nothing. A run with no terminal — CI, a script, a
-session — takes every default and says why it did not ask.
+where they configure nothing. Enter takes the value in brackets, either word
+takes itself, and `y`/`n` take the second and first — the second is the
+more-doing one in every pair. A word that is neither is asked again rather
+than throwing away the answers already given.
+
+A run with no terminal — CI, a script, a session — asks nothing. What that
+means depends on the target: a conf seeded here gets the defaults above,
+while a conf that already exists keeps its own values and has only
+`JOHARNESS_MODE` written.
 
 A question offers the value ALREADY IN FORCE as its default, read from the
 target's own conf, so pressing Enter never strips a selection somebody made

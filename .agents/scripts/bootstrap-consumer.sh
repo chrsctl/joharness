@@ -209,13 +209,42 @@ ask_line() {
   printf '%s' "$ans"
 }
 
+# One two-choice question, asked until it has an answer it can use.
+#
+# Enter takes the value already in force. Either word takes itself. y and n
+# take the SECOND and FIRST option: the second is the more-doing one in every
+# pair here (on, eager, eager, unsupervised), and the question this interview
+# grew out of was a [y/N] one whose habitual answers would otherwise now be
+# refused outright.
+#
+# A word that is none of those is asked AGAIN rather than fatal. The old
+# prompt defaulted instead of dying, and discarding four already-answered
+# questions over one typo is worse than either — but a run that cannot get an
+# answer must not loop forever, so three tries and then it is an error.
+ask_choice() {
+  local heading="$1" detail="$2" a="$3" b="$4" cur="$5" ans='' tries=0
+  while [ "$tries" -lt 3 ]; do
+    tries=$((tries + 1))
+    ans="$(ask_line "$heading" "$detail" "  ${a} | ${b}" "$cur")"
+    case "$ans" in
+      '')              printf '%s' "$cur"; return 0 ;;
+      "$a"|"$b")       printf '%s' "$ans"; return 0 ;;
+      y|Y|yes|YES|Yes) printf '%s' "$b"; return 0 ;;
+      n|N|no|NO|No)    printf '%s' "$a"; return 0 ;;
+      *) printf '  not %s or %s (y and n work too; Enter keeps %s)\n' \
+           "$a" "$b" "$cur" >&2 ;;
+    esac
+  done
+  die "no usable answer for '${heading}' after 3 tries"
+}
+
 INTERVIEW_DONE=0
 interview() {
   local conf="${DEST}/joharness.conf" cur ans layers
   [ "$INTERVIEW_DONE" -eq 0 ] || return 0
   INTERVIEW_DONE=1
   if [ ! -t 0 ]; then
-    log "not a terminal; keeping the defaults (env ${LAYER}, setup ${ENV_SETUP}, md ${ENV_MD}, review ${REVIEW}, mode ${AUTONOMY}) — the flags in --help choose them for a scripted run"
+    log "not a terminal; asking nothing. A conf seeded here gets the defaults (env ${LAYER}, setup ${ENV_SETUP}, md ${ENV_MD}, review ${REVIEW}); a conf that already exists keeps its own values, and only JOHARNESS_MODE is written, as ${AUTONOMY}. The flags decide either way."
     return 0
   fi
   if [ "$DRY" -eq 1 ]; then
@@ -241,7 +270,12 @@ interview() {
       "  The sandbox this repo provisions. Only the one you pick ships;
   'none' is the harness with no environment." \
       "  available: ${layers}" "$cur")"
-    if [ -n "$ans" ]; then
+    # Typing back what the brackets offer is the same decision as pressing
+    # Enter, and has to cost the same. A repo whose conf names a layer this
+    # canonical does not carry — one it selected before the layer moved, or
+    # one of its own — would otherwise be told its own answer is invalid the
+    # moment somebody is asked about it.
+    if [ -n "$ans" ] && [ "$ans" != "$cur" ]; then
       LAYER="$ans"
       LAYER_GIVEN=1
       case "$LAYER" in
@@ -262,71 +296,53 @@ interview() {
     if [ "$ENV_SETUP_GIVEN" -eq 0 ]; then
       cur="$(conf_value_of "$conf" JOHARNESS_ENV_SETUP)"
       [ -n "$cur" ] || cur="$ENV_SETUP"
-      ans="$(ask_line 'Provision the layer when?' \
+      ans="$(ask_choice 'Provision the layer when?' \
         "  lazy  = on demand, ./joharness.sh setup. Session start costs nothing.
   eager = at session start. Worth it only if every session uses it." \
-        '  lazy | eager' "$cur")"
-      if [ -n "$ans" ]; then
-        ENV_SETUP="$ans"
-        ENV_SETUP_GIVEN=1
-        check_choice 1 env-setup "$ENV_SETUP" lazy eager
-      else
-        ENV_SETUP="$cur"
-      fi
+        lazy eager "$cur")"
+      ENV_SETUP="$ans"
+      [ "$ans" = "$cur" ] || ENV_SETUP_GIVEN=1
     fi
     if [ "$ENV_MD_GIVEN" -eq 0 ]; then
       cur="$(conf_value_of "$conf" JOHARNESS_ENV_MD)"
       [ -n "$cur" ] || cur="$ENV_MD"
-      ans="$(ask_line "Inject the layer's rules when?" \
+      ans="$(ask_choice "Inject the layer's rules when?" \
         "  lazy  = a read-before-touching pointer to them at session start.
   eager = the whole file, every session, whether or not it is touched." \
-        '  lazy | eager' "$cur")"
-      if [ -n "$ans" ]; then
-        ENV_MD="$ans"
-        ENV_MD_GIVEN=1
-        check_choice 1 env-md "$ENV_MD" lazy eager
-      else
-        ENV_MD="$cur"
-      fi
+        lazy eager "$cur")"
+      ENV_MD="$ans"
+      [ "$ans" = "$cur" ] || ENV_MD_GIVEN=1
     fi
   fi
 
   if [ "$REVIEW_GIVEN" -eq 0 ]; then
     cur="$(conf_value_of "$conf" JOHARNESS_REVIEW)"
     [ -n "$cur" ] || cur="$REVIEW"
-    ans="$(ask_line 'Gate the review record?' \
+    ans="$(ask_choice 'Gate the review record?' \
       "  off = ./joharness.sh review reports; ci checks nothing.
   on  = ci fails a branch reaching a pull request with no review recorded
         under its workstream file's '## Review'." \
-      '  off | on' "$cur")"
-    if [ -n "$ans" ]; then
-      REVIEW="$ans"
-      REVIEW_GIVEN=1
-      check_choice 1 review "$REVIEW" off on
-    else
-      REVIEW="$cur"
-    fi
+      off on "$cur")"
+    REVIEW="$ans"
+    [ "$ans" = "$cur" ] || REVIEW_GIVEN=1
   fi
 
   if [ "$AUTONOMY_GIVEN" -eq 0 ]; then
-    cur="$(conf_value_of "$conf" JOHARNESS_MODE)"
-    [ -n "$cur" ] || cur="$AUTONOMY"
-    # The one question whose default is NOT the clone's own value: a clone
+    # The one question that does NOT read the conf for its default. A clone
     # carries canonical's answer, and canonical is flipped for its endurance
-    # runs. Offering that back would hand a child an autonomy it never chose.
+    # runs, so offering that back would hand a child an autonomy it never
+    # chose. Deliberately not a conf_value_of call: there is nothing here to
+    # read, and a line that read it and then discarded the answer would read
+    # like a bug to delete.
     cur=supervised
-    ans="$(ask_line 'Unsupervised mode for this consumer?' \
+    ans="$(ask_choice 'Unsupervised mode for this consumer?' \
       "  A session takes one queue item, runs the Loop, merges its own pull
   request, and at the queue edge exits instead of asking a human.
   It automates nothing by itself: something has to fire the next
   session (.agents/docs/unsupervised.md, Heartbeat)." \
-      '  supervised | unsupervised' "$cur")"
-    case "$ans" in
-      '') AUTONOMY="$cur" ;;
-      *)  AUTONOMY="$ans"
-          AUTONOMY_GIVEN=1
-          check_choice 1 mode "$AUTONOMY" supervised unsupervised ;;
-    esac
+      supervised unsupervised "$cur")"
+    AUTONOMY="$ans"
+    [ "$ans" = "$cur" ] || AUTONOMY_GIVEN=1
   fi
   printf '\n' >&2
 }

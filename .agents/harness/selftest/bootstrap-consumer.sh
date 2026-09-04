@@ -489,6 +489,8 @@ for pair in JOHARNESS_ENV=none JOHARNESS_ENV_SETUP=lazy JOHARNESS_ENV_MD=lazy \
     "$(cat "${bootsw2}/joharness.conf" 2>/dev/null)"
 done
 expect "and it says why it did not ask" "not a terminal" "$out"
+expect "and does not claim a conf it did not write" \
+  "a conf that already exists keeps its own values" "$out"
 
 # Every explicit value is checked. run_mode and the other readers resolve an
 # unrecognised value to the safe one, so a typo would be silent for the life
@@ -620,10 +622,38 @@ if command -v script >/dev/null 2>&1 &&
   refute "no layer, no provisioning question" "Provision the layer when?" "$out"
   refute "no layer, no rules-injection question" "Inject the layer's rules when?" "$out"
 
-  # An answer typed into a question is checked exactly as a flag is.
+  # A word the question cannot use is asked AGAIN. The prompt this interview
+  # grew out of defaulted rather than dying, and discarding the answers
+  # already given over one typo is worse than either.
   bootask4="${TMP}/bootask4"
-  out="$(boot_tty "$bootask4" '' nope '')" || :
-  expect "a bad answer is refused" "invalid review 'nope'" "$out"
+  out="$(boot_tty "$bootask4" '' nope on '')" || :
+  expect "a word the question cannot use says so" "not off or on" "$out"
+  expect "and the next answer is taken" "JOHARNESS_REVIEW=on" \
+    "$(cat "${bootask4}/joharness.conf" 2>/dev/null)"
+
+  # It asks again, it does not ask forever.
+  bootask4b="${TMP}/bootask4b"
+  out="$(boot_tty "$bootask4b" '' nope nope nope)" && rc=0 || rc=$?
+  if [ "$rc" -eq 1 ]; then
+    pass "three unusable answers is an error, not a loop"
+  else
+    fail "three unusable answers is an error, not a loop (got ${rc})"
+  fi
+  expect "and the error names the question" "after 3 tries" "$out"
+  if [ ! -e "${bootask4b}/joharness.conf" ]; then
+    pass "and nothing is written"
+  else
+    fail "and nothing is written"
+  fi
+
+  # y and n were the answers the autonomy question took before it became one
+  # of five, and they still are. y is the second option in every pair.
+  bootask4c="${TMP}/bootask4c"
+  out="$(boot_tty "$bootask4c" '' n y)" || :
+  expect "n takes the first option" "JOHARNESS_REVIEW=off" \
+    "$(cat "${bootask4c}/joharness.conf" 2>/dev/null)"
+  expect "y takes the second" "JOHARNESS_MODE=unsupervised" \
+    "$(cat "${bootask4c}/joharness.conf" 2>/dev/null)"
 
   # A conf the target already had: Enter offers ITS values back, so being
   # asked cannot strip a selection somebody made — including a layer name
@@ -638,6 +668,21 @@ if command -v script >/dev/null 2>&1 &&
     "$(cat "${bootask5}/joharness.conf")"
   expect "and keeps a gate it already had on" "JOHARNESS_REVIEW=on" \
     "$(cat "${bootask5}/joharness.conf")"
+
+  # Typing back the value in the brackets is the same decision as Enter, so
+  # it cannot be validated harder: this layer name is one canonical does not
+  # carry, and the repo is entitled to keep saying it.
+  bootask5b="${TMP}/bootask5b"
+  mkdir -p "$bootask5b"
+  printf 'JOHARNESS_ENV=custom-own\n' >"${bootask5b}/joharness.conf"
+  out="$(boot_tty "$bootask5b" custom-own '' '')" && rc=0 || rc=$?
+  if [ "$rc" -eq 0 ]; then
+    pass "typing back the offered layer is accepted"
+  else
+    fail "typing back the offered layer is accepted (got ${rc})"
+  fi
+  expect "and keeps it" "JOHARNESS_ENV=custom-own" \
+    "$(cat "${bootask5b}/joharness.conf")"
   # The one question that does NOT offer back what the conf says. Enter here
   # means supervised even where the file said unsupervised, because that
   # answer came from whatever repo this tree was copied from.
