@@ -1,6 +1,6 @@
 ---
 workstream: attribution-correctness
-status: in-progress
+status: done
 branch: claude/licensing-matches-verify-qtamqe
 pr: none
 plan: attribution-correctness
