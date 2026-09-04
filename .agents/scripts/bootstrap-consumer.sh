@@ -324,6 +324,8 @@ EOF
   printf '  3. write this repo'\''s Part 2 in AGENTS.md, below the marker\n'
   printf '  4. write requirements under docs/product/ — the queue starts there\n'
   printf '  5. replace the stub README.md\n'
+  printf '  6. root LICENSE is this repo'\''s own choice; the harness'\''s grant\n'
+  printf '     arrived in .agents/LICENSE + .agents/NOTICE and covers only the synced set\n'
 }
 
 bootstrap_whole_clone() {
@@ -409,6 +411,21 @@ bootstrap_whole_clone() {
       "$purged"
   fi
   warn "README.md is still joharness's — replace it with this repo's own"
+  # Same shape as README: a whole clone carries joharness's root LICENSE,
+  # which puts this repo's copyright over the consumer's product code.
+  # Warned, never deleted — a consumer may keep MIT on purpose, and the
+  # harness's own grant travels in .agents/LICENSE either way. Unlike
+  # README there is a cheap discriminator: the shipped copy is byte-identical
+  # to joharness's root file, so a root LICENSE that still matches it is
+  # still joharness's, and one that differs was already replaced. A clone
+  # old enough to carry no shipped copy cannot be told apart and is warned.
+  if [ -f "${DEST}/LICENSE" ]; then
+    if [ ! -f "${DEST}/.agents/LICENSE" ] || cmp -s "${DEST}/LICENSE" "${DEST}/.agents/LICENSE"; then
+      warn "LICENSE is still joharness's — the harness's grant travels in .agents/LICENSE; the root file is this repo's to replace or keep"
+    else
+      log "root LICENSE differs from the harness grant in .agents/LICENSE; kept as this repo's own"
+    fi
+  fi
   warn "git history is still joharness's — keep it or re-init; human call"
   log "ci.yml and env selection left as cloned; steady-state updates: .agents/scripts/sync-to-consumer.sh"
 }

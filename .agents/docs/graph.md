@@ -7,7 +7,9 @@ view derived at read time, so nothing rots. Extend the harness by adding a
 node or edge type here, never by adding a state store.
 
 Source: task-graph + KG pipeline rules from
-[codejunkie99/graph-engineering](https://github.com/codejunkie99/graph-engineering).
+[codejunkie99/graph-engineering](https://github.com/codejunkie99/graph-engineering)
+(MIT License, Copyright (c) 2026 codejunkie99; ideas adapted, no text
+reproduced — `.agents/NOTICE`).
 Memory tiers match Zep/Graphiti agent-memory architecture
 ([arXiv:2501.13956](https://arxiv.org/abs/2501.13956)) — episodic,
 semantic, summary — convergent, not copied.

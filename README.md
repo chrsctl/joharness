@@ -59,8 +59,9 @@ Claude Code loads it every session.
 
 ## License
 
-MIT — [`LICENSE`](LICENSE). No per-file headers: harness files carry none, and
-a consumer repo's own tree is licensed by that repo, not by this one. The sync
-tool ships no notice with the copied files
-([`.agents/scripts/sync-to-consumer.sh`](.agents/scripts/sync-to-consumer.sh)
-`FILES`) — carrying one to consumers is unbuilt work, not a claim made here.
+MIT — [`LICENSE`](LICENSE). The grant travels with the harness: the sync
+ships [`.agents/LICENSE`](.agents/LICENSE), byte-identical to the root file
+(`selftest.sh` asserts it), and [`.agents/NOTICE`](.agents/NOTICE), which
+says what the grant covers in a consumer and names the third-party material
+distilled into `.agents/docs/`. No per-file headers: a consumer repo's own
+tree, its root `LICENSE` included, is licensed by that repo, not by this one.

@@ -565,6 +565,7 @@ SELFTEST_TOPICS=(
   pretool-feedback
   gitattributes
   sync-manifest-eol-pins
+  license-notice
   sync-to-consumer
   sync-layer-only
   bootstrap-consumer
