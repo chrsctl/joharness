@@ -56,3 +56,11 @@ touches Kubernetes never pays for it.
 Agent guidance: [`AGENTS.md`](AGENTS.md), which imports
 [`.agents/harness/AGENTS.md`](.agents/harness/AGENTS.md). `CLAUDE.md` imports the root file —
 Claude Code loads it every session.
+
+## License
+
+MIT — [`LICENSE`](LICENSE). No per-file headers: harness files carry none, and
+a consumer repo's own tree is licensed by that repo, not by this one. The sync
+tool ships no notice with the copied files
+([`.agents/scripts/sync-to-consumer.sh`](.agents/scripts/sync-to-consumer.sh)
+`FILES`) — carrying one to consumers is unbuilt work, not a claim made here.
