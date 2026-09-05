@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01Jyb2Ttjttcf3sYaJxiTXWr
 agent: sonnet
 updated: 2026-09-05
-next: Build the rule and the Stop-guard fact, with cases; then ci, review, retire, pull request
+next: verifier findings, then retire this file and the plan, pull request, merge when green
 ---
 
 ## Goal
@@ -45,6 +45,30 @@ panel, not the harness.
   problem one rule and one fact already cover.
 
 ## Review
+
+Sonnet depth: `/code-review` (high) on the full diff, plus
+`.claude/agents/verifier.md` at sonnet. Findings written before their fix.
+
+- r1: (session, testing) the first exclusion covered only the guard's own
+  pid, so a guard reached through a shell chain counted the chain that was
+  running it — the invoking pipeline read as abandoned background work. On
+  a tree with nothing left running it reported 2. (fixed — the exclusion is
+  the subtree of the invocation ROOT, the ancestor that is the agent's own
+  child; at a real stop that is the guard itself, under a test harness the
+  shell driving it. `mutate` on that line reds 5 cases)
+- r2: (session, testing) the first test piped the guard into `grep`, and
+  the `grep` is another child of the fake agent — so the case measured the
+  test harness, counting 1 where the code was right to count 0. (fixed —
+  the fixture redirects to a file and asserts on that; the comment says why,
+  because the next person to add a case will reach for a pipe)
+- r3: (session, perf) the first shape forked `ps` twice per ancestor level,
+  which is the per-item fork the perf budget exists to catch, and it caught
+  it: 35 against 33. Raising the budget would have been the wrong fix — the
+  doctrine at `perf_rows` says find the loop. (fixed — one `ps` snapshot
+  feeding one awk that climbs, finds the invocation root and walks both
+  subtrees; 21 against 33, and a single snapshot is the more correct read
+  anyway, since a table sampled per level races with a tree exiting
+  underneath it)
 
 ## Blockers
 

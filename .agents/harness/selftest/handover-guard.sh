@@ -536,3 +536,66 @@ else
   printf '    supervised: %s git call(s), unsupervised: %s\n' \
     "$sgcost_sup" "$sgcost_one"
 fi
+
+# --- background work a session leaves running --------------------------------
+# The one fact here that is not about git, and the class no other reader can
+# see: the command that produced it was typed into a tool call, never
+# committed, so `ci` has no file to lint.
+#
+# The tree has to be real, so the fixture builds one: a shell named for the
+# agent (the guard climbs its parent chain looking for a comm that carries
+# `claude`), a leftover child under it, and the guard beneath that.
+#
+# NO PIPELINE around the guard. A `| grep` is another child of the fake agent
+# and the guard counts it — correctly, it is a sibling — so piping the output
+# measures the test harness instead of the code. Output goes to a file.
+sgbg="${TMP}/guard-bg"
+mkdir -p "$sgbg"
+ln -sf /bin/bash "${sgbg}/claude-fixture"
+printf '%s' "$JSON_STOP" >"${sgbg}/in.json"
+
+if [ -x "${sgbg}/claude-fixture" ]; then
+  "${sgbg}/claude-fixture" -c "
+    sleep 300 &
+    bg=\$!
+    bash '${ROOT}/.agents/harness/handover-guard.sh' \
+      <'${sgbg}/in.json' >'${sgbg}/left.json' 2>&1
+    kill \$bg 2>/dev/null
+  " >/dev/null 2>&1
+  expect "a process the session leaves running is reported" \
+    "1 background process(es) this session started are still running" \
+    "$(cat "${sgbg}/left.json" 2>/dev/null)"
+  expect "and the fact says what makes one unable to finish" \
+    "a wait loop whose own line matches its own pattern" \
+    "$(cat "${sgbg}/left.json" 2>/dev/null)"
+  # A command line is input this session does not control and the reason
+  # string embeds in JSON unescaped, so the fact carries digits and nothing
+  # else — the same rule the boundary fact above keeps.
+  refute "and never the command line" "sleep 300" \
+    "$(cat "${sgbg}/left.json" 2>/dev/null)"
+
+  "${sgbg}/claude-fixture" -c "
+    bash '${ROOT}/.agents/harness/handover-guard.sh' \
+      <'${sgbg}/in.json' >'${sgbg}/clean.json' 2>&1
+  " >/dev/null 2>&1
+  refute "a session that left nothing running says nothing about processes" \
+    "background process(es)" "$(cat "${sgbg}/clean.json" 2>/dev/null)"
+
+  # The shell chain running the guard is not leftover work. Excluding only
+  # the guard's own pid reported the invoking pipeline as abandoned.
+  "${sgbg}/claude-fixture" -c "
+    bash -c \"bash '${ROOT}/.agents/harness/handover-guard.sh' \
+      <'${sgbg}/in.json' >'${sgbg}/nested.json' 2>&1\"
+  " >/dev/null 2>&1
+  refute "nor is a shell chain that reaches the guard through another shell" \
+    "background process(es)" "$(cat "${sgbg}/nested.json" 2>/dev/null)"
+else
+  skip "background work a session leaves running" "no usable shell fixture"
+fi
+
+# No agent ancestor at all — run by hand from a plain shell — is a tree this
+# cannot make a claim about, and the guard never guesses.
+sgbg_out="$(printf '%s' "$JSON_STOP" | CLAUDE_PROJECT_DIR="$sgwork" \
+  bash "${ROOT}/.agents/harness/handover-guard.sh" 2>&1)"
+refute "no agent process in the chain reports no process count" \
+  "background process(es)" "$sgbg_out"
