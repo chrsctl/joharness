@@ -10,7 +10,8 @@ graduates: .agents/docs/product/README.md
 
 Which practices in the AI-Native SDLC Playbook's "Capture as intent.md"
 lesson does `docs/product/` already have under another name, which should
-joharness adopt, and which does it reject with reason?
+joharness adopt, which does it reject with reason — and what does the
+lesson's non-engineer originator hit when they write a requirement here?
 
 ## Echo
 
@@ -30,8 +31,9 @@ lesson does not re-open it.
 ## Sweep
 
 `goal-directed` — every practice the ONE lesson states, each with a verdict
-of convergent (already have) / adopt-candidate / reject. Not the other
-thirteen lessons; a "Stage 2: Design" or "Stage 6: Maintain" practice the
+of convergent (already have) / adopt-candidate / reject, plus one usability
+walk of the lesson's originator through this repo's intake, measured by
+running the gates on what they would write. Not the other thirteen lessons; a "Stage 2: Design" or "Stage 6: Maintain" practice the
 lesson only points at is out of scope, named where it touches a finding.
 
 ## What would settle it
@@ -41,7 +43,9 @@ mechanism covering the same ground (or none), and one verdict. Settled
 either way. A practice with no counterpart and a concrete joharness use is
 an adopt-candidate; a practice a joharness rule argues against, with its
 reason recorded, is a rejection; a practice with a counterpart is
-convergent and nothing changes. Unsettleable here: whether the lesson's
+convergent and nothing changes. Usability settles on the gates' own output:
+a file the originator would plausibly write either passes `ci` and reaches
+the hook, or one of them names what broke. Unsettleable here: whether the lesson's
 practices work in an organization — the lesson gives no measurement, and
 this sweep reads the page, not a team running it.
 
@@ -75,6 +79,32 @@ git grep -niE 'intent\.md|proto-spec|product owner' -- '*.md' '*.sh'
 ls .claude/commands .claude/skills
 # drain.md handover.md plan.md who.md / steward — no requester-side command
 ```
+
+Usability probe, run on this branch with the tree otherwise clean — the
+lesson's example `intent.md` pasted verbatim under `docs/product/`, then a
+TEMPLATE-shaped requirement carrying the one word a requester would guess:
+
+```bash
+mkdir -p docs/product
+# file 1: the lesson's example, byte for byte, no frontmatter
+#   docs/product/claims-status-self-service.md
+# file 2: TEMPLATE shape with `priority: high`
+#   docs/product/claims-status-high.md
+./joharness.sh ci
+#   DEAD docs/product/claims-status-high.md: priority 'high' not one of: normal urgent
+#   ci: FAIL
+rm docs/product/claims-status-high.md; ./joharness.sh ci
+#   edges sound (0 plans, 1 research, 1 workstreams, 1 requirements)
+#   ci: pass
+./joharness.sh session-start | grep -i 'requirement\|UNPLANNED'   # nothing
+./joharness.sh graph | grep 'req:'                                  # nothing
+```
+
+The last two read `origin/main` (`.agents/harness/queue-context.sh`, ref
+selection; `joharness.sh:cmd_graph` via `base_ref`), so an uncommitted or
+branch-local requirement is invisible to both by design — how the hook
+WOULD list file 1 is read from `queue-context.sh` (Requirements tier:
+stem from the filename, `${rprio:-normal}`), not observed.
 
 ## Findings
 
@@ -194,17 +224,62 @@ ls .claude/commands .claude/skills
   metric nobody asked for is a dashboard (`.agents/docs/research/README.md`,
   "Not an index").
 
+### Usability — the lesson's originator meets `docs/product/`
+
+The lesson's persona is a non-engineer ("No formal language is required";
+contributors "don't need to use Git directly"). Three findings from
+walking that persona through joharness's intake, probe commands in Method.
+
+- **F11 — The lesson's `intent.md` pastes in as-is and is scheduled.**
+  File 1, no frontmatter, lesson headings: `ci: pass`, `1 requirements`
+  counted; the hook would list it `UNPLANNED — decompose into plans` under
+  its filename with priority `normal` (read from `queue-context.sh`,
+  Requirements tier). So the shape barrier for the requester is nil: any
+  markdown file under `docs/product/` on `main` is a requirement. Verdict:
+  convergent, and stronger than F1 said — F2's template slot is a
+  convenience for the decomposing session, not a gate on intake.
+
+- **F12 — One guessed word reds `main` for everyone.** File 2,
+  `priority: high`: `DEAD ... priority 'high' not one of: normal urgent`,
+  `ci: FAIL`. A requirement is written directly on `main` ("direct or PR
+  — human's call", `.agents/docs/product/README.md`) by a person who
+  never runs `ci`, so the red lands on the base branch and bills the next
+  session. Asymmetric with F11: omitting the key is a silent `normal`
+  (`joharness.sh:lint_enum` returns 0 on empty), guessing it is DEAD. The
+  vocabulary is two words and the guess is the natural one. Verdict:
+  adopt-candidate — either the requirement's `priority` lint warns and
+  reads unknown as `normal` (the requirement is product, not protocol,
+  and `lint_requirement_writes` already treats it as the human's), or the
+  TEMPLATE comment says "omit unless `urgent`". Smallest real defect this
+  research found.
+
+- **F13 — The only requester-facing text points at a protocol written
+  for sessions.** `.agents/docs/product/TEMPLATE.md`'s comment: "Copy to
+  docs/product/<requirement>.md, on main. Protocol: README.md here." That
+  README is caveman style for agents — "decompose", "hook", "edge",
+  "queue" — and lives under a dotted directory. Nothing tells the
+  lesson's originator the path, the two keys, or that a pull request
+  hides the requirement from the hook until it merges (Method, last
+  paragraph). The lesson's answer is "a skill set up by a technical team
+  member and signed off by a lead", which is F6's `/requirement` command
+  with the interview and the vocabulary inside it. Verdict: folds into
+  F6; raises it from nice-to-have to the fix for F12 and this together.
+
 ## Consequence for the queue
 
-No existing plan changes. Three adopt-candidates, none filed as a plan by
+No existing plan changes. Four adopt-candidates, none filed as a plan by
 this research — the human decides they are wanted:
 
-1. `## Open questions` in `.agents/docs/product/TEMPLATE.md` plus the
+1. Requirement `priority` lint: warn and read as `normal`, or TEMPLATE
+   says "omit unless `urgent`" (F12). One `lint_enum` call or one comment
+   line; haiku-sized, and the one measured defect here.
+2. `## Open questions` in `.agents/docs/product/TEMPLATE.md` plus the
    README line routing each into a research node (F2, F5's "reject =
    delete" sentence in the same edit). Docs only; haiku-sized.
-2. A `/requirement` command for the requester side (F6). sonnet: the
-   interview shape is the unclear edge.
-3. Post-plan edit count on requirement files (F10). Only behind a human
+3. A `/requirement` command for the requester side (F6, F13): interview
+   in the requester's words, vocabulary validated, file written from the
+   TEMPLATE. sonnet: the interview shape is the unclear edge.
+4. Post-plan edit count on requirement files (F10). Only behind a human
    asking for the number.
 
 Two rejections recorded for the graduation: the in-body author/status line
@@ -212,21 +287,36 @@ Two rejections recorded for the graduation: the in-body author/status line
 
 ## Verification
 
-Checked by a spawned verifier subagent that re-fetched the lesson page
-itself and re-read every joharness citation on this branch; it did not
-write the findings above. Its result and disposition: this branch's
-workstream file `## Review`.
+Not done from a second context. The independent reader was spawned and the
+human stopped it mid-run ("Just do research and usability"), and no session
+may re-spawn one unasked. What stands in for it, and what it is not:
 
-- F1 GROUNDED
-- F2 GROUNDED
-- F3 GROUNDED
-- F4 GROUNDED
-- F5 GROUNDED
-- F6 GROUNDED
-- F7 GROUNDED
-- F8 GROUNDED
-- F9 GROUNDED
-- F10 GROUNDED
+- Every lesson quote in F1–F10 and F13 was re-grounded mechanically against
+  the raw page (Method, first block: each phrase count 1). A grep proves the
+  words are on the page, not that the finding reads them right.
+- F11 and F12 rest on commands whose output is in Method, re-runnable by
+  anyone with the tree.
+- No joharness citation was re-read by anyone but the writer.
+
+So every claim below is WEAK — self-grounded, unread — until the graduating
+pull request, or a later session, runs the reader the research protocol
+requires (`.agents/docs/research/README.md`, Verification is not optional)
+and upgrades or refutes each line.
+
+- F1 WEAK — self-grounded only
+- F2 WEAK — self-grounded only
+- F3 WEAK — self-grounded only
+- F4 WEAK — self-grounded only
+- F5 WEAK — self-grounded only
+- F6 WEAK — self-grounded only; absence claim is one `ls`
+- F7 WEAK — self-grounded only
+- F8 WEAK — self-grounded only
+- F9 WEAK — self-grounded only
+- F10 WEAK — self-grounded only
+- F11 WEAK — command output in Method; hook behaviour read from code, not
+  observed
+- F12 WEAK — command output in Method
+- F13 WEAK — self-grounded only
 - WEAK (cross-cutting) — whether any lesson practice works in an
   organization; the lesson gives no measurement and this sweep reads the
   page, not a team.

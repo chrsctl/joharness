@@ -1,6 +1,6 @@
 ---
 workstream: capture-intent
-status: in-progress
+status: review
 branch: claude/capture-intent-course-tsexxb
 pr: none
 plan: capture-intent
@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_011xEAaoqw8hGPoLgEEASEYP
 agent: sonnet
 updated: 2026-09-05
-next: Run the verifier over docs/research/capture-intent.md, record its findings under Review, then open the pull request
+next: Open the pull request; the merge waits on the human, who cut the review step
 ---
 
 ## Goal
@@ -18,7 +18,9 @@ AI-Native SDLC Playbook. Review it against this repo's requirement stage
 (`docs/product/`) the way the gastown review was done — as a research node
 that says what joharness already has, what it should adopt, and what it
 rejects with reason — so the finding outlives this session and the human can
-queue any adopt-candidate as a plan.
+queue any adopt-candidate as a plan. Human narrowed it mid-session: "Just do
+research and usability" — no `/code-review` pass; the verifier stays because
+step 5 requires one reader that did not write the diff at every depth.
 
 ## Decisions
 
@@ -28,6 +30,9 @@ queue any adopt-candidate as a plan.
 - Graduates to `.agents/docs/product/README.md`, not a prior-art page:
   `a14a804` dissolved `.agents/docs/prior-art.md` into the docs owning each
   decision, and the requirement's shape is owned there.
+- Usability measured by running the gates on what the originator would
+  write, not by reading the docs and judging: two probe files through
+  `ci`, hook and graph (node, Method). One real defect found (F12).
 - Adopt-candidates stay candidates. Filing them as plans is product
   direction — the human's call (Decide alone, `.agents/harness/AGENTS.md`).
 
@@ -38,7 +43,12 @@ queue any adopt-candidate as a plan.
 
 ## Review
 
-(pending — verifier not yet run)
+- r1: no review pass ran — the human stopped the verifier and declined
+  `/code-review` ("Just do research and usability"); the node's own
+  Verification section marks every finding WEAK for that reason. No
+  `(verifier)` line exists, and `JOHARNESS_REVIEW=off` here, so `ci` does
+  not gate it. (wontfix + why: human's instruction; the graduating pull
+  request owes the pass)
 
 ## Blockers
 
