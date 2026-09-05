@@ -373,6 +373,25 @@ if command -v script >/dev/null 2>&1 &&
     fail "and writes nothing"
   fi
 
+  # The symlink guard matters HERE, not on the reporting path: a headless run
+  # writes nothing whatever the conf is, so only an answered question can
+  # follow a symlink out of the tree.
+  syncoutside2="${TMP}/syncoutside2.conf"
+  printf 'OUTSIDE-UNTOUCHED-2\n' >"$syncoutside2"
+  rm -f "${syncdst}/joharness.conf"
+  ln -s "$syncoutside2" "${syncdst}/joharness.conf"
+  out="$(sync_tty "$syncdst" y y y y y)" || :
+  expect "an answered run still names a conf that is not a regular file" \
+    "joharness.conf is not a regular file" "$out"
+  expect "and the file outside the tree is untouched" "OUTSIDE-UNTOUCHED-2" \
+    "$(cat "$syncoutside2")"
+  if [ "$(wc -l <"$syncoutside2")" -eq 1 ]; then
+    pass "and nothing was appended through the symlink by an answer"
+  else
+    fail "and nothing was appended through the symlink by an answer"
+  fi
+  rm -f "${syncdst}/joharness.conf"
+
   # Answering adopts that key and only that key.
   printf 'JOHARNESS_ENV=none\n' >"${syncdst}/joharness.conf"
   out="$(sync_tty "$syncdst" n n n y)" || :

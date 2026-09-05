@@ -67,7 +67,10 @@ overlapped on none of them.
   against a symlink aimed outside `DEST`. The same shape once aimed a purge
   outside the target in this file. (fixed: a path that is not a regular file
   is named and skipped, never followed; a case aims a symlink outside the tree
-  and requires the target untouched)
+  and requires the target untouched. The first version of that case ran
+  headless, where nothing writes whatever the conf is, so it would have passed
+  with the guard removed — only an ANSWERED question can follow a symlink out
+  of the tree, and the case that matters drives one under a pty)
 - r3: (verifier) **A conf that is a directory** reached `grep` five times as a
   readable thing, folding "Is a directory" into the report a consumer reads,
   then died on the append under `set -e` rather than through `die`. (fixed in
