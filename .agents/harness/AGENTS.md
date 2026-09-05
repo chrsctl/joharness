@@ -103,6 +103,14 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    `.agents/docs/research/README.md`). NEVER skip, disable, or quarantine a
    test to get green.
    NEVER kick CI: no empty commit, no close-reopen.
+   Background command must be ABLE to finish: a bound (`timeout`), or a
+   condition it cannot satisfy itself. Waiting on a process: NEVER
+   `pgrep -f` a pattern your own command line carries — it matches itself
+   and never exits. Read off the background-tasks panel, 2026-09-05: one
+   ran 1h 17m, and a human reading that panel was the only thing that
+   noticed. Stop guard counts what a session leaves ATTACHED; a job
+   detached with `&` reparents to PID 1 and no reader can attribute it, so
+   the rule is the defence and the count only the backstop.
    Test written for a fix must FAIL without it: revert the fix, run the
    test, put it back. Green both ways = test pins nothing.
    Measured number carries what produced it, same sentence — the command,

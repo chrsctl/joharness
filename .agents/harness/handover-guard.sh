@@ -229,6 +229,116 @@ EOF
   fi
 fi
 
+# --- background work still running ------------------------------------------
+# The one fact here that is not about git, and the only mechanism in the
+# harness that can see this class at all.
+#
+# Measured 2026-09-05: a background shell ran 1h 17m in one session and
+# nothing noticed. The command was
+#
+#   until ! pgrep -f "bash .agents/harness/selftest.sh" >/dev/null; do sleep 3; done
+#
+# and it could never exit — `pgrep -f` matches full command lines, and the
+# loop's OWN shell command line carries that pattern, so it matched itself
+# forever while the suite it waited for had long finished. It was found by a
+# human reading the background-tasks panel.
+#
+# `ci` cannot catch that: the command was TYPED into a tool call and never
+# committed, so there is no file to lint. The other hooks read git, and git
+# holds no processes. What is left is this hook, which already fires at the
+# moment a session abandons whatever it started.
+#
+# The signal is descendants of the AGENT process, found by climbing this
+# guard's own parent chain. That is what the incident was: a command the tool
+# runs in the background stays a child of the agent for as long as it runs.
+#
+# It is a BOUND, not a census. A job detached from a shell that then exits —
+# `foo &` inside one tool call — reparents to PID 1 and no longer answers to
+# any session, so nothing here can attribute it and this fact never will. The
+# same mechanism is what keeps the count honest downward: an environment
+# daemon from `./joharness.sh setup` reparents the same way (measured here:
+# `dockerd` ppid 1, `containerd` its child), so a session that left nothing
+# attached counts zero rather than inheriting the container's furniture. The
+# rule in the Loop is the defence; this count is the backstop for the shape
+# that bit us, and the two are not the same size.
+#
+# COUNT, never a command line — the same rule as the boundary fact above and
+# for the same reason: the reason string embeds in JSON without escaping, and
+# a process command line is input this session does not control. Digits
+# cannot close a JSON string.
+#
+# Reports, never kills. Every fact in this file reports.
+bg_running=0
+if command -v ps >/dev/null 2>&1; then
+  # ONE process-table read and ONE awk, not a `ps` per ancestor. A `ps` per
+  # level of the tree is the per-item fork the perf budget exists to catch,
+  # and it caught it while this was being written; this shape costs 21
+  # against a budget of 33 (`./joharness.sh perf`, 2026-09-05). A single
+  # snapshot is also the more correct read — a table sampled per level races
+  # with a tree that is exiting underneath it.
+  #
+  # EVERY walk below carries a visited map. A process table is a tree while
+  # it is well formed, and a racing or forged one need not be: a climb that
+  # goes round a cycle is a script that cannot finish, which is the exact
+  # thing this fact exists to report. It must not be the thing it reports.
+  bg_running="$(ps -eo pid=,ppid=,comm= 2>/dev/null | awk -v self="$$" '
+    { pid = $1; parent[pid] = $2; comm[pid] = $3
+      kids[$2] = kids[$2] " " pid }
+    END {
+      # The agent, by climbing from this guard. Not found — run by hand, an
+      # unexpected tree, a cycle — means no claim can be made, so none is.
+      p = self
+      while (p != "" && p != "1" && p != "0" && !(p in climbed)) {
+        climbed[p] = 1
+        if (comm[p] ~ /claude/) { agent = p; break }
+        p = parent[p]
+      }
+      if (agent == "") { print 0; exit }
+
+      # What is running THIS hook is not leftover work, and that is more
+      # than one process: the guard may be reached through a shell chain,
+      # and it has a `ps` of its own. Exclude the subtree of the invocation
+      # ROOT — the ancestor that is the agent own child, which at a real
+      # stop is the guard itself. Excluding only self reported the invoking
+      # pipeline as abandoned background work.
+      root = self; c = self
+      while (c != "" && c != "1" && c != "0" && !(c in walked)) {
+        walked[c] = 1
+        if (parent[c] == agent) { root = c; break }
+        c = parent[c]
+      }
+
+      n = split(kids[root], q, " "); skip[root] = 1
+      for (i = 1; i <= n; i++) { queue[++tail] = q[i] }
+      while (head < tail) {
+        cur = queue[++head]
+        if (cur in skip) continue
+        skip[cur] = 1
+        m = split(kids[cur], r, " ")
+        for (i = 1; i <= m; i++) { queue[++tail] = r[i] }
+      }
+
+      n = split(kids[agent], q2, " ")
+      qh = 0; qt = 0
+      for (i = 1; i <= n; i++) { q3[++qt] = q2[i] }
+      while (qh < qt) {
+        cur = q3[++qh]
+        if (cur in skip || cur in counted) continue
+        counted[cur] = 1
+        count++
+        m = split(kids[cur], r2, " ")
+        for (i = 1; i <= m; i++) { q3[++qt] = r2[i] }
+      }
+      print count + 0
+    }')"
+  # Digits or nothing. Anything else means the read failed or was fed a
+  # table shaped to break it, and the value is one string concatenation away
+  # from the JSON `reason` field.
+  case "$bg_running" in '' | *[!0-9]*) bg_running=0 ;; esac
+fi
+[ "$bg_running" -eq 0 ] ||
+  add_fact "${bg_running} background process(es) this session started are still running — a command that cannot finish (a wait loop whose own line matches its own pattern) runs until the container is reclaimed. Check them, and kill what is stuck"
+
 [ -n "$facts" ] || exit 0
 
 # The facts string is built from fixed words and digits only — nothing

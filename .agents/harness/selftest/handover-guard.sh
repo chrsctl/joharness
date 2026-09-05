@@ -22,6 +22,29 @@ commit_all "$sgwork" "base"
 git -C "$sgwork" remote add origin "$sgorigin"
 git -C "$sgwork" push -qu origin main
 
+# The guard reports one fact that is not about git: how many processes this
+# session left running. Every case below runs inside a REAL session that has
+# some, so left alone each git-fact case would measure the container instead
+# of the repo — measured while writing this, four unrelated cases failed
+# because the session happened to hold four background jobs.
+#
+# So the topic runs with a `ps` that hands back an EMPTY table. The read path
+# still executes; the tree it describes is simply one no claim can be made
+# about. The cases that are ABOUT processes put the real `ps` back with
+# $SG_REAL_PATH, and the PATH is restored at the end of the topic.
+sgnops="${TMP}/guard-nops"
+mkdir -p "$sgnops"
+cat >"${sgnops}/ps" <<'PSEOF'
+#!/bin/sh
+case "$*" in
+  *-eo*) exit 0 ;;
+  *) exec /bin/ps "$@" ;;
+esac
+PSEOF
+chmod +x "${sgnops}/ps"
+SG_REAL_PATH="$PATH"
+PATH="${sgnops}:${PATH}"
+
 guard() { printf '%s' "$1" | CLAUDE_PROJECT_DIR="$sgwork" \
   bash "${ROOT}/.agents/harness/handover-guard.sh" 2>&1; }
 JSON_STOP='{"stop_hook_active": false}'
@@ -536,3 +559,182 @@ else
   printf '    supervised: %s git call(s), unsupervised: %s\n' \
     "$sgcost_sup" "$sgcost_one"
 fi
+
+# --- background work a session leaves running --------------------------------
+# The one fact here that is not about git, and the class no other reader can
+# see: the command that produced it was typed into a tool call, never
+# committed, so `ci` has no file to lint.
+#
+# The tree has to be real, so the fixture builds one: a shell named for the
+# agent (the guard climbs its parent chain looking for a comm that carries
+# `claude`), a leftover child under it, and the guard beneath that. These are
+# the cases that want the real `ps` back.
+#
+# NO PIPELINE around the guard. A `| grep` is another child of the fake agent
+# and the guard counts it — correctly, it is a sibling — so piping the output
+# measures the test harness instead of the code. Output goes to a file.
+sgbg="${TMP}/guard-bg"
+mkdir -p "$sgbg"
+ln -sf /bin/bash "${sgbg}/claude-fixture"
+printf '%s' "$JSON_STOP" >"${sgbg}/in.json"
+
+if [ -x "${sgbg}/claude-fixture" ]; then
+  PATH="$SG_REAL_PATH" "${sgbg}/claude-fixture" -c "
+    sleep 300 &
+    bg=\$!
+    bash '${ROOT}/.agents/harness/handover-guard.sh' \
+      <'${sgbg}/in.json' >'${sgbg}/left.json' 2>&1
+    kill \$bg 2>/dev/null
+  " >/dev/null 2>&1
+  expect "a process the session leaves running is reported" \
+    "1 background process(es) this session started are still running" \
+    "$(cat "${sgbg}/left.json" 2>/dev/null)"
+  expect "and the fact says what makes one unable to finish" \
+    "a wait loop whose own line matches its own pattern" \
+    "$(cat "${sgbg}/left.json" 2>/dev/null)"
+  # A command line is input this session does not control and the reason
+  # string embeds in JSON unescaped, so the fact carries digits and nothing
+  # else — the same rule the boundary fact above keeps.
+  refute "and never the command line" "sleep 300" \
+    "$(cat "${sgbg}/left.json" 2>/dev/null)"
+
+  # The trailing `:` is load-bearing. A `-c` string holding ONE command is
+  # exec-optimised: the fixture REPLACES itself with the guard, the fake
+  # agent stops existing, and the climb walks past it to the real one — so
+  # the case counts whatever the container is doing and fails when the
+  # container is busy. A second command keeps the fork.
+  PATH="$SG_REAL_PATH" "${sgbg}/claude-fixture" -c "
+    bash '${ROOT}/.agents/harness/handover-guard.sh' \
+      <'${sgbg}/in.json' >'${sgbg}/clean.json' 2>&1
+    :
+  " >/dev/null 2>&1
+  refute "a session that left nothing running says nothing about processes" \
+    "background process(es)" "$(cat "${sgbg}/clean.json" 2>/dev/null)"
+
+  # The shell chain running the guard is not leftover work. Excluding only
+  # the guard's own pid reported the invoking pipeline as abandoned.
+  PATH="$SG_REAL_PATH" "${sgbg}/claude-fixture" -c "
+    bash -c \"bash '${ROOT}/.agents/harness/handover-guard.sh' \
+      <'${sgbg}/in.json' >'${sgbg}/nested.json' 2>&1\"
+    :
+  " >/dev/null 2>&1
+  refute "nor is a shell chain that reaches the guard through another shell" \
+    "background process(es)" "$(cat "${sgbg}/nested.json" 2>/dev/null)"
+else
+  skip "background work a session leaves running" "no usable shell fixture"
+fi
+
+# Synthetic process tables, for the shapes a real one will not hold on
+# demand. The shim has to find the guard's own pid itself — the suite cannot
+# know it — and hands back a table built around it.
+sgps="${TMP}/guard-ps"
+mkdir -p "$sgps"
+cat >"${sgps}/ps" <<'PSEOF'
+#!/bin/sh
+# Only the guard's own read is faked; anything else passes through.
+case "$*" in
+  *-eo*) ;;
+  *) exec /bin/ps "$@" ;;
+esac
+# The guard is the TOPMOST ancestor invoked as `bash <...>handover-guard.sh`
+# — topmost because a command substitution forks a subshell that carries the
+# same command line, and shaped that precisely because plainer tests match
+# the wrong process: any shell whose own command line merely MENTIONS the
+# guard (this suite's, a tool call's) matches a `grep` for the name, and
+# `timeout ... bash ...guard.sh` matches one for the path.
+p="$PPID"; g=""
+while [ -n "$p" ] && [ "$p" != 1 ]; do
+  f1="$(tr '\0' '\n' <"/proc/${p}/cmdline" 2>/dev/null | sed -n 1p)"
+  f2="$(tr '\0' '\n' <"/proc/${p}/cmdline" 2>/dev/null | sed -n 2p)"
+  case "${f1##*/}" in
+    bash | sh) case "$f2" in *handover-guard.sh) g="$p" ;; esac ;;
+  esac
+  p="$(sed 's/.*) //' "/proc/${p}/stat" 2>/dev/null | cut -d' ' -f2)"
+done
+[ -n "$g" ] || exit 0
+p="$g"
+case "${SG_PS_SHAPE:-}" in
+  # The guard is its own parent: a climb without a visited map never ends.
+  cycle) printf '%s %s sh\n' "$p" "$p" ;;
+  # A chain that reaches init without passing anything named for the agent.
+  rooted) printf '%s 900001 sh\n900001 1 sh\n' "$p" ;;
+  # A pid listed twice under two parents — what a `ps` read racing a tree
+  # that is exiting can hand back. The parent links stay a tree; the CHILD
+  # map does not, and it carries a cycle on each side of the walk: one under
+  # the guard's own subtree (the pass that excludes it) and one under the
+  # agent (the pass that counts). Two real leftovers, 900020 and 900021.
+  dupes)
+    printf '900000 1 claude-fake\n%s 900000 bash\n' "$p"
+    printf '900010 %s sh\n900010 900011 sh\n900011 900010 sh\n' "$p"
+    printf '900020 900000 sh\n900020 900021 sh\n900021 900020 sh\n'
+    ;;
+esac
+PSEOF
+chmod +x "${sgps}/ps"
+
+# A process table that is not a tree. The walk climbs parent to parent, so a
+# cycle — a racing read, a forged table — is an unbounded loop: the guard
+# would become the thing it reports. `timeout` bounds the case, because a
+# regression here hangs the suite rather than failing it.
+sgcycle_out="$(printf '%s' "$JSON_STOP" | PATH="${sgps}:${SG_REAL_PATH}" \
+  SG_PS_SHAPE=cycle CLAUDE_PROJECT_DIR="$sgwork" \
+  timeout 10 bash "${ROOT}/.agents/harness/handover-guard.sh" 2>/dev/null)"
+sgcycle_rc=$?
+if [ "$sgcycle_rc" -ne 124 ]; then
+  pass "a cyclic process table ends the walk instead of hanging it"
+else
+  fail "a cyclic process table ends the walk instead of hanging it"
+  printf '    timed out: the climb has no visited map\n'
+fi
+refute "and a table it cannot climb makes no claim" \
+  "background process(es)" "$sgcycle_out"
+
+# The child map is not a tree either, when a pid arrives under two parents.
+# Both breadth-first passes have to end anyway — the one that excludes the
+# guard's own subtree and the one that counts what is left.
+sgdupes_out="$(printf '%s' "$JSON_STOP" | PATH="${sgps}:${SG_REAL_PATH}" \
+  SG_PS_SHAPE=dupes CLAUDE_PROJECT_DIR="$sgwork" \
+  timeout 10 bash "${ROOT}/.agents/harness/handover-guard.sh" 2>/dev/null)"
+sgdupes_rc=$?
+if [ "$sgdupes_rc" -ne 124 ]; then
+  pass "a child map with a cycle in it ends both passes instead of hanging"
+else
+  fail "a child map with a cycle in it ends both passes instead of hanging"
+  printf '    timed out: a breadth-first pass has no visited map\n'
+fi
+expect "and counts each leftover once" \
+  "2 background process(es)" "$sgdupes_out"
+
+# No agent anywhere in the chain — run by hand, an unexpected tree — is
+# something this cannot make a claim about, and the guard never guesses.
+sgbg_out="$(printf '%s' "$JSON_STOP" | PATH="${sgps}:${SG_REAL_PATH}" \
+  SG_PS_SHAPE=rooted CLAUDE_PROJECT_DIR="$sgwork" \
+  bash "${ROOT}/.agents/harness/handover-guard.sh" 2>&1)"
+refute "no agent process in the chain reports no process count" \
+  "background process(es)" "$sgbg_out"
+
+# The count reaches the JSON `reason` string, so it is digits or it is
+# nothing. A read that comes back shaped like text — a broken `awk`, a table
+# built to break one — must not be pasted into that string.
+sgawk_real="$(command -v awk)"
+sgaw="${TMP}/guard-awk"
+mkdir -p "$sgaw"
+cat >"${sgaw}/awk" <<AWKEOF
+#!/bin/sh
+# Only the guard's own program is faked; anything else passes through.
+case "\$2" in
+  self=*) printf 'x"; injected\n'; exit 0 ;;
+esac
+exec "${sgawk_real}" "\$@"
+AWKEOF
+chmod +x "${sgaw}/awk"
+sgdigit_out="$(printf '%s' "$JSON_STOP" | PATH="${sgaw}:${SG_REAL_PATH}" \
+  CLAUDE_PROJECT_DIR="$sgwork" \
+  bash "${ROOT}/.agents/harness/handover-guard.sh" 2>/dev/null)"
+refute "a non-numeric process count never reaches the reason string" \
+  "injected" "$sgdigit_out"
+refute "and it is dropped, not reported as a count" \
+  "background process(es)" "$sgdigit_out"
+
+# Topics are sourced into one shell: hand the PATH back the way it was.
+PATH="$SG_REAL_PATH"
