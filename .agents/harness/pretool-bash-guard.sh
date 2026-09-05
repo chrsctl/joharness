@@ -30,9 +30,19 @@
 # EVERY Bash call in every consumer repo, so a hook that denies when confused
 # is worse than no hook. What this file cannot promise is that bash reaches
 # its logic at all: a truncated or CRLF-mangled copy dies at parse time with
-# status 2, which this event reads as DENY. That is why the registration in
-# .claude/settings.json ends `|| exit 0` — the guarantee needs a shell outside
-# this file to hold it.
+# status 2, which this event reads as DENY. So the registration in
+# .claude/settings.json parses this file BEFORE running it — `if bash -n S;
+# then bash S; else exit 0; fi` — and a copy that cannot parse is skipped
+# instead of denying. `bash S`, not `S`: Windows cannot represent an exec bit
+# (.gitattributes says so, and the suite probes for it), and a copy that
+# arrives without one exits 126 through a wrapper that only guards parsing.
+#
+# NOT `|| exit 0`, the idiom pretool-feedback.sh uses one entry above. That
+# hook always exits 0, so the tail only ever catches a parse-time death. Here
+# it would also catch the deny: exit 2 is the ONLY channel this hook has, and
+# `|| exit 0` turns every refusal into a silent allow. Measured on the first
+# draft — the script exited 2, the registered line exited 0, and the whole
+# gate was a no-op that passed its own suite.
 #
 # NO FORKS. It runs on every Bash call, which is the one hook where a fork per
 # call is felt, so every test below is a bash builtin and the perf row that
@@ -86,6 +96,7 @@ cmd="$(hook_key command)" || exit 0
 cmd="${cmd//\\n/ }"
 cmd="${cmd//\\t/ }"
 
+# --- the patterns ----------------------------------------------------------
 # THE SHAPE, and the whole discrimination lives here: a `while` or `until`
 # with `do`, a `sleep` in the body, and `done`. Not "the word until appears".
 #
@@ -96,69 +107,104 @@ cmd="${cmd//\\t/ }"
 # Command-position matching was the first draft and it could not see the one
 # inside the quotes, which is where the second legal spelling puts it.
 #
-# `(.*[^[:alnum:]_])?` between the keywords, and never a bare `[^[:alnum:]_]`:
-# `do[[:space:]]` has already eaten the one space in `do sleep 5`, so a
-# leading boundary on `sleep` has no character left to match and the whole
-# shape misses the commonest spelling of it. Measured on incident command one,
-# which the first draft allowed.
 # WHAT IT CANNOT DO, said here rather than left to be discovered: this reads
 # the command as text and does not parse shell. A command whose own text
-# spells a whole unbounded loop — a heredoc writing one into a script, an echo
-# of one — is denied like the loop it spells. That is the defensible side of
-# the line: what is being written is an unbounded wait either way, and the
-# reason below says how to bound it. The shapes that merely LOOK like loops
-# have no `do` and no `done`, and they pass.
-loop_re='(^|[^[:alnum:]_])(while|until)[[:space:]](.*[^[:alnum:]_])?do[[:space:]](.*[^[:alnum:]_])?sleep[[:space:]](.*[^[:alnum:]_])?done([^[:alnum:]_]|$)'
-[[ $cmd =~ $loop_re ]] || exit 0
-loop="${BASH_REMATCH[0]}"
+# spells a whole unbounded loop — a heredoc writing one into a script — is
+# denied like the loop it spells. That is the defensible side of the line:
+# what is being written is an unbounded wait either way, and the deny points
+# at the Write tool for the case where the text really is only text.
+start_re='(^|[^[:alnum:]_])(while|until)[[:space:]]'
+end_re='[^[:alnum:]_]done([^[:alnum:]_]|$)'
+
+# `sleep` with an ARGUMENT, because `sleep` always takes one. Without the
+# argument, `do echo "sleep tight, still waiting"; done` is denied for a word
+# in a log line — an ordinary shape, and the kind of miss that teaches a
+# session to route around the gate.
+sleep_re='(^|[^[:alnum:]_])sleep[[:space:]]+[-0-9$"'"'"']'
+
+# A counter compares a VARIABLE, and that is the whole difference between a
+# bound and a coincidence. `until [ "$(grep -c x /tmp/f)" -gt 0 ]` is incident
+# command two respelled — a test on the world, which never bounds anything —
+# and an echoed `x -lt 10` in a body is not a bound at all. A rule that looked
+# only for the operator allowed both.
+count_re='\$\{?[A-Za-z_][A-Za-z0-9_]*\}?"?[[:space:]]+-(lt|le|gt|ge)[[:space:]]'
+arith_re='\(\([^)]*[<>][^)]*\)\)'
+timeout_re='(^|[^[:alnum:]_-])timeout[[:space:]]'
+proc_re='[^[:alnum:]_](pgrep|pkill)[[:space:]]'
+full_re='[[:space:]](-[[:alnum:]]*f([[:space:]]|$)|--full)'
 
 deny() {
   printf '%s\n' "$1" >&2
   printf '\n' >&2
   printf 'Two spellings pass:\n' >&2
   printf '  timeout 300 bash -c '\''until test -f /tmp/x; do sleep 5; done'\''\n' >&2
+  # shellcheck disable=SC2016  # a spelling for a human to copy, not to expand
   printf '  i=0; while [ $i -lt 10 ]; do sleep 1; i=$((i+1)); done\n' >&2
+  printf '\nWriting a script rather than running one? This reads the command as\n' >&2
+  printf 'text and cannot tell the two apart — use the Write tool for the file.\n' >&2
   printf '\nA wait that cannot end is not caught until a human reads the\n' >&2
   printf 'background-tasks panel. Bound it here.\n' >&2
   exit 2
 }
 
-# pgrep FIRST, and bounded or not. A `timeout` around this one turns an
-# endless wait into a wait that always runs the clock out, which is not the
-# same bug getting fixed — and reporting it as "unbounded" would send the
-# session to add the bound it already has. Self-matching is not obvious, so
-# the reason says it.
-if [[ $loop =~ [^[:alnum:]_](pgrep|pkill)[[:space:]]+(-[[:alnum:]]*f) ]]; then
-  deny "DENIED: this loop waits on \`${BASH_REMATCH[1]} ${BASH_REMATCH[2]}\`, which matches ITSELF.
-\`${BASH_REMATCH[1]} -f\` tests full command lines, and the command line running this
+# --- walk the command, one loop at a time ----------------------------------
+# ONE match cannot do this. The shape's `.*` groups are greedy and ERE
+# matching is leftmost-longest, so a command holding TWO loops matches as a
+# single span from the first keyword to the LAST `done` — and a counter in a
+# harmless first loop then reads as bounding a dangerous second. Measured
+# against the single-match draft, which ALLOWED this:
+#
+#   i=0; while [ $i -lt 3 ]; do sleep 1; i=$((i+1)); done; until grep -q x /tmp/f; do sleep 20; done
+#
+# whose tail is incident command two. So each loop is cut out and judged on
+# its own. `rest` loses at least the keyword every pass, so this walk ends —
+# which is the one property this file has no business getting wrong.
+walked=""
+rest="$cmd"
+while [[ $rest =~ $start_re ]]; do
+  kw="${BASH_REMATCH[0]}"
+  # Everything up to and including this loop's keyword. `timeout` is read
+  # here and nowhere else: it WRAPS a loop, so it precedes it. Inside the
+  # body it bounds one command in the loop and never the loop —
+  # `while ! timeout 5 curl -sf http://host/health; do sleep 1; done` runs
+  # until the host answers, and the host may never answer.
+  prefix="${walked}${rest%%"$kw"*}${kw}"
+  rest="${rest#*"$kw"}"
+
+  # No `done` left means no loop left, only the word.
+  [[ $rest =~ $end_re ]] || break
+  end="${BASH_REMATCH[0]}"
+  body="${rest%%"$end"*}"
+  walked="${prefix}${body}${end}"
+  rest="${rest#*"$end"}"
+
+  # No sleep, no wait. `while read` over input and every `for` stop here.
+  [[ $body =~ $sleep_re ]] || continue
+
+  # pgrep FIRST, and bounded or not. A `timeout` around this one turns an
+  # endless wait into a wait that always runs the clock out, which is not the
+  # same bug getting fixed — and reporting it as "unbounded" would send the
+  # session to add the bound it already has. Self-matching is not obvious, so
+  # the reason says it. The flag is looked for separately from the command
+  # because `pgrep -l -f` and `pgrep --full` are the same trap spelled apart.
+  if [[ $body =~ $proc_re ]]; then
+    tool="${BASH_REMATCH[1]}"
+    if [[ $body =~ $full_re ]]; then
+      deny "DENIED: this loop waits on \`${tool}\` with the full-command-line flag, which matches ITSELF.
+\`${tool} -f\` tests full command lines, and the command line running this
 loop carries the pattern as its own argument — so the process it is
 waiting for is always found and the loop never exits. Match the
 process another way, or wait on something the loop does not create."
-fi
+    fi
+  fi
 
-# A bound anywhere in the COMMAND, not in the loop: `timeout` wraps the loop
-# from outside it, which is the spelling the deny message teaches.
-if [[ $cmd =~ (^|[^[:alnum:]_-])timeout[[:space:]] ]]; then
-  exit 0
-fi
+  [[ $prefix =~ $timeout_re ]] && continue
+  [[ $body =~ $count_re ]] && continue
+  [[ $body =~ $arith_re ]] && continue
 
-# An iteration counter in the LOOP, which is where a counter can bound
-# anything: `-lt`, `-le`, `-gt`, `-ge`, or an arithmetic comparison. Bare `<`
-# and `>` are deliberately not here — `>/dev/null` sits in the condition of
-# the first incident command, and reading a redirect as a bound would allow
-# the exact command this hook was written for.
-#
-# Checked against the whole loop rather than the condition alone. That is a
-# superset and so errs toward ALLOW, which is the direction a gate has to err
-# in to survive: a loop carrying `-lt` somewhere other than its condition is a
-# miss, and a miss is what the stop guard still catches.
-test_re='[^[:alnum:]_]-(lt|le|gt|ge)[[:space:]]'
-arith_re='\(\([^)]*[<>][^)]*\)\)'
-if [[ $loop =~ $test_re ]] || [[ $loop =~ $arith_re ]]; then
-  exit 0
-fi
-
-deny "DENIED: this \`while\`/\`until\` loop sleeps with no bound on how long it waits.
+  deny "DENIED: this \`while\`/\`until\` loop sleeps with no bound on how long it waits.
 Nothing in it can stop it: no timeout, no iteration counter. If the
 condition it waits on never comes true, the command runs until a human
 notices."
+done
+exit 0

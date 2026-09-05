@@ -68,13 +68,16 @@ expect "the deny teaches the counter spelling" '-lt 10' "$pbg_msg"
 pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"timeout 300 bash -c '"'"'until test -f /tmp/x; do sleep 5; done'"'"'"}}'
 pbg_allowed "a timeout-bounded wait is allowed"
 
+# shellcheck disable=SC2016  # a JSON payload; the $ is text the guard reads
 pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"i=0; while [ $i -lt 10 ]; do sleep 1; i=$((i+1)); done"}}'
 pbg_allowed "a counter-bounded loop is allowed"
 
+# shellcheck disable=SC2016  # a JSON payload; the $ is text the guard reads
 pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"while ((i<10)); do sleep 1; i=$((i+1)); done"}}'
 pbg_allowed "an arithmetic counter is allowed"
 
 # --- the false positives that would get this routed around -----------------
+# shellcheck disable=SC2016  # a JSON payload; the $ is text the guard reads
 pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"while read -r line; do echo \"$line\"; done < f"}}'
 pbg_allowed "a while-read over input is allowed"
 
@@ -149,3 +152,109 @@ pbg '{
   }
 }'
 pbg_denied "a pretty-printed payload is still read"
+
+# --- two loops in one command ----------------------------------------------
+# One regex match cannot judge these. The shape's `.*` groups are greedy and
+# ERE is leftmost-longest, so a command holding two loops matches as a single
+# span from the first keyword to the LAST `done`, and a counter in the
+# harmless first loop reads as bounding the second. The single-match draft
+# ALLOWED the command below, whose tail is incident command two.
+# shellcheck disable=SC2016  # a JSON payload; the $ is text the guard reads
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"i=0; while [ $i -lt 3 ]; do sleep 1; i=$((i+1)); done; until grep -q x /tmp/f; do sleep 20; done"}}'
+pbg_denied "a bounded loop earlier in the command does not bound a later one"
+
+# --- what counts as a counter ----------------------------------------------
+# A counter compares a VARIABLE. `[ "$(grep -c x /tmp/f)" -gt 0 ]` is a test
+# on the world — incident command two respelled — and it bounds nothing.
+# shellcheck disable=SC2016  # a JSON payload; the $ is text the guard reads
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"until [ \"$(grep -c joharness /tmp/f)\" -gt 0 ]; do sleep 20; done"}}'
+pbg_denied "a comparison against a command substitution is not a counter"
+
+# And an operator inside a log line is not one either.
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"while ! test -f /tmp/flagzz; do sleep 5; echo \"note: x -lt 10 is valid\"; done"}}'
+pbg_denied "an operator in an echoed string is not a counter"
+
+# --- where a timeout has to be ---------------------------------------------
+# `timeout` WRAPS a loop, so it precedes it. Inside the body it bounds one
+# command in the loop and never the loop: this one runs until the host
+# answers, and the host may never answer.
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"while ! timeout 5 curl -sf http://localhost:1/health; do sleep 1; done"}}'
+pbg_denied "a timeout inside the loop body does not bound the loop"
+
+# --- the same trap spelled apart -------------------------------------------
+# `pgrep -l -f` and `pgrep --full` self-match exactly as `pgrep -f` does. A
+# check that wanted the flag adjacent to the command missed both, and with a
+# timeout present it allowed them silently.
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"timeout 60 bash -c '"'"'until ! pgrep -l -f xyz; do sleep 3; done'"'"'"}}'
+pbg_denied "pgrep with the flag held apart is still self-matching"
+expect "and it says so" "matches ITSELF" "$pbg_msg"
+
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"until ! pgrep --full xyz; do sleep 3; done"}}'
+pbg_denied "pgrep --full is the same trap under another spelling"
+
+# --- sleep the command, not the word ---------------------------------------
+# `sleep` always takes an argument. Without that, an ordinary log line is
+# denied for a word in it, and that is the miss that teaches a session to
+# route around the gate.
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"while ! test -f /tmp/ready; do echo \"sleep tight, still waiting\"; done"}}'
+pbg_allowed "the word sleep in a message is not a sleep"
+
+# --- the registration ------------------------------------------------------
+# The gate is the registered command line, not the script. Every case above
+# passed against a registration ending `|| exit 0`, which turns exit 2 — the
+# only channel this hook has — into a silent allow, and the whole feature was
+# a no-op that looked green.
+pbg_settings="$(cat "${ROOT}/.claude/settings.json")"
+pbg_block="$(printf '%s\n' "$pbg_settings" | awk '
+  /"PreToolUse"/ { inblk = 1 }
+  inblk { print }
+  inblk && /^    \]/ { exit }')"
+expect "the guard is registered on the Bash tool" '"matcher": "Bash"' "$pbg_block"
+expect "registration points at the guard" "pretool-bash-guard.sh" "$pbg_block"
+refute "and it does NOT end || exit 0, which would allow every deny" \
+  "pretool-bash-guard.sh || exit 0" "$pbg_block"
+expect "it parses the script before running it" "bash -n" "$pbg_block"
+# `bash S`, not `S`: Windows cannot represent an exec bit, and a copy that
+# arrives without one exits 126 through a wrapper that only guards parsing.
+# shellcheck disable=SC2016  # the JSON's own text; nothing here expands
+expect "and runs it through bash, not the exec bit" \
+  'then bash \"$CLAUDE_PROJECT_DIR\"/.agents/harness/pretool-bash-guard.sh' \
+  "$pbg_block"
+
+# Run the registration itself, both ways round. These are the assertions the
+# `|| exit 0` draft could not have passed.
+pbg_reg="$(printf '%s\n' "$pbg_block" |
+  sed -n 's/.*"command": "\(if bash -n .*fi\)",*$/\1/p' | head -1 |
+  sed 's/\\"/"/g')"
+if [ -n "$pbg_reg" ]; then
+  pass "the registered command line was read back out of settings.json"
+else
+  fail "the registered command line was read back out of settings.json"
+fi
+
+pbg_deny_payload="${TMP}/pbg-deny.json"
+printf '%s' '{"tool_name":"Bash","tool_input":{"command":"until test -f /tmp/x; do sleep 5; done"}}' \
+  >"$pbg_deny_payload"
+CLAUDE_PROJECT_DIR="$ROOT" bash -c "$pbg_reg" <"$pbg_deny_payload" >/dev/null 2>&1
+pbg_rc=$?
+if [ "$pbg_rc" -eq 2 ]; then pass "the REGISTERED line denies, not just the script"
+else fail "the REGISTERED line denies, not just the script (exit ${pbg_rc}, wanted 2)"; fi
+
+# A copy that cannot parse is skipped, which is the whole reason the wrapper
+# exists. Truncated mid-quote, the way a bad sync leaves one.
+pbg_broken="${TMP}/pbg-broken"
+mkdir -p "${pbg_broken}/.agents/harness"
+{ head -c 300 "${ROOT}/.agents/harness/pretool-bash-guard.sh"
+  printf 'deny() { "unterminated\n'; } \
+  >"${pbg_broken}/.agents/harness/pretool-bash-guard.sh"
+CLAUDE_PROJECT_DIR="$pbg_broken" bash -c "$pbg_reg" <"$pbg_deny_payload" >/dev/null 2>&1
+pbg_rc=$?
+if [ "$pbg_rc" -eq 0 ]; then pass "an unparseable copy is skipped, never a deny"
+else fail "an unparseable copy is skipped, never a deny (exit ${pbg_rc})"; fi
+
+pbg_gone="${TMP}/pbg-gone"
+mkdir -p "$pbg_gone"
+CLAUDE_PROJECT_DIR="$pbg_gone" bash -c "$pbg_reg" <"$pbg_deny_payload" >/dev/null 2>&1
+pbg_rc=$?
+if [ "$pbg_rc" -eq 0 ]; then pass "a missing copy is skipped, never a deny"
+else fail "a missing copy is skipped, never a deny (exit ${pbg_rc})"; fi

@@ -1045,6 +1045,11 @@ perf_shape() {
 PERF_PROJECT=""
 PERF_STDIN=""
 
+# The floor a row is held to unless its own budget sits below it. Named
+# because the clamp below compares against this and not against whatever
+# JOHARNESS_PERF_FLOOR was set to.
+PERF_FLOOR_DEFAULT=15
+
 PERF_BINS="git awk sed grep sort wc"
 
 # Caps pinned during measurement, so the number describes the CODE and not
@@ -1509,8 +1514,15 @@ perf_report() {
     # What the row loses with it: nothing a count could have given. Whether
     # this hook did its work is a question about which BRANCH ran, not about
     # how many commands it spawned, and the selftest topic is what asks it.
-    floor="${JOHARNESS_PERF_FLOOR:-15}"
-    [ "$budget" -ge "$floor" ] || floor="$budget"
+    #
+    # Compared against the DEFAULT floor, never the configured one. An
+    # operator who raises JOHARNESS_PERF_FLOOR is asking a deliberate question
+    # of every row, and clamping their number to each row's budget answers a
+    # different one — `JOHARNESS_PERF_FLOOR=100000 perf graph` has a case, and
+    # under a clamp it would pass on graph's count being under 118 rather than
+    # on the floor it set.
+    floor="${JOHARNESS_PERF_FLOOR:-$PERF_FLOOR_DEFAULT}"
+    [ "$budget" -ge "$PERF_FLOOR_DEFAULT" ] || floor="$budget"
     if [ "$live" -ne 1 ] && [ "$n" -lt "$floor" ]; then
       printf '   %-14s %8s %8s %6s  TOO LOW (floor %s)\n' \
         "$name" "$n" "$budget" "$ctx" "$floor"

@@ -132,7 +132,20 @@ git init -q "$pf_elsewhere"
 printf 'scratch\n' >"${pf_elsewhere}/scratch.txt"
 out="$(pf_run env "CLAUDE_PROJECT_DIR=${pf_elsewhere}" ./joharness.sh perf)" && rc=0 || rc=$?
 expect "a missing entrypoint is named, not counted as zero" "NOT FOUND" "$out"
-refute "a missing entrypoint does not print a clean count" "  0 " "$out"
+# The COUNTED column, read as a column. This was `refute "  0 "` on the whole
+# table, which asserted the right thing only while no row was budgeted under
+# two digits: `bash-guard` is budgeted at 0 — no forks on a path that runs
+# before every Bash call — and its BUDGET column then supplied the string,
+# reding a case about counts for a reason that has nothing to do with them.
+# A fixed string standing in for a field holds until a field changes width.
+pf_nf_counts="$(printf '%s\n' "$out" | awk '/NOT FOUND/ {print $2}' | sort -u |
+  tr '\n' ' ')"
+if [ "$pf_nf_counts" = "? " ]; then
+  pass "a missing entrypoint does not print a clean count"
+else
+  fail "a missing entrypoint does not print a clean count"
+  printf '    counted column on every NOT FOUND row was: %s\n' "${pf_nf_counts:-<no row>}"
+fi
 if [ "$rc" -ne 0 ]; then pass "a missing entrypoint is a non-zero exit"
 else fail "a missing entrypoint is a non-zero exit (got 0)"; fi
 
@@ -142,6 +155,21 @@ else fail "a missing entrypoint is a non-zero exit (got 0)"; fi
 # the edit that would silently unmeasure the block.
 expect "the guard row pins the dearer path" "JOHARNESS_MODE=unsupervised" \
   "$(grep 'handover-guard|' "${ROOT}/joharness.sh" || :)"
+
+# FIVE fields on every row, counted rather than trusted. The separator has no
+# escape — the comment at perf_rows says so, and a comment is not a check. A
+# `|` slipped into any row's stdin payload or command silently shifts every
+# field right of it: the payload fragment becomes the command and is run as
+# the entrypoint. Counted here because the shift produces a table that still
+# looks like a table.
+pf_fields="$(awk '/^perf_rows\(\) \{/,/^\}/' "${ROOT}/joharness.sh" |
+  grep -o '"[a-z-]*|[^"]*"' | awk -F'|' '{print NF}' | sort -u | tr '\n' ' ')"
+if [ "$pf_fields" = "5 " ]; then
+  pass "every perf row splits into exactly five fields"
+else
+  fail "every perf row splits into exactly five fields"
+  printf '    field counts seen: %s\n' "${pf_fields:-<none>}"
+fi
 
 # The skips live in `ci`, so they are asserted there — through the SAME
 # scratch copy the selftest-scope cases use, never through this repo's own
