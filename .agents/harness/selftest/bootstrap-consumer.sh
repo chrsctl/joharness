@@ -643,11 +643,35 @@ refute "and does not claim to have written the rest" "JOHARNESS_ENV=none" "$out"
 expect "and says the rest of the consumer is untouched" "nothing else touched" "$out"
 refute "a reconfigure syncs nothing" "== sync" "$out"
 
-# A dry run previews and writes nothing.
-out="$(boot --dry-run --reconfigure --review off "$bootrc")"
+# The guard that makes JOHARNESS_MODE follow the same rule as the other four
+# under --reconfigure. A flag that says nothing about autonomy must leave the
+# key alone; without the guard `write_decided_keys` writes it unconditionally
+# and an unsupervised child goes supervised on a run that never asked. The
+# child here still says unsupervised, so the wrong behaviour is visible.
+expect "the child under test is still unsupervised" "JOHARNESS_MODE=unsupervised" \
+  "$(cat "${bootrc}/joharness.conf")"
+out="$(boot --reconfigure --review off "$bootrc")"
+expect "a flag about another key leaves the autonomy line alone" \
+  "JOHARNESS_MODE=unsupervised" "$(cat "${bootrc}/joharness.conf")"
+refute "and the log does not claim to have written it" "JOHARNESS_MODE=" "$out"
+
+# The heartbeat reminder is printed once, whoever chose the value and however.
+# Two copies of it — one per run shape — is what a second warn in the
+# reconfigure path produced.
+out="$(boot --reconfigure --mode unsupervised "$bootrc" 2>&1)"
+if [ "$(printf '%s\n' "$out" | grep -c 'unsupervised is the switch')" -eq 1 ]; then
+  pass "the heartbeat reminder is printed once under reconfigure"
+else
+  fail "the heartbeat reminder is printed once under reconfigure"
+  printf '%s\n' "$out" | grep -n 'unsupervised is the switch' | sed 's/^/    | /'
+fi
+
+# A dry run previews and writes nothing. The key is `off` by the time this
+# runs, so asking for `on` is a real change to preview.
+out="$(boot --dry-run --reconfigure --review on "$bootrc")"
 expect "a dry reconfigure says what it would write" \
   "would write into" "$out"
-expect "the review key it kept" "JOHARNESS_REVIEW=on" "$(cat "${bootrc}/joharness.conf")"
+expect "and writes none of it" "JOHARNESS_REVIEW=off" "$(cat "${bootrc}/joharness.conf")"
 
 # The three targets --reconfigure refuses, each named.
 out="$(boot --reconfigure "${TMP}/bootrc-missing")"; rc=$?

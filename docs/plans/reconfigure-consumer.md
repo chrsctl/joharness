@@ -52,8 +52,12 @@ F13 measured for requirement frontmatter, one file over.
 - `--reconfigure` on a directory that is NOT a consumer is refused, named.
 - `--dry-run --reconfigure` writes nothing and says what it would ask.
 - `./joharness.sh ci` — `ci: pass`.
-- SHIPS: `.agents/scripts` is canonical-only, so the consumer-side check is
-  that a consumer bootstrapped from this canonical can be reconfigured by it.
+- SHIPS, because `.agents/docs/consumer-repos.md` does. The script itself is
+  canonical-only, so the consumer-side check is the route that document now
+  tells a consumer's operator to run, against a real child:
+  `.agents/scripts/bootstrap-consumer.sh --reconfigure <consumer-dir>` exits
+  0, changes only that child's `joharness.conf`, and leaves every other file
+  byte-identical.
 
 ## Where to look
 

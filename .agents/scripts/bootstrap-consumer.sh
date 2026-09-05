@@ -175,12 +175,29 @@ grep -q '^JOHARNESS_CANONICAL=1' "${ROOT}/joharness.conf" 2>/dev/null ||
 # every layer exists — a typo caught now costs a rerun, one caught after
 # the write costs a consumer selecting a layer it does not have. Same
 # whole-string name guard as everywhere else: a layer name reaches a path.
-case "$LAYER" in
-  '' | [!a-z0-9]* | *[!a-z0-9._-]*)
-    die "invalid layer name '${LAYER}'" ;;
-esac
-[ -d "${ROOT}/.agents/env/${LAYER}" ] ||
-  die "no layer .agents/env/${LAYER} in canonical (try: ls ${ROOT}/.agents/env)"
+# A layer name this run may write. Canonical's copy is what a bootstrap
+# SHIPS, so at first contact a name canonical lacks is a typo and nothing
+# else. Under --reconfigure nothing ships: the child may already carry a
+# layer of its own — one it wrote, or one selected before the layer moved —
+# and refusing that would mean the flag cannot express what the interview
+# already accepts when the same name is the value in force. So the child's
+# own tree counts there too, and a name neither side has is still refused.
+layer_valid() {
+  local name="$1"
+  case "$name" in
+    '' | [!a-z0-9]* | *[!a-z0-9._-]*) die "invalid layer name '${name}'" ;;
+  esac
+  [ ! -d "${ROOT}/.agents/env/${name}" ] || return 0
+  if [ "$RECONFIGURE" -eq 1 ] && [ -n "${DEST:-}" ] &&
+     [ -d "${DEST}/.agents/env/${name}" ]; then
+    return 0
+  fi
+  if [ "$RECONFIGURE" -eq 1 ]; then
+    die "no layer .agents/env/${name} in canonical or in '${DEST}' (try: ls ${ROOT}/.agents/env)"
+  fi
+  die "no layer .agents/env/${name} in canonical (try: ls ${ROOT}/.agents/env)"
+}
+layer_valid "$LAYER"
 
 # Every explicit value is checked, never normalised. Each of these keys is
 # read by something that fails closed on an unrecognised value —
@@ -301,10 +318,18 @@ interview() {
       d="${d%/}"
       layers="${layers}${d##*/} "
     done
-    ans="$(ask_line 'Environment layer' \
-      "  The sandbox this repo provisions. Only the one you pick ships;
+    if [ "$MODE" = reconfigure ]; then
+      ans="$(ask_line 'Environment layer' \
+        "  The sandbox this repo provisions. This run writes the selection
+  and ships nothing, so a layer the child does not carry yet arrives at
+  its next sync; 'none' is the harness with no environment." \
+        "  available: ${layers}" "$cur")"
+    else
+      ans="$(ask_line 'Environment layer' \
+        "  The sandbox this repo provisions. Only the one you pick ships;
   'none' is the harness with no environment." \
-      "  available: ${layers}" "$cur")"
+        "  available: ${layers}" "$cur")"
+    fi
     # Typing back what the brackets offer is the same decision as pressing
     # Enter, and has to cost the same. A repo whose conf names a layer this
     # canonical does not carry — one it selected before the layer moved, or
@@ -313,11 +338,7 @@ interview() {
     if [ -n "$ans" ] && [ "$ans" != "$cur" ]; then
       LAYER="$ans"
       LAYER_GIVEN=1
-      case "$LAYER" in
-        '' | [!a-z0-9]* | *[!a-z0-9._-]*) die "invalid layer name '${LAYER}'" ;;
-      esac
-      [ -d "${ROOT}/.agents/env/${LAYER}" ] ||
-        die "no layer .agents/env/${LAYER} in canonical (try: ls ${ROOT}/.agents/env)"
+      layer_valid "$LAYER"
     else
       LAYER="$cur"
     fi
@@ -583,9 +604,17 @@ if [ "$MODE" = reconfigure ]; then
     write_decided_keys "${DEST}/joharness.conf"
     log "wrote into ${DEST}/joharness.conf:${reconfigured}; nothing else touched"
   fi
-  if [ "$AUTONOMY_GIVEN" -eq 1 ] && [ "$AUTONOMY" = unsupervised ]; then
-    warn "unsupervised is the switch, not the automation: the child still needs a heartbeat to fire each next session. .agents/docs/unsupervised.md carries the Routine's prompt, its hourly floor, the connector trap and the pause. Creating one is the human's call."
+  # Selecting a layer is not the same as having it, and this run ships
+  # nothing. Left silent, the child reports the layer as selected and falls
+  # back to none at every session start — the state joharness.sh:cmd_env
+  # already warns about, reached here without a word.
+  if [ "$LAYER_GIVEN" -eq 1 ] && [ "$LAYER" != none ] &&
+     [ ! -d "${DEST}/.agents/env/${LAYER}" ]; then
+    warn "'${DEST}' does not carry .agents/env/${LAYER} yet, and a reconfigure ships nothing: it will fall back to no environment until the sync brings that layer (.agents/scripts/sync-to-consumer.sh, and .agents/docs/consumer-repos.md, Layers)."
   fi
+  # No heartbeat warning here: the one above fires on the resolved value
+  # whichever run this is, and a second copy printed it twice for
+  # `--reconfigure --mode unsupervised` — against its own "said once".
   exit 0
 fi
 
