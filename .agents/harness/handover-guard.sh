@@ -156,9 +156,11 @@ if [ -x "${PROJECT_DIR}/joharness.sh" ]; then
 else
   mode="${JOHARNESS_MODE:-}"
 fi
-[ "$mode" = "unsupervised" ] || mode="supervised"
+# Two unattended values, one boundary: orchestrated is bound exactly as
+# unsupervised is (joharness.sh:unattended).
+case "$mode" in unsupervised | orchestrated) ;; *) mode="supervised" ;; esac
 
-if [ "$mode" = "unsupervised" ]; then
+if [ "$mode" != "supervised" ]; then
   # Count only, never a path: the reason string below embeds in JSON
   # without escaping, and a file name is repo-controlled input. A count is
   # digits, and digits cannot close a JSON string.
@@ -223,7 +225,7 @@ EOF
     # escaping and a file name is repo-controlled input; widening the
     # boundary widens what that input could be, so this matters more now,
     # not less. Digits cannot close a JSON string.
-    add_fact "unsupervised mode, but this branch touches ${harness_touched} file(s) of protocol text (.agents/docs/unsupervised.md, Bounds) — revert them"
+    add_fact "${mode} mode, but this branch touches ${harness_touched} file(s) of protocol text (.agents/docs/unsupervised.md, Bounds) — revert them"
   fi
 fi
 

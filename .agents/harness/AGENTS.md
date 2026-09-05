@@ -42,12 +42,17 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    hand off (escalation rules: Agent selection below). Copy or sync task =
    the one no-plan work: diff self-describing, same carve-out as
    workstream files (protocol "When NOT to write one"). Hook
-   prints queue + wanted agent tier at session start. Oldest actionable
+   prints queue + wanted agent tier at session start (orchestrated: this
+   branch only; the orchestrator holds the queue through `dispatch`). Oldest actionable
    first, urgent first if marked. No issue, no requirement, no plan: ask
    human. Not invent work. ONE difference, `JOHARNESS_MODE=unsupervised`
    (session start says so): at the edge, exit and say DRAINED instead of
    asking, and invent nothing — the heartbeat re-seeds
-   (`.agents/docs/unsupervised.md`). Boundary holds:
+   (`.agents/docs/unsupervised.md`). `JOHARNESS_MODE=orchestrated` (beta):
+   same edge, same bounds; who picks differs — a manager works the ONE
+   item its prompt names (`/manage`), the orchestrator reads
+   `./joharness.sh dispatch` and spawns (`/orchestrate`,
+   `.agents/docs/orchestrated.md`). Boundary holds in both:
    no commit to protocol text (`./joharness.sh protocol-paths`,
    [`.agents/docs/unsupervised.md`](../../.agents/docs/unsupervised.md)).
 3. **Claim.** Cut branch from `main` (branch flow:

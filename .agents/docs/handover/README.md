@@ -268,7 +268,8 @@ server registered under hashed name. Bit `/who` first time it ran.
 
 Split forced by platform: `SessionStart` hook = shell script, no shell path to
 cross-session state. `claude agents --json` sees current container only. So
-hook reports **git facts** — pushed what, when, overlaps your files — and
+hook reports **git facts** — pushed what, when, overlaps your files
+(orchestrated mode: this branch's own files only, `HANDOVER_SCOPE=branch`) — and
 *session* looks up liveness when a fact matters. Facts cannot be false
 positives.
 

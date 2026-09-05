@@ -176,7 +176,7 @@ guard_full() { printf '%s' "$JSON_STOP" | CLAUDE_PROJECT_DIR="$sgfull" \
 # enforced; it cannot prove the right entries are there — a verifier removed
 # .agents/harness from protocol_paths and the whole suite stayed green,
 # because zero loop bodies run silently. Assert the contents, then iterate.
-expected_paths=".agents/harness .claude/agents .claude/commands .claude/skills joharness.sh .claude/settings.json"
+expected_paths=".agents/harness .claude/agents .claude/commands .claude/skills joharness.sh .claude/settings.json joharness.conf"
 actual_paths="$("${ROOT}/joharness.sh" protocol-paths | tr '\n' ' ')"
 if [ "$(printf '%s' "$actual_paths" | tr -s ' ' | sed 's/ $//')" = "$expected_paths" ]; then
   pass "the protocol path list is exactly what the boundary claims"
@@ -231,10 +231,10 @@ while IFS= read -r tree; do
 done < <("${ROOT}/joharness.sh" protocol-paths)
 # An empty list runs zero loop bodies and reports nothing at all — green by
 # vacuum. Count what ran.
-if [ "$seen_paths" -eq 6 ]; then
+if [ "$seen_paths" -eq 7 ]; then
   pass "every listed protocol path was exercised"
 else
-  fail "every listed protocol path was exercised (ran ${seen_paths}, wanted 6)"
+  fail "every listed protocol path was exercised (ran ${seen_paths}, wanted 7)"
 fi
 
 # DELETING a protocol tree is the issue #114 scenario in its plainest form:

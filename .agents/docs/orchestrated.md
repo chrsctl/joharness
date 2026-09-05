@@ -1,0 +1,308 @@
+# Orchestrated mode (beta)
+
+Switch: `JOHARNESS_MODE=orchestrated` in `joharness.conf` (per repo, never
+synced), or exported for one command. Third value beside `supervised` and
+`unsupervised`; anything else reads as supervised. Requested 2026-09-05,
+after four unsupervised runs never got past one generation
+([`unsupervised.md`](unsupervised.md), Runs).
+
+Same question as unsupervised — is a human present — same answer, same
+bounds. ONE new distinction: who dispatches. Unsupervised is a peer fleet:
+each session picks its own item, and the fleet lives only while the
+heartbeat fires the next one. Orchestrated puts a controller above the
+queue: one low-tier session reads it, spawns a manager per item under a
+cap, watches them, and kills a stuck one after its handover is written.
+`.agents/docs/product/README.md` records the peer position and what it
+costs; this mode is the measured alternative, and beta until a run shows
+which empties a queue faster.
+
+## What the mode changes
+
+One row per reader. Supervised sees none of it. Unsupervised sees none of
+it either — the two unattended modes share every bound and differ only in
+the rows below.
+
+| Where | Change |
+| --- | --- |
+| `joharness.sh:run_mode` | Third value. `unattended()` is true for both unattended modes and is the ONE predicate the boundary, the requirement lint, the marking and `authority` read. A `= unsupervised` test anywhere is a bound this mode escapes. |
+| `session-start` banner | Names the mode and routes by role: prompt names `/manage <item>` = manager; nothing named = orchestrator, run `/orchestrate`. Same boundary list. |
+| Queue hook | Same `SUPERVISED ONLY` marking. Plus, this mode only: `in flight: <free> overlaps <claimed> on <path>` lines, one per free plan whose scope collides with a plan a manager holds now. |
+| `./joharness.sh dispatch` | New. The orchestrator's one read: the human's numbers, managers in flight with push age and a `STALL?` mark, slots under the cap, the spawn order with waves and `HOLD`s, one verdict line. Reports only. |
+| `./joharness.sh drain` | Same verdict; tells a manager it works the item its prompt named, and names the orchestrator's exit as dispatch's verdict. |
+| `.claude/commands/orchestrate.md`, `manage.md` | The two roles, as commands. |
+
+## Roles
+
+| Role | Tier | Runs as | Spawns | Owns | Ends when |
+| --- | --- | --- | --- | --- | --- |
+| orchestrator | low, mechanical on purpose — the Routine's model: haiku by the ask, sonnet in the requester's diagram; a run decides | a session; the heartbeat fires one | manager sessions (`create_session`) | the cap, the health pass, the kill handover | dispatch says DRAINED with nothing in flight |
+| manager | the item's `agent:` — plan or research; opus at xhigh for an unplanned requirement, decomposition being the judgement every build rests on | a session with its own branch, claim and merge | worker subagents (`Agent`) | one item, until its file retires | its pull request merges, or it blocks on a human |
+| worker | at or below the plan's tier, lower by default | a subagent in the manager's container | nothing | the files its sub-task names | it returns |
+
+### What each role reads
+
+Every line injected at session start is paid by every session, and under
+this mode most of the fleet-wide view is read by nobody: the orchestrator
+gets the queue through `dispatch`, a manager works the one item its prompt
+names. So session start prints the mode banner, the environment pointer,
+and THIS branch's own workstream files — `HANDOVER_SCOPE=branch` in the
+handover hook, which skips the walk over every remote ref — and no queue.
+
+| Role | Reads | Never opens |
+| --- | --- | --- |
+| orchestrator | `dispatch`, the control plane, the Lineup table | a plan, a requirement, a research file, another branch's workstream file, this doc |
+| manager | its item, its own workstream file, the item's anchors, `feedback` on the files it touches, the environment rules if it touches the environment | the queue, other plans, other branches, this doc |
+| worker | its sub-task prompt and the files it names | everything else |
+
+Two spawn levels, never three. A worker that needs a branch of its own is
+a plan, and a plan enters the queue through a pull request — the manager
+writes it into its own (`.agents/docs/plans/README.md`, same-session plan
+handed off) and the orchestrator spawns it next pass. Subagents cannot
+claim, get no hook state and die with the parent's turn
+([`subagents.md`](subagents.md)); the manager's branch is the unit of
+claim, and that is why the split falls where it does.
+
+The default role is the orchestrator. The heartbeat's prompt is standalone
+and the orchestrator is what must be re-seeded; a manager is told what it
+is by the orchestrator that spawned it. Two orchestrators are the
+collision to avoid, and the rule is one line: a `RUNNING` session titled
+`orchestrator: <repo>` that is not you = exit.
+
+## The loop
+
+Every `JOHARNESS_HEALTH_MINUTES`, scheduled with `send_later` — never a
+sleep, never a poll:
+
+1. `./joharness.sh dispatch`.
+2. Health pass over every manager in flight (table below). Kills and
+   respawns happen here, before any spawn.
+3. Spawn up to `slots`, in dispatch's order, skipping `HOLD`, `WAIT` and
+   `NOT YOURS`.
+4. Schedule the next pass; end the turn. A manager's "merged <stem>"
+   message wakes a pass early, so a freed slot is filled at once rather
+   than on the clock.
+
+Spawn = `create_session` with the repository attached, the item's tier
+mapped to a model by [`agent-selection.md`](agent-selection.md) Lineup, a
+title `manager: <stem>`, and a prompt carrying `/manage <path>`,
+`./joharness.sh authority` and `./joharness.sh protocol-paths` — the three
+things [`unsupervised.md`](unsupervised.md) Authority says a spawn prompt
+carries, and nothing that asserts its own legitimacy.
+
+## Health: two signals, five words
+
+The monitor rule under Heartbeat in [`unsupervised.md`](unsupervised.md):
+never judge a session from one signal, because push time is not liveness
+in either direction. So a verdict here needs both halves, and dispatch
+prints only the git half.
+
+| Word | Git (dispatch) | Control plane | Orchestrator does |
+| --- | --- | --- | --- |
+| working | any push age | `RUNNING`, or pushed inside the window | nothing |
+| stalled | `STALL?` — no push for `JOHARNESS_STALL_MINUTES` | `RUNNING`, `status_detail` unchanged across two passes | nudge, then kill |
+| looping | `LOOP?` — one file rewritten `JOHARNESS_CHURN_LIMIT`+ times; or head moved on three passes with `next:` unchanged | any | kill with the record, respawn one tier up |
+| gone | branch unmerged, status in-progress / review / done | not `RUNNING` | respawn on the branch |
+| blocked | status `blocked` | any | report to the human; never respawn |
+| done | branch merged, plan file gone | any | nothing |
+
+A nudge is a message: push your workstream file now. Most stalls end there
+— a session deep in a build has a handover it has not written, and
+writing it is what the next session needs anyway.
+
+### Loops are not stalls
+
+A stall is silence. A loop is the opposite: pushes keep landing and the
+same file keeps being rewritten, or `next:` never moves while the head
+does. `ci` already has two tiers for this from the inside — a warning
+from `JOHARNESS_CHURN_THRESHOLD`, the session's call; a red from
+`JOHARNESS_CHURN_LIMIT`, not a call any more — and the review-churn rule
+in [`agent-selection.md`](agent-selection.md) says what it means and what
+to do. `LOOP?` sits on the limit, the warning band is named on the work
+line, and the session inside the loop is the one that cannot see either.
+The orchestrator can. A loop gets no nudge, because a nudge asks for a
+push and a loop is pushing; it gets a kill with the progress recorded
+first and a successor one tier up, told to do the research step before
+any edit. The record's contents and the escalation are in
+`.claude/commands/orchestrate.md`, LOOP — stated once, there.
+
+"Across passes" is memory, and the orchestrator stores nothing in the
+repo. The wake message carries the ledger: per item, the head and the
+`next:` line last seen, the count of passes those disagreed, a nudge if
+sent, respawns so far. A pass reads it out of the message that woke it
+and writes the next one into the message it schedules — survives
+compaction, because the message arrives fresh; leaves nothing in git,
+because it lives in the schedule.
+
+## The kill, and why the handover comes first
+
+The requester's words: kill, but before that summarise progress into the
+handover for the next one. In that order, because a killed session with no
+handover strands a branch the successor cannot read, and the whole
+protocol is built on the file being written by the session that knows.
+
+1. Interrupt. The Stop guard fires in the manager; it may push.
+2. One pass later: head or `updated:` moved = the handover landed.
+3. Else the orchestrator writes it — the one file this role ever writes:
+   a note under `## Blockers` with the date, the reason, the control
+   plane's last summary and the diff stat, and a `next:` that says resume.
+   Committed on the manager's branch, pushed.
+4. Archive the session. Spawn a successor on the SAME branch, prompt
+   naming the branch and the file to read whole. Counted: past
+   `JOHARNESS_RESPAWN_LIMIT` the branch stays claimed — dispatch keeps it
+   out of the spawn list — and the human is told.
+
+The branch is the claim and the claim survives the kill. That is the
+property the peer fleet already had and this mode keeps: nothing is
+stored, the successor reads git.
+
+## Concurrency
+
+`JOHARNESS_MAX_MANAGERS` caps managers in flight. Blocked managers hold no
+slot — their session exited on purpose. Within the cap the order is the
+queue hook's: urgent first, then oldest, partitioned into waves of
+disjoint scope. Two things this mode adds to the wave rule:
+
+- A free plan whose scope overlaps a plan a manager HOLDS is `HOLD`, not
+  free. The peer fleet takes the collision and pays the reconcile at step
+  7; an orchestrator that knows the collision is coming has no reason to
+  send a manager into it. The hook computes it with the same
+  `wave_split_hit` the waves use — a path only one side marked `shared:`
+  collides here exactly as it does there — printed only in this mode.
+- A hold behind a BLOCKED branch is released, the reconcile named as the
+  cost: that branch waits on a human, a human's clock can be days, and a
+  plan waiting on it starves with nothing in flight to end the wait.
+- A wave-2 plan is `WAIT` while its wave-1 partner is free in the same
+  pass: not counted as spawnable now, listed so the next pass finds it.
+  A partner already IN FLIGHT is the `HOLD` case above instead — the waves
+  partition free plans only, so an in-flight partner never puts a plan in
+  wave 2.
+- `JOHARNESS_MAX_MANAGERS=0` is the human's pause, the one lever beside
+  the Routine: dispatch says `PAUSED`, the orchestrator spawns nothing;
+  with managers still in flight the health pass goes on until they end,
+  then it exits.
+
+The reconcile rate the peer fleet measured — about one merge in four
+(`.agents/docs/product/README.md`, Orchestration) — is the number a run of
+this mode should move. If it does not, the hold rule bought nothing.
+
+## The numbers are the human's
+
+| Knob | Default | Means | Where the default comes from |
+| --- | --- | --- | --- |
+| `JOHARNESS_MAX_MANAGERS` | 4 | managers in flight at once — money | p90 of branches active in one clock hour over every merge on `main`: median 2, p90 4, max 9 |
+| `JOHARNESS_STALL_MINUTES` | 45 | no push for this long = cross-check, nudge | p95 of the gap between consecutive commits on one branch, rounded: median 4, p90 27, p95 44 minutes |
+| `JOHARNESS_HEALTH_MINUTES` | 10 | one orchestrator pass every this many | between the median gap (4) and its p75 (12): a healthy manager's push lands inside one to three passes, a stall is seen within one window plus one pass |
+| `JOHARNESS_RESPAWN_LIMIT` | 2 | respawns per item per orchestrator run | no data; a written number until a run counts one |
+| `JOHARNESS_CHURN_THRESHOLD` | 5 | one file rewritten this often = a warning on the work line | `ci`'s own knob, backtested in [`agent-selection.md`](agent-selection.md): honest branches peak at 4. Raising it raises `ci`'s ceiling too |
+| `JOHARNESS_CHURN_LIMIT` | 2x the threshold | one file rewritten this often = `LOOP?`; 0 lifts it | `ci`'s own ceiling, the same knob |
+
+Read by `dispatch`: the environment for one command, `joharness.conf` for
+the repo, else the default. Digits only; a word reads as the default. The
+two churn knobs go through the same reader in `ci`, so a value set in the
+conf means there what it means here — it did not, for one round, and the
+conf's own comment was what documented the trap into existence.
+
+**A consumer gets these as prose and nothing else.** They are deliberately
+absent from `.agents/scripts/conf-keys.sh`, which drives the bootstrap
+interview: four questions about a beta mode the interview never offers is
+the wrong cost to put on every new consumer. The consequence is that a
+consumer's `joharness.conf` carries no knob block at all — canonical's
+comments are not synced — so THIS TABLE is the record, and an operator
+enabling the mode there writes the lines by hand. Revisit when the mode
+leaves beta. A
+session proposes a change with a run's evidence; it never sets one
+(`.agents/harness/AGENTS.md`, Decide alone: money).
+
+The first three were counted on `origin/main` 2026-09-05, the last 200
+merges, 530 commit gaps, 137 active hours, with this and nothing else —
+commit time stands in for push time, which git does not keep. Nearest
+rank: the value at rank ceil(p x N).
+
+```bash
+git rev-list --merges --first-parent -200 origin/main | while read -r m; do
+  set -- $(git rev-list --parents -n1 "$m"); [ $# -ge 3 ] || continue
+  git log --no-merges --format="$m %ct" "$(git merge-base "$2" "$3")..$3"
+done > /tmp/commits.txt
+pct='function r(p){ i=int(NR*p); if (i<NR*p) i++; return a[i] }'
+sort -k1,1 -k2,2n /tmp/commits.txt |
+  awk '$1==p {print ($2-t)/60} {p=$1; t=$2}' | sort -n |
+  awk "{a[NR]=\$1} $pct END {printf \"gaps=%d median=%.0f p90=%.0f p95=%.0f\n\", NR, r(.5), r(.9), r(.95)}"
+awk '{print int($2/3600), $1}' /tmp/commits.txt | sort -u | cut -d' ' -f1 |
+  uniq -c | awk '{print $1}' | sort -n |
+  awk "{a[NR]=\$1} $pct END {printf \"hours=%d median=%d p90=%d max=%d\n\", NR, r(.5), r(.9), a[NR]}"
+```
+
+Measured on the peer fleet, which is the only fleet that has run: what a
+cap of 4 costs in reconciles under an orchestrator is the run's to say.
+
+## Bounds, unchanged, plus one path
+
+Every bound in [`unsupervised.md`](unsupervised.md) holds through
+`unattended()`: protocol text off limits, step 7 conditions for every
+merge, no requirement written by a session, nothing invented at the edge,
+the prompt routes and the repository authorises. The orchestrator adds
+its own: it merges nothing, edits nothing but a killed manager's
+workstream file, picks no tier, and takes no item itself.
+
+`joharness.conf` joined `protocol_paths` with this mode. It holds the
+mode line `authority` verifies and the cap: a session that may rewrite
+its own mode line authorises itself, and one that may raise its own cap
+decides money. Priced and accepted: `./joharness.sh env <name>` writes
+that file too, so an unattended session that switches its environment
+layer now trips the Stop guard until it reverts. Switching layers is a
+configuration decision, which is the supervised half of the same split. Found the day the mode was built — the plan that flips the
+mode for the measured run declared `scope: docs/product, joharness.conf`,
+and with the conf outside the boundary `dispatch` offered that plan to the
+very fleet it would have flipped. Both roles run `authority` first, and
+`orchestrated` with any verdict but VERIFIABLE is a stop, not a beta path:
+"a human invoked this" is a claim the session cannot check, which is the
+sentence under Authority in the same file.
+
+## Heartbeat
+
+Same Routine as unsupervised, same operator action, same connector trap;
+the prompt is `/orchestrate`. Firing over a live orchestrator is safe —
+the new one finds the title `RUNNING` and exits. Firing over a dead one
+is the point.
+
+## What was read before this was designed
+
+[Gas Town](https://github.com/gastownhall/gastown) (Steve Yegge, MIT), at
+commit `649b832`, its own docs only — never run, code not audited. Ideas
+taken, adapted, no text reproduced (`.agents/NOTICE`):
+
+- Its coordinator and its per-project monitor are two long-running
+  agents, one dispatching and one nudging, handing off and cleaning up
+  (`README.md`, Mayor and Witness). Here one role, two steps of one pass:
+  a repo-embedded harness has no daemon to hold a second agent, and a
+  second watcher is a second thing to watch.
+- It treats a worker's session ending as normal and its work as safe
+  because the worktree and the assignment persist past the session
+  (`docs/concepts/polecat-lifecycle.md`). Here the branch persists and
+  the workstream file is the assignment; the kill comes after that file
+  is written, by the manager or by the orchestrator.
+- Its worker health words — working, idle, done, stalled, zombie (same
+  file, Operating States). Here working, stalled, looping, gone, blocked,
+  done: `blocked` is a state its table lacks, a session that stopped on
+  purpose for a human, and it must never be respawned.
+- Its dispatch cap, added after N assignments spawned N workers at once
+  and hit rate limits (`docs/design/scheduler.md`, Overview). Here the
+  cap is the human's number.
+- Its rule that a worker finding work assigned to it executes at once,
+  without announcing itself and waiting
+  (`docs/concepts/propulsion-principle.md`). Here the spawn prompt is
+  that assignment.
+
+Not taken, and the arguments for this repo's own choices are in the
+documents that own them: a queryable work ledger and a long-running
+service (`graph.md`), integration branches and a merge queue
+(`product/README.md`, Branch flow), querying a dead session
+(`handover/README.md`), a named persistent worker pool — identity here is
+the branch and the workstream file, attribution is the commit, and a pool
+is state outside git.
+
+## Runs
+
+| Run | Date | Wall-clock | Managers | Kills | Merged | Ended by |
+| --- | --- | --- | --- | --- | --- | --- |
+| none yet | | | | | | `docs/plans/orchestrated-run.md` is the first, and it is operator-gated |

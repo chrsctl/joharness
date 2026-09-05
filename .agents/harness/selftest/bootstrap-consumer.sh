@@ -170,6 +170,22 @@ if [ -e "${TMP}/bootenv-bad" ]; then
 else
   pass "refused bootstrap creates nothing"
 fi
+# An EMPTY value is refused with a message, like any other wrong one. A
+# three-value arm in the checker once matched the empty string against its
+# own empty third choice and died silently under set -e.
+out="$(boot --dry-run --review '' "${TMP}/bootreview-empty")"; rc=$?
+if [ "$rc" -eq 1 ]; then
+  pass "bootstrap --review refuses an empty value"
+else
+  fail "bootstrap --review refuses an empty value (got ${rc})"
+fi
+expect "and says what it expected" "invalid review '' (expected: off | on)" "$out"
+out="$(boot --dry-run --mode orchestrated "${TMP}/bootmode-orch")"; rc=$?
+if [ "$rc" -eq 0 ]; then
+  pass "bootstrap --mode accepts orchestrated"
+else
+  fail "bootstrap --mode accepts orchestrated (got ${rc}: ${out})"
+fi
 out="$(boot --env 'bad/../name' "${TMP}/bootenv-walk")"; rc=$?
 if [ "$rc" -eq 1 ]; then
   pass "bootstrap --env refuses a path-walking name"

@@ -14,12 +14,23 @@ human present. Every piece of it is something a heartbeat-fired session
 needs and an attended one must not have: the table below is the list, and
 a row that does not turn on that question belongs somewhere else.
 
+A third value, `orchestrated` (beta), answers the same question the same
+way and adds one more: who dispatches. Every bound below binds it too,
+through one predicate (`joharness.sh:unattended`); what it adds is in
+[`orchestrated.md`](orchestrated.md). "Unattended" in this file means
+either value.
+
 ## What the mode changes
 
 One row per layer, and the rows are the whole difference. Supervised sees
 none of them: no branch on the mode changes what an attended session gets
 out of the same tree. That is a claim about one tree — removing the mode's
 machinery changes supervised output like any other edit.
+
+Every row below describes UNSUPERVISED. Orchestrated shares the boundary,
+the merge gate, the requirement ban and the no-inventing edge — the Bounds
+below, which is what "unattended" means here — and differs in every row of
+this table; `orchestrated.md` has its own.
 
 | Where | Change |
 | --- | --- |
@@ -34,8 +45,10 @@ same tree got two answers (PR 170, PR 187, PR 190 each fixed one side).
 
 ## The one stop
 
-DRAINED, at the queue edge, in both modes. A session takes one item, runs
-the Loop on it, exits; the heartbeat fires the next. Nothing is invented at
+DRAINED, at the queue edge, supervised and unsupervised alike. A session
+takes one item, runs the Loop on it, exits; the heartbeat fires the next.
+(Orchestrated splits this: a manager's stop is its own merge, and the
+orchestrator stops at DRAINED only with nothing in flight.) Nothing is invented at
 the edge: work enters the queue as an issue, a requirement, or a plan through
 a pull request, and only there. Anything else that ends a run — a rate
 limit, a session asking a question, a generation that failed to spawn — is
@@ -60,7 +73,9 @@ retires.
   plan whose own Traps said supervised session only. Sandbox configuration
   (`.agents/env/`) is not
   protocol. The list covers its own machinery: `joharness.sh` and
-  `.claude/settings.json`.
+  `.claude/settings.json` — and, since orchestrated mode, `joharness.conf`,
+  which holds the mode line `authority` verifies and the orchestrator's
+  cap (`orchestrated.md`, Bounds).
 - **Merging uses the step 7 conditions unchanged.** The mode removes the
   human, never the gate.
 - **No unsupervised session writes a requirement**, and `ci` reds the
@@ -108,7 +123,8 @@ steady-state sync never touches it, so nothing re-asks and no later sync
 overwrites what the child answered. It is one of five questions the bootstrap
 puts — the others pick the environment layer and how the repo verifies itself
 (`.agents/docs/consumer-repos.md`). `--mode <supervised|unsupervised>` answers
-it for a run with nobody at a terminal; a run with neither flag nor terminal
+it for a run with nobody at a terminal (`orchestrated` is accepted there
+too, never offered by the interview); a run with neither flag nor terminal
 takes supervised and says why it did not ask.
 
 One default, two bootstrap shapes, and they treat what the child inherits

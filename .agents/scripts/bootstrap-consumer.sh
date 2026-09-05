@@ -54,7 +54,7 @@
 #
 # Usage: .agents/scripts/bootstrap-consumer.sh [--dry-run] [--env <layer>]
 #            [--env-setup <lazy|eager>] [--env-md <lazy|eager>]
-#            [--review <off|on>] [--mode <supervised|unsupervised>]
+#            [--review <off|on>] [--mode <supervised|unsupervised|orchestrated>]
 #            <consumer-dir>
 # Exit: 0 bootstrapped clean. 1 refused with nothing written (usage, ROOT
 # not canonical, an unknown layer or switch value, target already a consumer,
@@ -109,7 +109,7 @@ TRAP_TMP=""
 trap 'rm -rf "$SCRATCH"; [ -z "$TRAP_TMP" ] || rm -f "$TRAP_TMP"' EXIT
 
 usage() {
-  die "usage: $0 [--dry-run] [--env <layer>] [--env-setup <lazy|eager>] [--env-md <lazy|eager>] [--review <off|on>] [--mode <supervised|unsupervised>] <consumer-dir>"
+  die "usage: $0 [--dry-run] [--env <layer>] [--env-setup <lazy|eager>] [--env-md <lazy|eager>] [--review <off|on>] [--mode <supervised|unsupervised|orchestrated>] <consumer-dir>"
 }
 
 DRY=0
@@ -170,21 +170,23 @@ esac
 
 # Every explicit value is checked, never normalised. Each of these keys is
 # read by something that fails closed on an unrecognised value —
-# joharness.sh:run_mode resolves anything but 'unsupervised' to supervised,
-# and the two-value keys behave the same way — so a typo is silent for the
-# life of the repo unless it is refused where a human types it.
+# joharness.sh:run_mode resolves anything but 'unsupervised' or
+# 'orchestrated' to supervised, and the two-value keys behave the same way —
+# so a typo is silent for the life of the repo unless it is refused where a
+# human types it. Two or three accepted values; the third is optional.
 check_choice() {
-  local given="$1" name="$2" value="$3" a="$4" b="$5"
+  local given="$1" name="$2" value="$3" a="$4" b="$5" c="${6:-}"
   [ "$given" -eq 1 ] || return 0
-  case "$value" in
-    "$a"|"$b") ;;
-    *) die "invalid ${name} '${value}' (expected: ${a} | ${b})" ;;
-  esac
+  case "$value" in "$a"|"$b") return 0 ;; esac
+  # Tested outside the case: a `"$c")` arm with c empty matched an EMPTY
+  # value, and `--review ""` died silently instead of being refused.
+  [ -n "$c" ] && [ "$value" = "$c" ] && return 0
+  die "invalid ${name} '${value}' (expected: ${a} | ${b}${c:+ | ${c}})"
 }
 check_choice "$ENV_SETUP_GIVEN" env-setup "$ENV_SETUP" lazy eager
 check_choice "$ENV_MD_GIVEN" env-md "$ENV_MD" lazy eager
 check_choice "$REVIEW_GIVEN" review "$REVIEW" off on
-check_choice "$AUTONOMY_GIVEN" mode "$AUTONOMY" supervised unsupervised
+check_choice "$AUTONOMY_GIVEN" mode "$AUTONOMY" supervised unsupervised orchestrated
 
 # Defined before the target is even looked at, and called from both places
 # that can be the end of the run: the missing-target dry run exits early, and
@@ -354,7 +356,9 @@ interview() {
       "  A session takes one queue item, runs the Loop, merges its own pull
   request, and at the queue edge exits instead of asking a human.
   It automates nothing by itself: something has to fire the next
-  session (.agents/docs/unsupervised.md, Heartbeat)." \
+  session (.agents/docs/unsupervised.md, Heartbeat). A third value,
+  orchestrated (beta), is set by hand after reading
+  .agents/docs/orchestrated.md; the interview offers the two." \
       supervised unsupervised "$cur")"
     AUTONOMY="$ans"
     [ "$ans" = "$cur" ] || AUTONOMY_GIVEN=1
@@ -416,7 +420,7 @@ write_decided_keys() {
     set_conf_key "$conf" JOHARNESS_REVIEW "$REVIEW" \
       "off = review reports only; on = ci gates the record at the edge."
   set_conf_key "$conf" JOHARNESS_MODE "$AUTONOMY" \
-    "Autonomy. Any value but unsupervised reads as supervised."
+    "Autonomy. Any value but unsupervised or orchestrated (beta) reads as supervised."
 }
 
 # Mode detection needs the target readable; a missing target is trivially
