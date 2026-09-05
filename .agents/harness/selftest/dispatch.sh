@@ -162,6 +162,9 @@ expect "a SUPERVISED ONLY plan is named as not yours" \
 refute "and never spawned" "docs/plans/protocol.md (agent" "$out"
 
 # --- supervised: reported, said, never refused -------------------------------
+# And read AS the orchestrator: the marking and the holds are the
+# orchestrator's rules, not the repo's mode, so a human running the beta
+# loop under a supervised conf gets the same report under a different header.
 printf 'JOHARNESS_ENV=none\n' >"$dspconf"
 out="$(dsp)"
 expect "supervised is named" "== dispatch (mode: supervised)" "$out"
@@ -170,3 +173,5 @@ expect "and said as not orchestrated" \
 expect "with the unattended path pointed at authority" \
   "./joharness.sh authority" "$out"
 expect "and the report still printed" "slots     :" "$out"
+expect "the marking still applies under a supervised conf" \
+  "NOT YOURS — SUPERVISED ONLY" "$out"

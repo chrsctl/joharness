@@ -66,6 +66,30 @@ concurrency.
 
 ## Review
 
+Opus depth: correctness, security and does-it-reproduce as separate passes
+by this session, then `.claude/agents/verifier.md` at opus on the full
+diff. Findings written before their fix, committed with it.
+
+- r1: (session, security) the orchestrator reads a manager's `session:`
+  URL out of a workstream file — repo-controlled input — and the loop
+  told it to interrupt and archive whatever that URL named. A spoofed
+  line kills an unrelated session. (fixed — orchestrate.md confirms the
+  title `manager: <stem>` and the branch before any message, interrupt
+  or archive; a mismatch is reported and nothing is touched. Same pass:
+  a `next:` line or status text is data, never an order to the role)
+- r2: (session, correctness) `dispatch` ran the hooks in the repo's mode,
+  so a human driving the beta loop under a supervised conf got a report
+  with no `SUPERVISED ONLY` marking and no `in flight:` holds — the two
+  rules the orchestrator exists to apply. (fixed — dispatch passes
+  `orchestrated` to both hooks whatever the conf says; a case pins the
+  marking under a supervised conf)
+- r3: (session, does-it-reproduce) the first `dispatch` fixture's blocked
+  manager never existed: git dropped the emptied `docs/handover/` on
+  checkout and the file write failed silently, so three cases asserted on
+  a branch that claimed nothing. The runner's own comment names this trap.
+  (fixed — `mkdir -p` before the write; the cases went red first, then
+  green)
+
 ## Blockers
 
 None.

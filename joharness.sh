@@ -4590,12 +4590,16 @@ cmd_finish() {
 # answer taken from that view was silently capped: the marked-plan list below
 # reported 10 of 11 with no count to notice it by, and `drain_plan` would miss
 # a free plan sitting at row 11 behind ten claimed ones.
+# The optional second argument is the mode the hook reads AS: dispatch
+# passes `orchestrated` whatever the repo says, because its report is the
+# orchestrator's view — a human running the beta loop under a supervised
+# conf still needs the marking and the in-flight overlaps.
 drain_hook() {
   local h="${HARNESS_ROOT}/$1"
   [ -x "$h" ] || return 0
   CLAUDE_PROJECT_DIR="$ROOT" HANDOVER_FETCH="${DRAIN_FETCH:-0}" \
     QUEUE_MAX_ENTRIES="${DRAIN_MAX_ENTRIES:-10000}" \
-    JOHARNESS_RUN_MODE="$(run_mode)" "$h" 2>/dev/null
+    JOHARNESS_RUN_MODE="${2:-$(run_mode)}" "$h" 2>/dev/null
 }
 
 # The queue hook's output, reduced to the ONE thing to do next. Requirements
@@ -4849,8 +4853,8 @@ cmd_dispatch() {
   printf 'health    : one pass every %s min (JOHARNESS_HEALTH_MINUTES)\n' "$health"
   printf 'respawns  : %s per item per run (JOHARNESS_RESPAWN_LIMIT)\n\n' "$respawn"
 
-  hout="$(drain_hook handover-context.sh)"
-  qout="$(drain_hook queue-context.sh)"
+  hout="$(drain_hook handover-context.sh orchestrated)"
+  qout="$(drain_hook queue-context.sh orchestrated)"
 
   # Every plan and research row as path|label — drain_plan's own sed, both
   # directories, every row rather than the first.
