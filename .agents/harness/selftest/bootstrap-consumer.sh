@@ -673,6 +673,36 @@ expect "a dry reconfigure says what it would write" \
   "would write into" "$out"
 expect "and writes none of it" "JOHARNESS_REVIEW=off" "$(cat "${bootrc}/joharness.conf")"
 
+# The layer rule differs from first contact, because a reconfigure ships
+# nothing: the child's own layers count, and selecting one it does not carry
+# is allowed but said out loud. Canonical refuses that same name.
+out="$(boot --reconfigure --env aaa "$bootrc" 2>&1)"
+expect "a layer canonical carries is written" "JOHARNESS_ENV=aaa" \
+  "$(cat "${bootrc}/joharness.conf")"
+expect "and the child not carrying it yet is a warning, not silence" \
+  "does not carry .agents/env/aaa yet" "$out"
+expect "which names what brings it" "sync-to-consumer.sh" "$out"
+
+mkdir -p "${bootrc}/.agents/env/mycloud"
+out="$(boot --reconfigure --env mycloud "$bootrc" 2>&1)"
+expect "a layer the CHILD owns is accepted, though canonical lacks it" \
+  "JOHARNESS_ENV=mycloud" "$(cat "${bootrc}/joharness.conf")"
+refute "and carries no warning, because the child has it" \
+  "does not carry .agents/env/mycloud" "$out"
+out="$(boot --env mycloud "${TMP}/bootrc-firstcontact")"; rc=$?
+if [ "$rc" -eq 1 ]; then
+  pass "first contact still refuses a layer canonical lacks"
+else
+  fail "first contact still refuses a layer canonical lacks (got ${rc})"
+fi
+out="$(boot --reconfigure --env nope "$bootrc")"; rc=$?
+if [ "$rc" -eq 1 ]; then
+  pass "a layer neither side carries is refused"
+else
+  fail "a layer neither side carries is refused (got ${rc})"
+fi
+expect "and the refusal names both sides" "in canonical or in" "$out"
+
 # The three targets --reconfigure refuses, each named.
 out="$(boot --reconfigure "${TMP}/bootrc-missing")"; rc=$?
 if [ "$rc" -eq 1 ]; then
