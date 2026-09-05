@@ -271,9 +271,10 @@ if [ "${JOHARNESS_SESSION_SOURCE:-}" = "compact" ]; then
   # The mode's own page only to the session in that mode. Handing a
   # supervised session .agents/docs/unsupervised.md is context for a mode it
   # is not in, and every line here is paid on read.
-  if [ "${JOHARNESS_RUN_MODE:-supervised}" = "unsupervised" ]; then
-    add "  Its rules: .agents/docs/unsupervised.md."
-  fi
+  case "${JOHARNESS_RUN_MODE:-supervised}" in
+    unsupervised) add "  Its rules: .agents/docs/unsupervised.md." ;;
+    orchestrated) add "  Its rules: .agents/docs/orchestrated.md; bounds: .agents/docs/unsupervised.md." ;;
+  esac
   add ""
   # The third thing, which is neither the rules nor the task state: a session
   # here reported three merged deliverables as outstanding, because step 7

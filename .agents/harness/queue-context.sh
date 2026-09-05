@@ -13,7 +13,8 @@
 #                       a needed plan or an open research question is open,
 #                       `claimed on <branch>` when an in-flight workstream
 #                       names it. Blocked and claimed list but never lead.
-#                       Under unsupervised only, two more: `SUPERVISED ONLY`
+#                       Unattended only (unsupervised, orchestrated), two
+#                       more: `SUPERVISED ONLY`
 #                       when ANY path in `scope:` is protocol text, which
 #                       that mode may not commit — listed, never leading,
 #                       the label saying whether that is the whole scope or
@@ -28,8 +29,10 @@
 #                       a consumer's own documents here are never scheduled.
 # Two or more free plans = fan-out line (one session per free plan, model
 # named). No free plan and nothing to plan = the edge. This hook REPORTS in
-# both modes; what an unsupervised session does with the report — take,
-# fan out, or exit — is `joharness.sh drain`'s to say. GitHub issues
+# every mode; what an unattended session does with the report — take,
+# fan out, or exit — is `joharness.sh drain`'s to say, and what an
+# orchestrator spawns is `joharness.sh dispatch`'s, which reads the extra
+# `in flight:` lines printed under orchestrated only. GitHub issues
 # outrank everything; a shell hook cannot read GitHub, so that stays a
 # pointer.
 #
@@ -180,6 +183,12 @@ rstems="$(
 # re-derived here. Unset (hook run directly) = supervised, the safe
 # direction.
 qc_mode="${JOHARNESS_RUN_MODE:-supervised}"
+# Both unattended modes are bound alike here — the boundary and the marking
+# turn on "is a human present", not on who dispatches. One predicate, the
+# same split joharness.sh:unattended makes; a `= unsupervised` test left
+# anywhere below is a bound the orchestrated mode escapes.
+qc_unattended=0
+case "$qc_mode" in unsupervised | orchestrated) qc_unattended=1 ;; esac
 # Under unsupervised the LAST line is always the pointer at the reader that
 # orders. A trap, so every exit path below carries it — this hook has four —
 # and the report above it stays the same bytes in both modes. Without it a
@@ -187,6 +196,8 @@ qc_mode="${JOHARNESS_RUN_MODE:-supervised}"
 # hook that no longer knows what the mode does with either.
 if [ "$qc_mode" = "unsupervised" ]; then
   trap 'printf "\nUNSUPERVISED: this hook reports; ./joharness.sh drain orders — take,\nfan out, or exit.\n"' EXIT
+elif [ "$qc_mode" = "orchestrated" ]; then
+  trap 'printf "\nORCHESTRATED: this hook reports; a manager works the item its prompt\nnames, the orchestrator reads ./joharness.sh dispatch and spawns.\n"' EXIT
 fi
 
 # The unsupervised boundary, as the queue sees it: protocol text is off
@@ -210,7 +221,7 @@ fi
 # the regression in kind this hook's perf budget exists to catch. Supervised
 # does not even pay the one fork, because nothing that reads this fires.
 qc_protocol=()
-if [ "$qc_mode" = "unsupervised" ]; then
+if [ "$qc_unattended" -eq 1 ]; then
   while IFS= read -r qc_p; do
     [ -n "$qc_p" ] && qc_protocol+=("$qc_p")
   done < <("${PROJECT_DIR}/joharness.sh" protocol-paths 2>/dev/null)
@@ -404,7 +415,7 @@ rows_raw="$(
     # unpinned is the refactor this paragraph exists to stop.
     scope_note=""
     scope_derank=""
-    if [ "$qc_mode" = "unsupervised" ] && [ "$qc_boundary" -eq 1 ]; then
+    if [ "$qc_unattended" -eq 1 ] && [ "$qc_boundary" -eq 1 ]; then
       qc_scope_class "$scope"
       # Two marked classes, two labels, one de-rank. The labels stay
       # distinct because the shapes want different fixes: an `only` plan is
@@ -624,7 +635,7 @@ fi
 # DECLARATION. Labelling every row "unchecked" here would spell the first as
 # the second, and a session would go looking in the plan files for a fault
 # that is in its own checkout.
-if [ "$qc_mode" = "unsupervised" ] && [ "$qc_boundary" -eq 0 ]; then
+if [ "$qc_unattended" -eq 1 ] && [ "$qc_boundary" -eq 0 ]; then
   printf '\nProtocol boundary NOT read (./joharness.sh protocol-paths listed\n'
   printf 'nothing here), so no plan below is marked SUPERVISED ONLY. That is\n'
   printf 'this checkout, not the plans: a plan whose scope holds protocol\n'
@@ -646,6 +657,17 @@ done <<<"$rows"
 
 qc_print_research
 
+# A plan's declared scope, one path per line: comma to newline, surrounding
+# blanks and trailing slashes gone, `none` dropped. `shared:` prefixes stay
+# on their lines for the caller to split. One reader for the free loop and
+# for the in-flight comparison under orchestrated, so the two cannot
+# normalise a declaration two ways.
+scope_lines() {
+  git show "${ref}:$1" 2>/dev/null | field scope |
+    tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//; s|/*$||' |
+    grep -v '^$' | grep -vx 'none'
+}
+
 free_count=0
 free_list=""
 free_names=()
@@ -666,9 +688,7 @@ while IFS=$'\t' read -r rank _ f label _; do
   # expected reconcile instead of splitting the wave, because a queue where
   # every plan touches the same test file has no disjoint pair and reports
   # waves of one — advice that serialises work the repo has run in parallel.
-  scope_raw="$(git show "${ref}:${f}" 2>/dev/null | field scope |
-    tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//; s|/*$||' |
-    grep -v '^$' | grep -vx 'none')"
+  scope_raw="$(scope_lines "$f")"
   # Case-blind on the prefix: `Shared:x` spelled as an exclusive path would
   # match nothing real, so a capitalisation typo would read as MORE parallel
   # safety, not less.
@@ -821,7 +841,7 @@ elif [ "$free_count" -eq 0 ] && [ -z "$unplanned" ] &&
   exit 0
 elif [ "$free_count" -eq 0 ] && [ -z "$unplanned" ] &&
      [ "$qc_unreadable" -eq 0 ]; then
-  if [ "$qc_mode" = "unsupervised" ]; then
+  if [ "$qc_unattended" -eq 1 ]; then
     # Nothing here is free FOR THIS MODE, and the supervised tail below
     # ("top free plan above") would point at a plan that is not. The marked
     # rows are why the edge is reached; say so and stop — the trap prints
@@ -830,6 +850,33 @@ elif [ "$free_count" -eq 0 ] && [ -z "$unplanned" ] &&
     exit 0
   fi
   printf '\nEdge reached: no free plan — every plan claimed or blocked. done.\n'
+fi
+
+# Under orchestrated only: a free plan whose exclusive scope overlaps a
+# CLAIMED plan's. The waves above partition free plans among themselves; an
+# orchestrator spawning into a fleet already in flight needs the other half
+# — which free plan collides with work a manager holds right now — and
+# `dispatch` reads these lines to hold that plan back. Same overlap rule,
+# same reader; one fork per claimed plan, paid only in the mode that spawns.
+# A `shared:` path on the claimed side is dropped like the free side's: a
+# reconcile both declared routine is not a collision.
+if [ "$qc_mode" = "orchestrated" ] && [ "$free_count" -gt 0 ]; then
+  while IFS=$'\t' read -r _ _ cf clabel _; do
+    [ -n "$cf" ] || continue
+    case "$clabel" in *'claimed on '*) ;; *) continue ;; esac
+    cbranch="${clabel##*claimed on }"; cbranch="${cbranch%%,*}"; cbranch="${cbranch%%]*}"
+    cscope="$(scope_lines "$cf" |
+      grep -v '^[Ss][Hh][Aa][Rr][Ee][Dd]:' | paste -sd' ' -)"
+    [ -n "$cscope" ] || continue
+    i=0
+    while [ "$i" -lt "${#free_names[@]}" ]; do
+      if hit="$(scopes_overlap "${free_scopes[$i]:-}" "$cscope")"; then
+        printf '  in flight: %s overlaps %s on %s (claimed on %s)\n' \
+          "${free_names[$i]}" "$(stem "$cf")" "$hit" "$cbranch"
+      fi
+      i=$((i + 1))
+    done
+  done <<<"$rows"
 fi
 
 printf '\n'

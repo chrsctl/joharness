@@ -553,6 +553,8 @@ SELFTEST_TOPICS=(
   feedback-recurrence
   cleanup
   drain
+  orchestrated
+  dispatch
   ci-canonical-only-selftest
   upgrade
   ci-glossary

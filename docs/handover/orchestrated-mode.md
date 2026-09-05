@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01Jyb2Ttjttcf3sYaJxiTXWr
 agent: opus
 updated: 2026-09-05
-next: Build the mode: third JOHARNESS_MODE value, `dispatch`, the two role commands, docs, selftests
+next: Write the role commands (orchestrate, manage), the design doc, the ported prior-art, the requirement and the follow-up run plan
 ---
 
 ## Goal

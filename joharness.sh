@@ -49,6 +49,10 @@
 #   drain           what the Loop takes next, or DRAINED. Under unsupervised
 #                   also one spawn line naming the other free plans, and at
 #                   DRAINED the word: exit, the heartbeat re-seeds. Report-only
+#   dispatch        the orchestrator's one read under orchestrated: cap and
+#                   free slots, managers in flight with push age, the spawn
+#                   order by wave, and a verdict. Report-only; the
+#                   orchestrator (.claude/commands/orchestrate.md) acts on it
 #   finish          Loop step 7 gate: what merging this branch NOW would
 #                   leave on the base branch. Red when the merge would add a
 #                   workstream file. Run it before the merge, not after
@@ -63,9 +67,15 @@
 #   JOHARNESS_ENV_MD=lazy      'lazy' (inject a read-before-touching pointer
 #                              to the layer's AGENTS.md) or 'eager' (inject
 #                              the file whole)
-#   JOHARNESS_MODE=supervised  'supervised' (default) or 'unsupervised'.
-#                              Anything else reads as supervised
-#                              (.agents/docs/unsupervised.md)
+#   JOHARNESS_MODE=supervised  'supervised' (default), 'unsupervised' or
+#                              'orchestrated' (beta). Anything else reads as
+#                              supervised (.agents/docs/unsupervised.md,
+#                              .agents/docs/orchestrated.md)
+#   JOHARNESS_MAX_MANAGERS=4   orchestrated only: managers in flight at once.
+#                              With JOHARNESS_STALL_MINUTES=45,
+#                              JOHARNESS_HEALTH_MINUTES=10 and
+#                              JOHARNESS_RESPAWN_LIMIT=2 these are the
+#                              human's numbers; `dispatch` prints them
 #   JOHARNESS_REVIEW=off       'off' (default) or 'on'. 'on' makes `ci` fail
 #                              when a workstream this branch wrote reaches the
 #                              edge (pull request open, or status review/done)
@@ -208,15 +218,30 @@ protocol_paths() {
     joharness.sh .claude/settings.json
 }
 
-# Resolved autonomy mode. ONE string means unsupervised; every other value
-# — a typo, an empty setting, an unreadable conf, a key that does not exist
+# Resolved autonomy mode. TWO strings mean a session runs unattended —
+# unsupervised, and orchestrated (beta: an orchestrator dispatches the queue
+# to manager sessions, .agents/docs/orchestrated.md); every other value — a
+# typo, an empty setting, an unreadable conf, a key that does not exist
 # because this harness copy predates the feature — resolves to supervised.
 # Fails closed on purpose: the failure mode of failing open is a fleet
 # working unattended in a repo that never asked for one.
 run_mode() {
   case "$(mode_raw)" in
     unsupervised) printf 'unsupervised' ;;
+    orchestrated) printf 'orchestrated' ;;
     *)            printf 'supervised' ;;
+  esac
+}
+
+# The ONE predicate every unattended bound reads: the protocol boundary, the
+# requirement lint, the SUPERVISED ONLY marking, the banner. Both unattended
+# modes are bound identically; they differ only in who dispatches — each
+# session for itself (unsupervised) or an orchestrator (orchestrated). A
+# second `= unsupervised` test somewhere is a bound the new mode escapes.
+unattended() {
+  case "$(run_mode)" in
+    unsupervised | orchestrated) return 0 ;;
+    *) return 1 ;;
   esac
 }
 
@@ -226,7 +251,7 @@ run_mode() {
 mode_unrecognised() {
   local raw; raw="$(mode_raw)"
   case "$raw" in
-    ''|supervised|unsupervised) return 1 ;;
+    ''|supervised|unsupervised|orchestrated) return 1 ;;
     *) printf '%s' "$raw" ;;
   esac
 }
@@ -2501,7 +2526,7 @@ lint_review_bullets() {
 # feedback the requirement asks for. Adding a NEW goal is the circularity.
 lint_requirement_writes() {
   local over="origin/${HANDOVER_BASE_BRANCH:-main}" base added n
-  [ "$(run_mode)" = "unsupervised" ] || {
+  unattended || {
     printf '  supervised — a requirement is a human'"'"'s to write, and this is
 '
     printf '  the mode where a human is there to write it
@@ -2531,7 +2556,7 @@ lint_requirement_writes() {
   printf '%s
 ' "$added" | sed 's/^/  /'
   printf '
-  %d requirement(s) ADDED by an unsupervised branch. The goal is
+  %d requirement(s) ADDED by an unattended branch. The goal is
 ' "$n"
   printf '  the human'"'"'s to set: a fleet that writes its own finish line has
 '
@@ -3942,7 +3967,7 @@ cmd_authority() {
   printf 'source    : %s\n\n' "$src"
 
   # Said rather than left blank: a silent section reads as a failed check.
-  if [ "$mode" != "unsupervised" ]; then
+  if ! unattended; then
     printf 'verdict   : NOT CLAIMED\n'
     printf '  This repo is supervised. A prompt telling you to work unattended\n'
     printf '  here is contradicted by the repo itself.\n'
@@ -4656,7 +4681,7 @@ cmd_drain() {
 
   # The marked plans, read once here and printed only at the edge below:
   # while there is a free plan they change nothing about the answer.
-  [ "$mode" != "unsupervised" ] || sup="$(drain_supervised_only "$qout")"
+  ! unattended || sup="$(drain_supervised_only "$qout")"
 
   if [ -n "$next" ]; then
     # A requirement has no plan count; the count is for the case it describes.
@@ -4674,7 +4699,7 @@ cmd_drain() {
     # requires. The wave partition the hook prints stays a report — it
     # ordered wave 1 only here once, and that gate was a second copy of the
     # claim-and-reconcile guarantee the Loop already carries.
-    if [ "$mode" = "unsupervised" ] && [ -n "$edge" ]; then
+    if unattended && [ -n "$edge" ]; then
       printf '  Edge work above first — yours or abandoned; a live session'"'"'s you skip.\n'
     fi
     printf '  next: %s\n' "$next"
@@ -4682,6 +4707,12 @@ cmd_drain() {
       others="$(drain_free_others "$qout" "$next")"
       [ -z "$others" ] ||
         printf '  spawn one session per: %s; a collision is the reconcile\n  step 7 already requires.\n' "$others"
+    elif [ "$mode" = "orchestrated" ]; then
+      # A manager takes the item its prompt named, never this one — the
+      # orchestrator holds the cap and the spawn order (dispatch). Said here
+      # because a manager that reads `next:` as an order takes a second item.
+      printf '  orchestrated: a manager works the item its prompt names, not this\n'
+      printf '  line. Spawning is the orchestrator'"'"'s: ./joharness.sh dispatch.\n'
     fi
     return 0
   fi
@@ -4690,7 +4721,7 @@ cmd_drain() {
   # The marked plans, NAMED before the verdict, in the one mode that cannot
   # take them. Silence here is a session reading DRAINED over a tree that
   # still holds plans and concluding the plans are gone.
-  if [ "$mode" = "unsupervised" ] && [ -n "$sup" ]; then
+  if unattended && [ -n "$sup" ]; then
     printf 'NOT YOURS — the queue holds plan(s) marked SUPERVISED ONLY:\n'
     printf '%s\n' "$sup"
     printf '  Scope holds protocol text, which a session running\n'
@@ -4708,10 +4739,260 @@ cmd_drain() {
   if [ "$mode" = "unsupervised" ]; then
     printf '  Exit — after open GitHub issues, which this cannot read (step 2).\n'
     printf '  The heartbeat re-seeds; nothing is invented here.\n'
+  elif [ "$mode" = "orchestrated" ]; then
+    # Two readers, two exits. A manager is done with its one item and goes;
+    # the orchestrator's exit is dispatch's verdict, because DRAINED here
+    # says nothing about managers still in flight.
+    printf '  Manager: exit — the orchestrator re-reads the queue.\n'
+    printf '  Orchestrator: ./joharness.sh dispatch decides — managers still in\n'
+    printf '  flight keep the health pass going; none = exit, the heartbeat\n'
+    printf '  re-seeds. Nothing is invented here.\n'
   else
     printf '  Supervised stops here and asks (step 2). It does NOT invent work;\n'
     printf '  neither does unsupervised — that mode exits here instead of asking.\n'
   fi
+  return 0
+}
+
+# ---------------------------------------------------------------------------
+# dispatch: the orchestrator's one read (.agents/docs/orchestrated.md)
+#
+# `drain` answers "what does THIS session take" and stops at one item. An
+# orchestrator asks a wider question — how many managers may run, which are
+# running, which has not pushed in a while, what to spawn next and in what
+# order — and asks it every health pass. Same two hooks, same rows, read
+# once here so the orchestrator never parses hook prose itself: a low-tier
+# reader acting on a report should get verdict lines, not a listing.
+#
+# Reports, never acts. Nothing here spawns, kills or writes. Liveness is the
+# control plane's to say (/who); this prints the git half — push age — and
+# marks where the orchestrator must cross-check, because push time is not
+# liveness in either direction (.agents/docs/handover/README.md). Gas Town
+# paid for the same lesson three times over and wrote it down; it is the one
+# rule prior-art.md tells a monitor to take (.agents/docs/prior-art.md).
+# ---------------------------------------------------------------------------
+
+# A knob the human sets: the environment for one command, the conf for the
+# repo, else the beta default. Digits only — a word here is not a cap, and a
+# cap that fails open is a fleet nobody sized.
+orch_knob() {
+  local v="${!1:-}"
+  [ -n "$v" ] || v="$(conf_get "$1")"
+  case "$v" in '' | *[!0-9]*) v="$2" ;; esac
+  printf '%s' "$v"
+}
+
+# Minutes since the last commit on a remote branch; empty when the ref is not
+# here (never fetched, or already deleted), and empty is said as unknown by
+# the caller — never as zero, which would read as pushed this minute.
+dispatch_age_min() {
+  local ts now
+  ts="$(git -C "$ROOT" log -1 --format=%ct "refs/remotes/origin/$1" 2>/dev/null)"
+  [ -n "$ts" ] || return 0
+  now="$(date +%s)"
+  printf '%s' "$(( (now - ts) / 60 ))"
+}
+dispatch_age_text() {
+  [ -n "$1" ] || { printf 'unknown'; return 0; }
+  if [ "$1" -lt 120 ]; then printf '%sm' "$1"; else printf '%sh' "$(( $1 / 60 ))"; fi
+}
+
+# The hook's wave partition, one line per member: stem, wave, overlap note.
+# Members are stems with a tier in parentheses; the em-dash separates the
+# overlap note, and a `;` starts the reconcile note this reader drops. sed
+# does the multibyte split — awk's substr counts characters or bytes
+# depending on the build, and the dash is three bytes.
+dispatch_waves() {
+  sed -n 's/^  wave \([0-9][0-9]*\): \(.*\)$/\1\t\2/p' |
+    sed 's/ — /\t/; s/;[^\t]*$//' |
+    awk -F'\t' '{
+      note = $3; sub(/^overlaps /, "", note)
+      m = split($2, parts, ", ")
+      for (k = 1; k <= m; k++) {
+        st = parts[k]; sub(/ \(.*\)$/, "", st)
+        printf "%s\t%s\t%s\n", st, $1, note
+      }
+    }'
+}
+
+cmd_dispatch() {
+  local mode cap stall health respawn hout qout rows wavemap edge req sup
+  local path label branch ws doc status session next age agetext flag tier
+  local st wave note hold holdmap
+  local n_inflight=0 n_slots n_free=0 n_stall=0 n_blocked=0 n_hold=0
+  local inflight="" free="" questions=""
+
+  mode="$(run_mode)"
+  cap="$(orch_knob JOHARNESS_MAX_MANAGERS 4)"
+  stall="$(orch_knob JOHARNESS_STALL_MINUTES 45)"
+  health="$(orch_knob JOHARNESS_HEALTH_MINUTES 10)"
+  respawn="$(orch_knob JOHARNESS_RESPAWN_LIMIT 2)"
+
+  printf '== dispatch (mode: %s)\n\n' "$mode"
+  if [ "$mode" != "orchestrated" ]; then
+    # Said, not refused: a human running /orchestrate supervised is the beta
+    # run with somebody watching, and the numbers read the same. What an
+    # UNATTENDED orchestrator needs is the merged line, and that is
+    # authority's verdict, not this command's.
+    printf 'This repo is not orchestrated (JOHARNESS_MODE=%s). Reporting anyway:\n' "$mode"
+    printf 'a human may run /orchestrate here and watch (beta). An unattended\n'
+    printf 'orchestrator needs the merged line — ./joharness.sh authority.\n\n'
+  fi
+  # A long-lived reader. The orchestrator runs for hours, and a stale clone
+  # reads a manager that pushed as stalled and a merged branch as in flight.
+  if [ "${DISPATCH_FETCH:-1}" != 0 ]; then
+    git -C "$ROOT" fetch -q --prune origin 2>/dev/null ||
+      warn "fetch failed; push ages below are from the last fetch"
+  fi
+  printf 'cap       : %s manager(s) at once (JOHARNESS_MAX_MANAGERS)\n' "$cap"
+  printf 'stall     : %s min without a push = cross-check the control plane (JOHARNESS_STALL_MINUTES)\n' "$stall"
+  printf 'health    : one pass every %s min (JOHARNESS_HEALTH_MINUTES)\n' "$health"
+  printf 'respawns  : %s per item per run (JOHARNESS_RESPAWN_LIMIT)\n\n' "$respawn"
+
+  hout="$(drain_hook handover-context.sh)"
+  qout="$(drain_hook queue-context.sh)"
+
+  # Every plan and research row as path|label — drain_plan's own sed, both
+  # directories, every row rather than the first.
+  rows="$(printf '%s\n' "$qout" |
+    sed -n 's#^  \(docs/\(plans\|research\)/[^ ]*\.md\)  \(\[.*\]\)$#\1|\3#p')"
+  wavemap="$(printf '%s\n' "$qout" | dispatch_waves)"
+  # The hook's orchestrated-only lines: a free plan whose scope overlaps a
+  # plan a manager holds now. Stem, then the rest of the line as the reason.
+  holdmap="$(printf '%s\n' "$qout" |
+    sed -n 's/^  in flight: \([^ ]*\) overlaps \(.*\)$/\1\t\2/p' |
+    sed 's/(claimed on origin\//(claimed on /')"
+
+  # --- managers in flight: every claimed row, joined to its branch --------
+  # The claim is the workstream file's `plan:` on a pushed branch, which the
+  # queue hook already resolved to `claimed on <branch>`. Status, session and
+  # next come from that file, read with git show, never from a copy.
+  while IFS='|' read -r path label; do
+    [ -n "$path" ] || continue
+    case "$label" in *'claimed on '*) ;; *) continue ;; esac
+    branch="${label##*claimed on }"; branch="${branch%%,*}"; branch="${branch%%]*}"
+    # Bare, the way a successor is spawned onto it; the hook says origin/.
+    branch="${branch#origin/}"
+    ws="$(printf '%s\n' "$hout" |
+      sed -n "s#^  origin/${branch}: \(docs/handover/[^ ]*\.md\)\$#\1#p" | head -1)"
+    status=""; session=""; next=""
+    if [ -n "$ws" ]; then
+      doc="$(git -C "$ROOT" show "origin/${branch}:${ws}" 2>/dev/null)"
+      { read -r status; read -r session; read -r next; } \
+        <<<"$(printf '%s\n' "$doc" | gr_fields status session next)"
+    fi
+    age="$(dispatch_age_min "$branch")"
+    agetext="$(dispatch_age_text "$age")"
+    flag=""
+    n_inflight=$((n_inflight + 1))
+    if [ "$status" = "blocked" ]; then
+      # Handed off to a human. Holds no slot: its session exited on purpose,
+      # and respawning it re-asks the question it stopped on.
+      n_blocked=$((n_blocked + 1))
+      flag="  BLOCKED: the human's, holds no slot"
+    elif [ -z "$age" ]; then
+      flag="  push age unknown: ref not here — fetch, then cross-check"
+    elif [ "$age" -ge "$stall" ]; then
+      n_stall=$((n_stall + 1))
+      flag="  STALL? no push for ${agetext} (>= ${stall}m): cross-check the control plane"
+    fi
+    inflight="${inflight}  ${path}  ${branch}  ${status:-?}  pushed ${agetext}${flag}"$'\n'
+    [ -z "$session" ] || inflight="${inflight}    session: ${session}"$'\n'
+    [ -z "$next" ] || inflight="${inflight}    next: ${next}"$'\n'
+  done <<<"$rows"
+
+  printf 'managers in flight (git view; liveness is the control plane'"'"'s — read both):\n'
+  if [ -n "$inflight" ]; then printf '%s' "$inflight"; else printf '  none\n'; fi
+
+  # Finishing outranks starting, for an orchestrator too: an edge branch
+  # whose session is gone is a manager to respawn before any new item.
+  edge="$(printf '%s\n' "$hout" |
+    sed -n 's/^  FINISH BEFORE STARTING: \(.*\)$/\1/p' | head -1)"
+  if [ -n "$edge" ]; then
+    printf 'edge work (finish before starting; a live session'"'"'s is not yours):\n'
+    printf '  %s\n' "$edge"
+  fi
+
+  n_slots=$((cap - (n_inflight - n_blocked)))
+  [ "$n_slots" -ge 0 ] || n_slots=0
+  printf 'slots     : %s of %s free\n\n' "$n_slots" "$cap"
+
+  # --- what to spawn, in the queue's order --------------------------------
+  # Free = neither claimed, blocked nor SUPERVISED ONLY: drain_plan's filter,
+  # every row. Wave and overlap ride along from the hook's partition so the
+  # orchestrator can hold a wave-2 item back while its partner is in flight.
+  while IFS='|' read -r path label; do
+    [ -n "$path" ] || continue
+    case "$label" in
+      *'claimed on '* | *'blocked by'* | *'SUPERVISED ONLY'*) continue ;;
+    esac
+    tier="$(sed -n 's/.*agent: \([a-z]*\).*/\1/p' <<<"$label")"
+    st="${path##*/}"; st="${st%.md}"
+    wave=""; note=""
+    { read -r wave; read -r note; } <<<"$(printf '%s\n' "$wavemap" |
+      awk -F'\t' -v s="$st" '$1 == s { print $2; print $3; exit }')"
+    hold="$(printf '%s\n' "$holdmap" |
+      awk -F'\t' -v s="$st" '$1 == s { print $2; exit }')"
+    case "$path" in
+      docs/research/*)
+        n_free=$((n_free + 1))
+        questions="${questions}  ${path} (agent: ${tier:-unreadable})"$'\n' ;;
+      *)
+        free="${free}  ${path} (agent: ${tier:-unreadable})"
+        [ -z "$wave" ] || free="${free}  wave ${wave}"
+        [ -z "$note" ] || free="${free} — overlaps ${note} in this pass: spawn it only after that one"
+        # A collision with work in flight is a reconcile the manager pays
+        # at step 7. Held, not free: the orchestrator spawns it once the
+        # holder merges, and the count below is what it may spawn NOW.
+        if [ -n "$hold" ]; then
+          n_hold=$((n_hold + 1))
+          free="${free}  HOLD — overlaps ${hold}: spawn once that branch merges"
+        else
+          n_free=$((n_free + 1))
+        fi
+        free="${free}"$'\n' ;;
+    esac
+  done <<<"$rows"
+
+  req="$(drain_requirement "$qout")"
+  printf 'spawn, in this order, one manager per item, model = its agent tier:\n'
+  if [ -n "$req" ]; then
+    # Planning outranks the plan queue (step 2), so it is first and it is
+    # ONE manager: decomposition is one session's job, not a fleet's.
+    printf '  %s — UNPLANNED: one planning manager (agent: sonnet) first\n' "${req%% *}"
+    n_free=$((n_free + 1))
+  fi
+  [ -z "$free" ] || printf '%s' "$free"
+  [ -z "$questions" ] || printf '%s' "$questions"
+  [ -n "$req$free$questions" ] || printf '  nothing free\n'
+
+  sup="$(drain_supervised_only "$qout")"
+  if [ -n "$sup" ]; then
+    printf '\nNOT YOURS — SUPERVISED ONLY (scope holds protocol text; never spawn\n'
+    printf 'a manager on these, never re-file them):\n%s\n' "$sup"
+  fi
+
+  # --- verdict --------------------------------------------------------------
+  # One line the orchestrator branches on. DRAINED with managers in flight is
+  # NOT the exit: the queue is empty, the work is not.
+  printf '\n'
+  if [ "$n_free" -gt 0 ] && [ "$n_slots" -gt 0 ]; then
+    printf 'verdict   : NOT DRAINED — %s free item(s), %s slot(s): spawn up to %s now\n' \
+      "$n_free" "$n_slots" "$n_slots"
+  elif [ "$n_free" -gt 0 ]; then
+    printf 'verdict   : NOT DRAINED — %s free item(s), 0 slots: wait for a manager to finish\n' "$n_free"
+  elif [ $((n_inflight - n_blocked)) -gt 0 ]; then
+    printf 'verdict   : DRAINED — nothing free; %s manager(s) in flight: keep the health pass going\n' \
+      "$((n_inflight - n_blocked))"
+  else
+    printf 'verdict   : DRAINED — nothing free, nothing in flight: exit, the heartbeat re-seeds\n'
+  fi
+  [ "$n_stall" -eq 0 ] ||
+    printf '            %s manager(s) past the stall window: health pass FIRST, spawn second\n' "$n_stall"
+  [ "$n_blocked" -eq 0 ] ||
+    printf '            %s manager(s) blocked: report to the human, never respawn\n' "$n_blocked"
+  [ "$n_hold" -eq 0 ] ||
+    printf '            %s plan(s) on HOLD behind work in flight: not counted as free\n' "$n_hold"
   return 0
 }
 
@@ -5017,7 +5298,25 @@ cmd_session_start() {
   # context to be told so, and the rules it already loads are the
   # supervised ones. Only the mode that widens what a session may do
   # announces itself, and it announces the boundary in the same breath.
-  if [ "$JOHARNESS_RUN_MODE" = "unsupervised" ]; then
+  if [ "$JOHARNESS_RUN_MODE" = "orchestrated" ]; then
+    # The role comes from the prompt, and the default is the one the
+    # heartbeat needs: a fresh session nobody named is the orchestrator. A
+    # manager was told so by the orchestrator that spawned it, in a prompt
+    # naming /manage and ONE item.
+    printf '== Mode: orchestrated (beta) ==\n\n'
+    printf 'Two roles, one Loop. Your prompt names /manage <item>? You are a\n'
+    printf 'MANAGER: that ONE item, the full Loop on it, merge your own pull\n'
+    printf 'request, push at every milestone, exit. No item named? You are the\n'
+    printf 'ORCHESTRATOR: run /orchestrate — it reads ./joharness.sh dispatch,\n'
+    printf 'spawns one manager per free item under the cap, checks health, and\n'
+    printf 'exits at DRAINED with nothing in flight (.agents/docs/orchestrated.md).\n'
+    printf 'NEVER edit the protocol that governs you — protocol edits stay\n'
+    printf 'supervised (.agents/docs/unsupervised.md, Bounds). Here:\n'
+    while IFS= read -r t; do
+      [ -n "$t" ] && printf '  %s\n' "$t"
+    done < <(protocol_paths)
+    printf '\n'
+  elif [ "$JOHARNESS_RUN_MODE" = "unsupervised" ]; then
     printf '== Mode: unsupervised ==\n\n'
     printf 'The queue is the whole of the work. ./joharness.sh drain names the\n'
     printf 'item: take it, run the full Loop, merge your own pull request, and\n'
@@ -5222,6 +5521,7 @@ main() {
     cleanup)        cmd_cleanup "$@" ;;
     finish)         cmd_finish ;;
     drain)          cmd_drain ;;
+    dispatch)       cmd_dispatch ;;
     graph)          cmd_graph ;;
     scorecard)      cmd_scorecard ;;
     perf)           cmd_perf "$@" ;;
