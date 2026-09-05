@@ -1,6 +1,6 @@
 ---
 workstream: no-unbounded-waits
-status: in-progress
+status: done
 branch: claude/drain-67lt1l
 pr: none
 plan: no-unbounded-waits
@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_015XtCMDkJC9wPu9htijCRbw
 agent: sonnet
 updated: 2026-09-05
-next: ci green after the review fixes, then retire this file and the plan, PR, merge.
+next: Nothing — plan complete, retired in this branch's last commit before the PR.
 ---
 
 ## Goal
@@ -151,6 +151,22 @@ the page.
   helper leaving the previous case's status. (open — not reproduced, not
   attributed to the code. Recorded so a recurrence in CI is read as this and
   not as new)
+
+## Verification
+
+Counted on this branch, 2026-09-05, commands as given:
+
+- `./joharness.sh ci` — `ci: pass`, 1585 passed / 0 failed. The perf table
+  reads `bash-guard 0 0 pinned ok`; no other row moved.
+- `./joharness.sh verify` — 6 passed, 0 failed (docker layer).
+- `./joharness.sh mutate .agents/harness/pretool-bash-guard.sh <line> <text>`,
+  baseline green on all three:
+  - `164` (the shape gate, `while false; do`) — 14 cases red, among them both
+    incident commands and `the REGISTERED line denies, not just the script`.
+  - `201` (the timeout bound, `&& :`) — 1 case red,
+    `a timeout-bounded wait is allowed`.
+  - `202` (the counter bound, `&& :`) — 1 case red,
+    `a counter-bounded loop is allowed`.
 
 ## Blockers
 
