@@ -574,6 +574,7 @@ SELFTEST_TOPICS=(
   upgrade-holding-work
   handover-guard
   pretool-feedback
+  pretool-bash-guard
   gitattributes
   sync-manifest-eol-pins
   license-notice

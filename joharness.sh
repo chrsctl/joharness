@@ -1043,6 +1043,7 @@ perf_shape() {
 # Where the rows are measured. Set by perf_report per row: the pinned shape,
 # or this checkout for the rows whose number does not move with it.
 PERF_PROJECT=""
+PERF_STDIN=""
 
 PERF_BINS="git awk sed grep sort wc"
 
@@ -1083,10 +1084,18 @@ perf_count() {
   # entrypoint does, and an entrypoint that exits non-zero on this branch
   # (review with a record owed, finish at the edge) still did the work.
   #
-  # </dev/null is load bearing. session-start is a hook and reads stdin; run
-  # from inside cmd_perf's `while read` loop it ate the remaining rows out of
-  # the loop's own stdin, and the queue-context row silently vanished from the
-  # table. A measure that quietly drops a metric is worse than no measure.
+  # A FILE on stdin, never the loop's own. session-start is a hook and reads
+  # stdin; run from inside cmd_perf's `while read` loop it ate the remaining
+  # rows out of the loop's own stdin, and the queue-context row silently
+  # vanished from the table. A measure that quietly drops a metric is worse
+  # than no measure. An empty payload writes an empty file, which every reader
+  # sees exactly as it saw /dev/null, so that guarantee is unchanged.
+  #
+  # PERF_STDIN is why the file exists at all. A hook that reads its input and
+  # exits early on an empty one — pretool-bash-guard.sh does, and must — spawns
+  # nothing when fed /dev/null, and its row then measures the fail-open path
+  # and reports `ok` forever. The row supplies the payload that reaches the
+  # code the budget is about.
   #
   # Status ignored EXCEPT 127. An entrypoint that ran and failed still did the
   # work; an entrypoint that was never found did none, and its 0 is a green
@@ -1104,6 +1113,7 @@ perf_count() {
   # entrypoint that exited early — and JOHARNESS_MODE=unsupervised moved
   # session-start by 8 of its 14 headroom. A row that wants a mode says so in
   # its own command, and that `env` prefix runs after these and wins.
+  printf '%s' "${PERF_STDIN:-}" >"${dir}/.stdin" 2>/dev/null || :
   PATH="${dir}:${PATH}" \
     JOHARNESS_PERF_COUNTER="$counter" \
     CLAUDE_PROJECT_DIR="$PERF_PROJECT" \
@@ -1111,7 +1121,7 @@ perf_count() {
     HANDOVER_BASE_BRANCH=main \
     JOHARNESS_MODE=supervised \
     JOHARNESS_RUN_MODE='' \
-    "$@" </dev/null >/dev/null 2>&1
+    "$@" <"${dir}/.stdin" >/dev/null 2>&1
   status=$?
   end="$(date +%s)"
   if [ "$status" -eq 127 ]; then rm -rf "$dir"; return 2; fi
@@ -1361,16 +1371,28 @@ perf_count() {
 # count 126 today. It is a floor against the mode's OTHER forks and a place
 # for the real number to land, not a measurement of that block — building a
 # claimed plan into the shape is a change to `perf_shape` and its own diff.
+# The payload the bash-guard row is measured on: a command it DENIES, so the
+# number covers the whole check and not the early exit. Denying is also the
+# dearest path — every test has run by then — so the budget bounds the worst
+# case rather than the quiet one.
+PERF_BASH_GUARD_PAYLOAD='{"session_id":"perf","tool_name":"Bash","tool_input":{"command":"until test -f /tmp/x; do sleep 5; done"}}'
+
+# FIVE fields: name, budget, context, the payload fed on stdin, the command.
+# The payload is empty for every row whose entrypoint does not read stdin, and
+# an empty one is written as an empty file — indistinguishable from the
+# /dev/null this used to redirect. It must not contain a `|`; the split below
+# is the field separator and there is no escape for it.
 perf_rows() {
   printf '%s\n' \
-    "feedback|${JOHARNESS_PERF_BUDGET_FEEDBACK:-228}|live|${ROOT}/joharness.sh feedback" \
-    "review|${JOHARNESS_PERF_BUDGET_REVIEW:-274}|live|${ROOT}/joharness.sh review" \
-    "graph|${JOHARNESS_PERF_BUDGET_GRAPH:-118}|shape|${ROOT}/joharness.sh graph" \
-    "session-start|${JOHARNESS_PERF_BUDGET_SESSION_START:-336}|shape|${ROOT}/joharness.sh session-start" \
-    "queue-context|${JOHARNESS_PERF_BUDGET_QUEUE:-141}|shape|env JOHARNESS_RUN_MODE=unsupervised ${HARNESS_ROOT}/queue-context.sh" \
-    "queue-orchestrated|${JOHARNESS_PERF_BUDGET_QUEUE_ORCH:-141}|shape|env JOHARNESS_RUN_MODE=orchestrated ${HARNESS_ROOT}/queue-context.sh" \
-    "drain|${JOHARNESS_PERF_BUDGET_DRAIN:-338}|shape|${ROOT}/joharness.sh drain" \
-    "handover-guard|${JOHARNESS_PERF_BUDGET_GUARD:-33}|shape|env JOHARNESS_MODE=unsupervised ${HARNESS_ROOT}/handover-guard.sh"
+    "feedback|${JOHARNESS_PERF_BUDGET_FEEDBACK:-228}|live||${ROOT}/joharness.sh feedback" \
+    "review|${JOHARNESS_PERF_BUDGET_REVIEW:-274}|live||${ROOT}/joharness.sh review" \
+    "graph|${JOHARNESS_PERF_BUDGET_GRAPH:-118}|shape||${ROOT}/joharness.sh graph" \
+    "session-start|${JOHARNESS_PERF_BUDGET_SESSION_START:-336}|shape||${ROOT}/joharness.sh session-start" \
+    "queue-context|${JOHARNESS_PERF_BUDGET_QUEUE:-141}|shape||env JOHARNESS_RUN_MODE=unsupervised ${HARNESS_ROOT}/queue-context.sh" \
+    "queue-orchestrated|${JOHARNESS_PERF_BUDGET_QUEUE_ORCH:-141}|shape||env JOHARNESS_RUN_MODE=orchestrated ${HARNESS_ROOT}/queue-context.sh" \
+    "drain|${JOHARNESS_PERF_BUDGET_DRAIN:-338}|shape||${ROOT}/joharness.sh drain" \
+    "handover-guard|${JOHARNESS_PERF_BUDGET_GUARD:-33}|shape||env JOHARNESS_MODE=unsupervised ${HARNESS_ROOT}/handover-guard.sh" \
+    "bash-guard|${JOHARNESS_PERF_BUDGET_BASH_GUARD:-0}|shape|${PERF_BASH_GUARD_PAYLOAD}|${HARNESS_ROOT}/pretool-bash-guard.sh"
 }
 
 # The table itself, so `ci` can print its own section banner above it.
@@ -1385,7 +1407,8 @@ perf_cleanup() {
 }
 
 perf_report() {
-  local only="${1:-}" live="${2:-0}" rc=0 seen=0 name budget ctx cmd counted n secs
+  local only="${1:-}" live="${2:-0}" rc=0 seen=0 name budget ctx stdin cmd
+  local counted n secs floor
   local live_refs
 
   live_refs="$(git -C "$ROOT" for-each-ref refs/remotes 2>/dev/null |
@@ -1443,10 +1466,11 @@ perf_report() {
   printf '   %-18s %8s %8s %6s  %s\n' \
     "entrypoint" "counted" "budget" "tree" "verdict"
 
-  while IFS='|' read -r name budget ctx cmd; do
+  while IFS='|' read -r name budget ctx stdin cmd; do
     [ -n "$name" ] || continue
     [ -z "$only" ] || [ "$name" = "$only" ] || continue
     seen=1
+    PERF_STDIN="$stdin"
     if [ "$live" -eq 1 ]; then
       PERF_PROJECT="$ROOT"
       ctx="live"
@@ -1473,9 +1497,23 @@ perf_report() {
     # zero on a pinned shape means the measurement broke rather than that the
     # code got fast. Deliberately far below the smallest real count (22) and
     # far above what a broken run produces (0 to 7).
-    if [ "$live" -ne 1 ] && [ "$n" -lt "${JOHARNESS_PERF_FLOOR:-15}" ]; then
+    #
+    # CAPPED AT THE ROW'S OWN BUDGET, because the sentence above stopped being
+    # true the moment a row was budgeted under it. `bash-guard` is budgeted at
+    # 0 — no git, awk, sed, grep, sort or wc on a path that runs before every
+    # Bash call — and a fixed floor of 15 reds a row whose correct count is
+    # zero, which is a gate nobody can satisfy. A row cannot be under its own
+    # ceiling and under the floor at once; where the two meet, the ceiling is
+    # the one that was chosen deliberately for that entrypoint.
+    #
+    # What the row loses with it: nothing a count could have given. Whether
+    # this hook did its work is a question about which BRANCH ran, not about
+    # how many commands it spawned, and the selftest topic is what asks it.
+    floor="${JOHARNESS_PERF_FLOOR:-15}"
+    [ "$budget" -ge "$floor" ] || floor="$budget"
+    if [ "$live" -ne 1 ] && [ "$n" -lt "$floor" ]; then
       printf '   %-14s %8s %8s %6s  TOO LOW (floor %s)\n' \
-        "$name" "$n" "$budget" "$ctx" "${JOHARNESS_PERF_FLOOR:-15}"
+        "$name" "$n" "$budget" "$ctx" "$floor"
       warn "${name} spawned ${n} commands against the pinned shape, under the floor: it did not do the work, and a count that low is a green tick over nothing"
       rc=1
       continue
