@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01Jyb2Ttjttcf3sYaJxiTXWr
 agent: opus
 updated: 2026-09-05
-next: ci green after round two; open the pull request per step 7 (retire this file and the same-session plan in the last commit before it), then merge
+next: ci green after round three; open the pull request per step 7 (retire this file and the same-session plan in the last commit before it), then merge
 ---
 
 ## Goal
@@ -62,6 +62,26 @@ concurrency.
   run plan, scoped to the conf, read as free work for the fleet whose mode
   it flips. The mode line is what `authority` verifies; a session that may
   rewrite it authorises itself.
+- Loops are found from git, not from silence: `dispatch` prints commits
+  since the base, the most rewritten file with its count (`churn_top`, the
+  same metric `ci` warns the session with) and findings recorded; `LOOP?`
+  at the churn threshold. The respawn after a loop carries the record and
+  the churn rule, one tier up — the harness's own escalation, so the
+  orchestrator picks no tier of its own.
+- Roles read their own documents only. Under orchestrated, session start
+  runs the handover hook with `HANDOVER_SCOPE=branch` (own files, no walk
+  over remote refs) and skips the queue hook; both commands carry a
+  read list and a never-open list. The orchestrator reads dispatch, the
+  control plane and the Lineup table.
+- The three open questions, answered on the requester's delegation
+  ("Research and answer the 3 questions"): the requirement stands, with
+  that provenance in its Goal; the knob defaults are measured from
+  `origin/main` (2026-09-05: cap 4 = p90 of branches active per hour,
+  stall 45 = p95 commit gap of 44 minutes, health 10 between the median
+  gap and its p75; respawn limit still unmeasured) — command and counts
+  in `orchestrated.md`; no heartbeat exists (`list_triggers`, one disabled
+  one-shot for another repo) and the queue holds one research item, so
+  the run waits on the Routines UI and on plans the human queues.
 - No beta path past `authority`. Both role commands first said "supervised
   = a human invoked this, proceed"; the session cannot check that claim
   (r10). The beta run flips the mode through a pull request first.
@@ -176,8 +196,10 @@ session against its source before being accepted:
   beta)
 - r17: (verifier) `docs/product/orchestrated-mode.md` is a requirement
   written by a session; honest in the diff, and it lands on `main` as a
-  goal nobody set if the human does not ratify it. (no change — flagged
-  in the final report as the human's to ratify or delete)
+  goal nobody set if the human does not ratify it. (fixed — the requester
+  answered "Research and answer the 3 questions"; the file now carries
+  that delegation as its provenance line, and the change is said here
+  rather than left as "no change", which r38 caught)
 - r18: (verifier) `list_sessions` with `mine: true` cannot see another
   account's orchestrator, and two firing in one minute both pass the
   title check. (fixed in part — `mine` dropped; the same-minute race is
@@ -187,6 +209,114 @@ session against its source before being accepted:
   orchestrator exits)
 - r20: (verifier, nit) a claim from a remote other than `origin` gets
   "push age unknown". (no change — said as unknown, never as zero)
+
+Round three — the requester's two asks (loop detection with a recorded
+respawn; each role reads only its own documents) and the three answered
+questions; verifier at opus on the uncommitted delta over 0944070, each
+finding re-checked against its source before being accepted:
+
+- r21: (verifier) `doc` was not reset per in-flight row, so a branch the
+  handover hook did not list — the 13th, under its default cap of 12 —
+  printed its neighbour's finding count, and the LOOP record would have
+  copied it. (fixed — every per-row value reset, `drain_hook` lifts
+  `HANDOVER_MAX_ENTRIES` for readers that parse, findings read only from
+  a document actually read)
+- r22: (verifier) `LOOP?` fired at ci's WARNING threshold and took the
+  CEILING's action; `JOHARNESS_CHURN_LIMIT` was read nowhere but `ci`.
+  (fixed — the kill line is the limit, default twice the threshold, 0
+  lifts it; the threshold names a warning on the work line; the conf
+  says the two knobs are ci's too)
+- r23: (verifier) a loop that went quiet printed STALL? only and got the
+  plain kill: no record, no research step, no escalation. (fixed — the
+  marks are independent and print side by side; a quiet-loop case pins
+  it)
+- r24: (verifier) the ledger carried one snapshot, so "head moved on 3
+  passes with `next:` unchanged" was unevaluable, and the doc said "two
+  passes". (fixed — `same=<n>` counts the passes; the rule reads
+  `same=2` in the ledger plus this pass)
+- r25: (verifier) a released hold that was also a wave-2 row lost its
+  WAIT and went out beside its partner. (fixed — WAIT first; a released
+  hold never lifts a same-pass collision)
+- r26: (verifier) `PAUSED` said exit with managers in flight, orphaning
+  them mid-run. (fixed — with anything in flight the health pass goes on;
+  exit only over an empty fleet; case pins it)
+- r27: (verifier) the banner and the compaction pointer named
+  `.agents/docs/orchestrated.md`, the document both role commands forbid
+  opening. (fixed — both point at the role's command, which IS its rules;
+  the design doc is why-explanation and stays off both read lists)
+- r28: (verifier) `manage.md` ended by running `drain`, which prints the
+  queue and other branches' files the same command forbids reading.
+  (fixed — merged means message the orchestrator and exit; no queue
+  command)
+- r29: (verifier) `orchestrate.md` Never forbade opening another branch's
+  workstream file while KILL and LOOP read and write it. (fixed — the
+  carve-out is stated at the ban)
+- r30: (verifier) "prompt = exactly this block" contradicted the resume
+  and loop lines other steps add, and a manager spawned into a released
+  hold was never told the reconcile it would pay. (fixed — the block
+  plus, when they apply, four named lines)
+- r31: (verifier) `AGENTS.md` step 2 and the handover README still said
+  the queue and the overlap print at every session start. (fixed — both
+  name the orchestrated exception)
+- r32: (verifier) the run plan's recovery command returned nothing: the
+  endurance workstream file was never deleted, it is still on its branch.
+  (fixed — `git show origin/claude/gastown-review-owjgzg:…`)
+- r33: (verifier) `git ls-tree` without `-r` printed one directory name,
+  not the file the bullet claimed. (fixed)
+- r34: (verifier) the percentile awk took one rank too high on whole
+  products, p90 28 where the 90th percentile is 27, and the pipeline had
+  no `-200` bound. (fixed — nearest rank, ceil(p x N); `-200`; re-run
+  2026-09-05: gaps=530 median=4 p90=27 p95=44, hours=137 median=2 p90=4
+  max=9)
+- r35: (verifier) the conf called 45 the measurement; the measurement is
+  44. (fixed — "rounded")
+- r36: (verifier) raising the churn threshold silently moves ci's
+  ceiling. (fixed — said beside both knobs)
+- r37: (verifier) the Gas Town paraphrase carried claims with no path
+  beside them, the day after `main` dropped unsourced ones. (fixed — a
+  path beside each)
+- r38: (verifier) r17 said "no change" for a file the delta changed.
+  (fixed — r17 corrected)
+- r39: (verifier) the design doc restated the whole LOOP procedure, a
+  second copy of the command. (fixed — the doc keeps the why and points
+  at the command; one health table)
+- r40: (verifier) `effort: xhigh` was written into a workstream file
+  whose template has no such field. (fixed — effort crosses as prose in
+  the successor's prompt, which is the only way it crosses)
+- r41: (verifier) the perf row overflowed its column; its budget is the
+  supervised row's, and the built shape exercises none of the
+  orchestrated fork. (fixed the column; the budget stays 141 as the same
+  margin, said in the row comment — the shape carries no claimed plan
+  and building one there is a change to `perf_shape`, a plan for a
+  supervised session if the number ever matters)
+- r42: (verifier) two branches untested — the WAIT-only verdict and
+  STALL-over-LOOP precedence. (fixed in part — the precedence is gone and
+  the quiet-loop case pins both marks; the WAIT-only verdict stays
+  unreachable while a partner is free and earlier, said in the code)
+
+Diagram from the requester, 2026-09-05, verified against the build:
+
+- Every hour, a dispatcher runs the queue reading and takes what it
+  names: holds (`dispatch`, the heartbeat).
+- Worker per item at the item's tier, one item per session, the Loop to
+  a merged pull request: holds (the diagram's worker is this build's
+  manager; the build adds worker subagents beneath it).
+- Requirement to decompose goes to opus at xhigh: did NOT hold — the
+  build sent a sonnet planning manager. Adopted: `dispatch` and the
+  command say opus, effort xhigh.
+- A merge wakes the dispatcher so the next item starts at once: did NOT
+  hold — passes ran on the clock only. Adopted: the spawn prompt carries
+  the orchestrator's session id, the manager messages "merged <stem>" on
+  merge, the orchestrator runs a pass on that message.
+- Dispatcher on Sonnet: the ask said low tier and the build wrote haiku;
+  the tier is the Routine's model field, one word, and the roles table
+  now says both and leaves it to the run.
+- Kuba is human, writes a requirement, commits to main: holds
+  (`product/README.md`, Human writes).
+- Queue empty stops: holds, with one addition the diagram does not draw
+  — managers still in flight keep the health pass going.
+- Not in the diagram, added by the requester's later asks: health, kill,
+  loop detection, holds and waves, the cap, per-role reading lists.
 
 ## Blockers
 

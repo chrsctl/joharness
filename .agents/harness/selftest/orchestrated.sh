@@ -81,16 +81,27 @@ expect "the default role is the orchestrator" \
   "No item named? You are the" "$out"
 expect "the banner names the boundary" ".agents/harness" "$out"
 expect "the whole boundary, not one entry" ".claude/commands" "$out"
-expect "and points the mode at its rules" \
+expect "and points each role at its command, which is its rules" \
+  ".claude/commands/orchestrate.md, manage.md" "$out"
+refute "and not at the design doc the roles never open" \
   ".agents/docs/orchestrated.md" "$out"
 # The rules pointer sits in the compaction block, the one start where the
 # rules have decayed and the task state has not.
 out="$(printf '{"source":"compact"}' |
   JOHARNESS_MODE=orchestrated orcj session-start 2>/dev/null)"
 expect "a compacted orchestrated session is pointed at its rules" \
-  "Its rules: .agents/docs/orchestrated.md" "$out"
+  "Its rules: your role's command — .claude/commands/orchestrate.md or manage.md" "$out"
+# Each role reads its own documents: the queue and the fleet-wide handover
+# view are not injected here. The orchestrator reads them through dispatch,
+# a manager works one item.
+refute "orchestrated session-start prints no queue" "== Queue (protocol" "$out"
+refute "and no other-branch listing" "Work in flight on other branches" "$out"
+refute "and no create-a-workstream-file advice on a bare branch" \
+  "No workstream file on this branch" "$out"
+expect "the handover block still opens" "== Handover state" "$out"
 out="$(orcj session-start 2>/dev/null)"
 refute "supervised session-start still says nothing about mode" "Mode:" "$out"
+expect "and supervised still gets the queue" "== Queue (protocol" "$out"
 
 # --- authority: an unattended claim is a claim to check, in both modes ------
 out="$(JOHARNESS_MODE=orchestrated orcj authority)"

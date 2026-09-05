@@ -32,6 +32,28 @@ Both are money (`.agents/harness/AGENTS.md`, Decide alone):
 And a stocked queue: two or more free plans with declared, disjoint
 `scope:`, or the run measures an empty queue.
 
+**State on 2026-09-05, when this plan was written**, so the next reader
+starts from facts rather than re-checking the same two things:
+
+- No heartbeat exists. `list_triggers` on the claude-code-remote server
+  returned one Routine for this account, a disabled one-shot reminder for
+  another repository, nothing recurring. A Routine created from a session
+  carries no connectors (probed 2026-09-02, finding r1 in the workstream
+  file still on its branch: `git show
+  origin/claude/gastown-review-owjgzg:docs/handover/unsupervised-endurance.md`),
+  so the Routines UI is still the only route, prompt `/orchestrate`,
+  hourly.
+- The queue is not stocked. `origin/main` holds one research file and no
+  plan (`git ls-tree -r --name-only origin/main docs/plans docs/research`);
+  this plan itself is scoped to `joharness.conf` and so marked
+  `SUPERVISED ONLY` — a supervised session drives the run, never the
+  fleet. A fleet fired today gets one manager, on the research item. The
+  five adopt-candidates in `docs/research/capture-intent.md` are
+  plan-shaped and waiting on the human's word; two or more of them with
+  disjoint scope would stock it.
+- The knobs' defaults are now counted, not written (`.agents/docs/orchestrated.md`,
+  The numbers). Confirming them is one line; the cap is still money.
+
 ## Scope
 
 - Flip `JOHARNESS_MODE=orchestrated` in `joharness.conf` through a pull

@@ -1426,7 +1426,7 @@ perf_report() {
       "$live_refs"
   fi
 
-  printf '   %-14s %8s %8s %6s  %s\n' \
+  printf '   %-18s %8s %8s %6s  %s\n' \
     "entrypoint" "counted" "budget" "tree" "verdict"
 
   while IFS='|' read -r name budget ctx cmd; do
@@ -1443,10 +1443,10 @@ perf_report() {
     # shellcheck disable=SC2086
     counted="$(perf_count $cmd)" || {
       if [ "$?" -eq 2 ]; then
-        printf '   %-14s %8s %8s %6s  %s\n' "$name" "?" "$budget" "$ctx" "NOT FOUND"
+        printf '   %-18s %8s %8s %6s  %s\n' "$name" "?" "$budget" "$ctx" "NOT FOUND"
         warn "nothing to run for ${name} (\`${cmd}\` came back 127); a 0 here would not be a clean run"
       else
-        printf '   %-14s %8s %8s %6s  %s\n' "$name" "?" "$budget" "$ctx" "NOT MEASURED"
+        printf '   %-18s %8s %8s %6s  %s\n' "$name" "?" "$budget" "$ctx" "NOT MEASURED"
         warn "could not measure ${name} (mktemp or shim failed); a partial table is no budget"
       fi
       rc=1
@@ -4603,6 +4603,7 @@ drain_hook() {
   [ -x "$h" ] || return 0
   CLAUDE_PROJECT_DIR="$ROOT" HANDOVER_FETCH="${DRAIN_FETCH:-0}" \
     QUEUE_MAX_ENTRIES="${DRAIN_MAX_ENTRIES:-10000}" \
+    HANDOVER_MAX_ENTRIES="${DRAIN_MAX_ENTRIES:-10000}" \
     JOHARNESS_RUN_MODE="$(run_mode)" "$h" 2>/dev/null
 }
 
@@ -4823,10 +4824,11 @@ dispatch_waves() {
 }
 
 cmd_dispatch() {
-  local mode cap stall health respawn hout qout rows wavemap edge req sup
+  local mode cap stall health respawn churnt churnl hout qout rows wavemap edge req sup
   local path label branch ws doc status session next age agetext flag tier
+  local base commits churn churn_n churn_f marks rounds work
   local st wave note hold holdmap hbranch blocked_branches=""
-  local n_inflight=0 n_slots n_free=0 n_stall=0 n_blocked=0 n_hold=0 n_wait=0
+  local n_inflight=0 n_slots n_free=0 n_stall=0 n_blocked=0 n_hold=0 n_wait=0 n_loop=0
   local inflight="" free="" questions=""
 
   mode="$(run_mode)"
@@ -4834,6 +4836,14 @@ cmd_dispatch() {
   stall="$(orch_knob JOHARNESS_STALL_MINUTES 45)"
   health="$(orch_knob JOHARNESS_HEALTH_MINUTES 10)"
   respawn="$(orch_knob JOHARNESS_RESPAWN_LIMIT 2)"
+  churnt="$(orch_knob JOHARNESS_CHURN_THRESHOLD 5)"
+  # ci's two tiers, kept: from the threshold a warning the session judges,
+  # from the limit (default twice that) no longer a call. LOOP? is the
+  # kill line, so it sits on the limit; the warning band is named on the
+  # work line for the ledger to watch. 0 lifts it, as it lifts ci's gate.
+  churnl="${JOHARNESS_CHURN_LIMIT:-}"
+  [ -n "$churnl" ] || churnl="$(conf_get JOHARNESS_CHURN_LIMIT)"
+  case "$churnl" in '' | *[!0-9]*) churnl=$((churnt * 2)) ;; esac
 
   printf '== dispatch (mode: %s)\n\n' "$mode"
   if [ "$mode" != "orchestrated" ]; then
@@ -4859,7 +4869,8 @@ cmd_dispatch() {
   printf 'cap       : %s manager(s) at once (JOHARNESS_MAX_MANAGERS)\n' "$cap"
   printf 'stall     : %s min without a push = cross-check the control plane (JOHARNESS_STALL_MINUTES)\n' "$stall"
   printf 'health    : one pass every %s min (JOHARNESS_HEALTH_MINUTES)\n' "$health"
-  printf 'respawns  : %s per item per run (JOHARNESS_RESPAWN_LIMIT)\n\n' "$respawn"
+  printf 'respawns  : %s per item per run (JOHARNESS_RESPAWN_LIMIT)\n' "$respawn"
+  printf 'loop      : one file rewritten %s+ times on a branch = LOOP? (JOHARNESS_CHURN_LIMIT; 0 lifts it); %s+ = a warning on the work line (JOHARNESS_CHURN_THRESHOLD)\n\n' "$churnl" "$churnt"
 
   hout="$(drain_hook handover-context.sh)"
   qout="$(drain_hook queue-context.sh)"
@@ -4887,7 +4898,10 @@ cmd_dispatch() {
     branch="${branch#origin/}"
     ws="$(printf '%s\n' "$hout" |
       sed -n "s#^  origin/${branch}: \(docs/handover/[^ ]*\.md\)\$#\1#p" | head -1)"
-    status=""; session=""; next=""
+    # Every per-row value reset here, `doc` included: a row whose file the
+    # hook did not list inherited the previous row's document and printed
+    # its neighbour's finding count as its own.
+    status=""; session=""; next=""; doc=""
     if [ -n "$ws" ]; then
       doc="$(git -C "$ROOT" show "origin/${branch}:${ws}" 2>/dev/null)"
       { read -r status; read -r session; read -r next; } \
@@ -4895,6 +4909,30 @@ cmd_dispatch() {
     fi
     age="$(dispatch_age_min "$branch")"
     agetext="$(dispatch_age_text "$age")"
+    # Progress, from git: commits since the branch left the base, the most
+    # rewritten file, findings recorded. A stall is silence; a LOOP is the
+    # opposite — pushes keep coming and the same file keeps being rewritten,
+    # the churn `ci` warns the session about from the inside
+    # (.agents/docs/agent-selection.md, review churn). The session inside a
+    # loop is the one that cannot see it; the orchestrator can.
+    work=""; churn_n=0
+    base="$(git -C "$ROOT" merge-base "refs/remotes/origin/${branch}" \
+      "origin/${HANDOVER_BASE_BRANCH:-main}" 2>/dev/null)"
+    if [ -n "$base" ]; then
+      commits="$(git -C "$ROOT" rev-list --count --no-merges \
+        "${base}..refs/remotes/origin/${branch}" 2>/dev/null)"
+      churn="$(churn_top "refs/remotes/origin/${branch}" 2>/dev/null)" || churn=""
+      churn_n="${churn%%	*}"; churn_f="${churn#*	}"
+      case "$churn_n" in '' | *[!0-9]*) churn_n=0 ;; esac
+      rounds=0
+      if [ -n "$doc" ]; then
+        marks="$(printf '%s\n' "$doc" | review_marks)"; rounds="${marks%% *}"
+      fi
+      work="    work: ${commits:-0} commit(s) since ${HANDOVER_BASE_BRANCH:-main}"
+      [ "$churn_n" -eq 0 ] || work="${work}, churn ${churn_n} on ${churn_f}"
+      [ "$churn_n" -lt "$churnt" ] || work="${work} (>= ${churnt}: past ci's warning, watch next:)"
+      work="${work}, ${rounds:-0} finding(s) recorded"
+    fi
     flag=""
     n_inflight=$((n_inflight + 1))
     if [ "$status" = "blocked" ]; then
@@ -4911,7 +4949,14 @@ cmd_dispatch() {
       n_stall=$((n_stall + 1))
       flag="  STALL? no push for ${agetext} (>= ${stall}m): cross-check the control plane"
     fi
+    # Independent of the stall mark: a loop that went quiet is still a
+    # loop, and the successor needs the record either way.
+    if [ "$status" != "blocked" ] && [ "$churnl" -gt 0 ] && [ "$churn_n" -ge "$churnl" ]; then
+      n_loop=$((n_loop + 1))
+      flag="${flag}  LOOP? ${churn_f} rewritten ${churn_n} times (>= ${churnl}): record its progress, respawn with the churn rule"
+    fi
     inflight="${inflight}  ${path}  ${branch}  ${status:-?}  pushed ${agetext}${flag}"$'\n'
+    [ -z "$work" ] || inflight="${inflight}${work}"$'\n'
     [ -z "$session" ] || inflight="${inflight}    session: ${session}"$'\n'
     [ -z "$next" ] || inflight="${inflight}    next: ${next}"$'\n'
   done <<<"$rows"
@@ -4964,16 +5009,18 @@ cmd_dispatch() {
         # behind a branch in flight. A collision with work in flight is a
         # reconcile the manager pays at step 7 — held, not free, spawned
         # once the holder merges.
-        if [ -n "$hold" ] && [ -n "$hbranch" ] &&
+        # WAIT first: a same-pass partner is the collision the waves exist
+        # to prevent, and a released hold does not lift it.
+        if [ -n "$note" ]; then
+          n_wait=$((n_wait + 1))
+          free="${free}  WAIT — overlaps ${note} in this pass: spawn it only after that one"
+        elif [ -n "$hold" ] && [ -n "$hbranch" ] &&
            [ "${blocked_branches#* "${hbranch}" }" != "$blocked_branches" ]; then
           n_free=$((n_free + 1))
           free="${free}  overlaps ${hold} — that branch is BLOCKED on a human: spawn, reconcile expected at step 7"
         elif [ -n "$hold" ]; then
           n_hold=$((n_hold + 1))
           free="${free}  HOLD — overlaps ${hold}: spawn once that branch merges"
-        elif [ -n "$note" ]; then
-          n_wait=$((n_wait + 1))
-          free="${free}  WAIT — overlaps ${note} in this pass: spawn it only after that one"
         else
           n_free=$((n_free + 1))
         fi
@@ -4986,7 +5033,10 @@ cmd_dispatch() {
   if [ -n "$req" ]; then
     # Planning outranks the plan queue (step 2), so it is first and it is
     # ONE manager: decomposition is one session's job, not a fleet's.
-    printf '  %s — UNPLANNED: one planning manager (agent: sonnet) first\n' "${req%% *}"
+    # opus at xhigh: decomposition is the judgement the whole build rests
+    # on, and wrong-but-plausible plans are the failure that picks opus
+    # (.agents/docs/agent-selection.md). The requester's diagram says so.
+    printf '  %s — UNPLANNED: one planning manager (agent: opus, effort xhigh) first\n' "${req%% *}"
     n_free=$((n_free + 1))
   fi
   [ -z "$free" ] || printf '%s' "$free"
@@ -5004,7 +5054,10 @@ cmd_dispatch() {
   # NOT the exit: the queue is empty, the work is not. A cap of 0 is the
   # human's pause — the one lever beside the Routine — and reads as exit.
   printf '\n'
-  if [ "$cap" -eq 0 ]; then
+  if [ "$cap" -eq 0 ] && [ $((n_inflight - n_blocked)) -gt 0 ]; then
+    printf 'verdict   : PAUSED — JOHARNESS_MAX_MANAGERS=0: spawn nothing; %s manager(s) in flight: keep the health pass going\n' \
+      "$((n_inflight - n_blocked))"
+  elif [ "$cap" -eq 0 ]; then
     printf 'verdict   : PAUSED — JOHARNESS_MAX_MANAGERS=0: spawn nothing, exit; the human unpauses\n'
   elif [ "$n_free" -gt 0 ] && [ "$n_slots" -gt 0 ]; then
     printf 'verdict   : NOT DRAINED — %s free item(s) now%s, %s slot(s): spawn up to %s now\n' \
@@ -5024,6 +5077,8 @@ cmd_dispatch() {
   fi
   [ "$n_stall" -eq 0 ] ||
     printf '            %s manager(s) past the stall window: health pass FIRST, spawn second\n' "$n_stall"
+  [ "$n_loop" -eq 0 ] ||
+    printf '            %s manager(s) rewriting one file past the churn threshold: health pass FIRST\n' "$n_loop"
   [ "$n_blocked" -eq 0 ] ||
     printf '            %s manager(s) blocked: report to the human, never respawn\n' "$n_blocked"
   [ "$n_hold" -eq 0 ] ||
@@ -5344,7 +5399,12 @@ cmd_session_start() {
     printf 'request, push at every milestone, exit. No item named? You are the\n'
     printf 'ORCHESTRATOR: run /orchestrate — it reads ./joharness.sh dispatch,\n'
     printf 'spawns one manager per free item under the cap, checks health, and\n'
-    printf 'exits at DRAINED with nothing in flight (.agents/docs/orchestrated.md).\n'
+    printf 'exits at DRAINED with nothing in flight. The command IS the rules\n'
+    printf 'for its role (.claude/commands/orchestrate.md, manage.md).\n'
+    printf 'Each role reads its own documents and no others: the queue is NOT\n'
+    printf 'printed here. Orchestrator: dispatch is the whole read — open no\n'
+    printf 'plan, requirement or other branch. Manager: your item, this\n'
+    printf 'branch'"'"'s workstream file, the item'"'"'s own anchors.\n'
     printf 'NEVER edit the protocol that governs you — protocol edits stay\n'
     printf 'supervised (.agents/docs/unsupervised.md, Bounds). Here:\n'
     while IFS= read -r t; do
@@ -5423,6 +5483,17 @@ cmd_session_start() {
     printf 'that ONE finding carries (verifier): step 5 spawns the reader at\n'
     printf 'every depth, so a section holding only your own findings reds.\n'
     printf 'Depth for this branch: ./joharness.sh review\n\n'
+  fi
+
+  # Orchestrated: this branch's own files, nothing fleet-wide, no queue.
+  # The orchestrator reads the queue through dispatch, which runs both hooks
+  # itself; a manager works the one item its prompt names. Both hooks'
+  # fleet views are context paid by every session in the mode and read by
+  # none of them.
+  if [ "$JOHARNESS_RUN_MODE" = "orchestrated" ]; then
+    [ -x "${HARNESS_ROOT}/handover-context.sh" ] &&
+      HANDOVER_SCOPE=branch "${HARNESS_ROOT}/handover-context.sh"
+    return 0
   fi
 
   [ -x "${HARNESS_ROOT}/handover-context.sh" ] &&

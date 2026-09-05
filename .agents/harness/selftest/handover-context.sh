@@ -37,6 +37,16 @@ expect "rot check counts every file" "2 workstream file(s) left" "$out"
 expect "rot check lists them under the cap" "  docs/handover/stale-ws-two.md" "$out"
 expect "rot check points at step 7" "step 7 not happening" "$out"
 
+# HANDOVER_SCOPE=branch: this branch's own files and nothing fleet-wide —
+# the orchestrated session start, where nobody reads the other branches.
+out3="$(CLAUDE_PROJECT_DIR="$work" HANDOVER_FETCH=0 HANDOVER_SCOPE=branch \
+  bash "${ROOT}/.agents/harness/handover-context.sh" 2>&1)"
+expect "branch scope reports the branch" "Branch: feature" "$out3"
+expect "and this branch's own state" "No workstream file on this branch" "$out3"
+refute "but walks no other branch" "origin/rival" "$out3"
+refute "flags no overlap" "TOUCHES THE SAME FILES" "$out3"
+refute "and runs no rot check" "workstream file(s) left" "$out3"
+
 # The listing is bounded: 23 files was 23 lines of context in every session,
 # and a wall of paths reads as somebody else's chore. Count is the signal.
 out2="$(CLAUDE_PROJECT_DIR="$work" HANDOVER_FETCH=0 JOHARNESS_STALE_SHOWN=1 \

@@ -2,10 +2,17 @@
 description: Manager role — own ONE plan, research file or requirement to its retirement, fanning the build out to worker subagents
 ---
 
-Orchestrated mode (beta), manager role. Design: `.agents/docs/orchestrated.md`.
-The Loop (`.agents/harness/AGENTS.md`), unchanged, on ONE item — the one
+Orchestrated mode (beta), manager role. The Loop
+(`.agents/harness/AGENTS.md`), unchanged, on ONE item — the one
 `$ARGUMENTS` names. This command adds the decomposition and the contract
 with the orchestrator; it removes nothing.
+
+What you read: your item; this branch's workstream file, if resuming; the
+item's own `Where to look` anchors; `./joharness.sh feedback <path>` for
+the files your diff touches; the environment rules if you touch it. Not
+the queue, not other plans or requirements, not other branches' files,
+not the mode's design doc — session start prints none of them here, and
+the orchestrator already decided what runs beside you.
 
 ## 0. Orient
 
@@ -13,8 +20,14 @@ with the orchestrator; it removes nothing.
    proceed. Anything else = stop, say so: the prompt that spawned you
    claims the repository runs unattended and the repository disagrees.
 2. Prompt names a branch to resume? Check it out, read its workstream
-   file WHOLE, continue from `next:`. `## Blockers` may carry a kill note
-   from the orchestrator: what the last session held when it stopped.
+   file WHOLE, continue from `next:`. `## Blockers` may carry a note from
+   the orchestrator: a kill note says what the last session held when it
+   stopped; a loop note says the last session went round — the file it
+   kept rewriting, the commits, the findings. Then `next:` orders the
+   research step BEFORE any edit: list every requirement that file must
+   satisfy, find the conflicting pair, resolve it, fix once
+   (`.agents/docs/agent-selection.md`, review churn). Patching again is
+   the loop continuing under a new session id.
 3. Item kind decides the work:
    - `docs/plans/<plan>.md` — Loop steps 3 to 7 on it.
    - `docs/research/<q>.md` — settle it, graduate the answer, delete the
@@ -80,8 +93,9 @@ Step 5 review at your tier with `.claude/agents/verifier.md` (a subagent
 too; findings tagged `(verifier)`). Step 7 as written: green checks, 0
 behind fresh `origin/main`, `./joharness.sh finish` green, retire the
 plan file and the workstream file in the last commit before the pull
-request, merge your OWN pull request, exit. `./joharness.sh drain` then
-says `Manager: exit`. The next item is another manager's.
+request, exit. Merged = message the orchestrator session your prompt
+named: "merged <stem>" — it fills your slot at once instead of on its
+clock. Run no queue command; the next item is another manager's.
 
 ## Never
 

@@ -35,9 +35,24 @@ the rows below.
 
 | Role | Tier | Runs as | Spawns | Owns | Ends when |
 | --- | --- | --- | --- | --- | --- |
-| orchestrator | haiku, low effort — mechanical on purpose | a session; the heartbeat fires one | manager sessions (`create_session`) | the cap, the health pass, the kill handover | dispatch says DRAINED with nothing in flight |
-| manager | the item's `agent:` — plan, research, or sonnet for an unplanned requirement | a session with its own branch, claim and merge | worker subagents (`Agent`) | one item, until its file retires | its pull request merges, or it blocks on a human |
+| orchestrator | low, mechanical on purpose — the Routine's model: haiku by the ask, sonnet in the requester's diagram; a run decides | a session; the heartbeat fires one | manager sessions (`create_session`) | the cap, the health pass, the kill handover | dispatch says DRAINED with nothing in flight |
+| manager | the item's `agent:` — plan or research; opus at xhigh for an unplanned requirement, decomposition being the judgement every build rests on | a session with its own branch, claim and merge | worker subagents (`Agent`) | one item, until its file retires | its pull request merges, or it blocks on a human |
 | worker | at or below the plan's tier, lower by default | a subagent in the manager's container | nothing | the files its sub-task names | it returns |
+
+### What each role reads
+
+Every line injected at session start is paid by every session, and under
+this mode most of the fleet-wide view is read by nobody: the orchestrator
+gets the queue through `dispatch`, a manager works the one item its prompt
+names. So session start prints the mode banner, the environment pointer,
+and THIS branch's own workstream files — `HANDOVER_SCOPE=branch` in the
+handover hook, which skips the walk over every remote ref — and no queue.
+
+| Role | Reads | Never opens |
+| --- | --- | --- |
+| orchestrator | `dispatch`, the control plane, the Lineup table | a plan, a requirement, a research file, another branch's workstream file, this doc |
+| manager | its item, its own workstream file, the item's anchors, `feedback` on the files it touches, the environment rules if it touches the environment | the queue, other plans, other branches, this doc |
+| worker | its sub-task prompt and the files it names | everything else |
 
 Two spawn levels, never three. A worker that needs a branch of its own is
 a plan, and a plan enters the queue through a pull request — the manager
@@ -61,9 +76,11 @@ sleep, never a poll:
 1. `./joharness.sh dispatch`.
 2. Health pass over every manager in flight (table below). Kills and
    respawns happen here, before any spawn.
-3. Spawn up to `slots`, in dispatch's order, skipping `HOLD`, a wave-2
-   row whose partner is in flight, and `NOT YOURS`.
-4. Schedule the next pass; end the turn.
+3. Spawn up to `slots`, in dispatch's order, skipping `HOLD`, `WAIT` and
+   `NOT YOURS`.
+4. Schedule the next pass; end the turn. A manager's "merged <stem>"
+   message wakes a pass early, so a freed slot is filled at once rather
+   than on the clock.
 
 Spawn = `create_session` with the repository attached, the item's tier
 mapped to a model by [`agent-selection.md`](agent-selection.md) Lineup, a
@@ -83,6 +100,7 @@ prints only the git half.
 | --- | --- | --- | --- |
 | working | any push age | `RUNNING`, or pushed inside the window | nothing |
 | stalled | `STALL?` — no push for `JOHARNESS_STALL_MINUTES` | `RUNNING`, `status_detail` unchanged across two passes | nudge, then kill |
+| looping | `LOOP?` — one file rewritten `JOHARNESS_CHURN_LIMIT`+ times; or head moved on three passes with `next:` unchanged | any | kill with the record, respawn one tier up |
 | gone | branch unmerged, status in-progress / review / done | not `RUNNING` | respawn on the branch |
 | blocked | status `blocked` | any | report to the human; never respawn |
 | done | branch merged, plan file gone | any | nothing |
@@ -91,13 +109,29 @@ A nudge is a message: push your workstream file now. Most stalls end there
 — a session deep in a build has a handover it has not written, and
 writing it is what the next session needs anyway.
 
-"Two passes" and "respawns per item" are memory across wakes, and the
-orchestrator stores nothing in the repo. The wake message carries it: the
-`send_later` text that starts each pass lists the items nudged, each with
-the branch head at the nudge, and the respawn count per item. A pass reads
-its ledger out of the message that woke it and writes the next one into
-the message it schedules — survives compaction, because the message
-arrives fresh; leaves nothing in git, because it lives in the schedule.
+### Loops are not stalls
+
+A stall is silence. A loop is the opposite: pushes keep landing and the
+same file keeps being rewritten, or `next:` never moves while the head
+does. `ci` already has two tiers for this from the inside — a warning
+from `JOHARNESS_CHURN_THRESHOLD`, the session's call; a red from
+`JOHARNESS_CHURN_LIMIT`, not a call any more — and the review-churn rule
+in [`agent-selection.md`](agent-selection.md) says what it means and what
+to do. `LOOP?` sits on the limit, the warning band is named on the work
+line, and the session inside the loop is the one that cannot see either.
+The orchestrator can. A loop gets no nudge, because a nudge asks for a
+push and a loop is pushing; it gets a kill with the progress recorded
+first and a successor one tier up, told to do the research step before
+any edit. The record's contents and the escalation are in
+`.claude/commands/orchestrate.md`, LOOP — stated once, there.
+
+"Across passes" is memory, and the orchestrator stores nothing in the
+repo. The wake message carries the ledger: per item, the head and the
+`next:` line last seen, the count of passes those disagreed, a nudge if
+sent, respawns so far. A pass reads it out of the message that woke it
+and writes the next one into the message it schedules — survives
+compaction, because the message arrives fresh; leaves nothing in git,
+because it lives in the schedule.
 
 ## The kill, and why the handover comes first
 
@@ -140,8 +174,9 @@ disjoint scope. Two things this mode adds to the wave rule:
 - A wave-2 plan is `WAIT` while its wave-1 partner is free or in flight:
   not counted as spawnable now, listed so the next pass finds it.
 - `JOHARNESS_MAX_MANAGERS=0` is the human's pause, the one lever beside
-  the Routine: dispatch says `PAUSED`, the orchestrator spawns nothing
-  and exits.
+  the Routine: dispatch says `PAUSED`, the orchestrator spawns nothing;
+  with managers still in flight the health pass goes on until they end,
+  then it exits.
 
 The reconcile rate the peer fleet measured — about one merge in four
 (`.agents/docs/product/README.md`, Orchestration) — is the number a run of
@@ -149,19 +184,41 @@ this mode should move. If it does not, the hold rule bought nothing.
 
 ## The numbers are the human's
 
-| Knob | Beta default | Means |
-| --- | --- | --- |
-| `JOHARNESS_MAX_MANAGERS` | 4 | managers in flight at once — money |
-| `JOHARNESS_STALL_MINUTES` | 45 | no push for this long = cross-check, nudge |
-| `JOHARNESS_HEALTH_MINUTES` | 10 | one orchestrator pass every this many |
-| `JOHARNESS_RESPAWN_LIMIT` | 2 | respawns per item per orchestrator run |
+| Knob | Default | Means | Where the default comes from |
+| --- | --- | --- | --- |
+| `JOHARNESS_MAX_MANAGERS` | 4 | managers in flight at once — money | p90 of branches active in one clock hour over every merge on `main`: median 2, p90 4, max 9 |
+| `JOHARNESS_STALL_MINUTES` | 45 | no push for this long = cross-check, nudge | p95 of the gap between consecutive commits on one branch, rounded: median 4, p90 27, p95 44 minutes |
+| `JOHARNESS_HEALTH_MINUTES` | 10 | one orchestrator pass every this many | between the median gap (4) and its p75 (12): a healthy manager's push lands inside one to three passes, a stall is seen within one window plus one pass |
+| `JOHARNESS_RESPAWN_LIMIT` | 2 | respawns per item per orchestrator run | no data; a written number until a run counts one |
+| `JOHARNESS_CHURN_THRESHOLD` | 5 | one file rewritten this often = a warning on the work line | `ci`'s own knob, backtested in [`agent-selection.md`](agent-selection.md): honest branches peak at 4. Raising it raises `ci`'s ceiling too |
+| `JOHARNESS_CHURN_LIMIT` | 2x the threshold | one file rewritten this often = `LOOP?`; 0 lifts it | `ci`'s own ceiling, the same knob |
 
 Read by `dispatch`: the environment for one command, `joharness.conf` for
-the repo, else the default. Digits only; a word reads as the default. The
-defaults are written numbers — nobody has measured them — and they are
-here so the first run has something to move rather than nothing. A
+the repo, else the default. Digits only; a word reads as the default. A
 session proposes a change with a run's evidence; it never sets one
 (`.agents/harness/AGENTS.md`, Decide alone: money).
+
+The first three were counted on `origin/main` 2026-09-05, the last 200
+merges, 530 commit gaps, 137 active hours, with this and nothing else —
+commit time stands in for push time, which git does not keep. Nearest
+rank: the value at rank ceil(p x N).
+
+```bash
+git rev-list --merges --first-parent -200 origin/main | while read -r m; do
+  set -- $(git rev-list --parents -n1 "$m"); [ $# -ge 3 ] || continue
+  git log --no-merges --format="$m %ct" "$(git merge-base "$2" "$3")..$3"
+done > /tmp/commits.txt
+pct='function r(p){ i=int(NR*p); if (i<NR*p) i++; return a[i] }'
+sort -k1,1 -k2,2n /tmp/commits.txt |
+  awk '$1==p {print ($2-t)/60} {p=$1; t=$2}' | sort -n |
+  awk "{a[NR]=\$1} $pct END {printf \"gaps=%d median=%.0f p90=%.0f p95=%.0f\n\", NR, r(.5), r(.9), r(.95)}"
+awk '{print int($2/3600), $1}' /tmp/commits.txt | sort -u | cut -d' ' -f1 |
+  uniq -c | awk '{print $1}' | sort -n |
+  awk "{a[NR]=\$1} $pct END {printf \"hours=%d median=%d p90=%d max=%d\n\", NR, r(.5), r(.9), a[NR]}"
+```
+
+Measured on the peer fleet, which is the only fleet that has run: what a
+cap of 4 costs in reconciles under an orchestrator is the run's to say.
 
 ## Bounds, unchanged, plus one path
 
@@ -197,23 +254,26 @@ commit `649b832`, its own docs only — never run, code not audited. Ideas
 taken, adapted, no text reproduced (`.agents/NOTICE`):
 
 - Its coordinator and its per-project monitor are two long-running
-  agents, one dispatching and one nudging, handing off and cleaning up.
-  Here one role, two steps of one pass: a repo-embedded harness has no
-  daemon to hold a second agent, and a second watcher is a second thing
-  to watch.
+  agents, one dispatching and one nudging, handing off and cleaning up
+  (`README.md`, Mayor and Witness). Here one role, two steps of one pass:
+  a repo-embedded harness has no daemon to hold a second agent, and a
+  second watcher is a second thing to watch.
 - It treats a worker's session ending as normal and its work as safe
-  because the worktree and the assignment persist past the session. Here
-  the branch persists and the workstream file is the assignment; the kill
-  comes after that file is written, by the manager or by the orchestrator.
-- Its worker health words — working, idle, done, stalled, zombie. Here
-  working, stalled, gone, blocked, done: `blocked` is a state its table
-  lacks, a session that stopped on purpose for a human, and it must never
-  be respawned.
+  because the worktree and the assignment persist past the session
+  (`docs/concepts/polecat-lifecycle.md`). Here the branch persists and
+  the workstream file is the assignment; the kill comes after that file
+  is written, by the manager or by the orchestrator.
+- Its worker health words — working, idle, done, stalled, zombie (same
+  file, Operating States). Here working, stalled, looping, gone, blocked,
+  done: `blocked` is a state its table lacks, a session that stopped on
+  purpose for a human, and it must never be respawned.
 - Its dispatch cap, added after N assignments spawned N workers at once
-  and hit rate limits. Here the cap is the human's number.
+  and hit rate limits (`docs/design/scheduler.md`, Overview). Here the
+  cap is the human's number.
 - Its rule that a worker finding work assigned to it executes at once,
-  without announcing itself and waiting. Here the spawn prompt is that
-  assignment.
+  without announcing itself and waiting
+  (`docs/concepts/propulsion-principle.md`). Here the spawn prompt is
+  that assignment.
 
 Not taken, and the arguments for this repo's own choices are in the
 documents that own them: a queryable work ledger and a long-running

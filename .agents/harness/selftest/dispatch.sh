@@ -127,13 +127,71 @@ expect "and so is the hold" "1 plan(s) on HOLD behind work in flight" "$out"
 
 # The hold rule is the wave rule: a path only the FREE side marked shared
 # still collides with the holder's exclusive claim on it.
-dspplan sharer 'shared: src/a'
-dsppush "a plan sharing the path a manager holds exclusively"
+# `src/a/other`: under the holder's `src/a`, beside the free `src/a/deep`,
+# so the only collision is with work in flight.
+dspplan sharer 'shared: src/a/other'
+dsppush "a plan sharing a path a manager holds exclusively"
 out="$(dsp)"
 expect "a one-sided shared path is a hold, as it is a wave split" \
-  "sharer.md (agent: sonnet)  wave 2  HOLD — overlaps alpha on src/a (claimed on mgr-alpha)" "$out"
+  "sharer.md (agent: sonnet)  wave 1  HOLD — overlaps alpha on src/a (claimed on mgr-alpha)" "$out"
 fixture_rm "$dspwork" "drop the sharer" docs/plans/sharer.md
 git -C "$dspwork" push -q origin main
+
+# --- a looping manager: pushing, and rewriting one file ---------------------
+# Six commits on one file past the base = the churn `ci` warns the session
+# about from the inside. Pushed just now, so it is not a stall; the flag is
+# LOOP?, and the progress line carries what the record will need.
+git -C "$dspwork" checkout -qb mgr-delta
+mkdir -p "${dspwork}/docs/handover"
+printf -- '---\nworkstream: delta\nstatus: in-progress\nbranch: mgr-delta\nplan: delta\nsession: https://example.invalid/session_delta\nagent: sonnet\nupdated: 2026-01-03\nnext: Make the test pass\n---\n\n## Goal\nFixture.\n\n## Review\n\n- r1: it failed again. (fixed)\n- r2: still failing. (fixed)\n' \
+  >"${dspwork}/docs/handover/delta.md"
+commit_all "$dspwork" "claim delta"
+for i in 1 2 3 4 5 6; do
+  printf 'attempt %s\n' "$i" >"${dspwork}/code.txt"
+  commit_all "$dspwork" "try again ${i}"
+done
+git -C "$dspwork" push -qu origin mgr-delta
+git -C "$dspwork" checkout -q main
+out="$(dsp)"
+expect "the loop line names both tiers and their knobs" \
+  "loop      : one file rewritten 10+ times on a branch = LOOP? (JOHARNESS_CHURN_LIMIT; 0 lifts it); 5+ = a warning on the work line (JOHARNESS_CHURN_THRESHOLD)" "$out"
+# Six rewrites is ci's WARNING band, the session's own call: named on the
+# work line, no LOOP? — the kill sits on the ceiling, as ci's red does.
+expect "past the threshold the work line names the warning" \
+  "work: 7 commit(s) since main, churn 6 on code.txt (>= 5: past ci's warning, watch next:), 2 finding(s) recorded" "$out"
+refute "but the threshold alone is no LOOP?" "LOOP? code.txt" "$out"
+out="$(dsp env JOHARNESS_CHURN_LIMIT=6)"
+expect "past the limit a manager is marked" \
+  "docs/plans/delta.md  mgr-delta  in-progress  pushed 0m  LOOP? code.txt rewritten 6 times (>= 6): record its progress, respawn with the churn rule" "$out"
+expect "and the verdict says health pass first" \
+  "1 manager(s) rewriting one file past the churn threshold: health pass FIRST" "$out"
+out="$(dsp env JOHARNESS_CHURN_LIMIT=0)"
+refute "0 lifts the limit, as it lifts ci's gate" "LOOP? code.txt" "$out"
+out="$(dsp env JOHARNESS_CHURN_THRESHOLD=3)"
+expect "the limit follows the threshold when unset" "rewritten 6+ times on a branch = LOOP?" "$out"
+expect "and the loop fires at twice it" "LOOP? code.txt rewritten 6 times (>= 6)" "$out"
+
+# A loop that went quiet is a stall AND a loop: both marks, because the
+# successor needs the record either way.
+dspplan zeta
+dsppush "a plan for the quiet loop"
+git -C "$dspwork" checkout -qb mgr-zeta
+mkdir -p "${dspwork}/docs/handover"
+printf -- '---\nworkstream: zeta\nstatus: in-progress\nbranch: mgr-zeta\nplan: zeta\nagent: sonnet\nupdated: 2026-01-01\n---\n\n## Goal\nFixture.\n' \
+  >"${dspwork}/docs/handover/zeta.md"
+for i in 1 2 3 4 5 6; do
+  printf 'quiet attempt %s\n' "$i" >"${dspwork}/code.txt"
+  git -C "$dspwork" add -A
+  GIT_COMMITTER_DATE='2026-01-01T00:00:00Z' GIT_AUTHOR_DATE='2026-01-01T00:00:00Z' \
+    git -C "$dspwork" commit -qm "quiet ${i}"
+done
+git -C "$dspwork" push -qu origin mgr-zeta
+git -C "$dspwork" checkout -q main
+out="$(dsp env JOHARNESS_CHURN_LIMIT=6)"
+expect "a quiet loop carries the stall mark" \
+  "STALL? no push for" "$(printf '%s\n' "$out" | grep 'mgr-zeta')"
+expect "and the loop mark beside it" \
+  "LOOP? code.txt rewritten 6 times" "$(printf '%s\n' "$out" | grep 'mgr-zeta')"
 
 # --- a blocked manager holds no slot and is the human's ---------------------
 git -C "$dspwork" checkout -qb mgr-beta
@@ -149,11 +207,11 @@ out="$(dsp)"
 expect "a blocked manager is listed as blocked" \
   "docs/plans/beta.md  mgr-beta  blocked  pushed" "$out"
 expect "and told to be the human's" "BLOCKED: the human's, holds no slot" "$out"
-expect "so the slot count does not move" "slots     : 3 of 4 free" "$out"
+expect "so the slot count does not move" "slots     : 1 of 4 free" "$out"
 expect "and the verdict says never respawn" \
   "1 manager(s) blocked: report to the human, never respawn" "$out"
 expect "and the spawn count fits the free items, not the slots" \
-  "NOT DRAINED — 2 free item(s) now, 3 slot(s): spawn up to 2 now" "$out"
+  "NOT DRAINED — 1 free item(s) now, 1 slot(s): spawn up to 1 now" "$out"
 
 # A hold behind a BLOCKED branch is released: the blocked manager waits
 # on a human, and a plan waiting on that starves with nothing in flight
@@ -163,20 +221,20 @@ dsppush "a plan overlapping the blocked manager's scope"
 out="$(dsp)"
 expect "a plan overlapping a BLOCKED branch is free, reconcile named" \
   "epsilon.md (agent: sonnet)  wave 1  overlaps beta on src/b (claimed on mgr-beta) — that branch is BLOCKED on a human: spawn, reconcile expected at step 7" "$out"
-expect "and counted as free" "3 free item(s) now" "$out"
+expect "and counted as free" "2 free item(s) now" "$out"
 fixture_rm "$dspwork" "drop epsilon" docs/plans/epsilon.md
 git -C "$dspwork" push -q origin main
 
 # --- a full cap waits; an empty queue with work in flight keeps going -------
 out="$(dsp env JOHARNESS_MAX_MANAGERS=1)"
 expect "no slot left says wait" \
-  "NOT DRAINED — 2 free item(s), 0 slots: wait for a manager to finish" "$out"
+  "NOT DRAINED — 1 free item(s), 0 slots: wait for a manager to finish" "$out"
 fixture_rm "$dspwork" "clear the free queue" \
-  docs/plans/beta.md docs/plans/gamma.md docs/plans/delta.md docs/research/openq.md
+  docs/plans/beta.md docs/plans/gamma.md docs/research/openq.md
 git -C "$dspwork" push -q origin main
 out="$(dsp)"
 expect "nothing free with a manager in flight is not the exit" \
-  "DRAINED — nothing free; 1 manager(s) in flight: keep the health pass going" "$out"
+  "DRAINED — nothing free; 3 manager(s) in flight: keep the health pass going" "$out"
 
 # --- the marked plan is NOT YOURS here too ----------------------------------
 dspplan protocol 'joharness.sh'
@@ -187,9 +245,12 @@ expect "a SUPERVISED ONLY plan is named as not yours" \
 refute "and never spawned" "docs/plans/protocol.md (agent" "$out"
 
 # --- a cap of 0 is the human's pause ------------------------------------------
+# With managers in flight the health pass goes on; the exit is for an
+# empty fleet. A pause that orphaned live managers would be a kill switch
+# with no handover.
 out="$(dsp env JOHARNESS_MAX_MANAGERS=0)"
-expect "cap 0 is PAUSED" \
-  "verdict   : PAUSED — JOHARNESS_MAX_MANAGERS=0: spawn nothing, exit" "$out"
+expect "cap 0 with managers in flight keeps the health pass" \
+  "verdict   : PAUSED — JOHARNESS_MAX_MANAGERS=0: spawn nothing; 3 manager(s) in flight: keep the health pass going" "$out"
 
 # --- supervised: nothing to dispatch, said, and the preview named -------------
 # An earlier draft reported anyway "for a human running the beta loop", and

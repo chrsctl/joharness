@@ -6,8 +6,11 @@ priority: normal
 ## Goal
 
 Requester, 2026-09-05, transcribed by the attended session that received
-the ask (a session writes no requirement of its own; this file carries the
-human's words and is theirs to correct or delete): add a new unsupervised
+the ask. A session writes no requirement of its own; this file carries the
+human's words, and when the session asked whether to correct, keep or
+delete it the requester answered by delegating the decision to the
+session ("Research and answer the 3 questions", same day). It stands as
+the goal, on that delegation. The ask: add a new unsupervised
 (beta) fully orchestrated mode. An orchestrator on a low-tier model, with
 maximum parallelism, pulls from the queue as the controller and spawns one
 manager per item in a new session; it checks health regularly and, when a
