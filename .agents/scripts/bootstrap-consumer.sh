@@ -45,6 +45,15 @@
 # repo. A key is written to an existing conf only when a flag gave it or the
 # interview answered it.
 #
+# --reconfigure puts those same questions to a child that ALREADY runs the
+# harness — the one route a consumer's operator has to change a decision
+# without hand-editing joharness.conf against a vocabulary documented a hop
+# away. It is conf-only: the interview, then the keys it decided, and nothing
+# else. No sync, no seeding, no purge, which is why it may run where a
+# re-bootstrap is refused — that refusal protects a consumer's live plans and
+# handover from whole-clone mode's purge, and this run has no purge to
+# protect them from. Without the flag the refusal is unchanged.
+#
 # --mode is the exception twice over: its default is always supervised rather
 # than the clone's inherited answer, and it is written whether or not anybody
 # decided it. Canonical is flipped for its own endurance runs and reverted
@@ -52,8 +61,8 @@
 # WHEN it was copied. Scripted and CI runs have nobody to ask, so they take
 # the defaults and say so.
 #
-# Usage: .agents/scripts/bootstrap-consumer.sh [--dry-run] [--env <layer>]
-#            [--env-setup <lazy|eager>] [--env-md <lazy|eager>]
+# Usage: .agents/scripts/bootstrap-consumer.sh [--dry-run] [--reconfigure]
+#            [--env <layer>] [--env-setup <lazy|eager>] [--env-md <lazy|eager>]
 #            [--review <off|on>] [--mode <supervised|unsupervised|orchestrated>]
 #            <consumer-dir>
 # Exit: 0 bootstrapped clean. 1 refused with nothing written (usage, ROOT
@@ -109,7 +118,7 @@ TRAP_TMP=""
 trap 'rm -rf "$SCRATCH"; [ -z "$TRAP_TMP" ] || rm -f "$TRAP_TMP"' EXIT
 
 usage() {
-  die "usage: $0 [--dry-run] [--env <layer>] [--env-setup <lazy|eager>] [--env-md <lazy|eager>] [--review <off|on>] [--mode <supervised|unsupervised|orchestrated>] <consumer-dir>"
+  die "usage: $0 [--dry-run] [--reconfigure] [--env <layer>] [--env-setup <lazy|eager>] [--env-md <lazy|eager>] [--review <off|on>] [--mode <supervised|unsupervised|orchestrated>] <consumer-dir>"
 }
 
 DRY=0
@@ -129,9 +138,14 @@ REVIEW="$(conf_key_default JOHARNESS_REVIEW)"
 REVIEW_GIVEN=0
 AUTONOMY="$(conf_key_default JOHARNESS_MODE)"
 AUTONOMY_GIVEN=0
+# Re-ask every switch in a child that already runs the harness, and write
+# what changes. Off, this script's behaviour is byte-identical to before it
+# existed — the flag adds a mode, it does not alter the other two.
+RECONFIGURE=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY=1; shift ;;
+    --reconfigure) RECONFIGURE=1; shift ;;
     --env) [ $# -ge 2 ] || usage; LAYER="$2"; LAYER_GIVEN=1; shift 2 ;;
     --env=*) LAYER="${1#--env=}"; LAYER_GIVEN=1; shift ;;
     --env-setup) [ $# -ge 2 ] || usage; ENV_SETUP="$2"; ENV_SETUP_GIVEN=1; shift 2 ;;
@@ -161,12 +175,29 @@ grep -q '^JOHARNESS_CANONICAL=1' "${ROOT}/joharness.conf" 2>/dev/null ||
 # every layer exists — a typo caught now costs a rerun, one caught after
 # the write costs a consumer selecting a layer it does not have. Same
 # whole-string name guard as everywhere else: a layer name reaches a path.
-case "$LAYER" in
-  '' | [!a-z0-9]* | *[!a-z0-9._-]*)
-    die "invalid layer name '${LAYER}'" ;;
-esac
-[ -d "${ROOT}/.agents/env/${LAYER}" ] ||
-  die "no layer .agents/env/${LAYER} in canonical (try: ls ${ROOT}/.agents/env)"
+# A layer name this run may write. Canonical's copy is what a bootstrap
+# SHIPS, so at first contact a name canonical lacks is a typo and nothing
+# else. Under --reconfigure nothing ships: the child may already carry a
+# layer of its own — one it wrote, or one selected before the layer moved —
+# and refusing that would mean the flag cannot express what the interview
+# already accepts when the same name is the value in force. So the child's
+# own tree counts there too, and a name neither side has is still refused.
+layer_valid() {
+  local name="$1"
+  case "$name" in
+    '' | [!a-z0-9]* | *[!a-z0-9._-]*) die "invalid layer name '${name}'" ;;
+  esac
+  [ ! -d "${ROOT}/.agents/env/${name}" ] || return 0
+  if [ "$RECONFIGURE" -eq 1 ] && [ -n "${DEST:-}" ] &&
+     [ -d "${DEST}/.agents/env/${name}" ]; then
+    return 0
+  fi
+  if [ "$RECONFIGURE" -eq 1 ]; then
+    die "no layer .agents/env/${name} in canonical or in '${DEST}' (try: ls ${ROOT}/.agents/env)"
+  fi
+  die "no layer .agents/env/${name} in canonical (try: ls ${ROOT}/.agents/env)"
+}
+layer_valid "$LAYER"
 
 # Every explicit value is checked, never normalised. Each of these keys is
 # read by something that fails closed on an unrecognised value —
@@ -261,7 +292,11 @@ interview() {
   [ "$INTERVIEW_DONE" -eq 0 ] || return 0
   INTERVIEW_DONE=1
   if [ ! -t 0 ]; then
-    log "not a terminal; asking nothing. A conf seeded here gets the defaults (env ${LAYER}, setup ${ENV_SETUP}, md ${ENV_MD}, review ${REVIEW}); a conf that already exists keeps its own values, and only JOHARNESS_MODE is written, as ${AUTONOMY}. The flags decide either way."
+    if [ "$MODE" = reconfigure ]; then
+      log "not a terminal; asking nothing. A reconfigure writes only what somebody decided, so with no flags this run changes nothing at all. Pass the switches as flags, or run this from a terminal to be asked."
+    else
+      log "not a terminal; asking nothing. A conf seeded here gets the defaults (env ${LAYER}, setup ${ENV_SETUP}, md ${ENV_MD}, review ${REVIEW}); a conf that already exists keeps its own values, and only JOHARNESS_MODE is written, as ${AUTONOMY}. The flags decide either way."
+    fi
     return 0
   fi
   if [ "$DRY" -eq 1 ]; then
@@ -283,10 +318,18 @@ interview() {
       d="${d%/}"
       layers="${layers}${d##*/} "
     done
-    ans="$(ask_line 'Environment layer' \
-      "  The sandbox this repo provisions. Only the one you pick ships;
+    if [ "$MODE" = reconfigure ]; then
+      ans="$(ask_line 'Environment layer' \
+        "  The sandbox this repo provisions. This run writes the selection
+  and ships nothing, so a layer the child does not carry yet arrives at
+  its next sync; 'none' is the harness with no environment." \
+        "  available: ${layers}" "$cur")"
+    else
+      ans="$(ask_line 'Environment layer' \
+        "  The sandbox this repo provisions. Only the one you pick ships;
   'none' is the harness with no environment." \
-      "  available: ${layers}" "$cur")"
+        "  available: ${layers}" "$cur")"
+    fi
     # Typing back what the brackets offer is the same decision as pressing
     # Enter, and has to cost the same. A repo whose conf names a layer this
     # canonical does not carry — one it selected before the layer moved, or
@@ -295,11 +338,7 @@ interview() {
     if [ -n "$ans" ] && [ "$ans" != "$cur" ]; then
       LAYER="$ans"
       LAYER_GIVEN=1
-      case "$LAYER" in
-        '' | [!a-z0-9]* | *[!a-z0-9._-]*) die "invalid layer name '${LAYER}'" ;;
-      esac
-      [ -d "${ROOT}/.agents/env/${LAYER}" ] ||
-        die "no layer .agents/env/${LAYER} in canonical (try: ls ${ROOT}/.agents/env)"
+      layer_valid "$LAYER"
     else
       LAYER="$cur"
     fi
@@ -345,13 +384,24 @@ interview() {
   fi
 
   if [ "$AUTONOMY_GIVEN" -eq 0 ]; then
-    # The one question that does NOT read the conf for its default. A clone
-    # carries canonical's answer, and canonical is flipped for its endurance
-    # runs, so offering that back would hand a child an autonomy it never
-    # chose. Deliberately not a conf_value_of call: there is nothing here to
-    # read, and a line that read it and then discarded the answer would read
-    # like a bug to delete.
+    # The one question whose default depends on WHICH run this is, because
+    # the value in the target's conf means two different things.
+    #
+    # At first contact it is not an answer: a whole clone carries canonical's
+    # own line, canonical is flipped for its endurance runs and reverted
+    # after, so offering it back would hand a child an autonomy it never
+    # chose because of WHEN it was copied. Supervised, always.
+    #
+    # Under --reconfigure the target already runs the harness, so that line
+    # was written by its own bootstrap and IS this repo's answer. Offering
+    # supervised there would make Enter a silent downgrade — JOHARNESS_MODE
+    # is written on every run (write_decided_keys), so Enter is not a no-op
+    # for this one key.
     cur=supervised
+    if [ "$RECONFIGURE" -eq 1 ]; then
+      cur="$(conf_value_of "$conf" JOHARNESS_MODE)"
+      [ -n "$cur" ] || cur=supervised
+    fi
     ans="$(ask_choice 'Unsupervised mode for this consumer?' \
       "  A session takes one queue item, runs the Loop, merges its own pull
   request, and at the queue edge exits instead of asking a human.
@@ -405,6 +455,15 @@ set_conf_key() {
 # and reverted after, so a clone taken mid-attempt would come up unattended
 # because of WHEN it was copied. That is the failure joharness.sh:run_mode
 # already fails closed against.
+#
+# The exception does not extend to --reconfigure, and the same reasoning is
+# why: there the line is the child's OWN answer, not canonical's, so writing
+# it unasked would rewrite a decision on a run where nobody decided anything.
+# Headless, that is exactly what would happen — the interview asks nothing
+# without a terminal, and the mode would land as the parse-time default,
+# silently downgrading an unsupervised child on a run that printed no
+# question. So under reconfigure this key follows the same rule as the other
+# four: written when a flag gave it or the interview answered it.
 write_decided_keys() {
   local conf="$1"
   [ "$LAYER_GIVEN" -eq 0 ] ||
@@ -419,8 +478,10 @@ write_decided_keys() {
   [ "$REVIEW_GIVEN" -eq 0 ] ||
     set_conf_key "$conf" JOHARNESS_REVIEW "$REVIEW" \
       "off = review reports only; on = ci gates the record at the edge."
-  set_conf_key "$conf" JOHARNESS_MODE "$AUTONOMY" \
-    "Autonomy. Any value but unsupervised or orchestrated (beta) reads as supervised."
+  if [ "$MODE" != reconfigure ] || [ "$AUTONOMY_GIVEN" -eq 1 ]; then
+    set_conf_key "$conf" JOHARNESS_MODE "$AUTONOMY" \
+      "Autonomy. Any value but unsupervised or orchestrated (beta) reads as supervised."
+  fi
 }
 
 # Mode detection needs the target readable; a missing target is trivially
@@ -430,6 +491,8 @@ write_decided_keys() {
 # missing target reports the plan and stops: the sync engine refuses a
 # nonexistent consumer dir, so there is nothing more to preview.
 if [ ! -d "$DEST" ]; then
+  [ "$RECONFIGURE" -eq 0 ] ||
+    die "--reconfigure re-asks the switches of a child that already runs the harness; '$DEST' does not exist"
   MODE=fresh
   if [ "$DRY" -eq 1 ]; then
     printf '== bootstrap %s -> %s (fresh; dry run, nothing written)\n' "$ROOT" "$DEST"
@@ -448,14 +511,28 @@ else
   if grep -q '^JOHARNESS_CANONICAL=1' "${DEST}/joharness.conf" 2>/dev/null; then
     # The marker in the target's own conf is the whole-clone tell: only a
     # copy of joharness carries it, and it must not survive — see header.
+    [ "$RECONFIGURE" -eq 0 ] ||
+      die "--reconfigure re-asks the switches of a consumer; '$DEST' is a copy of the canonical repository, which is bootstrapped rather than reconfigured"
     MODE=whole-clone
   elif [ -f "${DEST}/joharness.sh" ] || [ -d "${DEST}/.agents/harness" ] ||
     [ -d "${DEST}/harness" ]; then
     # This refusal is the safety line: a bootstrapped consumer's
     # docs/plans|product|handover hold ITS live work, and whole-clone
     # mode's purge would eat it. Steady state has its own tool.
-    die "'$DEST' already runs the harness; steady-state updates go through .agents/scripts/sync-to-consumer.sh, not a re-bootstrap"
+    #
+    # --reconfigure is the one run allowed through, and only because it has
+    # no purge to protect that work from: it asks the switches and writes the
+    # conf keys it decided. Nothing is synced, seeded or removed.
+    if [ "$RECONFIGURE" -eq 1 ]; then
+      MODE=reconfigure
+      [ -f "${DEST}/joharness.conf" ] ||
+        die "'$DEST' runs the harness but has no joharness.conf to reconfigure; a sync writes one (.agents/scripts/sync-to-consumer.sh)"
+    else
+      die "'$DEST' already runs the harness; steady-state updates go through .agents/scripts/sync-to-consumer.sh, not a re-bootstrap. Re-ask its switches with --reconfigure"
+    fi
   else
+    [ "$RECONFIGURE" -eq 0 ] ||
+      die "--reconfigure re-asks the switches of a child that already runs the harness; '$DEST' does not run it yet — bootstrap it first"
     MODE=fresh
   fi
 fi
@@ -502,6 +579,44 @@ place() {
   mv "$stage" "$dst"
   TRAP_TMP=""
 }
+
+# Conf-only, and it stops here. Every stage below syncs, seeds, rewrites or
+# removes something; a reconfigure has no business in any of them, and an
+# early exit is what keeps that true as stages are added. Placed AFTER the
+# helpers rather than at the interview, because `set_conf_key` calls `place`
+# and a run that exited above its definition died on `place: command not
+# found` — with the flag's answer already parsed and nothing written.
+#
+# What it says is what it did: the keys somebody decided, named one by one.
+# Listing all five would report values this run never touched.
+if [ "$MODE" = reconfigure ]; then
+  reconfigured=""
+  [ "$LAYER_GIVEN" -eq 0 ] || reconfigured="${reconfigured} JOHARNESS_ENV=${LAYER}"
+  [ "$ENV_SETUP_GIVEN" -eq 0 ] || reconfigured="${reconfigured} JOHARNESS_ENV_SETUP=${ENV_SETUP}"
+  [ "$ENV_MD_GIVEN" -eq 0 ] || reconfigured="${reconfigured} JOHARNESS_ENV_MD=${ENV_MD}"
+  [ "$REVIEW_GIVEN" -eq 0 ] || reconfigured="${reconfigured} JOHARNESS_REVIEW=${REVIEW}"
+  [ "$AUTONOMY_GIVEN" -eq 0 ] || reconfigured="${reconfigured} JOHARNESS_MODE=${AUTONOMY}"
+  if [ -z "$reconfigured" ]; then
+    log "nothing decided, so ${DEST}/joharness.conf is untouched"
+  elif [ "$DRY" -eq 1 ]; then
+    log "would write into ${DEST}/joharness.conf:${reconfigured}; nothing else is touched"
+  else
+    write_decided_keys "${DEST}/joharness.conf"
+    log "wrote into ${DEST}/joharness.conf:${reconfigured}; nothing else touched"
+  fi
+  # Selecting a layer is not the same as having it, and this run ships
+  # nothing. Left silent, the child reports the layer as selected and falls
+  # back to none at every session start — the state joharness.sh:cmd_env
+  # already warns about, reached here without a word.
+  if [ "$LAYER_GIVEN" -eq 1 ] && [ "$LAYER" != none ] &&
+     [ ! -d "${DEST}/.agents/env/${LAYER}" ]; then
+    warn "'${DEST}' does not carry .agents/env/${LAYER} yet, and a reconfigure ships nothing: it will fall back to no environment until the sync brings that layer (.agents/scripts/sync-to-consumer.sh, and .agents/docs/consumer-repos.md, Layers)."
+  fi
+  # No heartbeat warning here: the one above fires on the resolved value
+  # whichever run this is, and a second copy printed it twice for
+  # `--reconfigure --mode unsupervised` — against its own "said once".
+  exit 0
+fi
 
 # The stub that replaces joharness's Part 2. The synced/cloned body says
 # "this repo IS the harness" — instructions for working on joharness

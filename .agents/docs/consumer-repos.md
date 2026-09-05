@@ -164,7 +164,7 @@ Refused in canonical: there, syncing out is
 ## Settings a child does not answer
 
 First contact asks about every switch. Update asks about the ones that did not
-exist yet.
+exist yet. **Changing one later is the third route, below.**
 
 The conf is consumer-own and the sync never touches it, so a repo bootstrapped
 before a key was added carries no line for it and takes the fail-closed
@@ -188,6 +188,34 @@ down what is already true rather than changing behaviour. The keys are
 declared once in `.agents/scripts/conf-keys.sh`, which is canonical-only: it
 reaches every consumer's update by being in canonical and ships to none of
 them.
+
+## Settings a child wants to CHANGE
+
+The sync answers "this key is absent"; it never re-opens one already
+answered. Re-ask every switch instead, from canonical, naming the child:
+
+```bash
+.agents/scripts/bootstrap-consumer.sh --reconfigure <consumer-dir>
+```
+
+Same five questions as first contact, each offering the value in force in
+THAT child's conf, and the answers written to its `joharness.conf`. Nothing
+else: no sync, no seeding, no purge. That is why it is allowed where a
+re-bootstrap is refused — the refusal exists to keep whole-clone mode's purge
+away from a consumer's live plans and handover, and this run has no purge.
+
+- **Flags answer without asking**, the same ones first contact takes, so a
+  scripted change is `--reconfigure --review on <dir>`.
+- **It writes only what somebody decided.** Enter keeps a value; a headless
+  run with no flags changes nothing and says so.
+- **`JOHARNESS_MODE` is the one difference from first contact.** There the
+  question always offers `supervised`, because a whole clone carries
+  canonical's own line and autonomy should not be acquired by being copied.
+  Here the line is the child's own answer, so the question offers it back —
+  otherwise Enter would silently turn an unsupervised child supervised, since
+  a bootstrap writes that key on every run.
+- **Refused** on a target that does not exist, one that does not run the
+  harness yet (bootstrap it first), and a copy of the canonical repository.
 
 ## Update: consumer CI
 
