@@ -249,11 +249,18 @@ fi
 # moment a session abandons whatever it started.
 #
 # The signal is descendants of the AGENT process, found by climbing this
-# guard's own parent chain — and it is clean without special-casing. An
-# environment daemon started by `./joharness.sh setup` daemonises and
-# reparents to PID 1 (measured here: `dockerd` ppid 1, `containerd` its
-# child), so it is not a descendant; the agent process has no other standing
-# children. A session that left nothing running counts zero.
+# guard's own parent chain. That is what the incident was: a command the tool
+# runs in the background stays a child of the agent for as long as it runs.
+#
+# It is a BOUND, not a census. A job detached from a shell that then exits —
+# `foo &` inside one tool call — reparents to PID 1 and no longer answers to
+# any session, so nothing here can attribute it and this fact never will. The
+# same mechanism is what keeps the count honest downward: an environment
+# daemon from `./joharness.sh setup` reparents the same way (measured here:
+# `dockerd` ppid 1, `containerd` its child), so a session that left nothing
+# attached counts zero rather than inheriting the container's furniture. The
+# rule in the Loop is the defence; this count is the backstop for the shape
+# that bit us, and the two are not the same size.
 #
 # COUNT, never a command line — the same rule as the boundary fact above and
 # for the same reason: the reason string embeds in JSON without escaping, and
@@ -263,19 +270,26 @@ fi
 # Reports, never kills. Every fact in this file reports.
 bg_running=0
 if command -v ps >/dev/null 2>&1; then
-  # ONE process-table read and ONE awk, not a `ps` per ancestor: the first
-  # shape forked twice per level of the tree, which is the per-item fork the
-  # perf budget exists to catch, and it caught it (35 against 33). A single
+  # ONE process-table read and ONE awk, not a `ps` per ancestor. A `ps` per
+  # level of the tree is the per-item fork the perf budget exists to catch,
+  # and it caught it while this was being written; this shape costs 21
+  # against a budget of 33 (`./joharness.sh perf`, 2026-09-05). A single
   # snapshot is also the more correct read — a table sampled per level races
   # with a tree that is exiting underneath it.
+  #
+  # EVERY walk below carries a visited map. A process table is a tree while
+  # it is well formed, and a racing or forged one need not be: a climb that
+  # goes round a cycle is a script that cannot finish, which is the exact
+  # thing this fact exists to report. It must not be the thing it reports.
   bg_running="$(ps -eo pid=,ppid=,comm= 2>/dev/null | awk -v self="$$" '
     { pid = $1; parent[pid] = $2; comm[pid] = $3
       kids[$2] = kids[$2] " " pid }
     END {
       # The agent, by climbing from this guard. Not found — run by hand, an
-      # unexpected tree — means no claim can be made, so none is.
+      # unexpected tree, a cycle — means no claim can be made, so none is.
       p = self
-      while (p != "" && p != "1" && p != "0") {
+      while (p != "" && p != "1" && p != "0" && !(p in climbed)) {
+        climbed[p] = 1
         if (comm[p] ~ /claude/) { agent = p; break }
         p = parent[p]
       }
@@ -288,7 +302,8 @@ if command -v ps >/dev/null 2>&1; then
       # stop is the guard itself. Excluding only self reported the invoking
       # pipeline as abandoned background work.
       root = self; c = self
-      while (c != "" && c != "1" && c != "0") {
+      while (c != "" && c != "1" && c != "0" && !(c in walked)) {
+        walked[c] = 1
         if (parent[c] == agent) { root = c; break }
         c = parent[c]
       }
@@ -296,7 +311,9 @@ if command -v ps >/dev/null 2>&1; then
       n = split(kids[root], q, " "); skip[root] = 1
       for (i = 1; i <= n; i++) { queue[++tail] = q[i] }
       while (head < tail) {
-        cur = queue[++head]; skip[cur] = 1
+        cur = queue[++head]
+        if (cur in skip) continue
+        skip[cur] = 1
         m = split(kids[cur], r, " ")
         for (i = 1; i <= m; i++) { queue[++tail] = r[i] }
       }
@@ -306,13 +323,17 @@ if command -v ps >/dev/null 2>&1; then
       for (i = 1; i <= n; i++) { q3[++qt] = q2[i] }
       while (qh < qt) {
         cur = q3[++qh]
-        if (cur in skip) continue
+        if (cur in skip || cur in counted) continue
+        counted[cur] = 1
         count++
         m = split(kids[cur], r2, " ")
         for (i = 1; i <= m; i++) { q3[++qt] = r2[i] }
       }
       print count + 0
     }')"
+  # Digits or nothing. Anything else means the read failed or was fed a
+  # table shaped to break it, and the value is one string concatenation away
+  # from the JSON `reason` field.
   case "$bg_running" in '' | *[!0-9]*) bg_running=0 ;; esac
 fi
 [ "$bg_running" -eq 0 ] ||
