@@ -82,6 +82,21 @@ MARKER='# Part 2 — project'
 # resolves the same canonical this run did.
 SYNC_ENGINE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/sync-to-consumer.sh"
 
+# The settings a child runs under, declared once and read by the sync engine
+# too. Sourced from beside this script for the same reason the engine is:
+# script location is code, ROOT is data. The defaults below come from there
+# rather than being typed here again — this file held the list twice already
+# (the interview and the seeded heredoc), and the sync engine naming a key
+# this one does not seed is the drift the declaration exists to stop.
+CONF_KEYS_FILE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/conf-keys.sh"
+# Named refusal, not bash's: this is sourced before any of this script's own
+# checks run, so an absent file would abort the whole tool on a bare
+# `no such file` naming a line number and no cause.
+[ -r "$CONF_KEYS_FILE" ] ||
+  { printf '[joharness] ERROR: %s is missing; it declares the settings a consumer runs under and this script reads it\n' "$CONF_KEYS_FILE" >&2; exit 1; }
+# shellcheck source=.agents/scripts/conf-keys.sh
+. "$CONF_KEYS_FILE"
+
 log()  { printf '[joharness] %s\n' "$*" >&2; }
 warn() { printf '[joharness] WARNING: %s\n' "$*" >&2; }
 die()  { printf '[joharness] ERROR: %s\n' "$*" >&2; exit 1; }
@@ -104,15 +119,15 @@ DRY=0
 #
 # AUTONOMY, not MODE: MODE already names fresh-vs-whole-clone in this script,
 # and one variable carrying two meanings is how the wrong one gets written.
-LAYER=none
+LAYER="$(conf_key_default JOHARNESS_ENV)"
 LAYER_GIVEN=0
-ENV_SETUP=lazy
+ENV_SETUP="$(conf_key_default JOHARNESS_ENV_SETUP)"
 ENV_SETUP_GIVEN=0
-ENV_MD=lazy
+ENV_MD="$(conf_key_default JOHARNESS_ENV_MD)"
 ENV_MD_GIVEN=0
-REVIEW=off
+REVIEW="$(conf_key_default JOHARNESS_REVIEW)"
 REVIEW_GIVEN=0
-AUTONOMY=supervised
+AUTONOMY="$(conf_key_default JOHARNESS_MODE)"
 AUTONOMY_GIVEN=0
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -547,9 +562,16 @@ bootstrap_fresh() {
   # does not exist until the seed below. Telling the engine directly
   # keeps one write order — sync, then seed — with no chicken-and-egg.
   if [ "$DRY" -eq 1 ]; then
-    JOHARNESS_SYNC_ENV="$LAYER" bash "$SYNC_ENGINE" --dry-run "$DEST" || exit
+    JOHARNESS_SYNC_ENV="$LAYER" JOHARNESS_SYNC_CONF_KEYS=skip \
+      bash "$SYNC_ENGINE" --dry-run "$DEST" </dev/null || exit
   else
-    JOHARNESS_SYNC_ENV="$LAYER" bash "$SYNC_ENGINE" "$DEST" || exit
+    # Both: the engine's own conf-key stage would otherwise ask these five
+    # questions again, seconds after the interview above, and an answer there
+    # creates the conf that `seed` then declines as the consumer's own — so
+    # the seeded conf never lands. Closing stdin as well, because a tool that
+    # asks nothing has no business reading the terminal this one is using.
+    JOHARNESS_SYNC_ENV="$LAYER" JOHARNESS_SYNC_CONF_KEYS=skip \
+      bash "$SYNC_ENGINE" "$DEST" </dev/null || exit
   fi
 
   if [ "$had_agents" -eq 1 ]; then

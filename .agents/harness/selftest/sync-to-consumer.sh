@@ -122,9 +122,15 @@ CANON-HARNESS-V1
 CONSUMER-PART2-SENTINEL
 EOF
 
+# </dev/null on purpose: the engine ASKS about settings a consumer's conf does
+# not answer when it has a terminal, and a selftest run from one would sit at
+# that prompt. Closing stdin makes every case below take the reporting path,
+# which is also the path update.yml takes. The ask itself is driven under a
+# pty at the end of this topic, where it is the subject rather than an
+# obstacle.
 sync() {
   JOHARNESS_SYNC_ROOT="$syncsrc" \
-    bash "${ROOT}/.agents/scripts/sync-to-consumer.sh" "$@" 2>&1
+    bash "${ROOT}/.agents/scripts/sync-to-consumer.sh" "$@" </dev/null 2>&1
 }
 
 out="$(sync --dry-run "$syncdst")"
@@ -219,3 +225,187 @@ expect "layer contract doc ships whatever the selection" "layer contract" \
   "$(cat "${syncdst}/.agents/env/README.md" 2>/dev/null)"
 expect "consumer README untouched" "CONSUMER-README" \
   "$(cat "${syncdst}/README.md")"
+
+# --- settings the consumer does not answer -------------------------------
+# A child is asked about every switch at first contact and never again, and
+# the conf is consumer-own so this engine does not sync it. Without this
+# stage a child bootstrapped before a key existed takes the fail-closed
+# default in silence forever.
+step "sync-to-consumer.sh conf keys"
+
+printf 'JOHARNESS_ENV=none\nJOHARNESS_ENV_SETUP=lazy\n' >"${syncdst}/joharness.conf"
+confbefore="$(cat "${syncdst}/joharness.conf")"
+out="$(sync "$syncdst")"
+expect "the stage names itself" "settings this repo does not answer" "$out"
+for k in JOHARNESS_ENV_MD JOHARNESS_REVIEW JOHARNESS_MODE; do
+  expect "names the missing key ${k}" "$k" "$out"
+done
+expect "with the default it would take" "default supervised" "$out"
+expect "and what the key means" "a session asks at the queue edge" "$out"
+refute "a key the conf answers is not named" "JOHARNESS_ENV_SETUP (default" "$out"
+expect "a run with nobody to ask says nothing was written" \
+  "not a terminal: nothing written" "$out"
+if [ "$confbefore" = "$(cat "${syncdst}/joharness.conf")" ]; then
+  pass "and the conf is untouched"
+else
+  fail "and the conf is untouched"
+fi
+
+# A dry run with nobody to ask previews the run that would happen in THAT
+# context, which asks nothing. "would ask" belongs to a dry run with a
+# terminal, and is asserted under the pty below.
+out="$(sync --dry-run "$syncdst")"
+expect "a headless dry run previews the headless run" \
+  "not a terminal: nothing written" "$out"
+refute "and promises no question nobody would be asked" \
+  "would ask about these" "$out"
+if [ "$confbefore" = "$(cat "${syncdst}/joharness.conf")" ]; then
+  pass "and a dry run writes nothing either"
+else
+  fail "and a dry run writes nothing either"
+fi
+
+# A conf that answers everything gets no stage at all — the common case, and
+# the reason this cannot become noise every consumer learns to scroll past.
+{ printf 'JOHARNESS_ENV=none\nJOHARNESS_ENV_SETUP=lazy\nJOHARNESS_ENV_MD=lazy\n'
+  printf 'JOHARNESS_REVIEW=off\nJOHARNESS_MODE=supervised\n'
+} >"${syncdst}/joharness.conf"
+out="$(sync "$syncdst")"
+refute "a conf answering every key gets no stage" \
+  "settings this repo does not answer" "$out"
+
+# A conf that is not a regular file is named and left alone. Appending with
+# `>>` through a symlink writes to whatever it points at, and a symlink in a
+# consumer tree is untrusted input — the shape that once aimed a purge outside
+# the target in this same engine.
+syncoutside="${TMP}/syncoutside.conf"
+printf 'OUTSIDE-UNTOUCHED\n' >"$syncoutside"
+rm -f "${syncdst}/joharness.conf"
+ln -s "$syncoutside" "${syncdst}/joharness.conf"
+out="$(sync "$syncdst")"
+expect "a conf that is not a regular file is named" \
+  "joharness.conf is not a regular file" "$out"
+expect "the outside file is untouched" "OUTSIDE-UNTOUCHED" "$(cat "$syncoutside")"
+if [ "$(wc -l <"$syncoutside")" -eq 1 ]; then
+  pass "and nothing was appended through the symlink"
+else
+  fail "and nothing was appended through the symlink"
+fi
+rm -f "${syncdst}/joharness.conf"
+
+# A directory at that path reaches `grep` as a readable thing that answers no
+# key; unguarded it printed 'Is a directory' five times into a report a
+# consumer reads, then died on the append.
+# A directory at the conf path never reaches this stage at all: the engine's
+# own layer lookup reads that path with `sed` first and fails there, which is
+# older than this stage and dispositioned in the review record rather than
+# fixed under a plan about update-time settings. Asserted as it behaves, so
+# that whoever does fix the lookup sees this case change with it.
+mkdir -p "${syncdst}/joharness.conf"
+out="$(sync "$syncdst")" && rc=0 || rc=$?
+if [ "$rc" -ne 0 ]; then
+  pass "a directory at the conf path stops the sync before this stage"
+else
+  fail "a directory at the conf path stops the sync before this stage (got 0)"
+fi
+refute "so the stage never runs" "settings this repo does not answer" "$out"
+if [ -d "${syncdst}/joharness.conf" ] &&
+  [ -z "$(find "${syncdst}/joharness.conf" -type f)" ]; then
+  pass "and nothing was written into it"
+else
+  fail "and nothing was written into it"
+fi
+rmdir "${syncdst}/joharness.conf"
+
+# The declaration is a precondition of the engine, so its absence says so.
+syncnodecl="${TMP}/syncnodecl"
+mkdir -p "${syncnodecl}/.agents/scripts"
+cp "${ROOT}/.agents/scripts/sync-to-consumer.sh" "${syncnodecl}/.agents/scripts/"
+out="$(JOHARNESS_SYNC_ROOT="$syncsrc" bash "${syncnodecl}/.agents/scripts/sync-to-consumer.sh" "$syncdst" </dev/null 2>&1)" && rc=0 || rc=$?
+if [ "$rc" -eq 1 ]; then
+  pass "a missing declaration is a named refusal"
+else
+  fail "a missing declaration is a named refusal (got ${rc})"
+fi
+expect "and it says what the file is for" "declares the settings a consumer runs under" "$out"
+
+# The ask. Everything above drives the reporting path; this is where the
+# question is put, so it needs a terminal.
+if command -v script >/dev/null 2>&1 &&
+  script -qec true /dev/null >/dev/null 2>&1; then
+  # One line per question plus a tail of blanks: a pty reports no end of file
+  # while its master is open, so a read with nothing left to consume blocks
+  # rather than defaulting. timeout is the belt.
+  sync_tty() {
+    local dest="$1" a
+    shift
+    { for a in "$@"; do printf '%s\n' "$a"; done
+      printf '\n\n\n\n\n\n\n\n'
+    } | timeout 60 script -qec \
+      "JOHARNESS_SYNC_ROOT='${syncsrc}' bash '${ROOT}/.agents/scripts/sync-to-consumer.sh' '${dest}'" \
+      /dev/null 2>&1
+  }
+
+  # Declining leaves the file exactly as it was.
+  printf 'JOHARNESS_ENV=none\n' >"${syncdst}/joharness.conf"
+  confbefore="$(cat "${syncdst}/joharness.conf")"
+  out="$(sync_tty "$syncdst" n n n n)" || :
+  expect "the question is put when there is somebody to ask" \
+    "write JOHARNESS_MODE=supervised ? [y/N]" "$out"
+  expect "declining says so" "nothing written" "$out"
+  if [ "$confbefore" = "$(cat "${syncdst}/joharness.conf")" ]; then
+    pass "and declining leaves the conf byte-identical"
+  else
+    fail "and declining leaves the conf byte-identical"
+  fi
+
+  # A dry run that DOES have a terminal says it would ask, and asks nothing.
+  printf 'JOHARNESS_ENV=none\n' >"${syncdst}/joharness.conf"
+  confbefore="$(cat "${syncdst}/joharness.conf")"
+  out="$(printf '\n\n\n\n\n\n' | timeout 60 script -qec \
+    "JOHARNESS_SYNC_ROOT='${syncsrc}' bash '${ROOT}/.agents/scripts/sync-to-consumer.sh' --dry-run '${syncdst}'" \
+    /dev/null 2>&1)" || :
+  expect "a dry run with a terminal says it would ask" "would ask about these" "$out"
+  refute "and does not put the question" "write JOHARNESS_MODE" "$out"
+  if [ "$confbefore" = "$(cat "${syncdst}/joharness.conf")" ]; then
+    pass "and writes nothing"
+  else
+    fail "and writes nothing"
+  fi
+
+  # The symlink guard matters HERE, not on the reporting path: a headless run
+  # writes nothing whatever the conf is, so only an answered question can
+  # follow a symlink out of the tree.
+  syncoutside2="${TMP}/syncoutside2.conf"
+  printf 'OUTSIDE-UNTOUCHED-2\n' >"$syncoutside2"
+  rm -f "${syncdst}/joharness.conf"
+  ln -s "$syncoutside2" "${syncdst}/joharness.conf"
+  out="$(sync_tty "$syncdst" y y y y y)" || :
+  expect "an answered run still names a conf that is not a regular file" \
+    "joharness.conf is not a regular file" "$out"
+  expect "and the file outside the tree is untouched" "OUTSIDE-UNTOUCHED-2" \
+    "$(cat "$syncoutside2")"
+  if [ "$(wc -l <"$syncoutside2")" -eq 1 ]; then
+    pass "and nothing was appended through the symlink by an answer"
+  else
+    fail "and nothing was appended through the symlink by an answer"
+  fi
+  rm -f "${syncdst}/joharness.conf"
+
+  # Answering adopts that key and only that key.
+  printf 'JOHARNESS_ENV=none\n' >"${syncdst}/joharness.conf"
+  out="$(sync_tty "$syncdst" n n n y)" || :
+  expect "answering writes the key" "wrote   JOHARNESS_MODE=supervised" "$out"
+  expect "and it lands in the conf" "JOHARNESS_MODE=supervised" \
+    "$(cat "${syncdst}/joharness.conf")"
+  refute "a key that was declined does not land" "JOHARNESS_REVIEW=" \
+    "$(cat "${syncdst}/joharness.conf")"
+  expect "the conf keeps what it already answered" "JOHARNESS_ENV=none" \
+    "$(cat "${syncdst}/joharness.conf")"
+  # Written with its meaning beside it, so the next reader of that file does
+  # not have to come back here to learn what the line does.
+  expect "the written line carries what the key means" \
+    "a session asks at the queue edge" "$(cat "${syncdst}/joharness.conf")"
+else
+  skip "the conf-key ask itself" "no usable script(1) to allocate a tty"
+fi

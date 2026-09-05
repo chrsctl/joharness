@@ -716,3 +716,50 @@ if command -v script >/dev/null 2>&1 &&
 else
   skip "the interview itself" "no usable script(1) to allocate a tty"
 fi
+
+# The drift this declaration exists to stop: a key added to the seeded conf
+# and not to conf-keys.sh, or the other way round. The sync engine names what
+# the declaration lists, and the bootstrap seeds what the heredoc writes, so
+# the two disagreeing means a consumer is told about a key nothing seeds, or
+# runs under one no update will ever mention.
+step "bootstrap-consumer.sh conf keys match the declaration"
+
+bootdecl="${TMP}/bootdecl"
+out="$(boot "$bootdecl")"; rc=$?
+if [ "$rc" -eq 0 ]; then
+  pass "bootstrap for the declaration check exits 0"
+else
+  fail "bootstrap for the declaration check exits 0 (got ${rc})"
+fi
+seeded="$(grep -oE '^JOHARNESS_[A-Z_]+' "${bootdecl}/joharness.conf" 2>/dev/null | sort)"
+declared="$(bash -c ". '${ROOT}/.agents/scripts/conf-keys.sh'; conf_keys_names" | sort)"
+if [ "$seeded" = "$declared" ]; then
+  pass "the seeded conf and conf-keys.sh name the same keys"
+else
+  fail "the seeded conf and conf-keys.sh name the same keys"
+  printf '    seeded:   %s\n' "$(printf '%s' "$seeded" | tr '\n' ' ')"
+  printf '    declared: %s\n' "$(printf '%s' "$declared" | tr '\n' ' ')"
+fi
+
+# The bootstrap asks these five itself and then runs the sync engine, whose
+# own conf-key stage would ask them again seconds later — and an answer there
+# creates the conf that `seed` then declines as the consumer's own, so the
+# seeded conf never lands. The engine is told to stay out of it.
+step "bootstrap-consumer.sh does not let the engine re-ask"
+
+if command -v script >/dev/null 2>&1 &&
+  script -qec true /dev/null >/dev/null 2>&1; then
+  bootnore="${TMP}/bootnore"
+  out="$({ printf '\n\n\n'; printf 'y\ny\ny\ny\ny\n'; printf '\n\n\n\n'; } | \
+    timeout 120 script -qec \
+      "JOHARNESS_SYNC_ROOT='${bootsrc}' bash '${ROOT}/.agents/scripts/bootstrap-consumer.sh' '${bootnore}'" \
+      /dev/null 2>&1)" || :
+  refute "the engine does not re-ask the switches" \
+    "settings this repo does not answer" "$out"
+  expect "and the seeded conf lands" "JOHARNESS_ENV=none" \
+    "$(cat "${bootnore}/joharness.conf" 2>/dev/null)"
+  expect "with every declared key in it" "JOHARNESS_MODE=supervised" \
+    "$(cat "${bootnore}/joharness.conf" 2>/dev/null)"
+else
+  skip "the engine re-ask guard" "no usable script(1) to allocate a tty"
+fi

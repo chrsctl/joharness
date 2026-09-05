@@ -161,6 +161,34 @@ this repo no longer carries and could not run anyway. Then review the diff,
 Refused in canonical: there, syncing out is
 [by hand](#update-by-hand).
 
+## Settings a child does not answer
+
+First contact asks about every switch. Update asks about the ones that did not
+exist yet.
+
+The conf is consumer-own and the sync never touches it, so a repo bootstrapped
+before a key was added carries no line for it and takes the fail-closed
+default in silence. Every sync now names the declared keys the conf does not
+answer, each with its default and what it means, and:
+
+- **reports always** — including from `update.yml`, which runs the sync on a
+  cron. Where that run also changes files it opens a pull request and the
+  report travels in the body; where the harness is already current it changes
+  nothing, opens no pull request, and the report stays in the Actions log.
+  That second case is the steady state this stage is aimed at, so a repo
+  waiting to be told in a pull request will wait a long time;
+- **asks only with a terminal** — a human running the sync by hand is offered
+  each missing key;
+- **writes only what was answered.** Enter or `n` leaves the file alone. A key
+  the conf already answers is not named, not asked about, and not touched,
+  whatever its value.
+
+The default applies whether or not the line exists, so adopting one writes
+down what is already true rather than changing behaviour. The keys are
+declared once in `.agents/scripts/conf-keys.sh`, which is canonical-only: it
+reaches every consumer's update by being in canonical and ships to none of
+them.
+
 ## Update: consumer CI
 
 `.github/workflows/update.yml`, seeded at bootstrap. Runs the same sync

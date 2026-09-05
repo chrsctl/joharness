@@ -82,6 +82,18 @@ trap 'rm -rf "$SCRATCH"; [ -z "$TRAP_TMP" ] || rm -f "$TRAP_TMP"' EXIT
 
 usage() { die "usage: $0 [--dry-run] <consumer-dir>"; }
 
+# Beside this script, never under ROOT: script location is code and ROOT is
+# data, the same split the engine already makes for its own resolution. Under
+# a selftest ROOT names a fixture that carries no declaration.
+CONF_KEYS_FILE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/conf-keys.sh"
+# Named refusal, not bash's. Sourcing an absent file aborts the whole engine
+# on a `line 89: no such file` with no clue which precondition failed, and
+# every other precondition in this file dies with a sentence.
+[ -r "$CONF_KEYS_FILE" ] ||
+  { printf '[joharness] ERROR: %s is missing; it declares the settings a consumer runs under and this engine reads it\n' "$CONF_KEYS_FILE" >&2; exit 1; }
+# shellcheck source=.agents/scripts/conf-keys.sh
+. "$CONF_KEYS_FILE"
+
 DRY=0
 [ "${1:-}" = "--dry-run" ] && { DRY=1; shift; }
 [ $# -eq 1 ] || usage
@@ -681,6 +693,105 @@ report_canonical_only() {
     "(.agents/docs/consumer-repos.md, What a consumer carries)."
 }
 report_canonical_only
+
+# Settings the consumer's conf does not answer.
+#
+# The gap this closes: a child is asked about every switch at first contact
+# and never again, because the conf is consumer-own and this engine does not
+# sync it. A child bootstrapped before a key existed therefore takes the
+# fail-closed default in silence forever — JOHARNESS_MODE landed with every
+# older child in exactly that position, and no update would have said so.
+#
+# Report ALWAYS, ask only with a terminal, write only what was answered.
+# update.yml runs this on a cron with nobody to ask and already carries this
+# report into its pull request body, so the report is the half that works
+# everywhere; the ask is for a human running the sync by hand. A dry run must
+# leave the consumer byte-identical, so it reports and never asks.
+#
+# Appending an answered key is the whole licence this stage takes with a
+# consumer-own file. A key the conf already answers is not named, not asked
+# about and not touched, whatever its value.
+report_conf_keys() {
+  local conf="${DEST}/joharness.conf" missing key def ans wrote=0
+  # The bootstrap runs this engine BEFORE it seeds the conf, having just
+  # asked these same questions itself. Without this the stage asked all five
+  # again, and an answer created the conf — which made the bootstrap's own
+  # `seed` decline it as a file the consumer already had, so the seeded conf
+  # never landed at all. Set by the bootstrap, not inferred from stdin: the
+  # reason to stay quiet is that somebody else owns these answers on this
+  # run, which is not a thing a terminal check can see.
+  [ "${JOHARNESS_SYNC_CONF_KEYS:-}" != skip ] || return 0
+  # A path that is not a regular file is not a conf this stage will touch.
+  # `>>` through a symlink writes to whatever it points at, and the symlink
+  # in a consumer tree is untrusted input — the same shape that once aimed a
+  # purge outside the target here. Named and skipped, never followed.
+  if [ -e "$conf" ] && { [ -h "$conf" ] || [ ! -f "$conf" ]; }; then
+    printf '\n== settings this repo does not answer\n'
+    printf '  joharness.conf is not a regular file; not read and not written\n'
+    return 0
+  fi
+  missing="$(conf_keys_missing_from "$conf")"
+  [ -n "$missing" ] || return 0
+  printf '\n== settings this repo does not answer\n'
+  while IFS= read -r key; do
+    [ -n "$key" ] || continue
+    printf '  %s (default %s)\n' "$key" "$(conf_key_default "$key")"
+    printf '      %s\n' "$(conf_key_meaning "$key")"
+  done <<<"$missing"
+
+  # Terminal first, then dry run — the order the bootstrap's interview uses
+  # and for its reason: a dry run previews what the real run does in the same
+  # context, and the real run with no terminal asks nothing, so "would ask"
+  # there previews a question nobody would be asked.
+  if [ ! -t 0 ]; then
+    printf '  not a terminal: nothing written. Each key above is absent, and\n'
+    printf '  every reader resolves an absent value to the default shown, so\n'
+    printf '  this repo runs as if it had answered that. Add the lines you want\n'
+    printf '  to joharness.conf, or run this sync from a terminal to be asked.\n'
+    return 0
+  fi
+  if [ "$DRY" -eq 1 ]; then
+    printf '  dry run: would ask about these, and write nothing without an answer\n'
+    return 0
+  fi
+
+  # From here to the end of the function, stderr. Everything above is the
+  # sync report, which update.yml captures into a pull request body; this is
+  # a conversation with somebody at a terminal, and a run whose stdout goes to
+  # a file must not leave them staring at a bare prompt with no question and
+  # no confirmation. Same split the bootstrap's interview makes.
+  printf '\n  Add them? Enter or n leaves the conf alone; the default applies\n' >&2
+  printf '  either way, so this only writes down what is already true.\n' >&2
+  # Collected into an array FIRST, and the questions asked from a `for` loop.
+  # A `while read key` fed by a here-string owns the loop body's stdin, so the
+  # `read` below took its answer from the list of remaining keys instead of
+  # from the human: the questions vanished two at a time and the answers were
+  # key names. Caught by the pty cases, which is what they are for.
+  local -a keys=()
+  while IFS= read -r key; do
+    [ -n "$key" ] || continue
+    keys+=("$key")
+  done <<<"$missing"
+  for key in "${keys[@]}"; do
+    def="$(conf_key_default "$key")"
+    ans=''
+    printf '  write %s=%s ? [y/N] ' "$key" "$def" >&2
+    read -r ans || ans=''
+    case "$ans" in
+      y|Y|yes|YES|Yes) ;;
+      *) continue ;;
+    esac
+    { [ "$wrote" -eq 1 ] || printf '\n# Added by a joharness sync, from .agents/scripts/conf-keys.sh.\n'
+      printf '# %s\n' "$(conf_key_meaning "$key")"
+      printf '%s=%s\n' "$key" "$def"
+    } >>"$conf"
+    wrote=1
+    printf '  wrote   %s=%s\n' "$key" "$def" >&2
+  done
+  [ "$wrote" -eq 1 ] || printf '  nothing written\n' >&2
+}
+report_conf_keys
+
 # Two tiers. Dir tier: harness/ and env/ were wholly harness-owned, the
 # remedy is `git rm -r`. File tier: the protocol docs and sync tools that
 # moved OUT of docs/ and scripts/ sat inside dirs that still hold live
