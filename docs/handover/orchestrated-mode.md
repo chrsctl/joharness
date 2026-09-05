@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01Jyb2Ttjttcf3sYaJxiTXWr
 agent: opus
 updated: 2026-09-05
-next: Write the role commands (orchestrate, manage), the design doc, the ported prior-art, the requirement and the follow-up run plan
+next: Review at opus (verifier spawned), record findings, fix; then verify green, hand over
 ---
 
 ## Goal

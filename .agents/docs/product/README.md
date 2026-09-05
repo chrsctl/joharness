@@ -140,6 +140,18 @@ eval". Anthropic-internal, model-specific: attributable, not independently
 reproduced. It argues for fan-out *within* a unit of work, not for a lead over
 the fleet.
 
+**A lead above the fleet now exists as a beta, and the peer position stays
+the default.** `JOHARNESS_MODE=orchestrated`
+([`../orchestrated.md`](../orchestrated.md)) puts a low-tier orchestrator
+over the queue: it spawns one manager per item under a cap, holds back a
+plan whose scope overlaps work in flight, and kills a stuck manager after
+its handover is written. It does not touch the reconcile mechanism —
+managers still merge their own pull requests 0 behind `main` — so the
+number above is what a run of it should move: fewer collisions taken, or
+the hold rule bought nothing. Until a run is counted the peer fleet is the
+measured design and the orchestrator is the hypothesis, which is what beta
+means here.
+
 **The gap none of this closes: claim-by-push only covers work that enters
 through the queue.** A request typed at a running session enters nowhere, and
 two sessions once answered the same one two minutes apart, producing competing

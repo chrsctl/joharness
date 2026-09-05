@@ -47,6 +47,9 @@ the work branch; deleted in the pull request that ships it.
 - `JOHARNESS_MODE=orchestrated ./joharness.sh dispatch` on a fixture — cap,
   in-flight managers with push age, spawn order by wave, verdict.
 - `./joharness.sh verify` — 0 failed (diff touches non-md harness files).
+- SHIPS: in a consumer after its next sync, `JOHARNESS_MODE=orchestrated
+  ./joharness.sh dispatch` prints `cap       : 4 manager(s)` and a verdict
+  line, with no selftest present there.
 
 ## Where to look
 

@@ -14,6 +14,12 @@ human present. Every piece of it is something a heartbeat-fired session
 needs and an attended one must not have: the table below is the list, and
 a row that does not turn on that question belongs somewhere else.
 
+A third value, `orchestrated` (beta), answers the same question the same
+way and adds one more: who dispatches. Every bound below binds it too,
+through one predicate (`joharness.sh:unattended`); what it adds is in
+[`orchestrated.md`](orchestrated.md). "Unattended" in this file means
+either value.
+
 ## What the mode changes
 
 One row per layer, and the rows are the whole difference. Supervised sees
@@ -108,7 +114,8 @@ steady-state sync never touches it, so nothing re-asks and no later sync
 overwrites what the child answered. It is one of five questions the bootstrap
 puts — the others pick the environment layer and how the repo verifies itself
 (`.agents/docs/consumer-repos.md`). `--mode <supervised|unsupervised>` answers
-it for a run with nobody at a terminal; a run with neither flag nor terminal
+it for a run with nobody at a terminal (`orchestrated` is accepted there
+too, never offered by the interview); a run with neither flag nor terminal
 takes supervised and says why it did not ask.
 
 One default, two bootstrap shapes, and they treat what the child inherits

@@ -12,7 +12,7 @@ environment sits under [`.agents/env/`](../env/README.md).
 | `.agents/harness/selftest.sh` | Regression tests for these scripts. Run by `joharness.sh ci` when the branch changes anything outside `docs/` and `README.md`; `JOHARNESS_SELFTEST=always` runs it regardless. Canonical only. |
 | `joharness.sh` | Entrypoint. Runs this layer, plus the selected environment. |
 | `.agents/scripts/sync-to-consumer.sh` | Sync tool: brings a consumer's harness copy current. |
-| `.claude/commands/` | `/handover`, `/who`. |
+| `.claude/commands/` | `/handover`, `/who`, `/drain`, `/plan`; `/orchestrate`, `/manage` (orchestrated mode). |
 | `.claude/settings.json` | SessionStart hook wiring. Consumer-own settings go in `.claude/settings.local.json`, never here — this file syncs whole. |
 | `.gitattributes` | LF pins. `selftest.sh` asserts them — the two ship as a pair. |
 | `.agents/LICENSE` | MIT grant, byte-identical to root `LICENSE` (`selftest.sh` asserts it). Ships beside the files it covers; a consumer's root `LICENSE` is its own. |
@@ -28,6 +28,9 @@ environment sits under [`.agents/env/`](../env/README.md).
 | `.agents/docs/product/README.md` | Requirements tier, branch flow, reconciliation. |
 | `.agents/docs/product/TEMPLATE.md` | Requirement shape. |
 | `.agents/docs/caveman.md` | House style. |
+| `.agents/docs/unsupervised.md` | The unattended bounds, the heartbeat, the runs. |
+| `.agents/docs/orchestrated.md` | Orchestrated mode (beta): roles, health, the kill, the numbers. |
+| `.agents/docs/prior-art.md` | What other orchestrators chose, and why this one differs — rejections with reasons. |
 | `.agents/docs/consumer-repos.md` | Creating and updating a consumer (child) repo. Entry point for both. |
 
 Harness-owned. Sync with `.agents/scripts/sync-to-consumer.sh`, joharness to
