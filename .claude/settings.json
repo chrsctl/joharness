@@ -30,6 +30,16 @@
             "timeout": 20
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if bash -n \"$CLAUDE_PROJECT_DIR\"/.agents/harness/pretool-bash-guard.sh 2>/dev/null; then bash \"$CLAUDE_PROJECT_DIR\"/.agents/harness/pretool-bash-guard.sh; else exit 0; fi",
+            "timeout": 10
+          }
+        ]
       }
     ]
   }
