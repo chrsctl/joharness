@@ -177,11 +177,11 @@ esac
 check_choice() {
   local given="$1" name="$2" value="$3" a="$4" b="$5" c="${6:-}"
   [ "$given" -eq 1 ] || return 0
-  case "$value" in
-    "$a"|"$b") ;;
-    "$c") [ -n "$c" ] ;;
-    *) die "invalid ${name} '${value}' (expected: ${a} | ${b}${c:+ | ${c}})" ;;
-  esac
+  case "$value" in "$a"|"$b") return 0 ;; esac
+  # Tested outside the case: a `"$c")` arm with c empty matched an EMPTY
+  # value, and `--review ""` died silently instead of being refused.
+  [ -n "$c" ] && [ "$value" = "$c" ] && return 0
+  die "invalid ${name} '${value}' (expected: ${a} | ${b}${c:+ | ${c}})"
 }
 check_choice "$ENV_SETUP_GIVEN" env-setup "$ENV_SETUP" lazy eager
 check_choice "$ENV_MD_GIVEN" env-md "$ENV_MD" lazy eager

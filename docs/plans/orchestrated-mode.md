@@ -25,9 +25,10 @@ the work branch; deleted in the pull request that ships it.
   `handover-context.sh` — the unattended branches fire for both values.
 - `.agents/harness/selftest/orchestrated.sh`, `dispatch.sh` — new topics.
 - `.claude/commands/orchestrate.md`, `.claude/commands/manage.md` — roles.
-- `.agents/docs/orchestrated.md` (new), `prior-art.md` (ported, extended),
+- `.agents/docs/orchestrated.md` (new; what Gas Town gave it, paraphrased —
+  `main` retired `prior-art.md` on 2026-09-04 and it stays retired),
   `unsupervised.md`, `subagents.md`, `product/README.md`, harness
-  `AGENTS.md` and `README.md` — the rules and why.
+  `AGENTS.md`, `README.md`, `.agents/NOTICE` — the rules and why.
 - `.agents/scripts/bootstrap-consumer.sh`, `conf-keys.sh` — accept the value.
 - `joharness.conf` — the four knobs, commented, with beta defaults.
 

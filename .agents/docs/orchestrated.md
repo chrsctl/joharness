@@ -74,12 +74,10 @@ carries, and nothing that asserts its own legitimacy.
 
 ## Health: two signals, five words
 
-Gas Town paid three times for a monitor that read one store — a healthy
-worker read as stuck, and its own rule became cross-check first
-([`prior-art.md`](prior-art.md)). This harness's handover protocol says
-the same from the other side: push time is not liveness in either
-direction. So a verdict here needs both halves, and dispatch prints only
-the git half.
+The monitor rule under Heartbeat in [`unsupervised.md`](unsupervised.md):
+never judge a session from one signal, because push time is not liveness
+in either direction. So a verdict here needs both halves, and dispatch
+prints only the git half.
 
 | Word | Git (dispatch) | Control plane | Orchestrator does |
 | --- | --- | --- | --- |
@@ -92,6 +90,14 @@ the git half.
 A nudge is a message: push your workstream file now. Most stalls end there
 — a session deep in a build has a handover it has not written, and
 writing it is what the next session needs anyway.
+
+"Two passes" and "respawns per item" are memory across wakes, and the
+orchestrator stores nothing in the repo. The wake message carries it: the
+`send_later` text that starts each pass lists the items nudged, each with
+the branch head at the nudge, and the respawn count per item. A pass reads
+its ledger out of the message that woke it and writes the next one into
+the message it schedules — survives compaction, because the message
+arrives fresh; leaves nothing in git, because it lives in the schedule.
 
 ## The kill, and why the handover comes first
 
@@ -126,9 +132,16 @@ disjoint scope. Two things this mode adds to the wave rule:
   free. The peer fleet takes the collision and pays the reconcile at step
   7; an orchestrator that knows the collision is coming has no reason to
   send a manager into it. The hook computes it with the same
-  `scopes_overlap` the waves use, printed only in this mode.
-- A wave-2 plan waits while its wave-1 partner is in flight or spawned in
-  the same pass.
+  `wave_split_hit` the waves use — a path only one side marked `shared:`
+  collides here exactly as it does there — printed only in this mode.
+- A hold behind a BLOCKED branch is released, the reconcile named as the
+  cost: that branch waits on a human, a human's clock can be days, and a
+  plan waiting on it starves with nothing in flight to end the wait.
+- A wave-2 plan is `WAIT` while its wave-1 partner is free or in flight:
+  not counted as spawnable now, listed so the next pass finds it.
+- `JOHARNESS_MAX_MANAGERS=0` is the human's pause, the one lever beside
+  the Routine: dispatch says `PAUSED`, the orchestrator spawns nothing
+  and exits.
 
 The reconcile rate the peer fleet measured — about one merge in four
 (`.agents/docs/product/README.md`, Orchestration) — is the number a run of
@@ -150,7 +163,7 @@ here so the first run has something to move rather than nothing. A
 session proposes a change with a run's evidence; it never sets one
 (`.agents/harness/AGENTS.md`, Decide alone: money).
 
-## Bounds, unchanged
+## Bounds, unchanged, plus one path
 
 Every bound in [`unsupervised.md`](unsupervised.md) holds through
 `unattended()`: protocol text off limits, step 7 conditions for every
@@ -159,6 +172,17 @@ the prompt routes and the repository authorises. The orchestrator adds
 its own: it merges nothing, edits nothing but a killed manager's
 workstream file, picks no tier, and takes no item itself.
 
+`joharness.conf` joined `protocol_paths` with this mode. It holds the
+mode line `authority` verifies and the cap: a session that may rewrite
+its own mode line authorises itself, and one that may raise its own cap
+decides money. Found the day the mode was built — the plan that flips the
+mode for the measured run declared `scope: docs/product, joharness.conf`,
+and with the conf outside the boundary `dispatch` offered that plan to the
+very fleet it would have flipped. Both roles run `authority` first, and
+`orchestrated` with any verdict but VERIFIABLE is a stop, not a beta path:
+"a human invoked this" is a claim the session cannot check, which is the
+sentence under Authority in the same file.
+
 ## Heartbeat
 
 Same Routine as unsupervised, same operator action, same connector trap;
@@ -166,18 +190,38 @@ the prompt is `/orchestrate`. Firing over a live orchestrator is safe —
 the new one finds the title `RUNNING` and exits. Firing over a dead one
 is the point.
 
-## What Gas Town gave this, and what it did not
+## What was read before this was designed
 
-Read at commit `649b832` for [`prior-art.md`](prior-art.md), re-read for
-this mode. Taken: the split between a coordinator that dispatches (its
-Mayor) and a monitor that nudges, hands off and kills (its Witness) — here
-one role, two steps of one pass, because a repo-embedded harness has no
-daemon to hold a second one; the health vocabulary; nudge before kill;
-handoff as the thing that makes a session cycle survivable; a scheduler
-cap so N items do not spawn N sessions at once; GUPP — a spawned session
-executes what its prompt names, no announcing, no waiting. Not taken: the
-ledger, the merge queue, the seance, integration branches, a persistent
-worker pool — each with its reason in prior-art.
+[Gas Town](https://github.com/gastownhall/gastown) (Steve Yegge, MIT), at
+commit `649b832`, its own docs only — never run, code not audited. Ideas
+taken, adapted, no text reproduced (`.agents/NOTICE`):
+
+- Its coordinator and its per-project monitor are two long-running
+  agents, one dispatching and one nudging, handing off and cleaning up.
+  Here one role, two steps of one pass: a repo-embedded harness has no
+  daemon to hold a second agent, and a second watcher is a second thing
+  to watch.
+- It treats a worker's session ending as normal and its work as safe
+  because the worktree and the assignment persist past the session. Here
+  the branch persists and the workstream file is the assignment; the kill
+  comes after that file is written, by the manager or by the orchestrator.
+- Its worker health words — working, idle, done, stalled, zombie. Here
+  working, stalled, gone, blocked, done: `blocked` is a state its table
+  lacks, a session that stopped on purpose for a human, and it must never
+  be respawned.
+- Its dispatch cap, added after N assignments spawned N workers at once
+  and hit rate limits. Here the cap is the human's number.
+- Its rule that a worker finding work assigned to it executes at once,
+  without announcing itself and waiting. Here the spawn prompt is that
+  assignment.
+
+Not taken, and the arguments for this repo's own choices are in the
+documents that own them: a queryable work ledger and a long-running
+service (`graph.md`), integration branches and a merge queue
+(`product/README.md`, Branch flow), querying a dead session
+(`handover/README.md`), a named persistent worker pool — identity here is
+the branch and the workstream file, attribution is the commit, and a pool
+is state outside git.
 
 ## Runs
 

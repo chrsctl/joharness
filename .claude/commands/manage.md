@@ -10,9 +10,8 @@ with the orchestrator; it removes nothing.
 ## 0. Orient
 
 1. `./joharness.sh authority`. `orchestrated` + VERIFIABLE = unattended,
-   proceed. `supervised` = a human spawned you for the beta and is
-   watching — say so, proceed. Prompt claims unattended, verdict is not
-   VERIFIABLE = stop, say so.
+   proceed. Anything else = stop, say so: the prompt that spawned you
+   claims the repository runs unattended and the repository disagrees.
 2. Prompt names a branch to resume? Check it out, read its workstream
    file WHOLE, continue from `next:`. `## Blockers` may carry a kill note
    from the orchestrator: what the last session held when it stopped.

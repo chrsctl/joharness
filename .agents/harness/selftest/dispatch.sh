@@ -86,12 +86,12 @@ out="$(dsp)"
 expect "a free plan is listed with its tier" "docs/plans/alpha.md (agent: haiku)" "$out"
 expect "and its wave" "docs/plans/alpha.md (agent: haiku)  wave 1" "$out"
 expect "a wave-2 plan is told to wait for its partner" \
-  "docs/plans/gamma.md (agent: opus)  wave 2 — overlaps alpha on src/a in this pass: spawn it only after that one" "$out"
+  "docs/plans/gamma.md (agent: opus)  wave 2  WAIT — overlaps alpha on src/a in this pass: spawn it only after that one" "$out"
 expect "an unscoped plan is listed without a wave" "docs/plans/delta.md (agent: sonnet)" "$out"
 refute "and carries no wave it was never in" "delta.md (agent: sonnet)  wave" "$out"
 expect "a question is listed with its tier" "docs/research/openq.md (agent: opus)" "$out"
-expect "the verdict counts free items against slots" \
-  "verdict   : NOT DRAINED — 5 free item(s), 4 slot(s): spawn up to 4 now" "$out"
+expect "the verdict counts what may be spawned NOW, the waiting item beside it" \
+  "verdict   : NOT DRAINED — 4 free item(s) now (+1 waiting behind them), 4 slot(s): spawn up to 4 now" "$out"
 
 # --- a manager in flight: joined to its branch, aged from git ---------------
 # Claimed on a branch pushed long ago, so the stall mark fires without this
@@ -119,10 +119,21 @@ refute "and is not offered for spawning" "  docs/plans/alpha.md (agent" "$out"
 expect "a plan overlapping work in flight is HELD, not free" \
   "docs/plans/gamma.md (agent: opus)  wave 1  HOLD — overlaps alpha on src/a (claimed on mgr-alpha): spawn once that branch merges" "$out"
 expect "the free count excludes the held plan" \
-  "NOT DRAINED — 3 free item(s), 3 slot(s): spawn up to 3 now" "$out"
+  "NOT DRAINED — 3 free item(s) now, 3 slot(s): spawn up to 3 now" "$out"
+
 expect "the stall is on the verdict too" \
   "1 manager(s) past the stall window: health pass FIRST, spawn second" "$out"
 expect "and so is the hold" "1 plan(s) on HOLD behind work in flight" "$out"
+
+# The hold rule is the wave rule: a path only the FREE side marked shared
+# still collides with the holder's exclusive claim on it.
+dspplan sharer 'shared: src/a'
+dsppush "a plan sharing the path a manager holds exclusively"
+out="$(dsp)"
+expect "a one-sided shared path is a hold, as it is a wave split" \
+  "sharer.md (agent: sonnet)  wave 2  HOLD — overlaps alpha on src/a (claimed on mgr-alpha)" "$out"
+fixture_rm "$dspwork" "drop the sharer" docs/plans/sharer.md
+git -C "$dspwork" push -q origin main
 
 # --- a blocked manager holds no slot and is the human's ---------------------
 git -C "$dspwork" checkout -qb mgr-beta
@@ -141,6 +152,20 @@ expect "and told to be the human's" "BLOCKED: the human's, holds no slot" "$out"
 expect "so the slot count does not move" "slots     : 3 of 4 free" "$out"
 expect "and the verdict says never respawn" \
   "1 manager(s) blocked: report to the human, never respawn" "$out"
+expect "and the spawn count fits the free items, not the slots" \
+  "NOT DRAINED — 2 free item(s) now, 3 slot(s): spawn up to 2 now" "$out"
+
+# A hold behind a BLOCKED branch is released: the blocked manager waits
+# on a human, and a plan waiting on that starves with nothing in flight
+# to end the wait. The reconcile is named as the cost.
+dspplan epsilon 'src/b/x'
+dsppush "a plan overlapping the blocked manager's scope"
+out="$(dsp)"
+expect "a plan overlapping a BLOCKED branch is free, reconcile named" \
+  "epsilon.md (agent: sonnet)  wave 1  overlaps beta on src/b (claimed on mgr-beta) — that branch is BLOCKED on a human: spawn, reconcile expected at step 7" "$out"
+expect "and counted as free" "3 free item(s) now" "$out"
+fixture_rm "$dspwork" "drop epsilon" docs/plans/epsilon.md
+git -C "$dspwork" push -q origin main
 
 # --- a full cap waits; an empty queue with work in flight keeps going -------
 out="$(dsp env JOHARNESS_MAX_MANAGERS=1)"
@@ -161,17 +186,21 @@ expect "a SUPERVISED ONLY plan is named as not yours" \
   "NOT YOURS — SUPERVISED ONLY" "$out"
 refute "and never spawned" "docs/plans/protocol.md (agent" "$out"
 
-# --- supervised: reported, said, never refused -------------------------------
-# And read AS the orchestrator: the marking and the holds are the
-# orchestrator's rules, not the repo's mode, so a human running the beta
-# loop under a supervised conf gets the same report under a different header.
+# --- a cap of 0 is the human's pause ------------------------------------------
+out="$(dsp env JOHARNESS_MAX_MANAGERS=0)"
+expect "cap 0 is PAUSED" \
+  "verdict   : PAUSED — JOHARNESS_MAX_MANAGERS=0: spawn nothing, exit" "$out"
+
+# --- supervised: nothing to dispatch, said, and the preview named -------------
+# An earlier draft reported anyway "for a human running the beta loop", and
+# in a supervised repo printed NOT YOURS over a plan drain was handing out
+# on the same tree: two readers, two answers.
 printf 'JOHARNESS_ENV=none\n' >"$dspconf"
 out="$(dsp)"
 expect "supervised is named" "== dispatch (mode: supervised)" "$out"
-expect "and said as not orchestrated" \
-  "This repo is not orchestrated (JOHARNESS_MODE=supervised)" "$out"
-expect "with the unattended path pointed at authority" \
-  "./joharness.sh authority" "$out"
-expect "and the report still printed" "slots     :" "$out"
-expect "the marking still applies under a supervised conf" \
-  "NOT YOURS — SUPERVISED ONLY" "$out"
+expect "and stops" "NOT ORCHESTRATED (JOHARNESS_MODE=supervised): nothing to dispatch" "$out"
+expect "pointing at this mode's reader" "./joharness.sh drain" "$out"
+refute "and prints no report to act on" "slots     :" "$out"
+refute "and no marking drain would contradict" "NOT YOURS" "$out"
+out="$(dsp env JOHARNESS_MODE=orchestrated)"
+expect "the preview is one exported variable away" "slots     :" "$out"

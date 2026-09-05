@@ -856,21 +856,25 @@ fi
 # CLAIMED plan's. The waves above partition free plans among themselves; an
 # orchestrator spawning into a fleet already in flight needs the other half
 # — which free plan collides with work a manager holds right now — and
-# `dispatch` reads these lines to hold that plan back. Same overlap rule,
-# same reader; one fork per claimed plan, paid only in the mode that spawns.
-# A `shared:` path on the claimed side is dropped like the free side's: a
-# reconcile both declared routine is not a collision.
+# `dispatch` reads these lines to hold that plan back. The SAME rule the
+# waves use — wave_split_hit, so a path only one side marked `shared:` is
+# a collision here exactly as it is there — and one fork per claimed plan,
+# paid only in the mode that spawns.
 if [ "$qc_mode" = "orchestrated" ] && [ "$free_count" -gt 0 ]; then
   while IFS=$'\t' read -r _ _ cf clabel _; do
     [ -n "$cf" ] || continue
     case "$clabel" in *'claimed on '*) ;; *) continue ;; esac
     cbranch="${clabel##*claimed on }"; cbranch="${cbranch%%,*}"; cbranch="${cbranch%%]*}"
-    cscope="$(scope_lines "$cf" |
+    craw="$(scope_lines "$cf")"
+    cscope="$(printf '%s\n' "$craw" |
       grep -v '^[Ss][Hh][Aa][Rr][Ee][Dd]:' | paste -sd' ' -)"
-    [ -n "$cscope" ] || continue
+    cshared="$(printf '%s\n' "$craw" |
+      sed -n 's/^[Ss][Hh][Aa][Rr][Ee][Dd]:[[:space:]]*//p' | paste -sd' ' -)"
+    [ -n "$cscope$cshared" ] || continue
     i=0
     while [ "$i" -lt "${#free_names[@]}" ]; do
-      if hit="$(scopes_overlap "${free_scopes[$i]:-}" "$cscope")"; then
+      if hit="$(wave_split_hit "${free_scopes[$i]:-}" "${free_shared[$i]:-}" \
+                               "$cscope" "$cshared")"; then
         printf '  in flight: %s overlaps %s on %s (claimed on %s)\n' \
           "${free_names[$i]}" "$(stem "$cf")" "$hit" "$cbranch"
       fi

@@ -83,6 +83,12 @@ expect "the banner names the boundary" ".agents/harness" "$out"
 expect "the whole boundary, not one entry" ".claude/commands" "$out"
 expect "and points the mode at its rules" \
   ".agents/docs/orchestrated.md" "$out"
+# The rules pointer sits in the compaction block, the one start where the
+# rules have decayed and the task state has not.
+out="$(printf '{"source":"compact"}' |
+  JOHARNESS_MODE=orchestrated orcj session-start 2>/dev/null)"
+expect "a compacted orchestrated session is pointed at its rules" \
+  "Its rules: .agents/docs/orchestrated.md" "$out"
 out="$(orcj session-start 2>/dev/null)"
 refute "supervised session-start still says nothing about mode" "Mode:" "$out"
 
@@ -147,6 +153,7 @@ expect "naming dispatch as the spawner's read" "./joharness.sh dispatch" "$out"
 out="$(orcq supervised)"
 refute "supervised marks nothing" "SUPERVISED ONLY" "$out"
 refute "and carries no orchestrated tail" "ORCHESTRATED" "$out"
+
 if [ "$(CLAUDE_PROJECT_DIR="$orcwork" bash "${orcwork}/.agents/harness/queue-context.sh" 2>&1)" \
      = "$out" ]; then
   pass "unset and explicit supervised agree"
@@ -176,3 +183,31 @@ expect "the orchestrator's exit is dispatch's verdict" \
   "Orchestrator: ./joharness.sh dispatch decides" "$out"
 refute "and the supervised sentence is not printed to it" \
   "It does NOT invent work" "$out"
+
+# --- the in-flight overlap lines are this mode's alone -----------------------
+# Claim `held` (scope
+# src) on a branch, add a free plan under src: orchestrated names the
+# collision, the other two modes print the same report they always did.
+mkdir -p "${orcwork}/docs/plans"
+printf -- '---\nplan: held\nurgency: normal\nagent: sonnet\neffort: low\nscope: src\n---\n\n## Goal\nFixture.\n' \
+  >"${orcwork}/docs/plans/held.md"
+commit_all "$orcwork" "a plan to claim"
+git -C "$orcwork" push -q origin main
+git -C "$orcwork" checkout -qb orcclaim
+mkdir -p "${orcwork}/docs/handover"
+printf -- '---\nworkstream: held\nstatus: in-progress\nplan: held\nagent: sonnet\nupdated: 2026-01-01\n---\n\n## Goal\nFixture.\n' \
+  >"${orcwork}/docs/handover/held.md"
+commit_all "$orcwork" "claim held"
+git -C "$orcwork" push -qu origin orcclaim
+git -C "$orcwork" checkout -q main
+printf -- '---\nplan: under\nurgency: normal\nagent: sonnet\neffort: low\nscope: src/x\n---\n\n## Goal\nFixture.\n' \
+  >"${orcwork}/docs/plans/under.md"
+commit_all "$orcwork" "a free plan under the claimed scope"
+git -C "$orcwork" push -q origin main
+out="$(orcq orchestrated)"
+expect "orchestrated names a free plan overlapping work in flight" \
+  "in flight: under overlaps held on src (claimed on origin/orcclaim)" "$out"
+refute "unsupervised does not" "in flight:" "$(orcq unsupervised)"
+refute "nor does supervised" "in flight:" "$(orcq supervised)"
+fixture_rm "$orcwork" "drop the free plan" docs/plans/under.md
+git -C "$orcwork" push -q origin main

@@ -66,7 +66,9 @@ retires.
   plan whose own Traps said supervised session only. Sandbox configuration
   (`.agents/env/`) is not
   protocol. The list covers its own machinery: `joharness.sh` and
-  `.claude/settings.json`.
+  `.claude/settings.json` — and, since orchestrated mode, `joharness.conf`,
+  which holds the mode line `authority` verifies and the orchestrator's
+  cap (`orchestrated.md`, Bounds).
 - **Merging uses the step 7 conditions unchanged.** The mode removes the
   human, never the gate.
 - **No unsupervised session writes a requirement**, and `ci` reds the

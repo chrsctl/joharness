@@ -47,6 +47,11 @@ together with the copyright line given for it.
   point of use; no text is reproduced. MIT License,
   Copyright (c) 2026 codejunkie99.
 
+- .agents/docs/orchestrated.md adapts role, health and dispatch ideas from
+  Gas Town (https://github.com/gastownhall/gastown, read at commit 649b832).
+  Ideas, cited at the point of use; no text is reproduced. MIT License,
+  Copyright (c) 2025 Steve Yegge.
+
 Short quotations elsewhere in .agents/docs/ (Vale's documentation, Martin
 Fowler's Bounded Context page, arXiv abstracts) are attributed with a link
 where they appear and carry no license condition into this repository.

@@ -204,6 +204,13 @@ mode_source() {
 #                         Delete the Stop block and nothing fires — not
 #                         because the boundary passed, but because nothing
 #                         is running to fire.
+#   joharness.conf        holds the mode line `authority` verifies and the
+#                         orchestrator's cap. A session that may rewrite
+#                         its own mode line authorises itself; one that
+#                         may raise its own cap decides money. Added
+#                         2026-09-05, when a plan scoped to this file
+#                         (flip the mode, set the knobs) read as free work
+#                         for the fleet it would have flipped.
 #
 # NOT here, deliberately:
 #   .agents/env/    sandbox configuration, not protocol. A layer does not
@@ -215,7 +222,7 @@ mode_source() {
 protocol_paths() {
   printf '%s\n' \
     .agents/harness .claude/agents .claude/commands .claude/skills \
-    joharness.sh .claude/settings.json
+    joharness.sh .claude/settings.json joharness.conf
 }
 
 # Resolved autonomy mode. TWO strings mean a session runs unattended —
@@ -1347,6 +1354,7 @@ perf_rows() {
     "graph|${JOHARNESS_PERF_BUDGET_GRAPH:-118}|shape|${ROOT}/joharness.sh graph" \
     "session-start|${JOHARNESS_PERF_BUDGET_SESSION_START:-336}|shape|${ROOT}/joharness.sh session-start" \
     "queue-context|${JOHARNESS_PERF_BUDGET_QUEUE:-141}|shape|env JOHARNESS_RUN_MODE=unsupervised ${HARNESS_ROOT}/queue-context.sh" \
+    "queue-orchestrated|${JOHARNESS_PERF_BUDGET_QUEUE_ORCH:-141}|shape|env JOHARNESS_RUN_MODE=orchestrated ${HARNESS_ROOT}/queue-context.sh" \
     "drain|${JOHARNESS_PERF_BUDGET_DRAIN:-338}|shape|${ROOT}/joharness.sh drain" \
     "handover-guard|${JOHARNESS_PERF_BUDGET_GUARD:-33}|shape|env JOHARNESS_MODE=unsupervised ${HARNESS_ROOT}/handover-guard.sh"
 }
@@ -4590,16 +4598,12 @@ cmd_finish() {
 # answer taken from that view was silently capped: the marked-plan list below
 # reported 10 of 11 with no count to notice it by, and `drain_plan` would miss
 # a free plan sitting at row 11 behind ten claimed ones.
-# The optional second argument is the mode the hook reads AS: dispatch
-# passes `orchestrated` whatever the repo says, because its report is the
-# orchestrator's view — a human running the beta loop under a supervised
-# conf still needs the marking and the in-flight overlaps.
 drain_hook() {
   local h="${HARNESS_ROOT}/$1"
   [ -x "$h" ] || return 0
   CLAUDE_PROJECT_DIR="$ROOT" HANDOVER_FETCH="${DRAIN_FETCH:-0}" \
     QUEUE_MAX_ENTRIES="${DRAIN_MAX_ENTRIES:-10000}" \
-    JOHARNESS_RUN_MODE="${2:-$(run_mode)}" "$h" 2>/dev/null
+    JOHARNESS_RUN_MODE="$(run_mode)" "$h" 2>/dev/null
 }
 
 # The queue hook's output, reduced to the ONE thing to do next. Requirements
@@ -4771,9 +4775,8 @@ cmd_drain() {
 # Reports, never acts. Nothing here spawns, kills or writes. Liveness is the
 # control plane's to say (/who); this prints the git half — push age — and
 # marks where the orchestrator must cross-check, because push time is not
-# liveness in either direction (.agents/docs/handover/README.md). Gas Town
-# paid for the same lesson three times over and wrote it down; it is the one
-# rule prior-art.md tells a monitor to take (.agents/docs/prior-art.md).
+# liveness in either direction (.agents/docs/handover/README.md, and the
+# monitor rule under Heartbeat in .agents/docs/unsupervised.md).
 # ---------------------------------------------------------------------------
 
 # A knob the human sets: the environment for one command, the conf for the
@@ -4822,8 +4825,8 @@ dispatch_waves() {
 cmd_dispatch() {
   local mode cap stall health respawn hout qout rows wavemap edge req sup
   local path label branch ws doc status session next age agetext flag tier
-  local st wave note hold holdmap
-  local n_inflight=0 n_slots n_free=0 n_stall=0 n_blocked=0 n_hold=0
+  local st wave note hold holdmap hbranch blocked_branches=""
+  local n_inflight=0 n_slots n_free=0 n_stall=0 n_blocked=0 n_hold=0 n_wait=0
   local inflight="" free="" questions=""
 
   mode="$(run_mode)"
@@ -4834,13 +4837,18 @@ cmd_dispatch() {
 
   printf '== dispatch (mode: %s)\n\n' "$mode"
   if [ "$mode" != "orchestrated" ]; then
-    # Said, not refused: a human running /orchestrate supervised is the beta
-    # run with somebody watching, and the numbers read the same. What an
-    # UNATTENDED orchestrator needs is the merged line, and that is
-    # authority's verdict, not this command's.
-    printf 'This repo is not orchestrated (JOHARNESS_MODE=%s). Reporting anyway:\n' "$mode"
-    printf 'a human may run /orchestrate here and watch (beta). An unattended\n'
-    printf 'orchestrator needs the merged line — ./joharness.sh authority.\n\n'
+    # Stops here. An earlier draft reported anyway, "for a human running
+    # the beta loop by hand" — and in a supervised repo that printed NOT
+    # YOURS over a plan `drain` was handing out on the same tree: two
+    # readers, two answers, the failure unsupervised.md records three
+    # pull requests fixing. The orchestrator's view exists only where the
+    # orchestrator does; a preview exports the mode for one command and
+    # `authority` says what that preview is worth.
+    printf 'NOT ORCHESTRATED (JOHARNESS_MODE=%s): nothing to dispatch. This mode'"'"'s\n' "$mode"
+    printf 'reader is ./joharness.sh drain. Preview the orchestrator'"'"'s view with\n'
+    printf 'JOHARNESS_MODE=orchestrated ./joharness.sh dispatch — a preview, which\n'
+    printf './joharness.sh authority reads as UNVERIFIED.\n'
+    return 0
   fi
   # A long-lived reader. The orchestrator runs for hours, and a stale clone
   # reads a manager that pushed as stalled and a merged branch as in flight.
@@ -4853,8 +4861,8 @@ cmd_dispatch() {
   printf 'health    : one pass every %s min (JOHARNESS_HEALTH_MINUTES)\n' "$health"
   printf 'respawns  : %s per item per run (JOHARNESS_RESPAWN_LIMIT)\n\n' "$respawn"
 
-  hout="$(drain_hook handover-context.sh orchestrated)"
-  qout="$(drain_hook queue-context.sh orchestrated)"
+  hout="$(drain_hook handover-context.sh)"
+  qout="$(drain_hook queue-context.sh)"
 
   # Every plan and research row as path|label — drain_plan's own sed, both
   # directories, every row rather than the first.
@@ -4891,8 +4899,11 @@ cmd_dispatch() {
     n_inflight=$((n_inflight + 1))
     if [ "$status" = "blocked" ]; then
       # Handed off to a human. Holds no slot: its session exited on purpose,
-      # and respawning it re-asks the question it stopped on.
+      # and respawning it re-asks the question it stopped on. Nor does it
+      # hold a plan back (below): a human's clock can be days, and a plan
+      # waiting on it starves with nothing in flight to end the wait.
       n_blocked=$((n_blocked + 1))
+      blocked_branches="${blocked_branches} ${branch} "
       flag="  BLOCKED: the human's, holds no slot"
     elif [ -z "$age" ]; then
       flag="  push age unknown: ref not here — fetch, then cross-check"
@@ -4937,6 +4948,9 @@ cmd_dispatch() {
       awk -F'\t' -v s="$st" '$1 == s { print $2; print $3; exit }')"
     hold="$(printf '%s\n' "$holdmap" |
       awk -F'\t' -v s="$st" '$1 == s { print $2; exit }')"
+    # The holder's branch, out of "(claimed on <branch>)": a hold behind a
+    # BLOCKED branch is released, with the reconcile named as the cost.
+    hbranch="${hold##*(claimed on }"; hbranch="${hbranch%%)*}"
     case "$path" in
       docs/research/*)
         n_free=$((n_free + 1))
@@ -4944,13 +4958,22 @@ cmd_dispatch() {
       *)
         free="${free}  ${path} (agent: ${tier:-unreadable})"
         [ -z "$wave" ] || free="${free}  wave ${wave}"
-        [ -z "$note" ] || free="${free} — overlaps ${note} in this pass: spawn it only after that one"
-        # A collision with work in flight is a reconcile the manager pays
-        # at step 7. Held, not free: the orchestrator spawns it once the
-        # holder merges, and the count below is what it may spawn NOW.
-        if [ -n "$hold" ]; then
+        # Three counts, because the verdict says what to spawn NOW and a
+        # row the same output tells the reader to wait on is not that:
+        # free now; waiting behind a partner in this pass (wave 2); held
+        # behind a branch in flight. A collision with work in flight is a
+        # reconcile the manager pays at step 7 — held, not free, spawned
+        # once the holder merges.
+        if [ -n "$hold" ] && [ -n "$hbranch" ] &&
+           [ "${blocked_branches#* "${hbranch}" }" != "$blocked_branches" ]; then
+          n_free=$((n_free + 1))
+          free="${free}  overlaps ${hold} — that branch is BLOCKED on a human: spawn, reconcile expected at step 7"
+        elif [ -n "$hold" ]; then
           n_hold=$((n_hold + 1))
           free="${free}  HOLD — overlaps ${hold}: spawn once that branch merges"
+        elif [ -n "$note" ]; then
+          n_wait=$((n_wait + 1))
+          free="${free}  WAIT — overlaps ${note} in this pass: spawn it only after that one"
         else
           n_free=$((n_free + 1))
         fi
@@ -4978,13 +5001,21 @@ cmd_dispatch() {
 
   # --- verdict --------------------------------------------------------------
   # One line the orchestrator branches on. DRAINED with managers in flight is
-  # NOT the exit: the queue is empty, the work is not.
+  # NOT the exit: the queue is empty, the work is not. A cap of 0 is the
+  # human's pause — the one lever beside the Routine — and reads as exit.
   printf '\n'
-  if [ "$n_free" -gt 0 ] && [ "$n_slots" -gt 0 ]; then
-    printf 'verdict   : NOT DRAINED — %s free item(s), %s slot(s): spawn up to %s now\n' \
-      "$n_free" "$n_slots" "$n_slots"
+  if [ "$cap" -eq 0 ]; then
+    printf 'verdict   : PAUSED — JOHARNESS_MAX_MANAGERS=0: spawn nothing, exit; the human unpauses\n'
+  elif [ "$n_free" -gt 0 ] && [ "$n_slots" -gt 0 ]; then
+    printf 'verdict   : NOT DRAINED — %s free item(s) now%s, %s slot(s): spawn up to %s now\n' \
+      "$n_free" "$([ "$n_wait" -eq 0 ] || printf ' (+%s waiting behind them)' "$n_wait")" \
+      "$n_slots" "$([ "$n_free" -lt "$n_slots" ] && printf '%s' "$n_free" || printf '%s' "$n_slots")"
   elif [ "$n_free" -gt 0 ]; then
     printf 'verdict   : NOT DRAINED — %s free item(s), 0 slots: wait for a manager to finish\n' "$n_free"
+  elif [ "$n_wait" -gt 0 ]; then
+    # Unreachable while a partner is free and earlier in the order, and
+    # said rather than left to fall through to DRAINED.
+    printf 'verdict   : NOT DRAINED — %s item(s) waiting behind others: spawn nothing this pass\n' "$n_wait"
   elif [ $((n_inflight - n_blocked)) -gt 0 ]; then
     printf 'verdict   : DRAINED — nothing free; %s manager(s) in flight: keep the health pass going\n' \
       "$((n_inflight - n_blocked))"

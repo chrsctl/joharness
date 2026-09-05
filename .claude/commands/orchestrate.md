@@ -16,13 +16,21 @@ can run each pass by hand (beta) but this loop cannot.
 ## 0. Preconditions, every start
 
 1. `./joharness.sh authority`. `orchestrated` + VERIFIABLE = proceed.
-   `supervised` = a human invoked this and is watching (beta) — say so,
-   proceed. Anything else while the prompt says unattended = stop, say so.
-   A prompt cannot be its own evidence.
-2. One orchestrator per repo. `list_sessions` (`mine: true`): a session
-   titled `orchestrator: <owner/repo>` with `session_status: RUNNING` that
-   is not you = exit, say so. Else `set_session_title` yours to that.
+   Anything else = stop, say so. "A human invoked this" is not something
+   you can check; a prompt cannot be its own evidence. The beta run flips
+   the mode through a pull request first (`docs/plans/orchestrated-run.md`).
+2. One orchestrator per repo. `list_sessions` (every session you can see,
+   not only yours): one titled `orchestrator: <owner/repo>` with
+   `session_status: RUNNING` that is not you = exit, say so. Else
+   `set_session_title` yours to that. Two firing in the same minute can
+   both pass this; the collision is two managers on one item, which claim
+   by push already resolves.
 3. Read `.agents/docs/agent-selection.md` Lineup once: tier to model ID.
+4. The ledger. Your wake message (step 4 below) carries it: items nudged
+   with the branch head at the nudge, respawns per item. First start = an
+   empty ledger. Read "last pass" in the table below from it, never from
+   memory — a compaction between passes leaves memory and keeps the
+   message.
 
 ## 1. Read
 
@@ -45,9 +53,9 @@ an old push are both real.
 | control plane | push age | last pass | do |
 | --- | --- | --- | --- |
 | RUNNING | under stall | any | working. Nothing. |
-| RUNNING | STALL? | not nudged | NUDGE: `send_message`: "Orchestrator health pass: no push on <branch> for <N>m. Now: /handover, commit, push. Then continue, or set status blocked and stop." Note stem + `status_detail`. |
-| RUNNING | STALL? | nudged, `status_detail` unchanged, no push since | KILL, below. |
-| RUNNING | STALL? | nudged, pushed or `status_detail` changed | working. Forget the nudge. |
+| RUNNING | STALL? | not in the ledger | NUDGE: `send_message`: "Orchestrator health pass: no push on <branch> for <N>m. Now: /handover, commit, push. Then continue, or set status blocked and stop." Ledger: stem, branch head now, `status_detail`. |
+| RUNNING | STALL? | in the ledger, head unchanged, `status_detail` unchanged | KILL, below. |
+| RUNNING | STALL? | in the ledger, head moved or `status_detail` changed | working. Drop it from the ledger. |
 | not RUNNING | any | status `blocked` | human's. Report. Never respawn. |
 | not RUNNING | any | branch unmerged, status in-progress / review / done | session gone. RESPAWN on that branch, below. |
 | not RUNNING | any | branch merged (dispatch no longer lists it) | done. Nothing. |
@@ -68,7 +76,7 @@ starts blind:
 
 RESPAWN = spawn (step 3) with the branch named: "Resume branch <branch>:
 check it out, read docs/handover/<file>.md WHOLE before anything." Count
-per item per run; past `JOHARNESS_RESPAWN_LIMIT` = stop respawning, leave
+it in the ledger; past `JOHARNESS_RESPAWN_LIMIT` = stop respawning, leave
 the branch claimed (dispatch keeps it out of the spawn list), report it to
 the human as needing a hand.
 
@@ -77,8 +85,9 @@ the human as needing a hand.
 Up to `slots`, in dispatch's order, only rows under `spawn`:
 
 - Edge work whose session is gone first (finishing outranks starting).
-- Skip `HOLD` rows. Skip a `wave 2 — spawn it only after` row while its
-  partner was spawned this pass or is in flight. Skip `NOT YOURS`.
+- Skip `HOLD` and `WAIT` rows — the next pass re-reads them. Skip
+  `NOT YOURS`. A row saying `that branch is BLOCKED on a human: spawn` is
+  free; its manager pays a reconcile at step 7.
 - An `UNPLANNED` requirement = ONE planning manager, tier sonnet.
 - `create_session`: `source_url` = `git remote get-url origin` (attach
   the repository — attempt one spawned without it and both sessions
@@ -99,11 +108,18 @@ Up to `slots`, in dispatch's order, only rows under `spawn`:
 
 ## 4. Schedule the next pass, then end the turn
 
-`send_later` with `delay_minutes` = `JOHARNESS_HEALTH_MINUTES`, message
-`/orchestrate pass`. Never sleep, never poll. On wake: step 1 again.
+`send_later` with `delay_minutes` = `JOHARNESS_HEALTH_MINUTES`, message:
 
-Verdict `DRAINED — nothing free, nothing in flight: exit` = final report,
-no next pass, end. The heartbeat fires the next orchestrator. `DRAINED —
+```
+/orchestrate pass
+ledger: nudged <stem>@<head> [<status_detail>] ...; respawns <stem>=<n> ...
+```
+
+Never sleep, never poll. On wake: step 1 again, ledger from the message.
+
+Verdict `DRAINED — nothing free, nothing in flight: exit` or `PAUSED` =
+final report, no next pass, end. The heartbeat fires the next
+orchestrator; `PAUSED` waits for the human to raise the cap. `DRAINED —
 … in flight` = schedule, no spawn. Human says stop = stop scheduling; say
 which managers keep running (they own their pull requests).
 

@@ -30,7 +30,6 @@ environment sits under [`.agents/env/`](../env/README.md).
 | `.agents/docs/caveman.md` | House style. |
 | `.agents/docs/unsupervised.md` | The unattended bounds, the heartbeat, the runs. |
 | `.agents/docs/orchestrated.md` | Orchestrated mode (beta): roles, health, the kill, the numbers. |
-| `.agents/docs/prior-art.md` | What other orchestrators chose, and why this one differs — rejections with reasons. |
 | `.agents/docs/consumer-repos.md` | Creating and updating a consumer (child) repo. Entry point for both. |
 
 Harness-owned. Sync with `.agents/scripts/sync-to-consumer.sh`, joharness to
