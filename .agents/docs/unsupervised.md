@@ -27,6 +27,11 @@ none of them: no branch on the mode changes what an attended session gets
 out of the same tree. That is a claim about one tree — removing the mode's
 machinery changes supervised output like any other edit.
 
+Every row below describes UNSUPERVISED. Orchestrated shares the boundary,
+the merge gate, the requirement ban and the no-inventing edge — the Bounds
+below, which is what "unattended" means here — and differs in every row of
+this table; `orchestrated.md` has its own.
+
 | Where | Change |
 | --- | --- |
 | `session-start` banner | Says the mode, lists the protocol boundary, and says the queue is the whole of the work: `drain` names the item, take it, merge your own pull request, at DRAINED exit. |
@@ -40,8 +45,10 @@ same tree got two answers (PR 170, PR 187, PR 190 each fixed one side).
 
 ## The one stop
 
-DRAINED, at the queue edge, in both modes. A session takes one item, runs
-the Loop on it, exits; the heartbeat fires the next. Nothing is invented at
+DRAINED, at the queue edge, supervised and unsupervised alike. A session
+takes one item, runs the Loop on it, exits; the heartbeat fires the next.
+(Orchestrated splits this: a manager's stop is its own merge, and the
+orchestrator stops at DRAINED only with nothing in flight.) Nothing is invented at
 the edge: work enters the queue as an issue, a requirement, or a plan through
 a pull request, and only there. Anything else that ends a run — a rate
 limit, a session asking a question, a generation that failed to spawn — is

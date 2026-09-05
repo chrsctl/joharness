@@ -87,6 +87,26 @@ else
   fail "ceiling=0 keeps ci green"
 fi
 
+# The CONF sets them too, and means there what it means in `dispatch`.
+# Environment-only was a trap the conf documented its way into: a human
+# writing the escape into joharness.conf got a still-red ci.
+printf 'JOHARNESS_ENV=none\nJOHARNESS_CHURN_LIMIT=6\n' >"${cwork}/joharness.conf"
+out="$(ci_churn)"
+expect "the conf sets the ceiling, as the environment does" \
+  "hot file.txt rewritten in 6 commits on this branch (ceiling 6)" "$out"
+if ci_rc; then
+  fail "a ceiling set in the conf fails ci"
+else
+  pass "a ceiling set in the conf fails ci"
+fi
+printf 'JOHARNESS_ENV=none\nJOHARNESS_CHURN_LIMIT=0\n' >"${cwork}/joharness.conf"
+if ci_rc; then
+  pass "and the conf can lift it, the same visible escape"
+else
+  fail "and the conf can lift it, the same visible escape"
+fi
+printf 'JOHARNESS_ENV=none\n' >"${cwork}/joharness.conf"
+
 git -C "$cwork" checkout -qb calm main
 printf 'one\n' >"${cwork}/calm.txt"
 commit_all "$cwork" "single change"

@@ -47,8 +47,17 @@ export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 
 # Knobs exported in the invoking shell must not steer the fixtures; per-call
 # prefix assignments below still apply.
+# The orchestrated four are here for a sharper reason than the rest: the
+# mode's own documentation tells an operator to set them "the environment for
+# one command", so the shell a session runs `dispatch` in is exactly the shell
+# that would red this suite. Measured before they were added:
+# `JOHARNESS_MAX_MANAGERS=2 .agents/harness/selftest.sh` reported 8 failures,
+# `JOHARNESS_STALL_MINUTES=30` reported 1, both against cases asserting the
+# printed default.
 unset JOHARNESS_ENV JOHARNESS_ENV_SETUP JOHARNESS_ENV_MD JOHARNESS_REVIEW \
   JOHARNESS_CHURN_THRESHOLD JOHARNESS_CHURN_LIMIT \
+  JOHARNESS_MAX_MANAGERS JOHARNESS_STALL_MINUTES JOHARNESS_HEALTH_MINUTES \
+  JOHARNESS_RESPAWN_LIMIT \
   JOHARNESS_CONF JOHARNESS_FORCE_SETUP JOHARNESS_SYNC_ROOT DEVENV_FORCE \
   JOHARNESS_FEEDBACK_CACHE JOHARNESS_PRETOOL_SCRATCH
 

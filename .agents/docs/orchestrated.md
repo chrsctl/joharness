@@ -171,8 +171,11 @@ disjoint scope. Two things this mode adds to the wave rule:
 - A hold behind a BLOCKED branch is released, the reconcile named as the
   cost: that branch waits on a human, a human's clock can be days, and a
   plan waiting on it starves with nothing in flight to end the wait.
-- A wave-2 plan is `WAIT` while its wave-1 partner is free or in flight:
-  not counted as spawnable now, listed so the next pass finds it.
+- A wave-2 plan is `WAIT` while its wave-1 partner is free in the same
+  pass: not counted as spawnable now, listed so the next pass finds it.
+  A partner already IN FLIGHT is the `HOLD` case above instead — the waves
+  partition free plans only, so an in-flight partner never puts a plan in
+  wave 2.
 - `JOHARNESS_MAX_MANAGERS=0` is the human's pause, the one lever beside
   the Routine: dispatch says `PAUSED`, the orchestrator spawns nothing;
   with managers still in flight the health pass goes on until they end,
@@ -194,7 +197,19 @@ this mode should move. If it does not, the hold rule bought nothing.
 | `JOHARNESS_CHURN_LIMIT` | 2x the threshold | one file rewritten this often = `LOOP?`; 0 lifts it | `ci`'s own ceiling, the same knob |
 
 Read by `dispatch`: the environment for one command, `joharness.conf` for
-the repo, else the default. Digits only; a word reads as the default. A
+the repo, else the default. Digits only; a word reads as the default. The
+two churn knobs go through the same reader in `ci`, so a value set in the
+conf means there what it means here — it did not, for one round, and the
+conf's own comment was what documented the trap into existence.
+
+**A consumer gets these as prose and nothing else.** They are deliberately
+absent from `.agents/scripts/conf-keys.sh`, which drives the bootstrap
+interview: four questions about a beta mode the interview never offers is
+the wrong cost to put on every new consumer. The consequence is that a
+consumer's `joharness.conf` carries no knob block at all — canonical's
+comments are not synced — so THIS TABLE is the record, and an operator
+enabling the mode there writes the lines by hand. Revisit when the mode
+leaves beta. A
 session proposes a change with a run's evidence; it never sets one
 (`.agents/harness/AGENTS.md`, Decide alone: money).
 
@@ -232,7 +247,10 @@ workstream file, picks no tier, and takes no item itself.
 `joharness.conf` joined `protocol_paths` with this mode. It holds the
 mode line `authority` verifies and the cap: a session that may rewrite
 its own mode line authorises itself, and one that may raise its own cap
-decides money. Found the day the mode was built — the plan that flips the
+decides money. Priced and accepted: `./joharness.sh env <name>` writes
+that file too, so an unattended session that switches its environment
+layer now trips the Stop guard until it reverts. Switching layers is a
+configuration decision, which is the supervised half of the same split. Found the day the mode was built — the plan that flips the
 mode for the measured run declared `scope: docs/product, joharness.conf`,
 and with the conf outside the boundary `dispatch` offered that plan to the
 very fleet it would have flipped. Both roles run `authority` first, and

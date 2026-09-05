@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01Jyb2Ttjttcf3sYaJxiTXWr
 agent: opus
 updated: 2026-09-05
-next: ci green after round three; open the pull request per step 7 (retire this file and the same-session plan in the last commit before it), then merge
+next: retire commit, then the pull request; merge when checks are green (step 7)
 ---
 
 ## Goal
@@ -294,7 +294,72 @@ finding re-checked against its source before being accepted:
   the quiet-loop case pins both marks; the WAIT-only verdict stays
   unreachable while a partner is free and earlier, said in the code)
 
-Diagram from the requester, 2026-09-05, verified against the build:
+Round four — verifier at opus on the whole branch, the last pass before
+the pull request, each finding re-checked against its source:
+
+- r43: (verifier) the selftest did not unset the four new knobs, so an
+  exported one steered the fixtures: `JOHARNESS_MAX_MANAGERS=2` red 8
+  cases, `JOHARNESS_STALL_MINUTES=30` red 1 — and the mode's own doc tells
+  an operator to set exactly those in the environment. (fixed — all four
+  unset, with the measured counts at the line)
+- r44: (verifier) `joharness.conf` documented both churn knobs as ci's,
+  and `ci` read neither from the conf: a human writing
+  `JOHARNESS_CHURN_LIMIT=0` there for a genuine large rework got a
+  still-red ci and a silently disabled `LOOP?`. (fixed — one reader,
+  `num_knob`, for `ci` and `dispatch` alike; two cases pin the conf path,
+  set and lifted)
+- r45: (verifier) a branch past `JOHARNESS_RESPAWN_LIMIT` was left claimed
+  and not blocked, so it counted against the cap forever: a fleet that
+  exhausted its respawns on `cap` items reads 0 slots every pass and never
+  exits, and `PAUSED` keeps the health pass going rather than ending it.
+  (fixed — handing off past the limit is a WRITE: `status: blocked`,
+  `next:` naming the respawn count, pushed. `blocked` already means
+  "waiting on a human, holds no slot", and this is that state)
+- r46: (verifier) another branch's `status:` was interpolated unescaped
+  into the row the orchestrator branches on, so a manager writing
+  `status: in-progress  BLOCKED: the human's, holds no slot` read as
+  blocked — never nudged, never respawned — and the same trick forges
+  `STALL?`/`LOOP?` to kill a healthy peer. `ci` reds such a status, but a
+  manager claims by pushing before it ever runs `ci`. (fixed — the graph's
+  own vocabulary is the whitelist, anything else prints `unreadable`; a
+  case pins it)
+- r47: (verifier) the design doc said a wave-2 plan is WAIT while its
+  partner is "free or in flight"; in flight is HOLD, and the branch's own
+  test pins that. (fixed)
+- r48: (verifier) the run plan claimed `main` holds no plan — false the
+  instant this merges, since the same pull request adds that plan — and
+  said five adopt-candidates where the file carries seven. (fixed, both
+  with the command and the date)
+- r49: (verifier) the `queue-orchestrated` perf row budgets a fork the
+  built shape never exercises, and r41's disposition said that was "said
+  in the row comment" when no such comment existed. (fixed — the caveat is
+  written at `perf_rows`, where it survives this file)
+- r50: (verifier) the knobs' absence from `conf-keys.sh` was reasoned in
+  this file alone, and a consumer bootstrapped with the mode gets no knob
+  block at all. (fixed — graduated into `orchestrated.md`, The numbers:
+  the table IS the consumer's record, and the reason for staying out of
+  the interview is beside it)
+- r51: (verifier) `unsupervised.md` declared "unattended means either
+  value" over a table describing only one, and "the one stop … in both
+  modes". (fixed — the table is scoped to unsupervised, the shared half is
+  named as Bounds, and the stop names the orchestrated split)
+- r52: (verifier) the ledger format had no quoting rule while its fields
+  come from repo-controlled text: a `next:` reading `done respawns=9`
+  writes a forged respawn count into the orchestrator's own next prompt,
+  defeating a money bound. (fixed — strip and cut both copied fields; the
+  two counts are the orchestrator's own and never taken from a file)
+- r53: (verifier) `joharness.conf` in `protocol_paths` means
+  `./joharness.sh env <name>` trips the Stop guard unattended. (no change
+  — priced and accepted, said in `orchestrated.md`: switching layers is a
+  configuration decision, the supervised half of the same split)
+
+## Diagram check
+
+Not findings — a verification record, and under its own heading because
+`## Review` is a fix map keyed on `rN:` and eight bullets with no id sat
+in it, which `ci` reads as eight silent drops.
+
+The requester's diagram, 2026-09-05, checked against the build:
 
 - Every hour, a dispatcher runs the queue reading and takes what it
   names: holds (`dispatch`, the heartbeat).

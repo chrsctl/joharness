@@ -43,14 +43,16 @@ starts from facts rather than re-checking the same two things:
   origin/claude/gastown-review-owjgzg:docs/handover/unsupervised-endurance.md`),
   so the Routines UI is still the only route, prompt `/orchestrate`,
   hourly.
-- The queue is not stocked. `origin/main` holds one research file and no
-  plan (`git ls-tree -r --name-only origin/main docs/plans docs/research`);
-  this plan itself is scoped to `joharness.conf` and so marked
-  `SUPERVISED ONLY` — a supervised session drives the run, never the
-  fleet. A fleet fired today gets one manager, on the research item. The
-  five adopt-candidates in `docs/research/capture-intent.md` are
-  plan-shaped and waiting on the human's word; two or more of them with
-  disjoint scope would stock it.
+- The queue is not stocked. When this plan merges, `main` holds it and one
+  research file and nothing else (`git ls-tree -r --name-only origin/main
+  docs/plans docs/research`); this plan is scoped to `joharness.conf` and
+  so marked `SUPERVISED ONLY` — a supervised session drives the run, never
+  the fleet. So a fleet fired then gets ONE manager, on the research item,
+  and measures a queue of one. `docs/research/capture-intent.md` carries
+  seven adopt-candidate verdicts (`git show
+  origin/main:docs/research/capture-intent.md | grep -c 'Verdict:
+  adopt-candidate'` = 7, 2026-09-05), plan-shaped and waiting on the
+  human's word; two or more with disjoint scope would stock it properly.
 - The knobs' defaults are now counted, not written (`.agents/docs/orchestrated.md`,
   The numbers). Confirming them is one line; the cap is still money.
 

@@ -604,10 +604,16 @@ cmd_ci() {
   # that cannot see it, so the one gate it cannot skip fails for it.
   # JOHARNESS_CHURN_LIMIT overrides the ceiling; =0 lifts the gate, the
   # deliberate and visible escape for a genuine large rework.
+  # Read through num_knob, so the environment for one run and joharness.conf
+  # for the repo both work — and mean the same here as they do in `dispatch`,
+  # which reads the same two knobs. Environment-only was a trap the conf
+  # documented its way into: a human writing JOHARNESS_CHURN_LIMIT=0 in the
+  # conf for a genuine large rework got a still-red ci and a silently
+  # disabled LOOP?.
   printf '\n== churn\n'
   local churn threshold ceiling
-  threshold="${JOHARNESS_CHURN_THRESHOLD:-5}"
-  ceiling="${JOHARNESS_CHURN_LIMIT:-$((threshold * 2))}"
+  threshold="$(num_knob JOHARNESS_CHURN_THRESHOLD 5)"
+  ceiling="$(num_knob JOHARNESS_CHURN_LIMIT $((threshold * 2)))"
   if churn="$(churn_top)"; then
     if [ -n "$churn" ]; then
       local churn_n="${churn%%	*}" churn_f="${churn#*	}"
@@ -1347,6 +1353,14 @@ perf_count() {
 # where the collection is large — and five forks is not one. The counted
 # number is printed every run and nothing environmental moves it, so a row
 # that drifts is still visible to a reader who looks.
+#
+# EIGHT rows, and `queue-orchestrated` is the one whose budget bounds a path
+# the shape does not exercise: the per-claimed-plan fork in
+# queue-context.sh's `in flight:` block runs only where a claimed plan and a
+# free plan coexist, and `perf_shape` builds no claim, so both queue rows
+# count 126 today. It is a floor against the mode's OTHER forks and a place
+# for the real number to land, not a measurement of that block — building a
+# claimed plan into the shape is a change to `perf_shape` and its own diff.
 perf_rows() {
   printf '%s\n' \
     "feedback|${JOHARNESS_PERF_BUDGET_FEEDBACK:-228}|live|${ROOT}/joharness.sh feedback" \
@@ -4783,7 +4797,7 @@ cmd_drain() {
 # A knob the human sets: the environment for one command, the conf for the
 # repo, else the beta default. Digits only — a word here is not a cap, and a
 # cap that fails open is a fleet nobody sized.
-orch_knob() {
+num_knob() {
   local v="${!1:-}"
   [ -n "$v" ] || v="$(conf_get "$1")"
   case "$v" in '' | *[!0-9]*) v="$2" ;; esac
@@ -4832,18 +4846,17 @@ cmd_dispatch() {
   local inflight="" free="" questions=""
 
   mode="$(run_mode)"
-  cap="$(orch_knob JOHARNESS_MAX_MANAGERS 4)"
-  stall="$(orch_knob JOHARNESS_STALL_MINUTES 45)"
-  health="$(orch_knob JOHARNESS_HEALTH_MINUTES 10)"
-  respawn="$(orch_knob JOHARNESS_RESPAWN_LIMIT 2)"
-  churnt="$(orch_knob JOHARNESS_CHURN_THRESHOLD 5)"
-  # ci's two tiers, kept: from the threshold a warning the session judges,
-  # from the limit (default twice that) no longer a call. LOOP? is the
-  # kill line, so it sits on the limit; the warning band is named on the
-  # work line for the ledger to watch. 0 lifts it, as it lifts ci's gate.
-  churnl="${JOHARNESS_CHURN_LIMIT:-}"
-  [ -n "$churnl" ] || churnl="$(conf_get JOHARNESS_CHURN_LIMIT)"
-  case "$churnl" in '' | *[!0-9]*) churnl=$((churnt * 2)) ;; esac
+  cap="$(num_knob JOHARNESS_MAX_MANAGERS 4)"
+  stall="$(num_knob JOHARNESS_STALL_MINUTES 45)"
+  health="$(num_knob JOHARNESS_HEALTH_MINUTES 10)"
+  respawn="$(num_knob JOHARNESS_RESPAWN_LIMIT 2)"
+  # ci's two tiers, kept and read the same way ci reads them: from the
+  # threshold a warning the session judges, from the limit (default twice
+  # that) no longer a call. LOOP? is the kill line, so it sits on the
+  # limit; the warning band is named on the work line. 0 lifts it, here
+  # and in ci, because both go through num_knob.
+  churnt="$(num_knob JOHARNESS_CHURN_THRESHOLD 5)"
+  churnl="$(num_knob JOHARNESS_CHURN_LIMIT $((churnt * 2)))"
 
   printf '== dispatch (mode: %s)\n\n' "$mode"
   if [ "$mode" != "orchestrated" ]; then
@@ -4907,6 +4920,18 @@ cmd_dispatch() {
       { read -r status; read -r session; read -r next; } \
         <<<"$(printf '%s\n' "$doc" | gr_fields status session next)"
     fi
+    # A workstream file on another branch is repo-controlled input, and the
+    # orchestrator branches on the ROW this builds. Unvalidated, a manager
+    # that writes `status: in-progress  BLOCKED: the human's, holds no slot`
+    # gets a row reading as blocked — never nudged, never respawned — or
+    # forges STALL?/LOOP? to have a healthy peer killed. `ci` reds a status
+    # outside this list, but a manager claims by pushing BEFORE it runs ci,
+    # and dispatch reads that push on the next pass. The vocabulary is the
+    # graph's (joharness.sh:lint_nodes); anything else is not a status.
+    case "$status" in
+      in-progress | blocked | review | done | '') ;;
+      *) status="unreadable" ;;
+    esac
     age="$(dispatch_age_min "$branch")"
     agetext="$(dispatch_age_text "$age")"
     # Progress, from git: commits since the branch left the base, the most
