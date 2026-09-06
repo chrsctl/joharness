@@ -27,6 +27,48 @@ human work.
   plan file. Survives in history.
 - Requirement with open plans = silent in hook; its plans speak.
 
+**Intake was compared against a published `intent.md` practice, and two
+things stay rejected.** Research node `capture-intent` swept lesson 2 of
+Anthropic's "AI-Native SDLC Playbook" — that one lesson, goal-directed, not
+the other thirteen — against this repo's requirement file, and walked the
+lesson's non-engineer originator through the gates. Most practices came out
+convergent: same artifact, same home beside the code, same reliance on git
+for the record. Node deleted, history keeps its fourteen findings
+(`git log --diff-filter=D -- docs/research/capture-intent.md`, then
+`git show <commit>^:docs/research/capture-intent.md`). Two verdicts are
+rejections, recorded here so next reader of that lesson does not re-open
+them:
+
+- **No author or status line in requirement body.** Lesson's example writes
+  `Author: J. Ortiz (claims operations). Status: draft.` into the file.
+  Provenance is commits ([`../graph.md`](../graph.md), Rules), and no node
+  here carries a status field ([`../plans/README.md`](../plans/README.md),
+  Lifecycle, which says what breaks when one does). Lesson's own governance
+  paragraph already agrees the record is git.
+- **No detector writes the requirement.** Lesson lets an alert or ticket
+  originate one, product owner correcting it before commit. Here the human
+  writes it ([`../unsupervised.md`](../unsupervised.md), Bounds). What holds
+  that is worth knowing: `ci` reds an unsupervised session that writes one,
+  and under supervised nothing gates it —
+  `joharness.sh:lint_requirement_writes` returns early. Convention there,
+  mechanism only unsupervised.
+
+**Two measured facts about intake, kept because they outlive the node.**
+Gates schedule a requirement carrying NO frontmatter: counted, listed by its
+PATH as UNPLANNED, priority defaulted. Both readers exclude only
+`TEMPLATE.md`, `README.md` and `VISION.md`, neither tests for frontmatter —
+so the TEMPLATE is a convenience for the decomposing session, not a gate on
+intake. A GUESSED key is the opposite: `lint_enum` returns 0 on an empty
+value and reds an unknown one, so `priority: high` written straight onto
+`main` by someone who never runs `ci` reds the base branch, and `lint_nodes`
+walks the worktree rather than a diff, so later pull request runs go red for
+a file they never touched. Keep that red — reading an unknown value as
+`normal` silently downgrades an urgent requirement, the failure this repo
+reds elsewhere on purpose (`joharness.sh`, PR 140). Guard belongs earlier,
+in the TEMPLATE comment or an interview before the commit; neither exists
+yet, and six adopt-candidates from that node sit unqueued because filing
+them is the human's call.
+
 ## Branch flow
 
 - `main` = the only long-lived line. One branch per plan, cut from `main`.
