@@ -29,7 +29,9 @@ the rows below.
 | Queue hook | Same `SUPERVISED ONLY` marking. Plus, this mode only: `in flight: <free> overlaps <claimed> on <path>` lines, one per free plan whose scope collides with a plan a manager holds now. |
 | `./joharness.sh dispatch` | New. The orchestrator's one read: the human's numbers, managers in flight with push age and a `STALL?` mark, slots under the cap, the spawn order with waves and `HOLD`s, one verdict line. Reports only. |
 | `./joharness.sh drain` | Same verdict; tells a manager it works the item its prompt named, and names the orchestrator's exit as dispatch's verdict. |
-| `.claude/commands/orchestrate.md`, `manage.md` | The two roles, as commands. |
+| `./joharness.sh upstream` | New, and NOT orchestrated-only: reports what a merged edge found about the harness in any consumer, at any time. What this mode adds is a role that acts on it. |
+| `JOHARNESS_UPSTREAM_FEEDBACK` | New, `off` by default. On, the health pass's `done` row spawns ONE reporter per merged edge, which files the findings as a report pull request on the canonical ([`feedback.md`](feedback.md), When the consumer is the detector). A reporter holds no manager slot and is one session beyond the cap. |
+| `.claude/commands/orchestrate.md`, `manage.md`, `upstream-report.md` | The three roles, as commands. |
 
 ## Roles
 
@@ -38,6 +40,7 @@ the rows below.
 | orchestrator | low, mechanical on purpose — the Routine's model: haiku by the ask, sonnet in the requester's diagram; a run decides | a session; the heartbeat fires one | manager sessions (`create_session`) | the cap, the health pass, the kill handover | dispatch says DRAINED with nothing in flight |
 | manager | the item's `agent:` — plan or research; opus at xhigh for an unplanned requirement, decomposition being the judgement every build rests on | a session with its own branch, claim and merge | worker subagents (`Agent`) | one item, until its file retires | its pull request merges, or it blocks on a human |
 | worker | at or below the plan's tier, lower by default | a subagent in the manager's container | nothing | the files its sub-task names | it returns |
+| reporter | low; the judgement is its command file's gate, not its tier | a session, spawned after a manager MERGES — only where `JOHARNESS_UPSTREAM_FEEDBACK=on` | nothing | one merged edge's harness findings | it files one report on the canonical, or none, and exits |
 
 ### What each role reads
 
@@ -60,7 +63,10 @@ writes it into its own (`.agents/docs/plans/README.md`, same-session plan
 handed off) and the orchestrator spawns it next pass. Subagents cannot
 claim, get no hook state and die with the parent's turn
 ([`subagents.md`](subagents.md)); the manager's branch is the unit of
-claim, and that is why the split falls where it does.
+claim, and that is why the split falls where it does. A reporter is a second KIND of
+session at the manager's level, not a third level below it: it is spawned by
+the orchestrator, spawns nothing itself, and cuts no branch in this repo at
+all — its one branch is on the canonical.
 
 The default role is the orchestrator. The heartbeat's prompt is standalone
 and the orchestrator is what must be re-seeded; a manager is told what it
@@ -104,7 +110,7 @@ prints only the git half.
 | looping | `LOOP?` — one file rewritten `JOHARNESS_CHURN_LIMIT`+ times; or head moved on three passes with `next:` unchanged | any | kill with the record, respawn one tier up |
 | gone | branch unmerged, status in-progress / review / done | not `RUNNING` | respawn on the branch |
 | blocked | status `blocked` | any | report to the human; never respawn |
-| done | branch merged, plan file gone | any | nothing |
+| done | branch merged, plan file gone | any | nothing — or, with `JOHARNESS_UPSTREAM_FEEDBACK=on` and no `reported=` for it in the ledger, spawn ONE reporter |
 
 A nudge is a message: push your workstream file now. Most stalls end there
 — a session deep in a build has a handover it has not written, and
@@ -219,6 +225,7 @@ this mode should move. If it does not, the hold rule bought nothing.
 | `JOHARNESS_RESPAWN_LIMIT` | 2 | respawns per item per orchestrator run | no data; a written number until a run counts one |
 | `JOHARNESS_CHURN_THRESHOLD` | 5 | one file rewritten this often = a warning on the work line | `ci`'s own knob, backtested in [`agent-selection.md`](agent-selection.md): honest branches peak at 4. Raising it raises `ci`'s ceiling too |
 | `JOHARNESS_CHURN_LIMIT` | 2x the threshold | one file rewritten this often = `LOOP?`; 0 lifts it | `ci`'s own ceiling, the same knob |
+| `JOHARNESS_UPSTREAM_FEEDBACK` | `off` | on = one reporter session per merged edge, beyond the cap, filing harness findings on the canonical — money, and pull requests in a repo this one does not own | not a number to calibrate: a switch, off until a human turns it on. Unlike the six above it IS declared in `.agents/scripts/conf-keys.sh`, so every consumer's sync names the key its conf does not answer |
 
 Read by `dispatch`: the environment for one command, `joharness.conf` for
 the repo, else the default. Digits only; a word reads as the default. The
@@ -267,6 +274,8 @@ merge, no requirement written by a session, nothing invented at the edge,
 the prompt routes and the repository authorises. The orchestrator adds
 its own: it merges nothing, edits nothing but a killed manager's
 workstream file, picks no tier, and takes no item itself.
+`JOHARNESS_UPSTREAM_FEEDBACK` does not loosen one of them — a reporter is a
+SPAWN, like a manager, and the orchestrator authors no report.
 
 `joharness.conf` joined `protocol_paths` with this mode. It holds the
 mode line `authority` verifies and the cap: a session that may rewrite

@@ -558,6 +558,7 @@ SELFTEST_TOPICS=(
   ci-context
   ci-selftest-scope
   review
+  upstream
   scorecard
   feedback
   feedback-recurrence

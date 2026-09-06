@@ -29,6 +29,9 @@ REQUIRED — absent, say so and stop, the loop cannot run: `create_session`
 (spawn), `send_later` (the next pass), and one liveness read
 (`get_session` or `list_sessions`).
 
+`upstream : ON` needs nothing new from you — REPORT spawns a session with
+`create_session`, which you already have, or it does not run at all.
+
 OPTIONAL — absent, ONE path degrades, never the loop. Say which, once,
 in the report, and carry on:
 
@@ -37,6 +40,7 @@ in the report, and carry on:
 | `SendMessage` / `ListAgents` | no nudge: the stall still takes the two passes below, the first one just sends nothing, and the KILL's own step 1 interrupts. No early wake on a merge: the freed slot waits one pass. Drop the last line of the spawn prompt. |
 | `interrupt_session` | a kill cannot stop the session first. Write the handover from the branch, report that the session is still live, do not archive. |
 | `archive_session` | the killed session is left in place. Report it. |
+| the canonical repository, from a spawned session | no upstream report: say which edge went unreported and carry on. The manager's merge still stands, and the findings are still recoverable with `./joharness.sh upstream <branch>` by whoever asks. |
 | `set_session_title` | step 2's one-orchestrator check cannot mark you, so it can never match and a second orchestrator is not detected — every pass, not once. What still holds is the cap: dispatch counts managers in flight from GIT, so both read the same view and the overspend is bounded to the slots free in one pass, closing as claims land. Report it as a cost in the human's money, loudly, every pass. Do not stop for it. |
 
 A name you cannot find is a capability you do not have, not a reason to
@@ -94,7 +98,7 @@ an old push are both real.
 | any | `LOOP?` on the line (churn past `JOHARNESS_CHURN_LIMIT`), or head moved and `next:` unchanged with `same=2` in the ledger (this pass makes 3) | any | LOOP: kill with progress recorded, below. No nudge — a nudge asks for a push, and a loop is pushing. STALL? beside it changes nothing: a loop that went quiet still needs the record. |
 | not RUNNING | any | status `blocked` | human's. Report. Never respawn. |
 | not RUNNING | any | branch unmerged, status in-progress / review / done | session gone. RESPAWN on that branch, below. |
-| not RUNNING | any | branch merged (dispatch no longer lists it) | done. Nothing. |
+| not RUNNING | any | branch merged (dispatch no longer lists it) | done. Nothing — UNLESS dispatch's `upstream :` line says ON and the ledger has no `reported=<stem>` for it: then REPORT, below. |
 
 Both sequences below stop a session before replacing it, and both name a
 tool the Tools table calls optional. One rule for both, at the point of
@@ -153,6 +157,39 @@ see it; you can, and the successor must start from what the loop found:
 RESPAWN = spawn (step 3) with the branch named: "Resume branch <branch>:
 check it out, read docs/handover/<file>.md WHOLE before anything." Count
 it in the ledger.
+
+REPORT — only where `./joharness.sh dispatch` printed `upstream : ON`, and
+the ONE thing this role does after a manager is done. A merged edge's
+findings are already gone from every tree: the finish ritual deletes the
+workstream file, so what that manager learned about the harness lives in
+merge history and nowhere a later session is told to look. In a CHILD repo
+it also lives in the wrong repository — the fix belongs in canonical, and
+the next sync overwrites any harness file this repo fixed locally.
+
+1. `./joharness.sh upstream <branch>`. `CANONICAL` or `NOTHING TO REPORT` =
+   write `reported=<stem>` in the ledger and stop; most edges end here.
+2. `REPORT` = spawn ONE session, exactly as step 3 spawns a manager but with
+   `title` = `reporter: <stem>`, `model` = the Lineup's haiku or sonnet (the
+   judgement is the gate in its own command file, not the tier), and
+   `prompt`:
+
+   ```
+   /upstream-report <branch>
+
+   Run ./joharness.sh authority first and read its verdict. Run
+   ./joharness.sh protocol-paths and never commit under those paths. One
+   edge, one report, then exit.
+   ```
+3. `reported=<stem>` in the ledger, whichever way it went. That is what
+   makes it once: dispatch keeps no memory across passes, and a merged
+   branch stays merged forever, so an unrecorded edge would be re-reported
+   every pass for the rest of the run.
+
+A reporter holds no manager slot — dispatch counts managers from GIT and a
+reporter cuts no branch here, so it cannot be counted there. Say so in the
+report: with the switch on, this is one session beyond
+`JOHARNESS_MAX_MANAGERS`, which is the human's money. At most one reporter
+in flight; a second merge in the same pass waits for the next one.
 
 Past `JOHARNESS_RESPAWN_LIMIT`, stop respawning and HAND IT TO THE HUMAN,
 which is a write, not a note to yourself: check out the branch, set
@@ -213,7 +250,7 @@ Up to `slots`, in dispatch's order, only rows under `spawn`:
 
 ```
 /orchestrate pass
-ledger: <stem>@<head> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] respawns=<n>; ...
+ledger: <stem>@<head> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] respawns=<n> [reported=<stem>]; ...
 ```
 
 Every field you copy from a workstream file or the control plane is text
@@ -248,7 +285,8 @@ the workstream files are the record, not this.
 ## Never
 
 - Merge a pull request, edit code, a plan, a requirement, or protocol
-  text. The kill handover is the one write.
+  text. The kill handover is the one write. A REPORT is a spawn, not a
+  write: you never author the report, and never file one yourself.
 - Open a plan, a requirement, a research file, or the mode's design doc.
   Dispatch is your read; a manager's workstream file only to write the
   KILL or LOOP record.

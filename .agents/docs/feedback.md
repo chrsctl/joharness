@@ -280,6 +280,68 @@ else. So:
 - **Route it when it is not**, and carry the measurement into whatever picks
   it up.
 
+### The switch that mechanizes 1 to 4
+
+Steps 1 to 4 are a session's judgement and a session's memory, and both end
+when the session does. By the time a manager's pull request has merged its
+findings are gone from every tree — the finish ritual deletes the workstream
+file, which is the *Retention: zero* row above — and under orchestrated mode
+nobody is left holding them: the manager exits at its merge and the
+orchestrator writes one file and reads no plan.
+
+`JOHARNESS_UPSTREAM_FEEDBACK` (`off` | `on`, **off by default**, declared in
+`.agents/scripts/conf-keys.sh` so every sync names it to a consumer that has
+no line for it):
+
+| off | on |
+| --- | --- |
+| `./joharness.sh upstream [<edge>]` reports: which of that edge's findings landed on a file canonical owns, which are unattributable, and the `CANONICAL_REPO` they would go to. Nothing acts on it. | the same read, plus the orchestrator spawns ONE reporter per merged edge — `.claude/commands/upstream-report.md`, which walks steps 1 to 4 and files at most one pull request on the canonical. |
+
+Off is the default for two reasons, and neither is caution for its own sake:
+it opens pull requests in a repository the child does not own, and a reporter
+is one session beyond `JOHARNESS_MAX_MANAGERS`, which is the human's money
+(`.agents/harness/AGENTS.md`, Decide alone).
+
+What the mechanism does NOT do is decide. `upstream` filters by path and by
+nothing else — a filter, not a verdict — because step 1 is the step that goes
+wrong and it is not a filter a program can apply. The reporter gates each
+finding against *does the fact it states match what it measures*, drops what
+does not clear it, and says how many it dropped. A report that skipped that
+step is a preference with a diff.
+
+Two of its own limits are printed rather than papered over, both of them the
+commit-level attribution named under *What this cannot see* above:
+
+- **A finding whose fix commit carried other findings** is reported with its
+  paths flagged as the commit's rather than the finding's. Inside one repo
+  that ambiguity costs a hot-spot count; here it decides what leaves the
+  repository, and one commit fixing a harness defect beside a repo-private one
+  makes each look like both. Flagged, not dropped — a false negative loses the
+  finding for good, a flagged false positive costs the reporter one read.
+- **A finding with no fix commit at all** — the normal shape of a `wontfix` or
+  a no-change verdict, recorded in a commit that touches only the workstream
+  file — is placed by the paths its own TEXT names, marked as read from prose.
+  One that names none is listed as unplaceable and never flips the verdict by
+  itself: a report built on an unplaced finding is a consumer's own defect
+  carried verbatim onto somebody else's queue.
+
+A `wontfix` on a harness path is the strongest single signal the command has,
+and it is the one that has no fix commit by construction. It reaches the
+report through that second rule and through nothing else.
+
+The report lands as **one research node** in canonical, never a requirement
+and never a plan. A requirement is the human's goal to set and an unattended
+branch that adds one is red (`joharness.sh:lint_requirement_writes`); a plan
+asserts the fix, and a child asserting canonical's fix is the inversion step 1
+forbids. A research node is a question canonical's own queue lists, a session
+claims, and the merge that answers it deletes — so a consumer's finding enters
+by rules already written, with no new node type and no new lint.
+
+In canonical the command says `CANONICAL` and stops. A finding made here is
+already in the repository that owns its fix; routing it would mean canonical
+filing reports against itself, which is the same reason `upgrade` refuses to
+run here.
+
 ### 5. Stage 4 is the sync, not the merge
 
 A fix merged in canonical has not prevented anything in the consumer that

@@ -106,6 +106,13 @@ clock. No such line in your prompt, or no messaging tool: just exit, the
 orchestrator's next pass sees the merge. Run no queue command; the next
 item is another manager's.
 
+One thing decides whether your `## Review` survives past that merge: where
+`JOHARNESS_UPSTREAM_FEEDBACK=on`, a finding of yours that landed on a file
+canonical owns is filed upstream after you exit, and it is filed with the
+measurement you wrote or not at all. So write each one with the command and
+the output that produced it — the rule step 5 already states, and the one
+place a consumer's finding can still reach the repo that owns the fix.
+
 ## Never
 
 - A second item, a session of your own (workers are subagents), protocol

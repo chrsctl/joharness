@@ -137,6 +137,13 @@ ENV_MD_GIVEN=0
 REVIEW="$(conf_key_default JOHARNESS_REVIEW)"
 REVIEW_GIVEN=0
 AUTONOMY="$(conf_key_default JOHARNESS_MODE)"
+# No flag and no interview question, deliberately. Every other key here is
+# asked because a human at first contact has an opinion about it; a sixth
+# question about an off-by-default beta mechanism is the cost
+# .agents/docs/orchestrated.md already refused for its own knobs. The channel
+# that reaches a child is the sync naming the key it does not answer, which
+# is what declaring it in conf-keys.sh buys.
+UPSTREAM="$(conf_key_default JOHARNESS_UPSTREAM_FEEDBACK)"
 AUTONOMY_GIVEN=0
 # Re-ask every switch in a child that already runs the harness, and write
 # what changes. Off, this script's behaviour is byte-identical to before it
@@ -741,6 +748,16 @@ JOHARNESS_REVIEW=${REVIEW}
 # .agents/docs/unsupervised.md. Any other value reads as supervised; the
 # switch fails closed on purpose.
 JOHARNESS_MODE=${AUTONOMY}
+
+# off = ./joharness.sh upstream reports what a merged edge found about the
+#       harness — which findings landed on a file canonical owns, and the
+#       canonical they would go to. Nothing acts on it.
+# on  = under JOHARNESS_MODE=orchestrated, the orchestrator spends ONE session
+#       per merged edge, beyond the manager cap, filing those findings as a
+#       report pull request on the canonical (.agents/docs/feedback.md, When
+#       the consumer is the detector). Off by default: it costs money and it
+#       opens pull requests in a repository this one does not own.
+JOHARNESS_UPSTREAM_FEEDBACK=${UPSTREAM}
 EOF
   # Recorded BEFORE the seed, because seed() is the thing that makes the
   # difference invisible afterwards: it writes only when the file is absent.
