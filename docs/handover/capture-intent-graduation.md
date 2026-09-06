@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_013x3au5nnN9kSRZMTSb3SpM
 agent: opus
 updated: 2026-09-06
-next: Record verifier findings under ## Review, fix or answer each, then retire commit and pull request
+next: Retire the workstream file, open the pull request, drive it green and merge
 ---
 
 ## Goal
@@ -42,7 +42,47 @@ Requirements — and deletes the node.
 
 ## Review
 
-- Graduation written and node deleted; opus verifier spawned on the branch diff, findings pending.
+Opus depth: adversarial passes plus `.claude/agents/verifier.md`, which did
+not write this diff. Eleven findings, all from that reader.
+
+- r1: (verifier) "A GUESSED key is the opposite" inverted the mechanism — a
+  guessed VALUE reds, a mistyped KEY is silent, because `lint_enum` only ever
+  sees the value of a key it looked for. Reproduced here: `priorty: urgent` in
+  a throwaway clone gives `ci: pass`, exit 0 (fixed — value and key are now
+  separate bullets, and the silent key is named as the open downgrade)
+- r2: (verifier) "no node here carries a status field" is false; workstream
+  files carry `status:` and `joharness.sh:2136` reds an unknown one. The node
+  scoped it to a requirement or a plan (fixed — rule re-scoped, workstream
+  file's own `status:` named as the exception)
+- r3: (verifier) "Most practices came out convergent" contradicts the count:
+  7 adopt-candidate, 2 reject, 5 convergent of 14 (fixed — counted numbers,
+  with the command that recovers the node to re-count)
+- r4: (verifier) PR 140 cited as the red-on-purpose precedent; PR 140 is the
+  case that stayed GREEN and cost a plan. The red precedent is the malformed
+  `issue:` guard (fixed — quote and citation swapped to that guard)
+- r5: (verifier) the recovery command ships to consumers via
+  `.agents/scripts/sync-to-consumer.sh`, where it resolves to nothing (fixed
+  — says the node is recoverable in joharness only)
+- r6: (verifier) third paragraph carried adopt-candidate remedies the node
+  routed to the human, and a hand-written queue snapshot nothing invalidates
+  ("neither exists yet ... six sit unqueued") (fixed — snapshot deleted; what
+  stays is measured intake behaviour, which does not go stale)
+- r7: (verifier) `## Review` held prose, not a finding: `ci` printed "1
+  finding(s) nothing can key on" twice, and no finding carried the
+  `(verifier)` tag the edge gate wants (fixed — this section)
+- r8: (verifier) `plan: capture-intent` dangles once the same diff deletes
+  the node; `ci` warns for the pull request's whole life (wontfix — deleting
+  the node IS the graduation, and the alternative, `plan: none`, hides the
+  claim while the work is live. The file retires before the merge, so the
+  warn dies with it)
+- r9: (verifier) `finish` red while the workstream file stands (fixed — the
+  retire commit is the last commit before the pull request opens)
+- r10: (verifier) three gate behaviours asserted with no way to re-derive
+  them, in the commit that deletes the Method block holding the probes
+  (fixed — each bullet names the reader function or prints its own output)
+- r11: (verifier) two verified facts dropped: a requirement named `README.md`
+  gets silence, and the vocabulary IS documented, one hop away (fixed — both
+  restored, the second as the reason the guard belongs earlier)
 
 ## Blockers
 

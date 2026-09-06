@@ -28,22 +28,29 @@ human work.
 - Requirement with open plans = silent in hook; its plans speak.
 
 **Intake was compared against a published `intent.md` practice, and two
-things stay rejected.** Research node `capture-intent` swept lesson 2 of
+verdicts are rejections.** Research node `capture-intent` swept lesson 2 of
 Anthropic's "AI-Native SDLC Playbook" — that one lesson, goal-directed, not
 the other thirteen — against this repo's requirement file, and walked the
-lesson's non-engineer originator through the gates. Most practices came out
-convergent: same artifact, same home beside the code, same reliance on git
-for the record. Node deleted, history keeps its fourteen findings
-(`git log --diff-filter=D -- docs/research/capture-intent.md`, then
-`git show <commit>^:docs/research/capture-intent.md`). Two verdicts are
-rejections, recorded here so next reader of that lesson does not re-open
-them:
+lesson's non-engineer originator through the gates. Fourteen findings: 7
+adopt-candidates, which are the human's to queue or drop, 2 rejections, the
+other 5 convergent. The node is deleted and joharness history holds it; a
+consumer carries this page but not that history, so the node is recoverable
+in joharness only:
 
-- **No author or status line in requirement body.** Lesson's example writes
-  `Author: J. Ortiz (claims operations). Status: draft.` into the file.
-  Provenance is commits ([`../graph.md`](../graph.md), Rules), and no node
-  here carries a status field ([`../plans/README.md`](../plans/README.md),
-  Lifecycle, which says what breaks when one does). Lesson's own governance
+```bash
+git log --diff-filter=D -- docs/research/capture-intent.md
+git show <commit>^:docs/research/capture-intent.md
+```
+
+Both rejections point at the rule they protect rather than restating it:
+
+- **No author or status line in a requirement or a plan.** Lesson's example
+  writes `Author: J. Ortiz (claims operations). Status: draft.` into the
+  file. Provenance is commits ([`../graph.md`](../graph.md), Rules), and
+  neither node type carries a status field
+  ([`../plans/README.md`](../plans/README.md), Lifecycle, which says what
+  breaks when one does). Scope that rule as written: a workstream file DOES
+  carry `status:`, because a session claims with it. Lesson's own governance
   paragraph already agrees the record is git.
 - **No detector writes the requirement.** Lesson lets an alert or ticket
   originate one, product owner correcting it before commit. Here the human
@@ -53,21 +60,31 @@ them:
   `joharness.sh:lint_requirement_writes` returns early. Convention there,
   mechanism only unsupervised.
 
-**Two measured facts about intake, kept because they outlive the node.**
-Gates schedule a requirement carrying NO frontmatter: counted, listed by its
-PATH as UNPLANNED, priority defaulted. Both readers exclude only
-`TEMPLATE.md`, `README.md` and `VISION.md`, neither tests for frontmatter —
-so the TEMPLATE is a convenience for the decomposing session, not a gate on
-intake. A GUESSED key is the opposite: `lint_enum` returns 0 on an empty
-value and reds an unknown one, so `priority: high` written straight onto
-`main` by someone who never runs `ci` reds the base branch, and `lint_nodes`
-walks the worktree rather than a diff, so later pull request runs go red for
-a file they never touched. Keep that red — reading an unknown value as
-`normal` silently downgrades an urgent requirement, the failure this repo
-reds elsewhere on purpose (`joharness.sh`, PR 140). Guard belongs earlier,
-in the TEMPLATE comment or an interview before the commit; neither exists
-yet, and six adopt-candidates from that node sit unqueued because filing
-them is the human's call.
+**What the walk measured about intake.** Kept because the node's probes die
+with it and these three are the reason the rejections above are not the whole
+answer. Re-run any of them in a throwaway clone, never on `main`.
+
+- A requirement with NO frontmatter is scheduled anyway: counted, listed by
+  its PATH as UNPLANNED, priority defaulted. Both readers exclude only
+  `TEMPLATE.md`, `README.md` and `VISION.md` and neither tests for
+  frontmatter (`joharness.sh:lint_nodes`, `.agents/harness/queue-context.sh`),
+  so the TEMPLATE is a convenience for the decomposing session rather than a
+  gate on intake — and a requester who names their file `README.md` gets
+  silence instead of a queue entry.
+- A wrong `priority` VALUE is the one measured defect: `lint_enum` reds an
+  unknown value, so `priority: high`, written straight onto `main` by someone
+  who never runs `ci`, reds the base branch — and `lint_nodes` walks the
+  worktree rather than a diff, so later pull request runs go red for a file
+  they never touched. Keep that red. Reading an unknown value as `normal`
+  would silently downgrade an urgent requirement, which is what the malformed
+  `issue:` guard already reds on purpose: "a claim that looks accepted and
+  silently is not" (`joharness.sh`).
+- A mistyped KEY has no guard at all. `priorty: urgent` passes — `ci: pass`,
+  exit 0 — and the file schedules as `normal`, because `lint_enum` is only
+  ever handed the value of a key it looked for. That IS the silent downgrade
+  the value check exists to prevent, and it is open. The two legal values are
+  named at the top of this section; nothing routes a requester here, and a
+  guessed one costs the base branch.
 
 ## Branch flow
 
