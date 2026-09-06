@@ -99,24 +99,22 @@ an old push are both real.
 | not RUNNING | any | status `blocked` | human's. Report. Never respawn. |
 | not RUNNING | any | branch unmerged, status in-progress / review / done | session gone. RESPAWN on that branch, below. |
 | not RUNNING | any | branch merged (dispatch no longer lists it) | done. Nothing — UNLESS dispatch's `upstream :` line says ON and the ledger has no `reported=<stem>` for it: then REPORT, below. |
-| RUNNING | any | row says `PR in flight, no claim file` | at step 7, merging. Nothing. It holds its slot until the branch merges. |
-| not RUNNING | any | row says `PR in flight, no claim file` | session gone AT THE EDGE. RESPAWN on that branch — to FINISH the merge (step 7), never to restart the plan: the work is done and the record was retired with it. Prompt it `/start` on the branch. |
+| RUNNING | any | row says `PR in flight, no claim file` | at step 7, merging. Nothing. |
+| not RUNNING | any | that row, and it NAMES an item | session gone at the edge. RESPAWN on that branch to FINISH the merge, never to restart the plan — the work is done and the record was retired with it. |
+| not RUNNING | any | that row, naming `?` | no item, so no title to look up and no successor to spawn. REPORT to the human: merging or retiring the branch is what frees the slot. |
 
-A `PR in flight, no claim file` row has no `session:` line to read — step 7
-retired the file that carried it. Find it by title `manager: <stem>` in
-`list_sessions`, `<stem>` from the item the row names; the row names `?`
-instead when the branch retired its workstream file without finishing a
-plan, and then the branch name is all you have — report it and leave it,
-never respawn a branch you cannot identify.
+These rows carry no `session:` line — step 7 retired the file that had it.
+Look them up by TITLE, `manager: <stem>` from the item the row names, and
+that lookup is load-bearing for the COUNT, not just the row: every other
+row here confirms one manager, these decide how many exist. `dispatch`
+holds each slot, which is all git can safely do — it cannot tell a manager
+mid-merge from a branch nobody came back to. Report a held slot whose
+session is gone; it frees when the merge lands, never by spawning
+something else into it.
 
-**That lookup is load-bearing for the COUNT, not only for the row.** Every
-other row here confirms one manager before you touch it; these rows decide
-how many managers exist. `dispatch` counts each as a slot HELD, which is
-the safe direction from git alone — it cannot tell a manager mid-merge
-from a branch nobody came back to. A dead session on one of these rows
-means a slot the count is still holding: say so in the report, and it is
-freed by the respawn finishing the merge, never by spawning something
-else into it.
+`SHALLOW CLONE` on the verdict means the report could not read some refs
+at all, so an item under `spawn` may already be in flight: `git fetch
+--unshallow`, or confirm each item on the control plane before spawning.
 
 Both sequences below stop a session before replacing it, and both name a
 tool the Tools table calls optional. One rule for both, at the point of

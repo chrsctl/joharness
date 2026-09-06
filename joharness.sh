@@ -5656,8 +5656,8 @@ dispatch_waves() {
 # answers a different question with that same value: a claim says who owns an
 # item, a slot says how much of the human's money is committed right now. The
 # two diverge for exactly this window, which is the window in which
-# duplicating a manager is most expensive (docs/plans/orchestrator-inflight-count.md;
-# 11 consecutive passes on chrsctl/gx, 2026-09-06, read 4 of 4 free at cap).
+# duplicating a manager is most expensive. The run that found it, with its
+# numbers, is in .agents/docs/orchestrated.md (Runs) — stated there once.
 #
 # NOT "carries no workstream file", which is the same rule one word shorter
 # and catches every branch that never wrote one. Counted on this repo
@@ -5702,7 +5702,7 @@ dispatch_waves() {
 dispatch_retired_edges() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}"
   git -C "$ROOT" for-each-ref --format='%(refname)' refs/remotes/origin 2>/dev/null |
-    { local r name base ahead item unver=0
+    { local r name base items swept plan cand unver=0
       while IFS= read -r r; do
         name="${r#refs/remotes/origin/}"
         { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
@@ -5724,28 +5724,57 @@ dispatch_retired_edges() {
         base="$(git -C "$ROOT" merge-base "$r" \
           "refs/remotes/origin/${base_branch}" 2>/dev/null)"
         if [ -z "$base" ]; then unver=$((unver + 1)); continue; fi
-        ahead="$(git -C "$ROOT" rev-list --count "${base}..${r}" 2>/dev/null)"
-        case "$ahead" in '' | 0) continue ;; esac
+        # No `ahead` test, though the plan's Scope names one: not an
+        # ancestor of the base means the merge base is not this ref, which
+        # means at least one commit the base does not carry. A `rev-list
+        # --count` here can only ever print 1 or more, and a check that
+        # cannot fail reads as a guard while guarding nothing (verifier r7).
         # Owns one: it IS a claim and the claims view already listed it. Two
         # rows for one branch would double-count its slot.
         git -C "$ROOT" diff --name-only --diff-filter=ACMRT "$base" "$r" \
           -- docs/handover 2>/dev/null | gr_docs | grep -q . && continue
-        item="$(git -C "$ROOT" diff --name-only --diff-filter=D "$base" "$r" \
-          -- docs/plans docs/research 2>/dev/null | gr_docs | head -1)"
-        if [ -z "$item" ]; then
+        # EVERY item, not the first. A branch retiring two plans named one
+        # of them and the queue kept offering the other, so the fix left half
+        # the duplicate spawn standing — and the row named an item the branch
+        # had not finished, sending the by-title lookup after a manager that
+        # never existed (verifier r3).
+        items="$(git -C "$ROOT" diff --name-only --diff-filter=D "$base" "$r" \
+          -- docs/plans docs/research 2>/dev/null | gr_docs | tr '\n' ' ')"
+        items="${items% }"
+        if [ -z "$items" ]; then
           # No finished item: the branch is one of these only if it retired a
           # workstream file it INHERITED, the half of the ritual a net diff
           # can still see.
-          git -C "$ROOT" diff --name-only --diff-filter=D "$base" "$r" \
-            -- docs/handover 2>/dev/null | gr_docs | grep -q . || continue
+          swept="$(git -C "$ROOT" diff --name-only --diff-filter=D "$base" "$r" \
+            -- docs/handover 2>/dev/null | gr_docs | head -1)"
+          [ -n "$swept" ] || continue
+          # That file names its own item, and it is still readable AT THE
+          # BASE — the version before this branch deleted it. Without this the
+          # row holds the slot and the queue still offers the item, which is
+          # half of the defect surviving the fix for the one shape where the
+          # claim is recoverable.
+          plan="$(git -C "$ROOT" show "${base}:${swept}" 2>/dev/null |
+            gr_field plan)"
+          case "$plan" in '' | none) ;; *)
+            for cand in "docs/plans/${plan}.md" "docs/research/${plan}.md"; do
+              git -C "$ROOT" cat-file -e "${base}:${cand}" 2>/dev/null ||
+                continue
+              items="$cand"
+              break
+            done ;;
+          esac
         fi
-        printf '%s\t%s\n' "$name" "$item"
+        printf '%s\t%s\n' "$name" "$items"
       done
-      # Last line, and it is not a branch: the caller reads the sentinel by
-      # name. Status cannot carry it — this runs inside a command
-      # substitution, where an assignment dies with the subshell, the trap
-      # `owned_at`'s own comment records falling into.
-      [ "$unver" -eq 0 ] || printf '!unverified\t%s\n' "$unver"
+      # Last line, and it is not a branch. `..` is the sentinel and the
+      # reason: git refuses a ref name containing two consecutive dots
+      # (`git check-ref-format`), so no branch can ever collide with it.
+      # `!unverified` could, and did — a branch by that name was swallowed,
+      # freed its own slot and printed its item as the caveat's count
+      # (verifier r1). Status cannot carry the number either: this runs
+      # inside a command substitution, where an assignment dies with the
+      # subshell — the trap `owned_at`'s own comment records falling into.
+      [ "$unver" -eq 0 ] || printf '..unverified\t%s\n' "$unver"
     }
 }
 
@@ -5754,7 +5783,8 @@ cmd_dispatch() {
   local path label branch ws doc status session next age agetext flag tier
   local base commits churn churn_n churn_f marks rounds work
   local st wave note hold holdmap hbranch blocked_branches=""
-  local ebranch eitem eage eagetext edge_rows="" edge_items="" edge_unver=""
+  local ebranch eitem efirst estem espaces emore eage eagetext
+  local edge_rows="" edge_items="" edge_unver=""
   local n_inflight=0 n_slots n_free=0 n_stall=0 n_blocked=0 n_hold=0 n_wait=0 n_loop=0
   local n_edge=0
   local inflight="" free="" questions=""
@@ -5925,12 +5955,23 @@ cmd_dispatch() {
     # The scan's own caveat, carried as a row because status cannot leave a
     # command substitution. Reported, never swallowed: a reader who is not
     # told cannot know the count is short.
-    if [ "$ebranch" = '!unverified' ]; then edge_unver="$eitem"; continue; fi
+    if [ "$ebranch" = '..unverified' ]; then edge_unver="$eitem"; continue; fi
     eage="$(dispatch_age_min "$ebranch")"
     eagetext="$(dispatch_age_text "$eage")"
     n_inflight=$((n_inflight + 1))
     n_edge=$((n_edge + 1))
-    edge_rows="${edge_rows}  ${eitem:-?}  ${ebranch}  retired  pushed ${eagetext}  PR in flight, no claim file: step 7 retired the workstream file before the pull request opened, so this branch commits a slot and names no owner"$'\n'
+    # First item names the row; the rest ride behind it, because one branch
+    # is one slot however many items it finished.
+    efirst="${eitem%% *}"
+    # Word count without splitting: the spaces left when everything else is
+    # stripped, plus one. `set --` here would clobber the caller's own
+    # arguments, and an unquoted expansion is the split this file lints for.
+    espaces="${eitem//[! ]/}"
+    if [ -z "$eitem" ]; then emore=0; else emore=$(( ${#espaces} + 1 )); fi
+    edge_rows="${edge_rows}  ${efirst:-?}  ${ebranch}  retired  pushed ${eagetext}  PR in flight, no claim file: step 7 retired the workstream file before the pull request opened, so this branch commits a slot and names no owner"
+    [ "$emore" -le 1 ] ||
+      edge_rows="${edge_rows} (and $((emore - 1)) more item(s) retired here: ${eitem#* })"
+    edge_rows="${edge_rows}"$'\n'
     # Distinguishable from a genuinely abandoned branch, which is the other
     # thing this shape can be — and the difference is not in git. Push age is
     # the one signal here, so past the stall window the row says so and sends
@@ -5939,7 +5980,21 @@ cmd_dispatch() {
     if [ -z "$eage" ]; then
       edge_rows="${edge_rows}    push age unknown: ref not here — fetch, then cross-check the control plane"$'\n'
     elif [ "$eage" -ge "$stall" ]; then
-      edge_rows="${edge_rows}    STALL? no push for ${eagetext} (>= ${stall}m): cross-check the control plane by TITLE (manager: <stem>) — this row carries no session line to read. Gone means nobody is driving this merge: respawn on the branch to FINISH it, never to restart the item"$'\n'
+      # The SAME count the claimed rows feed. Two counters would print one
+      # STALL? token in the listing and a verdict that says none — one pass,
+      # two numbers, which is the disagreement this command exists to end
+      # (verifier r5).
+      n_stall=$((n_stall + 1))
+      estem="${efirst##*/}"; estem="${estem%.md}"
+      if [ -n "$efirst" ]; then
+        edge_rows="${edge_rows}    STALL? no push for ${eagetext} (>= ${stall}m): cross-check the control plane by TITLE (manager: ${estem}) — this row carries no session line to read. Gone means nobody is driving this merge: respawn on the branch to FINISH it, never to restart the item"$'\n'
+      else
+        # No item, no title to look up, so no respawn: a successor spawned
+        # blind onto a branch nobody can name is two sessions on one branch.
+        # The human merges it or retires it, and until then it holds the
+        # slot — say that, or the row is a slot with no way out (verifier r6).
+        edge_rows="${edge_rows}    STALL? no push for ${eagetext} (>= ${stall}m): this row names no item, so there is no title to look up and no successor to spawn. REPORT it to the human — merging or retiring that branch is what frees the slot"$'\n'
+      fi
     fi
     [ -z "$eitem" ] || edge_items="${edge_items} ${eitem} "
   done <<<"$(dispatch_retired_edges)"
@@ -5951,7 +6006,7 @@ cmd_dispatch() {
     printf '  none\n'
   fi
   [ -z "$edge_unver" ] ||
-    printf '  %s ref(s) have no merge base here (shallow clone): an edge among them cannot be seen, so this listing is a FLOOR and the slots line may over-report free. Deepen the clone, or read the control plane before spawning.\n' \
+    printf '  %s ref(s) have no merge base here (shallow clone): an edge among them cannot be seen, so this listing is a FLOOR and the slots line may over-report free.\n' \
       "$edge_unver"
 
   # Finishing outranks starting, for an orchestrator too: an edge branch
@@ -6086,6 +6141,13 @@ cmd_dispatch() {
   # that one names a manager you can `get_session` straight away.
   [ "$n_edge" -eq 0 ] ||
     printf '            %s branch(es) at the edge with no claim file: each HOLDS a slot here; the control plane decides whether it is really committed\n' "$n_edge"
+  # On the VERDICT, not only above the slots line. Every other count here
+  # earns a line the orchestrator reads at its branch point, and this one is
+  # the count that is wrong: it says the report cannot see edges at all, so
+  # an item printed free may already be in flight (verifier r2).
+  [ -z "$edge_unver" ] ||
+    printf '            SHALLOW CLONE — %s ref(s) unreadable: an item under spawn may already be in flight, and the slots above may over-report free. Deepen the clone (git fetch --unshallow), or confirm each item on the control plane BEFORE spawning it\n' \
+      "$edge_unver"
   return 0
 }
 

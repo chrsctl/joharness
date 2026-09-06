@@ -95,7 +95,58 @@ orchestrator acting on that verdict spawns a duplicate per item and exceeds
   (fixed: unreadable refs are counted and the listing says it is a floor and
   which number to distrust; no row is invented for a ref with no evidence,
   since that would hold a slot the fleet may need. A `--depth 1
-  --no-single-branch` clone of the fixture origin pins it.)
+  --no-single-branch` clone of the fixture origin pins it — `file://`, because
+  git IGNORES `--depth` on a local clone and the first version of that case
+  passed against a full clone.)
+- r3: (verifier, correctness) `!unverified` was an in-band sentinel on a
+  channel that carries branch names, and it is a legal git ref name. A branch
+  called `!unverified` that retired an item got no row, freed its own slot,
+  had its item offered again, and printed that item as the shallow caveat's
+  count on a full clone — the whole defect restored by a branch name. (fixed:
+  the sentinel is `..unverified`; `git check-ref-format` refuses two
+  consecutive dots, so no branch can collide with it. A branch literally named
+  `!unverified` is now a fixture case.)
+- r4: (verifier, correctness) on a shallow clone the caveat printed while
+  `slots`, the spawn list and the verdict all read clean, and
+  `orchestrate.md` step 1 says "act on that output only" — so the duplicate
+  was still spawned, with a warning above it. The new case asserted only the
+  caveat strings, never the numbers, so it was green over exactly that.
+  (fixed: a `SHALLOW CLONE` line on the VERDICT, where the spawn decision is
+  made, saying an item under `spawn` may already be in flight and naming
+  `git fetch --unshallow`; the case now asserts the verdict too.)
+- r5: (verifier, correctness) `head -1` on the deleted-item scan: a branch
+  retiring two plans named one and suppressed one, so the other was offered
+  again — half the duplicate spawn surviving the fix — and the row named an
+  item the branch had not finished, sending `orchestrate.md`'s by-title
+  lookup after a manager that never existed. (fixed: every deleted item is
+  suppressed, the row names the first and counts the rest; `mgr-both` pins it.)
+- r6: (verifier, correctness) `orchestrate.md` gave two answers for a `?`
+  row — the table said RESPAWN, the paragraph below said never respawn a
+  branch you cannot identify. Live on this repo right now:
+  `claude/upkeep-off-session`. (fixed: three table rows, one answer each; a
+  `?` row is the human's, and the dispatch row itself now says so rather than
+  saying it only in the command file.)
+- r7: (verifier, correctness) a row printing the token `STALL?` was not in
+  the stall count, so one pass gave a reader who greps and a reader who reads
+  the verdict two different numbers. (fixed: one counter, `n_stall`, for both
+  kinds of row.)
+- r8: (verifier, correctness) the `ahead` guard could never fire — not an
+  ancestor of the base already implies at least one commit the base lacks —
+  and a check that cannot fail reads as a guard while guarding nothing.
+  (fixed: removed, with the reasoning kept as the comment.)
+- r9: (verifier, docs) the load-bearing measurement was written in four
+  places, against caveman's state-each-fact-once. (fixed: the run record in
+  `.agents/docs/orchestrated.md` owns it; the code and fixture comments point
+  there.)
+- r10: (verifier, clean) checked and clean: `handover-context-owns.sh`
+  untouched and green inside the suite; a merged branch drops out; a branch
+  owning a workstream file is not double-counted; the `edge_items` match is
+  safe against `eta.md`/`beta.md` prefix collisions; the counters increment in
+  the current shell, not a subshell; no glossary term misspelled; `dispatch`
+  cost over 124 refs is within noise (5370/5190/5917 ms without the helper,
+  7058/5530/5858 ms with). It also re-ran `mutate` against copies: the
+  workstream-deletion-only trigger reds 9 cases, the widened trigger 4, the
+  suppression 1 — so r1's "nine cases" is a counted number now.
 
 ## Blockers
 

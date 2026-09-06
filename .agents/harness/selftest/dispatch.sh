@@ -275,8 +275,8 @@ expect "cap 0 with managers in flight keeps the health pass" \
 # request opens, so from that commit until the merge a live manager holds a
 # branch, a pull request, CI and a container while holding no claim. The
 # claims view is right to drop it (handover-context-owns.sh:85, kept green);
-# `slots` answering the capacity question with that same value read 4 of 4
-# free on 11 consecutive passes with two managers up (chrsctl/gx, 2026-09-06).
+# `slots` answering the capacity question with that same value freed a live
+# manager's slot. The run that measured it: .agents/docs/orchestrated.md, Runs.
 #
 # Cap 8 throughout this block: the four managers above already fill the
 # default, and a slot count that is 0 both ways pins nothing.
@@ -333,8 +333,8 @@ expect "the verdict counts it and names who finishes the count" \
 out="$(dsp env JOHARNESS_MAX_MANAGERS=8 JOHARNESS_STALL_MINUTES=0)"
 expect "past the stall window the row is marked" "STALL? no push for" \
   "$(printf '%s\n' "$out" | grep -A1 'mgr-eta')"
-expect "and sends the reader to the control plane, by title" \
-  "cross-check the control plane by TITLE (manager: <stem>)" "$out"
+expect "and sends the reader to the control plane, by the item's own stem" \
+  "cross-check the control plane by TITLE (manager: eta)" "$out"
 expect "naming the respawn as the merge, not a restart" \
   "respawn on the branch to FINISH it, never to restart the item" "$out"
 
@@ -380,6 +380,26 @@ expect "an inherited workstream file retired is the same shape" \
 expect "with no item to name" "  ?  mgr-sweep" "$out"
 expect "and it holds a slot too" "slots     : 3 of 8 free" "$out"
 
+# The item is `?` above only because that file claimed nothing. A swept file
+# that NAMES its plan still names it at the base — the version before this
+# branch deleted it — and without reading it there the slot is held while the
+# queue keeps offering the item, which is half the defect surviving the fix.
+dspplan theta
+printf -- '---\nworkstream: theta-ws\nstatus: done\nbranch: gone\nplan: theta\nagent: sonnet\nupdated: 2026-01-05\n---\n\n## Goal\nFixture.\n' \
+  >"${dspwork}/docs/handover/theta-ws.md"
+dsppush "a plan and a workstream file naming it, both on main"
+out="$(dsp env JOHARNESS_MAX_MANAGERS=8)"
+expect "the plan is free while nothing has swept its record" \
+  "docs/plans/theta.md (agent: sonnet)" "$out"
+git -C "$dspwork" checkout -qb mgr-theta
+fixture_rm "$dspwork" "sweep the record that names theta" docs/handover/theta-ws.md
+git -C "$dspwork" push -qu origin mgr-theta
+git -C "$dspwork" checkout -q main
+out="$(dsp env JOHARNESS_MAX_MANAGERS=8)"
+expect "the swept record's own plan field names the item" \
+  "docs/plans/theta.md  mgr-theta  retired  pushed" "$out"
+refute "so the item is no longer offered" "docs/plans/theta.md (agent" "$out"
+
 # A shallow clone has grafted history: `git merge-base` fails for most refs,
 # so ownership cannot be computed and an edge among them cannot be seen. The
 # degradation is the whole point — skipping those refs silently under-counts
@@ -402,6 +422,57 @@ expect "a shallow clone says the listing is a floor" \
 expect "and says which number to distrust" \
   "the slots line may over-report free" "$out"
 refute "and invents no row for a ref it cannot read" "retired  pushed" "$out"
+# On the VERDICT, which is the line the orchestrator branches on: the caveat
+# above the slots line left `slots`, `spawn` and the verdict all reading
+# clean, so a role told to "act on that output only" spawned the duplicate
+# anyway — the caveat printed and the defect intact.
+expect "the verdict carries it, where the spawn decision is made" \
+  "SHALLOW CLONE" "$out"
+expect "and says what it costs" "may already be in flight" "$out"
+expect "and how to fix the clone" "git fetch --unshallow" "$out"
+
+# The sentinel shares a channel with branch names, so it must be a string git
+# cannot make into one: `..` is refused by check-ref-format. With `!unverified`
+# as the sentinel a branch of that name was swallowed — no row, its slot
+# freed, its item offered again, and its own item printed as the caveat's
+# count on a repo that is not shallow at all.
+git -C "$dspwork" checkout -q main
+dspplan kappa
+printf -- '---\nworkstream: kappa\nstatus: done\nbranch: gone\nplan: kappa\nagent: sonnet\nupdated: 2026-01-06\n---\n\n## Goal\nFixture.\n' \
+  >"${dspwork}/docs/handover/kappa.md"
+dsppush "an item and a record for the adversarially named branch"
+git -C "$dspwork" checkout -qb '!unverified'
+fixture_rm "$dspwork" "retire kappa" docs/handover/kappa.md docs/plans/kappa.md
+git -C "$dspwork" push -qu origin '!unverified'
+git -C "$dspwork" checkout -q main
+out="$(dsp env JOHARNESS_MAX_MANAGERS=8)"
+expect "a branch named like the sentinel gets its row" \
+  "docs/plans/kappa.md  !unverified  retired  pushed" "$out"
+refute "and its item is not offered" "docs/plans/kappa.md (agent" "$out"
+refute "and no shallow caveat is invented on a full clone" \
+  "no merge base here" "$out"
+expect "and it holds one slot, like any edge" "slots     : 1 of 8 free" "$out"
+
+# One branch, two items retired. `head -1` named one and suppressed one, so
+# the other was offered again — half the duplicate spawn surviving the fix —
+# and the row named an item the branch had not finished, sending the
+# by-title lookup after a manager that never existed.
+dspplan lambda
+dspplan mu
+printf -- '---\nworkstream: both\nstatus: done\nbranch: gone\nplan: lambda\nagent: sonnet\nupdated: 2026-01-06\n---\n\n## Goal\nFixture.\n' \
+  >"${dspwork}/docs/handover/both.md"
+dsppush "two items and one record for them"
+git -C "$dspwork" checkout -qb mgr-both
+fixture_rm "$dspwork" "retire both items at step 7" \
+  docs/handover/both.md docs/plans/lambda.md docs/plans/mu.md
+git -C "$dspwork" push -qu origin mgr-both
+git -C "$dspwork" checkout -q main
+out="$(dsp env JOHARNESS_MAX_MANAGERS=8)"
+expect "the row names one item and says how many more" \
+  "more item(s) retired here: docs/plans/mu.md" "$out"
+refute "the first item is not offered" "docs/plans/lambda.md (agent" "$out"
+refute "and neither is the second" "docs/plans/mu.md (agent" "$out"
+expect "two items retired, still one slot" "slots     : 0 of 8 free" "$out"
 
 # --- supervised: nothing to dispatch, said, and the preview named -------------
 # An earlier draft reported anyway "for a human running the beta loop", and
