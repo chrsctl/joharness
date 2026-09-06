@@ -90,10 +90,14 @@ for, and `/start` reads that file and follows it.
 - `./joharness.sh mutate joharness.sh <the routing line>` reds at least
   one case, per mode arm.
 - `./joharness.sh ci` — `ci: pass`.
-- SHIPS: `joharness.sh`, `.claude/commands/` and `.agents/harness/` all
-  reach consumers at the next sync. Consumer-side check: in a synced
-  repo, `./joharness.sh start` names the file its own conf calls for —
-  gx is orchestrated and must name `orchestrate.md`, this repo is
+- SHIPS: `joharness.sh`, `.claude/commands/start.md` and
+  `.agents/harness/AGENTS.md` reach consumers at the next sync — and
+  the two selftest files do NOT, because `sync-to-consumer.sh` holds
+  `.agents/harness/selftest.sh` in `CANONICAL_ONLY` and
+  `.agents/harness/selftest` in `CANONICAL_ONLY_DIRS`. `ci`'s own ship
+  scope prints exactly those three. Consumer-side check: in a synced
+  repo `./joharness.sh start` names the file that repo's own conf calls
+  for — gx is orchestrated and must name `orchestrate.md`, this repo is
   supervised and must name `drain.md`, from identical code.
 
 ## Where to look

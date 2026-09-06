@@ -56,6 +56,9 @@
 #   finish          Loop step 7 gate: what merging this branch NOW would
 #                   leave on the base branch. Red when the merge would add a
 #                   workstream file. Run it before the merge, not after
+#   start           the one command file this repo's mode calls for, for a
+#                   session that does not know which role to take. Routing
+#                   only: no queue read, no git. Report-only
 #   mode            print the resolved autonomy mode and exit
 #   help            this text
 #
@@ -4029,6 +4032,63 @@ authority_commit() {
     -G'^[[:space:]]*JOHARNESS_MODE[[:space:]]*=' -- "$CONF" 2>/dev/null
 }
 
+# The one entrypoint a session runs when it does not know which role this
+# repo's mode calls for. The mapping is HERE, in shell, and not in the
+# command file it names: three modes and three files written as prose is a
+# mapping no test can read, and this repo's whole doctrine is that a counted
+# thing beats a written one.
+#
+# Routing only. No queue read, no git, no fetch — `drain` and `dispatch` are
+# the steps AFTER this one and both cost git. What this prints has to be
+# true before a session knows anything at all.
+#
+# It does not run `authority` either, though it names a mode. The routed
+# command owns its own preconditions — `orchestrate.md` runs `authority` in
+# its step 0 — and a check spelled in two files is the one that drifts.
+cmd_start() {
+  local mode file
+  mode_warn_unrecognised
+  mode="$(run_mode)"
+
+  # run_mode() or nothing: it is the ONE resolver, it reads the environment
+  # and the conf in that order, and it normalises anything unrecognised to
+  # supervised. A `case` on $JOHARNESS_MODE here would be the second
+  # resolver, and it would miss every repo that sets the mode in its conf.
+  case "$mode" in
+    orchestrated) file='.claude/commands/orchestrate.md' ;;
+    *)            file='.claude/commands/drain.md' ;;
+  esac
+
+  printf 'mode      : %s\n' "$mode"
+  printf 'source    : %s\n\n' "$(mode_source)"
+
+  # BEFORE the routing line, not after it. This command routes by MODE, and
+  # under orchestrated the mode is not the whole answer: the role is the
+  # spawning prompt's to assign, and no shell can see a prompt. A reader
+  # taking the first imperative it meets must meet this one first — the
+  # session-start banner draws the same line, from the same fact.
+  if [ "$mode" = orchestrated ]; then
+    printf 'Prompt names /manage <item>? STOP: you are a MANAGER of that item\n'
+    printf 'and .claude/commands/manage.md is your file. This routes by MODE,\n'
+    printf 'and no shell can see a prompt.\n\n'
+  fi
+
+  # A checkout whose routed file is missing is an old harness copy, and
+  # there is nothing to follow. Say which file and how it arrives; never
+  # fall back to another role, which is the guess this command exists to
+  # stop anybody making.
+  if [ ! -f "${ROOT}/${file}" ]; then
+    printf 'follow    : %s — MISSING from this checkout\n\n' "$file"
+    printf 'This repo runs a harness copy older than the command it needs.\n'
+    printf 'A sync brings it (.agents/docs/consumer-repos.md). Nothing to\n'
+    printf 'follow until then, and no other role is the answer.\n'
+    return 1
+  fi
+
+  printf 'follow    : %s\n\n' "$file"
+  printf 'Read that file WHOLE, then do what it says.\n'
+}
+
 cmd_authority() {
   local mode src rec sha author adate subj base="origin/${HANDOVER_BASE_BRANCH:-main}"
   mode="$(run_mode)"
@@ -5707,6 +5767,9 @@ main() {
     scorecard)      cmd_scorecard ;;
     perf)           cmd_perf "$@" ;;
     mutate)         cmd_mutate "$@" ;;
+    start)          [ -z "${1:-}" ] ||
+                      die "start takes no argument; the commands that take one are /manage <item> and /plan"
+                    cmd_start ;;
     # Warning on stderr, value on stdout: the guard captures stdout and must
     # keep getting one clean word, while a human running this against a
     # typo'd conf needs to hear about it (PR47 r4).
