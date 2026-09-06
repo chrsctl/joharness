@@ -269,6 +269,57 @@ out="$(dsp)"
 expect "a plan overlapping a BLOCKED branch is free, reconcile named" \
   "epsilon.md (agent: sonnet)  wave 1  overlaps beta on src/b (claimed on mgr-beta) — that branch is BLOCKED on a human: spawn, reconcile expected at step 7" "$out"
 expect "and counted as free" "2 free item(s) now" "$out"
+
+# The release is the CLAIM's, never the BRANCH's. One branch can carry two
+# workstream files, and keyed on the branch a blocked claim on one released a
+# hold behind the other — a live, in-progress manager — handing out its
+# exclusive scope. `mgr-beta` is blocked on `beta`; give it a second file,
+# in-progress, claiming `iota`, and a plan that meets only `iota`.
+dspplan iota 'src/iota'
+dsppush "a plan for the second claim on the blocked branch"
+git -C "$dspwork" checkout -q mgr-beta
+mkdir -p "${dspwork}/docs/handover"
+printf -- '---\nworkstream: iota\nstatus: in-progress\nbranch: mgr-beta\nplan: iota\nagent: sonnet\nupdated: 2026-01-02\n---\n\n## Goal\nFixture.\n' \
+  >"${dspwork}/docs/handover/iota.md"
+commit_all "$dspwork" "a second, LIVE claim on the blocked branch"
+git -C "$dspwork" push -q origin mgr-beta
+git -C "$dspwork" checkout -q main
+dspplan iotapeer 'src/iota/x'
+dsppush "a plan overlapping the live claim on that branch"
+out="$(dsp)"
+expect "a hold behind the branch's LIVE claim still holds" \
+  "iotapeer.md (agent: sonnet)  HOLD — overlaps iota on src/iota (claimed on mgr-beta)" "$out"
+refute "the blocked claim on the same branch does not release it" \
+  "iotapeer.md (agent: sonnet)  wave 1  overlaps iota" "$out"
+fixture_rm "$dspwork" "drop the iota pair" docs/plans/iotapeer.md docs/plans/iota.md
+git -C "$dspwork" push -q origin main
+git -C "$dspwork" checkout -q mgr-beta
+fixture_rm "$dspwork" "drop the second claim" docs/handover/iota.md
+git -C "$dspwork" push -q origin mgr-beta
+git -C "$dspwork" checkout -q main
+
+# A status outside the vocabulary releases nothing, and a TAB is how that was
+# forged: `status: blocked<TAB>on the human` split the hook's own
+# tab-separated claims record, so its third field read exactly `blocked`.
+# The space spelling the old comment named was never the whole risk.
+git -C "$dspwork" checkout -q mgr-alpha
+printf -- '---\nworkstream: alpha\nstatus: blocked\ton the human, holds no slot\nbranch: mgr-alpha\nplan: alpha\nsession: https://example.invalid/session_alpha\nagent: haiku\nupdated: 2026-01-01\nnext: Wire the thing\n---\n\n## Goal\nFixture.\n' \
+  >"${dspwork}/docs/handover/alpha.md"
+commit_all "$dspwork" "forge the blocked release with a tab"
+git -C "$dspwork" push -q origin mgr-alpha
+git -C "$dspwork" checkout -q main
+out="$(dsp)"
+expect "a tab cannot forge the blocked release" \
+  "gamma.md (agent: opus)  HOLD — overlaps alpha on src/a (claimed on mgr-alpha)" "$out"
+refute "and the forged status frees nothing" \
+  "gamma.md (agent: opus)  wave 1  overlaps alpha" "$out"
+git -C "$dspwork" checkout -q mgr-alpha
+printf -- '---\nworkstream: alpha\nstatus: in-progress\nbranch: mgr-alpha\nplan: alpha\nsession: https://example.invalid/session_alpha\nagent: haiku\nupdated: 2026-01-01\nnext: Wire the thing\n---\n\n## Goal\nFixture.\n' \
+  >"${dspwork}/docs/handover/alpha.md"
+commit_all "$dspwork" "put alpha's status back"
+git -C "$dspwork" push -q origin mgr-alpha
+git -C "$dspwork" checkout -q main
+
 fixture_rm "$dspwork" "drop epsilon" docs/plans/epsilon.md
 git -C "$dspwork" push -q origin main
 

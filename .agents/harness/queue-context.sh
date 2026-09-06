@@ -144,25 +144,46 @@ claims="$(
           blob="$(git rev-parse --quiet --verify "${short}:${wf}" 2>/dev/null)"
           [ -n "$base_blob" ] && [ "$base_blob" = "$blob" ] && continue
           wdoc="$(git show "${short}:${wf}" 2>/dev/null)"
-          p="$(stem "$(printf '%s\n' "$wdoc" | field plan)")"
+          # ONE fork for both keys, which is what `fields` is for: two `field`
+          # calls paid a second awk per claiming workstream file, at every
+          # session start, over content already in hand.
+          { read -r p; read -r pstatus; } \
+            <<<"$(printf '%s\n' "$wdoc" | fields plan status)"
+          p="$(stem "$p")"
           { [ -n "$p" ] && [ "$p" != "none" ]; } || continue
-          # The claim's status rides along, from content already in hand: a
-          # manager BLOCKED on a human holds no slot and does not hold a plan
-          # back, so a plan overlapping it is spawned with a reconcile
-          # expected — which means it DOES run, and must stay in the wave
-          # partition below. Exact `blocked` only, the graph's vocabulary
-          # (joharness.sh:lint_nodes): a workstream on another branch is
-          # repo-controlled input, and `in-progress  BLOCKED: ...` written to
-          # forge the release is not this word.
-          printf '%s\t%s\t%s\n' "$p" "$short" \
-            "$(printf '%s\n' "$wdoc" | field status)"
+          # The claim's status rides along: a manager BLOCKED on a human holds
+          # no slot and does not hold a plan back, so a plan overlapping it is
+          # spawned with a reconcile expected — which means it DOES run, and
+          # must stay in the wave partition below.
+          #
+          # VALIDATED against the graph's vocabulary (joharness.sh:lint_nodes),
+          # never passed through. A workstream file on another branch is
+          # repo-controlled input and this value decides whether a live
+          # manager's exclusive scope is handed out, so the old comment's
+          # claim — that `in-progress  BLOCKED: ...` cannot forge the release
+          # — had to hold for every spelling, and it did not hold for a TAB:
+          # `status: blocked<TAB>on the human` split the tab-separated record
+          # below and `$3` read exactly `blocked`. `dispatch` already
+          # normalises anything outside this list to `unreadable`; the hook
+          # was the forgeable half of the same fact.
+          case "$pstatus" in
+            in-progress | blocked | review | done) ;;
+            *) pstatus="unreadable" ;;
+          esac
+          printf '%s\t%s\t%s\n' "$p" "$short" "$pstatus"
         done
     done
 )"
 
-# Branches whose manager stopped on a human. A hold behind one of these is
-# released by `dispatch`, so the plan runs and stays in the partition.
-claim_blocked_branches="$(awk -F'\t' '$3 == "blocked" { print $2 }' <<<"$claims" |
+# CLAIMS whose manager stopped on a human — the pair, never the branch alone.
+# A hold behind one of these is released by `dispatch`, so the plan runs and
+# stays in the partition. Keyed `<plan stem>@<branch>`: one branch can carry
+# two workstream files, and with the branch as the key a blocked claim on one
+# released a hold behind the other — a live, in-progress manager — handing out
+# its exclusive scope. Same reasoning as reading every holder rather than the
+# first (joharness.sh, the `hold_live` loop): one blocked claim never speaks
+# for another claim that is not.
+claim_blocked_pairs="$(awk -F'\t' '$3 == "blocked" { print $1 "@" $2 }' <<<"$claims" |
   sort -u | paste -sd' ' -)"
 
 # Open plan names, for dependency edges. A `needs:` entry blocks its plan
@@ -793,12 +814,12 @@ if [ "$qc_mode" = "orchestrated" ] && [ "$free_count" -gt 0 ]; then
                                "$cscope" "$cshared")"; then
         hold_lines="${hold_lines}$(printf '  in flight: %s overlaps %s on %s (claimed on %s)' \
           "${free_names[$i]}" "$(stem "$cf")" "$hit" "$cbranch")"$'\n'
-        # A hold behind a BLOCKED branch is released by `dispatch`: that plan
+        # A hold behind a BLOCKED claim is released by `dispatch`: that plan
         # spawns, so it keeps its place in the partition and can still make a
         # conflicting peer wait. Only a hold that really stops the plan takes
-        # it out.
-        case " ${claim_blocked_branches} " in
-          *" ${cbranch} "*) ;;
+        # it out. THIS claim's status, not any status on its branch.
+        case " ${claim_blocked_pairs} " in
+          *" $(stem "$cf")@${cbranch} "*) ;;
           *) [ "${free_held[$i]}" = "1" ] || n_held=$((n_held + 1))
              free_held[i]="1" ;;
         esac

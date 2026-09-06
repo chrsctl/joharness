@@ -5797,7 +5797,7 @@ cmd_dispatch() {
   local mode cap stall health respawn churnt churnl hout qout rows wavemap edge req sup
   local path label branch ws doc status session next age agetext flag tier
   local base commits churn churn_n churn_f marks rounds work
-  local st wave note hold holdmap hold_live hline hb blocked_branches=""
+  local st wave note hold holdmap hold_live hline hb hs blocked_claims=""
   local ebranch eitem efirst estem espaces emore eage eagetext
   local edge_rows="" edge_items="" edge_unver=""
   local n_inflight=0 n_slots n_free=0 n_stall=0 n_blocked=0 n_hold=0 n_wait=0 n_loop=0
@@ -5955,7 +5955,11 @@ cmd_dispatch() {
       # hold a plan back (below): a human's clock can be days, and a plan
       # waiting on it starves with nothing in flight to end the wait.
       n_blocked=$((n_blocked + 1))
-      blocked_branches="${blocked_branches} ${branch} "
+      # The CLAIM, not the branch: one branch can carry two workstream files,
+      # and a blocked claim on one must not speak for a live claim on the
+      # other. Same reasoning as reading every holder rather than the first,
+      # one field over.
+      blocked_claims="${blocked_claims} $(basename "$path" .md)@${branch} "
       flag="  BLOCKED: the human's, holds no slot"
     elif [ -z "$age" ]; then
       flag="  push age unknown: ref not here — fetch, then cross-check"
@@ -6087,7 +6091,9 @@ cmd_dispatch() {
     while IFS= read -r hline; do
       [ -n "$hline" ] || continue
       hb="${hline##*(claimed on }"; hb="${hb%%)*}"
-      [ "${blocked_branches#* "${hb}" }" != "$blocked_branches" ] || hold_live=1
+      # The holder's own claim, out of "<stem> on <path> (claimed on <branch>)".
+      hs="${hline%% on *}"
+      [ "${blocked_claims#* "${hs}@${hb}" }" != "$blocked_claims" ] || hold_live=1
     done <<<"$(printf '%s\n' "$holdmap" |
       awk -F'\t' -v s="$st" '$1 == s { print $2 }')"
     case "$path" in
