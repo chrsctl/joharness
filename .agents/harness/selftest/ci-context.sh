@@ -22,8 +22,9 @@ printf '#!/usr/bin/env bash\nexit 0\n' >"${xwork}/.agents/harness/selftest.sh"
 chmod +x "${xwork}/.agents/harness/selftest.sh" "${xwork}/joharness.sh"
 
 # 11 bytes, 1 word. The fenced @-line is an EXAMPLE of the syntax and must
-# not be followed; the file it names does not exist, so following it would
-# also be silent rather than loud.
+# not be followed. sub/NEVER.md is WRITTEN below for that reason: with the
+# file absent, a followed import and an ignored one print the same nothing,
+# and `mutate joharness.sh <the fence line>` said so — NOTHING REDDED.
 cat >"${xwork}/CLAUDE.md" <<'EOF'
 @AGENTS.md
 EOF
@@ -43,6 +44,14 @@ cat >"${xwork}/sub/RULES.md" <<'EOF'
 sub rules here
 
 @../CLAUDE.md
+EOF
+# Never in the chain, and loud if it ever is: 4 lines of it, so a fence
+# regression moves the subtotal as well as adding a row.
+cat >"${xwork}/sub/NEVER.md" <<'EOF'
+this file is named only inside a fenced example
+and must never be counted
+never
+never
 EOF
 git init -q "$xwork"
 git -C "$xwork" symbolic-ref HEAD refs/heads/main
@@ -82,7 +91,7 @@ printf 'one more rule that every session will load\n' >>"${xwork}/sub/RULES.md"
 commit_all "$xwork" "add a rule"
 out="$(ctx_run)"
 expect "delta names the bytes this branch adds" "this branch: +43 bytes, +8 words" "$out"
-expect "delta says who pays" "paid by every session after" "$out"
+expect "a growth says who pays" "Paid by every session after it merges" "$out"
 
 git -C "$xwork" checkout -q main
 out="$(ctx_run)"
@@ -104,3 +113,11 @@ commit_all "$xwork" "drop the entry file"
 out="$(ctx_run)"
 expect "no entry file is said, never counted as zero" \
   "no CLAUDE.md here" "$out"
+# The injection is paid whether or not a chain exists, and the delta against
+# a base that HAD one is the number a reader wants most.
+expect "and the session-start row is still printed" \
+  "session-start (supervised)" "$out"
+expect "and the delta reads negative against a base that had the chain" \
+  "this branch: -107 bytes, -13 words" "$out"
+expect "a cut is not scolded like a growth" "Saved for every session" "$out"
+refute "and is never asked to justify itself" "Worth it, or" "$out"

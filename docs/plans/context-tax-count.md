@@ -69,10 +69,14 @@ visible act rather than an invisible one.
 - `.agents/harness/selftest.sh` — 0 failed, and the new topic's cases run.
 - `./joharness.sh ci` — pass.
 - `./joharness.sh verify` — 0 failed.
-- Plan `ci` calls SHIPS: `joharness.sh` and `.agents/harness/` sync to every
-  consumer, so the bar is a consumer command — `./joharness.sh ci` green in
-  a consumer fixture, which `bootstrap-consumer.sh` already exercises in
-  the suite.
+- Plan `ci` calls SHIPS, and only for part of the diff: `joharness.sh` is in
+  the sync engine's `FILES`, `.agents/docs` in its `DIRS`, while
+  `.agents/harness/selftest.sh` is `CANONICAL_ONLY` and
+  `.agents/harness/selftest` is `CANONICAL_ONLY_DIRS` — the suite stays here
+  (`.agents/scripts/sync-to-consumer.sh`). So the consumer bar is the two
+  commands that do ship: `./joharness.sh context` prints a chain and
+  `./joharness.sh ci` prints the stage, in the consumer fixture
+  `.agents/harness/selftest/bootstrap-consumer.sh` builds.
 
 ## Where to look
 

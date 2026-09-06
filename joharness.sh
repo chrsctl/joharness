@@ -836,6 +836,12 @@ ctx_read() {
     [ -f "${ROOT}/${path}" ] || return 1
     cat "${ROOT}/${path}"
   else
+    # `git show <ref>:<dir>` prints a TREE LISTING and exits 0, so an import
+    # naming a directory would be skipped in the worktree (`-f` refuses it)
+    # and counted from a ref — and the branch delta is the difference of the
+    # two. Both sides answer the same question or the delta is noise.
+    [ "$(git -C "$ROOT" cat-file -t "${ref}:${path}" 2>/dev/null)" = blob ] ||
+      return 1
     git -C "$ROOT" show "${ref}:${path}" 2>/dev/null
   fi
 }
@@ -843,6 +849,13 @@ ctx_read() {
 # `@path` alone on a line is the import; the same text inside a fenced block
 # is an example of one. caveman.md quotes import syntax and glossary.md may
 # yet, so the fence test is load bearing rather than defensive.
+#
+# LINE-ANCHORED, and that is the one limit: an `@path` written mid-sentence
+# is not followed, so a repo writing them that way is UNDER-counted. Read the
+# other way round the walker would have to guess which `@word` is a path, and
+# `@anthropic-ai/sdk` in a code fence's neighbour line is the kind of guess
+# that puts a wrong number in front of a reader who cannot check it. A number
+# too low is a floor; a number invented is neither.
 ctx_imports() {
   awk '
     /^```/ { fence = !fence; next }
@@ -926,17 +939,20 @@ ctx_total() {
 # quarter of the run for a number a diff rarely moves.
 ctx_report() {
   local full="${1:-}" b w p over base bb bw ss_b ss_w tmp mode
+  # An absent entry file is a real answer, not a reason to stop: the
+  # session-start injection is still paid, and the delta against a base that
+  # HAD the chain is exactly the number a reader wants to see.
   if [ -z "$(ctx_chain "")" ]; then
-    printf '  no %s here; nothing a session loads before its first prompt\n' \
-      "$CTX_ENTRY"
-    return 0
+    printf '  no %s here; no import chain to count\n' "$CTX_ENTRY"
+    b=0; w=0
+  else
+    printf '  loaded before the first prompt, every mode, every tier:\n'
+    while IFS=$'\t' read -r b w p; do
+      printf '    %-32s %8s bytes %7s words\n' "$p" "$b" "$w"
+    done < <(ctx_counts "")
+    IFS=$'\t' read -r b w < <(ctx_total "")
+    printf '    %-32s %8s bytes %7s words\n' "instructions" "$b" "$w"
   fi
-  printf '  loaded before the first prompt, every mode, every tier:\n'
-  while IFS=$'\t' read -r b w p; do
-    printf '    %-32s %8s bytes %7s words\n' "$p" "$b" "$w"
-  done < <(ctx_counts "")
-  IFS=$'\t' read -r b w < <(ctx_total "")
-  printf '    %-32s %8s bytes %7s words\n' "instructions" "$b" "$w"
 
   if [ "$full" = "full" ]; then
     mode="$(run_mode)"
@@ -963,10 +979,16 @@ ctx_report() {
     if [ "$b" -eq "$bb" ] && [ "$w" -eq "$bw" ]; then
       printf '  this branch adds nothing (%s bytes at the merge base)\n' "$bb"
     else
-      printf '  this branch: %+d bytes, %+d words — paid by every session after\n' \
-        "$((b - bb))" "$((w - bw))"
-      printf '  it merges. Worth it, or is the rule already stated somewhere\n'
-      printf '  a session reads on demand? (.agents/docs/caveman.md)\n'
+      printf '  this branch: %+d bytes, %+d words\n' "$((b - bb))" "$((w - bw))"
+      # A cut and a growth are not the same news, and one sentence for both
+      # reads as a scold on the branch doing the right thing.
+      if [ "$b" -gt "$bb" ]; then
+        printf '  Paid by every session after it merges, in every mode, at every\n'
+        printf '  tier. Worth it, or is the rule already stated somewhere a session\n'
+        printf '  reads on demand? (.agents/docs/caveman.md)\n'
+      else
+        printf '  Saved for every session after it merges (.agents/docs/caveman.md)\n'
+      fi
     fi
   fi
   [ "$full" = "full" ] ||

@@ -53,9 +53,12 @@ own first line argues for, without losing a rule.
 - `.agents/harness/selftest.sh` — 0 failed.
 - Every rule removed from the file is findable: for each, name the file it
   moved to in the workstream file's `## Decisions`, one line each.
-- Plan `ci` calls SHIPS: `.agents/harness/` syncs to every consumer, so the
-  bar is a consumer command — `./joharness.sh ci` green in a consumer
-  fixture (`.agents/harness/selftest/bootstrap-consumer.sh`).
+- Plan `ci` calls SHIPS: `.agents/harness/` and `.agents/docs` are both in
+  the sync engine's `DIRS`, so every moved sentence reaches every consumer
+  at its next sync — including a pointer that names a file the consumer does
+  not carry. Bar: `./joharness.sh ci` green in the consumer fixture
+  `.agents/harness/selftest/bootstrap-consumer.sh` builds, and every
+  cross-reference the cut leaves behind resolves there.
 
 ## Where to look
 
