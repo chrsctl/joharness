@@ -337,6 +337,13 @@ expect "and sends the reader to the control plane, by the item's own stem" \
   "cross-check the control plane by TITLE (manager: eta)" "$out"
 expect "naming the respawn as the merge, not a restart" \
   "respawn on the branch to FINISH it, never to restart the item" "$out"
+# The VERDICT's count, not just the row's token. Folding the edge rows into
+# n_stall and asserting only row text left the fold green both ways: four
+# claimed managers are past a zero window here, and the fifth is mgr-eta.
+expect "an edge row past the window is in the one stall count" \
+  "5 manager(s) past the stall window: health pass FIRST, spawn second" "$out"
+expect "and the sentence says which of them have no session to read" \
+  "(1 of them carry no claim file: by title, or REPORT where the row names no item)" "$out"
 
 # A branch that never wrote a workstream file is NOT this case, and that is
 # the load-bearing half of the trigger: the wider test — unmerged, ahead, no
@@ -426,10 +433,15 @@ refute "and invents no row for a ref it cannot read" "retired  pushed" "$out"
 # above the slots line left `slots`, `spawn` and the verdict all reading
 # clean, so a role told to "act on that output only" spawned the duplicate
 # anyway — the caveat printed and the defect intact.
-expect "the verdict carries it, where the spawn decision is made" \
-  "SHALLOW CLONE" "$out"
 expect "and says what it costs" "may already be in flight" "$out"
 expect "and how to fix the clone" "git fetch --unshallow" "$out"
+# Pinned in BOTH directions: the degradation is on the verdict line the role
+# branches on, and the spawn list is still printed. Refusing to print one
+# would leave an orchestrator with a full queue and nothing to act on, which
+# is the one thing that role must never do.
+expect "the degradation is the verdict, not a note under one that says spawn" \
+  "verdict   : DEGRADED — shallow clone" "$out"
+expect "and the report still says what it could read" "spawn, in this order" "$out"
 
 # The sentinel shares a channel with branch names, so it must be a string git
 # cannot make into one: `..` is refused by check-ref-format. With `!unverified`
@@ -473,6 +485,30 @@ expect "the row names one item and says how many more" \
 refute "the first item is not offered" "docs/plans/lambda.md (agent" "$out"
 refute "and neither is the second" "docs/plans/mu.md (agent" "$out"
 expect "two items retired, still one slot" "slots     : 0 of 8 free" "$out"
+
+# WHICH item the row names is the by-title lookup's input, so it must be the
+# one the manager was spawned on — not whichever git listed first.
+# `nu` sorts before `xi`; the record names `xi`. Named wrong, the lookup
+# misses a live manager, the row reads as gone, and orchestrate.md respawns
+# onto its branch.
+dspplan nu
+dspplan xi
+printf -- '---\nworkstream: ord\nstatus: done\nbranch: gone\nplan: xi\nagent: sonnet\nupdated: 2026-01-07\n---\n\n## Goal\nFixture.\n' \
+  >"${dspwork}/docs/handover/ord.md"
+dsppush "two more items and a record naming the second"
+git -C "$dspwork" checkout -qb mgr-order
+fixture_rm "$dspwork" "retire both, record names xi" \
+  docs/handover/ord.md docs/plans/nu.md docs/plans/xi.md
+git -C "$dspwork" push -qu origin mgr-order
+git -C "$dspwork" checkout -q main
+out="$(dsp env JOHARNESS_MAX_MANAGERS=8 JOHARNESS_STALL_MINUTES=0)"
+expect "the row names the item the retired record names" \
+  "docs/plans/xi.md  mgr-order  retired  pushed" "$out"
+expect "and the alphabetically first item rides behind it" \
+  "more item(s) retired here: docs/plans/nu.md" "$out"
+expect "so the by-title lookup asks for the manager that exists" \
+  "(manager: xi)" "$out"
+refute "and never for the one that does not" "(manager: nu)" "$out"
 
 # --- supervised: nothing to dispatch, said, and the preview named -------------
 # An earlier draft reported anyway "for a human running the beta loop", and

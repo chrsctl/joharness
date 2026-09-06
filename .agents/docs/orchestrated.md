@@ -194,8 +194,8 @@ before the pull request opens, so from there until the merge it owns a
 branch, a pull request, CI and a container while owning no claim. The claims
 view is right to drop it and `dispatch` counts the slot anyway — a claim
 says who owns an item, a slot says what is committed, and one value cannot
-answer both (`docs/plans/orchestrator-inflight-count.md`; run 1 read 4 of 4
-free at cap on 11 consecutive passes). From git that row cannot be told
+answer both (`docs/plans/orchestrator-inflight-count.md`; the run that found
+it is in Runs below, with its count). From git that row cannot be told
 apart from a branch nobody came back to, so it is held and the control plane
 settles it. Within the cap the order is the
 queue hook's: urgent first, then oldest, partitioned into waves of

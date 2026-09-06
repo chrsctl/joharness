@@ -5738,32 +5738,47 @@ dispatch_retired_edges() {
         # the duplicate spawn standing — and the row named an item the branch
         # had not finished, sending the by-title lookup after a manager that
         # never existed (verifier r3).
+        # A path containing a SPACE is dropped, and it costs nothing: the
+        # queue hook's row pattern is `docs/plans/[^ ]*\.md`, so such a file
+        # is not an item this command can be holding. Kept, it split the
+        # space-joined field and printed one retired item as two, both naming
+        # paths that do not exist (verifier round 2, r3).
         items="$(git -C "$ROOT" diff --name-only --diff-filter=D "$base" "$r" \
-          -- docs/plans docs/research 2>/dev/null | gr_docs | tr '\n' ' ')"
+          -- docs/plans docs/research 2>/dev/null | gr_docs | grep -v ' ' |
+          tr '\n' ' ')"
         items="${items% }"
-        if [ -z "$items" ]; then
-          # No finished item: the branch is one of these only if it retired a
-          # workstream file it INHERITED, the half of the ritual a net diff
-          # can still see.
-          swept="$(git -C "$ROOT" diff --name-only --diff-filter=D "$base" "$r" \
-            -- docs/handover 2>/dev/null | gr_docs | head -1)"
-          [ -n "$swept" ] || continue
-          # That file names its own item, and it is still readable AT THE
-          # BASE — the version before this branch deleted it. Without this the
-          # row holds the slot and the queue still offers the item, which is
-          # half of the defect surviving the fix for the one shape where the
-          # claim is recoverable.
+        # The branch's own retired record, read AT THE BASE — the version
+        # before this branch deleted it. It answers two different questions
+        # and both matter: with no deleted item it is the only thing that
+        # names one, and WITH deleted items it says WHICH of them this
+        # manager was spawned on. Without that second use the row named
+        # whichever item git listed first — alphabetical — so a manager on
+        # `theta` that also retired `iota` was looked up as `manager: iota`,
+        # missed, read as gone, and respawned onto its own live branch
+        # (verifier round 2, r2).
+        swept="$(git -C "$ROOT" diff --name-only --diff-filter=D "$base" "$r" \
+          -- docs/handover 2>/dev/null | gr_docs | head -1)"
+        if [ -z "$items" ] && [ -z "$swept" ]; then continue; fi
+        plan=""
+        [ -z "$swept" ] ||
           plan="$(git -C "$ROOT" show "${base}:${swept}" 2>/dev/null |
             gr_field plan)"
-          case "$plan" in '' | none) ;; *)
-            for cand in "docs/plans/${plan}.md" "docs/research/${plan}.md"; do
-              git -C "$ROOT" cat-file -e "${base}:${cand}" 2>/dev/null ||
-                continue
-              items="$cand"
-              break
-            done ;;
-          esac
-        fi
+        case "$plan" in '' | none) ;; *)
+          for cand in "docs/plans/${plan}.md" "docs/research/${plan}.md"; do
+            git -C "$ROOT" cat-file -e "${base}:${cand}" 2>/dev/null || continue
+            case " ${items} " in
+              *" ${cand} "*)
+                # Named among the deleted items: lift it to the front, which
+                # is the only place the row and the by-title lookup read.
+                items="${cand} $(printf '%s\n' "$items" | tr ' ' '\n' |
+                  grep -vxF -- "$cand" | tr '\n' ' ')"
+                items="$(printf '%s' "$items" | tr -s ' ')"
+                items="${items% }" ;;
+              *) [ -n "$items" ] || items="$cand" ;;
+            esac
+            break
+          done ;;
+        esac
         printf '%s\t%s\n' "$name" "$items"
       done
       # Last line, and it is not a branch. `..` is the sentinel and the
@@ -5786,7 +5801,7 @@ cmd_dispatch() {
   local ebranch eitem efirst estem espaces emore eage eagetext
   local edge_rows="" edge_items="" edge_unver=""
   local n_inflight=0 n_slots n_free=0 n_stall=0 n_blocked=0 n_hold=0 n_wait=0 n_loop=0
-  local n_edge=0
+  local n_edge=0 n_edge_stall=0
   local inflight="" free="" questions=""
 
   mode="$(run_mode)"
@@ -5820,8 +5835,22 @@ cmd_dispatch() {
   # A long-lived reader. The orchestrator runs for hours, and a stale clone
   # reads a manager that pushed as stalled and a merged branch as in flight.
   if [ "${DISPATCH_FETCH:-1}" != 0 ]; then
-    git -C "$ROOT" fetch -q --prune origin 2>/dev/null ||
-      warn "fetch failed; push ages below are from the last fetch"
+    # Shallow first, and it is not a nicety: a shallow clone has no merge
+    # base for most refs, so the retired-edge scan below cannot see an edge
+    # at all and the slots over-report free. Telling the reader to run
+    # `git fetch --unshallow` while declining to run it puts the fix on a
+    # human the sibling reader already spares — .agents/harness/handover-context.sh
+    # does exactly this, string-compared for git older than 2.15 where
+    # --is-shallow-repository echoes its own name, with the plain prune as
+    # the fallback when the unshallow fails or times out.
+    if [ "$(git -C "$ROOT" rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
+      timeout 15 git -C "$ROOT" fetch -q --prune --unshallow origin 2>/dev/null ||
+        git -C "$ROOT" fetch -q --prune origin 2>/dev/null ||
+        warn "fetch failed; push ages below are from the last fetch"
+    else
+      git -C "$ROOT" fetch -q --prune origin 2>/dev/null ||
+        warn "fetch failed; push ages below are from the last fetch"
+    fi
   fi
   printf 'cap       : %s manager(s) at once (JOHARNESS_MAX_MANAGERS)\n' "$cap"
   printf 'stall     : %s min without a push = cross-check the control plane (JOHARNESS_STALL_MINUTES)\n' "$stall"
@@ -5985,6 +6014,7 @@ cmd_dispatch() {
       # two numbers, which is the disagreement this command exists to end
       # (verifier r5).
       n_stall=$((n_stall + 1))
+      n_edge_stall=$((n_edge_stall + 1))
       estem="${efirst##*/}"; estem="${estem%.md}"
       if [ -n "$efirst" ]; then
         edge_rows="${edge_rows}    STALL? no push for ${eagetext} (>= ${stall}m): cross-check the control plane by TITLE (manager: ${estem}) — this row carries no session line to read. Gone means nobody is driving this merge: respawn on the branch to FINISH it, never to restart the item"$'\n'
@@ -6106,6 +6136,14 @@ cmd_dispatch() {
   # NOT the exit: the queue is empty, the work is not. A cap of 0 is the
   # human's pause — the one lever beside the Routine — and reads as exit.
   printf '\n'
+  # FIRST, and on the verdict itself: the role is told to act on this output
+  # only and to branch on the verdict line, so a degradation printed as a tail
+  # under `spawn up to 1 now` is a warning the procedure steps over. The fetch
+  # above unshallows when it can; this is what is left when it could not
+  # (verifier round 2, r4).
+  [ -z "$edge_unver" ] ||
+    printf 'verdict   : DEGRADED — shallow clone, %s ref(s) unreadable: an edge among them is invisible here, so an item under spawn may already be in flight and the slots above may over-report free. git fetch --unshallow, or confirm each item on the control plane BEFORE spawning it. Then, on what this pass could read:\n' \
+      "$edge_unver"
   if [ "$cap" -eq 0 ] && [ $((n_inflight - n_blocked)) -gt 0 ]; then
     printf 'verdict   : PAUSED — JOHARNESS_MAX_MANAGERS=0: spawn nothing; %s manager(s) in flight: keep the health pass going\n' \
       "$((n_inflight - n_blocked))"
@@ -6127,8 +6165,17 @@ cmd_dispatch() {
   else
     printf 'verdict   : DRAINED — nothing free, nothing in flight: exit, the heartbeat re-seeds\n'
   fi
-  [ "$n_stall" -eq 0 ] ||
-    printf '            %s manager(s) past the stall window: health pass FIRST, spawn second\n' "$n_stall"
+  # ONE number, and a sentence true of every row it counts. Folding the edge
+  # rows in and leaving the sentence alone called a branch with no session a
+  # manager and ordered a health pass with nothing to pass over — on this
+  # repo, every pass, over a branch abandoned 307h ago (verifier round 2, r5).
+  if [ "$n_stall" -gt 0 ]; then
+    printf '            %s manager(s) past the stall window: health pass FIRST, spawn second' "$n_stall"
+    [ "$n_edge_stall" -eq 0 ] ||
+      printf ' (%s of them carry no claim file: by title, or REPORT where the row names no item)' \
+        "$n_edge_stall"
+    printf '\n'
+  fi
   [ "$n_loop" -eq 0 ] ||
     printf '            %s manager(s) rewriting one file past the churn threshold: health pass FIRST\n' "$n_loop"
   [ "$n_blocked" -eq 0 ] ||
@@ -6145,9 +6192,7 @@ cmd_dispatch() {
   # earns a line the orchestrator reads at its branch point, and this one is
   # the count that is wrong: it says the report cannot see edges at all, so
   # an item printed free may already be in flight (verifier r2).
-  [ -z "$edge_unver" ] ||
-    printf '            SHALLOW CLONE — %s ref(s) unreadable: an item under spawn may already be in flight, and the slots above may over-report free. Deepen the clone (git fetch --unshallow), or confirm each item on the control plane BEFORE spawning it\n' \
-      "$edge_unver"
+
   return 0
 }
 

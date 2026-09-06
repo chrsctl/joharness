@@ -52,6 +52,14 @@ orchestrator acting on that verdict spawns a duplicate per item and exceeds
   line, because the ACTION differs: a claimed stall has a `session:` URL to
   `get_session`; this row has none, so the orchestrator finds it by title or
   reads it as gone.
+- A shallow clone DEGRADES the report loudly; it does not refuse it. Refusing
+  to print a spawn list there would turn a report the orchestrator can act on
+  carefully into no report at all — against that role's own "the one thing
+  this role must never do is read a full queue and leave it untouched" — and
+  a shallow clone is the ordinary shape of a fresh container, not an
+  exception. So: the verdict says an item under `spawn` may already be in
+  flight, names `git fetch --unshallow`, and the per-row control-plane check
+  the health pass already makes is what closes the gap.
 
 ## Rejected
 
@@ -138,6 +146,52 @@ orchestrator acting on that verdict spawns a duplicate per item and exceeds
   places, against caveman's state-each-fact-once. (fixed: the run record in
   `.agents/docs/orchestrated.md` owns it; the code and fixture comments point
   there.)
+- r11: (verifier, correctness) round 2, and the sharpest one: `estem` was the
+  ALPHABETICALLY first deleted item, not the item the manager was spawned on.
+  A manager on `theta` that also retired `iota` was looked up as
+  `manager: iota`, missed, read as gone, and `orchestrate.md` then says
+  RESPAWN — two sessions on a live manager's branch. The round-2 fixture
+  could not see it: `mgr-both` used `plan: lambda` with `lambda.md`+`mu.md`,
+  and `lambda` sorts first, so it was green either way. (fixed: the branch's
+  own retired record is read at the base whether or not items were found, and
+  the item it names is lifted to the front. `mgr-order` names `xi` while `nu`
+  sorts first.)
+- r12: (verifier, correctness) the `n_stall` fold pinned nothing —
+  `mutate` on that line said NOTHING REDDED, because the new stall case
+  asserted row text only and the one verdict-count assertion runs before any
+  edge branch exists. (fixed: the case now asserts the verdict's own count,
+  `5 manager(s) past the stall window`, four claimed plus the one edge. The
+  first version of that assertion caught a real misplacement immediately —
+  the counter had landed in the CLAIMED row's branch, so the parenthetical
+  counted 4 rows that all had sessions. Counted on live data afterwards:
+  with the fold this repo's verdict carries `1 manager(s) past the stall
+  window … (1 of them carry no claim file)`; with that one line replaced by
+  `:` the verdict carries no stall line at all, 2026-09-06.)
+- r13: (verifier, correctness) a deleted path containing a SPACE split the
+  space-joined item field: one retired item printed as two, both naming paths
+  that do not exist. (fixed: such a path is dropped, because the queue hook's
+  own row pattern is `docs/plans/[^ ]*\.md` — a file it can never list is not
+  an item this command can be holding.)
+- r14: (verifier, correctness) the `SHALLOW CLONE` tail sat under a primary
+  verdict that still said `spawn up to 1 now`, and the role is told to branch
+  on the verdict line — so the warning was a note the procedure steps over.
+  The verifier also refuted "no information to do it from": the sibling
+  reader already unshallows. (fixed both ways: the fetch unshallows when the
+  clone is shallow, exactly as `.agents/harness/handover-context.sh` does,
+  with the plain prune as the fallback; and what is left when that fails is
+  now the PRIMARY verdict line, `DEGRADED — shallow clone`. The spawn list is
+  still printed, and a case pins that too: refusing to print one leaves an
+  orchestrator with a full queue and nothing to act on, which is the one
+  thing that role must never do.)
+- r15: (verifier, correctness) folding the edge rows into `n_stall` left the
+  sentence they feed calling a branch with no session a "manager" and
+  ordering a health pass with nothing to pass over — live on this repo, every
+  pass. (fixed: one count still, and the sentence names how many of them
+  carry no claim file.)
+- r16: (verifier, docs) the measurement disagreed with itself inside its new
+  single home: `orchestrated.md` Runs says "11 of 28 passes", the Concurrency
+  paragraph said "11 consecutive". (fixed: the paragraph points at Runs and
+  states no number.)
 - r10: (verifier, clean) checked and clean: `handover-context-owns.sh`
   untouched and green inside the suite; a merged branch drops out; a branch
   owning a workstream file is not double-counted; the `edge_items` match is
