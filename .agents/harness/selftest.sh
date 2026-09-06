@@ -555,6 +555,7 @@ SELFTEST_TOPICS=(
   graph
   session-start
   ci-churn
+  ci-context
   ci-selftest-scope
   review
   scorecard
