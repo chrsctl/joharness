@@ -69,6 +69,39 @@ Yes: "Bug in auth middleware. Token expiry check use `<` not `<=`. Fix:"
   messages, issue / PR / review text, third-party messages. Upstream boundary
   rule; kept here.
 
+## What it costs, counted
+
+`./joharness.sh context` counts the tax the rule above describes: every file
+a session loads before its first prompt, walked from `CLAUDE.md` through its
+`@` imports, plus the `session-start` injection for the repo's mode. `ci`
+prints the same chain without the injection — measured 2026-09-06,
+`session-start` is 3.5s against a 14.7s `ci`, and a diff rarely moves it.
+
+Why it exists: nobody held the earlier number. Counted 2026-09-06 over
+`.agents/harness/AGENTS.md`'s own history on `origin/main`, 770 words on
+2026-08-23 and 2129 on 2026-09-06 — 2.8x in 14 days, in the file that opens
+by citing ETH AGENTbench for "long context file hurt agent, cost more".
+Growth arrives one honest rule at a time, and the session adding the rule is
+the one that cannot see the total.
+
+```bash
+git log --first-parent --format='%H %ad' --date=short origin/main \
+  -- .agents/harness/AGENTS.md | tac | while read -r h d; do
+  printf '%s %s\n' "$d" "$(git show "$h:.agents/harness/AGENTS.md" | wc -w)"
+done
+```
+
+So the line that matters is the branch delta: what THIS diff adds, paid once
+per session after it merges, forever. Read it and answer the question it
+asks — is the rule already stated somewhere a session reads on demand? A
+why-explanation under `.agents/docs/` costs nothing until someone opens it;
+the same sentence in `.agents/harness/AGENTS.md` is paid by every session in
+every mode at every tier.
+
+Reports, never gates. A ceiling on prose size fires on the honest rule
+addition and buys deleted rules — `scorecard` states the doctrine and
+`churn` is the precedent for earning a gate later, on a backtest.
+
 ## Controlled vocabulary: built, not invented, and not adopted
 
 `.agents/docs/glossary.md` fixes contested terms; `ci` fails on the banned

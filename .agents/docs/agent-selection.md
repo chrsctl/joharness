@@ -129,6 +129,10 @@ mapping:
   and visible act, not a silent skip. Session inside the churn sees it where
   ci already runs; the handover hook prints the warning line for other
   branches, so a resuming session inherits the signal too.
+- Orchestrated mode picks no tier of its own: a manager runs its item's
+  `agent:`, and the one role-fixed tier is the opus planning manager for an
+  unplanned requirement (`.agents/docs/orchestrated.md`, Roles). The
+  orchestrator itself is low tier by design.
 - Plan author assigns; implementing session may escalate tier or effort and
   record why in workstream file. Never downgrade to save cost — that
   decision is money, humans only (.agents/harness/AGENTS.md: stop and ask for
