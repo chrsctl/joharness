@@ -44,6 +44,12 @@
 # Environment:
 #   HANDOVER_BASE_BRANCH   base branch the queue lives on   (default: main)
 #   QUEUE_MAX_ENTRIES      cap on listed rows per tier      (default: 10)
+#   QUEUE_WITHHELD         items the CALLER will not spawn this pass, as
+#                          `<plan path>@<branch>`, space separated. Set only
+#                          by `joharness.sh dispatch`, for a branch past its
+#                          retire commit: it has no workstream file, so this
+#                          hook sees no claim, and without being told it
+#                          partitioned a plan nobody was going to spawn.
 
 set -uo pipefail
 
@@ -810,12 +816,17 @@ n_held=0
 # session start prints the same waves it always did.
 free_withheld=()
 n_withheld=0
-i=0
+wentry=""
+wpath=""
+wbranch=""
+wraw=""
+wscope=""
+wshared=""
 i=0
 while [ "$i" -lt "${#free_names[@]}" ]; do
   free_held+=("0")
   case " ${QUEUE_WITHHELD:-} " in
-    *" docs/plans/${free_names[$i]}.md "* | *" docs/research/${free_names[$i]}.md "*)
+    *" docs/plans/${free_names[$i]}.md@"* | *" docs/research/${free_names[$i]}.md@"*)
       free_withheld+=("1"); n_withheld=$((n_withheld + 1)) ;;
     *) free_withheld+=("0") ;;
   esac
@@ -844,13 +855,53 @@ if [ "$qc_mode" = "orchestrated" ] && [ "$free_count" -gt 0 ]; then
         # it out. THIS claim's status, not any status on its branch.
         case " ${claim_blocked_pairs} " in
           *" $(stem "$cf")@${cbranch} "*) ;;
-          *) [ "${free_held[$i]}" = "1" ] || n_held=$((n_held + 1))
+          *) [ "${free_held[$i]}" = "1" ] || [ "${free_withheld[$i]:-0}" = "1" ] ||
+               n_held=$((n_held + 1))
              free_held[i]="1" ;;
         esac
       fi
       i=$((i + 1))
     done
   done <<<"$rows"
+
+  # The withheld items are claims too, for the one purpose that matters here.
+  # A branch past its retire commit has finished writing its paths and its
+  # pull request is open — the STRONGEST reason to keep a peer off them, and
+  # before this loop it produced the weakest signal the command has: the peer
+  # was neither held nor waiting, so it was spawned straight into a collision
+  # with a branch one merge from landing. Leaving the withheld plan out of the
+  # partition removes the starvation; holding its peers is the other half, and
+  # `.agents/docs/orchestrated.md` Concurrency argues it for a claimed plan in
+  # the same words — an orchestrator that knows the collision is coming has no
+  # reason to send a manager into it (verifier r1).
+  #
+  # The plan file still exists HERE: the branch deleted it, the base branch
+  # has not merged that yet, so its scope reads exactly as any claim's does.
+  for wentry in ${QUEUE_WITHHELD:-}; do
+    wpath="${wentry%@*}"; wbranch="${wentry##*@}"
+    # No `@` means no branch to name, so it is not one of these entries.
+    case "$wentry" in *@*) ;; *) continue ;; esac
+    [ -n "$wpath" ] || continue
+    wraw="$(scope_lines "$wpath")"
+    wscope="$(printf '%s\n' "$wraw" |
+      grep -v '^[Ss][Hh][Aa][Rr][Ee][Dd]:' | paste -sd' ' -)"
+    wshared="$(printf '%s\n' "$wraw" |
+      sed -n 's/^[Ss][Hh][Aa][Rr][Ee][Dd]:[[:space:]]*//p' | paste -sd' ' -)"
+    [ -n "$wscope$wshared" ] || continue
+    i=0
+    while [ "$i" -lt "${#free_names[@]}" ]; do
+      # Never itself: a plan does not hold its own peers off its own paths.
+      if [ "${free_withheld[$i]:-0}" != "1" ] &&
+         hit="$(wave_split_hit "${free_scopes[$i]:-}" "${free_shared[$i]:-}" \
+                               "$wscope" "$wshared")"; then
+        hold_lines="${hold_lines}$(printf '  in flight: %s overlaps %s on %s (claimed on %s)' \
+          "${free_names[$i]}" "$(stem "$wpath")" "$hit" "$wbranch")"$'\n'
+        [ "${free_held[$i]}" = "1" ] || n_held=$((n_held + 1))
+        free_held[i]="1"
+      fi
+      i=$((i + 1))
+    done
+  done
 fi
 
 if [ "$free_count" -ge 2 ] && [ "$scoped_any" = "1" ]; then

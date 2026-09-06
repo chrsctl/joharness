@@ -5799,7 +5799,7 @@ cmd_dispatch() {
   local path label branch ws doc status session next age agetext flag tier
   local base commits churn churn_n churn_f marks rounds work
   local st wave note hold holdmap hold_live hline hb hs blocked_claims=""
-  local ebranch eitem efirst estem espaces emore eage eagetext
+  local ebranch eitem efirst estem espaces emore epath eage eagetext
   local edge_rows="" edge_items="" edge_unver=""
   local n_inflight=0 n_slots n_free=0 n_stall=0 n_blocked=0 n_hold=0 n_wait=0 n_loop=0
   local n_edge=0 n_edge_stall=0 DISPATCH_WITHHELD=
@@ -5926,7 +5926,13 @@ cmd_dispatch() {
         edge_rows="${edge_rows}    STALL? no push for ${eagetext} (>= ${stall}m): this row names no item, so there is no title to look up and no successor to spawn. REPORT it to the human — merging or retiring that branch is what frees the slot"$'\n'
       fi
     fi
-    [ -z "$eitem" ] || edge_items="${edge_items} ${eitem} "
+    # `<item>@<branch>`, because the hook holds this item's peers off its
+    # paths and the hold line has to name the branch they are waiting on.
+    if [ -n "$eitem" ]; then
+      for epath in $eitem; do
+        edge_items="${edge_items} ${epath}@${ebranch} "
+      done
+    fi
   done <<<"$(dispatch_retired_edges)"
 
   # The hooks run AFTER the scan, and that ordering is the fix: the queue hook
@@ -6081,7 +6087,7 @@ cmd_dispatch() {
     # annotated, exactly as a claimed row is — the in-flight block above
     # already names this path and its branch, and one fact rendered twice is
     # how two readers of it start disagreeing.
-    case "$edge_items" in *" ${path} "*) continue ;; esac
+    case "$edge_items" in *" ${path}@"*) continue ;; esac
     tier="$(sed -n 's/.*agent: \([a-z]*\).*/\1/p' <<<"$label")"
     st="${path##*/}"; st="${st%.md}"
     wave=""; note=""

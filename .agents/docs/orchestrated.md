@@ -237,6 +237,15 @@ disjoint scope. Two things this mode adds to the wave rule:
   wait for it, and it carries no wave of its own. A hold *released* behind
   a BLOCKED branch does run, so that one stays partitioned and can still
   put a peer in wave 2.
+- **An item at the edge is the same case, and the queue hook cannot see it.**
+  A branch past its retire commit carries no workstream file, so the hook
+  reads no claim and calls the plan free. `dispatch` withholds it from the
+  spawn list all the same, so it must not be partitioned — and its peers are
+  `HOLD`, not free: the branch has finished writing those paths and its pull
+  request is open, which is the strongest reason there is to keep a manager
+  off them. `dispatch` computes the set once and passes it to the hook as
+  `QUEUE_WITHHELD`; nobody else sets it, so session start partitions exactly
+  as it always did.
 - `JOHARNESS_MAX_MANAGERS=0` is the human's pause, the one lever beside
   the Routine: dispatch says `PAUSED`, the orchestrator spawns nothing;
   with managers still in flight the health pass goes on until they end,

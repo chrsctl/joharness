@@ -644,16 +644,37 @@ expect "past the retire commit the item is in flight, on its own row" \
   "docs/plans/aretired.md  mgr-retired  retired  pushed" "$out"
 refute "and the peer is NOT told to wait behind a pass nobody sits" \
   "zpeer.md (agent: sonnet)  wave 2  WAIT" "$out"
-expect "so the peer is free, and the verdict says spawn it" \
-  "docs/plans/zpeer.md (agent: sonnet)  wave 1" "$out"
+# HELD, not free. Removing the WAIT is half the answer: the branch has
+# finished writing those paths and its pull request is open, which is the
+# strongest reason there is to keep a peer off them. Free was an unguarded
+# reconcile where WAIT had been starvation.
+expect "the peer is HELD behind the branch that is one merge from landing" \
+  "docs/plans/zpeer.md (agent: sonnet)  HOLD — overlaps aretired on src/retshared (claimed on mgr-retired)" "$out"
+refute "and it takes no wave, being held" "zpeer.md (agent: sonnet)  wave" "$out"
 refute "the withheld item is not offered either" "docs/plans/aretired.md (agent" "$out"
 qcout="$(CLAUDE_PROJECT_DIR="$dspwork" JOHARNESS_CONF="$dspconf" \
   JOHARNESS_RUN_MODE=orchestrated HANDOVER_FETCH=0 \
-  QUEUE_WITHHELD="docs/plans/aretired.md" \
+  QUEUE_WITHHELD="docs/plans/aretired.md@mgr-retired" \
   bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1)"
 expect "the hook says what it left out of the partition, and why" \
   "already at the edge, past a retire commit" "$qcout"
 refute "and the withheld plan is in no wave" "aretired (sonnet)" "$qcout"
+expect "and its peer is held against the branch by name" \
+  "in flight: zpeer overlaps aretired on src/retshared (claimed on mgr-retired)" "$qcout"
+expect "and the note counts each reason separately" \
+  "2 of them not partitioned: 1 held behind work in flight, 1 already at the edge, past a retire commit" "$qcout"
+# Counted ONCE. Held and withheld are different reasons to leave a plan out of
+# the partition, and a plan that is both was counted under each — a note
+# claiming more plans left out than the queue holds. Withhold the peer too:
+# it is held behind `aretired` AND withheld itself, so two plans are out for
+# one reason, not three for two.
+qcout="$(CLAUDE_PROJECT_DIR="$dspwork" JOHARNESS_CONF="$dspconf" \
+  JOHARNESS_RUN_MODE=orchestrated HANDOVER_FETCH=0 \
+  QUEUE_WITHHELD="docs/plans/aretired.md@mgr-retired docs/plans/zpeer.md@mgr-retired" \
+  bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1)"
+expect "a plan that is both is counted once, under withheld" \
+  "2 of them not partitioned: 2 already at the edge, past a retire commit" "$qcout"
+refute "never once under each" "3 of them not partitioned" "$qcout"
 # Nothing passed in, nothing withheld: every other caller of this hook, session
 # start included, partitions exactly as it always did.
 qcout="$(CLAUDE_PROJECT_DIR="$dspwork" JOHARNESS_CONF="$dspconf" \
@@ -663,6 +684,20 @@ expect "with no withheld set the plan is partitioned as before" \
   "aretired (sonnet)" "$qcout"
 refute "and no edge is claimed to have been left out" \
   "already at the edge, past a retire commit" "$qcout"
+refute "and no hold is invented against a branch nothing was said about" \
+  "claimed on mgr-retired" "$qcout"
+
+# The plan's own Acceptance: a plan meeting BOTH a withheld item and a LIVE
+# claim is still HELD. `mgr-alpha` is live on `src/a`; `zboth` meets it and
+# the withheld `aretired`. The WAIT note carries only the first collision,
+# which is why the exclusion belongs in the partition and not in a note read.
+dspplan zboth 'src/a/deep src/retshared'
+dsppush "a plan meeting the withheld item and a live claim"
+out="$(dsp env JOHARNESS_MAX_MANAGERS=8)"
+expect "a plan meeting both is held, and the live claim is named" \
+  "docs/plans/zboth.md (agent: sonnet)  HOLD — overlaps alpha on src/a (claimed on mgr-alpha)" "$out"
+refute "never spawned on the strength of the withheld half" \
+  "zboth.md (agent: sonnet)  wave" "$out"
 
 # --- supervised: nothing to dispatch, said, and the preview named -------------
 # An earlier draft reported anyway "for a human running the beta loop", and
