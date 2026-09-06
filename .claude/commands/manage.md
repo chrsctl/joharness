@@ -155,9 +155,13 @@ behind fresh `origin/main`, `./joharness.sh finish` green, retire the
 plan file and the workstream file in the last commit before the pull
 request, exit. Did your prompt name a session to message on merge? Then
 "merged <stem>" to it — it fills your slot at once instead of on its
-clock. No such line in your prompt, or no messaging tool: just exit, the
-orchestrator's next pass sees the merge. Run no queue command; the next
-item is another manager's.
+clock. No such line in your prompt, no messaging tool, or the send comes
+back refused — no row for that target in `ListAgents`, the ordinary case
+when your orchestrator is another container: just exit, the
+orchestrator's next pass sees the merge. One refusal is the answer. Do
+not retry it, do not re-address it, and do not hunt a second way to
+deliver it — the notice saves the orchestrator one pass of latency and
+nothing else. Run no queue command; the next item is another manager's.
 
 A rescope may land on `main` while you hold your plan — it rewrites your
 plan's `scope:` line. Pulling `main` in at step 7 then gives a

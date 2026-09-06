@@ -52,7 +52,14 @@ not editable on its own.
 
 ## Review
 
-- r1: pending.
+- r1: this plan's own first acceptance criterion, `grep -c "session id"` = `0`,
+  could never pass — the fixed text has to NAME the form it bans, so the
+  string survives the fix by construction (2 hits, both in the new prose:
+  `orchestrate.md:304` the prohibition, `:316` the measurement). Written to
+  fail, in the plan for a fix about checks that cannot tell a state from its
+  absence. Replaced with the phrase the spawn block actually handed a manager,
+  `message session <your session`, which is `0` after the edit and was `1`
+  before. (fixed)
 
 ## Blockers
 

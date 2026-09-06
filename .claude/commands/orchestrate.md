@@ -411,10 +411,21 @@ Up to `slots`, in dispatch's order, only rows under `spawn`:
 
   plus the merge line whenever `ToolSearch("+SendMessage")` found the
   tool for YOU — one check, made before the spawn, and the only half you
-  can make: `When your pull request merges, message session <your session
-  id>: "merged <stem>".` Whether the manager can reach you back is the
+  can make. Address yourself by NAME, never by a session id, which
+  `SendMessage` does not take: `ListAgents` opens by naming its caller
+  ("This session is `<name>` … the name other sessions use to message
+  it"), and that string is the address, here as at the NUDGE row below.
+  `When your pull request merges, message "<your ListAgents name>":
+  "merged <stem>".` Whether the manager can reach you back is the
   manager's own check (`.claude/commands/manage.md`, Finish), and it
   costs nothing if it cannot: the next scheduled pass finds the merge.
+  Holding the tool is not holding a route, and this check cannot tell
+  them apart — the manager's container does not exist yet, so its peer
+  list cannot be read from here. Measured 2026-09-06 in `chrsctl/gx`: a
+  manager spawned by `create_session` ran where `ListAgents` showed no
+  peers at all, and both the session id it was handed and the
+  orchestrator's title came back `No agent named X is reachable` — one
+  error string over two different faults, neither naming itself.
   No messaging tool here = no line.
 
   plus, only when they apply, one line each: the RESPAWN resume line;
