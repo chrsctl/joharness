@@ -52,7 +52,9 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    same edge, same bounds; who picks differs — a manager works the ONE
    item its prompt names (`/manage`), the orchestrator reads
    `./joharness.sh dispatch` and spawns (`/orchestrate`,
-   `.agents/docs/orchestrated.md`). Boundary holds in both:
+   `.agents/docs/orchestrated.md`). Prompt named `/manage <item>`? That
+   is your answer already. Otherwise `/start` reads the mode and names
+   the file. Boundary holds in both:
    no commit to protocol text (`./joharness.sh protocol-paths`,
    [`.agents/docs/unsupervised.md`](../../.agents/docs/unsupervised.md)).
 3. **Claim.** Cut branch from `main` (branch flow:

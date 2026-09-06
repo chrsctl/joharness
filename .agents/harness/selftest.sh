@@ -571,6 +571,7 @@ SELFTEST_TOPICS=(
   ci-ship-scope
   authority
   autonomy-mode
+  start
   upgrade-holding-work
   handover-guard
   pretool-feedback
