@@ -171,6 +171,18 @@ Then pick the filter, because "owns" is three questions:
   workstream file (`.agents/docs/handover/README.md`, Survives PR).
 - no filter — files the branch TOUCHED. Rarely the question being asked.
 
+One trap inside the right answer: **`git diff base..tip` compares two STATES,
+not the history between them.** A file born on the branch and deleted on it —
+added, then retired — nets to absent from `D` and from `ACMRT` alike, so
+`--diff-filter=D` cannot see the ordinary workstream file, which is written
+after the branch is cut. The deletion `D` does see is of a file that existed
+at the BASE: an inherited one, or the plan file, which lives on the base
+branch because it is the queue item. `dispatch`'s retired-edge scan was built
+on the first reading and every one of its nine new cases went red at once
+(PR on `orchestrator-inflight-count`). Asking "did this branch delete X" and
+meaning "at any point" is a history walk — `git log --diff-filter=D -- <path>`
+— and it is a different command.
+
 The class was named in PR54 and still bit at PR69 and PR72, on the very gates
 built to read ownership correctly. Stages 1 and 2 worked every time: each
 session detected it and recorded it. Stage 3 never ran, so the seventh caller

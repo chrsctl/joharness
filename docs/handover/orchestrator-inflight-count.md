@@ -200,7 +200,9 @@ orchestrator acting on that verdict spawns a duplicate per item and exceeds
   cost over 124 refs is within noise (5370/5190/5917 ms without the helper,
   7058/5530/5858 ms with). It also re-ran `mutate` against copies: the
   workstream-deletion-only trigger reds 9 cases, the widened trigger 4, the
-  suppression 1 — so r1's "nine cases" is a counted number now.
+  suppression 1 — so r1's "nine cases" is a counted number now. (no change
+  needed — nothing under this bullet asked for one, and round 2 re-checked
+  each claim against the code as it then stood.)
 
 ## Blockers
 
