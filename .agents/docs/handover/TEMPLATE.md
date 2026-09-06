@@ -46,7 +46,11 @@ Why work exists, in requester's words. One paragraph.
 ## Review
 
 One bullet per finding, written BEFORE its fix and committed WITH it. Mark
-(fixed) / (open) / (wontfix + why). The review conversation evaporates; this
+(fixed) / (open) / (wontfix + why). `(open)` is MID-BUILD only: the gate that
+reads these markers takes fixed, wontfix or no change (`joharness.sh:fb_marker`),
+and it fires at the edge — so every `(open)` must become one of those three
+before the retire commit, which is the last moment the finding can be answered
+at all. The review conversation evaporates; this
 is the only record of what each round found. The hook counts the bullets
 under this heading, so leave none here unfilled.
 
