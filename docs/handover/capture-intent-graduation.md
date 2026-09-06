@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_013x3au5nnN9kSRZMTSb3SpM
 agent: opus
 updated: 2026-09-06
-next: Write the two rejections into .agents/docs/product/README.md, delete the research node, review, retire, pull request
+next: Record verifier findings under ## Review, fix or answer each, then retire commit and pull request
 ---
 
 ## Goal
@@ -42,7 +42,7 @@ Requirements — and deletes the node.
 
 ## Review
 
-- Pending step 5.
+- Graduation written and node deleted; opus verifier spawned on the branch diff, findings pending.
 
 ## Blockers
 
