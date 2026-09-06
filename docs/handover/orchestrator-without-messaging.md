@@ -111,7 +111,12 @@ fix, in the same commit.
   rather than papered over: that claim rests on this session's own two
   calls, `+send_message` returning nothing and `+SendMessage` returning
   the tool, and a later reader on another runtime should re-run them
-  before trusting the sentence.
+  before trusting the sentence. (no change needed — the sentence in
+  `orchestrated.md` already carries both calls, which is what the
+  measured-number rule asks: a claim nobody can re-run is a written
+  number, and this one names how to re-run it. `ci` caught this line
+  carrying no verdict at all, in the same pass that retired the file —
+  the gate is right that a retired record has no later moment)
 - r9: (verifier, docs) a sequential reader met `set_session_title` and
   `get_session` at their call sites before learning what a missing one
   costs, and "one liveness read (`get_session` or `list_sessions`)" read
