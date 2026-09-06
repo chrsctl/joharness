@@ -50,8 +50,11 @@ None.
 
 ## Where to look
 
-- `docs/research/capture-intent.md` — F4 and F9 are the two rejections;
-  `## Graduates to` states the shape the graduation must take.
-- `.agents/docs/product/README.md:14` — Requirements section, the target.
+- `.agents/docs/product/README.md` — Requirements section, where the
+  answer landed.
 - `.agents/docs/research/README.md`, Graduating — why-explanation, not a
   rule line alone.
+- The deleted node holds F4 and F9, the two rejections, and its
+  `## Graduates to` states the shape:
+  `git log --diff-filter=D -- docs/research/capture-intent.md`, then
+  `git show <commit>^:docs/research/capture-intent.md`.
