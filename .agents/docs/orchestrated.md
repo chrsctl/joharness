@@ -338,4 +338,45 @@ is state outside git.
 
 | Run | Date | Wall-clock | Managers | Kills | Merged | Ended by |
 | --- | --- | --- | --- | --- | --- | --- |
-| none yet | | | | | | `docs/plans/orchestrated-run.md` is the first, and it is operator-gated |
+| 1 | 2026-09-06 | 5h37m | 10 | 0 | 8 | a human turn, per the plan's own rule |
+
+**Run 1**, consumer `chrsctl/gx`, cap 4, no heartbeat — one orchestrator's
+lifetime, which is what the plan said a run without a Routine would measure.
+12:05:05Z (session created) to 17:42Z (first human turn; `orchestrated-run.md`
+says a human turn ends the measurement there). 28 health passes at
+`JOHARNESS_HEALTH_MINUTES=10`.
+
+Counted from the orchestrator's own passes: **10 managers** spawned in window
+(an 11th at 17:52Z falls outside it); **0 kills**, **0 nudges**; **2
+respawns**, one sound and one not; **8 merged** — `workflow-outbound-http`,
+`workflow-state-machine-scope`, `permission-system-at-ten-thousand-seats`,
+`comms-openapi-connector` (#291), `extension-code-surface` (#293),
+`drive-slides-editor`, `ui-storyboard` (#295 / `30b845cb`),
+`crm-aggregate-reasoning` (#296 / `4a4f3cc0`); **1 item blocked on the human**
+and still open at the end. Cost **≥437 USD**, summed from `get_session`'s
+`usage.cost_usd` last observed per session, 9 of the 10 seen — last-observed
+values, not finals, so it is a floor.
+
+**Nothing stopped it; the queue did not drain.** At the end 30 plans waited
+behind one branch in flight. From roughly 13:00Z the fleet was overlap-bound,
+not slot-bound: passes 11 through 17 spawned nothing while 2 to 3 slots sat
+idle, because every free plan overlapped a claimed one on `docs/adr`,
+`docs/phases` or `tools/criteria/index.py`. That is the number this run
+actually produces — against this queue the cap of 4 was never the binding
+constraint, and raising it would have changed nothing.
+
+**Two defects, filed as plans rather than patched** (this plan's Out of
+scope): `docs/plans/orchestrator-inflight-count.md` — `dispatch` frees a live
+manager's slot for the whole PR window and re-offers its item, hit on 11 of
+28 passes; and `docs/plans/orchestrator-respawn-liveness.md` — the health
+table reads IDLE as *session gone* and respawns on one observation, which
+cost one duplicate manager and about 17 USD. Both were survivable only
+because the orchestrator cross-checked the control plane every pass and
+disbelieved `dispatch` when the two disagreed. **A role told to act on one
+read, which must override that read on 39% of its passes to avoid
+overspending the cap, is the finding under both.**
+
+What run 1 did NOT show: no heartbeat, so nothing about a fleet outliving its
+orchestrator; no kill and no nudge fired, so those paths are still unmeasured;
+one consumer, one queue shape, and that queue's overlap density is doing most
+of the work in the throughput number above.
