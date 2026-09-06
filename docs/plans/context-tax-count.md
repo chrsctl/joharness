@@ -24,7 +24,8 @@ visible act rather than an invisible one.
 
 ## Scope
 
-- `joharness.sh` — `ctx_imports`, `ctx_bytes`, `cmd_context`, and a
+- `joharness.sh` — `ctx_read`, `ctx_imports`, `ctx_norm`, `ctx_chain`,
+  `ctx_counts`, `ctx_total`, `ctx_report`, `cmd_context`, and a
   `== context` stage in `cmd_ci`. The stage counts the instruction chain
   and the branch delta. The subcommand adds the `session-start` injection
   for this repo's mode.

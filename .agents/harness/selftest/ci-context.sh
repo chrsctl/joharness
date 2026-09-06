@@ -39,11 +39,20 @@ top rules here
 @sub/RULES.md
 @./AGENTS.md
 EOF
-# 30 bytes, 4 words.
+# 42 bytes, 5 words. The BARE `@SIBLING.md` is the case that pins
+# `dir="${cur%/*}"`: it means sub/SIBLING.md, and only resolving against the
+# importing file's directory gets there. `@../CLAUDE.md` alone did not pin
+# it — it walks back out of sub/ and normalises to CLAUDE.md either way, and
+# `mutate joharness.sh 900 '  dir=\"\"'` said NOTHING REDDED.
 cat >"${xwork}/sub/RULES.md" <<'EOF'
 sub rules here
 
+@SIBLING.md
 @../CLAUDE.md
+EOF
+# 14 bytes, 2 words.
+cat >"${xwork}/sub/SIBLING.md" <<'EOF'
+sibling rules
 EOF
 # Never in the chain, and loud if it ever is: 4 lines of it, so a fence
 # regression moves the subtotal as well as adding a row.
@@ -65,15 +74,17 @@ ctx_run() { CLAUDE_PROJECT_DIR="$xwork" JOHARNESS_CONF="${xwork}/joharness.conf"
 out="$(ctx_run)"
 expect "walks the chain into the second level" "AGENTS.md" "$out"
 expect "walks it into the third" "sub/RULES.md" "$out"
+expect "a bare import resolves against the importing file's directory" \
+  "sub/SIBLING.md" "$out"
 refute "an @-line inside a fence is an example, not an import" \
   "sub/NEVER.md" "$out"
 
-# Exact counts, or the number is decoration. 11 + 66 + 30 = 107 bytes,
-# 1 + 8 + 4 = 13 words — and each file appears ONCE despite AGENTS.md
+# Exact counts, or the number is decoration. 11 + 66 + 42 + 14 = 133 bytes,
+# 1 + 8 + 5 + 2 = 16 words — and each file appears ONCE despite AGENTS.md
 # importing itself and sub/RULES.md importing back to the entry.
 expect "counts the entry file exactly" "CLAUDE.md                              11 bytes       1 words" "$out"
-expect "counts a nested file exactly" "sub/RULES.md                           30 bytes       4 words" "$out"
-expect "subtotal is the sum of the chain" "instructions                          107 bytes      13 words" "$out"
+expect "counts a nested file exactly" "sub/RULES.md                           42 bytes       5 words" "$out"
+expect "subtotal is the sum of the chain" "instructions                          133 bytes      16 words" "$out"
 n="$(printf '%s\n' "$out" | grep -c 'CLAUDE.md  ')"
 if [ "$n" = "1" ]; then
   pass "a cycle counts each file once"
@@ -90,19 +101,19 @@ git -C "$xwork" checkout -qb growing
 printf 'one more rule that every session will load\n' >>"${xwork}/sub/RULES.md"
 commit_all "$xwork" "add a rule"
 out="$(ctx_run)"
-expect "delta names the bytes this branch adds" "this branch: +43 bytes, +8 words" "$out"
+expect "delta names the bytes this branch adds" "this branch, to the chain: +43 bytes, +8 words" "$out"
 expect "a growth says who pays" "Paid by every session after it merges" "$out"
 
 git -C "$xwork" checkout -q main
 out="$(ctx_run)"
-expect "a branch that adds nothing says so" "this branch adds nothing (107 bytes" "$out"
+expect "a branch that adds nothing says so" "this branch adds nothing to the chain (133 bytes" "$out"
 
 # ci carries the same count, without paying 3.5s for session-start on every
 # run. Both halves asserted: the stage is there, and the row is not.
 ci_ctx() { CLAUDE_PROJECT_DIR="$xwork" JOHARNESS_CONF="${xwork}/joharness.conf" \
   GITHUB_ACTIONS='' "${xwork}/joharness.sh" ci 2>&1 | sed -n '/== context/,/^$/p'; }
 out="$(ci_ctx)"
-expect "ci prints the chain subtotal" "instructions                          107 bytes      13 words" "$out"
+expect "ci prints the chain subtotal" "instructions                          133 bytes      16 words" "$out"
 refute "ci does not run session-start for it" "session-start (" "$out"
 expect "ci points at the full count" "with the session-start injection:" "$out"
 
@@ -118,6 +129,6 @@ expect "no entry file is said, never counted as zero" \
 expect "and the session-start row is still printed" \
   "session-start (supervised)" "$out"
 expect "and the delta reads negative against a base that had the chain" \
-  "this branch: -107 bytes, -13 words" "$out"
+  "this branch, to the chain: -133 bytes, -16 words" "$out"
 expect "a cut is not scolded like a growth" "Saved for every session" "$out"
 refute "and is never asked to justify itself" "Worth it, or" "$out"

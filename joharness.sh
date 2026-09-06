@@ -812,9 +812,13 @@ churn_top() {
 # `git log --first-parent --format=%H -- .agents/harness/AGENTS.md`): 770
 # words on 2026-08-23, 2129 on 2026-09-06. 2.8x in 14 days, unnoticed,
 # because growth arrives one honest rule at a time and no reader holds the
-# earlier number. Orchestrated mode cut the session-start injection 5983
-# bytes to 1541 for exactly this reason; the chain it cannot cut is larger
-# and was invisible.
+# earlier number. Orchestrated mode cut the session-start injection for
+# exactly this reason — it prints no queue and only this branch's handover
+# files — and the chain it CANNOT cut is the larger half. Deliberately no
+# byte pair written here: that injection carries the in-flight table, so it
+# moves with the number of live branches on the remote and a figure written
+# down today is wrong next week. `./joharness.sh context` under each mode is
+# the answer, counted when asked.
 #
 # So: count it, and print what THIS branch adds. Report, never gate — a
 # ceiling on prose size fires on the honest rule addition and buys deleted
@@ -833,6 +837,11 @@ CTX_ENTRY="CLAUDE.md"
 ctx_read() {
   local ref="$1" path="$2"
   if [ -z "$ref" ]; then
+    # `-L` before `-f`: `-f` follows the link and reads the TARGET's bytes,
+    # while `git show <ref>:<link>` prints the link's own path as its content.
+    # Nothing in this repo's chain is a symlink; if one ever is, both sides
+    # skip it rather than disagreeing by the length of a filename.
+    [ ! -L "${ROOT}/${path}" ] || return 1
     [ -f "${ROOT}/${path}" ] || return 1
     cat "${ROOT}/${path}"
   else
@@ -842,6 +851,10 @@ ctx_read() {
     # two. Both sides answer the same question or the delta is noise.
     [ "$(git -C "$ROOT" cat-file -t "${ref}:${path}" 2>/dev/null)" = blob ] ||
       return 1
+    # 120000 is git's mode for a symlink blob; the worktree side skips those.
+    case "$(git -C "$ROOT" ls-tree "$ref" -- "$path" 2>/dev/null)" in
+      120000\ *) return 1 ;;
+    esac
     git -C "$ROOT" show "${ref}:${path}" 2>/dev/null
   fi
 }
@@ -866,12 +879,21 @@ ctx_imports() {
 # Two spellings of one path must count once, or a cycle guard keyed on the
 # string lets the same file in twice. Stack walk, so `a/../b` and `./b` both
 # land on `b`.
+#
+# A path that leaves the repository prints NOTHING and is dropped. The first
+# version clamped instead — `@../shared/RULES.md` became `<root>/shared/
+# RULES.md` and `@/etc/rules.md` became `<root>/etc/rules.md` — so a
+# different file's bytes were printed as what a session loads, on both sides
+# of the delta, with no diagnostic. Clamping is the shape that turns a bad
+# input into a confident wrong number, which is the one output this command
+# must never produce.
 ctx_norm() {
   awk -F/ '{
     n = 0
+    if ($1 == "") { print ""; next }
     for (i = 1; i <= NF; i++) {
       if ($i == "" || $i == ".") continue
-      if ($i == "..") { if (n > 0) n--; continue }
+      if ($i == "..") { if (n > 0) { n--; continue } else { print ""; next } }
       st[++n] = $i
     }
     out = ""
@@ -934,9 +956,14 @@ ctx_total() {
 }
 
 # The report. `full` adds the session-start injection, which only the
-# subcommand pays for: measured 2026-09-06 on this repo, `session-start`
-# 3.5s against a 14.7s `ci`, so folding it into every `ci` run costs a
-# quarter of the run for a number a diff rarely moves.
+# subcommand pays for. Measured 2026-09-06 on this container, with
+#
+#   s=$(date +%s%N); ./joharness.sh session-start >/dev/null 2>&1
+#   e=$(date +%s%N); echo $(( (e-s)/1000000 ))   # and the same around `ci`
+#
+# 3521ms against 14716ms: folding it into every `ci` run costs about a
+# quarter of the run for a number a diff rarely moves. Hardware-dependent,
+# so re-time it before quoting it; the ratio is the reason, not the ms.
 ctx_report() {
   local full="${1:-}" b w p over base bb bw ss_b ss_w tmp mode
   # An absent entry file is a real answer, not a reason to stop: the
@@ -956,15 +983,32 @@ ctx_report() {
 
   if [ "$full" = "full" ]; then
     mode="$(run_mode)"
-    tmp="$(mktemp)"
-    "$0" session-start >"$tmp" 2>/dev/null
-    ss_b="$(wc -c <"$tmp" | tr -d '[:space:]')"
-    ss_w="$(wc -w <"$tmp" | tr -d '[:space:]')"
-    rm -f "$tmp"
-    printf '    %-32s %8s bytes %7s words\n' "session-start (${mode})" \
-      "$ss_b" "$ss_w"
-    printf '    %-32s %8s bytes %7s words\n' "total" \
-      "$((b + ss_b))" "$((w + ss_w))"
+    # A command that says "reports; never gates" must not reach the network
+    # or provision anything, and `session-start` does both: the handover hook
+    # fetches (`.agents/harness/handover-context.sh`, HANDOVER_FETCH) and an
+    # eager layer in a remote sandbox runs `setup`. Both are suppressed here,
+    # so the row is the injection MINUS whatever provisioning would have
+    # printed — stated rather than silently included, because a report that
+    # provisions to measure itself has changed what it measured.
+    if ! tmp="$(mktemp 2>/dev/null)" || [ -z "$tmp" ]; then
+      printf '    session-start: not counted (mktemp failed)\n'
+    else
+      HANDOVER_FETCH=0 JOHARNESS_ENV_SETUP=lazy "$0" session-start \
+        >"$tmp" 2>/dev/null
+      ss_b="$(wc -c <"$tmp" | tr -d '[:space:]')"
+      ss_w="$(wc -w <"$tmp" | tr -d '[:space:]')"
+      rm -f "$tmp"
+      printf '    %-32s %8s bytes %7s words\n' "session-start (${mode})" \
+        "$ss_b" "$ss_w"
+      printf '    %-32s %8s bytes %7s words\n' "total" \
+        "$((b + ss_b))" "$((w + ss_w))"
+      # Not a constant, and reading it as one is how a number gets written
+      # down and then quoted after it stopped being true: the injection
+      # carries the in-flight table, so it grows with the number of live
+      # branches on the remote and shrinks as they merge.
+      printf '  The session-start row is a snapshot: it carries the in-flight\n'
+      printf '  table, so it moves with the fleet, not only with this diff.\n'
+    fi
   fi
 
   # What THIS branch adds is the number with teeth: it is paid once per
@@ -976,13 +1020,21 @@ ctx_report() {
     printf '  branch delta not measurable here (no merge-base with %s)\n' "$over"
   else
     IFS=$'\t' read -r bb bw < <(ctx_total "$base")
+    # "to the chain", said every time. The delta covers the imported files
+    # ONLY, and it sits under a total that includes the session-start row —
+    # so a branch that adds forty lines of hook output would otherwise read
+    # "adds nothing" directly beneath a number those lines are inside of.
     if [ "$b" -eq "$bb" ] && [ "$w" -eq "$bw" ]; then
-      printf '  this branch adds nothing (%s bytes at the merge base)\n' "$bb"
+      printf '  this branch adds nothing to the chain (%s bytes at the merge base)\n' "$bb"
     else
-      printf '  this branch: %+d bytes, %+d words\n' "$((b - bb))" "$((w - bw))"
+      printf '  this branch, to the chain: %+d bytes, %+d words\n' \
+        "$((b - bb))" "$((w - bw))"
       # A cut and a growth are not the same news, and one sentence for both
       # reads as a scold on the branch doing the right thing.
-      if [ "$b" -gt "$bb" ]; then
+      # BOTH counts, because they disagree: -8 bytes and +7 words is a chain
+      # that got wordier, and words are the unit the growth this exists to
+      # watch was measured in (770 to 2129). Either one up is a growth.
+      if [ "$b" -gt "$bb" ] || [ "$w" -gt "$bw" ]; then
         printf '  Paid by every session after it merges, in every mode, at every\n'
         printf '  tier. Worth it, or is the rule already stated somewhere a session\n'
         printf '  reads on demand? (.agents/docs/caveman.md)\n'
