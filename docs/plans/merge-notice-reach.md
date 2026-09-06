@@ -41,8 +41,13 @@ hit.
 ## Acceptance
 
 - `./joharness.sh ci` — `ci: pass`.
-- `git grep -c "session id" .claude/commands/orchestrate.md` — `0`. The spawn
-  block no longer hands an address `SendMessage` refuses.
+- `git grep -c "message session <your session" .claude/commands/orchestrate.md`
+  — `0`. The spawn block no longer HANDS an address `SendMessage` refuses.
+  Counting the phrase "session id" instead can never reach `0`: the fixed text
+  has to name the form it bans, and a check that cannot pass proves as little
+  as one that cannot fail.
+- `git grep -c "your ListAgents name" .claude/commands/orchestrate.md` — `1`.
+  What replaced it is the name, not another id.
 - `git grep -c "ListAgents" .claude/commands/manage.md` — at least `1`. The
   manager's fallback names the row it must read.
 - Ship scope: both files are `.claude/commands/`, which syncs, so `ci`'s
