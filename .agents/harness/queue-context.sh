@@ -763,8 +763,9 @@ for s in "${free_shared[@]:-}"; do [ -n "$s" ] && scoped_any=1; done
 # the partition describe a world where it runs: it took a wave, and every
 # plan whose scope met it was told to WAIT for a pass it would sit out. One
 # broad-scoped held plan serialised a whole queue that way — 36 items behind
-# one that could not start, with three worker slots free (chrsctl/gx,
-# 2026-09-06). Nothing runs on a held plan's paths, so a plan whose only
+# one that could not start, with three worker slots free
+# (`./joharness.sh dispatch` in chrsctl/gx at 539d112, 2026-09-06).
+# Nothing runs on a held plan's paths, so a plan whose only
 # collision is with the held one is safe to spawn.
 #
 # Computed once and reused by the report below, rather than derived twice:
@@ -862,9 +863,13 @@ if [ "$free_count" -ge 2 ] && [ "$scoped_any" = "1" ]; then
     "$free_count"
   printf 'where a reconcile is named; across waves the conflict is named:\n'
   if [ "$n_held" -gt 0 ]; then
-    printf '(%d held behind work in flight, so not partitioned: a plan that\n' "$n_held"
-    printf 'does not run this pass cannot make another wait for it.)\n'
+    printf '(%d of them held behind work in flight and so not partitioned: a\n' "$n_held"
+    printf 'plan that does not run this pass cannot make another wait for it.)\n'
   fi
+  # A header promising waves, followed by none, reads as output that broke
+  # off. It happens whenever everything free is held (found by the verifier).
+  [ "${#waves[@]}" -gt 0 ] ||
+    printf '  none: nothing free is partitioned this pass.\n'
   w=0
   while [ "$w" -lt "${#waves[@]}" ]; do
     line=""

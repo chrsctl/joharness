@@ -5648,7 +5648,7 @@ cmd_dispatch() {
   local mode cap stall health respawn churnt churnl hout qout rows wavemap edge req sup
   local path label branch ws doc status session next age agetext flag tier
   local base commits churn churn_n churn_f marks rounds work
-  local st wave note hold holdmap hbranch blocked_branches=""
+  local st wave note hold holdmap hold_live hline hb blocked_branches=""
   local n_inflight=0 n_slots n_free=0 n_stall=0 n_blocked=0 n_hold=0 n_wait=0 n_loop=0
   local inflight="" free="" questions=""
 
@@ -5841,9 +5841,21 @@ cmd_dispatch() {
       awk -F'\t' -v s="$st" '$1 == s { print $2; print $3; exit }')"
     hold="$(printf '%s\n' "$holdmap" |
       awk -F'\t' -v s="$st" '$1 == s { print $2; exit }')"
-    # The holder's branch, out of "(claimed on <branch>)": a hold behind a
-    # BLOCKED branch is released, with the reconcile named as the cost.
-    hbranch="${hold##*(claimed on }"; hbranch="${hbranch%%)*}"
+    # EVERY holder, not the first. A hold behind a BLOCKED branch is
+    # released with the reconcile named as the cost — but a plan two
+    # managers hold, one stopped on a human and one live, is held by the
+    # live one whichever line came first. Releasing on the first line
+    # spawned it into the live collision, and with the held plan left out
+    # of the wave partition it also spawned with nothing partitioned
+    # against it: one plan, two readers, two answers (found by the
+    # verifier; fixture in docs/handover).
+    hold_live=0
+    while IFS= read -r hline; do
+      [ -n "$hline" ] || continue
+      hb="${hline##*(claimed on }"; hb="${hb%%)*}"
+      [ "${blocked_branches#* "${hb}" }" != "$blocked_branches" ] || hold_live=1
+    done <<<"$(printf '%s\n' "$holdmap" |
+      awk -F'\t' -v s="$st" '$1 == s { print $2 }')"
     case "$path" in
       docs/research/*)
         n_free=$((n_free + 1))
@@ -5862,8 +5874,7 @@ cmd_dispatch() {
         if [ -n "$note" ]; then
           n_wait=$((n_wait + 1))
           free="${free}  WAIT — overlaps ${note} in this pass: spawn it only after that one"
-        elif [ -n "$hold" ] && [ -n "$hbranch" ] &&
-           [ "${blocked_branches#* "${hbranch}" }" != "$blocked_branches" ]; then
+        elif [ -n "$hold" ] && [ "$hold_live" -eq 0 ]; then
           n_free=$((n_free + 1))
           free="${free}  overlaps ${hold} — that branch is BLOCKED on a human: spawn, reconcile expected at step 7"
         elif [ -n "$hold" ]; then

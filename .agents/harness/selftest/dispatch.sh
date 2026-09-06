@@ -169,9 +169,16 @@ qcout="$(CLAUDE_PROJECT_DIR="$dspwork" JOHARNESS_CONF="$dspconf" \
   JOHARNESS_RUN_MODE=orchestrated \
   bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1)"
 expect "the partition says how many it left out, and why" \
-  "held behind work in flight, so not partitioned" "$qcout"
-refute "and a held plan is not a member of any wave" \
-  "wave 1: held" "$qcout"
+  "held behind work in flight and so not partitioned" "$qcout"
+# The wave lines alone, membership only: `held` appears elsewhere in this
+# output (the `in flight:` line names it), and an earlier draft refuted
+# "wave 1: held", which is a string the pre-fix output never printed either
+# — `beta` leads that wave. A refute that cannot match is not a check
+# (found by the verifier; pre-fix the line reads
+# `wave 1: beta (sonnet), gamma (opus), held (sonnet)`).
+qcwaves="$(printf '%s\n' "$qcout" | sed -n 's/^  wave [0-9][0-9]*: //p')"
+refute "and a held plan is a member of no wave" "held (" "$qcwaves"
+expect "while the plan behind it is in one" "waiter (" "$qcwaves"
 
 fixture_rm "$dspwork" "drop the hold pair" \
   docs/plans/held.md docs/plans/waiter.md
@@ -323,3 +330,68 @@ refute "and prints no report to act on" "slots     :" "$out"
 refute "and no marking drain would contradict" "NOT YOURS" "$out"
 out="$(dsp env JOHARNESS_MODE=orchestrated)"
 expect "the preview is one exported variable away" "slots     :" "$out"
+
+# --- one plan, two holders: the live one decides ----------------------------
+# A plan held by two managers — one stopped on a human, one live — is held by
+# the live one whichever hold line comes first. `dispatch` read only the
+# FIRST, so with the blocked holder printed first it released the plan into
+# the live collision; and because a held plan is left out of the wave
+# partition, it spawned with nothing partitioned against it either. One plan,
+# two readers, two answers (found by the verifier).
+#
+# Its own fixture, because the bug is in the ORDER of the hold lines and that
+# order is the claimed plans' queue order — the shared fixture above happens
+# to put its live holder first, so the case cannot be built there without
+# reordering assertions that are not about this.
+twowork="${TMP}/twoheldwork"
+twoorigin="${TMP}/twoheldorigin.git"
+git init -q --bare "$twoorigin"
+git init -q "$twowork"
+git -C "$twowork" symbolic-ref HEAD refs/heads/main
+mkdir -p "${twowork}/docs/plans" "${twowork}/docs/handover" \
+  "${twowork}/.agents/harness" "${twowork}/.agents/env/none"
+cp "${ROOT}/joharness.sh" "${twowork}/joharness.sh"
+cp "${ROOT}/.agents/harness/queue-context.sh" \
+   "${ROOT}/.agents/harness/handover-context.sh" "${twowork}/.agents/harness/"
+printf '# none\n' >"${twowork}/.agents/env/none/AGENTS.md"
+twoconf="${twowork}/joharness.conf"
+printf 'JOHARNESS_ENV=none\nJOHARNESS_MODE=orchestrated\n' >"$twoconf"
+# `aa` is claimed by the BLOCKED branch and `zz` by the live one, and the
+# claimed rows sort by add time then name — so `aa`'s hold line is printed
+# first, which is the input that broke it.
+for n in aa zz; do
+  { printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: high\n' "$n"
+    printf 'scope: src/%s\n---\n\n## Goal\nFixture.\n' "$n"
+  } >"${twowork}/docs/plans/${n}.md"
+done
+{ printf -- '---\nplan: mid\nurgency: normal\nagent: sonnet\neffort: high\n'
+  printf 'scope: src/aa src/zz\n---\n\n## Goal\nFixture.\n'
+} >"${twowork}/docs/plans/mid.md"
+commit_all "$twowork" "base"
+git -C "$twowork" remote add origin "$twoorigin"
+git -C "$twowork" push -qu origin main
+git -C "$twowork" checkout -qb mgr-aa
+printf -- '---\nworkstream: aa\nstatus: blocked\nbranch: mgr-aa\nplan: aa\nagent: sonnet\nupdated: 2026-01-01\nnext: Human decides\n---\n\n## Goal\nFixture.\n' \
+  >"${twowork}/docs/handover/aa.md"
+commit_all "$twowork" "claim aa, blocked"
+git -C "$twowork" push -qu origin mgr-aa
+git -C "$twowork" checkout -q main
+git -C "$twowork" checkout -qb mgr-zz
+mkdir -p "${twowork}/docs/handover"
+printf -- '---\nworkstream: zz\nstatus: in-progress\nbranch: mgr-zz\nplan: zz\nagent: sonnet\nupdated: 2026-01-01\nnext: Build\n---\n\n## Goal\nFixture.\n' \
+  >"${twowork}/docs/handover/zz.md"
+commit_all "$twowork" "claim zz, live"
+git -C "$twowork" push -qu origin mgr-zz
+git -C "$twowork" checkout -q main
+two() { ( cd "$twowork" && JOHARNESS_CONF="$twoconf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 ./joharness.sh dispatch 2>&1 ); }
+out="$(two)"
+expect "the blocked holder is printed first, which is the input" \
+  "mid overlaps aa on src/aa (claimed on origin/mgr-aa)" \
+  "$(CLAUDE_PROJECT_DIR="$twowork" JOHARNESS_CONF="$twoconf" \
+     JOHARNESS_RUN_MODE=orchestrated \
+     bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1 | grep -m1 'in flight: mid')"
+expect "and the live holder still decides: HOLD" \
+  "docs/plans/mid.md (agent: sonnet)  HOLD — overlaps" "$out"
+refute "never released into the live collision" \
+  "that branch is BLOCKED on a human: spawn" "$out"
