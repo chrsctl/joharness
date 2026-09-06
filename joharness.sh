@@ -6017,7 +6017,7 @@ cmd_dispatch() {
       n_edge_stall=$((n_edge_stall + 1))
       estem="${efirst##*/}"; estem="${estem%.md}"
       if [ -n "$efirst" ]; then
-        edge_rows="${edge_rows}    STALL? no push for ${eagetext} (>= ${stall}m): cross-check the control plane by TITLE (manager: ${estem}) — this row carries no session line to read. Gone means nobody is driving this merge: respawn on the branch to FINISH it, never to restart the item"$'\n'
+        edge_rows="${edge_rows}    STALL? no push for ${eagetext} (>= ${stall}m): cross-check the control plane by TITLE (manager: ${estem}) — this row carries no session line to read. Gone — ARCHIVED, not found, or FAILED confirmed twice, never IDLE alone (.claude/commands/orchestrate.md) — means nobody is driving this merge: respawn on the branch to FINISH it, never to restart the item"$'\n'
       else
         # No item, no title to look up, so no respawn: a successor spawned
         # blind onto a branch nobody can name is two sessions on one branch.
