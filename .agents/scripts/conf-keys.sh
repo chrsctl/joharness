@@ -3,9 +3,12 @@
 # conf-keys.sh - the settings a consumer repo runs under, declared once.
 #
 # Sourced, never executed. Two callers read it and they are the reason it
-# exists: bootstrap-consumer.sh ASKS for these at first contact and seeds
-# them, and sync-to-consumer.sh names the ones a consumer's conf does not
-# carry at update. Before this file the list lived in the bootstrap twice
+# exists: bootstrap-consumer.sh SEEDS these at first contact — asking about
+# most of them — and sync-to-consumer.sh names the ones a consumer's conf does
+# not carry at update. Declared and asked are two lists, not one: a key whose
+# answer nobody has an opinion about at first contact is seeded at its default
+# and reaches a child through the sync's report instead
+# (JOHARNESS_UPSTREAM_FEEDBACK is the first of those). Before this file the list lived in the bootstrap twice
 # over — once in the interview, once in the seeded heredoc — and a third copy
 # in the sync engine is how two readers of one fact start disagreeing. The
 # selftest reds if the seeded conf and this declaration name different keys.
@@ -20,7 +23,10 @@
 # would offer the one line that makes a consumer pass as canonical.
 #
 # Adding a key: add a row, add it to the bootstrap's seeded heredoc, and the
-# selftest that compares the two tells you if you did only one. Every update
+# selftest that compares the two tells you if you did only one. An interview
+# question is a separate decision — every question is paid by every new
+# consumer, so ask only what a human arriving at a fresh repo actually has an
+# opinion about. Every update
 # after that names it to every consumer that predates it, which is the whole
 # point — JOHARNESS_MODE landed with no way to reach a child bootstrapped the
 # week before.
@@ -40,6 +46,7 @@ JOHARNESS_ENV_SETUP|lazy|lazy = provision on demand; eager = at session start.
 JOHARNESS_ENV_MD|lazy|lazy = inject a pointer to the layer's rules; eager = the file whole.
 JOHARNESS_REVIEW|off|off = review reports only; on = ci gates the record at the edge.
 JOHARNESS_MODE|supervised|supervised = a session asks at the queue edge; unsupervised = it exits instead; orchestrated (beta) = an orchestrator dispatches managers.
+JOHARNESS_UPSTREAM_FEEDBACK|off|off = ./joharness.sh upstream reports what a merged edge found about the harness and nothing acts on it; on = under orchestrated, one session files it as a report pull request on the canonical.
 ROWS
 }
 

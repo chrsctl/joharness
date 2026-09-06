@@ -557,6 +557,7 @@ SELFTEST_TOPICS=(
   ci-churn
   ci-selftest-scope
   review
+  upstream
   scorecard
   feedback
   feedback-recurrence

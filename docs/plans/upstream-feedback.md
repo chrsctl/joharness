@@ -5,7 +5,7 @@ agent: sonnet
 effort: high
 needs: none
 requirement: none
-scope: joharness.sh, .agents/docs/feedback.md, .agents/docs/orchestrated.md, .agents/scripts/conf-keys.sh, .agents/scripts/bootstrap-consumer.sh, .claude/commands, .agents/harness/selftest
+scope: joharness.sh, .agents/docs/feedback.md, .agents/docs/orchestrated.md, .agents/scripts/conf-keys.sh, .agents/scripts/bootstrap-consumer.sh, .claude/commands, .agents/harness/selftest, .agents/harness/selftest.sh
 ---
 
 ## Goal
@@ -44,7 +44,13 @@ and files pull requests in a repository the child does not own.
   the detector*, as the mechanized form of those five steps.
 - `.agents/docs/orchestrated.md` — one row in *What the mode changes*, one
   row in the knob table.
-- `.agents/harness/selftest/upstream.sh` — cases below.
+- `.agents/harness/selftest/upstream.sh` — cases below, and the topic listed
+  in `.agents/harness/selftest.sh`.
+- `.agents/harness/selftest/sync-to-consumer.sh` — its "answers every key"
+  fixture builds the conf FROM `conf-keys.sh` instead of a typed list, which
+  is what a sixth key breaks.
+- `.claude/commands/manage.md` — one line: a finding filed upstream carries
+  the measurement the manager wrote, or nothing.
 
 ## Out of scope
 

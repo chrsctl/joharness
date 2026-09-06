@@ -267,9 +267,18 @@ fi
 
 # A conf that answers everything gets no stage at all — the common case, and
 # the reason this cannot become noise every consumer learns to scroll past.
-{ printf 'JOHARNESS_ENV=none\nJOHARNESS_ENV_SETUP=lazy\nJOHARNESS_ENV_MD=lazy\n'
-  printf 'JOHARNESS_REVIEW=off\nJOHARNESS_MODE=supervised\n'
-} >"${syncdst}/joharness.conf"
+#
+# Built FROM the declaration, not from a list typed here. A hard-coded five
+# keys is a second copy of the one list conf-keys.sh exists to be, and it goes
+# stale in the silent direction: the sixth key added, this case reds, and the
+# red says "a conf answering every key gets no stage" about a conf that no
+# longer answers every key. Each key takes its own declared default, which is
+# what a fresh child is seeded with anyway.
+bash -c ". '${ROOT}/.agents/scripts/conf-keys.sh'
+  conf_keys_names | while IFS= read -r k; do
+    [ -n \"\$k\" ] || continue
+    printf '%s=%s\\n' \"\$k\" \"\$(conf_key_default \"\$k\")\"
+  done" >"${syncdst}/joharness.conf"
 out="$(sync "$syncdst")"
 refute "a conf answering every key gets no stage" \
   "settings this repo does not answer" "$out"

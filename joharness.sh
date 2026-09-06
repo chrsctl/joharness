@@ -53,6 +53,12 @@
 #                   free slots, managers in flight with push age, the spawn
 #                   order by wave, and a verdict. Report-only; the
 #                   orchestrator (.claude/commands/orchestrate.md) acts on it
+#   upstream        what a merged edge found ABOUT THE HARNESS, and the
+#                   canonical it would be reported to. Takes a branch or a
+#                   merge; no argument reads the newest merge. Report-only —
+#                   /upstream-report files it, and only where
+#                   JOHARNESS_UPSTREAM_FEEDBACK is on. Says CANONICAL and
+#                   stops in the joharness repo itself
 #   finish          Loop step 7 gate: what merging this branch NOW would
 #                   leave on the base branch. Red when the merge would add a
 #                   workstream file. Run it before the merge, not after
@@ -85,6 +91,13 @@
 #                              with no review recorded, or with findings none
 #                              of which carry the `(verifier)` tag, and
 #                              session-start say so
+#   JOHARNESS_UPSTREAM_FEEDBACK=off
+#                              'off' (default) or 'on'. Consumer repos only.
+#                              'on' lets the orchestrator spend one session,
+#                              beyond the manager cap, filing what a merged
+#                              edge found about the harness as a report pull
+#                              request on the canonical. `upstream` reports
+#                              either way (.agents/docs/feedback.md)
 #   JOHARNESS_SELFTEST=        unset (default) runs the harness selftest only
 #                              when the branch changes something outside
 #                              docs/ and README.md; 'always' runs it whatever
@@ -149,6 +162,25 @@ review_on() {
     on) return 0 ;;
     '' | off) return 1 ;;
     *) warn "ignoring JOHARNESS_REVIEW='${v}' (want 'on' or 'off'); gate stays off"
+       return 1 ;;
+  esac
+}
+
+# Where a child repo's harness findings go, and whether anything acts on them.
+# Same off/on shape as JOHARNESS_REVIEW directly above, and for the same
+# reason: `upstream` reports either way, so a human can always read what an
+# edge found about the harness; `on` is what makes the orchestrator spend a
+# session filing it (.agents/docs/feedback.md, When the consumer is the
+# detector). Off by default because on it opens pull requests in a repository
+# this one does not own, and pays for a session beyond the manager cap.
+upstream_mode() { printf '%s' "${JOHARNESS_UPSTREAM_FEEDBACK:-$(conf_get JOHARNESS_UPSTREAM_FEEDBACK)}"; }
+
+upstream_on() {
+  local v; v="$(upstream_mode)"
+  case "$v" in
+    on) return 0 ;;
+    '' | off) return 1 ;;
+    *) warn "ignoring JOHARNESS_UPSTREAM_FEEDBACK='${v}' (want 'on' or 'off'); stays off"
        return 1 ;;
   esac
 }
@@ -3767,6 +3799,283 @@ fb_cache_save() {
 # is finished or came back.
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# upstream: what a merged edge found ABOUT THE HARNESS, and where it goes
+#
+# `feedback` scores the loop inside one repo. This answers the question that
+# repo cannot: a child running this harness DETECTS harness defects and cannot
+# deliver them (.agents/docs/feedback.md, When the consumer is the detector).
+# Detect happens where the work is; Prevent only arrives on a sync; and the
+# hop between the two is walked by hand or not at all — measured three times
+# in one consumer session, mechanized never.
+#
+# Two things make the hop worse than it looks. The finish ritual DELETES the
+# workstream file, so by the time an edge has merged its findings live only in
+# merge history (`feedback`'s own Retention: zero row). And under orchestrated
+# mode nobody is left holding them: the manager exits at its merge, and the
+# orchestrator writes one file and reads no plan.
+#
+# So this reads a merged edge, recovers the retired workstream file, keeps the
+# findings whose fix landed on a harness-owned path, and says whether there is
+# a report to file. REPORT ONLY. Nothing here clones, pushes, opens a pull
+# request or edits a file — the filing is .claude/commands/upstream-report.md's,
+# and only when JOHARNESS_UPSTREAM_FEEDBACK is on. That split is what lets a
+# human run this in any repo at any time without it doing anything.
+# ---------------------------------------------------------------------------
+
+# Paths canonical owns in EVERY repo that runs this harness. Not
+# ship_path_ships: that reads the sync engine, which is canonical-only
+# (sync-to-consumer.sh:CANONICAL_ONLY_DIRS), so the one repo kind that needs
+# this verdict is the one that cannot compute it. Spelled here from the
+# harness-owned column of .agents/harness/README.md instead, and deliberately
+# WIDER than the ship list: `.agents/scripts` never reaches a child, but a
+# consumer that predates that rule still carries it, and a finding there is
+# still canonical's to hear.
+#
+# A false positive costs a reporter one dropped finding after it reads the
+# edge; a false negative loses the finding entirely. So the doubtful cases are
+# in, flagged, and the reader decides.
+upstream_harness_path() {
+  case "${1%/}" in
+    joharness.sh | CLAUDE.md | .gitattributes) return 0 ;;
+    AGENTS.md) return 0 ;;
+    .agents | .agents/*) return 0 ;;
+    .claude/commands | .claude/commands/* | .claude/skills | .claude/skills/*) return 0 ;;
+    .claude/agents | .claude/agents/* | .claude/settings.json) return 0 ;;
+  esac
+  return 1
+}
+
+# One line of caution per path whose ownership is not clean, printed beside
+# the finding rather than resolved here. Both cases are real and neither is
+# decidable from the path alone.
+upstream_path_note() {
+  case "${1%/}" in
+    AGENTS.md)
+      printf 'spliced — everything above "# Part 2" is canonical'"'"'s, below is this repo'"'"'s' ;;
+    .agents/env/*)
+      printf 'a layer this repo wrote itself is not canonical'"'"'s — check before filing' ;;
+  esac
+}
+
+# The canonical this repo follows, out of its own update workflow — the same
+# address cmd_upgrade clones from, read the same way (first token only, so a
+# trailing YAML comment cannot ride into it). Empty and a reason on stderr
+# when there is none: a consumer with no update.yml has no upstream to file
+# to, and that is a finding about its setup, not an error in this command.
+upstream_canonical_repo() {
+  local wf="${ROOT}/.github/workflows/update.yml" repo
+  [ -r "$wf" ] || return 1
+  repo="$(sed -n 's/^ *CANONICAL_REPO: *//p' "$wf" | tail -1 | awk '{print $1}')"
+  case "$repo" in
+    */*) printf '%s' "$repo" ;;
+    *) return 1 ;;
+  esac
+}
+
+# A revision as a human reads it. The endpoints this command carries are
+# whatever resolved them — `<sha>^1`, a remote ref, a bare branch — and
+# printing those back reads as noise, or worse: `${sha:0:7}` on `<sha>^1`
+# prints the MERGE's abbreviation under the name of its parent.
+upstream_short() {
+  git -C "$ROOT" rev-parse --short "$1" 2>/dev/null || printf '%s' "${1##*/}"
+}
+
+# The edge to read: a merge commit and the branch tip it brought in. No
+# argument = the newest merge on the base branch, which is the one a manager
+# just finished. An argument may be a branch (the manager's, still unmerged or
+# already merged) or a merge sha.
+#
+# Prints "<label>\t<base>\t<tip>". Non-zero with a reason on stderr when the
+# ref names nothing — never a guess, because guessing here reports one
+# branch's findings under another branch's name.
+upstream_edge() {
+  local want="$1" base_branch="origin/${HANDOVER_BASE_BRANCH:-main}"
+  local line sha tip subj ref merge mb
+
+  if [ -z "$want" ]; then
+    line="$(fb_edges "$base_branch" | head -1)"
+    [ -n "$line" ] || { log "no merge on ${base_branch} to read"; return 1; }
+    read -r sha tip subj <<<"$line"
+    printf '%s\t%s\t%s\n' "$(fb_label "$sha" "$subj")" "${sha}^1" "$tip"
+    return 0
+  fi
+
+  # A merge commit names its own edge: second parent is the branch tip, first
+  # is where the base branch stood. Tried before the branch lookup because a
+  # sha is never a branch name and the reverse test would fetch nothing.
+  if git -C "$ROOT" rev-parse --verify -q "${want}^{commit}" >/dev/null 2>&1 &&
+     [ -n "$(git -C "$ROOT" rev-parse -q --verify "${want}^2" 2>/dev/null)" ]; then
+    sha="$(git -C "$ROOT" rev-parse "$want")"
+    subj="$(git -C "$ROOT" log -1 --format=%s "$sha" 2>/dev/null)"
+    printf '%s\t%s\t%s\n' "$(fb_label "$sha" "$subj")" "${sha}^1" "${sha}^2"
+    return 0
+  fi
+
+  # A branch, remote spelling first: the orchestrator names branches bare and
+  # a stale local copy of one would report work the branch has since pushed
+  # past.
+  for ref in "refs/remotes/origin/${want#origin/}" "$want"; do
+    git -C "$ROOT" rev-parse --verify -q "${ref}^{commit}" >/dev/null 2>&1 || continue
+    sha="$(git -C "$ROOT" rev-parse "$ref")"
+    # ALREADY MERGED is the normal case here, not the exotic one: the
+    # orchestrator names a branch precisely because its pull request just
+    # merged. And after that merge `merge-base <branch> <base>` IS the branch
+    # tip, so the merge-base walk below reads an empty range and reports a
+    # finished edge as having found nothing. So: find the merge that brought
+    # it in and read the edge from that, exactly as the merge-sha case does.
+    merge="$(fb_edges "$base_branch" | awk -v t="$sha" '$2 == t { print $1; exit }')"
+    if [ -n "$merge" ]; then
+      printf '%s\t%s\t%s\n' "${want#origin/}" "${merge}^1" "${merge}^2"
+      return 0
+    fi
+    mb="$(git -C "$ROOT" merge-base "$ref" "$base_branch" 2>/dev/null)"
+    [ -n "$mb" ] || continue
+    # Contained in the base branch with no first-parent merge naming it — a
+    # squash or a fast-forward. Said, never reported as an empty edge: the
+    # range is real, it is just empty, and NOTHING TO REPORT would read as
+    # "this branch found nothing" when the truth is that its history is not
+    # reachable this way (.agents/docs/product/README.md, Branch flow: the
+    # merge method is what the ancestry filter rests on).
+    if [ "$mb" = "$sha" ]; then
+      log "'${want}' is already contained in ${base_branch} with no merge commit naming it (squash or fast-forward): there is no edge to read"
+      return 1
+    fi
+    printf '%s\t%s\t%s\n' "${want#origin/}" "$mb" "$ref"
+    return 0
+  done
+  log "'${want}' is neither a merge commit nor a branch with a merge-base against ${base_branch}"
+  return 1
+}
+
+cmd_upstream() {
+  local want="${1:-}" edge label base tip doc repo canon mode
+  local ids paths p f id marker note kept keep="" noid=""
+  local n_keep=0 n_drop=0 n_noid=0
+
+  [ "$#" -le 1 ] || die "usage: $0 upstream [<branch>|<merge>]"
+
+  # The resolved word, not the raw one: an unrecognised value reads as off
+  # everywhere else in this file and must read as off in the banner too, or
+  # a repo that typed 'true' sees its own typo echoed back as a setting.
+  mode=off; upstream_on && mode=on
+  printf '== upstream (JOHARNESS_UPSTREAM_FEEDBACK: %s)\n\n' "$mode"
+
+  # Canonical stops here, and it is not a courtesy. A finding made in this
+  # repo is already in the repo that owns the fix; routing it anywhere would
+  # mean canonical filing reports against itself, and `upgrade` refuses to run
+  # here for the same reason the direction rule exists.
+  if grep -q '^JOHARNESS_CANONICAL=1' "$CONF" 2>/dev/null; then
+    printf 'CANONICAL — this repo IS the harness. A finding here is already where\n'
+    printf 'its fix lands (.agents/docs/consumer-repos.md, Direction rule): record it\n'
+    printf 'under ## Review and fix it on the branch. Nothing to route.\n'
+    return 0
+  fi
+
+  edge="$(upstream_edge "$want")" || return 1
+  IFS=$'\t' read -r label base tip <<<"$edge"
+  printf 'edge      : %s (%s..%s)\n' "$label" \
+    "$(upstream_short "$base")" "$(upstream_short "$tip")"
+
+  if canon="$(upstream_canonical_repo)"; then
+    repo="$canon"
+    printf 'canonical : %s (CANONICAL_REPO in .github/workflows/update.yml)\n' "$repo"
+  else
+    printf 'canonical : UNKNOWN — no CANONICAL_REPO in .github/workflows/update.yml.\n'
+    printf '            A report has nowhere to go until that file names one\n'
+    printf '            (.agents/docs/consumer-repos.md).\n'
+  fi
+  printf '\n'
+
+  # The retired file, recovered from the commit that last still had it —
+  # exactly the walk .agents/docs/handover/README.md calls "Survives PR".
+  doc="$(fb_workstream "$base" "$tip")" || doc=""
+  if [ -z "$doc" ]; then
+    printf 'no workstream file on this edge: nothing was recorded, so there is\n'
+    printf 'nothing to route. A sync or copy edge carries none by protocol\n'
+    printf '(.agents/docs/handover/README.md, When NOT to write one).\n\n'
+    printf 'verdict   : NOTHING TO REPORT\n'
+    return 0
+  fi
+
+  # Finding id to the paths its own fix commit touched — the protocol's own
+  # attribution (same commit as the fix), not prose parsing.
+  ids="$(fb_fix_map "$base" "$tip")"
+
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    if ! fb_keyable "$f"; then
+      # Counted, never dropped silently: a finding with no `r1:` id cannot be
+      # attributed to a file, which is `feedback`'s own named blind spot. It
+      # may still be the one worth filing, so it is listed for a reader.
+      n_noid=$((n_noid + 1))
+      noid="${noid}  - ${f}"$'\n'
+      continue
+    fi
+    id="${f%%:*}"
+    paths="$(printf '%s\n' "$ids" | awk -F'\t' -v i="$id" '$1 == i { print $2 }')"
+    marker="$(fb_marker "$f")"
+    kept=""
+    while IFS= read -r p; do
+      [ -n "$p" ] || continue
+      upstream_harness_path "$p" || continue
+      note="$(upstream_path_note "$p")"
+      kept="${kept}      ${p}$([ -z "$note" ] || printf ' (%s)' "$note")"$'\n'
+    done <<<"$paths"
+    if [ -n "$kept" ]; then
+      n_keep=$((n_keep + 1))
+      keep="${keep}  - [${marker}] ${f}"$'\n'"${kept}"
+    else
+      # Counted, never quoted. A finding on this repo's own files is this
+      # repo's business, and reprinting its text into a report bound for
+      # another repository is how a consumer's own defects become noise on
+      # somebody else's queue.
+      n_drop=$((n_drop + 1))
+    fi
+  done <<<"$(printf '%s\n' "$doc" | fb_findings)"
+
+  if [ "$n_keep" -gt 0 ]; then
+    printf 'harness findings (fix landed on a path canonical owns):\n%s\n' "$keep"
+  fi
+  if [ "$n_noid" -gt 0 ]; then
+    # No backticks in the literal: shellcheck reads one inside single quotes
+    # as a command substitution somebody meant to expand (SC2016), and the
+    # form is just as legible spelled out.
+    printf 'unattributable (no r<N>: id — read the edge to place them):\n%s\n' "$noid"
+  fi
+  if [ "$n_drop" -gt 0 ]; then
+    printf '%d finding(s) landed on this repo'"'"'s own files: not canonical'"'"'s.\n\n' "$n_drop"
+  fi
+
+  # wontfix on a harness path is the strongest single signal this command has:
+  # a session decided not to fix something it could not fix HERE anyway,
+  # because the next sync overwrites every harness-owned file in this repo
+  # (.agents/docs/consumer-repos.md). Named rather than scored — one finding
+  # is not a rate.
+  case "$keep" in
+    *'[wontfix]'*) printf 'at least one is [wontfix] on a harness path: it could not have been\n'
+                   printf 'fixed here — the next sync overwrites that file.\n\n' ;;
+  esac
+
+  if [ "$n_keep" -eq 0 ] && [ "$n_noid" -eq 0 ]; then
+    printf 'verdict   : NOTHING TO REPORT — this edge found nothing about the harness\n'
+    return 0
+  fi
+
+  printf 'verdict   : REPORT — %d harness finding(s)%s on %s\n' \
+    "$n_keep" \
+    "$([ "$n_noid" -eq 0 ] || printf ' (+%d unattributable)' "$n_noid")" "$label"
+  if upstream_on; then
+    printf '            JOHARNESS_UPSTREAM_FEEDBACK=on: /upstream-report %s files it\n' "$label"
+    printf '            as ONE research node on %s. It gates each finding first\n' "${repo:-the canonical}"
+    printf '            (.agents/docs/feedback.md, When the consumer is the detector).\n'
+  else
+    printf '            JOHARNESS_UPSTREAM_FEEDBACK is off: nothing files this. Read\n'
+    printf '            it, or set the key to on in %s.\n' "$(basename "$CONF")"
+  fi
+  return 0
+}
+
 # Workstream paths an unmerged origin branch is WRITING: paths it changed since
 # it left the base branch, not paths its tree happens to hold. Work in flight —
 # its own step 7 has not come due, and removing its file from the base branch
@@ -4993,7 +5302,23 @@ cmd_dispatch() {
   printf 'stall     : %s min without a push = cross-check the control plane (JOHARNESS_STALL_MINUTES)\n' "$stall"
   printf 'health    : one pass every %s min (JOHARNESS_HEALTH_MINUTES)\n' "$health"
   printf 'respawns  : %s per item per run (JOHARNESS_RESPAWN_LIMIT)\n' "$respawn"
-  printf 'loop      : one file rewritten %s+ times on a branch = LOOP? (JOHARNESS_CHURN_LIMIT; 0 lifts it); %s+ = a warning on the work line (JOHARNESS_CHURN_THRESHOLD)\n\n' "$churnl" "$churnt"
+  printf 'loop      : one file rewritten %s+ times on a branch = LOOP? (JOHARNESS_CHURN_LIMIT; 0 lifts it); %s+ = a warning on the work line (JOHARNESS_CHURN_THRESHOLD)\n' "$churnl" "$churnt"
+  # Printed both ways, because off is the state a reader most needs told: the
+  # health table's `done` row does nothing here unless this says on, and an
+  # orchestrator that cannot see the switch cannot report why it filed
+  # nothing. Never a count — what a merged edge found is `upstream`'s read,
+  # per edge, and dispatch keeps no memory across passes to know which edges
+  # it has already handed over.
+  if upstream_on; then
+    printf 'upstream  : ON — after a manager MERGES, spawn ONE reporter on its branch:\n'
+    printf '            /upstream-report <branch>. Costs one session beyond the cap,\n'
+    printf '            once per merged edge — the ledger is what makes it once\n'
+    printf '            (JOHARNESS_UPSTREAM_FEEDBACK)\n'
+  else
+    printf 'upstream  : off — a merged manager is done; nothing is reported to the\n'
+    printf '            canonical (JOHARNESS_UPSTREAM_FEEDBACK)\n'
+  fi
+  printf '\n'
 
   hout="$(drain_hook handover-context.sh)"
   qout="$(drain_hook queue-context.sh)"
@@ -5759,6 +6084,7 @@ main() {
     verify)         cmd_verify ;;
     review)         cmd_review ;;
     feedback)       cmd_feedback "$@" ;;
+    upstream)       cmd_upstream "$@" ;;
     cleanup)        cmd_cleanup "$@" ;;
     finish)         cmd_finish ;;
     drain)          cmd_drain ;;
