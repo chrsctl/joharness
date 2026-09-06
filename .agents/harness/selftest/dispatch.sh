@@ -116,8 +116,14 @@ expect "the session link rides under it" \
 expect "and the next step" "next: Wire the thing" "$out"
 expect "it holds a slot" "slots     : 3 of 4 free" "$out"
 refute "and is not offered for spawning" "  docs/plans/alpha.md (agent" "$out"
+# No wave on the line, and that is the point: a held plan is not spawned this
+# pass, so it is not in the partition of what runs concurrently. It used to
+# carry `wave 1` and make every plan meeting its scope WAIT for a pass it sat
+# out.
 expect "a plan overlapping work in flight is HELD, not free" \
-  "docs/plans/gamma.md (agent: opus)  wave 1  HOLD — overlaps alpha on src/a (claimed on mgr-alpha): spawn once that branch merges" "$out"
+  "docs/plans/gamma.md (agent: opus)  HOLD — overlaps alpha on src/a (claimed on mgr-alpha): spawn once that branch merges" "$out"
+refute "and a held plan carries no wave, being in no pass" \
+  "gamma.md (agent: opus)  wave" "$out"
 expect "the free count excludes the held plan" \
   "NOT DRAINED — 3 free item(s) now, 3 slot(s): spawn up to 3 now" "$out"
 
@@ -133,8 +139,42 @@ dspplan sharer 'shared: src/a/other'
 dsppush "a plan sharing a path a manager holds exclusively"
 out="$(dsp)"
 expect "a one-sided shared path is a hold, as it is a wave split" \
-  "sharer.md (agent: sonnet)  wave 1  HOLD — overlaps alpha on src/a (claimed on mgr-alpha)" "$out"
+  "sharer.md (agent: sonnet)  HOLD — overlaps alpha on src/a (claimed on mgr-alpha)" "$out"
 fixture_rm "$dspwork" "drop the sharer" docs/plans/sharer.md
+git -C "$dspwork" push -q origin main
+
+# --- a HELD plan must not make the queue behind it wait ---------------------
+# The wave partition is computed over every free plan, and a plan HELD behind
+# work in flight is one of them — so it takes a wave, and everything whose
+# scope meets it is told to WAIT for a pass it will sit out. Nothing runs on
+# a held plan's paths, so a plan whose only collision is with the held one is
+# safe to spawn, and holding it back spends the free slots on nothing.
+# `held` meets alpha under `src/a` and so is held; `waiter` meets only
+# `held`, never alpha. Names sort in queue order: the held one must rank
+# first, or it is the follower that takes the wave.
+dspplan held 'src/a/held src/meets-held'
+dsppush "a plan held behind alpha, carrying a second path"
+dspplan waiter 'src/meets-held'
+dsppush "a plan whose only collision is the held one"
+out="$(dsp)"
+expect "the held plan is still held" \
+  "held.md (agent: sonnet)  HOLD — overlaps alpha on src/a" "$out"
+refute "and nothing is told to wait behind a pass it will sit out" \
+  "waiter.md (agent: sonnet)  wave 2  WAIT" "$out"
+expect "so the plan whose only collision is the held one is free" \
+  "NOT DRAINED — 4 free item(s) now, 3 slot(s): spawn up to 3 now" "$out"
+# The hook's own wave block says what it left out, so a reader of the
+# session-start context is not left counting waves that do not add up.
+qcout="$(CLAUDE_PROJECT_DIR="$dspwork" JOHARNESS_CONF="$dspconf" \
+  JOHARNESS_RUN_MODE=orchestrated \
+  bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1)"
+expect "the partition says how many it left out, and why" \
+  "held behind work in flight, so not partitioned" "$qcout"
+refute "and a held plan is not a member of any wave" \
+  "wave 1: held" "$qcout"
+
+fixture_rm "$dspwork" "drop the hold pair" \
+  docs/plans/held.md docs/plans/waiter.md
 git -C "$dspwork" push -q origin main
 
 # --- a looping manager: pushing, and rewriting one file ---------------------

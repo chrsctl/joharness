@@ -205,7 +205,11 @@ disjoint scope. Two things this mode adds to the wave rule:
   pass: not counted as spawnable now, listed so the next pass finds it.
   A partner already IN FLIGHT is the `HOLD` case above instead — the waves
   partition free plans only, so an in-flight partner never puts a plan in
-  wave 2.
+  wave 2. **A partner that is itself `HOLD` is out of the partition for the
+  same reason**: it does not run this pass, so it cannot make another plan
+  wait for it, and it carries no wave of its own. A hold *released* behind
+  a BLOCKED branch does run, so that one stays partitioned and can still
+  put a peer in wave 2.
 - `JOHARNESS_MAX_MANAGERS=0` is the human's pause, the one lever beside
   the Routine: dispatch says `PAUSED`, the orchestrator spawns nothing;
   with managers still in flight the health pass goes on until they end,

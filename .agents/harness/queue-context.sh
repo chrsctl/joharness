@@ -143,13 +143,27 @@ claims="$(
           base_blob="$(git rev-parse --quiet --verify "origin/${BASE_BRANCH}:${wf}" 2>/dev/null)"
           blob="$(git rev-parse --quiet --verify "${short}:${wf}" 2>/dev/null)"
           [ -n "$base_blob" ] && [ "$base_blob" = "$blob" ] && continue
-          p="$(git show "${short}:${wf}" 2>/dev/null | field plan)"
-          p="$(stem "$p")"
+          wdoc="$(git show "${short}:${wf}" 2>/dev/null)"
+          p="$(stem "$(printf '%s\n' "$wdoc" | field plan)")"
           { [ -n "$p" ] && [ "$p" != "none" ]; } || continue
-          printf '%s\t%s\n' "$p" "$short"
+          # The claim's status rides along, from content already in hand: a
+          # manager BLOCKED on a human holds no slot and does not hold a plan
+          # back, so a plan overlapping it is spawned with a reconcile
+          # expected — which means it DOES run, and must stay in the wave
+          # partition below. Exact `blocked` only, the graph's vocabulary
+          # (joharness.sh:lint_nodes): a workstream on another branch is
+          # repo-controlled input, and `in-progress  BLOCKED: ...` written to
+          # forge the release is not this word.
+          printf '%s\t%s\t%s\n' "$p" "$short" \
+            "$(printf '%s\n' "$wdoc" | field status)"
         done
     done
 )"
+
+# Branches whose manager stopped on a human. A hold behind one of these is
+# released by `dispatch`, so the plan runs and stays in the partition.
+claim_blocked_branches="$(awk -F'\t' '$3 == "blocked" { print $2 }' <<<"$claims" |
+  sort -u | paste -sd' ' -)"
 
 # Open plan names, for dependency edges. A `needs:` entry blocks its plan
 # while the named plan file is still in the queue — done plans get deleted on
@@ -742,6 +756,57 @@ scoped_any=0
 for s in "${free_scopes[@]:-}"; do [ -n "$s" ] && scoped_any=1; done
 for s in "${free_shared[@]:-}"; do [ -n "$s" ] && scoped_any=1; done
 
+# Under orchestrated only: which free plans collide with a plan a manager
+# holds RIGHT NOW. Computed here, above the waves, because a held plan is
+# one the orchestrator will not spawn this pass — and the wave partition is
+# a statement about what runs CONCURRENTLY. Leaving a held plan in it made
+# the partition describe a world where it runs: it took a wave, and every
+# plan whose scope met it was told to WAIT for a pass it would sit out. One
+# broad-scoped held plan serialised a whole queue that way — 36 items behind
+# one that could not start, with three worker slots free (chrsctl/gx,
+# 2026-09-06). Nothing runs on a held plan's paths, so a plan whose only
+# collision is with the held one is safe to spawn.
+#
+# Computed once and reused by the report below, rather than derived twice:
+# the waves and that report must call the same plan held or they disagree
+# about the same fact.
+free_held=()
+hold_lines=""
+n_held=0
+i=0
+while [ "$i" -lt "${#free_names[@]}" ]; do free_held+=("0"); i=$((i + 1)); done
+if [ "$qc_mode" = "orchestrated" ] && [ "$free_count" -gt 0 ]; then
+  while IFS=$'\t' read -r _ _ cf clabel _; do
+    [ -n "$cf" ] || continue
+    case "$clabel" in *'claimed on '*) ;; *) continue ;; esac
+    cbranch="${clabel##*claimed on }"; cbranch="${cbranch%%,*}"; cbranch="${cbranch%%]*}"
+    craw="$(scope_lines "$cf")"
+    cscope="$(printf '%s\n' "$craw" |
+      grep -v '^[Ss][Hh][Aa][Rr][Ee][Dd]:' | paste -sd' ' -)"
+    cshared="$(printf '%s\n' "$craw" |
+      sed -n 's/^[Ss][Hh][Aa][Rr][Ee][Dd]:[[:space:]]*//p' | paste -sd' ' -)"
+    [ -n "$cscope$cshared" ] || continue
+    i=0
+    while [ "$i" -lt "${#free_names[@]}" ]; do
+      if hit="$(wave_split_hit "${free_scopes[$i]:-}" "${free_shared[$i]:-}" \
+                               "$cscope" "$cshared")"; then
+        hold_lines="${hold_lines}$(printf '  in flight: %s overlaps %s on %s (claimed on %s)' \
+          "${free_names[$i]}" "$(stem "$cf")" "$hit" "$cbranch")"$'\n'
+        # A hold behind a BLOCKED branch is released by `dispatch`: that plan
+        # spawns, so it keeps its place in the partition and can still make a
+        # conflicting peer wait. Only a hold that really stops the plan takes
+        # it out.
+        case " ${claim_blocked_branches} " in
+          *" ${cbranch} "*) ;;
+          *) [ "${free_held[$i]}" = "1" ] || n_held=$((n_held + 1))
+             free_held[i]="1" ;;
+        esac
+      fi
+      i=$((i + 1))
+    done
+  done <<<"$rows"
+fi
+
 if [ "$free_count" -ge 2 ] && [ "$scoped_any" = "1" ]; then
   # Greedy first-fit in queue order (urgent first): waves hold member
   # indices; a plan joins the first wave it conflicts with nobody in.
@@ -751,7 +816,9 @@ if [ "$free_count" -ge 2 ] && [ "$scoped_any" = "1" ]; then
   unscoped=""
   i=0
   while [ "$i" -lt "$free_count" ]; do
-    if [ -z "${free_scopes[$i]}" ] && [ -z "${free_shared[$i]}" ]; then
+    if [ "${free_held[$i]:-0}" = "1" ]; then
+      : # held behind work in flight: not spawned this pass, so not partitioned
+    elif [ -z "${free_scopes[$i]}" ] && [ -z "${free_shared[$i]}" ]; then
       unscoped="${unscoped:+${unscoped}, }${free_names[$i]} (${free_tiers[$i]})"
     else
       placed=0
@@ -794,6 +861,10 @@ if [ "$free_count" -ge 2 ] && [ "$scoped_any" = "1" ]; then
   printf '\n%d free plans. Waves — parallel proven within a wave, except\n' \
     "$free_count"
   printf 'where a reconcile is named; across waves the conflict is named:\n'
+  if [ "$n_held" -gt 0 ]; then
+    printf '(%d held behind work in flight, so not partitioned: a plan that\n' "$n_held"
+    printf 'does not run this pass cannot make another wait for it.)\n'
+  fi
   w=0
   while [ "$w" -lt "${#waves[@]}" ]; do
     line=""
@@ -852,36 +923,14 @@ elif [ "$free_count" -eq 0 ] && [ -z "$unplanned" ] &&
   printf '\nEdge reached: no free plan — every plan claimed or blocked. done.\n'
 fi
 
-# Under orchestrated only: a free plan whose exclusive scope overlaps a
-# CLAIMED plan's. The waves above partition free plans among themselves; an
-# orchestrator spawning into a fleet already in flight needs the other half
-# — which free plan collides with work a manager holds right now — and
-# `dispatch` reads these lines to hold that plan back. The SAME rule the
-# waves use — wave_split_hit, so a path only one side marked `shared:` is
-# a collision here exactly as it is there — and one fork per claimed plan,
-# paid only in the mode that spawns.
-if [ "$qc_mode" = "orchestrated" ] && [ "$free_count" -gt 0 ]; then
-  while IFS=$'\t' read -r _ _ cf clabel _; do
-    [ -n "$cf" ] || continue
-    case "$clabel" in *'claimed on '*) ;; *) continue ;; esac
-    cbranch="${clabel##*claimed on }"; cbranch="${cbranch%%,*}"; cbranch="${cbranch%%]*}"
-    craw="$(scope_lines "$cf")"
-    cscope="$(printf '%s\n' "$craw" |
-      grep -v '^[Ss][Hh][Aa][Rr][Ee][Dd]:' | paste -sd' ' -)"
-    cshared="$(printf '%s\n' "$craw" |
-      sed -n 's/^[Ss][Hh][Aa][Rr][Ee][Dd]:[[:space:]]*//p' | paste -sd' ' -)"
-    [ -n "$cscope$cshared" ] || continue
-    i=0
-    while [ "$i" -lt "${#free_names[@]}" ]; do
-      if hit="$(wave_split_hit "${free_scopes[$i]:-}" "${free_shared[$i]:-}" \
-                               "$cscope" "$cshared")"; then
-        printf '  in flight: %s overlaps %s on %s (claimed on %s)\n' \
-          "${free_names[$i]}" "$(stem "$cf")" "$hit" "$cbranch"
-      fi
-      i=$((i + 1))
-    done
-  done <<<"$rows"
-fi
+# A free plan whose exclusive scope overlaps a CLAIMED plan's. The waves
+# above partition free plans among themselves; an orchestrator spawning into
+# a fleet already in flight needs the other half — which free plan collides
+# with work a manager holds right now — and `dispatch` reads these lines to
+# hold that plan back. Computed above, before the waves, because the waves
+# have to know: a held plan is not partitioned. Printed here so the report
+# keeps the order a reader already knows.
+[ -z "$hold_lines" ] || printf '%s' "$hold_lines"
 
 printf '\n'
 # Static, deliberately. The in-flight state this defers to is computed one
