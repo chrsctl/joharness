@@ -188,7 +188,16 @@ stored, the successor reads git.
 ## Concurrency
 
 `JOHARNESS_MAX_MANAGERS` caps managers in flight. Blocked managers hold no
-slot — their session exited on purpose. Within the cap the order is the
+slot — their session exited on purpose. A manager past its retire commit
+still holds one: step 7 deletes the workstream file as the last commit
+before the pull request opens, so from there until the merge it owns a
+branch, a pull request, CI and a container while owning no claim. The claims
+view is right to drop it and `dispatch` counts the slot anyway — a claim
+says who owns an item, a slot says what is committed, and one value cannot
+answer both (`docs/plans/orchestrator-inflight-count.md`; the run that found
+it is in Runs below, with its count). From git that row cannot be told
+apart from a branch nobody came back to, so it is held and the control plane
+settles it. Within the cap the order is the
 queue hook's: urgent first, then oldest, partitioned into waves of
 disjoint scope. Two things this mode adds to the wave rule:
 
