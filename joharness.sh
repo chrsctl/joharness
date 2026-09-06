@@ -5644,12 +5644,119 @@ dispatch_waves() {
     }'
 }
 
+# Branches holding a slot without holding a claim: unmerged, ahead of the
+# base branch, owning no workstream file — and carrying the DELETION of one.
+#
+# That deletion is the whole trigger and it is the retire ritual's
+# fingerprint. Loop step 7 deletes the workstream file as the LAST COMMIT
+# BEFORE the pull request opens, so from that commit until the merge a live
+# manager holds a branch, a pull request, CI and a container while holding no
+# claim. The claims view is right to drop it — a retired file is not a claim,
+# pinned in .agents/harness/selftest/handover-context-owns.sh:85. `slots`
+# answers a different question with that same value: a claim says who owns an
+# item, a slot says how much of the human's money is committed right now. The
+# two diverge for exactly this window, which is the window in which
+# duplicating a manager is most expensive (docs/plans/orchestrator-inflight-count.md;
+# 11 consecutive passes on chrsctl/gx, 2026-09-06, read 4 of 4 free at cap).
+#
+# NOT "carries no workstream file", which is the same rule one word shorter
+# and catches every branch that never wrote one. Counted on this repo
+# 2026-09-06 with the loop below: 4 unmerged branches own no workstream file
+# and 1 of them carries the fingerprint. At the default cap of 4 the wider
+# test reports 0 of 4 free with nothing whatsoever in flight — a slot that
+# never frees, which is the trade the plan's second Scope bullet forbids.
+#
+#   for r in $(git for-each-ref --format='%(refname:short)' refs/remotes/origin); do
+#     git merge-base --is-ancestor "$r" origin/main && continue
+#     b=$(git merge-base "$r" origin/main) || continue
+#     git diff --name-only --diff-filter=ACMRT "$b" "$r" -- docs/handover | grep -q . && continue
+#     echo "$r $(git diff --name-only --diff-filter=D "$b" "$r" -- docs/handover docs/plans docs/research)"
+#   done
+#
+# The DELETED PLAN is the fingerprint that survives, and the deleted
+# workstream file mostly is not — which is not the obvious way round.
+# `git diff base..tip` compares two states, so a file BORN on the branch and
+# retired there appears in neither filter: added-then-deleted nets to absent,
+# and that is the ordinary claim, written after the branch was cut. The plan
+# file is the opposite — it lives on the base branch, because it is the queue
+# item, so step 7 deleting it is a real D in the net diff
+# (.agents/docs/plans/README.md, Lifecycle: "Done = implementing PR deletes
+# plan file, same PR as code"). Caught by the fixture, not by reading:
+# `mgr-eta` went red on all nine cases with the workstream deletion as the
+# only trigger (.agents/harness/selftest/dispatch.sh).
+#
+# A retired workstream file still counts where it IS visible — one the branch
+# INHERITED and deleted, which is the sweep half of the same ritual. Union of
+# the two, because either one alone leaves a slot uncounted, and both are
+# narrow: 1 branch of 4 on this repo today.
+#
+# DIFF, never the tree, on every half: a branch inherits every file its base
+# carried, so the tree reports an inherited workstream file as this branch's
+# own and a retired one as still present — the bug in both directions at once
+# (.agents/docs/feedback.md, tree or diff).
+#
+# One line per branch: <branch> TAB <item path, empty when none>. Empty is the
+# branch that retired a workstream file and finished no queue item: the slot
+# is held either way, because money is committed either way, and the row says
+# the item is unknown rather than guessing one.
+dispatch_retired_edges() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}"
+  git -C "$ROOT" for-each-ref --format='%(refname)' refs/remotes/origin 2>/dev/null |
+    { local r name base ahead item unver=0
+      while IFS= read -r r; do
+        name="${r#refs/remotes/origin/}"
+        { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
+        # Merged drops out entirely — the one case that must NEVER hold a
+        # slot, because the money stopped being committed when it landed.
+        git -C "$ROOT" merge-base --is-ancestor "$r" \
+          "refs/remotes/origin/${base_branch}" 2>/dev/null && continue
+        # NO merge base = ownership cannot be computed here at all, and a
+        # shallow clone is how that happens: grafted history, most refs
+        # unreachable from the base. `owned_at` hit 27 of them on one
+        # checkout (.agents/harness/handover-context.sh) and answers by
+        # over-reporting, because a missing claim costs two sessions on one
+        # branch. The same argument, one layer up and sharper: skipping a ref
+        # silently under-counts the slots, which is the defect this whole
+        # function exists to fix. Not skipped silently, then — counted, and
+        # the caller says the number is a floor. Never a ROW: no base means
+        # no evidence this ref is an edge at all, and inventing one holds a
+        # slot the fleet may need.
+        base="$(git -C "$ROOT" merge-base "$r" \
+          "refs/remotes/origin/${base_branch}" 2>/dev/null)"
+        if [ -z "$base" ]; then unver=$((unver + 1)); continue; fi
+        ahead="$(git -C "$ROOT" rev-list --count "${base}..${r}" 2>/dev/null)"
+        case "$ahead" in '' | 0) continue ;; esac
+        # Owns one: it IS a claim and the claims view already listed it. Two
+        # rows for one branch would double-count its slot.
+        git -C "$ROOT" diff --name-only --diff-filter=ACMRT "$base" "$r" \
+          -- docs/handover 2>/dev/null | gr_docs | grep -q . && continue
+        item="$(git -C "$ROOT" diff --name-only --diff-filter=D "$base" "$r" \
+          -- docs/plans docs/research 2>/dev/null | gr_docs | head -1)"
+        if [ -z "$item" ]; then
+          # No finished item: the branch is one of these only if it retired a
+          # workstream file it INHERITED, the half of the ritual a net diff
+          # can still see.
+          git -C "$ROOT" diff --name-only --diff-filter=D "$base" "$r" \
+            -- docs/handover 2>/dev/null | gr_docs | grep -q . || continue
+        fi
+        printf '%s\t%s\n' "$name" "$item"
+      done
+      # Last line, and it is not a branch: the caller reads the sentinel by
+      # name. Status cannot carry it — this runs inside a command
+      # substitution, where an assignment dies with the subshell, the trap
+      # `owned_at`'s own comment records falling into.
+      [ "$unver" -eq 0 ] || printf '!unverified\t%s\n' "$unver"
+    }
+}
+
 cmd_dispatch() {
   local mode cap stall health respawn churnt churnl hout qout rows wavemap edge req sup
   local path label branch ws doc status session next age agetext flag tier
   local base commits churn churn_n churn_f marks rounds work
   local st wave note hold holdmap hbranch blocked_branches=""
+  local ebranch eitem eage eagetext edge_rows="" edge_items="" edge_unver=""
   local n_inflight=0 n_slots n_free=0 n_stall=0 n_blocked=0 n_hold=0 n_wait=0 n_loop=0
+  local n_edge=0
   local inflight="" free="" questions=""
 
   mode="$(run_mode)"
@@ -5809,8 +5916,43 @@ cmd_dispatch() {
     [ -z "$next" ] || inflight="${inflight}    next: ${next}"$'\n'
   done <<<"$rows"
 
+  # --- edges past the retire commit: a slot committed, no claim to read ----
+  # Counted into n_inflight, so the slot shrinks. Listed in the SAME block as
+  # the claims, because to an orchestrator counting money they are the same
+  # thing; the row says which kind it is and what would free it.
+  while IFS=$'\t' read -r ebranch eitem; do
+    [ -n "$ebranch" ] || continue
+    # The scan's own caveat, carried as a row because status cannot leave a
+    # command substitution. Reported, never swallowed: a reader who is not
+    # told cannot know the count is short.
+    if [ "$ebranch" = '!unverified' ]; then edge_unver="$eitem"; continue; fi
+    eage="$(dispatch_age_min "$ebranch")"
+    eagetext="$(dispatch_age_text "$eage")"
+    n_inflight=$((n_inflight + 1))
+    n_edge=$((n_edge + 1))
+    edge_rows="${edge_rows}  ${eitem:-?}  ${ebranch}  retired  pushed ${eagetext}  PR in flight, no claim file: step 7 retired the workstream file before the pull request opened, so this branch commits a slot and names no owner"$'\n'
+    # Distinguishable from a genuinely abandoned branch, which is the other
+    # thing this shape can be — and the difference is not in git. Push age is
+    # the one signal here, so past the stall window the row says so and sends
+    # the reader to the control plane; the answer there decides whether the
+    # slot is really committed (.claude/commands/orchestrate.md, step 2).
+    if [ -z "$eage" ]; then
+      edge_rows="${edge_rows}    push age unknown: ref not here — fetch, then cross-check the control plane"$'\n'
+    elif [ "$eage" -ge "$stall" ]; then
+      edge_rows="${edge_rows}    STALL? no push for ${eagetext} (>= ${stall}m): cross-check the control plane by TITLE (manager: <stem>) — this row carries no session line to read. Gone means nobody is driving this merge: respawn on the branch to FINISH it, never to restart the item"$'\n'
+    fi
+    [ -z "$eitem" ] || edge_items="${edge_items} ${eitem} "
+  done <<<"$(dispatch_retired_edges)"
+
   printf 'managers in flight (git view; liveness is the control plane'"'"'s — read both):\n'
-  if [ -n "$inflight" ]; then printf '%s' "$inflight"; else printf '  none\n'; fi
+  if [ -n "${inflight}${edge_rows}" ]; then
+    printf '%s%s' "$inflight" "$edge_rows"
+  else
+    printf '  none\n'
+  fi
+  [ -z "$edge_unver" ] ||
+    printf '  %s ref(s) have no merge base here (shallow clone): an edge among them cannot be seen, so this listing is a FLOOR and the slots line may over-report free. Deepen the clone, or read the control plane before spawning.\n' \
+      "$edge_unver"
 
   # Finishing outranks starting, for an orchestrator too: an edge branch
   # whose session is gone is a manager to respawn before any new item.
@@ -5834,6 +5976,13 @@ cmd_dispatch() {
     case "$label" in
       *'claimed on '* | *'blocked by'* | *'SUPERVISED ONLY'*) continue ;;
     esac
+    # An item whose branch is past the retire commit is not free either. The
+    # queue hook cannot know: the file that said so was deleted, on purpose,
+    # one commit before the pull request opened. Skipped rather than
+    # annotated, exactly as a claimed row is — the in-flight block above
+    # already names this path and its branch, and one fact rendered twice is
+    # how two readers of it start disagreeing.
+    case "$edge_items" in *" ${path} "*) continue ;; esac
     tier="$(sed -n 's/.*agent: \([a-z]*\).*/\1/p' <<<"$label")"
     st="${path##*/}"; st="${st%.md}"
     wave=""; note=""
@@ -5931,6 +6080,12 @@ cmd_dispatch() {
     printf '            %s manager(s) blocked: report to the human, never respawn\n' "$n_blocked"
   [ "$n_hold" -eq 0 ] ||
     printf '            %s plan(s) on HOLD behind work in flight: not counted as free\n' "$n_hold"
+  # Said on the verdict, because this is the count the orchestrator spends
+  # money against and it is the half of the count git cannot finish: these
+  # rows have no `session:` line to read. Never folded into the stall count —
+  # that one names a manager you can `get_session` straight away.
+  [ "$n_edge" -eq 0 ] ||
+    printf '            %s branch(es) at the edge with no claim file: each HOLDS a slot here; the control plane decides whether it is really committed\n' "$n_edge"
   return 0
 }
 

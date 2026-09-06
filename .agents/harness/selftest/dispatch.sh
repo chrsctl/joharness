@@ -270,6 +270,139 @@ out="$(dsp env JOHARNESS_MAX_MANAGERS=0)"
 expect "cap 0 with managers in flight keeps the health pass" \
   "verdict   : PAUSED — JOHARNESS_MAX_MANAGERS=0: spawn nothing; 4 manager(s) in flight: keep the health pass going" "$out"
 
+# --- an edge past the retire commit: a slot committed, no claim to read -------
+# Loop step 7 deletes the workstream file as the LAST COMMIT BEFORE the pull
+# request opens, so from that commit until the merge a live manager holds a
+# branch, a pull request, CI and a container while holding no claim. The
+# claims view is right to drop it (handover-context-owns.sh:85, kept green);
+# `slots` answering the capacity question with that same value read 4 of 4
+# free on 11 consecutive passes with two managers up (chrsctl/gx, 2026-09-06).
+#
+# Cap 8 throughout this block: the four managers above already fill the
+# default, and a slot count that is 0 both ways pins nothing.
+dspplan eta
+dsppush "a plan for the retiring manager"
+out="$(dsp env JOHARNESS_MAX_MANAGERS=8)"
+expect "the fresh plan is free before anyone claims it" \
+  "docs/plans/eta.md (agent: sonnet)" "$out"
+expect "and the four managers above leave the rest free" "slots     : 4 of 8 free" "$out"
+
+git -C "$dspwork" checkout -qb mgr-eta
+mkdir -p "${dspwork}/docs/handover"
+printf -- '---\nworkstream: eta\nstatus: review\nbranch: mgr-eta\nplan: eta\nsession: https://example.invalid/session_eta\nagent: sonnet\nupdated: 2026-01-04\nnext: Open the pull request\n---\n\n## Goal\nFixture.\n' \
+  >"${dspwork}/docs/handover/eta.md"
+commit_all "$dspwork" "claim eta"
+git -C "$dspwork" push -qu origin mgr-eta
+git -C "$dspwork" checkout -q main
+out="$(dsp env JOHARNESS_MAX_MANAGERS=8)"
+expect "with its workstream file present it is an ordinary claim" \
+  "docs/plans/eta.md  mgr-eta  review  pushed" "$out"
+refute "and no retired row is invented for it" "mgr-eta  retired" "$out"
+expect "it holds a slot" "slots     : 3 of 8 free" "$out"
+refute "and its plan is not offered" "  docs/plans/eta.md (agent" "$out"
+
+# The retire commit itself: step 7's last commit before the pull request
+# opens, deleting the workstream file and the finished plan file together.
+# This is the half that pins the fix — the block above is the same branch one
+# commit earlier, and it must read as an ordinary claim there.
+#
+# The PLAN's deletion is what the reader can see, and that is not the obvious
+# way round. `git diff base..tip` compares two states: the workstream file was
+# born on this branch and retired on it, which nets to absent from every
+# filter, while the plan file lives on the base branch and its deletion is a
+# real D. Written the other way first, all nine cases below went red.
+git -C "$dspwork" checkout -q mgr-eta
+fixture_rm "$dspwork" "retire the workstream file and the done plan (step 7)" \
+  docs/handover/eta.md docs/plans/eta.md
+git -C "$dspwork" push -q origin mgr-eta
+git -C "$dspwork" checkout -q main
+out="$(dsp env JOHARNESS_MAX_MANAGERS=8)"
+expect "past the retire commit the branch is still in flight, on its own row" \
+  "docs/plans/eta.md  mgr-eta  retired  pushed" "$out"
+expect "which says what the row is" "PR in flight, no claim file" "$out"
+expect "it still holds its slot" "slots     : 3 of 8 free" "$out"
+refute "and its item is still not offered for spawning" \
+  "  docs/plans/eta.md (agent" "$out"
+expect "the verdict counts it and names who finishes the count" \
+  "1 branch(es) at the edge with no claim file: each HOLDS a slot here; the control plane decides whether it is really committed" "$out"
+
+# Distinguishable from a branch nobody came back to — the trade this fix must
+# not make. Push age is the only signal git has, so past the window the row
+# says so and names the respawn as step 7's, which is a merge to finish, not a
+# plan to restart.
+out="$(dsp env JOHARNESS_MAX_MANAGERS=8 JOHARNESS_STALL_MINUTES=0)"
+expect "past the stall window the row is marked" "STALL? no push for" \
+  "$(printf '%s\n' "$out" | grep -A1 'mgr-eta')"
+expect "and sends the reader to the control plane, by title" \
+  "cross-check the control plane by TITLE (manager: <stem>)" "$out"
+expect "naming the respawn as the merge, not a restart" \
+  "respawn on the branch to FINISH it, never to restart the item" "$out"
+
+# A branch that never wrote a workstream file is NOT this case, and that is
+# the load-bearing half of the trigger: the wider test — unmerged, ahead, no
+# workstream file — catches every branch that never claimed anything.
+# Counted on the canonical repo 2026-09-06 (the loop in the comment above
+# joharness.sh:dispatch_retired_edges): 4 unmerged branches own no workstream
+# file, 1 of them carries the fingerprint. At the default cap the wider test
+# would report 0 of 4 free with nothing in flight at all.
+git -C "$dspwork" checkout -qb mgr-nofile
+printf 'scratch\n' >"${dspwork}/scratch.txt"
+commit_all "$dspwork" "a branch that never claimed anything"
+git -C "$dspwork" push -qu origin mgr-nofile
+git -C "$dspwork" checkout -q main
+out="$(dsp env JOHARNESS_MAX_MANAGERS=8)"
+refute "a branch that never wrote a workstream file holds no slot" "mgr-nofile" "$out"
+expect "so the count does not move for it" "slots     : 3 of 8 free" "$out"
+
+# Merged, the slot comes back: the case that must never hold one, since the
+# money stopped being committed when the branch landed.
+git -C "$dspwork" merge -q --no-ff -m "merge eta" mgr-eta
+git -C "$dspwork" push -q origin main
+out="$(dsp env JOHARNESS_MAX_MANAGERS=8)"
+refute "a merged branch drops out entirely" "mgr-eta" "$out"
+expect "and gives its slot back" "slots     : 4 of 8 free" "$out"
+refute "its item leaves the queue with it" "docs/plans/eta.md" "$out"
+
+# The other half of the ritual, and the one a net diff CAN see on the
+# handover side: a workstream file the branch INHERITED and swept, no queue
+# item finished with it. Same slot, and the row says the item is unknown
+# rather than guessing one.
+printf -- '---\nworkstream: swept\nstatus: done\nbranch: gone\nplan: none\nagent: sonnet\nupdated: 2026-01-05\n---\n\n## Goal\nFixture.\n' \
+  >"${dspwork}/docs/handover/swept.md"
+dsppush "a workstream file an earlier merge left standing"
+git -C "$dspwork" checkout -qb mgr-sweep
+fixture_rm "$dspwork" "sweep the leftover workstream file" docs/handover/swept.md
+git -C "$dspwork" push -qu origin mgr-sweep
+git -C "$dspwork" checkout -q main
+out="$(dsp env JOHARNESS_MAX_MANAGERS=8)"
+expect "an inherited workstream file retired is the same shape" \
+  "mgr-sweep  retired  pushed" "$out"
+expect "with no item to name" "  ?  mgr-sweep" "$out"
+expect "and it holds a slot too" "slots     : 3 of 8 free" "$out"
+
+# A shallow clone has grafted history: `git merge-base` fails for most refs,
+# so ownership cannot be computed and an edge among them cannot be seen. The
+# degradation is the whole point — skipping those refs silently under-counts
+# the slots, which is the defect this row exists to fix, one clone deep.
+# Said, never guessed: no row is invented for a ref with no evidence.
+# file://, not the path: git IGNORES --depth on a local clone and says so on
+# stderr, so the path form produced a full clone with every merge base intact
+# and three cases that passed against nothing. --no-single-branch, or only
+# main comes and there are no other refs to be unable to read.
+dspshallow="${TMP}/dispatchshallow"
+git clone -q --depth 1 --no-single-branch "file://${dsporigin}" "$dspshallow"
+cp "${ROOT}/joharness.sh" "${dspshallow}/joharness.sh"
+mkdir -p "${dspshallow}/.agents/harness"
+cp "${ROOT}/.agents/harness/queue-context.sh" \
+   "${ROOT}/.agents/harness/handover-context.sh" "${dspshallow}/.agents/harness/"
+out="$( cd "$dspshallow" && JOHARNESS_CONF="$dspconf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 JOHARNESS_MAX_MANAGERS=8 ./joharness.sh dispatch 2>&1 )"
+expect "a shallow clone says the listing is a floor" \
+  "have no merge base here (shallow clone)" "$out"
+expect "and says which number to distrust" \
+  "the slots line may over-report free" "$out"
+refute "and invents no row for a ref it cannot read" "retired  pushed" "$out"
+
 # --- supervised: nothing to dispatch, said, and the preview named -------------
 # An earlier draft reported anyway "for a human running the beta loop", and
 # in a supervised repo printed NOT YOURS over a plan drain was handing out

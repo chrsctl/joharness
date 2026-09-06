@@ -29,15 +29,22 @@ orchestrator acting on that verdict spawns a duplicate per item and exceeds
   answers the wrong question with the claims view's value.
 - The row's trigger is the RETIRE RITUAL'S FINGERPRINT, not "no workstream
   file". A bare "unmerged branch carrying no workstream file" catches every
-  abandoned branch this repo has ever pushed — 40+ of them here — and slots
-  would read 0 of 4 forever. The fingerprint is diff-derived: the branch
-  DELETED a workstream file (`--diff-filter=D -- docs/handover`) and owns
-  none (`--diff-filter=ACMRT`). That is exactly what step 7 does and nothing
-  else does.
-- The item it holds comes from the same diff: the plan or research file the
-  branch deleted (step 7 / plans README, "Done = implementing PR deletes plan
-  file"). No deleted plan file = the row still holds the slot, with the item
-  named `?` — a slot with an unknown item is still money committed.
+  branch that never claimed anything. Counted on this repo 2026-09-06 with
+  the loop in the comment above `dispatch_retired_edges`: 4 unmerged branches
+  own no workstream file, 1 of them carries the fingerprint — so at the
+  default cap of 4 the wider test reports 0 of 4 free with nothing whatsoever
+  in flight.
+- The fingerprint is the DELETED PLAN FILE, with the deleted workstream file
+  as the second half of a union — not the other way round, which is what this
+  was written as first (see Review r1). The plan file lives on `main` because
+  it IS the queue item, so step 7 deleting it is a real `D` in the net diff;
+  the workstream file is usually born and retired on the same branch, which
+  nets to absent from every filter. A workstream deletion still counts where
+  it is visible: one the branch INHERITED and swept.
+- The item it holds is that same deleted plan or research file. A branch that
+  swept a workstream file and finished no queue item names none and still
+  holds the slot, with the item printed `?` — a slot with an unknown item is
+  still money committed.
 - Item suppressed from the free list the same way a claimed one is (skipped,
   not annotated): the in-flight block already names the path and the branch,
   and a second rendering of one fact is how two readers start disagreeing.
@@ -56,15 +63,39 @@ orchestrator acting on that verdict spawns a duplicate per item and exceeds
   refute failing for a good reason. Never relax a guard to make room for a fix
   one layer above it.
 - **Trigger = "unmerged + ahead + no owned workstream file"**, the plan's
-  literal Scope wording. Tried against this repo's real remote: 40+ branches
-  qualify, most of them months dead, and the count never frees. The plan's own
-  second bullet — "must still be distinguishable from a genuinely abandoned
-  branch" — is what rules it out.
+  literal Scope wording. Measured against this repo's real remote before
+  writing it: 4 branches qualify, 3 of which never wrote a workstream file at
+  all, and at the default cap of 4 the report reads 0 of 4 free with nothing
+  in flight. The plan's own second Scope bullet — "must still be
+  distinguishable from a genuinely abandoned branch, or this trades a
+  duplicate-spawn defect for a slot that never frees" — is what rules it out.
 
 ## Review
 
-Pending — edge review at step 5 (opus: adversarial, separate lenses, plus
-`verifier`).
+- r1: (session, does-it-reproduce) the trigger was written as "deleted a
+  workstream file", and it cannot see the ordinary case. `git diff base..tip`
+  compares two STATES: a workstream file born on the branch and retired on it
+  is added-then-deleted, which nets to absent from `--diff-filter=D` and from
+  `ACMRT` alike. Every one of the nine new fixture cases went red on the first
+  `ci`, and the one real branch it did match on this repo matched for the
+  other reason — it had INHERITED its file. (fixed: the deleted plan or
+  research file is the trigger, since the plan file lives on `main` and its
+  deletion survives the net diff; the workstream deletion stays as the second
+  half of a union, and `mgr-sweep` pins that half. Recorded rather than
+  quietly repaired: reading a net diff as a history walk is the same class as
+  `.agents/docs/feedback.md`'s tree-or-diff trap, one level in.)
+- r2: (session, correctness) a ref with no merge base was skipped in silence,
+  so on a SHALLOW clone — grafted history, most refs unreachable from the base
+  — a retired edge among them is not counted and its slot reads free. That is
+  the defect this function exists to fix, reproduced one clone deep, and the
+  sibling reader had already paid for it: `owned_at` over-reports in exactly
+  this case because a missing claim costs two sessions on one branch.
+  Measured on this checkout, full clone: 0 of 124 refs (`git merge-base "$r"
+  origin/main` per ref, 2026-09-06) — so nothing here would have shown it.
+  (fixed: unreadable refs are counted and the listing says it is a floor and
+  which number to distrust; no row is invented for a ref with no evidence,
+  since that would hold a slot the fleet may need. A `--depth 1
+  --no-single-branch` clone of the fixture origin pins it.)
 
 ## Blockers
 

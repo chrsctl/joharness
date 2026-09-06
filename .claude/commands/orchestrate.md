@@ -99,6 +99,24 @@ an old push are both real.
 | not RUNNING | any | status `blocked` | human's. Report. Never respawn. |
 | not RUNNING | any | branch unmerged, status in-progress / review / done | session gone. RESPAWN on that branch, below. |
 | not RUNNING | any | branch merged (dispatch no longer lists it) | done. Nothing — UNLESS dispatch's `upstream :` line says ON and the ledger has no `reported=<stem>` for it: then REPORT, below. |
+| RUNNING | any | row says `PR in flight, no claim file` | at step 7, merging. Nothing. It holds its slot until the branch merges. |
+| not RUNNING | any | row says `PR in flight, no claim file` | session gone AT THE EDGE. RESPAWN on that branch — to FINISH the merge (step 7), never to restart the plan: the work is done and the record was retired with it. Prompt it `/start` on the branch. |
+
+A `PR in flight, no claim file` row has no `session:` line to read — step 7
+retired the file that carried it. Find it by title `manager: <stem>` in
+`list_sessions`, `<stem>` from the item the row names; the row names `?`
+instead when the branch retired its workstream file without finishing a
+plan, and then the branch name is all you have — report it and leave it,
+never respawn a branch you cannot identify.
+
+**That lookup is load-bearing for the COUNT, not only for the row.** Every
+other row here confirms one manager before you touch it; these rows decide
+how many managers exist. `dispatch` counts each as a slot HELD, which is
+the safe direction from git alone — it cannot tell a manager mid-merge
+from a branch nobody came back to. A dead session on one of these rows
+means a slot the count is still holding: say so in the report, and it is
+freed by the respawn finishing the merge, never by spawning something
+else into it.
 
 Both sequences below stop a session before replacing it, and both name a
 tool the Tools table calls optional. One rule for both, at the point of
