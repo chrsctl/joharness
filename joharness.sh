@@ -27,6 +27,10 @@
 #                   GitHub comment; rendered natively)
 #   scorecard       count how THIS branch behaved since its merge base.
 #                   Reports only, never gates
+#   context         count what every session loads before its first prompt:
+#                   the CLAUDE.md import chain, the session-start injection,
+#                   and what THIS branch adds to the chain. Runs inside `ci`
+#                   too, without the session-start row. Reports only
 #   perf            count external commands per harness entrypoint against a
 #                   budget. Counts gate; seconds print and never gate. Runs
 #                   inside `ci` too, skipped on a docs-only branch
@@ -642,6 +646,13 @@ cmd_ci() {
     printf '  not measurable here (no merge-base; shallow checkout or base branch)\n'
   fi
 
+  # Beside churn, and for the same reason: the session that grows a file
+  # every future session loads is the one holding no earlier number. Cheap
+  # enough to run on every diff — the chain is three files and a merge-base
+  # read, no session-start (`context` pays for that one).
+  printf '\n== context\n'
+  ctx_report
+
   # Counts, not seconds. Registered here rather than in .github/workflows/ci.yml
   # because the workflow already runs this command: the guard reaches GitHub
   # with no workflow edit, and a session gets it BEFORE the pull request by
@@ -786,6 +797,188 @@ churn_top() {
       END { if (max) printf "%d\t%s\n", max, best }'
 }
 
+
+# ---------------------------------------------------------------------------
+# Context tax
+#
+# Every session loads CLAUDE.md and whatever it imports before its first
+# prompt — every mode, every role, every tier. `.agents/harness/AGENTS.md`
+# opens by citing ETH AGENTbench for "long context file hurt agent, cost
+# more", and `.agents/docs/caveman.md` says instruction files "load every
+# session; every word is paid repeatedly". Neither number was ever counted.
+#
+# Counted 2026-09-06 on origin/main, walking that file's own history
+# (`git show <commit>:.agents/harness/AGENTS.md | wc -w` over
+# `git log --first-parent --format=%H -- .agents/harness/AGENTS.md`): 770
+# words on 2026-08-23, 2129 on 2026-09-06. 2.8x in 14 days, unnoticed,
+# because growth arrives one honest rule at a time and no reader holds the
+# earlier number. Orchestrated mode cut the session-start injection 5983
+# bytes to 1541 for exactly this reason; the chain it cannot cut is larger
+# and was invisible.
+#
+# So: count it, and print what THIS branch adds. Report, never gate — a
+# ceiling on prose size fires on the honest rule addition and buys deleted
+# rules. `scorecard` states that doctrine and `churn` is the precedent for
+# earning a gate later, on a backtest, rather than asserting one now.
+#
+# The chain is WALKED, never listed. A hardcoded triple rots the day an
+# import moves, and the walk is what keeps this layer-agnostic: the selected
+# environment's rules arrive through session-start, so nothing here names a
+# layer (.agents/harness/AGENTS.md Part 2, the one carve-out).
+CTX_ENTRY="CLAUDE.md"
+
+# One file, from the worktree (empty ref) or from a git ref. Non-zero when
+# the path is absent, so a chain walked at the merge base skips a file this
+# branch ADDED rather than counting it as zero bytes present.
+ctx_read() {
+  local ref="$1" path="$2"
+  if [ -z "$ref" ]; then
+    [ -f "${ROOT}/${path}" ] || return 1
+    cat "${ROOT}/${path}"
+  else
+    git -C "$ROOT" show "${ref}:${path}" 2>/dev/null
+  fi
+}
+
+# `@path` alone on a line is the import; the same text inside a fenced block
+# is an example of one. caveman.md quotes import syntax and glossary.md may
+# yet, so the fence test is load bearing rather than defensive.
+ctx_imports() {
+  awk '
+    /^```/ { fence = !fence; next }
+    !fence && /^@[^[:space:]]+[[:space:]]*$/ {
+      s = $0; sub(/^@/, "", s); sub(/[[:space:]]+$/, "", s); print s }'
+}
+
+# Two spellings of one path must count once, or a cycle guard keyed on the
+# string lets the same file in twice. Stack walk, so `a/../b` and `./b` both
+# land on `b`.
+ctx_norm() {
+  awk -F/ '{
+    n = 0
+    for (i = 1; i <= NF; i++) {
+      if ($i == "" || $i == ".") continue
+      if ($i == "..") { if (n > 0) n--; continue }
+      st[++n] = $i
+    }
+    out = ""
+    for (i = 1; i <= n; i++) out = out (i > 1 ? "/" : "") st[i]
+    print out
+  }'
+}
+
+# Load order, each path once. Cycle-safe by construction: a file importing
+# itself, or a pair importing each other, is walked once and counted once.
+# Imports resolve against the IMPORTING file's directory, which is where the
+# reader resolves them.
+ctx_chain() {
+  local ref="${1:-}" pending cur dir imp p seen nl
+  nl=$'\n'
+  pending="$CTX_ENTRY"
+  seen="$nl"
+  while [ -n "$pending" ]; do
+    cur="${pending%%$'\n'*}"
+    if [ "$cur" = "$pending" ]; then pending=""; else pending="${pending#*$'\n'}"; fi
+    [ -n "$cur" ] || continue
+    case "$seen" in *$'\n'"${cur}"$'\n'*) continue ;; esac
+    ctx_read "$ref" "$cur" >/dev/null 2>&1 || continue
+    seen="${seen}${cur}"$'\n'
+    printf '%s\n' "$cur"
+    dir="${cur%/*}"
+    [ "$dir" != "$cur" ] || dir=""
+    while IFS= read -r imp; do
+      [ -n "$imp" ] || continue
+      p="$(printf '%s\n' "${dir:+${dir}/}${imp}" | ctx_norm)"
+      [ -n "$p" ] || continue
+      pending="${pending:+${pending}${nl}}${p}"
+    done < <(ctx_read "$ref" "$cur" | ctx_imports)
+  done
+}
+
+# bytes<TAB>words<TAB>path, one row per file, load order. Counted from the
+# tree at read time; nothing stored, same doctrine as churn and scorecard.
+# `wc` twice rather than once with two flags: the combined form prints in a
+# fixed order this would have to assume, and a wrong column here is a wrong
+# number nobody can see is wrong.
+ctx_counts() {
+  local ref="${1:-}" p b w
+  while IFS= read -r p; do
+    [ -n "$p" ] || continue
+    b="$(ctx_read "$ref" "$p" | wc -c | tr -d '[:space:]')"
+    w="$(ctx_read "$ref" "$p" | wc -w | tr -d '[:space:]')"
+    printf '%s\t%s\t%s\n' "$b" "$w" "$p"
+  done < <(ctx_chain "$ref")
+}
+
+# bytes<TAB>words for the whole chain.
+ctx_total() {
+  local ref="${1:-}" b w rest tb=0 tw=0
+  while IFS=$'\t' read -r b w rest; do
+    [ -n "$b" ] || continue
+    tb=$((tb + b)); tw=$((tw + w))
+  done < <(ctx_counts "$ref")
+  printf '%s\t%s\n' "$tb" "$tw"
+}
+
+# The report. `full` adds the session-start injection, which only the
+# subcommand pays for: measured 2026-09-06 on this repo, `session-start`
+# 3.5s against a 14.7s `ci`, so folding it into every `ci` run costs a
+# quarter of the run for a number a diff rarely moves.
+ctx_report() {
+  local full="${1:-}" b w p over base bb bw ss_b ss_w tmp mode
+  if [ -z "$(ctx_chain "")" ]; then
+    printf '  no %s here; nothing a session loads before its first prompt\n' \
+      "$CTX_ENTRY"
+    return 0
+  fi
+  printf '  loaded before the first prompt, every mode, every tier:\n'
+  while IFS=$'\t' read -r b w p; do
+    printf '    %-32s %8s bytes %7s words\n' "$p" "$b" "$w"
+  done < <(ctx_counts "")
+  IFS=$'\t' read -r b w < <(ctx_total "")
+  printf '    %-32s %8s bytes %7s words\n' "instructions" "$b" "$w"
+
+  if [ "$full" = "full" ]; then
+    mode="$(run_mode)"
+    tmp="$(mktemp)"
+    "$0" session-start >"$tmp" 2>/dev/null
+    ss_b="$(wc -c <"$tmp" | tr -d '[:space:]')"
+    ss_w="$(wc -w <"$tmp" | tr -d '[:space:]')"
+    rm -f "$tmp"
+    printf '    %-32s %8s bytes %7s words\n' "session-start (${mode})" \
+      "$ss_b" "$ss_w"
+    printf '    %-32s %8s bytes %7s words\n' "total" \
+      "$((b + ss_b))" "$((w + ss_w))"
+  fi
+
+  # What THIS branch adds is the number with teeth: it is paid once per
+  # future session, forever, and the session adding it is the one that
+  # cannot see the earlier total.
+  over="origin/${HANDOVER_BASE_BRANCH:-main}"
+  base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)" || base=""
+  if [ -z "$base" ]; then
+    printf '  branch delta not measurable here (no merge-base with %s)\n' "$over"
+  else
+    IFS=$'\t' read -r bb bw < <(ctx_total "$base")
+    if [ "$b" -eq "$bb" ] && [ "$w" -eq "$bw" ]; then
+      printf '  this branch adds nothing (%s bytes at the merge base)\n' "$bb"
+    else
+      printf '  this branch: %+d bytes, %+d words — paid by every session after\n' \
+        "$((b - bb))" "$((w - bw))"
+      printf '  it merges. Worth it, or is the rule already stated somewhere\n'
+      printf '  a session reads on demand? (.agents/docs/caveman.md)\n'
+    fi
+  fi
+  [ "$full" = "full" ] ||
+    printf '  with the session-start injection: %s context\n' "$0"
+  return 0
+}
+
+cmd_context() {
+  printf '== context (what a session loads before its first prompt)\n'
+  printf '   reports; never gates\n\n'
+  ctx_report full
+}
 # ---------------------------------------------------------------------------
 # Selftest scope
 #
@@ -5766,6 +5959,7 @@ main() {
     graph)          cmd_graph ;;
     scorecard)      cmd_scorecard ;;
     perf)           cmd_perf "$@" ;;
+    context)        cmd_context ;;
     mutate)         cmd_mutate "$@" ;;
     start)          [ -z "${1:-}" ] ||
                       die "start takes no argument; the commands that take one are /manage <item> and /plan"

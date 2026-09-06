@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01F4HQXMFP8vEakCs1sTwW8F
 agent: sonnet
 updated: 2026-09-06
-next: Write docs/plans/context-tax-count.md, then build cmd_context and the ci stage
+next: Review at sonnet depth with the verifier, record findings, then open the pull request
 ---
 
 ## Goal
@@ -31,7 +31,7 @@ question the repo already answers; the second half is the work.
   2026-09-06: `session-start` injects 5983 bytes supervised and 1541
   orchestrated (the mode already cut 74%), while the instruction chain
   every session loads before its first prompt — CLAUDE.md, AGENTS.md,
-  `.agents/harness/AGENTS.md` — is 15758 bytes and grew 770 -> 2129 words
+  `.agents/harness/AGENTS.md` — is 17858 bytes and grew 770 -> 2129 words
   between 2026-08-23 and today. That is 2.8x in 14 days, in a file whose
   first line cites ETH AGENTbench for "long context file hurt agent, cost
   more". Every session pays it, in every mode, at every tier.
