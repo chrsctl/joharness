@@ -1,6 +1,6 @@
 ---
 workstream: context-tax-count
-status: in-progress
+status: done
 branch: claude/opus-tier-manager-requirements-pvzp83
 pr: none
 plan: context-tax-count
@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01F4HQXMFP8vEakCs1sTwW8F
 agent: sonnet
 updated: 2026-09-06
-next: Review at sonnet depth with the verifier, record findings, then open the pull request
+next: Merge when checks are green and the branch is 0 behind origin/main
 ---
 
 ## Goal
@@ -140,7 +140,9 @@ the ordering was still wrong.
   file's directory. The fixture's only nested import was `@../CLAUDE.md`,
   which normalises to `CLAUDE.md` whether or not `dir` is computed. Same
   class as r1, found by the same tool. (fixed — `sub/RULES.md` now carries a
-  bare `@SIBLING.md`, which can only reach `sub/SIBLING.md` through `dir`)
+  bare `@SIBLING.md`, which can only reach `sub/SIBLING.md` through `dir`.
+  Re-run on the moved line, `mutate joharness.sh 922 '    dir=""'`, reds 5
+  cases)
 - r9: (verifier, correctness) `ctx_read`'s blob guard does not separate a
   symlink blob from a regular one: the worktree side follows the link and
   reads the target, the ref side prints the link's own path as content.
