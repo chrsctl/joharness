@@ -309,6 +309,26 @@ finding against *does the fact it states match what it measures*, drops what
 does not clear it, and says how many it dropped. A report that skipped that
 step is a preference with a diff.
 
+Two of its own limits are printed rather than papered over, both of them the
+commit-level attribution named under *What this cannot see* above:
+
+- **A finding whose fix commit carried other findings** is reported with its
+  paths flagged as the commit's rather than the finding's. Inside one repo
+  that ambiguity costs a hot-spot count; here it decides what leaves the
+  repository, and one commit fixing a harness defect beside a repo-private one
+  makes each look like both. Flagged, not dropped — a false negative loses the
+  finding for good, a flagged false positive costs the reporter one read.
+- **A finding with no fix commit at all** — the normal shape of a `wontfix` or
+  a no-change verdict, recorded in a commit that touches only the workstream
+  file — is placed by the paths its own TEXT names, marked as read from prose.
+  One that names none is listed as unplaceable and never flips the verdict by
+  itself: a report built on an unplaced finding is a consumer's own defect
+  carried verbatim onto somebody else's queue.
+
+A `wontfix` on a harness path is the strongest single signal the command has,
+and it is the one that has no fix commit by construction. It reaches the
+report through that second rule and through nothing else.
+
 The report lands as **one research node** in canonical, never a requirement
 and never a plan. A requirement is the human's goal to set and an unattended
 branch that adds one is red (`joharness.sh:lint_requirement_writes`); a plan

@@ -162,3 +162,198 @@ rm -f "${upwork}/.github/workflows/update.yml"
 out="$(upa harness-edge)"
 expect "a missing CANONICAL_REPO is named" "canonical : UNKNOWN" "$out"
 expect "and the findings are still read" "verdict   : REPORT" "$out"
+
+# The block above ended by removing update.yml to test the UNKNOWN path. Put
+# it back: every case below reads better against a real address, and a fixture
+# that carries one case's teardown into the next is how a later assertion ends
+# up passing for the wrong reason.
+printf 'jobs:\n  sync:\n    env:\n      CANONICAL_REPO: someone/joharness\n' \
+  >"${upwork}/.github/workflows/update.yml"
+
+# --- two findings, ONE commit: the attribution is the commit's --------------
+# fb_fix_map prints the cross-product of a commit's ids and its paths, so a
+# commit fixing a harness defect AND a repo-private one makes each finding
+# look like both. Inside one repo that costs a hot-spot count; here it decides
+# what leaves the repository, so the flag is the finding.
+git -C "$upwork" checkout -q -b shared-commit main
+mkdir -p "${upwork}/docs/handover"
+{ printf -- '---\nworkstream: shared-commit\nstatus: in-progress\n---\n\n'
+  printf '## Review\n\n- r1: the guard is inverted (fixed)\n'
+  printf -- '- r2: our own retry count is off by one (fixed)\n'
+} >"${upwork}/docs/handover/shared-commit.md"
+printf 'both\n' >>"${upwork}/.agents/harness/thing.sh"
+printf 'both\n' >>"${upwork}/src/app.py"
+commit_all "$upwork" "two findings, one commit"
+git -C "$upwork" rm -q docs/handover/shared-commit.md
+git -C "$upwork" commit -qm "Retire"
+git -C "$upwork" checkout -q main
+git -C "$upwork" merge -q --no-ff -m "Merge pull request #11 from x/shared-commit" shared-commit
+git -C "$upwork" push -q origin main shared-commit
+out="$(upa shared-commit)"
+expect "a finding from a shared fix commit is still reported" \
+  "the guard is inverted" "$out"
+expect "and its attribution is flagged, not trusted" \
+  "its fix commit carried other findings too" "$out"
+# The repo-private one rides in on the same cross-product. Reported WITH the
+# flag rather than dropped: dropping it silently is how a real harness finding
+# would go missing whenever it shared a commit. Counted, not substring-matched
+# — its TEXT was in this output before the flag existed too, so an `expect` on
+# the text is green whether the flag is there or not.
+upflags="$(printf '%s\n' "$out" | grep -c 'its fix commit carried other findings too' || :)"
+if [ "$upflags" -eq 2 ]; then
+  pass "BOTH findings from the shared commit carry the flag"
+else
+  fail "BOTH findings from the shared commit carry the flag (got ${upflags})"
+fi
+expect "including the repo-private one, which is not filed as clean" \
+  "our own retry count is off by one" "$out"
+
+# --- a wontfix with no fix commit at all ------------------------------------
+# The normal shape of wontfix and of a no-change verdict: recorded in a commit
+# that touches only the workstream file. An earlier round folded these into
+# "this repo's own files", which mislabelled them AND made the wontfix line
+# below unreachable — a session declining to fix a harness file is the
+# strongest single signal this command has, because the next sync would have
+# overwritten the fix anyway.
+git -C "$upwork" checkout -q -b wontfix-edge main
+mkdir -p "${upwork}/docs/handover"
+{ printf -- '---\nworkstream: wontfix-edge\nstatus: in-progress\n---\n\n'
+  printf '## Review\n\n- r1: .agents/harness/thing.sh states a fact it does not\n'
+  printf '  measure (wontfix: the fix belongs upstream, the next sync eats it here)\n'
+} >"${upwork}/docs/handover/wontfix-edge.md"
+commit_all "$upwork" "record a wontfix and fix nothing"
+git -C "$upwork" rm -q docs/handover/wontfix-edge.md
+git -C "$upwork" commit -qm "Retire"
+git -C "$upwork" checkout -q main
+git -C "$upwork" merge -q --no-ff -m "Merge pull request #12 from x/wontfix-edge" wontfix-edge
+git -C "$upwork" push -q origin main wontfix-edge
+out="$(upa wontfix-edge)"
+expect "a finding with no fix commit is placed by the path in its own text" \
+  "named in this finding's own text, not by a fix commit" "$out"
+expect "and reported" "verdict   : REPORT" "$out"
+expect "and the wontfix line is reachable at last" \
+  "it could not have been" "$out"
+
+# --- a finding nothing can place --------------------------------------------
+# No fix path and no path in the text. Listed for a reader, and it must NEVER
+# flip the verdict by itself: a report built on it would carry a consumer's
+# own defect verbatim into a pull request on somebody else's repository.
+git -C "$upwork" checkout -q -b vague-edge main
+mkdir -p "${upwork}/docs/handover"
+{ printf -- '---\nworkstream: vague-edge\nstatus: in-progress\n---\n\n'
+  printf '## Review\n\n- r1: the whole approach reads wrong to me (wontfix)\n'
+} >"${upwork}/docs/handover/vague-edge.md"
+commit_all "$upwork" "record something unplaceable"
+git -C "$upwork" rm -q docs/handover/vague-edge.md
+git -C "$upwork" commit -qm "Retire"
+git -C "$upwork" checkout -q main
+git -C "$upwork" merge -q --no-ff -m "Merge pull request #13 from x/vague-edge" vague-edge
+git -C "$upwork" push -q origin main vague-edge
+out="$(upa vague-edge)"
+expect "an unplaceable finding is listed" "unplaceable (no fix path" "$out"
+expect "and named" "the whole approach reads wrong to me" "$out"
+expect "and does not flip the verdict on its own" \
+  "verdict   : NOTHING TO REPORT" "$out"
+expect "the count is said rather than swallowed" \
+  "1 unplaceable finding(s) above" "$out"
+
+# --- a branch whose TIP is a merge commit -----------------------------------
+# Every branch that reconciled at step 7 has one ("Conflict at finish",
+# .agents/docs/product/README.md). Resolving the branch NAME as a merge commit
+# reads the base branch's own history under the branch's label — the edge
+# comes back empty, and its findings are lost for good once the orchestrator
+# records it as reported.
+git -C "$upwork" checkout -q -b reconciled main~1
+mkdir -p "${upwork}/docs/handover"
+{ printf -- '---\nworkstream: reconciled\nstatus: in-progress\n---\n\n'
+  printf '## Review\n\n- r1: the pointer outlived what it points at (fixed)\n'
+} >"${upwork}/docs/handover/reconciled.md"
+printf 'reconciled\n' >>"${upwork}/.agents/harness/thing.sh"
+commit_all "$upwork" "fix and record on reconciled"
+git -C "$upwork" rm -q docs/handover/reconciled.md
+git -C "$upwork" commit -qm "Retire"
+# The reconcile is the LAST commit on the branch, which is what step 7
+# produces: the retire commit lands, and only then does the finish check find
+# the branch behind. So the tip is a merge, and the branch NAME answers
+# `rev-parse <name>^2` — which is how the merge test used to swallow it.
+git -C "$upwork" merge -q --no-ff -m "Merge main into reconciled" main
+git -C "$upwork" checkout -q main
+git -C "$upwork" merge -q --no-ff -m "Merge pull request #14 from x/reconciled" reconciled
+git -C "$upwork" push -q origin main reconciled
+out="$(upa reconciled)"
+expect "a branch whose tip is a merge still resolves as a branch" \
+  "edge      : reconciled" "$out"
+expect "and its own finding is read" "the pointer outlived what it points at" "$out"
+
+# --- the notes on paths whose ownership is not clean -------------------------
+git -C "$upwork" checkout -q -b noted main
+mkdir -p "${upwork}/docs/handover" "${upwork}/.agents/env/mine"
+{ printf -- '---\nworkstream: noted\nstatus: in-progress\n---\n\n'
+  printf '## Review\n\n- r1: both halves drifted (fixed)\n'
+} >"${upwork}/docs/handover/noted.md"
+printf '# Part 2\n' >"${upwork}/AGENTS.md"
+printf 'layer\n' >"${upwork}/.agents/env/mine/setup.sh"
+commit_all "$upwork" "fix and record on noted"
+git -C "$upwork" rm -q docs/handover/noted.md
+git -C "$upwork" commit -qm "Retire"
+git -C "$upwork" checkout -q main
+git -C "$upwork" merge -q --no-ff -m "Merge pull request #15 from x/noted" noted
+git -C "$upwork" push -q origin main noted
+out="$(upa noted)"
+expect "AGENTS.md carries the splice note, because half of it is this repo's" \
+  "spliced — everything above" "$out"
+expect "and a layer carries the note that it may be this repo's own" \
+  "a layer this repo wrote itself is not canonical's" "$out"
+
+# --- a squash-merged edge above the newest merge -----------------------------
+# fb_edges reads --merges only, so a squash is invisible to it and the merge
+# below is reported as the newest edge — wrongly, and with nothing saying so.
+git -C "$upwork" checkout -q -b squashed main
+mkdir -p "${upwork}/docs/handover"
+{ printf -- '---\nworkstream: squashed\nstatus: in-progress\n---\n\n'
+  printf '## Review\n\n- r1: squashed away (fixed)\n'
+} >"${upwork}/docs/handover/squashed.md"
+printf 'squashed\n' >>"${upwork}/.agents/harness/thing.sh"
+commit_all "$upwork" "fix and record on squashed"
+git -C "$upwork" checkout -q main
+git -C "$upwork" merge -q --squash squashed
+git -C "$upwork" commit -qm "Squash-merge squashed"
+git -C "$upwork" push -q origin main squashed
+out="$(up)"
+expect "commits above the newest merge are counted" \
+  "newer than this merge" "$out"
+expect "and the remedy is named" "name its branch to read it" "$out"
+# And the remedy that warning names actually works: a squash keeps the
+# branch's own commits, so merge-base..branch is still exactly its work. This
+# is the assertion that makes the warning above worth printing.
+out="$(upa squashed)"
+expect "naming the squashed branch reads the edge the bare call missed" \
+  "squashed away" "$out"
+expect "and reports it" "verdict   : REPORT — 1 harness finding(s) on squashed" "$out"
+
+# --- a fast-forwarded branch: contained, and no merge names it ---------------
+# The one shape where merge-base IS the branch tip. Reporting an empty range
+# as NOTHING TO REPORT would read as "this branch found nothing" when the
+# truth is that its history is not reachable this way.
+git -C "$upwork" checkout -q -b fastforward main
+mkdir -p "${upwork}/docs/handover"
+{ printf -- '---\nworkstream: fastforward\nstatus: in-progress\n---\n\n'
+  printf '## Review\n\n- r1: fast-forwarded away (fixed)\n'
+} >"${upwork}/docs/handover/fastforward.md"
+printf 'ff\n' >>"${upwork}/.agents/harness/thing.sh"
+commit_all "$upwork" "fix and record on fastforward"
+git -C "$upwork" checkout -q main
+git -C "$upwork" merge -q --ff-only fastforward
+git -C "$upwork" push -q origin main fastforward
+out="$(upa fastforward)"
+expect "a fast-forwarded branch says its history is not reachable this way" \
+  "squash or fast-forward" "$out"
+refute "and is not reported as an edge that found nothing" "verdict" "$out"
+
+# --- no base branch here at all ---------------------------------------------
+# "no merge on origin/main" said the same thing whether origin was missing
+# entirely or simply had no merges, and only one of those is a setup problem.
+git -C "$upwork" update-ref -d refs/remotes/origin/main
+out="$(up)"
+expect "a missing base ref is named as one" "no origin/main here" "$out"
+refute "rather than reported as an origin with no merges" "no merge on" "$out"

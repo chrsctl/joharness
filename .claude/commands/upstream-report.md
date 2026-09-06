@@ -31,9 +31,22 @@ a plan, not another branch.
 
 ## 1. Gate every finding — this is the step that goes wrong
 
-`upstream` hands you findings whose fix landed on a file canonical owns.
-That is a filter, not a verdict. For each one ask the question
-`.agents/docs/feedback.md` § 1 asks:
+`upstream` hands you findings placed on a file canonical owns. That is a
+filter, not a verdict, and it prints its own two doubts beside the finding —
+read both before you weigh the text:
+
+- *its fix commit carried other findings too* — a path may belong to
+  another finding in the same commit. Open the commit.
+- *named in this finding's own text, not by a fix commit* — nothing fixed
+  this, so the path was read out of prose. Usually a `wontfix`, which is the
+  strongest thing on the page: a session declined to fix a harness file it
+  could not have fixed there anyway.
+
+An `unplaceable` finding is listed with no path at all. It never enters a
+report on its own — placing it means reading the edge and finding the file
+yourself, and if you cannot, it is not a report.
+
+For each finding ask the question `.agents/docs/feedback.md` § 1 asks:
 
 **Does the fact the harness stated match what it measures?**
 
