@@ -108,9 +108,25 @@ prints only the git half.
 | working | any push age | `RUNNING`, or pushed inside the window | nothing |
 | stalled | `STALL?` — no push for `JOHARNESS_STALL_MINUTES` | `RUNNING`, `status_detail` unchanged across two passes | pass 1 nudge, or nothing where there is no messaging; pass 2 kill |
 | looping | `LOOP?` — one file rewritten `JOHARNESS_CHURN_LIMIT`+ times; or head moved on three passes with `next:` unchanged | any | kill with the record, respawn one tier up |
-| gone | branch unmerged, status in-progress / review / done | not `RUNNING` | respawn on the branch |
+| idle | branch unmerged, any push age | `IDLE` or `PENDING` — **between turns, not gone** | pass 1 nudge and ledger; pass 2 respawn only if head AND `status_detail` are both unchanged |
+| crashed | branch unmerged; the git view says `in-progress`, which is what it says about every crash | `status_bucket` `..._FAILED`, whatever `session_status` says | NO nudge — nothing is listening. Confirm once (`updated_at` and head both unchanged), then archive and respawn |
+| gone | branch unmerged, status in-progress / review / done | `ARCHIVED`, or no session found by title | respawn on the branch, no nudge |
 | blocked | status `blocked` | any | report to the human; never respawn |
 | done | branch merged, plan file gone | any | nothing — or, with `JOHARNESS_UPSTREAM_FEEDBACK=on` and no `reported=` for it in the ledger, spawn ONE reporter |
+
+**Gone is ARCHIVED, not found on the control plane, or FAILED confirmed by a
+second look. Never IDLE alone, never PENDING** — IDLE means between turns,
+and a manager that arms its own check-in reads IDLE for the whole interval.
+Three fields, three different authorities: `session_status` and
+`status_bucket` are the control plane's account of the session and may decide
+liveness; `post_turn_summary.status_category` is the SESSION'S own account of
+its TURN, so `completed` means its turn ended and never that the work landed;
+merge state is git's (`git merge-base --is-ancestor`) and no summary's. Run 1
+paid for each of those sentences — one duplicate manager at ~17 USD over an
+IDLE session that woke and merged its own pull request, and a crash whose
+recovery was outside the text (Runs, below). The command file carries the
+same definition, the field table and both worked readings
+([`../../.claude/commands/orchestrate.md`](../../.claude/commands/orchestrate.md)).
 
 A nudge is a message: push your workstream file now. Most stalls end there
 — a session deep in a build has a handover it has not written, and

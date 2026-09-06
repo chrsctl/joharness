@@ -33,10 +33,44 @@ then be sent a nudge nothing is listening to.
   reasoning past the text, and followed it at 17:13Z. A rule that needs the
   reader to override it is the defect, so the fix is prose that gives the
   same answer to a reader who does not think.
+- The table is keyed on FIELDS now, not on the phrase "not RUNNING". That
+  phrase is what let one field decide liveness; the plan's own point is that
+  the control plane has at least five states across three fields.
+- The rows I added last item (`PR in flight, no claim file`) carried the same
+  `not RUNNING` defect and are fixed in the same pass. Half-applying the fix
+  inside one table is how the next reader picks the wrong half.
+- The "no `interrupt_session`" degradation rule is scoped to a session that
+  may still be RUNNING. Read unscoped, it forbids respawning a CONFIRMED DEAD
+  session — the rule against two sessions on one branch, applied where there
+  is only one.
+
+## The discrimination check (the plan's Acceptance, run)
+
+Four fresh low-tier sessions, each given ONLY the table text — no repository,
+no plan, no tools — plus ONE observation, asked what it does. Three of the
+four readings were disguised (different stem, sha, timestamps) so a reader
+could not pattern-match the worked example. 2026-09-06:
+
+| text | observation | answered |
+| --- | --- | --- |
+| `origin/main`'s | IDLE, `completed`, pull request open, head not an ancestor | **RESPAWN** — quoting the `not RUNNING … session gone` row verbatim. The 17 USD defect, reproduced on demand. |
+| amended | same shape, disguised, `status_bucket` OK | **NUDGE**, quoting the IDLE row |
+| amended | crash shape, disguised, `status_bucket` FAILED | **no nudge**; ledger it, and archive-then-respawn next pass if the record and head are still frozen |
+| IDLE fix only, FAILED rows removed | that same crash shape | **NUDGE** — the wrong answer, a nudge sent to something that cannot answer |
+
+Three versions, three different answers on the same input, which is what the
+plan asked the check to discriminate. The fourth row is why the FAILED rows
+are not decoration: without them the IDLE fix alone makes a crash worse.
 
 ## Rejected
 
-- (pending)
+- **Removing IDLE from the table's vocabulary and leaving the respawn row
+  otherwise intact** — the plan's own first Trap. The missing nudge is half
+  the defect: any single-observation respawn spends a manager on a guess.
+- **Keying the crash row on `post_turn_summary.status_category: failed`.**
+  It is the session's own account of its turn, and it is the same field that
+  said `completed` over an unmerged head at 17:13Z. `status_bucket` is the
+  control plane's, and only that may decide liveness.
 
 ## Review
 

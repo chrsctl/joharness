@@ -97,11 +97,52 @@ an old push are both real.
 | RUNNING | STALL? | in the ledger, head moved or `status_detail` changed | working. Drop the nudge. |
 | any | `LOOP?` on the line (churn past `JOHARNESS_CHURN_LIMIT`), or head moved and `next:` unchanged with `same=2` in the ledger (this pass makes 3) | any | LOOP: kill with progress recorded, below. No nudge — a nudge asks for a push, and a loop is pushing. STALL? beside it changes nothing: a loop that went quiet still needs the record. |
 | not RUNNING | any | status `blocked` | human's. Report. Never respawn. |
-| not RUNNING | any | branch unmerged, status in-progress / review / done | session gone. RESPAWN on that branch, below. |
-| not RUNNING | any | branch merged (dispatch no longer lists it) | done. Nothing — UNLESS dispatch's `upstream :` line says ON and the ledger has no `reported=<stem>` for it: then REPORT, below. |
+| IDLE or PENDING | any | branch unmerged, not in the ledger | NOT gone — IDLE is between turns. NUDGE, exactly as the stall row does, and ledger stem, head, `updated_at`, `status_detail`. Spawn nothing this pass. |
+| IDLE or PENDING | any | branch unmerged, in the ledger, head AND `status_detail` both unchanged | now treat as gone. RESPAWN on that branch, below. |
+| IDLE or PENDING | any | branch unmerged, in the ledger, head moved or `status_detail` changed | working. Drop the nudge. |
+| `status_bucket` FAILED, whatever `session_status` says | any | branch unmerged, not in the ledger | CRASHED. NO nudge — nothing is listening, and a nudge asks a working session for a push. Ledger `updated_at` and head; look again next pass. |
+| `status_bucket` FAILED | any | in the ledger, session record's `updated_at` AND head both unchanged | confirmed dead. `archive_session`, then RESPAWN. No `interrupt_session` first: there is nothing to stop. |
+| ARCHIVED, or no session found by title | any | branch unmerged | gone. RESPAWN on that branch, below — no nudge, there is nobody to ask. |
+| any | any | branch merged (dispatch no longer lists it) | done. Nothing — UNLESS dispatch's `upstream :` line says ON and the ledger has no `reported=<stem>` for it: then REPORT, below. |
 | RUNNING | any | row says `PR in flight, no claim file` | at step 7, merging. Nothing. |
-| not RUNNING | any | that row, and it NAMES an item | session gone at the edge. RESPAWN on that branch to FINISH the merge, never to restart the plan — the work is done and the record was retired with it. |
-| not RUNNING | any | that row, naming `?` | no item, so no title to look up and no successor to spawn. REPORT to the human: merging or retiring the branch is what frees the slot. |
+| gone by the definition above | any | that row, and it NAMES an item | gone at the edge. RESPAWN on that branch to FINISH the merge, never to restart the plan — the work is done and the record was retired with it. |
+| gone by the definition above | any | that row, naming `?` | no item, so no title to look up and no successor to spawn. REPORT to the human: merging or retiring the branch is what frees the slot. |
+
+**GONE is ARCHIVED, not found on the control plane, or FAILED confirmed by a
+second look. Never IDLE alone. Never PENDING.** One duplicate manager and
+about 17 USD say so (`.agents/docs/orchestrated.md`, Runs).
+
+Which field carries what, because "not RUNNING" without a field invites
+reading exactly one:
+
+| field | whose account | says |
+| --- | --- | --- |
+| `session_status` | the control plane | `RUNNING` working now. `IDLE` **between turns** — a manager that armed its own check-in reads IDLE the whole interval. `PENDING` starting. `ARCHIVED` gone. |
+| `status_bucket` | the control plane | `..._FAILED` = the turn died. This is the ONLY failure signal that may decide liveness. |
+| `post_turn_summary.status_category` | **the session's own** | its account of its TURN. `completed` means the turn ended — never that the work landed. May never decide liveness on its own. |
+| `status_detail` | the session's own | one line of where it got to. A second look at it is what separates working from stopped. |
+| merge state | **git** | `git merge-base --is-ancestor <head> origin/main`. Never a session's summary. |
+
+Two readings from run 1, one keystroke apart in the record and opposite in
+what they need. These are the part to read when the rows blur:
+
+**IDLE, and alive.** 17:13Z, `crm-aggregate-reasoning`:
+`session_status: SESSION_STATUS_IDLE`, `post_turn_summary.status_category:
+completed`, pull request #296 open, head `8f7dd84e` NOT an ancestor of
+`origin/main`. → **NUDGE, ledger, spawn nothing.** `completed` over an
+unmerged head is the case that MOST needs the ask, not one that skips it: the
+session was between turns, woke at 17:41Z and merged #296 itself as
+`4a4f3cc0`. Read as gone, it cost a duplicate manager and about 17 USD.
+
+**IDLE, and dead.** 18:13:30Z, `crm-public-dataroom`:
+`session_status: SESSION_STATUS_IDLE` — the same value — with
+`status_bucket: SESSION_STATUS_BUCKET_FAILED`, `status_detail:
+[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=tool_use`,
+and `dispatch` reporting `in-progress  pushed 3m`, which is what the git view
+says about every crash. → **NO nudge. Confirm once** — next pass, record still
+frozen at 18:13:30 and head unchanged — **then archive and respawn.**
+`session_status` alone cannot tell these two apart; `status_bucket` is what
+does.
 
 These rows carry no `session:` line — step 7 retired the file that had it.
 Look them up by TITLE, `manager: <stem>` from the item the row names, and
@@ -126,7 +167,10 @@ file was just fixed for:
   handover from the branch, set `status: blocked`, `next:` = "Stalled;
   the orchestrator could not stop the session that holds this." Report
   it and do NOT respawn. The write frees the slot; the human takes it
-  from there.
+  from there. This is about a session that may still be RUNNING. A
+  session that is gone by the definition above — ARCHIVED, not found, or
+  FAILED confirmed twice — has nothing to stop, so it is respawned
+  whether or not you have the tool.
 - No `archive_session`: the session was stopped and is merely left in
   place. Say so in the report and carry on — respawn as written.
 
