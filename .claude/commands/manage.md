@@ -81,6 +81,13 @@ Never a second item for you.
   nudge, then a kill.
 - A nudge arrives as a message: `/handover`, commit, push, reply in one
   line. Then continue.
+- On a runtime with no messaging there is no nudge, and the first thing
+  you feel is an interrupt mid-turn — which means the orchestrator has
+  already read you as stalled and is mid-kill. Push the handover NOW;
+  that is the only thing that survives. Expect to be replaced on this
+  branch by a successor that reads what you wrote. Waiting on a human?
+  `status: blocked` in the same push — a blocked item is never
+  respawned.
 - Stuck on a decision only a human takes (money, credentials, product
   direction, interface, protocol text, conflict that does not resolve
   clean): `status: blocked`, `next:` = the question, push, exit. Never
@@ -93,9 +100,11 @@ Step 5 review at your tier with `.claude/agents/verifier.md` (a subagent
 too; findings tagged `(verifier)`). Step 7 as written: green checks, 0
 behind fresh `origin/main`, `./joharness.sh finish` green, retire the
 plan file and the workstream file in the last commit before the pull
-request, exit. Merged = message the orchestrator session your prompt
-named: "merged <stem>" — it fills your slot at once instead of on its
-clock. Run no queue command; the next item is another manager's.
+request, exit. Did your prompt name a session to message on merge? Then
+"merged <stem>" to it — it fills your slot at once instead of on its
+clock. No such line in your prompt, or no messaging tool: just exit, the
+orchestrator's next pass sees the merge. Run no queue command; the next
+item is another manager's.
 
 ## Never
 

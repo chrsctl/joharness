@@ -80,7 +80,8 @@ sleep, never a poll:
    `NOT YOURS`.
 4. Schedule the next pass; end the turn. A manager's "merged <stem>"
    message wakes a pass early, so a freed slot is filled at once rather
-   than on the clock.
+   than on the clock — where there is messaging. Where there is none, the
+   scheduled pass is the only clock and the slot waits one pass.
 
 Spawn = `create_session` with the repository attached, the item's tier
 mapped to a model by [`agent-selection.md`](agent-selection.md) Lineup, a
@@ -99,7 +100,7 @@ prints only the git half.
 | Word | Git (dispatch) | Control plane | Orchestrator does |
 | --- | --- | --- | --- |
 | working | any push age | `RUNNING`, or pushed inside the window | nothing |
-| stalled | `STALL?` — no push for `JOHARNESS_STALL_MINUTES` | `RUNNING`, `status_detail` unchanged across two passes | nudge, then kill |
+| stalled | `STALL?` — no push for `JOHARNESS_STALL_MINUTES` | `RUNNING`, `status_detail` unchanged across two passes | pass 1 nudge, or nothing where there is no messaging; pass 2 kill |
 | looping | `LOOP?` — one file rewritten `JOHARNESS_CHURN_LIMIT`+ times; or head moved on three passes with `next:` unchanged | any | kill with the record, respawn one tier up |
 | gone | branch unmerged, status in-progress / review / done | not `RUNNING` | respawn on the branch |
 | blocked | status `blocked` | any | report to the human; never respawn |
@@ -108,6 +109,29 @@ prints only the git half.
 A nudge is a message: push your workstream file now. Most stalls end there
 — a session deep in a build has a handover it has not written, and
 writing it is what the next session needs anyway.
+
+Messaging is the one capability here the harness cannot promise, so the
+loop is written to run without it. Absent, the stall costs the same two
+passes and loses only the ask: the first pass writes the ledger entry and
+sends nothing, the second kills if the head and the summary have still
+not moved. The kill's own first step interrupts the session and lets its
+Stop guard push — the same chance the nudge was giving it, harsher and
+one pass later. What an operator loses is the warning band: with no
+nudge, `JOHARNESS_STALL_MINUTES` is a kill threshold, and a fleet without
+messaging wants it higher. The rule that shape belongs to is general and
+is stated in `.claude/commands/orchestrate.md`: a name you cannot find is
+a capability you do not have, not a reason to do nothing. Only
+`create_session`, `send_later` and one liveness read stop the loop.
+
+Measured, and the reason both files now say it: the first orchestrated
+run in consumer `chrsctl/gx` at `afdd11d` (2026-09-06) stopped on
+`send_message` — a name that was never in the Claude Code Remote MCP
+server, because messaging is the harness's `SendMessage` — and dispatched
+nothing while `./joharness.sh dispatch` printed `NOT DRAINED — 6 free
+item(s) now (+28 waiting behind them), 4 slot(s)`. `ToolSearch
+("+send_message")` returns nothing where `ToolSearch("+SendMessage")`
+returns the tool: the lookup the file prescribed could not find the tool
+the file needed.
 
 ### Loops are not stalls
 
