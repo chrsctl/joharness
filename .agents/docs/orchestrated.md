@@ -96,7 +96,7 @@ title `manager: <stem>`, and a prompt carrying `/manage <path>`,
 things [`unsupervised.md`](unsupervised.md) Authority says a spawn prompt
 carries, and nothing that asserts its own legitimacy.
 
-## Health: two signals, five words
+## Health: two signals, one verdict
 
 The monitor rule under Heartbeat in [`unsupervised.md`](unsupervised.md):
 never judge a session from one signal, because push time is not liveness
@@ -109,6 +109,8 @@ prints only the git half.
 | stalled | `STALL?` — no push for `JOHARNESS_STALL_MINUTES` | `RUNNING`, `status_detail` unchanged across two passes | pass 1 nudge, or nothing where there is no messaging; pass 2 kill |
 | looping | `LOOP?` — one file rewritten `JOHARNESS_CHURN_LIMIT`+ times; or head moved on three passes with `next:` unchanged | any | kill with the record, respawn one tier up |
 | crashed | branch unmerged; the git view says `in-progress`, which is what it says about every crash | `status_bucket` `..._FAILED` while `session_status` is not `RUNNING` | NO nudge — nothing is listening. Confirm once (`updated_at` and head both unchanged), then archive and respawn. **Read this row before the idle one**: one reading matches both |
+| stillborn | no branch at all: the ledger entry still reads `new` from a previous pass | `IDLE`/`PENDING` with NO `last_served_model` and NO `session_context.sources`, confirmed by a SECOND read of the record with `updated_at` unchanged | pass 1 records `seen=` and nothing else; pass 2 archives and spawns the ITEM again — a plain spawn, nothing was claimed. Counted against `JOHARNESS_RESPAWN_LIMIT`, and at the limit reported, because there is no branch to write `blocked` on. **Read this row before the idle one**: one reading matches both |
+| unclaimed | the same | `last_served_model` present — it ran and stopped without claiming, which `./joharness.sh authority` refusing does | report it; never respawn, a successor repeats the refusal |
 | idle | branch unmerged, any push age | `IDLE` or `PENDING`, bucket not FAILED — **between turns, not gone** | pass 1 nudge and ledger; pass 2 respawn only if head AND `status_detail` are both unchanged |
 | gone | branch unmerged, status in-progress / review / done, or an edge row IN FLIGHT that names an item | `ARCHIVED`, or no session found by title | respawn on the branch, no nudge. An edge row naming `?` is never respawned — no item, no successor's work |
 | leftover | the branch is under `leftovers`: its item is already gone from the base branch, so that merge happened | any | NOT a merge to finish and never respawned — a successor would land on merged work with no pull request and no item. Report it; the human deletes the branch |
@@ -128,7 +130,7 @@ state is git's (`git merge-base --is-ancestor`) and no summary's. Run 1 paid
 for each of those sentences, in a duplicate manager and in a crash whose
 recovery was outside the text (Runs, below, carries the cost and the
 timestamps). The command file carries the same definition, the field table,
-the row order and both worked readings
+the row order and the worked readings
 ([`../../.claude/commands/orchestrate.md`](../../.claude/commands/orchestrate.md)).
 
 A nudge is a message: push your workstream file now. Most stalls end there
@@ -426,3 +428,13 @@ What run 1 did NOT show: no heartbeat, so nothing about a fleet outliving its
 orchestrator; no kill and no nudge fired, so those paths are still unmeasured;
 one consumer, one queue shape, and that queue's overlap density is doing most
 of the work in the throughput number above.
+
+**Run 2, in flight, one observation** — the run is not over and its row is
+not written yet. 2026-09-07, consumer `chrsctl/gx`: one manager was spawned
+and never ran a turn, and cut no branch, so it was in no in-flight row and
+the health pass — which walks dispatch's list — never looked at it. Its item
+stayed under `spawn` for as long as it was watched. That is the `stillborn`
+row above; the reading that identifies one, field by field, is the third
+worked example in
+[`../../.claude/commands/orchestrate.md`](../../.claude/commands/orchestrate.md),
+which owns it. The run's own numbers wait for the run.
