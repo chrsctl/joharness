@@ -44,6 +44,12 @@
 # Environment:
 #   HANDOVER_BASE_BRANCH   base branch the queue lives on   (default: main)
 #   QUEUE_MAX_ENTRIES      cap on listed rows per tier      (default: 10)
+#   QUEUE_WITHHELD         items the CALLER will not spawn this pass, as
+#                          `<plan path>@<branch>`, space separated. Set only
+#                          by `joharness.sh dispatch`, for a branch past its
+#                          retire commit: it has no workstream file, so this
+#                          hook sees no claim, and without being told it
+#                          partitioned a plan nobody was going to spawn.
 
 set -uo pipefail
 
@@ -795,8 +801,37 @@ for s in "${free_shared[@]:-}"; do [ -n "$s" ] && scoped_any=1; done
 free_held=()
 hold_lines=""
 n_held=0
+# Plans a READER outside this hook will not spawn this pass, passed in rather
+# than re-derived. `dispatch` withholds an item whose branch is past its
+# retire commit — step 7 deletes the workstream file as the last commit before
+# the pull request opens, so the branch has no claim and this hook rightly
+# calls the plan free — and then partitioning it made every plan meeting its
+# scope WAIT for a pass nobody sits: the same serialisation the held-plan
+# skip below exists to stop, reached through the other reader
+# (docs/plans/dispatch-retired-edge-blocks-queue.md).
+#
+# Passed in, because deriving it here would be the second copy of
+# `joharness.sh:dispatch_retired_edges` and the rule this repo keeps paying
+# for. Empty for every other caller, which is every caller but `dispatch`:
+# session start prints the same waves it always did.
+free_withheld=()
+n_withheld=0
+wentry=""
+wpath=""
+wbranch=""
+wraw=""
+wscope=""
+wshared=""
 i=0
-while [ "$i" -lt "${#free_names[@]}" ]; do free_held+=("0"); i=$((i + 1)); done
+while [ "$i" -lt "${#free_names[@]}" ]; do
+  free_held+=("0")
+  case " ${QUEUE_WITHHELD:-} " in
+    *" docs/plans/${free_names[$i]}.md@"* | *" docs/research/${free_names[$i]}.md@"*)
+      free_withheld+=("1"); n_withheld=$((n_withheld + 1)) ;;
+    *) free_withheld+=("0") ;;
+  esac
+  i=$((i + 1))
+done
 if [ "$qc_mode" = "orchestrated" ] && [ "$free_count" -gt 0 ]; then
   while IFS=$'\t' read -r _ _ cf clabel _; do
     [ -n "$cf" ] || continue
@@ -820,13 +855,53 @@ if [ "$qc_mode" = "orchestrated" ] && [ "$free_count" -gt 0 ]; then
         # it out. THIS claim's status, not any status on its branch.
         case " ${claim_blocked_pairs} " in
           *" $(stem "$cf")@${cbranch} "*) ;;
-          *) [ "${free_held[$i]}" = "1" ] || n_held=$((n_held + 1))
+          *) [ "${free_held[$i]}" = "1" ] || [ "${free_withheld[$i]:-0}" = "1" ] ||
+               n_held=$((n_held + 1))
              free_held[i]="1" ;;
         esac
       fi
       i=$((i + 1))
     done
   done <<<"$rows"
+
+  # The withheld items are claims too, for the one purpose that matters here.
+  # A branch past its retire commit has finished writing its paths and its
+  # pull request is open — the STRONGEST reason to keep a peer off them, and
+  # before this loop it produced the weakest signal the command has: the peer
+  # was neither held nor waiting, so it was spawned straight into a collision
+  # with a branch one merge from landing. Leaving the withheld plan out of the
+  # partition removes the starvation; holding its peers is the other half, and
+  # `.agents/docs/orchestrated.md` Concurrency argues it for a claimed plan in
+  # the same words — an orchestrator that knows the collision is coming has no
+  # reason to send a manager into it (verifier r1).
+  #
+  # The plan file still exists HERE: the branch deleted it, the base branch
+  # has not merged that yet, so its scope reads exactly as any claim's does.
+  for wentry in ${QUEUE_WITHHELD:-}; do
+    wpath="${wentry%@*}"; wbranch="${wentry##*@}"
+    # No `@` means no branch to name, so it is not one of these entries.
+    case "$wentry" in *@*) ;; *) continue ;; esac
+    [ -n "$wpath" ] || continue
+    wraw="$(scope_lines "$wpath")"
+    wscope="$(printf '%s\n' "$wraw" |
+      grep -v '^[Ss][Hh][Aa][Rr][Ee][Dd]:' | paste -sd' ' -)"
+    wshared="$(printf '%s\n' "$wraw" |
+      sed -n 's/^[Ss][Hh][Aa][Rr][Ee][Dd]:[[:space:]]*//p' | paste -sd' ' -)"
+    [ -n "$wscope$wshared" ] || continue
+    i=0
+    while [ "$i" -lt "${#free_names[@]}" ]; do
+      # Never itself: a plan does not hold its own peers off its own paths.
+      if [ "${free_withheld[$i]:-0}" != "1" ] &&
+         hit="$(wave_split_hit "${free_scopes[$i]:-}" "${free_shared[$i]:-}" \
+                               "$wscope" "$wshared")"; then
+        hold_lines="${hold_lines}$(printf '  in flight: %s overlaps %s on %s (claimed on %s)' \
+          "${free_names[$i]}" "$(stem "$wpath")" "$hit" "$wbranch")"$'\n'
+        [ "${free_held[$i]}" = "1" ] || n_held=$((n_held + 1))
+        free_held[i]="1"
+      fi
+      i=$((i + 1))
+    done
+  done
 fi
 
 if [ "$free_count" -ge 2 ] && [ "$scoped_any" = "1" ]; then
@@ -838,8 +913,9 @@ if [ "$free_count" -ge 2 ] && [ "$scoped_any" = "1" ]; then
   unscoped=""
   i=0
   while [ "$i" -lt "$free_count" ]; do
-    if [ "${free_held[$i]:-0}" = "1" ]; then
-      : # held behind work in flight: not spawned this pass, so not partitioned
+    if [ "${free_held[$i]:-0}" = "1" ] || [ "${free_withheld[$i]:-0}" = "1" ]; then
+      : # not spawned this pass — held behind work in flight, or withheld by
+        # the reader that spawns — so not in the partition of what runs
     elif [ -z "${free_scopes[$i]}" ] && [ -z "${free_shared[$i]}" ]; then
       unscoped="${unscoped:+${unscoped}, }${free_names[$i]} (${free_tiers[$i]})"
     else
@@ -883,9 +959,14 @@ if [ "$free_count" -ge 2 ] && [ "$scoped_any" = "1" ]; then
   printf '\n%d free plans. Waves — parallel proven within a wave, except\n' \
     "$free_count"
   printf 'where a reconcile is named; across waves the conflict is named:\n'
-  if [ "$n_held" -gt 0 ]; then
-    printf '(%d of them held behind work in flight and so not partitioned: a\n' "$n_held"
-    printf 'plan that does not run this pass cannot make another wait for it.)\n'
+  if [ "$n_held" -gt 0 ] || [ "$n_withheld" -gt 0 ]; then
+    printf '(%d of them not partitioned' "$((n_held + n_withheld))"
+    [ "$n_held" -eq 0 ] ||
+      printf ': %d held behind work in flight' "$n_held"
+    [ "$n_withheld" -eq 0 ] ||
+      printf '%s %d already at the edge, past a retire commit' \
+        "$([ "$n_held" -eq 0 ] && printf ':' || printf ',')" "$n_withheld"
+    printf '. A plan\nthat does not run this pass cannot make another wait for it.)\n'
   fi
   # A header promising waves, followed by none, reads as output that broke
   # off. It happens whenever everything free is held (found by the verifier).

@@ -5425,6 +5425,7 @@ drain_hook() {
   CLAUDE_PROJECT_DIR="$ROOT" HANDOVER_FETCH="${DRAIN_FETCH:-0}" \
     QUEUE_MAX_ENTRIES="${DRAIN_MAX_ENTRIES:-10000}" \
     HANDOVER_MAX_ENTRIES="${DRAIN_MAX_ENTRIES:-10000}" \
+    QUEUE_WITHHELD="${DISPATCH_WITHHELD:-}" \
     JOHARNESS_RUN_MODE="$(run_mode)" "$h" 2>/dev/null
 }
 
@@ -5798,10 +5799,10 @@ cmd_dispatch() {
   local path label branch ws doc status session next age agetext flag tier
   local base commits churn churn_n churn_f marks rounds work
   local st wave note hold holdmap hold_live hline hb hs blocked_claims=""
-  local ebranch eitem efirst estem espaces emore eage eagetext
+  local ebranch eitem efirst estem espaces emore epath eage eagetext
   local edge_rows="" edge_items="" edge_unver=""
   local n_inflight=0 n_slots n_free=0 n_stall=0 n_blocked=0 n_hold=0 n_wait=0 n_loop=0
-  local n_edge=0 n_edge_stall=0
+  local n_edge=0 n_edge_stall=0 DISPATCH_WITHHELD=
   local inflight="" free="" questions=""
 
   mode="$(run_mode)"
@@ -5873,6 +5874,74 @@ cmd_dispatch() {
     printf '            canonical (JOHARNESS_UPSTREAM_FEEDBACK)\n'
   fi
   printf '\n'
+
+  # --- edges past the retire commit: a slot committed, no claim to read ----
+  # Counted into n_inflight, so the slot shrinks. Listed in the SAME block as
+  # the claims, because to an orchestrator counting money they are the same
+  # thing; the row says which kind it is and what would free it.
+  while IFS=$'\t' read -r ebranch eitem; do
+    [ -n "$ebranch" ] || continue
+    # The scan's own caveat, carried as a row because status cannot leave a
+    # command substitution. Reported, never swallowed: a reader who is not
+    # told cannot know the count is short.
+    if [ "$ebranch" = '..unverified' ]; then edge_unver="$eitem"; continue; fi
+    eage="$(dispatch_age_min "$ebranch")"
+    eagetext="$(dispatch_age_text "$eage")"
+    n_inflight=$((n_inflight + 1))
+    n_edge=$((n_edge + 1))
+    # First item names the row; the rest ride behind it, because one branch
+    # is one slot however many items it finished.
+    efirst="${eitem%% *}"
+    # Word count without splitting: the spaces left when everything else is
+    # stripped, plus one. `set --` here would clobber the caller's own
+    # arguments, and an unquoted expansion is the split this file lints for.
+    espaces="${eitem//[! ]/}"
+    if [ -z "$eitem" ]; then emore=0; else emore=$(( ${#espaces} + 1 )); fi
+    edge_rows="${edge_rows}  ${efirst:-?}  ${ebranch}  retired  pushed ${eagetext}  PR in flight, no claim file: step 7 retired the workstream file before the pull request opened, so this branch commits a slot and names no owner"
+    [ "$emore" -le 1 ] ||
+      edge_rows="${edge_rows} (and $((emore - 1)) more item(s) retired here: ${eitem#* })"
+    edge_rows="${edge_rows}"$'\n'
+    # Distinguishable from a genuinely abandoned branch, which is the other
+    # thing this shape can be — and the difference is not in git. Push age is
+    # the one signal here, so past the stall window the row says so and sends
+    # the reader to the control plane; the answer there decides whether the
+    # slot is really committed (.claude/commands/orchestrate.md, step 2).
+    if [ -z "$eage" ]; then
+      edge_rows="${edge_rows}    push age unknown: ref not here — fetch, then cross-check the control plane"$'\n'
+    elif [ "$eage" -ge "$stall" ]; then
+      # The SAME count the claimed rows feed. Two counters would print one
+      # STALL? token in the listing and a verdict that says none — one pass,
+      # two numbers, which is the disagreement this command exists to end
+      # (verifier r5).
+      n_stall=$((n_stall + 1))
+      n_edge_stall=$((n_edge_stall + 1))
+      estem="${efirst##*/}"; estem="${estem%.md}"
+      if [ -n "$efirst" ]; then
+        edge_rows="${edge_rows}    STALL? no push for ${eagetext} (>= ${stall}m): cross-check the control plane by TITLE (manager: ${estem}) — this row carries no session line to read. Gone — ARCHIVED, not found, or FAILED confirmed twice, never IDLE alone (.claude/commands/orchestrate.md) — means nobody is driving this merge: respawn on the branch to FINISH it, never to restart the item"$'\n'
+      else
+        # No item, no title to look up, so no respawn: a successor spawned
+        # blind onto a branch nobody can name is two sessions on one branch.
+        # The human merges it or retires it, and until then it holds the
+        # slot — say that, or the row is a slot with no way out (verifier r6).
+        edge_rows="${edge_rows}    STALL? no push for ${eagetext} (>= ${stall}m): this row names no item, so there is no title to look up and no successor to spawn. REPORT it to the human — merging or retiring that branch is what frees the slot"$'\n'
+      fi
+    fi
+    # `<item>@<branch>`, because the hook holds this item's peers off its
+    # paths and the hold line has to name the branch they are waiting on.
+    if [ -n "$eitem" ]; then
+      for epath in $eitem; do
+        edge_items="${edge_items} ${epath}@${ebranch} "
+      done
+    fi
+  done <<<"$(dispatch_retired_edges)"
+
+  # The hooks run AFTER the scan, and that ordering is the fix: the queue hook
+  # partitions the free plans into waves, and it cannot see an edge past its
+  # retire commit — the branch has no claim, so the plan reads free there. Told
+  # which items this command will withhold, it leaves them out of the partition
+  # exactly as it leaves out a held plan. Derived once, here, and passed; the
+  # hook deriving it again would be the second copy of the scan above.
+  DISPATCH_WITHHELD="$edge_items"
 
   hout="$(drain_hook handover-context.sh)"
   qout="$(drain_hook queue-context.sh)"
@@ -5979,59 +6048,6 @@ cmd_dispatch() {
     [ -z "$next" ] || inflight="${inflight}    next: ${next}"$'\n'
   done <<<"$rows"
 
-  # --- edges past the retire commit: a slot committed, no claim to read ----
-  # Counted into n_inflight, so the slot shrinks. Listed in the SAME block as
-  # the claims, because to an orchestrator counting money they are the same
-  # thing; the row says which kind it is and what would free it.
-  while IFS=$'\t' read -r ebranch eitem; do
-    [ -n "$ebranch" ] || continue
-    # The scan's own caveat, carried as a row because status cannot leave a
-    # command substitution. Reported, never swallowed: a reader who is not
-    # told cannot know the count is short.
-    if [ "$ebranch" = '..unverified' ]; then edge_unver="$eitem"; continue; fi
-    eage="$(dispatch_age_min "$ebranch")"
-    eagetext="$(dispatch_age_text "$eage")"
-    n_inflight=$((n_inflight + 1))
-    n_edge=$((n_edge + 1))
-    # First item names the row; the rest ride behind it, because one branch
-    # is one slot however many items it finished.
-    efirst="${eitem%% *}"
-    # Word count without splitting: the spaces left when everything else is
-    # stripped, plus one. `set --` here would clobber the caller's own
-    # arguments, and an unquoted expansion is the split this file lints for.
-    espaces="${eitem//[! ]/}"
-    if [ -z "$eitem" ]; then emore=0; else emore=$(( ${#espaces} + 1 )); fi
-    edge_rows="${edge_rows}  ${efirst:-?}  ${ebranch}  retired  pushed ${eagetext}  PR in flight, no claim file: step 7 retired the workstream file before the pull request opened, so this branch commits a slot and names no owner"
-    [ "$emore" -le 1 ] ||
-      edge_rows="${edge_rows} (and $((emore - 1)) more item(s) retired here: ${eitem#* })"
-    edge_rows="${edge_rows}"$'\n'
-    # Distinguishable from a genuinely abandoned branch, which is the other
-    # thing this shape can be — and the difference is not in git. Push age is
-    # the one signal here, so past the stall window the row says so and sends
-    # the reader to the control plane; the answer there decides whether the
-    # slot is really committed (.claude/commands/orchestrate.md, step 2).
-    if [ -z "$eage" ]; then
-      edge_rows="${edge_rows}    push age unknown: ref not here — fetch, then cross-check the control plane"$'\n'
-    elif [ "$eage" -ge "$stall" ]; then
-      # The SAME count the claimed rows feed. Two counters would print one
-      # STALL? token in the listing and a verdict that says none — one pass,
-      # two numbers, which is the disagreement this command exists to end
-      # (verifier r5).
-      n_stall=$((n_stall + 1))
-      n_edge_stall=$((n_edge_stall + 1))
-      estem="${efirst##*/}"; estem="${estem%.md}"
-      if [ -n "$efirst" ]; then
-        edge_rows="${edge_rows}    STALL? no push for ${eagetext} (>= ${stall}m): cross-check the control plane by TITLE (manager: ${estem}) — this row carries no session line to read. Gone — ARCHIVED, not found, or FAILED confirmed twice, never IDLE alone (.claude/commands/orchestrate.md) — means nobody is driving this merge: respawn on the branch to FINISH it, never to restart the item"$'\n'
-      else
-        # No item, no title to look up, so no respawn: a successor spawned
-        # blind onto a branch nobody can name is two sessions on one branch.
-        # The human merges it or retires it, and until then it holds the
-        # slot — say that, or the row is a slot with no way out (verifier r6).
-        edge_rows="${edge_rows}    STALL? no push for ${eagetext} (>= ${stall}m): this row names no item, so there is no title to look up and no successor to spawn. REPORT it to the human — merging or retiring that branch is what frees the slot"$'\n'
-      fi
-    fi
-    [ -z "$eitem" ] || edge_items="${edge_items} ${eitem} "
-  done <<<"$(dispatch_retired_edges)"
 
   printf 'managers in flight (git view; liveness is the control plane'"'"'s — read both):\n'
   if [ -n "${inflight}${edge_rows}" ]; then
@@ -6071,7 +6087,7 @@ cmd_dispatch() {
     # annotated, exactly as a claimed row is — the in-flight block above
     # already names this path and its branch, and one fact rendered twice is
     # how two readers of it start disagreeing.
-    case "$edge_items" in *" ${path} "*) continue ;; esac
+    case "$edge_items" in *" ${path}@"*) continue ;; esac
     tier="$(sed -n 's/.*agent: \([a-z]*\).*/\1/p' <<<"$label")"
     st="${path##*/}"; st="${st%.md}"
     wave=""; note=""
