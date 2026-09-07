@@ -149,7 +149,7 @@ rule on.
 | RUNNING | STALL? | not in the ledger | NUDGE: `SendMessage`, `to` = its row in `ListAgents`: "Orchestrator health pass: no push on <branch> for <N>m. Now: /handover, commit, push. Then continue, or set status blocked and stop." Ledger: stem, branch head now, `status_detail`. NO messaging tool, or no row for it: send nothing and still write the ledger entry — the next pass then reads the row below and kills, on the same two observations, without the ask. Never kill on this first one; two passes is the rule, and the missing tool removes the message, not the second look. With no nudge `JOHARNESS_STALL_MINUTES` is a kill threshold and not a warning one; say so in the report, the operator may want it higher. |
 | RUNNING | STALL? | in the ledger, head unchanged, `status_detail` unchanged | KILL, below. |
 | RUNNING | STALL? | in the ledger, head moved or `status_detail` changed | working. Drop the nudge. |
-| any | `LOOP?` on the line (churn past `JOHARNESS_CHURN_LIMIT`), or head moved and `next:` unchanged with `same=2` in the ledger (this pass makes 3) | any | LOOP: kill with progress recorded, below. No nudge — a nudge asks for a push, and a loop is pushing. STALL? beside it changes nothing: a loop that went quiet still needs the record. |
+| any | `LOOP?` on the line (churn past `JOHARNESS_CHURN_LIMIT`), or THIS pass's head moved and `next:` still unchanged, with `same=2` already in the ledger (this pass makes 3) | any | LOOP: kill with progress recorded, below. No nudge — a nudge asks for a push, and a loop is pushing. STALL? beside it changes nothing: a loop that went quiet still needs the record. Head NOT moved this pass: this row does not match, whatever `same` last read — that reading is the STALL rows' business instead. |
 | not RUNNING | any | status `blocked` | human's. Report. Never respawn. |
 | not RUNNING (IDLE, PENDING, or no status at all) AND `status_bucket` FAILED | any | no `seen=` recorded for it | CRASHED. NO nudge — nothing is listening, and a nudge asks a working session for a push. Ledger `seen=<updated_at>` and the head; look again next pass. Nothing else this pass. |
 | the same, still FAILED | any | `seen=` recorded, and `updated_at` AND head both unchanged since it | confirmed dead. `archive_session`, THEN RESPAWN. No `interrupt_session` first: there is nothing to stop. |
@@ -435,7 +435,15 @@ that cannot be reached after a compaction — which would drop a confirmed-dead
 session back onto the idle rows and nudge it.
 
 `same` = the last value plus one when the head moved and `next:` did not,
-else 0. Never sleep, never poll. On wake: step 1 again, ledger from the
+else 0 — head UNCHANGED resets it to 0 too, whatever it last read: that
+reading is the STALL rows' signal (gated by `JOHARNESS_STALL_MINUTES`), never
+`same`'s. Measured 2026-09-07, `chrsctl/gx` `gx-run-service-deployment`: two
+passes read head unchanged (17 commits, both) and `next:` unchanged, and
+`same` got incremented anyway — the LOOP row read on a static `next:` alone,
+head-moved unchecked. Push age was still under `JOHARNESS_STALL_MINUTES`, so
+neither table row actually matched; the session was mid-turn between
+pushes, confirmed live on the control plane. Never sleep, never poll. On
+wake: step 1 again, ledger from the
 message. A message "merged <stem>" from a manager is a wake too: run the
 pass at once, so the freed slot is filled without waiting out the clock,
 and keep the scheduled pass — it re-reads the same ledger. No messaging
