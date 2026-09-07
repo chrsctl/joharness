@@ -699,6 +699,41 @@ expect "a plan meeting both is held, and the live claim is named" \
 refute "never spawned on the strength of the withheld half" \
   "zboth.md (agent: sonnet)  wave" "$out"
 
+# --- the same shape, once the merge has already happened ---------------------
+# ONE boolean, and both sides of it. Above, `mgr-retired` is mid-merge: its
+# item is retired on the branch and still on the base, which is exactly what
+# step 7 leaves behind between the retire commit and the merge, and it holds
+# its slot. Here the base loses the item too — the merge landed, by this
+# branch or by another — and the same branch shape now commits nothing.
+#
+# Counting it is what stopped a fleet: five such branches aged 70h to 613h
+# against a cap of 4 read `slots: 0 of 4 free` for as long as they stand,
+# with zero open pull requests in the repository
+# (docs/plans/orchestrator-edge-slot-leak.md).
+# The slot count is read either side of the one change, at a cap high enough
+# not to saturate: the absolute number depends on every manager this topic has
+# built, the DIFFERENCE is the property under test.
+before="$(dsp env JOHARNESS_MAX_MANAGERS=20)"
+nbefore="$(printf '%s\n' "$before" |
+  sed -n 's/^slots     : \([0-9][0-9]*\) of 20 free$/\1/p')"
+expect "the mid-merge branch is in flight before the merge lands" \
+  "docs/plans/aretired.md  mgr-retired  retired  pushed" "$before"
+fixture_rm "$dspwork" "the item merges by another route" docs/plans/aretired.md
+git -C "$dspwork" push -q origin main
+after="$(dsp env JOHARNESS_MAX_MANAGERS=20)"
+expect "the slot it was holding comes back, exactly one" \
+  "slots     : $((nbefore + 1)) of 20 free" "$after"
+out="$(dsp env JOHARNESS_MAX_MANAGERS=8)"
+expect "with its item gone from the base the branch is a leftover" \
+  "docs/plans/aretired.md  mgr-retired  leftover  pushed" "$out"
+expect "the row says the merge already happened and names who clears it" \
+  "it commits NOTHING and holds no slot" "$out"
+refute "and it is no longer in flight" "mgr-retired  retired  pushed" "$out"
+expect "the leftovers have a block of their own" \
+  "leftovers (NOT counted, nothing committed — the human clears these):" "$out"
+expect "the verdict counts them, and says never to respawn on one" \
+  "1 leftover branch(es) listed and NOT counted" "$out"
+
 # --- supervised: nothing to dispatch, said, and the preview named -------------
 # An earlier draft reported anyway "for a human running the beta loop", and
 # in a supervised repo printed NOT YOURS over a plan drain was handing out
