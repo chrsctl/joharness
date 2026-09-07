@@ -422,7 +422,7 @@ expect "it still holds its slot" "slots     : 3 of 8 free" "$out"
 refute "and its item is still not offered for spawning" \
   "  docs/plans/eta.md (agent" "$out"
 expect "the verdict counts it and names who finishes the count" \
-  "1 branch(es) at the edge with no claim file: each HOLDS a slot here; the control plane decides whether it is really committed" "$out"
+  "1 branch(es) at the edge with no claim file: each holds a slot because its item is STILL on main, so that merge has not landed" "$out"
 
 # Distinguishable from a branch nobody came back to — the trade this fix must
 # not make. Push age is the only signal git has, so past the window the row
@@ -698,6 +698,104 @@ expect "a plan meeting both is held, and the live claim is named" \
   "docs/plans/zboth.md (agent: sonnet)  HOLD — overlaps alpha on src/a (claimed on mgr-alpha)" "$out"
 refute "never spawned on the strength of the withheld half" \
   "zboth.md (agent: sonnet)  wave" "$out"
+
+# --- the same shape, once the merge has already happened ---------------------
+# ONE boolean, and both sides of it. Above, `mgr-retired` is mid-merge: its
+# item is retired on the branch and still on the base, which is exactly what
+# step 7 leaves behind between the retire commit and the merge, and it holds
+# its slot. Here the base loses the item too — the merge landed, by this
+# branch or by another — and the same branch shape now commits nothing.
+#
+# Counting it is what stopped a fleet: five such branches aged 70h to 613h
+# against a cap of 4 read `slots: 0 of 4 free` for as long as they stand,
+# with zero open pull requests in the repository
+# (docs/plans/orchestrator-edge-slot-leak.md).
+# The slot count is read either side of the one change, at a cap high enough
+# not to saturate: the absolute number depends on every manager this topic has
+# built, the DIFFERENCE is the property under test.
+before="$(dsp env JOHARNESS_MAX_MANAGERS=20)"
+nbefore="$(printf '%s\n' "$before" |
+  sed -n 's/^slots     : \([0-9][0-9]*\) of 20 free$/\1/p')"
+expect "the mid-merge branch is in flight before the merge lands" \
+  "docs/plans/aretired.md  mgr-retired  retired  pushed" "$before"
+fixture_rm "$dspwork" "the item merges by another route" docs/plans/aretired.md
+git -C "$dspwork" push -q origin main
+after="$(dsp env JOHARNESS_MAX_MANAGERS=20)"
+expect "the slot it was holding comes back, exactly one" \
+  "slots     : $((nbefore + 1)) of 20 free" "$after"
+out="$(dsp env JOHARNESS_MAX_MANAGERS=8)"
+expect "with its item gone from the base the branch is a leftover" \
+  "docs/plans/aretired.md  mgr-retired  leftover  pushed" "$out"
+expect "the row says the merge already happened and names who clears it" \
+  "it commits NOTHING and holds no slot" "$out"
+refute "and it is no longer in flight" "mgr-retired  retired  pushed" "$out"
+expect "the leftovers have a block of their own" \
+  "leftovers (NOT counted, nothing committed — the human clears these):" "$out"
+expect "the verdict counts them, and says never to respawn on one" \
+  "1 leftover branch(es) listed and NOT counted" "$out"
+
+# --- the row that names no item: held while fresh, litter long after ---------
+# The rule the plan asks for, and it was pinned by nothing. `mgr-sweep` swept
+# an inherited workstream file and finished no queue item, so there is no item
+# to ask about. Fresh, it may be a manager that retired minutes ago and keeps
+# its slot; long after, it is litter. The threshold is 24 stall windows, and
+# `JOHARNESS_STALL_MINUTES=0` walks the fixture across it without waiting a
+# day: at 0 every age is past it.
+out="$(dsp env JOHARNESS_MAX_MANAGERS=20)"
+expect "a fresh row naming no item keeps its slot" \
+  "?  mgr-sweep  retired  pushed" "$out"
+refute "and is not called litter yet" "?  mgr-sweep  leftover" "$out"
+out="$(dsp env JOHARNESS_MAX_MANAGERS=20 JOHARNESS_STALL_MINUTES=0)"
+expect "past the window it is litter, and says it names no item" \
+  "?  mgr-sweep  leftover  pushed" "$out"
+expect "the row says what makes it litter" \
+  "names NO item, so nothing here says a merge is coming" "$out"
+expect "and the verdict counts it as the kind with no item" \
+  "naming no item at all" "$out"
+
+# --- a glob character in a plan path decides nothing --------------------------
+# `for cand in $items` was an unquoted expansion: `docs/plans/x[y].md` globbed
+# against the caller's working directory and matched the tracked `xy.md`, so an
+# item that is ABSENT from the base read as present and the branch held its
+# slot forever — the very defect this block exists to remove. Both files are
+# real here: `xy.md` on main, `x[y].md` only ever on the branch.
+dspplan xy 'src/xy'
+printf -- '---\nplan: globby\nurgency: normal\nagent: sonnet\neffort: high\n---\n\n## Goal\nFixture.\n' \
+  >"${dspwork}/docs/plans/x[y].md"
+printf -- '---\nworkstream: globby\nstatus: review\nbranch: mgr-glob\nplan: globby\nagent: sonnet\nupdated: 2026-01-10\n---\n\n## Goal\nFixture.\n' \
+  >"${dspwork}/docs/handover/globby.md"
+dsppush "the tracked sibling a glob would match, and the item itself"
+git -C "$dspwork" checkout -qb mgr-glob
+# `:(literal)` or git reads the brackets as a pathspec glob and removes
+# nothing — the same character class this case is about, one layer up.
+fixture_rm "$dspwork" "retire it at step 7" \
+  ':(literal)docs/handover/globby.md' ':(literal)docs/plans/x[y].md'
+git -C "$dspwork" push -qu origin mgr-glob
+git -C "$dspwork" checkout -q main
+fixture_rm "$dspwork" "the item merges by another route" \
+  ':(literal)docs/plans/x[y].md'
+git -C "$dspwork" push -q origin main
+out="$(dsp env JOHARNESS_MAX_MANAGERS=20)"
+expect "the glob path is judged on itself, and it is absent from main" \
+  "docs/plans/x[y].md  mgr-glob  leftover  pushed" "$out"
+refute "never on the sibling a glob would have matched" \
+  "x[y].md  mgr-glob  retired" "$out"
+
+# --- a plan name with a space names nothing rather than half a path -----------
+# The swept-record fallback bypassed the space filter the deleted-item scan
+# applies, so half a path reached the row — and, once the item decided the
+# slot, half a path decided it.
+printf -- '---\nworkstream: spacey\nstatus: done\nbranch: gone\nplan: foo bar\nagent: sonnet\nupdated: 2026-01-10\n---\n\n## Goal\nFixture.\n' \
+  >"${dspwork}/docs/handover/spacey.md"
+dsppush "a record on main naming a plan with a space"
+git -C "$dspwork" checkout -qb mgr-spacey
+fixture_rm "$dspwork" "sweep it" docs/handover/spacey.md
+git -C "$dspwork" push -qu origin mgr-spacey
+git -C "$dspwork" checkout -q main
+out="$(dsp env JOHARNESS_MAX_MANAGERS=20)"
+expect "a name with a space names no item at all" \
+  "?  mgr-spacey  retired  pushed" "$out"
+refute "and never half a path" "docs/plans/foo  mgr-spacey" "$out"
 
 # --- supervised: nothing to dispatch, said, and the preview named -------------
 # An earlier draft reported anyway "for a human running the beta loop", and

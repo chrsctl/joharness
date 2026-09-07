@@ -110,7 +110,8 @@ prints only the git half.
 | looping | `LOOP?` — one file rewritten `JOHARNESS_CHURN_LIMIT`+ times; or head moved on three passes with `next:` unchanged | any | kill with the record, respawn one tier up |
 | crashed | branch unmerged; the git view says `in-progress`, which is what it says about every crash | `status_bucket` `..._FAILED` while `session_status` is not `RUNNING` | NO nudge — nothing is listening. Confirm once (`updated_at` and head both unchanged), then archive and respawn. **Read this row before the idle one**: one reading matches both |
 | idle | branch unmerged, any push age | `IDLE` or `PENDING`, bucket not FAILED — **between turns, not gone** | pass 1 nudge and ledger; pass 2 respawn only if head AND `status_detail` are both unchanged |
-| gone | branch unmerged, status in-progress / review / done, or an edge row that NAMES an item | `ARCHIVED`, or no session found by title | respawn on the branch, no nudge. An edge row naming `?` is never respawned — no item, no successor's work |
+| gone | branch unmerged, status in-progress / review / done, or an edge row IN FLIGHT that names an item | `ARCHIVED`, or no session found by title | respawn on the branch, no nudge. An edge row naming `?` is never respawned — no item, no successor's work |
+| leftover | the branch is under `leftovers`: its item is already gone from the base branch, so that merge happened | any | NOT a merge to finish and never respawned — a successor would land on merged work with no pull request and no item. Report it; the human deletes the branch |
 | blocked | status `blocked` | any | report to the human; never respawn |
 | done | branch merged, plan file gone | any | nothing — or, with `JOHARNESS_UPSTREAM_FEEDBACK=on` and no `reported=` for it in the ledger, spawn ONE reporter |
 
@@ -213,9 +214,14 @@ branch, a pull request, CI and a container while owning no claim. The claims
 view is right to drop it and `dispatch` counts the slot anyway — a claim
 says who owns an item, a slot says what is committed, and one value cannot
 answer both (`docs/plans/orchestrator-inflight-count.md`; the run that found
-it is in Runs below, with its count). From git that row cannot be told
-apart from a branch nobody came back to, so it is held and the control plane
-settles it. Within the cap the order is the
+it is in Runs below, with its count). Whether that slot is REAL is decided in
+git, and the discriminator is the item: still on the base branch means the
+merge has not landed, hold it; gone means the merge already happened and the
+branch is a leftover, listed and counted as nothing. Counting leftovers
+stopped a fleet — five of them against a cap of 4, read `0 of 4 free` for as
+long as they stood (`docs/plans/orchestrator-edge-slot-leak.md`). The control
+plane says what to do about the session, never whether the slot is real.
+Within the cap the order is the
 queue hook's: urgent first, then oldest, partitioned into waves of
 disjoint scope. Two things this mode adds to the wave rule:
 
