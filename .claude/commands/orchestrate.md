@@ -91,6 +91,14 @@ Two signals decide, never one — push age is from git, status from the
 control plane; a fresh push with a dead session and a live session with
 an old push are both real.
 
+**And every stem your ledger names that dispatch does NOT list in flight.**
+Dispatch counts managers from git, so a manager spawned last pass that has
+not pushed its claim is in no in-flight row — and a pass that walks
+dispatch's list alone never looks at the one manager most likely to be
+broken, because a manager with no claim is either minutes old or was never
+born. The ledger is the only place it exists; that is what its `@new` entry
+is for.
+
 **GONE is ARCHIVED, not found on the control plane, a FAILED bucket
 confirmed by a second look, or a session that did not move across a nudge
 and a confirming pass. Never IDLE on its own. Never PENDING on its own.**
@@ -110,7 +118,18 @@ reading exactly one:
 | `status_bucket` | the control plane | `..._FAILED` = that turn died. The ONLY failure signal that may decide liveness, and only while `session_status` is not `RUNNING`: RUNNING beside it means the session already moved past that turn. |
 | `post_turn_summary.status_category` | **the session's own** | its account of its TURN. `completed` means the turn ended — never that the work landed. May never decide liveness on its own. |
 | `status_detail`, `updated_at` | the session record | where it got to, and when it last moved. Unchanged across two passes is what turns a suspicion into a verdict; both are carried in the ledger (step 4). |
+| `session_context.sources` | the control plane | the repositories attached AT SPAWN. Absent = the session has no checkout, whatever else the record says. |
+| `external_metadata.last_served_model` | the control plane | the model that served the LATEST turn. Absent = **no turn was ever served** — the one field that separates a session that never started from one between turns. |
 | merge state | **git** | `git merge-base --is-ancestor <head> origin/main`. Never a session's summary. |
+
+`context_usage.used_tokens` is NOT one of these, however much it looks like
+the obvious one. A working session can read 0: measured 2026-09-07 10:28Z in
+one `list_sessions` page — `DSGVO data export and auto-deletion flow`,
+`RUNNING`, bucket `WORKING`, a live `task_summary` and a pushed branch, with
+`context_usage.used_tokens: 0` in the same record. Key the row below on it
+and it fires on a healthy manager. `external_metadata.current_branches` is
+not one either: it is absent on healthy sessions that carry their branches
+under `session_context.outcomes` instead.
 
 | control plane | push age | last pass | do |
 | --- | --- | --- | --- |
@@ -124,6 +143,7 @@ reading exactly one:
 | the same, still FAILED | any | `seen=` recorded, and `updated_at` AND head both unchanged since it | confirmed dead. `archive_session`, THEN RESPAWN. No `interrupt_session` first: there is nothing to stop. |
 | the same, still FAILED | any | `seen=` recorded, and `updated_at` or head moved | it came back. Working. Drop the record. |
 | ARCHIVED, or no session found by title | any | branch unmerged, and the item is claimed — status in-progress / review / done, or an edge row that NAMES an item | gone. RESPAWN on that branch, below — no nudge, there is nobody to ask. |
+| IDLE or PENDING, and the record carries NO `last_served_model` and NO `session_context.sources` | any | no branch at all — dispatch still lists the item under `spawn`, and your ledger says you spawned it a pass ago | STILLBORN: the spawn produced a session that never ran a turn and has no checkout. NO nudge — there is no context to read it and no branch to push. `archive_session`, then SPAWN THE ITEM AGAIN at step 3. That is a plain spawn and not a RESPAWN: nothing was claimed, so nothing is lost, no handover is owed and there is no branch to name. Count it against `JOHARNESS_RESPAWN_LIMIT` all the same — a spawn that omits `source_url` will do this every time — and at the limit REPORT and stop, because the hand-it-to-the-human write needs a branch and there is none. The ledger entry from the pass that spawned it is the first of the two observations this table always takes; this pass is the second. |
 | IDLE or PENDING | any | branch unmerged, no nudge recorded for it | NOT gone — IDLE is between turns. NUDGE, exactly as the stall row does, and ledger stem, head, `seen=<updated_at>`, `status_detail`. Spawn nothing this pass. |
 | IDLE or PENDING | any | a nudge recorded, and head AND `status_detail` both unchanged since it | it did not answer across two passes. NOW gone: RESPAWN on that branch, below. |
 | IDLE or PENDING | any | a nudge recorded, and head moved or `status_detail` changed | working. Drop the nudge. |
@@ -154,6 +174,21 @@ says about every crash. That is **no nudge; ledger `seen=`, and confirm once**
 — next pass, record still frozen at 18:13:30 and head unchanged — **then
 archive and respawn.** `session_status` alone cannot tell these two apart;
 `status_bucket` is what does, which is why its rows are read first.
+
+**IDLE, and never born.** 10:13:29.630Z, `crm-ui-automation-rehearsal` in
+consumer `chrsctl/gx`: created, `updated_at` 10:13:35.357Z — six seconds
+later — and frozen there through `get_session` at 10:22Z, 10:23Z and 10:26Z.
+`session_status: IDLE`, `status_bucket: REVIEW_READY`, no `last_served_model`,
+no `session_context.sources`, no `post_turn_summary` anywhere in the record
+to have PUT that bucket there; `git branch -r` at 10:23:36Z showing no
+branch, and `dispatch` listing the item under `spawn` as `wave 1`. Eleven of
+the twelve sessions in the same `list_sessions` page carried both fields;
+this one carried neither. Read down the table without the stillborn row and
+that is IDLE with no nudge recorded — **a nudge to a session with no
+repository, no prompt processed and no branch to push**, then a respawn two
+passes later. The bucket is the trap: `REVIEW_READY` is the value a HEALTHY
+manager's own `post_turn_summary` puts there, and this one wore it having
+never had a turn at all.
 
 These rows carry no `session:` line — step 7 retired the file that had it.
 Look them up by TITLE, `manager: <stem>` from the item the row names.
@@ -284,6 +319,13 @@ holds no slot", and this is that state.
 Up to `slots`, in dispatch's order, only rows under `spawn`:
 
 - Edge work whose session is gone first (finishing outranks starting).
+- Skip an item your ledger already names as spawned, unless its session
+  is gone or STILLBORN. Dispatch counts managers from git, so an item
+  whose manager has not pushed its claim yet is STILL listed under
+  `spawn` — spawning off that list alone is how one item gets two
+  managers, and claim by push cannot resolve it, because neither of them
+  has claimed. The stillborn row is the one exception and it archives the
+  old session before it spawns.
 - Skip `HOLD` and `WAIT` rows — the next pass re-reads them. Skip
   `NOT YOURS`. A row saying `that branch is BLOCKED on a human: spawn` is
   free; its manager pays a reconcile at step 7, and the prompt tells it
