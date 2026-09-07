@@ -5696,10 +5696,12 @@ dispatch_waves() {
 # own and a retired one as still present — the bug in both directions at once
 # (.agents/docs/feedback.md, tree or diff).
 #
-# One line per branch: <branch> TAB <item path, empty when none>. Empty is the
-# branch that retired a workstream file and finished no queue item: the slot
-# is held either way, because money is committed either way, and the row says
-# the item is unknown rather than guessing one.
+# One line per branch: <branch> TAB <items, `-` when none> TAB <state>, where
+# state is `mid-merge` (an item is still on the base branch, so that merge has
+# not landed — hold the slot), `leftover` (every item is gone, so the merge
+# already happened and nothing is committed) or `unknown` (no item to ask
+# about). `-` and not an empty field because tab is IFS whitespace and a
+# reader collapses two adjacent tabs into one.
 dispatch_retired_edges() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}"
   git -C "$ROOT" for-each-ref --format='%(refname)' refs/remotes/origin 2>/dev/null |
@@ -5775,7 +5777,11 @@ dispatch_retired_edges() {
                   grep -vxF -- "$cand" | tr '\n' ' ')"
                 items="$(printf '%s' "$items" | tr -s ' ')"
                 items="${items% }" ;;
-              *) [ -n "$items" ] || items="$cand" ;;
+              *) # Same space rule as the deleted-item scan above, which this
+                 # arm bypassed: a path with a space cannot survive the
+                 # space-joined field, and post-fix it would not mangle a row
+                 # but decide a slot from half a path.
+                 case "$cand" in *' '*) ;; *) [ -n "$items" ] || items="$cand" ;; esac ;;
             esac
             break
           done ;;
@@ -5791,23 +5797,25 @@ dispatch_retired_edges() {
         #                          or another, and this is what is left over.
         #                          It commits nothing.
         #
-        # Measured in a consumer, 2026-09-06: five such branches aged 70h to
-        # 613h, cap 4, so `slots: 0 of 4 free` permanently, with zero open
-        # pull requests in the repository and every item merged by another
-        # route. Absent for all five, which is the right answer for all five
-        # (docs/plans/orchestrator-edge-slot-leak.md).
+        # The measurement that produced this rule, and the reason it is not
+        # push age or the forge: docs/plans/orchestrator-edge-slot-leak.md.
         #
-        # Never push age, and never the forge. Age cannot tell a quiet
-        # manager with a live pull request from a leftover pushed ten minutes
-        # ago, and asking GitHub would put a network and a credential under
-        # the queue's core read, which is git-only on purpose.
+        # NEWLINE list, never `for cand in $items`. That is an unquoted
+        # expansion, so a plan path holding `*`, `?` or `[` — all legal in git
+        # and legal under the queue hook's own row pattern — globs against the
+        # process's working directory and the slot gets decided from a
+        # DIFFERENT file. Both directions were reproduced: `docs/plans/x[y].md`
+        # absent from the base matched a present `xy.md` and held its slot
+        # forever, and an untracked `ab.md` beside the caller made a real
+        # mid-merge read as a leftover. shellcheck does not flag a `for` list.
         state=leftover
-        for cand in $items; do
+        while IFS= read -r cand; do
+          [ -n "$cand" ] || continue
           git -C "$ROOT" cat-file -e "refs/remotes/origin/${base_branch}:${cand}" \
             2>/dev/null || continue
           state=mid-merge
           break
-        done
+        done <<<"$(printf '%s\n' "$items" | tr ' ' '\n')"
         [ -n "$items" ] || state=unknown
         # `-` for no items, never an empty field: tab is IFS WHITESPACE, so a
         # reader's `IFS=$'\t' read -r a b c` collapses two adjacent tabs into
@@ -5836,7 +5844,8 @@ cmd_dispatch() {
   local ebranch eitem efirst estem espaces emore epath eage eagetext
   local edge_rows="" edge_items="" edge_unver=""
   local n_inflight=0 n_slots n_free=0 n_stall=0 n_blocked=0 n_hold=0 n_wait=0 n_loop=0
-  local n_edge=0 n_edge_stall=0 n_leftover=0 leftover_rows="" estate=""
+  local n_edge=0 n_edge_stall=0 n_leftover=0 n_leftover_noitem=0
+  local leftover_rows="" estate=""
   local DISPATCH_WITHHELD=
   local inflight="" free="" questions=""
 
@@ -5934,19 +5943,31 @@ cmd_dispatch() {
     # branches stand.
     if [ "$estate" = leftover ]; then
       n_leftover=$((n_leftover + 1))
-      leftover_rows="${leftover_rows}  ${efirst}  ${ebranch}  leftover  pushed ${eagetext}  its item is gone from ${HANDOVER_BASE_BRANCH:-main}, so that merge already happened, by this branch or another: it commits NOTHING and holds no slot. Never respawn on it — there is nothing to finish. The human deletes the branch."$'\n'
+      espaces="${eitem//[! ]/}"
+      emore=$(( ${#espaces} + 1 ))
+      leftover_rows="${leftover_rows}  ${efirst}  ${ebranch}  leftover  pushed ${eagetext}  its item is gone from ${HANDOVER_BASE_BRANCH:-main}, so that merge already happened, by this branch or another: it commits NOTHING and holds no slot. Never respawn on it — there is nothing to finish. The human deletes the branch."
+      [ "$emore" -le 1 ] ||
+        leftover_rows="${leftover_rows} (and $((emore - 1)) more item(s), gone too: ${eitem#* })"
+      leftover_rows="${leftover_rows}"$'\n'
       continue
     fi
-    # No item at all, so the question cannot be asked. Fresh, it may be a
-    # manager that retired minutes ago and has not been identified yet, so it
-    # keeps its slot. Past the stall window there is nothing left to
-    # cross-check — the row carries no item and no session line — and a slot
-    # held on no evidence is the leak this fix exists to end. One rule, said
-    # in the row, because the plan's own objection to the old behaviour was
-    # that silence left the orchestrator reading 0 of 4 with no way to act.
-    if [ "$estate" = unknown ] && [ -n "$eage" ] && [ "$eage" -ge "$stall" ]; then
+    # No item at all, so the question cannot be asked. It keeps its slot
+    # while it could still be a manager that retired recently, and becomes
+    # litter long after that. One rule, said in the row, because the plan's
+    # objection to the old behaviour was that silence left the orchestrator
+    # reading 0 of 4 with no way to act.
+    #
+    # 24 windows, not one. `JOHARNESS_STALL_MINUTES` is p95 of the gap between
+    # commits on a LIVE branch (.agents/docs/orchestrated.md, The numbers) —
+    # a branch at step 7 pushes nothing at all while it waits for checks and a
+    # merge, so at 1x a legitimate sweep branch with an open pull request went
+    # to leftovers 46 minutes after its last push. A day is past anything that
+    # waiting explains, and the litter this is aimed at measured 613 hours.
+    if [ "$estate" = unknown ] && [ -n "$eage" ] &&
+       [ "$eage" -ge $((stall * 24)) ]; then
       n_leftover=$((n_leftover + 1))
-      leftover_rows="${leftover_rows}  ?  ${ebranch}  leftover  pushed ${eagetext}  names no item and has not pushed in ${eagetext} (>= ${stall}m): nothing to look up, nothing to cross-check, so it holds no slot. REPORT it — the human deletes the branch or finishes it by hand."$'\n'
+      n_leftover_noitem=$((n_leftover_noitem + 1))
+      leftover_rows="${leftover_rows}  ?  ${ebranch}  leftover  pushed ${eagetext}  names NO item, so nothing here says a merge is coming, and it has not pushed in ${eagetext} (>= $((stall * 24))m): nothing to look up, nothing to cross-check, so it holds no slot. REPORT it — the human deletes the branch or finishes it by hand."$'\n'
       continue
     fi
     n_inflight=$((n_inflight + 1))
@@ -6115,13 +6136,15 @@ cmd_dispatch() {
   else
     printf '  none\n'
   fi
+  [ -z "$edge_unver" ] ||
+    printf '  %s ref(s) have no merge base here (shallow clone): an edge among them cannot be seen, so this listing is a FLOOR and the slots line may over-report free.\n' \
+      "$edge_unver"
+  # AFTER the shallow caveat, which belongs to the listing above it: printed
+  # first, its two-space indent read as one more leftover row.
   if [ -n "$leftover_rows" ]; then
     printf 'leftovers (NOT counted, nothing committed — the human clears these):\n'
     printf '%s' "$leftover_rows"
   fi
-  [ -z "$edge_unver" ] ||
-    printf '  %s ref(s) have no merge base here (shallow clone): an edge among them cannot be seen, so this listing is a FLOOR and the slots line may over-report free.\n' \
-      "$edge_unver"
 
   # Finishing outranks starting, for an orchestrator too: an edge branch
   # whose session is gone is a manager to respawn before any new item.
@@ -6250,15 +6273,12 @@ cmd_dispatch() {
     printf 'verdict   : NOT DRAINED — %s free item(s) now%s, %s slot(s): spawn up to %s now\n' \
       "$n_free" "$([ "$n_wait" -eq 0 ] || printf ' (+%s waiting behind them)' "$n_wait")" \
       "$n_slots" "$([ "$n_free" -lt "$n_slots" ] && printf '%s' "$n_free" || printf '%s' "$n_slots")"
-  elif [ "$n_free" -gt 0 ] && [ "$n_leftover" -gt 0 ] && [ $((n_inflight - n_blocked)) -eq 0 ]; then
-    # Zero slots with NOBODY working is not a fleet at capacity, and printing
-    # the same line for both is what left an orchestrator reading `0 of 4
-    # free` with no way to act. Unreachable now that a leftover holds no
-    # slot; kept because the two situations are opposite and the reader must
-    # never have to tell them apart by counting rows.
-    printf 'verdict   : STOPPED — %s free item(s), 0 slots, and NOTHING is working: %s leftover branch(es) are all that is in flight. That is not capacity, it is litter — report it, the human clears the branches\n' \
-      "$n_free" "$n_leftover"
   elif [ "$n_free" -gt 0 ]; then
+    # No STOPPED verdict here, deliberately. It was written and then removed:
+    # once a leftover holds no slot, `0 slots` can only mean managers, so the
+    # branch could never fire — and a branch that cannot fire reads as a guard
+    # while guarding nothing. The distinction the plan asks for is structural
+    # now, and the tail line below names the leftovers either way.
     printf 'verdict   : NOT DRAINED — %s free item(s), 0 slots: wait for a manager to finish\n' "$n_free"
   elif [ "$n_wait" -gt 0 ]; then
     # Unreachable while a partner is free and earlier in the order, and
@@ -6292,10 +6312,18 @@ cmd_dispatch() {
   # rows have no `session:` line to read. Never folded into the stall count —
   # that one names a manager you can `get_session` straight away.
   [ "$n_edge" -eq 0 ] ||
-    printf '            %s branch(es) at the edge with no claim file: each HOLDS a slot here; the control plane decides whether it is really committed\n' "$n_edge"
-  [ "$n_leftover" -eq 0 ] ||
-    printf '            %s leftover branch(es) listed and NOT counted: their items already merged, so nothing is committed. The human deletes them; never respawn on one\n' \
-      "$n_leftover"
+    printf '            %s branch(es) at the edge with no claim file: each holds a slot because its item is STILL on %s, so that merge has not landed. The control plane says what to do about the session, never whether the slot is real\n' \
+      "$n_edge" "${HANDOVER_BASE_BRANCH:-main}"
+  if [ "$n_leftover" -gt 0 ]; then
+    printf '            %s leftover branch(es) listed and NOT counted' "$n_leftover"
+    [ "$n_leftover" -eq "$n_leftover_noitem" ] ||
+      printf ': %s whose item already merged' "$((n_leftover - n_leftover_noitem))"
+    [ "$n_leftover_noitem" -eq 0 ] ||
+      printf '%s %s naming no item at all' \
+        "$([ "$n_leftover" -eq "$n_leftover_noitem" ] && printf ':' || printf ', and')" \
+        "$n_leftover_noitem"
+    printf '. Nothing is committed on any of them. The human deletes them; never respawn on one\n'
+  fi
   # On the VERDICT, not only above the slots line. Every other count here
   # earns a line the orchestrator reads at its branch point, and this one is
   # the count that is wrong: it says the report cannot see edges at all, so

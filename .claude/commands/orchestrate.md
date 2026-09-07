@@ -130,8 +130,8 @@ reading exactly one:
 | any | any | branch merged (dispatch no longer lists it) | done. Nothing — UNLESS dispatch's `upstream :` line says ON and the ledger has no `reported=<stem>` for it: then REPORT, below. |
 | RUNNING | any | row says `PR in flight, no claim file` | at step 7, merging. Nothing. |
 | gone by the definition above | any | that row, and it NAMES an item | gone at the edge. RESPAWN on that branch to FINISH the merge, never to restart the plan — the work is done and the record was retired with it. |
-| any status whatsoever | any | that row, naming `?` | no item, so no title to look up and no successor to spawn. REPORT to the human: merging or retiring the branch is what frees the slot. NEVER respawn one of these, however dead the control plane looks — there is nothing to name the successor's work. |
-| any status whatsoever | any | the branch is under `leftovers`, not in flight | NOT a merge to finish. Its item is already gone from the base branch, so that merge happened — by this branch or another — and there is nothing on it to drive. REPORT it; the human deletes the branch. NEVER respawn: a successor lands on merged work with no pull request and no item. |
+| any status whatsoever | any | the branch is under `leftovers`, not in flight | NOT a merge to finish, and it holds no slot. Either its item is already gone from the base branch — that merge happened, by this branch or another — or the row names no item at all and has been silent for a day. REPORT it; the human deletes the branch. NEVER respawn: a successor would land on merged work with no pull request and, often, no item to name its task. Read this row BEFORE the `?` row below, which is about a row still in flight. |
+| any status whatsoever | any | an IN-FLIGHT row naming `?` | no item, so no title to look up and no successor to spawn. It holds a slot: it may be a manager that retired minutes ago. REPORT to the human; merging or retiring the branch is what frees it. NEVER respawn one of these, however dead the control plane looks — there is nothing to name the successor's work. |
 
 Two readings from run 1, one keystroke apart in the record and opposite in
 what they need. These are the part to read when the rows blur:
@@ -161,8 +161,8 @@ Look them up by TITLE, `manager: <stem>` from the item the row names.
 `dispatch` has already told the two apart, and it is not guessing: a branch
 whose item is STILL on the base branch is mid-merge and holds its slot; one
 whose item is gone is under `leftovers`, holds nothing, and is only reported.
-Counting the second kind is what stopped a fleet — five leftovers against a
-cap of 4 read `0 of 4 free` for as long as the branches stood. So the
+Counting the second kind is what stopped a fleet (the run and its numbers:
+[`../../.agents/docs/orchestrated.md`](../../.agents/docs/orchestrated.md), Runs). So the
 control-plane lookup decides what to DO about a row, never whether the slot
 is real; that half is git's, and it is decided before you read the report.
 Report a held slot whose session is gone; it frees when the merge lands,
