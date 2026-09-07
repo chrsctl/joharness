@@ -36,9 +36,11 @@ spawned by `orchestrator: chrsctl/gx` at 10:13:29.630Z.
 
 1. **The discriminator is two absent fields, not a token count.**
    `last_served_model` absent = no turn was ever served; `sources` absent
-   = no repository was attached. In one `list_sessions` page at 10:28Z,
-   eleven of twelve sessions carried both and only this one carried
-   neither.
+   = no repository was attached. Counted over one `list_sessions` page of
+   40 sessions at 10:22Z: 37 carried both, 3 lacked `last_served_model`,
+   1 lacked `sources`, and exactly one lacked both. The two other sessions
+   missing `last_served_model` are `ARCHIVED`, a state the row does not
+   reach. Either field alone is weaker than the pair.
 2. **`used_tokens` is refused as the discriminator**, and the refusal is
    written into the file, because it is the field a reader reaches for
    first. Same page, same minute: `DSGVO data export and auto-deletion

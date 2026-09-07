@@ -429,11 +429,11 @@ one consumer, one queue shape, and that queue's overlap density is doing most
 of the work in the throughput number above.
 
 **Run 2, in flight, one observation** — the run is not over and its row is
-not written yet. 2026-09-07, consumer `chrsctl/gx`: a manager spawned at
-10:13:29.630Z came up having never run a turn — no `last_served_model`, no
-`session_context.sources`, `updated_at` frozen six seconds after
-`created_at` through three reads to 10:26Z — and cut no branch, so it was in
-no in-flight row and the health pass, which walks dispatch's list, never
-looked at it. Its item stayed in `spawn` as `wave 1` the whole time. That is
-the `stillborn` row above, and the two field names in it; the run's own
-numbers wait for the run.
+not written yet. 2026-09-07, consumer `chrsctl/gx`: one manager was spawned
+and never ran a turn, and cut no branch, so it was in no in-flight row and
+the health pass — which walks dispatch's list — never looked at it. Its item
+stayed under `spawn` for as long as it was watched. That is the `stillborn`
+row above; the reading that identifies one, field by field, is the third
+worked example in
+[`../../.claude/commands/orchestrate.md`](../../.claude/commands/orchestrate.md),
+which owns it. The run's own numbers wait for the run.
