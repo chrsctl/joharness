@@ -925,7 +925,8 @@ refute "the word DRAINED never appears on the verdict" \
   "verdict   : DRAINED" "$out"
 expect "the rescope block names the collision path with its count" \
   "src/shared  (2 held)" "$out"
-expect "and reports no rescope in flight yet" "in flight: none" "$out"
+expect "and reports no rescope in flight yet" \
+  "rescope branch(es) in flight: none" "$out"
 
 # A rescope manager in flight: listed, and the verdict says one is running.
 git -C "$rbwork" checkout -qb claude/rescope-keeper
@@ -945,6 +946,31 @@ expect "and the verdict says one is already running, spawn nothing" \
 refute "so it does not tell the orchestrator to spawn another" \
   "spawn ONE rescope manager" "$out"
 
+# A rescope on a STALE key still holds off a spawn (verifier r1). The holder
+# set drifts, so its branch key no longer equals the freshly-derived key; the
+# active count must ignore the key, or a second rescope is spawned onto the new
+# key while the first still runs. Rename the live branch's key and re-read.
+git -C "$rbwork" checkout -q claude/rescope-keeper
+sed -i 's/^workstream: rescope-keeper/workstream: rescope-oldkey/' \
+  "${rbwork}/docs/handover/rescope-keeper.md"
+commit_all "$rbwork" "the holder set drifted under the rescope"
+git -C "$rbwork" push -q origin claude/rescope-keeper
+git -C "$rbwork" checkout -q main
+out="$(rb)"
+expect "a stale-key rescope is still listed in flight" \
+  "claude/rescope-keeper  rescope-oldkey  in-progress  pushed" "$out"
+expect "and still reads as one already running, whatever its key" \
+  "a rescope manager is already in flight" "$out"
+refute "so no second rescope is spawned onto the drifted key" \
+  "spawn ONE rescope manager" "$out"
+# Restore the matching key for the done test below.
+git -C "$rbwork" checkout -q claude/rescope-keeper
+sed -i 's/^workstream: rescope-oldkey/workstream: rescope-keeper/' \
+  "${rbwork}/docs/handover/rescope-keeper.md"
+commit_all "$rbwork" "restore the matching key"
+git -C "$rbwork" push -q origin claude/rescope-keeper
+git -C "$rbwork" checkout -q main
+
 # A rescope that finished with nothing to change (status done): the holds are
 # genuine, the pass must not spawn another rescope for the same key.
 git -C "$rbwork" checkout -q claude/rescope-keeper
@@ -955,6 +981,8 @@ git -C "$rbwork" checkout -q main
 out="$(rb)"
 expect "a done rescope settles the key: the holds are genuine" \
   "a rescope for this key is done or blocked" "$out"
+expect "and the done branch is still shown in the block it points at" \
+  "claude/rescope-keeper  rescope-keeper  done  pushed" "$out"
 refute "and no new rescope is recommended" "spawn ONE rescope manager" "$out"
 refute "nor is it read as still actively running" \
   "a rescope manager is already in flight" "$out"

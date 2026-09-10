@@ -6335,11 +6335,18 @@ cmd_dispatch() {
     n_rescope_holders="$(printf '%s\n' "$rescope_holders" | grep -c .)"
     # Every held path with its collision count, descending — what the rescope
     # manager works through. Field 2's path is between ` on ` and ` (claimed`.
+    # Distinct held PLANS per path, not holdmap LINES: the queue hook prints one
+    # `in flight:` line per (held plan, holder branch) pair, so a plan held by
+    # two branches would otherwise count twice on its path and disagree with
+    # `n_hold`, which counts distinct plans (verifier r3). Field 1 is the held
+    # plan's stem; field 2's path is between ` on ` and ` (claimed`.
     rescope_paths="$(printf '%s\n' "$holdmap" |
       awk -F'\t' 'NF > 1 { p = $2; sub(/^[^ ]* on /, "", p);
-                           sub(/ \(claimed on .*/, "", p); print p }' |
-      sort | uniq -c | sort -rn |
-      sed 's/^[[:space:]]*\([0-9][0-9]*\)[[:space:]]*\(.*\)/    \2  (\1 held)/')"
+                           sub(/ \(claimed on .*/, "", p); print $1 "\t" p }' |
+      sort -u |
+      awk -F'\t' '{ c[$2]++ } END { for (p in c) print c[p] "\t" p }' |
+      sort -rn |
+      sed 's/^\([0-9][0-9]*\)\t\(.*\)/    \2  (\1 held)/')"
     # ONE pass, fed by process substitution rather than a "$(...)" capture read
     # back through a "<<<" here-string. That pairing was a genuine Heisenbug: a
     # blocked rescope read as active in flight on some passes and settled on
@@ -6349,22 +6356,33 @@ cmd_dispatch() {
     # and takes its input from a FIFO with no such interaction; the age git
     # reads "</dev/null" so the FIFO is never its stdin.
     #
-    # A rescope for THIS key that is done or blocked SETTLES it: done means the
-    # pass found nothing to change and the holds are GENUINE (the plans really
-    # edit the same code — the answer is to wait for the holder branches to
-    # merge, not another rescope); blocked means a human's, never respawned.
-    # Only an ACTIVE rescope for this key counts as in flight and holds off a
-    # second spawn. A branch keyed to a different holder set (the set moved as
-    # branches merged) settles nothing here.
+    # ANY active rescope holds off a spawn, whatever its key. Two rescope
+    # managers rewriting `scope:` across overlapping plan sets collide at
+    # finish, and the holder-set key DRIFTS — a new manager claiming an
+    # overlapping plan, or a co-holder merging, moves it while a rescope is in
+    # flight. Keying `n_rescope_inflight` to the current key let a stale-key
+    # rescope go uncounted, its row suppressed, and the orchestrator spawn a
+    # second onto the new key (verifier r1). So the ACTIVE count ignores the
+    # key; only SETTLED is key-specific — a done rescope on an OLD key must not
+    # settle a genuinely new holder set, or the new overlap never gets its own
+    # rescope. done = the pass found nothing to change, the holds are GENUINE
+    # (wait for the holder branches to merge); blocked = a human's.
+    #
+    # Every rescope branch is listed regardless of key, so the verdict's "see
+    # rescope block" always resolves to a real row — a done or blocked one
+    # included, which sets no active count (verifier r2). Process substitution,
+    # not a "$(...)" capture read back through "<<<": that pairing raced (a
+    # bare ":" between the lines changed the answer). "< <(...)" keeps the loop
+    # in THIS shell so the flags persist; the age git reads "</dev/null" so the
+    # FIFO is never its stdin.
     while IFS=$'\t' read -r rb rk rstat rsess rnext; do
       [ -n "$rb" ] || continue
       rage="$(dispatch_age_text "$(dispatch_age_min "$rb" </dev/null)")"
       rescope_inflight="${rescope_inflight}    ${rb}  rescope-${rk}  ${rstat}  pushed ${rage}"$'\n'
       [ -z "$rsess" ] || rescope_inflight="${rescope_inflight}      session: ${rsess}"$'\n'
       [ -z "$rnext" ] || rescope_inflight="${rescope_inflight}      next: ${rnext}"$'\n'
-      [ "$rk" = "$rescope_key" ] || continue
       case "$rstat" in
-        done | blocked) rescope_settled=1 ;;
+        done | blocked) [ "$rk" = "$rescope_key" ] && rescope_settled=1 ;;
         *) n_rescope_inflight=$((n_rescope_inflight + 1)) ;;
       esac
     done < <(dispatch_rescope_branches)
@@ -6377,10 +6395,10 @@ cmd_dispatch() {
     printf '            key: %s\n' "${rescope_key:-none}"
     printf '            held on:\n'
     printf '%s\n' "$rescope_paths"
-    if [ "$n_rescope_inflight" -gt 0 ]; then
-      printf '            in flight:\n%s' "$rescope_inflight"
+    if [ -n "$rescope_inflight" ]; then
+      printf '            rescope branch(es) in flight:\n%s' "$rescope_inflight"
     else
-      printf '            in flight: none\n'
+      printf '            rescope branch(es) in flight: none\n'
     fi
     printf '\n'
   fi
