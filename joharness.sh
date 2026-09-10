@@ -5617,7 +5617,10 @@ num_knob() {
 # the caller — never as zero, which would read as pushed this minute.
 dispatch_age_min() {
   local ts now
-  ts="$(git -C "$ROOT" log -1 --format=%ct "refs/remotes/origin/$1" 2>/dev/null)"
+  # `</dev/null`: this runs inside `while read` loops fed by a here-string, and
+  # git left to inherit that stdin can consume the loop's own remaining lines —
+  # a timing race that read a settled rescope as active on some passes.
+  ts="$(git -C "$ROOT" log -1 --format=%ct "refs/remotes/origin/$1" </dev/null 2>/dev/null)"
   [ -n "$ts" ] || return 0
   now="$(date +%s)"
   printf '%s' "$(( (now - ts) / 60 ))"
@@ -5836,6 +5839,57 @@ dispatch_retired_edges() {
     }
 }
 
+# Rescope branches in flight: a manager working the `rescope` kind
+# (.claude/commands/manage.md) claims on a workstream file that names NO plan
+# — `plan: none`, `workstream: rescope-<key>` — because its whole job is
+# rewriting other plans' `scope:` lines, and a synthetic plan file would be a
+# session writing queue work from a detector. So it is invisible to the claims
+# view (that reads `plan:`) and to `dispatch_retired_edges` (it deletes no plan
+# file). This scan is the only reader that sees it, which is what keeps the
+# rescope manager OFF the slot count while still letting `dispatch` say one is
+# already running. Same ref walk as `dispatch_retired_edges`: merged refs drop
+# out, no merge base = skip, and the workstream file is read AT THE BRANCH, not
+# inherited from the base. One row per rescope branch: branch, key, status,
+# session, next.
+dispatch_rescope_branches() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}"
+  local refs r name base wf files doc rws rkey rstat rsess rnext
+  # Refs collected into a variable FIRST, then looped over a here-string. The
+  # pipe form (`for-each-ref | { while read r; do git …`) lets the inner git
+  # inherit the pipe as stdin and consume ref lines — a race that dropped or
+  # duplicated refs run to run. Every inner git also reads from `</dev/null`
+  # for the same reason at the next level down (`dispatch_retired_edges` runs
+  # the pipe form and has the latent version of this).
+  refs="$(git -C "$ROOT" for-each-ref --format='%(refname)' \
+    refs/remotes/origin </dev/null 2>/dev/null)"
+  while IFS= read -r r; do
+    [ -n "$r" ] || continue
+    name="${r#refs/remotes/origin/}"
+    { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
+    git -C "$ROOT" merge-base --is-ancestor "$r" \
+      "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null && continue
+    base="$(git -C "$ROOT" merge-base "$r" \
+      "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)"
+    [ -n "$base" ] || continue
+    # Workstream files this branch ADDED against the base, read there. A branch
+    # may carry an inherited workstream file it did not write; the diff filter
+    # keeps only the ones it introduced. Collected first, same reason.
+    files="$(git -C "$ROOT" diff --name-only --diff-filter=ACMRT "$base" "$r" \
+      -- docs/handover </dev/null 2>/dev/null | gr_docs)"
+    while IFS= read -r wf; do
+      [ -n "$wf" ] || continue
+      doc="$(git -C "$ROOT" show "${r}:${wf}" </dev/null 2>/dev/null)"
+      { read -r rws; read -r rkey; read -r rstat; read -r rsess; read -r rnext; } \
+        <<<"$(printf '%s\n' "$doc" | gr_fields workstream plan status session next)"
+      case "$rws" in rescope-*) ;; *) continue ;; esac
+      # `plan: none` is the identity: a rescope branch claims no plan.
+      [ "$rkey" = none ] || continue
+      printf '%s\t%s\t%s\t%s\t%s\n' \
+        "$name" "${rws#rescope-}" "${rstat:-?}" "${rsess:-}" "${rnext:-}"
+    done <<<"$files"
+  done <<<"$refs"
+}
+
 cmd_dispatch() {
   local mode cap stall health respawn churnt churnl hout qout rows wavemap edge req sup
   local path label branch ws doc status session next age agetext flag tier
@@ -5846,6 +5900,9 @@ cmd_dispatch() {
   local n_inflight=0 n_slots n_free=0 n_stall=0 n_blocked=0 n_hold=0 n_wait=0 n_loop=0
   local n_edge=0 n_edge_stall=0 n_leftover=0 n_leftover_noitem=0
   local leftover_rows="" estate=""
+  local rescope_key="" rescope_paths="" rescope_inflight="" rescope_holders=""
+  local n_rescope_inflight=0 n_rescope_holders=0 rescope_settled=0
+  local rb rk rstat rsess rnext rage
   local DISPATCH_WITHHELD=
   local inflight="" free="" questions=""
 
@@ -6251,6 +6308,83 @@ cmd_dispatch() {
     printf 'a manager on these, never re-file them):\n%s\n' "$sup"
   fi
 
+  # --- overlap-bound: slots free, nothing spawnable, work held --------------
+  # The state run 1 measured and nobody filed a plan for: every free plan is
+  # HELD behind a branch in flight, so `n_free` is 0, but slots sit idle and
+  # the work is not done — it is blocked on `scope:` DECLARATIONS, not on the
+  # work itself. Registries every plan appends to (a criteria index, an ADR
+  # directory, a phase spec) declared exclusive, and `wave_split_hit`'s
+  # asymmetry (one side's `shared:` voids nothing) holds even the careful
+  # plans. The fix is a `rescope` manager (.claude/commands/manage.md) that
+  # corrects the declarations; computed here so the verdict can name its key.
+  #
+  # Gated on `n_slots > 0`: a fleet whose managers are all busy is working, not
+  # stalled, and every merge re-runs `dispatch`. The rescope manager is beyond
+  # the cap (holds no slot, like a reporter), so it COULD run at 0 slots — but
+  # the value it buys is idle slots, and there are none then.
+  if [ "$n_hold" -gt 0 ] && [ "$n_slots" -gt 0 ] &&
+     [ "$n_free" -eq 0 ] && [ "$n_wait" -eq 0 ]; then
+    # The key is the HOLDER set — the plans in flight whose exclusive claims
+    # do the holding — sorted, joined with `+`, so the same collision reads as
+    # the same key on every pass and the ledger's `rescoped=<key>` bound holds.
+    # Read from `holdmap`, whose field 2 is `<holder> on <path> (claimed on
+    # <branch>)`; the holder is its first token.
+    rescope_holders="$(printf '%s\n' "$holdmap" |
+      awk -F'\t' 'NF > 1 { h = $2; sub(/ on .*/, "", h); print h }' | sort -u)"
+    rescope_key="$(printf '%s\n' "$rescope_holders" | grep -v '^$' | paste -sd+ -)"
+    n_rescope_holders="$(printf '%s\n' "$rescope_holders" | grep -c .)"
+    # Every held path with its collision count, descending — what the rescope
+    # manager works through. Field 2's path is between ` on ` and ` (claimed`.
+    rescope_paths="$(printf '%s\n' "$holdmap" |
+      awk -F'\t' 'NF > 1 { p = $2; sub(/^[^ ]* on /, "", p);
+                           sub(/ \(claimed on .*/, "", p); print p }' |
+      sort | uniq -c | sort -rn |
+      sed 's/^[[:space:]]*\([0-9][0-9]*\)[[:space:]]*\(.*\)/    \2  (\1 held)/')"
+    # ONE pass, fed by process substitution rather than a "$(...)" capture read
+    # back through a "<<<" here-string. That pairing was a genuine Heisenbug: a
+    # blocked rescope read as active in flight on some passes and settled on
+    # others, and a bare ":" inserted between the two lines changed the answer
+    # — the here-string's temp file racing the preceding command substitution.
+    # "< <(...)" keeps the loop in THIS shell so the two flags below persist,
+    # and takes its input from a FIFO with no such interaction; the age git
+    # reads "</dev/null" so the FIFO is never its stdin.
+    #
+    # A rescope for THIS key that is done or blocked SETTLES it: done means the
+    # pass found nothing to change and the holds are GENUINE (the plans really
+    # edit the same code — the answer is to wait for the holder branches to
+    # merge, not another rescope); blocked means a human's, never respawned.
+    # Only an ACTIVE rescope for this key counts as in flight and holds off a
+    # second spawn. A branch keyed to a different holder set (the set moved as
+    # branches merged) settles nothing here.
+    while IFS=$'\t' read -r rb rk rstat rsess rnext; do
+      [ -n "$rb" ] || continue
+      rage="$(dispatch_age_text "$(dispatch_age_min "$rb" </dev/null)")"
+      rescope_inflight="${rescope_inflight}    ${rb}  rescope-${rk}  ${rstat}  pushed ${rage}"$'\n'
+      [ -z "$rsess" ] || rescope_inflight="${rescope_inflight}      session: ${rsess}"$'\n'
+      [ -z "$rnext" ] || rescope_inflight="${rescope_inflight}      next: ${rnext}"$'\n'
+      [ "$rk" = "$rescope_key" ] || continue
+      case "$rstat" in
+        done | blocked) rescope_settled=1 ;;
+        *) n_rescope_inflight=$((n_rescope_inflight + 1)) ;;
+      esac
+    done < <(dispatch_rescope_branches)
+
+    printf 'rescope   : %s plan(s) held behind %s branch(es) — the work is decomposed,\n' \
+      "$n_hold" "$n_rescope_holders"
+    printf '            the scope: declarations are not. A rescope manager marks the\n'
+    printf '            shared registries and narrows the directory claims so these\n'
+    printf '            plans wave in parallel (.claude/commands/manage.md, rescope).\n'
+    printf '            key: %s\n' "${rescope_key:-none}"
+    printf '            held on:\n'
+    printf '%s\n' "$rescope_paths"
+    if [ "$n_rescope_inflight" -gt 0 ]; then
+      printf '            in flight:\n%s' "$rescope_inflight"
+    else
+      printf '            in flight: none\n'
+    fi
+    printf '\n'
+  fi
+
   # --- verdict --------------------------------------------------------------
   # One line the orchestrator branches on. DRAINED with managers in flight is
   # NOT the exit: the queue is empty, the work is not. A cap of 0 is the
@@ -6284,6 +6418,22 @@ cmd_dispatch() {
     # Unreachable while a partner is free and earlier in the order, and
     # said rather than left to fall through to DRAINED.
     printf 'verdict   : NOT DRAINED — %s item(s) waiting behind others: spawn nothing this pass\n' "$n_wait"
+  elif [ "$n_hold" -gt 0 ] && [ "$n_slots" -gt 0 ]; then
+    # n_free and n_wait are both 0 here — the earlier branches caught every
+    # spawnable item. NOT drained: the slots are idle only because the held
+    # plans' declarations are wrong. A rescope manager is beyond the cap, so
+    # this fires even at a full spawn list; the rescope block above carries
+    # the key and the paths.
+    if [ "$rescope_settled" -eq 1 ]; then
+      printf 'verdict   : OVERLAP-BOUND — %s slot(s) free, %s plan(s) held; a rescope for this key is done or blocked (see rescope block): the holds are genuine or a human'"'"'s — spawn nothing, keep the health pass going until the holder branches merge\n' \
+        "$n_slots" "$n_hold"
+    elif [ "$n_rescope_inflight" -gt 0 ]; then
+      printf 'verdict   : OVERLAP-BOUND — %s slot(s) free, %s plan(s) held; a rescope manager is already in flight (see rescope block): spawn nothing this pass, keep the health pass going\n' \
+        "$n_slots" "$n_hold"
+    else
+      printf 'verdict   : OVERLAP-BOUND — %s slot(s) free, %s plan(s) held behind shared-registry declarations: spawn ONE rescope manager (agent: sonnet) on key %s\n' \
+        "$n_slots" "$n_hold" "${rescope_key:-none}"
+    fi
   elif [ $((n_inflight - n_blocked)) -gt 0 ]; then
     printf 'verdict   : DRAINED — nothing free; %s manager(s) in flight: keep the health pass going\n' \
       "$((n_inflight - n_blocked))"

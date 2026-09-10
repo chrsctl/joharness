@@ -875,3 +875,94 @@ expect "and the live holder still decides: HOLD" \
   "docs/plans/mid.md (agent: sonnet)  HOLD — overlaps" "$out"
 refute "never released into the live collision" \
   "that branch is BLOCKED on a human: spawn" "$out"
+
+# --- overlap-bound: slots free, everything held, a rescope manager answers ---
+# The state run 1 measured and nobody filed a plan for: every free plan HELD
+# behind one branch in flight, `n_free` 0, slots idle, `dispatch` calling it
+# DRAINED. Its own fixture: three plans all claiming `src/shared` exclusively,
+# one claimed by a manager so the other two are held with nothing else free.
+rbwork="${TMP}/rescopework"
+rborigin="${TMP}/rescopeorigin.git"
+git init -q --bare "$rborigin"
+git init -q "$rbwork"
+git -C "$rbwork" symbolic-ref HEAD refs/heads/main
+mkdir -p "${rbwork}/docs/plans" "${rbwork}/docs/handover" \
+  "${rbwork}/.agents/harness" "${rbwork}/.agents/env/none"
+cp "${ROOT}/joharness.sh" "${rbwork}/joharness.sh"
+cp "${ROOT}/.agents/harness/queue-context.sh" \
+   "${ROOT}/.agents/harness/handover-context.sh" "${rbwork}/.agents/harness/"
+printf '# none\n' >"${rbwork}/.agents/env/none/AGENTS.md"
+rbconf="${rbwork}/joharness.conf"
+printf 'JOHARNESS_ENV=none\nJOHARNESS_MODE=orchestrated\n' >"$rbconf"
+for n in hold_a hold_b keeper; do
+  { printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: high\n' "$n"
+    printf 'scope: src/shared\n---\n\n## Goal\nFixture.\n'
+  } >"${rbwork}/docs/plans/${n}.md"
+done
+commit_all "$rbwork" "base"
+git -C "$rbwork" remote add origin "$rborigin"
+git -C "$rbwork" push -qu origin main
+# keeper claimed and live: hold_a and hold_b are held behind it on src/shared,
+# nothing else free.
+git -C "$rbwork" checkout -qb mgr-keeper
+printf -- '---\nworkstream: keeper\nstatus: in-progress\nbranch: mgr-keeper\nplan: keeper\nsession: https://example.invalid/session_keeper\nagent: sonnet\nupdated: 2026-01-01\nnext: Build\n---\n\n## Goal\nFixture.\n' \
+  >"${rbwork}/docs/handover/keeper.md"
+commit_all "$rbwork" "claim keeper"
+git -C "$rbwork" push -qu origin mgr-keeper
+git -C "$rbwork" checkout -q main
+rb() { ( cd "$rbwork" && JOHARNESS_CONF="$rbconf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 "$@" ./joharness.sh dispatch 2>&1 ); }
+out="$(rb)"
+expect "the held plans are counted, not free" \
+  "2 plan(s) on HOLD behind work in flight" "$out"
+expect "and the state is OVERLAP-BOUND, never DRAINED" \
+  "verdict   : OVERLAP-BOUND" "$out"
+expect "which names the slots free and the plans held" \
+  "3 slot(s) free, 2 plan(s) held behind shared-registry declarations" "$out"
+expect "and says to spawn ONE rescope manager on the holder key" \
+  "spawn ONE rescope manager (agent: sonnet) on key keeper" "$out"
+refute "the word DRAINED never appears on the verdict" \
+  "verdict   : DRAINED" "$out"
+expect "the rescope block names the collision path with its count" \
+  "src/shared  (2 held)" "$out"
+expect "and reports no rescope in flight yet" "in flight: none" "$out"
+
+# A rescope manager in flight: listed, and the verdict says one is running.
+git -C "$rbwork" checkout -qb claude/rescope-keeper
+mkdir -p "${rbwork}/docs/handover"
+printf -- '---\nworkstream: rescope-keeper\nstatus: in-progress\nbranch: claude/rescope-keeper\nplan: none\nsession: https://example.invalid/session_rescope\nagent: sonnet\nupdated: 2026-01-02\nnext: Mark the shared registries\n---\n\n## Goal\nFixture.\n' \
+  >"${rbwork}/docs/handover/rescope-keeper.md"
+commit_all "$rbwork" "claim rescope"
+git -C "$rbwork" push -qu origin claude/rescope-keeper
+git -C "$rbwork" checkout -q main
+out="$(rb)"
+expect "the rescope branch is listed in flight, keyed to the holder set" \
+  "claude/rescope-keeper  rescope-keeper  in-progress  pushed" "$out"
+expect "its session rides under it" \
+  "session: https://example.invalid/session_rescope" "$out"
+expect "and the verdict says one is already running, spawn nothing" \
+  "a rescope manager is already in flight" "$out"
+refute "so it does not tell the orchestrator to spawn another" \
+  "spawn ONE rescope manager" "$out"
+
+# A rescope that finished with nothing to change (status done): the holds are
+# genuine, the pass must not spawn another rescope for the same key.
+git -C "$rbwork" checkout -q claude/rescope-keeper
+sed -i 's/^status: in-progress/status: done/' "${rbwork}/docs/handover/rescope-keeper.md"
+commit_all "$rbwork" "rescope found nothing"
+git -C "$rbwork" push -q origin claude/rescope-keeper
+git -C "$rbwork" checkout -q main
+out="$(rb)"
+expect "a done rescope settles the key: the holds are genuine" \
+  "a rescope for this key is done or blocked" "$out"
+refute "and no new rescope is recommended" "spawn ONE rescope manager" "$out"
+refute "nor is it read as still actively running" \
+  "a rescope manager is already in flight" "$out"
+
+# 0 slots (cap = 1, keeper fills it): the fleet is working, not stalled, so
+# the held plans stay DRAINED-in-flight and no rescope is offered.
+out="$(rb env JOHARNESS_MAX_MANAGERS=1)"
+refute "with no idle slot there is no OVERLAP-BOUND" \
+  "verdict   : OVERLAP-BOUND" "$out"
+expect "the held plans wait on the holder merging, nothing to rescope now" \
+  "verdict   : DRAINED — nothing free; 1 manager(s) in flight" "$out"

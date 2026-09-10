@@ -28,6 +28,7 @@ the rows below.
 | `session-start` banner | Names the mode and routes by role: prompt names `/manage <item>` = manager; nothing named = orchestrator, run `/orchestrate`. Same boundary list. |
 | Queue hook | Same `SUPERVISED ONLY` marking. Plus, this mode only: `in flight: <free> overlaps <claimed> on <path>` lines, one per free plan whose scope collides with a plan a manager holds now. |
 | `./joharness.sh dispatch` | New. The orchestrator's one read: the human's numbers, managers in flight with push age and a `STALL?` mark, slots under the cap, the spawn order with waves and `HOLD`s, one verdict line. Reports only. |
+| `dispatch` verdict `OVERLAP-BOUND` | New, this mode only. Slots free but every free plan HELD behind work in flight, so nothing is spawnable and yet the work is not done — the holds are `scope:` declarations, not the plans themselves. A `rescope :` block names the holder key and the held paths, and the verdict spawns ONE rescope manager to correct the declarations. The state run 1 mislabelled DRAINED. |
 | `./joharness.sh drain` | Same verdict; tells a manager it works the item its prompt named, and names the orchestrator's exit as dispatch's verdict. |
 | `./joharness.sh upstream` | New, and NOT orchestrated-only: reports what a merged edge found about the harness in any consumer, at any time. What this mode adds is a role that acts on it. |
 | `JOHARNESS_UPSTREAM_FEEDBACK` | New, `off` by default. On, the health pass's `done` row spawns ONE reporter per merged edge, which files the findings as a report pull request on the canonical ([`feedback.md`](feedback.md), When the consumer is the detector). A reporter holds no manager slot and is one session beyond the cap. |
@@ -41,6 +42,7 @@ the rows below.
 | manager | the item's `agent:` — plan or research; opus at xhigh for an unplanned requirement, decomposition being the judgement every build rests on | a session with its own branch, claim and merge | worker subagents (`Agent`) | one item, until its file retires | its pull request merges, or it blocks on a human |
 | worker | at or below the plan's tier, lower by default | a subagent in the manager's container | nothing | the files its sub-task names | it returns |
 | reporter | low; the judgement is its command file's gate, not its tier | a session, spawned after a manager MERGES — only where `JOHARNESS_UPSTREAM_FEEDBACK=on` | nothing | one merged edge's harness findings | it files one report on the canonical, or none, and exits |
+| rescope manager | sonnet; the judgement is which `scope:` path is a shared registry, not the plan's own tier | a session, spawned on the `OVERLAP-BOUND` verdict | nothing (it edits declarations, not code) | the held plans' and holders' `scope:` lines for one holder key | its pull request merges, or `done` with nothing to change |
 
 ### What each role reads
 
@@ -55,6 +57,7 @@ handover hook, which skips the walk over every remote ref — and no queue.
 | --- | --- | --- |
 | orchestrator | `dispatch`, the control plane, the Lineup table | a plan, a requirement, a research file, another branch's workstream file, this doc |
 | manager | its item, its own workstream file, the item's anchors, `feedback` on the files it touches, the environment rules if it touches the environment | the queue, other plans, other branches, this doc |
+| rescope manager | the `rescope :` block in its prompt, and the `## Scope` of each plan it renames | the queue, product code, this doc |
 | worker | its sub-task prompt and the files it names | everything else |
 
 Two spawn levels, never three. A worker that needs a branch of its own is
@@ -258,6 +261,20 @@ disjoint scope. Two things this mode adds to the wave rule:
   the Routine: dispatch says `PAUSED`, the orchestrator spawns nothing;
   with managers still in flight the health pass goes on until they end,
   then it exits.
+- When EVERY free plan is held and slots sit idle, the hold rule has done
+  its job — kept a manager off a coming collision — and left the fleet
+  overlap-bound: 30 plans behind one branch, three slots free, run 1. The
+  answer is not to spawn into the collision but to remove it, and most of
+  these collisions are not real: a plan that only appends to a shared
+  registry, or claims a whole directory, declared it exclusive in `scope:`.
+  `dispatch` says `OVERLAP-BOUND` and spawns ONE rescope manager
+  (`.claude/commands/manage.md`, R) to mark the registries `shared:` and
+  narrow the directory claims. It holds no slot (beyond the cap, like a
+  reporter) and is bounded to one per holder key per run by the ledger's
+  `rescoped=<key>`, so a queue whose collisions are genuine settles in one
+  pass and is left as `DRAINED`-in-flight rather than rescoped forever. The
+  gate is `n_slots > 0`: a fleet whose managers are all busy is working, not
+  stalled, and every merge re-runs `dispatch`.
 
 The reconcile rate the peer fleet measured — about one merge in four
 (`.agents/docs/product/README.md`, Orchestration) — is the number a run of
@@ -411,7 +428,11 @@ not slot-bound: passes 11 through 17 spawned nothing while 2 to 3 slots sat
 idle, because every free plan overlapped a claimed one on `docs/adr`,
 `docs/phases` or `tools/criteria/index.py`. That is the number this run
 actually produces — against this queue the cap of 4 was never the binding
-constraint, and raising it would have changed nothing.
+constraint, and raising it would have changed nothing. Those three paths are
+registries every plan appends to, declared exclusive in `scope:`; the
+`OVERLAP-BOUND` verdict and the rescope manager (Concurrency, above) exist to
+answer exactly this run, and were built after it. `dispatch` here read that
+state as `DRAINED` — the word for no work — which is what let the fleet sit.
 
 **Two defects, filed as plans rather than patched** (this plan's Out of
 scope): `docs/plans/orchestrator-inflight-count.md` — `dispatch` frees a live

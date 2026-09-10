@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01BrSMgwe9csBqCjehd6v16R
 agent: opus
 updated: 2026-09-10
-next: Build dispatch's OVERLAP-BOUND verdict and rescope block in joharness.sh, cases in selftest/dispatch.sh first
+next: Implementation + 18 selftest cases green (1787 passed, 0 failed). Await verifier + full ci, then record Review and open PR
 ---
 
 ## Goal
