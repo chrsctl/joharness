@@ -144,6 +144,10 @@ AUTONOMY="$(conf_key_default JOHARNESS_MODE)"
 # that reaches a child is the sync naming the key it does not answer, which
 # is what declaring it in conf-keys.sh buys.
 UPSTREAM="$(conf_key_default JOHARNESS_UPSTREAM_FEEDBACK)"
+# Same decision, same reason: whether step 7 waits for GitHub Actions or runs
+# the checks here is a question a repo answers once it has felt the wait, not
+# one a human has an opinion about before the first session.
+CHECKS="$(conf_key_default JOHARNESS_CHECKS)"
 AUTONOMY_GIVEN=0
 # Re-ask every switch in a child that already runs the harness, and write
 # what changes. Off, this script's behaviour is byte-identical to before it
@@ -748,6 +752,15 @@ JOHARNESS_REVIEW=${REVIEW}
 # .agents/docs/unsupervised.md. Any other value reads as supervised; the
 # switch fails closed on purpose.
 JOHARNESS_MODE=${AUTONOMY}
+
+# github = step 7's first merge condition is this head's checks, read on
+#          GitHub: a session pushes, waits for Actions, then merges.
+# local  = no wait. ./joharness.sh finish runs this head's checks itself — ci,
+#          and verify when the diff touches the non-*.md paths step 7 names —
+#          and reds on their result. Not permission to skip them, and it
+#          refuses a head that is not what merges. Anything but 'local' reads
+#          as 'github'.
+JOHARNESS_CHECKS=${CHECKS}
 
 # off = ./joharness.sh upstream reports what a merged edge found about the
 #       harness — which findings landed on a file canonical owns, and the

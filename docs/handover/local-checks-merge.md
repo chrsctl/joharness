@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_018BqX6Ux5hvSAm5AQ725mDe
 agent: opus
 updated: 2026-09-10
-next: Run ci and verify, then step 5 review with the verifier subagent.
+next: Run ci and verify green, then retire this file and the plan (step 7).
 ---
 
 ## Goal
@@ -59,7 +59,74 @@ Actions. Opt-out wanted: run the same checks here, merge without the wait.
 
 ## Review
 
-Pending — step 5 not reached.
+Depth: opus adversarial (`./joharness.sh review`), plus `.claude/agents/verifier.md`
+at opus on the committed diff. Mutation column below is
+`bash <runner> one.sh`, a runner built from `selftest.sh` lines 1-519 plus a
+source of this topic, run 2026-09-10 in this checkout; the topic alone is
+80 passed, 0 failed.
+
+- r1: (session, correctness) the summary line printed `0 behind <ref>`
+  unconditionally, including when `rev-list` returned nothing — a written
+  number in the one place a reader takes as proof the count was taken.
+  (fixed: the line prints what was established, `behind not measurable`
+  otherwise; `the head line claims no count it could not take` pins it.)
+- r2: (session, correctness) a shallow clone has no visible common history,
+  so `rev-list --count HEAD..origin/main` returns the base branch's whole
+  depth and every branch reads as behind — a false red, with `git fetch
+  origin main` as a remedy that does not unshallow. (fixed: the count goes
+  through a merge-base and says `not measurable` without one; mutation on
+  that line reds 4 cases.)
+- r3: (verifier, correctness) `0 behind` was counted off a LOCAL ref with no
+  fetch, while step 7 says fresh-fetched. Reproduced: two clones, a push to
+  `main` from one, the other reports `0 behind origin/main`, `ci: pass`,
+  rc 0. (fixed: a bounded fetch first, `HANDOVER_FETCH=0` to skip it, and the
+  count carries `fetched just now` or `as of the last fetch`; mutation on the
+  fetch reds 1 case.)
+- r4: (verifier, correctness) detached HEAD asked the pushed question of
+  `origin/HEAD`, which resolves in any normal clone — so a detached checkout
+  at the base branch read as pushed, clean and 0 behind and was certified.
+  (fixed: a DETACHED refusal; mutation reds 1 case.)
+- r5: (verifier, correctness) `git diff --name-only` C-QUOTES a non-ASCII
+  path, and `".agents/harness/w\303\251ird.sh"` matches no prefix — so the
+  one shape that must ask for `verify` was the one that skipped it. (fixed:
+  `-z`, as `checks_tree_extra` already did; mutation reds 3 cases.)
+- r6: (verifier, correctness) `ci` returns 0 with shellcheck SKIPPED off a
+  runner, and the gate reprinted that as a plain `ci: pass` — merging code
+  the workflow it stands in for reds for. (fixed: a green `ci` with the tool
+  still missing is red here, said in full; a PATH farm without shellcheck
+  pins both halves, mutation reds 2 cases.)
+- r7: (verifier, correctness) `@{upstream}` was preferred over
+  `origin/<branch>`, and `git checkout -b feat origin/main` — the documented
+  cut — sets that upstream to the BASE branch, so a pushed branch was refused
+  as unpushed with a remedy that never cleared it. (fixed: `origin/<branch>`
+  first, the upstream only when it names this branch; mutation reds 2 cases.)
+- r8: (verifier, test) nothing pinned the headline claim. `if "$0" ci || true`
+  left the whole topic green. (fixed: a fixture branch carrying a script that
+  does not parse; mutation reds 2 cases.)
+- r9: (verifier, test) the `*.md` exclusion, stated in four documents, was
+  pinned by zero cases — the docs-only case passes on the path, not the
+  suffix. (fixed: a branch whose only change is markdown UNDER a gated path;
+  mutation on the suffix test reds 1 case.)
+- r10: (verifier, rules) `.agents/scripts/conf-keys.sh` was not updated, so
+  the key would reach no consumer bootstrapped before it — the failure that
+  file's own header records for `JOHARNESS_MODE`. (fixed: a row there and the
+  matching line in the bootstrap's seeded conf, which the selftest compares.)
+- r11: (verifier, docs) step 7's `verify` clause says "read the run", and
+  under `local` there is no run to read. (fixed: the clause says `finish`
+  runs `verify` ITSELF and there is no run to read then.)
+- r12: (verifier, docs) the four gated paths were spelled a fourth and fifth
+  time in `joharness.conf` and the usage header. (fixed: both point at step 7
+  and at `CHECKS_VERIFY_PATHS`, which is the one copy.)
+- r13: (verifier, correctness) `checks_tree_extra` discarded `git status`'s
+  exit status, so a git failure would read as a clean tree. (fixed: it
+  returns non-zero and the gate prints UNREADABLE and refuses. The read goes
+  through a file, not `$( )`, which drops the NUL bytes `-z` output is made
+  of. NOT pinned by a case: every way to break `git status` for this process
+  needs a permission the container runs above, so it stays reasoned — the
+  same disposition the verifier gave it.)
+- r14: (verifier, clean) no unquoted expansions, no `grep -q` SIGPIPE, no
+  lost `PIPESTATUS`, no `set -u` trap, no function-name collision with the
+  runner. Recorded because a clean pass is a finding too.
 
 ## Blockers
 

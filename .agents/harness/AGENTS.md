@@ -135,13 +135,7 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    PR body carries the command that recovers its own workstream file
    (`.agents/docs/handover/README.md`, Survives PR): retired before the
    merge, the record is in history and not in any tree on `main`.
-   Merge when ALL hold: GitHub checks green on head — unless
-   `JOHARNESS_CHECKS=local` (session start says so), which means NO wait for
-   Actions: `finish` runs `ci` here, and `verify` when the diff touches the
-   non-`*.md` paths below, and reds on their result. It refuses a head that
-   is not what merges (uncommitted, untracked, unpushed, behind) and names
-   what a local run cannot cover. Every other condition here unchanged;
-   branch 0 behind
+   Merge when ALL hold: GitHub checks green on head; branch 0 behind
    fresh-fetched `origin/main` (behind = "Conflict at finish" reconcile
    first — checks do NOT re-run when `main` moves); `./joharness.sh
    verify` green when the diff touches any non-`*.md` file under
@@ -151,7 +145,12 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    (`.agents/env/README.md`). A run that skipped that layer, or a repo whose
    workflow has no such job, proves nothing; **`./joharness.sh finish` green** — the only guard
    here that fires while the fix is still a commit; edge review recorded
-   (step 5); no unresolved human review thread. Anything less stays open. Merge-commit
+   (step 5); no unresolved human review thread. Anything less stays open.
+   `JOHARNESS_CHECKS=local` (session start says so) replaces the FIRST
+   condition and no other: no wait for Actions — `finish` runs `ci`, and
+   `verify` on those same paths, ITSELF. No run to read for the layer then;
+   it reds on their result, refuses a head that is not what merges, names
+   what it cannot cover. Merge-commit
    method ONLY — squash/rebase merge breaks the merged-branch ancestry
    filter (`.agents/docs/product/README.md` Branch flow). Human veto = revert.
    Branch conflicts with `main` (another PR merged
