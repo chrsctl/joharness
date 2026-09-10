@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_018BqX6Ux5hvSAm5AQ725mDe
 agent: opus
 updated: 2026-09-10
-next: Implement JOHARNESS_CHECKS in joharness.sh, then the selftest topic.
+next: Run ci and verify, then step 5 review with the verifier subagent.
 ---
 
 ## Goal
@@ -37,6 +37,14 @@ Actions. Opt-out wanted: run the same checks here, merge without the wait.
   pays nothing, in seconds or context.
 - Announced at session start when `local`, like the review gate. A session
   that learns at step 7 has already waited on Actions once.
+- Behind the base branch is a red under `local` only. Under `github` a pull
+  request run tests a MERGE of head and base, so the tip is not the whole
+  story there and step 7's own 0-behind rule already covers it; under `local`
+  nothing ever sees that merge, so the tip is the entire evidence.
+- The suites run LAST and only when the rest of `finish` is green. A head
+  still carrying its own workstream file is not the head that merges, so a
+  run there would spend minutes on a question whose answer cannot change the
+  verdict. The skip is printed, never silent.
 
 ## Rejected
 
