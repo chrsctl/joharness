@@ -1714,7 +1714,9 @@ perf_count() {
 # the shape does not exercise: the per-claimed-plan fork in
 # queue-context.sh's `in flight:` block runs only where a claimed plan and a
 # free plan coexist, and `perf_shape` builds no claim, so both queue rows
-# count 126 today. It is a floor against the mode's OTHER forks and a place
+# count the same number today — 104 since the merged-ref batch below, 126
+# when this paragraph was written and 128 by the time that batch re-counted
+# it. Which is the argument for reading the table rather than this sentence. It is a floor against the mode's OTHER forks and a place
 # for the real number to land, not a measurement of that block — building a
 # claimed plan into the shape is a change to `perf_shape` and its own diff.
 # The payload the bash-guard row is measured on: a command it DENIES, so the
@@ -1745,15 +1747,48 @@ PERF_BASH_GUARD_PAYLOAD='{"session_id":"perf","tool_name":"Bash","tool_input":{"
 # — 39 spawns, which is what the shape's 10 understates and why the live number is
 # printed beside the gated one. Raise a literal here only with its counted number,
 # and only after the loop is right (`perf`'s own message).
+#
+# THAT PAIR IS THIS CHECKOUT ON THAT DAY and is kept as the reasoning it was
+# written for, not as a current reading. Re-counted 2026-09-11 after the
+# merged-ref batch below: live drain 428, against 418 with
+# `JOHARNESS_CURATE_HOURS=0` — a gap of 10, not 39. Two things moved it and
+# neither is the curate loop: the batch took ~270 spawns off every live drain,
+# and the checkout is not the one 844 was counted on. Which is the standing
+# rule in one example — trust counted numbers, never written ones, this
+# paragraph included.
+#
+# FOUR rows came DOWN on 2026-09-11, and by that same fix applied one loop over:
+# the per-ref `merge-base --is-ancestor` that BOTH session-start hooks ran to
+# skip already-merged refs is now one `for-each-ref --merged` per hook, banked
+# and tested with a `case` glob that forks nothing. Counted on the built shape
+# (26 refs, 3 plans, 22 edges) with `./joharness.sh perf <row>`, 2026-09-11:
+#
+#   session-start        325 -> 276      budget 336 -> 287
+#   queue-context        128 -> 104      budget 141 -> 117
+#   queue-orchestrated   128 -> 104      budget 141 -> 117
+#   drain                336 -> 287      budget 357 -> 308
+#
+# `drain` takes its two numbers as above: 287 as the gate measures it, 297 with
+# `JOHARNESS_CURATE_PLANS=1`, and the budget clears the larger by the same 11 it
+# cleared 346 by. Every row keeps the headroom it already had — the loop moved,
+# the gate's tolerance did not.
+#
+# The saving scales with the ref count, which is why the shape understates it.
+# Live on this 137-ref checkout the same day: session-start 685 -> 415, drain
+# 698 -> 428, queue-context 264 -> 129. Two spawns per ref, gone.
+#
+# LOWER a literal here on the same terms as raising one: its counted number,
+# after the loop is right. A budget left at the old number after the loop got
+# cheaper is a gate that has stopped measuring anything.
 perf_rows() {
   printf '%s\n' \
     "feedback|${JOHARNESS_PERF_BUDGET_FEEDBACK:-228}|live||${ROOT}/joharness.sh feedback" \
     "review|${JOHARNESS_PERF_BUDGET_REVIEW:-274}|live||${ROOT}/joharness.sh review" \
     "graph|${JOHARNESS_PERF_BUDGET_GRAPH:-118}|shape||${ROOT}/joharness.sh graph" \
-    "session-start|${JOHARNESS_PERF_BUDGET_SESSION_START:-336}|shape||${ROOT}/joharness.sh session-start" \
-    "queue-context|${JOHARNESS_PERF_BUDGET_QUEUE:-141}|shape||env JOHARNESS_RUN_MODE=unsupervised ${HARNESS_ROOT}/queue-context.sh" \
-    "queue-orchestrated|${JOHARNESS_PERF_BUDGET_QUEUE_ORCH:-141}|shape||env JOHARNESS_RUN_MODE=orchestrated ${HARNESS_ROOT}/queue-context.sh" \
-    "drain|${JOHARNESS_PERF_BUDGET_DRAIN:-357}|shape||${ROOT}/joharness.sh drain" \
+    "session-start|${JOHARNESS_PERF_BUDGET_SESSION_START:-287}|shape||${ROOT}/joharness.sh session-start" \
+    "queue-context|${JOHARNESS_PERF_BUDGET_QUEUE:-117}|shape||env JOHARNESS_RUN_MODE=unsupervised ${HARNESS_ROOT}/queue-context.sh" \
+    "queue-orchestrated|${JOHARNESS_PERF_BUDGET_QUEUE_ORCH:-117}|shape||env JOHARNESS_RUN_MODE=orchestrated ${HARNESS_ROOT}/queue-context.sh" \
+    "drain|${JOHARNESS_PERF_BUDGET_DRAIN:-308}|shape||${ROOT}/joharness.sh drain" \
     "handover-guard|${JOHARNESS_PERF_BUDGET_GUARD:-33}|shape||env JOHARNESS_MODE=unsupervised ${HARNESS_ROOT}/handover-guard.sh" \
     "bash-guard|${JOHARNESS_PERF_BUDGET_BASH_GUARD:-0}|shape|${PERF_BASH_GUARD_PAYLOAD}|${HARNESS_ROOT}/pretool-bash-guard.sh"
 }
