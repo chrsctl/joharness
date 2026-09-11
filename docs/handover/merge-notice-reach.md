@@ -1,14 +1,14 @@
 ---
 workstream: merge-notice-reach
 status: in-progress
-branch: claude/merge-notice-reach-79e466
+branch: claude/address-issue-45qgw6
 pr: none
 plan: docs/plans/merge-notice-reach.md
 issue: #230
-session: https://claude.ai/code/session_01G751FjhA159aSUbvtRUqDW
+session: https://claude.ai/code/session_01PsTd99XdX46dYkgMn6mAWt
 agent: opus
-updated: 2026-09-06
-next: Make the two text edits, then ci, then the verifier pass
+updated: 2026-09-11
+next: verify, then the verifier pass, then retire and open the pull request
 ---
 
 ## Goal
@@ -29,12 +29,22 @@ not editable on its own.
   session title. The title was refused too, but for want of a route — that
   measurement says nothing about whether a title is an address, and writing
   protocol text on an unmeasured inference is what this issue is about.
-- The gate stays `ToolSearch`, with the limit stated rather than replaced. A
-  reachability gate the orchestrator could actually evaluate before the spawn
-  does not exist: peer visibility is a property of the container the MANAGER
-  will run in, which has not been created yet. Saying "holding the tool is not
-  holding a route" costs one sentence and is true; inventing a probe would be a
-  second thing to keep correct.
+- The gate is `ListAgents`, not `ToolSearch`. SUPERSEDES this branch's first
+  ruling ("the gate stays `ToolSearch`, with the limit stated rather than
+  replaced"), which was right that no probe can predict the MANAGER's peer
+  visibility and wrong about what the gate is for: the fixed text has to WRITE
+  an address, and `ToolSearch` finding a tool hands the orchestrator no name to
+  write. `ListAgents` is one pre-spawn call that yields both — its opening line
+  names the caller, and the issue quotes that line. No probe invented: the
+  orchestrator's own name is readable from its own container; the manager's
+  reachability still is not, and the text still says so.
+- Taken over from an abandoned branch, not restarted. `claude/merge-notice-reach-79e466`
+  carried both text edits and one recorded finding, and its session is ARCHIVED
+  with `status_category: failed` — a dead claim, so step 2 makes it takeable.
+  Both commits cherry-picked onto this branch rather than rewritten, which keeps
+  r1 attached to the fix it describes; that branch was 87 behind `main` and its
+  own `next:` line was stale (it said "make the two text edits", which its
+  second commit had already made).
 
 ## Rejected
 
@@ -60,6 +70,18 @@ not editable on its own.
   absence. Replaced with the phrase the spawn block actually handed a manager,
   `message session <your session`, which is `0` after the edit and was `1`
   before. (fixed)
+- r2: the spawn block told the orchestrator to write
+  `"<your ListAgents name>"` while its gate stayed `ToolSearch("+SendMessage")`
+  — and NOTHING in `orchestrate.md` calls `ListAgents` for the orchestrator's
+  own row (`grep -n ListAgents .claude/commands/orchestrate.md`: 24, 40, 149,
+  and the merge line itself; the first three are about the TARGET's row). So
+  the fix traded an address `SendMessage` refuses for one the caller cannot
+  obtain, and a literal reader would have to guess the string. Gate changed to
+  `ListAgents`, which yields the name and the tool in one call. (fixed)
+- r3: same block said the name form holds "here as at the NUDGE row
+  below". NUDGE is `orchestrate.md:149`, the merge line `:412` — above, not
+  below. A reader sent the wrong way to check the one cross-reference the
+  argument rests on. (fixed)
 
 ## Blockers
 
