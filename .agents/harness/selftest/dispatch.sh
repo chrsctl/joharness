@@ -13,6 +13,28 @@
 # scratch repo, as drain does, because every line is a property of the
 # whole queue.
 #
+# A case in a SHARED fixture sets every precondition it turns on — queue
+# content, branch position, and knob values — because what it inherits was
+# chosen by an earlier case for a different question. Three cases on one branch
+# failed this way, each inheriting a different thing, and each looked like a
+# code defect until the fixture was read:
+#
+#   queue content  two cases reused `reg/index.py` and the requirement
+#                  `vanished`, both already claimed upstream in the same
+#                  fixture, so they measured an earlier case's plans.
+#   branch position a case asked `drain` while still checked out ON the branch
+#                  it was asking about. `drain` sees another session's claim
+#                  through the handover hook's `origin/<branch>:` lines, so
+#                  from the branch itself the answer is legitimately "nothing
+#                  in flight" — the wrong question, not a wrong answer.
+#   knob value     a case assumed a trigger had fired when the change it made
+#                  was under the DEFAULT threshold, so it passed or failed on a
+#                  number it never set.
+#
+# The tell is the same in all three: the assertion is about X and the fixture
+# decides X somewhere else. Build the precondition in the case, or give the
+# case its own repo — several topics here do, and that is why.
+#
 # shellcheck shell=bash disable=SC2154
 
 step "joharness.sh dispatch"
@@ -1133,13 +1155,13 @@ cwd() { ( cd "$cwwork" && JOHARNESS_CONF="$cwconf" DRAIN_FETCH=0 \
   DISPATCH_FETCH=0 "$@" ./joharness.sh dispatch 2>&1 ); }
 out="$(cwd)"
 expect "no curate has ever landed, so one is due" \
-  "none has ever landed on main, so one is DUE" "$out"
+  "curate    : DUE — none has ever landed on main" "$out"
 expect "and the tail line under the verdict says to spawn one" \
   "curate DUE: spawn ONE curator (agent: sonnet)" "$out"
 expect "naming it as beyond the cap" "beyond the cap, holds no slot" "$out"
-out="$(cwd env JOHARNESS_CURATE_HOURS=0)"
-expect "zero hours is the human's off switch" \
-  "curate    : off — JOHARNESS_CURATE_HOURS=0" "$out"
+out="$(cwd env JOHARNESS_CURATE_HOURS=0 JOHARNESS_CURATE_PLANS=0)"
+expect "zero on BOTH knobs is the human's off switch" \
+  "curate    : off — JOHARNESS_CURATE_HOURS=0 and JOHARNESS_CURATE_PLANS=0" "$out"
 refute "and nothing is ever spawned" "curate DUE" "$out"
 
 # A curator in flight: no second one is due, whatever the clock says.
@@ -1155,8 +1177,8 @@ expect "a curator in flight is named with its branch and stamp" \
   "claude/curate-run  curate-2026-09-11  in-progress  pushed" "$out"
 expect "its session rides under it" \
   "session: https://example.invalid/session_cur" "$out"
-expect "and the cycle says none is due while one runs" \
-  "a curator is IN FLIGHT, so none is due" "$out"
+expect "and the cycle says one is already running" \
+  "curate    : IN FLIGHT, so none is due" "$out"
 refute "so the orchestrator is told to spawn nothing" "curate DUE" "$out"
 
 # Its retire commit IS the cycle's date, and the branch+merge shape is the whole
@@ -1177,7 +1199,7 @@ git -C "$cwwork" merge -q --no-ff --no-edit claude/curate-run
 git -C "$cwwork" push -q origin main
 out="$(cwd)"
 expect "a curate retired on its branch and merged dates the cycle" \
-  "since the last one landed, not due" "$out"
+  "curate    : not due" "$out"
 refute "so it is not read as never having landed" \
   "none has ever landed" "$out"
 refute "and nothing is spawned" "curate DUE" "$out"
@@ -1192,7 +1214,7 @@ if [ -z "$simplified" ] && [ -n "$fullhist" ]; then
 else
   fail "the fixture no longer discriminates --full-history (simplified='${simplified}' full='${fullhist}')"
 fi
-out="$(cwd env JOHARNESS_CURATE_HOURS=0)"
+out="$(cwd env JOHARNESS_CURATE_HOURS=0 JOHARNESS_CURATE_PLANS=0)"
 refute "off still spawns nothing once one has landed" "curate DUE" "$out"
 
 # --- the findings a green suite would otherwise not distinguish ---------------
@@ -1307,3 +1329,160 @@ refute "never the clean-queue sentence, which curate.md reads as stop" \
   "every declaration reads true" "$out"
 refute "and the held plan's own finding is not reported" \
   "onlyheld: anchor" "$out"
+
+# --- the curate cycle is the cycle /start runs, on a production trigger ------
+# `cmd_start` routes by MODE: supervised and unsupervised reach drain.md, only
+# orchestrated reaches orchestrate.md. A cadence printed by `dispatch` alone is
+# one a default repo can never reach, which is what shipped. And the trigger is
+# production, not a clock: plan files touched per week on this repo's own main
+# over 12 weeks were 0 eight times, then 32, 55, 10 (2026-09-11), so a 168h
+# clock fires over nothing in the quiet stretch and misses 97 changes in the
+# busy one. Its own fixture, one plan at a time so the churn count is exact.
+cuwork="${TMP}/curateloop"
+cuorigin="${TMP}/curateloop.git"
+git init -q --bare "$cuorigin"
+git init -q "$cuwork"
+git -C "$cuwork" symbolic-ref HEAD refs/heads/main
+mkdir -p "${cuwork}/docs/plans" "${cuwork}/docs/handover" "${cuwork}/src" \
+  "${cuwork}/.agents/harness" "${cuwork}/.agents/env/none"
+cp "${ROOT}/joharness.sh" "${cuwork}/joharness.sh"
+cp "${ROOT}/.agents/harness/queue-context.sh" \
+   "${ROOT}/.agents/harness/handover-context.sh" "${cuwork}/.agents/harness/"
+printf '# none\n' >"${cuwork}/.agents/env/none/AGENTS.md"
+printf 'x\n' >"${cuwork}/src/real.py"
+cuconf="${cuwork}/joharness.conf"
+printf 'JOHARNESS_ENV=none\n' >"$cuconf"
+cuplan() {
+  { printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: low\n' "$1"
+    printf 'needs: none\nrequirement: none\nscope: src/real.py\n---\n\n'
+    printf '## Goal\nFixture.\n\n## Scope\n\n- %ssrc/real.py%s -- what changes.\n' "$bt" "$bt"
+  } >"${cuwork}/docs/plans/${1}.md"
+}
+cuplan one
+commit_all "$cuwork" "base"
+git -C "$cuwork" remote add origin "$cuorigin"
+git -C "$cuwork" push -qu origin main
+cud() { ( cd "$cuwork" && JOHARNESS_CONF="$cuconf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 "$@" ./joharness.sh drain 2>&1 ); }
+cudis() { ( cd "$cuwork" && JOHARNESS_CONF="$cuconf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 JOHARNESS_MODE=orchestrated "$@" ./joharness.sh dispatch 2>&1 ); }
+
+# Supervised is the default mode, and this is the whole point: the curate line
+# must be in the output `/start` routes to.
+out="$(cud)"
+expect "drain names the mode it is reading" "== drain (mode: supervised)" "$out"
+expect "and prints the curate cycle, which only dispatch used to" \
+  "curate    : DUE" "$out"
+expect "naming curate.md as this session's item" \
+  ".claude/commands/curate.md" "$out"
+expect "and saying it invents nothing" \
+  "Nothing is invented — every plan it touches already exists" "$out"
+
+# ONE reader: drain and dispatch must give the same verdict over one fixture.
+dline="$(printf '%s\n' "$(cud)" | sed -n 's/^curate    : //p' | head -1)"
+xline="$(printf '%s\n' "$(cudis)" | sed -n 's/^curate    : //p' | head -1)"
+if [ -n "$dline" ] && [ "$dline" = "$xline" ]; then
+  pass "drain and dispatch answer 'is a curate due' identically"
+else
+  fail "drain and dispatch disagree: drain='${dline}' dispatch='${xline}'"
+fi
+
+# A landed curate settles it, and then the PRODUCTION trigger is what brings it
+# back — with the clock nowhere near.
+git -C "$cuwork" checkout -qb claude/curate-loop
+mkdir -p "${cuwork}/docs/handover"
+printf -- '---\nworkstream: curate-2026-09-11\nstatus: in-progress\nbranch: claude/curate-loop\nplan: none\nagent: sonnet\nupdated: 2026-09-11\nnext: x\n---\n\n## Goal\nFixture.\n' \
+  >"${cuwork}/docs/handover/curate-2026-09-11.md"
+commit_all "$cuwork" "claim a curate"
+git -C "$cuwork" push -qu origin claude/curate-loop
+# BACK TO MAIN before asking. `drain` reads an in-flight curate out of the
+# handover hook's `origin/<branch>: docs/handover/...` lines, which is how one
+# session sees ANOTHER's claim; a session sitting on the curate branch is the
+# curator and needs no telling. Asking from the branch itself measured the
+# wrong question and read as "nothing in flight".
+git -C "$cuwork" checkout -q main
+out="$(cud)"
+expect "a curate in flight is named rather than spawned again" \
+  "IN FLIGHT on claude/curate-loop, so not yours" "$out"
+refute "and drain does not call it this session's item" \
+  "curate    : DUE —" "$out"
+git -C "$cuwork" checkout -q claude/curate-loop
+fixture_rm "$cuwork" "retire it (step 7)" docs/handover/curate-2026-09-11.md
+git -C "$cuwork" push -q origin claude/curate-loop
+git -C "$cuwork" checkout -q main
+git -C "$cuwork" merge -q --no-ff --no-edit claude/curate-loop
+git -C "$cuwork" push -q origin main
+out="$(cud)"
+# drain is deliberately QUIET when nothing is due — it is an action list, not a
+# status report — so the state is asserted on dispatch and the silence here.
+refute "once it lands, drain claims nothing as the session's item" \
+  "curate    : DUE" "$out"
+refute "and says nothing at all about curating" "curate    :" "$out"
+expect "while dispatch, which reports state, says not due" \
+  "curate    : not due" "$(cudis)"
+
+# Production: three plan files land, threshold 3 -> due, though ~0h elapsed.
+for n in two three four; do cuplan "$n"; done
+commit_all "$cuwork" "three plans land"
+git -C "$cuwork" push -q origin main
+out="$(cud env JOHARNESS_CURATE_PLANS=3)"
+expect "three plan files since the last curate makes one due" \
+  "3 plan file(s) changed since the last curate (>= 3)" "$out"
+expect "and the clock had nothing to do with it" "curate    : DUE" "$out"
+out="$(cud env JOHARNESS_CURATE_PLANS=99)"
+refute "under the threshold nothing is claimed as the item" \
+  "curate    : DUE" "$out"
+expect "and dispatch says how far off it is, in both numbers" \
+  "plan file(s) changed (of 99)" "$(cudis env JOHARNESS_CURATE_PLANS=99)"
+
+# Time: the trigger production cannot see — code moves UNDER a plan and breaks
+# its anchors with no plan file changing. Hours 0 leaves only production.
+expect "hours 0 disables the clock alone, and dispatch says which is off" \
+  "the clock is off" "$(cudis env JOHARNESS_CURATE_PLANS=99 JOHARNESS_CURATE_HOURS=0)"
+expect "plans 0 disables production alone, and says so the other way" \
+  "the production trigger is off" "$(cudis env JOHARNESS_CURATE_PLANS=0)"
+out="$(cud env JOHARNESS_CURATE_PLANS=0 JOHARNESS_CURATE_HOURS=0)"
+refute "both knobs 0 claims nothing as the item" "curate    : DUE" "$out"
+expect "and dispatch names it as the human's off switch" \
+  "no curate is ever due" "$(cudis env JOHARNESS_CURATE_PLANS=0 JOHARNESS_CURATE_HOURS=0)"
+
+# --- the same cycle, under ORCHESTRATED, end to end -------------------------
+# The requester asked for it to work in orchestrator mode, so the three states
+# an orchestrator branches on are asserted from `dispatch` directly: due with
+# none in flight spawns, one in flight does not, and off does not. The tail is
+# what the role acts on (`.claude/commands/orchestrate.md` step 3), so each
+# case asserts the TAIL and not only the header line.
+cuplan five
+commit_all "$cuwork" "one more plan so the queue is not empty"
+git -C "$cuwork" push -q origin main
+out="$(cudis env JOHARNESS_CURATE_PLANS=1)"
+expect "orchestrated: the cycle is due and the tail says to spawn" \
+  "curate DUE: spawn ONE curator (agent: sonnet)" "$out"
+expect "naming it as beyond the cap, holding no slot" \
+  "beyond the cap, holds no slot" "$out"
+expect "and both knobs are named on that line" \
+  "(JOHARNESS_CURATE_PLANS, JOHARNESS_CURATE_HOURS)" "$out"
+
+git -C "$cuwork" checkout -qb claude/curate-orch
+mkdir -p "${cuwork}/docs/handover"
+printf -- '---\nworkstream: curate-2026-09-12\nstatus: in-progress\nbranch: claude/curate-orch\nplan: none\nsession: https://example.invalid/session_orch\nagent: sonnet\nupdated: 2026-09-12\nnext: Repair the registries\n---\n\n## Goal\nFixture.\n' \
+  >"${cuwork}/docs/handover/curate-2026-09-12.md"
+commit_all "$cuwork" "a curator claims under orchestrated"
+git -C "$cuwork" push -qu origin claude/curate-orch
+git -C "$cuwork" checkout -q main
+out="$(cudis env JOHARNESS_CURATE_PLANS=1)"
+expect "orchestrated: one in flight is named with its branch and stamp" \
+  "claude/curate-orch  curate-2026-09-12  in-progress  pushed" "$out"
+expect "its session rides under it, so the health pass can find it" \
+  "session: https://example.invalid/session_orch" "$out"
+refute "and the orchestrator is told to spawn NOTHING" "curate DUE" "$out"
+# The same fact, from the other reader: drain must not hand it to a session
+# either, and both must name the same branch.
+out="$(cud env JOHARNESS_CURATE_PLANS=1)"
+expect "drain agrees it is not this session's, naming the same branch" \
+  "IN FLIGHT on claude/curate-orch, so not yours" "$out"
+refute "and claims nothing" "curate    : DUE" "$out"
+
+out="$(cudis env JOHARNESS_CURATE_PLANS=0 JOHARNESS_CURATE_HOURS=0)"
+refute "orchestrated: both knobs 0 spawns nothing" "curate DUE" "$out"
+expect "and says the human switched it off" "curate    : off" "$out"

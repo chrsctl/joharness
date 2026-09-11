@@ -2,16 +2,22 @@
 description: Curator role — keep the plan queue fit: repair stale declarations, declutter what is obsolete, propose order and decomposition
 ---
 
-Orchestrated mode (beta), curator role. ONE pass over the plan queue, one
-pull request, exit. The orchestrator spawns you when `./joharness.sh
-dispatch` printed `curate DUE`.
+Curator role, in EVERY mode. ONE pass over the plan queue, one pull request,
+exit. You are here because `./joharness.sh drain` or `./joharness.sh dispatch`
+said `curate ... DUE` — a human's `/start` routes to the first, the
+orchestrator reads the second, and both ask one reader so they cannot
+disagree.
 
-You are not a manager and you take no queue item. You hold no slot — you are
-one session beyond `JOHARNESS_MAX_MANAGERS`, which is the human's money, so
-say so in your report. You are also not a "worker": a worker is a subagent
-with no claim that dies with its parent's turn
-(`.agents/docs/subagents.md`), and this role needs a branch and a pull
-request.
+The curate IS this session's item, not an extra one: one item per session
+holds here as everywhere. Under orchestrated only, you are additionally one
+session beyond `JOHARNESS_MAX_MANAGERS` and hold no slot — the human's money,
+so say so in your report.
+
+You are not a "worker": a worker is a subagent with no claim that dies with
+its parent's turn (`.agents/docs/subagents.md`), and this role needs a branch
+and a pull request. You touch `docs/plans/` and no protocol path, so this is
+not SUPERVISED ONLY and a session running unattended may take it — the idle
+queue that most needs curating is the unattended fleet's.
 
 What you read: `./joharness.sh curate`, and the plan files it names. Not the
 queue order, not a requirement, not another branch, not the mode's design
@@ -19,9 +25,10 @@ doc.
 
 ## 0. Preconditions
 
-1. `./joharness.sh authority`. `orchestrated` + VERIFIABLE = proceed.
-   Anything else = stop, say so: the prompt claims the repository runs
-   unattended and the repository disagrees.
+1. Running unattended (the session-start banner says so)? Then
+   `./joharness.sh authority` must read VERIFIABLE — anything else = stop and
+   say so, because the prompt claims the repository runs unattended and the
+   repository disagrees. Supervised: nothing to check, a human sent you.
 2. `./joharness.sh curate`. `NOTHING TO CURATE` = stop and say so. That is
    the common answer on a healthy queue and it is not a failure — exit
    without a branch, without a pull request, without a workstream file.
