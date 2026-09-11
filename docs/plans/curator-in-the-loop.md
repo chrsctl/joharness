@@ -22,15 +22,17 @@ reads. A repo on the default mode could never reach the curator.
 
 The second sentence kills the trigger, not just the wiring. Counted on this
 repo's `origin/main` 2026-09-11, plan files added or changed per week over the
-last 12: `0` for weeks -12 to -4, then `31`, `71`, `25` for weeks -3 to -1,
-counted with the cycle's own reader (`--full-history --name-only`, deduped);
-gap between plan-touching commits median `0.6h`, p90 `6.6h`
+last 12: `0` for weeks -12 to -4, then `32`, `47`, `10` for weeks -3 to -1,
+counted with the cycle's own reader (`git log --diff-filter=AM --name-only`,
+deduped); gap between plan-touching commits median `0.6h`, p90 `6.6h`
 (`git log --format=%ct origin/main -- docs/plans`). A 168h clock is wrong in
-BOTH directions — eight firings over nothing in the quiet stretch, and about
-three while 127 plan-file changes landed in the busy one. A first pass read
-`32, 55, 10` and `97` from git's DEFAULT simplification, which undercounts
-merged plans — the conclusion was unchanged, the numbers were not. A cadence for
-something whose need is driven by production has to be driven by production.
+BOTH directions — nine firings over nothing in the quiet stretch, and about
+three while 89 plan-file changes landed in the busy one. Counted three times,
+and the middle count was the wrong one: `--full-history` read `31, 71, 25`, and
+came off again once the 33 paths it adds turned out to be same-session plans that
+never reached `main` and whose declarations nobody else ever read. The conclusion
+held through all three. A cadence for something whose need is driven by
+production has to be driven by production.
 
 ## Scope
 

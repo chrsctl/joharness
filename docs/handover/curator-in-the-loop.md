@@ -1,14 +1,14 @@
 ---
 workstream: curator-in-the-loop
-status: in-progress
+status: review
 branch: claude/work-visibility-orchestrator-zvzo62
-pr: 237
+pr: none
 plan: curator-in-the-loop
 issue: none
 session: https://claude.ai/code/session_01BrSMgwe9csBqCjehd6v16R
 agent: opus
 updated: 2026-09-11
-next: every finding dispositioned (r20-r22 are this round's, all fixed). Re-run ./joharness.sh ci on an untouched tree, then retire this file and docs/plans/curator-in-the-loop.md as the last commit before the pull request
+next: r23-r33 (the opus verifier's second pass) all dispositioned; the 12 injections that prove them are in the record. Re-run ./joharness.sh ci and verify, then retire this file and docs/plans/curator-in-the-loop.md as the last commit before the pull request
 ---
 
 ## Goal
@@ -56,19 +56,22 @@ what it fixes.
 ## Review
 
 **The churn gate fired, and the research step it demands is recorded here
-rather than bypassed.** `ci` reds `.agents/harness/selftest/dispatch.sh`
-rewritten in 10 commits on this branch (ceiling 10): *"Past the ceiling this is
-churn, not a judgment call. Stop patching — take the research step at a raised
-tier or effort."*
+rather than bypassed.** `ci` red `.agents/harness/selftest/dispatch.sh` past the
+ceiling of 10: *"Past the ceiling this is churn, not a judgment call. Stop
+patching — take the research step at a raised tier or effort."*
 
-Counted before deciding anything (`git log --numstat origin/main..HEAD --
-.agents/harness/selftest/dispatch.sh`, 2026-09-11): **+651 / -62** across the
-ten, with four PURE-ADDITION commits of +91, +172, +101 and +43 and a largest
-deletion of -18. No fix undoes an earlier one; the file grew because three
-items' cases live in it (`rescope-held-plans`, `curator-role`, this one). That
-is the "genuine large rework" the gate's own message names, so it is lifted for
-this branch ON THE RECORD — `JOHARNESS_CHURN_LIMIT=0` on the `ci` run, said
-here and in the pull request, never written into `joharness.conf`.
+Counted before deciding anything, and RE-counted on the head this file now
+describes, because the first numbers here were a written number about a branch
+that no longer exists (r33). `git log --numstat origin/main..HEAD --
+.agents/harness/selftest/dispatch.sh`, 2026-09-11: **7 commits, +379 / -52** —
+against the "10 commits, +651 / -62" this paragraph used to state. The shape is
+what the count was for and it is unchanged: pure-addition commits, no fix undoing
+an earlier one, the file growing because three items' cases live in it
+(`rescope-held-plans`, `curator-role`, this one). That is the "genuine large
+rework" the gate's own message names, so where it fires it is lifted ON THE
+RECORD — `JOHARNESS_CHURN_LIMIT=0` on the `ci` run, said here and in the pull
+request, never written into `joharness.conf`. Read the count from `ci` on this
+head, never from this paragraph.
 
 What the research step DID find is a recurring defect the count was pointing
 at: three of the ten commits are one class, each a different inherited
@@ -202,6 +205,125 @@ and they do not agree.
   consumer got a conf with no line for the one thing it would want to change —
   caught by the selftest that compares the two lists. (fixed: both seeded, with
   the off switch spelled in the comment beside them.)
+- r23: (verifier, design) the cadence is a ONE-WAY LATCH. Its date is the
+  base-branch commit deleting a `docs/handover/curate-*.md`, and `curate.md` 0.2
+  told a clean pass to "exit without a branch, without a pull request, without a
+  workstream file" — so a pass that finds nothing clears nothing and the next
+  session is handed the identical item for ever. This repository read
+  `curate : DUE — 109 plan file(s) changed since the queue began` on every pass,
+  and under unsupervised the heartbeat re-seeds sessions that each curate, land
+  nothing and re-arm the trigger. (fixed in `curate.md`: a clean pass, and an
+  empty queue, still do sections 1 and 5 — claim, then retire — and the pull
+  request's net diff is empty on purpose, because the retire commit IS the record
+  that the queue was read on this date. Said again in section 5 so no path
+  through the role can skip it.)
+- r24: (verifier, could-never-fail) SIX behaviours on this branch could be
+  deleted with the suite still at 1939 passed / 0 failed, four of them recorded
+  above as fixed. The verifier's controls rule out a blanket claim: deleting the
+  `HOURS=0` off switch reds 9 cases, an inclusive churn range reds 2. The cause
+  is one shape — every fixture commits its plans straight to `main`, seconds ago,
+  and never lands a curate, which is the single state where the clock reader, the
+  repository baseline, `--full-history` and the deletion filter all agree with
+  their own absence. (fixed with one fixture built to disagree, `agwork`:
+  backdated history and plans that arrive on branches. a) the DRAINED repetition
+  asserted only `DRAINED — no unplanned`, which prints either way — it now
+  asserts the block's own sentence, with the off arm as the control. b) the r12
+  spawn-list fix was asserted nowhere, and `selftest/drain.sh` asserts the
+  OPPOSITE — one fixture now pins both states with the cycle the only thing that
+  moves. c) frontmatter-decides had none of the three inputs its own comment
+  cites: an ordinary claim named `curate-cadence.md` with a real `plan:`, and a
+  curate file a branch only INHERITS, are both asserted now. d) `--full-history`
+  on the churn walk: the arm sits after the DELETIONS, because an add that
+  survives is found either way and an add whose path is later deleted is the
+  shape that discriminates. e+f) the clock and the repository baseline: a
+  400h-old fixture with production switched off is due on hours alone, which is
+  this branch's own plan Acceptance and was asserted nowhere.)
+- r25: (verifier, wrong answer) the verdict was a function of CLONE DEPTH. A
+  shallow boundary commit has no parents, so its diff is the whole tree: the churn
+  count degenerates to "plan files that exist" and the age reader reports the
+  boundary's age as the queue's beginning. Same head, same knobs: full clone
+  `DUE — 110 plan file(s) changed`, `--depth 1` clone `not due — 2 plan file(s)
+  changed (of 10) and 97h elapsed`, for a first commit 495h old. Wrong in both
+  directions, and the landed-curate deletion is outside the boundary too, so a
+  shallow checkout can never leave the never-curated branch. (fixed:
+  `dispatch_curate_unreadable` names the state, `UNREADABLE` is its own answer in
+  both readers, and the message names `git fetch --unshallow`.)
+- r26: (verifier, wrong answer) no `refs/remotes/origin/<base>` — a repo on
+  `master`, or one whose `main` was never fetched — had every reader's
+  `2>/dev/null` swallow the failure, so the cycle printed `not due — 0 plan
+  file(s) changed (of 10) and 0h elapsed (of 168h)`: a false statement, and the
+  whole cycle silently off for every repo not on `main`. `lint_ws_in_diff`
+  already refuses this case by name one screen up. (fixed with r25, same reader;
+  the message names both remedies, a fetch or `HANDOVER_BASE_BRANCH`.)
+- r27: (verifier, mode) `drain`'s curate block was mode-blind: under orchestrated
+  it told a manager "it is THIS session's item", and under that mode a curator is
+  the orchestrator's spawn BEYOND the cap — the human's money, decided by a
+  session told to work one named item. The NOT-DRAINED block 40 lines down
+  already carried exactly this carve-out. (fixed in both places the block speaks,
+  the due line and the DRAINED repetition, and asserted in `trwork`.)
+- r28: (verifier, contradiction) with a curate due, `drain` named TWO items in one
+  output: the curate block said "THIS session's item", then `next: docs/plans/…`
+  with nothing saying the curate outranked it, and unsupervised correctly kept
+  that plan in the spawn list — so a session reading `next:` as its answer gave
+  that plan two sessions. (fixed: the `next:` line says "AFTER the curate above,
+  which outranks it" while one is due and unclaimed, and the case asserts both
+  states.)
+- r29: (verifier, written number) the perf comment said "325 before the cycle,
+  344 with it, so the cycle costs 19", citing `./joharness.sh perf`. Re-run the
+  same day it reported 334 — because after the never-landed change the pinned
+  shape is NOT due, so `dispatch_curate_branches` never runs during the
+  measurement and the gate cannot see the expensive half. (fixed: re-measured and
+  the comment carries what the command actually prints, for both states.)
+- r30: (verifier, clock) the interval was measured from the retire commit's own
+  `%ct`, which is branch-side and the author's clock — a branch that then sat
+  open lost that time off its next window. Measured over the last 200 merges on
+  `origin/main`: median 5 min, p90 25 min, max 49.45h, so the worst observed
+  curate lands 49h into a 168h window. This is r7's lesson applied to one reader
+  and not its neighbour. (fixed: `dispatch_curate_landed_ts` walks forward along
+  first parents to the merge that landed it; asserted with a fixture whose retire
+  and merge are 400h apart.)
+- r31: (verifier, meaning) the churn walk had no `--diff-filter`, and step 7 makes
+  every finished plan a DELETION — so ten ordinary merges reached the default of
+  10 with nothing having arrived, and the queue was called stale for emptying. The
+  docstring, the plan and `orchestrated.md` all already said "added or changed";
+  the code was the one that disagreed. Measured here over 14 days: 98 distinct
+  plan paths touched, 96 of them deleted somewhere in the window, 89 added or
+  modified. (fixed: `--diff-filter=AM`, with a case proving an add still counts
+  after its plan finishes so the filter cannot be read as "count less".)
+- r32: (verifier, false statement) `cmd_curate` answered an EMPTY queue with
+  `NOTHING READ — 0 plan(s), every one held by a manager` — no plans, no manager —
+  and that verdict is not one `curate.md` named, so a curator reaching it had no
+  instruction. Inherited code, newly reachable because the deletion filter makes a
+  just-emptied queue a real trigger. (fixed: the two ways of reading nothing are
+  separate sentences, and `curate.md` 0.4 names the empty one.)
+- r33: (verifier, record) this file's own numbers were contradicted by the head
+  it describes: "10 commits, +651/-62" against 7 commits and +379/-52 counted on
+  `origin/main..HEAD -- .agents/harness/selftest/dispatch.sh`, and r17's
+  disposition claimed a branch cut fresh from `main` when the log shows a merge
+  from `claude/curator-in-the-loop-wip`. `pr: 237` named a pull request already
+  merged. (fixed: counted numbers, and the frontmatter says what is true now.)
+- r34: (self, fixture) the case proving an INHERITED curate file is not a claim
+  passed over a fixture that never built the state: `agwork` retires every
+  handover file it has, git takes the empty directory with them, and the redirect
+  writing the inherited file failed silently — empty commit, nothing to refute.
+  Found only because the injection that puts the defect back stayed GREEN. A
+  refute whose precondition failed to build is indistinguishable from one that
+  holds. (fixed: `mkdir -p` before the write, the precondition asserted in its
+  own right with `git cat-file -e`, and `agplan` restores its directory the way
+  `fixture_rm` does — the same shape bit the spawn-list case two commits earlier.)
+- r35: (self, gate) `review_marks` matched the bare literal `(verifier)`, so a
+  finding written `(verifier, budget)` — the tag plus what class of thing it is,
+  which is how all 23 findings on this branch are written — was invisible.
+  `./joharness.sh review` reported "23 finding(s) recorded / none of them tagged
+  (verifier)" at the edge with the independent reader having run twice. (fixed:
+  the tag is `(verifier` followed by `)` or `,`; `(verifiers)` still does not
+  count, and both are asserted.)
+- r36: (self, method) every behaviour above was proved to FAIL by injecting the
+  defect into a COPY under the scratchpad — fifteen injections, never the working
+  tree (ADR 0131 r18, ADR 0145 r13). Eight of the first twelve red the suite;
+  the four that did not are r24c, r31, r27's due block and r32, and each was a
+  real gap in the record rather than a slip in the injection. That ratio is the
+  argument for injecting rather than reasoning. (no change needed)
 - note: (verifier, clean) `set -u` safety, `num_knob` rejecting negatives and
   words, empty `age` handled before any `-ge`, `churn` always one integer,
   merge commits not undercounting under `--full-history`, and the block printing
