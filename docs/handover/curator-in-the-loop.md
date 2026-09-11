@@ -67,22 +67,30 @@ this branch ON THE RECORD — `JOHARNESS_CHURN_LIMIT=0` on the `ci` run, said
 here and in the pull request, never written into `joharness.conf`.
 
 What the research step DID find is a recurring defect the count was pointing
-at, three commits of the ten, each a different inherited precondition:
+at: three of the ten commits are one class, each a different inherited
+precondition. One sentence covers all three — **a case in a shared fixture sets
+every precondition it turns on, because what it inherits was chosen by an
+earlier case for a different question** — and it is graduated into the topic's
+own header, where the next author of a case reads it
+(`.agents/docs/feedback.md`: a file that keeps drawing findings is a rule
+nobody wrote yet).
 
-- `2418bfe` inherited QUEUE CONTENT — two cases reused `reg/index.py` and the
+- r1: (session, fixture) two curate cases reused `reg/index.py` and the
   requirement `vanished`, both already claimed by earlier cases in the same
-  fixture, so they measured those cases' plans.
-- `2ab1b9d` inherited BRANCH POSITION — a case asked `drain` while checked out
-  ON the branch it asked about, where "nothing in flight" is the correct answer
-  to the wrong question.
-- `2ab1b9d` also inherited a KNOB VALUE — the orchestrated cases assumed a
-  trigger had fired over a change under the default threshold.
-
-One sentence covers all three: **a case in a shared fixture sets every
-precondition it turns on, because what it inherits was chosen by an earlier
-case for a different question.** Graduated into the topic's own header, which
-is where the next author of a case reads it (`.agents/docs/feedback.md`, a file
-that keeps drawing findings is a rule nobody wrote yet).
+  accumulating fixture, so they measured those cases' plans rather than their
+  own. Inherited QUEUE CONTENT. (fixed in `2418bfe`: distinct `reg/trio.py`
+  and `vanished2`, with the trio's path created so it does not also trip the
+  no-path-in-tree signal.)
+- r2: (session, fixture) a case asked `drain` while still checked out ON the
+  branch it was asking about. `drain` sees another session's claim through the
+  handover hook's `origin/<branch>:` lines, so from the branch itself "nothing
+  in flight" is the correct answer to the wrong question. Inherited BRANCH
+  POSITION. (fixed in `2ab1b9d`: back to `main` before asking, with the reason
+  on the line.)
+- r3: (session, fixture) the orchestrated cases assumed the cycle was due after
+  one plan landed, which is under the default threshold of 10, so the spawn
+  tail never printed and the case failed for a number it never set. Inherited a
+  KNOB VALUE. (fixed in `2ab1b9d`: `JOHARNESS_CURATE_PLANS=1` set explicitly.)
 
 
 ## Blockers
