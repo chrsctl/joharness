@@ -29,7 +29,7 @@ environment sits under [`.agents/env/`](../env/README.md).
 | `.agents/docs/product/TEMPLATE.md` | Requirement shape. |
 | `.agents/docs/caveman.md` | House style. |
 | `.agents/docs/unsupervised.md` | The unattended bounds, the heartbeat, the runs. |
-| `.agents/docs/orchestrated.md` | Orchestrated mode (beta): roles, health, the kill, the numbers. |
+| `.agents/docs/orchestrated.md` | Orchestrated mode: roles, health, the kill, the numbers. |
 | `.agents/docs/consumer-repos.md` | Creating and updating a consumer (child) repo. Entry point for both. |
 
 Harness-owned. Sync with `.agents/scripts/sync-to-consumer.sh`, joharness to

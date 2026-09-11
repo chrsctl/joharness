@@ -85,7 +85,7 @@
 #                              to the layer's AGENTS.md) or 'eager' (inject
 #                              the file whole)
 #   JOHARNESS_MODE=supervised  'supervised' (default), 'unsupervised' or
-#                              'orchestrated' (beta). Anything else reads as
+#                              'orchestrated'. Anything else reads as
 #                              supervised (.agents/docs/unsupervised.md,
 #                              .agents/docs/orchestrated.md)
 #   JOHARNESS_MAX_MANAGERS=4   orchestrated only: managers in flight at once.
@@ -301,7 +301,7 @@ protocol_paths() {
 }
 
 # Resolved autonomy mode. TWO strings mean a session runs unattended —
-# unsupervised, and orchestrated (beta: an orchestrator dispatches the queue
+# unsupervised, and orchestrated (an orchestrator dispatches the queue
 # to manager sessions, .agents/docs/orchestrated.md); every other value — a
 # typo, an empty setting, an unreadable conf, a key that does not exist
 # because this harness copy predates the feature — resolves to supervised.
@@ -5930,8 +5930,8 @@ cmd_drain() {
 # ---------------------------------------------------------------------------
 
 # A knob the human sets: the environment for one command, the conf for the
-# repo, else the beta default. Digits only — a word here is not a cap, and a
-# cap that fails open is a fleet nobody sized.
+# repo, else the built-in default. Digits only — a word here is not a cap,
+# and a cap that fails open is a fleet nobody sized.
 num_knob() {
   local v="${!1:-}"
   [ -n "$v" ] || v="$(conf_get "$1")"
@@ -6966,7 +6966,7 @@ cmd_session_start() {
     # heartbeat needs: a fresh session nobody named is the orchestrator. A
     # manager was told so by the orchestrator that spawned it, in a prompt
     # naming /manage and ONE item.
-    printf '== Mode: orchestrated (beta) ==\n\n'
+    printf '== Mode: orchestrated ==\n\n'
     printf 'Two roles, one Loop. Your prompt names /manage <item>? You are a\n'
     printf 'MANAGER: that ONE item, the full Loop on it, merge your own pull\n'
     printf 'request, push at every milestone, exit. No item named? You are the\n'
