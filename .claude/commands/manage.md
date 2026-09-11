@@ -153,15 +153,18 @@ Step 5 review at your tier with `.claude/agents/verifier.md` (a subagent
 too; findings tagged `(verifier)`). Step 7 as written: green checks, 0
 behind fresh `origin/main`, `./joharness.sh finish` green, retire the
 plan file and the workstream file in the last commit before the pull
-request, exit. Did your prompt name a session to message on merge? Then
+request, exit. Did your prompt name a target to message on merge? Then
 "merged <stem>" to it — it fills your slot at once instead of on its
 clock. No such line in your prompt, no messaging tool, or the send comes
-back refused — no row for that target in `ListAgents`, the ordinary case
-when your orchestrator is another container: just exit, the
-orchestrator's next pass sees the merge. One refusal is the answer. Do
-not retry it, do not re-address it, and do not hunt a second way to
-deliver it — the notice saves the orchestrator one pass of latency and
-nothing else. Run no queue command; the next item is another manager's.
+back refused: just exit, the orchestrator's next pass sees the merge.
+One refusal is the answer — do not retry it, do not re-address it, do
+not hunt a second way to deliver it. The refusal does not say WHICH
+fault it is: no row for that target in `ListAgents`, the ordinary case
+when your orchestrator is another container, or an address form
+`SendMessage` rejects. One string covers both and from inside you
+cannot tell them apart; the notice saves the orchestrator one pass of
+latency and nothing else. Run no queue command; the next item is
+another manager's.
 
 A rescope may land on `main` while you hold your plan — it rewrites your
 plan's `scope:` line. Pulling `main` in at step 7 then gives a
