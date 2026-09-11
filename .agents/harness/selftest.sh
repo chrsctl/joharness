@@ -55,6 +55,7 @@ export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 # `JOHARNESS_STALL_MINUTES=30` reported 1, both against cases asserting the
 # printed default.
 unset JOHARNESS_ENV JOHARNESS_ENV_SETUP JOHARNESS_ENV_MD JOHARNESS_REVIEW \
+  JOHARNESS_CHECKS \
   JOHARNESS_CHURN_THRESHOLD JOHARNESS_CHURN_LIMIT \
   JOHARNESS_MAX_MANAGERS JOHARNESS_STALL_MINUTES JOHARNESS_HEALTH_MINUTES \
   JOHARNESS_RESPAWN_LIMIT \
@@ -558,6 +559,7 @@ SELFTEST_TOPICS=(
   ci-churn
   ci-context
   ci-selftest-scope
+  checks
   review
   upstream
   scorecard

@@ -72,7 +72,11 @@
 #                   stops in the joharness repo itself
 #   finish          Loop step 7 gate: what merging this branch NOW would
 #                   leave on the base branch. Red when the merge would add a
-#                   workstream file. Run it before the merge, not after
+#                   workstream file. Run it before the merge, not after.
+#                   With JOHARNESS_CHECKS=local it also RUNS this head's
+#                   checks — `ci`, and `verify` when the diff touches the
+#                   non-*.md paths step 7 names — instead of a session
+#                   waiting for GitHub Actions, and is red on what they say
 #   start           the one command file this repo's mode calls for, for a
 #                   session that does not know which role to take. Routing
 #                   only: no queue read, no git. Report-only
@@ -102,6 +106,16 @@
 #                              with no review recorded, or with findings none
 #                              of which carry the `(verifier)` tag, and
 #                              session-start say so
+#   JOHARNESS_CHECKS=github    'github' (default) or 'local'. Who answers step
+#                              7's first merge condition. 'github' = the checks
+#                              on this head, read on GitHub, so a session
+#                              pushes and waits for Actions. 'local' = no
+#                              wait: `finish` runs `ci` here, and `verify` on
+#                              the non-*.md paths step 7 names, and is red on
+#                              their result. It refuses to certify a head that
+#                              is not what merges — uncommitted or untracked
+#                              paths, a detached or unpushed tip, or a branch
+#                              behind the base branch
 #   JOHARNESS_UPSTREAM_FEEDBACK=off
 #                              'off' (default) or 'on'. Consumer repos only.
 #                              'on' lets the orchestrator spend one session,
@@ -173,6 +187,28 @@ review_on() {
     on) return 0 ;;
     '' | off) return 1 ;;
     *) warn "ignoring JOHARNESS_REVIEW='${v}' (want 'on' or 'off'); gate stays off"
+       return 1 ;;
+  esac
+}
+
+# Who answers step 7's first merge condition. 'github' (default) keeps it as
+# written — the checks on this head, read on GitHub, which means a session
+# pushes and then waits for Actions before it can merge. 'local' says a
+# session does not wait: `finish` runs the same checks here, on this head,
+# and is red unless they pass.
+#
+# Named values only, and it fails closed to 'github' like every other knob
+# here — 'off', 'true' or a typo must never be read as permission to merge
+# without waiting for anything at all, which is the one misreading of this
+# switch that loses a gate rather than gaining one.
+checks_mode() { printf '%s' "${JOHARNESS_CHECKS:-$(conf_get JOHARNESS_CHECKS)}"; }
+
+checks_local() {
+  local v; v="$(checks_mode)"
+  case "$v" in
+    local) return 0 ;;
+    '' | github) return 1 ;;
+    *) warn "ignoring JOHARNESS_CHECKS='${v}' (want 'github' or 'local'); stays 'github'"
        return 1 ;;
   esac
 }
@@ -5374,8 +5410,292 @@ decide_ref() {
   return 1
 }
 
+# ---------------------------------------------------------------------------
+# Step 7's first merge condition, when a repo has said it does not wait.
+#
+# Default is 'github': the checks on this head, read on GitHub. That costs
+# every session a round trip — push, wait for Actions, read the run, merge —
+# and the wait is invisible to every other measure this harness takes, since a
+# branch at step 7 pushes nothing at all while it waits (the finding that
+# widened `dispatch`'s leftover window to 24 stall windows).
+#
+# 'local' spends the checks here instead. It is not permission to skip them:
+# `finish` RUNS them, on this head, and is red on their exit code. Nothing
+# else could — a session's own earlier `ci` proves an earlier tree, and there
+# is nowhere to keep a "passed at sha X" that would not be a written number
+# by the time it mattered.
+#
+# So the refusals come first, and they are about one question: is the tree
+# these commands see the tree that merges. A local green over anything else
+# is worse than no local green, because it reads exactly like proof.
+# ---------------------------------------------------------------------------
+
+# Paths whose non-*.md files make step 7 ask for `verify` as well as `ci`.
+# AGENTS.md step 7 holds the same list; it names directories, never a layer.
+CHECKS_VERIFY_PATHS=(joharness.sh .agents/harness/ .agents/env/ .agents/scripts/)
+
+# Does this branch's diff reach code the environment layer's smoke test is the
+# only thing that proves? No merge-base to read means the question cannot be
+# answered, so it answers YES — the expensive direction is the safe one here,
+# and the cheap one is a merge that skipped the layer's only gate.
+#
+# -z, for the reason `checks_tree_extra` uses it two functions down and this
+# one did not: `git diff --name-only` C-QUOTES a path with a non-ASCII byte,
+# a backslash or a quote in it, and `".agents/harness/w\303\251ird.sh"`
+# matches neither `*.md` nor any prefix below — so the one shape that must
+# ask for `verify` was the one that silently skipped it. Quoting is off with
+# -z, and the answer is about the file that is really there.
+checks_verify_needed() {
+  local ref="$1" base f p
+  base="$(git -C "$ROOT" merge-base HEAD "$ref" 2>/dev/null)" || return 0
+  [ -n "$base" ] || return 0
+  while IFS= read -r -d '' f; do
+    [ -n "$f" ] || continue
+    case "$f" in *.md) continue ;; esac
+    for p in "${CHECKS_VERIFY_PATHS[@]}"; do
+      case "$f" in "$p"*) return 0 ;; esac
+    done
+  done < <(git -C "$ROOT" diff -z --no-renames --name-only "${base}..HEAD" 2>/dev/null)
+  return 1
+}
+
+# Every path git reports as not-in-HEAD, one per line: modified, staged,
+# and untracked alike. All three are the same defect for this gate — the
+# commands below would read a tree the merge does not carry.
+#
+# Untracked is in the list rather than warned about, because it is the arm
+# that can produce a FALSE GREEN rather than a false red. `.agents/harness/
+# selftest.sh` fails on a listed topic whose file is missing and counts the
+# worktree when it looks, so an uncommitted topic file satisfies the check
+# here and fails it on a runner. Ignored files are not reported by porcelain
+# and are not the question.
+#
+# -z with the fixed three-character status prefix stripped, never the last
+# whitespace field: porcelain QUOTES a path containing a space.
+#
+# Non-zero when git could not answer at all. Reading the status of that read
+# is the difference between "the tree is clean" and "nobody looked", and this
+# gate must never turn the second into the first — the same doctrine
+# `decide_ref` states for the base ref.
+# Through a file rather than a command substitution, because `$( )` DROPS NUL
+# bytes: capturing -z output that way glues every entry into one string and
+# the loop below sees a single path made of all of them.
+checks_tree_extra() {
+  local entry tmp
+  tmp="$(mktemp)" || return 1
+  if ! git -C "$ROOT" status --porcelain -z --no-renames >"$tmp" 2>/dev/null; then
+    rm -f "$tmp"
+    return 1
+  fi
+  while IFS= read -r -d '' entry; do
+    [ -n "${entry:3}" ] || continue
+    printf '%s\n' "${entry:3}"
+  done <"$tmp"
+  rm -f "$tmp"
+}
+
+# The remote tip THIS BRANCH would merge from. Non-zero when there is none —
+# a head nobody pushed is not a merge candidate, and a local green over it
+# says nothing about what GitHub would merge.
+#
+# `origin/<branch>` first and `@{upstream}` second, and the upstream only when
+# it names this branch. `git checkout -b feat origin/main` — the documented
+# way to cut from a fresh-fetched base — sets `branch.feat.merge` to
+# refs/heads/main and `git push origin feat` leaves it there, so an
+# upstream-first reader compares this head against the BASE BRANCH and refuses
+# a pushed branch as unpushed, with a remedy that never clears it. The
+# upstream arm stays for the remote that is not called origin.
+checks_pushed_ref() {
+  local branch="$1" up
+  if git -C "$ROOT" rev-parse --verify --quiet "origin/${branch}" >/dev/null 2>&1; then
+    printf '%s' "origin/${branch}"
+    return 0
+  fi
+  if up="$(git -C "$ROOT" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null)" &&
+     [ -n "$up" ] && [ "${up##*/}" = "$branch" ]; then
+    printf '%s' "$up"
+    return 0
+  fi
+  return 1
+}
+
+# One line under 'github', the whole gate under 'local'. Returns non-zero when
+# merging now would be merging on checks nobody ran.
+#
+# The mode arrives as an argument rather than being read here, so the one
+# warning a misspelled value earns is printed once by the caller instead of
+# once per reader. `ready` is 0 when `finish` is already red above: the
+# suites answer about the head that merges, and a head with a live workstream
+# file on it is not that head yet, so running them would spend minutes on a
+# question whose answer cannot change the verdict.
+checks_gate() {
+  local ref="$1" branch="$2" is_local="$3" ready="$4"
+  local rc=0 extra n=0 f pushed behind base behind_said fresh
+  if [ "$is_local" = 1 ] && [ "$ready" != 1 ]; then
+    printf '\nchecks: local (JOHARNESS_CHECKS=local) — NOT run. This merge is red\n'
+    printf 'above, and no suite run changes that. Fix it and run this again; the\n'
+    printf 'checks go last because they answer about the head that merges.\n'
+    return 0
+  fi
+  if [ "$is_local" != 1 ]; then
+    printf '\nchecks: github. The checks on this head, read on GitHub, are step 7'"'"'s\n'
+    printf 'first merge condition — this command does not read them (no network, no\n'
+    printf 'token). Not waiting for Actions is a per-repo choice: JOHARNESS_CHECKS=local\n'
+    printf 'in joharness.conf, or in the environment for one command, makes this\n'
+    printf 'command run ci and verify here instead and be red on their result.\n'
+    return 0
+  fi
+
+  printf '\nchecks: local (JOHARNESS_CHECKS=local). No wait for Actions — these run\n'
+  printf 'here, on this head, and this command is red on what they say.\n\n'
+
+  # Refusals first, and none of them costs a suite run: a local green is
+  # evidence only about the tree that merges.
+  if ! extra="$(checks_tree_extra)"; then
+    printf '  UNREADABLE   git could not report this worktree, so nothing here is\n'
+    printf '               proven clean. Fix the checkout before certifying it.\n'
+    printf '\n  ci and verify NOT run: they would answer about the wrong tree.\n'
+    return 1
+  fi
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    n=$((n + 1))
+    printf '  UNCOMMITTED  %s\n' "$f"
+  done <<<"$extra"
+  if [ "$n" -gt 0 ]; then
+    printf '\n  %d path(s) here are not in HEAD, so ci and verify would read a\n' "$n"
+    printf '  tree the merge does not carry — in the untracked case they can PASS on\n'
+    printf '  a file no runner will have. Commit them, or .gitignore them.\n'
+    rc=1
+  fi
+
+  # Detached HEAD has no branch to push and no branch to merge, and the
+  # question below would be asked of `origin/HEAD` — a symbolic ref to the
+  # base branch in most clones, so a detached checkout sitting exactly there
+  # would read as pushed, clean and 0 behind, and certify a merge that does
+  # not exist.
+  if [ "$branch" = HEAD ]; then
+    printf '  DETACHED     no branch here, so nothing to certify: git checkout <branch>\n'
+    rc=1
+  elif pushed="$(checks_pushed_ref "$branch")"; then
+    if [ "$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)" != \
+         "$(git -C "$ROOT" rev-parse "$pushed" 2>/dev/null)" ]; then
+      printf '  UNPUSHED     HEAD is not %s — push before certifying it\n' "$pushed"
+      rc=1
+    fi
+  else
+    printf '  UNPUSHED     no remote tip for this branch: git push -u origin %s\n' "$branch"
+    rc=1
+  fi
+
+  # Behind the base branch is step 7's own condition in both modes, and a red
+  # in this one only. Under 'github' a pull request run tests a MERGE of head
+  # and base, so the branch tip is not the whole story there and this command
+  # has nothing to add to a rule already written. Under 'local' nothing ever
+  # sees that merge — the tip is the entire evidence — so a stale tip means
+  # the suites below would answer about a tree that is not the one landing.
+  # Fetched first, because step 7 says FRESH-fetched and a count off a stale
+  # ref is a written number wearing a count's clothes: two clones of the same
+  # repo, a push to the base branch from one, and the other reports `0 behind`
+  # and merges over it. The fetch is bounded and its failure is not fatal —
+  # offline is a normal way to work — but the head line then SAYS the count is
+  # as old as the last fetch instead of implying it is current.
+  # HANDOVER_FETCH=0 turns it off, the same knob and the same meaning as the
+  # session-start hook's fetch.
+  fresh="as of the last fetch"
+  if [ "${HANDOVER_FETCH:-1}" = "1" ] && have timeout &&
+     timeout 15 git -C "$ROOT" fetch --quiet origin \
+       "${HANDOVER_BASE_BRANCH:-main}" >/dev/null 2>&1; then
+    fresh="fetched just now"
+  fi
+  #
+  # Through a merge-base, never `rev-list HEAD..<ref>` alone: on a shallow
+  # clone the two tips share no history the clone can see, so that count is
+  # the base branch's whole visible depth and every branch reads as behind.
+  # Same doctrine as churn and the finish gate — a measure that cannot be
+  # taken says so and passes, rather than redding on what it could not prove.
+  behind_said="behind not measurable"
+  if base="$(git -C "$ROOT" merge-base HEAD "$ref" 2>/dev/null)" && [ -n "$base" ]; then
+    behind="$(git -C "$ROOT" rev-list --count "HEAD..${ref}" 2>/dev/null)" || behind=""
+    if [ -n "$behind" ] && [ "$behind" -gt 0 ]; then
+      printf '  BEHIND       %s commit(s) behind %s, and no run here ever sees that\n' \
+        "$behind" "$ref"
+      printf '               merge. Reconcile first: git fetch origin %s\n' \
+        "${HANDOVER_BASE_BRANCH:-main}"
+      rc=1
+    fi
+    [ -n "$behind" ] && behind_said="${behind} behind ${ref} (${fresh})"
+  else
+    printf '  BEHIND       not measurable here (no merge-base: shallow checkout).\n'
+    printf '               Unshallow before trusting this: git fetch --unshallow\n'
+  fi
+
+  if [ "$rc" -ne 0 ]; then
+    printf '\n  ci and verify NOT run: they would answer about the wrong tree.\n'
+    return 1
+  fi
+
+  # Says what was established, never what was assumed: on a shallow clone the
+  # behind question has no answer, and a summary claiming 0 is the one line a
+  # reader would take as proof it was checked.
+  printf '  head       %s, pushed, clean, %s\n' \
+    "$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null)" "$behind_said"
+  printf '\n  == %s ci\n' "$0"
+  if "$0" ci; then
+    # `ci` returns 0 with shellcheck SKIPPED when the tool is absent and
+    # uninstallable off a runner — a loud skip, and the right call there,
+    # because a session's problem is the code and not the toolchain. It is
+    # the wrong call HERE: this mode stands in for a workflow that reds for
+    # exactly that (cmd_ci, the GITHUB_ACTIONS arm), so passing on it would
+    # merge code the mode it replaces would have stopped.
+    # `ensure_shellcheck` installs through apt or brew, which this process
+    # sees too, so the tool still being missing after a green run is the skip.
+    if have shellcheck; then
+      printf '  ci: pass\n'
+    else
+      printf '  ci: pass with shellcheck SKIPPED — not the bar the workflow runs,\n'
+      printf '  which reds for the missing tool. Install it and run this again:\n'
+      printf '  github.com/koalaman/shellcheck#installing\n'
+      rc=1
+    fi
+  else
+    printf '  ci: FAILED — not mergeable\n'
+    rc=1
+  fi
+
+  if checks_verify_needed "$ref"; then
+    printf '\n  == %s verify (diff touches non-*.md harness code)\n' "$0"
+    if "$0" verify; then
+      printf '  verify: pass\n'
+    else
+      printf '  verify: FAILED — not mergeable\n'
+      rc=1
+    fi
+  else
+    printf '\n  verify: not required — this diff touches no non-*.md file under %s\n' \
+      "${CHECKS_VERIFY_PATHS[*]}"
+  fi
+
+  # What a green above does NOT cover. Said every time, and not only on the
+  # red path: the whole risk of this mode is a session reading a local green
+  # as the same claim GitHub makes.
+  printf '\n  Not covered here: any job in .github/workflows/ that ci does not run\n'
+  printf '  (other platforms; the per-layer step, .agents/scripts/ci-verify-layers.sh),\n'
+  printf '  and whatever the selected layer'"'"'s smoke test does not test — a layer\n'
+  printf '  shipping none proves nothing here. ci SKIPS loudly rather than redding\n'
+  printf '  for a tool it cannot install, so read its stages, not only its verdict.\n'
+  if [ "$(git -C "$ROOT" rev-parse --is-shallow-repository 2>/dev/null)" = true ]; then
+    printf '  This clone is SHALLOW, and the workflow checks out full history: the\n'
+    printf '  graph lint degrades its reds to warnings here. Unshallow before\n'
+    printf '  trusting this: git fetch --unshallow\n'
+  fi
+  printf '  Branch protection is untouched — a repo with required checks still\n'
+  printf '  blocks the merge button until they report.\n'
+  return "$rc"
+}
+
 cmd_finish() {
-  local ref branch rc=0 f adds=0 pre=0 base_docs tip_docs
+  local ref branch rc=0 f adds=0 pre=0 base_docs tip_docs is_local=0 ready=0
   ref="$(decide_ref)" || die \
     "no ref for base branch '${HANDOVER_BASE_BRANCH:-main}' in this checkout" \
     "— a gate cannot pass on a comparison it could not make." \
@@ -5436,6 +5756,13 @@ cmd_finish() {
   printf '\nplan file: delete it too when this branch finishes its plan (step 7).\n'
   printf 'Not checked here — "done" is a judgment, and a gate that guesses at one\n'
   printf 'is a gate the next session learns to ignore.\n'
+
+  # Step 7's first merge condition, last in the output because under 'local'
+  # it is the only section that runs anything. Read once here so a misspelled
+  # value warns once.
+  checks_local && is_local=1
+  [ "$rc" -eq 0 ] && ready=1
+  checks_gate "$ref" "$branch" "$is_local" "$ready" || rc=1
   return "$rc"
 }
 
@@ -7309,6 +7636,18 @@ cmd_session_start() {
     printf 'that ONE finding carries (verifier): step 5 spawns the reader at\n'
     printf 'every depth, so a section holding only your own findings reds.\n'
     printf 'Depth for this branch: ./joharness.sh review\n\n'
+  fi
+
+  # Same bet, one knob over: a session that learns at step 7 that it did not
+  # have to wait for Actions has already waited once. Silent under the
+  # default, which is the mode the loaded rules already describe.
+  if checks_local; then
+    printf '== Checks: LOCAL (JOHARNESS_CHECKS=local) ==\n\n'
+    printf 'Step 7 does NOT wait for GitHub Actions here. ./joharness.sh finish\n'
+    printf 'runs this head'"'"'s checks itself — ci, and verify when the diff touches\n'
+    printf 'non-*.md harness code — and is red on what they say. It refuses a head\n'
+    printf 'that is not what merges: uncommitted or untracked paths, unpushed tip,\n'
+    printf 'or behind the base branch. Every other step 7 condition unchanged.\n\n'
   fi
 
   # Orchestrated: this branch's own files, nothing fleet-wide, no queue.
