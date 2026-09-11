@@ -57,6 +57,14 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    the file. Boundary holds in both:
    no commit to protocol text (`./joharness.sh protocol-paths`,
    [`.agents/docs/unsupervised.md`](../../.agents/docs/unsupervised.md)).
+   Queue moved under its own declarations? `drain` says `curate : DUE` —
+   plan files changed since the last curate, or hours since one with code
+   moving under the plans. That is the item, BEFORE the queue: the plans you
+   would pick are describing themselves wrongly. `/curate`
+   ([`.claude/commands/curate.md`](../../.claude/commands/curate.md)) repairs
+   declarations and deletes what merged; it proposes order and decomposition
+   and never does them. Not inventing work — every plan it touches exists.
+   One in flight = somebody else's, carry on.
 3. **Claim.** Cut branch from `main` (branch flow:
    `.agents/docs/product/README.md`). Write `docs/handover/<workstream>.md`. Push
    NOW — no push, no claim. Hook shows overlap? `/who`. Only `RUNNING`

@@ -112,8 +112,8 @@ registry `shared:` in the first place is what spares the fleet that pass, so
 name a bare directory (`docs/adr`) as the specific file you touch and mark a
 true registry `shared:` when you write the plan.
 
-A plan's declarations rot the way its anchors do, and under orchestrated mode
-a role checks them on a cadence: `./joharness.sh curate` reports whether each
+A plan's declarations rot the way its anchors do, and a role checks them on a
+cadence in EVERY mode — `drain` names it, so `/start` reaches it: `./joharness.sh curate` reports whether each
 plan's `scope:` still covers what its `## Scope` section names, whether it
 claims a whole directory it should narrow, and whether a path enough plans
 declare is a registry nobody marked `shared:`. A curator REPAIRS those and

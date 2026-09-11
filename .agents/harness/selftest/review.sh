@@ -196,6 +196,29 @@ else
   fail "one tagged finding among untagged ones satisfies the gate"
 fi
 
+# The tag carries a CATEGORY in practice — `(verifier, budget)`, the tag plus what
+# class of thing it is — and an `index(buf, "(verifier)")` could not see one. The
+# branch that found this had 23 findings written that way and `review` reported
+# "none of them tagged", at the edge, with the independent reader having run. A
+# gate that cannot see the thing it demands is one sessions route around.
+write_ws mid.md review none "agent: opus" \
+  "- r6: (verifier, budget) the tag with what kind of finding it is. (fixed)"
+commit_all "$rwork" "a categorised tag"
+if JOHARNESS_REVIEW=on ci_rc_review; then
+  pass "a (verifier, <category>) tag counts, which is how they are written"
+else
+  fail "a (verifier, <category>) tag counts, which is how they are written"
+fi
+# And the bound stays a bound: a word that merely STARTS with it is not the tag.
+write_ws mid.md review none "agent: opus" \
+  "- r7: (verifiers) plural, which is nobody. (fixed)"
+commit_all "$rwork" "a word that only starts with the tag"
+if JOHARNESS_REVIEW=on ci_rc_review; then
+  fail "(verifiers) must not satisfy the gate"
+else
+  pass "(verifiers) does not satisfy the gate"
+fi
+
 # A bullet is folded before the tag is tested — the same `^  [^ ]` rule
 # fb_findings uses — so a tag written on the second line of a long finding
 # counts. Testing only the bullet's own first line would red this branch.
