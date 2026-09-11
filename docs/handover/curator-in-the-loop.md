@@ -1,6 +1,6 @@
 ---
 workstream: curator-in-the-loop
-status: review
+status: done
 branch: claude/work-visibility-orchestrator-zvzo62
 pr: none
 plan: curator-in-the-loop
@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01BrSMgwe9csBqCjehd6v16R
 agent: opus
 updated: 2026-09-11
-next: r23-r33 (the opus verifier's second pass) all dispositioned; the 12 injections that prove them are in the record. Re-run ./joharness.sh ci and verify, then retire this file and docs/plans/curator-in-the-loop.md as the last commit before the pull request
+next: done — ci: pass (1984/0) and verify 6/0 on this head, review recorded (37 findings, r1-r36), every new behaviour proved to fail by injection into a copy. Retired here; the pull request body names the command that recovers this file
 ---
 
 ## Goal
