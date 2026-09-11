@@ -876,7 +876,7 @@ expect "and the live holder still decides: HOLD" \
 refute "never released into the live collision" \
   "that branch is BLOCKED on a human: spawn" "$out"
 
-# --- overlap-bound: slots free, everything held, a rescope manager answers ---
+# --- overlap-bound: slots free, everything held, a surveyor answers ---
 # The state run 1 measured and nobody filed a plan for: every free plan HELD
 # behind one branch in flight, `n_free` 0, slots idle, `dispatch` calling it
 # DRAINED. Its own fixture: three plans all claiming `src/shared` exclusively,
@@ -919,8 +919,8 @@ expect "and the state is OVERLAP-BOUND, never DRAINED" \
   "verdict   : OVERLAP-BOUND" "$out"
 expect "which names the slots free and the plans held" \
   "3 slot(s) free, 2 plan(s) held behind shared-registry declarations" "$out"
-expect "and says to spawn ONE rescope manager on the holder key" \
-  "spawn ONE rescope manager (agent: sonnet) on key keeper" "$out"
+expect "and says to spawn ONE surveyor on the holder key" \
+  "spawn ONE surveyor (agent: sonnet) on key keeper" "$out"
 refute "the word DRAINED never appears on the verdict" \
   "verdict   : DRAINED" "$out"
 expect "the rescope block names the collision path with its count" \
@@ -928,7 +928,7 @@ expect "the rescope block names the collision path with its count" \
 expect "and reports no rescope in flight yet" \
   "rescope branch(es) in flight: none" "$out"
 
-# A rescope manager in flight: listed, and the verdict says one is running.
+# A surveyor in flight: listed, and the verdict says one is running.
 git -C "$rbwork" checkout -qb claude/rescope-keeper
 mkdir -p "${rbwork}/docs/handover"
 printf -- '---\nworkstream: rescope-keeper\nstatus: in-progress\nbranch: claude/rescope-keeper\nplan: none\nsession: https://example.invalid/session_rescope\nagent: sonnet\nupdated: 2026-01-02\nnext: Mark the shared registries\n---\n\n## Goal\nFixture.\n' \
@@ -942,9 +942,9 @@ expect "the rescope branch is listed in flight, keyed to the holder set" \
 expect "its session rides under it" \
   "session: https://example.invalid/session_rescope" "$out"
 expect "and the verdict says one is already running, spawn nothing" \
-  "a rescope manager is already in flight" "$out"
+  "a surveyor is already in flight" "$out"
 refute "so it does not tell the orchestrator to spawn another" \
-  "spawn ONE rescope manager" "$out"
+  "spawn ONE surveyor" "$out"
 
 # A rescope on a STALE key still holds off a spawn (verifier r1). The holder
 # set drifts, so its branch key no longer equals the freshly-derived key; the
@@ -960,9 +960,9 @@ out="$(rb)"
 expect "a stale-key rescope is still listed in flight" \
   "claude/rescope-keeper  rescope-oldkey  in-progress  pushed" "$out"
 expect "and still reads as one already running, whatever its key" \
-  "a rescope manager is already in flight" "$out"
+  "a surveyor is already in flight" "$out"
 refute "so no second rescope is spawned onto the drifted key" \
-  "spawn ONE rescope manager" "$out"
+  "spawn ONE surveyor" "$out"
 # Restore the matching key for the done test below.
 git -C "$rbwork" checkout -q claude/rescope-keeper
 sed -i 's/^workstream: rescope-oldkey/workstream: rescope-keeper/' \
@@ -983,9 +983,9 @@ expect "a done rescope settles the key: the holds are genuine" \
   "a rescope for this key is done or blocked" "$out"
 expect "and the done branch is still shown in the block it points at" \
   "claude/rescope-keeper  rescope-keeper  done  pushed" "$out"
-refute "and no new rescope is recommended" "spawn ONE rescope manager" "$out"
+refute "and no new rescope is recommended" "spawn ONE surveyor" "$out"
 refute "nor is it read as still actively running" \
-  "a rescope manager is already in flight" "$out"
+  "a surveyor is already in flight" "$out"
 
 # 0 slots (cap = 1, keeper fills it): the fleet is working, not stalled, so
 # the held plans stay DRAINED-in-flight and no rescope is offered.

@@ -105,7 +105,7 @@ A registry left unmarked does not just cost this plan a wave — under
 orchestrated mode it can stall the whole fleet: every plan appends to the
 same criteria index or ADR directory, so one branch in flight holds all the
 rest, and `dispatch` reads slots free with nothing to spawn. That mode has a
-repair for it — an `OVERLAP-BOUND` verdict spawns a rescope manager that
+repair for it — an `OVERLAP-BOUND` verdict spawns a surveyor that
 marks the registries `shared:` and narrows bare-directory claims across the
 held plans (`.agents/docs/orchestrated.md`, Concurrency). Declaring the
 registry `shared:` in the first place is what spares the fleet that pass, so

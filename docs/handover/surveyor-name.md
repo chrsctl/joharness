@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01CH8JvqV2WAada6gNuuWwuz
 agent: sonnet
 updated: 2026-09-11
-next: Sweep rescope manager to surveyor across the five files, then add the glossary row
+next: Read the ci run and the verifier's findings, record them under ## Review with the fix in the same commit
 ---
 
 ## Goal
@@ -36,6 +36,15 @@ it, and give the name a job description.
   manager-shaped — claim, branch, one pull request, the stall contract — so
   its own command file would copy sections 0, 1 and 3 of `manage.md`.
   Requester chose this over the split.
+- Spawn `title` moves too: `rescope: <key>` becomes `surveyor: <key>`. Every
+  other spawn title names the ROLE (`manager: <stem>`, `curator: <UTC date>`,
+  `reporter: <stem>`, `orchestrator: <owner/repo>`); this was the one naming
+  the pass. Safe: no code reads a title, and the orchestrator's only title
+  lookup is `manager: <stem>`.
+- The glossary's "the code wins" rule does not bite here. It settles two
+  spellings of ONE term by counting identifiers; no identifier spells this
+  ROLE at all — every `rescope` in code names the PASS or the branch. So the
+  count is 0 against 0 and the rule has nothing to say.
 - Glossary row bans `rescope manager`. A rename sweep's one risk is a later
   session writing the obvious description again; nothing else catches it.
   All five files touched sit inside `GLOSSARY_PATHS`.

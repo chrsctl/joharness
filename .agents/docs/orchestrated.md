@@ -36,7 +36,7 @@ the rows below.
 | `./joharness.sh dispatch` | New. The orchestrator's one read: the human's numbers, managers in flight with push age and a `STALL?` mark, slots under the cap, the spawn order with waves and `HOLD`s, one verdict line. Reports only. |
 | `./joharness.sh curate` | New, and NOT orchestrated-only: reports whether the live plan queue's declarations are still true — REPAIR and DECLUTTER findings a curator acts on, PROPOSE findings it only writes down. `ci` already walks every plan mechanically; this adds the questions a lint cannot answer. |
 | `dispatch` `curate :` line + `curate DUE` tail | New, this mode only. The cycle's state, both halves from GIT rather than a ledger: the last curate is the newest base-branch commit deleting a `docs/handover/curate-*.md`, and an in-flight one is a branch whose workstream file reads `workstream: curate-<stamp>`, `plan: none`. Due and none in flight = spawn ONE curator, beyond the cap. ORTHOGONAL to the verdict, so it rides the tail. |
-| `dispatch` verdict `OVERLAP-BOUND` | New, this mode only. Slots free but every free plan HELD behind work in flight, so nothing is spawnable and yet the work is not done — the holds are `scope:` declarations, not the plans themselves. A `rescope :` block names the holder key and the held paths, and the verdict spawns ONE rescope manager to correct the declarations. The state run 1 mislabelled DRAINED. |
+| `dispatch` verdict `OVERLAP-BOUND` | New, this mode only. Slots free but every free plan HELD behind work in flight, so nothing is spawnable and yet the work is not done — the holds are `scope:` declarations, not the plans themselves. A `rescope :` block names the holder key and the held paths, and the verdict spawns ONE surveyor to correct the declarations. The state run 1 mislabelled DRAINED. |
 | `./joharness.sh drain` | Same verdict; tells a manager it works the item its prompt named, and names the orchestrator's exit as dispatch's verdict. |
 | `./joharness.sh upstream` | New, and NOT orchestrated-only: reports what a merged edge found about the harness in any consumer, at any time. What this mode adds is a role that acts on it. |
 | `JOHARNESS_UPSTREAM_FEEDBACK` | New, `off` by default. On, the health pass's `done` row spawns ONE reporter per merged edge, which files the findings as a report pull request on the canonical ([`feedback.md`](feedback.md), When the consumer is the detector). A reporter holds no manager slot and is one session beyond the cap. |
@@ -51,7 +51,7 @@ the rows below.
 | worker | at or below the plan's tier, lower by default | a subagent in the manager's container | nothing | the files its sub-task names | it returns |
 | reporter | low; the judgement is its command file's gate, not its tier | a session, spawned after a manager MERGES — only where `JOHARNESS_UPSTREAM_FEEDBACK=on` | nothing | one merged edge's harness findings | it files one report on the canonical, or none, and exits |
 | curator | sonnet; the judgement is which declaration is wrong, not what any plan is for | a session, spawned on the `curate DUE` tail line | nothing | the plan queue's declarations for ONE pass | its pull request merges, or `NOTHING TO CURATE` and it exits without a branch |
-| rescope manager | sonnet; the judgement is which `scope:` path is a shared registry, not the plan's own tier | a session, spawned on the `OVERLAP-BOUND` verdict | nothing (it edits declarations, not code) | the held plans' and holders' `scope:` lines for one holder key | its pull request merges, or `done` with nothing to change |
+| surveyor | sonnet; the judgement is which `scope:` path is a shared registry, not the plan's own tier | a session, spawned on the `OVERLAP-BOUND` verdict | nothing (it edits declarations, not code) | the held plans' and holders' `scope:` lines for one holder key | its pull request merges, or `done` with nothing to change |
 
 ### What each role reads
 
@@ -66,7 +66,7 @@ handover hook, which skips the walk over every remote ref — and no queue.
 | --- | --- | --- |
 | orchestrator | `dispatch`, the control plane, the Lineup table | a plan, a requirement, a research file, another branch's workstream file, this doc |
 | manager | its item, its own workstream file, the item's anchors, `feedback` on the files it touches, the environment rules if it touches the environment | the queue, other plans, other branches, this doc |
-| rescope manager | the `rescope :` block in its prompt, and the `## Scope` of each plan it renames | the queue, product code, this doc |
+| surveyor | the `rescope :` block in its prompt, and the `## Scope` of each plan it renames | the queue, product code, this doc |
 | curator | `./joharness.sh curate` and the plans it names | a held plan, the queue order, product code, this doc |
 | worker | its sub-task prompt and the files it names | everything else |
 
@@ -277,7 +277,7 @@ disjoint scope. Two things this mode adds to the wave rule:
   answer is not to spawn into the collision but to remove it, and most of
   these collisions are not real: a plan that only appends to a shared
   registry, or claims a whole directory, declared it exclusive in `scope:`.
-  `dispatch` says `OVERLAP-BOUND` and spawns ONE rescope manager
+  `dispatch` says `OVERLAP-BOUND` and spawns ONE surveyor
   (`.claude/commands/manage.md`, R) to mark the registries `shared:` and
   narrow the directory claims. It holds no slot (beyond the cap, like a
   reporter) and is bounded to one per holder key per run by the ledger's
@@ -459,7 +459,7 @@ idle, because every free plan overlapped a claimed one on `docs/adr`,
 actually produces — against this queue the cap of 4 was never the binding
 constraint, and raising it would have changed nothing. Those three paths are
 registries every plan appends to, declared exclusive in `scope:`; the
-`OVERLAP-BOUND` verdict and the rescope manager (Concurrency, above) exist to
+`OVERLAP-BOUND` verdict and the surveyor (Concurrency, above) exist to
 answer exactly this run, and were built after it. `dispatch` here read that
 state as `DRAINED` — the word for no work — which is what let the fleet sit.
 

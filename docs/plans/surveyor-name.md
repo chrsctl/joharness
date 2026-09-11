@@ -25,9 +25,13 @@ own bounds. Name it `surveyor` and give the name its job.
 - `.claude/commands/manage.md` — section R gains the one-line job
   description and names the role. The `rescope <key>` kind in section 0
   keeps its spelling: that is the argument the orchestrator passes.
-- `.claude/commands/orchestrate.md` — the `OVERLAP-BOUND` spawn rule and the
-  never-do line. `title` = `rescope: <key>` and `prompt` =
-  `/manage rescope <key>` stay exactly as they are.
+- `.claude/commands/orchestrate.md` — the `OVERLAP-BOUND` spawn rule, the
+  never-do line, and the spawn `title`, which becomes `surveyor: <key>`.
+  Every other spawn title already names the role — `manager: <stem>`,
+  `curator: <UTC date>`, `reporter: <stem>`, `orchestrator: <owner/repo>` —
+  and no code reads a title: the orchestrator looks sessions up by
+  `manager: <stem>` only. `prompt` = `/manage rescope <key>` stays exactly
+  as it is.
 - `.agents/docs/orchestrated.md` — Roles row, "What each role reads" row, the
   Concurrency paragraph, the closing line.
 - `.agents/docs/plans/README.md` — the one sentence naming the repair.

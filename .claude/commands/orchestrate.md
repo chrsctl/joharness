@@ -381,14 +381,14 @@ Up to `slots`, in dispatch's order, only rows under `spawn`:
   the health rows read its branch (`workstream: curate-<stamp>`, `plan: none`)
   like any manager's. Nothing to curate is the common answer and the session
   exits without a branch — that is success, not a stall.
-- Verdict `OVERLAP-BOUND` = ONE rescope manager, tier sonnet, and ONLY when
+- Verdict `OVERLAP-BOUND` = ONE surveyor, tier sonnet, and ONLY when
   the `rescope :` block says `in flight: none` AND your ledger has no
   `rescoped=<key>` for this key. Slots are idle only because held plans'
-  `scope:` declarations are wrong; the rescope manager corrects them and the
+  `scope:` declarations are wrong; the surveyor corrects them and the
   next pass waves the plans in parallel. It holds no slot (beyond the cap,
   like a reporter — say so, it is the human's money), so spawn it even at a
   full spawn list, but at MOST one per key per run. `create_session` as
-  below with `title` = `rescope: <key>`, `model` = the Lineup's sonnet, and
+  below with `title` = `surveyor: <key>`, `model` = the Lineup's sonnet, and
   `prompt` = `/manage rescope <key>` followed by the `rescope :` block
   verbatim, then the same three lines every manager gets. Ledger
   `rescope-<key>@new` AND `rescoped=<key>`; the health rows read the branch
@@ -505,7 +505,7 @@ the workstream files are the record, not this.
 - Spawn a second curator in one run, or one while a curate branch is in
   flight. One per run; the cycle is dated from git, so a missed pass costs
   nothing and a doubled one costs money.
-- Spawn a second rescope manager for a key your ledger already carries
+- Spawn a second surveyor for a key your ledger already carries
   `rescoped=<key>` for, or spawn one while the `rescope :` block shows one
   in flight. One per key per run; a merged rescope re-reads on the next
   pass, and a `done` one means the holds are genuine.
