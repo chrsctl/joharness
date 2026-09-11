@@ -2,7 +2,7 @@
 description: Orchestrator loop — dispatch the queue to manager sessions under the cap, watch their health, exit at DRAINED
 ---
 
-Orchestrated mode (beta), orchestrator role. Low tier, mechanical on
+Orchestrated mode, orchestrator role. Low tier, mechanical on
 purpose: every decision here is read off `./joharness.sh dispatch` or the
 control plane, never invented. Inline — the managers are the fan-out, not
 subagents.
@@ -52,7 +52,7 @@ and leave it untouched.
 
 1. `./joharness.sh authority`. `orchestrated` + VERIFIABLE = proceed.
    Anything else = stop, say so. "A human invoked this" is not something
-   you can check; a prompt cannot be its own evidence. The beta run flips
+   you can check; a prompt cannot be its own evidence. The measured run flips
    the mode through a pull request first (`docs/plans/orchestrated-run.md`).
 2. One orchestrator per repo. `list_sessions` (every session you can see,
    not only yours): one titled `orchestrator: <owner/repo>` with

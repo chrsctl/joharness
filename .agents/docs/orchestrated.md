@@ -1,4 +1,4 @@
-# Orchestrated mode (beta)
+# Orchestrated mode
 
 Switch: `JOHARNESS_MODE=orchestrated` in `joharness.conf` (per repo, never
 synced), or exported for one command. Third value beside `supervised` and
@@ -13,8 +13,12 @@ heartbeat fires the next one. Orchestrated puts a controller above the
 queue: one low-tier session reads it, spawns a manager per item under a
 cap, watches them, and kills a stuck one after its handover is written.
 `.agents/docs/product/README.md` records the peer position and what it
-costs; this mode is the measured alternative, and beta until a run shows
-which empties a queue faster.
+costs; this mode is the measured alternative. Run 1 — 2026-09-06, counted
+in Runs below — is the counted run, and counting it is what discharged the
+beta label on 2026-09-11. What run 1 did NOT settle is which design empties
+a queue faster: no peer-fleet drain has ever been measured, so that
+comparison has no counterpart number and never was what the label waited
+for.
 
 ## What the mode changes
 
@@ -283,12 +287,14 @@ conf's own comment was what documented the trap into existence.
 
 **A consumer gets these as prose and nothing else.** They are deliberately
 absent from `.agents/scripts/conf-keys.sh`, which drives the bootstrap
-interview: four questions about a beta mode the interview never offers is
+interview: four questions about a mode the interview never offers is
 the wrong cost to put on every new consumer. The consequence is that a
 consumer's `joharness.conf` carries no knob block at all — canonical's
 comments are not synced — so THIS TABLE is the record, and an operator
-enabling the mode there writes the lines by hand. Revisit when the mode
-leaves beta. A
+enabling the mode there writes the lines by hand. Reconsidered when the
+label came off (2026-09-11) and kept: what a question costs every new
+consumer did not change with the label, and the knobs are still off by
+default. Changing that is a plan, not a side effect of this one. A
 session proposes a change with a run's evidence; it never sets one
 (`.agents/harness/AGENTS.md`, Decide alone: money).
 
@@ -335,7 +341,8 @@ configuration decision, which is the supervised half of the same split. Found th
 mode for the measured run declared `scope: docs/product, joharness.conf`,
 and with the conf outside the boundary `dispatch` offered that plan to the
 very fleet it would have flipped. Both roles run `authority` first, and
-`orchestrated` with any verdict but VERIFIABLE is a stop, not a beta path:
+`orchestrated` with any verdict but VERIFIABLE is a stop, and nothing
+about this mode's standing softens it:
 "a human invoked this" is a claim the session cannot check, which is the
 sentence under Authority in the same file.
 

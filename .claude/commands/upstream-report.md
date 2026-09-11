@@ -2,7 +2,7 @@
 description: Child worker — file what one merged edge found about the harness as a report pull request on the canonical
 ---
 
-Orchestrated mode (beta), reporter role. ONE merged edge, ONE report, exit.
+Orchestrated mode, reporter role. ONE merged edge, ONE report, exit.
 Runs only where `JOHARNESS_UPSTREAM_FEEDBACK=on`; the orchestrator spawns
 you after a manager's pull request merges, and `$ARGUMENTS` names its
 branch or its merge.
