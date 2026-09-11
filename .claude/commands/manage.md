@@ -34,6 +34,20 @@ the orchestrator already decided what runs beside you.
      file (`.agents/docs/research/README.md`). Same claim, same finish.
    - `docs/product/<r>.md` — UNPLANNED: decompose into plans (`/plan`),
      pull request carrying the plans only, merge, exit. Never implement.
+   - `rescope <key>` — the queue is not the blocker, the DECLARATIONS are.
+     `./joharness.sh dispatch` printed OVERLAP-BOUND: slots free, every plan
+     HELD behind a branch in flight because plans that only APPEND to a
+     shared registry (a criteria index, `docs/INDEX.md`, an ADR or phase
+     directory) or CLAIM a whole directory declared it exclusive in
+     `scope:`. Your `$ARGUMENTS` carries the `rescope` block dispatch
+     printed — the held plans, the holder set (the key), and every held
+     path. The work is section R below. It writes no product code and it
+     invents nothing: every plan already exists, and a true `scope:` is a
+     fact about the plan, not new work (`.agents/docs/plans/README.md`,
+     "Stale plan: fix in place"). Claim on `docs/handover/rescope-<key>.md`
+     with `workstream: rescope-<key>` and `plan: none` — the identity
+     dispatch's scan keys on. One pull request rewriting `scope:` lines,
+     merge, exit.
 
 ## 1. Claim
 
@@ -74,6 +88,43 @@ Follow-up work that must outlive this session = a plan file in your pull
 request (`.agents/docs/plans/README.md`, same-session plan handed off).
 Never a second item for you.
 
+## R. Rescope: the one kind that edits OTHER plans
+
+Only when your `$ARGUMENTS` names `rescope <key>`. No workers, no product
+code. For every held plan the block names AND every plan in the holder set
+(the key), open the plan and read its own `## Scope`. Then, in its
+frontmatter `scope:` only:
+
+- A path the plan's Scope says it APPENDS to or REGISTERS in — a criteria
+  index, `docs/INDEX.md`, an ADR or phase spec it adds a row or an entry to
+  — becomes `shared:<path>`. A reconcile there is routine, which is what
+  `shared:` means (`.agents/docs/plans/README.md`).
+- A bare DIRECTORY claim (`docs/adr`, `docs/phases`) the Scope narrows to
+  one file becomes that file. A directory claim swallows every file under
+  it, so it collides with every plan touching the directory for no reason.
+- A path the plan EDITS IN PLACE stays exactly as it is. Marking a genuine
+  edit `shared:` claims a parallel safety the plan does not have, which is
+  worse than claiming none (`.agents/docs/plans/README.md`).
+
+Mark BOTH sides of a collision — the held plan AND the holder. The hook's
+`wave_split_hit` is asymmetric on purpose: one plan's `shared:` never voids
+another's exclusive claim (`.agents/harness/queue-context.sh`), so marking
+only the held plan leaves it held. NEVER split a plan into two, and never
+touch anything below the frontmatter — splitting is product judgement and
+this role does not make it. A plan that genuinely needs splitting, or whose
+holds are all real edits: name it in the pull request body for the human,
+change nothing.
+
+Nothing to change on any plan — every collision is a real in-place edit —
+means the holds are GENUINE: no pull request, `status: done` in the
+workstream file with `next:` saying the overlap is real, exit. Dispatch
+reads that `done` and stops recommending a rescope for this key.
+
+Otherwise: one commit rewriting the `scope:` lines, workstream file in it,
+review at your tier (`.agents/harness/AGENTS.md` step 5), retire the
+workstream file, pull request, merge, exit. The next dispatch pass re-reads
+the corrected `scope:` and the plans wave in parallel.
+
 ## 3. The contract with the orchestrator
 
 - Push at every milestone, and at least once per `JOHARNESS_STALL_MINUTES`
@@ -105,6 +156,15 @@ request, exit. Did your prompt name a session to message on merge? Then
 clock. No such line in your prompt, or no messaging tool: just exit, the
 orchestrator's next pass sees the merge. Run no queue command; the next
 item is another manager's.
+
+A rescope may land on `main` while you hold your plan — it rewrites your
+plan's `scope:` line. Pulling `main` in at step 7 then gives a
+modify/delete conflict on your OWN plan file: the rescope edited a line,
+your retire commit deletes the file. KEEP THE DELETE (`git rm` the plan,
+`git rm` the workstream file) — the retire is the plan finishing, and a
+scope edit to a plan about to be deleted is moot. Same reconcile for a held
+plan whose scope the rescope changed while a worker of yours edited the
+same frontmatter: take the rescope's `scope:` line, keep your code.
 
 One thing decides whether your `## Review` survives past that merge: where
 `JOHARNESS_UPSTREAM_FEEDBACK=on`, a finding of yours that landed on a file

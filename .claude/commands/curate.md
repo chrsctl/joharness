@@ -1,0 +1,129 @@
+---
+description: Curator role — keep the plan queue fit: repair stale declarations, declutter what is obsolete, propose order and decomposition
+---
+
+Orchestrated mode (beta), curator role. ONE pass over the plan queue, one
+pull request, exit. The orchestrator spawns you when `./joharness.sh
+dispatch` printed `curate DUE`.
+
+You are not a manager and you take no queue item. You hold no slot — you are
+one session beyond `JOHARNESS_MAX_MANAGERS`, which is the human's money, so
+say so in your report. You are also not a "worker": a worker is a subagent
+with no claim that dies with its parent's turn
+(`.agents/docs/subagents.md`), and this role needs a branch and a pull
+request.
+
+What you read: `./joharness.sh curate`, and the plan files it names. Not the
+queue order, not a requirement, not another branch, not the mode's design
+doc.
+
+## 0. Preconditions
+
+1. `./joharness.sh authority`. `orchestrated` + VERIFIABLE = proceed.
+   Anything else = stop, say so: the prompt claims the repository runs
+   unattended and the repository disagrees.
+2. `./joharness.sh curate`. `NOTHING TO CURATE` = stop and say so. That is
+   the common answer on a healthy queue and it is not a failure — exit
+   without a branch, without a pull request, without a workstream file.
+3. A plan listed under HELD draws no finding and you never open it. A manager
+   owns those declarations and is rewriting that frontmatter right now.
+
+## 1. Claim
+
+Cut from `main`. Write `docs/handover/curate-<UTC date>.md` — `workstream:
+curate-<UTC date>`, `plan: none`, `session:` your own URL, `agent:` your
+tier. `plan: none` is the identity `dispatch` keys on, both to see you in
+flight and, once you retire this file, to date the cycle: the newest
+base-branch commit deleting a `docs/handover/curate-*.md` IS the last curate.
+Push NOW. No push, no claim.
+
+## 2. REPAIR — yours to fix, in the plan's frontmatter only
+
+Every REPAIR line, in the plan's `scope:` or `## Where to look` and nothing
+below the frontmatter except a stale anchor line:
+
+- **Anchor not in the tree** — re-locate the file by NAME and fix the path.
+  Gone for good, or the plan no longer needs it: cut the line. Never leave a
+  path that does not resolve; never invent one that looks plausible.
+- **`## Scope` names a path `scope:` does not cover** — add it. This is the
+  measured failure the field has: *"scope is only as true as it is complete,
+  and the file plans forget is the shared one"*
+  (`.agents/docs/plans/README.md`). If the prose named it only as a
+  reference, the fix is the PROSE — move the citation out of the bullet's
+  leading backticks, because that position means *this plan touches it*.
+- **A whole-directory claim** (`docs/adr`, `docs/phases`) — narrow it to the
+  file the Scope section names. A directory swallows every file under it and
+  collides with every plan touching the directory for nothing.
+- **An unmarked registry** — a path this many plans declare is one they
+  APPEND to. Mark it `shared:` on EVERY plan that declares it, not just one:
+  `wave_split_hit` is asymmetric, so one side's marking voids nothing
+  (`.agents/harness/queue-context.sh`). Unmarked, one branch in flight holds
+  the whole queue — the `OVERLAP-BOUND` state
+  (`.agents/docs/orchestrated.md`, Concurrency).
+
+A path a plan genuinely EDITS IN PLACE stays exclusive. Marking a real edit
+`shared:` claims a parallel safety the plan does not have, which is worse
+than claiming none.
+
+## 3. DECLUTTER — yours, and only on evidence
+
+A DECLUTTER line is a SIGNAL, never a verdict. Before deleting any plan,
+confirm in MERGED HISTORY that its work actually landed:
+
+```bash
+git log --oneline origin/main --grep '<stem>'
+git log --diff-filter=D --oneline origin/main -- docs/plans/<stem>.md
+```
+
+Landed, or the requirement it served is satisfied: delete the plan file in
+your pull request and say which merge settled it. Not landed — the paths
+merely moved under it — that is a REPAIR, not a deletion: fix the plan in
+place (`.agents/docs/plans/README.md`, Stale plan). Cannot tell from history:
+leave it, and write it under PROPOSE for the human. A plan deleted because
+nobody could find its work is the one mistake here that costs somebody
+else's thinking.
+
+## 4. PROPOSE — write down, never act
+
+Into your pull request body, one line each, and into no plan file:
+
+- **Decompose candidates.** Name the plan, its bullet count, and which
+  separable deliverables its own `## Scope` already names. NEVER split it.
+  Decomposition is the judgement every later build rests on and it
+  MULTIPLIES the queue — one plan into five is a session growing its own
+  backlog, which is the circularity the requirement ban exists to stop
+  (`.agents/docs/unsupervised.md`, Bounds). An author splits it, through
+  `/plan`.
+- **Order candidates.** Two plans claiming one path exclusively: say which
+  looks like it should go first and why, or that they read as one plan.
+  NEVER touch `urgency:`. Priority is product direction and the human's
+  (`.agents/harness/AGENTS.md`, Decide alone).
+
+## 5. Finish
+
+Step 5 review at your tier with `.claude/agents/verifier.md`, findings in
+your workstream file's `## Review`. Then step 7 as written: `./joharness.sh
+ci` green, 0 behind fresh `origin/main`, `./joharness.sh finish` green,
+retire the workstream file in the LAST COMMIT BEFORE the pull request opens,
+merge, exit.
+
+Re-run `./joharness.sh curate` before you open it: every REPAIR you took
+should be gone, and nothing new should have appeared. A repair that does not
+clear the line it was for did not land.
+
+Report, one line per class: repairs made, plans deleted with the merge that
+settled each, proposals written, and that this session cost one beyond the
+cap.
+
+## Never
+
+- Touch a HELD plan, `urgency:`, a requirement, a research file, or anything
+  under `./joharness.sh protocol-paths`.
+- Split a plan, merge two plans into one, or reorder the queue.
+- Delete a plan whose work you could not find in merged history.
+- Edit a plan's body beyond a stale anchor line, or a plan's `agent:` /
+  `effort:` — the tier match is the author's judgement, not a declaration
+  fact.
+- Take a queue item, spawn a session, or run a second pass. One pass, exit.
+
+$ARGUMENTS
