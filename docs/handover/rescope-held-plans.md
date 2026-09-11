@@ -1,14 +1,14 @@
 ---
 workstream: rescope-held-plans
-status: in-progress
+status: done
 branch: claude/work-visibility-orchestrator-zvzo62
 pr: none
 plan: rescope-held-plans
 issue: none
 session: https://claude.ai/code/session_01BrSMgwe9csBqCjehd6v16R
 agent: opus
-updated: 2026-09-10
-next: Verifier r1-r3 fixed + recorded, rescope selftest cases green. Ready for human review as a PR (SUPERVISED ONLY: scope is protocol text)
+updated: 2026-09-11
+next: Merged work: dispatch says OVERLAP-BOUND and spawns a rescope manager. Retired with its plan.
 ---
 
 ## Goal

@@ -1,6 +1,6 @@
 ---
 workstream: curator-role
-status: in-progress
+status: done
 branch: claude/work-visibility-orchestrator-zvzo62
 pr: none
 plan: curator-role
@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01BrSMgwe9csBqCjehd6v16R
 agent: opus
 updated: 2026-09-11
-next: Verifier running on the curator commit; fix what it returns, then this is ready for the human's review as a PR (SUPERVISED ONLY)
+next: Merged work: ./joharness.sh curate plus the curate cycle and the curator role. Retired with its plan.
 ---
 
 ## Goal
