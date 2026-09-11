@@ -48,7 +48,7 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    human. Not invent work. ONE difference, `JOHARNESS_MODE=unsupervised`
    (session start says so): at the edge, exit and say DRAINED instead of
    asking, and invent nothing — the heartbeat re-seeds
-   (`.agents/docs/unsupervised.md`). `JOHARNESS_MODE=orchestrated` (beta):
+   (`.agents/docs/unsupervised.md`). `JOHARNESS_MODE=orchestrated`:
    same edge, same bounds; who picks differs — a manager works the ONE
    item its prompt names (`/manage`), the orchestrator reads
    `./joharness.sh dispatch` and spawns (`/orchestrate`,

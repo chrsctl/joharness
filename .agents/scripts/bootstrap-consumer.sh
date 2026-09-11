@@ -139,7 +139,7 @@ REVIEW_GIVEN=0
 AUTONOMY="$(conf_key_default JOHARNESS_MODE)"
 # No flag and no interview question, deliberately. Every other key here is
 # asked because a human at first contact has an opinion about it; a sixth
-# question about an off-by-default beta mechanism is the cost
+# question about an off-by-default mechanism is the cost
 # .agents/docs/orchestrated.md already refused for its own knobs. The channel
 # that reaches a child is the sync naming the key it does not answer, which
 # is what declaring it in conf-keys.sh buys.
@@ -418,7 +418,7 @@ interview() {
   request, and at the queue edge exits instead of asking a human.
   It automates nothing by itself: something has to fire the next
   session (.agents/docs/unsupervised.md, Heartbeat). A third value,
-  orchestrated (beta), is set by hand after reading
+  orchestrated, is set by hand after reading
   .agents/docs/orchestrated.md; the interview offers the two." \
       supervised unsupervised "$cur")"
     AUTONOMY="$ans"
@@ -491,7 +491,7 @@ write_decided_keys() {
       "off = review reports only; on = ci gates the record at the edge."
   if [ "$MODE" != reconfigure ] || [ "$AUTONOMY_GIVEN" -eq 1 ]; then
     set_conf_key "$conf" JOHARNESS_MODE "$AUTONOMY" \
-      "Autonomy. Any value but unsupervised or orchestrated (beta) reads as supervised."
+      "Autonomy. Any value but unsupervised or orchestrated reads as supervised."
   fi
 }
 

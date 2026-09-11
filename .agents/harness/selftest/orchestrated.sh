@@ -72,7 +72,7 @@ printf 'JOHARNESS_ENV=none\n' >"$orcconf"
 # --- the banner routes by role -----------------------------------------------
 out="$(JOHARNESS_MODE=orchestrated orcj session-start 2>/dev/null)"
 expect "orchestrated session-start announces the mode" \
-  "== Mode: orchestrated (beta) ==" "$out"
+  "== Mode: orchestrated ==" "$out"
 refute "and not the other unattended banner" "== Mode: unsupervised ==" "$out"
 expect "the banner names the manager role by its command" "/manage" "$out"
 expect "and the orchestrator role by its command" "/orchestrate" "$out"

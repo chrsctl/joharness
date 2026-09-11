@@ -2,7 +2,7 @@
 description: Manager role — own ONE plan, research file or requirement to its retirement, fanning the build out to worker subagents
 ---
 
-Orchestrated mode (beta), manager role. The Loop
+Orchestrated mode, manager role. The Loop
 (`.agents/harness/AGENTS.md`), unchanged, on ONE item — the one
 `$ARGUMENTS` names. This command adds the decomposition and the contract
 with the orchestrator; it removes nothing.

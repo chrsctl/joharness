@@ -14,7 +14,7 @@ human present. Every piece of it is something a heartbeat-fired session
 needs and an attended one must not have: the table below is the list, and
 a row that does not turn on that question belongs somewhere else.
 
-A third value, `orchestrated` (beta), answers the same question the same
+A third value, `orchestrated`, answers the same question the same
 way and adds one more: who dispatches. Every bound below binds it too,
 through one predicate (`joharness.sh:unattended`); what it adds is in
 [`orchestrated.md`](orchestrated.md). "Unattended" in this file means
