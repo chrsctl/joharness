@@ -131,6 +131,50 @@ reqs="$(queue_files "$PRODUCT_DIR")"
 
 printf '\n== Queue (protocol: .agents/docs/plans/README.md) ==\n\n'
 
+# Every ref already merged into the queue's base ref, banked in ONE process.
+#
+# The claims loop below used to ask it per ref — `merge-base --is-ancestor
+# <ref> "$ref"` — and this hook runs before the first prompt of every session.
+# Counted on this checkout 2026-09-11 with a PATH shim logging each git
+# invocation: 135 of the hook's 197 git calls were that one test, over 136
+# refs of which 125 were already merged.
+#
+# Same predicate, same fallback, same verification as the copy in
+# handover-context.sh, whose comment carries the full reasoning. The one
+# difference is the spelling: `%(refname:short)`, because the loop below
+# matches on `$short`. A set built in the other spelling would match nothing
+# and silently stop skipping merged branches, which is why each hook banks its
+# own rather than sharing one.
+#
+# `$ref` is already resolved and verified above, so the empty-set fallback is
+# for a repo whose refs cannot be walked at all, not for a missing base.
+merged_refs="$(
+  git for-each-ref --format='%(refname:short)' --merged "$ref" refs/remotes \
+    2>/dev/null
+)"
+
+NL=$'\n'
+# Exact-line match, never substring: `origin/claude/foo` is a substring of
+# `origin/claude/foo-2`, and a substring test would skip a live branch as
+# merged.
+#
+# And FORK-FREE, which is the whole point of the batch. The first spelling of
+# this used `grep -qxF`, which spawns one process per ref — trading one
+# `merge-base` per ref for one `grep` per ref and saving nothing. A `case` glob
+# over the banked list is a bash builtin: the delimiters make it exact-line,
+# and no process is spawned at all. What caught the first spelling was
+# `./joharness.sh perf`, which counts EVERY external command; the git-only
+# shim used to find this loop counted only git and reported a saving that was
+# not there. The numbers are in handover-context.sh beside the same note,
+# where the row they belong to is measured.
+merged_nl="${NL}${merged_refs}${NL}"
+ref_merged() {
+  case "$merged_nl" in
+    *"${NL}${1}${NL}"* ) return 0 ;;
+  esac
+  return 1
+}
+
 # Claims: every unmerged remote branch's workstream files, each `plan:`
 # field a claim edge onto a plan here. Read so two fresh sessions do not
 # both pick the queue's top plan — the overlap warning would catch them
@@ -139,7 +183,7 @@ claims="$(
   git for-each-ref --format='%(refname:short)' refs/remotes 2>/dev/null |
     while IFS= read -r short; do
       case "$short" in "origin/HEAD" | "origin/${BASE_BRANCH}") continue ;; esac
-      git merge-base --is-ancestor "$short" "$ref" 2>/dev/null && continue
+      ref_merged "$short" && continue
       git ls-tree -r --name-only "$short" -- docs/handover 2>/dev/null |
         grep -E '\.md$' | grep -vE '/(TEMPLATE|README)\.md$' |
         while IFS= read -r wf; do
