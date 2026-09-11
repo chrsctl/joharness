@@ -57,13 +57,11 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    the file. Boundary holds in both:
    no commit to protocol text (`./joharness.sh protocol-paths`,
    [`.agents/docs/unsupervised.md`](../../.agents/docs/unsupervised.md)).
-   Queue moved under its own declarations? `drain` says `curate : DUE` —
-   plan files changed since the last curate, or hours since one with code
-   moving under the plans. That is the item, BEFORE the queue: the plans you
-   would pick are describing themselves wrongly. `/curate`
-   ([`.claude/commands/curate.md`](../../.claude/commands/curate.md)) repairs
-   declarations and deletes what merged; it proposes order and decomposition
-   and never does them. Not inventing work — every plan it touches exists.
+   Queue moved under its own declarations? `drain` says `curate : DUE` and
+   why. That is the item, BEFORE the queue: the plans you would pick are
+   describing themselves wrongly. `/curate`
+   ([`.claude/commands/curate.md`](../../.claude/commands/curate.md)) is the
+   role and its bounds. Not inventing work — every plan it touches exists.
    One in flight = somebody else's, carry on.
 3. **Claim.** Cut branch from `main` (branch flow:
    `.agents/docs/product/README.md`). Write `docs/handover/<workstream>.md`. Push
@@ -88,10 +86,10 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    that layer's `verify` too, or the first news is a red PR.
    `./joharness.sh verify` proves the selected environment. Trust counted
    numbers, never written numbers — including numbers in any instruction file.
-   Edge to main = review, always; depth scales with the plan's tier
-   (`.agents/docs/agent-selection.md`, review depth): haiku one pass, sonnet
-   `/code-review` (high) on the full diff, opus adversarial with separate
-   lenses. Every depth also spawns `.claude/agents/verifier.md` at the
+   Edge to main = review, always; depth scales with the plan's tier and
+   `./joharness.sh review` prints THIS branch's (table:
+   `.agents/docs/agent-selection.md`, review depth). Every depth also
+   spawns `.claude/agents/verifier.md` at the
    branch's tier — one reader that did not write the diff. Tag what it
    returns `(verifier)`; why, in
    `.agents/docs/agent-selection.md`. Findings land in the workstream file's `## Review`,
@@ -116,14 +114,11 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    Background command must be ABLE to finish: a bound (`timeout`), or a
    condition it cannot satisfy itself. Waiting on a process: NEVER
    `pgrep -f` a pattern your own command line carries — it matches itself
-   and never exits. Read off the background-tasks panel, 2026-09-05: one
-   ran 1h 17m, and a human reading that panel was the only thing that
-   noticed. Stop guard counts what a session leaves ATTACHED; a job
-   detached with `&` reparents to PID 1 and no reader can attribute it, so
-   the rule is the defence and the count only the backstop. Harness now
-   REFUSES the shape before it runs — `.agents/harness/pretool-bash-guard.sh`,
-   a PreToolUse hook on Bash — and its deny names the two legal spellings:
-   `timeout N`, or a counter in the loop's condition.
+   and never exits. `.agents/harness/pretool-bash-guard.sh`, a PreToolUse
+   hook on Bash, REFUSES the shape before it runs; its deny names the two
+   legal spellings and its header carries the two incidents that bought it.
+   Stop guard counts only what a session leaves ATTACHED — `&` reparents to
+   PID 1, unattributable — so the rule is the defence, the count a backstop.
    Test written for a fix must FAIL without it: revert the fix, run the
    test, put it back. Green both ways = test pins nothing.
    Measured number carries what produced it, same sentence — the command,
@@ -155,10 +150,11 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    here that fires while the fix is still a commit; edge review recorded
    (step 5); no unresolved human review thread. Anything less stays open.
    `JOHARNESS_CHECKS=local` (session start says so) replaces the FIRST
-   condition and no other: no wait for Actions — `finish` runs `ci`, and
-   `verify` on those same paths, ITSELF. No run to read for the layer then;
-   it reds on their result, refuses a head that is not what merges, names
-   what it cannot cover. Merge-commit
+   condition and no other: `finish` runs `ci` and `verify` itself instead of
+   waiting for Actions, and there is no run to read for the layer then. It
+   names what it cannot cover, in its own output; the trade is written at the
+   key that sets it, `joharness.conf`.
+   Merge-commit
    method ONLY — squash/rebase merge breaks the merged-branch ancestry
    filter (`.agents/docs/product/README.md` Branch flow). Human veto = revert.
    Branch conflicts with `main` (another PR merged
@@ -171,49 +167,38 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    Deleting the FILES is not optional and is yours: PR's final state
    deletes workstream file + done plan file (+ requirement file when last
    plan). Still-useful bits go to the right layer's `AGENTS.md` or `docs/`
-   first. Skip it and the base branch accretes finished workstreams that
-   later sessions read as current — measured at 23 in one consumer repo,
-   thirteen merges adding six and removing none, because "optional,
-   human-only" one sentence up reads as covering this one too.
+   first. NOT covered by "optional, human-only" one sentence up — that is
+   the BRANCH. Skipped, the base branch accretes finished workstreams later
+   sessions read as current; counted in
+   [`.agents/docs/handover/README.md`](../../.agents/docs/handover/README.md).
    Do it as the LAST COMMIT BEFORE the pull request opens, never after the
    merge. Merge not yours? Ready-for-HUMAN is the edge: review record and
    retire commit land BEFORE you ask, because they merge on their clock and
    a deferred retire costs a follow-up pull request to undo.
    `./joharness.sh finish` says what merging now would leave and is red
    when that is anything; every other guard fires after the merge and bills
-   the next session. Measured, one session, eight pull requests: the three
-   that deferred the deletion each turned the base branch red within seconds,
-   and the two that did not were the two that retired first.
+   the next session.
    `./joharness.sh cleanup` counts what earlier merges left; `--apply`
    stages the workstream-file deletions. Branches it only counts.
-   `ci` now GATES this, not only `finish`: a branch whose own workstream
-   file would land on the base branch is reported at the edge and RED once
-   the file says `status: done`. Two strengths because one would fight the
-   review gate, which needs that file present while the review happens —
-   `fin_strength` carries the reasoning. Another session's inherited file
-   is reported and never red; that is `cleanup`'s business, and a gate
-   that fails for somebody else's omission is one sessions route around.
+   `ci` GATES this too, not only `finish`: a branch whose own workstream
+   file would land on the base branch is reported at the edge, RED once the
+   file says `status: done`. Another session's inherited file is reported,
+   never red — `cleanup`'s business. Why two strengths, not one:
+   `joharness.sh:fin_strength`.
 
 Queue still holds work after the merge? It is the NEXT session's — the
 human re-invoking `/drain` under supervised, the heartbeat under
 unsupervised. One item per session, both modes; a session that merged one
-does not take another.
-Measured reason the heartbeat exists: 5 of the last 119
-merge gaps on `main` exceed three hours, the two longest 32.2h and 24.0h, and
-the tree held 18, 18, 19 and 11 plan files at the four longest stalls' first
-commit (`git log --merges --format=%ct origin/main -120`, 2026-08-29). Idle
-holding a full queue. Drives THIS session only; the fleet outliving its
-sessions is the heartbeat's job (`.agents/docs/unsupervised.md`).
+does not take another. Drives THIS session only; the fleet outliving its
+sessions is the heartbeat's job, and the count of idle-holding-a-full-queue
+that bought it is in
+[`.agents/docs/unsupervised.md`](../../.agents/docs/unsupervised.md).
 
 ## Harness upkeep
 
 Consumer repo: harness upkeep does NOT run in a session holding product
-work. Context belongs to the claimed plan. Sync goes to `update.yml`
-(weekly cron, `workflow_dispatch` for now), else a subagent where the
-runtime offers one — it clones, syncs and pushes, only its summary returns
-— else a session of its own. The session mid-plan reviews the resulting
-pull request and nothing more.
-Routes, preference order:
+work. Context belongs to the claimed plan. The session mid-plan reviews the
+resulting pull request and nothing more. Routes, preference order:
 [`.agents/docs/consumer-repos.md`](../../.agents/docs/consumer-repos.md).
 
 Canonical repo (`JOHARNESS_CANONICAL=1` in `joharness.conf`): rule does not
