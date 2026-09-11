@@ -12,9 +12,12 @@
 # session. It is now one `git for-each-ref --merged` per hook, banked and
 # tested with a `case` glob.
 #
-# Two ways that rewrite can break while every existing case stays green, and
-# neither is visible in the output of a repo whose branch names happen to be
-# well spaced. Both are pinned here.
+# Three ways that rewrite can break while every existing case stays green.
+# Over-filtering (an unanchored membership test drops a live branch whose name
+# is a substring of a merged one), under-filtering (an empty or wrongly spelled
+# bank counts a merged branch's claim), and the no-base fallback. Each case
+# below was confirmed to FAIL with its defect introduced — see the note above
+# the queue assertion for the one shape that cannot be tested here and why.
 
 step "handover-context.sh: batched merged-ref filter"
 
@@ -23,13 +26,34 @@ mfwork="${TMP}/mergedfilter-work"
 git init -q --bare "$mforigin"
 git init -q "$mfwork"
 git -C "$mfwork" symbolic-ref HEAD refs/heads/main
-mkdir -p "${mfwork}/docs/handover"
+mkdir -p "${mfwork}/docs/handover" "${mfwork}/docs/plans"
 echo base >"${mfwork}/base.txt"
+# TWO plans on the base branch, because the queue hook's claims block is
+# what pins UNDER-filtering and it only runs where there are plans to claim.
+# Without them the hook prints "No plans on origin/main" and the block emits
+# nothing for any branch — which is how the first version of the queue
+# assertion below passed with the filter deleted outright.
+for mfp in mf-plan-live mf-plan-merged; do
+  cat >"${mfwork}/docs/plans/${mfp}.md" <<EOF
+---
+plan: ${mfp}
+urgency: normal
+agent: sonnet
+effort: low
+---
+
+## Goal
+
+Fixture.
+EOF
+done
 commit_all "$mfwork" "base"
 git -C "$mfwork" remote add origin "$mforigin"
 git -C "$mfwork" push -qu origin main
 
-# A workstream file the hook will list, on branch $1 with workstream name $2.
+# A workstream file the hook will list, on branch $1 with workstream name $2,
+# claiming plan $3. The claim is what makes under-filtering observable: a
+# merged branch whose claim is still counted marks a free plan taken.
 mfws() {
   cat >"${mfwork}/docs/handover/${2}.md" <<EOF
 ---
@@ -37,7 +61,7 @@ workstream: ${2}
 status: in-progress
 branch: ${1}
 pr: none
-plan: none
+plan: ${3}
 issue: none
 session: https://claude.ai/code/session_mf
 agent: sonnet
@@ -60,15 +84,28 @@ EOF
 # list can, so the bank is what gets the test.
 git -C "$mfwork" checkout -q main
 git -C "$mfwork" checkout -qb claude/foo-2
-mfws claude/foo-2 mf-merged-ws
+mfws claude/foo-2 mf-merged-ws mf-plan-merged
 commit_all "$mfwork" "merged branch's workstream file"
 git -C "$mfwork" push -q origin claude/foo-2
 git -C "$mfwork" checkout -q main
 git -C "$mfwork" merge -q --no-ff -m "merge claude/foo-2" claude/foo-2
+# RETIRE the workstream file on the base branch, which step 7 requires of
+# every merge. This is what makes the merged branch's claim observable at
+# all: while the file sits unchanged on the base branch too, the claims loop
+# drops it through a DIFFERENT guard — the blob comparison against
+# `origin/<base>:<file>` two lines further down — and the case passes with
+# the merged filter deleted outright. That is exactly how the first version
+# of this assertion pinned nothing. After the retire the blob guard has
+# nothing to compare, the ref still carries the file, and the merged filter
+# is the only thing standing between a finished branch and a claim on a free
+# plan.
+git -C "$mfwork" rm -q docs/handover/mf-merged-ws.md
+git -C "$mfwork" commit -qm "retire the merged branch's workstream file"
+mkdir -p "${mfwork}/docs/handover"
 git -C "$mfwork" push -q origin main
 
 git -C "$mfwork" checkout -qb claude/foo main
-mfws claude/foo mf-live-ws
+mfws claude/foo mf-live-ws mf-plan-live
 commit_all "$mfwork" "live branch's workstream file"
 git -C "$mfwork" push -q origin claude/foo
 
@@ -81,13 +118,29 @@ mfout="$(CLAUDE_PROJECT_DIR="$mfwork" bash \
 
 expect "unmerged branch whose name is a substring of a merged one is listed" \
   "origin/claude/foo: docs/handover/mf-live-ws.md" "$mfout"
-refute "merged branch is still filtered out" \
-  "origin/claude/foo-2: docs/handover/mf-merged-ws.md" "$mfout"
+
+# NO `refute` on the merged branch's entry here, and the reason is worth the
+# line: a merged ref cannot reach this listing whatever the filter does,
+# because `owned_at` diffs merge-base(ref, base)..ref and that range is empty
+# for anything already merged. An assertion that it is absent passes with the
+# filter deleted outright, which is a test that pins nothing. In THIS hook the
+# filter's effect is cost, not output, and the cost is what the `session-start`
+# perf row measures. Under-filtering is pinned one hook over, where it does
+# change output:
 
 mfqout="$(CLAUDE_PROJECT_DIR="$mfwork" bash \
   "${ROOT}/.agents/harness/queue-context.sh" 2>&1)"
-refute "queue hook does not claim from the merged branch" \
-  "mf-merged-ws" "$mfqout"
+
+# The queue hook reads every unmerged ref's workstream file for a `plan:`
+# claim, and a claim marks that plan taken. Count a MERGED branch's claim and
+# a free plan reads as claimed on a branch that finished — the queue then
+# stops offering work nobody is doing. This is the assertion the whole batch
+# has to earn: it fails if the filter stops filtering (bank empty, spelling
+# mismatched, membership test inverted).
+expect "the live branch's claim is counted" \
+  "claimed on origin/claude/foo" "$mfqout"
+refute "the merged branch's claim is not" \
+  "claimed on origin/claude/foo-2" "$mfqout"
 
 # NO BASE REF. `merge-base --is-ancestor` against a ref that does not exist
 # exits 128, which is falsy, so the per-ref spelling skipped NOTHING and

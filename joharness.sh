@@ -1714,7 +1714,9 @@ perf_count() {
 # the shape does not exercise: the per-claimed-plan fork in
 # queue-context.sh's `in flight:` block runs only where a claimed plan and a
 # free plan coexist, and `perf_shape` builds no claim, so both queue rows
-# count 126 today. It is a floor against the mode's OTHER forks and a place
+# count the same number today — 104 since the merged-ref batch below, 126
+# when this paragraph was written and 128 by the time that batch re-counted
+# it. Which is the argument for reading the table rather than this sentence. It is a floor against the mode's OTHER forks and a place
 # for the real number to land, not a measurement of that block — building a
 # claimed plan into the shape is a change to `perf_shape` and its own diff.
 # The payload the bash-guard row is measured on: a command it DENIES, so the
@@ -1745,6 +1747,15 @@ PERF_BASH_GUARD_PAYLOAD='{"session_id":"perf","tool_name":"Bash","tool_input":{"
 # — 39 spawns, which is what the shape's 10 understates and why the live number is
 # printed beside the gated one. Raise a literal here only with its counted number,
 # and only after the loop is right (`perf`'s own message).
+#
+# THAT PAIR IS THIS CHECKOUT ON THAT DAY and is kept as the reasoning it was
+# written for, not as a current reading. Re-counted 2026-09-11 after the
+# merged-ref batch below: live drain 428, against 418 with
+# `JOHARNESS_CURATE_HOURS=0` — a gap of 10, not 39. Two things moved it and
+# neither is the curate loop: the batch took ~270 spawns off every live drain,
+# and the checkout is not the one 844 was counted on. Which is the standing
+# rule in one example — trust counted numbers, never written ones, this
+# paragraph included.
 #
 # FOUR rows came DOWN on 2026-09-11, and by that same fix applied one loop over:
 # the per-ref `merge-base --is-ancestor` that BOTH session-start hooks ran to

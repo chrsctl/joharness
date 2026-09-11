@@ -4,7 +4,7 @@ urgency: normal
 agent: sonnet
 effort: high
 needs: none
-scope: .agents/harness/handover-context.sh, .agents/harness/queue-context.sh, joharness.sh, .agents/harness/selftest/perf.sh
+scope: .agents/harness/handover-context.sh, .agents/harness/queue-context.sh, joharness.sh, .agents/harness/selftest.sh, .agents/harness/selftest/handover-context-merged-filter.sh
 ---
 
 ## Goal
@@ -32,13 +32,16 @@ PATH shim logging every git invocation:
 - `joharness.sh` — re-pin the perf budgets the change moves
   (`JOHARNESS_PERF_BUDGET_*` defaults). Counted numbers only, re-measured
   after the change, never estimated.
-- `.agents/harness/selftest/perf.sh` — only if a pinned number lives there.
+- `.agents/harness/selftest.sh` and a new topic under
+  `.agents/harness/selftest/` — the cases pinning the rewrite.
 
 ## Out of scope
 
 - Every OTHER `merge-base` call. The second call per ref returns a SHA the
-  caller needs (`owned_at`, churn base); only the boolean is batchable, and
-  it now runs for the ~11 unmerged refs instead of all 136.
+  caller needs (`owned_at`, churn base); only the boolean is batchable. That
+  second call ALREADY ran for the unmerged refs only — the `--is-ancestor`
+  it follows has always come first and `continue`d — so this change neither
+  adds to it nor saves anything on it. The whole saving is the boolean.
 - Memoizing merge-base. Measured: 297 calls, 290 distinct. A cache saves 7.
 - Reducing `log`/`show`/`ls-tree` counts, the next three after merge-base.
   Separate question, separate plan.

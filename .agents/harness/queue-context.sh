@@ -160,11 +160,13 @@ NL=$'\n'
 #
 # And FORK-FREE, which is the whole point of the batch. The first spelling of
 # this used `grep -qxF`, which spawns one process per ref — trading one
-# `merge-base` per ref for one `grep` per ref and saving nothing. The git-only
-# shim used to find this loop could not see that; `./joharness.sh perf` could,
-# and reported session-start UP 2 at 327 against its 336 budget. A `case` glob
+# `merge-base` per ref for one `grep` per ref and saving nothing. A `case` glob
 # over the banked list is a bash builtin: the delimiters make it exact-line,
-# and no process is spawned at all.
+# and no process is spawned at all. What caught the first spelling was
+# `./joharness.sh perf`, which counts EVERY external command; the git-only
+# shim used to find this loop counted only git and reported a saving that was
+# not there. The numbers are in handover-context.sh beside the same note,
+# where the row they belong to is measured.
 merged_nl="${NL}${merged_refs}${NL}"
 ref_merged() {
   case "$merged_nl" in
