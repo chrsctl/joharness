@@ -40,6 +40,86 @@ jobs:
   # those get proven. A layer that needs none of it says so itself, and the
   # verify step runs it.
   lint:
+    # THE ONE COPY of why this condition exists. joharness.conf and the
+    # bootstrap's seeded conf point here rather than restate it: the first
+    # draft said it in three places and the third one already contradicted
+    # the other two.
+    #
+    # `JOHARNESS_CHECKS` names one question — who runs this head's checks —
+    # and has two homes because two machines answer it. In `joharness.conf`
+    # it tells a SESSION whether to wait for Actions or run `ci` and `verify`
+    # itself (`joharness.sh:checks_gate`). Here, as a GitHub variable, it
+    # tells this job whether to claim a runner, and runner time is what
+    # Actions bills.
+    #
+    # Set it on the REPOSITORY: Settings > Secrets and variables > Actions >
+    # Variables > New variable, Name `JOHARNESS_CHECKS`, Value `local`. Name
+    # and value are separate fields there — pasting `JOHARNESS_CHECKS=local`
+    # into the value sets it to a string that is not `local`, and this job
+    # keeps running with nothing to say why. Unset it and the job is back.
+    # Neither direction needs a commit, which is the point: a switch that
+    # needs a push is no use to somebody who has already run out of minutes.
+    #
+    # The RUN is still created and this job reports `skipped`, so the switch
+    # stays visible in the Actions tab. Measured on this repo's own `windows`
+    # job, which a job-level `if: false` skips the same way: run 34520202488
+    # lists it completed, conclusion `skipped`, `started_at` equal to
+    # `completed_at`, and it appears as a check run on the commit. Counted
+    # 2026-09-11 from the Actions API.
+    #
+    # SET THE CONF TOO, and this is the sharp edge. The variable stops GitHub
+    # checking; it makes nothing else check. Paired with
+    # `JOHARNESS_CHECKS=local` in joharness.conf, `./joharness.sh finish`
+    # runs `ci` and `verify` before the merge. Set HERE ALONE, with the conf
+    # still `github`, no machine checks anything — and step 7's "GitHub
+    # checks green on head" is then satisfied by a run that checked nothing.
+    # Nothing external catches that: this repo has no protected branch and no
+    # required check (`branches/main` reports `"protected": false`, counted
+    # 2026-09-11), and whether a `skipped` check satisfies or blocks a
+    # required status check is GitHub behaviour this comment does not rely
+    # on, in either direction.
+    #
+    # What goes with the shellcheck bar when this job skips: the layer
+    # verdict, because `.agents/scripts/ci-verify-layers.sh` is a STEP of
+    # THIS job — so a session has no run to read for its layer and owes
+    # `./joharness.sh verify` itself (AGENTS.md step 7) — and the per-sha
+    # `main` runs the concurrency block above exists to keep, which catch
+    # cross-PR collisions no per-PR gate can see.
+    #
+    # ORGANIZATION scope is the quiet one. GitHub resolves `vars` as
+    # environment, then repository, then organization, so an ORG variable of
+    # this name switches this job off in every repo of that org carrying this
+    # file and holding no repository-level value — consumers whose own
+    # joharness.conf still says `github`, which is the paragraph above
+    # happening to somebody who never touched their repo.
+    #
+    # Exact match: `Local` or `LOCAL` does not switch it off. The shell
+    # reader warns at a value it does not know and a workflow condition
+    # cannot, so a typo here fails toward SPENDING the minutes and running
+    # the checks — the direction that costs money rather than coverage.
+    #
+    # A VARIABLE and not this repo's tracked conf, because the workflow
+    # cannot read a file out of the branch before deciding whether to start.
+    # Not a secret: it hides nothing, and a reader of the run needs to see
+    # why the job did not run. On the JOB and not on `on:`, because there is
+    # no workflow-level `if`, and gating the trigger would take a commit to
+    # restore.
+    #
+    # NOT the whole Actions bill. `.github/workflows/update.yml` keeps its
+    # weekly cron, and the `windows` job below bills at the 2x multiplier if
+    # somebody re-enables it. This gates the per-pull-request spend, which is
+    # the one that scales with the work.
+    #
+    # A convention, not a mechanism: nothing stops a session setting this
+    # variable — it is in no protocol path and no gate reads it. It is a
+    # human's switch because a session cannot see it, not because anything
+    # forbids one touching it.
+    #
+    # Seeded verbatim into a consumer at bootstrap and never synced after
+    # (.agents/scripts/bootstrap-consumer.sh), so a consumer older than this
+    # line carries the ungated workflow until somebody adds the condition
+    # there by hand.
+    if: ${{ vars.JOHARNESS_CHECKS != 'local' }}
     runs-on: ubuntu-latest
     # The backstop for a job that hangs rather than fails. Without it the
     # ceiling is GitHub's default of 360 minutes, which is six hours of a
