@@ -64,9 +64,13 @@ own bounds. Name it `surveyor` and give the name its job.
   — unchanged from the base commit. The identities did not move.
 - `./joharness.sh ci` — `ci: pass`. Covers the glossary lint, which reds on
   any surviving `rescope manager` in scope.
-- `.agents/harness/selftest/dispatch.sh` — `0 failed`. This is the check a
-  consumer runs too: the diff reaches every consumer at its next sync, and
-  the verdict strings it pins ship with `joharness.sh`.
+- `.agents/harness/selftest/dispatch.sh` — `0 failed`. Canonical-only
+  (`.agents/scripts/sync-to-consumer.sh:CANONICAL_ONLY_DIRS`), so no consumer
+  runs it; the verdict strings it pins do ship, inside `joharness.sh`.
+- The consumer-side bar: `./joharness.sh ci` in a bootstrapped consumer —
+  `ci: pass`. That is where the new glossary ban is enforced for them:
+  `joharness.sh`, `.agents/docs/` and `.claude/commands/` all sync, and
+  `GLOSSARY_PATHS` covers all three.
 - `./joharness.sh verify` — `0 failed`.
 
 ## Where to look

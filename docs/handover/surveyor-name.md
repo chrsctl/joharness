@@ -61,6 +61,16 @@ it, and give the name a job description.
 
 ## Review
 
+- r1: (session, a false claim in the plan's own Acceptance) the bullet called
+  the dispatch selftest "the check a consumer runs too".
+  `.agents/harness/selftest` is in `CANONICAL_ONLY_DIRS`
+  (`.agents/scripts/sync-to-consumer.sh:221`) — it never ships, so no
+  consumer can run it. The verdict strings it pins DO ship, inside
+  `joharness.sh`; the test does not. Found by reading `ci`'s own ship-scope
+  line, which listed six of the plan's seven scope paths and silently omitted
+  that one. (fixed: the consumer-side bar is now `./joharness.sh ci` run in a
+  bootstrapped consumer, whose glossary lint enforces the new ban there.)
+
 ## Blockers
 
 None.
@@ -74,4 +84,12 @@ None.
 - `.agents/docs/orchestrated.md` — Roles table and "What each role reads",
   one row each.
 - `.agents/harness/selftest/dispatch.sh:879` — asserts the verdict strings
-  this diff rewords.
+  this diff rewords. Canonical-only: no consumer carries it.
+- Consumer-side bar, run 2026-09-11 on this head: bootstrapped a scratch
+  consumer (`.agents/scripts/bootstrap-consumer.sh --env none --mode
+  supervised`), `./joharness.sh ci` there printed `ci: pass`, and the tree
+  carried no `.agents/harness/selftest` at all. Then planted
+  `A rescope manager does the repair.` in its `.agents/docs/orchestrated.md`:
+  the same `ci` exits 1 at the glossary stage, naming
+  `.agents/docs/orchestrated.md:492`. Red without the row, green with it —
+  green both ways would have pinned nothing.
