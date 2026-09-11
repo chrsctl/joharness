@@ -761,12 +761,10 @@ JOHARNESS_MODE=${AUTONOMY}
 #          refuses a head that is not what merges. Anything but 'local' reads
 #          as 'github'.
 # This key saves the WAIT, never Actions MINUTES: the workflow runs on every
-# pull request whatever a session does here. The minutes are behind the same
-# name in its other home, a GitHub repository VARIABLE (Settings > Secrets
-# and variables > Actions > Variables) that .github/workflows/ci.yml reads —
-# set it to 'local' there and no run starts, no commit needed. A job skipped
-# that way reports SKIPPED, never success, so branch protection requiring
-# that check holds the merge button until the variable is cleared.
+# pull request whatever this file says. The minutes are behind the SAME NAME
+# in its other home, a GitHub repository variable read by
+# .github/workflows/ci.yml, whose 'lint' job carries the one copy of how to
+# set it and what it costs — read it there before setting either.
 JOHARNESS_CHECKS=${CHECKS}
 
 # off = ./joharness.sh upstream reports what a merged edge found about the
