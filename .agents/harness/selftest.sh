@@ -543,6 +543,7 @@ SELFTEST_TOPICS=(
   handover-context-owns
   handover-context-with-a-fork-remote
   handover-context-churn-line
+  handover-context-merged-filter
   handover-context-issue-claim
   handover-context-review-line
   handover-context-rank

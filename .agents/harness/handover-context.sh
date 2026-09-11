@@ -401,6 +401,57 @@ rows=""
 recent_count=0
 now="$(date +%s)"
 
+# Every ref already merged into the base branch, banked in ONE process.
+#
+# The loop below used to ask it per ref — `merge-base --is-ancestor <ref>
+# origin/<base>` — and that is the single most-paid-for spawn in the harness:
+# this hook runs before the first prompt of EVERY session, every mode, every
+# tier. Counted on this checkout 2026-09-11 with a PATH shim logging each git
+# invocation: 136 refs, 125 of them already merged, 136 `--is-ancestor`
+# processes out of the hook's 266 git calls, and 271 out of session-start's
+# 463 once queue-context.sh's copy of the same loop is added.
+#
+# `--merged <commit>` lists refs whose tips are reachable from <commit>, which
+# is the same predicate `--is-ancestor` answers one ref at a time. Verified
+# rather than assumed, same date: the two agreed on all 136 refs of a full
+# clone and on all 3 of a `--depth 1` shallow clone, where reachability is the
+# thing shallow history breaks.
+#
+# NO base ref (never fetched, unrelated remote): `--merged` exits 128 and
+# prints nothing, so the set is empty and nothing is skipped — which is
+# exactly what the per-ref spelling did, since a failing `--is-ancestor` is
+# falsy and falls through to the body. The fallback is the absence of a
+# fallback, on purpose.
+#
+# Full `refname` spelling, because the loop below reads full refnames.
+# queue-context.sh banks the same set in `refname:short` — a set built in one
+# spelling and tested in the other matches nothing and silently stops
+# skipping merged work, which is why each hook builds its own.
+merged_refs="$(
+  git for-each-ref --format='%(refname)' \
+    --merged "origin/${BASE_BRANCH}" refs/remotes 2>/dev/null
+)"
+
+NL=$'\n'
+# Exact-line match, never substring: `origin/claude/foo` is a substring of
+# `origin/claude/foo-2`, and a substring test would skip a live branch as
+# merged.
+#
+# And FORK-FREE, which is the whole point of the batch. The first spelling of
+# this used `grep -qxF`, which spawns one process per ref — trading one
+# `merge-base` per ref for one `grep` per ref and saving nothing. The git-only
+# shim used to find this loop could not see that; `./joharness.sh perf` could,
+# and reported session-start UP 2 at 327 against its 336 budget. A `case` glob
+# over the banked list is a bash builtin: the delimiters make it exact-line,
+# and no process is spawned at all.
+merged_nl="${NL}${merged_refs}${NL}"
+ref_merged() {
+  case "$merged_nl" in
+    *"${NL}${1}${NL}"* ) return 0 ;;
+  esac
+  return 1
+}
+
 # How close to merging, low first. Reads the same two fields joharness.sh's
 # at_edge reads and redefines neither: `pr:` set, or `status:` review or done,
 # is the edge, and everything here is downstream of that one definition.
@@ -452,8 +503,7 @@ while IFS= read -r ref; do
   # This filter is why the `done` rank below is safe to print rather than
   # skip — anything reaching it is UNMERGED, so `status: done` there means
   # work declared finished that never landed, not work that is over.
-  git merge-base --is-ancestor "$ref" "origin/${BASE_BRANCH}" 2>/dev/null &&
-    continue
+  ref_merged "$ref" && continue
 
   pushed_at="$(git log -1 --format=%ct "$ref" 2>/dev/null)"
   pushed_rel="$(git log -1 --format=%cr "$ref" 2>/dev/null)"
