@@ -6320,6 +6320,17 @@ dispatch_retired_edges() {
 # hour, the longest 22.2h), and being inclusive it also counted the retire
 # commit's own plan deletions, so a curate that decluttered ten plans made
 # itself due again immediately (verifier r7, r8).
+# Hours since the base branch's FIRST commit: the baseline when no curate has
+# ever landed, so "never" is the longest interval rather than a special case.
+dispatch_curate_repo_age_h() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" ts now
+  ts="$(git -C "$ROOT" log --format=%ct --reverse --max-parents=0 \
+    "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null | head -1)"
+  [ -n "$ts" ] || return 0
+  now="$(date +%s)"
+  printf '%s' "$(( (now - ts) / 3600 ))"
+}
+
 dispatch_curate_landed_sha() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}"
   git -C "$ROOT" log -1 --format=%H --diff-filter=D --full-history \
@@ -6407,30 +6418,42 @@ dispatch_curate_due() {
     printf 'off JOHARNESS_CURATE_HOURS=0: no curate is ever due (the whole cycle, for compatibility with the only off switch there used to be)'
     return 0
   fi
+  # No curate has ever landed? Then measure from the REPOSITORY's beginning
+  # rather than calling it due outright. "Never landed" as its own due-reason was
+  # wrong twice: it answered before either knob was read, so every case asserting
+  # the cycle passed with both triggers broken (verifier r13) — and it made a
+  # brand-new repo with two plans permanently overdue, which fired the block in
+  # every unrelated fixture and changed what `drain` said about spawning.
+  # Measuring from the first commit asks the same question the landed case asks,
+  # over the same thresholds: has enough been produced, or enough time passed,
+  # since the queue was last checked — and "never" is just the longest interval.
   age="$(dispatch_curate_age_h)"
-  churn="$(dispatch_curate_plan_churn "$(dispatch_curate_landed_sha)")"
   if [ -z "$age" ]; then
-    printf 'due none has ever landed on %s (%s plan file(s) in the queue'"'"'s history)' \
-      "${HANDOVER_BASE_BRANCH:-main}" "$churn"
-    return 0
+    churn="$(dispatch_curate_plan_churn)"
+    age="$(dispatch_curate_repo_age_h)"
+    [ -n "$age" ] || age=0
+  else
+    churn="$(dispatch_curate_plan_churn "$(dispatch_curate_landed_sha)")"
   fi
+  local base_word='the last curate'
+  [ -n "$(dispatch_curate_landed_sha)" ] || base_word='the queue began, none having landed'
   if [ "$plans" -gt 0 ] && [ "$churn" -ge "$plans" ]; then
-    printf 'due %s plan file(s) changed since the last curate (>= %s)' "$churn" "$plans"
+    printf 'due %s plan file(s) changed since %s (>= %s)' "$churn" "$base_word" "$plans"
     return 0
   fi
   if [ "$hours" -gt 0 ] && [ "$age" -ge "$hours" ]; then
-    printf 'due %sh since the last curate (>= %sh), %s plan file(s) changed' \
-      "$age" "$hours" "$churn"
+    printf 'due %sh since %s (>= %sh), %s plan file(s) changed' \
+      "$age" "$base_word" "$hours" "$churn"
     return 0
   fi
   # Name only the triggers that are ENABLED. "(of 0h)" reads as a clock that
   # fired at zero rather than one the human switched off.
   if [ "$plans" -gt 0 ] && [ "$hours" -gt 0 ]; then
-    printf 'not-due %s plan file(s) changed (of %s) and %sh elapsed (of %sh) since the last curate' \
-      "$churn" "$plans" "$age" "$hours"
+    printf 'not-due %s plan file(s) changed (of %s) and %sh elapsed (of %sh) since %s' \
+      "$churn" "$plans" "$age" "$hours" "$base_word"
   else
-    printf 'not-due %sh elapsed (of %sh) since the last curate; the production trigger is off (JOHARNESS_CURATE_PLANS=0)' \
-      "$age" "$hours"
+    printf 'not-due %sh elapsed (of %sh) since %s; the production trigger is off (JOHARNESS_CURATE_PLANS=0)' \
+      "$age" "$hours" "$base_word"
   fi
 }
 
