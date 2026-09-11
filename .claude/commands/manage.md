@@ -1,5 +1,5 @@
 ---
-description: Manager role — own ONE plan, research file or requirement to its retirement, fanning the build out to worker subagents
+description: Manager role — own ONE plan, research file or requirement to its retirement, fanning the build out to worker subagents; as surveyor, correct held plans' scope: lines instead
 ---
 
 Orchestrated mode, manager role. The Loop
@@ -34,7 +34,8 @@ the orchestrator already decided what runs beside you.
      file (`.agents/docs/research/README.md`). Same claim, same finish.
    - `docs/product/<r>.md` — UNPLANNED: decompose into plans (`/plan`),
      pull request carrying the plans only, merge, exit. Never implement.
-   - `rescope <key>` — the queue is not the blocker, the DECLARATIONS are.
+   - `rescope <key>` — you are the SURVEYOR. The queue is not the blocker,
+     the DECLARATIONS are.
      `./joharness.sh dispatch` printed OVERLAP-BOUND: slots free, every plan
      HELD behind a branch in flight because plans that only APPEND to a
      shared registry (a criteria index, `docs/INDEX.md`, an ADR or phase
@@ -88,12 +89,13 @@ Follow-up work that must outlive this session = a plan file in your pull
 request (`.agents/docs/plans/README.md`, same-session plan handed off).
 Never a second item for you.
 
-## R. Rescope: the one kind that edits OTHER plans
+## R. Surveyor: the one kind that edits OTHER plans
 
-Only when your `$ARGUMENTS` names `rescope <key>`. No workers, no product
-code. For every held plan the block names AND every plan in the holder set
-(the key), open the plan and read its own `## Scope`. Then, in its
-frontmatter `scope:` only:
+Surveyor corrects boundaries other plans recorded, and builds nothing inside
+them: `scope:` declarations only, never product code, no workers. Only when
+your `$ARGUMENTS` names `rescope <key>`. For every held plan the block names
+AND every plan in the holder set (the key), open the plan and read its own
+`## Scope`. Then, in its frontmatter `scope:` only:
 
 - A path the plan's Scope says it APPENDS to or REGISTERS in — a criteria
   index, `docs/INDEX.md`, an ADR or phase spec it adds a row or an entry to

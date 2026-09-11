@@ -6926,14 +6926,14 @@ cmd_curate() {
   return 0
 }
 
-# Rescope branches in flight: a manager working the `rescope` kind
-# (.claude/commands/manage.md) claims on a workstream file that names NO plan
-# — `plan: none`, `workstream: rescope-<key>` — because its whole job is
+# Rescope branches in flight: the surveyor, a manager working the `rescope`
+# kind (.claude/commands/manage.md), claims on a workstream file that names NO
+# plan — `plan: none`, `workstream: rescope-<key>` — because its whole job is
 # rewriting other plans' `scope:` lines, and a synthetic plan file would be a
 # session writing queue work from a detector. So it is invisible to the claims
 # view (that reads `plan:`) and to `dispatch_retired_edges` (it deletes no plan
 # file). This scan is the only reader that sees it, which is what keeps the
-# rescope manager OFF the slot count while still letting `dispatch` say one is
+# surveyor OFF the slot count while still letting `dispatch` say one is
 # already running. Same ref walk as `dispatch_retired_edges`: merged refs drop
 # out, no merge base = skip, and the workstream file is read AT THE BRANCH, not
 # inherited from the base. One row per rescope branch: branch, key, status,
@@ -7440,11 +7440,11 @@ cmd_dispatch() {
   # work itself. Registries every plan appends to (a criteria index, an ADR
   # directory, a phase spec) declared exclusive, and `wave_split_hit`'s
   # asymmetry (one side's `shared:` voids nothing) holds even the careful
-  # plans. The fix is a `rescope` manager (.claude/commands/manage.md) that
+  # plans. The fix is a surveyor (.claude/commands/manage.md) that
   # corrects the declarations; computed here so the verdict can name its key.
   #
   # Gated on `n_slots > 0`: a fleet whose managers are all busy is working, not
-  # stalled, and every merge re-runs `dispatch`. The rescope manager is beyond
+  # stalled, and every merge re-runs `dispatch`. The surveyor is beyond
   # the cap (holds no slot, like a reporter), so it COULD run at 0 slots — but
   # the value it buys is idle slots, and there are none then.
   if [ "$n_hold" -gt 0 ] && [ "$n_slots" -gt 0 ] &&
@@ -7514,7 +7514,7 @@ cmd_dispatch() {
 
     printf 'rescope   : %s plan(s) held behind %s branch(es) — the work is decomposed,\n' \
       "$n_hold" "$n_rescope_holders"
-    printf '            the scope: declarations are not. A rescope manager marks the\n'
+    printf '            the scope: declarations are not. A surveyor marks the\n'
     printf '            shared registries and narrows the directory claims so these\n'
     printf '            plans wave in parallel (.claude/commands/manage.md, rescope).\n'
     printf '            key: %s\n' "${rescope_key:-none}"
@@ -7564,17 +7564,17 @@ cmd_dispatch() {
   elif [ "$n_hold" -gt 0 ] && [ "$n_slots" -gt 0 ]; then
     # n_free and n_wait are both 0 here — the earlier branches caught every
     # spawnable item. NOT drained: the slots are idle only because the held
-    # plans' declarations are wrong. A rescope manager is beyond the cap, so
+    # plans' declarations are wrong. A surveyor is beyond the cap, so
     # this fires even at a full spawn list; the rescope block above carries
     # the key and the paths.
     if [ "$rescope_settled" -eq 1 ]; then
       printf 'verdict   : OVERLAP-BOUND — %s slot(s) free, %s plan(s) held; a rescope for this key is done or blocked (see rescope block): the holds are genuine or a human'"'"'s — spawn nothing, keep the health pass going until the holder branches merge\n' \
         "$n_slots" "$n_hold"
     elif [ "$n_rescope_inflight" -gt 0 ]; then
-      printf 'verdict   : OVERLAP-BOUND — %s slot(s) free, %s plan(s) held; a rescope manager is already in flight (see rescope block): spawn nothing this pass, keep the health pass going\n' \
+      printf 'verdict   : OVERLAP-BOUND — %s slot(s) free, %s plan(s) held; a surveyor is already in flight (see rescope block): spawn nothing this pass, keep the health pass going\n' \
         "$n_slots" "$n_hold"
     else
-      printf 'verdict   : OVERLAP-BOUND — %s slot(s) free, %s plan(s) held behind shared-registry declarations: spawn ONE rescope manager (agent: sonnet) on key %s\n' \
+      printf 'verdict   : OVERLAP-BOUND — %s slot(s) free, %s plan(s) held behind shared-registry declarations: spawn ONE surveyor (agent: sonnet) on key %s\n' \
         "$n_slots" "$n_hold" "${rescope_key:-none}"
     fi
   elif [ $((n_inflight - n_blocked)) -gt 0 ]; then
