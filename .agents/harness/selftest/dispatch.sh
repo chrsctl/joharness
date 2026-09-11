@@ -1012,6 +1012,7 @@ cp "${ROOT}/.agents/harness/queue-context.sh" \
 printf '# none\n' >"${cwwork}/.agents/env/none/AGENTS.md"
 printf 'x\n' >"${cwwork}/src/real.py"
 printf 'x\n' >"${cwwork}/reg/index.py"
+printf 'x\n' >"${cwwork}/reg/trio.py"
 cwconf="${cwwork}/joharness.conf"
 printf 'JOHARNESS_ENV=none\nJOHARNESS_MODE=orchestrated\n' >"$cwconf"
 # A literal backtick, built once. Inside a single-quoted printf format, SC2016
@@ -1206,30 +1207,30 @@ cwp() { printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: low\n'
 # both (queue-context.sh), and cmd_curate was neither: a capitalised prefix
 # produced a phantom path plus a false DELETE candidate, and one space produced
 # the same (verifier r6, r7).
-cwp sh_a 'shared:reg/index.py' >"${cwwork}/docs/plans/sh_a.md"
-cwp sh_b 'shared: reg/index.py' >"${cwwork}/docs/plans/sh_b.md"
-cwp sh_c 'Shared:reg/index.py' >"${cwwork}/docs/plans/sh_c.md"
+cwp sh_a 'shared:reg/trio.py' >"${cwwork}/docs/plans/sh_a.md"
+cwp sh_b 'shared: reg/trio.py' >"${cwwork}/docs/plans/sh_b.md"
+cwp sh_c 'Shared:reg/trio.py' >"${cwwork}/docs/plans/sh_c.md"
 commit_all "$cwwork" "three spellings of one shared marker"
 git -C "$cwwork" push -q origin main
 out="$(cw)"
 refute "a shared: path is not counted toward the registry threshold" \
-  "'reg/index.py' is declared by 3 plans" "$out"
+  "'reg/trio.py' is declared by 3 plans" "$out"
 refute "a space after the marker is not a path of its own" \
   "sh_b: no path in its scope" "$out"
 refute "nor is a capitalised marker a phantom path" \
-  "'Shared:reg/index.py'" "$out"
+  "'Shared:reg/trio.py'" "$out"
 refute "and no spelling of it makes the plan look obsolete" \
   "sh_c: no path in its scope" "$out"
 # Positive control: the same three plans UNMARKED do cross the threshold, so the
 # refutes above are about the marker and not about an inert fixture.
-cwp sh_a 'reg/index.py' >"${cwwork}/docs/plans/sh_a.md"
-cwp sh_b 'reg/index.py' >"${cwwork}/docs/plans/sh_b.md"
-cwp sh_c 'reg/index.py' >"${cwwork}/docs/plans/sh_c.md"
+cwp sh_a 'reg/trio.py' >"${cwwork}/docs/plans/sh_a.md"
+cwp sh_b 'reg/trio.py' >"${cwwork}/docs/plans/sh_b.md"
+cwp sh_c 'reg/trio.py' >"${cwwork}/docs/plans/sh_c.md"
 commit_all "$cwwork" "the same trio, unmarked"
 git -C "$cwwork" push -q origin main
 out="$(cw)"
 expect "unmarked, the trio is a registry repair: the fixture can speak" \
-  "'reg/index.py' is declared by 3 plans and unmarked" "$out"
+  "'reg/trio.py' is declared by 3 plans and unmarked" "$out"
 fixture_rm "$cwwork" "drop the marker trio" \
   docs/plans/sh_a.md docs/plans/sh_b.md docs/plans/sh_c.md
 git -C "$cwwork" push -q origin main
@@ -1237,21 +1238,21 @@ git -C "$cwwork" push -q origin main
 # DECLUTTER's second half: "no OTHER plan serves it" was unpinned, and the peer
 # count grepped the raw field, so a requirement named by PATH matched nothing —
 # two plans serving one requirement were each offered for deletion (verifier r5).
-cwp peer_a 'src/real.py' 'docs/product/vanished.md' >"${cwwork}/docs/plans/peer_a.md"
-cwp peer_b 'src/real.py' 'vanished' >"${cwwork}/docs/plans/peer_b.md"
+cwp peer_a 'src/real.py' 'docs/product/vanished2.md' >"${cwwork}/docs/plans/peer_a.md"
+cwp peer_b 'src/real.py' 'vanished2' >"${cwwork}/docs/plans/peer_b.md"
 commit_all "$cwwork" "two plans serving one vanished requirement, spelled two ways"
 git -C "$cwwork" push -q origin main
 out="$(cw)"
 refute "a plan whose requirement a peer also serves is no declutter candidate" \
-  "peer_a: its requirement 'vanished' is gone" "$out"
+  "peer_a: its requirement 'vanished2' is gone" "$out"
 refute "whichever way the peer spelled it" \
-  "peer_b: its requirement 'vanished' is gone" "$out"
+  "peer_b: its requirement 'vanished2' is gone" "$out"
 fixture_rm "$cwwork" "drop one peer, leaving the last plan serving it" \
   docs/plans/peer_b.md
 git -C "$cwwork" push -q origin main
 out="$(cw)"
 expect "the LAST plan serving a vanished requirement is a candidate" \
-  "peer_a: its requirement 'vanished' is gone and no other plan serves it" "$out"
+  "peer_a: its requirement 'vanished2' is gone and no other plan serves it" "$out"
 fixture_rm "$cwwork" "drop it" docs/plans/peer_a.md
 git -C "$cwwork" push -q origin main
 
