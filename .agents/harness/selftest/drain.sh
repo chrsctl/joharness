@@ -35,8 +35,17 @@ dplan() {
     "$1" "${2:-normal}" "${3:-sonnet}" >"${dwork}/docs/plans/${1}.md"
 }
 
+# The curate cycle is OFF for every case here, and that is the rule about shared
+# fixtures rather than a convenience: this repo grows to 29 plan files and never
+# lands a curate, so the production trigger fires partway down the file and from
+# then on the curate is the session's ITEM — which changes the verdict, the
+# `next:` line and the spawn list of every case that is about the queue. A case
+# in a shared fixture sets every precondition it turns on; these turn the cycle
+# on by accident, by being numerous. Its own coverage is `cuwork` and `trwork`
+# in `dispatch.sh`, where a case that wants it due says so.
 ddrain() {
-  ( cd "$dwork" && JOHARNESS_CONF="$dconf" DRAIN_FETCH=0 "$@" \
+  ( cd "$dwork" && JOHARNESS_CONF="$dconf" DRAIN_FETCH=0 \
+      JOHARNESS_CURATE_HOURS=0 "$@" \
       ./joharness.sh drain 2>&1 )
 }
 

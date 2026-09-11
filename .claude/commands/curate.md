@@ -2,16 +2,22 @@
 description: Curator role — keep the plan queue fit: repair stale declarations, declutter what is obsolete, propose order and decomposition
 ---
 
-Orchestrated mode (beta), curator role. ONE pass over the plan queue, one
-pull request, exit. The orchestrator spawns you when `./joharness.sh
-dispatch` printed `curate DUE`.
+Curator role, in EVERY mode. ONE pass over the plan queue, one pull request,
+exit. You are here because `./joharness.sh drain` or `./joharness.sh dispatch`
+said `curate ... DUE` — a human's `/start` routes to the first, the
+orchestrator reads the second, and both ask one reader so they cannot
+disagree.
 
-You are not a manager and you take no queue item. You hold no slot — you are
-one session beyond `JOHARNESS_MAX_MANAGERS`, which is the human's money, so
-say so in your report. You are also not a "worker": a worker is a subagent
-with no claim that dies with its parent's turn
-(`.agents/docs/subagents.md`), and this role needs a branch and a pull
-request.
+The curate IS this session's item, not an extra one: one item per session
+holds here as everywhere. Under orchestrated only, you are additionally one
+session beyond `JOHARNESS_MAX_MANAGERS` and hold no slot — the human's money,
+so say so in your report.
+
+You are not a "worker": a worker is a subagent with no claim that dies with
+its parent's turn (`.agents/docs/subagents.md`), and this role needs a branch
+and a pull request. You touch `docs/plans/` and no protocol path, so this is
+not SUPERVISED ONLY and a session running unattended may take it — the idle
+queue that most needs curating is the unattended fleet's.
 
 What you read: `./joharness.sh curate`, and the plan files it names. Not the
 queue order, not a requirement, not another branch, not the mode's design
@@ -19,14 +25,30 @@ doc.
 
 ## 0. Preconditions
 
-1. `./joharness.sh authority`. `orchestrated` + VERIFIABLE = proceed.
-   Anything else = stop, say so: the prompt claims the repository runs
-   unattended and the repository disagrees.
-2. `./joharness.sh curate`. `NOTHING TO CURATE` = stop and say so. That is
-   the common answer on a healthy queue and it is not a failure — exit
-   without a branch, without a pull request, without a workstream file.
+1. Running unattended (the session-start banner says so)? Then
+   `./joharness.sh authority` must read VERIFIABLE — anything else = stop and
+   say so, because the prompt claims the repository runs unattended and the
+   repository disagrees. Supervised: nothing to check, a human sent you.
+2. `./joharness.sh curate`. `NOTHING TO CURATE` = nothing to REPAIR, which is
+   the common answer on a healthy queue and is not a failure. It is not a
+   reason to exit empty-handed either: the cycle's date is the base-branch
+   commit that DELETES a `docs/handover/curate-*.md`, so a pass that lands
+   nothing clears nothing, and the next session is handed the identical item
+   for ever. Measured: this repository read `curate : DUE — 109 plan file(s)
+   changed since the queue began` on every pass, and under unsupervised the
+   heartbeat re-seeds sessions that each curate, land nothing and re-arm the
+   trigger (verifier r23). So a clean pass still does sections 1 and 5 — claim, then retire —
+   and its pull request's net diff is empty ON PURPOSE: the retire commit IS
+   the record that the queue was read on this date. Say in the body that
+   nothing needed repair. Skip sections 2, 3 and 4.
+   `NOTHING READ` is a different answer and not this one: see 4 below.
 3. A plan listed under HELD draws no finding and you never open it. A manager
    owns those declarations and is rewriting that frontmatter right now.
+4. `NOTHING READ` means the queue is empty, or every plan in it is HELD — so
+   this pass has no subject rather than a clean one. Same conclusion as 2 for
+   the same reason (the date has to land), and the body says which of the two
+   it was: an empty queue is not a curated queue, and a reader who is told
+   "nothing read" can tell the difference.
 
 ## 1. Claim
 
@@ -106,6 +128,12 @@ your workstream file's `## Review`. Then step 7 as written: `./joharness.sh
 ci` green, 0 behind fresh `origin/main`, `./joharness.sh finish` green,
 retire the workstream file in the LAST COMMIT BEFORE the pull request opens,
 merge, exit.
+
+The retire commit is what dates the cycle, so it is not optional on any path
+through this role — a clean pass (0.2) and an empty queue (0.4) included.
+Merge-commit method, like every other edge: the cadence reader walks
+`--full-history` precisely because this file is added and deleted inside one
+branch.
 
 Re-run `./joharness.sh curate` before you open it: every REPAIR you took
 should be gone, and nothing new should have appeared. A repair that does not

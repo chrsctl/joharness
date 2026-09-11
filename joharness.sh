@@ -1728,6 +1728,23 @@ PERF_BASH_GUARD_PAYLOAD='{"session_id":"perf","tool_name":"Bash","tool_input":{"
 # an empty one is written as an empty file — indistinguishable from the
 # /dev/null this used to redirect. It must not contain a `|`; the split below
 # is the field separator and there is no escape for it.
+# `drain`'s budget went 338 -> 357 with the curate cycle, which every session now
+# runs through this entrypoint. Counted on the built shape (26 refs, 3 plans, 22
+# edges) with `./joharness.sh perf drain`, 2026-09-11, and it takes TWO numbers
+# because the shape is not due by default: 336 as the gate measures it, 346 with
+# `JOHARNESS_CURATE_PLANS=1`, which is the state where `dispatch_curate_branches`
+# actually runs. The gated number alone is the cheaper half and would let the
+# expensive one grow unwatched — an earlier version of this comment claimed 344
+# from the command that prints 336, measured before the never-curated change made
+# the pinned shape not-due (verifier r29). `origin/main` before the cycle: 325.
+# The first spelling cost 46 rather than 10 — a `merge-base --is-ancestor` and a
+# three-call frontmatter read for EVERY unmerged ref — and the fix was the loop,
+# not the number: `--no-merged` filters in one call and an `ls-tree` prefilter
+# means only a ref that carries a curate-ish file pays for the rest. Live on this
+# 136-ref checkout the same day: 844, against 805 with `JOHARNESS_CURATE_HOURS=0`
+# — 39 spawns, which is what the shape's 10 understates and why the live number is
+# printed beside the gated one. Raise a literal here only with its counted number,
+# and only after the loop is right (`perf`'s own message).
 perf_rows() {
   printf '%s\n' \
     "feedback|${JOHARNESS_PERF_BUDGET_FEEDBACK:-228}|live||${ROOT}/joharness.sh feedback" \
@@ -1736,7 +1753,7 @@ perf_rows() {
     "session-start|${JOHARNESS_PERF_BUDGET_SESSION_START:-336}|shape||${ROOT}/joharness.sh session-start" \
     "queue-context|${JOHARNESS_PERF_BUDGET_QUEUE:-141}|shape||env JOHARNESS_RUN_MODE=unsupervised ${HARNESS_ROOT}/queue-context.sh" \
     "queue-orchestrated|${JOHARNESS_PERF_BUDGET_QUEUE_ORCH:-141}|shape||env JOHARNESS_RUN_MODE=orchestrated ${HARNESS_ROOT}/queue-context.sh" \
-    "drain|${JOHARNESS_PERF_BUDGET_DRAIN:-338}|shape||${ROOT}/joharness.sh drain" \
+    "drain|${JOHARNESS_PERF_BUDGET_DRAIN:-357}|shape||${ROOT}/joharness.sh drain" \
     "handover-guard|${JOHARNESS_PERF_BUDGET_GUARD:-33}|shape||env JOHARNESS_MODE=unsupervised ${HARNESS_ROOT}/handover-guard.sh" \
     "bash-guard|${JOHARNESS_PERF_BUDGET_BASH_GUARD:-0}|shape|${PERF_BASH_GUARD_PAYLOAD}|${HARNESS_ROOT}/pretool-bash-guard.sh"
 }
@@ -3252,14 +3269,23 @@ lint_finding_ids() {
 # Reads what got WRITTEN, the same limit the n>0 check already has and not a
 # new one. Nothing here observes whether a session spawned the agent.
 review_marks() {
+  # The tag is `(verifier` followed by `)` or `,`, never the bare literal. A
+  # finding written `(verifier, budget)` — the tag plus what class of thing it is,
+  # which is how every finding on the branch that found this was written — went
+  # unseen by an `index(buf, "(verifier)")`, so `review` reported 23 findings and
+  # none tagged, at the edge, with the independent reader having run. A gate that
+  # cannot see the thing it demands teaches sessions to route around it, and this
+  # one had no way to say what spelling it wanted. `(verifiers)` and
+  # `(verifier-ish)` still do not count.
   awk '
+    function tagged(s) { return match(s, /\(verifier[,)]/) > 0 }
     /^## Review[[:space:]]*$/ { in_r = 1; next }
-    /^## /                    { if (in_r && index(buf, "(verifier)")) t = 1
+    /^## /                    { if (in_r && tagged(buf)) t = 1
                                 buf = ""; in_r = 0 }
-    in_r && /^- /             { if (index(buf, "(verifier)")) t = 1
+    in_r && /^- /             { if (tagged(buf)) t = 1
                                 buf = substr($0, 3); n++; next }
     in_r && /^  [^ ]/         { buf = buf " " $0 }
-    END                       { if (in_r && index(buf, "(verifier)")) t = 1
+    END                       { if (in_r && tagged(buf)) t = 1
                                 print (n + 0) " " (t + 0) }'
 }
 
@@ -5871,6 +5897,7 @@ drain_free_others() {
 
 cmd_drain() {
   local mode qout hout edge next free sup="" others
+  local cdue cstate creason cinflight=0 cb ck cstat csess cnext
   mode="$(run_mode)"
   printf '== drain (mode: %s)\n\n' "$mode"
 
@@ -5887,6 +5914,74 @@ cmd_drain() {
     printf '  %s\n' "$edge"
     printf '  Yours, or its session gone (/who)? Take it first. Another session\n'
     printf '  LIVE on it: say so to the human and skip it.\n\n'
+  fi
+
+  # The curate cycle, in the cycle `/start` actually runs. `cmd_start` routes
+  # by mode to THIS file under supervised and unsupervised, so a curator
+  # printed only by `dispatch` is one a default repo can never reach — which is
+  # what shipped, and what this fixes.
+  #
+  # Placed after the edge block and before the queue: finishing outranks
+  # starting, and a due curate makes the queue truthful BEFORE a session picks
+  # from it rather than after. It is the item when due, never a second item —
+  # one item per session holds here as everywhere.
+  cdue="$(dispatch_curate_due)"
+  cstate="${cdue%% *}"; creason="${cdue#* }"
+  # Said here too, because silence over an unreadable cadence is the bug: before
+  # this the cycle was off for every repo not on `main` and for every shallow
+  # checkout, and nothing anywhere said so. Not the session's item — a fetch or a
+  # conf key is the human's, and inventing work is what this mode must not do.
+  if [ "$cstate" = unreadable ]; then
+    printf 'curate    : UNREADABLE — %s\n' "$creason"
+    printf '  Not your item; the cycle simply cannot be read here. Nothing below\n'
+    printf '  changes.\n\n'
+  fi
+  if [ "$cstate" = due ]; then
+    # THE SAME detector `dispatch` uses, and that is the whole point. An earlier
+    # spelling read the handover hook's output here instead, to stay inside
+    # `drain`'s command-spawn budget — and the two readers then disagreed in
+    # BOTH directions (verifier r4): the hook line carries only a FILENAME, so
+    # an ordinary branch owning `curate-cadence.md` with a real `plan:`
+    # suppressed the cycle for every supervised session, while a genuine curator
+    # named `curate2026-09-11.md` read as in flight to `dispatch` and as DUE
+    # here — two curators. The hook is the wrong source twice over besides: it
+    # falls back to listing the TREE in a shallow clone, so a curate file
+    # INHERITED on the base branch read as somebody's claim (r5), and it exits
+    # before its ref walk under `HANDOVER_SCOPE=branch`, which orchestrated
+    # session start exports, so `drain` saw nothing at all (r6).
+    #
+    # `dispatch_curate_branches` answers from refs and frontmatter, so it is
+    # immune to all three. It costs spawns, and the budget literal for `drain`
+    # was raised with the counted number rather than the design bent around it —
+    # which is what `perf`'s own message says to do for genuine new work.
+    while IFS=$'\t' read -r cb ck cstat csess cnext; do
+      [ -n "$cb" ] || continue
+      cinflight=$((cinflight + 1))
+      printf 'curate    : IN FLIGHT on %s (curate-%s, %s), so not yours. What made it due: %s\n' \
+        "$cb" "$ck" "$cstat" "$creason"
+    done < <(dispatch_curate_branches)
+    if [ "$cinflight" -eq 0 ]; then
+      printf 'curate    : DUE — %s\n' "$creason"
+      printf '  The plan queue has moved under its own declarations.\n'
+      # Mode-blind was a real defect, not a missing nicety: under orchestrated a
+      # manager reading this took the curate as its item, and under that mode a
+      # curator is the orchestrator's spawn BEYOND the cap — the human's money,
+      # decided by a session that was told to work one named item. The
+      # NOT-DRAINED block below already carried exactly this carve-out, which is
+      # what made the omission easy to miss (verifier r27).
+      if [ "$mode" = "orchestrated" ]; then
+        printf '  Queue work, and the ORCHESTRATOR'"'"'s to spawn — not this session'"'"'s:\n'
+        printf '  a manager works the item its prompt names. ./joharness.sh dispatch\n'
+        printf '  prints it, and a curator costs one session beyond the cap.\n'
+      else
+        printf '  This is queue work and it is THIS session'"'"'s item: read\n'
+        printf '  .claude/commands/curate.md and run ./joharness.sh curate.\n'
+      fi
+      printf '  Nothing is invented — every plan it touches already exists.\n'
+      printf '  Retune or silence it with JOHARNESS_CURATE_PLANS (plan files since\n'
+      printf '  the last curate) and JOHARNESS_CURATE_HOURS (0 = off entirely).\n'
+    fi
+    printf '\n'
   fi
 
   next="$(drain_next "$qout")"
@@ -5914,9 +6009,27 @@ cmd_drain() {
     if unattended && [ -n "$edge" ]; then
       printf '  Edge work above first — yours or abandoned; a live session'"'"'s you skip.\n'
     fi
-    printf '  next: %s\n' "$next"
+    # With a curate due and unclaimed, `next:` is NOT this session's item — the
+    # curate is, and the precedence was stated only in the block above and in
+    # drain.md. A session reading `next:` as its answer gave that plan two
+    # sessions, because the spawn list below correctly keeps it (verifier r28).
+    if [ "$cstate" = due ] && [ "$cinflight" -eq 0 ] && \
+       [ "$mode" != "orchestrated" ]; then
+      printf '  next: %s — AFTER the curate above, which outranks it; this line\n' "$next"
+      printf '  is what the curate makes truthful, not what you take now.\n'
+    else
+      printf '  next: %s\n' "$next"
+    fi
     if [ "$mode" = "unsupervised" ]; then
-      others="$(drain_free_others "$qout" "$next")"
+      # When a curate is this session's item, `$next` is NOT taken by anybody
+      # here — so it must stay in the spawn list. Excluding it assumes this
+      # session takes it, and with a curate due that left the named plan with no
+      # session at all in the wave (verifier r12).
+      if [ "$cstate" = due ] && [ "$cinflight" -eq 0 ]; then
+        others="$(drain_free_others "$qout" '')"
+      else
+        others="$(drain_free_others "$qout" "$next")"
+      fi
       [ -z "$others" ] ||
         printf '  spawn one session per: %s; a collision is the reconcile\n  step 7 already requires.\n' "$others"
     elif [ "$mode" = "orchestrated" ]; then
@@ -5962,6 +6075,18 @@ cmd_drain() {
   else
     printf '  Supervised stops here and asks (step 2). It does NOT invent work;\n'
     printf '  neither does unsupervised — that mode exits here instead of asking.\n'
+  fi
+  # An idle queue is exactly the queue nothing was curating: the gap
+  # `curator-role` recorded and left open. Said again HERE because a reader that
+  # took the DRAINED line as its answer never scrolled back up.
+  if [ "$cstate" = due ] && [ "$cinflight" -eq 0 ]; then
+    if [ "$mode" = "orchestrated" ]; then
+      printf '  A curate is DUE (%s). The orchestrator spawns it, beyond the cap;\n' "$creason"
+      printf '  a manager does not take it: ./joharness.sh dispatch.\n'
+    else
+      printf '  A curate is DUE (%s). That is real work and it is yours before you\n' "$creason"
+      printf '  ask or exit: .claude/commands/curate.md.\n'
+    fi
   fi
   return 0
 }
@@ -6220,30 +6345,267 @@ dispatch_retired_edges() {
     }
 }
 
-# Hours since the last curate LANDED on the base branch, or empty when none
-# ever has. Derived from git, never stored: the curator retires its workstream
-# file as the last commit before its pull request (Loop step 7), so the newest
-# base-branch commit DELETING a `docs/handover/curate-*.md` is when a curate
-# last landed. The orchestrator's ledger dies with its run and a heartbeat
-# re-seeds a fresh one; git does not forget, which is the same reason
-# `dispatch_retired_edges` counts from refs rather than from memory.
-dispatch_curate_age_h() {
+# Four readers, one question each, all derived from git and none stored: the
+# orchestrator's ledger dies with its run and a heartbeat re-seeds a fresh one,
+# which is the same reason `dispatch_retired_edges` counts from refs rather than
+# from memory. The curator retires its workstream file as the last commit before
+# its pull request (Loop step 7), so the newest base-branch commit DELETING a
+# `docs/handover/curate-*.md` is when a curate last landed.
+#
+# `--full-history` is load-bearing in every one of them, not a flourish. The
+# curator ADDS its workstream file and DELETES it inside the same branch
+# (curate.md 1 and 5), so the merge commit is TREESAME to its first parent for
+# that path and default simplification never walks the branch — the retire is
+# invisible, so every pass keeps measuring from the repository's first commit
+# and the cycle fires forever. Measured on this repo 2026-09-11,
+# `docs/handover/*.md`: 13 deletions simplified against 195 with the flag,
+# newest 2026-08-26 against 2026-09-10 (verifier r1).
+
+# Can the cadence be read here AT ALL? Two states answer every question below
+# with a number that is not about this queue, and both were silently wrong.
+#
+# No `refs/remotes/origin/<base>`: every reader's `2>/dev/null` swallowed the
+# failure, so churn came back 0, age came back 0, and `dispatch` printed
+# `not due — 0 plan file(s) changed (of 10) and 0h elapsed (of 168h)` — a false
+# statement about a repository whose base branch is `master`, or whose `main` has
+# never been fetched. The whole cycle off, invisibly, for every repo not on
+# `main`. `lint_ws_in_diff` already refuses this case by name one screen up, so
+# the precedent was a function away (verifier r26).
+#
+# SHALLOW: a boundary commit has no parents, so its diff IS the whole tree.
+# `dispatch_curate_plan_churn` with no `from` then degenerates to "plan files
+# that exist" and `dispatch_curate_repo_age_h` reports the BOUNDARY's age as the
+# queue's beginning. Measured on this repo, same head and same knobs: a full
+# clone said `DUE — 110 plan file(s) changed`, a `--depth 1` clone of it said
+# `not due — 2 plan file(s) changed (of 10) and 97h elapsed`, for a first commit
+# 495h old — wrong in both directions, and the landed-curate deletion is outside
+# the boundary too, so a shallow checkout can never leave the never-curated
+# branch (verifier r25). `drain` does not unshallow (DRAIN_FETCH defaults to 0)
+# while `dispatch` does, so this alone made the advertised one reader give two
+# answers on one checkout.
+#
+# Prints the reason it cannot be read, empty when it can.
+dispatch_curate_unreadable() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}"
+  if ! git -C "$ROOT" rev-parse --verify -q \
+      "refs/remotes/origin/${base_branch}" >/dev/null 2>&1; then
+    printf 'no refs/remotes/origin/%s here: fetch it, or set HANDOVER_BASE_BRANCH to the branch this repo merges into' \
+      "$base_branch"
+    return 0
+  fi
+  if [ "$(git -C "$ROOT" rev-parse --is-shallow-repository \
+      </dev/null 2>/dev/null)" = true ]; then
+    printf 'shallow clone: a boundary commit has no parents, so neither the plan count nor the age belongs to this queue — git fetch --unshallow to read the cycle'
+    return 0
+  fi
+}
+
+# Hours since the base branch's FIRST commit: the baseline when no curate has
+# ever landed, so "never" is the longest interval rather than a special case.
+dispatch_curate_repo_age_h() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" ts now
-  # `--full-history` is load-bearing, not a flourish. The curator ADDS its
-  # workstream file and DELETES it inside the same branch (curate.md 1 and 5),
-  # so the merge commit is TREESAME to its first parent for that path and
-  # default simplification never walks the branch — the retire is invisible and
-  # the cycle reads "none has ever landed" on every pass, forever, spawning a
-  # curator per orchestrator run and making JOHARNESS_CURATE_HOURS dead.
-  # Measured on this repo 2026-09-11, `docs/handover/*.md`: 13 deletions
-  # simplified against 195 with the flag, newest 2026-08-26 against 2026-09-10
-  # (verifier r1).
-  ts="$(git -C "$ROOT" log -1 --format=%ct --diff-filter=D --full-history \
-    "refs/remotes/origin/${base_branch}" -- 'docs/handover/curate-*.md' \
-    </dev/null 2>/dev/null)"
+  ts="$(git -C "$ROOT" log --format=%ct --reverse --max-parents=0 \
+    "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null | head -1)"
   [ -n "$ts" ] || return 0
   now="$(date +%s)"
   printf '%s' "$(( (now - ts) / 3600 ))"
+}
+
+# The COMMIT of the last curate that landed, empty when none has. A commit, not
+# a timestamp: the churn count below bounds its walk with `<sha>..<base>`, which
+# asks what the base branch GAINED after that point. `--since=<date>` asked when
+# each commit was authored instead — so a plan committed before the last curate
+# and merged after it counted 0 forever (measured here over 14 days: 48 of 82
+# plan additions landed more than 600s after their own commit, 19 more than an
+# hour, the longest 22.2h), and being inclusive it also counted the retire
+# commit's own plan deletions, so a curate that decluttered ten plans made
+# itself due again immediately (verifier r7, r8).
+dispatch_curate_landed_sha() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}"
+  git -C "$ROOT" log -1 --format=%H --diff-filter=D --full-history \
+    "refs/remotes/origin/${base_branch}" -- 'docs/handover/curate-*.md' \
+    </dev/null 2>/dev/null
+}
+
+# When that curate LANDED, which is not when its retire was committed. The sha
+# above is branch-side — `--full-history` is what finds it — so its own `%ct` is
+# the moment the curator wrote the commit, and a branch that then sat open loses
+# that time off its next window. This is r7's lesson applied to the reader that
+# did not get it: the churn walk was moved to a commit range for exactly this
+# reason and the clock was left reading the author's clock. Measured on this
+# repo, merge `%ct` minus its second parent's over the last 200 merges on
+# `origin/main` (2026-09-11): median 5 min, p90 25 min, max 49.45h — so the worst
+# observed curate lands already 49h into a 168h window (verifier r30).
+#
+# So: walk from the retire commit FORWARD along first parents to the oldest
+# base-branch commit that descends from it — the merge — and take its time. One
+# extra git call, and only when a curate has landed at all.
+dispatch_curate_landed_ts() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" sha merge
+  sha="$(dispatch_curate_landed_sha)"
+  [ -n "$sha" ] || return 0
+  merge="$(git -C "$ROOT" rev-list --ancestry-path --first-parent \
+    "${sha}..refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null | tail -1)"
+  # Committed straight onto the base branch rather than merged: there is no
+  # merge above it and its own time IS the landing time.
+  [ -n "$merge" ] || merge="$sha"
+  git -C "$ROOT" log -1 --format=%ct "$merge" </dev/null 2>/dev/null
+}
+
+
+# Hours since the last curate landed, empty when none ever has — which is the
+# signal `dispatch_curate_due` reads to switch to the repository baseline above.
+dispatch_curate_age_h() {
+  local ts now
+  ts="$(dispatch_curate_landed_ts)"
+  [ -n "$ts" ] || return 0
+  now="$(date +%s)"
+  printf '%s' "$(( (now - ts) / 3600 ))"
+}
+
+# Plan files ADDED or MODIFIED on the base branch since a given commit, or since
+# the beginning when none is given.
+#
+# NO `--full-history` here, and that is the opposite of the landing reader one
+# screen up — the two ask different questions and this is the reversal the record
+# carries the research step for (r24d, r31b). The landing reader asks *did a
+# retire ever happen*, and a curator's workstream file is added and deleted inside
+# one branch, so nothing but `--full-history` can see it. This reader asks *what
+# did the QUEUE gain*, which is a question about the base branch's own tree, and
+# `--full-history` answers a third question nobody asked: every plan file that
+# ever existed on any branch. Measured on this repo 2026-09-11, `--diff-filter=AM
+# ... -- docs/plans`, deduped: 111 with the flag against 78 without, and all 33 of
+# the difference are plans that NEVER existed on `main` — same-session plans,
+# written and retired inside one branch (`.agents/docs/plans/README.md`,
+# Lifecycle). No other session ever read their declarations, so they are not churn
+# a curate must answer for. Default simplification does not lose a real queue
+# entry: a merge that brings a plan in is treesame to the BRANCH for that path, so
+# the walk follows it and finds the add — checked against `git cat-file -e
+# <first-parent commit>:<path>` over 400 first-parent commits for three of the 33,
+# none of which ever appeared.
+#
+# `--diff-filter=AM` is the trigger's MEANING and not a tidy-up. Loop step 7
+# makes every finished plan a DELETION on the base branch, and a deleted plan has
+# no declaration left to check — so unfiltered, ten ordinary merges reach the
+# default of 10 with nothing having arrived, and the queue is called stale for
+# emptying. Measured on this repo over 14 days, 2026-09-11, this function's own
+# reader: 98 distinct plan paths touched, 96 of them deleted somewhere in the
+# window, 89 added or modified — and over a window of completions alone the
+# filtered count is 0, which is the answer a curate wants. The docstring, the
+# plan and `.agents/docs/orchestrated.md` all already said "added or changed";
+# the code was the one that disagreed (verifier r31).
+dispatch_curate_plan_churn() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" from="${1:-}" range
+  range="refs/remotes/origin/${base_branch}"
+  [ -z "$from" ] || range="${from}..refs/remotes/origin/${base_branch}"
+  # ONE git call. The first spelling forked `git diff-tree` PER COMMIT inside a
+  # read loop, and `drain` is the entrypoint every session runs: it went 47 over
+  # its command-spawn budget (385 against 338), which is exactly the "per-item
+  # fork put back inside a loop" the budget exists to catch. `--name-only` with
+  # an empty `--format` prints the paths directly, so the walk and the listing
+  # are the same process.
+  # shellcheck disable=SC2086
+  git -C "$ROOT" log --diff-filter=AM --name-only --format='' \
+    $range -- docs/plans \
+    </dev/null 2>/dev/null |
+    gr_docs | sort -u | awk 'END { print NR + 0 }'
+}
+
+# `awk END{print NR+0}`, never `grep -c . || printf 0`: grep PRINTS 0 and EXITS
+# 1 on no matches, so the fallback fired too and the count came back as two
+# lines, `0\n0` — which broke the integer test ("integer expression expected")
+# and spilled into the reason string a reader sees. awk always prints one
+# number and always exits 0.
+
+# Is a curate due, and WHY. One reader, because `drain` and `dispatch` both ask
+# and two readers of one cadence is two answers — the orchestrator and a
+# supervised session acting on different ones.
+#
+# TWO triggers, and production is the primary. A plan arrives with declarations
+# nobody has checked, so the need is driven by how fast plans are produced, not
+# by a clock. Counted on this repo's `origin/main` 2026-09-11 with THIS
+# function's own reader — `git log --diff-filter=AM --name-only --format=''
+# --since/--until <week> refs/remotes/origin/main -- docs/plans`, deduped: 0 for
+# weeks -12 to -4, then 32, 47, 10. A 168h clock fires nine times over nothing in
+# the quiet stretch and about three times while 89 changes land in the busy one.
+# Wrong in both directions, which is why production leads.
+#
+# These numbers were counted three times and the middle count was the wrong one.
+# `--full-history` read 31, 71, 25 and the flag looked like the fix (r10); it is
+# the fix for the LANDING query and a third question here, so the count went back
+# to the default walk once the 33 paths it adds turned out never to have existed
+# on `main` — see `dispatch_curate_plan_churn`. A measurement and the code it
+# justifies have to be the same reader, and the way to keep them that way is to
+# write the command down beside the number.
+#
+# The clock is KEPT for the one thing production cannot see: code moving UNDER
+# a plan breaks its anchors with no plan file changing, which is the staleness
+# rule (.agents/docs/plans/README.md). Either knob at 0 disables its own
+# trigger; both at 0 disables the cycle.
+#
+# Prints one line: `<due|not-due|unreadable|off> <reason>`.
+dispatch_curate_due() {
+  local hours plans age churn why
+  # Before any knob: can this checkout answer the question at all. Said as its
+  # own state rather than folded into not-due, because `not due — 0 of 10` over a
+  # missing base branch is a sentence that is simply false, and a reader cannot
+  # tell it from a quiet queue (verifier r25, r26).
+  why="$(dispatch_curate_unreadable)"
+  if [ -n "$why" ]; then
+    printf 'unreadable %s' "$why"
+    return 0
+  fi
+  hours="$(num_knob JOHARNESS_CURATE_HOURS 168)"
+  plans="$(num_knob JOHARNESS_CURATE_PLANS 10)"
+  # `JOHARNESS_CURATE_HOURS=0` alone is STILL the off switch, and that is a
+  # compatibility promise rather than a tidy rule. Before the production trigger
+  # existed it was the only way to switch curation off, and a consumer that set
+  # it would otherwise have woken up to a cycle running on a knob it had never
+  # heard of — the reversal was silent, and nothing pinned it (verifier r9). So
+  # the clock at 0 turns the whole cycle off; `JOHARNESS_CURATE_PLANS=0` narrows
+  # it to the clock alone. Both knobs are declared in
+  # `.agents/scripts/conf-keys.sh`, so every consumer's sync names them.
+  if [ "$hours" -eq 0 ]; then
+    printf 'off JOHARNESS_CURATE_HOURS=0: no curate is ever due (the whole cycle, for compatibility with the only off switch there used to be)'
+    return 0
+  fi
+  # No curate has ever landed? Then measure from the REPOSITORY's beginning
+  # rather than calling it due outright. "Never landed" as its own due-reason was
+  # wrong twice: it answered before either knob was read, so every case asserting
+  # the cycle passed with both triggers broken (verifier r13) — and it made a
+  # brand-new repo with two plans permanently overdue, which fired the block in
+  # every unrelated fixture and changed what `drain` said about spawning.
+  # Measuring from the first commit asks the same question the landed case asks,
+  # over the same thresholds: has enough been produced, or enough time passed,
+  # since the queue was last checked — and "never" is just the longest interval.
+  age="$(dispatch_curate_age_h)"
+  if [ -z "$age" ]; then
+    churn="$(dispatch_curate_plan_churn)"
+    age="$(dispatch_curate_repo_age_h)"
+    [ -n "$age" ] || age=0
+  else
+    churn="$(dispatch_curate_plan_churn "$(dispatch_curate_landed_sha)")"
+  fi
+  local base_word='the last curate'
+  [ -n "$(dispatch_curate_landed_sha)" ] || base_word='the queue began, none having landed'
+  if [ "$plans" -gt 0 ] && [ "$churn" -ge "$plans" ]; then
+    printf 'due %s plan file(s) changed since %s (>= %s)' "$churn" "$base_word" "$plans"
+    return 0
+  fi
+  if [ "$hours" -gt 0 ] && [ "$age" -ge "$hours" ]; then
+    printf 'due %sh since %s (>= %sh), %s plan file(s) changed' \
+      "$age" "$base_word" "$hours" "$churn"
+    return 0
+  fi
+  # Name only the triggers that are ENABLED. "(of 0h)" reads as a clock that
+  # fired at zero rather than one the human switched off.
+  if [ "$plans" -gt 0 ] && [ "$hours" -gt 0 ]; then
+    printf 'not-due %s plan file(s) changed (of %s) and %sh elapsed (of %sh) since %s' \
+      "$churn" "$plans" "$age" "$hours" "$base_word"
+  else
+    printf 'not-due %sh elapsed (of %sh) since %s; the production trigger is off (JOHARNESS_CURATE_PLANS=0)' \
+      "$age" "$hours" "$base_word"
+  fi
 }
 
 # Curate branches in flight: unmerged, carrying a workstream file this branch
@@ -6255,18 +6617,39 @@ dispatch_curate_age_h() {
 # rescope edge). One row per branch: branch, stamp, status, session, next.
 dispatch_curate_branches() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}"
-  local refs r name base wf files doc cws ckey cstat csess cnext
-  refs="$(git -C "$ROOT" for-each-ref --format='%(refname)' \
-    refs/remotes/origin </dev/null 2>/dev/null)"
+  local refs r name base wf files doc cws ckey cstat csess cnext cand
+  # `--no-merged` does the merged filter in ONE call, where a
+  # `merge-base --is-ancestor` per ref paid for it 130 times on this checkout.
+  refs="$(git -C "$ROOT" for-each-ref --no-merged="refs/remotes/origin/${base_branch}" \
+    --format='%(refname)' refs/remotes/origin </dev/null 2>/dev/null)"
   while IFS= read -r r; do
     [ -n "$r" ] || continue
     name="${r#refs/remotes/origin/}"
     { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
-    git -C "$ROOT" merge-base --is-ancestor "$r" \
-      "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null && continue
+    # CHEAP PREFILTER, and it is what makes this affordable in `drain`, which
+    # every session runs: one `ls-tree` asks whether this ref carries a
+    # curate-ish workstream file at all, and almost none do. Only a ref that
+    # does pays for the merge base, the added-files diff and the frontmatter
+    # read. Without it every unmerged ref paid all four and `drain` went 46
+    # spawns over budget; with it, 6.
+    #
+    # The match is a BROAD substring on purpose. Keyed on the `curate-` prefix
+    # it re-made r4's own mistake one layer down: a curator whose file is
+    # `curate2026-09-11.md` was skipped before its frontmatter was read. What it
+    # still cannot reach is a curate workstream file named nothing like one —
+    # `curate.md` § 1 makes `docs/handover/curate-<UTC date>.md` the contract,
+    # and this is the one place that contract is load-bearing rather than
+    # cosmetic. The DECISION is still frontmatter alone, so a false positive
+    # here costs three git calls and nothing else.
+    cand="$(git -C "$ROOT" ls-tree -r --name-only "$r" -- docs/handover \
+      </dev/null 2>/dev/null | grep -i curate)" || continue
+    [ -n "$cand" ] || continue
     base="$(git -C "$ROOT" merge-base "$r" \
       "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)"
     [ -n "$base" ] || continue
+    # ADDED against the merge base, never the tree: a curate file INHERITED from
+    # the base branch is not this branch's claim, and reading the tree is what
+    # made an ordinary branch look like a curator (verifier r5).
     files="$(git -C "$ROOT" diff --name-only --diff-filter=ACMRT "$base" "$r" \
       -- docs/handover </dev/null 2>/dev/null | gr_docs)"
     while IFS= read -r wf; do
@@ -6274,6 +6657,10 @@ dispatch_curate_branches() {
       doc="$(git -C "$ROOT" show "${r}:${wf}" </dev/null 2>/dev/null)"
       { read -r cws; read -r ckey; read -r cstat; read -r csess; read -r cnext; } \
         <<<"$(printf '%s\n' "$doc" | gr_fields workstream plan status session next)"
+      # FRONTMATTER decides, never the filename: `workstream: curate-*` AND
+      # `plan: none`. Keying on the filename let an ordinary branch owning
+      # `curate-cadence.md` with a real `plan:` suppress the whole cycle, and let
+      # a genuine curator named `curate2026-09-11.md` go unseen (verifier r4).
       case "$cws" in curate-*) ;; *) continue ;; esac
       [ "$ckey" = none ] || continue
       printf '%s\t%s\t%s\t%s\t%s\n' \
@@ -6518,8 +6905,18 @@ cmd_curate() {
     # "every declaration reads true" over an all-held queue is a verdict
     # asserting a property it never checked, and curate.md reads it as "stop"
     # (verifier r13).
-    printf 'verdict   : NOTHING READ — %s plan(s), every one held by a manager: their declarations are not yours. Nothing to do this pass\n' \
-      "$n_held"
+    #
+    # Two ways to read nothing, and the earlier spelling stated the wrong one as
+    # fact: over an EMPTY queue it said "every one held by a manager" with no
+    # plans and no manager anywhere. A curator then had a verdict its role file
+    # did not name (verifier r32). Reachable now in a way it was not before,
+    # because the deletion filter makes a queue that just emptied a real trigger.
+    if [ "$n_held" -eq 0 ]; then
+      printf 'verdict   : NOTHING READ — the queue is EMPTY: no plan to check, which is not the same as every plan reading true. Still land the date (curate.md 0.4)\n'
+    else
+      printf 'verdict   : NOTHING READ — %s plan(s), every one held by a manager: their declarations are not yours. Nothing to do this pass\n' \
+        "$n_held"
+    fi
   elif [ $((n_repair + n_declutter + n_propose)) -eq 0 ]; then
     printf 'verdict   : NOTHING TO CURATE — %s free plan(s), every declaration reads true\n' "$n_plans"
   else
@@ -6590,7 +6987,7 @@ cmd_dispatch() {
   local n_inflight=0 n_slots n_free=0 n_stall=0 n_blocked=0 n_hold=0 n_wait=0 n_loop=0
   local n_edge=0 n_edge_stall=0 n_leftover=0 n_leftover_noitem=0
   local leftover_rows="" estate=""
-  local curate_h="" curate_due=0 curate_inflight="" n_curate_inflight=0 curateh
+  local curate_due=0 curate_inflight="" n_curate_inflight=0 cdue cstate creason
   local cb ck cstat csess cnext cage
   local rescope_key="" rescope_paths="" rescope_inflight="" rescope_holders=""
   local n_rescope_inflight=0 n_rescope_holders=0 rescope_settled=0
@@ -6668,43 +7065,39 @@ cmd_dispatch() {
   fi
   # The curate cycle's standing state. Both halves from git (never a ledger:
   # the orchestrator's dies with its run), and `0` is the human's off switch.
-  curateh="$(num_knob JOHARNESS_CURATE_HOURS 168)"
-  # The knob and the age decide whether the scan can change the answer, so they
-  # are read BEFORE it. `dispatch_curate_branches` walks every remote ref a
-  # second time — 4 git calls per branch — and running it unconditionally cost
-  # +30% on this checkout's 132 refs (6749/6827/6753 ms against 5227/5197/5169,
-  # three runs each, 2026-09-11), which the documented off switch did not save
-  # because the loop sat above it. Off scans nothing; not-due scans nothing,
-  # because a curator in flight cannot make a not-due pass due (verifier r12).
-  if [ "$curateh" -gt 0 ]; then
-    curate_h="$(dispatch_curate_age_h)"
-    if [ -z "$curate_h" ] || [ "$curate_h" -ge "$curateh" ]; then
-      while IFS=$'\t' read -r cb ck cstat csess cnext; do
-        [ -n "$cb" ] || continue
-        cage="$(dispatch_age_text "$(dispatch_age_min "$cb" </dev/null)")"
-        n_curate_inflight=$((n_curate_inflight + 1))
-        curate_inflight="${curate_inflight}            ${cb}  curate-${ck}  ${cstat}  pushed ${cage}\n"
-        [ -z "$csess" ] || curate_inflight="${curate_inflight}              session: ${csess}\n"
-        [ -z "$cnext" ] || curate_inflight="${curate_inflight}              next: ${cnext}\n"
-      done < <(dispatch_curate_branches)
-    fi
+  # ONE reader, shared with `drain`: two readers of one cadence is two answers
+  # to "is a curate due", and the orchestrator and a supervised session would
+  # act on different ones. The scan below still runs only when the answer can
+  # change — `dispatch_curate_branches` walks every remote ref a second time (4
+  # git calls per branch) and running it unconditionally cost +30% on this
+  # checkout's 132 refs (6749/6827/6753 ms against 5227/5197/5169, three runs
+  # each, 2026-09-11), which the off switch did not save because the loop sat
+  # above it. Off scans nothing; not-due scans nothing, because a curator in
+  # flight cannot make a not-due pass due (verifier r12).
+  cdue="$(dispatch_curate_due)"
+  cstate="${cdue%% *}"; creason="${cdue#* }"
+  if [ "$cstate" = due ]; then
+    while IFS=$'\t' read -r cb ck cstat csess cnext; do
+      [ -n "$cb" ] || continue
+      cage="$(dispatch_age_text "$(dispatch_age_min "$cb" </dev/null)")"
+      n_curate_inflight=$((n_curate_inflight + 1))
+      curate_inflight="${curate_inflight}            ${cb}  curate-${ck}  ${cstat}  pushed ${cage}\n"
+      [ -z "$csess" ] || curate_inflight="${curate_inflight}              session: ${csess}\n"
+      [ -z "$cnext" ] || curate_inflight="${curate_inflight}              next: ${cnext}\n"
+    done < <(dispatch_curate_branches)
   fi
-  if [ "$curateh" -eq 0 ]; then
-    printf 'curate    : off — JOHARNESS_CURATE_HOURS=0, no curator is ever spawned\n'
+  if [ "$cstate" = unreadable ]; then
+    printf 'curate    : UNREADABLE — %s\n' "$creason"
+  elif [ "$cstate" = off ]; then
+    printf 'curate    : off — %s\n' "$creason"
   elif [ "$n_curate_inflight" -gt 0 ]; then
-    printf 'curate    : every %sh; a curator is IN FLIGHT, so none is due:\n' "$curateh"
+    printf 'curate    : IN FLIGHT, so none is due. What made it due: %s\n' "$creason"
     printf '%b' "$curate_inflight"
-  elif [ -z "$curate_h" ]; then
+  elif [ "$cstate" = due ]; then
     curate_due=1
-    printf 'curate    : every %sh; none has ever landed on %s, so one is DUE\n' \
-      "$curateh" "${HANDOVER_BASE_BRANCH:-main}"
-  elif [ "$curate_h" -ge "$curateh" ]; then
-    curate_due=1
-    printf 'curate    : every %sh; %sh since the last one landed, so one is DUE\n' \
-      "$curateh" "$curate_h"
+    printf 'curate    : DUE — %s\n' "$creason"
   else
-    printf 'curate    : every %sh; %sh since the last one landed, not due\n' \
-      "$curateh" "$curate_h"
+    printf 'curate    : not due — %s\n' "$creason"
   fi
   printf '\n'
 
@@ -7213,7 +7606,7 @@ cmd_dispatch() {
   # Orthogonal to the verdict itself — a curate is due, or not, whatever the
   # queue says — which is why it is a tail line and not a verdict of its own.
   [ "$curate_due" -eq 0 ] ||
-    printf '            curate DUE: spawn ONE curator (agent: sonnet) on ./joharness.sh curate — beyond the cap, holds no slot, at most one in flight (JOHARNESS_CURATE_HOURS)\n'
+    printf '            curate DUE: spawn ONE curator (agent: sonnet) on ./joharness.sh curate — beyond the cap, holds no slot, at most one in flight (JOHARNESS_CURATE_PLANS, JOHARNESS_CURATE_HOURS)\n'
   # Said on the verdict, because this is the count the orchestrator spends
   # money against and it is the half of the count git cannot finish: these
   # rows have no `session:` line to read. Never folded into the stall count —
