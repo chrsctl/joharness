@@ -66,6 +66,28 @@ PATH shim logging every git invocation:
    `origin/<base>`, `--is-ancestor` exits 128 and skips nothing, so the
    batched set must be EMPTY and skip nothing. A selftest case pins it.
 
+6. IN A CONSUMER, after the sync that carries this. All three files ship
+   (`ci`'s ship-scope stage says so), and a consumer carries no selftest —
+   the cases above are canonical-only, so the bar there is the budget and
+   the output:
+
+       ./joharness.sh perf          # session-start, queue-context,
+                                    # queue-orchestrated and drain each
+                                    # `ok` against the re-pinned budgets
+
+   The four re-pinned rows are `shape` rows, measured against the shape
+   `perf_shape` builds rather than the consumer's own tree, so their counts
+   do not move with a consumer's ref count and the tightened budgets are
+   safe to ship. That is the claim this check tests: a consumer whose rows
+   read `ok` confirms it; one that reds has found a budget cut too close,
+   and the fix is the counted number there, not a revert here.
+
+   And the hook output, which is the invariant the whole change rests on:
+
+       .agents/harness/handover-context.sh   # lists the same branches
+       .agents/harness/queue-context.sh      # claims the same plans
+                                             # as before the sync
+
 ## Where to look
 
 - `.agents/harness/handover-context.sh` — the `while IFS= read -r ref` loop;
