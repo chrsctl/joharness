@@ -1081,8 +1081,13 @@ commit_all "$cwwork" "claim repairs"
 git -C "$cwwork" push -qu origin mgr-repairs
 git -C "$cwwork" checkout -q main
 out="$(cw)"
-expect "a held plan is listed as held, with its branch" \
+expect "a held plan is listed as held" \
   "HELD (a manager owns these declarations)" "$out"
+# The BRANCH, exactly: asserting only the header above let the label's closing
+# bracket ride along into the row as `origin/mgr-repairs]` (verifier r14).
+expect "and the row names its branch with nothing trailing" \
+  "  repairs  origin/mgr-repairs" "$out"
+refute "no label punctuation leaks into the row" "origin/mgr-repairs]" "$out"
 refute "and draws no repair of its own" \
   "repairs: anchor 'src/gone.py' not in the tree" "$out"
 refute "nor a scope finding" \
@@ -1102,8 +1107,11 @@ expect "a plan at the split threshold is a decompose candidate" \
   "big: 3 Scope bullets (>= 3) — decompose candidate" "$out"
 expect "and the line says an author splits it, never this role" \
   "a split needs an author" "$out"
-refute "a decompose candidate is never offered as a repair" \
-  "big: scope:" "$out"
+# A decompose candidate must appear ONLY under PROPOSE. The earlier spelling
+# refuted "big: scope:", a needle no file-scoped plan can ever produce, so it
+# could not fail for the reason its label gave (verifier r11).
+refute "a decompose candidate is never a repair of any kind" "  big: " \
+  "$(printf '%s' "$out" | sed -n '/^REPAIR/,/^$/p')"
 
 # DECLUTTER: a requirement gone from the tree, served by no other plan.
 { printf -- '---\nplan: orphan\nurgency: normal\nagent: sonnet\neffort: low\n'
@@ -1150,23 +1158,151 @@ expect "and the cycle says none is due while one runs" \
   "a curator is IN FLIGHT, so none is due" "$out"
 refute "so the orchestrator is told to spawn nothing" "curate DUE" "$out"
 
-# Its retire commit on the base branch IS the cycle's date. A curate that
-# landed inside the window makes the next one not due.
-git -C "$cwwork" checkout -q main
-# mkdir FIRST: checking out main removes docs/handover, because every tracked
-# file in it lives on a branch, and the redirect below would fail silently into
-# a commit with nothing staged.
-mkdir -p "${cwwork}/docs/handover"
-printf -- '---\nworkstream: curate-2026-09-11\nstatus: done\nbranch: claude/curate-run\nplan: none\nagent: sonnet\nupdated: 2026-09-11\nnext: done\n---\n\n## Goal\nFixture.\n' \
-  >"${cwwork}/docs/handover/curate-2026-09-11.md"
-commit_all "$cwwork" "a curate lands"
+# Its retire commit IS the cycle's date, and the branch+merge shape is the whole
+# point of this case. The curator ADDS its workstream file and DELETES it inside
+# its own branch, so the merge is TREESAME to its first parent for that path and
+# git's DEFAULT history simplification never walks it: without `--full-history`
+# the retire is invisible and the cycle says "none has ever landed" forever,
+# spawning a curator every pass. An earlier version of this case committed both
+# on `main` — linear history, the one shape simplification cannot hide — so it
+# was green over the bug and its sibling "one is due" was satisfied BY the bug
+# (verifier r1, r2). Retire on the branch and merge it, the way step 7 does.
+git -C "$cwwork" checkout -q claude/curate-run
 fixture_rm "$cwwork" "retire it, the last commit before its pull request" \
   docs/handover/curate-2026-09-11.md
+git -C "$cwwork" push -q origin claude/curate-run
+git -C "$cwwork" checkout -q main
+git -C "$cwwork" merge -q --no-ff --no-edit claude/curate-run
 git -C "$cwwork" push -q origin main
-git -C "$cwwork" push -q origin --delete claude/curate-run
 out="$(cwd)"
-expect "a curate that just landed makes the next one not due" \
+expect "a curate retired on its branch and merged dates the cycle" \
   "since the last one landed, not due" "$out"
+refute "so it is not read as never having landed" \
+  "none has ever landed" "$out"
 refute "and nothing is spawned" "curate DUE" "$out"
+# The flag is the whole fix, and this is the arm that proves the fixture can see
+# it: the same question asked WITHOUT --full-history finds nothing here.
+simplified="$(git -C "$cwwork" log -1 --format=%ct --diff-filter=D \
+  "refs/remotes/origin/main" -- 'docs/handover/curate-*.md' 2>/dev/null)"
+fullhist="$(git -C "$cwwork" log -1 --format=%ct --diff-filter=D --full-history \
+  "refs/remotes/origin/main" -- 'docs/handover/curate-*.md' 2>/dev/null)"
+if [ -z "$simplified" ] && [ -n "$fullhist" ]; then
+  pass "the fixture reaches the defect: simplified history cannot see this retire"
+else
+  fail "the fixture no longer discriminates --full-history (simplified='${simplified}' full='${fullhist}')"
+fi
 out="$(cwd env JOHARNESS_CURATE_HOURS=0)"
 refute "off still spawns nothing once one has landed" "curate DUE" "$out"
+
+# --- the findings a green suite would otherwise not distinguish ---------------
+# Each of these was an uncovered branch or an assertion that passed with its
+# feature removed (verifier r11). Their own fixture, one plan per question.
+cwp() { printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: low\n' "$1"
+  printf 'needs: none\nrequirement: %s\nscope: %s\n---\n\n## Goal\nFixture.\n\n## Scope\n\n' \
+    "${3:-none}" "$2"
+  printf -- '- %ssrc/real.py%s -- covered.\n' "$bt" "$bt"; }
+# A `shared:` path is NOT counted toward the registry threshold, and the prefix
+# is read case-blind and with its whitespace eaten — the hook is deliberately
+# both (queue-context.sh), and cmd_curate was neither: a capitalised prefix
+# produced a phantom path plus a false DELETE candidate, and one space produced
+# the same (verifier r6, r7).
+cwp sh_a 'shared:reg/index.py' >"${cwwork}/docs/plans/sh_a.md"
+cwp sh_b 'shared: reg/index.py' >"${cwwork}/docs/plans/sh_b.md"
+cwp sh_c 'Shared:reg/index.py' >"${cwwork}/docs/plans/sh_c.md"
+commit_all "$cwwork" "three spellings of one shared marker"
+git -C "$cwwork" push -q origin main
+out="$(cw)"
+refute "a shared: path is not counted toward the registry threshold" \
+  "'reg/index.py' is declared by 3 plans" "$out"
+refute "a space after the marker is not a path of its own" \
+  "sh_b: no path in its scope" "$out"
+refute "nor is a capitalised marker a phantom path" \
+  "'Shared:reg/index.py'" "$out"
+refute "and no spelling of it makes the plan look obsolete" \
+  "sh_c: no path in its scope" "$out"
+# Positive control: the same three plans UNMARKED do cross the threshold, so the
+# refutes above are about the marker and not about an inert fixture.
+cwp sh_a 'reg/index.py' >"${cwwork}/docs/plans/sh_a.md"
+cwp sh_b 'reg/index.py' >"${cwwork}/docs/plans/sh_b.md"
+cwp sh_c 'reg/index.py' >"${cwwork}/docs/plans/sh_c.md"
+commit_all "$cwwork" "the same trio, unmarked"
+git -C "$cwwork" push -q origin main
+out="$(cw)"
+expect "unmarked, the trio is a registry repair: the fixture can speak" \
+  "'reg/index.py' is declared by 3 plans and unmarked" "$out"
+fixture_rm "$cwwork" "drop the marker trio" \
+  docs/plans/sh_a.md docs/plans/sh_b.md docs/plans/sh_c.md
+git -C "$cwwork" push -q origin main
+
+# DECLUTTER's second half: "no OTHER plan serves it" was unpinned, and the peer
+# count grepped the raw field, so a requirement named by PATH matched nothing —
+# two plans serving one requirement were each offered for deletion (verifier r5).
+cwp peer_a 'src/real.py' 'docs/product/vanished.md' >"${cwwork}/docs/plans/peer_a.md"
+cwp peer_b 'src/real.py' 'vanished' >"${cwwork}/docs/plans/peer_b.md"
+commit_all "$cwwork" "two plans serving one vanished requirement, spelled two ways"
+git -C "$cwwork" push -q origin main
+out="$(cw)"
+refute "a plan whose requirement a peer also serves is no declutter candidate" \
+  "peer_a: its requirement 'vanished' is gone" "$out"
+refute "whichever way the peer spelled it" \
+  "peer_b: its requirement 'vanished' is gone" "$out"
+fixture_rm "$cwwork" "drop one peer, leaving the last plan serving it" \
+  docs/plans/peer_b.md
+git -C "$cwwork" push -q origin main
+out="$(cw)"
+expect "the LAST plan serving a vanished requirement is a candidate" \
+  "peer_a: its requirement 'vanished' is gone and no other plan serves it" "$out"
+fixture_rm "$cwwork" "drop it" docs/plans/peer_a.md
+git -C "$cwwork" push -q origin main
+
+# `scope: none` is the TEMPLATE's documented default and must draw no scope
+# repair: acting on it makes the plan join waves its author withheld it from
+# (verifier r9).
+cwp nonescope 'none' >"${cwwork}/docs/plans/nonescope.md"
+commit_all "$cwwork" "a plan that declares no scope on purpose"
+git -C "$cwwork" push -q origin main
+out="$(cw)"
+refute "scope: none draws no coverage repair" "nonescope: Scope names" "$out"
+refute "and is never called obsolete for it" \
+  "nonescope: no path in its scope" "$out"
+fixture_rm "$cwwork" "drop it" docs/plans/nonescope.md
+git -C "$cwwork" push -q origin main
+
+# A queue whose every plan is HELD read NOTHING, which is not the same as having
+# found nothing wrong — and the clean-queue sentence is what curate.md reads as
+# "stop and say so" (verifier r13). Its own fixture: one plan, claimed, with a
+# finding it would otherwise draw.
+hldwork="${TMP}/curateheld"
+rm -rf "$hldwork"
+git init -q "$hldwork"
+git -C "$hldwork" symbolic-ref HEAD refs/heads/main
+mkdir -p "${hldwork}/docs/plans" "${hldwork}/docs/handover" \
+  "${hldwork}/src" "${hldwork}/.agents/harness" "${hldwork}/.agents/env/none"
+cp "${ROOT}/joharness.sh" "${hldwork}/joharness.sh"
+cp "${ROOT}/.agents/harness/queue-context.sh" \
+   "${ROOT}/.agents/harness/handover-context.sh" "${hldwork}/.agents/harness/"
+printf '# none\n' >"${hldwork}/.agents/env/none/AGENTS.md"
+printf 'x\n' >"${hldwork}/src/real.py"
+printf 'JOHARNESS_ENV=none\nJOHARNESS_MODE=orchestrated\n' >"${hldwork}/joharness.conf"
+{ printf -- '---\nplan: onlyheld\nurgency: normal\nagent: sonnet\neffort: low\n'
+  printf 'needs: none\nrequirement: none\nscope: src\n---\n\n## Goal\nFixture.\n\n'
+  printf '## Where to look\n\n- %ssrc/gone.py:x%s -- not in the tree.\n' "$bt" "$bt"
+} >"${hldwork}/docs/plans/onlyheld.md"
+commit_all "$hldwork" "one plan, and it has a finding"
+git -C "$hldwork" remote add origin "${TMP}/curateheldorigin.git"
+git init -q --bare "${TMP}/curateheldorigin.git"
+git -C "$hldwork" push -qu origin main
+git -C "$hldwork" checkout -qb mgr-only
+printf -- '---\nworkstream: onlyheld\nstatus: in-progress\nbranch: mgr-only\nplan: onlyheld\nagent: sonnet\nupdated: 2026-01-01\nnext: Build\n---\n\n## Goal\nFixture.\n' \
+  >"${hldwork}/docs/handover/onlyheld.md"
+commit_all "$hldwork" "claim it"
+git -C "$hldwork" push -qu origin mgr-only
+git -C "$hldwork" checkout -q main
+out="$( cd "$hldwork" && JOHARNESS_CONF="${hldwork}/joharness.conf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 ./joharness.sh curate 2>&1 )"
+expect "an all-held queue says it read nothing, not that all is well" \
+  "verdict   : NOTHING READ" "$out"
+refute "never the clean-queue sentence, which curate.md reads as stop" \
+  "every declaration reads true" "$out"
+refute "and the held plan's own finding is not reported" \
+  "onlyheld: anchor" "$out"

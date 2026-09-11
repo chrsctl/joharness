@@ -2172,16 +2172,29 @@ section_paths() {
   while IFS= read -r a; do
     [ -n "$a" ] || continue
     case "$a" in *'://'* | *'='*) continue ;; esac
-    p="${a%%:*}"; p="${p%% *}"; p="${p#./}"; p="${p%/}"
+    p="${a%%:*}"; p="${p%% *}"; p="${p#./}"
     # `.` and `..` rejected by name rather than by a `?*.?*` shape test: the
     # shape would also reject a dotfile anchor (`.gitignore` has nothing before
     # its dot), which `lint_anchors` has always checked. The explicit rejects
     # keep that behaviour and still drop truncated prose.
+    #
+    # NO trailing-slash strip. It took the only slash off a single-component
+    # anchor — `missingdir/` became `missingdir`, which then failed the
+    # path-shape test below and was skipped, so `lint_anchors` stopped warning
+    # about a directory that is not there. `docs/gone/` kept warning, which is
+    # exactly why a fixture carrying only the two-component case measured this
+    # as neutral (verifier r8).
     case "$p" in '' | '.' | '..' | *'*'* | '<'*) continue ;; esac
     case "$p" in */* | *.*) ;; *) continue ;; esac
     printf '%s\n' "$p"
+    # PREFIX match on the heading, not equality. `$0 == want` turned a heading
+    # carrying a trailing space — or any suffix — into a section that silently
+    # yields nothing, so a plan with `## Where to look ` drew no anchor warning
+    # at all, in every consumer's `ci`. The original regex was a prefix test and
+    # this restores it (verifier r3). `## Out of scope` does not start with
+    # `## Scope`, so the two plan headings stay distinct.
   done < <(awk -v want="## $2" '
-    $0 == want { s = 1; next }
+    index($0, want) == 1 { s = 1; next }
     /^## / { s = 0 }
     s && /^- `/ { if (match($0, /`[^`]+`/))
       print substr($0, RSTART + 1, RLENGTH - 2) }' "${ROOT}/$1")
@@ -5889,7 +5902,16 @@ dispatch_retired_edges() {
 # `dispatch_retired_edges` counts from refs rather than from memory.
 dispatch_curate_age_h() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" ts now
-  ts="$(git -C "$ROOT" log -1 --format=%ct --diff-filter=D \
+  # `--full-history` is load-bearing, not a flourish. The curator ADDS its
+  # workstream file and DELETES it inside the same branch (curate.md 1 and 5),
+  # so the merge commit is TREESAME to its first parent for that path and
+  # default simplification never walks the branch — the retire is invisible and
+  # the cycle reads "none has ever landed" on every pass, forever, spawning a
+  # curator per orchestrator run and making JOHARNESS_CURATE_HOURS dead.
+  # Measured on this repo 2026-09-11, `docs/handover/*.md`: 13 deletions
+  # simplified against 195 with the flag, newest 2026-08-26 against 2026-09-10
+  # (verifier r1).
+  ts="$(git -C "$ROOT" log -1 --format=%ct --diff-filter=D --full-history \
     "refs/remotes/origin/${base_branch}" -- 'docs/handover/curate-*.md' \
     </dev/null 2>/dev/null)"
   [ -n "$ts" ] || return 0
@@ -5960,8 +5982,11 @@ dispatch_curate_branches() {
 # mean a different declaration to the reader it was made for.
 curate_scope_list() {
   gr_field scope <"${ROOT}/$1" |
-    tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//; s|/*$||' |
-    grep -v '^$' | grep -vx 'none'
+    tr ',' '\n' |
+    sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
+        -e 's/^[Ss][Hh][Aa][Rr][Ee][Dd]:[[:space:]]*/shared:/' \
+        -e 's|/*$||' |
+    grep -v '^$' | grep -vx 'none' | grep -vx 'shared:'
 }
 
 # What the plan's PROSE says it touches, from the one reader above. `scope:` is
@@ -5981,7 +6006,7 @@ curate_covered() {
 }
 
 cmd_curate() {
-  local qout rows rel stem label scope seclist p s hit
+  local qout rows rel stem label scope seclist p s hit scoped claimed prel
   local regthr splitthr bullets reqstem
   local n_plans=0 n_held=0 n_repair=0 n_declutter=0 n_propose=0
   local repair="" declutter="" propose="" held_rows="" counts="" line plans_for
@@ -5992,6 +6017,11 @@ cmd_curate() {
   # many Scope bullets make a plan a decompose candidate. No measured default
   # for either yet — written numbers until a run counts one, and said so.
   regthr="$(num_knob JOHARNESS_CURATE_REGISTRY 3)"
+  # Floor of 2, because one plan declaring a path is not a registry and because
+  # the PROPOSE window below is `>= 2 && < regthr`: at 0 or 1 every exclusive
+  # declaration became a registry repair AND the overlap class silently
+  # disappeared (verifier r15).
+  [ "$regthr" -ge 2 ] || regthr=2
   splitthr="$(num_knob JOHARNESS_CURATE_SPLIT 8)"
 
   printf '== curate (report only — REPAIR and DECLUTTER are the curator'"'"'s, PROPOSE is not)\n\n'
@@ -6005,12 +6035,14 @@ cmd_curate() {
   rows="$(printf '%s\n' "$qout" |
     sed -n 's#^  \(docs/plans/[^ ]*\.md\)  \(\[.*\]\)$#\1|\2#p')"
 
-  # Every path any FREE plan declares, counted once per plan, so one pass
-  # answers both "is this a registry" and "which plans share it".
+  # Every path ANY plan declares — held included — counted once per plan, so one
+  # pass answers both "is this a registry" and "which plans share it". Held
+  # counts too: a held plan's declaration is still a declaration, and keying the
+  # count to free plans only removed the registry repair exactly when a branch
+  # was in flight on that registry, which is the overlap it exists to pre-empt
+  # (verifier r4). Findings are still EMITTED for free plans only.
   while IFS= read -r rel; do
     [ -n "$rel" ] || continue
-    label="$(printf '%s\n' "$rows" | awk -F'|' -v r="$rel" '$1 == r { print $2; exit }')"
-    case "$label" in *'claimed on '*) continue ;; esac
     stem="$(lint_stem "$rel")"
     while IFS= read -r s; do
       [ -n "$s" ] || continue
@@ -6027,11 +6059,19 @@ cmd_curate() {
     case "$label" in
       *'claimed on '*)
         n_held=$((n_held + 1))
-        held_rows="${held_rows}  ${stem}  ${label##*claimed on }"$'\n'
+        claimed="${label##*claimed on }"; claimed="${claimed%%,*}"; claimed="${claimed%%]*}"
+        held_rows="${held_rows}  ${stem}  ${claimed}"$'\n'
         continue ;;
     esac
     n_plans=$((n_plans + 1))
     scope="$(curate_scope_list "$rel")"
+    # `scope: none`, or absent, is a DELIBERATE declaration: the plan joins no
+    # wave and its independence stays unprovable (.agents/docs/plans/TEMPLATE.md).
+    # Every scope-derived repair below would read that as "add these paths",
+    # which inverts the author's choice — and REPAIR is the curator's to act on
+    # (verifier r9). The anchor repair still applies; it is about the body.
+    scoped=1
+    [ -n "$scope" ] || scoped=0
 
     # REPAIR 1: an anchor path gone from the tree. Same reader the lint warns
     # from, so the two cannot disagree about what an anchor is.
@@ -6046,7 +6086,8 @@ cmd_curate() {
     # The measured failure this is for: "scope is only as true as it is
     # complete, and the file plans forget is the shared one"
     # (.agents/docs/plans/README.md).
-    seclist="$(curate_section_paths "$rel" Scope)"
+    seclist=""
+    [ "$scoped" -eq 0 ] || seclist="$(curate_section_paths "$rel" Scope)"
     while IFS= read -r p; do
       [ -n "$p" ] || continue
       curate_covered "$p" "$scope" && continue
@@ -6083,7 +6124,19 @@ cmd_curate() {
     reqstem="$(lint_stem "$(gr_field requirement <"${ROOT}/${rel}")")"
     if [ -n "$reqstem" ] && [ "$reqstem" != "none" ] &&
        [ ! -f "${ROOT}/docs/product/${reqstem}.md" ]; then
-      plans_for="$(grep -lE "^requirement: +${reqstem}\$" "${ROOT}"/docs/plans/*.md 2>/dev/null | grep -c .)"
+      # Counted through the SAME reader and the same normalization, never a
+      # grep of the raw field: a plan may name its requirement by path
+      # (`docs/product/gone.md`) or by stem (`gone`), and the grep matched
+      # neither reliably — two plans serving one requirement were each reported
+      # as the last one serving it, both offered for deletion. `lint_stem`
+      # collapses both spellings, which is what the edge reader already does
+      # (verifier r5).
+      plans_for=0
+      while IFS= read -r prel; do
+        [ -n "$prel" ] || continue
+        [ "$(lint_stem "$(gr_field requirement <"${ROOT}/${prel}")")" = "$reqstem" ] &&
+          plans_for=$((plans_for + 1))
+      done < <(lint_nodes docs/plans)
       if [ "$plans_for" -le 1 ]; then
         n_declutter=$((n_declutter + 1))
         declutter="${declutter}  ${stem}: its requirement '${reqstem}' is gone and no other plan serves it — satisfied? confirm in merged history, then delete"$'\n'
@@ -6133,7 +6186,14 @@ cmd_curate() {
   if [ -n "$declutter" ]; then printf 'DECLUTTER (evidence in merged history FIRST, then delete):\n%s\n' "$declutter"; fi
   if [ -n "$propose" ]; then printf 'PROPOSE (write these down; never act):\n%s\n' "$propose"; fi
 
-  if [ $((n_repair + n_declutter + n_propose)) -eq 0 ]; then
+  if [ "$n_plans" -eq 0 ]; then
+    # It read NOTHING, which is not the same as finding nothing wrong. Saying
+    # "every declaration reads true" over an all-held queue is a verdict
+    # asserting a property it never checked, and curate.md reads it as "stop"
+    # (verifier r13).
+    printf 'verdict   : NOTHING READ — %s plan(s), every one held by a manager: their declarations are not yours. Nothing to do this pass\n' \
+      "$n_held"
+  elif [ $((n_repair + n_declutter + n_propose)) -eq 0 ]; then
     printf 'verdict   : NOTHING TO CURATE — %s free plan(s), every declaration reads true\n' "$n_plans"
   else
     printf 'verdict   : CURATE — %s repair(s), %s declutter candidate(s), %s proposal(s)\n' \
@@ -6203,7 +6263,7 @@ cmd_dispatch() {
   local n_inflight=0 n_slots n_free=0 n_stall=0 n_blocked=0 n_hold=0 n_wait=0 n_loop=0
   local n_edge=0 n_edge_stall=0 n_leftover=0 n_leftover_noitem=0
   local leftover_rows="" estate=""
-  local curate_h curate_due=0 curate_inflight="" n_curate_inflight=0 curateh
+  local curate_h="" curate_due=0 curate_inflight="" n_curate_inflight=0 curateh
   local cb ck cstat csess cnext cage
   local rescope_key="" rescope_paths="" rescope_inflight="" rescope_holders=""
   local n_rescope_inflight=0 n_rescope_holders=0 rescope_settled=0
@@ -6282,15 +6342,26 @@ cmd_dispatch() {
   # The curate cycle's standing state. Both halves from git (never a ledger:
   # the orchestrator's dies with its run), and `0` is the human's off switch.
   curateh="$(num_knob JOHARNESS_CURATE_HOURS 168)"
-  curate_h="$(dispatch_curate_age_h)"
-  while IFS=$'\t' read -r cb ck cstat csess cnext; do
-    [ -n "$cb" ] || continue
-    cage="$(dispatch_age_text "$(dispatch_age_min "$cb" </dev/null)")"
-    n_curate_inflight=$((n_curate_inflight + 1))
-    curate_inflight="${curate_inflight}            ${cb}  curate-${ck}  ${cstat}  pushed ${cage}\n"
-    [ -z "$csess" ] || curate_inflight="${curate_inflight}              session: ${csess}\n"
-    [ -z "$cnext" ] || curate_inflight="${curate_inflight}              next: ${cnext}\n"
-  done < <(dispatch_curate_branches)
+  # The knob and the age decide whether the scan can change the answer, so they
+  # are read BEFORE it. `dispatch_curate_branches` walks every remote ref a
+  # second time — 4 git calls per branch — and running it unconditionally cost
+  # +30% on this checkout's 132 refs (6749/6827/6753 ms against 5227/5197/5169,
+  # three runs each, 2026-09-11), which the documented off switch did not save
+  # because the loop sat above it. Off scans nothing; not-due scans nothing,
+  # because a curator in flight cannot make a not-due pass due (verifier r12).
+  if [ "$curateh" -gt 0 ]; then
+    curate_h="$(dispatch_curate_age_h)"
+    if [ -z "$curate_h" ] || [ "$curate_h" -ge "$curateh" ]; then
+      while IFS=$'\t' read -r cb ck cstat csess cnext; do
+        [ -n "$cb" ] || continue
+        cage="$(dispatch_age_text "$(dispatch_age_min "$cb" </dev/null)")"
+        n_curate_inflight=$((n_curate_inflight + 1))
+        curate_inflight="${curate_inflight}            ${cb}  curate-${ck}  ${cstat}  pushed ${cage}\n"
+        [ -z "$csess" ] || curate_inflight="${curate_inflight}              session: ${csess}\n"
+        [ -z "$cnext" ] || curate_inflight="${curate_inflight}              next: ${cnext}\n"
+      done < <(dispatch_curate_branches)
+    fi
+  fi
   if [ "$curateh" -eq 0 ]; then
     printf 'curate    : off — JOHARNESS_CURATE_HOURS=0, no curator is ever spawned\n'
   elif [ "$n_curate_inflight" -gt 0 ]; then
