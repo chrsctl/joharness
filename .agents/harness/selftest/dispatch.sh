@@ -994,3 +994,175 @@ refute "with no idle slot there is no OVERLAP-BOUND" \
   "verdict   : OVERLAP-BOUND" "$out"
 expect "the held plans wait on the holder merging, nothing to rescope now" \
   "verdict   : DRAINED — nothing free; 1 manager(s) in flight" "$out"
+
+# --- curate: is the live plan queue still fit? ------------------------------
+# The periodic reader. Its own fixture, because every finding is a property of
+# the WHOLE queue and a plan another topic wrote would decide the counts.
+cwwork="${TMP}/curatework"
+cworigin="${TMP}/curateorigin.git"
+git init -q --bare "$cworigin"
+git init -q "$cwwork"
+git -C "$cwwork" symbolic-ref HEAD refs/heads/main
+mkdir -p "${cwwork}/docs/plans" "${cwwork}/docs/handover" \
+  "${cwwork}/docs/product" "${cwwork}/src" "${cwwork}/reg" \
+  "${cwwork}/.agents/harness" "${cwwork}/.agents/env/none"
+cp "${ROOT}/joharness.sh" "${cwwork}/joharness.sh"
+cp "${ROOT}/.agents/harness/queue-context.sh" \
+   "${ROOT}/.agents/harness/handover-context.sh" "${cwwork}/.agents/harness/"
+printf '# none\n' >"${cwwork}/.agents/env/none/AGENTS.md"
+printf 'x\n' >"${cwwork}/src/real.py"
+printf 'x\n' >"${cwwork}/reg/index.py"
+cwconf="${cwwork}/joharness.conf"
+printf 'JOHARNESS_ENV=none\nJOHARNESS_MODE=orchestrated\n' >"$cwconf"
+cw() { ( cd "$cwwork" && JOHARNESS_CONF="$cwconf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 "$@" ./joharness.sh curate 2>&1 ); }
+
+# A clean plan: every declaration true. Nothing may be said about it.
+{ printf -- '---\nplan: clean\nurgency: normal\nagent: sonnet\neffort: low\n'
+  printf 'needs: none\nrequirement: none\nscope: src/real.py\n---\n\n'
+  printf '## Goal\nFixture.\n\n## Scope\n\n- `src/real.py` — what changes.\n\n'
+  printf '## Where to look\n\n- `src/real.py:thing` — why.\n'
+} >"${cwwork}/docs/plans/clean.md"
+commit_all "$cwwork" "base"
+git -C "$cwwork" remote add origin "$cworigin"
+git -C "$cwwork" push -qu origin main
+out="$(cw)"
+expect "a queue whose declarations all read true says so" \
+  "verdict   : NOTHING TO CURATE" "$out"
+expect "and counts the free plans it read" "1 free" "$out"
+refute "a clean plan draws no REPAIR section at all" "REPAIR (" "$out"
+
+# One plan, four repairs: a dead anchor, a Scope path scope: misses, a whole
+# directory claimed, and (with two more declaring it) an unmarked registry.
+{ printf -- '---\nplan: repairs\nurgency: normal\nagent: sonnet\neffort: low\n'
+  printf 'needs: none\nrequirement: none\nscope: src, reg/index.py\n---\n\n'
+  printf '## Goal\nFixture.\n\n## Scope\n\n'
+  printf -- '- `src/real.py` — covered.\n'
+  printf -- '- `other/thing.py` — NOT covered by scope:.\n\n'
+  printf '## Where to look\n\n- `src/gone.py:thing` — not in the tree.\n'
+} >"${cwwork}/docs/plans/repairs.md"
+for n in reg_b reg_c; do
+  { printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: low\n' "$n"
+    printf 'needs: none\nrequirement: none\nscope: reg/index.py\n---\n\n'
+    printf '## Goal\nFixture.\n\n## Scope\n\n- `reg/index.py` — appended to.\n'
+  } >"${cwwork}/docs/plans/${n}.md"
+done
+commit_all "$cwwork" "a plan with four repairs, and two peers on the registry"
+git -C "$cwwork" push -q origin main
+out="$(cw)"
+expect "a dead anchor is a repair naming the path" \
+  "repairs: anchor 'src/gone.py' not in the tree" "$out"
+expect "a Scope path no scope: entry covers is a repair" \
+  "repairs: Scope names 'other/thing.py', scope: does not cover it" "$out"
+expect "a whole-directory claim is a repair" \
+  "repairs: scope: claims the whole directory 'src'" "$out"
+expect "a path three plans declare unmarked is a registry repair" \
+  "'reg/index.py' is declared by 3 plans and unmarked" "$out"
+expect "the verdict counts them" "verdict   : CURATE" "$out"
+refute "a covered Scope path is never reported" \
+  "Scope names 'src/real.py'" "$out"
+# The registry threshold is the human's, and below it the same path is an
+# ORDERING question instead — never a repair.
+out="$(cw env JOHARNESS_CURATE_REGISTRY=9)"
+refute "past the threshold nothing calls it a registry" \
+  "is declared by 3 plans and unmarked" "$out"
+expect "it is an ordering proposal instead, naming the plans" \
+  "'reg/index.py': claimed exclusively by" "$out"
+
+# A plan a manager HOLDS draws no finding: those declarations are its owner's.
+git -C "$cwwork" checkout -qb mgr-repairs
+printf -- '---\nworkstream: repairs\nstatus: in-progress\nbranch: mgr-repairs\nplan: repairs\nsession: https://example.invalid/session_rep\nagent: sonnet\nupdated: 2026-01-01\nnext: Build\n---\n\n## Goal\nFixture.\n' \
+  >"${cwwork}/docs/handover/repairs.md"
+commit_all "$cwwork" "claim repairs"
+git -C "$cwwork" push -qu origin mgr-repairs
+git -C "$cwwork" checkout -q main
+out="$(cw)"
+expect "a held plan is listed as held, with its branch" \
+  "HELD (a manager owns these declarations)" "$out"
+refute "and draws no repair of its own" \
+  "repairs: anchor 'src/gone.py' not in the tree" "$out"
+refute "nor a scope finding" \
+  "repairs: scope: claims the whole directory 'src'" "$out"
+
+# PROPOSE only: a plan past the split threshold is never a REPAIR.
+{ printf -- '---\nplan: big\nurgency: normal\nagent: sonnet\neffort: low\n'
+  printf 'needs: none\nrequirement: none\nscope: src/real.py\n---\n\n'
+  printf '## Goal\nFixture.\n\n## Scope\n\n'
+  for i in 1 2 3; do printf -- '- `src/real.py` — part %s.\n' "$i"; done
+  printf '\n## Where to look\n\n- `src/real.py:thing` — why.\n'
+} >"${cwwork}/docs/plans/big.md"
+commit_all "$cwwork" "a plan with three Scope bullets"
+git -C "$cwwork" push -q origin main
+out="$(cw env JOHARNESS_CURATE_SPLIT=3)"
+expect "a plan at the split threshold is a decompose candidate" \
+  "big: 3 Scope bullets (>= 3) — decompose candidate" "$out"
+expect "and the line says an author splits it, never this role" \
+  "a split needs an author" "$out"
+refute "a decompose candidate is never offered as a repair" \
+  "big: scope:" "$out"
+
+# DECLUTTER: a requirement gone from the tree, served by no other plan.
+{ printf -- '---\nplan: orphan\nurgency: normal\nagent: sonnet\neffort: low\n'
+  printf 'needs: none\nrequirement: vanished\nscope: src/real.py\n---\n\n'
+  printf '## Goal\nFixture.\n\n## Scope\n\n- `src/real.py` — what changes.\n'
+} >"${cwwork}/docs/plans/orphan.md"
+commit_all "$cwwork" "a plan whose requirement is gone"
+git -C "$cwwork" push -q origin main
+out="$(cw)"
+expect "a plan whose requirement is gone is a declutter candidate" \
+  "orphan: its requirement 'vanished' is gone and no other plan serves it" "$out"
+expect "and it says to confirm in merged history before deleting" \
+  "confirm in merged history, then delete" "$out"
+
+# --- the curate cycle in dispatch ------------------------------------------
+# Dated from GIT, never a ledger: the orchestrator's dies with its run.
+cwd() { ( cd "$cwwork" && JOHARNESS_CONF="$cwconf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 "$@" ./joharness.sh dispatch 2>&1 ); }
+out="$(cwd)"
+expect "no curate has ever landed, so one is due" \
+  "none has ever landed on main, so one is DUE" "$out"
+expect "and the tail line under the verdict says to spawn one" \
+  "curate DUE: spawn ONE curator (agent: sonnet)" "$out"
+expect "naming it as beyond the cap" "beyond the cap, holds no slot" "$out"
+out="$(cwd env JOHARNESS_CURATE_HOURS=0)"
+expect "zero hours is the human's off switch" \
+  "curate    : off — JOHARNESS_CURATE_HOURS=0" "$out"
+refute "and nothing is ever spawned" "curate DUE" "$out"
+
+# A curator in flight: no second one is due, whatever the clock says.
+git -C "$cwwork" checkout -qb claude/curate-run
+mkdir -p "${cwwork}/docs/handover"
+printf -- '---\nworkstream: curate-2026-09-11\nstatus: in-progress\nbranch: claude/curate-run\nplan: none\nsession: https://example.invalid/session_cur\nagent: sonnet\nupdated: 2026-09-11\nnext: Repair the registry markings\n---\n\n## Goal\nFixture.\n' \
+  >"${cwwork}/docs/handover/curate-2026-09-11.md"
+commit_all "$cwwork" "claim a curate"
+git -C "$cwwork" push -qu origin claude/curate-run
+git -C "$cwwork" checkout -q main
+out="$(cwd)"
+expect "a curator in flight is named with its branch and stamp" \
+  "claude/curate-run  curate-2026-09-11  in-progress  pushed" "$out"
+expect "its session rides under it" \
+  "session: https://example.invalid/session_cur" "$out"
+expect "and the cycle says none is due while one runs" \
+  "a curator is IN FLIGHT, so none is due" "$out"
+refute "so the orchestrator is told to spawn nothing" "curate DUE" "$out"
+
+# Its retire commit on the base branch IS the cycle's date. A curate that
+# landed inside the window makes the next one not due.
+git -C "$cwwork" checkout -q main
+# mkdir FIRST: checking out main removes docs/handover, because every tracked
+# file in it lives on a branch, and the redirect below would fail silently into
+# a commit with nothing staged.
+mkdir -p "${cwwork}/docs/handover"
+printf -- '---\nworkstream: curate-2026-09-11\nstatus: done\nbranch: claude/curate-run\nplan: none\nagent: sonnet\nupdated: 2026-09-11\nnext: done\n---\n\n## Goal\nFixture.\n' \
+  >"${cwwork}/docs/handover/curate-2026-09-11.md"
+commit_all "$cwwork" "a curate lands"
+fixture_rm "$cwwork" "retire it, the last commit before its pull request" \
+  docs/handover/curate-2026-09-11.md
+git -C "$cwwork" push -q origin main
+git -C "$cwwork" push -q origin --delete claude/curate-run
+out="$(cwd)"
+expect "a curate that just landed makes the next one not due" \
+  "since the last one landed, not due" "$out"
+refute "and nothing is spawned" "curate DUE" "$out"
+out="$(cwd env JOHARNESS_CURATE_HOURS=0)"
+refute "off still spawns nothing once one has landed" "curate DUE" "$out"

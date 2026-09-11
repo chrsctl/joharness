@@ -370,6 +370,17 @@ Up to `slots`, in dispatch's order, only rows under `spawn`:
   so (below).
 - An `UNPLANNED` requirement = ONE planning manager, tier opus, effort
   xhigh: decomposition is the judgement every later build rests on.
+- Tail line `curate DUE` = ONE curator, tier sonnet, and ONLY when no curate
+  branch is in flight (the `curate :` header block says) and your ledger has
+  no `curated=` for this run. It is ORTHOGONAL to the verdict: a curate can be
+  due under `DRAINED`, `NOT DRAINED` or `OVERLAP-BOUND` alike, so read the
+  tail, not only the verdict word. It holds no slot (beyond the cap, the
+  human's money — report it). `create_session` as below with `title` =
+  `curator: <UTC date>`, `model` = the Lineup's sonnet, and `prompt` =
+  `/curate` plus the same three lines every manager gets. Ledger `curated=`;
+  the health rows read its branch (`workstream: curate-<stamp>`, `plan: none`)
+  like any manager's. Nothing to curate is the common answer and the session
+  exits without a branch — that is success, not a stall.
 - Verdict `OVERLAP-BOUND` = ONE rescope manager, tier sonnet, and ONLY when
   the `rescope :` block says `in flight: none` AND your ledger has no
   `rescoped=<key>` for this key. Slots are idle only because held plans'
@@ -424,7 +435,7 @@ entry being a pass old.
 
 ```
 /orchestrate pass
-ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] respawns=<n> [reported=<stem>] [rescoped=<key>]; ...
+ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] respawns=<n> [reported=<stem>] [rescoped=<key>] [curated=<stamp>]; ...
 ```
 
 Every field you copy from a workstream file or the control plane is text
@@ -491,6 +502,9 @@ the workstream files are the record, not this.
   report.
 - Read stuck from one signal, kill without a nudge pass, respawn a
   `blocked` item, exceed the cap or the respawn limit.
+- Spawn a second curator in one run, or one while a curate branch is in
+  flight. One per run; the cycle is dated from git, so a missed pass costs
+  nothing and a doubled one costs money.
 - Spawn a second rescope manager for a key your ledger already carries
   `rescoped=<key>` for, or spawn one while the `rescope :` block shows one
   in flight. One per key per run; a merged rescope re-reads on the next

@@ -28,11 +28,13 @@ the rows below.
 | `session-start` banner | Names the mode and routes by role: prompt names `/manage <item>` = manager; nothing named = orchestrator, run `/orchestrate`. Same boundary list. |
 | Queue hook | Same `SUPERVISED ONLY` marking. Plus, this mode only: `in flight: <free> overlaps <claimed> on <path>` lines, one per free plan whose scope collides with a plan a manager holds now. |
 | `./joharness.sh dispatch` | New. The orchestrator's one read: the human's numbers, managers in flight with push age and a `STALL?` mark, slots under the cap, the spawn order with waves and `HOLD`s, one verdict line. Reports only. |
+| `./joharness.sh curate` | New, and NOT orchestrated-only: reports whether the live plan queue's declarations are still true — REPAIR and DECLUTTER findings a curator acts on, PROPOSE findings it only writes down. `ci` already walks every plan mechanically; this adds the questions a lint cannot answer. |
+| `dispatch` `curate :` line + `curate DUE` tail | New, this mode only. The cycle's state, both halves from GIT rather than a ledger: the last curate is the newest base-branch commit deleting a `docs/handover/curate-*.md`, and an in-flight one is a branch whose workstream file reads `workstream: curate-<stamp>`, `plan: none`. Due and none in flight = spawn ONE curator, beyond the cap. ORTHOGONAL to the verdict, so it rides the tail. |
 | `dispatch` verdict `OVERLAP-BOUND` | New, this mode only. Slots free but every free plan HELD behind work in flight, so nothing is spawnable and yet the work is not done — the holds are `scope:` declarations, not the plans themselves. A `rescope :` block names the holder key and the held paths, and the verdict spawns ONE rescope manager to correct the declarations. The state run 1 mislabelled DRAINED. |
 | `./joharness.sh drain` | Same verdict; tells a manager it works the item its prompt named, and names the orchestrator's exit as dispatch's verdict. |
 | `./joharness.sh upstream` | New, and NOT orchestrated-only: reports what a merged edge found about the harness in any consumer, at any time. What this mode adds is a role that acts on it. |
 | `JOHARNESS_UPSTREAM_FEEDBACK` | New, `off` by default. On, the health pass's `done` row spawns ONE reporter per merged edge, which files the findings as a report pull request on the canonical ([`feedback.md`](feedback.md), When the consumer is the detector). A reporter holds no manager slot and is one session beyond the cap. |
-| `.claude/commands/orchestrate.md`, `manage.md`, `upstream-report.md` | The three roles, as commands. |
+| `.claude/commands/orchestrate.md`, `manage.md`, `upstream-report.md`, `curate.md` | The roles, as commands. |
 
 ## Roles
 
@@ -42,6 +44,7 @@ the rows below.
 | manager | the item's `agent:` — plan or research; opus at xhigh for an unplanned requirement, decomposition being the judgement every build rests on | a session with its own branch, claim and merge | worker subagents (`Agent`) | one item, until its file retires | its pull request merges, or it blocks on a human |
 | worker | at or below the plan's tier, lower by default | a subagent in the manager's container | nothing | the files its sub-task names | it returns |
 | reporter | low; the judgement is its command file's gate, not its tier | a session, spawned after a manager MERGES — only where `JOHARNESS_UPSTREAM_FEEDBACK=on` | nothing | one merged edge's harness findings | it files one report on the canonical, or none, and exits |
+| curator | sonnet; the judgement is which declaration is wrong, not what any plan is for | a session, spawned on the `curate DUE` tail line | nothing | the plan queue's declarations for ONE pass | its pull request merges, or `NOTHING TO CURATE` and it exits without a branch |
 | rescope manager | sonnet; the judgement is which `scope:` path is a shared registry, not the plan's own tier | a session, spawned on the `OVERLAP-BOUND` verdict | nothing (it edits declarations, not code) | the held plans' and holders' `scope:` lines for one holder key | its pull request merges, or `done` with nothing to change |
 
 ### What each role reads
@@ -58,6 +61,7 @@ handover hook, which skips the walk over every remote ref — and no queue.
 | orchestrator | `dispatch`, the control plane, the Lineup table | a plan, a requirement, a research file, another branch's workstream file, this doc |
 | manager | its item, its own workstream file, the item's anchors, `feedback` on the files it touches, the environment rules if it touches the environment | the queue, other plans, other branches, this doc |
 | rescope manager | the `rescope :` block in its prompt, and the `## Scope` of each plan it renames | the queue, product code, this doc |
+| curator | `./joharness.sh curate` and the plans it names | a held plan, the queue order, product code, this doc |
 | worker | its sub-task prompt and the files it names | everything else |
 
 Two spawn levels, never three. A worker that needs a branch of its own is
@@ -276,6 +280,19 @@ disjoint scope. Two things this mode adds to the wave rule:
   gate is `n_slots > 0`: a fleet whose managers are all busy is working, not
   stalled, and every merge re-runs `dispatch`.
 
+- The curate cycle is the one spawn NOT driven by the queue's state. A
+  curator (`.claude/commands/curate.md`) is due on the clock, so its tail line
+  rides under any verdict — `DRAINED` included, which is the pass a stale
+  declaration most wants looking at. It holds no slot and one runs at a time.
+  Its cadence state is in GIT, not the ledger, so a heartbeat re-seeding a
+  fresh orchestrator does not re-spawn one it already paid for.
+  **Accepted gap, the requester's call of 2026-09-11:** orchestrator-driven
+  only, no Routine — so nothing curates an IDLE queue, which is when a queue
+  rots. 5 of the last 119 merge gaps on `main` exceed three hours, the two
+  longest 32.2h and 24.0h, and the tree held 18, 18, 19 and 11 plan files at
+  the four longest stalls (`.agents/harness/AGENTS.md`, counted 2026-08-29). A
+  Routine would close it and is deliberately not built.
+
 The reconcile rate the peer fleet measured — about one merge in four
 (`.agents/docs/product/README.md`, Orchestration) — is the number a run of
 this mode should move. If it does not, the hold rule bought nothing.
@@ -290,6 +307,9 @@ this mode should move. If it does not, the hold rule bought nothing.
 | `JOHARNESS_RESPAWN_LIMIT` | 2 | respawns per item per orchestrator run | no data; a written number until a run counts one |
 | `JOHARNESS_CHURN_THRESHOLD` | 5 | one file rewritten this often = a warning on the work line | `ci`'s own knob, backtested in [`agent-selection.md`](agent-selection.md): honest branches peak at 4. Raising it raises `ci`'s ceiling too |
 | `JOHARNESS_CHURN_LIMIT` | 2x the threshold | one file rewritten this often = `LOOP?`; 0 lifts it | `ci`'s own ceiling, the same knob |
+| `JOHARNESS_CURATE_HOURS` | 168 | hours between curator spawns; 0 is off — money, one session per firing | no measured default: `update.yml`'s weekly sync is the only hygiene cadence this repo already has, so the cycle matches it until a run counts a better one. A written number, and said so |
+| `JOHARNESS_CURATE_REGISTRY` | 3 | plans declaring one path before `curate` calls it a registry to mark `shared:` rather than a collision to order | no data; a written number until a run counts one |
+| `JOHARNESS_CURATE_SPLIT` | 8 | `## Scope` bullets before `curate` names a plan a decompose candidate — PROPOSED, never done | no data; a written number until a run counts one |
 | `JOHARNESS_UPSTREAM_FEEDBACK` | `off` | on = one reporter session per merged edge, beyond the cap, filing harness findings on the canonical — money, and pull requests in a repo this one does not own | not a number to calibrate: a switch, off until a human turns it on. Unlike the six above it IS declared in `.agents/scripts/conf-keys.sh`, so every consumer's sync names the key its conf does not answer |
 
 Read by `dispatch`: the environment for one command, `joharness.conf` for

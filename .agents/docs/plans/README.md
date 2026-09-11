@@ -112,6 +112,17 @@ registry `shared:` in the first place is what spares the fleet that pass, so
 name a bare directory (`docs/adr`) as the specific file you touch and mark a
 true registry `shared:` when you write the plan.
 
+A plan's declarations rot the way its anchors do, and under orchestrated mode
+a role checks them on a cadence: `./joharness.sh curate` reports whether each
+plan's `scope:` still covers what its `## Scope` section names, whether it
+claims a whole directory it should narrow, and whether a path enough plans
+declare is a registry nobody marked `shared:`. A curator REPAIRS those and
+deletes a plan whose work it can find in merged history; it only PROPOSES a
+decomposition or an ordering, and it never touches `urgency:` or a plan a
+manager holds (`.agents/docs/orchestrated.md`, Roles). None of that moves the
+duty: the author owns getting a plan right, and a curator is the backstop that
+says so out loud rather than a reason to declare less carefully.
+
 ## Does this plan reach consumers
 
 `ci`'s ship-scope stage reads a plan's `scope:` and says whether the work
