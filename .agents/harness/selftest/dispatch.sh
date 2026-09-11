@@ -1373,11 +1373,18 @@ printf -- '---\nworkstream: curate-2026-09-11\nstatus: in-progress\nbranch: clau
   >"${cuwork}/docs/handover/curate-2026-09-11.md"
 commit_all "$cuwork" "claim a curate"
 git -C "$cuwork" push -qu origin claude/curate-loop
+# BACK TO MAIN before asking. `drain` reads an in-flight curate out of the
+# handover hook's `origin/<branch>: docs/handover/...` lines, which is how one
+# session sees ANOTHER's claim; a session sitting on the curate branch is the
+# curator and needs no telling. Asking from the branch itself measured the
+# wrong question and read as "nothing in flight".
+git -C "$cuwork" checkout -q main
 out="$(cud)"
 expect "a curate in flight is named rather than spawned again" \
   "IN FLIGHT on claude/curate-loop, so not yours" "$out"
 refute "and drain does not call it this session's item" \
   "curate    : DUE —" "$out"
+git -C "$cuwork" checkout -q claude/curate-loop
 fixture_rm "$cuwork" "retire it (step 7)" docs/handover/curate-2026-09-11.md
 git -C "$cuwork" push -q origin claude/curate-loop
 git -C "$cuwork" checkout -q main
@@ -1426,7 +1433,7 @@ expect "and dispatch names it as the human's off switch" \
 cuplan five
 commit_all "$cuwork" "one more plan so the queue is not empty"
 git -C "$cuwork" push -q origin main
-out="$(cudis)"
+out="$(cudis env JOHARNESS_CURATE_PLANS=1)"
 expect "orchestrated: the cycle is due and the tail says to spawn" \
   "curate DUE: spawn ONE curator (agent: sonnet)" "$out"
 expect "naming it as beyond the cap, holding no slot" \
@@ -1441,7 +1448,7 @@ printf -- '---\nworkstream: curate-2026-09-12\nstatus: in-progress\nbranch: clau
 commit_all "$cuwork" "a curator claims under orchestrated"
 git -C "$cuwork" push -qu origin claude/curate-orch
 git -C "$cuwork" checkout -q main
-out="$(cudis)"
+out="$(cudis env JOHARNESS_CURATE_PLANS=1)"
 expect "orchestrated: one in flight is named with its branch and stamp" \
   "claude/curate-orch  curate-2026-09-12  in-progress  pushed" "$out"
 expect "its session rides under it, so the health pass can find it" \
@@ -1449,7 +1456,7 @@ expect "its session rides under it, so the health pass can find it" \
 refute "and the orchestrator is told to spawn NOTHING" "curate DUE" "$out"
 # The same fact, from the other reader: drain must not hand it to a session
 # either, and both must name the same branch.
-out="$(cud)"
+out="$(cud env JOHARNESS_CURATE_PLANS=1)"
 expect "drain agrees it is not this session's, naming the same branch" \
   "IN FLIGHT on claude/curate-orch, so not yours" "$out"
 refute "and claims nothing" "curate    : DUE" "$out"
