@@ -5871,6 +5871,7 @@ drain_free_others() {
 
 cmd_drain() {
   local mode qout hout edge next free sup="" others
+  local cdue cstate creason cinflight=0 cb ck cstat csess cnext
   mode="$(run_mode)"
   printf '== drain (mode: %s)\n\n' "$mode"
 
@@ -5887,6 +5888,35 @@ cmd_drain() {
     printf '  %s\n' "$edge"
     printf '  Yours, or its session gone (/who)? Take it first. Another session\n'
     printf '  LIVE on it: say so to the human and skip it.\n\n'
+  fi
+
+  # The curate cycle, in the cycle `/start` actually runs. `cmd_start` routes
+  # by mode to THIS file under supervised and unsupervised, so a curator
+  # printed only by `dispatch` is one a default repo can never reach — which is
+  # what shipped, and what this fixes.
+  #
+  # Placed after the edge block and before the queue: finishing outranks
+  # starting, and a due curate makes the queue truthful BEFORE a session picks
+  # from it rather than after. It is the item when due, never a second item —
+  # one item per session holds here as everywhere.
+  cdue="$(dispatch_curate_due)"
+  cstate="${cdue%% *}"; creason="${cdue#* }"
+  if [ "$cstate" = due ]; then
+    while IFS=$'\t' read -r cb ck cstat csess cnext; do
+      [ -n "$cb" ] || continue
+      cinflight=$((cinflight + 1))
+      printf 'curate    : due (%s) — but one is IN FLIGHT on %s (curate-%s, %s)\n' \
+        "$creason" "$cb" "$ck" "$cstat"
+      [ -z "$cnext" ] || printf '            next: %s\n' "$cnext"
+    done < <(dispatch_curate_branches)
+    if [ "$cinflight" -eq 0 ]; then
+      printf 'curate    : DUE — %s\n' "$creason"
+      printf '  The plan queue has moved under its own declarations. This is\n'
+      printf '  queue work and it is THIS session'"'"'s item: read\n'
+      printf '  .claude/commands/curate.md and run ./joharness.sh curate.\n'
+      printf '  Nothing is invented — every plan it touches already exists.\n'
+    fi
+    printf '\n'
   fi
 
   next="$(drain_next "$qout")"
@@ -5962,6 +5992,13 @@ cmd_drain() {
   else
     printf '  Supervised stops here and asks (step 2). It does NOT invent work;\n'
     printf '  neither does unsupervised — that mode exits here instead of asking.\n'
+  fi
+  # An idle queue is exactly the queue nothing was curating: the gap
+  # `curator-role` recorded and left open. Said again HERE because a reader that
+  # took the DRAINED line as its answer never scrolled back up.
+  if [ "$cstate" = due ] && [ "$cinflight" -eq 0 ]; then
+    printf '  A curate is DUE (%s). That is real work and it is yours before you\n' "$creason"
+    printf '  ask or exit: .claude/commands/curate.md.\n'
   fi
   return 0
 }
@@ -6227,23 +6264,94 @@ dispatch_retired_edges() {
 # last landed. The orchestrator's ledger dies with its run and a heartbeat
 # re-seeds a fresh one; git does not forget, which is the same reason
 # `dispatch_retired_edges` counts from refs rather than from memory.
-dispatch_curate_age_h() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" ts now
-  # `--full-history` is load-bearing, not a flourish. The curator ADDS its
-  # workstream file and DELETES it inside the same branch (curate.md 1 and 5),
-  # so the merge commit is TREESAME to its first parent for that path and
-  # default simplification never walks the branch — the retire is invisible and
-  # the cycle reads "none has ever landed" on every pass, forever, spawning a
-  # curator per orchestrator run and making JOHARNESS_CURATE_HOURS dead.
-  # Measured on this repo 2026-09-11, `docs/handover/*.md`: 13 deletions
-  # simplified against 195 with the flag, newest 2026-08-26 against 2026-09-10
-  # (verifier r1).
-  ts="$(git -C "$ROOT" log -1 --format=%ct --diff-filter=D --full-history \
+# The commit time of the last curate that LANDED, empty when none has. Split
+# from the hours reader because the churn count needs the same instant and
+# deriving it twice is two answers to one question.
+#
+# `--full-history` is load-bearing, not a flourish. The curator ADDS its
+# workstream file and DELETES it inside the same branch (curate.md 1 and 5), so
+# the merge commit is TREESAME to its first parent for that path and default
+# simplification never walks the branch — the retire is invisible and the cycle
+# reads "none has ever landed" on every pass, forever. Measured on this repo
+# 2026-09-11, `docs/handover/*.md`: 13 deletions simplified against 195 with the
+# flag, newest 2026-08-26 against 2026-09-10 (verifier r1).
+dispatch_curate_landed_ts() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}"
+  git -C "$ROOT" log -1 --format=%ct --diff-filter=D --full-history \
     "refs/remotes/origin/${base_branch}" -- 'docs/handover/curate-*.md' \
-    </dev/null 2>/dev/null)"
+    </dev/null 2>/dev/null
+}
+
+dispatch_curate_age_h() {
+  local ts now
+  ts="$(dispatch_curate_landed_ts)"
   [ -n "$ts" ] || return 0
   now="$(date +%s)"
   printf '%s' "$(( (now - ts) / 3600 ))"
+}
+
+# Plan files added or changed on the base branch SINCE a given commit time, or
+# since the beginning when none is given. `--full-history` for the same reason
+# the landing derivation needs it: a plan added on a branch and merged is
+# TREESAME to the merge's first parent, so default simplification undercounts
+# exactly the plans a curate cares about.
+dispatch_curate_plan_churn() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" since="${1:-}" range
+  range="refs/remotes/origin/${base_branch}"
+  [ -z "$since" ] || range="--since=@${since} ${range}"
+  # shellcheck disable=SC2086
+  git -C "$ROOT" log --full-history --format=%H $range -- docs/plans \
+    </dev/null 2>/dev/null |
+    while IFS= read -r c; do
+      [ -n "$c" ] || continue
+      git -C "$ROOT" diff-tree --no-commit-id --name-only -r "$c" -- docs/plans \
+        </dev/null 2>/dev/null
+    done | gr_docs | sort -u | grep -c . || printf '0'
+}
+
+# Is a curate due, and WHY. One reader, because `drain` and `dispatch` both ask
+# and two readers of one cadence is two answers — the orchestrator and a
+# supervised session acting on different ones.
+#
+# TWO triggers, and production is the primary. A plan arrives with declarations
+# nobody has checked, so the need is driven by how fast plans are produced, not
+# by a clock. Counted on this repo's `origin/main` 2026-09-11, plan files
+# touched per week over the last 12: 0 for weeks -12 to -4, then 32, 55, 10 —
+# so a 168h clock fires eight times over nothing in the quiet stretch and about
+# three times while 97 changes land in the busy one. Wrong in both directions.
+#
+# The clock is KEPT for the one thing production cannot see: code moving UNDER
+# a plan breaks its anchors with no plan file changing, which is the staleness
+# rule (.agents/docs/plans/README.md). Either knob at 0 disables its own
+# trigger; both at 0 disables the cycle.
+#
+# Prints one line: `<due|not-due|off> <reason>`.
+dispatch_curate_due() {
+  local hours plans age churn
+  hours="$(num_knob JOHARNESS_CURATE_HOURS 168)"
+  plans="$(num_knob JOHARNESS_CURATE_PLANS 10)"
+  if [ "$hours" -eq 0 ] && [ "$plans" -eq 0 ]; then
+    printf 'off JOHARNESS_CURATE_HOURS=0 and JOHARNESS_CURATE_PLANS=0: no curate is ever due'
+    return 0
+  fi
+  age="$(dispatch_curate_age_h)"
+  churn="$(dispatch_curate_plan_churn "$(dispatch_curate_landed_ts)")"
+  if [ -z "$age" ]; then
+    printf 'due none has ever landed on %s (%s plan file(s) in the queue'"'"'s history)' \
+      "${HANDOVER_BASE_BRANCH:-main}" "$churn"
+    return 0
+  fi
+  if [ "$plans" -gt 0 ] && [ "$churn" -ge "$plans" ]; then
+    printf 'due %s plan file(s) changed since the last curate (>= %s)' "$churn" "$plans"
+    return 0
+  fi
+  if [ "$hours" -gt 0 ] && [ "$age" -ge "$hours" ]; then
+    printf 'due %sh since the last curate (>= %sh), %s plan file(s) changed' \
+      "$age" "$hours" "$churn"
+    return 0
+  fi
+  printf 'not-due %s plan file(s) changed (of %s) and %sh elapsed (of %sh) since the last curate' \
+    "$churn" "${plans}" "$age" "${hours}"
 }
 
 # Curate branches in flight: unmerged, carrying a workstream file this branch
@@ -6590,7 +6698,7 @@ cmd_dispatch() {
   local n_inflight=0 n_slots n_free=0 n_stall=0 n_blocked=0 n_hold=0 n_wait=0 n_loop=0
   local n_edge=0 n_edge_stall=0 n_leftover=0 n_leftover_noitem=0
   local leftover_rows="" estate=""
-  local curate_h="" curate_due=0 curate_inflight="" n_curate_inflight=0 curateh
+  local curate_due=0 curate_inflight="" n_curate_inflight=0 cdue cstate creason
   local cb ck cstat csess cnext cage
   local rescope_key="" rescope_paths="" rescope_inflight="" rescope_holders=""
   local n_rescope_inflight=0 n_rescope_holders=0 rescope_settled=0
@@ -6668,43 +6776,37 @@ cmd_dispatch() {
   fi
   # The curate cycle's standing state. Both halves from git (never a ledger:
   # the orchestrator's dies with its run), and `0` is the human's off switch.
-  curateh="$(num_knob JOHARNESS_CURATE_HOURS 168)"
-  # The knob and the age decide whether the scan can change the answer, so they
-  # are read BEFORE it. `dispatch_curate_branches` walks every remote ref a
-  # second time — 4 git calls per branch — and running it unconditionally cost
-  # +30% on this checkout's 132 refs (6749/6827/6753 ms against 5227/5197/5169,
-  # three runs each, 2026-09-11), which the documented off switch did not save
-  # because the loop sat above it. Off scans nothing; not-due scans nothing,
-  # because a curator in flight cannot make a not-due pass due (verifier r12).
-  if [ "$curateh" -gt 0 ]; then
-    curate_h="$(dispatch_curate_age_h)"
-    if [ -z "$curate_h" ] || [ "$curate_h" -ge "$curateh" ]; then
-      while IFS=$'\t' read -r cb ck cstat csess cnext; do
-        [ -n "$cb" ] || continue
-        cage="$(dispatch_age_text "$(dispatch_age_min "$cb" </dev/null)")"
-        n_curate_inflight=$((n_curate_inflight + 1))
-        curate_inflight="${curate_inflight}            ${cb}  curate-${ck}  ${cstat}  pushed ${cage}\n"
-        [ -z "$csess" ] || curate_inflight="${curate_inflight}              session: ${csess}\n"
-        [ -z "$cnext" ] || curate_inflight="${curate_inflight}              next: ${cnext}\n"
-      done < <(dispatch_curate_branches)
-    fi
+  # ONE reader, shared with `drain`: two readers of one cadence is two answers
+  # to "is a curate due", and the orchestrator and a supervised session would
+  # act on different ones. The scan below still runs only when the answer can
+  # change — `dispatch_curate_branches` walks every remote ref a second time (4
+  # git calls per branch) and running it unconditionally cost +30% on this
+  # checkout's 132 refs (6749/6827/6753 ms against 5227/5197/5169, three runs
+  # each, 2026-09-11), which the off switch did not save because the loop sat
+  # above it. Off scans nothing; not-due scans nothing, because a curator in
+  # flight cannot make a not-due pass due (verifier r12).
+  cdue="$(dispatch_curate_due)"
+  cstate="${cdue%% *}"; creason="${cdue#* }"
+  if [ "$cstate" = due ]; then
+    while IFS=$'\t' read -r cb ck cstat csess cnext; do
+      [ -n "$cb" ] || continue
+      cage="$(dispatch_age_text "$(dispatch_age_min "$cb" </dev/null)")"
+      n_curate_inflight=$((n_curate_inflight + 1))
+      curate_inflight="${curate_inflight}            ${cb}  curate-${ck}  ${cstat}  pushed ${cage}\n"
+      [ -z "$csess" ] || curate_inflight="${curate_inflight}              session: ${csess}\n"
+      [ -z "$cnext" ] || curate_inflight="${curate_inflight}              next: ${cnext}\n"
+    done < <(dispatch_curate_branches)
   fi
-  if [ "$curateh" -eq 0 ]; then
-    printf 'curate    : off — JOHARNESS_CURATE_HOURS=0, no curator is ever spawned\n'
+  if [ "$cstate" = off ]; then
+    printf 'curate    : off — %s\n' "$creason"
   elif [ "$n_curate_inflight" -gt 0 ]; then
-    printf 'curate    : every %sh; a curator is IN FLIGHT, so none is due:\n' "$curateh"
+    printf 'curate    : due (%s), and one is IN FLIGHT:\n' "$creason"
     printf '%b' "$curate_inflight"
-  elif [ -z "$curate_h" ]; then
+  elif [ "$cstate" = due ]; then
     curate_due=1
-    printf 'curate    : every %sh; none has ever landed on %s, so one is DUE\n' \
-      "$curateh" "${HANDOVER_BASE_BRANCH:-main}"
-  elif [ "$curate_h" -ge "$curateh" ]; then
-    curate_due=1
-    printf 'curate    : every %sh; %sh since the last one landed, so one is DUE\n' \
-      "$curateh" "$curate_h"
+    printf 'curate    : DUE — %s\n' "$creason"
   else
-    printf 'curate    : every %sh; %sh since the last one landed, not due\n' \
-      "$curateh" "$curate_h"
+    printf 'curate    : not due — %s\n' "$creason"
   fi
   printf '\n'
 
@@ -7213,7 +7315,7 @@ cmd_dispatch() {
   # Orthogonal to the verdict itself — a curate is due, or not, whatever the
   # queue says — which is why it is a tail line and not a verdict of its own.
   [ "$curate_due" -eq 0 ] ||
-    printf '            curate DUE: spawn ONE curator (agent: sonnet) on ./joharness.sh curate — beyond the cap, holds no slot, at most one in flight (JOHARNESS_CURATE_HOURS)\n'
+    printf '            curate DUE: spawn ONE curator (agent: sonnet) on ./joharness.sh curate — beyond the cap, holds no slot, at most one in flight (JOHARNESS_CURATE_PLANS, JOHARNESS_CURATE_HOURS)\n'
   # Said on the verdict, because this is the count the orchestrator spends
   # money against and it is the half of the count git cannot finish: these
   # rows have no `session:` line to read. Never folded into the stall count —

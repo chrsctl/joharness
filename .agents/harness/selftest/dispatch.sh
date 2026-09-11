@@ -1307,3 +1307,104 @@ refute "never the clean-queue sentence, which curate.md reads as stop" \
   "every declaration reads true" "$out"
 refute "and the held plan's own finding is not reported" \
   "onlyheld: anchor" "$out"
+
+# --- the curate cycle is the cycle /start runs, on a production trigger ------
+# `cmd_start` routes by MODE: supervised and unsupervised reach drain.md, only
+# orchestrated reaches orchestrate.md. A cadence printed by `dispatch` alone is
+# one a default repo can never reach, which is what shipped. And the trigger is
+# production, not a clock: plan files touched per week on this repo's own main
+# over 12 weeks were 0 eight times, then 32, 55, 10 (2026-09-11), so a 168h
+# clock fires over nothing in the quiet stretch and misses 97 changes in the
+# busy one. Its own fixture, one plan at a time so the churn count is exact.
+cuwork="${TMP}/curateloop"
+cuorigin="${TMP}/curateloop.git"
+git init -q --bare "$cuorigin"
+git init -q "$cuwork"
+git -C "$cuwork" symbolic-ref HEAD refs/heads/main
+mkdir -p "${cuwork}/docs/plans" "${cuwork}/docs/handover" "${cuwork}/src" \
+  "${cuwork}/.agents/harness" "${cuwork}/.agents/env/none"
+cp "${ROOT}/joharness.sh" "${cuwork}/joharness.sh"
+cp "${ROOT}/.agents/harness/queue-context.sh" \
+   "${ROOT}/.agents/harness/handover-context.sh" "${cuwork}/.agents/harness/"
+printf '# none\n' >"${cuwork}/.agents/env/none/AGENTS.md"
+printf 'x\n' >"${cuwork}/src/real.py"
+cuconf="${cuwork}/joharness.conf"
+printf 'JOHARNESS_ENV=none\n' >"$cuconf"
+cuplan() {
+  { printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: low\n' "$1"
+    printf 'needs: none\nrequirement: none\nscope: src/real.py\n---\n\n'
+    printf '## Goal\nFixture.\n\n## Scope\n\n- %ssrc/real.py%s -- what changes.\n' "$bt" "$bt"
+  } >"${cuwork}/docs/plans/${1}.md"
+}
+cuplan one
+commit_all "$cuwork" "base"
+git -C "$cuwork" remote add origin "$cuorigin"
+git -C "$cuwork" push -qu origin main
+cud() { ( cd "$cuwork" && JOHARNESS_CONF="$cuconf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 "$@" ./joharness.sh drain 2>&1 ); }
+cudis() { ( cd "$cuwork" && JOHARNESS_CONF="$cuconf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 JOHARNESS_MODE=orchestrated "$@" ./joharness.sh dispatch 2>&1 ); }
+
+# Supervised is the default mode, and this is the whole point: the curate line
+# must be in the output `/start` routes to.
+out="$(cud)"
+expect "drain names the mode it is reading" "== drain (mode: supervised)" "$out"
+expect "and prints the curate cycle, which only dispatch used to" \
+  "curate    : DUE" "$out"
+expect "naming curate.md as this session's item" \
+  ".claude/commands/curate.md" "$out"
+expect "and saying it invents nothing" \
+  "Nothing is invented — every plan it touches already exists" "$out"
+
+# ONE reader: drain and dispatch must give the same verdict over one fixture.
+dline="$(printf '%s\n' "$(cud)" | sed -n 's/^curate    : //p' | head -1)"
+xline="$(printf '%s\n' "$(cudis)" | sed -n 's/^curate    : //p' | head -1)"
+if [ -n "$dline" ] && [ "$dline" = "$xline" ]; then
+  pass "drain and dispatch answer 'is a curate due' identically"
+else
+  fail "drain and dispatch disagree: drain='${dline}' dispatch='${xline}'"
+fi
+
+# A landed curate settles it, and then the PRODUCTION trigger is what brings it
+# back — with the clock nowhere near.
+git -C "$cuwork" checkout -qb claude/curate-loop
+mkdir -p "${cuwork}/docs/handover"
+printf -- '---\nworkstream: curate-2026-09-11\nstatus: in-progress\nbranch: claude/curate-loop\nplan: none\nagent: sonnet\nupdated: 2026-09-11\nnext: x\n---\n\n## Goal\nFixture.\n' \
+  >"${cuwork}/docs/handover/curate-2026-09-11.md"
+commit_all "$cuwork" "claim a curate"
+git -C "$cuwork" push -qu origin claude/curate-loop
+out="$(cud)"
+expect "a curate in flight is named rather than spawned again" \
+  "one is IN FLIGHT on claude/curate-loop" "$out"
+refute "and drain does not call it this session's item" \
+  "curate    : DUE —" "$out"
+fixture_rm "$cuwork" "retire it (step 7)" docs/handover/curate-2026-09-11.md
+git -C "$cuwork" push -q origin claude/curate-loop
+git -C "$cuwork" checkout -q main
+git -C "$cuwork" merge -q --no-ff --no-edit claude/curate-loop
+git -C "$cuwork" push -q origin main
+out="$(cud)"
+expect "once it lands, nothing is due" "curate    : not due" "$out"
+refute "and no block claims the session's item" "curate    : DUE" "$out"
+
+# Production: three plan files land, threshold 3 -> due, though ~0h elapsed.
+for n in two three four; do cuplan "$n"; done
+commit_all "$cuwork" "three plans land"
+git -C "$cuwork" push -q origin main
+out="$(cud env JOHARNESS_CURATE_PLANS=3)"
+expect "three plan files since the last curate makes one due" \
+  "3 plan file(s) changed since the last curate (>= 3)" "$out"
+expect "and the clock had nothing to do with it" "curate    : DUE" "$out"
+out="$(cud env JOHARNESS_CURATE_PLANS=99)"
+expect "under the threshold it is not due, and says both numbers" \
+  "plan file(s) changed (of 99)" "$out"
+refute "so nothing is claimed as the item" "curate    : DUE" "$out"
+
+# Time: the trigger production cannot see — code moves UNDER a plan and breaks
+# its anchors with no plan file changing. Hours 0 leaves only production.
+out="$(cud env JOHARNESS_CURATE_PLANS=99 JOHARNESS_CURATE_HOURS=0)"
+refute "hours 0 disables the clock alone" "since the last curate (>= " "$out"
+out="$(cud env JOHARNESS_CURATE_PLANS=0 JOHARNESS_CURATE_HOURS=0)"
+expect "both knobs 0 is the human's off switch" \
+  "no curate is ever due" "$out"
+refute "and nothing is ever claimed" "curate    : DUE" "$out"

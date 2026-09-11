@@ -29,7 +29,7 @@ the rows below.
 | Queue hook | Same `SUPERVISED ONLY` marking. Plus, this mode only: `in flight: <free> overlaps <claimed> on <path>` lines, one per free plan whose scope collides with a plan a manager holds now. |
 | `./joharness.sh dispatch` | New. The orchestrator's one read: the human's numbers, managers in flight with push age and a `STALL?` mark, slots under the cap, the spawn order with waves and `HOLD`s, one verdict line. Reports only. |
 | `./joharness.sh curate` | New, and NOT orchestrated-only: reports whether the live plan queue's declarations are still true — REPAIR and DECLUTTER findings a curator acts on, PROPOSE findings it only writes down. `ci` already walks every plan mechanically; this adds the questions a lint cannot answer. |
-| `dispatch` `curate :` line + `curate DUE` tail | New, this mode only. The cycle's state, both halves from GIT rather than a ledger: the last curate is the newest base-branch commit deleting a `docs/handover/curate-*.md`, and an in-flight one is a branch whose workstream file reads `workstream: curate-<stamp>`, `plan: none`. Due and none in flight = spawn ONE curator, beyond the cap. ORTHOGONAL to the verdict, so it rides the tail. |
+| `dispatch` `curate :` line + `curate DUE` tail | New, and NOT this mode's alone: `drain` prints the same line from the same reader, so a human's `/start` reaches the curator too. The cycle's state, both halves from GIT rather than a ledger: the last curate is the newest base-branch commit deleting a `docs/handover/curate-*.md`, and an in-flight one is a branch whose workstream file reads `workstream: curate-<stamp>`, `plan: none`. Due and none in flight = spawn ONE curator, beyond the cap. ORTHOGONAL to the verdict, so it rides the tail. |
 | `dispatch` verdict `OVERLAP-BOUND` | New, this mode only. Slots free but every free plan HELD behind work in flight, so nothing is spawnable and yet the work is not done — the holds are `scope:` declarations, not the plans themselves. A `rescope :` block names the holder key and the held paths, and the verdict spawns ONE rescope manager to correct the declarations. The state run 1 mislabelled DRAINED. |
 | `./joharness.sh drain` | Same verdict; tells a manager it works the item its prompt named, and names the orchestrator's exit as dispatch's verdict. |
 | `./joharness.sh upstream` | New, and NOT orchestrated-only: reports what a merged edge found about the harness in any consumer, at any time. What this mode adds is a role that acts on it. |
@@ -286,12 +286,11 @@ disjoint scope. Two things this mode adds to the wave rule:
   declaration most wants looking at. It holds no slot and one runs at a time.
   Its cadence state is in GIT, not the ledger, so a heartbeat re-seeding a
   fresh orchestrator does not re-spawn one it already paid for.
-  **Accepted gap, the requester's call of 2026-09-11:** orchestrator-driven
-  only, no Routine — so nothing curates an IDLE queue, which is when a queue
-  rots. 5 of the last 119 merge gaps on `main` exceed three hours, the two
-  longest 32.2h and 24.0h, and the tree held 18, 18, 19 and 11 plan files at
-  the four longest stalls (`.agents/harness/AGENTS.md`, counted 2026-08-29). A
-  Routine would close it and is deliberately not built.
+  The idle queue was the gap this mode could not cover on its own, and it is
+  closed from the other side rather than by a Routine: `drain` prints the same
+  due line, so a human's `/start` reaches the curator in any mode
+  (`docs/plans/curator-in-the-loop.md`). What made it regular is the trigger —
+  plan files changed since the last curate, not a clock.
 
 The reconcile rate the peer fleet measured — about one merge in four
 (`.agents/docs/product/README.md`, Orchestration) — is the number a run of
@@ -307,7 +306,8 @@ this mode should move. If it does not, the hold rule bought nothing.
 | `JOHARNESS_RESPAWN_LIMIT` | 2 | respawns per item per orchestrator run | no data; a written number until a run counts one |
 | `JOHARNESS_CHURN_THRESHOLD` | 5 | one file rewritten this often = a warning on the work line | `ci`'s own knob, backtested in [`agent-selection.md`](agent-selection.md): honest branches peak at 4. Raising it raises `ci`'s ceiling too |
 | `JOHARNESS_CHURN_LIMIT` | 2x the threshold | one file rewritten this often = `LOOP?`; 0 lifts it | `ci`'s own ceiling, the same knob |
-| `JOHARNESS_CURATE_HOURS` | 168 | hours between curator spawns; 0 is off — money, one session per firing | no measured default: `update.yml`'s weekly sync is the only hygiene cadence this repo already has, so the cycle matches it until a run counts a better one. A written number, and said so |
+| `JOHARNESS_CURATE_PLANS` | 10 | plan files added or changed since the last curate before one is due — the PRIMARY trigger, because a plan arrives with declarations nobody has checked | counted on `origin/main` 2026-09-11, plan files touched per week over 12 weeks: `0` eight times, then `32`, `55`, `10`. Production is bursty, so a clock is the wrong trigger; the threshold itself is a written number until a run counts one |
+| `JOHARNESS_CURATE_HOURS` | 168 | hours since the last curate before one is due — kept for what production cannot see: code moving UNDER a plan breaks its anchors with no plan file changing | the same measurement says a clock ALONE fires eight times over nothing and about three times while 97 changes land. Either knob at 0 disables its own trigger; both at 0 disables the cycle |
 | `JOHARNESS_CURATE_REGISTRY` | 3 | plans declaring one path before `curate` calls it a registry to mark `shared:` rather than a collision to order | no data; a written number until a run counts one |
 | `JOHARNESS_CURATE_SPLIT` | 8 | `## Scope` bullets before `curate` names a plan a decompose candidate — PROPOSED, never done | no data; a written number until a run counts one |
 | `JOHARNESS_UPSTREAM_FEEDBACK` | `off` | on = one reporter session per merged edge, beyond the cap, filing harness findings on the canonical — money, and pull requests in a repo this one does not own | not a number to calibrate: a switch, off until a human turns it on. Unlike the six above it IS declared in `.agents/scripts/conf-keys.sh`, so every consumer's sync names the key its conf does not answer |
