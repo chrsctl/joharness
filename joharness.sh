@@ -5871,7 +5871,7 @@ drain_free_others() {
 
 cmd_drain() {
   local mode qout hout edge next free sup="" others
-  local cdue cstate creason cinflight=0 cb ck cstat csess cnext
+  local cdue cstate creason cinflight=0 cb
   mode="$(run_mode)"
   printf '== drain (mode: %s)\n\n' "$mode"
 
@@ -5902,13 +5902,20 @@ cmd_drain() {
   cdue="$(dispatch_curate_due)"
   cstate="${cdue%% *}"; creason="${cdue#* }"
   if [ "$cstate" = due ]; then
-    while IFS=$'\t' read -r cb ck cstat csess cnext; do
+    # An in-flight curate read out of the handover hook's OWN output, which
+    # `drain` already has. `dispatch_curate_branches` walks every remote ref
+    # with 4 git calls per branch, and `drain` is the entrypoint every session
+    # runs: calling it here put this command 46 command-spawns over its budget.
+    # The hook has already done that walk and prints one
+    # `origin/<branch>: docs/handover/<file>.md` line per unmerged branch, so a
+    # curate in flight is one `sed` away. `dispatch` keeps the richer scan: the
+    # orchestrator pays for ref walks anyway and wants the status and session.
+    while IFS= read -r cb; do
       [ -n "$cb" ] || continue
       cinflight=$((cinflight + 1))
-      printf 'curate    : due (%s) — but one is IN FLIGHT on %s (curate-%s, %s)\n' \
-        "$creason" "$cb" "$ck" "$cstat"
-      [ -z "$cnext" ] || printf '            next: %s\n' "$cnext"
-    done < <(dispatch_curate_branches)
+      printf 'curate    : due (%s) — but one is IN FLIGHT on %s\n' "$creason" "$cb"
+    done < <(printf '%s\n' "$hout" |
+      sed -n 's#^  origin/\([^:]*\): docs/handover/curate-[^ ]*\.md$#\1#p')
     if [ "$cinflight" -eq 0 ]; then
       printf 'curate    : DUE — %s\n' "$creason"
       printf '  The plan queue has moved under its own declarations. This is\n'
@@ -6299,14 +6306,16 @@ dispatch_curate_plan_churn() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" since="${1:-}" range
   range="refs/remotes/origin/${base_branch}"
   [ -z "$since" ] || range="--since=@${since} ${range}"
+  # ONE git call. The first spelling forked `git diff-tree` PER COMMIT inside a
+  # read loop, and `drain` is the entrypoint every session runs: it went 47 over
+  # its command-spawn budget (385 against 338), which is exactly the "per-item
+  # fork put back inside a loop" the budget exists to catch. `--name-only` with
+  # an empty `--format` prints the paths directly, so the walk and the listing
+  # are the same process.
   # shellcheck disable=SC2086
-  git -C "$ROOT" log --full-history --format=%H $range -- docs/plans \
+  git -C "$ROOT" log --full-history --name-only --format='' $range -- docs/plans \
     </dev/null 2>/dev/null |
-    while IFS= read -r c; do
-      [ -n "$c" ] || continue
-      git -C "$ROOT" diff-tree --no-commit-id --name-only -r "$c" -- docs/plans \
-        </dev/null 2>/dev/null
-    done | gr_docs | sort -u | awk 'END { print NR + 0 }'
+    gr_docs | sort -u | awk 'END { print NR + 0 }'
 }
 
 # `awk END{print NR+0}`, never `grep -c . || printf 0`: grep PRINTS 0 and EXITS
