@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01BrSMgwe9csBqCjehd6v16R
 agent: opus
 updated: 2026-09-11
-next: Build dispatch_curate_due as the one reader, wire cmd_drain, then drain.md and the AGENTS.md clause; cases first
+next: 16 verifier findings recorded, all open. The two-reader split (r4-r6) needs one shared definition of in-flight, not per-finding patches. NOT mergeable as it stands
 ---
 
 ## Goal
@@ -93,9 +93,94 @@ nobody wrote yet).
   KNOB VALUE. (fixed in `2ab1b9d`: `JOHARNESS_CURATE_PLANS=1` set explicitly.)
 
 
+**Verifier round on this item — 16 findings, and the design does not survive
+them.** Recorded before any fix. THE root cause is one decision: to stay under
+`drain`'s perf budget I gave the two entrypoints DIFFERENT in-flight detectors,
+and they do not agree.
+
+- r4: (verifier, correctness) `drain` keys "curate in flight" on the hook's
+  FILENAME (`docs/handover/curate-*.md`); `dispatch_curate_branches` keys on the
+  FRONTMATTER (`workstream: curate-*` AND `plan: none`). They disagree in BOTH
+  directions, reproduced: an ordinary branch owning `curate-cadence.md` with a
+  real `plan:` suppresses the cycle for every supervised session while dispatch
+  says spawn; and a real curator whose file is `curate2026-09-11.md` reads as in
+  flight to dispatch and as DUE to drain, so a second curate starts. (open)
+- r5: (verifier, correctness) in a shallow clone the handover hook falls back to
+  listing the TREE, so a curate file INHERITED on `main` prints as an ordinary
+  branch's and drain reads it as in flight — while that same leftover makes
+  `dispatch_curate_landed_ts` empty, so the cycle is permanently due AND
+  permanently suppressed. Reproduced. (open)
+- r6: (verifier, correctness) `HANDOVER_SCOPE=branch` is NOT pinned by
+  `drain_hook`, and the hook exits before its ref walk under it — so drain sees
+  nothing and prints DUE over a curate in flight. Orchestrated session start
+  exports exactly that value. Reproduced. (open)
+- r7: (verifier, correctness) `--since=@<landed>` filters on each commit's own
+  COMMITTER date, not on when it landed on the base branch, so a plan committed
+  before the last curate and merged after it is never counted. Measured here
+  over 14 days: 82 plan additions, 48 landed >600s after their commit, 19 >1h,
+  max 22.2h. About a quarter of additions have a window in which a landing
+  curate erases them. (open)
+- r8: (verifier, correctness) `--since` is INCLUSIVE, and Loop step 7 puts the
+  plan deletions in the retire commit — so a curate that declutters 10 plans
+  makes itself due again on the next `drain` at the default threshold.
+  Reproduced. (open)
+- r9: (verifier, behaviour reversal) `off` now requires BOTH knobs at 0.
+  `JOHARNESS_CURATE_HOURS=0` was the only off switch that existed and the one
+  the old case pinned; a consumer that switched curation off that way silently
+  gets a due cycle. Nothing pins the reversal and the knob is not in
+  `conf-keys.sh`, so a sync will not name it either. (open)
+- r10: (verifier, written number) MY OWN measurement was taken with git's
+  default simplification — the very thing this diff's own comment says
+  "undercounts exactly the plans a curate cares about". Re-counted with the
+  code's reader: 31, 71, 25 against the 32, 55, 10 recorded, and 127 changes
+  rather than 97. The conclusion is unchanged and strengthened; the numbers
+  were wrong and are mine. (open)
+- r11: (verifier, rule conflict) `drain.md` numbers curate step 2 and edge work
+  step 3, against Loop step 2 ("Finishing outranks starting. Edge work in flight
+  leads") and against `cmd_drain`'s own comment saying the block sits AFTER the
+  edge. A session with its own branch at the edge takes the curate instead. (open)
+- r12: (verifier, correctness) `drain_free_others` excludes `$next` assuming
+  this session takes it, but the curate block just told the session the curate
+  is its item — so under unsupervised the named plan gets no session in that
+  wave. Reproduced. (open)
+- r13: (verifier, tests pin nothing) the headline new cases run in the "none has
+  ever landed" state, which `dispatch_curate_due` answers BEFORE either knob is
+  read — they stay green with the churn reader and the clock reader entirely
+  broken. No case asserts either default. (open)
+- r14: (verifier, tests pin nothing) nothing reaches the DRAINED repetition:
+  the fixture always holds a free plan, so deleting those four lines leaves all
+  1917 cases green. Five of the new refutes pass with the whole drain block
+  deleted. (open)
+- r15: (verifier, fixture hygiene) `JOHARNESS_CURATE_PLANS` missing from
+  `selftest.sh`'s unset list, against a header that measures why the list
+  exists. Latent, not red. (open)
+- r16: (verifier, budget) `drain` is 334 against 338, and 325 before this item:
+  +9 spawns, 4 left. The next addition to `drain` reds it. (open)
+- r17: (verifier, gate) `ci` is RED on this head at ELEVEN commits to
+  `selftest/dispatch.sh`; the churn disposition above records 10, so the record
+  is already stale against the count. (open)
+- r18: (verifier, doc reachability) the cycle is every-mode now, but both knobs
+  are documented only in the ORCHESTRATED design doc, and drain's block names
+  no knob and no off switch — a supervised operator has no path from the output
+  to the control. (open)
+- r19: (verifier, minor) drain anchors on `^  origin/`, so a curate pushed to a
+  fork remote is invisible; dispatch is blind the same way, so they agree here
+  and both miss it. (open)
+- note: (verifier, clean) `set -u` safety, `num_knob` rejecting negatives and
+  words, empty `age` handled before any `-ge`, `churn` always one integer,
+  merge commits not undercounting under `--full-history`, and the block printing
+  correctly on the unplanned-requirement early return and with edge work
+  present. (no change needed)
+
 ## Blockers
 
-None.
+The two-reader split (r4, r5, r6) is not patchable finding by finding: `drain`
+and `dispatch` must share ONE definition of "a curate is in flight", and the
+reason they do not is a perf budget with 4 spawns of headroom (r16). The likely
+shape is a cheap CANDIDATE read from the hook followed by the same
+frontmatter-and-added-against-merge-base confirmation `dispatch` already does,
+which is O(candidates) and usually zero — but that is a design change, not a
+patch, and it is the requester's call whether this session takes it.
 
 ## Where to look
 
