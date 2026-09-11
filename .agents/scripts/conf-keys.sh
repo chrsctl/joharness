@@ -46,6 +46,7 @@ JOHARNESS_ENV_SETUP|lazy|lazy = provision on demand; eager = at session start.
 JOHARNESS_ENV_MD|lazy|lazy = inject a pointer to the layer's rules; eager = the file whole.
 JOHARNESS_REVIEW|off|off = review reports only; on = ci gates the record at the edge.
 JOHARNESS_MODE|supervised|supervised = a session asks at the queue edge; unsupervised = it exits instead; orchestrated (beta) = an orchestrator dispatches managers.
+JOHARNESS_CHECKS|github|github = step 7 waits for this head's GitHub checks; local = no wait, ./joharness.sh finish runs ci and verify here and reds on their result.
 JOHARNESS_UPSTREAM_FEEDBACK|off|off = ./joharness.sh upstream reports what a merged edge found about the harness and nothing acts on it; on = under orchestrated, one session files it as a report pull request on the canonical.
 ROWS
 }

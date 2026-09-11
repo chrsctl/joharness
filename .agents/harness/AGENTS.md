@@ -145,7 +145,12 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    (`.agents/env/README.md`). A run that skipped that layer, or a repo whose
    workflow has no such job, proves nothing; **`./joharness.sh finish` green** — the only guard
    here that fires while the fix is still a commit; edge review recorded
-   (step 5); no unresolved human review thread. Anything less stays open. Merge-commit
+   (step 5); no unresolved human review thread. Anything less stays open.
+   `JOHARNESS_CHECKS=local` (session start says so) replaces the FIRST
+   condition and no other: no wait for Actions — `finish` runs `ci`, and
+   `verify` on those same paths, ITSELF. No run to read for the layer then;
+   it reds on their result, refuses a head that is not what merges, names
+   what it cannot cover. Merge-commit
    method ONLY — squash/rebase merge breaks the merged-branch ancestry
    filter (`.agents/docs/product/README.md` Branch flow). Human veto = revert.
    Branch conflicts with `main` (another PR merged
