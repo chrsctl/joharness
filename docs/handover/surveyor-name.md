@@ -1,6 +1,6 @@
 ---
 workstream: surveyor-name
-status: in-progress
+status: done
 branch: claude/rescope-job-description-ehcvid
 pr: none
 plan: docs/plans/surveyor-name.md
@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01CH8JvqV2WAada6gNuuWwuz
 agent: sonnet
 updated: 2026-09-11
-next: Read the ci run and the verifier's findings, record them under ## Review with the fix in the same commit
+next: Retire this file and the plan, open the pull request, merge (step 7)
 ---
 
 ## Goal
@@ -102,7 +102,12 @@ None.
   one row each.
 - `.agents/harness/selftest/dispatch.sh:879` — asserts the verdict strings
   this diff rewords. Canonical-only: no consumer carries it.
-- Consumer-side bar, run 2026-09-11 on this head: bootstrapped a scratch
+- Green on the MERGED head `37d5fe3`, counted 2026-09-11 after main moved 18
+  commits under this branch: `./joharness.sh ci` = `ci: pass`;
+  `bash .agents/harness/selftest.sh` = 1984 passed, 0 failed;
+  `./joharness.sh verify` = 6 passed, 0 failed. The pre-merge numbers (1889
+  passed) were on a head that no longer exists and do not count.
+- Consumer-side bar, run 2026-09-11 on the pre-merge head: bootstrapped a scratch
   consumer (`.agents/scripts/bootstrap-consumer.sh --env none --mode
   supervised`), `./joharness.sh ci` there printed `ci: pass`, and the tree
   carried no `.agents/harness/selftest` at all. Then planted
