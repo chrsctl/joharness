@@ -71,6 +71,23 @@ it, and give the name a job description.
   that one. (fixed: the consumer-side bar is now `./joharness.sh ci` run in a
   bootstrapped consumer, whose glossary lint enforces the new ban there.)
 
+- r2: (verifier) clean pass — no defect found. Counted, not read: the full
+  selftest at `1ec3fa8` is 1889 passed, 0 failed, and `./joharness.sh ci` is
+  `ci: pass`. It re-ran every Acceptance bullet rather than re-reading them,
+  re-derived `GLOSSARY_EXEMPT_RE` by hand against `glossary.md`, `glossaryXmd`
+  and `glossary.mdx` to confirm only the real file is exempt, and confirmed
+  `rescope-` counts of 5 and 18 unchanged against `origin/main`. It reached
+  r1 independently and confirmed the fix. (no change needed)
+- r3: (session, correcting r2's evidence) the verifier's write-up names
+  `.agents/harness/scripts` as the `CANONICAL_ONLY_DIRS` entry covering the
+  selftest. No such entry exists — the two are `.agents/scripts` and
+  `.agents/harness/selftest`
+  (`.agents/scripts/sync-to-consumer.sh:214`). Its conclusion is right and
+  independently measured here (the bootstrapped consumer carried no
+  `.agents/harness/selftest` at all), so r1 stands; the cited line does not.
+  (fixed: recorded, so a later reader does not re-derive the boundary from a
+  path that is not in the list.)
+
 ## Blockers
 
 None.
