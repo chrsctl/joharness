@@ -86,9 +86,8 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    that layer's `verify` too, or the first news is a red PR.
    `./joharness.sh verify` proves the selected environment. Trust counted
    numbers, never written numbers — including numbers in any instruction file.
-   Edge to main = review, always; depth scales with the plan's tier and
-   `./joharness.sh review` prints THIS branch's (table:
-   `.agents/docs/agent-selection.md`, review depth). Every depth also
+   Edge to main = review, always; depth scales with the plan's tier
+   (`.agents/docs/agent-selection.md`, review depth). Every depth also
    spawns `.claude/agents/verifier.md` at the
    branch's tier — one reader that did not write the diff. Tag what it
    returns `(verifier)`; why, in
@@ -153,9 +152,7 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    condition and no other: `finish` runs `ci` and `verify` itself instead of
    waiting for Actions, and there is no run to read for the layer then. It
    names what it cannot cover, in its own output; the trade is written at the
-   key that sets it, `joharness.conf`.
-   Merge-commit
-   method ONLY — squash/rebase merge breaks the merged-branch ancestry
+   key that sets it, `joharness.conf`. Merge-commit method ONLY — squash/rebase merge breaks the merged-branch ancestry
    filter (`.agents/docs/product/README.md` Branch flow). Human veto = revert.
    Branch conflicts with `main` (another PR merged
    first)? Reconcile, do not force through — `.agents/docs/product/README.md`
@@ -167,8 +164,7 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    Deleting the FILES is not optional and is yours: PR's final state
    deletes workstream file + done plan file (+ requirement file when last
    plan). Still-useful bits go to the right layer's `AGENTS.md` or `docs/`
-   first. NOT covered by "optional, human-only" one sentence up — that is
-   the BRANCH. Skipped, the base branch accretes finished workstreams later
+   first. NOT covered by "optional, human-only" above — that is the BRANCH. Skipped, the base branch accretes finished workstreams later
    sessions read as current; counted in
    [`.agents/docs/handover/README.md`](../../.agents/docs/handover/README.md).
    Do it as the LAST COMMIT BEFORE the pull request opens, never after the
@@ -183,7 +179,8 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    `ci` GATES this too, not only `finish`: a branch whose own workstream
    file would land on the base branch is reported at the edge, RED once the
    file says `status: done`. Another session's inherited file is reported,
-   never red — `cleanup`'s business. Why two strengths, not one:
+   never red — `cleanup`'s business, and a gate that fails for somebody
+   else's omission is one sessions route around. Why two strengths, not one:
    `joharness.sh:fin_strength`.
 
 Queue still holds work after the merge? It is the NEXT session's — the
@@ -197,8 +194,8 @@ that bought it is in
 ## Harness upkeep
 
 Consumer repo: harness upkeep does NOT run in a session holding product
-work. Context belongs to the claimed plan. The session mid-plan reviews the
-resulting pull request and nothing more. Routes, preference order:
+work. Context belongs to the claimed plan. A sync route opens a pull request;
+the session mid-plan reviews it and nothing more. Routes, preference order:
 [`.agents/docs/consumer-repos.md`](../../.agents/docs/consumer-repos.md).
 
 Canonical repo (`JOHARNESS_CANONICAL=1` in `joharness.conf`): rule does not
