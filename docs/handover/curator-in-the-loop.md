@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01BrSMgwe9csBqCjehd6v16R
 agent: opus
 updated: 2026-09-11
-next: r4-r9, r11-r16, r18 fixed and verified. r10 (my wrong numbers) corrected in the record; r17 is the churn count, disposed of below; r19 (a curate on a fork remote) is wontfix and says why
+next: every finding dispositioned (r20-r22 are this round's, all fixed). Re-run ./joharness.sh ci on an untouched tree, then retire this file and docs/plans/curator-in-the-loop.md as the last commit before the pull request
 ---
 
 ## Goal
@@ -31,9 +31,13 @@ what it fixes.
   production cannot see: code moving UNDER a plan breaks its anchors with no
   plan file changing.
 - Measured, not guessed: plan files touched per week on `origin/main`, last 12
-  weeks, 2026-09-11 — `0` eight times, then `32`, `55`, `10`. A 168h clock
-  fires eight times over nothing and about three times over 97 changes. Both
-  defaults stay written numbers and say so.
+  weeks, 2026-09-11, counted with the code's OWN reader (`git log
+  --full-history --name-only --format='' --since/--until <week>
+  refs/remotes/origin/main -- docs/plans`, deduped) — `0` eight times, then
+  `31`, `71`, `25`. A 168h clock fires eight times over nothing and about three
+  times over 127 changes. Both defaults stay written numbers and say so. The
+  first pass at these numbers used git's DEFAULT simplification and read 32, 55,
+  10 — the undercount this function's own flag exists to avoid (r10).
 - ONE reader (`dispatch_curate_due`) for both entrypoints. Two readers of one
   cadence is two answers to "is a curate due", and the orchestrator and a
   supervised session would act on different ones.
@@ -177,6 +181,27 @@ and they do not agree.
   looks at — widening it means deciding which remotes count as the fleet's,
   which is a configuration question and not this item's. Recorded so the next
   reader has the case rather than rediscovering it.)
+- r20: (self, fixture) "never landed" as its own due-reason made a brand-new
+  two-plan repo permanently overdue, so the curate block fired inside fixtures
+  that are about the QUEUE and changed their verdict, their `next:` line and
+  their spawn list — three pre-existing `drain` cases went red for a reason
+  that had nothing to do with them. (fixed two ways: the never-curated state is
+  now measured from the base branch's first commit against the same two
+  thresholds, and `selftest/drain.sh`'s one helper switches the cycle off for
+  every case there, because that fixture grows to 29 plan files and turns the
+  production trigger on by accident. Coverage lives in `cuwork`/`trwork`, where
+  a case that wants it due says so — this file's own rule about shared
+  fixtures.)
+- r21: (self, could-never-fail) two of my own curate cases refuted a string the
+  fix had already deleted (`none has ever landed`), so they passed over
+  anything. (fixed: both now refute `none having landed`, which is what the
+  never-curated state actually prints, and are asserted in the state where it
+  would appear if the base were wrong.)
+- r22: (self, doc) `JOHARNESS_CURATE_HOURS` and `JOHARNESS_CURATE_PLANS` were
+  declared in `conf-keys.sh` but not seeded by `bootstrap-consumer.sh`, so a
+  consumer got a conf with no line for the one thing it would want to change —
+  caught by the selftest that compares the two lists. (fixed: both seeded, with
+  the off switch spelled in the comment beside them.)
 - note: (verifier, clean) `set -u` safety, `num_knob` rejecting negatives and
   words, empty `age` handled before any `-ge`, `churn` always one integer,
   merge commits not undercounting under `--full-history`, and the block printing
@@ -185,13 +210,11 @@ and they do not agree.
 
 ## Blockers
 
-The two-reader split (r4, r5, r6) is not patchable finding by finding: `drain`
-and `dispatch` must share ONE definition of "a curate is in flight", and the
-reason they do not is a perf budget with 4 spawns of headroom (r16). The likely
-shape is a cheap CANDIDATE read from the hook followed by the same
-frontmatter-and-added-against-merge-base confirmation `dispatch` already does,
-which is O(candidates) and usually zero — but that is a design change, not a
-patch, and it is the requester's call whether this session takes it.
+None. The two-reader split that was the blocker (r4, r5, r6) is resolved rather
+than deferred: `drain` and `dispatch` now share `dispatch_curate_due` and
+`dispatch_curate_branches`, and the perf budget it was blocked on was fixed at
+the loop (`--no-merged` plus an `ls-tree` prefilter, 46 spawns to 19) before the
+number was raised.
 
 ## Where to look
 

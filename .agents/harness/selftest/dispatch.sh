@@ -1153,15 +1153,34 @@ expect "and it says to confirm in merged history before deleting" \
 # Dated from GIT, never a ledger: the orchestrator's dies with its run.
 cwd() { ( cd "$cwwork" && JOHARNESS_CONF="$cwconf" DRAIN_FETCH=0 \
   DISPATCH_FETCH=0 "$@" ./joharness.sh dispatch 2>&1 ); }
+# Never landed is the LONGEST interval, not a due-reason of its own. A repo
+# whose queue has never been curated is measured from its first commit against
+# the same two thresholds — so this fixture, six plan files and minutes old, is
+# NOT due under the defaults. Asserted first and on purpose: "never landed means
+# due" answered before either knob was read, so every case below passed with
+# both triggers broken, and it made a two-plan repo permanently overdue
+# (verifier r13).
 out="$(cwd)"
-expect "no curate has ever landed, so one is due" \
-  "curate    : DUE — none has ever landed on main" "$out"
+expect "never curated is measured from the queue's beginning, not due outright" \
+  "curate    : not due — 6 plan file(s) changed (of 10) and 0h elapsed (of 168h) since the queue began, none having landed" "$out"
+refute "so a brand-new queue spawns nobody" "curate DUE" "$out"
+# Production is the primary trigger: drop the threshold under what this queue
+# has produced and the same pass is due, naming the count that fired it.
+out="$(cwd env JOHARNESS_CURATE_PLANS=5)"
+expect "enough plan files changed since the queue began makes one due" \
+  "curate    : DUE — 6 plan file(s) changed since the queue began, none having landed (>= 5)" "$out"
 expect "and the tail line under the verdict says to spawn one" \
   "curate DUE: spawn ONE curator (agent: sonnet)" "$out"
 expect "naming it as beyond the cap" "beyond the cap, holds no slot" "$out"
-out="$(cwd env JOHARNESS_CURATE_HOURS=0 JOHARNESS_CURATE_PLANS=0)"
-expect "zero on BOTH knobs is the human's off switch" \
-  "curate    : off — JOHARNESS_CURATE_HOURS=0 and JOHARNESS_CURATE_PLANS=0" "$out"
+# The clock at 0 is the off switch for the WHOLE cycle, which is a compatibility
+# promise and not a tidy rule: before the production trigger existed it was the
+# only switch there was, so a consumer that had set it must not wake up to a
+# cycle running on a knob it never heard of (verifier r9). Proved against the
+# threshold that would otherwise fire — without the `PLANS=5` the case passes
+# with the off switch deleted.
+out="$(cwd env JOHARNESS_CURATE_HOURS=0 JOHARNESS_CURATE_PLANS=5)"
+expect "the clock at zero is the off switch for the whole cycle" \
+  "curate    : off — JOHARNESS_CURATE_HOURS=0" "$out"
 refute "and nothing is ever spawned" "curate DUE" "$out"
 
 # A curator in flight: no second one is due, whatever the clock says.
@@ -1172,7 +1191,7 @@ printf -- '---\nworkstream: curate-2026-09-11\nstatus: in-progress\nbranch: clau
 commit_all "$cwwork" "claim a curate"
 git -C "$cwwork" push -qu origin claude/curate-run
 git -C "$cwwork" checkout -q main
-out="$(cwd)"
+out="$(cwd env JOHARNESS_CURATE_PLANS=5)"
 expect "a curator in flight is named with its branch and stamp" \
   "claude/curate-run  curate-2026-09-11  in-progress  pushed" "$out"
 expect "its session rides under it" \
@@ -1197,11 +1216,13 @@ git -C "$cwwork" push -q origin claude/curate-run
 git -C "$cwwork" checkout -q main
 git -C "$cwwork" merge -q --no-ff --no-edit claude/curate-run
 git -C "$cwwork" push -q origin main
-out="$(cwd)"
+out="$(cwd env JOHARNESS_CURATE_PLANS=5)"
 expect "a curate retired on its branch and merged dates the cycle" \
-  "curate    : not due" "$out"
+  "curate    : not due — 0 plan file(s) changed (of 5)" "$out"
+expect "and the interval is measured from it, not from the queue's beginning" \
+  "since the last curate" "$out"
 refute "so it is not read as never having landed" \
-  "none has ever landed" "$out"
+  "none having landed" "$out"
 refute "and nothing is spawned" "curate DUE" "$out"
 # The flag is the whole fix, and this is the arm that proves the fixture can see
 # it: the same question asked WITHOUT --full-history finds nothing here.
@@ -1214,7 +1235,7 @@ if [ -z "$simplified" ] && [ -n "$fullhist" ]; then
 else
   fail "the fixture no longer discriminates --full-history (simplified='${simplified}' full='${fullhist}')"
 fi
-out="$(cwd env JOHARNESS_CURATE_HOURS=0 JOHARNESS_CURATE_PLANS=0)"
+out="$(cwd env JOHARNESS_CURATE_HOURS=0 JOHARNESS_CURATE_PLANS=1)"
 refute "off still spawns nothing once one has landed" "curate DUE" "$out"
 
 # --- the findings a green suite would otherwise not distinguish ---------------
@@ -1369,7 +1390,7 @@ cudis() { ( cd "$cuwork" && JOHARNESS_CONF="$cuconf" DRAIN_FETCH=0 \
 
 # Supervised is the default mode, and this is the whole point: the curate line
 # must be in the output `/start` routes to.
-out="$(cud)"
+out="$(cud env JOHARNESS_CURATE_PLANS=1)"
 expect "drain names the mode it is reading" "== drain (mode: supervised)" "$out"
 expect "and prints the curate cycle, which only dispatch used to" \
   "curate    : DUE" "$out"
@@ -1379,8 +1400,10 @@ expect "and saying it invents nothing" \
   "Nothing is invented — every plan it touches already exists" "$out"
 
 # ONE reader: drain and dispatch must give the same verdict over one fixture.
-dline="$(printf '%s\n' "$(cud)" | sed -n 's/^curate    : //p' | head -1)"
-xline="$(printf '%s\n' "$(cudis)" | sed -n 's/^curate    : //p' | head -1)"
+dline="$(printf '%s\n' "$(cud env JOHARNESS_CURATE_PLANS=1)" \
+  | sed -n 's/^curate    : //p' | head -1)"
+xline="$(printf '%s\n' "$(cudis env JOHARNESS_CURATE_PLANS=1)" \
+  | sed -n 's/^curate    : //p' | head -1)"
 if [ -n "$dline" ] && [ "$dline" = "$xline" ]; then
   pass "drain and dispatch answer 'is a curate due' identically"
 else
@@ -1401,9 +1424,9 @@ git -C "$cuwork" push -qu origin claude/curate-loop
 # curator and needs no telling. Asking from the branch itself measured the
 # wrong question and read as "nothing in flight".
 git -C "$cuwork" checkout -q main
-out="$(cud)"
+out="$(cud env JOHARNESS_CURATE_PLANS=1)"
 expect "a curate in flight is named rather than spawned again" \
-  "IN FLIGHT on claude/curate-loop, so not yours" "$out"
+  "IN FLIGHT on claude/curate-loop (curate-2026-09-11, in-progress), so not yours" "$out"
 refute "and drain does not call it this session's item" \
   "curate    : DUE —" "$out"
 git -C "$cuwork" checkout -q claude/curate-loop
@@ -1412,14 +1435,14 @@ git -C "$cuwork" push -q origin claude/curate-loop
 git -C "$cuwork" checkout -q main
 git -C "$cuwork" merge -q --no-ff --no-edit claude/curate-loop
 git -C "$cuwork" push -q origin main
-out="$(cud)"
+out="$(cud env JOHARNESS_CURATE_PLANS=1)"
 # drain is deliberately QUIET when nothing is due — it is an action list, not a
 # status report — so the state is asserted on dispatch and the silence here.
 refute "once it lands, drain claims nothing as the session's item" \
   "curate    : DUE" "$out"
 refute "and says nothing at all about curating" "curate    :" "$out"
 expect "while dispatch, which reports state, says not due" \
-  "curate    : not due" "$(cudis)"
+  "curate    : not due" "$(cudis env JOHARNESS_CURATE_PLANS=1)"
 
 # Production: three plan files land, threshold 3 -> due, though ~0h elapsed.
 for n in two three four; do cuplan "$n"; done
@@ -1436,9 +1459,14 @@ expect "and dispatch says how far off it is, in both numbers" \
   "plan file(s) changed (of 99)" "$(cudis env JOHARNESS_CURATE_PLANS=99)"
 
 # Time: the trigger production cannot see — code moves UNDER a plan and breaks
-# its anchors with no plan file changing. Hours 0 leaves only production.
-expect "hours 0 disables the clock alone, and dispatch says which is off" \
-  "the clock is off" "$(cudis env JOHARNESS_CURATE_PLANS=99 JOHARNESS_CURATE_HOURS=0)"
+# its anchors with no plan file changing. The clock at 0 switches the WHOLE
+# cycle off and does NOT leave production running: that is the compatibility
+# promise, asserted against a production threshold this queue has already passed
+# so the case fails if the switch stops covering the cycle (verifier r9).
+out="$(cudis env JOHARNESS_CURATE_PLANS=1 JOHARNESS_CURATE_HOURS=0)"
+expect "hours 0 switches the whole cycle off, over a production trigger that would fire" \
+  "curate    : off — JOHARNESS_CURATE_HOURS=0" "$out"
+refute "so nothing is spawned on the production count either" "curate DUE" "$out"
 expect "plans 0 disables production alone, and says so the other way" \
   "the production trigger is off" "$(cudis env JOHARNESS_CURATE_PLANS=0)"
 out="$(cud env JOHARNESS_CURATE_PLANS=0 JOHARNESS_CURATE_HOURS=0)"
@@ -1480,7 +1508,7 @@ refute "and the orchestrator is told to spawn NOTHING" "curate DUE" "$out"
 # either, and both must name the same branch.
 out="$(cud env JOHARNESS_CURATE_PLANS=1)"
 expect "drain agrees it is not this session's, naming the same branch" \
-  "IN FLIGHT on claude/curate-orch, so not yours" "$out"
+  "IN FLIGHT on claude/curate-orch (curate-2026-09-12, in-progress), so not yours" "$out"
 refute "and claims nothing" "curate    : DUE" "$out"
 
 out="$(cudis env JOHARNESS_CURATE_PLANS=0 JOHARNESS_CURATE_HOURS=0)"
@@ -1488,12 +1516,14 @@ refute "orchestrated: both knobs 0 spawns nothing" "curate DUE" "$out"
 expect "and says the human switched it off" "curate    : off" "$out"
 
 # --- the triggers, asserted where they can actually fail --------------------
-# The cases above run in the "none has ever landed" state, which
-# `dispatch_curate_due` answers BEFORE either knob is read — so they stay green
-# with the churn reader and the clock reader both broken (verifier r13). These
-# run AFTER a curate has landed, which is the only state where a knob decides.
-# Own repo: this needs a landed curate and an exact plan count, and the shared
-# fixture carries neither (the rule in this file's header).
+# Most cases above run in the never-curated state, where both thresholds are
+# measured from the repository's first commit. That state USED to be answered
+# before either knob was read, which left every one of them green with the churn
+# reader and the clock reader both broken (verifier r13). These run AFTER a
+# curate has landed — the state where the base the interval is measured from is
+# the retire commit and nothing else, so a knob is the only thing that can
+# decide. Own repo: this needs a landed curate and an exact plan count, and the
+# shared fixture carries neither (the rule in this file's header).
 trwork="${TMP}/curatetrig"
 trorigin="${TMP}/curatetrig.git"
 git init -q --bare "$trorigin"
@@ -1536,8 +1566,8 @@ expect "with a curate landed and nothing since, nothing is due" \
   "curate    : not due" "$out"
 expect "and the not-due line names BOTH numbers, so a reader can retune it" \
   "(of 10) and" "$out"
-refute "the never-landed shortcut is gone, so a knob now decides" \
-  "none has ever landed" "$out"
+refute "and the base is the retire commit, not the queue's beginning" \
+  "none having landed" "$out"
 
 # PRODUCTION alone: two plans land, threshold 2. The clock cannot be why — the
 # curate landed seconds ago.

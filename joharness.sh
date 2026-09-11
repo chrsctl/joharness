@@ -6293,33 +6293,22 @@ dispatch_retired_edges() {
     }
 }
 
-# Hours since the last curate LANDED on the base branch, or empty when none
-# ever has. Derived from git, never stored: the curator retires its workstream
-# file as the last commit before its pull request (Loop step 7), so the newest
-# base-branch commit DELETING a `docs/handover/curate-*.md` is when a curate
-# last landed. The orchestrator's ledger dies with its run and a heartbeat
-# re-seeds a fresh one; git does not forget, which is the same reason
-# `dispatch_retired_edges` counts from refs rather than from memory.
-# The commit time of the last curate that LANDED, empty when none has. Split
-# from the hours reader because the churn count needs the same instant and
-# deriving it twice is two answers to one question.
+# Four readers, one question each, all derived from git and none stored: the
+# orchestrator's ledger dies with its run and a heartbeat re-seeds a fresh one,
+# which is the same reason `dispatch_retired_edges` counts from refs rather than
+# from memory. The curator retires its workstream file as the last commit before
+# its pull request (Loop step 7), so the newest base-branch commit DELETING a
+# `docs/handover/curate-*.md` is when a curate last landed.
 #
-# `--full-history` is load-bearing, not a flourish. The curator ADDS its
-# workstream file and DELETES it inside the same branch (curate.md 1 and 5), so
-# the merge commit is TREESAME to its first parent for that path and default
-# simplification never walks the branch — the retire is invisible and the cycle
-# reads "none has ever landed" on every pass, forever. Measured on this repo
-# 2026-09-11, `docs/handover/*.md`: 13 deletions simplified against 195 with the
-# flag, newest 2026-08-26 against 2026-09-10 (verifier r1).
-# The COMMIT of the last curate that landed, empty when none has. A commit, not
-# a timestamp: the churn count below bounds its walk with `<sha>..<base>`, which
-# asks what the base branch GAINED after that point. `--since=<date>` asked when
-# each commit was authored instead — so a plan committed before the last curate
-# and merged after it counted 0 forever (measured here over 14 days: 48 of 82
-# plan additions landed more than 600s after their own commit, 19 more than an
-# hour, the longest 22.2h), and being inclusive it also counted the retire
-# commit's own plan deletions, so a curate that decluttered ten plans made
-# itself due again immediately (verifier r7, r8).
+# `--full-history` is load-bearing in every one of them, not a flourish. The
+# curator ADDS its workstream file and DELETES it inside the same branch
+# (curate.md 1 and 5), so the merge commit is TREESAME to its first parent for
+# that path and default simplification never walks the branch — the retire is
+# invisible, so every pass keeps measuring from the repository's first commit
+# and the cycle fires forever. Measured on this repo 2026-09-11,
+# `docs/handover/*.md`: 13 deletions simplified against 195 with the flag,
+# newest 2026-08-26 against 2026-09-10 (verifier r1).
+
 # Hours since the base branch's FIRST commit: the baseline when no curate has
 # ever landed, so "never" is the longest interval rather than a special case.
 dispatch_curate_repo_age_h() {
@@ -6331,6 +6320,15 @@ dispatch_curate_repo_age_h() {
   printf '%s' "$(( (now - ts) / 3600 ))"
 }
 
+# The COMMIT of the last curate that landed, empty when none has. A commit, not
+# a timestamp: the churn count below bounds its walk with `<sha>..<base>`, which
+# asks what the base branch GAINED after that point. `--since=<date>` asked when
+# each commit was authored instead — so a plan committed before the last curate
+# and merged after it counted 0 forever (measured here over 14 days: 48 of 82
+# plan additions landed more than 600s after their own commit, 19 more than an
+# hour, the longest 22.2h), and being inclusive it also counted the retire
+# commit's own plan deletions, so a curate that decluttered ten plans made
+# itself due again immediately (verifier r7, r8).
 dispatch_curate_landed_sha() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}"
   git -C "$ROOT" log -1 --format=%H --diff-filter=D --full-history \
@@ -6338,6 +6336,9 @@ dispatch_curate_landed_sha() {
     </dev/null 2>/dev/null
 }
 
+# The commit TIME of the same commit. Split from the sha reader because the two
+# callers need different halves of it and deriving either twice is two answers
+# to one question.
 dispatch_curate_landed_ts() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}"
   git -C "$ROOT" log -1 --format=%ct --diff-filter=D --full-history \
@@ -6345,6 +6346,8 @@ dispatch_curate_landed_ts() {
     </dev/null 2>/dev/null
 }
 
+# Hours since the last curate landed, empty when none ever has — which is the
+# signal `dispatch_curate_due` reads to switch to the repository baseline above.
 dispatch_curate_age_h() {
   local ts now
   ts="$(dispatch_curate_landed_ts)"
