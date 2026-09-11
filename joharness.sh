@@ -5913,7 +5913,8 @@ cmd_drain() {
     while IFS= read -r cb; do
       [ -n "$cb" ] || continue
       cinflight=$((cinflight + 1))
-      printf 'curate    : due (%s) — but one is IN FLIGHT on %s\n' "$creason" "$cb"
+      printf 'curate    : IN FLIGHT on %s, so not yours. What made it due: %s\n' \
+        "$cb" "$creason"
     done < <(printf '%s\n' "$hout" |
       sed -n 's#^  origin/\([^:]*\): docs/handover/curate-[^ ]*\.md$#\1#p')
     if [ "$cinflight" -eq 0 ]; then
@@ -6825,7 +6826,7 @@ cmd_dispatch() {
   if [ "$cstate" = off ]; then
     printf 'curate    : off — %s\n' "$creason"
   elif [ "$n_curate_inflight" -gt 0 ]; then
-    printf 'curate    : due (%s), and one is IN FLIGHT:\n' "$creason"
+    printf 'curate    : IN FLIGHT, so none is due. What made it due: %s\n' "$creason"
     printf '%b' "$curate_inflight"
   elif [ "$cstate" = due ]; then
     curate_due=1

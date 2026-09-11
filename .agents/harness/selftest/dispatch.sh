@@ -1156,7 +1156,7 @@ expect "a curator in flight is named with its branch and stamp" \
 expect "its session rides under it" \
   "session: https://example.invalid/session_cur" "$out"
 expect "and the cycle says one is already running" \
-  "and one is IN FLIGHT" "$out"
+  "curate    : IN FLIGHT, so none is due" "$out"
 refute "so the orchestrator is told to spawn nothing" "curate DUE" "$out"
 
 # Its retire commit IS the cycle's date, and the branch+merge shape is the whole
@@ -1375,7 +1375,7 @@ commit_all "$cuwork" "claim a curate"
 git -C "$cuwork" push -qu origin claude/curate-loop
 out="$(cud)"
 expect "a curate in flight is named rather than spawned again" \
-  "one is IN FLIGHT on claude/curate-loop" "$out"
+  "IN FLIGHT on claude/curate-loop, so not yours" "$out"
 refute "and drain does not call it this session's item" \
   "curate    : DUE —" "$out"
 fixture_rm "$cuwork" "retire it (step 7)" docs/handover/curate-2026-09-11.md
@@ -1416,3 +1416,44 @@ out="$(cud env JOHARNESS_CURATE_PLANS=0 JOHARNESS_CURATE_HOURS=0)"
 refute "both knobs 0 claims nothing as the item" "curate    : DUE" "$out"
 expect "and dispatch names it as the human's off switch" \
   "no curate is ever due" "$(cudis env JOHARNESS_CURATE_PLANS=0 JOHARNESS_CURATE_HOURS=0)"
+
+# --- the same cycle, under ORCHESTRATED, end to end -------------------------
+# The requester asked for it to work in orchestrator mode, so the three states
+# an orchestrator branches on are asserted from `dispatch` directly: due with
+# none in flight spawns, one in flight does not, and off does not. The tail is
+# what the role acts on (`.claude/commands/orchestrate.md` step 3), so each
+# case asserts the TAIL and not only the header line.
+cuplan five
+commit_all "$cuwork" "one more plan so the queue is not empty"
+git -C "$cuwork" push -q origin main
+out="$(cudis)"
+expect "orchestrated: the cycle is due and the tail says to spawn" \
+  "curate DUE: spawn ONE curator (agent: sonnet)" "$out"
+expect "naming it as beyond the cap, holding no slot" \
+  "beyond the cap, holds no slot" "$out"
+expect "and both knobs are named on that line" \
+  "(JOHARNESS_CURATE_PLANS, JOHARNESS_CURATE_HOURS)" "$out"
+
+git -C "$cuwork" checkout -qb claude/curate-orch
+mkdir -p "${cuwork}/docs/handover"
+printf -- '---\nworkstream: curate-2026-09-12\nstatus: in-progress\nbranch: claude/curate-orch\nplan: none\nsession: https://example.invalid/session_orch\nagent: sonnet\nupdated: 2026-09-12\nnext: Repair the registries\n---\n\n## Goal\nFixture.\n' \
+  >"${cuwork}/docs/handover/curate-2026-09-12.md"
+commit_all "$cuwork" "a curator claims under orchestrated"
+git -C "$cuwork" push -qu origin claude/curate-orch
+git -C "$cuwork" checkout -q main
+out="$(cudis)"
+expect "orchestrated: one in flight is named with its branch and stamp" \
+  "claude/curate-orch  curate-2026-09-12  in-progress  pushed" "$out"
+expect "its session rides under it, so the health pass can find it" \
+  "session: https://example.invalid/session_orch" "$out"
+refute "and the orchestrator is told to spawn NOTHING" "curate DUE" "$out"
+# The same fact, from the other reader: drain must not hand it to a session
+# either, and both must name the same branch.
+out="$(cud)"
+expect "drain agrees it is not this session's, naming the same branch" \
+  "IN FLIGHT on claude/curate-orch, so not yours" "$out"
+refute "and claims nothing" "curate    : DUE" "$out"
+
+out="$(cudis env JOHARNESS_CURATE_PLANS=0 JOHARNESS_CURATE_HOURS=0)"
+refute "orchestrated: both knobs 0 spawns nothing" "curate DUE" "$out"
+expect "and says the human switched it off" "curate    : off" "$out"
