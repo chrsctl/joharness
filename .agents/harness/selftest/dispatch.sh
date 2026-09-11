@@ -1486,3 +1486,121 @@ refute "and claims nothing" "curate    : DUE" "$out"
 out="$(cudis env JOHARNESS_CURATE_PLANS=0 JOHARNESS_CURATE_HOURS=0)"
 refute "orchestrated: both knobs 0 spawns nothing" "curate DUE" "$out"
 expect "and says the human switched it off" "curate    : off" "$out"
+
+# --- the triggers, asserted where they can actually fail --------------------
+# The cases above run in the "none has ever landed" state, which
+# `dispatch_curate_due` answers BEFORE either knob is read — so they stay green
+# with the churn reader and the clock reader both broken (verifier r13). These
+# run AFTER a curate has landed, which is the only state where a knob decides.
+# Own repo: this needs a landed curate and an exact plan count, and the shared
+# fixture carries neither (the rule in this file's header).
+trwork="${TMP}/curatetrig"
+trorigin="${TMP}/curatetrig.git"
+git init -q --bare "$trorigin"
+git init -q "$trwork"
+git -C "$trwork" symbolic-ref HEAD refs/heads/main
+mkdir -p "${trwork}/docs/plans" "${trwork}/docs/handover" "${trwork}/src" \
+  "${trwork}/.agents/harness" "${trwork}/.agents/env/none"
+cp "${ROOT}/joharness.sh" "${trwork}/joharness.sh"
+cp "${ROOT}/.agents/harness/queue-context.sh" \
+   "${ROOT}/.agents/harness/handover-context.sh" "${trwork}/.agents/harness/"
+printf '# none\n' >"${trwork}/.agents/env/none/AGENTS.md"
+printf 'x\n' >"${trwork}/src/real.py"
+trconf="${trwork}/joharness.conf"
+printf 'JOHARNESS_ENV=none\n' >"$trconf"
+trplan() {
+  { printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: low\n' "$1"
+    printf 'needs: none\nrequirement: none\nscope: src/real.py\n---\n\n'
+    printf '## Goal\nFixture.\n\n## Scope\n\n- %ssrc/real.py%s -- what changes.\n' "$bt" "$bt"
+  } >"${trwork}/docs/plans/${1}.md"
+}
+trplan seed
+commit_all "$trwork" "base"
+git -C "$trwork" remote add origin "$trorigin"
+git -C "$trwork" push -qu origin main
+tr_() { ( cd "$trwork" && JOHARNESS_CONF="$trconf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 JOHARNESS_MODE=orchestrated "$@" ./joharness.sh dispatch 2>&1 ); }
+# Land a curate, the way the protocol produces one: claim on a branch, retire on
+# the branch, merge. Nothing is due from here until a knob says so.
+git -C "$trwork" checkout -qb claude/curate-trig
+mkdir -p "${trwork}/docs/handover"
+printf -- '---\nworkstream: curate-2026-09-11\nstatus: in-progress\nbranch: claude/curate-trig\nplan: none\nagent: sonnet\nupdated: 2026-09-11\nnext: x\n---\n\n## Goal\nFixture.\n' \
+  >"${trwork}/docs/handover/curate-2026-09-11.md"
+commit_all "$trwork" "claim a curate"
+fixture_rm "$trwork" "retire it (step 7)" docs/handover/curate-2026-09-11.md
+git -C "$trwork" checkout -q main
+git -C "$trwork" merge -q --no-ff --no-edit claude/curate-trig
+git -C "$trwork" push -q origin main
+out="$(tr_)"
+expect "with a curate landed and nothing since, nothing is due" \
+  "curate    : not due" "$out"
+expect "and the not-due line names BOTH numbers, so a reader can retune it" \
+  "(of 10) and" "$out"
+refute "the never-landed shortcut is gone, so a knob now decides" \
+  "none has ever landed" "$out"
+
+# PRODUCTION alone: two plans land, threshold 2. The clock cannot be why — the
+# curate landed seconds ago.
+trplan t_one; trplan t_two
+commit_all "$trwork" "two plans land after the curate"
+git -C "$trwork" push -q origin main
+out="$(tr_ env JOHARNESS_CURATE_PLANS=2)"
+expect "two plan files since the last curate makes one due" \
+  "2 plan file(s) changed since the last curate (>= 2)" "$out"
+expect "and the orchestrator is told to spawn" "curate DUE: spawn ONE curator" "$out"
+out="$(tr_ env JOHARNESS_CURATE_PLANS=3)"
+refute "one under the threshold is not due" "curate    : DUE" "$out"
+expect "and it says how far off, in both numbers" "2 plan file(s) changed (of 3)" "$out"
+
+# The CLOCK alone: production off, so only hours can fire. It cannot here (the
+# curate just landed), which is what makes the pair discriminating.
+out="$(tr_ env JOHARNESS_CURATE_PLANS=0)"
+expect "production off leaves the clock, and says which is off" \
+  "the production trigger is off (JOHARNESS_CURATE_PLANS=0)" "$out"
+refute "and the clock has not fired, so nothing is due" "curate    : DUE" "$out"
+out="$(tr_ env JOHARNESS_CURATE_PLANS=0 JOHARNESS_CURATE_HOURS=1)"
+refute "nor does an hour that has not passed" "curate    : DUE" "$out"
+
+# HOURS=0 alone is STILL the whole off switch — the compatibility promise, and
+# the reversal that nothing pinned before (verifier r9).
+out="$(tr_ env JOHARNESS_CURATE_HOURS=0)"
+expect "hours 0 alone switches the WHOLE cycle off, plan churn or not" \
+  "curate    : off — JOHARNESS_CURATE_HOURS=0" "$out"
+refute "so two plans past a threshold of 2 still spawn nothing" "curate DUE" "$out"
+out="$(tr_ env JOHARNESS_CURATE_HOURS=0 JOHARNESS_CURATE_PLANS=2)"
+refute "explicitly, with the production trigger set low" "curate DUE" "$out"
+
+# The retire commit must not count as its own churn: a curate that declutters
+# plans in its retire commit would otherwise make itself due again at once
+# (verifier r8). The landed curate above deleted only its workstream file, so
+# land a second one that deletes a plan too.
+git -C "$trwork" checkout -qb claude/curate-declutter
+mkdir -p "${trwork}/docs/handover"
+printf -- '---\nworkstream: curate-2026-09-12\nstatus: in-progress\nbranch: claude/curate-declutter\nplan: none\nagent: sonnet\nupdated: 2026-09-12\nnext: x\n---\n\n## Goal\nFixture.\n' \
+  >"${trwork}/docs/handover/curate-2026-09-12.md"
+commit_all "$trwork" "claim a decluttering curate"
+fixture_rm "$trwork" "retire it AND declutter two plans (step 7)" \
+  docs/handover/curate-2026-09-12.md docs/plans/t_one.md docs/plans/t_two.md
+git -C "$trwork" checkout -q main
+git -C "$trwork" merge -q --no-ff --no-edit claude/curate-declutter
+git -C "$trwork" push -q origin main
+out="$(tr_ env JOHARNESS_CURATE_PLANS=1)"
+refute "a curate's own retire commit is not churn it must answer for" \
+  "curate    : DUE" "$out"
+expect "the count starts after the commit that landed it, at zero" \
+  "0 plan file(s) changed (of 1)" "$out"
+
+# --- the DRAINED repetition, which nothing reached -------------------------
+# `cmd_drain` returns at NOT DRAINED while any plan is free, so the block at the
+# DRAINED verdict was unreachable: deleting it left every case green (verifier
+# r14). An idle queue is exactly where a due curate is the work.
+fixture_rm "$trwork" "empty the queue" docs/plans/seed.md
+git -C "$trwork" push -q origin main
+out="$( cd "$trwork" && JOHARNESS_CONF="$trconf" DRAIN_FETCH=0 \
+  JOHARNESS_CURATE_PLANS=1 JOHARNESS_CURATE_HOURS=1 ./joharness.sh drain 2>&1 )"
+expect "a drained queue still reports the verdict" "DRAINED — no unplanned" "$out"
+out="$( cd "$trwork" && JOHARNESS_CONF="$trconf" DRAIN_FETCH=0 \
+  JOHARNESS_CURATE_HOURS=0 ./joharness.sh drain 2>&1 )"
+expect "and with the cycle off it says nothing about curating" \
+  "DRAINED — no unplanned" "$out"
+refute "no curate line at all when the human switched it off" "curate" "$out"

@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01BrSMgwe9csBqCjehd6v16R
 agent: opus
 updated: 2026-09-11
-next: 16 verifier findings recorded, all open. The two-reader split (r4-r6) needs one shared definition of in-flight, not per-finding patches. NOT mergeable as it stands
+next: r4-r9, r11-r16, r18 fixed and verified. r10 (my wrong numbers) corrected in the record; r17 is the churn count, disposed of below; r19 (a curate on a fork remote) is wontfix and says why
 ---
 
 ## Goal
@@ -104,68 +104,79 @@ and they do not agree.
   directions, reproduced: an ordinary branch owning `curate-cadence.md` with a
   real `plan:` suppresses the cycle for every supervised session while dispatch
   says spawn; and a real curator whose file is `curate2026-09-11.md` reads as in
-  flight to dispatch and as DUE to drain, so a second curate starts. (open)
+  flight to dispatch and as DUE to drain, so a second curate starts. (fixed: both entrypoints call `dispatch_curate_branches`, which answers from refs and FRONTMATTER; the prefilter is a broad substring so a curator named `curate2026-09-11.md` is still read, and a false positive there costs three git calls and no decision. Both r4 inputs verified: the ordinary branch is ignored, the odd-named curator is found, and the two readers agree.)
 - r5: (verifier, correctness) in a shallow clone the handover hook falls back to
   listing the TREE, so a curate file INHERITED on `main` prints as an ordinary
   branch's and drain reads it as in flight — while that same leftover makes
   `dispatch_curate_landed_ts` empty, so the cycle is permanently due AND
-  permanently suppressed. Reproduced. (open)
+  permanently suppressed. Reproduced. (fixed by the same change: the added-against-merge-base test excludes an inherited file, and the detector never reads the tree.)
 - r6: (verifier, correctness) `HANDOVER_SCOPE=branch` is NOT pinned by
   `drain_hook`, and the hook exits before its ref walk under it — so drain sees
   nothing and prints DUE over a curate in flight. Orchestrated session start
-  exports exactly that value. Reproduced. (open)
+  exports exactly that value. Reproduced. (fixed by the same change: the detector does its own ref walk, so `HANDOVER_SCOPE` cannot blind it.)
 - r7: (verifier, correctness) `--since=@<landed>` filters on each commit's own
   COMMITTER date, not on when it landed on the base branch, so a plan committed
   before the last curate and merged after it is never counted. Measured here
   over 14 days: 82 plan additions, 48 landed >600s after their commit, 19 >1h,
   max 22.2h. About a quarter of additions have a window in which a landing
-  curate erases them. (open)
+  curate erases them. (fixed: the walk is bounded by a COMMIT RANGE, `<landed sha>..<base>`, which asks what the base branch gained. Verified on a fixture where a plan committed before the curate merged after it: `--since` counted 0, the range counts 1.)
 - r8: (verifier, correctness) `--since` is INCLUSIVE, and Loop step 7 puts the
   plan deletions in the retire commit — so a curate that declutters 10 plans
   makes itself due again on the next `drain` at the default threshold.
-  Reproduced. (open)
+  Reproduced. (fixed by the same range: `A..B` excludes A, so a curate that declutters plans in its retire commit counts 0. Verified, and pinned by a case.)
 - r9: (verifier, behaviour reversal) `off` now requires BOTH knobs at 0.
   `JOHARNESS_CURATE_HOURS=0` was the only off switch that existed and the one
   the old case pinned; a consumer that switched curation off that way silently
   gets a due cycle. Nothing pins the reversal and the knob is not in
-  `conf-keys.sh`, so a sync will not name it either. (open)
+  `conf-keys.sh`, so a sync will not name it either. (fixed: `JOHARNESS_CURATE_HOURS=0` alone switches the WHOLE cycle off again, as a compatibility promise rather than a tidy rule; `JOHARNESS_CURATE_PLANS=0` narrows to the clock. Both knobs now declared in `conf-keys.sh`, so every consumer sync names them, and two cases pin the reversal.)
 - r10: (verifier, written number) MY OWN measurement was taken with git's
   default simplification — the very thing this diff's own comment says
   "undercounts exactly the plans a curate cares about". Re-counted with the
   code's reader: 31, 71, 25 against the 32, 55, 10 recorded, and 127 changes
   rather than 97. The conclusion is unchanged and strengthened; the numbers
-  were wrong and are mine. (open)
+  were wrong and are mine. (fixed: both the code comment and
+  `.agents/docs/orchestrated.md` now carry the re-counted 31/71/25 and 127, with
+  the command that produces them and the note that the first pass used the
+  default simplification.)
 - r11: (verifier, rule conflict) `drain.md` numbers curate step 2 and edge work
   step 3, against Loop step 2 ("Finishing outranks starting. Edge work in flight
   leads") and against `cmd_drain`'s own comment saying the block sits AFTER the
-  edge. A session with its own branch at the edge takes the curate instead. (open)
+  edge. A session with its own branch at the edge takes the curate instead. (fixed: curate is step 3 in `drain.md`, after edge work, with the reason on the line.)
 - r12: (verifier, correctness) `drain_free_others` excludes `$next` assuming
   this session takes it, but the curate block just told the session the curate
   is its item — so under unsupervised the named plan gets no session in that
-  wave. Reproduced. (open)
+  wave. Reproduced. (fixed: when a curate is the item, `drain_free_others` is called with no exclusion, so the named plan keeps its session.)
 - r13: (verifier, tests pin nothing) the headline new cases run in the "none has
   ever landed" state, which `dispatch_curate_due` answers BEFORE either knob is
   read — they stay green with the churn reader and the clock reader entirely
-  broken. No case asserts either default. (open)
+  broken. No case asserts either default. (fixed: a second fixture lands a curate first, so every knob case runs in the state where a knob actually decides — production alone, clock alone, and both defaults named in the not-due line.)
 - r14: (verifier, tests pin nothing) nothing reaches the DRAINED repetition:
   the fixture always holds a free plan, so deleting those four lines leaves all
   1917 cases green. Five of the new refutes pass with the whole drain block
-  deleted. (open)
+  deleted. (fixed: the new fixture empties its queue, so the DRAINED block is reached and asserted both on and off.)
 - r15: (verifier, fixture hygiene) `JOHARNESS_CURATE_PLANS` missing from
   `selftest.sh`'s unset list, against a header that measures why the list
-  exists. Latent, not red. (open)
+  exists. Latent, not red. (fixed: `JOHARNESS_CURATE_PLANS` unset in `selftest.sh`.)
 - r16: (verifier, budget) `drain` is 334 against 338, and 325 before this item:
-  +9 spawns, 4 left. The next addition to `drain` reds it. (open)
+  +9 spawns, 4 left. The next addition to `drain` reds it. (fixed the loop first, then the number: `--no-merged` filters in one call and an `ls-tree` prefilter means only a curate-carrying ref pays for the rest, taking the cost from 46 spawns to 19. Budget raised 338 -> 357 with the counted number in the code, per `perf`'s own instruction.)
 - r17: (verifier, gate) `ci` is RED on this head at ELEVEN commits to
   `selftest/dispatch.sh`; the churn disposition above records 10, so the record
-  is already stale against the count. (open)
+  is already stale against the count. (fixed by the split: this item now sits on
+  a branch cut fresh from `main` after PR 237 merged, so the count restarts —
+  and the churn disposition that went stale is gone with the branch it was
+  written on. Read the count from `./joharness.sh ci` on this head, never from a
+  number written here.)
 - r18: (verifier, doc reachability) the cycle is every-mode now, but both knobs
   are documented only in the ORCHESTRATED design doc, and drain's block names
   no knob and no off switch — a supervised operator has no path from the output
-  to the control. (open)
+  to the control. (fixed: `drain`'s due block names both knobs and the off switch.)
 - r19: (verifier, minor) drain anchors on `^  origin/`, so a curate pushed to a
   fork remote is invisible; dispatch is blind the same way, so they agree here
-  and both miss it. (open)
+  and both miss it. (wontfix: `dispatch_curate_branches` walks
+  `refs/remotes/origin` by name, so a fork remote is outside what either reader
+  looks at — widening it means deciding which remotes count as the fleet's,
+  which is a configuration question and not this item's. Recorded so the next
+  reader has the case rather than rediscovering it.)
 - note: (verifier, clean) `set -u` safety, `num_knob` rejecting negatives and
   words, empty `age` handled before any `-ge`, `churn` always one integer,
   merge commits not undercounting under `--full-history`, and the block printing
