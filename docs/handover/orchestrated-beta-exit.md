@@ -54,7 +54,23 @@ the plan's real gate was always the human's answer below, not the DAG.
 
 ## Review
 
-(pending — step 5)
+- r1: `.agents/docs/orchestrated.md` asserted the comparison "never was what
+  the label waited for". False against this file's own prior text — licence A
+  tied the label to exactly that comparison. The strip would have had the repo
+  rewrite its own history to make the discharge read cleaner, which is the
+  failure the plan's Traps name. (fixed: the file now records that it carried a
+  second condition, that it could never be discharged, and that the comparison
+  stays open and is not a label.)
+- r2: the two discharge sentences were not one claim — "discharged the beta
+  label on 2026-09-11" against "…, 2026-09-11". The plan asks for one claim in
+  one spelling across both files, and a second spelling is the exact defect it
+  exists to close. (fixed: both now read "counting it is what discharged the
+  beta label, 2026-09-11", differing only in how each points at the Runs table;
+  checked by normalising whitespace and comparing.)
+- r3: `.agents/docs/orchestrated.md` authority paragraph said "nothing about
+  this mode's standing softens it" — "standing" is a noun for the label this
+  repo does not use anywhere else. (fixed: "nothing about this mode softens
+  it".)
 
 ## Blockers
 

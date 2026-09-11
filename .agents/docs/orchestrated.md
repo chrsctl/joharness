@@ -15,10 +15,11 @@ cap, watches them, and kills a stuck one after its handover is written.
 `.agents/docs/product/README.md` records the peer position and what it
 costs; this mode is the measured alternative. Run 1 — 2026-09-06, counted
 in Runs below — is the counted run, and counting it is what discharged the
-beta label on 2026-09-11. What run 1 did NOT settle is which design empties
-a queue faster: no peer-fleet drain has ever been measured, so that
-comparison has no counterpart number and never was what the label waited
-for.
+beta label, 2026-09-11. This file tied that label to a second condition
+too — which design empties a queue faster — and that one could never be
+discharged: no peer-fleet drain has ever been measured, so it has no
+counterpart number to compare against. That comparison is still open. It
+is not a label.
 
 ## What the mode changes
 
@@ -342,7 +343,7 @@ mode for the measured run declared `scope: docs/product, joharness.conf`,
 and with the conf outside the boundary `dispatch` offered that plan to the
 very fleet it would have flipped. Both roles run `authority` first, and
 `orchestrated` with any verdict but VERIFIABLE is a stop, and nothing
-about this mode's standing softens it:
+about this mode softens it:
 "a human invoked this" is a claim the session cannot check, which is the
 sentence under Authority in the same file.
 
