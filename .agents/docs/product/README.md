@@ -209,9 +209,10 @@ managers still merge their own pull requests 0 behind `main` — so the
 number above is what a run of it should move: fewer collisions taken, or
 the hold rule bought nothing. Run 1 — 2026-09-06, counted in
 [`../orchestrated.md`](../orchestrated.md), Runs — is the counted run, and
-counting it is what discharged the beta label, 2026-09-11. The peer fleet
-stays the default: what run 1 did not measure is which of the two empties a
-queue faster, and no peer-fleet drain number exists to compare against.
+counting it is what discharged the beta label, 2026-09-11. It did not move
+the number above: its row counts no reconciles, and neither side has
+drained a stocked queue. The peer fleet stays the default, and which design
+empties a queue faster is still open.
 
 **The gap none of this closes: claim-by-push only covers work that enters
 through the queue.** A request typed at a running session enters nowhere, and

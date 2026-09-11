@@ -21,7 +21,7 @@ so in its Runs table, which this plan fills.
 Both are money (`.agents/harness/AGENTS.md`, Decide alone):
 
 1. The four numbers in `joharness.conf` — cap, stall, health, respawn
-   limit. Beta defaults are written there; the human confirms or changes
+   limit. The defaults are written there; the human confirms or changes
    them, and the merged line is what `authority` verifies.
 2. The heartbeat. A Routine created from a session carries no connectors
    (`.agents/docs/unsupervised.md`, the connector trap); the human creates
