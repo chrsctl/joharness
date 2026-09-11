@@ -173,6 +173,19 @@ item(s) now (+28 waiting behind them), 4 slot(s)`. `ToolSearch
 returns the tool: the lookup the file prescribed could not find the tool
 the file needed.
 
+A tool is not a route, and the gate must read the thing it claims. Same
+line, twice: PR218 r3 replaced an uncheckable condition (can the manager,
+not yet spawned, reach me?) with `ToolSearch("+SendMessage")`, which is
+green on every runtime that HAS the tool and says nothing about whether a
+message can travel; issue #230 then measured the merge notice failing in
+`chrsctl/gx` for exactly that reason. Tool presence and route existence
+are different facts, and a check that cannot tell them apart is the
+wrong-reason green. The signal that does discriminate is a peer row —
+`ListAgents` listing somebody other than you — and it is readable in the
+orchestrator's own container before any spawn. General form: when a
+degradation path is designed and correct, the defect left is the gate
+that decides whether to take it.
+
 ### Loops are not stalls
 
 A stall is silence. A loop is the opposite: pushes keep landing and the
