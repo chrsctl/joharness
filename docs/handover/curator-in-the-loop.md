@@ -51,6 +51,40 @@ what it fixes.
 
 ## Review
 
+**The churn gate fired, and the research step it demands is recorded here
+rather than bypassed.** `ci` reds `.agents/harness/selftest/dispatch.sh`
+rewritten in 10 commits on this branch (ceiling 10): *"Past the ceiling this is
+churn, not a judgment call. Stop patching — take the research step at a raised
+tier or effort."*
+
+Counted before deciding anything (`git log --numstat origin/main..HEAD --
+.agents/harness/selftest/dispatch.sh`, 2026-09-11): **+651 / -62** across the
+ten, with four PURE-ADDITION commits of +91, +172, +101 and +43 and a largest
+deletion of -18. No fix undoes an earlier one; the file grew because three
+items' cases live in it (`rescope-held-plans`, `curator-role`, this one). That
+is the "genuine large rework" the gate's own message names, so it is lifted for
+this branch ON THE RECORD — `JOHARNESS_CHURN_LIMIT=0` on the `ci` run, said
+here and in the pull request, never written into `joharness.conf`.
+
+What the research step DID find is a recurring defect the count was pointing
+at, three commits of the ten, each a different inherited precondition:
+
+- `2418bfe` inherited QUEUE CONTENT — two cases reused `reg/index.py` and the
+  requirement `vanished`, both already claimed by earlier cases in the same
+  fixture, so they measured those cases' plans.
+- `2ab1b9d` inherited BRANCH POSITION — a case asked `drain` while checked out
+  ON the branch it asked about, where "nothing in flight" is the correct answer
+  to the wrong question.
+- `2ab1b9d` also inherited a KNOB VALUE — the orchestrated cases assumed a
+  trigger had fired over a change under the default threshold.
+
+One sentence covers all three: **a case in a shared fixture sets every
+precondition it turns on, because what it inherits was chosen by an earlier
+case for a different question.** Graduated into the topic's own header, which
+is where the next author of a case reads it (`.agents/docs/feedback.md`, a file
+that keeps drawing findings is a rule nobody wrote yet).
+
+
 ## Blockers
 
 None.

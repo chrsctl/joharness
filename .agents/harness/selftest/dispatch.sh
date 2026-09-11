@@ -13,6 +13,28 @@
 # scratch repo, as drain does, because every line is a property of the
 # whole queue.
 #
+# A case in a SHARED fixture sets every precondition it turns on — queue
+# content, branch position, and knob values — because what it inherits was
+# chosen by an earlier case for a different question. Three cases on one branch
+# failed this way, each inheriting a different thing, and each looked like a
+# code defect until the fixture was read:
+#
+#   queue content  two cases reused `reg/index.py` and the requirement
+#                  `vanished`, both already claimed upstream in the same
+#                  fixture, so they measured an earlier case's plans.
+#   branch position a case asked `drain` while still checked out ON the branch
+#                  it was asking about. `drain` sees another session's claim
+#                  through the handover hook's `origin/<branch>:` lines, so
+#                  from the branch itself the answer is legitimately "nothing
+#                  in flight" — the wrong question, not a wrong answer.
+#   knob value     a case assumed a trigger had fired when the change it made
+#                  was under the DEFAULT threshold, so it passed or failed on a
+#                  number it never set.
+#
+# The tell is the same in all three: the assertion is about X and the fixture
+# decides X somewhere else. Build the precondition in the case, or give the
+# case its own repo — several topics here do, and that is why.
+#
 # shellcheck shell=bash disable=SC2154
 
 step "joharness.sh dispatch"
