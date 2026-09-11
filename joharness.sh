@@ -6306,8 +6306,14 @@ dispatch_curate_plan_churn() {
       [ -n "$c" ] || continue
       git -C "$ROOT" diff-tree --no-commit-id --name-only -r "$c" -- docs/plans \
         </dev/null 2>/dev/null
-    done | gr_docs | sort -u | grep -c . || printf '0'
+    done | gr_docs | sort -u | awk 'END { print NR + 0 }'
 }
+
+# `awk END{print NR+0}`, never `grep -c . || printf 0`: grep PRINTS 0 and EXITS
+# 1 on no matches, so the fallback fired too and the count came back as two
+# lines, `0\n0` — which broke the integer test ("integer expression expected")
+# and spilled into the reason string a reader sees. awk always prints one
+# number and always exits 0.
 
 # Is a curate due, and WHY. One reader, because `drain` and `dispatch` both ask
 # and two readers of one cadence is two answers — the orchestrator and a
@@ -6350,8 +6356,18 @@ dispatch_curate_due() {
       "$age" "$hours" "$churn"
     return 0
   fi
-  printf 'not-due %s plan file(s) changed (of %s) and %sh elapsed (of %sh) since the last curate' \
-    "$churn" "${plans}" "$age" "${hours}"
+  # Name only the triggers that are ENABLED. "(of 0h)" reads as a clock that
+  # fired at zero rather than one the human switched off.
+  if [ "$plans" -gt 0 ] && [ "$hours" -gt 0 ]; then
+    printf 'not-due %s plan file(s) changed (of %s) and %sh elapsed (of %sh) since the last curate' \
+      "$churn" "$plans" "$age" "$hours"
+  elif [ "$plans" -gt 0 ]; then
+    printf 'not-due %s plan file(s) changed (of %s) since the last curate; the clock is off' \
+      "$churn" "$plans"
+  else
+    printf 'not-due %sh elapsed (of %sh) since the last curate; the production trigger is off' \
+      "$age" "$hours"
+  fi
 }
 
 # Curate branches in flight: unmerged, carrying a workstream file this branch

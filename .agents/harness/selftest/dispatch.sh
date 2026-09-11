@@ -1133,13 +1133,13 @@ cwd() { ( cd "$cwwork" && JOHARNESS_CONF="$cwconf" DRAIN_FETCH=0 \
   DISPATCH_FETCH=0 "$@" ./joharness.sh dispatch 2>&1 ); }
 out="$(cwd)"
 expect "no curate has ever landed, so one is due" \
-  "none has ever landed on main, so one is DUE" "$out"
+  "curate    : DUE — none has ever landed on main" "$out"
 expect "and the tail line under the verdict says to spawn one" \
   "curate DUE: spawn ONE curator (agent: sonnet)" "$out"
 expect "naming it as beyond the cap" "beyond the cap, holds no slot" "$out"
-out="$(cwd env JOHARNESS_CURATE_HOURS=0)"
-expect "zero hours is the human's off switch" \
-  "curate    : off — JOHARNESS_CURATE_HOURS=0" "$out"
+out="$(cwd env JOHARNESS_CURATE_HOURS=0 JOHARNESS_CURATE_PLANS=0)"
+expect "zero on BOTH knobs is the human's off switch" \
+  "curate    : off — JOHARNESS_CURATE_HOURS=0 and JOHARNESS_CURATE_PLANS=0" "$out"
 refute "and nothing is ever spawned" "curate DUE" "$out"
 
 # A curator in flight: no second one is due, whatever the clock says.
@@ -1155,8 +1155,8 @@ expect "a curator in flight is named with its branch and stamp" \
   "claude/curate-run  curate-2026-09-11  in-progress  pushed" "$out"
 expect "its session rides under it" \
   "session: https://example.invalid/session_cur" "$out"
-expect "and the cycle says none is due while one runs" \
-  "a curator is IN FLIGHT, so none is due" "$out"
+expect "and the cycle says one is already running" \
+  "and one is IN FLIGHT" "$out"
 refute "so the orchestrator is told to spawn nothing" "curate DUE" "$out"
 
 # Its retire commit IS the cycle's date, and the branch+merge shape is the whole
@@ -1177,7 +1177,7 @@ git -C "$cwwork" merge -q --no-ff --no-edit claude/curate-run
 git -C "$cwwork" push -q origin main
 out="$(cwd)"
 expect "a curate retired on its branch and merged dates the cycle" \
-  "since the last one landed, not due" "$out"
+  "curate    : not due" "$out"
 refute "so it is not read as never having landed" \
   "none has ever landed" "$out"
 refute "and nothing is spawned" "curate DUE" "$out"
@@ -1192,7 +1192,7 @@ if [ -z "$simplified" ] && [ -n "$fullhist" ]; then
 else
   fail "the fixture no longer discriminates --full-history (simplified='${simplified}' full='${fullhist}')"
 fi
-out="$(cwd env JOHARNESS_CURATE_HOURS=0)"
+out="$(cwd env JOHARNESS_CURATE_HOURS=0 JOHARNESS_CURATE_PLANS=0)"
 refute "off still spawns nothing once one has landed" "curate DUE" "$out"
 
 # --- the findings a green suite would otherwise not distinguish ---------------
@@ -1384,8 +1384,13 @@ git -C "$cuwork" checkout -q main
 git -C "$cuwork" merge -q --no-ff --no-edit claude/curate-loop
 git -C "$cuwork" push -q origin main
 out="$(cud)"
-expect "once it lands, nothing is due" "curate    : not due" "$out"
-refute "and no block claims the session's item" "curate    : DUE" "$out"
+# drain is deliberately QUIET when nothing is due — it is an action list, not a
+# status report — so the state is asserted on dispatch and the silence here.
+refute "once it lands, drain claims nothing as the session's item" \
+  "curate    : DUE" "$out"
+refute "and says nothing at all about curating" "curate    :" "$out"
+expect "while dispatch, which reports state, says not due" \
+  "curate    : not due" "$(cudis)"
 
 # Production: three plan files land, threshold 3 -> due, though ~0h elapsed.
 for n in two three four; do cuplan "$n"; done
@@ -1396,15 +1401,18 @@ expect "three plan files since the last curate makes one due" \
   "3 plan file(s) changed since the last curate (>= 3)" "$out"
 expect "and the clock had nothing to do with it" "curate    : DUE" "$out"
 out="$(cud env JOHARNESS_CURATE_PLANS=99)"
-expect "under the threshold it is not due, and says both numbers" \
-  "plan file(s) changed (of 99)" "$out"
-refute "so nothing is claimed as the item" "curate    : DUE" "$out"
+refute "under the threshold nothing is claimed as the item" \
+  "curate    : DUE" "$out"
+expect "and dispatch says how far off it is, in both numbers" \
+  "plan file(s) changed (of 99)" "$(cudis env JOHARNESS_CURATE_PLANS=99)"
 
 # Time: the trigger production cannot see — code moves UNDER a plan and breaks
 # its anchors with no plan file changing. Hours 0 leaves only production.
-out="$(cud env JOHARNESS_CURATE_PLANS=99 JOHARNESS_CURATE_HOURS=0)"
-refute "hours 0 disables the clock alone" "since the last curate (>= " "$out"
+expect "hours 0 disables the clock alone, and dispatch says which is off" \
+  "the clock is off" "$(cudis env JOHARNESS_CURATE_PLANS=99 JOHARNESS_CURATE_HOURS=0)"
+expect "plans 0 disables production alone, and says so the other way" \
+  "the production trigger is off" "$(cudis env JOHARNESS_CURATE_PLANS=0)"
 out="$(cud env JOHARNESS_CURATE_PLANS=0 JOHARNESS_CURATE_HOURS=0)"
-expect "both knobs 0 is the human's off switch" \
-  "no curate is ever due" "$out"
-refute "and nothing is ever claimed" "curate    : DUE" "$out"
+refute "both knobs 0 claims nothing as the item" "curate    : DUE" "$out"
+expect "and dispatch names it as the human's off switch" \
+  "no curate is ever due" "$(cudis env JOHARNESS_CURATE_PLANS=0 JOHARNESS_CURATE_HOURS=0)"
