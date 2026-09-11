@@ -5,7 +5,7 @@ agent: sonnet
 effort: high
 needs: none
 requirement: orchestrated-mode
-scope: docs/product, joharness.conf
+scope: docs/product/orchestrated-mode.md, joharness.conf, .agents/docs/orchestrated.md
 ---
 
 ## Goal
