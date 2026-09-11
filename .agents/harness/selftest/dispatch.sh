@@ -1014,14 +1014,18 @@ printf 'x\n' >"${cwwork}/src/real.py"
 printf 'x\n' >"${cwwork}/reg/index.py"
 cwconf="${cwwork}/joharness.conf"
 printf 'JOHARNESS_ENV=none\nJOHARNESS_MODE=orchestrated\n' >"$cwconf"
+# A literal backtick, built once. Inside a single-quoted printf format, SC2016
+# reads one as an unexpanded command substitution -- and these fixtures need
+# real backticks, because that is the shape the parser under test reads.
+bt='`'
 cw() { ( cd "$cwwork" && JOHARNESS_CONF="$cwconf" DRAIN_FETCH=0 \
   DISPATCH_FETCH=0 "$@" ./joharness.sh curate 2>&1 ); }
 
 # A clean plan: every declaration true. Nothing may be said about it.
 { printf -- '---\nplan: clean\nurgency: normal\nagent: sonnet\neffort: low\n'
   printf 'needs: none\nrequirement: none\nscope: src/real.py\n---\n\n'
-  printf '## Goal\nFixture.\n\n## Scope\n\n- `src/real.py` — what changes.\n\n'
-  printf '## Where to look\n\n- `src/real.py:thing` — why.\n'
+  printf '## Goal\nFixture.\n\n## Scope\n\n- %ssrc/real.py%s -- what changes.\n\n' "$bt" "$bt"
+  printf '## Where to look\n\n- %ssrc/real.py:thing%s -- why.\n' "$bt" "$bt"
 } >"${cwwork}/docs/plans/clean.md"
 commit_all "$cwwork" "base"
 git -C "$cwwork" remote add origin "$cworigin"
@@ -1037,14 +1041,14 @@ refute "a clean plan draws no REPAIR section at all" "REPAIR (" "$out"
 { printf -- '---\nplan: repairs\nurgency: normal\nagent: sonnet\neffort: low\n'
   printf 'needs: none\nrequirement: none\nscope: src, reg/index.py\n---\n\n'
   printf '## Goal\nFixture.\n\n## Scope\n\n'
-  printf -- '- `src/real.py` — covered.\n'
-  printf -- '- `other/thing.py` — NOT covered by scope:.\n\n'
-  printf '## Where to look\n\n- `src/gone.py:thing` — not in the tree.\n'
+  printf -- '- %ssrc/real.py%s -- covered.\n' "$bt" "$bt"
+  printf -- '- %sother/thing.py%s -- NOT covered by scope:.\n\n' "$bt" "$bt"
+  printf '## Where to look\n\n- %ssrc/gone.py:thing%s -- not in the tree.\n' "$bt" "$bt"
 } >"${cwwork}/docs/plans/repairs.md"
 for n in reg_b reg_c; do
   { printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: low\n' "$n"
     printf 'needs: none\nrequirement: none\nscope: reg/index.py\n---\n\n'
-    printf '## Goal\nFixture.\n\n## Scope\n\n- `reg/index.py` — appended to.\n'
+    printf '## Goal\nFixture.\n\n## Scope\n\n- %sreg/index.py%s -- appended to.\n' "$bt" "$bt"
   } >"${cwwork}/docs/plans/${n}.md"
 done
 commit_all "$cwwork" "a plan with four repairs, and two peers on the registry"
@@ -1088,8 +1092,8 @@ refute "nor a scope finding" \
 { printf -- '---\nplan: big\nurgency: normal\nagent: sonnet\neffort: low\n'
   printf 'needs: none\nrequirement: none\nscope: src/real.py\n---\n\n'
   printf '## Goal\nFixture.\n\n## Scope\n\n'
-  for i in 1 2 3; do printf -- '- `src/real.py` — part %s.\n' "$i"; done
-  printf '\n## Where to look\n\n- `src/real.py:thing` — why.\n'
+  for i in 1 2 3; do printf -- '- %ssrc/real.py%s -- part %s.\n' "$bt" "$bt" "$i"; done
+  printf '\n## Where to look\n\n- %ssrc/real.py:thing%s -- why.\n' "$bt" "$bt"
 } >"${cwwork}/docs/plans/big.md"
 commit_all "$cwwork" "a plan with three Scope bullets"
 git -C "$cwwork" push -q origin main
@@ -1104,7 +1108,7 @@ refute "a decompose candidate is never offered as a repair" \
 # DECLUTTER: a requirement gone from the tree, served by no other plan.
 { printf -- '---\nplan: orphan\nurgency: normal\nagent: sonnet\neffort: low\n'
   printf 'needs: none\nrequirement: vanished\nscope: src/real.py\n---\n\n'
-  printf '## Goal\nFixture.\n\n## Scope\n\n- `src/real.py` — what changes.\n'
+  printf '## Goal\nFixture.\n\n## Scope\n\n- %ssrc/real.py%s -- what changes.\n' "$bt" "$bt"
 } >"${cwwork}/docs/plans/orphan.md"
 commit_all "$cwwork" "a plan whose requirement is gone"
 git -C "$cwwork" push -q origin main
