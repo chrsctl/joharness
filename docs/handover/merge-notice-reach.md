@@ -1,6 +1,6 @@
 ---
 workstream: merge-notice-reach
-status: in-progress
+status: done
 branch: claude/address-issue-45qgw6
 pr: none
 plan: docs/plans/merge-notice-reach.md
@@ -8,7 +8,7 @@ issue: #230
 session: https://claude.ai/code/session_01PsTd99XdX46dYkgMn6mAWt
 agent: opus
 updated: 2026-09-11
-next: re-run ci, then retire the plan and this file, then open the pull request
+next: none — retired with the pull request that carries the fix
 ---
 
 ## Goal
@@ -160,6 +160,11 @@ not editable on its own.
   limit PR218 r8 already recorded. Its claims about those tools are reasoned
   from #230's transcript, which it re-fetched. Recorded so the next reader
   knows which half of this review is re-runnable and which rests on the issue.
+- Graduated before retiring, per `.agents/docs/feedback.md` ("file keeps
+  drawing findings = rule nobody wrote yet"): `.agents/docs/orchestrated.md`
+  now carries "a tool is not a route, and the gate must read the thing it
+  claims", with both occurrences on this one line — PR218 r3 and #230 — as its
+  evidence. Two rounds on one sentence is the measurement that earns it.
 - r13 (verifier, clean): cherry-pick fidelity — the command-file hunks of
   `5cd9a3a` and `1b71f02` are byte-identical to the originals, the differing
   patch-id being base drift; direction claim "above" correct; zero glossary-ban
