@@ -40,6 +40,46 @@ jobs:
   # those get proven. A layer that needs none of it says so itself, and the
   # verify step runs it.
   lint:
+    # The minutes switch. `JOHARNESS_CHECKS` names one question — who runs
+    # this head's checks — and it has two homes because two different machines
+    # answer it. In `joharness.conf` it tells a SESSION whether to wait for
+    # Actions or run `ci` and `verify` itself (`joharness.sh:checks_gate`).
+    # Here, as a repository variable, it tells GITHUB whether to spend minutes
+    # at all. Set the repository variable to `local` — Settings, Secrets and
+    # variables, Actions, Variables — and this job stops taking a runner;
+    # unset it, or set it to anything else, and it runs exactly as it always
+    # did. Precisely: the workflow RUN is still created and the job is marked
+    # skipped, which is what keeps the switch visible in the Actions tab. No
+    # runner is claimed, and runner time is what Actions bills.
+    #
+    # Exact match, and `Local` or `LOCAL` therefore does not switch it off.
+    # The shell reader warns at a value it does not know; a workflow condition
+    # cannot, so the typo here fails toward SPENDING the minutes and running
+    # the checks, which is the direction that loses money rather than a gate.
+    #
+    # A VARIABLE and not this repo's tracked conf, because the workflow cannot
+    # read a file out of the branch before deciding whether to start, and a
+    # switch that needs a commit and a push is no use to somebody who has
+    # already run out of minutes. Not a secret either: it hides nothing, and a
+    # reader of the run needs to see why the job did not run.
+    #
+    # On the JOB and not on `on:`, because there is no workflow-level `if` and
+    # because gating the trigger would take a commit to restore.
+    #
+    # The trade, said once here and once in joharness.conf: a job skipped by
+    # this condition reports SKIPPED, never success. A branch protection rule
+    # that REQUIRES this check will hold the merge button for as long as the
+    # variable is set, and the local run cannot satisfy it — GitHub takes no
+    # verdict from a machine it did not run. That is why the switch is a
+    # repository variable a human sets, and nothing a session can flip.
+    #
+    # Seeded verbatim into a consumer at bootstrap and never synced after
+    # (.agents/scripts/bootstrap-consumer.sh), so a consumer older than this
+    # line carries the ungated workflow and pays its minutes until somebody
+    # adds the condition there by hand. Which is also who the minutes bill
+    # reaches: Actions is free on this public repo and is not on the private
+    # repos this file is seeded into.
+    if: ${{ vars.JOHARNESS_CHECKS != 'local' }}
     runs-on: ubuntu-latest
     # The backstop for a job that hangs rather than fails. Without it the
     # ceiling is GitHub's default of 360 minutes, which is six hours of a
