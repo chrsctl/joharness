@@ -37,7 +37,7 @@ in the report, and carry on:
 
 | absent | what changes |
 | --- | --- |
-| `SendMessage` / `ListAgents` | no nudge: the stall still takes the two passes below, the first one just sends nothing, and the KILL's own step 1 interrupts. No early wake on a merge: the freed slot waits one pass. Drop the last line of the spawn prompt. |
+| `SendMessage` / `ListAgents` | no nudge: the stall still takes the two passes below, the first one just sends nothing, and the KILL's own step 1 interrupts. No early wake on a merge: the freed slot waits one pass. Drop the merge line from the spawn prompt — not "the last line", which on a RESPAWN is the resume line. Same drop when `ListAgents` lists no session but you. |
 | `interrupt_session` | a kill cannot stop the session first. Write the handover from the branch, report that the session is still live, do not archive. |
 | `archive_session` | the killed session is left in place. Report it. An UNCLAIMED session is the exception and the rule reverses: report it and spawn NOTHING. A killed session was interrupted first and its branch carries the claim, so a successor cannot be a second live manager on it; an unclaimed one was never stopped and has no branch, so claim by push cannot resolve the pair. |
 | the canonical repository, from a spawned session | no upstream report: say which edge went unreported and carry on. The manager's merge still stands, and the findings are still recoverable with `./joharness.sh upstream <branch>` by whoever asks. |
@@ -409,13 +409,26 @@ Up to `slots`, in dispatch's order, only rows under `spawn`:
   milestone. One item, then exit.
   ```
 
-  plus the merge line whenever `ToolSearch("+SendMessage")` found the
-  tool for YOU — one check, made before the spawn, and the only half you
-  can make: `When your pull request merges, message session <your session
-  id>: "merged <stem>".` Whether the manager can reach you back is the
-  manager's own check (`.claude/commands/manage.md`, Finish), and it
-  costs nothing if it cannot: the next scheduled pass finds the merge.
-  No messaging tool here = no line.
+  plus the merge line only when a manager could reach you. Find both
+  tools as the Tools paragraph says, then call `ListAgents` once before
+  the spawn: the one check about YOUR container that also yields an
+  address. Either tool missing, or `ListAgents` listing no session but
+  you = no line — no peer row means this runtime routes nothing between
+  sessions, and the manager `create_session` puts in its own container
+  is who that costs. (A first spawn with no manager up yet reads that
+  way too: one pass of latency, never a wrong address.) The address is
+  the name `ListAgents` gives its caller, never a session id —
+  `SendMessage`'s `to` is a `ListAgents` row, as its own refusal says,
+  "Use ListAgents to see everyone you can message", and as the NUDGE row
+  above already has it.
+  `When your pull request merges, message "<your ListAgents name>":
+  "merged <stem>".` Whether the manager reaches you BACK is its own
+  check (`.claude/commands/manage.md`, Finish) and costs nothing when it
+  cannot: the next scheduled pass finds the merge.
+  Measured 2026-09-06 in `chrsctl/gx` — a manager spawned by
+  `create_session` ran where `ListAgents` listed no peers, and both the
+  session id it was handed and the orchestrator's title returned the
+  identical refusal: two faults behind one string, neither naming itself.
 
   plus, only when they apply, one line each: the RESPAWN resume line;
   the LOOP line; "Run at effort xhigh." for an opus planning manager or
