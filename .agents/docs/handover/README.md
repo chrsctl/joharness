@@ -480,6 +480,19 @@ base branch red within seconds; the two that did not were the two whose retire
 commit was the last one before the pull request opened. Same agent, same rule
 in front of it, same day — the ordering is the whole mechanism.
 
+What it accretes when nobody does it, counted in one consumer repo: **23
+workstream files on the base branch**, thirteen merges adding six and removing
+none. No producer and no date were recorded with it, so by this repo's own
+rule (Loop step 5, "Number nobody can re-count is a written number") treat it
+as an anecdote, not a measurement — it is relocated here from
+`.agents/harness/AGENTS.md`, unsourced there too, and it is not re-countable
+from this repo. Kept because the SHAPE it reports is reproducible and the
+count is not the point. The reason is one sentence of neighbouring text, not laziness — step 7
+says deleting the BRANCH is "optional hygiene, human-only" one sentence above
+saying deleting the FILES is neither, and a literal reader takes the first
+qualifier it meets as covering both. Hence the wording there: the files are
+NOT covered by "optional, human-only" — that is the branch.
+
 Deleting the file deletes the findings with it, which is why `./joharness.sh
 feedback` reads them back out of merge history: coverage, recurrence, and the
 files that keep drawing findings — the shortlist of what still wants

@@ -198,6 +198,16 @@ answered. Re-ask every switch instead, from canonical, naming the child:
 .agents/scripts/bootstrap-consumer.sh --reconfigure <consumer-dir>
 ```
 
+A key's COMMENT is answered once too, and that is the sharper edge. `joharness.conf`
+never syncs; the seed writes a key with the explanation of the day, and a
+consumer that already has the key keeps whatever text it was seeded with —
+forever, through every later sync. So an instruction file must not point at a
+conf comment for a fact a session NEEDS: canonical's copy may say more than
+the copy the reader has. Point at the command's own output instead, which
+ships. Found 2026-09-11 cutting `.agents/harness/AGENTS.md`, where a
+`JOHARNESS_CHECKS=local` sentence was about to be replaced by exactly such a
+pointer; the wording was made true against the shorter seeded copy instead.
+
 Same five questions as first contact, each offering the value in force in
 THAT child's conf, and the answers written to its `joharness.conf`. Nothing
 else: no sync, no seeding, no purge. That is why it is allowed where a
