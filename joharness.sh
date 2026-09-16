@@ -7050,7 +7050,7 @@ cmd_dispatch() {
   local ebranch eitem efirst estem espaces emore epath eage eagetext
   local edge_rows="" edge_items="" edge_unver=""
   local n_inflight=0 n_slots n_free=0 n_stall=0 n_blocked=0 n_hold=0 n_wait=0 n_loop=0
-  local pending
+  local pending pending_used
   local n_edge=0 n_edge_stall=0 n_leftover=0 n_leftover_noitem=0
   local leftover_rows="" estate=""
   local curate_due=0 curate_inflight="" n_curate_inflight=0 cdue cstate creason
@@ -7447,13 +7447,33 @@ cmd_dispatch() {
   # the correction instead of erroring at the reader.
   pending="${JOHARNESS_PENDING_SPAWNS:-0}"
   case "$pending" in '' | *[!0-9]*) pending=0 ;; esac
+  # Leading zeros off. Digits-only is not enough: bash arithmetic reads `08`
+  # as octal and DIES on it — `value too great for base`, dispatch exits 1
+  # mid-output with no slots line and no verdict — and a zero-padded count is
+  # an ordinary thing for a caller to write. Stripping them also makes `0`
+  # the one spelling of none, which is what the guards below compare against
+  # (never `-gt`, which errors on a value past 64 bits).
+  pending="${pending#"${pending%%[!0]*}"}"
+  [ -n "$pending" ] || pending=0
+  # What the subtraction may safely take, kept apart from what the caller
+  # said so the line below can still report the caller's own number. Digits
+  # all the way and 20 of them wraps 64-bit arithmetic to a POSITIVE result:
+  # measured 2026-09-16, JOHARNESS_PENDING_SPAWNS=18446744073709551613 at
+  # cap 4 printed `slots : 7 of 4 free` and told the reader to spawn past the
+  # cap — this input doing the one thing it exists to prevent (verifier, r3).
+  # Clamped to the cap, which costs nothing true: more pending than the cap
+  # can only mean 0 free. Length first, because a numeric compare on the
+  # untrusted value is the same arithmetic being guarded.
+  pending_used="$pending"
+  [ "${#pending_used}" -le "${#cap}" ] || pending_used="$cap"
+  [ "$pending_used" -le "$cap" ] || pending_used="$cap"
   # Subtracted here and nowhere else: every verdict below reads n_slots, so
   # the spawn count, the OVERLAP-BOUND gate and the DRAINED reading follow.
   # It can only LOWER — an input able to raise the count would spend the cap
   # by arithmetic, which is the failure being closed.
-  n_slots=$((cap - (n_inflight - n_blocked) - pending))
+  n_slots=$((cap - (n_inflight - n_blocked) - pending_used))
   [ "$n_slots" -ge 0 ] || n_slots=0
-  if [ "$pending" -gt 0 ]; then
+  if [ "$pending" != 0 ]; then
     # Said on the line, because a silently lowered count is indistinguishable
     # from a busy fleet and the next reader debugs the wrong thing.
     printf 'slots     : %s of %s free (%s spawned, not pushed yet: JOHARNESS_PENDING_SPAWNS)\n\n' \
@@ -7665,6 +7685,9 @@ cmd_dispatch() {
   if [ "$cap" -eq 0 ] && [ $((n_inflight - n_blocked)) -gt 0 ]; then
     printf 'verdict   : PAUSED — JOHARNESS_MAX_MANAGERS=0: spawn nothing; %s manager(s) in flight: keep the health pass going\n' \
       "$((n_inflight - n_blocked))"
+  elif [ "$cap" -eq 0 ] && [ "$pending" != 0 ]; then
+    printf 'verdict   : PAUSED — JOHARNESS_MAX_MANAGERS=0: spawn nothing; %s spawned this pass has not pushed (JOHARNESS_PENDING_SPAWNS): keep the health pass going, never exit on a manager this view cannot see\n' \
+      "$pending"
   elif [ "$cap" -eq 0 ]; then
     printf 'verdict   : PAUSED — JOHARNESS_MAX_MANAGERS=0: spawn nothing, exit; the human unpauses\n'
   elif [ "$n_free" -gt 0 ] && [ "$n_slots" -gt 0 ]; then
@@ -7701,6 +7724,17 @@ cmd_dispatch() {
   elif [ $((n_inflight - n_blocked)) -gt 0 ]; then
     printf 'verdict   : DRAINED — nothing free; %s manager(s) in flight: keep the health pass going\n' \
       "$((n_inflight - n_blocked))"
+  elif [ "$pending" != 0 ]; then
+    # EXIT is the one irreversible verdict on this line, and a manager
+    # spawned this pass is exactly what the git view cannot see. Exiting on
+    # it abandons a session the human is paying for with its item still
+    # unclaimed — the defect of issue #255 in its worst direction, and
+    # lowering the slot count alone does not reach it, because this branch
+    # and the PAUSED one above count managers, not slots. Counted
+    # SEPARATELY from the rows above, never folded into that number: it is
+    # a sentence true of every row it lists, and no row lists this one.
+    printf 'verdict   : DRAINED — nothing free, nothing in flight in the git view; %s spawned this pass has not pushed (JOHARNESS_PENDING_SPAWNS): keep the health pass going, never exit on a manager this view cannot see\n' \
+      "$pending"
   else
     printf 'verdict   : DRAINED — nothing free, nothing in flight: exit, the heartbeat re-seeds\n'
   fi

@@ -85,6 +85,24 @@ expect "nothing to spawn is said" "nothing free" "$out"
 expect "the exit verdict names both halves" \
   "DRAINED — nothing free, nothing in flight: exit, the heartbeat re-seeds" "$out"
 
+# Exit is the one irreversible verdict here, and a manager spawned this pass
+# has cut no branch, so the git view above is empty of it. Both exits are
+# guarded, because both count MANAGERS rather than slots and the lowered
+# slot count never reaches them (issue #255).
+out="$(dsp env JOHARNESS_PENDING_SPAWNS=1)"
+expect "a spawn nobody can see yet is not exited on" \
+  "DRAINED — nothing free, nothing in flight in the git view; 1 spawned this pass has not pushed (JOHARNESS_PENDING_SPAWNS): keep the health pass going" "$out"
+refute "and the exit verdict is not printed over it" \
+  "nothing in flight: exit, the heartbeat re-seeds" "$out"
+# The pause is the human's other exit, and it orphans the same manager.
+out="$(dsp env JOHARNESS_MAX_MANAGERS=0)"
+expect "a pause with nothing in flight exits" \
+  "verdict   : PAUSED — JOHARNESS_MAX_MANAGERS=0: spawn nothing, exit; the human unpauses" "$out"
+out="$(dsp env JOHARNESS_MAX_MANAGERS=0 JOHARNESS_PENDING_SPAWNS=1)"
+expect "and a pause over an unseen spawn keeps the health pass instead" \
+  "verdict   : PAUSED — JOHARNESS_MAX_MANAGERS=0: spawn nothing; 1 spawned this pass has not pushed (JOHARNESS_PENDING_SPAWNS): keep the health pass going" "$out"
+refute "never the pause's own exit" "spawn nothing, exit; the human unpauses" "$out"
+
 # --- the knobs are the human's: conf, then environment, digits only ---------
 printf 'JOHARNESS_ENV=none\nJOHARNESS_MODE=orchestrated\nJOHARNESS_MAX_MANAGERS=2\nJOHARNESS_STALL_MINUTES=30\n' >"$dspconf"
 out="$(dsp)"
@@ -187,6 +205,28 @@ expect "more pending than the cap floors at none free" \
   "slots     : 0 of 4 free (9 spawned, not pushed yet: JOHARNESS_PENDING_SPAWNS)" "$out"
 expect "and the verdict is wait, never a negative spawn count" \
   "NOT DRAINED — 3 free item(s), 0 slots: wait for a manager to finish" "$out"
+# Digits all the way and past 64 bits: the arithmetic WRAPS to a positive
+# result, so the count that can only lower frees more than the cap and the
+# reader is told to spawn past it — this input doing the one thing it exists
+# to prevent. Clamped to the cap before the subtraction sees it.
+out="$(dsp env JOHARNESS_PENDING_SPAWNS=18446744073709551613)"
+expect "a value past 64 bits is clamped, never wrapped" \
+  "slots     : 0 of 4 free (18446744073709551613 spawned, not pushed yet: JOHARNESS_PENDING_SPAWNS)" "$out"
+expect "and the verdict waits rather than spawning past the cap" \
+  "NOT DRAINED — 3 free item(s), 0 slots: wait for a manager to finish" "$out"
+# A zero-padded count is digits too, and bash arithmetic reads it as OCTAL:
+# `08` killed dispatch outright — exit 1, no slots line, no verdict.
+out="$(dsp env JOHARNESS_PENDING_SPAWNS=08)"
+expect "a zero-padded count is read as decimal, not octal" \
+  "slots     : 0 of 4 free (8 spawned, not pushed yet: JOHARNESS_PENDING_SPAWNS)" "$out"
+expect "and the reader still gets a verdict to act on" \
+  "NOT DRAINED — 3 free item(s), 0 slots: wait for a manager to finish" "$out"
+refute "with nothing of the octal failure in the output" "value too great for base" "$out"
+# And a padded count that is not the crash is still its own number: without
+# the strip it has more digits than the cap and the clamp eats it whole.
+out="$(dsp env JOHARNESS_PENDING_SPAWNS=01)"
+expect "a padded one is one, not the cap" \
+  "slots     : 2 of 4 free (1 spawned, not pushed yet: JOHARNESS_PENDING_SPAWNS)" "$out"
 out="$(dsp env JOHARNESS_PENDING_SPAWNS=two)"
 expect "a word is not a count: the git view stands" "slots     : 3 of 4 free" "$out"
 refute "and a mistyped value lowers nothing" \
