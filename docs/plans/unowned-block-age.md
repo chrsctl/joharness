@@ -29,19 +29,24 @@ stops being indistinguishable from a fresh one by reading alone.
   differ and the difference is the point — a branch parked for six days may
   have pushed twenty minutes ago.
 
-  The reading is git-only. Find the commit that introduced the current
-  `blocked` status in this file on this ref and take its committer date:
+  The reading is git-only: the commit that most recently SET `status:
+  blocked` in this file on this ref, and its committer date.
 
-  ```sh
-  git log --format=%ct -S'status: blocked' --reverse "$ref" -- "$ws" | tail -1
-  ```
+  `git log -S'status: blocked'` alone does not answer it, and the reason is
+  the trap this bullet exists for. `-S` matches every commit where the
+  COUNT of that string changed, which is the park (0 to 1) and the unpark
+  (1 to 0) and the retire that deletes the file. Verified on this repo,
+  2026-09-16: `git log --format=%h -S'status: blocked' --all --full-history
+  -- docs/handover` returns a retire commit at the top of the list. So
+  neither end of that list is the answer — newest may be an unpark, oldest
+  is the first block the branch ever had, and a branch parked, unparked and
+  parked again has both.
 
-  `--reverse | tail -1` picks the LAST commit that changed the count of that
-  string, which is the one that most recently set it, not the first time the
-  branch was ever blocked — a branch parked, unparked and parked again has
-  two, and the older one would report a block that was already answered.
-  Verify that against a fixture before trusting the sentence; the same
-  family of query bit PR #259's neighbour plan on the retire commit.
+  The discriminator is the file's CONTENT at the candidate commit: walk the
+  `-S` matches newest first and take the first one whose `<ws>` at that
+  commit still says `status: blocked`. Write the walk against a fixture that
+  parks, unparks and parks again, because a query that is right on a branch
+  blocked once is right by accident.
 
   Unreadable is its own answer and says so — a shallow clone has no history
   for most refs, and printing 0h there would read as parked this minute.
@@ -72,7 +77,9 @@ stops being indistinguishable from a fresh one by reading alone.
   row's two ages differ. Both asserted — an age assertion that passes when
   the code prints the push age is the defect this exists to catch.
 - A branch parked, unparked and parked again reports the age of the SECOND
-  block. Asserted, because the naive query reports the first.
+  block. Asserted, and it is the case that separates a real walk from a
+  `-S` list read at either end: the newest match there is the unpark, the
+  oldest is the first block.
 - A ref with no readable history for the file says so in words, and does not
   print an age. Asserted.
 - A row that is not blocked gains nothing. Asserted as a refute AND with a

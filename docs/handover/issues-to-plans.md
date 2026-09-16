@@ -78,6 +78,19 @@ decision rather than a build.
   — the promise was written and the file was not. (fixed — the question is
   filed now and the bullet names the path, so the claim is checkable rather
   than asserted.)
+- r3: (session) `unowned-block-age`'s Scope quoted a git query that does not
+  answer its own question. `-S'status: blocked'` matches every commit where
+  the COUNT of the string changed — the park, the unpark, and the retire
+  that deletes the file — so reading either end of that list is wrong, and
+  the quoted `--reverse | tail -1` spelling is just the plain newest-first
+  list, which can be an unpark. Shown by `git log --format=%h -S'status:
+  blocked' --all --full-history -- docs/handover` on this repo, whose top
+  result is a retire commit. The Acceptance bullet beside it described the
+  failure of a DIFFERENT spelling, so the plan contradicted itself.
+  (fixed — the bullet now names the trap and the discriminator, the file's
+  content at the candidate commit, and quotes no query for a literal reader
+  to copy. A plan may hand over a hard query; it may not hand over a wrong
+  one.)
 
 ## Blockers
 
