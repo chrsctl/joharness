@@ -46,8 +46,8 @@ plan was written with (in history at `544609f`):
   requirement annotation stay here. `JOHARNESS_MODE` is per-repo and never
   synced to a consumer (the key's own comment), so flipping THIS repo's
   conf would start nothing there — Scope bullet 1 and Acceptance bullet 3
-  name gx's conf, and this repo's reads `supervised` throughout. What this
-  repo's own queue holds no longer bears on the run.
+  name gx's conf. What this repo's own queue holds no longer bears on the
+  run.
 - **Run 1 is recorded; a later run is in flight and is not.** Run 1:
   2026-09-06, recorded by the session that filed its two defects
   (`9a6f7b2`), row and workings in `.agents/docs/orchestrated.md` Runs. So
@@ -82,7 +82,6 @@ plan was written with (in history at `544609f`):
 - Flip `JOHARNESS_MODE=orchestrated` in `chrsctl/gx`'s `joharness.conf`
   through a pull request THERE, before any session is spawned, so every
   session reads VERIFIABLE. Flip it back the same way when the run ends.
-  This repo's conf is never flipped.
 - Record in `.agents/docs/orchestrated.md`, Runs: wall-clock, managers
   spawned, nudges, kills, respawns, reconciles, pull requests merged, cost;
   and what stopped it in its own words — DRAINED with nothing in flight is
@@ -95,7 +94,7 @@ plan was written with (in history at `544609f`):
 ## Out of scope
 
 - Fixing what the run exposes. Findings become plans.
-- Creating the Routine, choosing the cap, adding a halt on red `main`.
+- Creating the Routine, choosing the cap, adding a halt on gx's red `main`.
 - Changing the mode's code. A defect found is a plan, filed, not patched
   mid-run.
 

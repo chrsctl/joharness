@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01K6sHM4RWyYDCLZmrDSrWk3
 agent: sonnet
 updated: 2026-09-16
-next: Retarget the plan at chrsctl/gx, review, retire and open the pull request
+next: Retire this file and open the pull request
 ---
 
 ## Goal
@@ -46,6 +46,10 @@ would start nothing in gx.
   container, and the answer would rot before the run.
 
 ## Review
+
+- r1: (verifier) "this repo's conf stays supervised" was stated three times — Scope bullet 1, the state block and Acceptance bullet 3 — in a diff whose whole subject is which repo a conf belongs to. Agreeing copies, but copies. (fixed — said once, in Acceptance, which is the checkable bar; Scope bullet 1 already names gx and says THERE, so it needed nothing)
+- r2: (verifier) the workstream `next:` still ordered the retarget that the same commit had already done. (fixed — it now names only what is left)
+- r3: (session) Out of scope said "adding a halt on red `main`" without saying whose, in a file whose one defect class is an unqualified repo. (fixed — gx's)
 
 ## Blockers
 
