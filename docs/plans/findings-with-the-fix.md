@@ -1,5 +1,5 @@
 ---
-plan: findings-before-the-fix
+plan: findings-with-the-fix
 urgency: normal
 agent: sonnet
 effort: high
@@ -46,6 +46,11 @@ a separate documentation pass, which is the shape the rule exists to stop.
   deletes every finding line at once and touches the plan file beside it —
   so the naive query reports the wrong commit and then passes it.
 
+  Read each bullet's disposition marker too, with the parser
+  `lint_finding_markers` already uses. A `(wontfix ...)` finding has no fix
+  to share a commit with, so the check must exempt it — Acceptance requires
+  that, and an algorithm that omits the marker read cannot deliver it.
+
 - `.agents/harness/selftest/ci-finding-order.sh` — its topic file.
 - `.agents/harness/selftest.sh` — register the topic.
 
@@ -56,8 +61,15 @@ a separate documentation pass, which is the shape the rule exists to stop.
   see, which is worse than no gate.
 - The rest of issue #251. A sampling conduct reviewer is a session beyond
   the cap, which is the human's money, and the issue itself does not claim
-  the cost is worth it. Its other four questions need control-plane reads,
-  peer comparison or a sampling rate nobody has calibrated.
+  the cost is worth it. Three of its other four questions need a
+  control-plane read or the diff. The fourth, peer divergence — managers
+  applying one rule two ways — is closer to this one than a blanket
+  grouping suggests: the workstream files it would compare are artifacts the
+  session-start hook already reads, no session required. What separates it
+  is judgement, not cost: deciding two branches faced the SAME rule means
+  reading free text, and a check that guesses at sameness reports
+  disagreements that are not. Filed as its own question rather than bundled,
+  so whoever takes it starts from that distinction.
 - Any change to what `review` prints or to `JOHARNESS_REVIEW`.
 - Reading the diff. This check reads commit membership, never content: that
   is what keeps it cheap and what distinguishes it from the verifier.
@@ -76,19 +88,43 @@ a separate documentation pass, which is the shape the rule exists to stop.
   sessions route around. It earns a ceiling later on a backtest, as `churn`
   did.
 - Three false-positive shapes asserted as NOT reported: a `(wontfix ...)`
-  finding whose commit touches only the workstream file, a finding whose fix
-  lands across two commits with the finding in the first, and a workstream
-  file this branch only INHERITED.
-- Backtested before it is trusted: run it over the merged branches the
-  `feedback` window already walks, and put the count of findings it would
-  name, with the command and the date, in the pull request body. No
-  threshold is set here on purpose — the number is the evidence for whether
-  the rule or the check is wrong, and whoever runs it reports it rather than
-  passing a bar somebody guessed.
+  finding whose commit touches only the workstream file; a finding recorded
+  in the same commit as the FIRST PART of a fix that continues in a later
+  commit, which is compliant because its own commit carries fix content; and
+  a workstream file this branch only INHERITED. Note the second shape is not
+  "alone" — a finding whose commit carries no fix content at all is the
+  violation, whether or not a fix arrives later.
+- Backtested before it is trusted, over the same window `feedback` walks —
+  `JOHARNESS_FEEDBACK_EDGES`, whose default the code carries — so the window
+  is a value the implementing session reads rather than a letter this plan
+  left unbound. Report two numbers with the command and the date in the pull
+  request body: findings examined, and findings the check would name. No
+  pass threshold is set here, deliberately: the report-only strength means
+  nothing reds on the number, and the number's job is to tell whoever reads
+  it whether the rule is widely broken (so the check is right and the repo
+  has a habit to fix) or the check is wrong. A ceiling comes later on that
+  evidence, as `churn`'s did.
+
+- SHIPS: this plan touches `joharness.sh`, so `ci`'s ship-scope stage flags
+  it and `.agents/docs/plans/README.md` requires a consumer-side check. Name
+  one: in a consumer, `./joharness.sh ci` on a branch carrying a workstream
+  file with one finding committed alone prints the new stage and names that
+  bullet. The topic file cannot cover this — the selftest tree is
+  canonical-only and ships nowhere — so it is a check somebody runs there,
+  stated here because the bar is met in the repo that was never the risk
+  otherwise.
 
 
 ## Where to look
 
+- `joharness.sh:fb_fix_map` — READ THIS FIRST. It already solves the hard
+  half: it keys on the stable `r<N>` id across every commit in a range
+  rather than on a bullet's current text, and its own comment carries the
+  reason — a bullet as committed may predate its own disposition marker. The
+  query in Scope was tested against exactly that case on this repo's history
+  (a finding whose verdict was edited in a later, workstream-only commit) and
+  lands on the adding commit, not the edit. Reuse the mechanism rather than
+  rebuilding it.
 - `joharness.sh:lint_finding_ids` — the bullet parser to reuse, and the
   report-only doctrine with its reasoning.
 - `joharness.sh:lint_finding_markers` — the same parse, the other strength,
@@ -98,8 +134,11 @@ a separate documentation pass, which is the shape the rule exists to stop.
 
 ## Traps
 
-- A finding and its fix in one commit is the rule; a finding ALONE in a
-  commit is the violation. Inverting that reds every honest branch.
+- A finding sharing a commit with ANY part of its fix is compliant; a
+  finding whose commit carries no fix content is the violation. "Alone"
+  means no fix content in that commit, never "the fix is not finished" —
+  reading it the second way reports every branch that fixes across two
+  commits.
 - Escalate to opus if the false-positive shapes turn out not to be
   separable from the violation by commit membership alone — that is a
   wrong-but-plausible gate, which is the opus condition.
