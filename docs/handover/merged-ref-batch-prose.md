@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01K6sHM4RWyYDCLZmrDSrWk3
 agent: sonnet
 updated: 2026-09-16
-next: Repair the three sentences the research file names, then graduate it and retire this file
+next: Review step 5 (verifier at sonnet, code-review high), record findings, then retire and open the pull request
 ---
 
 ## Goal
@@ -39,9 +39,19 @@ tier; deleted in the same pull request.
   terms as raising one; raising four budgets to recover a number the prose
   liked would be taste, the thing the sentence disclaims.
 
+- The `drain` row's gate reading (287) is 21 under its budget, so a +20
+  per-edge fork passes; the budget was sized against the 297 curate case.
+  Pre-batch the row read 336 against 357 — the gap is older than the batch.
+  Written into the doctrine paragraph, not fixed: pinning
+  `JOHARNESS_CURATE_PLANS=1` in the row changes what the gate measures,
+  which this plan's Out of scope excludes. A follow-up plan if wanted.
+
 ## Rejected
 
 - Raising `PERF_BUDGET_*` to keep 14 — see Decisions.
+- Deleting the two historical citations of 14 (`perf_shape` note,
+  the env-pinning comment) — they record measurements of their day and
+  say so now; deleting measurements is how folklore starts.
 
 ## Review
 

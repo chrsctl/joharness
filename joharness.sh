@@ -1224,7 +1224,8 @@ selftest_inert_diff() {
 # BUILT FROM NOTHING, not cloned. A clone was the first attempt and it carried
 # the source's HEAD as `origin/main` — so every entrypoint that resolves the
 # base ref read the OPERATOR'S QUEUE, and the count still moved with it:
-# measured, +12 per plan file against 14 of headroom, which re-created the
+# measured, +12 per plan file against the 14 of headroom every row then
+# carried (2026-09-02; today's pairs are at perf_rows), which re-created the
 # defect this exists to remove one dimension over. It also inherited the
 # source's shallowness, its detached HEAD in CI, and a refs/remotes list that
 # only converged after some row happened to fetch.
@@ -1239,7 +1240,10 @@ selftest_inert_diff() {
 #                         walks the count up as the repo fills.
 #   origin/main           the base ref every entrypoint resolves, pointing at
 #                         that pinned tree.
-#   merged refs           the cheap path: one ancestor check each.
+#   merged refs           the cheap path: one `for-each-ref --merged` per
+#                         hook covers all of them (the batch note above
+#                         perf_rows). A spawn per merged ref here is the
+#                         regression in kind the ceilings exist to catch.
 #   open branches         the DEAR path, each carrying a workstream file. The
 #                         claims loop and the ownership walk are what cost.
 #   a work branch         one commit ahead, no workstream file. A session's
@@ -1457,7 +1461,8 @@ perf_count() {
   # describes the operator's shell. Measured: HANDOVER_BASE_BRANCH=develop
   # took session-start to 450 and review to 6 — a green tick over an
   # entrypoint that exited early — and JOHARNESS_MODE=unsupervised moved
-  # session-start by 8 of its 14 headroom. A row that wants a mode says so in
+  # session-start by 8 of its then-14 headroom (today's pairs are at
+  # perf_rows). A row that wants a mode says so in
   # its own command, and that `env` prefix runs after these and wins.
   printf '%s' "${PERF_STDIN:-}" >"${dir}/.stdin" 2>/dev/null || :
   PATH="${dir}:${PATH}" \
@@ -1685,19 +1690,36 @@ perf_count() {
 #   feedback 214   review 260   graph 104   session-start 322
 #   queue-context 127   drain 324   handover-guard 22
 #
-# Headroom is 14 on every row except two, and both exceptions are deliberate:
-# `review` sits at 274 over 260 and `handover-guard` at 33 over 22, whose
-# documented cheapest regression is 37 and whose ceiling therefore still sits
-# under the thing it exists to catch.
+# Headroom WAS 14 on every row but two when those were counted, and it is
+# not any more: the merged-ref batch below lowered four budgets by less than
+# their counts fell, and the other rows drifted by one or two. Counted
+# 2026-09-16 with `./joharness.sh perf`, and identical on GitHub's runner
+# (run 567 on main, 2026-09-12, job `lint`), counted/budget (headroom):
+#   feedback 212/228 (16)         review 261/274 (13)
+#   graph 103/118 (15)            session-start 276/287 (11)
+#   queue-context 104/117 (13)    queue-orchestrated 104/117 (13)
+#   drain 287/308 (21; 297 with JOHARNESS_CURATE_PLANS=1, so 11)
+#   handover-guard 21/33          bash-guard 0/0
+# `handover-guard` is the one deliberate exception: 33 over a quiet 22,
+# because its documented cheapest regression is 37 and the ceiling still
+# sits under the thing it exists to catch. The rest sit at 11 to 16 by
+# drift, not by choice — read the table, never this paragraph, for today's
+# number. The `drain` row's gate reading is the 287: a +20 edge fork there
+# reads 307 and passes, since the budget was sized against the 297 curate
+# case that only JOHARNESS_CURATE_PLANS=1 exercises. Pre-batch the same row
+# read 336 against 357, so the batch kept that gap rather than made it.
+# Stated here rather than fixed, because pinning the switch in the row is a
+# change to what the gate measures, not prose.
 #
-# 14 is sized from the regression it must catch, not from taste:
+# The headroom is sized from the regression it must catch, not from taste,
+# and the smallest above, 11, still is:
 #   per REF   the shape carries 26, so a fork in a ref loop adds up to 26.
 #             Measured, a `git rev-parse` in queue-context.sh's claims loop
 #             placed after the origin/main skip: queue-context, session-start
 #             and drain each +25. Placed before the skip it is +26; the
-#             difference is that one skipped ref, and 14 catches either.
+#             difference is that one skipped ref, and 11 catches either.
 #   per EDGE  PERF_EDGES caps the walk at 20, so a fork in an edge loop adds
-#             20, and 14 sits under it.
+#             20, and 11 sits under it.
 #
 # WHAT IT DOES NOT CATCH, said plainly rather than left to be discovered. The
 # shape pins some collections small, and a fork per item in one of those costs
