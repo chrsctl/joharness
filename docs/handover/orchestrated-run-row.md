@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01K6sHM4RWyYDCLZmrDSrWk3
 agent: sonnet
 updated: 2026-09-16
-next: Count the run's columns, write the Runs row and the stall, correct the plan's superseded preconditions
+next: Review, retire this file and open the pull request
 ---
 
 ## Goal
@@ -43,6 +43,10 @@ the Runs table wants.
   already carry.
 
 ## Review
+
+- r1: (session) the first framing of this work blamed the 3.5-day gap on the GitHub Actions outage, reading it from gx's conf note. The orchestrator's own ledger says otherwise: its self-armed pass chain stopped at 04:14Z and every manager resumed within 30 seconds of it at 14:54Z three days later, so the fleet was not blocked, it was not running. Both walls are real and they are different findings. (fixed — the entry names the freeze mechanism, and the outage separately under the boundary collision)
+- r2: (session) "at least 31 managers" from a 40-session read would have been a written number dressed as a count: the dump was capped and its oldest entry postdated the run's start. (fixed — re-read at limit 100, whose oldest session predates the run by four days, giving 59 inside the window and 61 to date)
+- r3: (session) merges nearly went in as 44 from the repo-wide search, which counts two harness syncs and a session the orchestrator names as the human's own. The fleet's own count is 41. (fixed — 41 in the row, 44 named beside it with the difference explained)
 
 ## Blockers
 

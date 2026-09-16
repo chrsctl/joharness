@@ -48,17 +48,20 @@ plan was written with (in history at `544609f`):
   conf would start nothing there — Scope bullet 1 and Acceptance bullet 3
   name gx's conf. What this repo's own queue holds no longer bears on the
   run.
-- **Run 1 is recorded; a later run is in flight and is not.** Run 1:
+- **Runs 1 and 3 are recorded; run 3 is not over.** Run 3 started in gx on
+  2026-09-11 and is counted to its freeze in `.agents/docs/orchestrated.md`,
+  Runs, on the requester's instruction of 2026-09-16: 42h20m, 59 managers,
+  41 merged, at least 5252 USD, then an 82-hour freeze because the
+  orchestrator's self-armed pass chain was the only thing driving the fleet.
+  So Scope bullet 2 is discharged for run 3's counted window, `reconciles`
+  excepted, and what remains for this plan is the row that says what stopped
+  the run — which needs the run to stop. Run 1:
   2026-09-06, recorded by the session that filed its two defects
   (`9a6f7b2`), row and workings in `.agents/docs/orchestrated.md` Runs. So
   Acceptance bullet 2 reads true for it and Scope bullet 2 is discharged
   EXCEPT `reconciles`, which no column holds. Scope bullet 3 is discharged
   by the pull request carrying this block: the requirement's last bullet now
-  names the three clauses run 1 misses and what it did not show. A later run,
-  started in `chrsctl/gx` on 2026-09-11, was still running when this block
-  was written (`get_session` on the orchestrator session, read 2026-09-16);
-  its numbers are what the Runs table wants next, and counting them needs no
-  new run.
+  names the three clauses run 1 misses and what it did not show.
 - **No heartbeat exists, and the test that answers it is `recurring`.**
   `list_triggers` filtered `recurring: true, include_completed: true`
   returns EMPTY for this account, 2026-09-16. An unfiltered read is a trap
@@ -69,13 +72,15 @@ plan was written with (in history at `544609f`):
   workstream file still on its branch: `git show
   origin/claude/gastown-review-owjgzg:docs/handover/unsupervised-endurance.md`),
   so the Routines UI is still the only route, prompt `/orchestrate`, hourly.
-- **The knobs to confirm are gx's, and they are unchecked from here.**
-  This repo's four lines are all commented out and no longer bear on a run.
-  What gx's conf says was not read while writing this — it is one line the
-  human confirms at run time anyway, and a value written here would be a
-  written number. `dispatch` there reads the environment for one command,
-  that file for the repo, else the counted default
-  (`.agents/docs/orchestrated.md`, The numbers). The cap is still money.
+- **The knobs are confirmed and the mode is merged. BEFORE YOU START item
+  1 is DONE.** Read 2026-09-16 (`get_file_contents chrsctl/gx
+  joharness.conf`, its `main`): that conf carries
+  `JOHARNESS_MODE=orchestrated`, so `authority` reads VERIFIABLE there, and
+  `JOHARNESS_MAX_MANAGERS=4` with the requester's 2026-09-06 call recorded
+  beside it. The other three knobs are deliberately unwritten so they follow
+  canonical's counted defaults, which the conf says in its own words. An
+  earlier version of this block called them unchecked; that was this repo
+  declining to read gx, not a fact about gx.
 
 ## Scope
 

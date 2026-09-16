@@ -446,6 +446,7 @@ is state outside git.
 | Run | Date | Wall-clock | Managers | Kills | Merged | Ended by |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 2026-09-06 | 5h37m | 10 | 0 | 8 | a human turn, per the plan's own rule |
+| 3 | 2026-09-11 | 42h20m to the freeze | 59 | 0 | 41 | nothing — a 3d10h freeze, then still running |
 
 **Run 1**, consumer `chrsctl/gx`, cap 4, no heartbeat — one orchestrator's
 lifetime, which is what the plan said a run without a Routine would measure.
@@ -501,3 +502,58 @@ row above; the reading that identifies one, field by field, is the third
 worked example in
 [`../../.claude/commands/orchestrate.md`](../../.claude/commands/orchestrate.md),
 which owns it. The run's own numbers wait for the run.
+
+**Run 3**, consumer `chrsctl/gx`, cap 4, no heartbeat. The run is NOT over;
+this row counts to the freeze and says so. Counted 2026-09-16 from the
+orchestrator session `session_01KKR8BgAx8M7LhScqXQbFSn` (`get_session`), its
+self-armed check-in Routines (`list_triggers`, `include_completed`), the
+sessions whose `parent_session_id` is that one (`list_sessions`), and gx's
+merged pull requests (`search_pull_requests`, `is:merged
+merged:>=2026-09-11`).
+
+09-11 09:53:25Z, session created, to 09-13 04:14Z, when the run FROZE.
+**59 managers** spawned inside that window, 61 by 2026-09-16. **41 merged**,
+the orchestrator's own count at the freeze; gx merged 44 repo-wide in the
+same window, the difference being two harness syncs and a session the
+orchestrator names as the human's own rather than its manager. Cost **at
+least 5252 USD** — 4864 across the managers plus 389 for the orchestrator,
+summing each session's last-observed `cost_usd`, so a floor and not a final.
+
+**Nothing stopped it, and nothing restarted it for three days.** The
+orchestrator's own words on its first pass after: *"THREE-DAY FREEZE,
+2026-09-13 04:14Z -> 2026-09-16 14:54Z. This session's self-armed passes were
+the only thing driving the fleet; when the chain stopped, everything
+stopped."* Every manager resumed within 30 seconds of it. That is the
+heartbeat question answered by a run rather than by argument, and answered
+harder than the plan predicted: the plan says a run without a Routine
+measures one orchestrator's lifetime, and what it actually measures is a
+single point of failure whose break froze four live managers for 82 hours
+with nothing detecting or reporting it. A consequence the next run inherits:
+after a freeze, `dispatch` prints push ages of ~82h on branches that are not
+stalled, and killing on that age would be wrong.
+
+**Kills 0 and nudges 0, and neither zero means the path works.**
+`archive_session` was "denied by the classifier every time this run", so a
+kill was not executable; and cloud managers are not addressable —
+`ListAgents` returns no reachable agents — so, in the orchestrator's words,
+*"no nudge channel exists"* and the ledger entry is the whole of the stall
+procedure. The health table's nudge-then-kill sequence has no implementation
+for a cloud fleet, which is a different finding from a run where neither
+fired. One respawn ran and was verified clean, no duplicate, 2026-09-16
+16:23Z on `crm-formula-fields`.
+
+**The boundary and the outage collided, and the fleet split on it.** GitHub
+allocated no runner account-wide from 2026-09-13, so step 7's first merge
+condition could not be met. Five managers waived it per pull request; one
+read the rule strictly, finished green and set itself BLOCKED, because the
+remedy — `JOHARNESS_CHECKS=local` in `joharness.conf` — is protocol text no
+session may commit. The orchestrator escalated instead of choosing, which is
+what it should do, and the human settled it on 2026-09-16 (`chrsctl/gx#379`).
+A fleet that meets an infrastructure wall needs a human for a one-line conf
+change and cannot supply one; five sessions deciding one way and one the
+other, inside one run, is the cost of leaving that to each manager's reading.
+
+What run 3 has NOT shown: no DRAINED — gx still queued 37 plans at
+2026-09-16 (`get_file_contents`, `docs/plans`); no kill and no nudge, for the
+reasons above; and `reconciles` is counted nowhere, still, which is now two
+runs owing the requirement's last bullet the same column.
