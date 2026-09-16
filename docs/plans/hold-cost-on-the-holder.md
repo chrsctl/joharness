@@ -55,7 +55,15 @@ HOLD count fell from 16 to 10 in one pass when it merged.
   a reimplementation gets wrong and the next reader should know it rests on
   reading the awk.
 - A BLOCKED holder's row carries NO count, since its holds are released.
-  Asserted, and it fails if the count is computed before the release.
+  Asserted with a plan that GENUINELY overlaps the blocked branch — without
+  one the count is 0 either way and the assertion passes over nothing.
+  Proven: removing the carve-out reds it.
+- The count is per CLAIM, not per branch. One branch carrying two workstream
+  files holds what each claim's scope holds, and keying on the branch printed
+  the combined total on both rows. Fixed in the code, NOT asserted: the
+  fixture has no two-claim branch. The shape a later session needs is one
+  branch claiming two plans through two workstream files, each overlapping a
+  different free plan; each row should then read 1, not 2.
 - The numbers `dispatch` already prints are unchanged by this diff: the same
   fixture's free, HOLD and WAIT counts read identically before and after.
   This is the bullet that catches an annotation that accidentally moves a

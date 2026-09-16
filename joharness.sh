@@ -7381,11 +7381,22 @@ cmd_dispatch() {
     # down (`hold_live`) — attributing a hold nobody is waiting on would
     # re-create this defect one direction over.
     if [ "$status" != "blocked" ] && [ -n "$holdmap" ]; then
+      # Keyed on the CLAIM, not the branch: one branch can carry two
+      # workstream files, and each claim holds what ITS scope holds. Keyed on
+      # the branch alone, both rows printed the same combined total and a
+      # reader summing them got double (verifier, r4). Same reasoning as
+      # `blocked_claims` one screen up, which keys `<stem>@<branch>` for it.
+      # Matched as a PREFIX and an exact SUFFIX rather than by cutting the
+      # branch out of the line: a branch name may contain `)`, and truncating
+      # at the first one silently dropped the whole annotation — the very
+      # "holder reads as free" defect this exists to fix (verifier, r5).
       holds_n="$(printf '%s\n' "$holdmap" |
-        awk -F'\t' -v b="$branch" '
-          { h = $2
-            sub(/^.*\(claimed on /, "", h); sub(/\).*$/, "", h)
-            if (h == b && !seen[$1]++) n++ }
+        awk -F'\t' -v st="$(basename "$path" .md)" -v b="$branch" '
+          { pre = st " on "
+            suf = " (claimed on " b ")"
+            if (substr($2, 1, length(pre)) == pre &&
+                substr($2, length($2) - length(suf) + 1) == suf &&
+                !seen[$1]++) n++ }
           END { print n + 0 }')"
       case "$holds_n" in '' | *[!0-9]*) holds_n=0 ;; esac
       [ "$holds_n" -eq 0 ] ||

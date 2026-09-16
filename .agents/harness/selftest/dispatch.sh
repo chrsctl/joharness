@@ -291,8 +291,20 @@ expect "and told to be the human's" "BLOCKED: the human's, holds no slot" "$out"
 # (hold_live): a plan behind it counts FREE with a reconcile expected. Count
 # it and the row would advertise a cost nobody is paying, which is the
 # defect of issue #254 one direction over.
+# The plan below is what makes that assertable. Without a plan that actually
+# overlaps beta's `src/b`, `holds_n` is 0 whether the carve-out is there or
+# not, and the refute passes over nothing — which is what the first version
+# of this case did (verifier, r6).
+dspplan behindbeta 'src/b/deep'
+dsppush "a plan overlapping the BLOCKED manager's scope"
+out="$(dsp)"
 refute "a blocked row advertises no hold cost, its holds being released" \
   "holds no slot  holds " "$out"
+expect "and the plan behind it is FREE, with the reconcile named" \
+  "behindbeta.md (agent: sonnet)  wave 1  overlaps beta on src/b (claimed on mgr-beta) — that branch is BLOCKED on a human" "$out"
+fixture_rm "$dspwork" "drop the plan behind beta" docs/plans/behindbeta.md
+git -C "$dspwork" push -q origin main
+out="$(dsp)"
 expect "so the slot count does not move" "slots     : 1 of 4 free" "$out"
 expect "and the verdict says never respawn" \
   "1 manager(s) blocked: report to the human, never respawn" "$out"
