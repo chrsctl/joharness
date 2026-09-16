@@ -1240,10 +1240,13 @@ selftest_inert_diff() {
 #                         walks the count up as the repo fills.
 #   origin/main           the base ref every entrypoint resolves, pointing at
 #                         that pinned tree.
-#   merged refs           the cheap path: one `for-each-ref --merged` per
-#                         hook covers all of them (the batch note above
-#                         perf_rows). A spawn per merged ref here is the
-#                         regression in kind the ceilings exist to catch.
+#   merged refs           the cheap path in both session-start hooks: one
+#                         `for-each-ref --merged` per hook covers all of
+#                         them (the batch note above perf_rows). `graph`
+#                         still asks ancestry per ref (cmd_graph), inside
+#                         its own budget. A spawn per merged ref put back
+#                         into a hook is the regression in kind the ceilings
+#                         exist to catch.
 #   open branches         the DEAR path, each carrying a workstream file. The
 #                         claims loop and the ownership walk are what cost.
 #   a work branch         one commit ahead, no workstream file. A session's
@@ -1691,20 +1694,25 @@ perf_count() {
 #   queue-context 127   drain 324   handover-guard 22
 #
 # Headroom WAS 14 on every row but two when those were counted, and it is
-# not any more: the merged-ref batch below lowered four budgets by less than
-# their counts fell, and the other rows drifted by one or two. Counted
-# 2026-09-16 with `./joharness.sh perf`, and identical on GitHub's runner
-# (run 567 on main, 2026-09-12, job `lint`), counted/budget (headroom):
+# not any more. Not the batch's doing: the batch below took the same number
+# off both sides of every row it touched (49 from session-start and drain,
+# 24 from the queue rows) and so carried each headroom across as it stood.
+# The counts had drifted before it — session-start 322 on 2026-09-02, 325
+# on 2026-09-11, against an unchanged 336 — and the other rows by one or two
+# since. Counted 2026-09-16 with `./joharness.sh perf`, and identical on
+# GitHub's runner (run 567 on main, 2026-09-12, job `lint`),
+# counted/budget (headroom):
 #   feedback 212/228 (16)         review 261/274 (13)
 #   graph 103/118 (15)            session-start 276/287 (11)
 #   queue-context 104/117 (13)    queue-orchestrated 104/117 (13)
 #   drain 287/308 (21; 297 with JOHARNESS_CURATE_PLANS=1, so 11)
 #   handover-guard 21/33          bash-guard 0/0
-# `handover-guard` is the one deliberate exception: 33 over a quiet 22,
-# because its documented cheapest regression is 37 and the ceiling still
-# sits under the thing it exists to catch. The rest sit at 11 to 16 by
-# drift, not by choice — read the table, never this paragraph, for today's
-# number. The `drain` row's gate reading is the 287: a +20 edge fork there
+# Two rows are deliberate: `handover-guard` at 33 over a quiet 22, because
+# its documented cheapest regression is 37 and the ceiling still sits under
+# the thing it exists to catch; and `bash-guard` at 0, a ceiling of nothing
+# for a hook that must spawn nothing (the perf_count note). The rest sit at
+# 11 to 16 by drift, not by choice — read the table, never this paragraph,
+# for today's number. The `drain` row's gate reading is the 287: a +20 edge fork there
 # reads 307 and passes, since the budget was sized against the 297 curate
 # case that only JOHARNESS_CURATE_PLANS=1 exercises. Pre-batch the same row
 # read 336 against 357, so the batch kept that gap rather than made it.

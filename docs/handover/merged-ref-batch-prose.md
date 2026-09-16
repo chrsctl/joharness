@@ -55,6 +55,11 @@ tier; deleted in the same pull request.
 
 ## Review
 
+- r1: (code-review) the doctrine paragraph blamed the batch for the drop from 14 to 11, but the batch table below it takes 49/49 and 24/24 off both sides — the drop is drift before the batch (session-start 322 to 325 against an unchanged 336). (fixed — cause restated as drift, batch credited with carrying headroom across)
+- r2: (code-review) the `perf_shape` inventory said one `for-each-ref --merged` covers merged refs, but `cmd_graph` still runs `merge-base --is-ancestor` per ref inside the `graph` row's budget. (fixed — sentence scoped to the two session-start hooks, `graph` named)
+- r3: (code-review) consumer-repos.md said the key stage writes "never in the file" and named `conf-keys.sh` as the stage; `sync-to-consumer.sh:report_conf_keys` appends `KEY=default` on a `y` from a terminal. (fixed — stage named correctly, terminal and headless cases both stated; the claim that survives is that canonical's comment block never reaches)
+- r4: (code-review) the paragraph forbidding pointers at records a copy may not carry ended with a recovery command for a path that never existed in a consumer, in a file that ships. (fixed — command qualified as canonical-history only)
+- r5: (code-review) "the one deliberate exception" and "the rest sit at 11 to 16" both skipped `bash-guard` 0/0. (fixed — named as the second deliberate row)
 ## Blockers
 
 None.
