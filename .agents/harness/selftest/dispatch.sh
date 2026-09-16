@@ -85,6 +85,24 @@ expect "nothing to spawn is said" "nothing free" "$out"
 expect "the exit verdict names both halves" \
   "DRAINED — nothing free, nothing in flight: exit, the heartbeat re-seeds" "$out"
 
+# Exit is the one irreversible verdict here, and a manager spawned this pass
+# has cut no branch, so the git view above is empty of it. Both exits are
+# guarded, because both count MANAGERS rather than slots and the lowered
+# slot count never reaches them (issue #255).
+out="$(dsp env JOHARNESS_PENDING_SPAWNS=1)"
+expect "a spawn nobody can see yet is not exited on" \
+  "DRAINED — nothing free, nothing in flight in the git view; 1 spawned this pass has not pushed (JOHARNESS_PENDING_SPAWNS): keep the health pass going" "$out"
+refute "and the exit verdict is not printed over it" \
+  "nothing in flight: exit, the heartbeat re-seeds" "$out"
+# The pause is the human's other exit, and it orphans the same manager.
+out="$(dsp env JOHARNESS_MAX_MANAGERS=0)"
+expect "a pause with nothing in flight exits" \
+  "verdict   : PAUSED — JOHARNESS_MAX_MANAGERS=0: spawn nothing, exit; the human unpauses" "$out"
+out="$(dsp env JOHARNESS_MAX_MANAGERS=0 JOHARNESS_PENDING_SPAWNS=1)"
+expect "and a pause over an unseen spawn keeps the health pass instead" \
+  "verdict   : PAUSED — JOHARNESS_MAX_MANAGERS=0: spawn nothing; 1 spawned this pass has not pushed (JOHARNESS_PENDING_SPAWNS): keep the health pass going" "$out"
+refute "never the pause's own exit" "spawn nothing, exit; the human unpauses" "$out"
+
 # --- the knobs are the human's: conf, then environment, digits only ---------
 printf 'JOHARNESS_ENV=none\nJOHARNESS_MODE=orchestrated\nJOHARNESS_MAX_MANAGERS=2\nJOHARNESS_STALL_MINUTES=30\n' >"$dspconf"
 out="$(dsp)"
@@ -159,6 +177,68 @@ expect "the free count excludes the held plan" \
 expect "the stall is on the verdict too" \
   "1 manager(s) past the stall window: health pass FIRST, spawn second" "$out"
 expect "and so is the hold" "1 plan(s) on HOLD behind work in flight" "$out"
+
+# --- a spawn dispatch cannot see yet (issue #255) ---------------------------
+# The git view above is the only thing counting managers, and a manager
+# spawned this pass has cut no branch — so its slot reads free and a fleet
+# acting on that count goes past the cap. The orchestrator carries the one
+# record of it (`<stem>@new` in its ledger) and hands the number in.
+# Same fixture as the four assertions above: cap 4, alpha in flight, 3 free.
+out="$(dsp env JOHARNESS_PENDING_SPAWNS=1)"
+expect "a spawn with no branch yet takes its slot off the count" \
+  "slots     : 2 of 4 free" "$out"
+expect "and the line says where the lowered number came from" \
+  "slots     : 2 of 4 free (1 spawned, not pushed yet: JOHARNESS_PENDING_SPAWNS)" "$out"
+# The number gating nothing is the defect this closes, so the verdict is
+# asserted too, not only the line that prints it.
+expect "and the spawn verdict follows the lowered count, not the git one" \
+  "NOT DRAINED — 3 free item(s) now, 2 slot(s): spawn up to 2 now" "$out"
+out="$(dsp)"
+expect "unset, the count is the git view and says nothing extra" \
+  "slots     : 3 of 4 free" "$out"
+refute "no clause on a line nothing lowered" "JOHARNESS_PENDING_SPAWNS" "$out"
+# Lower only, both ends. More pending than the cap floors at 0 rather than
+# going negative — an input able to raise the count would spend the cap by
+# arithmetic, which is the failure being closed.
+out="$(dsp env JOHARNESS_PENDING_SPAWNS=9)"
+expect "more pending than the cap floors at none free" \
+  "slots     : 0 of 4 free (9 spawned, not pushed yet: JOHARNESS_PENDING_SPAWNS)" "$out"
+expect "and the verdict is wait, never a negative spawn count" \
+  "NOT DRAINED — 3 free item(s), 0 slots: wait for a manager to finish" "$out"
+# Digits all the way and past 64 bits: the arithmetic WRAPS to a positive
+# result, so the count that can only lower frees more than the cap and the
+# reader is told to spawn past it — this input doing the one thing it exists
+# to prevent. Clamped to the cap before the subtraction sees it.
+out="$(dsp env JOHARNESS_PENDING_SPAWNS=18446744073709551613)"
+expect "a value past 64 bits is clamped, never wrapped" \
+  "slots     : 0 of 4 free (18446744073709551613 spawned, not pushed yet: JOHARNESS_PENDING_SPAWNS)" "$out"
+expect "and the verdict waits rather than spawning past the cap" \
+  "NOT DRAINED — 3 free item(s), 0 slots: wait for a manager to finish" "$out"
+# A zero-padded count is digits too, and bash arithmetic reads it as OCTAL:
+# `08` killed dispatch outright — exit 1, no slots line, no verdict.
+out="$(dsp env JOHARNESS_PENDING_SPAWNS=08)"
+expect "a zero-padded count is read as decimal, not octal" \
+  "slots     : 0 of 4 free (8 spawned, not pushed yet: JOHARNESS_PENDING_SPAWNS)" "$out"
+expect "and the reader still gets a verdict to act on" \
+  "NOT DRAINED — 3 free item(s), 0 slots: wait for a manager to finish" "$out"
+refute "with nothing of the octal failure in the output" "value too great for base" "$out"
+# And a padded count that is not the crash is still its own number: without
+# the strip it has more digits than the cap and the clamp eats it whole.
+out="$(dsp env JOHARNESS_PENDING_SPAWNS=01)"
+expect "a padded one is one, not the cap" \
+  "slots     : 2 of 4 free (1 spawned, not pushed yet: JOHARNESS_PENDING_SPAWNS)" "$out"
+out="$(dsp env JOHARNESS_PENDING_SPAWNS=two)"
+expect "a word is not a count: the git view stands" "slots     : 3 of 4 free" "$out"
+refute "and a mistyped value lowers nothing" \
+  "spawned, not pushed yet" "$out"
+# The other end of digits-only, and the one that costs money: subtracting a
+# NEGATIVE raises the count, so a fleet reads more slots than the cap and
+# spawns past it. Arithmetic would take `-2` happily; the digit filter is
+# what stops it.
+out="$(dsp env JOHARNESS_PENDING_SPAWNS=-2)"
+expect "a negative is not a count either" "slots     : 3 of 4 free" "$out"
+refute "and nothing this input touches can free more than the cap" \
+  "slots     : 5 of 4 free" "$out"
 
 # The hold rule is the wave rule: a path only the FREE side marked shared
 # still collides with the holder's exclusive claim on it.
