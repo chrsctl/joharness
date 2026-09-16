@@ -95,6 +95,15 @@ Two signals decide, never one — push age is from git, status from the
 control plane; a fresh push with a dead session and a live session with
 an old push are both real.
 
+**That URL names a WRITER, not a worker.** It is whatever the last session to
+write the workstream file put there, so after a respawn a branch being
+actively driven can advertise its dead predecessor for as long as the
+successor takes to claim. Measured 2026-09-16 (issue #249): a row showed a
+fresh push, 15 commits at 5m, while its `session:` line still named a session
+frozen since 16:10:06Z and `disconnected` — the successor had done the push.
+Read the URL as where to look first. A control-plane record that disagrees
+with it wins.
+
 **And every stem your ledger names that dispatch does NOT list in flight.**
 Dispatch counts managers from git, so a manager spawned last pass that has
 not pushed its claim is in no in-flight row — and a pass that walks
@@ -189,6 +198,23 @@ says about every crash. That is **no nudge; ledger `seen=`, and confirm once**
 — next pass, record still frozen at 18:13:30 and head unchanged — **then
 archive and respawn.** `session_status` alone cannot tell these two apart;
 `status_bucket` is what does, which is why its rows are read first.
+
+**LOOP, and dead.** A manager was flagged across four passes on the LOOP
+row's second clause — head 15, 16, 17 and 18 commits at 16:34Z, 16:39Z,
+16:47Z and 16:58Z, `next:` verbatim identical throughout. Three of those
+pushes were real. Its last turn ended at 16:52:58.048650Z, so only the 16:58Z
+reading came after the death, the head already stopped at 18. Two
+control-plane reads 13 minutes apart, 17:01Z and 17:14Z, found `updated_at`
+identical at 16:52:58.048650Z, the head identical, and `connection_status`
+moved from `connected` to `disconnected`. 126 USD and 585k tokens, mid-review,
+50 findings recorded, four faults outstanding (2026-09-16, issue #249). The
+two rows want opposite things — a loop kill escalates effort and rewrites
+`next:` with a research step, a death needs a successor on the branch — so a
+LOOP verdict on a session nobody confirmed alive is a coin flip. What would
+confirm it is NOT settled: whether `updated_at` moves while a session sits
+inside one long turn is unmeasured, and every candidate test proposed so far
+depends on the answer. Until it is measured, treat this row's second clause
+as a suspicion to report rather than a verdict to act on.
 
 **IDLE, and never born.** 10:13:29.630Z, one item's manager in a consumer:
 created, `updated_at` 10:13:35.357Z — six seconds
