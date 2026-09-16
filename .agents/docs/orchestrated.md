@@ -446,7 +446,7 @@ is state outside git.
 | Run | Date | Wall-clock | Managers | Kills | Merged | Ended by |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 2026-09-06 | 5h37m | 10 | 0 | 8 | a human turn, per the plan's own rule |
-| 3 | 2026-09-11 | 42h20m to the freeze | 59 | 0 | 41 | nothing — a 3d10h freeze, then still running |
+| 3 | 2026-09-11 | 42h20m to the freeze | 59 | 0 | 41 | nothing — 82h40m frozen, then still running |
 
 **Run 1**, consumer `chrsctl/gx`, cap 4, no heartbeat — one orchestrator's
 lifetime, which is what the plan said a run without a Routine would measure.
@@ -504,20 +504,28 @@ worked example in
 which owns it. The run's own numbers wait for the run.
 
 **Run 3**, consumer `chrsctl/gx`, cap 4, no heartbeat. The run is NOT over;
-this row counts to the freeze and says so. Counted 2026-09-16 from the
-orchestrator session `session_01KKR8BgAx8M7LhScqXQbFSn` (`get_session`), its
-self-armed check-in Routines (`list_triggers`, `include_completed`), the
-sessions whose `parent_session_id` is that one (`list_sessions`), and gx's
-merged pull requests (`search_pull_requests`, `is:merged
-merged:>=2026-09-11`).
+this row counts to the freeze and says so. It gets a ROW where run 2 gets
+only a paragraph, and the criterion is the difference between them: every
+column here is counted and the window is closed by a real event, the freeze,
+while run 2 had one stillborn manager and nothing to count. A run with
+nothing counted gets prose.
+
+Counted 2026-09-16 from the orchestrator session
+`session_01KKR8BgAx8M7LhScqXQbFSn` (`get_session`), its self-armed check-in
+Routines (`list_triggers`, `include_completed`), the sessions whose
+`parent_session_id` is that one (`list_sessions`), and gx's merged pull
+requests (`search_pull_requests`, `repo:chrsctl/gx is:merged
+merged:>=2026-09-11` — the query has no upper bound, so its results are then
+filtered to those closed at or before the freeze).
 
 09-11 09:53:25Z, session created, to 09-13 04:14Z, when the run FROZE.
 **59 managers** spawned inside that window, 61 by 2026-09-16. **41 merged**,
 the orchestrator's own count at the freeze; gx merged 44 repo-wide in the
-same window, the difference being two harness syncs and a session the
-orchestrator names as the human's own rather than its manager. Cost **at
-least 5252 USD** — 4864 across the managers plus 389 for the orchestrator,
-summing each session's last-observed `cost_usd`, so a floor and not a final.
+same window, and the three-merge difference is two harness syncs
+(`chrsctl/gx#343`, `#355`) plus one merge this count does not attribute.
+Cost **at least 5252.42 USD** — 4863.78 across the managers plus 388.64 for
+the orchestrator, summing each session's last-observed `cost_usd`, so a
+floor and not a final.
 
 **Nothing stopped it, and nothing restarted it for three days.** The
 orchestrator's own words on its first pass after: *"THREE-DAY FREEZE,
@@ -526,9 +534,9 @@ the only thing driving the fleet; when the chain stopped, everything
 stopped."* Every manager resumed within 30 seconds of it. That is the
 heartbeat question answered by a run rather than by argument, and answered
 harder than the plan predicted: the plan says a run without a Routine
-measures one orchestrator's lifetime, and what it actually measures is a
-single point of failure whose break froze four live managers for 82 hours
-with nothing detecting or reporting it. A consequence the next run inherits:
+measures one orchestrator's lifetime, and what it measures is a single
+point of failure whose break froze four live managers for 82h40m with
+nothing detecting or reporting it. A consequence the next run inherits:
 after a freeze, `dispatch` prints push ages of ~82h on branches that are not
 stalled, and killing on that age would be wrong.
 

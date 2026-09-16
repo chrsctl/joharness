@@ -37,7 +37,7 @@ concurrency.
   run's numbers are counted, not written: wall-clock, managers spawned,
   kills, respawns, reconciles, pull requests merged, cost.
 
-  **Not satisfied. One run counted, a later one in flight and uncounted.**
+  **Not satisfied. Two runs counted, and the second is not over.**
   Run 1, 2026-09-06, consumer `chrsctl/gx`, cap 4: 5h37m, 10 managers, 0
   kills, 2 respawns, 8 merged, at least 437 USD. Row and workings in
   [`.agents/docs/orchestrated.md`](../../.agents/docs/orchestrated.md), Runs;
