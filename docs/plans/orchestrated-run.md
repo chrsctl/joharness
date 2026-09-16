@@ -51,7 +51,7 @@ plan was written with (in history at `544609f`):
 - **Runs 1 and 3 are recorded; run 3 is not over.** Run 3 started in gx on
   2026-09-11 and is counted to its freeze in `.agents/docs/orchestrated.md`,
   Runs, on the requester's instruction of 2026-09-16: 42h20m, 59 managers,
-  41 merged, at least 5252 USD, then an 82-hour freeze because the
+  41 merged, at least 5252.42 USD, then an 82h40m freeze because the
   orchestrator's self-armed pass chain was the only thing driving the fleet.
   So Scope bullet 2 is discharged for run 3's counted window, `reconciles`
   excepted, and what remains for this plan is the row that says what stopped
