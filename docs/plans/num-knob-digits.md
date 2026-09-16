@@ -5,7 +5,7 @@ agent: sonnet
 effort: high
 needs: none
 requirement: none
-scope: joharness.sh, shared:.agents/harness/selftest.sh, .agents/harness/selftest/num-knob.sh
+scope: shared:joharness.sh, shared:.agents/harness/selftest.sh, .agents/harness/selftest/num-knob.sh
 ---
 
 ## Goal

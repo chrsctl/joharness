@@ -5,7 +5,7 @@ agent: sonnet
 effort: high
 needs: none
 requirement: none
-scope: joharness.sh, .agents/harness/selftest/dispatch.sh
+scope: shared:joharness.sh, .agents/harness/selftest/dispatch.sh
 ---
 
 ## Goal

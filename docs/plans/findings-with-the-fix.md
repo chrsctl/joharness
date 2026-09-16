@@ -5,7 +5,7 @@ agent: sonnet
 effort: high
 needs: none
 requirement: none
-scope: joharness.sh, .agents/harness/selftest.sh, .agents/harness/selftest/ci-finding-order.sh
+scope: shared:joharness.sh, shared:.agents/harness/selftest.sh, .agents/harness/selftest/ci-finding-order.sh
 ---
 
 ## Goal
@@ -68,8 +68,8 @@ a separate documentation pass, which is the shape the rule exists to stop.
   session-start hook already reads, no session required. What separates it
   is judgement, not cost: deciding two branches faced the SAME rule means
   reading free text, and a check that guesses at sameness reports
-  disagreements that are not. Filed as its own question rather than bundled,
-  so whoever takes it starts from that distinction.
+  disagreements that are not. Filed as `docs/research/peer-divergence-in-conduct.md`
+  rather than bundled here, so whoever takes it starts from that distinction.
 - Any change to what `review` prints or to `JOHARNESS_REVIEW`.
 - Reading the diff. This check reads commit membership, never content: that
   is what keeps it cheap and what distinguishes it from the verifier.

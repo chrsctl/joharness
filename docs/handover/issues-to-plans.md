@@ -60,6 +60,25 @@ decision rather than a build.
 
 ## Review
 
+- r1: (session) `./joharness.sh curate` on the result: `joharness.sh` was
+  declared by 4 plans and unmarked — the registry shape that stalls a fleet,
+  where one branch in flight holds every other plan and `dispatch` reads
+  slots free with nothing to spawn. Three of those four declarations are
+  mine; adding them is what crossed the threshold. Input that shows it: the
+  command above, which printed 4 REPAIR lines and `verdict : CURATE`.
+  (fixed — `shared:joharness.sh` on all four, which is only true because
+  these four touch different regions of one 8000-line entrypoint and a
+  reconcile between them is genuinely routine. `curate` now prints `NOTHING
+  TO CURATE — 6 free plan(s), every declaration reads true`. The fourth plan
+  is `findings-with-the-fix.md`, which I did not write: a one-sided `shared:`
+  voids nothing, so marking only mine would have left the stall in place
+  while looking fixed.)
+- r2: (session) `findings-with-the-fix.md` promised in its Out of scope that
+  peer divergence was "filed as its own question", and no such file existed
+  — the promise was written and the file was not. (fixed — the question is
+  filed now and the bullet names the path, so the claim is checkable rather
+  than asserted.)
+
 ## Blockers
 
 None.
