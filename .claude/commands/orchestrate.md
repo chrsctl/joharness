@@ -95,6 +95,16 @@ Two signals decide, never one — push age is from git, status from the
 control plane; a fresh push with a dead session and a live session with
 an old push are both real.
 
+**The `session:` URL names a WRITER, not a worker.** It is whatever the last
+session to write that workstream file put there, so for as long as a
+successor takes to claim, a branch being actively driven advertises its dead
+predecessor. Measured 2026-09-16: a row showed a fresh push — 15 commits, 5m
+— while its `session:` line still named a session frozen since 16:10:06Z and
+`disconnected`, and the successor had done the push without yet rewriting the
+line. Resolve WHO is working a branch from the control plane, every
+non-archived session whose record names that branch; the URL is where to look
+first, never the answer.
+
 **And every stem your ledger names that dispatch does NOT list in flight.**
 Dispatch counts managers from git, so a manager spawned last pass that has
 not pushed its claim is in no in-flight row — and a pass that walks
@@ -104,6 +114,17 @@ old, never born, or it ran and stopped without claiming — its own prompt
 makes `./joharness.sh authority` its first command, and a verdict that is
 not VERIFIABLE ends the session right there. The ledger is the only place
 any of the three exists; that is what its `@new` entry is for.
+
+**And group what you read by BRANCH, not only by stem.** A branch named by
+more than one non-archived session is two sessions on one branch, and the
+by-the-book path produces exactly that: the IDLE-gone row respawns without
+archiving, because on that path there is nothing to stop, and the
+predecessor can wake — one did, 28 minutes later, and merged its own pull
+request. The check costs nothing on a pass already reading those records and
+it fails safe in the cheap direction: a false positive costs somebody a
+`/who`, a missed one costs two managers doing one item twice. REPORT it.
+Never kill both, and never assume the older session is the dead one — decide
+that on the signature below, like any other death.
 
 **GONE is ARCHIVED, not found on the control plane, a FAILED bucket
 confirmed by a second look, or a session that did not move across a nudge
@@ -124,6 +145,7 @@ reading exactly one:
 | `status_bucket` | the control plane | `..._FAILED` = that turn died. The ONLY failure signal that may decide liveness, and only while `session_status` is not `RUNNING`: RUNNING beside it means the session already moved past that turn. |
 | `post_turn_summary.status_category` | **the session's own** | its account of its TURN. `completed` means the turn ended — never that the work landed. May never decide liveness on its own. |
 | `status_detail`, `updated_at` | the session record | where it got to, and when it last moved. Unchanged across two passes is what turns a suspicion into a verdict; both are carried in the ledger (step 4). |
+| `connection_status` | the control plane | `connected` or `disconnected`. CORROBORATION ONLY — it joins a verdict, it never reaches one. See the death signature below. |
 | `session_context.sources` | the control plane | the repositories attached AT SPAWN. Absent = no checkout was attached. |
 | `external_metadata.last_served_model` | the control plane | the model that served the LATEST turn. Absent = no turn has been served yet. |
 | merge state | **git** | `git merge-base --is-ancestor <head> origin/main`. Never a session's summary. |
@@ -143,13 +165,25 @@ under `session_context.outcomes` with no `current_branches` at all. One
 counter-example is enough to disqualify a field, and not enough to build a
 rule on.
 
+**The death signature is a TRIPLE.** Every session confirmed dead in one run
+showed all three together and no healthy one did: `updated_at` frozen across
+two reads, head static across the same two, and `connection_status` moving
+`connected` to `disconnected`. Three instances, 2026-09-16, one consumer;
+against them two live sessions sat at push ages of 83h and 20m while
+`RUNNING`, connected, with `updated_at` advancing — so neither age nor
+idleness discriminates and the triple did, every time it was applied. Three
+confirmations do NOT promote `connection_status` to deciding alone: the
+paragraph above sets that bar and one counter-example would still take it
+out. It is what turns the pair into a verdict one pass sooner, never the
+pair's replacement.
+
 | control plane | push age | last pass | do |
 | --- | --- | --- | --- |
 | RUNNING | under stall | any | working. Nothing. |
 | RUNNING | STALL? | not in the ledger | NUDGE: `SendMessage`, `to` = its row in `ListAgents`: "Orchestrator health pass: no push on <branch> for <N>m. Now: /handover, commit, push. Then continue, or set status blocked and stop." Ledger: stem, branch head now, `status_detail`. NO messaging tool, or no row for it: send nothing and still write the ledger entry — the next pass then reads the row below and kills, on the same two observations, without the ask. Never kill on this first one; two passes is the rule, and the missing tool removes the message, not the second look. With no nudge `JOHARNESS_STALL_MINUTES` is a kill threshold and not a warning one; say so in the report, the operator may want it higher. |
 | RUNNING | STALL? | in the ledger, head unchanged, `status_detail` unchanged | KILL, below. |
 | RUNNING | STALL? | in the ledger, head moved or `status_detail` changed | working. Drop the nudge. |
-| any | `LOOP?` on the line (churn past `JOHARNESS_CHURN_LIMIT`), or THIS pass's head moved and `next:` still unchanged, with `same=2` already in the ledger (this pass makes 3) | any | LOOP: kill with progress recorded, below. No nudge — a nudge asks for a push, and a loop is pushing. STALL? beside it changes nothing: a loop that went quiet still needs the record. Head NOT moved this pass: this row does not match, whatever `same` last read — that reading is the STALL rows' business instead. |
+| any | `LOOP?` on the line (churn past `JOHARNESS_CHURN_LIMIT`), or THIS pass's head moved and `next:` still unchanged, with `same=2` already in the ledger (this pass makes 3) | any | CONFIRM ALIVE FIRST — two control-plane reads with `updated_at` MOVING between them; a dead manager wears this row's exact shape (worked example below) and wants a successor, not a loop kill. Alive: LOOP, kill with progress recorded, below. No nudge — a nudge asks for a push, and a loop is pushing. STALL? beside it changes nothing: a loop that went quiet still needs the record. Head NOT moved this pass: this row does not match, whatever `same` last read — that reading is the STALL rows' business instead. |
 | not RUNNING | any | status `blocked` | human's. Report. Never respawn. |
 | not RUNNING (IDLE, PENDING, or no status at all) AND `status_bucket` FAILED | any | no `seen=` recorded for it | CRASHED. NO nudge — nothing is listening, and a nudge asks a working session for a push. Ledger `seen=<updated_at>` and the head; look again next pass. Nothing else this pass. |
 | the same, still FAILED | any | `seen=` recorded, and `updated_at` AND head both unchanged since it | confirmed dead. `archive_session`, THEN RESPAWN. No `interrupt_session` first: there is nothing to stop. |
@@ -189,6 +223,19 @@ says about every crash. That is **no nudge; ledger `seen=`, and confirm once**
 — next pass, record still frozen at 18:13:30 and head unchanged — **then
 archive and respawn.** `session_status` alone cannot tell these two apart;
 `status_bucket` is what does, which is why its rows are read first.
+
+**LOOP, and actually dead.** A manager was flagged across four passes on the
+LOOP row's second clause — head reading 15, 16, 17 and 18 commits while
+`next:` stayed verbatim identical. It was dead. Its last turn ended at
+16:52:58.048650Z, before two of those readings: the head had already stopped
+at 18, and what looked like movement was dispatch's push age ageing on a
+frozen row. Two control-plane reads 13 minutes apart settled it — `updated_at`
+identical at 16:52:58.048650Z, head identical, `connection_status` flipping
+`connected` to `disconnected`. Measured 2026-09-16, at 126 USD and 585k
+tokens, mid-review, with 50 findings recorded and four faults outstanding.
+The two rows want opposite things — a loop kill escalates effort and rewrites
+`next:` with a research step, a death just needs a successor on the branch —
+and the git view alone cannot tell them apart.
 
 **IDLE, and never born.** 10:13:29.630Z, one item's manager in a consumer:
 created, `updated_at` 10:13:35.357Z — six seconds
