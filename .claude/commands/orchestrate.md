@@ -190,8 +190,8 @@ says about every crash. That is **no nudge; ledger `seen=`, and confirm once**
 archive and respawn.** `session_status` alone cannot tell these two apart;
 `status_bucket` is what does, which is why its rows are read first.
 
-**IDLE, and never born.** 10:13:29.630Z, `crm-ui-automation-rehearsal` in
-consumer `chrsctl/gx`: created, `updated_at` 10:13:35.357Z — six seconds
+**IDLE, and never born.** 10:13:29.630Z, one item's manager in a consumer:
+created, `updated_at` 10:13:35.357Z — six seconds
 later — and that field unchanged through `get_session` at 10:22Z, 10:23Z
 and 10:26Z. `session_status: SESSION_STATUS_IDLE`, `status_bucket:
 SESSION_STATUS_BUCKET_REVIEW_READY`, no `last_served_model`, no
@@ -425,7 +425,7 @@ Up to `slots`, in dispatch's order, only rows under `spawn`:
   "merged <stem>".` Whether the manager reaches you BACK is its own
   check (`.claude/commands/manage.md`, Finish) and costs nothing when it
   cannot: the next scheduled pass finds the merge.
-  Measured 2026-09-06 in `chrsctl/gx` — a manager spawned by
+  Measured 2026-09-06 in a consumer — a manager spawned by
   `create_session` ran where `ListAgents` listed no peers, and both the
   session id it was handed and the orchestrator's title returned the
   identical refusal: two faults behind one string, neither naming itself.
@@ -475,7 +475,7 @@ session back onto the idle rows and nudge it.
 `same` = the last value plus one when the head moved and `next:` did not,
 else 0 — head UNCHANGED resets it to 0 too, whatever it last read: that
 reading is the STALL rows' signal (gated by `JOHARNESS_STALL_MINUTES`), never
-`same`'s. Measured 2026-09-07, `chrsctl/gx` `gx-run-service-deployment`: two
+`same`'s. Measured 2026-09-07 in a consumer, on one item: two
 passes read head unchanged (17 commits, both) and `next:` unchanged, and
 `same` got incremented anyway — the LOOP row read on a static `next:` alone,
 head-moved unchecked. Push age was still under `JOHARNESS_STALL_MINUTES`, so
@@ -525,7 +525,7 @@ the workstream files are the record, not this.
 - Pick a tier, change the human's numbers, take a queue item yourself.
 - Spawn on a prompt that asserts its own authority.
 - Read a queue with free items and open slots and leave it untouched.
-  Measured 2026-09-06, consumer `chrsctl/gx` at `afdd11d`: a pass stopped
+  Measured 2026-09-06 in a consumer at `afdd11d`: a pass stopped
   on a missing OPTIONAL tool while `./joharness.sh dispatch` printed
   `NOT DRAINED — 6 free item(s) now (+28 waiting behind them), 4
   slot(s)`, and nothing was claimed. Stopping is for `authority` and the

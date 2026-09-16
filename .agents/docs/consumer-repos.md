@@ -189,6 +189,32 @@ declared once in `.agents/scripts/conf-keys.sh`, which is canonical-only: it
 reaches every consumer's update by being in canonical and ships to none of
 them.
 
+## Name no consumer
+
+Harness text cites measurements constantly, and a citation wants a source, so
+the name of whatever repository produced the number is the obvious thing to
+write. Do not write it. `.agents/docs/`, `.agents/harness/`,
+`.claude/commands/` and `joharness.sh` all ship, so a repository named there
+rides into every consumer, and one operator's internal development becomes
+part of the harness every other operator reads.
+
+Cite the measurement, never the repository: the command, the commit, the
+counts, the date. "Measured 2026-09-06 in a consumer at `afdd11d`" is
+re-countable by whoever holds that repo and says nothing to anybody else,
+which is the correct amount. The same goes for a consumer's plan names, item
+names and pull request numbers — all of them are that repo's internal work
+wearing a citation's clothes.
+
+Requester's rule, 2026-09-16, applied to fifteen mentions across eight files
+that day. The canonical repository's own name is not covered: a consumer has
+to be told where its harness comes from.
+
+Not gated, on purpose. A check listing the names to ban would be the leak it
+prevents, and the looser shape — flagging any `owner/repo` in shipping text
+that is not this repository's own — is a real option nobody has measured
+against false positives yet. Until somebody does, this is prose and the
+review at the edge is what catches it.
+
 ## Settings a child wants to CHANGE
 
 The sync answers "this key is absent"; it never re-opens one already
@@ -214,9 +240,8 @@ Point at the command's own output instead, which ships. Found
 2026-09-11 cutting `.agents/harness/AGENTS.md`, where a
 `JOHARNESS_CHECKS=local` sentence was about to be replaced by exactly such a
 pointer; the wording was made true against the shorter seeded copy instead.
-The no-copy case arrived the next day from `chrsctl/gx`, which synced
-`c1a7257` as `chrsctl/gx#355`: `grep -c 'JOHARNESS_CHECKS' joharness.conf`
-there is 0, while step 7's surviving clause sent a session to "the key that
+The no-copy case arrived the next day from a consumer, which synced
+`c1a7257`: `grep -c 'JOHARNESS_CHECKS' joharness.conf` there is 0, while step 7's surviving clause sent a session to "the key that
 sets it, `joharness.conf`". That clause now points at the `lint` job in
 `.github/workflows/ci.yml`: the one copy of the key's two homes and their
 trap, and the file is seeded together with the `if:` that creates the trap,

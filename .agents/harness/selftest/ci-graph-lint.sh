@@ -164,7 +164,7 @@ expect "a research file's agent tier is vocabulary-checked" \
 # queue dir that also holds prose a session wrote — reference material, not
 # a scheduled question — and a consumer synced before the research-node
 # protocol carries such files with no frontmatter at all. Reding them turns
-# a green consumer red over files it never meant as nodes (chrsctl/gx#226:
+# a green consumer red over files it never meant as nodes (measured in one:
 # 13 documents, 65 DEAD, ci pass -> FAIL, measured both ways). A file whose
 # first line is NOT `---` is a document: not linted, not scheduled.
 #
@@ -609,7 +609,7 @@ git -C "$lwork" commit -qm "clear the fixture"
 # A consumer's own documents lived under docs/research/ before the protocol
 # existed, and reding five keys per file is how a sync turned a green
 # consumer red (docs/plans/research-nodes-red-a-clean-consumer.md measured
-# 13 files x 5 keys against gx at 847f64e). Routing is the fix: a file
+# 13 files x 5 keys against a consumer at 847f64e). Routing is the fix: a file
 # there is a node when it carries a `research:` key or an open plan's
 # `research:` edge names its stem — and NOTHING else is.
 #

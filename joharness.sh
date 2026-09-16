@@ -2514,7 +2514,7 @@ lint_graph() {
   # Neither = a DOCUMENT — consumers keep their own domain documents under
   # docs/research/ from before this protocol existed, and reding 13 of them
   # five keys each is how a sync turned a green consumer red (the plan this
-  # implements measured it against gx at 847f64e). Two guards keep the
+  # implements measured it against a consumer at 847f64e). Two guards keep the
   # skip from becoming an escape hatch:
   #   - a node a plan waits on cannot leave by dropping its frontmatter —
   #     the reference alone makes it a node, and its missing keys red below;
@@ -6876,7 +6876,7 @@ cmd_curate() {
 
     # REPAIR 3: a `scope:` entry that is a DIRECTORY in the tree. It swallows
     # every file under it, so it collides with every plan touching the
-    # directory for no reason (the shape that held 14 of gx's 38 plans).
+    # directory for no reason (the shape that held 14 of one consumer's 38 plans).
     while IFS= read -r s; do
       [ -n "$s" ] || continue
       s="${s#shared:}"

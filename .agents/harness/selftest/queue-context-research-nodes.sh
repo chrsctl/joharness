@@ -86,7 +86,7 @@ refute "the research template is not a question" "TEMPLATE" "$out"
 
 # A plain document alongside the real node is NOT scheduled. docs/research
 # holds prose too — reference material a session wrote, which a consumer
-# synced before this protocol carries with no frontmatter (chrsctl/gx#226).
+# synced before this protocol carries with no frontmatter (measured in one).
 # A file whose first line is not `---` is a document, not a question: the
 # hook must list open-question above and stay silent about this one, in the
 # same run, so the exemption is proven not to also hide real nodes.

@@ -780,7 +780,7 @@ done < <(printf '%s' "$rows" | sort -t"$US" -k1,1n -k12,12n -k2,2n -k3,3)
 # exactly when someone is in a hurry.
 #
 # Bounded, because this list only ever grows. Measured in a consumer repo
-# (chrsctl/gx): 17 files at one session's start, 23 at its end, thirteen pull
+# 17 files at one session's start, 23 at its end, thirteen pull
 # requests merged in between and not one of them deleting its own. The message
 # is right and the reader had already learned to skip it — so printing all 23
 # every session was paying context for a line nobody acts on. Show the count,

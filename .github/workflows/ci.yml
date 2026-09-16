@@ -1,7 +1,7 @@
 name: ci
 
-# `main` is built on push, branches by their pull request — the split gx
-# measured (25 of 65 SHAs built twice under `on: [push, pull_request]`) applies
+# `main` is built on push, branches by their pull request — the split a
+# consumer measured (25 of 65 SHAs built twice under `on: [push, pull_request]`) applies
 # here unchanged.
 on:
   push:

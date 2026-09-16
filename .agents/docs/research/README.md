@@ -40,8 +40,8 @@ Which side a file falls on is decided by ROUTING, spelled out under "Which
 files are nodes" below. A consumer synced before this protocol carries
 research prose with no frontmatter at all, and routing leaves those files
 alone with no edit — where a required opt-out marker would red every one
-until a human touched it (`chrsctl/gx#226`: 13 documents, a green consumer
-turned red by the sync alone).
+until a human touched it (measured once: 13 documents in a consumer, green
+until the sync alone turned it red).
 
 An earlier rule here read **"a node opens with a `---` block; a document
 does not"** and claimed a node could not lose the block by accident and
