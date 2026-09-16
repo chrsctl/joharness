@@ -45,6 +45,10 @@ and reasonably concludes the branch is free.
 
 ## Review
 
+- r1: (session) the plan named a NEW selftest topic file. The existing `dispatch.sh` topic already builds the fixture the cases need — one branch holding another plan, then a second — so a new file would have rebuilt that fixture to assert against it. (fixed — cases added to the existing topic, `scope:` corrected)
+- r2: (session) two of the four assertions are `refute`s, which pass when the feature is DELETED. Proven rather than assumed: reverting the change reds exactly the two `expect`s and neither `refute`. The refutes still earn their place — one guards the count moving off one-plan, the other guards a future version computing the count before the blocked release — but they are regression guards, not deletion guards, and this repo has recorded that confusion three times (`PR239 r21`, `PR242 r1`, `PR242 r2`). (recorded, not fixed: the two expects are the deletion guard and they do bite)
+- r3: (session) one acceptance bullet is UNMET and now says so: a holder holding one plan through two declared paths. The fixture has no such holder, and building one widens the diff past a presentation change. The dedupe is in the awk and unasserted. (fixed in the plan's text, which no longer claims it)
+
 ## Blockers
 
 None.

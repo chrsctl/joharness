@@ -146,6 +146,13 @@ expect "a plan overlapping work in flight is HELD, not free" \
   "docs/plans/gamma.md (agent: opus)  HOLD — overlaps alpha on src/a (claimed on mgr-alpha): spawn once that branch merges" "$out"
 refute "and a held plan carries no wave, being in no pass" \
   "gamma.md (agent: opus)  wave" "$out"
+# Issue #254: the cost belongs on the row causing it. dispatch printed the
+# hold only under the HELD plan, so a branch holding the queue back read as
+# free to anyone looking at the holder.
+expect "the holder's own row carries what it is holding" \
+  "holds 1 plan(s) out of the queue" "$out"
+refute "and counts one plan as one" \
+  "holds 2 plan(s) out of the queue" "$out"
 expect "the free count excludes the held plan" \
   "NOT DRAINED — 3 free item(s) now, 3 slot(s): spawn up to 3 now" "$out"
 
@@ -162,6 +169,10 @@ dsppush "a plan sharing a path a manager holds exclusively"
 out="$(dsp)"
 expect "a one-sided shared path is a hold, as it is a wave split" \
   "sharer.md (agent: sonnet)  HOLD — overlaps alpha on src/a (claimed on mgr-alpha)" "$out"
+# The same holder, now holding two: the count is the reader's whole signal
+# that this branch is the expensive one, so it has to move with the queue.
+expect "the holder's count rises with what it holds" \
+  "holds 2 plan(s) out of the queue" "$out"
 fixture_rm "$dspwork" "drop the sharer" docs/plans/sharer.md
 git -C "$dspwork" push -q origin main
 
@@ -276,6 +287,12 @@ out="$(dsp)"
 expect "a blocked manager is listed as blocked" \
   "docs/plans/beta.md  mgr-beta  blocked  pushed" "$out"
 expect "and told to be the human's" "BLOCKED: the human's, holds no slot" "$out"
+# A blocked row carries NO hold count, because its holds are RELEASED
+# (hold_live): a plan behind it counts FREE with a reconcile expected. Count
+# it and the row would advertise a cost nobody is paying, which is the
+# defect of issue #254 one direction over.
+refute "a blocked row advertises no hold cost, its holds being released" \
+  "holds no slot  holds " "$out"
 expect "so the slot count does not move" "slots     : 1 of 4 free" "$out"
 expect "and the verdict says never respawn" \
   "1 manager(s) blocked: report to the human, never respawn" "$out"

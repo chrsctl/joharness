@@ -5,7 +5,7 @@ agent: sonnet
 effort: high
 needs: none
 requirement: none
-scope: joharness.sh, .agents/harness/selftest/dispatch-hold-cost.sh, .agents/harness/selftest.sh
+scope: joharness.sh, .agents/harness/selftest/dispatch.sh
 ---
 
 ## Goal
@@ -23,8 +23,10 @@ HOLD count fell from 16 to 10 in one pass when it merged.
   `<held stem>\t<holder> on <path> (claimed on <branch>)`, so the count is
   that map grouped by holder branch, deduplicated on held stem because one
   holder can hold one plan through two paths.
-- `.agents/harness/selftest/dispatch-hold-cost.sh` — its topic file.
-- `.agents/harness/selftest.sh` — register the topic.
+- `.agents/harness/selftest/dispatch.sh` — the cases go in the EXISTING
+  dispatch topic, which already builds a fixture where one branch holds
+  another plan. A new topic file would rebuild that fixture to assert
+  against it.
 
 ## Out of scope
 
@@ -46,7 +48,12 @@ HOLD count fell from 16 to 10 in one pass when it merged.
   count. Both asserted: a row asserted in one direction passes when the
   annotation is deleted.
 - A holder holding ONE plan through TWO declared paths counts 1, not 2.
-  Asserted, because the dedupe is the part a reimplementation gets wrong.
+  NOT asserted on this branch: the existing fixture has no such holder and
+  building one is a fixture change wider than this diff. The dedupe is in
+  the code (`seen[$1]++`) and the one-plan case refutes a count of 2, which
+  is weaker. Named here rather than claimed, because the dedupe is the part
+  a reimplementation gets wrong and the next reader should know it rests on
+  reading the awk.
 - A BLOCKED holder's row carries NO count, since its holds are released.
   Asserted, and it fails if the count is computed before the release.
 - The numbers `dispatch` already prints are unchanged by this diff: the same
