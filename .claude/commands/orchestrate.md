@@ -165,13 +165,15 @@ under `session_context.outcomes` with no `current_branches` at all. One
 counter-example is enough to disqualify a field, and not enough to build a
 rule on.
 
-**The death signature is a TRIPLE.** Every session confirmed dead in one run
-showed all three together and no healthy one did: `updated_at` frozen across
-two reads, head static across the same two, and `connection_status` moving
-`connected` to `disconnected`. Three instances, 2026-09-16, one consumer;
-against them two live sessions sat at push ages of 83h and 20m while
-`RUNNING`, connected, with `updated_at` advancing — so neither age nor
-idleness discriminates and the triple did, every time it was applied. Three
+**The death signature is a TRIPLE.** `updated_at` frozen across two reads,
+head static across the same two, and `connection_status` moving `connected`
+to `disconnected`. Three sessions confirmed dead in one run showed all three
+together, 2026-09-16, one consumer; the two live sessions read against them
+showed none of it, sitting at push ages of 83h and 20m while `RUNNING`,
+connected, with `updated_at` advancing. Three confirmations and two
+counter-checks is what this rests on, which is why it corroborates and does
+not decide — neither age nor idleness discriminated in those five readings
+and the triple did. Three
 confirmations do NOT promote `connection_status` to deciding alone: the
 paragraph above sets that bar and one counter-example would still take it
 out. It is what turns the pair into a verdict one pass sooner, never the
@@ -183,7 +185,7 @@ pair's replacement.
 | RUNNING | STALL? | not in the ledger | NUDGE: `SendMessage`, `to` = its row in `ListAgents`: "Orchestrator health pass: no push on <branch> for <N>m. Now: /handover, commit, push. Then continue, or set status blocked and stop." Ledger: stem, branch head now, `status_detail`. NO messaging tool, or no row for it: send nothing and still write the ledger entry — the next pass then reads the row below and kills, on the same two observations, without the ask. Never kill on this first one; two passes is the rule, and the missing tool removes the message, not the second look. With no nudge `JOHARNESS_STALL_MINUTES` is a kill threshold and not a warning one; say so in the report, the operator may want it higher. |
 | RUNNING | STALL? | in the ledger, head unchanged, `status_detail` unchanged | KILL, below. |
 | RUNNING | STALL? | in the ledger, head moved or `status_detail` changed | working. Drop the nudge. |
-| any | `LOOP?` on the line (churn past `JOHARNESS_CHURN_LIMIT`), or THIS pass's head moved and `next:` still unchanged, with `same=2` already in the ledger (this pass makes 3) | any | CONFIRM ALIVE FIRST — two control-plane reads with `updated_at` MOVING between them; a dead manager wears this row's exact shape (worked example below) and wants a successor, not a loop kill. Alive: LOOP, kill with progress recorded, below. No nudge — a nudge asks for a push, and a loop is pushing. STALL? beside it changes nothing: a loop that went quiet still needs the record. Head NOT moved this pass: this row does not match, whatever `same` last read — that reading is the STALL rows' business instead. |
+| any | `LOOP?` on the line (churn past `JOHARNESS_CHURN_LIMIT`), or THIS pass's head moved and `next:` still unchanged, with `same=2` already in the ledger (this pass makes 3) | any | CONFIRM ALIVE FIRST — `updated_at` MOVED between the ledger's reading and this pass's, which is the second read and needs no extra one; a dead manager wears this row's exact shape (worked example below) and wants a successor, not a loop kill. Alive: LOOP, kill with progress recorded, below. No nudge — a nudge asks for a push, and a loop is pushing. STALL? beside it changes nothing: a loop that went quiet still needs the record. Head NOT moved this pass: this row does not match, whatever `same` last read — that reading is the STALL rows' business instead. |
 | not RUNNING | any | status `blocked` | human's. Report. Never respawn. |
 | not RUNNING (IDLE, PENDING, or no status at all) AND `status_bucket` FAILED | any | no `seen=` recorded for it | CRASHED. NO nudge — nothing is listening, and a nudge asks a working session for a push. Ledger `seen=<updated_at>` and the head; look again next pass. Nothing else this pass. |
 | the same, still FAILED | any | `seen=` recorded, and `updated_at` AND head both unchanged since it | confirmed dead. `archive_session`, THEN RESPAWN. No `interrupt_session` first: there is nothing to stop. |

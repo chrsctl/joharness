@@ -48,6 +48,9 @@ does not carry and which cost real money without them.
 
 ## Review
 
+- r1: (session) the signature paragraph claimed "no healthy one did", a universal from two observed live sessions, in a file whose own doctrine says one counter-example disqualifies a field and n=1 is not enough to build a rule on (`PR234 r12`). (fixed — it now states the five readings it rests on, three confirmations and two counter-checks, and draws the corroboration-not-decision conclusion from that rather than from a sweep nobody ran)
+- r2: (session) the LOOP precondition said "two control-plane reads with `updated_at` moving between them", leaving a literal reader to think both must happen inside one pass — which would stall the pass. The ledger already carries the previous reading; that IS the first read. (fixed — the row names the ledger's reading and this pass's, and says no extra read is needed)
+
 ## Blockers
 
 None.
