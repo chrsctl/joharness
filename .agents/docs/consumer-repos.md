@@ -217,8 +217,10 @@ pointer; the wording was made true against the shorter seeded copy instead.
 The no-copy case arrived the next day from `chrsctl/gx`, which synced
 `c1a7257` as `chrsctl/gx#355`: `grep -c 'JOHARNESS_CHECKS' joharness.conf`
 there is 0, while step 7's surviving clause sent a session to "the key that
-sets it, `joharness.conf`". That clause is gone; `finish` names what it
-cannot cover in its own output, and that was already the sentence before it.
+sets it, `joharness.conf`". That clause now points at the `lint` job in
+`.github/workflows/ci.yml`: the one copy of the key's two homes and their
+trap, and the file is seeded together with the `if:` that creates the trap,
+so a repo without the one has no need of the other.
 Record, in `chrsctl/joharness`'s own history only — this file ships, that
 path never existed in a consumer: `git log --all --full-history
 --diff-filter=D --oneline -- docs/research/merged-ref-batch-prose-vs-code.md`,
