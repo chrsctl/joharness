@@ -7046,7 +7046,7 @@ cmd_dispatch() {
   local mode cap stall health respawn churnt churnl hout qout rows wavemap edge req sup
   local path label branch ws doc status session next age agetext flag tier
   local base commits churn churn_n churn_f marks rounds work
-  local st wave note hold holdmap hold_live hline hb hs blocked_claims=""
+  local st wave note hold holdmap hold_live hline hb hs holds_n blocked_claims=""
   local ebranch eitem efirst estem espaces emore epath eage eagetext
   local edge_rows="" edge_items="" edge_unver=""
   local n_inflight=0 n_slots n_free=0 n_stall=0 n_blocked=0 n_hold=0 n_wait=0 n_loop=0
@@ -7369,6 +7369,38 @@ cmd_dispatch() {
     if [ "$status" != "blocked" ] && [ "$churnl" -gt 0 ] && [ "$churn_n" -ge "$churnl" ]; then
       n_loop=$((n_loop + 1))
       flag="${flag}  LOOP? ${churn_f} rewritten ${churn_n} times (>= ${churnl}): record its progress, respawn with the churn rule"
+    fi
+    # The cost a branch's claims impose, on the branch's own row. dispatch
+    # printed it only under the HELD plans, so a broad claim read as free to
+    # anyone looking at the holder — one branch put nine plans on HOLD and its
+    # own row said nothing (issue #254). Presentation only: no count here
+    # moves, and `holdmap` is already read twice below.
+    # DISTINCT held stems, never holdmap lines: one holder can hold one plan
+    # through two declared paths, and counting lines reports two.
+    # A `blocked` row carries none, because its holds are RELEASED further
+    # down (`hold_live`) — attributing a hold nobody is waiting on would
+    # re-create this defect one direction over.
+    if [ "$status" != "blocked" ] && [ -n "$holdmap" ]; then
+      # Keyed on the CLAIM, not the branch: one branch can carry two
+      # workstream files, and each claim holds what ITS scope holds. Keyed on
+      # the branch alone, both rows printed the same combined total and a
+      # reader summing them got double (verifier, r4). Same reasoning as
+      # `blocked_claims` one screen up, which keys `<stem>@<branch>` for it.
+      # Matched as a PREFIX and an exact SUFFIX rather than by cutting the
+      # branch out of the line: a branch name may contain `)`, and truncating
+      # at the first one silently dropped the whole annotation — the very
+      # "holder reads as free" defect this exists to fix (verifier, r5).
+      holds_n="$(printf '%s\n' "$holdmap" |
+        awk -F'\t' -v st="$(basename "$path" .md)" -v b="$branch" '
+          { pre = st " on "
+            suf = " (claimed on " b ")"
+            if (substr($2, 1, length(pre)) == pre &&
+                substr($2, length($2) - length(suf) + 1) == suf &&
+                !seen[$1]++) n++ }
+          END { print n + 0 }')"
+      case "$holds_n" in '' | *[!0-9]*) holds_n=0 ;; esac
+      [ "$holds_n" -eq 0 ] ||
+        flag="${flag}  holds ${holds_n} plan(s) out of the queue"
     fi
     inflight="${inflight}  ${path}  ${branch}  ${status:-?}  pushed ${agetext}${flag}"$'\n'
     [ -z "$work" ] || inflight="${inflight}${work}"$'\n'
