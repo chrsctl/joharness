@@ -40,6 +40,17 @@ does not carry and which cost real money without them.
   scheduler, which is the human's. One comment on the issue records what
   landed so the next reader does not re-derive it.
 
+- The classifier's refusal is BROADER than the issue records, and this
+  session hit it doing cleanup rather than orchestration. Issue #249 reports
+  `archive_session` denied every attempt, reason `Interfere With Workloads`.
+  This session was denied a plain `kill` on an orphaned `ci` run it had
+  started itself, in this repo, same reason. So the refusal is not specific
+  to the control-plane tool or to another session's workload — which matters
+  for the question the issue raises separately, whether the respawn path
+  should attempt an archive first. A procedure that depends on stopping
+  something may be refused wherever it runs, and needs a branch for that
+  outcome rather than an assumption.
+
 ## Rejected
 
 - Building the recurring checker as a session that arms its own next pass.
