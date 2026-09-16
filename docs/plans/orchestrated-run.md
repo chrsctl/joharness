@@ -52,10 +52,11 @@ plan was written with (in history at `544609f`):
   Acceptance bullet 2 reads true for it and Scope bullet 2 is discharged
   EXCEPT `reconciles`, which no column holds. Scope bullet 3 is discharged
   by the pull request carrying this block: the requirement's last bullet now
-  names the three clauses run 1 misses and what it did not show. A later run
-  has been in flight in `chrsctl/gx` since 2026-09-11 (`get_session` on the
-  orchestrator session, read 2026-09-16); its numbers are what the Runs
-  table wants next, and counting them needs no new run.
+  names the three clauses run 1 misses and what it did not show. A later run,
+  started in `chrsctl/gx` on 2026-09-11, was still running when this block
+  was written (`get_session` on the orchestrator session, read 2026-09-16);
+  its numbers are what the Runs table wants next, and counting them needs no
+  new run.
 - **No heartbeat exists, and the test that answers it is `recurring`.**
   `list_triggers` filtered `recurring: true, include_completed: true`
   returns EMPTY for this account, 2026-09-16. An unfiltered read is a trap

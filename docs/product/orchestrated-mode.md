@@ -62,9 +62,10 @@ concurrency.
   the third bullet's paths stay unmeasured; one consumer, one queue shape,
   whose overlap density does most of the work in the throughput number.
 
-  A later run has been in flight in `chrsctl/gx` since 2026-09-11 and has no
-  row (`get_session` on the orchestrator session, read 2026-09-16). Counting
-  it is the next thing this bullet wants, and it needs no new run. The two
+  A later run, started in `chrsctl/gx` on 2026-09-11, was still running on
+  2026-09-16 with no row (`get_session` on the orchestrator session, read
+  that day). Counting it is the next thing this bullet wants, and it needs
+  no new run. The two
   defects run 1 exposed were filed as plans and both merged the same day
   (`e1ec240`, `8e637aa`): the second and third bullets' machinery repaired,
   not this bullet satisfied.

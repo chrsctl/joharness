@@ -66,6 +66,7 @@ and `docs/product/orchestrated-mode.md` has never heard of it.
 - r10: (verifier) the plan's `## Acceptance` was left untouched while the new state block declared bullet 2 already true — a contradiction inside one file. (fixed — bullet 2 now carries the pointer; the bar is unchanged, since a later run still adds its own row)
 - r11: (verifier) "about 30" hedged a figure `.agents/docs/orchestrated.md` states exactly twice as 30. (fixed)
 - r12: (code-review) stray double blank line before `## Scope`. (fixed)
+- r14: (session) the in-flight run was written as a standing present-tense fact ("has been in flight since"), which goes false the moment that run ends — live state in a file, which the handover protocol forbids storing. (fixed — a past-tense observation with the date it was read, which never stops being true)
 - r13: (session) the first annotation restated what `.agents/docs/product/README.md` already records about run 1 — that counting it discharged the beta label and that its row counts no reconciles. Second copy, rots against the first. (fixed — the annotation points at that page instead)
 
 ## Blockers
