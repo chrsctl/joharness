@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01K6sHM4RWyYDCLZmrDSrWk3
 agent: sonnet
 updated: 2026-09-16
-next: Write the five artifacts, review, retire, open the pull request
+next: Read the verifier's findings, record each before its fix, then retire and open the pull request
 ---
 
 ## Goal
