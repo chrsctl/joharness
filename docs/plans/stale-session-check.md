@@ -50,12 +50,32 @@ question is explicitly not here.
 
 ## Acceptance
 
+`ci` is necessary and proves nothing here: it reads no health-table row and
+is green with every row deleted. So each bullet below names what to read.
+
 - `./joharness.sh ci` — `ci: pass`.
-- `grep -c 'connection_status' .claude/commands/orchestrate.md` — at least 1.
-- Each of the four rules states the reading that produced it and the date,
-  per Loop step 5: a measured number carries what produced it.
-- No rule lets one field decide liveness alone; each names the pair or
-  triple it belongs to.
+- Every field the new rules WRITE appears in step 4's ledger grammar: the
+  `ledger:` line in step 4 contains both `conn=<connected|disconnected>` and
+  `dup=<branch>`. Grep the grammar line, not the file — each string also
+  appears in the rule that writes it, so a whole-file count answers a
+  different question. A rule keyed on a ledger field
+  nothing writes is dead text after one compaction — this file has paid for
+  that once already (`feedback`, PR234 r3).
+- The triple never shortens the two-pass rule: the signature paragraph
+  contains `two\n  PASSES` or `two PASSES`, and no wording that offers a
+  verdict sooner.
+- No rule decides liveness on one field. Read the LOOP row: it names
+  `updated_at` AND head. Read the signature: it names three fields and says
+  it corroborates.
+- Every new rule prescribes an action for BOTH branches of its own test.
+  The LOOP row says where a not-alive session falls; the duplicate rule says
+  report once and what not to do.
+- Each cited reading carries its date and its owner, issue #249, so a reader
+  can check a number this checkout cannot recount.
+- The mirror agrees: in `.agents/docs/orchestrated.md`, the table row whose
+  first cell is `looping` no longer reads `any` in its control-plane column.
+  Other rows there use `any` correctly, so read that row rather than counting
+  the file.
 - SHIPS: `.claude/commands/` reaches every consumer, so an orchestrator in
   any repo reads these rows, not only the one that measured them.
 
