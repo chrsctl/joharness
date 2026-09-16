@@ -35,17 +35,24 @@ And a stocked queue: two or more free plans with declared, disjoint
 **State on 2026-09-16**, re-counted, replacing the 2026-09-05 block this
 plan was written with (in history at `544609f`):
 
-- **Which queue a run measures is not this repo's, and this file never said
-  so.** Run 1 ran against consumer `chrsctl/gx`'s queue, while the old block
-  counted joharness's own `docs/plans` and concluded a fleet would find one
-  item. The consumer is the queue every run has actually used. `git ls-tree
-  -r --name-only origin/main docs/plans docs/research` HERE, 2026-09-16,
-  returns this plan and nothing else — which bounds a fleet fired at this
-  repo and says nothing about one fired at a consumer. The old block pointed
-  at `docs/research/capture-intent.md` as the way to stock this repo's
-  queue; that node graduated and was deleted (`5e74343`). The product README
-  keeps its two rejections as prose and names seven adopt-candidates by
-  count, recoverable from joharness history alone.
+- **Which repo a run measures is unsettled HERE, and the two answers in
+  this file disagree. The human picks; this session did not.** Scope bullet
+  1 and the `scope:` frontmatter say to flip `JOHARNESS_MODE` in THIS repo's
+  `joharness.conf`, a per-repo key never synced to a consumer (the key's own
+  comment), so the plan as written intends a run against THIS queue — and
+  Acceptance bullet 3 reads that conf too. Every run so far went the other
+  way, against consumer `chrsctl/gx`, which has its own conf and its own
+  queue: run 1, and the one still running on 2026-09-16. `git ls-tree -r
+  --name-only origin/main docs/plans docs/research` HERE, 2026-09-16,
+  returns this plan and nothing else, so a fleet fired at THIS repo measures
+  at most one item. Two ways to close it, both the human's because both
+  change what Acceptance means: retarget the plan at a consumer, so Scope
+  bullet 1 and Acceptance bullet 3 name THAT repo's conf; or stock this
+  repo's queue and run it here. The old block pointed at
+  `docs/research/capture-intent.md` as the way to stock it; that node
+  graduated and was deleted (`5e74343`), and the product README keeps its
+  two rejections as prose and names seven adopt-candidates by count,
+  recoverable from joharness history alone.
 - **Run 1 is recorded; a later run is in flight and is not.** Run 1:
   2026-09-06, recorded by the session that filed its two defects
   (`9a6f7b2`), row and workings in `.agents/docs/orchestrated.md` Runs. So

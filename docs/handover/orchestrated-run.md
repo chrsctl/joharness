@@ -66,13 +66,18 @@ and `docs/product/orchestrated-mode.md` has never heard of it.
 - r10: (verifier) the plan's `## Acceptance` was left untouched while the new state block declared bullet 2 already true — a contradiction inside one file. (fixed — bullet 2 now carries the pointer; the bar is unchanged, since a later run still adds its own row)
 - r11: (verifier) "about 30" hedged a figure `.agents/docs/orchestrated.md` states exactly twice as 30. (fixed)
 - r12: (code-review) stray double blank line before `## Scope`. (fixed)
-- r14: (session) the in-flight run was written as a standing present-tense fact ("has been in flight since"), which goes false the moment that run ends — live state in a file, which the handover protocol forbids storing. (fixed — a past-tense observation with the date it was read, which never stops being true)
 - r13: (session) the first annotation restated what `.agents/docs/product/README.md` already records about run 1 — that counting it discharged the beta label and that its row counts no reconciles. Second copy, rots against the first. (fixed — the annotation points at that page instead)
+- r14: (session) the in-flight run was written as a standing present-tense fact ("has been in flight since"), which goes false the moment that run ends — live state in a file, which the handover protocol forbids storing. (fixed — a past-tense observation with the date it was read, which never stops being true)
+- r15: (verifier) the new first bullet asserted "which queue a run measures is not this repo's, and this file never said so" — but Scope bullet 1, the `scope:` frontmatter and Acceptance bullet 3 all name THIS repo's `joharness.conf`, a key never synced, so the file does say so and the diff introduced a contradiction with Scope by settling it one way. Settling it changes what Acceptance means, which is not this session's call. (fixed — the bullet states the disagreement, names the two ways to close it, and hands both to the human; Scope and Acceptance are untouched)
+- r16: (verifier) `## Review` listed r14 above r13. (fixed)
 
 ## Blockers
 
-None for this diff. The plan itself stays blocked on the three
-preconditions above, which is what its repaired state block now says.
+None for this diff. The plan stays blocked on the human, and the state
+block now says on what: the two preconditions that survived review (no
+recurring Routine, the unconfirmed cap), plus the unsettled question of
+which repo a run measures, which r15 found and which changes Acceptance
+either way it goes.
 
 ## Where to look
 
