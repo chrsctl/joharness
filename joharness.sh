@@ -7050,6 +7050,7 @@ cmd_dispatch() {
   local ebranch eitem efirst estem espaces emore epath eage eagetext
   local edge_rows="" edge_items="" edge_unver=""
   local n_inflight=0 n_slots n_free=0 n_stall=0 n_blocked=0 n_hold=0 n_wait=0 n_loop=0
+  local pending
   local n_edge=0 n_edge_stall=0 n_leftover=0 n_leftover_noitem=0
   local leftover_rows="" estate=""
   local curate_due=0 curate_inflight="" n_curate_inflight=0 cdue cstate creason
@@ -7434,9 +7435,32 @@ cmd_dispatch() {
     printf '  %s\n' "$edge"
   fi
 
-  n_slots=$((cap - (n_inflight - n_blocked)))
+  # A manager spawned this pass has cut no branch yet — minutes between
+  # create_session and the first push — so the git view above counts it as
+  # nothing and reports its slot free. Acting on that slot puts a fifth
+  # manager against a cap of four: the human's money spent by arithmetic
+  # rather than by decision. The orchestrator is the only reader that knows
+  # one happened, and its ledger already names it (.claude/commands/orchestrate.md
+  # step 1). ENVIRONMENT only — not num_knob, no conf key: this is a fact
+  # about ONE pass, and a conf value left behind would under-report slots for
+  # ever with nothing to notice it. Digits only, so a mistyped value loses
+  # the correction instead of erroring at the reader.
+  pending="${JOHARNESS_PENDING_SPAWNS:-0}"
+  case "$pending" in '' | *[!0-9]*) pending=0 ;; esac
+  # Subtracted here and nowhere else: every verdict below reads n_slots, so
+  # the spawn count, the OVERLAP-BOUND gate and the DRAINED reading follow.
+  # It can only LOWER — an input able to raise the count would spend the cap
+  # by arithmetic, which is the failure being closed.
+  n_slots=$((cap - (n_inflight - n_blocked) - pending))
   [ "$n_slots" -ge 0 ] || n_slots=0
-  printf 'slots     : %s of %s free\n\n' "$n_slots" "$cap"
+  if [ "$pending" -gt 0 ]; then
+    # Said on the line, because a silently lowered count is indistinguishable
+    # from a busy fleet and the next reader debugs the wrong thing.
+    printf 'slots     : %s of %s free (%s spawned, not pushed yet: JOHARNESS_PENDING_SPAWNS)\n\n' \
+      "$n_slots" "$cap" "$pending"
+  else
+    printf 'slots     : %s of %s free\n\n' "$n_slots" "$cap"
+  fi
 
   # --- what to spawn, in the queue's order --------------------------------
   # Free = neither claimed, blocked nor SUPERVISED ONLY: drain_plan's filter,

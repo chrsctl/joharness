@@ -36,6 +36,21 @@ orchestrator keeping its own notes.
   here is a repo-level setting a conf legitimately carries; this one is a
   fact about one pass, and a stale conf value would silently under-report
   slots for ever with nothing to notice it.
+- So it is NOT in `joharness.sh`'s knob list at the top of the file. That
+  list opens "Selection lives in joharness.conf", and a non-conf key under
+  that sentence invites the conf entry the decision above rules out. The
+  slots line names the variable where a reader meets it, and
+  `orchestrate.md` carries the duty.
+- The plan said the duty goes at the spawn step. Widened to BOTH steps
+  while building: step 1 is where dispatch runs and so where the number is
+  applied, step 3 is where the `@new` entry that supplies it is written. One
+  line each; the fact and its use are two places and a reader arrives at
+  either.
+- A `@new` entry that step 2 archives or reports is still counted by step 1,
+  because step 1 ran first. Said in the command file rather than engineered
+  around: the pass runs one slot short and the next pass has it back, which
+  is the safe direction, and re-running dispatch to win the slot back would
+  read the fleet twice in one pass.
 
 ## Rejected
 
@@ -52,6 +67,10 @@ None.
 
 ## Where to look
 
-- `joharness.sh:7437` — `n_slots`, the one line every verdict below reads.
-- `.claude/commands/orchestrate.md` step 3 — where a spawn happens, and so
-  where the duty to count it belongs.
+- `joharness.sh`, at `n_slots` — the one assignment every verdict below
+  reads. (Line numbers move; the variable does not.)
+- `.claude/commands/orchestrate.md` step 1 — the dispatch invocation that
+  carries the number; step 3's ledger paragraph — where the `@new` entry
+  that supplies it is written.
+- `.agents/harness/selftest/dispatch.sh` — the cases for this input, on the
+  same fixture as the slot assertions above them (cap 4, alpha in flight).

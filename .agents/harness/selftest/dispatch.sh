@@ -160,6 +160,46 @@ expect "the stall is on the verdict too" \
   "1 manager(s) past the stall window: health pass FIRST, spawn second" "$out"
 expect "and so is the hold" "1 plan(s) on HOLD behind work in flight" "$out"
 
+# --- a spawn dispatch cannot see yet (issue #255) ---------------------------
+# The git view above is the only thing counting managers, and a manager
+# spawned this pass has cut no branch — so its slot reads free and a fleet
+# acting on that count goes past the cap. The orchestrator carries the one
+# record of it (`<stem>@new` in its ledger) and hands the number in.
+# Same fixture as the four assertions above: cap 4, alpha in flight, 3 free.
+out="$(dsp env JOHARNESS_PENDING_SPAWNS=1)"
+expect "a spawn with no branch yet takes its slot off the count" \
+  "slots     : 2 of 4 free" "$out"
+expect "and the line says where the lowered number came from" \
+  "slots     : 2 of 4 free (1 spawned, not pushed yet: JOHARNESS_PENDING_SPAWNS)" "$out"
+# The number gating nothing is the defect this closes, so the verdict is
+# asserted too, not only the line that prints it.
+expect "and the spawn verdict follows the lowered count, not the git one" \
+  "NOT DRAINED — 3 free item(s) now, 2 slot(s): spawn up to 2 now" "$out"
+out="$(dsp)"
+expect "unset, the count is the git view and says nothing extra" \
+  "slots     : 3 of 4 free" "$out"
+refute "no clause on a line nothing lowered" "JOHARNESS_PENDING_SPAWNS" "$out"
+# Lower only, both ends. More pending than the cap floors at 0 rather than
+# going negative — an input able to raise the count would spend the cap by
+# arithmetic, which is the failure being closed.
+out="$(dsp env JOHARNESS_PENDING_SPAWNS=9)"
+expect "more pending than the cap floors at none free" \
+  "slots     : 0 of 4 free (9 spawned, not pushed yet: JOHARNESS_PENDING_SPAWNS)" "$out"
+expect "and the verdict is wait, never a negative spawn count" \
+  "NOT DRAINED — 3 free item(s), 0 slots: wait for a manager to finish" "$out"
+out="$(dsp env JOHARNESS_PENDING_SPAWNS=two)"
+expect "a word is not a count: the git view stands" "slots     : 3 of 4 free" "$out"
+refute "and a mistyped value lowers nothing" \
+  "spawned, not pushed yet" "$out"
+# The other end of digits-only, and the one that costs money: subtracting a
+# NEGATIVE raises the count, so a fleet reads more slots than the cap and
+# spawns past it. Arithmetic would take `-2` happily; the digit filter is
+# what stops it.
+out="$(dsp env JOHARNESS_PENDING_SPAWNS=-2)"
+expect "a negative is not a count either" "slots     : 3 of 4 free" "$out"
+refute "and nothing this input touches can free more than the cap" \
+  "slots     : 5 of 4 free" "$out"
+
 # The hold rule is the wave rule: a path only the FREE side marked shared
 # still collides with the holder's exclusive claim on it.
 # `src/a/other`: under the holder's `src/a`, beside the free `src/a/deep`,

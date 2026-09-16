@@ -76,9 +76,21 @@ and leave it untouched.
 
 ## 1. Read
 
-`./joharness.sh dispatch`. It fetches, prints the human's numbers (cap,
+`JOHARNESS_PENDING_SPAWNS=<n> ./joharness.sh dispatch`, `<n>` = how many
+`@new` entries the ledger you carry names. Those are managers you spawned
+that have not claimed, and dispatch counts from git, so it reports each of
+their slots free. Spend one and the cap is passed by arithmetic, not by the
+human's decision. No `@new`, or a first start: 0, which is the same as
+leaving it off. Non-zero, and the slots line says the number back — a
+lowered count that does not say so reads as a busy fleet.
+
+It fetches, prints the human's numbers (cap,
 stall, health, respawns), managers in flight with push age, slots, the
 spawn order, and ONE verdict line. Act on that output only.
+
+An entry step 2 archives or reports below is still counted here, because
+this line ran first. The pass runs one slot short and the next pass has it
+back. That is the safe direction; never re-run dispatch to win it back.
 
 ## 2. Health pass — before any spawn
 
@@ -466,7 +478,8 @@ Up to `slots`, in dispatch's order, only rows under `spawn`:
 Ledger every spawn the moment it returns, as `<stem>@new`. Dispatch cannot
 see it — the manager has cut no branch — so until it claims, that entry is
 the only record that it exists, and the stillborn row in step 2 keys on the
-entry being a pass old.
+entry being a pass old. It is also what the next pass counts into step 1's
+`JOHARNESS_PENDING_SPAWNS`: the slot is owned, and only this entry says so.
 
 ## 4. Schedule the next pass, then end the turn
 
