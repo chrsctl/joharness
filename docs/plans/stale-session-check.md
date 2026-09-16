@@ -17,67 +17,52 @@ question is explicitly not here.
 
 ## Scope
 
-- `.claude/commands/orchestrate.md` section 2, four additions:
-  1. **`connection_status` as corroboration.** The death signature measured
-     three times, never on a healthy session: `updated_at` frozen across two
-     reads AND head static across the same two AND `connection_status`
-     moving `connected` to `disconnected`. Corroboration only — it joins the
-     pair, it never decides alone, on the same terms the disqualified fields
-     paragraph already sets.
-  2. **The `session:` line is not evidence of who works a branch.** It is
-     whatever the last writer of the workstream file put there, so a respawn
-     leaves a window where a branch being actively driven advertises a dead
-     session. Resolve the worker from the control plane's own records.
-  3. **A duplicate check, grouped by branch.** Any branch named by more than
-     one non-archived session is two sessions on one branch. It fails safe:
-     a false positive costs a `/who`, and the hook's own note says a missing
-     claim is the expensive direction.
-  4. **A dead manager can look exactly like a looping one.** A `next:` that
-     never moves while the head appears to move is the LOOP row's shape and
-     was, measured, a session that had already died. The two rows call for
-     opposite actions, so the LOOP row requires a live reading first.
+- `.claude/commands/orchestrate.md`, two additions, both independent of any
+  unmeasured fact:
+  1. **The `session:` URL names a writer, not a worker.** It is whatever the
+     last writer of the workstream file put there, so after a respawn a
+     branch being driven can advertise its dead predecessor. A caution, not
+     a decision rule: it tells a reader which source wins, and needs no new
+     field and no enumeration of sessions.
+  2. **The worked reading of a dead manager wearing the LOOP row's shape**,
+     with its four timestamps, so the misdiagnosis that cost one run is
+     checkable rather than retold. It ends by saying what is NOT settled.
 
-## Out of scope
+- `docs/research/liveness-in-a-long-turn.md`, the question those two leave
+  open and the four withdrawn rules depended on.
 
-- The scheduler. How a check runs without sharing the fleet's fate is the
-  issue's open question, it is an operator action with money attached, and
-  an agent session answering it inherits the failure.
-- Whether the IDLE-gone row should attempt an archive before respawning.
-  The issue raises it separately; the attempt can be refused by the
-  permission classifier, and the procedure has no branch for that outcome.
-  Naming it is this plan's business, answering it is not.
-- Any change to `dispatch`, the hooks, or `joharness.sh`.
+## Out of scope, and why four rules were withdrawn
+
+A death signature keyed on `connection_status`, a duplicate-by-branch check,
+a LOOP precondition, and the ledger fields they needed were drafted, reviewed
+three times and withdrawn. Two verifier passes at opus found 15 and then 13
+defects; the second round's fixes introduced four more, which is the review
+churn `.agents/docs/agent-selection.md` names — and the conflicting
+requirement it says to look for turned out to be a fact nobody has measured:
+whether `updated_at` advances inside one long turn. One withdrawn rule
+assumed it does, another assumed it does not, in the same diff. Patching
+could not converge because the answer is not in the repository. The research
+file carries the question; these rules are its consequence, not this plan's.
+
+Also out of scope, as before: the scheduler that issue #249 calls its whole
+question, and whether the respawn path should attempt an archive first.
 
 ## Acceptance
 
-`ci` is necessary and proves nothing here: it reads no health-table row and
-is green with every row deleted. So each bullet below names what to read.
-
 - `./joharness.sh ci` — `ci: pass`.
-- Every field the new rules WRITE appears in step 4's ledger grammar: the
-  `ledger:` line in step 4 contains both `conn=<connected|disconnected>` and
-  `dup=<branch>`. Grep the grammar line, not the file — each string also
-  appears in the rule that writes it, so a whole-file count answers a
-  different question. A rule keyed on a ledger field
-  nothing writes is dead text after one compaction — this file has paid for
-  that once already (`feedback`, PR234 r3).
-- The triple never shortens the two-pass rule: the signature paragraph
-  contains `two\n  PASSES` or `two PASSES`, and no wording that offers a
-  verdict sooner.
-- No rule decides liveness on one field. Read the LOOP row: it names
-  `updated_at` AND head. Read the signature: it names three fields and says
-  it corroborates.
-- Every new rule prescribes an action for BOTH branches of its own test.
-  The LOOP row says where a not-alive session falls; the duplicate rule says
-  report once and what not to do.
-- Each cited reading carries its date and its owner, issue #249, so a reader
-  can check a number this checkout cannot recount.
-- The mirror agrees: in `.agents/docs/orchestrated.md`, the table row whose
-  first cell is `looping` no longer reads `any` in its control-plane column.
-  Other rows there use `any` correctly, so read that row rather than counting
-  the file.
-- SHIPS: `.claude/commands/` reaches every consumer, so an orchestrator in
-  any repo reads these rows, not only the one that measured them.
+- Neither addition reads or writes a ledger field, so neither can be dead
+  text after a compaction: `git diff origin/main...HEAD -- .claude/commands`
+  touches no `ledger:` line.
+- Neither addition is a decision rule. The caution says which source wins;
+  the worked reading ends by naming what is unsettled. Read both: no row of
+  the health table changes, and `git diff` shows no table row edited.
+- Each cited reading carries its date AND its owner, issue #249. Read every
+  added line carrying a timestamp.
+- The research file has all nine sections `.agents/docs/research/README.md`
+  names, and its `graduates:` points at the file a verdict would change.
+- SHIPS: `.claude/commands/` reaches every consumer. The addition cites no
+  path under `docs/`, which does not ship — the rule PR #246 graduated.
+
 
 ## Where to look
 

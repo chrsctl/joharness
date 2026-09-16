@@ -1,6 +1,6 @@
 ---
 workstream: stale-session-check
-status: in-progress
+status: review
 branch: claude/drain-8jr601
 pr: none
 plan: stale-session-check
@@ -8,7 +8,7 @@ issue: 249
 session: https://claude.ai/code/session_01K6sHM4RWyYDCLZmrDSrWk3
 agent: opus
 updated: 2026-09-16
-next: Encode the four measured liveness rules into the health pass, review, retire, open the pull request
+next: Retire this file and open the pull request; the withdrawn rules wait on the research question
 ---
 
 ## Goal
@@ -58,6 +58,31 @@ does not carry and which cost real money without them.
   came from, and the issue says so in its own words.
 
 ## Review
+
+**Round 3 ended the patching.** A second opus verifier pass found 13 verified
+defects on a tree already fixed twice, four of them introduced by round 2's
+own fixes. That is review churn as `.agents/docs/agent-selection.md` defines
+it, and the conflicting requirement it tells you to find is below at r20. The
+response was not a fourth round: four rules were WITHDRAWN and the question
+they depend on was filed as `docs/research/liveness-in-a-long-turn.md`. What
+merged is the two items that need no unmeasured fact. Findings r20 to r32 are
+recorded against text this branch no longer carries, because the record of
+why a rule was withdrawn is worth more than the rule was.
+
+- r20: (verifier, ROOT CAUSE) the diff relied on two incompatible claims about one field. r4's own worked input says a live manager six minutes into a long turn shows a FROZEN `updated_at`; the LOOP precondition says a live manager's `updated_at` MOVES. Both cannot hold, and nothing in the repository settles which. Every withdrawn rule rests on it. (withdrawn — filed as a research question, `graduates:` the health pass)
+- r21: (verifier) r4's fix was recorded as "the clause is gone" and the clause was still at `:192`. A false record is worse than the defect: the next reader trusts the `## Review` line and does not look. (fixed by the withdrawal, which removed the paragraph entirely; recorded here because the false record is the finding, not the clause)
+- r22: (verifier) the LOOP row's "pair" was degenerate for the clause it guards: the head leg IS that clause's trigger, so it discriminates nothing, and the file's own worked reading shows the dead manager reading head MOVED at the pass that had to discriminate. (withdrawn)
+- r23: (verifier) a RUNNING session failing the alive pair matched NO row: every row below is keyed on not-RUNNING or merged, so the instruction to "fall to the rows below" named nothing. (withdrawn)
+- r24: (verifier) the duplicate rule implied a kill on one pass with no confirming read and no tie-break — the one place in the file the two-pass rule was not restated. (withdrawn)
+- r25: (verifier) the duplicate was detected and the respawn that creates the next one was not gated: no row consumed the writer-not-worker answer, and the report-once suppression then hid every later duplicate on that branch. Worse than no rule. (withdrawn; the caution that survives decides nothing, so it cannot produce this)
+- r26: (verifier) both withdrawn rules required an enumeration of sessions, which is `list_sessions`, which this file explicitly allows to be absent — with no OPTIONAL row added. "A procedure that calls a tool nobody has is the bug this file was just fixed for", 40 lines above. (withdrawn)
+- r27: (verifier) "YOURS EXCLUDED" was unactionable where it mattered: the orchestrator recognises its own record by a title set with a tool the file marks optional. (withdrawn)
+- r28: (verifier) the duplicate rule's death test was unrecordable across passes — the ledger is per stem with one `seen=` slot, and two sessions on one branch need two. (withdrawn)
+- r29: (verifier) the mirror's rewritten row stated the test as "between the last two passes" with no equivalent of the command file's no-prior-reading case, so a churn hit on a first-seen stem read as not-alive and would spawn a successor onto a live manager. r12's fix introduced it. (withdrawn — the mirror is back to what main carries)
+- r30: (verifier) `seen=` gained a second writer with different semantics, which would let a later crash skip the crash path's own first look. (withdrawn)
+- r31: (verifier) r13 was incomplete: one citation at `:101` carried a date and no owner. (fixed — the surviving caution cites issue #249)
+- r32: (verifier) acceptance bullet 3 was red on the tree that shipped it, and its string test could never match by construction — r17's species recurring in the round that recorded r17. Three of eight bullets red overall, which IS the improvement r14 wanted, and is also the evidence the rules were not ready. (fixed — the acceptance is rewritten for what survives, and every bullet names what to read)
+- r33: (session) `conn=`'s reader, added as r18, changed no action: it said its own absence does not hold the verdict, so the field was a reader in form only. (withdrawn with the rule)
 
 - r3: (verifier) the triple's third leg was unevaluable across passes: `connection_status` is nowhere in step 4's ledger grammar, and step 4's own rule says a field the ledger does not carry is a row unreachable after a compaction. PR234 r3 on this file, verbatim — dead text keyed on a ledger entry nothing writes. (fixed — `conn=` joins `seen=` in the grammar, and the signature says why)
 - r4: (verifier) "turns the pair into a verdict one pass sooner" licensed killing a live session on ONE pass. The input that breaks it: a manager six minutes into a long turn, read twice 60s apart, shows frozen `updated_at`, static head and `disconnected`. Triple complete, work destroyed, cap paid twice — the exact defect the optional-tools row already names. (fixed — the clause is gone and the paragraph now says the two reads are two PASSES, like every other verdict here)

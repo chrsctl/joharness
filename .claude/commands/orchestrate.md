@@ -95,20 +95,14 @@ Two signals decide, never one — push age is from git, status from the
 control plane; a fresh push with a dead session and a live session with
 an old push are both real.
 
-**The `session:` URL names a WRITER, not a worker.** It is whatever the last
-session to write that workstream file put there, so for as long as a
-successor takes to claim, a branch being actively driven advertises its dead
-predecessor. Measured 2026-09-16: a row showed a fresh push — 15 commits, 5m
-— while its `session:` line still named a session frozen since 16:10:06Z and
-`disconnected`, and the successor had done the push without yet rewriting the
-line. Resolve WHO is working a branch from the control plane: every
-non-archived session whose record names that branch under `current_branches`
-OR `session_context.outcomes`. BOTH, because one healthy session in the
-counted page carried its branches only under the second — which is why the
-table below disqualifies `current_branches` as a decider, and why reading it
-alone here would miss the live successor and leave the dead predecessor as
-the branch's only apparent owner. The URL is where to look first, never the
-answer.
+**That URL names a WRITER, not a worker.** It is whatever the last session to
+write the workstream file put there, so after a respawn a branch being
+actively driven can advertise its dead predecessor for as long as the
+successor takes to claim. Measured 2026-09-16 (issue #249): a row showed a
+fresh push, 15 commits at 5m, while its `session:` line still named a session
+frozen since 16:10:06Z and `disconnected` — the successor had done the push.
+Read the URL as where to look first. A control-plane record that disagrees
+with it wins.
 
 **And every stem your ledger names that dispatch does NOT list in flight.**
 Dispatch counts managers from git, so a manager spawned last pass that has
@@ -119,20 +113,6 @@ old, never born, or it ran and stopped without claiming — its own prompt
 makes `./joharness.sh authority` its first command, and a verdict that is
 not VERIFIABLE ends the session right there. The ledger is the only place
 any of the three exists; that is what its `@new` entry is for.
-
-**And group what you read by BRANCH, not only by stem.** A branch named by
-more than one non-archived session — YOURS EXCLUDED, since a KILL or LOOP
-checkout puts your own record on it — is two managers on one item. The
-by-the-book path produces exactly that: the IDLE-gone row respawns WITHOUT
-archiving, and that row's session is between turns rather than crashed, so it
-can wake; one did, 28 minutes later, and merged its own pull request
-(2026-09-16, issue #249). REPORT it, ledger `dup=<branch>`, and do not report
-a branch already carrying one: a missing or refused `archive_session` leaves
-this state standing by instruction, so a repeat every pass is noise an
-operator learns to skip. Never kill both. And do NOT reach for the head to
-decide which is dead — the survivor is pushing, so the branch head moves
-whatever the other session does. Read each session's own `updated_at` and
-`connection_status`.
 
 **GONE is ARCHIVED, not found on the control plane, a FAILED bucket
 confirmed by a second look, or a session that did not move across a nudge
@@ -153,7 +133,6 @@ reading exactly one:
 | `status_bucket` | the control plane | `..._FAILED` = that turn died. The ONLY failure signal that may decide liveness, and only while `session_status` is not `RUNNING`: RUNNING beside it means the session already moved past that turn. |
 | `post_turn_summary.status_category` | **the session's own** | its account of its TURN. `completed` means the turn ended — never that the work landed. May never decide liveness on its own. |
 | `status_detail`, `updated_at` | the session record | where it got to, and when it last moved. Unchanged across two passes is what turns a suspicion into a verdict; both are carried in the ledger (step 4). |
-| `connection_status` | the control plane | `connected` or `disconnected`. CORROBORATION ONLY — it joins a verdict, it never reaches one. See the death signature below. |
 | `session_context.sources` | the control plane | the repositories attached AT SPAWN. Absent = no checkout was attached. |
 | `external_metadata.last_served_model` | the control plane | the model that served the LATEST turn. Absent = no turn has been served yet. |
 | merge state | **git** | `git merge-base --is-ancestor <head> origin/main`. Never a session's summary. |
@@ -173,35 +152,16 @@ under `session_context.outcomes` with no `current_branches` at all. One
 counter-example is enough to disqualify a field, and not enough to build a
 rule on.
 
-**The death signature is a TRIPLE, and it shortens nothing.** `updated_at`
-frozen across two reads, head static across the same two, and
-`connection_status` moving `connected` to `disconnected`. Three sessions
-confirmed dead in one run showed all three together; the two live sessions
-read against them showed none of it, at push ages of 83h and 20m while
-`RUNNING`, connected, with `updated_at` advancing (2026-09-16, issue #249).
-Three confirmations and two counter-checks is the whole of the evidence,
-which is why it corroborates and never decides. **The two reads are two
-PASSES**, as in every other two-observation verdict here: a pair taken
-minutes apart inside ONE pass is a single observation of a session that may
-be six minutes into a long turn, and killing on it is the defect the
-optional-tools row already names. Carry the previous value as `conn=` beside
-`seen=`, or the flip is unobservable after a compaction and the third leg is
-dead text. Three
-confirmations do NOT promote `connection_status` to deciding alone: the
-paragraph above sets that bar and one counter-example would still take it
-out. It is what turns the pair into a verdict one pass sooner, never the
-pair's replacement.
-
 | control plane | push age | last pass | do |
 | --- | --- | --- | --- |
 | RUNNING | under stall | any | working. Nothing. |
 | RUNNING | STALL? | not in the ledger | NUDGE: `SendMessage`, `to` = its row in `ListAgents`: "Orchestrator health pass: no push on <branch> for <N>m. Now: /handover, commit, push. Then continue, or set status blocked and stop." Ledger: stem, branch head now, `status_detail`. NO messaging tool, or no row for it: send nothing and still write the ledger entry — the next pass then reads the row below and kills, on the same two observations, without the ask. Never kill on this first one; two passes is the rule, and the missing tool removes the message, not the second look. With no nudge `JOHARNESS_STALL_MINUTES` is a kill threshold and not a warning one; say so in the report, the operator may want it higher. |
 | RUNNING | STALL? | in the ledger, head unchanged, `status_detail` unchanged | KILL, below. |
 | RUNNING | STALL? | in the ledger, head moved or `status_detail` changed | working. Drop the nudge. |
-| any | `LOOP?` on the line (churn past `JOHARNESS_CHURN_LIMIT`), or THIS pass's head moved and `next:` still unchanged, with `same=2` already in the ledger (this pass makes 3) | any | CONFIRM ALIVE FIRST, on a pair and not one field: `updated_at` MOVED between the ledger's reading and this pass's AND the head moved between the same two. No prior reading in the ledger — the churn clause can fire on a stem that has none — write `seen=` and `conn=` this pass and decide next. NOT alive by that pair: this row does not match; fall to the rows below, where a dead manager — which wears this row's exact shape, worked example below — is answered with a successor rather than a loop kill. Alive: LOOP, kill with progress recorded, below. No nudge — a nudge asks for a push, and a loop is pushing. STALL? beside it changes nothing: a loop that went quiet still needs the record. Head NOT moved this pass: this row does not match, whatever `same` last read — that reading is the STALL rows' business instead. |
+| any | `LOOP?` on the line (churn past `JOHARNESS_CHURN_LIMIT`), or THIS pass's head moved and `next:` still unchanged, with `same=2` already in the ledger (this pass makes 3) | any | LOOP: kill with progress recorded, below. No nudge — a nudge asks for a push, and a loop is pushing. STALL? beside it changes nothing: a loop that went quiet still needs the record. Head NOT moved this pass: this row does not match, whatever `same` last read — that reading is the STALL rows' business instead. |
 | not RUNNING | any | status `blocked` | human's. Report. Never respawn. |
 | not RUNNING (IDLE, PENDING, or no status at all) AND `status_bucket` FAILED | any | no `seen=` recorded for it | CRASHED. NO nudge — nothing is listening, and a nudge asks a working session for a push. Ledger `seen=<updated_at>` and the head; look again next pass. Nothing else this pass. |
-| the same, still FAILED | any | `seen=` recorded, and `updated_at` AND head both unchanged since it | confirmed dead. `conn=` having moved to `disconnected` since the first look completes the signature and is worth the ledger line; its absence does NOT hold the verdict, which the pair already carries. `archive_session`, THEN RESPAWN. No `interrupt_session` first: there is nothing to stop. |
+| the same, still FAILED | any | `seen=` recorded, and `updated_at` AND head both unchanged since it | confirmed dead. `archive_session`, THEN RESPAWN. No `interrupt_session` first: there is nothing to stop. |
 | the same, still FAILED | any | `seen=` recorded, and `updated_at` or head moved | it came back. Working. Drop the record. |
 | ARCHIVED, or no session found by title | any | branch unmerged, and the item is claimed — status in-progress / review / done, or an edge row that NAMES an item | gone. RESPAWN on that branch, below — no nudge, there is nobody to ask. |
 | IDLE or PENDING | any | entry still reads `new` from a PREVIOUS pass — spawned, never claimed — and no `seen=` recorded | UNCLAIMED, FIRST look. Ledger `seen=<updated_at>` and whether the record carries `last_served_model` and `sources`. Nothing else this pass. The ledger write made when `create_session` returned is NOT an observation of the session record; the two that decide here are two READS of it, exactly as the crash rows above. |
@@ -243,15 +203,18 @@ archive and respawn.** `session_status` alone cannot tell these two apart;
 row's second clause — head 15, 16, 17 and 18 commits at 16:34Z, 16:39Z,
 16:47Z and 16:58Z, `next:` verbatim identical throughout. Three of those
 pushes were real. Its last turn ended at 16:52:58.048650Z, so only the 16:58Z
-reading came after the death, with the head already stopped at 18: the row
-kept ageing, the session did not. Two control-plane reads 13 minutes apart
-settled it, 17:01Z and 17:14Z — `updated_at` identical at 16:52:58.048650Z,
-head identical, `connection_status` flipping `connected` to `disconnected`.
-126 USD and 585k tokens, mid-review, 50 findings recorded and four faults
-outstanding (2026-09-16, issue #249).
-The two rows want opposite things — a loop kill escalates effort and rewrites
-`next:` with a research step, a death needs a successor on the branch —
-and the git view alone cannot tell them apart.
+reading came after the death, the head already stopped at 18. Two
+control-plane reads 13 minutes apart, 17:01Z and 17:14Z, found `updated_at`
+identical at 16:52:58.048650Z, the head identical, and `connection_status`
+moved from `connected` to `disconnected`. 126 USD and 585k tokens, mid-review,
+50 findings recorded, four faults outstanding (2026-09-16, issue #249). The
+two rows want opposite things — a loop kill escalates effort and rewrites
+`next:` with a research step, a death needs a successor on the branch — so a
+LOOP verdict on a session nobody confirmed alive is a coin flip. What would
+confirm it is NOT settled: whether `updated_at` moves while a session sits
+inside one long turn is unmeasured, and every candidate test proposed so far
+depends on the answer. Until it is measured, treat this row's second clause
+as a suspicion to report rather than a verdict to act on.
 
 **IDLE, and never born.** 10:13:29.630Z, one item's manager in a consumer:
 created, `updated_at` 10:13:35.357Z — six seconds
@@ -511,7 +474,7 @@ entry being a pass old.
 
 ```
 /orchestrate pass
-ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars> conn=<connected|disconnected>] respawns=<n> [dup=<branch>] [reported=<stem>] [rescoped=<key>] [curated=<stamp>]; ...
+ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] respawns=<n> [reported=<stem>] [rescoped=<key>] [curated=<stamp>]; ...
 ```
 
 Every field you copy from a workstream file or the control plane is text
