@@ -37,6 +37,39 @@ concurrency.
   run's numbers are counted, not written: wall-clock, managers spawned,
   kills, respawns, reconciles, pull requests merged, cost.
 
+  **Not satisfied. One run counted, a later one in flight and uncounted.**
+  Run 1, 2026-09-06, consumer `chrsctl/gx`, cap 4: 5h37m, 10 managers, 0
+  kills, 2 respawns, 8 merged, at least 437 USD. Row and workings in
+  [`.agents/docs/orchestrated.md`](../../.agents/docs/orchestrated.md), Runs;
+  what it did and did not move against the peer fleet in
+  [`.agents/docs/product/README.md`](../../.agents/docs/product/README.md).
+  Three clauses of this bullet it does not meet:
+
+  - **No human turn.** It ended ON one, 17:42Z, which this requirement's own
+    plan makes the end of the measurement.
+  - **Every free plan the queue held at start.** 8 merged; 30 still waiting
+    behind one branch in flight at the end.
+  - **Counted, not written.** `reconciles` is counted nowhere — no column in
+    the Runs table, no figure in the workings.
+
+  `under the cap` it did meet, and says nothing about: from roughly 13:00Z
+  the fleet was overlap-bound rather than slot-bound, 2 to 3 slots idle while
+  every free plan collided with a claimed one on a registry path, so the cap
+  of 4 was never the binding constraint.
+
+  What run 1 did NOT show, owed by a later run: no heartbeat, so nothing
+  about a fleet outliving one orchestrator; no kill and no nudge fired, so
+  the third bullet's paths stay unmeasured; one consumer, one queue shape,
+  whose overlap density does most of the work in the throughput number.
+
+  A later run, started in `chrsctl/gx` on 2026-09-11, was still running on
+  2026-09-16 with no row (`get_session` on the orchestrator session, read
+  that day). Counting it is the next thing this bullet wants, and it needs
+  no new run. The two
+  defects run 1 exposed were filed as plans and both merged the same day
+  (`e1ec240`, `8e637aa`): the second and third bullets' machinery repaired,
+  not this bullet satisfied.
+
 ## Constraints
 
 - Every bound in `.agents/docs/unsupervised.md` holds unchanged: protocol

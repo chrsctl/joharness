@@ -32,29 +32,52 @@ Both are money (`.agents/harness/AGENTS.md`, Decide alone):
 And a stocked queue: two or more free plans with declared, disjoint
 `scope:`, or the run measures an empty queue.
 
-**State on 2026-09-05, when this plan was written**, so the next reader
-starts from facts rather than re-checking the same two things:
+**State on 2026-09-16**, re-counted, replacing the 2026-09-05 block this
+plan was written with (in history at `544609f`):
 
-- No heartbeat exists. `list_triggers` on the claude-code-remote server
-  returned one Routine for this account, a disabled one-shot reminder for
-  another repository, nothing recurring. A Routine created from a session
-  carries no connectors (probed 2026-09-02, finding r1 in the workstream
-  file still on its branch: `git show
+- **Which repo a run measures is unsettled HERE, and the two answers in
+  this file disagree. The human picks; this session did not.** Scope bullet
+  1 and the `scope:` frontmatter say to flip `JOHARNESS_MODE` in THIS repo's
+  `joharness.conf`, a per-repo key never synced to a consumer (the key's own
+  comment), so the plan as written intends a run against THIS queue — and
+  Acceptance bullet 3 reads that conf too. Every run so far went the other
+  way, against consumer `chrsctl/gx`, which has its own conf and its own
+  queue: run 1, and the one still running on 2026-09-16. `git ls-tree -r
+  --name-only origin/main docs/plans docs/research` HERE, 2026-09-16,
+  returns this plan and nothing else, so a fleet fired at THIS repo measures
+  at most one item. Two ways to close it, both the human's because both
+  change what Acceptance means: retarget the plan at a consumer, so Scope
+  bullet 1 and Acceptance bullet 3 name THAT repo's conf; or stock this
+  repo's queue and run it here. The old block pointed at
+  `docs/research/capture-intent.md` as the way to stock it; that node
+  graduated and was deleted (`5e74343`), and the product README keeps its
+  two rejections as prose and names seven adopt-candidates by count,
+  recoverable from joharness history alone.
+- **Run 1 is recorded; a later run is in flight and is not.** Run 1:
+  2026-09-06, recorded by the session that filed its two defects
+  (`9a6f7b2`), row and workings in `.agents/docs/orchestrated.md` Runs. So
+  Acceptance bullet 2 reads true for it and Scope bullet 2 is discharged
+  EXCEPT `reconciles`, which no column holds. Scope bullet 3 is discharged
+  by the pull request carrying this block: the requirement's last bullet now
+  names the three clauses run 1 misses and what it did not show. A later run,
+  started in `chrsctl/gx` on 2026-09-11, was still running when this block
+  was written (`get_session` on the orchestrator session, read 2026-09-16);
+  its numbers are what the Runs table wants next, and counting them needs no
+  new run.
+- **No heartbeat exists, and the test that answers it is `recurring`.**
+  `list_triggers` filtered `recurring: true, include_completed: true`
+  returns EMPTY for this account, 2026-09-16. An unfiltered read is a trap
+  and cost this plan a review round: an orchestrator arms a ONE-SHOT Routine
+  for its own next pass, so a snapshot catches one ENABLED that is not a
+  heartbeat — it dies with the session that armed it. A Routine created from
+  a session also carries no connectors (probed 2026-09-02, finding r1 in the
+  workstream file still on its branch: `git show
   origin/claude/gastown-review-owjgzg:docs/handover/unsupervised-endurance.md`),
-  so the Routines UI is still the only route, prompt `/orchestrate`,
-  hourly.
-- The queue is not stocked. When this plan merges, `main` holds it and one
-  research file and nothing else (`git ls-tree -r --name-only origin/main
-  docs/plans docs/research`); this plan is scoped to `joharness.conf` and
-  so marked `SUPERVISED ONLY` — a supervised session drives the run, never
-  the fleet. So a fleet fired then gets ONE manager, on the research item,
-  and measures a queue of one. `docs/research/capture-intent.md` carries
-  seven adopt-candidate verdicts (`git show
-  origin/main:docs/research/capture-intent.md | grep -c 'Verdict:
-  adopt-candidate'` = 7, 2026-09-05), plan-shaped and waiting on the
-  human's word; two or more with disjoint scope would stock it properly.
-- The knobs' defaults are now counted, not written (`.agents/docs/orchestrated.md`,
-  The numbers). Confirming them is one line; the cap is still money.
+  so the Routines UI is still the only route, prompt `/orchestrate`, hourly.
+- **The knobs are still unset.** All four lines in `joharness.conf` are
+  commented out, so the counted defaults are in force and unconfirmed
+  (`.agents/docs/orchestrated.md`, The numbers). Confirming them is one
+  line; the cap is still money.
 
 ## Scope
 
@@ -82,7 +105,8 @@ starts from facts rather than re-checking the same two things:
 - `./joharness.sh authority` printed VERIFIABLE to the orchestrator and to
   at least one manager (their workstream files say so).
 - The Runs table in `.agents/docs/orchestrated.md` carries one new row with
-  every column counted.
+  every column counted. Run 1's row does this except `reconciles`, which no
+  column holds; the state block above says what that leaves.
 - `joharness.conf` reads `JOHARNESS_MODE=supervised` when this plan's pull
   request merges.
 - A human turn during the run ends the measurement there; the number is
