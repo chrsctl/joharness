@@ -55,6 +55,9 @@ on the cost decision, which is the human's.
 
 ## Review
 
+- r1: (session) the plan's central mechanic did not work as written, and its motivating example would have passed it. Tested before review rather than asserted: `git log -G'^- r18:' -- <ws> | head -1` returns the RETIRE commit, not the adding one, because the newest match comes first and a retire deletes every finding line at once while touching the plan file beside it — so the naive query reports a commit that passes. `--reverse | head -1` is what finds the add. (fixed — the corrected query is in Scope with the trap named, and the retire case is now an acceptance bullet)
+- r2: (session) worse, the rule's FIRST half is not checkable at all. Git records what landed in a commit, never the order the author typed it. The finding that motivated this plan, `r16` on the branch that merged as `#253`, was written after its fix and committed with it — it passes the same-commit test. A plan promising to enforce "before the fix" would have sent the implementing session after something git cannot see. (fixed — the Goal says so, Out of scope says why, and the lint is required to carry it in its own comment. The plan keeps its title for the rule it serves, and narrows what it claims to check)
+
 ## Blockers
 
 None.
