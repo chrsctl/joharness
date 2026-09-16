@@ -193,10 +193,13 @@ them.
 
 Harness text cites measurements constantly, and a citation wants a source, so
 the name of whatever repository produced the number is the obvious thing to
-write. Do not write it. `.agents/docs/`, `.agents/harness/`,
-`.claude/commands/` and `joharness.sh` all ship, so a repository named there
+write. Do not write it. `.agents/docs/`, `.claude/commands/`, `joharness.sh`
+and `.agents/harness/` all ship — the last minus its `selftest/` tree and
+`selftest.sh`, which are canonical-only — so a repository named in any of them
 rides into every consumer, and one operator's internal development becomes
-part of the harness every other operator reads.
+part of the harness every other operator reads. Write no name in the
+canonical-only files either: they are read by the same people, and a rule
+with a carve-out is one nobody remembers correctly.
 
 Cite the measurement, never the repository: the command, the commit, the
 counts, the date. "Measured 2026-09-06 in a consumer at `afdd11d`" is
@@ -212,11 +215,15 @@ covered: a consumer has to be told where its harness comes from. Commit hashes
 and pull request numbers are not covered either — opaque to anyone without the
 repo, and they are what a counted number rests on.
 
-Not gated, on purpose. A check listing the names to ban would be the leak it
-prevents, and the looser shape — flagging any `owner/repo` in shipping text
-that is not this repository's own — is a real option nobody has measured
-against false positives yet. Until somebody does, this is prose and the
-review at the edge is what catches it.
+Not gated yet, and not because it cannot be. A list of names to match would
+have to live somewhere, and `.agents/harness/selftest/` is canonical-only: it
+reaches no consumer, which is where such a list would belong. What stops it
+here is that enumerating an operator's repositories, even in a file that never
+leaves, is their decision rather than a session's. The looser shape needs no
+list at all — flag any `owner/repo` in shipping text that is not this
+repository's own — and nobody has measured it against false positives. Until
+one of those is decided, this is prose, and the review at the edge is what
+catches it.
 
 ## Settings a child wants to CHANGE
 
