@@ -151,9 +151,11 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    `JOHARNESS_CHECKS=local` (session start says so) replaces the FIRST
    condition and no other: `finish` runs `ci` and `verify` itself instead of
    waiting for Actions, and there is no run to read for the layer then. It
-   names what it cannot cover, in its own output; the trade is written at the
-   key that sets it, `joharness.conf`. Merge-commit method ONLY — squash/rebase merge breaks the merged-branch ancestry
-   filter (`.agents/docs/product/README.md` Branch flow). Human veto = revert.
+   names what it cannot cover, in its own output; the key's two homes and
+   their one trap are written once, at the `lint` job in
+   `.github/workflows/ci.yml`. Merge-commit method ONLY — squash/rebase merge
+   breaks the merged-branch ancestry filter
+   (`.agents/docs/product/README.md` Branch flow). Human veto = revert.
    Branch conflicts with `main` (another PR merged
    first)? Reconcile, do not force through — `.agents/docs/product/README.md`
    Branch flow, "Conflict at finish". Merged branch left standing =

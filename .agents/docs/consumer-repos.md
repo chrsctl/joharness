@@ -203,10 +203,28 @@ never syncs; the seed writes a key with the explanation of the day, and a
 consumer that already has the key keeps whatever text it was seeded with —
 forever, through every later sync. So an instruction file must not point at a
 conf comment for a fact a session NEEDS: canonical's copy may say more than
-the copy the reader has. Point at the command's own output instead, which
-ships. Found 2026-09-11 cutting `.agents/harness/AGENTS.md`, where a
+the copy the reader has, or the reader may have NO copy — a consumer
+bootstrapped before a key was declared carries no line for it at all. The
+sync's key stage (`.agents/scripts/sync-to-consumer.sh:report_conf_keys`,
+reading the declarations in `conf-keys.sh`) names the key and its default
+in its report; from a terminal it offers to append `KEY=default` with the
+declaration's one-line meaning, headless it writes nothing. So the reader's
+copy carries that one line at most, and canonical's comment block never.
+Point at the command's own output instead, which ships. Found
+2026-09-11 cutting `.agents/harness/AGENTS.md`, where a
 `JOHARNESS_CHECKS=local` sentence was about to be replaced by exactly such a
 pointer; the wording was made true against the shorter seeded copy instead.
+The no-copy case arrived the next day from `chrsctl/gx`, which synced
+`c1a7257` as `chrsctl/gx#355`: `grep -c 'JOHARNESS_CHECKS' joharness.conf`
+there is 0, while step 7's surviving clause sent a session to "the key that
+sets it, `joharness.conf`". That clause now points at the `lint` job in
+`.github/workflows/ci.yml`: the one copy of the key's two homes and their
+trap, and the file is seeded together with the `if:` that creates the trap,
+so a repo without the one has no need of the other.
+Record, in `chrsctl/joharness`'s own history only — this file ships, that
+path never existed in a consumer: `git log --all --full-history
+--diff-filter=D --oneline -- docs/research/merged-ref-batch-prose-vs-code.md`,
+then `git show <commit>^:` that path.
 
 Same five questions as first contact, each offering the value in force in
 THAT child's conf, and the answers written to its `joharness.conf`. Nothing
