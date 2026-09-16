@@ -171,7 +171,7 @@ rule on.
 Two readings from run 1, one keystroke apart in the record and opposite in
 what they need. These are the part to read when the rows blur:
 
-**IDLE, and alive.** 17:13Z, `crm-aggregate-reasoning`:
+**IDLE, and alive.** 17:13Z, one manager:
 `session_status: SESSION_STATUS_IDLE`, `status_bucket` not FAILED,
 `post_turn_summary.status_category: completed`, pull request #296 open, head
 `8f7dd84e` NOT an ancestor of `origin/main`. That is **NUDGE, ledger, spawn
@@ -180,7 +180,7 @@ ask, not one that skips it: the session was between turns, woke at 17:41Z and
 merged #296 itself as `4a4f3cc0`. Read as gone, it cost a duplicate manager
 and the money the definition above names.
 
-**IDLE, and dead.** 18:13:30Z, `crm-public-dataroom`:
+**IDLE, and dead.** 18:13:30Z, another manager:
 `session_status: SESSION_STATUS_IDLE` — the same value — with
 `status_bucket: SESSION_STATUS_BUCKET_FAILED`, `status_detail:
 [ede_diagnostic] result_type=user last_content_type=n/a stop_reason=tool_use`,

@@ -46,6 +46,9 @@ does not recur.
 
 ## Review
 
+- r1: (session) the first sweep searched for ONE repository's name and called the tree clean. Widening it to any `owner/repo`, any session identifier and item-name shapes found three more classes: two OTHER consumer repositories named in shipping docs, and consumer item names — eight of them listed in one Runs entry, two more in the orchestrate command's worked examples, one in the run 3 entry this session itself wrote last hour. Item names are the worse leak: `permission-system-at-ten-thousand-seats` and `drive-slides-editor` describe somebody's roadmap, not just where a number came from. (fixed — all scrubbed; the rule's text already said plan and item names count, which is how the gap was visible at all)
+- r2: (session) the run 1 entry's eight item names carried pull request numbers and commit SHAs with them. Those stay: opaque to anyone without the repo, and they are the evidence the counted number rests on. Identity is the name, not the hash. (no change — recorded so the next reader does not strip them as a second pass)
+
 ## Blockers
 
 None.
