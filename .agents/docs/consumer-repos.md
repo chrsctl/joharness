@@ -205,9 +205,12 @@ which is the correct amount. The same goes for a consumer's plan names, item
 names and pull request numbers — all of them are that repo's internal work
 wearing a citation's clothes.
 
-Requester's rule, 2026-09-16, applied to fifteen mentions across eight files
-that day. The canonical repository's own name is not covered: a consumer has
-to be told where its harness comes from.
+Requester's rule, 2026-09-16. Applied that day across 12 files, clearing 27
+lines that carried one (`git diff` on the branch that did it, counting removed
+lines matching the shapes above). The canonical repository's own name is not
+covered: a consumer has to be told where its harness comes from. Commit hashes
+and pull request numbers are not covered either — opaque to anyone without the
+repo, and they are what a counted number rests on.
 
 Not gated, on purpose. A check listing the names to ban would be the leak it
 prevents, and the looser shape — flagging any `owner/repo` in shipping text
