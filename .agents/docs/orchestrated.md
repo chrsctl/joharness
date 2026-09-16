@@ -164,7 +164,7 @@ a capability you do not have, not a reason to do nothing. Only
 `create_session`, `send_later` and one liveness read stop the loop.
 
 Measured, and the reason both files now say it: the first orchestrated
-run in consumer `chrsctl/gx` at `afdd11d` (2026-09-06) stopped on
+run in a consumer at `afdd11d` (2026-09-06) stopped on
 `send_message` — a name that was never in the Claude Code Remote MCP
 server, because messaging is the harness's `SendMessage` — and dispatched
 nothing while `./joharness.sh dispatch` printed `NOT DRAINED — 6 free
@@ -178,7 +178,7 @@ line, twice: PR218 r3 replaced an uncheckable condition (can the manager,
 not yet spawned, reach me?) with `ToolSearch("+SendMessage")`, which is
 green on every runtime that HAS the tool and says nothing about whether a
 message can travel; issue #230 then measured the merge notice failing in
-`chrsctl/gx` for exactly that reason. Tool presence and route existence
+a consumer for exactly that reason. Tool presence and route existence
 are different facts, and a check that cannot tell them apart is the
 wrong-reason green. The signal that does discriminate is a peer row —
 `ListAgents` listing somebody other than you — and it is readable in the
@@ -448,7 +448,7 @@ is state outside git.
 | 1 | 2026-09-06 | 5h37m | 10 | 0 | 8 | a human turn, per the plan's own rule |
 | 3 | 2026-09-11 | 42h20m to the freeze | 59 | 0 | 41 | nothing — 82h40m frozen, then still running |
 
-**Run 1**, consumer `chrsctl/gx`, cap 4, no heartbeat — one orchestrator's
+**Run 1**, in a consumer, cap 4, no heartbeat — one orchestrator's
 lifetime, which is what the plan said a run without a Routine would measure.
 12:05:05Z (session created) to 17:42Z (first human turn; `orchestrated-run.md`
 says a human turn ends the measurement there). 28 health passes at
@@ -494,7 +494,7 @@ one consumer, one queue shape, and that queue's overlap density is doing most
 of the work in the throughput number above.
 
 **Run 2, in flight, one observation** — the run is not over and its row is
-not written yet. 2026-09-07, consumer `chrsctl/gx`: one manager was spawned
+not written yet. 2026-09-07, in a consumer: one manager was spawned
 and never ran a turn, and cut no branch, so it was in no in-flight row and
 the health pass — which walks dispatch's list — never looked at it. Its item
 stayed under `spawn` for as long as it was watched. That is the `stillborn`
@@ -503,26 +503,25 @@ worked example in
 [`../../.claude/commands/orchestrate.md`](../../.claude/commands/orchestrate.md),
 which owns it. The run's own numbers wait for the run.
 
-**Run 3**, consumer `chrsctl/gx`, cap 4, no heartbeat. The run is NOT over;
+**Run 3**, in the same consumer, cap 4, no heartbeat. The run is NOT over;
 this row counts to the freeze and says so. It gets a ROW where run 2 gets
 only a paragraph, and the criterion is the difference between them: every
 column here is counted and the window is closed by a real event, the freeze,
 while run 2 had one stillborn manager and nothing to count. A run with
 nothing counted gets prose.
 
-Counted 2026-09-16 from the orchestrator session
-`session_01KKR8BgAx8M7LhScqXQbFSn` (`get_session`), its self-armed check-in
-Routines (`list_triggers`, `include_completed`), the sessions whose
-`parent_session_id` is that one (`list_sessions`), and gx's merged pull
-requests (`search_pull_requests`, `repo:chrsctl/gx is:merged
+Counted 2026-09-16 from the orchestrator session (`get_session`), its
+self-armed check-in Routines (`list_triggers`, `include_completed`), the
+sessions whose `parent_session_id` is that one (`list_sessions`), and that
+repo's merged pull requests (`search_pull_requests`, `is:merged
 merged:>=2026-09-11` — the query has no upper bound, so its results are then
 filtered to those closed at or before the freeze).
 
 09-11 09:53:25Z, session created, to 09-13 04:14Z, when the run FROZE.
 **59 managers** spawned inside that window, 61 by 2026-09-16. **41 merged**,
-the orchestrator's own count at the freeze; gx merged 44 repo-wide in the
-same window, and the three-merge difference is two harness syncs
-(`chrsctl/gx#343`, `#355`) plus one merge this count does not attribute.
+the orchestrator's own count at the freeze; that repo merged 44 in total in
+the same window, and the three-merge difference is two harness syncs plus one
+merge this count does not attribute.
 Cost **at least 5252.42 USD** — 4863.78 across the managers plus 388.64 for
 the orchestrator, summing each session's last-observed `cost_usd`, so a
 floor and not a final.
@@ -556,12 +555,12 @@ condition could not be met. Five managers waived it per pull request; one
 read the rule strictly, finished green and set itself BLOCKED, because the
 remedy — `JOHARNESS_CHECKS=local` in `joharness.conf` — is protocol text no
 session may commit. The orchestrator escalated instead of choosing, which is
-what it should do, and the human settled it on 2026-09-16 (`chrsctl/gx#379`).
+what it should do, and the human settled it there on 2026-09-16.
 A fleet that meets an infrastructure wall needs a human for a one-line conf
 change and cannot supply one; five sessions deciding one way and one the
 other, inside one run, is the cost of leaving that to each manager's reading.
 
-What run 3 has NOT shown: no DRAINED — gx still queued 37 plans at
+What run 3 has NOT shown: no DRAINED — that repo still queued 37 plans at
 2026-09-16 (`get_file_contents`, `docs/plans`); no kill and no nudge, for the
 reasons above; and `reconciles` is counted nowhere, still, which is now two
 runs owing the requirement's last bullet the same column.

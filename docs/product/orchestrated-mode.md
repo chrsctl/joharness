@@ -38,7 +38,7 @@ concurrency.
   kills, respawns, reconciles, pull requests merged, cost.
 
   **Not satisfied. Two runs counted, and the second is not over.**
-  Run 1, 2026-09-06, consumer `chrsctl/gx`, cap 4: 5h37m, 10 managers, 0
+  Run 1, 2026-09-06, in a consumer, cap 4: 5h37m, 10 managers, 0
   kills, 2 respawns, 8 merged, at least 437 USD. Row and workings in
   [`.agents/docs/orchestrated.md`](../../.agents/docs/orchestrated.md), Runs;
   what it did and did not move against the peer fleet in
@@ -62,7 +62,7 @@ concurrency.
   the third bullet's paths stay unmeasured; one consumer, one queue shape,
   whose overlap density does most of the work in the throughput number.
 
-  Run 3, started in `chrsctl/gx` on 2026-09-11, is counted to its freeze in
+  Run 3, started in the same consumer on 2026-09-11, is counted to its freeze in
   the same Runs table: 42h20m, 59 managers, 41 merged, at least 5252.42 USD,
   then 82h40m frozen because the orchestrator's self-armed pass chain was the
   only thing driving the fleet. It misses this bullet on every clause run 1

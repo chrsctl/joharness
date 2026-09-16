@@ -15,13 +15,13 @@ one orchestrated run, started once over a stocked queue, counted until it
 stops. The mode is built; whether it empties a queue faster than the peer
 fleet did is a number nobody has, and `.agents/docs/orchestrated.md` says
 so in its Runs table, which this plan fills. The run happens in child
-repo `chrsctl/gx` and the record lands here — settled 2026-09-16, below.
+repo, not this one, and the record lands here — settled 2026-09-16, below.
 
 ## BEFORE YOU START — the human decides, not this plan
 
 Both are money (`.agents/harness/AGENTS.md`, Decide alone):
 
-1. The four numbers in `chrsctl/gx`'s `joharness.conf` — cap, stall,
+1. The four numbers in the child repo's `joharness.conf` — cap, stall,
    health, respawn limit. The counted defaults are in
    `.agents/docs/orchestrated.md`, The numbers, which is where to read them:
    a consumer's conf may carry no comment for a key, so an instruction
@@ -33,22 +33,22 @@ Both are money (`.agents/harness/AGENTS.md`, Decide alone):
    and checks the fired session reached GitHub. Without one the run is one
    orchestrator's lifetime and is reported as that.
 
-And a stocked queue IN GX: two or more free plans there with declared,
+And a stocked queue IN THE CHILD REPO: two or more free plans there with declared,
 disjoint `scope:`, or the run measures an empty queue.
 
 **State on 2026-09-16**, re-counted, replacing the 2026-09-05 block this
 plan was written with (in history at `544609f`):
 
-- **Settled 2026-09-16: a live run happens in child repo `chrsctl/gx`.**
+- **Settled 2026-09-16: a live run happens in a child repo, not here.**
   The requester's decision, and it is what both runs so far already did.
   So this plan spans TWO repos: the mode flip, the fleet and every
-  manager's pull request are gx's; this plan file, the Runs row and the
+  manager's pull request are the child's; this plan file, the Runs row and the
   requirement annotation stay here. `JOHARNESS_MODE` is per-repo and never
   synced to a consumer (the key's own comment), so flipping THIS repo's
   conf would start nothing there — Scope bullet 1 and Acceptance bullet 3
-  name gx's conf. What this repo's own queue holds no longer bears on the
+  name the child's conf. What this repo's own queue holds no longer bears on the
   run.
-- **Runs 1 and 3 are recorded; run 3 is not over.** Run 3 started in gx on
+- **Runs 1 and 3 are recorded; run 3 is not over.** Run 3 started in the child on
   2026-09-11 and is counted to its freeze in `.agents/docs/orchestrated.md`,
   Runs, on the requester's instruction of 2026-09-16: 42h20m, 59 managers,
   41 merged, at least 5252.42 USD, then an 82h40m freeze because the
@@ -73,18 +73,18 @@ plan was written with (in history at `544609f`):
   origin/claude/gastown-review-owjgzg:docs/handover/unsupervised-endurance.md`),
   so the Routines UI is still the only route, prompt `/orchestrate`, hourly.
 - **The knobs are confirmed and the mode is merged. BEFORE YOU START item
-  1 is DONE.** Read 2026-09-16 (`get_file_contents chrsctl/gx
-  joharness.conf`, its `main`): that conf carries
+  1 is DONE.** Read 2026-09-16 (`get_file_contents` on that repo's
+  `joharness.conf`, its `main`): that conf carries
   `JOHARNESS_MODE=orchestrated`, so `authority` reads VERIFIABLE there, and
   `JOHARNESS_MAX_MANAGERS=4` with the requester's 2026-09-06 call recorded
   beside it. The other three knobs are deliberately unwritten so they follow
   canonical's counted defaults, which the conf says in its own words. An
   earlier version of this block called them unchecked; that was this repo
-  declining to read gx, not a fact about gx.
+  declining to read it, not a fact about it.
 
 ## Scope
 
-- Flip `JOHARNESS_MODE=orchestrated` in `chrsctl/gx`'s `joharness.conf`
+- Flip `JOHARNESS_MODE=orchestrated` in the child repo's `joharness.conf`
   through a pull request THERE, before any session is spawned, so every
   session reads VERIFIABLE. Flip it back the same way when the run ends.
 - Record in `.agents/docs/orchestrated.md`, Runs: wall-clock, managers
@@ -99,7 +99,7 @@ plan was written with (in history at `544609f`):
 ## Out of scope
 
 - Fixing what the run exposes. Findings become plans.
-- Creating the Routine, choosing the cap, adding a halt on gx's red `main`.
+- Creating the Routine, choosing the cap, adding a halt on the child's red `main`.
 - Changing the mode's code. A defect found is a plan, filed, not patched
   mid-run.
 
@@ -110,7 +110,7 @@ plan was written with (in history at `544609f`):
 - The Runs table in `.agents/docs/orchestrated.md` carries one new row with
   every column counted. Run 1's row does this except `reconciles`, which no
   column holds; the state block above says what that leaves.
-- `chrsctl/gx`'s `joharness.conf` reads `JOHARNESS_MODE=supervised` again
+- The child repo's `joharness.conf` reads `JOHARNESS_MODE=supervised` again
   when the run ends, through a pull request there. This repo's reads
   `supervised` throughout and this plan's pull request never changes it.
 - A human turn during the run ends the measurement there; the number is
@@ -128,5 +128,5 @@ plan was written with (in history at `544609f`):
 - A prompt cannot be its own evidence: point sessions at `authority`.
 - Attach the repository (`source_url`) or nothing can be read.
 - A number nobody can re-count is a written number.
-- Two repos, two pull requests: the mode flip is gx's, this plan is here.
+- Two repos, two pull requests: the mode flip is the child's, this plan is here.
   Flipping this repo's conf starts nothing there.
