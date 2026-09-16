@@ -456,12 +456,8 @@ says a human turn ends the measurement there). 28 health passes at
 
 Counted from the orchestrator's own passes: **10 managers** spawned in window
 (an 11th at 17:52Z falls outside it); **0 kills**, **0 nudges**; **2
-respawns**, one sound and one not; **8 merged** — `workflow-outbound-http`,
-`workflow-state-machine-scope`, `permission-system-at-ten-thousand-seats`,
-`comms-openapi-connector` (#291), `extension-code-surface` (#293),
-`drive-slides-editor`, `ui-storyboard` (#295 / `30b845cb`),
-`crm-aggregate-reasoning` (#296 / `4a4f3cc0`); **1 item blocked on the human**
-and still open at the end. Cost **≥437 USD**, summed from `get_session`'s
+respawns**, one sound and one not; **8 merged**; **1 item blocked on the
+human** and still open at the end. Cost **≥437 USD**, summed from `get_session`'s
 `usage.cost_usd` last observed per session, 9 of the 10 seen — last-observed
 values, not finals, so it is a floor.
 
@@ -547,7 +543,7 @@ kill was not executable; and cloud managers are not addressable —
 procedure. The health table's nudge-then-kill sequence has no implementation
 for a cloud fleet, which is a different finding from a run where neither
 fired. One respawn ran and was verified clean, no duplicate, 2026-09-16
-16:23Z on `crm-formula-fields`.
+16:23Z on one item.
 
 **The boundary and the outage collided, and the fleet split on it.** GitHub
 allocated no runner account-wide from 2026-09-13, so step 7's first merge

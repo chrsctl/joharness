@@ -835,7 +835,7 @@ for s in "${free_shared[@]:-}"; do [ -n "$s" ] && scoped_any=1; done
 # plan whose scope met it was told to WAIT for a pass it would sit out. One
 # broad-scoped held plan serialised a whole queue that way — 36 items behind
 # one that could not start, with three worker slots free
-# (`./joharness.sh dispatch` in chrsctl/gx at 539d112, 2026-09-06).
+# (`./joharness.sh dispatch` in a consumer at 539d112, 2026-09-06).
 # Nothing runs on a held plan's paths, so a plan whose only
 # collision is with the held one is safe to spawn.
 #

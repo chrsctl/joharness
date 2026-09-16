@@ -75,8 +75,8 @@ miss the conflict — it asserts the opposite.
 
 Some files every plan touches. A repo whose plans all edit one test file or
 one index has no disjoint pair, so every wave holds one plan and the hook
-advises serialising work that runs fine in parallel. Measured in consumer
-`chrsctl/redocted` at `c79dc82`, one working day (2026-08-24): four sessions
+advises serialising work that runs fine in parallel. Measured in a consumer
+at `c79dc82`, one working day (2026-08-24): four sessions
 for 12.5 hours, one 8,131-line test file named by 4 of 5 queued plans, and 2
 of 24 merged pull requests needing a reconcile. A cost, not an impossibility
 — recount it there, not here; this repo is not that queue. Mark such a path

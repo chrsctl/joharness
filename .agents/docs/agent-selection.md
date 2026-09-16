@@ -3,7 +3,7 @@
 Different plans, different agents. Each plan file under `docs/plans/` names
 in frontmatter which agent tier implements it (`agent`) and at what effort
 (`effort`). This document: the lineup, the selection rules, the model
-behavior they rest on. Developed in `chrsctl/redoct` (its PR #3); facts from
+behavior they rest on. Developed in a consumer (its PR #3); facts from
 Anthropic API reference cached 2026-06-24 — verify against Models API when
 stale.
 
@@ -110,7 +110,7 @@ mapping:
   fix once. Step runs at raised tier or effort — same lever as
   under-thinking. Session cannot switch own model: raise effort in place,
   or record wanted tier in workstream file and hand step to fresh session.
-  Observed 2026-08-21, `chrsctl/redoct` verify matching rule: 5 review
+  Observed 2026-08-21 in a consumer, on its verify matching rule: 5 review
   rounds of patching, findings per round 3, 5, 3, 5, 2 — oscillating, no
   floor; one conflict diagnosis (split into two per-case rules, both
   requirements kept) ended it.
