@@ -1,16 +1,14 @@
 ---
 workstream: marker-gate-needs-no-done
-status: blocked
+status: abandoned
 branch: claude/marker-gate-needs-no-done
 pr: none
 plan: marker-gate-needs-no-done
 issue: none
 session: https://claude.ai/code/session_01Samg4LcLJBw1jg4RfCtT8Z
 agent: sonnet
-updated: 2026-08-31
-next: SUPERVISED session only (see Blockers) — apply the fully-designed fix
-  below to joharness.sh + .agents/harness/selftest/review.sh, run
-  ./joharness.sh ci and .agents/harness/selftest.sh, open the PR
+updated: 2026-09-17
+next: Abandoned claim, free to take — the diff is fully designed below and its block wants a SUPERVISED session, which is what a session reading this in supervised mode already is
 ---
 
 ## Goal
@@ -140,6 +138,18 @@ be able to re-apply it directly rather than redesign it.
   plan's merge since the actual CI gate does not reproduce it.
   `bash .agents/harness/selftest.sh` here: 1170 passed, 1 failed (this
   one). `./joharness.sh ci` here: FAIL, same one section.
+
+**Claim released by the janitor sweep of 2026-09-17.** The session that made
+it is gone: `session_01Samg4LcLJBw1jg4RfCtT8Z read SESSION_STATUS_ARCHIVED`. It was holding `docs/plans/marker-gate-needs-no-done.md`, which is
+free from the moment the queue hook reads `status: abandoned` above.
+
+Nothing on this branch was changed but this file, and nothing was deleted —
+not the file, not the branch, not a line of what the claim already said. The
+work below is exactly as its session left it.
+
+**A session that picks this up sets `status:` back and carries on.** That is
+not a formality: the status is what the queue reads, and this note is not an
+instruction to anybody, it is the record of one reading taken on one date.
 
 ## Where to look
 
