@@ -592,6 +592,7 @@ SELFTEST_TOPICS=(
   ci-verify-layers
   perf
   mutate
+  num-knob
 )
 
 selftest_topics_dir="${ROOT}/.agents/harness/selftest"

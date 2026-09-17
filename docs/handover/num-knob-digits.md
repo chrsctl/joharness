@@ -8,7 +8,7 @@ issue: 260
 session: https://claude.ai/code/session_01K6sHM4RWyYDCLZmrDSrWk3
 agent: sonnet
 updated: 2026-09-17
-next: Strip leading zeros in num_knob, decide the ceiling, write the topic file
+next: Review the diff, then retire the plan and the workstream file and open the pull request
 ---
 
 ## Goal
@@ -42,6 +42,19 @@ file rewritten + times`.
   `state: closed`, `merged: false`, closed 2026-08-21.
 
 ## Review
+
+- r1: (session, method) the mutations went through `./joharness.sh mutate`,
+  which puts the line back itself and proves the file is otherwise
+  untouched. That is the last item's r18 applied rather than restated: there
+  it was a hand-rolled injection into the working tree, and a `git add -A`
+  while one was applied staged the mutated file. The repo already had the
+  tool; I had not looked. (no change needed — recorded because the lesson is
+  "use the tool", not "be careful", and the next session reads this.)
+- r2: (session) the stderr helper was first written `2>&1 >/dev/null`, which
+  does what I meant and is the spelling shellcheck reads as the classic
+  mistake (SC2069) — and `ci` fails on warning level, so it would have gone
+  red at the edge. (fixed — `{ ...; } 2>&1`, with the reason on the line so
+  nobody 'simplifies' it back.)
 
 ## Blockers
 

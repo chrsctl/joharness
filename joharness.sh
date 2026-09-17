@@ -6180,6 +6180,25 @@ num_knob() {
   local v="${!1:-}"
   [ -n "$v" ] || v="$(conf_get "$1")"
   case "$v" in '' | *[!0-9]*) v="$2" ;; esac
+  # Digits-only is not a number, and both ways it is wrong are SILENT.
+  # Leading zeros off, before any caller does arithmetic on this: bash reads
+  # `08` as octal and dies on it — inside a command substitution, where
+  # `set -e` is not in force, so the caller is handed the EMPTY string and
+  # carries on printing a confident wrong line. Measured 2026-09-17,
+  # `JOHARNESS_CHURN_THRESHOLD=08 ./joharness.sh dispatch`: exit 0, full
+  # output, and the loop line reading `one file rewritten + times` with the
+  # limit gone. The quieter half is `010`, which is valid octal and so is
+  # EIGHT to every comparison and ten to whoever wrote it — and that one is
+  # a cap, which is the human's money changed by a spelling (issue #260).
+  v="${v#"${v%%[!0]*}"}"
+  [ -n "$v" ] || v=0
+  # And a ceiling, because there is no upper bound either: twenty digits
+  # wraps 64-bit arithmetic. Falls back to the caller's DEFAULT, which is the
+  # answer the digit filter already gives a non-digit — not a clamp. A knob
+  # has no natural maximum to clamp to and an invented one is a guess printed
+  # as a setting; `dispatch` prints every knob it reads, so a fallback is
+  # visible where a reader already looks.
+  [ "${#v}" -le 9 ] || v="$2"
   printf '%s' "$v"
 }
 
