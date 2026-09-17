@@ -25,7 +25,26 @@ human work.
   the `requirement:` edge. Plan queue rules: [`../plans/README.md`](../plans/README.md).
 - **Satisfied** = last plan's PR deletes the requirement file with the
   plan file. Survives in history.
+- **Retired unsatisfied** = the REQUESTER decides a condition is no longer
+  this repo's to schedule — the work moved elsewhere, the goal changed, the
+  evidence will come from somewhere the queue does not reach. Same deletion,
+  with the plan, and one difference that is the whole point: the PR records
+  in the right layer doc which conditions read true, which did not, and what
+  closed. Never a session's call alone (Decide alone: product direction) and
+  never inferred from a stale file — a requirement nobody has served is
+  UNPLANNED, which is work, not a candidate for this.
+  First instance: `orchestrated-mode`, 2026-09-17, recorded in
+  [`../orchestrated.md`](../orchestrated.md), Where the mode came from.
 - Requirement with open plans = silent in hook; its plans speak.
+
+**A deleted requirement does not say WHICH of the two it was**, and two
+readers assume the first: `joharness.sh:lint_plans` warns `requirement '<r>'
+gone from tree — satisfied while this plan is open?` and `curate`'s
+DECLUTTER says `satisfied? confirm in merged history, then delete`. Both ask
+rather than assert, and both send the reader to history — which is right, and
+is why the layer-doc record above is the load-bearing half rather than a
+courtesy. Deleting a requirement without it leaves the tree saying
+`satisfied` and nothing saying otherwise.
 
 **Intake was compared against a published `intent.md` practice, and two
 verdicts are rejections.** Research node `capture-intent` swept lesson 2 of
