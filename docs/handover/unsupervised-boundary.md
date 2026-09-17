@@ -113,13 +113,17 @@ Whichever lands second reconciles the Constraints section.
 it is gone: `session_01UcW18iV8drNpkz9rpCT27B read SESSION_STATUS_ARCHIVED`. It was holding `docs/plans/unsupervised-boundary.md`, which is
 free from the moment the queue hook reads `status: abandoned` above.
 
-Nothing on this branch was changed but this file, and nothing was deleted —
-not the file, not the branch, not a line of what the claim already said. The
-work below is exactly as its session left it.
+Nothing on this branch was changed but this file, and nothing was deleted
+but the frontmatter lines the release replaces — the old `status:`,
+`updated:` and `next:`, and a `None.` under this heading where there was
+one. The record below is exactly as its session left it. An earlier wording
+of this note said no line was deleted at all, which its own commit
+contradicted.
 
-**A session that picks this up sets `status:` back and carries on.** That is
-not a formality: the status is what the queue reads, and this note is not an
-instruction to anybody, it is the record of one reading taken on one date.
+**A session that picks this up MAY set `status:` back and carry on** — the
+status is what the queue reads, so nothing else is needed to take the work.
+This note is the record of one reading taken on one date, not an instruction
+to anybody.
 
 ## Where to look
 
