@@ -1,14 +1,14 @@
 ---
 workstream: unsupervised-endurance
-status: blocked
+status: abandoned
 branch: claude/gastown-review-owjgzg
 pr: none
 plan: unsupervised-endurance
 issue: none
 session: https://claude.ai/code/session_01JU2E2vNtdyc5di2jrZfBRg
 agent: opus
-updated: 2026-09-02
-next: BLOCKED on TWO operator items — (1) heartbeat created from the claude.ai Routines UI, a session cannot pass connectors; (2) the cap VALUE. Branch stays open and unmerged until the run ends; retiring this file frees the plan to the fleet
+updated: 2026-09-17
+next: Abandoned claim, free to take — the block below is still live and still the human's: a heartbeat Routine created from the claude.ai UI, and the cap value
 ---
 
 ## Goal
@@ -56,6 +56,18 @@ one the trap's own paragraph names: create it from the claude.ai Routines
 UI, or from a session holding the connectors. That is an operator action.
 
 Cap value is also still outstanding, but it is downstream of the above.
+
+**Claim released by the janitor sweep of 2026-09-17.** The session that made
+it is gone: `session_01JU2E2vNtdyc5di2jrZfBRg read SESSION_STATUS_ARCHIVED`. It was holding `docs/plans/unsupervised-endurance.md`, which is
+free from the moment the queue hook reads `status: abandoned` above.
+
+Nothing on this branch was changed but this file, and nothing was deleted —
+not the file, not the branch, not a line of what the claim already said. The
+work below is exactly as its session left it.
+
+**A session that picks this up sets `status:` back and carries on.** That is
+not a formality: the status is what the queue reads, and this note is not an
+instruction to anybody, it is the record of one reading taken on one date.
 
 ## Review
 
