@@ -114,8 +114,17 @@ expect "the next: line is carried, because it states the cause" \
   "next      : A human must waive the checks condition" "$out"
 expect "the anchor is the commit that last changed the file" \
   "restated  : 2026-01-02" "$out"
-expect "and with nothing moved under it the cause stands" "CAUSE STANDS" "$out"
-refute "no conf key differs yet" "conf      : JOHARNESS_CHECKS" "$out"
+expect "the repo's current answers are printed beside the stated cause" \
+  "conf now  : JOHARNESS_ENV=none" "$out"
+expect "and with nothing moved under it the verdict says so" \
+  "NO CONFIG MOVEMENT" "$out"
+# The wording is the finding, not decoration. #266's own block named a
+# condition the conf had answered BEFORE the claim was written, so nothing
+# moved and the cause was already gone — a verdict reading "the cause is live"
+# would be the defect this command exists to catch.
+expect "without claiming the cause is live" \
+  'NOT the same as "the' "$out"
+refute "no conf key differs yet" "conf diff :" "$out"
 
 # --- the repo answers the question the claim is waiting on ------------------
 # Issue #266 in one commit: the conf lifts the condition eight hours before
@@ -126,16 +135,18 @@ git -C "$anwork" push -q origin main
 
 out="$(ana mgr-parked)"
 expect "the key that moved is named with BOTH values" \
-  "conf      : JOHARNESS_CHECKS — this branch github, origin/main local" "$out"
+  "conf diff : JOHARNESS_CHECKS — this branch github, origin/main local" "$out"
 expect "and the commit that moved it, after the claim was restated" \
-  "moved joharness.conf after that: 2026-01-03" "$out"
+  "conf moved: 2026-01-03" "$out"
+expect "with the key that commit actually changed" \
+  "JOHARNESS_CHECKS github to local" "$out"
 expect "the verdict is the cautious one" "CAUSE MAY BE LIFTED" "$out"
 # The whole point of the wording. The command knows a key moved; it cannot
 # know the key answers the prose in next:, and a command that asserted that
 # mapping would be this issue's defect inverted.
 refute "never asserted as lifted" "verdict   : CAUSE LIFTED" "$out"
 expect "and the reader is told to weigh it against next:" \
-  "the next: line; a key that answers it" "$out"
+  "Read the keys above against the next: line" "$out"
 
 # --- a manager at work is not a row anybody needs read ----------------------
 git -C "$anwork" checkout -qb mgr-working main
@@ -150,7 +161,16 @@ out="$(ana mgr-working)"
 expect "a named branch prints whatever it is" "branch    : mgr-working" "$out"
 expect "and a working one says so" "NO CONDITION" "$out"
 refute "reading no conf for it — there is no condition to explain" \
-  "conf      :" "$out"
+  "conf now  :" "$out"
+expect "and the row says a cleared condition looks like this" \
+  "condition that cleared between the pass and this read" "$out"
+
+# The stall mark is a COMPARISON, not an echo. This branch pushed seconds ago,
+# so the knob decides the outcome and not just the text.
+out="$(ana mgr-working JOHARNESS_STALL_MINUTES=0)"
+expect "a zero stall window marks a branch that just pushed" \
+  "condition : STALL? — no push for" "$out"
+refute "and it is no longer a manager at work" "NO CONDITION" "$out"
 
 out="$(an)"
 expect "the sweep prints the parked claim" "branch    : mgr-parked" "$out"
@@ -188,10 +208,75 @@ expect "and one file rewritten past the churn limit carries the loop mark" \
   "condition : LOOP? — src/app.py rewritten 3 times (>= 3)" "$out"
 expect "the marks line reads the same knob" "LOOP? at 3 rewrites of one file" "$out"
 
+# --- a key this branch carries and the base branch does not -----------------
+# The delta must read BOTH directions. Keyed on the base branch's list alone,
+# this key is never compared at all and the verdict then asserts that no key
+# differs — louder than what it measured.
+git -C "$anwork" checkout -qb mgr-extra main
+mkdir -p "${anwork}/docs/handover"
+printf -- '---\nworkstream: extra\nstatus: blocked\nbranch: mgr-extra\nplan: extra\nagent: sonnet\nupdated: 2026-01-04\nnext: Waiting on a human\n---\n\n## Goal\nFixture.\n' \
+  >"${anwork}/docs/handover/extra.md"
+printf 'JOHARNESS_ENV=none\nJOHARNESS_MODE=orchestrated\nJOHARNESS_CHECKS=local\nJOHARNESS_EXTRA_KEY=1\n' >"$anconf"
+ancommit "claim extra, with a key of its own" '2026-01-04T00:00:00Z'
+git -C "$anwork" push -qu origin mgr-extra
+git -C "$anwork" checkout -q main
+git -C "$anwork" checkout -q main -- joharness.conf
+
+out="$(ana mgr-extra)"
+expect "a key only the BRANCH carries is compared too" \
+  "conf diff : JOHARNESS_EXTRA_KEY — this branch 1, origin/main (absent)" "$out"
+expect "and it reaches the verdict" "CAUSE MAY BE LIFTED" "$out"
+
+# --- a conf commit that changes no key at all -------------------------------
+# Unfiltered, any commit touching the file flips the verdict and leaves the
+# reader with no key to weigh — a comment reword, or a base-branch merge.
+git -C "$anwork" checkout -qb mgr-comment main
+mkdir -p "${anwork}/docs/handover"
+printf -- '---\nworkstream: comment\nstatus: blocked\nbranch: mgr-comment\nplan: comment\nagent: sonnet\nupdated: 2026-01-04\nnext: Waiting on a human\n---\n\n## Goal\nFixture.\n' \
+  >"${anwork}/docs/handover/comment.md"
+ancommit "claim comment" '2026-01-04T00:00:00Z'
+git -C "$anwork" push -qu origin mgr-comment
+git -C "$anwork" checkout -q main
+printf '# A comment nobody reads, and no key changed.\n' >>"$anconf"
+ancommit "conf: reword a comment" '2026-01-05T00:00:00Z'
+git -C "$anwork" push -q origin main
+
+out="$(ana mgr-comment)"
+refute "a comment-only conf commit is not a key that moved" "conf moved:" "$out"
+expect "and the verdict stays where it was" "NO CONFIG MOVEMENT" "$out"
+
+# --- one branch, two claims -------------------------------------------------
+# An analyst spawned against the BRANCH is handed both and cannot say which it
+# was sent for; the ledger keys on the stem, so the branch alone cannot dedupe
+# either.
+git -C "$anwork" checkout -qb mgr-two main
+mkdir -p "${anwork}/docs/handover"
+for ant in twoa twob; do
+  printf -- '---\nworkstream: %s\nstatus: blocked\nbranch: mgr-two\nplan: %s\nagent: sonnet\nupdated: 2026-01-05\nnext: Waiting on a human\n---\n\n## Goal\nFixture.\n' \
+    "$ant" "$ant" >"${anwork}/docs/handover/${ant}.md"
+done
+ancommit "claim two items on one branch" '2026-01-05T00:00:00Z'
+git -C "$anwork" push -qu origin mgr-two
+git -C "$anwork" checkout -q main
+for ant in twoa twob; do
+  printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: high\n---\n\n## Goal\nFixture.\n' \
+    "$ant" >"${anwork}/docs/plans/${ant}.md"
+done
+ancommit "queue both items" '2026-01-05T01:00:00Z'
+git -C "$anwork" push -q origin main
+
+out="$(ana mgr-two)"
+expect "the branch alone reads both claims" "claim     : docs/handover/twoa.md" "$out"
+expect "both of them" "claim     : docs/handover/twob.md" "$out"
+out="$(cd "$anwork" && env JOHARNESS_CONF="$anconf" ANALYSIS_FETCH=0 \
+  ./joharness.sh analysis mgr-two twob 2>&1)"
+expect "and a claim stem narrows it to one" "claim     : docs/handover/twob.md" "$out"
+refute "leaving the other out" "claim     : docs/handover/twoa.md" "$out"
+
 # --- the switch moves who acts, and nothing else ----------------------------
 out="$(ana mgr-parked JOHARNESS_IDLE_ANALYSIS=on)"
 expect "on reports the same verdict" "CAUSE MAY BE LIFTED" "$out"
-expect "and names the role that files it" "/analyst <branch>" "$out"
+expect "and names the role that files it" "/analyst <branch> <claim>" "$out"
 expect "with where it goes" "ONE issue on someone/joharness" "$out"
 expect "and what it costs" "one session beyond the manager cap" "$out"
 out="$(ana mgr-parked JOHARNESS_IDLE_ANALYSIS=yes)"
@@ -226,11 +311,34 @@ expect "on, dispatch says what a marked row costs" \
   "analysis  : ON" "$out"
 expect "and that the ledger is what keeps it to one" \
   "the ledger is what makes it once" "$out"
-expect "the blocked row names its own explainer" \
-  "ANALYSE? /analyst mgr-parked (BLOCKED)" "$out"
+expect "the blocked row names its own explainer, by CLAIM" \
+  "ANALYSE? /analyst mgr-parked parked (BLOCKED)" "$out"
 # Beside the existing verdict, never instead of it: an analyst explains a
 # condition, it never ends one, and a blocked row stays the human's.
 expect "beside the blocked verdict, not instead of it" \
   "BLOCKED: the human's, holds no slot" "$(printf '%s\n' "$out" | grep 'mgr-parked')"
 refute "a manager at work is not marked" \
   "ANALYSE? /analyst mgr-working" "$out"
+
+# --- a repo whose conf is not tracked at all --------------------------------
+# Read zero bytes of conf and print a verdict about config is #266 one layer
+# up: the analyst reads it, concludes the block is live, and files nothing.
+# LAST in this topic, because it takes the conf out of the base branch and
+# every case above compares against it.
+git -C "$anwork" rm -q --cached joharness.conf
+printf 'joharness.conf\n' >"${anwork}/.gitignore"
+ancommit "stop tracking the conf" '2026-01-07T00:00:00Z'
+git -C "$anwork" push -q origin main
+git -C "$anwork" checkout -qb mgr-noconf main
+mkdir -p "${anwork}/docs/handover"
+printf -- '---\nworkstream: noconf\nstatus: blocked\nbranch: mgr-noconf\nplan: noconf\nagent: sonnet\nupdated: 2026-01-07\nnext: Waiting on a human\n---\n\n## Goal\nFixture.\n' \
+  >"${anwork}/docs/handover/noconf.md"
+ancommit "claim noconf" '2026-01-07T01:00:00Z'
+git -C "$anwork" push -qu origin mgr-noconf
+git -C "$anwork" checkout -q main
+
+out="$(ana mgr-noconf)"
+expect "neither ref carrying a conf is not analysable" \
+  "NOT ANALYSABLE — neither origin/mgr-noconf nor origin/main carries a" "$out"
+refute "and never a verdict about config it never read" "NO CONFIG MOVEMENT" "$out"
+refute "nor the other one" "CAUSE MAY BE LIFTED" "$out"

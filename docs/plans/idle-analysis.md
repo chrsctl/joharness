@@ -5,7 +5,7 @@ agent: opus
 effort: high
 needs: none
 requirement: none
-scope: shared:joharness.sh, .claude/commands/analyst.md, .claude/commands/orchestrate.md, .agents/docs/orchestrated.md, .agents/docs/feedback.md, .agents/scripts/conf-keys.sh, .agents/scripts/bootstrap-consumer.sh, .agents/harness/selftest/analysis.sh
+scope: shared:joharness.sh, shared:.agents/harness/selftest.sh, .claude/commands/analyst.md, .claude/commands/orchestrate.md, .agents/docs/orchestrated.md, .agents/docs/feedback.md, .agents/scripts/conf-keys.sh, .agents/scripts/bootstrap-consumer.sh, .agents/harness/selftest/analysis.sh
 ---
 
 ## Goal
@@ -51,20 +51,36 @@ merges nothing, unblocks nobody, and answers no manager's question.
     `docs/plans/unowned-block-age.md` documents (`-S` matches park, unpark
     AND the retire that deletes the file; neither end of that list is an
     age).
-  - `conf :` — for every key `conf_keys_names` declares, the value the
-    branch's own tree carries against the value on `origin/<base>`, printed
-    only where they differ; plus every commit touching `joharness.conf` on
-    the base branch NEWER than `restated :`, with its date and subject.
+  - `conf now :` — the base branch's CURRENT answers, in full, for every row
+    carrying a condition. This is the line #266 needed and neither mechanical
+    signal below would have produced: there the key landed on the base branch
+    BEFORE the session existed and the branch carried it, so nothing differed
+    and nothing moved. The repo's answer has to sit beside the manager's
+    prose where a reader weighs the two.
+  - `conf diff :` — every `JOHARNESS_` key either conf carries whose value
+    differs between this branch and `origin/<base>`, `(absent)` for a side
+    that lacks it. BOTH directions. Every key, never the list
+    `.agents/scripts/conf-keys.sh` declares: that file is canonical-only and
+    `joharness.sh` ships to every consumer.
+  - `conf moved :` — commits on the base branch NEWER than `restated :` that
+    CHANGED a key, newest three plus a count, each naming the key and both
+    values. Filtered by what changed, never by what was touched: a comment
+    reword or a base-branch merge otherwise flips the verdict with no key
+    under it to weigh.
   - `canonical :` — `upstream_canonical_repo`, or `UNKNOWN` and what is
     missing.
-  - One verdict line per branch:
-    - `CAUSE MAY BE LIFTED` — a declared key differs between this branch and
-      the base branch, or `joharness.conf` moved on the base branch after
-      `restated :`. Names the key and both values.
-    - `CAUSE STANDS` — no declared key differs and the base branch's conf has
-      not moved since `restated :`.
-    - `NOT ANALYSABLE` — no workstream file on that ref, no condition on that
-      row, or a conf neither side can read. Says which.
+  - One verdict line per claim:
+    - `CAUSE MAY BE LIFTED` — a key differs, or one changed on the base branch
+      after `restated :`.
+    - `NO CONFIG MOVEMENT` — neither. Says in so many words that this is NOT
+      "the cause is live", because #266's own block is exactly that shape, and
+      points the reader at `conf now :`.
+    - `NOT ANALYSABLE` — no workstream file at that ref, or neither ref
+      carries a readable `joharness.conf`. Says which. A verdict about config
+      printed after reading zero bytes of config is #266 one layer up.
+    - `NO CONDITION` — the claim carries no mark. A sweep counts these instead
+      of printing them; a named claim prints it, because a condition that
+      cleared between the pass and the analyst's spawn looks like this.
 
   **`MAY BE`, never `LIFTED`.** The command cannot know a manager's prose
   maps to the key that changed; it says what moved and the analyst weighs it.
@@ -80,8 +96,10 @@ merges nothing, unblocks nobody, and answers no manager's question.
     nothing. On, the line names the command the orchestrator runs
     (`/analyst <branch>`) and that it costs one session beyond the cap, once
     per condition per item per run, the ledger being what makes it once.
-  - `ANALYSE?` on any in-flight row already carrying `blocked`, `STALL?` or
-    `LOOP?`, printed only when the switch is on. No new threshold: those
+  - `ANALYSE? /analyst <branch> <claim stem> (<condition>)` on any in-flight
+    row already carrying `blocked`, `STALL?` or `LOOP?`, printed only when the
+    switch is on. The CLAIM, not the branch: one branch can carry two
+    workstream files, and the ledger key is the stem. No new threshold: those
     three marks are computed from `JOHARNESS_STALL_MINUTES` and
     `JOHARNESS_CHURN_LIMIT` already.
 
@@ -170,9 +188,12 @@ bootstrap's heredoc. Declared, NOT asked: a human arriving at a fresh repo
 has no opinion about it, and every interview question is paid by every new
 consumer. The selftest reds if only one of the two is done.
 
-### 7. `.agents/harness/selftest/analysis.sh`
+### 7. `.agents/harness/selftest/analysis.sh` and `.agents/harness/selftest.sh`
 
-New file, auto-discovered (`selftest.sh` reads `git ls-files`). Modelled on
+New topic file, listed in `SELFTEST_TOPICS` — the list is explicit and a
+tracked file nobody sources is FATAL. The same hunk adds the new key to that
+file's `unset` guard, and `JOHARNESS_UPSTREAM_FEEDBACK` beside it, which was
+missing: a session exporting either reds cases asserting the default. Modelled on
 `selftest/upstream.sh`. Cases:
 
 - off by default; the line says off and names the key.

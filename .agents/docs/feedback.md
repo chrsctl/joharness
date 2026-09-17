@@ -326,7 +326,7 @@ that matter are not in its `## Review` — they are in why it stopped.
 
 | off | on |
 | --- | --- |
-| `./joharness.sh analysis [<branch>]` reports: every unmerged branch owning a workstream file, its BLOCKED / STALL? / LOOP? mark, and whether `joharness.conf` differs from the base branch or moved since that claim last stated its cause. Nothing acts on it. | the same read, plus the orchestrator spawns ONE analyst per condition per item per run — `.claude/commands/analyst.md`, which gates what it finds and files at most one ISSUE on the canonical. |
+| `./joharness.sh analysis [<branch> [<claim>]]` reports: a claim's BLOCKED / STALL? / LOOP? mark, the base branch's current conf answers printed beside the cause the claim stated, and every key that differs or changed since. A sweep prints the rows carrying a condition and counts the rest. Nothing acts on it. | the same read, plus the orchestrator spawns ONE analyst per condition per item per run — `.claude/commands/analyst.md`, which gates what it finds and files at most one ISSUE on the canonical. |
 
 An issue and not a research node, because the two carry different things. A
 reporter carries a finding about a harness file it can name, which is a
@@ -339,6 +339,13 @@ The command says `MAY BE LIFTED`, never `LIFTED`. It knows a conf key moved;
 it cannot know the key answers the prose the manager wrote. Asserting that
 mapping would be #266's own defect inverted — a fact stated louder than what
 it measures — so the command states what moved and the analyst reads both.
+
+Its other verdict is `NO CONFIG MOVEMENT`, and it says in so many words that
+this is not "the cause is live". #266 is that shape exactly: the key landed on
+the base branch 8h47m BEFORE the session existed and the branch carried it, so
+nothing differed and nothing moved. Which is why the repo's CURRENT answers
+are printed for every row carrying a condition, movement or none — the gap was
+never a diff, it was the conf and the prose never being read side by side.
 
 What the mechanism does NOT do is decide. `upstream` filters by path and by
 nothing else — a filter, not a verdict — because step 1 is the step that goes
