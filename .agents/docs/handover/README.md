@@ -165,7 +165,7 @@ content is "make X match Y". Commit message carries the source; done.
 ```markdown
 ---
 workstream: cluster-startup-cost
-status: in-progress          # in-progress | blocked | review | done
+status: in-progress          # in-progress | blocked | review | done | abandoned
 branch: claude/cluster-startup-nlvjqi
 pr: 12                       # or: none
 plan: cluster-startup-cost   # plan this implements = the claim. or: none
@@ -226,7 +226,20 @@ one definition and this is downstream of it:
 | 2 | `pr:` set | drive the pull request green, then merge |
 | 3 | `status: in-progress`, no `pr:` | building |
 | 4 | `status: blocked` | lists, never leads |
+| 4 | `status: abandoned` | nothing — the claim is released |
 | 5 | branch pushed recently, no workstream file | somebody to `/who` |
+
+`abandoned` is the one status no session writes about its OWN work. The
+janitor writes it, on somebody else's branch, and only where the control
+plane proved that session gone
+([`../../.claude/commands/janitor.md`](../../.claude/commands/janitor.md)).
+It means the claim is released — the queue hook stops counting it, so the
+plan is free and its scope holds nothing — and it means nothing else: not
+done, not merged, not deleted. The FILE stays where it is, because the record
+is the point, and a session that comes back sets the word back and carries
+on. Why a fifth word instead of `blocked`: a block is owed an answer and an
+abandoned claim is owed nothing, and conflating them is what issue #254
+measured at 141 hours.
 
 Ties break on push time ASCENDING — oldest first, the inverse of the ref
 order this replaced. Within one rank the oldest push is the entry closest to

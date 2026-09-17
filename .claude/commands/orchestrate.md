@@ -436,6 +436,19 @@ Up to `slots`, in dispatch's order, only rows under `spawn`:
   the health rows read its branch (`workstream: curate-<stamp>`, `plan: none`)
   like any manager's. Nothing to curate is the common answer and the session
   exits without a branch — that is success, not a stall.
+- Tail line `janitor DUE` = ONE janitor, tier sonnet, and ONLY when the
+  `janitor :` header block says none is in flight and your ledger has no
+  `swept=` for this run. Like the curator it holds no slot (beyond the cap,
+  the human's money — report it) and is ORTHOGONAL to the verdict: claims go
+  stale under `DRAINED` as readily as under `NOT DRAINED`, and a released
+  claim frees its plan for the NEXT pass's spawn list. `create_session` as
+  below with `title` = `janitor: <UTC date>`, `model` = the Lineup's sonnet,
+  and `prompt` = `/janitor` plus the same three lines every manager gets.
+  Ledger `swept=<stamp>`; the health rows read its branch (`workstream:
+  janitor-<stamp>`, `plan: none`) like any manager's. It writes to branches it
+  does not own — that is the role's whole point and its bound is proof of
+  death, not push age — so a janitor that reports releasing a claim whose
+  session you can still see RUNNING is a finding for the human, not a retry.
 - Verdict `OVERLAP-BOUND` = ONE surveyor, tier sonnet, and ONLY when
   the `rescope :` block says `in flight: none` AND your ledger has no
   `rescoped=<key>` for this key. Slots are idle only because held plans'
@@ -521,7 +534,7 @@ entry being a pass old. It is also what the next pass counts into step 1's
 
 ```
 /orchestrate pass
-ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] respawns=<n> [reported=<stem>] [rescoped=<key>] [curated=<stamp>] [analysed=<stem>:<condition>]; ...
+ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] respawns=<n> [reported=<stem>] [rescoped=<key>] [curated=<stamp>] [analysed=<stem>:<condition>] [swept=<stamp>]; ...
 lead <stem>: <40 chars, to the end of this line>
 ```
 
@@ -646,6 +659,9 @@ putting it here is for.
   `analysed=<stem>:<condition>` for, or treat an analyst as a reason to skip
   a nudge, a kill or a report. It explains; the row's own verdict still
   stands.
+- Spawn a second janitor in one run, or one while a janitor branch is in
+  flight. One per run; the cycle is dated from git, so a missed pass costs
+  nothing and a doubled one has two sessions writing the same release.
 - Spawn a second curator in one run, or one while a curate branch is in
   flight. One per run; the cycle is dated from git, so a missed pass costs
   nothing and a doubled one costs money.
