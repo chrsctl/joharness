@@ -5248,14 +5248,14 @@ janitor_branches() {
         <<<"$(printf '%s\n' "$doc" | gr_fields workstream plan status)"
       case "$jws" in janitor-[0-9]*) ;; *) continue ;; esac
       [ "$jkey" = none ] || continue
-      # SANITISED, because both readers of this record print it through
-      # `printf %b`: a frontmatter field is branch-controlled input, and
-      # `workstream: janitor-2026-09-01\n            origin/main  INJECTED`
-      # forged an extra row in `dispatch`, which is what the orchestrator reads
-      # to decide spawns. Same reasoning as validating a status rather than
-      # passing it through.
-      jws="$(printf '%s' "$jws" | tr -cd 'A-Za-z0-9._:-')"
-      jstat="$(printf '%s' "$jstat" | tr -cd 'A-Za-z0-9._-')"
+      # The family's one rule (`fm_clean`), plus the vocabulary check every
+      # other reader of this field makes. The stamp stays narrow on top of it:
+      # it is a date, and anything else in it is not prose worth keeping.
+      jws="$(fm_clean "$jws" | tr -cd 'A-Za-z0-9._:-')"
+      case "$jstat" in
+        in-progress | blocked | review | done | abandoned | '') ;;
+        *) jstat="unreadable" ;;
+      esac
       printf '%s\t%s\t%s\n' "$name" "${jws:-?}" "${jstat:-?}"
     done <<<"$files"
   done <<<"$refs"
@@ -5377,7 +5377,9 @@ cmd_janitor() {
   while IFS= read -r branch; do
     [ -n "$branch" ] || continue
     n_merged=$((n_merged + 1))
-    [ "$n_merged" -gt 5 ] || merged="${merged}            ${branch}\n"
+    # A ref name is git's rather than a frontmatter field, and git allows more
+    # in one than this block prints safely — same helper, no second rule.
+    [ "$n_merged" -gt 5 ] || merged="${merged}            $(fm_clean "$branch")\n"
   done <<<"$(cl_merged_branches "refs/remotes/origin/${base_branch}" 2>/dev/null)"
   if [ "$n_merged" -gt 0 ]; then
     printf 'merged    : %s branch(es) merged and still standing — cosmetic, and the\n' "$n_merged"
@@ -5752,6 +5754,26 @@ gr_field() { gr_fields "$1"; }
 
 # Node files of one type from a path listing on stdin. The protocol doc and
 # the template are not nodes; four callers said so in two greps each.
+# A frontmatter field, made safe to put in a tab-separated record and print.
+#
+# Strips the four characters that change STRUCTURE rather than content, and
+# nothing else — prose keeps every other character, because a `next:` line is a
+# sentence a human reads.
+#
+# A TAB splits the record: `status: blocked<TAB>on the human` made the queue
+# hook's `$3` read exactly `blocked`, and in `dispatch_rescope_branches` the
+# same shift lands a forged `done` in the status field, which sets
+# `rescope_settled` and stops the surveyor being spawned for that key. A
+# BACKSLASH survives into `printf %b`, where
+# `curate-2026-09-01\n            origin/main  INJECTED  none` forges a whole
+# row in the output an orchestrator reads to decide spawns (verifier, on the
+# janitor branch, in code that branch did not touch). CR and LF end a line.
+#
+# A workstream file on another branch is repo-controlled input. This is the
+# same rule the readers that DO validate already state, applied to the fields
+# they pass through.
+fm_clean() { printf '%s' "${1//[$'\t\r\n\\']/ }"; }
+
 gr_docs() { awk 'NF && /\.md$/ && !/\/(TEMPLATE|README)\.md$/'; }
 
 # Stems named by an EDGE field's value, one per line, `none` dropped.
@@ -7501,8 +7523,16 @@ dispatch_curate_branches() {
       # a genuine curator named `curate2026-09-11.md` go unseen (verifier r4).
       case "$cws" in curate-*) ;; *) continue ;; esac
       [ "$ckey" = none ] || continue
+      # VALIDATED and CLEANED before the record is built, never after: the
+      # status decides a verdict two readers down, and every other field is
+      # printed through `printf %b`.
+      case "$cstat" in
+        in-progress | blocked | review | done | abandoned | '') ;;
+        *) cstat="unreadable" ;;
+      esac
       printf '%s\t%s\t%s\t%s\t%s\n' \
-        "$name" "${cws#curate-}" "${cstat:-?}" "${csess:-}" "${cnext:-}"
+        "$name" "$(fm_clean "${cws#curate-}")" "${cstat:-?}" \
+        "$(fm_clean "$csess")" "$(fm_clean "$cnext")"
     done <<<"$files"
   done <<<"$refs"
 }
@@ -7809,8 +7839,17 @@ dispatch_rescope_branches() {
       case "$rws" in rescope-*) ;; *) continue ;; esac
       # `plan: none` is the identity: a rescope branch claims no plan.
       [ "$rkey" = none ] || continue
+      # The sharper half of the same hole: a TAB here shifts every later field,
+      # and the caller's `case "$rstat" in done | blocked)` sets
+      # `rescope_settled` — so `rescope-<key><TAB>done` is a branch switching
+      # off the surveyor spawn for its own key.
+      case "$rstat" in
+        in-progress | blocked | review | done | abandoned | '') ;;
+        *) rstat="unreadable" ;;
+      esac
       printf '%s\t%s\t%s\t%s\t%s\n' \
-        "$name" "${rws#rescope-}" "${rstat:-?}" "${rsess:-}" "${rnext:-}"
+        "$name" "$(fm_clean "${rws#rescope-}")" "${rstat:-?}" \
+        "$(fm_clean "$rsess")" "$(fm_clean "$rnext")"
     done <<<"$files"
   done <<<"$refs"
 }

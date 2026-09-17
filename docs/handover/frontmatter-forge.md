@@ -46,6 +46,15 @@ a fix riding an unrelated diff is how a reviewer loses track of both.
 
 ## Review
 
+- r2: the first assertion for the backslash forge refuted the WORDS, not the
+  forged row — and the sanitiser correctly leaves the text inline on the row
+  it was written into. Rewritten to fail only on a line of its own, plus one
+  that pins the inline form (fixed)
+- r3: both fixes mutation-checked rather than assumed, 2026-09-17, mini
+  harness over `.agents/harness/selftest/dispatch.sh`: `fm_clean` reverted to
+  identity reds 6 cases (344 passed, 6 failed); the curate status validation
+  removed reds 2 (348 passed, 2 failed); restored, 350 passed, 0 failed
+  (clean)
 - r1: the claim commit wrote the plan and NOT this file — `docs/handover/`
   did not exist, because the previous edge's retire commit emptied it and git
   drops an emptied directory. The selftest fixtures carry `mkdir -p` after
