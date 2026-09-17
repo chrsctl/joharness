@@ -130,6 +130,15 @@ sleep_re='(^|[^[:alnum:]_])sleep[[:space:]]+[-0-9$"'"'"']'
 count_re='\$\{?[A-Za-z_][A-Za-z0-9_]*\}?"?[[:space:]]+-(lt|le|gt|ge)[[:space:]]'
 arith_re='\(\([^)]*[<>][^)]*\)\)'
 timeout_re='(^|[^[:alnum:]_-])timeout[[:space:]]'
+# A loop head owns the FIRST `do` after it, and the `done` that `do` opens.
+# These two say where that `do` is and where the next opener is, so the walk
+# can tell a keyword that HEADS a loop from a keyword that is only a word
+# standing in front of somebody else's. `for` is in the opener list and not
+# in `start_re`, deliberately: a `for` can never run unbounded so it is never
+# judged, but its `do` and its `done` are its own, and that is what has to be
+# visible here.
+do_re='(^|[^[:alnum:]_])do([^[:alnum:]_]|$)'
+open_re='(^|[^[:alnum:]_])(for|while|until)[[:space:]]'
 proc_re='[^[:alnum:]_](pgrep|pkill)[[:space:]]'
 full_re='[[:space:]](-[[:alnum:]]*f([[:space:]]|$)|--full)'
 
@@ -173,7 +182,48 @@ while [[ $rest =~ $start_re ]]; do
 
   # No `done` left means no loop left, only the word.
   [[ $rest =~ $end_re ]] || break
+  # Read BEFORE the ownership test below, and that order is load-bearing:
+  # every `[[ =~ ]]` overwrites `BASH_REMATCH`, so reading it after those two
+  # matches gets the wrong span — or, when the second one fails, nothing at
+  # all under `set -u`. Cost one exit-1 run of this very file while it was
+  # being fixed, which the event reads as "allow, and log it": a guard that
+  # errors is a guard that is not there.
   end="${BASH_REMATCH[0]}"
+
+  # IS THIS KEYWORD A LOOP HEAD? The pairing above is positional, and a
+  # `done` belongs to the NEAREST unclosed opener, which may not be this
+  # keyword. Without this test the guard denied commands holding no
+  # unbounded loop at all. Three shapes, all measured and all in the
+  # selftest (the question is retired with this change):
+  #
+  #   1. A keyword in a commit message, and a `for` retry loop's `done`.
+  #      One word changed and the same command was allowed.
+  #   2. A keyword in an echo, then `timeout N bash -c 'until ...; done'` —
+  #      the FIRST spelling the deny message prescribes, refused. `timeout`
+  #      is read from `prefix`, and the prose keyword ended the prefix
+  #      before it, so the bound the command carried was invisible.
+  #   3. This very fix: a `python3` heredoc rewriting this file was denied,
+  #      because the replacement text it carried spells a loop. That one is
+  #      the defensible side of the line and stays denied — the deny says to
+  #      use the Write tool, which is how this change was made.
+  #
+  # The test: this keyword owns the first `do` after it only if no other
+  # opener comes between. Otherwise it is a word and not a head — advance
+  # past the KEYWORD only, never past the `done`, so whichever loop really
+  # owns that `done` is still judged on its own pass.
+  do_at=-1; open_at=-1
+  if [[ $rest =~ $do_re ]]; then
+    seg="${BASH_REMATCH[0]}"; pre="${rest%%"$seg"*}"; do_at="${#pre}"
+  fi
+  if [[ $rest =~ $open_re ]]; then
+    seg="${BASH_REMATCH[0]}"; pre="${rest%%"$seg"*}"; open_at="${#pre}"
+  fi
+  if [ "$do_at" -lt 0 ] ||
+     { [ "$open_at" -ge 0 ] && [ "$open_at" -lt "$do_at" ]; }; then
+    walked="$prefix"
+    continue
+  fi
+
   body="${rest%%"$end"*}"
   walked="${prefix}${body}${end}"
   rest="${rest#*"$end"}"

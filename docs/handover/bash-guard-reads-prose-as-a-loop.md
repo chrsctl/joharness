@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01K6sHM4RWyYDCLZmrDSrWk3
 agent: opus
 updated: 2026-09-17
-next: Reproduce the three shapes, then decide rule-or-message and fix the walk
+next: Review the diff, then retire the node and the workstream file and open the pull request
 ---
 
 ## Goal
@@ -50,6 +50,37 @@ what the node leaves open is which half is wrong, the rule or the message.
   sixth consecutive check: closed, unmerged, since 2026-08-21.
 
 ## Review
+
+- r1: (session) the answer to the question the node left open is **the RULE,
+  not only the message**, and payload C is what settles it: a command using
+  the FIRST spelling the deny message prescribes was refused. `timeout` is
+  read from `prefix` and a prose keyword ends the prefix before it, so the
+  bound the command carried was invisible. No reading of "the text spells a
+  wait" defends refusing your own remedy. With the rule fixed the message is
+  true whenever it now fires, so the message needs no change — recorded
+  because "fix the message" was the cheaper-looking half and it would have
+  left the denial in place. (fixed — the walk asks whose `done` it is.)
+- r2: (session) the first patch made the guard exit **1**, not 2 or 0. Both
+  new `[[ =~ ]]` tests overwrite `BASH_REMATCH`, and `end` was read from it
+  afterwards — unset under `set -u`. Exit 1 is a hook FAILURE, which this
+  event reads as "allow, and log it": the guard silently absent in front of
+  every Bash call in every consumer. Found by running the payloads, not by
+  reading the diff. (fixed — `end` is captured immediately after its own
+  match, with the ordering and its cost written on the line.)
+- r3: (session) `./joharness.sh mutate` reported **NOTHING REDDED** on the
+  ownership test's first disjunct: no case pinned it. Five new cases and
+  none exercised "a keyword with no `do` after it at all" — I had written
+  the clause and then tested only the other half. The tool caught a guard
+  clause pinned by nothing, which is the shape a reviewer has to go looking
+  for. (fixed — a case for the no-`do` shape, and re-mutating both halves
+  separately now reds 1 and 2 cases, disjointly.)
+- r4: (session, corroboration) the guard denied the command that patched the
+  guard. The `python3` heredoc carrying the replacement text spells a loop,
+  so the walk found a keyword, a `sleep` and a `done` in it. That is the
+  defensible side of the line and stays denied — but it is a fourth instance
+  of the family in one session, and it is why the patch went through the
+  Write tool rather than a Bash heredoc. The node predicted this and the
+  prediction cost a turn anyway.
 
 ## Blockers
 
