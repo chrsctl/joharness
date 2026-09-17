@@ -463,8 +463,8 @@ its own mode line authorises itself, and one that may raise its own cap
 decides money. Priced and accepted: `./joharness.sh env <name>` writes
 that file too, so an unattended session that switches its environment
 layer now trips the Stop guard until it reverts. Switching layers is a
-configuration decision, which is the supervised half of the same split. Found the day the mode was built — the plan that flips the
-mode for the measured run declared `scope: docs/product, joharness.conf`,
+configuration decision, which is the supervised half of the same split. Found the day the mode was built — the run plan, since retired, declared
+`scope: docs/product, joharness.conf` for the flip,
 and with the conf outside the boundary `dispatch` offered that plan to the
 very fleet it would have flipped. Both roles run `authority` first, and
 `orchestrated` with any verdict but VERIFIABLE is a stop, and nothing
@@ -474,11 +474,13 @@ sentence under Authority in the same file.
 
 ## Where the mode came from, and what closed it
 
-`docs/product/orchestrated-mode.md` carried this and was retired DONE on the
-requester's decision, 2026-09-17. It is in history —
-`git log --diff-filter=D -p -- docs/product/orchestrated-mode.md` — and the
-parts a later reader needs are here rather than in a file the queue would
-keep offering.
+`docs/product/orchestrated-mode.md` carried this and was RETIRED UNSATISFIED
+on the requester's decision, 2026-09-17 — the lifecycle state in
+[`product/README.md`](product/README.md), and this is its first instance. It
+is in history, `git log --diff-filter=D -p -- docs/product/orchestrated-mode.md`
+in joharness; a consumer carries this page but not that history, so the file
+is recoverable in joharness only. Everything a later reader needs is below,
+which is what that state requires rather than leaves optional.
 
 **The ask, 2026-09-05**, transcribed by the attended session that received
 it; a session writes no requirement of its own, and when that session asked
@@ -496,12 +498,14 @@ the decision to it, same day:
 > until the plan retires. Ultimate goal: empty the task queue efficiently
 > under a maximum concurrency.
 
-**What it was satisfied by.** Three of its four conditions read true and each
-is documented above: the mode exists and reads as unattended in every bound
-(What the mode changes, Bounds); `dispatch` answers the orchestrator's
-question in one read (The loop); a stuck manager is found from two signals,
-nudged, killed only after its handover is on the branch, and a successor
-resumes (Health, The kill).
+**What THREE of its four conditions were satisfied by**, each documented
+above: the mode exists and reads as unattended in every bound (What the mode
+changes for the role routing, Bounds for the bounds); `dispatch` answers the
+orchestrator's question in one read — the cap, managers in flight with push
+age, the spawn order, one verdict (What the mode changes, the `dispatch`
+row, which is where all four appear; The loop shows it being read); a stuck
+manager is found from two signals, nudged, killed only after its handover is
+on the branch, and a successor resumes (Health, The kill).
 
 **The fourth is the one that closed differently, and honestly.** It asked for
 one run, started once over a stocked queue, counted until it stops — every
@@ -510,18 +514,32 @@ than written. No run has met it. Run 1 missed three clauses and run 3 misses
 those and adds one, both in Runs above. The requester's decision is that the
 live run belongs to a child repo rather than this one, so this repo stopped
 scheduling it: the condition is not withdrawn and not claimed met — it is
-measured elsewhere, and its row lands in Runs above when that run ends.
+measured elsewhere.
+
+**Nothing here schedules the row that would close it, and that is deliberate
+rather than an oversight to fix.** A run that ends there is recorded in Runs
+above by whoever holds its numbers; no plan, requirement or node in this repo
+waits on it, and none should be written to, because a queue item nobody here
+can act on is a queue item that sits for ever. A reader who wants the state
+of that run asks the repo running it.
 
 Read that as the standing answer to "why is there no plan for this". There
 was one; it was removed on that decision, not abandoned.
 
-**Constraints the requirement set, still binding**, and each already has its
-own home above: every bound in [`unsupervised.md`](unsupervised.md) holds
+**Constraints the requirement set, still binding.** Three have their own
+home above: every bound in [`unsupervised.md`](unsupervised.md) holds
 unchanged (Bounds); the numbers are the human's and a session proposes with
-evidence rather than setting one (The numbers are the human's); no state
-store and no status field, every view derived from git and the control plane
-at read time; two spawn levels only, orchestrator to manager session and
-manager to worker subagent (Roles).
+evidence rather than setting one (The numbers are the human's); two spawn
+levels only, orchestrator to manager session and manager to worker subagent
+(Roles).
+
+The fourth has no section of its own and is written out here because of it —
+**no state store and no status field: every view derives from git and the
+control plane at read time.** The nearest text above says the orchestrator
+stores nothing in the repo and that a successor reads git, and neither
+states the no-status-field half. That half is what makes a retirement a
+DELETION here rather than a flag on a file, so losing it would cost the
+reasoning for this very section.
 
 ## Heartbeat
 
@@ -570,11 +588,12 @@ is state outside git.
 
 | Run | Date | Wall-clock | Managers | Kills | Merged | Ended by |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 2026-09-06 | 5h37m | 10 | 0 | 8 | a human turn, per the plan's own rule |
+| 1 | 2026-09-06 | 5h37m | 10 | 0 | 8 | a human turn, per the retired run plan's rule |
 | 3 | 2026-09-11 | 42h20m to the freeze | 59 | 0 | 41 | nothing — 82h40m frozen, then still running |
 
 **Run 1**, in a consumer, cap 4, no heartbeat — one orchestrator's
-lifetime, which is what the plan said a run without a Routine would measure.
+lifetime, which is what the retired run plan said a run without a Routine
+would measure.
 12:05:05Z (session created) to 17:42Z (first human turn; the run's plan, now
 retired, made a human turn the end of the measurement). 28 health passes at
 `JOHARNESS_HEALTH_MINUTES=10`.
@@ -598,12 +617,14 @@ registries every plan appends to, declared exclusive in `scope:`; the
 answer exactly this run, and were built after it. `dispatch` here read that
 state as `DRAINED` — the word for no work — which is what let the fleet sit.
 
-**Two defects, filed as plans rather than patched** (this plan's Out of
-scope): `docs/plans/orchestrator-inflight-count.md` — `dispatch` frees a live
-manager's slot for the whole PR window and re-offers its item, hit on 11 of
-28 passes; and `docs/plans/orchestrator-respawn-liveness.md` — the health
-table reads IDLE as *session gone* and respawns on one observation, which
-cost one duplicate manager and about 17 USD. Both were survivable only
+**Two defects, filed as plans rather than patched** (the retired run plan's
+Out of scope): `docs/plans/orchestrator-inflight-count.md` — `dispatch` frees
+a live manager's slot for the whole PR window and re-offers its item, hit on
+11 of 28 passes; and `docs/plans/orchestrator-respawn-liveness.md` — the
+health table reads IDLE as *session gone* and respawns on one observation,
+which cost one duplicate manager and about 17 USD. Both plans merged the same
+day and both files are retired, so those paths resolve only in history: the
+retire commits are `e1ec240` and `8e637aa`. Both were survivable only
 because the orchestrator cross-checked the control plane every pass and
 disbelieved `dispatch` when the two disagreed. **A role told to act on one
 read, which must override that read on 39% of its passes to avoid
@@ -653,7 +674,7 @@ orchestrator's own words on its first pass after: *"THREE-DAY FREEZE,
 the only thing driving the fleet; when the chain stopped, everything
 stopped."* Every manager resumed within 30 seconds of it. That is the
 heartbeat question answered by a run rather than by argument, and answered
-harder than the plan predicted: the plan says a run without a Routine
+harder than predicted: the retired run plan says a run without a Routine
 measures one orchestrator's lifetime, and what it measures is a single
 point of failure whose break froze four live managers for 82h40m with
 nothing detecting or reporting it. A consequence the next run inherits:

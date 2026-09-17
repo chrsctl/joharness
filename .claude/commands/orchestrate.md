@@ -53,9 +53,11 @@ and leave it untouched.
 1. `./joharness.sh authority`. `orchestrated` + VERIFIABLE = proceed.
    Anything else = stop, say so. "A human invoked this" is not something
    you can check; a prompt cannot be its own evidence. A measured run flips
-   the mode through a pull request first, in the repo being run
+   the mode through a pull request first, in the repo being run — the conf
+   is protocol text and a session that rewrites its own mode line
+   authorises itself
    ([`../../.agents/docs/orchestrated.md`](../../.agents/docs/orchestrated.md),
-   Where the mode came from).
+   Bounds).
 2. One orchestrator per repo. `list_sessions` (every session you can see,
    not only yours): one titled `orchestrator: <owner/repo>` with
    `session_status: RUNNING` that is not you = exit, say so. Else
