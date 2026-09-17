@@ -39,8 +39,10 @@ the rows below.
 | `dispatch` verdict `OVERLAP-BOUND` | New, this mode only. Slots free but every free plan HELD behind work in flight, so nothing is spawnable and yet the work is not done — the holds are `scope:` declarations, not the plans themselves. A `rescope :` block names the holder key and the held paths, and the verdict spawns ONE surveyor to correct the declarations. The state run 1 mislabelled DRAINED. |
 | `./joharness.sh drain` | Same verdict; tells a manager it works the item its prompt named, and names the orchestrator's exit as dispatch's verdict. |
 | `./joharness.sh upstream` | New, and NOT orchestrated-only: reports what a merged edge found about the harness in any consumer, at any time. What this mode adds is a role that acts on it. |
+| `./joharness.sh analysis` | New, and NOT orchestrated-only: every unmerged branch owning a workstream file, the BLOCKED / STALL? / LOOP? mark it carries, and whether `joharness.conf` differs from the base branch or moved since that claim last stated its cause. Reports only. |
 | `JOHARNESS_UPSTREAM_FEEDBACK` | New, `off` by default. On, the health pass's `done` row spawns ONE reporter per merged edge, which files the findings as a report pull request on the canonical ([`feedback.md`](feedback.md), When the consumer is the detector). A reporter holds no manager slot and is one session beyond the cap. |
-| `.claude/commands/orchestrate.md`, `manage.md`, `upstream-report.md`, `curate.md` | The roles, as commands. |
+| `JOHARNESS_IDLE_ANALYSIS` | New, `off` by default. On, a row `dispatch` marks `ANALYSE?` — blocked, stalled or looping — spawns ONE analyst, which says why, re-reads the stated cause against this repo's own conf, and files what survives its gate as an issue on the canonical. BESIDE that row's verdict, never instead of it. An analyst holds no manager slot and is one session beyond the cap. Issue #266 is the run that bought it. |
+| `.claude/commands/orchestrate.md`, `manage.md`, `upstream-report.md`, `curate.md`, `analyst.md` | The roles, as commands. |
 
 ## Roles
 
@@ -50,6 +52,7 @@ the rows below.
 | manager | the item's `agent:` — plan or research; opus at xhigh for an unplanned requirement, decomposition being the judgement every build rests on | a session with its own branch, claim and merge | worker subagents (`Agent`) | one item, until its file retires | its pull request merges, or it blocks on a human |
 | worker | at or below the plan's tier, lower by default | a subagent in the manager's container | nothing | the files its sub-task names | it returns |
 | reporter | low; the judgement is its command file's gate, not its tier | a session, spawned after a manager MERGES — only where `JOHARNESS_UPSTREAM_FEEDBACK=on` | nothing | one merged edge's harness findings | it files one report on the canonical, or none, and exits |
+| analyst | low; the judgement is its command file's gate, not its tier | a session, spawned from a health pass on a row marked `ANALYSE?` — only where `JOHARNESS_IDLE_ANALYSIS=on` | nothing | one condition on one branch, explained and never ended | it files one issue on the canonical, or none, and exits |
 | curator | sonnet; the judgement is which declaration is wrong, not what any plan is for | a session, spawned on the `curate DUE` tail line | nothing | the plan queue's declarations for ONE pass | its pull request merges, or `NOTHING TO CURATE` and it exits without a branch |
 | surveyor | sonnet; the judgement is which `scope:` path is a shared registry, not the plan's own tier | a session, spawned on the `OVERLAP-BOUND` verdict | nothing (it edits declarations, not code) | the held plans' and holders' `scope:` lines for one holder key | its pull request merges, or `done` with nothing to change |
 
@@ -68,6 +71,7 @@ handover hook, which skips the walk over every remote ref — and no queue.
 | manager | its item, its own workstream file, the item's anchors, `feedback` on the files it touches, the environment rules if it touches the environment | the queue, other plans, other branches, this doc |
 | surveyor | the `rescope :` block in its prompt, and the `## Scope` of each plan it renames | the queue, product code, this doc |
 | curator | `./joharness.sh curate` and the plans it names | a held plan, the queue order, product code, this doc |
+| analyst | `./joharness.sh analysis <branch>`, that branch's workstream file, the conf delta the command prints | the queue, a plan, product code, another branch, this doc |
 | worker | its sub-task prompt and the files it names | everything else |
 
 Two spawn levels, never three. A worker that needs a branch of its own is
@@ -330,6 +334,7 @@ this mode should move. If it does not, the hold rule bought nothing.
 | `JOHARNESS_CURATE_REGISTRY` | 3 | plans declaring one path before `curate` calls it a registry to mark `shared:` rather than a collision to order | no data; a written number until a run counts one |
 | `JOHARNESS_CURATE_SPLIT` | 8 | `## Scope` bullets before `curate` names a plan a decompose candidate — PROPOSED, never done | no data; a written number until a run counts one |
 | `JOHARNESS_UPSTREAM_FEEDBACK` | `off` | on = one reporter session per merged edge, beyond the cap, filing harness findings on the canonical — money, and pull requests in a repo this one does not own | not a number to calibrate: a switch, off until a human turns it on. Unlike the six above it IS declared in `.agents/scripts/conf-keys.sh`, so every consumer's sync names the key its conf does not answer |
+| `JOHARNESS_IDLE_ANALYSIS` | `off` | on = one analyst session per condition per item per run, beyond the cap, saying why a manager is parked and filing it as an issue on the canonical — money, and issues in a repo this one does not own | a switch, off until a human turns it on, declared in `.agents/scripts/conf-keys.sh` beside the row above. It calibrates NOTHING of its own: the marks it fires on are drawn by `JOHARNESS_STALL_MINUTES` and `JOHARNESS_CHURN_LIMIT`, and a fourth written number would buy nothing |
 
 Read by `dispatch`: the environment for one command, `joharness.conf` for
 the repo, else the default. Digits only; a word reads as the default. The
@@ -382,6 +387,9 @@ its own: it merges nothing, edits nothing but a killed manager's
 workstream file, picks no tier, and takes no item itself.
 `JOHARNESS_UPSTREAM_FEEDBACK` does not loosen one of them — a reporter is a
 SPAWN, like a manager, and the orchestrator authors no report.
+`JOHARNESS_IDLE_ANALYSIS` loosens none of them either: an analyst is a spawn,
+it merges nothing, ends no condition, writes no file in this repo, and the
+orchestrator authors no issue.
 
 `joharness.conf` joined `protocol_paths` with this mode. It holds the
 mode line `authority` verifies and the cap: a session that may rewrite
@@ -555,6 +563,12 @@ what it should do, and the human settled it there on 2026-09-16.
 A fleet that meets an infrastructure wall needs a human for a one-line conf
 change and cannot supply one; five sessions deciding one way and one the
 other, inside one run, is the cost of leaving that to each manager's reading.
+Issue #266 counted the other half of that split: the manager that read
+strictly sat `blocked` 11h18m on a cause `JOHARNESS_CHECKS=local` had lifted
+8h47m before its session was created, `dispatch` relayed the prose ~35 passes
+without asking whether it still held, and a human ended it by merging by
+hand. `JOHARNESS_IDLE_ANALYSIS` answers that by explaining, not by deciding —
+the conf line stays the human's.
 
 What run 3 has NOT shown: no DRAINED — that repo still queued 37 plans at
 2026-09-16 (`get_file_contents`, `docs/plans`); no kill and no nudge, for the

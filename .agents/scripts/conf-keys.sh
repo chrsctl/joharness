@@ -50,6 +50,7 @@ JOHARNESS_CHECKS|github|github = step 7 waits for this head's GitHub checks; loc
 JOHARNESS_CURATE_HOURS|168|Hours since the last curate before one is due; 0 switches the whole cycle off.
 JOHARNESS_CURATE_PLANS|10|Plan files changed since the last curate before one is due (the primary trigger); 0 leaves only the clock.
 JOHARNESS_UPSTREAM_FEEDBACK|off|off = ./joharness.sh upstream reports what a merged edge found about the harness and nothing acts on it; on = under orchestrated, one session files it as a report pull request on the canonical.
+JOHARNESS_IDLE_ANALYSIS|off|off = ./joharness.sh analysis reports why a manager is blocked, stalled or looping and nothing acts on it; on = under orchestrated, one session per condition says why and files it as an issue on the canonical.
 ROWS
 }
 

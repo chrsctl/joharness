@@ -314,6 +314,32 @@ it opens pull requests in a repository the child does not own, and a reporter
 is one session beyond `JOHARNESS_MAX_MANAGERS`, which is the human's money
 (`.agents/harness/AGENTS.md`, Decide alone).
 
+### The second switch: a STUCK edge, not a merged one
+
+A merged edge carries a diff to attach a finding to. An edge that never
+merges carries a condition and a clock, and the first switch cannot see it:
+the manager has not merged, so the `done` row never fires, and the findings
+that matter are not in its `## Review` — they are in why it stopped.
+
+`JOHARNESS_IDLE_ANALYSIS` (`off` | `on`, **off by default**, declared in
+`.agents/scripts/conf-keys.sh` beside the key above):
+
+| off | on |
+| --- | --- |
+| `./joharness.sh analysis [<branch>]` reports: every unmerged branch owning a workstream file, its BLOCKED / STALL? / LOOP? mark, and whether `joharness.conf` differs from the base branch or moved since that claim last stated its cause. Nothing acts on it. | the same read, plus the orchestrator spawns ONE analyst per condition per item per run — `.claude/commands/analyst.md`, which gates what it finds and files at most one ISSUE on the canonical. |
+
+An issue and not a research node, because the two carry different things. A
+reporter carries a finding about a harness file it can name, which is a
+question canonical's queue can hold. An analyst carries a fleet's behaviour
+over a clock — what parked, for how long, what it held up — which is the
+shape of the bug report a human files, and which issue #266 IS: a human wrote
+that one by hand after the fleet could not.
+
+The command says `MAY BE LIFTED`, never `LIFTED`. It knows a conf key moved;
+it cannot know the key answers the prose the manager wrote. Asserting that
+mapping would be #266's own defect inverted — a fact stated louder than what
+it measures — so the command states what moved and the analyst reads both.
+
 What the mechanism does NOT do is decide. `upstream` filters by path and by
 nothing else — a filter, not a verdict — because step 1 is the step that goes
 wrong and it is not a filter a program can apply. The reporter gates each
