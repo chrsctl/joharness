@@ -60,6 +60,23 @@ reader this repo provides.
 
 ## Review
 
+- r1: (session) the plan claimed `.agents/harness/selftest/review.sh`
+  "already reads `verifier.md`", so asserting a sentence there would be one
+  more needle. It does not: line 83 is `[ -s "${ROOT}/.claude/agents/verifier.md" ]`,
+  an existence check, and the topic reads none of the file's content. An
+  implementer would have gone looking for a content assertion to copy and
+  found none. (fixed — the Scope says what the topic does today, that this
+  is a new shape there, and that the existing check is guarded on
+  `JOHARNESS_CANONICAL=1` so a content assertion needs the same guard or it
+  fires in a consumer checkout.)
+- r2: (session) the "two files agree mechanically" Acceptance bullet named
+  no token, so it asked for an assertion nobody could write — the failure it
+  was trying to prevent, one level up. (fixed — it names one literal phrase
+  for the boundary, says the wording matters less than its being identical,
+  and spells the two-`expect` shape with the needle-first ordering that
+  makes the second one non-vacuous. That shape caught a near-miss spelling
+  on this repo two items ago.)
+
 ## Blockers
 
 None.

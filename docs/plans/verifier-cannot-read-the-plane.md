@@ -40,9 +40,14 @@ section was written.
   operator takes the reading, or a differently-tooled session does. Neither
   is "the verifier did it".
 
-- `.agents/harness/selftest/review.sh` — it already reads `verifier.md`;
-  assert the new sentence is there, so a later edit cannot quietly drop the
-  one line that would have prevented the instance above.
+- `.agents/harness/selftest/review.sh` — assert the new sentence is there,
+  so a later edit cannot quietly drop the one line that would have prevented
+  the instance above. Note what that topic does NOT do today: it checks
+  `verifier.md` exists and is non-empty (`[ -s ... ]`) and reads none of its
+  content, so this is a new shape there rather than one more needle. It has
+  `$ROOT` and the path already, and the existence check is guarded on
+  `JOHARNESS_CANONICAL=1` — a content assertion needs the same guard, or it
+  fires in a consumer checkout where the file is present and not owned.
 
 ## Out of scope
 
@@ -76,11 +81,17 @@ section was written.
   `verifier.md` reds a positive assertion. Use `./joharness.sh mutate`,
   which restores the line itself — never a hand-edit of the working tree,
   which staged a mutated file once on this repo.
-- The two files agree on WHICH claims are affected. One says "a
-  control-plane record"; the other must not say something narrower or wider,
-  or a node will plan for one limit and meet another. Asserted mechanically
-  rather than by reading, because the node author and the reviewer read
-  different files.
+- The two files agree on WHICH claims are affected, asserted mechanically
+  rather than by reading, because the node author reads one file and the
+  reviewer reads the other. Pick ONE literal phrase for the boundary —
+  `outside this checkout` is the suggestion, and the exact wording matters
+  less than its being identical — put it in both files, and assert it in
+  each: the first `expect` pins the literal against `verifier.md`, the
+  second compares what the README carries to what the first found. Needle
+  first in the second one, or an empty match passes over anything. That is
+  the shape that caught a near-miss spelling on this repo two items ago; a
+  bullet asking the files to "agree" without naming the token is a bullet
+  nobody can write.
 - SHIPS: `.claude/agents/` and `.agents/docs/` both reach every consumer, so
   this changes what every reviewer says about itself. Name the consumer-side
   check: in a consumer, spawn the verifier on any branch and its report
