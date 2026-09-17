@@ -201,6 +201,12 @@ attempt proved is not optional:
 This question stays open because its ANSWER is settled and its FIX is not:
 no plan should be written from it that adds one more test to the walk.
 
+The fix is planned — `docs/plans/guard-pairs-done-by-depth.md`, which carries
+both ends and deletes this node when it lands. Named here because the queue
+cannot: a research node has no `scope:`, so the hook that proves a parallel
+wave from declared paths cannot see that the node and that plan are two free
+items over one file. Taking this node means taking that plan.
+
 ## Verification
 
 Second context: `.claude/agents/verifier.md` at opus, which re-derived every
