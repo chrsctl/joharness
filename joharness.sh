@@ -6192,12 +6192,21 @@ num_knob() {
   # a cap, which is the human's money changed by a spelling (issue #260).
   v="${v#"${v%%[!0]*}"}"
   [ -n "$v" ] || v=0
-  # And a ceiling, because there is no upper bound either: twenty digits
-  # wraps 64-bit arithmetic. Falls back to the caller's DEFAULT, which is the
-  # answer the digit filter already gives a non-digit — not a clamp. A knob
-  # has no natural maximum to clamp to and an invented one is a guess printed
-  # as a setting; `dispatch` prints every knob it reads, so a fallback is
-  # visible where a reader already looks.
+  # And a ceiling on what the ENVIRONMENT or the conf supplies, because
+  # there is no upper bound either: twenty digits wraps 64-bit arithmetic.
+  # Falls back to the caller's DEFAULT, which is the answer the digit filter
+  # already gives a non-digit — not a clamp. A knob has no natural maximum to
+  # clamp to and an invented one is a guess printed as a setting; `dispatch`
+  # prints every knob it reads, so a fallback is visible where a reader
+  # already looks.
+  #
+  # It does NOT bound the returned value in general, and the difference is
+  # reachable: `JOHARNESS_CHURN_LIMIT` defaults to twice the threshold, so a
+  # nine-digit threshold yields a ten-digit default that this line hands
+  # straight back. That is the repo's own arithmetic on an already-bounded
+  # number, it is nowhere near the wrap, and a case pins it
+  # (`.agents/harness/selftest/num-knob.sh`). Saying "never more than nine
+  # digits" here would be a comment the code contradicts.
   [ "${#v}" -le 9 ] || v="$2"
   printf '%s' "$v"
 }

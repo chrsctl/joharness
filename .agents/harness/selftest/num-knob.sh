@@ -58,13 +58,22 @@ nkerr() { ( cd "$nkwork" && JOHARNESS_CONF="$nkconf" DRAIN_FETCH=0 \
 # with its whole output printed, so exit status pins nothing here and the
 # CONTENT of the line is the assertion.
 out="$(nk JOHARNESS_CHURN_THRESHOLD=08)"
+# Anchored on the `; ` before it: the unfixed line reads `; 08+ = a warning`,
+# and `8+ = a warning` is a SUBSTRING of that, so the obvious needle passes
+# on the defect it is named for.
 expect "a zero-padded threshold is read as decimal" \
-  "8+ = a warning on the work line" "$out"
+  "); 8+ = a warning on the work line" "$out"
 expect "and the limit derived from it is a number, not nothing" \
   "one file rewritten 16+ times" "$out"
 refute "with no arithmetic error anywhere in the output" \
   "value too great for base" "$out"
-expect "nothing reaches stderr" "" "$(nkerr JOHARNESS_CHURN_THRESHOLD=08)"
+# `expect` is `grep -qF "$2"`, and an EMPTY needle matches every string —
+# so asserting emptiness by passing "" is an assertion that cannot fail.
+# Turned into a real one: the haystack is a marker when stderr is empty and
+# the error text itself when it is not.
+nkstderr="$(nkerr JOHARNESS_CHURN_THRESHOLD=08)"
+expect "nothing reaches stderr" \
+  "STDERR-EMPTY" "$([ -z "$nkstderr" ] && printf 'STDERR-EMPTY' || printf '%s' "$nkstderr")"
 # The control, and the reason this case is not about the string `08`: the
 # same command with an ordinary value prints the same shape.
 out="$(nk JOHARNESS_CHURN_THRESHOLD=5)"
@@ -105,3 +114,13 @@ expect "and a value one digit under it is honoured" \
 out="$(nk JOHARNESS_MAX_MANAGERS=lots)"
 expect "a word still falls back, as it always did" \
   "cap       : 4 manager(s)" "$out"
+
+# --- what the ceiling does NOT bound, pinned rather than left to be found ---
+# The ceiling bounds what the environment or the conf supplies. A default the
+# code computes is the repo's own arithmetic on an already-bounded value —
+# `JOHARNESS_CHURN_LIMIT` defaults to twice the threshold — so it passes
+# through at ten digits. That is deliberate and inside int64; asserted so it
+# is a decision rather than a gap somebody rediscovers.
+out="$(nk JOHARNESS_CHURN_THRESHOLD=999999999)"
+expect "a computed default is not re-bounded by the ceiling" \
+  "one file rewritten 1999999998+ times" "$out"

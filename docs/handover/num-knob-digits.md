@@ -43,6 +43,47 @@ file rewritten + times`.
 
 ## Review
 
+- r3: (verifier) `expect "nothing reaches stderr" "" "$(...)"` is an
+  assertion that cannot fail. `expect` is `grep -qF -- "$2"` and an EMPTY
+  needle matches every string, so it passed over any stderr at all —
+  including the `value too great for base` line it was written to forbid.
+  Shown by `grep -qF -- "" <<<"value too great for base"`, which exits 0,
+  and by the mutation: the case is NOT among the five that redded. This is
+  the could-never-fail shape I have caught four times this session, written
+  into my own test. (fixed — the haystack is now a marker when stderr is
+  empty and the error text itself when it is not, so an empty needle is not
+  available to be passed. Proof the repair took: the same mutation now reds
+  SEVEN cases, up from five, and the two new names are exactly this one and
+  r4's.)
+- r4: (verifier) `expect "... read as decimal" "8+ = a warning on the work
+  line"` does not distinguish 8 from 08: the unfixed line reads `; 08+ = a
+  warning`, and the needle is a substring of it. Verified against the
+  unfixed string directly; also absent from the mutation's red list. Its
+  neighbour caught the regression, so the suite was right by accident and
+  this case was named for a behaviour it did not pin. (fixed — anchored on
+  the `); ` before it, which the unfixed line does not carry; it is in the
+  mutation's red list now, which it was not before.)
+- r5: (verifier) the ceiling does not bound what `num_knob` RETURNS, only
+  what the environment or the conf supplies, and my comment claimed the
+  stronger thing. Reachable: `JOHARNESS_CHURN_LIMIT` defaults to twice the
+  threshold, so `JOHARNESS_CHURN_THRESHOLD=999999999` returns a ten-digit
+  limit — `one file rewritten 1999999998+ times`, run 2026-09-17. Nowhere
+  near the wrap and deliberate, but a comment the code contradicts is worse
+  than no comment. (fixed — the comment says what the ceiling does and does
+  not do, and a case pins the composed path so it is a decision rather than
+  a gap somebody rediscovers.)
+- r6: (verifier) the plan's SHIPS bullet asked for a consumer-side check by
+  name and nothing on the branch named one. (fixed — in a consumer, under
+  orchestrated mode, `JOHARNESS_MAX_MANAGERS=010 ./joharness.sh dispatch`
+  prints `cap : 10 manager(s)` and a slots line counting against 10. The
+  selftest tree is canonical-only and ships nowhere, so this is a check
+  somebody runs there; it is in the pull request body as well as here.)
+- r7: (verifier) the plan asked for the mutation counts reported with the
+  command and the date, and they were in the commit message only, not in
+  this file. (fixed — `./joharness.sh mutate joharness.sh 6193 '  :'` reds 5
+  cases before the r3/r4 repairs and 7 after, `... 6210 '  :'` reds 1,
+  disjoint, all run 2026-09-17. The verifier
+  re-ran both independently and got the same sets.)
 - r1: (session, method) the mutations went through `./joharness.sh mutate`,
   which puts the line back itself and proves the file is otherwise
   untouched. That is the last item's r18 applied rather than restated: there
