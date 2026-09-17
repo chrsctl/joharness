@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01K6sHM4RWyYDCLZmrDSrWk3
 agent: opus
 updated: 2026-09-17
-next: Sample a RUNNING session's updated_at against its post_turn_summary, then graduate the answer
+next: Record the verifier's verdict, then retire the research file and the workstream file and open the pull request
 ---
 
 ## Goal
@@ -46,6 +46,11 @@ destroys work in progress and spends the concurrency cap twice.
   `state: closed`, `merged: false`, closed 2026-08-21.
 
 ## Review
+
+Findings land here as the second context returns them. The measurement,
+its two confounds and their controls are in the research file's `## Findings`
+and `## Verification`, which is where a reader of the answer looks — not
+duplicated here.
 
 ## Blockers
 
