@@ -79,6 +79,12 @@
 #                   /analyst files it, and only where JOHARNESS_IDLE_ANALYSIS
 #                   is on. Says CANONICAL and stops in the joharness repo
 #                   itself
+#   janitor         the sweep, every JOHARNESS_JANITOR_HOURS (12 by default,
+#                   0 = off): claims whose session may be gone, with the push
+#                   age and the evidence to check — never a verdict about a
+#                   session, this command has no control plane — plus what
+#                   merges left on the base branch. Report-only; /janitor
+#                   proves liveness and releases
 #   finish          Loop step 7 gate: what merging this branch NOW would
 #                   leave on the base branch. Red when the merge would add a
 #                   workstream file. Run it before the merge, not after.
@@ -139,6 +145,11 @@
 #                              blocked, stalled or looping and filing it as an
 #                              issue on the canonical. `analysis` reports
 #                              either way (.agents/docs/orchestrated.md)
+#   JOHARNESS_JANITOR_HOURS=12 hours between sweeps of the claims; 0 = off.
+#                              A claim whose session is gone holds its plan
+#                              out of the queue until something releases it,
+#                              and the release is /janitor's
+#                              (.agents/docs/handover/README.md, abandoned)
 #   JOHARNESS_SELFTEST=        unset (default) runs the harness selftest only
 #                              when the branch changes something outside
 #                              docs/ and README.md; 'always' runs it whatever
@@ -2640,7 +2651,7 @@ lint_graph() {
     if [ -z "$val" ]; then
       lint_warn "${rel}: no status — hooks read '?'"
     else
-      lint_enum "$rel" status "$val" in-progress blocked review "done"
+      lint_enum "$rel" status "$val" in-progress blocked review "done" abandoned
     fi
     lint_enum "$rel" agent "$agent" haiku sonnet opus
     p="$(lint_stem "$p")"
@@ -4840,7 +4851,7 @@ analysis_one() {
   { read -r status; read -r next; } \
     <<<"$(printf '%s\n' "$doc" | gr_fields status next)"
   case "$status" in
-    in-progress | blocked | review | done | '') ;;
+    in-progress | blocked | review | done | abandoned | '') ;;
     *) status="unreadable" ;;
   esac
   age="$(dispatch_age_min "$branch")"
@@ -4855,16 +4866,24 @@ analysis_one() {
 
   # The three marks dispatch already computes, and no fourth threshold: a knob
   # nobody has counted is a written number (.agents/harness/AGENTS.md, step 5).
-  if [ "$status" = "blocked" ]; then
+  if [ "$status" = "abandoned" ]; then
+    # Released: its session is provably gone, so it will never push again and a
+    # stall mark on it is a clock nobody is watching. No condition, and nothing
+    # for an analyst to explain — the plan is already back in the queue.
+    out="${out}condition : none — this claim was RELEASED (status: abandoned). Its"$'\n'
+    out="${out}            plan is free; the branch is the human's to delete"$'\n'
+  elif [ "$status" = "blocked" ]; then
     cond="BLOCKED"
     out="${out}condition : BLOCKED — a human's. dispatch relays this row every pass and"$'\n'
     out="${out}            never asks whether its cause still holds"$'\n'
   fi
-  if [ "$status" != "blocked" ] && [ -n "$age" ] && [ "$age" -ge "$stall" ]; then
+  if [ "$status" != "blocked" ] && [ "$status" != "abandoned" ] &&
+     [ -n "$age" ] && [ "$age" -ge "$stall" ]; then
     cond="${cond:+${cond}+}STALL?"
     out="${out}condition : STALL? — no push for ${agetext} (>= ${stall}m)"$'\n'
   fi
-  if [ "$status" != "blocked" ] && [ "$churnl" -gt 0 ] && [ "$churn_n" -ge "$churnl" ]; then
+  if [ "$status" != "blocked" ] && [ "$status" != "abandoned" ] &&
+     [ "$churnl" -gt 0 ] && [ "$churn_n" -ge "$churnl" ]; then
     cond="${cond:+${cond}+}LOOP?"
     out="${out}condition : LOOP? — ${churn_f} rewritten ${churn_n} times (>= ${churnl})"$'\n'
   fi
@@ -4888,10 +4907,17 @@ analysis_one() {
 
   if [ -z "$cond" ]; then
     printf '%s' "$out"
-    printf 'verdict   : NO CONDITION — not blocked, not stalled, not looping. This row\n'
-    printf '            is a manager at work, and there is nothing to explain. A\n'
-    printf '            condition that cleared between the pass and this read looks\n'
-    printf '            exactly like this.\n\n'
+    if [ "$status" = "abandoned" ]; then
+      # Not "a manager at work": there is no manager. Saying so would send an
+      # analyst looking for a session that the janitor already proved gone.
+      printf 'verdict   : NO CONDITION — the claim was released and its plan is back in\n'
+      printf '            the queue. Nothing to explain, and nobody to explain it to.\n\n'
+    else
+      printf 'verdict   : NO CONDITION — not blocked, not stalled, not looping. This row\n'
+      printf '            is a manager at work, and there is nothing to explain. A\n'
+      printf '            condition that cleared between the pass and this read looks\n'
+      printf '            exactly like this.\n\n'
+    fi
     return 0
   fi
 
@@ -5130,6 +5156,249 @@ cl_merged_claims() {
       { [ -n "$p" ] && [ "$p" != "none" ]; } || continue
       printf '%s\n' "$p"
     done | sort -u
+}
+
+# ---------------------------------------------------------------------------
+# The janitor cycle — a claim outlives the session that made it
+# ---------------------------------------------------------------------------
+#
+# Issue #254: an unowned block held four plans for 141 hours and every pass
+# printed it as `holds no slot`. Issue #249: the mechanism that answers
+# liveness is the one nobody schedules. This is the schedule — a clock, not a
+# production trigger, because here the subject IS elapsed time.
+#
+# The reader NEVER judges liveness and never releases anything. It names
+# candidates and the evidence to check; the session does the control-plane
+# read and writes the release (.claude/commands/janitor.md). Push age is not
+# liveness in either direction, and a command with no control plane that
+# guessed would be the wrong-reason green this repo keeps paying for.
+
+# Is a sweep due. `due <why>` | `not-due <why>` | `off <why>` | `unreadable <why>`.
+# Same shape and the same git-dated cycle as the curate one, through the same
+# readers (cycle_landed_sha, cycle_age_h) with `janitor` as the kind.
+janitor_due() {
+  local hours age why
+  why="$(cycle_unreadable)"
+  if [ -n "$why" ]; then
+    printf 'unreadable %s' "$why"
+    return 0
+  fi
+  hours="$(num_knob JOHARNESS_JANITOR_HOURS 12)"
+  if [ "$hours" -eq 0 ]; then
+    printf 'off JOHARNESS_JANITOR_HOURS=0: no sweep is ever due'
+    return 0
+  fi
+  local base_word='the last sweep'
+  age="$(cycle_age_h janitor)"
+  if [ -z "$age" ]; then
+    # Never swept: measure from the repository's own beginning, so "never" is
+    # the longest interval rather than a special case that fires in every
+    # fresh fixture (the curate cycle paid for that one twice).
+    age="$(cycle_repo_age_h)"
+    [ -n "$age" ] || age=0
+    # Deliberately NOT the curate cycle's wording. Two cadence lines share one
+    # dispatch output, and the curate cases assert their own phrase is absent
+    # when a curate HAS landed — a second line spelling it the same way reds
+    # them for a true reason nobody could read.
+    base_word='the repository began, no sweep having landed'
+  fi
+  if [ "$age" -ge "$hours" ]; then
+    printf 'due %sh since %s (>= %sh)' "$age" "$base_word" "$hours"
+  else
+    printf 'not-due %sh since %s (of %sh)' "$age" "$base_word" "$hours"
+  fi
+}
+
+# A janitor already in flight, one line per branch: `<branch>\t<stamp>\t<status>`.
+#
+# FRONTMATTER decides, never the filename — `workstream: janitor-<stamp>` with a
+# DIGIT after the dash, and `plan: none`. Keyed on the filename it re-made the
+# curate cycle's own r4 twice over: a branch owning `janitor-role.md` (the one
+# building this cycle) suppressed the whole thing, and a real sweep whose file
+# is `janitor2026-09-18.md` went unseen, so `dispatch` said DUE and a second
+# janitor was spawned onto branches the first was already writing to.
+#
+# `--no-merged` and the `ls-tree | grep` prefilter are not tidiness either:
+# `drain` runs this at every session start, and without them it paid a merge
+# base, a diff and a frontmatter read for every unmerged ref. Measured on this
+# checkout (142 refs, verifier): `drain` 12.075s with the naive walk against
+# 5.521s with the cycle off. The DECISION stays frontmatter, so a false
+# positive from the broad grep costs three git calls and nothing else.
+janitor_branches() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}"
+  local refs r name base wf files doc jws jkey jstat cand
+  refs="$(git -C "$ROOT" for-each-ref --no-merged="refs/remotes/origin/${base_branch}" \
+    --format='%(refname)' refs/remotes/origin </dev/null 2>/dev/null)"
+  while IFS= read -r r; do
+    [ -n "$r" ] || continue
+    name="${r#refs/remotes/origin/}"
+    { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
+    cand="$(git -C "$ROOT" ls-tree -r --name-only "$r" -- docs/handover \
+      </dev/null 2>/dev/null | grep -i janitor)" || continue
+    [ -n "$cand" ] || continue
+    base="$(git -C "$ROOT" merge-base "$r" \
+      "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)"
+    [ -n "$base" ] || continue
+    files="$(git -C "$ROOT" diff --name-only --diff-filter=ACMRT "$base" "$r" \
+      -- docs/handover </dev/null 2>/dev/null | gr_docs)"
+    while IFS= read -r wf; do
+      [ -n "$wf" ] || continue
+      doc="$(git -C "$ROOT" show "${r}:${wf}" </dev/null 2>/dev/null)"
+      { read -r jws; read -r jkey; read -r jstat; } \
+        <<<"$(printf '%s\n' "$doc" | gr_fields workstream plan status)"
+      case "$jws" in janitor-[0-9]*) ;; *) continue ;; esac
+      [ "$jkey" = none ] || continue
+      # SANITISED, because both readers of this record print it through
+      # `printf %b`: a frontmatter field is branch-controlled input, and
+      # `workstream: janitor-2026-09-01\n            origin/main  INJECTED`
+      # forged an extra row in `dispatch`, which is what the orchestrator reads
+      # to decide spawns. Same reasoning as validating a status rather than
+      # passing it through.
+      jws="$(printf '%s' "$jws" | tr -cd 'A-Za-z0-9._:-')"
+      jstat="$(printf '%s' "$jstat" | tr -cd 'A-Za-z0-9._-')"
+      printf '%s\t%s\t%s\n' "$name" "${jws:-?}" "${jstat:-?}"
+    done <<<"$files"
+  done <<<"$refs"
+}
+
+cmd_janitor() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" ref
+  local due state why hours stale_s
+  local claims branch path doc plan status pr session age agetext n_cand=0
+  local jb jw js n_inflight=0 inflight="" f n_left=0 n_merged=0 merged="" carried=""
+
+  [ "$#" -eq 0 ] || die "usage: $0 janitor"
+
+  hours="$(num_knob JOHARNESS_JANITOR_HOURS 12)"
+  stale_s="$(num_knob HANDOVER_STALE_SECONDS 518400)"
+  printf '== janitor (every %sh: JOHARNESS_JANITOR_HOURS)\n\n' "$hours"
+
+  due="$(janitor_due)"
+  state="${due%% *}"; why="${due#* }"
+  case "$state" in
+    unreadable) printf 'cadence   : UNREADABLE — %s\n\n' "$why"; return 0 ;;
+    off)        printf 'cadence   : off — %s\n\n' "$why"; return 0 ;;
+  esac
+
+  # Walked ONLY when a sweep could be due. A sweep in flight cannot make a
+  # not-due pass due, so the walk would change no answer — and it is the
+  # expensive half of this command, which `drain` runs at every session start
+  # (the same gate, and the same reason, as the curate block).
+  if [ "$state" = due ]; then
+    while IFS=$'\t' read -r jb jw js; do
+      [ -n "$jb" ] || continue
+      n_inflight=$((n_inflight + 1))
+      inflight="${inflight}            ${jb}  ${jw}  ${js}\n"
+    done < <(janitor_branches)
+  fi
+
+  if [ "$n_inflight" -gt 0 ]; then
+    printf 'cadence   : IN FLIGHT, so none is due. What made it due: %s\n' "$why"
+    printf '%b' "$inflight"
+  elif [ "$state" = due ]; then
+    printf 'cadence   : DUE — %s\n' "$why"
+  else
+    printf 'cadence   : not due — %s\n' "$why"
+  fi
+  printf '\n'
+
+  # --- candidates: a claim whose session MAY be gone ------------------------
+  #
+  # The threshold is HANDOVER_STALE_SECONDS, the one the handover hook already
+  # calls stale, not a knob of this cycle's own: two numbers for one idea are
+  # two answers about the same branch.
+  printf 'candidates (push age only — LIVENESS IS NOT IN THIS OUTPUT):\n'
+  claims="$(analysis_claims)"
+  while IFS=$'\t' read -r branch path; do
+    [ -n "$branch" ] || continue
+    age="$(dispatch_age_min "$branch")"
+    [ -n "$age" ] || continue
+    [ $((age * 60)) -ge "$stale_s" ] || continue
+    doc="$(git -C "$ROOT" show "refs/remotes/origin/${branch}:${path}" \
+      </dev/null 2>/dev/null)" || continue
+    { read -r status; read -r plan; read -r pr; read -r session; } \
+      <<<"$(printf '%s\n' "$doc" | gr_fields status plan pr session)"
+    case "$status" in
+      in-progress | blocked | review | done | abandoned | '') ;;
+      *) status="unreadable" ;;
+    esac
+    # Already released: not a candidate, and saying so is what stops a second
+    # janitor rewriting a file the first one settled.
+    [ "$status" = abandoned ] && continue
+    n_cand=$((n_cand + 1))
+    agetext="$(dispatch_age_text "$age")"
+    printf '  %s  %s  %s  pushed %s\n' "$branch" "$path" "${status:-?}" "$agetext"
+    # A stem, never the raw field: a workstream file may spell its claim as a
+    # path, and `docs/plans/docs/plans/x.md.md` is what printing it raw gets.
+    # lint_stem is the repo's one answer to that (queue-context.sh: `stem`).
+    plan="$(lint_stem "$plan")"
+    printf '    holds: %s' "$([ -z "$plan" ] || [ "$plan" = none ] &&
+      printf 'no plan — this claim holds nothing but its branch' ||
+      printf 'docs/plans/%s.md, out of the queue while this claim stands' "$plan")"
+    printf '\n'
+    [ -z "$pr" ] || [ "$pr" = none ] ||
+      printf '    pull request %s — nearly done, not abandoned work: finishing it is Loop step 2, never this sweep\n' "$pr"
+    [ -z "$session" ] || [ "$session" = none ] ||
+      printf '    session: %s\n' "$session"
+  done <<<"$claims"
+  if [ "$n_cand" -eq 0 ]; then
+    printf '  none — every claim pushed inside %sh\n' "$((stale_s / 3600))"
+  else
+    printf '\n  %d candidate(s). A candidate is NOT a verdict: read the control\n' "$n_cand"
+    printf '  plane per session — ARCHIVED, not found, or a FAILED bucket confirmed\n'
+    printf '  twice = gone; RUNNING or IDLE alone = leave it alone\n'
+    printf '  (.claude/commands/orchestrate.md, the field table).\n'
+  fi
+  printf '\n'
+
+  # --- what merges left behind ---------------------------------------------
+  ref="$(decide_ref)" || ref=""
+  if [ -n "$ref" ]; then
+    # ONE walk, hoisted out of the loop exactly as `cmd_cleanup` hoists it: it
+    # reads every unmerged ref, and inside the loop a base branch with six
+    # leftovers paid for six of them (~2s each on this checkout).
+    carried="$(cl_inflight "$ref")"
+    while IFS= read -r f; do
+      [ -n "$f" ] || continue
+      printf '%s\n' "$carried" | grep -qxF -- "$f" && continue
+      n_left=$((n_left + 1))
+    done <<<"$(git -C "$ROOT" ls-tree -r --name-only "$ref" -- docs/handover \
+      </dev/null 2>/dev/null | gr_docs)"
+  fi
+  if [ "$n_left" -gt 0 ]; then
+    printf 'leftovers : %s workstream file(s) on %s no unmerged branch carries —\n' \
+      "$n_left" "${ref:-the base branch}"
+    printf '            the finish ritual should have deleted them. Stage with\n'
+    printf '            ./joharness.sh cleanup --apply on YOUR branch.\n'
+  else
+    printf 'leftovers : none — the finish ritual ran\n'
+  fi
+
+  while IFS= read -r branch; do
+    [ -n "$branch" ] || continue
+    n_merged=$((n_merged + 1))
+    [ "$n_merged" -gt 5 ] || merged="${merged}            ${branch}\n"
+  done <<<"$(cl_merged_branches "refs/remotes/origin/${base_branch}" 2>/dev/null)"
+  if [ "$n_merged" -gt 0 ]; then
+    printf 'merged    : %s branch(es) merged and still standing — cosmetic, and the\n' "$n_merged"
+    printf '            human deletes them: a session never git push --delete\n'
+    printf '%b' "$merged"
+    [ "$n_merged" -le 5 ] || printf '            (+%s more)\n' "$((n_merged - 5))"
+  fi
+  printf '\n'
+
+  if [ "$n_inflight" -gt 0 ]; then
+    printf 'A sweep is in flight. One at a time: read its branch, do not start a second.\n'
+  elif [ "$state" = due ]; then
+    printf 'DUE: /janitor takes this pass. It proves each candidate gone before it\n'
+    printf 'releases anything, writes status: abandoned into the claim on ITS OWN\n'
+    printf 'branch — never deleting the file, never deleting a branch — and lands a\n'
+    printf 'pull request whose retire commit dates the next cycle.\n'
+  else
+    printf 'Not due: nothing to do. The candidates above are a reader for a human,\n'
+    printf 'and a sweep that runs early clears nothing the next one would not.\n'
+  fi
+  return 0
 }
 
 cmd_cleanup() {
@@ -6386,6 +6655,7 @@ drain_free_others() {
 cmd_drain() {
   local mode qout hout edge next free sup="" others
   local cdue cstate creason cinflight=0 cb ck cstat csess cnext
+  local jdue jstate jreason jb jw jinflight=0
   mode="$(run_mode)"
   printf '== drain (mode: %s)\n\n' "$mode"
 
@@ -6468,6 +6738,42 @@ cmd_drain() {
       printf '  Nothing is invented — every plan it touches already exists.\n'
       printf '  Retune or silence it with JOHARNESS_CURATE_PLANS (plan files since\n'
       printf '  the last curate) and JOHARNESS_CURATE_HOURS (0 = off entirely).\n'
+    fi
+    printf '\n'
+  fi
+
+  # The janitor cycle, same shape and the same one reader `dispatch` uses.
+  # Beside the curate line because they answer different questions about the
+  # same queue: curate asks whether the declarations are still true, janitor
+  # asks whether the CLAIMS still have owners. A claim whose session is gone
+  # holds its plan for ever, and #254 measured that at 141 hours.
+  jdue="$(janitor_due)"
+  jstate="${jdue%% *}"; jreason="${jdue#* }"
+  if [ "$jstate" = due ]; then
+    while IFS=$'\t' read -r jb jw _; do
+      [ -n "$jb" ] || continue
+      jinflight=$((jinflight + 1))
+      printf 'janitor   : IN FLIGHT on %s (%s), so not yours. What made it due: %s\n' \
+        "$jb" "$jw" "$jreason"
+    done < <(janitor_branches)
+    if [ "$jinflight" -eq 0 ]; then
+      printf 'janitor   : DUE — %s\n' "$jreason"
+      printf '  Claims may have outlived their sessions.\n'
+      # Mode-blind is the defect the curate block above carries its own
+      # post-mortem for (verifier r27), and this block re-made it ten lines
+      # later: under orchestrated a manager reading "run it" takes a sweep that
+      # is the ORCHESTRATOR's to spawn, beyond the cap — the human's money,
+      # decided by a session told to work one named item.
+      if [ "$mode" = "orchestrated" ]; then
+        printf '  Queue work, and the ORCHESTRATOR'"'"'s to spawn — not this session'"'"'s:\n'
+        printf '  a manager works the item its prompt names. ./joharness.sh dispatch\n'
+        printf '  prints it, and a janitor costs one session beyond the cap.\n'
+      else
+        printf '  This is queue work and it is THIS session'"'"'s item: read\n'
+        printf '  .claude/commands/janitor.md and run ./joharness.sh janitor.\n'
+      fi
+      printf '  It releases nothing it cannot prove gone, and deletes nothing.\n'
+      printf '  0 = off (JOHARNESS_JANITOR_HOURS).\n'
     fi
     printf '\n'
   fi
@@ -6890,7 +7196,7 @@ dispatch_retired_edges() {
 #
 # SHALLOW: a boundary commit has no parents, so its diff IS the whole tree.
 # `dispatch_curate_plan_churn` with no `from` then degenerates to "plan files
-# that exist" and `dispatch_curate_repo_age_h` reports the BOUNDARY's age as the
+# that exist" and `cycle_repo_age_h` reports the BOUNDARY's age as the
 # queue's beginning. Measured on this repo, same head and same knobs: a full
 # clone said `DUE — 110 plan file(s) changed`, a `--depth 1` clone of it said
 # `not due — 2 plan file(s) changed (of 10) and 97h elapsed`, for a first commit
@@ -6901,7 +7207,7 @@ dispatch_retired_edges() {
 # answers on one checkout.
 #
 # Prints the reason it cannot be read, empty when it can.
-dispatch_curate_unreadable() {
+cycle_unreadable() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}"
   if ! git -C "$ROOT" rev-parse --verify -q \
       "refs/remotes/origin/${base_branch}" >/dev/null 2>&1; then
@@ -6918,7 +7224,7 @@ dispatch_curate_unreadable() {
 
 # Hours since the base branch's FIRST commit: the baseline when no curate has
 # ever landed, so "never" is the longest interval rather than a special case.
-dispatch_curate_repo_age_h() {
+cycle_repo_age_h() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" ts now
   ts="$(git -C "$ROOT" log --format=%ct --reverse --max-parents=0 \
     "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null | head -1)"
@@ -6936,10 +7242,26 @@ dispatch_curate_repo_age_h() {
 # hour, the longest 22.2h), and being inclusive it also counted the retire
 # commit's own plan deletions, so a curate that decluttered ten plans made
 # itself due again immediately (verifier r7, r8).
-dispatch_curate_landed_sha() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}"
+#
+# `<kind>` is the cycle: `curate` (the default) or `janitor`. ONE reader for
+# both, parameterised rather than copied — a second copy of this walk is two
+# readers of one fact, and the `--full-history` reason below is exactly the
+# kind of subtlety the copy would lose.
+cycle_landed_sha() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" kind="${1:-curate}" glob
+  # The janitor cycle's identity carries a DIGIT after the dash, everywhere it
+  # is read — `janitor_branches` and `janitor.md` §1 both say so — and the
+  # dating glob has to agree or the two definitions disagree inside one diff.
+  # Measured: with `janitor-*.md` the branch that BUILT this cycle dated it,
+  # because its own workstream file is `janitor-role.md` and step 7 deletes it
+  # (verifier). `curate-*` is left exactly as it was: changing when the OTHER
+  # cycle believes it last ran is not this change's business.
+  case "$kind" in
+    janitor) glob="docs/handover/janitor-[0-9]*.md" ;;
+    *)       glob="docs/handover/${kind}-*.md" ;;
+  esac
   git -C "$ROOT" log -1 --format=%H --diff-filter=D --full-history \
-    "refs/remotes/origin/${base_branch}" -- 'docs/handover/curate-*.md' \
+    "refs/remotes/origin/${base_branch}" -- "$glob" \
     </dev/null 2>/dev/null
 }
 
@@ -6956,9 +7278,9 @@ dispatch_curate_landed_sha() {
 # So: walk from the retire commit FORWARD along first parents to the oldest
 # base-branch commit that descends from it — the merge — and take its time. One
 # extra git call, and only when a curate has landed at all.
-dispatch_curate_landed_ts() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" sha merge
-  sha="$(dispatch_curate_landed_sha)"
+cycle_landed_ts() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" kind="${1:-curate}" sha merge
+  sha="$(cycle_landed_sha "$kind")"
   [ -n "$sha" ] || return 0
   merge="$(git -C "$ROOT" rev-list --ancestry-path --first-parent \
     "${sha}..refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null | tail -1)"
@@ -6971,9 +7293,9 @@ dispatch_curate_landed_ts() {
 
 # Hours since the last curate landed, empty when none ever has — which is the
 # signal `dispatch_curate_due` reads to switch to the repository baseline above.
-dispatch_curate_age_h() {
-  local ts now
-  ts="$(dispatch_curate_landed_ts)"
+cycle_age_h() {
+  local ts now kind="${1:-curate}"
+  ts="$(cycle_landed_ts "$kind")"
   [ -n "$ts" ] || return 0
   now="$(date +%s)"
   printf '%s' "$(( (now - ts) / 3600 ))"
@@ -7066,7 +7388,7 @@ dispatch_curate_due() {
   # own state rather than folded into not-due, because `not due — 0 of 10` over a
   # missing base branch is a sentence that is simply false, and a reader cannot
   # tell it from a quiet queue (verifier r25, r26).
-  why="$(dispatch_curate_unreadable)"
+  why="$(cycle_unreadable)"
   if [ -n "$why" ]; then
     printf 'unreadable %s' "$why"
     return 0
@@ -7094,16 +7416,16 @@ dispatch_curate_due() {
   # Measuring from the first commit asks the same question the landed case asks,
   # over the same thresholds: has enough been produced, or enough time passed,
   # since the queue was last checked — and "never" is just the longest interval.
-  age="$(dispatch_curate_age_h)"
+  age="$(cycle_age_h)"
   if [ -z "$age" ]; then
     churn="$(dispatch_curate_plan_churn)"
-    age="$(dispatch_curate_repo_age_h)"
+    age="$(cycle_repo_age_h)"
     [ -n "$age" ] || age=0
   else
-    churn="$(dispatch_curate_plan_churn "$(dispatch_curate_landed_sha)")"
+    churn="$(dispatch_curate_plan_churn "$(cycle_landed_sha)")"
   fi
   local base_word='the last curate'
-  [ -n "$(dispatch_curate_landed_sha)" ] || base_word='the queue began, none having landed'
+  [ -n "$(cycle_landed_sha)" ] || base_word='the queue began, none having landed'
   if [ "$plans" -gt 0 ] && [ "$churn" -ge "$plans" ]; then
     printf 'due %s plan file(s) changed since %s (>= %s)' "$churn" "$base_word" "$plans"
     return 0
@@ -7506,6 +7828,7 @@ cmd_dispatch() {
   local n_edge=0 n_edge_stall=0 n_leftover=0 n_leftover_noitem=0
   local leftover_rows="" estate=""
   local curate_due=0 curate_inflight="" n_curate_inflight=0 cdue cstate creason
+  local janitor_due=0 janitor_inflight="" n_janitor=0 jdue jstate jreason jb jw
   local cb ck cstat csess cnext cage
   local rescope_key="" rescope_paths="" rescope_inflight="" rescope_holders=""
   local n_rescope_inflight=0 n_rescope_holders=0 rescope_settled=0
@@ -7637,6 +7960,32 @@ cmd_dispatch() {
     printf 'curate    : DUE — %s\n' "$creason"
   else
     printf 'curate    : not due — %s\n' "$creason"
+  fi
+  # The second cycle, one reader shared with `drain`. Curate asks whether the
+  # queue's declarations are still true; janitor asks whether its CLAIMS still
+  # have owners. Both ride here rather than in the verdict: a claim released is
+  # a plan freed, which changes the spawn list the next pass reads.
+  jdue="$(janitor_due)"
+  jstate="${jdue%% *}"; jreason="${jdue#* }"
+  if [ "$jstate" = unreadable ]; then
+    printf 'janitor   : UNREADABLE — %s\n' "$jreason"
+  elif [ "$jstate" = off ]; then
+    printf 'janitor   : off — %s\n' "$jreason"
+  elif [ "$jstate" = due ]; then
+    while IFS=$'\t' read -r jb jw _; do
+      [ -n "$jb" ] || continue
+      n_janitor=$((n_janitor + 1))
+      janitor_inflight="${janitor_inflight}            ${jb}  ${jw}\n"
+    done < <(janitor_branches)
+    if [ "$n_janitor" -gt 0 ]; then
+      printf 'janitor   : IN FLIGHT, so none is due. What made it due: %s\n' "$jreason"
+      printf '%b' "$janitor_inflight"
+    else
+      janitor_due=1
+      printf 'janitor   : DUE — %s\n' "$jreason"
+    fi
+  else
+    printf 'janitor   : not due — %s\n' "$jreason"
   fi
   printf '\n'
 
@@ -7789,7 +8138,7 @@ cmd_dispatch() {
     # and dispatch reads that push on the next pass. The vocabulary is the
     # graph's (joharness.sh:lint_nodes); anything else is not a status.
     case "$status" in
-      in-progress | blocked | review | done | '') ;;
+      in-progress | blocked | review | done | abandoned | '') ;;
       *) status="unreadable" ;;
     esac
     age="$(dispatch_age_min "$branch")"
@@ -8249,6 +8598,8 @@ cmd_dispatch() {
   # queue says — which is why it is a tail line and not a verdict of its own.
   [ "$curate_due" -eq 0 ] ||
     printf '            curate DUE: spawn ONE curator (agent: sonnet) on ./joharness.sh curate — beyond the cap, holds no slot, at most one in flight (JOHARNESS_CURATE_PLANS, JOHARNESS_CURATE_HOURS)\n'
+  [ "$janitor_due" -eq 0 ] ||
+    printf '            janitor DUE: spawn ONE janitor (agent: sonnet) on /janitor — beyond the cap, holds no slot, at most one in flight. It releases a claim only where the control plane proves the session gone, and a released claim frees its plan for the NEXT pass (JOHARNESS_JANITOR_HOURS)\n'
   # Said on the verdict, because this is the count the orchestrator spends
   # money against and it is the half of the count git cannot finish: these
   # rows have no `session:` line to read. Never folded into the stall count —
@@ -8826,6 +9177,7 @@ main() {
     feedback)       cmd_feedback "$@" ;;
     upstream)       cmd_upstream "$@" ;;
     analysis)       cmd_analysis "$@" ;;
+    janitor)        cmd_janitor "$@" ;;
     cleanup)        cmd_cleanup "$@" ;;
     curate)         cmd_curate ;;
     finish)         cmd_finish ;;
