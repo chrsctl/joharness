@@ -162,20 +162,30 @@ back refused: just exit, the orchestrator's next pass sees the merge.
 that read this item end to end, and everything you learned about YOUR files
 is already in the diff and in `## Review`. What dies with you is what you
 learned about somebody ELSE's — a fault in a queue item you do not own, a
-thing the next manager on an adjacent item needs. Say it as one field after
+thing the next manager on an adjacent item needs. Say it as one line after
 the merge, in the orchestrator's own grammar — `lead <stem>: <text>`, the
 stem being the item it is ABOUT, the text at most 40 characters:
 
 ```
-merged inbox-retry lead seat-limits: its create path skips the same check
+merged inbox-retry
+lead seat-limits: its create path skips the same check
 ```
+
+**The stem must be a QUEUE ITEM's name** — a plan stem, spelled as the queue
+spells it. The orchestrator checks it against the queue and silently has
+nothing to match otherwise, and you cannot check it yourself: you run no
+queue command (Never, below), so a stem you cannot name from your own plan's
+`needs:`, its `scope:` collisions, or the reconcile your prompt named is a
+stem to leave out. A lead about something with NO stem — an open issue, an
+item already merged, the harness itself — goes in your pull request body
+instead, which outlives you and which a human reads.
 
 Nothing to say is the normal case: send the bare `merged <stem>` and exit.
 Never send your own findings — they are in the branch, and repeating them
 buys a longer message and no information. One lead, not a list; at 40
 characters it is a POINTER, and whoever follows it has your merged branch
-to read. No quotes, no newlines, no `;`, no `=`: the orchestrator's state is
-one message and those characters break it.
+to read. Its own LINE, and nothing after the text: no quotes, no newlines
+inside it, and nothing that could read as a second field.
 One refusal is the answer — do not retry it, do not re-address it, do
 not hunt a second way to deliver it. The refusal does not say WHICH
 fault it is: no row for that target in `ListAgents`, the ordinary case
