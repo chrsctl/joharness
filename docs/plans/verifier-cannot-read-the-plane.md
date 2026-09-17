@@ -107,8 +107,16 @@ section was written.
   corroborated nothing, which is the same failure one step out.
 - `.agents/harness/selftest/review.sh` — it already reads `verifier.md`, so
   the assertion has a home and needs no new topic.
-- `docs/research/liveness-in-a-long-turn.md`, `## Verification` — the
-  instance, with what the reviewer could and could not check.
+- `.agents/docs/orchestrated.md`, the paragraph under the knob table that
+  ends by naming this issue — the instance, and the shape option 1 asks for:
+  a control-plane claim recorded as re-computable and re-samplable, and
+  confirmed by no second context here. The research node it graduated from,
+  `docs/research/liveness-in-a-long-turn.md`, carried the same statement in
+  its `## Verification` and is closed; read it with
+  `git log --diff-filter=D -p -- docs/research/liveness-in-a-long-turn.md`,
+  which is also the worked example of the reviewer marking one leg WEAK and
+  one REFUTED from the record alone while unable to take the reading that
+  would settle either.
 
 ## Traps
 

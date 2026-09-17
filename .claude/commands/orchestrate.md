@@ -144,7 +144,7 @@ reading exactly one:
 | `session_status` | the control plane | `RUNNING` working now. `IDLE` **between turns** — a manager that armed its own check-in reads IDLE the whole interval. `PENDING` starting. `ARCHIVED` gone. |
 | `status_bucket` | the control plane | `..._FAILED` = that turn died. The ONLY failure signal that may decide liveness, and only while `session_status` is not `RUNNING`: RUNNING beside it means the session already moved past that turn. |
 | `post_turn_summary.status_category` | **the session's own** | its account of its TURN. `completed` means the turn ended — never that the work landed. May never decide liveness on its own. |
-| `status_detail`, `updated_at` | the session record | where it got to, and when it last moved. Unchanged across two passes is what turns a suspicion into a verdict; both are carried in the ledger (step 4). |
+| `status_detail`, `updated_at` | the session record | where it got to, and when it last moved. Unchanged across two passes is what turns a suspicion into a verdict; both are carried in the ledger (step 4). **`updated_at` decides nothing ALONE, at any interval** — measured; the why and the rows are in [`../../.agents/docs/orchestrated.md`](../../.agents/docs/orchestrated.md), under the knob table. It is written by neither a read nor the connection. On an `IDLE` row it is the age of the last activity and goes arbitrarily stale while nothing is wrong (54m54.3s, on a manager whose own record named a merged pull request). On a `RUNNING` row it advances — and a FROZEN one is ambiguous: one was measured frozen 172.273s with every other field of the row frozen too, which reads the same whether the writer is slow or the session stopped. Pair it with `status_bucket` and the head from git, which is what the rows above and below it are for. |
 | `session_context.sources` | the control plane | the repositories attached AT SPAWN. Absent = no checkout was attached. |
 | `external_metadata.last_served_model` | the control plane | the model that served the LATEST turn. Absent = no turn has been served yet. |
 | merge state | **git** | `git merge-base --is-ancestor <head> origin/main`. Never a session's summary. |
@@ -223,10 +223,33 @@ moved from `connected` to `disconnected`. 126 USD and 585k tokens, mid-review,
 two rows want opposite things — a loop kill escalates effort and rewrites
 `next:` with a research step, a death needs a successor on the branch — so a
 LOOP verdict on a session nobody confirmed alive is a coin flip. What would
-confirm it is NOT settled: whether `updated_at` moves while a session sits
-inside one long turn is unmeasured, and every candidate test proposed so far
-depends on the answer. Until it is measured, treat this row's second clause
-as a suspicion to report rather than a verdict to act on.
+confirm it is now MEASURED, and the answer is that **this field cannot
+confirm it — at thirteen minutes or at any other interval.** A `RUNNING`
+manager was read three times over 8m56s and found frozen for the last
+172.273s of it with EVERY field of its row frozen: the timestamp, both token
+counters, the cost, the task summary, the turn summary, the bucket. Six
+minutes earlier the same row had been working (+0.524106 USD, +4494 output
+tokens). A frozen timestamp there reads identically whether the writer is on
+a cadence of minutes or the session has stopped, so no threshold separates
+them. The rows and the arithmetic are in
+[`../../.agents/docs/orchestrated.md`](../../.agents/docs/orchestrated.md),
+under the knob table, with why no knob can encode this.
+
+So this row's second clause stays a suspicion to REPORT rather than a verdict
+to act on — not until it is measured, which it now is, but because the
+measurement says the field was never going to carry it. What turns a
+suspicion into a verdict is `status_bucket` and the head from git, as the
+rows above it already say.
+
+Two cautions from the same reading, both against this very example. On an
+`IDLE` row the field is the age of the last activity and goes arbitrarily
+stale while nothing is wrong — 54m54.3s, on a manager whose own record named
+a merged pull request — so staleness there carries nothing at all, and the
+13-minute pair above is only evidence because `status_bucket` and the head
+carry it. And `connection_status` moving `connected` to `disconnected` is not
+a signal of its own: that same healthy IDLE row was measured making exactly
+that flip with `updated_at` byte-identical across it, and on that row the
+flip was the only field of any kind that changed.
 
 **IDLE, and never born.** 10:13:29.630Z, one item's manager in a consumer:
 created, `updated_at` 10:13:35.357Z — six seconds

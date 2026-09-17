@@ -336,6 +336,62 @@ this mode should move. If it does not, the hold rule bought nothing.
 | `JOHARNESS_UPSTREAM_FEEDBACK` | `off` | on = one reporter session per merged edge, beyond the cap, filing harness findings on the canonical — money, and pull requests in a repo this one does not own | not a number to calibrate: a switch, off until a human turns it on. Unlike the six above it IS declared in `.agents/scripts/conf-keys.sh`, so every consumer's sync names the key its conf does not answer |
 | `JOHARNESS_IDLE_ANALYSIS` | `off` | on = one analyst session per condition per item per run, beyond the cap, saying why a manager is parked and filing it as an issue on the canonical — money, and issues in a repo this one does not own | a switch, off until a human turns it on, declared in `.agents/scripts/conf-keys.sh` beside the row above. It calibrates NOTHING of its own: the marks it fires on are drawn by `JOHARNESS_STALL_MINUTES` and `JOHARNESS_CHURN_LIMIT`, and a fourth written number would buy nothing |
 
+**None of these is an `updated_at` threshold, and the measurement says one
+cannot be written.** `STALL_MINUTES` keys on PUSH age, from git, which is why
+it calibrates against commit gaps. The session record's `updated_at` cannot
+carry a threshold at all, and the reason is one row rather than a
+distribution.
+
+Three `list_sessions` calls over 8m56s (2026-09-17 16:43:50.037Z,
+16:49:54.510Z, 16:52:46.783Z — epoch-millisecond stamps from the tool-result
+filenames; 30 rows per page, all three pages saved, 30 of 30 present in all
+three). Four rows read `RUNNING` / `WORKING` at every read. Three had their
+field written within 27.2s of any read (21.724 / 14.287 / 8.489, 22.696 /
+15.324 / 19.637, 27.183 / 14.695 / 11.360 seconds behind each call). The
+fourth was 258.496s, 263.031s and 435.304s behind. Its field advanced
+359.937s between the first two reads while it did real work — `cost_usd`
++0.524106, `output_tokens` +4494 — and then, across the 172.273s to the third
+read, **not one field of that row changed**: not the timestamp, not any usage
+counter, not `task_summary`, not `post_turn_summary`, not `status_bucket`.
+Every leaf key byte-identical.
+
+That row is the whole argument. From outside, it reads the same whether the
+writer is on a cadence of minutes or the session stopped working at
+16:45:31.478514Z — and `session_status: RUNNING` is the only field asserting
+the first, which is the field whose trustworthiness is in question. A
+threshold tuned to the fast three kills it if it was merely slow; one tuned
+to it sees nothing the push age does not see sooner; and no threshold at any
+value tells the two apart, because the evidence is identical either way.
+
+Two more results from the same reading, both of which a knob would encode
+wrongly. The field is written by NEITHER a read nor the connection — two
+`IDLE` rows returned ONE distinct value each across all three reads,
+identical to the microsecond, already 22m16.9s and 45m57.5s stale at the
+first, with no `get_session` on either; and one of them flipped `connected`
+to `disconnected` mid-window with the field byte-identical across the flip,
+which was the only field of any kind that changed on that row. And on an
+`IDLE` row the field is simply the age of the last activity, reaching
+54m54.3s here on a manager whose own record named a merged pull request. So
+staleness on an idle manager measures nothing about it.
+
+The consequence is a reading rule rather than a number, and it lives where
+the reading happens — `.claude/commands/orchestrate.md`, step 2's evidence
+table and the "LOOP, and dead" worked example: `updated_at` decides nothing
+alone at any interval, and what turns a suspicion into a verdict is
+`status_bucket` and the head from git. Written here as well as there because
+the next session to want a fifth knob will look at this table first.
+
+Graduated from `docs/research/liveness-in-a-long-turn.md`, which closed on
+this. Two things that file records and this paragraph cannot: the reviewer
+this repo spawns has no control-plane call, so these numbers are
+re-computable from the saved pages and re-samplable by a reader with the
+fleet, and confirmed as REAL by neither (issue #267) — and an earlier draft
+of this very paragraph read the ambiguous row as a slow writer, built a
+cadence spread on it, and graduated a sentence licensing a kill verdict on a
+13-minute frozen pair. The reviewer found the frozen usage counters and that
+reading did not survive them. Read the node in history before adding a knob
+here: `git log --diff-filter=D -p -- docs/research/liveness-in-a-long-turn.md`.
+
 Read by `dispatch`: the environment for one command, `joharness.conf` for
 the repo, else the default. Digits only; a word reads as the default. The
 two churn knobs go through the same reader in `ci`, so a value set in the
