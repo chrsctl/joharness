@@ -317,3 +317,20 @@ expect "the sender is told the stem must be a queue item's name" \
   "The stem must be a QUEUE ITEM's name" "$mgrtext"
 expect "and where a lead with no stem goes instead" \
   "goes in your pull request body" "$mgrtext"
+
+# --- what updated_at can carry, measured rather than assumed ---------------
+# The health pass decides kill, nudge and respawn from this field, and two
+# rules drafted for issue #249 assumed OPPOSITE answers about it in one diff.
+# The answer is asymmetric, which is the part a reader needs and the part a
+# rule line cannot carry: frozen is loud, moving is quiet. Asserted so the
+# asymmetry cannot be flattened back into "a moving field means alive".
+expect "the field's asymmetry is stated, not left to be inferred" \
+  "moving is not progress; \`updated_at\` FROZEN is loud" "$orctext"
+expect "a frozen field is death evidence at SHORT intervals too" \
+  "a frozen reading is death evidence at SHORT intervals too" "$orctext"
+expect "and a moving one says connected, never progressing" \
+  "movement says the container is CONNECTED, not that the turn is getting" "$orctext"
+expect "the turn-end signal is named, and it is not task_summary" \
+  "the only cheap turn-END signal" "$orctext"
+expect "task_summary is disqualified in the evidence table itself" \
+  "Changes INSIDE one turn, so it is never a turn boundary" "$orctext"

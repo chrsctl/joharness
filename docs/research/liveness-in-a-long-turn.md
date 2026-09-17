@@ -46,45 +46,116 @@ more than once inside it:
 
 ## Method
 
-Not yet run. The reading has to come from a session whose turn length is
-known independently, so the sampler must not be the session itself:
+Run 2026-09-17. The corpus is a live orchestrated fleet in a consumer,
+sampled read-only from outside with `get_session` — so the sampler is not
+the session, which is what the sketch below asked for, and no session was
+spawned to be watched, which would have been the human's money for a reading
+already on offer.
 
 ```
-# a session started with a task known to run several minutes in one turn
-get_session <id>          # t0, before the turn's first tool call returns
-get_session <id>          # t0 + 60s, mid-turn
-get_session <id>          # t0 + 180s, still mid-turn
-get_session <id>          # after the turn ends
+list_sessions                      # pick subjects by session_status
+get_session <id>                   # 12:45:58Z, 12:48:58Z, 12:54:02Z
 ```
 
-Record `updated_at`, `session_status`, `status_bucket` and
-`connection_status` at each. Repeat on a second session to rule out one
-client version. The existing corpus cannot answer it: issue #249's readings
-are all of sessions whose turn state at the sample was not independently
-known, which is exactly why the two drafts could each cite it.
+**The confound this question does not name, and the field that closes it.**
+Many short turns look like one long turn if you only watch `updated_at`.
+`post_turn_summary` is written when a turn ENDS, so it is the independent
+clock: `updated_at` moving while `post_turn_summary` is byte-identical means
+no turn boundary fell between the samples. A session that has NEVER finished
+a turn carries no `post_turn_summary` at all, which makes its whole life one
+turn and needs no comparison.
+
+**The second confound: does the read itself bump the field?** Both RUNNING
+subjects returned an `updated_at` inside a second of the call. That would be
+fatal if reads were writing it, so an IDLE, disconnected session was read as
+a control.
+
+The sketch this replaces asked for a session started with a task known to
+run several minutes. That is the cleaner experiment and it costs money; it
+is the next step only if the reading above had come back ambiguous.
 
 ## Findings
 
-OPEN. Nothing measured yet. Recorded so the next reader does not re-derive
-the conflict from the drafts.
+- **`updated_at` advances DURING a turn.** Subject A, a manager in its FIRST
+  turn — no `post_turn_summary` in the record at any sample, so zero turns
+  had ended and its whole life was one turn. `created_at`
+  `12:42:10.232025Z`; `updated_at` `12:46:34.218833Z`, then
+  `12:48:58.253303Z`, then `12:54:02.164223Z`. Eleven minutes fifty-two
+  seconds, one turn, the field tracking throughout. `get_session` on that id
+  at each of the three times.
+- **Corroborated on a second subject with real work between the samples.**
+  Subject B, RUNNING, carrying a `post_turn_summary` from an earlier turn:
+  `updated_at` `12:46:36.751182Z` → `12:48:58.684883Z` while
+  `post_turn_summary` stayed byte-identical (`review_ready`, "handover
+  pushed; awaiting worker notifications to proceed") and `usage.cost_usd`
+  moved `35.08391755` → `36.07648935` with `output_tokens` +7,314. Work
+  happened, no turn ended, the field moved.
+- **The read does not bump the field.** Subject C, IDLE and
+  `connection_status: disconnected`: `updated_at` `12:38:59.746071Z` in a
+  `list_sessions` page at 12:45:58Z and `12:38:59.746071Z` again from a
+  direct `get_session` at 12:49:00Z. Identical to the microsecond across a
+  read three minutes later, so neither reading writes it, and a session
+  doing nothing shows a frozen field.
+- **What a MOVING field does not prove.** Both RUNNING subjects returned an
+  `updated_at` within a second of the call, every time. Against subject C's
+  frozen field, the reading is that a CONNECTED session refreshes this
+  continuously — so movement proves the container is up and connected, not
+  that the turn is making progress. A connected session wedged inside a tool
+  call would still show a moving field. This is the half neither rule
+  drafted for issue #249 had.
+- **`task_summary` is not a turn-boundary field; `post_turn_summary` is.**
+  Subject A's `task_summary` changed between samples 2 and 3 ("researching
+  diff anchors against code feedback" → "claimed comms-sequences;
+  researching test suite & web surface") with no `post_turn_summary` ever
+  appearing. So `task_summary` moving says nothing about turns, and
+  `post_turn_summary` changing is the only cheap turn-end signal in the
+  record.
 
 ## Consequence for the queue
 
-Issue #249's first cut merged narrowed to two items that do not depend on the
-answer: the caution that a workstream file's `session:` line names a writer
-rather than a worker, and the worked reading of a dead manager wearing the
-LOOP row's shape. Four rules were withdrawn pending this question — a death
-signature keyed on `connection_status`, a duplicate-by-branch check, a LOOP
-precondition, and the ledger fields those needed. The withdrawal and its
-reasoning are in that branch's retired workstream file.
+The question closes on its FIRST branch, with one correction to how that
+branch was written. "A frozen reading is evidence of death even at short
+intervals" holds, and the reason is stronger than the branch assumed: the
+field is refreshed by the connection, not by the work, so on a CONNECTED
+session a frozen `updated_at` is loud. The branch's other half — "a two-read
+verdict inside one pass is defensible" — holds for declaring a session GONE
+and not for declaring it STUCK, because a moving field proves only that the
+container is up.
+
+The four rules withdrawn from issue #249 can be rewritten on that, and the
+one that would have killed a manager six minutes into a long turn is
+answered outright: it was wrong. Its premise — a frozen `updated_at` mid-turn
+— does not occur on a connected session.
+
+No plan carries a `research:` edge to this file, so nothing unblocks
+mechanically. What changes is that the health pass's evidence table can
+state what this field means, which is where the answer graduates.
 
 ## Verification
 
-None yet; no finding to verify. When one exists it needs a second context per
-`.agents/docs/research/README.md`, and the second context must not be the
-session that produced the reading.
+Second context: `.claude/agents/verifier.md`, spawned to re-sample the same
+subjects from its own `get_session` calls rather than to read this file's
+numbers. Its verdict is in the workstream file's `## Review`, tagged
+`(verifier)`.
+
+- **`updated_at` advances during a turn** — GROUNDED. Three samples of a
+  session with no `post_turn_summary`, which cannot have ended a turn.
+- **Reads do not bump it** — GROUNDED. The idle control is identical to the
+  microsecond across two reads three minutes apart.
+- **Movement means connected, not progressing** — WEAK, and said as weak.
+  It rests on the sub-second alignment of every RUNNING reading with its
+  call, which is consistent with a connection heartbeat and consistent with
+  a very chatty session. Separating those needs a connected session known to
+  be idle inside a turn, which the fleet did not offer. The graduated text
+  claims only what the health pass needs: a frozen field on a connected
+  session is death evidence; a moving one is not progress evidence.
 
 ## Graduates to
 
-`.claude/commands/orchestrate.md`, the health pass. That is where a verdict
-on a session's liveness is reached, and where a wrong answer costs money.
+`.claude/commands/orchestrate.md`, the evidence table in step 2. That table
+already disqualifies two fields that look decisive and are not
+(`context_usage.used_tokens`, `external_metadata.current_branches`), each on
+one counter-example; this is the same kind of entry for the field the whole
+health pass turns on. A rule line alone would not carry it, because what a
+reader needs is the asymmetry — frozen is loud, moving is quiet — and that is
+a sentence about the field, not about a row.

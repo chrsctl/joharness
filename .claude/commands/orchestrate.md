@@ -144,7 +144,8 @@ reading exactly one:
 | `session_status` | the control plane | `RUNNING` working now. `IDLE` **between turns** — a manager that armed its own check-in reads IDLE the whole interval. `PENDING` starting. `ARCHIVED` gone. |
 | `status_bucket` | the control plane | `..._FAILED` = that turn died. The ONLY failure signal that may decide liveness, and only while `session_status` is not `RUNNING`: RUNNING beside it means the session already moved past that turn. |
 | `post_turn_summary.status_category` | **the session's own** | its account of its TURN. `completed` means the turn ended — never that the work landed. May never decide liveness on its own. |
-| `status_detail`, `updated_at` | the session record | where it got to, and when it last moved. Unchanged across two passes is what turns a suspicion into a verdict; both are carried in the ledger (step 4). |
+| `status_detail`, `updated_at` | the session record | where it got to, and when it last moved. Unchanged across two passes is what turns a suspicion into a verdict; both are carried in the ledger (step 4). `updated_at` is ASYMMETRIC — frozen is loud, moving is quiet; the paragraph below says why. |
+| `task_summary` | **the session's own** | what it says it is doing. Changes INSIDE one turn, so it is never a turn boundary and never a liveness signal. |
 | `session_context.sources` | the control plane | the repositories attached AT SPAWN. Absent = no checkout was attached. |
 | `external_metadata.last_served_model` | the control plane | the model that served the LATEST turn. Absent = no turn has been served yet. |
 | merge state | **git** | `git merge-base --is-ancestor <head> origin/main`. Never a session's summary. |
@@ -163,6 +164,27 @@ not one either: one healthy session in that same page carried its branches
 under `session_context.outcomes` with no `current_branches` at all. One
 counter-example is enough to disqualify a field, and not enough to build a
 rule on.
+
+**`updated_at` moving is not progress; `updated_at` FROZEN is loud.** That
+asymmetry is the whole of what the field can carry, and it is measured, not
+assumed. Three `get_session` reads of a live fleet in a consumer,
+2026-09-17: a manager in its FIRST turn — no `post_turn_summary` in the
+record at any sample, so no turn had ended — showed `updated_at` advancing
+across 11m52s of that one turn, and a second manager's moved while its
+`post_turn_summary` stayed byte-identical and its `usage` counters rose. So
+a frozen reading is death evidence at SHORT intervals too, and any rule that
+expects a live manager to show a frozen field mid-turn is wrong about its
+premise.
+
+The other direction does not follow. Every RUNNING reading came back within
+a second of its call, while an IDLE and disconnected session's field was
+identical to the microsecond across two reads three minutes apart — so
+movement says the container is CONNECTED, not that the turn is getting
+anywhere. A connected session wedged inside a tool call still moves it.
+Progress is the branch head's to say, which is why the rows below read both.
+
+`post_turn_summary` appearing or changing is the only cheap turn-END signal
+in the record. Absent entirely means no turn has ever finished.
 
 | control plane | push age | last pass | do |
 | --- | --- | --- | --- |
