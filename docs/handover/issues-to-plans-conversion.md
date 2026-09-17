@@ -25,9 +25,11 @@ artifact from earlier conversions; one, #271, carried none.
   2026-09-17:
 
   - **#249** — the scheduler half is `docs/research/scheduler-outside-the-
-    fleet.md`, free in the queue; the liveness-field half is
-    `docs/research/liveness-in-a-long-turn.md`, claimed and live on
-    `origin/claude/drain-8jr601`. Its first cut merged as #253.
+    fleet.md`, free in the queue. Its first cut merged as #253. The
+    liveness-field half was open on another branch when this work started and
+    CLOSED while it was in flight: #274 (`4d5dbb8`) deleted
+    `docs/research/liveness-in-a-long-turn.md` and graduated the answer —
+    `updated_at` decides nothing alone, at any interval.
   - **#251** — `docs/research/peer-divergence-in-conduct.md`, free in the
     queue. Its other cheap slice, `findings-with-the-fix`, was built,
     backtested and WITHDRAWN (`71285ba`): the rule it would have enforced is
@@ -82,12 +84,16 @@ artifact from earlier conversions; one, #271, carried none.
   the comment — so it reads as a consumer on an older sync, the same shape
   as #254's own correction. Nothing to plan; reported to the human instead.
 
-- **A plan from that comment's `cost_usd` discriminator.** It is evidence
-  for `liveness-in-a-long-turn`, which is claimed and live on another
-  branch. Not this session's to take (step 2). Flagged to the human,
-  because that branch's graduation currently says `updated_at` is written by
-  neither a read nor the connection, and the comment reports two unrelated
-  sessions returning it 1.6 ms apart.
+- **A plan from that comment's `cost_usd` discriminator.** It was evidence
+  for `liveness-in-a-long-turn`, live on another branch when this started, so
+  not this session's to take (step 2). That node closed mid-flight (#274) and
+  the two readings do not agree: the comment reports frozen `cost_usd` as the
+  one decisive signal, 19 correct calls out of 20; the graduation measured a
+  `RUNNING` row whose every field, **usage counters included**, was
+  byte-identical across 172.273s, and concluded no threshold can be written.
+  Different intervals, opposite conclusions, both on live fleets. For the
+  human, or for whoever takes #249's remaining half — not resolvable from
+  this checkout.
 
 - **Manufacturing a carve-out from #251's remaining four conduct
   questions.** The issue puts the sampling reviewer's cost with the human
