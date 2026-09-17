@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01JU2E2vNtdyc5di2jrZfBRg
 agent: opus
 updated: 2026-09-17
-next: Abandoned claim, free to take — the block below is still live and still the human's: a heartbeat Routine created from the claude.ai UI, and the cap value
+next: Abandoned claim, free to take — read this file whole; the block below is live and the human's, needing a heartbeat Routine from the claude.ai UI plus the cap value
 ---
 
 ## Goal
@@ -61,13 +61,17 @@ Cap value is also still outstanding, but it is downstream of the above.
 it is gone: `session_01JU2E2vNtdyc5di2jrZfBRg read SESSION_STATUS_ARCHIVED`. It was holding `docs/plans/unsupervised-endurance.md`, which is
 free from the moment the queue hook reads `status: abandoned` above.
 
-Nothing on this branch was changed but this file, and nothing was deleted —
-not the file, not the branch, not a line of what the claim already said. The
-work below is exactly as its session left it.
+Nothing on this branch was changed but this file, and nothing was deleted
+but the frontmatter lines the release replaces — the old `status:`,
+`updated:` and `next:`, and a `None.` under this heading where there was
+one. The record below is exactly as its session left it. An earlier wording
+of this note said no line was deleted at all, which its own commit
+contradicted.
 
-**A session that picks this up sets `status:` back and carries on.** That is
-not a formality: the status is what the queue reads, and this note is not an
-instruction to anybody, it is the record of one reading taken on one date.
+**A session that picks this up MAY set `status:` back and carry on** — the
+status is what the queue reads, so nothing else is needed to take the work.
+This note is the record of one reading taken on one date, not an instruction
+to anybody.
 
 ## Review
 
