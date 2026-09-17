@@ -70,6 +70,15 @@
 #                   /upstream-report files it, and only where
 #                   JOHARNESS_UPSTREAM_FEEDBACK is on. Says CANONICAL and
 #                   stops in the joharness repo itself
+#   analysis        why a manager is parked: an unmerged branch's claim, the
+#                   BLOCKED / STALL? / LOOP? mark it carries, the repo's
+#                   current conf answers beside the cause it stated, and what
+#                   has changed since. Takes a branch and an optional claim
+#                   stem; no argument sweeps every claim, printing the ones
+#                   carrying a condition and counting the rest. Report-only —
+#                   /analyst files it, and only where JOHARNESS_IDLE_ANALYSIS
+#                   is on. Says CANONICAL and stops in the joharness repo
+#                   itself
 #   finish          Loop step 7 gate: what merging this branch NOW would
 #                   leave on the base branch. Red when the merge would add a
 #                   workstream file. Run it before the merge, not after.
@@ -123,6 +132,13 @@
 #                              edge found about the harness as a report pull
 #                              request on the canonical. `upstream` reports
 #                              either way (.agents/docs/feedback.md)
+#   JOHARNESS_IDLE_ANALYSIS=off
+#                              'off' (default) or 'on'. Consumer repos only.
+#                              'on' lets the orchestrator spend one session,
+#                              beyond the manager cap, saying why a manager is
+#                              blocked, stalled or looping and filing it as an
+#                              issue on the canonical. `analysis` reports
+#                              either way (.agents/docs/orchestrated.md)
 #   JOHARNESS_SELFTEST=        unset (default) runs the harness selftest only
 #                              when the branch changes something outside
 #                              docs/ and README.md; 'always' runs it whatever
@@ -228,6 +244,27 @@ upstream_on() {
     on) return 0 ;;
     '' | off) return 1 ;;
     *) warn "ignoring JOHARNESS_UPSTREAM_FEEDBACK='${v}' (want 'on' or 'off'); stays off"
+       return 1 ;;
+  esac
+}
+
+# Why a manager is parked, and whether anything says so out loud. Second
+# switch of the same shape as JOHARNESS_UPSTREAM_FEEDBACK directly above, for
+# the same reason: `analysis` reports either way, so a human can always read
+# why a branch sits blocked, stalled or looping; `on` is what makes the
+# orchestrator spend a session filing it as an issue on the canonical
+# (.agents/docs/orchestrated.md, Roles: analyst). Off by default because on it
+# opens issues in a repository this one does not own, and pays for a session
+# beyond the manager cap. Fails closed: an unrecognised value is off, named
+# once.
+analysis_mode() { printf '%s' "${JOHARNESS_IDLE_ANALYSIS:-$(conf_get JOHARNESS_IDLE_ANALYSIS)}"; }
+
+analysis_on() {
+  local v; v="$(analysis_mode)"
+  case "$v" in
+    on) return 0 ;;
+    '' | off) return 1 ;;
+    *) warn "ignoring JOHARNESS_IDLE_ANALYSIS='${v}' (want 'on' or 'off'); stays off"
        return 1 ;;
   esac
 }
@@ -4645,6 +4682,392 @@ cmd_upstream() {
   return 0
 }
 
+# ---------------------------------------------------------------------------
+# Idle analysis — why a manager is parked, read mechanically
+# ---------------------------------------------------------------------------
+#
+# Issue #266: a manager sat `blocked` 11h18m on a cause this repo's own conf
+# had lifted before that session was created, `dispatch` relayed its prose
+# every pass, and a human ended it by merging by hand. The state carrying the
+# answer was in front of the component doing the relaying. So the question —
+# is the condition it named still a condition? — is asked by a command, not by
+# attention.
+
+# Unmerged origin branches that OWN a workstream file: `<branch>\t<path>`.
+#
+# DIFF against the merge base, never the tree: a branch inherits every file
+# its base carried, so a tree read reports an inherited claim as this branch's
+# own and a retired one as still present — the bug in both directions at once
+# (.agents/docs/feedback.md, Worked example: tree or diff).
+#
+# `</dev/null` on every git call, not only the ones inside a `while read`:
+# this whole function feeds a loop the caller reads, and a git left to inherit
+# that stdin can consume the loop's own remaining lines. The guard is cheap and
+# half-applying it is how the next one is missed (verifier, r11).
+analysis_claims() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" r name base f
+  git -C "$ROOT" for-each-ref --format='%(refname)' refs/remotes/origin \
+    </dev/null 2>/dev/null |
+    while IFS= read -r r; do
+      name="${r#refs/remotes/origin/}"
+      { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
+      git -C "$ROOT" merge-base --is-ancestor "$r" \
+        "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null && continue
+      base="$(git -C "$ROOT" merge-base "$r" \
+        "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)" || continue
+      [ -n "$base" ] || continue
+      while IFS= read -r f; do
+        [ -n "$f" ] || continue
+        printf '%s\t%s\n' "$name" "$f"
+      done <<<"$(git -C "$ROOT" diff --name-only --diff-filter=ACMRT "$base" "$r" \
+        -- docs/handover </dev/null 2>/dev/null | gr_docs)"
+    done
+}
+
+# Every JOHARNESS_ assignment a ref's conf carries: `<KEY>\t<VALUE>`, read the
+# way conf_get reads one — last assignment wins, inline comment dropped, value
+# a single token. Out of git, so a branch's answer and the base branch's are
+# comparable with no checkout. Empty when the ref carries no conf at all, which
+# the caller must tell apart from "carries one that answers nothing".
+#
+# EVERY key, never a declared list. `.agents/scripts/conf-keys.sh` holds the
+# declaration and is canonical-only, while THIS file ships to every consumer:
+# a reader keyed on that declaration would be reading a file that is not
+# there. A key a consumer added itself is also exactly the one worth catching.
+analysis_conf_pairs() {
+  # One awk, not a sed into an awk: `\t` in a sed REPLACEMENT is a GNU
+  # extension and a literal `t` on BSD sed, so every pair would key on a
+  # mangled name on a macOS checkout while staying green on the runner.
+  # awk's printf spells a tab everywhere.
+  git -C "$ROOT" show "${1}:joharness.conf" </dev/null 2>/dev/null |
+    awk '{ line = $0
+           sub(/#.*$/, "", line)
+           if (!match(line, /^[[:space:]]*JOHARNESS_[A-Z0-9_]*[[:space:]]*=/)) next
+           eq = index(line, "=")
+           key = substr(line, 1, eq - 1); val = substr(line, eq + 1)
+           gsub(/[[:space:]]/, "", key)
+           sub(/^[[:space:]]+/, "", val); sub(/[[:space:]].*$/, "", val)
+           if (!(key in v)) k[++n] = key
+           v[key] = val }
+         END { for (i = 1; i <= n; i++) printf "%s\t%s\n", k[i], v[k[i]] }'
+}
+
+# Two pair lists compared, `<KEY>\t<LEFT>\t<RIGHT>` for every key whose value
+# differs, `(absent)` for a side that does not carry it.
+#
+# BOTH directions. Keyed on one side's list only, a key the branch carries and
+# the base branch lacks is never compared at all, and the verdict then asserts
+# that no key differs — a fact louder than what it measured (verifier, r2).
+analysis_conf_diff() {
+  { printf '%s\n' "$1"; printf '%s\n' '--'; printf '%s\n' "$2"; } |
+    awk -F'\t' '
+      $1 == "--" { half = 1; next }
+      NF != 2 { next }
+      { if (!($1 in seen)) { seen[$1] = 1; k[++n] = $1 }
+        if (half == 0) a[$1] = $2; else b[$1] = $2 }
+      END { for (i = 1; i <= n; i++) {
+              key = k[i]
+              av = (key in a) ? a[key] : "(absent)"
+              bv = (key in b) ? b[key] : "(absent)"
+              if (av != bv) printf "%s\t%s\t%s\n", key, av, bv } }'
+}
+
+# Keys whose value changed in one commit against its first parent, as
+# `<KEY> <before> to <after>`, comma separated. Empty when the commit touched
+# the file without changing an assignment.
+analysis_conf_keys_changed() {
+  analysis_conf_diff "$(analysis_conf_pairs "${1}^")" "$(analysis_conf_pairs "$1")" |
+    awk -F'\t' '{ out = out (out == "" ? "" : ", ") $1 " " $2 " to " $3 }
+                END { print out }'
+}
+
+# Commits on <ref> newer than <since> that CHANGED a key, newest first:
+# `<date> <sha> <subject>\t<keys>`.
+#
+# Filtered by what changed, never by what was touched. Unfiltered, a comment
+# reword or a base-branch merge commit flips the verdict to MAY BE LIFTED with
+# no key under it for anyone to weigh — measured on this repo, where one merge
+# commit did exactly that on every row (verifier, r3). At most
+# ANALYSIS_CONF_SCAN commits are opened, because each costs two `git show`.
+analysis_conf_moves() {
+  local ref="$1" since="$2" scan="${ANALYSIS_CONF_SCAN:-20}" sha line keys
+  git -C "$ROOT" log --format='%ct%x09%H%x09%cs %h %s' "$ref" -- joharness.conf \
+    </dev/null 2>/dev/null |
+    awk -F'\t' -v since="$since" '$1 > since { print $2 "\t" $3 }' |
+    head -n "$scan" |
+    while IFS=$'\t' read -r sha line; do
+      keys="$(analysis_conf_keys_changed "$sha")"
+      [ -n "$keys" ] || continue
+      printf '%s\t%s\n' "$line" "$keys"
+    done
+}
+
+# One claim's reading. `<branch> <path> <stall minutes> <churn limit> <all>`.
+#
+# Every fact here is git's: the workstream file out of `git show`, the push age
+# out of the ref's own commit date, the churn out of the branch's log. Nothing
+# reads a session, because a session is the control plane's account and this
+# command runs where there is no control plane.
+#
+# Buffered, then printed, because the decision to print at all comes LAST: a
+# sweep prints the rows carrying a condition and counts the rest, and a
+# manager at work is not a row anybody needs read. `<all>`=1 (a branch was
+# named) prints it anyway. Returns 1 when it printed nothing.
+analysis_one() {
+  local branch="$1" path="$2" stall="$3" churnl="$4" all="$5"
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}"
+  local doc status next age agetext churn churn_n churn_f out="" first=1
+  local cond="" restated restated_text moves moves_n key bval mval
+  local bpairs mpairs delta line
+
+  doc="$(git -C "$ROOT" show "refs/remotes/origin/${branch}:${path}" \
+    </dev/null 2>/dev/null)" || doc=""
+  out="branch    : ${branch}"$'\n'"claim     : ${path}"$'\n'
+  if [ -z "$doc" ]; then
+    # Always printed, whatever `all` says: the claim came out of the diff and
+    # the ref does not carry it, which is a defect in the reading and not a
+    # manager at work.
+    printf '%s' "$out"
+    printf 'verdict   : NOT ANALYSABLE — no workstream file at origin/%s:%s.\n' \
+      "$branch" "$path"
+    printf '            Fetch, then read again.\n\n'
+    return 0
+  fi
+
+  # The same vocabulary check dispatch makes on the same field, for the same
+  # reason: a workstream file on another branch is repo-controlled input, and a
+  # status outside the graph's list is not a status (joharness.sh:lint_nodes).
+  { read -r status; read -r next; } \
+    <<<"$(printf '%s\n' "$doc" | gr_fields status next)"
+  case "$status" in
+    in-progress | blocked | review | done | '') ;;
+    *) status="unreadable" ;;
+  esac
+  age="$(dispatch_age_min "$branch")"
+  agetext="$(dispatch_age_text "$age")"
+  churn_n=0
+  churn="$(churn_top "refs/remotes/origin/${branch}" 2>/dev/null)" || churn=""
+  churn_f="${churn#*	}"; churn_n="${churn%%	*}"
+  case "$churn_n" in '' | *[!0-9]*) churn_n=0 ;; esac
+
+  out="${out}status    : ${status:-?}, pushed ${agetext}"$'\n'
+  [ -z "$next" ] || out="${out}next      : ${next}"$'\n'
+
+  # The three marks dispatch already computes, and no fourth threshold: a knob
+  # nobody has counted is a written number (.agents/harness/AGENTS.md, step 5).
+  if [ "$status" = "blocked" ]; then
+    cond="BLOCKED"
+    out="${out}condition : BLOCKED — a human's. dispatch relays this row every pass and"$'\n'
+    out="${out}            never asks whether its cause still holds"$'\n'
+  fi
+  if [ "$status" != "blocked" ] && [ -n "$age" ] && [ "$age" -ge "$stall" ]; then
+    cond="${cond:+${cond}+}STALL?"
+    out="${out}condition : STALL? — no push for ${agetext} (>= ${stall}m)"$'\n'
+  fi
+  if [ "$status" != "blocked" ] && [ "$churnl" -gt 0 ] && [ "$churn_n" -ge "$churnl" ]; then
+    cond="${cond:+${cond}+}LOOP?"
+    out="${out}condition : LOOP? — ${churn_f} rewritten ${churn_n} times (>= ${churnl})"$'\n'
+  fi
+
+  if [ -z "$cond" ] && [ "$all" != 1 ]; then
+    return 1
+  fi
+
+  # The anchor, and it is NOT the age of the block: the question here is
+  # whether config moved since this branch last STATED its cause, and the
+  # commit that last changed the file is exactly that moment. Reading it this
+  # way needs no `git log -S`, which matches the park, the unpark AND the
+  # retire that deletes the file — neither end of that list is an age
+  # (docs/plans/unowned-block-age.md owns the age itself).
+  restated="$(git -C "$ROOT" log -1 --format=%ct "refs/remotes/origin/${branch}" \
+    -- "$path" </dev/null 2>/dev/null)"
+  restated_text="$(git -C "$ROOT" log -1 --format=%ci "refs/remotes/origin/${branch}" \
+    -- "$path" </dev/null 2>/dev/null)"
+  [ -z "$restated_text" ] ||
+    out="${out}restated  : ${restated_text} — the commit that last changed this file"$'\n'
+
+  if [ -z "$cond" ]; then
+    printf '%s' "$out"
+    printf 'verdict   : NO CONDITION — not blocked, not stalled, not looping. This row\n'
+    printf '            is a manager at work, and there is nothing to explain. A\n'
+    printf '            condition that cleared between the pass and this read looks\n'
+    printf '            exactly like this.\n\n'
+    return 0
+  fi
+
+  bpairs="$(analysis_conf_pairs "refs/remotes/origin/${branch}")"
+  mpairs="$(analysis_conf_pairs "refs/remotes/origin/${base_branch}")"
+  if [ -z "$bpairs" ] && [ -z "$mpairs" ]; then
+    # Read zero bytes of conf and said the cause stands is #266 one layer up
+    # (verifier, r1): the analyst reads a verdict, concludes the block is
+    # live, and files nothing.
+    printf '%s' "$out"
+    printf 'verdict   : NOT ANALYSABLE — neither origin/%s nor origin/%s carries a\n' \
+      "$branch" "$base_branch"
+    printf '            readable joharness.conf, so the stated cause has nothing to be\n'
+    printf '            compared against.\n\n'
+    return 0
+  fi
+
+  # The repo's CURRENT answers, in full, for every row carrying a condition —
+  # not only the ones that differ.
+  #
+  # This is the line #266 needed and neither mechanical signal below would
+  # have produced. There, `JOHARNESS_CHECKS=local` landed on the base branch
+  # 8h47m BEFORE the session was created, and the branch carried the line: no
+  # key differed, and nothing changed after the claim was restated. The
+  # condition was lifted before it was ever written down. What was missing was
+  # the repo's answer sitting beside the manager's prose where a reader weighs
+  # the two, so it is printed whether or not anything moved.
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    if [ "$first" = 1 ]; then out="${out}conf now  : ${line}"$'\n'; first=0
+    else out="${out}            ${line}"$'\n'; fi
+  done <<<"$(printf '%s\n' "$mpairs" |
+    awk -F'\t' -v w=62 '
+      NF == 2 { p = $1 "=" $2
+                if (line != "" && length(line) + length(p) + 1 > w) { print line; line = "" }
+                line = (line == "" ? p : line " " p) }
+      END { if (line != "") print line }')"
+  [ "$first" = 0 ] ||
+    out="${out}conf now  : origin/${base_branch} carries no JOHARNESS_ assignment"$'\n'
+
+  delta="$(analysis_conf_diff "$bpairs" "$mpairs")"
+  while IFS=$'\t' read -r key bval mval; do
+    [ -n "$key" ] || continue
+    out="${out}conf diff : ${key} — this branch ${bval}, origin/${base_branch} ${mval}"$'\n'
+  done <<<"$delta"
+
+  moves=""; moves_n=0
+  if [ -n "$restated" ]; then
+    moves="$(analysis_conf_moves "refs/remotes/origin/${base_branch}" "$restated")"
+    moves_n="$(printf '%s' "$moves" | grep -c . || true)"
+  fi
+  case "$moves_n" in '' | *[!0-9]*) moves_n=0 ;; esac
+  if [ "$moves_n" -gt 0 ]; then
+    # Newest three and a count, never the whole list. A branch parked for
+    # weeks buries the keys above it otherwise — 16 lines for one row on this
+    # repo, 2026-09-17.
+    while IFS=$'\t' read -r line key; do
+      [ -n "$line" ] || continue
+      out="${out}conf moved: ${line} — ${key}"$'\n'
+    done <<<"$(printf '%s\n' "$moves" | head -3)"
+    [ "$moves_n" -le 3 ] ||
+      out="${out}conf moved: (+$((moves_n - 3)) older key change(s) since — git log origin/${base_branch} -- joharness.conf)"$'\n'
+  fi
+
+  printf '%s' "$out"
+  # MAY BE, never LIFTED. The command knows a key moved; it cannot know the
+  # key answers the prose in next:. Asserting that mapping would be #266's
+  # defect inverted — a fact stated louder than what it measures. The analyst
+  # reads both and closes the gap (.claude/commands/analyst.md).
+  if [ -n "$delta" ] || [ "$moves_n" -gt 0 ]; then
+    printf 'verdict   : CAUSE MAY BE LIFTED — a key differs, or changed after this claim\n'
+    printf '            was restated. Read the keys above against the next: line; one\n'
+    printf '            that answers it means this %s waits on a decision the repo\n' "$cond"
+    printf '            already made.\n\n'
+  else
+    printf 'verdict   : NO CONFIG MOVEMENT — no key differs from origin/%s, and none\n' \
+      "$base_branch"
+    printf '            changed after this claim was restated. NOT the same as "the\n'
+    printf '            cause is live": #266 named a condition the conf had answered\n'
+    printf '            BEFORE the claim was written, so nothing moved and the cause\n'
+    printf '            was already gone. Read next: against conf now.\n\n'
+  fi
+  return 0
+}
+
+cmd_analysis() {
+  local want="${1:-}" stem="${2:-}" mode on=0 base_branch canon repo stall churnl
+  local branch path claims n_rows=0 n_quiet=0
+
+  [ "$#" -le 2 ] || die "usage: $0 analysis [<branch> [<claim stem>]]"
+
+  # Resolved ONCE. analysis_on warns by name on an unrecognised value, and two
+  # calls warn twice — the second landing between the verdict and the tail
+  # line, where it reads as a second fault (verifier, r8).
+  analysis_on && on=1
+  mode=off; [ "$on" = 0 ] || mode=on
+  printf '== analysis (JOHARNESS_IDLE_ANALYSIS: %s)\n\n' "$mode"
+
+  # Canonical stops here, same rule as `upstream` one screen up: this repo
+  # runs no fleet to explain, and a condition measured here is already in the
+  # repo that owns the fix.
+  if grep -q '^JOHARNESS_CANONICAL=1' "$CONF" 2>/dev/null; then
+    printf 'CANONICAL — this repo IS the harness. A condition measured here is already\n'
+    printf 'where its fix lands (.agents/docs/consumer-repos.md, Direction rule):\n'
+    printf 'record it under ## Review and fix it on the branch. Nothing to route.\n'
+    return 0
+  fi
+
+  base_branch="${HANDOVER_BASE_BRANCH:-main}"
+  stall="$(num_knob JOHARNESS_STALL_MINUTES 45)"
+  churnl="$(num_knob JOHARNESS_CHURN_LIMIT "$(( $(num_knob JOHARNESS_CHURN_THRESHOLD 5) * 2 ))")"
+
+  # A stale clone reads a manager that pushed as stalled, and this command is
+  # run by a session spawned into a fresh container minutes after the pass
+  # that named the branch. ANALYSIS_FETCH=0 for a fixture whose refs are
+  # already local, the same opt-out dispatch carries.
+  if [ "${ANALYSIS_FETCH:-1}" != 0 ]; then
+    git -C "$ROOT" fetch -q --prune origin 2>/dev/null ||
+      warn "fetch failed; push ages below are from the last fetch"
+  fi
+
+  if canon="$(upstream_canonical_repo)"; then
+    repo="$canon"
+    printf 'canonical : %s (CANONICAL_REPO in .github/workflows/update.yml)\n' "$repo"
+  else
+    printf 'canonical : UNKNOWN — no CANONICAL_REPO in .github/workflows/update.yml.\n'
+    printf '            An issue has nowhere to go until that file names one\n'
+    printf '            (.agents/docs/consumer-repos.md).\n'
+  fi
+  printf 'marks     : BLOCKED from the claim'"'"'s own status; STALL? at %sm without a push\n' "$stall"
+  printf '            (JOHARNESS_STALL_MINUTES); LOOP? at %s rewrites of one file\n' "$churnl"
+  printf '            (JOHARNESS_CHURN_LIMIT). No threshold of its own.\n\n'
+
+  claims="$(analysis_claims)"
+  while IFS=$'\t' read -r branch path; do
+    [ -n "$branch" ] || continue
+    [ -z "$want" ] || [ "$branch" = "$want" ] || [ "$branch" = "${want#origin/}" ] || continue
+    # The CLAIM, not the branch: one branch can carry two workstream files,
+    # and an analyst spawned against the branch alone is handed both and
+    # cannot say which it was sent for (verifier, r6).
+    [ -z "$stem" ] || [ "$(basename "$path" .md)" = "$stem" ] || continue
+    n_rows=$((n_rows + 1))
+    # A named branch prints whatever it is; a sweep prints the rows carrying a
+    # condition and counts the rest. An analyst is spawned against one claim
+    # and a human reading a fleet wants the parked ones, not the working ones.
+    analysis_one "$branch" "$path" "$stall" "$churnl" \
+      "$([ -n "$want" ] && printf 1 || printf 0)" || n_quiet=$((n_quiet + 1))
+  done <<<"$claims"
+
+  [ "$n_quiet" -eq 0 ] ||
+    printf '%s other claim(s) carry no condition: managers at work, nothing to explain.\n\n' \
+      "$n_quiet"
+
+  if [ "$n_rows" -eq 0 ]; then
+    if [ -n "$want" ]; then
+      printf 'NOT ANALYSABLE — origin/%s owns no workstream file%s. Unmerged branches\n' \
+        "$want" "$([ -z "$stem" ] || printf " named %s" "$stem")"
+      printf 'that own one are what this command reads; a branch past its retire commit\n'
+      printf 'owns none, and its record is recoverable with ./joharness.sh upstream %s.\n\n' "$want"
+    else
+      printf 'NOTHING IN FLIGHT — no unmerged branch owns a workstream file.\n\n'
+    fi
+  fi
+
+  if [ "$on" = 1 ]; then
+    printf 'JOHARNESS_IDLE_ANALYSIS=on: the orchestrator spawns /analyst <branch> <claim>\n'
+    printf 'for a row above carrying a condition — ONE per condition per item per run,\n'
+    printf 'the ledger is what makes it once, one session beyond the manager cap. It\n'
+    printf 'gates what it finds and files at most ONE issue on %s.\n' "${repo:-the canonical}"
+  else
+    printf 'JOHARNESS_IDLE_ANALYSIS is off: nothing files this. Read it, or set the key\n'
+    printf 'to on in %s.\n' "$(basename "$CONF")"
+  fi
+  return 0
+}
+
 # Workstream paths an unmerged origin branch is WRITING: paths it changed since
 # it left the base branch, not paths its tree happens to hold. Work in flight —
 # its own step 7 has not come due, and removing its file from the base branch
@@ -7074,6 +7497,7 @@ cmd_dispatch() {
   local mode cap stall health respawn churnt churnl hout qout rows wavemap edge req sup
   local path label branch ws doc status session next age agetext flag tier
   local base commits churn churn_n churn_f marks rounds work
+  local analysis cond
   local st wave note hold holdmap hold_live hline hb hs holds_n blocked_claims=""
   local ebranch eitem efirst estem espaces emore epath eage eagetext
   local edge_rows="" edge_items="" edge_unver=""
@@ -7101,6 +7525,10 @@ cmd_dispatch() {
   # and in ci, because both go through num_knob.
   churnt="$(num_knob JOHARNESS_CHURN_THRESHOLD 5)"
   churnl="$(num_knob JOHARNESS_CHURN_LIMIT $((churnt * 2)))"
+  # Resolved ONCE, before any row: analysis_on warns by name on an
+  # unrecognised value, and a resolver called per row warns per row — the
+  # same conf typo printed nine times in one pass.
+  analysis=0; analysis_on && analysis=1
 
   printf '== dispatch (mode: %s)\n\n' "$mode"
   if [ "$mode" != "orchestrated" ]; then
@@ -7156,6 +7584,23 @@ cmd_dispatch() {
   else
     printf 'upstream  : off — a merged manager is done; nothing is reported to the\n'
     printf '            canonical (JOHARNESS_UPSTREAM_FEEDBACK)\n'
+  fi
+  # The second switch, printed both ways for the reason the first one is: off
+  # is the state a reader most needs told, because an orchestrator that cannot
+  # see the switch cannot report why it explained nothing. Never a count —
+  # which rows carry a condition is the in-flight block's answer, below, and
+  # dispatch keeps no memory across passes to know which were already
+  # analysed. The ledger does (.claude/commands/orchestrate.md, step 4).
+  if [ "$analysis" = 1 ]; then
+    printf 'analysis  : ON — a row marked BLOCKED, STALL? or LOOP? below gets ONE\n'
+    printf '            analyst: /analyst <branch>. It says WHY, re-reads the cause\n'
+    printf '            against this repo'"'"'s conf, and files at most one issue on the\n'
+    printf '            canonical. Costs one session beyond the cap, once per\n'
+    printf '            condition per item per run — the ledger is what makes it once\n'
+    printf '            (JOHARNESS_IDLE_ANALYSIS)\n'
+  else
+    printf 'analysis  : off — a parked manager is reprinted, never explained. Read it\n'
+    printf '            with ./joharness.sh analysis <branch> (JOHARNESS_IDLE_ANALYSIS)\n'
   fi
   # The curate cycle's standing state. Both halves from git (never a ledger:
   # the orchestrator's dies with its run), and `0` is the human's off switch.
@@ -7373,7 +7818,7 @@ cmd_dispatch() {
       [ "$churn_n" -lt "$churnt" ] || work="${work} (>= ${churnt}: past ci's warning, watch next:)"
       work="${work}, ${rounds:-0} finding(s) recorded"
     fi
-    flag=""
+    flag=""; cond=""
     n_inflight=$((n_inflight + 1))
     if [ "$status" = "blocked" ]; then
       # Handed off to a human. Holds no slot: its session exited on purpose,
@@ -7387,17 +7832,31 @@ cmd_dispatch() {
       # one field over.
       blocked_claims="${blocked_claims} $(basename "$path" .md)@${branch} "
       flag="  BLOCKED: the human's, holds no slot"
+      cond="BLOCKED"
     elif [ -z "$age" ]; then
       flag="  push age unknown: ref not here — fetch, then cross-check"
     elif [ "$age" -ge "$stall" ]; then
       n_stall=$((n_stall + 1))
       flag="  STALL? no push for ${agetext} (>= ${stall}m): cross-check the control plane"
+      cond="STALL?"
     fi
     # Independent of the stall mark: a loop that went quiet is still a
     # loop, and the successor needs the record either way.
     if [ "$status" != "blocked" ] && [ "$churnl" -gt 0 ] && [ "$churn_n" -ge "$churnl" ]; then
       n_loop=$((n_loop + 1))
       flag="${flag}  LOOP? ${churn_f} rewritten ${churn_n} times (>= ${churnl}): record its progress, respawn with the churn rule"
+      cond="${cond:+${cond}+}LOOP?"
+    fi
+    # Where the switch is on, the row names its own explainer. Beside the
+    # nudge, the kill or the report — never instead of one: an analyst
+    # explains a condition, it never ends one, and a blocked row stays the
+    # human's and stays never-respawned.
+    if [ "$analysis" = 1 ] && [ -n "$cond" ]; then
+      # The CLAIM, not the branch: one branch can carry two workstream files,
+      # and two rows marked with the same branch spawn two analysts on one
+      # prompt that cannot tell them apart (verifier, r6). Same keying as
+      # `blocked_claims` above, and the ledger key is the stem.
+      flag="${flag}  ANALYSE? /analyst ${branch} $(basename "${ws:-$path}" .md) (${cond}), once per condition per run"
     fi
     # The cost a branch's claims impose, on the branch's own row. dispatch
     # printed it only under the HELD plans, so a broad claim read as free to
@@ -8366,6 +8825,7 @@ main() {
     review)         cmd_review ;;
     feedback)       cmd_feedback "$@" ;;
     upstream)       cmd_upstream "$@" ;;
+    analysis)       cmd_analysis "$@" ;;
     cleanup)        cmd_cleanup "$@" ;;
     curate)         cmd_curate ;;
     finish)         cmd_finish ;;
