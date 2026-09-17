@@ -460,6 +460,13 @@ ref_merged() {
 # in-flight listing that led with blocked work would contradict its own queue.
 rank_of() {
   case "$1" in
+    # RELEASED, and below even a blocked entry: the janitor writes this word
+    # only after proving that session gone, so nothing here is anybody's next
+    # move. Without a case of its own it fell to `*` and ranked 3 — or 2 with a
+    # `pr:` — so a released claim could LEAD this listing and print
+    # "FINISH BEFORE STARTING ... drive it green and merge", advertising work
+    # whose owner is gone as the next session's job (verifier).
+    abandoned ) printf 5 ;;
     blocked )   printf 4 ;;
     "done" )    printf 0 ;;
     review )    printf 1 ;;
@@ -590,7 +597,11 @@ while IFS= read -r ref; do
     # Carries the FILE, not just the branch. One workstream file inherited
     # across branches is one claim; naming only branches fanned it into five
     # and sent a reader to /who the wrong sessions.
-    [ -z "$issue" ] ||
+    # A RELEASED claim holds no issue either. Loop step 2 ranks open issues
+    # ABOVE plans, so releasing the plan and keeping the issue frees the
+    # cheaper half and holds the dearer one for ever — issue #254's own failure
+    # one field over (verifier).
+    { [ -z "$issue" ] || [ "$status" = abandoned ]; } ||
       claimed_issues="${claimed_issues}  #${issue} — ${short} (${f})"$'\n'
 
     # Findings recorded in the file's ## Review section. Only the count, and

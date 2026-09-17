@@ -217,7 +217,7 @@ claims="$(
           # normalises anything outside this list to `unreadable`; the hook
           # was the forgeable half of the same fact.
           case "$pstatus" in
-            in-progress | blocked | review | done) ;;
+            in-progress | blocked | review | done | abandoned) ;;
             *) pstatus="unreadable" ;;
           esac
           printf '%s\t%s\t%s\n' "$p" "$short" "$pstatus"
@@ -477,7 +477,15 @@ rows_raw="$(
       done
     fi
 
-    claimed_on="$(awk -F'\t' -v s="$(stem "$f")" '$1 == s { print $2; exit }' <<<"$claims")"
+    # `abandoned` skipped, and that is the word's whole effect: the janitor
+    # writes it only after proving the session that made the claim is gone
+    # (.claude/commands/janitor.md), so the plan is free again — not claimed,
+    # holding nothing, splitting no wave. The RECORD stays: the row is still
+    # in `claims` for every reader that asks who is on which branch, and the
+    # file stays on its branch, because a returning session sets the word back
+    # and the file is what the protocol rests on.
+    claimed_on="$(awk -F'\t' -v s="$(stem "$f")" \
+      '$1 == s && $3 != "abandoned" { print $2; exit }' <<<"$claims")"
 
     # The boundary, applied to this plan — and ONLY under unsupervised. A
     # human-directed session may legitimately work a protocol-text plan, so
@@ -571,7 +579,8 @@ rrows_raw="$(
     # field covers both directories); without this the question kept listing
     # as free and a second session was told to settle it — #119's duplicate
     # claim, rebuilt for the new node type.
-    rclaimed="$(awk -F'\t' -v s="$(stem "$f")" '$1 == s { print $2; exit }' <<<"$claims")"
+    rclaimed="$(awk -F'\t' -v s="$(stem "$f")" \
+      '$1 == s && $3 != "abandoned" { print $2; exit }' <<<"$claims")"
     rank=1
     [ "$urgency" = "urgent" ] && rank=0
     [ -z "$rclaimed" ] || rank=$((rank + 2))

@@ -57,6 +57,8 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    the file. Boundary holds in both:
    no commit to protocol text (`./joharness.sh protocol-paths`,
    [`.agents/docs/unsupervised.md`](../../.agents/docs/unsupervised.md)).
+   Claims outlived their sessions? `drain` says `janitor : DUE` — same shape,
+   same rank: `/janitor` releases what it can prove gone and deletes nothing.
    Queue moved under its own declarations? `drain` says `curate : DUE` and
    why. That is the item, BEFORE the queue: the plans you would pick are
    describing themselves wrongly. `/curate`

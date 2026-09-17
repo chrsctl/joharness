@@ -147,6 +147,10 @@ UPSTREAM="$(conf_key_default JOHARNESS_UPSTREAM_FEEDBACK)"
 # Same decision again, one switch over: whether a parked manager is explained
 # is a question a repo has after its first stuck run, not at first contact.
 IDLE_ANALYSIS="$(conf_key_default JOHARNESS_IDLE_ANALYSIS)"
+# Not asked either, and this one is a NUMBER rather than a switch: 12 hours is
+# the requester's cadence and a repo with no fleet never notices it, because a
+# sweep with no dead claim releases nothing and costs one report.
+JANITOR_HOURS="$(conf_key_default JOHARNESS_JANITOR_HOURS)"
 # Same decision, same reason: whether step 7 waits for GitHub Actions or runs
 # the checks here is a question a repo answers once it has felt the wait, not
 # one a human has an opinion about before the first session.
@@ -805,6 +809,13 @@ JOHARNESS_UPSTREAM_FEEDBACK=${UPSTREAM}
 #       filing it as an issue on the canonical. Off by default: it costs money
 #       and it opens issues in a repository this one does not own.
 JOHARNESS_IDLE_ANALYSIS=${IDLE_ANALYSIS}
+
+# Hours between janitor sweeps; 0 = off. A claim whose session is gone holds
+# its plan out of the queue until something releases it, and nothing did
+# before this cycle: measured in a consumer, one unowned block held four plans
+# for 141 hours (issue #254). /janitor releases only what the control plane
+# proves gone, and never deletes a file or a branch.
+JOHARNESS_JANITOR_HOURS=${JANITOR_HOURS}
 EOF
   # Recorded BEFORE the seed, because seed() is the thing that makes the
   # difference invisible afterwards: it writes only when the file is absent.

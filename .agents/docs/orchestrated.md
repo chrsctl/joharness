@@ -39,6 +39,7 @@ the rows below.
 | `dispatch` verdict `OVERLAP-BOUND` | New, this mode only. Slots free but every free plan HELD behind work in flight, so nothing is spawnable and yet the work is not done — the holds are `scope:` declarations, not the plans themselves. A `rescope :` block names the holder key and the held paths, and the verdict spawns ONE surveyor to correct the declarations. The state run 1 mislabelled DRAINED. |
 | `./joharness.sh drain` | Same verdict; tells a manager it works the item its prompt named, and names the orchestrator's exit as dispatch's verdict. |
 | `./joharness.sh upstream` | New, and NOT orchestrated-only: reports what a merged edge found about the harness in any consumer, at any time. What this mode adds is a role that acts on it. |
+| `./joharness.sh janitor` + the `janitor :` line | New, and NOT orchestrated-only: `drain` reads the same cadence from the same reader, so a human's `/start` reaches the sweep too (each renders it for its own reader, as the curate line does). A claim whose session is gone holds its plan out of the queue for ever; the janitor releases it by writing `status: abandoned` into that claim's own file, never by deleting anything. Clock-driven (`JOHARNESS_JANITOR_HOURS`, 12 by default), dated from git like the curate cycle, ORTHOGONAL to the verdict so it rides the tail. |
 | `./joharness.sh analysis` | New, and NOT orchestrated-only: one unmerged branch's claim — the BLOCKED / STALL? / LOOP? mark it carries, the base branch's current conf answers beside the cause it stated, and what has changed since. No argument sweeps every claim, printing the ones carrying a condition and counting the rest. It reads claims from the handover diff, so it also reads a claim whose plan file is gone — one `dispatch` cannot mark. Reports only. |
 | `JOHARNESS_UPSTREAM_FEEDBACK` | New, `off` by default. On, the health pass's `done` row spawns ONE reporter per merged edge, which files the findings as a report pull request on the canonical ([`feedback.md`](feedback.md), When the consumer is the detector). A reporter holds no manager slot and is one session beyond the cap. |
 | `JOHARNESS_IDLE_ANALYSIS` | New, `off` by default. On, a row `dispatch` marks `ANALYSE?` — blocked, stalled or looping — spawns ONE analyst, which says why, re-reads the stated cause against this repo's own conf, and files what survives its gate as an issue on the canonical. BESIDE that row's verdict, never instead of it. An analyst holds no manager slot and is one session beyond the cap. Issue #266 is the run that bought it. |
@@ -52,6 +53,7 @@ the rows below.
 | manager | the item's `agent:` — plan or research; opus at xhigh for an unplanned requirement, decomposition being the judgement every build rests on | a session with its own branch, claim and merge | worker subagents (`Agent`) | one item, until its file retires | its pull request merges, or it blocks on a human |
 | worker | at or below the plan's tier, lower by default | a subagent in the manager's container | nothing | the files its sub-task names | it returns |
 | reporter | low; the judgement is its command file's gate, not its tier | a session, spawned after a manager MERGES — only where `JOHARNESS_UPSTREAM_FEEDBACK=on` | nothing | one merged edge's harness findings | it files one report on the canonical, or none, and exits |
+| janitor | sonnet; the judgement is whether a session is gone, not what any item is for | a session, spawned on the `janitor DUE` tail line | nothing | the claims, for ONE sweep | its pull request merges |
 | analyst | low; the judgement is its command file's gate, not its tier | a session, spawned from a health pass on a row marked `ANALYSE?` — only where `JOHARNESS_IDLE_ANALYSIS=on` | nothing | one condition on one branch, explained and never ended | it files one issue on the canonical, or none, and exits |
 | curator | sonnet; the judgement is which declaration is wrong, not what any plan is for | a session, spawned on the `curate DUE` tail line | nothing | the plan queue's declarations for ONE pass | its pull request merges, or `NOTHING TO CURATE` and it exits without a branch |
 | surveyor | sonnet; the judgement is which `scope:` path is a shared registry, not the plan's own tier | a session, spawned on the `OVERLAP-BOUND` verdict | nothing (it edits declarations, not code) | the held plans' and holders' `scope:` lines for one holder key | its pull request merges, or `done` with nothing to change |
@@ -71,6 +73,7 @@ handover hook, which skips the walk over every remote ref — and no queue.
 | manager | its item, its own workstream file, the item's anchors, `feedback` on the files it touches, the environment rules if it touches the environment | the queue, other plans, other branches, this doc |
 | surveyor | the `rescope :` block in its prompt, and the `## Scope` of each plan it renames | the queue, product code, this doc |
 | curator | `./joharness.sh curate` and the plans it names | a held plan, the queue order, product code, this doc |
+| janitor | `./joharness.sh janitor`, the control plane per candidate, and the workstream files it names | a plan, the queue order, product code, another branch's code, this doc |
 | analyst | `./joharness.sh analysis <branch>`, that branch's workstream file, the conf delta the command prints | the queue, a plan, product code, another branch, this doc |
 | worker | its sub-task prompt and the files it names | everything else |
 
@@ -334,7 +337,64 @@ this mode should move. If it does not, the hold rule bought nothing.
 | `JOHARNESS_CURATE_REGISTRY` | 3 | plans declaring one path before `curate` calls it a registry to mark `shared:` rather than a collision to order | no data; a written number until a run counts one |
 | `JOHARNESS_CURATE_SPLIT` | 8 | `## Scope` bullets before `curate` names a plan a decompose candidate — PROPOSED, never done | no data; a written number until a run counts one |
 | `JOHARNESS_UPSTREAM_FEEDBACK` | `off` | on = one reporter session per merged edge, beyond the cap, filing harness findings on the canonical — money, and pull requests in a repo this one does not own | not a number to calibrate: a switch, off until a human turns it on. Unlike the six above it IS declared in `.agents/scripts/conf-keys.sh`, so every consumer's sync names the key its conf does not answer |
+| `JOHARNESS_JANITOR_HOURS` | 12 | hours between sweeps of the claims; 0 switches the cycle off | the requester's number. A clock alone is wrong for the curate cycle because plan churn is bursty; here the subject IS elapsed time, so there is nothing to trigger on but the clock. A sweep that releases nothing costs one session and lands one empty pull request, which is what dates the next one |
 | `JOHARNESS_IDLE_ANALYSIS` | `off` | on = one analyst session per condition per item per run, beyond the cap, saying why a manager is parked and filing it as an issue on the canonical — money, and issues in a repo this one does not own | a switch, off until a human turns it on, declared in `.agents/scripts/conf-keys.sh` beside the row above. It calibrates NOTHING of its own: the marks it fires on are drawn by `JOHARNESS_STALL_MINUTES` and `JOHARNESS_CHURN_LIMIT`, and a fourth written number would buy nothing |
+
+**None of these is an `updated_at` threshold, and the measurement says one
+cannot be written.** `STALL_MINUTES` keys on PUSH age, from git, which is why
+it calibrates against commit gaps. The session record's `updated_at` cannot
+carry a threshold at all, and the reason is one row rather than a
+distribution.
+
+Three `list_sessions` calls over 8m56s (2026-09-17 16:43:50.037Z,
+16:49:54.510Z, 16:52:46.783Z — epoch-millisecond stamps from the tool-result
+filenames; 30 rows per page, all three pages saved, 30 of 30 present in all
+three). Four rows read `RUNNING` / `WORKING` at every read. Three had their
+field written within 27.2s of any read (21.724 / 14.287 / 8.489, 22.696 /
+15.324 / 19.637, 27.183 / 14.695 / 11.360 seconds behind each call). The
+fourth was 258.496s, 263.031s and 435.304s behind. Its field advanced
+359.937s between the first two reads while it did real work — `cost_usd`
++0.524106, `output_tokens` +4494 — and then, across the 172.273s to the third
+read, **not one field of that row changed**: not the timestamp, not any usage
+counter, not `task_summary`, not `post_turn_summary`, not `status_bucket`.
+Every leaf key byte-identical.
+
+That row is the whole argument. From outside, it reads the same whether the
+writer is on a cadence of minutes or the session stopped working at
+16:45:31.478514Z — and `session_status: RUNNING` is the only field asserting
+the first, which is the field whose trustworthiness is in question. A
+threshold tuned to the fast three kills it if it was merely slow; one tuned
+to it sees nothing the push age does not see sooner; and no threshold at any
+value tells the two apart, because the evidence is identical either way.
+
+Two more results from the same reading, both of which a knob would encode
+wrongly. The field is written by NEITHER a read nor the connection — two
+`IDLE` rows returned ONE distinct value each across all three reads,
+identical to the microsecond, already 22m16.9s and 45m57.5s stale at the
+first, with no `get_session` on either; and one of them flipped `connected`
+to `disconnected` mid-window with the field byte-identical across the flip,
+which was the only field of any kind that changed on that row. And on an
+`IDLE` row the field is simply the age of the last activity, reaching
+54m54.3s here on a manager whose own record named a merged pull request. So
+staleness on an idle manager measures nothing about it.
+
+The consequence is a reading rule rather than a number, and it lives where
+the reading happens — `.claude/commands/orchestrate.md`, step 2's evidence
+table and the "LOOP, and dead" worked example: `updated_at` decides nothing
+alone at any interval, and what turns a suspicion into a verdict is
+`status_bucket` and the head from git. Written here as well as there because
+the next session to want a fifth knob will look at this table first.
+
+Graduated from `docs/research/liveness-in-a-long-turn.md`, which closed on
+this. Two things that file records and this paragraph cannot: the reviewer
+this repo spawns has no control-plane call, so these numbers are
+re-computable from the saved pages and re-samplable by a reader with the
+fleet, and confirmed as REAL by neither (issue #267) — and an earlier draft
+of this very paragraph read the ambiguous row as a slow writer, built a
+cadence spread on it, and graduated a sentence licensing a kill verdict on a
+13-minute frozen pair. The reviewer found the frozen usage counters and that
+reading did not survive them. Read the node in history before adding a knob
+here: `git log --diff-filter=D -p -- docs/research/liveness-in-a-long-turn.md`.
 
 Read by `dispatch`: the environment for one command, `joharness.conf` for
 the repo, else the default. Digits only; a word reads as the default. The
@@ -387,6 +447,12 @@ its own: it merges nothing, edits nothing but a killed manager's
 workstream file, picks no tier, and takes no item itself.
 `JOHARNESS_UPSTREAM_FEEDBACK` does not loosen one of them — a reporter is a
 SPAWN, like a manager, and the orchestrator authors no report.
+The janitor is the one role that writes to a branch it does not own, and the
+bound is the proof: it releases a claim only where the control plane says the
+session is ARCHIVED, absent, or failed and confirmed — never on push age —
+and it writes one word plus a note, deleting nothing. The orchestrator
+spawns it and authors none of that.
+
 `JOHARNESS_IDLE_ANALYSIS` loosens none of them either: an analyst is a spawn,
 it merges nothing, ends no condition, writes no file in this repo, and the
 orchestrator authors no issue.

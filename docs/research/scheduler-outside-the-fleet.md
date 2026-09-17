@@ -112,8 +112,16 @@ Issue #249's first cut merged (PR #253) narrowed to two items that do not
 depend on this: the caution that a workstream file's `session:` line names a
 writer rather than a worker, and the worked reading of a dead manager
 wearing the LOOP row's shape. The rules half of that issue is carried by
-`docs/research/liveness-in-a-long-turn.md`, which is a different question —
-what the health pass may KEY ON — and is not blocked by this one.
+`docs/research/liveness-in-a-long-turn.md`, which was a different question —
+what the health pass may KEY ON — and was not blocked by this one. That one
+has since CLOSED: its answer is the `status_detail`, `updated_at` row of
+step 2's evidence table in `.claude/commands/orchestrate.md`, and the why is
+under the knob table in `.agents/docs/orchestrated.md`. What it settles for
+this node is narrow and worth knowing before designing a monitor: the
+session record's `updated_at` cannot carry a staleness threshold at all,
+because a frozen reading on a RUNNING row is ambiguous between a slow writer
+and a session that has stopped — measured on a row whose every field, usage
+counters included, was byte-identical across 172.273s.
 
 No plan is blocked on this node today, deliberately. A plan for the
 scheduler cannot be written before the mechanism is chosen, and one written
