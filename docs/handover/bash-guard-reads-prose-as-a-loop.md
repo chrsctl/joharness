@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01K6sHM4RWyYDCLZmrDSrWk3
 agent: opus
 updated: 2026-09-17
-next: Review the diff, then retire the node and the workstream file and open the pull request
+next: Retire the workstream file and open the pull request; the node stays OPEN and the guard is unchanged
 ---
 
 ## Goal
@@ -74,6 +74,43 @@ what the node leaves open is which half is wrong, the rule or the message.
   clause pinned by nothing, which is the shape a reviewer has to go looking
   for. (fixed — a case for the no-`do` shape, and re-mutating both halves
   separately now reds 1 and 2 cases, disjointly.)
+- r6: (verifier) **the narrowing is a REGRESSION and must not merge.** `for`
+  is in the new `open_re` and not in `start_re`, so the word `for` inside a
+  loop's own condition sits before its `do`, the keyword is skipped, and the
+  walk never restarts — `for` is not a `start_re` match. Three real unbounded
+  loops that `origin/main` DENIES are allowed on this branch. Re-measured
+  here with my own payloads, exit codes on branch then main:
+  `until docker compose logs db 2>&1 | grep -q "ready for connections"; do
+  sleep 5; done` 0 / 2; `until grep -q "ready for merge" /tmp/out; do sleep
+  20; done` 0 / 2; and incident command 1 with two words added to its
+  pattern, 0 / 2. "ready for connections" is a real readiness line and this
+  repo selects the docker layer. A `while`/`until` in the same position
+  self-heals because the walk restarts at it — measured, 2 / 2 — so `for` is
+  the whole hole. (fixed by REVERTING: the guard and its topic are back at
+  `origin/main`. I went looking for the false-negative direction in r5 and
+  tested a nested `for` LOOP, never the word `for` in a string ahead of the
+  `do` — the cheaper and far likelier shape.)
+- r7: (verifier) **and the false positive is not fixed either.** The
+  ownership test passes whenever a bare `do` sits between the prose keyword
+  and the next opener, which ordinary English supplies: payload C plus three
+  words — `echo "wait while we do the suite"; timeout 900 bash -c 'until ...
+  done'` — is DENIED on the branch and on main, 2 / 2. So is the
+  commit-and-push shape with "while we do the migration" in the message. The
+  three shapes in the selftest pass only because none of them happens to
+  contain a lowercase `do`. (fixed by the same revert — the narrowing bought
+  nothing and cost F1.)
+- r8: (verifier) r1's disposition was half wrong. RULE-not-MESSAGE stands,
+  and "the message needs no change" does not: the message still prints
+  `Nothing in it can stop it: no timeout, no iteration counter` about a
+  command carrying `timeout 900`, two lines above prescribing that same
+  spelling. (fixed in the node's record; the message is now named as owed
+  work rather than as unnecessary.)
+- r9: (verifier) two more clauses pinned by nothing, found with the tool
+  after I had used it twice and thought I was done: `walked="$prefix"` on the
+  skip path reds no case, and `open_re`'s word-boundary anchor reds no case
+  (its alternation does — 1 case — so the control holds). Both moot with the
+  revert, and recorded because the lesson is that "I mutated it" is not the
+  same as "I mutated all of it".
 - r5: (session) went looking for the false-negative direction rather than
   leaving the expensive half to the reviewer, and found one — the walk takes
   the FIRST `done`, so an unbounded loop with a nested `for` ahead of its

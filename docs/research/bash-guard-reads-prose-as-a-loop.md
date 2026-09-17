@@ -118,38 +118,104 @@ only against the consumer's:
   to right than the message: a reader who trusts the message looks for a
   loop that is not there and concludes the guard is innocent.
 
+- **The answer to the open question: the RULE, not only the message.** A
+  third shape settles it, and it is worse than the pair above because it is
+  the deny's own remedy being refused. Measured 2026-09-17 against this
+  copy: `echo "wait while the suite finishes"; timeout 900 bash -c 'until
+  grep -q PASS /tmp/out; do sleep 15; done'; cat /tmp/out`
+  → EXIT=2. That `timeout N bash -c '...'` is verbatim the FIRST spelling
+  the deny message prescribes. `timeout` is read from `prefix`, and the
+  prose keyword ends the prefix before it, so the bound the command carried
+  was invisible.
+
+- **And the message is wrong TOO, not instead.** It prints `Nothing in it
+  can stop it: no timeout, no iteration counter` about a command carrying
+  `timeout 900`, two lines above prescribing that same spelling. So this is
+  not a rule-or-message choice; both are owed.
+
+- **A narrowing was built, measured and REVERTED. It cannot be done this
+  way.** The attempt: a keyword heads a loop only if its own `do`
+  comes before any other opener (`for|while|until`), else advance past the
+  keyword and let the owning loop be judged on its own pass. It closed the
+  three shapes above and failed twice, both measured 2026-09-17 with exit
+  codes on the attempt then on the unchanged guard:
+
+  - **It opened a wider hole than it closed.** `for` has to be in the opener
+    list — a `for` owns its own `do` and `done` — and
+    `for` is deliberately NOT in `start_re`, because a `for` cannot run
+    unbounded. So the word `for` inside a loop's own condition skips the
+    keyword, and the walk never restarts: nothing is left for `start_re` to
+    match. `until docker compose logs db 2>&1 | grep -q "ready for
+    connections"; do sleep 5; done` → 0 / 2. So did
+    `until grep -q "ready for merge" /tmp/out; do sleep 20;
+    done` and incident command 1 with two words added to its
+    pattern. `"ready for connections"` is a real readiness line and this
+    repo selects the docker layer. A `while`/`until` in that position
+    self-heals, because the walk restarts at it — 2 / 2 — so `for` was the
+    whole hole.
+  - **It did not close the false positive.** The test passes whenever a bare
+    `do` sits between the prose keyword and the next opener, and
+    ordinary English supplies one: the third shape above plus three words,
+    `echo "wait while we do the suite"; timeout 900 bash -c
+    '...'` → 2 / 2. The shapes that DID pass passed only because none of
+    them happened to contain a lowercase `do`.
+
 ## Consequence for the queue
 
-`.agents/harness/pretool-bash-guard.sh` changes, or its message does, and
-`.agents/harness/selftest/pretool-bash-guard.sh` gains a case either way —
-one where the keyword and the `done` belong to different constructs. Nothing
-else in the harness is implicated and no plan here is waiting on it.
+**This is one defect, not two, and it is not a clause.** Pairing a keyword
+with a `done` positionally fails from both ends: which keyword owns
+this `done` (this file) and which `done` closes this
+keyword (#271, where an unbounded loop with a nested `for` ahead of its
+sleep slips through — 0 / 0, so that one is not a regression, it has always
+been open). A narrowing that answers one end opens the other. The fix is the
+depth-tracking rewrite #271 names: walk forward counting `do` up
+and `done` down, and the loop's own `done` is the one that
+returns to zero.
 
-**What this node does NOT ask.** The same session hit three refusals from the
-host's auto-mode classifier on actions the protocol requires — step 7's
-merge verification (`git fetch` + `git log`), `/manage` § 4's `merged <stem>`
-notification, and the push retry above — and canonical ships
-`.claude/settings.json` with hooks and no `permissions` block. Whether that
-file should carry one is a real question and a different one; it is named
-here only so the connection is on the record, because the retry loop that
-met this guard existed because of it. The consumer's own copy of that
-question is `chrsctl/gx` PR #396. Filing it is not this report's business.
+`.agents/harness/pretool-bash-guard.sh` is UNCHANGED by the branch that
+wrote this section, on purpose. What a rewrite owes, and what the reverted
+attempt proved is not optional:
+
+- Both incident commands still denied, verbatim.
+- Every false-positive case in the topic still allowed.
+- A case for each shape above — including the two the narrowing broke, which
+  no case covered and which green `ci` and green `verify` said nothing
+  about.
+- Every new clause pinned. `./joharness.sh mutate <file> <line>
+  <replacement>` names which cases red; it found three unpinned clauses in
+  the reverted attempt, two of them after I had used it twice and thought I
+  was done.
+
+This question stays open because its ANSWER is settled and its FIX is not:
+no plan should be written from it that adds one more test to the walk.
 
 ## Verification
 
-Taken by the session that made the findings, so treat the second half
-accordingly: the pair in `## Method` was run a second time against a fresh
-clone of canonical at `8143e0a` rather than only against the consumer's
-tree, and both arms answered identically — GROUNDED. The claim that
-`start_re` matches only `while|until` is GROUNDED (`grep -n "start_re="`
-on both copies, line 116, identical). The claim about what the message cost
-the diagnosis is a report of this session's own behaviour and is therefore
-WEAK as evidence about anyone else, though the plan it produced and the
-reviewer's reproduction are both in `chrsctl/gx`'s history. No independent
-reader has re-run these payloads.
+Second context: `.claude/agents/verifier.md` at opus, which re-derived every
+exit code above from its own payloads rather than reading these numbers, and
+separated regression from pre-existing by running each one against the
+unchanged guard as well.
+
+- **The guard denies commands holding no unbounded loop** — GROUNDED. Three
+  shapes, and a one-word control for each.
+- **The rule is wrong, not only the message** — GROUNDED. The refused
+  command is the deny's own first prescribed spelling.
+- **The message is also wrong** — GROUNDED. It was made to print
+  `no timeout` about a command carrying one.
+- **The ownership narrowing is a regression** — GROUNDED, and found by the
+  second context, not the first. The session that built it had gone looking
+  for false negatives and tested a nested `for` LOOP, never the word `for`
+  in a string ahead of the `do`.
+- **The false positive survives the narrowing** — GROUNDED.
+
+Earlier claims in this file, taken by the session that made them, are
+unchanged: the A/B pair was re-run against a fresh clone, and `start_re`
+matching only `while|until` was grepped on both copies.
 
 ## Graduates to
 
-`.agents/harness/pretool-bash-guard.sh` — the file whose rule or whose
-sentence is wrong, and whose selftest is where the answer becomes something
-that cannot regress.
+`.agents/harness/pretool-bash-guard.sh` — the file whose rule AND whose
+sentence are wrong, and whose selftest is where the answer becomes something
+that cannot regress. Nothing lands there until the rewrite above: a
+narrowing was tried, measured and reverted, and the measurement is in
+`## Findings` so nobody spends the same day on it.

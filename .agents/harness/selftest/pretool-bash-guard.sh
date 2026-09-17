@@ -76,59 +76,6 @@ pbg_allowed "a counter-bounded loop is allowed"
 pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"while ((i<10)); do sleep 1; i=$((i+1)); done"}}'
 pbg_allowed "an arithmetic counter is allowed"
 
-# --- a keyword is not a loop: the `done` belongs to the nearest opener -----
-# Measured three ways before the walk learned to ask whose `done` it is, and
-# every one of these was DENIED for a loop the command does not contain
-# (docs/research/bash-guard-reads-prose-as-a-loop.md, retired with the fix).
-# All three are allowed now, and the two cases after them are what stops the
-# narrowing from becoming a hole.
-#
-# 1. The keyword comes from a commit message, the `done` from the two-element
-#    `for` the Git guidance prescribes for a push retry. It cost a push: the
-#    session re-ran the commit without the retry loop it was told to use.
-# shellcheck disable=SC2016  # a JSON payload; the $ is text the guard reads
-pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"echo \"the UI floor moved while they were written\" && for d in 2 4; do true && break || sleep $d; done"}}'
-pbg_allowed "a keyword in a commit message does not make a for loop a wait"
-
-# 2. The control, one word apart. Before the fix this was the ONLY difference
-#    between a deny and an allow, which is what made the pair legible.
-# shellcheck disable=SC2016  # a JSON payload; the $ is text the guard reads
-pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"echo \"the UI floor moved when they were written\" && for d in 2 4; do true && break || sleep $d; done"}}'
-pbg_allowed "and the same command with the word changed is allowed too"
-
-# 3. The one that settles which half was wrong: this is the FIRST spelling
-#    the deny message prescribes, with a keyword in an echo ahead of it.
-#    `timeout` is read from `prefix`, and the prose keyword ended the prefix
-#    before it — so the bound the command carried was invisible and the guard
-#    refused its own remedy.
-pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"echo \"wait while the suite finishes\"; timeout 900 bash -c '"'"'until grep -q PASS /tmp/out; do sleep 15; done'"'"'; cat /tmp/out"}}'
-pbg_allowed "a prose keyword before a timeout-bounded loop no longer hides the bound"
-
-# NOW THE HOLE THIS COULD HAVE OPENED, both directions.
-#
-# A real unbounded loop standing AFTER a prose keyword must still be caught:
-# the skip advances past the KEYWORD only, never past the `done`, so whichever
-# loop owns that `done` is still judged on its own pass. Get this wrong and
-# every unbounded wait is one `echo "while"` away from invisible.
-pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"echo \"waiting a while\"; until grep -q PASS /tmp/out; do sleep 15; done"}}'
-pbg_denied "a real unbounded loop after a prose keyword is still denied"
-
-# And the word inside a real loop's own body must not excuse it. This is the
-# cheap bypass a body-scanning rule would have handed out, so it is asserted
-# rather than reasoned about: the keyword here owns the first `do`, and the
-# later `while` sits after it.
-pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"while true; do echo \"waiting while we can\"; sleep 5; done"}}'
-pbg_denied "the word in a loop's own body does not excuse the loop"
-
-# And the other half of the ownership test, which `./joharness.sh mutate`
-# caught as pinned by nothing: a keyword with NO `do` after it at all cannot
-# head a loop, whatever `done` turns up later. Contrived as shell and
-# ordinary as TEXT, which is what this guard reads — a commit message or a
-# heredoc supplies exactly this. Without that half the span from the keyword
-# to the stray `done` carries a `sleep` and the command is denied.
-pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"echo \"a while ago\"; sleep 5; done"}}'
-pbg_allowed "a keyword with no do of its own heads no loop"
-
 # --- the false positives that would get this routed around -----------------
 # shellcheck disable=SC2016  # a JSON payload; the $ is text the guard reads
 pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"while read -r line; do echo \"$line\"; done < f"}}'
