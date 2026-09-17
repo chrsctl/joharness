@@ -17,8 +17,8 @@ Issue #251 lists four conduct questions no existing control asks. The
 verifier reads the diff; the orchestrator reads the pulse; between them sits
 how a manager WORKS its item, and nothing covers it. Three of the four need
 a control-plane read or the diff. The fourth — peer divergence — is
-different in kind, and `docs/plans/findings-with-the-fix.md` says so in its
-Out of scope and promises this file: the workstream files it would compare
+different in kind, and the plan that carried the cheap slice said so in its
+Out of scope and promised this file: the workstream files it would compare
 are artifacts the session-start hook already reads, so no session and no
 sampling cost is needed to LOOK. What separates it is judgement, not cost.
 
@@ -88,17 +88,23 @@ written from.
 ## Findings
 
 OPEN. Nothing measured yet. Filed to keep a promise
-`docs/plans/findings-with-the-fix.md` already made in its Out of scope, and
-so the distinction that separates this from the rest of #251 — judgement,
-not cost — is not lost with the session that drew it.
+`docs/plans/findings-with-the-fix.md` made in its Out of scope, and so the
+distinction that separates this from the rest of #251 — judgement, not cost
+— is not lost with the session that drew it. That plan has since been
+withdrawn on its own backtest (`.agents/docs/handover/README.md`,
+Reviewing), which strengthens rather than weakens this question: the ONE
+conduct check that looked mechanical turned out not to be, so whether any of
+them is remains open.
 
 ## Consequence for the queue
 
-`docs/plans/findings-with-the-fix.md` is NOT blocked on this and carries no
-`research:` edge to it: that plan builds the one conduct check that is
-mechanical without judgement — whether a finding shared a commit with its
-fix — and nothing in it turns on this answer. Changes here only if this
-question closes YES, in which case a second plan follows beside it.
+No plan is blocked on this and none carries a `research:` edge to it. The
+plan that would have — the one conduct check that looked mechanical without
+judgement, whether a finding shared a commit with its fix — was withdrawn on
+its own backtest, measured in `.agents/docs/handover/README.md`, Reviewing.
+Nothing in this question turned on that one, and its withdrawal leaves this
+one the only route left to a conduct check that is not a session. A plan
+follows beside it only if this closes YES.
 
 The rest of #251 stays with the human: whether a sampling conduct reviewer
 earns a session beyond the cap. This node does not decide that and must not
