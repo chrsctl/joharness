@@ -118,9 +118,10 @@ has since CLOSED: its answer is the `status_detail`, `updated_at` row of
 step 2's evidence table in `.claude/commands/orchestrate.md`, and the why is
 under the knob table in `.agents/docs/orchestrated.md`. What it settles for
 this node is narrow and worth knowing before designing a monitor: the
-session record's `updated_at` cannot carry a staleness threshold, because
-its cadence is the session's own and was measured spanning 8.4s to ~6
-minutes on RUNNING managers in one page.
+session record's `updated_at` cannot carry a staleness threshold at all,
+because a frozen reading on a RUNNING row is ambiguous between a slow writer
+and a session that has stopped — measured on a row whose every field, usage
+counters included, was byte-identical across 172.273s.
 
 No plan is blocked on this node today, deliberately. A plan for the
 scheduler cannot be written before the mechanism is chosen, and one written
