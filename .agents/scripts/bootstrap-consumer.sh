@@ -144,6 +144,9 @@ AUTONOMY="$(conf_key_default JOHARNESS_MODE)"
 # that reaches a child is the sync naming the key it does not answer, which
 # is what declaring it in conf-keys.sh buys.
 UPSTREAM="$(conf_key_default JOHARNESS_UPSTREAM_FEEDBACK)"
+# Same decision again, one switch over: whether a parked manager is explained
+# is a question a repo has after its first stuck run, not at first contact.
+IDLE_ANALYSIS="$(conf_key_default JOHARNESS_IDLE_ANALYSIS)"
 # Same decision, same reason: whether step 7 waits for GitHub Actions or runs
 # the checks here is a question a repo answers once it has felt the wait, not
 # one a human has an opinion about before the first session.
@@ -793,6 +796,15 @@ JOHARNESS_CURATE_PLANS=${CURATE_PLANS}
 #       the consumer is the detector). Off by default: it costs money and it
 #       opens pull requests in a repository this one does not own.
 JOHARNESS_UPSTREAM_FEEDBACK=${UPSTREAM}
+
+# off = ./joharness.sh analysis reports why a manager is blocked, stalled or
+#       looping: the mark it carries, and whether joharness.conf has moved
+#       since that claim last stated its cause. Nothing acts on it.
+# on  = under JOHARNESS_MODE=orchestrated, the orchestrator spends ONE session
+#       per condition per item per run, beyond the manager cap, saying why and
+#       filing it as an issue on the canonical. Off by default: it costs money
+#       and it opens issues in a repository this one does not own.
+JOHARNESS_IDLE_ANALYSIS=${IDLE_ANALYSIS}
 EOF
   # Recorded BEFORE the seed, because seed() is the thing that makes the
   # difference invisible afterwards: it writes only when the file is absent.
