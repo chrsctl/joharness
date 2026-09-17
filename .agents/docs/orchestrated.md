@@ -472,6 +472,57 @@ about this mode softens it:
 "a human invoked this" is a claim the session cannot check, which is the
 sentence under Authority in the same file.
 
+## Where the mode came from, and what closed it
+
+`docs/product/orchestrated-mode.md` carried this and was retired DONE on the
+requester's decision, 2026-09-17. It is in history —
+`git log --diff-filter=D -p -- docs/product/orchestrated-mode.md` — and the
+parts a later reader needs are here rather than in a file the queue would
+keep offering.
+
+**The ask, 2026-09-05**, transcribed by the attended session that received
+it; a session writes no requirement of its own, and when that session asked
+whether to correct, keep or delete the transcription the requester delegated
+the decision to it, same day:
+
+> add a new unsupervised (beta) fully orchestrated mode. An orchestrator on a
+> low-tier model, with maximum parallelism, pulls from the queue as the
+> controller and spawns one manager per item in a new session; it checks
+> health regularly and, when a loop is stuck, can kill it — but first has the
+> progress summarised into the handover for the next one. Managers (project
+> manager, researcher, whatever the item needs) run on a higher tier set by
+> the plan, work one plan or research file that can be decomposed, spawn
+> lower-tier models for the decomposed pieces, and are in charge of that item
+> until the plan retires. Ultimate goal: empty the task queue efficiently
+> under a maximum concurrency.
+
+**What it was satisfied by.** Three of its four conditions read true and each
+is documented above: the mode exists and reads as unattended in every bound
+(What the mode changes, Bounds); `dispatch` answers the orchestrator's
+question in one read (The loop); a stuck manager is found from two signals,
+nudged, killed only after its handover is on the branch, and a successor
+resumes (Health, The kill).
+
+**The fourth is the one that closed differently, and honestly.** It asked for
+one run, started once over a stocked queue, counted until it stops — every
+free plan merged with no human turn, under the cap, numbers counted rather
+than written. No run has met it. Run 1 missed three clauses and run 3 misses
+those and adds one, both in Runs above. The requester's decision is that the
+live run belongs to a child repo rather than this one, so this repo stopped
+scheduling it: the condition is not withdrawn and not claimed met — it is
+measured elsewhere, and its row lands in Runs above when that run ends.
+
+Read that as the standing answer to "why is there no plan for this". There
+was one; it was removed on that decision, not abandoned.
+
+**Constraints the requirement set, still binding**, and each already has its
+own home above: every bound in [`unsupervised.md`](unsupervised.md) holds
+unchanged (Bounds); the numbers are the human's and a session proposes with
+evidence rather than setting one (The numbers are the human's); no state
+store and no status field, every view derived from git and the control plane
+at read time; two spawn levels only, orchestrator to manager session and
+manager to worker subagent (Roles).
+
 ## Heartbeat
 
 Same Routine as unsupervised, same operator action, same connector trap;
@@ -524,8 +575,8 @@ is state outside git.
 
 **Run 1**, in a consumer, cap 4, no heartbeat — one orchestrator's
 lifetime, which is what the plan said a run without a Routine would measure.
-12:05:05Z (session created) to 17:42Z (first human turn; `orchestrated-run.md`
-says a human turn ends the measurement there). 28 health passes at
+12:05:05Z (session created) to 17:42Z (first human turn; the run's plan, now
+retired, made a human turn the end of the measurement). 28 health passes at
 `JOHARNESS_HEALTH_MINUTES=10`.
 
 Counted from the orchestrator's own passes: **10 managers** spawned in window
