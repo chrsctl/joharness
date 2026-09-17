@@ -1,13 +1,13 @@
 ---
 workstream: unsupervised-goal
-status: in-progress
+status: abandoned
 branch: claude/unsupervised-goal
 pr: none
 plan: none
 session: https://claude.ai/code/session_0126bZYruEVL7vNBLb7RXF4v
 agent: opus
-updated: 2026-08-25
-next: Open PR for the goal bound; implementation is unsupervised-edge-work's, not this branch's
+updated: 2026-09-17
+next: Abandoned claim, free to take — read this file whole; it names no plan, so what it holds is only its own branch
 ---
 
 ## Goal
@@ -81,7 +81,17 @@ implements it.
 
 ## Blockers
 
-None.
+**Claim released by the janitor sweep of 2026-09-17.** The session that made
+it is gone: `session_0126bZYruEVL7vNBLb7RXF4v read SESSION_STATUS_ARCHIVED`. It was holding `no plan — only its own branch`, which is
+free from the moment the queue hook reads `status: abandoned` above.
+
+Nothing on this branch was changed but this file, and nothing was deleted —
+not the file, not the branch, not a line of what the claim already said. The
+work below is exactly as its session left it.
+
+**A session that picks this up sets `status:` back and carries on.** That is
+not a formality: the status is what the queue reads, and this note is not an
+instruction to anybody, it is the record of one reading taken on one date.
 
 ## Where to look
 
