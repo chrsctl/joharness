@@ -60,6 +60,29 @@ reader this repo provides.
 
 ## Review
 
+- r3: (verifier) Scope bullet 1 said "outside the checkout" while Acceptance
+  named `outside this checkout` as the literal both files must carry — one
+  word apart, in the plan whose whole mechanical check is that the two
+  strings are IDENTICAL. An implementer copying the Scope phrasing would
+  have failed its own acceptance. (fixed — Scope bullet 1 carries the
+  literal verbatim and says why, so there is one string to copy and nowhere
+  to copy the wrong one from.)
+- r4: (verifier) reported `(session)` as a tag spelling new to this repo,
+  from `git log --all -p -- 'docs/handover/*.md' | grep -o "r[0-9]*:
+  (session)"` returning nothing. (wontfix — the finding is wrong and the
+  grep is why: it requires a closing paren immediately after the word, and
+  these tags are written `(session, method)`. Counted over the same history
+  without that constraint: verifier 274, code 31, **session 26**,
+  adversarial 11, self 6. Third most common spelling, not a new convention.
+  Recorded rather than dropped because a reader of this file would otherwise
+  meet the claim and not the count.)
+- r5: (verifier, corroboration) it could not fetch issue #267 — no `gh`, no
+  GitHub tool — so it could not check this plan's account of the issue's
+  three options against the issue. That is the plan's own premise happening
+  again, live, while the plan about it was being reviewed. (no change needed
+  — the plan already names this class of limit; the second instance is
+  evidence for it, and it is on the issue's side of the argument rather than
+  this plan's.)
 - r1: (session) the plan claimed `.agents/harness/selftest/review.sh`
   "already reads `verifier.md`", so asserting a sentence there would be one
   more needle. It does not: line 83 is `[ -s "${ROOT}/.claude/agents/verifier.md" ]`,

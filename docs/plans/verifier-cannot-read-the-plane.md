@@ -27,8 +27,9 @@ section was written.
 
 - `.claude/agents/verifier.md` — say what this reader cannot see. Its four
   tools are the whole of its reach, so a claim resting on a control-plane
-  record, a live service or anything else outside the checkout is one it can
-  only check for internal consistency. It should say that in its own voice,
+  record, a live service or anything else `outside this checkout` is one it
+  can only check for internal consistency — that phrase verbatim, because
+  Acceptance makes it the literal both files must carry. It should say that in its own voice,
   where a session about to spawn it reads, and say what it DOES do with such
   a claim: check the arithmetic, check nothing in the repo contradicts it,
   and mark it as unverified rather than silent.
@@ -84,8 +85,8 @@ section was written.
 - The two files agree on WHICH claims are affected, asserted mechanically
   rather than by reading, because the node author reads one file and the
   reviewer reads the other. Pick ONE literal phrase for the boundary —
-  `outside this checkout` is the suggestion, and the exact wording matters
-  less than its being identical — put it in both files, and assert it in
+  `outside this checkout` is the one Scope bullet 1 already uses, and the
+  exact wording matters less than its being identical — put it in both files, and assert it in
   each: the first `expect` pins the literal against `verifier.md`, the
   second compares what the README carries to what the first found. Needle
   first in the second one, or an empty match passes over anything. That is
