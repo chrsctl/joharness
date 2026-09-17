@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01K6sHM4RWyYDCLZmrDSrWk3
 agent: opus
 updated: 2026-09-17
-next: Record the verifier's verdict, then retire the research file and the workstream file and open the pull request
+next: Retire the workstream file and open the pull request; the research node stays OPEN on main
 ---
 
 ## Goal
@@ -47,10 +47,61 @@ destroys work in progress and spends the concurrency cap twice.
 
 ## Review
 
-Findings land here as the second context returns them. The measurement,
-its two confounds and their controls are in the research file's `## Findings`
-and `## Verification`, which is where a reader of the answer looks — not
-duplicated here.
+The answer was drafted, graduated, and then WITHDRAWN on review. Seventeen
+findings from the second context; the five that decided it:
+
+- r1: (verifier) `## Verification` recorded a second context re-sampling the
+  subjects, and the agent it names cannot: `.claude/agents/verifier.md`
+  declares `tools: Read, Grep, Glob, Bash`, no control plane. I asked it for
+  a call it has no tool for and wrote the outcome down before it answered.
+  (fixed — the section now says what it could and could not do, and every
+  reading is marked from what it actually checked.)
+- r2: (verifier) the same section GRADED my own claims GROUNDED before any
+  second context reported, which is the one thing the research protocol
+  exists to stop. (fixed — the marks are the second context's, and three of
+  them moved: WEAK, WEAK, UNGROUNDED.)
+- r3: (verifier) leg 1's premise — no `post_turn_summary` means no turn
+  ended — is contradicted by this repo's own health-pass notes, which record
+  a session with no summary whose `status_bucket` read `REVIEW_READY` and
+  conclude the field's authorship is unestablished. And subject A carried
+  `external_metadata.last_served_model` PRESENT at every sample, which the
+  same page reads as a turn having been served. I had that field in front of
+  me and did not read it. (fixed — leg 1 is WEAK, and the field set to record
+  at every sample is named in Method.)
+- r4: (verifier) the graduated sentence dropped the "on a connected session"
+  qualifier, and subject C is its counter-example: frozen, disconnected, and
+  nowhere claimed to be dead. Shipped, it would have licensed killing an
+  idle manager that had armed its own check-in — the shape the graduation
+  target already records costing a duplicate manager and money. The new
+  selftest pinned the unqualified string, so the qualifier could not have
+  been restored without editing the test. (fixed — the graduation is
+  reverted; `.claude/commands/orchestrate.md` and the topic file are back at
+  `origin/main`.)
+- r5: (verifier) the graduated sentence said the field was observed
+  advancing across 11m52s. It was observed across 7m27.9s; the leading
+  4m24s is `created_at`, not an observation — a 37% overstatement of the
+  number it printed. (fixed with r4, and the Findings now separate the two
+  spans.)
+- r6: (verifier) a consumer's item name was quoted verbatim in the research
+  file, from a subject's `task_summary`. The requester's standing rule and
+  `.agents/docs/consumer-repos.md`, "Name no consumer", which covers a
+  consumer's item names. Second time this session, and this one reached
+  `main` for as long as it took to catch. (fixed — the quote is gone; the
+  finding it supported does not need it.)
+- r7: (verifier) the Method block recorded one line of calls for a run that
+  made six, and its stated first time was a `list_sessions` page, not a
+  `get_session` — so the file's own numbers contradicted its claim that
+  every reading came back within a second of its call. The session ids were
+  recorded nowhere at all, and they are opaque tokens the naming rule does
+  not cover, so nobody can re-sample the subjects. (fixed — Method says what
+  a reader can repeat and admits the run itself is not repeatable, which is
+  cheaper than a claim nobody can test.)
+- r8: (verifier) the disconnected control cannot separate read-bumping from
+  a connection heartbeat, because a disconnected session is frozen either
+  way — so it rules out nothing where the confound bites. It named the
+  better control, free on the same fleet: an IDLE but CONNECTED session read
+  twice through `list_sessions` only. (fixed in the file — that reading is
+  the named next step, and it decides both open confounds at once.)
 
 ## Blockers
 
