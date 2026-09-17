@@ -74,6 +74,22 @@ what the node leaves open is which half is wrong, the rule or the message.
   clause pinned by nothing, which is the shape a reviewer has to go looking
   for. (fixed — a case for the no-`do` shape, and re-mutating both halves
   separately now reds 1 and 2 cases, disjointly.)
+- r5: (session) went looking for the false-negative direction rather than
+  leaving the expensive half to the reviewer, and found one — the walk takes
+  the FIRST `done`, so an unbounded loop with a nested `for` ahead of its
+  sleep slips through:
+  `until grep -q x /tmp/f; do for y in 1 2; do : ; done; sleep 20; done`.
+  The inner `for`'s `done` ends the body, the `sleep 20` sits after it, and
+  the sleep test fails. Allowed with exit 0. **Pre-existing**: the same
+  payload against `git show origin/main:.agents/harness/pretool-bash-guard.sh`
+  is also allowed, so this change neither introduced nor fixed it.
+  (wontfix here — it is the mirror of what this node asked, "which `done`
+  closes this keyword" rather than "which keyword owns this `done`", and
+  closing it replaces the end-finding step with depth tracking rather than
+  adding a clause beside it. Filed as #271 with the payload, both exit codes
+  and the bar a fix owes. Widening this item to cover it would have put a
+  second, larger rewrite of the same function in a diff reviewed as a
+  narrowing.)
 - r4: (session, corroboration) the guard denied the command that patched the
   guard. The `python3` heredoc carrying the replacement text spells a loop,
   so the walk found a keyword, a `sleep` and a `done` in it. That is the
