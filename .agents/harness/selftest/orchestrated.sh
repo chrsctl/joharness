@@ -222,3 +222,50 @@ refute "unsupervised does not" "in flight:" "$(orcq unsupervised)"
 refute "nor does supervised" "in flight:" "$(orcq supervised)"
 fixture_rm "$orcwork" "drop the free plan" docs/plans/under.md
 git -C "$orcwork" push -q origin main
+
+# --- the closing report: one field, two files, one spelling (issue #258) -----
+# A successful manager's whole channel is `merged <stem>`, so what it learned
+# about items it does NOT own dies with it — the branch holds its own findings
+# and nothing holds these. The field is prose in two command files, and the
+# manager is the party that CANNOT see a mismatch between them: it sends what
+# manage.md asks for, into a grammar orchestrate.md defines. So the sameness
+# is asserted mechanically here rather than by reading.
+orcmd="${ROOT}/.claude/commands/orchestrate.md"
+mgrmd="${ROOT}/.claude/commands/manage.md"
+
+orcfield="$(grep -oE 'lead <stem>:' "$orcmd" | head -1)"
+expect "the orchestrator's grammar names the lead field" \
+  "lead <stem>:" "$orcfield"
+mgrfield="$(grep -oE 'lead <stem>:' "$mgrmd" | head -1)"
+# Needle first: an empty `mgrfield` fails against a non-empty orcfield, which
+# is the drift this case exists for. The reverse order would pass on empty.
+expect "and the manager is asked for that exact spelling, not a near one" \
+  "$orcfield" "$mgrfield"
+
+expect "leads ride their OWN ledger line, because a merged item leaves the other one" \
+  "leads: lead <stem>: <40 chars>; ..." "$(cat "$orcmd")"
+expect "and the line is bounded, or a compaction truncates it silently" \
+  "at most five, newest first" "$(cat "$orcmd")"
+expect "a manager's text is stripped like every other borrowed field" \
+  "a lead's text, and cut all three to 40 characters" "$(cat "$orcmd")"
+# Needle without backticks: shellcheck reads a single-quoted string carrying
+# them as SC2016, and `ci` fails on info level here.
+expect "the spawn prompt asks for it, so it is not discovered at the merge" \
+  '"merged <stem>", and add' "$(cat "$orcmd")"
+expect "the merged row stops reading as nothing" \
+  "is the one exception that is never nothing" "$(cat "$orcmd")"
+expect "relayed to the human, never acted on" \
+  "You relay a lead. You never act on one." "$(cat "$orcmd")"
+# Two assertions, not one spanning the wrap: these files are prose and the
+# line breaks move. A needle that crosses a newline fails on a reflow that
+# changed nothing, which is a case nobody trusts by the third time.
+expect "the spawn prompt is named as somewhere a lead must not reach" \
+  "Not into a spawn prompt" "$(cat "$orcmd")"
+expect "and so are the plan and the respawn" \
+  "plan, not into a respawn or a reprioritisation" "$(cat "$orcmd")"
+expect "a literal reader gets a worked example, not just a field name" \
+  "merged inbox-retry lead seat-limits:" "$(cat "$mgrmd")"
+expect "and is told the normal case is having nothing to say" \
+  "Nothing to say is the normal case" "$(cat "$mgrmd")"
+expect "and told not to resend its own findings" \
+  "Never send your own findings" "$(cat "$mgrmd")"

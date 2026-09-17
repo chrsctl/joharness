@@ -157,6 +157,25 @@ request, exit. Did your prompt name a target to message on merge? Then
 "merged <stem>" to it — it fills your slot at once instead of on its
 clock. No such line in your prompt, no messaging tool, or the send comes
 back refused: just exit, the orchestrator's next pass sees the merge.
+
+**And one thing more, when you have one: a LEAD.** You are the only party
+that read this item end to end, and everything you learned about YOUR files
+is already in the diff and in `## Review`. What dies with you is what you
+learned about somebody ELSE's — a fault in a queue item you do not own, a
+thing the next manager on an adjacent item needs. Say it as one field after
+the merge, in the orchestrator's own grammar — `lead <stem>: <text>`, the
+stem being the item it is ABOUT, the text at most 40 characters:
+
+```
+merged inbox-retry lead seat-limits: its create path skips the same check
+```
+
+Nothing to say is the normal case: send the bare `merged <stem>` and exit.
+Never send your own findings — they are in the branch, and repeating them
+buys a longer message and no information. One lead, not a list; at 40
+characters it is a POINTER, and whoever follows it has your merged branch
+to read. No quotes, no newlines, no `;`, no `=`: the orchestrator's state is
+one message and those characters break it.
 One refusal is the answer — do not retry it, do not re-address it, do
 not hunt a second way to deliver it. The refusal does not say WHICH
 fault it is: no row for that target in `ListAgents`, the ordinary case

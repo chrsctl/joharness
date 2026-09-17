@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01K6sHM4RWyYDCLZmrDSrWk3
 agent: opus
 updated: 2026-09-17
-next: Research the three anchor sections, then widen the merge message and the ledger field together
+next: Review the diff, then retire the plan and the workstream file and open the pull request
 ---
 
 ## Goal
@@ -26,6 +26,27 @@ discards one.
 
 ## Decisions
 
+- The lead is keyed to the item it is ABOUT, not the one that reported it,
+  and rides its OWN `leads:` ledger line. This is the design's whole hinge:
+  a merged item leaves the ledger — dispatch stops listing it, the entry is
+  dropped — so a field written into that entry dies with the manager that
+  sent it, which is the exact failure being closed. The plan said "§ 4's
+  ledger grammar must gain a field"; a field on the per-item line would have
+  satisfied the letter and none of the purpose.
+- ONE spelling, `lead <stem>: <text>`, in both command files. The manager is
+  the party that cannot see a mismatch — it sends what `manage.md` asks for
+  into a grammar `orchestrate.md` defines — so the sameness is asserted
+  mechanically rather than by reading, and a near-miss spelling reds it.
+- Relay, never act. Not into a spawn prompt, not into a plan, not into a
+  respawn. The plan's Out of scope forbids acting; feeding a lead into a
+  spawn prompt is the near-miss version of that, because the prompt
+  paragraph's own rule is "the prompt routes; the repository authorises",
+  and a lead is one session's reading of somebody else's files. The human
+  decides what it is worth, which is why the pass report is where it lands.
+- 40 characters, matching every other borrowed field. A lead is a POINTER,
+  not a report: the detail is in the merged branch's history and recoverable,
+  and an unbounded list is a ledger a compaction truncates without saying so.
+  Bounded at five, one per stem, dropped when that stem merges.
 - Taken at opus, which is the plan's own tier. Its Traps name why: the
   failure this can produce is a plausible-looking protocol change that
   quietly widens what an unattended fleet does with free text.
@@ -43,6 +64,29 @@ discards one.
   finish; deleting the branch is the human's.
 
 ## Review
+
+- r1: (session) the first draft of the worked example in `manage.md` used a
+  consumer's real item names, taken from issue #258's own text. `.claude/`
+  ships to every consumer, so that is the requester's standing rule and
+  `.agents/docs/consumer-repos.md`, "Name no consumer", broken in the one
+  place it costs most. Caught before the commit by the sweep this repo does
+  for exactly that. (fixed — neutral placeholder stems; `git diff | grep`
+  for the consumer's item-name shapes now returns nothing.)
+- r2: (session) the first selftest block carried a `refute` whose haystack
+  was a literal string I supplied, so it asserted nothing and would pass over
+  any file content at all. Written while reaching for a negative assertion
+  and the exact could-never-fail shape this repo has recorded three times.
+  (fixed — replaced by two positive assertions against the file, and both red
+  under mutation C.)
+- r4: (session) a needle written with backticks inside single quotes tripped
+  shellcheck SC2016, and `ci` fails on info level here — `ci: FAIL` with
+  every stage below it green, which is the confusing shape. (fixed — a
+  backtick-free needle from the same line.)
+- r3: (session) one assertion spanned a line wrap in the prose it was
+  reading, so it failed on the real file: these are `.md` files and needles
+  that cross a newline break on a reflow that changed nothing. Found by
+  running the suite, not by reading it — 2026-09-17, one FAIL out of 2027.
+  (fixed — split into two single-line needles, with the reason on the line.)
 
 ## Blockers
 
