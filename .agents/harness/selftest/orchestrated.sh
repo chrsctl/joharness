@@ -246,6 +246,14 @@ expect "leads ride their OWN ledger line, because a merged item leaves the other
   "leads: lead <stem>: <40 chars>; ..." "$(cat "$orcmd")"
 expect "and the line is bounded, or a compaction truncates it silently" \
   "at most five, newest first" "$(cat "$orcmd")"
+# The stem is the field one to the LEFT of the one the stripping rule
+# watches, and it is free text from the same session. Checked against the
+# queue rather than stripped, because the orchestrator already holds the
+# whole queue and so has a right answer to compare against.
+expect "the stem is checked against this pass's queue, not copied" \
+  "It must be an item THIS pass's dispatch" "$(cat "$orcmd")"
+expect "and a lead naming anything else is dropped, out loud" \
+  "the lead and say so in the report" "$(cat "$orcmd")"
 expect "a manager's text is stripped like every other borrowed field" \
   "a lead's text, and cut all three to 40 characters" "$(cat "$orcmd")"
 # Needle without backticks: shellcheck reads a single-quoted string carrying

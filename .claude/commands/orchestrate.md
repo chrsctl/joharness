@@ -502,6 +502,13 @@ lead written into that entry dies with the manager that sent it, which is
 the failure this field exists to close. Same spelling as the merge message
 `manage.md` asks for, so nothing has to translate between them.
 
+The STEM is checked, not copied. It must be an item THIS pass's dispatch
+output already names — in flight, under spawn, or held. Anything else, drop
+the lead and say so in the report. Stripping the text and trusting the stem
+would be half a guard: the stem is free text from the same session, and a
+`;` or an `=` in it forges exactly the entry the stripping rule exists to
+prevent, one field to the left of where that rule is looking.
+
 Bound it: at most five, newest first, one per `<stem>` with the newest
 winning, and a lead is dropped once the stem it names has merged. Five
 40-character pointers is a line; an unbounded list is a ledger a compaction

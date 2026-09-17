@@ -78,15 +78,32 @@ discards one.
   and the exact could-never-fail shape this repo has recorded three times.
   (fixed — replaced by two positive assertions against the file, and both red
   under mutation C.)
+- r5: (session) the stripping rule covered the lead's TEXT and said nothing
+  about its STEM, which is free text from the same session and sits one
+  field to the left. A manager sending `lead a;b=c: x` writes a `;` and an
+  `=` straight into the ledger line — the separators the whole rule exists
+  to keep out, entering through the field nobody was watching. Found reading
+  my own diff against the grammar it edits, before the verifier reported.
+  (fixed — the stem is CHECKED, not copied: it must be an item this pass's
+  dispatch output already names, and anything else drops the lead with a
+  line in the report. Checking beats stripping here because the orchestrator
+  already holds the whole queue from step 1, so there is a right answer to
+  compare against rather than a character class to guess at.)
 - r4: (session) a needle written with backticks inside single quotes tripped
   shellcheck SC2016, and `ci` fails on info level here — `ci: FAIL` with
   every stage below it green, which is the confusing shape. (fixed — a
   backtick-free needle from the same line.)
-- r3: (session) one assertion spanned a line wrap in the prose it was
+- r3: (session) an assertion spanned a line wrap in the prose it was
   reading, so it failed on the real file: these are `.md` files and needles
   that cross a newline break on a reflow that changed nothing. Found by
-  running the suite, not by reading it — 2026-09-17, one FAIL out of 2027.
-  (fixed — split into two single-line needles, with the reason on the line.)
+  running the suite, not by reading it — 2026-09-17. TWICE, on this branch:
+  once on the never-act sentence and again on the stem-check one, and the
+  second time after the first was fixed. The habit, not the needle, is the
+  defect: a needle written from the sentence I had just typed, rather than
+  from the wrapped line the file actually holds. (fixed both — single-line
+  needles, read out of the file. The rule for the next one: `grep` the
+  candidate needle against the file before committing it, because a needle
+  that has never matched anything is indistinguishable from one that will.)
 
 ## Blockers
 
