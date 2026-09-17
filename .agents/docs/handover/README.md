@@ -123,23 +123,32 @@ when no review happened.
 A gate for the ORDER was tested and is not built. Git records what landed in
 a commit, never the order it was typed, so only "committed WITH the fix" is
 visible at all — and measured over this repo's own history, that half is
-signal about nothing. Counted 2026-09-17, the newest 50 merged edges
-(`JOHARNESS_FEEDBACK_EDGES=50`, the window `feedback` walks), walking each
-edge's commits for a `- r<N>:` line first added by a commit touching nothing
-outside `docs/handover/`: 37 of 532 findings, from seven commits, and all
-seven are a branch obeying some other rule.
+mostly signal about nothing.
 
-- Four recorded a review that had nothing to fix — a clean pass, which this
-  section requires a line for, or findings booked `(open)` before any fix,
-  which the template sanctions mid-build.
-- Three rewrote an existing bullet to add the `r<N>:` id `lint_finding_ids`
-  asks for, or the verdict `lint_finding_markers` asks for. The line is new
-  to git; the finding is not.
+Counted 2026-09-17 over the newest 50 merged edges of `origin/main` (the
+window `JOHARNESS_FEEDBACK_EDGES` names and `feedback` walks), keyed on
+(workstream file, id) and asking which commit FIRST added each `- r<N>:`
+line: 535 findings, of which 39 were added by a commit touching nothing
+outside `docs/handover/`. That number counts ids a commit introduced;
+`feedback`'s 534 counts bullets in the merged files, and 9 of those carry no
+id — the two are different measures, not a disagreement.
 
-Zero were the shape the rule exists to stop: findings written up afterwards,
-describing the fix rather than the problem. A gate on that signal would fire
-only on branches doing as they are told, which is how a gate stops being
-read. The rule stays; nothing enforces it; the cue is a human's, above.
+Most of the 39 are a review with nothing yet to fix: a clean pass, which
+this section requires a line for, or findings booked `(open)` before any fix,
+which the template sanctions mid-build. Narrowing to the bullets that already
+carried a `fixed` verdict when they were added leaves 6, from four commits —
+and reading those six, two are the real shape and four are not (a verifier
+confirming an already-committed tree, a correction to another finding's
+evidence, and two bullets being reformatted into the keyable form
+`lint_finding_ids` asks for).
+
+So the rule is broken, and rarely: **2 of 535**, both in `1cf7214`, whose
+`## Review` was empty before it and whose fixes are in its parent `94cb031`.
+The best narrowing found names six branches to reach those two. A stage that
+tells four branches they erred for obeying another rule is one sessions stop
+reading, so nothing enforces this; the cue stays a human's, above. The
+numbers are here rather than in a plan so the call can be re-opened on
+evidence instead of re-derived.
 
 All cheap, no ceremony. `/handover` does the write.
 

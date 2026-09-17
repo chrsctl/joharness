@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01K6sHM4RWyYDCLZmrDSrWk3
 agent: sonnet
 updated: 2026-09-17
-next: Review the withdrawal, then retire this file and open the pull request
+next: Retire this file and open the pull request; flag the 2-of-535 judgement to the human
 ---
 
 ## Goal
@@ -67,29 +67,79 @@ plan is withdrawn on its own decision procedure, the measurement graduates to
 
 ## Review
 
-- r1: (session, premise) the plan's premise does not hold, and its own
-  backtest is what says so. Counted 2026-09-17 over the newest 50 merged
-  edges of `origin/main` — the window `JOHARNESS_FEEDBACK_EDGES` names and
-  `feedback` reports as "newest 50 edges of 242, 44 carrying a workstream
-  file" — walking each edge's commits for a `- r<N>:` line added by a commit
-  touching nothing outside `docs/handover/`: **37 of 532 findings, from
-  seven commits, and all seven are a branch obeying another rule.** Four
-  recorded a review with nothing to fix (a clean pass, which the protocol
-  requires a line for, or findings booked `(open)` before any fix, which the
-  template sanctions mid-build). Three rewrote an existing bullet to add the
-  `r<N>:` id `lint_finding_ids` asks for or the verdict
-  `lint_finding_markers` asks for — new to git, not new as findings. ZERO
-  were the shape the rule exists to stop. A gate on that signal fires only
-  on branches doing as they are told, which is the precise condition this
-  repo's own doctrine says makes a gate stop being read.
-  (fixed — the plan is deleted and the measurement graduates to
-  `.agents/docs/handover/README.md`, Reviewing, so the gap keeps its
-  record and the next session does not re-derive these seven commits.)
+- r1: (session, premise) the plan's premise needs testing before its code,
+  and the plan's own Acceptance says the backtest decides. Ran it first.
+  **The first run of it was wrong** — see r3, r4 — so the numbers here are
+  the corrected ones, counted 2026-09-17 over the newest 50 merged edges of
+  `origin/main` (the window `JOHARNESS_FEEDBACK_EDGES` names), keyed on
+  (workstream file, id): 535 findings, of which **39 were first added by a
+  commit touching nothing outside `docs/handover/`**, from eight commits.
+  Narrowed to the ones that already carried a `fixed` verdict when the
+  bullet was added — the rest are a review with nothing yet to fix — leaves
+  **6, from four commits**. Reading those six: two are the real shape
+  (`1cf7214`, whose `## Review` was empty before it and whose fixes are in
+  its parent `94cb031`), and four are not (a verifier confirming an
+  already-committed tree, a correction to another finding's evidence, and
+  two bullets being reformatted into the keyable form `lint_finding_ids`
+  asks for). So the rule IS broken, and rarely: 2 of 535. The best
+  narrowing found flags 6 to reach those 2.
+  (fixed — the plan is still withdrawn, on corrected grounds: a report-only
+  stage naming six branches to catch two, where four of the six obeyed
+  another rule, is the condition this repo's doctrine says makes a stage
+  stop being read. The numbers, the narrowing and the one genuine commit
+  all graduate to `.agents/docs/handover/README.md`, so the call is
+  re-openable on evidence rather than re-derived. Flagged to the human as a
+  judgement, not a measurement verdict.)
 - r2: (session, method) the strongest form of the check was built and run
   before concluding, not argued away. Restricting to each id's FIRST adding
-  commit returns the same 37. Concluding from the weak form alone would have
-  left "you tested a straw version" as the obvious objection, and it would
-  have been right.
+  commit changes nothing on its own; what it missed was a different axis
+  entirely, the key (r3). (no change needed — the method was right and
+  insufficient, and r3 is where the insufficiency is recorded.)
+- r3: (verifier) the count was keyed on the id ALONE, so an edge carrying
+  TWO workstream files collapsed them: `r1` in the second file was read as
+  already seen and never examined. The edge merged as pull request #237
+  carries `docs/handover/curator-role.md` and
+  `docs/handover/rescope-held-plans.md`, and that is exactly where the
+  masked finding sat. Reproduced: `git log --format='' --name-only
+  <base>..<tip> | grep '^docs/handover/'` on that edge lists both.
+  `fb_fix_map` has the same single-key shape and gets away with it because a
+  branch normally carries one workstream file — which is why copying its key
+  looked safe. (fixed — keyed on (file, id); the corrected walk gives 535
+  findings and 39 flagged from eight commits, against the 532 and 37 from
+  seven the first run reported.)
+- r4: (verifier) and the eighth commit that key was hiding is the one that
+  falsifies the conclusion. `1cf7214` adds r1 and r2 to
+  `docs/handover/curator-role.md` whose `## Review` was EMPTY before it
+  (`git show 1cf7214^:docs/handover/curator-role.md`), with `(fixed before
+  commit: ...)` verdicts, one commit after `94cb031` carried the code those
+  findings describe. That is a finding written up afterwards, describing the
+  fix rather than the problem — the exact shape the rule exists to stop, and
+  the thing the graduated text said there were ZERO of. (fixed — the claim
+  is gone; the text now says 2 of 535 and names this commit, because a
+  measured rarity is worth more than a false absolute and the next reader
+  can check it.)
+- r5: (verifier) the 532 the text carried did not reconcile with the 534
+  `./joharness.sh feedback` prints, and nothing said why. It was not a
+  reconciliation problem; it was r3's undercount. The corrected 535 and
+  `feedback`'s 534 still differ, legitimately — one counts ids introduced by
+  a commit, the other bullets in the merged file, and 9 of those bullets
+  carry no id at all. (fixed — the graduated text says what its number
+  counts, so it is not read as contradicting the tool.)
+- r6: (verifier) `ci` already reported r2 of this file as a finding with no
+  verdict, and the `next:` line said to retire next. Retiring drops an
+  unmarked finding permanently, which is the situation `a10a6e3` on this
+  repo's own history had to be written to repair. (fixed — r2 carries `no
+  change needed` above, in the commit that adds this line.)
+- r7: (verifier) deleting a plan on a negative backtest is not the letter of
+  either deletion path `.agents/docs/plans/README.md` names — the
+  implementing pull request deleting it with the code, or a stale plan gone
+  obsolete — and the Decisions section asserted it without citing either.
+  (wontfix — the deletion stands and the reasoning is now stated rather than
+  assumed: this plan's own Acceptance made the backtest the condition for
+  trusting the check, so acting on the backtest is executing the plan, not
+  overriding it, and an answered plan left in the queue is work the next
+  session repeats. Recorded so a curator reading the Lifecycle clauses
+  literally finds the argument rather than a gap.)
 
 ## Blockers
 
