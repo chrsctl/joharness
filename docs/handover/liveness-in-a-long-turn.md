@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01K6sHM4RWyYDCLZmrDSrWk3
 agent: opus
 updated: 2026-09-17
-next: Take read 2 through list_sessions ONLY, at least 5m after 16:43:50Z, and compare the two subjects' updated_at to the microsecond
+next: Fold the verifier's findings into ## Review before their fixes, then retire this file and the node and open the pull request
 ---
 
 ## Goal
@@ -41,11 +41,31 @@ right now.
 
 ## Rejected
 
-- Nothing yet.
+- **Keeping the question open for the turn-boundary mechanism.** Branches 1
+  and 2 of `## What would settle it` stay undecided between themselves and
+  cannot be decided from outside a session: the premise that no turn ended
+  rests on absence of a `post_turn_summary`, and this repo's own notes carry
+  a counter-example to it. What closed the question instead is branch 3's
+  CONSEQUENCE, reached by a different route than branch 3's stated cause —
+  a per-session cadence spread measured directly. The rule is the same
+  whichever of 1 and 2 is true, which is the test for whether a mechanism
+  still matters.
+- **A staleness threshold as a fifth knob.** The obvious shape, and the
+  measurement refutes it: a threshold tuned to the three fast managers kills
+  the fourth, and one tuned to the fourth sees nothing the push age does not
+  already see sooner. Written into `orchestrated.md` beside the knob table
+  rather than left implicit, because that table is where the next session
+  will go to add one.
 
 ## Review
 
-- (none yet)
+- r1: (session) deleting the node would have dangled two live pointers at it
+  — `docs/plans/verifier-cannot-read-the-plane.md`'s Where-to-look and
+  `docs/research/scheduler-outside-the-fleet.md`'s note on what it is not
+  blocked by. `ci` is green either way, so nothing would have caught it.
+  (fixed — both repointed at the graduation targets, and the plan's one also
+  carries the `git log --diff-filter=D` command that reads the closed node
+  back out of history.)
 
 ## Blockers
 
