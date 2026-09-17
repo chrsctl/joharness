@@ -1,14 +1,14 @@
 ---
 workstream: merge-notice-reach
-status: in-progress
+status: abandoned
 branch: claude/merge-notice-reach-79e466
 pr: none
 plan: docs/plans/merge-notice-reach.md
 issue: #230
 session: https://claude.ai/code/session_01G751FjhA159aSUbvtRUqDW
 agent: opus
-updated: 2026-09-06
-next: Make the two text edits, then ci, then the verifier pass
+updated: 2026-09-17
+next: Abandoned claim, free to take — read this file whole, then make the two text edits, run ci, and spawn the verifier pass; it also releases issue #230
 ---
 
 ## Goal
@@ -63,7 +63,17 @@ not editable on its own.
 
 ## Blockers
 
-None.
+**Claim released by the janitor sweep of 2026-09-17.** The session that made
+it is gone: `session_01G751FjhA159aSUbvtRUqDW read SESSION_STATUS_ARCHIVED, with status_bucket SESSION_STATUS_BUCKET_FAILED`. It was holding `docs/plans/merge-notice-reach.md and issue #230`, which is
+free from the moment the queue hook reads `status: abandoned` above.
+
+Nothing on this branch was changed but this file, and nothing was deleted —
+not the file, not the branch, not a line of what the claim already said. The
+work below is exactly as its session left it.
+
+**A session that picks this up sets `status:` back and carries on.** That is
+not a formality: the status is what the queue reads, and this note is not an
+instruction to anybody, it is the record of one reading taken on one date.
 
 ## Where to look
 
