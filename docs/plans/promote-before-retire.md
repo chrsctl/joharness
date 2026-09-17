@@ -57,10 +57,13 @@ disappears.
   largest change and turns on where a consumer's own product findings
   should go, which is product direction nobody has decided.
 - Changing what step 7 requires, or when the retire commit lands.
-- The `## Review` rules themselves. `docs/plans/findings-with-the-fix.md`
-  covers the one conduct check over those bullets; this counts them and asks
-  a different question. Both touch `joharness.sh`, so the wave partition
-  will name the conflict — that is correct, not a problem to declare away.
+- The `## Review` rules themselves — whether a finding was recorded before
+  its fix and committed with it. A plan for that was written and then
+  withdrawn on its own backtest: the measurement is in
+  `.agents/docs/handover/README.md`, Reviewing, and the short version is
+  that the only visible half fires on branches obeying other rules. This
+  stage counts findings and asks a different question — what the retire
+  commit is about to destroy — which nothing in that measurement touches.
 
 ## Acceptance
 
