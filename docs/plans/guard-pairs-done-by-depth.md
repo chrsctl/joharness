@@ -10,89 +10,105 @@ scope: .agents/harness/pretool-bash-guard.sh, .agents/harness/selftest/pretool-b
 
 ## Goal
 
-Issue #271. The guard walks a command one loop at a time and takes the FIRST
-`done` as the end of the loop it just found. Nest anything that carries its
-own `done` ahead of the sleep and the walk judges a truncated body, finds no
-`sleep` in it, and moves past the real loop without ever judging that.
-
-Two payloads, both ALLOWED, measured in this checkout on 2026-09-17 (the
-runner is in Acceptance):
+Issue #271, and the open question it is the other end of. The guard walks a
+command one loop at a time and takes the FIRST `done` as the end of the loop
+it just found. That single choice has four consequences, and they point in
+both directions — commands with no unbounded wait are refused, and commands
+that hold one are allowed. Measured in this checkout, 2026-09-17, payloads
+fed on stdin as the event delivers them (runner in Acceptance):
 
 ```
 exit=0  until grep -q x /tmp/f; do for y in 1 2; do : ; done; sleep 20; done
 exit=0  i=0; while [ $i -lt 3 ]; do until grep -q x /tmp/f; do sleep 20; done; i=$((i+1)); done
+exit=2  echo "wait while the suite finishes"; timeout 900 bash -c 'until grep -q PASS /tmp/out; do sleep 15; done'; cat /tmp/out
+exit=2  echo "the UI floor moved while they were written" && for d in 2 4; do true && break || sleep $d; done
 ```
 
-The first is the issue's. The second was found writing this plan and is the
-worse of the two: the inner wait is unbounded, the counter that lets it
-through belongs to a DIFFERENT loop, and "a counter in a harmless loop reads
-as bounding a dangerous one" is the exact defect the walk exists to prevent
-— it was never prevented at depth. Both are pre-existing: both ALLOWED on
-the guard as it stood before #270 (`31064b7`) as well, so that change neither
-introduced nor fixed either.
+The first two are waits with no bound, allowed. The last two hold no
+unbounded loop at all and are refused; swap the prose `while` for `when` and
+both read exit 0, so the prose keyword is the whole cause.
 
-This is the fix `docs/research/bash-guard-reads-prose-as-a-loop.md` names in
-its `## Consequence`, and building it is that node's graduation. The node is
-answered — which keyword owns this `done` and which `done` closes this
-keyword are ONE defect, pairing positionally, and a narrowing at either end
-opens the other, measured and reverted there. What is not settled is the
-fix, which is why the node stays open and why this plan carries no
-`research:` edge: that edge blocks a plan while the node exists, and this is
-the one plan whose merge deletes it.
+Each is the same pairing read from a different end — which `done` closes
+this keyword, and which keyword owns this `done`. The research node settled
+that they are ONE defect: a narrowing at either end was built, measured and
+reverted there, and it opened a wider hole than it closed. So this plan
+closes both ends or neither.
+
+**What the history says, because it answers a design question.** The guard
+has had exactly two states in all of this repository's history:
+
+```
+git log --oneline --all -- .agents/harness/pretool-bash-guard.sh
+be726cb  harness: fix the guard's decision, and the registration that voided it
+f9ea7d6  harness: refuse an unbounded wait before it runs
+```
+
+`f9ea7d6` matched once, greedily, over the whole command. Fed the four
+payloads above it reads `2, 0, 0, —`: it got payload 1 right and both prose
+shapes right, and it got the two-loops case wrong, which is why `be726cb`
+replaced it with the per-loop walk on 2026-09-05. So payload 1 and both
+false positives are REGRESSIONS from that walk; only payload 2 predates it.
+The whole-command reader had the ends this plan is fixing already right, and
+lost the middle. Whatever replaces the walk has to hold all three at once.
 
 ## Scope
 
-- `.agents/harness/pretool-bash-guard.sh` — replace the end-finding step in
-  the walk. Walk forward from the keyword counting `do` up and `done` down;
-  the `done` that returns the count to zero is this loop's own. The walk
-  already does prefix arithmetic with `${rest%%"$seg"*}`, so this is the
-  same style, and it REPLACES the two lines rather than adding a clause
-  beside them.
+- `.agents/harness/pretool-bash-guard.sh` — replace how the walk decides
+  which `done` closes a keyword. Walk forward counting `do` up and `done`
+  down; the `done` that returns the count to zero is this loop's own. The
+  walk already does prefix arithmetic with `${rest%%"$kw"*}` and
+  `${rest%%"$end"*}`, so this is the same style.
 
-  Two properties the current walk has and the rewrite must keep. It
-  terminates — `rest` loses at least the keyword on every pass, and that is
-  the one property this file has no business getting wrong. And it fails
-  open: a command whose depth never returns to zero is a shape this reader
-  cannot understand, so it allows and says nothing, exactly as a malformed
-  payload does.
+  Four lines, not two. The end-finder is `[[ $rest =~ $end_re ]] || break`,
+  `end="${BASH_REMATCH[0]}"` and `body="${rest%%"$end"*}"`; the advance
+  `rest="${rest#*"$end"}"` two lines below is part of the same decision, and
+  `end_re` goes dead or changes meaning with them.
 
-  An inner loop must still be judged on its own. Whatever the span is used
-  for, a `while` or `until` nested inside it cannot become invisible — that
-  is the second payload above, and a rewrite that consumes the whole span
-  and resumes after it reintroduces it in a new place.
+  **A nested loop must still be judged.** This is payload 2 and it is the
+  trap a depth counter walks straight into: with the wider span the outer
+  loop's own counter bounds it correctly, the walk `continue`s, and the
+  advance past the outer `done` swallows the inner `until` whole — allowed,
+  never judged, and no keyword left for the next pass to find. A rewrite
+  that fixes the end-finder and leaves that advance alone leaves payload 2
+  exit 0. Verified against a prototype of exactly that change, 2026-09-17.
 
-- `.agents/harness/pretool-bash-guard.sh`, the `sleep` test — decide, and
-  record the decision in the file's own comment, whether `sleep` is looked
-  for in the whole span from keyword to the depth-zero `done` or only in
-  text belonging to this loop. The issue asks for it to be weighed here
-  because it is the same bug read from the other end: a `sleep` inside a
-  nested `for` is still a sleep the outer loop performs every iteration.
+  **A counter bounds only the loop it belongs to.** Same reason, other
+  direction: the span now contains other loops' text, and `count_re` or
+  `arith_re` read over it lets a harmless inner counter bound a dangerous
+  outer loop. That is the defect `be726cb` was written to prevent.
 
-  The counter tests are not the same question and the answer for `sleep`
-  does not carry to them. `count_re` and `arith_re` decide that a loop is
-  BOUNDED, so reading them over a span that contains other loops is how the
-  second payload got through in the first place. Whatever is decided for
-  `sleep`, a counter may only bound the loop it belongs to.
+  Decide, and record in the file's own comment, whether `sleep` is looked
+  for over the whole span or only in text belonging to this loop. The answer
+  does not carry from the counters: a `sleep` inside a nested `for` IS a
+  sleep the outer loop performs every iteration, while a counter inside it
+  bounds nothing outside it.
 
-- `.agents/harness/selftest/pretool-bash-guard.sh` — a case for each payload
-  in Goal, plus the two shapes the reverted attempt broke, which no case
-  covered at the time and which green `ci` said nothing about:
+- `.agents/harness/pretool-bash-guard.sh`, the deny message — the node
+  records it as owed beside the rule, not instead of it. It prints `no
+  timeout, no iteration counter` at a command carrying `timeout 900`, two
+  lines above prescribing that same spelling. Whatever the rewrite decides,
+  the message may not name a bound the command it is refusing already has.
+
+- `.agents/harness/selftest/pretool-bash-guard.sh` — a case for each of the
+  four payloads in Goal, plus the two shapes the reverted narrowing broke,
+  which no case covered and which a green suite said nothing about:
 
   ```
   until docker compose logs db 2>&1 | grep -q "ready for connections"; do sleep 5; done
   until grep -q "ready for merge" /tmp/out; do sleep 20; done
   ```
 
-  Both are denied today (exit 2, same run as Goal); they are cases because
-  the last change here made them pass and nothing noticed.
+  Both are denied today and must stay denied. They are cases because the
+  last change here made them pass and nothing noticed.
 
 - `docs/research/bash-guard-reads-prose-as-a-loop.md` — deleted by this
-  plan's pull request, and its reasoning carried into the guard's header
-  comment, which is what its `graduates:` names. Not a rule line: the
-  why-explanation is what stops the next session re-opening a settled
-  question, and this harness keeps no superseded record. What has to survive
-  is that the two ends are one defect and that a clause at either end opens
-  the other, with the reverted attempt's measurements.
+  plan's pull request, and only once the two prose shapes in Goal read exit
+  0. That node's question is the false-positive end; deleting it while its
+  own reproducers still fire is the "the question comes back" failure the
+  research protocol exists to prevent. Its reasoning goes into the guard's
+  header comment, which is what its `graduates:` names — not a rule line:
+  what has to survive is that the two ends are one defect, that a clause at
+  either end pays at the other, and the reverted attempt's measurements.
 
 ## Out of scope
 
@@ -107,22 +123,29 @@ the one plan whose merge deletes it.
   commands per Bash call; see Traps.
 - Widening what the guard denies. A command whose own TEXT spells an
   unbounded loop stays denied — that limit is pinned by a case and is the
-  defensible side of the line.
-- The consumer-side question of whether a session routes around the gate.
-  Not measured, not this plan's.
+  defensible side of the line. The prose shapes in Goal are the other side:
+  a keyword in a sentence, with the only real loop bounded.
+- Restoring `f9ea7d6`'s single greedy match. It is quoted because it answers
+  what a correct reader must hold at once, not as a destination: it allowed
+  a counter in a harmless first loop to bound a dangerous second one, which
+  is incident command two.
 
 ## Acceptance
 
-- Both Goal payloads DENIED. Feed each to the guard on stdin as the event
-  delivers it, from a file rather than a heredoc — a Bash command whose own
-  text spells an unbounded loop is denied by the guard itself, which is how
-  the measurements above had to be taken:
+All four Goal payloads read the right code. Feed each to the guard on stdin
+as the event delivers it, from a FILE — a Bash command whose own text spells
+an unbounded loop is denied by the guard itself, which is how every reading
+in this plan had to be taken:
 
-  ```
-  bash .agents/harness/pretool-bash-guard.sh <payload.json; echo $?    # 2
-  ```
+```
+bash .agents/harness/pretool-bash-guard.sh <payload.json; echo $?
+```
 
-- Every case in the topic still holds. Counted on 2026-09-17, before any
+- the two waits with no bound → `2`
+- the two prose shapes → `0`, and the `when` control still `0`
+- both readiness shapes above → `2`
+
+- Every case in the topic still holds. Counted 2026-09-17, before any
   change: 13 `pbg_allowed` and 12 `pbg_denied`. Both totals may only grow.
 
   ```
@@ -130,47 +153,69 @@ the one plan whose merge deletes it.
   grep -c 'pbg_denied "'  .agents/harness/selftest/pretool-bash-guard.sh
   ```
 
-- `./joharness.sh ci` — `ci: pass`. This is the SHIPS check: the layer syncs
-  to every consumer, `cmd_ci` runs `.agents/harness/selftest.sh`, and that
-  runs this topic — so the bar is met by the command a consumer runs, not
-  only by one spelled here.
+- `./joharness.sh ci` — `ci: pass`.
+- `./joharness.sh verify` — 0 failed. The diff touches non-`*.md` files
+  under `.agents/harness/`, which is step 7's condition for it, and the
+  reverted attempt's two broken shapes were invisible to a green `ci` AND a
+  green `verify`.
 - Each new or changed line in the walk pinned. `./joharness.sh mutate
   .agents/harness/pretool-bash-guard.sh <line> <replacement>` names which
   cases red; a line no case reds is a line nothing tests. Every new line,
   not the ones that come to mind: the reverted attempt had three unpinned
   clauses, two of them found after its author had run this twice and thought
   it was done.
-- The new cases fail without the fix. Revert the walk change, run the topic,
-  and the two Goal payloads read exit 0 again. Green both ways pins nothing.
+- The new cases fail without the fix. Restore the walk, run the topic, and
+  each new case reds. Green both ways pins nothing.
+- **SHIPS, and what that does NOT cover here.** `ci`'s ship-scope reads this
+  plan's `scope:` and says the guard reaches every consumer at its next
+  sync. Its suite does not:
+  `.agents/scripts/sync-to-consumer.sh:CANONICAL_ONLY` exempts
+  `.agents/harness/selftest.sh` and `CANONICAL_ONLY_DIRS` exempts
+  `.agents/harness/selftest`, so a consumer's `./joharness.sh ci` prints
+  `not here (canonical-only...)` and runs ZERO of the cases above. The check
+  a consumer can run is the payload feed itself, against its own synced
+  copy — the same four readings, same command, in a consumer checkout. Name
+  that in the pull request, because the regression suite stays here while
+  the thing it guards ships everywhere.
 
 ## Where to look
 
-- `.agents/harness/pretool-bash-guard.sh:end_re` — the end-finding regex and
-  the `body` extraction below it. The two lines the rewrite replaces.
+- `.agents/harness/pretool-bash-guard.sh:end_re` — the end-finding regex,
+  the `body` extraction and the `rest` advance below it. The decision this
+  plan replaces.
 - `.agents/harness/pretool-bash-guard.sh:start_re` — `for` deliberately
   absent, which is right, and is why its `done` is available to be
   miscounted.
 - `.agents/harness/pretool-bash-guard.sh:sleep_re` — what is tested against
   `body`, beside `count_re` and `arith_re`.
+- `.agents/harness/pretool-bash-guard.sh:deny` — the message that names a
+  bound the refused command may already carry.
 - `.agents/harness/selftest/pretool-bash-guard.sh:pbg_denied` — the
   assertion helpers, and the comment above the two-loops case explaining why
   one regex match cannot judge them.
 - `docs/research/bash-guard-reads-prose-as-a-loop.md` — the answer, the
-  reverted attempt, and what a rewrite owes.
+  reverted attempt, the five instances, and what a rewrite owes.
+- `.agents/scripts/sync-to-consumer.sh:CANONICAL_ONLY_DIRS` — why the suite
+  does not ship with the guard.
 - `joharness.sh:cmd_mutate` — usage, and what it does with a mutation that
   changes nothing.
-- `joharness.sh:cmd_ci` — where the selftest runs, for the SHIPS claim.
+- `joharness.sh:cmd_ci` — where the selftest runs here, and the branch that
+  prints `not here` in a consumer.
 
 ## Traps
 
 - NO FORKS in this hook. It runs in front of every Bash call in every
   consumer, and the perf row is budgeted at 0 external commands; reaching
   for `grep` here is meant to turn it red.
-- FAILS OPEN, always. A shape it cannot read exits 0 and says nothing. A
-  guard that denies when confused is worse than no guard.
+- FAILS OPEN, always. A shape it cannot read exits 0 and says nothing — a
+  depth count that never returns to zero is such a shape. A guard that
+  denies when confused is worse than no guard.
+- The guard refuses the commands that test it. Its own incident payloads,
+  a heredoc carrying them, and a commit message quoting them have all been
+  denied. Write payloads and commit messages to disk with a non-shell tool
+  and use `git commit -F`; do not work around the gate any other way.
 - NEVER skip, disable or quarantine a case to get green.
 - Never kick CI: no empty commit, no close-reopen.
-- A test written for the fix must FAIL without it — revert, run, restore.
 - The pull request's last commit before it opens deletes this plan file, the
   workstream file, and the research node above. Deferred, they land on
   `main` and the next session reads finished work as current.
