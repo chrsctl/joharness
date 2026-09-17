@@ -32,21 +32,27 @@ stops being indistinguishable from a fresh one by reading alone.
   The reading is git-only: the commit that most recently SET `status:
   blocked` in this file on this ref, and its committer date.
 
-  `git log -S'status: blocked'` alone does not answer it, and the reason is
-  the trap this bullet exists for. `-S` matches every commit where the
-  COUNT of that string changed, which is the park (0 to 1) and the unpark
-  (1 to 0) and the retire that deletes the file. Verified on this repo,
-  2026-09-16: `git log --format=%h -S'status: blocked' --all --full-history
-  -- docs/handover` returns a retire commit at the top of the list. So
-  neither end of that list is the answer — newest may be an unpark, oldest
-  is the first block the branch ever had, and a branch parked, unparked and
-  parked again has both.
+  A bare `git log -S` on the status string does not answer it, and the reason
+  is the trap this bullet exists for. `-S` matches every commit where the
+  COUNT of the string changed — the park (0 to 1), the unpark (1 to 0) and
+  the retire that deletes the file — so neither end of that list is the
+  answer. Newest may be an unpark; oldest is the first block the branch ever
+  had; a branch parked, unparked and parked again has both.
 
   The discriminator is the file's CONTENT at the candidate commit: walk the
-  `-S` matches newest first and take the first one whose `<ws>` at that
-  commit still says `status: blocked`. Write the walk against a fixture that
-  parks, unparks and parks again, because a query that is right on a branch
-  blocked once is right by accident.
+  matches newest first and take the first one whose workstream file at that
+  commit still carries the blocked status. Write the walk against a fixture
+  that parks, unparks and parks again, because a query that is right on a
+  branch blocked once is right by accident.
+
+  A second trap sits on top of the first, and it cost this plan a finding.
+  `-S` matches PROSE, not just frontmatter: any file whose text contains the
+  status string toggles the count the same way a real park does. A draft of
+  this bullet demonstrated the trap by quoting the string, and the demo
+  commit then ranked FIRST for its own query — a result that echoed the
+  sentence that produced it. So the selftest fixture must not mention the
+  status string outside the workstream files it is testing, and the walk must
+  be pinned to one file on one ref, never `--all`.
 
   Unreadable is its own answer and says so — a shallow clone has no history
   for most refs, and printing 0h there would read as parked this minute.
@@ -56,6 +62,11 @@ stops being indistinguishable from a fresh one by reading alone.
 
 ## Out of scope
 
+- Proposal 1, attributing the hold cost on the row that causes it. Not
+  dropped — already built and merged as PR #257, which prints the count of
+  distinct plans a row's claims hold. Named here because a reader of this
+  plan alone would otherwise see three proposals in the issue and two in
+  this section and assume the third was overlooked.
 - Proposal 2, blocked-versus-gone. Whether a session may respawn a branch a
   human parked is product direction; the issue says so and does not claim an
   answer. Nothing here reads the control plane or changes any respawn rule.
@@ -86,9 +97,12 @@ stops being indistinguishable from a fresh one by reading alone.
   positive control, since a refute alone passes when the feature is deleted.
 - Proved by reverting, per Loop step 5: removing the annotation reds a
   positive assertion, not only a refute.
-- `./joharness.sh perf` stays inside its pinned budget, or the budget moves
-  in this same diff with the counted number and the command in the comment.
-  This adds a git invocation per blocked row and `perf` counts exactly that.
+- The per-row git cost is bounded, and NOT by `perf`. `joharness.sh:perf_rows`
+  tracks nine entrypoints and `dispatch` is not one of them — confirmed by
+  running `./joharness.sh perf`, whose output never names it — so a `perf`
+  bullet here would pass whether or not the new call exists. Bound it where
+  it can be seen instead: at most one git invocation per BLOCKED row, none
+  for any other row, asserted by counting invocations in the fixture.
 - SHIPS: `joharness.sh` reaches every consumer. In a consumer, a blocked
   branch's `dispatch` row prints the block's age.
 
@@ -112,6 +126,9 @@ stops being indistinguishable from a fresh one by reading alone.
   decides nothing.
 - A git call inside the row loop without `</dev/null` consumes the loop's
   own input. The existing reader carries that guard and the reason.
+- A pickaxe search matches prose. Never write the status string into a
+  fixture, a comment or a plan near this query: the text that describes the
+  search becomes a hit for it.
 - Escalate to opus if the parked-unparked-parked case cannot be separated
   from the first block by a git query alone — a row printing a confidently
   wrong duration is worse than one printing none.

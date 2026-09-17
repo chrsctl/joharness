@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01K6sHM4RWyYDCLZmrDSrWk3
 agent: sonnet
 updated: 2026-09-16
-next: Read the verifier's findings, record each before its fix, then retire and open the pull request
+next: Correct issue #260's reproduction block, then retire and open the pull request
 ---
 
 ## Goal
@@ -78,19 +78,63 @@ decision rather than a build.
   — the promise was written and the file was not. (fixed — the question is
   filed now and the bullet names the path, so the claim is checkable rather
   than asserted.)
-- r3: (session) `unowned-block-age`'s Scope quoted a git query that does not
-  answer its own question. `-S'status: blocked'` matches every commit where
-  the COUNT of the string changed — the park, the unpark, and the retire
-  that deletes the file — so reading either end of that list is wrong, and
-  the quoted `--reverse | tail -1` spelling is just the plain newest-first
-  list, which can be an unpark. Shown by `git log --format=%h -S'status:
-  blocked' --all --full-history -- docs/handover` on this repo, whose top
-  result is a retire commit. The Acceptance bullet beside it described the
-  failure of a DIFFERENT spelling, so the plan contradicted itself.
-  (fixed — the bullet now names the trap and the discriminator, the file's
-  content at the candidate commit, and quotes no query for a literal reader
-  to copy. A plan may hand over a hard query; it may not hand over a wrong
-  one.)
+- r3: (session) `unowned-block-age`'s Scope quoted a git pickaxe query that
+  does not answer its own question. `-S` matches every commit where the
+  COUNT of the searched string changed — the park, the unpark, and the
+  retire that deletes the file — so reading either end of that list is
+  wrong, and the quoted `--reverse | tail -1` spelling is just the plain
+  newest-first list, which can be an unpark. The Acceptance bullet beside it
+  described the failure of a DIFFERENT spelling, so the plan contradicted
+  itself. (fixed — the bullet names the trap and the discriminator, the
+  file's content at the candidate commit, and quotes no query for a literal
+  reader to copy. A plan may hand over a hard query; it may not hand over a
+  wrong one.)
+- r4: (verifier) the fix for r3 demonstrated the trap by QUOTING the searched
+  string, and the demo commit then ranked first for its own query — a result
+  that echoed the sentence producing it, and one that would be permanently
+  unreproducible once merged, because that sentence outranks every real park
+  for ever. Reproduced by running the quoted command, whose top hit was the
+  commit that added the claim. (fixed — the demonstration is gone, the
+  reason is given from the pickaxe's documented semantics instead, and the
+  plan now requires the walk to be pinned to ONE file on ONE ref rather than
+  `--all`, which is what makes unrelated prose harmless. The searched string
+  is also out of this file's prose: a workstream file is exactly what that
+  walk reads, so a finding describing the search was a false park sitting in
+  the corpus.)
+- r5: (verifier) `num-knob-digits` asserted the wrong symptom, from my own
+  misreading of my own output. `JOHARNESS_CHURN_THRESHOLD=08 ... dispatch`
+  exits 0, not 1, and prints its full output including the verdict —
+  measured 2026-09-17, `echo $?` after the command. `set -e` is not in force
+  and the arithmetic dies inside a command substitution, so the knob becomes
+  EMPTY and the line reads `one file rewritten + times`. A literal reader
+  following the old bullet would have asserted an exit status that is 0
+  before and after, pinning nothing. The false claim is in issue #260's
+  reproduction block too, which I wrote. (fixed — the Goal carries the
+  measured output, the bullet asserts the line's content and a silent
+  stderr, and the Traps section says why exit status is the wrong thing to
+  read here. The issue is corrected separately, since a plan cannot fix
+  what an issue claims.)
+- r6: (verifier) the same plan's second bullet read the wrong LINE.
+  `JOHARNESS_MAX_MANAGERS=010` prints `cap       : 010 manager(s)` — the raw
+  string — and the octal misread surfaces one line down as
+  `slots     : 8 of 010 free`. The bullet said the cap line prints 8, so an
+  implementer would look where the defect is not, find `010`, and conclude
+  it was absent. Measured the same day, same command. (fixed — the bullet
+  names both lines and says which one carries the misread.)
+- r7: (verifier) `unowned-block-age`'s perf bullet was vacuous:
+  `joharness.sh:perf_rows` tracks nine entrypoints and `dispatch` is not one
+  of them, confirmed by running `./joharness.sh perf`, whose output never
+  names it. A bullet asking the budget to hold would pass whether or not the
+  new git call existed. (fixed — the bound is stated where it can be seen,
+  as a count of git invocations per row asserted in the fixture, and the
+  bullet says why `perf` cannot carry it.)
+- r8: (verifier) the same plan listed two of issue #254's three proposals as
+  out of scope and said nothing about the third, so a reader of the plan
+  alone would assume it was overlooked. It was not — proposal 1 merged as
+  PR #257 — but the plan is what a session reads. (fixed — named in Out of
+  scope with the pull request that built it. The verifier read it as dropped
+  work, which is the reading the silence invited and the reason it needed
+  saying.)
 
 ## Blockers
 

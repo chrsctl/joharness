@@ -15,9 +15,24 @@ to bash arithmetic. `08` and `09` are digits only, so they pass the filter
 and then die on the octal literal rule; `010` passes and is silently read as
 eight. Every knob the harness has goes through this one reader, including
 `JOHARNESS_MAX_MANAGERS`, which is the cap, which is the human's money. The
-crash half lands mid-output: `dispatch` printed its header and its in-flight
-rows and then exited 1 before the slots line and the verdict, leaving the
-orchestrator's one branch point missing with only the exit status to say so.
+crash half is worse than a crash. Measured on this repo, 2026-09-16:
+
+```
+$ JOHARNESS_CHURN_THRESHOLD=08 JOHARNESS_MODE=orchestrated ./joharness.sh dispatch
+./joharness.sh: line 7075: 08: value too great for base   (stderr)
+loop      : one file rewritten + times on a branch = LOOP? ...; 08+ = a warning ...
+$ echo $?
+0
+```
+
+`set -e` is not in force, so the arithmetic dies inside a command
+substitution and the script carries on with the result EMPTY. The knob is
+now the empty string, the line that prints it reads `rewritten + times`, and
+every later comparison against it is a test with a missing operand. Exit 0,
+full output, a verdict the orchestrator will act on. An earlier telling of
+this — including issue #260's own reproduction block — said the command
+exits 1 and dies before the verdict; it does not, and the quiet version is
+the one worth building against.
 
 ## Scope
 
@@ -68,14 +83,17 @@ orchestrator's one branch point missing with only the exit status to say so.
 
 - `./joharness.sh ci` — `ci: pass`.
 - `JOHARNESS_CHURN_THRESHOLD=08 JOHARNESS_MODE=orchestrated ./joharness.sh dispatch`
-  exits 0 and prints a `loop      :` line reading 8 and 16. Before this
-  change the same command prints `value too great for base` and exits 1;
-  assert the exit status, not only the text, because a command that prints
-  the right line and then dies is the defect.
+  prints a `loop      :` line naming 8 and 16, and writes NOTHING to stderr.
+  Assert both, and assert neither by exit status: the command already exits
+  0 before the fix, so an exit-status assertion is false in both states and
+  pins nothing. What moves is the line's content — today it reads
+  `rewritten + times` with the limit missing — and the stderr line.
 - `JOHARNESS_MAX_MANAGERS=010 JOHARNESS_MODE=orchestrated ./joharness.sh dispatch`
-  prints `cap       : 10 manager(s)`. This is the quiet half and it needs a
-  positive assertion: before the change the same command prints 8, which is
-  a green run and a wrong cap.
+  prints `cap       : 10 manager(s)` AND a `slots` line counting against 10.
+  Read the slots line, not only the cap line: before the fix the cap line
+  prints the raw string `010` and the octal misread surfaces one line down as
+  `slots     : 8 of 010 free`. A bullet that only checks the cap line finds
+  `010` where it expected `8`, concludes the defect is absent, and passes.
 - A value past the digit ceiling falls back to the default, asserted in both
   directions: the knob line names the default, and a value one digit under
   the ceiling is still honoured. A ceiling asserted only from above passes
@@ -105,6 +123,10 @@ orchestrator's one branch point missing with only the exit status to say so.
 - Digits-only is not a number. The filter that looks like validation is the
   thing that let both values through, so a fix that adds a second filter of
   the same shape has not moved.
+- The failure is SILENT, not loud. `set -e` is not in force and the
+  arithmetic dies inside a command substitution, so the knob becomes empty
+  and the command exits 0 with a full, confident, wrong output. Anything
+  asserted on exit status here is asserted on a value that never moves.
 - Never widen a knob's meaning to make a case pass. If a value cannot be
   read, the default is the answer the reader already gives non-digits.
 - A test written for this must FAIL without the fix. Both defects are silent
