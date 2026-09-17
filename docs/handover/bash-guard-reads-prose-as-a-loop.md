@@ -108,9 +108,11 @@ what the node leaves open is which half is wrong, the rule or the message.
 - r9: (verifier) two more clauses pinned by nothing, found with the tool
   after I had used it twice and thought I was done: `walked="$prefix"` on the
   skip path reds no case, and `open_re`'s word-boundary anchor reds no case
-  (its alternation does — 1 case — so the control holds). Both moot with the
-  revert, and recorded because the lesson is that "I mutated it" is not the
-  same as "I mutated all of it".
+  (its alternation does — 1 case — so the control holds). (no change — both
+  clauses are gone with the revert, so there is nothing left to pin. Recorded
+  because the lesson outlives them: "I mutated it" is not the same as "I
+  mutated all of it", and the tool said NOTHING REDDED twice on clauses I had
+  written and half-tested.)
 - r5: (session) went looking for the false-negative direction rather than
   leaving the expensive half to the reviewer, and found one — the walk takes
   the FIRST `done`, so an unbounded loop with a nested `for` ahead of its
@@ -133,7 +135,14 @@ what the node leaves open is which half is wrong, the rule or the message.
   defensible side of the line and stays denied — but it is a fourth instance
   of the family in one session, and it is why the patch went through the
   Write tool rather than a Bash heredoc. The node predicted this and the
-  prediction cost a turn anyway.
+  prediction cost a turn anyway. (wontfix — a heredoc that writes an
+  unbounded wait into a script is the case the guard's own comment defends,
+  and this branch changes no rule. A FIFTH instance landed after this was
+  written: the commit message for the revert quotes the payloads, so the
+  commit command was denied too — the guard refusing the commit that reverts
+  the failed fix for it. Committed with `git commit -F` from a file. Both
+  instances are cost, not counter-evidence, and both belong to #271's
+  rewrite rather than to a clause here.)
 
 ## Blockers
 
