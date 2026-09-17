@@ -1,13 +1,13 @@
 ---
 workstream: guard-docs-only-branch
-status: in-progress
+status: abandoned
 branch: claude/guard-docs-only-branch
 pr: none
 plan: guard-docs-only-branch
 session: https://claude.ai/code/session_019c3kktaEvDBAnDv1K2i65p
 agent: haiku
-updated: 2026-08-25
-next: Exclude root-level *.md from the guard's code filter and make the comment say so.
+updated: 2026-09-17
+next: Abandoned claim, free to take — read this file whole, then exclude root-level *.md from the guard's code filter and make the comment say so
 ---
 
 ## Goal
@@ -49,7 +49,17 @@ its filter counts root `AGENTS.md` as code. Plan:
 
 ## Blockers
 
-None.
+**Claim released by the janitor sweep of 2026-09-17.** The session that made
+it is gone: `session_019c3kktaEvDBAnDv1K2i65p read SESSION_STATUS_ARCHIVED`. It was holding `docs/plans/guard-docs-only-branch.md`, which is
+free from the moment the queue hook reads `status: abandoned` above.
+
+Nothing on this branch was changed but this file, and nothing was deleted —
+not the file, not the branch, not a line of what the claim already said. The
+work below is exactly as its session left it.
+
+**A session that picks this up sets `status:` back and carries on.** That is
+not a formality: the status is what the queue reads, and this note is not an
+instruction to anybody, it is the record of one reading taken on one date.
 
 ## Where to look
 
