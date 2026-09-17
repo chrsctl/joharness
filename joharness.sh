@@ -4866,16 +4866,24 @@ analysis_one() {
 
   # The three marks dispatch already computes, and no fourth threshold: a knob
   # nobody has counted is a written number (.agents/harness/AGENTS.md, step 5).
-  if [ "$status" = "blocked" ]; then
+  if [ "$status" = "abandoned" ]; then
+    # Released: its session is provably gone, so it will never push again and a
+    # stall mark on it is a clock nobody is watching. No condition, and nothing
+    # for an analyst to explain — the plan is already back in the queue.
+    out="${out}condition : none — this claim was RELEASED (status: abandoned). Its"$'\n'
+    out="${out}            plan is free; the branch is the human's to delete"$'\n'
+  elif [ "$status" = "blocked" ]; then
     cond="BLOCKED"
     out="${out}condition : BLOCKED — a human's. dispatch relays this row every pass and"$'\n'
     out="${out}            never asks whether its cause still holds"$'\n'
   fi
-  if [ "$status" != "blocked" ] && [ -n "$age" ] && [ "$age" -ge "$stall" ]; then
+  if [ "$status" != "blocked" ] && [ "$status" != "abandoned" ] &&
+     [ -n "$age" ] && [ "$age" -ge "$stall" ]; then
     cond="${cond:+${cond}+}STALL?"
     out="${out}condition : STALL? — no push for ${agetext} (>= ${stall}m)"$'\n'
   fi
-  if [ "$status" != "blocked" ] && [ "$churnl" -gt 0 ] && [ "$churn_n" -ge "$churnl" ]; then
+  if [ "$status" != "blocked" ] && [ "$status" != "abandoned" ] &&
+     [ "$churnl" -gt 0 ] && [ "$churn_n" -ge "$churnl" ]; then
     cond="${cond:+${cond}+}LOOP?"
     out="${out}condition : LOOP? — ${churn_f} rewritten ${churn_n} times (>= ${churnl})"$'\n'
   fi
@@ -4899,10 +4907,17 @@ analysis_one() {
 
   if [ -z "$cond" ]; then
     printf '%s' "$out"
-    printf 'verdict   : NO CONDITION — not blocked, not stalled, not looping. This row\n'
-    printf '            is a manager at work, and there is nothing to explain. A\n'
-    printf '            condition that cleared between the pass and this read looks\n'
-    printf '            exactly like this.\n\n'
+    if [ "$status" = "abandoned" ]; then
+      # Not "a manager at work": there is no manager. Saying so would send an
+      # analyst looking for a session that the janitor already proved gone.
+      printf 'verdict   : NO CONDITION — the claim was released and its plan is back in\n'
+      printf '            the queue. Nothing to explain, and nobody to explain it to.\n\n'
+    else
+      printf 'verdict   : NO CONDITION — not blocked, not stalled, not looping. This row\n'
+      printf '            is a manager at work, and there is nothing to explain. A\n'
+      printf '            condition that cleared between the pass and this read looks\n'
+      printf '            exactly like this.\n\n'
+    fi
     return 0
   fi
 
@@ -5195,44 +5210,62 @@ janitor_due() {
 }
 
 # A janitor already in flight, one line per branch: `<branch>\t<stamp>\t<status>`.
-# Identity is the workstream file's own name — `workstream: janitor-<stamp>`
-# with `plan: none` — the same key the curate cycle uses, so a sweep in flight
-# cannot make another one due.
+#
+# FRONTMATTER decides, never the filename — `workstream: janitor-<stamp>` with a
+# DIGIT after the dash, and `plan: none`. Keyed on the filename it re-made the
+# curate cycle's own r4 twice over: a branch owning `janitor-role.md` (the one
+# building this cycle) suppressed the whole thing, and a real sweep whose file
+# is `janitor2026-09-18.md` went unseen, so `dispatch` said DUE and a second
+# janitor was spawned onto branches the first was already writing to.
+#
+# `--no-merged` and the `ls-tree | grep` prefilter are not tidiness either:
+# `drain` runs this at every session start, and without them it paid a merge
+# base, a diff and a frontmatter read for every unmerged ref. Measured on this
+# checkout (142 refs, verifier): `drain` 12.075s with the naive walk against
+# 5.521s with the cycle off. The DECISION stays frontmatter, so a false
+# positive from the broad grep costs three git calls and nothing else.
 janitor_branches() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" r name base f doc ws st pl
-  git -C "$ROOT" for-each-ref --format='%(refname)' refs/remotes/origin \
-    </dev/null 2>/dev/null |
-    while IFS= read -r r; do
-      name="${r#refs/remotes/origin/}"
-      { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
-      git -C "$ROOT" merge-base --is-ancestor "$r" \
-        "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null && continue
-      base="$(git -C "$ROOT" merge-base "$r" \
-        "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)" || continue
-      [ -n "$base" ] || continue
-      while IFS= read -r f; do
-        [ -n "$f" ] || continue
-        # `janitor-<stamp>` where the stamp STARTS WITH A DIGIT, and
-        # `plan: none` besides. `janitor-*` alone claimed this cycle's
-        # identity for any file whose name begins with the word — the branch
-        # writing the janitor ITSELF read as a sweep in flight, which is a
-        # cycle that can never come due once somebody names a file after it.
-        case "$(basename "$f" .md)" in janitor-[0-9]*) ;; *) continue ;; esac
-        doc="$(git -C "$ROOT" show "${r}:${f}" </dev/null 2>/dev/null)" || continue
-        { read -r ws; read -r st; read -r pl; } \
-          <<<"$(printf '%s\n' "$doc" | gr_fields workstream status plan)"
-        { [ -z "$pl" ] || [ "$pl" = none ]; } || continue
-        printf '%s\t%s\t%s\n' "$name" "${ws:-?}" "${st:-?}"
-      done <<<"$(git -C "$ROOT" diff --name-only --diff-filter=ACMRT "$base" "$r" \
-        -- docs/handover </dev/null 2>/dev/null | gr_docs)"
-    done
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}"
+  local refs r name base wf files doc jws jkey jstat cand
+  refs="$(git -C "$ROOT" for-each-ref --no-merged="refs/remotes/origin/${base_branch}" \
+    --format='%(refname)' refs/remotes/origin </dev/null 2>/dev/null)"
+  while IFS= read -r r; do
+    [ -n "$r" ] || continue
+    name="${r#refs/remotes/origin/}"
+    { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
+    cand="$(git -C "$ROOT" ls-tree -r --name-only "$r" -- docs/handover \
+      </dev/null 2>/dev/null | grep -i janitor)" || continue
+    [ -n "$cand" ] || continue
+    base="$(git -C "$ROOT" merge-base "$r" \
+      "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)"
+    [ -n "$base" ] || continue
+    files="$(git -C "$ROOT" diff --name-only --diff-filter=ACMRT "$base" "$r" \
+      -- docs/handover </dev/null 2>/dev/null | gr_docs)"
+    while IFS= read -r wf; do
+      [ -n "$wf" ] || continue
+      doc="$(git -C "$ROOT" show "${r}:${wf}" </dev/null 2>/dev/null)"
+      { read -r jws; read -r jkey; read -r jstat; } \
+        <<<"$(printf '%s\n' "$doc" | gr_fields workstream plan status)"
+      case "$jws" in janitor-[0-9]*) ;; *) continue ;; esac
+      [ "$jkey" = none ] || continue
+      # SANITISED, because both readers of this record print it through
+      # `printf %b`: a frontmatter field is branch-controlled input, and
+      # `workstream: janitor-2026-09-01\n            origin/main  INJECTED`
+      # forged an extra row in `dispatch`, which is what the orchestrator reads
+      # to decide spawns. Same reasoning as validating a status rather than
+      # passing it through.
+      jws="$(printf '%s' "$jws" | tr -cd 'A-Za-z0-9._:-')"
+      jstat="$(printf '%s' "$jstat" | tr -cd 'A-Za-z0-9._-')"
+      printf '%s\t%s\t%s\n' "$name" "${jws:-?}" "${jstat:-?}"
+    done <<<"$files"
+  done <<<"$refs"
 }
 
 cmd_janitor() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" ref
   local due state why hours stale_s
   local claims branch path doc plan status pr session age agetext n_cand=0
-  local jb jw js n_inflight=0 inflight="" f n_left=0 n_merged=0 merged=""
+  local jb jw js n_inflight=0 inflight="" f n_left=0 n_merged=0 merged="" carried=""
 
   [ "$#" -eq 0 ] || die "usage: $0 janitor"
 
@@ -5247,11 +5280,17 @@ cmd_janitor() {
     off)        printf 'cadence   : off — %s\n\n' "$why"; return 0 ;;
   esac
 
-  while IFS=$'\t' read -r jb jw js; do
-    [ -n "$jb" ] || continue
-    n_inflight=$((n_inflight + 1))
-    inflight="${inflight}            ${jb}  ${jw}  ${js}\n"
-  done < <(janitor_branches)
+  # Walked ONLY when a sweep could be due. A sweep in flight cannot make a
+  # not-due pass due, so the walk would change no answer — and it is the
+  # expensive half of this command, which `drain` runs at every session start
+  # (the same gate, and the same reason, as the curate block).
+  if [ "$state" = due ]; then
+    while IFS=$'\t' read -r jb jw js; do
+      [ -n "$jb" ] || continue
+      n_inflight=$((n_inflight + 1))
+      inflight="${inflight}            ${jb}  ${jw}  ${js}\n"
+    done < <(janitor_branches)
+  fi
 
   if [ "$n_inflight" -gt 0 ]; then
     printf 'cadence   : IN FLIGHT, so none is due. What made it due: %s\n' "$why"
@@ -5315,9 +5354,13 @@ cmd_janitor() {
   # --- what merges left behind ---------------------------------------------
   ref="$(decide_ref)" || ref=""
   if [ -n "$ref" ]; then
+    # ONE walk, hoisted out of the loop exactly as `cmd_cleanup` hoists it: it
+    # reads every unmerged ref, and inside the loop a base branch with six
+    # leftovers paid for six of them (~2s each on this checkout).
+    carried="$(cl_inflight "$ref")"
     while IFS= read -r f; do
       [ -n "$f" ] || continue
-      printf '%s\n' "$(cl_inflight "$ref")" | grep -qxF -- "$f" && continue
+      printf '%s\n' "$carried" | grep -qxF -- "$f" && continue
       n_left=$((n_left + 1))
     done <<<"$(git -C "$ROOT" ls-tree -r --name-only "$ref" -- docs/handover \
       </dev/null 2>/dev/null | gr_docs)"
@@ -6715,9 +6758,22 @@ cmd_drain() {
     done < <(janitor_branches)
     if [ "$jinflight" -eq 0 ]; then
       printf 'janitor   : DUE — %s\n' "$jreason"
-      printf '  Claims may have outlived their sessions. Read\n'
-      printf '  .claude/commands/janitor.md and run ./joharness.sh janitor.\n'
-      printf '  Releases nothing it cannot prove gone; 0 = off (JOHARNESS_JANITOR_HOURS).\n'
+      printf '  Claims may have outlived their sessions.\n'
+      # Mode-blind is the defect the curate block above carries its own
+      # post-mortem for (verifier r27), and this block re-made it ten lines
+      # later: under orchestrated a manager reading "run it" takes a sweep that
+      # is the ORCHESTRATOR's to spawn, beyond the cap — the human's money,
+      # decided by a session told to work one named item.
+      if [ "$mode" = "orchestrated" ]; then
+        printf '  Queue work, and the ORCHESTRATOR'"'"'s to spawn — not this session'"'"'s:\n'
+        printf '  a manager works the item its prompt names. ./joharness.sh dispatch\n'
+        printf '  prints it, and a janitor costs one session beyond the cap.\n'
+      else
+        printf '  This is queue work and it is THIS session'"'"'s item: read\n'
+        printf '  .claude/commands/janitor.md and run ./joharness.sh janitor.\n'
+      fi
+      printf '  It releases nothing it cannot prove gone, and deletes nothing.\n'
+      printf '  0 = off (JOHARNESS_JANITOR_HOURS).\n'
     fi
     printf '\n'
   fi
@@ -7192,9 +7248,20 @@ cycle_repo_age_h() {
 # readers of one fact, and the `--full-history` reason below is exactly the
 # kind of subtlety the copy would lose.
 cycle_landed_sha() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" kind="${1:-curate}"
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" kind="${1:-curate}" glob
+  # The janitor cycle's identity carries a DIGIT after the dash, everywhere it
+  # is read — `janitor_branches` and `janitor.md` §1 both say so — and the
+  # dating glob has to agree or the two definitions disagree inside one diff.
+  # Measured: with `janitor-*.md` the branch that BUILT this cycle dated it,
+  # because its own workstream file is `janitor-role.md` and step 7 deletes it
+  # (verifier). `curate-*` is left exactly as it was: changing when the OTHER
+  # cycle believes it last ran is not this change's business.
+  case "$kind" in
+    janitor) glob="docs/handover/janitor-[0-9]*.md" ;;
+    *)       glob="docs/handover/${kind}-*.md" ;;
+  esac
   git -C "$ROOT" log -1 --format=%H --diff-filter=D --full-history \
-    "refs/remotes/origin/${base_branch}" -- "docs/handover/${kind}-*.md" \
+    "refs/remotes/origin/${base_branch}" -- "$glob" \
     </dev/null 2>/dev/null
 }
 

@@ -38,9 +38,12 @@ what conflating them costs.
   AND the rule that gives the word its effect: an `abandoned` claim is
   dropped from `claims` entirely, so its plan reads free, its scope holds
   nothing, and it never joins `claim_blocked_pairs`.
-- `joharness.sh:cmd_dispatch` — the same validated list; an `abandoned` row
-  holds no slot and holds no plan, is never nudged, killed or respawned, and
-  says who released it.
+- `joharness.sh:cmd_dispatch` — the same validated list, so an unknown status
+  still normalises. No row of its own: dispatch's in-flight rows come from the
+  hook's `claimed on` annotation and a released claim no longer produces one,
+  which is the correct answer — the orchestrator counts managers, and a
+  released claim has none. Telling the human the branch still stands is the
+  sweep's report, not dispatch's.
 - `joharness.sh:cmd_analysis` — the same list; an abandoned claim carries no
   condition.
 - `.agents/docs/handover/README.md` — the status line, the state table, and
@@ -61,9 +64,12 @@ Prints, and acts on nothing:
   claim, status, push age, `pr:` if it names one, and the `session:` URL. Each
   carries `CHECK LIVENESS` and nothing stronger: push age is not liveness in
   either direction, and this command has no control plane.
-- `holds :` per candidate — the plans its `scope:` keeps out of the queue,
-  which is #254's first proposal: attribute the cost on the row that causes
-  it.
+- `holds :` per candidate — the plan the claim NAMES, which is the plan it
+  keeps out of the queue. NOT the scope-overlap holds #254's first proposal
+  asks for: those are `wave_split_hit`'s computation and dispatch's `HOLD`
+  lines, and a second copy of that reader here would be the two-readers
+  failure this repo keeps paying for. Narrowed deliberately; the wider
+  attribution stays #254's.
 - **leftovers** — what `cleanup` counts on the base branch, unchanged.
 - **merged and standing** — branches whose work landed; the human deletes
   them.

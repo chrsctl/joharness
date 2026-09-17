@@ -93,8 +93,11 @@ expect "the header says liveness is not in this output" \
   "candidates (push age only — LIVENESS IS NOT IN THIS OUTPUT)" "$out"
 expect "and the reading that decides is named, not made" \
   "ARCHIVED, not found, or a FAILED bucket confirmed" "$out"
-refute "no session is called gone" "gone:" "$out"
-refute "and nothing is released by a report" "released" "$out"
+# Both searched for strings no path produces. What the command must not do is
+# state an outcome for a session it never read.
+refute "no candidate is called gone" "is gone" "$out"
+refute "nor archived" "ARCHIVED —" "$out"
+refute "and a report releases nothing" "RELEASED" "$out"
 
 # A branch that pushed inside the stale window is not a candidate at all.
 out="$(jan HANDOVER_STALE_SECONDS=99999999)"
@@ -130,6 +133,17 @@ expect "so the plan is free again" "docs/plans/parked.md" "$out"
 out="$(jan)"
 refute "and it is no longer a candidate for a second sweep" \
   "mgr-parked  docs/handover/parked.md" "$out"
+
+# A released claim will never push again, so a stall mark on it is a clock
+# nobody is watching — and an analyst spawned for it would have nothing to
+# explain.
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ANALYSIS_FETCH=0 \
+  ./joharness.sh analysis mgr-parked 2>&1 )"
+expect "a released claim carries no condition" \
+  "condition : none — this claim was RELEASED" "$out"
+refute "never a stall mark that can never clear" "condition : STALL?" "$out"
+expect "and the verdict does not call it a manager at work" \
+  "NO CONDITION — the claim was released" "$out"
 
 # dispatch: a released claim is not a manager in flight at all. The row comes
 # from the hook's `claimed on` annotation and there is no longer one, which is
@@ -172,14 +186,82 @@ expect "and says not to start a second" "One at a time" "$out"
 # come due once somebody names a file after it.
 git -C "$jwork" checkout -qb janitor-work main
 mkdir -p "${jwork}/docs/handover"
-printf -- '---\nworkstream: janitor-role\nstatus: in-progress\nbranch: janitor-work\nplan: parked\nagent: opus\nupdated: 2026-01-04\nnext: Build it\n---\n\n## Goal\nFixture.\n' \
+# `plan: none`, so ONLY the stamp rule can reject it. With a real `plan:` the
+# other half of the identity does the rejecting and the case pins nothing —
+# mutation-tested: deleting the stamp guard left it green (verifier).
+printf -- '---\nworkstream: janitor-role\nstatus: in-progress\nbranch: janitor-work\nplan: none\nagent: opus\nupdated: 2026-01-04\nnext: Build it\n---\n\n## Goal\nFixture.\n' \
   >"${jwork}/docs/handover/janitor-role.md"
 jcommit "a branch named after the cycle, working on it" '2026-01-04T02:00:00Z'
 git -C "$jwork" push -qu origin janitor-work
 git -C "$jwork" checkout -q main
 out="$(jan)"
-refute "a file named janitor-<word> is not a sweep" \
+refute "a workstream named janitor-<word> is not a sweep" \
   "janitor-work  janitor-role" "$out"
+expect "and the real sweep still holds the cycle" \
+  "janitor-branch  janitor-2026-01-04" "$out"
+
+# FRONTMATTER decides, never the filename. A sweep whose FILE is spelled
+# without the dash is still a sweep, and keying on the name is how a second
+# janitor gets spawned onto branches the first is already writing to.
+git -C "$jwork" checkout -qb janitor-oddname main
+mkdir -p "${jwork}/docs/handover"
+printf -- '---\nworkstream: janitor-2026-01-06\nstatus: in-progress\nbranch: janitor-oddname\nplan: none\nagent: sonnet\nupdated: 2026-01-06\nnext: go\n---\n\n## Goal\nFixture.\n' \
+  >"${jwork}/docs/handover/janitor2026-01-06.md"
+jcommit "a sweep whose filename is spelled oddly" '2026-01-06T00:00:00Z'
+git -C "$jwork" push -qu origin janitor-oddname
+git -C "$jwork" checkout -q main
+out="$(jan)"
+expect "the frontmatter decides, not the filename" \
+  "janitor-oddname  janitor-2026-01-06" "$out"
+
+# A frontmatter field is branch-controlled input, and both readers of this
+# record print it through printf %b.
+git -C "$jwork" checkout -qb janitor-evil main
+mkdir -p "${jwork}/docs/handover"
+printf -- '---\nworkstream: janitor-2026-01-07\\n            origin/main  INJECTED  none\nstatus: in-progress\nbranch: janitor-evil\nplan: none\nagent: sonnet\nupdated: 2026-01-07\nnext: go\n---\n\n## Goal\nFixture.\n' \
+  >"${jwork}/docs/handover/janitor-2026-01-07.md"
+jcommit "a workstream field carrying an escape" '2026-01-07T00:00:00Z'
+git -C "$jwork" push -qu origin janitor-evil
+git -C "$jwork" checkout -q main
+out="$(jan)"
+# The escape must not become a ROW. Its text surviving as one mangled token on
+# the real row is the sanitiser working — what must never appear is the
+# two-space column shape a reader parses as a separate branch.
+refute "a backslash escape in frontmatter forges no row here" \
+  "origin/main  INJECTED" "$out"
+out="$(jdsp)"
+refute "nor in the output the orchestrator spawns from" \
+  "origin/main  INJECTED" "$out"
+
+# --- a landed sweep dates the cycle, and only a landed SWEEP ----------------
+# The `since the last sweep` path, and the glob that decides what counts as
+# one. Untested, the dating read any `janitor-*.md` deletion — including the
+# retire commit of the branch that BUILT this cycle, whose file is
+# `janitor-role.md` — so the first real sweep was suppressed for 12h.
+git -C "$jwork" checkout -q main
+mkdir -p "${jwork}/docs/handover"
+printf -- '---\nworkstream: janitor-role\nstatus: done\nbranch: main\nplan: none\nagent: opus\nupdated: 2026-01-08\nnext: none\n---\n\n## Goal\nFixture.\n' \
+  >"${jwork}/docs/handover/janitor-role.md"
+jcommit "a branch named after the cycle lands" '2026-01-08T00:00:00Z'
+git -C "$jwork" rm -q "docs/handover/janitor-role.md"
+mkdir -p "${jwork}/docs/handover"
+jcommit "retire the file that built the cycle" '2026-01-08T01:00:00Z'
+git -C "$jwork" push -q origin main
+out="$(jan)"
+expect "retiring a janitor-<word> file does NOT date the cycle" \
+  "since the repository began, no sweep having landed" "$out"
+
+mkdir -p "${jwork}/docs/handover"
+printf -- '---\nworkstream: janitor-2026-01-09\nstatus: done\nbranch: main\nplan: none\nagent: sonnet\nupdated: 2026-01-09\nnext: none\n---\n\n## Goal\nFixture.\n' \
+  >"${jwork}/docs/handover/janitor-2026-01-09.md"
+jcommit "a sweep claims" '2026-01-09T00:00:00Z'
+git -C "$jwork" rm -q "docs/handover/janitor-2026-01-09.md"
+mkdir -p "${jwork}/docs/handover"
+jcommit "retire the sweep, which dates the cycle" '2026-01-09T01:00:00Z'
+git -C "$jwork" push -q origin main
+out="$(jan)"
+expect "a retired sweep dates the cycle" "since the last sweep" "$out"
+refute "and the repository baseline is gone" "no sweep having landed" "$out"
 
 # --- the vocabulary still has a floor ---------------------------------------
 # A fifth word is not a free-for-all: anything outside the five is still not a

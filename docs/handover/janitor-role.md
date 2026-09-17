@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01TsLnukcKvuRKLXcJ34BLhg
 agent: opus
 updated: 2026-09-17
-next: Build docs/plans/janitor-role.md — the status word first, then the reader, then the role
+next: Retire this file and the plan in the last commit before the pull request opens
 ---
 
 ## Goal
@@ -61,7 +61,90 @@ goal is clear"). Taken:
 
 ## Review
 
-Nothing yet.
+- r1: dispatch's `ANALYSE?`-style row for a released claim was unreachable —
+  dispatch's in-flight rows come from the hook's `claimed on` annotation, and
+  a released claim no longer produces one. Dead code that reads like a rule;
+  removed, and the plan now records that the row correctly vanishes (fixed)
+- r2: the selftest fixture wrote into `docs/handover` after a checkout that
+  had emptied it, so three cases read the previous state's output. `mkdir -p`
+  after every checkout and every `git rm` (fixed)
+- r3: (verifier) `janitor_branches` keyed on the FILENAME. Reproduced: a real
+  sweep in `janitor2026-09-18.md` went unseen and `dispatch` printed both
+  `janitor : DUE` and the spawn line — two janitors writing releases to the
+  same branches. The curate reader's own comment says frontmatter decides and
+  names the incident that bought it; now `workstream: janitor-<digit...>` plus
+  `plan: none`, and a case that pins each half (fixed)
+- r4: (verifier) the `drain` janitor block was mode-blind — the defect the
+  curate block ten lines above carries its own post-mortem for (r27 there).
+  Under orchestrated it told a manager to run a sweep that is the
+  orchestrator's to spawn, beyond the cap. Same carve-out as curate now (fixed)
+- r5: (verifier) `cycle_landed_sha janitor` dated the cycle off ANY
+  `janitor-*.md` deletion, including THIS branch's own retire commit
+  (`janitor-role.md`), which would have suppressed the first real sweep for
+  12h. The glob carries the digit now; `curate-*` deliberately unchanged, and
+  a case pins both directions (fixed)
+- r6: (verifier) `printf '%b'` expanded backslash escapes out of a
+  branch-controlled `workstream:` field, forging an extra row in both
+  `janitor` and `dispatch` — the output an orchestrator spawns from. Fields
+  are sanitised at the reader now, and a fixture carrying the escape pins it
+  (fixed)
+- r7: (verifier) `handover-context.sh:rank_of` had no `abandoned` case, so a
+  released claim fell to rank 3 — or 2 with a `pr:` — and could LEAD the
+  in-flight listing as `FINISH BEFORE STARTING`. Ranked 5, below blocked
+  (fixed)
+- r8: (verifier) a released claim still held its ISSUE: `claimed_issues` had
+  no status filter, so the release freed the plan and held the issue, which
+  Loop step 2 ranks ABOVE plans. #254's own failure one field over (fixed)
+- r9: (verifier) `analysis` marked a released claim `STALL?` for ever — a
+  clock nobody is watching on a branch that will never push again. It now
+  carries no condition, and its verdict says the claim was released rather
+  than "a manager at work" (fixed)
+- r10: (verifier) `cmd_janitor` printed `IN FLIGHT, so none is due ... (of
+  99999h)` — asserting a sweep was due while its own reader said not due. The
+  walk is gated on `due`, as `drain` and `dispatch` already gate theirs
+  (fixed)
+- r11: (verifier) `janitor_branches` roughly doubled `drain`, which every
+  session runs: 12.075s against 5.521s with the cycle off, `perf --live`
+  counting 689 against 500 on main, over 142 refs (verifier, 2026-09-17). It
+  now carries the curate reader's `--no-merged` and its `ls-tree | grep`
+  prefilter, and `cmd_janitor` walks only when a sweep could be due.
+  Re-counted after the fix, same checkout, 2026-09-17: `DRAIN_FETCH=0
+  ./joharness.sh drain` 1827/1919/2133ms with the cycle on against
+  1892/1855/1843ms with `JOHARNESS_JANITOR_HOURS=0` — indistinguishable;
+  `perf` 292 against a budget of 308; `perf --live` 555 against the 500 the
+  verifier counted on main, down from 689 (fixed)
+- r12: (verifier) `cl_inflight` was called inside the leftovers loop rather
+  than hoisted as `cmd_cleanup` hoists it — one full ref walk per leftover,
+  ~2s each on this checkout (fixed)
+- r13: (verifier) the case naming the digit guard did not pin it: its fixture
+  also carried a real `plan:`, so the other half of the identity did the
+  rejecting. Mutation-tested green with the guard deleted. The fixture now
+  carries `plan: none` (fixed)
+- r14: (verifier) no case reached the `since the last sweep` path at all — the
+  whole dating parameterisation, including r5's defect, was untested. Two
+  cases now land a sweep and retire it (fixed)
+- r15: (verifier) two assertions searched for strings no code path produces
+  (`gone:`, and `released` where the tail spells it `releases`). Replaced with
+  ones that fail if the command ever states an outcome for a session it did
+  not read (fixed)
+- r16: (verifier) the plan claimed `holds :` would attribute the scope-overlap
+  holds #254 asks for; what shipped names the claim's own plan. Narrowed in
+  the plan rather than widened in the code: the overlap computation is
+  `wave_split_hit`'s, and a second reader of it is the failure this repo keeps
+  paying for (fixed)
+- r17: (verifier) `.agents/harness/AGENTS.md` step 2 named `/curate` and not
+  the sweep, so a session following it literally had no rule for a `plan:
+  none` janitor item. One clause added beside the curate one (fixed)
+- r18: (verifier) the same `printf '%b'` shape exists in the CURATE in-flight
+  path, which this branch did not introduce and does not touch. Not fixed
+  here: it is a defect in shipped code with its own blast radius, and a fix
+  riding an unrelated diff is how a reviewer loses track of both. Reported to
+  the human instead (wontfix — reported, not mine)
+- r19: (verifier) the fixture's cadence assertions are wall-clock relative:
+  `JOHARNESS_JANITOR_HOURS=99999` reads not-due only until the fixture's
+  2026-01-01 base is 99999h old, around 2037. Left as is: pinning it would
+  mean freezing `date`, which the runner does not do for any other topic
+  (wontfix — dated, and the date is in this line)
 
 ## Blockers
 
