@@ -336,6 +336,41 @@ this mode should move. If it does not, the hold rule bought nothing.
 | `JOHARNESS_UPSTREAM_FEEDBACK` | `off` | on = one reporter session per merged edge, beyond the cap, filing harness findings on the canonical — money, and pull requests in a repo this one does not own | not a number to calibrate: a switch, off until a human turns it on. Unlike the six above it IS declared in `.agents/scripts/conf-keys.sh`, so every consumer's sync names the key its conf does not answer |
 | `JOHARNESS_IDLE_ANALYSIS` | `off` | on = one analyst session per condition per item per run, beyond the cap, saying why a manager is parked and filing it as an issue on the canonical — money, and issues in a repo this one does not own | a switch, off until a human turns it on, declared in `.agents/scripts/conf-keys.sh` beside the row above. It calibrates NOTHING of its own: the marks it fires on are drawn by `JOHARNESS_STALL_MINUTES` and `JOHARNESS_CHURN_LIMIT`, and a fourth written number would buy nothing |
 
+**None of these is an `updated_at` threshold, and the measurement says not to
+add one.** `STALL_MINUTES` keys on PUSH age, from git, which is why it
+calibrates against commit gaps. The session record's `updated_at` cannot
+carry a threshold at all, because its cadence belongs to the SESSION and not
+to the fleet: three `list_sessions` calls over 8m56s (2026-09-17 16:43:50Z to
+16:52:46Z, one consumer's live fleet, 30 rows per page, all three pages
+saved) found four `RUNNING` managers whose field trailed the read by 8.4s,
+19.4s, 11.4s — and 435.5s. The slow one's field moved 5m59.9s between the
+first two reads and not at all between the last two, 2m52s apart, while it
+stayed `RUNNING` and working throughout. A threshold tuned to the fast three
+kills the fourth; one tuned to the fourth sees nothing the push age does not
+already see sooner.
+
+Two more results from the same reading, both of which a knob would encode
+wrongly. The field is written by NEITHER a read nor the connection — two
+`IDLE` rows returned ONE distinct value each across all three reads,
+identical to the microsecond, already 22m17s and 45m57s stale at the first,
+with no `get_session` on either; and one of them flipped `connected` to
+`disconnected` mid-window with the field byte-identical across the flip. And
+on an `IDLE` row the field is simply the age of the last activity, reaching
+54m54s here on a manager whose own record named a merged pull request. So
+staleness on an idle manager measures nothing about it.
+
+The consequence is a reading rule rather than a number, and it lives where
+the reading happens — `.claude/commands/orchestrate.md`, step 2's evidence
+table: two reads of this field are evidence only more than one cadence
+apart, the cadence is not knowable in advance, and a pair taken inside one
+pass never decides. Written here as well as there because the next session
+to want a fifth knob will look at this table first. Graduated from
+`docs/research/liveness-in-a-long-turn.md`, whose `## Verification` records
+what could not be checked: the reviewer this repo spawns has no
+control-plane call, so these numbers are re-computable from the saved pages
+and re-samplable by a reader with the fleet, and confirmed by neither here
+(issue #267).
+
 Read by `dispatch`: the environment for one command, `joharness.conf` for
 the repo, else the default. Digits only; a word reads as the default. The
 two churn knobs go through the same reader in `ci`, so a value set in the
