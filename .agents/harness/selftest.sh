@@ -563,6 +563,7 @@ SELFTEST_TOPICS=(
   ci-context
   ci-selftest-scope
   checks
+  ci-promote
   review
   upstream
   scorecard
