@@ -101,7 +101,7 @@ section was written.
 
 ## Where to look
 
-- `.claude/agents/verifier.md:4` — the tool list, which is the whole fact.
+- `.claude/agents/verifier.md:tools` — the tool list, which is the whole fact.
 - `.agents/docs/research/README.md`, "Verification is not optional" — the
   requirement, and its own worked instance of a second source that
   corroborated nothing, which is the same failure one step out.
