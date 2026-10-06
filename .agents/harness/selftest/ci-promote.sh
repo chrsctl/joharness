@@ -127,3 +127,85 @@ git -C "$prwork" merge -q --no-edit main
 out="$(pr_finish)"
 refute "an inherited or merged-in file is not this branch's loss" \
   "promotion before retire" "$out"
+
+# An inherited file removed and re-added reads as A in the log; it is still
+# the base's file, not this branch's record.
+git -C "$prwork" checkout -qb prreadd main
+git -C "$prwork" rm -q docs/handover/leftover.md
+commit_all "$prwork" "remove the inherited file"
+mkdir -p "${prwork}/docs/handover"
+pr_ws leftover >"${prwork}/docs/handover/leftover.md"
+commit_all "$prwork" "re-add it"
+out="$(pr_finish)"
+refute "an inherited file removed and re-added is not this branch's loss" \
+  "promotion before retire" "$out"
+
+# --- mid-build, deletion of a target, and a zero-finding file ----------------
+# The file is still present at HEAD (no retire yet), so the content comes from
+# HEAD. Deleting an AGENTS.md is not graduating anything. A second own file
+# with no findings contributes nothing and is not named.
+git -C "$prwork" checkout -qb prmid main
+mkdir -p "${prwork}/docs/handover"
+pr_ws prmid >"${prwork}/docs/handover/prmid.md"
+printf -- '---\nworkstream: prquiet\n---\n\n## Review\n\n' \
+  >"${prwork}/docs/handover/prquiet.md"
+git -C "$prwork" rm -q .agents/harness/AGENTS.md
+commit_all "$prwork" "claim mid-build, delete a target"
+out="$(pr_finish)"
+expect "a file still present at HEAD is read from HEAD" \
+  "3 finding(s) recorded on this branch stop existing" "$out"
+expect "a deleted target is not a promotion" \
+  "This diff promotes into 0 file(s)" "$out"
+refute "a deleted target is not named" "    .agents/harness/AGENTS.md" "$out"
+# The loss line ends in a period; the ADDS section above names the file too,
+# legitimately, so the period is what tells the two apart.
+expect "the loss names the file holding findings" "docs/handover/prmid.md." "$out"
+refute "an own file with no findings is not named in the loss" \
+  "docs/handover/prquiet.md." "$out"
+
+# --- a worker sub-branch merged --no-ff --------------------------------------
+# The /manage fan-out shape: the record is written on a sub-branch and merged
+# in. Those commits are this branch's; first-parent with --no-merges dropped
+# them.
+git -C "$prwork" checkout -qb prparent main
+printf 'parent\n' >"${prwork}/parent.txt"
+commit_all "$prwork" "parent work"
+git -C "$prwork" checkout -qb prworker prparent
+mkdir -p "${prwork}/docs/handover"
+pr_ws prworker >"${prwork}/docs/handover/prworker.md"
+commit_all "$prwork" "worker records findings"
+git -C "$prwork" checkout -q prparent
+git -C "$prwork" merge -q --no-ff --no-edit prworker
+out="$(pr_finish)"
+expect "a sub-branch's workstream file merged --no-ff is counted" \
+  "3 finding(s) recorded on this branch stop existing" "$out"
+expect "the sub-branch file is named" "docs/handover/prworker.md." "$out"
+
+# --- a rename, and a name git quotes ----------------------------------------
+# Default rename detection reports a move as R, which --diff-filter=A cannot
+# see; and git quotes a non-ASCII path, which then does not end in .md.
+git -C "$prwork" checkout -qb prmove main
+mkdir -p "${prwork}/docs/handover"
+printf -- '---\nworkstream: before\n---\n\n## Review\n\n' \
+  >"${prwork}/docs/handover/before.md"
+commit_all "$prwork" "claim under one name"
+# A pure move in its own commit, so git reports R. Moved and rewritten in one
+# commit falls under the similarity threshold and reads as D + A, which pins
+# nothing about renames.
+git -C "$prwork" mv docs/handover/before.md docs/handover/after.md
+commit_all "$prwork" "rename"
+pr_ws after >"${prwork}/docs/handover/after.md"
+commit_all "$prwork" "record under the new name"
+out="$(pr_finish)"
+expect "findings recorded after a rename are counted" \
+  "3 finding(s) recorded on this branch stop existing" "$out"
+expect "the renamed file is named by its new path" \
+  "docs/handover/after.md." "$out"
+
+git -C "$prwork" checkout -qb prquote main
+mkdir -p "${prwork}/docs/handover"
+pr_ws quoted >"${prwork}/docs/handover/é-quoted.md"
+commit_all "$prwork" "a non-ASCII workstream name"
+out="$(pr_finish)"
+expect "a path git would quote is still counted" \
+  "3 finding(s) recorded on this branch stop existing" "$out"

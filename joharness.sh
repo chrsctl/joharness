@@ -6078,35 +6078,51 @@ fin_retired_own() {
   done <<<"$deleted"
 }
 
-# Workstream files THIS branch added, from its own first-parent history —
-# present or already retired, one per line. The log, not the tree, because the
-# retire commit removes the file from the tree at exactly the moment its
-# findings are being lost; first-parent for the reason `fin_retired_own`
-# gives: a reconcile merge from the base must not hand this branch another
-# branch's file. `--no-merges` too, because first-parent alone does not get
-# there: git >= 2.31 diffs a merge commit against its first parent under
-# `--first-parent`, so the reconcile merge itself lists every file the base
-# brought in as ADDED. The selftest's merged-in case caught exactly that.
-# Added, not touched: a branch that edits or deletes an inherited file did not
-# record its findings, and reporting somebody else's loss is the noise that
-# gets a stage skipped.
+# Workstream files THIS branch added — present or already retired, one per
+# line. The log, not the tree, because the retire commit removes the file from
+# the tree at exactly the moment its findings are being lost.
+#
+# Every non-merge commit in base..HEAD, NOT first-parent. Commits the base
+# brought in through a reconcile merge are ancestors of the merge base and so
+# never in the range; a worker sub-branch merged `--no-ff` (the `/manage`
+# fan-out) IS in it, and its file is this branch's record. First-parent was
+# tried twice and is wrong both ways: alone, git >= 2.31 diffs the reconcile
+# merge against its first parent and lists every base-brought file as added;
+# with `--no-merges` it drops the sub-branch.
+#
+# Minus anything the merge base's tree carries: an inherited file `git rm`'d
+# and re-added reads as A in the log and is still somebody else's.
+# `--no-renames` so a file renamed within docs/handover shows its new name as
+# added rather than vanishing into an R. `core.quotePath=false` so a non-ASCII
+# name reaches `gr_docs` unquoted — quoted, it does not end in `.md` and was
+# dropped.
 fin_own_ws() {
-  git -C "$ROOT" log --first-parent --no-merges --format= --name-only \
-    --diff-filter=A \
-    "${1}..HEAD" -- docs/handover 2>/dev/null | sort -u | gr_docs
+  local base="$1" inherited f
+  inherited="$(git -C "$ROOT" -c core.quotePath=false ls-tree -r --name-only \
+    "$base" -- docs/handover 2>/dev/null)"
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    printf '%s\n' "$inherited" | grep -qxF -- "$f" && continue
+    printf '%s\n' "$f"
+  done <<<"$(git -C "$ROOT" -c core.quotePath=false log --no-merges --no-renames \
+    --format= --name-only --diff-filter=A "${base}..HEAD" -- docs/handover \
+    2>/dev/null | sort -u | gr_docs)"
 }
 
 # Paths that can carry a promotion, filtered from a name-only diff: an
 # AGENTS.md in any layer, or anything under .agents/docs/. Loop step 7's
-# "right layer's AGENTS.md or docs/", read as paths and nothing more.
+# "right layer's AGENTS.md or docs/", read as paths and nothing more. The
+# caller's diff keeps ACMR only: deleting a rule is not graduating a finding.
 fin_promote_targets() {
   grep -E '(^|/)AGENTS\.md$|^\.agents/docs/' || :
 }
 
 # Issue #258: step 7 says still-useful bits graduate before the retire commit,
 # and nothing measured whether anyone decides. Measured in a consumer
-# 2026-09-16: a branch merged 39 recorded findings and promoted none — the
-# record written properly at step 5, then destroyed by step 7.
+# 2026-09-16: a branch merged 39 recorded findings, and `git ls-tree
+# --name-only origin/main docs/handover/` there afterwards returned nothing,
+# with nothing promoted — the record written properly at step 5, then
+# destroyed by step 7.
 #
 # REPORT-ONLY, never red. Most findings are branch-local and correctly
 # forgotten, so a branch promoting nothing is usually honest; a gate firing on
@@ -6119,25 +6135,29 @@ fin_promote_targets() {
 # Zero findings prints nothing: a stage speaking on every branch stops being
 # read.
 fin_promote() {
-  local ref="$1" base ws content flag text n=0 m=0 files="" promoted f
+  local ref="$1" base ws content flag text n=0 k m=0 files="" promoted f
   base="$(git -C "$ROOT" merge-base HEAD "$ref" 2>/dev/null)" || return 0
   [ -n "$base" ] || return 0
   while IFS= read -r ws; do
     [ -n "$ws" ] || continue
     content="$(lint_ws_content "$ws")"
     [ -n "$content" ] || continue
+    k=0
     while IFS="$(printf '\t')" read -r flag text; do
       [ -n "$text" ] || continue
       # The `- r<N>:` form only, at column 0 — the bullets `fb_fix_map` keys.
       if [ "$flag" = "0" ] && fb_keyable "$text"; then
-        n=$((n + 1))
+        k=$((k + 1))
       fi
     done <<<"$(lint_review_bullets "$content")"
+    # Named only when it holds something to lose.
+    [ "$k" -gt 0 ] || continue
+    n=$((n + k))
     files="${files}${files:+, }${ws}"
   done <<<"$(fin_own_ws "$base")"
   [ "$n" -gt 0 ] || return 0
-  promoted="$(git -C "$ROOT" diff --name-only "$base" HEAD 2>/dev/null |
-    fin_promote_targets)"
+  promoted="$(git -C "$ROOT" -c core.quotePath=false diff --name-only \
+    --diff-filter=ACMR "$base" HEAD 2>/dev/null | fin_promote_targets)"
   while IFS= read -r f; do
     [ -n "$f" ] && m=$((m + 1))
   done <<<"$promoted"
