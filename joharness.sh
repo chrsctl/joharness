@@ -6060,6 +6060,15 @@ fin_adds_at() {
 # into the side brought in from main. Ownership stays this branch's own —
 # the same property `fin_adds_at` gets for free from being a tree diff
 # rather than a log walk, reached here by restricting the walk instead.
+#
+# KNOWN GAP, not fixed here: git >= 2.31 diffs a merge against its first
+# parent under `--first-parent`, so the reconcile merge ITSELF lists the
+# base's files. Reproduced 2026-10-05 (git 2.43): two reconciles across
+# another branch's add-then-retire put that file in both the A and the D
+# walk, and this reports it as this branch's retired file — which
+# `lint_finding_markers` reds on. `fin_own_ws` below answers ownership by
+# range minus the base tree instead; reading `added` from it is the likely
+# fix, and wants its own plan and test.
 fin_retired_own() {
   local ref="$1" base added deleted present f
   base="$(git -C "$ROOT" merge-base HEAD "$ref" 2>/dev/null)" || return 0
