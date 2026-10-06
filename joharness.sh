@@ -6060,6 +6060,15 @@ fin_adds_at() {
 # into the side brought in from main. Ownership stays this branch's own —
 # the same property `fin_adds_at` gets for free from being a tree diff
 # rather than a log walk, reached here by restricting the walk instead.
+#
+# KNOWN GAP, not fixed here: git >= 2.31 diffs a merge against its first
+# parent under `--first-parent`, so the reconcile merge ITSELF lists the
+# base's files. Reproduced 2026-10-05 (git 2.43): two reconciles across
+# another branch's add-then-retire put that file in both the A and the D
+# walk, and this reports it as this branch's retired file — which
+# `lint_finding_markers` reds on. `fin_own_ws` below answers ownership by
+# range minus the base tree instead; reading `added` from it is the likely
+# fix, and wants its own plan and test.
 fin_retired_own() {
   local ref="$1" base added deleted present f
   base="$(git -C "$ROOT" merge-base HEAD "$ref" 2>/dev/null)" || return 0
@@ -6076,6 +6085,104 @@ fin_retired_own() {
     printf '%s\n' "$present" | grep -qxF -- "$f" && continue
     printf '%s\n' "$f"
   done <<<"$deleted"
+}
+
+# Workstream files THIS branch added — present or already retired, one per
+# line. The log, not the tree, because the retire commit removes the file from
+# the tree at exactly the moment its findings are being lost.
+#
+# Every non-merge commit in base..HEAD, NOT first-parent. Commits the base
+# brought in through a reconcile merge are ancestors of the merge base and so
+# never in the range; a worker sub-branch merged `--no-ff` (the `/manage`
+# fan-out) IS in it, and its file is this branch's record. First-parent was
+# tried twice and is wrong both ways: alone, git >= 2.31 diffs the reconcile
+# merge against its first parent and lists every base-brought file as added;
+# with `--no-merges` it drops the sub-branch.
+#
+# Minus anything the merge base's tree carries: an inherited file `git rm`'d
+# and re-added reads as A in the log and is still somebody else's.
+# `--no-renames` so a file renamed within docs/handover shows its new name as
+# added rather than vanishing into an R. `core.quotePath=false` so a non-ASCII
+# name reaches `gr_docs` unquoted — quoted, it does not end in `.md` and was
+# dropped.
+fin_own_ws() {
+  local base="$1" inherited f
+  inherited="$(git -C "$ROOT" -c core.quotePath=false ls-tree -r --name-only \
+    "$base" -- docs/handover 2>/dev/null)"
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    printf '%s\n' "$inherited" | grep -qxF -- "$f" && continue
+    printf '%s\n' "$f"
+  done <<<"$(git -C "$ROOT" -c core.quotePath=false log --no-merges --no-renames \
+    --format= --name-only --diff-filter=A "${base}..HEAD" -- docs/handover \
+    2>/dev/null | sort -u | gr_docs)"
+}
+
+# Paths that can carry a promotion, filtered from a name-only diff: an
+# AGENTS.md in any layer, or anything under .agents/docs/. Loop step 7's
+# "right layer's AGENTS.md or docs/", read as paths and nothing more. The
+# caller's diff keeps ACMR only: deleting a rule is not graduating a finding.
+fin_promote_targets() {
+  grep -E '(^|/)AGENTS\.md$|^\.agents/docs/' || :
+}
+
+# Issue #258: step 7 says still-useful bits graduate before the retire commit,
+# and nothing measured whether anyone decides. Measured in a consumer
+# 2026-09-16: a branch merged 39 recorded findings, and `git ls-tree
+# --name-only origin/main docs/handover/` there afterwards returned nothing,
+# with nothing promoted — the record written properly at step 5, then
+# destroyed by step 7.
+#
+# REPORT-ONLY, never red. Most findings are branch-local and correctly
+# forgotten, so a branch promoting nothing is usually honest; a gate firing on
+# it is one sessions learn to skip (`lint_finding_ids` carries the same
+# doctrine). What it prints is the loss and the count of promotion targets,
+# at the one moment both are still reversible — never a verdict.
+#
+# Paths and commit membership only. Opening a promoted file to judge whether
+# it carries a finding is a second verifier at a verifier's price.
+# Zero findings prints nothing: a stage speaking on every branch stops being
+# read.
+fin_promote() {
+  local ref="$1" base ws content flag text n=0 k m=0 files="" promoted f
+  base="$(git -C "$ROOT" merge-base HEAD "$ref" 2>/dev/null)" || return 0
+  [ -n "$base" ] || return 0
+  while IFS= read -r ws; do
+    [ -n "$ws" ] || continue
+    content="$(lint_ws_content "$ws")"
+    [ -n "$content" ] || continue
+    k=0
+    while IFS="$(printf '\t')" read -r flag text; do
+      [ -n "$text" ] || continue
+      # The `- r<N>:` form only, at column 0 — the bullets `fb_fix_map` keys.
+      if [ "$flag" = "0" ] && fb_keyable "$text"; then
+        k=$((k + 1))
+      fi
+    done <<<"$(lint_review_bullets "$content")"
+    # Named only when it holds something to lose.
+    [ "$k" -gt 0 ] || continue
+    n=$((n + k))
+    files="${files}${files:+, }${ws}"
+  done <<<"$(fin_own_ws "$base")"
+  [ "$n" -gt 0 ] || return 0
+  promoted="$(git -C "$ROOT" -c core.quotePath=false diff --name-only \
+    --diff-filter=ACMR "$base" HEAD 2>/dev/null | fin_promote_targets)"
+  while IFS= read -r f; do
+    [ -n "$f" ] && m=$((m + 1))
+  done <<<"$promoted"
+  printf '\npromotion before retire (report only, never red)\n'
+  printf '  %d finding(s) recorded on this branch stop existing when it retires\n' "$n"
+  printf '  %s.\n' "$files"
+  printf '  This diff promotes into %d file(s) — an AGENTS.md in any layer, or\n' "$m"
+  printf '  under .agents/docs/.\n'
+  while IFS= read -r f; do
+    [ -n "$f" ] && printf '    %s\n' "$f"
+  done <<<"$promoted"
+  printf '  Not read: whether any finding belongs there, or whether a promoted\n'
+  printf '  line came from one. Most findings are branch-local and correctly\n'
+  printf '  forgotten; still-useful ones graduate BEFORE the retire commit\n'
+  printf '  (Loop step 7), and after the merge they exist only in history.\n'
+  return 0
 }
 
 # How hard this branch's own workstream files say the gate should bite:
@@ -6532,6 +6639,8 @@ cmd_finish() {
     printf '\n%d already on %s — not this merge, not this session: %s\n' \
       "$pre" "$ref" "'$0 cleanup'"
   fi
+
+  fin_promote "$ref"
 
   # The plan file is step 7's other deletion and it is a judgment — whether a
   # plan is *done* is not on disk. Named, never gated: a gate that guesses
