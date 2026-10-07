@@ -53,7 +53,8 @@ use it are `scout-cycle` and `scout-command`.
 - The scout role, its cycle, its command, its conf keys — `scout-cycle`
   and `scout-command`.
 - Moving haiku / sonnet / opus rows to 5.5 IDs. The requirement names it
-  the scout's first candidate, and a price change is money: the human's.
+  a scout candidate (its Evidence, candidate 2), and a price change is
+  money: the human's.
 - A fourth review recipe. The opus recipe already names the failure mode.
 - Any change to how a session reads its own tier. Unenforced on purpose
   (`agent-selection.md`, decided 2026-08-27).
