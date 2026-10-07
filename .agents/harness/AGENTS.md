@@ -187,12 +187,13 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    else's omission is one sessions route around. Why two strengths, not one:
    `joharness.sh:fin_strength`.
 
-Queue still holds work after the merge? It is the NEXT session's — the
-human re-invoking `/drain` under supervised, the heartbeat under
-unsupervised. One item per session, both modes; a session that merged one
-does not take another. Drives THIS session only; the fleet outliving its
-sessions is the heartbeat's job, and the count of idle-holding-a-full-queue
-that bought it is in
+Queue still holds work after the merge? `/drain` takes the next one, same
+session, until DRAINED — one item at a time, full Loop each, fresh branch
+from fresh `origin/main` (`.claude/commands/drain.md`). Orchestrated
+manager: one item, its prompt's; the orchestrator is the loop there.
+Drives THIS session only; the fleet outliving its sessions is the
+heartbeat's job, and the count of idle-holding-a-full-queue that bought it
+is in
 [`.agents/docs/unsupervised.md`](../../.agents/docs/unsupervised.md).
 
 ## Harness upkeep

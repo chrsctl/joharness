@@ -8,8 +8,8 @@ said `curate ... DUE` — a human's `/start` routes to the first, the
 orchestrator reads the second, and both ask one reader so they cannot
 disagree.
 
-The curate IS this session's item, not an extra one: one item per session
-holds here as everywhere. Under orchestrated only, you are additionally one
+The curate IS this session's current item, not an extra one: one item at a
+time holds here as everywhere. Under `/drain` the loop goes on after it. Under orchestrated only, you are additionally one
 session beyond `JOHARNESS_MAX_MANAGERS` and hold no slot — the human's money,
 so say so in your report.
 

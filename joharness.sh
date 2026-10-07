@@ -6725,8 +6725,8 @@ cmd_finish() {
 # hours and the two longest are 32.2h and 24.0h, with 18, 18, 19 and 11 plan
 # files on the tree at the four longest stalls' first commit. Idle holding a
 # full queue is the failure .agents/docs/unsupervised.md names; this is the
-# status every session reads first, and it names ONE item — the next is the
-# next session's.
+# status every session reads first, and it names ONE item — `/drain` reads
+# it again after each merge, one item at a time, until DRAINED.
 #
 # Report-only, like `scorecard` (and like `cleanup` without `--apply`; with
 # it, cleanup returns 1 when git refused a removal). A drain that GATED would be red
@@ -6852,7 +6852,7 @@ cmd_drain() {
   # Placed after the edge block and before the queue: finishing outranks
   # starting, and a due curate makes the queue truthful BEFORE a session picks
   # from it rather than after. It is the item when due, never a second item —
-  # one item per session holds here as everywhere.
+  # one item at a time holds here as everywhere.
   cdue="$(dispatch_curate_due)"
   cstate="${cdue%% *}"; creason="${cdue#* }"
   # Said here too, because silence over an unreadable cadence is the bug: before

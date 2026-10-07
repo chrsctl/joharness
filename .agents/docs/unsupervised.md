@@ -46,7 +46,9 @@ same tree got two answers (PR 170, PR 187, PR 190 each fixed one side).
 ## The one stop
 
 DRAINED, at the queue edge, supervised and unsupervised alike. A session
-takes one item, runs the Loop on it, exits; the heartbeat fires the next.
+takes one item at a time, runs the Loop on each, and loops until DRAINED
+(`.claude/commands/drain.md`); the heartbeat fires the next session after
+it ends.
 (Orchestrated splits this: a manager's stop is its own merge, and the
 orchestrator stops at DRAINED only with nothing in flight.) Nothing is invented at
 the edge: work enters the queue as an issue, a requirement, or a plan through
