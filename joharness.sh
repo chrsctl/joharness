@@ -5265,6 +5265,7 @@ cmd_janitor() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" ref
   local due state why hours stale_s
   local claims branch path doc plan status pr session age agetext n_cand=0
+  local held onbranch cand
   local jb jw js n_inflight=0 inflight="" f n_left=0 n_merged=0 merged="" carried=""
 
   [ "$#" -eq 0 ] || die "usage: $0 janitor"
@@ -5332,28 +5333,58 @@ cmd_janitor() {
     # path, and `docs/plans/docs/plans/x.md.md` is what printing it raw gets.
     # lint_stem is the repo's one answer to that (queue-context.sh: `stem`).
     plan="$(lint_stem "$plan")"
-    # THREE cases, not two. A plan the base branch does not carry was never in
-    # the queue, so releasing the claim frees nothing there — and the two-case
-    # version said "out of the queue" about it anyway, on 5 of 5 candidates in
-    # this repo's first sweep and on every plan-naming candidate for three
-    # sweeps running (#278). The reader has no network and needs none: whether
-    # the base branch carries the file is a local question.
+    # SANITISED, like `workstream:` and `status:` in the in-flight walk above
+    # and for the same reason: these are branch-controlled frontmatter printed
+    # straight out. `plan: x\n    holds: docs/plans/real.md, out of the queue`
+    # forged the very sentence the block below exists to withhold (PR275 r6 was
+    # the same class, on this same function).
+    plan="$(printf '%s' "$plan" | tr -cd 'A-Za-z0-9._-')"
+    pr="$(printf '%s' "$pr" | tr -cd 'A-Za-z0-9._#-')"
+    session="$(printf '%s' "$session" | tr -cd 'A-Za-z0-9._:/#?=&%-')"
+    # WHICH path, then WHERE it is. `plan:` claims a research question by its
+    # stem as well as a plan (`.agents/docs/handover/TEMPLATE.md`), so probing
+    # only `docs/plans/` called a held question's release worthless — the same
+    # two-candidate loop is already spelled at `cycle_landed_sha`.
+    # Ownership is a DIFF, never a tree read — six merged edges bought that
+    # rule (`.agents/docs/feedback.md`, "Worked example: tree or diff"), and
+    # saying "on this branch only" without asking the branch sent an operator
+    # to look for a file that is on no branch at all. So BOTH refs, and only
+    # when there is a stem to probe: a claim holding nothing would otherwise
+    # cost four `cat-file` calls to find out, per candidate, and PR275 r11 was
+    # a perf finding on this same function.
+    held="" onbranch=""
+    if [ -n "$plan" ] && [ "$plan" != none ]; then
+      for cand in "docs/plans/${plan}.md" "docs/research/${plan}.md"; do
+        git -C "$ROOT" cat-file -e "refs/remotes/origin/${base_branch}:${cand}" \
+          </dev/null 2>/dev/null || continue
+        held="$cand"; break
+      done
+      for cand in "docs/plans/${plan}.md" "docs/research/${plan}.md"; do
+        git -C "$ROOT" cat-file -e "refs/remotes/origin/${branch}:${cand}" \
+          </dev/null 2>/dev/null || continue
+        onbranch="$cand"; break
+      done
+    fi
     if [ -z "$plan" ] || [ "$plan" = none ]; then
       printf '    holds: no plan — this claim holds nothing but its branch\n'
-    elif git -C "$ROOT" cat-file -e \
-      "refs/remotes/origin/${base_branch}:docs/plans/${plan}.md" 2>/dev/null; then
-      printf '    holds: docs/plans/%s.md, out of the queue while this claim stands\n' "$plan"
+    elif [ -n "$held" ]; then
+      printf '    holds: %s, out of the queue while this claim stands\n' "$held"
+    elif [ -n "$onbranch" ]; then
+      printf '    holds: %s, which %s does not carry —\n' "$onbranch" "$base_branch"
+      printf '      on this branch only, so releasing frees nothing there\n'
     else
-      printf '    holds: docs/plans/%s.md, which %s does not carry' "$plan" "$base_branch"
-      printf ' — the plan is on this branch only, so releasing frees nothing\n'
+      printf '    holds: %s named, which no branch carries —\n' "docs/plans/${plan}.md"
+      printf '      a typo, a rename, or never written: resolve it by hand\n'
     fi
     # The `pr:` field is a number in a file. This reader cannot see whether the
     # pull request is open, closed or merged — `drain` says "state unverified"
     # about the same field and this said "nearly done" (#288). The EXEMPTION
     # does not depend on the state: naming a `pr:` is what makes it Loop step
     # 2's, so say that and claim nothing else.
-    [ -z "$pr" ] || [ "$pr" = none ] ||
-      printf '    pull request %s — exempt whatever its state, which this reader cannot see: finishing it is Loop step 2, never this sweep\n' "$pr"
+    if [ -n "$pr" ] && [ "$pr" != none ]; then
+      printf '    pull request %s — exempt whatever its state, which this\n' "$pr"
+      printf '      reader cannot see: finishing it is Loop step 2, not a sweep\n'
+    fi
     [ -z "$session" ] || [ "$session" = none ] ||
       printf '    session: %s\n' "$session"
   done <<<"$claims"

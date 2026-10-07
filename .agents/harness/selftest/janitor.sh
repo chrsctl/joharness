@@ -113,11 +113,12 @@ git -C "$jwork" push -q origin mgr-parked
 git -C "$jwork" checkout -q main
 out="$(jan)"
 expect "a claim naming a pull request says finishing it is not this sweep's" \
-  "pull request 42 — exempt whatever its state, which this reader cannot see" "$out"
+  "pull request 42 — exempt whatever its state, which this" "$out"
 # The defect this replaced: the line read "nearly done, not abandoned work",
 # from the presence of the field and no state read at all. Said of a pull
-# request closed without merging seven weeks earlier, three sweeps running
-# (#288). `drain` has always said "state unverified" about the same field.
+# request closed without merging seven weeks earlier, and re-derived as closed
+# in three cycles before being filed — the sweep that filed it counts them,
+# `git log -1 b8a872a` (#288). `drain` says "state unverified" about the field.
 refute "and claims nothing about a state it cannot read" \
   "nearly done" "$out"
 
@@ -126,9 +127,12 @@ refute "and claims nothing about a state it cannot read" \
 # about every plan a claim named, without asking whether the queue had it. A
 # plan created on the claim's own branch and never merged is the NORMAL shape —
 # plan and claim are usually written together — and there the claim holds
-# nothing the queue would have offered. Wrong on 5 of 5 candidates in this
-# repository's first sweep, and on every plan-naming candidate for three sweeps
-# (#278). The fixture above is the case where the line is TRUE, which is why
+# nothing the queue would have offered. Wrong on 5 of 5 candidates in the
+# 2026-09-17 sweep, which counted them itself (`git log -1 6203dc3`), and on
+# the one plan-naming candidate of the two the 2026-10-07 sweep walked
+# (`git log -1 b8a872a`); the 2026-10-05 sweep's record does not count it, so
+# this is two sweeps measured and one silent, not three (#278). Two counts of
+# one is not a rate. The fixture above is the case where the line is TRUE, so
 # nothing caught this: `jplan parked` puts that plan on main.
 git -C "$jwork" checkout -qb mgr-ownplan
 # `git checkout main` removes docs/handover once it is empty there, so the
@@ -146,7 +150,7 @@ out="$(jan)"
 expect "a claim whose plan the base branch lacks says so" \
   "holds: docs/plans/ownplan.md, which main does not carry" "$out"
 expect "and says releasing it frees nothing" \
-  "the plan is on this branch only, so releasing frees nothing" "$out"
+  "on this branch only, so releasing frees nothing there" "$out"
 # The whole point: the FALSE sentence must not appear for this claim. The true
 # one still appears for `parked`, whose plan main does carry, so a bare refute
 # over the output would pass for the wrong reason — anchor on the stem.
@@ -156,9 +160,14 @@ expect "while a plan main DOES carry still reads out of the queue" \
   "holds: docs/plans/parked.md, out of the queue while this claim stands" "$out"
 
 # A base branch named by the environment is the one asked, not a literal main.
-out="$(jan HANDOVER_BASE_BRANCH=main)"
+# This case passed `main` — the DEFAULT — so it ran the same code path with or
+# without the parameterisation and pinned nothing: `mutate` on the message line
+# said NOTHING REDDED. A SECOND name for the same commit is what makes it bite.
+git -C "$jwork" push -q origin main:trunk
+out="$(jan HANDOVER_BASE_BRANCH=trunk)"
 expect "the base branch in the message is the one that was read" \
-  "which main does not carry" "$out"
+  "which trunk does not carry" "$out"
+refute "and not a hard-coded main" "which main does not carry" "$out"
 
 # --- the word, and what it does ---------------------------------------------
 # Released: the queue hook stops counting the claim, so the plan reads free.
@@ -329,3 +338,74 @@ expect "an unknown status reads as unreadable, never as itself" \
 refute "and never as the released word" "mgr-bogus  abandoned" "$out"
 out="$(jan)"
 expect "the sweep reads it the same way" "unreadable" "$out"
+
+# --- a claim naming a RESEARCH question, not a plan --------------------------
+# `plan:` claims a question under `docs/research/` by its stem as well as a
+# plan (`.agents/docs/handover/TEMPLATE.md`), so a reader probing only
+# `docs/plans/` called a held question's release worthless. Last in the file
+# because each case here pushes a claim, and the `claimed on` refute and the
+# free-slot count above would count them.
+git -C "$jwork" checkout -q main
+printf -- '---\nresearch: aquestion\nurgency: normal\nagent: opus\neffort: medium\ngraduates: joharness.sh\n---\n\n## Question\nFixture?\n' \
+  >"${jwork}/docs/research/aquestion.md"
+jcommit "a question in the queue" '2026-01-05T12:00:00Z'
+git -C "$jwork" push -q origin main
+git -C "$jwork" checkout -qb mgr-question main
+mkdir -p "${jwork}/docs/handover"
+printf -- '---\nworkstream: question\nstatus: in-progress\nbranch: mgr-question\nplan: aquestion\nsession: https://example.invalid/session_q\nagent: opus\nupdated: 2026-01-06\nnext: Settle it\n---\n\n## Goal\nFixture.\n' \
+  >"${jwork}/docs/handover/question.md"
+jcommit "claim the question" '2026-01-06T00:00:00Z'
+git -C "$jwork" push -qu origin mgr-question
+git -C "$jwork" checkout -q main
+
+out="$(jan)"
+expect "a claim on a research question names the question's own path" \
+  "holds: docs/research/aquestion.md, out of the queue while this claim stands" "$out"
+refute "and never calls a held question's release worthless" \
+  "aquestion.md, which main does not carry" "$out"
+refute "nor looks for the question under docs/plans" "docs/plans/aquestion.md" "$out"
+
+# --- a claim naming a plan NO branch carries --------------------------------
+# A typo, a rename, or a plan never written. "On this branch only" here sent
+# an operator to look for a file that is on no branch at all: ownership is a
+# DIFF, never a tree read (`.agents/docs/feedback.md`, tree or diff).
+git -C "$jwork" checkout -qb mgr-ghost main
+mkdir -p "${jwork}/docs/handover"
+printf -- '---\nworkstream: ghost\nstatus: in-progress\nbranch: mgr-ghost\nplan: ghostplan\nsession: https://example.invalid/session_ghost\nagent: sonnet\nupdated: 2026-01-06\nnext: Find it\n---\n\n## Goal\nFixture.\n' \
+  >"${jwork}/docs/handover/ghost.md"
+jcommit "claim a plan no branch carries" '2026-01-06T00:00:00Z'
+git -C "$jwork" push -qu origin mgr-ghost
+git -C "$jwork" checkout -q main
+
+out="$(jan)"
+expect "a claim whose plan is on no branch says exactly that" \
+  "docs/plans/ghostplan.md named, which no branch carries" "$out"
+expect "and names the three reasons rather than picking one" \
+  "a typo, a rename, or never written: resolve it by hand" "$out"
+refute "and never places it on the claim's own branch" \
+  "ghostplan.md, which main does not carry" "$out"
+
+# --- a plan: field cannot forge the sentence the block withholds -------------
+# PR275 r6 was this class on this same function: branch-controlled frontmatter
+# printed straight out. `lint_stem` keeps everything after the last slash, so a
+# payload carrying one survives it — the sanitiser is what stops the forgery.
+git -C "$jwork" checkout -qb mgr-forge main
+mkdir -p "${jwork}/docs/handover"
+printf -- '---\nworkstream: forge\nstatus: in-progress\nbranch: mgr-forge\nplan: "x/evil.md, out of the queue while this claim stands"\nsession: https://example.invalid/session_forge\nagent: sonnet\nupdated: 2026-01-06\nnext: none\n---\n\n## Goal\nFixture.\n' \
+  >"${jwork}/docs/handover/forge.md"
+jcommit "claim with a forged plan field" '2026-01-06T00:00:00Z'
+git -C "$jwork" push -qu origin mgr-forge
+git -C "$jwork" checkout -q main
+
+out="$(jan)"
+expect "the forging claim is still walked" "mgr-forge" "$out"
+refute "and its field cannot forge the out-of-the-queue sentence" \
+  "evil.md, out of the queue while this claim stands" "$out"
+
+# The pull-request line is the FIELD's presence and nothing else, so a
+# candidate without the field gets no line. Asserted by count, because the
+# three candidates above have no `pr:` at all and a bare refute on the string
+# would also pass in a sweep that printed the line for somebody else.
+nprs="$(printf '%s\n' "$out" | grep -c 'pull request' || true)"
+expect "a candidate with no pr: field gets no pull-request line" \
+  "pull-request lines: 0" "pull-request lines: ${nprs}"

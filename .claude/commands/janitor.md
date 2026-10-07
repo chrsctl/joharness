@@ -60,10 +60,14 @@ The field rules are the health table's and are stated once, there
 push time is not liveness in either direction. Wrong here destroys work in
 progress.
 
-**A candidate naming a `pr:` is not yours even when its session is gone.** An
-open pull request means the work is nearly done, and finishing it is Loop
-step 2's job for a session that picks work — not a sweep's. Report it as edge
-work waiting for somebody.
+**A candidate naming a `pr:` is not yours even when its session is gone.**
+Naming the field is what makes it exempt; its STATE is not what makes it
+exempt, and you cannot read the state — a `pr:` is a number in a file, and
+`drain` says "state unverified" about the same field. So do not call it
+nearly done or an open pull request: #288 was that sentence said of one
+closed without merging seven weeks earlier, three sweeps running. Report it
+as edge work whose state the next picking session must check, and resolving
+it is Loop step 2's, not a sweep's.
 
 ## 3. Release — one commit, on the claim's own branch
 
