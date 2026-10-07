@@ -250,6 +250,7 @@ fi
 bootdst4="${TMP}/bootdst4"
 mkdir -p "$bootdst4"
 cp -R "${bootsrc}/." "$bootdst4"
+printf 'JOHARNESS_MAX_MANAGERS=1      # canonical-only\n' >>"${bootdst4}/joharness.conf"
 printf 'live plan\n' >"${bootdst4}/docs/plans/some-plan.md"
 printf 'live ws\n' >"${bootdst4}/docs/handover/some-work.md"
 printf 'live req\n' >"${bootdst4}/docs/product/some-req.md"
@@ -261,6 +262,8 @@ else
   printf '%s\n' "$(indent "$out")"
 fi
 refute "canonical marker stripped from clone conf" "JOHARNESS_CANONICAL" \
+  "$(cat "${bootdst4}/joharness.conf")"
+refute "canonical's manager cap stripped from clone conf" "JOHARNESS_MAX_MANAGERS" \
   "$(cat "${bootdst4}/joharness.conf")"
 if [ ! -e "${bootdst4}/docs/plans/some-plan.md" ] &&
   [ ! -e "${bootdst4}/docs/handover/some-work.md" ] &&

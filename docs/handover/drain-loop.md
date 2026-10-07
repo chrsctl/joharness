@@ -26,6 +26,12 @@ parallelity 1 … still cheap orchestrator." Chosen route: orchestrated mode at
   protocol text are SUPERVISED ONLY — 3 of 4 queued plans today
   (`dispatch`, 2026-10-07). Reverting = flip the mode back by PR.
 
+- Joharness only (human: "Only for joharness"). `joharness.conf` is never
+  synced; the one leak was a whole-clone bootstrap keeping the cap, now
+  stripped with the canonical marker. Mode needs no strip — bootstrap always
+  rewrites `JOHARNESS_MODE` (`write_decided_keys`). Test failed without the
+  strip, passed with it (`selftest.sh`, 2026-10-07: 2215/1 vs 2216/0).
+
 ## Rejected
 
 - Inline `/drain` loop (c03ac7f, reverted): human wanted a cheap orchestrator

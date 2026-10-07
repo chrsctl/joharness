@@ -898,13 +898,16 @@ bootstrap_whole_clone() {
   # Just the marker line, nothing clever: the comment block above it in a
   # real clone describes the canonical and goes stale, but guessing at
   # comment boundaries risks eating a consumer's own notes. Warned instead.
+  # The manager cap goes with it: canonical runs its own loop at cap 1 for
+  # itself, and no interview asks a child this key, so a clone would keep
+  # canonical's number in silence the day it turned orchestrated.
   tmp="${SCRATCH}/conf-stripped"
-  grep -v '^JOHARNESS_CANONICAL=' "$conf" >"$tmp" || :
+  grep -v -e '^JOHARNESS_CANONICAL=' -e '^JOHARNESS_MAX_MANAGERS=' "$conf" >"$tmp" || :
   place "$tmp" "$conf"
   if [ "$DRY" -eq 1 ]; then
-    printf '  would strip joharness.conf (JOHARNESS_CANONICAL line)\n'
+    printf '  would strip joharness.conf (JOHARNESS_CANONICAL, JOHARNESS_MAX_MANAGERS lines)\n'
   else
-    printf '  strip   joharness.conf (JOHARNESS_CANONICAL line removed)\n'
+    printf '  strip   joharness.conf (JOHARNESS_CANONICAL, JOHARNESS_MAX_MANAGERS lines removed)\n'
   fi
   warn "the conf comment block above the removed marker may still describe the canonical; tidy it by hand"
 

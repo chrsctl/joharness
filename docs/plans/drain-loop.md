@@ -5,7 +5,7 @@ agent: opus
 effort: medium
 needs: none
 requirement: none
-scope: joharness.conf
+scope: joharness.conf, .agents/scripts/bootstrap-consumer.sh, .agents/harness/selftest/bootstrap-consumer.sh
 ---
 
 ## Goal
@@ -20,6 +20,10 @@ human chose the config route over rewriting `/drain`.
 
 - `joharness.conf` — `JOHARNESS_MODE=orchestrated`, `JOHARNESS_MAX_MANAGERS=1`,
   and a comment naming the flip and how to revert it.
+- `.agents/scripts/bootstrap-consumer.sh` — whole-clone strip also drops
+  `JOHARNESS_MAX_MANAGERS`: joharness only (human, 2026-10-07). Sync never
+  copies the conf; a whole clone did.
+- `.agents/harness/selftest/bootstrap-consumer.sh` — pins that strip.
 
 ## Out of scope
 
