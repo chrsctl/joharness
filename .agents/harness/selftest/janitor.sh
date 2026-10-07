@@ -116,9 +116,11 @@ expect "a claim naming a pull request says finishing it is not this sweep's" \
   "pull request 42 — exempt whatever its state, which this" "$out"
 # The defect this replaced: the line read "nearly done, not abandoned work",
 # from the presence of the field and no state read at all. Said of a pull
-# request closed without merging seven weeks earlier, and re-derived as closed
-# in three cycles before being filed — the sweep that filed it counts them,
-# `git log -1 b8a872a` (#288). `drain` says "state unverified" about the field.
+# request `closed`, `merged: false`, closed 2026-08-21 — 47 days before the
+# sweep that filed it, whose record carries that reading (r2 and the Decisions
+# block of `git show 1d458fa:docs/handover/janitor-2026-10-07.md`). `git log -1 b8a872a` carries
+# only the three-cycles figure, which is a different number (#288). `drain`
+# says "state unverified" about the same field.
 refute "and claims nothing about a state it cannot read" \
   "nearly done" "$out"
 
@@ -129,10 +131,11 @@ refute "and claims nothing about a state it cannot read" \
 # plan and claim are usually written together — and there the claim holds
 # nothing the queue would have offered. Wrong on 5 of 5 candidates in the
 # 2026-09-17 sweep, which counted them itself (`git log -1 6203dc3`), and on
-# the one plan-naming candidate of the two the 2026-10-07 sweep walked
-# (`git log -1 b8a872a`); the 2026-10-05 sweep's record does not count it, so
-# this is two sweeps measured and one silent, not three (#278). Two counts of
-# one is not a rate. The fixture above is the case where the line is TRUE, so
+# "the only candidate that names a plan" in the 2026-10-07 sweep, whose r2
+# counts that (`git show 1d458fa:docs/handover/janitor-2026-10-07.md`); the
+# 2026-10-05 sweep's record does not count it, so this is two sweeps measured
+# and one silent, not three (#278). Two counts of one is not a rate. The
+# fixture above is the case where the line is TRUE, so
 # nothing caught this: `jplan parked` puts that plan on main.
 git -C "$jwork" checkout -qb mgr-ownplan
 # `git checkout main` removes docs/handover once it is empty there, so the
@@ -150,7 +153,16 @@ out="$(jan)"
 expect "a claim whose plan the base branch lacks says so" \
   "holds: docs/plans/ownplan.md, which main does not carry" "$out"
 expect "and says releasing it frees nothing" \
-  "on this branch only, so releasing frees nothing there" "$out"
+  "so releasing this claim frees nothing in main" "$out"
+# "on this branch only" quantified over branches the reader never asked about.
+# Counted 2026-10-07, this checkout: `docs/plans/unsupervised-endurance.md` is
+# on 20 origin refs and not on main, so for the claim naming it the word was
+# false by 19 (`for r in $(git for-each-ref --format='%(refname)' \
+# refs/remotes/origin); do git cat-file -e \
+# "$r:docs/plans/unsupervised-endurance.md"; done | wc -l`). Two refs were
+# read, so two refs is all any sentence here may claim.
+refute "and never says only, which two probes cannot establish" \
+  "on this branch only" "$out"
 # The whole point: the FALSE sentence must not appear for this claim. The true
 # one still appears for `parked`, whose plan main does carry, so a bare refute
 # over the output would pass for the wrong reason — anchor on the stem.
@@ -159,15 +171,10 @@ refute "and never claims this one is out of the queue" \
 expect "while a plan main DOES carry still reads out of the queue" \
   "holds: docs/plans/parked.md, out of the queue while this claim stands" "$out"
 
-# A base branch named by the environment is the one asked, not a literal main.
-# This case passed `main` — the DEFAULT — so it ran the same code path with or
-# without the parameterisation and pinned nothing: `mutate` on the message line
-# said NOTHING REDDED. A SECOND name for the same commit is what makes it bite.
-git -C "$jwork" push -q origin main:trunk
-out="$(jan HANDOVER_BASE_BRANCH=trunk)"
-expect "the base branch in the message is the one that was read" \
-  "which trunk does not carry" "$out"
-refute "and not a hard-coded main" "which main does not carry" "$out"
+# The base branch the ENVIRONMENT names is pinned at the end of this file,
+# where a claim on a plan `main` carries does not disturb the `claimed on`
+# refute or the free-slot count in the sections below.
+
 
 # --- the word, and what it does ---------------------------------------------
 # Released: the queue hook stops counting the claim, so the plan reads free.
@@ -379,9 +386,14 @@ git -C "$jwork" checkout -q main
 
 out="$(jan)"
 expect "a claim whose plan is on no branch says exactly that" \
-  "docs/plans/ghostplan.md named, which no branch carries" "$out"
+  "docs/plans/ghostplan.md named, which neither main nor this" "$out"
 expect "and names the three reasons rather than picking one" \
-  "a typo, a rename, or never written: resolve it by hand" "$out"
+  "a typo, a rename, or a plan on some other" "$out"
+# The first spelling of this case said "which no branch carries" — a universal
+# over every ref, from two `cat-file` calls, telling an operator to go
+# hand-resolve what may be a plan sitting on a sibling branch. That is #278's
+# own shape in the sentence added to fix #278.
+refute "and never claims no branch carries it" "no branch carries" "$out"
 refute "and never places it on the claim's own branch" \
   "ghostplan.md, which main does not carry" "$out"
 
@@ -409,3 +421,67 @@ refute "and its field cannot forge the out-of-the-queue sentence" \
 nprs="$(printf '%s\n' "$out" | grep -c 'pull request' || true)"
 expect "a candidate with no pr: field gets no pull-request line" \
   "pull-request lines: 0" "pull-request lines: ${nprs}"
+
+# --- a plan: field the reader cannot print ----------------------------------
+# The sanitiser runs before the emptiness test, so a field of bytes entirely
+# outside the set became an empty one — and `holds: no plan` about a claim that
+# names a plan is the same class of lie as the two this topic exists to pin.
+git -C "$jwork" checkout -qb mgr-unprintable main
+mkdir -p "${jwork}/docs/handover"
+printf -- '---\nworkstream: unprintable\nstatus: in-progress\nbranch: mgr-unprintable\nplan: 計画\nsession: https://example.invalid/session_u\nagent: sonnet\nupdated: 2026-01-06\nnext: none\n---\n\n## Goal\nFixture.\n' \
+  >"${jwork}/docs/handover/unprintable.md"
+jcommit "claim with a plan field no ASCII survives" '2026-01-06T00:00:00Z'
+git -C "$jwork" push -qu origin mgr-unprintable
+git -C "$jwork" checkout -q main
+
+out="$(jan)"
+expect "a field the reader cannot print says so" \
+  "holds: a plan: field this reader cannot print" "$out"
+expect "and tells the operator not to read the other case into it" \
+  'do not read "no plan" into this line' "$out"
+# Scoped to this candidate's own block: other fixtures legitimately carry
+# `plan: none` and read "no plan", so a refute over the whole sweep would fail
+# for the right reason and tell us nothing about this one.
+blk="$(printf '%s\n' "$out" | awk '/mgr-unprintable/{f=1;next} f&&/^  [^ ]/{f=0} f')"
+refute "never reporting a named plan as no plan at all" \
+  "no plan" "$blk"
+
+# --- the base branch is the one NAMED, and it is the one READ ---------------
+# Two earlier spellings pinned nothing. The first passed `main`, the DEFAULT, so
+# the same path ran either way (`mutate` on the message line: NOTHING REDDED).
+# The second pushed `main:trunk` — the SAME COMMIT — so both `cat-file` loops
+# returned identical answers and only the printf's `%s` was pinned: a mutant
+# hard-coding `main` inside the two ref strings while leaving `"$base_branch"`
+# in the message survived it. A base branch bites only when its CONTENT differs.
+# `trunk` is main AS IT IS NOW; the plan arrives on main afterwards. Not by
+# deleting one from `trunk`, which is the retired-edge signature — the hook
+# read such a branch as a manager in flight and the free-slot assertion two
+# sections down failed, correctly.
+git -C "$jwork" push -q origin main:trunk
+jplan latecomer
+jcommit "a plan the older base does not have" '2026-01-02T12:00:00Z'
+git -C "$jwork" push -q origin main
+git -C "$jwork" checkout -qb mgr-latecomer main
+mkdir -p "${jwork}/docs/handover"
+printf -- '---\nworkstream: latecomer\nstatus: in-progress\nbranch: mgr-latecomer\nplan: latecomer\nsession: https://example.invalid/session_late\nagent: sonnet\nupdated: 2026-01-02\nnext: Build it\n---\n\n## Goal\nFixture.\n' \
+  >"${jwork}/docs/handover/latecomer.md"
+jcommit "claim the latecomer plan" '2026-01-02T13:00:00Z'
+git -C "$jwork" push -qu origin mgr-latecomer
+git -C "$jwork" checkout -q main
+
+# The assertion that bites the READ rather than the message's `%s`: `main`
+# carries `latecomer.md` and `trunk` does not, so the SAME claim must change
+# case with the base branch. A mutant hard-coding `main` in the two ref strings
+# while leaving `"$base_branch"` in the printf reds here and nowhere else.
+out="$(jan HANDOVER_BASE_BRANCH=trunk)"
+expect "a plan the named base lacks is not reported as held by it" \
+  "holds: docs/plans/latecomer.md, which trunk does not carry" "$out"
+refute "and the out-of-the-queue sentence is withheld for it" \
+  "docs/plans/latecomer.md, out of the queue" "$out"
+refute "and the message names no hard-coded main" \
+  "which main does not carry" "$out"
+# Control: under the default base the SAME claim reads the other way. Without
+# it, a probe wired to a ref carrying nothing would pass both assertions above.
+out="$(jan)"
+expect "while under the default base that same claim is held" \
+  "holds: docs/plans/latecomer.md, out of the queue while this claim stands" "$out"

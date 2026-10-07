@@ -5265,7 +5265,7 @@ cmd_janitor() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" ref
   local due state why hours stale_s
   local claims branch path doc plan status pr session age agetext n_cand=0
-  local held onbranch cand
+  local held onbranch cand had_plan
   local jb jw js n_inflight=0 inflight="" f n_left=0 n_merged=0 merged="" carried=""
 
   [ "$#" -eq 0 ] || die "usage: $0 janitor"
@@ -5338,6 +5338,11 @@ cmd_janitor() {
     # straight out. `plan: x\n    holds: docs/plans/real.md, out of the queue`
     # forged the very sentence the block below exists to withhold (PR275 r6 was
     # the same class, on this same function).
+    # Presence is read BEFORE the strip, because the strip can empty a field
+    # that was there: `plan: 計画` holds every byte outside the set, and
+    # reporting that claim as holding NO plan is the same class of lie as the
+    # two this commit exists to remove.
+    had_plan=""; [ -z "$plan" ] || had_plan=1
     plan="$(printf '%s' "$plan" | tr -cd 'A-Za-z0-9._-')"
     pr="$(printf '%s' "$pr" | tr -cd 'A-Za-z0-9._#-')"
     session="$(printf '%s' "$session" | tr -cd 'A-Za-z0-9._:/#?=&%-')"
@@ -5359,22 +5364,31 @@ cmd_janitor() {
           </dev/null 2>/dev/null || continue
         held="$cand"; break
       done
-      for cand in "docs/plans/${plan}.md" "docs/research/${plan}.md"; do
+      # Only when the base branch did NOT have it: the case that reads
+      # `onbranch` is unreachable otherwise, and twenty candidates whose plans
+      # are all in the queue would pay forty `cat-file` calls for an answer
+      # that cannot change a character of the output.
+      [ -n "$held" ] || for cand in "docs/plans/${plan}.md" "docs/research/${plan}.md"; do
         git -C "$ROOT" cat-file -e "refs/remotes/origin/${branch}:${cand}" \
           </dev/null 2>/dev/null || continue
         onbranch="$cand"; break
       done
     fi
-    if [ -z "$plan" ] || [ "$plan" = none ]; then
+    if [ -n "$had_plan" ] && [ -z "$plan" ]; then
+      printf '    holds: a plan: field this reader cannot print — resolve it\n'
+      printf '      by hand, and do not read "no plan" into this line\n'
+    elif [ -z "$plan" ] || [ "$plan" = none ]; then
       printf '    holds: no plan — this claim holds nothing but its branch\n'
     elif [ -n "$held" ]; then
       printf '    holds: %s, out of the queue while this claim stands\n' "$held"
     elif [ -n "$onbranch" ]; then
       printf '    holds: %s, which %s does not carry —\n' "$onbranch" "$base_branch"
-      printf '      on this branch only, so releasing frees nothing there\n'
+      printf '      so releasing this claim frees nothing in %s\n' "$base_branch"
     else
-      printf '    holds: %s named, which no branch carries —\n' "docs/plans/${plan}.md"
-      printf '      a typo, a rename, or never written: resolve it by hand\n'
+      printf '    holds: %s named, which neither %s nor this\n' \
+        "docs/plans/${plan}.md" "$base_branch"
+      printf '      branch carries — a typo, a rename, or a plan on some other\n'
+      printf '      branch: resolve it by hand\n'
     fi
     # The `pr:` field is a number in a file. This reader cannot see whether the
     # pull request is open, closed or merged — `drain` says "state unverified"
