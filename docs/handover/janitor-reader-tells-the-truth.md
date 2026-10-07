@@ -276,6 +276,44 @@ printed two conclusions about state it never read.
   reader actually read.** Cases 3 and 4 now say "<base>" and "this branch"
   explicitly, which is why they cannot rot when a third branch appears.
   (fixed — as the wording of all five cases, not as another case.)
+- r24: (session) **three of my own fixtures were wrong, and two of them would
+  have passed while testing nothing.** The suite caught all three (2212 passed,
+  4 failed, `bash .agents/harness/selftest.sh` at this tree before the fix).
+  The `trunk` fixture DELETED a plan file, which is the retired-edge-branch
+  signature, so the hook read `trunk` as a manager in flight and the free-slot
+  assertion two sections down failed — correctly, and for a reason that had
+  nothing to do with what the case was testing. `printf '\u8a08'` never
+  expanded, so the unprintable-field case fed the reader an ordinary stem
+  (`u8A08u753B`) and would have gone green over the wrong input. And one
+  `expect` spanned a `printf` line break, so it could never match. (fixed —
+  `trunk` is now main-as-it-was with the plan arriving afterwards, the fixture
+  carries literal UTF-8 bytes, and the expect stops at the line break. Third
+  time this branch has caught a fixture that tested nothing: r1, r6/r16, and
+  now this. The pattern is mine, and it is the same one as r23 — the fixture I
+  reach for first is the one that looks right rather than the one that
+  discriminates.)
+
+- r25: (session) **my refute forbade a substring the correct output must
+  contain.** The fifth case's line quotes `"no plan"` in order to tell the
+  operator not to read it there, so `refute ... "no plan"` failed against the
+  only output it was meant to accept — the code was right and the assertion
+  could never pass (2214 passed, 1 failed, `bash .agents/harness/selftest.sh`
+  at 817fb81). A refute has to name the SENTENCE, not words the right answer
+  also uses. (fixed — anchored on `holds: no plan`, which the correct line does
+  not contain and the defect does.)
+
+
+- r26: (session) **two of my own findings were recorded where no reader looks.**
+  `fb_findings` reads only between `## Review` and the next `## ` heading
+  (`joharness.sh:3724`), and I had inserted r24 and r25 after `## Verification`.
+  So `./joharness.sh review` and `finish` both counted **23** while the file
+  held 25, and the `(verifier)`-tag gate, `feedback` and every later session
+  would have seen neither. Caught by not believing the tool's count: it
+  disagreed with `grep -c "^- r[0-9]*:"`, and the tool was right about its own
+  section. (fixed — both moved into `## Review`; the section now parses 25.
+  A finding outside the section is a finding that does not exist, which is the
+  same lesson as r23 one layer up: the record has to be where the reader reads,
+  not where it looked tidy to put it.)
 
 ## Verification
 
@@ -302,32 +340,6 @@ written numbers.
   The `pr:` wording and the five case STRINGS are not mutation-tested, by
   choice: a mutation of a string reds the assertion that quotes it by
   construction and proves nothing a reader cannot see (r3).
-
-- r24: (session) **three of my own fixtures were wrong, and two of them would
-  have passed while testing nothing.** The suite caught all three (2212 passed,
-  4 failed, `bash .agents/harness/selftest.sh` at this tree before the fix).
-  The `trunk` fixture DELETED a plan file, which is the retired-edge-branch
-  signature, so the hook read `trunk` as a manager in flight and the free-slot
-  assertion two sections down failed — correctly, and for a reason that had
-  nothing to do with what the case was testing. `printf '\u8a08'` never
-  expanded, so the unprintable-field case fed the reader an ordinary stem
-  (`u8A08u753B`) and would have gone green over the wrong input. And one
-  `expect` spanned a `printf` line break, so it could never match. (fixed —
-  `trunk` is now main-as-it-was with the plan arriving afterwards, the fixture
-  carries literal UTF-8 bytes, and the expect stops at the line break. Third
-  time this branch has caught a fixture that tested nothing: r1, r6/r16, and
-  now this. The pattern is mine, and it is the same one as r23 — the fixture I
-  reach for first is the one that looks right rather than the one that
-  discriminates.)
-
-- r25: (session) **my refute forbade a substring the correct output must
-  contain.** The fifth case's line quotes `"no plan"` in order to tell the
-  operator not to read it there, so `refute ... "no plan"` failed against the
-  only output it was meant to accept — the code was right and the assertion
-  could never pass (2214 passed, 1 failed, `bash .agents/harness/selftest.sh`
-  at 817fb81). A refute has to name the SENTENCE, not words the right answer
-  also uses. (fixed — anchored on `holds: no plan`, which the correct line does
-  not contain and the defect does.)
 
 ## Blockers
 

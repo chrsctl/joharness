@@ -156,10 +156,19 @@ that had it:
 | PR69 r2 | `finish` | fired on the branch that built it — another session's inherited file put it at an edge it was not at |
 | PR72 r1 | `finish` wiring | redded its own branch mid-build, naming its own live claim as the offence |
 | PR77 r2 | `graph` | the same tree read PR54 had already named, fixed at last |
+| #278/#288 r14, r15 | `janitor` | the rule GRADUATED and was broken anyway: two `cat-file` probes, then a sentence quantified over every branch — "on this branch only", "which no branch carries". Counted: one plan a claim named was on 20 origin refs and not on the base |
 
 **The rule: a branch inherits every file its base branch carries, so presence
 in the tree says nothing about the branch. Ownership is a DIFF against the
 merge base.**
+
+The last row is the one worth re-reading, because it came after the rule was
+written and cites it. A reader can honour "ownership is a diff" and still lie,
+by reading two refs and then writing a sentence about all of them. So the rule
+generalises: **a reader may claim no more refs than it read, and the sentence
+names them.** `janitor`'s cases say "<base>" and "this branch" in the output
+for that reason — not for the operator's benefit alone, but because a sentence
+bounded by its evidence cannot rot when a third branch appears.
 
 Then pick the filter, because "owns" is three questions:
 
