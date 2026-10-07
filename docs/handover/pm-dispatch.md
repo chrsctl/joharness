@@ -1,13 +1,13 @@
 ---
 workstream: pm-dispatch
-status: in-progress
+status: abandoned
 branch: claude/multi-agent-orchestration-pr-jyli0w
 pr: 10
 plan: none
 session: https://claude.ai/code/session_019M7ypRKWMGi2oaM3XEmGcC
 agent: sonnet
-updated: 2026-08-21
-next: Human merges #8 -> #7 -> #5 (fix already pushed to #8); then re-run queue check. PR #10 = this thread's tracker; merges LAST, when PM winds down, deleting this file in that commit
+updated: 2026-10-07
+next: Nothing on this branch. Pull request 10 was closed unmerged; a new thread needs a new branch cut from current main
 ---
 
 ## Goal
@@ -63,4 +63,31 @@ Runs as a loop: research state, decide, record here.
 
 ## Blockers
 
-None.
+None, as of 2026-08-21 — kept verbatim; the release below is appended, not a
+replacement.
+
+Released 2026-10-07 by a session at Loop step 2, not by a sweep: the
+`janitor` reader exempts any candidate naming a `pr:`, and says in those words
+that finishing it is step 2's, because it cannot read a pull request's state.
+
+What was read, all re-derived on the day rather than inherited:
+
+- the owning session, `session_019M7ypRKWMGi2oaM3XEmGcC`, is ARCHIVED and
+  disconnected, last updated 2026-08-21 — gone by the first row of
+  `.claude/commands/janitor.md` step 2's table, not by push age.
+- pull request 10 is `closed`, `merged: false`, closed 2026-08-21. This branch
+  was never drivable to merge, and the hook calling it `FINISH BEFORE
+  STARTING` was reading `pr:` out of a file, never GitHub.
+- the chain this thread was sequencing ended the same day: #8 merged, while
+  #5, #7 and #10 were all closed unmerged on 2026-08-21. A deliberate close,
+  not an interruption.
+- what the claim held, in the sweep's own words:
+  `holds: no plan — this claim holds nothing but its branch`. Releasing it
+  frees nothing in the queue. What it ends is seven weeks of sessions
+  re-deriving #10 to learn the same thing — four times in one session on
+  2026-10-07 alone.
+
+Nothing is deleted: not this file, not `docs/handover/harness-review.md` which
+this branch inherited, not the branch itself. A returning session may set
+`status:` back, because this is a reading of a control plane and a reading can
+be wrong.
