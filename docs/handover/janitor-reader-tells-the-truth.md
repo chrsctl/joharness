@@ -8,7 +8,7 @@ issue: 278
 session: https://claude.ai/code/session_01K6sHM4RWyYDCLZmrDSrWk3
 agent: opus
 updated: 2026-10-07
-next: Read st5.log for the suite verdict, then ci, re-mutate the branch probe and the base-branch case, retire, pull request
+next: ci is green and the mutations bite; retire this file and open the pull request
 ---
 
 ## Goal
@@ -287,13 +287,21 @@ written numbers.
   difference re-countable without re-running either is
   `git diff e7f645c a94c4b8 -- .agents/harness/selftest/janitor.sh |
   grep -cE '^\+(expect|refute) '` = **10**, with 0 removals.
-- Mutation verdicts for the three new clauses — the `docs/research/` probe,
-  the branch probe, and the `trunk` parameterisation that replaced the vacuous
-  case — are NOT in this commit. The first run was stopped with the file
-  intact rather than risk committing a mutated line mid-run, and they are
-  re-run against this committed tree. An assertion that passes is not yet an
-  assertion that bites, and r6 is this branch's own evidence for the
-  difference.
+- Mutation verdicts, `./joharness.sh mutate joharness.sh <line> <text>` against
+  38d88b2 on 2026-10-07. Every baseline green first; a mutation that reds
+  hundreds of cases proves nothing about one clause, which is r2's lesson.
+  - the `docs/research/` candidate dropped from the base probe: **2 redded** —
+    the research-question case and its refute.
+  - `${base_branch}` replaced by a literal `main` in the base probe, leaving
+    `"$base_branch"` in the message: **2 redded**, both `latecomer`
+    assertions. This is the exact mutant the verifier demonstrated SURVIVED
+    the `main:trunk` fixture (r16). It no longer survives, which is what makes
+    the third spelling of that case the first real one.
+  - the branch probe pointed at the base ref: **3 redded** — case 3's two
+    assertions and `latecomer`'s, case 3 collapsing into case 2.
+  The `pr:` wording and the five case STRINGS are not mutation-tested, by
+  choice: a mutation of a string reds the assertion that quotes it by
+  construction and proves nothing a reader cannot see (r3).
 
 - r24: (session) **three of my own fixtures were wrong, and two of them would
   have passed while testing nothing.** The suite caught all three (2212 passed,
