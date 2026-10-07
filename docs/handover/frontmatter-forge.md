@@ -1,14 +1,14 @@
 ---
 workstream: frontmatter-forge
-status: in-progress
+status: abandoned
 branch: claude/worker-idle-detection-l3v9m3
 pr: none
 plan: frontmatter-forge
 issue: none
 session: https://claude.ai/code/session_01TsLnukcKvuRKLXcJ34BLhg
 agent: opus
-updated: 2026-09-17
-next: Implement docs/plans/frontmatter-forge.md — one sanitiser, three readers, a case per forge
+updated: 2026-10-07
+next: Read docs/plans/frontmatter-forge.md against current main before building — the plan predates several merges and may be partly or wholly done
 ---
 
 ## Goal
@@ -63,7 +63,42 @@ a fix riding an unrelated diff is how a reviewer loses track of both.
 
 ## Blockers
 
-None.
+None, as of 2026-09-17 — kept verbatim; the release below is appended, not a
+replacement.
+
+Released 2026-10-07 by the janitor sweep of that date (the second; the cadence
+is 12h). Two independent rows of `.claude/commands/janitor.md` step 2 agree, so
+this is not a one-signal judgement:
+
+- `session_status: SESSION_STATUS_ARCHIVED` — row 1, gone. An archived session
+  cannot take a turn.
+- `status_bucket: SESSION_STATUS_BUCKET_FAILED` while not RUNNING, confirmed by
+  a SECOND read with both `updated_at` (2026-10-07T08:18:02.924130Z) and the
+  branch head (`0a56830`) unchanged — row 2, gone.
+
+The confounder that caught the 2026-10-05 sweep is ruled out by the record's
+own fields rather than assumed away: that claim's session was THROTTLED, which
+is recoverable by waiting on a clock the error states. This one reads
+`rate_limit_info.status: allowed`, `isUsingOverage: false`, and its failure is
+`Prompt is too long` — 241724 tokens used against a 200000 max. A context
+overflow, not a clock.
+
+One signal points the other way and is recorded rather than hidden:
+`connection_status: connected`. Alongside `archive_container_stop_pending`, it
+reads as a container not yet reclaimed under an already-archived session, and
+the table keys on `session_status` and `status_bucket`, not on the connection.
+
+What the claim held, in the sweep's own words:
+
+    holds: docs/plans/frontmatter-forge.md, which main does not carry —
+      so releasing this claim frees nothing in main
+
+So no plan returns to the queue. What ends is this branch leading the in-flight
+listing as live work.
+
+Nothing is deleted: not this file, not the plan, not the branch. A returning
+session may set `status:` back — this is a reading of a control plane, and a
+reading can be wrong.
 
 ## Where to look
 
