@@ -8,7 +8,7 @@ issue: 278
 session: https://claude.ai/code/session_01K6sHM4RWyYDCLZmrDSrWk3
 agent: opus
 updated: 2026-10-07
-next: Read the mutation verdict for the base-branch clause, then commit the code with this file and open the pull request
+next: Verify with ci, spawn the reader, then retire this file and open the pull request
 ---
 
 ## Goal
@@ -75,8 +75,17 @@ printed two conclusions about state it never read.
   cases** off a green baseline. A mutation that reds a thousand cases says
   nothing about one clause. (fixed — the second mutation appends
   `|| true` to the condition's own line, keeping the syntax valid so only the
-  cases that depend on the clause can red. Its verdict is what `next:` waits
-  on.)
+  cases that depend on the clause can red. Verdict: baseline green, then
+  **4 case(s) redded** — exactly the four assertions about the new third
+  case, and NOT the control that asserts the true sentence still appears for
+  a plan the base branch does carry, which making the condition always true
+  cannot affect. Precise, which is what the first mutation was not.)
+- r3: (session) **the `pr:` change was not mutation-tested, deliberately.** It
+  is a string, and its test asserts that string, so a mutation of the string
+  reds the assertion by construction and proves nothing a reader cannot see.
+  What the test adds beyond the expect is the refute on "nearly done" — the
+  old wording — which pins the regression rather than the clause. Said here
+  rather than left as an implied "both were mutated". (no change.)
 
 ## Blockers
 

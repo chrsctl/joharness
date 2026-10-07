@@ -5332,12 +5332,28 @@ cmd_janitor() {
     # path, and `docs/plans/docs/plans/x.md.md` is what printing it raw gets.
     # lint_stem is the repo's one answer to that (queue-context.sh: `stem`).
     plan="$(lint_stem "$plan")"
-    printf '    holds: %s' "$([ -z "$plan" ] || [ "$plan" = none ] &&
-      printf 'no plan — this claim holds nothing but its branch' ||
-      printf 'docs/plans/%s.md, out of the queue while this claim stands' "$plan")"
-    printf '\n'
+    # THREE cases, not two. A plan the base branch does not carry was never in
+    # the queue, so releasing the claim frees nothing there — and the two-case
+    # version said "out of the queue" about it anyway, on 5 of 5 candidates in
+    # this repo's first sweep and on every plan-naming candidate for three
+    # sweeps running (#278). The reader has no network and needs none: whether
+    # the base branch carries the file is a local question.
+    if [ -z "$plan" ] || [ "$plan" = none ]; then
+      printf '    holds: no plan — this claim holds nothing but its branch\n'
+    elif git -C "$ROOT" cat-file -e \
+      "refs/remotes/origin/${base_branch}:docs/plans/${plan}.md" 2>/dev/null; then
+      printf '    holds: docs/plans/%s.md, out of the queue while this claim stands\n' "$plan"
+    else
+      printf '    holds: docs/plans/%s.md, which %s does not carry' "$plan" "$base_branch"
+      printf ' — the plan is on this branch only, so releasing frees nothing\n'
+    fi
+    # The `pr:` field is a number in a file. This reader cannot see whether the
+    # pull request is open, closed or merged — `drain` says "state unverified"
+    # about the same field and this said "nearly done" (#288). The EXEMPTION
+    # does not depend on the state: naming a `pr:` is what makes it Loop step
+    # 2's, so say that and claim nothing else.
     [ -z "$pr" ] || [ "$pr" = none ] ||
-      printf '    pull request %s — nearly done, not abandoned work: finishing it is Loop step 2, never this sweep\n' "$pr"
+      printf '    pull request %s — exempt whatever its state, which this reader cannot see: finishing it is Loop step 2, never this sweep\n' "$pr"
     [ -z "$session" ] || [ "$session" = none ] ||
       printf '    session: %s\n' "$session"
   done <<<"$claims"

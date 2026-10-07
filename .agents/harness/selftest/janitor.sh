@@ -113,7 +113,52 @@ git -C "$jwork" push -q origin mgr-parked
 git -C "$jwork" checkout -q main
 out="$(jan)"
 expect "a claim naming a pull request says finishing it is not this sweep's" \
-  "pull request 42 — nearly done, not abandoned work" "$out"
+  "pull request 42 — exempt whatever its state, which this reader cannot see" "$out"
+# The defect this replaced: the line read "nearly done, not abandoned work",
+# from the presence of the field and no state read at all. Said of a pull
+# request closed without merging seven weeks earlier, three sweeps running
+# (#288). `drain` has always said "state unverified" about the same field.
+refute "and claims nothing about a state it cannot read" \
+  "nearly done" "$out"
+
+# --- a held plan the base branch does not carry ------------------------------
+# The two-case `holds:` line said "out of the queue while this claim stands"
+# about every plan a claim named, without asking whether the queue had it. A
+# plan created on the claim's own branch and never merged is the NORMAL shape —
+# plan and claim are usually written together — and there the claim holds
+# nothing the queue would have offered. Wrong on 5 of 5 candidates in this
+# repository's first sweep, and on every plan-naming candidate for three sweeps
+# (#278). The fixture above is the case where the line is TRUE, which is why
+# nothing caught this: `jplan parked` puts that plan on main.
+git -C "$jwork" checkout -qb mgr-ownplan
+# `git checkout main` removes docs/handover once it is empty there, so the
+# directory has to be remade — the `parked` fixture above does the same, and
+# without it the redirect below fails silently and only the plan is committed.
+mkdir -p "${jwork}/docs/handover"
+printf -- '---\nworkstream: ownplan\nstatus: in-progress\nbranch: mgr-ownplan\nplan: ownplan\nsession: https://example.invalid/session_ownplan\nagent: sonnet\nupdated: 2026-01-02\nnext: Build it\n---\n\n## Goal\nFixture.\n' \
+  >"${jwork}/docs/handover/ownplan.md"
+jplan ownplan
+jcommit "claim ownplan, with its plan on this branch only" '2026-01-02T00:00:00Z'
+git -C "$jwork" push -qu origin mgr-ownplan
+git -C "$jwork" checkout -q main
+
+out="$(jan)"
+expect "a claim whose plan the base branch lacks says so" \
+  "holds: docs/plans/ownplan.md, which main does not carry" "$out"
+expect "and says releasing it frees nothing" \
+  "the plan is on this branch only, so releasing frees nothing" "$out"
+# The whole point: the FALSE sentence must not appear for this claim. The true
+# one still appears for `parked`, whose plan main does carry, so a bare refute
+# over the output would pass for the wrong reason — anchor on the stem.
+refute "and never claims this one is out of the queue" \
+  "docs/plans/ownplan.md, out of the queue" "$out"
+expect "while a plan main DOES carry still reads out of the queue" \
+  "holds: docs/plans/parked.md, out of the queue while this claim stands" "$out"
+
+# A base branch named by the environment is the one asked, not a literal main.
+out="$(jan HANDOVER_BASE_BRANCH=main)"
+expect "the base branch in the message is the one that was read" \
+  "which main does not carry" "$out"
 
 # --- the word, and what it does ---------------------------------------------
 # Released: the queue hook stops counting the claim, so the plan reads free.
