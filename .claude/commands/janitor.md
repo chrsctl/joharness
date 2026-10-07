@@ -60,10 +60,12 @@ The field rules are the health table's and are stated once, there
 push time is not liveness in either direction. Wrong here destroys work in
 progress.
 
-**A candidate naming a `pr:` is not yours even when its session is gone.** An
-open pull request means the work is nearly done, and finishing it is Loop
-step 2's job for a session that picks work — not a sweep's. Report it as edge
-work waiting for somebody.
+**A candidate naming a `pr:` is not yours even when its session is gone.**
+Naming the field is what exempts it, not the pull request's state, which is
+not in the field — `drain` says "state unverified" about the same bytes. So
+never call it open or nearly done: #288 was that said of one closed unmerged
+47 days earlier (`git show 1d458fa:docs/handover/janitor-2026-10-07.md`).
+Report it as edge work whose state the next picking session checks.
 
 ## 3. Release — one commit, on the claim's own branch
 
@@ -75,14 +77,18 @@ For each claim you PROVED gone:
    - `updated:` today
    - `next:` one line: what a session picking this up would do first.
    - under `## Blockers`, a note with the date, the control-plane reading that
-     proved it gone, the plan it was holding, and the sentence that a
-     returning session may set the status back.
+     proved it gone, what the claim held AS THE SWEEP REPORTED IT — the
+     `holds:` line, copied, not "the plan it was holding" — and the sentence
+     that a returning session may set the status back.
    - a `blocked` file's existing text is CARRIED, never deleted: an unowned
      block's question is still the question, it just has nobody waiting on it.
 3. Commit on that branch and push. One commit, no force, no rebase, no amend.
 
-That is the whole release. The plan is free the moment the queue hook reads
-that word.
+That is the whole release. The queue hook stops counting the claim the moment
+it reads that word — which frees a plan only if the base branch HAD one. For
+the normal shape, plan and claim written together on the same unmerged branch,
+releasing frees nothing in the queue: say what the `holds:` line said, never
+"the plan is free" (#278).
 
 **Never** delete the workstream file, delete or rewrite anything else on that
 branch, or delete the branch — `git push --delete` is forbidden to a session
@@ -113,7 +119,9 @@ diff may be empty ON PURPOSE: the retire commit IS the record that the claims
 were read on this date. Merge-commit method, like every other edge.
 
 Report, one line per class: claims released with the reading that proved each
-gone and the plan each freed; candidates left alone and why (RUNNING, IDLE,
+gone and what each held, in the `holds:` line's own words — a count of plans
+freed is a claim about the queue, and only the second of its four cases is one;
+candidates left alone and why (RUNNING, IDLE,
 undecidable, or a pull request waiting); leftovers swept; branches merged and
 standing for the human to delete; and, under orchestrated, that this session
 cost one beyond the cap.
