@@ -8,7 +8,7 @@ issue: 278
 session: https://claude.ai/code/session_01K6sHM4RWyYDCLZmrDSrWk3
 agent: opus
 updated: 2026-10-07
-next: Read st4.log for the suite verdict on the r14-r23 round, then ci, re-mutate the branch probe and the base-branch case, retire, pull request
+next: Read st5.log for the suite verdict, then ci, re-mutate the branch probe and the base-branch case, retire, pull request
 ---
 
 ## Goal
@@ -311,6 +311,15 @@ written numbers.
   now this. The pattern is mine, and it is the same one as r23 — the fixture I
   reach for first is the one that looks right rather than the one that
   discriminates.)
+
+- r25: (session) **my refute forbade a substring the correct output must
+  contain.** The fifth case's line quotes `"no plan"` in order to tell the
+  operator not to read it there, so `refute ... "no plan"` failed against the
+  only output it was meant to accept — the code was right and the assertion
+  could never pass (2214 passed, 1 failed, `bash .agents/harness/selftest.sh`
+  at 817fb81). A refute has to name the SENTENCE, not words the right answer
+  also uses. (fixed — anchored on `holds: no plan`, which the correct line does
+  not contain and the defect does.)
 
 ## Blockers
 

@@ -443,8 +443,11 @@ expect "and tells the operator not to read the other case into it" \
 # `plan: none` and read "no plan", so a refute over the whole sweep would fail
 # for the right reason and tell us nothing about this one.
 blk="$(printf '%s\n' "$out" | awk '/mgr-unprintable/{f=1;next} f&&/^  [^ ]/{f=0} f')"
+# Anchored on the SENTENCE, not the words: the correct line quotes "no plan"
+# to tell the operator not to read it here, so a refute on the bare words can
+# never pass — it fails against the very output it is meant to accept.
 refute "never reporting a named plan as no plan at all" \
-  "no plan" "$blk"
+  "holds: no plan" "$blk"
 
 # --- the base branch is the one NAMED, and it is the one READ ---------------
 # Two earlier spellings pinned nothing. The first passed `main`, the DEFAULT, so
