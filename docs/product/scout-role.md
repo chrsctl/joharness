@@ -13,8 +13,9 @@ still naming `claude-haiku-4-5` / `claude-sonnet-5` / `claude-opus-5`
 while 5.5 and Fable 5.1 are served at lower or equal price — and no
 session could have surfaced any of that, because nothing in the harness
 is allowed to invent work. Want: a `fable` tier and a role that uses it
-to RESEARCH new capacities — model releases, API features, what merged edges and the
-scorecard say about the harness itself — and PROPOSE them. Proposals, not
+to RESEARCH new capacities — model releases, API features, what merged
+edges and the scorecard say about the harness itself — and PROPOSE them.
+Proposals, not
 work: a proposal becomes queue work only when a human merges it, unless
 the human has said in conf that the scout may merge its own.
 
