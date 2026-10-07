@@ -8,7 +8,7 @@ issue: 279
 session: https://claude.ai/code/session_01K6sHM4RWyYDCLZmrDSrWk3
 agent: opus
 updated: 2026-10-07
-next: Write the two plans, then verify, review, retire and merge
+next: Fold in the reader's findings, then retire this file and open the pull request
 ---
 
 ## Goal
@@ -73,6 +73,30 @@ at step 2 under an earlier drain item.
   inventing work.
 
 ## Review
+
+- r1: (session) **`curate` reported my first plan colliding with
+  `unowned-block-age` on `.agents/harness/selftest/dispatch.sh`, both claiming
+  it exclusively.** `curate` prints that as a proposal — "order them, or say
+  they are one plan. The human decides" — and a proposal still makes the verdict
+  `CURATE`, which Loop step 2 ranks above the queue. So the diff would have
+  manufactured the next session's top item, which is the defect PR301 r3 caught
+  in my previous plan. A `shared:` marking on my side could not fix it: one
+  plan's marking cannot void another plan's exclusive claim. (fixed — the cycle
+  case is scoped to `selftest/drain.sh` instead. Both commands call the same
+  `dispatch_curate_branches`, the issue's own measured evidence is `drain`
+  printing the frozen line, and `dispatch.sh`'s existing `curate … IN FLIGHT`
+  assertion stays as an untouched control. `curate` now reads `NOTHING TO
+  CURATE — every declaration reads true`.)
+- r2: (session) **`ci` flagged BOTH plans `SHIPS to consumers` and only one had
+  a consumer-side check.** `release-reds-the-branch-it-releases` touches
+  `.claude/commands/janitor.md`, which ships, and all five of its Acceptance
+  items were local. `.agents/docs/plans/README.md`: "A bar met only here is met
+  in the one repo that was never the risk." Same defect as PR301 r4, one item
+  later — and `ci` passes either way, so a green run was not evidence. (fixed —
+  a sixth item names the consumer-side check: a consumer that synced the change
+  sees a sweep's release note carry the sentence, and the returning session
+  meets the red WITH the explanation. The consumer is where that red actually
+  happens.)
 
 ## Blockers
 

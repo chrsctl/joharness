@@ -73,6 +73,13 @@ cheap honest one", and it is the only one that does not weaken a lint:
    origin/<an-abandoned-branch>:joharness.sh | grep -c abandoned` is still 0
    after this change — this plan does not pretend to fix the enum, and the
    workstream file says so.
+6. Consumer-side, because `.claude/commands/janitor.md` SHIPS (`./joharness.sh
+   ci` prints it under `== ship scope`): in a consumer that has synced this
+   change, a sweep's release note carries the sentence, and a session that then
+   runs `./joharness.sh ci` on the released branch sees the red WITH the note
+   explaining it. A bar met only in the canonical repo is met in the one repo
+   that was never the risk — the consumer is where a returning session meets
+   this red. State whether that check was run or only specified.
 
 ## Where to look
 
