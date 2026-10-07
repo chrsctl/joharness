@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01Vaf3LtqeZuPLpVyeSRpngQ
 agent: opus
 updated: 2026-10-07
-next: Edit drain.md to loop to DRAINED, then the four passages naming one item per session
+next: Record verifier findings under ## Review, fix, then retire commit + PR + merge (step 7)
 ---
 
 ## Goal
