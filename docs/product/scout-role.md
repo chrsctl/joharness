@@ -1,0 +1,58 @@
+---
+requirement: scout-role
+priority: normal
+---
+
+## Goal
+
+The fleet burns tokens executing and never spends one on finding what it
+could do better. Measured 2026-10-07: the `chrsctl/gx` orchestrator at
+$710 lifetime on sonnet-5.5 with a 412K-token context re-read every
+heartbeat; manager sessions at $5–$70 each; the Lineup still naming
+`claude-haiku-4-5` / `claude-sonnet-5` / `claude-opus-5` while 5.5 and
+Fable 5.1 are served at lower or equal price — and no session could have
+surfaced any of that, because nothing in the harness is allowed to invent
+work. Want: a `fable` tier and a role that uses it to RESEARCH new
+capacities — model releases, API features, what merged edges and the
+scorecard say about the harness itself — and PROPOSE them. Proposals, not
+work: a proposal becomes queue work only when a human merges it, unless
+the human has said in conf that the scout may merge its own.
+
+## Satisfied when
+
+- `.agents/docs/agent-selection.md` Lineup carries a fourth tier `fable`
+  (`claude-fable-5-1`), and `agent: fable` passes the plan, research and
+  workstream lints. Bound to judgement roles — planning manager for an
+  unplanned requirement, review-churn research step, scout — never a
+  build; the doc says why.
+- A `scout` role exists with the shape of `curate` and `janitor`: a
+  `scout : DUE` tail line from `dispatch` AND `drain`, cadence
+  `JOHARNESS_SCOUT_HOURS` dated from git (the last merged or closed
+  `proposal:` pull request), fires only at DRAINED, ONE session beyond the
+  cap, at most one in flight, tier fable. `0` switches it off.
+- A scout reads evidence and writes ONE `docs/product/<proposal>.md` as a
+  pull request titled `proposal: <stem>`, each proposal citing what it rests
+  on — `./joharness.sh upstream`, `scorecard`, review churn, feedback
+  graduations, or a dated Anthropic release note / Models API read — and
+  an estimated cost. It writes no plan, no code, and merges nothing.
+- Human merges = the requirement is UNPLANNED and the existing flow takes
+  it (planning manager decomposes, plans, managers). Human closes =
+  nothing entered the queue; the record survives in history. The scout
+  exits either way.
+- `JOHARNESS_SCOUT_AUTOMERGE=on` in `joharness.conf` (default `off`, any
+  other value reads as off) is the ONE exception: the scout merges its own
+  proposal. The switch is a conf line, so flipping it is a human act and
+  the no-inventing bound still holds; the doc records that it is money AND
+  product direction in one key, like `JOHARNESS_UPSTREAM_FEEDBACK`.
+- Session start under orchestrated mode names the scout beside the curator
+  and janitor in the roles table and in `.claude/commands/`.
+
+## Constraints
+
+- No proposal schedules itself. A scout never writes `docs/plans/` or
+  `docs/research/`, never edits protocol text, never spawns.
+- Evidence-bound: a proposal with no citation is a red run, not a
+  judgement call — the same strength as `LAYER_CARVE_OUT_*`.
+- Fable is never a build tier in this requirement. Moving the Lineup's
+  other three rows to current-generation IDs is the scout's first
+  candidate proposal, not this requirement's scope.
