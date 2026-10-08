@@ -1,14 +1,14 @@
 ---
 workstream: bash-guard-reads-prose-as-a-loop
-status: blocked
+status: in-progress
 branch: claude/bash-guard-reads-prose-as-a-loop
 pr: none
-plan: bash-guard-reads-prose-as-a-loop
+plan: guard-pairs-done-by-depth
 issue: none
-session: https://claude.ai/code/session_01X7MYq6kL1CgciaSW4PW2fv
+session: https://claude.ai/code/session_01JXryjCKHhwkN7Xrv1qXz55
 agent: opus
 updated: 2026-10-08
-next: Human — the design is settled and measured below; apply it in a session that may EXECUTE the guard. The plan's own prescription is refuted, so fix the plan before building from it.
+next: Graduate the node's reasoning into the guard header, verifier pass, ci + verify, retire node + plan + this file, pull request closing #271 and #314.
 ---
 
 ## Goal
@@ -115,7 +115,48 @@ attempted. It stopped on a DIFFERENT and harder bound — below.
   Acceptance already specifies and re-derive every exit code rather than
   trusting these. (open — by design; a written number is not a counted one)
 
+- r4: (session, supervised resume 2026-10-08) the design above, built.
+  The recorded `open_re` rejected `for ((i=0;…`: its trailing word boundary
+  applied to `((` too, and the next character is alphanumeric. (fixed — the
+  boundary now applies to the word alternatives only, case "a nested for
+  (( )) is an opener".)
+- r5: (session) a newline turned into a SPACE took command position away
+  from the line after it, so a nested `for` on its own line was a word, its
+  `done` closed the outer loop, and the sleep after it was never seen —
+  allowed. (fixed — a newline becomes ` ;`, which keeps every existing
+  regex's reading and restores command position; case "a nested for on its
+  own line is still an opener".)
+- r6: (session) measured on a scratch copy, payloads fed on stdin from a
+  file: old guard 8 wrong of 21, new 0 wrong of 28. With the old guard
+  restored the topic reds 9 new cases (2222 passed, 9 failed); with the new
+  one `ci: pass`, 2231 passed, 0 failed (before the last seven cases). (fixed)
+- r7: (session) `./joharness.sh mutate` on the LIVE hook was refused by the
+  harness classifier as `[Self-Modification]` after one line had run — the
+  tool rewrites the file that gates the session's own Bash calls. Not
+  retried, not worked around. The mutation proof was taken instead on a
+  scratch copy against a 28-payload table: 21 mutations over every new
+  line, all pinned, three that first read UNPINNED each given a case
+  (`for the record`, the prose-keyword `timeout` prefix, and `kwname`,
+  pinned by the topic's message assertion). (fixed in substance; the
+  official tool's own run stands at 1 of 9 lines.)
+- r8: (session, about the tool, not this diff) `cmd_mutate` writes the
+  replacement through `sed`, which drops a backslash — mutating line 101 to
+  `\\n` landed `\n`, a literal `n`, and redded unrelated cases. And it reads
+  stdin, so a `while read` driver loses its remaining lines to the first
+  call. (open — `joharness.sh` is protocol text; a finding for its owner.)
+- r9: (session) when a quoted `while`/`until` unbalances a real loop, the
+  walk heals by judging the quoted keyword as its own loop — and the deny
+  then names THAT keyword: "this `while` loop" for a command whose real wait
+  is an `until`. The decision is right; the name is the stand-in's. (wontfix
+  — rare shape, deny still correct, and naming the outer keyword would need
+  state the walk deliberately does not carry.)
+
 ## Blockers
+
+**Lifted 2026-10-08** for the edit itself: a supervised session, at the
+human's instruction, installed the design and ran the topic, `ci` and the
+payload table against the live hook without refusal. What stayed refused is
+`mutate` on the live hook (r7). The record below is the earlier block.
 
 **Blocks: executing the guard is refused as self-modification, and that is
 correct.** `.agents/harness/pretool-bash-guard.sh` is the PreToolUse hook on

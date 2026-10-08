@@ -93,7 +93,12 @@ cmd="$(hook_key command)" || exit 0
 # "do\nsleep 3\ndone" then puts an alphanumeric immediately before `sleep`,
 # where the shape below needs a word boundary. Without this the guard passes
 # every multi-line command — which is most of the ones worth catching.
-cmd="${cmd//\\n/ }"
+#
+# A newline becomes ` ;`, not a bare space: it ENDS a command, and the depth
+# walk below only counts an opener in command position. As a space, the
+# `for` on the line after `foo` reads as a word in a sentence, its `done`
+# closes the loop around it early, and a `sleep` after it is never seen.
+cmd="${cmd//\\n/ ;}"
 cmd="${cmd//\\t/ }"
 
 # --- the patterns ----------------------------------------------------------
@@ -114,7 +119,37 @@ cmd="${cmd//\\t/ }"
 # what is being written is an unbounded wait either way, and the deny points
 # at the Write tool for the case where the text really is only text.
 start_re='(^|[^[:alnum:]_])(while|until)[[:space:]]'
-end_re='[^[:alnum:]_]done([^[:alnum:]_]|$)'
+
+# WHICH `done` closes the keyword just found. Both ends of one defect live
+# here (issue #271, the research node on prose read as a loop): take the
+# FIRST `done` and a nested `for` steals the outer loop's end, so a sleep
+# after it goes unseen; let a prose `while` own a real loop's `done` and the
+# `timeout` wrapping that loop goes unseen. A narrowing at either end, built
+# alone, opened a wider hole at the other — so one rule closes both.
+#
+# Count OPENERS up and `done` down, never a bare `do`. `do` is a separator,
+# not a nesting token: one `done` per opener, never per `do`, and a prose
+# keyword in front of an ordinary `for ...; do ... done` would otherwise
+# claim that `for`'s `do` and `done` — measured: the do/done count fixes
+# both false negatives and leaves both prose false positives denied. The
+# depth starts at 1, the keyword being its own opener, and the `done` that
+# returns it to 0 is this loop's.
+#
+# Two narrowings on the opener keep it from re-opening the hole that the
+# last attempt here was reverted for:
+#   - `for NAME in` and `for ((`, never a bare `for`. A bare `for` is what
+#     made "ready for connections" an opener and let the wait around it go.
+#   - COMMAND POSITION: the start, or after `; & | ( ) { }`, a quote, or
+#     `do` / `then` / `else`. A real opener begins a command; the `for` in
+#     "waiting for jobs in queue" does not, and counted it unbalances the
+#     loop around it.
+# An opener that slips through anyway — a quoted string starting `while`,
+# say — leaves the count unbalanced, and unbalanced fails open for THAT
+# keyword only: the walk carries on, and a quoted `while`/`until` is then a
+# keyword of its own whose loop is judged. Only a quoted `for x in` /
+# `select x in` does not heal that way, and it errs towards allowing.
+close_re='(^|[^[:alnum:]_])done([^[:alnum:]_]|$)'
+open_re='(^|[;&|(){}'"'"'"`]|[^[:alnum:]_](do|then|else))[[:space:]]*((while|until|for[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[[:space:]]+in|select[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[[:space:]]+in)([^[:alnum:]_]|$)|for[[:space:]]*\(\()'
 
 # `sleep` with an ARGUMENT, because `sleep` always takes one. Without the
 # argument, `do echo "sleep tight, still waiting"; done` is denied for a word
@@ -162,24 +197,61 @@ deny() {
 walked=""
 rest="$cmd"
 while [[ $rest =~ $start_re ]]; do
+  # Both captures NOW: every later `[[ =~ ]]` overwrites BASH_REMATCH, and a
+  # capture read after one is unset under `set -u` — exit 1, which this
+  # event reads as "allow, and log it". An earlier patch here did exactly
+  # that and passed nothing but its own payloads.
   kw="${BASH_REMATCH[0]}"
+  kwname="${BASH_REMATCH[2]}"
   # Everything up to and including this loop's keyword. `timeout` is read
   # here and nowhere else: it WRAPS a loop, so it precedes it. Inside the
   # body it bounds one command in the loop and never the loop —
   # `while ! timeout 5 curl -sf http://host/health; do sleep 1; done` runs
   # until the host answers, and the host may never answer.
   prefix="${walked}${rest%%"$kw"*}${kw}"
+  # Past the KEYWORD only, never past its `done`. Advancing past the `done`
+  # swallows a nested loop whole — judged as part of the outer loop's span,
+  # bounded by the outer loop's counter, and never reached as a keyword of
+  # its own. Each nested `while`/`until` is found again by this walk.
   rest="${rest#*"$kw"}"
+  walked="$prefix"
 
-  # No `done` left means no loop left, only the word.
-  [[ $rest =~ $end_re ]] || break
-  end="${BASH_REMATCH[0]}"
-  body="${rest%%"$end"*}"
-  walked="${prefix}${body}${end}"
-  rest="${rest#*"$end"}"
+  # `span` is the loop's whole body, nested loops included; `own` is only
+  # the text at this loop's own depth. Every pass of the inner walk eats at
+  # least one opener or one `done`, so it ends.
+  depth=1
+  span=""
+  own=""
+  scan="$rest"
+  while ((depth > 0)); do
+    # No `done` left means no loop left, only the word.
+    [[ $scan =~ $close_re ]] || break
+    tok="${BASH_REMATCH[0]}"
+    seg="${scan%%"$tok"*}"
+    step=-1
+    if [[ $scan =~ $open_re ]]; then
+      o="${BASH_REMATCH[0]}"
+      opre="${scan%%"$o"*}"
+      if ((${#opre} < ${#seg})); then
+        tok="$o"
+        seg="$opre"
+        step=1
+      fi
+    fi
+    span="${span}${seg}${tok}"
+    ((depth == 1)) && own="${own}${seg}"
+    depth=$((depth + step))
+    scan="${scan#*"$tok"}"
+  done
+  # Unbalanced: a shape this cannot read. Fail open for this keyword and
+  # carry the walk on — a skip that never restarted the walk was the whole
+  # regression of the attempt reverted here.
+  ((depth == 0)) || continue
 
   # No sleep, no wait. `while read` over input and every `for` stop here.
-  [[ $body =~ $sleep_re ]] || continue
+  # The sleep is looked for over the whole SPAN: a `sleep` inside a nested
+  # `for` is a sleep this loop performs every iteration.
+  [[ $span =~ $sleep_re ]] || continue
 
   # pgrep FIRST, and bounded or not. A `timeout` around this one turns an
   # endless wait into a wait that always runs the clock out, which is not the
@@ -187,9 +259,9 @@ while [[ $rest =~ $start_re ]]; do
   # session to add the bound it already has. Self-matching is not obvious, so
   # the reason says it. The flag is looked for separately from the command
   # because `pgrep -l -f` and `pgrep --full` are the same trap spelled apart.
-  if [[ $body =~ $proc_re ]]; then
+  if [[ $span =~ $proc_re ]]; then
     tool="${BASH_REMATCH[1]}"
-    if [[ $body =~ $full_re ]]; then
+    if [[ $span =~ $full_re ]]; then
       deny "DENIED: this loop waits on \`${tool}\` with the full-command-line flag, which matches ITSELF.
 \`${tool} -f\` tests full command lines, and the command line running this
 loop carries the pattern as its own argument — so the process it is
@@ -199,12 +271,20 @@ process another way, or wait on something the loop does not create."
   fi
 
   [[ $prefix =~ $timeout_re ]] && continue
-  [[ $body =~ $count_re ]] && continue
-  [[ $body =~ $arith_re ]] && continue
+  # Counters over `own`, never `span`. A counter in a nested loop bounds
+  # that loop and nothing outside it; read over the span, a harmless inner
+  # counter would bound a dangerous outer loop — the defect the per-loop
+  # walk exists to prevent.
+  [[ $own =~ $count_re ]] && continue
+  [[ $own =~ $arith_re ]] && continue
 
-  deny "DENIED: this \`while\`/\`until\` loop sleeps with no bound on how long it waits.
-Nothing in it can stop it: no timeout, no iteration counter. If the
-condition it waits on never comes true, the command runs until a human
-notices."
+  # Say what is missing AROUND THE LOOP. The message once printed "no
+  # timeout" at a command carrying `timeout 900`; it now names the keyword
+  # it judged, and a `timeout` elsewhere in the command is not one that
+  # wraps this loop.
+  deny "DENIED: this \`${kwname}\` loop sleeps with no bound on how long it waits.
+No \`timeout\` wraps it, and no counter in its own condition or body stops
+it. If the condition it waits on never comes true, the command runs until
+a human notices."
 done
 exit 0

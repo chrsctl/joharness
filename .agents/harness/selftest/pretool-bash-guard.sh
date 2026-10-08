@@ -163,6 +163,112 @@ pbg_denied "a pretty-printed payload is still read"
 pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"i=0; while [ $i -lt 3 ]; do sleep 1; i=$((i+1)); done; until grep -q x /tmp/f; do sleep 20; done"}}'
 pbg_denied "a bounded loop earlier in the command does not bound a later one"
 
+# --- which `done` closes the keyword (#271) --------------------------------
+# One defect read from two ends. Taking the FIRST `done` let a nested `for`
+# steal the outer loop's end, so the sleep after it went unseen; and a prose
+# `while` claimed a real loop's `done`, so the `timeout` wrapping that loop
+# went unseen. A narrowing at either end alone was built, measured, and
+# reverted for opening a wider hole at the other, so both ends are pinned
+# here together.
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"until grep -q x /tmp/f; do for y in 1 2; do : ; done; sleep 20; done"}}'
+pbg_denied "a nested for does not steal the outer loop's done"
+# shellcheck disable=SC2016  # literal backticks the message prints
+expect "and the deny names the keyword it judged" 'this `until` loop' "$pbg_msg"
+
+# shellcheck disable=SC2016  # a JSON payload; the $ is text the guard reads
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"i=0; while [ $i -lt 3 ]; do until grep -q x /tmp/f; do sleep 20; done; i=$((i+1)); done"}}'
+pbg_denied "a nested unbounded wait is judged, not swallowed by the outer loop"
+
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"echo \"wait while the suite finishes\"; timeout 900 bash -c '"'"'until grep -q PASS /tmp/out; do sleep 15; done'"'"'; cat /tmp/out"}}'
+pbg_allowed "a prose while does not hide the timeout wrapping the real loop"
+
+# shellcheck disable=SC2016  # a JSON payload; the $ is text the guard reads
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"echo \"the UI floor moved while they were written\" && for d in 2 4; do true && break || sleep $d; done"}}'
+pbg_allowed "a prose while does not claim a for loop's done"
+
+# The controls: swap the prose `while` for `when` and nothing changes. Both
+# read 0 before the fix as well, which is what makes the keyword the cause.
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"echo \"wait when the suite finishes\"; timeout 900 bash -c '"'"'until grep -q PASS /tmp/out; do sleep 15; done'"'"'; cat /tmp/out"}}'
+pbg_allowed "the when control for the timeout shape is allowed"
+
+# The bare `do` in ordinary English — what defeated the reverted narrowing.
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"echo \"wait while we do the suite\"; timeout 900 bash -c '"'"'until grep -q PASS /tmp/out; do sleep 15; done'"'"'"}}'
+pbg_allowed "a prose while followed by a bare do is still prose"
+
+# The readiness lines the reverted attempt let through. Nothing covered them,
+# and a green suite said nothing when they broke.
+# A database's real readiness line, read from its log; the reverted attempt
+# met it through a container runtime, which this tree may not name.
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"until tail -n 50 /tmp/db.log | grep -q \"ready for connections\"; do sleep 5; done"}}'
+pbg_denied "the word for in a readiness line is not an opener"
+
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"until grep -q \"ready for merge\" /tmp/out; do sleep 20; done"}}'
+pbg_denied "ready for merge is not an opener either"
+
+# `for NAME in` spelled out inside a string. Only an opener in COMMAND
+# position counts; without that clause this string unbalances the count and
+# the wait around it is allowed.
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"until grep -q \"waiting for jobs in queue\" /tmp/log; do sleep 5; done"}}'
+pbg_denied "for NAME in mid-sentence is not in command position"
+
+# A newline ends a command. Read as a space, the `for` after `echo hi` sits
+# mid-sentence, its `done` closes the outer loop early, and the sleep after it
+# is never seen.
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"until test -f /tmp/x\ndo\n  echo hi\n  for i in 1 2\n  do :\n  done\n  sleep 5\ndone"}}'
+pbg_denied "a nested for on its own line is still an opener"
+
+# `for ((` is an opener with no word after it, and its arithmetic belongs to
+# it: read as the outer loop's, `i<2` would bound a wait it never touches.
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"until test -f /tmp/x; do for ((i=0;i<2;i++)); do :; done; sleep 5; done"}}'
+pbg_denied "a nested for (( )) is an opener and its arithmetic is not the bound"
+
+# A counter bounds the loop it belongs to and nothing outside it.
+# shellcheck disable=SC2016  # a JSON payload; the $ is text the guard reads
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"until grep -q x /tmp/f; do i=0; while [ $i -lt 3 ]; do i=$((i+1)); done; sleep 20; done"}}'
+pbg_denied "an inner loop's counter does not bound the outer wait"
+
+# shellcheck disable=SC2016  # a JSON payload; the $ is text the guard reads
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"i=0; while [ $i -lt 3 ]; do for f in a b; do echo $f; done; sleep 1; i=$((i+1)); done"}}'
+pbg_allowed "an outer counter still bounds a loop with a nested for"
+
+# A quoted `while` at command position slips past the opener rule and
+# unbalances the count. That fails open for the real loop — and the walk
+# carries on, finds the quoted keyword as a loop of its own, and denies it.
+# A skip that did not carry the walk on was the reverted attempt's regression.
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"until test -f /tmp/x; do echo \"while waiting\"; sleep 5; done"}}'
+pbg_denied "an unbalanced count carries the walk on to the next keyword"
+
+# `for NAME in`, never a bare `for`: a quoted "for the record" sits in command
+# position, and as an opener it would unbalance the loop around it.
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"until grep -q x /tmp/f; do echo \"for the record\"; sleep 5; done"}}'
+pbg_denied "a bare for in command position is not an opener"
+
+# The rest of the opener set, one case each, so no part of it is untested.
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"until test -f /tmp/x; do select o in a b; do break; done </dev/null; sleep 5; done"}}'
+pbg_denied "a nested select is an opener"
+
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"until test -f /tmp/x; do if true; then for i in 1; do :; done; fi; sleep 5; done"}}'
+pbg_denied "a for after then is in command position"
+
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"echo \"wait while it runs\"; timeout 900 bash -c \"until test -f /tmp/x; do sleep 5; done\""}}'
+pbg_allowed "a double-quoted bash -c opens a command too"
+
+# `timeout` is read over everything BEFORE the keyword, prose included. The
+# walk keeps that prefix as it passes a prose keyword; dropped, the timeout
+# here would be invisible to the loop it wraps.
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"timeout 900 bash -c '"'"'echo \"wait while it runs\"; until test -f /tmp/x; do sleep 5; done'"'"'"}}'
+pbg_allowed "a timeout before a prose keyword still wraps the loop after it"
+
+# The sleep is read over the whole span: a `sleep` inside a nested `for` is a
+# sleep the outer loop performs every iteration.
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"until test -f /tmp/x; do for i in 1 2; do sleep 1; done; done"}}'
+pbg_denied "a sleep inside a nested for is the outer loop's wait"
+
+# `done;done` is legal shell, and once the inner `done;` is consumed the
+# outer `done` starts the remaining text — so `done` matches at the start.
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"until test -f /tmp/x; do for i in 1; do sleep 1; done;done"}}'
+pbg_denied "done;done with no space between still closes both loops"
+
 # --- what counts as a counter ----------------------------------------------
 # A counter compares a VARIABLE. `[ "$(grep -c x /tmp/f)" -gt 0 ]` is a test
 # on the world — incident command two respelled — and it bounds nothing.
