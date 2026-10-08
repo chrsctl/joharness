@@ -55,7 +55,7 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    `.agents/docs/orchestrated.md`). Prompt named `/manage <item>`? That
    is your answer already. Otherwise `/start` reads the mode and names
    the file. Boundary holds in both:
-   no commit to protocol text (`./joharness.sh protocol-paths`,
+   no commit to a core path (`./joharness.sh protocol-paths`,
    [`.agents/docs/unsupervised.md`](../../.agents/docs/unsupervised.md)).
    Claims outlived their sessions? `drain` says `janitor : DUE` — same shape,
    same rank: `/janitor` releases what it can prove gone and deletes nothing.

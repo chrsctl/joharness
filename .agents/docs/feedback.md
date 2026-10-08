@@ -383,8 +383,8 @@ and it is the one that has no fix commit by construction. It reaches the
 report through that second rule and through nothing else.
 
 The report lands as **one research node** in canonical, never a requirement
-and never a plan. A requirement is the human's goal to set and an unattended
-branch that adds one is red (`joharness.sh:lint_requirement_writes`); a plan
+and never a plan. A requirement is a goal for THIS repo, and a consumer's
+finding is evidence about canonical, not a goal canonical set; a plan
 asserts the fix, and a child asserting canonical's fix is the inversion step 1
 forbids. A research node is a question canonical's own queue lists, a session
 claims, and the merge that answers it deletes — so a consumer's finding enters

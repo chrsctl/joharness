@@ -85,12 +85,31 @@ expect "unsupervised session-start announces the mode" "== Mode: unsupervised ==
 expect "and points at drain for the order" "./joharness.sh drain" "$out"
 # One edge, one word for it: exit. The banner used to name two stops here.
 expect "and says the edge is the exit" "at DRAINED exit" "$out"
-# Two boundary entries, not one: a single name could still come from a
+# Every boundary entry, not one: a single name could still come from a
 # hardcoded string, and "derived, never restated" is the property that
 # matters here — the boundary is exactly what must not disagree with itself.
-expect "unsupervised banner names the boundary" ".agents/harness" "$out"
-expect "unsupervised banner names the whole boundary, not one entry" \
-  ".claude/commands" "$out"
+# Since 2026-10-08 the boundary is the core only (joharness.sh:protocol_paths
+# header). The old pin here, ".agents/harness", kept passing after the list
+# dropped it: the substring also sits in the hooks' overlap line, which names
+# whatever files this branch touches. So each entry is matched as its own
+# indented LINE, the shape the banner lists them in.
+expect "unsupervised banner names the boundary" "NEVER edit the core" "$out"
+banner_missing=""
+for p in joharness.conf .claude/settings.json .github; do
+  grep -qxF -- "  ${p}" <<<"$out" || banner_missing="${banner_missing} ${p}"
+done
+if [ -z "$banner_missing" ]; then
+  pass "unsupervised banner names the whole boundary, not one entry"
+else
+  fail "unsupervised banner names the whole boundary, not one entry"
+  printf '    missing:%s\n    got:\n%s\n' "$banner_missing" "$(indent "$out")"
+fi
+# A released tree listed again is the canonical's queue blocked again.
+if grep -qxF -- "  .agents/harness" <<<"$out"; then
+  fail "unsupervised banner lists no released protocol tree"
+else
+  pass "unsupervised banner lists no released protocol tree"
+fi
 
 # A misspelled value is indistinguishable from a repo that meant supervised
 # unless the ignored value is named.

@@ -585,6 +585,7 @@ SELFTEST_TOPICS=(
   start
   upgrade-holding-work
   handover-guard
+  protocol-boundary
   pretool-feedback
   pretool-bash-guard
   gitattributes

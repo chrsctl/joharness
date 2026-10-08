@@ -138,9 +138,9 @@ if [ -n "$base" ] && [ "$base" != "$(git rev-parse HEAD 2>/dev/null)" ]; then
 fi
 
 # --- unsupervised boundary -------------------------------------------------
-# Under JOHARNESS_MODE=unsupervised the harness layer is off limits: an
-# unattended session may not edit the protocol that governs unattended
-# sessions (.agents/docs/unsupervised.md, Bounds).
+# Under an unattended mode the CORE paths are off limits — the conf (money,
+# mode), the settings (hooks, permissions), .github (the merge gate). Protocol
+# text is not: released 2026-10-08 (.agents/docs/unsupervised.md, Bounds).
 #
 # Detection, not prevention, and the wording says so. A Stop hook runs
 # after the commit exists, so the honest thing it can do is name a boundary
@@ -178,11 +178,17 @@ if [ "$mode" != "supervised" ]; then
   # Every protocol tree, not one. The list lives in joharness.sh
   # (protocol_paths) so the banner and this guard cannot disagree about
   # where the boundary is — issue #114 is what one hardcoded prefix cost.
-  # A checkout without the entrypoint, or an older copy with no such
-  # function, falls back to the tree that has always been named: a partial
-  # boundary beats none, the same call the base-relative half makes below.
+  # A checkout whose entrypoint cannot list the boundary — missing, broken,
+  # or an older copy with no such subcommand — falls back to the CORE paths,
+  # spelled here a second time on purpose. Since 2026-10-08 a session may
+  # edit joharness.sh, so "cannot list" is reachable from a branch and not
+  # only from an old copy; the fallback used to be `.agents/harness`, which
+  # then reported a released edit as a crossing and missed every core one
+  # (verifier r3). The selftest pins this copy equal to `protocol-paths`.
   trees="$("${PROJECT_DIR}/joharness.sh" protocol-paths 2>/dev/null)"
-  [ -n "$trees" ] || trees=".agents/harness"
+  [ -n "$trees" ] || trees="joharness.conf
+.claude/settings.json
+.github"
 
   # An ARRAY, and every path passed to git whether or not it exists here.
   #
@@ -225,7 +231,7 @@ EOF
     # escaping and a file name is repo-controlled input; widening the
     # boundary widens what that input could be, so this matters more now,
     # not less. Digits cannot close a JSON string.
-    add_fact "${mode} mode, but this branch touches ${harness_touched} file(s) of protocol text (.agents/docs/unsupervised.md, Bounds) — revert them"
+    add_fact "${mode} mode, but this branch touches ${harness_touched} core file(s) (.agents/docs/unsupervised.md, Bounds) — revert them"
   fi
 fi
 
