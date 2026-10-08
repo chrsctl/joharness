@@ -5557,57 +5557,62 @@ scout_refs() {
     --format='%(refname)' refs/remotes/origin </dev/null 2>/dev/null)
 }
 
-# Every scout file at an unmerged branch's TIP, one line each:
-# `<branch>\t<workstream>\t<status>`. In flight is the caller's filter
-# (scout_branches).
+# Every scout file at a branch TIP — every unmerged ref and the base branch
+# itself — one line per file: `<branch>\t<scout stem>\t<status>`. In
+# flight is the caller's filter (scout_branches).
 #
 # The design is the research step's in the scout-cycle workstream record,
-# after three review rounds; the rule that settled it is R-g — every misread
+# after five review rounds; the rule that settled it is R-g — every misread
 # must fail CLOSED. A misread may hold the cycle off, where a human sees
-# `IN FLIGHT` and acts; it must never spawn a second scout. So nothing
-# self-declared decides which branch a scout is on (an earlier spelling took
-# the file's `branch:` field, and one wrong field made the scout vanish):
+# `IN FLIGHT` and acts; it must never spawn a second scout. So:
 #
-# - ONE `git grep -l` over every unmerged ref's tip, pathspec
-#   `docs/handover/scout-[0-9]*.md` — the name `.claude/commands/scout.md`
-#   writes — so the cost is per scout file, never per work branch. drain
-#   pays this at every session start, and `perf` gates it.
-# - The PATH decides, never frontmatter: a scout-<digit> file under
-#   docs/handover/ is a scout. The digit already keeps out the branch that
-#   built this cycle (`scout-cycle.md`), and every frontmatter filter tried
-#   here failed OPEN on a misread — CRLF, a missing `plan:`, a quoted
-#   `"none"`, a capital S each dropped a scout in flight (verifier pass 4).
-# - A file the base branch carries byte-identically is inherited, not the
-#   branch's: one `rev-parse` of both blobs.
-# - A branch stacked on an unretired scout reads in flight too: closed, and
-#   visible to whoever reads the row.
+# - The PATH decides, and nothing in the file: `docs/handover/scout-<digit>*`
+#   is a scout. The digit keeps out the branch that built this cycle
+#   (`scout-cycle.md`). Every content filter tried here failed OPEN on a
+#   misread — CRLF, a missing `plan:`, `Workstream:` capitalised, a stub with
+#   no frontmatter, and a user's `grep.patternType=fixed` that turned a `^`
+#   anchor literal (verifier passes 4, 5).
+# - So the listing reads no content: `git grep` with an EMPTY extended
+#   pattern lists every non-empty file (`-l`) and `-L` every empty one; `-E`
+#   on the command line outranks any `grep.patternType`, and colour is off.
+#   Two calls over all tips, never one per ref — drain pays this at every
+#   session start, and `perf` gates it.
+# - The BASE tip is read too, and nothing is skipped as inherited: a scout
+#   whose file reached the base before its retire (a branch cut from it was
+#   merged, or a human merged early) hid behind a byte-identical skip
+#   (pass 5). One file seen on many tips is one row per status, named for
+#   the first ref listed — the base is listed last, so a scout's own branch
+#   names it. Every copy is read: a copy in flight on ANY tip is in flight.
 #
-# Status is lower-cased and blank-joined, so `Abandoned` reads as the word
-# it is; every field is sanitised as janitor_branches' are —
-# branch-controlled input printed straight out. The row's name is the file's
-# stem, which the path already proves.
+# Status is the one field read, lower-cased and blank-joined, so `Abandoned`
+# reads as the word it is; an unreadable one is `?`, which is in flight.
 scout_walk() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}"
-  local refs=() r hit wf blobs doc sws sstat
+  local refs=() r hit wf doc sws sstat seen="|"
   while IFS= read -r r; do refs+=("$r"); done < <(scout_refs)
-  [ "${#refs[@]}" -gt 0 ] || return 0
+  refs+=("refs/remotes/origin/${base_branch}")
   while IFS= read -r hit; do
     [ -n "$hit" ] || continue
     r="${hit%%:*}"; wf="${hit#*:}"
-    blobs="$(git -C "$ROOT" rev-parse "${r}:${wf}" \
-      "refs/remotes/origin/${base_branch}:${wf}" </dev/null 2>/dev/null)"
-    # Absent on the base, rev-parse prints the second argument back as its
-    # own line, so the two lines differ and the file is kept.
-    [ "${blobs%%$'\n'*}" != "${blobs#*$'\n'}" ] || continue
     # CR stripped first: a CRLF file must not read as no frontmatter at all.
     doc="$(git -C "$ROOT" show "${r}:${wf}" </dev/null 2>/dev/null | tr -d '\r')"
     sstat="$(printf '%s\n' "$doc" | gr_field status |
       tr 'A-Z ' 'a-z-' | tr -cd 'a-z0-9._-')"
+    # One row per file AND status, never per file alone: keyed on the path,
+    # an older `abandoned` copy on an earlier-listed branch hid the base's
+    # in-progress one — open again. Every copy is read; a copy that is not
+    # abandoned anywhere keeps the scout in flight.
+    case "$seen" in *"|${wf}=${sstat:-?}|"*) continue ;; esac
+    seen="${seen}${wf}=${sstat:-?}|"
     sws="${wf##*/}"; sws="${sws%.md}"
     sws="$(printf '%s' "$sws" | tr -cd 'A-Za-z0-9._:-')"
     printf '%s\t%s\t%s\n' "${r#refs/remotes/origin/}" "${sws:-?}" "${sstat:-?}"
-  done < <(git -C "$ROOT" grep -l -e '^workstream:' "${refs[@]}" \
-    -- 'docs/handover/scout-[0-9]*.md' </dev/null 2>/dev/null)
+  done < <(
+    git -C "$ROOT" grep --color=never -l -E -e '' "${refs[@]}" \
+      -- 'docs/handover/scout-[0-9]*' </dev/null 2>/dev/null
+    git -C "$ROOT" grep --color=never -L -E -e '' "${refs[@]}" \
+      -- 'docs/handover/scout-[0-9]*' </dev/null 2>/dev/null
+  )
 }
 
 # When a scout last FINISHED on an unmerged branch: the committer time of
@@ -5620,12 +5625,17 @@ scout_walk() {
 #
 # `--not` the base: only commits the base does not carry. `--full-history`:
 # a branch that merged in a base carrying a scout-named file is otherwise
-# simplified onto the base, which `--not` then hides (review r15). The PATH
-# decides, as in scout_walk: every frontmatter filter failed open. A time in
+# simplified onto the base, which `--not` then hides (review r15). `-m`: a
+# scout that retires inside its reconcile merge (`merge --no-commit`, `git
+# rm`, commit) deletes the file in a MERGE commit, which plain `log` shows
+# no diff for (pass 5). The PATH decides, as in scout_walk: every
+# frontmatter filter failed open. A time in
 # the future reads as NOW — closed: ordinary clock skew between containers
 # made a retire 120s ahead read as no retire at all, and a second scout
-# spawned (verifier pass 4). A forged far-future retire holds the cycle off,
-# visibly, for one window after each read; it never spawns.
+# spawned (verifier pass 4). A forged far-future retire therefore holds the
+# cycle off for as long as its branch stands — closed, and the price of
+# never spawning on skew; the not-due line says a scout finished, and a
+# human reading `git log` finds the commit.
 #
 # Accepted, written down: a human who deletes a closed proposal's branch
 # (step 7 allows it, and GitHub offers the button on close) deletes the
@@ -5648,9 +5658,9 @@ scout_retired_ts() {
     case "$ct" in '' | *[!0-9]*) continue ;; esac
     [ "$ct" -le "$now" ] || ct="$now"
     [ "$ct" -gt "$best" ] && best="$ct"
-  done < <(git -C "$ROOT" log --full-history --diff-filter=D --name-only \
+  done < <(git -C "$ROOT" log --full-history -m --diff-filter=D --name-only \
     --format='C %H %ct' "${refs[@]}" --not "refs/remotes/origin/${base_branch}" \
-    -- 'docs/handover/scout-[0-9]*.md' </dev/null 2>/dev/null)
+    -- 'docs/handover/scout-[0-9]*' </dev/null 2>/dev/null)
   [ "$best" -eq 0 ] || printf '%s' "$best"
 }
 
@@ -7925,9 +7935,19 @@ cycle_landed_sha() {
   # cycle believes it last ran is not this change's business.
   case "$kind" in
     janitor) glob="docs/handover/janitor-[0-9]*.md" ;;
-    scout)   glob="docs/handover/scout-[0-9]*.md" ;;
+    scout)   glob="docs/handover/scout-[0-9]*" ;;
     *)       glob="docs/handover/${kind}-*.md" ;;
   esac
+  # `-m` for the scout cycle only: a scout may retire inside a merge commit,
+  # which plain `log` shows no diff for (scout-cycle review, pass 5). The
+  # other cycles keep the reader they shipped with — changing when they
+  # believe they last ran is not that change's business.
+  if [ "$kind" = scout ]; then
+    git -C "$ROOT" log -1 --format=%H -m --diff-filter=D --full-history \
+      "refs/remotes/origin/${base_branch}" -- "$glob" \
+      </dev/null 2>/dev/null
+    return 0
+  fi
   git -C "$ROOT" log -1 --format=%H --diff-filter=D --full-history \
     "refs/remotes/origin/${base_branch}" -- "$glob" \
     </dev/null 2>/dev/null
@@ -8543,6 +8563,9 @@ cmd_dispatch() {
   fi
   # A long-lived reader. The orchestrator runs for hours, and a stale clone
   # reads a manager that pushed as stalled and a merged branch as in flight.
+  # No fetch at all is a view of unknown age: the scout spawn holds on it
+  # exactly as on a failed fetch (R-g). Only the scout reads this.
+  [ "${DISPATCH_FETCH:-1}" != 0 ] || fetch_failed=1
   if [ "${DISPATCH_FETCH:-1}" != 0 ]; then
     # Shallow first, and it is not a nicety: a shallow clone has no merge
     # base for most refs, so the retired-edge scan below cannot see an edge
@@ -9321,7 +9344,7 @@ cmd_dispatch() {
   # And a fetch that worked: on a stale view a scout pushed since the last
   # fetch is invisible, and R-g says a view known to be stale holds the spawn.
   if [ "$scout_due" -eq 1 ] && [ "$fetch_failed" -eq 1 ]; then
-    printf '            scout due, held — the fetch failed, so a scout pushed since the last one would not show: spawn none this pass\n'
+    printf '            scout due, held — no fresh fetch this pass (failed, or DISPATCH_FETCH=0), so a scout pushed since the last one would not show: spawn none this pass\n'
   elif [ "$scout_due" -eq 1 ] && [ "$scout_gate" -eq 1 ] &&
      [ "$curate_due" -eq 0 ] && [ "$janitor_due" -eq 0 ] &&
      [ "$n_curate_inflight" -eq 0 ] && [ "$n_janitor" -eq 0 ]; then

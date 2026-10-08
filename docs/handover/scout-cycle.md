@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01JXryjCKHhwkN7Xrv1qXz55
 agent: opus
 updated: 2026-10-08
-next: Fifth verifier pass (fail-open hunt only); then retire and PR
+next: Sixth verifier pass (fail-open hunt only); then retire and PR
 ---
 
 ## Goal
@@ -23,15 +23,15 @@ is `scout-command`. Supervised session at the human's ask (protocol text).
 
 - dispatch spawns a scout ONLY under `DRAINED — nothing free, nothing in
   flight` with zero managers (blocked ones included), and no curate or
-  janitor due or in flight, and a fetch that worked. drain NEVER offers a scout as the session's
+  janitor due or in flight, and a fresh fetch this pass. drain NEVER offers a scout as the session's
   item: orchestrated = the orchestrator's; supervised = name it to the
   human; unattended = exit. Deviation from the plan's "else this session's
   item" (research step R-f).
-- In flight: ONE `git grep -l` over every unmerged ref's TIP, pathspec
-  `docs/handover/scout-[0-9]*.md`; the PATH decides, never frontmatter
-  (every filter failed open); in flight unless status is `abandoned`. A file the base carries
-  byte-identically is inherited and skipped. Nothing self-declared names a
-  scout's branch (R-g: fail closed). A branch stacked on an unretired scout
+- In flight: two content-free `git grep` listings (`-l`, `-L`, empty `-E`
+  pattern) over every unmerged tip AND the base tip, pathspec
+  `docs/handover/scout-[0-9]*`; the PATH decides, never content (every
+  filter failed open); in flight unless status is `abandoned`, on any tip.
+  Nothing self-declared names a scout's branch (R-g: fail closed). A branch stacked on an unretired scout
   reads in flight — closed and visible.
 - Dating: newest of the merged half (`cycle_age_h scout`, landing time) and
   the newest scout RETIRE on unmerged history (`scout_retired_ts`: one `git
@@ -101,6 +101,12 @@ is `scout-command`. Supervised session at the human's ask (protocol text).
 - r37: (verifier, pass 4): a human deleting a closed proposal's branch deletes git's only record of it, and the cycle reads due. (wontfix — the human's act, step 7 allows it; written in `scout_retired_ts`'s comment)
 - r38: (verifier, pass 4): two texts still described tip dating (`joharness.sh` help, orchestrated.md row). (fixed)
 - r39: (verifier, pass 4): between a scout's spawn and its first push dispatch still says due; only an orchestrator ledger guard stops a second spawn — `scout-command`'s scope (`scouted=<stamp>`), and the cycle stays off until that plan's command lands. (no change here — carried to scout-command: it must not land without that guard)
+- r40: (verifier, pass 5): the `^workstream:` content grep was a frontmatter filter after all — `Workstream:`, indented, `workstream :`, a stub with none, and a user's `grep.patternType=fixed` each hid a scout in flight. (fixed — the listing reads no content: empty `-E` pattern, `-l` plus `-L`, colour off; cases for the stub and the patternType)
+- r41: (verifier, pass 5): a retire inside a merge commit (`merge --no-commit`, `git rm`) was invisible — plain `log` shows merges no diff. (fixed — `-m` in `scout_retired_ts` and, for the scout kind only, in `cycle_landed_sha`; case added)
+- r42: (verifier, pass 5): the byte-identical "inherited" skip hid a scout whose file reached main before its retire. (fixed — no skip; the base tip is read too; any copy not abandoned on any tip is in flight; rows keyed on file AND status, since a path-only key let an older abandoned copy hide the base's live one; case added)
+- r43: (verifier, pass 5): `DISPATCH_FETCH=0` spawned on a view of unknown age. (fixed — no fetch holds the spawn as a failed one does; the selftest's dispatch fetches its own bare origin)
+- r44: (verifier, pass 5): the comment said a far-future retire holds "one window after each read"; it holds for as long as its branch stands. (fixed — comment says so; closed by design)
+- r45: (verifier, pass 5): "the PATH decides" contradicted by the content grep four lines on; the CRLF test passed either way. (fixed by r40; the stub and patternType cases fail without it)
 
 ## Research step (review churn: two rounds on scout_walk)
 
