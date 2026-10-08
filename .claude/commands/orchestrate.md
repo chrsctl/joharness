@@ -354,12 +354,12 @@ see it; you can, and the successor must start from what the loop found:
    requirement <file> must satisfy, find the conflicting pair, resolve it,
    THEN fix once. No edit before that." Raise `agent:` one tier — haiku to
    sonnet, sonnet to opus — the harness's own escalation rule, never a
-   downgrade; already opus = the tier stays and the prompt below says
+   downgrade; already opus or fable = the tier stays and the prompt below says
    effort xhigh (effort is per request and crosses only as prose). Commit
    "Orchestrator handover after a loop", push, back to main.
 3. `archive_session`. RESPAWN on the branch at the raised tier, prompt
    adding: "The last session looped. Read Blockers first; do the research
-   step before any edit." — and at opus: "Run at effort xhigh." Counts
+   step before any edit." — and at opus or fable: "Run at effort xhigh." Counts
    against the respawn limit like a kill.
 
 RESPAWN = spawn (step 3) with the branch named: "Resume branch <branch>:
@@ -450,7 +450,7 @@ Up to `slots`, in dispatch's order, only rows under `spawn`:
   `NOT YOURS`. A row saying `that branch is BLOCKED on a human: spawn` is
   free; its manager pays a reconcile at step 7, and the prompt tells it
   so (below).
-- An `UNPLANNED` requirement = ONE planning manager, tier opus, effort
+- An `UNPLANNED` requirement = ONE planning manager, tier fable, effort
   xhigh: decomposition is the judgement every later build rests on.
 - Tail line `curate DUE` = ONE curator, tier sonnet, and ONLY when no curate
   branch is in flight (the `curate :` header block says) and your ledger has
@@ -543,7 +543,7 @@ Up to `slots`, in dispatch's order, only rows under `spawn`:
   identical refusal: two faults behind one string, neither naming itself.
 
   plus, only when they apply, one line each: the RESPAWN resume line;
-  the LOOP line; "Run at effort xhigh." for an opus planning manager or
+  the LOOP line; "Run at effort xhigh." for a fable planning manager or
   an escalated opus successor; and the reconcile the dispatch row named
   ("<partner> holds <path> on <branch>; reconcile expected at step 7").
   Nothing else: no "no human is watching", no "never ask", no "keep

@@ -21,6 +21,20 @@ a red `ci`. This lands the vocabulary and the bound; the roles using it are
 
 ## Decisions
 
+- Session runs above the plan's tier (sonnet): escalation is allowed, and
+  the human asked this session to drain the supervised queue continuously.
+- A fable plan with NO `scope:` is red too, its own line: the bound reads
+  the declaration, and absent proves nothing. The plan names only the
+  outside-the-prose-dirs case.
+- Scope parsed by `scope_norm`, split out of `curate_scope_list`: one
+  normalization of `scope:`, not a second reader. `shared:` entries count by
+  their path.
+- Followed the planning-manager tier to every place it is spelled, not only
+  the two the plan names: `dispatch`'s UNPLANNED row, agent-selection's
+  "role-fixed tier" bullet, orchestrate's "for an opus planning manager"
+  line, and the loop-respawn escalation ("already opus or fable = the tier
+  stays") — else a looping fable manager had no defined next tier.
+
 ## Rejected
 
 ## Review

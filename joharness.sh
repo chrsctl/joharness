@@ -2285,6 +2285,24 @@ lint_enum() {
   lint_red "${f}: ${k} '${v}' not one of: $*"
 }
 
+# <file> <scope value>: red unless every entry sits under a prose directory.
+# Entries parsed by scope_norm, the curator's normalization — one reader of
+# what a path in `scope:` is.
+lint_fable_bound() {
+  local f="$1" p n=0
+  while IFS= read -r p; do
+    p="${p#shared:}"
+    n=$((n + 1))
+    case "$p" in
+      docs|docs/*|.agents/docs|.agents/docs/*|.claude/commands|.claude/commands/*) ;;
+      *) lint_red "${f}: fable is a judgement tier: this plan builds ('${p}' in scope:)"
+         return 0 ;;
+    esac
+  done < <(printf '%s\n' "$2" | scope_norm)
+  [ "$n" -gt 0 ] ||
+    lint_red "${f}: fable is a judgement tier: scope: must show this plan builds nothing"
+}
+
 # A key the node type cannot be scheduled without. lint_enum above returns 0
 # on an EMPTY value — correct for an optional field, wrong for one the queue
 # reads — so a node carrying no frontmatter at all passed every check in
@@ -2490,15 +2508,20 @@ lint_graph() {
     [ -n "$rel" ] || continue
     plans=$((plans + 1))
     { read -r urgency; read -r agent; read -r effort; read -r val; read -r r
-      read -r rq; read -r pstem; } \
-      <<<"$(gr_fields urgency agent effort needs requirement research plan <"${ROOT}/${rel}")"
+      read -r rq; read -r pstem; read -r pscope; } \
+      <<<"$(gr_fields urgency agent effort needs requirement research plan scope <"${ROOT}/${rel}")"
     lint_required "$rel" plan "$pstem"
     lint_required "$rel" urgency "$urgency"
     lint_required "$rel" agent "$agent"
     lint_required "$rel" effort "$effort"
     lint_enum "$rel" urgency "$urgency" normal urgent
-    lint_enum "$rel" agent "$agent" haiku sonnet opus
+    lint_enum "$rel" agent "$agent" haiku sonnet opus fable
     lint_enum "$rel" effort "$effort" low medium high xhigh
+    # fable is a judgement tier, never a build (.agents/docs/agent-selection.md,
+    # Lineup). Enforced where the tier is read: a plan naming it must declare
+    # a scope wholly under the prose directories, so its wrong-but-plausible
+    # outcome is a plan, not a diff. No scope proves nothing, so it is red too.
+    [ "$agent" != "fable" ] || lint_fable_bound "$rel" "$pscope"
     if [ -n "$val" ] && [ "$val" != "none" ]; then
       read -ra need_list <<<"${val//,/ }"
       # Guarded like cmd_ci's targets: a separators-only value leaves the
@@ -2620,7 +2643,7 @@ lint_graph() {
     lint_required "$rel" agent "$agent"
     lint_required "$rel" effort "$effort"
     lint_enum "$rel" urgency "$urgency" normal urgent
-    lint_enum "$rel" agent "$agent" haiku sonnet opus
+    lint_enum "$rel" agent "$agent" haiku sonnet opus fable
     lint_enum "$rel" effort "$effort" low medium high xhigh
     if [ -z "$grad" ] || [ "$grad" = "none" ]; then
       lint_red "${rel}: no graduates: — an answer with nowhere to land does not survive the session that found it"
@@ -2653,7 +2676,7 @@ lint_graph() {
     else
       lint_enum "$rel" status "$val" in-progress blocked review "done" abandoned
     fi
-    lint_enum "$rel" agent "$agent" haiku sonnet opus
+    lint_enum "$rel" agent "$agent" haiku sonnet opus fable
     p="$(lint_stem "$p")"
     # A research file is queue work a session picks (Loop step 2), so a
     # session settling one has to be able to record the claim — and the
@@ -2981,7 +3004,7 @@ review_recipe() {
   case "$1" in
     haiku)
       printf 'one /code-review pass at default effort — one pass, never zero' ;;
-    opus)
+    opus|fable)
       printf 'adversarial: correctness, security, does-it-reproduce as separate passes' ;;
     *)
       printf '/code-review (high) on the full diff' ;;
@@ -7793,9 +7816,12 @@ dispatch_curate_branches() {
 # is: a curator's repair is read back by that hook to partition waves, so a
 # second normalization here would let a repair that looks right to this command
 # mean a different declaration to the reader it was made for.
-curate_scope_list() {
-  gr_field scope <"${ROOT}/$1" |
-    tr ',' '\n' |
+curate_scope_list() { gr_field scope <"${ROOT}/$1" | scope_norm; }
+
+# The normalization itself, on a raw `scope:` value from stdin. Shared with
+# lint_fable_bound, which already holds the value from its one frontmatter read.
+scope_norm() {
+  tr ',' '\n' |
     sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
         -e 's/^[Ss][Hh][Aa][Rr][Ee][Dd]:[[:space:]]*/shared:/' \
         -e 's|/*$||' |
@@ -8664,10 +8690,10 @@ cmd_dispatch() {
   if [ -n "$req" ]; then
     # Planning outranks the plan queue (step 2), so it is first and it is
     # ONE manager: decomposition is one session's job, not a fleet's.
-    # opus at xhigh: decomposition is the judgement the whole build rests
-    # on, and wrong-but-plausible plans are the failure that picks opus
-    # (.agents/docs/agent-selection.md). The requester's diagram says so.
-    printf '  %s — UNPLANNED: one planning manager (agent: opus, effort xhigh) first\n' "${req%% *}"
+    # fable at xhigh: decomposition is the judgement the whole build rests
+    # on, its outcome is a plan and not a diff, and that is the one use the
+    # judgement tier is bound to (.agents/docs/agent-selection.md, Lineup).
+    printf '  %s — UNPLANNED: one planning manager (agent: fable, effort xhigh) first\n' "${req%% *}"
     n_free=$((n_free + 1))
   fi
   [ -z "$free" ] || printf '%s' "$free"
