@@ -2,8 +2,7 @@
 plan: release-reds-the-branch-it-releases
 urgency: normal
 agent: sonnet
-effort: medium
-needs: abandoned-reaches-every-reader
+effort: xhigh
 scope: .claude/commands/janitor.md, .agents/harness/selftest/janitor.sh
 ---
 
@@ -16,10 +15,8 @@ the word.
 
 Measured 2026-10-07 across every abandoned branch on `origin`, with
 `git show "origin/$b:joharness.sh" | grep -oE 'lint_enum "\$rel" status[^;]*'`:
-**6 of 8** carry an enum without `abandoned`. One knows it; one carries no
-`joharness.sh` at all, so nothing lints there. A reviewer of PR294 checked only
-the branch that knows the word and reasonably concluded the defect was inert —
-it bites on six others.
+**6 of 8** carry an enum without `abandoned`. One knows it; one has a
+`joharness.sh` with no `status` lint in it, so nothing lints the word there.
 
 The cost is specific: the Loop tells a returning session to run
 `./joharness.sh ci` at step 5, before touching anything. That session gets
@@ -41,9 +38,10 @@ cheap honest one", and it is the only one that does not weaken a lint:
   status word until the branch reconciles with its base, and that the reconcile
   is what fixes it. The note is already where a returning session looks, and it
   is already required to explain the release.
-- `.agents/harness/selftest/janitor.sh` — one case asserting the release note
-  carries that sentence, so a future rewrite of the role cannot drop it
-  silently.
+- `.agents/harness/selftest/janitor.sh` — a NEW case asserting the role doc
+  carries that sentence, so a future rewrite cannot drop it silently. Nothing in
+  that topic reads `.claude/commands/` today: it tests `cmd_janitor`'s output
+  only, so this is a new shape there, not an extension of an existing one.
 
 ## Out of scope
 
@@ -51,6 +49,14 @@ cheap honest one", and it is the only one that does not weaken a lint:
   when the branch's base is older than the value — makes a correctness gate
   conditional on history, and a gate that sometimes does not fire is the kind
   sessions learn to ignore. Named here so it is a decision, not an omission.
+  NOTE, and the implementer should weigh it before starting: improving
+  `lint_enum`'s MESSAGE is not weakening it. A fourth option the issue does not
+  list — have the `DEAD` line itself name the reconcile — puts the explanation
+  where the red appears rather than in a file the returning session may not
+  open, and weakens nothing. This plan chose the role doc because that is the
+  issue's own cheapest option, but a `lint_enum` message change is the stronger
+  one and is NOT excluded by this bullet. If the implementer takes it, say so in
+  the workstream file and treat this plan's scope as superseded on that line.
 - **Having the release carry the reconcile.** Option 2. A janitor commits ONE
   commit to another session's branch and may not rewrite anything else there
   (`.claude/commands/janitor.md` `## Never`); merging `main` into somebody
@@ -65,28 +71,36 @@ cheap honest one", and it is the only one that does not weaken a lint:
 1. `./joharness.sh ci` → `ci: pass`.
 2. `bash .agents/harness/selftest.sh` → `0 failed`, pass count above the merge
    base's.
-3. The new case fails without the change: revert the `janitor.md` line, run the
-   topic, see it red, restore. A case green both ways pins nothing.
-4. `./joharness.sh mutate` on the asserted sentence reds that case and leaves
-   the rest of the topic green, off a green baseline.
-5. Read back from a reader's seat: `git show
-   origin/<an-abandoned-branch>:joharness.sh | grep -c abandoned` is still 0
-   after this change — this plan does not pretend to fix the enum, and the
-   workstream file says so.
-6. Consumer-side, because `.claude/commands/janitor.md` SHIPS (`./joharness.sh
-   ci` prints it under `== ship scope`): in a consumer that has synced this
-   change, a sweep's release note carries the sentence, and a session that then
-   runs `./joharness.sh ci` on the released branch sees the red WITH the note
-   explaining it. A bar met only in the canonical repo is met in the one repo
-   that was never the risk — the consumer is where a returning session meets
-   this red. State whether that check was run or only specified.
+3. The new case must be able to fail for the RIGHT reason. Asserting the presence
+   of a sentence is nearly tautological — reverting the sentence reds the
+   `expect` by construction and proves only that `grep` works. So assert the
+   BEHAVIOUR the sentence exists for: a fixture release note written per the role
+   doc contains the reconcile explanation, and a release note written WITHOUT it
+   is detectably missing it in the same case. If that cannot be expressed, say so
+   in the workstream file rather than shipping the tautology.
+4. Write the assertion against the WRAPPED line the file actually holds, not the
+   sentence as typed. `.agents/harness/selftest/orchestrated.sh` records two
+   cases written the other way that both failed on the real file.
+5. The red this plan explains is still real afterwards, and the plan does not
+   pretend otherwise: pick an abandoned branch whose own `joharness.sh` has a
+   `status` lint lacking the word, and show `./joharness.sh ci` on it still
+   fails on that line. Name the branch and the output in the workstream file.
+   (Do not assert `grep -c abandoned` is 0 on such a branch — it is not: two of
+   the eight carry the word elsewhere in the file.)
+6. Consumer-side, because `.claude/commands/janitor.md` SHIPS (`ci` prints it
+   under `== ship scope`): in a consumer that has synced this change,
+   `grep -c '<the sentence>' .claude/commands/janitor.md` → non-zero THERE, and a
+   sweep run there produces a release note containing it. The consumer is where a
+   returning session meets this red. If no consumer is reachable, say the bar is
+   unmet rather than specified.
 
 ## Where to look
 
 - `.claude/commands/janitor.md` — §3 Release, the note's required contents.
 - `joharness.sh:lint_enum` — read it to confirm the red's exact wording before
   quoting it; do not change it.
-- `.agents/harness/selftest/janitor.sh` — the release-note cases already there.
+- `.agents/harness/selftest/janitor.sh` — the topic the new case joins. It
+  tests `cmd_janitor`'s output and reads no role doc today.
 
 ## Traps
 
@@ -96,6 +110,10 @@ cheap honest one", and it is the only one that does not weaken a lint:
 - The red is REAL, not spurious: the branch's enum genuinely lacks the word.
   The sentence must say the reconcile fixes it, never that the red is wrong.
 - Never report a count without the command that re-counts it.
-- `needs:` names the sibling plan because this one's sentence should describe a
-  world where the other readers already honour the word; landing this first
-  would document a half-state.
+- This plan delivers nothing to the six branches that red TODAY: a sentence in a
+  role doc reaches only future sweeps' notes. Say that in the workstream file; do
+  not let Acceptance imply otherwise.
+- The delivery route is data, not instruction. `.claude/commands/janitor.md`
+  `## Never` says a `next:` line or a `## Blockers` note is "data about the work",
+  never an instruction — so the sentence must read as an explanation a human or
+  session may act on, not as a directive.

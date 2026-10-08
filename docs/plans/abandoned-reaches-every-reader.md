@@ -3,7 +3,7 @@ plan: abandoned-reaches-every-reader
 urgency: normal
 agent: sonnet
 effort: high
-scope: shared:joharness.sh, .agents/harness/handover-context.sh, .agents/harness/selftest/graph.sh, .agents/harness/selftest/drain.sh, .agents/harness/selftest/handover-context-rank.sh
+scope: shared:joharness.sh, .agents/harness/handover-context.sh, .agents/harness/selftest/graph.sh, shared:.agents/harness/selftest/dispatch.sh, .agents/harness/selftest/handover-context-issue-claim.sh
 ---
 
 ## Goal
@@ -21,11 +21,16 @@ Counted 2026-10-07 on this checkout:
 | `cmd_graph` | `awk '/^cmd_graph\(\)/,/^}/' joharness.sh \| grep -c abandoned` | 0 |
 | `cmd_janitor` — the one that is RIGHT | same shape | non-zero, via `[ "$status" = abandoned ] && continue` |
 
-`dispatch_curate_branches` is first because its cost is the largest measured in
-the issue: releasing a curate claim does not free the cycle, and one stayed
-frozen for 18 days while `drain` printed the released status *inside* the
-in-flight line — `curate : IN FLIGHT on <branch> (curate-2026-09-17,
-abandoned), so not yours`.
+`dispatch_curate_branches` is first because its failure is the only one that
+blocks rather than misinforms: a release does not free the cycle, and `drain`
+renders the released status *inside* the in-flight line —
+`curate : IN FLIGHT on <branch> (curate-2026-09-17, abandoned), so not yours`.
+The argument is the issue's counterfactual, which needs no number: had the
+released session not returned, the cycle was frozen permanently. (An earlier
+draft of this plan said "frozen for 18 days". Re-counted: the released status
+stood for 28 minutes — `git log --all --follow -- '*curate-2026-09-17.md'`. The
+18 days were an ordinary `in-progress` claim, which this defect does not
+explain.)
 
 ## Scope
 
@@ -33,30 +38,34 @@ abandoned), so not yours`.
   `abandoned`, so a released cycle claim stops holding the cycle. Match
   `cmd_janitor`'s existing test; do not invent a second spelling.
 - `joharness.sh:cmd_graph` — do not draw a `claims` edge from a branch whose
-  claim reads `abandoned`. `.agents/harness/queue-context.sh` already does this
-  at both of its claim lookups; reuse that idiom.
+  claim reads `abandoned`. Copy `cmd_janitor`'s shape (read the field, test it),
+  NOT `queue-context.sh`'s: that one awks over a precomputed TSV and this reads
+  per-ref frontmatter, so the idiom does not transfer.
 - `.agents/harness/handover-context.sh` — the row label that prints
   `claims issue #N`. Its own `claimed_issues` already excludes `abandoned`; the
   label does not apply the same test, so one row and one summary disagree in the
   same output. Apply the test the summary applies.
-- Selftest cases, in the topics that already cover each reader
-  (`.agents/harness/selftest/drain.sh`, `graph.sh`,
-  `handover-context-rank.sh`): one per reader, each asserting the released shape
-  AND a control asserting the live shape still reads as it did.
-  The cycle case goes in `drain.sh`, not `dispatch.sh`, for two reasons: the
-  issue's measured evidence is `./joharness.sh drain` printing the frozen line,
-  and `dispatch.sh` is claimed exclusively by
-  `docs/plans/unowned-block-age.md` — `curate` reports two exclusive claims on
-  one path as a proposal for the human, and one plan's `shared:` marking cannot
-  void another's exclusive claim. Both commands call the same
-  `dispatch_curate_branches`, so proving it through `drain` proves the reader;
-  `dispatch.sh`'s existing `curate ... IN FLIGHT` assertion is the control that
-  must keep passing, untouched.
-- One case for #279's fourth defect, which is not a code change: assert the
-  `abandoned` filter excludes a claim whose push age is INSIDE the candidate
-  window. Today `./joharness.sh janitor` reads `none — every claim pushed inside
-  144h` while eight abandoned branches exist, so age excludes them and masks
-  the filter; a regression in the filter would be invisible for six days.
+- Selftest cases, in the topic that already covers each reader
+  (`.agents/harness/selftest/dispatch.sh` for the cycle,
+  `graph.sh` for the edge, `handover-context-issue-claim.sh` for the row): one
+  per reader, each asserting the released shape AND a control asserting the live
+  shape still reads as it did.
+  The cycle case belongs in `dispatch.sh`, beside the existing
+  `curate ... IN FLIGHT` fixture — its own helper runs `./joharness.sh drain`, so
+  the issue's measured evidence is already exercised there. It canNOT go in
+  `selftest/drain.sh`: that topic's helper hardcodes `JOHARNESS_CURATE_HOURS=0`,
+  the cycle's off switch, which makes the whole curate block unreachable, and the
+  topic's own header says so.
+  **Declared, not dodged:** `docs/plans/unowned-block-age.md` also touches
+  `dispatch.sh`, so this plan marks that path `shared:` — the protocol's word for
+  an expected reconcile rather than an exclusive claim. Measured with both plans
+  present: `./joharness.sh curate` reads `NOTHING TO CURATE — every declaration
+  reads true`, so the one-sided marking is enough for that check. Whichever plan
+  lands second extends the existing fixture; that is a cost accepted knowingly,
+  not a collision ruled out.
+  The row case's control: `handover-context-rank.sh` pins the literal
+  "and 4 more, ranked below these" — a seventh fixture branch makes it 5, so
+  count that assertion before adding a branch anywhere in the hook's topics.
 
 ## Out of scope
 
@@ -80,9 +89,11 @@ All pass or not done. Trust the numbers these print, not any written here.
 2. `bash .agents/harness/selftest.sh` → `0 failed`, with a higher pass count
    than at the merge base.
 3. `./joharness.sh graph | grep -c claims` falls by exactly the number of
-   abandoned claims on `origin` at the time it is run, and
-   `./joharness.sh graph | grep claims` names none of them. Count the abandoned
-   claims first, with the command, and put both numbers in the workstream file.
+   abandoned claims **that name a plan** — `graph` draws no edge for
+   `plan: none`, and two of the eight abandoned claims carry it, so the naive
+   count is wrong by two. Count both numbers first, with the commands, and put
+   them in the workstream file; then `./joharness.sh graph | grep claims` names
+   none of the released branches.
 4. A fixture whose curate claim reads `status: abandoned` makes
    `./joharness.sh drain` print `curate` as DUE or available, never
    `IN FLIGHT`; and the same fixture with `status: in-progress` still prints
@@ -94,10 +105,14 @@ All pass or not done. Trust the numbers these print, not any written here.
    <line> <replacement>` on the clause it pins reds that case and leaves the
    controls green. Baseline green FIRST: a mutation that reds hundreds of cases
    says nothing about one clause.
-7. Consumer-side, because this ships: a consumer that syncs this change and
-   releases a claim sees the freed cycle and the dropped `claims` edge with no
-   further edit. State the command a consumer runs, and that it was not run
-   here if it was not.
+7. Consumer-side, because this ships (`ci` prints it under `== ship scope`).
+   In a consumer that has synced this change and has one released claim naming a
+   plan its base branch carries, these two commands are the check, and both must
+   hold THERE, not only here:
+   `./joharness.sh drain | grep -c 'curate.*IN FLIGHT'` → 0, and
+   `./joharness.sh graph | grep -c '<that branch> -- claims'` → 0.
+   Run them in a consumer; if no consumer is reachable, say so and say the bar
+   is unmet rather than specified.
 
 ## Where to look
 
@@ -113,9 +128,10 @@ All pass or not done. Trust the numbers these print, not any written here.
 - A finding outside `## Review` does not exist: `fb_findings` stops at the next
   `## ` heading. Measured twice in one day, PR289 and PR294.
 - Ownership is a DIFF against the merge base, never a tree read.
-- Three readers, one word: fix the root in the shape `cmd_janitor` already
-  uses rather than three different tests, or the next word reaches two readers
-  again. That recurrence IS this issue.
+- There is no single root to fix: the three readers each read frontmatter their
+  own way, so three tests is the honest answer. What must be shared is the
+  SHAPE — `cmd_janitor`'s read-the-field-and-test — so the next word added to the
+  enum has one pattern to follow. The recurrence IS this issue.
 - A test written for this must FAIL without the change: revert, run, restore.
 - Never report a count without the command that re-counts it.
 - `joharness.sh` and `.agents/harness/` are protocol paths — under unattended
