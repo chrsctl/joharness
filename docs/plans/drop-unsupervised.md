@@ -5,7 +5,7 @@ agent: opus
 effort: xhigh
 needs: none
 requirement: none
-scope: joharness.sh, .agents/harness, .claude/commands/drain.md, .claude/commands/upstream-report.md, .agents/scripts/bootstrap-consumer.sh, .agents/scripts/conf-keys.sh, joharness.conf
+scope: joharness.sh, .agents/harness/queue-context.sh, .agents/harness/handover-guard.sh, .agents/harness/handover-context.sh, .agents/harness/selftest/autonomy-mode.sh, .agents/harness/selftest/drain.sh, .agents/harness/selftest/queue-context-edge.sh, .agents/harness/selftest/queue-context-fanout.sh, .agents/harness/selftest/queue-context-supervised-only.sh, .agents/harness/selftest/handover-guard.sh, .agents/harness/selftest/review.sh, .agents/harness/selftest/dispatch.sh, .agents/harness/selftest/orchestrated.sh, .agents/harness/selftest/perf.sh, .claude/commands/drain.md, .claude/commands/upstream-report.md, .agents/scripts/bootstrap-consumer.sh, .agents/scripts/conf-keys.sh, joharness.conf
 ---
 
 ## Goal
@@ -40,11 +40,17 @@ route, and `cmd_dispatch`/`cmd_curate` reuse its helpers.
 - `.agents/harness/queue-context.sh`: the unsupervised EXIT trap; keep the
   orchestrated one. `handover-guard.sh`: mode test → orchestrated.
   `handover-context.sh`: compaction mode→rules mapping.
-- `.agents/harness/selftest/`: `autonomy-mode.sh` — unsupervised cases become
-  "reads as supervised, warns obsolete"; unsupervised fixtures in `drain.sh`,
-  `queue-context-edge.sh`, `queue-context-fanout.sh`,
-  `queue-context-supervised-only.sh`, `handover-guard.sh`, `review.sh`,
-  `dispatch.sh`, `orchestrated.sh`, `perf.sh` → orchestrated, or deleted when
+- `.agents/harness/selftest/autonomy-mode.sh` — unsupervised cases become
+  "reads as supervised, warns obsolete"; unsupervised fixtures in
+  `.agents/harness/selftest/drain.sh`,
+  `.agents/harness/selftest/queue-context-edge.sh`,
+  `.agents/harness/selftest/queue-context-fanout.sh`,
+  `.agents/harness/selftest/queue-context-supervised-only.sh`,
+  `.agents/harness/selftest/handover-guard.sh`,
+  `.agents/harness/selftest/review.sh`,
+  `.agents/harness/selftest/dispatch.sh`,
+  `.agents/harness/selftest/orchestrated.sh`,
+  `.agents/harness/selftest/perf.sh` → orchestrated, or deleted when
   the subject (spawn line, heartbeat exit) is gone; say which in the PR.
 - `.claude/commands/drain.md`: "What stops it" unsupervised bullet.
   `.claude/commands/upstream-report.md`: its unsupervised.md citation (point

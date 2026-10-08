@@ -189,7 +189,13 @@ documents; it never creates one.
   `gh` on the runner they cannot open or merge a pull request, so step 7 is
   unreachable. Verified from two sessions for this organization. Create it
   from the claude.ai Routines UI instead, then `fire_trigger` once and check
-  the fired session reached GitHub before trusting it.
+  the fired session reached GitHub before trusting it. `create_trigger` now
+  carries a `connectors` parameter and warns when a Routine stores none, so
+  the trap is an argument's default rather than a property of the surface —
+  but every one of the 203 Routines sampled on this account still reads
+  `mcp_connections: []` (`list_triggers`, 2026-10-08; `has_more` still true,
+  so a large sample and not a census). UI route stands until somebody
+  measures that parameter; a parameter existing is not a measurement.
 - **Stop**: `update_trigger` with `enabled: false` pauses, `delete_trigger`
   removes. Read `last_run` from `list_triggers`, never `next_run_at`: a
   paused Routine keeps a stale `next_run_at` that reads like a missed
@@ -206,8 +212,78 @@ documents; it never creates one.
   protocol's own: a claim not yet pushed is invisible, so push the
   workstream file as soon as work has a name.
 
-MCP tool names carry a hashed, unstable server prefix: find them with
-`ToolSearch`, never hardcode.
+### What ends the chain, and what a Routine does about it
+
+A `send_later` chain is the CADENCE. It was never the durability. Two
+measured ways a chain ends, and nothing re-arms after either:
+
+| shape | the last link reads | measured |
+| --- | --- | --- |
+| delivered, turn never ran | `SUCCEEDED`, `ended: run_once_fired`, 5 ms | issue 285, the 18-day idle: byte-identical to the 19 healthy links before it |
+| delivery failed, Routine retired | `ROUTINE_RUN_STATUS_FAILED`, `ended_reason: auto_disabled_session_gone`, 7.06 ms and 6.67 ms | `list_triggers enabled=false`, 2026-10-08: 3 of 3 auto-disabled, 2 of 3 carrying the failed run |
+
+The first is the dangerous one, and it is the one that has actually cost 18
+days. `last_run` reports DELIVERY, not execution — `list_triggers`' own
+contract — so a terminating link and a healthy link are the same record. The
+second at least leaves a disabled Routine carrying a reason. Neither leaves
+pending work anywhere: a dead chain has no next link to examine.
+
+So the check after creating a Routine is NEVER `last_run`. It is the
+connector bullet's check above: `fire_trigger` once, then confirm the fired
+session reached GitHub. Execution, not delivery.
+
+### Mode 3 is durability, not cadence
+
+`create_new_session_on_fire: true` holds no session reference — its target
+is created at firing — so neither shape above can end it. REASONING from the
+targeting contract plus that contrast, not a measurement: no mode-3 Routine
+exists on this account to observe, and creating one is spend.
+
+It cannot replace the chain. Its floor is 1 hour (`*/5 * * * *` refused,
+above): 60 minutes against `JOHARNESS_STALL_MINUTES` 45, and 6x
+`JOHARNESS_HEALTH_MINUTES` 10 (`joharness.sh:8012`), which is what
+`orchestrate.md` § 4 arms the chain at. The chain ran 19 consecutive passes
+at a median gap under 12 minutes (issue 285). The Routine BACKS the chain;
+it does not carry it.
+
+**A firing can still do nothing.** `orchestrate.md` step 0 precondition 2: a
+session finding another titled `orchestrator: <owner/repo>` with
+`session_status: RUNNING` that is not itself exits — before the health pass
+at step 2. An orchestrator frozen but still RUNNING makes every firing exit,
+forever, while the Routine's own record stays healthy. That state is not
+hypothetical: this file's `stalled` row is "`RUNNING`, `status_detail`
+unchanged across two passes", measured byte-identical across 172.273s.
+[`orchestrated.md`](orchestrated.md) names the live case ("the new one finds
+the title `RUNNING` and exits") and the dead case ("firing over a dead one
+is the point"); frozen-but-`RUNNING` is neither, and nothing handles it.
+Unresolved, and noted because the precondition is itself a one-signal
+verdict on a control-plane field — the thing the monitor bullet above
+forbids.
+
+### The repository's own clock, for the record
+
+The scheduled workflow stays rejected on credentials, above. What it does
+prove is that a clock outside the fleet keeps time regardless:
+`origin/main`'s largest first-parent merge gap is 435.02h — `c96088a3`
+(`2026-09-17T19:55:00Z`) to `0d726e09` (`2026-10-05T22:56:30Z`), 18.1 days,
+the same outage issue 285 measures — and three consecutive weekly
+`update.yml` runs fired inside it (`2026-09-21T12:14:58Z`,
+`2026-09-28T13:11:10Z`, `2026-10-05T13:53:54Z`), every one on `head_sha
+c96088a3`, the frozen tip. Fired at all, NOT on time: those three were
+374.97, 431.17 and 473.90 minutes past their `0 6 * * 1` cron.
+
+It still cannot run the health pass: 7 of the 11 health-table rows key on
+control-plane fields a runner cannot read, and the table's rule binds — "a
+verdict here needs both halves, and dispatch prints only the git half"
+([`orchestrated.md`](orchestrated.md)). The 4 rows readable from git alone
+(`looping`, `leftover`, `blocked`, `done`) are not the staleness rows.
+
+One predicate IS inside its ceiling: "this repository merged nothing in N
+hours" — git view only, `issues: write`, and an open issue is a queue item
+(Loop step 2). The 435-hour gap is what it would have caught. Unbuilt, and
+product direction if ever proposed; it would die in any outage long enough
+for GitHub to disable a schedule for repository inactivity.
+
 
 ## Not constrained, by decision
 
