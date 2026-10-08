@@ -8,10 +8,9 @@ issue: none
 session: https://claude.ai/code/session_011XQzvhT3gi1L4ZkAsjfdh4
 agent: sonnet
 updated: 2026-10-08
-next: Run the Method section's commands against this repo's merged-edge
-  corpus, test the candidate signals against the measured instance, record
-  findings, then settle Question YES/NO and graduate into
-  .agents/docs/orchestrated.md.
+next: Verifier subagent re-checking gx-repo claims now. Once back, write
+  Findings/Consequence into the research file, graduate the answer into
+  .agents/docs/orchestrated.md, delete the research file, open PR.
 ---
 
 ## Goal
@@ -23,7 +22,19 @@ the SAME rule and answered it differently? Graduate the answer into
 
 ## Decisions
 
-- (pending)
+- The Method's written corpus is "this repository" (joharness), but the
+  measured instance (issue #251: six waived a CI gate, two blocked) happened
+  in a consumer, `chrsctl/gx`. Joharness's own 50-edge feedback window has
+  zero comparable instances (one `status: blocked` edge, and it is a stale
+  "in-progress" leftover label, not a real block) — no way to test a
+  candidate rule's false-positive rate from joharness's own history alone.
+  Added `chrsctl/gx` via `add_repo` to test against the real measured
+  instance rather than reason about it in the abstract. This widens the
+  corpus beyond what the file's Method section names; recorded here rather
+  than silently, per "An unrecorded method is a failed file."
+- gx's full history (depth=3000 fetch, reaches the initial commit) is
+  readable; found issue #251's instance precisely via issue #266 (closed,
+  names the exact commit `d87e17c8`, session id, and PR #351 as precedent).
 
 ## Rejected
 

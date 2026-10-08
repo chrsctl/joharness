@@ -87,37 +87,153 @@ written from.
 
 ## Findings
 
-OPEN. Nothing measured yet. Filed to keep a promise
-`docs/plans/findings-with-the-fix.md` made in its Out of scope, and so the
-distinction that separates this from the rest of #251 — judgement, not cost
-— is not lost with the session that drew it. That plan has since been
-withdrawn on its own backtest (`.agents/docs/handover/README.md`,
-Reviewing), which strengthens rather than weakens this question: the ONE
-conduct check that looked mechanical turned out not to be, so whether any of
-them is remains open.
+Run per Method, plus one deviation recorded here rather than silently: the
+written corpus is "this repository" (joharness), and joharness's own
+50-edge feedback window has no comparable instance — one `status: blocked`
+edge, and it is a stale `in-progress` label left on a merged leftover
+branch, not a real block (`./joharness.sh feedback`; the edge is PR #287's,
+workstream `managers-closing-report`). With nothing in the written corpus
+to test a candidate rule against, the measured instance itself was read
+instead: issue #251 names it as happening in `chrsctl/gx`, and issue #266
+(closed) names the exact commit. Added `chrsctl/gx` via `add_repo`, fetched
+full history, and read it directly — a wider corpus than the Method names,
+logged here so the finding does not look like it ran on the window
+originally promised.
+
+- **GROUNDED.** The blocked branch is `d87e17c8` in `gx`
+  (`docs/handover/crm-ui-dashboard-widget-marks.md`, PR #403): `status:
+  blocked`, body cites `runner_id: 0`, logs 404, and names PR #351's merge
+  commit as precedent for a human-granted waiver. Second-context verified.
+- **GROUNDED.** PR #351's merge commit (`106051b5`) opens its second
+  paragraph with the literal sentence: *"MERGED WITH GITHUB'S CHECKS RED,
+  on a waiver a human granted after this branch stopped and asked."*
+  Second-context verified.
+- **GROUNDED.** That exact phrase ("MERGED WITH GITHUB'S CHECKS RED")
+  opens 47 merge-commit bodies across `gx`'s full history
+  (`git log --all --grep="MERGED WITH GITHUB" -F | wc -l`) — a repo
+  convention for "merged despite red CI," reused across at least three
+  separate outage incidents weeks apart (Aug 13-14 billing; Sept 11-13
+  runner allocation; Sept 16-17 recurrence of the same). Second-context
+  verified.
+- **GROUNDED.** Exactly 3 workstream files in `gx`'s entire history ever
+  carried `status: blocked`: `crm-ui-dashboard-widget-marks.md`,
+  `crm-workflow-branching.md`, `license-gate-issues.md`. Second-context
+  verified by full-history pickaxe search, not just the feedback window.
+- **CORRECTED by second context, originally claimed otherwise.** All
+  three blocked files name the *same* cause family — a GitHub Actions
+  runner/billing outage — not two-of-three as first read.
+  `license-gate-issues.md` (blocked 2026-08-14, the earliest of the three)
+  reads: *"CI cannot run... the job reports `runner_id: 0`... This is a
+  billing or spending-limit condition on the account."* Identical
+  signature to the other two. In this repo's history, `status: blocked`
+  has so far meant exactly one thing, always.
+- **GROUNDED, and this is what makes the case for "divergence" weaker than
+  issue #251's summary reads.** `license-gate-issues.md` (Aug 2026-08-14)
+  blocked with NO waiver precedent anywhere in its window — the "MERGED
+  WITH GITHUB'S CHECKS RED" convention did not exist until Sept 11. It was
+  resolved by a FIX (`d18cb809`, `027b193d`: "record why CI cannot run",
+  "stop CI paying twice"), not a waiver, and had no contemporaneous peer to
+  diverge from. Not a divergence instance — the uncontested origin case.
+- **GROUNDED.** `crm-workflow-branching` blocked itself at `2026-09-11
+  14:41:35Z` ("CI allocates no runner, repo-wide, since 2026-09-07"). The
+  earliest "MERGED WITH GITHUB'S CHECKS RED" commit in the whole history
+  (`ee72e637`, PR #339) is timestamped `2026-09-11 16:03:42 +0200` =
+  `14:03:42Z` — recomputed in UTC; the verifier confirms it lands *before*
+  the block by ~38 minutes (my first pass had sorted raw offset strings
+  and misread this as after). So a waiver precedent arguably existed by
+  minutes, not hours, when this branch blocked — too close to call this a
+  clean "no precedent yet" case the way `license-gate-issues` is.
+- **GROUNDED.** PR #403's own merge commit (`5f989583`, merged by a human
+  by hand per issue #266's correction) carries NO waiver or outage text at
+  all — title plus one description line, nothing else. The repo's own
+  "merged despite red CI, here's why" convention is present in 47 other
+  commits and absent from the one commit that most needed it. A rule keyed
+  on the FINAL merge commit's own text would miss this branch outright;
+  the signal only exists in the branch's own retired workstream file,
+  written before the human merged it by hand.
+- **GROUNDED.** `JOHARNESS_CHECKS=local` landed in `gx`'s `joharness.conf`
+  at `fcad0961`, `2026-09-16T15:14:03Z` — 10h15m before `d87e17c8` (the
+  block). `d87e17c8`'s own text never mentions `JOHARNESS_CHECKS` at all;
+  it reasons entirely from the older human-waiver precedent. Peers in the
+  same fleet, same day, correctly cited the new config instead (e.g.
+  `5ee67086`, PR #439, merged ~13h after the block, during the same
+  outage: *"JOHARNESS_CHECKS=local replaces that condition and no
+  other"*).
+
+**What a candidate rule can and cannot do with this.** A time-windowed,
+cause-keyword rule — "a `status: blocked` workstream file whose text names
+a GitHub Actions runner/billing cause, paired with a merge commit within
+roughly a day whose text names the same cause and merges anyway" — catches
+both real pairs here (`crm-workflow-branching` / PR #339's wave;
+`crm-ui-dashboard-widget-marks` / PR #439's wave) and raises zero false
+alarms against the other 45 unpaired waiver commits, because nothing else
+in this repo's history shares that cause text. That is a NAMEABLE rate on
+THIS corpus: 2 of 2 true positives, 0 false positives, n too small to
+generalize a rate past "worked here."
+
+But the rule that does this is not a peer-to-peer comparison — it is a
+per-branch check against GROUND TRUTH (does the repo's own `joharness.conf`
+already answer the condition this branch names as unresolved?), run against
+one branch at a time, not a diff between two branches' artifacts. That is
+exactly `.agents/docs/orchestrated.md`'s `analyst` role and
+`JOHARNESS_IDLE_ANALYSIS`, built from issue #266 — the SAME incident this
+file's Echo cites as "the measured instance" is the incident that already
+produced the fix. Issue #266 is dated one day after the gap in #251's own
+account (#251 says 09-13 to 09-16; the block it is describing is dated
+09-17), which reads as the same run continuing past the date #251 gave it,
+not a second occurrence.
+
+Neither `joharness`'s corpus nor `gx`'s produced a single instance of the
+Method's other two candidate signals — "two branches whose findings cite
+the same rule path" or "two branches in one wave whose dispositions on the
+same anchor differ." Zero pairs to test means zero evidence either way for
+the GENERAL case #251's language reaches for (any rule, read two ways).
+What is grounded is narrower than what was asked: one specific, recurring
+shape (an infrastructure condition read two ways) is mechanizable, cheaply,
+as a one-branch-against-config check — and this harness already has that
+check. Nothing here shows a *peer-comparison* mechanism earns its keep
+beyond it.
 
 ## Consequence for the queue
 
-No plan is blocked on this and none carries a `research:` edge to it. The
-plan that would have — the one conduct check that looked mechanical without
-judgement, whether a finding shared a commit with its fix — was withdrawn on
-its own backtest, measured in `.agents/docs/handover/README.md`, Reviewing.
-Nothing in this question turned on that one, and its withdrawal leaves this
-one the only route left to a conduct check that is not a session. A plan
-follows beside it only if this closes YES.
+**Closes NO**, narrowly and for a specific reason rather than by default.
+Not "every candidate rule misses the measured instance" — one does catch
+it, with a nameable rate on the only corpus available (2 true positives, 0
+false positives, n=2). What closes it NO is that the rule which catches it
+is not a peer-comparison mechanism: it is a single branch's stated cause
+checked against the repo's own current config, which is what
+`JOHARNESS_IDLE_ANALYSIS` / the `analyst` role already does
+(`.agents/docs/orchestrated.md`), built from the same incident (issue
+#266) this file's own Echo cites as the measured instance. No new plan
+follows, because the mechanism this question asked for already exists for
+the one shape found, and nothing here shows a second, general,
+peer-diffing mechanism is buildable: the Method's other two candidate
+signals (shared finding-citation; same-wave differing disposition) have
+zero instances in either corpus to test against, so the general claim in
+#251 — any rule, read two ways, by any two peers — stays exactly where
+#251 left it: not shown, not refuted.
 
 The rest of #251 stays with the human: whether a sampling conduct reviewer
-earns a session beyond the cap. This node does not decide that and must not
-be read as arguing for it. If the answer is NO, that decision gets one more
-fact under it, which is all this is for.
+earns a session beyond the cap, for the three OTHER conduct questions it
+raises that this file never addressed (a stalled `next:`, a backdated
+finding, a self-asserting acceptance criterion). This node answers only
+the fourth, and answers it: the "peer divergence" framing over-states what
+the artifacts show. Re-read as two single-branch staleness cases rather
+than as simultaneous disagreement, the fix already exists.
 
 ## Verification
 
-None yet; no finding to verify. When one exists it needs a second context
-per `.agents/docs/research/README.md`. For this question the second context
-must re-read the flagged pairs' workstream files itself — the claim is about
-what those files say, so a verification that trusts the first reader's
-summary of them verifies nothing.
+Second context: a `general-purpose` subagent independently re-ran every
+cited command against `/home/user/gx` and read the primary sources itself,
+without access to this file's prose. 8 of 9 claims GROUNDED outright; one
+(the merge-commit-vs-workstream-file contrast) WEAK on an immaterial
+wording point; one — my own first-pass claim that `license-gate-issues.md`
+named a different cause — came back UNGROUNDED, and the finding above is
+written to the corrected reading, not the original one. The verifier also
+caught a timezone-normalization error in my own first pass (raw-offset
+string sort instead of UTC) that had `crm-workflow-branching`'s block
+landing after the earliest waiver precedent instead of ~38 minutes before
+it; corrected above.
 
 ## Graduates to
 

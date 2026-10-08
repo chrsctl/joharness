@@ -708,6 +708,41 @@ without asking whether it still held, and a human ended it by merging by
 hand. `JOHARNESS_IDLE_ANALYSIS` answers that by explaining, not by deciding —
 the conf line stays the human's.
 
+**This was not the first time this split happened, and the earlier instance
+sharpens what the split actually is.** `docs/research/peer-divergence-in-conduct.md`
+(closed NO; this is its graduation) found a second occurrence two days
+earlier in the same consumer, before `JOHARNESS_CHECKS=local` existed:
+`crm-workflow-branching` blocked itself at 2026-09-11 14:41Z on the same
+signature ("CI allocates no runner, repo-wide"), and the repo's own
+convention for merging anyway — a merge-commit paragraph opening "MERGED
+WITH GITHUB'S CHECKS RED" — first appears about 38 minutes EARLIER in that
+run, not after. Read end to end, both instances are a `blocked` manager
+failing to notice that the fleet's answer to a still-live condition had
+already moved — by minutes the first time, by a conf change the second —
+not two managers disagreeing in the same moment. Issue #251 frames this as
+"peer divergence" (six waived, two blocked, same hour); the artifacts
+support a narrower reading, two single-branch staleness cases, which is
+what `JOHARNESS_IDLE_ANALYSIS` already targets.
+
+**The research closes NO on a peer-comparison mechanism, not on the
+incident.** A time-windowed, cause-keyword rule over retired workstream
+files and merge-commit text — a `blocked` branch naming a cause a merged
+peer's text names too, within about a day — catches both occurrences in
+`gx`'s full history with zero false alarms against the other 45 merge
+commits carrying that same "MERGED WITH GITHUB'S CHECKS RED" convention
+for unrelated incidents weeks apart. That rate is real but it is not
+evidence for a NEW mechanism: the rule that catches it is a single
+branch's stated cause checked against current ground truth
+(`joharness.conf`, in this case), which is exactly what the `analyst` role
+already does, built from this same incident. Nothing in either corpus —
+not `gx`'s, not this repo's own 50-edge feedback window, which has no
+comparable instance at all — produced a single case of the OTHER shape
+#251's language reaches for: two branches reading a non-infrastructure
+rule two ways, with no config to check either reading against. That general
+class stays exactly where #251 left it, open, and a sampling conduct
+reviewer remains the human's call rather than something this file argues
+for.
+
 What run 3 has NOT shown: no DRAINED — that repo still queued 37 plans at
 2026-09-16 (`get_file_contents`, `docs/plans`); no kill and no nudge, for the
 reasons above; and `reconciles` is counted nowhere, still, which is now two
