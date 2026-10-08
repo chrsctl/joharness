@@ -24,8 +24,8 @@ it is a twentieth below 100K-token prompts, a quarter above. A manager's
 haiku worker (`.claude/commands/manage.md`, fan out) is now the cheapest
 lever that keeps quality: the manager re-runs the acceptance command
 before any commit, so a weak worker's return cannot land unchecked.
-Opus 5.5 defaults to effort `medium`, one below Opus 5 — the plan's
-`effort:` is what keeps it at `high`.
+Opus 5.5 defaults to effort `medium`, one below Opus 5 (same skill
+cache) — the plan's `effort:` is what keeps it at `high`.
 
 ## Selection rules
 
@@ -181,7 +181,8 @@ is what plans and hook-injected state already do. What it adds that the
 harness did not say:
 
 - **Context is the bill, not output.** Every turn re-reads the whole
-  context; cached, at a tenth of input price. One orchestrator: 1.21B
+  context; cached, at a fraction of input price (opus 5.5: 0.20 against
+  4 /MTok, claude-api skill cache 2026-10-06). One orchestrator: 1.21B
   cache-read tokens against 1.74M output (`docs/product/scout-role.md`
   Evidence, `get_session` 2026-10-07). Two managers of that fleet: 712K
   context, 46.76 USD; 126K, 0.88 USD. Research sweeps go to a subagent that
@@ -190,15 +191,16 @@ harness did not say:
   the whole context. This runtime states a 1-hour prompt-cache TTL, 5
   minutes in usage overage (`ScheduleWakeup` tool description, read
   2026-10-08). The 712K-context manager above costs about 2.85 USD per
-  cold wake at opus 5.5 input price, 0.14 cached (cache read 0.20/MTok) —
-  arithmetic on the Lineup, not a measurement.
+  cold wake at opus 5.5 input price, 0.14 cached (cache read 0.20/MTok,
+  same skill cache) — arithmetic, not a measurement.
   So: a wait longer than the TTL is cheaper as a FRESH session reading the
   workstream file than as a resumed fat context. Health cadence
   (`JOHARNESS_HEALTH_MINUTES`) under the TTL keeps passes warm.
 - **Effort does not cross a spawn.** `Agent` and `create_session` take a
   model, not an effort (`subagents.md`). A plan's `effort:` reaches a
   manager or worker only as prompt prose, so the model's default decides
-  the rest — `medium` on Opus 5.5 and Haiku 5.5, `high` on Sonnet 5.5.
+  the rest — `medium` on Opus 5.5 and Haiku 5.5, `high` on Sonnet 5.5
+  (claude-api skill thinking table, cache 2026-10-06).
 - **Subscription limits are one pool.** On Pro or Max, every session of a
   fleet draws the same 5-hour and weekly allowance as the human's own chat
   and IDE use; Max adds a separate weekly Fable limit. `JOHARNESS_MAX_MANAGERS`

@@ -44,7 +44,19 @@ question NO.
 
 ## Method
 
-Not run yet. Second context for the control-plane readings, named up front
+Not run yet. Planned, per lever, in one consumer:
+
+- Baseline: the last 10 merged edges before the trial. Cost =
+  `get_session` `usage.cost_usd` summed over the orchestrator and every
+  session whose `parent_session_id` is it (`list_sessions`); merges =
+  `search_pull_requests` `is:merged` in the window; respawns and kills =
+  the orchestrator's ledger; reverts = `git log --grep '^Revert'` on main.
+- Trial: the lever switched on by a human for the next 10 merged edges,
+  same reads.
+- Lever 4 only: worker tiers counted from each manager's `Agent` calls
+  (`list_events`, `kinds: ["assistant"]`).
+
+Second context for the control-plane readings, named up front
 (`.agents/docs/research/README.md`): a session other than the one running
 the fleet re-reads `get_session` for the same session ids.
 
