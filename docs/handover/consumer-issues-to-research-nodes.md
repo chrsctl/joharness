@@ -51,10 +51,14 @@ request is for the human to merge, not this session.
 - **No consumer repository, plan name, item name or pull request number in
   any node** (`.agents/docs/consumer-repos.md`, "Name no consumer"; the
   precedent applied the same rule to `docs/`). Measurements are cited as
-  measurements — the counts, the dates, the commands. Dropping the consumer's
-  pull request numbers also keeps #273's open contradiction out of this diff
-  entirely: the section says both that they are covered and that they are not,
-  and nothing here needs one.
+  measurements — the counts, the dates, the commands.
+  The consumer's pull request numbers are left out even though they are now
+  explicitly NOT covered: #273's contradiction was settled on `main` in the
+  direction that exempts them (merged mid-branch, and reconciled into this
+  branch), and nothing in any node needs one — the issues' measurements are
+  anchored by date, time and count. An earlier draft of this bullet gave
+  avoiding that contradiction as the reason; the contradiction is gone and the
+  choice stands on its own.
 - **Every claim read from this repo's source was re-run at `cb0028e`**, not
   copied from the issue. Line numbers in the issues were written against an
   earlier `main`; the ones that moved are given as content, not numbers.
