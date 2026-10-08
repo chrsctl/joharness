@@ -65,10 +65,16 @@ answer. Orchestrated manager, one item.
 ## Blockers
 
 **Blocks:** the fix is protocol text and this session runs unattended.
-**Unblocks:** a supervised session (human-directed), which the queue hook
-already routes all-protocol plans to — `queue-context.sh:519-521` prints
-`SUPERVISED ONLY: scope includes protocol text` for exactly this plan's
-class (`some`).
+**Unblocks:** a supervised session (human-directed), which must be told this
+item BY NAME. The queue hook does not route it there and will not surface it:
+`queue-context.sh:509-524` only MARKS (`SUPERVISED ONLY: scope includes
+protocol text`, this plan's `some` class) and de-ranks (`scope_derank`, +2 at
+`:536`), and that whole block is gated on
+`[ "$qc_unattended" -eq 1 ] && [ "$qc_boundary" -eq 1 ]` (`:511`) — so in a
+supervised session the label is never printed and the de-rank never applies.
+The mechanism steers unattended sessions AWAY; nothing steers a supervised one
+toward. Read 2026-10-08 on this checkout; the code's own comment says it:
+"nothing blocks this plan, and a supervised session can take it today".
 
 **Finding, and it is the reason a manager was spent here at all —
 the protocol boundary is unchecked for research nodes.** A plan with a
