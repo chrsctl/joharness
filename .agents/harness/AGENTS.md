@@ -217,7 +217,7 @@ refuses to run anyway.
 ## Agent selection
 
 Plans get matched to agents: each plan's frontmatter names `agent` tier
-(`haiku` | `sonnet` | `opus`) and `effort`. Every unit of work has a plan
+(`haiku` | `sonnet` | `opus` | `fable`) and `effort`. Every unit of work has a plan
 (step 2), so every unit gets matched — no tier, no build. Implementing
 session may escalate tier or effort, never downgrade; below the plan's
 tier = hand off (step 2), session cannot switch own model. Write plans

@@ -2286,19 +2286,28 @@ lint_enum() {
 }
 
 # <file> <scope value>: red unless every entry sits under a prose directory.
-# Entries parsed by scope_norm, the curator's normalization — one reader of
-# what a path in `scope:` is.
+# Entries parsed by scope_norm, the curator's normalization, then split once
+# more on blanks and `;` — no path holds either, and an entry like
+# `docs/x.md joharness.sh` must not pass as one path under docs/. Coverage is
+# curate_covered's, one answer to "is this path under that entry". A `..`
+# segment or an absolute path is red: the glob cannot see where it resolves.
+# `scope: none` is the explicit "touches nothing" and passes; NO scope proves
+# nothing, so it is red.
 lint_fable_bound() {
   local f="$1" p n=0
+  local prose=$'docs\n.agents/docs\n.claude/commands'
+  [ "$2" != "none" ] || return 0
   while IFS= read -r p; do
-    p="${p#shared:}"
+    p="${p#shared:}"; p="${p#./}"
+    [ -n "$p" ] || continue
     n=$((n + 1))
-    case "$p" in
-      docs|docs/*|.agents/docs|.agents/docs/*|.claude/commands|.claude/commands/*) ;;
-      *) lint_red "${f}: fable is a judgement tier: this plan builds ('${p}' in scope:)"
-         return 0 ;;
+    case "/${p}/" in
+      */../*|//*) ;;
+      *) curate_covered "$p" "$prose" && continue ;;
     esac
-  done < <(printf '%s\n' "$2" | scope_norm)
+    lint_red "${f}: fable is a judgement tier: this plan builds ('${p}' in scope:)"
+    return 0
+  done < <(printf '%s\n' "$2" | scope_norm | tr -s '[:blank:];' '\n')
   [ "$n" -gt 0 ] ||
     lint_red "${f}: fable is a judgement tier: scope: must show this plan builds nothing"
 }

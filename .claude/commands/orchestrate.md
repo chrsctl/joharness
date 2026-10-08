@@ -544,7 +544,7 @@ Up to `slots`, in dispatch's order, only rows under `spawn`:
 
   plus, only when they apply, one line each: the RESPAWN resume line;
   the LOOP line; "Run at effort xhigh." for a fable planning manager or
-  an escalated opus successor; and the reconcile the dispatch row named
+  an escalated opus or fable successor; and the reconcile the dispatch row named
   ("<partner> holds <path> on <branch>; reconcile expected at step 7").
   Nothing else: no "no human is watching", no "never ask", no "keep
   going". The prompt routes; the repository authorises.

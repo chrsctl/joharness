@@ -36,7 +36,13 @@ mapping:
   requirement, the review-churn research step, a scout pass. A plan naming
   `agent: fable` whose `scope:` reaches past `docs/`, `.agents/docs/` or
   `.claude/commands/` is red in `ci` (`fable is a judgement tier: this plan
-  builds`) — a lint finding, not a judgement call.
+  builds`) — a lint finding, not a judgement call. So is one declaring no
+  `scope:` at all: absent proves nothing. `scope: none` is the explicit
+  "touches nothing" and passes.
+- Rank, where a rule compares tiers: haiku < sonnet < opus < fable. Fable
+  sits on top for judgement and OFF the build ladder: escalation runs
+  haiku → sonnet → opus and stops; a fable session takes no build plan,
+  whatever that plan's tier; a looping fable manager respawns at fable.
 - effort xhigh when plan touches a Part 2 prohibition's territory — same
   reasoning, cheaper lever than a tier jump.
 - Under-thinking observed: raise effort or tier, never prompt around it.
