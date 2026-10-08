@@ -64,9 +64,10 @@ what the rule was written from.
 
 ## Method
 
-Not yet run. The corpus is this repository, over the window `feedback`
-walks, whose default `JOHARNESS_FEEDBACK_EDGES` carries — read the value
-rather than fixing a number here.
+Run. The written corpus below ran first and produced nothing to test a
+candidate rule against; the deviation that followed is the second block,
+recorded here rather than left to Findings to explain alone (an unrecorded
+method is a failed file).
 
 ```bash
 ./joharness.sh feedback            # the window and the edges in it
@@ -74,12 +75,49 @@ git log --all --full-history --diff-filter=D --oneline -- 'docs/handover/*.md'
 git show <that-commit>^:<path>     # each retired workstream file
 ```
 
-Every finished workstream file is recoverable that way, and its `## Review`
-bullets, `## Decisions` and `## Blockers` are the free text a rule would
-have to read. Candidate signals worth testing, cheapest first: two branches
-whose `status: blocked` reasons name the same file or the same command; two
-branches whose findings cite the same rule path; two branches in one wave
-whose dispositions on the same anchor differ.
+Result: 44 retired workstream files recovered (joharness's own 50-edge
+feedback window), one `status: blocked` edge among them and it is a stale
+`in-progress` label on an already-merged branch, not a real block. Zero
+candidate pairs to test.
+
+Deviation, `chrsctl/gx` (the consumer where issue #251's measured instance
+happened — this repo's own corpus had nothing to test):
+
+```bash
+# attach and deepen
+add_repo owner=chrsctl repo=gx; git clone --depth 1 .../gx /home/user/gx
+git -C /home/user/gx fetch --depth=3000 origin main   # reaches the initial commit
+
+# the blocked branch issue #266 named
+git -C /home/user/gx show d87e17c8:docs/handover/crm-ui-dashboard-widget-marks.md
+
+# the waiver convention: every merge that went ahead on red CI opens with
+# the same literal sentence
+git -C /home/user/gx log --all --grep="MERGED WITH GITHUB" -F --format='%H %ci %s'
+git -C /home/user/gx log --all --grep="MERGED WITH GITHUB" -F | wc -l   # 47
+
+# every status: blocked workstream file ever written in gx's history
+git -C /home/user/gx log --all -p -- 'docs/handover/*.md' \
+  | grep -B5 '^+status: blocked' | grep -E '^\+\+\+|^\+status'
+# -> crm-ui-dashboard-widget-marks.md, crm-workflow-branching.md,
+#    license-gate-issues.md (3 files, read each at the commit that added
+#    the line, via git log --all -S"status: blocked" --format='%H' -- <path>)
+
+# the earlier occurrence, and whether a waiver precedent existed when it blocked
+git -C /home/user/gx log --all -S"crm-workflow-branching" --format='%H %ci %s' -- 'docs/handover/*'
+git -C /home/user/gx log --all --format='%ci %H' --grep="MERGED WITH GITHUB" -F | sort
+
+# the config fix, and whether the blocked branch's own text ever checked it
+git -C /home/user/gx log --all -S"JOHARNESS_CHECKS=local" --format='%H %ci %s' -- joharness.conf
+git -C /home/user/gx show d87e17c8:docs/handover/crm-ui-dashboard-widget-marks.md | grep JOHARNESS_CHECKS
+```
+
+Candidate signals tested, cheapest first: two branches whose `status:
+blocked` reasons name the same file or the same command; two branches
+whose findings cite the same rule path; two branches in one wave whose
+dispositions on the same anchor differ. Only the first had any pair to
+test — the other two had zero instances in either corpus, in both repos,
+over all of history, not just the feedback window.
 
 For each candidate, record the pairs it flags AND the pairs it misses. A
 rule scored only on what it catches is a rule scored on the instance it was
@@ -117,16 +155,24 @@ originally promised.
   verified.
 - **GROUNDED.** Exactly 3 workstream files in `gx`'s entire history ever
   carried `status: blocked`: `crm-ui-dashboard-widget-marks.md`,
-  `crm-workflow-branching.md`, `license-gate-issues.md`. Second-context
-  verified by full-history pickaxe search, not just the feedback window.
-- **CORRECTED by second context, originally claimed otherwise.** All
-  three blocked files name the *same* cause family — a GitHub Actions
-  runner/billing outage — not two-of-three as first read.
-  `license-gate-issues.md` (blocked 2026-08-14, the earliest of the three)
-  reads: *"CI cannot run... the job reports `runner_id: 0`... This is a
-  billing or spending-limit condition on the account."* Identical
-  signature to the other two. In this repo's history, `status: blocked`
-  has so far meant exactly one thing, always.
+  `crm-workflow-branching.md`, `license-gate-issues.md`
+  (`git log --all -p -- 'docs/handover/*.md' | grep -B5 '^+status:
+  blocked'`, cross-checked against `grep -c '^+status: blocked'` on the
+  same output = 3). Second-context verified by rerunning the same command.
+- **UNGROUNDED as first written here, corrected below.** My first pass
+  claimed only two of the three blocked files named the CI-outage cause
+  and `license-gate-issues.md` was about something else. The second
+  context went to the commit that actually added the line (`d18cb809`,
+  not the later commit my first pass had read) and found the opposite —
+  recorded as its own claim next.
+- **GROUNDED.** All three blocked files name the *same* cause family: a
+  GitHub Actions runner/billing outage. `license-gate-issues.md`, read at
+  `d18cb809` (`git show d18cb809:docs/handover/license-gate-issues.md`,
+  blocked 2026-08-14, the earliest of the three), reads: *"CI cannot
+  run... the job reports `runner_id: 0`... This is a billing or
+  spending-limit condition on the account."* Identical signature to the
+  other two. In this repo's history, `status: blocked` has so far meant
+  exactly one thing, always.
 - **GROUNDED, and this is what makes the case for "divergence" weaker than
   issue #251's summary reads.** `license-gate-issues.md` (Aug 2026-08-14)
   blocked with NO waiver precedent anywhere in its window — the "MERGED
@@ -143,14 +189,14 @@ originally promised.
   and misread this as after). So a waiver precedent arguably existed by
   minutes, not hours, when this branch blocked — too close to call this a
   clean "no precedent yet" case the way `license-gate-issues` is.
-- **GROUNDED.** PR #403's own merge commit (`5f989583`, merged by a human
-  by hand per issue #266's correction) carries NO waiver or outage text at
-  all — title plus one description line, nothing else. The repo's own
-  "merged despite red CI, here's why" convention is present in 47 other
-  commits and absent from the one commit that most needed it. A rule keyed
-  on the FINAL merge commit's own text would miss this branch outright;
-  the signal only exists in the branch's own retired workstream file,
-  written before the human merged it by hand.
+- **WEAK.** PR #403's own merge commit (`5f989583`, merged by a human by
+  hand per issue #266's correction) carries no waiver or outage text —
+  one title line plus one short description line, nothing more (not a
+  literal bare title with "nothing else" as my first pass overstated; the
+  substance — no waiver narration where 47 other commits have it — holds).
+  A rule keyed on the FINAL merge commit's own text would miss this branch
+  outright; the signal only exists in the branch's own retired workstream
+  file, written before the human merged it by hand.
 - **GROUNDED.** `JOHARNESS_CHECKS=local` landed in `gx`'s `joharness.conf`
   at `fcad0961`, `2026-09-16T15:14:03Z` — 10h15m before `d87e17c8` (the
   block). `d87e17c8`'s own text never mentions `JOHARNESS_CHECKS` at all;
@@ -223,17 +269,36 @@ than as simultaneous disagreement, the fix already exists.
 
 ## Verification
 
-Second context: a `general-purpose` subagent independently re-ran every
-cited command against `/home/user/gx` and read the primary sources itself,
-without access to this file's prose. 8 of 9 claims GROUNDED outright; one
-(the merge-commit-vs-workstream-file contrast) WEAK on an immaterial
-wording point; one — my own first-pass claim that `license-gate-issues.md`
-named a different cause — came back UNGROUNDED, and the finding above is
-written to the corrected reading, not the original one. The verifier also
-caught a timezone-normalization error in my own first pass (raw-offset
-string sort instead of UTC) that had `crm-workflow-branching`'s block
-landing after the earliest waiver precedent instead of ~38 minutes before
-it; corrected above.
+Two independent second-context passes, neither in the context that wrote
+the claims.
+
+A `general-purpose` subagent re-ran every cited command against
+`/home/user/gx` itself and read the primary sources, without access to
+this file's prose. Of the 10 bullets above: 8 GROUNDED outright, 1 WEAK on
+an immaterial wording point (the PR #403 bullet — substance confirmed,
+"nothing else" overstated), 1 UNGROUNDED — my own first-pass claim that
+`license-gate-issues.md` named a different cause, which the bullets above
+now carry as its own UNGROUNDED entry followed by the corrected GROUNDED
+one, per this file's own rule that a refuted claim needs its own word
+rather than being silently rewritten. That pass also caught a
+timezone-normalization error in my first pass (raw-offset string sort
+instead of UTC) that had `crm-workflow-branching`'s block landing after
+the earliest waiver precedent instead of ~38 minutes before it; corrected
+above.
+
+A `verifier` subagent (sonnet, per `.claude/agents/verifier.md`) then read
+the DIFF itself — not the gx facts again, the write-up — and found seven
+defects, tagged `(verifier)` in this branch's workstream file's `##
+Review`: the research file not yet deleted despite arguing its own
+closure; the tally above originally miscounted (fixed, this section); the
+UNGROUNDED/corrected split not using the three required words (fixed); the
+PR #403 bullet's GROUNDED tag contradicting this section's own WEAK (fixed
+to WEAK); the Method section claiming "Not yet run" while Findings
+described a run (fixed, Method rewritten); one Findings bullet naming no
+reproducible command for a load-bearing count (fixed, command added); and
+a vague "two days earlier" in the graduated `orchestrated.md` paragraph
+with no named anchor date (fixed to exact dates). All seven fixed in this
+same commit.
 
 ## Graduates to
 

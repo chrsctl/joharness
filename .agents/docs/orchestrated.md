@@ -710,18 +710,20 @@ the conf line stays the human's.
 
 **This was not the first time this split happened, and the earlier instance
 sharpens what the split actually is.** `docs/research/peer-divergence-in-conduct.md`
-(closed NO; this is its graduation) found a second occurrence two days
-earlier in the same consumer, before `JOHARNESS_CHECKS=local` existed:
-`crm-workflow-branching` blocked itself at 2026-09-11 14:41Z on the same
-signature ("CI allocates no runner, repo-wide"), and the repo's own
-convention for merging anyway — a merge-commit paragraph opening "MERGED
-WITH GITHUB'S CHECKS RED" — first appears about 38 minutes EARLIER in that
-run, not after. Read end to end, both instances are a `blocked` manager
-failing to notice that the fleet's answer to a still-live condition had
-already moved — by minutes the first time, by a conf change the second —
-not two managers disagreeing in the same moment. Issue #251 frames this as
-"peer divergence" (six waived, two blocked, same hour); the artifacts
-support a narrower reading, two single-branch staleness cases, which is
+(closed NO; this is its graduation) found an earlier occurrence in the same
+consumer, six days before the block above (2026-09-11, against 2026-09-17),
+and before `JOHARNESS_CHECKS=local` existed: `crm-workflow-branching`
+blocked itself at 2026-09-11T14:41Z on the same signature ("CI allocates no
+runner, repo-wide"), and the repo's own convention for merging anyway — a
+merge-commit paragraph opening "MERGED WITH GITHUB'S CHECKS RED" — first
+appears at 2026-09-11T14:03Z, about 38 minutes BEFORE that block, not after.
+Read end to end, both instances are a `blocked` manager failing to notice
+that the fleet's answer to a still-live condition had already moved — by
+38 minutes the first time, by a conf change landed 10h15m earlier the
+second — not two managers disagreeing in the same moment. Issue #251 frames
+this as "peer divergence" (six waived, two blocked, same hour); the
+artifacts support a narrower reading, two single-branch staleness cases,
+which is
 what `JOHARNESS_IDLE_ANALYSIS` already targets.
 
 **The research closes NO on a peer-comparison mechanism, not on the

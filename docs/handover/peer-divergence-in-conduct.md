@@ -8,9 +8,8 @@ issue: none
 session: https://claude.ai/code/session_011XQzvhT3gi1L4ZkAsjfdh4
 agent: sonnet
 updated: 2026-10-08
-next: Verifier subagent re-checking gx-repo claims now. Once back, write
-  Findings/Consequence into the research file, graduate the answer into
-  .agents/docs/orchestrated.md, delete the research file, open PR.
+next: Verifier findings fixed and recorded below. Delete the research file
+  (closed NO, graduated), run ./joharness.sh finish, open the PR and merge.
 ---
 
 ## Goal
@@ -42,7 +41,43 @@ the SAME rule and answered it differently? Graduate the answer into
 
 ## Review
 
-- (none yet)
+- r1: (verifier) the research file argued its own closure (Consequence:
+  "Closes NO") but was never deleted; per `.agents/docs/research/README.md`
+  "Graduating," done means deleted, and a `research:`-keyed file left in
+  the tree is still read as an open node regardless of its prose. (fixed —
+  deleted in the retire commit, last before the pull request.)
+- r2: (verifier) the Verification section's tally didn't add up: "8 of 9
+  GROUNDED" against claims that actually totalled 10 once the WEAK and
+  UNGROUNDED ones are counted as their own bullets rather than subtracted
+  from 9. (fixed — recounted against the actual 10 bullets: 8 GROUNDED, 1
+  WEAK, 1 UNGROUNDED.)
+- r3: (verifier) a corrected claim was tagged "CORRECTED by second
+  context, originally claimed otherwise" instead of one of the three
+  words `.agents/docs/research/README.md` requires ("GROUNDED, WEAK or
+  UNGROUNDED... a vocabulary with no word for a refuted claim would push
+  that into prose nobody greps"). (fixed — split into its own UNGROUNDED
+  bullet naming the original wrong claim, followed by the corrected
+  GROUNDED finding.)
+- r4: (verifier) the PR #403 bullet was tagged GROUNDED in Findings while
+  the Verification section called the same claim WEAK — Findings was never
+  updated to match. (fixed — Findings now also says WEAK, with the
+  overstated "nothing else" corrected to what the commit actually
+  contains.)
+- r5: (verifier) the Method section still read "Not yet run" while
+  Findings opened "Run per Method" — contradictory within one file, and
+  Method's own fenced block never named the commands actually used for
+  the `gx` deviation. (fixed — Method rewritten to say what ran, in two
+  blocks: the written corpus first, producing nothing to test; the
+  deviation to `gx` second, with every command actually used.)
+- r6: (verifier) the "exactly 3 blocked workstream files" finding named no
+  reproducible command, only "full-history pickaxe search" in prose.
+  (fixed — the exact `git log ... | grep` command is now in both Method
+  and the Findings bullet.)
+- r7: (verifier) the graduated paragraph in `orchestrated.md` said "two
+  days earlier" for a gap that is six days (2026-09-11 to 2026-09-17) by
+  the file's own other numbers, and "38 minutes EARLIER... not after" was
+  ambiguous about earlier/later than what. (fixed — exact dates and an
+  unambiguous "38 minutes BEFORE that block, not after.")
 
 ## Blockers
 
