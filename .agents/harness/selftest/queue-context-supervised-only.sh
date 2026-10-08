@@ -172,6 +172,8 @@ soplan nearmiss 'joharness.confX'
 sopush "a plan scoped to a near-miss of a protocol path"
 
 out="$(soq unsupervised)"
+# The row first: a hook that printed nothing would pass the refute below.
+expect "the near-miss plan has a row to read" "docs/plans/nearmiss.md" "$out"
 refute "a path that only shares a prefix is not protocol text" \
   "SUPERVISED ONLY" "$out"
 # It IS a declaration, so it must not fall back to the undeclared wording
@@ -185,6 +187,8 @@ fixture_rm "$sowork" "drop the near-miss plan" docs/plans/nearmiss.md
 soplan released 'joharness.sh, .agents/harness/selftest'
 sopush "a plan scoped to paths the boundary released"
 out="$(soq unsupervised)"
+# The row first, for the same reason as the near-miss above.
+expect "the released plan has a row to read" "docs/plans/released.md" "$out"
 refute "a released path no longer marks the plan" "SUPERVISED ONLY" "$out"
 
 # A directory UNDER a protocol path is protocol text: the boundary is a tree,
@@ -247,11 +251,28 @@ expect "a trailing slash does not hide a protocol tree" \
 # the same ref classified one way beside an untracked joharness.conf (a core
 # path) and the other way without it. A queue answer that moves with a file nobody
 # committed is not an answer about the queue.
+#
+# The fixture has to hold a core file the glob WOULD reach, or this proves
+# nothing: since 2026-10-08 joharness.sh is released, so `joharness.*`
+# expanding to joharness.sh alone classifies clear with or without `set -f`.
+# A TRACKED joharness.conf beside it makes an expansion read
+# `joharness.conf, joharness.sh` — one core path, marked. Measured
+# 2026-10-08: with `set -f` deleted from a scratch copy of the hook, this
+# case reds; with it, green.
 fixture_rm "$sowork" "drop the trailing-slash plan" docs/plans/trailing.md
+printf '# fixture: a core file for a glob to reach\n' >"${sowork}/joharness.conf"
 soplan globscope 'joharness.*'
-sopush "a plan whose scope is a glob"
+sopush "a plan whose scope is a glob, beside a tracked core file"
 out="$(soq unsupervised)"
+globscope_row="$(printf '%s\n' "$out" | grep 'docs/plans/globscope\.md' || :)"
+expect "the glob plan has a row to read" "docs/plans/globscope.md" \
+  "$globscope_row"
 refute "a glob is not expanded into protocol paths" "SUPERVISED ONLY" "$out"
+# The checkout half of the same fault: the core file NOT committed, only on
+# disk. Untracked, it is exactly the file nobody committed that the answer
+# must not move with.
+fixture_rm "$sowork" "untrack the core file" joharness.conf
+git -C "$sowork" push -q origin main
 : >"${sowork}/joharness.conf"
 out="$(soq unsupervised)"
 refute "and an untracked file beside it changes nothing" \
