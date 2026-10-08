@@ -85,6 +85,36 @@ elif [ -s "${ROOT}/.claude/agents/verifier.md" ]; then
 else
   fail "the file the rule names exists"
 fi
+
+# What the verifier cannot see (issue #267). It has Read, Grep, Glob and Bash
+# and no control-plane call, and a research node once recorded it re-sampling
+# live sessions it could not reach. The two files that must agree on WHICH
+# claims that affects are read by different people — the reviewer reads one,
+# the node author the other — so the boundary is one literal, pinned in the
+# first file and then looked up in the second by what the first one held.
+# Needle first: an empty match would pass over anything. Same canonical guard
+# as above: a consumer receives these files but does not own them.
+if [ ! -f "${ROOT}/joharness.conf" ] ||
+   ! grep -q '^JOHARNESS_CANONICAL=1' "${ROOT}/joharness.conf" 2>/dev/null; then
+  skip "the verifier names what it cannot see" "consumer checkout"
+else
+  vf_doc="$(cat "${ROOT}/.claude/agents/verifier.md" 2>/dev/null)"
+  rd_doc="$(cat "${ROOT}/.agents/docs/research/README.md" 2>/dev/null)"
+  expect "the verifier names the boundary of its reach" \
+    "outside this checkout" "$vf_doc"
+  expect "and still reports such a claim, marked, never skips it" \
+    "Mark it UNVERIFIED, naming the reading you could not take." "$vf_doc"
+  vf_tok="$(printf '%s\n' "$vf_doc" | grep -o 'outside this checkout' | head -1)"
+  if [ -n "$vf_tok" ]; then
+    expect "the research README names the SAME boundary" "$vf_tok" "$rd_doc"
+  else
+    fail "the research README names the SAME boundary (no boundary found in verifier.md to compare)"
+  fi
+  expect "a node needing such a reading names its second context in Method" \
+    "its second context UP FRONT, in \`## Method\`, not at verification time." "$rd_doc"
+  expect "and both honest answers" \
+    "the operator takes the reading, or a session tooled for" "$rd_doc"
+fi
 expect "and says what makes it worth spawning" "it did not" "$out"
 expect "and how its findings are marked" "returns (verifier)" "$out"
 expect "standalone review runs with the gate off" "ci does not check" "$out"
