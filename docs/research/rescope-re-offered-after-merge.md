@@ -48,8 +48,9 @@ re-derivation of the surveyor role.
   must still be readable when the surveyor branch is gone. Candidates: the
   held plan's `scope:` line (did a surveyor narrow it), the merged surveyor's
   retired workstream file in history, or a marker on the plan. Settled by one
-  that a counted read can reach — never a written status field, which is the
-  stored-copy failure `.agents/docs/graph.md` forbids.
+  that a counted read can reach — never a written status field, which
+  `.agents/docs/graph.md` forbids in its own words: *"Derived state = second
+  copy, rots"*.
 - **Whether a genuinely NEW holder set must still get its own surveyor.** This
   is the invariant the current key protects, and it is in the code with the
   round that bought it. Any fix keyed on the plan has to answer what happens

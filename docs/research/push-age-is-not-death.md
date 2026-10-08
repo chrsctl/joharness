@@ -166,6 +166,23 @@ fleet-wide question, from the view the row is built in:
   has no ledger, no session record, and one number — and it is the only place in
   the harness that recommends a respawn from a single reading.
 
+- **This question has been half-answered once, and the answer was WITHDRAWN on
+  review. Read that before proposing a cost test.** `cb0028e`,
+  `.agents/docs/orchestrated.md`, under the knob table: an earlier draft of
+  that very paragraph *"read the ambiguous row as a slow writer, built a
+  cadence spread on it, and graduated a sentence licensing a kill verdict on a
+  13-minute frozen pair. The reviewer found the frozen usage counters and that
+  reading did not survive them."* The file's own instruction follows —
+  *"Read the node in history before adding a knob here"*:
+
+      git log --diff-filter=D -p -- docs/research/liveness-in-a-long-turn.md
+
+  That node closed on the narrower question of what the health pass may KEY ON,
+  and its answer is the table's current row. So a session taking THIS node and
+  reaching for a frozen-cost threshold is walking a path that has already been
+  walked and reverted at a 13-minute pair — the four windows in this file run
+  19 to 31 minutes, which is the same mistake one step larger.
+
 - **Reported, not re-measured here: three live managers read as 434h stalls.**
   On 2026-10-05, an orchestrator session itself suspended from ~2026-09-17
   20:30Z to 2026-10-05 22:45Z resumed and ran the scheduler: all three managers
@@ -230,6 +247,14 @@ Three things whoever takes it should carry in:
 - **Option 3 is one `git log` and the ref is already in hand.** It is the only
   option that turns "this manager stopped" into "everything stopped" without
   leaving the git view, which is the property the issue argues for throughout.
+
+And one thing this node cannot have: an independently verified control-plane
+half. `.claude/agents/verifier.md` declares `tools: Read, Grep, Glob, Bash`
+and has no control-plane call, so the five-signal measurement above can be
+re-read but not re-sampled here — the defect `docs/plans/verifier-cannot-read-the-plane.md`
+(issue #267) exists to fix. Until that plan lands, every fleet number in this
+file is WEAK by this repo's own vocabulary, and a session that writes a verdict
+on it anyway is repeating the withdrawal recorded two findings up.
 
 Note for a parallel wave: a research node has no `scope:`, so the overlap guard
 cannot see that this node and `rescope-re-offered-after-merge` would both land
