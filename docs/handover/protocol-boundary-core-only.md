@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_013Bg636JRhWFWgWW26RWefB
 agent: opus
 updated: 2026-10-08
-next: Collect worker selftest re-pins, full selftest, ci, verify, verifier
+next: Record verifier findings, fix, retire, PR, merge
 ---
 
 ## Goal
@@ -38,6 +38,15 @@ said "Okay" in session) — the last plan that needs it.
 - Fallback in handover-guard.sh (`trees=".agents/harness"` when the
   entrypoint cannot list) left as is: it serves OLD entrypoints, whose own
   boundary did include that tree.
+
+- Measured 2026-10-08 on this branch: `bash .agents/harness/selftest.sh` →
+  2311 passed, 0 failed; `./joharness.sh ci` → ci: pass; `verify` first run
+  5 passed 1 failed (which check unknown — only the tail was kept), rerun
+  6 passed 0 failed. Diff touches no `.agents/env/`; recorded, not explained.
+- Revert test: main's joharness.sh + guard/hook/context restored, the
+  re-pinned topics go red (handover-guard 22, review 7,
+  queue-context-supervised-only 10, orchestrated 16, autonomy-mode 3
+  failed); fix restored.
 
 ## Rejected
 
