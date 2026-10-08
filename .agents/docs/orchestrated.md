@@ -440,8 +440,8 @@ cap of 4 costs in reconciles under an orchestrator is the run's to say.
 ## Bounds, unchanged, plus one path
 
 Every bound in [`unsupervised.md`](unsupervised.md) holds through
-`unattended()`: protocol text off limits, step 7 conditions for every
-merge, no requirement written by a session, nothing invented at the edge,
+`unattended()`: the core paths off limits (protocol text released
+2026-10-08), step 7 conditions for every merge, nothing invented at the edge,
 the prompt routes and the repository authorises. The orchestrator adds
 its own: it merges nothing, edits nothing but a killed manager's
 workstream file, picks no tier, and takes no item itself.

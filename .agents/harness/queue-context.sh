@@ -516,9 +516,9 @@ rows_raw="$(
       # boundary. One string for both would erase that at the only place a
       # reader sees it.
       case "$qc_class" in
-        only)    scope_note=", SUPERVISED ONLY: scope is all protocol text"
+        only)    scope_note=", SUPERVISED ONLY: scope is all core paths"
                  scope_derank=1 ;;
-        some)    scope_note=", SUPERVISED ONLY: scope includes protocol text"
+        some)    scope_note=", SUPERVISED ONLY: scope includes a core path"
                  scope_derank=1 ;;
         unknown) scope_note=", scope undeclared: protocol boundary unchecked" ;;
       esac

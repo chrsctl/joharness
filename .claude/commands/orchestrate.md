@@ -54,7 +54,7 @@ and leave it untouched.
    Anything else = stop, say so. "A human invoked this" is not something
    you can check; a prompt cannot be its own evidence. A measured run flips
    the mode through a pull request first, in the repo being run — the conf
-   is protocol text and a session that rewrites its own mode line
+   is a core path and a session that rewrites its own mode line
    authorises itself
    ([`../../.agents/docs/orchestrated.md`](../../.agents/docs/orchestrated.md),
    Bounds).

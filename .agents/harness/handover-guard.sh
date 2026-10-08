@@ -225,7 +225,7 @@ EOF
     # escaping and a file name is repo-controlled input; widening the
     # boundary widens what that input could be, so this matters more now,
     # not less. Digits cannot close a JSON string.
-    add_fact "${mode} mode, but this branch touches ${harness_touched} file(s) of protocol text (.agents/docs/unsupervised.md, Bounds) — revert them"
+    add_fact "${mode} mode, but this branch touches ${harness_touched} core file(s) (.agents/docs/unsupervised.md, Bounds) — revert them"
   fi
 fi
 

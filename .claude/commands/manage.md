@@ -142,7 +142,8 @@ the corrected `scope:` and the plans wave in parallel.
   `status: blocked` in the same push — a blocked item is never
   respawned.
 - Stuck on a decision only a human takes (money, credentials, product
-  direction, interface, protocol text, conflict that does not resolve
+  direction, interface, a core path (`./joharness.sh protocol-paths`),
+  conflict that does not resolve
   clean): `status: blocked`, `next:` = the question, push, exit. Never
   wait for an answer in the session — the orchestrator reports it and
   never respawns a blocked item.
