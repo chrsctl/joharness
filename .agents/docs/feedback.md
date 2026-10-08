@@ -396,12 +396,24 @@ already in the repository that owns its fix; routing it would mean canonical
 filing reports against itself, which is the same reason `upgrade` refuses to
 run here.
 
+### 5. Stage 4 is the sync, not the merge
+
+A fix merged in canonical has not prevented anything in the consumer that
+found it. It prevents on the sync that lands it, which is the one stage of the
+loop nobody in either repo is watching — the consumer's session has moved on
+and canonical never sees the consumer.
+
+Close the loop by name: when the sync lands, check the thing that bit you is
+gone. That session ran `./joharness.sh finish` on the very sync branch carrying
+`finish`, which is the cheapest possible version of it.
+
 ### Where a consumer's OWN findings go
 
 Issue #258's third direction asks for a destination for the findings `upstream`
 calls unplaceable — the ones about the consumer's own product — and calls it
 "the largest change and the one that fits the existing design best". Settled by
-counting instead of reasoning. **The bucket is not what the issue describes.**
+counting. **Do not build it**, and the reason is structural rather than a
+headcount.
 
 Canonical cannot run the code path that classifies: `cmd_upstream` returns early
 on `JOHARNESS_CANONICAL=1`. So the sweep stripped that one line into a scratch
@@ -416,14 +428,18 @@ git log --first-parent --format='%H %P%x09%s' --merges origin/main |
   done
 ```
 
-2005 findings over 224 edges carrying a workstream file — the same two totals
-`./joharness.sh feedback` prints from its own reader, which is the cross-check
-that the sweep parsed every bucket and dropped none. Both totals climb with
-every merge, this page's own header rule: the command re-counts, the number
-below was true at this paragraph's commit. What the answer rests on is the
-third row, and that row has not moved across two sweeps a merge apart.
+2005 findings over 224 edges carrying a workstream file. Cross-check against the
+other reader, and **the flag is not optional**:
 
+```bash
+JOHARNESS_FEEDBACK_EDGES=0 ./joharness.sh feedback   # 273 edges, 224 with a file, 2005 findings
+```
 
+Without `=0` that command reads only the newest `FB_LIMIT` edges (default 50)
+and prints `530 findings` over `44 carrying a workstream file` — and 530 is the
+same integer as the unplaceable row below, so the plain command reads as
+confirming a row it never counted. Both totals also climb with every merge; this
+page's header rule applies to them as to every other number here.
 
 | bucket | findings | reader today |
 | --- | --- | --- |
@@ -432,80 +448,120 @@ third row, and that row has not moved across two sweeps a merge apart.
 | unplaceable | 530 | the question |
 
 So the question is those 530. Split by whether the finding's own text carries a
-path token at all, `upstream_text_paths` re-run on each bullet the sweep
-printed:
+path token at all, `upstream_text_paths` re-run on each bullet the sweep printed:
 
 - **379 carry none.** Exactly the shape the second limit above predicts: a
   `wontfix` or a no-change verdict, recorded in a commit touching only the
   workstream file. It has no path BY CONSTRUCTION. A path-keyed place cannot
   hold it, so a destination for these is not a destination — it is a different
   key, and nobody has proposed one.
-- **151 carry one**, under a heading that says they carry none. Of those, 44
-  name a file canonical owns in a form the ownership predicate rejects. 9 name
-  a node that retires (`docs/plans/`, `docs/handover/`, `docs/research/`,
-  `docs/product/`), a queue-directory or root `README.md`, or a file in another
-  repository — one cites gastown's. And **0 name a durable consumer-owned
-  product file.**
+- **151 carry one**, under a heading that says they carry none.
 
-Zero. On 2005 findings there is not one consumer product finding without a
-reader. #258's premise — that the machinery "lacks a destination" — does not
-survive the count: where a finding carries a path the destination already exists
-and is already automatic, and where it carries none the destination is
-unreachable by the only key there is.
+Those 151 partition exactly, by the strongest resolution that succeeds against
+`git ls-tree -r --name-only origin/main` plus the paths history ever added.
+**The rule is stated because the numbers mean nothing without it** — an
+unrecorded method is a failed file (`.agents/docs/research/README.md`):
 
-**So the answer is neither a place nor a reader. It is placement.** Both limits
-printed above are weaker than the code they describe, and both are measurable:
+| | resolution | findings |
+| --- | --- | --- |
+| A | the token IS a tree-or-history path, and canonical owns none of them | 8 |
+| B | canonical-owned after stripping a leading `./`, or by a basename matching exactly one tree path | 44 |
+| C | canonical-owned by a basename matching SEVERAL tree paths, every one of them canonical's | 13 |
+| D | nothing resolves | 86 |
+
+`8 + 44 + 13 + 86 = 151`. **B and C are the defect: 57 findings about
+canonical's own files, printed to the operator as naming no path and never
+entering a filed report.** A bare `README.md` is in neither — the root
+`README.md` is not canonical-owned, so that basename is genuinely ambiguous and
+belongs in D. That is the same trap as mistaking `docs/handover/README.md` for
+`.agents/docs/handover/README.md` by suffix, which is how an earlier count of
+this got 45 instead of 44.
+
+Of A's 8, every one names a node that retires (`docs/plans/`, `docs/handover/`,
+`docs/research/`, `docs/product/`), a queue-directory `README.md`, or a file in
+another repository — one cites gastown's. **None names a durable
+consumer-owned product file.**
+
+**That zero is not the argument, and on this corpus it could not have been
+anything else.** `upstream_harness_path` rejects 20 of this tree's 142 tracked
+files; strip the retiring queue nodes and the durable remainder is six —
+`.github/workflows/ci.yml`, `.github/workflows/update.yml`, `.gitignore`,
+`LICENSE`, `README.md`, `joharness.conf`. Not one is product code, because
+**canonical has no product code to find a finding in.** A real consumer's
+`src/**` and `tests/**` are all durable and all rejected, so the measured zero
+says nothing whatever about the population #258 is actually about. Quote it as
+illustration or not at all.
+
+What does carry the answer is a dichotomy the sweep only illustrates: **a
+consumer's product finding either has a fix path or it does not.** With one, it
+lands in row 2 and `cmd_feedback` already serves it, keyed on that path, through
+a PreToolUse hook that fires before the next edit to the file — automatic
+already, and the 119 in row 2 are that path exercised. Without one, it is a
+`wontfix` or a no-change verdict with nothing to key on, and a path-keyed
+destination cannot reach it however it is built. There is no third case, so
+there is no gap for a new destination to fill. That is what kills #258's third
+direction, and it would hold at any headcount.
+
+**So the answer is neither a place nor a reader. It is placement**, and one
+defect each in labelling and in ownership:
 
 1. **The unplaceable heading is false about 151 of its 530 members.** The middle
    branch is `[ -n "$paths" ] && [ "$from_text" -eq 0 ]`, so a finding placed
-   from its own TEXT that lands on no canonical path cannot reach "this repo's
-   own" — it falls through to the `else` and prints under *no fix path, and no
-   path in the text*. The `from_text` flag that would say otherwise is built
-   into the kept bullet and nowhere else. Instance: PR315's `r8`, printed as
-   naming no path, whose text yields `precision/recall`.
-2. **44 findings about canonical's own files never reach the report.**
+   from its own TEXT cannot reach "this repo's own" and falls to the `else`,
+   printing under *no fix path, and no path in the text*. The ROUTING there is
+   deliberate and the code says so — "that is not a finding about this repo's
+   own files, it is a finding nothing placed" — so the defect is the sentence,
+   not the branch: it asserts of 151 findings something their own text refutes.
+   `.claude/commands/upstream-report.md` repeats it ("listed with no path at
+   all"), so the reporter reads it too. Instance: PR315's `r8`, printed as
+   naming no path, whose text yields `precision/recall` — which places nothing,
+   which is the point. The finding is not misrouted; the label is a lie.
+2. **57 findings about canonical's own files never reach the report.**
    `upstream_harness_path` matches `joharness.sh` and not `./joharness.sh` —
    the form every instruction file in this repo writes the command in — which
    is 12 of the 44 by itself. The rest name a harness file by basename:
    `selftest.sh` → `.agents/harness/selftest.sh`, `janitor.md` →
    `.claude/commands/janitor.md`, `review.sh`, `drain.md`,
-   `agent-selection.md`, `graph.md`. The predicate's own comment says a false
-   negative loses the finding entirely. This is 44 of them, lost in the one
-   direction that puts them out of canonical's hearing.
+   `agent-selection.md`, `graph.md`, and C's `handover-context.sh`,
+   `queue-context.sh`, `TEMPLATE.md`, each matching several paths that are all
+   canonical's. The predicate's own comment says the doubtful cases are in
+   because "a false negative loses the finding entirely". These 57 are that
+   false negative, in the one direction that puts them out of canonical's
+   hearing.
 
 The trap for whoever fixes the second: **not** by narrowing
-`upstream_text_paths`. 142 of the 151 resolve to nothing real — `origin/main`
-20 times, a bare `/` 8, `precision/recall`, `before/after` — and a tokenizer
-tightened to drop those drops the 44 with them. The predicate that decides
-OWNERSHIP is the wrong one, not the one that finds tokens.
+`upstream_text_paths`. D's 86 are the junk it would be aimed at — `origin/main`
+20 times, a bare `/` 8, `precision/recall`, `before/after` — and no tokenizer
+can tell those from `selftest.sh` or `TEMPLATE.md`, which are the same shape.
+The predicate that decides OWNERSHIP is the wrong one, not the one that finds
+tokens. And ownership is decidable where the path is not: several matches that
+are ALL canonical's is not an ambiguous verdict, which is C's whole content.
 
-What this count is not: canonical's history read through a stripped conf, so
-"consumer-owned" here means the paths `upstream_harness_path` rejects in THIS
-tree — `docs/**` and `.github/**`. The shape generalizes (a fix path routes to
-`feedback`, a textless finding routes nowhere); 119 is this repo's number and a
-consumer recounts it on its own edges with the command above.
+Grading the claims, as `.agents/docs/research/README.md` requires of a closure:
 
-And the third thing the question asked — whether any of it should be automatic
-— was already answered elsewhere and stays answered. The path-keyed bucket is
-served automatically by the PreToolUse hook. `JOHARNESS_UPSTREAM_FEEDBACK` stays
-off by default because it opens pull requests in a repository the child does not
-own, which is the human's call and not an implementer's.
+- **GROUNDED** — every count above, re-derivable from the two commands quoted
+  and the partition rule stated with the table. A second context re-counted
+  273 / 224 / 2005, the three buckets, the 379 / 151 split, the 44 and the 12.
+- **GROUNDED** — the dichotomy that carries the answer. It rests on
+  `cmd_upstream`'s branch structure and `cmd_feedback`'s key, both read, not on
+  any headcount.
+- **GROUNDED** — defect 2 at 57, and defect 1 as a labelling defect.
+- **UNGROUNDED, and it was load-bearing when first written** — "zero consumer
+  product findings, so nothing is homeless". The zero reproduces and proves
+  nothing: canonical owns no product code, so the corpus could not have held a
+  counter-example. Found by the verifier pass, not by the session that counted
+  it. The conclusion was re-derived from the dichotomy instead, which is why it
+  still stands.
+- **UNGROUNDED** — "142 of the 151 resolve to nothing real", as first written.
+  It counted the 44 as unreal while the sentence after it depended on their
+  being real, so it refuted itself; the figure is D, 86. Same pass.
 
-The two defects are in `joharness.sh`, which `./joharness.sh protocol-paths`
-names, so they are `docs/plans/upstream-placement-defects.md` and SUPERVISED
-ONLY. Nothing is blocked on them: the misplacement costs canonical 44 findings
-it has not been hearing, and has never cost a consumer a reader it had.
+The two defects are in `joharness.sh` and `.claude/commands/upstream-report.md`,
+both named by `./joharness.sh protocol-paths`, so they are
+`docs/plans/upstream-placement-defects.md` and SUPERVISED ONLY. Nothing is
+blocked on them: the misplacement costs canonical 57 findings it has not been
+hearing, and has never cost a consumer a reader it had.
 
-### 5. Stage 4 is the sync, not the merge
-
-A fix merged in canonical has not prevented anything in the consumer that
-found it. It prevents on the sync that lands it, which is the one stage of the
-loop nobody in either repo is watching — the consumer's session has moved on
-and canonical never sees the consumer.
-
-Close the loop by name: when the sync lands, check the thing that bit you is
-gone. That session ran `./joharness.sh finish` on the very sync branch carrying
-`finish`, which is the cheapest possible version of it.
 
 ## What this cannot see
 
