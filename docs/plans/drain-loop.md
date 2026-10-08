@@ -5,7 +5,7 @@ agent: opus
 effort: medium
 needs: none
 requirement: none
-scope: joharness.conf, .agents/scripts/bootstrap-consumer.sh, .agents/harness/selftest/bootstrap-consumer.sh
+scope: joharness.conf, .github/workflows/ci.yml, .agents/scripts/bootstrap-consumer.sh, .agents/harness/selftest/bootstrap-consumer.sh
 ---
 
 ## Goal
@@ -24,6 +24,9 @@ human chose the config route over rewriting `/drain`.
   `JOHARNESS_MAX_MANAGERS`: joharness only (human, 2026-10-07). Sync never
   copies the conf; a whole clone did.
 - `.agents/harness/selftest/bootstrap-consumer.sh` — pins that strip.
+- `.github/workflows/ci.yml` — lint step exports supervised when the
+  canonical marker is present, so human PRs here stay green; consumers lack
+  the marker and keep their own mode.
 
 ## Out of scope
 

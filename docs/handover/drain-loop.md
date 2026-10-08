@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01Vaf3LtqeZuPLpVyeSRpngQ
 agent: opus
 updated: 2026-10-07
-next: Human decides r12-r14 (merge as is, or scope orchestrated to the loop session only); then retire + PR + merge
+next: Retire commit, PR, merge (step 7)
 ---
 
 ## Goal
@@ -32,6 +32,8 @@ parallelity 1 … still cheap orchestrator." Chosen route: orchestrated mode at
   rewrites `JOHARNESS_MODE` (`write_decided_keys`). Test failed without the
   strip, passed with it (`selftest.sh`, 2026-10-07: 2215/1 vs 2216/0).
 
+- Merge as is (human, 2026-10-08) over opt-in per session and over dropping it.
+
 ## Rejected
 
 - Inline `/drain` loop (c03ac7f, reverted): human wanted a cheap orchestrator
@@ -53,11 +55,11 @@ parallelity 1 … still cheap orchestrator." Chosen route: orchestrated mode at
 - r9: (verifier) c03ac7f landed without its workstream-file update (fixed — this commit carries both)
 - r10: (verifier) AGENTS.md silent for sessions not started via /drain (wontfix — reverted)
 - r11: (verifier) drain.md step 6 has no not-merged-but-done route (wontfix — reverted)
-- r12: (verifier) orchestrated conf makes GitHub ci red on any PR adding docs/product/*.md — ci.yml sets no JOHARNESS_MODE, lint_requirement_writes reads unattended (open — human decides)
-- r13: (verifier) stop guard blocks every session editing protocol text unless JOHARNESS_MODE=supervised is exported — nearly all harness work here (open — human decides)
-- r14: (verifier) the revert PR named in the conf comment is itself protocol text, blocked the same way; the override is written nowhere (open)
-- r15: (verifier) 3 of 4 queued plans SUPERVISED ONLY — the loop never builds them, DRAINED prints over them (open — cost told to human)
-- r16: (verifier) parallelity 1 is 1 manager; orchestrator, curator, janitor run beyond the cap (open — cost told to human)
+- r12: (verifier) orchestrated conf makes GitHub ci red on any PR adding docs/product/*.md — ci.yml sets no JOHARNESS_MODE, lint_requirement_writes reads unattended (fixed — ci.yml lint step exports supervised when the canonical marker is present; probe requirement: orchestrated ci FAIL, override ci pass, 2026-10-08)
+- r13: (verifier) stop guard blocks every session editing protocol text unless JOHARNESS_MODE=supervised is exported — nearly all harness work here (wontfix — human accepted 2026-10-08; override documented in joharness.conf)
+- r14: (verifier) the revert PR named in the conf comment is itself protocol text, blocked the same way; the override is written nowhere (fixed — joharness.conf comment names it)
+- r15: (verifier) 3 of 4 queued plans SUPERVISED ONLY — the loop never builds them, DRAINED prints over them (wontfix — told to human, accepted)
+- r16: (verifier) parallelity 1 is 1 manager; orchestrator, curator, janitor run beyond the cap (wontfix — told to human, accepted)
 - r17: (verifier) Where to look still names drain.md (fixed)
 
 ## Blockers
