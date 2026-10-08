@@ -378,8 +378,12 @@ expect "and told to be the human's" "BLOCKED: the human's, holds no slot" "$out"
 dspplan behindbeta 'src/b/deep'
 dsppush "a plan overlapping the BLOCKED manager's scope"
 out="$(dsp)"
+# Keyed on the ROW and the annotation's own words, not on what sits beside
+# them: the blocked flag gained a park age after `holds no slot`, and a
+# refute spelled `holds no slot  holds ` then passed whatever the code did
+# (/code-review, 2026-10-08).
 refute "a blocked row advertises no hold cost, its holds being released" \
-  "holds no slot  holds " "$out"
+  "plan(s) out of the queue" "$(printf '%s\n' "$out" | grep 'mgr-beta  blocked')"
 expect "and the plan behind it is FREE, with the reconcile named" \
   "behindbeta.md (agent: sonnet)  wave 1  overlaps beta on src/b (claimed on mgr-beta) — that branch is BLOCKED on a human" "$out"
 fixture_rm "$dspwork" "drop the plan behind beta" docs/plans/behindbeta.md
@@ -2136,3 +2140,237 @@ if [ -n "$agnext" ]; then
 else
   fail "the fixture has no free plan, so the spawn list cannot be asserted"
 fi
+
+# --- how long a block has stood (issue #254) --------------------------------
+# A parked row read `BLOCKED: the human's, holds no slot` at ten minutes and at
+# six days alike, and one sat 141h unseen. The row now carries the BLOCK's age
+# — the commit that last set the parked status in that workstream file on that
+# ref — not the push's. Its own fixture, so the branches and plans it adds move
+# no count the cases above assert. The commit messages never quote the status:
+# the age query is pinned to the one file, and prose must not be what it finds.
+blkwork="${TMP}/blockagework"
+blkorigin="${TMP}/blockageorigin.git"
+git init -q --bare "$blkorigin"
+git init -q "$blkwork"
+git -C "$blkwork" symbolic-ref HEAD refs/heads/main
+mkdir -p "${blkwork}/docs/plans" "${blkwork}/docs/handover" \
+  "${blkwork}/.agents/harness" "${blkwork}/.agents/env/none"
+cp "${ROOT}/joharness.sh" "${blkwork}/joharness.sh"
+cp "${ROOT}/.agents/harness/queue-context.sh" \
+   "${ROOT}/.agents/harness/handover-context.sh" "${blkwork}/.agents/harness/"
+printf '# none\n' >"${blkwork}/.agents/env/none/AGENTS.md"
+blkconf="${blkwork}/joharness.conf"
+printf 'JOHARNESS_ENV=none\nJOHARNESS_MODE=orchestrated\n' >"$blkconf"
+for p in oldpark repark live replayed renamed respaced pasted noted born prose merged; do
+  printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: high\n---\n\n## Goal\nFixture.\n' \
+    "$p" >"${blkwork}/docs/plans/${p}.md"
+done
+commit_all "$blkwork" "base and three plans"
+git -C "$blkwork" remote add origin "$blkorigin"
+git -C "$blkwork" push -qu origin main
+blk() { ( cd "$blkwork" && JOHARNESS_CONF="$blkconf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 "$@" ./joharness.sh dispatch 2>&1 ); }
+# <stem> <status> <body line>: the workstream file a manager would write.
+blkws() {
+  mkdir -p "${blkwork}/docs/handover"
+  printf -- '---\nworkstream: %s\nstatus: %s\nbranch: mgr-%s\nplan: %s\nagent: sonnet\nupdated: 2026-01-01\n---\n\n## Goal\n%s\n' \
+    "$1" "$2" "$1" "$1" "$3" >"${blkwork}/docs/handover/${1}.md"
+}
+# <hours ago> <message>: a commit at that time. The dates ride on the one git
+# command as prefixes, so a backdated date cannot leak into the fixtures built
+# after it.
+blkat() {
+  local t=$(( $(date +%s) - $1 * 3600 ))
+  git -C "$blkwork" add -A
+  GIT_AUTHOR_DATE="@${t} +0000" GIT_COMMITTER_DATE="@${t} +0000" \
+    git -C "$blkwork" commit -qm "$2"
+}
+
+# Parked 200h ago, then pushed NOW: the block's age and the push's differ, and
+# the row must carry the block's. Printing the push age is the cheap wrong
+# answer, and it prints a plausible number.
+git -C "$blkwork" checkout -qb mgr-oldpark
+blkws oldpark in-progress "Claimed."
+blkat 300 "claim oldpark"
+blkws oldpark blocked "Claimed."
+blkat 200 "hand oldpark to a human"
+# The push after the hand-off adds PROSE that quotes the status. A pickaxe
+# counts it as a change; only the whole frontmatter line is a park, so this
+# must not move the age.
+blkws oldpark blocked "Claimed. The vendor's status: blocked until Friday."
+commit_all "$blkwork" "a push after the hand-off"
+git -C "$blkwork" push -qu origin mgr-oldpark
+git -C "$blkwork" checkout -q main
+
+# Parked, unparked, parked again. `-S` read at either end gets this wrong: its
+# newest match is the unpark, its oldest the first block. The answer is the
+# SECOND block, 100h.
+git -C "$blkwork" checkout -qb mgr-repark
+blkws repark in-progress "Claimed."
+blkat 300 "claim repark"
+blkws repark blocked "Claimed."
+blkat 250 "hand repark to a human"
+blkws repark in-progress "Claimed."
+blkat 200 "the human answered; back to work"
+blkws repark blocked "Claimed."
+blkat 100 "hand repark to a human again"
+blkws repark blocked "Claimed. A note added since."
+commit_all "$blkwork" "a push after the second hand-off"
+git -C "$blkwork" push -qu origin mgr-repark
+git -C "$blkwork" checkout -q main
+
+# Each history below printed a confident, too-young age on the first build
+# (verifier and /code-review, 2026-10-08). A park is a VALUE TRANSITION,
+# dated by its author: every one of these must still read 200h.
+# <branch-stem> parks 200h ago in a plain way, then the named thing happens.
+blkpark() {
+  git -C "$blkwork" checkout -qb "mgr-$1"
+  blkws "$1" in-progress "Claimed."
+  blkat 300 "claim $1"
+  blkws "$1" blocked "Claimed."
+  blkat 200 "hand $1 to a human"
+}
+blkdone() {
+  git -C "$blkwork" push -qu origin "mgr-$1"
+  git -C "$blkwork" checkout -q main
+}
+# A rebase or amend rewrites the COMMITTER date and keeps the author's.
+git -C "$blkwork" checkout -qb mgr-replayed
+blkws replayed in-progress "Claimed."
+blkat 300 "claim replayed"
+blkws replayed blocked "Claimed."
+git -C "$blkwork" add -A
+blkt=$(( $(date +%s) - 200 * 3600 ))
+GIT_AUTHOR_DATE="@${blkt} +0000" git -C "$blkwork" commit -qm "hand replayed over, replayed since"
+blkdone replayed
+# A rename: the new path's first commit CREATES every line.
+blkpark renamed
+git -C "$blkwork" mv docs/handover/renamed.md docs/handover/renamed-now.md
+blkat 10 "rename the record"
+blkdone renamed
+# A whitespace edit of a line that already held the parked value.
+blkpark respaced
+sed -i 's/^status: blocked$/status:blocked/' "${blkwork}/docs/handover/respaced.md"
+blkat 10 "tidy the frontmatter"
+blkdone respaced
+# A bare frontmatter-looking line pasted into the body.
+blkpark pasted
+printf 'status: blocked\n' >>"${blkwork}/docs/handover/pasted.md"
+blkat 10 "paste a line into the body"
+blkdone pasted
+# An inline comment, which the frontmatter reader strips: the park is read
+# from the value, so this one MUST be found — before, it read as unknown.
+git -C "$blkwork" checkout -qb mgr-noted
+blkws noted in-progress "Claimed."
+blkat 300 "claim noted"
+blkws noted "blocked  # waiting on the vendor" "Claimed."
+blkat 200 "hand noted to a human"
+blkdone noted
+# Born parked: the file is CREATED with the status, and that commit is the
+# oldest in range — the creation rule and the walk's last-commit judgement
+# both have to hold for this to read 200h rather than unknown.
+git -C "$blkwork" checkout -qb mgr-born
+blkws born blocked "Claimed."
+blkat 200 "claim born, already handed to a human"
+blkdone born
+# A status line in the BODY changes to the parked value on a file already
+# parked: prose, not a park (verifier round 2). Only frontmatter counts.
+git -C "$blkwork" checkout -qb mgr-prose
+blkws prose in-progress "status: draft"
+blkat 300 "claim prose"
+blkws prose blocked "status: draft"
+blkat 200 "hand prose to a human"
+blkws prose blocked "status: blocked"
+blkat 10 "reword a line of the body"
+blkdone prose
+# Parked on a side branch and MERGED in: dated by the merge, when the park
+# reached this branch. The merge's own diff carries the transition, which
+# only `-m` shows; without it the row reads unknown.
+git -C "$blkwork" checkout -qb mgr-merged
+blkws merged in-progress "Claimed."
+blkat 300 "claim merged"
+git -C "$blkwork" checkout -qb side-merged
+blkws merged blocked "Claimed."
+blkat 250 "hand merged to a human, on a side branch"
+git -C "$blkwork" checkout -q mgr-merged
+blkt=$(( $(date +%s) - 200 * 3600 ))
+GIT_AUTHOR_DATE="@${blkt} +0000" GIT_COMMITTER_DATE="@${blkt} +0000" \
+  git -C "$blkwork" merge -q --no-ff -m "bring the hand-off in" side-merged
+blkdone merged
+
+# A row that is not parked, as the control for the refute below.
+git -C "$blkwork" checkout -qb mgr-live
+blkws live in-progress "Working."
+commit_all "$blkwork" "claim live"
+git -C "$blkwork" push -qu origin mgr-live
+git -C "$blkwork" checkout -q main
+
+out="$(blk)"
+blkold="$(printf '%s\n' "$out" | grep 'mgr-oldpark')"
+expect "a parked row carries the block's age" "parked 200h ago" "$blkold"
+expect "and its push age beside it is the push's, not the block's" \
+  "pushed 0m" "$blkold"
+refute "so the age printed is not the push's" "parked 0m ago" "$blkold"
+blkre="$(printf '%s\n' "$out" | grep 'mgr-repark')"
+expect "parked, unparked and parked again reads the SECOND block" \
+  "parked 100h ago" "$blkre"
+refute "not the first block" "parked 250h ago" "$blkre"
+refute "nor the unpark" "parked 200h ago" "$blkre"
+for blkst in replayed renamed respaced pasted noted born prose merged; do
+  expect "${blkst}: still the 200h park" "parked 200h ago" \
+    "$(printf '%s\n' "$out" | grep "mgr-${blkst}  blocked")"
+done
+blklive="$(printf '%s\n' "$out" | grep 'mgr-live')"
+expect "the live row is in the output, so the refute below reads something" \
+  "docs/plans/live.md  mgr-live  in-progress" "$blklive"
+refute "a row that is not parked gains no age" "parked" "$blklive"
+
+# One git call per parked row, none for any other. `perf` does not track
+# dispatch, so the bound is counted here: a shim on PATH logs every git call
+# carrying the age query, and the count must equal the parked rows.
+blkshim="${TMP}/blockageshim"
+blklog="${TMP}/blockageshim.log"
+mkdir -p "$blkshim"
+: >"$blklog"
+blkgit="$(command -v git)"
+cat >"${blkshim}/git" <<SHIM
+#!/bin/sh
+case "\$*" in *"-G^status"*) printf '%s\n' "\$*" >>"${blklog}" ;; esac
+exec "${blkgit}" "\$@"
+SHIM
+chmod +x "${blkshim}/git"
+out="$(blk env PATH="${blkshim}:${PATH}")"
+blkrows="$(printf '%s\n' "$out" | grep -c "BLOCKED: the human's")"
+blkcalls="$(wc -l <"$blklog" | tr -d ' ')"
+if [ "$blkrows" -eq 10 ] && [ "$blkcalls" -eq "$blkrows" ]; then
+  pass "one age query per parked row (${blkcalls} for ${blkrows}), none for the live one"
+else
+  fail "age queries ${blkcalls} for ${blkrows} parked row(s) (wanted one each, ten rows)"
+fi
+
+# A shallow clone: the boundary commit has no parents, and a diff of it ADDS
+# every line — read naively, the push's date becomes the block's. Unreadable is
+# its own answer, in words, and never an age.
+blkshallow="${TMP}/blockageshallow"
+# `-b main`: the bare origin's HEAD names a branch it never had, and without
+# it the clone checks nothing out — no joharness.sh to run, and an empty
+# output that every refute below would pass over.
+git clone -q -b main --depth 1 --no-single-branch "file://${blkorigin}" "$blkshallow" 2>/dev/null
+out="$( cd "$blkshallow" && JOHARNESS_CONF="$blkconf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 ./joharness.sh dispatch 2>&1 )"
+blksh="$(printf '%s\n' "$out" | grep 'mgr-oldpark')"
+expect "the shallow clone ran dispatch and listed the parked row" \
+  "docs/plans/oldpark.md  mgr-oldpark  blocked" "$blksh"
+expect "a shallow history says it cannot tell" \
+  "parked for an unknown time: the commit that parked it is not in this clone's history" "$blksh"
+refute "and prints no age" "parked 0m ago" "$blksh"
+
+# And a shallow clone deep enough to hold the park reads it: the unknown is
+# for a park out of reach, never for shallowness as such. Depth 3 from the
+# tip of mgr-oldpark is push, park, claim — the park has its parent.
+blkdeep="${TMP}/blockagedeep"
+git clone -q -b main --depth 3 --no-single-branch "file://${blkorigin}" "$blkdeep" 2>/dev/null
+out="$( cd "$blkdeep" && JOHARNESS_CONF="$blkconf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 ./joharness.sh dispatch 2>&1 )"
+expect "a shallow clone that holds the park reads its age" \
+  "parked 200h ago" "$(printf '%s\n' "$out" | grep 'mgr-oldpark')"

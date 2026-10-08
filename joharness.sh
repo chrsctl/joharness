@@ -7123,6 +7123,97 @@ dispatch_age_min() {
   now="$(date +%s)"
   printf '%s' "$(( (now - ts) / 60 ))"
 }
+# Minutes since a workstream file was last PARKED on a remote branch: the
+# commit whose diff moved the frontmatter status from anything else to
+# blocked, not the last push. They differ, and the difference is the point:
+# a branch parked six days ago may have pushed twenty minutes ago (issue
+# #254). Empty when no such commit is visible — a shallow clone — and empty
+# is said as unknown by the caller, never as zero, which would read as
+# parked this minute. <branch> <workstream file> [<merge base>]
+#
+# ONE git call, by design and asserted, newest first; the first park met is
+# this block, because the file is parked NOW (the caller checked) and any
+# later unpark-and-repark would be a newer park. Not `-S` read at either
+# end: its oldest match is the first block a branch ever had.
+#
+# A park is a VALUE TRANSITION, never just an added line. Every one of these
+# was a confident, too-young age before (verifier and /code-review,
+# 2026-10-08), and each is what the transition test answers:
+#   - a whitespace or comment edit of a line that was already blocked
+#     (`status:blocked`): the line it replaced held blocked too — no park;
+#   - a bare `status: blocked` pasted into the body: nothing removed, the
+#     file not new — no park;
+#   - an inline comment, `status: blocked  # why`, which gr_fields strips:
+#     the value is read before any `#`, so it IS a park;
+#   - a rename: `--follow` carries the walk to the old path, and a pure
+#     rename touches no status line;
+#   - a rebase or amend: `%at`, the author date, survives a replay that
+#     rewrites `%ct`.
+# A file CREATED blocked is a park at its creation.
+#
+# `--first-parent -m`: walk the branch's own line and read a merge's diff
+# against it — a park landed by merging a side branch is dated by the merge,
+# when it reached this branch. `<base>..`: only the branch's own commits, so
+# a long main is not walked once the answer is past.
+#
+# A SHALLOW clone's boundary has no parents, and a parentless commit's diff
+# creates every line — read as a park, its date would be the push's. A
+# workstream file is never born in a repository's true root commit, so a
+# parentless park is the boundary, and is unknown.
+dispatch_block_age_min() {
+  local ts now range
+  range="refs/remotes/origin/$1"
+  [ -z "${3:-}" ] || range="${3}..${range}"
+  # `</dev/null`: same reason as dispatch_age_min above.
+  # Full context (`-U99999`), so the awk can see which lines are FRONTMATTER:
+  # a `status:` line in the body — "status: draft" rewritten to "status:
+  # blocked" — is prose, and read as the file's status it faked a park on a
+  # file already parked (verifier round 2). Only lines between the opening
+  # and closing `---` count, on each side of the diff separately, which is
+  # the span gr_fields reads. Workstream files are short, and only commits
+  # touching a status line are diffed at all.
+  ts="$(git -C "$ROOT" log --follow --first-parent -m -p --unified=99999 \
+    --format='C %at %P' -G'^status:' "$range" -- "$2" \
+    </dev/null 2>/dev/null |
+    awk '
+      function val(line) {
+        # A comment needs whitespace before its `#`, as gr_fields reads it:
+        # two readers of one field must not disagree on its value.
+        sub(/^status:[[:space:]]*/, "", line); sub(/[[:space:]]+#.*$/, "", line)
+        sub(/[[:space:]]+$/, "", line); return line
+      }
+      function judge() {
+        if (!have) return
+        if (added == "blocked" && (created || (removed != "" && removed != "blocked"))) {
+          if (!orphan) print t
+          found = 1
+        }
+      }
+      /^C [0-9]+( |$)/ {
+        judge(); if (found) exit
+        t = $2; orphan = (NF == 2); have = 1; created = 0; added = ""; removed = ""
+        inhunk = 0; newdash = 0; olddash = 0
+        next
+      }
+      /^new file mode/ { created = 1; next }
+      /^@@/ { inhunk = 1; next }
+      !inhunk { next }
+      {
+        c = substr($0, 1, 1); line = substr($0, 2); sub(/\r$/, "", line)
+        if (c == " " || c == "+") {
+          if (line == "---") newdash++
+          else if (c == "+" && newdash == 1 && line ~ /^status:/ && added == "") added = val(line)
+        }
+        if (c == " " || c == "-") {
+          if (line == "---") olddash++
+          else if (c == "-" && olddash == 1 && line ~ /^status:/ && removed == "") removed = val(line)
+        }
+      }
+      END { if (!found) judge() }')"
+  [ -n "$ts" ] || return 0
+  now="$(date +%s)"
+  printf '%s' "$(( (now - ts) / 60 ))"
+}
 dispatch_age_text() {
   [ -n "$1" ] || { printf 'unknown'; return 0; }
   if [ "$1" -lt 120 ]; then printf '%sm' "$1"; else printf '%sh' "$(( $1 / 60 ))"; fi
@@ -8351,6 +8442,15 @@ cmd_dispatch() {
       # one field over.
       blocked_claims="${blocked_claims} $(basename "$path" .md)@${branch} "
       flag="  BLOCKED: the human's, holds no slot"
+      # How long it has stood. `holds no slot` reads the same at ten minutes
+      # and at six days, and an unowned block went 141h unseen because of it
+      # (issue #254). It prints; it decides nothing — no threshold, no knob.
+      bage="$(dispatch_block_age_min "$branch" "$ws" "$base")"
+      if [ -n "$bage" ]; then
+        flag="${flag}, parked $(dispatch_age_text "$bage") ago"
+      else
+        flag="${flag}, parked for an unknown time: the commit that parked it is not in this clone's history"
+      fi
       cond="BLOCKED"
     elif [ -z "$age" ]; then
       flag="  push age unknown: ref not here — fetch, then cross-check"
