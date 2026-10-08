@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_011gvC8GiNBVUPpsRjA7XA2Q
 agent: opus
 updated: 2026-10-08
-next: Measure the guard against both spellings, write both research nodes, retire this file in the last commit before the PR, open the PR, run ci
+next: Spawn the verifier with the tree held still, record findings, retire this file in the last commit before the PR, open the PR, run ci
 ---
 
 ## Goal
@@ -31,6 +31,21 @@ not commit to. This repo is where they land.
   which reader of the harness owns a rule that exists nowhere. Different
   evidence, different graduation targets, and either answer leaves the other
   question exactly as open.
+- **Neither duplicates #317, #319, #320 or #321.** All thirteen nodes those
+  four carry were read by their `## Question`
+  (`git show pr<N>:docs/research/<stem>.md`). They are about the orchestrator's
+  own machinery — the ledger, the health table, dispatch, a merge waiver,
+  plan identity, a red base reading. `guard-fires-on-an-empty-branch` is the
+  nearest name and is about `handover-guard.sh` adding a fact to an empty
+  branch, a different guard and a different failure. No cross-reference
+  earned.
+- **F's premise corrected rather than restated.** The report reads the miss as
+  a spelling the deny does not name. Measured: no `for` loop is judged by
+  either reader, so the clause the report proposes would not have fired on the
+  command that produced the report. Both halves are in the node; the
+  reachability half is what makes it more than a regex line.
+- **Candidate answers stay candidates.** Five in F, five in G, each priced
+  with what was measured against it. No node picks one.
 
 ## Rejected
 
