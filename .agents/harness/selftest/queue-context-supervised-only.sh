@@ -54,14 +54,16 @@ soq() { CLAUDE_PROJECT_DIR="$sowork" JOHARNESS_RUN_MODE="${1-}" \
 
 # --- the plan that cost 55 minutes -----------------------------------------
 # `marker-gate-needs-no-done` declared exactly this, and the queue offered it
-# to a fleet that could never commit it.
-soplan allprotocol 'joharness.sh, .agents/harness/selftest'
+# to a fleet that could never commit it. That plan's paths have since been
+# released (the boundary is the core paths only); the shape is pinned here on
+# two core paths, a file and a tree.
+soplan allprotocol 'joharness.conf, .github/workflows'
 sopush "a plan scoped entirely to protocol text"
 
 out="$(soq unsupervised)"
 expect "an all-protocol scope is marked SUPERVISED ONLY" \
   "SUPERVISED ONLY" "$out"
-expect "and the mark says why" "scope is all protocol text" "$out"
+expect "and the mark says why" "scope is all core paths" "$out"
 # The mark alone is not the fix. De-ranking is: this plan must stop being
 # free. With it as the only plan, that is exactly the endurance retry's
 # queue — and the edge is what a fleet should have met there instead of 55
@@ -111,7 +113,7 @@ refute "an unset mode marks nothing" "SUPERVISED ONLY" "$out"
 # ./joharness.sh drain` answered `next:` with it — a plan whose own Traps
 # say "Supervised session only".
 fixture_rm "$sowork" "drop the all-protocol plan" docs/plans/allprotocol.md
-soplan mixed 'joharness.sh, docs/product/thing.md'
+soplan mixed 'joharness.conf, docs/product/thing.md'
 sopush "a plan with one protocol path and one other"
 
 out="$(soq unsupervised)"
@@ -120,8 +122,8 @@ expect "a partly-protocol scope is marked too" "SUPERVISED ONLY" "$out"
 # a `some` plan may be splittable along the boundary, and a reader who
 # cannot tell them apart cannot tell which fix applies.
 expect "and the mark says it is only part of the scope" \
-  "scope includes protocol text" "$out"
-refute "never the all-protocol wording" "scope is all protocol text" "$out"
+  "scope includes a core path" "$out"
+refute "never the all-protocol wording" "scope is all core paths" "$out"
 refute "and it stops being free work" "top free plan above" "$out"
 expect "so the edge is reached over it" "Edge reached: no free plan" "$out"
 
@@ -162,11 +164,11 @@ expect "scope: none reads as undeclared, not as clean" \
   "scope undeclared" "$out"
 
 # --- the near-miss the Trap names ------------------------------------------
-# `joharness.shX` is not `joharness.sh`. Matching on prefix alone would let a
-# name nobody chose deliberately decide a dispatch.
+# `joharness.confX` is not `joharness.conf`. Matching on prefix alone would
+# let a name nobody chose deliberately decide a dispatch.
 fixture_rm "$sowork" "drop the none-scope plan" \
   docs/plans/nonescope.md docs/plans/mixed.md
-soplan nearmiss 'joharness.shX'
+soplan nearmiss 'joharness.confX'
 sopush "a plan scoped to a near-miss of a protocol path"
 
 out="$(soq unsupervised)"
@@ -176,11 +178,20 @@ refute "a path that only shares a prefix is not protocol text" \
 # either — that would say "nobody checked" about a path this just checked.
 refute "and it is not reported as undeclared" "scope undeclared" "$out"
 
+# Released paths are not core. joharness.sh and .agents/harness were on the
+# boundary until 2026-10-08; a plan scoped entirely to them is free work now,
+# in every mode, and must not keep a mark the boundary no longer draws.
+fixture_rm "$sowork" "drop the near-miss plan" docs/plans/nearmiss.md
+soplan released 'joharness.sh, .agents/harness/selftest'
+sopush "a plan scoped to paths the boundary released"
+out="$(soq unsupervised)"
+refute "a released path no longer marks the plan" "SUPERVISED ONLY" "$out"
+
 # A directory UNDER a protocol path is protocol text: the boundary is a tree,
 # and git's pathspec rule is the one the handover guard already applies to
 # this same list.
-fixture_rm "$sowork" "drop the near-miss plan" docs/plans/nearmiss.md
-soplan undertree '.agents/harness/selftest/drain.sh'
+fixture_rm "$sowork" "drop the released plan" docs/plans/released.md
+soplan undertree '.github/workflows/ci.yml'
 sopush "a plan scoped inside a protocol tree"
 out="$(soq unsupervised)"
 # The LABEL, not the bare marker. Since any protocol path marks, a parse bug
@@ -189,14 +200,15 @@ out="$(soq unsupervised)"
 # split-on-space bug reintroduced, the marker assertion below stays green and
 # the label assertion reds. Every all-protocol fixture here asserts the label.
 expect "a file inside a protocol tree is protocol text" \
-  "scope is all protocol text" "$out"
+  "scope is all core paths" "$out"
 
-# A directory CONTAINING a protocol path is not itself one: .agents holds
-# .agents/env, which the boundary deliberately excludes. Marking it would
+# A directory CONTAINING a protocol path is not itself one: .claude holds
+# .claude/settings.json, but also .claude/commands, which the boundary
+# deliberately excludes. Marking it would
 # de-rank a plan on the strength of a path that reaches outside the
 # boundary — a guess, which is the one thing this marking never makes.
 fixture_rm "$sowork" "drop the in-tree plan" docs/plans/undertree.md
-soplan overtree '.agents'
+soplan overtree '.claude'
 sopush "a plan scoped to a directory that merely contains a protocol tree"
 out="$(soq unsupervised)"
 refute "a directory containing a protocol tree is not marked" \
@@ -208,32 +220,32 @@ refute "a directory containing a protocol tree is not marked" \
 # still one this mode cannot finish. Both spellings, because the space is
 # what splits the prefix into a field of its own.
 fixture_rm "$sowork" "drop the over-tree plan" docs/plans/overtree.md
-soplan sharedspace 'shared: joharness.sh'
+soplan sharedspace 'shared: joharness.conf'
 sopush "a plan sharing a protocol path, spelled with a space"
 out="$(soq unsupervised)"
 expect "a shared protocol path still marks the plan" \
-  "scope is all protocol text" "$out"
+  "scope is all core paths" "$out"
 
 fixture_rm "$sowork" "drop the shared-space plan" docs/plans/sharedspace.md
-soplan sharedtight 'shared:joharness.sh'
+soplan sharedtight 'shared:joharness.conf'
 sopush "a plan sharing a protocol path, spelled without one"
 out="$(soq unsupervised)"
 expect "the tight spelling marks it too" \
-  "scope is all protocol text" "$out"
+  "scope is all core paths" "$out"
 
 # A trailing slash is how a person writes a directory, and the scope reader
 # elsewhere in this hook strips one. It cannot decide the boundary.
 fixture_rm "$sowork" "drop the shared-tight plan" docs/plans/sharedtight.md
-soplan trailing '.agents/harness/'
+soplan trailing '.github/'
 sopush "a plan scoped to a protocol tree with a trailing slash"
 out="$(soq unsupervised)"
 expect "a trailing slash does not hide a protocol tree" \
-  "scope is all protocol text" "$out"
+  "scope is all core paths" "$out"
 
 # --- a scope is a list of paths, not a shell pattern ------------------------
 # `scope: joharness.*` was expanded against the CHECKOUT, so the same plan on
-# the same ref classified one way beside an untracked joharness.conf and the
-# other way without it. A queue answer that moves with a file nobody
+# the same ref classified one way beside an untracked joharness.conf (a core
+# path) and the other way without it. A queue answer that moves with a file nobody
 # committed is not an answer about the queue.
 fixture_rm "$sowork" "drop the trailing-slash plan" docs/plans/trailing.md
 soplan globscope 'joharness.*'
@@ -251,11 +263,11 @@ rm -f "${sowork}/joharness.conf"
 # to the fleet as free work; now both shapes mark, so only the LABEL still
 # tells the two apart — which is why this asserts the label.
 fixture_rm "$sowork" "drop the glob plan" docs/plans/globscope.md
-soplan spacey '.agents/harness/two words.sh'
+soplan spacey '.github/two words.yml'
 sopush "a plan scoped to a protocol path with a space in it"
 out="$(soq unsupervised)"
 expect "a space in a path does not split it into two" \
-  "scope is all protocol text" "$out"
+  "scope is all core paths" "$out"
 
 # `none` is case-blind, because the `shared:` strip beside it is. Read
 # case-sensitively, NONE was a path nobody named: the plan classified mixed
@@ -277,7 +289,7 @@ refute "and is not treated as a path that was checked" \
 # Under supervised that leaves the marked plan leading, and the only thing
 # that can move it below is the rank this change adds.
 fixture_rm "$sowork" "drop the shouted-none plan" docs/plans/loudnone.md
-soplan marked '.agents/harness'
+soplan marked '.github'
 sopush "a marked plan, committed first"
 soplan ztakeable 'docs/product/elsewhere.md'
 sopush "a takeable plan beside the marked one"
@@ -317,7 +329,7 @@ git -C "$nbwork" symbolic-ref HEAD refs/heads/main
 mkdir -p "${nbwork}/docs/plans" "${nbwork}/docs/product"
 printf -- '---\nrequirement: g\npriority: normal\n---\n\n## Goal\nFixture.\n\n## Satisfied when\n\n- something observable.\n' \
   >"${nbwork}/docs/product/g.md"
-printf -- '---\nplan: allprotocol\nurgency: normal\nagent: sonnet\neffort: low\nrequirement: g\nscope: joharness.sh\n---\n\n## Goal\nFixture.\n' \
+printf -- '---\nplan: allprotocol\nurgency: normal\nagent: sonnet\neffort: low\nrequirement: g\nscope: joharness.conf\n---\n\n## Goal\nFixture.\n' \
   >"${nbwork}/docs/plans/allprotocol.md"
 commit_all "$nbwork" "a plan, a goal, and no entrypoint to check it against"
 git -C "$nbwork" remote add origin "$nborigin"
