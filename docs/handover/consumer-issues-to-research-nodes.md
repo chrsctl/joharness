@@ -1,6 +1,6 @@
 ---
 workstream: consumer-issues-to-research-nodes
-status: in-progress
+status: done
 branch: claude/consumer-issues-to-research-nodes
 pr: none
 plan: none
@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_011v7iQ91Wf8TyxVFzQceszb
 agent: opus
 updated: 2026-10-08
-next: Record the verifier's findings in ## Review, retire this file, open the pull request — never merge it
+next: Nothing. Pull request open for the human; this session never merges it
 ---
 
 ## Goal
