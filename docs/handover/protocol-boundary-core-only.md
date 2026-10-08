@@ -48,6 +48,9 @@ said "Okay" in session) — the last plan that needs it.
   2311 passed, 0 failed; `./joharness.sh ci` → ci: pass; `verify` first run
   5 passed 1 failed (which check unknown — only the tail was kept), rerun
   6 passed 0 failed. Diff touches no `.agents/env/`; recorded, not explained.
+  After the verifier round, three consecutive `./joharness.sh verify` runs
+  with full logs kept: 6/0, 6/0, 6/0 (2026-10-08). The one earlier failure
+  did not recur in four runs; its check stays unknown.
 - Revert test: main's joharness.sh + guard/hook/context restored, the
   re-pinned topics go red (handover-guard 22, review 7,
   queue-context-supervised-only 10, orchestrated 16, autonomy-mode 3
