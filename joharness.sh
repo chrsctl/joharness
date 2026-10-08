@@ -1872,16 +1872,18 @@ PERF_BASH_GUARD_PAYLOAD='{"session_id":"perf","tool_name":"Bash","tool_input":{"
 # Live on this 137-ref checkout the same day: session-start 685 -> 415, drain
 # 698 -> 428, queue-context 264 -> 129. Two spawns per ref, gone.
 #
-# `drain` RAISED 308 -> 320 on 2026-10-08, for genuine new work: the scout
+# `drain` RAISED 308 -> 315 on 2026-10-08, for genuine new work: the scout
 # cycle's reader (scout_due), a third cadence beside curate and janitor, which
 # `drain` asks at every session start. Counted with `./joharness.sh perf drain`
-# on the built shape, before -> after: 292 -> 299, and 302 -> 309 with
-# `JOHARNESS_CURATE_PLANS=1`. The shape carries `.claude/commands/scout.md`,
-# so this is the cycle ON — the path every repo pays once the command lands.
-# +7, constant in the number of work branches: the branch half is ONE `git
-# log` whose pathspec admits scout files only, plus a `git show` per scout.
-# The shape holds no scout, so that per-scout cost is not in the count.
-# The budget clears the larger by the same 11 as before.
+# on the built shape, merge base -> this change: 292 -> 299, and 302 -> 309
+# with `JOHARNESS_CURATE_PLANS=1`. The shape carries `.claude/commands/scout.md`,
+# so this is the cycle ON, the path every repo pays once the command lands.
+# +7, constant in the number of work branches: one `git grep` and one `git
+# log`, pathspec limited to scout files, plus a call or two per scout file —
+# and the shape holds none, so that per-scout cost is not in the count.
+# The margins are the merge base's, kept exactly: 16 over the gated reading
+# (308 - 292), 6 over the curate case (308 - 302). Not the 11 of 2026-09-11 —
+# the counts had drifted up since, and this keeps the gap they left.
 #
 # LOWER a literal here on the same terms as raising one: its counted number,
 # after the loop is right. A budget left at the old number after the loop got
@@ -1894,7 +1896,7 @@ perf_rows() {
     "session-start|${JOHARNESS_PERF_BUDGET_SESSION_START:-287}|shape||${ROOT}/joharness.sh session-start" \
     "queue-context|${JOHARNESS_PERF_BUDGET_QUEUE:-117}|shape||env JOHARNESS_RUN_MODE=unsupervised ${HARNESS_ROOT}/queue-context.sh" \
     "queue-orchestrated|${JOHARNESS_PERF_BUDGET_QUEUE_ORCH:-117}|shape||env JOHARNESS_RUN_MODE=orchestrated ${HARNESS_ROOT}/queue-context.sh" \
-    "drain|${JOHARNESS_PERF_BUDGET_DRAIN:-320}|shape||${ROOT}/joharness.sh drain" \
+    "drain|${JOHARNESS_PERF_BUDGET_DRAIN:-315}|shape||${ROOT}/joharness.sh drain" \
     "handover-guard|${JOHARNESS_PERF_BUDGET_GUARD:-33}|shape||env JOHARNESS_MODE=unsupervised ${HARNESS_ROOT}/handover-guard.sh" \
     "bash-guard|${JOHARNESS_PERF_BUDGET_BASH_GUARD:-0}|shape|${PERF_BASH_GUARD_PAYLOAD}|${HARNESS_ROOT}/pretool-bash-guard.sh"
 }
@@ -5539,121 +5541,145 @@ cmd_janitor() {
 #   dates its cycle from the retire commit a merge carries; a proposal the
 #   human CLOSED retired nothing there, so that reader alone would make a
 #   scout due again the moment its proposal was declined. The branch survives
-#   (a session never deletes one), so its stamp dates the cycle too.
+#   (a session never deletes one), so its own retire commit dates the cycle
+#   too (scout_retired_ts).
 
-# Every scout whose OWN branch is unmerged, one line each:
-# `<branch>\t<workstream>\t<state>\t<tip committer time>`.
-#
-# Read from HISTORY, never from the tip alone. Loop step 7 retires a scout's
-# workstream file as the last commit before its pull request opens, so a
-# proposal waiting on the human — and one the human closed — carries no scout
-# file at its tip; a tip-only reader saw neither, and a second scout spawned
-# (review r1). The research step in the scout-cycle workstream record settled
-# the shape below, after two rounds of patching it (R-a..R-f):
-#
-# - ONE `git log` over every unmerged ref, `--not` the base branch: only
-#   commits the base does not carry, the merge-base diff step 4 asks for.
-#   `--full-history`, because a scout branch that merges main in (step 7's
-#   reconcile) is otherwise simplified away for this pathspec — the trap
-#   cycle_landed_sha's comment records for the merged half.
-# - The pathspec NARROWS to `docs/handover/scout-[0-9]*.md`, the name
-#   `.claude/commands/scout.md` writes; frontmatter DECIDES (`workstream:
-#   scout-<digit>...`, `plan: none`). Candidates are scout files only, so the
-#   cost is per scout, not per work branch — drain pays this every start.
-# - The OWNER is the file's own `branch:` field, not whichever ref git walked
-#   first: a branch stacked on a scout branch carries its commits and is not
-#   that scout. In flight = the owner's tip still carries the file and its
-#   status is not done or abandoned; `retired` = the file is gone from the
-#   owner's tip (a proposal at the human, open or closed — git cannot say
-#   which). A file whose `branch:` names no unmerged ref dates nothing.
-#
-# Fields are sanitised as janitor_branches' are: branch-controlled input,
-# printed straight out. Status is lower-cased and blank-joined first, so
-# `Done` and `in progress` read as the words they are.
-scout_walk() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}"
-  local refs=() tips="" r ct line h wf doc sws skey sown sstat tipdoc seen=""
-  while IFS=$'\t' read -r r ct; do
+# The unmerged remote refs, one per line, the base and HEAD dropped in the
+# shell — a `grep -v` there is a fork on every session start for two names.
+scout_refs() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" r
+  while IFS= read -r r; do
     case "$r" in
       '' | refs/remotes/origin/HEAD | "refs/remotes/origin/${base_branch}") ;;
-      *) refs+=("$r"); tips="${tips}${r#refs/remotes/origin/}"$'\t'"${ct}"$'\n' ;;
+      *) printf '%s\n' "$r" ;;
     esac
   done < <(git -C "$ROOT" for-each-ref --no-merged="refs/remotes/origin/${base_branch}" \
-    --format='%(refname)%09%(committerdate:unix)' refs/remotes/origin </dev/null 2>/dev/null)
+    --format='%(refname)' refs/remotes/origin </dev/null 2>/dev/null)
+}
+
+# Every scout file at an unmerged branch's TIP, one line each:
+# `<branch>\t<workstream>\t<status>`. In flight is the caller's filter
+# (scout_branches).
+#
+# The design is the research step's in the scout-cycle workstream record,
+# after three review rounds; the rule that settled it is R-g — every misread
+# must fail CLOSED. A misread may hold the cycle off, where a human sees
+# `IN FLIGHT` and acts; it must never spawn a second scout. So nothing
+# self-declared decides which branch a scout is on (an earlier spelling took
+# the file's `branch:` field, and one wrong field made the scout vanish):
+#
+# - ONE `git grep -l` over every unmerged ref's tip, pathspec
+#   `docs/handover/scout-[0-9]*.md` — the name `.claude/commands/scout.md`
+#   writes — so the cost is per scout file, never per work branch. drain
+#   pays this at every session start, and `perf` gates it.
+# - Frontmatter DECIDES: `workstream: scout-<digit>...` and `plan: none`.
+#   The branch building this cycle owns `scout-cycle.md` with a real plan.
+# - A file the base branch carries byte-identically is inherited, not the
+#   branch's: one `rev-parse` of both blobs.
+# - A branch stacked on an unretired scout reads in flight too: closed, and
+#   visible to whoever reads the row.
+#
+# Status is lower-cased and blank-joined, so `Done` and `in progress` read
+# as the words they are; every field is sanitised as janitor_branches'
+# are — branch-controlled input printed straight out.
+scout_walk() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}"
+  local refs=() r hit wf blobs doc sws skey sstat
+  while IFS= read -r r; do refs+=("$r"); done < <(scout_refs)
   [ "${#refs[@]}" -gt 0 ] || return 0
-  h=""
-  while IFS= read -r line; do
-    case "$line" in
-      '') continue ;;
-      'C '*) h="${line#C }"; continue ;;
-    esac
-    wf="$line"
-    [ -n "$h" ] || continue
-    doc="$(git -C "$ROOT" show "${h}:${wf}" </dev/null 2>/dev/null)"
-    { read -r sws; read -r skey; read -r sown; } \
-      <<<"$(printf '%s\n' "$doc" | gr_fields workstream plan branch)"
+  while IFS= read -r hit; do
+    [ -n "$hit" ] || continue
+    r="${hit%%:*}"; wf="${hit#*:}"
+    blobs="$(git -C "$ROOT" rev-parse "${r}:${wf}" \
+      "refs/remotes/origin/${base_branch}:${wf}" </dev/null 2>/dev/null)"
+    # Absent on the base, rev-parse prints the second argument back as its
+    # own line, so the two lines differ and the file is kept.
+    [ "${blobs%%$'\n'*}" != "${blobs#*$'\n'}" ] || continue
+    doc="$(git -C "$ROOT" show "${r}:${wf}" </dev/null 2>/dev/null)"
+    { read -r sws; read -r skey; read -r sstat; } \
+      <<<"$(printf '%s\n' "$doc" | gr_fields workstream plan status)"
     case "$sws" in scout-[0-9]*) ;; *) continue ;; esac
     [ "$skey" = none ] || continue
     sws="$(printf '%s' "$sws" | tr -cd 'A-Za-z0-9._:-')"
-    sown="$(printf '%s' "$sown" | tr -cd 'A-Za-z0-9._/-')"
-    [ -n "$sown" ] || continue
-    case "$seen" in *"|${sown}|${sws}|"*) continue ;; esac
-    seen="${seen}|${sown}|${sws}|"
-    ct=""
-    while IFS=$'\t' read -r r line; do
-      [ "$r" = "$sown" ] && { ct="$line"; break; }
-    done <<<"$tips"
-    [ -n "$ct" ] || continue
-    if tipdoc="$(git -C "$ROOT" show "refs/remotes/origin/${sown}:${wf}" </dev/null 2>/dev/null)"; then
-      sstat="$(printf '%s\n' "$tipdoc" | gr_field status |
-        tr 'A-Z ' 'a-z-' | tr -cd 'a-z0-9._-')"
-      sstat="${sstat:-?}"
-    else
-      sstat=retired
-    fi
-    printf '%s\t%s\t%s\t%s\n' "$sown" "${sws:-?}" "$sstat" "$ct"
-  done < <(git -C "$ROOT" log --full-history --diff-filter=AR --name-only \
-    --format='C %H' "${refs[@]}" --not "refs/remotes/origin/${base_branch}" \
+    sstat="$(printf '%s' "$sstat" | tr 'A-Z ' 'a-z-' | tr -cd 'a-z0-9._-')"
+    printf '%s\t%s\t%s\n' "${r#refs/remotes/origin/}" "${sws:-?}" "${sstat:-?}"
+  done < <(git -C "$ROOT" grep -l -e '^workstream:' "${refs[@]}" \
     -- 'docs/handover/scout-[0-9]*.md' </dev/null 2>/dev/null)
 }
 
+# When a scout last FINISHED on an unmerged branch: the committer time of
+# the newest deletion of a scout file there, empty when none. Loop step 7
+# retires the workstream file as the last commit before the pull request
+# opens, so this is the moment a proposal reached the human — open or
+# closed, git cannot say which. The retire, never the branch tip: a later
+# reconcile merge or a janitor's `abandoned` commit would re-date the
+# window, and an abandoned scout retired nothing (review r27).
+#
+# `--not` the base: only commits the base does not carry. `--full-history`:
+# a branch that merged in a base carrying a scout-named file is otherwise
+# simplified onto the base, which `--not` then hides (review r15). A deleted
+# file counts only if it WAS a scout — its frontmatter in the parent. A time
+# in the future is skipped, never clamped: clamped to now, one forged commit
+# would switch the cycle off for as long as its branch stood (review r2).
+scout_retired_ts() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}"
+  local refs=() r line h ct wf doc sws skey best=0 now
+  while IFS= read -r r; do refs+=("$r"); done < <(scout_refs)
+  [ "${#refs[@]}" -gt 0 ] || return 0
+  now="$(date +%s)"
+  h=""; ct=""
+  while IFS= read -r line; do
+    case "$line" in
+      '') continue ;;
+      'C '*) line="${line#C }"; h="${line%% *}"; ct="${line#* }"; continue ;;
+    esac
+    wf="$line"
+    case "$ct" in '' | *[!0-9]*) continue ;; esac
+    { [ "$ct" -le "$now" ] && [ "$ct" -gt "$best" ]; } || continue
+    doc="$(git -C "$ROOT" show "${h}^:${wf}" </dev/null 2>/dev/null)"
+    { read -r sws; read -r skey; } <<<"$(printf '%s\n' "$doc" | gr_fields workstream plan)"
+    case "$sws" in scout-[0-9]*) ;; *) continue ;; esac
+    [ "$skey" = none ] || continue
+    best="$ct"
+  done < <(git -C "$ROOT" log --full-history --diff-filter=D --name-only \
+    --format='C %H %ct' "${refs[@]}" --not "refs/remotes/origin/${base_branch}" \
+    -- 'docs/handover/scout-[0-9]*.md' </dev/null 2>/dev/null)
+  [ "$best" -eq 0 ] || printf '%s' "$best"
+}
+
 # A scout in flight, from scout_walk's rows on stdin: its workstream file is
-# still at the tip and says neither `done` nor `abandoned` — the word /janitor
+# at the tip and says neither `done` nor `abandoned` — the word /janitor
 # writes when it releases a dead session's claim, which must not read as in
-# flight for ever. A retired one is a proposal at the human: it dates the
-# cycle (scout_due) and holds nothing.
+# flight for ever. A retired one is gone from the tip: it dates the cycle
+# (scout_retired_ts) and holds nothing.
 scout_branches() {
   local b w s
-  while IFS=$'\t' read -r b w s _; do
+  while IFS=$'\t' read -r b w s; do
     [ -n "$b" ] || continue
-    case "$s" in done | abandoned | retired) continue ;; esac
+    case "$s" in done | abandoned) continue ;; esac
     printf '%s\t%s\t%s\n' "$b" "$w" "$s"
   done
 }
 
 # Is a scout due. Sets SCOUT_DUE to `due <why>` | `not-due <why>` | `off
-# <why>` | `unreadable <why>`, and SCOUT_ROWS to scout_walk's rows when it
-# walked. Globals, not stdout, and called WITHOUT a command substitution: a
-# caller that also lists what is in flight reuses the rows instead of walking
-# twice, and the walk runs only when it can change the answer — the merged
-# half alone says due, or a caller asks (`all`) — since a branch can make a
-# due cycle not-due and never the reverse. `drain` pays this at every session
-# start. The verdict gate (DRAINED only) is the CALLER's: the two callers read
-# two different verdicts, and this answers the clock alone.
+# <why>` | `unreadable <why>`, and SCOUT_ROWS to scout_walk's rows whenever
+# the answer is due or the caller asks (`all`) — the only times anybody
+# reads what is in flight. Globals, and called WITHOUT a command
+# substitution, so a caller that lists the rows walks once.
 #
 # Newest of two readings wins: a merged proposal's retire (cycle_age_h, the
-# landing time, as the janitor cycle dates) and the newest unmerged scout
-# branch's tip commit — for a finished scout, its retire. A stamp dates
-# nothing: it is self-declared text, and one malformed or future-dated stamp
-# on any pushed branch hid every real one (verifier r2). A tip time in the
-# future is skipped, never clamped to 0h, which would switch the cycle off.
+# landing time, as the janitor cycle dates) and the newest retire on an
+# unmerged branch (scout_retired_ts). The second can only make a due cycle
+# not-due, so it is read only when the first alone says due. The verdict
+# gate (DRAINED only) is the CALLER's: the two callers read two different
+# verdicts, and this answers the clock alone.
 #
 # No command file, no cycle: a due line pointing at `.claude/commands/scout.md`
-# before it exists sends a session to read nothing (verifier r6).
+# before it exists sends a session to read nothing (review r6).
 SCOUT_DUE=""
 SCOUT_ROWS=""
 scout_due() {
-  local want="${1:-}" hours age bage best=0 now b w ct why base_word
+  local want="${1:-}" hours age bts why base_word
   SCOUT_ROWS=""
   why="$(cycle_unreadable)"
   if [ -n "$why" ]; then
@@ -5671,21 +5697,14 @@ scout_due() {
   fi
   base_word='the last proposal merged'
   age="$(cycle_age_h scout)"
-  if [ "$want" = all ] || [ -z "$age" ] || [ "$age" -ge "$hours" ]; then
-    SCOUT_ROWS="$(scout_walk)"
-  fi
-  now="$(date +%s)"
-  while IFS=$'\t' read -r b w _ ct; do
-    [ -n "$b" ] || continue
-    case "$ct" in '' | *[!0-9]*) continue ;; esac
-    [ "$ct" -le "$now" ] || continue
-    [ "$ct" -gt "$best" ] && best="$ct"
-  done <<<"$SCOUT_ROWS"
-  if [ "$best" -gt 0 ]; then
-    bage=$(( (now - best) / 3600 ))
-    if [ -z "$age" ] || [ "$bage" -lt "$age" ]; then
-      age="$bage"
-      base_word='the newest unmerged scout branch (open, or closed by a human)'
+  if [ -z "$age" ] || [ "$age" -ge "$hours" ]; then
+    bts="$(scout_retired_ts)"
+    if [ -n "$bts" ]; then
+      bts=$(( ($(date +%s) - bts) / 3600 ))
+      if [ -z "$age" ] || [ "$bts" -lt "$age" ]; then
+        age="$bts"
+        base_word='a scout finished on an unmerged branch (its proposal open, or closed by a human)'
+      fi
     fi
   fi
   if [ -z "$age" ]; then
@@ -5698,6 +5717,9 @@ scout_due() {
     SCOUT_DUE="due ${age}h since ${base_word} (>= ${hours}h)"
   else
     SCOUT_DUE="not-due ${age}h since ${base_word} (of ${hours}h)"
+  fi
+  if [ "$want" = all ] || [ "${SCOUT_DUE%% *}" = due ]; then
+    SCOUT_ROWS="$(scout_walk)"
   fi
 }
 
@@ -7269,7 +7291,11 @@ cmd_drain() {
   scout_due
   sdue="$SCOUT_DUE"; srows="$SCOUT_ROWS"
   sstate="${sdue%% *}"; sreason="${sdue#* }"
-  if [ -n "$next" ] && [ "$sstate" = due ] &&
+  if [ "$sstate" = unreadable ]; then
+    # Said, as the curate block says it: silence over an unreadable cadence
+    # is the bug that block records.
+    printf 'scout     : UNREADABLE — %s\n\n' "$sreason"
+  elif [ -n "$next" ] && [ "$sstate" = due ] &&
      [ -z "$(printf '%s\n' "$srows" | scout_branches)" ]; then
     printf 'scout     : due, suppressed — not DRAINED (%s)\n\n' "$sreason"
   fi
@@ -7376,12 +7402,13 @@ cmd_drain() {
       printf '  ask or exit: .claude/commands/curate.md.\n'
     fi
   fi
-  # The scout is the item only when NOTHING outranks it: edge work is
-  # finishing, which outranks any start, and a curate or janitor due and
-  # unclaimed is this session's item already — one item per session.
-  if [ "$sstate" = due ] && { [ -n "$edge" ] ||
-     { [ "$cstate" = due ] && [ "$cinflight" -eq 0 ]; } ||
-     { [ "$jstate" = due ] && [ "$jinflight" -eq 0 ]; }; }; then
+  # The scout is NAMED only when nothing outranks it: edge work is
+  # finishing, which outranks any start, and a curate or janitor — due, or
+  # in flight — may free a plan for the next pass, so the queue is about to
+  # stop being drained. A scout already in flight is reported first, in
+  # every case (review r29): it is the fact a reader most needs.
+  if [ "$sstate" = due ] && [ -z "$(printf '%s\n' "$srows" | scout_branches)" ] &&
+     { [ -n "$edge" ] || [ "$cstate" = due ] || [ "$jstate" = due ]; }; then
     printf '\nscout     : due, suppressed — edge work, a curate or a janitor above comes first (%s)\n' "$sreason"
   else
     drain_scout_block "$mode" "$sstate" "$sreason" "$srows"
@@ -7389,9 +7416,9 @@ cmd_drain() {
   return 0
 }
 
-# The scout block, printed only under DRAINED. Same mode routing as the
-# janitor block: under orchestrated it is the orchestrator's spawn, beyond the
-# cap; otherwise it is this session's item.
+# The scout block, printed only under DRAINED. Never THIS session's item:
+# under orchestrated it is the orchestrator's spawn, beyond the cap;
+# otherwise drain names it for the human.
 drain_scout_block() {
   local mode="$1" state="$2" reason="$3" rows="$4" b w n=0
   [ "$state" = due ] || return 0
@@ -7414,7 +7441,7 @@ drain_scout_block() {
   if [ "$mode" = "orchestrated" ]; then
     printf '  The ORCHESTRATOR'"'"'s to spawn — not this session'"'"'s: ./joharness.sh\n'
     printf '  dispatch prints it, and a scout costs one session beyond the cap.\n'
-  elif [ "$mode" = "unsupervised" ]; then
+  elif unattended; then
     printf '  Not yours: exit as above. A human or an orchestrator starts a scout\n'
     printf '  (.claude/commands/scout.md).\n'
   else
@@ -9278,11 +9305,12 @@ cmd_dispatch() {
     printf '            curate DUE: spawn ONE curator (agent: sonnet) on ./joharness.sh curate — beyond the cap, holds no slot, at most one in flight (JOHARNESS_CURATE_PLANS, JOHARNESS_CURATE_HOURS)\n'
   [ "$janitor_due" -eq 0 ] ||
     printf '            janitor DUE: spawn ONE janitor (agent: sonnet) on /janitor — beyond the cap, holds no slot, at most one in flight. It releases a claim only where the control plane proves the session gone, and a released claim frees its plan for the NEXT pass (JOHARNESS_JANITOR_HOURS)\n'
-  # And no curate or janitor due this pass: a released claim frees a plan
-  # for the NEXT pass, so the queue is about to stop being drained — the rule
-  # drain applies before it names the scout.
+  # And no curate or janitor due OR in flight this pass: a released claim
+  # frees a plan for the NEXT pass, so the queue is about to stop being
+  # drained — the rule drain applies before it names the scout (r18, r28).
   if [ "$scout_due" -eq 1 ] && [ "$scout_gate" -eq 1 ] &&
-     [ "$curate_due" -eq 0 ] && [ "$janitor_due" -eq 0 ]; then
+     [ "$curate_due" -eq 0 ] && [ "$janitor_due" -eq 0 ] &&
+     [ "$n_curate_inflight" -eq 0 ] && [ "$n_janitor" -eq 0 ]; then
     printf '            scout DUE: spawn ONE scout (agent: fable) on /scout — beyond the cap, holds no slot, at most one in flight, only at DRAINED. It proposes; a human merges unless JOHARNESS_SCOUT_AUTOMERGE=on (JOHARNESS_SCOUT_HOURS)\n'
   elif [ "$scout_due" -eq 1 ] && [ "$scout_gate" -eq 1 ]; then
     printf '            scout due, suppressed — a curate or janitor goes first: spawn none this pass\n'
