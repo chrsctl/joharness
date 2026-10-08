@@ -70,6 +70,7 @@ for a new collision on that plan.
 Source reads at `cb0028e`, each re-run rather than taken from the issue:
 
     sed -n '8594,8662p' joharness.sh          # the key, the settled flag
+    grep -n "rescope_settled" joharness.sh    # one feeder, three lines
     sed -n '8712,8732p' joharness.sh          # the three OVERLAP-BOUND verdicts
     sed -n '7937,7988p' joharness.sh          # dispatch_rescope_branches
     grep -n "rescoped=" joharness.sh .claude/commands/orchestrate.md
@@ -98,13 +99,29 @@ Source reads at `cb0028e`, each re-run rather than taken from the issue:
         "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null && continue
 
   The flag is then set only `case "$rstat" in done | blocked)` **and**
-  `[ "$rk" = "$rescope_key" ]`. So once the surveyor's own pull request
-  merges, there is no row at all, `rescope_settled` stays 0, and the spawn
-  instruction returns — **with the key unchanged**. The drift makes it certain;
-  the merge alone is sufficient. Any fix that only stabilises the key leaves
-  this half open, and the reported instance had both (the first surveyor's pull
-  request had merged eight minutes earlier AND two holders had stopped
-  holding).
+  `[ "$rk" = "$rescope_key" ]`, and `grep -n rescope_settled joharness.sh`
+  returns exactly three lines at `cb0028e` — the declaration, that one
+  assignment, and the read in the verdict. One feeder, and it drops merged
+  refs. So once the surveyor's own pull request merges there is no row at all,
+  `rescope_settled` stays 0, and the spawn instruction returns — **with the key
+  unchanged**. The drift makes it certain; the merge alone is sufficient.
+
+  How much that skip drops, counted here 2026-10-08 on this repo's own refs
+  with the same test the walk uses:
+
+      while read -r r; do
+        git merge-base --is-ancestor "$r" refs/remotes/origin/main \
+          && echo skipped || echo listed
+      done < <(git for-each-ref --format='%(refname)' refs/remotes/origin |
+               grep -v '/HEAD$\|/main$') | sort | uniq -c
+
+  140 skipped, 15 listed. The skip is correct for its purpose — a merged
+  branch is not in flight — and it is also why a merged surveyor's verdict
+  cannot be read from this walk at all.
+
+  Any fix that only stabilises the key leaves this half open, and the reported
+  instance had both: the first surveyor's pull request had merged eight minutes
+  earlier AND two holders had stopped holding.
 
 - **The key-blind ACTIVE count is deliberate, and the reason is in the code
   with the round that bought it.** `cb0028e`:
