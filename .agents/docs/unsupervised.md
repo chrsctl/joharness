@@ -189,7 +189,13 @@ documents; it never creates one.
   `gh` on the runner they cannot open or merge a pull request, so step 7 is
   unreachable. Verified from two sessions for this organization. Create it
   from the claude.ai Routines UI instead, then `fire_trigger` once and check
-  the fired session reached GitHub before trusting it.
+  the fired session reached GitHub before trusting it. `create_trigger` now
+  carries a `connectors` parameter and warns when a Routine stores none, so
+  the trap is an argument's default rather than a property of the surface —
+  but every Routine on this account still reads `mcp_connections: []`
+  (`list_triggers`, 2026-10-08, 5 of 5, four of them `created_via:
+  meta_mcp`). UI route stands until somebody measures that parameter; a
+  parameter existing is not a measurement.
 - **Stop**: `update_trigger` with `enabled: false` pauses, `delete_trigger`
   removes. Read `last_run` from `list_triggers`, never `next_run_at`: a
   paused Routine keeps a stale `next_run_at` that reads like a missed
@@ -205,6 +211,89 @@ documents; it never creates one.
   queue; claimed plans are not free. The gap that stays open is the handover
   protocol's own: a claim not yet pushed is invisible, so push the
   workstream file as soon as work has a name.
+
+### Why mode 3, and what it makes run
+
+Firing and DELIVERY are separate things. Only delivery dies with the fleet.
+That distinction is the whole answer to "what runs the staleness check
+without going stale with it" (issue 249; node closed 2026-10-08).
+
+- `send_later` is a self-bind + `run_once_at` Routine — its own description
+  says so. `.claude/commands/orchestrate.md` makes it REQUIRED, "the next
+  pass", at `delay_minutes` = `JOHARNESS_HEALTH_MINUTES`. So the health
+  pass has no clock: it has a chain, each link armed by the session before
+  it.
+- A self-bound Routine whose session is gone does not merely fail to help.
+  It FIRES, fails delivery, and AUTO-DISABLES. Measured `list_triggers`
+  2026-10-08: 3 of 5 Routines carry `ended_reason:
+  auto_disabled_session_gone`, and `trig_015U4LHgo4qM7rj59C1VcxsV` carries
+  `last_run.status: ROUTINE_RUN_STATUS_FAILED` with `fired_at`
+  `2026-10-08T01:37:21.999685552Z` and `finished_at`
+  `2026-10-08T01:37:22.006743Z` — 7 milliseconds, a delivery attempt and
+  not a turn. That is the freeze mechanism, off the control plane rather
+  than inferred: the pass WAS armed, fired into a session that had gone,
+  and the platform then disabled the Routine. Nothing re-arms, and nothing
+  enabled is left to notice.
+- `create_new_session_on_fire: true` holds no session reference — its target
+  is created at firing, so `auto_disabled_session_gone` cannot be true of
+  it. Modes 1 and 2 (`persist_session: true`) are the measured shape above.
+  Mode 3 with a `cron_expression` is the only variant whose firing depends
+  on the platform clock alone.
+- Nothing further is needed for the staleness CHECK. Under `orchestrated` a
+  fresh session naming no item IS the orchestrator (`./joharness.sh start`),
+  and an orchestrator pass runs the health table. The Routine starts a pass;
+  the pass already carries the whole decision procedure. 249's missing half
+  is configuration, never code — which is why no plan could precede the
+  choice of mechanism, and why a recurring check built INTO the orchestrator
+  loop cannot close it: that one cannot catch the orchestrator dying.
+- Same read, same account: zero recurring Routines exist — `cron_expression:
+  ""` on all 5. The fleet's entire cadence today is that chain.
+
+### Ruled out: a scheduled workflow
+
+Fires independent of the fleet, and that is PROVED rather than argued:
+`origin/main` holds a 92.1-hour merge gap, `51556f6a`
+(`2026-09-12T19:36:06Z`) to `7d629d2` (`2026-09-16T15:40:58Z`), and
+`update.yml`'s scheduled run `34841570372` fired at `2026-09-14T12:06:00Z`
+inside it — `conclusion: success`, on `head_sha 51556f6a`, the tip the
+freeze left behind. GitHub's clock owes the fleet nothing.
+
+It still cannot run this check, for two measured reasons:
+
+- **No control plane on a runner.** Every health-table row keys on
+  `session_status`, `status_bucket`, `status_detail`, `updated_at`,
+  `last_served_model` or `session_context.sources`
+  ([`orchestrated.md`](orchestrated.md)). A runner holds the git view, whose
+  one signal this harness has already disqualified twice: push time is not
+  liveness in either direction, and `updated_at` carries no threshold at
+  all.
+- **Cadence too coarse.** 7 runs of `0 6 * * 1` started 60.7, 418.9, 350.9,
+  366.0, 375.0, 431.2 and 473.9 minutes after their cron time — median
+  375.0, late by up to 7h54m. `JOHARNESS_STALL_MINUTES` is 45.
+
+Write ceiling, for whatever it is later asked to do: on `GITHUB_TOKEN` a
+pull request it opens gets no ci runs
+([`../../.github/workflows/update.yml`](../../.github/workflows/update.yml)).
+An issue is inside that ceiling.
+
+### What stays the operator's
+
+Nothing notices the Routine itself stopping, and its own record will not say
+so: `trig_015U4LHgo4qM7rj59C1VcxsV` reads `enabled: false` with
+`ended_reason: auto_disabled_session_gone` and still advertises `next_run_at:
+2026-10-09T01:37:21Z`. Second instance of the `last_run`-never-`next_run_at`
+rule above, and the reason it is a rule.
+
+One bounded alert is possible and is deliberately not in the tree: "this
+repository merged nothing in N hours" needs no per-session judgement, reads
+only the git view, fits `issues: write`, and an open issue is a queue item
+(Loop step 2) — so it is the one mechanism that can notice the Routine
+stopping. It cannot health-check a manager and must never try. Its own
+failure mode: GitHub disables scheduled workflows after a long stretch of
+repository inactivity, so it dies in exactly the outage that outlasts the
+threshold it watches for. An alert, never a thing the fleet rests on. Left
+unbuilt because a new always-on alerting mechanism is product direction, and
+this answer is what a session may decide alone.
 
 MCP tool names carry a hashed, unstable server prefix: find them with
 `ToolSearch`, never hardcode.
