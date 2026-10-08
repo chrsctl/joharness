@@ -143,6 +143,21 @@ start_re='(^|[^[:alnum:]_])(while|until)[[:space:]]'
 #     `do` / `then` / `else`. A real opener begins a command; the `for` in
 #     "waiting for jobs in queue" does not, and counted it unbalances the
 #     loop around it.
+#
+# What this replaced, measured, so nobody spends the same day on it again
+# (the research node bash-guard-reads-prose-as-a-loop, 2026-09-16/17, and
+# #314, 2026-10-08):
+#   - FIRST `done`: a commit-and-push retry whose message said "while", the
+#     deny's own `timeout 900 bash -c '...'` spelling after a prose "wait
+#     while", and a nested `for` ahead of the sleep all read wrong. The
+#     message then named a `timeout` the refused command carried.
+#   - "a keyword owns a loop only if its own `do` comes before any other
+#     opener", with a bare `for` as an opener: built and REVERTED. It let
+#     `until ... grep -q "ready for connections"; do sleep 5; done` through,
+#     and a prose "while we do the suite" still read as a loop.
+#   - `do` up / `done` down, the plan's prescription: fixes the nested-loop
+#     end and leaves both prose shapes denied. `do` is not a nesting token.
+#
 # An opener that slips through anyway — a quoted string starting `while`,
 # say — leaves the count unbalanced, and unbalanced fails open for THAT
 # keyword only: the walk carries on, and a quoted `while`/`until` is then a
