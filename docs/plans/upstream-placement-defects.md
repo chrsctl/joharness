@@ -70,13 +70,22 @@ answered and retired — this plan is only the code the answer named.
   the 44 move out of unplaceable and into the report, and the remaining
   unplaceable count equals the findings that genuinely carry no path token.
   Paste the counted numbers and the command into `## Review`.
-- `printf '%s\n' './joharness.sh' | ...` — whatever shape the fix takes,
-  `upstream_harness_path './joharness.sh'` returns 0 and
-  `upstream_harness_path 'docs/handover/README.md'` still returns 1. That
-  second one is a real consumer-owned path in every repo running this harness,
-  and a suffix match would claim it for canonical — the overclaim the research
-  session caught in its own first count (`## Review`, r1 of
-  `where-a-consumers-own-findings-go`).
+- Whatever shape the fix takes: `upstream_harness_path './joharness.sh'`
+  returns 0, and `upstream_harness_path 'docs/handover/README.md'` still
+  returns 1. That second one is a real consumer-owned path in every repo
+  running this harness, and a suffix match would claim it for canonical — the
+  overclaim the research session caught in its own first count (`## Review`,
+  r1 of `where-a-consumers-own-findings-go`).
+- **The consumer-side check**, because this plan SHIPS (`./joharness.sh ci`,
+  ship scope stage): `./joharness.sh upstream` is the one entrypoint changed
+  here and canonical can never run its classifying path —
+  `JOHARNESS_CANONICAL=1` returns early. So the bar is met in a repo without
+  that line or not at all. Either a real consumer, or the stripped-conf
+  fixture the graduation documents:
+  `JOHARNESS_CONF=<scratch>/consumer.conf ./joharness.sh upstream <edge>`
+  must print a bucket heading that is true of every finding under it, and the
+  44 must appear under `harness findings`. Local-only green here proves the
+  code path nobody runs.
 
 ## Where to look
 

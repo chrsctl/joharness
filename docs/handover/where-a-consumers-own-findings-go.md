@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_0128i4WUdEgZ88ygzuHHtXEK
 agent: opus
 updated: 2026-10-08
-next: Write the graduation into .agents/docs/feedback.md and the supervised plan for the two joharness.sh defects
+next: Answer the verifier's findings, retire this file and open the pull request
 ---
 
 ## Goal
@@ -62,6 +62,17 @@ the research file.
   basenames (no slash) and an exact `./`-strip only: **44**, one fewer
   (`wc -l < missed-strict.txt`, 2026-10-08). The overclaim was in the direction
   that matters — it inflated the defect I was about to file.
+- r2: (session) the plan shipped with no consumer-side acceptance check.
+  `./joharness.sh ci` names it — `upstream-placement-defects: SHIPS to
+  consumers — joharness.sh, shared:.agents/docs/feedback.md`, and the stage
+  says a shipping plan's Acceptance must name the check a consumer runs
+  (`ci.txt`, this tree, 2026-10-08; `ci: pass`, so advisory, not red). It
+  bites harder here than the generic rule suggests: the one entrypoint the
+  plan changes cannot be exercised in canonical at all, because
+  `cmd_upstream` returns early on `JOHARNESS_CANONICAL=1`. A plan whose
+  acceptance is all local would be green in the only repo where the changed
+  code never runs. (fixed — Acceptance now requires the stripped-conf
+  fixture run and the 44 appearing under `harness findings`.)
 
 ## Blockers
 
