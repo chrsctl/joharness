@@ -48,13 +48,15 @@ scommit() {
     git -C "$scout_work" commit -qm "$1"
   fi
 }
-# <file stem> <workstream> <status> [<plan>] — a workstream file.
+# <file stem> <workstream> <status> <branch> [<plan>] — a workstream file.
+# `branch:` is what names the OWNER of a scout file, so it must be the
+# branch the file is committed on.
 sws() {
   # Recreated: a retire that empties docs/handover/ takes the directory with
   # it on checkout, and `printf >` into a missing directory fails.
   mkdir -p "${scout_work}/docs/handover"
-  printf -- '---\nworkstream: %s\nstatus: %s\nbranch: x\nplan: %s\nagent: fable\n---\n\n## Goal\nFixture.\n' \
-    "$2" "$3" "${4:-none}" >"${scout_work}/docs/handover/${1}.md"
+  printf -- '---\nworkstream: %s\nstatus: %s\nbranch: %s\nplan: %s\nagent: fable\n---\n\n## Goal\nFixture.\n' \
+    "$2" "$3" "$4" "${5:-none}" >"${scout_work}/docs/handover/${1}.md"
 }
 scommit "base" '2026-01-01T00:00:00Z'
 git -C "$scout_work" remote add origin "$scout_origin"
@@ -91,7 +93,7 @@ expect "it points at the evidence a scout reads" "./joharness.sh upstream" "$out
 # A proposal that MERGED: its retire on the base branch dates the cycle, and
 # January is far more than 168h ago.
 git -C "$scout_work" checkout -qb scout-merged
-sws scout-2026-01-05 scout-2026-01-05 review
+sws scout-2026-01-05 scout-2026-01-05 review scout-merged
 scommit "proposal" '2026-01-05T00:00:00Z'
 git -C "$scout_work" rm -q docs/handover/scout-2026-01-05.md
 scommit "retire" '2026-01-05T01:00:00Z'
@@ -106,7 +108,7 @@ expect "and it is dated from that merge" "since the last proposal merged" "$out"
 # A scout IN FLIGHT: its file still at the tip, status in-progress. An old
 # tip leaves the clock due; the open branch is what says none is.
 git -C "$scout_work" checkout -qb scout-open main
-sws scout-2026-02-01 scout-2026-02-01 in-progress
+sws scout-2026-02-01 scout-2026-02-01 in-progress scout-open
 scommit "scout at work" '2026-02-01T00:00:00Z'
 git -C "$scout_work" push -qu origin scout-open
 git -C "$scout_work" checkout -q main
@@ -120,19 +122,25 @@ refute "and spawns none" "scout DUE: spawn" "$out"
 # Released by /janitor: `abandoned` is not in flight, or one dead scout
 # holds the cycle for ever.
 git -C "$scout_work" checkout -q scout-open
-sws scout-2026-02-01 scout-2026-02-01 abandoned
+sws scout-2026-02-01 scout-2026-02-01 abandoned scout-open
 scommit "janitor released it" '2026-02-02T00:00:00Z'
 git -C "$scout_work" push -q origin scout-open
 git -C "$scout_work" checkout -q main
 out="$(sct)"
 refute "an abandoned scout is not in flight" "IN FLIGHT" "$out"
 expect "and an old one leaves the clock due" "cadence   : DUE" "$out"
+git -C "$scout_work" checkout -q scout-open
+sws scout-2026-02-01 scout-2026-02-01 Done scout-open
+scommit "a capitalised status" '2026-02-03T00:00:00Z'
+git -C "$scout_work" push -q origin scout-open
+git -C "$scout_work" checkout -q main
+refute "Done reads as done, not in flight for ever" "IN FLIGHT" "$(sct)"
 
 # The REAL shape of a proposal at the human: the scout retired its file as
 # the last commit before the pull request opened. Open or closed, the tip
 # carries no scout file — and it must still date the cycle, and hold nothing.
 git -C "$scout_work" checkout -qb scout-closed main
-sws scout-2026-03-01 scout-2026-03-01 review
+sws scout-2026-03-01 scout-2026-03-01 review scout-closed
 printf -- '---\nrequirement: p\n---\n' >"${scout_work}/docs/product/p.md"
 scommit "proposal" '2026-03-01T00:00:00Z'
 git -C "$scout_work" rm -q docs/handover/scout-2026-03-01.md
@@ -146,6 +154,40 @@ expect "and that branch is what dated it" "the newest unmerged scout branch" "$o
 refute "a retired proposal is not in flight" "IN FLIGHT" "$out"
 out="$(sdsp)"
 refute "dispatch spawns no second scout over an open proposal" "scout DUE: spawn" "$out"
+
+# The scout branch merges main in, as step 7's reconcile tells it to — and
+# main carries a scout-named file of its own (one that landed and was never
+# retired). The merge then differs from the scout parent for this pathspec
+# and matches main, so default history simplification follows main, which
+# `--not main` hides: the add vanishes. --full-history keeps it (second
+# review pass). The same file is what the inherited case below reads.
+git -C "$scout_work" checkout -q main
+sws scout-2026-04-01 scout-2026-04-01 in-progress main
+scommit "a scout file landed on main, never retired" '2026-03-02T00:00:00Z'
+git -C "$scout_work" push -q origin main
+git -C "$scout_work" checkout -q scout-closed
+git -C "$scout_work" merge -q --no-edit main
+git -C "$scout_work" push -q origin scout-closed
+git -C "$scout_work" checkout -q main
+out="$(sct)"
+expect "a proposal that merged main in still dates the cycle" "cadence   : not due" "$out"
+
+# A branch STACKED on a scout branch carries its commits and is not that
+# scout: the file's own `branch:` names the owner (second review pass).
+git -C "$scout_work" checkout -qb stacked "$(git -C "$scout_work" log --format=%H -1 \
+  --diff-filter=A origin/scout-closed -- docs/handover/scout-2026-03-01.md)"
+printf 'stacked work\n' >"${scout_work}/stacked.txt"
+scommit "work stacked on the scout's claim commit"
+git -C "$scout_work" push -qu origin stacked
+git -C "$scout_work" checkout -q main
+out="$(sct)"
+refute "a branch stacked on a scout is not in flight as that scout" "IN FLIGHT" "$out"
+refute "and is never named as one" "stacked" "$out"
+# Gone again before the gate cases: it inherited a workstream file at
+# `review`, which the handover hook rightly reports as edge work. A scratch
+# fixture's own remote, so deleting a branch here is the fixture's business.
+git -C "$scout_work" push -q origin --delete stacked
+git -C "$scout_work" branch -q -D stacked
 
 # A tip committed in the FUTURE dates nothing: clamped, it would read 0h and
 # switch the cycle off for as long as the branch stood (review r2).
@@ -183,12 +225,18 @@ expect "and under orchestrated it is the orchestrator's" \
 expect "and it says why a scout is not invented work" "PROPOSES" "$out"
 refute "and not the suppressed line" "due, suppressed" "$out"
 out="$(sdrn JOHARNESS_MODE=supervised)"
-expect "supervised, it is this session's item" \
-  "read .claude/commands/scout.md" "$out"
+expect "supervised, it is the human's to start, named when you ask" \
+  "Not yours to start: name it to the human" "$out"
+out="$(sdrn JOHARNESS_MODE=unsupervised)"
+expect "unsupervised, the session exits and takes no scout" \
+  "Not yours: exit as above" "$out"
 out="$(sdrn JOHARNESS_MODE=supervised JOHARNESS_CURATE_HOURS=1)"
 expect "a curate due and unclaimed comes first" \
   "scout     : due, suppressed — edge work, a curate or a janitor above comes first" "$out"
-refute "and the scout is not offered as a second item" "read .claude/commands/scout.md" "$out"
+refute "and the scout is not named beside it" "name it to the human" "$out"
+out="$(sdsp JOHARNESS_CURATE_HOURS=1)"
+refute "dispatch spawns no scout in a pass that spawns a curator" "scout DUE: spawn" "$out"
+expect "and says the curate goes first" "a curate or janitor goes first" "$out"
 out="$(sdsp)"
 expect "at DRAINED dispatch prints the spawn line" \
   "scout DUE: spawn ONE scout (agent: fable) on /scout" "$out"
@@ -205,20 +253,16 @@ git -C "$scout_work" push -qu origin edge-x
 git -C "$scout_work" checkout -q main
 out="$(sdrn JOHARNESS_MODE=supervised)"
 expect "with edge work in flight drain names it" "edge work in flight" "$out"
-refute "and does not hand out the scout" "read .claude/commands/scout.md" "$out"
+refute "and does not name the scout" "name it to the human" "$out"
 
 # A branch NAMED like the cycle is not a scout: frontmatter decides, and the
 # branch building this cycle owns `scout-cycle.md` with a real plan.
 git -C "$scout_work" checkout -qb build-scout main
-sws scout-cycle scout-cycle in-progress scout-cycle
+sws scout-cycle scout-cycle in-progress build-scout scout-cycle
 scommit "a branch building the cycle"
 git -C "$scout_work" push -qu origin build-scout
-# A scout file the BASE carries is inherited by every branch cut after it,
-# and is none of theirs (review r9).
-git -C "$scout_work" checkout -q main
-sws scout-2026-04-01 scout-2026-04-01 in-progress
-scommit "a scout file landed on main, never retired"
-git -C "$scout_work" push -q origin main
+# The scout file main carries (above) is inherited by every branch cut
+# after it, and is none of theirs (review r9).
 git -C "$scout_work" checkout -qb cut-after main
 printf 'x\n' >"${scout_work}/cut.txt"
 scommit "a branch cut after it"
@@ -239,3 +283,7 @@ expect "on in the working tree alone is not on — a branch cannot grant itself"
 scommit "the human turns automerge on"
 git -C "$scout_work" push -q origin main
 expect "on in the base branch's conf reads on" "automerge: on" "$(sct)"
+printf '  JOHARNESS_SCOUT_AUTOMERGE=off\n' >>"$scout_conf"
+scommit "an indented later line turns it off"
+git -C "$scout_work" push -q origin main
+expect "an indented later line wins, as conf_get reads every key" "automerge: off" "$(sct)"
