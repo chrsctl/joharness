@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01Vaf3LtqeZuPLpVyeSRpngQ
 agent: opus
 updated: 2026-10-07
-next: Verifier on the conf-only diff, then retire commit + PR + merge (step 7)
+next: Human decides r12-r14 (merge as is, or scope orchestrated to the loop session only); then retire + PR + merge
 ---
 
 ## Goal
@@ -53,6 +53,12 @@ parallelity 1 … still cheap orchestrator." Chosen route: orchestrated mode at
 - r9: (verifier) c03ac7f landed without its workstream-file update (fixed — this commit carries both)
 - r10: (verifier) AGENTS.md silent for sessions not started via /drain (wontfix — reverted)
 - r11: (verifier) drain.md step 6 has no not-merged-but-done route (wontfix — reverted)
+- r12: (verifier) orchestrated conf makes GitHub ci red on any PR adding docs/product/*.md — ci.yml sets no JOHARNESS_MODE, lint_requirement_writes reads unattended (open — human decides)
+- r13: (verifier) stop guard blocks every session editing protocol text unless JOHARNESS_MODE=supervised is exported — nearly all harness work here (open — human decides)
+- r14: (verifier) the revert PR named in the conf comment is itself protocol text, blocked the same way; the override is written nowhere (open)
+- r15: (verifier) 3 of 4 queued plans SUPERVISED ONLY — the loop never builds them, DRAINED prints over them (open — cost told to human)
+- r16: (verifier) parallelity 1 is 1 manager; orchestrator, curator, janitor run beyond the cap (open — cost told to human)
+- r17: (verifier) Where to look still names drain.md (fixed)
 
 ## Blockers
 
@@ -60,4 +66,5 @@ None.
 
 ## Where to look
 
-- `.claude/commands/drain.md` — the command.
+- `joharness.conf` — the mode and cap lines.
+- `.claude/commands/orchestrate.md` — the loop it selects.
