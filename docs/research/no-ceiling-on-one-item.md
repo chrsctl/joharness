@@ -23,12 +23,13 @@ healthy?
 
 ## Echo
 
-The health table is a liveness table. Every row that ends in a respawn requires
-the session to be gone — crashed and confirmed, archived, or silent across two
-passes — and a manager that commits, pushes and bills steadily satisfies none
-of them. So a manager can be alive on every signal and still be the wrong place
-for the next hour of the human's money, and nothing in the loop has a word for
-that state.
+The health table is a liveness-and-repetition table. It acts on a session that
+is gone, on one that has stopped pushing, and on one that is going round in a
+circle — and a manager that commits, pushes, moves its `next:` line and bills
+steadily satisfies none of those. So a manager can be healthy on every signal
+and still be the wrong place for the next hour of the human's money, and
+nothing in the loop has a word for that state: every reading is about whether
+work is HAPPENING, and none about what it has cost.
 
 What I am asking is not "is this manager stuck". The issue is explicit that its
 example was converging and says so twice. It is: does a bound belong here at
@@ -56,7 +57,8 @@ declines to claim one and this node must not supply it.
   bound has to be re-derived from something it can read, or moved to the
   orchestrator, which can. Settled by naming the readable signal.
 - **Whether a refresh of a LIVE manager is ever sound, and under what
-  precondition.** Two refreshes in the reported run finished items in minutes
+  precondition.** (The table already kills a live one on the LOOP row, so the
+  question is which precondition, not whether such a row may exist.) Two refreshes in the reported run finished items in minutes
   for about a dollar each; both were sessions that had gone quiet AT THE FINISH
   with their state already on the branch. A refresh mid-diagnostic ends the
   container and loses an in-flight run. So the precondition is about where the
@@ -112,23 +114,37 @@ edges, against how long each took to reach a pull request —
   LAST write rather than the age of the claim. So the row says how recently the
   manager moved and never how long it has been moving.
 
-- **Every respawn row in the health table requires the session to be GONE.**
-  `cb0028e`, `.claude/commands/orchestrate.md`: confirmed dead
-  (`archive_session`, THEN RESPAWN), archived or not found by title (RESPAWN,
-  *"no nudge, there is nobody to ask"*), nudged and silent across two passes
-  (*"NOW gone"*), stillborn (never ran a turn), and gone at the edge
-  (*"RESPAWN on that branch to FINISH the merge, never to restart the plan"*).
-  There is no row for a session that is alive, pushing and expensive. This is
-  the gap, stated as the table's own shape rather than as an absence: the
-  refresh the issue asks for would be the FIRST row that acts on a working
-  manager, which is why its precondition is the whole design and not a detail.
+- **There IS a row for a live, pushing manager — and it measures repetition,
+  never spend.** This is the correction the issue's framing needs. At
+  `cb0028e`, `.claude/commands/orchestrate.md`'s health table acts on a
+  session in three ways: GONE (confirmed dead, archived or not found by title,
+  stillborn, gone at the edge), SILENT (`RUNNING` with `STALL?` — no push past
+  `JOHARNESS_STALL_MINUTES` — nudged once and unchanged across two passes,
+  then KILL), and LOOPING — *"`LOOP?` on the line (churn past
+  `JOHARNESS_CHURN_LIMIT`), or THIS pass's head moved and `next:` still
+  unchanged, with `same=2` already in the ledger"*, whose own note says *"No
+  nudge — a nudge asks for a push, and a loop is pushing."*
 
-- **The last row is the shape a refresh wants, and it is reachable only when
+  So the table already kills a manager that is alive AND pushing. What the
+  LOOP row reads is one file's rewrite count (`JOHARNESS_CHURN_THRESHOLD`
+  default 5, `JOHARNESS_CHURN_LIMIT` twice it) or a head that moves while
+  `next:` does not. Neither is time and neither is money. The reported item
+  sat at churn 5 on one file — the warning band, under the limit — so the first
+  clause did not match; whether the second could have is NOT knowable from the
+  issue, which does not report that item's `next:` line or its `same=` count.
+  What the reads above do establish is the shape of the gap, and it is narrower
+  and more precise than "no row for a working manager": the one row for a
+  working manager asks whether it is REPEATING itself, and nothing anywhere
+  asks what it has spent.
+
+- **The edge row is the shape a refresh wants, and it is reachable only when
   the owner is gone.** *"gone at the edge … RESPAWN on that branch to FINISH
   the merge"* is exactly the two cheap successes the issue reports. So the fix
   is not a new mechanism; it is the same mechanism with its precondition
   widened from "gone" to "gone, or past a ceiling at the finish" — and that
-  widening is where the live-session risk enters.
+  widening is where the live-session risk enters. Note which precondition it
+  would NOT be: the LOOP row's, which kills with a progress record and
+  respawns to continue the item, not to finish it.
 
 - **The scheduler cannot read a pull request, so option 1 as phrased is not
   buildable.** `grep -cn "gh api|gh pr|api.github" joharness.sh` returns **0**
@@ -219,8 +235,9 @@ Pending: the independent read of this branch.
 ## Graduates to
 
 `.claude/commands/orchestrate.md` — the health table is where a refresh row
-would live, and it is the file whose every respawn precondition is "gone". The
-knob's meaning and the cost that bought it belong under
-`.agents/docs/orchestrated.md`'s knob table in the same graduation; the rule
-alone is what produced a table where a working manager has no row, and a rule
-line without the counter-case is how the mid-diagnostic refresh gets written.
+would live, beside the three readings it already makes (gone, silent,
+looping). The knob's meaning and the cost that bought it belong under
+`.agents/docs/orchestrated.md`'s knob table in the same graduation: a rule line
+alone is what produced a table that measures whether work is happening and
+never what it cost, and a rule line without the counter-case is how the
+mid-diagnostic refresh gets written.

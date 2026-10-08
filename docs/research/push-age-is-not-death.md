@@ -155,11 +155,16 @@ fleet-wide question, from the view the row is built in:
   option 2 — a larger change than the comment implies, and one that would put
   a control-plane money field into the evidence table for the first time.
 
-- **Every respawn row in the health table already requires the session to be
-  gone.** `cb0028e`: confirmed dead, archived or not found by title, nudged and
-  silent across two passes, stillborn, or gone at the edge. So the scheduler's
-  row is the only place in the harness where a respawn is recommended from a
-  single reading — and it is the one place with no session record to read.
+- **Every respawn the health table orders rests on at least TWO observations;
+  the scheduler's row rests on one.** `cb0028e`,
+  `.claude/commands/orchestrate.md`: the confirmed-dead row needs a recorded
+  `seen=` plus `updated_at` AND head unchanged since it; the stall path needs a
+  nudge recorded and then a second look (*"Never kill on this first one; two
+  passes is the rule, and the missing tool removes the message, not the second
+  look"*); the LOOP row needs `same=2` already in the ledger; the idle row needs
+  a nudge and then head AND `status_detail` unchanged. The scheduler's edge row
+  has no ledger, no session record, and one number — and it is the only place in
+  the harness that recommends a respawn from a single reading.
 
 - **Reported, not re-measured here: three live managers read as 434h stalls.**
   On 2026-10-05, an orchestrator session itself suspended from ~2026-09-17
