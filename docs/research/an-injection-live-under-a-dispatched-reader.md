@@ -156,14 +156,21 @@ dead rather than reported.
   earlier draft said nothing in that file is about tree state; its grep
   matched `working tree` and `tree state`, and the section says *"reading the
   tree"*.
-- **The verifier's brief points it at the live checkout and never says the
-  checkout can move.** `.claude/agents/verifier.md:74`-`:75` tells it to
-  *"Re-run claims about the repository's own state, with commands YOU compose
-  against the checkout"*, and `:80` acknowledges the shared container in the
-  one place it matters for execution safety: *"You share a container with the
-  session that spawned you."* Both sentences are correct and neither carries
-  a tree. The reader is told to measure, told what not to run, and told
-  nothing about WHEN what it measures is the diff.
+- **The verifier's brief points it at the live checkout, names that checkout
+  as the boundary of what it can trust, and never says the checkout can
+  move.** `.claude/agents/verifier.md:99`-`:100` tells it to *"Re-run claims
+  about the repository's own state, with commands YOU compose against the
+  checkout"*, and `:105` acknowledges the shared container in the one place
+  it matters for execution safety: *"You share a container with the session
+  that spawned you."* Since PR #325 it also carries `## What you cannot see`
+  (`:64`-`:80`), which draws the line at *"this checkout, and commands run in
+  this container"*, gives the boundary as *"outside this checkout"* (`:71`),
+  and prescribes *"Check that nothing in the repository contradicts it"*
+  (`:76`) for anything beyond it. So the brief now states twice that the
+  checkout is the reader's ground, and a mutable checkout is not on the list
+  of things it cannot see. Every sentence is correct and none carries a tree:
+  the reader is told to measure, told what not to run, told what is out of
+  reach, and told nothing about WHEN what it measures is the diff.
 - **`subagents.md` already owns the premise and stops one sentence short.**
   It states *"All of them share the parent's container"* (`:37`-`:38`), lists
   **Review** as the first thing to use a subagent for (`:45`), says a
@@ -224,7 +231,11 @@ candidates differ in who they bind:
   tree, not about the diff. Reaches the reader through the one channel it
   has, and makes the failure legible instead of absent. Measured not to
   prevent it — and no longer measured to disarm the reader, since the work
-  under review is normally committed and `isolation: worktree` exists.
+  under review is normally committed and `isolation: worktree` exists. Since
+  PR #325 the file also has the section such a clause belongs in,
+  `## What you cannot see`, whose own instance (issue #267) is the same
+  failure one subject over: a reader that stays silent about a reading it
+  could not take turns a known limit into a hidden one.
 - **C. The Loop, at step 5.** One clause beside *"revert the fix, run the
   test, put it back"*, the sentence that orders the mutation. Every session
   meets it. Cost: `AGENTS.md` is the caveman file, and step 5 already carries
@@ -267,8 +278,8 @@ candidate's pricing, and finding 8 replaced an elimination argument with a
 placement one.
 
 - Every quotation with a file and line — `AGENTS.md:123`, `:92`-`:93`,
-  `:77`-`:80`, `manage.md:66`-`:67`, `:75`, `:152`, `verifier.md:74`-`:75`,
-  `:80`, `subagents.md:26`, `:31`, `:37`-`:38`, `:45`,
+  `:77`-`:80`, `manage.md:66`-`:67`, `:75`, `:152`, `verifier.md:64`-`:80`,
+  `:99`-`:100`, `:105`, `subagents.md:26`, `:31`, `:37`-`:38`, `:45`,
   `feedback.md:145`, `:162`-`:163`, `joharness.sh:9333`, `:9348`,
   `:9354`-`:9356`, `:9409`, `:9412`: **GROUNDED**, each opened in place,
   by the verifier and again here after it reported.
