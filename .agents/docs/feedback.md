@@ -405,7 +405,7 @@ counting instead of reasoning. **The bucket is not what the issue describes.**
 
 Canonical cannot run the code path that classifies: `cmd_upstream` returns early
 on `JOHARNESS_CANONICAL=1`. So the sweep stripped that one line into a scratch
-conf and read every merged edge through it (2026-10-08, this repo, 272 edges):
+conf and read every merged edge through it (2026-10-08, this repo, 273 edges):
 
 ```bash
 grep -v '^JOHARNESS_CANONICAL=1' joharness.conf > /tmp/consumer.conf
@@ -416,13 +416,18 @@ git log --first-parent --format='%H %P%x09%s' --merges origin/main |
   done
 ```
 
-1984 findings over 223 edges carrying a workstream file — the same two totals
+2005 findings over 224 edges carrying a workstream file — the same two totals
 `./joharness.sh feedback` prints from its own reader, which is the cross-check
-that the sweep parsed every bucket and dropped none:
+that the sweep parsed every bucket and dropped none. Both totals climb with
+every merge, this page's own header rule: the command re-counts, the number
+below was true at this paragraph's commit. What the answer rests on is the
+third row, and that row has not moved across two sweeps a merge apart.
+
+
 
 | bucket | findings | reader today |
 | --- | --- | --- |
-| kept — fix path canonical owns | 1335 | `upstream` → `/upstream-report` |
+| kept — fix path canonical owns | 1356 | `upstream` → `/upstream-report` |
 | this repo's own — fix path, none canonical's | 119 | `cmd_feedback`, path-keyed, served by the PreToolUse hook before the next edit |
 | unplaceable | 530 | the question |
 
@@ -436,12 +441,13 @@ printed:
   hold it, so a destination for these is not a destination — it is a different
   key, and nobody has proposed one.
 - **151 carry one**, under a heading that says they carry none. Of those, 44
-  name a file canonical owns in a form the ownership predicate rejects, 9 name a
-  queue node that retires (`docs/plans/`, `docs/handover/`, `docs/research/`) or
-  another repo's `README.md`, and **0 name a durable consumer-owned product
-  file.**
+  name a file canonical owns in a form the ownership predicate rejects. 9 name
+  a node that retires (`docs/plans/`, `docs/handover/`, `docs/research/`,
+  `docs/product/`), a queue-directory or root `README.md`, or a file in another
+  repository — one cites gastown's. And **0 name a durable consumer-owned
+  product file.**
 
-Zero. On 1984 findings there is not one consumer product finding without a
+Zero. On 2005 findings there is not one consumer product finding without a
 reader. #258's premise — that the machinery "lacks a destination" — does not
 survive the count: where a finding carries a path the destination already exists
 and is already automatic, and where it carries none the destination is

@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_0128i4WUdEgZ88ygzuHHtXEK
 agent: opus
 updated: 2026-10-08
-next: Answer the verifier's findings, retire this file and open the pull request
+next: Answer the verifier's findings, retire this file and the plan is already filed, then pull request
 ---
 
 ## Goal
@@ -73,6 +73,20 @@ the research file.
   acceptance is all local would be green in the only repo where the changed
   code never runs. (fixed — Acceptance now requires the stripped-conf
   fixture run and the 44 appearing under `harness findings`.)
+- r3: (session) `origin/main` moved 9 commits mid-branch (PR #316), so the
+  corpus the graduation cites was no longer the corpus the merge lands on.
+  Re-ran the whole sweep after merging: 273 edges, 2005 findings,
+  1356 / 119 / 530, and the 530 split unchanged at 379 pathless and 151
+  text-path, 44 missed-owned, 9 real, 0 durable consumer product file. Only
+  the two totals and the kept count moved. Figures updated and the section now
+  says the totals climb with the corpus while the third row is what the answer
+  rests on. (fixed — and the catch was the step 4 periodic re-fetch, not luck.)
+- r4: (session) "another repo's `README.md`" undersold the 9. Two of them are
+  `README.md` and only one of those is another repository's (gastown); the
+  other is a queue-directory README, and one more is `docs/product/`, a
+  directory my prose did not list. Reworded to what the 9 actually are. The
+  load-bearing word is `durable`, and it survives: none of the 9 is a
+  consumer-owned product file.
 
 ## Blockers
 
