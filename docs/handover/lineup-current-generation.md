@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01BAYojV5b4rXevhCXAR2cmC
 agent: sonnet
 updated: 2026-10-08
-next: Update agent-selection.md Lineup and add Cost levers section
+next: Record review, retire plan + workstream file, open PR
 ---
 
 ## Goal

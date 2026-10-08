@@ -3,9 +3,9 @@
 Different plans, different agents. Each plan file under `docs/plans/` names
 in frontmatter which agent tier implements it (`agent`) and at what effort
 (`effort`). This document: the lineup, the selection rules, the model
-behavior they rest on. Developed in a consumer (its PR #3); facts from
-Anthropic API reference cached 2026-06-24 — verify against Models API when
-stale.
+behavior they rest on. Developed in a consumer (its PR #3); Lineup facts
+from the claude-api skill's model table cached 2026-10-06 — verify against
+Models API when stale.
 
 ## Lineup
 
@@ -14,10 +14,18 @@ mapping:
 
 | Tier | ID today | Context | $/MTok in/out | Use for |
 | --- | --- | --- | --- | --- |
-| haiku | `claude-haiku-4-5` | 200K | 1 / 5 | Mechanical, fully specified, acceptance executable |
-| sonnet | `claude-sonnet-5` | 1M | 3 / 15 (intro 2 / 10 through 2026-08-31) | Default. Near-Opus coding + agentic quality |
-| opus | `claude-opus-5` | 1M | 5 / 25 | Correctness-critical, invariant reasoning, irreversible-path code |
+| haiku | `claude-haiku-5-5` | 1M | 0.10 / 0.50 (prompt ≤100K; 0.50 / 2.50 above) | Mechanical, fully specified, acceptance executable |
+| sonnet | `claude-sonnet-5-5` | 1M | 2 / 10 | Default. Near-Opus coding + agentic quality |
+| opus | `claude-opus-5-5` | 1M | 4 / 20 | Correctness-critical, invariant reasoning, irreversible-path code |
 | fable | `claude-fable-5-1` | 1M | 10 / 50 (claude-api skill, 2026-10-06) | Judgement with a small context: decomposition, review-churn research, scouting. Never a build. |
+
+Price gap moved with the generation. Haiku was a third of sonnet; at 5.5
+it is a twentieth below 100K-token prompts, a quarter above. A manager's
+haiku worker (`.claude/commands/manage.md`, fan out) is now the cheapest
+lever that keeps quality: the manager re-runs the acceptance command
+before any commit, so a weak worker's return cannot land unchecked.
+Opus 5.5 defaults to effort `medium`, one below Opus 5 — the plan's
+`effort:` is what keeps it at `high`.
 
 ## Selection rules
 
@@ -162,6 +170,48 @@ mapping:
   answer is one sessions learn to route around (`finish` refuses to guess
   at "done" for the same reason). Hook printing the wanted tier at session
   start is the mechanism; the rule is what the reader obeys.
+
+## Cost levers
+
+Read 2026-10-08 against Anthropic's usage-limit guide
+(support.claude.com/en/articles/9797557) and its Claude Code page
+(support.claude.com/en/articles/11145838). The guide's
+prompt-side advice — context up front, specific asks, plan before asking —
+is what plans and hook-injected state already do. What it adds that the
+harness did not say:
+
+- **Context is the bill, not output.** Every turn re-reads the whole
+  context; cached, at a tenth of input price. One orchestrator: 1.21B
+  cache-read tokens against 1.74M output (`docs/product/scout-role.md`
+  Evidence, `get_session` 2026-10-07). Two managers of that fleet: 712K
+  context, 46.76 USD; 126K, 0.88 USD. Research sweeps go to a subagent that
+  returns the conclusion (`subagents.md`); the parent keeps no file dumps.
+- **Cache expires on idle.** A wake after expiry pays full input price on
+  the whole context. This runtime states a 1-hour prompt-cache TTL, 5
+  minutes in usage overage (`ScheduleWakeup` tool description, read
+  2026-10-08). The 712K-context manager above costs about 2.85 USD per
+  cold wake at opus 5.5 input price, 0.14 cached (cache read 0.20/MTok) —
+  arithmetic on the Lineup, not a measurement.
+  So: a wait longer than the TTL is cheaper as a FRESH session reading the
+  workstream file than as a resumed fat context. Health cadence
+  (`JOHARNESS_HEALTH_MINUTES`) under the TTL keeps passes warm.
+- **Effort does not cross a spawn.** `Agent` and `create_session` take a
+  model, not an effort (`subagents.md`). A plan's `effort:` reaches a
+  manager or worker only as prompt prose, so the model's default decides
+  the rest — `medium` on Opus 5.5 and Haiku 5.5, `high` on Sonnet 5.5.
+- **Subscription limits are one pool.** On Pro or Max, every session of a
+  fleet draws the same 5-hour and weekly allowance as the human's own chat
+  and IDE use; Max adds a separate weekly Fable limit. `JOHARNESS_MAX_MANAGERS`
+  multiplies the burn rate, and nothing in `dispatch` reads the limit. An
+  API-billed fleet has no such wall — only the money.
+- **Batching does not apply.** The guide's "batch similar requests" meets
+  one item per session (Loop, after step 7). A fresh session's instruction
+  load is the `AGENTS.md` chain, about 17 KB (`wc -c`, 2026-10-08) —
+  noise against ~128 USD per merged edge (`orchestrated.md` Runs, run 3).
+  The rule stays.
+
+None of these is a tier downgrade. Downgrades stay money, humans only
+(Selection rules); trials that would inform one are queued as research.
 
 ## Behavior findings (default worker, Sonnet 5)
 
