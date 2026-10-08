@@ -8,7 +8,7 @@ issue: 249
 session: https://claude.ai/code/session_01HxJCqyzWBxPevmBbn2r1oj
 agent: opus
 updated: 2026-10-08
-next: Rewrite PR body for the corrected answer, retire node + workstream file in ONE commit, open PR, merge
+next: Confirm ci: pass on 2ea10e5, then ONE retire commit (git rm the node + this file), open PR, merge
 ---
 
 ## Goal
@@ -162,31 +162,39 @@ makes it RUN when the orchestrator itself has stopped. Graduates to
 
 ## Blockers
 
-None. Research is settled and graduated; what is left is step 5's verifier
-record and step 7.
+None. Research settled, graduated, corrected twice, plan filed. What is left
+is step 7 only.
 
-State at this push: 3 commits, 0 behind `origin/main`. Diff is three `*.md`
-files only — the node, its graduation target, the workstream file — so
-`verify` is not gated on it (step 7's non-`*.md` list). `./joharness.sh ci`
-was green at the merge base and was re-running on the corrected tree at
-this push; read the run, do not inherit this sentence.
+State at this push: 6 commits, 0 behind `origin/main` at last fetch. Diff is
+`*.md` only (node, graduation target, this file, one new plan), so `verify`
+is not gated on it — step 7's non-`*.md` list. `./joharness.sh ci` was
+`pass` on 22586c5 and was re-running on 2ea10e5 at this push; READ the run,
+do not inherit this sentence.
 
-Two things still owed before the pull request:
+Step 5 is DONE and the gate is satisfied: 21 findings, 12 tagged
+`(verifier)` (gate regex `joharness.sh:3394` is `\(verifier[,)]` — the
+first nine read `(verification)` and counted zero, which is r21). Both
+readers are recorded: the research protocol's second context and
+`.claude/agents/verifier.md`.
 
-1. The `.claude/agents/verifier.md` subagent (opus, per `./joharness.sh
-   review`) was spawned and had not returned. Its findings go into `##
-   Review` tagged `(verifier)` — the gate wants at least one such tag, and
-   r1-r7 are from the research verification context, which is a DIFFERENT
-   second reader. If it returned nothing usable, spawn it again rather than
-   tagging r1-r7 `(verifier)`.
-2. The retire commit deletes BOTH `docs/research/scheduler-outside-the-fleet.md`
-   and this file, as the last commit before the pull request opens.
+Remaining, in order:
 
-Pull request body is drafted at
-`scratchpad/pr-body.md` in this session's scratchpad (not in the repo). If
-that is gone, it is rebuildable from the node's Findings plus the two
-human-facing items: the hinge is reasoning not measurement, and the
-repo-quiet alert is deliberately unfiled.
+1. Confirm `ci: pass` on 2ea10e5.
+2. ONE retire commit, the last before the pull request:
+   `git rm docs/research/scheduler-outside-the-fleet.md` AND
+   `git rm docs/handover/scheduler-outside-the-fleet.md`. The node's
+   deletion IS the `graduates:` edge completing — it still shows under
+   "Open questions" in `queue-context.sh` until then, and its body says
+   `CLOSED`, which is a contradictory second state field (r13 of the
+   verifier's report). Keep `docs/plans/heartbeat-is-a-precondition.md` —
+   that one is new work, not retired work.
+3. Pull request from the body drafted in this session's scratchpad at
+   `scratchpad/pr-body.md`. If that file is gone, the body is rebuildable:
+   the two-shape table, the three corrections (#285's mechanism, the
+   `last_run` check, the frozen-`RUNNING` hole), the plan and why it is
+   SUPERVISED ONLY, the unfiled repo-quiet alert for the human, and the
+   `drop-unsupervised-docs` interaction.
+4. Merge-commit method only. Then exit; one item per session.
 
 ## Where to look
 
