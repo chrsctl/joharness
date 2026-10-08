@@ -85,18 +85,28 @@ Source reads at `cb0028e`, each re-run rather than taken from the issue:
     sed -n '592,610p' .claude/commands/orchestrate.md   # the forgery rule
     sed -n '614,624p' .claude/commands/orchestrate.md   # the seen=/detail= loss note
     grep -n "JOHARNESS_RESPAWN_LIMIT" joharness.sh
-    grep -n "never a ledger" joharness.sh .agents/harness/selftest/dispatch.sh
+    git grep -n "dies with its run" -- joharness.sh .agents .claude
     grep -n "the one irreversible verdict" joharness.sh
 
 ## Findings
 
-- **The design already sorts fields, and the governing sentence is in the
-  source rather than only in the document.** `cb0028e`, `joharness.sh`: the
-  curate cadence is read *"Both halves from git (never a ledger: the
-  orchestrator's dies with its run)"* — the same sentence appearing twice in
-  `joharness.sh` and once in `.agents/harness/selftest/dispatch.sh`. So
-  "rebuild it from git where git can" is established practice here, not a
-  proposal, and the question is only about the remainder.
+- **The design already sorts fields, and the governing rule is in the source
+  rather than only in the document.** `cb0028e`, three places, three wordings,
+  one rule — `git grep -n "dies with its run"`:
+
+      joharness.sh:8099  … Both halves from git (never a ledger:
+                         # the orchestrator's dies with its run) …
+      joharness.sh:7341  … all derived from git and none stored: the
+                         # orchestrator's ledger dies with its run and a
+                         # heartbeat re-seeds a fresh one …
+      .agents/harness/selftest/dispatch.sh:1262
+                         # Dated from GIT, never a ledger: the orchestrator's
+                         # dies with its run.
+
+  So "rebuild it from git where git can" is established practice here, not a
+  proposal, and the question is only about the remainder. (The issue cites the
+  same three locations and calls them one sentence; they are one rule stated
+  three ways, which matters only to a reader grepping for a string.)
 
 - **One field class already carries its loss, and that is the shape the others
   are missing.** `cb0028e`, `.claude/commands/orchestrate.md`: *"a field the

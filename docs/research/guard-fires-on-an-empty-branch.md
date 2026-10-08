@@ -78,19 +78,31 @@ never touched, never pushed. The guard was run from THIS repo's copy at
 `cb0028e` against that fixture through `CLAUDE_PROJECT_DIR`, so the code under
 test is canonical's and only the git state is synthetic:
 
+    HARNESS=<path to this checkout>
     git init -q --initial-branch=main bare-origin.git --bare
     git init -q --initial-branch=main work && cd work
+    git config user.email a@b.c && git config user.name t
     echo hi > f.txt && git add f.txt && git commit -qm init
     git remote add origin ../bare-origin.git && git push -q -u origin main
     git checkout -q -b claude/new-session-kxjz6i main
 
     printf '{"tool_name":"Stop","stop_hook_active":false}' |
-      CLAUDE_PROJECT_DIR="$PWD" bash .agents/harness/handover-guard.sh
+      CLAUDE_PROJECT_DIR="$PWD" bash "$HARNESS/.agents/harness/handover-guard.sh"
+    echo "EXIT=$?"
 
-Then the same command after `git commit` on that branch (the real case), after
-`git checkout main` (the control), against the issue's own proposed patch, and
-against that patch with `refs/remotes/origin/main` deleted
-(`git update-ref -d refs/remotes/origin/main`).
+`$HARNESS` is spelled out because the guard resolves its own root from
+`CLAUDE_PROJECT_DIR` and would otherwise read the fixture's missing copy of
+itself; running it from the fixture directory is what makes the code under test
+canonical's and the git state synthetic.
+
+Then the same command four more times: after a `git commit` on that branch (the
+real case), after `git checkout main` (the control), against a copy of the
+guard carrying the issue's own proposed patch, and against that patched copy
+with the base ref removed —
+
+    git update-ref -d refs/remotes/origin/main
+
+on a branch one commit ahead of the local `main`.
 
 The source reads behind the claims about the rule:
 
@@ -131,9 +143,16 @@ The source reads behind the claims about the rule:
   test does not check.
 
 - **The issue's proposed patch closes the false positive and keeps the real
-  case.** Measured 2026-10-08, same fixture, the patch applied to a copy:
-  zero-commit clean branch → no output, exit 0; one unpushed commit → blocks,
-  with the same fact. So the remedy is not a trade of one case for the other.
+  case.** The patch, as the issue gives it, replacing the two lines inside the
+  `elif`:
+
+      base_ahead="$(git rev-list --count "origin/${BASE_BRANCH}..HEAD" 2>/dev/null || echo 0)"
+      [ "${base_ahead:-0}" -gt 0 ] && add_fact "branch has no upstream — git push -u origin HEAD"
+
+  Measured 2026-10-08, same fixture, that patch applied to a copy of the
+  guard: zero-commit clean branch, no output and exit 0; one unpushed commit,
+  blocks with the same fact. So the remedy is not a trade of one case for the
+  other.
 
 - **And it fails OPEN on a branch with commits when `origin/<base>` is
   absent.** Not claimed by the issue; measured 2026-10-08 after
