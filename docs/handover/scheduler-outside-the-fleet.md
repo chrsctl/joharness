@@ -8,7 +8,7 @@ issue: 249
 session: https://claude.ai/code/session_01HxJCqyzWBxPevmBbn2r1oj
 agent: opus
 updated: 2026-10-08
-next: Run the Method's four candidate probes, record each with its command, then graduate into .agents/docs/unsupervised.md
+next: Read the verifier subagent's findings into ## Review, then retire node + workstream file in ONE commit, open PR with scratchpad/pr-body.md, merge
 ---
 
 ## Goal
@@ -101,7 +101,31 @@ makes it RUN when the orchestrator itself has stopped. Graduates to
 
 ## Blockers
 
-None.
+None. Research is settled and graduated; what is left is step 5's verifier
+record and step 7.
+
+State at this push: 3 commits, 0 behind `origin/main`. Diff is three `*.md`
+files only — the node, its graduation target, the workstream file — so
+`verify` is not gated on it (step 7's non-`*.md` list). `./joharness.sh ci`
+was green at the merge base and was re-running on the corrected tree at
+this push; read the run, do not inherit this sentence.
+
+Two things still owed before the pull request:
+
+1. The `.claude/agents/verifier.md` subagent (opus, per `./joharness.sh
+   review`) was spawned and had not returned. Its findings go into `##
+   Review` tagged `(verifier)` — the gate wants at least one such tag, and
+   r1-r7 are from the research verification context, which is a DIFFERENT
+   second reader. If it returned nothing usable, spawn it again rather than
+   tagging r1-r7 `(verifier)`.
+2. The retire commit deletes BOTH `docs/research/scheduler-outside-the-fleet.md`
+   and this file, as the last commit before the pull request opens.
+
+Pull request body is drafted at
+`scratchpad/pr-body.md` in this session's scratchpad (not in the repo). If
+that is gone, it is rebuildable from the node's Findings plus the two
+human-facing items: the hinge is reasoning not measurement, and the
+repo-quiet alert is deliberately unfiled.
 
 ## Where to look
 
