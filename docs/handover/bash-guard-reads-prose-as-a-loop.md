@@ -100,8 +100,10 @@ attempted. It stopped on a DIFFERENT and harder bound — below.
 - r1: the plan's central design claim is false, and the plan is where the
   next session will read it. `./joharness.sh` prototype feed, 19 payloads on
   stdin, 2026-10-08: the prescribed `do`/`done` count leaves payloads 3 and
-  4 at exit 2 where Acceptance requires 0. (open — needs the plan corrected;
-  product judgement, left to the human rather than taken unilaterally)
+  4 at exit 2 where Acceptance requires 0. (fixed — filed as #314 with the
+  measurement and the design that holds, so it is queue-visible before
+  anyone builds from the plan's current text. Correcting the plan file
+  itself is product judgement and stays the human's.)
 - r2: no `(verifier)` finding on this branch. Step 5's independent reader
   was not spawned because there is no diff to review — the build was
   reverted unverified (see `## Blockers`). `JOHARNESS_REVIEW=off`, so no
@@ -148,6 +150,11 @@ design.
 
 ## Where to look
 
+- **#314** — this session's finding as a queue item: the refutation, the
+  measured table, and both regexes. Filed because a plan's text is what the
+  next session reads, and an unmerged branch is not. `issue:` above is
+  deliberately `none`: #314 is filed, NOT claimed, and marking it claimed
+  would have the hook report work nobody is doing.
 - `docs/plans/guard-pairs-done-by-depth.md` — the fix, `agent: opus`,
   `effort: high`. Its Goal's four payloads are the acceptance; its central
   prescription is wrong (r1).
