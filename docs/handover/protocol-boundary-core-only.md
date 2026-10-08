@@ -32,12 +32,17 @@ said "Okay" in session) — the last plan that needs it.
   case is INVERTED, not deleted: it now pins that no shipped tree is
   re-listed, because re-listing one re-blocks the canonical's whole queue
   silently. Requirement-lint cases rewritten to pin the stage's absence.
-- Widened beyond the plan's scope, two lines: `.agents/docs/feedback.md` and
-  `.agents/docs/product/README.md` both cited the deleted
-  `lint_requirement_writes` as live.
-- Fallback in handover-guard.sh (`trees=".agents/harness"` when the
-  entrypoint cannot list) left as is: it serves OLD entrypoints, whose own
-  boundary did include that tree.
+- Widened beyond the plan's `scope:` (r12), every path a reader of the
+  boundary or of the deleted lint lives in: `.agents/harness/handover-context.sh`
+  (compaction reminder wording); selftests `autonomy-mode`, `drain`,
+  `dispatch`, `review`, `orchestrated`, `handover-context-compact` (fixtures
+  pinned the old list); `.claude/commands/curate.md` (cited the deleted ban);
+  `.agents/docs/feedback.md`, `.agents/docs/product/README.md` (cited the
+  deleted lint as live). Same change, the readers of it; no new behaviour.
+- Fallback in handover-guard.sh: first left as `.agents/harness` (serves old
+  entrypoints). REVERSED after r3: joharness.sh is editable now, so "cannot
+  list" is reachable from a branch; fallback = the three core paths, pinned
+  equal to protocol-paths by the selftest.
 
 - Measured 2026-10-08 on this branch: `bash .agents/harness/selftest.sh` →
   2311 passed, 0 failed; `./joharness.sh ci` → ci: pass; `verify` first run
@@ -51,6 +56,22 @@ said "Okay" in session) — the last plan that needs it.
 ## Rejected
 
 ## Review
+
+- r1: (verifier) plan's protocol-boundary selftest topic never written; nothing pins released paths staying silent in the guard (fixed: topic written and registered)
+- r2: (verifier) `.github` guards the workflow YAML, not the `ci` it runs from PR head; joharness.sh and handover-guard.sh editable, so a session can weaken the gate or the guard without touching a core path (wontfix: the requester released protocol text with self-merge; owning joharness.sh would put every harness PR back on a human. Claims corrected in joharness.sh header and unsupervised.md; flagged to the human)
+- r3: (verifier) guard fallback `.agents/harness` reports a released path as core and misses the real core paths; reachable now joharness.sh is editable (fixed: fallback is the three core paths, pinned equal to protocol-paths)
+- r4: (verifier) glob case passes without set -f because joharness.sh is no longer core (fixed: fixture holds a tracked core file the glob would expand to)
+- r5: (verifier) queue-context.sh unreadable-boundary message still says protocol text (fixed)
+- r6: (verifier) unsupervised.md rows/lines 31,40,41,77,85-89,124 contradict the new rule (fixed)
+- r7: (verifier) manage.md Never list still forbids protocol text and a requirement (fixed)
+- r8: (verifier) unattended() comment, joharness.sh curate text and curate.md cite the deleted requirement ban (fixed)
+- r9: (verifier) guard and queue-context comments describe the old boundary, joharness.sh as protocol example (fixed)
+- r10: (verifier) CODEOWNERS selftest accepts an ownerless line or a later unowned override; CODEOWNERS does not ship to consumers (fixed: test requires an owner and no later unowned match; header says canonical-only guarantee)
+- r11: (verifier) new released-path refutes pass on a silent hook (fixed: expect the row first)
+- r12: (verifier) scope widening beyond the plan unrecorded (fixed: recorded in Decisions)
+- r13: (verifier) one verify failure recorded without cause (fixed: re-run three times, recorded)
+- r14: (verifier) branch protection unmeasured; handover numbers not re-run (no change: PR body says guarded locally only until the human sets code-owner review; numbers re-measured after fixes)
+- r15: (verifier) orchestrated.md:486 and :698 old framing in present tense (fixed)
 
 ## Blockers
 

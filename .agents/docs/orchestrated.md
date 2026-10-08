@@ -483,7 +483,7 @@ is recoverable in joharness only. Everything a later reader needs is below,
 which is what that state requires rather than leaves optional.
 
 **The ask, 2026-09-05**, transcribed by the attended session that received
-it; a session writes no requirement of its own, and when that session asked
+it; a session then wrote no requirement of its own, and when that session asked
 whether to correct, keep or delete the transcription the requester delegated
 the decision to it, same day:
 
@@ -695,8 +695,8 @@ fired. One respawn ran and was verified clean, no duplicate, 2026-09-16
 allocated no runner account-wide from 2026-09-13, so step 7's first merge
 condition could not be met. Five managers waived it per pull request; one
 read the rule strictly, finished green and set itself BLOCKED, because the
-remedy — `JOHARNESS_CHECKS=local` in `joharness.conf` — is protocol text no
-session may commit. The orchestrator escalated instead of choosing, which is
+remedy — `JOHARNESS_CHECKS=local` in `joharness.conf` — was protocol text no
+session may commit (a core path still, since 2026-10-08). The orchestrator escalated instead of choosing, which is
 what it should do, and the human settled it there on 2026-09-16.
 A fleet that meets an infrastructure wall needs a human for a one-line conf
 change and cannot supply one; five sessions deciding one way and one the

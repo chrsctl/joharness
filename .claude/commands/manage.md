@@ -214,8 +214,8 @@ place a consumer's finding can still reach the repo that owns the fix.
 
 ## Never
 
-- A second item, a session of your own (workers are subagents), protocol
-  text, a requirement, another session's pull request.
+- A second item, a session of your own (workers are subagents), a core
+  path (`./joharness.sh protocol-paths`), another session's pull request.
 - Downgrade the plan's tier or effort; skip, disable or quarantine a test;
   kick CI.
 - Trust a worker's "done": count it.

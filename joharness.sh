@@ -326,15 +326,22 @@ mode_source() {
 #   .claude/settings.json hooks and permissions. It wires the Stop hook that
 #                         runs the guard at all, and grants what a session
 #                         may run without asking.
-#   .github               the merge gate: workflows/ are the checks step 7
-#                         requires green, CODEOWNERS is the review below.
+#   .github               the workflow DEFINITIONS step 7 requires green, and
+#                         CODEOWNERS below. Not the checks' content: ci.yml
+#                         runs `./joharness.sh ci` from the PR head, and that
+#                         file is a session's to edit.
 #
-# NOT here, deliberately: joharness.sh, which holds THIS list. A session may
-# edit it, so this list is an early warning and never the guarantee. The
-# guarantee is GitHub's: .github/CODEOWNERS names the core paths, and a
-# branch-protection rule requiring code-owner review stops a merge touching
-# them without the human. A session that deletes an entry here still cannot
-# merge a change to the entry's file. Also not here: .agents/env/ (sandbox
+# NOT here, deliberately: joharness.sh, which holds THIS list, `ci`, and the
+# guard's hook script under .agents/harness. A session may edit all of them,
+# so this list is an early warning and never the guarantee, and a session can
+# weaken `ci` or the Stop guard without touching a core path. That is the
+# price of the requester's decision, priced and accepted (verifier r2): owning
+# joharness.sh would put every harness pull request back on a human. What
+# the core paths still guarantee — on the canonical, where .github/CODEOWNERS
+# lives (it does not ship to consumers) and once branch protection requires
+# code-owner review — is that money, permissions and the workflow
+# definitions change only with the human. A session that deletes an entry
+# here still cannot merge a change to the entry's file. Also not here: .agents/env/ (sandbox
 # configuration) and .agents/docs/ (the reasoning behind rules).
 protocol_paths() {
   printf '%s\n' joharness.conf .claude/settings.json .github
@@ -355,8 +362,8 @@ run_mode() {
   esac
 }
 
-# The ONE predicate every unattended bound reads: the protocol boundary, the
-# requirement lint, the SUPERVISED ONLY marking, the banner. Both unattended
+# The ONE predicate every unattended bound reads: the core boundary, the
+# SUPERVISED ONLY marking, the banner. Both unattended
 # modes are bound identically; they differ only in who dispatches — each
 # session for itself (unsupervised) or an orchestrator (orchestrated). A
 # second `= unsupervised` test somewhere is a bound the new mode escapes.
@@ -7726,8 +7733,8 @@ dispatch_curate_branches() {
 # technical one: REPAIR and DECLUTTER the curator acts on, PROPOSE it only
 # writes down. Ordering by priority is product direction and `urgency:` is
 # never the curator's (.agents/harness/AGENTS.md, Decide alone); splitting a
-# plan MULTIPLIES the queue, which is the circularity the requirement ban
-# exists to stop (.agents/docs/unsupervised.md, Bounds).
+# plan MULTIPLIES the queue, which is the circularity the no-inventing edge
+# exists to stop (.agents/docs/unsupervised.md, The one stop).
 
 # Normalized `scope:` entries of a plan, one per line: comma to newline,
 # surrounding blanks and trailing slashes gone, `none` dropped, and the
