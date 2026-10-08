@@ -269,6 +269,91 @@ pbg_denied "a sleep inside a nested for is the outer loop's wait"
 pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"until test -f /tmp/x; do for i in 1; do sleep 1; done;done"}}'
 pbg_denied "done;done with no space between still closes both loops"
 
+# --- an opener with no `done` of its own (verifier, 2026-10-08) -----------
+# A stray opener in a REAL loop's body — a quoted keyword, a `for x in` in a
+# message or in inline Python — leaves that loop unbalanced. The first build
+# of the walk failed open there, and only a quoted `while` FOLLOWED by its own
+# sleep happened to heal: every case below read 0 on it and 2 on origin/main.
+# An unbalanced loop is now judged from its keyword to the first `done`, the
+# reading it had before the walk, so it can never be more permissive.
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"until [ -f /tmp/ready ]; do sleep 5; echo \"while waiting\"; done"}}'
+pbg_denied "a quoted keyword AFTER the sleep does not unbound the loop"
+
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"until test -f /tmp/x; do sleep 5; echo \"until\"; done"}}'
+pbg_denied "a quoted bare keyword does not unbound the loop"
+
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"until grep -q x /tmp/f; do echo \"for x in list\"; sleep 5; done"}}'
+pbg_denied "a quoted for NAME in does not unbound the loop"
+
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"until python3 - <<'"'"'PY'"'"'\nimport sys\nfor line in open('"'"'/tmp/f'"'"'):\n    if '"'"'ready'"'"' in line: sys.exit(0)\nsys.exit(1)\nPY\ndo sleep 5; done"}}'
+pbg_denied "an inline Python for loop in the condition does not unbound the wait"
+
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"while true; do sleep 5; python3 -c '"'"'\nfor x in [1]:\n  print(x)\n'"'"'; done"}}'
+pbg_denied "an inline Python for loop in the body does not unbound the wait"
+
+# And the fallback must not reach a nested loop's counter: it reads to the
+# first `done`, which a correct pairing never needs. These two pin the
+# pairing's own clauses — a bare `for` as opener, and a `done` straight
+# after another `done;` — by making the fallback give the wrong answer.
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"until test -f /tmp/x; do echo \"for the record\"; for ((i=0;i<2;i++)); do sleep 1; done; done"}}'
+pbg_denied "a nested for (( )) counter does not bound the outer wait past a quoted for"
+
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"until test -f /tmp/x; do for ((i=0;i<2;i++)); do sleep 1; done;done"}}'
+pbg_denied "done;done pairs both loops, so the inner counter stays the inner loop's"
+
+# A loop inside quotes is a loop: a quote is command position.
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"bash -c '"'"'until test -f /tmp/x; do sleep 5; done'"'"'"}}'
+pbg_denied "an unbounded wait inside bash -c quotes is denied"
+
+# --- `done` is a word unless a separator precedes it -----------------------
+# Read anywhere, `done` in the CONDITION closed the loop before its sleep:
+# a `.done` sentinel file is a very common wait target, and all three of
+# these read 0 before this branch too.
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"until test -f /tmp/build.done; do sleep 5; done"}}'
+pbg_denied "a .done sentinel path is not the loop's done"
+
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"until grep -q done /tmp/status; do sleep 5; done"}}'
+pbg_denied "a grep for the word done is not the loop's done"
+
+# shellcheck disable=SC2016  # a JSON payload; the $ is text the guard reads
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"i=0; while [ $i -lt 3 ]; do echo \"all done\"; sleep 1; i=$((i+1)); done"}}'
+pbg_allowed "all done in a message does not cut the loop short of its counter"
+
+# --- `!` and `time` lead into command position, when they are in it --------
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"time while ! test -f /tmp/x; do sleep 5; done"}}'
+pbg_denied "a loop under time is still a loop"
+
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"until x; do ! while y; do :; done; sleep 2; done"}}'
+pbg_denied "a nested loop after ! is an opener"
+
+# shellcheck disable=SC2016  # a JSON payload; the $ is text the guard reads
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"echo \"at the same time while we wait\" && for d in 2 4; do true && break || sleep $d; done"}}'
+pbg_allowed "the same time while is prose: time leads only from command position"
+
+# shellcheck disable=SC2016  # a JSON payload; the $ is text the guard reads
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"echo \"Done! while it settles\" && for d in 2 4; do true && break || sleep $d; done"}}'
+pbg_allowed "Done! while is prose: ! leads only from command position"
+
+# --- the hook's own clock ---------------------------------------------------
+# The registration gives this hook 10 s. The first build of the walk
+# re-scanned the rest of the command per keyword and took 27.7 s on 7.8 KB of
+# quoted keywords before ordinary loops. Built in a loop here, not spelled,
+# so this file's text does not hold the payload. The bound is 4 s: measured
+# 0.41 s alone and 1 s under a full `ci`, so a slow runner does not read as
+# a regression, and still well inside the hook's 10 s.
+pbg_big=""
+for _ in $(seq 1 200); do
+  pbg_big+='echo \"wh''ile x\"; for i in a; do :; done\n'
+done
+pbg_t0=$SECONDS
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"'"$pbg_big"'"}}'
+pbg_secs=$((SECONDS - pbg_t0))
+if [ "$pbg_rc" -eq 0 ] && [ "$pbg_secs" -le 4 ]; then
+  pass "200 lines of quoted keywords before loops read in ${pbg_secs}s"
+else
+  fail "200 lines of quoted keywords before loops: exit ${pbg_rc}, ${pbg_secs}s (wanted 0, <= 4s)"
+fi
+
 # --- what counts as a counter ----------------------------------------------
 # A counter compares a VARIABLE. `[ "$(grep -c x /tmp/f)" -gt 0 ]` is a test
 # on the world — incident command two respelled — and it bounds nothing.

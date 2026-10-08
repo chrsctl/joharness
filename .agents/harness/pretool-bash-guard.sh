@@ -118,7 +118,6 @@ cmd="${cmd//\\t/ }"
 # denied like the loop it spells. That is the defensible side of the line:
 # what is being written is an unbounded wait either way, and the deny points
 # at the Write tool for the case where the text really is only text.
-start_re='(^|[^[:alnum:]_])(while|until)[[:space:]]'
 
 # WHICH `done` closes the keyword just found. Both ends of one defect live
 # here (issue #271, the research node on prose read as a loop): take the
@@ -140,9 +139,19 @@ start_re='(^|[^[:alnum:]_])(while|until)[[:space:]]'
 #   - `for NAME in` and `for ((`, never a bare `for`. A bare `for` is what
 #     made "ready for connections" an opener and let the wait around it go.
 #   - COMMAND POSITION: the start, or after `; & | ( ) { }`, a quote, or
-#     `do` / `then` / `else`. A real opener begins a command; the `for` in
+#     `do` / `then` / `else` — optionally through a `!` or `time` that is
+#     itself in that position. A real opener begins a command; the `for` in
 #     "waiting for jobs in queue" does not, and counted it unbalances the
-#     loop around it.
+#     loop around it. Nor does the `while` in "at the same time while".
+#
+# The KEYWORD is an opener too, held to the same position, and that — not
+# whether its count balances — is what tells prose from a loop: "wait while
+# the suite finishes" never becomes a token at all. Letting prose fall out
+# of an unbalanced count instead scanned to the end of the command once per
+# prose keyword, and 9 KB of them outran the hook's 10 s timeout.
+#
+# And `done` closes only after a separator, as shell requires: `.done` in a
+# sentinel path or "all done" in a message is a word, not this loop's end.
 #
 # What this replaced, measured, so nobody spends the same day on it again
 # (the research node bash-guard-reads-prose-as-a-loop, 2026-09-16/17, and
@@ -158,13 +167,17 @@ start_re='(^|[^[:alnum:]_])(while|until)[[:space:]]'
 #   - `do` up / `done` down, the plan's prescription: fixes the nested-loop
 #     end and leaves both prose shapes denied. `do` is not a nesting token.
 #
-# An opener that slips through anyway — a quoted string starting `while`,
-# say — leaves the count unbalanced, and unbalanced fails open for THAT
-# keyword only: the walk carries on, and a quoted `while`/`until` is then a
-# keyword of its own whose loop is judged. Only a quoted `for x in` /
-# `select x in` does not heal that way, and it errs towards allowing.
-close_re='(^|[^[:alnum:]_])done([^[:alnum:]_]|$)'
-open_re='(^|[;&|(){}'"'"'"`]|[^[:alnum:]_](do|then|else))[[:space:]]*((while|until|for[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[[:space:]]+in|select[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[[:space:]]+in)([^[:alnum:]_]|$)|for[[:space:]]*\(\()'
+# An opener that slips through anyway — a quoted "for x in list", a
+# `for line in ...:` of inline Python — leaves a REAL loop's count
+# unbalanced. That loop is then judged as the guard judged every loop
+# before this walk: from its keyword to the first `done`. An unbalanced
+# count is never more permissive than the reading it replaced. Failing
+# open there instead was measured letting a real wait through for any
+# stray opener in its body (verifier, 2026-10-08).
+pos_re='(^|[;&|(){}'"'"'"`]|[^[:alnum:]_](do|then|else))[[:space:]]*((!|time)[[:space:]]+)?'
+close_re='(^|[;&|])[[:space:]]*done([^[:alnum:]_]|$)'
+# Capture 6 is `while`/`until` — the openers that are also loops to judge.
+open_re="${pos_re}"'((while|until)([^[:alnum:]_]|$)|(for[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[[:space:]]+in|select[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[[:space:]]+in)([^[:alnum:]_]|$)|for[[:space:]]*\(\()'
 
 # `sleep` with an ARGUMENT, because `sleep` always takes one. Without the
 # argument, `do echo "sleep tight, still waiting"; done` is denied for a word
@@ -207,61 +220,120 @@ deny() {
 #   i=0; while [ $i -lt 3 ]; do sleep 1; i=$((i+1)); done; until grep -q x /tmp/f; do sleep 20; done
 #
 # whose tail is incident command two. So each loop is cut out and judged on
-# its own. `rest` loses at least the keyword every pass, so this walk ends —
-# which is the one property this file has no business getting wrong.
-walked=""
-rest="$cmd"
-while [[ $rest =~ $start_re ]]; do
-  # Both captures NOW: every later `[[ =~ ]]` overwrites BASH_REMATCH, and a
-  # capture read after one is unset under `set -u` — exit 1, which this
-  # event reads as "allow, and log it". An earlier patch here did exactly
-  # that and passed nothing but its own payloads.
-  kw="${BASH_REMATCH[0]}"
-  kwname="${BASH_REMATCH[2]}"
+# its own.
+#
+# ONE PASS, then lookups. Every opener and every `done` is found once, left
+# to right, with its offset; a stack pairs each opener with its own `done`;
+# a reverse pass records the first `done` after each token. Judging a loop is
+# then a few integer lookups. Re-scanning the rest of the command for each
+# keyword cost O(keywords x tokens x length) — 27.7 s on 7.8 KB of quoted
+# `while`s before ordinary `for` loops, against the hook's 10 s timeout.
+#
+# Each pass of the tokeniser consumes at least one token, so it ends — the
+# one property this file has no business getting wrong.
+tbeg=()   # where the token starts
+tend=()   # where the text after it starts
+tdir=()   # +1 opener, -1 `done`
+tkw=()    # `while`/`until` for a loop to judge, else empty
+s="$cmd"
+off=0
+while :; do
+  cat_=-1
+  if [[ $s =~ $close_re ]]; then
+    c="${BASH_REMATCH[0]}"
+    cpre="${s%%"$c"*}"
+    cat_=${#cpre}
+  fi
+  oat=-1
+  if [[ $s =~ $open_re ]]; then
+    # Both captures NOW: every later `[[ =~ ]]` overwrites BASH_REMATCH,
+    # and a capture read after one is unset under `set -u` — exit 1, which
+    # this event reads as "allow, and log it". An earlier patch here did
+    # exactly that and passed nothing but its own payloads.
+    o="${BASH_REMATCH[0]}"
+    okw="${BASH_REMATCH[6]}"
+    opre="${s%%"$o"*}"
+    oat=${#opre}
+  fi
+  if ((oat >= 0 && (cat_ < 0 || oat < cat_))); then
+    tok="$o" at=$oat dir=1 kwn="$okw"
+  elif ((cat_ >= 0)); then
+    tok="$c" at=$cat_ dir=-1 kwn=""
+  else
+    break
+  fi
+  tbeg+=($((off + at)))
+  tend+=($((off + at + ${#tok})))
+  tdir+=("$dir")
+  tkw+=("$kwn")
+  s="${s:at+${#tok}}"
+  off=$((off + at + ${#tok}))
+done
+ntok=${#tdir[@]}
+
+# Pair each opener with its own `done`: the one that brings the count back
+# to where it stood, never a bare `do` (not a nesting token), never the
+# first `done` (a nested loop's).
+# An explicit stack pointer: `stack[-1]` needs bash 4.3, and a consumer on
+# macOS runs this under 3.2.
+tmatch=()
+stack=()
+sp=0
+for ((t = 0; t < ntok; t++)); do
+  tmatch[t]=-1
+  if ((tdir[t] > 0)); then
+    stack[sp]=$t
+    sp=$((sp + 1))
+  elif ((sp > 0)); then
+    sp=$((sp - 1))
+    tmatch[stack[sp]]=$t
+  fi
+done
+tfirst=()
+next=-1
+for ((t = ntok - 1; t >= 0; t--)); do
+  tfirst[t]=$next
+  ((tdir[t] < 0)) && next=$t
+done
+
+for ((i = 0; i < ntok; i++)); do
+  kwname="${tkw[i]}"
+  [ -n "$kwname" ] || continue
   # Everything up to and including this loop's keyword. `timeout` is read
   # here and nowhere else: it WRAPS a loop, so it precedes it. Inside the
   # body it bounds one command in the loop and never the loop —
   # `while ! timeout 5 curl -sf http://host/health; do sleep 1; done` runs
   # until the host answers, and the host may never answer.
-  prefix="${walked}${rest%%"$kw"*}${kw}"
-  # Past the KEYWORD only, never past its `done`. Advancing past the `done`
-  # swallows a nested loop whole — judged as part of the outer loop's span,
-  # bounded by the outer loop's counter, and never reached as a keyword of
-  # its own. Each nested `while`/`until` is found again by this walk.
-  rest="${rest#*"$kw"}"
-  walked="$prefix"
+  prefix="${cmd:0:tend[i]}"
 
   # `span` is the loop's whole body, nested loops included; `own` is only
-  # the text at this loop's own depth. Every pass of the inner walk eats at
-  # least one opener or one `done`, so it ends.
-  depth=1
-  span=""
-  own=""
-  scan="$rest"
-  while ((depth > 0)); do
-    # No `done` left means no loop left, only the word.
-    [[ $scan =~ $close_re ]] || break
-    tok="${BASH_REMATCH[0]}"
-    seg="${scan%%"$tok"*}"
-    step=-1
-    if [[ $scan =~ $open_re ]]; then
-      o="${BASH_REMATCH[0]}"
-      opre="${scan%%"$o"*}"
-      if ((${#opre} < ${#seg})); then
-        tok="$o"
-        seg="$opre"
-        step=1
-      fi
-    fi
-    span="${span}${seg}${tok}"
-    ((depth == 1)) && own="${own}${seg}"
-    depth=$((depth + step))
-    scan="${scan#*"$tok"}"
-  done
-  # Unbalanced: a shape this cannot read. Fail open for this keyword and
-  # carry the walk on — a skip that never restarted the walk was the whole
-  # regression of the attempt reverted here.
-  ((depth == 0)) || continue
+  # the text at this loop's own depth. A nested `while`/`until` is a token
+  # of its own and is judged on its own turn — never swallowed whole.
+  j=${tmatch[i]}
+  if ((j >= 0)); then
+    span="${cmd:tend[i]:tbeg[j]-tend[i]}"
+    own=""
+    at=${tend[i]}
+    k=$((i + 1))
+    # Between a paired opener and its `done` every opener is paired too —
+    # the stack guarantees it — so each step jumps forward. Checked anyway:
+    # a step that did not would never end.
+    while ((k < j && tmatch[k] > k)); do
+      own+="${cmd:at:tbeg[k]-at}"
+      at=${tend[tmatch[k]]}
+      k=$((tmatch[k] + 1))
+    done
+    own+="${cmd:at:tbeg[j]-at}"
+  else
+    # Unbalanced: a stray opener in the body took a `done` that was not its
+    # own. Judge this loop from its keyword to the first `done`, the reading
+    # every loop got before the walk — never less safe than that. No `done`
+    # at all means no loop, only the word.
+    j=${tfirst[i]}
+    ((j >= 0)) || continue
+    span="${cmd:tend[i]:tbeg[j]-tend[i]}"
+    own="$span"
+  fi
 
   # No sleep, no wait. `while read` over input and every `for` stop here.
   # The sleep is looked for over the whole SPAN: a `sleep` inside a nested

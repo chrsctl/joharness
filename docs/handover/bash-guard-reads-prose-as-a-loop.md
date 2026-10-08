@@ -151,6 +151,52 @@ attempted. It stopped on a DIFFERENT and harder bound — below.
   — rare shape, deny still correct, and naming the outer keyword would need
   state the walk deliberately does not carry.)
 
+- r10: (verifier) REGRESSION — any opener the walk counts with no `done` of
+  its own makes the real loop around it fail open, and only a quoted
+  `while`/`until` FOLLOWED by its own sleep heals. new/old exit codes:
+  `until [ -f /tmp/ready ]; do sleep 5; echo "while waiting"; done` 0/2;
+  `... do sleep 5; echo "until"; done` 0/2; `until grep -q x /tmp/f; do
+  echo "for x in list"; sleep 5; done` 0/2; a multi-line inline-Python
+  `for line in ...:` inside the loop (the ` ;` newline puts it in command
+  position) 0/2. (fixed — see r13.)
+- r11: (verifier) REGRESSION, fail-open by time — the walk is ~k·m·n:
+  every unbalanced prose keyword scans to the end of the command. 8.8 KB of
+  `echo wait while now; for ...; done` lines: 18.16 s new, 0.15 s old,
+  against the registration's 10 s hook timeout. (fixed — see r13.)
+- r12: (verifier) pre-existing, same both ways: a `done` inside the
+  condition closes the loop early — `until test -f /tmp/build.done; do
+  sleep 5; done` 0/0; `timeout` anywhere earlier counts as wrapping (0/0);
+  openers after `!` or `time` are not in command position (0/0); and the
+  intended span-wide sleep now denies `while read f; do for x in a; do :;
+  done; sleep 1; done < list` 2/0, consistent with the existing
+  `while read` + sleep policy. (first and third fixed with r13; the
+  `timeout`-anywhere one is out of this plan's scope and left as is.)
+- r13: (session) the fix for r10/r11: decide prose by the KEYWORD's own
+  position, never by whether its count balances. A keyword not in command
+  position is skipped at once (O(n), so r11's shape costs one regex each);
+  a keyword in command position whose count does not balance falls back to
+  the old first-`done` pairing, so an unbalanced count can never be more
+  permissive than `origin/main`. `done` closes only after a separator, and
+  `!` / `time` join the command-position set — only when they are
+  themselves in command position, so "at the same time while" stays prose.
+  (fixed)
+- r14: (session) r13's first cut still re-scanned the rest of the command
+  per keyword: 7.8 KB of quoted `while`s before ordinary loops took 27.69 s
+  (scratch `perf3.py`, 2026-10-08). The walk now tokenises ONCE (every
+  opener and `done` with its offset), pairs openers with a stack, and
+  records each token's first following `done` in a reverse pass; judging a
+  loop is integer lookups. Same input 0.41 s; 15.6 KB 1.31 s; the
+  verifier's own inputs at origin/main's speed. No `stack[-1]` (bash 4.3):
+  an explicit pointer, for consumers on macOS bash 3.2. (fixed — a timing
+  case in the topic, bounded at 4 s.)
+- r15: (session) measured on the 23 payloads r10–r14 added, payloads fed
+  from files: first build 15 wrong, origin/main 10, now 0; full table now
+  0 wrong of 51. Mutation screen on the scratch copy: 25 mutations over
+  every rewritten line, all pinned, after three (`quotes` in the position
+  set, `close_re`'s `^`, a bare `for`) first read UNPINNED and each got a
+  case that makes the fallback give the wrong answer. `ci: pass`, 2254
+  passed, 0 failed. (fixed)
+
 ## Blockers
 
 **Lifted 2026-10-08** for the edit itself: a supervised session, at the
