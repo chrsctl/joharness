@@ -3,9 +3,9 @@ plan: issue-triager-role
 urgency: normal
 agent: opus
 effort: high
-needs: none
+needs: orchestrated-only
 requirement: none
-scope: shared:joharness.sh, shared:.agents/harness/AGENTS.md, .claude/commands/triage.md, shared:.claude/commands/manage.md, shared:.claude/commands/orchestrate.md, .claude/commands/start.md, shared:.agents/docs/orchestrated.md, .agents/docs/plans/TEMPLATE.md, .agents/harness/selftest/triage.sh, shared:.agents/harness/selftest.sh
+scope: shared:joharness.sh, shared:.agents/harness/AGENTS.md, .claude/commands/triage.md, shared:.claude/commands/manage.md, shared:.claude/commands/orchestrate.md, .claude/commands/plan.md, .agents/docs/plans/README.md, .agents/scripts/conf-keys.sh, .agents/scripts/bootstrap-consumer.sh, shared:.agents/docs/orchestrated.md, .agents/docs/plans/TEMPLATE.md, .agents/harness/selftest/triage.sh, shared:.agents/harness/selftest.sh
 ---
 
 ## Goal
@@ -19,8 +19,9 @@ on 2026-10-08, the oldest (#249) from 2026-09-16. This plan adds a
 TRIAGER, a cadence role like the curator. It reads open issues and checks
 each claim against source, because an issue's claims are hypotheses exactly
 as a plan's are (#311 fix 2). Each issue that holds is turned into plan
-files in one pull request. The triager merges that PR itself, since a
-plan-only PR changes only the queue (#297). Issues that do not hold, or
+files in one pull request. The triager merges that PR itself: a plan-only
+PR changes only the queue, which is what #297 proposes (a proposal, not yet
+a rule). Issues that do not hold, or
 that need a human decision, get a comment instead. After the merge,
 `dispatch` sees the plans and the orchestrator spawns managers on them.
 
@@ -33,7 +34,12 @@ that need a human decision, get a comment instead. After the merge,
   - **1. Claim** — cut from `main`. `docs/handover/triage-<UTC date>.md`,
     `workstream: triage-<UTC date>`, `plan: none`. Push now.
   - **2. Read** — open issues on this repo through the GitHub MCP tools,
-    oldest first. Skip an issue that `./joharness.sh triage` lists as
+    oldest first. Only an issue whose author has write access to this
+    repository (collaborator permission `write`, `maintain` or `admin`) is
+    triaged. Any other author gets a HUMAN comment ("a maintainer must
+    adopt this issue") and nothing else. The repository is public, so
+    without this filter a stranger's issue becomes self-merged code
+    (verifier r6). Skip an issue that `./joharness.sh triage` lists as
     PLANNED (a plan's `issue:` names it) or CLAIMED (a workstream file's
     `issue:` names it). At most `JOHARNESS_TRIAGE_BATCH` issues per pass,
     default 3.
@@ -67,37 +73,44 @@ that need a human decision, get a comment instead. After the merge,
 - `joharness.sh`:
   - New `cmd_triage` and a `triage` subcommand. It is git-only, like
     `cmd_curate`. It prints the cadence (`DUE` / `not due`, dated from the
-    newest base-branch commit deleting a `docs/handover/triage-*.md`,
+    newest base-branch commit deleting a `docs/handover/triage-[0-9]*.md`
+    (the digit matters: `cycle_landed_sha` records the janitor's builder
+    file `janitor-role.md` dating its own cycle),
     every `JOHARNESS_TRIAGE_HOURS`, default 24, `0` = off), what is in
-    flight (a branch whose workstream reads `workstream: triage-*`), and
+    flight (a branch whose workstream reads `workstream: triage-[0-9]*`), and
     the issue numbers PLANNED (any `docs/plans/*.md` `issue:`) and CLAIMED
     (any workstream `issue:`). It reads no GitHub and says so in one line.
-  - `cmd_dispatch` and `cmd_drain` — a `triage :` line and a `triage DUE`
-    tail. They use the same reader and sit orthogonal to the verdict,
-    exactly like the `curate :` line (`dispatch_curate_due`).
-  - Plan graph lint: optional `issue:` frontmatter. Digits, or `#`+digits,
-    or `none`, linted with the same helper style as the other enum and
-    shape checks.
+  - `cmd_dispatch` — a `triage :` line and a `triage DUE` tail. They sit
+    orthogonal to the verdict, exactly like the `curate :` line
+    (`dispatch_curate_due`).
+  - Plan graph lint: optional `issue:` frontmatter. Reuse the workstream
+    `issue:` validator in the graph lint (the `case "$iss"` block that says
+    it is kept in lockstep with `handover-context.sh:issue_num`). Extract it
+    into one function both call. Never write a third copy.
   - The help text names `triage`.
 - `.claude/commands/orchestrate.md` — `triage DUE` tail = spawn ONE
   triager, beyond the cap, tier opus. Title `triager: <UTC date>`. The
   prompt is `/triage` plus the three lines every spawn carries. Ledger
   `triaged=<stamp>`. Health rows read its branch like a curator's.
-- `.claude/commands/start.md` — `drain` printed `triage DUE` = this
-  session's item is `/triage`. It ranks right after `curate`.
 - `.claude/commands/manage.md` — a plan with `issue: N`: the PR body
-  carries `Closes #N`. This is the only route by which an issue closes
-  without a human.
-- `.agents/harness/AGENTS.md` — step 2: under orchestrated, issues reach
-  the build through the triager, and an orchestrator or manager never
-  takes an issue directly. Step 4: "every claim = hypothesis until
+  carries `Closes #N` when no other queued plan names the same issue, and
+  `Refs #N` when another does. Then the last plan closes it. This is the
+  only route by which an issue closes without a human.
+- `.agents/harness/AGENTS.md` — step 2: issues reach the build through
+  the triager, and an orchestrator or manager never takes an issue
+  directly. Step 4: "every claim = hypothesis until
   checked" names issues beside plans. Write both in caveman style.
 - `.agents/docs/orchestrated.md` — rows in the Roles table and in the "What
   each role reads" table (reads `./joharness.sh triage`, the open issues,
   and the source each issue cites; never opens the queue order or another
   branch). Also a "What the mode changes" row for the `triage :` line.
 - `.agents/docs/plans/TEMPLATE.md` — `issue: none` in the frontmatter, with
-  one comment line.
+  one comment line. `.agents/docs/plans/README.md` frontmatter list and
+  `.claude/commands/plan.md` step 2 vocabulary name `issue:` too.
+- `.agents/scripts/conf-keys.sh` rows and
+  `.agents/scripts/bootstrap-consumer.sh` seeded heredoc —
+  `JOHARNESS_TRIAGE_HOURS` and `JOHARNESS_TRIAGE_BATCH`, beside the janitor
+  knobs. Their selftest reds when the two disagree.
 - `.agents/harness/selftest/triage.sh` — new topic, registered. Cases: no
   retire commit → DUE; a recent retire → not due;
   `JOHARNESS_TRIAGE_HOURS=0` → off; a plan with `issue: 12` → 12 listed
@@ -117,6 +130,9 @@ that need a human decision, get a comment instead. After the merge,
   on their side.
 - #304, #297 or any other issue's own fix. Those issues are the triager's
   first input, not this plan's scope.
+- Lifting the ban on writing requirements. `protocol-boundary-core-only`
+  lifts it for sessions in general. The triager still writes none: it turns
+  issues into plans, and that is its whole job.
 
 ## Acceptance
 
@@ -136,8 +152,10 @@ that need a human decision, get a comment instead. After the merge,
 
 - `.claude/commands/curate.md` — the cadence role this one copies,
   including the empty-pass retire rule (§0.2).
-- `joharness.sh:dispatch_curate_due`, `joharness.sh:dispatch_curate_branches`
-  — git-dated cadence and in-flight detection to reuse.
+- `joharness.sh:cycle_landed_sha`, `joharness.sh:cycle_age_h` — the
+  per-kind cadence helpers. Add a `triage` kind.
+- `joharness.sh:janitor_due`, `joharness.sh:janitor_branches` — the
+  parameterised shape to copy. The `curate` helpers hard-code their kind.
 - `joharness.sh:cmd_curate` — subcommand shape.
 - `joharness.sh:lint_enum` — frontmatter lint style.
 - `.claude/commands/manage.md` — item kinds in §0.3 (`docs/product/`
@@ -147,17 +165,14 @@ that need a human decision, get a comment instead. After the merge,
 
 ## Traps
 
-- Protocol text: this plan's whole scope is protocol paths. Build it
-  supervised, or under orchestrated only once
-  `docs/plans/protocol-work-human-merge.md` has merged. Then a human
-  merges it.
+- Needs `orchestrated-only`: `drain` and `/start`'s mode routing are gone
+  by then, so wire only `dispatch` and `orchestrate.md`. Fleet-buildable:
+  no core path (`joharness.conf`, `.claude/settings.json`) in scope.
 - Nothing invented: the triager turns EXISTING issues into plans. It never
   files an issue or writes a requirement. A role that fills its own queue
   has no edge to stop at (`.agents/docs/unsupervised.md`, Bounds).
 - Glossary: the role is `triager`, and the command and subcommand are
   `triage`. Do not introduce a second spelling.
-- `protocol-work-human-merge` shares `joharness.sh`, `.agents/harness/AGENTS.md`,
-  `manage.md`, `orchestrate.md`, `orchestrated.md` and `selftest.sh`
-  (`shared:` in both). `scout-command` also edits `orchestrate.md`,
-  `start.md` and `orchestrated.md`. Reconcile at finish.
+- `scout-command` also edits `orchestrate.md` and `orchestrated.md`.
+  Reconcile at finish.
 - A test written for the fix must FAIL without it.
