@@ -350,6 +350,25 @@ pbg_denied "a word after a dash is an option, not prose"
 pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"echo \"things to do while waiting\"; for i in 1 2; do sleep 1; done"}}'
 pbg_allowed "to do while is prose: that do begins no command"
 
+# A CHAIN of shell words (verifier round 3). One shell word before the
+# keyword was not enough: each of these was run, read as prose by one reader
+# and unseen by the other, and still waiting two seconds later.
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"if false; then :; else if until grep -q x /tmp/f; do sleep 5; done; then :; fi; fi"}}'
+pbg_denied "else if until is a loop, not prose"
+
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"if time until grep -q x /tmp/f; do sleep 5; done; then :; fi"}}'
+pbg_denied "if time until is a loop, not prose"
+
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"coproc W until grep -q x /tmp/f; do sleep 5; done; wait"}}'
+pbg_denied "a named coproc until is a loop, not prose"
+
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"function f until grep -q x /tmp/f; do sleep 5; done; f"}}'
+pbg_denied "function f until is a loop, not prose"
+
+# shellcheck disable=SC2016  # a JSON payload; the $ is text the guard reads
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"echo \"spend the time until noon\" && for d in 2 4; do true && break || sleep $d; done"}}'
+pbg_allowed "the time until is prose: that chain starts at a word"
+
 # --- `done` is a word unless a separator precedes it -----------------------
 # Read anywhere, `done` in the CONDITION closed the loop before its sleep:
 # a `.done` sentinel file is a very common wait target, and all three of
@@ -397,6 +416,23 @@ if [ "$pbg_rc" -eq 0 ] && [ "$pbg_secs" -le 4 ]; then
   pass "200 lines of quoted keywords before loops read in ${pbg_secs}s"
 else
   fail "200 lines of quoted keywords before loops: exit ${pbg_rc}, ${pbg_secs}s (wanted 0, <= 4s)"
+fi
+
+# And 80 KB of plain notes, where every keyword is prose. Each prose skip
+# cuts over the whole command, so the skip runs only up to 8 KB; above it,
+# origin/main's reading at origin/main's cost. Measured 2026-10-08: 11.5 s
+# with the skip on everything, 0.06 s now.
+pbg_big=""
+for _ in $(seq 1 2200); do
+  pbg_big+='The step waits wh''ile the build runs. '
+done
+pbg_t0=$SECONDS
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"cat > /tmp/notes.md <<EOF\n'"$pbg_big"'\nEOF"}}'
+pbg_secs=$((SECONDS - pbg_t0))
+if [ "$pbg_rc" -eq 0 ] && [ "$pbg_secs" -le 4 ]; then
+  pass "80 KB of prose keywords read in ${pbg_secs}s"
+else
+  fail "80 KB of prose keywords: exit ${pbg_rc}, ${pbg_secs}s (wanted 0, <= 4s)"
 fi
 
 # --- what counts as a counter ----------------------------------------------

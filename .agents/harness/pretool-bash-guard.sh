@@ -189,14 +189,18 @@ start_re='(^|[^[:alnum:]_])(while|until)[[:space:]]'
 end_re='[^[:alnum:]_]done([^[:alnum:]_]|$)'
 
 # PROSE: the keyword right after an ordinary word — "wait while", "moved
-# while", "Done! while" — unless that word is one shell lets precede a
-# compound command, itself where a command starts: `; do while`, `if until`,
-# `! time until`. A word after `-` is an option (`time -p until`), not prose.
-# "at the same time while" is prose: that `time` begins no command.
+# while", "Done! while" — unless what precedes it is a CHAIN of the words
+# shell lets precede a compound command, starting where a command starts:
+# `; do while`, `if until`, `else if until`, `if time until`, `coproc NAME
+# until`, `function f until`. One shell word was not enough: a verifier ran
+# `else if until ...` and `if time until ...` and found both still waiting,
+# read as prose by one reader and unseen by the other. A word after `-` is
+# an option (`time -p until`), not prose. "at the same time while" is prose:
+# that chain starts at "same", which begins no command.
 # `ssh host until ...` reads as prose too, and no text rule tells the two
 # apart; it is the one real wait this skip lets through.
 prose_re='(^|[^[:alnum:]_-])[[:alpha:]_][[:alnum:]_]*[.,!?]?[[:space:]]+$'
-shellword_re='(^|[;&|(){}!'"'"'"`])[[:space:]]*(do|then|else|elif|if|time|coproc|eval|while|until)[[:space:]]+$'
+shellword_re='(^|[;&|(){}!'"'"'"`])([[:space:]]*((do|then|else|elif|if|time|eval|while|until|!)|(coproc|function)([[:space:]]+[A-Za-z_][A-Za-z0-9_]*)?)[[:space:]]+)+$'
 
 # `sleep` with an ARGUMENT, because `sleep` always takes one. Without the
 # argument, `do echo "sleep tight, still waiting"; done` is denied for a word
@@ -236,8 +240,14 @@ deny() {
 # Inside the body it bounds one command in the loop and never the loop —
 # `while ! timeout 5 curl -sf http://host/health; do sleep 1; done` runs
 # until the host answers, and the host may never answer.
+#
+# The four are GLOBALS, set by the caller, not arguments: copying a loop's
+# body into a function's arguments on every keyword was a fifth of reader
+# A's cost on large commands, measured. `own` empty means "the same as
+# span" — reader A reads both from one text.
 judge() {
-  local kwname="$1" prefix="$2" span="$3" own="$4" tool
+  local tool
+  [ -n "$own" ] || own="$span"
   # No sleep, no wait. `while read` over input and every `for` stop here.
   [[ $span =~ $sleep_re ]] || return 0
 
@@ -291,6 +301,8 @@ a human notices."
 # above). That skip is the only place this guard allows what the old one
 # denied, and it is what "wait while the suite finishes; timeout 900 ..."
 # needs.
+small=0
+((${#cmd} <= 8192)) && small=1
 walked=""
 rest="$cmd"
 while [[ $rest =~ $start_re ]]; do
@@ -299,25 +311,33 @@ while [[ $rest =~ $start_re ]]; do
   # event reads as "allow, and log it".
   kw="${BASH_REMATCH[0]}"
   kwname="${BASH_REMATCH[2]}"
-  before="${walked}${rest%%"$kw"*}${kw%"$kwname"*}"
-  prefix="${walked}${rest%%"$kw"*}${kw}"
+  head="${rest%%"$kw"*}"
+  prefix="${walked}${head}${kw}"
   rest="${rest#*"$kw"}"
 
-  # Prose: the keyword right after an ordinary word. Only the last stretch
-  # of text matters, and cutting it keeps this one match cheap.
-  ((${#before} > 80)) && before="${before:${#before}-80}"
-  if [[ $before =~ $prose_re ]] && ! [[ $before =~ $shellword_re ]]; then
-    walked="$prefix"
-    continue
+  # Prose: the keyword right after an ordinary word. Only on a command B
+  # also reads: each skip costs a cut over the whole command, and 80 KB of
+  # notes saying "waits while" took 11.5 s against origin/main's 0.06 s.
+  # Above the gate this is origin/main's walk exactly — its reading, prose
+  # false positive included, and its cost. Only the last stretch of text
+  # matters, and cutting it keeps the two matches cheap.
+  if ((small)); then
+    before="${walked}${head}${kw%"$kwname"*}"
+    ((${#before} > 80)) && before="${before:${#before}-80}"
+    if [[ $before =~ $prose_re ]] && ! [[ $before =~ $shellword_re ]]; then
+      walked="$prefix"
+      continue
+    fi
   fi
 
   # No `done` left means no loop left, only the word.
   [[ $rest =~ $end_re ]] || break
   end="${BASH_REMATCH[0]}"
-  body="${rest%%"$end"*}"
-  walked="${prefix}${body}${end}"
+  span="${rest%%"$end"*}"
+  walked="${prefix}${span}${end}"
   rest="${rest#*"$end"}"
-  judge "$kwname" "$prefix" "$body" "$body"
+  own=""
+  judge
 done
 
 # --- B: the structural reader ----------------------------------------------
@@ -335,7 +355,7 @@ done
 # Even one pass cuts a prefix per token, quadratic in length, so B reads
 # commands up to 8 KB and above that A alone decides — the old reader at
 # its old cost.
-((${#cmd} <= 8192)) || exit 0
+((small)) || exit 0
 
 tbeg=()   # where the token starts
 tend=()   # where the text after it starts
@@ -405,6 +425,7 @@ for ((i = 0; i < ntok; i++)); do
     k=$((tmatch[k] + 1))
   done
   own+="${cmd:at:tbeg[j]-at}"
-  judge "$kwname" "${cmd:0:tend[i]}" "$span" "$own"
+  prefix="${cmd:0:tend[i]}"
+  judge
 done
 exit 0

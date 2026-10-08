@@ -226,6 +226,33 @@ attempted. It stopped on a DIFFERENT and harder bound — below.
   allows — so no exit code can pin it. `ci: pass`, 2265 passed, 0 failed.
   (fixed; the gate's pin is open by nature, a timing line with no case.)
 
+- r18: (verifier, round 3 at af5a4a1) the claim "the prose skip passes
+  over prose only" is FALSE. A CHAIN of shell words, or a name the syntax
+  puts there, read as prose — `else if until`, `if time until`, `if if
+  until`, `do if until`, `coproc W until`, `coproc time until`, `function f
+  until` — and B's `pos_re` has no `if`/`coproc`/`function`, so both
+  readers missed them: 0/2, each EXECUTED and still waiting at 2 s (one
+  coproc outlived its `timeout` and was killed by hand). And above 8 KB the
+  skip still cut per keyword: 80 KB of "waits while" notes 11.48 s against
+  origin/main's 0.06 s. (fixed — `shellword_re` is a chain anchored at
+  command position, with `coproc`/`function` taking an optional NAME; the
+  skip runs only where B does, ≤ 8 KB, so above it the guard is origin/main
+  exactly. Measured: the round-3 payloads 0 wrong, its timing inputs at
+  origin/main's cost — 100 KB "mixed" 17.42 s vs 17.11 s, after `judge`
+  stopped taking the loop text as arguments, which had cost a fifth. A
+  timing case pins the gate: 10.83 s without it, 0.07 s with.)
+- r19: (verifier, round 3) the `break 2` wontfix of r16 also has an `exit`
+  and arithmetic variant — `while :; do sleep 1; for ((k=0;k<1;k++)); do
+  ((c++ > 9)) && exit; done; done` 2/0. Same class, recorded for
+  completeness. (wontfix — B's deliberate `own` rule.)
+- r20: (session) measured after r18's fix: 76 payloads 0 wrong; on the 11
+  r18 adds, af5a4a1 9 wrong, origin/main 2 (both prose false positives),
+  now 0. Mutation screen of the new lines, 7 mutations: every mutation of
+  `shellword_re` and the gate's comparison pinned; the two survivors are
+  the skip's gate and B's gate, which change only time — the first pinned
+  by the timing case above, the second as r17 records. `ci: pass`, 2271
+  passed, 0 failed. (fixed)
+
 ## Research step (review churn, 2026-10-08)
 
 r16's first regression was made BY r13's fix — the churn rule's trigger.
