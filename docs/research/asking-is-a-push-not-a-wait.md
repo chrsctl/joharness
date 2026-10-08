@@ -89,7 +89,7 @@ Source reads at `cb0028e`, each re-run rather than taken from the issue:
     sed -n '138,152p' .claude/commands/manage.md
     sed -n "$(grep -n '^## Never' .claude/commands/manage.md | cut -d: -f1),+8p" \
       .claude/commands/manage.md
-    git grep -in "askuserquestion"
+    git grep -in "askuserquestion"    # zero AT cb0028e, not at this head
     grep -n "holds no slot" joharness.sh
     grep -n "re-asks the question" joharness.sh
     sed -n '8384,8392p' joharness.sh          # a blocked row releases its holds
@@ -141,7 +141,9 @@ Source reads at `cb0028e`, each re-run rather than taken from the issue:
   The issue reports `git grep -i AskUserQuestion` returning one hit at
   `.agents/harness/selftest/bootstrap-consumer.sh:76`, described as an
   unrelated comment about closing stdin. At `cb0028e`, `git grep -in
-  "askuserquestion"` returns **zero** hits in the whole tree; lines 74-78 of
+  "askuserquestion"` returns **zero** hits in the whole tree (re-run against
+  any tree carrying this node it returns this node's own lines and nothing
+  else, which is why the commit is named); lines 74-78 of
   that file are a comment about the bootstrap asking for a mode when it has a
   terminal, which never names the tool. So the tool is named nowhere in the
   harness at all — the substantive point — and the issue's citation for it was
@@ -161,7 +163,9 @@ Source reads at `cb0028e`, each re-run rather than taken from the issue:
   the rule.** `cb0028e`, `.agents/docs/unsupervised.md:54`: *"Anything else
   that ends a run — a rate limit, a session asking a question, a generation
   that failed to spawn — is a finding, not a stop."* Its run table records
-  attempt one, 2026-08-31, 48s, ended with *"both sessions asked a human"*. So
+  attempt one, 2026-08-31, 48s, ended with *"no repository attached; both
+  sessions asked a human"* — quoted whole, because an earlier draft kept only
+  the second half and the first half is a different cause for the same run. So
   what is missing is not the judgement; it is the judgement reaching the file
   where a manager meets the decision.
 
@@ -210,7 +214,31 @@ supervised — whichever of the two files it lands in.
 
 ## Verification
 
-Pending: the independent read of this branch.
+Second context: `.claude/agents/verifier.md` at opus.
+
+- **The two files disagree, verbatim** — GROUNDED, both quoted exactly.
+- **The blocked route frees the slot, releases the holds and relays the
+  question** — GROUNDED, all four source citations re-run.
+- **A respawn re-asks the question** — GROUNDED.
+- **The issue's grep returns zero hits here** — GROUNDED, and independently
+  confirmed in the stronger direction: the reader checked that the issue's
+  cited line does not exist and that lines 74-78 are a comment about the
+  bootstrap prompting for a mode. Now pinned to `cb0028e`, because this node's
+  own text matches the pattern.
+- **The spawn prompt is forbidden as the fix, with its measurement** — GROUNDED;
+  the reader found the quotation of the run table cut in a way that dropped the
+  other cause of that run, now quoted whole.
+- **The mode has the measurement without the rule** — GROUNDED.
+- **The 10h hold** — WEAK.
+
+Standing limit on every claim below that came from the issue rather than from
+this tree: `.claude/agents/verifier.md` declares `tools: Read, Grep, Glob,
+Bash` and has no control-plane call, so a reported fleet reading can be
+re-read against the issue and never re-sampled. That is issue #267, planned as
+`docs/plans/verifier-cannot-read-the-plane.md`. Every such claim is marked
+WEAK for that reason and not because anything contradicted it; the second
+context did confirm each number against the issue it came from, and found no
+invented one anywhere in this batch.
 
 ## Graduates to
 

@@ -98,12 +98,28 @@ edges, against how long each took to reach a pull request —
 ## Findings
 
 - **No ceiling knob exists.** `git grep -n JOHARNESS_MANAGER_HOURS` and the
-  cost equivalent return **zero** hits at `cb0028e`. The knobs that exist are
-  `JOHARNESS_MAX_MANAGERS`, `JOHARNESS_STALL_MINUTES`,
-  `JOHARNESS_HEALTH_MINUTES`, `JOHARNESS_RESPAWN_LIMIT`,
-  `JOHARNESS_CHURN_LIMIT` and `JOHARNESS_CHURN_THRESHOLD` — a cap on
-  concurrency, a silence threshold, a pass cadence, a respawn count, and two
-  per-file rewrite bands. Nothing measures an item against time or money.
+  cost equivalent return **zero** hits at `cb0028e`.
+
+  An earlier draft then listed "the knobs that exist" as six, from a grep that
+  reached three of them; the independent reader counted the real set. The
+  enumerating command is
+
+      git grep -ho "JOHARNESS_[A-Z_]*" -- joharness.sh | sort -u
+
+  which prints 45 lines at `cb0028e`, one of them the bare prefix
+  `JOHARNESS_` (the pattern's tail matches empty), so **44 names**. Counted
+  twice, because the independent reader and I disagreed by one and the
+  difference was that line. The orchestrated ones the health
+  pass and the verdict read are `JOHARNESS_MAX_MANAGERS` (a cap on
+  concurrency), `JOHARNESS_STALL_MINUTES` (a silence threshold),
+  `JOHARNESS_HEALTH_MINUTES` (a pass cadence), `JOHARNESS_RESPAWN_LIMIT` (a
+  respawn count), `JOHARNESS_CHURN_THRESHOLD` and `JOHARNESS_CHURN_LIMIT` (two
+  per-file rewrite bands) and `JOHARNESS_PENDING_SPAWNS` (this pass's unclaimed
+  spawns). The 44 also hold elapsed-time knobs — `JOHARNESS_CURATE_HOURS`,
+  `JOHARNESS_JANITOR_HOURS` — which is why the claim has to be stated against
+  the whole set and not a shortlist: **those are cadences for a cycle, not a
+  bound on one item**, and nothing in the 44 measures an item against time or
+  money. That is the claim, and it survives the full count.
 
 - **The in-flight row carries no elapsed-time and no cost field, and its one
   age is not what the row's own word says.** `cb0028e`: the work line is built
@@ -230,7 +246,32 @@ branch that answers this is supervised.
 
 ## Verification
 
-Pending: the independent read of this branch.
+Second context: `.claude/agents/verifier.md` at opus.
+
+- **No ceiling knob exists** — GROUNDED, zero hits re-counted.
+- **The knob enumeration had no command behind it** — UNGROUNDED as written. The
+  reader counted the real set; the list is now the output of a named command,
+  with the one line that is not a knob called out. The claim it supports —
+  nothing measures an item against time or money — survives the full 44.
+- **The in-flight row carries no time or cost field, and its one age is the tip
+  commit date** — GROUNDED.
+- **A live, pushing manager is matched only by the LOOP row, which reads
+  repetition** — GROUNDED. Found by this file's author against an earlier draft
+  that claimed no such row existed, and confirmed by the second context from
+  the table's own text.
+- **The edge row is the shape a refresh wants** — GROUNDED.
+- **The KILL path interrupts before archiving, and cannot compel a push** —
+  GROUNDED, both quoted exactly.
+- **The 48 USD item, the two refreshes, the counter-case** — WEAK.
+
+Standing limit on every claim below that came from the issue rather than from
+this tree: `.claude/agents/verifier.md` declares `tools: Read, Grep, Glob,
+Bash` and has no control-plane call, so a reported fleet reading can be
+re-read against the issue and never re-sampled. That is issue #267, planned as
+`docs/plans/verifier-cannot-read-the-plane.md`. Every such claim is marked
+WEAK for that reason and not because anything contradicted it; the second
+context did confirm each number against the issue it came from, and found no
+invented one anywhere in this batch.
 
 ## Graduates to
 

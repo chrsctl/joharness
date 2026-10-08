@@ -188,7 +188,35 @@ cannot see that this node and `plan-on-an-unmerged-branch` would both land in
 
 ## Verification
 
-Pending: the independent read of this branch.
+Second context: `.claude/agents/verifier.md` at opus, which re-derived the
+chain rather than reading it: `grep -n rescope_settled joharness.sh` → one
+assignment at `8657`, fed only by `dispatch_rescope_branches`, whose walk at
+`7955-7956` drops any ref that is an ancestor of the base branch.
+
+- **The key is the holder set** — GROUNDED, comment byte-exact.
+- **A merged surveyor's conclusion cannot be read from this walk at all** —
+  GROUNDED. This is the node's novel finding and the second context confirmed
+  every link independently, including that the flag has one feeder.
+- **140 skipped / 15 listed** — GROUNDED, counted here from the command in the
+  finding; re-runnable by anyone with this repo.
+- **The key-blind ACTIVE count is deliberate** — GROUNDED; the reader confirmed
+  the quoted comment byte-exact and noted the elision is marked.
+- **The three OVERLAP-BOUND verdicts, including `spawn ONE surveyor`** —
+  GROUNDED.
+- **The quoted instruction predates the rename commit `ca36be1`** — GROUNDED,
+  the reader re-ran `git log -S` and confirmed the hash, its date and "about
+  four weeks". The date stays in `## Findings` beside that commit; this
+  section carries no when, per `.agents/docs/research/README.md`.
+- **The reported instance and the 5 USD** — WEAK.
+
+Standing limit on every claim below that came from the issue rather than from
+this tree: `.claude/agents/verifier.md` declares `tools: Read, Grep, Glob,
+Bash` and has no control-plane call, so a reported fleet reading can be
+re-read against the issue and never re-sampled. That is issue #267, planned as
+`docs/plans/verifier-cannot-read-the-plane.md`. Every such claim is marked
+WEAK for that reason and not because anything contradicted it; the second
+context did confirm each number against the issue it came from, and found no
+invented one anywhere in this batch.
 
 ## Graduates to
 

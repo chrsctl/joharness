@@ -16,8 +16,11 @@ could not be taken here; the guard's behaviour COULD be and was.
 ## Question
 
 Should `handover-guard.sh` add the `branch has no upstream` fact to a branch
-that holds no commits and has a clean tree, and if not, which base ref decides
-that and what happens when that ref is unreadable?
+that holds no commits and has a clean tree?
+
+The two questions a NO forces — which ref the count reads, and what an
+unreadable ref does — are under `## What would settle it`, because they are the
+answer's shape rather than the question.
 
 ## Echo
 
@@ -84,7 +87,7 @@ test is canonical's and only the git state is synthetic:
     git config user.email a@b.c && git config user.name t
     echo hi > f.txt && git add f.txt && git commit -qm init
     git remote add origin ../bare-origin.git && git push -q -u origin main
-    git checkout -q -b claude/new-session-kxjz6i main
+    git checkout -q -b claude/empty-orchestrator-branch main
 
     printf '{"tool_name":"Stop","stop_hook_active":false}' |
       CLAUDE_PROJECT_DIR="$PWD" bash "$HARNESS/.agents/harness/handover-guard.sh"
@@ -151,8 +154,10 @@ The source reads behind the claims about the rule:
 
   Measured 2026-10-08, same fixture, that patch applied to a copy of the
   guard: zero-commit clean branch, no output and exit 0; one unpushed commit,
-  blocks with the same fact. So the remedy is not a trade of one case for the
-  other.
+  blocks carrying that fact (and, in this fixture, the workstream-file fact
+  beside it, because the commit adds a file and no workstream file — the two
+  are independent and the patch touches only the first). So the remedy is not a
+  trade of one case for the other.
 
 - **And it fails OPEN on a branch with commits when `origin/<base>` is
   absent.** Not claimed by the issue; measured 2026-10-08 after
@@ -174,6 +179,28 @@ The source reads behind the claims about the rule:
   accident of that run — it is what the role looks like every pass. Nothing
   here reproduces the turn count; the guard's behaviour on that state is what
   is reproduced above.
+
+- **A selftest case for this fact ALREADY exists, and the patch keeps it
+  green.** This node's own Method grep surfaces it and an earlier draft never
+  mentioned it; the independent reader caught the omission.
+  `.agents/harness/selftest/handover-guard.sh:396-400`:
+
+      git -C "$sgwork" checkout -qb sgnew
+      printf 'new\n' >"${sgwork}/new.txt"
+      commit_all "$sgwork" "unpushed branch"
+      out="$(guard "$JSON_STOP")"
+      expect "never-pushed branch told to push" "no upstream" "$out"
+
+  That fixture COMMITS before the stop, so it is the real case and the patch
+  leaves it passing. Measured by the independent reader over a `git archive
+  HEAD` copy, with and without the issue's patch applied, 2026-10-08:
+  **2211 passed, 3 failed, 1 skipped both ways**, the same three failures each
+  time (artifacts of running the suite inside a scratch copy — the
+  leftover-process pair and the MANIFEST walk). So the patch regresses nothing
+  the suite covers, and NOTHING in the suite reds for the empty branch. The
+  third bullet of `## What would settle it` is therefore answered in one
+  direction: a case exists for the fact, none exists for the case this node is
+  about, and the fix owes the second.
 
 - **The dirty-tree case is already covered and loses nothing.** `cb0028e`, the
   same file: `dirty="$(git status --porcelain … | head -1)"` adds
@@ -201,7 +228,39 @@ branch that answers this is supervised.
 
 ## Verification
 
-Pending: the independent read of this branch.
+Second context: `.claude/agents/verifier.md` at opus, which built its OWN
+fixture and took its own exit codes rather than reading the ones here — bare
+origin plus a work tree, one commit on the base branch pushed, an untouched
+branch cut from it, the guard run from this checkout through
+`CLAUDE_PROJECT_DIR`. It also ran the full selftest over a `git archive HEAD`
+copy, patched and unpatched, which this file's author did not.
+
+- **The fact fires on a zero-commit clean branch** — GROUNDED. Reproduced
+  independently, output matching including `ahead of main: 0  porcelain: []`.
+- **The rule is positional** — GROUNDED. Four lines of shell, quoted byte-exact
+  against source by both contexts.
+- **The patch closes the false positive and keeps the real case** — GROUNDED,
+  re-measured. The reader also found the quoted result incomplete: the
+  one-commit case fires the workstream-file fact as well. Corrected here.
+- **The patch fails OPEN with the base ref absent** — GROUNDED, and this is the
+  node's novel claim. Re-measured from the reader's own fixture: unpatched
+  blocks, patched prints nothing at all.
+- **A selftest case already exists, and the patch keeps it green** — GROUNDED,
+  and found by the second context, not the first. 2211 passed, 3 failed, 1
+  skipped both ways, identical failures, all three artifacts of running the
+  suite inside a scratch copy. An earlier draft of this file never mentioned
+  the existing case although its own Method grep returns it.
+- **The per-turn cost to one role** — WEAK. The issue's, not re-measurable
+  here.
+
+Standing limit on every claim below that came from the issue rather than from
+this tree: `.claude/agents/verifier.md` declares `tools: Read, Grep, Glob,
+Bash` and has no control-plane call, so a reported fleet reading can be
+re-read against the issue and never re-sampled. That is issue #267, planned as
+`docs/plans/verifier-cannot-read-the-plane.md`. Every such claim is marked
+WEAK for that reason and not because anything contradicted it; the second
+context did confirm each number against the issue it came from, and found no
+invented one anywhere in this batch.
 
 ## Graduates to
 

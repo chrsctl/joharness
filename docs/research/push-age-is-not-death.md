@@ -124,8 +124,11 @@ fleet-wide question, from the view the row is built in:
 
 - **Nothing in the git view distinguishes a stopped manager from a stopped
   fleet.** `cb0028e`: `git grep -niE "suspend|fleet.?wide|stopped fleet" --
-  joharness.sh` finds no such reading, and the row's inputs are the ref's tip
-  date and the stall threshold. The one cheap discriminator the issue proposes
+  joharness.sh` returns exactly one hit, and it is a comment saying the
+  opposite — `joharness.sh:9209`, *"Orchestrated: this branch's own files,
+  nothing fleet-wide, no queue"*, about a session-start injection. No reading of
+  fleet-wide activity exists, and the row's inputs are the ref's tip date and
+  the stall threshold. The one cheap discriminator the issue proposes
   — did anything at all land on the base branch in this window — is not read
   anywhere in the row's construction, and the ref it would need is already in
   hand (the walk computes a merge base against `refs/remotes/origin/<base>` for
@@ -155,16 +158,32 @@ fleet-wide question, from the view the row is built in:
   option 2 — a larger change than the comment implies, and one that would put
   a control-plane money field into the evidence table for the first time.
 
-- **Every respawn the health table orders rests on at least TWO observations;
-  the scheduler's row rests on one.** `cb0028e`,
-  `.claude/commands/orchestrate.md`: the confirmed-dead row needs a recorded
-  `seen=` plus `updated_at` AND head unchanged since it; the stall path needs a
-  nudge recorded and then a second look (*"Never kill on this first one; two
-  passes is the rule, and the missing tool removes the message, not the second
-  look"*); the LOOP row needs `same=2` already in the ledger; the idle row needs
-  a nudge and then head AND `status_detail` unchanged. The scheduler's edge row
-  has no ledger, no session record, and one number — and it is the only place in
-  the harness that recommends a respawn from a single reading.
+- **The scheduler's row is not alone in acting on one reading — what is alone
+  is acting on a reading that is not about the session at all.** Two rows in
+  the health table DO respawn on a single observation, and an earlier draft of
+  this finding said otherwise; the independent reader refuted it from the table
+  itself:
+
+  - `.claude/commands/orchestrate.md:182` — `| ARCHIVED, or no session found
+    by title | any | branch unmerged, and the item is claimed … | gone. RESPAWN
+    on that branch, below — no nudge, there is nobody to ask. |` One
+    control-plane read, no `seen=`, no second pass.
+  - `:177` — the LOOP row's condition is a disjunction and its FIRST clause
+    stands alone: ``LOOP? on the line (churn past JOHARNESS_CHURN_LIMIT)``, OR
+    head-moved-with-`next:`-unchanged *"with `same=2` already in the ledger"*.
+    The `same=2` attaches to the second clause only, so churn past the limit on
+    one pass is enough, and LOOP step 3 is `archive_session. RESPAWN on the
+    branch at the raised tier` — a single reading that kills a LIVE session.
+
+  So the count of observations is the wrong axis. What every one of those rows
+  reads is either the session itself (archived, absent by title, `status_bucket`
+  FAILED with a `seen=`, nudged and unchanged) or a count over the branch's own
+  history (churn, `same=`). The scheduler's edge row reads neither: it reads the
+  date on one commit, which is a fact about the branch's last write and not
+  evidence about the session at any level. That is the distinction the issue is
+  making, and it survives both counter-examples — a suspended fleet freezes the
+  commit date and changes nothing about `ARCHIVED`, a title lookup, or a churn
+  count.
 
 - **This question has been half-answered once, and the answer was WITHDRAWN on
   review. Read that before proposing a cost test.** `cb0028e`,
@@ -190,9 +209,10 @@ fleet-wide question, from the view the row is built in:
   printed the respawn instruction. All three were alive — read from the control
   plane within 90 seconds of that run, `RUNNING`, with `updated_at` at
   22:47:21Z / 22:47:28Z / 22:47:33Z and `cost_usd` 23.7686223 / 144.76052 /
-  24.0942572. Their own summaries at that moment: *"Verifying numbers and
-  running the finish guard"*, *"post-merge verified clean; committing renumber,
-  opening PR"*, *"DB setup in parallel; workers running; restoring env after
+  24.0942572. Their own summaries at that moment, each cut where it named
+  that repository's own files or records and marked `…` there: *"Verifying numbers and
+  running the finish guard"*, *"… post-merge verified clean; committing renumber
+  …, opening PR"*, *"DB setup in parallel; workers running; restoring env after
   rate limit"*. Had the row been followed, three successors would have landed
   on three branches whose owners were mid-finish.
 
@@ -226,9 +246,12 @@ No plan is blocked on this and none carries a `research:` edge to it.
 
 **Marked `urgent`, and here is the argument rather than the adjective.** This
 is the only row in the harness that recommends a destructive act — a second
-manager on a branch somebody else owns — from one reading, and it has fired
-wrong three times out of three in the one run where the expensive direction was
-available. Every other node in this batch costs a duplicate, a delay or a
+manager on a branch somebody else owns — from a reading that is not about the
+session, and in the one run where the expensive direction was available it
+printed that recommendation on two of three rows, both wrong. (Three of three
+is push age's record as a SIGNAL in that run; two of three is the destructive
+row's. An earlier draft of this paragraph used the first number for the second
+claim.) Every other node in this batch costs a duplicate, a delay or a
 re-measurement; this one costs a collision at the finish. The narrowest fix is
 deleting a sentence. Canonical may disagree with the mark; this paragraph is
 what it rests on.
@@ -248,6 +271,18 @@ Three things whoever takes it should carry in:
   option that turns "this manager stopped" into "everything stopped" without
   leaving the git view, which is the property the issue argues for throughout.
 
+**And the independent reader's position on this node's own shape, recorded
+because it is the reverse of what this node instructs: half of it is a PLAN.**
+Option 1 is a decided one-sentence deletion that this file calls the narrowest
+fix, says costs nothing, and rests its `urgency: urgent` on — which is a plan
+with an Acceptance, not a question. Option 2 is genuinely open. The reader's
+reading is that an urgent decided deletion plus an open question about a cost
+discriminator is a plan BESIDE a node, and that this node's own instruction not
+to land the two halves together is the argument for splitting them at filing
+rather than at implementation. The conversion was asked for as nodes, so
+nothing was split; canonical decides, and this paragraph exists so the choice
+is visible rather than inherited.
+
 And one thing this node cannot have: an independently verified control-plane
 half. `.claude/agents/verifier.md` declares `tools: Read, Grep, Glob, Bash`
 and has no control-plane call, so the five-signal measurement above can be
@@ -264,7 +299,43 @@ Taking two at once collides.
 
 ## Verification
 
-Pending: the independent read of this branch.
+Second context: `.claude/agents/verifier.md` at opus, which re-read the health
+table itself rather than this file's account of it.
+
+- **The instruction is printed on push age alone** — GROUNDED,
+  `joharness.sh:8241` verbatim.
+- **The age is the tip commit date** — GROUNDED, `dispatch_age_min` re-read.
+- **"The only place that respawns from a single reading"** — UNGROUNDED. Two rows
+  do: the ARCHIVED-or-not-found row on one control-plane read, and the LOOP
+  row's first clause on one churn count, which kills a live session. The
+  finding is restated on the axis that survives both — what the reading is
+  ABOUT — and the `urgency: urgent` paragraph with it.
+- **"Three times out of three" for the destructive row** — UNGROUNDED as a number:
+  it printed on two of three rows. Three of three is push age's record as a
+  signal. Corrected in both places.
+- **No fleet-wide reading exists** — GROUNDED, with one imprecision the reader
+  caught: the grep returns one hit, a comment saying the opposite. Named now.
+- **`PR in flight` is asserted, not read** — GROUNDED.
+- **`cost_usd` is absent from the health table** — GROUNDED, three hits, all in
+  one document, none in the table. So the issue's comment does name a test the
+  file does not carry.
+- **Every kill the table orders, and what each reads** — GROUNDED after the
+  correction above.
+- **The withdrawn precedent under the knob table** — GROUNDED, quoted exactly.
+- **The three live managers, the five signals, the four frozen-cost windows** —
+  WEAK. The reader traced every one of those numbers to the issue and its
+  comment and found them matching clause for clause, including the ordering of
+  the three sessions' fields; it could not re-sample any of them, for the
+  reason in the standing limit below.
+
+Standing limit on every claim below that came from the issue rather than from
+this tree: `.claude/agents/verifier.md` declares `tools: Read, Grep, Glob,
+Bash` and has no control-plane call, so a reported fleet reading can be
+re-read against the issue and never re-sampled. That is issue #267, planned as
+`docs/plans/verifier-cannot-read-the-plane.md`. Every such claim is marked
+WEAK for that reason and not because anything contradicted it; the second
+context did confirm each number against the issue it came from, and found no
+invented one anywhere in this batch.
 
 ## Graduates to
 

@@ -19,8 +19,10 @@ session.
 ## Question
 
 Should `orchestrate.md`'s `description` carry the qualifier its body carries —
-exit at DRAINED only with nothing in flight — and should a selftest pin it the
-way one already pins the verdict string?
+exit at DRAINED only with nothing in flight?
+
+Whether a selftest should pin it is under `## What would settle it`: it is the
+one part still open, not a second question.
 
 ## Echo
 
@@ -152,12 +154,51 @@ the sentence. If the answer is "no gate", that is a result and belongs in the
 graduation, because the next reader will otherwise re-derive the glossary dead
 end the issue already walked.
 
+**The independent reader's position, recorded because it is stronger than this
+node's own flag: this should be a PLAN, not a node.** Its argument —
+`effort: low`, `agent: sonnet`, a one-line fix copied from a string already in
+the tree, and a gate question that *"Implementation yours"* under
+`## Decide alone` already assigns to the implementer. It also counted the
+precedent this conversion cites: `605557b7` routed FOUR of five issues to
+plans and two to research, where this batch routed nine of nine to research.
+That ratio is the fact canonical should weigh; the conversion was asked for as
+nodes, so nothing here was converted, and this paragraph is the flag rather
+than a decision.
+
 `.claude/commands/` is a protocol path (`./joharness.sh protocol-paths`), so the
 branch that answers this is supervised.
 
 ## Verification
 
-Pending: the independent read of this branch.
+Second context: `.claude/agents/verifier.md` at opus, which checked every line
+number and every quoted string against source.
+
+- **The rule is written four times and three agree** — GROUNDED. All six
+  citations exact.
+- **The fourth copy is unqualified** — GROUNDED.
+- **It is read before any file** — WEAK, and the reason is structural rather
+  than doubtful: the evidence is this session's own available-skills listing,
+  and the second context has no way to observe another session's listing. The
+  reader flagged exactly this, noting that the `## What would settle it` bullet
+  demands an observation rather than reasoning, and that the Method marks it as
+  not a source read. It also confirmed the one checkable part — `joharness.conf`
+  does carry `JOHARNESS_MODE=orchestrated`. Anyone can re-take the observation
+  in one session of this repo; no verifier can.
+- **The glossary cannot gate it** — GROUNDED, including
+  `.claude/commands/*` being inside `GLOSSARY_PATHS` and the substring rule.
+- **The reported verdict line** — WEAK.
+- **That this should be a plan rather than a node** — the second context's
+  judgement, recorded in `## Consequence for the queue` rather than resolved
+  here.
+
+Standing limit on every claim below that came from the issue rather than from
+this tree: `.claude/agents/verifier.md` declares `tools: Read, Grep, Glob,
+Bash` and has no control-plane call, so a reported fleet reading can be
+re-read against the issue and never re-sampled. That is issue #267, planned as
+`docs/plans/verifier-cannot-read-the-plane.md`. Every such claim is marked
+WEAK for that reason and not because anything contradicted it; the second
+context did confirm each number against the issue it came from, and found no
+invented one anywhere in this batch.
 
 ## Graduates to
 

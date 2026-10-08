@@ -90,12 +90,19 @@ Source reads at `cb0028e`, each re-run rather than taken from the issue:
 ## Findings
 
 - **There is no record of a red base, and no reader for one.** `cb0028e`:
-  `git grep -in baseline` over `joharness.sh`, `.agents` and `.claude` returns
-  only `mutate`'s precondition that the baseline be GREEN (and its refusal,
-  `BASELINE IS NOT GREEN — nothing can be attributed to a mutation`), the
-  curate clock's *repository baseline* (hours since the base branch's first
-  commit), and selftest assertions about those two. None of them records which
-  checks are failing. And `grep -cn "gh api|gh pr|api.github" joharness.sh`
+  `git grep -in "baseline" -- joharness.sh .agents .claude` returns **14**
+  hits. An earlier draft said they were "only" three categories; the
+  independent reader counted them and four fall outside, so here is the whole
+  set rather than a summary. `mutate`'s precondition that the baseline be GREEN
+  and its refusal (`BASELINE IS NOT GREEN — nothing can be attributed to a
+  mutation`); the curate clock's *repository baseline*, hours since the base
+  branch's first commit; selftest assertions about those two; and four that are
+  a different word altogether — `.agents/docs/product/README.md:191` and `:216`
+  (a single-agent BASELINE in a cited benchmark), `joharness.sh:3347` (an
+  unmarked-detector-baseline record), `.agents/harness/selftest/cleanup.sh:238`
+  (a fixture's own starting point). The conclusion is unchanged and now rests
+  on all 14: **not one of them records which checks are failing on the base
+  branch.** And `grep -cn "gh api|gh pr|api.github" joharness.sh`
   returns **0**, so nothing in the scheduler reads a check run at all — step
   7's *"GitHub checks green on head"* is a condition on the session, not on the
   script.
@@ -170,7 +177,29 @@ unlike the nodes aimed at `.claude/commands/orchestrate.md`.
 
 ## Verification
 
-Pending: the independent read of this branch.
+Second context: `.claude/agents/verifier.md` at opus.
+
+- **No record of a red base, and no reader for one** — GROUNDED, but the word
+  "only" is UNGROUNDED: the grep returns 14 hits, four of them a different sense
+  of the word. The enumeration is now the whole set and the conclusion rests on
+  all 14.
+- **Nothing in the scheduler reads a check run** — GROUNDED, `0` re-counted.
+- **The two rules a fix must get past** — GROUNDED, both quoted exactly.
+- **The lead channel refuses this message four ways** — GROUNDED. The reader
+  verified all four properties and the POINTER sentence against source.
+- **The one shape not forbidden is the provenance rule's own** — GROUNDED as a
+  reading of that rule; whether it answers the question or evades it is what
+  the node leaves open.
+- **The duplication and its counts** — WEAK, and the issue says so itself.
+
+Standing limit on every claim below that came from the issue rather than from
+this tree: `.claude/agents/verifier.md` declares `tools: Read, Grep, Glob,
+Bash` and has no control-plane call, so a reported fleet reading can be
+re-read against the issue and never re-sampled. That is issue #267, planned as
+`docs/plans/verifier-cannot-read-the-plane.md`. Every such claim is marked
+WEAK for that reason and not because anything contradicted it; the second
+context did confirm each number against the issue it came from, and found no
+invented one anywhere in this batch.
 
 ## Graduates to
 

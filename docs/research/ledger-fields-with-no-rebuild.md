@@ -81,6 +81,7 @@ Source reads at `cb0028e`, each re-run rather than taken from the issue:
     sed -n '80,90p'   .claude/commands/orchestrate.md   # JOHARNESS_PENDING_SPAWNS
     sed -n '500,512p' .claude/commands/orchestrate.md   # the spawn's own fields
     sed -n '550,558p' .claude/commands/orchestrate.md   # "@new … the only record"
+    sed -n '183,186p' .claude/commands/orchestrate.md   # the unclaimed ladder's rungs
     sed -n '564,566p' .claude/commands/orchestrate.md   # the ledger line
     sed -n '592,610p' .claude/commands/orchestrate.md   # the forgery rule
     sed -n '614,624p' .claude/commands/orchestrate.md   # the seen=/detail= loss note
@@ -147,13 +148,40 @@ Source reads at `cb0028e`, each re-run rather than taken from the issue:
 
 - **But the rebuild is not equivalent, and the issue does not say so.** A
   title read proves a session EXISTS; the `@new` entry means *spawned and has
-  not claimed*. The second half is what the stillborn and unclaimed rows key
-  on, and they key on the entry *being a pass old* — which a title cannot
-  date. So the route recovers the pending-spawn COUNT (the money half, and the
-  half that feeds the irreversible verdict) and does not by itself recover the
-  age the health rows need. Whoever takes this should expect a partial rebuild
-  and should say which half it covers, rather than claiming the field is
-  reconstructible.
+  not claimed*. The second half is what the unclaimed ladder turns on, and the
+  first rung of it is entry age: `:183` matches when the *"entry still reads
+  `new` from a PREVIOUS pass — spawned, never claimed — and no `seen=`
+  recorded"*. A title read cannot date that. So the route recovers the
+  pending-spawn COUNT (the money half, and the half feeding the irreversible
+  verdict) and not the rung that admits an entry to the ladder at all. Whoever
+  takes this should expect a partial rebuild and say which half it covers,
+  rather than calling the field reconstructible.
+
+- **And the file disagrees with itself about whether entry age is a key —
+  which is arguably a better answer to #307 than the field classification.**
+  An earlier draft of the finding above cited only the first of these; the
+  independent reader found the pair. `cb0028e`,
+  `.claude/commands/orchestrate.md`:
+
+      :554   … the stillborn row in step 2 keys on the
+             entry being a pass old.
+      :612-613  … and the rows above turn on `seen=`, which is a read of the
+             session record, never on the entry's own age.
+
+  Read against the rows themselves, BOTH summaries are loose and neither is
+  the truth: `:183` (unclaimed, FIRST look) keys on entry age and on `seen=`
+  being absent; `:184` (STILLBORN) and `:185` key on `seen=` recorded, the
+  entry still `new`, and `updated_at` unchanged — not on age. So entry age
+  gates ENTRY to the ladder and `seen=` gates the verdict, `:554` attributes
+  the age key to the wrong rung, and `:613`'s *"never"* is false of the rung
+  that reaches the others.
+
+  Why this bears on the question rather than being a separate nit: #307 asks
+  which fields have a rebuild route. A field whose own file describes its key
+  two incompatible ways cannot be classified until that is settled, and a
+  session reading either sentence alone will build the wrong rebuild. The
+  rows are the authority; the two sentences are the second copy
+  `.agents/docs/graph.md` warns rots.
 
 - **Reported, not re-measured here: the size.** The issue reports the ledger at
   about 8 KB, rewritten in full every pass, and states plainly that no pass in
@@ -190,7 +218,34 @@ branch that answers this is supervised.
 
 ## Verification
 
-Pending: the independent read of this branch.
+Second context: `.claude/agents/verifier.md` at opus.
+
+- **The rebuild-from-git rule is in three places** — GROUNDED, all three
+  re-run.
+- **One field class states its loss** — GROUNDED.
+- **The respawn count is sole carrier and its cross-check is forbidden** —
+  GROUNDED, including the knob read and the forgery rule.
+- **`@new` is self-described as the only record, feeding the irreversible
+  verdict** — GROUNDED, both quoted exactly.
+- **The rebuild route is available from a read already made** — GROUNDED:
+  `title = manager: <stem>` at `:506`, three by-title lookups, and step 0.2's
+  `list_sessions` over every visible session.
+- **The rebuild is partial** — GROUNDED, and the citation was CORRECTED by the
+  second context. The file says both that entry age is a key and that it never
+  is; read against the rows, entry age gates the first rung and `seen=` gates
+  the verdict. The conclusion survives; the contradiction is now a finding,
+  and it is arguably the better answer to the issue.
+- **The 8 KB, and that no pass was seen dropping a field** — WEAK, and the
+  issue states the second itself.
+
+Standing limit on every claim below that came from the issue rather than from
+this tree: `.claude/agents/verifier.md` declares `tools: Read, Grep, Glob,
+Bash` and has no control-plane call, so a reported fleet reading can be
+re-read against the issue and never re-sampled. That is issue #267, planned as
+`docs/plans/verifier-cannot-read-the-plane.md`. Every such claim is marked
+WEAK for that reason and not because anything contradicted it; the second
+context did confirm each number against the issue it came from, and found no
+invented one anywhere in this batch.
 
 ## Graduates to
 

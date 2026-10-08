@@ -81,6 +81,138 @@ request is for the human to merge, not this session.
 
 ## Review
 
+Depth: opus, adversarial (`./joharness.sh review`). `JOHARNESS_REVIEW=off`, so
+`ci` does not check this section; it is written because the gate being off is
+not a reason.
+
+Rounds 1-2 are this session reading its own diff. Round 3 is
+`.claude/agents/verifier.md` at opus — one reader that did not write the diff,
+which re-ran every node's `## Method` itself, built its own fixture for #296
+and ran the full selftest patched and unpatched. Its findings are tagged
+`(verifier)`. Four of them refute a claim this branch had already published,
+which is the property the independent read exists for.
+
+Self-found, round 1-2 — fixed in the commits named, which landed before the
+independent read returned:
+
+- r1: Two nodes claimed every respawn the health table orders requires the
+  session to be GONE. The LOOP row acts on a manager that is alive and pushing.
+  Restated: the gap is that its one row for a working manager measures
+  repetition, not spend. (fixed, `ca5f442`)
+- r2: `no-ceiling-on-one-item` inferred that the reported item's `next:` was
+  moving. The issue does not report it, so whether the LOOP row's second clause
+  could have matched is unknown. (fixed, `ca5f442`)
+- r3: `#296`'s Method omitted the git identity and ran the guard by a relative
+  path, which resolves to the fixture's own missing copy — not re-runnable as
+  written. (fixed, `ebbec96`)
+- r4: `ledger-fields-with-no-rebuild` called three differently-worded
+  statements of one rule "the same sentence". (fixed, `ebbec96`)
+
+Round 3, the independent read:
+
+- r5: `push-age-is-not-death`'s load-bearing comparative claim — "the only
+  place in the harness that recommends a respawn from a single reading" — is
+  false. Two rows do: `orchestrate.md:182` (ARCHIVED or not found by title, one
+  control-plane read) and `:177`'s LOOP first clause (churn past the limit on
+  one pass), the second of which kills a LIVE session. This is the sentence the
+  `urgency: urgent` mark rested on. Restated on the axis that survives both —
+  what the reading is ABOUT, not how many there are — and the urgency paragraph
+  with it. (verifier) (fixed)
+- r6: Same node, drifted number inside the urgency argument: "three times out
+  of three" is push age's record as a SIGNAL; the destructive row printed on
+  two of three. (verifier) (fixed)
+- r7: `plan-on-an-unmerged-branch`'s own "not yet run" command was written in
+  the pipe form that a finding three paragraphs later quotes as a paid-for
+  race. Rewritten in the shape `joharness.sh:7951-7956` prescribes.
+  (verifier) (fixed)
+- r8: Same node, "the queue is read from `origin/<base>` and from nowhere
+  else" omits `queue-context.sh:182-200`, a third branch walk in the hook
+  itself — and it is the most natural home for the row the issue wants. Now a
+  finding of its own. (verifier) (fixed)
+- r9: Same node, the quoted code block spliced line 67 onto 75-76 and dropped a
+  two-line comment, against `.agents/docs/caveman.md` `## Never touch`
+  ("Code blocks — byte-exact. No comment removal"). (verifier) (fixed)
+- r10: `guard-fires-on-an-empty-branch` asks whether a selftest case is owed
+  while its own Method grep returns one that already exists
+  (`selftest/handover-guard.sh:400`). The reader also measured the suite with
+  and without the patch — 2211 passed, 3 failed, 1 skipped both ways — which
+  is the fact the bullet asked for. Added as a finding. (verifier) (fixed)
+- r11: Same node, "blocks with the same fact" is incomplete: the one-commit
+  case fires the workstream-file fact too. (verifier) (fixed)
+- r12: `ledger-fields-with-no-rebuild` rests its partial-rebuild conclusion on
+  the half of a self-contradicting file that the file itself denies
+  (`orchestrate.md:554` against `:612-613`). Read against the rows, both
+  summaries are loose: entry age gates the first rung, `seen=` gates the
+  verdict. The conclusion survives; the contradiction is now a finding, and is
+  arguably a better answer to the issue than the field classification.
+  (verifier) (fixed)
+- r13: `where-a-red-base-reading-goes` said the baseline grep "returns only"
+  three categories. It returns 14 hits, four of them a different sense of the
+  word. The conclusion survives; the word did not. (verifier) (fixed)
+- r14: `no-ceiling-on-one-item` enumerated six knobs from a command that
+  reaches three, with no command producing the list. Replaced with the output
+  of a named command: 44 names. Counted twice — the reader and I disagreed by
+  one, and the difference was the pattern's bare-prefix match, now stated.
+  (verifier) (fixed)
+- r15: All nine `## Verification` sections read "Pending". Nine nodes carrying
+  roughly sixty findings would have reached `main` in breach of
+  `.agents/docs/research/README.md`, "Verification is not optional". Filled,
+  each claim marked, with the standing limit on every reported fleet number
+  (the verifier declares no control-plane call — issue #267, planned as
+  `docs/plans/verifier-cannot-read-the-plane.md`), so those are WEAK and say
+  why. (verifier) (fixed)
+- r16: Two Method greps assert zero hits for a string that each node's own text
+  now contains, so the command does not reproduce in the tree the node lands
+  in. Both pinned to `cb0028e` with that said in the finding. (verifier)
+  (fixed)
+- r17: Two `## Question` sections were compound against the README's "one
+  sentence, answerable". Both reduced to one question, with the dependent
+  halves moved to `## What would settle it`, where they already were.
+  (verifier) (fixed)
+- r18: Three quotations carried silent cuts presented as verbatim. Marked with
+  `…`, and the one that mattered restored — the dropped half of
+  `unsupervised.md:111` names the other cause that run ended. (verifier)
+  (fixed)
+- r19: The #296 fixture used the consumer orchestrator's actual branch name,
+  taken from the issue. Opaque, but unnecessary — the fixture works with any
+  name. Replaced. (verifier) (fixed)
+- r20: `push-age-is-not-death` said no fleet-wide reading exists where the grep
+  returns one hit, a comment saying the opposite. Named. (verifier) (fixed)
+- r21: `first-copy-of-the-exit-rule`'s strongest claim rests on an observation
+  of this session's own skills listing, which no second context can re-take.
+  Marked WEAK in `## Verification` with that as the reason, not doubt.
+  (verifier) (fixed)
+- r22: `#303` should be a plan, not a node — one-line fix, `effort: low`, and
+  the only open item is implementation, which `## Decide alone` already
+  assigns. The reader also counted the precedent this branch cites: `605557b7`
+  routed four of five issues to PLANS; this batch routed nine of nine to
+  research. (verifier) (wontfix — the ask was a conversion to research nodes,
+  and converting one unasked would make the batch inconsistent in a way
+  canonical cannot see. The argument and the 4-of-5 ratio are now recorded in
+  the node's own Consequence and in the pull request body, which is where the
+  decision can be taken in one read.)
+- r23: `#283` is half plan and this branch did not flag it: option 1 is a
+  decided one-sentence deletion that the node itself calls the narrowest fix
+  and rests its urgency on, beside a genuinely open question about a cost
+  discriminator. Flagged in the node. (verifier) (wontfix as a split, same
+  reason as r22; the flag is the deliverable.)
+- r24: `## Echo` carries post-method content in four nodes, which weakens the
+  one property the README gives that section. (verifier) (wontfix — the reader
+  marked it a judgement call itself, the precedent node does the same, and each
+  node carries an explicit "Written before the reads below" line in
+  `## What would settle it`, which is where the protocol puts the
+  anti-hindsight guarantee. Recorded rather than dropped because a reader who
+  disagrees should find it argued, not absent.)
+
+Clean on the independent read, worth recording because they were checked
+rather than assumed: no invented number anywhere in the batch — every reported
+figure traced to its issue clause by clause, including the three sessions'
+`updated_at` and `cost_usd` in matching order; no consumer repository, plan
+name, item name, pull request number or session id in any node; all nine
+sections present and ordered in all nine; `research:` self-naming its stem;
+every `graduates:` path on disk; no date in any `## Verification`; and every
+`sed -n` range landing on the text its finding attributes to it, except r9.
+
 ## Blockers
 
 None.
