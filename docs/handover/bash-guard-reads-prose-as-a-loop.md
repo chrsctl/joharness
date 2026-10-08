@@ -197,6 +197,69 @@ attempted. It stopped on a DIFFERENT and harder bound — below.
   case that makes the fallback give the wrong answer. `ci: pass`, 2254
   passed, 0 failed. (fixed)
 
+- r16: (verifier, round 2 at 43dab32) REGRESSIONS, HEAD/origin-main:
+  r13's `close_re` misses a real `done` after `}`, `)`, `fi`, `esac`,
+  `]]`, `))` — `until test -f /tmp/r; do { sleep 5; } done` 0/2 — and the
+  unpaired loop's fallback then finds no `done` and allows, or reaches the
+  next loop's counter (`...{ sleep 5; } done; i=0; while [ $i -lt 3 ]...`
+  0/2, G2's shape back). Keyword positions `pos_re` misses: `coproc`,
+  `time -p`, `! time`, `if until`, `elif until`, `eval until ...\;`,
+  `ssh host until ...\;`, all 0/2. Time: 37–62 KB heredocs 7–30 s against
+  origin/main's 2.7–7 s; cause measured — the tokeniser runs two
+  `${s%%"$x"*}` cuts per token, quadratic in length. False positives 2/0:
+  the same unseen `done` widening a no-sleep span into a later loop; a
+  `break 2` counter in a nested loop. (fixed by r17's redesign; `break 2`
+  wontfix — rare, and the deliberate `own` rule.)
+
+- r17: (session) the overlay, built from the research step below. Reader
+  A = origin/main's walk plus the prose skip; reader B = the depth walk,
+  denials only, one `token_re` match per token (one prefix cut, not two),
+  up to 8 KB. Measured, payloads from files: 65 payloads 0 wrong; on the
+  14 r16 adds, origin/main 3 wrong, 43dab32 14, now 0. The round-2
+  verifier's own scripts against it: one 0/2 left, `ssh host until ...`,
+  as the research step records; its other two differences are the
+  `break 2` wontfix and "things to do while waiting", a prose false
+  positive origin/main has and this fixes. Its timing inputs to 62 KB at
+  origin/main's speed or better (37 KB heredoc 1.20 s vs 2.85 s). Mutation
+  screen, 21 mutations: 20 pinned; the survivor is B's 8 KB gate, which
+  changes only time — 0.78 s with it, 1.56 s without, on a 37 KB command A
+  allows — so no exit code can pin it. `ci: pass`, 2265 passed, 0 failed.
+  (fixed; the gate's pin is open by nature, a timing line with no case.)
+
+## Research step (review churn, 2026-10-08)
+
+r16's first regression was made BY r13's fix — the churn rule's trigger.
+Stop patching; the requirements, the conflicting pair, the resolution.
+
+Requirements: (a) the four Goal payloads and the prose shapes read right;
+(b) no real wait origin/main denies is allowed, except where a keyword is
+plainly prose; (c) inside the hook's 10 s on anything origin/main reads
+inside it; (d) fail open, no forks, bash 3.2.
+
+The conflicting pair is (a)+(b) against the walk being the ONLY reader.
+Every round replaced origin/main's positional reading with a structural
+one, and a structural reader of shell-as-text has edges — each edge is a
+real wait origin/main denied and the new reader does not. Narrowing the
+edges (r13) moved them; it cannot remove them.
+
+Resolution: do not replace the old reader — OVERLAY it. Deny if EITHER
+denies:
+- A = origin/main's walk, unchanged but for one skip: a keyword that is
+  plainly prose — right after an ordinary word that is not a shell word
+  that can precede a compound command (`do then else elif if time coproc
+  eval while until`) — is passed over, the walk advancing past the keyword
+  only. That skip is the ONE place the guard is more permissive than
+  origin/main, and it is what (a)'s prose shapes need.
+- B = the depth walk, only adding denials: nested `for` stealing a
+  `done`, a nested `until` swallowed, `.done` sentinels, counters that
+  belong to an inner loop. B never allows anything; an unbalanced loop is
+  simply not B's to judge, because A already read it. B runs on commands
+  up to 8 KB, where its cost was measured well inside the timeout; above
+  that, A alone — origin/main's reading and origin/main's cost.
+
+`ssh host until ...` stays 0/2: "host" is an ordinary word, and no text
+rule tells it from prose. Recorded, not fixed.
+
 ## Blockers
 
 **Lifted 2026-10-08** for the edit itself: a supervised session, at the

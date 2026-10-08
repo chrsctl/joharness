@@ -305,6 +305,51 @@ pbg_denied "done;done pairs both loops, so the inner counter stays the inner loo
 pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"bash -c '"'"'until test -f /tmp/x; do sleep 5; done'"'"'"}}'
 pbg_denied "an unbounded wait inside bash -c quotes is denied"
 
+# --- the structural reader only ever adds denials (verifier round 2) ------
+# Built as the only reader, every edge of the depth walk was a real wait the
+# positional reader denied. A `done` after `}` or `fi` is real shell; unseen,
+# the loop went unpaired and was allowed. Now the positional reader still
+# reads every loop, and these are denied by it whether or not the depth walk
+# pairs them.
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"until test -f /tmp/r; do { sleep 5; } done"}}'
+pbg_denied "a done straight after a brace group still closes the loop"
+
+# shellcheck disable=SC2016  # a JSON payload; the $ is text the guard reads
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"n=0; while true; do until grep -q x /tmp/f; do { sleep 5; } done; n=$((n+1)); [ $n -gt 9 ] && break; done"}}'
+pbg_denied "an outer loop's counter does not bound a nested wait ending in } done"
+
+# And where the positional reader takes a nested `for`'s `done` for the
+# outer loop's, the depth walk has to see past `}` and `fi` to pair it.
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"until test -f /tmp/x; do for i in 1; do :; done; { sleep 5; } done"}}'
+pbg_denied "the depth walk pairs a done after a brace group"
+
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"until test -f /tmp/x; do for i in 1; do :; done; if true; then sleep 5; fi done"}}'
+pbg_denied "the depth walk pairs a done after fi"
+
+# Seen as a pair, a no-sleep poll stays inside its own `done`.
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"until test -f /tmp/r; do { ls /tmp; } done; for f in a b; do sleep 1; done"}}'
+pbg_allowed "a no-sleep poll ending in } done does not borrow a later sleep"
+
+# Keywords after words shell lets precede a compound command. The prose skip
+# must not take them for English.
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"if until test -f /tmp/r; do sleep 5; done; then :; fi"}}'
+pbg_denied "if until is a loop, not prose"
+
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"if false; then :; elif until test -f /tmp/r; do sleep 5; done; then :; fi"}}'
+pbg_denied "elif until is a loop, not prose"
+
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"coproc until test -f /tmp/r; do sleep 5; done"}}'
+pbg_denied "coproc until is a loop, not prose"
+
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"! time until test -f /tmp/r; do sleep 5; done"}}'
+pbg_denied "! time until is a loop, not prose"
+
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"time -p until test -f /tmp/r; do sleep 5; done"}}'
+pbg_denied "a word after a dash is an option, not prose"
+
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"echo \"things to do while waiting\"; for i in 1 2; do sleep 1; done"}}'
+pbg_allowed "to do while is prose: that do begins no command"
+
 # --- `done` is a word unless a separator precedes it -----------------------
 # Read anywhere, `done` in the CONDITION closed the loop before its sleep:
 # a `.done` sentinel file is a very common wait target, and all three of
