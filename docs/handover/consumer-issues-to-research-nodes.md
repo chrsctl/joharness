@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_011v7iQ91Wf8TyxVFzQceszb
 agent: opus
 updated: 2026-10-08
-next: Write the nine nodes, review, retire, open the pull request — do not merge
+next: Record the verifier's findings in ## Review, retire this file, open the pull request — never merge it
 ---
 
 ## Goal
