@@ -119,23 +119,43 @@ out="$(sdsp)"
 expect "dispatch says the same" "scout     : IN FLIGHT, so none is due" "$out"
 refute "and spawns none" "scout DUE: spawn" "$out"
 
+# Marked `done` but not yet retired: finished, dating nothing yet, so it
+# holds the cycle — reading it as gone spawned a second scout (pass 4).
+# A capital letter reads as the word it is.
+git -C "$scout_work" checkout -q scout-open
+sws scout-2026-02-01 scout-2026-02-01 Done scout-open
+scommit "marked done, not yet retired" '2026-02-01T12:00:00Z'
+git -C "$scout_work" push -q origin scout-open
+git -C "$scout_work" checkout -q main
+expect "a scout marked done but not retired is still in flight" \
+  "scout-open  scout-2026-02-01  done" "$(sct)"
+
 # Released by /janitor: `abandoned` is not in flight, or one dead scout
 # holds the cycle for ever — and the release, committed NOW, re-dates
 # nothing: an abandoned scout retired nothing (review r27).
 git -C "$scout_work" checkout -q scout-open
-sws scout-2026-02-01 scout-2026-02-01 abandoned scout-open
+sws scout-2026-02-01 scout-2026-02-01 Abandoned scout-open
 scommit "janitor released it, today"
 git -C "$scout_work" push -q origin scout-open
 git -C "$scout_work" checkout -q main
 out="$(sct)"
 refute "an abandoned scout is not in flight" "IN FLIGHT" "$out"
 expect "and a release committed today leaves the clock due" "cadence   : DUE" "$out"
-git -C "$scout_work" checkout -q scout-open
-sws scout-2026-02-01 scout-2026-02-01 Done scout-open
-scommit "a capitalised status" '2026-02-03T00:00:00Z'
-git -C "$scout_work" push -q origin scout-open
+
+# The PATH decides, never frontmatter: CRLF line endings and a missing
+# `plan:` each dropped a scout in flight under a frontmatter filter (pass 4).
+git -C "$scout_work" checkout -qb scout-crlf main
+mkdir -p "${scout_work}/docs/handover"
+printf -- '---\r\nworkstream: scout-2026-02-05\r\nstatus: in-progress\r\n---\r\n' \
+  >"${scout_work}/docs/handover/scout-2026-02-05.md"
+scommit "a CRLF scout with no plan line" '2026-02-05T00:00:00Z'
+git -C "$scout_work" push -qu origin scout-crlf
 git -C "$scout_work" checkout -q main
-refute "Done reads as done, not in flight for ever" "IN FLIGHT" "$(sct)"
+out="$(sct)"
+expect "a CRLF scout with no plan: line is in flight" \
+  "scout-crlf  scout-2026-02-05  in-progress" "$out"
+git -C "$scout_work" push -q origin --delete scout-crlf
+git -C "$scout_work" branch -q -D scout-crlf
 
 # A scout whose `branch:` field names some OTHER branch is still in flight
 # on the branch whose tip carries it: nothing self-declared decides, and a
@@ -153,8 +173,9 @@ refute "and dispatch spawns no second scout" "scout DUE: spawn" "$out"
 git -C "$scout_work" push -q origin --delete scout-misnamed
 git -C "$scout_work" branch -q -D scout-misnamed
 
-# A tip whose RETIRE is dated in the future dates nothing: clamped to now,
-# it would switch the cycle off for as long as the branch stood (review r2).
+# A retire dated in the FUTURE reads as NOW: closed. Skipped, ordinary
+# clock skew between containers read as no retire at all and a second scout
+# spawned (pass 4).
 git -C "$scout_work" checkout -qb scout-future main
 sws scout-2026-02-20 scout-2026-02-20 review scout-future
 scommit "proposal" '2026-02-20T00:00:00Z'
@@ -163,8 +184,9 @@ scommit "a retire from the future" '2099-01-01T00:00:00Z'
 git -C "$scout_work" push -qu origin scout-future
 git -C "$scout_work" checkout -q main
 out="$(sct)"
-refute "a future-dated retire does not switch the cycle off" "cadence   : not due" "$out"
-expect "and the cycle stays due" "cadence   : DUE" "$out"
+expect "a future-dated retire reads as now, so the cycle is not due" "cadence   : not due" "$out"
+git -C "$scout_work" push -q origin --delete scout-future
+git -C "$scout_work" branch -q -D scout-future
 
 # The REAL shape of a proposal at the human: the scout retired its file as
 # the last commit before the pull request opened. Open or closed, the tip
@@ -262,6 +284,14 @@ expect "and says the curate goes first" "a curate or janitor goes first" "$out"
 out="$(sdsp)"
 expect "at DRAINED dispatch prints the spawn line" \
   "scout DUE: spawn ONE scout (agent: fable) on /scout" "$out"
+# A failed fetch holds the spawn: a scout pushed since the last fetch would
+# not show (pass 4). The fixture's origin pointed at nothing for one pass.
+git -C "$scout_work" remote set-url origin "${TMP}/no-such-origin.git"
+out="$(sdsp DISPATCH_FETCH=1)"
+git -C "$scout_work" remote set-url origin "$scout_origin"
+refute "with the fetch failed no scout spawns" "scout DUE: spawn" "$out"
+expect "and it says why" "scout due, held — the fetch failed" "$out"
+
 # A janitor IN FLIGHT holds the scout too: its release frees a plan for the
 # next pass, so the queue is about to stop being drained (review r28).
 git -C "$scout_work" checkout -qb janitor-run main

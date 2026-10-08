@@ -157,8 +157,8 @@
 #                              (.agents/docs/handover/README.md, abandoned)
 #   JOHARNESS_SCOUT_HOURS=168  hours since the last scout before one is due,
 #                              and only at DRAINED; 0 = off. Dated from git:
-#                              a merged proposal's retire, or the newest
-#                              scout branch, closed proposals included
+#                              the newest scout retire, merged or on an
+#                              unmerged branch, closed proposals included
 #   JOHARNESS_SCOUT_AUTOMERGE=off
 #                              'off' (default): a scout's proposal waits for
 #                              a human. Exactly 'on': the scout merges it.
@@ -5572,19 +5572,23 @@ scout_refs() {
 #   `docs/handover/scout-[0-9]*.md` — the name `.claude/commands/scout.md`
 #   writes — so the cost is per scout file, never per work branch. drain
 #   pays this at every session start, and `perf` gates it.
-# - Frontmatter DECIDES: `workstream: scout-<digit>...` and `plan: none`.
-#   The branch building this cycle owns `scout-cycle.md` with a real plan.
+# - The PATH decides, never frontmatter: a scout-<digit> file under
+#   docs/handover/ is a scout. The digit already keeps out the branch that
+#   built this cycle (`scout-cycle.md`), and every frontmatter filter tried
+#   here failed OPEN on a misread — CRLF, a missing `plan:`, a quoted
+#   `"none"`, a capital S each dropped a scout in flight (verifier pass 4).
 # - A file the base branch carries byte-identically is inherited, not the
 #   branch's: one `rev-parse` of both blobs.
 # - A branch stacked on an unretired scout reads in flight too: closed, and
 #   visible to whoever reads the row.
 #
-# Status is lower-cased and blank-joined, so `Done` and `in progress` read
-# as the words they are; every field is sanitised as janitor_branches'
-# are — branch-controlled input printed straight out.
+# Status is lower-cased and blank-joined, so `Abandoned` reads as the word
+# it is; every field is sanitised as janitor_branches' are —
+# branch-controlled input printed straight out. The row's name is the file's
+# stem, which the path already proves.
 scout_walk() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}"
-  local refs=() r hit wf blobs doc sws skey sstat
+  local refs=() r hit wf blobs doc sws sstat
   while IFS= read -r r; do refs+=("$r"); done < <(scout_refs)
   [ "${#refs[@]}" -gt 0 ] || return 0
   while IFS= read -r hit; do
@@ -5595,13 +5599,12 @@ scout_walk() {
     # Absent on the base, rev-parse prints the second argument back as its
     # own line, so the two lines differ and the file is kept.
     [ "${blobs%%$'\n'*}" != "${blobs#*$'\n'}" ] || continue
-    doc="$(git -C "$ROOT" show "${r}:${wf}" </dev/null 2>/dev/null)"
-    { read -r sws; read -r skey; read -r sstat; } \
-      <<<"$(printf '%s\n' "$doc" | gr_fields workstream plan status)"
-    case "$sws" in scout-[0-9]*) ;; *) continue ;; esac
-    [ "$skey" = none ] || continue
+    # CR stripped first: a CRLF file must not read as no frontmatter at all.
+    doc="$(git -C "$ROOT" show "${r}:${wf}" </dev/null 2>/dev/null | tr -d '\r')"
+    sstat="$(printf '%s\n' "$doc" | gr_field status |
+      tr 'A-Z ' 'a-z-' | tr -cd 'a-z0-9._-')"
+    sws="${wf##*/}"; sws="${sws%.md}"
     sws="$(printf '%s' "$sws" | tr -cd 'A-Za-z0-9._:-')"
-    sstat="$(printf '%s' "$sstat" | tr 'A-Z ' 'a-z-' | tr -cd 'a-z0-9._-')"
     printf '%s\t%s\t%s\n' "${r#refs/remotes/origin/}" "${sws:-?}" "${sstat:-?}"
   done < <(git -C "$ROOT" grep -l -e '^workstream:' "${refs[@]}" \
     -- 'docs/handover/scout-[0-9]*.md' </dev/null 2>/dev/null)
@@ -5617,13 +5620,20 @@ scout_walk() {
 #
 # `--not` the base: only commits the base does not carry. `--full-history`:
 # a branch that merged in a base carrying a scout-named file is otherwise
-# simplified onto the base, which `--not` then hides (review r15). A deleted
-# file counts only if it WAS a scout — its frontmatter in the parent. A time
-# in the future is skipped, never clamped: clamped to now, one forged commit
-# would switch the cycle off for as long as its branch stood (review r2).
+# simplified onto the base, which `--not` then hides (review r15). The PATH
+# decides, as in scout_walk: every frontmatter filter failed open. A time in
+# the future reads as NOW — closed: ordinary clock skew between containers
+# made a retire 120s ahead read as no retire at all, and a second scout
+# spawned (verifier pass 4). A forged far-future retire holds the cycle off,
+# visibly, for one window after each read; it never spawns.
+#
+# Accepted, written down: a human who deletes a closed proposal's branch
+# (step 7 allows it, and GitHub offers the button on close) deletes the
+# only record git has of that scout, and the cycle reads due on the next
+# pass. Branch deletion is the human's act; this does not second-guess it.
 scout_retired_ts() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}"
-  local refs=() r line h ct wf doc sws skey best=0 now
+  local refs=() r line h ct wf best=0 now
   while IFS= read -r r; do refs+=("$r"); done < <(scout_refs)
   [ "${#refs[@]}" -gt 0 ] || return 0
   now="$(date +%s)"
@@ -5634,13 +5644,10 @@ scout_retired_ts() {
       'C '*) line="${line#C }"; h="${line%% *}"; ct="${line#* }"; continue ;;
     esac
     wf="$line"
+    [ -n "$wf" ] || continue
     case "$ct" in '' | *[!0-9]*) continue ;; esac
-    { [ "$ct" -le "$now" ] && [ "$ct" -gt "$best" ]; } || continue
-    doc="$(git -C "$ROOT" show "${h}^:${wf}" </dev/null 2>/dev/null)"
-    { read -r sws; read -r skey; } <<<"$(printf '%s\n' "$doc" | gr_fields workstream plan)"
-    case "$sws" in scout-[0-9]*) ;; *) continue ;; esac
-    [ "$skey" = none ] || continue
-    best="$ct"
+    [ "$ct" -le "$now" ] || ct="$now"
+    [ "$ct" -gt "$best" ] && best="$ct"
   done < <(git -C "$ROOT" log --full-history --diff-filter=D --name-only \
     --format='C %H %ct' "${refs[@]}" --not "refs/remotes/origin/${base_branch}" \
     -- 'docs/handover/scout-[0-9]*.md' </dev/null 2>/dev/null)
@@ -5648,15 +5655,17 @@ scout_retired_ts() {
 }
 
 # A scout in flight, from scout_walk's rows on stdin: its workstream file is
-# at the tip and says neither `done` nor `abandoned` — the word /janitor
-# writes when it releases a dead session's claim, which must not read as in
-# flight for ever. A retired one is gone from the tip: it dates the cycle
-# (scout_retired_ts) and holds nothing.
+# at the tip and does not say `abandoned` — the word /janitor writes when it
+# releases a dead session's claim, which must not read as in flight for
+# ever. `done` IS in flight: a scout marks done, then retires, and between
+# the two it has finished but dated nothing, so reading it as gone spawned
+# a second scout (verifier pass 4). A retired one is gone from the tip: it
+# dates the cycle (scout_retired_ts) and holds nothing.
 scout_branches() {
   local b w s
   while IFS=$'\t' read -r b w s; do
     [ -n "$b" ] || continue
-    case "$s" in done | abandoned) continue ;; esac
+    [ "$s" = abandoned ] && continue
     printf '%s\t%s\t%s\n' "$b" "$w" "$s"
   done
 }
@@ -8492,6 +8501,7 @@ cmd_dispatch() {
   local curate_due=0 curate_inflight="" n_curate_inflight=0 cdue cstate creason
   local janitor_due=0 janitor_inflight="" n_janitor=0 jdue jstate jreason jb jw
   local scout_due=0 scout_inflight="" n_scout=0 sdue sstate sreason sb sw ss scout_gate=0 srows
+  local fetch_failed=0
   local cb ck cstat csess cnext cage
   local rescope_key="" rescope_paths="" rescope_inflight="" rescope_holders=""
   local n_rescope_inflight=0 n_rescope_holders=0 rescope_settled=0
@@ -8545,10 +8555,10 @@ cmd_dispatch() {
     if [ "$(git -C "$ROOT" rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
       timeout 15 git -C "$ROOT" fetch -q --prune --unshallow origin 2>/dev/null ||
         git -C "$ROOT" fetch -q --prune origin 2>/dev/null ||
-        warn "fetch failed; push ages below are from the last fetch"
+        { warn "fetch failed; push ages below are from the last fetch"; fetch_failed=1; }
     else
       git -C "$ROOT" fetch -q --prune origin 2>/dev/null ||
-        warn "fetch failed; push ages below are from the last fetch"
+        { warn "fetch failed; push ages below are from the last fetch"; fetch_failed=1; }
     fi
   fi
   printf 'cap       : %s manager(s) at once (JOHARNESS_MAX_MANAGERS)\n' "$cap"
@@ -9308,7 +9318,11 @@ cmd_dispatch() {
   # And no curate or janitor due OR in flight this pass: a released claim
   # frees a plan for the NEXT pass, so the queue is about to stop being
   # drained — the rule drain applies before it names the scout (r18, r28).
-  if [ "$scout_due" -eq 1 ] && [ "$scout_gate" -eq 1 ] &&
+  # And a fetch that worked: on a stale view a scout pushed since the last
+  # fetch is invisible, and R-g says a view known to be stale holds the spawn.
+  if [ "$scout_due" -eq 1 ] && [ "$fetch_failed" -eq 1 ]; then
+    printf '            scout due, held — the fetch failed, so a scout pushed since the last one would not show: spawn none this pass\n'
+  elif [ "$scout_due" -eq 1 ] && [ "$scout_gate" -eq 1 ] &&
      [ "$curate_due" -eq 0 ] && [ "$janitor_due" -eq 0 ] &&
      [ "$n_curate_inflight" -eq 0 ] && [ "$n_janitor" -eq 0 ]; then
     printf '            scout DUE: spawn ONE scout (agent: fable) on /scout — beyond the cap, holds no slot, at most one in flight, only at DRAINED. It proposes; a human merges unless JOHARNESS_SCOUT_AUTOMERGE=on (JOHARNESS_SCOUT_HOURS)\n'

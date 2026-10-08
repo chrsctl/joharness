@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01JXryjCKHhwkN7Xrv1qXz55
 agent: opus
 updated: 2026-10-08
-next: Fourth verifier pass on the fail-closed design; then retire and PR
+next: Fifth verifier pass (fail-open hunt only); then retire and PR
 ---
 
 ## Goal
@@ -23,13 +23,13 @@ is `scout-command`. Supervised session at the human's ask (protocol text).
 
 - dispatch spawns a scout ONLY under `DRAINED — nothing free, nothing in
   flight` with zero managers (blocked ones included), and no curate or
-  janitor due or in flight. drain NEVER offers a scout as the session's
+  janitor due or in flight, and a fetch that worked. drain NEVER offers a scout as the session's
   item: orchestrated = the orchestrator's; supervised = name it to the
   human; unattended = exit. Deviation from the plan's "else this session's
   item" (research step R-f).
 - In flight: ONE `git grep -l` over every unmerged ref's TIP, pathspec
-  `docs/handover/scout-[0-9]*.md`; frontmatter decides (`scout-<digit>`,
-  `plan: none`); status not done/abandoned. A file the base carries
+  `docs/handover/scout-[0-9]*.md`; the PATH decides, never frontmatter
+  (every filter failed open); in flight unless status is `abandoned`. A file the base carries
   byte-identically is inherited and skipped. Nothing self-declared names a
   scout's branch (R-g: fail closed). A branch stacked on an unretired scout
   reads in flight — closed and visible.
@@ -37,7 +37,7 @@ is `scout-command`. Supervised session at the human's ask (protocol text).
   the newest scout RETIRE on unmerged history (`scout_retired_ts`: one `git
   log --full-history --diff-filter=D ... --not origin/<base>`). Not the tip
   (a reconcile merge or janitor release would re-date), not a stamp
-  (self-declared). Future times skipped. Accepted: an open proposal nobody
+  (self-declared). Future times read as now (closed). Accepted: an open proposal nobody
   answers for 168h lets the next scout run — one proposal per window.
 - The retire half and the tip walk run only when they can change the
   answer / when someone reads in-flight rows (`scout_due` sets globals).
@@ -94,6 +94,13 @@ is `scout-command`. Supervised session at the human's ask (protocol text).
 - r30: (verifier, pass 3): the perf note's "the same 11 as before" — at the merge base 308 cleared 302 by 6; 320 added slack. (fixed — budget 315 keeps the merge base's margins exactly: 16 on the gated reading, 6 on the curate case)
 - r31: (verifier, pass 3): comments and `## Decisions` describing superseded designs ("its stamp dates the cycle", "this session's item", `--source`, 308 -> 330). (fixed — rewritten to the code)
 - r32: (verifier, pass 3): reason line said "(open, or closed by a human)" for any row; drain silent on an UNREADABLE scout cadence; a `= unsupervised` test against the plan's Traps; r13's 18 unmerged reads 17 now. (fixed — reason names a finished scout; drain prints UNREADABLE as the curate block does; `unattended` decides; r13 says 17-18, it drifts)
+- r33: (verifier, pass 4): a scout marked `done` but not yet retired was neither in flight nor dated — dispatch spawned a second scout on one that had just finished. (fixed — only `abandoned` leaves flight; `done` holds until the retire dates it)
+- r34: (verifier, pass 4): frontmatter filters failed open — CRLF, no `plan:`, `plan: "none"`, `Scout-...`, a path in `plan:` each dropped a scout in flight. (fixed — the PATH decides, in both halves; CR stripped before the status read)
+- r35: (verifier, pass 4): dispatch spawned on a view it knew was stale (fetch failed). (fixed — a failed fetch holds the spawn, and says so)
+- r36: (verifier, pass 4): a retire dated 120s in the future — ordinary clock skew — read as no retire; the selftest pinned that open direction from r2. (fixed — a future time reads as now: closed; the case now asserts not due)
+- r37: (verifier, pass 4): a human deleting a closed proposal's branch deletes git's only record of it, and the cycle reads due. (wontfix — the human's act, step 7 allows it; written in `scout_retired_ts`'s comment)
+- r38: (verifier, pass 4): two texts still described tip dating (`joharness.sh` help, orchestrated.md row). (fixed)
+- r39: (verifier, pass 4): between a scout's spawn and its first push dispatch still says due; only an orchestrator ledger guard stops a second spawn — `scout-command`'s scope (`scouted=<stamp>`), and the cycle stays off until that plan's command lands. (no change here — carried to scout-command: it must not land without that guard)
 
 ## Research step (review churn: two rounds on scout_walk)
 
