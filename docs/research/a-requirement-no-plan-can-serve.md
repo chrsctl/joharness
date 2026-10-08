@@ -110,10 +110,17 @@ fell back to `HEAD` (`queue-context.sh:70-86`). The in-flight walk reads
 `origin/<branch>` refs, so "no row for the planning branch" meant nothing in
 that run. Re-run with the remote; cases A–E below are from the re-run.
 
+Runnable as printed with one substitution, named here rather than left for
+the reader: `ROOT` is this checkout's path. The case-B workstream file is
+abridged to its frontmatter — the template's prose sections are present in
+the file that was run and no reader of `dispatch` touches them; the verifier
+rebuilt the fixture from this block as printed, abridgement included, and
+reproduced every case.
+
 ```bash
 #!/usr/bin/env bash
 set -u
-ROOT=<this checkout>
+ROOT=/path/to/this/checkout
 TMP="$(mktemp -d)"
 W="${TMP}/work"; O="${TMP}/origin.git"
 git init -q --bare "$O"
@@ -144,7 +151,7 @@ disp
 # B: a requirement-planning branch, PUSHED, with a workstream file whose
 #    plan: is none — which is the only thing it can be, the plan not existing.
 git -C "$W" checkout -q -b claude/alpha-req-plan-pass
-printf -- '---\nworkstream: alpha-req-plan-pass\nstatus: in-progress\nbranch: claude/alpha-req-plan-pass\npr: none\nplan: none\nissue: none\nsession: https://claude.ai/code/session_x\nagent: opus\nupdated: 2026-10-08\nnext: Decompose alpha-req into plans\n---\n\n## Goal\nPlanning pass on the requirement.\n' >"$W/docs/handover/alpha-req-plan-pass.md"   # (full fixture file also carries the template's other sections)
+printf -- '---\nworkstream: alpha-req-plan-pass\nstatus: in-progress\nbranch: claude/alpha-req-plan-pass\npr: none\nplan: none\nissue: none\nsession: https://claude.ai/code/session_x\nagent: opus\nupdated: YYYY-MM-DD\nnext: Decompose alpha-req into plans\n---\n\n## Goal\nPlanning pass on the requirement.\n' >"$W/docs/handover/alpha-req-plan-pass.md"
 ci "claim the planning pass"
 git -C "$W" push -qu origin claude/alpha-req-plan-pass
 git -C "$W" checkout -q main
@@ -173,11 +180,21 @@ disp; disp | grep -c "alpha-req-plan-pass"
 ```
 
 And the same fixture state read by the supervised entrypoint, to see whether
-the re-offer is a property of the mode or of the queue:
+the re-offer is a property of the mode or of the queue (`$W` is the fixture
+work tree the block above builds; the `cd` is the step the first draft of
+this command left implicit):
 
+    cd "$W"
     printf 'JOHARNESS_ENV=none\n' > conf-sup
-    JOHARNESS_CONF="$PWD/conf-sup" DRAIN_FETCH=0 JOHARNESS_CURATE_HOURS=0 \
+    JOHARNESS_CONF="$W/conf-sup" DRAIN_FETCH=0 JOHARNESS_CURATE_HOURS=0 \
       ./joharness.sh drain
+
+The `updated: YYYY-MM-DD` above is the template's own placeholder, not a
+date: no reader of `dispatch` reads that field, the fixture's result is
+independent of its value (re-measured), and
+[`../research/README.md`](../../.agents/docs/research/README.md) admits no
+hand-written date in a node — including one standing in fixture data, where
+a literal reader greps it up as provenance.
 
 One caveat on the transcript, stated rather than cleaned up: the first push
 to a fresh bare repository prints `fatal: expected 'acknowledgments',
@@ -191,27 +208,50 @@ is noise from the local git version, not a failed setup.
 
 - **One test silences the row, and it reads one field of the plan files on
   one ref.** `served` is the `requirement:` value of every open plan row
-  (`queue-context.sh:644`), and a requirement is listed unless its stem is in
-  that set (`:650`). The plan set comes from `git ls-tree -r "$ref" --
-  docs/plans` (`queue_files`, `:63-67`), `ref` being `origin/<base>` where it
-  exists (`:70-86`). So a plan filed under another requirement contributes
-  only its own stem, and a plan on an unmerged branch contributes nothing.
+  (`queue-context.sh:644`; the field is row 5, printed at `:538-544` and cut
+  at `:547`, and only `$rows` feeds it — research files build `$rrows`
+  separately at `:593`), and a requirement is listed unless its stem is in
+  that set (`:650`). The plan set comes from
+
+      git ls-tree -r --name-only "$ref" -- "$1" |
+        grep -E '\.md$' | grep -vE '/(TEMPLATE|README|VISION)\.md$'
+
+  (`queue_files`, `:118-121` — the second filter is why `TEMPLATE.md` never
+  contributes a stem), `ref` being `origin/<base>` where it exists
+  (`:73-82`). So a plan filed under another requirement contributes only its
+  own stem, and a plan on an unmerged branch contributes nothing. Both
+  spellings of the field silence the row and neither is a seam: a plan
+  naming its requirement by PATH works too, because `queue-context.sh:445`
+  stems the value before it reaches `served` — found by the verifier, which
+  expected the raw-versus-stemmed comparison at `:650` to be a defect and
+  measured that it is not.
   Measured, case A: with `docs/plans/beta.md` carrying
   `requirement: other-req`, dispatch prints
 
       docs/product/alpha-req.md — UNPLANNED: one planning manager (agent: opus, effort xhigh) first
 
 - **A requirement cannot be claimed. There is no code path by which it
-  could.** Every claim resolution in the harness offers exactly two candidate
-  directories — `joharness.sh:5362`, `:5371`, `:7271`, and the same pair
-  inside `dispatch_retired_edges` — and the queue hook keys a claim on a plan
-  or research stem (`queue-context.sh:487`, `:882`). `docs/product/` appears
-  in none of them. The workstream file has no field that could name a
-  requirement either: `plan:` is the claim
-  ([`../handover/TEMPLATE.md`](../handover/TEMPLATE.md)), and a planner has no
-  plan to name. So the `UNPLANNED` row is printed with no holder and no
-  hold annotation at all (`joharness.sh:8562-8572`), where every plan row can
-  read `claimed on`, `HOLD` or `WAIT`.
+  could.** Claim resolution happens at exactly THREE sites, and each offers
+  the same two candidate directories: `joharness.sh:5362` and `:5371`, both
+  inside `cmd_janitor` (`:5264`), and `:7271`, inside
+  `dispatch_retired_edges` (`:7206-7379`). `docs/product/` appears at none of
+  them. The queue hook keys a claim on a plan or research stem
+  (`queue-context.sh:487`); the in-flight walk requires a `claimed on` label
+  to build a row at all (`joharness.sh:8281-8287`). So the `UNPLANNED` row is
+  printed with no holder and no hold annotation (`joharness.sh:8562-8572`),
+  where a plan row can read `claimed on` (`queue-context.sh:543`), `WAIT`
+  (`joharness.sh:8548`) or `HOLD` (`:8554`).
+
+  **And the field is not the obstacle — no reader is.** This node first said
+  a workstream file "has no field that could name a requirement". It does:
+  `.claude/commands/manage.md:35` lists `docs/product/<r>.md` as an item kind
+  and `:55` says *"`plan:` names the item"*, so a planning manager is
+  INVITED to write `plan: <the requirement>`. The verifier ran that case —
+  the same fixture branch with `plan:` naming the requirement — and the
+  branch is still invisible: 0 mentions, `slots : 4 of 4 free`. So the
+  manager can obey its own instructions exactly and hold nothing, which is
+  worse than a missing field and was the author's understatement, not the
+  harness's mercy.
 
 - **A requirement-planning branch that HAS pushed appears nowhere in
   dispatch, and costs no slot.** Measured, case B: with
@@ -234,18 +274,35 @@ is noise from the local git version, not a failed setup.
   branch falls out of both walks and is counted by neither.
 
 - **The `UNPLANNED` spawn rule is the only one in the orchestrator's step 3
-  with neither an in-flight condition nor a ledger key.** `orchestrate.md`:
-  the requirement rule is two lines (`:453-454`); the curator may spawn
-  *"ONLY when no curate branch is in flight … and your ledger has no
-  `curated=` for this run"* (`:455-465`); the janitor the same with `swept=`
-  (`:466-480`); the surveyor the same with the `rescope :` block (`:480-`).
-  The general bound at `:441` — *"An item your ledger already names is
-  spawned ONLY when THIS pass's health pass said to"* — is the ledger, and
-  the ledger is per-run: *"First start = an empty ledger"* (`:77`).
-  `JOHARNESS_PENDING_SPAWNS` likewise counts only the `@new` entries of the
-  ledger the running orchestrator carries (`:84-88`). So nothing suppresses
-  the row across orchestrator runs, and the thing that could suppress it
-  within a run is a memory the next run does not inherit.
+  with neither an in-flight condition nor a ledger key OF ITS OWN.** The
+  qualifier is load-bearing and the first draft of this bullet dropped it:
+  `orchestrate.md:552` says *"Ledger every spawn the moment it returns, as
+  `<stem>@new`"*, so a planning manager DOES acquire a generic entry, and
+  `:441-442`'s bound — *"An item your ledger already names is spawned ONLY
+  when THIS pass's health pass said to"* — keys on it. What the requirement
+  rule lacks is the second, role-specific guard every other role carries.
+  The whole of step 3, read bullet by bullet (`sed -n '436,557p'`):
+  `:440` edge work first, conditioned on *"whose session is gone"*;
+  `:441-448` the general ledger bound; `:449-452` skip `HOLD`/`WAIT`;
+  `:453-454` the requirement — two lines, no condition, no key;
+  `:455-465` the curator, *"ONLY when no curate branch is in flight … and
+  your ledger has no `curated=` for this run"*; `:466-478` the janitor, the
+  same with `swept=`; `:479-492` the surveyor, `OVERLAP-BOUND` *"and ONLY
+  when"* the `rescope :` block says none is in flight; `:493-502` the
+  analyst, keyed on `analysed=<stem>:<condition>` and explicitly exempt from
+  any in-flight test because *"It cuts no branch in this repo and claims
+  nothing, so no health row ever reads it"*; `:503-550` `create_session`
+  mechanics; `:552` the universal ledger line. Five role rules, four with a
+  key of their own. The analyst is the nearest thing to a counter-example —
+  no in-flight condition either — and it has a key, so the uniqueness holds;
+  the verifier found that bullet missing from this census and read every one
+  to settle it.
+
+  The ledger that carries the generic entry is per-run: *"First start = an
+  empty ledger"* (`:77`), and `JOHARNESS_PENDING_SPAWNS` counts only the
+  `@new` entries of the ledger the running orchestrator carries (`:83-88`).
+  So the suppression that exists does not survive to the next run, and the
+  row is offered fresh to every orchestrator session.
 
 - **The row comes BACK when the last plan serving a requirement retires, if
   the requirement file is left standing.** Measured, cases C and D: a plan
@@ -271,11 +328,20 @@ is noise from the local git version, not a failed setup.
 
 - **The harness has no word for a declined clause.**
   `grep -rn "declin" .agents/docs/ .agents/harness/ joharness.sh
-  .claude/commands/` returns no rule about requirements: the hits are a
-  consumer-bootstrap message, four selftest fixtures, a review `wontfix`
-  example, and one record of a requester declining three proposals in
-  `.agents/docs/unsupervised.md:291`. So a decline exists as something a
-  requester did once, never as something a reader can see.
+  .claude/commands/` returns **15 hits and no rule about requirements**: a
+  consumer-bootstrap message, four selftest files (`drain.sh`,
+  `ci-graph-lint.sh`, `upstream.sh`, `sync-to-consumer.sh`), a review
+  `wontfix` example, one record of a requester declining three proposals
+  (`.agents/docs/unsupervised.md:291`), and three the first draft of this
+  bullet left unaccounted — `joharness.sh:4507`, `joharness.sh:8047` and
+  `.claude/commands/upstream-report.md:42`, each about a session declining to
+  fix something, none about a requirement. The verifier counted the hits
+  against the taxonomy, found it covered 12 of 15, and widened the scope the
+  grep had chosen: `.agents/scripts/bootstrap-consumer.sh:714` and
+  `.agents/scripts/sync-to-consumer.sh:719` add two more, both consumer-sync.
+  So the claim is robust to a wider grep than the one quoted, and a decline
+  exists as something a requester did once — never as something a reader can
+  see.
 
 - **Not orchestrated-only. The spend is.** The same fixture state, read by
   the supervised entrypoint, names the same file as the next item:
@@ -353,9 +419,15 @@ and none is decided here:
   row from the other side: a session that never pushed. Here the branch IS
   pushed (case B) and stays invisible, so this is not an instance of that
   node — the cause is the claim vocabulary, not liveness. The two together
-  do say something that neither says alone: `orchestrate.md:190` *"branch
-  merged (dispatch no longer lists it) → done. Nothing."* is literally true
-  of a planner that was never listed and never will be.
+  do say something that neither says alone: `orchestrate.md:190`'s cell is
+  reached by a planner that was never listed and never will be. Quoted
+  whole, because the cut matters and the first draft of this sentence made
+  it: *"branch merged (dispatch no longer lists it)"* → *"done. Nothing —
+  UNLESS dispatch's `upstream :` line says ON and the ledger has no
+  `reported=<stem>` for it: then REPORT, below."* So it is "done, nothing"
+  only with `upstream` off; with it on, the row routes a planner nobody
+  listed into a report about a merge that may not have happened. Either way
+  the branch's own state is never read.
 - `rescope-re-offered-after-merge` (#317, issue #300) is the closest in
   SHAPE — a repair re-offered because the thing that would suppress it does
   not outlive the pass — and the mechanism is different (a ledger key that
@@ -363,6 +435,10 @@ and none is decided here:
   because an answer pitched at the shape might cover both, and an answer
   pitched at this mechanism will not cover that one.
 - `no-ceiling-on-one-item` (#317, issue #298): see candidate 4.
+- `a-merge-waiver-with-no-expiry` (#320) was read too, and carries nothing
+  of this question — it asks whether any reader of `JOHARNESS_CHECKS`
+  consults anything but the key's value. Named because the sentence above
+  reads as a complete list and the first draft's list stopped at #319.
 
 `urgency: normal`, argued rather than assumed: the money in this is the
 consumer's reported five passes, and this session could not read a single one
@@ -379,32 +455,97 @@ in `queue-context.sh`'s row builder. Taking two at once collides.
 
 ## Verification
 
-**The second-context pass is IN FLIGHT as this commit lands, and this
-section says only that.** `.claude/agents/verifier.md` at opus — the depth
-`./joharness.sh review` names for this branch — was spawned on the node and
-the branch diff with the claims above as its checklist: every citation
-re-read at source, the uniqueness claim about the orchestrator's step 3
-re-counted, the fixture rebuilt in its own directory and cases A–E
-re-derived, every asserted grep count re-run including in a tree that
-carries this node, and the sibling nodes on #317, #319 and #320 read for
-duplication. It fixes nothing; it reports.
+Second context: `.claude/agents/verifier.md` at opus, the depth
+`./joharness.sh review` names for this branch. It did not write this node.
+It rebuilt the fixture in its own directory from `## Method` as printed
+rather than running the author's copy, re-read every citation at source, and
+tried twice to refute the two structural claims. It fixed nothing.
 
-No claim above is marked GROUNDED, WEAK or UNGROUNDED yet, because nothing
-has checked it from a second context. **This section is rewritten from what
-that pass returns — the marks, what it read, and what did not survive —
-before the retire commit, which is the last commit before the pull request
-opens.** A node that reached a pull request with this paragraph still
-standing would be the "Verification: Pending" breach the independent read on
-#317 caught nine times; it is here for one commit so the node is not
-untracked while the pass runs.
+- **One test silences the row, reading one field on one ref** — GROUNDED,
+  and sharpened. The verifier traced row field 5 to `queue-context.sh:538-544`
+  and `:547` and confirmed only `$rows` feeds `served`. It then attacked the
+  claim from an angle the author had not: a plan naming its requirement by
+  PATH, which `:650` compares against a raw `$served`, should have slipped
+  through. It does not — `:445` stems the value first — so the claim holds
+  for both spellings.
+- **A requirement cannot be claimed** — GROUNDED, and the author's version
+  was too weak. Three claim-resolution sites, not four; `docs/product/` at
+  none. Its own extra case is the finding above: `manage.md:35` and `:55`
+  invite a planning manager to put the requirement in `plan:`, and the
+  verifier measured that doing so leaves the branch invisible anyway.
+- **A pushed planning branch is invisible and costs no slot** — GROUNDED.
+  All five cases reproduced in a fresh fixture, byte-for-byte on every quoted
+  line, including the `fatal: expected 'acknowledgments'` noise and the push
+  landing anyway. It confirmed the artifact this node warns about is
+  excluded: `git -C "$O" for-each-ref` printed both refs BEFORE case B's
+  dispatch, and case E flips the row in on the same branch and file.
+- **`joharness.sh:7236`'s premise is false for a `plan: none` file** —
+  GROUNDED, with the skip located one line further on (`:7238-7239`) and
+  unconditional on the plan value.
+- **The requirement rule is the only step-3 role rule with no in-flight
+  condition and no key of its own** — GROUNDED only after correction. The
+  author's census read four of five role rules and missed the analyst
+  (`:493-502`), which is the nearest counter-example — no in-flight
+  condition either — and the author's headline said "no ledger key" flat
+  where `:552` ledgers every spawn. Both are fixed above; the uniqueness
+  survives the full count.
+- **The ledger is per-run** — GROUNDED (`:77`, `:83-88`).
+- **Both lifecycle exits need something that may never arrive** — GROUNDED,
+  both quotes verbatim against `product/README.md:26-27` and `:28-35`.
+- **No word for a declined clause** — GROUNDED, and robust past the grep
+  quoted: the verifier re-ran it, found the taxonomy covered 12 of 15 hits,
+  named the three missing, and widened the scope by two more files. None is
+  a rule about requirements.
+- **No selftest pins the shape** — GROUNDED, and wider than claimed:
+  `UNPLANNED` appears in `selftest/drain.sh`, `graph.sh` and
+  `queue-context.sh` and in none of them with a requirement-planning branch
+  in flight.
+- **`orchestrate.md:190` as quoted** — **UNGROUNDED as first written, now
+  corrected.** The author's quote ended at *"done. Nothing."* and dropped an
+  `UNLESS` clause with no ellipsis, presenting a conditional rule as flat.
+  The sentence it supported is rewritten above with the cell quoted whole.
+- **Citation precision** — the verifier found eight wrong or over-wide
+  references: `queue_files` cited at `:63-67` (it is `:118-121`) with its
+  `TEMPLATE|README|VISION` filter silently dropped from the quoted body; a
+  fourth claim-resolution site implied that does not exist; `:882` labelled a
+  claim key when it is the `QUEUE_WITHHELD` match (`queue-context.sh:47`);
+  the janitor and surveyor ranges off by one each, the surveyor's excluding
+  the *"ONLY when"* the finding rests on; `:70-86` over-wide for a loop at
+  `:73-82`; and in the workstream file `:78` cited for the `HEAD` fallback
+  that is named at `:76`. All corrected. It also noted that
+  `joharness.sh:5352` promises a two-candidate loop is "already spelled at
+  `cycle_landed_sha`" and it is not there (`:7420-7436`) — a defect in the
+  harness's own comment, not in this node, and not this branch's to fix.
+- **Protocol shape** — GROUNDED: nine sections in the template's order,
+  five frontmatter keys, `research:` equal to the stem, `graduates:` naming
+  a file that exists, `## Question` one sentence with one question mark. It
+  found one hand-written date — `updated: 2026-10-08` inside the fixture
+  frontmatter, fixture data rather than provenance, and removed above
+  because the rule admits no exception.
+- **No duplication** — GROUNDED. It read all six sibling questions on the
+  three branches and reports that this node restates none and
+  cross-references five correctly; the #320 node it read was missing from
+  that list and is now named.
+- **Scope is clean** — GROUNDED: two files, both under `docs/`, nothing in
+  `./joharness.sh protocol-paths`, no harness file, `ci: pass`.
+- **The consumer's eight commits, five planning passes and $15–25 per
+  pass** — **REPORTED, WEAK, not re-measurable from here.** `chrsctl/gx` is
+  outside this session's reach (`add_repo` refused by the permission
+  classifier, GitHub tools scope-limited) and a verifier subagent has no more
+  reach than the session that spawned it — the limit #267 names. The
+  verifier did not attempt it. What it checked instead is that every
+  consumer-side claim carries the refusal as its reason, and it re-derived
+  all nine harness-side findings without reading the consumer: **they hold
+  with every consumer number set aside.**
 
-One mark can be made now, because no second context can change it: **the
-consumer's eight commits, five planning passes and $15–25 per pass are
-REPORTED and WEAK, and not re-measurable from here or by the verifier.**
-`chrsctl/gx` is outside this session's reach (`add_repo` refused, GitHub
-tools scope-limited) and a verifier subagent has no more reach than the
-session that spawned it — the same limit #267 names. Marked so no reader
-mistakes the citation for a measurement.
+**What a second context could not establish, stated rather than implied:**
+whether `## What would settle it` was really fixed before the method ran.
+The node arrived in one commit, so there is no commit-order evidence. The
+verifier reports the internal evidence as consistent — the bullets map
+one-to-one onto the orientation reads named first in `## Method`, and the
+"what would NOT settle it" bullet pre-rejects the cost figure the findings
+then mark REPORTED — and says consistent, not proven. A reader should take
+it at that strength.
 
 ## Graduates to
 
