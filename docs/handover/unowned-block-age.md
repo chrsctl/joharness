@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01JXryjCKHhwkN7Xrv1qXz55
 agent: sonnet
 updated: 2026-10-08
-next: Verifier pass at opus over the branch diff, record findings, then retire this file and the plan and open the pull request.
+next: Retired with the plan in the last commit before the pull request; merge when checks are green.
 ---
 
 ## Goal
