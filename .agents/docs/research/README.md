@@ -132,16 +132,18 @@ that echoed the researcher's own phrasing back was recorded as a second
 source. It corroborated nothing. The verification pass found it.
 
 **A reading the reviewer cannot take.** The verifier
-(`.claude/agents/verifier.md`) has `Read`, `Grep`, `Glob` and `Bash`, and no
-call that reaches a control plane or a live service. A claim resting on a
-reading outside this checkout is one it can only check for internal
-consistency, and it says so. So a node whose evidence is such a reading names
-its second context UP FRONT, in `## Method`, not at verification time. Two
-honest answers exist: the operator takes the reading, or a session tooled for
-it does. "The verifier did it" is neither. Issue #267 is the instance: a
-node's `## Verification` recorded the verifier re-sampling live sessions, the
-verifier's own report said it could not, and the answer was withdrawn on
-review.
+(`.claude/agents/verifier.md`) has `Read`, `Grep`, `Glob` and `Bash`: this
+checkout and commands in this container, no control-plane call. A claim
+resting on a reading outside this checkout that no command there re-takes —
+a session record above all — is one it can only check for internal
+consistency. It says so, and marks the claim UNVERIFIED; in the node that is
+WEAK at best, never GROUNDED. So a node whose evidence is such a reading
+names its second context UP FRONT, in `## Method`, not at verification time.
+Two honest answers exist: the operator takes the reading, or a session
+tooled for it does. "The verifier did it" is neither. Issue #267 is the
+instance: a node's evidence was live session records, its `## Verification`
+had to open by saying the reviewer re-sampled nothing, and no reading in it
+was confirmed as real.
 
 **Who checked, and from where. Never when.** Provenance is commits
 ([`../graph.md`](../graph.md) Rules, "never hand-write time into a file"),
