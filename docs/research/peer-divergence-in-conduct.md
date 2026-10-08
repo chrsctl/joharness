@@ -210,12 +210,17 @@ originally promised.
 cause-keyword rule — "a `status: blocked` workstream file whose text names
 a GitHub Actions runner/billing cause, paired with a merge commit within
 roughly a day whose text names the same cause and merges anyway" — catches
-both real pairs here (`crm-workflow-branching` / PR #339's wave;
-`crm-ui-dashboard-widget-marks` / PR #439's wave) and raises zero false
-alarms against the other 45 unpaired waiver commits, because nothing else
-in this repo's history shares that cause text. That is a NAMEABLE rate on
-THIS corpus: 2 of 2 true positives, 0 false positives, n too small to
-generalize a rate past "worked here."
+both real incidents here (`crm-workflow-branching` against the Sept 11
+wave that includes PR #339; `crm-ui-dashboard-widget-marks` against the
+Sept 16-17 wave that includes PR #439), each pairing the block against
+however many same-window peers share the cause text, not against exactly
+one. It raises no alarm spanning the three incidents against EACH OTHER —
+Aug 13-14, Sept 11-13 and Sept 16-17 share the identical convention but a
+day-scale window keeps them apart, which is the only false-positive shape
+this corpus could have produced and didn't. That is evidence the window
+and the keyword match do the job THEY were built for; it is not a
+precision/recall count across many pairs, because this corpus has exactly
+two incidents, not many, to count across.
 
 But the rule that does this is not a peer-to-peer comparison — it is a
 per-branch check against GROUND TRUTH (does the repo's own `joharness.conf`
@@ -244,8 +249,9 @@ beyond it.
 
 **Closes NO**, narrowly and for a specific reason rather than by default.
 Not "every candidate rule misses the measured instance" — one does catch
-it, with a nameable rate on the only corpus available (2 true positives, 0
-false positives, n=2). What closes it NO is that the rule which catches it
+it, correctly separating the two real incidents in this corpus from each
+other and from a third, unrelated-in-time incident sharing the same
+wording. What closes it NO is that the rule which catches it
 is not a peer-comparison mechanism: it is a single branch's stated cause
 checked against the repo's own current config, which is what
 `JOHARNESS_IDLE_ANALYSIS` / the `analyst` role already does

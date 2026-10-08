@@ -709,9 +709,10 @@ hand. `JOHARNESS_IDLE_ANALYSIS` answers that by explaining, not by deciding —
 the conf line stays the human's.
 
 **This was not the first time this split happened, and the earlier instance
-sharpens what the split actually is.** `docs/research/peer-divergence-in-conduct.md`
-(closed NO; this is its graduation) found an earlier occurrence in the same
-consumer, six days before the block above (2026-09-11, against 2026-09-17),
+sharpens what the split actually is.**
+`docs/research/peer-divergence-in-conduct.md` (closed NO; this is its
+graduation) found an earlier occurrence in the same consumer, six days
+before the block above (2026-09-11, against 2026-09-17),
 and before `JOHARNESS_CHECKS=local` existed: `crm-workflow-branching`
 blocked itself at 2026-09-11T14:41Z on the same signature ("CI allocates no
 runner, repo-wide"), and the repo's own convention for merging anyway — a
@@ -723,18 +724,19 @@ that the fleet's answer to a still-live condition had already moved — by
 second — not two managers disagreeing in the same moment. Issue #251 frames
 this as "peer divergence" (six waived, two blocked, same hour); the
 artifacts support a narrower reading, two single-branch staleness cases,
-which is
-what `JOHARNESS_IDLE_ANALYSIS` already targets.
+which is what `JOHARNESS_IDLE_ANALYSIS` already targets.
 
 **The research closes NO on a peer-comparison mechanism, not on the
 incident.** A time-windowed, cause-keyword rule over retired workstream
 files and merge-commit text — a `blocked` branch naming a cause a merged
-peer's text names too, within about a day — catches both occurrences in
-`gx`'s full history with zero false alarms against the other 45 merge
-commits carrying that same "MERGED WITH GITHUB'S CHECKS RED" convention
-for unrelated incidents weeks apart. That rate is real but it is not
-evidence for a NEW mechanism: the rule that catches it is a single
-branch's stated cause checked against current ground truth
+peer's text names too, within about a day — catches both incidents in
+`gx`'s full history (each against its own window's peers, however many
+share the cause text) and keeps them separate from a third, unrelated
+incident (Aug 13-14) sharing the same "MERGED WITH GITHUB'S CHECKS RED"
+wording weeks apart, which a day-scale window correctly does not pair
+with either. That is evidence the window and the keyword match do their
+one job; it is not evidence for a NEW mechanism: the rule that catches it
+is a single branch's stated cause checked against current ground truth
 (`joharness.conf`, in this case), which is exactly what the `analyst` role
 already does, built from this same incident. Nothing in either corpus —
 not `gx`'s, not this repo's own 50-edge feedback window, which has no
