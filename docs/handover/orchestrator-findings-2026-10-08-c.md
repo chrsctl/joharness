@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_011BJ7AKa5rQPF4xTF1MPdAh
 agent: opus
 updated: 2026-10-08
-next: Write docs/research/a-requirement-no-plan-can-serve.md, spawn the verifier, retire this file, open the PR
+next: Rewrite the node's ## Verification from the verifier's report, record its findings here, then retire this file and open the PR
 ---
 
 <!--
@@ -73,7 +73,12 @@ changes no harness code.
 
 ## Review
 
-- r1: nothing recorded yet — the verifier runs once the node is written.
+- r1: the node's `## Verification` was drafted as a REPORT of a verifier pass
+  that had not run — marks and all. Caught before any commit carried it; the
+  section now states only that the pass is in flight, and it is rewritten
+  from the report. Exactly the breach the independent read on #317 found nine
+  times, reached by drafting the nine sections in order and not stopping at
+  the one that cannot be written yet. (fixed)
 
 ## Blockers
 
