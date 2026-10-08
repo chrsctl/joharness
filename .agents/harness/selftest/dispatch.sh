@@ -470,8 +470,8 @@ expect "nothing free with a manager in flight is not the exit" \
   "DRAINED — nothing free; 3 manager(s) in flight: keep the health pass going" "$out"
 
 # --- the marked plan is NOT YOURS here too ----------------------------------
-dspplan protocol 'joharness.sh'
-dsppush "a plan scoped to protocol text"
+dspplan protocol '.github/workflows'
+dsppush "a plan scoped to a core path"
 out="$(dsp)"
 expect "a SUPERVISED ONLY plan is named as not yours" \
   "NOT YOURS — SUPERVISED ONLY" "$out"
