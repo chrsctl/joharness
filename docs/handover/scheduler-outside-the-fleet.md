@@ -8,7 +8,7 @@ issue: 249
 session: https://claude.ai/code/session_01HxJCqyzWBxPevmBbn2r1oj
 agent: opus
 updated: 2026-10-08
-next: Read the verifier subagent's findings into ## Review, then retire node + workstream file in ONE commit, open PR with scratchpad/pr-body.md, merge
+next: Rewrite PR body for the corrected answer, retire node + workstream file in ONE commit, open PR, merge
 ---
 
 ## Goal
@@ -92,6 +92,67 @@ makes it RUN when the orchestrator itself has stopped. Graduates to
   file and names this node in its `scope:`. (fixed — answer written inside
   the Heartbeat section that plan moves as a unit; interaction recorded in
   the node's Consequence section for whoever runs it)
+- r10: (verifier) F2 and the graduation attributed the measured freeze to
+  delivery-failure + auto-disable. Issue 285 measured that freeze and
+  records the terminating link as `trig_014mzpnKTVrFHdz8mggYE7HA`,
+  `last_run: ROUTINE_RUN_STATUS_SUCCEEDED`, `ended: run_once_fired`, 5 ms,
+  delivered, turn never run. `mcp__github__issue_read` 285, read 2026-10-08.
+  (fixed — the auto-disable is now stated as a SECOND shape; the two-shape
+  distinction is the node's actual contribution, and the false attribution
+  is gone from both files)
+- r11: (verifier) the graduation prescribed `last_run` SUCCEEDED as the
+  post-creation check; 285 quotes `list_triggers`' contract saying that
+  value reports DELIVERY, not execution, and the terminating link read
+  SUCCEEDED while the fleet sat dead 18 days. (fixed — check replaced with
+  the pre-existing execution check: `fire_trigger` once, confirm the fired
+  session reached GitHub)
+- r12: (verifier) F3's "it fires, therefore the health pass runs" skips
+  `orchestrate.md:61-63` — a session finding another orchestrator
+  `RUNNING` exits before the pass at `:99`, so a frozen-but-`RUNNING`
+  orchestrator makes every firing exit forever. The first draft's own
+  Method (`sed -n '1,60p'`) stopped one line short of it. (fixed — hole
+  recorded in node and graduation as unresolved, and carried into the new
+  plan)
+- r13: (verifier) mode 3's 1-hour floor exceeds `JOHARNESS_STALL_MINUTES`
+  45 and is 6x `JOHARNESS_HEALTH_MINUTES` 10 (`joharness.sh:8012`) — the
+  same cadence test used to rule the workflow out. (fixed — conclusion
+  corrected to durability-not-cadence; the Routine backs the chain rather
+  than carrying it)
+- r14: (verifier) `unsupervised.md:274` said the three in-gap runs fired
+  "on time"; the next bullet gives them as 5h51m-7h54m late. (fixed —
+  "fired at all, NOT on time", with the three delays named)
+- r15: (verifier) "No plan, and that is the answer rather than a gap"
+  overstated: 285's fix items 1 and 2 are free, requester-specified and
+  unimplemented (`grep -n -i heartbeat .claude/commands/orchestrate.md` →
+  one unrelated hit at `:639`). (fixed — `docs/plans/heartbeat-is-a-precondition.md`
+  filed, auto-marked `SUPERVISED ONLY` by its protocol-text `scope:`)
+- r16: (verifier) `unsupervised.md:196` kept the "5 of 5" census that the
+  same file calls wrong by two orders of magnitude 60 lines later; the F4
+  correction never reached the connector bullet. (fixed — now 203 sampled,
+  stated as a sample)
+- r17: (verifier) three auto-disabled Routines were offered as instances of
+  the PAUSE rule; nobody paused them. (fixed — named as the same trap and
+  not an instance, with the pause path still resting on the throwaway
+  Routine already cited)
+- r18: (verifier) 285 cited as a live ledger item; it closed
+  2026-10-07T23:56:27Z, the day before the reads. Worse, it was treated as
+  a pointer rather than evidence — reading it refuted r10 and overturned
+  r15. (fixed — stale ledger line named as stale, and the node says the
+  body was evidence it had to read)
+- r19: (verifier) +964 words (2167 → 3131) for a conclusion
+  `unsupervised.md:168-175` already carried, with the workflow rejection
+  and the operator-spend rule each standing in three unreconciled copies.
+  (fixed — three subsections cut to the measured deltas only; 2868 words,
+  and the workflow section now points at the existing rejection instead of
+  restating it)
+- r20: (verifier) `unsupervised.md:235` was 110 characters against the
+  file's ~76-col wrap, a reflow artefact. (fixed — section rewritten)
+- r21: (verifier) nine `## Review` bullets were tagged `(verification)`;
+  the gate matches `/\(verifier[,)]/` (`joharness.sh:3394`), so
+  `awk` counted bullets=9 tagged=0. (fixed — r10-r21 carry `(verifier)`;
+  r1-r9 keep `(verification)` because they came from the research
+  protocol's second context, which is a different reader from step 5's)
+
 - r9: own, mid-build process defect — two slice edits keyed on the literal
   strings `## Verification` and `## Graduates to`, which also occur in this
   node's own prose, so one edit truncated the Findings section and dropped

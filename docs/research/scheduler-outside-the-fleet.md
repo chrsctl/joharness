@@ -144,31 +144,44 @@ create_trigger (a self-bind + run_once_at Routine)").
 next pass", and `:560` arms it at `delay_minutes` =
 `JOHARNESS_HEALTH_MINUTES`. So the health pass has no clock of its own: it
 has a chain, each link armed by the session before it. The heartbeat
-`.agents/docs/unsupervised.md` documents has never been created, and this
-account's live orchestrator ledger still carries "heartbeat Routine (#285)"
-as an item to report to the human.
+`.agents/docs/unsupervised.md` documents has never been created. (A live
+orchestrator ledger still lists "heartbeat Routine (#285)" as an item to
+report; issue 285 itself CLOSED 2026-10-07T23:56:27Z, so that ledger line is
+stale — and 285's body is evidence this node had to read, not a pointer to
+forward. Reading it refuted F2 and overturned the first draft's "no plan".)
 
-**F2 — GROUNDED on the auto-disable, narrower than first written on the
-mechanism.** `list_triggers` with `enabled: false` returns exactly 3
-Routines (`has_more: false`), and **all 3** carry `ended_reason:
-auto_disabled_session_gone`. So the platform retiring a self-bound Routine
-when its session goes is 3 of 3.
+**F2 — GROUNDED as a shape, REFUTED as the freeze's mechanism.** The first
+draft of this finding called the auto-disable "the freeze mechanism". That is
+false, and the repository's own closed issue 285 says so — it measured the
+18-day outage and recorded the terminating link as
+`trig_014mzpnKTVrFHdz8mggYE7HA`: `last_run.status:
+ROUTINE_RUN_STATUS_SUCCEEDED`, `ended: run_once_fired`, 5 ms, "identical in
+every field to the nineteen healthy links before it". The wake WAS
+delivered; the message "sat queued and was delivered on resume
+2026-10-05T22:45Z, 18 days and 2 hours later". No failed delivery, no
+auto-disable.
 
-The fire-then-fail-in-milliseconds shape is **2 of 3**, not 3.
-`trig_015U4LHgo4qM7rj59C1VcxsV` carries `last_run.status:
-ROUTINE_RUN_STATUS_FAILED`, `fired_at` `2026-10-08T01:37:21.999685552Z`,
-`finished_at` `2026-10-08T01:37:22.006743Z` — 7.06 ms, a delivery attempt
-and not a turn; `trig_017SSQM1G9U2gaNtejz8rbRn` fits too, at 6.67 ms. The
-third, `trig_01CiQm78q3MprMA5dYaFKkmy`, has **no `last_run` field at all**:
-it auto-disabled with no recorded run, by a path these records do not show.
-Stated rather than averaged away — the conclusion does not need it, and
-"all three" was false.
+What this session measured is real and is a SECOND shape.
+`list_triggers` with `enabled: false` returns exactly 3 Routines
+(`has_more: false`), all 3 `ended_reason: auto_disabled_session_gone`; two
+of them also carry a failed run — `trig_015U4LHgo4qM7rj59C1VcxsV` at
+`fired_at` `2026-10-08T01:37:21.999685552Z`, `finished_at`
+`2026-10-08T01:37:22.006743Z` (7.06 ms), `trig_017SSQM1G9U2gaNtejz8rbRn` at
+6.67 ms. The third carries no `last_run` at all.
 
-What the two do establish is the freeze mechanism, read off the control
-plane rather than inferred: the chain does not go quiet because a session
-forgot to arm the next pass. The pass WAS armed, it fired, it failed to
-deliver into a session that had gone, and the platform then disabled the
-Routine. Nothing re-arms, and nothing enabled is left to notice.
+So a chain ends two ways, and the contribution of this node is the
+distinction rather than either shape:
+
+| shape | last link reads | leaves behind |
+| --- | --- | --- |
+| delivered, turn never ran (issue 285) | `SUCCEEDED`, `run_once_fired` | nothing distinguishable from health |
+| delivery failed (measured here) | `FAILED`, `auto_disabled_session_gone` | a disabled Routine carrying a reason |
+
+The first is the expensive one and is invisible after the fact, because
+`last_run` reports delivery and not execution — `list_triggers`' own
+contract, quoted in 285: "records that the wake was delivered (SUCCEEDED) or
+failed to deliver, not how the turn went". Neither shape leaves pending work
+to find: a dead chain has no next link to examine.
 
 **F3 — the orchestrator half GROUNDED; the hinge is REASONING, and is
 labelled as such.** `create_trigger`'s targeting contract names three
@@ -186,17 +199,32 @@ measured. Closing it means creating a recurring Routine, which is spend and
 therefore the human's — the one check this session may not run, and the
 reason the graduation ends with what to verify after creating it.
 
-The second half is GROUNDED and is what makes mode 3 enough on its own:
-under `orchestrated` a fresh session naming no item IS the orchestrator
-(`.agents/docs/orchestrated.md:34`, "nothing named = orchestrator, run
-`/orchestrate`"; `:91`, "The default role is the orchestrator"), and
-`orchestrate.md:99` is "## 2. Health pass — before any spawn". So a mode-3
-firing lands in the existing procedure. The Routine need know nothing about
-staleness: it starts a pass, and the pass already carries the complete
-decision procedure issue 249 says is complete. 249's missing half is
-CONFIGURATION, not code — which is also why a recurring check built INTO
-the orchestrator loop cannot close it: that one cannot catch the
-orchestrator dying.
+The second half is GROUNDED but NOT sufficient, and the first draft claimed
+it was. Routing checks out: under `orchestrated` a fresh session naming no
+item is the orchestrator (`joharness.sh:cmd_start`; `.agents/docs/
+orchestrated.md:34`, `:91`), and the health pass is `orchestrate.md:99`. But
+two preconditions sit ABOVE that line, and the first draft's own Method
+(`sed -n '1,60p'`) stopped one line short of the one that matters:
+`orchestrate.md:61-63` makes a session that finds another titled
+`orchestrator: <owner/repo>` with `session_status: RUNNING` exit before
+reaching step 2.
+
+So there IS a path where a mode-3 firing runs no health pass: an
+orchestrator frozen but still `RUNNING`. That state is measured, not
+hypothetical — `orchestrated.md:129` defines `stalled` as "`RUNNING`,
+`status_detail` unchanged across two passes", on a row read byte-identical
+across 172.273s. Every firing then exits, forever, while the Routine's own
+record stays enabled and healthy.
+`orchestrated.md:547-549` names the live case and the dead case and not this
+one: "Firing over a live orchestrator is safe — the new one finds the title
+`RUNNING` and exits. Firing over a dead one is the point." Frozen-but-
+`RUNNING` is neither. Recorded in the graduation as unresolved, with the
+second-order point that the precondition is itself a one-signal verdict on a
+control-plane field, which the same file forbids.
+
+What survives of the claim: a mode-3 Routine needs no new decision procedure
+(the pass carries it) and 249's missing half is configuration rather than
+code — but "it fires, therefore the check runs" does not hold.
 
 **F4 — GROUNDED on a large sample, not a census. The ceiling is the
 connector trap.** Every one of the 203 Routines sampled reads
@@ -270,28 +298,36 @@ it could read are not the staleness rows; they are `blocked`, `done`,
 (`.github/workflows/update.yml:15-18`, "GitHub suppresses
 workflow-on-workflow events"). An issue is inside that ceiling.
 
-**F8 — GROUNDED. Its cadence cannot carry the threshold anyway, and the
-spread is worse than a median shows.** The 7 scheduled runs of `0 6 * * 1`
-started 60.7, 418.9, 350.9, 366.0, 375.0, 431.2 and 473.9 minutes after
-their cron time. Six of the seven started **5h51m to 7h54m** late; one
-started 1h01m late. Not a tight distribution around a median — a cluster
-hours out, with a single early outlier. `JOHARNESS_STALL_MINUTES` is 45
-(`joharness.sh:5030`), so this schedule cannot be the clock for a
-45-minute threshold. A mode-3 Routine's hourly floor
-(`.agents/docs/unsupervised.md`: `*/5 * * * *` refused, "the minimum
-interval is 1 hour") is already coarser than the threshold; this is coarser
-again by an order of magnitude.
+**F8 — GROUNDED, and it cuts against the answer as well as the workflow.**
+The 7 scheduled runs of `0 6 * * 1` started 60.7, 418.9, 350.9, 366.0,
+375.0, 431.2 and 473.9 minutes after their cron time: six between 5h51m and
+7h54m late, one at 1h01m. So "fires on time" is false of the workflow —
+"fires at all" is the true claim, and the first draft used the wrong one.
+`JOHARNESS_STALL_MINUTES` is 45 (`joharness.sh:5030`), so this schedule
+cannot clock a 45-minute threshold.
+
+The same test disqualifies mode 3 as a CADENCE, which the first draft noted
+in a subordinate clause and then ignored. Its floor is 1 hour — 60 > 45 —
+and `orchestrate.md:560` arms the chain at `JOHARNESS_HEALTH_MINUTES`,
+default 10 (`joharness.sh:8012`), so the recommended Routine is 6x slower
+than the thing it was being offered to replace. Issue 285 is explicit that
+the chain is not wrong as a cadence: 19 consecutive passes, median gap under
+12 minutes. The correct conclusion, and the one now in the graduation: mode
+3 is DURABILITY, not cadence. It backs the chain rather than carrying it.
 
 **F9 — GROUNDED, and it is the residue the answer cannot engineer away.
 Nothing notices the scheduler itself stopping, and one bounded mechanism
 can.** A mode-3 Routine is recurring spend, so creating it is the human's
 (`.agents/harness/AGENTS.md`, Decide alone) — already this file's position
-for the fleet. Pausing is the veto, and a paused Routine keeps a stale
-`next_run_at` that reads like a missed firing: confirmed on all three
-disabled Routines, each advertising a `next_run_at` AFTER its own disable
+for the fleet. Pausing is the veto. The operator cannot learn from a
+Routine's own record that it stopped: all three AUTO-disabled Routines still
+advertise a `next_run_at` after their own disable
 (`trig_015U4LHgo4qM7rj59C1VcxsV`: `enabled: false`,
-`auto_disabled_session_gone`, `next_run_at: 2026-10-09T01:37:21Z`). So the
-operator cannot learn from the Routine's own record that it stopped.
+`auto_disabled_session_gone`, `next_run_at: 2026-10-09T01:37:21Z`) — which
+is the same trap as the pause rule and NOT an instance of it, since nobody
+paused these. The pause path stays tested only by the throwaway Routine the
+graduation target already cites. And per F2 the expensive shape leaves no
+disabled Routine at all.
 
 What F6 and F7 leave is one narrow thing a repository-side schedule CAN do:
 the predicate "this repository has merged nothing in N hours" needs no
@@ -308,77 +344,99 @@ the fleet rests on.
 
 ## Consequence for the queue
 
-No plan, and that is the answer rather than a gap. F3 names a mechanism
-whose creation is recurring spend, which the Loop reserves for the human
-(`.agents/harness/AGENTS.md`, Decide alone) — so there is nothing here for a
-session to build, and the plan this node was holding open can never be
-written. What a session CAN do is record which mechanism, with which
-argument, and what to check after creating it. That is the graduation, and
-it is the whole deliverable.
+**One plan, and the first draft was wrong to say none.** It rested "no plan"
+on the mechanism being recurring spend, which is true of the Routine and
+true of nothing else. Issue 285's own "Shape of a fix" names two changes
+that are neither spend nor product direction, and neither is implemented:
 
-F9's repo-quiet alert is the one buildable piece and is deliberately NOT
-filed as a plan: a new always-on alerting mechanism is product direction
-(same clause), and the requester's current direction for this repo is
-removal. It is named in the graduation and in this pull request's body for
-the human to take or drop. Filing a plan for it would commit the queue to
-building something nobody asked for.
+1. `/orchestrate`'s first pass checks for a live heartbeat Routine and says
+   so loudly when there is none — "no heartbeat: this fleet dies with this
+   session." `grep -n -i heartbeat .claude/commands/orchestrate.md` returns
+   one unrelated hit at `:639`. 285 calls this "what would have surfaced
+   this on 2026-09-17 rather than 18 days later".
+2. `orchestrate.md` § 4 says what the `send_later` chain is NOT. It reads as
+   the continuity mechanism; it is the cadence mechanism, and F8 now puts a
+   number on the difference.
 
-Issue 249's remaining half is untouched by this node and stays open: the
-duplicate-holder check (flag any branch named by more than one
-non-archived session) is a row in the health table, not a question about
-what runs it.
+`docs/plans/heartbeat-is-a-precondition.md` carries both, plus the
+frozen-but-`RUNNING` hole F3 found, which belongs with them because it is
+the same question — what an orchestrator pass owes the fleet before it
+spawns anything. Both files it touches are protocol text, so the queue hook
+marks the plan `SUPERVISED ONLY` from its `scope:` and ranks it out of the
+free list automatically (`queue-context.sh:519-521`). That is the correct
+home: a session under this mode may not commit there, and this node's
+session did not.
+
+What stays unplanned is the mechanism itself. Creating the Routine is
+recurring spend, which the Loop reserves for the human
+(`.agents/harness/AGENTS.md`, Decide alone), so the graduation records which
+mechanism, with which argument, and what to check after creating it —
+`fire_trigger` once, then confirm the fired session reached GitHub, NEVER
+`last_run`, per F2.
+
+F9's repo-quiet alert stays unfiled: a new always-on alerting mechanism is
+product direction, and the current direction for this repo is removal. Named
+in the graduation and in the pull request body for the human to take or drop.
+
+Issue 249's remaining half is untouched and stays open: the duplicate-holder
+check (flag any branch named by more than one non-archived session) is a row
+in the health table, not a question about what runs it.
 
 One interaction the next session needs. `docs/plans/drop-unsupervised-docs.md`
 deletes this node's `graduates:` target and names this file in its `scope:`.
 Its own Scope commits to moving the Heartbeat section into
 `.agents/docs/orchestrated.md`, and the answer above is written INSIDE that
-section so the move carries it. The declaration was not changed: the target
-still exists on `main` and is still where the heartbeat is documented, so
-redirecting `graduates:` would have split one question across two files —
-the thing the Graduates-to rule exists to prevent.
+section so the move carries it. Worth knowing before that plan runs: the
+section is now ~135 lines and the destination already has its own 6-line
+`## Heartbeat` to reconcile against.
 
 ## Verification
 
-Second context, `general-purpose` subagent at opus, re-ran every
-control-plane and GitHub read from a session that made none of these
-findings (`.agents/docs/research/README.md`, "Verification is not
-optional"). It re-derived the numbers rather than accepting them, and it
-changed the file:
+TWO second contexts, neither of which wrote the diff.
 
-- **F7 refuted.** "Every row of the health table keys on the control plane"
-  is false — 4 of 11 rows read `any`, and one of them (`looping`) sits
-  inside the line range the claim cited. Re-counted here before the fix:
-  `looping`, `leftover`, `blocked`, `done`. The finding now reads 7 of 11
-  and rests on the file's own both-halves rule instead. It was the one
-  outright error, and it was load-bearing.
-- **F2 narrowed.** The fire-then-fail-in-milliseconds shape is 2 of 3
-  disabled Routines, not 3: `trig_01CiQm78q3MprMA5dYaFKkmy` carries no
-  `last_run` at all. The auto-disable is still 3 of 3.
-- **F1 and F4 re-based.** The first draft read `list_triggers limit=20` as a
-  census — 5 Routines, `has_more: false` — when the default hides fired
-  one-shots. The verification found 203 Routines over two pages with
-  `has_more` still true, and supplied the decisive test instead:
-  `recurring: true` with `include_completed: true` returns `{"data":[]}`,
-  server-side, so zero recurring Routines across all pages. F1 is stronger
-  for it; F4 now claims a sample and not a census.
-- **F6 strengthened by its own evidence.** The verification found a larger
-  first-parent gap the first draft had missed — 435.02h, with three
-  consecutive weekly scheduled runs inside it on one frozen `head_sha`.
-  Re-derived here from a sorted enumeration of every first-parent gap, not
-  from the window the Echo named.
-- **F5 softened.** "States absolutely" was unfair: the same bullet discloses
-  "Verified from two sessions for this organization".
-- **F8 re-characterised.** Six of seven delays cluster 5h51m–7h54m with one
-  outlier at 1h01m, so a median misdescribes the spread.
-- **F3's hinge marked as reasoning.** That `auto_disabled_session_gone`
-  cannot apply to a mode-3 Routine follows from the targeting contract and
-  F2's contrast; it is not observed, because this account holds no mode-3
-  Routine. GROUNDED and measured are not the same word, and the claim the
-  answer rests on is the unmeasured one.
+**Research verification** (`general-purpose`, opus) re-derived every number
+and changed seven claims: F7 refuted (4 of 11 health-table rows read `any`,
+so "every row" was false); F1 and F4 re-based after the first draft read
+`list_triggers` defaults as a census when they hide fired one-shots — 5
+versus 203 sampled, with `recurring: true, include_completed: true`
+returning `{"data":[]}` as the decisive server-side test; F2 narrowed from 3
+records to 2; F6 strengthened by a larger gap the draft had missed (435.02h,
+three weekly firings on one frozen `head_sha`); F5 softened; F8
+re-characterised off its median; F3's hinge marked as reasoning.
 
-F1, F6 and F8 were confirmed to the digit. The remaining gap is stated
-rather than closed: the one candidate that settles the question is the one
-this session may not fire, because firing it is recurring spend.
+**Branch verifier** (`.claude/agents/verifier.md`, opus, step 5) then found
+what the first pass could not, because it read the repository's own closed
+issues rather than only the control plane. Six findings this node would not
+have merged over:
+
+- F2's attribution was FALSE. Issue 285 measured the 18-day freeze and
+  records it as delivered, `SUCCEEDED`, `run_once_fired` — not failed
+  delivery and not auto-disable. The shape this node measured is a second,
+  different shape. Rewritten; the distinction is now the contribution.
+- The post-creation check this node prescribed, `last_run` SUCCEEDED, is the
+  exact signal 285 proves cannot work: the contract says `last_run` reports
+  delivery, not execution, and the terminating link read SUCCEEDED while the
+  fleet sat dead. Replaced with the execution check.
+- F3's "it fires, therefore the pass runs" skips `orchestrate.md:61-63`: a
+  frozen-but-`RUNNING` orchestrator makes every firing exit before the
+  health pass. The first draft's Method stopped one line short of it.
+- Mode 3's 1-hour floor exceeds `JOHARNESS_STALL_MINUTES` 45 and is 6x
+  `JOHARNESS_HEALTH_MINUTES` 10 — the same cadence test this node used to
+  rule the workflow out. Conclusion corrected to durability-not-cadence.
+- "Firing on time" contradicted this node's own next paragraph.
+- "No plan" overstated: 285 names two free, unimplemented fixes. Now a plan.
+- Plus: the "5 of 5" census survived in a bullet the correction never
+  reached; auto-disabled Routines were offered as instances of the PAUSE
+  rule; 285 was cited as live when it closed the day before.
+
+Both contexts confirmed F1, F6 and F8's numbers to the digit, and the
+verifier re-derived both merge gaps and all seven cron delays independently
+(435.025h, 92.081h; 374.97/431.17/473.90 min for the three in-gap runs).
+
+The remaining gap is stated rather than closed, and is now smaller than the
+first draft implied: mode 3's durability is REASONING, nobody can fire it
+from here, and the frozen-`RUNNING` path means even a fired Routine is not
+proof a pass ran.
 
 ## Graduates to
 
