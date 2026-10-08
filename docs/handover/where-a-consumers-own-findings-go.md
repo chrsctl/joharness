@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_0128i4WUdEgZ88ygzuHHtXEK
 agent: opus
 updated: 2026-10-08
-next: Answer the verifier's findings, retire this file and the plan is already filed, then pull request
+next: Read the verifier subagent report, record its findings tagged (verifier) in ## Review, answer each, THEN retire this file + no plan to delete (the plan is the deliverable) and open the pull request
 ---
 
 ## Goal
@@ -90,7 +90,11 @@ the research file.
 
 ## Blockers
 
-None.
+None. In flight at this push, neither blocking: `./joharness.sh ci` re-running
+after the base-branch merge (it passed before it, and the merge brought no
+non-`*.md` file), and the opus verifier subagent, whose findings step 5 needs
+before the retire commit. `verify` already green (6 passed, 0 failed) though
+this diff is `*.md` only and step 7 does not require it.
 
 ## Where to look
 
