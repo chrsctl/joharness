@@ -253,6 +253,22 @@ attempted. It stopped on a DIFFERENT and harder bound — below.
   by the timing case above, the second as r17 records. `ci: pass`, 2271
   passed, 0 failed. (fixed)
 
+- r21: (verifier, round 4 at 8b6fdb7) the "only `ssh host`" claim is
+  false again. Executed, still looping at 2 s, 0/2 on HEAD/origin-main:
+  `command eval until ...\;`, `builtin eval until ...`, `e=eval; $e until
+  ...`; `function wait.for until`, `function lib::wait until`; a 90-char
+  `coproc`/`function` NAME pushing the chain out of the 80-char window; an
+  alias; and more of the remote class (`adb shell until`, `ssh -p 22 host
+  until`). The chain rule also re-denies prose that starts with a chain
+  after a quote ("function hangs while ...", 2/2/0 vs af5a4a1 — origin/
+  main's behaviour, not a regression). (HUMAN DECISION 2026-10-08, asked
+  after four rounds: keep the skip, close the cheap holes, record the
+  rest. Fixed: `command`/`builtin` lead a chain, NAME takes `.` `:` `-`,
+  the window is 1 KB. Recorded, not fixed, and listed in the guard's own
+  comment: `$e until`, aliases, remote-shell arguments. Measured: 84
+  payloads, intended reading on all; on the 8 r21 adds, 8b6fdb7 6 wrong;
+  80 KB prose 0.07 s. `ci: pass`, 2274 passed, 0 failed.)
+
 ## Research step (review churn, 2026-10-08)
 
 r16's first regression was made BY r13's fix — the churn rule's trigger.
@@ -285,7 +301,9 @@ denies:
   that, A alone — origin/main's reading and origin/main's cost.
 
 `ssh host until ...` stays 0/2: "host" is an ordinary word, and no text
-rule tells it from prose. Recorded, not fixed.
+rule tells it from prose. Recorded, not fixed. (Rounds 3 and 4 found it is
+a class, not one case — see r18, r21 — and the human chose to keep the skip
+with the class recorded.)
 
 ## Blockers
 

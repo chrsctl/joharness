@@ -369,6 +369,22 @@ pbg_denied "function f until is a loop, not prose"
 pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"echo \"spend the time until noon\" && for d in 2 4; do true && break || sleep $d; done"}}'
 pbg_allowed "the time until is prose: that chain starts at a word"
 
+# Verifier round 4: `eval` behind `command`/`builtin`, a function name with
+# `::`, and a NAME long enough to push the chain's start out of the window.
+# Each was executed and still waiting at 2 s.
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"command eval until test -f /tmp/x\\; do sleep 1\\; done"}}'
+pbg_denied "command eval until is a loop, not prose"
+
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"function lib::wait until test -f /tmp/x; do sleep 1; done; lib::wait"}}'
+pbg_denied "a function name with :: still leads a chain"
+
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"coproc NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN until test -f /tmp/x; do sleep 1; done; wait"}}'
+pbg_denied "a 90-character coproc name does not push the chain out of view"
+# NOT cases, on purpose: `$e until`, aliases, and remote-shell arguments
+# (`ssh host until`, `adb shell until`) are waits this skip lets through.
+# Pinning them as allowed would make fixing them a red run. They are listed
+# in the guard's own comment beside the patterns.
+
 # --- `done` is a word unless a separator precedes it -----------------------
 # Read anywhere, `done` in the CONDITION closed the loop before its sleep:
 # a `.done` sentinel file is a very common wait target, and all three of

@@ -197,10 +197,18 @@ end_re='[^[:alnum:]_]done([^[:alnum:]_]|$)'
 # read as prose by one reader and unseen by the other. A word after `-` is
 # an option (`time -p until`), not prose. "at the same time while" is prose:
 # that chain starts at "same", which begins no command.
-# `ssh host until ...` reads as prose too, and no text rule tells the two
-# apart; it is the one real wait this skip lets through.
+# `command eval` and `builtin eval` lead a chain too, and a function NAME
+# may hold `.` and `::` (`function lib::wait until`).
+#
+# WHAT THIS SKIP LETS THROUGH, measured by four verifier rounds and kept
+# on the human's decision (2026-10-08) because the prose false positive is
+# what the plan exists to fix: real waits whose keyword follows a word no
+# text rule tells from English — an argument a remote shell joins into a
+# command (`ssh host until ...`, `adb shell until ...`), `eval` reached
+# through a variable (`$e until ...`), and an alias. Each is denied by the
+# guard before this skip and by nothing here. Above 8 KB there is no skip.
 prose_re='(^|[^[:alnum:]_-])[[:alpha:]_][[:alnum:]_]*[.,!?]?[[:space:]]+$'
-shellword_re='(^|[;&|(){}!'"'"'"`])([[:space:]]*((do|then|else|elif|if|time|eval|while|until|!)|(coproc|function)([[:space:]]+[A-Za-z_][A-Za-z0-9_]*)?)[[:space:]]+)+$'
+shellword_re='(^|[;&|(){}!'"'"'"`])([[:space:]]*((do|then|else|elif|if|time|eval|while|until|command|builtin|!)|(coproc|function)([[:space:]]+[A-Za-z_][A-Za-z0-9_.:-]*)?)[[:space:]]+)+$'
 
 # `sleep` with an ARGUMENT, because `sleep` always takes one. Without the
 # argument, `do echo "sleep tight, still waiting"; done` is denied for a word
@@ -323,7 +331,9 @@ while [[ $rest =~ $start_re ]]; do
   # matters, and cutting it keeps the two matches cheap.
   if ((small)); then
     before="${walked}${head}${kw%"$kwname"*}"
-    ((${#before} > 80)) && before="${before:${#before}-80}"
+    # 1 KB, not less: a `coproc`/`function` NAME of 90 characters pushed the
+    # chain's anchor out of an 80-character window and read as prose.
+    ((${#before} > 1024)) && before="${before:${#before}-1024}"
     if [[ $before =~ $prose_re ]] && ! [[ $before =~ $shellword_re ]]; then
       walked="$prefix"
       continue
