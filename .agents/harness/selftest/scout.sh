@@ -121,6 +121,24 @@ expect "and the row names its branch and workstream" "scout-open  scout-2026-02-
 out="$(sdsp)"
 expect "dispatch says the same" "scout     : IN FLIGHT, so none is due" "$out"
 refute "and spawns none" "scout DUE: spawn" "$out"
+# A user's pathspec variables would turn the glob literal (pass 6).
+expect "GIT_LITERAL_PATHSPECS does not hide a scout in flight" \
+  "scout-open  scout-2026-02-01  in-progress" "$(sct GIT_LITERAL_PATHSPECS=1)"
+# A branch-controlled PATH forging the seen-key: a decoy sorting first whose
+# file name contains the live copy's key (pass 6).
+git -C "$scout_work" checkout -qb a-decoy main
+# The `/` inside the name makes part of it a directory, which must exist.
+scout_decoy="${scout_work}/docs/handover/scout-0|docs/handover/scout-2026-02-01.md=in-progress|x"
+mkdir -p "${scout_decoy%/*}"
+printf -- '---\nstatus: abandoned\n---\n' >"$scout_decoy"
+[ -s "$scout_decoy" ] || fail "the decoy fixture file was not written"
+scommit "a decoy" '2026-02-01T06:00:00Z'
+git -C "$scout_work" push -qu origin a-decoy
+git -C "$scout_work" checkout -q main
+expect "a decoy file name does not hide the live scout" \
+  "scout-open  scout-2026-02-01  in-progress" "$(sct)"
+git -C "$scout_work" push -q origin --delete a-decoy
+git -C "$scout_work" branch -q -D a-decoy
 
 # Marked `done` but not yet retired: finished, dating nothing yet, so it
 # holds the cycle — reading it as gone spawned a second scout (pass 4).
@@ -178,6 +196,17 @@ expect "and a user's grep.patternType does not hide it" \
   "scout-stub  scout-2026-02-06  ?" "$out"
 git -C "$scout_work" push -q origin --delete scout-stub
 git -C "$scout_work" branch -q -D scout-stub
+# An EMPTY scout file: listed only by `-L`, so this is the case that keeps
+# the second listing honest (pass 6).
+git -C "$scout_work" checkout -qb scout-empty main
+mkdir -p "${scout_work}/docs/handover"
+: >"${scout_work}/docs/handover/scout-2026-02-07.md"
+scommit "an empty scout file" '2026-02-07T00:00:00Z'
+git -C "$scout_work" push -qu origin scout-empty
+git -C "$scout_work" checkout -q main
+expect "an empty scout file is in flight" "scout-empty  scout-2026-02-07  ?" "$(sct)"
+git -C "$scout_work" push -q origin --delete scout-empty
+git -C "$scout_work" branch -q -D scout-empty
 
 # A scout whose `branch:` field names some OTHER branch is still in flight
 # on the branch whose tip carries it: nothing self-declared decides, and a
@@ -267,8 +296,19 @@ git -C "$scout_work" push -q origin --delete scout-closed
 out="$(sct)"
 expect "a retire inside a merge commit dates the cycle" "cadence   : not due" "$out"
 refute "and that scout is not in flight" "IN FLIGHT" "$out"
+# Then MERGED: the main-side reader needs `-m` too, or the retire inside the
+# merge is lost once the branch is merged (pass 6).
+GIT_COMMITTER_DATE='2026-03-04T02:00:00Z' GIT_AUTHOR_DATE='2026-03-04T02:00:00Z' \
+  git -C "$scout_work" merge -q --no-ff -m "merge the proposal" scout-mretire
+git -C "$scout_work" push -q origin main
 git -C "$scout_work" push -q origin --delete scout-mretire
 git -C "$scout_work" branch -q -D scout-mretire
+out="$(sct)"
+# The AGE pins it, not the wording: without `-m` the January proposal's
+# retire still reads "since the last proposal merged", just older.
+scout_mage=$(( ($(date +%s) - $(git -C "$scout_work" log -1 --format=%ct main)) / 3600 ))
+expect "a retire inside a merge, then merged, dates the cycle from that merge" \
+  "${scout_mage}h since the last proposal merged" "$out"
 git -C "$scout_work" push -q origin scout-closed
 
 # A branch STACKED on a scout's claim commit carries an unretired scout file
@@ -331,7 +371,15 @@ expect "at DRAINED dispatch prints the spawn line" \
   "scout DUE: spawn ONE scout (agent: fable) on /scout" "$out"
 out="$(sdsp DISPATCH_FETCH=0)"
 refute "with no fetch at all no scout spawns" "scout DUE: spawn" "$out"
-expect "and it says the view is not fresh" "no fresh fetch this pass" "$out"
+expect "and it says the view is not fresh" "no fresh view of every branch" "$out"
+
+# A single-branch refspec fetches main alone: the fetch succeeds and no
+# scout branch is ever seen (pass 6). It holds the spawn.
+git -C "$scout_work" config remote.origin.fetch '+refs/heads/main:refs/remotes/origin/main'
+out="$(sdsp)"
+git -C "$scout_work" config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'
+refute "a single-branch refspec spawns no scout" "scout DUE: spawn" "$out"
+expect "and says the view cannot reach every branch" "does not reach refs/heads/*" "$out"
 
 # A failed fetch holds the spawn: a scout pushed since the last fetch would
 # not show (pass 4). The fixture's origin pointed at nothing for one pass.
@@ -339,7 +387,7 @@ git -C "$scout_work" remote set-url origin "${TMP}/no-such-origin.git"
 out="$(sdsp DISPATCH_FETCH=1)"
 git -C "$scout_work" remote set-url origin "$scout_origin"
 refute "with the fetch failed no scout spawns" "scout DUE: spawn" "$out"
-expect "and it says why" "scout due, held — no fresh fetch this pass" "$out"
+expect "and it says why" "scout due, held — no fresh view of every branch" "$out"
 
 # A janitor IN FLIGHT holds the scout too: its release frees a plan for the
 # next pass, so the queue is about to stop being drained (review r28).

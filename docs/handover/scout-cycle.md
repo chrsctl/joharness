@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01JXryjCKHhwkN7Xrv1qXz55
 agent: opus
 updated: 2026-10-08
-next: Sixth verifier pass (fail-open hunt only); then retire and PR
+next: Seventh verifier pass on the pass-6 fixes; then retire and PR
 ---
 
 ## Goal
@@ -23,7 +23,8 @@ is `scout-command`. Supervised session at the human's ask (protocol text).
 
 - dispatch spawns a scout ONLY under `DRAINED — nothing free, nothing in
   flight` with zero managers (blocked ones included), and no curate or
-  janitor due or in flight, and a fresh fetch this pass. drain NEVER offers a scout as the session's
+  janitor due or in flight, and a fresh view of every branch this pass
+  (fetch ran, worked, and its refspec reaches `refs/heads/*`). drain NEVER offers a scout as the session's
   item: orchestrated = the orchestrator's; supervised = name it to the
   human; unattended = exit. Deviation from the plan's "else this session's
   item" (research step R-f).
@@ -107,6 +108,14 @@ is `scout-command`. Supervised session at the human's ask (protocol text).
 - r43: (verifier, pass 5): `DISPATCH_FETCH=0` spawned on a view of unknown age. (fixed — no fetch holds the spawn as a failed one does; the selftest's dispatch fetches its own bare origin)
 - r44: (verifier, pass 5): the comment said a far-future retire holds "one window after each read"; it holds for as long as its branch stands. (fixed — comment says so; closed by design)
 - r45: (verifier, pass 5): "the PATH decides" contradicted by the content grep four lines on; the CRLF test passed either way. (fixed by r40; the stub and patternType cases fail without it)
+- r46: (verifier, pass 6): a single-branch or depth-1 clone fetches main alone — the fetch succeeds, no scout branch is ever seen, dispatch spawned. (fixed — a `remote.origin.fetch` that does not reach `refs/heads/*` holds the spawn, as a failed fetch does; case added)
+- r47: (verifier, pass 6): a ref pruned between `for-each-ref` and `git grep` / `git log` makes git exit 128 and print nothing for ANY ref; the status was discarded. (fixed — exit status kept: a grep error is one in-flight row `unreadable`, a log error a retire NOW; not reproduced as a race here — the mechanism was, by the verifier)
+- r48: (verifier, pass 6): `GIT_LITERAL_PATHSPECS` / `GIT_NOGLOB_PATHSPECS` turn the glob literal and empty every reader. (fixed — pinned to 0 on all three readers; case added)
+- r49: (verifier, pass 6): a branch-controlled file name containing `|<path>=in-progress|` forged the seen-key and hid the live copy. (fixed — exact entries in a newline list; the case's own fixture first failed to write the decoy — a `/` in the name — and passed vacuously; it now asserts the file exists)
+- r50: (verifier, pass 6): a scout file committed as a symlink is listed by neither `-l` nor `-L`; a retire with a clock 168h BEHIND reads old. (wontfix — no scout command produces a symlink; a past time cannot be told from a real one; both written in the code's comments)
+- r51: (verifier, pass 6): no case made an EMPTY scout file, so `-L` could be deleted green. (fixed — case added; fails with `-L` removed)
+- r52: (verifier, pass 6): the patternType case pinned nothing `-E` adds — with an empty pattern every type matches every line. (no change — kept as a regression case for config-driven listing; r45's claim about it corrected here)
+- r53: (verifier, pass 6): the merged-side `-m` in `cycle_landed_sha` had no case. (fixed — a retire inside a merge, then merged; the case checks the AGE, since without `-m` an older proposal still reads "since the last proposal merged"; fails with `-m` removed)
 
 ## Research step (review churn: two rounds on scout_walk)
 

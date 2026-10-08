@@ -5588,9 +5588,24 @@ scout_refs() {
 # reads as the word it is; an unreadable one is `?`, which is in flight.
 scout_walk() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}"
-  local refs=() r hit wf doc sws sstat seen="|"
+  local refs=() r hit wf doc sws sstat seen=$'\n' key listing rc_l rc_u
   while IFS= read -r r; do refs+=("$r"); done < <(scout_refs)
   refs+=("refs/remotes/origin/${base_branch}")
+  # Exit status kept, not discarded: grep exits 1 for "nothing listed" and
+  # 128 for an error — a ref pruned between `for-each-ref` and here empties
+  # EVERY listing at once (pass 6). An error is one in-flight row named
+  # `unreadable`, never an empty answer. The pathspec variables a user may
+  # export would turn the glob into a literal path, the same class as
+  # `grep.patternType` (pass 6): pinned off for these calls.
+  listing="$(GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 git -C "$ROOT" grep \
+    --color=never -l -E -e '' "${refs[@]}" -- 'docs/handover/scout-[0-9]*' \
+    </dev/null 2>/dev/null)"; rc_l=$?
+  listing="${listing}"$'\n'"$(GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 git -C "$ROOT" grep \
+    --color=never -L -E -e '' "${refs[@]}" -- 'docs/handover/scout-[0-9]*' \
+    </dev/null 2>/dev/null)"; rc_u=$?
+  if [ "$rc_l" -gt 1 ] || [ "$rc_u" -gt 1 ]; then
+    printf '%s\t%s\t%s\n' '?' 'scout-unreadable' 'unreadable'
+  fi
   while IFS= read -r hit; do
     [ -n "$hit" ] || continue
     r="${hit%%:*}"; wf="${hit#*:}"
@@ -5602,17 +5617,16 @@ scout_walk() {
     # an older `abandoned` copy on an earlier-listed branch hid the base's
     # in-progress one — open again. Every copy is read; a copy that is not
     # abandoned anywhere keeps the scout in flight.
-    case "$seen" in *"|${wf}=${sstat:-?}|"*) continue ;; esac
-    seen="${seen}${wf}=${sstat:-?}|"
+    # An EXACT entry in a newline list, never a substring: a branch may name
+    # a file `scout-0|<other path>=in-progress|x`, and a substring key let
+    # that decoy mark the live copy as already seen (pass 6).
+    key="${wf}"$'\t'"${sstat:-?}"
+    case "$seen" in *$'\n'"${key}"$'\n'*) continue ;; esac
+    seen="${seen}${key}"$'\n'
     sws="${wf##*/}"; sws="${sws%.md}"
     sws="$(printf '%s' "$sws" | tr -cd 'A-Za-z0-9._:-')"
     printf '%s\t%s\t%s\n' "${r#refs/remotes/origin/}" "${sws:-?}" "${sstat:-?}"
-  done < <(
-    git -C "$ROOT" grep --color=never -l -E -e '' "${refs[@]}" \
-      -- 'docs/handover/scout-[0-9]*' </dev/null 2>/dev/null
-    git -C "$ROOT" grep --color=never -L -E -e '' "${refs[@]}" \
-      -- 'docs/handover/scout-[0-9]*' </dev/null 2>/dev/null
-  )
+  done <<<"$listing"
 }
 
 # When a scout last FINISHED on an unmerged branch: the committer time of
@@ -5637,16 +5651,28 @@ scout_walk() {
 # never spawning on skew; the not-due line says a scout finished, and a
 # human reading `git log` finds the commit.
 #
-# Accepted, written down: a human who deletes a closed proposal's branch
+# Accepted, written down: a retire whose clock ran more than the window
+# BEHIND reads as old and the cycle due; a past time cannot be told from a
+# real one, and a clock 168h slow is not skew (pass 6, r50). And a human
+# who deletes a closed proposal's branch
 # (step 7 allows it, and GitHub offers the button on close) deletes the
 # only record git has of that scout, and the cycle reads due on the next
 # pass. Branch deletion is the human's act; this does not second-guess it.
 scout_retired_ts() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}"
-  local refs=() r line h ct wf best=0 now
+  local refs=() r line h ct wf best=0 now log rc
   while IFS= read -r r; do refs+=("$r"); done < <(scout_refs)
   [ "${#refs[@]}" -gt 0 ] || return 0
   now="$(date +%s)"
+  # An error reads as a retire NOW — closed, as scout_walk's (pass 6).
+  log="$(GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 git -C "$ROOT" log \
+    --full-history -m --diff-filter=D --name-only --format='C %H %ct' \
+    "${refs[@]}" --not "refs/remotes/origin/${base_branch}" \
+    -- 'docs/handover/scout-[0-9]*' </dev/null 2>/dev/null)"; rc=$?
+  if [ "$rc" -ne 0 ]; then
+    printf '%s' "$now"
+    return 0
+  fi
   h=""; ct=""
   while IFS= read -r line; do
     case "$line" in
@@ -5658,9 +5684,7 @@ scout_retired_ts() {
     case "$ct" in '' | *[!0-9]*) continue ;; esac
     [ "$ct" -le "$now" ] || ct="$now"
     [ "$ct" -gt "$best" ] && best="$ct"
-  done < <(git -C "$ROOT" log --full-history -m --diff-filter=D --name-only \
-    --format='C %H %ct' "${refs[@]}" --not "refs/remotes/origin/${base_branch}" \
-    -- 'docs/handover/scout-[0-9]*' </dev/null 2>/dev/null)
+  done <<<"$log"
   [ "$best" -eq 0 ] || printf '%s' "$best"
 }
 
@@ -7943,6 +7967,7 @@ cycle_landed_sha() {
   # other cycles keep the reader they shipped with — changing when they
   # believe they last ran is not that change's business.
   if [ "$kind" = scout ]; then
+    GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 \
     git -C "$ROOT" log -1 --format=%H -m --diff-filter=D --full-history \
       "refs/remotes/origin/${base_branch}" -- "$glob" \
       </dev/null 2>/dev/null
@@ -8566,6 +8591,13 @@ cmd_dispatch() {
   # No fetch at all is a view of unknown age: the scout spawn holds on it
   # exactly as on a failed fetch (R-g). Only the scout reads this.
   [ "${DISPATCH_FETCH:-1}" != 0 ] || fetch_failed=1
+  # A single-branch or depth-1 clone fetches `refs/heads/main` alone: the
+  # fetch succeeds and no scout branch is ever seen (pass 6). A refspec that
+  # does not reach every branch is a view that cannot be fresh for this.
+  case "$(git -C "$ROOT" config --get-all remote.origin.fetch 2>/dev/null)" in
+    *'refs/heads/*:'*) ;;
+    *) fetch_failed=1 ;;
+  esac
   if [ "${DISPATCH_FETCH:-1}" != 0 ]; then
     # Shallow first, and it is not a nicety: a shallow clone has no merge
     # base for most refs, so the retired-edge scan below cannot see an edge
@@ -9344,7 +9376,7 @@ cmd_dispatch() {
   # And a fetch that worked: on a stale view a scout pushed since the last
   # fetch is invisible, and R-g says a view known to be stale holds the spawn.
   if [ "$scout_due" -eq 1 ] && [ "$fetch_failed" -eq 1 ]; then
-    printf '            scout due, held — no fresh fetch this pass (failed, or DISPATCH_FETCH=0), so a scout pushed since the last one would not show: spawn none this pass\n'
+    printf '            scout due, held — no fresh view of every branch this pass (fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*), so a scout in flight might not show: spawn none this pass\n'
   elif [ "$scout_due" -eq 1 ] && [ "$scout_gate" -eq 1 ] &&
      [ "$curate_due" -eq 0 ] && [ "$janitor_due" -eq 0 ] &&
      [ "$n_curate_inflight" -eq 0 ] && [ "$n_janitor" -eq 0 ]; then
