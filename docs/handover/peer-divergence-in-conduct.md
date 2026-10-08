@@ -78,6 +78,18 @@ the SAME rule and answered it differently? Graduate the answer into
   the file's own other numbers, and "38 minutes EARLIER... not after" was
   ambiguous about earlier/later than what. (fixed — exact dates and an
   unambiguous "38 minutes BEFORE that block, not after.")
+- r8: (session) after the verifier round, re-read my own "2 of 2 true
+  positives, 0 false positives" line and found it implied a precision
+  count I had not actually run: a day-scale window around the second
+  incident would pair the block against however many same-window peers
+  share the cause text (plausibly more than the one example, PR #439, I
+  had cited), not against exactly one. That is not a false positive —
+  correctly flagging many peers against one outlier is the point — but
+  stating it as a 2-vs-0 count overclaimed a tally I never computed.
+  (fixed in both files — reworded to what was actually tested: the rule
+  keeps the three incidents apart from EACH OTHER across a month, which
+  is the one false-positive shape this corpus could show and didn't; it
+  drops the invented precision/recall framing.)
 
 ## Blockers
 
