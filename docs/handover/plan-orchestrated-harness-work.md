@@ -8,7 +8,7 @@ issue: 311
 session: https://claude.ai/code/session_013Bg636JRhWFWgWW26RWefB
 agent: opus
 updated: 2026-10-08
-next: Write the two plans (protocol work under human merge; issue triager role), ci, verifier, PR
+next: Record verifier findings in ## Review, fix, retire workstream file, PR, merge
 ---
 
 ## Goal
