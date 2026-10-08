@@ -5,7 +5,7 @@ agent: sonnet
 effort: high
 needs: drop-unsupervised
 requirement: none
-scope: .agents/docs, .agents/harness/AGENTS.md, .agents/harness/README.md, .claude/commands/upstream-report.md, docs/plans, docs/research
+scope: .agents/docs/unsupervised.md, .agents/docs/orchestrated.md, .agents/docs/consumer-repos.md, .agents/docs/plans/README.md, .agents/docs/product/README.md, .agents/docs/handover/README.md, .agents/docs/subagents.md, .agents/harness/AGENTS.md, .agents/harness/README.md, .claude/commands/upstream-report.md, docs/plans/name-no-consumer-says-both.md, docs/plans/scout-command.md, docs/plans/scout-cycle.md, docs/research/scheduler-outside-the-fleet.md
 ---
 
 ## Goal
