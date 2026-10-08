@@ -158,7 +158,7 @@ EOF
 commit_all "$lwork" "question on a tier that does not exist"
 out="$(lint_section "$(lint_ci)")"
 expect "a research file's agent tier is vocabulary-checked" \
-  "agent 'gpt' not one of: haiku sonnet opus" "$out"
+  "agent 'gpt' not one of: haiku sonnet opus fable" "$out"
 
 # A plain document in docs/research is NOT a node. docs/research is the one
 # queue dir that also holds prose a session wrote — reference material, not
@@ -317,7 +317,7 @@ EOF
 full="$(lint_ci)"; rc=$?
 out="$(lint_section "$full")"
 expect "enum outside vocabulary is red" \
-  "agent 'gpt5' not one of: haiku sonnet opus" "$out"
+  "agent 'gpt5' not one of: haiku sonnet opus fable" "$out"
 expect "adjacent vocabulary words are not a value" \
   "effort 'low medium' not one of" "$out"
 expect "dangling needs is red" \
@@ -920,3 +920,90 @@ expect "a path-form self-name draws the stem node" \
 refute "and not a second node named after the path" \
   "q_docs_research_pathself_md" "$gout"
 fixture_rm "$lwork" "drop the path-self node" docs/research/pathself.md
+
+# fable is a judgement tier, never a build (.agents/docs/agent-selection.md,
+# Lineup): the tier is vocabulary, and a plan naming it must scope only prose.
+cat >"${lwork}/docs/plans/fable-docs.md" <<'EOF2'
+---
+plan: fable-docs
+urgency: normal
+agent: fable
+effort: high
+scope: docs/x.md, shared: .agents/docs/y.md, .claude/commands/z.md
+---
+EOF2
+cat >"${lwork}/docs/plans/fable-none.md" <<'EOF2'
+---
+plan: fable-none
+urgency: normal
+agent: fable
+effort: high
+scope: none
+---
+EOF2
+commit_all "$lwork" "fable plans scoped to prose, or to nothing"
+full="$(lint_ci)"; rc=$?
+out="$(lint_section "$full")"
+refute "fable is in the agent vocabulary" "agent 'fable' not one of" "$out"
+refute "a fable plan scoped to prose is green" "fable-docs.md" "$out"
+refute "a fable plan declaring scope: none is green" "fable-none.md" "$out"
+if [ "$rc" -eq 0 ]; then
+  pass "prose-scoped fable plans leave ci green"
+else
+  fail "prose-scoped fable plans leave ci green"
+fi
+
+cat >"${lwork}/docs/plans/fable-builds.md" <<'EOF2'
+---
+plan: fable-builds
+urgency: normal
+agent: fable
+effort: high
+scope: docs/x.md, joharness.sh
+---
+EOF2
+cat >"${lwork}/docs/plans/fable-blank.md" <<'EOF2'
+---
+plan: fable-blank
+urgency: normal
+agent: fable
+effort: high
+scope: docs/x.md joharness.sh
+---
+EOF2
+cat >"${lwork}/docs/plans/fable-dotdot.md" <<'EOF2'
+---
+plan: fable-dotdot
+urgency: normal
+agent: fable
+effort: high
+scope: docs/../joharness.sh
+---
+EOF2
+cat >"${lwork}/docs/plans/fable-unscoped.md" <<'EOF2'
+---
+plan: fable-unscoped
+urgency: normal
+agent: fable
+effort: high
+---
+EOF2
+commit_all "$lwork" "fable plans that build, or cannot show they do not"
+full="$(lint_ci)"; rc=$?
+out="$(lint_section "$full")"
+expect "a fable plan whose scope names code is red" \
+  "fable-builds.md: fable is a judgement tier: this plan builds ('joharness.sh' in scope:)" "$out"
+expect "a blank does not join two entries into one path under docs/" \
+  "fable-blank.md: fable is a judgement tier: this plan builds ('joharness.sh' in scope:)" "$out"
+expect "a .. segment does not escape the prose directories" \
+  "fable-dotdot.md: fable is a judgement tier: this plan builds ('docs/../joharness.sh' in scope:)" "$out"
+expect "a fable plan with no scope is red" \
+  "fable-unscoped.md: fable is a judgement tier: scope: must show this plan builds nothing" "$out"
+if [ "$rc" -ne 0 ]; then
+  pass "a building fable plan fails ci"
+else
+  fail "a building fable plan fails ci"
+fi
+fixture_rm "$lwork" "drop the fable plans" docs/plans/fable-docs.md \
+  docs/plans/fable-none.md docs/plans/fable-builds.md docs/plans/fable-blank.md \
+  docs/plans/fable-dotdot.md docs/plans/fable-unscoped.md

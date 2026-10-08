@@ -50,7 +50,7 @@ the rows below.
 | Role | Tier | Runs as | Spawns | Owns | Ends when |
 | --- | --- | --- | --- | --- | --- |
 | orchestrator | low, mechanical on purpose — the Routine's model: haiku by the ask, sonnet in the requester's diagram; a run decides | a session; the heartbeat fires one | manager sessions (`create_session`) | the cap, the health pass, the kill handover | dispatch says DRAINED with nothing in flight |
-| manager | the item's `agent:` — plan or research; opus at xhigh for an unplanned requirement, decomposition being the judgement every build rests on | a session with its own branch, claim and merge | worker subagents (`Agent`) | one item, until its file retires | its pull request merges, or it blocks on a human |
+| manager | the item's `agent:` — plan or research; fable at xhigh for an unplanned requirement, decomposition being the judgement every build rests on | a session with its own branch, claim and merge | worker subagents (`Agent`) | one item, until its file retires | its pull request merges, or it blocks on a human |
 | worker | at or below the plan's tier, lower by default | a subagent in the manager's container | nothing | the files its sub-task names | it returns |
 | reporter | low; the judgement is its command file's gate, not its tier | a session, spawned after a manager MERGES — only where `JOHARNESS_UPSTREAM_FEEDBACK=on` | nothing | one merged edge's harness findings | it files one report on the canonical, or none, and exits |
 | janitor | sonnet; the judgement is whether a session is gone, not what any item is for | a session, spawned on the `janitor DUE` tail line | nothing | the claims, for ONE sweep | its pull request merges |

@@ -78,7 +78,7 @@ to every reader that schedules.
 - **Graduates to** — the file the answer lands in.
 
 Frontmatter: `research` (the stem), `urgency` (`normal` | `urgent`), `agent`
-(`haiku` | `sonnet` | `opus`), `effort`, `graduates` (the file the answer
+(`haiku` | `sonnet` | `opus` | `fable`), `effort`, `graduates` (the file the answer
 lands in). The tier the queue prints comes from `agent`, same as a plan's.
 
 ## Which files are nodes
