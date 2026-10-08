@@ -378,8 +378,12 @@ expect "and told to be the human's" "BLOCKED: the human's, holds no slot" "$out"
 dspplan behindbeta 'src/b/deep'
 dsppush "a plan overlapping the BLOCKED manager's scope"
 out="$(dsp)"
+# Keyed on the ROW and the annotation's own words, not on what sits beside
+# them: the blocked flag gained a park age after `holds no slot`, and a
+# refute spelled `holds no slot  holds ` then passed whatever the code did
+# (/code-review, 2026-10-08).
 refute "a blocked row advertises no hold cost, its holds being released" \
-  "holds no slot  holds " "$out"
+  "plan(s) out of the queue" "$(printf '%s\n' "$out" | grep 'mgr-beta  blocked')"
 expect "and the plan behind it is FREE, with the reconcile named" \
   "behindbeta.md (agent: sonnet)  wave 1  overlaps beta on src/b (claimed on mgr-beta) — that branch is BLOCKED on a human" "$out"
 fixture_rm "$dspwork" "drop the plan behind beta" docs/plans/behindbeta.md
@@ -2157,7 +2161,7 @@ cp "${ROOT}/.agents/harness/queue-context.sh" \
 printf '# none\n' >"${blkwork}/.agents/env/none/AGENTS.md"
 blkconf="${blkwork}/joharness.conf"
 printf 'JOHARNESS_ENV=none\nJOHARNESS_MODE=orchestrated\n' >"$blkconf"
-for p in oldpark repark live; do
+for p in oldpark repark live replayed renamed respaced pasted noted; do
   printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: high\n---\n\n## Goal\nFixture.\n' \
     "$p" >"${blkwork}/docs/plans/${p}.md"
 done
@@ -2215,6 +2219,54 @@ commit_all "$blkwork" "a push after the second hand-off"
 git -C "$blkwork" push -qu origin mgr-repark
 git -C "$blkwork" checkout -q main
 
+# Each history below printed a confident, too-young age on the first build
+# (verifier and /code-review, 2026-10-08). A park is a VALUE TRANSITION,
+# dated by its author: every one of these must still read 200h.
+# <branch-stem> parks 200h ago in a plain way, then the named thing happens.
+blkpark() {
+  git -C "$blkwork" checkout -qb "mgr-$1"
+  blkws "$1" in-progress "Claimed."
+  blkat 300 "claim $1"
+  blkws "$1" blocked "Claimed."
+  blkat 200 "hand $1 to a human"
+}
+blkdone() {
+  git -C "$blkwork" push -qu origin "mgr-$1"
+  git -C "$blkwork" checkout -q main
+}
+# A rebase or amend rewrites the COMMITTER date and keeps the author's.
+git -C "$blkwork" checkout -qb mgr-replayed
+blkws replayed in-progress "Claimed."
+blkat 300 "claim replayed"
+blkws replayed blocked "Claimed."
+git -C "$blkwork" add -A
+blkt=$(( $(date +%s) - 200 * 3600 ))
+GIT_AUTHOR_DATE="@${blkt} +0000" git -C "$blkwork" commit -qm "hand replayed over, replayed since"
+blkdone replayed
+# A rename: the new path's first commit CREATES every line.
+blkpark renamed
+git -C "$blkwork" mv docs/handover/renamed.md docs/handover/renamed-now.md
+blkat 10 "rename the record"
+blkdone renamed
+# A whitespace edit of a line that already held the parked value.
+blkpark respaced
+sed -i 's/^status: blocked$/status:blocked/' "${blkwork}/docs/handover/respaced.md"
+blkat 10 "tidy the frontmatter"
+blkdone respaced
+# A bare frontmatter-looking line pasted into the body.
+blkpark pasted
+printf 'status: blocked\n' >>"${blkwork}/docs/handover/pasted.md"
+blkat 10 "paste a line into the body"
+blkdone pasted
+# An inline comment, which the frontmatter reader strips: the park is read
+# from the value, so this one MUST be found — before, it read as unknown.
+git -C "$blkwork" checkout -qb mgr-noted
+blkws noted in-progress "Claimed."
+blkat 300 "claim noted"
+blkws noted "blocked  # waiting on the vendor" "Claimed."
+blkat 200 "hand noted to a human"
+blkdone noted
+
 # A row that is not parked, as the control for the refute below.
 git -C "$blkwork" checkout -qb mgr-live
 blkws live in-progress "Working."
@@ -2233,6 +2285,10 @@ expect "parked, unparked and parked again reads the SECOND block" \
   "parked 100h ago" "$blkre"
 refute "not the first block" "parked 250h ago" "$blkre"
 refute "nor the unpark" "parked 200h ago" "$blkre"
+for blkst in replayed renamed respaced pasted noted; do
+  expect "${blkst}: still the 200h park" "parked 200h ago" \
+    "$(printf '%s\n' "$out" | grep "mgr-${blkst}  blocked")"
+done
 blklive="$(printf '%s\n' "$out" | grep 'mgr-live')"
 expect "the live row is in the output, so the refute below reads something" \
   "docs/plans/live.md  mgr-live  in-progress" "$blklive"
@@ -2255,10 +2311,10 @@ chmod +x "${blkshim}/git"
 out="$(blk env PATH="${blkshim}:${PATH}")"
 blkrows="$(printf '%s\n' "$out" | grep -c "BLOCKED: the human's")"
 blkcalls="$(wc -l <"$blklog" | tr -d ' ')"
-if [ "$blkrows" -eq 2 ] && [ "$blkcalls" -eq "$blkrows" ]; then
+if [ "$blkrows" -eq 7 ] && [ "$blkcalls" -eq "$blkrows" ]; then
   pass "one age query per parked row (${blkcalls} for ${blkrows}), none for the live one"
 else
-  fail "age queries ${blkcalls} for ${blkrows} parked row(s) (wanted one each, two rows)"
+  fail "age queries ${blkcalls} for ${blkrows} parked row(s) (wanted one each, seven rows)"
 fi
 
 # A shallow clone: the boundary commit has no parents, and a diff of it ADDS
@@ -2275,5 +2331,15 @@ blksh="$(printf '%s\n' "$out" | grep 'mgr-oldpark')"
 expect "the shallow clone ran dispatch and listed the parked row" \
   "docs/plans/oldpark.md  mgr-oldpark  blocked" "$blksh"
 expect "a shallow history says it cannot tell" \
-  "parked for an unknown time: this file's history is not here" "$blksh"
+  "parked for an unknown time: the commit that parked it is not in this clone's history" "$blksh"
 refute "and prints no age" "parked 0m ago" "$blksh"
+
+# And a shallow clone deep enough to hold the park reads it: the unknown is
+# for a park out of reach, never for shallowness as such. Depth 3 from the
+# tip of mgr-oldpark is push, park, claim — the park has its parent.
+blkdeep="${TMP}/blockagedeep"
+git clone -q -b main --depth 3 --no-single-branch "file://${blkorigin}" "$blkdeep" 2>/dev/null
+out="$( cd "$blkdeep" && JOHARNESS_CONF="$blkconf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 ./joharness.sh dispatch 2>&1 )"
+expect "a shallow clone that holds the park reads its age" \
+  "parked 200h ago" "$(printf '%s\n' "$out" | grep 'mgr-oldpark')"

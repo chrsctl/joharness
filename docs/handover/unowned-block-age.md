@@ -67,5 +67,39 @@ in a supervised session at the human's request, 2026-10-08.
   removed reds 2 positive assertions; the prose-quoting case reds 3 only
   with BOTH anchors removed — `-G '^status'` and the exact-line awk match
   are redundant guards, each covering the other. Baseline 2286/0. (fixed)
+- r5: (verifier) the age read off the wrong commit, too young and
+  confident, in five histories, each run: a rebase (`%ct` rewritten; 200h
+  read 5h); a rename (the new path's first commit creates every line; 200h
+  read 10h); a whitespace edit of the parked line (`status:blocked`; 10h); a
+  bare `status: blocked` line pasted into the body (10h); a park on a side
+  branch merged in (50h — dated by the merge). (fixed — a park is now a VALUE
+  TRANSITION: the added status value is blocked and the removed one is
+  something else, or the file is created; `%at`; `--follow`. The side-branch
+  case keeps the merge's date by design: it is when the park reached this
+  branch. All five rerun with the verifier's own scripts: 200h, 200h, 200h,
+  200h, 50h.)
+- r6: (/code-review) `status: blocked  # why` — the frontmatter reader
+  strips the comment and calls the row blocked, but the age query required
+  a bare line, so the row read unknown forever and blamed a shallow clone.
+  (fixed — the value is read before any `#`; case "noted")
+- r7: (/code-review) the unknown text named a shallow clone as THE cause;
+  other causes existed (r6). (fixed — it now says the parking commit is not
+  in this clone's history, which is what was measured)
+- r8: (/code-review) the existing refute `holds no slot  holds ` went
+  vacuous once the age was appended between the two. (fixed — keyed on the
+  `mgr-beta` row and the hold annotation's own words)
+- r9: (/code-review) the walk had no lower bound past the answer. (fixed —
+  `<merge base>..<ref>`, the base the row already computes)
+- r10: (verifier) no positive shallow case: a regression that always printed
+  unknown on a shallow clone would pass. (fixed — depth 3 holds the park and
+  must read 200h)
+- r11: (/code-review) other views (`analysis`, status) still show no age.
+  (wontfix — out of this plan's scope, `dispatch` only; a follow-up plan if
+  wanted)
+- r12: (verifier) clock skew gives a negative age. (wontfix — same as the
+  push-age reader beside it; changing one alone would make them disagree)
+- r13: (session) the five new history cases red against the first build's
+  `joharness.sh` (696ad3f) in a scratch worktree: 2286 passed, 6 failed,
+  each a named history. `ci: pass`, 2292 passed, 0 failed. (fixed)
 
 ## Blockers
