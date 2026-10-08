@@ -17,6 +17,7 @@ mapping:
 | haiku | `claude-haiku-4-5` | 200K | 1 / 5 | Mechanical, fully specified, acceptance executable |
 | sonnet | `claude-sonnet-5` | 1M | 3 / 15 (intro 2 / 10 through 2026-08-31) | Default. Near-Opus coding + agentic quality |
 | opus | `claude-opus-5` | 1M | 5 / 25 | Correctness-critical, invariant reasoning, irreversible-path code |
+| fable | `claude-fable-5-1` | 1M | 10 / 50 (claude-api skill, 2026-10-06) | Judgement with a small context: decomposition, review-churn research, scouting. Never a build. |
 
 ## Selection rules
 
@@ -30,6 +31,18 @@ mapping:
 - opus when wrong-but-plausible code is the failure mode: subtle bug passes
   review, ships broken guarantee. A repo's Part 2 prohibitions name these
   areas.
+- fable when the unit is a judgement whose context stays small and whose
+  wrong-but-plausible outcome is a plan, not a diff: an unplanned
+  requirement, the review-churn research step, a scout pass. A plan naming
+  `agent: fable` whose `scope:` reaches past `docs/`, `.agents/docs/` or
+  `.claude/commands/` is red in `ci` (`fable is a judgement tier: this plan
+  builds`) — a lint finding, not a judgement call. So is one declaring no
+  `scope:` at all: absent proves nothing. `scope: none` is the explicit
+  "touches nothing" and passes.
+- Rank, where a rule compares tiers: haiku < sonnet < opus < fable. Fable
+  sits on top for judgement and OFF the build ladder: escalation runs
+  haiku → sonnet → opus and stops; a fable session takes no build plan,
+  whatever that plan's tier; a looping fable manager respawns at fable.
 - effort xhigh when plan touches a Part 2 prohibition's territory — same
   reasoning, cheaper lever than a tier jump.
 - Under-thinking observed: raise effort or tier, never prompt around it.
@@ -44,6 +57,8 @@ mapping:
     does-it-reproduce) as independent passes, not one combined read.
     Wrong-but-plausible is the failure mode that picked opus; one reviewer
     with one lens is how it survives.
+  - fable plan: the opus recipe. No fourth recipe — the opus one already
+    names the failure mode a judgement gets wrong.
 
   Depth is not the missing property, at any tier. Every review this repo
   recorded was written by the context that wrote the code, and PR54 shipped
@@ -130,7 +145,7 @@ mapping:
   ci already runs; the handover hook prints the warning line for other
   branches, so a resuming session inherits the signal too.
 - Orchestrated mode picks no tier of its own: a manager runs its item's
-  `agent:`, and the one role-fixed tier is the opus planning manager for an
+  `agent:`, and the one role-fixed tier is the fable planning manager for an
   unplanned requirement (`.agents/docs/orchestrated.md`, Roles). The
   orchestrator itself is low tier by design.
 - Plan author assigns; implementing session may escalate tier or effort and
