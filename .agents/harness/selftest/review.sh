@@ -76,9 +76,14 @@ expect "the verifier step prints beside the depth" \
 # The rule, the printed step and agent-selection.md all name this path, and
 # nothing asserted it exists: deleting it left `ci` green here while every
 # consumer sync died on the missing DIRS entry (exit 3). Canonical-only —
-# a consumer receives the file but does not own it.
-if [ ! -f "${ROOT}/joharness.conf" ] ||
-   ! grep -q '^JOHARNESS_CANONICAL=1' "${ROOT}/joharness.conf" 2>/dev/null; then
+# a consumer receives the file but does not own it. Decided ONCE, for this
+# check and the content checks below, so the two cannot drift apart.
+rv_canon=0
+if [ -f "${ROOT}/joharness.conf" ] &&
+   grep -q '^JOHARNESS_CANONICAL=1' "${ROOT}/joharness.conf" 2>/dev/null; then
+  rv_canon=1
+fi
+if [ "$rv_canon" -ne 1 ]; then
   skip "the file the rule names exists" "consumer checkout"
 elif [ -s "${ROOT}/.claude/agents/verifier.md" ]; then
   pass "the file the rule names exists"
@@ -90,6 +95,41 @@ expect "and how its findings are marked" "returns (verifier)" "$out"
 expect "standalone review runs with the gate off" "ci does not check" "$out"
 expect "standalone review reads the tier's depth" "docs/handover/ws.md [opus" "$out"
 expect "opus depth is the adversarial recipe" "does-it-reproduce" "$out"
+
+# What the verifier cannot see (issue #267). It has Read, Grep, Glob and Bash
+# and no control-plane call, and a research node whose evidence was live
+# session records had to say its reviewer re-sampled nothing. The two files
+# that must agree on WHICH claims that affects are read by different people —
+# the reviewer reads one, the node author the other — so the boundary is one
+# literal, on one marked line in verifier.md. The first check pins that line's
+# token to the literal; the second looks the token up in the README, so a
+# reword on either side alone reds. Needle first: an empty token fails rather
+# than passing over anything. Canonical-only, decided above.
+if [ "$rv_canon" -ne 1 ]; then
+  skip "the verifier names what it cannot see" "consumer checkout"
+else
+  vf_doc="$(cat "${ROOT}/.claude/agents/verifier.md" 2>/dev/null)"
+  rd_doc="$(cat "${ROOT}/.agents/docs/research/README.md" 2>/dev/null)"
+  # shellcheck disable=SC2016  # literal backticks the marked line carries
+  vf_tok="$(printf '%s\n' "$vf_doc" |
+    sed -n 's/^The boundary, in the words the research README also uses: `\(.*\)`\.$/\1/p' |
+    head -1)"
+  expect "the verifier names the boundary of its reach, on its marked line" \
+    "outside this checkout" "$vf_tok"
+  if [ -n "$vf_tok" ]; then
+    expect "the research README names the SAME boundary" "$vf_tok" "$rd_doc"
+  else
+    fail "the research README names the SAME boundary (no marked boundary line in verifier.md)"
+  fi
+  expect "and still reports such a claim, marked, never skips it" \
+    "Mark it UNVERIFIED, naming the reading you could not take." "$vf_doc"
+  expect "and says what that mark is in a research node" \
+    "best, never GROUNDED" "$vf_doc"
+  expect "a node needing such a reading names its second context in Method" \
+    "names its second context UP FRONT, in \`## Method\`, not at verification time." "$rd_doc"
+  expect "and both honest answers" \
+    "Two honest answers exist: the operator takes the reading, or a session" "$rd_doc"
+fi
 
 # Armed, but the work is mid-build: the review is not due until the edge, and
 # a gate that reds from the claim commit on makes red a branch's normal state.
