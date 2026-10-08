@@ -1,6 +1,6 @@
 ---
 workstream: where-a-consumers-own-findings-go
-status: in-progress
+status: done
 branch: claude/where-a-consumers-own-findings-go
 pr: none
 plan: where-a-consumers-own-findings-go
@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_0128i4WUdEgZ88ygzuHHtXEK
 agent: opus
 updated: 2026-10-08
-next: Re-run ci green, then retire this workstream file in the last commit before the pull request (the plan file is the deliverable and stays)
+next: Nothing. Question settled and graduated; the code fix is docs/plans/upstream-placement-defects.md, SUPERVISED ONLY.
 ---
 
 ## Goal
