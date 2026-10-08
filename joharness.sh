@@ -7123,6 +7123,46 @@ dispatch_age_min() {
   now="$(date +%s)"
   printf '%s' "$(( (now - ts) / 60 ))"
 }
+# Minutes since a workstream file was last PARKED on a remote branch: the
+# commit that most recently set its frontmatter status to blocked, not the
+# last push. They differ, and the difference is the point: a branch parked
+# six days ago may have pushed twenty minutes ago (issue #254). Empty when the
+# history is not here — a shallow clone — and empty is said as unknown by the
+# caller, never as zero, which would read as parked this minute.
+#
+# ONE git call, by design and asserted: `-G` on the frontmatter line, the
+# patch read newest first, and the first commit whose diff ADDS that line is
+# the answer. Not `-S`, read at either end: `-S` matches every change in the
+# string's COUNT — the park, the unpark, the retire — so the newest match on
+# a branch parked, unparked and parked again is the unpark, and the oldest is
+# the first block. The file is parked NOW (the caller checked), so a later
+# unpark-and-repark would be a newer add, and the first add met is this
+# block. Pinned to one file on one ref, never `--all`, and the added line must
+# be the whole frontmatter line: prose that merely quotes the status is not a
+# park. `--first-parent -m`: walk the branch's own line, and read a merge's
+# diff against it, so a park made while resolving a merge is not skipped.
+#
+# A SHALLOW clone's boundary commit has no parents, and `-p` shows a commit
+# with no parents as adding every line it holds — so the boundary would
+# "add" the status and its date would be read as the block's: the push age,
+# printed as the block age. A workstream file is never born in a repository's
+# true root commit, so a match with no parents is the boundary, and is
+# unknown. Same call: `%P` rides on the format line.
+dispatch_block_age_min() {
+  local ts now
+  # `</dev/null`: same reason as dispatch_age_min above.
+  ts="$(git -C "$ROOT" log --first-parent -m -p --unified=0 --format='C %ct %P' \
+    -G'^status:[[:space:]]*blocked' "refs/remotes/origin/$1" -- "$2" \
+    </dev/null 2>/dev/null |
+    awk '/^C [0-9]+( |$)/ { t = $2; orphan = (NF == 2); next }
+         /^\+status:[[:space:]]*blocked[[:space:]]*$/ {
+           if (!orphan) print t
+           exit
+         }')"
+  [ -n "$ts" ] || return 0
+  now="$(date +%s)"
+  printf '%s' "$(( (now - ts) / 60 ))"
+}
 dispatch_age_text() {
   [ -n "$1" ] || { printf 'unknown'; return 0; }
   if [ "$1" -lt 120 ]; then printf '%sm' "$1"; else printf '%sh' "$(( $1 / 60 ))"; fi
@@ -8351,6 +8391,15 @@ cmd_dispatch() {
       # one field over.
       blocked_claims="${blocked_claims} $(basename "$path" .md)@${branch} "
       flag="  BLOCKED: the human's, holds no slot"
+      # How long it has stood. `holds no slot` reads the same at ten minutes
+      # and at six days, and an unowned block went 141h unseen because of it
+      # (issue #254). It prints; it decides nothing — no threshold, no knob.
+      bage="$(dispatch_block_age_min "$branch" "$ws")"
+      if [ -n "$bage" ]; then
+        flag="${flag}, parked $(dispatch_age_text "$bage") ago"
+      else
+        flag="${flag}, parked for an unknown time: this file's history is not here (shallow clone?)"
+      fi
       cond="BLOCKED"
     elif [ -z "$age" ]; then
       flag="  push age unknown: ref not here — fetch, then cross-check"
