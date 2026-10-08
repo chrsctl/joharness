@@ -201,7 +201,6 @@ Recount rather than trust the table: `./joharness.sh feedback joharness.sh`
 and `./joharness.sh feedback .agents/harness/selftest.sh` reach these
 findings, which is where they live.
 
-
 ## Worked example: the hoist that did not hoist
 
 Second class the recurrence named. A fork put inside a loop, four times, each
@@ -561,7 +560,6 @@ both named by `./joharness.sh protocol-paths`, so they are
 `docs/plans/upstream-placement-defects.md` and SUPERVISED ONLY. Nothing is
 blocked on them: the misplacement costs canonical 57 findings it has not been
 hearing, and has never cost a consumer a reader it had.
-
 
 ## What this cannot see
 
