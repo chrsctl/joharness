@@ -2161,7 +2161,7 @@ cp "${ROOT}/.agents/harness/queue-context.sh" \
 printf '# none\n' >"${blkwork}/.agents/env/none/AGENTS.md"
 blkconf="${blkwork}/joharness.conf"
 printf 'JOHARNESS_ENV=none\nJOHARNESS_MODE=orchestrated\n' >"$blkconf"
-for p in oldpark repark live replayed renamed respaced pasted noted; do
+for p in oldpark repark live replayed renamed respaced pasted noted born prose merged; do
   printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: high\n---\n\n## Goal\nFixture.\n' \
     "$p" >"${blkwork}/docs/plans/${p}.md"
 done
@@ -2266,6 +2266,37 @@ blkat 300 "claim noted"
 blkws noted "blocked  # waiting on the vendor" "Claimed."
 blkat 200 "hand noted to a human"
 blkdone noted
+# Born parked: the file is CREATED with the status, and that commit is the
+# oldest in range — the creation rule and the walk's last-commit judgement
+# both have to hold for this to read 200h rather than unknown.
+git -C "$blkwork" checkout -qb mgr-born
+blkws born blocked "Claimed."
+blkat 200 "claim born, already handed to a human"
+blkdone born
+# A status line in the BODY changes to the parked value on a file already
+# parked: prose, not a park (verifier round 2). Only frontmatter counts.
+git -C "$blkwork" checkout -qb mgr-prose
+blkws prose in-progress "status: draft"
+blkat 300 "claim prose"
+blkws prose blocked "status: draft"
+blkat 200 "hand prose to a human"
+blkws prose blocked "status: blocked"
+blkat 10 "reword a line of the body"
+blkdone prose
+# Parked on a side branch and MERGED in: dated by the merge, when the park
+# reached this branch. The merge's own diff carries the transition, which
+# only `-m` shows; without it the row reads unknown.
+git -C "$blkwork" checkout -qb mgr-merged
+blkws merged in-progress "Claimed."
+blkat 300 "claim merged"
+git -C "$blkwork" checkout -qb side-merged
+blkws merged blocked "Claimed."
+blkat 250 "hand merged to a human, on a side branch"
+git -C "$blkwork" checkout -q mgr-merged
+blkt=$(( $(date +%s) - 200 * 3600 ))
+GIT_AUTHOR_DATE="@${blkt} +0000" GIT_COMMITTER_DATE="@${blkt} +0000" \
+  git -C "$blkwork" merge -q --no-ff -m "bring the hand-off in" side-merged
+blkdone merged
 
 # A row that is not parked, as the control for the refute below.
 git -C "$blkwork" checkout -qb mgr-live
@@ -2285,7 +2316,7 @@ expect "parked, unparked and parked again reads the SECOND block" \
   "parked 100h ago" "$blkre"
 refute "not the first block" "parked 250h ago" "$blkre"
 refute "nor the unpark" "parked 200h ago" "$blkre"
-for blkst in replayed renamed respaced pasted noted; do
+for blkst in replayed renamed respaced pasted noted born prose merged; do
   expect "${blkst}: still the 200h park" "parked 200h ago" \
     "$(printf '%s\n' "$out" | grep "mgr-${blkst}  blocked")"
 done
@@ -2311,10 +2342,10 @@ chmod +x "${blkshim}/git"
 out="$(blk env PATH="${blkshim}:${PATH}")"
 blkrows="$(printf '%s\n' "$out" | grep -c "BLOCKED: the human's")"
 blkcalls="$(wc -l <"$blklog" | tr -d ' ')"
-if [ "$blkrows" -eq 7 ] && [ "$blkcalls" -eq "$blkrows" ]; then
+if [ "$blkrows" -eq 10 ] && [ "$blkcalls" -eq "$blkrows" ]; then
   pass "one age query per parked row (${blkcalls} for ${blkrows}), none for the live one"
 else
-  fail "age queries ${blkcalls} for ${blkrows} parked row(s) (wanted one each, seven rows)"
+  fail "age queries ${blkcalls} for ${blkrows} parked row(s) (wanted one each, ten rows)"
 fi
 
 # A shallow clone: the boundary commit has no parents, and a diff of it ADDS

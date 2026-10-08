@@ -7165,12 +7165,21 @@ dispatch_block_age_min() {
   range="refs/remotes/origin/$1"
   [ -z "${3:-}" ] || range="${3}..${range}"
   # `</dev/null`: same reason as dispatch_age_min above.
-  ts="$(git -C "$ROOT" log --follow --first-parent -m -p --unified=0 \
+  # Full context (`-U99999`), so the awk can see which lines are FRONTMATTER:
+  # a `status:` line in the body — "status: draft" rewritten to "status:
+  # blocked" — is prose, and read as the file's status it faked a park on a
+  # file already parked (verifier round 2). Only lines between the opening
+  # and closing `---` count, on each side of the diff separately, which is
+  # the span gr_fields reads. Workstream files are short, and only commits
+  # touching a status line are diffed at all.
+  ts="$(git -C "$ROOT" log --follow --first-parent -m -p --unified=99999 \
     --format='C %at %P' -G'^status:' "$range" -- "$2" \
     </dev/null 2>/dev/null |
     awk '
       function val(line) {
-        sub(/^[-+]status:[[:space:]]*/, "", line); sub(/[[:space:]]*#.*$/, "", line)
+        # A comment needs whitespace before its `#`, as gr_fields reads it:
+        # two readers of one field must not disagree on its value.
+        sub(/^status:[[:space:]]*/, "", line); sub(/[[:space:]]+#.*$/, "", line)
         sub(/[[:space:]]+$/, "", line); return line
       }
       function judge() {
@@ -7183,11 +7192,23 @@ dispatch_block_age_min() {
       /^C [0-9]+( |$)/ {
         judge(); if (found) exit
         t = $2; orphan = (NF == 2); have = 1; created = 0; added = ""; removed = ""
+        inhunk = 0; newdash = 0; olddash = 0
         next
       }
       /^new file mode/ { created = 1; next }
-      /^\+status:/ && added == "" { added = val($0); next }
-      /^-status:/ && removed == "" { removed = val($0); next }
+      /^@@/ { inhunk = 1; next }
+      !inhunk { next }
+      {
+        c = substr($0, 1, 1); line = substr($0, 2); sub(/\r$/, "", line)
+        if (c == " " || c == "+") {
+          if (line == "---") newdash++
+          else if (c == "+" && newdash == 1 && line ~ /^status:/ && added == "") added = val(line)
+        }
+        if (c == " " || c == "-") {
+          if (line == "---") olddash++
+          else if (c == "-" && olddash == 1 && line ~ /^status:/ && removed == "") removed = val(line)
+        }
+      }
       END { if (!found) judge() }')"
   [ -n "$ts" ] || return 0
   now="$(date +%s)"

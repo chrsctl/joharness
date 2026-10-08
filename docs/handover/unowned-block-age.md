@@ -101,5 +101,27 @@ in a supervised session at the human's request, 2026-10-08.
 - r13: (session) the five new history cases red against the first build's
   `joharness.sh` (696ad3f) in a scratch worktree: 2286 passed, 6 failed,
   each a named history. `ci: pass`, 2292 passed, 0 failed. (fixed)
+- r14: (verifier, round 2 at 319224b) a body line that already held a
+  status, rewritten to blocked ("status: draft" to "status: blocked") on a
+  file already parked, read as a new park: 5h for a 300h block. The awk took
+  the first `+status:`/`-status:` line anywhere in the diff. (fixed — full
+  context, `-U99999`, and only lines between the opening and closing `---`
+  count, on each side of the diff separately: the span gr_fields reads.
+  Case "prose"; the previous build reds it.)
+- r15: (verifier, round 2) four paths no case pinned: the creation rule, the
+  walk's last-commit judgement, `-m`, and the `<base>..` range. (fixed for
+  the first two — case "born", a file created parked as the oldest commit in
+  range; each mutation reds it. `-m`: a merge fixture now exists ("merged",
+  dated by the merge), but dropping `-m` stays green because current git
+  already shows a first-parent diff for merges under `--first-parent`; kept
+  for older git, unpinnable here. The range changes cost only, never the
+  answer, newest-first. Both recorded, not forced.)
+- r16: (verifier, round 2) the helper stripped a comment after `[[:space:]]*#`,
+  `gr_fields` after `[[:space:]]+#`: `status: blocked#why` read blocked by one
+  and `blocked#why` by the other. (fixed — the same pattern; two readers of
+  one field must agree)
+- r17: (session) `ci: pass`, 2295 passed, 0 failed. Previous build reds 1
+  (prose); no-creation and no-final-judgement mutants red 1 each (born);
+  no `-m` stays green as r15 says. All in scratch worktrees. (fixed)
 
 ## Blockers
