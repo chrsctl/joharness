@@ -204,9 +204,12 @@ with a carve-out is one nobody remembers correctly.
 Cite the measurement, never the repository: the command, the commit, the
 counts, the date. "Measured 2026-09-06 in a consumer at `afdd11d`" is
 re-countable by whoever holds that repo and says nothing to anybody else,
-which is the correct amount. The same goes for a consumer's plan names, item
-names and pull request numbers — all of them are that repo's internal work
-wearing a citation's clothes.
+which is the correct amount. The same goes for a consumer's plan names and
+item names — both say what that repo is building, which is the internal
+work this section exists to keep out of every other operator's copy. An
+opaque pointer is a different case: on its own it resolves to nothing, and
+the one thing that would make it resolvable — the repository name — is
+already banned above.
 
 Requester's rule, 2026-09-16. Applied that day across 12 files, clearing 27
 lines that carried one (`git diff` on the branch that did it, counting removed

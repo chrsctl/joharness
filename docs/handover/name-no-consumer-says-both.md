@@ -8,10 +8,12 @@ issue: 273
 session: https://claude.ai/code/session_01NYQXKf9UKWPPaKuCTpEdbY
 agent: sonnet
 updated: 2026-10-08
-next: Edit .agents/docs/consumer-repos.md, "## Name no consumer", first
-  paragraph ("Cite the measurement...") to drop pull request numbers from
-  the covered list and state the descriptive-vs-opaque split. Leave the
-  "Requester's rule" paragraph untouched. Then run acceptance greps.
+next: Edit made (first paragraph, descriptive-vs-opaque split added, PR
+  numbers dropped from covered list); acceptance greps pass. Waiting on
+  background ./joharness.sh ci and the verifier subagent; fold verifier
+  finding into ## Review below (before any fix commit), then run
+  ./joharness.sh finish and open the PR, flagging the direction to the
+  human per acceptance item 4.
 ---
 
 ## Goal
