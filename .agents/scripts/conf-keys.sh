@@ -51,6 +51,8 @@ JOHARNESS_CURATE_HOURS|168|Hours since the last curate before one is due; 0 swit
 JOHARNESS_CURATE_PLANS|10|Plan files changed since the last curate before one is due (the primary trigger); 0 leaves only the clock.
 JOHARNESS_UPSTREAM_FEEDBACK|off|off = ./joharness.sh upstream reports what a merged edge found about the harness and nothing acts on it; on = under orchestrated, one session files it as a report pull request on the canonical.
 JOHARNESS_JANITOR_HOURS|12|Hours between janitor sweeps of the claims: a claim whose session is gone holds its plan out of the queue until one releases it. 0 switches the cycle off.
+JOHARNESS_SCOUT_HOURS|168|Hours since the last scout before one is due, and only at DRAINED; 0 switches the cycle off.
+JOHARNESS_SCOUT_AUTOMERGE|off|off = a scout's proposal pull request waits for a human; on = the scout merges it itself. Money and product direction in one key.
 JOHARNESS_IDLE_ANALYSIS|off|off = ./joharness.sh analysis reports why a manager is blocked, stalled or looping and nothing acts on it; on = under orchestrated, one session per condition says why and files it as an issue on the canonical.
 ROWS
 }
