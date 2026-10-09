@@ -159,9 +159,11 @@ what this harness pays. Full method and second-context verification:
   four searches. No threshold to obey.
 - **Inline constraint notation (`!`, `?`).** Invented abbreviations —
   Tokenizer facts above.
-- **Cache minimum 2,048 tokens, reads 0.1x.** Stale: 512 on current
-  models, 4,096 on Opus 4.6/4.5 and Haiku 4.5; reads 0.05x on Opus 5.5
-  (claude-api skill `shared/prompt-caching.md`, cache 2026-10-06).
+- **Cache minimum 2,048 tokens, reads 0.1x.** True for some models only.
+  Minimum is per model and not monotonic: 512 on current models, 2,048 on
+  Opus 4.7 and Haiku 3.5, 4,096 on Opus 4.6/4.5 and Haiku 4.5. Reads ~0.1x
+  generally, 0.05x on Opus 5.5, 0.025x on Fable 5.1 (claude-api skill
+  `shared/prompt-caching.md`, cache 2026-10-06).
 - **zip2zip, LLMLingua.** Real (15-40%; up to 20x), but zip2zip needs
   model uptraining and LLMLingua drops tokens by perplexity — Never drop
   meaning, above.
@@ -169,8 +171,10 @@ what this harness pays. Full method and second-context verification:
 Why none became a rule: prose is not the bill. The always-loaded chain is
 ~19 KB (`./joharness.sh context`, 2026-10-09), about 3.8% of a 126K
 context and 0.7% of 712K at bytes/4 — estimate, not a count. Context
-re-read per turn is the bill (`agent-selection.md` Cost levers). Trims
-that remain worth doing are scoped as plans, not rules.
+re-read per turn is the bill (`agent-selection.md` Cost levers). A
+follow-up ask the same day measured the harness's own files and filed the
+trims worth doing as plans (`role-command-trim`, `agents-chain-dedupe`),
+not rules.
 
 ## Honest numbers (upstream's own warning)
 

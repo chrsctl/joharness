@@ -5,7 +5,7 @@ agent: opus
 effort: high
 needs: orchestrated-only-docs, issue-triager-role
 requirement: none
-scope: shared:.agents/harness/AGENTS.md, AGENTS.md, shared:.agents/docs/handover/README.md, shared:.agents/docs/product/README.md, shared:.agents/docs/agent-selection.md
+scope: shared:.agents/harness/AGENTS.md, AGENTS.md, shared:.agents/docs/handover/README.md, shared:.agents/docs/product/README.md, shared:.agents/docs/agent-selection.md, shared:.agents/docs/feedback.md
 ---
 
 ## Goal
@@ -14,28 +14,34 @@ Requester, 2026-10-09, same ask as `role-command-trim`. Every session in
 every mode loads `CLAUDE.md`, root `AGENTS.md` and
 `.agents/harness/AGENTS.md` — 17,776 bytes, 2,490 words
 (`./joharness.sh context`, 2026-10-09). The two AGENTS files say several
-things twice: root `## Handover` restates harness `## Handover` and Loop
+things twice: harness `## Handover` restates root `## Handover` and Loop
 step 6; root and harness each carry an "environment rules are not here"
 paragraph; the CI-runnable `verify` clause appears in root Part 2, harness
-step 5 and step 7. Harness steps 7, 2, 5 hold 1,500 of its 2,080 words
-and carry history (ratification dates, "six merged edges paid", the
+step 5 and step 7. Root keeps its copies on purpose: a harness reading
+`AGENTS.md` natively resolves no `@` imports, so root is the only text it
+sees (`.agents/docs/handover/README.md` "How a session finds this", layer
+1). The harness-side copy is the duplicate. Harness steps 2, 4, 5, 7 carry
+history (ratification dates, "six merged edges paid" in step 4, the
 `fin_strength` why) that belongs under `.agents/docs/`. State each fact
 once (`.agents/docs/caveman.md`); move the why out.
 
 ## Scope
 
-- Root `AGENTS.md` above `# Part 2 — project` — drop the `## Handover`
-  bullets and the environment paragraph where the harness file already
-  says the same; keep one pointer line each if the root file must still
-  name the protocol file.
-- Root `AGENTS.md` Part 2 — keep the verify block; cut the CI-runnable
-  explanation down to a pointer at harness step 7 where step 7 already
-  states it.
-- `.agents/harness/AGENTS.md` steps 2, 5, 7 — move history and
-  why-explanations to the doc each already cites (`.agents/docs/product/README.md`
-  Branch flow, `.agents/docs/handover/README.md`,
-  `.agents/docs/agent-selection.md`). Keep every rule, every command,
-  every "NEVER".
+- Root `AGENTS.md` above `# Part 2 — project` — unchanged. Its
+  `## Handover` section and environment paragraph are the only protocol
+  text a non-Claude reader sees.
+- `.agents/harness/AGENTS.md` `## Handover` and its environment paragraph
+  — drop sentences root `AGENTS.md` or Loop step 6 already state; keep
+  what only the harness file says.
+- CI-runnable `verify` clause — keep it once in harness step 7 and once in
+  root Part 2 (non-Claude readers); cut step 5's copy to a pointer at
+  step 7.
+- `.agents/harness/AGENTS.md` steps 2, 4, 5, 7 — move history and
+  why-explanations to the doc the sentence already cites, ONLY if that doc
+  is one of: `.agents/docs/product/README.md`,
+  `.agents/docs/handover/README.md`, `.agents/docs/agent-selection.md`,
+  `.agents/docs/feedback.md`. Cites another doc? Leave it in place and say
+  so in the ledger. Keep every rule, every command, every "NEVER".
 - `docs/handover/agents-chain-dedupe.md` `## Review` — ledger, one line
   per removed block: `moved to <file>:<heading>` or
   `duplicate of <file>:<line>`.
@@ -53,12 +59,13 @@ once (`.agents/docs/caveman.md`); move the why out.
 
 - `./joharness.sh context` — `instructions` row lower than the merge base;
   record before/after words with the command in the workstream file.
-- `grep -c 'CI-runnable' AGENTS.md .agents/harness/AGENTS.md` — total at
+- `cat AGENTS.md .agents/harness/AGENTS.md | grep -c 'CI-runnable'` — at
   most 2 (today 3).
-- `grep -n '^## Handover' AGENTS.md` — no output, or the section is a
-  single pointer line.
+- `diff <(git show origin/main:AGENTS.md | sed '/^# Part 2 — project$/q') <(sed '/^# Part 2 — project$/q' AGENTS.md)`
+  — no output (root Part 1 untouched).
 - `grep -q 'no commit to a core path' .agents/harness/AGENTS.md` — exit 0
-  (pinned by `.agents/harness/selftest/handover-context-compact.sh:70`).
+  (pinned by `.agents/harness/selftest/handover-context-compact.sh`, case
+  "THE BOUNDARY THE MODE KEEPS").
 - `grep -c '^# Part 2 — project$' AGENTS.md` — `1`.
 - Verifier reads the ledger against the diff; finding tagged
   `(verifier)` in `## Review`.
@@ -72,8 +79,11 @@ once (`.agents/docs/caveman.md`); move the why out.
 - `joharness.sh:ctx_report` — the counted chain.
 - `.agents/scripts/sync-to-consumer.sh:MARKER` — splice on
   `# Part 2 — project`; Part 1 edits travel, the marker must stay exact.
-- `.agents/harness/selftest/handover-context-compact.sh:55,70` — pins on
-  the harness file.
+- `.agents/harness/selftest/handover-context-compact.sh` — cases "points
+  at the Loop by file" and "THE BOUNDARY THE MODE KEEPS" pin the harness
+  file.
+- `.agents/docs/handover/README.md` "How a session finds this", layer 1 —
+  why root `## Handover` exists and must stay.
 - `.agents/harness/selftest/bootstrap-consumer.sh`,
   `.agents/harness/selftest/ci-promote.sh` — fixtures write the harness
   file; read before assuming nothing reads its text.

@@ -13,8 +13,8 @@ scope: .claude/commands/orchestrate.md, shared:.claude/commands/manage.md, share
 Requester, 2026-10-09, after `docs/research/token-optimization-techniques.md`:
 "Is there anything to optimize also regarding the existing harness files"
 — answered yes, plan approved. `.claude/commands/orchestrate.md` is 8,340
-words (`wc -w`, 2026-10-09; 6,265 at its first `origin/main` commit after
-2026-09-15) and sits in the orchestrator's context for its whole life —
+words (`wc -w`, 2026-10-09; 6,265 at
+`git log --first-parent --reverse --after=2026-09-15 --format=%h origin/main -- .claude/commands/orchestrate.md | head -1`) and sits in the orchestrator's context for its whole life —
 the session that re-read 1.21B cache tokens (`.agents/docs/agent-selection.md`
 Cost levers). `.claude/commands/manage.md`, 1,950 words, loads into every
 manager, 93% of fleet spend. Both carry why-explanations and incident
@@ -33,7 +33,9 @@ next growth is seen — nothing counts them today.
   never gates. `ci`'s chain print unchanged.
 - `.agents/harness/selftest/ci-context.sh` — one case: the block lists a
   role file present in a fixture, omits one absent.
-- `.claude/commands/orchestrate.md` — § 2 Health pass (4,344 words) first,
+- `.claude/commands/orchestrate.md` — § 2 Health pass first (4,432 words:
+  `awk '/^## 2\./{p=1} /^## 3\./{p=0} p' .claude/commands/orchestrate.md | wc -w`,
+  2026-10-09),
   then § 3 Spawn and § 4 Schedule: move rationale, incident narratives,
   "why" paragraphs and measured-history to `.agents/docs/orchestrated.md`
   under a heading named for the section they left. Leave one pointer line
@@ -97,18 +99,25 @@ next growth is seen — nothing counts them today.
   'orchestrate.md\|manage.md' joharness.sh` (field table, step 2, step 3,
   step 4, surveyor, rescope). Printed to sessions; a moved heading breaks
   them silently.
-- `.agents/harness/selftest/orchestrated.sh:238` — grammar `manage.md`
-  asks for and `orchestrate.md` defines; keep both sides verbatim.
+- `.agents/harness/selftest/orchestrated.sh` block "the closing report:
+  one field, two files, one spelling (issue #258)" — grammar `manage.md`
+  asks for and `orchestrate.md` defines, pinned in both; keep both sides
+  verbatim.
 - `.agents/docs/consumer-repos.md` "2026-09-11 cutting
   `.agents/harness/AGENTS.md`" — last trim nearly replaced a fact with a
   pointer to a file consumers lack.
 
 ## Traps
 
-- Three plans edit `orchestrate.md` first (`needs:`). Re-measure after
-  they merge; the 8,340 baseline is stale by then.
-- `issue-triager-role` marks `shared:.claude/commands/manage.md` and
-  `shared:joharness.sh`; reconcile, do not overwrite.
+- Four plans edit `orchestrate.md` first: the three in `needs:`, plus
+  `orchestrated-only` (also `manage.md`), ordered before this one through
+  `issue-triager-role`. Re-measure after they merge; the 8,340 baseline is
+  stale by then.
+- `orchestrated-only-docs` also edits `.agents/docs/orchestrated.md`
+  (both marked `shared:`); reconcile.
+- `joharness.sh` is also in `issue-triager-role`, `upstream-placement-defects`
+  and `abandoned-reaches-every-reader`; `issue-triager-role` also marks
+  `shared:.claude/commands/manage.md`. Reconcile, do not overwrite.
 - Pointer to a file a consumer may not have = lost fact. Destination is
   `.agents/docs/orchestrated.md`, which syncs.
 - Glossary: moved text keeps its spelling; `ci` reds banned ones.
