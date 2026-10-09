@@ -5453,7 +5453,8 @@ cmd_janitor() {
 # The scout cycle — the fleet spends nothing on finding what it could do better
 # ---------------------------------------------------------------------------
 #
-# docs/product/scout-role.md: a scout researches new capacities and PROPOSES
+# The scout role (.agents/docs/orchestrated.md, Bounds; its requirement,
+# docs/product/scout-role.md, is in history): a scout researches new capacities and PROPOSES
 # them; a human's merge is what makes a proposal queue work. This is the
 # machinery — when one is due, which is in flight — and what a spawned scout
 # does is .claude/commands/scout.md. Same shape as the janitor cycle, with two
@@ -5505,9 +5506,10 @@ scout_refs() {
 # - The BASE tip is read too, and nothing is skipped as inherited: a scout
 #   whose file reached the base before its retire (a branch cut from it was
 #   merged, or a human merged early) hid behind a byte-identical skip
-#   (pass 5). One file seen on many tips is one row per status, named for
-#   the first ref listed — the base is listed last, so a scout's own branch
-#   names it. Every copy is read: a copy in flight on ANY tip is in flight.
+#   (pass 5). One file seen on many tips is one row per tip: every copy is
+#   read, and a copy in flight on ANY tip is in flight. Twins — two scouts
+#   claiming the same day — are two rows, which is what `scout.md`'s twin
+#   check reads.
 #
 # Status is the one field read, lower-cased and blank-joined, so `Abandoned`
 # reads as the word it is; an unreadable one is `?`, which is in flight.
@@ -5538,14 +5540,14 @@ scout_walk() {
     doc="$(git -C "$ROOT" show "${r}:${wf}" </dev/null 2>/dev/null | tr -d '\r')"
     sstat="$(printf '%s\n' "$doc" | gr_field status |
       tr 'A-Z ' 'a-z-' | tr -cd 'a-z0-9._-')"
-    # One row per file AND status, never per file alone: keyed on the path,
-    # an older `abandoned` copy on an earlier-listed branch hid the base's
-    # in-progress one — open again. Every copy is read; a copy that is not
-    # abandoned anywhere keeps the scout in flight.
-    # An EXACT entry in a newline list, never a substring: a branch may name
-    # a file `scout-0|<other path>=in-progress|x`, and a substring key let
-    # that decoy mark the live copy as already seen (pass 6).
-    key="${wf}"$'\t'"${sstat:-?}"
+    # One row per BRANCH and file, never collapsed further: two scouts
+    # started the same day write the same path on two branches, and the twin
+    # check in `.claude/commands/scout.md` counts those rows — keyed on the
+    # path, twins read as one (scout-command review). Keyed on path and
+    # status, an older `abandoned` copy hid a live one (pass 5). An EXACT
+    # entry in a newline list, never a substring: a file named
+    # `scout-0|<other path>=in-progress|x` forged a substring key (pass 6).
+    key="${r}"$'\t'"${wf}"
     case "$seen" in *$'\n'"${key}"$'\n'*) continue ;; esac
     seen="${seen}${key}"$'\n'
     sws="${wf##*/}"; sws="${sws%.md}"
@@ -5748,7 +5750,6 @@ cmd_scout() {
   printf 'evidence a scout reads (each proposal cites what it rests on):\n'
   printf '  ./joharness.sh upstream     what merged edges found about the harness\n'
   printf '  ./joharness.sh scorecard    the fleet'"'"'s own numbers\n'
-  printf '  ./joharness.sh review       review churn on the queue\n'
   printf '  ./joharness.sh feedback     findings ready to graduate\n'
   printf '  open issues on the canonical repository\n'
   printf '  the control plane'"'"'s cost reader: get_session usage.cost_usd,\n'
@@ -7401,7 +7402,7 @@ drain_scout_block() {
   printf 'scout     : DUE — %s\n' "$reason"
   printf '  The queue is drained and nothing has looked for what to do better.\n'
   printf '  A scout only PROPOSES, and nothing it writes enters the queue until\n'
-  printf '  a human merges it (docs/product/scout-role.md).\n'
+  printf '  a human merges it (.agents/docs/orchestrated.md, Bounds).\n'
   # Never THIS session's item, in any mode: a session reaching here was told
   # to stop and ask, or to exit, and open issues it cannot read outrank
   # anything it would start (step 2). Only an orchestrator spawns a scout —

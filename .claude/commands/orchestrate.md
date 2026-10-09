@@ -482,18 +482,21 @@ Up to `slots`, in dispatch's order, only rows under `spawn`:
   flight, and your ledger has no `scouted=` for this run. Unlike curate and
   janitor it is NOT orthogonal to the verdict: a scout proposes new work,
   which competes with real work. A `scout due, held` or `suppressed` line
-  spawns nothing. The ledger key is not optional: between the spawn and the
-  scout's first push, `dispatch` still prints `scout DUE` — the git view
-  cannot see a session that has not pushed — so `scouted=` is the ONLY
-  thing stopping a second spawn on the next pass. It holds no slot (beyond
-  the cap, the human's money — report it). `create_session` as below with
+  spawns nothing. The ledger key guards THIS run only: between the spawn
+  and the scout's first push `dispatch` still prints `scout DUE` — the git
+  view cannot see a session that has not pushed — and the verdict that
+  spawns a scout is the exit verdict, so the heartbeat's next run starts
+  with an empty ledger. Across runs the guard is the scout's own twin check
+  (`.claude/commands/scout.md`, Claim): two scouts that both pass, the one
+  whose branch sorts first keeps going. It holds no slot (beyond the cap,
+  the human's money — report it). `create_session` as below with
   `title` = `scout: <UTC date>`, `model` = the Lineup's fable, and `prompt`
   = `/scout` plus the same three lines every manager gets. Ledger
   `scouted=<stamp>`; the health rows read its branch (`workstream:
-  scout-<stamp>`, `plan: none`) like any manager's. `NOTHING TO PROPOSE`
-  is success, not a stall. Its proposal pull request, open or closed, is
-  the human's: never nudge, respawn or report a scout that is waiting on
-  one.
+  scout-<stamp>`, `plan: none`) whenever a run sees it — `NOTHING TO
+  PROPOSE` and `TWIN: deferred` are success, not a stall. Its proposal pull
+  request, open or closed, is the human's: never nudge, respawn or report a
+  scout that is waiting on one.
 - Verdict `OVERLAP-BOUND` = ONE surveyor, tier sonnet, and ONLY when
   the `rescope :` block says `in flight: none` AND your ledger has no
   `rescoped=<key>` for this key. Slots are idle only because held plans'
@@ -709,7 +712,7 @@ putting it here is for.
   nothing and a doubled one has two sessions writing the same release.
 - Spawn a second scout in one run, one while a scout branch is in flight,
   or one on any verdict but `DRAINED — nothing free, nothing in flight`.
-  The ledger's `scouted=` is the only guard before the scout's first push.
+  `scouted=` guards this run; the scout's twin check guards across runs.
 - Spawn a second curator in one run, or one while a curate branch is in
   flight. One per run; the cycle is dated from git, so a missed pass costs
   nothing and a doubled one costs money.

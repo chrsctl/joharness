@@ -6,7 +6,8 @@ the Loop. Every level = graph nodes ([`.agents/docs/graph.md`](../graph.md)),
 files as nodes, delete-on-done as state.
 
 ```
-docs/product/<requirement>.md   what product needs. Human writes. Coarse.
+docs/product/<requirement>.md   what product needs. Human writes — or a scout drafts
+                                and a human merges (orchestrated.md, Bounds). Coarse.
 docs/plans/<plan>.md            how, machine-executable. Sessions write.
 claude/<plan> branch + PR       execution. One per plan.
 ```

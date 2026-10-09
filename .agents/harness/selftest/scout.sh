@@ -4,7 +4,7 @@
 # Not runnable alone and not meant to be: the runner defines the assertion
 # helpers, the counters and the shared fixtures, and sourcing is inlining.
 #
-# The scout cycle (docs/product/scout-role.md): when a scout is due, which one
+# The scout cycle (.agents/docs/orchestrated.md, Bounds): when a scout is due, which one
 # is in flight, and the two places the cycle differs from the janitor one it
 # copies. It fires only at DRAINED, so `drain` and `dispatch` print the block
 # and the spawn line under that verdict and nowhere else. And a proposal the
@@ -447,6 +447,22 @@ refute "and dispatch spawns none" "scout DUE: spawn" "$(sdsp)"
 sws scout-2026-04-01 scout-2026-04-01 abandoned main
 scommit "released again"
 git -C "$scout_work" push -q origin main
+
+# TWINS: two scouts that claimed the same day write the same path on two
+# branches. They are two rows — the twin check in scout.md counts them, and
+# a row keyed on the path alone read them as one (scout-command review).
+for scout_twin in twin-a twin-b; do
+  git -C "$scout_work" checkout -qb "$scout_twin" main
+  sws scout-2026-04-10 scout-2026-04-10 in-progress "$scout_twin"
+  scommit "a scout claims" '2026-04-10T00:00:00Z'
+  git -C "$scout_work" push -qu origin "$scout_twin"
+done
+git -C "$scout_work" checkout -q main
+out="$(sct)"
+expect "twin scouts read as two rows: the first" "twin-a  scout-2026-04-10  in-progress" "$out"
+expect "and the second" "twin-b  scout-2026-04-10  in-progress" "$out"
+git -C "$scout_work" push -q origin --delete twin-a twin-b
+git -C "$scout_work" branch -q -D twin-a twin-b
 
 # --- automerge: exactly `on`, from the BASE branch's conf --------------------
 expect "automerge unset reads off" "automerge: off" "$(sct)"
