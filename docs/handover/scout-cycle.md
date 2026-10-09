@@ -118,6 +118,7 @@ is `scout-command`. Supervised session at the human's ask (protocol text).
 - r53: (verifier, pass 6): the merged-side `-m` in `cycle_landed_sha` had no case. (fixed — a retire inside a merge, then merged; the case checks the AGE, since without `-m` an older proposal still reads "since the last proposal merged"; fails with `-m` removed)
 - r54: (session) after reconciling with main (24 behind), ci went red: `lint_existed` read a `needs:` target retired on a merged side branch as "never existed" — default history simplification follows the branch parent of the reconcile merge. Red on every branch reconciling after such a retire, not on main. (fixed — `--full-history` in `lint_existed`; a ci-graph-lint case reproduces the reconcile shape and fails without it)
 - r55: (session) the seventh verifier pass, on the pass-6 fixes, did not run: the account's weekly usage limit (resets 2026-10-14). (no change — six independent passes are recorded above; the pass-6 fixes carry reverted-fix proofs, and every case added since fails with its fix removed)
+- r56: (session) `docs/plans/scout-command.md` routed a drain `scout :` block as "this session's item" — R-f decided against it — and did not carry r39 or the path / `done` rules. (fixed — that plan's start.md bullet and Traps updated here, so its literal reader does not rebuild what review removed)
 
 ## Research step (review churn: two rounds on scout_walk)
 
