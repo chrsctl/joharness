@@ -5,7 +5,7 @@ agent: sonnet
 effort: high
 needs: orchestrated-only
 requirement: none
-scope: .agents/docs/unsupervised.md, shared:.agents/docs/orchestrated.md, .agents/docs/consumer-repos.md, .agents/docs/plans/README.md, .agents/docs/product/README.md, .agents/docs/handover/README.md, .agents/docs/subagents.md, .agents/docs/agent-selection.md, shared:.agents/harness/AGENTS.md, .agents/harness/README.md, AGENTS.md, docs/plans, docs/research
+scope: .agents/docs/unsupervised.md, shared:.agents/docs/orchestrated.md, shared:.agents/docs/consumer-repos.md, .agents/docs/plans/README.md, .agents/docs/product/README.md, .agents/docs/handover/README.md, .agents/docs/subagents.md, .agents/docs/agent-selection.md, shared:.agents/harness/AGENTS.md, .agents/harness/README.md, AGENTS.md, docs/plans, docs/research
 ---
 
 ## Goal

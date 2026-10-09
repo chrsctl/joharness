@@ -3,7 +3,7 @@ plan: release-reds-the-branch-it-releases
 urgency: normal
 agent: sonnet
 effort: xhigh
-scope: .claude/commands/janitor.md, .agents/harness/selftest/janitor.sh
+scope: shared:.claude/commands/janitor.md, shared:.agents/harness/selftest/janitor.sh
 ---
 
 ## Goal
