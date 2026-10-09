@@ -137,6 +137,41 @@ these polysemic concepts for integration"
 The glossary's answer to it is silence, not a zone label: the term is defined
 in the file owning the zone, and silence beats a wrong global answer.
 
+## Outside techniques, checked and not adopted
+
+Checked 2026-10-09 against wernerkasselman-au/llm-tips
+`token_optimization.md`, each claim against its own source, then against
+what this harness pays. Full method and second-context verification:
+`git log --all -- docs/research/token-optimization-techniques.md`.
+
+- **Filler and article removal, terse descriptions.** Already the Drop
+  list above. The doc's 38-78% savings are single examples, not a corpus.
+- **Count tokens with tiktoken.** OpenAI's tokenizer; undercounts Claude.
+  Count with `POST /v1/messages/count_tokens` (claude-api skill,
+  `shared/token-counting.md`). Any figure counted otherwise is not a
+  Claude figure — including the doc's `customer_id` 2 vs `customerId` 3.
+- **Markdown beats JSON (55 vs 50).** Doc cites nothing. Nearest source,
+  Improving Agents (improvingagents.com, 2025-09-30, GPT-4.1 nano, table
+  lookups): JSON 52.3, Markdown table 51.9, MD-KV 60.7. Table retrieval
+  on one model, not instruction following; other benchmarks rank
+  differently.
+- **"Optimal" compression ratio 0.65-0.80.** Cited paper not found in
+  four searches. No threshold to obey.
+- **Inline constraint notation (`!`, `?`).** Invented abbreviations —
+  Tokenizer facts above.
+- **Cache minimum 2,048 tokens, reads 0.1x.** Stale: 512 on current
+  models, 4,096 on Opus 4.6/4.5 and Haiku 4.5; reads 0.05x on Opus 5.5
+  (claude-api skill `shared/prompt-caching.md`, cache 2026-10-06).
+- **zip2zip, LLMLingua.** Real (15-40%; up to 20x), but zip2zip needs
+  model uptraining and LLMLingua drops tokens by perplexity — Never drop
+  meaning, above.
+
+Why none became a rule: prose is not the bill. The always-loaded chain is
+~19 KB (`./joharness.sh context`, 2026-10-09), about 3.8% of a 126K
+context and 0.7% of 712K at bytes/4 — estimate, not a count. Context
+re-read per turn is the bill (`agent-selection.md` Cost levers). Trims
+that remain worth doing are scoped as plans, not rules.
+
 ## Honest numbers (upstream's own warning)
 
 Style compresses output and re-read input. It proves nothing about quality —

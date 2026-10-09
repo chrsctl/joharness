@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01VNm5NhCjAM1wS1zpdAEnSN
 agent: opus
 updated: 2026-10-09
-next: Graduate research into caveman.md if human agrees, then PR carrying both plans
+next: Edge review by verifier, retire workstream file, open PR
 ---
 
 ## Goal
