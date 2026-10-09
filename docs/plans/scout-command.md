@@ -70,8 +70,12 @@ judgement call.
   manager's. `NOTHING TO PROPOSE` with no branch = success, not a stall.
   Its merged or closed PR is the human's; the orchestrator never nudges a
   scout waiting on one.
-- `.claude/commands/start.md` — supervised / unsupervised routing: `drain`
-  printed a `scout :` block = this session's item is `/scout`.
+- `.claude/commands/start.md` — supervised / unsupervised routing: a
+  `scout :` block in `drain` is NEVER this session's item (`scout-cycle`
+  decided it, research step R-f: only an orchestrator sees every claim in
+  flight). Supervised: name it to the human when you ask; `/scout` is
+  theirs to run. Unsupervised: exit. One line, matching what `drain`
+  already prints.
 - `.agents/docs/orchestrated.md` — Roles table row: `scout | fable; the
   judgement is which counted number is largest, never what to build | a
   session, spawned on the scout DUE tail line, only at DRAINED | nothing |
@@ -135,3 +139,14 @@ judgement call.
 - Glossary: `agent tier`, never `model tier`.
 - Retire the requirement in the LAST commit before the PR, never after
   the merge.
+- What `scout-cycle` reads, and the command must keep true (that plan's
+  merged review, r33-r53): the scout's workstream file is
+  `docs/handover/scout-<UTC date>.md` — the PATH is the identity, nothing
+  in the file; `status: done` still holds the cycle until the retire
+  commit deletes the file; only `abandoned` releases it.
+- Between a scout's spawn and its first push, `dispatch` still prints
+  `scout DUE` — the ledger's `scouted=<stamp>` is the ONLY guard there
+  (scout-cycle r39). The orchestrate.md rule must not land without it.
+- `scout-cycle` reads the cycle `off` until `.claude/commands/scout.md`
+  exists; this plan's merge is what switches it on, here and in every
+  consumer at its next sync.

@@ -1007,3 +1007,32 @@ fi
 fixture_rm "$lwork" "drop the fable plans" docs/plans/fable-docs.md \
   docs/plans/fable-none.md docs/plans/fable-builds.md docs/plans/fable-blank.md \
   docs/plans/fable-dotdot.md docs/plans/fable-unscoped.md
+
+# A `needs:` target that existed only on a side branch merged into main, read
+# from a branch that then merged main in — the reconcile step 7 asks for. The
+# branch is that merge's FIRST parent and both parents lack the file, so
+# default history simplification follows the branch and never sees the
+# side branch: the target read as "never existed", red, on every branch that
+# reconciled after the target retired. `--full-history` reads it.
+lint_main="$(git -C "$lwork" rev-parse --abbrev-ref HEAD)"
+git -C "$lwork" checkout -qb lint-reconcile
+printf 'x\n' >"${lwork}/reconcile.txt"
+commit_all "$lwork" "a branch's own work"
+git -C "$lwork" checkout -q "$lint_main"
+git -C "$lwork" checkout -qb lint-side
+printf -- '---\nplan: side-only\nurgency: normal\nagent: sonnet\neffort: high\n---\n' \
+  >"${lwork}/docs/plans/side-only.md"
+commit_all "$lwork" "a plan that lives only on a side branch"
+fixture_rm "$lwork" "and retires there" docs/plans/side-only.md
+git -C "$lwork" checkout -q "$lint_main"
+git -C "$lwork" merge -q --no-ff -m "merge the side branch" lint-side
+printf -- '---\nplan: needs-side\nurgency: normal\nagent: sonnet\neffort: high\nneeds: side-only\n---\n' \
+  >"${lwork}/docs/plans/needs-side.md"
+commit_all "$lwork" "a plan that needed it"
+git -C "$lwork" checkout -q lint-reconcile
+git -C "$lwork" merge -q --no-edit "$lint_main"
+out="$(lint_section "$(lint_ci)")"
+refute "a needs target retired on a merged side branch is not 'never existed' after a reconcile" \
+  "needs 'side-only' — no such plan, never existed" "$out"
+git -C "$lwork" checkout -q "$lint_main"
+fixture_rm "$lwork" "drop the needing plan" docs/plans/needs-side.md

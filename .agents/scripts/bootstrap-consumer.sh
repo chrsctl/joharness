@@ -151,6 +151,11 @@ IDLE_ANALYSIS="$(conf_key_default JOHARNESS_IDLE_ANALYSIS)"
 # the requester's cadence and a repo with no fleet never notices it, because a
 # sweep with no dead claim releases nothing and costs one report.
 JANITOR_HOURS="$(conf_key_default JOHARNESS_JANITOR_HOURS)"
+# Not asked either, both of them: how often a repo wants proposals, and whether
+# it lets one merge itself, are questions a human answers after reading the
+# first proposal, not before the first session.
+SCOUT_HOURS="$(conf_key_default JOHARNESS_SCOUT_HOURS)"
+SCOUT_AUTOMERGE="$(conf_key_default JOHARNESS_SCOUT_AUTOMERGE)"
 # Same decision, same reason: whether step 7 waits for GitHub Actions or runs
 # the checks here is a question a repo answers once it has felt the wait, not
 # one a human has an opinion about before the first session.
@@ -816,6 +821,17 @@ JOHARNESS_IDLE_ANALYSIS=${IDLE_ANALYSIS}
 # for 141 hours (issue #254). /janitor releases only what the control plane
 # proves gone, and never deletes a file or a branch.
 JOHARNESS_JANITOR_HOURS=${JANITOR_HOURS}
+
+# Hours since the last scout before one is due; 0 = off. Only at DRAINED: a
+# scout proposes NEW work, and new work competes with real work. Dated from
+# git, closed proposals included, so a declined one does not re-fire at once.
+JOHARNESS_SCOUT_HOURS=${SCOUT_HOURS}
+
+# off = a scout's proposal waits for a human to merge or close it. Exactly
+# 'on' = the scout merges its own. The ONE exception to "nothing is
+# invented": money and product direction in one key, and a conf line is a
+# human act, which is why the bound still holds.
+JOHARNESS_SCOUT_AUTOMERGE=${SCOUT_AUTOMERGE}
 EOF
   # Recorded BEFORE the seed, because seed() is the thing that makes the
   # difference invisible afterwards: it writes only when the file is absent.
