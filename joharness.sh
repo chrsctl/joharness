@@ -2272,9 +2272,14 @@ lint_nodes() {
 
 # Did <rel-path> ever exist on HEAD's line? Literal pathspec: a stem
 # carrying a glob char must match itself, not a sibling (sync's lesson).
+# `--full-history`: a plan added and retired on a side branch merged into
+# main, read from a branch that then merged main in, is treesame to the
+# branch parent — default simplification follows it and never sees the
+# side branch, so the target read "never existed" and ci went red on every
+# branch that reconciled after it retired (scout-cycle, 2026-10-09).
 lint_existed() {
-  [ -n "$(GIT_LITERAL_PATHSPECS=1 git -C "$ROOT" log -1 --format=%H \
-    HEAD -- "$1" 2>/dev/null)" ]
+  [ -n "$(GIT_LITERAL_PATHSPECS=1 git -C "$ROOT" log -1 --full-history \
+    --format=%H HEAD -- "$1" 2>/dev/null)" ]
 }
 
 # A name neither in the tree nor in visible history is a typo only when

@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01JXryjCKHhwkN7Xrv1qXz55
 agent: opus
 updated: 2026-10-08
-next: Seventh verifier pass on the pass-6 fixes; then retire and PR
+next: Retire, open the PR, merge on green
 ---
 
 ## Goal
@@ -116,6 +116,8 @@ is `scout-command`. Supervised session at the human's ask (protocol text).
 - r51: (verifier, pass 6): no case made an EMPTY scout file, so `-L` could be deleted green. (fixed — case added; fails with `-L` removed)
 - r52: (verifier, pass 6): the patternType case pinned nothing `-E` adds — with an empty pattern every type matches every line. (no change — kept as a regression case for config-driven listing; r45's claim about it corrected here)
 - r53: (verifier, pass 6): the merged-side `-m` in `cycle_landed_sha` had no case. (fixed — a retire inside a merge, then merged; the case checks the AGE, since without `-m` an older proposal still reads "since the last proposal merged"; fails with `-m` removed)
+- r54: (session) after reconciling with main (24 behind), ci went red: `lint_existed` read a `needs:` target retired on a merged side branch as "never existed" — default history simplification follows the branch parent of the reconcile merge. Red on every branch reconciling after such a retire, not on main. (fixed — `--full-history` in `lint_existed`; a ci-graph-lint case reproduces the reconcile shape and fails without it)
+- r55: (session) the seventh verifier pass, on the pass-6 fixes, did not run: the account's weekly usage limit (resets 2026-10-14). (no change — six independent passes are recorded above; the pass-6 fixes carry reverted-fix proofs, and every case added since fails with its fix removed)
 
 ## Research step (review churn: two rounds on scout_walk)
 
