@@ -441,12 +441,22 @@ refute "a scout file inherited from the base is not the branch's" "cut-after" "$
 sws scout-2026-04-01 scout-2026-04-01 in-progress main
 scommit "main's scout file reads in progress"
 git -C "$scout_work" push -q origin main
+# A plan branch cut AFTER it: it inherits the identical file (pass 2, r15).
+git -C "$scout_work" checkout -qb cut-later main
+printf 'plan work\n' >"${scout_work}/later.txt"
+scommit "unrelated plan work"
+git -C "$scout_work" push -qu origin cut-later
+git -C "$scout_work" checkout -q main
 out="$(sct)"
 expect "a scout file on the base tip is in flight" "main  scout-2026-04-01  in-progress" "$out"
+refute "and a branch that merely inherited it prints no row of its own" \
+  "cut-later  scout-2026-04-01" "$out"
 refute "and dispatch spawns none" "scout DUE: spawn" "$(sdsp)"
 sws scout-2026-04-01 scout-2026-04-01 abandoned main
 scommit "released again"
 git -C "$scout_work" push -q origin main
+git -C "$scout_work" push -q origin --delete cut-later
+git -C "$scout_work" branch -q -D cut-later
 
 # TWINS: two scouts that claimed the same day write the same path on two
 # branches. They are two rows — the twin check in scout.md counts them, and

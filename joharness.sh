@@ -5515,7 +5515,7 @@ scout_refs() {
 # reads as the word it is; an unreadable one is `?`, which is in flight.
 scout_walk() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}"
-  local refs=() r hit wf doc sws sstat seen=$'\n' key listing rc_l rc_u
+  local refs=() r hit wf doc sws sstat seen=$'\n' key listing rc_l rc_u blobs
   while IFS= read -r r; do refs+=("$r"); done < <(scout_refs)
   refs+=("refs/remotes/origin/${base_branch}")
   # Exit status kept, not discarded: grep exits 1 for "nothing listed" and
@@ -5536,6 +5536,17 @@ scout_walk() {
   while IFS= read -r hit; do
     [ -n "$hit" ] || continue
     r="${hit%%:*}"; wf="${hit#*:}"
+    # A NON-base row whose file is byte-identical to the base's copy is the
+    # base's file inherited, not this branch's: the base's own row (listed
+    # last) carries it, so nothing hides, and every branch cut after it no
+    # longer prints a row of its own (scout-command review, pass 2). Absent
+    # on the base, rev-parse prints the second argument back as its own
+    # line, so the two lines differ and the row is kept.
+    if [ "$r" != "refs/remotes/origin/${base_branch}" ]; then
+      blobs="$(git -C "$ROOT" rev-parse "${r}:${wf}" \
+        "refs/remotes/origin/${base_branch}:${wf}" </dev/null 2>/dev/null)"
+      [ "${blobs%%$'\n'*}" != "${blobs#*$'\n'}" ] || continue
+    fi
     # CR stripped first: a CRLF file must not read as no frontmatter at all.
     doc="$(git -C "$ROOT" show "${r}:${wf}" </dev/null 2>/dev/null | tr -d '\r')"
     sstat="$(printf '%s\n' "$doc" | gr_field status |

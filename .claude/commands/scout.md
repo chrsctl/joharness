@@ -61,13 +61,21 @@ name without the digit — `scout-today.md` — is invisible to the cycle.
 and dates the next window. Never set `abandoned` yourself: that word is the
 janitor's.
 
-**Then check for a twin.** Run `./joharness.sh scout` again, now that your
-claim is pushed. The git view cannot see a scout that has not pushed, and an
-orchestrator's ledger dies with its run, so two scouts can pass step 0
-together. One `IN FLIGHT` row, your own = carry on. Two or more = the scout
-whose BRANCH name sorts first keeps going; if that is not you, retire (delete
-your file, commit, push), report `TWIN: deferred to <branch>`, and exit. No
-pull request.
+**Then check for a twin.** The git view cannot see a scout that has not
+pushed, and an orchestrator's ledger dies with its run, so two scouts can
+pass step 0 together. Now that your claim is pushed:
+
+1. `git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'` —
+   every branch, whatever this clone's refspec; a push updates only your
+   own tracking ref, and the check below reads the others.
+2. `./joharness.sh scout`.
+3. Your own row the only `IN FLIGHT` row = carry on. ANY other scout row =
+   retire (delete your file, commit, push), report `TWIN: deferred`, and
+   exit with no pull request — whoever the other is, and even if it might
+   defer too. Both may retire and neither go on: that is the closed
+   failure, and the next window spawns again. Two going on is the one
+   outcome this step exists to prevent, and a rule each scout applies
+   alone is the only kind that holds without the other's answer.
 
 ## 2. Read
 
@@ -143,7 +151,8 @@ act or it is nothing.
 - Write under `docs/plans/` or `docs/research/`. A proposal is a
   requirement draft; decomposing it is the planning manager's, after a human
   merge.
-- Spawn anything.
+- Spawn a session. The review subagent (step 4) is the one thing you
+  start, and it writes nothing.
 - Open a second pull request, or a second proposal in one.
 - Merge with the key off, or set the key.
 - Propose without a citation for every number.

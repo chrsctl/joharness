@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01JXryjCKHhwkN7Xrv1qXz55
 agent: opus
 updated: 2026-10-09
-next: Second verifier pass on r1-r11; then retire with the requirement and PR
+next: Third verifier pass on r12-r16; then retire with the requirement and PR
 ---
 
 ## Goal
@@ -55,6 +55,11 @@ Supervised session at the human's ask.
 - r9: (verifier) "`./joharness.sh review` — review churn on the queue": it reports this branch only. (fixed — dropped from scout.md and from `cmd_scout`'s list; churn is what `upstream` and `feedback` already carry)
 - r10: (verifier) NOTHING TO PROPOSE pointed at the step that opens a pull request. (fixed — retire commit, push, no pull request)
 - r11: (verifier) start.md said only an orchestrator spawns a scout, then that a human runs one. (fixed — an orchestrator spawns one, a human may start one; a session never takes one itself)
+- r12: (verifier, pass 2) r1 still open: the twin check re-read refs it never fetched, so two scouts that both pushed before either re-read each saw only itself. (fixed — the twin check fetches every branch first: `git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'`)
+- r13: (verifier, pass 2) r1 still open: "the branch that sorts first keeps going" let a later scout win after the earlier had already gone on — a coin flip per pair. (fixed — the rule every scout can apply alone: ANY scout row besides your own = retire. One that goes on saw only itself after its push, so any later one's re-read sees it; both may retire, none goes on — closed. Accepted: a scout that finishes and retires before a twin's re-read leaves that twin alone — two proposals in one window, never two scouts at once)
+- r14: (verifier, pass 2) §4 says spawn the verifier, Never says spawn anything. (fixed — Never forbids spawning a SESSION; the review subagent is the one thing it starts)
+- r15: (verifier, pass 2) the per-branch row key printed a scout file that reached main once per unmerged branch — 4 rows for 3 plan branches. (fixed — a non-base row whose file is byte-identical to the base's copy is skipped; the base's own row still counts, so nothing hides; the r42 shape stays in flight; selftest case)
+- r16: (verifier, pass 2) the TWINS case pins the row key, not the twin check — both pushes come from one clone. (no change — the fetch and the any-other-row rule are the role's instructions, which no selftest executes; recorded so nobody reads the case as more)
 
 ## Blockers
 

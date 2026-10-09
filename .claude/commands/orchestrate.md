@@ -487,8 +487,9 @@ Up to `slots`, in dispatch's order, only rows under `spawn`:
   view cannot see a session that has not pushed — and the verdict that
   spawns a scout is the exit verdict, so the heartbeat's next run starts
   with an empty ledger. Across runs the guard is the scout's own twin check
-  (`.claude/commands/scout.md`, Claim): two scouts that both pass, the one
-  whose branch sorts first keeps going. It holds no slot (beyond the cap,
+  (`.claude/commands/scout.md`, Claim): after its claim is pushed it fetches
+  every branch and retires if any other scout is in flight — both may
+  defer, never both go on. It holds no slot (beyond the cap,
   the human's money — report it). `create_session` as below with
   `title` = `scout: <UTC date>`, `model` = the Lineup's fable, and `prompt`
   = `/scout` plus the same three lines every manager gets. Ledger
