@@ -5503,13 +5503,14 @@ scout_refs() {
 #   on the command line outranks any `grep.patternType`, and colour is off.
 #   Two calls over all tips, never one per ref — drain pays this at every
 #   session start, and `perf` gates it.
-# - The BASE tip is read too, and nothing is skipped as inherited: a scout
-#   whose file reached the base before its retire (a branch cut from it was
-#   merged, or a human merged early) hid behind a byte-identical skip
-#   (pass 5). One file seen on many tips is one row per tip: every copy is
-#   read, and a copy in flight on ANY tip is in flight. Twins — two scouts
-#   claiming the same day — are two rows, which is what `scout.md`'s twin
-#   check reads.
+# - The BASE tip is read too, and its row always counts: a scout whose file
+#   reached the base before its retire (a branch cut from it was merged, or
+#   a human merged early) once hid behind an inherited-copy skip that
+#   dropped the base's own copy (pass 5). One row per tip, except a non-base
+#   copy byte-identical to the base's — proved by two resolved blob ids,
+#   never inferred from a failed read — which the base's row already
+#   carries. Twins — two scouts claiming the same day — are two rows, which
+#   is what `scout.md`'s twin check reads.
 #
 # Status is the one field read, lower-cased and blank-joined, so `Abandoned`
 # reads as the word it is; an unreadable one is `?`, which is in flight.
@@ -5524,10 +5525,10 @@ scout_walk() {
   # `unreadable`, never an empty answer. The pathspec variables a user may
   # export would turn the glob into a literal path, the same class as
   # `grep.patternType` (pass 6): pinned off for these calls.
-  listing="$(GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 git -C "$ROOT" grep \
+  listing="$(GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 git -C "$ROOT" -c core.quotePath=false grep \
     --color=never -l -E -e '' "${refs[@]}" -- 'docs/handover/scout-[0-9]*' \
     </dev/null 2>/dev/null)"; rc_l=$?
-  listing="${listing}"$'\n'"$(GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 git -C "$ROOT" grep \
+  listing="${listing}"$'\n'"$(GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 git -C "$ROOT" -c core.quotePath=false grep \
     --color=never -L -E -e '' "${refs[@]}" -- 'docs/handover/scout-[0-9]*' \
     </dev/null 2>/dev/null)"; rc_u=$?
   if [ "$rc_l" -gt 1 ] || [ "$rc_u" -gt 1 ]; then
@@ -5539,13 +5540,18 @@ scout_walk() {
     # A NON-base row whose file is byte-identical to the base's copy is the
     # base's file inherited, not this branch's: the base's own row (listed
     # last) carries it, so nothing hides, and every branch cut after it no
-    # longer prints a row of its own (scout-command review, pass 2). Absent
-    # on the base, rev-parse prints the second argument back as its own
-    # line, so the two lines differ and the row is kept.
+    # longer prints a row of its own (scout-command review, pass 2).
+    # Skipped only when BOTH sides RESOLVE and match: `rev-parse A B` stops
+    # at its first unresolvable argument and prints one line, so comparing
+    # its output read a failed read as "identical" and hid a live scout —
+    # a quoted path, or a ref pruned mid-read (pass 3, r17). Any failure
+    # keeps the row: fail closed.
     if [ "$r" != "refs/remotes/origin/${base_branch}" ]; then
-      blobs="$(git -C "$ROOT" rev-parse "${r}:${wf}" \
-        "refs/remotes/origin/${base_branch}:${wf}" </dev/null 2>/dev/null)"
-      [ "${blobs%%$'\n'*}" != "${blobs#*$'\n'}" ] || continue
+      blobs="$(git -C "$ROOT" rev-parse --verify -q "${r}:${wf}" </dev/null 2>/dev/null)"
+      if [ -n "$blobs" ] && [ "$blobs" = "$(git -C "$ROOT" rev-parse --verify -q \
+          "refs/remotes/origin/${base_branch}:${wf}" </dev/null 2>/dev/null)" ]; then
+        continue
+      fi
     fi
     # CR stripped first: a CRLF file must not read as no frontmatter at all.
     doc="$(git -C "$ROOT" show "${r}:${wf}" </dev/null 2>/dev/null | tr -d '\r')"

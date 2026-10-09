@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01JXryjCKHhwkN7Xrv1qXz55
 agent: opus
 updated: 2026-10-09
-next: Third verifier pass on r12-r16; then retire with the requirement and PR
+next: Fourth verifier pass on r17-r20; then retire with the requirement and PR
 ---
 
 ## Goal
@@ -56,10 +56,15 @@ Supervised session at the human's ask.
 - r10: (verifier) NOTHING TO PROPOSE pointed at the step that opens a pull request. (fixed — retire commit, push, no pull request)
 - r11: (verifier) start.md said only an orchestrator spawns a scout, then that a human runs one. (fixed — an orchestrator spawns one, a human may start one; a session never takes one itself)
 - r12: (verifier, pass 2) r1 still open: the twin check re-read refs it never fetched, so two scouts that both pushed before either re-read each saw only itself. (fixed — the twin check fetches every branch first: `git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'`)
-- r13: (verifier, pass 2) r1 still open: "the branch that sorts first keeps going" let a later scout win after the earlier had already gone on — a coin flip per pair. (fixed — the rule every scout can apply alone: ANY scout row besides your own = retire. One that goes on saw only itself after its push, so any later one's re-read sees it; both may retire, none goes on — closed. Accepted: a scout that finishes and retires before a twin's re-read leaves that twin alone — two proposals in one window, never two scouts at once)
+- r13: (verifier, pass 2) r1 still open: "the branch that sorts first keeps going" let a later scout win after the earlier had already gone on — a coin flip per pair. (fixed — the rule every scout can apply alone: ANY scout row besides your own = retire. One that goes on saw only itself after its push, so any later one's re-read sees it; both may retire, none goes on — closed. A scout that finishes before a twin re-reads: closed by r20)
 - r14: (verifier, pass 2) §4 says spawn the verifier, Never says spawn anything. (fixed — Never forbids spawning a SESSION; the review subagent is the one thing it starts)
 - r15: (verifier, pass 2) the per-branch row key printed a scout file that reached main once per unmerged branch — 4 rows for 3 plan branches. (fixed — a non-base row whose file is byte-identical to the base's copy is skipped; the base's own row still counts, so nothing hides; the r42 shape stays in flight; selftest case)
 - r16: (verifier, pass 2) the TWINS case pins the row key, not the twin check — both pushes come from one clone. (no change — the fetch and the any-other-row rule are the role's instructions, which no selftest executes; recorded so nobody reads the case as more)
+- r17: (verifier, pass 3) the identical-to-base skip read ANY failed `rev-parse` as identical — it stops at its first unresolvable argument and prints one line — so a path git grep quotes (non-ASCII) or a ref pruned mid-read hid a live scout: fail open. (fixed — skip only when BOTH sides resolve with `--verify` and match; grep runs with `core.quotePath=false`; the non-ASCII case fails against 903c638's code — it pins the two fixes TOGETHER, each alone keeps the row; the pruned-ref race `--verify` also covers is reasoned, not reproduced here)
+- r18: (verifier, pass 3) the walk's header still said nothing is skipped as inherited. (fixed)
+- r19: (verifier, pass 3) a failed fetch left stale refs, and two twins both failing would both go on. (fixed — fetch exits non-zero = retire)
+- r20: (verifier, pass 3) step 3 left zero rows, `UNREADABLE` or `off` unhandled. (fixed — anything but exactly your own row, with the clock still due, = retire. The clock check also closes r13's accepted gap: a twin that finished first has dated the window, so the re-read's clock reads not due)
+- r21: (verifier, pass 3) both twins deferring burns a window, and the not-due line then speaks of a proposal that never existed. (no change — the closed failure's stated price; the window is the human's knob)
 
 ## Blockers
 

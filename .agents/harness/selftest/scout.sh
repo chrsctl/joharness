@@ -196,6 +196,18 @@ expect "and a user's grep.patternType does not hide it" \
   "scout-stub  scout-2026-02-06  ?" "$out"
 git -C "$scout_work" push -q origin --delete scout-stub
 git -C "$scout_work" branch -q -D scout-stub
+# A NON-ASCII scout file name: git grep quotes it by default, the quoted
+# path failed every read, and the identical-to-base skip took the failure
+# for "identical" — a live scout hidden (pass 3, r17).
+git -C "$scout_work" checkout -qb scout-u main
+mkdir -p "${scout_work}/docs/handover"
+printf -- '---\nstatus: in-progress\n---\n' >"${scout_work}/docs/handover/scout-2026-02-08-é.md"
+scommit "a scout file with a non-ASCII name" '2026-02-08T00:00:00Z'
+git -C "$scout_work" push -qu origin scout-u
+git -C "$scout_work" checkout -q main
+expect "a non-ASCII scout file name is in flight" "scout-u  " "$(sct)"
+git -C "$scout_work" push -q origin --delete scout-u
+git -C "$scout_work" branch -q -D scout-u
 # An EMPTY scout file: listed only by `-L`, so this is the case that keeps
 # the second listing honest (pass 6).
 git -C "$scout_work" checkout -qb scout-empty main

@@ -67,15 +67,19 @@ pass step 0 together. Now that your claim is pushed:
 
 1. `git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'` —
    every branch, whatever this clone's refspec; a push updates only your
-   own tracking ref, and the check below reads the others.
+   own tracking ref, and the check below reads the others. The fetch
+   FAILED (non-zero exit) = retire: on stale refs you cannot see a twin.
 2. `./joharness.sh scout`.
-3. Your own row the only `IN FLIGHT` row = carry on. ANY other scout row =
-   retire (delete your file, commit, push), report `TWIN: deferred`, and
-   exit with no pull request — whoever the other is, and even if it might
-   defer too. Both may retire and neither go on: that is the closed
-   failure, and the next window spawns again. Two going on is the one
-   outcome this step exists to prevent, and a rule each scout applies
-   alone is the only kind that holds without the other's answer.
+3. Carry on ONLY when it shows exactly one `IN FLIGHT` row, yours, AND its
+   clock still reads `due`. Anything else = retire (delete your file,
+   commit, push), report `TWIN: deferred`, and exit with no pull request:
+   another scout's row, whoever it is and even if it might defer too; no
+   row of yours; `UNREADABLE` or `off`; a clock reading `not-due` — a
+   scout finished and dated this window while you were starting. Both
+   twins may retire and neither go on: that is the closed failure, and
+   the next window spawns again. Two going on is the one outcome this step
+   exists to prevent, and a rule each scout applies alone is the only kind
+   that holds without the other's answer.
 
 ## 2. Read
 
