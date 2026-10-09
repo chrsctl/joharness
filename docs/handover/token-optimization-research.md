@@ -32,6 +32,6 @@ shape — node `docs/research/token-optimization-techniques.md`.
 
 ## Review
 
-- Format table numbers wrong model and values (verifier) (fixed)
-- 2.5%/0.4% arithmetic wrong, is 3.8%/0.7% (verifier) (fixed)
-- customer_id tokenizer, tiktoken overreach, tool-schema source, Compel single query (verifier) (fixed)
+- r1: Format table numbers wrong model and values (verifier) (fixed)
+- r1: 2.5%/0.4% arithmetic wrong, is 3.8%/0.7% (verifier) (fixed)
+- r1: customer_id tokenizer, tiktoken overreach, tool-schema source, Compel single query (verifier) (fixed)
