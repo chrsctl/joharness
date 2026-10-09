@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01VNm5NhCjAM1wS1zpdAEnSN
 agent: opus
 updated: 2026-10-09
-next: Ask human whether to graduate into caveman.md and open PR
+next: Graduate research into caveman.md if human agrees, then PR carrying both plans
 ---
 
 ## Goal
@@ -23,6 +23,15 @@ shape — node `docs/research/token-optimization-techniques.md`.
   harness pays. Prose compression already a rule (caveman.md); bill is
   context re-reads (agent-selection.md Cost levers).
 - Graduation target caveman.md: negative result, "checked, not adopted".
+- Follow-up ask "anything to optimize in existing harness files": yes,
+  measured. Filed two plans, not built (nothing builds unplanned):
+  `role-command-trim` (orchestrate.md 8,340 words, manage.md 1,950, plus
+  `context` counting role files) and `agents-chain-dedupe` (duplicates
+  across root and harness AGENTS.md). Each `needs:` the queued plans that
+  edit the same files first.
+- Hooks checked and left alone: pretool-feedback injects once per file per
+  session (second run on joharness.sh printed nothing), bash guard silent
+  unless deny.
 
 ## Rejected
 
