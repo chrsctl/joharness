@@ -99,7 +99,9 @@ retires.
   deleted then, on the same decision as the bullet above). What still stops
   a fleet inventing its own work is the edge rule below: nothing is
   invented at DRAINED, and work enters only as an issue, a requirement or a
-  plan through a pull request.
+  plan through a pull request. One session writes such a pull request with no
+  node behind it — a scout's proposal — and it enters the queue only through a
+  human's merge or a human's conf line (`orchestrated.md`, Bounds).
 
 ## Authority: the prompt routes, the repository authorises
 

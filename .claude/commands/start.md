@@ -16,3 +16,8 @@ the whole answer.
 The routed file owns its own preconditions, `authority` among them. Do
 not run them here, and do not summarise the file you are about to read:
 read it.
+
+A `scout :` block in `drain`'s output is never this session's item, in any
+mode: only an orchestrator sees every claim in flight, so only it spawns a
+scout. Supervised, name it to the human when you ask; `/scout` is theirs to
+run. Unsupervised, exit as `drain` says.

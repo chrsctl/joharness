@@ -476,6 +476,24 @@ Up to `slots`, in dispatch's order, only rows under `spawn`:
   does not own — that is the role's whole point and its bound is proof of
   death, not push age — so a janitor that reports releasing a claim whose
   session you can still see RUNNING is a finding for the human, not a retry.
+- Tail line `scout DUE` = ONE scout, tier fable, and ONLY when ALL hold: the
+  verdict is `DRAINED — nothing free, nothing in flight` (dispatch prints the
+  tail line under no other), the `scout :` header block says none is in
+  flight, and your ledger has no `scouted=` for this run. Unlike curate and
+  janitor it is NOT orthogonal to the verdict: a scout proposes new work,
+  which competes with real work. A `scout due, held` or `suppressed` line
+  spawns nothing. The ledger key is not optional: between the spawn and the
+  scout's first push, `dispatch` still prints `scout DUE` — the git view
+  cannot see a session that has not pushed — so `scouted=` is the ONLY
+  thing stopping a second spawn on the next pass. It holds no slot (beyond
+  the cap, the human's money — report it). `create_session` as below with
+  `title` = `scout: <UTC date>`, `model` = the Lineup's fable, and `prompt`
+  = `/scout` plus the same three lines every manager gets. Ledger
+  `scouted=<stamp>`; the health rows read its branch (`workstream:
+  scout-<stamp>`, `plan: none`) like any manager's. `NOTHING TO PROPOSE`
+  is success, not a stall. Its proposal pull request, open or closed, is
+  the human's: never nudge, respawn or report a scout that is waiting on
+  one.
 - Verdict `OVERLAP-BOUND` = ONE surveyor, tier sonnet, and ONLY when
   the `rescope :` block says `in flight: none` AND your ledger has no
   `rescoped=<key>` for this key. Slots are idle only because held plans'
@@ -561,7 +579,7 @@ entry being a pass old. It is also what the next pass counts into step 1's
 
 ```
 /orchestrate pass
-ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] respawns=<n> [reported=<stem>] [rescoped=<key>] [curated=<stamp>] [analysed=<stem>:<condition>] [swept=<stamp>]; ...
+ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] respawns=<n> [reported=<stem>] [rescoped=<key>] [curated=<stamp>] [analysed=<stem>:<condition>] [swept=<stamp>] [scouted=<stamp>]; ...
 lead <stem>: <40 chars, to the end of this line>
 ```
 
@@ -689,6 +707,9 @@ putting it here is for.
 - Spawn a second janitor in one run, or one while a janitor branch is in
   flight. One per run; the cycle is dated from git, so a missed pass costs
   nothing and a doubled one has two sessions writing the same release.
+- Spawn a second scout in one run, one while a scout branch is in flight,
+  or one on any verdict but `DRAINED — nothing free, nothing in flight`.
+  The ledger's `scouted=` is the only guard before the scout's first push.
 - Spawn a second curator in one run, or one while a curate branch is in
   flight. One per run; the cycle is dated from git, so a missed pass costs
   nothing and a doubled one costs money.
