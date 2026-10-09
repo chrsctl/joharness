@@ -314,58 +314,50 @@ mode_source() {
 }
 
 # ---------------------------------------------------------------------------
-# The unsupervised boundary
+# The core boundary
 # ---------------------------------------------------------------------------
 #
-# The RULE is a role, stated in .agents/docs/unsupervised.md (Bounds):
-# protocol text governing a session is off limits to that session while it
-# runs unattended. A session may not rewrite the rules it is being judged by.
+# The RULE: a session running unattended may not edit the CORE paths — the
+# files that decide money, permissions and the merge gate. Everything else,
+# protocol text included, it edits and self-merges like any other diff
+# (.agents/docs/unsupervised.md, Bounds).
 #
-# This is that rule's mechanical expression, and the two are not the same
-# thing. Issue #114 is what a path-shaped rule costs: the boundary named
-# `.agents/harness/` alone, `.claude/agents/verifier.md` became mandatory
-# Loop step 5 protocol outside it, and nothing detected an edit to the one
-# reader the merge gate leans on.
+# Narrowed on the requester's decision of 2026-10-08: "remove most
+# restrictions; joharness should be able to use its own framework". Until
+# then this list held every protocol tree (.agents/harness, .claude/agents,
+# .claude/commands, .claude/skills, joharness.sh), and on the canonical that
+# marked every queued plan SUPERVISED ONLY — `dispatch` read 9 of 9 plans
+# NOT YOURS at 25733a6, so the fleet could not build the harness it runs on.
 #
-# One list, here, read by the session-start banner and by
+# One list, here, read by the session-start banner, the queue hook and
 # .agents/harness/handover-guard.sh. A second copy is the copy that rots.
 #
-# Every .claude/ tree the sync ships is here, and that follows from the
-# role rather than from taste: a command writes the workstream file, a skill
-# carries a workflow the Loop names, an agent is the reader the merge gate
-# leans on. Each is a rule a session is judged by.
+#   joharness.conf        the mode line `authority` verifies and the
+#                         orchestrator's cap. A session that may rewrite its
+#                         own mode line authorises itself; one that may raise
+#                         its own cap decides money.
+#   .claude/settings.json hooks and permissions. It wires the Stop hook that
+#                         runs the guard at all, and grants what a session
+#                         may run without asking.
+#   .github               the workflow DEFINITIONS step 7 requires green, and
+#                         CODEOWNERS below. Not the checks' content: ci.yml
+#                         runs `./joharness.sh ci` from the PR head, and that
+#                         file is a session's to edit.
 #
-# Two entries are not trees, and both are here because a boundary that does
-# not cover its own machinery is decoration:
-#   joharness.sh          holds THIS list, plus ci, finish, review and mode.
-#                         Left out, a session edits the list and every other
-#                         entry stops meaning anything. The old hardcoded
-#                         boundary lived inside .agents/harness/ and was
-#                         self-protecting by accident; naming it is how that
-#                         property survives being moved out.
-#   .claude/settings.json wires the Stop hook that runs the guard at all.
-#                         Delete the Stop block and nothing fires — not
-#                         because the boundary passed, but because nothing
-#                         is running to fire.
-#   joharness.conf        holds the mode line `authority` verifies and the
-#                         orchestrator's cap. A session that may rewrite
-#                         its own mode line authorises itself; one that
-#                         may raise its own cap decides money. Added
-#                         2026-09-05, when a plan scoped to this file
-#                         (flip the mode, set the knobs) read as free work
-#                         for the fleet it would have flipped.
-#
-# NOT here, deliberately:
-#   .agents/env/    sandbox configuration, not protocol. A layer does not
-#                   govern behavior, and sweeping it in stops the mode
-#                   provisioning anything.
-#   .agents/docs/   the reasoning BEHIND rules rather than the rules a
-#                   session executes. Defensible to include, wider blast
-#                   radius, and not a decision to make silently.
+# NOT here, deliberately: joharness.sh, which holds THIS list, `ci`, and the
+# guard's hook script under .agents/harness. A session may edit all of them,
+# so this list is an early warning and never the guarantee, and a session can
+# weaken `ci` or the Stop guard without touching a core path. That is the
+# price of the requester's decision, priced and accepted (verifier r2): owning
+# joharness.sh would put every harness pull request back on a human. What
+# the core paths still guarantee — on the canonical, where .github/CODEOWNERS
+# lives (it does not ship to consumers) and once branch protection requires
+# code-owner review — is that money, permissions and the workflow
+# definitions change only with the human. A session that deletes an entry
+# here still cannot merge a change to the entry's file. Also not here: .agents/env/ (sandbox
+# configuration) and .agents/docs/ (the reasoning behind rules).
 protocol_paths() {
-  printf '%s\n' \
-    .agents/harness .claude/agents .claude/commands .claude/skills \
-    joharness.sh .claude/settings.json joharness.conf
+  printf '%s\n' joharness.conf .claude/settings.json .github
 }
 
 # Resolved autonomy mode. TWO strings mean a session runs unattended —
@@ -383,8 +375,8 @@ run_mode() {
   esac
 }
 
-# The ONE predicate every unattended bound reads: the protocol boundary, the
-# requirement lint, the SUPERVISED ONLY marking, the banner. Both unattended
+# The ONE predicate every unattended bound reads: the core boundary, the
+# SUPERVISED ONLY marking, the banner. Both unattended
 # modes are bound identically; they differ only in who dispatches — each
 # session for itself (unsupervised) or an orchestrator (orchestrated). A
 # second `= unsupervised` test somewhere is a bound the new mode escapes.
@@ -721,9 +713,6 @@ cmd_ci() {
   # stops telling them apart.
   printf '\n== finding verdicts\n'
   lint_finding_markers || rc=1
-
-  printf '\n== requirement authorship\n'
-  lint_requirement_writes || rc=1
 
   printf '\n== ship scope\n'
   lint_ship
@@ -3152,75 +3141,6 @@ lint_review_bullets() {
 # Vocabulary is `fb_marker`'s, not a new one — wontfix, no change, (fixed.
 # A second spelling of the same verdict is how two counts drift apart.
 # `(recorded` stays out of it; `fb_marker`'s own comment says why.
-# The goal is the human's to set. An unsupervised session that writes itself
-# a requirement writes its own finish line, and a fleet with a finish line it
-# authored has none — the circularity the goal bound closes
-# (.agents/docs/unsupervised.md, Bounds).
-#
-# Nothing enforced it. `protocol_paths` covers protocol TEXT and
-# `docs/product/` is not in it, correctly: a requirement is product, not
-# protocol, and the boundary's own Constraint says the rule is the role.
-# So this is a different guard with a different reason, not a widening of
-# that list.
-#
-# In `ci` rather than in handover-guard.sh, and the asymmetry is deliberate.
-# The guard reports facts at turn end and does not prevent — its documented
-# shape, and the Constraint keeps it that way. But a report does not stop a
-# merge, and a self-written goal reaching the base branch is where the damage
-# lands. Step 7 requires green checks, so `ci` is the gate that actually
-# holds. (Protocol text itself is still only reported, which is a gap this
-# diff does not close — it is out of this plan's scope and named in its
-# record.)
-#
-# ADDED, not edited. PR 163 annotated a `Satisfied when` bullet with a
-# measured result while unsupervised, and that is the mode reporting its own
-# results — useful, and a guard that caught it would stop exactly the
-# feedback the requirement asks for. Adding a NEW goal is the circularity.
-lint_requirement_writes() {
-  local over="origin/${HANDOVER_BASE_BRANCH:-main}" base added n
-  unattended || {
-    printf '  supervised — a requirement is a human'"'"'s to write, and this is
-'
-    printf '  the mode where a human is there to write it
-'
-    return 0
-  }
-  base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
-  if [ -z "$base" ]; then
-    printf '  not measurable here (no merge-base with %s; unrelated history)
-' "$over"
-    return 0
-  fi
-  # The DIFF from the COMMITS, and only additions. Same walk the finding
-  # stages use, for the same reason: a branch inherits every file its base
-  # carries, and the endpoint diff loses a file added and later removed.
-  added="$(git -C "$ROOT" log --format= --name-only --diff-filter=A \
-    "${base}..HEAD" -- docs/product 2>/dev/null | sort -u |
-    { grep -E '\.md$' || :; } |
-    { grep -vE '/(TEMPLATE|README|VISION)\.md$' || :; })"
-  n="$(printf '%s' "$added" | grep -c . || :)"
-  case "$n" in ''|*[!0-9]*) n=0 ;; esac
-  if [ "$n" -eq 0 ]; then
-    printf '  no requirement added on this branch
-'
-    return 0
-  fi
-  printf '%s
-' "$added" | sed 's/^/  /'
-  printf '
-  %d requirement(s) ADDED by an unattended branch. The goal is
-' "$n"
-  printf '  the human'"'"'s to set: a fleet that writes its own finish line has
-'
-  printf '  none (.agents/docs/unsupervised.md, Bounds).
-'
-  printf '  Editing one is fine — annotating a Satisfied when bullet with a
-'
-  printf '  measured result is the mode reporting its own results.
-'
-  return 1
-}
-
 lint_finding_markers() {
   local over="origin/${HANDOVER_BASE_BRANCH:-main}" base ws content text
   local unmarked=0 seen=0 here strength short
@@ -7406,7 +7326,7 @@ cmd_drain() {
   if unattended && [ -n "$sup" ]; then
     printf 'NOT YOURS — the queue holds plan(s) marked SUPERVISED ONLY:\n'
     printf '%s\n' "$sup"
-    printf '  Scope holds protocol text, which a session running\n'
+    printf '  Scope holds a core path, which a session running\n'
     printf '  unattended may not commit (.agents/docs/unsupervised.md,\n'
     printf '  Bounds). Leave them for a supervised session, and do NOT\n'
     printf '  re-file the same work as a new plan.\n\n'
@@ -8233,8 +8153,8 @@ dispatch_curate_branches() {
 # technical one: REPAIR and DECLUTTER the curator acts on, PROPOSE it only
 # writes down. Ordering by priority is product direction and `urgency:` is
 # never the curator's (.agents/harness/AGENTS.md, Decide alone); splitting a
-# plan MULTIPLIES the queue, which is the circularity the requirement ban
-# exists to stop (.agents/docs/unsupervised.md, Bounds).
+# plan MULTIPLIES the queue, which is the circularity the no-inventing edge
+# exists to stop (.agents/docs/unsupervised.md, The one stop).
 
 # Normalized `scope:` entries of a plan, one per line: comma to newline,
 # surrounding blanks and trailing slashes gone, `none` dropped, and the
@@ -9170,7 +9090,7 @@ cmd_dispatch() {
 
   sup="$(drain_supervised_only "$qout")"
   if [ -n "$sup" ]; then
-    printf '\nNOT YOURS — SUPERVISED ONLY (scope holds protocol text; never spawn\n'
+    printf '\nNOT YOURS — SUPERVISED ONLY (scope holds a core path; never spawn\n'
     printf 'a manager on these, never re-file them):\n%s\n' "$sup"
   fi
 
@@ -9730,8 +9650,9 @@ cmd_session_start() {
     printf 'printed here. Orchestrator: dispatch is the whole read — open no\n'
     printf 'plan, requirement or other branch. Manager: your item, this\n'
     printf 'branch'"'"'s workstream file, the item'"'"'s own anchors.\n'
-    printf 'NEVER edit the protocol that governs you — protocol edits stay\n'
-    printf 'supervised (.agents/docs/unsupervised.md, Bounds). Here:\n'
+    printf 'Protocol text is yours to edit and merge. NEVER edit the core\n'
+    printf 'paths — money, permissions, the merge gate; a human changes them\n'
+    printf '(.agents/docs/unsupervised.md, Bounds):\n'
     while IFS= read -r t; do
       [ -n "$t" ] && printf '  %s\n' "$t"
     done < <(protocol_paths)
@@ -9740,9 +9661,9 @@ cmd_session_start() {
     printf '== Mode: unsupervised ==\n\n'
     printf 'The queue is the whole of the work. ./joharness.sh drain names the\n'
     printf 'item: take it, run the full Loop, merge your own pull request, and\n'
-    printf 'at DRAINED exit — the heartbeat re-seeds. NEVER edit the\n'
-    printf 'protocol that governs you — protocol edits stay supervised\n'
-    printf '(.agents/docs/unsupervised.md, Bounds). Here:\n'
+    printf 'at DRAINED exit — the heartbeat re-seeds. NEVER edit the core\n'
+    printf 'paths — money, permissions, the merge gate; a human changes them\n'
+    printf '(.agents/docs/unsupervised.md, Bounds):\n'
     # Derived, never restated. A banner naming its own list is the second
     # copy, and the boundary is exactly what must not disagree with itself.
     while IFS= read -r t; do

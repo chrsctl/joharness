@@ -28,17 +28,17 @@ out of the same tree. That is a claim about one tree — removing the mode's
 machinery changes supervised output like any other edit.
 
 Every row below describes UNSUPERVISED. Orchestrated shares the boundary,
-the merge gate, the requirement ban and the no-inventing edge — the Bounds
+the merge gate and the no-inventing edge — the Bounds
 below, which is what "unattended" means here — and differs in every row of
 this table; `orchestrated.md` has its own.
 
 | Where | Change |
 | --- | --- |
-| `session-start` banner | Says the mode, lists the protocol boundary, and says the queue is the whole of the work: `drain` names the item, take it, merge your own pull request, at DRAINED exit. |
-| Queue hook | Marks a plan with ANY protocol path in `scope:` `SUPERVISED ONLY` — the label says whether that is the whole scope or part of it — and ranks it out of the free list. Everything else it prints is the same report. |
+| `session-start` banner | Says the mode, lists the core boundary, and says the queue is the whole of the work: `drain` names the item, take it, merge your own pull request, at DRAINED exit. |
+| Queue hook | Marks a plan with ANY core path (`./joharness.sh protocol-paths`) in `scope:` `SUPERVISED ONLY` — the label says whether that is the whole scope or part of it — and ranks it out of the free list. Everything else it prints is the same report. |
 | `./joharness.sh drain` | The same verdict as supervised, with the mode's lines around it: under `next:`, the edge-first line when edge work is in flight, then a spawn line naming every other free plan with its tier (claim by push, detect at merge — a collision is the reconcile step 7 already requires); before DRAINED, the NOT YOURS block naming the marked plans; under DRAINED, exit — the heartbeat re-seeds, nothing is invented. |
-| `ci` | One extra gate: no requirement added on the branch. |
-| Stop guard | Names protocol-text edits on the branch. Detection, not prevention. |
+| `ci` | Nothing extra since 2026-10-08 (the requirement gate was deleted; Bounds). |
+| Stop guard | Names core-path edits on the branch. Detection, not prevention. |
 
 Hooks report; `drain` orders. Two readers printing two rules was how the
 same tree got two answers (PR 170, PR 187, PR 190 each fixed one side).
@@ -56,33 +56,50 @@ a finding, not a stop.
 
 ## Bounds
 
-Three rules the mode does not relax. They outlive any spec that asked for
+The rules the mode does not relax, and one it no longer has. They outlive any spec that asked for
 the mode, which is why they are here rather than in a requirement that
 retires.
 
-- **Protocol text is off limits to a session running unattended**, wherever
-  it lives. The rule is the role; `joharness.sh:protocol_paths` is its
-  mechanical expression, read by the banner, the Stop guard and the queue
-  hook. The consequence — a plan with any protocol path in `scope:` is
-  marked and de-ranked — is the queue-hook row in the table above; the
-  reason it marks on ANY is here: the guard counts any such path in the
-  diff and acceptance is all-or-nothing, so a partly-protocol plan cannot
-  be finished either. Measured in this repo: attempt two spent 55 minutes
+- **The core paths are off limits to a session running unattended**:
+  `joharness.conf` (mode line, cap — money), `.claude/settings.json` (hooks,
+  permissions) and `.github` (the merge gate's checks, and CODEOWNERS).
+  Protocol text is NOT: since the requester's decision of 2026-10-08 ("remove
+  most restrictions; joharness should be able to use its own framework") a
+  session edits and self-merges `joharness.sh`, `.agents/harness/` and
+  `.claude/` like any other diff, under the step 7 gate. Before that the
+  bound covered every protocol tree, and on the canonical it marked 9 of 9
+  queued plans `NOT YOURS` (`dispatch` at 25733a6) — the fleet could not
+  build the harness it runs on. `joharness.sh:protocol_paths` is the list,
+  read by the banner, the Stop guard and the queue hook. It lives in a file
+  a session may now edit, so it is the early warning, not the guarantee:
+  `.github/CODEOWNERS` owns the core paths, and a branch-protection rule
+  requiring code-owner review is what stops a merge touching them. That rule
+  is a repository setting, the human's to switch on. It protects the
+  workflow definitions, not the checks' content: `ci.yml` runs
+  `./joharness.sh ci` from the PR head, and a session may edit that file —
+  accepted with the release (verifier r2). The consequence — a plan with any
+  core path in `scope:` is marked and de-ranked — is the queue-hook row in
+  the table above; the reason it marks on ANY is here: the guard counts any
+  such path in the diff and acceptance is all-or-nothing, so a partly-core
+  plan cannot be finished either. The measurements below were taken under
+  the old, wider boundary. Measured in this repo: attempt two spent 55 minutes
   on the all-protocol shape, and the partly-protocol one was found on
   2026-09-02 (canonical `main` f9fb932) with `drain` answering `next:` on a
   plan whose own Traps said supervised session only. Sandbox configuration
   (`.agents/env/`) is not
-  protocol. The list covers its own machinery: `joharness.sh` and
-  `.claude/settings.json` — and, since orchestrated mode, `joharness.conf`,
-  which holds the mode line `authority` verifies and the orchestrator's
-  cap (`orchestrated.md`, Bounds).
+  core. The list does NOT cover its own file: `joharness.sh` is a
+  session's to edit, which is why the list is the warning and CODEOWNERS
+  the guarantee. `joharness.conf` has been core since orchestrated mode:
+  it holds the mode line `authority` verifies and the orchestrator's cap
+  (`orchestrated.md`, Bounds).
 - **Merging uses the step 7 conditions unchanged.** The mode removes the
   human, never the gate.
-- **No unsupervised session writes a requirement**, and `ci` reds the
-  branch that does (`joharness.sh:lint_requirement_writes`). The queue is
-  the human's to fill, and a fleet that writes its own work has no edge to
-  stop at. Editing one is fine — annotating it with a measured result is
-  the mode reporting its own results; ADDING one is the circularity.
+- **Writing a requirement is no longer a bound.** Until 2026-10-08 `ci`
+  redded an unattended branch that added one (`lint_requirement_writes`,
+  deleted then, on the same decision as the bullet above). What still stops
+  a fleet inventing its own work is the edge rule below: nothing is
+  invented at DRAINED, and work enters only as an issue, a requirement or a
+  plan through a pull request.
 
 ## Authority: the prompt routes, the repository authorises
 
@@ -109,7 +126,7 @@ the prompt until a session stops refusing is not the remedy.
 | --- | --- | --- | --- |
 | fan-out | 2026-08-30 | 53m | bounded work ran out; two sessions, two merges, one reconcile |
 | attempt one | 2026-08-31 | 48s | no repository attached; both sessions asked a human |
-| attempt two | 2026-08-31 | 57m | the only free plan was protocol text; the session reverted its own work (now marked `SUPERVISED ONLY`, never offered) |
+| attempt two | 2026-08-31 | 57m | the only free plan was protocol text; the session reverted its own work (marked `SUPERVISED ONLY` from then until 2026-10-08, when protocol text was released) |
 | attempt four | 2026-09-02 | 60m | one generation: three pull requests merged, two plans generated from the sweep, then each session declared itself done and nothing spawned the next. Both generated plans were `SUPERVISED ONLY` and both sessions claimed and edited them anyway — the marking was printed, never read at claim time; one crossing reached `origin` before its revert (PR 195) |
 
 Every run measured how long ONE generation lasts. The bullet asks for hours,

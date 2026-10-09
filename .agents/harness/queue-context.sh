@@ -15,8 +15,8 @@
 #                       names it. Blocked and claimed list but never lead.
 #                       Unattended only (unsupervised, orchestrated), two
 #                       more: `SUPERVISED ONLY`
-#                       when ANY path in `scope:` is protocol text, which
-#                       that mode may not commit — listed, never leading,
+#                       when ANY path in `scope:` is a core path
+#                       (protocol-paths), which that mode may not commit — listed, never leading,
 #                       the label saying whether that is the whole scope or
 #                       part of it — and `scope undeclared` when there is
 #                       nothing to check, which is not the same as nothing
@@ -285,10 +285,10 @@ elif [ "$qc_mode" = "orchestrated" ]; then
   trap 'printf "\nORCHESTRATED: this hook reports; a manager works the item its prompt\nnames, the orchestrator reads ./joharness.sh dispatch and spawns.\n"' EXIT
 fi
 
-# The unsupervised boundary, as the queue sees it: protocol text is off
+# The unattended boundary, as the queue sees it: the core paths are off
 # limits to a session running unattended (.agents/docs/unsupervised.md,
-# Constraints), so a plan whose declared scope holds protocol text AT ALL is
-# a plan that fleet can never finish — see the class list below for why any
+# Bounds), so a plan whose declared scope holds a core path AT ALL is a plan
+# that fleet can never finish. Protocol text is not core since 2026-10-08 — see the class list below for why any
 # rather than all.
 #
 # Measured, 2026-08-31: the endurance retry spent 55 minutes and $12.05 on
@@ -337,11 +337,11 @@ qc_boundary=1
 #            (.agents/docs/unsupervised.md, Bounds). The first rule drew the
 #            line at can-it-be-started; this one draws it at
 #            can-it-be-finished
-#   clear    a declaration, and no path in it is protocol text. Free work
+#   clear    a declaration, and no path in it is a core path. Free work
 #            in either mode
 #   unknown  nothing declared. NOT "safe": absent is not empty, the rule this
 #            repo keeps relearning, and a plan whose scope nobody wrote could
-#            be entirely protocol text
+#            be entirely core paths
 #
 # Sets a global instead of printing one. A `$(qc_scope_class ...)` per plan is
 # a subshell per plan, which is the same fork-in-a-loop the array above
@@ -350,11 +350,11 @@ qc_boundary=1
 #
 # Comparison is git's pathspec rule, matching how handover-guard.sh compares
 # this same list against a diff: EQUAL, or under it at a slash boundary.
-# Prefix alone would read `joharness.shX` as protocol text and let a
+# Prefix alone would read `joharness.confX` as a core path and let a
 # near-miss decide a dispatch.
 #
-# `shared:` paths count. A plan declaring only `shared: joharness.sh` is
-# still a plan whose whole scope is protocol text — that prefix says how a
+# `shared:` paths count. A plan declaring only `shared: joharness.conf` is
+# still a plan whose whole scope is a core path — that prefix says how a
 # path is shared with other plans, not what kind of file it is. It is
 # stripped per entry, case-blind, with or without the space after the colon.
 qc_scope_class() {
@@ -516,9 +516,9 @@ rows_raw="$(
       # boundary. One string for both would erase that at the only place a
       # reader sees it.
       case "$qc_class" in
-        only)    scope_note=", SUPERVISED ONLY: scope is all protocol text"
+        only)    scope_note=", SUPERVISED ONLY: scope is all core paths"
                  scope_derank=1 ;;
-        some)    scope_note=", SUPERVISED ONLY: scope includes protocol text"
+        some)    scope_note=", SUPERVISED ONLY: scope includes a core path"
                  scope_derank=1 ;;
         unknown) scope_note=", scope undeclared: protocol boundary unchecked" ;;
       esac
@@ -732,8 +732,8 @@ fi
 if [ "$qc_unattended" -eq 1 ] && [ "$qc_boundary" -eq 0 ]; then
   printf '\nProtocol boundary NOT read (./joharness.sh protocol-paths listed\n'
   printf 'nothing here), so no plan below is marked SUPERVISED ONLY. That is\n'
-  printf 'this checkout, not the plans: a plan whose scope holds protocol\n'
-  printf 'text at all is one this mode cannot finish, and nothing checked.\n'
+  printf 'this checkout, not the plans: a plan whose scope holds a core\n'
+  printf 'path at all is one this mode cannot finish, and nothing checked.\n'
 fi
 
 # Display truncates; the free count below does not — a fan-out instruction

@@ -929,44 +929,57 @@ fi
 git -C "$rwork" checkout -q main
 
 # --- requirement authorship ------------------------------------------------
-# The goal is the human's to set. An unsupervised session that writes itself a
-# requirement writes its own finish line, and a fleet with a finish line it
-# authored has none — a fleet writing its own work has no edge. Nothing enforced
-# it: protocol_paths covers protocol TEXT and docs/product/ is not in it,
-# correctly, because a requirement is product rather than protocol.
-ci_req() { jr ci | awk '/^== requirement authorship/ { f = 1; next } f && /^== / { exit } f'; }
+# Requirements may be written in EVERY mode (requester decision 2026-10-08).
+# The `== requirement authorship` ci stage that redded an unattended branch
+# for adding one is gone, with the boundary narrowed to core paths
+# (joharness.sh:protocol_paths) — docs/product/ never was one. These cases
+# pin the absence: the stage coming back, its old wording coming back under
+# another header, or the red coming back without either, fails here.
+# Whole ci output, not one stage's slice: the stage NOT existing is the claim.
+ci_out() { jr ci 2>&1 || true; }
 
 git -C "$rwork" checkout -q main
 git -C "$rwork" checkout -qb reqwrite main
 mkdir -p "${rwork}/docs/product"
-printf -- '---\nrequirement: selfwritten\npriority: normal\n---\n\n## Goal\nA goal nobody set.\n\n## Satisfied when\n\n- something observable.\n' \
+printf -- '---\nrequirement: selfwritten\npriority: normal\n---\n\n## Goal\nA goal a session set.\n\n## Satisfied when\n\n- something observable.\n' \
   >"${rwork}/docs/product/selfwritten.md"
 commit_all "$rwork" "a session writes itself a goal"
 
-# SUPERVISED: untouched. Writing requirements is what a human-attended session
-# does with a human, and a gate that fired here would stop the normal case.
-out="$(JOHARNESS_MODE=supervised ci_req)"
-expect "supervised says why it is not checking" "a human is there to write it" "$out"
+# SUPERVISED: green, as it always was — and no stage reporting on it either.
+out="$(JOHARNESS_MODE=supervised ci_out)"
+refute "supervised ci has no requirement authorship stage" \
+  "== requirement authorship" "$out"
 if JOHARNESS_MODE=supervised jr ci >/dev/null 2>&1; then
   pass "supervised ci is green with a requirement added"
 else
   fail "supervised ci is green with a requirement added"
 fi
 
-out="$(JOHARNESS_MODE=unsupervised ci_req)"
-expect "an added requirement is named" "docs/product/selfwritten.md" "$out"
-expect "and counted" "1 requirement(s) ADDED" "$out"
-expect "and says why it matters" "writes its own finish line" "$out"
+# UNSUPERVISED: the case that used to be red. Same three things the old
+# stage printed, each refuted, so a partial revival is caught too.
+out="$(JOHARNESS_MODE=unsupervised ci_out)"
+refute "unsupervised ci has no requirement authorship stage" \
+  "== requirement authorship" "$out"
+refute "nor counts the added requirement as a finding" \
+  "requirement(s) ADDED" "$out"
+refute "nor says it writes its own finish line" \
+  "writes its own finish line" "$out"
 if JOHARNESS_MODE=unsupervised jr ci >/dev/null 2>&1; then
-  fail "unsupervised ci is RED with a requirement added"
+  pass "unsupervised ci is green with a requirement added"
 else
-  pass "unsupervised ci is RED with a requirement added"
+  fail "unsupervised ci is green with a requirement added"
 fi
 
-# EDITING one is fine, and the distinction is load-bearing: PR 163 annotated a
-# Satisfied when bullet with a measured result while unsupervised, which is
-# the mode reporting its own results. A guard that caught that would stop
-# exactly the feedback the requirement asks for.
+# ORCHESTRATED: the other unattended mode. Both read one predicate
+# (joharness.sh:unattended); a red here and not above is a second copy.
+if JOHARNESS_MODE=orchestrated jr ci >/dev/null 2>&1; then
+  pass "orchestrated ci is green with a requirement added"
+else
+  fail "orchestrated ci is green with a requirement added"
+fi
+
+# EDITING one stays fine: PR 163 annotated a Satisfied when bullet with a
+# measured result while unsupervised — the mode reporting its own results.
 git -C "$rwork" checkout -q main
 mkdir -p "${rwork}/docs/product"
 printf -- '---\nrequirement: preexisting\npriority: normal\n---\n\n## Goal\nSet by a human.\n\n## Satisfied when\n\n- something observable.\n' \
@@ -977,22 +990,21 @@ git -C "$rwork" checkout -qb reqedit main
 printf -- '---\nrequirement: preexisting\npriority: normal\n---\n\n## Goal\nSet by a human.\n\n## Satisfied when\n\n- something observable. Measured 2026-08-31: it holds.\n' \
   >"${rwork}/docs/product/preexisting.md"
 commit_all "$rwork" "annotate the bullet with a measured result"
-out="$(JOHARNESS_MODE=unsupervised ci_req)"
-expect "editing a requirement is not writing one" "no requirement added" "$out"
 if JOHARNESS_MODE=unsupervised jr ci >/dev/null 2>&1; then
   pass "and unsupervised ci stays green for an edit"
 else
   fail "and unsupervised ci stays green for an edit"
 fi
 
-# A TEMPLATE is not a requirement — same exclusion the queue hook applies.
-# Two readers of "what counts as a requirement" that must agree.
+# A TEMPLATE beside them: green too. The queue hook still excludes it from
+# the requirement list; ci has no requirement reader left to disagree.
 git -C "$rwork" checkout -q main
 git -C "$rwork" checkout -qb reqtemplate main
 printf -- '---\nrequirement: TEMPLATE\n---\n\n## Goal\nShape only.\n' \
   >"${rwork}/docs/product/TEMPLATE.md"
 commit_all "$rwork" "add a requirement template"
-out="$(JOHARNESS_MODE=unsupervised ci_req)"
-expect "a TEMPLATE is not a requirement" "no requirement added" "$out"
+out="$(JOHARNESS_MODE=unsupervised ci_out)"
+refute "a TEMPLATE draws no requirement stage either" \
+  "== requirement authorship" "$out"
 
 git -C "$rwork" checkout -q main

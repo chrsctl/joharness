@@ -63,11 +63,11 @@ expect "and points at the Loop by file" ".agents/harness/AGENTS.md" "$out"
 # ABOVE `# Part 2 — project` and keeps the consumer's Part 2, so a line
 # pointing there is a line pointing at nothing in every consumer repo.
 expect "and at the boundary the mode keeps" \
-  "no commit to protocol text" "$out"
+  "no commit to a core path" "$out"
 refute "not the layer-coupling rule, which is a different boundary" \
   "names no environment" "$out"
 # The needle is the rule's own literal text, on one line of the file.
-if grep -q 'no commit to protocol text' "${ROOT}/.agents/harness/AGENTS.md"; then
+if grep -q 'no commit to a core path' "${ROOT}/.agents/harness/AGENTS.md"; then
   pass "and the file the hook points at really carries that rule"
 else
   fail "and the file the hook points at really carries that rule"

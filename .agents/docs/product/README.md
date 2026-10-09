@@ -74,10 +74,10 @@ Both rejections point at the rule they protect rather than restating it:
 - **No detector writes the requirement.** Lesson lets an alert or ticket
   originate one, product owner correcting it before commit. Here the human
   writes it ([`../unsupervised.md`](../unsupervised.md), Bounds). What holds
-  that is worth knowing: `ci` reds an unsupervised session that writes one,
-  and under supervised nothing gates it —
-  `joharness.sh:lint_requirement_writes` returns early. Convention there,
-  mechanism only unsupervised.
+  that is worth knowing: since 2026-10-08 nothing gates it in any mode —
+  the `ci` stage that redded an unattended author was deleted on the
+  requester's decision ([`../unsupervised.md`](../unsupervised.md), Bounds).
+  Convention, not mechanism.
 
 **What the walk measured about intake.** Kept because the node's probes die
 with it and these three are the reason the rejections above are not the whole
