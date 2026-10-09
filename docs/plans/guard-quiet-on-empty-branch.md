@@ -43,7 +43,7 @@ also passes the real case.
 
 ## Acceptance
 
-- `bash .agents/harness/selftest/handover-guard.sh` → 0 failed, new case
+- `bash .agents/harness/selftest.sh` → `0 failed`, and its `handover-guard` lines all pass. The topic files are "Not runnable alone" — never run one by itself
   included.
 - Revert the guard change. The new case must FAIL. Restore it.
 - `./joharness.sh ci` → `ci: pass`. `./joharness.sh verify` → `0 failed`.

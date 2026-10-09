@@ -31,9 +31,15 @@ human's money spent on a conclusion already on `main`.
   - Merged rescopes: add a helper `dispatch_rescope_merged`. It lists
     retire commits on `origin/<base>` that DELETE a
     `docs/handover/rescope-*.md` file:
-    `git log --diff-filter=D --name-only --format=%H origin/<base> -- docs/handover`.
-    Do NOT use `--first-parent`: the file was added and deleted on the
-    rescope's own branch, so only that branch's commits show the delete.
+    `git log --full-history -m --diff-filter=D --name-only --format=%H origin/<base> -- 'docs/handover/rescope-*'`.
+    `--full-history` is REQUIRED. The file was added and deleted on the
+    rescope's own branch, the merge commit is treesame for it, and git's
+    default history simplification drops that branch. Without the flag the
+    log finds nothing (verified 2026-10-09 on this repo: 0 hits; with it, 12
+    handover deletes including `rescope-held-plans.md`). `-m` catches a
+    retire made inside a merge commit. `joharness.sh:scout_retired_ts` and
+    `joharness.sh:cycle_landed_sha` already use this shape — copy it, with
+    its `GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0` prefix for the glob.
     For each, read the frontmatter at `<sha>^:<path>`. Identity is the
     in-flight scan's: `workstream: rescope-<key>`, `plan: none`. Keep only
     `status: done`. A `blocked` record is a human's, already reported, and
@@ -72,10 +78,10 @@ human's money spent on a conclusion already on `main`.
 
 ## Acceptance
 
-- `bash .agents/harness/selftest/dispatch.sh` → 0 failed, three fixtures included.
+- `bash .agents/harness/selftest.sh` → `0 failed`, and its `dispatch` lines all pass. The topic files are "Not runnable alone" — never run one by itself
 - Revert the `joharness.sh` change only. The first fixture FAILS (a spawn
   line prints). Restore it.
-- `bash .agents/harness/selftest/perf.sh` → passes.
+- `bash .agents/harness/selftest.sh` → `0 failed`, and its `perf` lines all pass. The topic files are "Not runnable alone" — never run one by itself
 - `./joharness.sh ci` → `ci: pass`. `./joharness.sh verify` → `0 failed`.
 - SHIPS: `joharness.sh` reaches consumers. The consumer check is
   `./joharness.sh dispatch` in a consumer after a surveyor merged `done`
@@ -88,6 +94,8 @@ human's money spent on a conclusion already on `main`.
   ignores the key and SETTLED does not).
 - `joharness.sh:dispatch_rescope_branches` — identity test and the stdin
   rule. Copy both.
+- `joharness.sh:scout_retired_ts` — the merged-retire log shape
+  (`--full-history -m --diff-filter=D`). Copy it.
 - `.claude/commands/orchestrate.md:## 3. Spawn` — the `OVERLAP-BOUND` bullet.
 
 ## Traps

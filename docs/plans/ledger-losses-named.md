@@ -33,7 +33,10 @@ it must not guess.
   `origin/main` (`git cat-file -e origin/main:<path>`). A merged manager
   left IDLE has no item file, so it is never rebuilt. Each stem kept is a
   spawned manager that may not have claimed. Add `<stem>@new` to the ledger
-  and say `rebuilt <stem>@new from its title` in the report. No new tool:
+  with `respawns=<RESPAWN_LIMIT>` — on purpose: its true count is lost, so
+  the safe direction is no respawn; the stillborn rows then REPORT it
+  instead of spawning again. Say `rebuilt <stem>@new from its title` in the
+  report. No new tool:
   the session read is
   already there. The title is this role's own write
   (`create_session` `title` = `manager: <stem>`, step 3), so the forgery
@@ -79,7 +82,7 @@ it must not guess.
   `ledger:` grammar line, its rebuild route or "none", and its loss cost.
   Check it field by field against the grammar line and list the check in
   the workstream file.
-- `bash .agents/harness/selftest/orchestrated.sh` → 0 failed.
+- `bash .agents/harness/selftest.sh` → `0 failed`, and its `orchestrated` lines all pass. The topic files are "Not runnable alone" — never run one by itself
 - `./joharness.sh ci` → `ci: pass` (glossary, context size).
 - SHIPS: `.claude/commands/` reaches consumers. The consumer check is
   the same `grep` lines after the next sync.

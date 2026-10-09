@@ -27,10 +27,14 @@ half of #304 is `orchestrated-only-docs`' work, not this plan's.
 - `.claude/commands/orchestrate.md`, frontmatter line `description:`.
   Replace `exit at DRAINED` with `exit at DRAINED with nothing in flight`.
   Change no other word on the line.
-- `.claude/commands/manage.md`, `## Never`: add one bullet, exactly:
-  `- Wait in the session for a human's answer — any ask tool included
-  (AskUserQuestion). A question is a push: \`status: blocked\`, \`next:\` =
-  the question, push, exit (§3).`
+- `.claude/commands/manage.md`, `## Never`: add this bullet, exactly, as
+  the last bullet:
+
+  ```
+  - Wait in the session for a human's answer — any ask tool included
+    (AskUserQuestion). A question is a push: `status: blocked`, `next:` =
+    the question, push, exit (§3).
+  ```
 - `.agents/harness/selftest/orchestrated.sh`, beside the existing
   `orcmd`/`mgrmd` cases: two `expect`s.
   - `orchestrate.md`'s `description:` line (`grep -m1 '^description:'
@@ -53,7 +57,7 @@ half of #304 is `orchestrated-only-docs`' work, not this plan's.
 - `grep -m1 '^description:' .claude/commands/orchestrate.md` → ends with
   `exit at DRAINED with nothing in flight`.
 - `sed -n '/^## Never/,$p' .claude/commands/manage.md | grep -c AskUserQuestion` → `1`.
-- `bash .agents/harness/selftest/orchestrated.sh` → 0 failed.
+- `bash .agents/harness/selftest.sh` → `0 failed`, and its `orchestrated` lines all pass. The topic files are "Not runnable alone" — never run one by itself
 - Revert the two text edits only. Both new `expect`s FAIL. Restore them.
 - `./joharness.sh ci` → `ci: pass`.
 - SHIPS: `.claude/commands/` reaches consumers. The consumer check is the
@@ -61,7 +65,7 @@ half of #304 is `orchestrated-only-docs`' work, not this plan's.
 
 ## Where to look
 
-- `.claude/commands/orchestrate.md` — line 2, the `description:` field.
+- `.claude/commands/orchestrate.md` — the `description:` frontmatter field.
 - `.claude/commands/orchestrate.md:## 4. Schedule the next pass, then end the turn` —
   the qualified rule (`DRAINED — nothing free, nothing in flight: exit`).
 - `joharness.sh:cmd_session_start` — the banner text

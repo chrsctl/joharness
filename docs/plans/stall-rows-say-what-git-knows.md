@@ -35,18 +35,25 @@ statements `dispatch` makes without evidence. Keep it a git-view tool.
   - every in-flight row that is not BLOCKED is a STALL? row
     (`n_stall` = `n_inflight` − `n_blocked`);
   - the newest commit on `origin/<base>` (`git log -1 --format=%ct`) is
-    older than the stall window.
+    older than 24 stall windows (`stall * 24`, the multiple the leftovers
+    rule in the same function already uses). Not 1x: with one manager in
+    flight, `main` moves only when it merges, so a 1x test would fire on
+    every ordinary stall. #283 option 3 asks for "some large multiple".
 
   Line: `            every manager in flight is silent and <base> has not moved in <age>: suspect a stopped fleet (a suspension), not <n> dead managers — read the control plane for EACH before any respawn`.
   One `git log -1` call, made only when the first two conditions hold.
 - `.claude/commands/orchestrate.md`, step 2 health table:
   - The row keyed on `` row says `PR in flight, no claim file` `` must
     match the new text. Key it on `retired, no claim file`.
-  - One sentence under the table: when `dispatch` prints the
-    stopped-fleet line, no row may respawn on push age that pass. Each
-    manager's own control-plane reads still decide, as the table says.
+  - One sentence under the table: the stopped-fleet line decides nothing.
+    It says push age is the fleet's, not the manager's. Read the control
+    plane for each row, and let the table's rows decide as written.
 - `.agents/harness/selftest/dispatch.sh`:
   - update the `expect` `"which says what the row is"` to the new text;
+  - update the `expect` `"naming the respawn as the merge, not a restart"`
+    (needle `respawn on the branch to FINISH it, never to restart the item`).
+    This plan removes that text. Repoint it at the new clause
+    `the verdict is the health table's`;
   - add a `refute` that no edge row prints `respawn on the branch`;
   - add one fixture: one claimed branch past the stall window, `main`'s
     newest commit older than the window → the stopped-fleet line prints;

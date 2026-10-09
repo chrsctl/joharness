@@ -37,13 +37,18 @@ what was counted.
     `  none — <n_released> claim(s) older than <N>h, every one already released (status: abandoned)`
   - both > 0:
     `  none — <n_young> claim(s) pushed inside <N>h; <n_released> older, already released (status: abandoned)`
-- `.agents/harness/selftest/janitor.sh`: after the fixture commit
-  `"release the claim"`, the existing `out="$(jan)"` run has one claim,
-  released and older than the window. Add an `expect` for
-  `every one already released` and a `refute` for
-  `every claim pushed inside` on that same `$out`. Add one fixture for the
-  mixed case if the suite already has a young claim to pair with. If it has
-  none, do not build one — say so in the workstream file.
+- `.agents/harness/selftest/janitor.sh`: a state where EVERY claim past the
+  window is `abandoned`. The suite has none today. After fixture
+  `"release the claim"`, `mgr-ownplan` (`in-progress`, 2026-01-02) is still
+  a candidate, so `n_cand` = 1 and no `none —` line prints at all (verified
+  by the review of this plan). So: add a fixture commit that also releases
+  `mgr-ownplan` (`status: abandoned`), placed AFTER every existing case
+  that reads it as a candidate. Then `out="$(jan)"` → `expect`
+  `every one already released`, `refute` `every claim pushed inside`.
+  Print the candidates block once while writing the fixture, and check it
+  before writing the `expect`. Mixed case: the same state with
+  `HANDOVER_STALE_SECONDS` set so one claim is young, if the fixture dates
+  allow it. If they do not, skip it and say so in the workstream file.
 
 ## Out of scope
 
@@ -54,7 +59,7 @@ what was counted.
 
 ## Acceptance
 
-- `bash .agents/harness/selftest/janitor.sh` → every line `ok`/pass, 0 failed.
+- `bash .agents/harness/selftest.sh` → `0 failed`, and its `janitor` lines all pass. The topic files are "Not runnable alone" — never run one by itself
 - Revert only the `joharness.sh` change and rerun the suite. The new
   `expect` must FAIL. Then put the change back (`.agents/harness/AGENTS.md`
   step 5: a test that passes both ways pins nothing).
@@ -81,6 +86,7 @@ what was counted.
   also edit `.agents/harness/selftest/janitor.sh`, and the first also edits
   `joharness.sh` near `cmd_janitor`. All mark these paths `shared:`. Expect
   a reconcile at step 7. Keep both sides.
-- `drain` runs `cmd_janitor`'s helpers at every session start. Add no git
-  call to the walk. The counters are arithmetic only.
+- Add no git call to the walk. The counters are arithmetic only.
+- A new release fixture changes what later cases in the same suite see.
+  Run the whole suite, not only the new lines.
 - Test written for the fix must fail without it. Revert, run, restore.

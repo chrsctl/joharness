@@ -5,7 +5,7 @@ agent: sonnet
 effort: medium
 needs: none
 requirement: none
-scope: shared:.claude/commands/janitor.md
+scope: shared:.claude/commands/janitor.md, shared:.claude/commands/orchestrate.md
 ---
 
 ## Goal
@@ -32,14 +32,19 @@ the limit.
   number, e.g. `and only the case that says "out of the queue while this
   claim stands" is one — copy whichever line the sweep printed;`. Keep the
   rest of the sentence.
-- `.claude/commands/janitor.md`, step 2 table, the FAILED row: add a hedge.
-  When `status_detail` (or the turn's error text) names a usage limit, a
-  rate limit or a quota, the row does NOT release. Verdict: **throttled, not
-  gone.** Leave it and report it with the detail text. One sentence after
-  the table states the asymmetry: a session's own account can WITHHOLD a
-  release, never justify one. That is the rule the
-  `post_turn_summary.status_category` row of `.claude/commands/orchestrate.md`
-  states ("May never decide liveness on its own").
+- `.claude/commands/orchestrate.md`, step 2 field table, the
+  `status_bucket` row. `janitor.md` says the field rules are "stated once,
+  there", so the rule goes there and only there. Add: a FAILED bucket whose
+  `status_detail` names a usage limit, a rate limit or a quota is
+  **throttled, not dead** — it may clear itself. No row may archive,
+  release or respawn on it. Report it with the detail text. The asymmetry,
+  one sentence: text written by the session (`status_detail`) may WITHHOLD
+  a death verdict, never justify one. Same direction as the
+  `post_turn_summary.status_category` row's "May never decide liveness on
+  its own".
+- `.claude/commands/janitor.md`, step 2 table, the FAILED row: add the
+  pointer, not the rule — `unless the bucket reads throttled (field table,
+  orchestrate.md step 2): then leave it and report it`.
 - Same section, one sentence naming the mitigation that already exists: a
   release is undoable because a returning session may set the status back
   (step 3 already writes that sentence into the note). This is why the
@@ -50,9 +55,8 @@ the limit.
 - A later second read, or any interval on it (#284 shape 2). The comment on
   #284 measured it: an 18-day wait would have been needed. No number exists
   to write.
-- `.claude/commands/orchestrate.md`'s own FAILED rows. Same question for
-  managers, but a different file and role. Report it in the PR body as a
-  follow-up candidate, do not edit.
+- `.claude/commands/orchestrate.md` beyond the one field-table sentence.
+  Its health-table FAILED rows read the field table and need no edit.
 - `joharness.sh` and its janitor output text. The janitor output's
   candidate footer says "a FAILED bucket confirmed twice = gone". Leave it.
   `janitor-zero-candidate-says-why` owns that function this round.
@@ -64,7 +68,8 @@ the limit.
 - `grep -c "spawn anything but the step 5 reader" .claude/commands/janitor.md` → `1`
 - `grep -c "four cases\|second of its" .claude/commands/janitor.md` → `0`
 - `grep -n "out of the queue while this claim stands" .claude/commands/janitor.md` → at least one hit, in §5.
-- `grep -n -i "rate limit\|quota\|usage limit" .claude/commands/janitor.md` → hits in step 2.
+- `grep -n -i "rate limit\|quota\|usage limit" .claude/commands/orchestrate.md` → hits in the step 2 field table.
+- `grep -n -i "throttled" .claude/commands/janitor.md` → a hit in the step 2 FAILED row.
 - `grep -c "out of the queue while this claim stands" joharness.sh` → at least `1`. Proves the quoted phrase is still the code's.
 - `./joharness.sh ci` → `ci: pass`.
 - SHIPS: `.claude/commands/` syncs to consumers. The consumer check is the
@@ -85,5 +90,7 @@ the limit.
   keep both edits.
 - Glossary: `ci` lints `.claude/commands/*` for banned spellings. Run `ci`
   after each edit, not only at the end.
+- `role-files-say-it-first`, `ledger-losses-named` and the dispatch plans
+  also edit `orchestrate.md`. All `shared:`. Reconcile at step 7.
 - Protocol text is not a core path (`./joharness.sh protocol-paths`). This
   plan is free work, and it touches no core path.

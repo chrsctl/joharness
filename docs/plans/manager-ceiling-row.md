@@ -28,7 +28,10 @@ counts one").
   - print it in the header block beside `respawns  :`, in the same style:
     `ceiling   : <N>h since the claim with no pr: = CEILING? (JOHARNESS_MANAGER_HOURS; 0 lifts it)`.
   - on a CLAIMED in-flight row (not an edge row, not a released row) whose
-    status is `in-progress` and whose workstream `pr:` is empty or `none`:
+    status is `in-progress` and whose workstream `pr:` is empty or `none`.
+    The claimed-row walk does not read `pr:` today: add `pr` to its
+    `gr_fields status session next` read and sanitise it with `tr -cd`.
+    Then, for such a row:
     claim age = now − the committer time of the FIRST commit on the branch
     after the merge base (`git log --reverse --format=%ct <base>..<ref>`,
     first line, `</dev/null`). Age ≥ the knob → append to the row's flag:
@@ -76,7 +79,7 @@ counts one").
 
 ## Acceptance
 
-- `bash .agents/harness/selftest/dispatch.sh` → 0 failed, both fixtures included.
+- `bash .agents/harness/selftest.sh` → `0 failed`, and its `dispatch` lines all pass. The topic files are "Not runnable alone" — never run one by itself
 - Revert the `joharness.sh` change only. The CEILING? fixture FAILS. Restore it.
 - `JOHARNESS_MANAGER_HOURS=0 ./joharness.sh dispatch | grep -c "CEILING?"` → `0`.
 - `./joharness.sh dispatch | grep "^ceiling"` → the header line.
@@ -98,7 +101,7 @@ counts one").
 ## Traps
 
 - A claimed row's workstream `pr:` is branch-controlled text. Sanitise it
-  the way the walk already sanitises fields before testing it.
+  (`tr -cd 'A-Za-z0-9._#-'`, as `cmd_janitor` does) before testing it.
 - `stall-rows-say-what-git-knows`, `rescope-settled-by-merged-superset` and
   `plan-on-a-branch-visible` edit the same function, suite and table. All
   `shared:`. Reconcile at step 7.

@@ -26,7 +26,12 @@ and make the filer merge its own plan-only PR.
   list `docs/plans/*.md` files ADDED in the net diff against the merge base
   (`--diff-filter=A`) and absent from `origin/<base>`. Drop a plan that the
   same branch's own workstream file names in `plan:`: that plan is the
-  branch's own same-session plan, already in flight. Read each plan's
+  branch's own same-session plan, already in flight. Normalise the field
+  with `lint_stem` first: a workstream file may write `plan:` as a path
+  (`origin/claude/merge-notice-reach-79e466` writes
+  `plan: docs/plans/merge-notice-reach.md`). Also drop every plan on a
+  branch whose workstream file says `status: abandoned`: nobody drives it,
+  and the janitor already reports it. Read each plan's
   `urgency` and `agent` at the branch (`git show <ref>:<path>`, `gr_fields`).
   Sanitise every field with `tr -cd`, like the other walks. Emit
   `<branch>\t<stem>\t<urgency>\t<agent>`.
@@ -52,8 +57,9 @@ and make the filer merge its own plan-only PR.
   - unmerged branch adding `docs/plans/x.md` (`urgency: urgent`), no
     workstream file → block lists `URGENT x`; the verdict and the free count
     equal the same fixture without the branch;
-  - a manager branch whose workstream file says `plan: y` and which adds
-    `docs/plans/y.md` → `y` is NOT listed.
+  - a manager branch whose workstream file says `plan: docs/plans/y.md`
+    (the path spelling) and which adds `docs/plans/y.md` → `y` is NOT listed;
+  - a branch with `status: abandoned` adding `docs/plans/z.md` → NOT listed.
 
 ## Out of scope
 
@@ -66,12 +72,12 @@ and make the filer merge its own plan-only PR.
 
 ## Acceptance
 
-- `bash .agents/harness/selftest/dispatch.sh` → 0 failed, both fixtures included.
+- `bash .agents/harness/selftest.sh` → `0 failed`, and its `dispatch` lines all pass. The topic files are "Not runnable alone" — never run one by itself
 - Revert the `joharness.sh` change only. The first fixture FAILS. Restore it.
 - `./joharness.sh dispatch` in this repo → runs. Any branch carrying a new
   plan shows up in the block. Check one by hand:
   `git diff --name-only --diff-filter=A $(git merge-base origin/main origin/<branch>) origin/<branch> -- docs/plans`.
-- `bash .agents/harness/selftest/perf.sh` → passes.
+- `bash .agents/harness/selftest.sh` → `0 failed`, and its `perf` lines all pass. The topic files are "Not runnable alone" — never run one by itself
 - `./joharness.sh ci` → `ci: pass`. `./joharness.sh verify` → `0 failed`.
 - SHIPS: `joharness.sh` and `.claude/commands/` reach consumers. The
   consumer check is `./joharness.sh dispatch` in a consumer with an open

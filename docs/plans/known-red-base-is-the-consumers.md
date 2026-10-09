@@ -15,24 +15,22 @@ managers each rebuilt a baseline and re-ran the full suite to attribute
 the same pre-existing failures. The harness has nowhere to put that
 reading and says nothing either way about whose job it is. That silence is
 what produced four baseline runs in a day. Say it once: the record is the
-consumer's, and the harness rules bound its shape.
+consumer's, and step 7 still binds.
 
 ## Scope
 
 - `.agents/docs/consumer-repos.md` — a new section `## A red base branch`,
   placed directly before `## The sync pull request: drive it to merged`.
-  Content, in caveman style (`.agents/docs/caveman.md`), four points:
+  Content, in caveman style (`.agents/docs/caveman.md`), four points, no more:
   1. The harness keeps no record of which tests are red on the base. `ci`
      and `finish` read git and the tree, never a check run.
   2. A consumer that wants one owns it, in its own `docs/`, never synced.
-  3. Shape, from `.agents/harness/AGENTS.md` step 5 ("Measured number
-     carries what produced it, same sentence"): base sha, command, UTC
-     time, failing set. A manager whose merge base IS that sha may read
-     it. Any other base: re-derive and rewrite it. That keeps step 7's
-     rule: an infrastructure reading is never inherited across a base
-     change.
-  4. Every merge may touch it, so it is a registry: mark it `shared:` in
-     every plan's `scope:` that writes it (`.agents/docs/plans/README.md`).
+  3. Step 7's rule still binds every manager: "base green" is an
+     infrastructure reading, "re-derived at every check, never inherited".
+     A record cannot replace a manager's own check. At most it tells the
+     manager what to expect before it checks.
+  4. How such a record should be shaped is an open question (#305: "Not
+     claimed: that (2) is correct"). The harness does not prescribe one.
 
 ## Out of scope
 
@@ -54,8 +52,7 @@ consumer's, and the harness rules bound its shape.
 - `.agents/harness/AGENTS.md` — step 5 (measured number) and step 7
   (infrastructure reading re-derived at every check).
 - `.agents/docs/feedback.md` — "Trust counted numbers, never written
-  numbers". The new section must not contradict it: the record is a
-  measurement with its provenance, keyed by sha.
+  numbers". The new section must not contradict it.
 
 ## Traps
 
