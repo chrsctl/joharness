@@ -5,7 +5,7 @@ agent: sonnet
 effort: high
 needs: none
 requirement: none
-scope: .agents/docs/agent-selection.md, .claude/commands/manage.md, docs/product/scout-role.md, docs/research/cost-per-merge-levers.md
+scope: .agents/docs/agent-selection.md, shared:.claude/commands/manage.md, docs/product/scout-role.md, docs/research/cost-per-merge-levers.md
 ---
 
 ## Goal
@@ -140,6 +140,11 @@ are money, humans only.
 - `docs/plans/scout-command.md`'s pull request deletes
   `docs/product/scout-role.md`. Merging after it: drop the scout-role
   edit, do not recreate the file.
+- `docs/plans/orchestrated-only-docs.md` also edits `.agents/docs/agent-selection.md`;
+  not parallel. Merging second: reconcile, keep both edits.
+- `.claude/commands/manage.md` is `shared:` with issue-triager-role,
+  orchestrated-only, plan-on-a-branch-visible, role-files-say-it-first —
+  this plan's edit is one clause on the `tier:` bullet; a reconcile keeps it.
 - Core paths (`joharness.conf`, `.claude/settings.json`, `.github`) are
   not touched by this plan; any diff there is out of bounds.
 - Contested terms have one spelling (`.agents/docs/glossary.md`): "agent
