@@ -21,6 +21,10 @@ Plan `docs/plans/late-finding-has-an-issue-route.md`: an issue-on-canonical floo
 
 ## Review
 
+- r1: (verifier) AGENTS.md step 7 new line sat between the deletion rule and "Do it as the LAST COMMIT", so "Do it" read as the issue (fixed: moved after the "merge." sentence; `git diff origin/main -- .agents/harness/AGENTS.md`, 2026-10-10)
+- r2: (verifier) new line had 2-space indent and two rows, breaking list continuation (fixed: 3-space, same commit)
+- r3: (verifier) feedback.md paragraph long, plan said short (wontfix: carries the plan's six required points; quote of stage 1 question checked, feedback.md:254)
+
 ## Blockers
 
 None.
