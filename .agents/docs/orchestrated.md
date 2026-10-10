@@ -1057,3 +1057,472 @@ question of money, which the Loop reserves for the human
 (`.agents/harness/AGENTS.md`, Decide alone). This is why the budget in
 issue 165 is not a number a session may pick.
 
+
+## Orchestrator: why, by step
+
+Why-explanations, measurements and incident history moved out of
+[`.claude/commands/orchestrate.md`](../../.claude/commands/orchestrate.md)
+so the role file carries what the role acts on (plan `role-command-trim`,
+2026-10-10). One heading per section of that file; each paragraph opens
+with where in the section it stood. Moved verbatim; a fragment that
+continued a sentence there starts mid-thought here. Inside a moved
+paragraph, "this file", "above" and "below" mean the command file it
+left.
+
+### Preamble
+
+**What you read, after "Open no plan, requirement, research file or design doc".** dispatch read them
+for you, and a plan's content is a manager's business.
+
+### Tools
+
+**Tools, Claude Code Remote send_message paragraph.** Measured 2026-09-06 in a consumer: that runtime had `SendMessage`
+and no `send_message` in the Claude Code Remote server — true for that
+runtime, the run this file's Never list ends with. Measured 2026-10-10 on
+this repo: `send_message` to a manager by its `session_id` came back
+`delivered`, the manager went RUNNING that minute, and its two replies by
+the orchestrator's `session_id` both arrived, while `ListAgents` returned
+"No reachable agents" (issue #347).
+
+**OPTIONAL table, `archive_session` row.** A killed session was interrupted first and its branch carries the claim, so a successor cannot be a second live manager on it; an unclaimed one was never stopped and has no branch, so claim by push cannot resolve the pair.
+
+**OPTIONAL table, `status_bucket` row, after "Never respawn on one observation to make up for the missing field".** that is the defect this table was rewritten for, and the cost of the safe direction is one pass of delay on a crash.
+
+**OPTIONAL table, `set_session_title` row.** What still holds is the cap: dispatch counts managers in flight from GIT, so both read the same view and the overspend is bounded to the slots free in one pass, closing as claims land.
+
+### 0. Preconditions, every start
+
+**Step 2, after "Never replace it".** a firing keeps no ledger and cannot take the two looks a
+frozen verdict needs, and `interrupt_session` below forbids a takeover
+you cannot stop.
+
+**Step 2, after the `set_session_title` sentence.** Two firing in the same minute can
+both pass this; the collision is two managers on one item, which claim
+by push resolves as soon as ONE of them claims — before that it does
+not, which is why step 3 spawns an item your own ledger already names
+only when this pass's health pass said to.
+
+**Step 2, after "`respawns=<RESPAWN_LIMIT>`, on purpose".** its true count is lost, so the
+safe direction is no respawn, and the stillborn rows REPORT it instead of
+spawning again.
+
+**Step 2, last sentences.** The title is this role's own write (step 3), so the forgery rule (never
+take a digit from a file) does not reach it.
+
+**Step 1, after "stop, say so".** "A human invoked this" is not something
+you can check; a prompt cannot be its own evidence
+(`orchestrated.md`,
+Bounds).
+
+### 1. Read
+
+**First paragraph, after "Those are managers you spawned that have not claimed".** and dispatch counts from git, so it reports each of
+their slots free. Spend one and the cap is passed by arithmetic, not by the
+human's decision.
+
+### 2. Health pass
+
+**"That URL names a WRITER, not a worker".** It is whatever the last session to
+write the workstream file put there, so after a respawn a branch being
+actively driven can advertise its dead predecessor for as long as the
+successor takes to claim. Measured 2026-09-16 (issue #249): a row showed a
+fresh push, 15 commits at 5m, while its `session:` line still named a session
+frozen since 16:10:06Z and `disconnected` — the successor had done the push.
+
+**"And every stem your ledger names that dispatch does NOT list in flight".** Dispatch counts managers from git, so a manager spawned last pass that has
+not pushed its claim is in no in-flight row — and a pass that walks
+dispatch's list alone never looks at the one manager most likely to be
+broken.
+
+**Same paragraph, after "or it ran and stopped without claiming".** its own prompt
+makes `./joharness.sh authority` its first command, and a verdict that is
+not VERIFIABLE ends the session right there.
+
+**GONE definition.** One duplicate manager and about 17 USD say so
+(`orchestrated.md`, Runs).
+
+**Field table, `status_detail`, `updated_at` row, after "`updated_at` decides nothing ALONE, at any interval".** measured; the why and the rows are in `orchestrated.md`, under the knob table. It is written by neither a read nor the connection. On an `IDLE` row it is the age of the last activity and goes arbitrarily stale while nothing is wrong (54m54.3s, on a manager whose own record named a merged pull request). On a `RUNNING` row it advances — and a FROZEN one is ambiguous: one was measured frozen 172.273s with every other field of the row frozen too, which reads the same whether the writer is slow or the session stopped.
+
+**`context_usage.used_tokens` paragraph (the two "is NOT one" sentences stay).** A working session can read 0: measured 2026-09-07 10:28Z in
+one `list_sessions` page — `DSGVO data export and auto-deletion flow`,
+`RUNNING`, bucket `WORKING`, a live `task_summary` and a pushed branch, with
+`context_usage.used_tokens: 0` in the same record. Key the row below on it
+and it fires on a healthy manager.
+
+**Same paragraph, after "`external_metadata.current_branches` is not one either".** one healthy session in that same page carried its branches
+under `session_context.outcomes` with no `current_branches` at all. One
+counter-example is enough to disqualify a field, and not enough to build a
+rule on.
+
+**Health table, leftovers row, after "NEVER respawn".** a successor would land on merged work with no pull request and, often, no item to name its task.
+
+**Worked readings after the health table (IDLE alive, IDLE dead, LOOP dead and its two cautions).** Two readings from run 1, one keystroke apart in the record and opposite in
+what they need. These are the part to read when the rows blur:
+
+**IDLE, and alive.** 17:13Z, one manager:
+`session_status: SESSION_STATUS_IDLE`, `status_bucket` not FAILED,
+`post_turn_summary.status_category: completed`, pull request #296 open, head
+`8f7dd84e` NOT an ancestor of `origin/main`. That is **NUDGE, ledger, spawn
+nothing.** `completed` over an unmerged head is the case that MOST needs the
+ask, not one that skips it: the session was between turns, woke at 17:41Z and
+merged #296 itself as `4a4f3cc0`. Read as gone, it cost a duplicate manager
+and the money the definition above names.
+
+**IDLE, and dead.** 18:13:30Z, another manager:
+`session_status: SESSION_STATUS_IDLE` — the same value — with
+`status_bucket: SESSION_STATUS_BUCKET_FAILED`, `status_detail:
+[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=tool_use`,
+and `dispatch` reporting `in-progress  pushed 3m`, which is what the git view
+says about every crash. That is **no nudge; ledger `seen=`, and confirm once**
+— next pass, record still frozen at 18:13:30 and head unchanged — **then
+archive and respawn.** `session_status` alone cannot tell these two apart;
+`status_bucket` is what does, which is why its rows are read first.
+
+**LOOP, and dead.** A manager was flagged across four passes on the LOOP
+row's second clause — head 15, 16, 17 and 18 commits at 16:34Z, 16:39Z,
+16:47Z and 16:58Z, `next:` verbatim identical throughout. Three of those
+pushes were real. Its last turn ended at 16:52:58.048650Z, so only the 16:58Z
+reading came after the death, the head already stopped at 18. Two
+control-plane reads 13 minutes apart, 17:01Z and 17:14Z, found `updated_at`
+identical at 16:52:58.048650Z, the head identical, and `connection_status`
+moved from `connected` to `disconnected`. 126 USD and 585k tokens, mid-review,
+50 findings recorded, four faults outstanding (2026-09-16, issue #249). The
+two rows want opposite things — a loop kill escalates effort and rewrites
+`next:` with a research step, a death needs a successor on the branch — so a
+LOOP verdict on a session nobody confirmed alive is a coin flip. What would
+confirm it is now MEASURED, and the answer is that **this field cannot
+confirm it — at thirteen minutes or at any other interval.** A `RUNNING`
+manager was read three times over 8m56s and found frozen for the last
+172.273s of it with EVERY field of its row frozen: the timestamp, both token
+counters, the cost, the task summary, the turn summary, the bucket. Six
+minutes earlier the same row had been working (+0.524106 USD, +4494 output
+tokens). A frozen timestamp there reads identically whether the writer is on
+a cadence of minutes or the session has stopped, so no threshold separates
+them. The rows and the arithmetic are in
+`orchestrated.md`,
+under the knob table, with why no knob can encode this.
+
+So this row's second clause stays a suspicion to REPORT rather than a verdict
+to act on — not until it is measured, which it now is, but because the
+measurement says the field was never going to carry it. What turns a
+suspicion into a verdict is `status_bucket` and the head from git, as the
+rows above it already say.
+
+Two cautions from the same reading, both against this very example. On an
+`IDLE` row the field is the age of the last activity and goes arbitrarily
+stale while nothing is wrong — 54m54.3s, on a manager whose own record named
+a merged pull request — so staleness there carries nothing at all, and the
+13-minute pair above is only evidence because `status_bucket` and the head
+carry it. And `connection_status` moving `connected` to `disconnected` is not
+a signal of its own: that same healthy IDLE row was measured making exactly
+that flip with `updated_at` byte-identical across it, and on that row the
+flip was the only field of any kind that changed.
+
+**IDLE, and never born.** 10:13:29.630Z, one item's manager in a consumer:
+created, `updated_at` 10:13:35.357Z — six seconds
+later — and that field unchanged through `get_session` at 10:22Z, 10:23Z
+and 10:26Z. `session_status: SESSION_STATUS_IDLE`, `status_bucket:
+SESSION_STATUS_BUCKET_REVIEW_READY`, no `last_served_model`, no
+`session_context.sources`, and no `post_turn_summary` in the record at all;
+`git branch -r` at 10:23:36Z showing no branch, and `dispatch` listing the item under `spawn` as `wave 1`. Counted over the
+same page — `list_sessions` limit 40, mine, 2026-09-07 10:22Z, one call —
+37 of the 40 carried both fields,
+3 lacked `last_served_model` and 1 lacked `sources`, and EXACTLY ONE lacked
+both: this one. The other two missing `last_served_model` are `ARCHIVED`,
+which this row does not reach. That is why it takes both fields and not
+either. Read down the table without the stillborn row and
+that is IDLE with no nudge recorded — **a nudge to a session with no
+repository, no prompt processed and no branch to push**, then a respawn two
+passes later. The bucket is the trap, and note what is and is not claimed
+about it: a healthy manager in the same page read the SAME
+`..._REVIEW_READY` beside its own `post_turn_summary.status_category:
+review_ready`, and this record read it with no summary at all. Which
+account writes that field is the control plane's business and not
+established here — what is established is that the value does not
+discriminate, so it is in none of the four rows. What a false positive costs: a session
+genuinely slow to start is archived and spawned again having consumed
+nothing, which is the direction to be wrong in. No row here keys on entry
+age: the first-look row's condition — an entry a PREVIOUS pass wrote — is
+what keeps a session spawned this pass out of them, because `seen=` is
+recorded only when that row matches.
+
+**Edge rows paragraph, after "holds nothing, and is only reported".** Counting the second kind is what stopped a fleet (the run and its numbers:
+`orchestrated.md`, Runs).
+
+**The two optional-tool sequences, after "One rule for both".** at the point of
+use, because a procedure that calls a tool nobody has is the bug this
+file was just fixed for:
+
+**RESPAWN paragraph, last sentence.** That is the crash
+path's version of the same case the stillborn row handles — the health
+pass reaches an unclaimed manager now, so it can reach a crashed one.
+
+**REPORT, after "the ONE thing this role does after a manager is done".** A merged edge's
+findings are already gone from every tree: the finish ritual deletes the
+workstream file, so what that manager learned about the harness lives in
+merge history and nowhere a later session is told to look. In a CHILD repo
+it also lives in the wrong repository — the fix belongs in canonical, and
+the next sync overwrites any harness file this repo fixed locally.
+
+**REPORT step 3, after "whichever way it went".** That is what
+makes it once: dispatch keeps no memory across passes, and a merged
+branch stays merged forever, so an unrecorded edge would be re-reported
+every pass for the rest of the run.
+
+**Reporter slot paragraph, after "A reporter holds no manager slot".** dispatch counts managers from GIT and a
+reporter cuts no branch here, so it cannot be counted there.
+
+**After the respawn-limit hand-off.** The write is what frees the slot. A claimed branch nobody is working
+counts against the cap in every later pass, so a fleet that exhausted its
+respawns on `cap` items would read `0 slots` forever and never exit —
+`blocked` is the state the harness already has for "waiting on a human,
+holds no slot", and this is that state.
+
+**Explain a condition, never end one — the off case.** and that is the state issue #266 measured:
+a parked row relayed ~35 passes, its cause lifted by the repo's own conf
+before the session that named it existed, and nothing asking whether it still
+held.
+
+**After the field table, "Those two are read TOGETHER or not at all".** "two signals, never one" applies
+inside the control plane's own half as much as across it, and the count below
+is why: either field alone picks up sessions the pair does not.
+
+**Health table, crash first-look row, after "CRASHED. NO nudge".** nothing is listening, and a nudge asks a working session for a push.
+
+**Health table, ran-and-stopped row, after "It RAN and stopped without claiming.".** `./joharness.sh authority` is the first line of its own prompt and a verdict that is not VERIFIABLE ends the session there; a `NOT YOURS` exit reads the same.
+
+**Health table, merged row, after "read this row for that stem FIRST".** its session is usually still RUNNING and under the stall window, so the first row matches and the lead is dropped on the one pass it was sent.
+
+**Health table, `CEILING?` row, after "never instead of it".** the first row matches a RUNNING manager under the stall window, which is exactly the one this is about.
+
+**`suspect a stopped fleet` paragraph, after "decides nothing".** It says the
+push age on every row is the fleet's, not the manager's: everyone silent and
+the base branch still is what a suspension looks like from git — and what a
+clone this pass could not refresh looks like, which the line says when the
+fetch failed or was skipped.
+
+**Never-born-and-FAILED paragraph, after "takes the crash rows above instead".** and that is correct rather than a miss: they
+confirm across two reads the same way, and RESPAWN spawns fresh for an
+entry that still reads `new`. What the four rows above add is the case the
+crash rows cannot see, which is the bucket reading anything else.
+
+**No-`interrupt_session` bullet, after "you cannot stop it, so you must not replace it".** two sessions on one branch is worse than a stalled one.
+
+**LOOP intro, after "then fix once".** The session inside the loop cannot
+see it; you can, and the successor must start from what the loop found:
+
+### 3. Spawn
+
+**Bullet "An item your ledger already names is spawned ONLY when THIS pass's health pass said to".** Dispatch counts managers from git, so an item whose
+manager has not claimed is still listed under `spawn` — spawning off
+that list alone is how one item gets two managers, and claim by push
+cannot resolve it because neither of them has claimed. Step 2 is the
+only thing that knows an unclaimed manager exists, and it is where
+`JOHARNESS_RESPAWN_LIMIT` is counted: a rule here that spawned on its
+own reading would spend past the limit the rows above just stopped at.
+
+**Janitor bullet, after "is ORTHOGONAL to the verdict".** claims go
+stale under `DRAINED` as readily as under `NOT DRAINED`, and a released
+claim frees its plan for the NEXT pass's spawn list.
+
+**Scout bullet, after "it is NOT orthogonal to the verdict".** a scout proposes new work,
+which competes with real work.
+
+**Scout bullet, after "The ledger key guards THIS run only".** between the spawn
+and the scout's first push `dispatch` still prints `scout DUE` — the git
+view cannot see a session that has not pushed — and the verdict that
+spawns a scout is the exit verdict, so the heartbeat's next run starts
+with an empty ledger.
+
+**Scout bullet, after "(`.claude/commands/scout.md`, Claim)".** after its claim is pushed it fetches
+every branch and retires if any other scout is in flight — both may
+defer, never both go on.
+
+**Surveyor bullet, after "which earns ONE more (ledger the new key)".** Slots are idle only because held plans'
+`scope:` declarations are wrong; the surveyor corrects them and the
+next pass waves the plans in parallel.
+
+**`create_session` bullet, `source_url`.** attempt one spawned without it and both sessions
+asked for a clone)
+
+**Merge line, after "The gate here is TOOL PRESENCE".** and on purpose: no message has gone out before the
+spawn, so no delivery result can exist yet to read. Safe, because a
+manager's failed send costs nothing (`.claude/commands/manage.md`: one
+refusal, exit, the next pass finds the merge); the NUDGE row's gate is
+different — there the delivery result is the evidence.
+
+**Merge line, after "read your own session id with `get_session` called with no `session_id`".** measured
+2026-10-10 in a cloud manager: it returned the caller's own
+`session_...` id, the one in its session URL.
+
+**Merge line, after "the name `ListAgents` gives its caller".** `SendMessage`'s `to` is a `ListAgents` row, as its own refusal
+says, "Use ListAgents to see everyone you can message".
+
+**Merge line, after the quoted line to the manager.** Asked at the spawn, not discovered at the merge: a
+manager told only "merged <stem>" has already thrown the lead away by
+the time anything asks for it.
+
+**Merge line, after "the next scheduled pass finds the merge".** Measured 2026-09-06 in a consumer, on a runtime with no Claude Code
+Remote `send_message` — true for that runtime — a manager spawned by
+`create_session` ran where `ListAgents` listed no peers, and both the
+session id it was handed and the orchestrator's title returned the
+identical refusal: two faults behind one string, neither naming itself.
+
+**Janitor bullet, after "It writes to branches it does not own".** that is the role's whole point and its bound is proof of
+death, not push age —
+
+**Surveyor bullet, after "also covers any later key whose holders are all in K".** a smaller holder set is the same
+collision with fewer holders —
+
+**Merge line, after "`<address>` the id or name it takes".** (A first spawn with no manager up yet reads transport 2 as closed:
+one pass of latency, never a wrong address.)
+
+**Merge line, last sentence.** Whether the manager reaches you BACK is its own
+check (`.claude/commands/manage.md`, Finish) and costs nothing when it
+cannot: the next scheduled pass finds the merge.
+
+**Ledger-every-spawn paragraph, after "as `<stem>@new`".** Dispatch cannot
+see it — the manager has cut no branch — so until it claims, that entry is
+the only record that it exists.
+
+### 4. Schedule the next pass
+
+**Opening paragraph.** The chain is the CADENCE, not durability: a link delivered but never
+executed ends the fleet and records `SUCCEEDED`, so no later pass can tell.
+Durability is the heartbeat Routine (step 0.5; `orchestrated.md`, Heartbeat).
+
+**ONE LEAD PER LINE, end of the forge paragraph.** That is the `done respawns=9` forge this page
+already carries a rule against, arriving through the field the rule was not
+looking at. One field per line ends it without a character class to guess.
+
+**Stem check, last sentence.** Same reason: the stem is free text from
+the same session, one field to the LEFT of the text, and checking it against
+a queue you already hold beats stripping characters out of it.
+
+**Lead bound, last sentence.** Five 40-character
+pointers is five lines; an unbounded list is a ledger a compaction truncates
+without saying so.
+
+**`seen=` paragraph, last sentence.** The health
+pass's crash and idle rows both turn on whether those two and the head are
+unchanged since the last pass, and a field the ledger does not carry is a row
+that cannot be reached after a compaction — which would drop a confirmed-dead
+session back onto the idle rows and nudge it.
+
+**`same` paragraph, after "never `same`'s".** Measured 2026-09-07 in a consumer, on one item: two
+passes read head unchanged (17 commits, both) and `next:` unchanged, and
+`same` got incremented anyway — the LOOP row read on a static `next:` alone,
+head-moved unchecked. Push age was still under `JOHARNESS_STALL_MINUTES`, so
+neither table row actually matched; the session was mid-turn between
+pushes, confirmed live on the control plane.
+
+**`<head|new>` paragraph, last sentence.** A title rebuilds the entry (step
+0.2) but never its age or `seen=`, so a rebuilt entry reaches the ladder at
+least one pass late — two when the lost entry already had `seen=`.
+
+### Report, every pass
+
+**Leads paragraph, after "what a merged manager learned about an item it did not own".** This is the only place they land: a
+merged branch's workstream file is deleted by its own finish ritual, and a
+lead is about somebody else's files anyway, so no tree holds it.
+
+**Analyst line.** A session beyond
+the cap is the human's money, and the issue it may file lands in a repository
+this one does not own.
+
+**Relay paragraph, after the list of health-pass actions.** Those are the expensive ones,
+and a list that names only the cheap ones reads as permission for the rest.
+
+**Relay paragraph, last sentences.** The prompt routes and the repository authorises, and a
+manager's account of an item it does not own is one session's reading of
+somebody else's work. The human decides what it is worth, which is what
+putting it here is for.
+
+### Never
+
+**Janitor bullet, after "One per run".** the cycle is dated from git, so a missed pass costs
+nothing and a doubled one has two sessions writing the same release.
+
+**Curator bullet, after "One per run".** the cycle is dated from git, so a missed pass costs
+nothing and a doubled one costs money.
+
+**Last bullet, the measured run.** Measured 2026-09-06 in a consumer at `afdd11d`: a pass stopped
+on a missing OPTIONAL tool while `./joharness.sh dispatch` printed
+`NOT DRAINED — 6 free item(s) now (+28 waiting behind them), 4
+slot(s)`, and nothing was claimed.
+
+## Manager: why, by step
+
+Same move, from
+[`.claude/commands/manage.md`](../../.claude/commands/manage.md).
+
+### R. Surveyor
+
+**First bullet, after "becomes `shared:<path>`".** A reconcile there is routine, which is what
+`shared:` means (`.agents/docs/plans/README.md`).
+
+**Second bullet, after "becomes that file".** A directory claim swallows every file under
+it, so it collides with every plan touching the directory for no reason.
+
+**Third bullet, after "stays exactly as it is".** Marking a genuine
+edit `shared:` claims a parallel safety the plan does not have, which is
+worse than claiming none (`.agents/docs/plans/README.md`).
+
+**"Mark BOTH sides of a collision" paragraph.** The hook's
+`wave_split_hit` is asymmetric on purpose: one plan's `shared:` never voids
+another's exclusive claim (`.agents/harness/queue-context.sh`), so marking
+only the held plan leaves it held.
+
+**Same paragraph, after "never touch anything below the frontmatter".** splitting is product judgement and
+this role does not make it.
+
+**Last paragraph, last sentence.** The next dispatch pass re-reads
+the corrected `scope:` and the plans wave in parallel.
+
+### 4. Finish
+
+**First paragraph, after "\"merged <stem>\" to it".** it fills your slot at once instead of on its
+clock.
+
+**Follow-up plan paragraph, last sentence.** A plan-only diff changes only the queue; unmerged, it is
+a row dispatch can show but never spawn.
+
+**GitHub lost, "After it" bullet, after "exit".** The
+branch then reads as a retired edge and a successor finishes it
+(`orchestrate.md`, "gone at the edge"). No undo because once a PR is open,
+restoring the workstream file and the done plan puts them on a head a
+human may merge.
+
+**LEAD paragraph, after "**And one thing more, when you have one: a LEAD.**".** You are the only party
+that read this item end to end, and everything you learned about YOUR files
+is already in the diff and in `## Review`. What dies with you is what you
+learned about somebody ELSE's — a fault in a queue item you do not own, a
+thing the next manager on an adjacent item needs.
+
+**Stem paragraph, before "a stem you cannot name".** The orchestrator checks it against the queue and silently has
+nothing to match otherwise, and you cannot check it yourself: you run no
+queue command (Never, below), so a stem
+
+**Stem paragraph, after "goes in your pull request body instead".** which outlives you and which a human reads.
+
+**After "Never send your own findings".** they are in the branch, and repeating them
+buys a longer message and no information.
+
+**After "One lead, not a list".** at 40
+characters it is a POINTER, and whoever follows it has your merged branch
+to read.
+
+**Refusal paragraph, after "do not retry on the other transport".** The refusal does not say WHICH
+fault it is: no route to that target — for `SendMessage`, no row in
+`ListAgents`, the ordinary case when your orchestrator is another
+container — or an address form the tool rejects. That is measured
+for `SendMessage`; what a Claude Code Remote `send_message` refusal
+says is unmeasured, so read it the same way: one refusal, exit. One string covers both and from inside you
+cannot tell them apart; the notice saves the orchestrator one pass of
+latency and nothing else.
+
+**Rescope conflict, after "`git rm` the workstream file)".** the retire is the plan finishing, and a
+scope edit to a plan about to be deleted is moot.
+
+**Upstream-feedback paragraph, after "the output that produced it".** the rule step 5 already states, and the one
+place a consumer's finding can still reach the repo that owns the fix.

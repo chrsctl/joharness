@@ -104,21 +104,13 @@ AND every plan in the holder set (the key), open the plan and read its own
 
 - A path the plan's Scope says it APPENDS to or REGISTERS in — a criteria
   index, `docs/INDEX.md`, an ADR or phase spec it adds a row or an entry to
-  — becomes `shared:<path>`. A reconcile there is routine, which is what
-  `shared:` means (`.agents/docs/plans/README.md`).
+  — becomes `shared:<path>`.
 - A bare DIRECTORY claim (`docs/adr`, `docs/phases`) the Scope narrows to
-  one file becomes that file. A directory claim swallows every file under
-  it, so it collides with every plan touching the directory for no reason.
-- A path the plan EDITS IN PLACE stays exactly as it is. Marking a genuine
-  edit `shared:` claims a parallel safety the plan does not have, which is
-  worse than claiming none (`.agents/docs/plans/README.md`).
+  one file becomes that file.
+- A path the plan EDITS IN PLACE stays exactly as it is.
 
-Mark BOTH sides of a collision — the held plan AND the holder. The hook's
-`wave_split_hit` is asymmetric on purpose: one plan's `shared:` never voids
-another's exclusive claim (`.agents/harness/queue-context.sh`), so marking
-only the held plan leaves it held. NEVER split a plan into two, and never
-touch anything below the frontmatter — splitting is product judgement and
-this role does not make it. A plan that genuinely needs splitting, or whose
+Mark BOTH sides of a collision — the held plan AND the holder. NEVER split a plan into two, and never
+touch anything below the frontmatter. A plan that genuinely needs splitting, or whose
 holds are all real edits: name it in the pull request body for the human,
 change nothing.
 
@@ -129,8 +121,7 @@ reads that `done` and stops recommending a rescope for this key.
 
 Otherwise: one commit rewriting the `scope:` lines, workstream file in it,
 review at your tier (`.agents/harness/AGENTS.md` step 5), retire the
-workstream file, pull request, merge, exit. The next dispatch pass re-reads
-the corrected `scope:` and the plans wave in parallel.
+workstream file, pull request, merge, exit.
 
 ## 3. The contract with the orchestrator
 
@@ -160,8 +151,7 @@ too; findings tagged `(verifier)`). Step 7 as written: green checks, 0
 behind fresh `origin/main`, `./joharness.sh finish` green, retire the
 plan file and the workstream file in the last commit before the pull
 request, exit. Did your prompt name a target to message on merge? Then
-"merged <stem>" to it — it fills your slot at once instead of on its
-clock. Use the transport your prompt names:
+"merged <stem>" to it. Use the transport your prompt names:
 A session id target: Claude Code Remote send_message. A name: SendMessage.
 No such line in your prompt, no messaging tool, or the send comes
 back refused: just exit, the orchestrator's next pass sees the merge.
@@ -174,8 +164,7 @@ a human.
 A follow-up plan you filed as its own plan-only pull request is your own
 pull request too: drive it to merged before you exit, step 7 whole —
 checks green, 0 behind, `./joharness.sh finish` green, review recorded, no
-open human thread. A plan-only diff changes only the queue; unmerged, it is
-a row dispatch can show but never spawn.
+open human thread.
 
 GitHub lost at step 7 — two sides of the retire commit:
 
@@ -186,17 +175,9 @@ GitHub lost at step 7 — two sides of the retire commit:
   the message rule below.
 - **After it,** a GitHub call (open, read or merge the PR) fails: do not
   undo the retire, do not wait in the session. Make sure the retire commit
-  is pushed, end the turn with one line naming the failed call, exit. The
-  branch then reads as a retired edge and a successor finishes it
-  (`orchestrate.md`, "gone at the edge"). No undo because once a PR is open,
-  restoring the workstream file and the done plan puts them on a head a
-  human may merge.
+  is pushed, end the turn with one line naming the failed call, exit.
 
-**And one thing more, when you have one: a LEAD.** You are the only party
-that read this item end to end, and everything you learned about YOUR files
-is already in the diff and in `## Review`. What dies with you is what you
-learned about somebody ELSE's — a fault in a queue item you do not own, a
-thing the next manager on an adjacent item needs. Say it as one line after
+**And one thing more, when you have one: a LEAD.** Say it as one line after
 the merge, in the orchestrator's own grammar — `lead <stem>: <text>`, the
 stem being the item it is ABOUT, the text at most 40 characters:
 
@@ -206,38 +187,25 @@ lead seat-limits: its create path skips the same check
 ```
 
 **The stem must be a QUEUE ITEM's name** — a plan stem, spelled as the queue
-spells it. The orchestrator checks it against the queue and silently has
-nothing to match otherwise, and you cannot check it yourself: you run no
-queue command (Never, below), so a stem you cannot name from your own plan's
+spells it. A stem you cannot name from your own plan's
 `needs:`, its `scope:` collisions, or the reconcile your prompt named is a
 stem to leave out. A lead about something with NO stem — an open issue, an
 item already merged, the harness itself — goes in your pull request body
-instead, which outlives you and which a human reads.
+instead.
 
 Nothing to say is the normal case: send the bare `merged <stem>` and exit.
-Never send your own findings — they are in the branch, and repeating them
-buys a longer message and no information. One lead, not a list; at 40
-characters it is a POINTER, and whoever follows it has your merged branch
-to read. Its own LINE, and nothing after the text: no quotes, no newlines
+Never send your own findings. One lead, not a list. Its own LINE, and nothing after the text: no quotes, no newlines
 inside it, and nothing that could read as a second field.
 One refusal is the answer — do not retry it, do not re-address it, do
 not hunt a second way to deliver it, and do not retry on the other
-transport. The refusal does not say WHICH
-fault it is: no route to that target — for `SendMessage`, no row in
-`ListAgents`, the ordinary case when your orchestrator is another
-container — or an address form the tool rejects. That is measured
-for `SendMessage`; what a Claude Code Remote `send_message` refusal
-says is unmeasured, so read it the same way: one refusal, exit. One string covers both and from inside you
-cannot tell them apart; the notice saves the orchestrator one pass of
-latency and nothing else. Run no queue command; the next item is
+transport. Run no queue command; the next item is
 another manager's.
 
 A rescope may land on `main` while you hold your plan — it rewrites your
 plan's `scope:` line. Pulling `main` in at step 7 then gives a
 modify/delete conflict on your OWN plan file: the rescope edited a line,
 your retire commit deletes the file. KEEP THE DELETE (`git rm` the plan,
-`git rm` the workstream file) — the retire is the plan finishing, and a
-scope edit to a plan about to be deleted is moot. Same reconcile for a held
+`git rm` the workstream file). Same reconcile for a held
 plan whose scope the rescope changed while a worker of yours edited the
 same frontmatter: take the rescope's `scope:` line, keep your code.
 
@@ -245,8 +213,7 @@ One thing decides whether your `## Review` survives past that merge: where
 `JOHARNESS_UPSTREAM_FEEDBACK=on`, a finding of yours that landed on a file
 canonical owns is filed upstream after you exit, and it is filed with the
 measurement you wrote or not at all. So write each one with the command and
-the output that produced it — the rule step 5 already states, and the one
-place a consumer's finding can still reach the repo that owns the fix.
+the output that produced it.
 
 ## Never
 
