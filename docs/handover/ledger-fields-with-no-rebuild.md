@@ -8,7 +8,7 @@ issue: 307
 session: https://claude.ai/code/session_01EBbfrQriYghvs7sdAuqiio
 agent: opus
 updated: 2026-10-10
-next: Graduate the research answer into .claude/commands/orchestrate.md (step 0 rebuild + per-field loss lines in §4), delete the research file
+next: Run ci + verify, spawn verifier, record ## Review, retire node + this file, PR, merge
 ---
 
 ## Goal
@@ -24,6 +24,12 @@ written and verified in the node; the work is graduating them into
 - `.claude/commands/` is NOT a protocol path today (`./joharness.sh
   protocol-paths` prints joharness.conf, .claude/settings.json, .github), so
   the node's "branch is a human's" note is stale; graduating here.
+- Most of the answer already landed on main before this claim (step 0.2
+  title rebuild of `@new`, per-field loss lines in §4). Residue graduated
+  here: the `:637`/`:700` pair that described entry age two incompatible
+  ways (rewritten to match the rows: age gates entry to the ladder, `seen=`
+  the verdicts), the rebuild's partiality (existence and count, never age),
+  and `respawns=`'s missing cross-check written down as "nowhere".
 
 ## Rejected
 

@@ -634,8 +634,8 @@ Up to `slots`, in dispatch's order, only rows under `spawn`:
 
 Ledger every spawn the moment it returns, as `<stem>@new`. Dispatch cannot
 see it — the manager has cut no branch — so until it claims, that entry is
-the only record that it exists, and the stillborn row in step 2 keys on the
-entry being a pass old. It is also what the next pass counts into step 1's
+the only record that it exists. Step 2's UNCLAIMED first-look row admits it
+once it is a pass old; every row after that keys on `seen=`. It is also what the next pass counts into step 1's
 `JOHARNESS_PENDING_SPAWNS`: the slot is owned, and only this entry says so.
 
 ## 4. Schedule the next pass, then end the turn
@@ -696,8 +696,10 @@ own ledger and defeat a bound that is the human's money. `same` and
 `<head|new>` is the branch head, or the literal `new` for an item you
 spawned that has not claimed. Such an entry has no workstream file to read
 a `next:` from and no head to compare, so it is written `next=new same=0`
-until the manager claims — and the rows above turn on `seen=`, which is a
-read of the session record, never on the entry's own age.
+until the manager claims. Entry age gates ENTRY to the unclaimed ladder
+(its first-look row) and decides nothing else: the verdict rows after it turn
+on `seen=`, a read of the session record. A title rebuilds the entry (step
+0.2) but never its age, so a rebuilt entry reaches the ladder one pass late.
 
 `seen=` is the session record's `updated_at` as you read it this pass, and
 `detail=` its `status_detail`, stripped and cut the same way. The health
@@ -710,9 +712,11 @@ Loss cost, one line per ledger field — a compacted pass guesses none of
 the ones marked NOT rebuildable:
 
 - `@<head>`: rebuilt from dispatch's in-flight rows. Loss costs nothing.
-- `@new`: rebuilt from titles for managers only (step 0.2); a surveyor's
-  `rescope-<key>@new` is NOT. Loss: the cap is passed or the run exits on a live manager.
-- `respawns=`: NOT rebuildable. Loss restores the limit, the human's money.
+- `@new`: rebuilt from titles for managers only (step 0.2) — existence and
+  count, never age; a surveyor's `rescope-<key>@new` is NOT. Loss: the cap is passed or the run exits on a live manager.
+- `respawns=`: NOT rebuildable, and no cross-check: a file's digit is the
+  forge above, and the one honest reading — successor commits in git — is a
+  measurement no command makes. Loss restores the limit, the human's money.
   An entry with no `respawns=` gets `respawns=<RESPAWN_LIMIT>`, never `0`.
 - `next=`, `same=`, `nudged`: no rebuild; loss costs one extra pass before
   a verdict (`same=` feeds the LOOP row, `nudged` the stall rows).
