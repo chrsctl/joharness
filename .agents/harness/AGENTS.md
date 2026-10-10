@@ -166,7 +166,9 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    first. NOT covered by "optional, human-only" above — that is the BRANCH. Skipped, the base branch accretes finished workstreams later
    sessions read as current; counted in
    [`.agents/docs/handover/README.md`](../../.agents/docs/handover/README.md).
-   Do it as the LAST COMMIT BEFORE the pull request opens, never after the
+   Finding after the retire commit, consumer repo: issue on the canonical, with
+  the measurement (`.agents/docs/feedback.md`, Inline or routed).
+  Do it as the LAST COMMIT BEFORE the pull request opens, never after the
    merge. Merge not yours? Ready-for-HUMAN is the edge: review record and
    retire commit land BEFORE you ask, because they merge on their clock and
    a deferred retire costs a follow-up pull request to undo.

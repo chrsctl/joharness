@@ -8,7 +8,7 @@ issue: 339
 session: https://claude.ai/code/session_01FJEmAKLHuifow1K6DFV8vN
 agent: sonnet
 updated: 2026-10-10
-next: Edit feedback.md section 4 and Loop step 7 line, run ci, review, retire, PR
+next: Record verifier findings in ## Review, fix, retire plan + workstream file, PR, merge
 ---
 
 ## Goal
