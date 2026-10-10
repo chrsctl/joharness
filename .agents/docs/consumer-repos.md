@@ -321,6 +321,19 @@ is private, when the update pull request must run `ci`, or when the org
 disables Actions creating pull requests. Without it the run uses
 `GITHUB_TOKEN` and hits all three limits.
 
+## A red base branch
+
+Base branch red before change. Four points:
+
+1. Harness keeps no record of which tests are red on base. `ci` and
+   `finish` read git and tree, never a check run.
+2. Consumer that wants one owns it, in its own `docs/`, never synced.
+3. Step 7 still binds every manager: "base green" is an infrastructure
+   reading, "re-derived at every check, never inherited". Record cannot
+   replace your own check. At most it tells you what to expect before you check.
+4. Shape of such a record is open (#305: "Also not claimed: that (2) is
+   correct."). Harness prescribes none.
+
 ## The sync pull request: drive it to merged
 
 `update.yml` gets the branch pushed. Everything after that is a person or a
