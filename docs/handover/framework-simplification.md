@@ -26,6 +26,12 @@ and the live orchestrators first; plan lists what goes.
   scripts, conf, .github, env, hooks) and text (.agents/docs, .claude,
   AGENTS.md, README).
 
+- Role audit (gx clerk/janitor/curator 13:13Z, joharness janitor/curator):
+  janitor becomes `janitor --apply` (no session; joharness run: 45 min, empty
+  PR); curate repairs scripted + `ci` gate on plans a branch edits (gx clerk
+  plan re-raised curate 0->10 within 2 min); clerk kept, slimmed, never
+  writes core-only plans; role sessions count against the cap together.
+
 ## Rejected
 
 - Keeping `context`/`perf` as reporting-only: they run inside every `ci`
