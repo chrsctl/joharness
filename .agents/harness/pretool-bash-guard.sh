@@ -255,7 +255,7 @@ timeout_re='(^|[^[:alnum:]_-])timeout[[:space:]]'
 #   - `pgrep`/`pkill` with `f` anywhere in a short-option cluster, or
 #     `--full`, in the same simple command;
 #   - `ps` piped to `grep`/`egrep`, unless `ps -p` (one pid) or a `grep -v
-#     grep` stage (the line holds "grep", so that stage drops it); `docker
+#     grep` stage (the line holds "grep", so that stage drops it); `podman
 #     ps` is not `ps` in command position;
 #   - a `/proc/*/cmdline` glob, never one pid's path (`/proc/4242/cmdline`
 #     is the classic wait for one pid to end).

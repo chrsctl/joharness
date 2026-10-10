@@ -37,6 +37,12 @@ any reader (pgrep/pkill -f, ps | grep, /proc/*/cmdline) and any loop opener
 
 ## Review
 
+- r1: selftest structure check red — `bash .agents/harness/selftest.sh`
+  (2026-10-10) printed 2497 passed, 1 failed: "this tree couples no harness
+  file to a layer beyond the carve-out", naming the `docker ps` row and
+  comment. Switched both to `podman ps`, the plan's other spelling of the
+  same case. (fixed)
+
 ## Blockers
 
 None.

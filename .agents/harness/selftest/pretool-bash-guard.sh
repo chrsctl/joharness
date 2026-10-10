@@ -561,8 +561,8 @@ pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"timeout 300 
 pbg_allowed "a grep -v grep stage drops the reader's own line"
 pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"timeout 300 bash -c '"'"'while ps -p 4242 | grep -q 4242; do sleep 5; done'"'"'"}}'
 pbg_allowed "ps -p reads one pid, not every command line"
-pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"timeout 300 bash -c '"'"'while docker ps | grep -q myjob; do sleep 5; done'"'"'"}}'
-pbg_allowed "docker ps is not ps in command position"
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"timeout 300 bash -c '"'"'while podman ps | grep -q myjob; do sleep 5; done'"'"'"}}'
+pbg_allowed "podman ps is not ps in command position"
 pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"timeout 300 bash -c '"'"'while [ -e /proc/4242/cmdline ]; do sleep 5; done'"'"'"}}'
 pbg_allowed "one pid's /proc path is not the glob"
 pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"timeout 300 bash -c '"'"'until ! pgrep bash; do sleep 3; done'"'"'"}}'
