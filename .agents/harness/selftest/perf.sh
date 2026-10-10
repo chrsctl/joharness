@@ -90,35 +90,31 @@ case "$out" in
     printf '    nothing breached; rc %s came from somewhere else\n' "$rc" ;;
 esac
 
-# The number must describe the CODE, not the repo reading it. The guard's
-# dearest path is the unsupervised boundary block, and whether a repo takes
-# it is a line in its own joharness.conf — so a row that inherited the mode
-# would carry two different numbers for one unchanged script, and would
-# measure the cheap path in every supervised repo, this one included.
-#
-# The row pins the mode. These two runs differ only in what the surrounding
-# environment says the mode is; an unpinned row answers them differently.
-# Both counts must be DIGITS, not merely equal and non-empty: perf_report
-# prints `?` in the count column when perf_count could not measure at all
-# (mktemp or the shim failing), and `? = ?` is an equal, non-empty, entirely
-# unmeasured pass. Reproducible with TMPDIR pointed at a path that does not
-# exist.
-pf_guard_n() { pf_run env "JOHARNESS_MODE=$1" ./joharness.sh perf handover-guard |
-  awk '$1 == "handover-guard" { print $2 }'; }
-pf_sup="$(pf_guard_n supervised)"
-pf_uns="$(pf_guard_n unsupervised)"
-case "${pf_sup}/${pf_uns}" in
+# The number must describe the CODE, not the repo reading it. JOHARNESS_MODE is
+# obsolete, but a stale one may still sit in a session's environment, and it
+# adds a warning line to session-start's injection. perf_count pins it empty,
+# so the row carries one number for one unchanged script. These two runs
+# differ only in what the surrounding environment says; an unpinned row
+# answers them differently. Both counts must be DIGITS, not merely equal and
+# non-empty: perf_report prints `?` in the count column when perf_count could
+# not measure at all, and `? = ?` is an equal, non-empty, entirely unmeasured
+# pass.
+pf_ss_n() { pf_run env "JOHARNESS_MODE=$1" ./joharness.sh perf session-start |
+  awk '$1 == "session-start" { print $2 }'; }
+pf_clean="$(pf_ss_n '')"
+pf_stale="$(pf_ss_n unsupervised)"
+case "${pf_clean}/${pf_stale}" in
   [0-9]*/[0-9]*)
-    if [ "$pf_sup" = "$pf_uns" ]; then
-      pass "the guard's count does not move with the repo's mode"
+    if [ "$pf_clean" = "$pf_stale" ]; then
+      pass "the session-start count does not move with an exported JOHARNESS_MODE"
     else
-      fail "the guard's count does not move with the repo's mode"
-      printf '    supervised env: %s, unsupervised env: %s\n' "$pf_sup" "$pf_uns"
+      fail "the session-start count does not move with an exported JOHARNESS_MODE"
+      printf '    unset: %s, stale: %s\n' "$pf_clean" "$pf_stale"
     fi ;;
   *)
-    fail "the guard's count does not move with the repo's mode"
+    fail "the session-start count does not move with an exported JOHARNESS_MODE"
     printf '    nothing was counted: %s and %s\n' \
-      "${pf_sup:-<no row>}" "${pf_uns:-<no row>}" ;;
+      "${pf_clean:-<no row>}" "${pf_stale:-<no row>}" ;;
 esac
 
 # An entrypoint that is not on disk must not read as a clean run. ROOT is
@@ -149,12 +145,13 @@ fi
 if [ "$rc" -ne 0 ]; then pass "a missing entrypoint is a non-zero exit"
 else fail "a missing entrypoint is a non-zero exit (got 0)"; fi
 
-# Which path it pins is the half the two runs above cannot see: a row pinned
-# to supervised answers them identically too. Asserted against the source
-# because that is where the choice lives, and deleting the prefix is exactly
-# the edit that would silently unmeasure the block.
-expect "the guard row pins the dearer path" "JOHARNESS_MODE=unsupervised" \
-  "$(grep 'handover-guard|' "${ROOT}/joharness.sh" || :)"
+# The rows that existed only for the removed modes are gone: nothing in the
+# table names a queue-orchestrated or drain entrypoint, and session-start is
+# budgeted at 48.
+pf_rows_src="$(awk '/^perf_rows\(\) \{/,/^\}/' "${ROOT}/joharness.sh")"
+refute "no queue-orchestrated row" "queue-orchestrated|" "$pf_rows_src"
+refute "no drain row" "drain|" "$pf_rows_src"
+expect "session-start is budgeted at 48" "SESSION_START:-48}" "$pf_rows_src"
 
 # FIVE fields on every row, counted rather than trusted. The separator has no
 # escape — the comment at perf_rows says so, and a comment is not a check. A

@@ -13,10 +13,10 @@
 #                       a needed plan or an open research question is open,
 #                       `claimed on <branch>` when an in-flight workstream
 #                       names it. Blocked and claimed list but never lead.
-#                       Unattended only (unsupervised, orchestrated), two
-#                       more: `SUPERVISED ONLY`
-#                       when ANY path in `scope:` is a core path
-#                       (protocol-paths), which that mode may not commit — listed, never leading,
+#                       Two more: `CORE ONLY` when ANY path in `scope:` is
+#                       a core path (protocol-paths), which no session may
+#                       commit — only a human builds it, by hand — listed,
+#                       never leading,
 #                       the label saying whether that is the whole scope or
 #                       part of it — and `scope undeclared` when there is
 #                       nothing to check, which is not the same as nothing
@@ -28,11 +28,9 @@
 #                       carries a `research:` key or a plan names its stem;
 #                       a consumer's own documents here are never scheduled.
 # Two or more free plans = fan-out line (one session per free plan, model
-# named). No free plan and nothing to plan = the edge. This hook REPORTS in
-# every mode; what an unattended session does with the report — take,
-# fan out, or exit — is `joharness.sh drain`'s to say, and what an
-# orchestrator spawns is `joharness.sh dispatch`'s, which reads the extra
-# `in flight:` lines printed under orchestrated only. GitHub issues
+# named). No free plan and nothing to plan = the edge. This hook REPORTS;
+# what an orchestrator spawns is `joharness.sh dispatch`'s to say, which
+# reads the extra `in flight:` lines printed here. GitHub issues
 # outrank everything; a shell hook cannot read GitHub, so that stays a
 # pointer.
 #
@@ -258,37 +256,16 @@ rstems="$(
   done <<<"$research"
 )"
 
-# The mode changes ONE thing here: a plan an unattended session cannot
-# commit is marked SUPERVISED ONLY and ranked out of the free list, because
-# rank is a property of the listing. Everything the mode ORDERS — take,
-# fan out, exit — lives in `joharness.sh drain`, which reads this output.
-# Every mode-dependent line sits inside a branch this variable guards, so
-# supervised output stays byte-identical.
-# Resolved by joharness.sh (run_mode) and exported to this hook; never
-# re-derived here. Unset (hook run directly) = supervised, the safe
-# direction.
-qc_mode="${JOHARNESS_RUN_MODE:-supervised}"
-# Both unattended modes are bound alike here — the boundary and the marking
-# turn on "is a human present", not on who dispatches. One predicate, the
-# same split joharness.sh:unattended makes; a `= unsupervised` test left
-# anywhere below is a bound the orchestrated mode escapes.
-qc_unattended=0
-case "$qc_mode" in unsupervised | orchestrated) qc_unattended=1 ;; esac
-# Under unsupervised the LAST line is always the pointer at the reader that
-# orders. A trap, so every exit path below carries it — this hook has four —
-# and the report above it stays the same bytes in both modes. Without it a
+# The LAST line is always the pointer at the readers that order. A trap,
+# so every exit path below carries it — this hook has four. Without it a
 # session read "Spawn one per plan" or "ask human" as the last word, from a
-# hook that no longer knows what the mode does with either.
-if [ "$qc_mode" = "unsupervised" ]; then
-  trap 'printf "\nUNSUPERVISED: this hook reports; ./joharness.sh drain orders — take,\nfan out, or exit.\n"' EXIT
-elif [ "$qc_mode" = "orchestrated" ]; then
-  trap 'printf "\nORCHESTRATED: this hook reports; a manager works the item its prompt\nnames, the orchestrator reads ./joharness.sh dispatch and spawns.\n"' EXIT
-fi
+# hook that does not know who spawns.
+trap 'printf "\nORCHESTRATED: this hook reports; a manager works the item its prompt\nnames, the orchestrator reads ./joharness.sh dispatch and spawns.\n"' EXIT
 
-# The unattended boundary, as the queue sees it: the core paths are off
-# limits to a session running unattended (.agents/docs/unsupervised.md,
-# Bounds), so a plan whose declared scope holds a core path AT ALL is a plan
-# that fleet can never finish. Protocol text is not core since 2026-10-08 — see the class list below for why any
+# The boundary, as the queue sees it: the core paths are off limits to
+# every session (.agents/docs/unsupervised.md, Bounds), so a plan whose
+# declared scope holds a core path AT ALL is a plan the fleet can never
+# finish. Protocol text is not core since 2026-10-08 — see the class list below for why any
 # rather than all.
 #
 # Measured, 2026-08-31: the endurance retry spent 55 minutes and $12.05 on
@@ -303,14 +280,11 @@ fi
 # #114 is what one costs.
 #
 # An ARRAY read once per run, never per plan: a fork inside the row loop is
-# the regression in kind this hook's perf budget exists to catch. Supervised
-# does not even pay the one fork, because nothing that reads this fires.
+# the regression in kind this hook's perf budget exists to catch.
 qc_protocol=()
-if [ "$qc_unattended" -eq 1 ]; then
-  while IFS= read -r qc_p; do
-    [ -n "$qc_p" ] && qc_protocol+=("$qc_p")
-  done < <("${PROJECT_DIR}/joharness.sh" protocol-paths 2>/dev/null)
-fi
+while IFS= read -r qc_p; do
+  [ -n "$qc_p" ] && qc_protocol+=("$qc_p")
+done < <("${PROJECT_DIR}/joharness.sh" protocol-paths 2>/dev/null)
 # A checkout whose entrypoint cannot list the boundary — a consumer carrying
 # a joharness.sh older than the subcommand, or none at all. Nothing is marked
 # there, and the queue SAYS so: silently marking every plan "unchecked" would
@@ -332,7 +306,7 @@ qc_boundary=1
 #            done, and step 7 deletes a plan file only when it IS done.
 #            handover-guard.sh counts ANY protocol path in the diff, so a
 #            session starting one of these finishes nothing and hands off
-#            — the queue would have offered an unsupervised fleet a plan it
+#            — the queue would have offered an unattended fleet a plan it
 #            could never finish, which is what this marking exists to stop
 #            (.agents/docs/unsupervised.md, Bounds). The first rule drew the
 #            line at can-it-be-started; this one draws it at
@@ -431,9 +405,9 @@ rows_raw="$(
     [ -n "$f" ] || continue
     doc="$(git show "${ref}:${f}" 2>/dev/null)"
     # An unreadable plan is NOT an absent plan. Dropped silently, it left
-    # free_count at 0 and the edge fired — inert under supervised ("every
-    # plan claimed or blocked"), an order to invent a backlog under
-    # unsupervised, on top of a plan that is neither claimed nor blocked.
+    # free_count at 0 and the edge fired — an order to an unattended fleet
+    # to stop, or to invent a backlog, on top of a plan that is neither
+    # claimed nor blocked.
     # Counted on stderr so the row list stays machine-shaped.
     [ -n "$doc" ] || continue
     # `scope` rides the SAME pass. This call already reads six keys in one
@@ -487,38 +461,24 @@ rows_raw="$(
     claimed_on="$(awk -F'\t' -v s="$(stem "$f")" \
       '$1 == s && $3 != "abandoned" { print $2; exit }' <<<"$claims")"
 
-    # The boundary, applied to this plan — and ONLY under unsupervised. A
-    # human-directed session may legitimately work a protocol-text plan, so
-    # marking one for a supervised reader would be noise, and the
-    # requirement's own Acceptance says a supervised session cannot tell
-    # this shipped. Not called at all there: the label gains nothing and the
-    # rank does not move, so supervised output stays byte-identical.
-    # qc_boundary is in the condition, not only inside qc_scope_class: with
-    # no list to compare against, EVERY plan classifies unknown, and the
-    # label would tell a reader that nobody declared a scope when what
-    # actually happened is that nothing could read the boundary. The note
-    # above says that once, correctly.
-    # The two conditions are REDUNDANT and stay that way. Under supervised
-    # the array is never populated, so either one alone would do the job —
-    # which also means no case can pin them separately, because the state
-    # where they disagree cannot be built through this hook's interface. A
-    # mutation removing either reports NOTHING REDDED and both are load
-    # bearing to a reader: one says which mode this is for, the other says
-    # what it needs to be true. Deleting either because a mutation calls it
-    # unpinned is the refactor this paragraph exists to stop.
+    # The boundary, applied to this plan. Gated on qc_boundary: with no list
+    # to compare against, EVERY plan classifies unknown, and the label would
+    # tell a reader that nobody declared a scope when what actually happened
+    # is that nothing could read the boundary. The note above says that
+    # once, correctly.
     scope_note=""
     scope_derank=""
-    if [ "$qc_unattended" -eq 1 ] && [ "$qc_boundary" -eq 1 ]; then
+    if [ "$qc_boundary" -eq 1 ]; then
       qc_scope_class "$scope"
       # Two marked classes, two labels, one de-rank. The labels stay
       # distinct because the shapes want different fixes: an `only` plan is
-      # supervised work for good, a `some` plan may be splittable along the
+      # a human's work for good, a `some` plan may be splittable along the
       # boundary. One string for both would erase that at the only place a
       # reader sees it.
       case "$qc_class" in
-        only)    scope_note=", SUPERVISED ONLY: scope is all core paths"
+        only)    scope_note=", CORE ONLY: scope is all core paths"
                  scope_derank=1 ;;
-        some)    scope_note=", SUPERVISED ONLY: scope includes a core path"
+        some)    scope_note=", CORE ONLY: scope includes a core path"
                  scope_derank=1 ;;
         unknown) scope_note=", scope undeclared: protocol boundary unchecked" ;;
       esac
@@ -528,10 +488,10 @@ rows_raw="$(
     [ "$urgency" = "urgent" ] && rank=0
     [ -z "$claimed_on" ] || rank=$((rank + 2))
     [ -z "$blockers" ] || rank=$((rank + 4))
-    # Not free FOR THIS MODE. Same weight `claimed on` carries — listed so
+    # Not free for any session. Same weight `claimed on` carries — listed so
     # the shape of the queue stays visible, never leading — and deliberately
-    # not `blocked by`'s: nothing blocks this plan, and a supervised session
-    # can take it today. UNDECLARED does not move the rank at all; guessing a
+    # not `blocked by`'s: nothing blocks this plan, and a human can take it
+    # by hand today. UNDECLARED does not move the rank at all; guessing a
     # plan's scope is out of scope, and de-ranking on a guess would hide work
     # nobody proved was unreachable.
     [ -z "$scope_derank" ] || rank=$((rank + 2))
@@ -691,7 +651,7 @@ if [ -z "$plans" ]; then
   elif [ "$research_count" -gt 0 ] || [ "$qc_research_unreadable" -gt 0 ]; then
     # NOT an edge. An open question is queue work (Loop step 2), so a hook
     # that said "done" here would report an empty queue over a queue that
-    # is not empty — and under unsupervised that reads as an order to
+    # is not empty — and to an unattended fleet that reads as an order to
     # invent a backlog on top of real work nobody has done.
     printf 'No plans on %s, but the queue is not empty:\n' "$ref"
     qc_print_research
@@ -712,8 +672,8 @@ fi
 # drops a plan for exactly one other reason (an empty line), so the shortfall
 # IS the unreadable count. It matters because free_count cannot tell "no plan
 # is free" from "no plan could be read": a zero-byte plan file made the edge
-# fire while an unclaimed, unblocked plan sat in the queue — inert under
-# supervised, an order to invent a backlog under unsupervised.
+# fire while an unclaimed, unblocked plan sat in the queue — to an
+# unattended fleet, an order to stop or to invent a backlog.
 qc_unreadable=$(( $(printf '%s\n' "$plans" | grep -c . || :) -
                   $(printf '%s\n' "$rows"  | grep -c . || :) ))
 [ "$qc_unreadable" -ge 0 ] || qc_unreadable=0
@@ -729,11 +689,11 @@ fi
 # DECLARATION. Labelling every row "unchecked" here would spell the first as
 # the second, and a session would go looking in the plan files for a fault
 # that is in its own checkout.
-if [ "$qc_unattended" -eq 1 ] && [ "$qc_boundary" -eq 0 ]; then
+if [ "$qc_boundary" -eq 0 ]; then
   printf '\nProtocol boundary NOT read (./joharness.sh protocol-paths listed\n'
-  printf 'nothing here), so no plan below is marked SUPERVISED ONLY. That is\n'
+  printf 'nothing here), so no plan below is marked CORE ONLY. That is\n'
   printf 'this checkout, not the plans: a plan whose scope holds a core\n'
-  printf 'path at all is one this mode cannot finish, and nothing checked.\n'
+  printf 'path at all is one no session can finish, and nothing checked.\n'
 fi
 
 # Display truncates; the free count below does not — a fan-out instruction
@@ -885,7 +845,7 @@ while [ "$i" -lt "${#free_names[@]}" ]; do
   esac
   i=$((i + 1))
 done
-if [ "$qc_mode" = "orchestrated" ] && [ "$free_count" -gt 0 ]; then
+if [ "$free_count" -gt 0 ]; then
   while IFS=$'\t' read -r _ _ cf clabel _; do
     [ -n "$cf" ] || continue
     case "$clabel" in *'claimed on '*) ;; *) continue ;; esac
@@ -1072,15 +1032,11 @@ elif [ "$free_count" -eq 0 ] && [ -z "$unplanned" ] &&
   exit 0
 elif [ "$free_count" -eq 0 ] && [ -z "$unplanned" ] &&
      [ "$qc_unreadable" -eq 0 ]; then
-  if [ "$qc_unattended" -eq 1 ]; then
-    # Nothing here is free FOR THIS MODE, and the supervised tail below
-    # ("top free plan above") would point at a plan that is not. The marked
-    # rows are why the edge is reached; say so and stop — the trap prints
-    # the pointer, and drain says what the edge means.
-    printf '\nEdge reached: no free plan — every plan claimed, blocked or SUPERVISED ONLY.\n'
-    exit 0
-  fi
-  printf '\nEdge reached: no free plan — every plan claimed or blocked. done.\n'
+  # The tail below ("top free plan above") would point at a plan that is
+  # not free. The marked rows are why the edge is reached; say so and stop
+  # — the trap prints the pointer, and dispatch says what the edge means.
+  printf '\nEdge reached: no free plan — every plan claimed, blocked or CORE ONLY.\n'
+  exit 0
 fi
 
 # A free plan whose exclusive scope overlaps a CLAIMED plan's. The waves

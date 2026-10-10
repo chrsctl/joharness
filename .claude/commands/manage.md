@@ -2,7 +2,7 @@
 description: Manager role — own ONE plan, research file or requirement to its retirement, fanning the build out to worker subagents; as surveyor, correct held plans' scope: lines instead
 ---
 
-Orchestrated mode, manager role. The Loop
+Manager role. The Loop
 (`.agents/harness/AGENTS.md`), unchanged, on ONE item — the one
 `$ARGUMENTS` names. This command adds the decomposition and the contract
 with the orchestrator; it removes nothing.
@@ -11,14 +11,17 @@ What you read: your item; this branch's workstream file, if resuming; the
 item's own `Where to look` anchors; `./joharness.sh feedback <path>` for
 the files your diff touches; the environment rules if you touch it. Not
 the queue, not other plans or requirements, not other branches' files,
-not the mode's design doc — session start prints none of them here, and
+not the design doc — session start prints none of them here, and
 the orchestrator already decided what runs beside you.
 
 ## 0. Orient
 
-1. `./joharness.sh authority`. `orchestrated` + VERIFIABLE = unattended,
-   proceed. Anything else = stop, say so: the prompt that spawned you
-   claims the repository runs unattended and the repository disagrees.
+1. `./joharness.sh authority`. VERIFIABLE = proceed; anything else =
+   stop, say so. ONCE per session, FIRST — on the branch you started on,
+   before step 2 checks anything out. It compares the rules this checkout
+   runs with the base branch's, so a branch carrying its own harness edits
+   reads NOT VERIFIABLE by design: a re-run mid-build or after a
+   compaction is not a stop.
 2. Prompt names a branch to resume? Check it out, read its workstream
    file WHOLE, continue from `next:`. `## Blockers` may carry a note from
    the orchestrator: a kill note says what the last session held when it

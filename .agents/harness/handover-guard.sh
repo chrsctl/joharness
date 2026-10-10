@@ -143,102 +143,89 @@ if [ -n "$base" ] && [ "$base" != "$(git rev-parse HEAD 2>/dev/null)" ]; then
   fi
 fi
 
-# --- unsupervised boundary -------------------------------------------------
-# Under an unattended mode the CORE paths are off limits — the conf (money,
-# mode), the settings (hooks, permissions), .github (the merge gate). Protocol
-# text is not: released 2026-10-08 (.agents/docs/unsupervised.md, Bounds).
+# --- the core boundary -----------------------------------------------------
+# The CORE paths are off limits to every session — the conf (money), the
+# settings (hooks, permissions), .github (the merge gate). Protocol text is
+# not: released 2026-10-08 (.agents/docs/unsupervised.md, Bounds). Applied
+# unconditionally: orchestrated is the only mode, so there is no mode to
+# resolve and no session the boundary does not bind.
 #
 # Detection, not prevention, and the wording says so. A Stop hook runs
 # after the commit exists, so the honest thing it can do is name a boundary
 # already crossed and ask for the revert — calling this a guarantee would
 # promise a vault where there is a tripwire.
 #
-# Resolution goes through the entrypoint so one function decides what
-# unsupervised means; a checkout without it (or an older copy with no
-# `mode` subcommand) falls back to the environment variable, and both paths
-# normalise to supervised on anything unexpected.
-if [ -x "${PROJECT_DIR}/joharness.sh" ]; then
-  mode="$("${PROJECT_DIR}/joharness.sh" mode 2>/dev/null)"
-else
-  mode="${JOHARNESS_MODE:-}"
-fi
-# Two unattended values, one boundary: orchestrated is bound exactly as
-# unsupervised is (joharness.sh:unattended).
-case "$mode" in unsupervised | orchestrated) ;; *) mode="supervised" ;; esac
-
-if [ "$mode" != "supervised" ]; then
-  # Count only, never a path: the reason string below embeds in JSON
-  # without escaping, and a file name is repo-controlled input. A count is
-  # digits, and digits cannot close a JSON string.
-  # Net diff, not the commit log. A session that edited the harness and
-  # then reverted it lands nothing, and the fact's own instruction ("revert
-  # them") is already satisfied — reading the log instead would keep
-  # blocking every stop for the rest of the branch's life, which is the
-  # same false positive the ritual test above exists to prevent.
-  #
-  # The base-relative half is skipped when there is no merge-base (shallow
-  # checkout, a clone with no origin/<base> ref) — but the working-tree half
-  # is NOT, and gating the whole check on the base was a fail-open: an
-  # unattended session on a shallow checkout got no boundary at all. A
-  # partial answer beats silence for a fact whose whole job is to notice.
-  # Every protocol tree, not one. The list lives in joharness.sh
-  # (protocol_paths) so the banner and this guard cannot disagree about
-  # where the boundary is — issue #114 is what one hardcoded prefix cost.
-  # A checkout whose entrypoint cannot list the boundary — missing, broken,
-  # or an older copy with no such subcommand — falls back to the CORE paths,
-  # spelled here a second time on purpose. Since 2026-10-08 a session may
-  # edit joharness.sh, so "cannot list" is reachable from a branch and not
-  # only from an old copy; the fallback used to be `.agents/harness`, which
-  # then reported a released edit as a crossing and missed every core one
-  # (verifier r3). The selftest pins this copy equal to `protocol-paths`.
-  trees="$("${PROJECT_DIR}/joharness.sh" protocol-paths 2>/dev/null)"
-  [ -n "$trees" ] || trees="joharness.conf
+# Count only, never a path: the reason string below embeds in JSON
+# without escaping, and a file name is repo-controlled input. A count is
+# digits, and digits cannot close a JSON string.
+# Net diff, not the commit log. A session that edited the harness and
+# then reverted it lands nothing, and the fact's own instruction ("revert
+# them") is already satisfied — reading the log instead would keep
+# blocking every stop for the rest of the branch's life, which is the
+# same false positive the ritual test above exists to prevent.
+#
+# The base-relative half is skipped when there is no merge-base (shallow
+# checkout, a clone with no origin/<base> ref) — but the working-tree half
+# is NOT, and gating the whole check on the base was a fail-open: an
+# unattended session on a shallow checkout got no boundary at all. A
+# partial answer beats silence for a fact whose whole job is to notice.
+# Every protocol tree, not one. The list lives in joharness.sh
+# (protocol_paths) so the banner and this guard cannot disagree about
+# where the boundary is — issue #114 is what one hardcoded prefix cost.
+# A checkout whose entrypoint cannot list the boundary — missing, broken,
+# or an older copy with no such subcommand — falls back to the CORE paths,
+# spelled here a second time on purpose. Since 2026-10-08 a session may
+# edit joharness.sh, so "cannot list" is reachable from a branch and not
+# only from an old copy; the fallback used to be `.agents/harness`, which
+# then reported a released edit as a crossing and missed every core one
+# (verifier r3). The selftest pins this copy equal to `protocol-paths`.
+trees="$("${PROJECT_DIR}/joharness.sh" protocol-paths 2>/dev/null)"
+[ -n "$trees" ] || trees="joharness.conf
 .claude/settings.json
 .github"
 
-  # An ARRAY, and every path passed to git whether or not it exists here.
-  #
-  # The first version of this filtered to paths present in the worktree,
-  # reasoning that a pathspec naming an absent directory makes git exit
-  # non-zero. It does not — `git diff --name-only HEAD -- absent/path` exits
-  # 0 — and the filter cost the exact scenario this boundary exists for:
-  # DELETING a protocol tree removes it from the worktree, so the filter
-  # dropped it and the guard went silent on "retire your own reviewer".
-  # Measured against origin/main's guard on the same branch: the old code
-  # reported the deletion, this code did not. A regression, not a gap.
-  #
-  # Unquoted word-splitting was the other half of that mistake: a path with
-  # a space split into two pathspecs matching nothing, and a path that is a
-  # glob matched whatever happened to be on disk. Both silent.
-  paths=()
-  while IFS= read -r t; do
-    [ -n "$t" ] && paths+=("$t")
-  done <<EOF
+# An ARRAY, and every path passed to git whether or not it exists here.
+#
+# The first version of this filtered to paths present in the worktree,
+# reasoning that a pathspec naming an absent directory makes git exit
+# non-zero. It does not — `git diff --name-only HEAD -- absent/path` exits
+# 0 — and the filter cost the exact scenario this boundary exists for:
+# DELETING a protocol tree removes it from the worktree, so the filter
+# dropped it and the guard went silent on "retire your own reviewer".
+# Measured against origin/main's guard on the same branch: the old code
+# reported the deletion, this code did not. A regression, not a gap.
+#
+# Unquoted word-splitting was the other half of that mistake: a path with
+# a space split into two pathspecs matching nothing, and a path that is a
+# glob matched whatever happened to be on disk. Both silent.
+paths=()
+while IFS= read -r t; do
+  [ -n "$t" ] && paths+=("$t")
+done <<EOF
 $trees
 EOF
 
-  harness_touched=0
-  if [ "${#paths[@]}" -gt 0 ]; then
-    harness_touched="$(
-      {
-        [ -z "$base" ] ||
-          git diff --name-only "$base" HEAD -- "${paths[@]}" 2>/dev/null
-        git diff --name-only HEAD -- "${paths[@]}" 2>/dev/null
-        git diff --name-only --cached -- "${paths[@]}" 2>/dev/null
-        # Untracked too. `git diff` cannot see a file that was never added,
-        # so a new protocol file read as absent until the commit that the
-        # boundary exists to prevent.
-        git ls-files --others --exclude-standard -- "${paths[@]}" 2>/dev/null
-      } | sort -u | grep -c . || :
-    )"
-  fi
-  if [ -n "$harness_touched" ] && [ "$harness_touched" -gt 0 ]; then
-    # Still a count, never a path. The reason string embeds in JSON without
-    # escaping and a file name is repo-controlled input; widening the
-    # boundary widens what that input could be, so this matters more now,
-    # not less. Digits cannot close a JSON string.
-    add_fact "${mode} mode, but this branch touches ${harness_touched} core file(s) (.agents/docs/unsupervised.md, Bounds) — revert them"
-  fi
+harness_touched=0
+if [ "${#paths[@]}" -gt 0 ]; then
+  harness_touched="$(
+    {
+      [ -z "$base" ] ||
+        git diff --name-only "$base" HEAD -- "${paths[@]}" 2>/dev/null
+      git diff --name-only HEAD -- "${paths[@]}" 2>/dev/null
+      git diff --name-only --cached -- "${paths[@]}" 2>/dev/null
+      # Untracked too. `git diff` cannot see a file that was never added,
+      # so a new protocol file read as absent until the commit that the
+      # boundary exists to prevent.
+      git ls-files --others --exclude-standard -- "${paths[@]}" 2>/dev/null
+    } | sort -u | grep -c . || :
+  )"
+fi
+if [ -n "$harness_touched" ] && [ "$harness_touched" -gt 0 ]; then
+  # Still a count, never a path. The reason string embeds in JSON without
+  # escaping and a file name is repo-controlled input; widening the
+  # boundary widens what that input could be, so this matters more now,
+  # not less. Digits cannot close a JSON string.
+  add_fact "this branch touches ${harness_touched} core file(s) (.agents/docs/unsupervised.md, Bounds) — revert them"
 fi
 
 # --- background work still running ------------------------------------------
