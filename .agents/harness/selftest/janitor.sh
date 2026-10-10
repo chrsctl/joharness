@@ -437,7 +437,9 @@ jcommit "claim at the edge" '2026-01-02T00:00:00Z'
 git -C "$jwork" push -qu origin mgr-withpr
 git -C "$jwork" checkout -q main
 out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-withpr 2>&1 )"
-expect "a claim naming pr: is not a candidate" "skip      : mgr-withpr — not a candidate" "$out"
+expect "a claim naming pr: is refused by guard" \
+  "protected : REFUSED — docs/handover/withpr.md names pr: 77 at live head" "$out"
+expect "and skipped" "skip      : mgr-withpr — guard refused; nothing released" "$out"
 expect "and origin still carries it unreleased" "status: review" \
   "$(git -C "$jorigin" show mgr-withpr:docs/handover/withpr.md 2>&1)"
 out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply 2>&1 )"; rc=$?
@@ -465,8 +467,9 @@ git -C "$jorigin" branch -qD mgr-deleted
 expect "the stale ref outlives the deletion, so the case below is live" \
   "mgr-deleted  docs/handover/mgr-deleted.md" "$(jan)"
 out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-deleted 2>&1 )"; rc=$?
-expect "--apply asks origin and finds the branch gone" \
-  "gone      : mgr-deleted — gone on origin, nothing to release" "$out"
+expect "--apply asks origin through guard and finds the branch gone" \
+  "live      : REFUSED — mgr-deleted gone on origin: already released" "$out"
+refute "and releases nothing" "release   :" "$out"
 refute "and pushes nothing" "pushed    :" "$out"
 if [ "$rc" -eq 0 ]; then pass "a gone branch is no failure"
 else fail "a gone branch is no failure (rc ${rc})"; fi
@@ -477,6 +480,44 @@ else
 fi
 refute "and the stale local ref goes with it, so dispatch stops naming it" \
   "mgr-deleted  docs/handover/mgr-deleted.md" "$(jan)"
+# Gone and NOT a candidate (it names a pr:): still gone, rc 0, ref dropped;
+# the live read comes before the candidate filter, not after it.
+git -C "$jwork" checkout -qb mgr-deletedpr main
+mkdir -p "${jwork}/docs/handover"
+printf -- '---\nworkstream: deletedpr\nstatus: review\nbranch: mgr-deletedpr\nplan: none\npr: 55\nagent: sonnet\nupdated: 2026-01-02\nnext: Merge\n---\n\n## Goal\nFixture.\n' \
+  >"${jwork}/docs/handover/deletedpr.md"
+jcommit "claim deletedpr" '2026-01-02T00:00:00Z'
+git -C "$jwork" push -qu origin mgr-deletedpr
+# The narrow refspec maps no tracking ref for it: write the stale one by hand.
+git -C "$jwork" update-ref refs/remotes/origin/mgr-deletedpr mgr-deletedpr
+git -C "$jwork" checkout -q main
+git -C "$jorigin" branch -qD mgr-deletedpr
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-deletedpr 2>&1 )"; rc=$?
+expect "a gone non-candidate is gone, not skipped" \
+  "live      : REFUSED — mgr-deletedpr gone on origin: already released" "$out"
+refute "and is not called a non-candidate" "not a candidate" "$out"
+if [ "$rc" -eq 0 ]; then pass "and is no failure"
+else fail "and is no failure (rc ${rc})"; fi
+if git -C "$jwork" rev-parse -q --verify refs/remotes/origin/mgr-deletedpr >/dev/null; then
+  fail "and its stale local ref is dropped"
+else pass "and its stale local ref is dropped"; fi
+# Moved on origin under the narrow refspec: --apply re-reads the named branch
+# itself, so a stale tracking ref is no permanent refusal.
+jgone mgr-movednarrow
+git -C "$jwork" update-ref refs/remotes/origin/mgr-movednarrow mgr-movednarrow
+jmv="${TMP}/janitormover"
+git clone -q "$jorigin" "$jmv"
+git -C "$jmv" checkout -q mgr-movednarrow
+printf 'moved\n' >>"${jmv}/code.txt"
+git -C "$jmv" add -A
+GIT_COMMITTER_DATE='2026-01-03T00:00:00Z' GIT_AUTHOR_DATE='2026-01-03T00:00:00Z' \
+  git -C "$jmv" commit -qm "manager moved"
+git -C "$jmv" push -q origin mgr-movednarrow
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-movednarrow 2>&1 )"; rc=$?
+expect "a branch moved under a narrow refspec is re-read, then released" \
+  "pushed    : mgr-movednarrow" "$out"
+if [ "$rc" -eq 0 ]; then pass "and exits 0"
+else fail "and exits 0 (rc ${rc})"; printf '%s\n' "$(indent "$out")"; fi
 git -C "$jwork" config --unset-all remote.origin.fetch
 while IFS= read -r l; do git -C "$jwork" config --add remote.origin.fetch "$l"; done <<<"$jrefspec"
 
@@ -509,8 +550,9 @@ jurl="$(git -C "$jwork" config remote.origin.url)"
 git -C "$jwork" config remote.origin.url "${TMP}/no-such-origin.git"
 out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-unreach 2>&1 )"; rc=$?
 git -C "$jwork" config remote.origin.url "$jurl"
-expect "an origin that cannot answer is a skip" \
-  "skip      : mgr-unreach — cannot ask origin whether the branch exists" "$out"
+expect "an origin that cannot answer is a guard refusal" \
+  "live      : REFUSED — mgr-unreach: cannot ask origin whether the branch exists" "$out"
+expect "and a skip" "skip      : mgr-unreach — guard refused; nothing released" "$out"
 if [ "$rc" -ne 0 ]; then pass "and exits non-zero"
 else fail "and exits non-zero"; fi
 expect "and origin's claim is untouched" "status: in-progress" \

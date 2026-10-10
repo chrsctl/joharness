@@ -557,6 +557,7 @@ SELFTEST_TOPICS=(
   curate-apply
   analysis
   janitor
+  guard
   scout
   ci-canonical-only-selftest
   upgrade
