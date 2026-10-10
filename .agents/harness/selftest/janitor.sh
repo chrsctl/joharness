@@ -513,3 +513,76 @@ done
 refute "a note written without the clause misses the reconcile" "reconciles with its base" "$jnote_bad"
 refute "and does not say why ci reds" "not one of" "$jnote_bad"
 refute "nor name the word the enum lacks" "abandoned" "$jnote_bad"
+
+# --- a RETIRED sweep whose pull request has not merged (#292) ----------------
+# Step 7 makes the retire the last commit before the pull request, so from that
+# push to the merge the tip carries no janitor file. The real shape, not the
+# easy one: the file is ADDED on the branch and DELETED on the branch, so the
+# net diff against the merge base is empty and only the branch's history shows
+# the sweep. These cannot be dated in 2026-01 like the rest of this topic: the
+# bound is one cycle back from the wall clock. Last in the file because each
+# one pushes a branch the cases above would otherwise count.
+# <hours ago>: a date jcommit takes.
+jago() { printf '@%s +0000' "$(( $(date +%s) - $1 * 3600 ))"; }
+# <branch> <stamp> <retire hours ago>: a sweep that claimed and retired.
+jretired() {
+  git -C "$jwork" checkout -qb "$1" main
+  mkdir -p "${jwork}/docs/handover"
+  printf -- '---\nworkstream: %s\nstatus: done\nbranch: %s\nplan: none\nagent: sonnet\nupdated: 2026-10-10\nnext: none\n---\n\n## Goal\nFixture.\n' \
+    "$2" "$1" >"${jwork}/docs/handover/${2}.md"
+  jcommit "a sweep claims" "$(jago "$(( $3 + 1 ))")"
+  git -C "$jwork" rm -q "docs/handover/${2}.md"
+  jcommit "retire the sweep before its pull request" "$(jago "$3")"
+}
+git -C "$jwork" checkout -q main
+jretired janitor-retired janitor-2026-10-09 1
+git -C "$jwork" push -qu origin janitor-retired
+git -C "$jwork" checkout -q main
+out="$(jan)"
+# The ROW, not the cadence word: the sweeps above are still in flight, so
+# `cadence   : IN FLIGHT` is printed with or without this fix (mutation run:
+# the word stayed green with the retired walk removed, the row went red).
+expect "a retired sweep with its pull request open holds the cycle, read as retired" \
+  "janitor-retired  janitor-2026-10-09  retired" "$out"
+out="$(jdsp)"
+expect "dispatch reads the same row" "janitor-retired  janitor-2026-10-09" "$out"
+
+# The same sweep, which then reconciled with a base that moved: `main` deleted
+# a handover file the branch still carried. The merge result matches `main` on
+# the path, so a log without --full-history follows `main` only and `--not`
+# hides the delete. On git 2.43 `-m` alone also turns that simplification off
+# here, so this case pins the PAIR: drop both and it reds, drop either and it
+# does not.
+git -C "$jwork" checkout -q main
+mkdir -p "${jwork}/docs/handover"
+printf -- '---\nworkstream: janitor-notes\nstatus: done\nbranch: main\nplan: none\nagent: sonnet\nupdated: 2026-10-10\nnext: none\n---\n\n## Goal\nFixture.\n' \
+  >"${jwork}/docs/handover/janitor-notes.md"
+jcommit "a handover file on the base" "$(jago 5)"
+git -C "$jwork" push -q origin main
+jretired janitor-reconciled janitor-2026-10-08 2
+git -C "$jwork" checkout -q main
+git -C "$jwork" rm -q "docs/handover/janitor-notes.md"
+mkdir -p "${jwork}/docs/handover"
+jcommit "the base retires its handover file" "$(jago 1)"
+git -C "$jwork" push -q origin main
+git -C "$jwork" checkout -q janitor-reconciled
+GIT_COMMITTER_DATE="$(jago 1)" GIT_AUTHOR_DATE="$(jago 1)" \
+  git -C "$jwork" merge -q --no-edit main
+git -C "$jwork" push -qu origin janitor-reconciled
+git -C "$jwork" checkout -q main
+out="$(jan)"
+expect "a retired sweep that merged its base in still holds the cycle" \
+  "janitor-reconciled  janitor-2026-10-08  retired" "$out"
+# The base's own delete rides in that merge under -m. Its file is no sweep, so
+# it names nothing.
+refute "and the base's delete is not read as a sweep" "janitor-notes" "$out"
+
+# A retire older than one cycle: its pull request never merged, and a sweep
+# would be due anyway, so it holds nothing.
+git -C "$jwork" checkout -q main
+jretired janitor-stale janitor-2026-10-01 13
+git -C "$jwork" push -qu origin janitor-stale
+git -C "$jwork" checkout -q main
+out="$(jan)"
+refute "a retire older than the window holds nothing" "janitor-stale" "$out"
+expect "while the younger ones still do" "janitor-retired  janitor-2026-10-09" "$out"

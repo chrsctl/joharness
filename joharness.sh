@@ -5255,7 +5255,7 @@ janitor_due() {
 # positive from the broad grep costs three git calls and nothing else.
 janitor_branches() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}"
-  local refs r name base wf files doc jws jkey jstat cand
+  local refs r name base wf files doc jws jkey jstat cand seen=""
   refs="$(git -C "$ROOT" for-each-ref --no-merged="refs/remotes/origin/${base_branch}" \
     --format='%(refname)' refs/remotes/origin </dev/null 2>/dev/null)"
   while IFS= read -r r; do
@@ -5286,8 +5286,89 @@ janitor_branches() {
       jws="$(printf '%s' "$jws" | tr -cd 'A-Za-z0-9._:-')"
       jstat="$(printf '%s' "$jstat" | tr -cd 'A-Za-z0-9._-')"
       printf '%s\t%s\t%s\n' "$name" "${jws:-?}" "${jstat:-?}"
+      seen="${seen}${name}"$'\n'
     done <<<"$files"
   done <<<"$refs"
+  janitor_retired_branches "$refs" "$seen"
+}
+
+# A RETIRED sweep whose pull request has not merged yet (#292): one line per
+# branch, `<branch>\t<stamp>\tretired`. Step 7 of the role makes the retire the
+# last commit before the pull request, so from that push to the merge the tip
+# carries no janitor file and the tree walk above sees nothing — `dispatch`
+# read DUE with a sweep's releases still on their way to the base.
+#
+# The net diff cannot see it: the file was added AND deleted on the branch.
+# Only the branch's HISTORY can, so this is scout_retired_ts' one log over every
+# unmerged ref, and for the same reasons: `--full-history` because a sweep that
+# merged the base in at step 7 is otherwise simplified onto the base, which
+# `--not` then hides; `-m` for a retire inside that merge; one call, not one
+# per ref, for `drain`'s sake (the header above). Bounded by the RETIRE
+# commit's time, never the tip's — a reconcile merge re-dates the tip — to one
+# cycle (`JOHARNESS_JANITOR_HOURS`), so a pull request that never merges stops
+# holding the cycle once a sweep would be due anyway. A time ahead of now reads
+# as now, as scout_retired_ts reads it: skew is not a reason to spawn twice.
+#
+# The same identity as the tree walk, read where the file last stood: the
+# delete's parent. Frontmatter decides, never the glob that found it. And the
+# same error branch as scout_retired_ts — closed: a log that fails is a sweep
+# that may be in flight, never a field that is empty.
+janitor_retired_branches() {
+  local refs_in="$1" seen="$2"
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}"
+  local hours now cutoff refs=() r name log rc line h ct wf p doc jws jkey owner
+  hours="$(num_knob JOHARNESS_JANITOR_HOURS 12)"
+  [ "$hours" -gt 0 ] || return 0
+  while IFS= read -r r; do
+    [ -n "$r" ] || continue
+    name="${r#refs/remotes/origin/}"
+    { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
+    refs+=("$r")
+  done <<<"$refs_in"
+  [ "${#refs[@]}" -gt 0 ] || return 0
+  now="$(date +%s)"
+  cutoff=$((now - hours * 3600))
+  log="$(GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 git -C "$ROOT" log \
+    --full-history -m --diff-filter=D --name-only --format='C %H %ct' \
+    "${refs[@]}" --not "refs/remotes/origin/${base_branch}" \
+    -- 'docs/handover/*janitor*' </dev/null 2>/dev/null)"; rc=$?
+  if [ "$rc" -ne 0 ]; then
+    printf 'unreadable\tgit-log-failed\tretired\n'
+    return 0
+  fi
+  h=""; ct=""
+  while IFS= read -r line; do
+    case "$line" in
+      '') continue ;;
+      'C '*) line="${line#C }"; h="${line%% *}"; ct="${line#* }"; continue ;;
+    esac
+    wf="$line"
+    case "$ct" in '' | *[!0-9]*) continue ;; esac
+    [ "$ct" -le "$now" ] || ct="$now"
+    [ "$ct" -ge "$cutoff" ] || continue
+    # `-m` prints a merge once per parent and %H does not say which; the file
+    # stood in at least one, and the first that carries it is read.
+    doc=""
+    for p in "${h}^1" "${h}^2"; do
+      doc="$(git -C "$ROOT" show "${p}:${wf}" </dev/null 2>/dev/null)" && break
+      doc=""
+    done
+    [ -n "$doc" ] || continue
+    { read -r jws; read -r jkey; } \
+      <<<"$(printf '%s\n' "$doc" | gr_fields workstream plan)"
+    case "$jws" in janitor-[0-9]*) ;; *) continue ;; esac
+    [ "$jkey" = none ] || continue
+    jws="$(printf '%s' "$jws" | tr -cd 'A-Za-z0-9._:-')"
+    while IFS= read -r owner; do
+      name="${owner#refs/remotes/origin/}"
+      [ -n "$name" ] || continue
+      { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
+      case $'\n'"$seen" in *$'\n'"${name}"$'\n'*) continue ;; esac
+      seen="${seen}${name}"$'\n'
+      printf '%s\t%s\tretired\n' "$name" "${jws:-?}"
+    done < <(git -C "$ROOT" for-each-ref --contains "$h" \
+      --format='%(refname)' refs/remotes/origin </dev/null 2>/dev/null)
+  done <<<"$log"
 }
 
 cmd_janitor() {
