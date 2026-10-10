@@ -673,8 +673,9 @@ session back onto the idle rows and nudge it.
 Loss cost, one line per ledger field — a compacted pass guesses none of
 the ones marked NOT rebuildable:
 
-- `@new`: rebuilt from titles (step 0.2). Lost without it, the cap is passed
-  or the run exits on a live manager.
+- `@<head>`: rebuilt from dispatch's in-flight rows. Loss costs nothing.
+- `@new`: rebuilt from titles for managers only (step 0.2); a surveyor's
+  `rescope-<key>@new` is NOT. Loss: the cap is passed or the run exits on a live manager.
 - `respawns=`: NOT rebuildable. Loss restores the limit, the human's money.
   An entry with no `respawns=` gets `respawns=<RESPAWN_LIMIT>`, never `0`.
 - `next=`, `same=`, `nudged`: no rebuild; loss costs one extra pass before

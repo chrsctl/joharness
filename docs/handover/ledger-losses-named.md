@@ -17,5 +17,9 @@ Plan ledger-losses-named: rebuild `@new` from session titles; state loss cost of
 
 ## Review
 
-- (pending) verifier running on the orchestrate.md diff; selftest 2438 passed 0 failed, ci: pass.
-- Field check vs grammar line: @new, next, same, nudged, seen/detail, respawns, reported, rescoped, curated, analysed, swept, scouted, lead — all have a loss line in §4.
+- (verifier) @new loss line overstated: surveyor rescope-<key>@new is titled surveyor:, not rebuilt (fixed: line says managers only)
+- (verifier) @<head> half of the grammar field had no loss line (fixed)
+- (verifier) rebuilt entry has no next=/same=/seen=, so stillborn confirms one pass later (wontfix: safe direction, extra pass only)
+- (verifier) block wraps/merges fields vs one-line-per-field (wontfix: ci context stage passes; run: ./joharness.sh ci, 2026-10-10)
+- Field check vs grammar line: @head, @new, next, same, nudged, seen/detail, respawns, reported, rescoped, curated, analysed, swept, scouted, lead — each has a loss line in §4.
+- selftest: bash .agents/harness/selftest.sh -> 2438 passed, 0 failed (2026-10-10)
