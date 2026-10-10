@@ -55,6 +55,18 @@ Not run yet. Planned, per lever, in one consumer:
   same reads.
 - Lever 4 only: worker tiers counted from each manager's `Agent` calls
   (`list_events`, `kinds: ["assistant"]`).
+- Priced prior (arithmetic, not a trial):
+  - Lever 3: the run-3 orchestrator's counted usage (1.21B cache-read,
+    1.74M output tokens, retired `docs/product/scout-role.md` Evidence:
+    `git log --diff-filter=D -- docs/product/scout-role.md`) priced at 5.5
+    rates (pricing page, fetched 2026-10-09) — opus 242 + 34.8 = ~277 USD,
+    sonnet 121 + 17.4 = ~138 USD. Cache reads plus output only; input and
+    cache writes excluded. Sanity check: same usage at opus 5 rates (0.50
+    cache read, 25 out) = ~649 against 710.70 billed.
+  - Lever 4: per cached token haiku 5.5 is 0.1x sonnet 5.5 at ≤100K prompt
+    and 0.5x above (pricing page, fetched 2026-10-09); the share of worker
+    turns above 100K decides which ratio a fleet pays, so the trial counts
+    it (`list_events` `usage` per worker turn).
 
 Second context for the control-plane readings, named up front
 (`.agents/docs/research/README.md`): a session other than the one running

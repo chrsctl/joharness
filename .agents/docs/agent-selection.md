@@ -5,25 +5,32 @@ in frontmatter which agent tier implements it (`agent`) and at what effort
 (`effort`). This document: the lineup, the selection rules, the model
 behavior they rest on. Developed in a consumer (its PR #3); Lineup facts
 from the claude-api skill's model table cached 2026-10-06 — verify against
-Models API when stale.
+Models API when stale. Cache-read column from Anthropic's pricing page
+fetched 2026-10-09; it supersedes the skill cache's sonnet cache-read 0.20.
 
 ## Lineup
 
 Tiers, not model IDs, in plan frontmatter — IDs change, tiers stay. Current
 mapping:
 
-| Tier | ID today | Context | $/MTok in/out | Use for |
-| --- | --- | --- | --- | --- |
-| haiku | `claude-haiku-5-5` | 1M | 0.10 / 0.50 (prompt ≤100K; 0.50 / 2.50 above) | Mechanical, fully specified, acceptance executable |
-| sonnet | `claude-sonnet-5-5` | 1M | 2 / 10 | Default. Near-Opus coding + agentic quality |
-| opus | `claude-opus-5-5` | 1M | 4 / 20 | Correctness-critical, invariant reasoning, irreversible-path code |
-| fable | `claude-fable-5-1` | 1M | 10 / 50 (claude-api skill, 2026-10-06) | Judgement with a small context: decomposition, review-churn research, scouting. Never a build. |
+| Tier | ID today | Context | $/MTok in/out | Cache read $/MTok | Use for |
+| --- | --- | --- | --- | --- | --- |
+| haiku | `claude-haiku-5-5` | 1M | 0.10 / 0.50 (prompt ≤100K; 0.50 / 2.50 above) | 0.01 (prompt ≤100K) / 0.05 above | Mechanical, fully specified, acceptance executable |
+| sonnet | `claude-sonnet-5-5` | 1M | 2 / 10 | 0.10 | Default. Near-Opus coding + agentic quality |
+| opus | `claude-opus-5-5` | 1M | 4 / 20 | 0.20 | Correctness-critical, invariant reasoning, irreversible-path code |
+| fable | `claude-fable-5-1` | 1M | 10 / 50 (claude-api skill, 2026-10-06) | 0.25 | Judgement with a small context: decomposition, review-churn research, scouting. Never a build. |
 
-Price gap moved with the generation. Haiku was a third of sonnet; at 5.5
-it is a twentieth below 100K-token prompts, a quarter above. A manager's
-haiku worker (`.claude/commands/manage.md`, fan out) is now the cheapest
-lever that keeps quality: the manager re-runs the acceptance command
-before any commit, so a weak worker's return cannot land unchecked.
+Price gap moved with the generation. On input price haiku 5.5 is
+a twentieth of sonnet below 100K-token prompts, a quarter above. On cache
+reads — the bill — a tenth below, a half above. The 100K line counts the
+whole prompt, cache reads included, per request: haiku session whose
+context grows past it pays 5x on every later turn. Sonnet cache reads
+halved 2026-10-07 (0.20 → 0.10); before, sonnet and opus cost the same per
+cached token, so for long sessions sonnet now costs half of opus on the
+dominant line. A manager's haiku worker (`.claude/commands/manage.md`, fan
+out) is the cheapest lever that keeps quality: the manager re-runs the
+acceptance command before any commit, so a weak worker's return cannot land
+unchecked.
 Opus 5.5 defaults to effort `medium`, one below Opus 5 (same skill
 cache) — the plan's `effort:` is what keeps it at `high`.
 
@@ -35,7 +42,8 @@ cache) — the plan's `effort:` is what keeps it at `high`.
   matched a model to the work; do not build it.
 - Default = sonnet, effort high.
 - haiku when plan is mechanical AND fully specified AND every acceptance
-  criterion is a runnable command. One unclear edge = sonnet.
+  criterion is a runnable command. One unclear edge = sonnet. A haiku unit is also SMALL: its whole
+  session stays under 100K prompt tokens; a unit that cannot = sonnet.
 - opus when wrong-but-plausible code is the failure mode: subtle bug passes
   review, ships broken guarantee. A repo's Part 2 prohibitions name these
   areas.
@@ -182,9 +190,10 @@ harness did not say:
 
 - **Context is the bill, not output.** Every turn re-reads the whole
   context; cached, at a fraction of input price (opus 5.5: 0.20 against
-  4 /MTok, claude-api skill cache 2026-10-06). One orchestrator: 1.21B
-  cache-read tokens against 1.74M output (`get_session` 2026-10-07, in the
-  retired `docs/product/scout-role.md` Evidence: `git log --diff-filter=D --
+  4 /MTok, claude-api skill cache 2026-10-06; sonnet 5.5 0.10 against 2,
+  haiku 5.5 0.01 against 0.10 ≤100K, pricing page 2026-10-09). One
+  orchestrator: 1.21B cache-read tokens against 1.74M output
+  (`get_session` 2026-10-07, in the retired `docs/product/scout-role.md` Evidence: `git log --diff-filter=D --
   docs/product/scout-role.md`). Two managers of that fleet: 712K
   context, 46.76 USD; 126K, 0.88 USD. Research sweeps go to a subagent that
   returns the conclusion (`subagents.md`); the parent keeps no file dumps.
