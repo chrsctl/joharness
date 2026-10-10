@@ -370,15 +370,18 @@ expect "and told to be the human's" "BLOCKED: the human's, holds no slot" "$out"
 # --- a block names its reason (issue #392) ----------------------------------
 # One branch per `next:`; the listed reasons print no INVALID BLOCK?, the old
 # unprefixed text does. Branches are removed so later cases read the same fleet.
+# The row exists only for a plan a branch claims, so one plan serves all cases.
+dspplan blk
+dsppush "a plan for the reason cases"
 blkcase() { # <tag> <next text> — leaves the dispatch output in $out
   git -C "$dspwork" checkout -qb "mgr-blk${1}" main
   mkdir -p "${dspwork}/docs/handover"
-  printf -- '---\nworkstream: blk%s\nstatus: blocked\nbranch: mgr-blk%s\nplan: blk%s\nsession: https://example.invalid/session_blk%s\nagent: sonnet\nupdated: 2026-01-02\nnext: %s\n---\n\n## Goal\nFixture.\n' \
-    "$1" "$1" "$1" "$1" "$2" >"${dspwork}/docs/handover/blk${1}.md"
+  printf -- '---\nworkstream: blk%s\nstatus: blocked\nbranch: mgr-blk%s\nplan: blk\nsession: https://example.invalid/session_blk%s\nagent: sonnet\nupdated: 2026-01-02\nnext: %s\n---\n\n## Goal\nFixture.\n' \
+    "$1" "$1" "$1" "$2" >"${dspwork}/docs/handover/blk${1}.md"
   commit_all "$dspwork" "block ${1}"
   git -C "$dspwork" push -qu origin "mgr-blk${1}"
   git -C "$dspwork" checkout -q main
-  out="$(dsp | grep "mgr-blk${1}")"
+  out="$(dsp | grep -A4 "mgr-blk${1}")"
   git -C "$dspwork" push -q origin --delete "mgr-blk${1}"
 }
 blkcase a 'money: the budget is spent'
@@ -396,6 +399,8 @@ expect "a block with no reason word is flagged" "INVALID BLOCK?" "$out"
 expect "and still reads BLOCKED beside it" "BLOCKED" "$out"
 blkcase g 'Stalled; the orchestrator could not stop the session that holds this.'
 expect "the old unprefixed orchestrator text is flagged" "INVALID BLOCK?" "$out"
+fixture_rm "$dspwork" "drop the reason-case plan" docs/plans/blk.md
+git -C "$dspwork" push -q origin main
 # A blocked row carries NO hold count, because its holds are RELEASED
 # (hold_live): a plan behind it counts FREE with a reconcile expected. Count
 # it and the row would advertise a cost nobody is paying, which is the
