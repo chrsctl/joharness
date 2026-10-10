@@ -8,7 +8,7 @@ issue: 307
 session: https://claude.ai/code/session_01EBbfrQriYghvs7sdAuqiio
 agent: opus
 updated: 2026-10-10
-next: Run ci + verify, spawn verifier, record ## Review, retire node + this file, PR, merge
+next: Retire node + this file, PR, merge
 ---
 
 ## Goal
@@ -34,6 +34,14 @@ written and verified in the node; the work is graduating them into
 ## Rejected
 
 ## Review
+
+- r1: (verifier) `orchestrate.md:326` "IDLE, and never born" paragraph still named PREVIOUS-pass age as a stillborn-row condition — the same contradiction this diff removes at `:637`. (fixed — says no row there keys on age; the first-look row gates them through `seen=`)
+- r2: (verifier) `.agents/docs/orchestrated.md:122` stillborn row's git column says entry `new` from a previous pass. (no change — that row summarises the whole ladder, pass 1 recording `seen=` included, so the condition is true of its first step)
+- r3: (verifier) "a rebuilt entry reaches the ladder one pass late" is a minimum: a lost entry that had `seen=` loses it too, verdict two passes late. (fixed — "at least one pass late, two when it had `seen=`")
+- r4: (verifier) "the one honest reading — successor commits in git" misses stillborn re-spawns, which count against the limit and commit nothing. (fixed — says nearest reading, and blind to them)
+- r5: (verifier) "a measurement no command makes" — checked TRUE: `grep -n -i "respawn\|successor" joharness.sh` finds only the knob print and prose. (no change)
+- r6: (verifier) the node's "research node has no `scope:`" note is not carried; it repeats in 6 nodes. (wontfix — not orchestrate.md material, and the 5 other copies survive this delete; a graduation for whoever owns that rule)
+- r7: (verifier) step 0.2 could rebuild `@new` for a claimed manager whose whole entry was dropped. (no change — step 1 already drops every rebuilt entry whose stem has a claimed in-flight row, `orchestrate.md:132`)
 
 ## Blockers
 
