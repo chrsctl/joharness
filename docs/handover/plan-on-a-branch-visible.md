@@ -8,7 +8,7 @@ issue: 297
 session: https://claude.ai/code/session_011826jrSc2fYHWmqxniAGSN
 agent: opus
 updated: 2026-10-10
-next: Research dispatch_rescope_branches, then add dispatch_branch_plans + block + fixtures
+next: Selftest green, mutation check (revert helper), verifier, retire, PR
 ---
 
 ## Goal
@@ -21,7 +21,14 @@ pull request to merged.
 
 ## Decisions
 
-- None yet.
+- No workers: the diff is one helper, one print block, two role-file
+  sentences and one fixture section — splitting it costs more prompt than
+  code, and every part is the judgement the plan's tier is for.
+- Block printed after the rescope block, just before the verdict: "after the
+  spawn list, before the verdict" with the CORE ONLY and rescope blocks kept
+  next to the list they qualify.
+- A plan whose path the base already carries is dropped (`cat-file -e`): the
+  queue has its row; listing it twice is the duplicate the plan prevents.
 
 ## Rejected
 

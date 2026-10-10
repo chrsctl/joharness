@@ -8256,6 +8256,72 @@ dispatch_rescope_branches() {
   done <<<"$refs"
 }
 
+# Plans on a branch: a plan file an unmerged branch ADDED and the base does not
+# carry. The queue reads `docs/plans/` on the base only, so such a plan has no
+# row at all — not free, not held, not in flight (issue #297: an urgent fix for
+# a red `main` sat 6h on a plan-only pull request the orchestrator could not
+# see, and a second plan riding a product branch drew a duplicate spawn). This
+# walk makes it visible; it never makes it free — the plan has not been
+# reviewed into the queue, so `cmd_dispatch` prints it and counts nothing.
+#
+# Same ref walk as `dispatch_rescope_branches`, same stdin rule. Diff, never
+# tree: `--diff-filter=A` against the merge base, because a branch inherits
+# every plan its base carried. Two drops, both read AT THE BRANCH:
+#   - the plan the branch's own workstream file names in `plan:` — a manager
+#     carrying its own same-session plan is the normal shape, in flight, not
+#     hidden. `lint_stem` first: `plan:` may be written as a path.
+#   - every plan on a branch whose workstream file says `status: abandoned` —
+#     nobody drives it, and the janitor already reports it.
+# One row per plan: branch, stem, urgency, agent.
+dispatch_branch_plans() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}"
+  local refs r name base plans wfs wf doc own wplan wstat abandoned p stem urg agt
+  refs="$(git -C "$ROOT" for-each-ref --format='%(refname)' \
+    refs/remotes/origin </dev/null 2>/dev/null)"
+  while IFS= read -r r; do
+    [ -n "$r" ] || continue
+    name="${r#refs/remotes/origin/}"
+    { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
+    git -C "$ROOT" merge-base --is-ancestor "$r" \
+      "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null && continue
+    base="$(git -C "$ROOT" merge-base "$r" \
+      "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)"
+    [ -n "$base" ] || continue
+    plans="$(git -C "$ROOT" diff --name-only --diff-filter=A "$base" "$r" \
+      -- docs/plans </dev/null 2>/dev/null | gr_docs)"
+    [ -n "$plans" ] || continue
+    # The branch's own workstream files, the ones it introduced or changed.
+    own=" "; abandoned=0
+    wfs="$(git -C "$ROOT" diff --name-only --diff-filter=ACMRT "$base" "$r" \
+      -- docs/handover </dev/null 2>/dev/null | gr_docs)"
+    while IFS= read -r wf; do
+      [ -n "$wf" ] || continue
+      doc="$(git -C "$ROOT" show "${r}:${wf}" </dev/null 2>/dev/null)"
+      { read -r wplan; read -r wstat; } \
+        <<<"$(printf '%s\n' "$doc" | gr_fields plan status)"
+      [ "$wstat" = abandoned ] && abandoned=1
+      wplan="$(lint_stem "$wplan" | tr -cd 'A-Za-z0-9._-')"
+      [ -z "$wplan" ] || [ "$wplan" = none ] || own="${own}${wplan} "
+    done <<<"$wfs"
+    [ "$abandoned" -eq 0 ] || continue
+    while IFS= read -r p; do
+      [ -n "$p" ] || continue
+      stem="$(lint_stem "$p" | tr -cd 'A-Za-z0-9._-')"
+      [ -n "$stem" ] || continue
+      [ "${own#* "${stem}" }" = "$own" ] || continue
+      # Already on the base under the same path: the queue has its row.
+      git -C "$ROOT" cat-file -e "refs/remotes/origin/${base_branch}:${p}" \
+        </dev/null 2>/dev/null && continue
+      { read -r urg; read -r agt; } <<<"$(git -C "$ROOT" show "${r}:${p}" \
+        </dev/null 2>/dev/null | gr_fields urgency agent)"
+      urg="$(printf '%s' "$urg" | tr -cd 'A-Za-z0-9._-')"
+      agt="$(printf '%s' "$agt" | tr -cd 'A-Za-z0-9._-')"
+      printf '%s\t%s\t%s\t%s\n' "$(printf '%s' "$name" | tr -cd 'A-Za-z0-9._/-')" \
+        "$stem" "${urg:-?}" "${agt:-?}"
+    done <<<"$plans"
+  done <<<"$refs"
+}
+
 cmd_dispatch() {
   local cap stall health respawn churnt churnl hout qout rows wavemap edge req sup
   local path label branch ws doc status session next age agetext flag tier
@@ -8272,7 +8338,7 @@ cmd_dispatch() {
   local janitor_due=0 janitor_inflight="" n_janitor=0 jdue jstate jreason jb jw
   local scout_due=0 scout_inflight="" n_scout=0 sdue sstate sreason sb sw ss scout_gate=0 srows
   local fetch_failed=0
-  local cb ck cstat csess cnext cage
+  local cb ck cstat csess cnext cage bplans
   local rescope_key="" rescope_paths="" rescope_inflight="" rescope_holders=""
   local n_rescope_inflight=0 n_rescope_holders=0 rescope_settled=0
   local rb rk rstat rsess rnext rage
@@ -8975,6 +9041,19 @@ cmd_dispatch() {
       printf '            rescope branch(es) in flight: none\n'
     fi
     printf '\n'
+  fi
+
+  # --- plans on a branch: visible, never free -------------------------------
+  # A plan an unmerged branch added has no queue row (dispatch_branch_plans).
+  # Printed so the orchestrator can SAY it — an URGENT one leads its report and
+  # goes to the human — and counted nowhere: not n_free, not the verdict. A
+  # branch plan has not been reviewed into the queue, and spawning on it is
+  # the human's call (.claude/commands/orchestrate.md, Report).
+  bplans="$(dispatch_branch_plans | awk -F'\t' 'NF == 4 {
+      printf "  %s%s (urgency: %s, agent: %s)  on %s\n",
+        ($3 == "urgent" ? "URGENT " : ""), $2, $3, $4, $1 }')"
+  if [ -n "$bplans" ]; then
+    printf '\nplans on a branch, not in the queue until it merges:\n%s\n' "$bplans"
   fi
 
   # --- verdict --------------------------------------------------------------

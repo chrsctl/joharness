@@ -716,6 +716,11 @@ requests).
 
 ## Report, every pass
 
+An `URGENT` row in dispatch's `plans on a branch` block is the report's
+FIRST line, with its branch: the human merges it, or tells you to spawn on
+it. Print the rest of that block too. Never spawn on a branch plan on your
+own: it has not been reviewed into the queue.
+
 One line per manager: item, session, state, action taken. Kept short —
 the workstream files are the record, not this.
 
