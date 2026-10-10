@@ -33,6 +33,10 @@ have ONE spelling: [`.agents/docs/glossary.md`](../../.agents/docs/glossary.md);
    checked against code. `./joharness.sh feedback <path>` on files you will
    touch. Design question open? Settle it, record it, THEN code. Does a
    branch own a file? Diff against merge base, never read the tree.
+   Consumer product work opens no non-`.md` file under `joharness.sh`,
+   `.agents/harness/`, `.agents/scripts/`, `.agents/env/`: read `.md` docs and
+   command output. Anchor points there = anchor wrong. Exempt: canonical,
+   sync or upgrade task, verifier.
 5. **Verify.** All green or not done: `./joharness.sh ci` and
    `./joharness.sh verify`, before the pull request. Trust counted numbers,
    never written ones. Edge review always, depth by plan tier, plus

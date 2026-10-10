@@ -54,6 +54,13 @@ expect "and the orchestrator's one read" "./joharness.sh dispatch" "$out"
 expect "the default role is the orchestrator" \
   "No item named? You are the" "$out"
 expect "the banner names the boundary" "NEVER edit the core" "$out"
+expect "a consumer banner says harness source is read through .md" \
+  "Harness source is read through its .md docs" "$out"
+printf 'JOHARNESS_CANONICAL=1\n' >>"$orcconf"
+canon_out="$(orcj session-start 2>/dev/null)"
+refute "a canonical banner does not" \
+  "Harness source is read through its .md docs" "$canon_out"
+printf 'JOHARNESS_ENV=none\n' >"$orcconf"
 expect "and lists the core paths" "  joharness.conf" "$out"
 expect "the whole boundary, not one entry" "  .claude/settings.json" "$out"
 expect "down to the last entry" "  .github" "$out"

@@ -18,6 +18,17 @@ Context rule: in a CONSUMER, harness upkeep never runs inside a session doing
 product work — a sync diff is thousands of lines, and the context belongs to
 the claimed plan.
 
+Source rule: a product session learns the harness from its `.md` docs and
+`./joharness.sh <command>` output, never from `joharness.sh` (thousands of
+lines) or the scripts under `.agents/harness/`, `.agents/scripts/`,
+`.agents/env/`: opening them spends the item's context on internals, and
+commands print their own verdicts and remedies. A plan anchor pointing into
+those files is wrong; fix the anchor. Exempt: canonical
+(`JOHARNESS_CANONICAL=1`), a sync or upgrade task, a verifier reviewing a diff
+that touches them. A product diff touching those files is harness work,
+routed per the Direction rule, so the merge gate's `verify` clause never meets
+a product diff.
+
 Off-context first, cheapest first:
 
 1. `update.yml` runs the sync in the consumer's own CI and opens a pull
