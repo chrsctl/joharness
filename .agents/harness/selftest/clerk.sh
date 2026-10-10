@@ -62,7 +62,7 @@ git -C "$clerk_work" push -qu origin main
 
 clerk_run() { ( cd "$clerk_work" && env JOHARNESS_CONF="$clerk_conf" "$@" ./joharness.sh clerk 2>&1 ); }
 clerk_dsp() { ( cd "$clerk_work" && env JOHARNESS_CONF="$clerk_conf" DISPATCH_FETCH=1 \
-  JOHARNESS_CURATE_HOURS=0 JOHARNESS_JANITOR_HOURS=0 JOHARNESS_SCOUT_HOURS=0 \
+  JOHARNESS_CURATE_HOURS=0 JOHARNESS_SCOUT_HOURS=0 \
   "$@" ./joharness.sh dispatch 2>&1 ); }
 
 # --- no command, no cycle ----------------------------------------------------
@@ -84,7 +84,7 @@ out="$(clerk_dsp JOHARNESS_SCOUT_HOURS=1 JOHARNESS_CLERK_HOURS=0)"
 expect "with the clerk off, a due scout spawns at DRAINED" "scout DUE: spawn" "$out"
 out="$(clerk_dsp JOHARNESS_SCOUT_HOURS=1)"
 expect "a due clerk goes first" \
-  "scout due, suppressed — a curate, janitor or clerk goes first" "$out"
+  "scout due, suppressed — a curate or clerk goes first" "$out"
 refute "and the scout spawns none" "scout DUE: spawn" "$out"
 
 # --- the clock -------------------------------------------------------------

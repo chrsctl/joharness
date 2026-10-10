@@ -47,7 +47,6 @@ JOHARNESS_REVIEW|off|off = review reports only; on = ci gates the record at the 
 JOHARNESS_CHECKS|github|github = step 7 waits for this head's GitHub checks; local = no wait, ./joharness.sh finish runs ci and verify here and reds on their result.
 JOHARNESS_CURATE_HOURS|168|Hours since the last curate before one is due; 0 switches the whole cycle off.
 JOHARNESS_CURATE_PLANS|10|Plan files changed since the last curate before one is due (the primary trigger); 0 leaves only the clock.
-JOHARNESS_JANITOR_HOURS|12|Hours between janitor sweeps of the claims: a claim whose session is gone holds its plan out of the queue until one releases it. 0 switches the cycle off.
 JOHARNESS_CLERK_HOURS|24|Hours between clerk passes over the open issues: an issue nobody turns into a plan is never built. 0 switches the cycle off.
 JOHARNESS_CLERK_BATCH|3|Open issues one clerk pass takes at most.
 JOHARNESS_SCOUT_HOURS|168|Hours since the last scout before one is due, and only at DRAINED; 0 switches the cycle off.

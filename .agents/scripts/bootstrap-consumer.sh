@@ -131,10 +131,6 @@ REVIEW_GIVEN=0
 # No flag and no interview question, deliberately: a question about an
 # off-by-default mechanism is paid by every new consumer. The sync names a
 # key the conf does not answer, which is what declaring it in conf-keys.sh buys.
-# Not asked either, and this one is a NUMBER rather than a switch: 12 hours is
-# the requester's cadence and a repo with no fleet never notices it, because a
-# sweep with no dead claim releases nothing and costs one report.
-JANITOR_HOURS="$(conf_key_default JOHARNESS_JANITOR_HOURS)"
 # Not asked either: how often issues are turned into plans, and how many a
 # pass takes, are numbers a repo tunes after its first clerk pass.
 CLERK_HOURS="$(conf_key_default JOHARNESS_CLERK_HOURS)"
@@ -721,13 +717,6 @@ JOHARNESS_CHECKS=${CHECKS}
 # 0 on HOURS switches the WHOLE cycle off; 0 on PLANS leaves only the clock.
 JOHARNESS_CURATE_HOURS=${CURATE_HOURS}
 JOHARNESS_CURATE_PLANS=${CURATE_PLANS}
-
-# Hours between janitor sweeps; 0 = off. A claim whose session is gone holds
-# its plan out of the queue until something releases it, and nothing did
-# before this cycle: measured in a consumer, one unowned block held four plans
-# for 141 hours (issue #254). /janitor releases only what the control plane
-# proves gone, and never deletes a file or a branch.
-JOHARNESS_JANITOR_HOURS=${JANITOR_HOURS}
 
 # Hours between clerk passes; 0 = off. Open issues are the queue's top rank,
 # but dispatch reads only docs/plans/: /clerk turns each issue that holds into

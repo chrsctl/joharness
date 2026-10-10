@@ -53,23 +53,10 @@ git -C "$jwork" push -qu origin main
 
 jan() { ( cd "$jwork" && env JOHARNESS_CONF="$jconf" "$@" ./joharness.sh janitor 2>&1 ); }
 jdsp() { ( cd "$jwork" && env JOHARNESS_CONF="$jconf" DISPATCH_FETCH=0 \
-  "$@" ./joharness.sh dispatch 2>&1 ); }
+  ./joharness.sh dispatch 2>&1 ); }
 # shellcheck disable=SC2120  # knob overrides are passed by later cases
 jqueue() { ( cd "$jwork" && env JOHARNESS_CONF="$jconf" \
   "$@" .agents/harness/queue-context.sh 2>&1 ); }
-
-# --- the cadence, three ways ------------------------------------------------
-out="$(jan)"
-expect "the sweep names its own knob" "== janitor (every 12h: JOHARNESS_JANITOR_HOURS)" "$out"
-expect "never swept measures from the repository's beginning" \
-  "since the repository began, no sweep having landed" "$out"
-expect "and that is DUE, not a special case" "cadence   : DUE" "$out"
-out="$(jan JOHARNESS_JANITOR_HOURS=0)"
-expect "zero is the human's off switch" \
-  "cadence   : off — JOHARNESS_JANITOR_HOURS=0: no sweep is ever due" "$out"
-refute "and off walks no claims at all" "candidates" "$out"
-out="$(jan JOHARNESS_JANITOR_HOURS=99999)"
-expect "a window longer than the repo is not due" "cadence   : not due" "$out"
 
 # --- a claim old enough to be a candidate -----------------------------------
 git -C "$jwork" checkout -qb mgr-parked
@@ -92,7 +79,7 @@ expect "and the session to check" "session: https://example.invalid/session_park
 expect "the header says liveness is not in this output" \
   "candidates (push age only — LIVENESS IS NOT IN THIS OUTPUT)" "$out"
 expect "and the reading that decides is named, not made" \
-  "ARCHIVED, not found, or a FAILED bucket confirmed" "$out"
+  "ARCHIVED or not found = gone" "$out"
 # Both searched for strings no path produces. What the command must not do is
 # state an outcome for a session it never read.
 refute "no candidate is called gone" "is gone" "$out"
@@ -225,114 +212,6 @@ out="$(jdsp)"
 refute "a released claim is no manager in flight" "mgr-parked" "$out"
 expect "and the slot is back" "slots     : 4 of 4 free" "$out"
 refute "it is never counted as a blocked manager" "manager(s) blocked" "$out"
-
-# --- the cadence line, one reader, both readers -----------------------------
-out="$(jdsp)"
-expect "dispatch carries the cadence line" "janitor   : DUE" "$out"
-expect "and the tail says what a due sweep costs" \
-  "janitor DUE: spawn ONE janitor" "$out"
-out="$(jdsp env JOHARNESS_JANITOR_HOURS=0)"
-expect "off reaches dispatch too" "janitor   : off" "$out"
-refute "and nothing is spawned for it" "janitor DUE: spawn" "$out"
-
-# --- a sweep in flight holds the cycle --------------------------------------
-git -C "$jwork" checkout -qb janitor-branch main
-# The directory came back empty on this checkout and git does not track one
-# (../selftest.sh, fixture_rm) — without this the redirect below fails and the
-# case reads the PREVIOUS state's output.
-mkdir -p "${jwork}/docs/handover"
-printf -- '---\nworkstream: janitor-2026-01-04\nstatus: in-progress\nbranch: janitor-branch\nplan: none\nagent: sonnet\nupdated: 2026-01-04\nnext: Release what is proven gone\n---\n\n## Goal\nFixture.\n' \
-  >"${jwork}/docs/handover/janitor-2026-01-04.md"
-jcommit "a sweep claims the cycle" '2026-01-04T00:00:00Z'
-git -C "$jwork" push -qu origin janitor-branch
-git -C "$jwork" checkout -q main
-out="$(jan)"
-expect "a sweep in flight holds the cycle" "cadence   : IN FLIGHT" "$out"
-expect "and names the branch holding it" "janitor-branch  janitor-2026-01-04" "$out"
-expect "and says not to start a second" "One at a time" "$out"
-
-# The identity is the STAMP and `plan: none`, not the word. A branch whose
-# workstream file merely begins with `janitor` — the one building this cycle,
-# for instance — must not read as a sweep in flight, or the cycle can never
-# come due once somebody names a file after it.
-git -C "$jwork" checkout -qb janitor-work main
-mkdir -p "${jwork}/docs/handover"
-# `plan: none`, so ONLY the stamp rule can reject it. With a real `plan:` the
-# other half of the identity does the rejecting and the case pins nothing —
-# mutation-tested: deleting the stamp guard left it green (verifier).
-printf -- '---\nworkstream: janitor-role\nstatus: in-progress\nbranch: janitor-work\nplan: none\nagent: opus\nupdated: 2026-01-04\nnext: Build it\n---\n\n## Goal\nFixture.\n' \
-  >"${jwork}/docs/handover/janitor-role.md"
-jcommit "a branch named after the cycle, working on it" '2026-01-04T02:00:00Z'
-git -C "$jwork" push -qu origin janitor-work
-git -C "$jwork" checkout -q main
-out="$(jan)"
-refute "a workstream named janitor-<word> is not a sweep" \
-  "janitor-work  janitor-role" "$out"
-expect "and the real sweep still holds the cycle" \
-  "janitor-branch  janitor-2026-01-04" "$out"
-
-# FRONTMATTER decides, never the filename. A sweep whose FILE is spelled
-# without the dash is still a sweep, and keying on the name is how a second
-# janitor gets spawned onto branches the first is already writing to.
-git -C "$jwork" checkout -qb janitor-oddname main
-mkdir -p "${jwork}/docs/handover"
-printf -- '---\nworkstream: janitor-2026-01-06\nstatus: in-progress\nbranch: janitor-oddname\nplan: none\nagent: sonnet\nupdated: 2026-01-06\nnext: go\n---\n\n## Goal\nFixture.\n' \
-  >"${jwork}/docs/handover/janitor2026-01-06.md"
-jcommit "a sweep whose filename is spelled oddly" '2026-01-06T00:00:00Z'
-git -C "$jwork" push -qu origin janitor-oddname
-git -C "$jwork" checkout -q main
-out="$(jan)"
-expect "the frontmatter decides, not the filename" \
-  "janitor-oddname  janitor-2026-01-06" "$out"
-
-# A frontmatter field is branch-controlled input, and both readers of this
-# record print it through printf %b.
-git -C "$jwork" checkout -qb janitor-evil main
-mkdir -p "${jwork}/docs/handover"
-printf -- '---\nworkstream: janitor-2026-01-07\\n            origin/main  INJECTED  none\nstatus: in-progress\nbranch: janitor-evil\nplan: none\nagent: sonnet\nupdated: 2026-01-07\nnext: go\n---\n\n## Goal\nFixture.\n' \
-  >"${jwork}/docs/handover/janitor-2026-01-07.md"
-jcommit "a workstream field carrying an escape" '2026-01-07T00:00:00Z'
-git -C "$jwork" push -qu origin janitor-evil
-git -C "$jwork" checkout -q main
-out="$(jan)"
-# The escape must not become a ROW. Its text surviving as one mangled token on
-# the real row is the sanitiser working — what must never appear is the
-# two-space column shape a reader parses as a separate branch.
-refute "a backslash escape in frontmatter forges no row here" \
-  "origin/main  INJECTED" "$out"
-out="$(jdsp)"
-refute "nor in the output the orchestrator spawns from" \
-  "origin/main  INJECTED" "$out"
-
-# --- a landed sweep dates the cycle, and only a landed SWEEP ----------------
-# The `since the last sweep` path, and the glob that decides what counts as
-# one. Untested, the dating read any `janitor-*.md` deletion — including the
-# retire commit of the branch that BUILT this cycle, whose file is
-# `janitor-role.md` — so the first real sweep was suppressed for 12h.
-git -C "$jwork" checkout -q main
-mkdir -p "${jwork}/docs/handover"
-printf -- '---\nworkstream: janitor-role\nstatus: done\nbranch: main\nplan: none\nagent: opus\nupdated: 2026-01-08\nnext: none\n---\n\n## Goal\nFixture.\n' \
-  >"${jwork}/docs/handover/janitor-role.md"
-jcommit "a branch named after the cycle lands" '2026-01-08T00:00:00Z'
-git -C "$jwork" rm -q "docs/handover/janitor-role.md"
-mkdir -p "${jwork}/docs/handover"
-jcommit "retire the file that built the cycle" '2026-01-08T01:00:00Z'
-git -C "$jwork" push -q origin main
-out="$(jan)"
-expect "retiring a janitor-<word> file does NOT date the cycle" \
-  "since the repository began, no sweep having landed" "$out"
-
-mkdir -p "${jwork}/docs/handover"
-printf -- '---\nworkstream: janitor-2026-01-09\nstatus: done\nbranch: main\nplan: none\nagent: sonnet\nupdated: 2026-01-09\nnext: none\n---\n\n## Goal\nFixture.\n' \
-  >"${jwork}/docs/handover/janitor-2026-01-09.md"
-jcommit "a sweep claims" '2026-01-09T00:00:00Z'
-git -C "$jwork" rm -q "docs/handover/janitor-2026-01-09.md"
-mkdir -p "${jwork}/docs/handover"
-jcommit "retire the sweep, which dates the cycle" '2026-01-09T01:00:00Z'
-git -C "$jwork" push -q origin main
-out="$(jan)"
-expect "a retired sweep dates the cycle" "since the last sweep" "$out"
-refute "and the repository baseline is gone" "no sweep having landed" "$out"
 
 # --- the vocabulary still has a floor ---------------------------------------
 # A fifth word is not a free-for-all: anything outside the five is still not a
@@ -499,162 +378,64 @@ out="$(jan)"
 expect "while under the default base that same claim is held" \
   "holds: docs/plans/latecomer.md, out of the queue while this claim stands" "$out"
 
-# --- the release note explains the red it causes -----------------------------
-# A released branch carries an older joharness.sh whose status enum predates
-# `abandoned`, so `ci` reds on the file the janitor just wrote (#279). The note
-# must say the reconcile with base clears it. Not a bare grep of the role doc:
-# the required clause is lifted out of the doc's §3 as the file HOLDS it —
-# wrapped across lines, so joined first — and a note is checked against the
-# clause's own anchors. A note written without the clause must miss them in the
-# same case, and the anchor quoting the red must be the wording lint_enum
-# really emits, or the note would explain a message nobody sees.
-jdoc="${ROOT}/.claude/commands/janitor.md"
-jclause="$(awk '/^   - in that same note, why/{f=1} f&&/^   - a `blocked`/{exit} f' "$jdoc" \
-  | sed 's/^ *- *//; s/^ *//' | tr '\n' ' ')"
-jnote_ok="2026-10-10, session ARCHIVED, holds: none. ${jclause}"
-jnote_bad="2026-10-10, session ARCHIVED, holds: none. A returning session may set the status back."
-jred="$(grep -o "\${k} '\${v}' not one of:" "${ROOT}/joharness.sh" | head -1)"
-expect "lint_enum still emits the wording the clause quotes" "not one of:" "$jred"
-expect "the clause was extracted whole, ending before the next bullet" "is real, not spurious." "$jclause"
-refute "and stops there" "carried, never deleted" "$jclause"
-for janchor in "./joharness.sh ci" "reds" "abandoned" "not one of" "reconciles with its base"; do
-  expect "a note written per the role doc carries '${janchor}'" "$janchor" "$jnote_ok"
-done
-refute "a note written without the clause misses the reconcile" "reconciles with its base" "$jnote_bad"
-refute "and does not say why ci reds" "not one of" "$jnote_bad"
-refute "nor name the word the enum lacks" "abandoned" "$jnote_bad"
 
-# --- a RETIRED sweep whose pull request has not merged (#292) ----------------
-# Step 7 makes the retire the last commit before the pull request, so from that
-# push to the merge the tip carries no janitor file. The real shape, not the
-# easy one: the file is ADDED on the branch and DELETED on the branch, so the
-# net diff against the merge base is empty and only the branch's history shows
-# the sweep. These cannot be dated in 2026-01 like the rest of this topic: the
-# bound is one cycle back from the wall clock. Last in the file because each
-# one pushes a branch the cases above would otherwise count.
-# <hours ago>: a date jcommit takes.
-jago() { printf '@%s +0000' "$(( $(date +%s) - $1 * 3600 ))"; }
-# <branch> <stamp> <retire hours ago>: a sweep that claimed and retired.
-jretired() {
-  git -C "$jwork" checkout -qb "$1" main
-  mkdir -p "${jwork}/docs/handover"
-  printf -- '---\nworkstream: %s\nstatus: done\nbranch: %s\nplan: none\nagent: sonnet\nupdated: 2026-10-10\nnext: none\n---\n\n## Goal\nFixture.\n' \
-    "$2" "$1" >"${jwork}/docs/handover/${2}.md"
-  jcommit "a sweep claims" "$(jago "$(( $3 + 1 ))")"
-  git -C "$jwork" rm -q "docs/handover/${2}.md"
-  jcommit "retire the sweep before its pull request" "$(jago "$3")"
-}
-git -C "$jwork" checkout -q main
-jretired janitor-retired janitor-2026-10-09 1
-git -C "$jwork" push -qu origin janitor-retired
-git -C "$jwork" checkout -q main
+# --- the banner, and --apply ------------------------------------------------
 out="$(jan)"
-# The ROW, not the cadence word: the sweeps above are still in flight, so
-# `cadence   : IN FLIGHT` is printed with or without this fix (mutation run:
-# the word stayed green with the retired walk removed, the row went red).
-expect "a retired sweep with its pull request open holds the cycle, read as retired" \
-  "janitor-retired  janitor-2026-10-09  retired" "$out"
+expect "the report has no cadence" "== janitor" "$out"
+refute "and names no hours knob" "JOHARNESS_JANITOR_HOURS" "$out"
+expect "it names the release command for stale claims with no pr:" \
+  "./joharness.sh janitor --apply <branch>" "$out"
+
+git -C "$jwork" checkout -qb mgr-gone main
+mkdir -p "${jwork}/docs/handover"
+printf -- '---\nworkstream: gone\nstatus: in-progress\nbranch: mgr-gone\nplan: none\npr: none\nsession: https://example.invalid/session_gone\nagent: sonnet\nupdated: 2026-01-02\nnext: Build it\n---\n\n## Goal\nFixture.\n' \
+  >"${jwork}/docs/handover/gone.md"
+jcommit "claim, then the session dies" '2026-01-02T00:00:00Z'
+git -C "$jwork" push -qu origin mgr-gone
+git -C "$jwork" checkout -q main
+
 out="$(jdsp)"
-expect "dispatch reads the same row" "janitor-retired  janitor-2026-10-09" "$out"
+expect "dispatch names the stale claim and the command, no session" \
+  "janitor   : stale claim(s) on" "$out"
+expect "including this branch" "mgr-gone" "$(printf '%s\n' "$out" | grep '^janitor   :')"
+refute "and never offers a janitor session" "spawn ONE janitor" "$out"
 
-# The same sweep, which then reconciled with a base that moved: `main` deleted
-# a workstream file the branch still carried. The merge result matches `main` on
-# the path, so a log without --full-history follows `main` only and `--not`
-# hides the delete. On git 2.43 `-m` alone also turns that simplification off
-# here, so this case pins the PAIR: drop both and it reds, drop either and it
-# does not.
-git -C "$jwork" checkout -q main
-mkdir -p "${jwork}/docs/handover"
-printf -- '---\nworkstream: janitor-notes\nstatus: done\nbranch: main\nplan: none\nagent: sonnet\nupdated: 2026-10-10\nnext: none\n---\n\n## Goal\nFixture.\n' \
-  >"${jwork}/docs/handover/janitor-notes.md"
-jcommit "a workstream file on the base" "$(jago 5)"
-git -C "$jwork" push -q origin main
-jretired janitor-reconciled janitor-2026-10-08 2
-git -C "$jwork" checkout -q main
-git -C "$jwork" rm -q "docs/handover/janitor-notes.md"
-mkdir -p "${jwork}/docs/handover"
-jcommit "the base retires its workstream file" "$(jago 1)"
-git -C "$jwork" push -q origin main
-git -C "$jwork" checkout -q janitor-reconciled
-GIT_COMMITTER_DATE="$(jago 1)" GIT_AUTHOR_DATE="$(jago 1)" \
-  git -C "$jwork" merge -q --no-edit main
-git -C "$jwork" push -qu origin janitor-reconciled
-git -C "$jwork" checkout -q main
-out="$(jan)"
-expect "a retired sweep that merged its base in still holds the cycle" \
-  "janitor-reconciled  janitor-2026-10-08  retired" "$out"
-# The base's own delete rides in that merge under -m. Its file is no sweep, so
-# it names nothing.
-refute "and the base's delete is not read as a sweep" "janitor-notes" "$out"
+jmain_before="$(git -C "$jwork" rev-parse HEAD)"
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-gone 2>&1 )"; rc=$?
+expect "--apply releases the named claim" "release   : mgr-gone  docs/handover/gone.md" "$out"
+expect "and pushes it" "pushed    : mgr-gone" "$out"
+if [ "$rc" -eq 0 ]; then pass "--apply exits 0 on a release"
+else fail "--apply exits 0 on a release (rc ${rc})"; fi
+expect "the claim on origin now says abandoned" "status: abandoned" \
+  "$(git -C "$jorigin" show mgr-gone:docs/handover/gone.md 2>&1)"
+expect "and says why in next:" "the claim was released" \
+  "$(git -C "$jorigin" show mgr-gone:docs/handover/gone.md 2>&1)"
+if [ "$(git -C "$jwork" rev-parse HEAD)" = "$jmain_before" ] &&
+   [ -z "$(git -C "$jwork" status --porcelain)" ]; then
+  pass "and this checkout is untouched"
+else
+  fail "and this checkout is untouched"
+fi
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-gone 2>&1 )"; rc=$?
+expect "a second release is refused: not a candidate" "skip      : mgr-gone — not a candidate" "$out"
+if [ "$rc" -ne 0 ]; then pass "and exits non-zero"
+else fail "and exits non-zero"; fi
+out="$(jdsp)"
+refute "once released, dispatch is silent about it" "mgr-gone" \
+  "$(printf '%s\n' "$out" | grep '^janitor   :' || :)"
 
-# A retire older than one cycle: its pull request never merged, and a sweep
-# would be due anyway, so it holds nothing.
-git -C "$jwork" checkout -q main
-jretired janitor-stale janitor-2026-10-01 13
-git -C "$jwork" push -qu origin janitor-stale
-git -C "$jwork" checkout -q main
-out="$(jan)"
-refute "a retire older than the window holds nothing" "janitor-stale" "$out"
-expect "while the younger ones still do" "janitor-retired  janitor-2026-10-09" "$out"
-
-# A real stamp the BASE carried is no sweep of the branch that deletes it:
-# not of one tidying leftovers (what `cleanup --apply` tells a branch to do),
-# not of one whose reconcile merge carries the base's own delete under `-m`.
-# Only a file ADDED off the base can be this branch's sweep (verifier).
-git -C "$jwork" checkout -q main
+# A claim naming a pull request is never released by the script.
+git -C "$jwork" checkout -qb mgr-withpr main
 mkdir -p "${jwork}/docs/handover"
-printf -- '---\nworkstream: janitor-2026-09-01\nstatus: done\nbranch: main\nplan: none\nagent: sonnet\nupdated: 2026-09-01\nnext: none\n---\n\n## Goal\nFixture.\n' \
-  >"${jwork}/docs/handover/janitor-2026-09-01.md"
-jcommit "a sweep's workstream file left on the base" "$(jago 30)"
-git -C "$jwork" push -q origin main
-git -C "$jwork" checkout -qb tidy-leftovers main
-git -C "$jwork" rm -q "docs/handover/janitor-2026-09-01.md"
-mkdir -p "${jwork}/docs/handover"
-jcommit "tidy the leftover" "$(jago 3)"
-git -C "$jwork" push -qu origin tidy-leftovers
-git -C "$jwork" checkout -qb feat-reconciles main
-printf 'more\n' >>"${jwork}/code.txt"
-jcommit "ordinary work" "$(jago 25)"
-git -C "$jwork" push -qu origin feat-reconciles
+printf -- '---\nworkstream: withpr\nstatus: review\nbranch: mgr-withpr\nplan: none\npr: 77\nagent: sonnet\nupdated: 2026-01-02\nnext: Merge\n---\n\n## Goal\nFixture.\n' \
+  >"${jwork}/docs/handover/withpr.md"
+jcommit "claim at the edge" '2026-01-02T00:00:00Z'
+git -C "$jwork" push -qu origin mgr-withpr
 git -C "$jwork" checkout -q main
-git -C "$jwork" rm -q "docs/handover/janitor-2026-09-01.md"
-mkdir -p "${jwork}/docs/handover"
-jcommit "the base retires the leftover" "$(jago 20)"
-git -C "$jwork" push -q origin main
-git -C "$jwork" checkout -q feat-reconciles
-GIT_COMMITTER_DATE="$(jago 1)" GIT_AUTHOR_DATE="$(jago 1)" \
-  git -C "$jwork" merge -q --no-edit main
-git -C "$jwork" push -q origin feat-reconciles
-git -C "$jwork" checkout -q main
-out="$(jan)"
-refute "a branch deleting the base's leftover is no sweep" "tidy-leftovers" "$out"
-refute "nor one whose reconcile carries the base's delete" "feat-reconciles" "$out"
-expect "while the real retired sweep still holds" "janitor-retired  janitor-2026-10-09" "$out"
-
-# The tree walk finds a sweep's file whatever its case; so must the history.
-git -C "$jwork" checkout -qb janitor-upper main
-mkdir -p "${jwork}/docs/handover"
-printf -- '---\nworkstream: janitor-2026-10-07\nstatus: done\nbranch: janitor-upper\nplan: none\nagent: sonnet\nupdated: 2026-10-10\nnext: none\n---\n\n## Goal\nFixture.\n' \
-  >"${jwork}/docs/handover/Janitor-2026-10-07.md"
-jcommit "a sweep whose filename is capitalised" "$(jago 2)"
-git -C "$jwork" rm -q "docs/handover/Janitor-2026-10-07.md"
-jcommit "retire it" "$(jago 1)"
-git -C "$jwork" push -qu origin janitor-upper
-git -C "$jwork" checkout -q main
-out="$(jan)"
-expect "a retired sweep is seen whatever its filename's case" \
-  "janitor-upper  janitor-2026-10-07  retired" "$out"
-
-# A retire dated past one cycle ahead is no clock skew. Read as now, it would
-# hold the cycle for as long as its branch stands (verifier).
-git -C "$jwork" checkout -qb janitor-future main
-mkdir -p "${jwork}/docs/handover"
-printf -- '---\nworkstream: janitor-2026-10-06\nstatus: done\nbranch: janitor-future\nplan: none\nagent: sonnet\nupdated: 2026-10-10\nnext: none\n---\n\n## Goal\nFixture.\n' \
-  >"${jwork}/docs/handover/janitor-2026-10-06.md"
-jcommit "a sweep claims" "$(jago 2)"
-git -C "$jwork" rm -q "docs/handover/janitor-2026-10-06.md"
-jcommit "a retire dated in 2100" '@4102444800 +0000'
-git -C "$jwork" push -qu origin janitor-future
-git -C "$jwork" checkout -q main
-out="$(jan)"
-refute "a retire far in the future holds nothing" "janitor-future" "$out"
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-withpr 2>&1 )"
+expect "a claim naming pr: is not a candidate" "skip      : mgr-withpr — not a candidate" "$out"
+expect "and origin still carries it unreleased" "status: review" \
+  "$(git -C "$jorigin" show mgr-withpr:docs/handover/withpr.md 2>&1)"
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply 2>&1 )"; rc=$?
+if [ "$rc" -ne 0 ]; then pass "--apply with no branch is a usage error"
+else fail "--apply with no branch is a usage error"; fi
