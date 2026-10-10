@@ -38,7 +38,8 @@ so "re-read live state before writing" is a property of the write path
 
 ## Review
 
-- Not reviewed yet.
+- r1: shellcheck SC2183, the fixture claim's printf took five arguments for four placeholders. (fixed)
+- r2: mutation, 2026-10-10: each guard check disabled in turn (base-name protected, live gone, live unreachable, head, pr: protected) and the guard topic alone run through a scratch runner sourcing `.agents/harness/selftest/guard.sh`: 8, 2, 1, 9, 4 failures; unmutated 44 passed, 0 failed. (no change)
 
 ## Blockers
 

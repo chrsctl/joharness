@@ -40,7 +40,7 @@ gclaim() {
   git -C "$gwork" checkout -qb "$1" main
   mkdir -p "${gwork}/docs/handover"
   printf -- '---\nworkstream: %s\nstatus: in-progress\nbranch: %s\nplan: none\npr: %s\nsession: https://example.invalid/session_%s\nagent: sonnet\nupdated: 2026-01-02\nnext: Build it\n---\n\n## Goal\nFixture.\n' \
-    "$1" "$1" "$2" "$1" "$1" >"${gwork}/docs/handover/${1}.md"
+    "$1" "$1" "$2" "$1" >"${gwork}/docs/handover/${1}.md"
   git -C "$gwork" add -A
   git -C "$gwork" commit -qm "claim $1"
   git -C "$gwork" push -qu origin "$1"
