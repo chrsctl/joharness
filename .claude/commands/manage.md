@@ -247,6 +247,6 @@ place a consumer's finding can still reach the repo that owns the fix.
 - Wait in the session for a human's answer — any ask tool included
   (AskUserQuestion). A question is a push: `status: blocked`, `next:` =
   the question, push, exit (§3).
+- Wait in the session for GitHub to come back at step 7.
 
 $ARGUMENTS
-- Wait in the session for GitHub to come back at step 7.
