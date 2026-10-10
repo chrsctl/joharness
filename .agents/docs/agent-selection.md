@@ -42,8 +42,8 @@ cache) — the plan's `effort:` is what keeps it at `high`.
   matched a model to the work; do not build it.
 - Default = sonnet, effort high.
 - haiku when plan is mechanical AND fully specified AND every acceptance
-  criterion is a runnable command. One unclear edge = sonnet. A haiku unit is also SMALL: its whole session
-  stays under 100K prompt tokens; a unit that cannot = sonnet.
+  criterion is a runnable command. One unclear edge = sonnet. A haiku unit is also SMALL: its whole
+  session stays under 100K prompt tokens; a unit that cannot = sonnet.
 - opus when wrong-but-plausible code is the failure mode: subtle bug passes
   review, ships broken guarantee. A repo's Part 2 prohibitions name these
   areas.
@@ -191,8 +191,8 @@ harness did not say:
 - **Context is the bill, not output.** Every turn re-reads the whole
   context; cached, at a fraction of input price (opus 5.5: 0.20 against
   4 /MTok, claude-api skill cache 2026-10-06; sonnet 5.5 0.10 against 2,
-  haiku 5.5 0.01 against 0.10 ≤100K, pricing page 2026-10-09). One orchestrator: 1.21B
-  cache-read tokens against 1.74M output (`get_session` 2026-10-07, in the
+  haiku 5.5 0.01 against 0.10 ≤100K, pricing page 2026-10-09). One
+  orchestrator: 1.21B cache-read tokens against 1.74M output (`get_session` 2026-10-07, in the
   retired `docs/product/scout-role.md` Evidence: `git log --diff-filter=D --
   docs/product/scout-role.md`). Two managers of that fleet: 712K
   context, 46.76 USD; 126K, 0.88 USD. Research sweeps go to a subagent that
