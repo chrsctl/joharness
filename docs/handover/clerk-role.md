@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01EnrJYs6CDGv3bypoHRvf5w
 agent: opus
 updated: 2026-10-10
-next: Selftest topic .agents/harness/selftest/clerk.sh; doc edits (orchestrate, manage, AGENTS step 2/4, orchestrated.md, plans TEMPLATE/README, plan.md, conf-keys, bootstrap)
+next: Answer verifier findings in ## Review, then retire plan + this file, PR, merge
 ---
 
 ## Goal
@@ -46,6 +46,8 @@ Build the CLERK cadence role per `docs/plans/clerk-role.md`.
 - None yet.
 
 ## Review
+
+- r1: (session) first selftest, 2026-10-10, `bash .agents/harness/selftest.sh`: 3 failed — `clerk_issue_nums` stripped the inline comment BEFORE the blanks after the key, so `issue: #13` read as one comment and both lists came back empty (fails OPEN: a claimed issue reads free); and the lint case ran before ci-graph-lint built `lwork`. (fixed — gr_fields' trim order; clerk topic listed after ci-graph-lint. Re-run: 2437 passed, 0 failed. The failing run IS the without-fix run for both list cases.)
 
 ## Blockers
 
