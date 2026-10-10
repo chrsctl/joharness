@@ -1,6 +1,6 @@
 ---
 workstream: messaging-names-both-routes
-status: in-progress
+status: done
 branch: manage/messaging-names-both-routes
 pr: none
 plan: messaging-names-both-routes
