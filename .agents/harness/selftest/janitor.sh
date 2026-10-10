@@ -15,8 +15,8 @@
 # Its own scratch repo: every assertion is a property of a claim's age against
 # the base branch's sweep history, and the shared fixture has neither.
 #
-# Fixture commits carry EXPLICIT dates for the same reason the analysis topic's
-# do — the cadence is a comparison between two commit times.
+# Fixture commits carry EXPLICIT dates:
+# the cadence is a comparison between two commit times.
 #
 # shellcheck shell=bash disable=SC2154
 
@@ -215,16 +215,6 @@ expect "young and released claims are both counted" \
 expect "and the released ones are named as such" \
   "1 older, already released (status: abandoned)" "$out"
 
-# A released claim will never push again, so a stall mark on it is a clock
-# nobody is watching — and an analyst spawned for it would have nothing to
-# explain.
-out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ANALYSIS_FETCH=0 \
-  ./joharness.sh analysis mgr-parked 2>&1 )"
-expect "a released claim carries no condition" \
-  "condition : none — this claim was RELEASED" "$out"
-refute "never a stall mark that can never clear" "condition : STALL?" "$out"
-expect "and the verdict does not call it a manager at work" \
-  "NO CONDITION — the claim was released" "$out"
 
 # dispatch: a released claim is not a manager in flight at all. The row comes
 # from the hook's `claimed on` annotation and there is no longer one, which is

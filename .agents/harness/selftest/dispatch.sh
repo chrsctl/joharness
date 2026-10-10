@@ -2774,8 +2774,8 @@ commit_all "$cewwork" "a push this minute"
 git -C "$cewwork" push -qu origin mgr-slow
 git -C "$cewwork" checkout -q main
 
-# Analysis on: a condition would name an analyst, and CEILING? must not.
-out="$(cew env JOHARNESS_IDLE_ANALYSIS=on)"
+# A claim past the ceiling with no pr:.
+out="$(cew)"
 cewrow="$(printf '%s\n' "$out" | grep 'mgr-slow')"
 expect "the header names the ceiling and its knob" \
   "ceiling   : 4h since the claim with no pr: = CEILING? (JOHARNESS_MANAGER_HOURS; 0 lifts it)" "$out"
@@ -2783,11 +2783,10 @@ expect "a claim past the ceiling with no pr: carries CEILING?" \
   "CEILING? 10h since the claim, no pr:" "$cewrow"
 refute "aged from the claim, not the push" "CEILING? 0m" "$cewrow"
 refute "a recent push is no stall" "STALL?" "$cewrow"
-refute "and CEILING? is no condition: no analyst" "ANALYSE?" "$cewrow"
 expect "the tail counts it as a report" \
   "1 manager(s) past the ceiling with no pr: in the claim file: report, never kill on this alone" "$out"
 refute "and orders no health pass" "past the stall window" "$out"
-cewlifted="$(cew env JOHARNESS_IDLE_ANALYSIS=on JOHARNESS_MANAGER_HOURS=0)"
+cewlifted="$(cew env JOHARNESS_MANAGER_HOURS=0)"
 refute "0 lifts it" "CEILING?" "$cewlifted"
 expect "and the header says so" "ceiling   : lifted" "$cewlifted"
 refute "and lifts the tail line with it" "past the ceiling" "$cewlifted"

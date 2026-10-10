@@ -52,7 +52,6 @@ JOHARNESS_CLERK_HOURS|24|Hours between clerk passes over the open issues: an iss
 JOHARNESS_CLERK_BATCH|3|Open issues one clerk pass takes at most.
 JOHARNESS_SCOUT_HOURS|168|Hours since the last scout before one is due, and only at DRAINED; 0 switches the cycle off.
 JOHARNESS_SCOUT_AUTOMERGE|off|off = a scout's proposal pull request waits for a human; on = the scout merges it itself. Money and product direction in one key.
-JOHARNESS_IDLE_ANALYSIS|off|off = ./joharness.sh analysis reports why a manager is blocked, stalled or looping and nothing acts on it; on = under orchestrated, one session per condition says why and files it as an issue on the canonical.
 ROWS
 }
 

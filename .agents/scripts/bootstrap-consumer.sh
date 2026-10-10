@@ -131,9 +131,6 @@ REVIEW_GIVEN=0
 # No flag and no interview question, deliberately: a question about an
 # off-by-default mechanism is paid by every new consumer. The sync names a
 # key the conf does not answer, which is what declaring it in conf-keys.sh buys.
-# Same decision again, one switch over: whether a parked manager is explained
-# is a question a repo has after its first stuck run, not at first contact.
-IDLE_ANALYSIS="$(conf_key_default JOHARNESS_IDLE_ANALYSIS)"
 # Not asked either, and this one is a NUMBER rather than a switch: 12 hours is
 # the requester's cadence and a repo with no fleet never notices it, because a
 # sweep with no dead claim releases nothing and costs one report.
@@ -724,15 +721,6 @@ JOHARNESS_CHECKS=${CHECKS}
 # 0 on HOURS switches the WHOLE cycle off; 0 on PLANS leaves only the clock.
 JOHARNESS_CURATE_HOURS=${CURATE_HOURS}
 JOHARNESS_CURATE_PLANS=${CURATE_PLANS}
-
-# off = ./joharness.sh analysis reports why a manager is blocked, stalled or
-#       looping: the mark it carries, and whether joharness.conf has moved
-#       since that claim last stated its cause. Nothing acts on it.
-# on  = the orchestrator spends ONE session
-#       per condition per item per run, beyond the manager cap, saying why and
-#       filing it as an issue on the canonical. Off by default: it costs money
-#       and it opens issues in a repository this one does not own.
-JOHARNESS_IDLE_ANALYSIS=${IDLE_ANALYSIS}
 
 # Hours between janitor sweeps; 0 = off. A claim whose session is gone holds
 # its plan out of the queue until something releases it, and nothing did
