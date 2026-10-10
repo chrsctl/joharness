@@ -291,190 +291,152 @@ cmd_verify() {
 # ones this repo did not select — they still ship to consumers.
 # ---------------------------------------------------------------------------
 
-cmd_ci() {
-  local rc=0 f listing
-  local -a targets=()
-  if ! listing="$(check_targets)"; then
-    warn "could not enumerate all shell scripts; a partial list is no lint bar"
-    rc=1
-  fi
-  while IFS= read -r f; do
-    [ -n "$f" ] && targets+=("$f")
-  done <<<"$listing"
+# Output of `ci` and `finish`: failing checks and one verdict line; every
+# check with -v or JOHARNESS_VERBOSE=1.
+CHECK_VERBOSE="${JOHARNESS_VERBOSE:-0}"
+CHECK_FAILS=0
+CHECK_SKIPPED=0
 
-  if [ "${#targets[@]}" -eq 0 ]; then
-    die "no shell scripts found under ${ROOT}"
+# run_check <name> <function> [args]: run one check, print its output only
+# when it fails (or verbose). Status 3 = skipped, said in the verdict line.
+run_check() {
+  local name="$1" out rc
+  shift
+  out="$("$@" 2>&1)"; rc=$?
+  if { [ "$rc" -ne 0 ] && [ "$rc" -ne 3 ]; } ||
+     { [ "$CHECK_VERBOSE" = 1 ] && [ -n "$out" ]; }; then
+    printf '== %s\n' "$name"
+    [ -z "$out" ] || printf '%s\n' "$out"
+    printf '\n'
   fi
+  case "$rc" in
+    0) ;;
+    3) CHECK_SKIPPED=1 ;;
+    *) CHECK_FAILS=$((CHECK_FAILS + 1)) ;;
+  esac
+  return 0
+}
 
-  printf '== shellcheck (%d files)\n' "${#targets[@]}"
-  local sc_skipped=0
+# -v / --verbose anywhere in a command's arguments.
+check_args() {
+  local a
+  for a in "$@"; do
+    case "$a" in
+      -v | --verbose) CHECK_VERBOSE=1 ;;
+      *) die "unknown argument '${a}' (try -v)" ;;
+    esac
+  done
+}
+
+ci_shellcheck() {
+  printf '%d files\n' "$#"
   if ensure_shellcheck; then
-    shellcheck -x "${targets[@]}" && printf '  zero findings\n' || rc=1
+    shellcheck -x "$@" || return 1
+    printf '  zero findings\n'
   elif [ "${GITHUB_ACTIONS:-}" = "true" ]; then
-    # The workflow is the gate; a gate that skips its own bar is no gate.
     warn "shellcheck not installed and not installable on the CI runner"
-    rc=1
+    return 1
   else
-    # A session's problem is the code, not the toolchain. Missing tool =
-    # loud skip, never a fake red. Human decides whether the skip stands.
-    sc_skipped=1
     warn "shellcheck unavailable, install failed. NOT checked. Install it"
     warn "(github.com/koalaman/shellcheck#installing) or ask human first."
     printf '  SKIPPED\n'
+    return 3
   fi
+}
 
-  printf '\n== bash syntax\n'
-  local syntax_rc=0
-  for f in "${targets[@]}"; do
-    bash -n "$f" || { rc=1; syntax_rc=1; }
-  done
-  [ "$syntax_rc" -eq 0 ] && printf '  clean\n'
+ci_syntax() {
+  local f rc=0
+  for f in "$@"; do bash -n "$f" || rc=1; done
+  [ "$rc" -eq 0 ] && printf '  clean\n'
+  return "$rc"
+}
 
-  # The harness's own regression tests: git-only, so they run on GitHub
-  # runners whatever the environment layer needs there. Canonical-only — a
-  # consumer does not receive them, because they cover harness code it
-  # does not edit. Absent is therefore normal in a consumer and said once;
-  # present but not executable is a broken copy and stays red.
-  printf '\n== harness selftest\n'
+# The harness's own regression tests. Canonical-only: absent in a consumer.
+ci_selftest() {
   if [ ! -e "${HARNESS_ROOT}/selftest.sh" ]; then
     printf '  not here (canonical-only; this repo does not carry the harness tests)\n'
   elif [ ! -x "${HARNESS_ROOT}/selftest.sh" ]; then
     warn ".agents/harness/selftest.sh is not executable"
-    rc=1
+    return 1
   elif [ "${JOHARNESS_SELFTEST:-}" != "always" ] &&
        selftest_inert_diff HEAD "origin/${HANDOVER_BASE_BRANCH:-main}"; then
-    # A skip that prints nothing is indistinguishable from a pass, so it says
-    # what it skipped and how to override it.
     printf '  skipped: nothing outside docs/ and README.md changed on this branch\n'
     printf '  Run it anyway: JOHARNESS_SELFTEST=always %s ci\n' "$0"
   else
-    "${HARNESS_ROOT}/selftest.sh" || rc=1
+    "${HARNESS_ROOT}/selftest.sh"
   fi
+}
 
-  # One node, two names, in files every session loads. Scope and reasoning:
-  # lint_glossary.
-  printf '\n== glossary\n'
-  lint_glossary || rc=1
-
-  # Graph edges, checked rather than trusted: a dangling frontmatter edge
-  # or out-of-vocabulary enum fails silent everywhere else — the hooks
-  # default it and the queue lies. Rules and the warn/red split: lint_graph.
-  printf '\n== graph lint\n'
-  lint_graph || rc=1
-
-  printf '\n== plans on this branch\n'
-  lint_plans_in_diff || rc=1
-
-  # Findings recorded on this branch that the fix map cannot key on, so
-  # nothing ever serves them back. Report only, never rc — lint_finding_ids
-  # carries why, and why it is not review_count's question.
-  printf '\n== finding ids\n'
-  lint_finding_ids || rc=1
-
-  # Which plans on this branch land in every consumer. Report only, never
-  # rc — reasoning in lint_ship. Silent in a consumer, which carries neither
-  # the sync engine nor a reason to ask.
-  # Beside the ids stage, because both read this branch's own findings and a
-  # reader wants them together. Its own section: keyable and dispositioned are
-  # different questions, and one heading over two verdicts is how a reader
-  # stops telling them apart.
-  printf '\n== finding verdicts\n'
-  lint_finding_markers || rc=1
-
-  printf '\n== ship scope\n'
-  lint_ship
-
-  # Review churn, measured rather than noticed. The rule
-  # (.agents/docs/agent-selection.md) asks a session to see that a fix undid an
-  # earlier fix — but the session inside the churn is the one least able to
-  # see it: the sync-tool branch ran twelve "harden per review round"
-  # commits over two hours, and ci ran every round without saying so. Git
-  # held the evidence the whole time; this prints it. Two tiers, because the
-  # honest answer changes with the number. From the threshold up it is a
-  # warning: whether the churn is real is the session's judgment call, and the
-  # rule's lever (raise tier or effort) is its to pull. From the ceiling up it
-  # is no longer a call — no honest single edit rewrites one file that many
-  # times on one branch (backtest: the runaway sync branch hit 13, every other
-  # merge in this repo's history <=4). The session inside the churn is the one
-  # that cannot see it, so the one gate it cannot skip fails for it.
-  # JOHARNESS_CHURN_LIMIT overrides the ceiling; =0 lifts the gate, the
-  # deliberate and visible escape for a genuine large rework.
-  # Read through num_knob, so the environment for one run and joharness.conf
-  # for the repo both work — and mean the same here as they do in `dispatch`,
-  # which reads the same two knobs. Environment-only was a trap the conf
-  # documented its way into: a human writing JOHARNESS_CHURN_LIMIT=0 in the
-  # conf for a genuine large rework got a still-red ci and a silently
-  # disabled LOOP?.
-  printf '\n== churn\n'
-  local churn threshold ceiling
+# Review churn: the session inside it is the one least able to see it.
+# Warning from the threshold, red from the ceiling (0 lifts both).
+ci_churn() {
+  local churn threshold ceiling churn_n churn_f
   threshold="$(num_knob JOHARNESS_CHURN_THRESHOLD 5)"
   ceiling="$(num_knob JOHARNESS_CHURN_LIMIT $((threshold * 2)))"
-  if churn="$(churn_top)"; then
-    if [ -n "$churn" ]; then
-      local churn_n="${churn%%	*}" churn_f="${churn#*	}"
-      if [ "$ceiling" -gt 0 ] && [ "$churn_n" -ge "$ceiling" ]; then
-        printf '  %s rewritten in %s commits on this branch (ceiling %s)\n' \
-          "$churn_f" "$churn_n" "$ceiling"
-        printf '  Past the ceiling this is churn, not a judgment call. Stop\n'
-        printf '  patching — take the research step at a raised tier or effort\n'
-        printf '  (.agents/docs/agent-selection.md, review churn). Genuine large rework?\n'
-        printf '  JOHARNESS_CHURN_LIMIT=0 lifts the gate, on the record.\n'
-        rc=1
-      elif [ "$churn_n" -ge "$threshold" ]; then
-        printf '  %s touched in %s commits on this branch\n' "$churn_f" "$churn_n"
-        printf '  Fix undoing an earlier fix? Stop patching — research step at raised\n'
-        printf '  tier or effort first (.agents/docs/agent-selection.md, review churn).\n'
-      else
-        printf '  quiet (max %s commits per file)\n' "${churn_n:-0}"
-      fi
-    else
-      printf '  quiet\n'
-    fi
-  else
+  if ! churn="$(churn_top)"; then
     printf '  not measurable here (no merge-base; shallow checkout or base branch)\n'
+    return 0
   fi
-
-  # Off by default and silent while off, so a repo that never opted in gets
-  # the same ci output it got before this existed.
-  if review_on; then
-    printf '\n== review\n'
-    review_report || rc=1
+  if [ -z "$churn" ]; then
+    printf '  quiet\n'
+    return 0
   fi
-
-  # Loop step 7's gate, enforced rather than merely available. `finish` was
-  # a correct gate nobody had to run, and step 7 kept not happening:
-  # docs/handover/joharness-minify-optimize.md sat on main from 2026-08-24
-  # through 22 merges, named correctly by the gate every time anyone ran
-  # it. Detect, Record and Generalize had all happened — the step 7 wording
-  # was strengthened after a consumer measured 23 stale files — and it
-  # recurred because stage 4 was missing (.agents/docs/feedback.md).
-  #
-  # Reported at the edge, RED once the branch says done — see
-  # fin_strength for why one trigger could not serve both this and the
-  # review gate. Not behind a flag: whether a review is deep enough is a
-  # judgment, whether a branch that calls itself finished still carries
-  # its own workstream file is not.
-  local fin_strength_now
-  fin_strength_now="$(fin_strength)"
-  if [ -n "$fin_strength_now" ]; then
-    printf '\n== finish\n'
-    fin_gate "$fin_strength_now" || rc=1
+  churn_n="${churn%%	*}" churn_f="${churn#*	}"
+  if [ "$ceiling" -gt 0 ] && [ "$churn_n" -ge "$ceiling" ]; then
+    printf '  %s rewritten in %s commits on this branch (ceiling %s)\n' \
+      "$churn_f" "$churn_n" "$ceiling"
+    printf '  Past the ceiling this is churn, not a judgment call. Stop\n'
+    printf '  patching — take the research step at a raised tier or effort\n'
+    printf '  (.agents/docs/agent-selection.md, review churn). Genuine large rework?\n'
+    printf '  JOHARNESS_CHURN_LIMIT=0 lifts the gate, on the record.\n'
+    return 1
+  elif [ "$churn_n" -ge "$threshold" ]; then
+    printf '  %s touched in %s commits on this branch\n' "$churn_f" "$churn_n"
+    printf '  Fix undoing an earlier fix? Stop patching — research step at raised\n'
+    printf '  tier or effort first (.agents/docs/agent-selection.md, review churn).\n'
+  else
+    printf '  quiet (max %s commits per file)\n' "${churn_n:-0}"
   fi
+}
 
-  printf '\n'
-  if [ "$rc" -ne 0 ]; then
-    printf 'ci: FAIL\n'
-  elif [ "$sc_skipped" -eq 1 ]; then
+cmd_ci() {
+  local f listing fs
+  local -a targets=()
+  check_args "$@"
+  CHECK_FAILS=0; CHECK_SKIPPED=0
+  if ! listing="$(check_targets)"; then
+    warn "could not enumerate all shell scripts; a partial list is no lint bar"
+    CHECK_FAILS=$((CHECK_FAILS + 1))
+  fi
+  while IFS= read -r f; do
+    [ -n "$f" ] && targets+=("$f")
+  done <<<"$listing"
+  [ "${#targets[@]}" -gt 0 ] || die "no shell scripts found under ${ROOT}"
+
+  run_check shellcheck ci_shellcheck "${targets[@]}"
+  run_check "bash syntax" ci_syntax "${targets[@]}"
+  run_check "harness selftest" ci_selftest
+  run_check glossary lint_glossary
+  run_check "graph lint" lint_graph
+  run_check "plans on this branch" lint_plans_in_diff
+  run_check "finding ids" lint_finding_ids
+  run_check "finding verdicts" lint_finding_markers
+  run_check "ship scope" lint_ship
+  run_check churn ci_churn
+  if review_on; then run_check review review_report; fi
+  fs="$(fin_strength)"
+  [ -z "$fs" ] || run_check finish fin_gate "$fs"
+
+  # The environment smoke test is not part of this: run `verify`.
+  if [ "$CHECK_FAILS" -ne 0 ]; then
+    printf 'ci: FAIL (%s)\n' "$CHECK_FAILS"
+    return 1
+  elif [ "$CHECK_SKIPPED" -eq 1 ]; then
     printf 'ci: pass (shellcheck SKIPPED — not the full bar)\n'
   else
     printf 'ci: pass\n'
   fi
-
-  # The environment smoke test is deliberately not part of this. A layer
-  # needing the sandbox has nothing a GitHub runner can prove; one that does
-  # not says so itself and the workflow verifies it separately
-  # (.agents/env/README.md). Either way this command does not: run `verify`.
-  return "$rc"
+  return 0
 }
 
 # Every shell script the harness owns, in a stable order. One find root:
@@ -5380,26 +5342,12 @@ checks_gate() {
   return "$rc"
 }
 
-cmd_finish() {
-  local ref branch rc=0 f adds=0 pre=0 base_docs tip_docs is_local=0 ready=0
-  ref="$(decide_ref)" || die \
-    "no ref for base branch '${HANDOVER_BASE_BRANCH:-main}' in this checkout" \
-    "— a gate cannot pass on a comparison it could not make." \
-    "Run: git fetch origin ${HANDOVER_BASE_BRANCH:-main}"
-  branch="$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || printf '?')"
-  printf '== finish (%s -> %s)\n\n' "$branch" "$ref"
-
-  if [ "$branch" = "${HANDOVER_BASE_BRANCH:-main}" ]; then
-    warn "on the base branch: there is no merge to gate (Loop step 3 cuts one)"
-    return 0
-  fi
-
+# Workstream files this merge would ADD to <ref>: red when any.
+finish_adds() {
+  local ref="$1" f adds=0 pre=0 base_docs tip_docs
   base_docs="$(fin_docs_at "$ref")"
   tip_docs="$(fin_docs_at HEAD)"
-
   printf 'workstream files this merge would ADD to %s\n' "$ref"
-  # The adds themselves come from fin_adds_at, which `ci`'s gate also
-  # reads; this loop keeps the per-file reporting the command adds on top.
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     if printf '%s\n' "$base_docs" | grep -qxF -- "$f"; then
@@ -5407,10 +5355,6 @@ cmd_finish() {
       continue
     fi
     adds=$((adds + 1))
-    # A deletion that is only staged does not merge, so this stays red — but
-    # saying so is the difference between a gate and a riddle. The natural
-    # order is `git rm` then run this, and at that exact moment the file is
-    # gone from the tree and still in the tip.
     if [ -n "$(git -C "$ROOT" status --porcelain -- "$f" 2>/dev/null)" ] &&
        [ ! -e "${ROOT}/${f}" ]; then
       printf '  ADDS     %s  (deleted here but not committed — commit it)\n' "$f"
@@ -5418,40 +5362,61 @@ cmd_finish() {
       printf '  ADDS     %s\n' "$f"
     fi
   done <<<"$tip_docs"
-
-  if [ "$adds" -eq 0 ]; then
-    printf '  none — this branch retires what it claimed\n'
-  else
-    rc=1
-    printf '\n  %d workstream file(s) would land on %s and be read as current by\n' \
-      "$adds" "$ref"
-    printf '  the next session. Delete them in THIS branch, as the last commit\n'
-    printf '  before the merge — after it, the fix needs its own pull request and\n'
-    printf '  the base branch is wrong until that lands.\n'
-    printf '  Keepers graduate first: .agents/docs/handover/README.md.\n'
-  fi
-
   if [ "$pre" -gt 0 ]; then
-    printf '\n%d already on %s — not this merge, not this session: %s\n' \
+    printf '  %d already on %s — not this merge, not this session: %s\n' \
       "$pre" "$ref" "'$0 cleanup'"
   fi
+  if [ "$adds" -eq 0 ]; then
+    printf '  none — this branch retires what it claimed\n'
+    printf '  plan file: delete it too when this branch finishes its plan (step 7).\n'
+    return 0
+  fi
+  printf '\n  %d workstream file(s) would land on %s and be read as current by\n' \
+    "$adds" "$ref"
+  printf '  the next session. Delete them in THIS branch, as the last commit\n'
+  printf '  before the merge (with the done plan file). Keepers graduate first:\n'
+  printf '  .agents/docs/handover/README.md.\n'
+  return 1
+}
 
-  fin_promote "$ref"
+cmd_finish() {
+  local ref branch is_local=0
+  check_args "$@"
+  CHECK_FAILS=0; CHECK_SKIPPED=0
+  ref="$(decide_ref)" || die \
+    "no ref for base branch '${HANDOVER_BASE_BRANCH:-main}' in this checkout" \
+    "— a gate cannot pass on a comparison it could not make." \
+    "Run: git fetch origin ${HANDOVER_BASE_BRANCH:-main}"
+  branch="$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || printf '?')"
+  [ "$CHECK_VERBOSE" != 1 ] || printf '== finish (%s -> %s)\n\n' "$branch" "$ref"
 
-  # The plan file is step 7's other deletion and it is a judgment — whether a
-  # plan is *done* is not on disk. Named, never gated: a gate that guesses
-  # teaches the next session to skip the gate.
-  printf '\nplan file: delete it too when this branch finishes its plan (step 7).\n'
-  printf 'Not checked here — "done" is a judgment, and a gate that guesses at one\n'
-  printf 'is a gate the next session learns to ignore.\n'
+  if [ "$branch" = "${HANDOVER_BASE_BRANCH:-main}" ]; then
+    warn "on the base branch: there is no merge to gate (Loop step 3 cuts one)"
+    return 0
+  fi
 
-  # Step 7's first merge condition, last in the output because under 'local'
-  # it is the only section that runs anything. Read once here so a misspelled
-  # value warns once.
+  run_check "workstream files" finish_adds "$ref"
+  [ "$CHECK_VERBOSE" != 1 ] || run_check "promotion before retire" fin_promote "$ref"
+
   checks_local && is_local=1
-  [ "$rc" -eq 0 ] && ready=1
-  checks_gate "$ref" "$branch" "$is_local" "$ready" || rc=1
-  return "$rc"
+  if [ "$is_local" = 1 ] && [ "$CHECK_FAILS" -eq 0 ]; then
+    run_check "checks (local)" checks_gate "$ref" "$branch" 1 1
+  elif [ "$is_local" = 1 ]; then
+    checks_gate "$ref" "$branch" 1 0
+    printf '\n'
+  elif [ "$CHECK_VERBOSE" = 1 ]; then
+    run_check checks checks_gate "$ref" "$branch" 0 1
+  fi
+
+  if [ "$CHECK_FAILS" -ne 0 ]; then
+    printf 'finish: FAIL (%s)\n' "$CHECK_FAILS"
+    return 1
+  elif [ "$is_local" = 1 ]; then
+    printf 'finish: pass (ci and verify ran here: JOHARNESS_CHECKS=local)\n'
+  else
+    printf 'finish: pass — step 7 still needs the GitHub checks on this head green (not read here)\n'
+  fi
+  return 0
 }
 
 # The two hooks, run for a READER rather than for a session's context:
@@ -7996,7 +7961,7 @@ main() {
     session-start)  cmd_session_start ;;
     env)            cmd_env "${1:-}" ;;
     setup)          cmd_setup ;;
-    ci)             cmd_ci ;;
+    ci)             cmd_ci "$@" ;;
     verify)         cmd_verify ;;
     review)         cmd_review ;;
     feedback)       cmd_feedback "$@" ;;
@@ -8007,7 +7972,7 @@ main() {
     clerk)          cmd_clerk "$@" ;;
     cleanup)        cmd_cleanup "$@" ;;
     curate)         cmd_curate "$@" ;;
-    finish)         cmd_finish ;;
+    finish)         cmd_finish "$@" ;;
     dispatch)       cmd_dispatch ;;
     start)          [ -z "${1:-}" ] ||
                       die "start takes no argument; the commands that take one are /manage <item> and /plan"

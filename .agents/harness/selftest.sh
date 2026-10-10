@@ -145,6 +145,11 @@ chmod +x "${TMP}/bin/shellcheck"
 PATH="${TMP}/bin:${PATH}"
 export PATH
 
+# Fixture runs of `ci` and `finish` print every check, so cases can read a
+# passing stage's detail; the quiet default has its own cases (ci-output).
+JOHARNESS_VERBOSE=1
+export JOHARNESS_VERBOSE
+
 # A commit in the repo $1 with message $2, after staging everything.
 commit_all() { git -C "$1" add -A && git -C "$1" commit -qm "$2"; }
 
@@ -538,6 +543,7 @@ SELFTEST_TOPICS=(
   queue-context-fanout
   session-start
   ci-churn
+  ci-output
   ci-selftest-scope
   checks
   ci-promote

@@ -1782,8 +1782,9 @@ trplan seed
 commit_all "$trwork" "base"
 git -C "$trwork" remote add origin "$trorigin"
 git -C "$trwork" push -qu origin main
+# Registry raised so plans sharing a path are an ORDER proposal: judgement.
 tr_() { ( cd "$trwork" && JOHARNESS_CONF="$trconf" DRAIN_FETCH=0 \
-  DISPATCH_FETCH=0 "$@" ./joharness.sh dispatch 2>&1 ); }
+  DISPATCH_FETCH=0 JOHARNESS_CURATE_REGISTRY=10 "$@" ./joharness.sh dispatch 2>&1 ); }
 # Land a curate, the way the protocol produces one: claim on a branch, retire on
 # the branch, merge. Nothing is due from here until a knob says so.
 git -C "$trwork" checkout -qb claude/curate-trig

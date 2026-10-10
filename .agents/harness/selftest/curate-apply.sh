@@ -127,5 +127,5 @@ git -C "$cawork" push -q origin --delete claude/curate-run
 out="$( cd "$cawork" && JOHARNESS_CONF="$caconf" DISPATCH_FETCH=0 \
   JOHARNESS_CURATE_PLANS=1 ./joharness.sh dispatch 2>&1 )"
 expect "mechanical-only repairs are named as curate --apply work" \
-  "curate    : due, nothing needs judgement" "$out"
+  "curate due, nothing needs judgement: spawn no curator" "$out"
 refute "and no curator is spawned for them" "curate DUE: spawn" "$out"
