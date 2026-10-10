@@ -7,8 +7,7 @@
 # most of them — and sync-to-consumer.sh names the ones a consumer's conf does
 # not carry at update. Declared and asked are two lists, not one: a key whose
 # answer nobody has an opinion about at first contact is seeded at its default
-# and reaches a child through the sync's report instead
-# (JOHARNESS_UPSTREAM_FEEDBACK is the first of those). Before this file the list lived in the bootstrap twice
+# and reaches a child through the sync's report instead. Before this file the list lived in the bootstrap twice
 # over — once in the interview, once in the seeded heredoc — and a third copy
 # in the sync engine is how two readers of one fact start disagreeing. The
 # selftest reds if the seeded conf and this declaration name different keys.
@@ -48,13 +47,10 @@ JOHARNESS_REVIEW|off|off = review reports only; on = ci gates the record at the 
 JOHARNESS_CHECKS|github|github = step 7 waits for this head's GitHub checks; local = no wait, ./joharness.sh finish runs ci and verify here and reds on their result.
 JOHARNESS_CURATE_HOURS|168|Hours since the last curate before one is due; 0 switches the whole cycle off.
 JOHARNESS_CURATE_PLANS|10|Plan files changed since the last curate before one is due (the primary trigger); 0 leaves only the clock.
-JOHARNESS_UPSTREAM_FEEDBACK|off|off = ./joharness.sh upstream reports what a merged edge found about the harness and nothing acts on it; on = under orchestrated, one session files it as a report pull request on the canonical.
-JOHARNESS_JANITOR_HOURS|12|Hours between janitor sweeps of the claims: a claim whose session is gone holds its plan out of the queue until one releases it. 0 switches the cycle off.
 JOHARNESS_CLERK_HOURS|24|Hours between clerk passes over the open issues: an issue nobody turns into a plan is never built. 0 switches the cycle off.
 JOHARNESS_CLERK_BATCH|3|Open issues one clerk pass takes at most.
 JOHARNESS_SCOUT_HOURS|168|Hours since the last scout before one is due, and only at DRAINED; 0 switches the cycle off.
 JOHARNESS_SCOUT_AUTOMERGE|off|off = a scout's proposal pull request waits for a human; on = the scout merges it itself. Money and product direction in one key.
-JOHARNESS_IDLE_ANALYSIS|off|off = ./joharness.sh analysis reports why a manager is blocked, stalled or looping and nothing acts on it; on = under orchestrated, one session per condition says why and files it as an issue on the canonical.
 ROWS
 }
 

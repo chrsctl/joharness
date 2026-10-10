@@ -67,7 +67,7 @@ sct() { ( cd "$scout_work" && env JOHARNESS_CONF="$scout_conf" "$@" ./joharness.
 # holds the scout spawn on a view of unknown age (R-g), which is a case of
 # its own below.
 sdsp() { ( cd "$scout_work" && env JOHARNESS_CONF="$scout_conf" DISPATCH_FETCH=1 \
-  JOHARNESS_CURATE_HOURS=0 JOHARNESS_JANITOR_HOURS=0 "$@" ./joharness.sh dispatch 2>&1 ); }
+  JOHARNESS_CURATE_HOURS=0 "$@" ./joharness.sh dispatch 2>&1 ); }
 
 # --- no command, no cycle ----------------------------------------------------
 out="$(sct)"
@@ -354,8 +354,9 @@ git -C "$scout_work" rm -q docs/plans/free-one.md
 scommit "queue empty" '2026-03-06T00:00:00Z'
 git -C "$scout_work" push -q origin main
 out="$(sdsp JOHARNESS_CURATE_HOURS=1)"
-refute "dispatch spawns no scout in a pass that spawns a curator" "scout DUE: spawn" "$out"
-expect "and says the curate goes first" "a curate, janitor or clerk goes first" "$out"
+expect "a due curate with nothing to judge spawns no curator" \
+  "curate due, nothing needs judgement" "$out"
+expect "so it does not hold the scout" "scout DUE: spawn" "$out"
 out="$(sdsp)"
 expect "at DRAINED dispatch prints the spawn line" \
   "scout DUE: spawn ONE scout (agent: fable) on /scout" "$out"
@@ -382,20 +383,6 @@ git -C "$scout_work" remote set-url origin "$scout_origin"
 refute "with the fetch failed no scout spawns" "scout DUE: spawn" "$out"
 expect "and it says why" "scout due, held — no fresh view of every branch" "$out"
 
-# A janitor IN FLIGHT holds the scout too: its release frees a plan for the
-# next pass, so the queue is about to stop being drained (review r28).
-git -C "$scout_work" checkout -qb janitor-run main
-mkdir -p "${scout_work}/docs/handover"
-printf -- '---\nworkstream: janitor-2026-03-07\nstatus: in-progress\nbranch: janitor-run\nplan: none\nagent: sonnet\n---\n\n## Goal\nFixture.\n' \
-  >"${scout_work}/docs/handover/janitor-2026-03-07.md"
-scommit "a sweep in flight"
-git -C "$scout_work" push -qu origin janitor-run
-git -C "$scout_work" checkout -q main
-out="$(sdsp JOHARNESS_JANITOR_HOURS=12)"
-expect "the janitor reads in flight" "janitor   : IN FLIGHT" "$out"
-refute "and no scout spawns beside it" "scout DUE: spawn" "$out"
-git -C "$scout_work" push -q origin --delete janitor-run
-git -C "$scout_work" branch -q -D janitor-run
 out="$(sdsp JOHARNESS_SCOUT_HOURS=0)"
 refute "switched off, dispatch spawns no scout" "scout DUE: spawn" "$out"
 refute "and prints no due line for it" "scout     : DUE" "$out"

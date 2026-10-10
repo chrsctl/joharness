@@ -793,21 +793,6 @@ report_conf_keys() {
 }
 report_conf_keys
 
-# Settings the consumer's conf still carries that nothing reads any more.
-# JOHARNESS_MODE: orchestrated is the only mode, and joharness.sh warns on any
-# other value. Report only, in a dry run too: the conf is consumer-own and this
-# stage never edits it for this. Same skips as report_conf_keys — switched off
-# by the bootstrap, and a conf that is not a regular file is not read.
-report_obsolete_keys() {
-  local conf="${DEST}/joharness.conf"
-  [ "${JOHARNESS_SYNC_CONF_KEYS:-}" != skip ] || return 0
-  [ -f "$conf" ] && [ ! -h "$conf" ] || return 0
-  grep -q '^[[:space:]]*JOHARNESS_MODE[[:space:]]*=' "$conf" || return 0
-  printf '\n== obsolete settings\n'
-  printf '  JOHARNESS_MODE: obsolete; orchestrated is the only mode. Delete the line from joharness.conf.\n'
-}
-report_obsolete_keys
-
 # Two tiers. Dir tier: harness/ and env/ were wholly harness-owned, the
 # remedy is `git rm -r`. File tier: the protocol docs and sync tools that
 # moved OUT of docs/ and scripts/ sat inside dirs that still hold live

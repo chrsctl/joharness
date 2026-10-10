@@ -1,17 +1,15 @@
 ---
-description: Child worker — file what one merged edge found about the harness as a report pull request on the canonical
+description: Manual procedure — file what one merged edge found about the harness as a report pull request on the canonical
 ---
 
-Reporter role. ONE merged edge, ONE report, exit.
-Runs only where `JOHARNESS_UPSTREAM_FEEDBACK=on`; the orchestrator spawns
-you after a manager's pull request merges, and `$ARGUMENTS` names its
-branch or its merge.
+Reporter procedure, run by hand: a human or a session invokes
+`/upstream-report <edge>` for ONE merged edge — its branch or its merge —
+files ONE report, and exits. Nothing spawns it automatically.
 
-You are the fourth stage of a loop the four before you cannot finish. A
-child repo DETECTS harness defects and cannot deliver them: the fix belongs
-in canonical (`.agents/docs/consumer-repos.md`, Direction rule), the
-findings died with the workstream file the finish ritual deleted, and the
-manager that made them exited at its merge. That hop is what you carry.
+A child repo DETECTS harness defects and cannot deliver them: the fix
+belongs in canonical (`.agents/docs/consumer-repos.md`, Direction rule), and
+the findings died with the workstream file the finish ritual deleted. That
+hop is what you carry.
 
 What you read: `./joharness.sh upstream <edge>`, the merged diff, the
 recovered workstream file, and `.agents/docs/feedback.md` § *When the
@@ -54,10 +52,7 @@ For each finding ask the question `.agents/docs/feedback.md` § 1 asks:
 
 The signal that a session fought the harness is NOT evidence the harness is
 wrong. A guard whose message misled while its rule was correct is feedback
-**about the wording, not the rule**. Measured, in the session that wrote
-that section: a guard said "changes code but has no workstream file" on a
-branch of two `.md` files, the session read it as a misfire, and the guard
-was right — the branch was changing queue documents with no claim.
+**about the wording, not the rule**.
 
 > **Never relax a guard that just caught you.** Report what made you misread
 > it.
@@ -91,9 +86,7 @@ it), branch from its default branch, and add exactly ONE file:
 `graduates:` = the harness file the answer lands in.
 
 **A research node, and not any other kind of file, for three reasons.** A
-requirement (`docs/product/`) is the human's goal to set and an unattended
-session never writes one — the bound is in `.agents/docs/orchestrated.md`
-and `ci` reds it. A plan asserts the fix, and asserting canonical's fix from
+requirement (`docs/product/`) is canonical's goal to set. A plan asserts the fix, and asserting canonical's fix from
 a child is exactly the inversion step 1 forbids. A research node is a
 question canonical's own queue lists, a session claims, and the merge that
 answers it deletes — so the report enters by rules already written, with no

@@ -20,31 +20,6 @@ jstart() { JOHARNESS_CONF="$startconf" "${ROOT}/joharness.sh" start 2>&1; }
 expect "start routes to the orchestrator command" \
   "follow    : .claude/commands/orchestrate.md" "$(jstart)"
 refute "and prints no mode line" "mode      :" "$(jstart)"
-refute "and no obsolete warning when the key is absent" "obsolete" "$(jstart)"
-
-printf 'JOHARNESS_MODE=orchestrated\n' >"$startconf"
-refute "JOHARNESS_MODE=orchestrated is silent" "obsolete" "$(jstart)"
-
-# The obsolete key: any other value routes the same and warns on STDERR.
-startout="$(JOHARNESS_MODE=supervised JOHARNESS_CONF="$startconf" \
-  "${ROOT}/joharness.sh" start 2>/dev/null)"
-expect "an obsolete mode value still routes to the orchestrator" \
-  "follow    : .claude/commands/orchestrate.md" "$startout"
-startout="$(JOHARNESS_MODE=supervised JOHARNESS_CONF="$startconf" \
-  "${ROOT}/joharness.sh" start 2>&1 >/dev/null)"; startrc=$?
-expect "and warns on stderr that the key is obsolete" \
-  "JOHARNESS_MODE is obsolete; orchestrated is the only mode (JOHARNESS_MODE=supervised ignored)" \
-  "$startout"
-if [ "$startrc" -eq 0 ]; then
-  pass "and the warning never fails start"
-else
-  fail "and the warning never fails start (got ${startrc})"
-fi
-printf 'JOHARNESS_MODE=unsupervised\n' >"$startconf"
-expect "an obsolete value in the conf warns the same" \
-  "JOHARNESS_MODE=unsupervised ignored" "$(jstart)"
-printf 'JOHARNESS_MODE=orchestrated\n' >"$startconf"
-
 # Deleted subcommands are unknown, not quietly kept.
 startdel="$(JOHARNESS_CONF="$startconf" "${ROOT}/joharness.sh" drain 2>&1)"; startdel_rc=$?
 expect "drain is an unknown subcommand" "unknown subcommand" "$startdel"

@@ -29,14 +29,6 @@ export GIT_COMMITTER_NAME=selftest GIT_COMMITTER_EMAIL=selftest@invalid
 # number nobody re-counts is a written number.
 unset CLAUDE_PROJECT_DIR
 
-# The same hole, one knob over. JOHARNESS_MODE is an obsolete key, and the
-# cases that pin its warning assert what an ABSENT value prints — an exported
-# one in the invoking shell would turn every session-start and start in this
-# suite into the warning's case. A session has reason to export it: older
-# copies of the harness documented it. Re-count instead of trusting this:
-#   JOHARNESS_MODE=supervised bash selftest.sh | tail -1   # still green
-# and fails with the unset below cut from a copy.
-unset JOHARNESS_MODE
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 
 # Knobs exported in the invoking shell must not steer the fixtures; per-call
@@ -54,8 +46,8 @@ unset JOHARNESS_ENV JOHARNESS_ENV_SETUP JOHARNESS_ENV_MD JOHARNESS_REVIEW \
   JOHARNESS_MAX_MANAGERS JOHARNESS_STALL_MINUTES JOHARNESS_HEALTH_MINUTES \
   JOHARNESS_RESPAWN_LIMIT JOHARNESS_MANAGER_HOURS \
   JOHARNESS_CURATE_HOURS JOHARNESS_CURATE_PLANS JOHARNESS_CURATE_REGISTRY \
-  JOHARNESS_CURATE_SPLIT JOHARNESS_UPSTREAM_FEEDBACK JOHARNESS_IDLE_ANALYSIS \
-  JOHARNESS_JANITOR_HOURS JOHARNESS_SCOUT_HOURS JOHARNESS_SCOUT_AUTOMERGE \
+  JOHARNESS_CURATE_SPLIT \
+  JOHARNESS_SCOUT_HOURS JOHARNESS_SCOUT_AUTOMERGE \
   HANDOVER_STALE_SECONDS \
   JOHARNESS_CONF JOHARNESS_FORCE_SETUP JOHARNESS_SYNC_ROOT DEVENV_FORCE \
   JOHARNESS_FEEDBACK_CACHE JOHARNESS_PRETOOL_SCRATCH
@@ -153,13 +145,10 @@ chmod +x "${TMP}/bin/shellcheck"
 PATH="${TMP}/bin:${PATH}"
 export PATH
 
-# Same argument as the stub above, one section later in `ci`: fixture runs
-# would each re-measure every entrypoint for a verdict the real run reaches on
-# the real tree. Measured 2026-08-28: without this the suite ran 70s, with it
-# 47s. The perf gate keeps its own cases below, and the real `ci` still
-# measures the real tree — nothing here lowers that bar.
-JOHARNESS_PERF=off
-export JOHARNESS_PERF
+# Fixture runs of `ci` and `finish` print every check, so cases can read a
+# passing stage's detail; the quiet default has its own cases (ci-output).
+JOHARNESS_VERBOSE=1
+export JOHARNESS_VERBOSE
 
 # A commit in the repo $1 with message $2, after staging everything.
 commit_all() { git -C "$1" add -A && git -C "$1" commit -qm "$2"; }
@@ -552,21 +541,20 @@ SELFTEST_TOPICS=(
   queue-context-edge
   queue-context-core-only
   queue-context-fanout
-  graph
   session-start
   ci-churn
-  ci-context
+  ci-output
   ci-selftest-scope
   checks
   ci-promote
   review
   upstream
-  scorecard
   feedback
   feedback-recurrence
   cleanup
   orchestrated
   dispatch
+  curate-apply
   analysis
   janitor
   scout
@@ -591,8 +579,6 @@ SELFTEST_TOPICS=(
   sync-layer-only
   bootstrap-consumer
   ci-verify-layers
-  perf
-  mutate
   num-knob
 )
 

@@ -672,6 +672,41 @@ pbg_rc=$?
 if [ "$pbg_rc" -eq 0 ]; then pass "an unparseable copy is skipped, never a deny"
 else fail "an unparseable copy is skipped, never a deny (exit ${pbg_rc})"; fi
 
+# --- a heredoc body WRITTEN to a file is data -------------------------------
+# Three false denies: a heredoc writing a script that contains a wait loop.
+pbg $'{"tool_name":"Bash","tool_input":{"command":"cat > /tmp/w.sh <<\'EOF\'\\nuntil ! pgrep -f \\"x\\" >/dev/null; do sleep 3; done\\nEOF\\nchmod +x /tmp/w.sh"}}'
+pbg_allowed "a quoted heredoc written to a file is not judged as code"
+pbg '{"tool_name":"Bash","tool_input":{"command":"cat <<EOF > /tmp/w.sh\nwhile true; do sleep 1; done\nEOF"}}'
+pbg_allowed "an unquoted heredoc redirected after the delimiter is data too"
+pbg '{"tool_name":"Bash","tool_input":{"command":"tee /tmp/w.sh <<\"EOF\" >/dev/null\nwhile true; do sleep 1; done\nEOF"}}'
+pbg_allowed "a double-quoted heredoc into tee is data"
+pbg '{"tool_name":"Bash","tool_input":{"command":"cat > /tmp/w.sh <<-EOF\n\twhile true; do sleep 1; done\n\tEOF"}}'
+pbg_allowed "a <<- heredoc ends at its tab-indented terminator"
+# Code stays code: a heredoc fed to a shell, and a loop after the body.
+pbg '{"tool_name":"Bash","tool_input":{"command":"bash <<EOF\nwhile true; do sleep 1; done\nEOF"}}'
+pbg_denied "a heredoc fed to bash is still judged"
+pbg '{"tool_name":"Bash","tool_input":{"command":"cat > /tmp/w.sh <<EOF\nx\nEOF\nuntil test -f /tmp/x; do sleep 5; done"}}'
+pbg_denied "a loop after the heredoc body is still judged"
+pbg '{"tool_name":"Bash","tool_input":{"command":"cat <<EOF\nwhile true; do sleep 1; done\nEOF"}}'
+pbg_denied "a heredoc that writes no file is not exempt"
+# Verifier r1: shapes that run the body anyway stay judged.
+pbg '{"tool_name":"Bash","tool_input":{"command":"tee /tmp/w.sh <<EOF | bash\nwhile true; do sleep 1; done\nEOF"}}'
+pbg_denied "a written heredoc piped on to bash is code"
+pbg '{"tool_name":"Bash","tool_input":{"command":"echo hi > /tmp/o; cat <<EOF | bash\nwhile true; do sleep 1; done\nEOF"}}'
+pbg_denied "an unrelated redirect does not make a piped body data"
+pbg '{"tool_name":"Bash","tool_input":{"command":"/bin/bash <<EOF >/tmp/log\nwhile true; do sleep 1; done\nEOF"}}'
+pbg_denied "a shell by absolute path fed a heredoc is code"
+pbg '{"tool_name":"Bash","tool_input":{"command":"bash --norc <<EOF >/tmp/log\nwhile true; do sleep 1; done\nEOF"}}'
+pbg_denied "a shell with a long option fed a heredoc is code"
+pbg '{"tool_name":"Bash","tool_input":{"command":"bash -c \"source /dev/stdin\" <<EOF 2>/dev/null\nwhile true; do sleep 1; done\nEOF"}}'
+pbg_denied "a stderr redirect is not a file write"
+pbg '{"tool_name":"Bash","tool_input":{"command":"cat <<A | bash; cat <<B > /tmp/f\nwhile true; do sleep 1; done\nA\nhi\nB"}}'
+pbg_denied "a second heredoc's redirect does not exempt the first"
+pbg '{"tool_name":"Bash","tool_input":{"command":"cat > /tmp/w.sh <<EOF\nwhile true; do sleep 1; done\nEOF\nbash /tmp/w.sh"}}'
+pbg_denied "write-then-run is code"
+pbg '{"tool_name":"Bash","tool_input":{"command":"cat > /tmp/w.sh <<EOF\nwhile true; do sleep 1; done\nEOF\nchmod +x /tmp/w.sh && /tmp/w.sh"}}'
+pbg_denied "write, chmod, run by path is code"
+
 pbg_gone="${TMP}/pbg-gone"
 mkdir -p "$pbg_gone"
 CLAUDE_PROJECT_DIR="$pbg_gone" bash -c "$pbg_reg" <"$pbg_deny_payload" >/dev/null 2>&1

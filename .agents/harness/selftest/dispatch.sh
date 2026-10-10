@@ -1402,7 +1402,7 @@ expect "enough plan files changed since the queue began makes one due" \
   "curate    : DUE — 6 plan file(s) changed since the queue began, none having landed (>= 5)" "$out"
 expect "and the tail line under the verdict says to spawn one" \
   "curate DUE: spawn ONE curator (agent: sonnet)" "$out"
-expect "naming it as beyond the cap" "beyond the cap, holds no slot" "$out"
+expect "naming it as beyond the cap" "takes one slot (roles share JOHARNESS_MAX_MANAGERS)" "$out"
 # The clock at 0 is the off switch for the WHOLE cycle, which is a compatibility
 # promise and not a tidy rule: before the production trigger existed it was the
 # only switch there was, so a consumer that had set it must not wake up to a
@@ -1630,8 +1630,10 @@ cuplan one
 commit_all "$cuwork" "base"
 git -C "$cuwork" remote add origin "$cuorigin"
 git -C "$cuwork" push -qu origin main
+# Registry threshold raised: five plans on one path stay an ORDER proposal,
+# which needs a curator's judgement, rather than a mechanical shared: repair.
 cudis() { ( cd "$cuwork" && JOHARNESS_CONF="$cuconf" DRAIN_FETCH=0 \
-  DISPATCH_FETCH=0 "$@" ./joharness.sh dispatch 2>&1 ); }
+  DISPATCH_FETCH=0 JOHARNESS_CURATE_REGISTRY=10 "$@" ./joharness.sh dispatch 2>&1 ); }
 
 out="$(cudis env JOHARNESS_CURATE_PLANS=1)"
 expect "one plan file past a threshold of 1 makes a curate due" \
@@ -1725,7 +1727,7 @@ out="$(cudis env JOHARNESS_CURATE_PLANS=1)"
 expect "the cycle is due and the tail says to spawn" \
   "curate DUE: spawn ONE curator (agent: sonnet)" "$out"
 expect "naming it as beyond the cap, holding no slot" \
-  "beyond the cap, holds no slot" "$out"
+  "takes one slot (roles share JOHARNESS_MAX_MANAGERS)" "$out"
 expect "and both knobs are named on that line" \
   "(JOHARNESS_CURATE_PLANS, JOHARNESS_CURATE_HOURS)" "$out"
 
@@ -1780,8 +1782,9 @@ trplan seed
 commit_all "$trwork" "base"
 git -C "$trwork" remote add origin "$trorigin"
 git -C "$trwork" push -qu origin main
+# Registry raised so plans sharing a path are an ORDER proposal: judgement.
 tr_() { ( cd "$trwork" && JOHARNESS_CONF="$trconf" DRAIN_FETCH=0 \
-  DISPATCH_FETCH=0 "$@" ./joharness.sh dispatch 2>&1 ); }
+  DISPATCH_FETCH=0 JOHARNESS_CURATE_REGISTRY=10 "$@" ./joharness.sh dispatch 2>&1 ); }
 # Land a curate, the way the protocol produces one: claim on a branch, retire on
 # the branch, merge. Nothing is due from here until a knob says so.
 git -C "$trwork" checkout -qb claude/curate-trig
@@ -1868,8 +1871,8 @@ fixture_rm "$trwork" "empty the queue" \
 git -C "$trwork" push -q origin main
 out="$(tr_ env JOHARNESS_CURATE_PLANS=1)"
 expect "an empty queue still reports nothing free" "  nothing free" "$out"
-expect "and orders the due curate all the same" \
-  "curate DUE: spawn ONE curator" "$out"
+expect "and an empty queue needs no curator: nothing to judge" \
+  "curate due, nothing needs judgement: spawn no curator" "$out"
 out="$(tr_ env JOHARNESS_CURATE_HOURS=0)"
 expect "with the cycle off it says so" "curate    : off" "$out"
 refute "and orders no curator" "curate DUE" "$out"
@@ -1937,8 +1940,8 @@ agd() { ( cd "$agwork" && JOHARNESS_CONF="$agconf" DRAIN_FETCH=0 \
 out="$(agd env JOHARNESS_CURATE_PLANS=0)"
 expect "the clock fires on its own, with production switched off" \
   "curate    : DUE — 400h since the queue began, none having landed (>= 168h)" "$out"
-expect "and the orchestrator is told to spawn for it" \
-  "curate DUE: spawn ONE curator" "$out"
+expect "and with nothing to judge no curator is spawned for it" \
+  "curate due, nothing needs judgement: spawn no curator" "$out"
 out="$(agd env JOHARNESS_CURATE_PLANS=0 JOHARNESS_CURATE_HOURS=9999)"
 refute "a window wider than the repository's age does not fire" \
   "curate    : DUE" "$out"
@@ -3021,8 +3024,8 @@ commit_all "$cewwork" "a push this minute"
 git -C "$cewwork" push -qu origin mgr-slow
 git -C "$cewwork" checkout -q main
 
-# Analysis on: a condition would name an analyst, and CEILING? must not.
-out="$(cew env JOHARNESS_IDLE_ANALYSIS=on)"
+# A claim past the ceiling with no pr:.
+out="$(cew)"
 cewrow="$(printf '%s\n' "$out" | grep 'mgr-slow')"
 expect "the header names the ceiling and its knob" \
   "ceiling   : 4h since the claim with no pr: = CEILING? (JOHARNESS_MANAGER_HOURS; 0 lifts it)" "$out"
@@ -3030,11 +3033,10 @@ expect "a claim past the ceiling with no pr: carries CEILING?" \
   "CEILING? 10h since the claim, no pr:" "$cewrow"
 refute "aged from the claim, not the push" "CEILING? 0m" "$cewrow"
 refute "a recent push is no stall" "STALL?" "$cewrow"
-refute "and CEILING? is no condition: no analyst" "ANALYSE?" "$cewrow"
 expect "the tail counts it as a report" \
   "1 manager(s) past the ceiling with no pr: in the claim file: report, never kill on this alone" "$out"
 refute "and orders no health pass" "past the stall window" "$out"
-cewlifted="$(cew env JOHARNESS_IDLE_ANALYSIS=on JOHARNESS_MANAGER_HOURS=0)"
+cewlifted="$(cew env JOHARNESS_MANAGER_HOURS=0)"
 refute "0 lifts it" "CEILING?" "$cewlifted"
 expect "and the header says so" "ceiling   : lifted" "$cewlifted"
 refute "and lifts the tail line with it" "past the ceiling" "$cewlifted"

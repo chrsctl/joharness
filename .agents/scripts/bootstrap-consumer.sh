@@ -55,9 +55,7 @@
 # protect them from. Without the flag the refusal is unchanged.
 #
 # Scripted and CI runs have nobody to ask, so they take the defaults and say
-# so. There is no mode switch: orchestrated is the only mode, so no conf line,
-# no question and no flag carries one. --mode is still PARSED, so an old
-# invocation does not die, and ignored with one warning.
+# so.
 #
 # Usage: .agents/scripts/bootstrap-consumer.sh [--dry-run] [--reconfigure]
 #            [--env <layer>] [--env-setup <lazy|eager>] [--env-md <lazy|eager>]
@@ -130,20 +128,9 @@ ENV_MD="$(conf_key_default JOHARNESS_ENV_MD)"
 ENV_MD_GIVEN=0
 REVIEW="$(conf_key_default JOHARNESS_REVIEW)"
 REVIEW_GIVEN=0
-# No flag and no interview question, deliberately. Every other key here is
-# asked because a human at first contact has an opinion about it; a sixth
-# question about an off-by-default mechanism is the cost
-# .agents/docs/orchestrated.md already refused for its own knobs. The channel
-# that reaches a child is the sync naming the key it does not answer, which
-# is what declaring it in conf-keys.sh buys.
-UPSTREAM="$(conf_key_default JOHARNESS_UPSTREAM_FEEDBACK)"
-# Same decision again, one switch over: whether a parked manager is explained
-# is a question a repo has after its first stuck run, not at first contact.
-IDLE_ANALYSIS="$(conf_key_default JOHARNESS_IDLE_ANALYSIS)"
-# Not asked either, and this one is a NUMBER rather than a switch: 12 hours is
-# the requester's cadence and a repo with no fleet never notices it, because a
-# sweep with no dead claim releases nothing and costs one report.
-JANITOR_HOURS="$(conf_key_default JOHARNESS_JANITOR_HOURS)"
+# No flag and no interview question, deliberately: a question about an
+# off-by-default mechanism is paid by every new consumer. The sync names a
+# key the conf does not answer, which is what declaring it in conf-keys.sh buys.
 # Not asked either: how often issues are turned into plans, and how many a
 # pass takes, are numbers a repo tunes after its first clerk pass.
 CLERK_HOURS="$(conf_key_default JOHARNESS_CLERK_HOURS)"
@@ -168,8 +155,6 @@ CURATE_PLANS="$(conf_key_default JOHARNESS_CURATE_PLANS)"
 # what changes. Off, this script's behaviour is byte-identical to before it
 # existed — the flag adds a mode, it does not alter the other two.
 RECONFIGURE=0
-# Obsolete flag, parsed so an old invocation does not die. Warned once below.
-MODE_FLAG_SEEN=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY=1; shift ;;
@@ -182,16 +167,14 @@ while [ $# -gt 0 ]; do
     --env-md=*) ENV_MD="${1#--env-md=}"; ENV_MD_GIVEN=1; shift ;;
     --review) [ $# -ge 2 ] || usage; REVIEW="$2"; REVIEW_GIVEN=1; shift 2 ;;
     --review=*) REVIEW="${1#--review=}"; REVIEW_GIVEN=1; shift ;;
-    --mode) [ $# -ge 2 ] || usage; MODE_FLAG_SEEN=1; shift 2 ;;
-    --mode=*) MODE_FLAG_SEEN=1; shift ;;
+    --mode) [ $# -ge 2 ] || usage; warn "--mode is obsolete (orchestrated is the only mode); ignored"; shift 2 ;;
+    --mode=*) warn "--mode is obsolete (orchestrated is the only mode); ignored"; shift ;;
     --*) usage ;;
     *) break ;;
   esac
 done
 [ $# -eq 1 ] || usage
 DEST="$1"
-[ "$MODE_FLAG_SEEN" -eq 0 ] ||
-  warn "--mode is obsolete; orchestrated is the only mode (ignored)"
 
 # Same doctrine as the sync engine's guard: consumers receive this script
 # too, but a consumer copy must not bootstrap other consumers — only the
@@ -736,32 +719,6 @@ JOHARNESS_CHECKS=${CHECKS}
 # 0 on HOURS switches the WHOLE cycle off; 0 on PLANS leaves only the clock.
 JOHARNESS_CURATE_HOURS=${CURATE_HOURS}
 JOHARNESS_CURATE_PLANS=${CURATE_PLANS}
-
-# off = ./joharness.sh upstream reports what a merged edge found about the
-#       harness — which findings landed on a file canonical owns, and the
-#       canonical they would go to. Nothing acts on it.
-# on  = the orchestrator spends ONE session
-#       per merged edge, beyond the manager cap, filing those findings as a
-#       report pull request on the canonical (.agents/docs/feedback.md, When
-#       the consumer is the detector). Off by default: it costs money and it
-#       opens pull requests in a repository this one does not own.
-JOHARNESS_UPSTREAM_FEEDBACK=${UPSTREAM}
-
-# off = ./joharness.sh analysis reports why a manager is blocked, stalled or
-#       looping: the mark it carries, and whether joharness.conf has moved
-#       since that claim last stated its cause. Nothing acts on it.
-# on  = the orchestrator spends ONE session
-#       per condition per item per run, beyond the manager cap, saying why and
-#       filing it as an issue on the canonical. Off by default: it costs money
-#       and it opens issues in a repository this one does not own.
-JOHARNESS_IDLE_ANALYSIS=${IDLE_ANALYSIS}
-
-# Hours between janitor sweeps; 0 = off. A claim whose session is gone holds
-# its plan out of the queue until something releases it, and nothing did
-# before this cycle: measured in a consumer, one unowned block held four plans
-# for 141 hours (issue #254). /janitor releases only what the control plane
-# proves gone, and never deletes a file or a branch.
-JOHARNESS_JANITOR_HOURS=${JANITOR_HOURS}
 
 # Hours between clerk passes; 0 = off. Open issues are the queue's top rank,
 # but dispatch reads only docs/plans/: /clerk turns each issue that holds into

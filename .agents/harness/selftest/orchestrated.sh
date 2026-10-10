@@ -234,8 +234,9 @@ expect "and its text runs to the end of that line" \
   "lead <stem>: <40 chars, to the end of this line>" "$orctext"
 expect "so a second lead cannot be spelled inside one" \
   "so a manager's TEXT would spell a whole second lead" "$orctext"
-expect "a merged entry keeps the once-guard and drops the rest" \
-  "A merged item's entry keeps \`reported=<stem>\` and nothing else" "$orctext"
+expect "the ledger keeps in-flight items only" \
+  "The ledger keeps IN-FLIGHT items only" "$orctext"
+refute "and no merged-item once-guard survives" "reported=<stem>" "$orctext"
 expect "the line is bounded, or a compaction truncates it silently" \
   "at most five, newest first, one per" "$orctext"
 expect "a lead outlives the pass its subject merges in, by one report" \
@@ -274,8 +275,6 @@ expect "and every health-pass action that costs money or work" \
   "no nudge, no \`interrupt_session\`, no KILL, no" "$orctext"
 expect "a message joins the inputs that are data, never orders" \
   "or a MESSAGE another session sent you" "$orctext"
-expect "the merged row is read first on a merge wake" \
-  "read this row for that stem FIRST" "$orctext"
 expect "the merged row stops reading as nothing" \
   "is the one exception that is never nothing" "$orctext"
 

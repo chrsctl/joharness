@@ -5,9 +5,6 @@ from repo + GitHub. This document: how work crosses that gap — what gets
 written, where it lives, how it survives branches and PRs, how new session
 finds it unprompted.
 
-Protocol, hooks, commands developed in sibling repo, copied here. Measurements
-cited were taken there; mechanism repo-independent, works unchanged.
-
 Whole protocol **inline**: no subagents, no orchestration. Session reads file,
 works, updates file, commits. Fan-out (finding what is in flight elsewhere)
 done deterministically by `SessionStart` hook, ~zero tokens.
@@ -34,9 +31,7 @@ NOT recoverable from repo: the reasoning —
   session re-walking dead end
 - decisions + rationale, especially load-bearing ones that look arbitrary
 - review findings, one line each, written BEFORE the fix and committed WITH
-  it — the reviewer conversation evaporates otherwise. Measured: twelve
-  review-round commits on the sync-tool branch, and what round 7 found is
-  gone.
+  it — the reviewer conversation evaporates otherwise.
 - current blocker
 - next concrete step
 
@@ -79,17 +74,9 @@ makes cross-branch work:
   git show <that-commit>^:docs/handover/<name>.md
   ```
 
-  `--diff-filter=D` is what makes this reliable — it lists only commits that
-  DELETED the file, so every hit is a real retire and the newest is the one
-  you want. (Usually one hit; a workstream retired, restored to record a late
-  review finding, and retired again has two. This file's own history is that
-  case — check the command's output rather than assuming a single line.)
-  Without the filter, step 1 lists merge commits above the retire commit, and
-  taking the newest yields a mid-branch version or `does not exist`. `--full-history` is what finds the
-  path at all. `^` is the first parent, the last tree still holding the file;
-  a retire that itself landed as a merge needs its parent picked by hand.
-  Step 7 puts this command in the PR body for the branch's own file, so the
-  record is reachable from the merged artifact instead of a guess.
+  `--diff-filter=D` lists only commits that DELETED the file (usually one
+  hit; take the newest); `--full-history` finds the path at all; `^` is the
+  last tree still holding it. Step 7 puts this command in the PR body.
 - **Branch renames and re-cuts free.** Name not branch, so re-cut after merged
   PR keeps same file.
 
@@ -120,35 +107,10 @@ depth, gate or no gate. Reviewed and found nothing? That is a finding line
 too — `- r1: clean pass, <depth>, no findings`. The section stays empty only
 when no review happened.
 
-A gate for the ORDER was tested and is not built. Git records what landed in
-a commit, never the order it was typed, so only "committed WITH the fix" is
-visible at all — and measured over this repo's own history, that half is
-mostly signal about nothing.
-
-Counted 2026-09-17 over the newest 50 merged edges of `origin/main` (the
-window `JOHARNESS_FEEDBACK_EDGES` names and `feedback` walks), keyed on
-(workstream file, id) and asking which commit FIRST added each `- r<N>:`
-line: 535 findings, of which 39 were added by a commit touching nothing
-outside `docs/handover/`. That number counts ids a commit introduced;
-`feedback`'s 534 counts bullets in the merged files, and 9 of those carry no
-id — the two are different measures, not a disagreement.
-
-Most of the 39 are a review with nothing yet to fix: a clean pass, which
-this section requires a line for, or findings booked `(open)` before any fix,
-which the template sanctions mid-build. Narrowing to the bullets that already
-carried a `fixed` verdict when they were added leaves 6, from four commits —
-and reading those six, two are the real shape and four are not (a verifier
-confirming an already-committed tree, a correction to another finding's
-evidence, and two bullets being reformatted into the keyable form
-`lint_finding_ids` asks for).
-
-So the rule is broken, and rarely: **2 of 535**, both in `1cf7214`, whose
-`## Review` was empty before it and whose fixes are in its parent `94cb031`.
-The best narrowing found names six branches to reach those two. A stage that
-tells four branches they erred for obeying another rule is one sessions stop
-reading, so nothing enforces this; the cue stays a human's, above. The
-numbers are here rather than in a plan so the call can be re-opened on
-evidence instead of re-derived.
+The ORDER (finding before fix) is not gated: git records what landed in a
+commit, not the order it was typed, and a backtest found 2 violations in 535
+findings at the cost of flagging four honest branches. The cue stays a
+human's.
 
 All cheap, no ceremony. `/handover` does the write.
 
@@ -229,17 +191,13 @@ one definition and this is downstream of it:
 | 4 | `status: abandoned` | nothing — the claim is released |
 | 5 | branch pushed recently, no workstream file | somebody to `/who` |
 
-`abandoned` is the one status no session writes about its OWN work. The
-janitor writes it, on somebody else's branch, and only where the control
-plane proved that session gone
-([`../../.claude/commands/janitor.md`](../../.claude/commands/janitor.md)).
-It means the claim is released — the queue hook stops counting it, so the
-plan is free and its scope holds nothing — and it means nothing else: not
-done, not merged, not deleted. The FILE stays where it is, because the record
-is the point, and a session that comes back sets the word back and carries
-on. Why a fifth word instead of `blocked`: a block is owed an answer and an
-abandoned claim is owed nothing, and conflating them is what issue #254
-measured at 141 hours.
+`abandoned` is the one status no session writes about its OWN work: the
+`./joharness.sh janitor --apply` writes it on a branch whose session is
+ARCHIVED or not found.
+It means the claim is released (the plan is free, its scope holds nothing) —
+not done, not merged, not deleted. The file stays; a returning session sets
+the word back. Not `blocked`: a block is owed an answer, an abandoned claim
+nothing.
 
 Ties break on push time ASCENDING — oldest first, the inverse of the ref
 order this replaced. Within one rank the oldest push is the entry closest to
@@ -262,12 +220,9 @@ STARTING, because finishing outranks starting
 work and stops: step 7 gives a session its OWN pull request to merge and no
 other, so whether that branch is yours is `/who`'s answer, never a rank's.
 
-Merged branches never reach the rank — they are filtered one step earlier, by
-ancestry. That is what makes rank 0 safe to print rather than skip: an
-unmerged `status: done` is not finished work, it is work declared finished
-that never landed, and hiding it is how it becomes deadwood. It used to be
-skipped outright — the single most finishable state was the one state the
-listing would not show.
+Merged branches never reach the rank — filtered by ancestry first — so an
+unmerged `status: done` is work declared finished that never landed, and it
+prints.
 
 `HANDOVER_MAX_ENTRIES` caps the listing AFTER the ranking, so what it hides is
 the least finishable work rather than the oldest push, and the hook says how
@@ -284,18 +239,9 @@ Rules out the obvious: registry file on `main` fails like shared `HANDOVER.md`,
 worse — most-written file in repo, sessions race, dead session leaves claim
 nobody releases.
 
-Tempting substitute: infer liveness from git — branch pushed five minutes ago
-must have session on it. **Do not. Tried, fails both directions**, both
-measured against a live remote, same branch:
-
-| | git says | control plane says |
-| --- | --- | --- |
-| First check | pushed 5 minutes ago, "live" | `IDLE`, `REVIEW_READY` — finished |
-| Three hours later | pushed 3 hours ago, "dormant" | `RUNNING`, `WORKING` — actively working |
-
-False positive, then false negative, one branch, one afternoon. Sessions push
-and keep thinking, or push and stop. Push time measures neither end. Signal
-wrong both directions worse than no signal — agents act on it.
+Do not infer liveness from push time. Measured on one branch, one afternoon:
+pushed 5 minutes ago while the session was finished, pushed 3 hours ago while
+it was actively working. Wrong both directions.
 
 **Liveness = fact you look up, not thing you infer.** Control plane knows:
 
@@ -305,25 +251,19 @@ under `outcomes[].git_repository.git_info.branches`, and
 `post_turn_summary.status_detail` one-liner. `/who` reads that,
 cross-references branches, says which branches taken.
 
-Find tool by search, not name: MCP prefix unstable across sessions; hardcoded
-`mcp__Claude_Code_Remote__list_sessions` fails "No such tool available" when
-server registered under hashed name. Bit `/who` first time it ran.
+Find the tool by search (`ToolSearch("+list_sessions")`): the MCP prefix is
+unstable across sessions.
 
 Split forced by platform: `SessionStart` hook = shell script, no shell path to
 cross-session state. `claude agents --json` sees current container only. So
 hook reports **git facts** — pushed what, when, overlaps your files
-(orchestrated mode: this branch's own files only, `HANDOVER_SCOPE=branch`) — and
+(by default this branch's own files only, `HANDOVER_SCOPE=branch`) — and
 *session* looks up liveness when a fact matters. Facts cannot be false
 positives.
 
-**Across a fork seam the BRANCH refs are gone.** Fork session's pushes land on
-its own remote, never in this repo's branch list, so the hook's git facts miss
-them. What is here: `refs/pull/<n>/head`, fetchable — verified 2026-08-28,
-`git fetch origin 'refs/pull/79/head:refs/tmp/pr79'` resolved to that fork
-session's own commit. So the pull request is the only shared state: re-fetch
-it at every check, never inherit a conclusion about it from a workstream file
-or a scheduled check-in. `/who` still finds the fork session when it runs on
-the same account, and nothing when it does not.
+**Across a fork seam the branch refs are gone**: a fork session's pushes
+land on its own remote. The pull request (`refs/pull/<n>/head`, fetchable)
+is the only shared state — re-fetch it at every check.
 
 What this asks of you:
 
@@ -361,16 +301,10 @@ git push origin "HEAD:refs/claims/<workstream>"     # fails if someone holds it
 git push origin ":refs/claims/<workstream>"         # release
 ```
 
-Verified: second claimant rejected non-fast-forward; `--force-with-lease` on
-stale value rejected too — two sessions cannot both steal expired claim.
-Leases beat locks (crashed holder must not block forever); fencing token
-unnecessary — git refuses stale holder's push as non-fast-forward, resource
-fences itself.
-
-Deliberately **not** implemented. Same-workstream collision rare; common
-collision = same files, different workstreams — lock does not prevent, overlap
-warning catches. Lock also invisible in review, adds release step dying
-session skips. Reach for it only if visible-collision approach fails.
+Verified to reject a second claimant, stale `--force-with-lease` included.
+Deliberately **not** implemented: the common collision is same files,
+different workstreams, which a lock does not prevent and the overlap warning
+catches.
 
 ## Pull requests: link, never duplicate
 
@@ -390,54 +324,22 @@ problem — subscribe to PR, stay in one session. Handover documents = the
 
 ## Compaction: task state survives, the rules decay
 
-Compaction and this protocol solve different problems. The workstream file is
-memory ACROSS sessions; compaction is what happens to what one session can
-still see WITHIN itself. The harness had the second and nothing for the first.
-
-What decays is not orientation. "Governance Decay: How Context Compaction
-Silently Erases Safety Constraints in Long-Horizon LLM Agents" (arXiv
-2606.22528) measures the asymmetry: a compaction summary "faithfully records
-the task state but, optimizing for continuity, quietly drops the 'old'
-compliance preamble". Violation rates move from 0% to 30% across 7 models and
-1,323 episodes — 0% where the constraint survived the summary against 38%
-where it was dropped — and the decay is 8.3x larger for soft organisational
-policy than for hard safety norms. This repo's Loop IS soft organisational
-policy in that sense, which is the bad half of that ratio.
-
-So the half a compacted session keeps is the half a re-orientation would
-restore anyway, and the half it loses is the Loop, the `.agents/harness/`
-boundary and the mode. A session that keeps its task and loses its boundary is
-precisely what the harness's bounds exist to prevent. A re-read line naming only
-the workstream file restores what was never lost.
-
-Keeping a recent slice verbatim is a real technique with NO agreed size:
-LangChain retains 10% of available context, Inspect AI's trim compaction
-defaults to `preserve=0.8`, and nobody publishes a measured optimum. This page
-therefore names no number, and a number quoted here later wants a measurement
-behind it.
+The workstream file is memory ACROSS sessions; compaction is what one
+session loses WITHIN itself. A compaction summary keeps the task state and
+drops the "old" compliance preamble — 0% to 30% violation across 7 models,
+8.3x worse for soft organisational policy than for hard safety norms (arXiv
+2606.22528). The Loop is soft policy. So after a compaction the half lost is
+the Loop and the core-path boundary, not the task: re-read
+`.agents/harness/AGENTS.md` and the role command, not only the workstream
+file. The hook re-injects that pointer on a compact start.
 
 ### A third thing it can take: work already done
 
-Observed once on this repo, and recorded because it is not either half above.
-A session reported three deliverables as still outstanding when they were
-complete, merged, and sitting on `main` — pull request #131, whose own body
-lists them; the turns that finished them were not in its context. The rules held throughout — it ran the Loop, the gates and the
-finishing ritual correctly. What it lost was the record of work ALREADY DONE.
-
-One instance, not a measurement, and no contradiction of the paper. What makes
-it worth a heading is where the record went: the workstream file that carried
-it had been retired by step 7, one commit before the pull request opened,
-exactly as the ritual requires. The ritual is right — a finished workstream
-must not land on the base branch — but it means a compacted session cannot
-recover its own recent past from the tree.
-
-The mitigation already exists and step 7 already mandates it: the pull request
-body carries the command that recovers its own retired workstream file. In the
-observed case that command was in the body and the session did not reach for
-it, because nothing told it to. So: **after a compact start, before reporting
-what is done or outstanding, check the branch's own merged pull requests
-rather than your memory of them.** Cheap, and it is the difference between
-reporting a shipped feature as half-built and reporting it as shipped.
+Step 7 retires the workstream file one commit before the pull request
+opens, so a compacted session cannot recover its own recent past from the
+tree. **After a compact start, before reporting what is done or
+outstanding, read the branch's own merged pull requests** — their bodies
+carry the recovery command.
 
 ## Staleness: trust, but verify
 
@@ -456,16 +358,9 @@ not stale at all.
 
 ## Claiming an issue
 
-`plan:` claims a plan. `issue:` claims a GitHub issue, and it exists because
-the two were not symmetric: a plan on `main` shows as taken through its
-`plan:` edge, an issue showed as taken through nothing at all.
-
-That asymmetry cost real work on 2026-08-28. Two sessions solved issue #114
-in parallel; the first filed its plan on its own branch — a same-session
-plan, which the queue rules permit — so `main`'s queue never saw it and the
-issue read as free to the second. The session-start hook listed the first
-session's workstream file the whole time. Nothing tied that file to the
-issue, because the link lived only in prose inside its Goal.
+`plan:` claims a plan; `issue:` claims a GitHub issue, so a session working
+an issue shows it as taken (two sessions once solved one issue in parallel
+because the link lived only in prose).
 
 - Write it **when the work starts**, with the rest of the frontmatter, not
   when the pull request opens. A claim that arrives at the end claims
@@ -511,45 +406,17 @@ graduating? Fine outcome — delete.
 **No workstream file belongs on `main`.** Hook checks, names any there: make
 rot visible, not trust discipline.
 
-Visible to *the next session*, though, and that is one session too late.
-`./joharness.sh finish` is the same rule asked one moment earlier — before the
-merge, while deleting the file is still a commit rather than a pull request.
-Diffs the tree, reads no frontmatter (below), and is red when merging now
-would add a file. Step 7 requires it green.
+`./joharness.sh finish` asks the same one moment earlier — before the
+merge, while deleting the file is still a commit, not a pull request. Step 7
+requires it green. Deferring the deletion to "after the merge" is what fails:
+the ordering is the whole mechanism. Deleting the FILES is yours; deleting
+the BRANCH is the human's.
 
-Deferring the deletion to "after the merge" is what actually fails. One
-consumer session, eight pull requests: three deferred it and each turned the
-base branch red within seconds; the two that did not were the two whose retire
-commit was the last one before the pull request opened. Same agent, same rule
-in front of it, same day — the ordering is the whole mechanism.
-
-What it accretes when nobody does it, counted in one consumer repo: **23
-workstream files on the base branch**, thirteen merges adding six and removing
-none. No producer and no date were recorded with it, so by this repo's own
-rule (Loop step 5, "Number nobody can re-count is a written number") treat it
-as an anecdote, not a measurement — it is relocated here from
-`.agents/harness/AGENTS.md`, unsourced there too, and it is not re-countable
-from this repo. Kept because the SHAPE it reports is reproducible and the
-count is not the point. The reason is one sentence of neighbouring text, not laziness — step 7
-says deleting the BRANCH is "optional hygiene, human-only" one sentence above
-saying deleting the FILES is neither, and a literal reader takes the first
-qualifier it meets as covering both. Hence the wording there: the files are
-NOT covered by "optional, human-only" — that is the branch.
-
-Deleting the file deletes the findings with it, which is why `./joharness.sh
-feedback` reads them back out of merge history: coverage, recurrence, and the
-files that keep drawing findings — the shortlist of what still wants
-graduating. Measured here, 2026-08-24: 41 findings across 8 reviewed edges,
-36% of file-level fixes landing where an earlier edge already fixed one.
-Scoring rules and blind spots: [`../feedback.md`](../feedback.md).
-
-Rule started weaker; first merge broke it in minutes. Original carve-out:
-file on `main` fine while work spans PRs, check only flagged `status: done`.
-This protocol's own file then merged carrying `status: review` — finished
-work, wrong label, guard silent. Any rule depending on leaving session setting
-a field correctly fails exactly when someone hurries. "None on `main`" needs
-no field, so checkable; cross-PR case loses nothing — file in history either
-way.
+Deleting the file deletes the findings with it; `./joharness.sh feedback`
+reads them back out of merge history ([`../feedback.md`](../feedback.md)).
+"None on `main`" needs no field, so it is checkable — a rule that depends on
+a leaving session setting a field correctly fails exactly when someone
+hurries.
 
 ## Why these things live where they do
 
@@ -569,26 +436,22 @@ Placement decisions that look arbitrary, recorded so not helpfully undone:
 
 ## Why not the alternatives
 
-| Approach | Why not here |
-| --- | --- |
-| **Auto memory** (`~/.claude/projects/*/memory/`) | Machine-local, *not shared with cloud environments*. Every web session = fresh container, so empty exactly when handover matters. |
-| **One shared `HANDOVER.md`** | Conflicts on every parallel branch; agents resolve by rewriting — losing other branch's state. |
-| **Uncommitted / gitignored workstream file** | Container reclaimed at session end. Uncommitted state does not exist. |
-| **GitHub issue as ledger** | Branch-independent — genuinely attractive, fine for *what to do*. But drifts from diff, needs network round trip, not versioned with code. Issues for backlog; branch files for state of work in progress. |
-| **Subagent reconstructing context** | Full exploration pass per session to rediscover what five written lines held — findings die with it. |
-| **`git notes`, orphan branches, JSONL event logs** | Merge-friendly, machine-clean, invisible in normal review. State no human reads = state no human corrects. |
-| **Interrogating the previous session** (event log, successor questions a predecessor) | Recovery for what the handover already failed to carry. This protocol bets the other way: the workstream file holds everything not derivable from git, written in the same commit as the change, and compaction decay is designed for rather than patched afterwards. A session that needs to interrogate its predecessor is a workstream file that failed. The honest re-open condition: if these files are found losing decisions in practice, reconsider. |
+Auto memory (machine-local, empty in a fresh container); one shared
+`HANDOVER.md` (conflicts on every parallel branch); uncommitted files (gone
+with the container); an issue as ledger (drifts from the diff); a subagent
+reconstructing context (findings die with it); `git notes` or event logs
+(no human reads them, so none corrects them); interrogating the previous
+session (recovery for what the handover failed to carry). Re-open only if
+workstream files are found losing decisions in practice.
 
 ## How a session finds this without being told
 
 Three layers, each covering previous one's failure mode:
 
-1. **`CLAUDE.md`** imports `AGENTS.md`; root `AGENTS.md` Part 1 states
-   protocol in a short `## Handover` section. Instruction text stays out of
-   CLAUDE.md: a harness that reads `AGENTS.md` natively resolves no imports
-   and never sees CLAUDE.md's body, so the summary only reaches it from
-   `AGENTS.md`. Convention, not a gate — nothing checks that file's shape. Claude Code loads `CLAUDE.md`, not
-   `AGENTS.md` — repo with only `AGENTS.md` not loading own instructions.
+1. **`CLAUDE.md`** imports `AGENTS.md`, which imports
+   `.agents/harness/AGENTS.md` (the Loop, handover rules included).
+   Instruction text stays out of CLAUDE.md: a harness reading `AGENTS.md`
+   natively never sees CLAUDE.md's body.
 2. **`.agents/harness/handover-context.sh`** runs every session start, injects
    live state: current branch, this branch's file with `status`/`next`, every
    other branch's files with command to read them. Instructions get skimmed;

@@ -207,16 +207,8 @@ expect "a plan's edge makes the document a question" \
 expect "and blocks the plan on it" \
   "blocked by: postgres-stack (open question)" "$out"
 
-# The graph applies the same test: the referenced file is drawn, and once
-# the plan withdraws its edge the document vanishes from the picture.
-gout="$(CLAUDE_PROJECT_DIR="$rwork" "${ROOT}/joharness.sh" graph 2>&1)"
-expect "graph draws the referenced question" "q_postgres_stack" "$gout"
 fixture_rm "$rwork" "the plan is gone" docs/plans/needs-the-doc.md
 git -C "$rwork" push -q origin main
-gout="$(CLAUDE_PROJECT_DIR="$rwork" "${ROOT}/joharness.sh" graph 2>&1)"
-refute "graph does not draw a document" "q_postgres_stack" "$gout"
-# The other half, or the fix above passes against a graph that stopped
-# drawing research nodes at all.
 cat >"${rwork}/docs/research/real-q.md" <<'EOF'
 ---
 research: real-q
@@ -228,35 +220,8 @@ graduates: .agents/docs/graph.md
 EOF
 commit_all "$rwork" "a self-naming node beside the document"
 git -C "$rwork" push -q origin main
-gout="$(CLAUDE_PROJECT_DIR="$rwork" "${ROOT}/joharness.sh" graph 2>&1)"
-expect "a self-naming node is still drawn" \
-  'q_real_q(["question: real-q [opus high]"]):::question' "$gout"
 out="$(rq)"
 expect "and still listed as an open question" "docs/research/real-q.md" "$out"
 refute "while the document beside it stays unlisted" \
   "docs/research/postgres-stack.md" "$out"
 
-# A path-form edge means the same stem everywhere: lint_stem and this
-# hook's stem() both strip directory and .md, and the graph must not be
-# the one reader that takes the value raw (workstream r1 — read raw, a
-# path-form edge drew nothing and blocked nothing while the queue listed
-# and blocked on it).
-mkdir -p "${rwork}/docs/plans"
-cat >"${rwork}/docs/plans/path-form.md" <<'EOF'
----
-plan: path-form
-urgency: normal
-agent: sonnet
-effort: high
-research: docs/research/postgres-stack.md
----
-EOF
-commit_all "$rwork" "a plan routing by path"
-git -C "$rwork" push -q origin main
-gout="$(CLAUDE_PROJECT_DIR="$rwork" "${ROOT}/joharness.sh" graph 2>&1)"
-expect "a path-form edge still draws the question" \
-  'q_postgres_stack(["question: postgres-stack"]):::question' "$gout"
-expect "and blocks the plan through it" \
-  "p_path_form -. research .-> q_postgres_stack" "$gout"
-fixture_rm "$rwork" "drop the path-form plan" docs/plans/path-form.md
-git -C "$rwork" push -q origin main

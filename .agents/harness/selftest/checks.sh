@@ -9,8 +9,8 @@
 
 # --- entrypoint: who answers step 7's first merge condition -----------------
 # A scratch repo with a real origin, because every refusal here is a question
-# about the remote tip. The runner already stubs shellcheck and turns the perf
-# budget off, so the `ci` these cases really do run is seconds — and it is a
+# about the remote tip. The runner already stubs shellcheck,
+# so the `ci` these cases really do run is seconds — and it is a
 # real run: what is under test is that `finish` reads its verdict, so a stub
 # would test nothing.
 step "joharness.sh finish: JOHARNESS_CHECKS"

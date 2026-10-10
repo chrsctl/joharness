@@ -185,14 +185,6 @@ else
   fail "bootstrap --review refuses an empty value (got ${rc})"
 fi
 expect "and says what it expected" "invalid review '' (expected: off | on)" "$out"
-out="$(boot --dry-run --mode orchestrated "${TMP}/bootmode-orch")"; rc=$?
-if [ "$rc" -eq 0 ]; then
-  pass "bootstrap --mode is still parsed (old invocations do not die)"
-else
-  fail "bootstrap --mode is still parsed (old invocations do not die; got ${rc}: ${out})"
-fi
-expect "and is ignored with the obsolete warning" \
-  "--mode is obsolete; orchestrated is the only mode (ignored)" "$out"
 out="$(boot --env 'bad/../name' "${TMP}/bootenv-walk")"; rc=$?
 if [ "$rc" -eq 1 ]; then
   pass "bootstrap --env refuses a path-walking name"
@@ -518,21 +510,6 @@ expect "and it says why it did not ask" "not a terminal" "$out"
 expect "and does not claim a conf it did not write" \
   "a conf that already exists keeps its own values" "$out"
 
-# --mode is parsed and ignored: one warning, and no JOHARNESS_MODE line lands.
-bootsw2b="${TMP}/bootsw2b"
-out="$(boot --mode supervised "$bootsw2b")"; rc=$?
-if [ "$rc" -eq 0 ]; then
-  pass "a fresh bootstrap given --mode supervised exits 0"
-else
-  fail "a fresh bootstrap given --mode supervised exits 0 (got ${rc})"
-fi
-expect "--mode prints the obsolete warning" \
-  "--mode is obsolete; orchestrated is the only mode (ignored)" "$out"
-refute "and the conf still has no JOHARNESS_MODE line" "JOHARNESS_MODE" \
-  "$(cat "${bootsw2b}/joharness.conf" 2>/dev/null)"
-out="$(boot --mode=unsupervised --dry-run "${TMP}/bootsw2c")"
-expect "--mode=<x> is parsed and warned about too" "--mode is obsolete" "$out"
-
 # Every explicit value is checked. The readers resolve an unrecognised value
 # to the safe one, so a typo would be silent for the life
 # of the repo unless it is refused where a human types it.
@@ -656,22 +633,7 @@ refute "and does not claim to have written the rest" "JOHARNESS_ENV=none" "$out"
 expect "and says the rest of the consumer is untouched" "nothing else touched" "$out"
 refute "a reconfigure syncs nothing" "== sync" "$out"
 
-# --mode under --reconfigure is parsed, warned about once, and decides nothing.
-# The heartbeat note belongs to a run that stands a child up, and this one
-# stands nothing up.
-cp "${bootrc}/joharness.conf" "${TMP}/bootrc-before-mode"
-out="$(boot --reconfigure --mode supervised "$bootrc" 2>&1)"
-if [ "$(printf '%s\n' "$out" | grep -c -e '--mode is obsolete')" -eq 1 ]; then
-  pass "the obsolete --mode warning is printed once under reconfigure"
-else
-  fail "the obsolete --mode warning is printed once under reconfigure"
-  printf '%s\n' "$out" | sed 's/^/    | /'
-fi
-if cmp -s "${TMP}/bootrc-before-mode" "${bootrc}/joharness.conf"; then
-  pass "and a reconfigure given only --mode writes nothing"
-else
-  fail "and a reconfigure given only --mode writes nothing"
-fi
+out="$(boot --reconfigure --review on "$bootrc" 2>&1)"
 refute "and a reconfigure prints no heartbeat note" "needs a heartbeat" "$out"
 
 boot --reconfigure --review off "$bootrc" >/dev/null 2>&1

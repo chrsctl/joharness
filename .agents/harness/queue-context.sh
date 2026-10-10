@@ -1,63 +1,11 @@
 #!/usr/bin/env bash
-#
 # Inject the queue into session context: what a fresh session picks up, and
-# which agent tier that work wants. The mobile flow this serves: user opens
-# a session from a phone, reads this block, knows the entrypoint and the
-# model without spelunking the repo.
-#
-# Two tiers, from the base branch (edge model: .agents/docs/graph.md):
-#   docs/product/*.md   requirements. One no open plan serves = UNPLANNED,
-#                       urgent first — planning outranks executing.
-#   docs/plans/*.md     plans, urgent first then oldest, each with its
-#                       urgency/agent/effort and edges: `blocked by:` while
-#                       a needed plan or an open research question is open,
-#                       `claimed on <branch>` when an in-flight workstream
-#                       names it. Blocked and claimed list but never lead.
-#                       Two more: `CORE ONLY` when ANY path in `scope:` is
-#                       a core path (protocol-paths), which no session may
-#                       commit — only a human builds it, by hand — listed,
-#                       never leading,
-#                       the label saying whether that is the whole scope or
-#                       part of it — and `scope undeclared` when there is
-#                       nothing to check, which is not the same as nothing
-#                       to find.
-#   docs/research/*.md  open questions, same ordering, same tier field. A
-#                       plan naming one in `research:` is blocked while it
-#                       exists (.agents/docs/research/README.md). Listed
-#                       only when routing says the file is a NODE — it
-#                       carries a `research:` key or a plan names its stem;
-#                       a consumer's own documents here are never scheduled.
-# Two or more free plans = fan-out line (one session per free plan, model
-# named). No free plan and nothing to plan = the edge. This hook REPORTS;
-# what an orchestrator spawns is `joharness.sh dispatch`'s to say, which
-# reads the extra `in flight:` lines printed here. GitHub issues
-# outrank everything; a shell hook cannot read GitHub, so that stays a
-# pointer.
-#
-# Run by `joharness.sh session-start` after handover-context.sh, which has
-# already fetched — the origin/<base> view read here is fresh.
-#
-# Never fails a session: anything unexpected exits 0 with no output.
-#
-# Environment:
-#   HANDOVER_BASE_BRANCH   base branch the queue lives on   (default: main)
-#   QUEUE_MAX_ENTRIES      cap on listed rows per tier      (default: 10)
-#   QUEUE_WITHHELD         items the CALLER will not spawn this pass, as
-#                          `<plan path>@<branch>`, space separated. Set only
-#                          by `joharness.sh dispatch`, for a branch past its
-#                          retire commit: it has no workstream file, so this
-#                          hook sees no claim, and without being told it
-#                          partitioned a plan nobody was going to spawn.
+# which agent tier that work wants.
 
 set -uo pipefail
 
-# Two levels, not one: this script lives at .agents/harness/, so the repo
-# root is two up. It was one when the harness lived at harness/, and the
-# move left this behind — silently, because the hook always sets
-# CLAUDE_PROJECT_DIR and so did every selftest, so nothing executed the
-# fallback. Resolving to .agents/ makes the queue read the protocol's own
-# docs/plans/ (TEMPLATE and README, both filtered out) and report an empty
-# queue: wrong in the "everything is done" direction.
+# Two levels, not one: this script lives at .agents/harness/, so the repo root
+# is two up.
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 PLANS_DIR="docs/plans"
 RESEARCH_DIR="docs/research"
@@ -80,10 +28,6 @@ done
 [ -n "$ref" ] || exit 0
 
 # Frontmatter values from a document on stdin, one per line in the order asked.
-# Same contract as handover-context.sh: stops at the closing delimiter, strips
-# an inline `# comment` — the template documents fields that way, and a claim
-# carrying its comment would never match a plan stem. All keys in one pass, so
-# reading a plan's five fields forks once rather than five times.
 fields() {
   awk -v keys="$*" '
     BEGIN { n = split(keys, k, " ") }
@@ -118,11 +62,6 @@ queue_files() {
     grep -E '\.md$' | grep -vE '/(TEMPLATE|README|VISION)\.md$'
 }
 
-# The frontmatter_only filter that sat here (PR 184) is GONE: routing
-# decides nodehood in the rrows loop below, one test shared with
-# joharness.sh:lint_graph and cmd_graph. "Opens with ---" answered a
-# cheaper question than "is a node", and it also cost a `git show` per
-# candidate file on top of the one the loop already does.
 plans="$(queue_files "$PLANS_DIR")"
 research="$(queue_files "$RESEARCH_DIR")"
 reqs="$(queue_files "$PRODUCT_DIR")"
@@ -130,22 +69,6 @@ reqs="$(queue_files "$PRODUCT_DIR")"
 printf '\n== Queue (protocol: .agents/docs/plans/README.md) ==\n\n'
 
 # Every ref already merged into the queue's base ref, banked in ONE process.
-#
-# The claims loop below used to ask it per ref — `merge-base --is-ancestor
-# <ref> "$ref"` — and this hook runs before the first prompt of every session.
-# Counted on this checkout 2026-09-11 with a PATH shim logging each git
-# invocation: 135 of the hook's 197 git calls were that one test, over 136
-# refs of which 125 were already merged.
-#
-# Same predicate, same fallback, same verification as the copy in
-# handover-context.sh, whose comment carries the full reasoning. The one
-# difference is the spelling: `%(refname:short)`, because the loop below
-# matches on `$short`. A set built in the other spelling would match nothing
-# and silently stop skipping merged branches, which is why each hook banks its
-# own rather than sharing one.
-#
-# `$ref` is already resolved and verified above, so the empty-set fallback is
-# for a repo whose refs cannot be walked at all, not for a missing base.
 merged_refs="$(
   git for-each-ref --format='%(refname:short)' --merged "$ref" refs/remotes \
     2>/dev/null
@@ -155,16 +78,6 @@ NL=$'\n'
 # Exact-line match, never substring: `origin/claude/foo` is a substring of
 # `origin/claude/foo-2`, and a substring test would skip a live branch as
 # merged.
-#
-# And FORK-FREE, which is the whole point of the batch. The first spelling of
-# this used `grep -qxF`, which spawns one process per ref — trading one
-# `merge-base` per ref for one `grep` per ref and saving nothing. A `case` glob
-# over the banked list is a bash builtin: the delimiters make it exact-line,
-# and no process is spawned at all. What caught the first spelling was
-# `./joharness.sh perf`, which counts EVERY external command; the git-only
-# shim used to find this loop counted only git and reported a saving that was
-# not there. The numbers are in handover-context.sh beside the same note,
-# where the row they belong to is measured.
 merged_nl="${NL}${merged_refs}${NL}"
 ref_merged() {
   case "$merged_nl" in
@@ -173,10 +86,8 @@ ref_merged() {
   return 1
 }
 
-# Claims: every unmerged remote branch's workstream files, each `plan:`
-# field a claim edge onto a plan here. Read so two fresh sessions do not
-# both pick the queue's top plan — the overlap warning would catch them
-# only later, at first file collision.
+# Claims: every unmerged remote branch's workstream files, each `plan:` field a
+# claim edge onto a plan here.
 claims="$(
   git for-each-ref --format='%(refname:short)' refs/remotes 2>/dev/null |
     while IFS= read -r short; do
@@ -192,28 +103,10 @@ claims="$(
           blob="$(git rev-parse --quiet --verify "${short}:${wf}" 2>/dev/null)"
           [ -n "$base_blob" ] && [ "$base_blob" = "$blob" ] && continue
           wdoc="$(git show "${short}:${wf}" 2>/dev/null)"
-          # ONE fork for both keys, which is what `fields` is for: two `field`
-          # calls paid a second awk per claiming workstream file, at every
-          # session start, over content already in hand.
           { read -r p; read -r pstatus; } \
             <<<"$(printf '%s\n' "$wdoc" | fields plan status)"
           p="$(stem "$p")"
           { [ -n "$p" ] && [ "$p" != "none" ]; } || continue
-          # The claim's status rides along: a manager BLOCKED on a human holds
-          # no slot and does not hold a plan back, so a plan overlapping it is
-          # spawned with a reconcile expected — which means it DOES run, and
-          # must stay in the wave partition below.
-          #
-          # VALIDATED against the graph's vocabulary (joharness.sh:lint_nodes),
-          # never passed through. A workstream file on another branch is
-          # repo-controlled input and this value decides whether a live
-          # manager's exclusive scope is handed out, so the old comment's
-          # claim — that `in-progress  BLOCKED: ...` cannot forge the release
-          # — had to hold for every spelling, and it did not hold for a TAB:
-          # `status: blocked<TAB>on the human` split the tab-separated record
-          # below and `$3` read exactly `blocked`. `dispatch` already
-          # normalises anything outside this list to `unreadable`; the hook
-          # was the forgeable half of the same fact.
           case "$pstatus" in
             in-progress | blocked | review | done | abandoned) ;;
             *) pstatus="unreadable" ;;
@@ -224,19 +117,10 @@ claims="$(
 )"
 
 # CLAIMS whose manager stopped on a human — the pair, never the branch alone.
-# A hold behind one of these is released by `dispatch`, so the plan runs and
-# stays in the partition. Keyed `<plan stem>@<branch>`: one branch can carry
-# two workstream files, and with the branch as the key a blocked claim on one
-# released a hold behind the other — a live, in-progress manager — handing out
-# its exclusive scope. Same reasoning as reading every holder rather than the
-# first (joharness.sh, the `hold_live` loop): one blocked claim never speaks
-# for another claim that is not.
 claim_blocked_pairs="$(awk -F'\t' '$3 == "blocked" { print $1 "@" $2 }' <<<"$claims" |
   sort -u | paste -sd' ' -)"
 
-# Open plan names, for dependency edges. A `needs:` entry blocks its plan
-# while the named plan file is still in the queue — done plans get deleted on
-# merge, so file existence IS the edge, no status field to go stale.
+# Open plan names, for dependency edges.
 stems="$(
   while IFS= read -r f; do
     [ -n "$f" ] || continue
@@ -245,9 +129,7 @@ stems="$(
   done <<<"$plans"
 )"
 
-# Open question names, for the `research:` edge. Same shape as `stems`
-# above and the same rule: the file existing IS the block, so a question
-# answered and deleted unblocks its plan with no field to update.
+# Open question names, for the `research:` edge.
 rstems="$(
   while IFS= read -r f; do
     [ -n "$f" ] || continue
@@ -256,101 +138,25 @@ rstems="$(
   done <<<"$research"
 )"
 
-# The LAST line is always the pointer at the readers that order. A trap,
-# so every exit path below carries it — this hook has four. Without it a
-# session read "Spawn one per plan" or "ask human" as the last word, from a
-# hook that does not know who spawns.
+# The LAST line is always the pointer at the readers that order.
 trap 'printf "\nORCHESTRATED: this hook reports; a manager works the item its prompt\nnames, the orchestrator reads ./joharness.sh dispatch and spawns.\n"' EXIT
 
-# The boundary, as the queue sees it: the core paths are off limits to
-# every session (.agents/docs/orchestrated.md, Bounds), so a plan whose
-# declared scope holds a core path AT ALL is a plan the fleet can never
-# finish. Protocol text is not core since 2026-10-08 — see the class list below for why any
-# rather than all.
-#
-# Measured, 2026-08-31: the endurance retry spent 55 minutes and $12.05 on
-# `marker-gate-needs-no-done`, whose frontmatter reads
-# `scope: joharness.sh, .agents/harness/selftest`. The session implemented
-# the fix, tested it green, then correctly reverted its own edits and handed
-# off. Every fact needed to know that before dispatch was in the plan file.
-#
-# ONE list, read from the entrypoint that holds it
-# (joharness.sh:protocol_paths) — the same call .agents/harness/handover-guard.sh
-# makes, for the same reason. A second copy is the copy that rots, and issue
-# #114 is what one costs.
-#
-# An ARRAY read once per run, never per plan: a fork inside the row loop is
-# the regression in kind this hook's perf budget exists to catch.
 qc_protocol=()
 while IFS= read -r qc_p; do
   [ -n "$qc_p" ] && qc_protocol+=("$qc_p")
 done < <("${PROJECT_DIR}/joharness.sh" protocol-paths 2>/dev/null)
-# A checkout whose entrypoint cannot list the boundary — a consumer carrying
-# a joharness.sh older than the subcommand, or none at all. Nothing is marked
-# there, and the queue SAYS so: silently marking every plan "unchecked" would
-# report a missing reader as a missing declaration, which is a different
-# defect wearing the same words.
+# A checkout whose entrypoint cannot list the boundary — a consumer carrying a
+# joharness.sh older than the subcommand, or none at all.
 qc_boundary=1
 [ "${#qc_protocol[@]}" -gt 0 ] || qc_boundary=0
 
-# Where one plan's declared scope sits relative to that boundary. Four
-# answers, and the two that disqualify are `only` and `some`:
-#
-#   only     every declared path is at or under a protocol path
-#   some     at least one is, at least one is not. ALSO disqualifying, and
-#            that REVERSES the rule this shipped with, which read "the
-#            session does that part and records the remainder, so the plan
-#            is not undoable". That is partial credit the Loop does not
-#            model: acceptance is all-or-nothing
-#            (.agents/docs/plans/README.md), step 5 is all green or not
-#            done, and step 7 deletes a plan file only when it IS done.
-#            handover-guard.sh counts ANY protocol path in the diff, so a
-#            session starting one of these finishes nothing and hands off
-#            — the queue would have offered an unattended fleet a plan it
-#            could never finish, which is what this marking exists to stop
-#            (.agents/docs/orchestrated.md, Bounds). The first rule drew the
-#            line at can-it-be-started; this one draws it at
-#            can-it-be-finished
-#   clear    a declaration, and no path in it is a core path. Free work
-#            in either mode
-#   unknown  nothing declared. NOT "safe": absent is not empty, the rule this
-#            repo keeps relearning, and a plan whose scope nobody wrote could
-#            be entirely core paths
-#
-# Sets a global instead of printing one. A `$(qc_scope_class ...)` per plan is
-# a subshell per plan, which is the same fork-in-a-loop the array above
-# avoids; the awkwardness is the price and it is named here rather than
-# rediscovered by the budget.
-#
-# Comparison is git's pathspec rule, matching how handover-guard.sh compares
-# this same list against a diff: EQUAL, or under it at a slash boundary.
-# Prefix alone would read `joharness.confX` as a core path and let a
-# near-miss decide a dispatch.
-#
-# `shared:` paths count. A plan declaring only `shared: joharness.conf` is
-# still a plan whose whole scope is a core path — that prefix says how a
-# path is shared with other plans, not what kind of file it is. It is
-# stripped per entry, case-blind, with or without the space after the colon.
+# Where one plan's declared scope sits relative to that boundary.
 qc_scope_class() {
   local raw="$1" entry p seen=0 protocol=0 unset_f=""
   qc_class=unknown
   [ "$qc_boundary" -eq 1 ] || return 0
 
-  # Split on the COMMA alone, then trim. Splitting on space as well — which
-  # the first version of this did — was wrong in the direction that matters:
-  # `scope: .agents/harness/two words.sh` became two entries, the second of
-  # them not a protocol path, so an all-protocol plan read `some` and was
-  # handed to the fleet as free work. `shared: x` only appeared to work
-  # under that split because the prefix happened to land in a word of its
-  # own.
-  #
-  # Globbing OFF across the split, restored only if this shell had it on.
-  # `scope: joharness.*` is otherwise expanded against whatever sits in the
-  # CHECKOUT, so the same plan on the same ref classifies one way beside an
-  # untracked file and the other way without it — a queue answer that is not
-  # a function of the queue. handover-guard.sh paid for exactly this on this
-  # same list: "a path that is a glob matched whatever happened to be on
-  # disk. Both silent."
+  # Split on the COMMA alone, then trim.
   case $- in *f*) ;; *) unset_f=1 ;; esac
   set -f
   local IFS=','
@@ -363,16 +169,10 @@ qc_scope_class() {
         entry="${entry#"${entry%%[![:space:]]*}"}" ;;
     esac
     # `none` is the template's explicit no-paths value and it is the same
-    # answer as no key at all. Case-blind, because the `shared:` strip above
-    # is: one spelling rule read two ways in adjacent lines is how `NONE`
-    # became a path nobody named, classifying its plan `some` and leaving
-    # the row with no label of either kind.
+    # answer as no key at all.
     case "$entry" in '' | [Nn][Oo][Nn][Ee]) continue ;; esac
     seen=$((seen + 1))
-    # git's pathspec rule, and nothing more. The `/*` arm covers a trailing
-    # slash on its own — `*` matches the empty string — so there is no
-    # separate normalisation step here; one was written, and a mutation
-    # proved every case passed without it.
+    # git's pathspec rule, and nothing more.
     for p in "${qc_protocol[@]}"; do
       case "$entry" in "$p" | "$p"/*) protocol=$((protocol + 1)); break ;; esac
     done
@@ -380,10 +180,6 @@ qc_scope_class() {
   [ -z "$unset_f" ] || set +f
 
   [ "$seen" -gt 0 ] || return 0
-  # Three-way, and the zero arm is why `clear` exists as its own answer: the
-  # old two-way folded "no protocol path" and "some protocol paths" into one
-  # class, which was harmless while neither was marked and is the whole
-  # question now that one of them is.
   if [ "$protocol" -eq 0 ]; then qc_class=clear
   elif [ "$seen" -eq "$protocol" ]; then qc_class=only
   else qc_class=some
@@ -391,28 +187,13 @@ qc_scope_class() {
 }
 
 # One row per plan: rank, added-epoch, path, label, served requirement.
-# Sorted urgent first, then oldest — the pick order Loop step 2 prescribes —
-# with claimed plans after free ones and blocked plans last: listed so the
-# shape of the queue stays visible, never suggested.
-#
-# ROW/REF-prefixed, split below: the research listing needs the stems the
-# plans' `research:` edges name (routing decides which files there are
-# nodes at all), this loop already parses every plan, and a second read
-# per plan is the per-item fork the perf budget exists to catch. A
-# subshell cannot hand a variable out, so the edges ride the same stream.
 rows_raw="$(
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     doc="$(git show "${ref}:${f}" 2>/dev/null)"
-    # An unreadable plan is NOT an absent plan. Dropped silently, it left
-    # free_count at 0 and the edge fired — an order to an unattended fleet
-    # to stop, or to invent a backlog, on top of a plan that is neither
-    # claimed nor blocked.
-    # Counted on stderr so the row list stays machine-shaped.
+    # An unreadable plan is NOT an absent plan.
     [ -n "$doc" ] || continue
-    # `scope` rides the SAME pass. This call already reads six keys in one
-    # awk; a seventh costs nothing, and reading it in a second fork here
-    # would put one per plan inside the loop.
+    # `scope` rides the SAME pass.
     { read -r urgency; read -r agent; read -r effort
       read -r needs;   read -r requirement; read -r rneeds; read -r scope; } \
       <<<"$(printf '%s\n' "$doc" | fields urgency agent effort needs requirement research scope)"
@@ -422,10 +203,6 @@ rows_raw="$(
     blockers=""
     if [ -n "$needs" ]; then
       read -ra need_list <<<"${needs//,/ }"
-      # A separators-only value ("," on its own) leaves the array empty, and
-      # expanding an empty array under set -u is fatal on bash 3.2 — which
-      # is the shell macOS ships and this hook runs under. Same guard
-      # joharness.sh:lint_graph carries for the same field.
       [ "${#need_list[@]}" -gt 0 ] || need_list=("")
       for n in "${need_list[@]}"; do
         n="$(stem "$n")"
@@ -436,9 +213,6 @@ rows_raw="$(
       done
     fi
 
-    # The `research:` edge, through the same loop rather than a second one:
-    # one blockers string, so a plan waiting on a plan and a plan waiting on
-    # a question rank identically and read identically.
     if [ -n "$rneeds" ]; then
       read -ra rneed_list <<<"${rneeds//,/ }"
       [ "${#rneed_list[@]}" -gt 0 ] || rneed_list=("")
@@ -451,30 +225,15 @@ rows_raw="$(
       done
     fi
 
-    # `abandoned` skipped, and that is the word's whole effect: the janitor
-    # writes it only after proving the session that made the claim is gone
-    # (.claude/commands/janitor.md), so the plan is free again — not claimed,
-    # holding nothing, splitting no wave. The RECORD stays: the row is still
-    # in `claims` for every reader that asks who is on which branch, and the
-    # file stays on its branch, because a returning session sets the word back
-    # and the file is what the protocol rests on.
     claimed_on="$(awk -F'\t' -v s="$(stem "$f")" \
       '$1 == s && $3 != "abandoned" { print $2; exit }' <<<"$claims")"
 
-    # The boundary, applied to this plan. Gated on qc_boundary: with no list
-    # to compare against, EVERY plan classifies unknown, and the label would
-    # tell a reader that nobody declared a scope when what actually happened
-    # is that nothing could read the boundary. The note above says that
-    # once, correctly.
+    # The boundary, applied to this plan.
     scope_note=""
     scope_derank=""
     if [ "$qc_boundary" -eq 1 ]; then
       qc_scope_class "$scope"
-      # Two marked classes, two labels, one de-rank. The labels stay
-      # distinct because the shapes want different fixes: an `only` plan is
-      # a human's work for good, a `some` plan may be splittable along the
-      # boundary. One string for both would erase that at the only place a
-      # reader sees it.
+      # Two marked classes, two labels, one de-rank.
       case "$qc_class" in
         only)    scope_note=", CORE ONLY: scope is all core paths"
                  scope_derank=1 ;;
@@ -488,12 +247,7 @@ rows_raw="$(
     [ "$urgency" = "urgent" ] && rank=0
     [ -z "$claimed_on" ] || rank=$((rank + 2))
     [ -z "$blockers" ] || rank=$((rank + 4))
-    # Not free for any session. Same weight `claimed on` carries — listed so
-    # the shape of the queue stays visible, never leading — and deliberately
-    # not `blocked by`'s: nothing blocks this plan, and a human can take it
-    # by hand today. UNDECLARED does not move the rank at all; guessing a
-    # plan's scope is out of scope, and de-ranking on a guess would hide work
-    # nobody proved was unreachable.
+    # Not free for any session.
     [ -z "$scope_derank" ] || rank=$((rank + 2))
     printf 'ROW\t%s\t%s\t%s\t[%s, agent: %s, effort: %s%s%s%s]\t%s\n' \
       "$rank" "${added:-9999999999}" "$f" \
@@ -510,17 +264,7 @@ rows="$(awk -F'\t' '$1 == "ROW"' <<<"$rows_raw" | cut -f2- |
 # node test the research listing applies below.
 plan_rrefs="$(awk -F'\t' '$1 == "REF" { print $2 }' <<<"$rows_raw")"
 
-# Open questions, same ordering as plans and the same tier field. Not folded
-# into `rows`: the two are ranked together but a question has no `needs`, no
-# `scope` and no claim, so a shared row shape would carry four empty columns
-# and invite somebody to fill them.
-#
-# ROW/DOC-prefixed like the plans loop, and for the same subshell reason:
-# routing decides which files here are nodes (a `research:` key, or a plan
-# whose `research:` edge names the stem — joharness.sh:lint_graph applies
-# the identical test), a skipped document is NOT unreadable, and the
-# shortfall arithmetic below needs the two apart or every consumer
-# document would print as a file that could not be read.
+# Open questions, same ordering as plans and the same tier field.
 rrows_raw="$(
   while IFS= read -r f; do
     [ -n "$f" ] || continue
@@ -534,11 +278,7 @@ rrows_raw="$(
       continue
     fi
     added="$(git log --diff-filter=A --format=%ct -1 "$ref" -- "$f" 2>/dev/null)"
-    # Same claims map as plans, read with the same key. A workstream claims a
-    # question through its `plan:` field (joharness.sh:lint_graph says why one
-    # field covers both directories); without this the question kept listing
-    # as free and a second session was told to settle it — #119's duplicate
-    # claim, rebuilt for the new node type.
+    # Same claims map as plans, read with the same key.
     rclaimed="$(awk -F'\t' -v s="$(stem "$f")" \
       '$1 == s && $3 != "abandoned" { print $2; exit }' <<<"$claims")"
     rank=1
@@ -559,21 +299,13 @@ case "$research_count" in ''|*[!0-9]*) research_count=0 ;; esac
 qc_research_docs="$(awk -F'\t' '$1 == "DOC" { c++ } END { print c + 0 }' <<<"$rrows_raw")"
 case "$qc_research_docs" in ''|*[!0-9]*) qc_research_docs=0 ;; esac
 
-# A question the loop could not read is NOT an absent question. The plans
-# path already paid for this — a zero-byte plan file made the edge fire while
-# an unclaimed plan sat in the queue — and a count taken from `rrows` rather
-# than from the file list reproduces it for the new node type. The loop drops
-# a file for exactly two other reasons — an empty line, and a document the
-# routing test skipped, counted above — so the remaining shortfall IS the
-# unreadable count.
+# A question the loop could not read is NOT an absent question.
 qc_research_unreadable=$(( $(printf '%s\n' "$research" | grep -c . || :) -
                            research_count - qc_research_docs ))
 [ "$qc_research_unreadable" -ge 0 ] || qc_research_unreadable=0
 
 # One printer, two call sites: the plans-empty branch prints questions and
-# exits, the normal path prints them under the plan table. A second copy
-# would drift, and the drift shows only in the repo state that reaches the
-# other one.
+# exits, the normal path prints them under the plan table.
 qc_warn_research_unreadable() {
   [ "$qc_research_unreadable" -gt 0 ] || return 0
   printf '\n%d research file(s) on %s could not be read — not counted, and\n' \
@@ -597,10 +329,6 @@ qc_print_research() {
       "$((rt - MAX_ENTRIES))"
 }
 
-# Requirements tier (.agents/docs/product/README.md): one no open plan serves is
-# planning work, and planning outranks executing — decomposition happens
-# once, up front, per requirement. Served requirements stay silent; their
-# plans speak. Urgent first, then name.
 served="$(awk -F'\t' '$5 != "" && $5 != "none" { print $5 }' <<<"$rows")"
 unplanned=""
 if [ -n "$reqs" ]; then
@@ -657,18 +385,9 @@ if [ -n "$unplanned" ]; then
   printf '\n'
 fi
 
-# Fan-out instruction. "Free plans are independent" used to be asserted
-# unconditionally; it is a computed claim now. A plan may declare `scope:` in
-# frontmatter — comma-separated path prefixes it will touch — and free plans
-# are partitioned into waves whose declared scopes are pairwise disjoint.
-# Within a wave, parallel is proven; across waves, the conflicting pair and
-# path are named. A plan without scope stays listed, labeled unprovable,
-# because a missing declaration must neither serialize the queue nor inherit
-# the old unconditional promise. Zero scoped plans = output unchanged.
+# Fan-out instruction.
 if [ -z "$plans" ]; then
-  # Unplanned requirements FIRST, before questions: planning outranks
-  # executing, and an entrypoint sentence whose next line reverses it is
-  # worse than either order stated plainly.
+  # Unplanned requirements first: planning outranks executing.
   if [ -n "$unplanned_free" ]; then
     qc_print_research
     printf '\nNo plans on %s. Entrypoint: plan the requirements above (issues\n' "$ref"
@@ -676,10 +395,7 @@ if [ -z "$plans" ]; then
     [ "$research_count" -eq 0 ] ||
       printf 'The open questions above are queue work too, after the planning.\n'
   elif [ "$research_count" -gt 0 ] || [ "$qc_research_unreadable" -gt 0 ]; then
-    # NOT an edge. An open question is queue work (Loop step 2), so a hook
-    # that said "done" here would report an empty queue over a queue that
-    # is not empty — and to an unattended fleet that reads as an order to
-    # invent a backlog on top of real work nobody has done.
+    # NOT an edge.
     printf 'No plans on %s, but the queue is not empty:\n' "$ref"
     qc_print_research
     qc_warn_research_unreadable
@@ -695,12 +411,6 @@ if [ -z "$plans" ]; then
   exit 0
 fi
 
-# A plan the row loop could not read is dropped from `rows`, and the loop
-# drops a plan for exactly one other reason (an empty line), so the shortfall
-# IS the unreadable count. It matters because free_count cannot tell "no plan
-# is free" from "no plan could be read": a zero-byte plan file made the edge
-# fire while an unclaimed, unblocked plan sat in the queue — to an
-# unattended fleet, an order to stop or to invent a backlog.
 qc_unreadable=$(( $(printf '%s\n' "$plans" | grep -c . || :) -
                   $(printf '%s\n' "$rows"  | grep -c . || :) ))
 [ "$qc_unreadable" -ge 0 ] || qc_unreadable=0
@@ -711,11 +421,7 @@ if [ "$qc_unreadable" -gt 0 ]; then
   printf 'empty. Fix or delete them before treating this queue as exhausted.\n'
 fi
 
-# Said once, not marked per plan. An entrypoint that cannot list the
-# boundary is a missing READER; a plan with no `scope:` is a missing
-# DECLARATION. Labelling every row "unchecked" here would spell the first as
-# the second, and a session would go looking in the plan files for a fault
-# that is in its own checkout.
+# Said once, not marked per plan.
 if [ "$qc_boundary" -eq 0 ]; then
   printf '\nProtocol boundary NOT read (./joharness.sh protocol-paths listed\n'
   printf 'nothing here), so no plan below is marked CORE ONLY. That is\n'
@@ -739,10 +445,7 @@ done <<<"$rows"
 qc_print_research
 
 # A plan's declared scope, one path per line: comma to newline, surrounding
-# blanks and trailing slashes gone, `none` dropped. `shared:` prefixes stay
-# on their lines for the caller to split. One reader for the free loop and
-# for the in-flight comparison under orchestrated, so the two cannot
-# normalise a declaration two ways.
+# blanks and trailing slashes gone, `none` dropped.
 scope_lines() {
   git show "${ref}:$1" 2>/dev/null | field scope |
     tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//; s|/*$||' |
@@ -764,11 +467,6 @@ while IFS=$'\t' read -r rank _ f label _; do
   free_names+=("$(stem "$f")")
   free_tiers+=("${tier:-sonnet}")
   # Normalized: comma to space, surrounding blanks and trailing slashes gone.
-  # A `shared:` prefix splits the declaration in two. Exclusive paths decide
-  # whether two plans may run in parallel; shared paths are named as an
-  # expected reconcile instead of splitting the wave, because a queue where
-  # every plan touches the same test file has no disjoint pair and reports
-  # waves of one — advice that serialises work the repo has run in parallel.
   scope_raw="$(scope_lines "$f")"
   # Case-blind on the prefix: `Shared:x` spelled as an exclusive path would
   # match nothing real, so a capitalisation typo would read as MORE parallel
@@ -793,8 +491,7 @@ scopes_overlap() {
 }
 
 # Splits a wave unless the only thing two plans share is a path BOTH marked
-# shared. One plan's marking cannot void another plan's exclusive claim on the
-# same path: that author declared it without ever reading this plan.
+# shared.
 wave_split_hit() {
   local mine_x="$1" mine_s="$2" theirs_x="$3" theirs_s="$4" hit
   hit="$(scopes_overlap "$mine_x" "$theirs_x")" && { printf '%s' "$hit"; return 0; }
@@ -804,10 +501,6 @@ wave_split_hit() {
 }
 
 # F1: a plan whose scope is ENTIRELY shared paths is scoped, not unscoped.
-# Counting it unscoped printed the unconditional "N free plans = N parallel
-# sessions" for exactly the queue this marking exists to describe.
-# Every overlap, not the first: a pair sharing two paths named only one, and
-# which one depended on declaration order.
 scopes_overlap_all() {
   local a b out=""
   for a in $1; do
@@ -823,37 +516,13 @@ scoped_any=0
 for s in "${free_scopes[@]:-}"; do [ -n "$s" ] && scoped_any=1; done
 for s in "${free_shared[@]:-}"; do [ -n "$s" ] && scoped_any=1; done
 
-# Under orchestrated only: which free plans collide with a plan a manager
-# holds RIGHT NOW. Computed here, above the waves, because a held plan is
-# one the orchestrator will not spawn this pass — and the wave partition is
-# a statement about what runs CONCURRENTLY. Leaving a held plan in it made
-# the partition describe a world where it runs: it took a wave, and every
-# plan whose scope met it was told to WAIT for a pass it would sit out. One
-# broad-scoped held plan serialised a whole queue that way — 36 items behind
-# one that could not start, with three worker slots free
-# (`./joharness.sh dispatch` in a consumer at 539d112, 2026-09-06).
-# Nothing runs on a held plan's paths, so a plan whose only
-# collision is with the held one is safe to spawn.
-#
-# Computed once and reused by the report below, rather than derived twice:
-# the waves and that report must call the same plan held or they disagree
-# about the same fact.
+# Under orchestrated only: which free plans collide with a plan a manager holds
+# RIGHT NOW.
 free_held=()
 hold_lines=""
 n_held=0
 # Plans a READER outside this hook will not spawn this pass, passed in rather
-# than re-derived. `dispatch` withholds an item whose branch is past its
-# retire commit — step 7 deletes the workstream file as the last commit before
-# the pull request opens, so the branch has no claim and this hook rightly
-# calls the plan free — and then partitioning it made every plan meeting its
-# scope WAIT for a pass nobody sits: the same serialisation the held-plan
-# skip below exists to stop, reached through the other reader
-# (docs/plans/dispatch-retired-edge-blocks-queue.md).
-#
-# Passed in, because deriving it here would be the second copy of
-# `joharness.sh:dispatch_retired_edges` and the rule this repo keeps paying
-# for. Empty for every other caller, which is every caller but `dispatch`:
-# session start prints the same waves it always did.
+# than re-derived.
 free_withheld=()
 n_withheld=0
 wentry=""
@@ -891,8 +560,7 @@ if [ "$free_count" -gt 0 ]; then
           "${free_names[$i]}" "$(stem "$cf")" "$hit" "$cbranch")"$'\n'
         # A hold behind a BLOCKED claim is released by `dispatch`: that plan
         # spawns, so it keeps its place in the partition and can still make a
-        # conflicting peer wait. Only a hold that really stops the plan takes
-        # it out. THIS claim's status, not any status on its branch.
+        # conflicting peer wait.
         case " ${claim_blocked_pairs} " in
           *" $(stem "$cf")@${cbranch} "*) ;;
           *) [ "${free_held[$i]}" = "1" ] || [ "${free_withheld[$i]:-0}" = "1" ] ||
@@ -905,18 +573,6 @@ if [ "$free_count" -gt 0 ]; then
   done <<<"$rows"
 
   # The withheld items are claims too, for the one purpose that matters here.
-  # A branch past its retire commit has finished writing its paths and its
-  # pull request is open — the STRONGEST reason to keep a peer off them, and
-  # before this loop it produced the weakest signal the command has: the peer
-  # was neither held nor waiting, so it was spawned straight into a collision
-  # with a branch one merge from landing. Leaving the withheld plan out of the
-  # partition removes the starvation; holding its peers is the other half, and
-  # `.agents/docs/orchestrated.md` Concurrency argues it for a claimed plan in
-  # the same words — an orchestrator that knows the collision is coming has no
-  # reason to send a manager into it (verifier r1).
-  #
-  # The plan file still exists HERE: the branch deleted it, the base branch
-  # has not merged that yet, so its scope reads exactly as any claim's does.
   for wentry in ${QUEUE_WITHHELD:-}; do
     wpath="${wentry%@*}"; wbranch="${wentry##*@}"
     # No `@` means no branch to name, so it is not one of these entries.
@@ -1008,8 +664,7 @@ if [ "$free_count" -ge 2 ] && [ "$scoped_any" = "1" ]; then
         "$([ "$n_held" -eq 0 ] && printf ':' || printf ',')" "$n_withheld"
     printf '. A plan\nthat does not run this pass cannot make another wait for it.)\n'
   fi
-  # A header promising waves, followed by none, reads as output that broke
-  # off. It happens whenever everything free is held (found by the verifier).
+  # A header promising waves, followed by none, reads as output that broke off.
   [ "${#waves[@]}" -gt 0 ] ||
     printf '  none: nothing free is partitioned this pass.\n'
   w=0
@@ -1042,14 +697,7 @@ elif [ "$free_count" -ge 2 ]; then
     printf 'Plus one planning session for the UNPLANNED requirements above.\n'
 elif [ "$free_count" -eq 0 ] && [ -z "$unplanned_free" ] &&
      [ "$qc_unreadable" -eq 0 ] && [ "$research_count" -gt 0 ]; then
-  # Every plan claimed or blocked, questions still open. Not the edge, for
-  # the reason above: research is queue work, and a plan blocked on an open
-  # question is unblocked by somebody answering it.
-  #
-  # TERMINAL, and that is the whole point of the exit. Falling through here
-  # reached the tail, which says "top free plan above" — naming a free plan
-  # that by definition does not exist in this state, and never naming the
-  # question that does.
+  # Every plan claimed or blocked, questions still open.
   printf '\nNo free plan, but %d open question(s) above — not the edge.\n' \
     "$research_count"
   printf 'Settling one is queue work, and a plan blocked on it goes free.\n'
@@ -1059,28 +707,17 @@ elif [ "$free_count" -eq 0 ] && [ -z "$unplanned_free" ] &&
   exit 0
 elif [ "$free_count" -eq 0 ] && [ -z "$unplanned_free" ] &&
      [ "$qc_unreadable" -eq 0 ]; then
-  # The tail below ("top free plan above") would point at a plan that is
-  # not free. The marked rows are why the edge is reached; say so and stop
-  # — the trap prints the pointer, and dispatch says what the edge means.
+  # The tail below ("top free plan above") would point at a plan that is not
+  # free.
   printf '\nEdge reached: no free plan — every plan claimed, blocked or CORE ONLY.\n'
   exit 0
 fi
 
-# A free plan whose exclusive scope overlaps a CLAIMED plan's. The waves
-# above partition free plans among themselves; an orchestrator spawning into
-# a fleet already in flight needs the other half — which free plan collides
-# with work a manager holds right now — and `dispatch` reads these lines to
-# hold that plan back. Computed above, before the waves, because the waves
-# have to know: a held plan is not partitioned. Printed here so the report
-# keeps the order a reader already knows.
+# A free plan whose exclusive scope overlaps a CLAIMED plan's.
 [ -z "$hold_lines" ] || printf '%s' "$hold_lines"
 
 printf '\n'
-# Static, deliberately. The in-flight state this defers to is computed one
-# script earlier (handover-context.sh runs first in `session-start`), and
-# re-deriving it here would mean a second walk over every ref to answer a
-# question already answered above — two readers of one fact, which is how
-# they start disagreeing. A pointer costs nothing and cannot drift.
+# Static, deliberately.
 printf 'Finishing outranks starting: edge work in the in-flight block above\n'
 printf '(pull request open, or status review or done) comes before anything\n'
 printf 'here. Another session LIVE on it? Not yours — /who, then pick below.\n\n'
@@ -1096,10 +733,6 @@ printf '(.agents/docs/agent-selection.md). Free = neither blocked nor claimed. S
 printf 'wave = parallel proven, except a named reconcile which is a cost to\n'
 printf 'accept, not a collision ruled out; no scope declared =\n'
 printf 'independence assumed, not proven. Claimed plan: /who before touching.\n'
-# Questions rank beside plans and carry no special rank
-# (.agents/docs/research/README.md), so a tail naming only "top free plan"
-# states the opposite of the protocol it points at — and a question older
-# than every free plan could never be reached from hook output.
 [ "$research_count" -eq 0 ] ||
   printf 'Open questions above rank beside the plans, same order: one may be\nthe oldest actionable thing here.\n'
 exit 0

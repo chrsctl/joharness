@@ -75,7 +75,7 @@ else
   fail "every shipped file resolves to eol=lf (${unpinned} of ${shipped} unpinned)"
 fi
 
-# The other half of the fix: cmd_upgrade's canonical clone must stay
+# The other half of the fix: update.yml's canonical clone must stay
 # byte-faithful regardless of host config. A grep, because the clone target
 # is a hardcoded https URL — no offline fixture can exercise it. Flag
 # presence on the clone line, not an exact literal: a flag reorder or a
@@ -91,5 +91,4 @@ check_clone_flags() {
     fail "$2 clone pins autocrlf=false and core.eol=lf"
   fi
 }
-check_clone_flags "${ROOT}/joharness.sh" "upgrade"
 check_clone_flags "${ROOT}/.github/workflows/update.yml" "update.yml"

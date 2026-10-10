@@ -151,19 +151,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      # Canonical only: joharness runs orchestrated for its own drain loop
-      # (joharness.conf), and under that mode `ci` treats every branch as an
-      # unattended one — a human's requirement pull request goes red. A PR here
-      # is checked as the supervised work it usually is. The marker is absent
-      # in every consumer, so this file stays seedable verbatim and a consumer's
-      # own mode is untouched. The manager's own local `ci` still runs under
-      # orchestrated, so the fleet's gates still fire before its push.
       - name: joharness ci
-        run: |
-          if grep -q '^JOHARNESS_CANONICAL=1' joharness.conf 2>/dev/null; then
-            export JOHARNESS_MODE=supervised
-          fi
-          ./joharness.sh ci
+        run: ./joharness.sh ci
       # Continuous coverage for the environment layers that can prove themselves
       # on a stock runner. A layer opts in by carrying a `ci-verify` file
       # (.agents/env/README.md); this step globs for it and names no layer, which

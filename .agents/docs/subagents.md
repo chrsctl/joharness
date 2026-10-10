@@ -22,7 +22,7 @@ subagent cannot stand in for it.
   `.agents/harness/AGENTS.md` — the whole Loop — reach it.
 - **State, no.** `SessionStart` does not fire for subagents, and
   `SubagentStart` cannot return `additionalContext`. No hook can hand one
-  the queue, the handover state, the overlap warning or the mode. The spawn
+  the queue, the handover state or the overlap warning. The spawn
   prompt is the only channel. A plan that assumes otherwise is broken before
   it runs.
 - **No finishing guard.** `Stop` does not fire for a subagent either
@@ -59,8 +59,8 @@ subagent cannot stand in for it.
   and a subagent is not one), dies with the parent, gets no hook state and no
   handover guard.
 - **Standing in for session fan-out.** That needs endurance; a subagent fleet
-  ends when the parent's turn does. Under orchestrated mode this is the
-  line between the two spawn levels: a manager's WORKERS are subagents —
+  ends when the parent's turn does. This is the line between the two spawn
+  levels: a manager's WORKERS are subagents —
   one sub-task each, disjoint files, no commit, no claim — and anything
   needing a branch of its own is a plan the orchestrator spawns a manager
   for (`orchestrated.md`, Roles).

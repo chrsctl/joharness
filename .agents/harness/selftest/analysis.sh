@@ -61,28 +61,18 @@ git -C "$anwork" push -qu origin main
 # ANALYSIS_FETCH=0: the fixture's refs are already here, and a fetch against a
 # bare origin proves nothing about what the command reports.
 #
-# `env`, not a bare "$@" prefix: an assignment that arrives by expansion is not
-# an assignment, it is a command name (upstream.sh carries the incident).
-an()  { ( cd "$anwork" && env JOHARNESS_CONF="$anconf" ANALYSIS_FETCH=0 "$@" \
+an()  { ( cd "$anwork" && env JOHARNESS_CONF="$anconf" ANALYSIS_FETCH=0 \
   ./joharness.sh analysis 2>&1 ); }
 ana() { local a="$1"; shift
         ( cd "$anwork" && env JOHARNESS_CONF="$anconf" ANALYSIS_FETCH=0 "$@" \
           ./joharness.sh analysis "$a" 2>&1 ); }
-andsp() { ( cd "$anwork" && env JOHARNESS_CONF="$anconf" DISPATCH_FETCH=0 \
-  "$@" ./joharness.sh dispatch 2>&1 ); }
 
 # --- canonical says nothing, and that is the first thing it says ------------
 printf 'JOHARNESS_CANONICAL=1\n' >>"$anconf"
 out="$(an)"
-expect "in canonical the command names the switch anyway" \
-  "== analysis (JOHARNESS_IDLE_ANALYSIS: off)" "$out"
+expect "in canonical the command prints its banner" "== analysis" "$out"
 expect "and stops on the direction rule" "CANONICAL — this repo IS the harness" "$out"
 refute "reading no claim at all" "branch    :" "$out"
-# The one that matters: the switch decides who ACTS, and canonical has nobody
-# to file to. A guard placed after the claims walk would pass every assertion
-# above and still route joharness's own conditions to joharness.
-out="$(an JOHARNESS_IDLE_ANALYSIS=on)"
-expect "and stops with the switch on too" "CANONICAL — this repo IS the harness" "$out"
 sed -i.bak '/^JOHARNESS_CANONICAL=1$/d' "$anconf" && rm -f "${anconf}.bak"
 
 # --- an empty fleet ---------------------------------------------------------
@@ -92,7 +82,6 @@ expect "the marks name the knobs that draw them" \
   "STALL? at 45m without a push" "$out"
 expect "and the command adds no threshold of its own" "No threshold of its own" "$out"
 expect "nothing in flight is said" "NOTHING IN FLIGHT" "$out"
-expect "off says nothing files this" "JOHARNESS_IDLE_ANALYSIS is off" "$out"
 refute "and names no role" "/analyst" "$out"
 
 # --- a blocked claim, before anything moves under it ------------------------
@@ -273,17 +262,6 @@ out="$(cd "$anwork" && env JOHARNESS_CONF="$anconf" ANALYSIS_FETCH=0 \
 expect "and a claim stem narrows it to one" "claim     : docs/handover/twob.md" "$out"
 refute "leaving the other out" "claim     : docs/handover/twoa.md" "$out"
 
-# --- the switch moves who acts, and nothing else ----------------------------
-out="$(ana mgr-parked JOHARNESS_IDLE_ANALYSIS=on)"
-expect "on reports the same verdict" "CAUSE MAY BE LIFTED" "$out"
-expect "and names the role that files it" "/analyst <branch> <claim>" "$out"
-expect "with where it goes" "ONE issue on someone/joharness" "$out"
-expect "and what it costs" "one session beyond the manager cap" "$out"
-out="$(ana mgr-parked JOHARNESS_IDLE_ANALYSIS=yes)"
-expect "an unrecognised value is named" "ignoring JOHARNESS_IDLE_ANALYSIS='yes'" "$out"
-expect "and reads as off in the banner, not echoed back" \
-  "== analysis (JOHARNESS_IDLE_ANALYSIS: off)" "$out"
-expect "the verdict is unchanged by the switch" "CAUSE MAY BE LIFTED" "$out"
 
 # --- an issue with nowhere to go -------------------------------------------
 git -C "$anwork" rm -q .github/workflows/update.yml
@@ -298,27 +276,6 @@ out="$(ana mgr-parked)"
 expect "and the address is read again once it is back" \
   "canonical : someone/joharness" "$out"
 
-# --- dispatch carries the switch and marks the rows it applies to -----------
-out="$(andsp)"
-expect "dispatch names the switch when it is off" \
-  "analysis  : off — a parked manager is reprinted, never explained" "$out"
-expect "and names the command that reads it anyway" \
-  "./joharness.sh analysis <branch>" "$out"
-refute "no row is marked while it is off" "ANALYSE?" "$out"
-
-out="$(andsp env JOHARNESS_IDLE_ANALYSIS=on)"
-expect "on, dispatch says what a marked row costs" \
-  "analysis  : ON" "$out"
-expect "and that the ledger is what keeps it to one" \
-  "the ledger is what makes it once" "$out"
-expect "the blocked row names its own explainer, by CLAIM" \
-  "ANALYSE? /analyst mgr-parked parked (BLOCKED)" "$out"
-# Beside the existing verdict, never instead of it: an analyst explains a
-# condition, it never ends one, and a blocked row stays the human's.
-expect "beside the blocked verdict, not instead of it" \
-  "BLOCKED: the human's, holds no slot" "$(printf '%s\n' "$out" | grep 'mgr-parked')"
-refute "a manager at work is not marked" \
-  "ANALYSE? /analyst mgr-working" "$out"
 
 # --- a repo whose conf is not tracked at all --------------------------------
 # Read zero bytes of conf and print a verdict about config is #266 one layer
