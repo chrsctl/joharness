@@ -72,7 +72,9 @@ start = empty.
 
 `git fetch origin main`, then read two fields off the wake message, like the
 ledger — never from memory: `harness=` and `pass=`. Missing (a wake armed by
-an older harness) = `harness` mismatch, `pass=1`. First start = `pass=1`.
+an older harness) = `harness` mismatch (report `<old>` as `none`), `pass=1`.
+First start = `pass=1`. Run the superseded check first: a superseded pass
+does nothing, so it re-reads and fast-forwards nothing.
 
 - **Harness.** `harness=` vs the first 12 characters of `git show
   origin/main:.claude/commands/orchestrate.md | git hash-object --stdin`.
@@ -268,6 +270,9 @@ the lead and say so in the report. Keep at most five, newest first, one per
 `<stem>`. Drop a lead when its stem merges — AFTER this pass's report,
 so a lead arriving in the same pass its subject merges is still printed once.
 Drop it at once, unprinted, when dispatch marks that stem `CORE ONLY`.
+
+Recompute `harness=` at every arm from fresh `origin/main`; never copy it from
+the wake you received.
 
 Never sleep, never poll. A manager's lead message wakes you: note the lead,
 end the turn; the next scheduled pass writes it into the ledger. Merges are
