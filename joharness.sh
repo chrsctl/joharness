@@ -88,6 +88,11 @@
 #                   due, which is in flight, what evidence a scout reads, and
 #                   JOHARNESS_SCOUT_AUTOMERGE's value. Report-only; /scout
 #                   proposes, and proposes nothing here
+#   clerk           the clerk cycle, every JOHARNESS_CLERK_HOURS (24 by
+#                   default, 0 = off): whether a clerk is due, which is in
+#                   flight, and the issue numbers already PLANNED (a plan's
+#                   issue:) or CLAIMED (a workstream file's issue:). Reads no
+#                   GitHub. Report-only; /clerk turns open issues into plans
 #   finish          Loop step 7 gate: what merging this branch NOW would
 #                   leave on the base branch. Red when the merge would add a
 #                   workstream file. Run it before the merge, not after.
@@ -158,6 +163,10 @@
 #                              and only at DRAINED; 0 = off. Dated from git:
 #                              the newest scout retire, merged or on an
 #                              unmerged branch, closed proposals included
+#   JOHARNESS_CLERK_HOURS=24   hours between clerk passes over the open
+#                              issues; 0 = off. Dated from git: the newest
+#                              clerk retire, merged or on an unmerged branch
+#   JOHARNESS_CLERK_BATCH=3    issues one clerk pass takes at most
 #   JOHARNESS_SCOUT_AUTOMERGE=off
 #                              'off' (default): a scout's proposal waits for
 #                              a human. Exactly 'on': the scout merges it.
@@ -2486,10 +2495,42 @@ lint_unknown_types() {
   done < <(cd "$ROOT" && find docs -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort)
 }
 
+# One validator of the `issue:` format, for every reader in this file: the
+# workstream claim, the plan's `issue:` (the clerk's PLANNED edge) and the
+# clerk's two lists. Prints `none`, `ok <N>`, or `bad <why>`. Kept in lockstep
+# with handover-context.sh:issue_num, which cannot source this file — two
+# validators of one format is already one too many, and a third copy is the
+# plan's named defect (docs/plans/clerk-role.md, history once retired).
+issue_verdict() {
+  local iss="$1"
+  case "$iss" in
+    '' | none) printf 'none'; return 0 ;;
+    '#'[0-9]* | [0-9]*) ;;
+    *) printf 'bad not a number'; return 0 ;;
+  esac
+  case "${iss#\#}" in
+    *[!0-9]*) printf 'bad not a number' ;;
+    0) printf 'bad there is no issue #0' ;;
+    0*) printf 'bad leading zero; #%s is not #%s, so a reader scanning for their own number misses it' \
+          "${iss#\#}" "${iss##*0}" ;;
+    *) printf 'ok %s' "${iss#\#}" ;;
+  esac
+}
+
+# `issue_verdict` as a lint finding. `<consequence>` is what a dropped value
+# costs at that field's reader — the hook for a claim, the clerk for a plan.
+lint_issue() {
+  local rel="$1" iss="$2" consequence="$3" v
+  v="$(issue_verdict "$iss")"
+  case "$v" in
+    bad\ *) lint_red "${rel}: issue '${iss}' — ${v#bad }; ${consequence}" ;;
+  esac
+}
+
 lint_graph() {
   LINT_RC=0
   LINT_WARNED=0
-  local rel val n p r urgency agent effort iss rq grad pstem rstem fstem
+  local rel val n p r urgency agent effort iss rq grad pstem rstem fstem piss
   local -a need_list
   local plans=0 workstreams=0 reqs=0 research=0 rdocs=0
   # Stems the open plans' `research:` edges name, one per line. Routing
@@ -2505,9 +2546,13 @@ lint_graph() {
     [ -n "$rel" ] || continue
     plans=$((plans + 1))
     { read -r urgency; read -r agent; read -r effort; read -r val; read -r r
-      read -r rq; read -r pstem; read -r pscope; } \
-      <<<"$(gr_fields urgency agent effort needs requirement research plan scope <"${ROOT}/${rel}")"
+      read -r rq; read -r pstem; read -r pscope; read -r piss; } \
+      <<<"$(gr_fields urgency agent effort needs requirement research plan scope issue <"${ROOT}/${rel}")"
     lint_required "$rel" plan "$pstem"
+    # Optional: the issue a clerk turned into this plan. A value the clerk's
+    # PLANNED list cannot parse is dropped there, and the issue reads as
+    # unplanned — a second clerk then plans it again.
+    lint_issue "$rel" "$piss" "the clerk drops it and the issue reads as unplanned"
     lint_required "$rel" urgency "$urgency"
     lint_required "$rel" agent "$agent"
     lint_required "$rel" effort "$effort"
@@ -2702,20 +2747,7 @@ lint_graph() {
     # hook cannot parse is DROPPED there, and a dropped claim reads as "this
     # issue is free" — which is the exact failure this field exists to stop,
     # so silence here would reproduce it. A leading # is fine; a word is not.
-    case "$iss" in
-      '' | none) ;;
-      '#'[0-9]* | [0-9]*)
-        # Kept in lockstep with handover-context.sh:issue_num. Two validators
-        # of one format is already one too many; letting them disagree means
-        # a value that lints clean and renders as nothing — a claim that
-        # looks accepted and silently is not.
-        case "${iss#\#}" in
-          *[!0-9]*) lint_red "${rel}: issue '${iss}' — not a number; the hook drops it and the issue reads as unclaimed" ;;
-          0) lint_red "${rel}: issue '${iss}' — there is no issue #0; the hook drops it and the issue reads as unclaimed" ;;
-          0*) lint_red "${rel}: issue '${iss}' — leading zero; #${iss#\#} is not #${iss##*0}, so a reader scanning for their own number misses it" ;;
-        esac ;;
-      *) lint_red "${rel}: issue '${iss}' — not a number; the hook drops it and the issue reads as unclaimed" ;;
-    esac
+    lint_issue "$rel" "$iss" "the hook drops it and the issue reads as unclaimed"
     lint_anchors "$rel"
   done < <(lint_nodes docs/handover)
 
@@ -5624,8 +5656,12 @@ scout_refs() {
 #
 # Status is the one field read, lower-cased and blank-joined, so `Abandoned`
 # reads as the word it is; an unreadable one is `?`, which is in flight.
+#
+# `<kind>` is the cycle, `scout` by default; `clerk` reads the same identity
+# under its own prefix (clerk_due). Parameterised, never copied — the six
+# passes above are what a copy would lose. scout_retired_ts takes it too.
 scout_walk() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}"
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" kind="${1:-scout}"
   local ids=() names="" base_id id r hit wf doc sws sstat seen=$'\n' key listing rc_l rc_u blobs
   # ONE snapshot, by commit id, read before anything else: the base's id
   # first, then the unmerged refs measured against THAT id. Every later
@@ -5635,7 +5671,7 @@ scout_walk() {
   base_id="$(git -C "$ROOT" rev-parse --verify -q \
     "refs/remotes/origin/${base_branch}^{commit}" </dev/null 2>/dev/null)"
   if [ -z "$base_id" ]; then
-    printf '%s\t%s\t%s\n' '?' 'scout-unreadable' 'unreadable'
+    printf '%s\t%s\t%s\n' '?' "${kind}-unreadable" 'unreadable'
     return 0
   fi
   while IFS=$'\t' read -r id r; do
@@ -5657,13 +5693,13 @@ scout_walk() {
   # export would turn the glob into a literal path, the same class as
   # `grep.patternType` (pass 6): pinned off for these calls.
   listing="$(GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 git -C "$ROOT" -c core.quotePath=false grep \
-    --color=never -l -E -e '' "${ids[@]}" -- 'docs/handover/scout-[0-9]*' \
+    --color=never -l -E -e '' "${ids[@]}" -- "docs/handover/${kind}-[0-9]*" \
     </dev/null 2>/dev/null)"; rc_l=$?
   listing="${listing}"$'\n'"$(GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 git -C "$ROOT" -c core.quotePath=false grep \
-    --color=never -L -E -e '' "${ids[@]}" -- 'docs/handover/scout-[0-9]*' \
+    --color=never -L -E -e '' "${ids[@]}" -- "docs/handover/${kind}-[0-9]*" \
     </dev/null 2>/dev/null)"; rc_u=$?
   if [ "$rc_l" -gt 1 ] || [ "$rc_u" -gt 1 ]; then
-    printf '%s\t%s\t%s\n' '?' 'scout-unreadable' 'unreadable'
+    printf '%s\t%s\t%s\n' '?' "${kind}-unreadable" 'unreadable'
   fi
   while IFS= read -r hit; do
     [ -n "$hit" ] || continue
@@ -5744,7 +5780,7 @@ scout_walk() {
 # only record git has of that scout, and the cycle reads due on the next
 # pass. Branch deletion is the human's act; this does not second-guess it.
 scout_retired_ts() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}"
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" kind="${1:-scout}"
   local refs=() r line h ct wf best=0 now log rc
   while IFS= read -r r; do refs+=("$r"); done < <(scout_refs)
   [ "${#refs[@]}" -gt 0 ] || return 0
@@ -5753,7 +5789,7 @@ scout_retired_ts() {
   log="$(GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 git -C "$ROOT" log \
     --full-history -m --diff-filter=D --name-only --format='C %H %ct' \
     "${refs[@]}" --not "refs/remotes/origin/${base_branch}" \
-    -- 'docs/handover/scout-[0-9]*' </dev/null 2>/dev/null)"; rc=$?
+    -- "docs/handover/${kind}-[0-9]*" </dev/null 2>/dev/null)"; rc=$?
   if [ "$rc" -ne 0 ]; then
     printf '%s' "$now"
     return 0
@@ -5920,6 +5956,184 @@ cmd_scout() {
     printf 'JOHARNESS_SCOUT_AUTOMERGE=off: a proposal waits for a human to merge\n'
     printf 'or close it. Nothing enters the queue until one does.\n'
   fi
+}
+
+# ---------------------------------------------------------------------------
+# The clerk cycle — open issues are the top rank and no role read them
+# ---------------------------------------------------------------------------
+#
+# Issue #311: open GitHub issues outrank every plan (.agents/harness/AGENTS.md
+# step 2), yet `dispatch` sees only `docs/plans/`, so under orchestrated mode an
+# issue was never built — 20 open on 2026-10-08, the oldest 22 days. A clerk
+# (.claude/commands/clerk.md) reads them, checks each claim against source and
+# turns the ones that hold into plans in one plan-only pull request it merges
+# itself. This is the machinery: when one is due, which is in flight, and which
+# issues a plan or a claim already names. This command reads no GitHub — it is
+# git-only like every reader here (#311 fix 3) — so the issues themselves are
+# the session's read.
+#
+# The scout's identity and readers, by kind (scout_walk, scout_retired_ts,
+# cycle_landed_sha): `docs/handover/clerk-<digit>*` is a clerk, the path
+# decides, every misread fails closed. Two differences from the scout, decided:
+#
+# - Orthogonal to the verdict, like curate. The scout waits for DRAINED because
+#   it INVENTS work that would compete with real work; a clerk invents nothing,
+#   it turns work already filed — and filed at the top rank — into plans
+#   `dispatch` can see. Holding it for DRAINED would hold the top rank behind
+#   every plan below it.
+# - Its own pull request merges (a plan-only diff, #297), so the merged retire
+#   dates the cycle as the janitor's does; an unmerged retire is the window
+#   between the retire and that merge (#292's shape), read the scout's way.
+
+# Is a clerk due. Sets CLERK_DUE (`due|not-due|off|unreadable <why>`) and
+# CLERK_ROWS (scout_walk's rows for this kind) the way scout_due sets its
+# pair: globals, called without a command substitution, rows read only when
+# due or asked for (`all`).
+CLERK_DUE=""
+CLERK_ROWS=""
+clerk_due() {
+  local want="${1:-}" hours age bts why base_word
+  CLERK_ROWS=""
+  why="$(cycle_unreadable)"
+  if [ -n "$why" ]; then
+    CLERK_DUE="unreadable ${why}"
+    return 0
+  fi
+  hours="$(num_knob JOHARNESS_CLERK_HOURS 24)"
+  if [ "$hours" -eq 0 ]; then
+    CLERK_DUE='off JOHARNESS_CLERK_HOURS=0: no clerk is ever due'
+    return 0
+  fi
+  # No command file, no cycle — the scout's rule (its review r6): a due line
+  # sending a session to read a file that is not there.
+  if [ ! -f "${ROOT}/.claude/commands/clerk.md" ]; then
+    CLERK_DUE='off no .claude/commands/clerk.md here: nothing for a clerk to run'
+    return 0
+  fi
+  base_word='the last clerk landed'
+  age="$(cycle_age_h clerk)"
+  if [ -z "$age" ] || [ "$age" -ge "$hours" ]; then
+    bts="$(scout_retired_ts clerk)"
+    if [ -n "$bts" ]; then
+      bts=$(( ($(date +%s) - bts) / 3600 ))
+      if [ -z "$age" ] || [ "$bts" -lt "$age" ]; then
+        age="$bts"
+        base_word='a clerk retired on a branch not merged yet'
+      fi
+    fi
+  fi
+  if [ -z "$age" ]; then
+    age="$(cycle_repo_age_h)"
+    [ -n "$age" ] || age=0
+    base_word='the repository began, no clerk having run'
+  fi
+  if [ "$age" -ge "$hours" ]; then
+    CLERK_DUE="due ${age}h since ${base_word} (>= ${hours}h)"
+  else
+    CLERK_DUE="not-due ${age}h since ${base_word} (of ${hours}h)"
+  fi
+  if [ "$want" = all ] || [ "${CLERK_DUE%% *}" = due ]; then
+    CLERK_ROWS="$(scout_walk clerk)"
+  fi
+}
+
+# Issue numbers an `issue:` field names under one directory, one per line,
+# sorted, valid ones only (issue_verdict). `base` reads the base branch's tip;
+# `all` reads it AND every unmerged branch tip — a claim lives on its branch
+# until it merges. One `git grep` over every tip, never one call per ref.
+#
+# A LINE match, not a frontmatter parse — one call over every tip cannot run
+# gr_fields per file. It fails in the closed direction: a body line opening
+# `issue: 5` reads #5 as taken, and the clerk skips an issue it could have
+# planned; it never reads a taken one as free. An error is `?` on its own
+# line, which the caller prints as UNREADABLE: a list that could not be read
+# is never an empty list.
+clerk_issue_nums() {
+  local dir="$1" scope="$2" base_branch="${HANDOVER_BASE_BRANCH:-main}"
+  local ids=() id r out rc line v
+  id="$(git -C "$ROOT" rev-parse --verify -q \
+    "refs/remotes/origin/${base_branch}^{commit}" </dev/null 2>/dev/null)"
+  if [ -z "$id" ]; then
+    printf '?\n'
+    return 0
+  fi
+  ids+=("$id")
+  if [ "$scope" = all ]; then
+    while IFS=$'\t' read -r r line; do
+      case "$line" in
+        '' | refs/remotes/origin/HEAD | "refs/remotes/origin/${base_branch}") continue ;;
+      esac
+      case " ${ids[*]} " in *" ${r} "*) ;; *) ids+=("$r") ;; esac
+    done < <(git -C "$ROOT" for-each-ref --no-merged="$id" \
+      --format='%(objectname)%09%(refname)' refs/remotes/origin </dev/null 2>/dev/null)
+  fi
+  out="$(GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 git -C "$ROOT" \
+    -c core.quotePath=false grep --color=never -h -E -e '^issue:' \
+    "${ids[@]}" -- "${dir}/*.md" </dev/null 2>/dev/null)"; rc=$?
+  if [ "$rc" -gt 1 ]; then
+    printf '?\n'
+    return 0
+  fi
+  while IFS= read -r line; do
+    line="${line%$'\r'}"
+    line="${line#issue:}"
+    # gr_fields' own trims: an inline comment, then surrounding blanks.
+    line="$(printf '%s' "$line" | sed 's/[[:space:]][[:space:]]*#.*$//; s/^[[:space:]]*//; s/[[:space:]]*$//')"
+    v="$(issue_verdict "$line")"
+    case "$v" in ok\ *) printf '%s\n' "${v#ok }" ;; esac
+  done <<<"$out" | sort -un
+}
+
+# One list as one line: `none`, the numbers, or UNREADABLE.
+clerk_issue_line() {
+  local nums
+  nums="$(cat)"
+  case "$nums" in
+    '') printf 'none' ;;
+    *'?'*) printf 'UNREADABLE — take no issue this pass: a list that could not be read is no empty list' ;;
+    *) printf '%s' "$(printf '%s\n' "$nums" | sed 's/^/#/' | tr '\n' ' ' | sed 's/ $//')" ;;
+  esac
+}
+
+cmd_clerk() {
+  local hours batch due rows state why b w st n_inflight=0
+  [ "$#" -eq 0 ] || die "usage: $0 clerk"
+  hours="$(num_knob JOHARNESS_CLERK_HOURS 24)"
+  batch="$(num_knob JOHARNESS_CLERK_BATCH 3)"
+  printf '== clerk (every %sh: JOHARNESS_CLERK_HOURS; at most %s issue(s) a pass: JOHARNESS_CLERK_BATCH)\n\n' \
+    "$hours" "$batch"
+  printf 'reads no GitHub: git only. The open issues are the clerk'"'"'s own read (.claude/commands/clerk.md)\n\n'
+
+  clerk_due all
+  due="$CLERK_DUE"; rows="$CLERK_ROWS"
+  state="${due%% *}"; why="${due#* }"
+  case "$state" in
+    unreadable) printf 'cadence   : UNREADABLE — %s\n' "$why"; return 0 ;;
+    off)        printf 'cadence   : off — %s\n' "$why" ;;
+  esac
+  while IFS=$'\t' read -r b w st; do
+    [ -n "$b" ] || continue
+    n_inflight=$((n_inflight + 1))
+    [ "$n_inflight" -gt 1 ] || \
+      printf 'cadence   : IN FLIGHT, so none is due. Clock: %s %s\n' "$state" "$why"
+    printf '            %s  %s  %s\n' "$b" "$w" "$st"
+  done < <(printf '%s\n' "$rows" | scout_branches)
+  if [ "$n_inflight" -eq 0 ] && [ "$state" != off ]; then
+    if [ "$state" = due ]; then
+      printf 'cadence   : DUE — %s\n' "$why"
+    else
+      printf 'cadence   : not due — %s\n' "$why"
+    fi
+  fi
+  printf '\n'
+  # Skip lists, never a verdict on any issue: an issue a plan on the base
+  # branch names is PLANNED, one a workstream file on any branch names is
+  # CLAIMED, and the clerk takes neither (.claude/commands/clerk.md §2).
+  printf 'planned   : %s\n' "$(clerk_issue_nums docs/plans base | clerk_issue_line)"
+  printf '            (a plan'"'"'s issue: on %s)\n' "${HANDOVER_BASE_BRANCH:-main}"
+  printf 'claimed   : %s\n' "$(clerk_issue_nums docs/handover all | clerk_issue_line)"
+  printf '            (a workstream file'"'"'s issue: on %s or any unmerged branch)\n' \
+    "${HANDOVER_BASE_BRANCH:-main}"
 }
 
 cmd_cleanup() {
@@ -7705,13 +7919,18 @@ cycle_landed_sha() {
   case "$kind" in
     janitor) glob="docs/handover/janitor-[0-9]*.md" ;;
     scout)   glob="docs/handover/scout-[0-9]*" ;;
+    # The clerk takes the scout's spelling whole — the digit, no `.md`, and
+    # `-m` below — because it is scout_walk's identity it is read by
+    # (clerk_due). A new cycle owes no reader compatibility, so it starts on
+    # the hardened one.
+    clerk)   glob="docs/handover/clerk-[0-9]*" ;;
     *)       glob="docs/handover/${kind}-*.md" ;;
   esac
   # `-m` for the scout cycle only: a scout may retire inside a merge commit,
   # which plain `log` shows no diff for (scout-cycle review, pass 5). The
   # other cycles keep the reader they shipped with — changing when they
   # believe they last ran is not that change's business.
-  if [ "$kind" = scout ]; then
+  if [ "$kind" = scout ] || [ "$kind" = clerk ]; then
     GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 \
     git -C "$ROOT" log -1 --format=%H -m --diff-filter=D --full-history \
       "refs/remotes/origin/${base_branch}" -- "$glob" \
@@ -8424,6 +8643,7 @@ cmd_dispatch() {
   local curate_due=0 curate_inflight="" n_curate_inflight=0 cdue cstate creason
   local janitor_due=0 janitor_inflight="" n_janitor=0 jdue jstate jreason jb jw
   local scout_due=0 scout_inflight="" n_scout=0 sdue sstate sreason sb sw ss scout_gate=0 srows
+  local clerk_due=0 clerk_inflight="" n_clerk=0 kdue kstate kreason kb kw ks
   local fetch_failed=0
   local cb ck cstat csess cnext cage bplans
   local rescope_key="" rescope_paths="" rescope_inflight="" rescope_holders=""
@@ -8587,6 +8807,32 @@ cmd_dispatch() {
     fi
   else
     printf 'janitor   : not due — %s\n' "$jreason"
+  fi
+  # The clerk cycle, one reader (clerk_due) shared with `clerk`. Orthogonal to
+  # the verdict like the two above: it turns issues — the queue's top rank —
+  # into plans, which changes what the next pass can spawn.
+  clerk_due
+  kdue="$CLERK_DUE"
+  kstate="${kdue%% *}"; kreason="${kdue#* }"
+  if [ "$kstate" = unreadable ]; then
+    printf 'clerk     : UNREADABLE — %s\n' "$kreason"
+  elif [ "$kstate" = off ]; then
+    printf 'clerk     : off — %s\n' "$kreason"
+  elif [ "$kstate" = due ]; then
+    while IFS=$'\t' read -r kb kw ks; do
+      [ -n "$kb" ] || continue
+      n_clerk=$((n_clerk + 1))
+      clerk_inflight="${clerk_inflight}            ${kb}  ${kw}  ${ks}\n"
+    done < <(printf '%s\n' "$CLERK_ROWS" | scout_branches)
+    if [ "$n_clerk" -gt 0 ]; then
+      printf 'clerk     : IN FLIGHT, so none is due. What made it due: %s\n' "$kreason"
+      printf '%b' "$clerk_inflight"
+    else
+      clerk_due=1
+      printf 'clerk     : DUE — %s\n' "$kreason"
+    fi
+  else
+    printf 'clerk     : not due — %s\n' "$kreason"
   fi
   # The third cycle, the same reader (scout_due) `scout` asks. Unlike the two above it is
   # GATED on the verdict — a scout proposes new work, which competes with real
@@ -9316,7 +9562,15 @@ cmd_dispatch() {
     printf '            curate DUE: spawn ONE curator (agent: sonnet) on ./joharness.sh curate — beyond the cap, holds no slot, at most one in flight (JOHARNESS_CURATE_PLANS, JOHARNESS_CURATE_HOURS)\n'
   [ "$janitor_due" -eq 0 ] ||
     printf '            janitor DUE: spawn ONE janitor (agent: sonnet) on /janitor — beyond the cap, holds no slot, at most one in flight. It releases a claim only where the control plane proves the session gone, and a released claim frees its plan for the NEXT pass (JOHARNESS_JANITOR_HOURS)\n'
-  # And no curate or janitor due OR in flight this pass: a released claim
+  # The clerk's read of every branch is the scout's (scout_walk), so it takes
+  # the scout's hold too: on a stale view a clerk pushed since the last fetch
+  # is invisible, and a second clerk plans the same issues twice.
+  if [ "$clerk_due" -eq 1 ] && [ "$fetch_failed" -eq 1 ]; then
+    printf '            clerk due, held — no fresh view of every branch this pass (fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*), so a clerk in flight might not show: spawn none this pass\n'
+  elif [ "$clerk_due" -eq 1 ]; then
+    printf '            clerk DUE: spawn ONE clerk (agent: opus) on /clerk — beyond the cap, holds no slot, at most one in flight. It turns open issues into plans and merges that plan-only pull request itself (JOHARNESS_CLERK_HOURS, JOHARNESS_CLERK_BATCH)\n'
+  fi
+  # And no curate, janitor or clerk due OR in flight this pass: a released claim
   # frees a plan for the NEXT pass, so the queue is about to stop being
   # drained — the rule drain applies before it names the scout (r18, r28).
   # And a fetch that worked: on a stale view a scout pushed since the last
@@ -9324,11 +9578,11 @@ cmd_dispatch() {
   if [ "$scout_due" -eq 1 ] && [ "$fetch_failed" -eq 1 ]; then
     printf '            scout due, held — no fresh view of every branch this pass (fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*), so a scout in flight might not show: spawn none this pass\n'
   elif [ "$scout_due" -eq 1 ] && [ "$scout_gate" -eq 1 ] &&
-     [ "$curate_due" -eq 0 ] && [ "$janitor_due" -eq 0 ] &&
-     [ "$n_curate_inflight" -eq 0 ] && [ "$n_janitor" -eq 0 ]; then
+     [ "$curate_due" -eq 0 ] && [ "$janitor_due" -eq 0 ] && [ "$clerk_due" -eq 0 ] &&
+     [ "$n_curate_inflight" -eq 0 ] && [ "$n_janitor" -eq 0 ] && [ "$n_clerk" -eq 0 ]; then
     printf '            scout DUE: spawn ONE scout (agent: fable) on /scout — beyond the cap, holds no slot, at most one in flight, only at DRAINED. It proposes; a human merges unless JOHARNESS_SCOUT_AUTOMERGE=on (JOHARNESS_SCOUT_HOURS)\n'
   elif [ "$scout_due" -eq 1 ] && [ "$scout_gate" -eq 1 ]; then
-    printf '            scout due, suppressed — a curate or janitor goes first: spawn none this pass\n'
+    printf '            scout due, suppressed — a curate, janitor or clerk goes first: spawn none this pass\n'
   elif [ "$scout_due" -eq 1 ]; then
     printf '            scout due, suppressed — not DRAINED with nothing in flight: spawn none this pass\n'
   fi
@@ -9906,6 +10160,7 @@ main() {
     analysis)       cmd_analysis "$@" ;;
     janitor)        cmd_janitor "$@" ;;
     scout)          cmd_scout "$@" ;;
+    clerk)          cmd_clerk "$@" ;;
     cleanup)        cmd_cleanup "$@" ;;
     curate)         cmd_curate ;;
     finish)         cmd_finish ;;
