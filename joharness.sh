@@ -8188,6 +8188,8 @@ dispatch_curate_branches() {
       # a genuine curator named `curate2026-09-11.md` go unseen (verifier r4).
       case "$cws" in curate-*) ;; *) continue ;; esac
       [ "$ckey" = none ] || continue
+      # A RELEASED cycle claim holds nothing: cmd_janitor's test, same spelling.
+      [ "$cstat" = abandoned ] && continue
       printf '%s\t%s\t%s\t%s\t%s\n' \
         "$name" "${cws#curate-}" "${cstat:-?}" "${csess:-}" "${cnext:-}"
     done <<<"$files"
@@ -9565,6 +9567,8 @@ cmd_graph() {
     case " $seen " in *" $wname "*) continue ;; esac
     seen="$seen $wname"
     claim="$(printf '%s\n' "$wdoc" | gr_field plan)"
+    # A RELEASED claim draws no edge (cmd_janitor's test); the node stays.
+    [ "$(printf '%s\n' "$wdoc" | gr_field status)" = abandoned ] && claim=""
 
     # Same metric, same code as cmd_ci: churn_top splits count from path on
     # a tab, so a hot file with a space in its name survives whole.
