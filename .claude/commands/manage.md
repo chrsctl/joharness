@@ -161,7 +161,9 @@ behind fresh `origin/main`, `./joharness.sh finish` green, retire the
 plan file and the workstream file in the last commit before the pull
 request, exit. Did your prompt name a target to message on merge? Then
 "merged <stem>" to it — it fills your slot at once instead of on its
-clock. No such line in your prompt, no messaging tool, or the send comes
+clock. Use the transport your prompt names:
+A session id target: Claude Code Remote send_message. A name: SendMessage.
+No such line in your prompt, no messaging tool, or the send comes
 back refused: just exit, the orchestrator's next pass sees the merge.
 A follow-up plan you filed as its own plan-only pull request is your own
 pull request too: drive it to merged before you exit, step 7 whole —
@@ -198,10 +200,13 @@ characters it is a POINTER, and whoever follows it has your merged branch
 to read. Its own LINE, and nothing after the text: no quotes, no newlines
 inside it, and nothing that could read as a second field.
 One refusal is the answer — do not retry it, do not re-address it, do
-not hunt a second way to deliver it. The refusal does not say WHICH
-fault it is: no row for that target in `ListAgents`, the ordinary case
-when your orchestrator is another container, or an address form
-`SendMessage` rejects. One string covers both and from inside you
+not hunt a second way to deliver it, and do not retry on the other
+transport. The refusal does not say WHICH
+fault it is: no route to that target — for `SendMessage`, no row in
+`ListAgents`, the ordinary case when your orchestrator is another
+container — or an address form the tool rejects. That is measured
+for `SendMessage`; what a Claude Code Remote `send_message` refusal
+says is unmeasured, so read it the same way: one refusal, exit. One string covers both and from inside you
 cannot tell them apart; the notice saves the orchestrator one pass of
 latency and nothing else. Run no queue command; the next item is
 another manager's.

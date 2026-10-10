@@ -162,12 +162,14 @@ a capability you do not have, not a reason to do nothing. Only
 
 Measured, and the reason both files now say it: the first orchestrated
 run in a consumer at `afdd11d` (2026-09-06) stopped on
-`send_message` — a name that was never in the Claude Code Remote MCP
-server, because messaging is the harness's `SendMessage` — and dispatched
+`send_message` — a name that was not in the Claude Code Remote MCP
+server on that 2026-09-06 runtime, which messaged only through the
+harness's `SendMessage`; on 2026-10-10 it was there, and delivered
+(issue #347, below) — and dispatched
 nothing while `./joharness.sh dispatch` printed `NOT DRAINED — 6 free
-item(s) now (+28 waiting behind them), 4 slot(s)`. `ToolSearch
-("+send_message")` returns nothing where `ToolSearch("+SendMessage")`
-returns the tool: the lookup the file prescribed could not find the tool
+item(s) now (+28 waiting behind them), 4 slot(s)`. On that runtime
+`ToolSearch("+send_message")` returned nothing where
+`ToolSearch("+SendMessage")` returned the tool: the lookup the file prescribed could not find the tool
 the file needed.
 
 A tool is not a route, and the gate must read the thing it claims. Same
@@ -179,7 +181,20 @@ a consumer for exactly that reason. Tool presence and route existence
 are different facts, and a check that cannot tell them apart is the
 wrong-reason green. The signal that does discriminate is a peer row —
 `ListAgents` listing somebody other than you — and it is readable in the
-orchestrator's own container before any spawn. General form: when a
+orchestrator's own container before any spawn. That row gates transport 2
+(`SendMessage`) only. Transport 1, Claude Code Remote `send_message` by
+`session_id`, shows its route in the delivery result itself: measured
+2026-10-10 on this repo (issue #347), `ListAgents` returned "No reachable
+agents" while `send_message` to a manager's `session_id` came back
+`delivered` and the manager's replies by the orchestrator's `session_id`
+arrived. No peer row is therefore not "no messaging". Tool presence is
+still not a route for a nudge: the nudge reads `delivered`, never the
+tool's existence. The spawn's merge line is the one place tool presence
+gates transport 1, deliberately: no send has happened before a spawn, so
+no delivery result exists to read, and a manager's failed merge notice
+costs nothing — one refusal, exit, the next pass finds the merge. That is
+not PR218 r3's defect returning: r3's gate decided a degradation, this one
+only adds a line whose failure is free. General form: when a
 degradation path is designed and correct, the defect left is the gate
 that decides whether to take it.
 
@@ -897,7 +912,9 @@ kill was not executable; and cloud managers are not addressable —
 *"no nudge channel exists"* and the ledger entry is the whole of the stall
 procedure. The health table's nudge-then-kill sequence has no implementation
 for a cloud fleet, which is a different finding from a run where neither
-fired. One respawn ran and was verified clean, no duplicate, 2026-09-16
+fired. That held for the transport this run looked for; on 2026-10-10
+Claude Code Remote `send_message` by `session_id` reached a cloud manager
+(issue #347, "A tool is not a route" above). One respawn ran and was verified clean, no duplicate, 2026-09-16
 16:23Z on one item.
 
 **The boundary and the outage collided, and the fleet split on it.** GitHub
