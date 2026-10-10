@@ -71,6 +71,18 @@ and leave it untouched.
    by push resolves as soon as ONE of them claims — before that it does
    not, which is why step 3 spawns an item your own ledger already names
    only when this pass's health pass said to.
+   From the SAME `list_sessions` result, rebuild `@new`: take every session
+   titled `manager: <stem>` that is not `ARCHIVED`. Keep a stem only when it
+   is not in your ledger AND its item file (`docs/plans/<stem>.md` or
+   `docs/research/<stem>.md`) still exists on `origin/main`
+   (`git cat-file -e origin/main:<path>`) — a merged manager left IDLE has
+   no item file, so it is never rebuilt. Each stem kept is a manager that
+   may not have claimed: add `<stem>@new` to the ledger with
+   `respawns=<RESPAWN_LIMIT>`, on purpose — its true count is lost, so the
+   safe direction is no respawn, and the stillborn rows REPORT it instead of
+   spawning again. Say `rebuilt <stem>@new from its title` in the report.
+   The title is this role's own write (step 3), so the forgery rule (never
+   take a digit from a file) does not reach it.
 3. Read `.agents/docs/agent-selection.md` Lineup once: tier to model ID.
 4. The ledger. Your wake message (step 4 below) carries it: per item in
    flight — AND per item you SPAWNED that has not claimed yet, which is in
@@ -92,8 +104,9 @@ and leave it untouched.
 `@new` entries the ledger you carry names. Those are managers you spawned
 that have not claimed, and dispatch counts from git, so it reports each of
 their slots free. Spend one and the cap is passed by arithmetic, not by the
-human's decision. No `@new`, or a first start: 0, which is the same as
-leaving it off. Non-zero, and the slots line says the number back — a
+human's decision. The count includes entries rebuilt from titles
+(step 0.2), whoever spawned them: a slot in use is a slot in use. No `@new`,
+or a first start: 0, which is the same as leaving it off. Non-zero, and the slots line says the number back — a
 lowered count that does not say so reads as a busy fleet.
 
 It fetches, prints the human's numbers (cap,
@@ -103,6 +116,10 @@ spawn order, and ONE verdict line. Act on that output only.
 An entry step 2 archives or reports below is still counted here, because
 this line ran first. The pass runs one slot short and the next pass has it
 back. That is the safe direction; never re-run dispatch to win it back.
+
+After dispatch prints, drop every rebuilt entry whose stem has a claimed
+in-flight row: it claimed, and the row is its record now. That pass runs
+one slot short, the same safe direction.
 
 ## 2. Health pass — before any spawn
 
@@ -652,6 +669,27 @@ pass's crash and idle rows both turn on whether those two and the head are
 unchanged since the last pass, and a field the ledger does not carry is a row
 that cannot be reached after a compaction — which would drop a confirmed-dead
 session back onto the idle rows and nudge it.
+
+Loss cost, one line per ledger field — a compacted pass guesses none of
+the ones marked NOT rebuildable:
+
+- `@new`: rebuilt from titles (step 0.2). Lost without it, the cap is passed
+  or the run exits on a live manager.
+- `respawns=`: NOT rebuildable. Loss restores the limit, the human's money.
+  An entry with no `respawns=` gets `respawns=<RESPAWN_LIMIT>`, never `0`.
+- `next=`, `same=`, `nudged`: no rebuild; loss costs one extra pass before
+  a verdict (`same=` feeds the LOOP row, `nudged` the stall rows).
+- `seen=`/`detail=`: no rebuild; loss costs one extra pass before the
+  crash and stillborn rows can confirm.
+- `reported=`: no rebuild; dispatch's `upstream :` line is the only git
+  reading. Loss re-reports once: a session beyond the cap, money.
+- `rescoped=`: dispatch's `rescope :` block says in flight or `done`.
+  Loss re-spawns one surveyor beyond the cap, money.
+- `analysed=`: no git reading. Loss re-spawns one analyst, money.
+- `curated=`, `swept=`: cadence comes from git (`curate DUE`, `janitor DUE`
+  tail lines). Loss re-spawns one session beyond the cap, money.
+- `scouted=`: the scout's own twin check bounds it. Loss re-spawns once.
+- `lead`: no rebuild; loss drops a pointer. Nothing is spent.
 
 `same` = the last value plus one when the head moved and `next:` did not,
 else 0 — head UNCHANGED resets it to 0 too, whatever it last read: that
