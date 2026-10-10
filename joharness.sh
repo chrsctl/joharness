@@ -6039,8 +6039,8 @@ clerk_due() {
 
 # Issue numbers an `issue:` field names under one directory, one per line,
 # sorted, valid ones only (issue_verdict). `base` reads the base branch's tip;
-# `all` reads it AND every unmerged branch tip — a claim lives on its branch
-# until it merges. One `git grep` over every tip, never one call per ref.
+# `all` reads it AND every unmerged branch tip — a claim, or a plan in an open
+# clerk pull request, lives on its branch until it merges. One `git grep` over every tip, never one call per ref.
 #
 # A LINE match, not a frontmatter parse — one call over every tip cannot run
 # gr_fields per file. It fails in the closed direction: a body line opening
@@ -6067,8 +6067,14 @@ clerk_issue_nums() {
     done < <(git -C "$ROOT" for-each-ref --no-merged="$id" \
       --format='%(objectname)%09%(refname)' refs/remotes/origin </dev/null 2>/dev/null)
   fi
+  # Every output knob a user's config can turn on is pinned off: with
+  # `grep.lineNumber` or `grep.column` set, each line read `1:issue: #230`,
+  # the prefix strip missed, and a taken issue read as free (verifier r2).
+  # `--text`: a NUL in a file printed `Binary file … matches` instead of the
+  # line, the same drop.
   out="$(GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 git -C "$ROOT" \
-    -c core.quotePath=false grep --color=never -h -E -e '^issue:' \
+    -c core.quotePath=false -c grep.lineNumber=false -c grep.column=false \
+    -c grep.fullName=false grep --color=never --text -h -E -e '^issue:' \
     "${ids[@]}" -- "${dir}/*.md" </dev/null 2>/dev/null)"; rc=$?
   if [ "$rc" -gt 1 ]; then
     printf '?\n'
@@ -6131,8 +6137,12 @@ cmd_clerk() {
   # Skip lists, never a verdict on any issue: an issue a plan on the base
   # branch names is PLANNED, one a workstream file on any branch names is
   # CLAIMED, and the clerk takes neither (.claude/commands/clerk.md §2).
-  printf 'planned   : %s\n' "$(clerk_issue_nums docs/plans base | clerk_issue_line)"
-  printf '            (a plan'"'"'s issue: on %s)\n' "${HANDOVER_BASE_BRANCH:-main}"
+  # PLANNED reads every unmerged tip too, not the base alone: a clerk whose
+  # plan-only pull request has not merged yet — red checks, behind — would
+  # otherwise hand the next clerk the same issues to plan twice once the
+  # cycle comes round (verifier r7). Reading more only skips more: closed.
+  printf 'planned   : %s\n' "$(clerk_issue_nums docs/plans all | clerk_issue_line)"
+  printf '            (a plan'"'"'s issue: on %s or any unmerged branch)\n' "${HANDOVER_BASE_BRANCH:-main}"
   printf 'claimed   : %s\n' "$(clerk_issue_nums docs/handover all | clerk_issue_line)"
   printf '            (a workstream file'"'"'s issue: on %s or any unmerged branch)\n' \
     "${HANDOVER_BASE_BRANCH:-main}"
@@ -7928,9 +7938,10 @@ cycle_landed_sha() {
     clerk)   glob="docs/handover/clerk-[0-9]*" ;;
     *)       glob="docs/handover/${kind}-*.md" ;;
   esac
-  # `-m` for the scout cycle only: a scout may retire inside a merge commit,
-  # which plain `log` shows no diff for (scout-cycle review, pass 5). The
-  # other cycles keep the reader they shipped with — changing when they
+  # `-m` for the scout and clerk cycles only: a scout may retire inside a
+  # merge commit, which plain `log` shows no diff for (scout-cycle review,
+  # pass 5), and the clerk shares its identity. The older cycles keep the
+  # reader they shipped with — changing when they
   # believe they last ran is not that change's business.
   if [ "$kind" = scout ] || [ "$kind" = clerk ]; then
     GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 \

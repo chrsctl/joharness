@@ -74,8 +74,18 @@ out="$(clerk_dsp)"
 expect "dispatch prints the clerk line off too" "clerk     : off — no .claude/commands/clerk.md" "$out"
 refute "and spawns no clerk" "clerk DUE" "$out"
 printf '# clerk\n' >"${clerk_work}/.claude/commands/clerk.md"
-clerk_commit "the command" '2026-01-01T01:00:00Z'
+printf '# scout\n' >"${clerk_work}/.claude/commands/scout.md"
+clerk_commit "the commands" '2026-01-01T01:00:00Z'
 git -C "$clerk_work" push -q origin main
+
+# The scout gate, while the queue is empty and the verdict DRAINED — the one
+# verdict a scout may spawn under, so the clerk is the only thing holding it.
+out="$(clerk_dsp JOHARNESS_SCOUT_HOURS=1 JOHARNESS_CLERK_HOURS=0)"
+expect "with the clerk off, a due scout spawns at DRAINED" "scout DUE: spawn" "$out"
+out="$(clerk_dsp JOHARNESS_SCOUT_HOURS=1)"
+expect "a due clerk goes first" \
+  "scout due, suppressed — a curate, janitor or clerk goes first" "$out"
+refute "and the scout spawns none" "scout DUE: spawn" "$out"
 
 # --- the clock -------------------------------------------------------------
 out="$(clerk_run JOHARNESS_CLERK_HOURS=0)"
@@ -107,9 +117,6 @@ expect "the fixture's verdict really is not drained" "NOT DRAINED" "$out"
 out="$(clerk_dsp DISPATCH_FETCH=0)"
 expect "a view of unknown age holds the spawn" "clerk due, held — no fresh view" "$out"
 refute "and holds it, not spawns it" "clerk DUE: spawn" "$out"
-# The scout gate: a clerk due goes first.
-out="$(clerk_dsp JOHARNESS_SCOUT_HOURS=1 JOHARNESS_CLERK_HOURS=1)"
-refute "a scout never spawns beside a due clerk" "scout DUE: spawn" "$out"
 
 # --- PLANNED and CLAIMED ----------------------------------------------------
 clerk_plan from-issue '12'
@@ -126,6 +133,12 @@ expect "a plan's issue: 12 is PLANNED, both spellings, trailing comment trimmed"
   "planned   : #12 #14" "$out"
 expect "a workstream's issue: #13 on an unmerged branch is CLAIMED" "claimed   : #13" "$out"
 refute "a claim is not a plan" "planned   : #12 #13" "$out"
+# A user's git config must not change the answer: grep.lineNumber prefixed
+# every line `1:` and both lists read empty (verifier r2).
+out="$(clerk_run GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=grep.lineNumber GIT_CONFIG_VALUE_0=true \
+  GIT_CONFIG_KEY_1=grep.column GIT_CONFIG_VALUE_1=true)"
+expect "grep.lineNumber and grep.column change nothing: planned" "planned   : #12 #14" "$out"
+expect "nor claimed" "claimed   : #13" "$out"
 # A plan on a branch is not on the base: not PLANNED until it merges.
 git -C "$clerk_work" checkout -qb unmerged-plan
 clerk_plan later '21'
@@ -133,7 +146,22 @@ clerk_commit "an unmerged plan" '2026-01-01T05:00:00Z'
 git -C "$clerk_work" push -qu origin unmerged-plan
 git -C "$clerk_work" checkout -q main
 out="$(clerk_run)"
-refute "a plan off the base branch is not PLANNED yet" "#21" "$out"
+expect "a plan on an unmerged branch is PLANNED: an open clerk pull request holds its issues" \
+  "planned   : #12 #14 #21" "$out"
+
+# A tip whose tree cannot be read: the lists say UNREADABLE, never none.
+clerk_broken="${TMP}/clerkbroken"
+cp -r "$clerk_work" "$clerk_broken"
+clerk_tree="$(git -C "$clerk_broken" rev-parse 'refs/remotes/origin/unmerged-plan^{tree}')"
+clerk_obj="${clerk_broken}/.git/objects/${clerk_tree:0:2}/${clerk_tree:2}"
+if [ -f "$clerk_obj" ]; then
+  rm -f "$clerk_obj"
+  out="$( cd "$clerk_broken" && env JOHARNESS_CONF="${clerk_broken}/joharness.conf" ./joharness.sh clerk 2>&1 )"
+  expect "a tree git cannot read makes the list UNREADABLE" "claimed   : UNREADABLE" "$out"
+  refute "and never an empty list" "claimed   : none" "$out"
+else
+  fail "the broken-tree fixture found no loose object to remove: ${clerk_obj}"
+fi
 
 # --- in flight --------------------------------------------------------------
 # A scout is no clerk: the kind is the prefix.

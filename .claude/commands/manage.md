@@ -165,7 +165,7 @@ clock. No such line in your prompt, no messaging tool, or the send comes
 back refused: just exit, the orchestrator's next pass sees the merge.
 Plan frontmatter names `issue: N`? Body carries `Closes #N` when no other
 plan on fresh `origin/main` names it
-(`git grep -l -E '^issue: *#?N\b' origin/main -- docs/plans`, your own
+(`git grep -l -E '^issue: *#?N([^0-9]|$)' origin/main -- docs/plans`, your own
 plan excluded), else
 `Refs #N` — last plan closes the issue. Only route an issue closes without
 a human.
