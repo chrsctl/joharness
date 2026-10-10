@@ -2295,6 +2295,7 @@ analysis_one() {
     out="${out}            plan is free; the branch is the human's to delete"$'\n'
   elif [ "$status" = "blocked" ]; then
     cond="BLOCKED"
+    block_reason_ok "$next" || cond="BLOCKED+INVALID BLOCK?"
     out="${out}condition : BLOCKED — a human's. dispatch relays this row every pass and"$'\n'
     out="${out}            never asks whether its cause still holds"$'\n'
   fi
@@ -4687,6 +4688,16 @@ dispatch_rescope_covers() {
   return 0
 }
 
+# The closed list of reasons a `status: blocked` may name: `next:` opens with
+# `<reason>:`. One copy; dispatch is the only reader.
+block_reason_ok() {
+  case "$1" in
+    "money:"* | "credentials:"* | "product:"* | "interface:"* | "core path:"* | \
+    "conflict:"* | "hardware:"* | "github:"* | "stalled:"* | "respawns:"*) return 0 ;;
+  esac
+  return 1
+}
+
 cmd_dispatch() {
   local cap stall health respawn churnt churnl hout qout rows wavemap edge req sup
   local path label branch ws doc status session next age agetext flag tier
@@ -4983,6 +4994,8 @@ cmd_dispatch() {
       # other.
       blocked_claims="${blocked_claims} $(basename "$path" .md)@${branch} "
       flag="  BLOCKED: the human's, holds no slot"
+      block_reason_ok "$next" ||
+        flag="${flag}  INVALID BLOCK? next: opens with no reason word (manage.md §3): ask, order nothing"
       # How long it has stood.
       bage="$(dispatch_block_age_min "$branch" "$ws" "$base")"
       if [ -n "$bage" ]; then

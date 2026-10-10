@@ -366,6 +366,36 @@ out="$(dsp)"
 expect "a blocked manager is listed as blocked" \
   "docs/plans/beta.md  mgr-beta  blocked  pushed" "$out"
 expect "and told to be the human's" "BLOCKED: the human's, holds no slot" "$out"
+
+# --- a block names its reason (issue #392) ----------------------------------
+# One branch per `next:`; the listed reasons print no INVALID BLOCK?, the old
+# unprefixed text does. Branches are removed so later cases read the same fleet.
+blkcase() { # <tag> <next text> — leaves the dispatch output in $out
+  git -C "$dspwork" checkout -qb "mgr-blk${1}" main
+  mkdir -p "${dspwork}/docs/handover"
+  printf -- '---\nworkstream: blk%s\nstatus: blocked\nbranch: mgr-blk%s\nplan: blk%s\nsession: https://example.invalid/session_blk%s\nagent: sonnet\nupdated: 2026-01-02\nnext: %s\n---\n\n## Goal\nFixture.\n' \
+    "$1" "$1" "$1" "$1" "$2" >"${dspwork}/docs/handover/blk${1}.md"
+  commit_all "$dspwork" "block ${1}"
+  git -C "$dspwork" push -qu origin "mgr-blk${1}"
+  git -C "$dspwork" checkout -q main
+  out="$(dsp | grep "mgr-blk${1}")"
+  git -C "$dspwork" push -q origin --delete "mgr-blk${1}"
+}
+blkcase a 'money: the budget is spent'
+refute "a money block names its reason" "INVALID BLOCK?" "$out"
+blkcase b 'github: GitHub MCP lost before PR: 403'
+refute "a github block names its reason" "INVALID BLOCK?" "$out"
+blkcase c 'stalled: Stalled; the orchestrator could not stop the session that holds this.'
+refute "a stalled block names its reason" "INVALID BLOCK?" "$out"
+blkcase d 'respawns: Respawned 3 times and still not finished; a human decides what this needs.'
+refute "a respawns block names its reason" "INVALID BLOCK?" "$out"
+blkcase e 'core path: change joharness.conf'
+refute "a core path block names its reason" "INVALID BLOCK?" "$out"
+blkcase f 'Human: run web.py'
+expect "a block with no reason word is flagged" "INVALID BLOCK?" "$out"
+expect "and still reads BLOCKED beside it" "BLOCKED" "$out"
+blkcase g 'Stalled; the orchestrator could not stop the session that holds this.'
+expect "the old unprefixed orchestrator text is flagged" "INVALID BLOCK?" "$out"
 # A blocked row carries NO hold count, because its holds are RELEASED
 # (hold_live): a plan behind it counts FREE with a reconcile expected. Count
 # it and the row would advertise a cost nobody is paying, which is the

@@ -102,8 +102,11 @@ request, merge, exit.
   a successor resumes on this branch from what you wrote.
 - Stuck on a decision only a human takes (money, credentials, product
   direction, interface, a core path (`./joharness.sh protocol-paths`), a
-  conflict that does not resolve clean): `status: blocked`, `next:` = the
-  question, push, exit. A blocked item is never respawned.
+  conflict that does not resolve clean): re-read this list and name the
+  reason (`money:` `credentials:` `product:` `interface:` `core path:`
+  `conflict:`); none applies = the work is yours, do it. `status: blocked`,
+  `next:` = `<reason>: <question>`, push, exit. A blocked item is never
+  respawned; dispatch flags a `next:` with no reason as `INVALID BLOCK?`.
 
 ## 4. Finish
 
@@ -123,7 +126,7 @@ GitHub lost at step 7:
 
 - **Before the retire commit:** one GitHub MCP read (`get_me`, or
   `list_pull_requests` on your head branch). Fails? Do not retire. `status:
-  blocked`, `next:` = `GitHub MCP lost before PR: <error, 40 chars>`, push,
+  blocked`, `next:` = `github: GitHub MCP lost before PR: <error, 40 chars>`, push,
   exit. No retry.
 - **After it:** a GitHub call fails — do not undo the retire, do not wait.
   Make sure the retire commit is pushed, end with one line naming the failed
@@ -164,8 +167,7 @@ each with the command and output that produced it.
   kick CI.
 - Trust a worker's "done": count it.
 - Wait in the session for a human's answer — any ask tool included
-  (AskUserQuestion). A question is a push: `status: blocked`, `next:` = the
-  question, push, exit (§3).
+  (AskUserQuestion). A question is a push: `status: blocked`, `next:` = `<reason>: <question>`, push, exit (§3).
 - Wait in the session for GitHub to come back at step 7.
 
 $ARGUMENTS

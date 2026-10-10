@@ -8,7 +8,7 @@ issue: 392
 session: https://claude.ai/code/session_012tFTpAdvvW6ZRD7QA64SxK
 agent: sonnet
 updated: 2026-10-10
-next: Edit joharness.sh cmd_dispatch (INVALID BLOCK?), then docs, then selftests
+next: ci result pending on selftests (dispatch.sh, orchestrated.sh); then verify, review, retire, PR
 ---
 
 ## Goal

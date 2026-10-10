@@ -77,7 +77,7 @@ have ONE spelling: [`.agents/docs/glossary.md`](../../.agents/docs/glossary.md);
   Do not stop.
 - Block ONLY for money, credentials, hardware, product direction, or a
   merge conflict into `main` that does not resolve clean. Block =
-  `status: blocked`, `next:` = the question, push, exit. Never wait in
+  `status: blocked`, `next:` = `<reason>: <question>`, push, exit. Never wait in
   session.
 - Consumer repo: no harness upkeep in a session holding product work; a sync
   opens its own pull request (`.agents/docs/consumer-repos.md`).
