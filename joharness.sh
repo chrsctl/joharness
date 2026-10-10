@@ -9416,6 +9416,24 @@ cmd_dispatch() {
     # changed `scope:` line is new information and re-earns a rescope. Run
     # here only — this block runs only when slots are free and nothing else
     # is spawnable, so a normal pass pays nothing for the log walk.
+    #
+    # Why THIS source and THIS test, not the issue's "key it on the held plan"
+    # (research node rescope-re-offered-after-merge, settled and retired here):
+    #   - Keying on the plan fixes the drift and not the merge: the scan above
+    #     never sees a merged surveyor at all, so any key read from it is still
+    #     blind. The retired workstream file in history is the one record that
+    #     outlives that merge, and it is a counted read, not a status field.
+    #   - Cover, not plan identity: a holder the record never saw is a NEW
+    #     collision and earns its own surveyor. Keyed on the plan, that
+    #     surveyor never comes, and the plan stays held for good — worse than
+    #     one over-spawn, which costs one session.
+    #   - "Holds genuine" is a JUDGEMENT, not a fact: it stands until a held or
+    #     holder plan's file changes, which re-earns a surveyor. A higher tier
+    #     disagreeing with an unchanged record is the human's spawn to make.
+    #   - Known limit (verifier r1 of the fix): the record stores no held set,
+    #     so a plan that BECOMES held behind a covered holder set later, its
+    #     file unchanged, is settled unseen. Cost: it waits for the holders to
+    #     merge — serialisation, never a lost plan.
     if [ "$rescope_settled" -eq 0 ]; then
       # Held plans AND current holders: a holder whose `scope:` moved is the
       # same new information as a held plan's (verifier r2).
