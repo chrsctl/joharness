@@ -74,8 +74,23 @@ if [ -n "$branch" ] && [ "$branch" != "HEAD" ]; then
   elif [ "$branch" != "$BASE_BRANCH" ]; then
     # Never pushed at all — invisible to every other session, but only if
     # it holds something. Zero commits ahead of the base = nothing to
-    # make invisible. A count we cannot read (no origin/<base>) is not 0:
-    # keep the fact, a guard that cannot read the base must not go quiet.
+    # make invisible: an orchestrator's branch is that shape every pass,
+    # and was blocked on every stop (issue #296).
+    #
+    # Counted against origin/<base>, not local <base>: the remote view is
+    # the one every other session shares. A stale origin/<base> is an
+    # ANCESTOR of the real remote, so it holds no commit the remote lacks
+    # and the count can only come out larger — a false fire, not a missed
+    # one. The premise is fast-forward history: a remote <base> rewound
+    # after this checkout fetched it can still hold HEAD locally, read 0,
+    # and miss (reproduced by the verifier of this comment's branch).
+    #
+    # A count we cannot read (no origin/<base>, a checkout fetched one
+    # branch at a time) is not 0: keep the fact. This is NOT the header's
+    # "anything unexpected exits 0" — that covers the guard breaking, not
+    # an ordinary git state, and silence here drops exactly the commits the
+    # fact exists for. The issue's own `|| echo 0` patch did that, measured
+    # (selftest: "no origin/<base> still told to push").
     base_ahead="$(git rev-list --count "origin/${BASE_BRANCH}..HEAD" 2>/dev/null)"
     if [ -z "$base_ahead" ] || [ "$base_ahead" -gt 0 ]; then
       add_fact "branch has no upstream — git push -u origin HEAD"

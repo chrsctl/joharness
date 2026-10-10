@@ -530,9 +530,16 @@ fi
 
 # A branch cut from the base with no commit and a clean tree holds nothing
 # to make invisible — an orchestrator's branch, stopped on every turn.
+# Whole silence, not a refute on one phrase: silence IS the outcome here,
+# and the control that proves the guard can speak is the next case.
 git -C "$sgwork" checkout -qb sgempty main
-out="$(guard "$JSON_STOP")"
-refute "untouched never-pushed branch stays quiet" "no upstream" "$out"
+out="$(guard "$JSON_STOP")"; rc=$?
+if [ "$rc" -eq 0 ] && [ -z "$out" ]; then
+  pass "untouched never-pushed branch stays quiet"
+else
+  fail "untouched never-pushed branch stays quiet (rc=${rc})"
+  printf '%s\n' "$(indent "$out")"
+fi
 
 # A branch that never met the remote is invisible to every other session.
 git -C "$sgwork" checkout -qb sgnew
@@ -540,6 +547,21 @@ printf 'new\n' >"${sgwork}/new.txt"
 commit_all "$sgwork" "unpushed branch"
 out="$(guard "$JSON_STOP")"
 expect "never-pushed branch told to push" "no upstream" "$out"
+
+# Same branch, origin/<base> unreadable (a checkout fetched one branch at a
+# time). The count cannot be read, and unknown is NOT zero: the fact stays.
+# Issue #296's own patch read it as 0 with `|| echo 0` and went silent on
+# exactly the commits this fact exists for (measured 2026-10-08 in
+# docs/research/guard-fires-on-an-empty-branch.md, deleted when it
+# graduated — `git log --diff-filter=D -- <that path>`). Not the only pin:
+# "the guard spoke on the released edit" has no origin/<base> either and
+# reds on the same patch; this case is the one NAMED for the property.
+sgbase_sha="$(git -C "$sgwork" rev-parse refs/remotes/origin/main)"
+git -C "$sgwork" update-ref -d refs/remotes/origin/main
+out="$(guard "$JSON_STOP")"
+expect "never-pushed branch with no origin/<base> still told to push" \
+  "no upstream" "$out"
+git -C "$sgwork" update-ref refs/remotes/origin/main "$sgbase_sha"
 
 # Pushed once without -u, kept committing: no @{u}, but origin/<branch>
 # knows the branch — the later commits are exactly the invisible work the
