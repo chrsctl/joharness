@@ -1,28 +1,6 @@
 #!/usr/bin/env bash
-#
 # Stop-hook guard for the finishing ritual (.agents/docs/handover/README.md):
-# update the workstream file, commit with the code, push. That ritual is
-# asked of a session exactly when it is least attentive — sessions rarely
-# get to say goodbye — so this hook restates it from git facts at the
-# moment the session tries to stop:
-#
-#   - uncommitted changes in the tree
-#   - commits not on the remote (or a branch never pushed)
-#   - the branch changes code but carries no workstream file
-#
-# Facts only, same doctrine as handover-context.sh: no liveness, nothing
-# inferred. Any fact firing emits the Stop-hook block JSON once — that is
-# the only channel a Stop hook has to the session — with the reminder as
-# the reason. One-shot by contract: the hook input carries
-# stop_hook_active=true when a previous block already fired this stop, and
-# the guard stays silent then, so it can never loop. A session that read
-# the reminder and still means to stop (mid-review, scratch work) just
-# stops again.
-#
-# Never fails a session: anything unexpected exits 0 with no output.
-#
-# Environment:
-#   HANDOVER_BASE_BRANCH   base branch to measure against (default: main)
+# update the workstream file, commit with the code, push.
 
 set -uo pipefail
 
@@ -59,11 +37,6 @@ if [ -z "$dirty" ] &&
   exit 0
 fi
 
-# --- unpushed commits ------------------------------------------------------
-# Measure against the upstream when configured, else against
-# origin/<branch> directly: a session that pushed once without -u and kept
-# committing has no @{u}, and its later commits are exactly the invisible
-# work this fact exists to surface.
 branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null)"
 if [ -n "$branch" ] && [ "$branch" != "HEAD" ]; then
   remote_ref=""
@@ -78,25 +51,8 @@ if [ -n "$branch" ] && [ "$branch" != "HEAD" ]; then
       add_fact "${ahead} commit(s) not pushed"
     fi
   elif [ "$branch" != "$BASE_BRANCH" ]; then
-    # Never pushed at all — invisible to every other session, but only if
-    # it holds something. Zero commits ahead of the base = nothing to
-    # make invisible: an orchestrator's branch is that shape every pass,
-    # and was blocked on every stop (issue #296).
-    #
-    # Counted against origin/<base>, not local <base>: the remote view is
-    # the one every other session shares. A stale origin/<base> is an
-    # ANCESTOR of the real remote, so it holds no commit the remote lacks
-    # and the count can only come out larger — a false fire, not a missed
-    # one. The premise is fast-forward history: a remote <base> rewound
-    # after this checkout fetched it can still hold HEAD locally, read 0,
-    # and miss (reproduced by the verifier of this comment's branch).
-    #
-    # A count we cannot read (no origin/<base>, a checkout fetched one
-    # branch at a time) is not 0: keep the fact. This is NOT the header's
-    # "anything unexpected exits 0" — that covers the guard breaking, not
-    # an ordinary git state, and silence here drops exactly the commits the
-    # fact exists for. The issue's own `|| echo 0` patch did that, measured
-    # (selftest: "no origin/<base> still told to push").
+    # Never pushed at all — invisible to every other session, but only if it
+    # holds something.
     base_ahead="$(git rev-list --count "origin/${BASE_BRANCH}..HEAD" 2>/dev/null)"
     if [ -z "$base_ahead" ] || [ "$base_ahead" -gt 0 ]; then
       add_fact "branch has no upstream — git push -u origin HEAD"
@@ -104,37 +60,6 @@ if [ -n "$branch" ] && [ "$branch" != "HEAD" ]; then
   fi
 fi
 
-# --- work without a workstream file ----------------------------------------
-# Fires when the branch changes anything outside the protocol dirs
-# (docs/handover|plans|product, the same split as the churn measure), so
-# copy/sync tasks legitimately carry no file.
-#
-# **Everything else counts, documentation included**, and the fact says so in
-# those words. It used to say "changes code", with a comment promising that "a
-# docs-only branch is its own record" — a promise the filter does not keep and
-# never did: MANIFEST, PROJECT-STATE, the open-questions register and every ADR
-# are outside those three dirs, and in a repo whose queue lives in MANIFEST
-# they are the product rather than a note about it. The wording cost a real
-# session two stops: it read "code", saw its own diff was two `.md` files,
-# concluded the guard had misfired, and stopped through a claim it genuinely
-# owed. A fact that invites the reader to exempt themselves is worse than no
-# fact, because it spends the attention and then hands back the wrong answer.
-#
-# Left as it is, deliberately. A branch editing the queue document IS doing
-# queue work; the narrower rule the old comment described would have excused
-# exactly the case that went wrong.
-#
-# A workstream file the branch both ADDED and DELETED in its own history is
-# the finishing ritual (the PR's final state deletes the file), not a
-# missing file — the guard fired on that state every stop from the finish
-# commit until the branch died, including after merge, where a stale local
-# origin/<base> hides the merged state from the merge-base test. Both
-# sides required: deleting an inherited stale file is cleanup, and excuses
-# nothing. An unpushed ritual commit still trips the unpushed fact above.
-# The excuse then holds for the branch's remaining life — deliberate:
-# post-ritual commits are finish work (base merges, review fixes), and
-# follow-up work re-cuts from the base branch (.agents/docs/product/README.md),
-# which moves the merge-base past the ritual and re-arms this fact.
 base="$(git merge-base HEAD "origin/${BASE_BRANCH}" 2>/dev/null)"
 if [ -n "$base" ] && [ "$base" != "$(git rev-parse HEAD 2>/dev/null)" ]; then
   work_changed="$(
@@ -146,9 +71,7 @@ if [ -n "$base" ] && [ "$base" != "$(git rev-parse HEAD 2>/dev/null)" ]; then
   has_ws="$(find docs/handover -maxdepth 1 -name '*.md' \
     ! -name 'TEMPLATE.md' ! -name 'README.md' 2>/dev/null | head -1)"
   if [ -n "$work_changed" ] && [ -z "$has_ws" ]; then
-    # Intersection via uniq -d over the two deduplicated name sets. The
-    # top-level filter mirrors has_ws's -maxdepth 1: nested files under
-    # docs/handover/ are not workstream files.
+    # Intersection via uniq -d over the two deduplicated name sets.
     ritual="$(
       {
         git log --diff-filter=A --format= --name-only "${base}..HEAD" -- \
@@ -164,61 +87,12 @@ if [ -n "$base" ] && [ "$base" != "$(git rev-parse HEAD 2>/dev/null)" ]; then
   fi
 fi
 
-# --- the core boundary -----------------------------------------------------
-# The CORE paths are off limits to every session — the conf (money), the
-# settings (hooks, permissions), .github (the merge gate). Protocol text is
-# not: released 2026-10-08 (.agents/docs/orchestrated.md, Bounds). Applied
-# unconditionally: orchestrated is the only mode, so there is no mode to
-# resolve and no session the boundary does not bind.
-#
-# Detection, not prevention, and the wording says so. A Stop hook runs
-# after the commit exists, so the honest thing it can do is name a boundary
-# already crossed and ask for the revert — calling this a guarantee would
-# promise a vault where there is a tripwire.
-#
-# Count only, never a path: the reason string below embeds in JSON
-# without escaping, and a file name is repo-controlled input. A count is
-# digits, and digits cannot close a JSON string.
-# Net diff, not the commit log. A session that edited the harness and
-# then reverted it lands nothing, and the fact's own instruction ("revert
-# them") is already satisfied — reading the log instead would keep
-# blocking every stop for the rest of the branch's life, which is the
-# same false positive the ritual test above exists to prevent.
-#
-# The base-relative half is skipped when there is no merge-base (shallow
-# checkout, a clone with no origin/<base> ref) — but the working-tree half
-# is NOT, and gating the whole check on the base was a fail-open: an
-# unattended session on a shallow checkout got no boundary at all. A
-# partial answer beats silence for a fact whose whole job is to notice.
-# Every protocol tree, not one. The list lives in joharness.sh
-# (protocol_paths) so the banner and this guard cannot disagree about
-# where the boundary is — issue #114 is what one hardcoded prefix cost.
-# A checkout whose entrypoint cannot list the boundary — missing, broken,
-# or an older copy with no such subcommand — falls back to the CORE paths,
-# spelled here a second time on purpose. Since 2026-10-08 a session may
-# edit joharness.sh, so "cannot list" is reachable from a branch and not
-# only from an old copy; the fallback used to be `.agents/harness`, which
-# then reported a released edit as a crossing and missed every core one
-# (verifier r3). The selftest pins this copy equal to `protocol-paths`.
 trees="$("${PROJECT_DIR}/joharness.sh" protocol-paths 2>/dev/null)"
 [ -n "$trees" ] || trees="joharness.conf
 .claude/settings.json
 .github"
 
 # An ARRAY, and every path passed to git whether or not it exists here.
-#
-# The first version of this filtered to paths present in the worktree,
-# reasoning that a pathspec naming an absent directory makes git exit
-# non-zero. It does not — `git diff --name-only HEAD -- absent/path` exits
-# 0 — and the filter cost the exact scenario this boundary exists for:
-# DELETING a protocol tree removes it from the worktree, so the filter
-# dropped it and the guard went silent on "retire your own reviewer".
-# Measured against origin/main's guard on the same branch: the old code
-# reported the deletion, this code did not. A regression, not a gap.
-#
-# Unquoted word-splitting was the other half of that mistake: a path with
-# a space split into two pathspecs matching nothing, and a path that is a
-# glob matched whatever happened to be on disk. Both silent.
 paths=()
 while IFS= read -r t; do
   [ -n "$t" ] && paths+=("$t")
@@ -234,18 +108,13 @@ if [ "${#paths[@]}" -gt 0 ]; then
         git diff --name-only "$base" HEAD -- "${paths[@]}" 2>/dev/null
       git diff --name-only HEAD -- "${paths[@]}" 2>/dev/null
       git diff --name-only --cached -- "${paths[@]}" 2>/dev/null
-      # Untracked too. `git diff` cannot see a file that was never added,
-      # so a new protocol file read as absent until the commit that the
-      # boundary exists to prevent.
+      # Untracked too.
       git ls-files --others --exclude-standard -- "${paths[@]}" 2>/dev/null
     } | sort -u | grep -c . || :
   )"
 fi
 if [ -n "$harness_touched" ] && [ "$harness_touched" -gt 0 ]; then
-  # Still a count, never a path. The reason string embeds in JSON without
-  # escaping and a file name is repo-controlled input; widening the
-  # boundary widens what that input could be, so this matters more now,
-  # not less. Digits cannot close a JSON string.
+  # Still a count, never a path.
   add_fact "this branch touches ${harness_touched} core file(s) (.agents/docs/orchestrated.md, Bounds) — revert them"
 fi
 

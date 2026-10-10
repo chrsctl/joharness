@@ -559,6 +559,7 @@ SELFTEST_TOPICS=(
   janitor
   scout
   ci-canonical-only-selftest
+  upgrade
   ci-glossary
   ci-graph-lint
   clerk
@@ -566,6 +567,7 @@ SELFTEST_TOPICS=(
   authority
   autonomy-mode
   start
+  upgrade-holding-work
   handover-guard
   protocol-boundary
   pretool-feedback

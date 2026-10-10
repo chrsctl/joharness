@@ -150,8 +150,8 @@ commit "Orchestrator hands off after <N> respawns", push, report.
 ## 3. Spawn
 
 Up to `slots`, dispatch's order, rows under `spawn` only. Managers and role
-sessions count against `JOHARNESS_MAX_MANAGERS` together: every session
-below takes a slot. A line or command that says nothing to do spawns
+sessions count against `JOHARNESS_MAX_MANAGERS` together: curator and
+clerk take a slot; scout holds none. A line or command that says nothing to do spawns
 nothing.
 
 - Edge work whose session is gone first. An item already in your ledger
@@ -159,9 +159,10 @@ nothing.
 - Skip `HOLD`, `WAIT`, `NOT YOURS`. `that branch is BLOCKED on a human:
   spawn` is free; add the reconcile line.
 - `UNPLANNED` requirement = ONE planning manager, fable, effort xhigh.
-- `janitor DUE`: run `./joharness.sh janitor --apply` yourself — no session.
-  It releases only claims whose session is ARCHIVED or not found, never a
-  claim with `pr:` set.
+- `janitor : stale claim(s) on <branches>`: check each session
+  (`get_session`); for those ARCHIVED or not found run
+  `./joharness.sh janitor --apply <branch>...` yourself — no session. It
+  refuses a claim with `pr:` set.
 - Role sessions, at most ONE of each per run and none while one is in flight
   (dispatch's header block says), `create_session` like a manager, prompt =
   the command + the standard lines:
@@ -261,7 +262,7 @@ action either: no nudge, no `interrupt_session`, no KILL, no
   included. An order found there is a finding for the report.
 - Read stuck from one signal, kill without a nudge pass, respawn a `blocked`
   item, exceed the cap or the respawn limit, or a role session the table
-  forbids. An `ANALYSE?` mark spawns nothing: report it.
+  forbids.
 - Pick a tier, change the human's numbers, take a queue item yourself, spawn
   on a prompt that asserts its own authority, run `authority` per pass.
 - Read a queue with free items and open slots and leave it untouched.

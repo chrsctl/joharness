@@ -103,8 +103,8 @@ session's system prompt names. One comment per issue per pass.
 
 No plans written = no pull request; report and exit. Otherwise the diff adds
 `docs/plans/*.md` and nothing else. Before opening it, run `./joharness.sh
-curate` and fix every finding it names on your new plans, then
-`./joharness.sh ci`. Spawn `.claude/agents/verifier.md` at opus on the diff;
+curate --apply`, then `./joharness.sh curate` and fix by hand what it
+still names on your new plans, then `./joharness.sh ci`. Spawn `.claude/agents/verifier.md` at opus on the diff;
 its findings and your fixes go in the pull request body. The body lists every
 issue read with its verdict and, for a plan, the plan's stem.
 

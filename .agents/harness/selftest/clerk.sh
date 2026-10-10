@@ -112,7 +112,7 @@ git -C "$clerk_work" push -q origin main
 out="$(clerk_dsp)"
 expect "dispatch carries a clerk line" "clerk     : DUE" "$out"
 expect "and spawns one under a verdict that is not DRAINED" \
-  "clerk DUE: spawn ONE clerk (agent: opus) on /clerk" "$out"
+  "clerk DUE: spawn ONE clerk (agent: sonnet) on /clerk" "$out"
 expect "the fixture's verdict really is not drained" "NOT DRAINED" "$out"
 out="$(clerk_dsp DISPATCH_FETCH=0)"
 expect "a view of unknown age holds the spawn" "clerk due, held — no fresh view" "$out"
