@@ -108,14 +108,17 @@ Rejected, so the question stays closed:
   per-manager ceiling never fires; the cost is the count of passes, not any
   one of them.
 
-**Gap still open, filed as plan `requirement-row-claim`:** a requirement
-cannot be CLAIMED. Claim resolution offers only `docs/plans/` and
-`docs/research/` (`joharness.sh`, `for cand in`; `lint_graph`), so a
-planning branch whose workstream file names the requirement in `plan:` — as
-`/manage` tells it to — appears in no dispatch row, holds no slot, and reds
-`ci` (`plan '<r>' — no such plan or question`). Exits 1–4 end the loop at
-the pass's merge; the claim is what stops a SECOND planner while one is in
-flight, and what keeps a blocked exit-4 pass from being respawned.
+**Claiming a requirement.** A planning manager claims the requirement it
+decomposes the way any manager claims its item: `plan: <requirement stem>`
+in its pushed workstream file. Claim resolution offers `docs/plans/`, then
+`docs/research/`, then `docs/product/` (`joharness.sh`, `for cand in`;
+`lint_graph`), so a stem naming a plan as well resolves to the plan. The
+claimed requirement prints `claimed on <branch>` under "Requirements without
+plans", `dispatch` gives the planning branch an in-flight row and its slot,
+and does not offer the requirement again — `blocked` included, so a parked
+exit-4 pass is never respawned. `abandoned` releases it, as on a plan. Exits
+1–4 end the loop at the pass's merge; the claim is what stops a SECOND
+planner while one is in flight.
 
 **Intake was compared against a published `intent.md` practice, and two
 verdicts are rejections.** Research node `capture-intent` swept lesson 2 of

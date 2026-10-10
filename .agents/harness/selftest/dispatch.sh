@@ -2504,6 +2504,63 @@ fixture_rm "$qowork" "clear the requirement cases" \
   docs/plans/freeone.md docs/plans/forreq.md docs/product/needsplans.md
 git -C "$qowork" push -q origin main
 
+# A planning manager CLAIMS the requirement it decomposes: `plan: <stem>` in a
+# pushed workstream file, as `/manage` tells it to. Before, that branch was
+# invisible — no row, no slot, the requirement offered again while its
+# planner ran, and a planner parked `blocked` respawned (case B of the
+# retired research node a-requirement-no-plan-can-serve; case E, a plan
+# claim on the same branch, was the control that always showed a row).
+# <stem> <status>: the planning branch's workstream file, pushed.
+qoreqclaim() {
+  git -C "$qowork" checkout -q "plan-${1}" 2>/dev/null ||
+    git -C "$qowork" checkout -q -b "plan-${1}"
+  printf -- '---\nworkstream: plan-%s\nstatus: %s\nbranch: plan-%s\npr: none\nplan: %s\nissue: none\nsession: https://claude.ai/code/session_x\nagent: fable\nnext: Decompose %s into plans\n---\n\n## Goal\nPlanning pass.\n' \
+    "$1" "$2" "$1" "$1" "$1" >"${qowork}/docs/handover/plan-${1}.md"
+  commit_all "$qowork" "claim ${1}: ${2}"
+  git -C "$qowork" push -q origin "plan-${1}"
+  git -C "$qowork" checkout -q main
+}
+qoreq claimedreq
+qopush "a requirement a planner will claim"
+out="$(qo)"
+expect "unclaimed, the requirement is offered" \
+  "docs/product/claimedreq.md — UNPLANNED" "$out"
+qoreqclaim claimedreq in-progress
+out="$(qo)"
+expect "the planning branch has an in-flight row" \
+  "docs/product/claimedreq.md  plan-claimedreq  in-progress" "$out"
+expect "and costs its slot" "slots     : 3 of 4 free" "$out"
+refute "and the requirement it holds is not offered again" \
+  "docs/product/claimedreq.md — UNPLANNED" "$out"
+qoreqclaim claimedreq blocked
+out="$(qo)"
+expect "a planner parked on a human reads as blocked" \
+  "docs/product/claimedreq.md  plan-claimedreq  blocked" "$out"
+refute "and is never respawned onto its requirement" \
+  "docs/product/claimedreq.md — UNPLANNED" "$out"
+# A plan of the SAME stem wins the claim — every resolution site offers
+# plans first — so the requirement is still free, and offered.
+qoplan claimedreq
+qopush "a plan sharing the requirement's stem"
+qoreqclaim claimedreq in-progress
+out="$(qo)"
+expect "a stem naming plan and requirement claims the plan" \
+  "docs/plans/claimedreq.md  plan-claimedreq  in-progress" "$out"
+expect "and leaves the requirement offered" \
+  "docs/product/claimedreq.md — UNPLANNED" "$out"
+fixture_rm "$qowork" "drop the same-stem plan" docs/plans/claimedreq.md
+git -C "$qowork" push -q origin main
+# `abandoned` releases it, the same word's same effect as on a plan.
+qoreqclaim claimedreq abandoned
+out="$(qo)"
+expect "an abandoned planning claim frees the requirement" \
+  "docs/product/claimedreq.md — UNPLANNED" "$out"
+expect "and holds no slot" "slots     : 4 of 4 free" "$out"
+git -C "$qowork" push -q origin --delete plan-claimedreq
+git -C "$qowork" branch -q -D plan-claimedreq
+fixture_rm "$qowork" "clear the claimed requirement" docs/product/claimedreq.md
+git -C "$qowork" push -q origin main
+
 # A plan serving NO requirement is ordinary free work: the `none` arm of the
 # hook's served-requirement read.
 qoplan recorded-note normal sonnet '' none

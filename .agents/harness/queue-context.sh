@@ -604,15 +604,32 @@ qc_print_research() {
 served="$(awk -F'\t' '$5 != "" && $5 != "none" { print $5 }' <<<"$rows")"
 unplanned=""
 if [ -n "$reqs" ]; then
+  qc_item_stems="$(printf '%s\n%s\n' "$plans" "$research" |
+    while IFS= read -r qf; do [ -z "$qf" ] || { stem "$qf"; printf '\n'; }; done)"
   unplanned="$(
     while IFS= read -r rf; do
       [ -n "$rf" ] || continue
-      grep -qxF -- "$(stem "$rf")" <<<"$served" && continue
+      rs="$(stem "$rf")"
+      grep -qxF -- "$rs" <<<"$served" && continue
       rprio="$(git show "${ref}:${rf}" 2>/dev/null | field priority)"
       rrank=1
       [ "$rprio" = "urgent" ] && rrank=0
-      printf '%s\t%s\t[%s, UNPLANNED — decompose into plans]\n' \
-        "$rrank" "$rf" "${rprio:-normal}"
+      # A planning manager claims the requirement the way any manager claims
+      # its item: `plan: <stem>` in a pushed workstream file. Same claims map,
+      # same key, `abandoned` excluded, as plans at `claimed_on=`. Without it
+      # the planning branch was invisible — no in-flight row, no slot, the
+      # requirement offered again while its planner ran, and a planner that
+      # parked `blocked` respawned. A plan or question of the same stem wins:
+      # the claim resolves to it, in this order, at every resolution site
+      # (joharness.sh, `for cand in`).
+      rqclaimed=""
+      if ! grep -qxF -- "$rs" <<<"$qc_item_stems"; then
+        rqclaimed="$(awk -F'\t' -v s="$rs" \
+          '$1 == s && $3 != "abandoned" { print $2; exit }' <<<"$claims")"
+      fi
+      [ -z "$rqclaimed" ] || rrank=$((rrank + 2))
+      printf '%s\t%s\t[%s, UNPLANNED — decompose into plans%s]\n' \
+        "$rrank" "$rf" "${rprio:-normal}" "${rqclaimed:+, claimed on ${rqclaimed}}"
     done <<<"$reqs" | sort -t$'\t' -k1,1n -k2,2
   )"
 fi

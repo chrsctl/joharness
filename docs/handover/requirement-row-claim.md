@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01KGbgAo5HRoJy1hGBGbRy34
 agent: opus
 updated: 2026-10-10
-next: Research the plan's anchors, then build joharness.sh + queue-context.sh + selftest cases
+next: Run selftest + ci + verify, revert-test, then verifier review
 ---
 
 ## Goal
@@ -19,7 +19,14 @@ UNPLANNED, blocked = held not respawned.
 
 ## Decisions
 
-- None yet.
+- Claimed requirement stays printed under "Requirements without plans" with
+  `claimed on <branch>` (ranked after unclaimed) — dispatch's in-flight walk
+  builds rows from that label; `drain_requirement` skips claimed lines and
+  the free walk skips every `docs/product/` row (unclaimed ones are offered
+  by `drain_requirement` alone).
+- Plan/research stem wins over a requirement stem in queue-context too, not
+  only in joharness.sh's `for cand` loops: one resolution order everywhere.
+- `manage.md` untouched: its "`plan:` names the item" already says it.
 
 ## Rejected
 

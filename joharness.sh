@@ -2760,8 +2760,13 @@ lint_graph() {
     # issue #119's duplicate-claim failure, rebuilt for the new node type.
     # One field, two directories, because two claim fields would need the
     # hook, the lint and the template to agree about which one is live.
+    # A requirement too, third and last: a planning manager claims the
+    # requirement it decomposes by its stem (`/manage`, item kinds), and a
+    # stem naming a plan or question as well resolves to that, here and at
+    # every `for cand in` site.
     if [ -n "$p" ] && [ "$p" != "none" ] &&
-       [ -f "${ROOT}/docs/research/${p}.md" ]; then
+       { [ -f "${ROOT}/docs/research/${p}.md" ] ||
+         [ -f "${ROOT}/docs/product/${p}.md" ]; }; then
       :
     elif [ -n "$p" ] && [ "$p" != "none" ] &&
        [ ! -f "${ROOT}/docs/plans/${p}.md" ]; then
@@ -2769,10 +2774,12 @@ lint_graph() {
         lint_warn "${rel}: claims research '${p}' gone from tree (answered?) — claim reads as none"
       elif lint_existed "docs/plans/${p}.md"; then
         lint_warn "${rel}: claims plan '${p}' gone from tree (merged?) — claim reads as none"
+      elif lint_existed "docs/product/${p}.md"; then
+        lint_warn "${rel}: claims requirement '${p}' gone from tree (served?) — claim reads as none"
       elif lint_shallow; then
         lint_warn "${rel}: plan '${p}' unknown here (shallow history) — typo or merged, cannot tell"
       else
-        lint_red "${rel}: plan '${p}' — no such plan or question, never existed. Claim invisible; typo?"
+        lint_red "${rel}: plan '${p}' — no such plan, question or requirement, never existed. Claim invisible; typo?"
       fi
     fi
     # The issue claim (#119). Validated rather than tolerated: a value the
@@ -5510,7 +5517,7 @@ cmd_janitor() {
     # a perf finding on this same function.
     held="" onbranch=""
     if [ -n "$plan" ] && [ "$plan" != none ]; then
-      for cand in "docs/plans/${plan}.md" "docs/research/${plan}.md"; do
+      for cand in "docs/plans/${plan}.md" "docs/research/${plan}.md" "docs/product/${plan}.md"; do
         git -C "$ROOT" cat-file -e "refs/remotes/origin/${base_branch}:${cand}" \
           </dev/null 2>/dev/null || continue
         held="$cand"; break
@@ -5519,7 +5526,7 @@ cmd_janitor() {
       # `onbranch` is unreachable otherwise, and twenty candidates whose plans
       # are all in the queue would pay forty `cat-file` calls for an answer
       # that cannot change a character of the output.
-      [ -n "$held" ] || for cand in "docs/plans/${plan}.md" "docs/research/${plan}.md"; do
+      [ -n "$held" ] || for cand in "docs/plans/${plan}.md" "docs/research/${plan}.md" "docs/product/${plan}.md"; do
         git -C "$ROOT" cat-file -e "refs/remotes/origin/${branch}:${cand}" \
           </dev/null 2>/dev/null || continue
         onbranch="$cand"; break
@@ -7461,10 +7468,12 @@ drain_hook() {
 # The queue hook's first unplanned requirement: step 2 ranks one above every
 # plan, and reading `docs/plans` alone reported a drained queue over one
 # (PR 157). Anchored to the hook's SECTION so only lines under
-# "Requirements without plans" can be offered.
+# "Requirements without plans" can be offered — and not one a planning
+# manager already claims: the in-flight walk prints that one as its row.
 drain_requirement() {
   printf '%s\n' "$1" |
     sed -n '/^Requirements without plans/,/^$/p' |
+    grep -v 'claimed on ' |
     sed -n 's#^  \(docs/product/[^ ]*\.md\)  \(.*\)$#\1 \2#p' | head -1
 }
 
@@ -7805,7 +7814,7 @@ dispatch_retired_edges() {
           plan="$(git -C "$ROOT" show "${base}:${swept}" 2>/dev/null |
             gr_field plan)"
         case "$plan" in '' | none) ;; *)
-          for cand in "docs/plans/${plan}.md" "docs/research/${plan}.md"; do
+          for cand in "docs/plans/${plan}.md" "docs/research/${plan}.md" "docs/product/${plan}.md"; do
             git -C "$ROOT" cat-file -e "${base}:${cand}" 2>/dev/null || continue
             case " ${items} " in
               *" ${cand} "*)
@@ -9020,9 +9029,12 @@ cmd_dispatch() {
   hout="$(drain_hook handover-context.sh)"
   qout="$(drain_hook queue-context.sh)"
 
-  # Every plan and research row as path|label, both directories, every row.
+  # Every plan, research and requirement row as path|label, every row. A
+  # requirement row matters here only CLAIMED — it is the planning manager's
+  # in-flight row; unclaimed, `drain_requirement` offers it, never the free
+  # walk below.
   rows="$(printf '%s\n' "$qout" |
-    sed -n 's#^  \(docs/\(plans\|research\)/[^ ]*\.md\)  \(\[.*\]\)$#\1|\3#p')"
+    sed -n 's#^  \(docs/\(plans\|research\|product\)/[^ ]*\.md\)  \(\[.*\]\)$#\1|\3#p')"
   wavemap="$(printf '%s\n' "$qout" | dispatch_waves)"
   # The hook's orchestrated-only lines: a free plan whose scope overlaps a
   # plan a manager holds now. Stem, then the rest of the line as the reason.
@@ -9277,6 +9289,7 @@ cmd_dispatch() {
     case "$label" in
       *'claimed on '* | *'blocked by'* | *'CORE ONLY'*) continue ;;
     esac
+    case "$path" in docs/product/*) continue ;; esac
     # An item whose branch is past the retire commit is not free either. The
     # queue hook cannot know: the file that said so was deleted, on purpose,
     # one commit before the pull request opened. Skipped rather than
