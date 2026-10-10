@@ -8,7 +8,7 @@ issue: 398
 session: https://claude.ai/code/session_018Vxqi4MSVT8L68UTbCoig4
 agent: opus
 updated: 2026-10-10
-next: Mutation-test each guard check, run ci and verify, then verifier review
+next: Re-run ci, verify and the mutation runner after verifier fixes, then retire and open the PR
 ---
 
 ## Goal
@@ -23,10 +23,10 @@ so "re-read live state before writing" is a property of the write path
 - Exit codes: 0 pass, 2 = `live` found the branch gone (released already),
   1 = every other refusal. janitor_apply needs the split: gone stays rc 0 and
   drops the stale local ref (PR411 r3); unreachable stays a failure.
-- janitor_apply calls guard after building the commit, right before the
-  leased push, and prints its `release` lines only once guard passes: a
-  not-a-candidate branch keeps its old skip line, and a gone branch prints no
-  `release` it never made.
+- janitor_apply calls guard where the inline check was, before the candidate
+  filter and the build: gone must win over not-a-candidate (r3). Building is
+  local; the lease covers the window to the push. A pr: claim now reads as a
+  guard refusal, not `not a candidate`.
 - `claim` reads workstream files the branch wrote since its merge base (as
   `cl_inflight`), both sides; head refusal stays the refusal.
 - orchestrate.md: one GUARD paragraph, referenced from KILL, LOOP, the
@@ -40,6 +40,16 @@ so "re-read live state before writing" is a property of the write path
 
 - r1: shellcheck SC2183, the fixture claim's printf took five arguments for four placeholders. (fixed)
 - r2: mutation, 2026-10-10: each guard check disabled in turn (base-name protected, live gone, live unreachable, head, pr: protected) and the guard topic alone run through a scratch runner sourcing `.agents/harness/selftest/guard.sh`: 8, 2, 1, 9, 4 failures; unmutated 44 passed, 0 failed. (no change)
+- r3: (verifier) janitor --apply ran guard after the candidate filter, so a branch gone on origin that was no candidate (pr: set, pushed recently) read `not a candidate`, rc 1, stale ref kept — PR411 r3 regressed. (fixed: guard runs where the inline check was, before the build; selftest case mgr-deletedpr)
+- r4: (verifier) `--expect` naming a commit not in this clone passed every check: the pr: read failed into `continue`. (fixed: an unresolvable decision read refuses at head; a failed read at live head refuses at protected)
+- r5: (verifier) the claim fetch moved refs/remotes/origin/<b>, so a bare re-run took the live head as its decision and passed with no re-decide. (fixed: fetch with empty --refmap, FETCH_HEAD only; selftest re-run case)
+- r6: (verifier) plan Acceptance `grep -c 'joharness.sh guard' .claude/commands/orchestrate.md` printed 0: the code span broke across lines. (fixed: one line, count 1)
+- r7: (verifier) an `--expect` starting with `-` reached `git show` as an option and wrote a file. (fixed: usage error; the raw value never reaches git)
+- r8: (verifier) orchestrated.md said a lease guards orchestrator pushes, but orchestrate.md pushed plain; a branch deleted after guard would be re-created. (fixed: GUARD names the leased push at the same sha)
+- r9: (verifier) GUARD's `<sha>` undefined for the relayed answer and the hand-off, and a fresh fetch right before guard makes it unable to refuse. (fixed: sha = origin/<branch> right after the decision's fetch, never a later one)
+- r10: (verifier) the new heading swallowed the kill section's `A refused stop` paragraph. (fixed: moved above the heading)
+- r12: mutation re-run after r3–r11, 2026-10-10, same scratch runner: unmutated 51 passed, 0 failed; base-name 8, live gone 2, unreachable 1, head 12, pr: 4, refmap reverted 3 failures; full `bash .agents/harness/selftest.sh` 2457 passed, 0 failed. (no change)
+- r11: (verifier) claim loop read `$(...)` back through `<<<`, the pairing PR359 r9 dropped. (fixed: process substitution)
 
 ## Blockers
 

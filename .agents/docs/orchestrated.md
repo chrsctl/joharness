@@ -201,6 +201,11 @@ A killed session with no handover strands a branch the successor cannot read.
 
 The branch is the claim and the claim survives the kill.
 
+A refused stop reads as absent: the permission classifier refused
+`archive_session` and a plain `kill` in a consumer run (issue #249, two
+refusals), and a refusal says nothing about whether the
+session is live, so it never licenses a replacement.
+
 ### The guard before a harness push
 
 A harness write onto a branch the session does not own is decided on one
@@ -215,14 +220,11 @@ refuses on the first that fails. It writes nothing. Its callers: `janitor
 records, a relayed human answer and the respawn-limit hand-off
 (`.claude/commands/orchestrate.md`, GUARD). `kill` and `loop` skip the `pr:`
 check: a stalled manager with an open pull request stays killable, and its
-record is a handover, not a release. The lease still guards the window after
-the guard read; guard makes "re-read before writing" a property of the write
-path instead of a rule each author remembers.
-
-A refused stop reads as absent: the permission classifier refused
-`archive_session` and a plain `kill` in a consumer run (issue #249, two
-refusals), and a refusal says nothing about whether the
-session is live, so it never licenses a replacement.
+record is a handover, not a release. Every caller then pushes with
+`--force-with-lease` at the same sha, which covers the window after the
+guard read: a plain push onto a branch deleted in that window re-creates
+it. Guard makes "re-read before writing" a property of the write path
+instead of a rule each author remembers.
 
 ## Concurrency
 

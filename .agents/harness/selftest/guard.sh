@@ -119,6 +119,17 @@ grefused "moved head" "$out" "$rc"
 expect "moved head: claim line, unchanged claim both sides" \
   "claim     : docs/handover/g-moved.md — read: session https://example.invalid/session_g-moved status in-progress; live: session https://example.invalid/session_g-moved status in-progress" "$out"
 
+# A bare re-run reads the same stale decision: the claim fetch moved
+# FETCH_HEAD only, so "re-decide" cannot be skipped by running guard again.
+out="$(grun kill g-moved)"; rc=$?
+expect "moved head, re-run: still refused at head" "head      : REFUSED — live" "$out"
+grefused "moved head, re-run" "$out" "$rc"
+# A decision read this clone never fetched is no read: refused, never passed.
+gnew=0123456789abcdef0123456789abcdef01234567
+out="$(grun janitor g-moved --expect "$gnew")"; rc=$?
+expect "unfetched --expect: refused at head" "head      : REFUSED — decision read ${gnew} is not a commit here" "$out"
+grefused "unfetched --expect" "$out" "$rc"
+
 # --- re-claimed: a new session took the branch over -------------------------
 gclaim g-reclaim none
 git -C "$gother" fetch -q origin g-reclaim
@@ -153,6 +164,9 @@ else fail "an unknown verb is a usage error"; fi
 out="$(grun janitor)"; rc=$?
 if [ "$rc" -ne 0 ]; then pass "no branch is a usage error"
 else fail "no branch is a usage error"; fi
+out="$(grun kill g-moved --expect --output=o)"; rc=$?
+if [ "$rc" -ne 0 ] && grep -qF "usage:" <<<"$out"; then pass "an option as --expect is a usage error"
+else fail "an option as --expect is a usage error (rc ${rc})"; fi
 
 # --- guard writes nothing ---------------------------------------------------
 # Origin holds exactly the branches the fixture pushed: guard re-created none.

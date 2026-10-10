@@ -2584,17 +2584,18 @@ guard_workstreams() {
 # branch it does not own must pass, read live, right before its push. Prints
 # one line per check run, first refusal stops. Exit 0 = all pass, 2 = gone on
 # origin (released already: nothing to write), 1 = any other refusal. Writes
-# nothing: the one fetch moves FETCH_HEAD and the remote-tracking ref only.
+# nothing: the one fetch moves FETCH_HEAD only.
 cmd_guard() {
   local verb="${1:-}" branch="${2:-}" expect="" base_branch="${HANDOVER_BASE_BRANCH:-main}"
-  local live rc f doc pr s_was t_was s_now t_now files
+  local live rc f doc pr s_was t_was s_now t_now files raw=""
   local usage="usage: $0 guard janitor|kill|loop <branch> [--expect <sha>]"
   case "$verb" in janitor | kill | loop) ;; *) die "$usage" ;; esac
   [ -n "$branch" ] || die "$usage"
   shift 2
   if [ "$#" -gt 0 ]; then
     { [ "$1" = "--expect" ] && [ "$#" -eq 2 ] && [ -n "$2" ]; } || die "$usage"
-    expect="$2"
+    case "$2" in -*) die "$usage" ;; esac
+    expect="$2"; raw="$2"
   fi
 
   # 1. Base branch by name, before any network read: no ref can move it.
@@ -2625,12 +2626,17 @@ cmd_guard() {
       printf 'head      : REFUSED — no decision read: no --expect and no refs/remotes/origin/%s\n' "$branch"
       return 1; }
   else
-    expect="$(git -C "$ROOT" rev-parse -q --verify "${expect}^{commit}" 2>/dev/null || printf '%s' "$expect")"
+    # A read this checkout cannot open is no read: never compare or show it raw.
+    expect="$(git -C "$ROOT" rev-parse -q --verify "${expect}^{commit}" 2>/dev/null)" || {
+      printf 'head      : REFUSED — decision read %s is not a commit here: fetch, re-decide\n' "$raw"
+      return 1; }
   fi
   if [ "$live" != "$expect" ]; then
     printf 'head      : REFUSED — live %s, decision read %s: re-decide\n' "${live:0:12}" "${expect:0:12}"
-    # 4. Claim: what moved, both sides. One ref fetched, nothing written.
-    git -C "$ROOT" fetch -q origin "+refs/heads/${branch}:refs/remotes/origin/${branch}" \
+    # 4. Claim: what moved, both sides. One ref fetched into FETCH_HEAD only
+    # (empty --refmap): moving the remote-tracking ref would make a bare re-run
+    # read the live head as its decision and pass without a re-decide.
+    git -C "$ROOT" fetch -q --refmap= origin "refs/heads/${branch}" \
       </dev/null 2>/dev/null || :
     files="$( { guard_workstreams "$live"; guard_workstreams "$expect"; } | sort -u)"
     [ -n "$files" ] || printf 'claim     : no workstream file on either side\n'
@@ -2642,7 +2648,7 @@ cmd_guard() {
         </dev/null 2>/dev/null | gr_fields session status)
       printf 'claim     : %s — read: session %s status %s; live: session %s status %s\n' \
         "$f" "${s_was:--}" "${t_was:--}" "${s_now:--}" "${t_now:--}"
-    done <<<"$files"
+    done < <(printf '%s\n' "$files")
     return 1
   fi
   printf 'head      : pass — live %s = decision read\n' "${live:0:12}"
@@ -2653,7 +2659,8 @@ cmd_guard() {
   if [ "$verb" = janitor ]; then
     while IFS= read -r f; do
       [ -n "$f" ] || continue
-      doc="$(git -C "$ROOT" show "${live}:${f}" </dev/null 2>/dev/null)" || continue
+      doc="$(git -C "$ROOT" show "${live}:${f}" </dev/null 2>/dev/null)" || {
+        printf 'protected : REFUSED — cannot read %s at live head\n' "$f"; return 1; }
       pr="$(printf '%s\n' "$doc" | gr_field pr)"
       case "$pr" in '' | none) ;; *)
         printf 'protected : REFUSED — %s names pr: %s at live head; never released\n' "$f" "$pr"
@@ -2669,7 +2676,7 @@ cmd_guard() {
 # Release named claims: write `status: abandoned` into each candidate claim on
 # its own branch and push.
 janitor_apply() {
-  local want b path tip blob newblob tree commit idx today rc=0 n=0 cands released grc
+  local want b path tip blob newblob tree commit idx today rc=0 n=0 cands
   [ "$#" -gt 0 ] || die "usage: $0 janitor --apply <branch>... (each session proven ARCHIVED or not found)"
   # --prune: under the default refspec a branch deleted on origin loses its
   # remote-tracking ref here and takes the `no such branch` skip below.
@@ -2679,9 +2686,22 @@ janitor_apply() {
   for want in "$@"; do
     tip="$(git -C "$ROOT" rev-parse -q --verify "refs/remotes/origin/${want}^{commit}" 2>/dev/null)" || {
       printf 'skip      : %s — no such branch on origin\n' "$want"; rc=1; continue; }
+    # Re-read live before anything is built (#397): a remote-tracking ref
+    # outlives a deletion whose refspec --prune does not map. Building is
+    # local; the lease below covers the rest of the window.
+    cmd_guard janitor "$want" --expect "$tip"
+    case $? in
+      0) ;;
+      2) # Released already. Drop the local ref a narrow refspec never prunes,
+         # or every dispatch names the branch again. Local only.
+         git -C "$ROOT" update-ref -d "refs/remotes/origin/${want}" 2>/dev/null || :
+         continue ;;
+      *) printf 'skip      : %s — guard refused; nothing released\n' "$want"
+         rc=1; continue ;;
+    esac
     idx="$(mktemp)"
     GIT_INDEX_FILE="$idx" git -C "$ROOT" read-tree "$tip" || { rm -f "$idx"; rc=1; continue; }
-    n=0; released=""
+    n=0
     while IFS=$'\t' read -r b path; do
       [ "$b" = "$want" ] || continue
       blob="$(git -C "$ROOT" show "${tip}:${path}" 2>/dev/null)" || continue
@@ -2694,7 +2714,7 @@ janitor_apply() {
         { print }' | git -C "$ROOT" hash-object -w --stdin)" || continue
       GIT_INDEX_FILE="$idx" git -C "$ROOT" update-index --cacheinfo "100644,${newblob},${path}" || continue
       n=$((n + 1))
-      released="${released}$(printf 'release   : %s  %s' "$want" "$path")"$'\n'
+      printf 'release   : %s  %s\n' "$want" "$path"
     done <<<"$cands"
     if [ "$n" -eq 0 ]; then
       printf 'skip      : %s — not a candidate (pushed recently, already released, or names a pr:)\n' "$want"
@@ -2704,20 +2724,6 @@ janitor_apply() {
     rm -f "$idx"
     commit="$(git -C "$ROOT" commit-tree "$tree" -p "$tip" \
       -m "janitor: release the claim, session gone (${today})")" || { rc=1; continue; }
-    # Re-read live, right before the push (#397): a remote-tracking ref
-    # outlives a deletion whose refspec --prune does not map.
-    cmd_guard janitor "$want" --expect "$tip"
-    grc=$?
-    case "$grc" in
-      0) ;;
-      2) # Released already. Drop the local ref a narrow refspec never prunes,
-         # or every dispatch names the branch again. Local only.
-         git -C "$ROOT" update-ref -d "refs/remotes/origin/${want}" 2>/dev/null || :
-         continue ;;
-      *) printf 'skip      : %s — guard refused; nothing released\n' "$want"
-         rc=1; continue ;;
-    esac
-    printf '%s' "$released"
     # The lease refuses a branch deleted or moved since the guard read.
     if git -C "$ROOT" push -q --force-with-lease="refs/heads/${want}:${tip}" \
       origin "${commit}:refs/heads/${want}" 2>/dev/null; then

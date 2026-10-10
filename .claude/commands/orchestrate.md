@@ -185,10 +185,14 @@ branch, `status: blocked`, `next:` = "respawns: Respawned <N> times and still no
 finished; a human decides what this needs.", reason under `## Blockers`,
 commit "Orchestrator hands off after <N> respawns", GUARD `kill`, push, report.
 
-GUARD `<verb>` — every push onto a manager's branch, right before it: `./joharness.sh
-guard <verb> <branch> --expect <sha>`, `<sha>` = the head read at your
-`git fetch origin <branch>` (`kill` for any write but LOOP's). Non-zero = no
-push: report the refusal lines, drop the local commit, re-decide next pass.
+GUARD `<verb>` — every push onto a manager's branch, right before it:
+`./joharness.sh guard <verb> <branch> --expect <sha>` (`kill` for any write
+but LOOP's). `<sha>` = `git rev-parse origin/<branch>` taken right after the
+`git fetch origin <branch>` your decision read, before the checkout; never a
+fetch after it. Then push with the lease, never plain: `git push
+--force-with-lease=refs/heads/<branch>:<sha> origin HEAD:<branch>`. Non-zero
+guard, or a refused push = no handover: report the lines, drop the local
+commit, re-decide next pass.
 The archive and RESPAWN the record precedes wait too: a record not pushed is
 no handover, and no handover is no replace. Why:
 `.agents/docs/orchestrated.md`, "The guard before a harness push".
