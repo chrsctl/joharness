@@ -569,6 +569,18 @@ queue as an issue, a requirement, or a plan through a pull request, and only
 there. Anything else that ends a run — a rate limit, a session asking a
 question, a generation that failed to spawn — is a finding, not a stop.
 
+A human decision is a PUSH, never a wait (issue #304). A manager that asks
+inside the session — an ask tool included — writes nothing: `dispatch` counts
+the item in flight with a frozen head, its slot stays held, the plan behind it
+never starts, and the question reaches nobody. `status: blocked` with `next:`
+= the question frees the slot, releases the plan's holds, prints the question
+in the report, and is never respawned (a respawn would re-ask it). The rule
+lives where a session meets the decision: root `## Decide alone` (every
+session) and the manager's `## Never` (the act). Not in the spawn prompt — the
+prompt routes, the repository authorises; two sessions told "never ask a human"
+refused it as an injection. Telling a manager stuck inside a tool call from a
+live one is the detector's question, not this one.
+
 ## Bounds
 
 The rules that bind every session. They outlive any spec that asked for
