@@ -522,13 +522,27 @@ Up to `slots`, in dispatch's order, only rows under `spawn`:
   does not own — that is the role's whole point and its bound is proof of
   death, not push age — so a janitor that reports releasing a claim whose
   session you can still see RUNNING is a finding for the human, not a retry.
+- Tail line `clerk DUE` = ONE clerk, tier opus (the Lineup's opus), and ONLY
+  when the `clerk :` header block says none is in flight and your ledger has
+  no `clerked=` for this run. Like curate and janitor it is ORTHOGONAL to the
+  verdict and holds no slot (beyond the cap, the human's money — report it).
+  `create_session` as below with `title` = `clerk: <UTC date>`, `model` = the
+  Lineup's opus, and `prompt` = `/clerk` plus the same three lines every
+  manager gets. Ledger `clerked=<stamp>`; the health rows read its branch
+  (`workstream: clerk-<stamp>`, `plan: none`) like a curator's. A `clerk due,
+  held` line spawns nothing. Across runs the guard is the clerk's own twin
+  check (`.claude/commands/clerk.md`, Claim). `TWIN: deferred` and a pass with
+  nothing to plan (a retire-only pull request) are success, not a stall. The
+  clerk is the only route by which issues reach the queue: an orchestrator
+  never takes an issue directly.
 - Tail line `scout DUE` = ONE scout, tier fable, and ONLY when ALL hold: the
   verdict is `DRAINED — nothing free, nothing in flight` (dispatch prints the
   tail line under no other), the `scout :` header block says none is in
   flight, and your ledger has no `scouted=` for this run. Unlike curate and
   janitor it is NOT orthogonal to the verdict: a scout proposes new work,
   which competes with real work. A `scout due, held` or `suppressed` line
-  spawns nothing. The ledger key guards THIS run only: between the spawn
+  spawns nothing; it waits while a curate, janitor or clerk is due or in
+  flight. The ledger key guards THIS run only: between the spawn
   and the scout's first push `dispatch` still prints `scout DUE` — the git
   view cannot see a session that has not pushed — and the verdict that
   spawns a scout is the exit verdict, so the heartbeat's next run starts
@@ -648,7 +662,7 @@ Durability is the heartbeat Routine (step 0.5; `orchestrated.md`, Heartbeat).
 
 ```
 /orchestrate pass
-ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] respawns=<n> [reported=<stem>] [rescoped=<key>] [curated=<stamp>] [analysed=<stem>:<condition>] [swept=<stamp>] [scouted=<stamp>]; ...
+ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] respawns=<n> [reported=<stem>] [rescoped=<key>] [curated=<stamp>] [analysed=<stem>:<condition>] [swept=<stamp>] [clerked=<stamp>] [scouted=<stamp>]; ...
 lead <stem>: <40 chars, to the end of this line>
 ```
 
@@ -723,8 +737,9 @@ the ones marked NOT rebuildable:
 - `rescoped=`: dispatch's `rescope :` block says in flight or `done`.
   Loss re-spawns one surveyor beyond the cap, money.
 - `analysed=`: no git reading. Loss re-spawns one analyst, money.
-- `curated=`, `swept=`: cadence comes from git (`curate DUE`, `janitor DUE`
-  tail lines). Loss re-spawns one session beyond the cap, money.
+- `curated=`, `swept=`, `clerked=`: cadence comes from git (`curate DUE`,
+  `janitor DUE`, `clerk DUE` tail lines; the clerk's twin check bounds it
+  across runs). Loss re-spawns one session beyond the cap, money.
 - `scouted=`: the scout's own twin check bounds it. Loss re-spawns once.
 - `lead`: no rebuild; loss drops a pointer. Nothing is spent.
 
@@ -803,6 +818,8 @@ putting it here is for.
 - Spawn a second janitor in one run, or one while a janitor branch is in
   flight. One per run; the cycle is dated from git, so a missed pass costs
   nothing and a doubled one has two sessions writing the same release.
+- Spawn a second clerk in one run, or one while a clerk branch is in flight.
+  `clerked=` guards this run; the clerk's twin check guards across runs.
 - Spawn a second scout in one run, one while a scout branch is in flight,
   or one on any verdict but `DRAINED — nothing free, nothing in flight`.
   `scouted=` guards this run; the scout's twin check guards across runs.

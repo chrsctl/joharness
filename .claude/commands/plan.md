@@ -23,6 +23,7 @@ Inline — no subagent.
    - `requirement`: the one this serves (`docs/product/`), else `none`.
      Last plan of a requirement: say in Acceptance that its PR deletes
      the requirement file too.
+   - `issue`: the GitHub issue this plan turns into work (`/clerk` writes it), else `none`. A number, `#` optional.
    - `scope`: comma-separated path prefixes this plan will touch. Queue
      hook proves parallel safety from disjoint scopes — undeclared scope
      joins no wave. `none` only when touch-set genuinely unknowable.

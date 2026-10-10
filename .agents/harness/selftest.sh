@@ -574,6 +574,7 @@ SELFTEST_TOPICS=(
   upgrade
   ci-glossary
   ci-graph-lint
+  clerk
   ci-ship-scope
   authority
   autonomy-mode
