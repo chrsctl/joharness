@@ -78,9 +78,12 @@ if [ -n "$branch" ] && [ "$branch" != "HEAD" ]; then
     # and was blocked on every stop (issue #296).
     #
     # Counted against origin/<base>, not local <base>: the remote view is
-    # the one every other session shares. Stale, it is OLDER than the
-    # branch's fork point, so the count only grows — a false fire, never
-    # a missed one.
+    # the one every other session shares. A stale origin/<base> is an
+    # ANCESTOR of the real remote, so it holds no commit the remote lacks
+    # and the count can only come out larger — a false fire, not a missed
+    # one. The premise is fast-forward history: a remote <base> rewound
+    # after this checkout fetched it can still hold HEAD locally, read 0,
+    # and miss (reproduced by the verifier of this comment's branch).
     #
     # A count we cannot read (no origin/<base>, a checkout fetched one
     # branch at a time) is not 0: keep the fact. This is NOT the header's

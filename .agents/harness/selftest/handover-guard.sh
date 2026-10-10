@@ -551,7 +551,11 @@ expect "never-pushed branch told to push" "no upstream" "$out"
 # Same branch, origin/<base> unreadable (a checkout fetched one branch at a
 # time). The count cannot be read, and unknown is NOT zero: the fact stays.
 # Issue #296's own patch read it as 0 with `|| echo 0` and went silent on
-# exactly the commits this fact exists for (research, 2026-10-08).
+# exactly the commits this fact exists for (measured 2026-10-08 in
+# docs/research/guard-fires-on-an-empty-branch.md, deleted when it
+# graduated — `git log --diff-filter=D -- <that path>`). Not the only pin:
+# "the guard spoke on the released edit" has no origin/<base> either and
+# reds on the same patch; this case is the one NAMED for the property.
 sgbase_sha="$(git -C "$sgwork" rev-parse refs/remotes/origin/main)"
 git -C "$sgwork" update-ref -d refs/remotes/origin/main
 out="$(guard "$JSON_STOP")"
