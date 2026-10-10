@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_012J8LutqGHqhZDE49agfS81
 agent: opus
 updated: 2026-10-10
-next: Edit orchestrate.md health table per plan Scope, then orchestrated.md
+next: Verifier review, record findings, retire, PR
 ---
 
 ## Goal
@@ -19,7 +19,13 @@ matching a ledger entry still `new`.
 
 ## Decisions
 
-- None yet.
+- Merged row also matches when the item file is gone from fresh
+  `origin/main`: a manager that claims and merges inside one pass interval
+  leaves its ledger entry `new`, and the plan's head-only condition would
+  route it to UNCLAIMED and a wrong REPORT. A never-born branch cannot fake
+  the item vanishing, so the blocked case stays out.
+- Confirm row is labelled BLOCKED BEFORE CLAIM too, so all three rows read
+  as one family; respawn resets the entry to `@new` with no `held=`.
 
 ## Rejected
 

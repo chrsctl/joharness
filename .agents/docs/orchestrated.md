@@ -124,11 +124,12 @@ prints only the git half.
 | crashed | branch unmerged; the git view says `in-progress`, which is what it says about every crash | `status_bucket` `..._FAILED` while `session_status` is not `RUNNING` | NO nudge — nothing is listening. Confirm once (`updated_at` and head both unchanged), then archive and respawn. **Read this row before the idle one**: one reading matches both |
 | stillborn | no branch at all: the ledger entry still reads `new` from a previous pass | `IDLE`/`PENDING` with NO `last_served_model` and NO `session_context.sources`, confirmed by a SECOND read of the record with `updated_at` unchanged | pass 1 records `seen=` and nothing else; pass 2 archives and spawns the ITEM again — a plain spawn, nothing was claimed. Counted against `JOHARNESS_RESPAWN_LIMIT`, and at the limit reported, because there is no branch to write `blocked` on. **Read this row before the idle one**: one reading matches both |
 | unclaimed | the same | `last_served_model` present — it ran and stopped without claiming, which `./joharness.sh authority` refusing does | report it; never respawn, a successor repeats the refusal |
+| blocked before claim | no branch: the ledger entry still reads `new` from a previous pass | `status_bucket` `..._BLOCKED` and `session_status` NOT `IDLE`, `PENDING` or `ARCHIVED` — `RUNNING`, or a status the table does not name — confirmed by a SECOND read with `updated_at` unchanged | pass 1 records `held=` and nothing else; pass 2 interrupts, archives and spawns the ITEM again — a plain spawn, counted against `JOHARNESS_RESPAWN_LIMIT`, reported at the limit. No `interrupt_session`: report, spawn nothing. **Read this row before the unclaimed one**; BLOCKED beside `IDLE` stays unclaimed |
 | idle | branch unmerged, any push age | `IDLE` or `PENDING`, bucket not FAILED — **between turns, not gone** | pass 1 nudge and ledger; pass 2 respawn only if head AND `status_detail` are both unchanged |
 | gone | branch unmerged, status in-progress / review / done, or an edge row IN FLIGHT that names an item | `ARCHIVED`, or no session found by title | respawn on the branch, no nudge. An edge row naming `?` is never respawned — no item, no successor's work |
 | leftover | the branch is under `leftovers`: its item is already gone from the base branch, so that merge happened | any | NOT a merge to finish and never respawned — a successor would land on merged work with no pull request and no item. Report it; the human deletes the branch |
 | blocked | status `blocked` | any | report to the human; never respawn |
-| done | branch merged, plan file gone | any | nothing — or, with `JOHARNESS_UPSTREAM_FEEDBACK=on` and no `reported=` for it in the ledger, spawn ONE reporter |
+| done | branch merged, plan file gone, and the ledger entry carried a head — an entry still `new` never had a branch to merge | any | nothing — or, with `JOHARNESS_UPSTREAM_FEEDBACK=on` and no `reported=` for it in the ledger, spawn ONE reporter |
 
 **Gone is ARCHIVED, not found on the control plane, a FAILED bucket confirmed
 by a second look, or a session that did not move across a nudge and a
@@ -1421,21 +1422,25 @@ exists to prevent. What the sample does NOT show is what a prompt-suspended
 session's `session_status` reads; `need_input` alone would not tell the two
 apart.
 
-So the fix, carried by the plan `blocked-before-claim-row`, is built to be
-right on the reading that is wrong today and safe on the one not measured:
-narrow the merged row to a stem whose ledger entry carries a head (never
-`new`) — that alone turns "done. Nothing." into a reachable row; add, ABOVE
-the unclaimed rows, a first-look/confirm pair for an entry still `new` whose
-record reads BLOCKED and NOT IDLE, PENDING or ARCHIVED — interrupt, archive,
-plain spawn of the item, counted against `JOHARNESS_RESPAWN_LIMIT` as the
-stillborn row counts; and amend the `status_bucket` field row, which today
-lets only `..._FAILED` decide liveness, in the same diff. IDLE beside
-BLOCKED keeps the unclaimed row — report, never respawn — because the one
+So the fix, carried by the plan `blocked-before-claim-row`, was built to be
+right on the reading that was wrong and safe on the one not measured: it
+narrowed the merged row to a stem whose ledger entry carries a head (never
+`new`), or whose item is gone from `origin/main` — a merge between two
+passes, which a never-born branch cannot fake — so "done. Nothing." stopped
+matching a session that never pushed; it added, ABOVE the unclaimed rows, a
+first-look/confirm/cleared trio for an entry still `new` whose record reads
+BLOCKED and NOT IDLE, PENDING or ARCHIVED — interrupt, archive, plain spawn
+of the item, counted against `JOHARNESS_RESPAWN_LIMIT` as the stillborn row
+counts, keyed on its own `held=` so a status flip cannot confirm on the
+other kind's first look; and it amended the `status_bucket` field row, which
+had let only `..._FAILED` decide liveness, in the same diff. IDLE beside
+BLOCKED kept the unclaimed row — report, never respawn — because the one
 measured IDLE+BLOCKED record was a turn that ended, and a wrong report is
-cheaper than a respawn loop. The report names the bucket, so the first
-prompt-blocked manager that reads IDLE is seen and measured. Pinned for the
-next reader because "treat it as dead after the stall window" is the
-natural shape to reach for, and with no branch it changes nothing.
+cheaper than a respawn loop. The report names the bucket and the status, so
+the first prompt-blocked manager that reads IDLE is seen and measured.
+Pinned for the next reader because "treat it as dead after the stall
+window" is the natural shape to reach for, and with no branch it changes
+nothing.
 
 **Edge rows paragraph, after "holds nothing, and is only reported".** Counting the second kind is what stopped a fleet (the run and its numbers:
 `orchestrated.md`, Runs).
