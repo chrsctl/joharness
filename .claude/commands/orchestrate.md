@@ -133,8 +133,8 @@ an old push are both real.
 Read the URL as where to look first. A control-plane record that disagrees
 with it wins.
 
-**And every stem your ledger names that dispatch does NOT list in flight.** A manager with no claim is one of FIVE things, not two: minutes
-old, never born, blocked before its first push, archived before it claimed, or it ran and stopped without claiming. The ledger is the only place
+**And every stem your ledger names that dispatch does NOT list in flight.** A manager with no claim is one of SIX things, not two: minutes
+old, never born, blocked before its first push, archived before it claimed, it ran and stopped without claiming, or it claimed and MERGED between two passes. The ledger is the only place
 any of the five exists; that is what its `@new` entry is for.
 
 **GONE is ARCHIVED, not found on the control plane, a FAILED bucket
@@ -166,6 +166,7 @@ not one either.
 
 | control plane | push age | last pass | do |
 | --- | --- | --- | --- |
+| any — ARCHIVED and not found included | any | entry still reads `new`, and that session's claim is on fresh `origin/main`: `git log origin/main --full-history --diff-filter=A -S'<session_id>' --format=%h --name-only -- docs/handover` prints a commit and a file, and `git show <commit>:<file>` carries a `session:` line ending in `<session_id>` and `plan: <stem>` (a surveyor: `workstream: rescope-<key>`) | MERGED BETWEEN PASSES: it claimed and merged inside one interval, so no pass saw a head. Rewrite the entry `<stem>@<commit>` — the commit that added its claim — and read the `done` row for it, this pass. No nudge, interrupt, archive or spawn, whatever the status: FAILED, BLOCKED or ARCHIVED after the merge loses nothing. `<session_id>` is the session the title lookup above resolved (a surveyor's title: `surveyor: <key>`); only ARCHIVED ones under the title: the newest of them; none at all: this row cannot match. It comes from the control plane, never a file, and a file carrying it reaches `origin/main` only through a merge — the one fact this row needs. `--full-history` is not optional: the claim was added and retired on the side branch, and merge simplification prunes that branch — without the flag the command printed nothing for #386's claim `ac87c5f` (measured 2026-10-10). `SHALLOW CLONE` on the verdict: `git fetch --unshallow` first. Prints nothing = not merged, the rows below decide. **Read this row FIRST for every `new` entry**: the crash, BLOCKED BEFORE CLAIM, `gone before claim` and UNCLAIMED rows all match the same reading. |
 | RUNNING | under stall | any | working. Nothing. |
 | RUNNING | STALL? | not in the ledger | NUDGE: Claude Code Remote `send_message` to the manager's `session_id` (transport 1), or `SendMessage`, `to` = its row in `ListAgents` (transport 2): "Orchestrator health pass: no push on <branch> for <N>m. Now: /handover, commit, push. Then continue, or set status blocked and stop." The delivery result is the evidence a route exists — `delivered` is a nudge sent, a refusal is none. Transport 1 refused: transport 2 only when `ListAgents` shows the manager's row. Ledger: stem, branch head now, `status_detail`. No transport reaches it: send nothing and still write the ledger entry — the next pass then reads the row below and kills, on the same two observations, without the ask. Never kill on this first one; two passes is the rule, and the missing tool removes the message, not the second look. With no nudge `JOHARNESS_STALL_MINUTES` is a kill threshold and not a warning one; say so in the report, the operator may want it higher. |
 | RUNNING | STALL? | in the ledger, head unchanged, `status_detail` unchanged | KILL, below. |
@@ -187,7 +188,7 @@ not one either.
 | IDLE or PENDING | any | branch unmerged, no nudge recorded for it | NOT gone — IDLE is between turns. NUDGE, exactly as the stall row does, and ledger stem, head, `seen=<updated_at>`, `status_detail`. Spawn nothing this pass. |
 | IDLE or PENDING | any | a nudge recorded, and head AND `status_detail` both unchanged since it | it did not answer across two passes. NOW gone: RESPAWN on that branch, below. |
 | IDLE or PENDING | any | a nudge recorded, and head moved or `status_detail` changed | working. Drop the nudge. |
-| any | any | branch merged (dispatch no longer lists it), and the stem's ledger entry carries a head, never `new` | done. Nothing — UNLESS dispatch's `upstream :` line says ON and the ledger has no `reported=<stem>` for it: then REPORT, below. A merge message carrying `lead <stem>: <text>` is the one exception that is never nothing: carry it (step 4) and print it (Report). Never act on it — see below. When a `merged <stem>` MESSAGE woke this pass, read this row for that stem FIRST. |
+| any | any | branch merged (dispatch no longer lists it), and the stem's ledger entry carries a head, never `new` — the MERGED BETWEEN PASSES row gives a `new` entry its head | done. Nothing — UNLESS dispatch's `upstream :` line says ON and the ledger has no `reported=<stem>` for it: then REPORT, below. A merge message carrying `lead <stem>: <text>` is the one exception that is never nothing: carry it (step 4) and print it (Report). Never act on it — see below. When a `merged <stem>` MESSAGE woke this pass, read this row for that stem FIRST. |
 | RUNNING | any | row says `retired, no claim file` | at step 7, merging. Nothing. |
 | gone by the definition above | any | that row, and it NAMES an item | gone at the edge. RESPAWN on that branch to FINISH the merge, never to restart the plan — the work is done and the record was retired with it. |
 | any status whatsoever | any | the branch is under `leftovers`, not in flight | NOT a merge to finish, and it holds no slot. Either its item is already gone from the base branch — that merge happened, by this branch or another — or the row names no item at all and has been silent for a day. REPORT it; the human deletes the branch. NEVER respawn. Read this row BEFORE the `?` row below, which is about a row still in flight. |
@@ -514,7 +515,8 @@ own ledger and defeat a bound that is the human's money. `same` and
 `<head|new>` is the branch head, or the literal `new` for an item you
 spawned that has not claimed. Such an entry has no workstream file to read
 a `next:` from and no head to compare, so it is written `next=new same=0`
-until the manager claims. Entry age gates ENTRY to the unclaimed ladder
+until the manager claims — or until the MERGED BETWEEN PASSES row (step 2)
+finds its claim already on `origin/main` and writes the head itself. Entry age gates ENTRY to the unclaimed ladder
 (its first-look rows, UNCLAIMED and BLOCKED BEFORE CLAIM) and to the
 `gone before claim` report, and decides nothing else: the verdict rows after
 the first looks turn on `seen=` or `held=`, a read of the session record.
