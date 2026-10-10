@@ -565,6 +565,10 @@ FIRST line, with its branch: the human merges it, or tells you to spawn on
 it. Print the rest of that block too. Never spawn on a branch plan on your
 own: it has not been reviewed into the queue.
 
+The human orders the spawn? Name the row's branch and stem in the manager
+prompt, and say: carry the plan, never take the branch
+(`.agents/docs/orchestrated.md`, "A plan the queue cannot see").
+
 One line per manager: item, session, state, action taken. Kept short —
 the workstream files are the record, not this.
 
