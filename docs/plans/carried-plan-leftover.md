@@ -21,7 +21,7 @@ human closes the pull request and deletes the branch. Evidence: see
 - `joharness.sh` — in `dispatch_branch_plans`, when the plan path is absent on
   the base, test `git log --full-history -m --diff-filter=D --format=%h -1
   refs/remotes/origin/<base> -- <plan>`; non-empty = the base added and
-  retired it. Do not print it in the plans-on-a-branch block; print a
+  retired it, AND that retire is not an ancestor of the branch's merge base. Do not print it in the plans-on-a-branch block; print a
   leftover row worded like `dispatch_retired_edges` (its item landed and
   retired by another branch; commits nothing; the human closes the pull
   request and deletes the branch), counted as NOT in flight.
@@ -39,6 +39,7 @@ human closes the pull request and deletes the branch. Evidence: see
 - `./joharness.sh ci` — `ci: pass`.
 - `./joharness.sh verify` — `0 failed`.
 - The new fixture fails with the change reverted.
+- Ships to consumers: a consumer's `./joharness.sh dispatch` after sync prints the carried plan's branch as a leftover, not in the plans-on-a-branch block.
 
 ## Where to look
 
@@ -47,5 +48,6 @@ human closes the pull request and deletes the branch. Evidence: see
 
 ## Traps
 
+- A later, different plan with a retired stem's name must still show: require the retire commit to postdate the branch's merge base with the base.
 - Plain `--diff-filter=D` misses the retire; `--full-history -m` is required.
 - Do not edit `joharness.conf`, `.claude/settings.json`, `.github`.

@@ -238,9 +238,9 @@ had it). The PR body says so; the owner drops it at reconcile.
 **Why the first row can fail, and why the reader cannot tell.** The filer
 cannot merge on red; when the base is red for a defect the plan itself fixes,
 the plan reaches the base another way (a second branch carries it, builds it,
-retires it). Measured on consumer `chrsctl/gx`, `origin/main` at `38b2f015`,
+retires it). Read on consumer `chrsctl/gx` (taken there, not re-taken in canonical), `origin/main` at `38b2f015`,
 2026-10-10: PR #469's plan-only branch stayed open two days after #477 fixed
-the defect. `dispatch_branch_plans` drops a row only when the plan path exists
+the defect. `dispatch_branch_plans` drops a branch plan that neither its own workstream file claims nor an `abandoned` branch carries only when the plan path exists
 on the base, so a carried-and-retired plan (absent) reads as never landed.
 Only `git log --full-history -m --diff-filter=D -- <plan>` on the base sees
 the retire (the merge commit is treesame for that path; plain `--diff-filter=D`

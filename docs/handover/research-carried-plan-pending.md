@@ -21,6 +21,11 @@ Settle research `a-carried-plan-reads-as-pending`, graduate the answer, delete t
 
 ## Review
 
+- r1: plan Acceptance lacked a consumer-run check (verifier) (fixed)
+- r2: same-stem later plan could be hidden as leftover (verifier) (fixed)
+- r3: "only" wrong about drop conditions (verifier) (fixed)
+- r4: gx numbers stated as measured here (verifier) (fixed)
+
 ## Blockers
 
 None.
