@@ -9191,10 +9191,12 @@ cmd_dispatch() {
     if [ -n "$fleet_age" ] && [ "$fleet_age" -ge $((stall * 24)) ]; then
       printf '            every manager in flight is silent and %s has not moved in %s: suspect a stopped fleet (a suspension), not %s dead manager(s) — read the control plane for EACH before any respawn' \
         "${HANDOVER_BASE_BRANCH:-main}" "$(dispatch_age_text "$fleet_age")" "$n_stall"
-      # A clone nobody fetched is frozen the same way (r4). Said, not
-      # suppressed: the advice holds for both, only the cause differs.
+      # A view this pass could not refresh is frozen the same way (r4). Said,
+      # not suppressed: the advice holds for both, only the cause differs. All
+      # three causes, as the scout-hold line names them: a refspec short of
+      # refs/heads/* fetches main fresh and leaves the managers stale (r10).
       [ "$fetch_failed" -eq 0 ] ||
-        printf ' (or this clone is stale: no fresh fetch this pass)'
+        printf ' (or this clone is stale: fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*)'
       printf '\n'
     fi
   fi

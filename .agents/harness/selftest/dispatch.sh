@@ -2623,7 +2623,12 @@ expect "and it rides the verdict's tail, not the listing" \
 # DISPATCH_FETCH=0 is a view this pass did not refresh, frozen exactly like a
 # stopped fleet: the line says so rather than naming one cause (verifier r4).
 expect "a view nobody fetched is named as the other cause" \
-  "${sfline} (or this clone is stale: no fresh fetch this pass)" "$out"
+  "${sfline} (or this clone is stale: fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*)" "$out"
+# And a pass that DID fetch, from the fixture's own bare origin, names one
+# cause only: the suffix is the stale view's, never every pass's (r9).
+out="$(sf env DISPATCH_FETCH=1)"
+expect "a fresh fetch still suspects the fleet" "$sfline" "$out"
+refute "and names no stale clone" "this clone is stale" "$out"
 # A window wider than the silence: 24 x 300m = 120h > 100h. The stall row
 # still fires (100h >= 300m), the multiple does not.
 out="$(sf env JOHARNESS_STALL_MINUTES=300)"
