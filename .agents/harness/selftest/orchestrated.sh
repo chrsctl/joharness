@@ -213,6 +213,8 @@ expect "and the manager is asked for that exact spelling, not a near one" \
 
 # The skills listing shows the description line before any file is opened, so
 # the qualifier has to live there, not only in the body (#303).
+# Not a glossary row: Not-this matches as a substring, and the right spelling
+# contains the banned phrase (`exit at DRAINED`), so the row would red it.
 orcdesc="$(grep -m1 '^description:' "$orcmd")"
 expect "the orchestrator's description names what DRAINED means" \
   "with nothing in flight" "$orcdesc"
