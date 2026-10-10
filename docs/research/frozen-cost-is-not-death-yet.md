@@ -49,7 +49,17 @@ already refuted.
 
 ## Method
 
-Not yet run. Readings below are the issue's. The verifier
+Run 2026-10-10 by a manager session holding the Claude Code Remote tools
+(`get_session`, `list_sessions`) — the second context `## Method` asked for.
+Reads, all quoted from the plane:
+
+    list_sessions limit=30   (~16:18:45Z; saved, parsed with python json)
+    list_sessions limit=12   (~16:19:35Z)
+    get_session session_01M9K21PELwkMhyt26ZvSzsq   (16:19:56Z)
+    get_session              (own session, 16:18:36Z and 16:19:49Z; again at finish)
+    git log -S'13-minute frozen pair' -- .agents/docs/orchestrated.md
+
+Earlier text: Readings below are the issue's. The verifier
 (`.claude/agents/verifier.md`) has no control-plane call, so the second
 context must be named up front: the operator, or a session tooled for the
 plane (issue #267; the verifier's own "What you cannot see"). Read first:
@@ -59,7 +69,26 @@ plane (issue #267; the verifier's own "What you cannot see"). Read first:
 
 ## Findings
 
-All WEAK: issue #283 and its comment, re-read against the issue and never
+New, re-sampled on the plane (STRONG — commands in `## Method`):
+
+- **Cost lives at `external_metadata.usage.cost_usd`, and is a turn-end
+  write.** In the 30-row read, `usage` present ⇔ `post_turn_summary` present
+  on 30 of 30 rows (23 IDLE, 2 RUNNING, 1 ARCHIVED with both; 4 RUNNING with
+  neither).
+- **A live RUNNING session with no cost at all for 101 minutes.**
+  `manager: crm-the-default-door-reaches-the-wire`, created 14:38:12Z, read at
+  16:19:56Z `RUNNING`, `WORKING`, `connected`, `updated_at` and
+  `task_summary` moving ("CRM852 red on main too; running merged head
+  clean"), no `usage`, no `post_turn_summary`: first turn still running.
+- **This session itself**: `RUNNING` through one turn from 16:18:15Z, no
+  `usage` on any own read (see Verification for the read at finish).
+- **The #283 separation was hindsight.** The corpse and the suspended
+  survivors were both frozen at read time; they came apart only when the
+  survivors resumed and their cost moved. No pass can read that.
+- **The precedent is no longer on main.** The withdrawn 13-minute-pair
+  sentence was cut in `7f2b5af` (trim); withdrawn in `5f5cc37`.
+
+Earlier, all WEAK: issue #283 and its comment, re-read against the issue and never
 re-sampled.
 
 - **Five signals, four refuted.** Push age (wrong 3 for 3 at the largest
@@ -91,13 +120,16 @@ re-sampled.
 
 ## Consequence for the queue
 
-No plan waits on this. If it settles YES, a plan adds one row to
-`.claude/commands/orchestrate.md` step 2's evidence table, with the floor
-and the windows that set it.
+None. NO: no row is added; `usage.cost_usd` joins step 2's "decide nothing"
+list, and the why lands in `.agents/docs/orchestrated.md` beside push age.
 
 ## Verification
 
-Not yet run. Every finding above is WEAK for the reason in `## Method`.
+Settled NO. A floor must exceed every live window; the live windows are a
+turn's length on `RUNNING` (101m measured, unbounded by any harness knob) and
+a check-in interval or a suspension on `IDLE` (30m47s reported, unbounded).
+No dead window can sit above them, so overlap — the file's own NO criterion.
+The suspension case is moot: no test is written.
 
 ## Graduates to
 

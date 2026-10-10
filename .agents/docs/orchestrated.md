@@ -131,6 +131,21 @@ orchestrator back from an 18-day suspension read three live managers as 434h
 stalled). A row built on push age may ask for a control-plane read and may
 order nothing. Dispatch's `suspect a stopped fleet` tail line decides nothing.
 
+**Nor frozen cost, at any floor.** `external_metadata.usage.cost_usd` is
+written when a turn ENDS: on 2026-10-10, 30 of 30 `list_sessions` rows carried
+`usage` exactly when they carried `post_turn_summary`, and a `RUNNING`
+manager in its first turn (created 14:38Z, `updated_at` and `task_summary`
+moving at 16:19Z) carried no cost at all for 101 minutes. So a frozen or
+missing cost on `RUNNING` measures how long the turn is, and nothing bounds
+that; on `IDLE` no turn runs, so it is frozen by definition (a live manager
+held it 30m47s, issue #283; one that arms its own check-in holds it the whole
+interval); and a suspended fleet freezes it on every row. The one death #283
+saw cost "separate" was told apart only AFTER the resume, when the survivors'
+cost moved — hindsight, not a read a pass can make. A floor would have to sit
+above the longest live turn and the longest check-in, and neither has a
+ceiling. `CEILING?` reports cost; nothing keys on it. The kill on a 13-minute
+frozen pair was graduated and withdrawn once already (`5f5cc37`).
+
 ### Messaging
 
 A nudge is a message: push your workstream file now. Two transports, one per

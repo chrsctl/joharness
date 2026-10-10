@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01GYdGcmwBnhagB59b3g1UXa
 agent: opus
 updated: 2026-10-10
-next: Re-sample cost_usd windows on the plane, settle the floor question
+next: Run ci and verify, verifier review, retire, PR, merge
 ---
 
 ## Goal
@@ -19,11 +19,16 @@ read a frozen `cost_usd` as death, and after what floor. Graduate to
 
 ## Decisions
 
-- None yet.
+- Settled NO, no floor: `usage.cost_usd` is a turn-end write (30/30 rows,
+  usage iff post_turn_summary), so frozen on RUNNING = turn length, on IDLE =
+  by definition. A live RUNNING manager read with no cost for 101 minutes.
+- Graduation = one entry in orchestrate.md step 2 "decide nothing" list, the
+  why in orchestrated.md beside push age. No new table row.
 
 ## Rejected
 
-- None yet.
+- A RUNNING-only floor: the 101-minute first turn with no cost refutes it;
+  no knob bounds a turn's length.
 
 ## Review
 
