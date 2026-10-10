@@ -3250,3 +3250,16 @@ out="$(sf)"
 expect "the row still stalls, so the refute below reads a live case" \
   "STALL? no push for 100h" "$out"
 refute "a base that moved prints no stopped-fleet line" "suspect a stopped fleet" "$out"
+
+# The janitor row on a view nobody refreshed: a stale remote-tracking ref can
+# name a branch already deleted on origin (#397), so the row carries the same
+# stale-clone caveat as the fleet line. A 1h window makes the 100h claim stale.
+sfjan="this clone is stale: fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*"
+out="$(sf env HANDOVER_STALE_SECONDS=3600)"
+expect "an old claim with no pr: is a janitor row" "janitor   : stale claim(s) on" "$out"
+expect "and an unrefreshed view says the clone may be stale on that row" \
+  "$sfjan" "$(grep '^janitor   :' <<<"$out" || :)"
+out="$(sf env HANDOVER_STALE_SECONDS=3600 DISPATCH_FETCH=1)"
+expect "a fetched view still names the stale claim" "janitor   : stale claim(s) on" "$out"
+refute "and carries no caveat on that row" "this clone is stale" \
+  "$(grep '^janitor   :' <<<"$out" || :)"

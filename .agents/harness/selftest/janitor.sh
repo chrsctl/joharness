@@ -439,3 +439,49 @@ expect "and origin still carries it unreleased" "status: review" \
 out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply 2>&1 )"; rc=$?
 if [ "$rc" -ne 0 ]; then pass "--apply with no branch is a usage error"
 else fail "--apply with no branch is a usage error"; fi
+
+# --- a branch deleted on origin is never re-created (#397) ------------------
+# <branch>: a stale claim with no pr:, pushed, so this clone holds its ref.
+jgone() {
+  git -C "$jwork" checkout -qb "$1" main
+  mkdir -p "${jwork}/docs/handover"
+  printf -- '---\nworkstream: %s\nstatus: in-progress\nbranch: %s\nplan: none\npr: none\nsession: https://example.invalid/session_%s\nagent: sonnet\nupdated: 2026-01-02\nnext: Build it\n---\n\n## Goal\nFixture.\n' \
+    "$1" "$1" "$1" >"${jwork}/docs/handover/${1}.md"
+  jcommit "claim $1" '2026-01-02T00:00:00Z'
+  git -C "$jwork" push -qu origin "$1"
+  git -C "$jwork" checkout -q main
+}
+# A narrow refspec: --prune prunes only what it maps, so the deleted branch's
+# remote-tracking ref survives and the clone still calls it a candidate.
+jgone mgr-deleted
+jrefspec="$(git -C "$jwork" config --get-all remote.origin.fetch)"
+git -C "$jwork" config --replace-all remote.origin.fetch \
+  '+refs/heads/main:refs/remotes/origin/main'
+git -C "$jorigin" branch -qD mgr-deleted
+expect "the stale ref outlives the deletion, so the case below is live" \
+  "mgr-deleted  docs/handover/mgr-deleted.md" "$(jan)"
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-deleted 2>&1 )"; rc=$?
+expect "--apply asks origin and finds the branch gone" \
+  "gone      : mgr-deleted — gone on origin, nothing to release" "$out"
+refute "and pushes nothing" "pushed    :" "$out"
+if [ "$rc" -eq 0 ]; then pass "a gone branch is no failure"
+else fail "a gone branch is no failure (rc ${rc})"; fi
+if [ -z "$(git -C "$jorigin" ls-remote --heads "$jorigin" mgr-deleted)" ]; then
+  pass "and origin still has no such branch"
+else
+  fail "and origin still has no such branch (re-created)"
+fi
+git -C "$jwork" config --replace-all remote.origin.fetch "$jrefspec"
+
+# The default refspec: --apply's own fetch prunes the ref, so the existing
+# no-such-branch skip answers, without a dispatch first.
+jgone mgr-deleted2
+git -C "$jorigin" branch -qD mgr-deleted2
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-deleted2 2>&1 )"
+expect "under the default refspec the prune answers first" \
+  "skip      : mgr-deleted2 — no such branch on origin" "$out"
+if [ -z "$(git -C "$jorigin" ls-remote --heads "$jorigin" mgr-deleted2)" ]; then
+  pass "and origin still has no such branch either"
+else
+  fail "and origin still has no such branch either (re-created)"
+fi

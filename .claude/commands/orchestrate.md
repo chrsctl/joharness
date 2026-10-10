@@ -40,7 +40,7 @@ nothing. Never read a full queue and leave it untouched.
 
 ## 0. Start (once per orchestrator session, never per pass)
 
-1. `git fetch origin main` and fast-forward this checkout to `origin/main`
+1. `git fetch --prune origin` and fast-forward this checkout to `origin/main`
    (`git checkout main && git merge --ff-only origin/main`), so the harness
    you run is current. Cannot fast-forward = say so and stop.
 2. `./joharness.sh authority`. VERIFIABLE = proceed; else stop, say so.
