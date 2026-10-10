@@ -116,7 +116,8 @@
 #   JOHARNESS_MAX_MANAGERS=4   managers in flight at once.
 #                              With JOHARNESS_STALL_MINUTES=45,
 #                              JOHARNESS_HEALTH_MINUTES=10 and
-#                              JOHARNESS_RESPAWN_LIMIT=2 these are the
+#                              JOHARNESS_RESPAWN_LIMIT=2 and
+#                              JOHARNESS_MANAGER_HOURS=4 these are the
 #                              human's numbers; `dispatch` prints them
 #   JOHARNESS_REVIEW=off       'off' (default) or 'on'. 'on' makes `ci` fail
 #                              when a workstream this branch wrote reaches the
@@ -7285,6 +7286,25 @@ dispatch_block_age_min() {
   now="$(date +%s)"
   printf '%s' "$(( (now - ts) / 60 ))"
 }
+# Minutes since a branch's CLAIM: the oldest commit the branch carries past
+# its merge base, which is the claim push (Loop step 3: the workstream file
+# is pushed before any code). Empty when the branch has no commit of its own
+# or no base is known; the caller says nothing then. <branch> <merge base>
+#
+# `%at`, the author date, for the reason dispatch_block_age_min reads it: a
+# rebase or amend rewrites `%ct` to now, and a manager rebasing its branch
+# would reset its own ceiling. `tail -1` over `--reverse | head -1`: the same
+# oldest commit with no second pipe stage reading past the first line.
+dispatch_claim_age_min() {
+  local ts now
+  [ -n "${2:-}" ] || return 0
+  # `</dev/null`: same reason as dispatch_age_min above.
+  ts="$(git -C "$ROOT" log --format=%at "${2}..refs/remotes/origin/$1" \
+    </dev/null 2>/dev/null | tail -1)"
+  [ -n "$ts" ] || return 0
+  now="$(date +%s)"
+  printf '%s' "$(( (now - ts) / 60 ))"
+}
 dispatch_age_text() {
   [ -n "$1" ] || { printf 'unknown'; return 0; }
   if [ "$1" -lt 120 ]; then printf '%sm' "$1"; else printf '%sh' "$(( $1 / 60 ))"; fi
@@ -8167,6 +8187,7 @@ dispatch_rescope_branches() {
 cmd_dispatch() {
   local cap stall health respawn churnt churnl hout qout rows wavemap edge req sup
   local path label branch ws doc status session next age agetext flag tier
+  local pr hours cage_min n_ceiling=0
   local base commits churn churn_n churn_f marks rounds work
   local analysis cond
   local st wave note hold holdmap hold_live hline hb hs holds_n blocked_claims=""
@@ -8191,6 +8212,9 @@ cmd_dispatch() {
   stall="$(num_knob JOHARNESS_STALL_MINUTES 45)"
   health="$(num_knob JOHARNESS_HEALTH_MINUTES 10)"
   respawn="$(num_knob JOHARNESS_RESPAWN_LIMIT 2)"
+  # A written number (issue #298: one consumer run, $48 at 5.5h on one item).
+  # Hours, not minutes: the window is a work session, not a push cadence.
+  hours="$(num_knob JOHARNESS_MANAGER_HOURS 4)"
   # ci's two tiers, kept and read the same way ci reads them: from the
   # threshold a warning the session judges, from the limit (default twice
   # that) no longer a call. LOOP? is the kill line, so it sits on the
@@ -8238,6 +8262,12 @@ cmd_dispatch() {
   printf 'stall     : %s min without a push = cross-check the control plane (JOHARNESS_STALL_MINUTES)\n' "$stall"
   printf 'health    : one pass every %s min (JOHARNESS_HEALTH_MINUTES)\n' "$health"
   printf 'respawns  : %s per item per run (JOHARNESS_RESPAWN_LIMIT)\n' "$respawn"
+  # Lifted, the line names no mark: `grep CEILING?` over a lifted pass is 0.
+  if [ "$hours" -gt 0 ]; then
+    printf 'ceiling   : %sh since the claim with no pr: = CEILING? (JOHARNESS_MANAGER_HOURS; 0 lifts it)\n' "$hours"
+  else
+    printf 'ceiling   : lifted, no time against a claim (JOHARNESS_MANAGER_HOURS=0)\n'
+  fi
   printf 'loop      : one file rewritten %s+ times on a branch = LOOP? (JOHARNESS_CHURN_LIMIT; 0 lifts it); %s+ = a warning on the work line (JOHARNESS_CHURN_THRESHOLD)\n' "$churnl" "$churnt"
   # Printed both ways, because off is the state a reader most needs told: the
   # health table's `done` row does nothing here unless this says on, and an
@@ -8495,12 +8525,14 @@ cmd_dispatch() {
     # Every per-row value reset here, `doc` included: a row whose file the
     # hook did not list inherited the previous row's document and printed
     # its neighbour's finding count as its own.
-    status=""; session=""; next=""; doc=""
+    status=""; session=""; next=""; doc=""; pr=""
     if [ -n "$ws" ]; then
       doc="$(git -C "$ROOT" show "origin/${branch}:${ws}" 2>/dev/null)"
-      { read -r status; read -r session; read -r next; } \
-        <<<"$(printf '%s\n' "$doc" | gr_fields status session next)"
+      { read -r status; read -r session; read -r next; read -r pr; } \
+        <<<"$(printf '%s\n' "$doc" | gr_fields status session next pr)"
     fi
+    # Branch-controlled text, tested below: the charset cmd_janitor keeps.
+    pr="$(printf '%s' "$pr" | tr -cd 'A-Za-z0-9._#-')"
     # A workstream file on another branch is repo-controlled input, and the
     # orchestrator branches on the ROW this builds. Unvalidated, a manager
     # that writes `status: in-progress  BLOCKED: the human's, holds no slot`
@@ -8576,6 +8608,23 @@ cmd_dispatch() {
       n_loop=$((n_loop + 1))
       flag="${flag}  LOOP? ${churn_f} rewritten ${churn_n} times (>= ${churnl}): record its progress, respawn with the churn rule"
       cond="${cond:+${cond}+}LOOP?"
+    fi
+    # Time against the ITEM, which nothing above measures: a manager that
+    # pushes inside the stall window and under the churn limit reads healthy
+    # for as long as it runs (issue #298: $48 over 5.5h, no pull request).
+    # A REPORT, never a condition: `cond` is untouched, so no analyst, no
+    # stall count, no verdict and no spawn moves on it. Slow is not stuck,
+    # and a refresh archives live work — that call is the human's.
+    if [ "$status" = "in-progress" ] && [ "$hours" -gt 0 ]; then
+      case "$pr" in
+        '' | none)
+          cage_min="$(dispatch_claim_age_min "$branch" "$base")"
+          if [ -n "$cage_min" ] && [ "$cage_min" -ge $((hours * 60)) ]; then
+            n_ceiling=$((n_ceiling + 1))
+            flag="${flag}  CEILING? $(dispatch_age_text "$cage_min") since the claim, no pr: — REPORT it with the control plane's cost (.claude/commands/orchestrate.md)"
+          fi
+          ;;
+      esac
     fi
     # Where the switch is on, the row names its own explainer. Beside the
     # nudge, the kill or the report — never instead of one: an analyst
@@ -8973,6 +9022,8 @@ cmd_dispatch() {
   fi
   [ "$n_loop" -eq 0 ] ||
     printf '            %s manager(s) rewriting one file past the churn threshold: health pass FIRST\n' "$n_loop"
+  [ "$n_ceiling" -eq 0 ] ||
+    printf '            %s manager(s) past the ceiling with no pull request: report, never kill on this alone\n' "$n_ceiling"
   [ "$n_blocked" -eq 0 ] ||
     printf '            %s manager(s) blocked: report to the human, never respawn\n' "$n_blocked"
   [ "$n_hold" -eq 0 ] ||

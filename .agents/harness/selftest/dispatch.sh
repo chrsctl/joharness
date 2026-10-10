@@ -2446,3 +2446,86 @@ if [ "$(grep -n '^edge work (finish' <<<"$out" | cut -d: -f1)" -lt \
 else
   fail "and it is printed before the spawn order"
 fi
+
+# --- time against the item: CEILING? (issue #298) ---------------------------
+# A manager that pushes inside the stall window and under the churn limit read
+# healthy for 5.5h and $48 with no pull request. The row now carries hours
+# since the CLAIM when its workstream says `pr: none` — a report, never a
+# condition, so the verdict must be the one the same fixture gives with the
+# knob lifted. Its own fixture: the branches it adds move no count above.
+cewwork="${TMP}/ceilingwork"
+cewworigin="${TMP}/ceilingorigin.git"
+git init -q --bare "$cewworigin"
+git init -q "$cewwork"
+git -C "$cewwork" symbolic-ref HEAD refs/heads/main
+mkdir -p "${cewwork}/docs/plans" "${cewwork}/docs/handover" \
+  "${cewwork}/.agents/harness" "${cewwork}/.agents/env/none"
+cp "${ROOT}/joharness.sh" "${cewwork}/joharness.sh"
+cp "${ROOT}/.agents/harness/queue-context.sh" \
+   "${ROOT}/.agents/harness/handover-context.sh" "${cewwork}/.agents/harness/"
+printf '# none\n' >"${cewwork}/.agents/env/none/AGENTS.md"
+cewconf="${cewwork}/joharness.conf"
+printf 'JOHARNESS_ENV=none\n' >"$cewconf"
+for p in slow other; do
+  printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: high\n---\n\n## Goal\nFixture.\n' \
+    "$p" >"${cewwork}/docs/plans/${p}.md"
+done
+commit_all "$cewwork" "base and two plans"
+git -C "$cewwork" remote add origin "$cewworigin"
+git -C "$cewwork" push -qu origin main
+cew() { ( cd "$cewwork" && JOHARNESS_CONF="$cewconf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 "$@" ./joharness.sh dispatch 2>&1 ); }
+# <pr value>: the workstream file a manager on `slow` would write.
+cewws() {
+  printf -- '---\nworkstream: slow\nstatus: in-progress\nbranch: mgr-slow\npr: %s\nplan: slow\nagent: sonnet\nupdated: 2026-01-01\n---\n\n## Goal\nWorking.\n' \
+    "$1" >"${cewwork}/docs/handover/slow.md"
+}
+# Claimed 10h ago, pushed NOW: inside every stall window, past the ceiling.
+# The date rides on the one commit, so it cannot leak into the push after it.
+git -C "$cewwork" checkout -qb mgr-slow
+cewws none
+git -C "$cewwork" add -A
+cewt=$(( $(date +%s) - 10 * 3600 ))
+GIT_AUTHOR_DATE="@${cewt} +0000" GIT_COMMITTER_DATE="@${cewt} +0000" \
+  git -C "$cewwork" commit -qm "claim slow"
+printf 'code\n' >"${cewwork}/code.txt"
+commit_all "$cewwork" "a push this minute"
+git -C "$cewwork" push -qu origin mgr-slow
+git -C "$cewwork" checkout -q main
+
+# Analysis on: a condition would name an analyst, and CEILING? must not.
+out="$(cew env JOHARNESS_IDLE_ANALYSIS=on)"
+cewrow="$(printf '%s\n' "$out" | grep 'mgr-slow')"
+expect "the header names the ceiling and its knob" \
+  "ceiling   : 4h since the claim with no pr: = CEILING? (JOHARNESS_MANAGER_HOURS; 0 lifts it)" "$out"
+expect "a claim past the ceiling with no pr: carries CEILING?" \
+  "CEILING? 10h since the claim, no pr:" "$cewrow"
+refute "aged from the claim, not the push" "CEILING? 0m" "$cewrow"
+refute "a recent push is no stall" "STALL?" "$cewrow"
+refute "and CEILING? is no condition: no analyst" "ANALYSE?" "$cewrow"
+expect "the tail counts it as a report" \
+  "1 manager(s) past the ceiling with no pull request: report, never kill on this alone" "$out"
+refute "and orders no health pass" "past the stall window" "$out"
+cewlifted="$(cew env JOHARNESS_IDLE_ANALYSIS=on JOHARNESS_MANAGER_HOURS=0)"
+refute "0 lifts it" "CEILING?" "$cewlifted"
+expect "and the header says so" "ceiling   : lifted" "$cewlifted"
+refute "and lifts the tail line with it" "past the ceiling" "$cewlifted"
+# Every line from the verdict on, less the one tail line CEILING? adds.
+if [ "$(sed -n '/^verdict/,$p' <<<"$out" | grep -v 'past the ceiling')" = \
+     "$(sed -n '/^verdict/,$p' <<<"$cewlifted")" ] &&
+   [ -n "$(sed -n '/^verdict/p' <<<"$out")" ]; then
+  pass "the verdict and the spawn list are the ones the lifted knob gives"
+else
+  fail "the verdict and the spawn list are the ones the lifted knob gives"
+fi
+
+# The same branch with a pull request open: the ceiling is a claim with NO pr.
+git -C "$cewwork" checkout -q mgr-slow
+cewws 12
+commit_all "$cewwork" "open the pull request"
+git -C "$cewwork" push -q origin mgr-slow
+git -C "$cewwork" checkout -q main
+cewrow="$(cew | grep 'mgr-slow')"
+expect "the row is still in flight, so the refute below reads something" \
+  "docs/plans/slow.md  mgr-slow  in-progress" "$cewrow"
+refute "a claim with a pr: carries no CEILING?" "CEILING?" "$cewrow"

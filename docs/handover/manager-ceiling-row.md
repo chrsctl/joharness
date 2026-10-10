@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01KJ92BHuw5KVtRvCQuyCsgr
 agent: opus
 updated: 2026-10-10
-next: Research cmd_dispatch claimed-row walk, then add the CEILING? flag and its fixtures
+next: Selftest, revert-proof the fixture, ci + verify, verifier review, retire, PR
 ---
 
 ## Goal
@@ -18,7 +18,14 @@ held its claim N hours with no pull request, reported (never killed on).
 
 ## Decisions
 
-- None yet.
+- Claim age reads `%at` (author date), not the plan's `%ct`: a rebase or
+  amend rewrites `%ct` to now and would reset the ceiling.
+  `dispatch_block_age_min` reads `%at` for the same reason.
+- Lifted (`JOHARNESS_MANAGER_HOURS=0`), the header prints `lifted` and no
+  `CEILING?` token, so the plan's acceptance `grep -c CEILING?` is 0.
+- orchestrate.md row says read it BESIDE the matched row: the table reads
+  first-match, and the first row matches the RUNNING under-window manager
+  this mark is about.
 
 ## Rejected
 
