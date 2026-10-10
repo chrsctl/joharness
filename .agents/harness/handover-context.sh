@@ -661,7 +661,7 @@ while IFS="$US" read -r rank _ short f status pr updated agent issue \
   fi
 
   others="${others}  ${short}: ${f}"$'\n'
-  others="${others}    [${status:-?}, updated ${updated:-?}${agent:+, wants ${agent}}${pr:+, pr #${pr}}${issue:+, claims issue #${issue}}] pushed ${pushed_rel:-?}${claim}"$'\n'
+  others="${others}    [${status:-?}, updated ${updated:-?}${agent:+, wants ${agent}}${pr:+, pr #${pr}}${issue:+$([ "$status" = abandoned ] || printf ', claims issue #%s' "$issue")}] pushed ${pushed_rel:-?}${claim}"$'\n'
 
   # What "finish" would mean here, in the words of the step that does it.
   # Only for the three ranks at the edge: a line on every entry would make

@@ -42,6 +42,24 @@ expect "branch claims its plan" \
   "b_rival_ws -- claims --> p_rival_plan" "$out"
 refute "the template is not a node" "TEMPLATE" "$out"
 
+# Plan abandoned-reaches-every-reader: a RELEASED claim stays a node but draws
+# no claims edge. Control is rival-ws above, same plan, live status. The branch
+# is deleted after so no later topic counts it.
+git -C "$work" checkout -qb released-gr main
+mkdir -p "${work}/docs/handover"
+printf -- '---\nworkstream: released-ws\nstatus: abandoned\nplan: rival-plan\nupdated: 2026-01-01\nnext: x\n---\n\n## Goal\nFixture.\n' \
+  >"${work}/docs/handover/released-ws.md"
+commit_all "$work" "a released claim"
+git -C "$work" push -qu origin released-gr
+git -C "$work" checkout -q feature
+rout="$(CLAUDE_PROJECT_DIR="$work" "${ROOT}/joharness.sh" graph 2>&1)"
+expect "a released branch is still a node" \
+  'b_released_ws(["released-ws"]):::branch' "$rout"
+refute "but draws no claims edge" "b_released_ws -- claims" "$rout"
+expect "while the live claim on the same plan keeps its edge" \
+  "b_rival_ws -- claims --> p_rival_plan" "$rout"
+git -C "$work" push -q origin --delete released-gr 2>/dev/null || :
+
 # Ownership is a diff, not a tree. `inheritor` writes no workstream file of
 # its own; it only carries main's two rotted ones, like every branch cut from
 # a base that accreted them. Reading the tree drew it as a node named after
