@@ -143,12 +143,17 @@ mkdir -p "${xwork}/.claude/commands"
 printf 'manager rules here\n' >"${xwork}/.claude/commands/manage.md"
 commit_all "$xwork" "a role file"
 git -C "$xwork" push -q origin main
+# A branch one commit ahead, plus an uncommitted line: the delta must be
+# against the MERGE BASE, and a delta read against HEAD prints +8, not +17.
+git -C "$xwork" checkout -qb role-growing
 printf 'one more\n' >>"${xwork}/.claude/commands/manage.md"
+commit_all "$xwork" "grow the role file"
+printf 'and one\n' >>"${xwork}/.claude/commands/manage.md"
 out="$(ctx_run)"
 expect "role block is printed when a role file exists" \
   "loaded when the role starts (orchestrated):" "$out"
 expect "a present role file gets a counted row and its merge-base delta" \
-  ".claude/commands/manage.md             28 bytes       5 words  (+9 bytes, +2 words vs merge base)" "$out"
+  ".claude/commands/manage.md             36 bytes       7 words  (+17 bytes, +4 words vs merge base)" "$out"
 refute "an absent role file gets no row" ".claude/commands/orchestrate.md" "$out"
 out="$(ci_ctx)"
 refute "ci's chain print carries no role block" "loaded when the role starts" "$out"

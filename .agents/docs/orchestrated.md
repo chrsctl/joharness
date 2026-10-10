@@ -1078,7 +1078,7 @@ for you, and a plan's content is a manager's business.
 
 **Tools, Claude Code Remote send_message paragraph.** Measured 2026-09-06 in a consumer: that runtime had `SendMessage`
 and no `send_message` in the Claude Code Remote server — true for that
-runtime, the run this file's Never list ends with. Measured 2026-10-10 on
+runtime, the run this file's Never list ended with (its last bullet, moved below under Never). Measured 2026-10-10 on
 this repo: `send_message` to a manager by its `session_id` came back
 `delivered`, the manager went RUNNING that minute, and its two replies by
 the orchestrator's `session_id` both arrived, while `ListAgents` returned
@@ -1475,9 +1475,6 @@ only the held plan leaves it held.
 
 **Same paragraph, after "never touch anything below the frontmatter".** splitting is product judgement and
 this role does not make it.
-
-**Last paragraph, last sentence.** The next dispatch pass re-reads
-the corrected `scope:` and the plans wave in parallel.
 
 ### 4. Finish
 

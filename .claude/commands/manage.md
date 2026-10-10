@@ -121,7 +121,8 @@ reads that `done` and stops recommending a rescope for this key.
 
 Otherwise: one commit rewriting the `scope:` lines, workstream file in it,
 review at your tier (`.agents/harness/AGENTS.md` step 5), retire the
-workstream file, pull request, merge, exit.
+workstream file, pull request, merge, exit. The next dispatch pass re-reads
+the corrected `scope:` and the plans wave in parallel.
 
 ## 3. The contract with the orchestrator
 

@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_016g6mN8LJQwpLQLRc1Rmond
 agent: opus
 updated: 2026-10-10
-next: Write the ledger in ## Review, run ci + verify, verifier, retire, PR
+next: Merge origin/main, ci, retire plan + workstream file, PR, merge
 ---
 
 ## Goal
@@ -66,7 +66,7 @@ second clause" -> "The LOOP row's second clause" and "the field" ->
 15. `orchestrate.md` 2. Health pass, `context_usage.used_tokens` paragraph (the two "is NOT one" sentences stay) — moved to `.agents/docs/orchestrated.md`:Orchestrator: why, by step / 2. Health pass
 16. `orchestrate.md` 2. Health pass, same paragraph, after "`external_metadata.current_branches` is not one either" — moved to `.agents/docs/orchestrated.md`:Orchestrator: why, by step / 2. Health pass
 17. `orchestrate.md` 2. Health pass, health table, leftovers row, after "NEVER respawn" — moved to `.agents/docs/orchestrated.md`:Orchestrator: why, by step / 2. Health pass
-18. `orchestrate.md` 2. Health pass, worked readings after the health table (IDLE alive, IDLE dead, LOOP dead and its two cautions) — moved to `.agents/docs/orchestrated.md`:Orchestrator: why, by step / 2. Health pass
+18. (r3: the LOOP-clause paragraph and the `connection_status` sentence in it are kept in the command file too — duplicate of `.claude/commands/orchestrate.md` §2 pointer paragraph, not moved) `orchestrate.md` 2. Health pass, worked readings after the health table (IDLE alive, IDLE dead, LOOP dead and its two cautions) — moved to `.agents/docs/orchestrated.md`:Orchestrator: why, by step / 2. Health pass
 19. `orchestrate.md` 2. Health pass, edge rows paragraph, after "holds nothing, and is only reported" — moved to `.agents/docs/orchestrated.md`:Orchestrator: why, by step / 2. Health pass
 20. `orchestrate.md` 2. Health pass, the two optional-tool sequences, after "One rule for both" — moved to `.agents/docs/orchestrated.md`:Orchestrator: why, by step / 2. Health pass
 21. `orchestrate.md` 2. Health pass, RESPAWN paragraph, last sentence — moved to `.agents/docs/orchestrated.md`:Orchestrator: why, by step / 2. Health pass
@@ -122,7 +122,7 @@ second clause" -> "The LOOP row's second clause" and "the field" ->
 71. `manage.md` R. Surveyor, third bullet, after "stays exactly as it is" — moved to `.agents/docs/orchestrated.md`:Manager: why, by step / R. Surveyor
 72. `manage.md` R. Surveyor, "Mark BOTH sides of a collision" paragraph — moved to `.agents/docs/orchestrated.md`:Manager: why, by step / R. Surveyor
 73. `manage.md` R. Surveyor, same paragraph, after "never touch anything below the frontmatter" — moved to `.agents/docs/orchestrated.md`:Manager: why, by step / R. Surveyor
-74. `manage.md` R. Surveyor, last paragraph, last sentence — moved to `.agents/docs/orchestrated.md`:Manager: why, by step / R. Surveyor
+74. `manage.md` R. Surveyor, last paragraph, last sentence — RESTORED (r5): `joharness.sh` dispatch cites manage.md for it
 75. `manage.md` 4. Finish, first paragraph, after "\"merged <stem>\" to it" — moved to `.agents/docs/orchestrated.md`:Manager: why, by step / 4. Finish
 76. `manage.md` 4. Finish, follow-up plan paragraph, last sentence — moved to `.agents/docs/orchestrated.md`:Manager: why, by step / 4. Finish
 77. `manage.md` 4. Finish, GitHub lost, "After it" bullet, after "exit" — moved to `.agents/docs/orchestrated.md`:Manager: why, by step / 4. Finish
@@ -172,6 +172,13 @@ Getting under 6,000 would mean dropping or merging imperatives — out of
 scope ("Moving, not editing").
 
 ### Findings
+
+- r1: (verifier) role-row selftest could not tell merge base from HEAD — fixture's HEAD was the merge base, a `ctx_read HEAD` mutant printed the same row. (fixed — branch one commit ahead plus an uncommitted line: merge base gives +17 bytes, HEAD would give +8)
+- r2: (verifier) trim reached sections the plan's Scope does not name (Preamble, Tools, §0, §1, Report, Never). (wontfix — each is a why-block moved whole, ledgered; the plan's goal names the whole file's why-text and "keep every instruction" holds; recorded here as the scope decision)
+- r3: (verifier) ledger understated edits in text that stayed: the worked-readings pointer paragraph is new, janitor bullet `— … —` became `,`, a paragraph break removed, LOOP-clause paragraph duplicated not moved. (fixed — recorded here and in ledger item 18; pointer allowed by the plan's Scope)
+- r4: (verifier) destination not quite verbatim: self-links became `orchestrated.md`, "the run this file's Never list ends with" pointed at a moved bullet, some position labels anchor on text that moved too. (fixed the Never referent; links-as-names and labels wontfix — a self-link is noise, and each label still names the section)
+- r5: (verifier) `joharness.sh` dispatch says plans "wave in parallel (.claude/commands/manage.md, rescope)" and that sentence had moved out. (fixed — sentence restored to manage.md §R, ledger 74)
+- r6: (verifier) IDLE-row `updated_at` staleness reading and worked-reading verdicts left the command file. (wontfix — the health table rows carry every verdict, and "`updated_at` decides nothing ALONE, at any interval" covers the IDLE case)
 
 ## Blockers
 
