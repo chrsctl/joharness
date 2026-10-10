@@ -23,6 +23,11 @@ Plan heartbeat-is-a-precondition: orchestrate.md names the heartbeat as the dura
 
 ## Review
 
+- r1: (verifier) step 0.2 takeover contradicted the no-interrupt rule and was a one-signal kill; fixed: exit and report, never replace.
+- r2: (verifier) the seen/detail look had no state for a ledger-less firing; fixed by dropping the takeover.
+- r3: (verifier) 0.5 unreachable on the exit pass; fixed: 0.2's report names step 5's line.
+- r4: (verifier) list_triggers missing from Tools; fixed. Size +words (wontfix: one read, one report line; takeover procedure removed).
+
 ## Blockers
 
 None.

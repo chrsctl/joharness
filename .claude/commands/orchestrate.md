@@ -18,7 +18,7 @@ Tools, from TWO servers, and the split matters. Names carry an unstable
 prefix — find each with `ToolSearch("+<name>")`, which matches the tool's
 NAME, so search the name as spelled below.
 
-Claude Code Remote MCP: `list_sessions`, `get_session`, `create_session`,
+Claude Code Remote MCP: `list_sessions`, `list_triggers`, `get_session`, `create_session`,
 `interrupt_session`, `archive_session`, `set_session_title`, `send_later`.
 Messaging is NOT in that server: it is a harness tool, `SendMessage`, and
 its targets come from `ListAgents`. Searching `+send_message` finds
@@ -60,12 +60,11 @@ and leave it untouched.
    Bounds).
 2. One orchestrator per repo. `list_sessions` (every session you can see,
    not only yours): one titled `orchestrator: <owner/repo>` with
-   `session_status: RUNNING` that is not you = exit, say so, and arm ONE
-   `send_later` (`JOHARNESS_HEALTH_MINUTES`) carrying `seen=<updated_at>
-   detail=<status_detail>` of it. Next firing finds it RUNNING with both
-   unchanged: frozen, the `stalled` row's own test, never one signal. Then
-   `set_session_title` it `orchestrator-frozen: <owner/repo>`,
-   `interrupt_session` it if you can, and go on as the orchestrator. Else
+   `session_status: RUNNING` that is not you = exit, say so, with its
+   `updated_at` and `status_detail` and step 5's heartbeat line. Never
+   replace it: a firing keeps no ledger and cannot take the two looks a
+   frozen verdict needs, and `interrupt_session` below forbids a takeover
+   you cannot stop. Unchanged across firings = a human's call. Else
    `set_session_title` yours to that (absent: Tools, above — report and
    go on). Two firing in the same minute can
    both pass this; the collision is two managers on one item, which claim
