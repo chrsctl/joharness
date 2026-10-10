@@ -93,14 +93,15 @@ recorded in the pull request body with the evidence, one line each:
   `joharness.conf`; in canonical the verdict does not exist). The issue is
   about harness behaviour: it asks a change to a path the sync ships, or to a
   rule in `.agents/harness/AGENTS.md`, `.agents/docs/` or `.claude/commands/`.
-  The author gate (§2) still applies first. Write no plan; the direction rule
+  The author gate (§2) still applies first, and so does the check above: a
+  claim that does not hold is DOES NOT HOLD, never UPSTREAM. Write no plan; the direction rule
   (`.agents/docs/consumer-repos.md`) already says where it goes. Read
   `CANONICAL_REPO` from `.github/workflows/update.yml` (read only), then:
   1. Canonical already covers it: comment `clerk: UPSTREAM` citing the
      canonical file and section, close the consumer issue.
   2. Not covered: search canonical's open issues first (same finding = link
-     it); else open ONE issue on `CANONICAL_REPO` carrying what you
-     established. Comment `clerk: UPSTREAM` with its link, close the consumer
+     it); else open ONE issue on `CANONICAL_REPO` carrying the command and
+     output that established it, and nothing private from the consumer. Comment `clerk: UPSTREAM` with its link, close the consumer
      issue. At most one issue filed per routed issue.
   3. Canonical outside this session's GitHub scope: comment `clerk: UPSTREAM`
      with ready-to-file issue text and leave the issue open
