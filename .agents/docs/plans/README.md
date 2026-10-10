@@ -77,11 +77,7 @@ miss the conflict — it asserts the opposite.
 
 Some files every plan touches. A repo whose plans all edit one test file or
 one index has no disjoint pair, so every wave holds one plan and the hook
-advises serialising work that runs fine in parallel. Measured in a consumer
-at `c79dc82`, one working day (2026-08-24): four sessions
-for 12.5 hours, one 8,131-line test file named by 4 of 5 queued plans, and 2
-of 24 merged pull requests needing a reconcile. A cost, not an impossibility
-— recount it there, not here; this repo is not that queue. Mark such a path
+advises serialising work that runs fine in parallel. Mark such a path
 `shared:` inside `scope`:
 
 ```yaml
@@ -91,13 +87,10 @@ scope: src/parser.py, shared:tests/test_all.py
 A core path in `scope:` (`./joharness.sh protocol-paths`: the conf, the
 settings, `.github`) — `shared:` or not — marks the plan `CORE ONLY`
 and ranks it out of the free list. Protocol text is not a
-core path since 2026-10-08: a plan scoped to `joharness.sh` or
-`.agents/harness/` is free work. Declare it
-anyway. Hiding the path does not make the plan unattended-doable:
-`.agents/harness/handover-guard.sh` blocks the stop on the diff, so the fleet
-spends a session reaching a hand-off (attempt two, 55 minutes) instead of
-skipping the plan. Honest declaration costs the fleet a plan it could never
-finish; the omission costs it a run.
+core path: a plan scoped to `joharness.sh` or `.agents/harness/` is free
+work. Declare core paths anyway — hiding one does not make the plan doable
+(the Stop guard blocks on the diff); it only costs the fleet a run. A plan
+whose `scope:` is core paths ONLY is red in `ci`: only a human builds it.
 
 `shared:` means "a reconcile merge is expected here", so the path stops
 splitting waves and the hook names it on the wave line instead. Everything
@@ -106,11 +99,10 @@ splits, and still says which plan it collided with. Mark only a path where a
 reconcile is genuinely routine — a wave that claims a parallel safety it does
 not have is worse than one that claims none.
 
-A registry left unmarked does not just cost this plan a wave — under
-orchestrated mode it can stall the whole fleet: every plan appends to the
+A registry left unmarked can stall the whole fleet: every plan appends to the
 same criteria index or ADR directory, so one branch in flight holds all the
-rest, and `dispatch` reads slots free with nothing to spawn. That mode has a
-repair for it — an `OVERLAP-BOUND` verdict spawns a surveyor that
+rest, and `dispatch` reads slots free with nothing to spawn. The repair — an
+`OVERLAP-BOUND` verdict spawns a surveyor that
 marks the registries `shared:` and narrows bare-directory claims across the
 held plans (`.agents/docs/orchestrated.md`, Concurrency). Declaring the
 registry `shared:` in the first place is what spares the fleet that pass, so
@@ -185,19 +177,8 @@ What each existing reconciler reaches, and what it does not. Re-take it:
   branch's own workstream file names is dropped from it as in flight.
 
 So the duplicate that gets through is a plan filed from something with no
-issue number — a red CI step, a failure a merging session saw — while a
-second session plans the same thing. Reported from a consumer (`chrsctl/gx`,
-2026-10-08, not re-measured here): a manager told by its spawn prompt to
-"file the next plan if a new step fails" filed one as a plan-only pull
-request (gx #488) while the orchestrator, reading the same red step, had
-already spawned a planner that filed and built its own (gx #490); `dispatch`
-listed the first FREE while the second was built, and the builder happened
-to delete it. Second instance in that run; the first (gx #481) cost a human
-the reconcile. That no manager was spent on a duplicate rests, by inference
-and not measurement, on the run's cap of one manager. And #297's own fix —
-a filer merges its plan-only pull request fast — makes this more likely, not
-less: a plan that lands fast lands while the second planner is still at
-work. Also inference, from the two timelines.
+issue number — a red CI step a merging session saw — while a second session
+plans the same thing.
 
 Rule, until the harness carries an identity that is not the filename:
 
@@ -208,21 +189,11 @@ Rule, until the harness carries an identity that is not the filename:
   no second plan; a lead or a note instead. Limit, stated: a planner that has
   not pushed is invisible to any search — the same pre-push gap Lifecycle's
   "Spawning in parallel" names.
-- **A spawn prompt that tells a manager to plan what it sees after its merge
-  is the case this rule exists for.** A manager's follow-up plan is
-  sanctioned (`.claude/commands/manage.md`, Finish), and so is a plan from an
-  issue, a requirement or a direct ask (Loop step 2). What no role under
-  `.claude/commands/` describes is a manager filing on the NEXT failure while
-  the orchestrator may already be spawning onto it; the channel the harness
-  does carry for that is a `lead` line, relayed and never acted on
-  (`.claude/commands/orchestrate.md`, the lead bound). A caller who sends a
-  manager down that road owns the search above.
-- **A deduping key is not proposed here.** A key naming what a plan fixes
-  buys nothing unless two sessions reading one red step would write the same
-  value, which nobody has measured. Nor a dedupe in `dispatch` alone: it now
-  sees pushed branch plans, but it cannot see a planner that has not pushed,
-  and the orchestrator's spawn pass is where a second planner is sent. A
-  reconcile would have to sit there.
+- **A spawn prompt telling a manager to plan the NEXT failure it sees is the
+  case this rule exists for**; its caller owns the search above. The channel
+  the harness carries for it is a `lead` line, relayed and never acted on.
+- **No deduping key is proposed**: nobody has measured that two sessions
+  reading one red step would write the same value.
 
 ## Lifecycle
 
@@ -244,13 +215,8 @@ Rule, until the harness carries an identity that is not the filename:
   not the queue position.
 - **Spawning in parallel** = the CALLER names each session's plan in its
   prompt. Queue self-selection is for ONE session: a claim exists only after
-  the spawned session's first push (Loop step 3, "no push, no claim"), so
-  two sessions started against the same queue can both pick the top plan and
-  neither can see the other. Nothing here can fix that — every measure in
-  this harness counts from git at read time and stores nothing, so a
-  pre-push claim would need shared state the harness does not have. The
-  spawned session is behaving correctly when it self-selects; the caller is
-  the one who must not tell two of them to.
+  the spawned session's first push, so two sessions started against one
+  queue can both pick the top plan.
 - **The harness** drains this queue and exits at its edge. Work enters
   the queue three ways — an issue, a requirement, a plan through a pull
   request — and no session writes a plan from a detector. A session at the
