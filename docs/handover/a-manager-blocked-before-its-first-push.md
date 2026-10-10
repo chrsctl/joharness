@@ -35,6 +35,8 @@ the answer to `.agents/docs/orchestrated.md`, delete the node.
 
 ## Review
 
+- r1: plan acceptance awk printed `above` with the row ABSENT (unset b=0 < u); measured `awk ... orchestrate.md` on this branch -> `above` (fixed: require b, prints `BELOW or absent` today)
+
 ## Blockers
 
 None.

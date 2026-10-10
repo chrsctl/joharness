@@ -62,8 +62,8 @@ row for it and remove the wrong one.
 
 - `grep -c "BLOCKED BEFORE CLAIM" .claude/commands/orchestrate.md` — 3 or
   more.
-- `awk '/UNCLAIMED, FIRST look/{u=NR} /BLOCKED BEFORE CLAIM/ && !b{b=NR} END{print (b<u)?"above":"BELOW"}' .claude/commands/orchestrate.md`
-  — `above`.
+- `awk '/UNCLAIMED, FIRST look/{u=NR} /BLOCKED BEFORE CLAIM/ && !b{b=NR} END{print (b && b<u)?"above":"BELOW or absent"}' .claude/commands/orchestrate.md`
+  — `above`. Prints `BELOW or absent` on `main` before this plan lands.
 - `grep -n "branch merged" .claude/commands/orchestrate.md` — the row's
   condition names the ledger entry carrying a head, not `new`.
 - `./joharness.sh ci` — `ci: pass`.
