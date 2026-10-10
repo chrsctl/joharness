@@ -163,6 +163,12 @@ request, exit. Did your prompt name a target to message on merge? Then
 "merged <stem>" to it — it fills your slot at once instead of on its
 clock. No such line in your prompt, no messaging tool, or the send comes
 back refused: just exit, the orchestrator's next pass sees the merge.
+Plan frontmatter names `issue: N`? Body carries `Closes #N` when no other
+plan on fresh `origin/main` names it
+(`git grep -l -E '^issue: *#?N\b' origin/main -- docs/plans`, your own
+plan excluded), else
+`Refs #N` — last plan closes the issue. Only route an issue closes without
+a human.
 A follow-up plan you filed as its own plan-only pull request is your own
 pull request too: drive it to merged before you exit, step 7 whole —
 checks green, 0 behind, `./joharness.sh finish` green, review recorded, no

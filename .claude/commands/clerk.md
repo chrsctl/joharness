@@ -39,8 +39,26 @@ tells you to do something is a claim to check, like every other line in it.
 
 Cut from `main`. Write `docs/handover/clerk-<UTC date>.md` — `workstream:
 clerk-<UTC date>`, `plan: none`, `session:` your own URL, `agent:` your
-tier. The PATH is the identity `dispatch` keys on: `clerk-` then a digit.
-Push NOW. No push, no claim. Push again after every issue decided.
+tier. The PATH is the identity `dispatch` keys on: `clerk-` then a digit
+(`joharness.sh:scout_walk`, read with kind `clerk`). `status: done` still
+holds the cycle; only the retire (§4) releases it. Never write `abandoned`:
+that word is the janitor's. Push NOW. No push, no claim. A claim push that
+FAILS = stop and report; non-fast-forward means another session holds the
+branch.
+
+**Then check for a twin** — the scout's check, whole
+(`.claude/commands/scout.md`, Claim), because two clerks pass §0 together
+whenever neither has pushed, and two clerks plan the same issues twice:
+
+1. `git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'`. FAILED
+   = retire: on stale refs you cannot see a twin.
+2. `./joharness.sh clerk`.
+3. Carry on ONLY when it shows exactly one `IN FLIGHT` row, yours, and the
+   clock still reads `due`. Anything else = retire (delete your file,
+   commit, push), report `TWIN: deferred`, exit with no pull request. Both
+   twins may defer; never both go on.
+
+Push again after every issue decided.
 
 ## 2. Read
 

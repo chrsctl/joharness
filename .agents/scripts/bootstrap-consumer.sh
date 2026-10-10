@@ -144,6 +144,10 @@ IDLE_ANALYSIS="$(conf_key_default JOHARNESS_IDLE_ANALYSIS)"
 # the requester's cadence and a repo with no fleet never notices it, because a
 # sweep with no dead claim releases nothing and costs one report.
 JANITOR_HOURS="$(conf_key_default JOHARNESS_JANITOR_HOURS)"
+# Not asked either: how often issues are turned into plans, and how many a
+# pass takes, are numbers a repo tunes after its first clerk pass.
+CLERK_HOURS="$(conf_key_default JOHARNESS_CLERK_HOURS)"
+CLERK_BATCH="$(conf_key_default JOHARNESS_CLERK_BATCH)"
 # Not asked either, both of them: how often a repo wants proposals, and whether
 # it lets one merge itself, are questions a human answers after reading the
 # first proposal, not before the first session.
@@ -758,6 +762,14 @@ JOHARNESS_IDLE_ANALYSIS=${IDLE_ANALYSIS}
 # for 141 hours (issue #254). /janitor releases only what the control plane
 # proves gone, and never deletes a file or a branch.
 JOHARNESS_JANITOR_HOURS=${JANITOR_HOURS}
+
+# Hours between clerk passes; 0 = off. Open issues are the queue's top rank,
+# but dispatch reads only docs/plans/: /clerk turns each issue that holds into
+# plans and merges that plan-only pull request itself (issue #311).
+JOHARNESS_CLERK_HOURS=${CLERK_HOURS}
+
+# Open issues one clerk pass takes at most.
+JOHARNESS_CLERK_BATCH=${CLERK_BATCH}
 
 # Hours since the last scout before one is due; 0 = off. Only at DRAINED: a
 # scout proposes NEW work, and new work competes with real work. Dated from

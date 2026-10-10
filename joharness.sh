@@ -6077,8 +6077,10 @@ clerk_issue_nums() {
   while IFS= read -r line; do
     line="${line%$'\r'}"
     line="${line#issue:}"
-    # gr_fields' own trims: an inline comment, then surrounding blanks.
-    line="$(printf '%s' "$line" | sed 's/[[:space:]][[:space:]]*#.*$//; s/^[[:space:]]*//; s/[[:space:]]*$//')"
+    # gr_fields' own trims, in its order: the blanks after the key FIRST —
+    # else `issue: #13` reads as one long inline comment — then an inline
+    # comment, then trailing blanks.
+    line="$(printf '%s' "$line" | sed 's/^[[:space:]]*//; s/[[:space:]][[:space:]]*#.*$//; s/[[:space:]]*$//')"
     v="$(issue_verdict "$line")"
     case "$v" in ok\ *) printf '%s\n' "${v#ok }" ;; esac
   done <<<"$out" | sort -un
