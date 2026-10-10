@@ -396,8 +396,11 @@ Workstream file = scaffolding, not documentation. Work done:
    `K3S_IMAGE` casually" note in `.agents/env/k8s/AGENTS.md` is exactly this:
    rejected approach that graduated. Split rule, because `AGENTS.md` is
    the byte budget every session pays: the trip-wire line (one line,
-   unconditional) goes to `AGENTS.md`; the reasoning behind it goes to the
-   layer's `docs/`.
+   unconditional, never the measurement) goes to `AGENTS.md`; the reasoning
+   behind it goes to the layer's `docs/` — in a consumer's own section, the
+   topic file under `docs/rules/` its `AGENTS.md` points at. A rule's story
+   in `AGENTS.md` is paid by every session that never touches it (one
+   consumer's `AGENTS.md` reached 93 KB this way).
 2. Workstream file deleted in final commit.
 
 Files left after merge get read as current — worse than no file. Nothing worth
