@@ -118,8 +118,10 @@ plans", `dispatch` gives the planning branch an in-flight row and its slot,
 and does not offer the requirement again — `blocked` included, so a parked
 exit-4 pass is never respawned. `abandoned` releases it, as on a plan. Past
 the retire commit (step 7, before the pull request opens) the claim file is
-gone, so the plans the branch ADDS name the requirement until the merge: a
-retired row, the slot held, the requirement withheld. A requirement's file
+gone from the branch's tree but not from its history: the commit that
+retired it still names the requirement, so until the merge the branch is a
+retired row, the slot held, the requirement withheld. Plans a branch adds
+claim nothing — a clerk's plan-only pull request holds no slot. A requirement's file
 outlives its planning merge, so such a row never reads as mid-merge; with no
 push for 24 stall windows it is a leftover and the requirement is offered
 again. Exits 1–4 end the loop at the pass's merge; the claim is what stops a

@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01KGbgAo5HRoJy1hGBGbRy34
 agent: opus
 updated: 2026-10-10
-next: Second verifier pass on the r2-r7 fix commit, then retire + PR
+next: Verifier confirm on r8 fix, then retire + PR
 ---
 
 ## Goal
@@ -44,6 +44,8 @@ UNPLANNED, blocked = held not respawned.
 - r5: (verifier) free-walk `docs/product/*` skip pinned by no test: removed, unclaimed requirement offered twice, selftest still 2465/0. (fixed — refute the `(agent:` row + pin `1 free item(s) now`; skip deleted → 2 of them FAIL)
 - r6: (verifier) raw `priority:` in the requirement label can forge `claimed on <branch>` and a fake in-flight row; lint gates main only. (fixed — `rprio` validated to normal|urgent; selftest case, validation deleted → 2 FAIL)
 - r7: (verifier) `cmd_janitor` comment still says "two-candidate loop". (fixed)
+- r8: (verifier, round 2) r2's added-plans scan makes a clerk's open PR — or any plan-only branch with no workstream file whose plans name a base requirement — hold a slot under a `req` title no live session carries, so the health table reads it gone and respawns onto a live branch. (fixed — the scan reads the branch's OWN retired workstream file instead: born and deleted on the branch, so absent from base..tip but present in `git log --diff-filter=D base..tip`; only `plan: <requirement>` there names an item. Clerk `plan: none` → no row, as on base; selftest case)
+- r9: (verifier, round 2) a planning PR left open past 24 stall windows ages to leftover and its requirement is offered again. (wontfix — the documented trade, same ageing as every unaskable edge; README says it)
 
 ## Blockers
 

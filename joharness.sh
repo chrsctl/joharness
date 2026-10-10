@@ -7818,25 +7818,43 @@ dispatch_retired_edges() {
         swept="$(git -C "$ROOT" diff --name-only --diff-filter=D "$base" "$r" \
           -- docs/handover 2>/dev/null | gr_docs | head -1)"
         # A PLANNING pass retires nothing the base carries: its workstream
-        # file was born and retired on the branch (nets to absent) and it
-        # deletes no plan — it ADDS them. So the requirement it decomposed is
-        # read off the plans it adds, `requirement:` naming one the base
-        # carries. Without this the planning branch vanished at step 7 and
-        # its requirement was offered to a second planner for the whole
-        # pull-request window (verifier r2).
+        # file was born and retired on the branch, so it nets to absent, and
+        # it deletes no plan — it ADDS them. The record is still in the
+        # branch's own history: the commit that retired it. Its `plan:`
+        # naming a requirement the base carries is the item. Without this the
+        # planning branch vanished at step 7 and its requirement was offered
+        # to a second planner for the whole pull-request window (verifier
+        # r2). The retired FILE, never the plans the branch adds: a clerk or
+        # any plan-only branch adds plans that name requirements, claims
+        # nothing, and must hold no slot — reading the added plans gave it
+        # one under a title no live session carries (verifier r8).
         if [ -z "$items" ] && [ -z "$swept" ]; then
-          items="$(git -C "$ROOT" diff --name-only --diff-filter=A "$base" "$r" \
-            -- docs/plans 2>/dev/null | gr_docs | grep -v ' ' |
-            while IFS= read -r cand; do
-              plan="$(git -C "$ROOT" show "${r}:${cand}" 2>/dev/null |
-                gr_field requirement)"
-              plan="${plan##*/}"; plan="${plan%.md}"
-              plan="$(printf '%s' "$plan" | tr -cd 'A-Za-z0-9._-')"
-              case "$plan" in '' | none) continue ;; esac
-              git -C "$ROOT" cat-file -e \
-                "refs/remotes/origin/${base_branch}:docs/product/${plan}.md" \
-                2>/dev/null && printf 'docs/product/%s.md\n' "$plan"
-            done | sort -u | tr '\n' ' ')"
+          items="$(git -C "$ROOT" log --format='@%H' --name-only \
+              --diff-filter=D "${base}..${r}" -- docs/handover 2>/dev/null |
+            { c=""
+              while IFS= read -r cand; do
+                case "$cand" in
+                  '') continue ;;
+                  @*) c="${cand#@}"; continue ;;
+                esac
+                [ -n "$c" ] || continue
+                printf '%s\n' "$cand" | gr_docs | grep -q . || continue
+                plan="$(git -C "$ROOT" show "${c}^:${cand}" 2>/dev/null |
+                  gr_field plan)"
+                plan="${plan##*/}"; plan="${plan%.md}"
+                plan="$(printf '%s' "$plan" | tr -cd 'A-Za-z0-9._-')"
+                case "$plan" in '' | none) continue ;; esac
+                # A plan or question of the stem wins, as at every site.
+                git -C "$ROOT" cat-file -e \
+                  "refs/remotes/origin/${base_branch}:docs/plans/${plan}.md" \
+                  2>/dev/null && continue
+                git -C "$ROOT" cat-file -e \
+                  "refs/remotes/origin/${base_branch}:docs/research/${plan}.md" \
+                  2>/dev/null && continue
+                git -C "$ROOT" cat-file -e \
+                  "refs/remotes/origin/${base_branch}:docs/product/${plan}.md" \
+                  2>/dev/null && printf 'docs/product/%s.md\n' "$plan"
+              done; } | sort -u | tr '\n' ' ')"
           items="${items% }"
           [ -n "$items" ] || continue
         fi

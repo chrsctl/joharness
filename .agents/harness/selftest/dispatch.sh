@@ -2597,6 +2597,25 @@ expect "a retired planning branch keeps a row, named for its requirement" \
 expect "and its slot" "slots     : 3 of 4 free" "$out"
 refute "and its requirement is not offered over its open pull request" \
   "docs/product/retreq.md — UNPLANNED" "$out"
+# A clerk's plan-only branch adds a plan naming the same requirement, and its
+# own retired record says `plan: none`: it claims nothing and holds no slot.
+# Read off the added plans instead, it held one under a title no live session
+# carries (verifier r8).
+git -C "$qowork" checkout -q -b clerk-retreq main
+mkdir -p "${qowork}/docs/handover"
+printf -- '---\nworkstream: clerk-retreq\nstatus: in-progress\nplan: none\nagent: sonnet\n---\n\n## Goal\nClerk pass.\n' \
+  >"${qowork}/docs/handover/clerk-retreq.md"
+commit_all "$qowork" "clerk claims"
+qoplan retreq-b normal sonnet '' retreq
+git -C "$qowork" rm -q docs/handover/clerk-retreq.md
+commit_all "$qowork" "clerk plan, workstream retired"
+git -C "$qowork" push -q origin clerk-retreq
+git -C "$qowork" checkout -q main
+out="$(qo)"
+refute "a clerk's plan-only branch is no planning edge" "clerk-retreq  retired" "$out"
+expect "and only the planner's slot is held" "slots     : 3 of 4 free" "$out"
+git -C "$qowork" push -q origin --delete clerk-retreq
+git -C "$qowork" branch -q -D clerk-retreq
 git -C "$qowork" push -q origin --delete plan-retreq
 git -C "$qowork" branch -q -D plan-retreq
 fixture_rm "$qowork" "clear the retired planning case" docs/product/retreq.md
