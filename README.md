@@ -14,7 +14,7 @@ flowchart TB
         docs["docs/<br/>requirements, plans, workstream files"]
         conf["joharness.conf<br/>environment, checks, manager cap"]
     end
-    subgraph harness["Harness: synced from joharness"]
+    subgraph harness["Harness: synced"]
         direction LR
         claude[".claude/<br/>role commands, session hook, verifier"]
         protocol[".agents/harness/ + .agents/docs/<br/>the Loop and its reasons"]
