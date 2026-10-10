@@ -4691,7 +4691,8 @@ dispatch_rescope_covers() {
 # The closed list of reasons a `status: blocked` may name: `next:` opens with
 # `<reason>:`. One copy; dispatch is the only reader.
 block_reason_ok() {
-  case "$1" in
+  local t="${1#[\"\']}"
+  case "$t" in
     "money:"* | "credentials:"* | "product:"* | "interface:"* | "core path:"* | \
     "conflict:"* | "hardware:"* | "github:"* | "stalled:"* | "respawns:"*) return 0 ;;
   esac

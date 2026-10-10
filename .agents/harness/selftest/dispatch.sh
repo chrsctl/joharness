@@ -382,6 +382,7 @@ blkcase() { # <tag> <next text> — leaves the dispatch output in $out
   git -C "$dspwork" push -qu origin "mgr-blk${1}"
   git -C "$dspwork" checkout -q main
   out="$(dsp | grep -A4 "mgr-blk${1}")"
+  expect "the row for case ${1} is printed, so a refute below reads a live case" "mgr-blk${1}" "$out"
   git -C "$dspwork" push -q origin --delete "mgr-blk${1}"
 }
 blkcase a 'money: the budget is spent'
@@ -394,6 +395,18 @@ blkcase d 'respawns: Respawned 3 times and still not finished; a human decides w
 refute "a respawns block names its reason" "INVALID BLOCK?" "$out"
 blkcase e 'core path: change joharness.conf'
 refute "a core path block names its reason" "INVALID BLOCK?" "$out"
+blkcase h 'credentials: the token expired'
+refute "a credentials block names its reason" "INVALID BLOCK?" "$out"
+blkcase i 'product: which of two designs'
+refute "a product block names its reason" "INVALID BLOCK?" "$out"
+blkcase j 'interface: rename the flag'
+refute "an interface block names its reason" "INVALID BLOCK?" "$out"
+blkcase k 'conflict: both sides rewrote one function'
+refute "a conflict block names its reason" "INVALID BLOCK?" "$out"
+blkcase l 'hardware: needs a gpu'
+refute "a hardware block names its reason" "INVALID BLOCK?" "$out"
+blkcase m '"money: a quoted reason still counts"'
+refute "a quoted reason is still a reason" "INVALID BLOCK?" "$out"
 blkcase f 'Human: run web.py'
 expect "a block with no reason word is flagged" "INVALID BLOCK?" "$out"
 expect "and still reads BLOCKED beside it" "BLOCKED" "$out"
