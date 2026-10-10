@@ -3,7 +3,7 @@ plan: agents-chain-dedupe
 urgency: normal
 agent: opus
 effort: high
-needs: orchestrated-only-docs, issue-triager-role
+needs: orchestrated-only-docs, clerk-role
 requirement: none
 scope: shared:.agents/harness/AGENTS.md, AGENTS.md, shared:.agents/docs/handover/README.md, shared:.agents/docs/product/README.md, shared:.agents/docs/agent-selection.md, shared:.agents/docs/feedback.md, docs/handover/agents-chain-dedupe.md
 ---
@@ -92,7 +92,7 @@ once (`.agents/docs/caveman.md`); move the why out.
 
 ## Traps
 
-- `orchestrated-only-docs` and `issue-triager-role` both edit
+- `orchestrated-only-docs` and `clerk-role` both edit
   `.agents/harness/AGENTS.md` (`needs:`). Start from their merged text.
 - Pointer to a file a consumer lacks = lost fact; destinations must sync
   (`.agents/docs/`).

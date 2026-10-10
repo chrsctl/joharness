@@ -90,7 +90,7 @@ and make the filer merge its own plan-only PR.
 - `joharness.sh:cmd_dispatch` — the spawn-list printf and the verdict block.
 - `.claude/commands/orchestrate.md:## Report, every pass`.
 - `.claude/commands/manage.md:## 4. Finish`.
-- `docs/plans/issue-triager-role.md` — its triager also merges its own
+- `docs/plans/clerk-role.md` — its triager also merges its own
   plan-only PR. Same rule, a different role. No conflict.
 
 ## Traps
@@ -102,6 +102,6 @@ and make the filer merge its own plan-only PR.
   (`.agents/harness/AGENTS.md` step 4).
 - `stall-rows-say-what-git-knows`, `manager-ceiling-row`,
   `rescope-settled-by-merged-superset`, `role-files-say-it-first`,
-  `ledger-losses-named`, `orchestrated-only` and `issue-triager-role` touch
+  `ledger-losses-named`, `orchestrated-only` and `clerk-role` touch
   the same files. All `shared:`. Reconcile at step 7.
 - Test written for the fix must fail without it.

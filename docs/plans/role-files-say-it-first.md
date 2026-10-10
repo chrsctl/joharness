@@ -77,7 +77,7 @@ half of #304 is `orchestrated-only-docs`' work, not this plan's.
 
 ## Traps
 
-- `orchestrated-only`, `orchestrated-only-docs`, `issue-triager-role`,
+- `orchestrated-only`, `orchestrated-only-docs`, `clerk-role`,
   `plan-on-a-branch-visible` and `ledger-losses-named` edit
   `orchestrate.md` or `manage.md` too. All mark them `shared:`. Reconcile
   at step 7.

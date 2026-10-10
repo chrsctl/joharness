@@ -96,7 +96,7 @@ available, never an order to file.
 ## Traps
 
 - `agents-chain-dedupe` marks both files `shared:`; `upstream-placement-defects`
-  touches `feedback.md` unmarked; `issue-triager-role` and
+  touches `feedback.md` unmarked; `clerk-role` and
   `orchestrated-only-docs` touch `.agents/harness/AGENTS.md`. Expect a
   reconcile at step 7.
 - "Never relax a guard that just caught you": the text must say the route

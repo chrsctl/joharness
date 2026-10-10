@@ -90,5 +90,5 @@ bullet covering both is fine.
   unpushed work at the stop.
 - Shared file, reconcile at step 7: `manage.md` is also in the scope of
   `messaging-names-both-routes`, `role-files-say-it-first`,
-  `role-command-trim`, `plan-on-a-branch-visible`, `issue-triager-role`,
+  `role-command-trim`, `plan-on-a-branch-visible`, `clerk-role`,
   `lineup-cache-read-pricing` and `orchestrated-only`.
