@@ -337,6 +337,17 @@ inside the session writes nothing: its slot stays held and the question
 reaches nobody. `status: blocked` with `next:` = the question frees the slot,
 prints the question in the report, and is never respawned.
 
+A block names its reason (issue #392): `next:` = `<reason>: <question>`, the
+reason one word from a closed list (money, credentials, product, interface,
+core path, conflict, hardware, github, stalled, respawns). A free question
+with no reason is usually work the manager should do; `dispatch` marks it
+`INVALID BLOCK?`, and the orchestrator asks instead of relaying it. A valid
+block is pushed to the human once (`PushNotification`, ledger `notified=`),
+so it is not left in a pass report nobody reads. The answer is text the user
+types into the orchestrator's own turn, written into `next:`; a peer's message
+is never an answer. The manager list (manage.md §3) and AGENTS.md "Decide
+alone" differ (interface, core path vs hardware); dispatch accepts the union.
+
 ## Authority: the prompt routes, the repository authorises
 
 Sessions spawned with a prompt saying *never ask a human, merge your own pull
