@@ -7291,16 +7291,18 @@ dispatch_block_age_min() {
 # is pushed before any code). Empty when the branch has no commit of its own
 # or no base is known; the caller says nothing then. <branch> <merge base>
 #
-# `%at`, the author date, for the reason dispatch_block_age_min reads it: a
-# rebase or amend rewrites `%ct` to now, and a manager rebasing its branch
-# would reset its own ceiling. `tail -1` over `--reverse | head -1`: the same
-# oldest commit with no second pipe stage reading past the first line.
+# The OLDER of the commit's two dates. `%at` alone, for the reason
+# dispatch_block_age_min reads it: a rebase or amend rewrites `%ct` to now,
+# and a manager rebasing its branch would reset its own ceiling. `%ct` beside
+# it because `%at` is branch-written: an author date in the future read as a
+# negative age and the mark never fired (verifier, r2). `tail -1` over
+# `--reverse | head -1`: the same oldest commit, no reader stopping early.
 dispatch_claim_age_min() {
   local ts now
   [ -n "${2:-}" ] || return 0
   # `</dev/null`: same reason as dispatch_age_min above.
-  ts="$(git -C "$ROOT" log --format=%at "${2}..refs/remotes/origin/$1" \
-    </dev/null 2>/dev/null | tail -1)"
+  ts="$(git -C "$ROOT" log --format='%at %ct' "${2}..refs/remotes/origin/$1" \
+    </dev/null 2>/dev/null | tail -1 | awk '{ print ($1 < $2 ? $1 : $2) }')"
   [ -n "$ts" ] || return 0
   now="$(date +%s)"
   printf '%s' "$(( (now - ts) / 60 ))"
@@ -9023,7 +9025,7 @@ cmd_dispatch() {
   [ "$n_loop" -eq 0 ] ||
     printf '            %s manager(s) rewriting one file past the churn threshold: health pass FIRST\n' "$n_loop"
   [ "$n_ceiling" -eq 0 ] ||
-    printf '            %s manager(s) past the ceiling with no pull request: report, never kill on this alone\n' "$n_ceiling"
+    printf '            %s manager(s) past the ceiling with no pr: in the claim file: report, never kill on this alone\n' "$n_ceiling"
   [ "$n_blocked" -eq 0 ] ||
     printf '            %s manager(s) blocked: report to the human, never respawn\n' "$n_blocked"
   [ "$n_hold" -eq 0 ] ||

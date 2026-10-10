@@ -2504,7 +2504,7 @@ refute "aged from the claim, not the push" "CEILING? 0m" "$cewrow"
 refute "a recent push is no stall" "STALL?" "$cewrow"
 refute "and CEILING? is no condition: no analyst" "ANALYSE?" "$cewrow"
 expect "the tail counts it as a report" \
-  "1 manager(s) past the ceiling with no pull request: report, never kill on this alone" "$out"
+  "1 manager(s) past the ceiling with no pr: in the claim file: report, never kill on this alone" "$out"
 refute "and orders no health pass" "past the stall window" "$out"
 cewlifted="$(cew env JOHARNESS_IDLE_ANALYSIS=on JOHARNESS_MANAGER_HOURS=0)"
 refute "0 lifts it" "CEILING?" "$cewlifted"
@@ -2529,3 +2529,35 @@ cewrow="$(cew | grep 'mgr-slow')"
 expect "the row is still in flight, so the refute below reads something" \
   "docs/plans/slow.md  mgr-slow  in-progress" "$cewrow"
 refute "a claim with a pr: carries no CEILING?" "CEILING?" "$cewrow"
+
+# The claim's age is the OLDER of its two dates (verifier, r2 and r3). A
+# rebase rewrites the committer date to now and keeps the author's; a branch
+# can write an author date in the future. Either one alone hides the mark.
+# <stem> <author offset s> <committer offset s>: a claim 10h-ish old by one
+# date and not by the other, then a push now.
+cewdated() {
+  git -C "$cewwork" checkout -qb "mgr-$1"
+  printf -- '---\nworkstream: %s\nstatus: in-progress\nbranch: mgr-%s\npr: none\nplan: %s\nagent: sonnet\nupdated: 2026-01-01\n---\n\n## Goal\nWorking.\n' \
+    "$1" "$1" "$1" >"${cewwork}/docs/handover/${1}.md"
+  git -C "$cewwork" add -A
+  GIT_AUTHOR_DATE="@$(( $(date +%s) + $2 )) +0000" \
+    GIT_COMMITTER_DATE="@$(( $(date +%s) + $3 )) +0000" \
+    git -C "$cewwork" commit -qm "claim $1"
+  printf '%s\n' "$1" >"${cewwork}/code.txt"
+  commit_all "$cewwork" "a push this minute"
+  git -C "$cewwork" push -qu origin "mgr-$1"
+  git -C "$cewwork" checkout -q main
+}
+for p in rebased future; do
+  printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: high\n---\n\n## Goal\nFixture.\n' \
+    "$p" >"${cewwork}/docs/plans/${p}.md"
+done
+commit_all "$cewwork" "two more plans"
+git -C "$cewwork" push -q origin main
+cewdated rebased $(( -10 * 3600 )) 0
+cewdated future 99999999 $(( -10 * 3600 ))
+out="$(cew env JOHARNESS_STALL_MINUTES=9999 JOHARNESS_MAX_MANAGERS=8)"
+expect "a rebased claim keeps its age: the author date" \
+  "CEILING? 10h since the claim" "$(printf '%s\n' "$out" | grep 'mgr-rebased')"
+expect "a claim dated in the future reads the committer date" \
+  "CEILING? 10h since the claim" "$(printf '%s\n' "$out" | grep 'mgr-future')"
