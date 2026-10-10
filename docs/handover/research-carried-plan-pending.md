@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01BobvmfmyNNjriDMhYKCnJ1
 agent: sonnet
 updated: 2026-10-10
-next: Settle, graduate to orchestrated.md, file follow-up plan, delete research file
+next: Await verifier, record Review, then retire commit (delete workstream + research file), PR, merge
 ---
 
 ## Goal

@@ -220,6 +220,7 @@ branch has no row: not free, not held, not in flight.
 |---|---|---|
 | plan-only pull request | filer drives it to merged before exit | `manage.md`, Finish |
 | plan riding a product pull request | row in dispatch's `plans on a branch` block — visible, counted nowhere | `joharness.sh:dispatch_branch_plans` |
+| plan-only pull request whose plan was carried to the base by another branch, built and retired | the carrying session closes or comments on the source pull request at its own step 7 (its carry commit names the number); the reader still prints the row as a plan on a branch until `carried-plan-leftover` lands | `joharness.sh:dispatch_branch_plans` |
 | author gone | not answered — accepted gap | — |
 
 The row carries no instruction: the scheduler cannot see a pull request, and
@@ -233,6 +234,19 @@ manager cuts its own branch from the base, copies the plan file across, and
 pushes nothing to the owner's branch. Hazard: once the owner's branch merges,
 the retired plan comes BACK (its side still adds it against a base that never
 had it). The PR body says so; the owner drops it at reconcile.
+
+**Why the first row can fail, and why the reader cannot tell.** The filer
+cannot merge on red; when the base is red for a defect the plan itself fixes,
+the plan reaches the base another way (a second branch carries it, builds it,
+retires it). Measured on consumer `chrsctl/gx`, `origin/main` at `38b2f015`,
+2026-10-10: PR #469's plan-only branch stayed open two days after #477 fixed
+the defect. `dispatch_branch_plans` drops a row only when the plan path exists
+on the base, so a carried-and-retired plan (absent) reads as never landed.
+Only `git log --full-history -m --diff-filter=D -- <plan>` on the base sees
+the retire (the merge commit is treesame for that path; plain `--diff-filter=D`
+finds nothing). `dispatch_retired_edges` does not catch it either: it skips
+a branch that deletes no plan or workstream file, and a branch that only adds
+is not an edge. Fix is planned, not built: `carried-plan-leftover`.
 
 ## The numbers are the human's
 
