@@ -284,31 +284,6 @@ out="$(sync "$syncdst")"
 refute "a conf answering every key gets no stage" \
   "settings this repo does not answer" "$out"
 
-# A conf still carrying the retired mode key: named obsolete in the report,
-# and the conf is never edited for it — a dry run included.
-printf 'JOHARNESS_ENV=none\nJOHARNESS_MODE=supervised\n' >"${syncdst}/joharness.conf"
-confbefore="$(cat "${syncdst}/joharness.conf")"
-out="$(sync "$syncdst")"
-expect "an obsolete JOHARNESS_MODE line is named" \
-  "JOHARNESS_MODE: obsolete; orchestrated is the only mode. Delete the line from joharness.conf." "$out"
-expect "under its own heading" "== obsolete settings" "$out"
-if [ "$confbefore" = "$(cat "${syncdst}/joharness.conf")" ]; then
-  pass "and the sync leaves that conf byte-identical"
-else
-  fail "and the sync leaves that conf byte-identical"
-fi
-out="$(sync --dry-run "$syncdst")"
-expect "a dry run names it too" "JOHARNESS_MODE: obsolete" "$out"
-if [ "$confbefore" = "$(cat "${syncdst}/joharness.conf")" ]; then
-  pass "and a dry run leaves it byte-identical"
-else
-  fail "and a dry run leaves it byte-identical"
-fi
-out="$(JOHARNESS_SYNC_CONF_KEYS=skip sync "$syncdst")"
-refute "the bootstrap's skip switch silences it" "JOHARNESS_MODE: obsolete" "$out"
-printf 'JOHARNESS_ENV=none\n' >"${syncdst}/joharness.conf"
-out="$(sync "$syncdst")"
-refute "a conf without the line gets no obsolete section" "obsolete settings" "$out"
 
 # A conf that is not a regular file is named and left alone. Appending with
 # `>>` through a symlink writes to whatever it points at, and a symlink in a

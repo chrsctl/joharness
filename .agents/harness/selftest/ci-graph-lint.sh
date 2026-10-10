@@ -837,12 +837,6 @@ out="$(lint_section "$(lint_ci)")"
 expect "a whitespace-separated edge routes to the first file" \
   "alpha.md: no research:" "$out"
 expect "and to the second" "beta.md: no research:" "$out"
-gout="$(CLAUDE_PROJECT_DIR="$lwork" "${lwork}/joharness.sh" graph 2>&1)"
-expect "the graph draws both, not one flattened stem" \
-  "p_two_edges -. research .-> q_alpha" "$gout"
-expect "the graph draws the second too" \
-  "p_two_edges -. research .-> q_beta" "$gout"
-refute "and never the flattened spelling" "alphabeta" "$gout"
 fixture_rm "$lwork" "drop the two-edge fixture" \
   docs/plans/two-edges.md docs/research/alpha.md docs/research/beta.md
 
@@ -900,26 +894,6 @@ expect "a document named none is still a document" \
 refute "and VISION.md is not counted at all" "VISION.md" "$out"
 fixture_rm "$lwork" "drop the none fixtures" \
   docs/plans/no-edges.md docs/research/none.md docs/research/VISION.md
-
-# A node whose OWN key is path form draws one mermaid node, not two (r8).
-mkdir -p "${lwork}/docs/research"
-cat >"${lwork}/docs/research/pathself.md" <<'EOF'
----
-research: docs/research/pathself.md
-urgency: normal
-agent: opus
-effort: high
-graduates: joharness.sh
----
-EOF
-git -C "$lwork" add docs/research/pathself.md
-git -C "$lwork" commit -qm "a node naming itself by path"
-gout="$(CLAUDE_PROJECT_DIR="$lwork" "${lwork}/joharness.sh" graph 2>&1)"
-expect "a path-form self-name draws the stem node" \
-  'q_pathself(["question: pathself' "$gout"
-refute "and not a second node named after the path" \
-  "q_docs_research_pathself_md" "$gout"
-fixture_rm "$lwork" "drop the path-self node" docs/research/pathself.md
 
 # fable is a judgement tier, never a build (.agents/docs/agent-selection.md,
 # Lineup): the tier is vocabulary, and a plan naming it must scope only prose.

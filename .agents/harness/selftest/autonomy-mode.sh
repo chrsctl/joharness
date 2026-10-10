@@ -8,10 +8,7 @@
 # shellcheck shell=bash
 
 # --- entrypoint: the one mode -----------------------------------------------
-# Orchestrated is the only mode. The JOHARNESS_MODE key is obsolete: absent
-# or `orchestrated` is silent, any other value is named in session context
-# once and ignored. The banner is the one place a fresh session learns the
-# boundary, so it is pinned here.
+# The banner is the one place a fresh session learns the boundary.
 step "the one mode"
 
 modeconf="${TMP}/mode.conf"
@@ -20,38 +17,8 @@ ss_mode() { JOHARNESS_CONF="$modeconf" "${ROOT}/joharness.sh" session-start 2>/d
 
 out="$(ss_mode)"
 expect "session-start prints the orchestrated banner" "== Mode: orchestrated ==" "$out"
-refute "and no obsolete line when the key is absent" "is obsolete" "$out"
 expect "and says the edge is the exit" "at DRAINED" "$out"
 refute "and never routes through the deleted drain command" "./joharness.sh drain" "$out"
-
-printf 'JOHARNESS_MODE=orchestrated\n' >"$modeconf"
-out="$(ss_mode)"
-refute "conf orchestrated prints no obsolete line" "is obsolete" "$out"
-out="$(JOHARNESS_MODE=orchestrated JOHARNESS_CONF="$modeconf" \
-  "${ROOT}/joharness.sh" session-start 2>/dev/null)"
-refute "env orchestrated prints no obsolete line" "is obsolete" "$out"
-
-: >"$modeconf"
-out="$(JOHARNESS_MODE=supervised JOHARNESS_CONF="$modeconf" \
-  "${ROOT}/joharness.sh" session-start 2>/dev/null)"
-expect "env supervised prints the obsolete line, naming the value" \
-  "JOHARNESS_MODE is obsolete; orchestrated is the only mode (JOHARNESS_MODE=supervised ignored)" "$out"
-expect "and still the orchestrated banner" "== Mode: orchestrated ==" "$out"
-
-printf 'JOHARNESS_MODE=unsupervised\n' >"$modeconf"
-out="$(ss_mode)"
-expect "conf unsupervised prints the obsolete line" \
-  "JOHARNESS_MODE=unsupervised ignored" "$out"
-expect "and still the orchestrated banner" "== Mode: orchestrated ==" "$out"
-
-# Never fails, whatever the value.
-if JOHARNESS_MODE=nonsense JOHARNESS_CONF="$modeconf" \
-  "${ROOT}/joharness.sh" session-start >/dev/null 2>&1; then
-  pass "an obsolete value never fails session-start"
-else
-  fail "an obsolete value never fails session-start"
-fi
-: >"$modeconf"
 
 # Every boundary entry, not one: a single name could still come from a
 # hardcoded string, and "derived, never restated" is the property that
@@ -93,15 +60,4 @@ if grep -qx 'unset CLAUDE_PROJECT_DIR' "${ROOT}/.agents/harness/selftest.sh"; th
   pass "the unset that keeps it out is still here"
 else
   fail "the unset that keeps it out is still here"
-fi
-if [ -z "${JOHARNESS_MODE-}" ]; then
-  pass "no mode knob reaches the fixtures"
-else
-  fail "no mode knob reaches the fixtures"
-  printf '    | %s\n' "${JOHARNESS_MODE-}"
-fi
-if grep -q '^unset JOHARNESS_MODE' "${ROOT}/.agents/harness/selftest.sh"; then
-  pass "the unset that keeps the mode knob out is still here"
-else
-  fail "the unset that keeps the mode knob out is still here"
 fi

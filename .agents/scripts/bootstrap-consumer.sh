@@ -55,9 +55,7 @@
 # protect them from. Without the flag the refusal is unchanged.
 #
 # Scripted and CI runs have nobody to ask, so they take the defaults and say
-# so. There is no mode switch: orchestrated is the only mode, so no conf line,
-# no question and no flag carries one. --mode is still PARSED, so an old
-# invocation does not die, and ignored with one warning.
+# so.
 #
 # Usage: .agents/scripts/bootstrap-consumer.sh [--dry-run] [--reconfigure]
 #            [--env <layer>] [--env-setup <lazy|eager>] [--env-md <lazy|eager>]
@@ -168,8 +166,6 @@ CURATE_PLANS="$(conf_key_default JOHARNESS_CURATE_PLANS)"
 # what changes. Off, this script's behaviour is byte-identical to before it
 # existed — the flag adds a mode, it does not alter the other two.
 RECONFIGURE=0
-# Obsolete flag, parsed so an old invocation does not die. Warned once below.
-MODE_FLAG_SEEN=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY=1; shift ;;
@@ -182,16 +178,12 @@ while [ $# -gt 0 ]; do
     --env-md=*) ENV_MD="${1#--env-md=}"; ENV_MD_GIVEN=1; shift ;;
     --review) [ $# -ge 2 ] || usage; REVIEW="$2"; REVIEW_GIVEN=1; shift 2 ;;
     --review=*) REVIEW="${1#--review=}"; REVIEW_GIVEN=1; shift ;;
-    --mode) [ $# -ge 2 ] || usage; MODE_FLAG_SEEN=1; shift 2 ;;
-    --mode=*) MODE_FLAG_SEEN=1; shift ;;
     --*) usage ;;
     *) break ;;
   esac
 done
 [ $# -eq 1 ] || usage
 DEST="$1"
-[ "$MODE_FLAG_SEEN" -eq 0 ] ||
-  warn "--mode is obsolete; orchestrated is the only mode (ignored)"
 
 # Same doctrine as the sync engine's guard: consumers receive this script
 # too, but a consumer copy must not bootstrap other consumers — only the

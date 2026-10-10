@@ -126,22 +126,14 @@ mkdir -p "${sgwork}/.github/workflows"
 printf 'edit\n' >"${sgwork}/.github/workflows/touched.yml"
 commit_all "$sgwork" "touch a core path the fallback lists"
 
-# The fact, not a path: the guard never prints a path. No JOHARNESS_MODE in
-# the environment at all: the boundary is unconditional.
+# The fact, not a path: the guard never prints a path.
 # shellcheck disable=SC2016  # the script is for the inner bash
-out="$(env -u JOHARNESS_MODE bash -c 'printf "%s" "$1" | CLAUDE_PROJECT_DIR="$2" \
+out="$(bash -c 'printf "%s" "$1" | CLAUDE_PROJECT_DIR="$2" \
   bash "$3/.agents/harness/handover-guard.sh" 2>&1' _ "$JSON_STOP" "$sgwork" "$ROOT")"
-expect "the boundary fires with no JOHARNESS_MODE set" \
+expect "the boundary fires" \
   "touches 1 core file(s)" "$out"
 refute "boundary fact has no mode prefix" "mode, but" "$out"
 refute "boundary fact carries no path" "touched.yml" "$out"
-
-# An exported (obsolete) JOHARNESS_MODE=supervised no longer silences it.
-out="$(printf '%s' "$JSON_STOP" | CLAUDE_PROJECT_DIR="$sgwork" \
-  JOHARNESS_MODE=supervised \
-  bash "${ROOT}/.agents/harness/handover-guard.sh" 2>&1)"
-expect "an exported JOHARNESS_MODE=supervised does not silence the boundary" \
-  "touches 1 core file(s)" "$out"
 
 # The reason string embeds in JSON unescaped, so the count must keep it
 # parseable. A path here would be repo-controlled input in that position.
