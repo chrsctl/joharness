@@ -29,6 +29,11 @@ None yet.
 
 ## Review
 
+- r1: (verifier) point 4 quoted #305 as "Not claimed: that (2) is correct"; issue reads "Also not claimed: that (2) is correct." (fixed)
+- r1: (verifier) new text kept about ten articles against caveman.md "Drop: Articles" (fixed)
+- r1: (verifier) scope clean: only consumer-repos.md and this file changed; no other section touched; no contradiction with feedback.md or step 7 (no change needed)
+- r1: (verifier) ci acceptance reported UNVERIFIED because its run hit a 120s tool limit; my own run printed `ci: pass` and both greps returned 1 (no change needed)
+
 ## Blockers
 
 None.
