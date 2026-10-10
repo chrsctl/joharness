@@ -1,6 +1,6 @@
 ---
 workstream: rescope-settled-by-merged-superset
-status: in-progress
+status: done
 branch: claude/rescope-settled-by-merged-superset
 pr: none
 plan: rescope-settled-by-merged-superset
@@ -40,6 +40,7 @@ are a subset of its key, unless a held plan's file changed since.
 - r8: (verifier) committed fixture wrote into docs/handover after git removed it, and used raw `git rm`. (fixed: mkdir -p, retire through `fixture_rm`)
 - r9: (verifier) new helper used the "$(...)" + "<<<" pairing the Trap forbids. (fixed: process substitution for the log and the field read)
 - r10: (verifier) a failing `git log` on sha..base read as unchanged and settled. (fixed: a failed read sets mchanged, settles nothing)
+- r11: (session) `./joharness.sh ci` → `ci: pass`, selftest 2363 passed, 0 failed (2026-10-10). Revert check: origin/main's joharness.sh with this suite → 2355 passed, 8 failed, the first merged fixture among them. `./joharness.sh verify` → first run 5 passed, 1 failed (docker could not pull alpine:3 — registry/egress, layer untouched by this diff), re-run 6 passed, 0 failed. (no change)
 
 ## Blockers
 
