@@ -2563,13 +2563,16 @@ janitor_candidates() {
 # Release named claims: write `status: abandoned` into each candidate claim on
 # its own branch and push.
 janitor_apply() {
-  local want b path tip blob newblob tree commit idx today rc=0 n=0 cands
+  local want b path tip blob newblob tree commit idx today why rc=0 n=0 cands
   [ "$#" -gt 0 ] || die "usage: $0 janitor --apply <branch>... (each session proven ARCHIVED or not found)"
   # --prune: under the default refspec a branch deleted on origin loses its
   # remote-tracking ref here and takes the `no such branch` skip below.
   git -C "$ROOT" fetch -q --prune origin 2>/dev/null || warn "fetch failed; using the last fetched refs"
   cands="$(janitor_candidates)"
   today="$(date -u +%Y-%m-%d)"
+  # A branch whose own joharness.sh predates `abandoned` reds `ci` on the word
+  # (#279); say why on the line it reads first.
+  why="ci reds on status 'abandoned' (not one of: ...) until this branch reconciles with its base; that reconcile clears it"
   for want in "$@"; do
     tip="$(git -C "$ROOT" rev-parse -q --verify "refs/remotes/origin/${want}^{commit}" 2>/dev/null)" || {
       printf 'skip      : %s — no such branch on origin\n' "$want"; rc=1; continue; }
@@ -2592,12 +2595,12 @@ janitor_apply() {
     while IFS=$'\t' read -r b path; do
       [ "$b" = "$want" ] || continue
       blob="$(git -C "$ROOT" show "${tip}:${path}" 2>/dev/null)" || continue
-      newblob="$(printf '%s\n' "$blob" | awk -v d="$today" '
+      newblob="$(printf '%s\n' "$blob" | awk -v d="$today" -v w="$why" '
         NR == 1 && $0 == "---" { fm = 1; print; next }
-        fm && $0 == "---" { if (!ns) print "next: Pick this up from the plan; the claim was released " d
+        fm && $0 == "---" { if (!ns) print "next: Pick this up from the plan; the claim was released " d "; " w
                             fm = 0; print; next }
         fm && /^status:/ { print "status: abandoned"; next }
-        fm && /^next:/   { print "next: Pick this up from the plan; the claim was released " d; ns = 1; next }
+        fm && /^next:/   { print "next: Pick this up from the plan; the claim was released " d "; " w; ns = 1; next }
         { print }' | git -C "$ROOT" hash-object -w --stdin)" || continue
       GIT_INDEX_FILE="$idx" git -C "$ROOT" update-index --cacheinfo "100644,${newblob},${path}" || continue
       n=$((n + 1))
