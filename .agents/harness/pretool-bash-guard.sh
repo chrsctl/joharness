@@ -89,6 +89,45 @@ hook_key() {
 cmd="$(hook_key command)" || exit 0
 [ -n "$cmd" ] || exit 0
 
+# A heredoc body a command WRITES to a file is data, not code: a script being
+# written may hold `while`, `sleep` and `pgrep -f` as text. Drop such bodies
+# (lines still JSON-escaped, so a newline is the two characters `\n`). A
+# heredoc fed to a shell (`bash <<EOF`) is code and stays.
+strip_heredocs() {
+  local rest="$1" out="" line t term="" dash="" last=0 q="'"
+  local hd_re='<<(-?)[[:space:]]*(\\?["'"$q"'])?([A-Za-z_][A-Za-z0-9_]*)'
+  local write_re='(>[^&>]|>>|(^|[^[:alnum:]_])tee[[:space:]])'
+  local shell_re='(^|[;&|[:space:]])(bash|sh|zsh|dash|ksh)([[:space:]]+-[[:alnum:]]+)*[[:space:]]*<<'
+  while [ "$last" -eq 0 ]; do
+    if [[ $rest == *'\n'* ]]; then
+      line="${rest%%\\n*}"
+      rest="${rest#*\\n}"
+    else
+      line="$rest"
+      last=1
+    fi
+    if [ -n "$term" ]; then
+      t="$line"
+      if [ -n "$dash" ]; then
+        while [[ $t == '\t'* ]]; do t="${t#\\t}"; done
+      fi
+      [ "$t" = "$term" ] && term=""
+      continue
+    fi
+    out+="$line"
+    [ "$last" -eq 1 ] || out+='\n'
+    if [[ $line =~ $hd_re ]]; then
+      dash="${BASH_REMATCH[1]}"
+      t="${BASH_REMATCH[3]}"
+      if [[ $line =~ $write_re ]] && ! [[ $line =~ $shell_re ]]; then
+        term="$t"
+      fi
+    fi
+  done
+  printf '%s' "$out"
+}
+case "$cmd" in *'<<'*) cmd="$(strip_heredocs "$cmd")" ;; esac
+
 # `\n` and `\t` arrive as two characters each, and a loop body spelled
 # "do\nsleep 3\ndone" then puts an alphanumeric immediately before `sleep`,
 # where the shape below needs a word boundary. Without this the guard passes
