@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01MQpQFb9hmdy2KySGiVC4mD
 agent: opus
 updated: 2026-10-10
-next: Third verifier pass on r10-r13 fixes
+next: Retire plan and workstream file, open PR, merge
 ---
 
 ## Goal
@@ -30,7 +30,9 @@ rows instead of false "never claimed" / "gone before claim" reports.
   `git log origin/main --diff-filter=A -S'session_012J8LutqGHqhZDE49agfS81' -- docs/handover`
   empty; with `--full-history` prints `ac87c5f`).
 - Identity: `sid=` on the `@new` entry, written from `create_session`'s
-  return (rebuilt from the title row in step 0.2). Not a timestamp; ties
+  return, by every spawn incl. STILLBORN / BLOCKED BEFORE CLAIM re-spawns.
+  NOT rebuilt from titles in step 0.2: a title row may be an earlier run's
+  session (r14). Not a timestamp; ties
   the claim to THIS spawn, so an earlier run's claim under a reused stem
   or key cannot match (r1, r10). Control-plane id == URL suffix: read
   2026-10-10, `get_session` on this session returned
@@ -62,7 +64,7 @@ rows instead of false "never claimed" / "gone before claim" reports.
     its session id -> new row prints nothing -> BLOCKED BEFORE CLAIM first
     look, then confirm: item gone -> REPORT, touch nothing. Correct: it
     never claimed.
-  - entry with no `sid=` (surveyor rebuilt, pre-change ledger): row
+  - entry with no `sid=` (rebuilt from titles, pre-change ledger): row
     cannot match -> rows below decide, as before this row existed.
 
 ## Rejected
@@ -87,6 +89,11 @@ rows instead of false "never claimed" / "gone before claim" reports.
 - r11: (verifier, pass 2) surveyor: an earlier run's archived surveyor under the same key resolves through the archived fallback and its merged claim matches. (fixed — `sid=` from create_session ties the entry to this spawn; title-lookup fallback removed)
 - r12: (verifier, pass 2) `branch:` from repo text flows unchecked into `upstream` and a reporter prompt. (fixed — used only when it matches a plain ref charset and is merged into origin/main; else report without upstream)
 - r13: (verifier, pass 2) control-plane id vs `session:` URL suffix unverified (`cse_` form exists). (fixed — measured equal: get_session id `session_01MQpQFb9hmdy2KySGiVC4mD` = this file's `session:` suffix, 2026-10-10)
+- r14: (verifier, pass 3) step 0.2 rebuilt `sid=` from a title row, which can be an earlier run's IDLE merged session — r11 back through the rebuild. (fixed — rebuilt entries carry no `sid=`; loss line says so)
+- r15: (verifier, pass 3) STILLBORN, BLOCKED BEFORE CLAIM and `new`-entry respawns did not replace `sid=`, so the successor's merge never matched. (fixed — each names the NEW session's `sid=`; the row says every fresh `@new` writes its own)
+- r16: (verifier, pass 3) `sid=` loss line said nothing is spawned; crash rows can respawn. (fixed — says the rows below decide as before)
+- r17: (verifier, pass 3) orchestrated.md requirement clause omitted "its file gone" (exits 3-4). (fixed — both doc rows)
+- r18: (verifier, pass 3) `branch:` charset allowed a leading `-` read by `git fetch` as an option. (fixed — first char alnum or `_`)
 - r9: (verifier) several commits may print; which is the head unspecified. (fixed — the first printed)
 
 ## Blockers
