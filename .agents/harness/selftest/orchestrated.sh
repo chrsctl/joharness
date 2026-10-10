@@ -195,6 +195,18 @@ mgrfield="$(grep -oE "lead <stem>:" "$mgrmd" | head -1)"
 expect "and the manager is asked for that exact spelling, not a near one" \
   "$orcfield" "$mgrfield"
 
+# The skills listing shows the description line before any file is opened, so
+# the qualifier has to live there, not only in the body (#303).
+orcdesc="$(grep -m1 '^description:' "$orcmd")"
+expect "the orchestrator's description names what DRAINED means" \
+  "with nothing in flight" "$orcdesc"
+
+# A manager's ## Never is where it looks for what it must not do; the wait-for-
+# a-human rule lives in §3 prose too, so the bullet is repeated there (#304).
+mgrnever="$(sed -n '/^## Never/,$p' "$mgrmd")"
+expect "a manager's Never section forbids waiting on an ask tool" \
+  "AskUserQuestion" "$mgrnever"
+
 # ONE LEAD PER LINE is the shape, not a formatting choice: a `;`-separated
 # list lets a manager's TEXT spell a whole second lead inside 40 characters,
 # attributed to an item nobody reported on.

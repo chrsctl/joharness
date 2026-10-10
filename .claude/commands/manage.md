@@ -222,5 +222,8 @@ place a consumer's finding can still reach the repo that owns the fix.
 - Downgrade the plan's tier or effort; skip, disable or quarantine a test;
   kick CI.
 - Trust a worker's "done": count it.
+- Wait in the session for a human's answer — any ask tool included
+  (AskUserQuestion). A question is a push: `status: blocked`, `next:` =
+  the question, push, exit (§3).
 
 $ARGUMENTS

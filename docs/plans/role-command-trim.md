@@ -3,7 +3,7 @@ plan: role-command-trim
 urgency: normal
 agent: opus
 effort: high
-needs: heartbeat-is-a-precondition, issue-triager-role, scout-command
+needs: heartbeat-is-a-precondition, clerk-role, scout-command
 requirement: none
 scope: shared:.claude/commands/orchestrate.md, shared:.claude/commands/manage.md, shared:.agents/docs/orchestrated.md, shared:joharness.sh, .agents/harness/selftest/ci-context.sh, docs/handover/role-command-trim.md
 ---
@@ -111,7 +111,7 @@ next growth is seen — nothing counts them today.
 
 - Four plans edit `orchestrate.md` first: the three in `needs:`, plus
   `orchestrated-only` (also `manage.md`), ordered before this one through
-  `issue-triager-role`. Re-measure after they merge; the 8,340 baseline is
+  `clerk-role`. Re-measure after they merge; the 8,340 baseline is
   stale by then.
 - More open plans edit these files, all marked `shared:` (merged to
   `main` 2026-10-10): `janitor-rules-agree`, `ledger-losses-named`,
@@ -125,8 +125,8 @@ next growth is seen — nothing counts them today.
   `description:` line and `manage.md`'s `## Never`; both stay put.
 - `orchestrated-only-docs` also edits `.agents/docs/orchestrated.md`
   (both marked `shared:`); reconcile.
-- `joharness.sh` is also in `issue-triager-role`, `upstream-placement-defects`
-  and `abandoned-reaches-every-reader`; `issue-triager-role` also marks
+- `joharness.sh` is also in `clerk-role`, `upstream-placement-defects`
+  and `abandoned-reaches-every-reader`; `clerk-role` also marks
   `shared:.claude/commands/manage.md`. Reconcile, do not overwrite.
 - Pointer to a file a consumer may not have = lost fact. Destination is
   `.agents/docs/orchestrated.md`, which syncs.
