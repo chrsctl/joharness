@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01KGbgAo5HRoJy1hGBGbRy34
 agent: opus
 updated: 2026-10-10
-next: Run selftest + ci + verify, revert-test, then verifier review
+next: Record verifier findings in ## Review, fix, then retire + PR
 ---
 
 ## Goal
@@ -34,9 +34,14 @@ UNPLANNED, blocked = held not respawned.
 
 ## Review
 
+- r1: revert test — `git checkout origin/main -- joharness.sh .agents/harness/queue-context.sh` in a worktree, `bash .agents/harness/selftest.sh` → 2458 passed, 7 failed (the five claim cases, the lint claim case, the reworded dead-claim message); restored → 2465 passed, 0 failed. Tests pin the fix. (no change)
+
 ## Blockers
 
-None.
+None. `./joharness.sh verify` local run 2026-10-10: 2 passed, 4 failed —
+every fail a docker registry/egress check; `docker pull alpine:3` returns
+`429 Too Many Requests` from registry-1.docker.io. Diff touches no
+`.agents/env/` file; step 7 needs the PR head's CI verify job read instead.
 
 ## Where to look
 
