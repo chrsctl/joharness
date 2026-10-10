@@ -28,7 +28,9 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    Yours, or its session gone (`/who`)? Finish it before taking anything
    below. Another session LIVE on it = not yours to merge (step 7): say so
    to the human, pick on. Then queue = open GitHub issues (hook lists which are already
-   CLAIMED — an unlisted one may still be taken unpushed, `/who`), then unplanned requirements
+   CLAIMED — an unlisted one may still be taken unpushed, `/who`). Issue
+   reaches build through the clerk (`/clerk`): holds → plans. Orchestrator,
+   manager never take issue direct. Then unplanned requirements
    `docs/product/*.md`, then plan files `docs/plans/*.md` (shape + claim
    rules: `.agents/docs/plans/README.md`) and open questions
    `docs/research/*.md`, same order, no special rank
@@ -65,7 +67,7 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    NOW — no push, no claim. Hook shows overlap? `/who`. Only `RUNNING`
    session means branch taken.
 4. **Build.** Research before code, every time: open the plan's anchors,
-   check its claims against code — every claim = hypothesis until checked
+   check its claims against code — plan's or issue's, every claim = hypothesis until checked
    (`.agents/docs/plans/README.md`); `./joharness.sh feedback <path>` on files
    the diff will touch. Open question that decides the design? Settle it,
    record in workstream file, THEN code — never mid-code.
