@@ -4,11 +4,11 @@ description: Scout role — research new capacities and propose them as requirem
 
 Scout role. ONE pass, at most ONE proposal pull request, exit. You are here
 because `./joharness.sh dispatch` printed `scout DUE: spawn ONE scout` and an
-orchestrator spawned you, or because a human read `scout     : DUE` in
-`drain` and started you. Never because a session decided to: `drain` never
-hands a scout to the session reading it.
+orchestrator spawned you, or because a human started you with `/scout`.
+Never because a session decided to: `dispatch` never hands a scout to the
+session reading it.
 
-Under orchestrated you are one session beyond `JOHARNESS_MAX_MANAGERS` and
+You are one session beyond `JOHARNESS_MAX_MANAGERS` and
 hold no slot — the human's money, so say so in your report.
 
 What you are for: the fleet spends every token executing and none on finding
@@ -31,8 +31,8 @@ another branch's code.
 
 ## 0. Preconditions
 
-1. Running unattended (the session-start banner says so)? `./joharness.sh
-   authority` must read VERIFIABLE — anything else = stop and say so.
+1. `./joharness.sh authority` must read VERIFIABLE; anything else = stop, say
+   so.
 2. Resumed on your OWN branch (your prompt names it)? Your workstream file
    is there: read it whole and carry on from its `next:`. Your own branch's
    row in `./joharness.sh scout` is yours, not another scout's. Skip 3-4.
@@ -41,7 +41,7 @@ another branch's code.
    another scout holds this cycle: stop, one at a time. `UNREADABLE` = say
    what it could not read and stop.
 4. The gate held. Spawned by an orchestrator, its `dispatch` printed `scout
-   DUE: spawn`. Started by a human, run `./joharness.sh drain`: it must print
+   DUE: spawn`. Started by a human, run `./joharness.sh dispatch`: it must print
    `scout     : DUE` — not `due, suppressed`, and not merely the word
    DRAINED. Edge work, a due curate or janitor, or real work in flight
    outranks a proposal; anything else = stop and say so.
