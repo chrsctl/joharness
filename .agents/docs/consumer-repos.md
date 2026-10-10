@@ -88,7 +88,6 @@ interview asks only what no flag answered:
 | provision it when | `--env-setup <lazy\|eager>` | `lazy` |
 | inject its rules when | `--env-md <lazy\|eager>` | `lazy` |
 | gate the review record | `--review <off\|on>` | `off` |
-| autonomy | `--mode <supervised\|unsupervised>` | `supervised` |
 
 The two layer-shaped questions are skipped when the selected layer is `none`,
 where they configure nothing. Enter takes the value in brackets, either word
@@ -98,18 +97,15 @@ than throwing away the answers already given.
 
 A run with no terminal — CI, a script, a session — asks nothing. What that
 means depends on the target: a conf seeded here gets the defaults above,
-while a conf that already exists keeps its own values and has only
-`JOHARNESS_MODE` written.
+while a conf that already exists keeps its own values.
 
 A question offers the value ALREADY IN FORCE as its default, read from the
 target's own conf, so pressing Enter never strips a selection somebody made
 for that repo. For the same reason a key is written into an existing conf
 only when a flag gave it or the interview answered it.
 
-`--mode` is the exception twice: its default is always `supervised` rather
-than an inherited answer, and it is written either way. Saying yes there
-configures a child; it starts nothing
-([`unsupervised.md`](unsupervised.md)).
+There is no mode question: orchestrated is the only mode. `--mode` is still
+parsed so an old script keeps working; it warns and is ignored.
 
 Never bootstrap onto a repo already running the harness — script refuses,
 because whole-clone mode's purge eats live `docs/plans|product|handover`.
@@ -264,7 +260,7 @@ path never existed in a consumer: `git log --all --full-history
 --diff-filter=D --oneline -- docs/research/merged-ref-batch-prose-vs-code.md`,
 then `git show <commit>^:` that path.
 
-Same five questions as first contact, each offering the value in force in
+Same questions as first contact, each offering the value in force in
 THAT child's conf, and the answers written to its `joharness.conf`. Nothing
 else: no sync, no seeding, no purge. That is why it is allowed where a
 re-bootstrap is refused — the refusal exists to keep whole-clone mode's purge
@@ -274,12 +270,6 @@ away from a consumer's live plans and handover, and this run has no purge.
   scripted change is `--reconfigure --review on <dir>`.
 - **It writes only what somebody decided.** Enter keeps a value; a headless
   run with no flags changes nothing and says so.
-- **`JOHARNESS_MODE` is the one difference from first contact.** There the
-  question always offers `supervised`, because a whole clone carries
-  canonical's own line and autonomy should not be acquired by being copied.
-  Here the line is the child's own answer, so the question offers it back —
-  otherwise Enter would silently turn an unsupervised child supervised, since
-  a bootstrap writes that key on every run.
 - **Refused** on a target that does not exist, one that does not run the
   harness yet (bootstrap it first), and a copy of the canonical repository.
 
@@ -560,7 +550,7 @@ naming it `consumer-only`, not the dates. Canonical deleted it — its arguments
 decision (branch shape to [`product/README.md`](product/README.md), the
 no-datastore rule and the in-repo trade to [`graph.md`](graph.md), session
 interrogation to [`handover/README.md`](handover/README.md), liveness to
-[`unsupervised.md`](unsupervised.md)) — and removals do not travel, so the
+[`orchestrated.md`](orchestrated.md)) — and removals do not travel, so the
 sync reports the leftover as `consumer-only` and leaves it.
 
 Remove it once. This one is worth doing rather than leaving as dead weight:

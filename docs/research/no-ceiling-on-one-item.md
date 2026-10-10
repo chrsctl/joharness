@@ -242,7 +242,7 @@ would all land in `.claude/commands/orchestrate.md`'s health and ledger
 sections. Taking two at once collides.
 
 `.claude/commands/` is a protocol path (`./joharness.sh protocol-paths`), so the
-branch that answers this is supervised.
+branch that answers this is a human's.
 
 ## Verification
 

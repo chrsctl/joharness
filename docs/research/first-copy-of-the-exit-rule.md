@@ -166,7 +166,7 @@ nodes, so nothing here was converted, and this paragraph is the flag rather
 than a decision.
 
 `.claude/commands/` is a protocol path (`./joharness.sh protocol-paths`), so the
-branch that answers this is supervised.
+branch that answers this is a human's.
 
 ## Verification
 

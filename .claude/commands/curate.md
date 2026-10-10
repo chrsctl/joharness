@@ -109,7 +109,7 @@ Into your pull request body, one line each, and into no plan file:
   Decomposition is the judgement every later build rests on and it
   MULTIPLIES the queue — one plan into five is a session growing its own
   backlog, which is the circularity the no-inventing edge exists to stop
-  (`.agents/docs/unsupervised.md`, The one stop). An author splits it, through
+  (`.agents/docs/orchestrated.md`, Bounds). An author splits it, through
   `/plan`.
 - **Order candidates.** Two plans claiming one path exclusively: say which
   looks like it should go first and why, or that they read as one plan.

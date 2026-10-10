@@ -179,7 +179,7 @@ git -C "$W" checkout -q main
 disp; disp | grep -c "alpha-req-plan-pass"
 ```
 
-And the same fixture state read by the supervised entrypoint, to see whether
+And the same fixture state read by the human-run entrypoint, to see whether
 the re-offer is a property of the mode or of the queue (`$W` is the fixture
 work tree the block above builds; the `cd` is the step the first draft of
 this command left implicit):
@@ -332,7 +332,7 @@ is noise from the local git version, not a failed setup.
   consumer-bootstrap message, four selftest files (`drain.sh`,
   `ci-graph-lint.sh`, `upstream.sh`, `sync-to-consumer.sh`), a review
   `wontfix` example, one record of a requester declining three proposals
-  (`.agents/docs/unsupervised.md:291`), and three the first draft of this
+  (`.agents/docs/unsupervised.md:291` (at 7f63a01a; now orchestrated.md, Bounds)), and three the first draft of this
   bullet left unaccounted — `joharness.sh:4507`, `joharness.sh:8047` and
   `.claude/commands/upstream-report.md:42`, each about a session declining to
   fix something, none about a requirement. The verifier counted the hits
@@ -344,13 +344,13 @@ is noise from the local git version, not a failed setup.
   see.
 
 - **Not orchestrated-only. The spend is.** The same fixture state, read by
-  the supervised entrypoint, names the same file as the next item:
+  the human-run entrypoint, names the same file as the next item:
 
       NOT DRAINED — a requirement has no plans, and planning outranks the plan queue
         next: docs/product/alpha-req.md [normal, UNPLANNED — decompose into plans]
 
   The test lives in the queue hook, so every mode sees it. What differs is
-  who pays: a supervised session is a human reading a line; an orchestrator
+  who pays: a human-run session is a human reading a line; an orchestrator
   spawns opus at xhigh without being asked.
 
 - **No selftest pins this shape.** `grep -n "UNPLANNED\|requirement"

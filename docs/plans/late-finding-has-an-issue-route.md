@@ -38,7 +38,7 @@ available, never an order to file.
     `JOHARNESS_MAX_MANAGERS`;
   - every mode, one bound: at most ONE such issue per session, and search
     canonical's open issues for the same finding first — a match gets
-    nothing new filed. Unattended sessions (unsupervised, orchestrated) are
+    nothing new filed. Unattended sessions (orchestrated) are
     included because they are where nobody reads the chat; the bound is
     what keeps a guard that fires at every stop from filing at every stop;
   - it satisfies the direction rule: nothing lands in the consumer;
