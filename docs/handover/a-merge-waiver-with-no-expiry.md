@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_013j5vBC7PvSpbqHNLW43Pxv
 agent: opus
 updated: 2026-10-10
-next: Graduate the settled answer into .agents/docs/orchestrated.md beside the #266 paragraph, delete the research file
+next: Record verifier findings (verifier) in ## Review, fix, retire workstream file, open PR, finish, merge
 ---
 
 ## Goal
@@ -19,11 +19,11 @@ Settle `docs/research/a-merge-waiver-with-no-expiry.md` — does any reader of
 
 ## Decisions
 
-- None yet.
+- Graduation only: no manage.md edit and no follow-up plan; the node itself declined to propose one, so the wording defect is named as a lead in orchestrated.md and the PR body.
 
 ## Rejected
 
-- None yet.
+- Graduation only: no manage.md edit and no follow-up plan; the node itself declined to propose one, so the wording defect is named as a lead in orchestrated.md and the PR body.
 
 ## Review
 
