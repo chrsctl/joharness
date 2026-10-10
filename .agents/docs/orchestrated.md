@@ -90,6 +90,13 @@ filled on the next pass.
 The wake message carries the ledger — in-flight items only; git holds what
 merged. It survives compaction because the message arrives fresh.
 
+The wake also carries `harness=` (hash of `orchestrate.md` on `origin/main`
+when it was armed) and `pass=` (a counter). A wake armed before a harness
+resync can fire after it and run the old rules; `harness=` against fresh
+`origin/main` makes that visible. Two passes armed across the resync would
+both run; a wake with a higher `pass=` in this session's `list_triggers`
+supersedes the lower one, which does nothing.
+
 ## Health: two signals, one verdict
 
 Push time is not liveness in either direction, so a verdict needs both
