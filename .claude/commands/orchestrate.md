@@ -54,7 +54,7 @@ and leave it untouched.
    Anything else = stop, say so. "A human invoked this" is not something
    you can check; a prompt cannot be its own evidence. A measured run flips
    the mode through a pull request first, in the repo being run — the conf
-   is protocol text and a session that rewrites its own mode line
+   is a core path and a session that rewrites its own mode line
    authorises itself
    ([`../../.agents/docs/orchestrated.md`](../../.agents/docs/orchestrated.md),
    Bounds).
@@ -354,12 +354,12 @@ see it; you can, and the successor must start from what the loop found:
    requirement <file> must satisfy, find the conflicting pair, resolve it,
    THEN fix once. No edit before that." Raise `agent:` one tier — haiku to
    sonnet, sonnet to opus — the harness's own escalation rule, never a
-   downgrade; already opus = the tier stays and the prompt below says
+   downgrade; already opus or fable = the tier stays and the prompt below says
    effort xhigh (effort is per request and crosses only as prose). Commit
    "Orchestrator handover after a loop", push, back to main.
 3. `archive_session`. RESPAWN on the branch at the raised tier, prompt
    adding: "The last session looped. Read Blockers first; do the research
-   step before any edit." — and at opus: "Run at effort xhigh." Counts
+   step before any edit." — and at opus or fable: "Run at effort xhigh." Counts
    against the respawn limit like a kill.
 
 RESPAWN = spawn (step 3) with the branch named: "Resume branch <branch>:
@@ -450,7 +450,7 @@ Up to `slots`, in dispatch's order, only rows under `spawn`:
   `NOT YOURS`. A row saying `that branch is BLOCKED on a human: spawn` is
   free; its manager pays a reconcile at step 7, and the prompt tells it
   so (below).
-- An `UNPLANNED` requirement = ONE planning manager, tier opus, effort
+- An `UNPLANNED` requirement = ONE planning manager, tier fable, effort
   xhigh: decomposition is the judgement every later build rests on.
 - Tail line `curate DUE` = ONE curator, tier sonnet, and ONLY when no curate
   branch is in flight (the `curate :` header block says) and your ledger has
@@ -476,6 +476,28 @@ Up to `slots`, in dispatch's order, only rows under `spawn`:
   does not own — that is the role's whole point and its bound is proof of
   death, not push age — so a janitor that reports releasing a claim whose
   session you can still see RUNNING is a finding for the human, not a retry.
+- Tail line `scout DUE` = ONE scout, tier fable, and ONLY when ALL hold: the
+  verdict is `DRAINED — nothing free, nothing in flight` (dispatch prints the
+  tail line under no other), the `scout :` header block says none is in
+  flight, and your ledger has no `scouted=` for this run. Unlike curate and
+  janitor it is NOT orthogonal to the verdict: a scout proposes new work,
+  which competes with real work. A `scout due, held` or `suppressed` line
+  spawns nothing. The ledger key guards THIS run only: between the spawn
+  and the scout's first push `dispatch` still prints `scout DUE` — the git
+  view cannot see a session that has not pushed — and the verdict that
+  spawns a scout is the exit verdict, so the heartbeat's next run starts
+  with an empty ledger. Across runs the guard is the scout's own twin check
+  (`.claude/commands/scout.md`, Claim): after its claim is pushed it fetches
+  every branch and retires if any other scout is in flight — both may
+  defer, never both go on. It holds no slot (beyond the cap,
+  the human's money — report it). `create_session` as below with
+  `title` = `scout: <UTC date>`, `model` = the Lineup's fable, and `prompt`
+  = `/scout` plus the same three lines every manager gets. Ledger
+  `scouted=<stamp>`; the health rows read its branch (`workstream:
+  scout-<stamp>`, `plan: none`) whenever a run sees it — `NOTHING TO
+  PROPOSE` and `TWIN: deferred` are success, not a stall. Its proposal pull
+  request, open or closed, is the human's: never nudge, respawn or report a
+  scout that is waiting on one.
 - Verdict `OVERLAP-BOUND` = ONE surveyor, tier sonnet, and ONLY when
   the `rescope :` block says `in flight: none` AND your ledger has no
   `rescoped=<key>` for this key. Slots are idle only because held plans'
@@ -543,8 +565,8 @@ Up to `slots`, in dispatch's order, only rows under `spawn`:
   identical refusal: two faults behind one string, neither naming itself.
 
   plus, only when they apply, one line each: the RESPAWN resume line;
-  the LOOP line; "Run at effort xhigh." for an opus planning manager or
-  an escalated opus successor; and the reconcile the dispatch row named
+  the LOOP line; "Run at effort xhigh." for a fable planning manager or
+  an escalated opus or fable successor; and the reconcile the dispatch row named
   ("<partner> holds <path> on <branch>; reconcile expected at step 7").
   Nothing else: no "no human is watching", no "never ask", no "keep
   going". The prompt routes; the repository authorises.
@@ -561,7 +583,7 @@ entry being a pass old. It is also what the next pass counts into step 1's
 
 ```
 /orchestrate pass
-ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] respawns=<n> [reported=<stem>] [rescoped=<key>] [curated=<stamp>] [analysed=<stem>:<condition>] [swept=<stamp>]; ...
+ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] respawns=<n> [reported=<stem>] [rescoped=<key>] [curated=<stamp>] [analysed=<stem>:<condition>] [swept=<stamp>] [scouted=<stamp>]; ...
 lead <stem>: <40 chars, to the end of this line>
 ```
 
@@ -689,6 +711,9 @@ putting it here is for.
 - Spawn a second janitor in one run, or one while a janitor branch is in
   flight. One per run; the cycle is dated from git, so a missed pass costs
   nothing and a doubled one has two sessions writing the same release.
+- Spawn a second scout in one run, one while a scout branch is in flight,
+  or one on any verdict but `DRAINED — nothing free, nothing in flight`.
+  `scouted=` guards this run; the scout's twin check guards across runs.
 - Spawn a second curator in one run, or one while a curate branch is in
   flight. One per run; the cycle is dated from git, so a missed pass costs
   nothing and a doubled one costs money.

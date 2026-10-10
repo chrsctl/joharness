@@ -5,8 +5,8 @@
 # helpers, the counters and the shared fixtures, and sourcing is inlining.
 #
 # The third JOHARNESS_MODE value. What it must be: unattended in every bound
-# unsupervised has — the protocol boundary, the requirement lint, the
-# SUPERVISED ONLY marking, the authority check — and different in exactly
+# unsupervised has — the core-path boundary, the SUPERVISED ONLY marking,
+# the authority check — and different in exactly
 # one thing, who dispatches. Every case here is one of those bounds, run
 # under the new value, because a bound tested only under `unsupervised` is
 # a bound the new mode could escape without a single red
@@ -33,7 +33,7 @@ cp "${ROOT}/joharness.sh" "${orcwork}/joharness.sh"
 cp "${ROOT}/.agents/harness/queue-context.sh" \
    "${ROOT}/.agents/harness/handover-context.sh" \
    "${ROOT}/.agents/harness/handover-guard.sh" "${orcwork}/.agents/harness/"
-# ci's selftest stage, stubbed: this fixture proves the requirement stage.
+# ci's selftest stage, stubbed: this fixture proves ci's other stages.
 printf '#!/usr/bin/env bash\nexit 0\n' >"${orcwork}/.agents/harness/selftest.sh"
 chmod +x "${orcwork}/.agents/harness/selftest.sh" "${orcwork}/joharness.sh"
 printf '# none\n' >"${orcwork}/.agents/env/none/AGENTS.md"
@@ -79,8 +79,12 @@ expect "and the orchestrator role by its command" "/orchestrate" "$out"
 expect "and the orchestrator's one read" "./joharness.sh dispatch" "$out"
 expect "the default role is the orchestrator" \
   "No item named? You are the" "$out"
-expect "the banner names the boundary" ".agents/harness" "$out"
-expect "the whole boundary, not one entry" ".claude/commands" "$out"
+expect "the banner names the boundary" "NEVER edit the core" "$out"
+expect "and lists the core paths" "  joharness.conf" "$out"
+expect "the whole boundary, not one entry" "  .claude/settings.json" "$out"
+expect "down to the last entry" "  .github" "$out"
+# Released 2026-10-08: the harness layer is protocol text a session may edit.
+refute "and the released harness layer is not listed" "  .agents/harness" "$out"
 expect "and points each role at its command, which is its rules" \
   ".claude/commands/orchestrate.md, manage.md" "$out"
 refute "and not at the design doc the roles never open" \
@@ -109,55 +113,58 @@ refute "orchestrated is not NOT CLAIMED" "NOT CLAIMED" "$out"
 expect "an exported orchestrated is the caller's claim" "UNVERIFIED" "$out"
 expect "and the report names the mode" "mode      : orchestrated" "$out"
 
-# --- the requirement lint reds the branch in this mode too ------------------
-ci_req_orc() { orcj ci |
-  awk '/^== requirement authorship/ { f = 1; next } f && /^== / { exit } f'; }
+# --- requirements may be written in this mode too --------------------------
+# The requirement-authorship stage was deleted (2026-10-08): a requirement is
+# writable in every mode. Pinned here so the stage cannot return for the
+# unattended modes alone.
 git -C "$orcwork" checkout -qb orcreq
-printf -- '---\nrequirement: selfwritten\npriority: normal\n---\n\n## Goal\nA goal nobody set.\n\n## Satisfied when\n\n- something observable.\n' \
+printf -- '---\nrequirement: selfwritten\npriority: normal\n---\n\n## Goal\nA goal a session set.\n\n## Satisfied when\n\n- something observable.\n' \
   >"${orcwork}/docs/product/selfwritten.md"
 commit_all "$orcwork" "an orchestrated branch writes itself a goal"
-out="$(JOHARNESS_MODE=orchestrated ci_req_orc)"
-expect "orchestrated names the added requirement" \
-  "docs/product/selfwritten.md" "$out"
-expect "and says which kind of branch may not" "ADDED by an unattended branch" "$out"
+out="$(JOHARNESS_MODE=orchestrated orcj ci)"
+refute "orchestrated ci has no requirement authorship stage" \
+  "== requirement authorship" "$out"
+refute "and does not name the added requirement as a breach" \
+  "ADDED by an unattended branch" "$out"
 if JOHARNESS_MODE=orchestrated orcj ci >/dev/null 2>&1; then
-  fail "orchestrated ci is RED with a requirement added"
+  pass "orchestrated ci stays green with a requirement added"
 else
-  pass "orchestrated ci is RED with a requirement added"
+  fail "orchestrated ci stays green with a requirement added"
 fi
-out="$(ci_req_orc)"
-expect "supervised on the same branch is untouched" \
-  "a requirement is a human's to write" "$out"
+refute "supervised on the same branch has no such stage either" \
+  "== requirement authorship" "$(orcj ci)"
 git -C "$orcwork" checkout -q main
 
 # --- the Stop guard names the boundary under this mode too -----------------
 git -C "$orcwork" checkout -qb orcguard
-printf 'edit\n' >"${orcwork}/.agents/harness/touched.sh"
-commit_all "$orcwork" "touch the harness layer"
+mkdir -p "${orcwork}/.github"
+printf 'edit\n' >"${orcwork}/.github/touched.yml"
+commit_all "$orcwork" "touch a core path"
 git -C "$orcwork" push -qu origin orcguard
 ORC_JSON_STOP='{"stop_hook_active": false}'
 orcguard() { printf '%s' "$ORC_JSON_STOP" | CLAUDE_PROJECT_DIR="$orcwork" \
   JOHARNESS_MODE="$1" bash "${orcwork}/.agents/harness/handover-guard.sh" 2>&1; }
 out="$(orcguard orchestrated)"
-expect "orchestrated names the protocol boundary" "file(s) of protocol text" "$out"
+expect "orchestrated names the protocol boundary" "core file(s)" "$out"
 expect "and names its own mode in the fact" "orchestrated mode, but" "$out"
-expect "and counts the files" "touches 1 file(s)" "$out"
-refute "boundary fact carries no path" "touched.sh" "$out"
+expect "and counts the files" "touches 1 core file(s)" "$out"
+refute "boundary fact carries no path" "touched.yml" "$out"
 out="$(orcguard supervised)"
-refute "supervised leaves harness edits alone" "protocol text" "$out"
+refute "supervised leaves core edits alone" "core file(s)" "$out"
 git -C "$orcwork" checkout -q main
 
 # --- the queue hook marks SUPERVISED ONLY under this mode too ---------------
-printf -- '---\nplan: allprotocol\nurgency: normal\nagent: sonnet\neffort: low\nscope: joharness.sh\n---\n\n## Goal\nFixture.\n' \
+printf -- '---\nplan: allprotocol\nurgency: normal\nagent: sonnet\neffort: low\nscope: .github\n---\n\n## Goal\nFixture.\n' \
   >"${orcwork}/docs/plans/allprotocol.md"
 printf -- '---\nplan: clear\nurgency: normal\nagent: sonnet\neffort: low\nscope: src\n---\n\n## Goal\nFixture.\n' \
   >"${orcwork}/docs/plans/clear.md"
-commit_all "$orcwork" "one protocol plan, one clear plan"
+commit_all "$orcwork" "one core-path plan, one clear plan"
 git -C "$orcwork" push -q origin main
 orcq() { CLAUDE_PROJECT_DIR="$orcwork" JOHARNESS_RUN_MODE="${1-}" \
   bash "${orcwork}/.agents/harness/queue-context.sh" 2>&1; }
 out="$(orcq orchestrated)"
-expect "orchestrated marks the protocol plan" "SUPERVISED ONLY" "$out"
+expect "orchestrated marks the core-path plan" \
+  "SUPERVISED ONLY: scope is all core paths" "$out"
 expect "and the last word names the mode's two readers" \
   "ORCHESTRATED: this hook reports" "$out"
 expect "naming dispatch as the spawner's read" "./joharness.sh dispatch" "$out"

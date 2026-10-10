@@ -194,8 +194,8 @@ refute "a requirement WITH plans is no longer offered" "next: docs/product/needs
 expect "and the plan queue is reached again" "next: docs/plans/" "$out"
 
 # --- a plan this MODE cannot take is never handed out ----------------------
-# The endurance retry's queue, rebuilt: a plan scoped entirely to protocol
-# text, which a session running unattended may never commit. The hook marks
+# The endurance retry's queue, rebuilt: a plan scoped entirely to core
+# paths, which a session running unattended may never commit. The hook marks
 # it SUPERVISED ONLY and ranks it below every free row; drain hands out the
 # next thing to TAKE, so a marked row reaching `next:` would send an
 # unattended fleet at 55 minutes of work it has to revert. Read from the
@@ -212,13 +212,13 @@ git -C "$dwork" push -q origin --delete claimer 2>/dev/null || true
 # Committed ALONE, and first. Rows sort by rank then oldest, so two plans
 # added in one commit share a timestamp and their order is whatever sort's
 # last-resort comparison says — the tie PR129 r3 already paid for once.
-printf -- '---\nplan: protocolonly\nurgency: normal\nagent: sonnet\neffort: low\nscope: joharness.sh, .agents/harness/selftest\n---\n\n## Goal\nFixture.\n' \
+printf -- '---\nplan: protocolonly\nurgency: normal\nagent: sonnet\neffort: low\nscope: joharness.conf, .github/workflows\n---\n\n## Goal\nFixture.\n' \
   >"${dwork}/docs/plans/protocolonly.md"
-commit_all "$dwork" "a plan scoped entirely to protocol text"
+commit_all "$dwork" "a plan scoped entirely to core paths"
 git -C "$dwork" push -q origin main
 
 out="$(ddrain)"
-expect "supervised still hands out a protocol-text plan" \
+expect "supervised still hands out a core-path plan" \
   "next: docs/plans/protocolonly.md" "$out"
 refute "and says nothing about a boundary" "SUPERVISED ONLY" "$out"
 refute "nor prints the block that names one" "NOT YOURS" "$out"
@@ -226,12 +226,12 @@ refute "nor prints the block that names one" "NOT YOURS" "$out"
 # A requirement, and a plan serving it — the plan is what keeps the
 # requirement off the unplanned list, or planning would outrank the queue
 # and drain would hand out the requirement instead. The serving plan is
-# scoped to protocol text too, so the queue holds two plans and no free
+# scoped to a core path too, so the queue holds two plans and no free
 # one.
 mkdir -p "${dwork}/docs/product"
 printf -- '---\nrequirement: boundarygoal\npriority: normal\n---\n\n## Goal\nFixture.\n\n## Satisfied when\n\n- something observable.\n' \
   >"${dwork}/docs/product/boundarygoal.md"
-printf -- '---\nplan: servesit\nurgency: normal\nagent: sonnet\neffort: low\nrequirement: boundarygoal\nscope: .agents/harness\n---\n\n## Goal\nFixture.\n' \
+printf -- '---\nplan: servesit\nurgency: normal\nagent: sonnet\neffort: low\nrequirement: boundarygoal\nscope: .github\n---\n\n## Goal\nFixture.\n' \
   >"${dwork}/docs/plans/servesit.md"
 commit_all "$dwork" "a goal, and a second plan inside the boundary"
 git -C "$dwork" push -q origin main
@@ -243,8 +243,8 @@ refute "unsupervised is never handed the plan it cannot commit" \
 # alone, so it precedes `servesit` under every classification and no ordering
 # this fixture can produce would ever hand out the second one. An assertion
 # that cannot fail is worse than none. What IS load-bearing is that BOTH
-# marked plans are named, including the one whose scope is a protocol TREE
-# rather than the entrypoint file.
+# marked plans are named, including the one whose scope is a core TREE
+# (`.github`) rather than a single file.
 expect "both plans it cannot take are named, not just the first" \
   "docs/plans/servesit.md" "$out"
 # Silence here would be the defect drain_requirement already fixed: a status
@@ -252,7 +252,7 @@ expect "both plans it cannot take are named, not just the first" \
 expect "the plans it cannot take are named" "NOT YOURS" "$out"
 expect "and named by path" "docs/plans/protocolonly.md" "$out"
 expect "and the reason given is the boundary, not availability" \
-  "Scope holds protocol text" "$out"
+  "Scope holds a core path" "$out"
 expect "and it says not to re-file the same work" \
   "re-file the same work" "$out"
 
@@ -266,7 +266,7 @@ expect "and it says not to re-file the same work" \
 i=0
 while [ "$i" -lt 11 ]; do
   n="$(printf 'bulk%02d' "$i")"
-  printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: low\nscope: joharness.sh\n---\n\n## Goal\nFixture.\n' \
+  printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: low\nscope: joharness.conf\n---\n\n## Goal\nFixture.\n' \
     "$n" >"${dwork}/docs/plans/${n}.md"
   i=$((i + 1))
 done
@@ -333,9 +333,9 @@ expect "and under supervised" "next: docs/plans/recorded-note.md" "$out"
 fixture_rm "$dwork" "drop the note" docs/plans/recorded-note.md
 git -C "$dwork" push -q origin main
 mkdir -p "${dwork}/docs/plans"
-printf -- '---\nplan: onlyprotocol\nurgency: normal\nagent: sonnet\neffort: low\nscope: joharness.sh\n---\n\n## Goal\nFixture.\n' \
+printf -- '---\nplan: onlyprotocol\nurgency: normal\nagent: sonnet\neffort: low\nscope: .claude/settings.json\n---\n\n## Goal\nFixture.\n' \
   >"${dwork}/docs/plans/onlyprotocol.md"
-commit_all "$dwork" "only a protocol-text plan"
+commit_all "$dwork" "only a core-path plan"
 git -C "$dwork" push -q origin main
 out="$(ddrain env JOHARNESS_MODE=unsupervised)"
 expect "only marked work is DRAINED for this mode" \

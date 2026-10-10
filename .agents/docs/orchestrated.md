@@ -40,6 +40,7 @@ the rows below.
 | `./joharness.sh drain` | Same verdict; tells a manager it works the item its prompt named, and names the orchestrator's exit as dispatch's verdict. |
 | `./joharness.sh upstream` | New, and NOT orchestrated-only: reports what a merged edge found about the harness in any consumer, at any time. What this mode adds is a role that acts on it. |
 | `./joharness.sh janitor` + the `janitor :` line | New, and NOT orchestrated-only: `drain` reads the same cadence from the same reader, so a human's `/start` reaches the sweep too (each renders it for its own reader, as the curate line does). A claim whose session is gone holds its plan out of the queue for ever; the janitor releases it by writing `status: abandoned` into that claim's own file, never by deleting anything. Clock-driven (`JOHARNESS_JANITOR_HOURS`, 12 by default), dated from git like the curate cycle, ORTHOGONAL to the verdict so it rides the tail. |
+| `./joharness.sh scout` + the `scout :` line | New, and NOT orchestrated-only, as janitor: `drain` and `dispatch` ask the same reader. Unlike curate and janitor it is GATED on the verdict, not orthogonal to it: a scout proposes new work, and new work competes with real work, so `dispatch` spawns one only under `DRAINED — nothing free, nothing in flight` and `drain` prints the block only under `DRAINED`; due under any other verdict prints as suppressed. Clock-driven (`JOHARNESS_SCOUT_HOURS`, 168 by default), dated from git — the newest scout RETIRE, merged or on an unmerged branch, because a proposal the human CLOSED leaves nothing on the base branch. Every misread fails closed: it holds the cycle off, never spawns a second scout — the path names a scout, nothing in the file; a scout file on any tip, the base's included, is in flight unless it says `abandoned`; and no fresh fetch holds the spawn. Tier fable, beyond the cap, at most one in flight. What it does when spawned: `.claude/commands/scout.md`. |
 | `./joharness.sh analysis` | New, and NOT orchestrated-only: one unmerged branch's claim — the BLOCKED / STALL? / LOOP? mark it carries, the base branch's current conf answers beside the cause it stated, and what has changed since. No argument sweeps every claim, printing the ones carrying a condition and counting the rest. It reads claims from the handover diff, so it also reads a claim whose plan file is gone — one `dispatch` cannot mark. Reports only. |
 | `JOHARNESS_UPSTREAM_FEEDBACK` | New, `off` by default. On, the health pass's `done` row spawns ONE reporter per merged edge, which files the findings as a report pull request on the canonical ([`feedback.md`](feedback.md), When the consumer is the detector). A reporter holds no manager slot and is one session beyond the cap. |
 | `JOHARNESS_IDLE_ANALYSIS` | New, `off` by default. On, a row `dispatch` marks `ANALYSE?` — blocked, stalled or looping — spawns ONE analyst, which says why, re-reads the stated cause against this repo's own conf, and files what survives its gate as an issue on the canonical. BESIDE that row's verdict, never instead of it. An analyst holds no manager slot and is one session beyond the cap. Issue #266 is the run that bought it. |
@@ -50,13 +51,14 @@ the rows below.
 | Role | Tier | Runs as | Spawns | Owns | Ends when |
 | --- | --- | --- | --- | --- | --- |
 | orchestrator | low, mechanical on purpose — the Routine's model: haiku by the ask, sonnet in the requester's diagram; a run decides | a session; the heartbeat fires one | manager sessions (`create_session`) | the cap, the health pass, the kill handover | dispatch says DRAINED with nothing in flight |
-| manager | the item's `agent:` — plan or research; opus at xhigh for an unplanned requirement, decomposition being the judgement every build rests on | a session with its own branch, claim and merge | worker subagents (`Agent`) | one item, until its file retires | its pull request merges, or it blocks on a human |
+| manager | the item's `agent:` — plan or research; fable at xhigh for an unplanned requirement, decomposition being the judgement every build rests on | a session with its own branch, claim and merge | worker subagents (`Agent`) | one item, until its file retires | its pull request merges, or it blocks on a human |
 | worker | at or below the plan's tier, lower by default | a subagent in the manager's container | nothing | the files its sub-task names | it returns |
 | reporter | low; the judgement is its command file's gate, not its tier | a session, spawned after a manager MERGES — only where `JOHARNESS_UPSTREAM_FEEDBACK=on` | nothing | one merged edge's harness findings | it files one report on the canonical, or none, and exits |
 | janitor | sonnet; the judgement is whether a session is gone, not what any item is for | a session, spawned on the `janitor DUE` tail line | nothing | the claims, for ONE sweep | its pull request merges |
 | analyst | low; the judgement is its command file's gate, not its tier | a session, spawned from a health pass on a row marked `ANALYSE?` — only where `JOHARNESS_IDLE_ANALYSIS=on` | nothing | one condition on one branch, explained and never ended | it files one issue on the canonical, or none, and exits |
 | curator | sonnet; the judgement is which declaration is wrong, not what any plan is for | a session, spawned on the `curate DUE` tail line | nothing | the plan queue's declarations for ONE pass | its pull request merges, or `NOTHING TO CURATE` and it exits without a branch |
 | surveyor | sonnet; the judgement is which `scope:` path is a shared registry, not the plan's own tier | a session, spawned on the `OVERLAP-BOUND` verdict | nothing (it edits declarations, not code) | the held plans' and holders' `scope:` lines for one holder key | its pull request merges, or `done` with nothing to change |
+| scout | fable; the judgement is which counted number is largest, never what to build | a session, spawned on the `scout DUE` tail line, only under `DRAINED — nothing free, nothing in flight` | nothing | one proposal pull request, a `docs/product/<stem>.md` | the human merges or closes its pull request — or `JOHARNESS_SCOUT_AUTOMERGE=on` and it merges by step 7 — or `NOTHING TO PROPOSE` and it exits |
 
 ### What each role reads
 
@@ -75,6 +77,7 @@ handover hook, which skips the walk over every remote ref — and no queue.
 | curator | `./joharness.sh curate` and the plans it names | a held plan, the queue order, product code, this doc |
 | janitor | `./joharness.sh janitor`, the control plane per candidate, and the workstream files it names | a plan, the queue order, product code, another branch's code, this doc |
 | analyst | `./joharness.sh analysis <branch>`, that branch's workstream file, the conf delta the command prints | the queue, a plan, product code, another branch, this doc |
+| scout | `./joharness.sh scout` and the evidence it lists — `upstream`, `scorecard`, `review`, `feedback`, canonical issues, session cost, a dated release-note or Models API read | a plan, the queue order, product code, another branch's code |
 | worker | its sub-task prompt and the files it names | everything else |
 
 Two spawn levels, never three. A worker that needs a branch of its own is
@@ -338,6 +341,8 @@ this mode should move. If it does not, the hold rule bought nothing.
 | `JOHARNESS_CURATE_SPLIT` | 8 | `## Scope` bullets before `curate` names a plan a decompose candidate — PROPOSED, never done | no data; a written number until a run counts one |
 | `JOHARNESS_UPSTREAM_FEEDBACK` | `off` | on = one reporter session per merged edge, beyond the cap, filing harness findings on the canonical — money, and pull requests in a repo this one does not own | not a number to calibrate: a switch, off until a human turns it on. Unlike the six above it IS declared in `.agents/scripts/conf-keys.sh`, so every consumer's sync names the key its conf does not answer |
 | `JOHARNESS_JANITOR_HOURS` | 12 | hours between sweeps of the claims; 0 switches the cycle off | the requester's number. A clock alone is wrong for the curate cycle because plan churn is bursty; here the subject IS elapsed time, so there is nothing to trigger on but the clock. A sweep that releases nothing costs one session and lands one empty pull request, which is what dates the next one |
+| `JOHARNESS_SCOUT_HOURS` | 168 | hours since the last scout before one is due, only at DRAINED; 0 switches the cycle off | the curate cycle's window: a week. A written number, not a counted one — no scout has run yet; the first proposals are what a recount reads |
+| `JOHARNESS_SCOUT_AUTOMERGE` | off | exactly `on` lets a scout merge its own proposal; any other value reads as off | money AND product direction in one key, like `JOHARNESS_UPSTREAM_FEEDBACK`: the one place a session may merge work it invented, and it holds the no-inventing bound only because flipping it is a conf line, a human act |
 | `JOHARNESS_IDLE_ANALYSIS` | `off` | on = one analyst session per condition per item per run, beyond the cap, saying why a manager is parked and filing it as an issue on the canonical — money, and issues in a repo this one does not own | a switch, off until a human turns it on, declared in `.agents/scripts/conf-keys.sh` beside the row above. It calibrates NOTHING of its own: the marks it fires on are drawn by `JOHARNESS_STALL_MINUTES` and `JOHARNESS_CHURN_LIMIT`, and a fourth written number would buy nothing |
 
 **None of these is an `updated_at` threshold, and the measurement says one
@@ -440,8 +445,8 @@ cap of 4 costs in reconciles under an orchestrator is the run's to say.
 ## Bounds, unchanged, plus one path
 
 Every bound in [`unsupervised.md`](unsupervised.md) holds through
-`unattended()`: protocol text off limits, step 7 conditions for every
-merge, no requirement written by a session, nothing invented at the edge,
+`unattended()`: the core paths off limits (protocol text released
+2026-10-08), step 7 conditions for every merge, nothing invented at the edge,
 the prompt routes and the repository authorises. The orchestrator adds
 its own: it merges nothing, edits nothing but a killed manager's
 workstream file, picks no tier, and takes no item itself.
@@ -456,6 +461,20 @@ spawns it and authors none of that.
 `JOHARNESS_IDLE_ANALYSIS` loosens none of them either: an analyst is a spawn,
 it merges nothing, ends no condition, writes no file in this repo, and the
 orchestrator authors no issue.
+
+The scout is the one role that writes a file no node asked for, and nothing
+being invented still holds because of who authors it: a proposal is a
+requirement DRAFT, and the human authors it by merging its pull request, or
+by closing it declines it, with the record in history either way. It writes
+no plan and no research file, edits no core path, spawns nothing and merges
+nothing — except under `JOHARNESS_SCOUT_AUTOMERGE=on`, the one exception, and
+that exception is a conf line: money and product direction in one key, set
+by a human, like `JOHARNESS_UPSTREAM_FEEDBACK`. The scout never sets it, and
+reads it from the base branch's conf, so its own branch cannot grant it. It
+spawns only under `DRAINED — nothing free, nothing in flight`: new work
+competes with real work. Every proposal number carries its command and date;
+one without is a written number, and the proposal fails
+(`.claude/commands/scout.md`).
 
 `joharness.conf` joined `protocol_paths` with this mode. It holds the
 mode line `authority` verifies and the cap: a session that may rewrite
@@ -483,7 +502,7 @@ is recoverable in joharness only. Everything a later reader needs is below,
 which is what that state requires rather than leaves optional.
 
 **The ask, 2026-09-05**, transcribed by the attended session that received
-it; a session writes no requirement of its own, and when that session asked
+it; a session then wrote no requirement of its own, and when that session asked
 whether to correct, keep or delete the transcription the requester delegated
 the decision to it, same day:
 
@@ -695,8 +714,8 @@ fired. One respawn ran and was verified clean, no duplicate, 2026-09-16
 allocated no runner account-wide from 2026-09-13, so step 7's first merge
 condition could not be met. Five managers waived it per pull request; one
 read the rule strictly, finished green and set itself BLOCKED, because the
-remedy — `JOHARNESS_CHECKS=local` in `joharness.conf` — is protocol text no
-session may commit. The orchestrator escalated instead of choosing, which is
+remedy — `JOHARNESS_CHECKS=local` in `joharness.conf` — was protocol text no
+session may commit (a core path still, since 2026-10-08). The orchestrator escalated instead of choosing, which is
 what it should do, and the human settled it there on 2026-09-16.
 A fleet that meets an infrastructure wall needs a human for a one-line conf
 change and cannot supply one; five sessions deciding one way and one the
@@ -707,6 +726,45 @@ strictly sat `blocked` 11h18m on a cause `JOHARNESS_CHECKS=local` had lifted
 without asking whether it still held, and a human ended it by merging by
 hand. `JOHARNESS_IDLE_ANALYSIS` answers that by explaining, not by deciding —
 the conf line stays the human's.
+
+**This was not the first time this split happened, and the earlier instance
+sharpens what the split actually is.**
+`docs/research/peer-divergence-in-conduct.md` (closed NO; this is its
+graduation) found an earlier occurrence in the same consumer, six days
+before the block above (2026-09-11, against 2026-09-17),
+and before `JOHARNESS_CHECKS=local` existed: `crm-workflow-branching`
+blocked itself at 2026-09-11T14:41Z on the same signature ("CI allocates no
+runner, repo-wide"), and the repo's own convention for merging anyway — a
+merge-commit paragraph opening "MERGED WITH GITHUB'S CHECKS RED" — first
+appears at 2026-09-11T14:03Z, about 38 minutes BEFORE that block, not after.
+Read end to end, both instances are a `blocked` manager failing to notice
+that the fleet's answer to a still-live condition had already moved — by
+38 minutes the first time, by a conf change landed 10h15m earlier the
+second — not two managers disagreeing in the same moment. Issue #251 frames
+this as "peer divergence" (six waived, two blocked, same hour); the
+artifacts support a narrower reading, two single-branch staleness cases,
+which is what `JOHARNESS_IDLE_ANALYSIS` already targets.
+
+**The research closes NO on a peer-comparison mechanism, not on the
+incident.** A time-windowed, cause-keyword rule over retired workstream
+files and merge-commit text — a `blocked` branch naming a cause a merged
+peer's text names too, within about a day — catches both incidents in
+`gx`'s full history (each against its own window's peers, however many
+share the cause text) and keeps them separate from a third, unrelated
+incident (Aug 13-14) sharing the same "MERGED WITH GITHUB'S CHECKS RED"
+wording weeks apart, which a day-scale window correctly does not pair
+with either. That is evidence the window and the keyword match do their
+one job; it is not evidence for a NEW mechanism: the rule that catches it
+is a single branch's stated cause checked against current ground truth
+(`joharness.conf`, in this case), which is exactly what the `analyst` role
+already does, built from this same incident. Nothing in either corpus —
+not `gx`'s, not this repo's own 50-edge feedback window, which has no
+comparable instance at all — produced a single case of the OTHER shape
+#251's language reaches for: two branches reading a non-infrastructure
+rule two ways, with no config to check either reading against. That general
+class stays exactly where #251 left it, open, and a sampling conduct
+reviewer remains the human's call rather than something this file argues
+for.
 
 What run 3 has NOT shown: no DRAINED — that repo still queued 37 plans at
 2026-09-16 (`get_file_contents`, `docs/plans`); no kill and no nudge, for the

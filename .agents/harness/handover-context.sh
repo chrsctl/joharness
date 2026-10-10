@@ -268,7 +268,7 @@ if [ "${JOHARNESS_SESSION_SOURCE:-}" = "compact" ]; then
   # there at all. Both facts below are in .agents/harness/AGENTS.md, which
   # ships whole.
   add "  .agents/harness/AGENTS.md — the Loop, and the boundary step 2"
-  add "  keeps: no commit to protocol text (./joharness.sh protocol-paths)."
+  add "  keeps: no commit to a core path (./joharness.sh protocol-paths)."
   add ""
   # Read, never re-resolved. cmd_session_start exports JOHARNESS_RUN_MODE
   # after resolving it once; a hook that worked the mode out again is two

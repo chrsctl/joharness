@@ -76,9 +76,14 @@ expect "the verifier step prints beside the depth" \
 # The rule, the printed step and agent-selection.md all name this path, and
 # nothing asserted it exists: deleting it left `ci` green here while every
 # consumer sync died on the missing DIRS entry (exit 3). Canonical-only —
-# a consumer receives the file but does not own it.
-if [ ! -f "${ROOT}/joharness.conf" ] ||
-   ! grep -q '^JOHARNESS_CANONICAL=1' "${ROOT}/joharness.conf" 2>/dev/null; then
+# a consumer receives the file but does not own it. Decided ONCE, for this
+# check and the content checks below, so the two cannot drift apart.
+rv_canon=0
+if [ -f "${ROOT}/joharness.conf" ] &&
+   grep -q '^JOHARNESS_CANONICAL=1' "${ROOT}/joharness.conf" 2>/dev/null; then
+  rv_canon=1
+fi
+if [ "$rv_canon" -ne 1 ]; then
   skip "the file the rule names exists" "consumer checkout"
 elif [ -s "${ROOT}/.claude/agents/verifier.md" ]; then
   pass "the file the rule names exists"
@@ -90,6 +95,41 @@ expect "and how its findings are marked" "returns (verifier)" "$out"
 expect "standalone review runs with the gate off" "ci does not check" "$out"
 expect "standalone review reads the tier's depth" "docs/handover/ws.md [opus" "$out"
 expect "opus depth is the adversarial recipe" "does-it-reproduce" "$out"
+
+# What the verifier cannot see (issue #267). It has Read, Grep, Glob and Bash
+# and no control-plane call, and a research node whose evidence was live
+# session records had to say its reviewer re-sampled nothing. The two files
+# that must agree on WHICH claims that affects are read by different people —
+# the reviewer reads one, the node author the other — so the boundary is one
+# literal, on one marked line in verifier.md. The first check pins that line's
+# token to the literal; the second looks the token up in the README, so a
+# reword on either side alone reds. Needle first: an empty token fails rather
+# than passing over anything. Canonical-only, decided above.
+if [ "$rv_canon" -ne 1 ]; then
+  skip "the verifier names what it cannot see" "consumer checkout"
+else
+  vf_doc="$(cat "${ROOT}/.claude/agents/verifier.md" 2>/dev/null)"
+  rd_doc="$(cat "${ROOT}/.agents/docs/research/README.md" 2>/dev/null)"
+  # shellcheck disable=SC2016  # literal backticks the marked line carries
+  vf_tok="$(printf '%s\n' "$vf_doc" |
+    sed -n 's/^The boundary, in the words the research README also uses: `\(.*\)`\.$/\1/p' |
+    head -1)"
+  expect "the verifier names the boundary of its reach, on its marked line" \
+    "outside this checkout" "$vf_tok"
+  if [ -n "$vf_tok" ]; then
+    expect "the research README names the SAME boundary" "$vf_tok" "$rd_doc"
+  else
+    fail "the research README names the SAME boundary (no marked boundary line in verifier.md)"
+  fi
+  expect "and still reports such a claim, marked, never skips it" \
+    "Mark it UNVERIFIED, naming the reading you could not take." "$vf_doc"
+  expect "and says what that mark is in a research node" \
+    "best, never GROUNDED" "$vf_doc"
+  expect "a node needing such a reading names its second context in Method" \
+    "names its second context UP FRONT, in \`## Method\`, not at verification time." "$rd_doc"
+  expect "and both honest answers" \
+    "Two honest answers exist: the operator takes the reading, or a session" "$rd_doc"
+fi
 
 # Armed, but the work is mid-build: the review is not due until the edge, and
 # a gate that reds from the claim commit on makes red a branch's normal state.
@@ -889,44 +929,57 @@ fi
 git -C "$rwork" checkout -q main
 
 # --- requirement authorship ------------------------------------------------
-# The goal is the human's to set. An unsupervised session that writes itself a
-# requirement writes its own finish line, and a fleet with a finish line it
-# authored has none — a fleet writing its own work has no edge. Nothing enforced
-# it: protocol_paths covers protocol TEXT and docs/product/ is not in it,
-# correctly, because a requirement is product rather than protocol.
-ci_req() { jr ci | awk '/^== requirement authorship/ { f = 1; next } f && /^== / { exit } f'; }
+# Requirements may be written in EVERY mode (requester decision 2026-10-08).
+# The `== requirement authorship` ci stage that redded an unattended branch
+# for adding one is gone, with the boundary narrowed to core paths
+# (joharness.sh:protocol_paths) — docs/product/ never was one. These cases
+# pin the absence: the stage coming back, its old wording coming back under
+# another header, or the red coming back without either, fails here.
+# Whole ci output, not one stage's slice: the stage NOT existing is the claim.
+ci_out() { jr ci 2>&1 || true; }
 
 git -C "$rwork" checkout -q main
 git -C "$rwork" checkout -qb reqwrite main
 mkdir -p "${rwork}/docs/product"
-printf -- '---\nrequirement: selfwritten\npriority: normal\n---\n\n## Goal\nA goal nobody set.\n\n## Satisfied when\n\n- something observable.\n' \
+printf -- '---\nrequirement: selfwritten\npriority: normal\n---\n\n## Goal\nA goal a session set.\n\n## Satisfied when\n\n- something observable.\n' \
   >"${rwork}/docs/product/selfwritten.md"
 commit_all "$rwork" "a session writes itself a goal"
 
-# SUPERVISED: untouched. Writing requirements is what a human-attended session
-# does with a human, and a gate that fired here would stop the normal case.
-out="$(JOHARNESS_MODE=supervised ci_req)"
-expect "supervised says why it is not checking" "a human is there to write it" "$out"
+# SUPERVISED: green, as it always was — and no stage reporting on it either.
+out="$(JOHARNESS_MODE=supervised ci_out)"
+refute "supervised ci has no requirement authorship stage" \
+  "== requirement authorship" "$out"
 if JOHARNESS_MODE=supervised jr ci >/dev/null 2>&1; then
   pass "supervised ci is green with a requirement added"
 else
   fail "supervised ci is green with a requirement added"
 fi
 
-out="$(JOHARNESS_MODE=unsupervised ci_req)"
-expect "an added requirement is named" "docs/product/selfwritten.md" "$out"
-expect "and counted" "1 requirement(s) ADDED" "$out"
-expect "and says why it matters" "writes its own finish line" "$out"
+# UNSUPERVISED: the case that used to be red. Same three things the old
+# stage printed, each refuted, so a partial revival is caught too.
+out="$(JOHARNESS_MODE=unsupervised ci_out)"
+refute "unsupervised ci has no requirement authorship stage" \
+  "== requirement authorship" "$out"
+refute "nor counts the added requirement as a finding" \
+  "requirement(s) ADDED" "$out"
+refute "nor says it writes its own finish line" \
+  "writes its own finish line" "$out"
 if JOHARNESS_MODE=unsupervised jr ci >/dev/null 2>&1; then
-  fail "unsupervised ci is RED with a requirement added"
+  pass "unsupervised ci is green with a requirement added"
 else
-  pass "unsupervised ci is RED with a requirement added"
+  fail "unsupervised ci is green with a requirement added"
 fi
 
-# EDITING one is fine, and the distinction is load-bearing: PR 163 annotated a
-# Satisfied when bullet with a measured result while unsupervised, which is
-# the mode reporting its own results. A guard that caught that would stop
-# exactly the feedback the requirement asks for.
+# ORCHESTRATED: the other unattended mode. Both read one predicate
+# (joharness.sh:unattended); a red here and not above is a second copy.
+if JOHARNESS_MODE=orchestrated jr ci >/dev/null 2>&1; then
+  pass "orchestrated ci is green with a requirement added"
+else
+  fail "orchestrated ci is green with a requirement added"
+fi
+
+# EDITING one stays fine: PR 163 annotated a Satisfied when bullet with a
+# measured result while unsupervised — the mode reporting its own results.
 git -C "$rwork" checkout -q main
 mkdir -p "${rwork}/docs/product"
 printf -- '---\nrequirement: preexisting\npriority: normal\n---\n\n## Goal\nSet by a human.\n\n## Satisfied when\n\n- something observable.\n' \
@@ -937,22 +990,21 @@ git -C "$rwork" checkout -qb reqedit main
 printf -- '---\nrequirement: preexisting\npriority: normal\n---\n\n## Goal\nSet by a human.\n\n## Satisfied when\n\n- something observable. Measured 2026-08-31: it holds.\n' \
   >"${rwork}/docs/product/preexisting.md"
 commit_all "$rwork" "annotate the bullet with a measured result"
-out="$(JOHARNESS_MODE=unsupervised ci_req)"
-expect "editing a requirement is not writing one" "no requirement added" "$out"
 if JOHARNESS_MODE=unsupervised jr ci >/dev/null 2>&1; then
   pass "and unsupervised ci stays green for an edit"
 else
   fail "and unsupervised ci stays green for an edit"
 fi
 
-# A TEMPLATE is not a requirement — same exclusion the queue hook applies.
-# Two readers of "what counts as a requirement" that must agree.
+# A TEMPLATE beside them: green too. The queue hook still excludes it from
+# the requirement list; ci has no requirement reader left to disagree.
 git -C "$rwork" checkout -q main
 git -C "$rwork" checkout -qb reqtemplate main
 printf -- '---\nrequirement: TEMPLATE\n---\n\n## Goal\nShape only.\n' \
   >"${rwork}/docs/product/TEMPLATE.md"
 commit_all "$rwork" "add a requirement template"
-out="$(JOHARNESS_MODE=unsupervised ci_req)"
-expect "a TEMPLATE is not a requirement" "no requirement added" "$out"
+out="$(JOHARNESS_MODE=unsupervised ci_out)"
+refute "a TEMPLATE draws no requirement stage either" \
+  "== requirement authorship" "$out"
 
 git -C "$rwork" checkout -q main

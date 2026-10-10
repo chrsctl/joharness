@@ -80,6 +80,11 @@ For each claim you PROVED gone:
      proved it gone, what the claim held AS THE SWEEP REPORTED IT — the
      `holds:` line, copied, not "the plan it was holding" — and the sentence
      that a returning session may set the status back.
+   - in that same note, why `./joharness.sh ci` reds on this branch: its older
+     `joharness.sh` does not know the word `abandoned`, so `ci` reports `status
+     'abandoned' not one of: ...` on this file until the branch reconciles with
+     its base, and that reconcile is what clears it. The red is real, not
+     spurious.
    - a `blocked` file's existing text is CARRIED, never deleted: an unowned
      block's question is still the question, it just has nobody waiting on it.
 3. Commit on that branch and push. One commit, no force, no rebase, no amend.

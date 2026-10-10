@@ -11,7 +11,7 @@ Inline — no subagent.
    `.agents/docs/plans/TEMPLATE.md` to `docs/plans/<plan>.md`.
 2. Frontmatter, exact vocabulary (`ci` lints it):
    - `urgency`: `normal` | `urgent`.
-   - `agent`: `haiku` | `sonnet` | `opus` — selection rules
+   - `agent`: `haiku` | `sonnet` | `opus` | `fable` — selection rules
      `.agents/docs/agent-selection.md`. haiku ONLY when mechanical AND fully
      specified AND every acceptance criterion runnable. One unclear
      edge = sonnet. opus when wrong-but-plausible code is the failure

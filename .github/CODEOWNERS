@@ -1,0 +1,12 @@
+# Core paths: the files a session running unattended may never change
+# (joharness.sh:protocol_paths). Everything else — protocol text included —
+# a session edits and self-merges since 2026-10-08.
+#
+# This file is the GUARANTEE, the list in joharness.sh only the early
+# warning: a session may edit joharness.sh, so it could drop an entry there.
+# It cannot merge a change to a path owned here while main's branch
+# protection requires code-owner review — an operator setting, not a file.
+# `/.github/` covers this file itself.
+/joharness.conf         @chrsctl
+/.claude/settings.json  @chrsctl
+/.github/               @chrsctl

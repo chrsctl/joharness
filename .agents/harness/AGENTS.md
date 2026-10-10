@@ -55,7 +55,7 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    `.agents/docs/orchestrated.md`). Prompt named `/manage <item>`? That
    is your answer already. Otherwise `/start` reads the mode and names
    the file. Boundary holds in both:
-   no commit to protocol text (`./joharness.sh protocol-paths`,
+   no commit to a core path (`./joharness.sh protocol-paths`,
    [`.agents/docs/unsupervised.md`](../../.agents/docs/unsupervised.md)).
    Claims outlived their sessions? `drain` says `janitor : DUE` — same shape,
    same rank: `/janitor` releases what it can prove gone and deletes nothing.
@@ -217,7 +217,7 @@ refuses to run anyway.
 ## Agent selection
 
 Plans get matched to agents: each plan's frontmatter names `agent` tier
-(`haiku` | `sonnet` | `opus`) and `effort`. Every unit of work has a plan
+(`haiku` | `sonnet` | `opus` | `fable`) and `effort`. Every unit of work has a plan
 (step 2), so every unit gets matched — no tier, no build. Implementing
 session may escalate tier or effort, never downgrade; below the plan's
 tier = hand off (step 2), session cannot switch own model. Write plans

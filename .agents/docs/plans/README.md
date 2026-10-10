@@ -86,8 +86,11 @@ of 24 merged pull requests needing a reconcile. A cost, not an impossibility
 scope: src/parser.py, shared:tests/test_all.py
 ```
 
-A protocol path in `scope:` — `shared:` or not — marks the plan `SUPERVISED
-ONLY` under unsupervised and ranks it out of the free list. Declare it
+A core path in `scope:` (`./joharness.sh protocol-paths`: the conf, the
+settings, `.github`) — `shared:` or not — marks the plan `SUPERVISED ONLY`
+when unattended and ranks it out of the free list. Protocol text is not a
+core path since 2026-10-08: a plan scoped to `joharness.sh` or
+`.agents/harness/` is free work. Declare it
 anyway. Hiding the path does not make the plan unattended-doable:
 `.agents/harness/handover-guard.sh` blocks the stop on the diff, so the fleet
 spends a session reaching a hand-off (attempt two, 55 minutes) instead of

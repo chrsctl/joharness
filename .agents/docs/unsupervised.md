@@ -28,17 +28,17 @@ out of the same tree. That is a claim about one tree — removing the mode's
 machinery changes supervised output like any other edit.
 
 Every row below describes UNSUPERVISED. Orchestrated shares the boundary,
-the merge gate, the requirement ban and the no-inventing edge — the Bounds
+the merge gate and the no-inventing edge — the Bounds
 below, which is what "unattended" means here — and differs in every row of
 this table; `orchestrated.md` has its own.
 
 | Where | Change |
 | --- | --- |
-| `session-start` banner | Says the mode, lists the protocol boundary, and says the queue is the whole of the work: `drain` names the item, take it, merge your own pull request, at DRAINED exit. |
-| Queue hook | Marks a plan with ANY protocol path in `scope:` `SUPERVISED ONLY` — the label says whether that is the whole scope or part of it — and ranks it out of the free list. Everything else it prints is the same report. |
+| `session-start` banner | Says the mode, lists the core boundary, and says the queue is the whole of the work: `drain` names the item, take it, merge your own pull request, at DRAINED exit. |
+| Queue hook | Marks a plan with ANY core path (`./joharness.sh protocol-paths`) in `scope:` `SUPERVISED ONLY` — the label says whether that is the whole scope or part of it — and ranks it out of the free list. Everything else it prints is the same report. |
 | `./joharness.sh drain` | The same verdict as supervised, with the mode's lines around it: under `next:`, the edge-first line when edge work is in flight, then a spawn line naming every other free plan with its tier (claim by push, detect at merge — a collision is the reconcile step 7 already requires); before DRAINED, the NOT YOURS block naming the marked plans; under DRAINED, exit — the heartbeat re-seeds, nothing is invented. |
-| `ci` | One extra gate: no requirement added on the branch. |
-| Stop guard | Names protocol-text edits on the branch. Detection, not prevention. |
+| `ci` | Nothing extra since 2026-10-08 (the requirement gate was deleted; Bounds). |
+| Stop guard | Names core-path edits on the branch. Detection, not prevention. |
 
 Hooks report; `drain` orders. Two readers printing two rules was how the
 same tree got two answers (PR 170, PR 187, PR 190 each fixed one side).
@@ -56,33 +56,52 @@ a finding, not a stop.
 
 ## Bounds
 
-Three rules the mode does not relax. They outlive any spec that asked for
+The rules the mode does not relax, and one it no longer has. They outlive any spec that asked for
 the mode, which is why they are here rather than in a requirement that
 retires.
 
-- **Protocol text is off limits to a session running unattended**, wherever
-  it lives. The rule is the role; `joharness.sh:protocol_paths` is its
-  mechanical expression, read by the banner, the Stop guard and the queue
-  hook. The consequence — a plan with any protocol path in `scope:` is
-  marked and de-ranked — is the queue-hook row in the table above; the
-  reason it marks on ANY is here: the guard counts any such path in the
-  diff and acceptance is all-or-nothing, so a partly-protocol plan cannot
-  be finished either. Measured in this repo: attempt two spent 55 minutes
+- **The core paths are off limits to a session running unattended**:
+  `joharness.conf` (mode line, cap — money), `.claude/settings.json` (hooks,
+  permissions) and `.github` (the merge gate's checks, and CODEOWNERS).
+  Protocol text is NOT: since the requester's decision of 2026-10-08 ("remove
+  most restrictions; joharness should be able to use its own framework") a
+  session edits and self-merges `joharness.sh`, `.agents/harness/` and
+  `.claude/` like any other diff, under the step 7 gate. Before that the
+  bound covered every protocol tree, and on the canonical it marked 9 of 9
+  queued plans `NOT YOURS` (`dispatch` at 25733a6) — the fleet could not
+  build the harness it runs on. `joharness.sh:protocol_paths` is the list,
+  read by the banner, the Stop guard and the queue hook. It lives in a file
+  a session may now edit, so it is the early warning, not the guarantee:
+  `.github/CODEOWNERS` owns the core paths, and a branch-protection rule
+  requiring code-owner review is what stops a merge touching them. That rule
+  is a repository setting, the human's to switch on. It protects the
+  workflow definitions, not the checks' content: `ci.yml` runs
+  `./joharness.sh ci` from the PR head, and a session may edit that file —
+  accepted with the release (verifier r2). The consequence — a plan with any
+  core path in `scope:` is marked and de-ranked — is the queue-hook row in
+  the table above; the reason it marks on ANY is here: the guard counts any
+  such path in the diff and acceptance is all-or-nothing, so a partly-core
+  plan cannot be finished either. The measurements below were taken under
+  the old, wider boundary. Measured in this repo: attempt two spent 55 minutes
   on the all-protocol shape, and the partly-protocol one was found on
   2026-09-02 (canonical `main` f9fb932) with `drain` answering `next:` on a
   plan whose own Traps said supervised session only. Sandbox configuration
   (`.agents/env/`) is not
-  protocol. The list covers its own machinery: `joharness.sh` and
-  `.claude/settings.json` — and, since orchestrated mode, `joharness.conf`,
-  which holds the mode line `authority` verifies and the orchestrator's
-  cap (`orchestrated.md`, Bounds).
+  core. The list does NOT cover its own file: `joharness.sh` is a
+  session's to edit, which is why the list is the warning and CODEOWNERS
+  the guarantee. `joharness.conf` has been core since orchestrated mode:
+  it holds the mode line `authority` verifies and the orchestrator's cap
+  (`orchestrated.md`, Bounds).
 - **Merging uses the step 7 conditions unchanged.** The mode removes the
   human, never the gate.
-- **No unsupervised session writes a requirement**, and `ci` reds the
-  branch that does (`joharness.sh:lint_requirement_writes`). The queue is
-  the human's to fill, and a fleet that writes its own work has no edge to
-  stop at. Editing one is fine — annotating it with a measured result is
-  the mode reporting its own results; ADDING one is the circularity.
+- **Writing a requirement is no longer a bound.** Until 2026-10-08 `ci`
+  redded an unattended branch that added one (`lint_requirement_writes`,
+  deleted then, on the same decision as the bullet above). What still stops
+  a fleet inventing its own work is the edge rule below: nothing is
+  invented at DRAINED, and work enters only as an issue, a requirement or a
+  plan through a pull request. One session writes such a pull request with no
+  node behind it — a scout's proposal — and it enters the queue only through a
+  human's merge or a human's conf line (`orchestrated.md`, Bounds).
 
 ## Authority: the prompt routes, the repository authorises
 
@@ -109,7 +128,7 @@ the prompt until a session stops refusing is not the remedy.
 | --- | --- | --- | --- |
 | fan-out | 2026-08-30 | 53m | bounded work ran out; two sessions, two merges, one reconcile |
 | attempt one | 2026-08-31 | 48s | no repository attached; both sessions asked a human |
-| attempt two | 2026-08-31 | 57m | the only free plan was protocol text; the session reverted its own work (now marked `SUPERVISED ONLY`, never offered) |
+| attempt two | 2026-08-31 | 57m | the only free plan was protocol text; the session reverted its own work (marked `SUPERVISED ONLY` from then until 2026-10-08, when protocol text was released) |
 | attempt four | 2026-09-02 | 60m | one generation: three pull requests merged, two plans generated from the sweep, then each session declared itself done and nothing spawned the next. Both generated plans were `SUPERVISED ONLY` and both sessions claimed and edited them anyway — the marking was printed, never read at claim time; one crossing reached `origin` before its revert (PR 195) |
 
 Every run measured how long ONE generation lasts. The bullet asks for hours,
@@ -189,7 +208,13 @@ documents; it never creates one.
   `gh` on the runner they cannot open or merge a pull request, so step 7 is
   unreachable. Verified from two sessions for this organization. Create it
   from the claude.ai Routines UI instead, then `fire_trigger` once and check
-  the fired session reached GitHub before trusting it.
+  the fired session reached GitHub before trusting it. `create_trigger` now
+  carries a `connectors` parameter and warns when a Routine stores none, so
+  the trap is an argument's default rather than a property of the surface —
+  but every one of the 203 Routines sampled on this account still reads
+  `mcp_connections: []` (`list_triggers`, 2026-10-08; `has_more` still true,
+  so a large sample and not a census). UI route stands until somebody
+  measures that parameter; a parameter existing is not a measurement.
 - **Stop**: `update_trigger` with `enabled: false` pauses, `delete_trigger`
   removes. Read `last_run` from `list_triggers`, never `next_run_at`: a
   paused Routine keeps a stale `next_run_at` that reads like a missed
@@ -206,8 +231,78 @@ documents; it never creates one.
   protocol's own: a claim not yet pushed is invisible, so push the
   workstream file as soon as work has a name.
 
-MCP tool names carry a hashed, unstable server prefix: find them with
-`ToolSearch`, never hardcode.
+### What ends the chain, and what a Routine does about it
+
+A `send_later` chain is the CADENCE. It was never the durability. Two
+measured ways a chain ends, and nothing re-arms after either:
+
+| shape | the last link reads | measured |
+| --- | --- | --- |
+| delivered, turn never ran | `SUCCEEDED`, `ended: run_once_fired`, 5 ms | issue 285, the 18-day idle: byte-identical to the 19 healthy links before it |
+| delivery failed, Routine retired | `ROUTINE_RUN_STATUS_FAILED`, `ended_reason: auto_disabled_session_gone`, 7.06 ms and 6.67 ms | `list_triggers enabled=false`, 2026-10-08: 3 of 3 auto-disabled, 2 of 3 carrying the failed run |
+
+The first is the dangerous one, and it is the one that has actually cost 18
+days. `last_run` reports DELIVERY, not execution — `list_triggers`' own
+contract — so a terminating link and a healthy link are the same record. The
+second at least leaves a disabled Routine carrying a reason. Neither leaves
+pending work anywhere: a dead chain has no next link to examine.
+
+So the check after creating a Routine is NEVER `last_run`. It is the
+connector bullet's check above: `fire_trigger` once, then confirm the fired
+session reached GitHub. Execution, not delivery.
+
+### Mode 3 is durability, not cadence
+
+`create_new_session_on_fire: true` holds no session reference — its target
+is created at firing — so neither shape above can end it. REASONING from the
+targeting contract plus that contrast, not a measurement: no mode-3 Routine
+exists on this account to observe, and creating one is spend.
+
+It cannot replace the chain. Its floor is 1 hour (`*/5 * * * *` refused,
+above): 60 minutes against `JOHARNESS_STALL_MINUTES` 45, and 6x
+`JOHARNESS_HEALTH_MINUTES` 10 (`joharness.sh:8012`), which is what
+`orchestrate.md` § 4 arms the chain at. The chain ran 19 consecutive passes
+at a median gap under 12 minutes (issue 285). The Routine BACKS the chain;
+it does not carry it.
+
+**A firing can still do nothing.** `orchestrate.md` step 0 precondition 2: a
+session finding another titled `orchestrator: <owner/repo>` with
+`session_status: RUNNING` that is not itself exits — before the health pass
+at step 2. An orchestrator frozen but still RUNNING makes every firing exit,
+forever, while the Routine's own record stays healthy. That state is not
+hypothetical: this file's `stalled` row is "`RUNNING`, `status_detail`
+unchanged across two passes", measured byte-identical across 172.273s.
+[`orchestrated.md`](orchestrated.md) names the live case ("the new one finds
+the title `RUNNING` and exits") and the dead case ("firing over a dead one
+is the point"); frozen-but-`RUNNING` is neither, and nothing handles it.
+Unresolved, and noted because the precondition is itself a one-signal
+verdict on a control-plane field — the thing the monitor bullet above
+forbids.
+
+### The repository's own clock, for the record
+
+The scheduled workflow stays rejected on credentials, above. What it does
+prove is that a clock outside the fleet keeps time regardless:
+`origin/main`'s largest first-parent merge gap is 435.02h — `c96088a3`
+(`2026-09-17T19:55:00Z`) to `0d726e09` (`2026-10-05T22:56:30Z`), 18.1 days,
+the same outage issue 285 measures — and three consecutive weekly
+`update.yml` runs fired inside it (`2026-09-21T12:14:58Z`,
+`2026-09-28T13:11:10Z`, `2026-10-05T13:53:54Z`), every one on `head_sha
+c96088a3`, the frozen tip. Fired at all, NOT on time: those three were
+374.97, 431.17 and 473.90 minutes past their `0 6 * * 1` cron.
+
+It still cannot run the health pass: 7 of the 11 health-table rows key on
+control-plane fields a runner cannot read, and the table's rule binds — "a
+verdict here needs both halves, and dispatch prints only the git half"
+([`orchestrated.md`](orchestrated.md)). The 4 rows readable from git alone
+(`looping`, `leftover`, `blocked`, `done`) are not the staleness rows.
+
+One predicate IS inside its ceiling: "this repository merged nothing in N
+hours" — git view only, `issues: write`, and an open issue is a queue item
+(Loop step 2). The 435-hour gap is what it would have caught. Unbuilt, and
+product direction if ever proposed; it would die in any outage long enough
+for GitHub to disable a schedule for repository inactivity.
+
 
 ## Not constrained, by decision
 
