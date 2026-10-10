@@ -2565,12 +2565,27 @@ janitor_candidates() {
 janitor_apply() {
   local want b path tip blob newblob tree commit idx today rc=0 n=0 cands
   [ "$#" -gt 0 ] || die "usage: $0 janitor --apply <branch>... (each session proven ARCHIVED or not found)"
-  git -C "$ROOT" fetch -q origin 2>/dev/null || warn "fetch failed; using the last fetched refs"
+  # --prune: under the default refspec a branch deleted on origin loses its
+  # remote-tracking ref here and takes the `no such branch` skip below.
+  git -C "$ROOT" fetch -q --prune origin 2>/dev/null || warn "fetch failed; using the last fetched refs"
   cands="$(janitor_candidates)"
   today="$(date -u +%Y-%m-%d)"
   for want in "$@"; do
     tip="$(git -C "$ROOT" rev-parse -q --verify "refs/remotes/origin/${want}^{commit}" 2>/dev/null)" || {
       printf 'skip      : %s — no such branch on origin\n' "$want"; rc=1; continue; }
+    # A remote-tracking ref outlives a deletion whose refspec --prune does not
+    # map (a narrow remote.origin.fetch): ask origin itself (#397). Deleted =
+    # released already; pushing would re-create it.
+    git -C "$ROOT" ls-remote -q --exit-code --heads origin "refs/heads/${want}" >/dev/null 2>&1
+    case $? in
+      0) ;;
+      2) # Drop the local ref a narrow refspec never prunes, or every dispatch
+         # names the branch again. Local only: origin is not touched.
+         git -C "$ROOT" update-ref -d "refs/remotes/origin/${want}" 2>/dev/null || :
+         printf 'gone      : %s — gone on origin, nothing to release\n' "$want"; continue ;;
+      *) printf 'skip      : %s — cannot ask origin whether the branch exists; nothing released\n' "$want"
+         rc=1; continue ;;
+    esac
     idx="$(mktemp)"
     GIT_INDEX_FILE="$idx" git -C "$ROOT" read-tree "$tip" || { rm -f "$idx"; rc=1; continue; }
     n=0
@@ -2596,7 +2611,9 @@ janitor_apply() {
     rm -f "$idx"
     commit="$(git -C "$ROOT" commit-tree "$tree" -p "$tip" \
       -m "janitor: release the claim, session gone (${today})")" || { rc=1; continue; }
-    if git -C "$ROOT" push -q origin "${commit}:refs/heads/${want}" 2>/dev/null; then
+    # The lease refuses a branch deleted or moved since the check above.
+    if git -C "$ROOT" push -q --force-with-lease="refs/heads/${want}:${tip}" \
+      origin "${commit}:refs/heads/${want}" 2>/dev/null; then
       printf 'pushed    : %s %s\n' "$want" "${commit:0:12}"
     else
       printf 'FAILED    : %s — push refused (the branch moved?); nothing released\n' "$want"
@@ -4816,8 +4833,12 @@ cmd_dispatch() {
   # session gone and runs the release itself. Silent when there are none.
   jcands="$(janitor_candidates | cut -f1 | sort -u | tr '\n' ' ')"
   jcands="${jcands% }"
-  [ -z "$jcands" ] ||
-    printf 'janitor   : stale claim(s) on %s — check each session; ARCHIVED or not found: run ./joharness.sh janitor --apply <branch>...\n' "$jcands"
+  if [ -n "$jcands" ]; then
+    printf 'janitor   : stale claim(s) on %s — check each session; ARCHIVED or not found: run ./joharness.sh janitor --apply <branch>...' "$jcands"
+    [ "$fetch_failed" -eq 0 ] ||
+      printf ' (or this clone is stale: fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*)'
+    printf '\n'
+  fi
   # The clerk cycle, one reader (clerk_due) shared with `clerk`.
   clerk_due
   kdue="$CLERK_DUE"
