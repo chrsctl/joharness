@@ -5516,9 +5516,27 @@ scout_refs() {
 # reads as the word it is; an unreadable one is `?`, which is in flight.
 scout_walk() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}"
-  local refs=() r hit wf doc sws sstat seen=$'\n' key listing rc_l rc_u blobs
-  while IFS= read -r r; do refs+=("$r"); done < <(scout_refs)
-  refs+=("refs/remotes/origin/${base_branch}")
+  local ids=() names="" base_id id r hit wf doc sws sstat seen=$'\n' key listing rc_l rc_u blobs
+  # ONE snapshot, by commit id, read before anything else: the base's id
+  # first, then the unmerged refs measured against THAT id. Every later
+  # read — both listings, both blob ids — names commits, never refs, so a
+  # concurrent fetch moving a ref mid-walk cannot make a branch's copy read
+  # as "inherited" from a base row the listing never saw (pass 4, r22).
+  base_id="$(git -C "$ROOT" rev-parse --verify -q \
+    "refs/remotes/origin/${base_branch}^{commit}" </dev/null 2>/dev/null)"
+  if [ -z "$base_id" ]; then
+    printf '%s\t%s\t%s\n' '?' 'scout-unreadable' 'unreadable'
+    return 0
+  fi
+  while IFS=$'\t' read -r id r; do
+    case "$r" in
+      '' | refs/remotes/origin/HEAD | "refs/remotes/origin/${base_branch}") continue ;;
+    esac
+    case "$names" in *$'\n'"${id}"$'\t'*) continue ;; esac
+    ids+=("$id"); names="${names}"$'\n'"${id}"$'\t'"${r#refs/remotes/origin/}"
+  done < <(git -C "$ROOT" for-each-ref --no-merged="$base_id" \
+    --format='%(objectname)%09%(refname)' refs/remotes/origin </dev/null 2>/dev/null)
+  ids+=("$base_id"); names="${names}"$'\n'"${base_id}"$'\t'"${base_branch}"$'\n'
   # Exit status kept, not discarded: grep exits 1 for "nothing listed" and
   # 128 for an error — a ref pruned between `for-each-ref` and here empties
   # EVERY listing at once (pass 6). An error is one in-flight row named
@@ -5526,17 +5544,18 @@ scout_walk() {
   # export would turn the glob into a literal path, the same class as
   # `grep.patternType` (pass 6): pinned off for these calls.
   listing="$(GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 git -C "$ROOT" -c core.quotePath=false grep \
-    --color=never -l -E -e '' "${refs[@]}" -- 'docs/handover/scout-[0-9]*' \
+    --color=never -l -E -e '' "${ids[@]}" -- 'docs/handover/scout-[0-9]*' \
     </dev/null 2>/dev/null)"; rc_l=$?
   listing="${listing}"$'\n'"$(GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 git -C "$ROOT" -c core.quotePath=false grep \
-    --color=never -L -E -e '' "${refs[@]}" -- 'docs/handover/scout-[0-9]*' \
+    --color=never -L -E -e '' "${ids[@]}" -- 'docs/handover/scout-[0-9]*' \
     </dev/null 2>/dev/null)"; rc_u=$?
   if [ "$rc_l" -gt 1 ] || [ "$rc_u" -gt 1 ]; then
     printf '%s\t%s\t%s\n' '?' 'scout-unreadable' 'unreadable'
   fi
   while IFS= read -r hit; do
     [ -n "$hit" ] || continue
-    r="${hit%%:*}"; wf="${hit#*:}"
+    id="${hit%%:*}"; wf="${hit#*:}"
+    r="${names#*$'\n'"${id}"$'\t'}"; r="${r%%$'\n'*}"
     # A NON-base row whose file is byte-identical to the base's copy is the
     # base's file inherited, not this branch's: the base's own row (listed
     # last) carries it, so nothing hides, and every branch cut after it no
@@ -5546,15 +5565,15 @@ scout_walk() {
     # its output read a failed read as "identical" and hid a live scout —
     # a quoted path, or a ref pruned mid-read (pass 3, r17). Any failure
     # keeps the row: fail closed.
-    if [ "$r" != "refs/remotes/origin/${base_branch}" ]; then
-      blobs="$(git -C "$ROOT" rev-parse --verify -q "${r}:${wf}" </dev/null 2>/dev/null)"
+    if [ "$id" != "$base_id" ]; then
+      blobs="$(git -C "$ROOT" rev-parse --verify -q "${id}:${wf}" </dev/null 2>/dev/null)"
       if [ -n "$blobs" ] && [ "$blobs" = "$(git -C "$ROOT" rev-parse --verify -q \
-          "refs/remotes/origin/${base_branch}:${wf}" </dev/null 2>/dev/null)" ]; then
+          "${base_id}:${wf}" </dev/null 2>/dev/null)" ]; then
         continue
       fi
     fi
     # CR stripped first: a CRLF file must not read as no frontmatter at all.
-    doc="$(git -C "$ROOT" show "${r}:${wf}" </dev/null 2>/dev/null | tr -d '\r')"
+    doc="$(git -C "$ROOT" show "${id}:${wf}" </dev/null 2>/dev/null | tr -d '\r')"
     sstat="$(printf '%s\n' "$doc" | gr_field status |
       tr 'A-Z ' 'a-z-' | tr -cd 'a-z0-9._-')"
     # One row per BRANCH and file, never collapsed further: two scouts
@@ -5564,12 +5583,12 @@ scout_walk() {
     # status, an older `abandoned` copy hid a live one (pass 5). An EXACT
     # entry in a newline list, never a substring: a file named
     # `scout-0|<other path>=in-progress|x` forged a substring key (pass 6).
-    key="${r}"$'\t'"${wf}"
+    key="${id}"$'\t'"${wf}"
     case "$seen" in *$'\n'"${key}"$'\n'*) continue ;; esac
     seen="${seen}${key}"$'\n'
     sws="${wf##*/}"; sws="${sws%.md}"
     sws="$(printf '%s' "$sws" | tr -cd 'A-Za-z0-9._:-')"
-    printf '%s\t%s\t%s\n' "${r#refs/remotes/origin/}" "${sws:-?}" "${sstat:-?}"
+    printf '%s\t%s\t%s\n' "${r:-?}" "${sws:-?}" "${sstat:-?}"
   done <<<"$listing"
 }
 
