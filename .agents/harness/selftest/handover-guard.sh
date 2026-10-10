@@ -543,6 +543,12 @@ else
   printf '%s\n' "$(indent "$out")"
 fi
 
+# A branch cut from the base with no commit and a clean tree holds nothing
+# to make invisible — an orchestrator's branch, stopped on every turn.
+git -C "$sgwork" checkout -qb sgempty main
+out="$(guard "$JSON_STOP")"
+refute "untouched never-pushed branch stays quiet" "no upstream" "$out"
+
 # A branch that never met the remote is invisible to every other session.
 git -C "$sgwork" checkout -qb sgnew
 printf 'new\n' >"${sgwork}/new.txt"

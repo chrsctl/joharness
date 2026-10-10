@@ -72,8 +72,14 @@ if [ -n "$branch" ] && [ "$branch" != "HEAD" ]; then
       add_fact "${ahead} commit(s) not pushed"
     fi
   elif [ "$branch" != "$BASE_BRANCH" ]; then
-    # Never pushed at all — invisible to every other session.
-    add_fact "branch has no upstream — git push -u origin HEAD"
+    # Never pushed at all — invisible to every other session, but only if
+    # it holds something. Zero commits ahead of the base = nothing to
+    # make invisible. A count we cannot read (no origin/<base>) is not 0:
+    # keep the fact, a guard that cannot read the base must not go quiet.
+    base_ahead="$(git rev-list --count "origin/${BASE_BRANCH}..HEAD" 2>/dev/null)"
+    if [ -z "$base_ahead" ] || [ "$base_ahead" -gt 0 ]; then
+      add_fact "branch has no upstream — git push -u origin HEAD"
+    fi
   fi
 fi
 
