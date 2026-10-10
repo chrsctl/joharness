@@ -140,13 +140,15 @@ finding the opus run found under the same contention.
 ## Findings
 
 1. **Cost ratio: 0.209 median — step 1 does not say NO.** Sonnet / opus
-   USD per diff: 402 0.1316/0.5515, 400 0.1579/0.4576, 399 0.1956/0.2933,
+   USD per diff: 402 0.1316/0.5515, 400 0.1579/0.4576, 399 0.2755/0.2933,
    395 0.4568/2.5354, 394 0.1447/1.5181, 393 0.1657/0.6062, 389
    0.0874/0.7873, 387 0.1017/1.3374, 386 0.0761/0.2851, 384 0.1362/1.1880.
-   Ratios 0.076 to 0.667; summed 1.654 vs 9.560 USD (0.173). Under the
-   0.46 bar, so the lever MAY reach 20% on cost. 394 opus reads 1.5181:
-   it took one more paid turn after its report, which the first reading
-   (1.4794) missed; the median does not move. GROUNDED (re-taken, see
+   Ratios 0.076 to 0.939; summed 1.734 vs 9.560 USD (0.181). Under the
+   0.46 bar, so the lever MAY reach 20% on cost. Two runs took a paid turn
+   after their report, when a background `ci` they had started finished:
+   394 opus (1.4794 first read, 1.5181) and 399 sonnet (0.1956, then
+   0.2755, after the second context's pass). Re-read with no process left
+   in any worktree; the median does not move. GROUNDED (re-taken, see
    Verification). Mechanism: sonnet stopped early — 7 to 27 tool calls
    against 9 to 63 for opus (every `tool_use` block); 7 or 8 of 10 sonnet
    runs handed back with `ci` still running and no result.
@@ -198,7 +200,9 @@ transcripts and git.
 
 - Costs: 19 of 20 match to 4 decimals; 394 opus 1.5181 vs 1.4794 (late
   turn, now corrected). Median 0.2094. All writes 5m; models as stated.
-  GROUNDED.
+  GROUNDED. 399 sonnet's later turn (0.2755) came after this pass and was
+  read by the first context only: WEAK for that one figure; it sits above
+  the median either way.
 - Head/base table: all 10 heads, bases, rN ranges and `(fixed)` counts
   reproduce. It found the 387 head already holding its fixes (c7b98ca not
   on base), now excluded. GROUNDED.

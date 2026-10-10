@@ -43,7 +43,7 @@ defects reaching `main`? Graduate to `.agents/docs/agent-selection.md`.
 - r2: (verifier) "confounds only make a run find MORE" false: contention killed ci at both tiers (402 r14), five runs shared scratchpad/ci.out (fixed — confounds rewritten, no ci reading trusted)
 - r3: (verifier) GROUNDED marks cited a Verification section that read "None yet" (fixed — Verification written from this pass)
 - r4: (verifier) cost reading had no command and its transcripts do not outlive the session (fixed — script in Method, per-run costs named as the record)
-- r5: (verifier) 394 opus read before its last paid turn: 1.5181 not 1.4794 (fixed — sum 9.560, ratio 0.173; median unchanged)
+- r5: (verifier) 394 opus read before its last paid turn: 1.5181 not 1.4794 (fixed — sum 9.560; median unchanged. 399 sonnet then took a late turn too, 0.2755, re-read with no process left; summed ratio 0.181)
 - r6: (verifier) "5-27 vs 9-63" mixed two counts (fixed — 7-27, every tool_use block)
 - r7: (verifier) table left out 402 r8, 386 r10, 384 r7 (fixed — added; totals restated as a range)
 - r8: (verifier) 389 r2 "fixed in part" left out of the count unstated (fixed — table says so)
