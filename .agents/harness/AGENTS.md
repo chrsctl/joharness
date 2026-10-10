@@ -10,10 +10,6 @@ let style eat a fact. Contested terms have ONE spelling —
 [`.agents/docs/glossary.md`](../../.agents/docs/glossary.md) fixes them and `ci` fails on
 the others.
 
-Environment rules are not here. Entrypoint injects them at session start from
-the selected layer — as a read-first pointer by default, whole when md=eager
-([`.agents/env/README.md`](../env/README.md)).
-
 ## Loop
 
 1. **Orient.** Hook prints handover state before first prompt. Hook names
@@ -72,17 +68,15 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    the diff will touch. Open question that decides the design? Settle it,
    record in workstream file, THEN code — never mid-code.
    Code asking whether a branch owns a file: DIFF against merge base, never
-   read the tree. Branch inherits every file its base branch carries. Six
-   merged edges paid for this one (`.agents/docs/feedback.md`, Worked
-   example: tree or diff).
+   read the tree. Branch inherits every file its base branch carries. Why:
+   `.agents/docs/feedback.md`, Worked example: tree or diff.
    Long-running? Re-check `git fetch origin main` ahead/behind
-   periodically — another PR merging mid-build is cheap to catch now, one
-   hit at step 7 after hours of work is not (`.agents/docs/product/README.md`
-   Branch flow).
+   periodically (`.agents/docs/product/README.md` Branch flow).
 5. **Verify.** All green or not done. `./joharness.sh ci` runs what GitHub's
    lint check runs — here, before the pull request, not after. GitHub also
-   verifies any layer declaring itself CI-runnable, which `ci` does not: run
-   that layer's `verify` too, or the first news is a red PR.
+   runs `verify` for each layer carrying a `ci-verify` marker
+   (`.agents/env/README.md`), which `ci` does not: run it too, or the first
+   news is a red PR.
    `./joharness.sh verify` proves the selected environment. Trust counted
    numbers, never written numbers — including numbers in any instruction file.
    Edge to main = review, always; depth scales with the plan's tier
@@ -125,7 +119,7 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    any unfinished turn, not only at session end. `/handover` writes it.
 7. **Finish.** PR, merge to `main` — every step merges, no long-lived
    integration branch. Session merges its OWN pull request itself, no
-   waiting on human (ratified 2026-08-23). Own = opened by this session,
+   waiting on human. Own = opened by this session,
    or the human handed it to this session to drive; never any other PR.
    PR whose merge button is not yours (usually a fork PR) = human's clock:
    retire BEFORE you ask, below. Such a PR whose session ended: flag it to
@@ -152,9 +146,8 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    waiting for Actions, and there is no run to read for the layer then. It
    names what it cannot cover, in its own output; the key's two homes and
    their one trap are written once, at the `lint` job in
-   `.github/workflows/ci.yml`. Merge-commit method ONLY — squash/rebase merge
-   breaks the merged-branch ancestry filter
-   (`.agents/docs/product/README.md` Branch flow). Human veto = revert.
+   `.github/workflows/ci.yml`. Merge-commit method ONLY (why:
+   `.agents/docs/product/README.md` Branch flow). Human veto = revert.
    Branch conflicts with `main` (another PR merged
    first)? Reconcile, do not force through — `.agents/docs/product/README.md`
    Branch flow, "Conflict at finish". Merged branch left standing =
@@ -165,9 +158,9 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    Deleting the FILES is not optional and is yours: PR's final state
    deletes workstream file + done plan file (+ requirement file when last
    plan). Still-useful bits go to the right layer's `AGENTS.md` or `docs/`
-   first. NOT covered by "optional, human-only" above — that is the BRANCH. Skipped, the base branch accretes finished workstreams later
-   sessions read as current; counted in
-   [`.agents/docs/handover/README.md`](../../.agents/docs/handover/README.md).
+   first. NOT covered by "optional, human-only" above — that is the BRANCH. Why:
+   [`.agents/docs/handover/README.md`](../../.agents/docs/handover/README.md),
+   Graduation.
    Do it as the LAST COMMIT BEFORE the pull request opens, never after the
    merge. Finding after it, consumer repo: issue on canonical, with measurement
    (`.agents/docs/feedback.md`, Inline or routed). Merge not yours? Ready-for-HUMAN is the edge: review record and
@@ -225,13 +218,9 @@ rules: `.agents/docs/agent-selection.md`.
 
 ## Handover
 
-- One file per workstream under `docs/handover/`, lives on work branch.
-  Shape: `.agents/docs/handover/TEMPLATE.md`.
+- Workstream file shape: `.agents/docs/handover/TEMPLATE.md`.
 - Write only what git cannot tell next session: goal, decisions, rejected
   paths, blockers, next step. Git knows rest.
-- Same commit as code. Push early — unpushed work invisible to other sessions.
-- Push time not liveness. Wrong both directions. `/who` = truth.
 - Copy or sync task (initial harness copy, sync from joharness): NO
-  workstream file. Diff self-describing. See protocol "When NOT to write
-  one". How to run one: `.agents/docs/consumer-repos.md`.
-- Full protocol + why: [`.agents/docs/handover/README.md`](../../.agents/docs/handover/README.md).
+  workstream file. See protocol "When NOT to write one". How to run one:
+  `.agents/docs/consumer-repos.md`.
