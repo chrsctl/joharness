@@ -32,6 +32,12 @@ and the live orchestrators first; plan lists what goes.
   plan re-raised curate 0->10 within 2 min); clerk kept, slimmed, never
   writes core-only plans; role sessions count against the cap together.
 
+- Human: verify roles before removing. Verification done (per-role track
+  record); ALL role changes (janitor/curate/clerk/scout/analyst/upstream)
+  on HOLD until the human decides. Workers told to keep any role commit
+  separate. Proposal: janitor->script, curate->script+ci gate, clerk and
+  upstream-report kept (slim), scout+analyst removed.
+
 ## Rejected
 
 - Keeping `context`/`perf` as reporting-only: they run inside every `ci`
