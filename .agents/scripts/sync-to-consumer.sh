@@ -699,8 +699,9 @@ report_canonical_only
 # The gap this closes: a child is asked about every switch at first contact
 # and never again, because the conf is consumer-own and this engine does not
 # sync it. A child bootstrapped before a key existed therefore takes the
-# fail-closed default in silence forever — JOHARNESS_MODE landed with every
-# older child in exactly that position, and no update would have said so.
+# fail-closed default in silence forever — the autonomy key, since retired,
+# landed with every older child in exactly that position, and no update would
+# have said so.
 #
 # Report ALWAYS, ask only with a terminal, write only what was answered.
 # update.yml runs this on a cron with nobody to ask and already carries this
@@ -791,6 +792,21 @@ report_conf_keys() {
   [ "$wrote" -eq 1 ] || printf '  nothing written\n' >&2
 }
 report_conf_keys
+
+# Settings the consumer's conf still carries that nothing reads any more.
+# JOHARNESS_MODE: orchestrated is the only mode, and joharness.sh warns on any
+# other value. Report only, in a dry run too: the conf is consumer-own and this
+# stage never edits it for this. Same skips as report_conf_keys — switched off
+# by the bootstrap, and a conf that is not a regular file is not read.
+report_obsolete_keys() {
+  local conf="${DEST}/joharness.conf"
+  [ "${JOHARNESS_SYNC_CONF_KEYS:-}" != skip ] || return 0
+  [ -f "$conf" ] && [ ! -h "$conf" ] || return 0
+  grep -q '^[[:space:]]*JOHARNESS_MODE[[:space:]]*=' "$conf" || return 0
+  printf '\n== obsolete settings\n'
+  printf '  JOHARNESS_MODE: obsolete; orchestrated is the only mode. Delete the line from joharness.conf.\n'
+}
+report_obsolete_keys
 
 # Two tiers. Dir tier: harness/ and env/ were wholly harness-owned, the
 # remedy is `git rm -r`. File tier: the protocol docs and sync tools that

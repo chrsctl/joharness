@@ -28,8 +28,8 @@
 # consumer, so ask only what a human arriving at a fresh repo actually has an
 # opinion about. Every update
 # after that names it to every consumer that predates it, which is the whole
-# point — JOHARNESS_MODE landed with no way to reach a child bootstrapped the
-# week before.
+# point — the autonomy key, since retired, once landed with no way to reach a
+# child bootstrapped the week before.
 #
 # Row format, `|`-separated so a meaning can carry spaces and commas:
 #   KEY|default|one-line meaning
@@ -45,7 +45,6 @@ JOHARNESS_ENV|none|Directory under .agents/env/ this repo provisions. 'none' = h
 JOHARNESS_ENV_SETUP|lazy|lazy = provision on demand; eager = at session start.
 JOHARNESS_ENV_MD|lazy|lazy = inject a pointer to the layer's rules; eager = the file whole.
 JOHARNESS_REVIEW|off|off = review reports only; on = ci gates the record at the edge.
-JOHARNESS_MODE|supervised|supervised = a session asks at the queue edge; unsupervised = it exits instead; orchestrated = an orchestrator dispatches managers.
 JOHARNESS_CHECKS|github|github = step 7 waits for this head's GitHub checks; local = no wait, ./joharness.sh finish runs ci and verify here and reds on their result.
 JOHARNESS_CURATE_HOURS|168|Hours since the last curate before one is due; 0 switches the whole cycle off.
 JOHARNESS_CURATE_PLANS|10|Plan files changed since the last curate before one is due (the primary trigger); 0 leaves only the clock.

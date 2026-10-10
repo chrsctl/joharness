@@ -71,7 +71,7 @@ BOOT-CANON-PART2-SENTINEL
 EOF
 commit_all "$bootsrc" "boot canonical v1"
 
-# </dev/null on purpose: the bootstrap ASKS for JOHARNESS_MODE when it has a
+# </dev/null on purpose: the bootstrap ASKS its switches when it has a
 # terminal, and a selftest run from one would sit at that prompt forever.
 # Closing stdin here makes every case below take the non-interactive path,
 # which is also the path CI takes. The prompt itself is driven under a pty
@@ -112,9 +112,14 @@ expect "conf seeded with env=none" "JOHARNESS_ENV=none" \
   "$(cat "${bootdst1}/joharness.conf" 2>/dev/null)"
 refute "seeded conf carries no canonical marker" "JOHARNESS_CANONICAL" \
   "$(cat "${bootdst1}/joharness.conf" 2>/dev/null)"
-expect "conf seeded supervised when nobody says otherwise" \
-  "JOHARNESS_MODE=supervised" \
+refute "fresh conf carries no JOHARNESS_MODE line" "JOHARNESS_MODE" \
   "$(cat "${bootdst1}/joharness.conf" 2>/dev/null)"
+refute "and the run asks no mode question" "Unsupervised mode" "$out"
+refute "and does not warn about a flag nobody passed" "--mode is obsolete" "$out"
+expect "the closing message carries the heartbeat note" \
+  "still needs a heartbeat to fire each next orchestrator session" "$out"
+expect "and points at the doc that carries the Routine" \
+  ".agents/docs/unsupervised.md" "$out"
 expect "a run with no terminal says why it did not ask" \
   "not a terminal" "$out"
 expect "ci workflow seeded from canonical" "BOOT-CI-STUB" \
@@ -182,10 +187,12 @@ fi
 expect "and says what it expected" "invalid review '' (expected: off | on)" "$out"
 out="$(boot --dry-run --mode orchestrated "${TMP}/bootmode-orch")"; rc=$?
 if [ "$rc" -eq 0 ]; then
-  pass "bootstrap --mode accepts orchestrated"
+  pass "bootstrap --mode is still parsed (old invocations do not die)"
 else
-  fail "bootstrap --mode accepts orchestrated (got ${rc}: ${out})"
+  fail "bootstrap --mode is still parsed (old invocations do not die; got ${rc}: ${out})"
 fi
+expect "and is ignored with the obsolete warning" \
+  "--mode is obsolete; orchestrated is the only mode (ignored)" "$out"
 out="$(boot --env 'bad/../name' "${TMP}/bootenv-walk")"; rc=$?
 if [ "$rc" -eq 1 ]; then
   pass "bootstrap --env refuses a path-walking name"
@@ -479,7 +486,7 @@ step "bootstrap-consumer.sh interview"
 
 # Each flag reaches the seeded conf.
 bootsw1="${TMP}/bootsw1"
-out="$(boot --env aaa --env-setup eager --env-md eager --review on --mode unsupervised "$bootsw1")"; rc=$?
+out="$(boot --env aaa --env-setup eager --env-md eager --review on "$bootsw1")"; rc=$?
 if [ "$rc" -eq 0 ]; then
   pass "every switch as a flag exits 0"
 else
@@ -487,12 +494,12 @@ else
   printf '%s\n' "$(indent "$out")"
 fi
 for pair in JOHARNESS_ENV=aaa JOHARNESS_ENV_SETUP=eager JOHARNESS_ENV_MD=eager \
-  JOHARNESS_REVIEW=on JOHARNESS_MODE=unsupervised; do
+  JOHARNESS_REVIEW=on; do
   expect "flag reaches the conf: ${pair}" "$pair" \
     "$(cat "${bootsw1}/joharness.conf" 2>/dev/null)"
 done
-expect "choosing unsupervised names the heartbeat as the missing half" \
-  "unsupervised is the switch, not the automation" "$out"
+refute "no JOHARNESS_MODE line when every switch is a flag" "JOHARNESS_MODE" \
+  "$(cat "${bootsw1}/joharness.conf" 2>/dev/null)"
 
 # A run with nobody to ask changes nothing about what a repo gets.
 bootsw2="${TMP}/bootsw2"
@@ -503,7 +510,7 @@ else
   fail "a run with no terminal exits 0 (got ${rc})"
 fi
 for pair in JOHARNESS_ENV=none JOHARNESS_ENV_SETUP=lazy JOHARNESS_ENV_MD=lazy \
-  JOHARNESS_REVIEW=off JOHARNESS_MODE=supervised; do
+  JOHARNESS_REVIEW=off; do
   expect "default kept with nobody to ask: ${pair}" "$pair" \
     "$(cat "${bootsw2}/joharness.conf" 2>/dev/null)"
 done
@@ -511,10 +518,25 @@ expect "and it says why it did not ask" "not a terminal" "$out"
 expect "and does not claim a conf it did not write" \
   "a conf that already exists keeps its own values" "$out"
 
-# Every explicit value is checked. run_mode and the other readers resolve an
-# unrecognised value to the safe one, so a typo would be silent for the life
+# --mode is parsed and ignored: one warning, and no JOHARNESS_MODE line lands.
+bootsw2b="${TMP}/bootsw2b"
+out="$(boot --mode supervised "$bootsw2b")"; rc=$?
+if [ "$rc" -eq 0 ]; then
+  pass "a fresh bootstrap given --mode supervised exits 0"
+else
+  fail "a fresh bootstrap given --mode supervised exits 0 (got ${rc})"
+fi
+expect "--mode prints the obsolete warning" \
+  "--mode is obsolete; orchestrated is the only mode (ignored)" "$out"
+refute "and the conf still has no JOHARNESS_MODE line" "JOHARNESS_MODE" \
+  "$(cat "${bootsw2b}/joharness.conf" 2>/dev/null)"
+out="$(boot --mode=unsupervised --dry-run "${TMP}/bootsw2c")"
+expect "--mode=<x> is parsed and warned about too" "--mode is obsolete" "$out"
+
+# Every explicit value is checked. The readers resolve an unrecognised value
+# to the safe one, so a typo would be silent for the life
 # of the repo unless it is refused where a human types it.
-for bad in "--env-setup lazyy" "--env-md eagre" "--review of" "--mode unsupervized"; do
+for bad in "--env-setup lazyy" "--env-md eagre" "--review of"; do
   # shellcheck disable=SC2086
   out="$(boot $bad "${TMP}/bootbad-$$")" && rc=0 || rc=$?
   if [ "$rc" -eq 1 ]; then
@@ -531,13 +553,12 @@ for bad in "--env-setup lazyy" "--env-md eagre" "--review of" "--mode unsuperviz
   rm -rf "${TMP}/bootbad-$$"
 done
 
-# A whole clone carrying joharness's own answers: the mode is overwritten
-# because canonical is flipped for its endurance runs, the rest are left
-# because nobody asked about them on this run.
+# A whole clone carrying joharness's own answers: none is rewritten, because
+# nobody asked about them on this run.
 bootsw3="${TMP}/bootsw3"
 mkdir -p "$bootsw3"
 cp -R "${bootsrc}/." "$bootsw3"
-printf 'JOHARNESS_ENV=custom-own\nJOHARNESS_REVIEW=on\nJOHARNESS_MODE=unsupervised\n' \
+printf 'JOHARNESS_ENV=custom-own\nJOHARNESS_REVIEW=on\n' \
   >>"${bootsw3}/joharness.conf"
 out="$(boot "$bootsw3")"; rc=$?
 if [ "$rc" -eq 0 ]; then
@@ -546,10 +567,6 @@ else
   fail "whole clone with inherited answers exits 0 (got ${rc})"
   printf '%s\n' "$(indent "$out")"
 fi
-expect "an inherited unsupervised is overwritten" "JOHARNESS_MODE=supervised" \
-  "$(cat "${bootsw3}/joharness.conf")"
-refute "and not merely appended beside" "JOHARNESS_MODE=unsupervised" \
-  "$(cat "${bootsw3}/joharness.conf")"
 expect "a switch nobody asked about is left alone" "JOHARNESS_ENV=custom-own" \
   "$(cat "${bootsw3}/joharness.conf")"
 expect "including one the clone had turned on" "JOHARNESS_REVIEW=on" \
@@ -565,7 +582,7 @@ else
   fail "dry run on a missing dir exits 0 (got ${rc})"
 fi
 expect "the missing-dir preview resolves the answers at all" "not a terminal" "$out"
-expect "and names what it would seed" "mode supervised" "$out"
+refute "and names no mode in what it would seed" "mode " "$out"
 if [ ! -e "$bootsw4" ]; then
   pass "dry run on a missing dir creates nothing"
 else
@@ -576,7 +593,7 @@ fi
 # where a bootstrap can drop the answer it was given while reporting success.
 bootsw5="${TMP}/bootsw5"
 mkdir -p "$bootsw5"
-printf 'JOHARNESS_ENV=custom-own\nJOHARNESS_MODE=unsupervised\n' \
+printf 'JOHARNESS_ENV=custom-own\n' \
   >"${bootsw5}/joharness.conf"
 out="$(boot --review on "$bootsw5")"; rc=$?
 if [ "$rc" -eq 0 ]; then
@@ -587,8 +604,6 @@ else
 fi
 expect "a flag reaches a conf the seed would not overwrite" "JOHARNESS_REVIEW=on" \
   "$(cat "${bootsw5}/joharness.conf")"
-expect "the mode is corrected there too" "JOHARNESS_MODE=supervised" \
-  "$(cat "${bootsw5}/joharness.conf")"
 expect "and the rest of that conf is left alone" "JOHARNESS_ENV=custom-own" \
   "$(cat "${bootsw5}/joharness.conf")"
 
@@ -598,7 +613,7 @@ expect "and the rest of that conf is left alone" "JOHARNESS_ENV=custom-own" \
 # whole-clone mode's purge — so what is asserted here is that the flag routes
 # around it WITHOUT relaxing it, and that a run nobody answered writes nothing.
 bootrc="${TMP}/bootrc"
-out="$(boot --env none --mode unsupervised "$bootrc")"; rc=$?
+out="$(boot --env none "$bootrc")"; rc=$?
 if [ "$rc" -eq 0 ]; then
   pass "a consumer to reconfigure is bootstrapped"
 else
@@ -614,10 +629,7 @@ fi
 expect "and the refusal names the flag that does re-ask" \
   "Re-ask its switches with --reconfigure" "$out"
 
-# Headless with no flags: nobody decided anything, so nothing is written —
-# and JOHARNESS_MODE in particular is NOT rewritten to the parse-time
-# default, which would silently turn an unsupervised child supervised on a
-# run that printed no question.
+# Headless with no flags: nobody decided anything, so nothing is written.
 cp "${bootrc}/joharness.conf" "${TMP}/bootrc-before"
 out="$(boot --reconfigure "$bootrc")"; rc=$?
 if [ "$rc" -eq 0 ]; then
@@ -632,8 +644,6 @@ else
   fail "a headless reconfigure with no flags writes nothing at all"
   diff "${TMP}/bootrc-before" "${bootrc}/joharness.conf" | sed 's/^/    | /'
 fi
-expect "the child keeps the autonomy it chose" "JOHARNESS_MODE=unsupervised" \
-  "$(cat "${bootrc}/joharness.conf")"
 
 # Flags decide without a terminal, and the log names what it wrote rather
 # than every switch it read.
@@ -646,29 +656,25 @@ refute "and does not claim to have written the rest" "JOHARNESS_ENV=none" "$out"
 expect "and says the rest of the consumer is untouched" "nothing else touched" "$out"
 refute "a reconfigure syncs nothing" "== sync" "$out"
 
-# The guard that makes JOHARNESS_MODE follow the same rule as the other four
-# under --reconfigure. A flag that says nothing about autonomy must leave the
-# key alone; without the guard `write_decided_keys` writes it unconditionally
-# and an unsupervised child goes supervised on a run that never asked. The
-# child here still says unsupervised, so the wrong behaviour is visible.
-expect "the child under test is still unsupervised" "JOHARNESS_MODE=unsupervised" \
-  "$(cat "${bootrc}/joharness.conf")"
-out="$(boot --reconfigure --review off "$bootrc")"
-expect "a flag about another key leaves the autonomy line alone" \
-  "JOHARNESS_MODE=unsupervised" "$(cat "${bootrc}/joharness.conf")"
-refute "and the log does not claim to have written it" "JOHARNESS_MODE=" "$out"
-
-# The heartbeat reminder is printed once, whoever chose the value and however.
-# Two copies of it — one per run shape — is what a second warn in the
-# reconfigure path produced.
-out="$(boot --reconfigure --mode unsupervised "$bootrc" 2>&1)"
-if [ "$(printf '%s\n' "$out" | grep -c 'unsupervised is the switch')" -eq 1 ]; then
-  pass "the heartbeat reminder is printed once under reconfigure"
+# --mode under --reconfigure is parsed, warned about once, and decides nothing.
+# The heartbeat note belongs to a run that stands a child up, and this one
+# stands nothing up.
+cp "${bootrc}/joharness.conf" "${TMP}/bootrc-before-mode"
+out="$(boot --reconfigure --mode supervised "$bootrc" 2>&1)"
+if [ "$(printf '%s\n' "$out" | grep -c -e '--mode is obsolete')" -eq 1 ]; then
+  pass "the obsolete --mode warning is printed once under reconfigure"
 else
-  fail "the heartbeat reminder is printed once under reconfigure"
-  printf '%s\n' "$out" | grep -n 'unsupervised is the switch' | sed 's/^/    | /'
+  fail "the obsolete --mode warning is printed once under reconfigure"
+  printf '%s\n' "$out" | sed 's/^/    | /'
 fi
+if cmp -s "${TMP}/bootrc-before-mode" "${bootrc}/joharness.conf"; then
+  pass "and a reconfigure given only --mode writes nothing"
+else
+  fail "and a reconfigure given only --mode writes nothing"
+fi
+refute "and a reconfigure prints no heartbeat note" "needs a heartbeat" "$out"
 
+boot --reconfigure --review off "$bootrc" >/dev/null 2>&1
 # A dry run previews and writes nothing. The key is `off` by the time this
 # runs, so asking for `on` is a real change to preview.
 out="$(boot --dry-run --reconfigure --review on "$bootrc")"
@@ -752,24 +758,26 @@ if command -v script >/dev/null 2>&1 &&
       /dev/null 2>&1
   }
 
-  # With no layer selected, three questions: layer, review, mode.
+  # With no layer selected, two questions: layer, review.
   bootask1="${TMP}/bootask1"
   out="$(boot_tty "$bootask1" '' '' '')" || :
   expect "the layer question is put" "Environment layer" "$out"
   expect "the review question is put" "Gate the review record?" "$out"
-  expect "the autonomy question is put" "Unsupervised mode for this consumer?" "$out"
-  for pair in JOHARNESS_ENV=none JOHARNESS_REVIEW=off JOHARNESS_MODE=supervised; do
+  refute "no autonomy question is put" "Unsupervised mode" "$out"
+  refute "and the conf has no JOHARNESS_MODE line" "JOHARNESS_MODE" \
+    "$(cat "${bootask1}/joharness.conf" 2>/dev/null)"
+  for pair in JOHARNESS_ENV=none JOHARNESS_REVIEW=off; do
     expect "Enter keeps the default: ${pair}" "$pair" \
       "$(cat "${bootask1}/joharness.conf" 2>/dev/null)"
   done
 
   # Selecting a layer opens the two questions that configure one.
   bootask2="${TMP}/bootask2"
-  out="$(boot_tty "$bootask2" aaa eager eager on unsupervised)" || :
+  out="$(boot_tty "$bootask2" aaa eager eager on)" || :
   expect "selecting a layer opens the provisioning question" "Provision the layer when?" "$out"
   expect "and the rules-injection question" "Inject the layer's rules when?" "$out"
   for pair in JOHARNESS_ENV=aaa JOHARNESS_ENV_SETUP=eager JOHARNESS_ENV_MD=eager \
-    JOHARNESS_REVIEW=on JOHARNESS_MODE=unsupervised; do
+    JOHARNESS_REVIEW=on; do
     expect "answered in the interview: ${pair}" "$pair" \
       "$(cat "${bootask2}/joharness.conf" 2>/dev/null)"
   done
@@ -804,21 +812,23 @@ if command -v script >/dev/null 2>&1 &&
     fail "and nothing is written"
   fi
 
-  # y and n were the answers the autonomy question took before it became one
-  # of five, and they still are. y is the second option in every pair.
+  # y and n still answer a two-choice question. y is the second option in
+  # every pair.
   bootask4c="${TMP}/bootask4c"
-  out="$(boot_tty "$bootask4c" '' n y)" || :
+  out="$(boot_tty "$bootask4c" '' n)" || :
   expect "n takes the first option" "JOHARNESS_REVIEW=off" \
     "$(cat "${bootask4c}/joharness.conf" 2>/dev/null)"
-  expect "y takes the second" "JOHARNESS_MODE=unsupervised" \
-    "$(cat "${bootask4c}/joharness.conf" 2>/dev/null)"
+  bootask4d="${TMP}/bootask4d"
+  out="$(boot_tty "$bootask4d" '' y)" || :
+  expect "y takes the second" "JOHARNESS_REVIEW=on" \
+    "$(cat "${bootask4d}/joharness.conf" 2>/dev/null)"
 
   # A conf the target already had: Enter offers ITS values back, so being
   # asked cannot strip a selection somebody made — including a layer name
   # canonical does not carry.
   bootask5="${TMP}/bootask5"
   mkdir -p "$bootask5"
-  printf 'JOHARNESS_ENV=custom-own\nJOHARNESS_REVIEW=on\nJOHARNESS_MODE=unsupervised\n' \
+  printf 'JOHARNESS_ENV=custom-own\nJOHARNESS_REVIEW=on\n' \
     >"${bootask5}/joharness.conf"
   out="$(boot_tty "$bootask5" '' '' '')" || :
   expect "the layer question offers what the repo already says" "[custom-own]" "$out"
@@ -841,14 +851,6 @@ if command -v script >/dev/null 2>&1 &&
   fi
   expect "and keeps it" "JOHARNESS_ENV=custom-own" \
     "$(cat "${bootask5b}/joharness.conf")"
-  # The one question that does NOT offer back what the conf says. Enter here
-  # means supervised even where the file said unsupervised, because that
-  # answer came from whatever repo this tree was copied from.
-  expect "the autonomy question offers supervised regardless" \
-    "supervised | unsupervised [supervised]" "$out"
-  expect "and Enter turns an inherited unsupervised off" "JOHARNESS_MODE=supervised" \
-    "$(cat "${bootask5}/joharness.conf")"
-
   # The questions have to survive a redirected stdout: log, warn and die are
   # all on stderr, and a run whose stdout goes to a file would otherwise sit
   # at a prompt the human cannot see.
@@ -857,7 +859,7 @@ if command -v script >/dev/null 2>&1 &&
     "JOHARNESS_SYNC_ROOT='${bootsrc}' bash '${ROOT}/.agents/scripts/bootstrap-consumer.sh' '${bootask6}' >/dev/null" \
     /dev/null 2>&1)" || :
   expect "the questions are on stderr, not stdout" \
-    "Unsupervised mode for this consumer?" "$out"
+    "Gate the review record?" "$out"
 
   # And a dry run that DOES have a terminal says it would ask, without asking.
   bootask7="${TMP}/bootask7"
@@ -871,12 +873,8 @@ if command -v script >/dev/null 2>&1 &&
   else
     fail "and asks nothing, writing nothing"
   fi
-  # --reconfigure under a terminal: the same questions, and the one
-  # difference that matters. At first contact the autonomy question offers
-  # supervised whatever the conf says, because a clone carries canonical's
-  # line; here the target is an established consumer whose line its own
-  # bootstrap wrote, so the question offers THAT back — otherwise Enter
-  # would downgrade it, JOHARNESS_MODE being written on every bootstrap.
+  # --reconfigure under a terminal: the same questions, put to an established
+  # consumer whose own values are offered back.
   boot_tty_rc() {
     local dest="$1" a
     shift
@@ -888,15 +886,12 @@ if command -v script >/dev/null 2>&1 &&
   }
 
   bootrctty="${TMP}/bootrctty"
-  boot --env none --mode unsupervised "$bootrctty" >/dev/null 2>&1
+  boot --env none "$bootrctty" >/dev/null 2>&1
   cp "${bootrctty}/joharness.conf" "${TMP}/bootrctty-before"
   out="$(boot_tty_rc "$bootrctty" '' '' '')" || :
   expect "reconfigure puts the layer question" "Environment layer" "$out"
   expect "reconfigure puts the review question" "Gate the review record?" "$out"
-  expect "reconfigure puts the autonomy question" \
-    "Unsupervised mode for this consumer?" "$out"
-  expect "and offers the child's OWN autonomy back" \
-    "supervised | unsupervised [unsupervised]" "$out"
+  refute "reconfigure puts no autonomy question" "Unsupervised mode" "$out"
   if cmp -s "${TMP}/bootrctty-before" "${bootrctty}/joharness.conf"; then
     pass "Enter through every question changes nothing"
   else
@@ -906,11 +901,11 @@ if command -v script >/dev/null 2>&1 &&
 
   # Answering writes, and selecting a layer opens the two questions that
   # configure one — the same shape as first contact.
-  out="$(boot_tty_rc "$bootrctty" aaa eager eager on supervised)" || :
+  out="$(boot_tty_rc "$bootrctty" aaa eager eager on)" || :
   expect "selecting a layer opens the provisioning question here too" \
     "Provision the layer when?" "$out"
   for pair in JOHARNESS_ENV=aaa JOHARNESS_ENV_SETUP=eager JOHARNESS_ENV_MD=eager \
-    JOHARNESS_REVIEW=on JOHARNESS_MODE=supervised; do
+    JOHARNESS_REVIEW=on; do
     expect "reconfigure wrote the answer: ${pair}" "$pair" \
       "$(cat "${bootrctty}/joharness.conf" 2>/dev/null)"
   done
@@ -942,7 +937,7 @@ else
   printf '    declared: %s\n' "$(printf '%s' "$declared" | tr '\n' ' ')"
 fi
 
-# The bootstrap asks these five itself and then runs the sync engine, whose
+# The bootstrap asks these switches itself and then runs the sync engine, whose
 # own conf-key stage would ask them again seconds later — and an answer there
 # creates the conf that `seed` then declines as the consumer's own, so the
 # seeded conf never lands. The engine is told to stay out of it.
@@ -959,7 +954,7 @@ if command -v script >/dev/null 2>&1 &&
     "settings this repo does not answer" "$out"
   expect "and the seeded conf lands" "JOHARNESS_ENV=none" \
     "$(cat "${bootnore}/joharness.conf" 2>/dev/null)"
-  expect "with every declared key in it" "JOHARNESS_MODE=supervised" \
+  expect "with every declared key in it" "JOHARNESS_REVIEW=off" \
     "$(cat "${bootnore}/joharness.conf" 2>/dev/null)"
 else
   skip "the engine re-ask guard" "no usable script(1) to allocate a tty"
