@@ -21,8 +21,8 @@
 # with the marker passes as canonical, and consumer-to-consumer sync is
 # forbidden). The marker line is stripped, joharness's live workstream
 # files under docs/plans|product|handover are deleted (the dirs hold
-# only live work — protocol docs live in .agents/docs/), and AGENTS.md
-# Part 2 gets
+# only live work — protocol docs live in .agents/docs/), canonical's
+# README diagrams under docs/readme/ go too, and AGENTS.md Part 2 gets
 # the same stub. No sync run: the clone is current by construction, and
 # steady-state sync heals later drift.
 #
@@ -813,7 +813,7 @@ bootstrap_whole_clone() {
   # it, so the conversion would silently keep the live files it exists to
   # remove. Leaves inside are safe as-is: find -P neither crosses a
   # symlinked subdirectory nor lists a symlinked file as -type f.
-  for rel in docs docs/plans docs/product docs/handover; do
+  for rel in docs docs/plans docs/product docs/handover docs/readme; do
     [ ! -h "${DEST}/${rel}" ] ||
       die "'${rel}' in '$DEST' is a symlink; purge would follow it — repair the clone, then re-run"
   done
@@ -856,6 +856,17 @@ bootstrap_whole_clone() {
       purged=$((purged + 1))
     done < <(find "${DEST}/${rel}" -type f -name '*.md' | sort)
   done
+
+  # docs/readme/ holds canonical's README diagrams: joharness's own page,
+  # never the child's. Fresh mode never copies docs/; a whole clone does.
+  if [ -d "${DEST}/docs/readme" ]; then
+    if [ "$DRY" -eq 1 ]; then
+      printf '  would delete docs/readme/ (canonical README diagrams)\n'
+    else
+      rm -rf "${DEST}/docs/readme"
+      printf '  delete  docs/readme/ (canonical README diagrams)\n'
+    fi
+  fi
 
   rewrite_part2
 

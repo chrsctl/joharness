@@ -69,8 +69,8 @@ trusting the route.
 
 Places the harness set, seeds consumer-own stubs (`joharness.conf`,
 `ci.yml`, `update.yml`, `README.md`, AGENTS.md Part 2), strips joharness's
-live workstream files, plans and canonical marker. Script prints the
-remaining steps; follow them.
+live workstream files, plans, README diagrams (`docs/readme/`) and
+canonical marker. Script prints the remaining steps; follow them.
 
 `--env <layer>` picks the environment layer, and only that layer ships
 ([Layers](#layers)). Omit it for `none`; the repo can select one later.

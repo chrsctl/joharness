@@ -253,6 +253,8 @@ printf 'JOHARNESS_MAX_MANAGERS=1      # canonical-only\n' >>"${bootdst4}/joharne
 printf 'live plan\n' >"${bootdst4}/docs/plans/some-plan.md"
 printf 'live ws\n' >"${bootdst4}/docs/handover/some-work.md"
 printf 'live req\n' >"${bootdst4}/docs/product/some-req.md"
+mkdir -p "${bootdst4}/docs/readme"
+printf 'diagram\n' >"${bootdst4}/docs/readme/loop.png"
 out="$(boot "$bootdst4")"; rc=$?
 if [ "$rc" -eq 0 ]; then
   pass "whole-clone bootstrap exits 0"
@@ -272,6 +274,11 @@ else
   fail "live workstream files deleted"
 fi
 expect "each deletion printed" "delete  docs/plans/some-plan.md" "$out"
+if [ ! -e "${bootdst4}/docs/readme" ]; then
+  pass "canonical README diagrams deleted"
+else
+  fail "canonical README diagrams deleted"
+fi
 expect "protocol docs outside the purge survive" \
   "stub .agents/docs/plans/README.md" \
   "$(cat "${bootdst4}/.agents/docs/plans/README.md" 2>/dev/null)"
@@ -299,6 +306,8 @@ bootdst5="${TMP}/bootdst5"
 mkdir -p "$bootdst5"
 cp -R "${bootsrc}/." "$bootdst5"
 printf 'live plan\n' >"${bootdst5}/docs/plans/some-plan.md"
+mkdir -p "${bootdst5}/docs/readme"
+printf 'diagram\n' >"${bootdst5}/docs/readme/loop.png"
 # A root LICENSE the human already replaced differs from the shipped copy:
 # no false warning, and the file is named as the repo's own.
 printf 'CONSUMER-OWN-LICENSE\n' >"${bootdst5}/LICENSE"
@@ -314,6 +323,13 @@ expect "a replaced root LICENSE is named as the repo's own" \
   "kept as this repo's own" "$out"
 expect "dry run announces the purge" \
   "would delete docs/plans/some-plan.md" "$out"
+expect "dry run announces the README diagrams" \
+  "would delete docs/readme/" "$out"
+if [ -f "${bootdst5}/docs/readme/loop.png" ]; then
+  pass "dry run keeps README diagrams"
+else
+  fail "dry run keeps README diagrams"
+fi
 if [ -f "${bootdst5}/docs/plans/some-plan.md" ]; then
   pass "dry run keeps live files"
 else
