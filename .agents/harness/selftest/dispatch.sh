@@ -2616,6 +2616,40 @@ refute "a clerk's plan-only branch is no planning edge" "clerk-retreq  retired" 
 expect "and only the planner's slot is held" "slots     : 3 of 4 free" "$out"
 git -C "$qowork" push -q origin --delete clerk-retreq
 git -C "$qowork" branch -q -D clerk-retreq
+# The step 7 reconcile: the base's `docs/handover` moves, the planning branch
+# merges it in. That merge is TREESAME to the base for the path, and default
+# history simplification pruned the retire commit with the rest (verifier r10).
+mkdir -p "${qowork}/docs/handover"
+printf -- '---\nworkstream: leak-r\nstatus: done\nplan: none\nagent: sonnet\n---\n\n## Goal\nLeaked.\n' \
+  >"${qowork}/docs/handover/leak-r.md"
+qopush "the base's handover tree moves"
+git -C "$qowork" checkout -q plan-retreq
+git -C "$qowork" merge -q --no-edit main
+git -C "$qowork" push -q origin plan-retreq
+git -C "$qowork" checkout -q main
+out="$(qo)"
+expect "a planning branch that reconciled with the base keeps its row" \
+  "docs/product/retreq.md  plan-retreq  retired" "$out"
+refute "and its requirement stays withheld" "docs/product/retreq.md — UNPLANNED" "$out"
+# A branch that merged the planning branch IN carries its retire commit on a
+# second parent: that claim is not this branch's, and lends it no row.
+# `--no-ff`, because a fast-forward makes this branch the planning branch
+# continued — a stacked branch, which shares the first-parent line and the
+# claim with it.
+git -C "$qowork" checkout -q -b feat-on-retreq main
+git -C "$qowork" merge -q --no-ff --no-edit plan-retreq
+printf 'feat\n' >"${qowork}/feat-retreq.txt"
+commit_all "$qowork" "feature work on top"
+git -C "$qowork" push -q origin feat-on-retreq
+git -C "$qowork" checkout -q main
+out="$(qo)"
+refute "a branch that merged a planning branch in borrows no row" \
+  "feat-on-retreq  retired" "$out"
+expect "so the planner's slot alone is held" "slots     : 3 of 4 free" "$out"
+git -C "$qowork" push -q origin --delete feat-on-retreq
+git -C "$qowork" branch -q -D feat-on-retreq
+fixture_rm "$qowork" "drop the leaked record" docs/handover/leak-r.md
+git -C "$qowork" push -q origin main
 git -C "$qowork" push -q origin --delete plan-retreq
 git -C "$qowork" branch -q -D plan-retreq
 fixture_rm "$qowork" "clear the retired planning case" docs/product/retreq.md

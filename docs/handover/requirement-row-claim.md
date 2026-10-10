@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01KGbgAo5HRoJy1hGBGbRy34
 agent: opus
 updated: 2026-10-10
-next: Verifier confirm on r8 fix, then retire + PR
+next: Verifier confirm on r10, then retire + PR
 ---
 
 ## Goal
@@ -46,6 +46,7 @@ UNPLANNED, blocked = held not respawned.
 - r7: (verifier) `cmd_janitor` comment still says "two-candidate loop". (fixed)
 - r8: (verifier, round 2) r2's added-plans scan makes a clerk's open PR — or any plan-only branch with no workstream file whose plans name a base requirement — hold a slot under a `req` title no live session carries, so the health table reads it gone and respawns onto a live branch. (fixed — the scan reads the branch's OWN retired workstream file instead: born and deleted on the branch, so absent from base..tip but present in `git log --diff-filter=D base..tip`; only `plan: <requirement>` there names an item. Clerk `plan: none` → no row, as on base; selftest case)
 - r9: (verifier, round 2) a planning PR left open past 24 stall windows ages to leftover and its requirement is offered again. (wontfix — the documented trade, same ageing as every unaskable edge; README says it)
+- r10: (verifier, round 3) r8's `git log` simplifies away the retire commit once the planning branch merges `main` (step 7 reconcile) after `main`'s `docs/handover` changed: merge TREESAME to its 2nd parent, branch history pruned, row gone, requirement offered again. (fixed — `--first-parent`, the verifier's `--full-history` dropped as redundant: `bash .agents/harness/selftest.sh` 2026-10-10 — no flag: reconcile case FAILS (2482/3); `--full-history` alone: merged-in case FAILS (2483/2); `--first-parent` alone: 2485/0. Selftest cases reconcile + merged-in branch. A branch FAST-FORWARDED onto an unmerged planning branch shares its first-parent line and reads as that planner continued — a stacked branch, accepted)
 
 ## Blockers
 

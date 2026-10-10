@@ -7829,7 +7829,16 @@ dispatch_retired_edges() {
         # nothing, and must hold no slot — reading the added plans gave it
         # one under a title no live session carries (verifier r8).
         if [ -z "$items" ] && [ -z "$swept" ]; then
-          items="$(git -C "$ROOT" log --format='@%H' --name-only \
+          # `--first-parent`, for two reasons. The step 7 reconcile merges
+          # the base in, and a merge TREESAME to the base for this path sent
+          # default simplification down the base's side, pruning the retire
+          # commit (verifier r10). And a planning branch merged INTO another
+          # must not lend that branch its claim. Measured with the selftest's
+          # reconcile and merged-in cases: no flag fails the first, the
+          # first-parent walk passes both, `--full-history` alone fails the
+          # second and adds nothing beside it.
+          items="$(git -C "$ROOT" log --first-parent \
+              --format='@%H' --name-only \
               --diff-filter=D "${base}..${r}" -- docs/handover 2>/dev/null |
             { c=""
               while IFS= read -r cand; do
