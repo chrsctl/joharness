@@ -24,8 +24,12 @@ human work.
 - **Unplanned** (no open plan's `requirement:` names it) = hook flags it.
   Planning = queue work: session decomposes into plans via PR, plans carry
   the `requirement:` edge. Plan queue rules: [`../plans/README.md`](../plans/README.md).
+  A planning pass ENDS in a tree change that silences the row, or blocked —
+  never in "nothing left to plan" with the file standing. Four exits, below
+  ("A requirement no plan can serve").
 - **Satisfied** = last plan's PR deletes the requirement file with the
-  plan file. Survives in history.
+  plan file — or, when no plan was ever needed, the planning PR does
+  (exit 3 below). Survives in history.
 - **Retired unsatisfied** = the REQUESTER decides a condition is no longer
   this repo's to schedule — the work moved elsewhere, the goal changed, the
   evidence will come from somewhere the queue does not reach. Same deletion,
@@ -33,7 +37,10 @@ human work.
   in the right layer doc which conditions read true, which did not, and what
   closed. Never a session's call alone (Decide alone: product direction) and
   never inferred from a stale file — a requirement nobody has served is
-  UNPLANNED, which is work, not a candidate for this.
+  UNPLANNED, which is work, not a candidate for this. A decline the
+  requester RECORDED, cited by link in the deleting PR, IS the requester
+  deciding: the session writes it down, it does not decide it (exit 4
+  below).
   First instance: `orchestrated-mode`, 2026-09-17, recorded in
   [`../orchestrated.md`](../orchestrated.md), Where the mode came from.
 - Requirement with open plans = silent in hook; its plans speak.
@@ -46,6 +53,69 @@ rather than assert, and both send the reader to history — which is right, and
 is why the layer-doc record above is the load-bearing half rather than a
 courtesy. Deleting a requirement without it leaves the tree saying
 `satisfied` and nothing saying otherwise.
+
+### A requirement no plan can serve
+
+The `UNPLANNED` test reads one field: the `requirement:` of every open plan
+on the base branch (`queue-context.sh`, `served=`). It is right about what
+it measures and it stays. What gave is the lifecycle: it had no exit for a
+requirement finished with planning but not satisfied — every remaining
+clause already holds, or is owned by a plan filed under ANOTHER requirement,
+or was declined by the requester. Nothing then names the stem, the file
+stands, and the row is offered again every pass — in orchestrated mode, one
+fable manager at xhigh per orchestrator run, each terminating normally.
+Reported once by a consumer (`chrsctl/gx`): five planning passes on one
+requirement, ended only by a pass that happened to find a clause to plan.
+REPORTED, never re-counted here — the reason the question was asked, not
+the evidence for the answer.
+
+So a planning pass ends in these, and each changes the tree. They COMBINE
+per clause — one requirement can need a plan, a verify plan and a decline
+at once — and the requirement is deleted exactly ONCE, by the LAST PR: any
+plan or verify plan still names the stem → that plan's PR deletes it, and
+the satisfied and declined records ride in that plan's body until then.
+Deleted early, an open plan names a missing requirement and
+`lint_plans` warns `satisfied while this plan is open?`.
+
+1. **Plans** naming the stem — the normal case.
+2. **Verify plan.** A clause owned by a plan under another requirement: one
+   small plan naming THIS stem, `needs:` the owner, whose work is to check
+   the clause on `main` after the owner merges and, being last, delete the
+   requirement. Existing machinery — `needs` holds it, `requirement:`
+   silences the row. Not invented work: checking satisfied-when is the work
+   the deleting PR owes anyway.
+3. **Satisfied, measured.** Every clause reads true on `main` now: the
+   planning PR deletes the requirement, and its deletion commit message
+   records, per clause, the command or merged PR that shows it — history is
+   the record, as for any satisfied requirement. Measuring is a session's job; the "never
+   inferred from a stale file" clause above forbids inferring from quiet,
+   not from a command's output.
+4. **Declined, recorded.** Every clause not covered by 1–3 carries a
+   requester decline the session can CITE (issue, PR thread, review): delete
+   as Retired unsatisfied, the record naming each declined clause and its
+   link. No citable decline = it is the requester's question: `status:
+   blocked`, `next:` = the question, push, exit.
+
+Rejected, so the question stays closed:
+
+- **A `planned-out` marker on the requirement.** A status field on a node
+  type that has none ([`../plans/README.md`](../plans/README.md), Lifecycle)
+  — a stored copy that goes stale the day a clause is un-declined.
+- **A clause-level decline vocabulary the test reads.** Largest change, and
+  exit 4 already makes the decline legible: in the deletion record, where
+  history keeps it.
+- **Leave the row, bound the spend.** Every pass terminates normally, so a
+  per-manager ceiling never fires; the cost is the count of passes, not any
+  one of them.
+
+**Gap still open, filed as plan `requirement-row-claim`:** a requirement
+cannot be CLAIMED. Claim resolution offers only `docs/plans/` and
+`docs/research/` (`joharness.sh`, `for cand in`; `lint_graph`), so a
+planning branch whose workstream file names the requirement in `plan:` — as
+`/manage` tells it to — appears in no dispatch row, holds no slot, and reds
+`ci` (`plan '<r>' — no such plan or question`). Exits 1–4 end the loop at
+the pass's merge; the claim is what stops a SECOND planner while one is in
+flight, and what keeps a blocked exit-4 pass from being respawned.
 
 **Intake was compared against a published `intent.md` practice, and two
 verdicts are rejections.** Research node `capture-intent` swept lesson 2 of
