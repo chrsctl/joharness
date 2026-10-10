@@ -116,7 +116,8 @@
 #   JOHARNESS_MAX_MANAGERS=4   managers in flight at once.
 #                              With JOHARNESS_STALL_MINUTES=45,
 #                              JOHARNESS_HEALTH_MINUTES=10 and
-#                              JOHARNESS_RESPAWN_LIMIT=2 these are the
+#                              JOHARNESS_RESPAWN_LIMIT=2 and
+#                              JOHARNESS_MANAGER_HOURS=4 these are the
 #                              human's numbers; `dispatch` prints them
 #   JOHARNESS_REVIEW=off       'off' (default) or 'on'. 'on' makes `ci` fail
 #                              when a workstream this branch wrote reaches the
@@ -318,7 +319,7 @@ MODE_OBSOLETE_LINE='JOHARNESS_MODE is obsolete; orchestrated is the only mode'
 # The RULE: a session may not edit the CORE paths — the
 # files that decide money, permissions and the merge gate. Everything else,
 # protocol text included, it edits and self-merges like any other diff
-# (.agents/docs/unsupervised.md, Bounds).
+# (.agents/docs/orchestrated.md, Bounds).
 #
 # Narrowed on the requester's decision of 2026-10-08: "remove most
 # restrictions; joharness should be able to use its own framework". Until
@@ -6227,7 +6228,7 @@ cmd_authority() {
   printf '  them went through a pull request. This is the repository saying\n'
   printf '  it runs unattended, not your prompt saying so. It proves review,\n'
   printf '  not a human hand: attempt four paid fourteen minutes to that\n'
-  printf '  distinction (.agents/docs/unsupervised.md).\n'
+  printf '  distinction (.agents/docs/orchestrated.md).\n'
 }
 
 # ---------------------------------------------------------------------------
@@ -7232,7 +7233,7 @@ drain_core_only() {
 # control plane's to say (/who); this prints the git half — push age — and
 # marks where the orchestrator must cross-check, because push time is not
 # liveness in either direction (.agents/docs/handover/README.md, and the
-# monitor rule under Heartbeat in .agents/docs/unsupervised.md).
+# monitor rule under Heartbeat in .agents/docs/orchestrated.md).
 # ---------------------------------------------------------------------------
 
 # A knob the human sets: the environment for one command, the conf for the
@@ -7373,6 +7374,27 @@ dispatch_block_age_min() {
         }
       }
       END { if (!found) judge() }')"
+  [ -n "$ts" ] || return 0
+  now="$(date +%s)"
+  printf '%s' "$(( (now - ts) / 60 ))"
+}
+# Minutes since a branch's CLAIM: the oldest commit the branch carries past
+# its merge base, which is the claim push (Loop step 3: the workstream file
+# is pushed before any code). Empty when the branch has no commit of its own
+# or no base is known; the caller says nothing then. <branch> <merge base>
+#
+# The OLDER of the commit's two dates. `%at` alone, for the reason
+# dispatch_block_age_min reads it: a rebase or amend rewrites `%ct` to now,
+# and a manager rebasing its branch would reset its own ceiling. `%ct` beside
+# it because `%at` is branch-written: an author date in the future read as a
+# negative age and the mark never fired (verifier, r2). `tail -1` over
+# `--reverse | head -1`: the same oldest commit, no reader stopping early.
+dispatch_claim_age_min() {
+  local ts now
+  [ -n "${2:-}" ] || return 0
+  # `</dev/null`: same reason as dispatch_age_min above.
+  ts="$(git -C "$ROOT" log --format='%at %ct' "${2}..refs/remotes/origin/$1" \
+    </dev/null 2>/dev/null | tail -1 | awk '{ print ($1 < $2 ? $1 : $2) }')"
   [ -n "$ts" ] || return 0
   now="$(date +%s)"
   printf '%s' "$(( (now - ts) / 60 ))"
@@ -7959,7 +7981,7 @@ dispatch_curate_branches() {
 # writes down. Ordering by priority is product direction and `urgency:` is
 # never the curator's (.agents/harness/AGENTS.md, Decide alone); splitting a
 # plan MULTIPLIES the queue, which is the circularity the no-inventing edge
-# exists to stop (.agents/docs/unsupervised.md, The one stop).
+# exists to stop (.agents/docs/orchestrated.md, The one stop).
 
 # Normalized `scope:` entries of a plan, one per line: comma to newline,
 # surrounding blanks and trailing slashes gone, `none` dropped, and the
@@ -8328,9 +8350,68 @@ dispatch_branch_plans() {
   done <<<"$refs"
 }
 
+# Rescopes already MERGED with `status: done` — issue #300. The scan above
+# skips merged refs, so a surveyor that concluded "the rest is genuine" and
+# merged settled nothing, and the next pass asked for a second one. One row
+# per retire commit on the base that deletes a rescope workstream file whose
+# last state (at the commit's parent) was done: sha, key. Newest first.
+#
+# `--full-history -m`, `scout_retired_ts`'s shape: the file is added and
+# deleted on the rescope's own branch and the merge commit is treesame for it,
+# so default simplification drops that branch. Measured 2026-10-10 on this
+# repo's origin/main (1738 commits), counting `rescope-*` deletes: no flag 0,
+# `-m` 1, `--full-history` 1, both 1. Either flag alone finds it; both are
+# kept because each covers a retire shape the other might not. A retire made
+# inside a merge commit is listed once per parent; the file is read at
+# whichever parent carried it. Identity is the in-flight scan's: `workstream:
+# rescope-<key>`, `plan: none`. A `blocked` record is a human's, already
+# reported — not read here. Process substitution throughout, never a
+# "$(...)" capture read back through "<<<" — the race cmd_dispatch records.
+dispatch_rescope_merged() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}"
+  local line h="" seen="" doc rws rplan rstat
+  while IFS= read -r line; do
+    case "$line" in
+      '') continue ;;
+      'C '*) h="${line#C }"; continue ;;
+    esac
+    [ -n "$h" ] || continue
+    # `-m` lists a merge once per parent: one row per (commit, file).
+    case "$seen" in *" ${h}:${line} "*) continue ;; esac
+    seen="${seen} ${h}:${line} "
+    doc="$(git -C "$ROOT" show "${h}^1:${line}" </dev/null 2>/dev/null ||
+      git -C "$ROOT" show "${h}^2:${line}" </dev/null 2>/dev/null)" || continue
+    rws=""; rplan=""; rstat=""
+    { read -r rws; read -r rplan; read -r rstat; } \
+      < <(printf '%s\n' "$doc" | gr_fields workstream plan status)
+    case "$rws" in rescope-?*) ;; *) continue ;; esac
+    [ "$rplan" = none ] || continue
+    [ "$rstat" = "done" ] || continue
+    printf '%s\t%s\n' "$h" "${rws#rescope-}"
+  done < <(GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 git -C "$ROOT" log \
+    --full-history -m --diff-filter=D --name-only --format='C %H' \
+    "refs/remotes/origin/${base_branch}" -- 'docs/handover/rescope-*' \
+    </dev/null 2>/dev/null)
+}
+
+# Does a rescope record on key <K> cover the current key <C>? Yes when every
+# holder in C is in K: a smaller holder set is the same collision with fewer
+# holders (co-holders merged). A holder K never saw makes C a NEW collision,
+# which earns its own rescope. Both keys are holder stems joined with `+`.
+dispatch_rescope_covers() {
+  local k="+$1+" h
+  [ -n "$2" ] || return 1
+  while IFS= read -r h; do
+    [ -n "$h" ] || continue
+    case "$k" in *"+${h}+"*) ;; *) return 1 ;; esac
+  done < <(printf '%s\n' "$2" | tr '+' '\n')
+  return 0
+}
+
 cmd_dispatch() {
   local cap stall health respawn churnt churnl hout qout rows wavemap edge req sup
   local path label branch ws doc status session next age agetext flag tier
+  local pr hours cage_min n_ceiling=0
   local base commits churn churn_n churn_f marks rounds work
   local analysis cond
   local st wave note hold holdmap hold_live hline hb hs holds_n blocked_claims=""
@@ -8347,6 +8428,7 @@ cmd_dispatch() {
   local cb ck cstat csess cnext cage bplans
   local rescope_key="" rescope_paths="" rescope_inflight="" rescope_holders=""
   local n_rescope_inflight=0 n_rescope_holders=0 rescope_settled=0
+  local rescope_held="" rescope_merged="" msha mkey mheld mchanged
   local rb rk rstat rsess rnext rage
   local DISPATCH_WITHHELD=
   local inflight="" free="" questions=""
@@ -8355,6 +8437,9 @@ cmd_dispatch() {
   stall="$(num_knob JOHARNESS_STALL_MINUTES 45)"
   health="$(num_knob JOHARNESS_HEALTH_MINUTES 10)"
   respawn="$(num_knob JOHARNESS_RESPAWN_LIMIT 2)"
+  # A written number (issue #298: one consumer run, $48 at 5.5h on one item).
+  # Hours, not minutes: the window is a work session, not a push cadence.
+  hours="$(num_knob JOHARNESS_MANAGER_HOURS 4)"
   # ci's two tiers, kept and read the same way ci reads them: from the
   # threshold a warning the session judges, from the limit (default twice
   # that) no longer a call. LOOP? is the kill line, so it sits on the
@@ -8402,6 +8487,12 @@ cmd_dispatch() {
   printf 'stall     : %s min without a push = cross-check the control plane (JOHARNESS_STALL_MINUTES)\n' "$stall"
   printf 'health    : one pass every %s min (JOHARNESS_HEALTH_MINUTES)\n' "$health"
   printf 'respawns  : %s per item per run (JOHARNESS_RESPAWN_LIMIT)\n' "$respawn"
+  # Lifted, the line names no mark: `grep CEILING?` over a lifted pass is 0.
+  if [ "$hours" -gt 0 ]; then
+    printf 'ceiling   : %sh since the claim with no pr: = CEILING? (JOHARNESS_MANAGER_HOURS; 0 lifts it)\n' "$hours"
+  else
+    printf 'ceiling   : lifted, no time against a claim (JOHARNESS_MANAGER_HOURS=0)\n'
+  fi
   printf 'loop      : one file rewritten %s+ times on a branch = LOOP? (JOHARNESS_CHURN_LIMIT; 0 lifts it); %s+ = a warning on the work line (JOHARNESS_CHURN_THRESHOLD)\n' "$churnl" "$churnt"
   # Printed both ways, because off is the state a reader most needs told: the
   # health table's `done` row does nothing here unless this says on, and an
@@ -8659,12 +8750,14 @@ cmd_dispatch() {
     # Every per-row value reset here, `doc` included: a row whose file the
     # hook did not list inherited the previous row's document and printed
     # its neighbour's finding count as its own.
-    status=""; session=""; next=""; doc=""
+    status=""; session=""; next=""; doc=""; pr=""
     if [ -n "$ws" ]; then
       doc="$(git -C "$ROOT" show "origin/${branch}:${ws}" 2>/dev/null)"
-      { read -r status; read -r session; read -r next; } \
-        <<<"$(printf '%s\n' "$doc" | gr_fields status session next)"
+      { read -r status; read -r session; read -r next; read -r pr; } \
+        <<<"$(printf '%s\n' "$doc" | gr_fields status session next pr)"
     fi
+    # Branch-controlled text, tested below: the charset cmd_janitor keeps.
+    pr="$(printf '%s' "$pr" | tr -cd 'A-Za-z0-9._#-')"
     # A workstream file on another branch is repo-controlled input, and the
     # orchestrator branches on the ROW this builds. Unvalidated, a manager
     # that writes `status: in-progress  BLOCKED: the human's, holds no slot`
@@ -8740,6 +8833,23 @@ cmd_dispatch() {
       n_loop=$((n_loop + 1))
       flag="${flag}  LOOP? ${churn_f} rewritten ${churn_n} times (>= ${churnl}): record its progress, respawn with the churn rule"
       cond="${cond:+${cond}+}LOOP?"
+    fi
+    # Time against the ITEM, which nothing above measures: a manager that
+    # pushes inside the stall window and under the churn limit reads healthy
+    # for as long as it runs (issue #298: $48 over 5.5h, no pull request).
+    # A REPORT, never a condition: `cond` is untouched, so no analyst, no
+    # stall count, no verdict and no spawn moves on it. Slow is not stuck,
+    # and a refresh archives live work — that call is the human's.
+    if [ "$status" = "in-progress" ] && [ "$hours" -gt 0 ]; then
+      case "$pr" in
+        '' | none)
+          cage_min="$(dispatch_claim_age_min "$branch" "$base")"
+          if [ -n "$cage_min" ] && [ "$cage_min" -ge $((hours * 60)) ]; then
+            n_ceiling=$((n_ceiling + 1))
+            flag="${flag}  CEILING? $(dispatch_age_text "$cage_min") since the claim, no pr: — REPORT it with the control plane's cost (.claude/commands/orchestrate.md)"
+          fi
+          ;;
+      esac
     fi
     # Where the switch is on, the row names its own explainer. Beside the
     # nudge, the kill or the report — never instead of one: an analyst
@@ -9028,10 +9138,43 @@ cmd_dispatch() {
       [ -z "$rsess" ] || rescope_inflight="${rescope_inflight}      session: ${rsess}"$'\n'
       [ -z "$rnext" ] || rescope_inflight="${rescope_inflight}      next: ${rnext}"$'\n'
       case "$rstat" in
-        done | blocked) [ "$rk" = "$rescope_key" ] && rescope_settled=1 ;;
+        # A key that COVERS the current one settles it: holders merging shrink
+        # the set, and the conclusion holds for what is left (issue #300).
+        done | blocked)
+          dispatch_rescope_covers "$rk" "$rescope_key" && rescope_settled=1 ;;
         *) n_rescope_inflight=$((n_rescope_inflight + 1)) ;;
       esac
     done < <(dispatch_rescope_branches)
+    # Merged `done` rescopes settle too — the in-flight scan skips merged refs,
+    # so before this a surveyor's conclusion on `main` settled nothing and the
+    # next pass asked for a second one (issue #300). A record settles only
+    # while no held or holder plan's file changed on the base since its retire: a
+    # changed `scope:` line is new information and re-earns a rescope. Run
+    # here only — this block runs only when slots are free and nothing else
+    # is spawnable, so a normal pass pays nothing for the log walk.
+    if [ "$rescope_settled" -eq 0 ]; then
+      # Held plans AND current holders: a holder whose `scope:` moved is the
+      # same new information as a held plan's (verifier r2).
+      rescope_held="$( { printf '%s\n' "$holdmap" | awk -F'\t' 'NF > 1 { print $1 }'
+        printf '%s\n' "$rescope_holders"; } | grep -v '^$' | sort -u)"
+      while IFS=$'\t' read -r msha mkey; do
+        [ -n "$msha" ] || continue
+        dispatch_rescope_covers "$mkey" "$rescope_key" || continue
+        mchanged=""
+        while IFS= read -r mheld; do
+          [ -n "$mheld" ] || continue
+          mchanged="$(git -C "$ROOT" log --format=%H -1 \
+            "${msha}..refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" \
+            -- "docs/plans/${mheld}.md" </dev/null 2>/dev/null)" ||
+            mchanged=unreadable  # an unread history settles nothing
+          [ -z "$mchanged" ] || break
+        done < <(printf '%s\n' "$rescope_held")
+        [ -z "$mchanged" ] || continue
+        rescope_settled=1
+        rescope_merged="            settled by merged rescope ${msha:0:7} (key ${mkey}): holds genuine"
+        break
+      done < <(dispatch_rescope_merged)
+    fi
 
     printf 'rescope   : %s plan(s) held behind %s branch(es) — the work is decomposed,\n' \
       "$n_hold" "$n_rescope_holders"
@@ -9046,6 +9189,7 @@ cmd_dispatch() {
     else
       printf '            rescope branch(es) in flight: none\n'
     fi
+    [ -z "$rescope_merged" ] || printf '%s\n' "$rescope_merged"
     printf '\n'
   fi
 
@@ -9155,6 +9299,8 @@ cmd_dispatch() {
   fi
   [ "$n_loop" -eq 0 ] ||
     printf '            %s manager(s) rewriting one file past the churn threshold: health pass FIRST\n' "$n_loop"
+  [ "$n_ceiling" -eq 0 ] ||
+    printf '            %s manager(s) past the ceiling with no pr: in the claim file: report, never kill on this alone\n' "$n_ceiling"
   [ "$n_blocked" -eq 0 ] ||
     printf '            %s manager(s) blocked: report to the human, never respawn\n' "$n_blocked"
   [ "$n_hold" -eq 0 ] ||
@@ -9523,8 +9669,7 @@ cmd_session_start() {
   printf 'plan, requirement or other branch. Manager: your item, this\n'
   printf 'branch'"'"'s workstream file, the item'"'"'s own anchors.\n'
   printf 'Protocol text is yours to edit and merge. NEVER edit the core\n'
-  printf 'paths — money, permissions, the merge gate; a human changes them\n'
-  printf '(.agents/docs/unsupervised.md, Bounds):\n'
+  printf 'paths — money, permissions, the merge gate; a human changes them:\n'
   # Derived, never restated. A banner naming its own list is the second
   # copy, and the boundary is exactly what must not disagree with itself.
   while IFS= read -r t; do

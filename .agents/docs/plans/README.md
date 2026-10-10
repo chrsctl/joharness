@@ -87,8 +87,8 @@ scope: src/parser.py, shared:tests/test_all.py
 ```
 
 A core path in `scope:` (`./joharness.sh protocol-paths`: the conf, the
-settings, `.github`) — `shared:` or not — marks the plan `SUPERVISED ONLY`
-when unattended and ranks it out of the free list. Protocol text is not a
+settings, `.github`) — `shared:` or not — marks the plan `CORE ONLY`
+and ranks it out of the free list. Protocol text is not a
 core path since 2026-10-08: a plan scoped to `joharness.sh` or
 `.agents/harness/` is free work. Declare it
 anyway. Hiding the path does not make the plan unattended-doable:
@@ -177,11 +177,11 @@ once, rather than the plans this branch touches: `JOHARNESS_SHIP=all`.
   pre-push claim would need shared state the harness does not have. The
   spawned session is behaving correctly when it self-selects; the caller is
   the one who must not tell two of them to.
-- **Unsupervised** drains this queue and exits at its edge. Work enters
-  the queue the same three ways in every mode — an issue, a requirement, a
-  plan through a pull request — and no session in any mode writes a plan
-  from a detector. An unattended session at the edge prints DRAINED and
-  exits; the heartbeat fires the next one (`.agents/docs/unsupervised.md`).
+- **The harness** drains this queue and exits at its edge. Work enters
+  the queue three ways — an issue, a requirement, a plan through a pull
+  request — and no session writes a plan from a detector. A session at the
+  edge prints DRAINED and exits; the heartbeat fires the next one
+  (`.agents/docs/orchestrated.md`, Heartbeat).
 - **Stale plan** (code moved under it): fix plan in place on `main` via
   small PR, or delete if obsolete. Every claim in a plan = hypothesis until
   checked against code — same staleness rule as workstream files.

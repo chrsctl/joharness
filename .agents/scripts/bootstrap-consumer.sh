@@ -527,7 +527,7 @@ interview
 # .agents/harness/AGENTS.md reserves for the human.
 heartbeat_note() {
   printf '\nheartbeat: the child runs orchestrated, and it still needs a heartbeat to fire each next orchestrator session.\n'
-  printf '  .agents/docs/unsupervised.md carries the Routine'\''s prompt, its hourly floor, the connector trap and the pause.\n'
+  printf '  .agents/docs/orchestrated.md carries the Routine'\''s prompt, its hourly floor, the connector trap and the pause.\n'
   printf '  Creating one is the human'\''s call.\n'
 }
 

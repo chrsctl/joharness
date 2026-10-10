@@ -146,7 +146,7 @@ fi
 # --- the core boundary -----------------------------------------------------
 # The CORE paths are off limits to every session — the conf (money), the
 # settings (hooks, permissions), .github (the merge gate). Protocol text is
-# not: released 2026-10-08 (.agents/docs/unsupervised.md, Bounds). Applied
+# not: released 2026-10-08 (.agents/docs/orchestrated.md, Bounds). Applied
 # unconditionally: orchestrated is the only mode, so there is no mode to
 # resolve and no session the boundary does not bind.
 #
@@ -225,7 +225,7 @@ if [ -n "$harness_touched" ] && [ "$harness_touched" -gt 0 ]; then
   # escaping and a file name is repo-controlled input; widening the
   # boundary widens what that input could be, so this matters more now,
   # not less. Digits cannot close a JSON string.
-  add_fact "this branch touches ${harness_touched} core file(s) (.agents/docs/unsupervised.md, Bounds) — revert them"
+  add_fact "this branch touches ${harness_touched} core file(s) (.agents/docs/orchestrated.md, Bounds) — revert them"
 fi
 
 # --- background work still running ------------------------------------------

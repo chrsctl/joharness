@@ -214,6 +214,7 @@ rule on.
 | gone by the definition above | any | that row, and it NAMES an item | gone at the edge. RESPAWN on that branch to FINISH the merge, never to restart the plan — the work is done and the record was retired with it. |
 | any status whatsoever | any | the branch is under `leftovers`, not in flight | NOT a merge to finish, and it holds no slot. Either its item is already gone from the base branch — that merge happened, by this branch or another — or the row names no item at all and has been silent for a day. REPORT it; the human deletes the branch. NEVER respawn: a successor would land on merged work with no pull request and, often, no item to name its task. Read this row BEFORE the `?` row below, which is about a row still in flight. |
 | any status whatsoever | any | an IN-FLIGHT row naming `?` | no item, so no title to look up and no successor to spawn. It holds a slot: it may be a manager that retired minutes ago. REPORT to the human; merging or retiring the branch is what frees it. NEVER respawn one of these, however dead the control plane looks — there is nothing to name the successor's work. |
+| any | any | `CEILING?` on the line | Read BESIDE whichever row above matched, never instead of it — the first row matches a RUNNING manager under the stall window, which is exactly the one this is about. REPORT the row's age and the session's `cost_usd` as read this pass. Nothing else. Never kill, nudge or respawn on `CEILING?` alone. The STALL and LOOP rows still decide their own cases on the same row. A refresh (archive and respawn on the branch) is the human's call. |
 
 Two readings from run 1, one keystroke apart in the record and opposite in
 what they need. These are the part to read when the rows blur:
@@ -523,7 +524,11 @@ Up to `slots`, in dispatch's order, only rows under `spawn`:
   scout that is waiting on one.
 - Verdict `OVERLAP-BOUND` = ONE surveyor, tier sonnet, and ONLY when
   the `rescope :` block says `in flight: none` AND your ledger has no
-  `rescoped=<key>` for this key. Slots are idle only because held plans'
+  `rescoped=<key>` for this key. A ledger `rescoped=<K>` also covers any
+  later key whose holders are all in K — a smaller holder set is the same
+  collision with fewer holders — until that surveyor merged: after it,
+  a spawn line on a covered key means a held or holder plan changed since,
+  which earns ONE more (ledger the new key). Slots are idle only because held plans'
   `scope:` declarations are wrong; the surveyor corrects them and the
   next pass waves the plans in parallel. It holds no slot (beyond the cap,
   like a reporter — say so, it is the human's money), so spawn it even at a

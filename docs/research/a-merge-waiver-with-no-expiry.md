@@ -440,5 +440,5 @@ headline: the explaining reader for this key already exists, and reads git.
 
 Named, not written: the fix for the first two bullets lands in
 `.claude/commands/manage.md`, which is protocol text
-(`./joharness.sh protocol-paths`). A plan touching it is supervised only, and
+(`./joharness.sh protocol-paths`). A plan touching it is CORE ONLY, and
 this node does not propose it.

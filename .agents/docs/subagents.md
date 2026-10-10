@@ -13,7 +13,7 @@ Two mechanisms wear the name fan-out, and they are not interchangeable:
 | Spawned by | the agent's `Agent` tool | control plane `create_session` |
 | Owns | nothing — the parent's turn | a branch, a claim, its own merge |
 
-`docs/plans/unsupervised-fanout.md` means the second one throughout. A
+Plans and managers' prompts mean the second one throughout. A
 subagent cannot stand in for it.
 
 ## What reaches a subagent

@@ -18,7 +18,7 @@ docs/product/scout-role.md`). You read evidence and write ONE proposal. You
 build nothing.
 
 Why the bounds below are the whole file: nothing in this harness is invented
-(`.agents/docs/unsupervised.md`, Bounds). A proposal is the one file a session
+(`.agents/docs/orchestrated.md`, Bounds). A proposal is the one file a session
 may write that no node asked for, and it is not invented work only because it
 enters the queue through a human's merge — or a human's conf line,
 `JOHARNESS_SCOUT_AUTOMERGE=on`. A scout that writes a plan, a research node,
