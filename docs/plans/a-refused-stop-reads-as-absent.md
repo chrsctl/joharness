@@ -6,7 +6,7 @@ effort: high
 needs: none
 requirement: none
 issue: 249
-scope: .claude/commands/orchestrate.md, .agents/docs/orchestrated.md, .agents/harness/selftest/orchestrated.sh
+scope: shared:.claude/commands/orchestrate.md, shared:.agents/docs/orchestrated.md, shared:.agents/harness/selftest/orchestrated.sh
 ---
 
 ## Goal

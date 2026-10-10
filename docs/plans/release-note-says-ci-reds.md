@@ -6,7 +6,7 @@ effort: high
 needs: none
 requirement: none
 issue: 279
-scope: joharness.sh, .agents/harness/selftest/janitor.sh
+scope: shared:joharness.sh, .agents/harness/selftest/janitor.sh
 ---
 
 ## Goal
