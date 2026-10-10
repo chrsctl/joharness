@@ -95,8 +95,8 @@ routes through it — either of:
 Neither = a DOCUMENT. Consumers keep their own domain documents under
 `docs/research/` from before this protocol existed; those lint green, are
 never listed as open questions, and never block or get scheduled.
-`joharness.sh:lint_graph`, `queue-context.sh` and `joharness.sh graph`
-apply the identical test — one rule, three readers.
+`joharness.sh:lint_graph` and `queue-context.sh` apply the identical test —
+one rule, two readers.
 
 An unreferenced node cannot escape by omission either: a file whose own
 history carried `research: <stem>` and whose tree no longer does was a
