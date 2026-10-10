@@ -4,7 +4,7 @@ status: in-progress
 branch: manage/no-ceiling-on-one-item
 pr: none
 plan: no-ceiling-on-one-item
-issue: "#298"
+issue: 298
 session: https://claude.ai/code/session_01VvHXon6n8wmdf5GBNCtBjb
 agent: opus
 updated: 2026-10-10
