@@ -8,7 +8,7 @@ issue: 297
 session: https://claude.ai/code/session_011826jrSc2fYHWmqxniAGSN
 agent: opus
 updated: 2026-10-10
-next: Selftest green, mutation check (revert helper), verifier, retire, PR
+next: Read verifier findings into ## Review, merge origin/main (18 behind, shared files), ci, retire, PR
 ---
 
 ## Goal
