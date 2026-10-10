@@ -1,5 +1,5 @@
 ---
-description: Orchestrator loop — dispatch the queue to manager sessions under the cap, watch their health, exit at DRAINED
+description: Orchestrator loop — dispatch the queue to manager sessions under the cap, watch their health, exit at DRAINED with nothing in flight
 ---
 
 Orchestrated mode, orchestrator role. Low tier, mechanical on
