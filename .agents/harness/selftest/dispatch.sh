@@ -2537,6 +2537,7 @@ refute "a claim with a pr: carries no CEILING?" "CEILING?" "$cewrow"
 # date and not by the other, then a push now.
 cewdated() {
   git -C "$cewwork" checkout -qb "mgr-$1"
+  mkdir -p "${cewwork}/docs/handover"
   printf -- '---\nworkstream: %s\nstatus: in-progress\nbranch: mgr-%s\npr: none\nplan: %s\nagent: sonnet\nupdated: 2026-01-01\n---\n\n## Goal\nWorking.\n' \
     "$1" "$1" "$1" >"${cewwork}/docs/handover/${1}.md"
   git -C "$cewwork" add -A
