@@ -1114,6 +1114,102 @@ refute "with no idle slot there is no OVERLAP-BOUND" \
 expect "the held plans wait on the holder merging, nothing to rescope now" \
   "verdict   : DRAINED — nothing free; 1 manager(s) in flight" "$out"
 
+# --- a MERGED done rescope settles a covered key (issue #300) ---------------
+# A surveyor concluded "the rest is genuine", retired and merged; two of its
+# three holders merged after. The key shrank from a+b+c to b, and the in-flight
+# scan skips merged refs, so the next pass asked for a second surveyor on a
+# conclusion already on main. Built as the real shape: the rescope branch adds
+# then deletes its workstream file and is merged with a merge commit.
+mswork="${TMP}/mergedrescopework"
+msorigin="${TMP}/mergedrescopeorigin.git"
+git init -q --bare "$msorigin"
+git init -q "$mswork"
+git -C "$mswork" symbolic-ref HEAD refs/heads/main
+mkdir -p "${mswork}/docs/plans" "${mswork}/docs/handover" \
+  "${mswork}/.agents/harness" "${mswork}/.agents/env/none"
+cp "${ROOT}/joharness.sh" "${mswork}/joharness.sh"
+cp "${ROOT}/.agents/harness/queue-context.sh" \
+   "${ROOT}/.agents/harness/handover-context.sh" "${mswork}/.agents/harness/"
+printf '# none\n' >"${mswork}/.agents/env/none/AGENTS.md"
+msconf="${mswork}/joharness.conf"
+printf 'JOHARNESS_ENV=none\n' >"$msconf"
+for n in h b; do
+  { printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: high\n' "$n"
+    printf 'scope: src/shared\n---\n\n## Goal\nFixture.\n'
+  } >"${mswork}/docs/plans/${n}.md"
+done
+commit_all "$mswork" "base"
+git -C "$mswork" remote add origin "$msorigin"
+git -C "$mswork" push -qu origin main
+# b claimed and live: h is held behind it on src/shared, the key is `b`.
+ms_claim() {
+  git -C "$mswork" checkout -q main
+  git -C "$mswork" checkout -qb "mgr-$1"
+  printf -- '---\nworkstream: %s\nstatus: in-progress\nbranch: mgr-%s\nplan: %s\nagent: sonnet\nupdated: 2026-01-01\nnext: Build\n---\n\n## Goal\nFixture.\n' \
+    "$1" "$1" "$1" >"${mswork}/docs/handover/$1.md"
+  commit_all "$mswork" "claim $1"
+  git -C "$mswork" push -qu origin "mgr-$1"
+  git -C "$mswork" checkout -q main
+}
+ms_claim b
+# A surveyor on key <$1> that finished `done`, retired its workstream file on
+# its own branch, and merged into main with a merge commit.
+ms_rescope() {
+  git -C "$mswork" checkout -q main
+  git -C "$mswork" checkout -qb "claude/rescope-$2"
+  printf -- '---\nworkstream: rescope-%s\nstatus: done\nbranch: claude/rescope-%s\nplan: none\nagent: sonnet\nupdated: 2026-01-02\nnext: The rest is genuine\n---\n\n## Goal\nFixture.\n' \
+    "$1" "$2" >"${mswork}/docs/handover/rescope-$2.md"
+  commit_all "$mswork" "rescope $1: the rest is genuine"
+  git -C "$mswork" rm -q "docs/handover/rescope-$2.md"
+  git -C "$mswork" commit -qm "retire rescope $1"
+  git -C "$mswork" push -qu origin "claude/rescope-$2"
+  git -C "$mswork" checkout -q main
+  git -C "$mswork" merge -q --no-ff -m "Merge rescope $1" "claude/rescope-$2"
+  git -C "$mswork" push -q origin main
+}
+ms_rescope 'a+b+c' abc
+ms() { ( cd "$mswork" && JOHARNESS_CONF="$msconf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 ./joharness.sh dispatch 2>&1 ); }
+out="$(ms)"
+expect "the shrunk key is OVERLAP-BOUND on holder b" "key: b" "$out"
+expect "a merged done rescope on a superset key settles it" \
+  "a rescope for this key is done or blocked" "$out"
+expect "and the rescope block names the merged record" \
+  "settled by merged rescope" "$out"
+expect "with the key it settled on" "(key a+b+c): holds genuine" "$out"
+refute "so no second surveyor is spawned" "spawn ONE surveyor" "$out"
+
+# A held plan's file changed on main after the record: new information, the
+# record no longer settles and the rescope is earned again (#300 fix 3).
+printf '\nEdited after the rescope.\n' >>"${mswork}/docs/plans/h.md"
+commit_all "$mswork" "edit the held plan after the rescope"
+git -C "$mswork" push -q origin main
+out="$(ms)"
+expect "a held plan edited since the record re-earns a rescope" \
+  "spawn ONE surveyor (agent: sonnet) on key b" "$out"
+refute "and the stale record is not named as settling" \
+  "settled by merged rescope" "$out"
+
+# A record whose key misses a CURRENT holder settles nothing: d is a holder
+# the a+b surveyor never saw, so b+d is a new collision (the Trap the
+# key-specific SETTLED comment names).
+ms_rescope 'a+b' ab
+out="$(ms)"
+expect "a fresh record on a+b settles the key b" \
+  "(key a+b): holds genuine" "$out"
+{ printf -- '---\nplan: d\nurgency: normal\nagent: sonnet\neffort: high\n'
+  printf 'scope: src/shared\n---\n\n## Goal\nFixture.\n'
+} >"${mswork}/docs/plans/d.md"
+commit_all "$mswork" "plan d"
+git -C "$mswork" push -q origin main
+ms_claim d
+out="$(ms)"
+expect "the key grows a holder the record never saw" "key: b+d" "$out"
+refute "so the a+b record does not settle it" \
+  "settled by merged rescope" "$out"
+expect "and a surveyor is earned for the new collision" \
+  "spawn ONE surveyor (agent: sonnet) on key b+d" "$out"
+
 # --- curate: is the live plan queue still fit? ------------------------------
 # The periodic reader. Its own fixture, because every finding is a property of
 # the WHOLE queue and a plan another topic wrote would decide the counts.

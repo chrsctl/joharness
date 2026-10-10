@@ -524,7 +524,9 @@ Up to `slots`, in dispatch's order, only rows under `spawn`:
   scout that is waiting on one.
 - Verdict `OVERLAP-BOUND` = ONE surveyor, tier sonnet, and ONLY when
   the `rescope :` block says `in flight: none` AND your ledger has no
-  `rescoped=<key>` for this key. Slots are idle only because held plans'
+  `rescoped=<key>` for this key. A ledger `rescoped=<K>` also covers any
+  later key whose holders are all in K — a smaller holder set is the same
+  collision with fewer holders. Slots are idle only because held plans'
   `scope:` declarations are wrong; the surveyor corrects them and the
   next pass waves the plans in parallel. It holds no slot (beyond the cap,
   like a reporter — say so, it is the human's money), so spawn it even at a
