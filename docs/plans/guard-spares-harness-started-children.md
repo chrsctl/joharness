@@ -32,8 +32,11 @@ real case it exists for.
   child — `node`, `python`, `uvx`, … — was started by the harness, not by a
   tool call, and is not the session's.
   1. In the awk program's `counted` pass, seed the queue only with direct
-     children of `agent` whose `comm[...]` matches
-     `/^(bash|sh|dash|zsh)$/`. Everything below a seeded child is counted as
+     children of `agent` whose `comm`, reduced to a basename, matches
+     `/^(bash|sh|dash|zsh)$/`. Reduce it first: `n = comm[c]; sub(/.*\//,
+     "", n); sub(/^-/, "", n)`. macOS `ps` prints `comm` as a full path
+     (`/bin/zsh`), and a login shell carries a leading `-`; an unreduced
+     match would count 0 there for ever. Everything below a seeded child is counted as
      today, whatever its `comm` (`bash` → `timeout` → `sleep` is one tree).
      The invocation-root exclusion (`skip`) is unchanged.
   2. No new `ps` column, no second `ps`. `comm` is already read. The perf
@@ -47,18 +50,28 @@ real case it exists for.
      it (`add_fact` joins facts with `; `). Digits are still the only
      runtime data in it.
   4. Header comment of the section: why the rule is the shell (issue #338's
-     measurement, and the one below), and the cost it accepts — an MCP
-     server declared as `bash …` or `sh -c …` in `.mcp.json` is still
-     counted. Say so.
+     measurement, and the one below), and the costs it accepts, each named:
+     - counted though not the session's: an MCP server declared as
+       `bash …` / `sh -c …` in `.mcp.json`; a hook or `statusLine` command
+       running beside the guard (already counted before this change);
+     - missed though the session's: a background tool command that `exec`s
+       (`exec node server.js` replaces the tool's `bash`, measured in
+       review round 2); a shell outside the list (`ksh`, `fish`, …).
 - `.agents/harness/selftest/handover-guard.sh`:
   1. Real-tree case "a process the session leaves running is reported":
      its leftover becomes `bash -c 'sleep 300; :' &` instead of
      `sleep 300 &`. This is the shape a real background tool command has
      (measured below), not a weaker test. The trailing `; :` is
      load-bearing: a one-command `-c` exec-optimises into `sleep`, which is
-     no longer a shell. Its `kill` must reach the `sleep` too (kill the
-     `bash -c` job's process group, or `pkill -P` its pid) — no orphan
-     left for 300 s.
+     no longer a shell. Kill as `pkill -P "$bg"; kill "$bg"`, in that
+     order — `kill` first orphans the `sleep` before `pkill -P` can find
+     it. Not a process-group kill: a non-interactive job has no group of
+     its own, and the group it shares is the suite's.
+     Its subtree is now `bash` + `sleep`, so the count is 2 — or 1 if the
+     guard's `ps` runs before `bash` forks `sleep`. Replace its `expect`
+     substring with an anchored match taking both:
+     `grep -E '(^|[^0-9])[12] background process\(es\) this session started'`.
+     A bare substring also matches 11 and 21.
   2. New real-tree case: the fixture starts `sleep 300 &` directly (a
      non-shell child, standing for `node mcp.mjs`) and nothing else; refute
      `background process(es)` in the output. Kill it after.
@@ -67,7 +80,7 @@ real case it exists for.
      worker), `900040 900000 bash`, `900041 900040 sleep`. Expect the count
      2 exactly, matched as `grep -E '(^|[^0-9])2 background process'` (a bare
      substring also matches 12).
-  4. Every existing case stays as it is and must still pass. `dupes`
+  4. Every other existing case stays as it is and must still pass. `dupes`
      leftovers are already `sh`, so its count stays 2.
 
 ## Out of scope

@@ -8,7 +8,7 @@ issue: 338
 session: https://claude.ai/code/session_018Bhrz7Uhy2ypK1sVw779nP
 agent: opus
 updated: 2026-10-10
-next: Spawn verifier on the two plans, record findings, retire, PR
+next: Retire this file, open PR, merge when checks green
 ---
 
 ## Goal
@@ -48,6 +48,11 @@ surfaces after the retire commit) have none. Decompose each into a plan.
 - r9: (verifier) #339 plan denied that "a repo the child does not own" applies to an issue; it does (fixed — argued as difference: no diff, merges nothing)
 - r10: (verifier) #339 silent on unattended modes (fixed — every mode, one issue per session, dedupe search first)
 - r11: (verifier) both #339 acceptance greps already passed on `main` (fixed — section-bounded `sed | grep`, 0 on `main` at 944d0e8, measured 2026-10-10)
+- r12: (verifier) round 2: new leftover `bash -c 'sleep 300; :'` is two processes, so the existing `expect "1 background process(es)…"` reds 5/5 runs (fixed — anchored `[12]` match, race named)
+- r13: (verifier) r7 anchoring applied to the new case only, existing substring still matches 11 (fixed — same line as r12)
+- r14: (verifier) process-group kill unworkable for a non-interactive job; `kill` before `pkill -P` orphans `sleep` (fixed — `pkill -P "$bg"; kill "$bg"`, order stated)
+- r15: (verifier) macOS `comm` is a full path (`/bin/zsh`), so the shell match counts 0 for ever (fixed — basename and leading `-` stripped first)
+- r16: (verifier) a background command that `exec`s escapes the count; hook/statusLine shells still counted; other shells unlisted (fixed — all named as accepted costs in the header comment)
 
 ## Blockers
 
