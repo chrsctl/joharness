@@ -23,10 +23,11 @@
 #   HANDOVER_FETCH         0 to skip the session-start fetch (default: 1)
 #   HANDOVER_SCOPE         branch = this branch's own files only; no walk
 #                          over other branches, no overlap, no claims, no
-#                          rot check. Orchestrated session starts set it:
-#                          a manager works one item and an orchestrator
-#                          reads dispatch, so the fleet-wide view is paid
-#                          context nobody there reads (default: all)
+#                          rot check. Session start sets it: a manager
+#                          works one item and an orchestrator reads
+#                          dispatch, so the fleet-wide view is paid context
+#                          nobody there reads. `dispatch` reads the default
+#                          (default: all)
 #   HANDOVER_STALE_SECONDS age of last push, at or above
 #                          which a branch is stale-eligible  (default: 518400)
 #   HANDOVER_STALE_BEHIND  commits behind the base branch,
@@ -259,8 +260,8 @@ if [ "${JOHARNESS_SESSION_SOURCE:-}" = "compact" ]; then
   add "that survives. Re-read before the next edit:"
   add ""
   # THE BOUNDARY THE MODE KEEPS, not the layer-coupling one. The graduated
-  # page is specific: "a session that keeps its task and loses its boundary is
-  # precisely what unsupervised mode exists to prevent" — that is step 2's
+  # page is specific: a session that keeps its task and loses its boundary is
+  # precisely what the bounds exist to prevent — that is step 2's
   # `no commit to protocol text`, not Part 2's "names no environment".
   # The first version of this line shipped the second rule, and worse for a
   # consumer: Part 2 lives in the ROOT AGENTS.md, which the sync splices
@@ -270,17 +271,9 @@ if [ "${JOHARNESS_SESSION_SOURCE:-}" = "compact" ]; then
   add "  .agents/harness/AGENTS.md — the Loop, and the boundary step 2"
   add "  keeps: no commit to a core path (./joharness.sh protocol-paths)."
   add ""
-  # Read, never re-resolved. cmd_session_start exports JOHARNESS_RUN_MODE
-  # after resolving it once; a hook that worked the mode out again is two
-  # readers of one fact, and they drift.
-  add "  Mode: ${JOHARNESS_RUN_MODE:-supervised}."
-  # The mode's own page only to the session in that mode. Handing a
-  # supervised session .agents/docs/unsupervised.md is context for a mode it
-  # is not in, and every line here is paid on read.
-  case "${JOHARNESS_RUN_MODE:-supervised}" in
-    unsupervised) add "  Its rules: .agents/docs/unsupervised.md." ;;
-    orchestrated) add "  Its rules: your role's command — .claude/commands/orchestrate.md or manage.md; bounds: .agents/docs/unsupervised.md." ;;
-  esac
+  # One mode, so nothing to resolve: the role's command is the rules.
+  add "  Mode: orchestrated."
+  add "  Its rules: your role's command — .claude/commands/orchestrate.md or manage.md; bounds: .agents/docs/unsupervised.md."
   add ""
   # The third thing, which is neither the rules nor the task state: a session
   # here reported three merged deliverables as outstanding, because step 7
@@ -337,18 +330,12 @@ if [ -n "$mine" ]; then
     add "  ${f}  [${status:-?}, updated ${updated:-?}${agent:+, wants ${agent}}${issue:+, claims issue #${issue}}]"
     [ -n "$next" ] && add "    next: ${next}"
   done <<<"$mine"
-elif [ "${JOHARNESS_RUN_MODE:-supervised}" = "orchestrated" ]; then
-  # Said by the role, not here: an orchestrator on the base branch never
-  # writes one, and a manager's command says when to.
-  :
-else
-  add ""
-  add "No workstream file on this branch. Starting or resuming work? Create"
-  add "one from ${HANDOVER_DIR}/TEMPLATE.md."
 fi
+# No workstream file: said by the role, not here. An orchestrator on the
+# base branch never writes one, and a manager's command says when to.
 
 # The branch-only view stops here. Everything below walks every remote ref,
-# and under orchestrated nothing at a session start reads the result.
+# and nothing at a session start reads the result — dispatch does.
 if [ "${HANDOVER_SCOPE:-all}" = "branch" ]; then
   printf '%s' "$OUT"
   exit 0

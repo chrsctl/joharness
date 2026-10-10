@@ -2,7 +2,7 @@
 description: Child worker — say why one manager is blocked, stalled or looping, and file it as an issue on the canonical
 ---
 
-Orchestrated mode, analyst role. ONE condition, ONE issue, exit. Runs only
+Analyst role. ONE condition, ONE issue, exit. Runs only
 where `JOHARNESS_IDLE_ANALYSIS=on`; the orchestrator spawns you from a health
 pass, and `$ARGUMENTS` names the branch, the CLAIM stem and the condition
 word. One branch can carry two claims: read the one you were sent for.
@@ -24,7 +24,7 @@ another branch.
 
 ## 0. Preconditions
 
-1. `./joharness.sh authority`. `orchestrated` + VERIFIABLE = proceed.
+1. `./joharness.sh authority`. VERIFIABLE = proceed.
    Anything else = stop, say so.
 2. `./joharness.sh analysis <branch> <claim stem>`. `CANONICAL` = you are in
    the canonical repo, there is no fleet here to analyse: stop.

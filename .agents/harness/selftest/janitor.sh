@@ -35,7 +35,7 @@ cp "${ROOT}/.agents/harness/queue-context.sh" \
 printf '# none\n' >"${jwork}/.agents/env/none/AGENTS.md"
 printf 'code\n' >"${jwork}/code.txt"
 jconf="${jwork}/joharness.conf"
-printf 'JOHARNESS_ENV=none\nJOHARNESS_MODE=orchestrated\n' >"$jconf"
+printf 'JOHARNESS_ENV=none\n' >"$jconf"
 
 jcommit() {
   git -C "$jwork" add -A
@@ -52,7 +52,7 @@ git -C "$jwork" remote add origin "$jorigin"
 git -C "$jwork" push -qu origin main
 
 jan() { ( cd "$jwork" && env JOHARNESS_CONF="$jconf" "$@" ./joharness.sh janitor 2>&1 ); }
-jdsp() { ( cd "$jwork" && env JOHARNESS_CONF="$jconf" DISPATCH_FETCH=0 DRAIN_FETCH=0 \
+jdsp() { ( cd "$jwork" && env JOHARNESS_CONF="$jconf" DISPATCH_FETCH=0 \
   "$@" ./joharness.sh dispatch 2>&1 ); }
 # shellcheck disable=SC2120  # knob overrides are passed by later cases
 jqueue() { ( cd "$jwork" && env JOHARNESS_CONF="$jconf" \

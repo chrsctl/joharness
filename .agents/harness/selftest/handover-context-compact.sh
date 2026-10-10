@@ -39,9 +39,9 @@ printf -- '---\nworkstream: cp\nstatus: in-progress\nupdated: 2026-08-29\nnext: 
 printf 'more\n' >>"${cpwork}/code.txt"
 commit_all "$cpwork" "work in flight"
 
-# <source> [mode] — the hook, with the source it is testing.
+# <source> — the hook, with the source it is testing.
 cphook() {
-  JOHARNESS_SESSION_SOURCE="$1" JOHARNESS_RUN_MODE="${2:-}" \
+  JOHARNESS_SESSION_SOURCE="$1" \
     CLAUDE_PROJECT_DIR="$cpwork" HANDOVER_BASE_BRANCH=main \
     "${ROOT}/.agents/harness/handover-context.sh" 2>&1
 }
@@ -53,9 +53,9 @@ expect "a compact start still says the orientation is gone" \
 expect "and says it is the RULES that a compaction takes" \
   "What a compaction takes is the RULES" "$out"
 expect "and points at the Loop by file" ".agents/harness/AGENTS.md" "$out"
-# THE BOUNDARY THE MODE KEEPS. The graduated page is specific — "a session
-# that keeps its task and loses its boundary is precisely what unsupervised
-# mode exists to prevent" — so this is step 2's `no commit to protocol
+# THE BOUNDARY THE MODE KEEPS. The graduated page is specific — a session
+# that keeps its task and loses its boundary is precisely what the bounds
+# exist to prevent — so this is step 2's `no commit to protocol
 # text`, not Part 2's layer-coupling rule. The first version of this case
 # asserted the second one and passed on the wrong text.
 #
@@ -72,9 +72,9 @@ if grep -q 'no commit to a core path' "${ROOT}/.agents/harness/AGENTS.md"; then
 else
   fail "and the file the hook points at really carries that rule"
 fi
-expect "and names the mode" "Mode: supervised" "$out"
-refute "a supervised session is not handed the other mode's page" \
-  "unsupervised.md" "$out"
+expect "and names the mode" "Mode: orchestrated." "$out"
+expect "and the role-command rules line" \
+  "Its rules: your role's command" "$out"
 # The third thing, which is neither the rules nor the task state: work already
 # done. Step 7 retires the workstream file one commit before the pull request
 # opens, so a compacted session cannot recover its own recent past from the
@@ -83,16 +83,6 @@ expect "and orders the merged-pull-request check" \
   "read this branch's merged" "$out"
 expect "naming what recovers a retired workstream file" \
   "recovers its own retired workstream file" "$out"
-
-# The mode is READ, never re-resolved: cmd_session_start exports it after
-# resolving it once, and two readers of one fact drift.
-out="$(cphook compact unsupervised)"
-expect "the mode comes from the environment, not from a second resolution" \
-  "Mode: unsupervised" "$out"
-refute "and the resolved mode is not overwritten with the default" \
-  "Mode: supervised" "$out"
-expect "the unsupervised session gets its own page" \
-  ".agents/docs/unsupervised.md" "$out"
 
 # EVERY OTHER SOURCE PAYS NOTHING. The whole cost of these lines falls on the
 # session that reads them, and a session that did not compact has its rules

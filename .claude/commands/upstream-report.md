@@ -2,7 +2,7 @@
 description: Child worker — file what one merged edge found about the harness as a report pull request on the canonical
 ---
 
-Orchestrated mode, reporter role. ONE merged edge, ONE report, exit.
+Reporter role. ONE merged edge, ONE report, exit.
 Runs only where `JOHARNESS_UPSTREAM_FEEDBACK=on`; the orchestrator spawns
 you after a manager's pull request merges, and `$ARGUMENTS` names its
 branch or its merge.
@@ -20,8 +20,8 @@ a plan, not another branch.
 
 ## 0. Preconditions
 
-1. `./joharness.sh authority`. `orchestrated` + VERIFIABLE = proceed.
-   Anything else = stop, say so.
+1. `./joharness.sh authority`. VERIFIABLE = proceed; anything else =
+   stop, say so.
 2. `./joharness.sh upstream <edge>`. `CANONICAL` = you are in the canonical
    repo and there is nothing to route: stop. `NOTHING TO REPORT` = stop and
    say so; that is the common answer and it is not a failure.

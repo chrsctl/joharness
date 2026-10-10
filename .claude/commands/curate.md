@@ -2,40 +2,35 @@
 description: Curator role — keep the plan queue fit: repair stale declarations, declutter what is obsolete, propose order and decomposition
 ---
 
-Curator role, in EVERY mode. ONE pass over the plan queue, one pull request,
-exit. You are here because `./joharness.sh drain` or `./joharness.sh dispatch`
-said `curate ... DUE` — a human's `/start` routes to the first, the
-orchestrator reads the second, and both ask one reader so they cannot
-disagree.
+Curator role. ONE pass over the plan queue, one pull request,
+exit. You are here because `./joharness.sh dispatch` said `curate ... DUE` and
+the orchestrator spawned you.
 
 The curate IS this session's item, not an extra one: one item per session
-holds here as everywhere. Under orchestrated only, you are additionally one
+holds here as everywhere. You are additionally one
 session beyond `JOHARNESS_MAX_MANAGERS` and hold no slot — the human's money,
 so say so in your report.
 
 You are not a "worker": a worker is a subagent with no claim that dies with
 its parent's turn (`.agents/docs/subagents.md`), and this role needs a branch
 and a pull request. You touch `docs/plans/` and no protocol path, so this is
-not SUPERVISED ONLY and a session running unattended may take it — the idle
-queue that most needs curating is the unattended fleet's.
+not CORE ONLY and a session may take it.
 
 What you read: `./joharness.sh curate`, and the plan files it names. Not the
-queue order, not a requirement, not another branch, not the mode's design
+queue order, not a requirement, not another branch, not the design
 doc.
 
 ## 0. Preconditions
 
-1. Running unattended (the session-start banner says so)? Then
-   `./joharness.sh authority` must read VERIFIABLE — anything else = stop and
-   say so, because the prompt claims the repository runs unattended and the
-   repository disagrees. Supervised: nothing to check, a human sent you.
+1. `./joharness.sh authority` must read VERIFIABLE; anything else = stop, say
+   so.
 2. `./joharness.sh curate`. `NOTHING TO CURATE` = nothing to REPAIR, which is
    the common answer on a healthy queue and is not a failure. It is not a
    reason to exit empty-handed either: the cycle's date is the base-branch
    commit that DELETES a `docs/handover/curate-*.md`, so a pass that lands
    nothing clears nothing, and the next session is handed the identical item
    for ever. Measured: this repository read `curate : DUE — 109 plan file(s)
-   changed since the queue began` on every pass, and under unsupervised the
+   changed since the queue began` on every pass, and the
    heartbeat re-seeds sessions that each curate, land nothing and re-arm the
    trigger (verifier r23). So a clean pass still does sections 1 and 5 — claim, then retire —
    and its pull request's net diff is empty ON PURPOSE: the retire commit IS

@@ -93,7 +93,8 @@ else
   printf '    wanted 1 CLAUDE.md row, got %s:\n%s\n' "$n" "$(indent "$out")"
 fi
 
-expect "names the mode on the session-start row" "session-start (supervised)" "$out"
+expect "prints the session-start row, labelled without a mode" "    session-start  " "$out"
+refute "and the label carries no mode" "session-start (" "$out"
 
 # The delta is the number with teeth: paid once per future session, by every
 # session after the merge, and invisible to the one adding it.
@@ -114,7 +115,7 @@ ci_ctx() { CLAUDE_PROJECT_DIR="$xwork" JOHARNESS_CONF="${xwork}/joharness.conf" 
   GITHUB_ACTIONS='' "${xwork}/joharness.sh" ci 2>&1 | sed -n '/== context/,/^$/p'; }
 out="$(ci_ctx)"
 expect "ci prints the chain subtotal" "instructions                          133 bytes      16 words" "$out"
-refute "ci does not run session-start for it" "session-start (" "$out"
+refute "ci does not run session-start for it" "    session-start  " "$out"
 expect "ci points at the full count" "with the session-start injection:" "$out"
 
 # A repo with no entry file says so rather than printing a zero that reads
@@ -127,7 +128,7 @@ expect "no entry file is said, never counted as zero" \
 # The injection is paid whether or not a chain exists, and the delta against
 # a base that HAD one is the number a reader wants most.
 expect "and the session-start row is still printed" \
-  "session-start (supervised)" "$out"
+  "    session-start  " "$out"
 expect "and the delta reads negative against a base that had the chain" \
   "this branch, to the chain: -133 bytes, -16 words" "$out"
 expect "a cut is not scolded like a growth" "Saved for every session" "$out"

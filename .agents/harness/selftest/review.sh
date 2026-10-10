@@ -929,7 +929,7 @@ fi
 git -C "$rwork" checkout -q main
 
 # --- requirement authorship ------------------------------------------------
-# Requirements may be written in EVERY mode (requester decision 2026-10-08).
+# Requirements may be written by a session (requester decision 2026-10-08).
 # The `== requirement authorship` ci stage that redded an unattended branch
 # for adding one is gone, with the boundary narrowed to core paths
 # (joharness.sh:protocol_paths) — docs/product/ never was one. These cases
@@ -945,41 +945,24 @@ printf -- '---\nrequirement: selfwritten\npriority: normal\n---\n\n## Goal\nA go
   >"${rwork}/docs/product/selfwritten.md"
 commit_all "$rwork" "a session writes itself a goal"
 
-# SUPERVISED: green, as it always was — and no stage reporting on it either.
-out="$(JOHARNESS_MODE=supervised ci_out)"
-refute "supervised ci has no requirement authorship stage" \
-  "== requirement authorship" "$out"
-if JOHARNESS_MODE=supervised jr ci >/dev/null 2>&1; then
-  pass "supervised ci is green with a requirement added"
-else
-  fail "supervised ci is green with a requirement added"
-fi
-
-# UNSUPERVISED: the case that used to be red. Same three things the old
-# stage printed, each refuted, so a partial revival is caught too.
-out="$(JOHARNESS_MODE=unsupervised ci_out)"
-refute "unsupervised ci has no requirement authorship stage" \
+# Orchestrated is the only mode, so one run says it: no stage, none of the
+# old stage's wording (each refuted, so a partial revival is caught too), and
+# ci stays green.
+out="$(ci_out)"
+refute "ci has no requirement authorship stage" \
   "== requirement authorship" "$out"
 refute "nor counts the added requirement as a finding" \
   "requirement(s) ADDED" "$out"
 refute "nor says it writes its own finish line" \
   "writes its own finish line" "$out"
-if JOHARNESS_MODE=unsupervised jr ci >/dev/null 2>&1; then
-  pass "unsupervised ci is green with a requirement added"
+if jr ci >/dev/null 2>&1; then
+  pass "ci is green with a requirement added"
 else
-  fail "unsupervised ci is green with a requirement added"
-fi
-
-# ORCHESTRATED: the other unattended mode. Both read one predicate
-# (joharness.sh:unattended); a red here and not above is a second copy.
-if JOHARNESS_MODE=orchestrated jr ci >/dev/null 2>&1; then
-  pass "orchestrated ci is green with a requirement added"
-else
-  fail "orchestrated ci is green with a requirement added"
+  fail "ci is green with a requirement added"
 fi
 
 # EDITING one stays fine: PR 163 annotated a Satisfied when bullet with a
-# measured result while unsupervised — the mode reporting its own results.
+# measured result — a session reporting its own results.
 git -C "$rwork" checkout -q main
 mkdir -p "${rwork}/docs/product"
 printf -- '---\nrequirement: preexisting\npriority: normal\n---\n\n## Goal\nSet by a human.\n\n## Satisfied when\n\n- something observable.\n' \
@@ -990,10 +973,10 @@ git -C "$rwork" checkout -qb reqedit main
 printf -- '---\nrequirement: preexisting\npriority: normal\n---\n\n## Goal\nSet by a human.\n\n## Satisfied when\n\n- something observable. Measured 2026-08-31: it holds.\n' \
   >"${rwork}/docs/product/preexisting.md"
 commit_all "$rwork" "annotate the bullet with a measured result"
-if JOHARNESS_MODE=unsupervised jr ci >/dev/null 2>&1; then
-  pass "and unsupervised ci stays green for an edit"
+if jr ci >/dev/null 2>&1; then
+  pass "and ci stays green for an edit"
 else
-  fail "and unsupervised ci stays green for an edit"
+  fail "and ci stays green for an edit"
 fi
 
 # A TEMPLATE beside them: green too. The queue hook still excludes it from
@@ -1003,7 +986,7 @@ git -C "$rwork" checkout -qb reqtemplate main
 printf -- '---\nrequirement: TEMPLATE\n---\n\n## Goal\nShape only.\n' \
   >"${rwork}/docs/product/TEMPLATE.md"
 commit_all "$rwork" "add a requirement template"
-out="$(JOHARNESS_MODE=unsupervised ci_out)"
+out="$(ci_out)"
 refute "a TEMPLATE draws no requirement stage either" \
   "== requirement authorship" "$out"
 
