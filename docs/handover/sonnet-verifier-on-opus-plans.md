@@ -19,7 +19,15 @@ defects reaching `main`? Graduate to `.agents/docs/agent-selection.md`.
 
 ## Decisions
 
-None yet.
+- Sample: the 10 newest opus-tier merged edges with a verifier record:
+  PRs 402 400 399 395 394 393 389 387 386 384.
+- Head reviewed = parent of the first commit adding a `- rN: (verifier`
+  line to the edge's workstream file (findings commit with their fix, so
+  the parent is what round 1 saw). Round-1 record = rN lines that commit
+  adds. Later rounds saw later heads: out of the comparison.
+- Both tiers get the identical prompt, one worktree each at that head
+  (scratchpad/wt/<pr>{s,o}); cost read from the subagent transcript jsonl
+  per-message usage, priced at the parent's rates.
 
 ## Rejected
 
