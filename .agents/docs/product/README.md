@@ -74,10 +74,10 @@ Both rejections point at the rule they protect rather than restating it:
   paragraph already agrees the record is git.
 - **No detector writes the requirement.** Lesson lets an alert or ticket
   originate one, product owner correcting it before commit. Here the human
-  writes it ([`../unsupervised.md`](../unsupervised.md), Bounds). What holds
+  writes it ([`../orchestrated.md`](../orchestrated.md), Bounds). What holds
   that is worth knowing: since 2026-10-08 nothing gates it in any mode —
   the `ci` stage that redded an unattended author was deleted on the
-  requester's decision ([`../unsupervised.md`](../unsupervised.md), Bounds).
+  requester's decision ([`../orchestrated.md`](../orchestrated.md), Bounds).
   Convention, not mechanism.
 
 **What the walk measured about intake.** Kept because the node's probes die

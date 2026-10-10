@@ -564,7 +564,7 @@ Grading the claims, as `.agents/docs/research/README.md` requires of a closure:
 
 The two defects are in `joharness.sh` and `.claude/commands/upstream-report.md`,
 both named by `./joharness.sh protocol-paths`, so they are
-`docs/plans/upstream-placement-defects.md` and SUPERVISED ONLY. Nothing is
+`docs/plans/upstream-placement-defects.md` and CORE ONLY. Nothing is
 blocked on them: the misplacement costs canonical 57 findings it has not been
 hearing, and has never cost a consumer a reader it had.
 

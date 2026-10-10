@@ -224,7 +224,7 @@ the incidents it was bought with, and a false negative here is invisible by
 construction — nothing fires, nobody notices, and the work stays unpushed.
 
 `.agents/harness/` is a protocol path (`./joharness.sh protocol-paths`), so the
-branch that answers this is supervised.
+branch that answers this is a human's.
 
 ## Verification
 

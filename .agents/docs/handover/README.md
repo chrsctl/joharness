@@ -407,7 +407,7 @@ policy in that sense, which is the bad half of that ratio.
 So the half a compacted session keeps is the half a re-orientation would
 restore anyway, and the half it loses is the Loop, the `.agents/harness/`
 boundary and the mode. A session that keeps its task and loses its boundary is
-precisely what unsupervised mode exists to prevent. A re-read line naming only
+precisely what the harness's bounds exist to prevent. A re-read line naming only
 the workstream file restores what was never lost.
 
 Keeping a recent slice verbatim is a real technique with NO agreed size:

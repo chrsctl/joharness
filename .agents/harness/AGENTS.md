@@ -44,19 +44,14 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    workstream files (protocol "When NOT to write one"). Hook
    prints queue + wanted agent tier at session start (orchestrated: this
    branch only; the orchestrator holds the queue through `dispatch`). Oldest actionable
-   first, urgent first if marked. No issue, no requirement, no plan: ask
-   human. Not invent work. ONE difference, `JOHARNESS_MODE=unsupervised`
-   (session start says so): at the edge, exit and say DRAINED instead of
-   asking, and invent nothing — the heartbeat re-seeds
-   (`.agents/docs/unsupervised.md`). `JOHARNESS_MODE=orchestrated`:
-   same edge, same bounds; who picks differs — a manager works the ONE
-   item its prompt names (`/manage`), the orchestrator reads
+   first, urgent first if marked. No issue, no requirement, no plan: exit
+   and say DRAINED, invent nothing — the heartbeat re-seeds. A manager
+   works the ONE item its prompt names (`/manage`); the orchestrator reads
    `./joharness.sh dispatch` and spawns (`/orchestrate`,
-   `.agents/docs/orchestrated.md`). Prompt named `/manage <item>`? That
-   is your answer already. Otherwise `/start` reads the mode and names
-   the file. Boundary holds in both:
-   no commit to a core path (`./joharness.sh protocol-paths`,
-   [`.agents/docs/unsupervised.md`](../../.agents/docs/unsupervised.md)).
+   [`.agents/docs/orchestrated.md`](../../.agents/docs/orchestrated.md)).
+   Prompt named `/manage <item>`? That is your answer already. Otherwise
+   `/start` names the file. No commit to a core path
+   (`./joharness.sh protocol-paths`).
    Claims outlived their sessions? `drain` says `janitor : DUE` — same shape,
    same rank: `/janitor` releases what it can prove gone and deletes nothing.
    Queue moved under its own declarations? `drain` says `curate : DUE` and
@@ -188,12 +183,11 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    `joharness.sh:fin_strength`.
 
 Queue still holds work after the merge? It is the NEXT session's — the
-human re-invoking `/drain` under supervised, the heartbeat under
-unsupervised. One item per session, both modes; a session that merged one
+heartbeat's. One item per session; a session that merged one
 does not take another. Drives THIS session only; the fleet outliving its
 sessions is the heartbeat's job, and the count of idle-holding-a-full-queue
 that bought it is in
-[`.agents/docs/unsupervised.md`](../../.agents/docs/unsupervised.md).
+[`.agents/docs/orchestrated.md`](../../.agents/docs/orchestrated.md).
 
 ## Harness upkeep
 
@@ -211,8 +205,10 @@ refuses to run anyway.
 - Implementation yours. Interface signatures not yours.
 - Scope change too big to ratify alone? Decide, write down, flag for human.
   Do not stop.
-- Stop and ask ONLY for: money, credentials, hardware, product direction,
-  merge conflict into `main` that does not resolve clean.
+- Block ONLY for: money, credentials, hardware, product direction,
+  merge conflict into `main` that does not resolve clean. Block =
+  `status: blocked`, `next:` = the question, push, exit. Never wait in
+  session (issue #304).
 
 ## Agent selection
 

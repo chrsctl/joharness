@@ -68,7 +68,7 @@ None yet.
 
 A YES becomes a plan a human authorises (tier or effort change = money).
 Lever 1 touches `.claude/commands/manage.md` and the orchestrator's health
-table — protocol paths, supervised only.
+table — protocol paths, CORE ONLY.
 
 ## Verification
 

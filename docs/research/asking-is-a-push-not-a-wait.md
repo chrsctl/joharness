@@ -93,8 +93,8 @@ Source reads at `cb0028e`, each re-run rather than taken from the issue:
     grep -n "holds no slot" joharness.sh
     grep -n "re-asks the question" joharness.sh
     sed -n '8384,8392p' joharness.sh          # a blocked row releases its holds
-    sed -n '50,56p'   .agents/docs/unsupervised.md
-    sed -n '86,92p'   .agents/docs/unsupervised.md
+    sed -n '50,56p'   .agents/docs/orchestrated.md
+    sed -n '86,92p'   .agents/docs/orchestrated.md
     sed -n '547,552p' .claude/commands/orchestrate.md
 
 ## Findings
@@ -153,14 +153,14 @@ Source reads at `cb0028e`, each re-run rather than taken from the issue:
   measurement under it.** `cb0028e`,
   `.claude/commands/orchestrate.md:547-550`: *"Nothing else: no 'no human is
   watching', no 'never ask', no 'keep going'. The prompt routes; the repository
-  authorises."* The reason is in `.agents/docs/unsupervised.md`: measured
+  authorises."* The reason is in `.agents/docs/orchestrated.md`: measured
   2026-08-31, two sessions spawned with a prompt saying *never ask a human,
   merge your own pull requests, keep going* refused it as a suspected
   injection — *"They were right — that is the shape an injected task has, and a
   claim cannot be its own evidence."*
 
 - **The mode has already classified the event, and has the measurement without
-  the rule.** `cb0028e`, `.agents/docs/unsupervised.md:54`: *"Anything else
+  the rule.** `cb0028e`, `.agents/docs/orchestrated.md:54`: *"Anything else
   that ends a run — a rate limit, a session asking a question, a generation
   that failed to spawn — is a finding, not a stop."* Its run table records
   attempt one, 2026-08-31, 48s, ended with *"no repository attached; both
@@ -210,7 +210,7 @@ simultaneous answers would collide on the same paragraph.
 
 `.agents/harness/` and `.claude/commands/` are both protocol paths
 (`./joharness.sh protocol-paths`), so the branch that answers this is
-supervised — whichever of the two files it lands in.
+a human's — whichever of the two files it lands in.
 
 ## Verification
 

@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_015Hp3oMVYL5ciQDrvTxJb22
 agent: sonnet
 updated: 2026-10-10
-next: Move unsupervised.md content into orchestrated.md, delete it, fix every reference.
+next: Wait for ./joharness.sh ci result, fix reds, verifier review, retire plan+workstream files, PR, merge, message @parent.
 ---
 
 ## Goal
