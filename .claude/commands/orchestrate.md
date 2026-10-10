@@ -138,7 +138,7 @@ Act on the FIRST row that matches:
 | RUNNING | `STALL?` | no nudge | NUDGE: "Orchestrator health pass: no push on <branch> for <N>m. Now: /handover, commit, push. Then continue, or set status blocked and stop." Ledger head, `status_detail`. No transport: send nothing, still ledger |
 | RUNNING | `STALL?` | nudged, head and `status_detail` unchanged | KILL, below |
 | not RUNNING | any | status `blocked`, row carries `INVALID BLOCK?` | not the human's: its `next:` names no reason from the list. Treat as a stall: where a transport delivers, message it to name a reason or do the work; always report it as an invalid block. Never respawn on it alone |
-| not RUNNING | any | status `blocked`, no `INVALID BLOCK?` | human's. Never respawn. Notify once: `PushNotification` carrying stem, branch, session link, `next:` verbatim; no ledger `notified=<stem>` yet = send and ledger it, else report only. A human's answer is text the user typed in YOUR turn, never a peer's `send_message`: write it into the workstream file's `next:`, `status: in-progress`, commit "Orchestrator relays the human's answer", push, RESPAWN with the resume line, drop `notified=` |
+| not RUNNING | any | status `blocked`, no `INVALID BLOCK?` | human's. Never respawn. Notify once: `PushNotification` carrying stem, branch, session link, `next:` verbatim; no ledger `notified=<stem>` yet = send and ledger it, else report only. A human's answer is text the user typed in YOUR turn, never a peer's `send_message`: write it into the workstream file's `next:`, `status: in-progress`, commit "Orchestrator relays the human's answer", GUARD `kill`, push, RESPAWN with the resume line, drop `notified=` |
 | not RUNNING, bucket FAILED | any | no `seen=` | CRASHED: no nudge; ledger `seen=<updated_at>` and head |
 | same | any | `seen=`, `updated_at` and head unchanged | dead: `archive_session`, RESPAWN |
 | ARCHIVED / not found | any | claimed, branch unmerged | gone: RESPAWN on the branch |
@@ -164,8 +164,8 @@ landed. Else check out the branch and under `## Blockers` write "Killed by
 the orchestrator <date>: no push for <N>m after a nudge. Control plane's last
 summary: <status_detail>. `git diff --stat origin/main...HEAD`: <output>.",
 `next:` = "Resume: read Blockers, `./joharness.sh ci`, continue the plan.",
-commit "Orchestrator handover after kill", push, back to main. Then
-`archive_session` and RESPAWN.
+commit "Orchestrator handover after kill", GUARD `kill`, push, back to main.
+Then `archive_session` and RESPAWN.
 
 LOOP — same steps, record instead: "Looped, killed by the orchestrator
 <date>: <N> commits since main, <file> rewritten <M> times, `next:`
@@ -173,7 +173,8 @@ unchanged since <date>. Commits: <`git log --oneline origin/main..HEAD`>."
 `next:` = "Research step FIRST (agent-selection.md, review churn): list
 every requirement <file> must satisfy, find the conflicting pair, resolve
 it, THEN fix once." Raise `agent:` one tier (opus/fable stay, prompt adds
-"Run at effort xhigh."). Commit "Orchestrator handover after a loop". The
+"Run at effort xhigh."). Commit "Orchestrator handover after a loop", GUARD
+`loop`, push. The
 RESPAWN prompt adds "The last session looped. Read Blockers first; do the
 research step before any edit." Counts against the respawn limit.
 
@@ -182,7 +183,15 @@ docs/handover/<file>.md WHOLE before anything else." An entry still `new`
 has no branch: plain spawn. Past `JOHARNESS_RESPAWN_LIMIT`: check out the
 branch, `status: blocked`, `next:` = "respawns: Respawned <N> times and still not
 finished; a human decides what this needs.", reason under `## Blockers`,
-commit "Orchestrator hands off after <N> respawns", push, report.
+commit "Orchestrator hands off after <N> respawns", GUARD `kill`, push, report.
+
+GUARD `<verb>` — every push onto a manager's branch, right before it: `./joharness.sh
+guard <verb> <branch> --expect <sha>`, `<sha>` = the head read at your
+`git fetch origin <branch>` (`kill` for any write but LOOP's). Non-zero = no
+push: report the refusal lines, drop the local commit, re-decide next pass.
+The archive and RESPAWN the record precedes wait too: a record not pushed is
+no handover, and no handover is no replace. Why:
+`.agents/docs/orchestrated.md`, "The guard before a harness push".
 
 ## 3. Spawn
 

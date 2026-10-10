@@ -8,7 +8,7 @@ issue: 398
 session: https://claude.ai/code/session_018Vxqi4MSVT8L68UTbCoig4
 agent: opus
 updated: 2026-10-10
-next: Research janitor_apply and selftest/janitor.sh, then build guard subcommand
+next: Mutation-test each guard check, run ci and verify, then verifier review
 ---
 
 ## Goal
@@ -20,7 +20,17 @@ so "re-read live state before writing" is a property of the write path
 
 ## Decisions
 
-- None yet.
+- Exit codes: 0 pass, 2 = `live` found the branch gone (released already),
+  1 = every other refusal. janitor_apply needs the split: gone stays rc 0 and
+  drops the stale local ref (PR411 r3); unreachable stays a failure.
+- janitor_apply calls guard after building the commit, right before the
+  leased push, and prints its `release` lines only once guard passes: a
+  not-a-candidate branch keeps its old skip line, and a gone branch prints no
+  `release` it never made.
+- `claim` reads workstream files the branch wrote since its merge base (as
+  `cl_inflight`), both sides; head refusal stays the refusal.
+- orchestrate.md: one GUARD paragraph, referenced from KILL, LOOP, the
+  relayed human answer and the respawn-limit hand-off.
 
 ## Rejected
 

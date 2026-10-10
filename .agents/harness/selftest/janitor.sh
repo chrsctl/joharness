@@ -461,8 +461,9 @@ git -C "$jorigin" branch -qD mgr-deleted
 expect "the stale ref outlives the deletion, so the case below is live" \
   "mgr-deleted  docs/handover/mgr-deleted.md" "$(jan)"
 out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-deleted 2>&1 )"; rc=$?
-expect "--apply asks origin and finds the branch gone" \
-  "gone      : mgr-deleted — gone on origin, nothing to release" "$out"
+expect "--apply asks origin through guard and finds the branch gone" \
+  "live      : REFUSED — mgr-deleted gone on origin: already released" "$out"
+refute "and releases nothing" "release   :" "$out"
 refute "and pushes nothing" "pushed    :" "$out"
 if [ "$rc" -eq 0 ]; then pass "a gone branch is no failure"
 else fail "a gone branch is no failure (rc ${rc})"; fi
@@ -505,8 +506,9 @@ jurl="$(git -C "$jwork" config remote.origin.url)"
 git -C "$jwork" config remote.origin.url "${TMP}/no-such-origin.git"
 out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-unreach 2>&1 )"; rc=$?
 git -C "$jwork" config remote.origin.url "$jurl"
-expect "an origin that cannot answer is a skip" \
-  "skip      : mgr-unreach — cannot ask origin whether the branch exists" "$out"
+expect "an origin that cannot answer is a guard refusal" \
+  "live      : REFUSED — mgr-unreach: cannot ask origin whether the branch exists" "$out"
+expect "and a skip" "skip      : mgr-unreach — guard refused; nothing released" "$out"
 if [ "$rc" -ne 0 ]; then pass "and exits non-zero"
 else fail "and exits non-zero"; fi
 expect "and origin's claim is untouched" "status: in-progress" \

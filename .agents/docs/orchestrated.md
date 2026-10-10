@@ -201,6 +201,24 @@ A killed session with no handover strands a branch the successor cannot read.
 
 The branch is the claim and the claim survives the kill.
 
+### The guard before a harness push
+
+A harness write onto a branch the session does not own is decided on one
+read and pushed later, after the read may have stopped being true: the
+janitor re-created a branch deleted between its fetch and its push (#397).
+`./joharness.sh guard janitor|kill|loop <branch> --expect <sha>` re-reads
+origin right before the push — base branch by name, branch still on origin,
+head still the decision's read (on a move it prints the claim's `session:`
+and `status:` both sides), and for the janitor no `pr:` at live head — and
+refuses on the first that fails. It writes nothing. Its callers: `janitor
+--apply` before its leased push, and the orchestrator's KILL and LOOP
+records, a relayed human answer and the respawn-limit hand-off
+(`.claude/commands/orchestrate.md`, GUARD). `kill` and `loop` skip the `pr:`
+check: a stalled manager with an open pull request stays killable, and its
+record is a handover, not a release. The lease still guards the window after
+the guard read; guard makes "re-read before writing" a property of the write
+path instead of a rule each author remembers.
+
 A refused stop reads as absent: the permission classifier refused
 `archive_session` and a plain `kill` in a consumer run (issue #249, two
 refusals), and a refusal says nothing about whether the
