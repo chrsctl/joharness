@@ -233,8 +233,10 @@ Three things whoever takes it should carry in before costing the options:
   then a pass, then check whether the handover landed. What is missing is not a
   channel but a gate — nothing can compel the push, by the guard's own
   contract. A node answering this must not propose strengthening that guard
-  without reading `docs/research/guard-fires-on-an-empty-branch.md`, which is
-  about the same file from the opposite direction (it fires too often).
+  without reading the never-pushed fact's comment in
+  `.agents/harness/handover-guard.sh` (graduated from
+  `guard-fires-on-an-empty-branch`), which is about the same file from the
+  opposite direction (it fired too often).
 
 Note for a parallel wave: a research node has no `scope:`, so the overlap guard
 cannot see that this node, `push-age-is-not-death` and `ledger-fields-with-no-rebuild`
