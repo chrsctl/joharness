@@ -111,11 +111,10 @@ expect "unpushed ritual commit still surfaces" "1 commit(s) not pushed" "$out"
 refute "committed ritual deletion is not a missing file" \
   "no workstream file" "$out"
 
-# The unsupervised boundary: an unattended session may not edit the core —
-# money, permissions, the merge gate. Detection after the fact —
-# a Stop hook cannot prevent the commit, only name it — so what is asserted
-# here is that the branch state is seen, in the mode that cares, and not in
-# the mode that does not.
+# The core boundary: a session may not edit the core — money, permissions,
+# the merge gate. Detection after the fact — a Stop hook cannot prevent the
+# commit, only name it — so what is asserted here is that the branch state is
+# seen, with no mode set at all (orchestrated is the only mode).
 # This fixture carries NO joharness.sh, so the guard reads its FALLBACK list
 # (handover-guard.sh, `trees=`: the core paths spelled a second time) — not
 # the entrypoint's list, which the sgfull fixture below pins. The edit is a
@@ -127,20 +126,22 @@ mkdir -p "${sgwork}/.github/workflows"
 printf 'edit\n' >"${sgwork}/.github/workflows/touched.yml"
 commit_all "$sgwork" "touch a core path the fallback lists"
 
-out="$(guard "$JSON_STOP")"
-# The fact, not a path: the guard never prints a path, so refuting one
-# passed whether or not supervised stayed quiet.
-refute "supervised leaves core edits alone" "core file(s)" "$out"
-
-guard_unsup() { printf '%s' "$1" | CLAUDE_PROJECT_DIR="$sgwork" \
-  JOHARNESS_MODE=unsupervised \
-  bash "${ROOT}/.agents/harness/handover-guard.sh" 2>&1; }
-
-out="$(guard_unsup "$JSON_STOP")"
-expect "unsupervised names the protocol boundary" \
-  "core file(s)" "$out"
-expect "unsupervised counts the files" "touches 1 core file(s)" "$out"
+# The fact, not a path: the guard never prints a path. No JOHARNESS_MODE in
+# the environment at all: the boundary is unconditional.
+# shellcheck disable=SC2016  # the script is for the inner bash
+out="$(env -u JOHARNESS_MODE bash -c 'printf "%s" "$1" | CLAUDE_PROJECT_DIR="$2" \
+  bash "$3/.agents/harness/handover-guard.sh" 2>&1' _ "$JSON_STOP" "$sgwork" "$ROOT")"
+expect "the boundary fires with no JOHARNESS_MODE set" \
+  "touches 1 core file(s)" "$out"
+refute "boundary fact has no mode prefix" "mode, but" "$out"
 refute "boundary fact carries no path" "touched.yml" "$out"
+
+# An exported (obsolete) JOHARNESS_MODE=supervised no longer silences it.
+out="$(printf '%s' "$JSON_STOP" | CLAUDE_PROJECT_DIR="$sgwork" \
+  JOHARNESS_MODE=supervised \
+  bash "${ROOT}/.agents/harness/handover-guard.sh" 2>&1)"
+expect "an exported JOHARNESS_MODE=supervised does not silence the boundary" \
+  "touches 1 core file(s)" "$out"
 
 # The reason string embeds in JSON unescaped, so the count must keep it
 # parseable. A path here would be repo-controlled input in that position.
@@ -160,7 +161,7 @@ fi
 # No merge-base — a shallow checkout, or a clone with no origin/<base> ref.
 # No joharness.sh here either: the fallback list again, as above, and a
 # core edit again for the same reason — .agents/harness is released.
-# Gating the whole boundary on the base was a fail-open: the one mode that
+# Gating the whole boundary on the base was a fail-open: a session that
 # needs the fact got none at all. The working-tree half still answers.
 sgnobase="${TMP}/sgnobase"
 git init -q "$sgnobase"
@@ -172,13 +173,9 @@ git -C "$sgnobase" remote add origin "$sgorigin"
 # lists both kinds, and git's pathspec has to match each.
 printf 'edit\n' >"${sgnobase}/joharness.conf"
 out="$(printf '%s' "$JSON_STOP" | CLAUDE_PROJECT_DIR="$sgnobase" \
-  JOHARNESS_MODE=unsupervised \
   bash "${ROOT}/.agents/harness/handover-guard.sh" 2>&1)"
 expect "no merge-base still names the boundary" \
   "core file(s)" "$out"
-out="$(printf '%s' "$JSON_STOP" | CLAUDE_PROJECT_DIR="$sgnobase" \
-  bash "${ROOT}/.agents/harness/handover-guard.sh" 2>&1)"
-refute "no merge-base, supervised, still says nothing" "core file(s)" "$out"
 
 # Issue #114: the boundary named .agents/harness/ alone while
 # .claude/agents/verifier.md was mandatory Loop step 5 protocol outside it,
@@ -204,7 +201,6 @@ git -C "$sgfull" push -qu origin main
 git -C "$sgfull" checkout -qb sgfullfeat
 
 guard_full() { printf '%s' "$JSON_STOP" | CLAUDE_PROJECT_DIR="$sgfull" \
-  JOHARNESS_MODE="${1:-unsupervised}" \
   bash "${ROOT}/.agents/harness/handover-guard.sh" 2>&1; }
 
 # The list itself, pinned. Iterating it (below) proves each entry is
@@ -338,8 +334,8 @@ while IFS= read -r tree; do
     *)   mkdir -p "${sgfull}/${tree}"
          printf 'protocol\n' >"${sgfull}/${tree}/thing.md" ;;
   esac
-  out="$(guard_full unsupervised)"
-  expect "unsupervised sees a crossing in ${tree}" \
+  out="$(guard_full)"
+  expect "a crossing in ${tree} is seen" \
     "touches 1 core file(s)" "$out"
   # Only meaningful once the guard actually spoke: a refute against empty
   # output passes for the wrong reason, which is exactly how the first
@@ -349,8 +345,6 @@ while IFS= read -r tree; do
   else
     fail "the ${tree} fact carries no path (guard said nothing)"
   fi
-  out="$(guard_full supervised)"
-  refute "supervised leaves ${tree} alone" "core file(s)" "$out"
   # Restore rather than rm: `rm -rf` on a FILE entry deleted the entrypoint
   # the guard reads, so every later iteration fell back to the one-tree list
   # and proved nothing about the entry it named.
@@ -399,13 +393,13 @@ if [ ! -e "${sgfull}/.github" ]; then
 else
   fail "the deleted core tree is absent from the worktree"
 fi
-out="$(guard_full unsupervised)"
+out="$(guard_full)"
 expect "deleting a protocol tree is a crossing" \
   "touches 1 core file(s)" "$out"
 # And the property that makes the net-diff reading defensible: put it back,
 # and the branch is clean again.
 git -C "$sgfull" revert --no-edit HEAD >/dev/null 2>&1
-out="$(guard_full unsupervised)"
+out="$(guard_full)"
 refute "restoring it clears the crossing" "core file(s)" "$out"
 git -C "$sgfull" checkout -q -- . 2>/dev/null || true
 git -C "$sgfull" clean -qfd
@@ -418,18 +412,11 @@ git -C "$sgfull" clean -qfd
 sgold="${TMP}/sgold"
 git init -q "$sgold"
 git -C "$sgold" symbolic-ref HEAD refs/heads/main
-# An OLDER entrypoint, not a broken one: it answers `mode` (which has always
-# existed) and does not know `protocol-paths`. The first version of this
-# fixture just exited 1, which made the guard resolve the MODE to supervised
-# too — the boundary block never ran and the case failed for the wrong
-# reason. Mode resolution goes through the entrypoint as well; a stub that
-# breaks it is not a consumer, it is a broken checkout.
+# An OLDER entrypoint, not a broken one: it does not know `protocol-paths`
+# and exits 1 on it.
 cat >"${sgold}/joharness.sh" <<'OLDEOF'
 #!/usr/bin/env bash
-case "${1:-}" in
-  mode) printf '%s\n' "${JOHARNESS_MODE:-supervised}" ;;
-  *) exit 1 ;;
-esac
+exit 1
 OLDEOF
 chmod +x "${sgold}/joharness.sh"
 printf 'code\n' >"${sgold}/code.txt"
@@ -443,7 +430,6 @@ git -C "$sgold" checkout -qb sgoldfeat
 mkdir -p "${sgold}/.github/workflows"
 printf 'gate\n' >"${sgold}/.github/workflows/ci.yml"
 out="$(printf '%s' "$JSON_STOP" | CLAUDE_PROJECT_DIR="$sgold" \
-  JOHARNESS_MODE=unsupervised \
   bash "${ROOT}/.agents/harness/handover-guard.sh" 2>&1)"; rc=$?
 expect "an entrypoint with no protocol-paths still names the boundary" \
   "touches 1 core file(s)" "$out"
@@ -465,7 +451,6 @@ rm -rf "${sgold:?}/.github"
 mkdir -p "${sgold}/.agents/harness"
 printf 'edit\n' >"${sgold}/.agents/harness/thing.sh"
 out="$(printf '%s' "$JSON_STOP" | CLAUDE_PROJECT_DIR="$sgold" \
-  JOHARNESS_MODE=unsupervised \
   bash "${ROOT}/.agents/harness/handover-guard.sh" 2>&1)"; rc=$?
 if [ "$rc" -eq 0 ]; then
   pass "the fallback runs clean on a released edit"
@@ -499,7 +484,7 @@ fi
 # 2026-10-08 this asserted the opposite — every shipped tree listed — and
 # that was right for the rule it pinned: protocol text off limits. The
 # requester released protocol text (joharness.sh:protocol_paths header), and
-# a tree listed again here is the canonical's whole queue marked SUPERVISED
+# a tree listed again here is the canonical's whole queue marked CORE
 # ONLY again, silently. .claude/settings.json is a FILE and core; it is not
 # a tree this loop visits. Canonical-only: a consumer receives these trees
 # but does not own the list.
@@ -530,7 +515,7 @@ fi
 
 git -C "$sgwork" rm -q -r .github
 commit_all "$sgwork" "revert the core edit"
-out="$(guard_unsup "$JSON_STOP")"
+out="$(guard "$JSON_STOP")"
 refute "reverted core edit clears the boundary fact" \
   "core file(s)" "$out"
 
@@ -636,7 +621,6 @@ printf -- '---\nstatus: in-progress\n---\n' >"${sgcost}/docs/handover/w.md"
 cat >"${sgcost}/joharness.sh" <<'COSTEOF'
 #!/usr/bin/env bash
 case "${1:-}" in
-  mode) printf '%s\n' "${JOHARNESS_MODE:-supervised}" ;;
   protocol-paths) printf '%s\n' ${SG_COST_PATHS:-} ;;
   *) exit 1 ;;
 esac
@@ -669,7 +653,7 @@ chmod +x "${sgbin}/git"
 sg_cost_run() {
   : >"${TMP}/sgcostcount"
   printf '%s' "$JSON_STOP" | CLAUDE_PROJECT_DIR="$sgcost" \
-    JOHARNESS_MODE="$1" SG_COST_PATHS="$2" \
+    SG_COST_PATHS="$1" \
     SG_GIT_COUNTER="${TMP}/sgcostcount" PATH="${sgbin}:${PATH}" \
     bash "${ROOT}/.agents/harness/handover-guard.sh" >"${TMP}/sgcostout" 2>&1
   # Not `grep -c`: it prints 0 AND exits non-zero on an empty file, so the
@@ -678,9 +662,9 @@ sg_cost_run() {
   wc -l <"${TMP}/sgcostcount" | tr -d ' '
 }
 
-sgcost_one="$(sg_cost_run unsupervised '.agents/harness')"
+sgcost_one="$(sg_cost_run '.agents/harness')"
 sgcost_one_out="$(cat "${TMP}/sgcostout")"
-sgcost_six="$(sg_cost_run unsupervised '.agents/harness .claude/agents .claude/commands .claude/skills joharness.sh .claude/settings.json')"
+sgcost_six="$(sg_cost_run '.agents/harness .claude/agents .claude/commands .claude/skills joharness.sh .claude/settings.json')"
 expect "the boundary block actually ran in the cost fixture" \
   "core file(s)" "$sgcost_one_out"
 if [ "${sgcost_one:-0}" -gt 0 ] && [ "$sgcost_one" = "$sgcost_six" ]; then
@@ -702,19 +686,6 @@ if [ ! -e "${sgcost}/.claude" ]; then
   pass "the cost fixture really is missing most protocol paths"
 else
   fail "the cost fixture really is missing most protocol paths"
-fi
-
-# Supervised is the strict subset: fewer git calls, same code. The perf row
-# forces unsupervised because of this — a row inheriting the repo's own conf
-# would measure the cheaper path here and the dearer one in an unsupervised
-# consumer, from identical code.
-sgcost_sup="$(sg_cost_run supervised '.agents/harness')"
-if [ "$sgcost_sup" -lt "$sgcost_one" ]; then
-  pass "the unsupervised path costs strictly more than the supervised one"
-else
-  fail "the unsupervised path costs strictly more than the supervised one"
-  printf '    supervised: %s git call(s), unsupervised: %s\n' \
-    "$sgcost_sup" "$sgcost_one"
 fi
 
 # --- background work a session leaves running --------------------------------
