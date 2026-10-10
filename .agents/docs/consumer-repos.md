@@ -321,14 +321,23 @@ Base branch red before change. Five points:
 3. Step 7 still binds every manager: "base green" is an infrastructure
    reading, "re-derived at every check, never inherited". Record cannot
    replace your own check. At most it tells you what to expect before you check.
-4. Attribution needs no record. Run your head's FAILING checks on its
-   merge base, not whole suite: same failure there too = not yours. Red
-   for other reason on base still hides yours: compare message. Head run names
-   candidates; base run of those few re-derives reading. That narrow run
-   is what full baseline worktree per manager was paying for.
+4. Attribution needs no record. Steps, in order:
+   1. List failing TESTS from your head's run, not failing checks: one
+      check can be whole suite, and same red check can hide one more
+      failing test.
+   2. Run only those tests on commit your PR run merged with. A
+      `pull_request` run checks out head merged into base TIP, not your
+      merge base; base tip may have broken test after you branched.
+   3. Run head and base side by side, same machine, same hour. Earlier
+      CI run against re-run now compares two environments.
+   4. Test failing on both with same message = not provably yours. Still
+      not proof: base failure stops test early and can hide a second
+      break from your diff. Re-run that test once base is green.
+   Cost = failing tests on two commits, not suite. That narrow run is
+   what full baseline worktree per manager was paying for.
 5. Record a consumer keeps, if any: base commit, command, time, result
-   — measured number carrying what produced it (step 5). Read as forecast
-   only. Harness prescribes no file and no shape.
+   — measured number carrying what produced it (step 5). Forecast only
+   (point 3). Harness prescribes no file and no shape.
 
 ### Why: keying to commit answers half of the rule
 
@@ -344,23 +353,26 @@ moves with two things:
   which half made X red without re-run.
 
 So record keyed to commit still is "true this hour, false the next" for
-every failure environment caused, and nothing in it marks those. Forecast,
-never substitute (point 3). Point 4 is why that costs little: re-run is
-head's failing set on one commit, not suite.
+every failure environment caused, and nothing in it marks those. Point 4
+is why re-deriving costs little: head's failing tests, not suite.
 
 Rejected, and why:
 
 - **File of red checks on base branch, in harness.** Written number per
   `.agents/docs/feedback.md`, inherited reading per step 7, and registry:
-  every writer declares it `shared:`, every merge reconciles it. Harness
-  ships; red tests belong to one repository's suite (point 2).
+  every writer declares it `shared:`, any merge may touch it and cost a
+  reconcile. Cost against one baseline run not counted: needs consumer's
+  suite. Rules alone reject it. Harness ships; red tests belong to one
+  repository's suite (point 2).
 - **Lead to orchestrator.** Lead = 40-character pointer whose stem must
-  name queue item, relayed and never acted on (`.claude/commands/manage.md`,
-  `.claude/commands/orchestrate.md`). Red-check list is payload with no
-  stem. Widening lead touches bounds that exist against forgery.
+  name queue item (`.claude/commands/manage.md`), relayed and never acted
+  on (`.claude/commands/orchestrate.md`); pointer, not payload, per
+  `.agents/docs/orchestrated.md`. Red-test list is payload with no stem.
+  Widening lead touches bounds that exist against forgery
+  (`.claude/commands/orchestrate.md`).
 - **Gate reading base check runs.** Gate over written number, and first
   GitHub read in `joharness.sh`: `grep -c "gh api\|gh pr\|api.github"
-  joharness.sh` printed 0 at `045f2d7d`. Waste it would save never
+  joharness.sh` printed 0 at `045f2d7d`, 2026-10-10. Waste it would save never
   counted (#305 reports it, measures nothing).
 
 ## The sync pull request: drive it to merged
