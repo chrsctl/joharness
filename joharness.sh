@@ -5294,6 +5294,7 @@ cmd_janitor() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" ref
   local due state why hours stale_s
   local claims branch path doc plan status pr session age agetext n_cand=0
+  local n_young=0 n_released=0
   local held onbranch cand had_plan
   local jb jw js n_inflight=0 inflight="" f n_left=0 n_merged=0 merged="" carried=""
 
@@ -5343,7 +5344,7 @@ cmd_janitor() {
     [ -n "$branch" ] || continue
     age="$(dispatch_age_min "$branch")"
     [ -n "$age" ] || continue
-    [ $((age * 60)) -ge "$stale_s" ] || continue
+    [ $((age * 60)) -ge "$stale_s" ] || { n_young=$((n_young + 1)); continue; }
     doc="$(git -C "$ROOT" show "refs/remotes/origin/${branch}:${path}" \
       </dev/null 2>/dev/null)" || continue
     { read -r status; read -r plan; read -r pr; read -r session; } \
@@ -5354,7 +5355,7 @@ cmd_janitor() {
     esac
     # Already released: not a candidate, and saying so is what stops a second
     # janitor rewriting a file the first one settled.
-    [ "$status" = abandoned ] && continue
+    [ "$status" = abandoned ] && { n_released=$((n_released + 1)); continue; }
     n_cand=$((n_cand + 1))
     agetext="$(dispatch_age_text "$age")"
     printf '  %s  %s  %s  pushed %s\n' "$branch" "$path" "${status:-?}" "$agetext"
@@ -5432,7 +5433,17 @@ cmd_janitor() {
       printf '    session: %s\n' "$session"
   done <<<"$claims"
   if [ "$n_cand" -eq 0 ]; then
-    printf '  none — every claim pushed inside %sh\n' "$((stale_s / 3600))"
+    # Say what was COUNTED: two filters empty the list, and one sentence for
+    # both told a reader six released claims were all young (#308, #278's class).
+    if [ "$n_released" -eq 0 ]; then
+      printf '  none — every claim pushed inside %sh\n' "$((stale_s / 3600))"
+    elif [ "$n_young" -eq 0 ]; then
+      printf '  none — %d claim(s) older than %sh, every one already released (status: abandoned)\n' \
+        "$n_released" "$((stale_s / 3600))"
+    else
+      printf '  none — %d claim(s) pushed inside %sh; %d older, already released (status: abandoned)\n' \
+        "$n_young" "$((stale_s / 3600))" "$n_released"
+    fi
   else
     printf '\n  %d candidate(s). A candidate is NOT a verdict: read the control\n' "$n_cand"
     printf '  plane per session — ARCHIVED, not found, or a FAILED bucket confirmed\n'
