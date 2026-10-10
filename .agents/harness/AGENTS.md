@@ -50,8 +50,8 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    `./joharness.sh dispatch` and spawns (`/orchestrate`,
    [`.agents/docs/orchestrated.md`](../../.agents/docs/orchestrated.md)).
    Prompt named `/manage <item>`? That is your answer already. Otherwise
-   `/start` names the file. No commit to a core path
-   (`./joharness.sh protocol-paths`).
+   `/start` names the file. Boundary:
+   no commit to a core path (`./joharness.sh protocol-paths`).
    Claims outlived their sessions? `drain` says `janitor : DUE` — same shape,
    same rank: `/janitor` releases what it can prove gone and deletes nothing.
    Queue moved under its own declarations? `drain` says `curate : DUE` and
