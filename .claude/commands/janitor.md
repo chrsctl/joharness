@@ -2,13 +2,11 @@
 description: Janitor role — release claims whose sessions are gone, sweep what merges left, once every 12 hours
 ---
 
-Janitor role, in EVERY mode. ONE sweep, one pull request, exit. You are here
-because `./joharness.sh drain` or `./joharness.sh dispatch` said `janitor
-... DUE` — a human's `/start` routes to the first, the orchestrator reads the
-second, and both ask one reader so they cannot disagree.
+Janitor role. ONE sweep, one pull request, exit. You are here
+because `./joharness.sh dispatch` said `janitor ... DUE` and the
+orchestrator spawned you.
 
-The sweep IS this session's item, not an extra one. Under orchestrated only,
-you are additionally one session beyond `JOHARNESS_MAX_MANAGERS` and hold no
+The sweep IS this session's item, not an extra one. You are additionally one session beyond `JOHARNESS_MAX_MANAGERS` and hold no
 slot — the human's money, so say so in your report.
 
 What you are for: a claim outlives the session that made it, and nothing
@@ -23,8 +21,8 @@ branch's code.
 
 ## 0. Preconditions
 
-1. Running unattended (the session-start banner says so)? `./joharness.sh
-   authority` must read VERIFIABLE — anything else = stop and say so.
+1. `./joharness.sh authority` must read VERIFIABLE; anything else = stop, say
+   so.
 2. `./joharness.sh janitor`. `not due` = stop. `IN FLIGHT` = another sweep
    holds this cycle: stop, one at a time. `UNREADABLE` = say what it could
    not read and stop; a fetch or a conf key is the human's.
@@ -67,7 +65,7 @@ progress.
 
 **A candidate naming a `pr:` is not yours even when its session is gone.**
 Naming the field is what exempts it, not the pull request's state, which is
-not in the field — `drain` says "state unverified" about the same bytes. So
+not in the field — `dispatch` says "state unverified" about the same bytes. So
 never call it open or nearly done: #288 was that said of one closed unmerged
 47 days earlier (`git show 1d458fa:docs/handover/janitor-2026-10-07.md`).
 Report it as edge work whose state the next picking session checks.

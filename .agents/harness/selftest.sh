@@ -29,20 +29,14 @@ export GIT_COMMITTER_NAME=selftest GIT_COMMITTER_EMAIL=selftest@invalid
 # number nobody re-counts is a written number.
 unset CLAUDE_PROJECT_DIR
 
-# The same hole, one knob over. JOHARNESS_MODE steers the autonomy cases
-# the way CLAUDE_PROJECT_DIR steers the fixture path, and it is a documented
-# knob a session has reason to export — it is in joharness.conf and in the
-# entrypoint's own help. JOHARNESS_RUN_MODE joined it for the same reason.
-# No counts written here: they change with every case added, and shipped
-# stale inside the very commit that staled them, twice. Re-count instead,
-# whenever the claim matters:
-#   cp selftest.sh /tmp/leak.sh
-#   # cut JOHARNESS_RUN_MODE from the unset line below in the copy
-#   JOHARNESS_RUN_MODE=unsupervised bash /tmp/leak.sh | tail -1   # leaks
-#   JOHARNESS_RUN_MODE=unsupervised bash selftest.sh   | tail -1   # does not
-# The first fails; the second does not. The hook cases below invoke the hook
-# bare on purpose, to prove what an exporting-nothing client gets.
-unset JOHARNESS_MODE JOHARNESS_RUN_MODE
+# The same hole, one knob over. JOHARNESS_MODE is an obsolete key, and the
+# cases that pin its warning assert what an ABSENT value prints — an exported
+# one in the invoking shell would turn every session-start and start in this
+# suite into the warning's case. A session has reason to export it: older
+# copies of the harness documented it. Re-count instead of trusting this:
+#   JOHARNESS_MODE=supervised bash selftest.sh | tail -1   # still green
+# and fails with the unset below cut from a copy.
+unset JOHARNESS_MODE
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 
 # Knobs exported in the invoking shell must not steer the fixtures; per-call
@@ -556,7 +550,7 @@ SELFTEST_TOPICS=(
   queue-context-research-nodes
   queue-context-scope-waves
   queue-context-edge
-  queue-context-supervised-only
+  queue-context-core-only
   queue-context-fanout
   graph
   session-start
@@ -571,7 +565,6 @@ SELFTEST_TOPICS=(
   feedback
   feedback-recurrence
   cleanup
-  drain
   orchestrated
   dispatch
   analysis

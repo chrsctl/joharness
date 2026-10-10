@@ -6,8 +6,8 @@
 #
 # The scout cycle (.agents/docs/orchestrated.md, Bounds): when a scout is due, which one
 # is in flight, and the two places the cycle differs from the janitor one it
-# copies. It fires only at DRAINED, so `drain` and `dispatch` print the block
-# and the spawn line under that verdict and nowhere else. And a proposal the
+# copies. It fires only at DRAINED, so `dispatch` prints the spawn line under that
+# verdict and nowhere else. And a proposal the
 # human CLOSED leaves nothing on the base branch, so the closed branch itself
 # must date the cycle — in the shape a real scout leaves it: Loop step 7
 # retires the workstream file BEFORE the pull request opens, so the tip of an
@@ -37,7 +37,7 @@ cp "${ROOT}/.agents/harness/queue-context.sh" \
 printf '# none\n' >"${scout_work}/.agents/env/none/AGENTS.md"
 printf 'code\n' >"${scout_work}/code.txt"
 scout_conf="${scout_work}/joharness.conf"
-printf 'JOHARNESS_ENV=none\nJOHARNESS_MODE=orchestrated\n' >"$scout_conf"
+printf 'JOHARNESS_ENV=none\n' >"$scout_conf"
 
 # <message> [<date>] — no date = the real clock.
 scommit() {
@@ -68,8 +68,6 @@ sct() { ( cd "$scout_work" && env JOHARNESS_CONF="$scout_conf" "$@" ./joharness.
 # its own below.
 sdsp() { ( cd "$scout_work" && env JOHARNESS_CONF="$scout_conf" DISPATCH_FETCH=1 \
   JOHARNESS_CURATE_HOURS=0 JOHARNESS_JANITOR_HOURS=0 "$@" ./joharness.sh dispatch 2>&1 ); }
-sdrn() { ( cd "$scout_work" && env JOHARNESS_CONF="$scout_conf" DRAIN_FETCH=0 \
-  JOHARNESS_CURATE_HOURS=0 JOHARNESS_JANITOR_HOURS=0 "$@" ./joharness.sh drain 2>&1 ); }
 
 # --- no command, no cycle ----------------------------------------------------
 out="$(sct)"
@@ -347,10 +345,6 @@ printf -- '---\nplan: free-one\nurgency: normal\nagent: sonnet\neffort: high\n--
 scommit "a free plan" '2026-03-05T00:00:00Z'
 git -C "$scout_work" push -q origin main
 
-out="$(sdrn)"
-expect "with a free plan, drain says the scout waits" \
-  "scout     : due, suppressed — not DRAINED" "$out"
-refute "and prints no scout block" "scout     : DUE" "$out"
 out="$(sdsp)"
 expect "dispatch reads the clock as due" "scout     : DUE by the clock" "$out"
 refute "with a free plan dispatch spawns no scout" "scout DUE: spawn" "$out"
@@ -359,28 +353,15 @@ expect "and says why" "scout due, suppressed — not DRAINED" "$out"
 git -C "$scout_work" rm -q docs/plans/free-one.md
 scommit "queue empty" '2026-03-06T00:00:00Z'
 git -C "$scout_work" push -q origin main
-out="$(sdrn)"
-expect "at DRAINED drain prints the scout block" "scout     : DUE" "$out"
-expect "and under orchestrated it is the orchestrator's" \
-  "The ORCHESTRATOR's to spawn" "$out"
-expect "and it says why a scout is not invented work" "PROPOSES" "$out"
-refute "and not the suppressed line" "due, suppressed" "$out"
-out="$(sdrn JOHARNESS_MODE=supervised)"
-expect "supervised, it is the human's to start, named when you ask" \
-  "Not yours to start: name it to the human" "$out"
-out="$(sdrn JOHARNESS_MODE=unsupervised)"
-expect "unsupervised, the session exits and takes no scout" \
-  "Not yours: exit as above" "$out"
-out="$(sdrn JOHARNESS_MODE=supervised JOHARNESS_CURATE_HOURS=1)"
-expect "a curate due and unclaimed comes first" \
-  "scout     : due, suppressed — edge work, a curate or a janitor above comes first" "$out"
-refute "and the scout is not named beside it" "name it to the human" "$out"
 out="$(sdsp JOHARNESS_CURATE_HOURS=1)"
 refute "dispatch spawns no scout in a pass that spawns a curator" "scout DUE: spawn" "$out"
 expect "and says the curate goes first" "a curate or janitor goes first" "$out"
 out="$(sdsp)"
 expect "at DRAINED dispatch prints the spawn line" \
   "scout DUE: spawn ONE scout (agent: fable) on /scout" "$out"
+expect "and says a scout proposes rather than invents work" \
+  "It proposes; a human merges" "$out"
+refute "and not the suppressed line" "scout due, suppressed" "$out"
 out="$(sdsp DISPATCH_FETCH=0)"
 refute "with no fetch at all no scout spawns" "scout DUE: spawn" "$out"
 expect "and it says the view is not fresh" "no fresh view of every branch" "$out"
@@ -415,10 +396,11 @@ expect "the janitor reads in flight" "janitor   : IN FLIGHT" "$out"
 refute "and no scout spawns beside it" "scout DUE: spawn" "$out"
 git -C "$scout_work" push -q origin --delete janitor-run
 git -C "$scout_work" branch -q -D janitor-run
-out="$(sdrn JOHARNESS_SCOUT_HOURS=0)"
-refute "switched off, drain prints nothing of it" "scout     :" "$out"
+out="$(sdsp JOHARNESS_SCOUT_HOURS=0)"
+refute "switched off, dispatch spawns no scout" "scout DUE: spawn" "$out"
+refute "and prints no due line for it" "scout     : DUE" "$out"
 
-# Edge work in flight outranks starting anything, a scout included.
+# Edge work in flight, left for the cases below that read the branch list.
 git -C "$scout_work" checkout -qb edge-x main
 mkdir -p "${scout_work}/docs/handover"
 printf -- '---\nworkstream: edge-x\nstatus: review\nbranch: edge-x\npr: 12\nplan: none\nagent: sonnet\n---\n\n## Goal\nFixture.\n' \
@@ -426,10 +408,6 @@ printf -- '---\nworkstream: edge-x\nstatus: review\nbranch: edge-x\npr: 12\nplan
 scommit "edge work"
 git -C "$scout_work" push -qu origin edge-x
 git -C "$scout_work" checkout -q main
-out="$(sdrn JOHARNESS_MODE=supervised)"
-expect "with edge work in flight drain names it" "edge work in flight" "$out"
-refute "and does not name the scout" "name it to the human" "$out"
-
 # A branch NAMED like the cycle is not a scout: frontmatter decides, and the
 # branch building this cycle owns `scout-cycle.md` with a real plan.
 git -C "$scout_work" checkout -qb build-scout main

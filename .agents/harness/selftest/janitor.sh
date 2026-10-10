@@ -35,7 +35,7 @@ cp "${ROOT}/.agents/harness/queue-context.sh" \
 printf '# none\n' >"${jwork}/.agents/env/none/AGENTS.md"
 printf 'code\n' >"${jwork}/code.txt"
 jconf="${jwork}/joharness.conf"
-printf 'JOHARNESS_ENV=none\nJOHARNESS_MODE=orchestrated\n' >"$jconf"
+printf 'JOHARNESS_ENV=none\n' >"$jconf"
 
 jcommit() {
   git -C "$jwork" add -A
@@ -52,7 +52,7 @@ git -C "$jwork" remote add origin "$jorigin"
 git -C "$jwork" push -qu origin main
 
 jan() { ( cd "$jwork" && env JOHARNESS_CONF="$jconf" "$@" ./joharness.sh janitor 2>&1 ); }
-jdsp() { ( cd "$jwork" && env JOHARNESS_CONF="$jconf" DISPATCH_FETCH=0 DRAIN_FETCH=0 \
+jdsp() { ( cd "$jwork" && env JOHARNESS_CONF="$jconf" DISPATCH_FETCH=0 \
   "$@" ./joharness.sh dispatch 2>&1 ); }
 # shellcheck disable=SC2120  # knob overrides are passed by later cases
 jqueue() { ( cd "$jwork" && env JOHARNESS_CONF="$jconf" \
@@ -194,6 +194,26 @@ expect "so the plan is free again" "docs/plans/parked.md" "$out"
 out="$(jan)"
 refute "and it is no longer a candidate for a second sweep" \
   "mgr-parked  docs/handover/parked.md" "$out"
+
+# Every claim past the window released: the list is empty because of the
+# `abandoned` skip, not the age gate, and the line must say so (#308).
+git -C "$jwork" checkout -q mgr-ownplan
+printf -- '---\nworkstream: ownplan\nstatus: abandoned\nbranch: mgr-ownplan\nplan: ownplan\npr: none\nsession: https://example.invalid/session_ownplan\nagent: sonnet\nupdated: 2026-02-01\nnext: Released\n---\n\n## Goal\nFixture.\n' \
+  >"${jwork}/docs/handover/ownplan.md"
+jcommit "release ownplan too" '2026-02-01T00:00:00Z'
+git -C "$jwork" push -q origin mgr-ownplan
+git -C "$jwork" checkout -q main
+out="$(jan)"
+expect "an empty list says the claims were released" \
+  "every one already released" "$out"
+refute "and never that they were all young" "every claim pushed inside" "$out"
+# Mixed: a window between the two release dates leaves one claim young.
+mid=$(( $(date +%s) - $(date -d 2026-01-15 +%s) ))
+out="$(jan HANDOVER_STALE_SECONDS="$mid")"
+expect "young and released claims are both counted" \
+  "1 claim(s) pushed inside" "$out"
+expect "and the released ones are named as such" \
+  "1 older, already released (status: abandoned)" "$out"
 
 # A released claim will never push again, so a stall mark on it is a clock
 # nobody is watching — and an analyst spawned for it would have nothing to

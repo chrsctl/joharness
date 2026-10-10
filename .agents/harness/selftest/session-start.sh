@@ -29,7 +29,8 @@ cp "${ROOT}/.agents/harness/handover-context.sh" "${ROOT}/.agents/harness/queue-
   "${work}/.agents/harness/"
 
 # The hook must never fail a session, and with no environment layer present it still
-# has to produce the handover and queue sections.
+# has to produce the handover section. The queue is NOT printed here: the
+# orchestrator reads `dispatch`, a manager reads its one item.
 out="$(CLAUDE_PROJECT_DIR="$work" JOHARNESS_CONF="${work}/joharness.conf" \
   HANDOVER_FETCH=0 "${ROOT}/joharness.sh" session-start 2>/dev/null)"
 rc=$?
@@ -39,7 +40,8 @@ else
   fail "session-start exits 0 (got ${rc})"
 fi
 expect "session-start prints handover state" "Handover state" "$out"
-expect "session-start prints queue" "== Queue" "$out"
+refute "session-start never prints the queue" "== Queue" "$out"
+expect "session-start prints the orchestrated banner" "== Mode: orchestrated ==" "$out"
 
 # Compaction is the one start the session did not choose, and the client
 # reports it through the hook payload's `source`. The lead line has to fire
