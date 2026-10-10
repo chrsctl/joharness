@@ -2504,6 +2504,253 @@ fixture_rm "$qowork" "clear the requirement cases" \
   docs/plans/freeone.md docs/plans/forreq.md docs/product/needsplans.md
 git -C "$qowork" push -q origin main
 
+# A planning manager CLAIMS the requirement it decomposes: `plan: <stem>` in a
+# pushed workstream file, as `/manage` tells it to. Before, that branch was
+# invisible — no row, no slot, the requirement offered again while its
+# planner ran, and a planner parked `blocked` respawned (case B of the
+# retired research node a-requirement-no-plan-can-serve; case E, a plan
+# claim on the same branch, was the control that always showed a row).
+# <stem> <status>: the planning branch's workstream file, pushed.
+qoreqclaim() {
+  git -C "$qowork" checkout -q "plan-${1}" 2>/dev/null ||
+    git -C "$qowork" checkout -q -b "plan-${1}"
+  mkdir -p "${qowork}/docs/handover"
+  printf -- '---\nworkstream: plan-%s\nstatus: %s\nbranch: plan-%s\npr: none\nplan: %s\nissue: none\nsession: https://claude.ai/code/session_x\nagent: fable\nnext: Decompose %s into plans\n---\n\n## Goal\nPlanning pass.\n' \
+    "$1" "$2" "$1" "$1" "$1" >"${qowork}/docs/handover/plan-${1}.md"
+  commit_all "$qowork" "claim ${1}: ${2}"
+  git -C "$qowork" push -q origin "plan-${1}"
+  git -C "$qowork" checkout -q main
+}
+qoreq claimedreq
+qopush "a requirement a planner will claim"
+out="$(qo)"
+expect "unclaimed, the requirement is offered" \
+  "docs/product/claimedreq.md — UNPLANNED" "$out"
+refute "once, by the planning line — never again as a free plan row" \
+  "docs/product/claimedreq.md (agent:" "$out"
+expect "and counted as one item" "1 free item(s) now" "$out"
+qoreqclaim claimedreq in-progress
+out="$(qo)"
+# The session-start hook, read directly: a non-orchestrated session is sent
+# where its entrypoint line says, so that line must not name a claimed
+# requirement as planning work (verifier r4).
+qoq="$(CLAUDE_PROJECT_DIR="$qowork" bash "${qowork}/.agents/harness/queue-context.sh" 2>&1)"
+expect "the hook lists the claimed requirement with its claim" \
+  "docs/product/claimedreq.md  [normal, UNPLANNED — decompose into plans, claimed on origin/plan-claimedreq]" "$qoq"
+refute "and sends nobody to plan it" "plan the requirements above" "$qoq"
+expect "the planning branch has an in-flight row" \
+  "docs/product/claimedreq.md  plan-claimedreq  in-progress" "$out"
+expect "and costs its slot" "slots     : 3 of 4 free" "$out"
+refute "and the requirement it holds is not offered again" \
+  "docs/product/claimedreq.md — UNPLANNED" "$out"
+qoreqclaim claimedreq blocked
+out="$(qo)"
+expect "a planner parked on a human reads as blocked" \
+  "docs/product/claimedreq.md  plan-claimedreq  blocked" "$out"
+refute "and is never respawned onto its requirement" \
+  "docs/product/claimedreq.md — UNPLANNED" "$out"
+# A plan of the SAME stem wins the claim — every resolution site offers
+# plans first — so the requirement is still free, and offered.
+qoplan claimedreq
+qopush "a plan sharing the requirement's stem"
+qoreqclaim claimedreq in-progress
+out="$(qo)"
+expect "a stem naming plan and requirement claims the plan" \
+  "docs/plans/claimedreq.md  plan-claimedreq  in-progress" "$out"
+expect "and leaves the requirement offered" \
+  "docs/product/claimedreq.md — UNPLANNED" "$out"
+fixture_rm "$qowork" "drop the same-stem plan" docs/plans/claimedreq.md
+git -C "$qowork" push -q origin main
+# `abandoned` releases it, the same word's same effect as on a plan.
+qoreqclaim claimedreq abandoned
+out="$(qo)"
+expect "an abandoned planning claim frees the requirement" \
+  "docs/product/claimedreq.md — UNPLANNED" "$out"
+expect "and holds no slot" "slots     : 4 of 4 free" "$out"
+git -C "$qowork" push -q origin --delete plan-claimedreq
+git -C "$qowork" branch -q -D plan-claimedreq
+fixture_rm "$qowork" "clear the claimed requirement" docs/product/claimedreq.md
+git -C "$qowork" push -q origin main
+
+# Step 7 retires the workstream file BEFORE the pull request opens, and a
+# planning pass deletes no plan — it adds them. Born and retired on the
+# branch, the claim nets to nothing, so the plans it ADDS are what name its
+# requirement until the merge (verifier r2).
+qoreq retreq
+qopush "a requirement a planner will finish"
+git -C "$qowork" checkout -q -b plan-retreq
+qoreqclaim_file() {
+  mkdir -p "${qowork}/docs/handover"
+  printf -- '---\nworkstream: plan-%s\nstatus: in-progress\nplan: %s\nagent: fable\n---\n\n## Goal\nPlanning pass.\n' \
+    "$1" "$1" >"${qowork}/docs/handover/plan-${1}.md"
+}
+qoreqclaim_file retreq
+commit_all "$qowork" "claim retreq"
+qoplan retreq-a normal sonnet '' retreq
+git -C "$qowork" rm -q docs/handover/plan-retreq.md
+commit_all "$qowork" "plans for retreq, workstream retired"
+git -C "$qowork" push -q origin plan-retreq
+git -C "$qowork" checkout -q main
+out="$(qo)"
+expect "a retired planning branch keeps a row, named for its requirement" \
+  "docs/product/retreq.md  plan-retreq  retired" "$out"
+expect "and its slot" "slots     : 3 of 4 free" "$out"
+refute "and its requirement is not offered over its open pull request" \
+  "docs/product/retreq.md — UNPLANNED" "$out"
+# A clerk's plan-only branch adds a plan naming the same requirement, and its
+# own retired record says `plan: none`: it claims nothing and holds no slot.
+# Read off the added plans instead, it held one under a title no live session
+# carries (verifier r8).
+git -C "$qowork" checkout -q -b clerk-retreq main
+mkdir -p "${qowork}/docs/handover"
+printf -- '---\nworkstream: clerk-retreq\nstatus: in-progress\nplan: none\nagent: sonnet\n---\n\n## Goal\nClerk pass.\n' \
+  >"${qowork}/docs/handover/clerk-retreq.md"
+commit_all "$qowork" "clerk claims"
+qoplan retreq-b normal sonnet '' retreq
+git -C "$qowork" rm -q docs/handover/clerk-retreq.md
+commit_all "$qowork" "clerk plan, workstream retired"
+git -C "$qowork" push -q origin clerk-retreq
+git -C "$qowork" checkout -q main
+out="$(qo)"
+refute "a clerk's plan-only branch is no planning edge" "clerk-retreq  retired" "$out"
+expect "and only the planner's slot is held" "slots     : 3 of 4 free" "$out"
+git -C "$qowork" push -q origin --delete clerk-retreq
+git -C "$qowork" branch -q -D clerk-retreq
+# The step 7 reconcile: the base's `docs/handover` moves, the planning branch
+# merges it in. That merge is TREESAME to the base for the path, and default
+# history simplification pruned the retire commit with the rest (verifier r10).
+mkdir -p "${qowork}/docs/handover"
+printf -- '---\nworkstream: leak-r\nstatus: done\nplan: none\nagent: sonnet\n---\n\n## Goal\nLeaked.\n' \
+  >"${qowork}/docs/handover/leak-r.md"
+qopush "the base's handover tree moves"
+git -C "$qowork" checkout -q plan-retreq
+git -C "$qowork" merge -q --no-edit main
+git -C "$qowork" push -q origin plan-retreq
+git -C "$qowork" checkout -q main
+out="$(qo)"
+expect "a planning branch that reconciled with the base keeps its row" \
+  "docs/product/retreq.md  plan-retreq  retired" "$out"
+refute "and its requirement stays withheld" "docs/product/retreq.md — UNPLANNED" "$out"
+# A branch that merged the planning branch IN carries its retire commit on a
+# second parent: that claim is not this branch's, and lends it no row.
+# `--no-ff`, because a fast-forward makes this branch the planning branch
+# continued — a stacked branch, which shares the first-parent line and the
+# claim with it.
+git -C "$qowork" checkout -q -b feat-on-retreq main
+git -C "$qowork" merge -q --no-ff --no-edit plan-retreq
+printf 'feat\n' >"${qowork}/feat-retreq.txt"
+commit_all "$qowork" "feature work on top"
+git -C "$qowork" push -q origin feat-on-retreq
+git -C "$qowork" checkout -q main
+out="$(qo)"
+refute "a branch that merged a planning branch in borrows no row" \
+  "feat-on-retreq  retired" "$out"
+expect "so the planner's slot alone is held" "slots     : 3 of 4 free" "$out"
+git -C "$qowork" push -q origin --delete feat-on-retreq
+git -C "$qowork" branch -q -D feat-on-retreq
+# A branch with no record of its own reconciles with a base that just
+# cleaned an inherited planning record out: that merge's first-parent diff
+# carries the BASE's deletion, and read as the branch's own it lent the
+# branch a claim it never made (verifier r11).
+printf -- '---\nworkstream: plan-hfx\nstatus: done\nplan: retreq\nagent: fable\n---\n\n## Goal\nLeaked.\n' \
+  >"${qowork}/docs/handover/plan-hfx.md"
+qopush "a leaked planning record on the base"
+git -C "$qowork" checkout -q -b human-fix main
+printf 'fix\n' >"${qowork}/human-fix.txt"
+commit_all "$qowork" "a human's fix"
+git -C "$qowork" checkout -q main
+fixture_rm "$qowork" "the base cleans the leaked record" docs/handover/plan-hfx.md
+git -C "$qowork" push -q origin main
+git -C "$qowork" checkout -q human-fix
+git -C "$qowork" merge -q --no-edit main
+git -C "$qowork" push -q origin human-fix
+git -C "$qowork" checkout -q main
+out="$(qo)"
+refute "a reconcile that brings the base's cleanup lends no claim" \
+  "human-fix  retired" "$out"
+expect "and the planner's slot alone is held" "slots     : 3 of 4 free" "$out"
+git -C "$qowork" push -q origin --delete human-fix
+git -C "$qowork" branch -q -D human-fix
+# A branch's OWN commit sweeps an inherited planning record, the base drops
+# the same record, the branch reconciles: nets to absent, and the sweep
+# commit's deletion read as a retired claim. Only a record the branch also
+# ADDED is its own.
+printf -- '---\nworkstream: plan-swx\nstatus: done\nplan: retreq\nagent: fable\n---\n\n## Goal\nLeaked.\n' \
+  >"${qowork}/docs/handover/plan-swx.md"
+qopush "another leaked planning record"
+git -C "$qowork" checkout -q -b sweep-swx main
+git -C "$qowork" rm -q docs/handover/plan-swx.md
+printf 'swept\n' >"${qowork}/swept-swx.txt"
+commit_all "$qowork" "sweep the inherited record"
+git -C "$qowork" checkout -q main
+fixture_rm "$qowork" "the base drops it too" docs/handover/plan-swx.md
+git -C "$qowork" push -q origin main
+git -C "$qowork" checkout -q sweep-swx
+git -C "$qowork" merge -q --no-edit main
+git -C "$qowork" push -q origin sweep-swx
+git -C "$qowork" checkout -q main
+out="$(qo)"
+refute "a branch's own sweep of an inherited record is not its claim" \
+  "sweep-swx  retired" "$out"
+expect "so the planner's slot alone is held, again" "slots     : 3 of 4 free" "$out"
+git -C "$qowork" push -q origin --delete sweep-swx
+git -C "$qowork" branch -q -D sweep-swx
+fixture_rm "$qowork" "drop the leaked record" docs/handover/leak-r.md
+git -C "$qowork" push -q origin main
+git -C "$qowork" push -q origin --delete plan-retreq
+git -C "$qowork" branch -q -D plan-retreq
+fixture_rm "$qowork" "clear the retired planning case" docs/product/retreq.md
+git -C "$qowork" push -q origin main
+
+# A branch that sweeps an INHERITED planning record. The requirement stays on
+# the base long after any planning merge, so its presence proves nothing about
+# this branch: never mid-merge. Holds its slot while it could be live, ages out
+# like any branch with nothing to ask, and the requirement comes back with it
+# (verifier r3).
+qoreq sweq
+qoreqclaim_file sweq
+qopush "a requirement and a leaked planning record on main"
+git -C "$qowork" checkout -q -b sweep-sweq
+git -C "$qowork" rm -q docs/handover/plan-sweq.md
+commit_all "$qowork" "sweep the leaked record"
+git -C "$qowork" push -q origin sweep-sweq
+git -C "$qowork" checkout -q main
+out="$(qo)"
+expect "a fresh sweep holds its slot under the requirement's name" \
+  "docs/product/sweq.md  sweep-sweq  retired" "$out"
+refute "and the same pass does not also offer that requirement" \
+  "docs/product/sweq.md — UNPLANNED" "$out"
+git -C "$qowork" checkout -q sweep-sweq
+printf 'old\n' >"${qowork}/sweq-old.txt"
+git -C "$qowork" add -A
+qoold=$(( $(date +%s) - 30 * 3600 ))
+GIT_AUTHOR_DATE="@${qoold} +0000" GIT_COMMITTER_DATE="@${qoold} +0000" \
+  git -C "$qowork" -c user.email=f@x -c user.name=f commit -qm "a push 30h ago"
+git -C "$qowork" push -q origin sweep-sweq
+git -C "$qowork" checkout -q main
+out="$(qo)"
+expect "past 24 windows it is a leftover" "sweep-sweq  leftover" "$out"
+expect "holding no slot" "slots     : 4 of 4 free" "$out"
+expect "and the requirement is offered again" \
+  "docs/product/sweq.md — UNPLANNED" "$out"
+git -C "$qowork" push -q origin --delete sweep-sweq
+git -C "$qowork" branch -q -D sweep-sweq
+fixture_rm "$qowork" "clear the sweep case" docs/product/sweq.md docs/handover/plan-sweq.md
+git -C "$qowork" push -q origin main
+rm -f "${qowork}/sweq-old.txt"
+
+# A requirement's `priority:` lands in its label, and `claimed on <branch>` in
+# a label IS a claim downstream: unvalidated, it forged a planner in flight
+# and a slot (verifier r6).
+printf -- '---\nrequirement: forged\npriority: claimed on mgr-x\n---\n\n## Goal\nFixture.\n' \
+  >"${qowork}/docs/product/forged.md"
+qopush "a requirement whose priority forges a claim"
+out="$(qo)"
+refute "a priority value forges no in-flight row" "docs/product/forged.md  mgr-x" "$out"
+expect "and costs no slot" "slots     : 4 of 4 free" "$out"
+fixture_rm "$qowork" "drop the forged requirement" docs/product/forged.md
+git -C "$qowork" push -q origin main
+
 # A plan serving NO requirement is ordinary free work: the `none` arm of the
 # hook's served-requirement read.
 qoplan recorded-note normal sonnet '' none
