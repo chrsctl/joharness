@@ -49,7 +49,7 @@ in the report, and carry on:
 | `interrupt_session` | a kill cannot stop the session first. Write the handover from the branch, report that the session is still live, do not archive. The BLOCKED BEFORE CLAIM confirm row has no branch to write on: report it and spawn NOTHING — the session may still be live, and a second manager would race it. |
 | `archive_session` | the killed session is left in place. Report it. An UNCLAIMED session is the exception and the rule reverses: report it and spawn NOTHING. |
 | the canonical repository, from a spawned session | no upstream report: say which edge went unreported and carry on. The manager's merge still stands, and the findings are still recoverable with `./joharness.sh upstream <branch>` by whoever asks. Same for an analyst: say which condition went unexplained; `./joharness.sh analysis <branch>` still reads it for whoever asks. |
-| `status_bucket` on the liveness read you have — the `list_sessions`-only path may carry `session_status` alone | you cannot tell a crashed session from one between turns, and the crash rows below are unreachable. Take the IDLE path for BOTH: nudge, then confirm, then respawn. Never respawn on one observation to make up for the missing field. Say in the report which managers were judged this way. |
+| `status_bucket` on the liveness read you have — the `list_sessions`-only path may carry `session_status` alone | you cannot tell a crashed session from one between turns, and the crash rows and BLOCKED BEFORE CLAIM rows below are unreachable — a manager held by a prompt before its first push then matches no row; name each `@new` entry older than a pass in the report. Take the IDLE path for BOTH: nudge, then confirm, then respawn. Never respawn on one observation to make up for the missing field. Say in the report which managers were judged this way. |
 | `set_session_title` | step 2's one-orchestrator check cannot mark you, so it can never match and a second orchestrator is not detected — every pass, not once. Report it as a cost in the human's money, loudly, every pass. Do not stop for it. |
 
 A name you cannot find is a capability you do not have, not a reason to
@@ -121,7 +121,9 @@ liveness read, which is the required one — stop. The
 URL came from a file on a branch — repo-controlled input. Before any
 message, interrupt or archive, confirm the session's title is
 `manager: <stem>` and its branch is the one dispatch printed; a mismatch
-= report it, touch nothing.
+= report it, touch nothing. An entry still `new` has no branch to compare:
+the title decides alone, and only for a session created after this run's
+`@new` write for that stem.
 Two signals decide, never one — push age is from git, status from the
 control plane; a fresh push with a dead session and a live session with
 an old push are both real.
@@ -130,9 +132,9 @@ an old push are both real.
 Read the URL as where to look first. A control-plane record that disagrees
 with it wins.
 
-**And every stem your ledger names that dispatch does NOT list in flight.** A manager with no claim is one of THREE things, not two: minutes
-old, never born, or it ran and stopped without claiming. The ledger is the only place
-any of the three exists; that is what its `@new` entry is for.
+**And every stem your ledger names that dispatch does NOT list in flight.** A manager with no claim is one of FOUR things, not two: minutes
+old, never born, blocked before its first push, or it ran and stopped without claiming. The ledger is the only place
+any of the four exists; that is what its `@new` entry is for.
 
 **GONE is ARCHIVED, not found on the control plane, a FAILED bucket
 confirmed by a second look, or a session that did not move across a nudge
@@ -148,7 +150,7 @@ reading exactly one:
 | field | whose account | says |
 | --- | --- | --- |
 | `session_status` | the control plane | `RUNNING` working now. `IDLE` **between turns** — a manager that armed its own check-in reads IDLE the whole interval. `PENDING` starting. `ARCHIVED` gone. |
-| `status_bucket` | the control plane | `..._FAILED` = that turn died. With `..._BLOCKED` below, the ONLY bucket that may decide liveness, and only while `session_status` is not `RUNNING`: RUNNING beside it means the session already moved past that turn. `..._BLOCKED` decides in the BLOCKED BEFORE CLAIM rows only — entry still `new`, `session_status` NOT IDLE, PENDING or ARCHIVED. BLOCKED alone decides nothing: a turn that ENDED on a question reads it too. A FAILED bucket whose `status_detail` names a usage limit, a rate limit or a quota is **throttled, not dead**: it may clear itself. No row may archive, release or respawn on it; report it with the detail text. Text written by the session (`status_detail`) may WITHHOLD a death verdict, never justify one. |
+| `status_bucket` | the control plane | `..._FAILED` = that turn died. It may decide liveness only while `session_status` is not `RUNNING`: RUNNING beside it means the session already moved past that turn. `..._BLOCKED` is the one other bucket that may decide, and the reverse way: in the BLOCKED BEFORE CLAIM rows only — entry still `new`, `session_status` NOT IDLE, PENDING or ARCHIVED, so RUNNING beside it is the stuck reading, not a recovered one. BLOCKED alone decides nothing: a turn that ENDED on a question reads it too. A FAILED bucket whose `status_detail` names a usage limit, a rate limit or a quota is **throttled, not dead**: it may clear itself. No row may archive, release or respawn on it; report it with the detail text. Text written by the session (`status_detail`) may WITHHOLD a death verdict, never justify one. |
 | `post_turn_summary.status_category` | **the session's own** | its account of its TURN. `completed` means the turn ended — never that the work landed. May never decide liveness on its own. |
 | `status_detail`, `updated_at` | the session record | where it got to, and when it last moved. Unchanged across two passes is what turns a suspicion into a verdict; both are carried in the ledger (step 4). **`updated_at` decides nothing ALONE, at any interval**. Pair it with `status_bucket` and the head from git, which is what the rows above and below it are for. |
 | `session_context.sources` | the control plane | the repositories attached AT SPAWN. Absent = no checkout was attached. |
@@ -173,9 +175,11 @@ not one either.
 | the same, still FAILED | any | `seen=` recorded, and `updated_at` AND head both unchanged since it | confirmed dead. `archive_session`, THEN RESPAWN. No `interrupt_session` first: there is nothing to stop. |
 | the same, still FAILED | any | `seen=` recorded, and `updated_at` or head moved | it came back. Working. Drop the record. |
 | ARCHIVED, or no session found by title | any | branch unmerged, and the item is claimed — status in-progress / review / done, or an edge row that NAMES an item | gone. RESPAWN on that branch, below — no nudge, there is nobody to ask. |
+| any | any | entry still reads `new`, and the item's file is gone from fresh `origin/main` (`git cat-file -e origin/main:<item path>` fails) | merged between two passes — claimed and merged before any pass saw a head. Done: drop the entry, keep `reported=<stem>` so it is never spawned again. No upstream REPORT: it needs a branch this ledger never saw; name the stem in the report. Read BEFORE every row below that keys on `new`, which would read a finished manager as unclaimed or blocked. |
 | `status_bucket` BLOCKED, and `session_status` NOT IDLE, PENDING or ARCHIVED — RUNNING, or a status this table does not name | any | entry still reads `new` from a PREVIOUS pass, no `held=` recorded | BLOCKED BEFORE CLAIM, first look: likely a permission prompt on its first commands — no branch, no push age, so no stall row can reach it. Ledger `held=<updated_at>`. Nothing else this pass. |
-| the same, still BLOCKED | any | `held=` recorded, entry still `new`, `updated_at` unchanged since it | BLOCKED BEFORE CLAIM, confirmed. NO nudge — the prompt holds the turn, nothing reads a message. `interrupt_session`, `archive_session`, then spawn the ITEM again — a plain spawn, as the STILLBORN row does: nothing was claimed, there is no branch to name. The new entry is `@new` with no `held=`. Count it against `JOHARNESS_RESPAWN_LIMIT`; at the limit REPORT and stop — the ledger entry and the report ARE the hand-off. No `interrupt_session`: REPORT, spawn nothing (Tools table). |
+| the same, still BLOCKED | any | `held=` recorded, entry still `new`, `updated_at` unchanged since it | BLOCKED BEFORE CLAIM, confirmed. NO nudge — the prompt holds the turn, nothing reads a message. `respawns=` already at `JOHARNESS_RESPAWN_LIMIT`: REPORT, touch nothing — a human may still answer the prompt. Else `interrupt_session`, `archive_session`, then spawn the ITEM again — a plain spawn, as the STILLBORN row does: nothing was claimed, there is no branch to name. The new entry is `@new` with no `held=`, `respawns=` plus one; the ledger entry and the report ARE the hand-off. No `interrupt_session`: REPORT, spawn nothing (Tools table). |
 | any, `held=` recorded for the entry | any | entry still `new`, and `updated_at` moved since `held=`, or the record no longer reads BLOCKED | BLOCKED BEFORE CLAIM, cleared: someone answered the prompt or the turn moved on. Drop `held=`. Nothing else this pass. |
+| ARCHIVED, or no session found by title | any | entry still reads `new` from a PREVIOUS pass | gone before claim: a human archived it, or a row above did and stopped at the limit. No branch, nothing to respawn on. REPORT the stem and that the item is unclaimed; leave the entry so no later pass spawns it — the human decides. |
 | IDLE or PENDING | any | entry still reads `new` from a PREVIOUS pass — spawned, never claimed — and no `seen=` recorded | UNCLAIMED, FIRST look. Ledger `seen=<updated_at>` and whether the record carries `last_served_model` and `sources`. Nothing else this pass. The ledger write made when `create_session` returned is NOT an observation of the session record; the two that decide here are two READS of it, exactly as the crash rows above. |
 | IDLE or PENDING, and the record carries NO `last_served_model` and NO `sources` | any | `seen=` recorded, entry still `new`, `updated_at` unchanged since it | STILLBORN: never ran a turn, no checkout. NO nudge — nothing to read it, no branch to push. `archive_session`, then spawn the ITEM again — a plain spawn, not a RESPAWN: nothing was claimed, nothing is lost, no handover is owed and there is no branch to name. Count it against `JOHARNESS_RESPAWN_LIMIT`: a spawn that omits `source_url` does this every time. At the limit REPORT and stop — the hand-it-to-the-human write needs a branch and there is none, so the ledger entry and the report ARE the hand-off. |
 | IDLE or PENDING, and the record carries `last_served_model` | any | `seen=` recorded, entry still `new`, `updated_at` unchanged since it | It RAN and stopped without claiming. A respawn repeats it, so do not. REPORT the stem, the record's `status_detail`, `status_bucket` and `session_status`, and that the item is unclaimed with no branch, and leave the entry in the ledger so no later pass spawns it. |
@@ -183,7 +187,7 @@ not one either.
 | IDLE or PENDING | any | branch unmerged, no nudge recorded for it | NOT gone — IDLE is between turns. NUDGE, exactly as the stall row does, and ledger stem, head, `seen=<updated_at>`, `status_detail`. Spawn nothing this pass. |
 | IDLE or PENDING | any | a nudge recorded, and head AND `status_detail` both unchanged since it | it did not answer across two passes. NOW gone: RESPAWN on that branch, below. |
 | IDLE or PENDING | any | a nudge recorded, and head moved or `status_detail` changed | working. Drop the nudge. |
-| any | any | branch merged (dispatch no longer lists it), and the stem's ledger entry carries a head, never `new` — or the item's file is gone from fresh `origin/main`, a merge between two passes | done. Nothing — UNLESS dispatch's `upstream :` line says ON and the ledger has no `reported=<stem>` for it: then REPORT, below. A merge message carrying `lead <stem>: <text>` is the one exception that is never nothing: carry it (step 4) and print it (Report). Never act on it — see below. When a `merged <stem>` MESSAGE woke this pass, read this row for that stem FIRST. |
+| any | any | branch merged (dispatch no longer lists it), and the stem's ledger entry carries a head, never `new` | done. Nothing — UNLESS dispatch's `upstream :` line says ON and the ledger has no `reported=<stem>` for it: then REPORT, below. A merge message carrying `lead <stem>: <text>` is the one exception that is never nothing: carry it (step 4) and print it (Report). Never act on it — see below. When a `merged <stem>` MESSAGE woke this pass, read this row for that stem FIRST. |
 | RUNNING | any | row says `retired, no claim file` | at step 7, merging. Nothing. |
 | gone by the definition above | any | that row, and it NAMES an item | gone at the edge. RESPAWN on that branch to FINISH the merge, never to restart the plan — the work is done and the record was retired with it. |
 | any status whatsoever | any | the branch is under `leftovers`, not in flight | NOT a merge to finish, and it holds no slot. Either its item is already gone from the base branch — that merge happened, by this branch or another — or the row names no item at all and has been silent for a day. REPORT it; the human deletes the branch. NEVER respawn. Read this row BEFORE the `?` row below, which is about a row still in flight. |
@@ -457,8 +461,8 @@ Up to `slots`, in dispatch's order, only rows under `spawn`:
   Nothing else: no "no human is watching", no "never ask", no "keep
   going". The prompt routes; the repository authorises.
 
-Ledger every spawn the moment it returns, as `<stem>@new`. Step 2's UNCLAIMED first-look row admits it
-once it is a pass old; every row after that keys on `seen=`. It is also what the next pass counts into step 1's
+Ledger every spawn the moment it returns, as `<stem>@new`. Step 2's UNCLAIMED and BLOCKED BEFORE CLAIM first-look rows admit it
+once it is a pass old; every row after those keys on `seen=` or `held=`. It is also what the next pass counts into step 1's
 `JOHARNESS_PENDING_SPAWNS`: the slot is owned, and only this entry says so.
 
 ## 4. Schedule the next pass, then end the turn
