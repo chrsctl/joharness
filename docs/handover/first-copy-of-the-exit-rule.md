@@ -26,6 +26,8 @@ Settle research `first-copy-of-the-exit-rule` (#303): does orchestrate.md's desc
 
 ## Review
 
+- r1: (verifier) ran grep + protocol-paths on the branch, 2026-10-10: claim holds, no defects; only note was the pin cited as :218 when the expect is at :219-220. (no change: file is retired in the next commit)
+
 ## Blockers
 
 None.
