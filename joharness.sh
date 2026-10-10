@@ -8287,12 +8287,18 @@ dispatch_branch_plans() {
     base="$(git -C "$ROOT" merge-base "$r" \
       "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)"
     [ -n "$base" ] || continue
-    plans="$(git -C "$ROOT" diff --name-only --diff-filter=A "$base" "$r" \
+    # `--no-renames`: a branch retiring its done plan and adding a follow-up
+    # from the same template reads as an R otherwise, and the follow-up drops
+    # out of `A` — step 7's normal edge shape. Unquoted paths, or a non-ASCII
+    # name fails `gr_docs`'s `.md` test (same two fixes as `fin_own_ws`).
+    plans="$(git -c core.quotePath=false -C "$ROOT" diff --no-renames \
+      --name-only --diff-filter=A "$base" "$r" \
       -- docs/plans </dev/null 2>/dev/null | gr_docs)"
     [ -n "$plans" ] || continue
     # The branch's own workstream files, the ones it introduced or changed.
     own=" "; abandoned=0
-    wfs="$(git -C "$ROOT" diff --name-only --diff-filter=ACMRT "$base" "$r" \
+    wfs="$(git -c core.quotePath=false -C "$ROOT" diff --name-only \
+      --diff-filter=ACMRT "$base" "$r" \
       -- docs/handover </dev/null 2>/dev/null | gr_docs)"
     while IFS= read -r wf; do
       [ -n "$wf" ] || continue
@@ -9049,9 +9055,14 @@ cmd_dispatch() {
   # goes to the human — and counted nowhere: not n_free, not the verdict. A
   # branch plan has not been reviewed into the queue, and spawning on it is
   # the human's call (.claude/commands/orchestrate.md, Report).
+  # One row per stem: a branch stacked on a plan-only branch carries the same
+  # plan, and two URGENT rows for one plan is the duplicate #297 complains of.
   bplans="$(dispatch_branch_plans | awk -F'\t' 'NF == 4 {
+      if (!($2 in on)) { order[++n] = $2; urg[$2] = $3; agt[$2] = $4; on[$2] = $1 }
+      else on[$2] = on[$2] ", " $1 }
+    END { for (i = 1; i <= n; i++) { s = order[i]
       printf "  %s%s (urgency: %s, agent: %s)  on %s\n",
-        ($3 == "urgent" ? "URGENT " : ""), $2, $3, $4, $1 }')"
+        (urg[s] == "urgent" ? "URGENT " : ""), s, urg[s], agt[s], on[s] } }')"
   if [ -n "$bplans" ]; then
     printf '\nplans on a branch, not in the queue until it merges:\n%s\n' "$bplans"
   fi

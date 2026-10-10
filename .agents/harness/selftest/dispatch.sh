@@ -2538,3 +2538,58 @@ refute "a manager's own plan, named in plan: as a path, is not listed" \
 refute "a plan on an abandoned branch is not listed" " z (urgency" "$bpblock"
 # Diff, never tree: every branch inherits onmain.md from the base.
 refute "an inherited base plan is never a branch plan" "onmain (urgency" "$bpblock"
+
+# The edge shape of any branch with a follow-up (verifier r3): it retires its
+# done plan and adds a new one from the same template. Rename detection read
+# the pair as an R, and `--diff-filter=A` dropped the follow-up.
+git -C "$bpwork" checkout -qb retire-and-follow main
+git -C "$bpwork" rm -q docs/plans/onmain.md
+mkdir -p "${bpwork}/docs/plans"
+bpplan "${bpwork}/docs/plans/followup.md" followup normal
+commit_all "$bpwork" "retire onmain, file followup"
+git -C "$bpwork" push -qu origin retire-and-follow
+# A branch stacked on the plan-only branch carries x too (verifier r5).
+git -C "$bpwork" checkout -qb stacked plan-only
+printf 'more\n' >"${bpwork}/stacked.txt"
+commit_all "$bpwork" "stacked on plan-only"
+git -C "$bpwork" push -qu origin stacked
+git -C "$bpwork" checkout -q main
+out="$(bp)"
+bpblock="$(sed -n '/^plans on a branch/,/^$/p' <<<"$out")"
+expect "a follow-up added beside a retired plan is listed, not lost to a rename" \
+  "  followup (urgency: normal, agent: sonnet)  on retire-and-follow" "$bpblock"
+expect "a plan two branches carry is one row naming both" \
+  "  URGENT x (urgency: urgent, agent: sonnet)  on plan-only, stacked" "$bpblock"
+if [ "$(grep -c 'URGENT x ' <<<"$bpblock")" = 1 ]; then
+  pass "and never two URGENT rows for one plan"
+else
+  fail "and never two URGENT rows for one plan"
+  printf '%s\n' "$(indent "$bpblock")"
+fi
+
+# A plan the base ALSO carries under the same path (verifier r6): the queue has
+# its row, so it is not a branch plan, though the branch's own diff adds it.
+git -C "$bpwork" checkout -qb twice main
+bpplan "${bpwork}/docs/plans/w.md" w urgent
+commit_all "$bpwork" "branch files w"
+git -C "$bpwork" push -qu origin twice
+git -C "$bpwork" checkout -q main
+bpplan "${bpwork}/docs/plans/w.md" w normal
+commit_all "$bpwork" "the base files w too"
+git -C "$bpwork" push -q origin main
+out="$(bp)"
+bpblock="$(sed -n '/^plans on a branch/,/^$/p' <<<"$out")"
+refute "a plan the base also carries is the queue's, not a branch plan" \
+  " w (urgency" "$bpblock"
+expect "while the block still lists the real branch plans" "URGENT x" "$bpblock"
+
+# A non-ASCII plan name (verifier r4): quoted by git, it failed the `.md` test
+# and vanished. The row's stem is the sanitised one; the row is what matters.
+git -C "$bpwork" checkout -qb nonascii main
+bpplan "${bpwork}/docs/plans/fixé.md" fixe urgent
+commit_all "$bpwork" "a plan with a non-ASCII name"
+git -C "$bpwork" push -qu origin nonascii
+git -C "$bpwork" checkout -q main
+out="$(bp)"
+expect "a non-ASCII plan name still has its row" "on nonascii" \
+  "$(sed -n '/^plans on a branch/,/^$/p' <<<"$out")"
