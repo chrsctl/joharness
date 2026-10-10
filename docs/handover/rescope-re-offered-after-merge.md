@@ -52,7 +52,7 @@ shrinks. Graduate the answer into `joharness.sh` and delete the node.
 - r5: (verifier) "verifier r1 of the fix" resolves to nothing in tree. (fixed: names PR #359 and its plan stem)
 - r6: (verifier) a-requirement-no-plan-can-serve.md and plan-on-an-unmerged-branch.md still mention this node in prose. (wontfix: not research edges, nothing dangles; nodes this branch does not own — named in the PR body)
 - r7: (verifier) Where to look omits the two functions the decision rests on. (fixed)
-- r8: (session) `./joharness.sh verify` 2026-10-10: 2 passed, 4 failed — docker could not pull alpine:3, registry 429 Too Many Requests; diff touches joharness.sh comments only. (no change: see PR for the retry)
+- r8: (session) `./joharness.sh verify` 2026-10-10: 2 passed, 4 failed — docker could not pull alpine:3, registry 429 Too Many Requests; diff touches joharness.sh comments only. re-run same day → 6 passed, 0 failed. (no change)
 
 ## Blockers
 
