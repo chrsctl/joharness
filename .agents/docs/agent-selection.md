@@ -132,8 +132,9 @@ consumer `gx`, 21 merges, 442 USD; readings and commands:
 `git log --diff-filter=D -- docs/research/cost-per-merge-levers.md`):
 
 - **Fresh session for long waits — no.** 0 of 110 idle gaps between turns
-  passed the 1-hour cache TTL; longest 25 minutes. Managers wake on task
-  notifications well inside the TTL, so the expiry bullet above prices a
+  passed the 1-hour cache TTL (longest 25 minutes), and the two turns
+  longer than an hour wrote 2.2% of the cost in cache at most. Managers
+  wake on task notifications well inside the TTL, so the expiry bullet above prices a
   wait that the fleet does not have. Re-check if a queue starts parking
   managers on human review.
 - **Fable planning manager at `high` instead of `xhigh` — no.** No fleet

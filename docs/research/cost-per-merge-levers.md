@@ -18,9 +18,14 @@ managers 93% of it. `.agents/docs/agent-selection.md` Cost levers names
 what is free; these four trade something, so each needs a number before a
 human picks it — a tier or effort cut is money, humans only. The levers:
 
-1. **Fresh session for long waits.** A manager waiting on CI or review
-   past the cache TTL ends after its handover; a fresh session resumes
-   from the workstream file instead of waking the fat context.
+1. **Fresh session for long waits — NO.** 110 idle gaps between turns
+   across 24 sessions; longest 25.3 minutes (gx), 15.2 (this repo); 0
+   over the 1-hour cache TTL. No session was in usage overage (5-minute
+   TTL). A wait inside one turn is invisible to that reading: 2 of 134
+   turns ran past 60 minutes (`YCcNvV` 134.8, `Qnp3Vu` 60.3). Counting ALL
+   their main-thread cache writes as expiry penalty (479,853 and 474,177
+   tokens at opus 5's 10 USD/MTok 1h write) = 9.54 USD, 2.2% of the
+   sample. Ceiling 2.2%. GROUNDED.
 2. **Fable planning manager at `high`**, not `xhigh`
    (`.claude/commands/orchestrate.md`, UNPLANNED spawn).
 3. **Sonnet verifier on opus plans.** Independence, not depth, is what the
@@ -124,6 +129,27 @@ No plan: three levers cannot reach the bar in either fleet, so none
 earns a human's money decision. Lever 3 continues as its own question.
 
 ## Verification
+
+Second context: a subagent that read none of the first readings re-took
+`get_session` for all 24 ids and re-paged every `result` of `Qnp3Vu`,
+`fsp9nw` and `GbRy34`.
+
+- Billed cost: 24 of 24 match the first reading. GROUNDED.
+- Result counts 7, 3, 9 and newest `modelUsage` (`Qnp3Vu` opus-5
+  160.2236265 + sonnet-5-5 8.1881483; `fsp9nw` opus-5 48.216124) and
+  `by_type` (`{"general-purpose":12,"verifier":3}`, `{"verifier":2}`)
+  match. GROUNDED.
+- Largest idle gaps 20.8, 23.9 and 6.0 minutes, all under the TTL; same
+  arithmetic, same answer. GROUNDED.
+- `GbRy34`: `get_session` reads 14.0514868, its newest result 14.106534
+  (session record one step behind). That is the 0.06 USD gap the first
+  reading showed; no finding moves.
+- Not re-taken: the per-turn `usage` of the other 21 sessions (the
+  main/subagent split for levers 3 and 4) — the subagent split rests on
+  the first reading plus the two no-subagent sessions that price to their
+  billed cost exactly. WEAK for the split, GROUNDED for the totals.
+- Merged counts were read from each manager's own final text, not from
+  GitHub: WEAK. No finding needs them; the ceilings divide by cost.
 
 ## Graduates to
 
