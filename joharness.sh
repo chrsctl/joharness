@@ -8290,7 +8290,7 @@ cmd_dispatch() {
   local n_inflight=0 n_slots n_free=0 n_stall=0 n_blocked=0 n_hold=0 n_wait=0 n_loop=0
   local pending pending_used
   local n_edge=0 n_edge_stall=0 n_leftover=0 n_leftover_noitem=0
-  local leftover_rows="" estate="" fleet_age
+  local leftover_rows="" estate="" fleet_age stall_young=""
   local curate_due=0 curate_inflight="" n_curate_inflight=0 cdue cstate creason
   local janitor_due=0 janitor_inflight="" n_janitor=0 jdue jstate jreason jb jw
   local scout_due=0 scout_inflight="" n_scout=0 sdue sstate sreason sb sw ss scout_gate=0 srows
@@ -8563,6 +8563,7 @@ cmd_dispatch() {
       # (verifier r5).
       n_stall=$((n_stall + 1))
       n_edge_stall=$((n_edge_stall + 1))
+      [ -n "$stall_young" ] && [ "$stall_young" -le "$eage" ] || stall_young="$eage"
       estem="${efirst##*/}"; estem="${estem%.md}"
       if [ -n "$efirst" ]; then
         edge_rows="${edge_rows}    STALL? no push for ${eagetext} (>= ${stall}m): cross-check the control plane by TITLE (manager: ${estem}) — this row carries no session line to read; the verdict is the health table's (.claude/commands/orchestrate.md, step 2), never this row's"$'\n'
@@ -8693,6 +8694,7 @@ cmd_dispatch() {
       flag="  push age unknown: ref not here — fetch, then cross-check"
     elif [ "$age" -ge "$stall" ]; then
       n_stall=$((n_stall + 1))
+      [ -n "$stall_young" ] && [ "$stall_young" -le "$age" ] || stall_young="$age"
       flag="  STALL? no push for ${agetext} (>= ${stall}m): cross-check the control plane"
       cond="STALL?"
     fi
@@ -9177,11 +9179,23 @@ cmd_dispatch() {
   # multiple above: with one manager in flight the base moves only when it
   # merges, so 1x would fire on every ordinary stall. Decides nothing — the
   # health table still does, row by row.
-  if [ "$n_stall" -gt 0 ] && [ "$n_stall" -eq $((n_inflight - n_blocked)) ]; then
+  #
+  # The YOUNGEST stall row past 24 windows too, not the base alone: a quiet
+  # base with a manager that pushed an hour ago is an ordinary stall in a
+  # quiet repo, and the suspension hint there is #283 turned round (verifier
+  # r1). A zero window makes 24 windows zero, which every base passes (r2).
+  if [ "$stall" -gt 0 ] && [ "$n_stall" -gt 0 ] &&
+     [ "$n_stall" -eq $((n_inflight - n_blocked)) ] &&
+     [ "${stall_young:-0}" -ge $((stall * 24)) ]; then
     fleet_age="$(dispatch_age_min "${HANDOVER_BASE_BRANCH:-main}")"
     if [ -n "$fleet_age" ] && [ "$fleet_age" -ge $((stall * 24)) ]; then
-      printf '            every manager in flight is silent and %s has not moved in %s: suspect a stopped fleet (a suspension), not %s dead managers — read the control plane for EACH before any respawn\n' \
+      printf '            every manager in flight is silent and %s has not moved in %s: suspect a stopped fleet (a suspension), not %s dead manager(s) — read the control plane for EACH before any respawn' \
         "${HANDOVER_BASE_BRANCH:-main}" "$(dispatch_age_text "$fleet_age")" "$n_stall"
+      # A clone nobody fetched is frozen the same way (r4). Said, not
+      # suppressed: the advice holds for both, only the cause differs.
+      [ "$fetch_failed" -eq 0 ] ||
+        printf ' (or this clone is stale: no fresh fetch this pass)'
+      printf '\n'
     fi
   fi
 

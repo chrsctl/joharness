@@ -218,8 +218,10 @@ rule on.
 
 Dispatch's `suspect a stopped fleet` tail line decides nothing. It says the
 push age on every row is the fleet's, not the manager's: everyone silent and
-the base branch still is what a suspension looks like from git. Read the
-control plane for EACH row, and let the rows above decide as written.
+the base branch still is what a suspension looks like from git — and what a
+clone nobody fetched looks like, which the line says when this pass did not
+fetch. Read the control plane for EACH row, and let the rows above decide as
+written.
 
 Two readings from run 1, one keystroke apart in the record and opposite in
 what they need. These are the part to read when the rows blur:

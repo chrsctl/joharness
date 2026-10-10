@@ -2584,39 +2584,82 @@ cp "${ROOT}/.agents/harness/queue-context.sh" \
 printf '# none\n' >"${sfwork}/.agents/env/none/AGENTS.md"
 sfconf="${sfwork}/joharness.conf"
 printf 'JOHARNESS_ENV=none\n' >"$sfconf"
-printf -- '---\nplan: frozen\nurgency: normal\nagent: sonnet\neffort: high\n---\n\n## Goal\nFixture.\n' \
-  >"${sfwork}/docs/plans/frozen.md"
+for p in frozen recent; do
+  printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: high\n---\n\n## Goal\nFixture.\n' \
+    "$p" >"${sfwork}/docs/plans/${p}.md"
+done
 git -C "$sfwork" add -A
-# Base AND claim both 48h old: past 24 windows of the 45m default (18h).
+# Base AND claim both 100h old: past 24 windows of the 45m default (18h).
 # The date rides on each commit as a prefix, so it cannot leak.
-sft=$(( $(date +%s) - 48 * 3600 ))
+sft=$(( $(date +%s) - 100 * 3600 ))
 GIT_AUTHOR_DATE="@${sft} +0000" GIT_COMMITTER_DATE="@${sft} +0000" \
-  git -C "$sfwork" commit -qm "base, two days ago"
+  git -C "$sfwork" commit -qm "base, four days ago"
 git -C "$sfwork" remote add origin "$sforigin"
 git -C "$sfwork" push -qu origin main
-git -C "$sfwork" checkout -qb mgr-frozen
-printf -- '---\nworkstream: frozen\nstatus: in-progress\nbranch: mgr-frozen\nplan: frozen\nsession: https://example.invalid/session_frozen\nagent: sonnet\nupdated: 2026-01-01\n---\n\n## Goal\nFixture.\n' \
-  >"${sfwork}/docs/handover/frozen.md"
-git -C "$sfwork" add -A
-GIT_AUTHOR_DATE="@${sft} +0000" GIT_COMMITTER_DATE="@${sft} +0000" \
-  git -C "$sfwork" commit -qm "claim frozen, two days ago"
-git -C "$sfwork" push -qu origin mgr-frozen
-git -C "$sfwork" checkout -q main
+# <stem> <commit epoch>: one manager's claim, on its own branch.
+sfclaim() {
+  git -C "$sfwork" checkout -qb "mgr-$1" main
+  # main tracks no handover file, so checking it out removed the directory.
+  mkdir -p "${sfwork}/docs/handover"
+  printf -- '---\nworkstream: %s\nstatus: in-progress\nbranch: mgr-%s\nplan: %s\nsession: https://example.invalid/session_%s\nagent: sonnet\nupdated: 2026-01-01\n---\n\n## Goal\nFixture.\n' \
+    "$1" "$1" "$1" "$1" >"${sfwork}/docs/handover/${1}.md"
+  git -C "$sfwork" add -A
+  GIT_AUTHOR_DATE="@${2} +0000" GIT_COMMITTER_DATE="@${2} +0000" \
+    git -C "$sfwork" commit -qm "claim $1"
+  git -C "$sfwork" push -qu origin "mgr-$1"
+  git -C "$sfwork" checkout -q main
+}
+sfclaim frozen "$sft"
 sf() { ( cd "$sfwork" && JOHARNESS_CONF="$sfconf" DRAIN_FETCH=0 \
   DISPATCH_FETCH=0 "$@" ./joharness.sh dispatch 2>&1 ); }
+sfline="every manager in flight is silent and main has not moved in 100h: suspect a stopped fleet (a suspension), not 1 dead manager(s) — read the control plane for EACH before any respawn"
 out="$(sf)"
 expect "the silent manager is a stall row, so the line below has a row to speak for" \
-  "STALL? no push for 48h" "$out"
+  "STALL? no push for 100h" "$out"
 expect "every row silent and the base still: the stopped-fleet line prints" \
-  "every manager in flight is silent and main has not moved in 48h: suspect a stopped fleet (a suspension), not 1 dead managers — read the control plane for EACH before any respawn" "$out"
+  "$sfline" "$out"
 expect "and it rides the verdict's tail, not the listing" \
   "suspect a stopped fleet" "$(sed -n '/^verdict/,$p' <<<"$out")"
-# A window wider than the base's age: 24 x 180m = 72h > 48h. The stall row
-# still fires (48h >= 180m), the multiple does not.
-out="$(sf env JOHARNESS_STALL_MINUTES=180)"
-expect "inside 24 windows the row still stalls" "STALL? no push for 48h" "$out"
-refute "but the base has not been still long enough to suspect the fleet" \
+# DISPATCH_FETCH=0 is a view this pass did not refresh, frozen exactly like a
+# stopped fleet: the line says so rather than naming one cause (verifier r4).
+expect "a view nobody fetched is named as the other cause" \
+  "${sfline} (or this clone is stale: no fresh fetch this pass)" "$out"
+# A window wider than the silence: 24 x 300m = 120h > 100h. The stall row
+# still fires (100h >= 300m), the multiple does not.
+out="$(sf env JOHARNESS_STALL_MINUTES=300)"
+expect "inside 24 windows the row still stalls" "STALL? no push for 100h" "$out"
+refute "but nothing has been still long enough to suspect the fleet" \
   "suspect a stopped fleet" "$out"
+# A zero window is zero windows: every base would pass it (verifier r2).
+out="$(sf env JOHARNESS_STALL_MINUTES=0)"
+expect "a zero window still stalls the row" "STALL? no push for" "$out"
+refute "and suspects no fleet on a zero multiple" "suspect a stopped fleet" "$out"
+
+# A second manager, pushed an hour ago. At the default window it is a stall
+# too, so EVERY row stalls and the base is 100h still — and it is still no
+# suspension: a manager that pushed an hour ago was not frozen 100h (r1).
+sfclaim recent "$(( $(date +%s) - 3600 ))"
+out="$(sf)"
+expect "both rows stall at the default window" \
+  "2 manager(s) past the stall window" "$out"
+refute "a manager silent one hour is no frozen fleet, however still the base" \
+  "suspect a stopped fleet" "$out"
+# At 180m the recent one is NOT a stall: one row of two silent is not every
+# row, though the silent one and the base are both past 24 windows (72h) (r3).
+out="$(sf env JOHARNESS_STALL_MINUTES=180)"
+expect "one row of two stalls" "1 manager(s) past the stall window" "$out"
+refute "and one live row voids the suspicion" "suspect a stopped fleet" "$out"
+# Parked: a blocked row is the human's and out of the count, so the silent
+# one is every row again.
+git -C "$sfwork" checkout -q mgr-recent
+sed -i 's/^status: in-progress$/status: blocked/' "${sfwork}/docs/handover/recent.md"
+commit_all "$sfwork" "park recent"
+git -C "$sfwork" push -q origin mgr-recent
+git -C "$sfwork" checkout -q main
+out="$(sf)"
+expect "the parked row is blocked, so the line below reads a live case" \
+  "BLOCKED: the human's" "$out"
+expect "a blocked row does not void the suspicion" "$sfline" "$out"
 
 # The same fleet, the base branch moved this minute: the managers are silent
 # while somebody else merged, so it is not a suspension.
@@ -2625,5 +2668,5 @@ commit_all "$sfwork" "base moves now"
 git -C "$sfwork" push -q origin main
 out="$(sf)"
 expect "the row still stalls, so the refute below reads a live case" \
-  "STALL? no push for 48h" "$out"
+  "STALL? no push for 100h" "$out"
 refute "a base that moved prints no stopped-fleet line" "suspect a stopped fleet" "$out"
