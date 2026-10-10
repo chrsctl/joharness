@@ -5,7 +5,7 @@ agent: opus
 effort: high
 needs: heartbeat-is-a-precondition, issue-triager-role, scout-command
 requirement: none
-scope: .claude/commands/orchestrate.md, shared:.claude/commands/manage.md, shared:.agents/docs/orchestrated.md, shared:joharness.sh, .agents/harness/selftest/ci-context.sh
+scope: shared:.claude/commands/orchestrate.md, shared:.claude/commands/manage.md, shared:.agents/docs/orchestrated.md, shared:joharness.sh, .agents/harness/selftest/ci-context.sh
 ---
 
 ## Goal
@@ -113,6 +113,16 @@ next growth is seen — nothing counts them today.
   `orchestrated-only` (also `manage.md`), ordered before this one through
   `issue-triager-role`. Re-measure after they merge; the 8,340 baseline is
   stale by then.
+- More open plans edit these files, all marked `shared:` (merged to
+  `main` 2026-10-10): `janitor-rules-agree`, `ledger-losses-named`,
+  `manager-ceiling-row`, `plan-on-a-branch-visible`,
+  `rescope-settled-by-merged-superset`, `stall-rows-say-what-git-knows`
+  (`orchestrate.md`); `lineup-cache-read-pricing` (`manage.md`);
+  `role-files-say-it-first` (both). Trim last: at start run
+  `grep -l 'commands/orchestrate.md\|commands/manage.md' docs/plans/*.md`;
+  each one still open = reconcile on its merged text, never undo it.
+- `role-files-say-it-first` adds selftest pins on `orchestrate.md`'s
+  `description:` line and `manage.md`'s `## Never`; both stay put.
 - `orchestrated-only-docs` also edits `.agents/docs/orchestrated.md`
   (both marked `shared:`); reconcile.
 - `joharness.sh` is also in `issue-triager-role`, `upstream-placement-defects`
