@@ -152,6 +152,81 @@ Canonical-only in a consumer: it carries no sync engine and its plans ship
 nowhere, so the stage has nothing to say and says nothing. Whole queue at
 once, rather than the plans this branch touches: `JOHARNESS_SHIP=all`.
 
+## What identifies a plan
+
+The filename, and nothing else. `queue-context.sh:stem` strips directory and
+`.md` — "`docs/plans/x.md`, `x.md` and `x` all mean x" — and every edge the
+queue hook reads resolves through it; `joharness.sh:lint_stem` is the
+equivalent copy the lint and `curate` use. So two plan files are two items
+at every reader that schedules, even when both describe ONE defect. Nothing
+has anything else to compare.
+
+What each existing reconciler reaches, and what it does not. Re-take it:
+`grep -n 'stem()\|wave_split_hit()\|ref_merged "\$short"' .agents/harness/queue-context.sh`,
+`grep -n 'no path in its scope\|^dispatch_branch_plans\|planned   :' joharness.sh`.
+
+- **`scope:`** — the in-flight loop in `queue-context.sh` holds a free plan
+  whose declared paths `wave_split_hit` finds overlapping a claimed one's.
+  Declared paths only: two plans for one defect that named different files
+  never meet, and a claim with no `scope:` holds nothing. A hit is a HOLD,
+  not a retirement — a merged branch has no claim row (`ref_merged`), so the
+  held duplicate goes free again, describing work already on `main`.
+- **`./joharness.sh curate`** (`cmd_curate`) lists a plan as a DECLUTTER
+  candidate when NO path in its `scope:` exists any more. A candidate a
+  curator judges, on a pass that runs only when `dispatch_curate_due` says
+  churn or time made one due. A defect fixed inside a file that still exists
+  trips nothing.
+- **`issue:`** — the one key that names where the work CAME FROM.
+  `./joharness.sh clerk` lists an issue a plan on the base or any unmerged
+  branch already names as PLANNED, so a second clerk skips it. A skip at
+  planning time, for issue-born plans only; no queue reader compares two
+  plans' `issue:`.
+- **`dispatch_branch_plans`** (issue #297, `.agents/docs/orchestrated.md`, "A
+  plan the queue cannot see") prints a plan an unmerged branch added, so the
+  orchestrator SEES a pushed plan before it reaches `main`. Visibility, not
+  pairing: the row is one more stem, compared against nothing, and a plan the
+  branch's own workstream file names is dropped from it as in flight.
+
+So the duplicate that gets through is a plan filed from something with no
+issue number — a red CI step, a failure a merging session saw — while a
+second session plans the same thing. Reported from a consumer (`chrsctl/gx`,
+2026-10-08, not re-measured here): a manager told by its spawn prompt to
+"file the next plan if a new step fails" filed one as a plan-only pull
+request (gx #488) while the orchestrator, reading the same red step, had
+already spawned a planner that filed and built its own (gx #490); `dispatch`
+listed the first FREE while the second was built, and the builder happened
+to delete it. Second instance in that run; the first (gx #481) cost a human
+the reconcile. That no manager was spent on a duplicate rests, by inference
+and not measurement, on the run's cap of one manager. And #297's own fix —
+a filer merges its plan-only pull request fast — makes this more likely, not
+less: a plan that lands fast lands while the second planner is still at
+work. Also inference, from the two timelines.
+
+Rule, until the harness carries an identity that is not the filename:
+
+- **Before filing a plan for a failure, search for one.** `git grep` the
+  failing step or test name across `docs/plans/` on fresh `origin/main` AND
+  on every unmerged branch (`git for-each-ref refs/remotes/origin`), and read
+  `./joharness.sh dispatch`'s `plans on a branch` block. Same defect found =
+  no second plan; a lead or a note instead. Limit, stated: a planner that has
+  not pushed is invisible to any search — the same pre-push gap Lifecycle's
+  "Spawning in parallel" names.
+- **A spawn prompt that tells a manager to plan what it sees after its merge
+  is the case this rule exists for.** A manager's follow-up plan is
+  sanctioned (`.claude/commands/manage.md`, Finish), and so is a plan from an
+  issue, a requirement or a direct ask (Loop step 2). What no role under
+  `.claude/commands/` describes is a manager filing on the NEXT failure while
+  the orchestrator may already be spawning onto it; the channel the harness
+  does carry for that is a `lead` line, relayed and never acted on
+  (`.claude/commands/orchestrate.md`, the lead bound). A caller who sends a
+  manager down that road owns the search above.
+- **A deduping key is not proposed here.** A key naming what a plan fixes
+  buys nothing unless two sessions reading one red step would write the same
+  value, which nobody has measured. Nor a dedupe in `dispatch` alone: it now
+  sees pushed branch plans, but it cannot see a planner that has not pushed,
+  and the orchestrator's spawn pass is where a second planner is sent. A
+  reconcile would have to sit there.
+
 ## Lifecycle
 
 - **Claim** = normal Loop claim: cut branch, workstream file under
