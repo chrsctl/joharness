@@ -221,7 +221,10 @@ sleep_re='(^|[^[:alnum:]_])sleep[[:space:]]+[-0-9$"'"'"']'
 # command two respelled — a test on the world, which never bounds anything —
 # and an echoed `x -lt 10` in a body is not a bound at all. A rule that looked
 # only for the operator allowed both.
-count_re='\$\{?[A-Za-z_][A-Za-z0-9_]*\}?"?[[:space:]]+-(lt|le|gt|ge)[[:space:]]'
+# The payload is read ESCAPED (only \n and \t are replaced), so the quote in
+# a quoted counter reaches this pattern as `\"`: one optional backslash, then
+# the quote. The opening quote needs nothing — the pattern is unanchored.
+count_re='\$\{?[A-Za-z_][A-Za-z0-9_]*\}?(\\?")?[[:space:]]+-(lt|le|gt|ge)[[:space:]]'
 arith_re='\(\([^)]*[<>][^)]*\)\)'
 timeout_re='(^|[^[:alnum:]_-])timeout[[:space:]]'
 

@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01NsTePxciY6HEjhSovhBrm3
 agent: sonnet
 updated: 2026-10-10
-next: Edit count_re in pretool-bash-guard.sh, add two selftest cases, run verify and ci.
+next: Await verifier result, record in ## Review, retire plan+workstream file, open PR.
 ---
 
 ## Goal
