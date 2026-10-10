@@ -14,12 +14,9 @@ whether the harness is actually wrong, carrying the measurement canonical
 cannot reproduce, and why the loop closes at the sync rather than the merge —
 is [`feedback.md`](feedback.md) § *When the consumer is the detector*.
 
-Context rule (ratified 2026-08-25): in a CONSUMER, harness upkeep never
-runs inside a session doing product work. A session's context belongs to
-the plan it claimed. Syncing the harness is upkeep of the tool, not the
-work the tool exists for, and a sync diff is large — the harness is
-thousands of lines of shell and docs — so reading one costs the claimed
-work exactly the context it needed.
+Context rule: in a CONSUMER, harness upkeep never runs inside a session doing
+product work — a sync diff is thousands of lines, and the context belongs to
+the claimed plan.
 
 Off-context first, cheapest first:
 
@@ -104,9 +101,6 @@ target's own conf, so pressing Enter never strips a selection somebody made
 for that repo. For the same reason a key is written into an existing conf
 only when a flag gave it or the interview answered it.
 
-There is no mode question: orchestrated is the only mode. `--mode` is still
-parsed so an old script keeps working; it warns and is ignored.
-
 Never bootstrap onto a repo already running the harness — script refuses,
 because whole-clone mode's purge eats live `docs/plans|product|handover`.
 Never hand-copy a raw joharness clone either: it carries joharness's queue
@@ -132,11 +126,8 @@ Canonical-only, never shipped:
 | `.agents/scripts/` | both tools refuse to run outside canonical |
 | `.agents/harness/selftest.sh` | tests harness code a consumer does not edit |
 
-That is more than two fifths of what a consumer used to carry: code it could
-not execute. The fraction is the durable part — the absolute grows with the
-repo, so count it (`du` over the two rows above) rather than quoting one.
-`ci` in a consumer says `not here (canonical-only)` for the selftest and runs
-the rest.
+ `ci` in a consumer says `not here (canonical-only)` for the selftest and
+runs the rest.
 
 A consumer that predates this rule still carries them; every sync reports
 them, removals never travel, so the delete is a human's:
@@ -207,22 +198,10 @@ opaque pointer is a different case: on its own it resolves to nothing, and
 the one thing that would make it resolvable — the repository name — is
 already banned above.
 
-Requester's rule, 2026-09-16. Applied that day across 12 files, clearing 27
-lines that carried one (`git diff` on the branch that did it, counting removed
-lines matching the shapes above). The canonical repository's own name is not
-covered: a consumer has to be told where its harness comes from. Commit hashes
-and pull request numbers are not covered either — opaque to anyone without the
-repo, and they are what a counted number rests on.
-
-Not gated yet, and not because it cannot be. A list of names to match would
-have to live somewhere, and `.agents/harness/selftest/` is canonical-only: it
-reaches no consumer, which is where such a list would belong. What stops it
-here is that enumerating an operator's repositories, even in a file that never
-leaves, is their decision rather than a session's. The looser shape needs no
-list at all — flag any `owner/repo` in shipping text that is not this
-repository's own — and nobody has measured it against false positives. Until
-one of those is decided, this is prose, and the review at the edge is what
-catches it.
+Requester's rule, 2026-09-16. The canonical repository's own name, commit
+hashes and pull request numbers are not covered. Not gated: a list of names
+to match would enumerate an operator's repositories, which is their call. The
+edge review catches it.
 
 ## Settings a child wants to CHANGE
 
@@ -233,32 +212,10 @@ answered. Re-ask every switch instead, from canonical, naming the child:
 .agents/scripts/bootstrap-consumer.sh --reconfigure <consumer-dir>
 ```
 
-A key's COMMENT is answered once too, and that is the sharper edge. `joharness.conf`
-never syncs; the seed writes a key with the explanation of the day, and a
-consumer that already has the key keeps whatever text it was seeded with —
-forever, through every later sync. So an instruction file must not point at a
-conf comment for a fact a session NEEDS: canonical's copy may say more than
-the copy the reader has, or the reader may have NO copy — a consumer
-bootstrapped before a key was declared carries no line for it at all. The
-sync's key stage (`.agents/scripts/sync-to-consumer.sh:report_conf_keys`,
-reading the declarations in `conf-keys.sh`) names the key and its default
-in its report; from a terminal it offers to append `KEY=default` with the
-declaration's one-line meaning, headless it writes nothing. So the reader's
-copy carries that one line at most, and canonical's comment block never.
-Point at the command's own output instead, which ships. Found
-2026-09-11 cutting `.agents/harness/AGENTS.md`, where a
-`JOHARNESS_CHECKS=local` sentence was about to be replaced by exactly such a
-pointer; the wording was made true against the shorter seeded copy instead.
-The no-copy case arrived the next day from a consumer, which synced
-`c1a7257`: `grep -c 'JOHARNESS_CHECKS' joharness.conf` there is 0, while step 7's surviving clause sent a session to "the key that
-sets it, `joharness.conf`". That clause now points at the `lint` job in
-`.github/workflows/ci.yml`: the one copy of the key's two homes and their
-trap, and the file is seeded together with the `if:` that creates the trap,
-so a repo without the one has no need of the other.
-Record, in `chrsctl/joharness`'s own history only — this file ships, that
-path never existed in a consumer: `git log --all --full-history
---diff-filter=D --oneline -- docs/research/merged-ref-batch-prose-vs-code.md`,
-then `git show <commit>^:` that path.
+A key's COMMENT is answered once too: `joharness.conf` never syncs, so a
+consumer keeps the comment it was seeded with, or has no line at all. An
+instruction file must not point at a conf comment for a fact a session NEEDS;
+point at a command's own output, which ships.
 
 Same questions as first contact, each offering the value in force in
 THAT child's conf, and the answers written to its `joharness.conf`. Nothing
@@ -339,47 +296,14 @@ Base branch red before change. Five points:
    — measured number carrying what produced it (step 5). Forecast only
    (point 3). Harness prescribes no file and no shape.
 
-### Why: keying to commit answers half of the rule
-
-Issue #305 asked whether record keyed to base commit is inherited reading
-or measurement with provenance. Both. Reading "check X red at commit C"
-moves with two things:
-
-- **Commit.** Base moves, reading may change. Keying answers this: reader
-  whose merge base is not C has no record to read.
-- **Environment.** Runner image, registry, external service, clock. Rule's
-  own examples ("runner up, registry reachable") are this half. Same C,
-  next hour, other result. Keying cannot see it, and record cannot say
-  which half made X red without re-run.
-
-So record keyed to commit still is "true this hour, false the next" for
-every failure environment caused, and nothing in it marks those. Point 4
-is why re-deriving costs little: head's failing tests, not suite.
-
-Rejected, and why:
-
-- **File of red checks on base branch, in harness.** Written number per
-  `.agents/docs/feedback.md`, inherited reading per step 7, and registry:
-  every writer declares it `shared:`, any merge may touch it and cost a
-  reconcile. Cost against one baseline run not counted: needs consumer's
-  suite. Rules alone reject it. Harness ships; red tests belong to one
-  repository's suite (point 2).
-- **Lead to orchestrator.** Lead = 40-character pointer whose stem must
-  name queue item (`.claude/commands/manage.md`), relayed and never acted
-  on (`.claude/commands/orchestrate.md`); pointer, not payload, per
-  `.agents/docs/orchestrated.md`. Red-test list is payload with no stem.
-  Widening lead touches bounds that exist against forgery
-  (`.claude/commands/orchestrate.md`).
-- **Gate reading base check runs.** Gate over written number, and first
-  GitHub read in `joharness.sh`: `grep -c "gh api\|gh pr\|api.github"
-  joharness.sh` printed 0 at `045f2d7d`, 2026-10-10. Waste it would save never
-  counted (#305 reports it, measures nothing).
+Why no harness record of red checks: a reading keyed to a commit still moves
+with the environment (runner, registry, clock), and a file of red checks is a
+written number and a shared registry every writer would collide on.
 
 ## The sync pull request: drive it to merged
 
-`update.yml` gets the branch pushed. Everything after that is a person or a
-session, and this is what that costs. Walked end to end on a consumer,
-2026-08-25; every failure below is one that happened, not one imagined.
+`update.yml` gets the branch pushed; everything after is a person or a
+session.
 
 **The branch is bot-owned.** Each run does `git checkout -B joharness-update`
 from the freshly checked-out default branch and `git push --force`. Two
@@ -410,11 +334,8 @@ The first is the common one and its cause is a repository setting: either
 enable *Allow GitHub Actions to create and approve pull requests*, or set
 `JOHARNESS_UPDATE_TOKEN`.
 
-**Prefer the token, and not as a matter of taste.** Enabling the setting alone
-fixes the error you can see and leaves the one you cannot: the pull request
-opens carrying no checks, for the reason the route table above states. Merging
-a sync on the strength of a tick nobody ran is the shape this harness exists to
-refuse. The PAT fixes both halves; the setting fixes the visible one.
+**Prefer the token**: the setting alone opens a pull request carrying no
+checks; the PAT fixes both halves.
 
 ### Before merging one
 
@@ -594,20 +515,8 @@ probes both spellings.
 ## Migration: the prior-art file
 
 A consumer that synced between 2026-09-02 and 2026-09-04 carries
-`.agents/docs/prior-art.md` — the days the file existed on `main`
-(`git log --diff-filter=A -- .agents/docs/prior-art.md`). Any other consumer
-never received it and has nothing to do here; the reliable tell is the sync
-naming it `consumer-only`, not the dates. Canonical deleted it — its arguments moved into the documents that own each
-decision (branch shape to [`product/README.md`](product/README.md), the
-no-datastore rule and the in-repo trade to [`graph.md`](graph.md), session
-interrogation to [`handover/README.md`](handover/README.md), liveness to
-[`orchestrated.md`](orchestrated.md)) — and removals do not travel, so the
-sync reports the leftover as `consumer-only` and leaves it.
-
-Remove it once. This one is worth doing rather than leaving as dead weight:
-the file quotes third-party documentation, and the `.agents/NOTICE` arriving
-with your next sync no longer carries the entry that covered those
-quotations.
+`.agents/docs/prior-art.md` (the sync names it `consumer-only`). Canonical
+deleted it and its NOTICE entry; remove it once:
 
 ```bash
 git rm .agents/docs/prior-art.md
@@ -615,21 +524,10 @@ git rm .agents/docs/prior-art.md
 
 ## Migration: research routing
 
-Nothing to run. A consumer whose `docs/research/` held its own documents
-before the research-node protocol existed syncs to a green `ci`: routing
-decides nodehood (`.agents/docs/research/README.md`, "Which files are
-nodes"), and a file with no `research:` key that no plan routes to is a
-document — never linted for node keys, never listed as an open question,
-never drawn in the graph. An earlier harness reded five keys per such
-file; this migration is the sync itself.
-
-Two things a consumer may still see, both correct:
-
-- **DEAD ... was a node** — a file here once carried `research: <stem>`
-  and no longer does. That is a real node that lost its frontmatter, not
-  a document; restore the block or delete the file.
-- `./joharness.sh cleanup` lists `doc` rows for the documents. A count,
-  not a warning — nothing to act on.
+Nothing to run. A file under `docs/research/` with no `research:` key that no
+plan routes to is a document, never linted as a node
+(`.agents/docs/research/README.md`, "Which files are nodes"). `DEAD ... was a
+node` means a real node lost its frontmatter: restore it or delete the file.
 
 ## What syncs
 

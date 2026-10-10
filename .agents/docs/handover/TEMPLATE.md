@@ -45,37 +45,10 @@ Why work exists, in requester's words. One paragraph.
 
 ## Review
 
-One bullet per finding, written BEFORE its fix and committed WITH it. Mark
-(fixed) / (open) / (wontfix + why). `(open)` is MID-BUILD only: the gate that
-reads these markers takes fixed, wontfix or no change (`joharness.sh:fb_marker`),
-and it fires at the edge — so every `(open)` must become one of those three
-before the retire commit, which is the last moment the finding can be answered
-at all. The review conversation evaporates; this
-is the only record of what each round found. The hook counts the bullets
-under this heading, so leave none here unfilled.
-
-**Tag what the independent reader returns `(verifier)`.** Step 5 spawns it at
-every depth, and with `JOHARNESS_REVIEW=on` the gate reds a section at the
-edge that holds only your own findings. ONE finding carrying the tag is the
-bar, not every line — and it must be a FINDING: prose under this heading, a
-heading, or the gate's own red pasted back does not count.
-
-**The form is required, not illustrative: `- r<N>: text`.** An `r`, digits,
-then a COLON. `feedback` attributes a finding to the files its fix commit
-touched by matching exactly that (`joharness.sh:fb_fix_map`), so a bullet
-without it is counted and then never served back to anyone editing that file
-again — the one stage that changes an outcome
-([`../feedback.md`](../feedback.md), Prevent).
-
-Both shapes that break it look right while reading: `- r4 text` with the colon
-dropped, and per-round prefixes like `- v1:` or `- c3:` that exist nowhere in
-this protocol. It was a third of the record in the repo where this was first
-counted. Count your own, and trust that rather than this sentence:
-
-```bash
-./joharness.sh feedback | grep 'carry no r1'   # this repo, default window
-./joharness.sh ci                              # names them on your own diff
-```
+One bullet per finding, written BEFORE its fix, committed WITH it, in exactly
+the form `- rN: text (fixed|wontfix: why|no change)` — `ci` checks it. Tag the
+verifier's findings `(verifier)`. Clean pass = one bullet saying so. Remove
+this paragraph when you add the first bullet.
 
 ## Blockers
 

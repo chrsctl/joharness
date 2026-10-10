@@ -41,8 +41,6 @@ human work.
   requester RECORDED, cited by link in the deleting PR, IS the requester
   deciding: the session writes it down, it does not decide it (exit 4
   below).
-  First instance: `orchestrated-mode`, 2026-09-17, recorded in
-  [`../orchestrated.md`](../orchestrated.md), Where the mode came from.
 - Requirement with open plans = silent in hook; its plans speak.
 
 **A deleted requirement does not say WHICH of the two it was**, and two
@@ -57,17 +55,10 @@ courtesy. Deleting a requirement without it leaves the tree saying
 ### A requirement no plan can serve
 
 The `UNPLANNED` test reads one field: the `requirement:` of every open plan
-on the base branch (`queue-context.sh`, `served=`). It is right about what
-it measures and it stays. What gave is the lifecycle: it had no exit for a
-requirement finished with planning but not satisfied — every remaining
-clause already holds, or is owned by a plan filed under ANOTHER requirement,
-or was declined by the requester. Nothing then names the stem, the file
-stands, and the row is offered again every pass — in orchestrated mode, one
-fable manager at xhigh per orchestrator run, each terminating normally.
-Reported once by a consumer (`chrsctl/gx`): five planning passes on one
-requirement, ended only by a pass that happened to find a clause to plan.
-REPORTED, never re-counted here — the reason the question was asked, not
-the evidence for the answer.
+on the base branch. A requirement finished with planning but not satisfied —
+every remaining clause already holds, is owned by a plan under ANOTHER
+requirement, or was declined — would be offered again every pass, each pass
+one fable manager at xhigh.
 
 So a planning pass ends in these, and each changes the tree. They COMBINE
 per clause — one requirement can need a plan, a verify plan and a decline
@@ -117,85 +108,37 @@ planning branch whose workstream file names the requirement in `plan:` — as
 the pass's merge; the claim is what stops a SECOND planner while one is in
 flight, and what keeps a blocked exit-4 pass from being respawned.
 
-**Intake was compared against a published `intent.md` practice, and two
-verdicts are rejections.** Research node `capture-intent` swept lesson 2 of
-Anthropic's "AI-Native SDLC Playbook" — that one lesson, goal-directed, not
-the other thirteen — against this repo's requirement file, and walked the
-lesson's non-engineer originator through the gates. Fourteen findings: 7
-adopt-candidates, which are the human's to queue or drop, 2 rejections, the
-other 5 convergent. The node is deleted and joharness history holds it; a
-consumer carries this page but not that history, so the node is recoverable
-in joharness only:
+**Intake rejections** (from a sweep of a published `intent.md` practice):
 
-```bash
-git log --diff-filter=D -- docs/research/capture-intent.md
-git show <commit>^:docs/research/capture-intent.md
-```
+- **No author or status line in a requirement or a plan.** Provenance is
+  commits ([`../graph.md`](../graph.md), Rules); neither node type carries a
+  status field. A workstream file does carry `status:`, because a session
+  claims with it.
+- **No detector writes the requirement.** The human writes it, or merges a
+  scout's draft ([`../orchestrated.md`](../orchestrated.md), Bounds).
+  Convention, not mechanism: nothing gates it.
 
-Both rejections point at the rule they protect rather than restating it:
-
-- **No author or status line in a requirement or a plan.** Lesson's example
-  writes `Author: J. Ortiz (claims operations). Status: draft.` into the
-  file. Provenance is commits ([`../graph.md`](../graph.md), Rules), and
-  neither node type carries a status field
-  ([`../plans/README.md`](../plans/README.md), Lifecycle, which says what
-  breaks when one does). Scope that rule as written: a workstream file DOES
-  carry `status:`, because a session claims with it. Lesson's own governance
-  paragraph already agrees the record is git.
-- **No detector writes the requirement.** Lesson lets an alert or ticket
-  originate one, product owner correcting it before commit. Here the human
-  writes it ([`../orchestrated.md`](../orchestrated.md), Bounds). What holds
-  that is worth knowing: since 2026-10-08 nothing gates it in any mode —
-  the `ci` stage that redded an unattended author was deleted on the
-  requester's decision ([`../orchestrated.md`](../orchestrated.md), Bounds).
-  Convention, not mechanism.
-
-**What the walk measured about intake.** Kept because the node's probes die
-with it and these three are the reason the rejections above are not the whole
-answer. Re-run any of them in a throwaway clone, never on `main`.
-
-- A requirement with NO frontmatter is scheduled anyway: counted, listed by
-  its PATH as UNPLANNED, priority defaulted. Both readers exclude only
-  `TEMPLATE.md`, `README.md` and `VISION.md` and neither tests for
-  frontmatter (`joharness.sh:lint_nodes`, `.agents/harness/queue-context.sh`),
-  so the TEMPLATE is a convenience for the decomposing session rather than a
-  gate on intake — and a requester who names their file `README.md` gets
-  silence instead of a queue entry.
-- A wrong `priority` VALUE is the one measured defect: `lint_enum` reds an
-  unknown value, so `priority: high`, written straight onto `main` by someone
-  who never runs `ci`, reds the base branch — and `lint_nodes` walks the
-  worktree rather than a diff, so later pull request runs go red for a file
-  they never touched. Keep that red. Reading an unknown value as `normal`
-  would silently downgrade an urgent requirement, which is what the malformed
-  `issue:` guard already reds on purpose: "a claim that looks accepted and
-  silently is not" (`joharness.sh`).
-- A mistyped KEY has no guard at all. `priorty: urgent` passes — `ci: pass`,
-  exit 0 — and the file schedules as `normal`, because `lint_enum` is only
-  ever handed the value of a key it looked for. That IS the silent downgrade
-  the value check exists to prevent, and it is open. The two legal values are
-  named at the top of this section; nothing routes a requester here, and a
-  guessed one costs the base branch.
+**Intake facts.** A requirement with NO frontmatter is scheduled anyway
+(priority defaulted); a file named `README.md`, `TEMPLATE.md` or `VISION.md`
+is never scheduled. A wrong `priority` VALUE reds `ci` on the base branch —
+kept, because reading it as `normal` would silently downgrade an urgent
+requirement. A mistyped KEY (`priorty: urgent`) has no guard and schedules
+as `normal`: the two legal values are `normal` and `urgent`.
 
 ## Branch flow
 
 - `main` = the only long-lived line. One branch per plan, cut from `main`.
   No long-lived integration branch: PR + `ci` + review-at-edge do that
-  job; a second line rots against a fleet of short sessions. The shape is
-  not worthless and the rejection is not a reflex — grouping an epic's
-  children on a shared branch and landing it as one commit buys three real
-  things: children build on each other, rollback is one commit, CI runs
-  once on the combined work. All three are priced in what this repo
-  optimizes hardest against. Work stays invisible on `main` for the epic's
-  whole life, and an abandoned integration branch is the abandoned-edge
-  problem multiplied by its child count. Re-open on a measurement that
-  serializing costs more than that, never on the appeal of the shape.
+  job. An epic branch buys stacking, one-commit rollback and one CI run, at
+  the price of work invisible on `main` for the epic's life and an abandoned
+  integration branch multiplying the abandoned-edge problem. Re-open only on
+  a measurement.
 - **Start** = Claim (Loop step 3): cut `claude/<plan>`, workstream file,
   push.
 - **Finish** = PR green + reviewed, merge to `main`, PR deletes plan file
   (+ requirement file when last plan). The merging click is the session's
-  own for its own PR (ratified 2026-08-23; conditions in
-  `.agents/harness/AGENTS.md` step 7), merge-commit method only (why: the filter
-  note below). Human veto = revert. Rule syncs to consumers with the
+  own for its own PR (conditions in `.agents/harness/AGENTS.md` step 7),
+  merge-commit method only (why: the filter note below). Human veto = revert. Rule syncs to consumers with the
   harness like every Loop rule; a consumer wanting human-click merges
   overrides in its own `AGENTS.md` Part 2. Merged branch may stand: the
   session-start hook filters branches merged into `main` out of the
@@ -203,19 +146,14 @@ answer. Re-run any of them in a throwaway clone, never on `main`.
   work. Filter reads ancestry, so it rests on PRs merging by merge
   commit — GitHub's "Squash and merge" / "Rebase and merge" buttons hide
   ancestry, and branches merged that way would read as in-flight again.
-  Prose, not a gate: nothing in this repo can enforce the method, and one
-  session squashing once breaks the filter for every session after it. An
-  instruction is the weakest place to put a rule a tool could hold. The
-  remedy is a forge setting rather than code — restrict the allowed merge
-  methods on the repository — and until someone sets it, this bullet is
-  all there is.
+  Prose, not a gate: one squash breaks the filter for every later session.
+  The remedy is a forge setting — restrict the allowed merge methods.
   Deleting = optional hygiene, human-only, anytime: Delete-branch button
   on merged PR page, or repo setting "Automatically delete head
   branches". Sessions never `git push --delete` — deletion is the
   human's call. Abandoned UNMERGED branches are the deadwood the filter
   cannot hide: they read as in-flight until a human triages — salvage
-  plans from their workstream files, then delete (three recovered
-  exactly that way, 2026-08-21).
+  plans from their workstream files, then delete.
 - `urgent` = same mechanics, jumps queue.
 - Merge commits on shared branches, never rebase — history rewrite breaks
   other sessions' checkouts.
@@ -225,92 +163,38 @@ answer. Re-run any of them in a throwaway clone, never on `main`.
   clone. Behind = merge `main` into branch (not rebase), resolve, re-run
   `ci`, push. Conflict does not resolve clean (semantic, unclear intent) =
   do not force-merge through it — decide-alone exception (`.agents/harness/AGENTS.md`),
-  stop, record in workstream file's `Blockers`, ask human. A merge queue
-  would remove this reconcile entirely. Not built: the failure this repo
-  measured is starvation, not merge contention — the count and the command
-  that produced it are in `.agents/harness/AGENTS.md`, `/drain` paragraph.
-  Adopt one only when a measurement shows sessions losing time to
-  reconciles, and prefer the forge's own to building one.
+  stop, record in workstream file's `Blockers`, ask human. No merge queue:
+  adopt one (the forge's own) only when a measurement shows sessions losing
+  time to reconciles.
 - **Long-running session** = re-check `git fetch origin main` ahead/behind
   periodically during Build too, not only at Finish — a conflict caught
   mid-build is cheap, one hit at finish after hours of work is not.
 
-## Orchestration: peers, no lead, and what that costs
+## Orchestration
 
-The architecture class is **decentralized peer**, and it is a considered
-position rather than an accident. There is no orchestrator anywhere: each
-session cuts a branch from `main`, claims by pushing a workstream file, and
-merges its own pull request. Parallel safety comes from `scope:` prefixes the
-queue hook proves disjoint.
+One low-tier orchestrator sits over the queue
+([`../orchestrated.md`](../orchestrated.md)): it spawns one manager per item
+under a cap, holds back a plan whose scope overlaps work in flight, and kills
+a stuck manager after its handover is written. Managers still merge their
+own pull requests 0 behind `main`.
 
-**The costs this avoids are real in kind and unquantified in degree.** An
-orchestrator is a single point of failure, a context-window bottleneck holding
-every worker's result, and a throughput ceiling. Those are qualitative claims
-worth believing; the figures that circulate for them are blog arithmetic and do
-not survive checking, so no number for them appears here.
-
-**The cost it does pay is measurable, and it is the reconcile.** About one merge
-in four arrives only after its branch pulled `main` in first:
+**The cost that scales with width is the reconcile.** About one merge in
+four arrives only after its branch pulled `main` in (51 of 201 merges,
+`origin/main` 2026-08-30). Count it by the reconcile merge's own subject,
+never `--grep=reconcile`:
 
 ```bash
 git log --oneline origin/main --grep='^Merge origin/main\|^Merge remote-tracking branch' | wc -l
 git log --oneline --merges origin/main | wc -l
 ```
 
-51 of 201 merges all-time (25.4%), and 14 of 60 (23.3%) over the most recent
-window, on `origin/main` 2026-08-30 in a full clone. Stable across both, which
-is what makes it usable as a baseline: fan-out raises session count, and
-contention at the merge stage is the cost that scales with it. A plan that
-widens the fleet should carry this number and say what it expects to happen to
-it, rather than treating width as free.
+A plan that widens the fleet says what it expects to happen to that number.
+Worktrees would not move it: they isolate files but the conflict still lands
+at the pull request merge.
 
-**Do not measure this with `--grep=reconcile`.** That counts commits whose
-message *discusses* reconciling, which a session working on the reconcile rules
-produces many of. Match the reconcile merge's own subject, as above.
-
-**Worktrees would not help, and this is the best-sourced finding.** They provide
-file isolation without removing conflicts when agents touch the same
-functionality; the conflict moves to the pull request merge stage "where they
-surface as visible git conflicts instead of silent runtime overwrites". That is
-exactly where this repo's reconciles already land, so adopting them would move
-nothing.
-
-**Claude Code ships the mechanism this repo hand-builds.** Agent teams
-(experimental) give tasks pending/in-progress/completed states with self-claim,
-and "task claiming uses file locking to prevent race conditions". The queue plus
-claim-by-push is the same mechanism built on git instead. Adopt-or-build is a
-live question and is NOT answered here: the built-in is experimental and stores
-state outside the repo, against a doctrine that git holds the state.
-
-**A lead with subagents does beat one agent at breadth-first work** — 3-5
-subagents in parallel, a separate citation pass, and a multi-agent setup
-outperforming the single-agent baseline "by 90.2% on our internal research
-eval". Anthropic-internal, model-specific: attributable, not independently
-reproduced. It argues for fan-out *within* a unit of work, not for a lead over
-the fleet.
-
-**A lead above the fleet now exists, and the peer position stays the
-default.** `JOHARNESS_MODE=orchestrated`
-([`../orchestrated.md`](../orchestrated.md)) puts a low-tier orchestrator
-over the queue: it spawns one manager per item under a cap, holds back a
-plan whose scope overlaps work in flight, and kills a stuck manager after
-its handover is written. It does not touch the reconcile mechanism —
-managers still merge their own pull requests 0 behind `main` — so the
-number above is what a run of it should move: fewer collisions taken, or
-the hold rule bought nothing. Run 1 — 2026-09-06, counted in
-[`../orchestrated.md`](../orchestrated.md), Runs — is the counted run, and
-counting it is what discharged the beta label, 2026-09-11. It did not move
-the number above: its row counts no reconciles, and neither side has
-drained a stocked queue. The peer fleet stays the default, and which design
-empties a queue faster is still open.
-
-**The gap none of this closes: claim-by-push only covers work that enters
-through the queue.** A request typed at a running session enters nowhere, and
-two sessions once answered the same one two minutes apart, producing competing
-designs for one problem. Neither more isolation nor a lead fixes that — the
-queue is the shared document, and a mid-session request never reaches it. The
-mitigation available today is the Loop's own rule that nothing builds unplanned:
-a request decomposed into a plan file enters the queue and becomes claimable.
+**The gap: claim-by-push only covers work that enters through the queue.** A
+request typed at a running session enters nowhere. The mitigation is the
+Loop's own rule: nothing builds unplanned, and a plan file is claimable.
 
 ## Reconciliation
 
