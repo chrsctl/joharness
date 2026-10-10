@@ -26,54 +26,60 @@ real case it exists for.
 ## Scope
 
 - `.agents/harness/handover-guard.sh`, section `background work still
-  running`:
-  1. Read one more column in the SAME single `ps` call:
-     `ps -eo pid=,ppid=,etimes=,comm=` (etimes = seconds since the process
-     started). Still one `ps`, one `awk` — the perf budget comment there
-     stays true.
-  2. In the awk, after the agent is found: a DIRECT child of the agent
-     whose `etimes` is within `spawn_window` seconds of the agent's own
-     `etimes` (`agent_etimes - child_etimes <= spawn_window`) was started
-     WITH the agent — by the harness, not by a session command. Exclude
-     that child's whole subtree from the count, the same way the invocation
-     root's subtree is excluded today (reuse the `skip` map). Set
-     `spawn_window=30`, one named awk variable, with a comment carrying the
-     measurement it rests on.
-  3. If the agent's `etimes`, or a child's, is not all digits (a `ps`
-     without the field, a short row), exclude nothing for it. Today's count
-     is the fallback; the guard never goes quieter on a read it cannot make.
-  4. Rewrite the fact text so it states only what the count measures. New
-     text, exact: `${bg_running} process(es) this session started are still
-     attached to it — check whether each is yours and meant to outlive the
-     turn; a wait loop that matches its own command line never exits`.
-     Still digits only from runtime data; nothing else interpolated.
-  5. Update the section's header comment: why a process started with the
-     agent is not the session's (issue #338, the measurement above), and
-     the bound it leaves: a server restarted mid-session (`/mcp` reconnect)
-     is counted again. Say so; it is the accepted cost.
+  running`. The rule: a session's own background work reaches the agent
+  through a SHELL, so count only the subtrees of the agent's direct children
+  whose `comm` is a shell (`bash`, `sh`, `dash`, `zsh`). Any other direct
+  child — `node`, `python`, `uvx`, … — was started by the harness, not by a
+  tool call, and is not the session's.
+  1. In the awk program's `counted` pass, seed the queue only with direct
+     children of `agent` whose `comm[...]` matches
+     `/^(bash|sh|dash|zsh)$/`. Everything below a seeded child is counted as
+     today, whatever its `comm` (`bash` → `timeout` → `sleep` is one tree).
+     The invocation-root exclusion (`skip`) is unchanged.
+  2. No new `ps` column, no second `ps`. `comm` is already read. The perf
+     comment stays true.
+  3. Fact text: keep the substrings the suite pins (`background
+     process(es)`, `a wait loop whose own line matches its own pattern`) and
+     stop asserting that loop is THE cause. New text, exact:
+     `${bg_running} background process(es) this session started are still
+     running — check whether each is yours and kill what is stuck, for
+     example a wait loop whose own line matches its own pattern`. No `;` in
+     it (`add_fact` joins facts with `; `). Digits are still the only
+     runtime data in it.
+  4. Header comment of the section: why the rule is the shell (issue #338's
+     measurement, and the one below), and the cost it accepts — an MCP
+     server declared as `bash …` or `sh -c …` in `.mcp.json` is still
+     counted. Say so.
 - `.agents/harness/selftest/handover-guard.sh`:
-  1. The `ps` shim emits four columns for every existing shape (`cycle`,
-     `rooted`, `dupes`); give each row an `etimes` that keeps today's
-     expected outcome (leftovers well after the agent: e.g. agent 1000,
-     leftover 10).
-  2. New shape `harness-child`: fake agent `etimes` 1000; one child of the
-     agent with `etimes` 995 and a grandchild under it (the MCP server and
-     its worker); one leftover child with `etimes` 10. Expect exactly
-     `1 process(es)`.
-  3. New shape `no-etimes`: same tree, `etimes` column `-`. Expect
-     `3 process(es)` — no exclusion when the field is unreadable.
-  4. The real-tree case's assertions follow the new wording: the
-     `expect "... is reported"` string and the `expect "and the fact says
-     what makes one unable to finish"` string change to substrings of the
-     new text. Same intent, new words — not a weakened test.
+  1. Real-tree case "a process the session leaves running is reported":
+     its leftover becomes `bash -c 'sleep 300; :' &` instead of
+     `sleep 300 &`. This is the shape a real background tool command has
+     (measured below), not a weaker test. The trailing `; :` is
+     load-bearing: a one-command `-c` exec-optimises into `sleep`, which is
+     no longer a shell. Its `kill` must reach the `sleep` too (kill the
+     `bash -c` job's process group, or `pkill -P` its pid) — no orphan
+     left for 300 s.
+  2. New real-tree case: the fixture starts `sleep 300 &` directly (a
+     non-shell child, standing for `node mcp.mjs`) and nothing else; refute
+     `background process(es)` in the output. Kill it after.
+  3. New shim shape `harness-child`: `900000 1 claude-fake`, the guard
+     under it, `900030 900000 node`, `900031 900030 node` (server and its
+     worker), `900040 900000 bash`, `900041 900040 sleep`. Expect the count
+     2 exactly, matched as `grep -E '(^|[^0-9])2 background process'` (a bare
+     substring also matches 12).
+  4. Every existing case stays as it is and must still pass. `dupes`
+     leftovers are already `sh`, so its count stays 2.
 
 ## Out of scope
 
-- Parsing `.mcp.json` or `.claude/settings.json` to match server commands.
-  `comm` is the binary (`node`), so a match means reading full command
-  lines from the table — input this session does not control — and parsing
-  JSON in shell. The start-time test needs neither. Named in #338 as an
-  option; rejected for that reason.
+- A start-time (`etimes`) window. Rejected in review: a pre-warmed agent
+  (this container's agent runs as `claude --preload …spare.sock`) is
+  minutes older than the servers it later starts, so a window never
+  fires where #338 was measured. And it would hide a real wait loop started
+  in the first seconds of an unattended session.
+- Parsing `.mcp.json` or `.claude/settings.json`. `comm` is the binary, so a
+  match needs full command lines — input this session does not control —
+  and JSON parsing in shell.
 - Detecting a server whose CONNECTION closed while its process lives (#338's
   `CONNECTION_CLOSED` note). The guard reads processes, not connections.
 - Killing anything. Every fact in this file reports, never acts.
@@ -82,28 +88,29 @@ real case it exists for.
 ## Acceptance
 
 - `bash .agents/harness/selftest.sh` → `0 failed`; its `handover-guard`
-  lines all pass, including the two new shapes. The topic file is not
-  runnable alone.
-- Revert step 2 of the guard change (the exclusion) only. The
-  `harness-child` case must FAIL (counts 3). Restore it.
-- `./joharness.sh perf` — the `handover-guard` row stays within its budget.
+  lines all pass, the new ones included. The topic file is not runnable
+  alone.
+- Revert step 1 of the guard change only. `harness-child` must FAIL (counts
+  4) and the direct-`sleep` refute must FAIL. Restore it.
+- `./joharness.sh perf` — the `handover-guard` row stays within budget.
 - `./joharness.sh ci` → `ci: pass`. `./joharness.sh verify` → `0 failed`.
 - SHIPS: `.agents/harness/` reaches every consumer at its next sync. The
-  consumer check: a session in a repo with a stdio server in `.mcp.json`
-  that started no background work stops with no `process(es)` fact.
+  consumer check, in a repo with a stdio server in `.mcp.json` and no
+  background job running: the Stop hook's output carries no
+  `background process(es)`.
 
 ## Where to look
 
 - `.agents/harness/handover-guard.sh` — `bg_running=` and the awk program
   under it: the `climbed` walk (finds `agent`), the `walked`/`root` walk,
-  the `skip` breadth-first pass (the exclusion to copy), the `counted` pass.
+  the `skip` breadth-first pass, the `counted` pass (the one to change).
 - `.agents/harness/selftest/handover-guard.sh` — `sgps` shim and its
   `SG_PS_SHAPE` cases; `sgbg` real-tree fixture and its `expect` strings.
-- Measured here, 2026-10-10, `ps -eo pid=,ppid=,etimes=,comm=` in a cloud
-  session: the field exists in this container's procps; the agent (`claude`)
-  showed `etimes` 71 while the session was far older — the agent process can
-  be newer than the session. Its MCP children restart with it, so the window
-  compares against the AGENT, never against session start.
+- Measured here, 2026-10-10, in a cloud session: with one
+  `run_in_background` command (`timeout 60 sleep 45`) live,
+  `ps -eo pid=,ppid=,etimes=,comm=` showed the agent's direct children as
+  `bash` only, the job as `bash` → `timeout` → `sleep`. #338's server showed
+  as `node` directly under the agent (its `ps` output, in the issue).
 
 ## Traps
 
@@ -117,3 +124,5 @@ real case it exists for.
   `comm` in the fact. Digits only.
 - Every awk walk keeps its visited map; a new walk without one is the
   unbounded loop the `cycle` shape exists to catch.
+- A fixture that starts a real `sleep 300` must kill it, whole tree. A
+  leftover from the suite is the thing this fact reports.

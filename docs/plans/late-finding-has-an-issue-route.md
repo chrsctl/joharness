@@ -26,13 +26,21 @@ available, never an order to file.
 
 - `.agents/docs/feedback.md`, section `### 4. Inline or routed`: extend the
   "Capture always, immediately" bullet with a third place, used only when
-  neither a workstream file nor an open pull request exists: an issue on the
+  neither a workstream file nor an open CANONICAL pull request exists (the
+  consumer's own pull request may well be open — after the retire commit it
+  usually is; it carries no `## Review` and does not count): an issue on the
   repo named by `CANONICAL_REPO` (`.github/workflows/update.yml`). Then one
   short paragraph saying:
-  - why it fits the default-off posture: the two reasons the switch is off
-    (pull requests in a repo the child does not own; a reporter is a session
-    beyond `JOHARNESS_MAX_MANAGERS`) apply to neither an issue nor one API
-    call from the session already running;
+  - why it is compatible with the default-off posture, argued, not denied:
+    an issue IS a write to a repo the child does not own, but it carries no
+    diff, merges nothing and asks canonical only to read; and it is one API
+    call from the session already running, not a session beyond
+    `JOHARNESS_MAX_MANAGERS`;
+  - every mode, one bound: at most ONE such issue per session, and search
+    canonical's open issues for the same finding first — a match gets
+    nothing new filed. Unattended sessions (unsupervised, orchestrated) are
+    included because they are where nobody reads the chat; the bound is
+    what keeps a guard that fires at every stop from filing at every stop;
   - it satisfies the direction rule: nothing lands in the consumer;
   - the gate still holds: stage 1's question ("does the fact it states match
     what it measures?") clears each finding first, and the issue carries the
@@ -65,9 +73,10 @@ available, never an order to file.
 
 ## Acceptance
 
-- `grep -n 'CANONICAL_REPO' .agents/docs/feedback.md` — a hit inside
-  section `4. Inline or routed`.
-- `grep -n 'feedback.md' .agents/harness/AGENTS.md` — a hit inside step 7.
+- `sed -n '/^### 4. Inline or routed/,/^### The switch/p' .agents/docs/feedback.md | grep -c 'issue'`
+  → 1 or more (0 on `main` at 944d0e8, 2026-10-10).
+- `sed -n '/^7\. \*\*Finish/,/^Queue still/p' .agents/harness/AGENTS.md | grep -ci 'issue'`
+  → 1 or more (0 on `main` at 944d0e8, 2026-10-10).
 - `./joharness.sh ci` → `ci: pass` (glossary spelling, caveman lint,
   anchors, context budget — `context` counts what the AGENTS.md line adds).
 - SHIPS: both files reach consumers at their next sync; the consumer check
