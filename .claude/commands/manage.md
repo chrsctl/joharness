@@ -44,6 +44,9 @@ the orchestrator already decided what runs beside you.
      file (`.agents/docs/research/README.md`). Same claim, same finish.
    - `docs/product/<r>.md` — UNPLANNED: decompose into plans (`/plan`),
      pull request carrying the plans only, merge, exit. Never implement.
+     Nothing left to plan? One of the exits in
+     `.agents/docs/product/README.md`, "A requirement no plan can serve" —
+     never a pass that changes nothing.
    - `rescope <key>` — you are the SURVEYOR. The queue is not the blocker,
      the DECLARATIONS are.
      `./joharness.sh dispatch` printed OVERLAP-BOUND: slots free, every plan
