@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01SgfwCMLkTYEfA1n5WW3MvM
 agent: sonnet
 updated: 2026-10-10
-next: Edit janitor.md (Never, §5 Report, step 2 FAILED row) and orchestrate.md status_bucket row, per plan Scope.
+next: Await verifier + ci; record Review; retire plan+workstream files; PR; merge.
 ---
 
 ## Goal
