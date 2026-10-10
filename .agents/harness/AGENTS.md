@@ -42,7 +42,8 @@ have ONE spelling: [`.agents/docs/glossary.md`](../../.agents/docs/glossary.md);
    pass = one line saying so. `./joharness.sh review` prints depth and
    record state. Fix undoes an earlier fix? Stop patching; research step at
    raised tier (`.agents/docs/agent-selection.md`, review churn). Test for a
-   fix must FAIL without it. Measured number names the command and when.
+   fix must FAIL without it — never revert while a subagent you spawned is
+   alive (`.agents/docs/subagents.md`). Measured number names the command and when.
    NEVER skip, disable or quarantine a test to get green. NEVER kick CI.
    Background command must be able to finish (bound it); never `pgrep -f`
    a pattern your own command line carries.
