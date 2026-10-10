@@ -74,8 +74,9 @@ the others.
    periodically (`.agents/docs/product/README.md` Branch flow).
 5. **Verify.** All green or not done. `./joharness.sh ci` runs what GitHub's
    lint check runs — here, before the pull request, not after. GitHub also
-   runs some layers' `verify`, which `ci` does not (which ones: step 7):
-   run it too, or the first news is a red PR.
+   runs `verify` for each layer carrying a `ci-verify` marker
+   (`.agents/env/README.md`), which `ci` does not: run it too, or the first
+   news is a red PR.
    `./joharness.sh verify` proves the selected environment. Trust counted
    numbers, never written numbers — including numbers in any instruction file.
    Edge to main = review, always; depth scales with the plan's tier
