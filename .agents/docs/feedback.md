@@ -374,8 +374,9 @@ commit-level attribution named under *What this cannot see* above:
 - **A finding with no fix commit at all** — the normal shape of a `wontfix` or
   a no-change verdict, recorded in a commit that touches only the workstream
   file — is placed by the paths its own TEXT names, marked as read from prose.
-  One that names none is listed as unplaceable and never flips the verdict by
-  itself: a report built on an unplaced finding is a consumer's own defect
+  One whose text names paths, none canonical's, is listed under its own
+  heading saying so; one that names none is listed as unplaceable. Neither
+  flips the verdict by itself: a report built on an unplaced finding is a consumer's own defect
   carried verbatim onto somebody else's queue.
 
 A `wontfix` on a harness path is the strongest single signal the command has,

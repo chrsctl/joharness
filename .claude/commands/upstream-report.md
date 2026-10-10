@@ -42,7 +42,9 @@ read both before you weigh the text:
   strongest thing on the page: a session declined to fix a harness file it
   could not have fixed there anyway.
 
-An `unplaceable` finding is listed with no path at all. It never enters a
+An `unplaceable` finding is listed with no path token in its text at all; a
+finding whose text named paths, none of them canonical's, has its own heading
+and says they came from prose. Neither enters a
 report on its own — placing it means reading the edge and finding the file
 yourself, and if you cannot, it is not a report.
 

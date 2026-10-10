@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_0158ckFurR1bSxTGn9v4L8g4
 agent: sonnet
 updated: 2026-10-10
-next: Read upstream_harness_path and cmd_upstream, fix both defects with selftest cases.
+next: Wait for selftest + sweep (scratchpad sweep.out), recount feedback.md tables, run ci, verifier review, retire, PR.
 ---
 
 ## Goal

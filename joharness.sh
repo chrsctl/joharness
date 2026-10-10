@@ -4314,15 +4314,38 @@ fb_cache_save() {
 # A false positive costs a reporter one dropped finding after it reads the
 # edge; a false negative loses the finding entirely. So the doubtful cases are
 # in, flagged, and the reader decides.
+#
+# Prose writes a path in more forms than the tree spells it: a leading `./`
+# (`./joharness.sh`), and a bare basename (`selftest.sh`). The first is
+# stripped. The second is resolved by OWNERSHIP, not by path uniqueness: the
+# basename is canonical's when it names at least one tracked file and every
+# tracked file bearing it is canonical's. A MIXED set stays rejected — a bare
+# `README.md` is also the root README, which canonical does not own. A suffix
+# match is wrong in the other direction: `docs/handover/README.md` is the
+# consumer's own and must not be claimed (the `*/*` guard below).
 upstream_harness_path() {
-  case "${1%/}" in
+  local p="${1%/}" t hit=0
+  p="${p#./}"
+  case "$p" in
     joharness.sh | CLAUDE.md | .gitattributes) return 0 ;;
     AGENTS.md) return 0 ;;
     .agents | .agents/*) return 0 ;;
     .claude/commands | .claude/commands/* | .claude/skills | .claude/skills/*) return 0 ;;
     .claude/agents | .claude/agents/* | .claude/settings.json) return 0 ;;
+    */* | '') return 1 ;;
   esac
-  return 1
+  while IFS= read -r t; do
+    [ -n "$t" ] || continue
+    # A root file reaching here matched none of the owned names above, so it
+    # is not canonical's (the root README.md); a nested one recurses once.
+    case "$t" in
+      */*) upstream_harness_path "$t" || return 1 ;;
+      *) return 1 ;;
+    esac
+    hit=1
+  done <<<"$(git -C "$ROOT" ls-files </dev/null 2>/dev/null |
+    awk -F/ -v b="$p" '$NF == b')"
+  [ "$hit" -eq 1 ]
 }
 
 # One line of caution per path whose ownership is not clean, printed beside
@@ -4520,7 +4543,7 @@ upstream_text_paths() {
 cmd_upstream() {
   local want="${1:-}" edge label base tip doc repo canon mode
   local ids multi paths from_text p f id marker note flag kept keep="" noid=""
-  local n_keep=0 n_drop=0 n_noid=0
+  local n_keep=0 n_drop=0 n_noid=0 n_prose=0 prose=""
 
   [ "$#" -le 1 ] || die "usage: $0 upstream [<branch>|<merge>]"
 
@@ -4625,6 +4648,10 @@ cmd_upstream() {
       keep="${keep}${kept}"
     elif [ -n "$paths" ] && [ "$from_text" -eq 0 ]; then
       n_drop=$((n_drop + 1))
+    elif [ -n "$paths" ]; then
+      # Prose named paths, and none is canonical's: not "no path at all".
+      n_prose=$((n_prose + 1))
+      prose="${prose}  - [${marker}] ${f}"$'\n'
     else
       n_noid=$((n_noid + 1))
       noid="${noid}  - [${marker}] ${f}"$'\n'
@@ -4634,11 +4661,14 @@ cmd_upstream() {
   if [ "$n_keep" -gt 0 ]; then
     printf 'harness findings (on a path canonical owns):\n%s\n' "$keep"
   fi
+  if [ "$n_prose" -gt 0 ]; then
+    printf 'named paths in prose, none of them canonical'"'"'s (read from the text, not a fix commit):\n%s\n' "$prose"
+  fi
   if [ "$n_noid" -gt 0 ]; then
     # No backticks in the literal: shellcheck reads one inside single quotes
     # as a command substitution somebody meant to expand (SC2016), and the
     # form is just as legible spelled out.
-    printf 'unplaceable (no fix path, and no path in the text — read the edge):\n%s\n' "$noid"
+    printf 'unplaceable (no fix path, and no path token in the text — read the edge):\n%s\n' "$noid"
   fi
   if [ "$n_drop" -gt 0 ]; then
     printf '%d finding(s) landed on this repo'"'"'s own files: not canonical'"'"'s.\n\n' "$n_drop"
@@ -4661,6 +4691,8 @@ cmd_upstream() {
   # through the one bucket that was printing text unfiltered.
   if [ "$n_keep" -eq 0 ]; then
     printf 'verdict   : NOTHING TO REPORT — nothing on this edge is placed on a path canonical owns\n'
+    [ "$n_prose" -eq 0 ] ||
+      printf '            %d finding(s) named only non-canonical paths in prose: not guessed at\n' "$n_prose"
     [ "$n_noid" -eq 0 ] ||
       printf '            %d unplaceable finding(s) above: a human or a reporter reading\n            the edge can place them; this command will not guess\n' "$n_noid"
     return 0
