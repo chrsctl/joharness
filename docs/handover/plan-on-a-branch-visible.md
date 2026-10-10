@@ -1,6 +1,6 @@
 ---
 workstream: plan-on-a-branch-visible
-status: in-progress
+status: done
 branch: claude/plan-on-a-branch-visible-x7k2
 pr: none
 plan: plan-on-a-branch-visible
@@ -8,7 +8,7 @@ issue: 297
 session: https://claude.ai/code/session_011826jrSc2fYHWmqxniAGSN
 agent: opus
 updated: 2026-10-10
-next: Read verifier findings into ## Review, merge origin/main (18 behind, shared files), ci, retire, PR
+next: Retired; PR open, merge on green
 ---
 
 ## Goal
