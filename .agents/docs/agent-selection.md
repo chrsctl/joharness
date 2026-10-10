@@ -192,8 +192,8 @@ harness did not say:
   context; cached, at a fraction of input price (opus 5.5: 0.20 against
   4 /MTok, claude-api skill cache 2026-10-06; sonnet 5.5 0.10 against 2,
   haiku 5.5 0.01 against 0.10 ≤100K, pricing page 2026-10-09). One
-  orchestrator: 1.21B cache-read tokens against 1.74M output (`get_session` 2026-10-07, in the
-  retired `docs/product/scout-role.md` Evidence: `git log --diff-filter=D --
+  orchestrator: 1.21B cache-read tokens against 1.74M output
+  (`get_session` 2026-10-07, in the retired `docs/product/scout-role.md` Evidence: `git log --diff-filter=D --
   docs/product/scout-role.md`). Two managers of that fleet: 712K
   context, 46.76 USD; 126K, 0.88 USD. Research sweeps go to a subagent that
   returns the conclusion (`subagents.md`); the parent keeps no file dumps.
