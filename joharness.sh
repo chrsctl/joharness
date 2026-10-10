@@ -5453,7 +5453,8 @@ cmd_janitor() {
 # The scout cycle — the fleet spends nothing on finding what it could do better
 # ---------------------------------------------------------------------------
 #
-# docs/product/scout-role.md: a scout researches new capacities and PROPOSES
+# The scout role (.agents/docs/orchestrated.md, Bounds; its requirement,
+# docs/product/scout-role.md, is in history): a scout researches new capacities and PROPOSES
 # them; a human's merge is what makes a proposal queue work. This is the
 # machinery — when one is due, which is in flight — and what a spawned scout
 # does is .claude/commands/scout.md. Same shape as the janitor cycle, with two
@@ -5502,58 +5503,107 @@ scout_refs() {
 #   on the command line outranks any `grep.patternType`, and colour is off.
 #   Two calls over all tips, never one per ref — drain pays this at every
 #   session start, and `perf` gates it.
-# - The BASE tip is read too, and nothing is skipped as inherited: a scout
-#   whose file reached the base before its retire (a branch cut from it was
-#   merged, or a human merged early) hid behind a byte-identical skip
-#   (pass 5). One file seen on many tips is one row per status, named for
-#   the first ref listed — the base is listed last, so a scout's own branch
-#   names it. Every copy is read: a copy in flight on ANY tip is in flight.
+# - The BASE tip is read too, and its row always counts: a scout whose file
+#   reached the base before its retire (a branch cut from it was merged, or
+#   a human merged early) once hid behind an inherited-copy skip that
+#   dropped the base's own copy (pass 5). One row per tip, except a non-base
+#   copy byte-identical to the base's — proved by two resolved blob ids,
+#   never inferred from a failed read — which the base's row already
+#   carries. Twins — two scouts claiming the same day — are two rows, which
+#   is what `scout.md`'s twin check reads.
 #
 # Status is the one field read, lower-cased and blank-joined, so `Abandoned`
 # reads as the word it is; an unreadable one is `?`, which is in flight.
 scout_walk() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}"
-  local refs=() r hit wf doc sws sstat seen=$'\n' key listing rc_l rc_u
-  while IFS= read -r r; do refs+=("$r"); done < <(scout_refs)
-  refs+=("refs/remotes/origin/${base_branch}")
+  local ids=() names="" base_id id r hit wf doc sws sstat seen=$'\n' key listing rc_l rc_u blobs
+  # ONE snapshot, by commit id, read before anything else: the base's id
+  # first, then the unmerged refs measured against THAT id. Every later
+  # read — both listings, both blob ids — names commits, never refs, so a
+  # concurrent fetch moving a ref mid-walk cannot make a branch's copy read
+  # as "inherited" from a base row the listing never saw (pass 4, r22).
+  base_id="$(git -C "$ROOT" rev-parse --verify -q \
+    "refs/remotes/origin/${base_branch}^{commit}" </dev/null 2>/dev/null)"
+  if [ -z "$base_id" ]; then
+    printf '%s\t%s\t%s\n' '?' 'scout-unreadable' 'unreadable'
+    return 0
+  fi
+  while IFS=$'\t' read -r id r; do
+    case "$r" in
+      '' | refs/remotes/origin/HEAD | "refs/remotes/origin/${base_branch}") continue ;;
+    esac
+    # Every NAME kept, the id listed once: two branches on one commit are
+    # two rows, so a branch stacked on a scout cannot borrow its name and
+    # the scout's own row stays its own (pass 5).
+    case "$names" in *$'\n'"${id}"$'\t'*) ;; *) ids+=("$id") ;; esac
+    names="${names}"$'\n'"${id}"$'\t'"${r#refs/remotes/origin/}"
+  done < <(git -C "$ROOT" for-each-ref --no-merged="$base_id" \
+    --format='%(objectname)%09%(refname)' refs/remotes/origin </dev/null 2>/dev/null)
+  ids+=("$base_id"); names="${names}"$'\n'"${base_id}"$'\t'"${base_branch}"$'\n'
   # Exit status kept, not discarded: grep exits 1 for "nothing listed" and
   # 128 for an error — a ref pruned between `for-each-ref` and here empties
   # EVERY listing at once (pass 6). An error is one in-flight row named
   # `unreadable`, never an empty answer. The pathspec variables a user may
   # export would turn the glob into a literal path, the same class as
   # `grep.patternType` (pass 6): pinned off for these calls.
-  listing="$(GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 git -C "$ROOT" grep \
-    --color=never -l -E -e '' "${refs[@]}" -- 'docs/handover/scout-[0-9]*' \
+  listing="$(GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 git -C "$ROOT" -c core.quotePath=false grep \
+    --color=never -l -E -e '' "${ids[@]}" -- 'docs/handover/scout-[0-9]*' \
     </dev/null 2>/dev/null)"; rc_l=$?
-  listing="${listing}"$'\n'"$(GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 git -C "$ROOT" grep \
-    --color=never -L -E -e '' "${refs[@]}" -- 'docs/handover/scout-[0-9]*' \
+  listing="${listing}"$'\n'"$(GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 git -C "$ROOT" -c core.quotePath=false grep \
+    --color=never -L -E -e '' "${ids[@]}" -- 'docs/handover/scout-[0-9]*' \
     </dev/null 2>/dev/null)"; rc_u=$?
   if [ "$rc_l" -gt 1 ] || [ "$rc_u" -gt 1 ]; then
     printf '%s\t%s\t%s\n' '?' 'scout-unreadable' 'unreadable'
   fi
   while IFS= read -r hit; do
     [ -n "$hit" ] || continue
-    r="${hit%%:*}"; wf="${hit#*:}"
+    id="${hit%%:*}"; wf="${hit#*:}"
+    # A NON-base row whose file is byte-identical to the base's copy is the
+    # base's file inherited, not this branch's: the base's own row (listed
+    # last) carries it, so nothing hides, and every branch cut after it no
+    # longer prints a row of its own (scout-command review, pass 2).
+    # Skipped only when BOTH sides RESOLVE and match: `rev-parse A B` stops
+    # at its first unresolvable argument and prints one line, so comparing
+    # its output read a failed read as "identical" and hid a live scout —
+    # a quoted path, or a ref pruned mid-read (pass 3, r17). Any failure
+    # keeps the row: fail closed.
+    if [ "$id" != "$base_id" ]; then
+      blobs="$(git -C "$ROOT" rev-parse --verify -q "${id}:${wf}" </dev/null 2>/dev/null)"
+      if [ -n "$blobs" ] && [ "$blobs" = "$(git -C "$ROOT" rev-parse --verify -q \
+          "${base_id}:${wf}" </dev/null 2>/dev/null)" ]; then
+        continue
+      fi
+    fi
     # CR stripped first: a CRLF file must not read as no frontmatter at all.
-    doc="$(git -C "$ROOT" show "${r}:${wf}" </dev/null 2>/dev/null | tr -d '\r')"
+    doc="$(git -C "$ROOT" show "${id}:${wf}" </dev/null 2>/dev/null | tr -d '\r')"
     sstat="$(printf '%s\n' "$doc" | gr_field status |
       tr 'A-Z ' 'a-z-' | tr -cd 'a-z0-9._-')"
-    # One row per file AND status, never per file alone: keyed on the path,
-    # an older `abandoned` copy on an earlier-listed branch hid the base's
-    # in-progress one — open again. Every copy is read; a copy that is not
-    # abandoned anywhere keeps the scout in flight.
-    # An EXACT entry in a newline list, never a substring: a branch may name
-    # a file `scout-0|<other path>=in-progress|x`, and a substring key let
-    # that decoy mark the live copy as already seen (pass 6).
-    key="${wf}"$'\t'"${sstat:-?}"
+    # One row per BRANCH and file, never collapsed further: two scouts
+    # started the same day write the same path on two branches, and the twin
+    # check in `.claude/commands/scout.md` counts those rows — keyed on the
+    # path, twins read as one (scout-command review). Keyed on path and
+    # status, an older `abandoned` copy hid a live one (pass 5). An EXACT
+    # entry in a newline list, never a substring: a file named
+    # `scout-0|<other path>=in-progress|x` forged a substring key (pass 6).
+    key="${id}"$'\t'"${wf}"
     case "$seen" in *$'\n'"${key}"$'\n'*) continue ;; esac
     seen="${seen}${key}"$'\n'
     sws="${wf##*/}"; sws="${sws%.md}"
     sws="$(printf '%s' "$sws" | tr -cd 'A-Za-z0-9._:-')"
-    printf '%s\t%s\t%s\n' "${r#refs/remotes/origin/}" "${sws:-?}" "${sstat:-?}"
+    while IFS=$'\t' read -r key r; do
+      [ "$key" = "$id" ] || continue
+      printf '%s\t%s\t%s\n' "${r:-?}" "${sws:-?}" "${sstat:-?}"
+    done <<<"$names"
   done <<<"$listing"
 }
 
+# Accepted, written down (scout-command pass 5): the clock below reads refs
+# by NAME before scout_walk takes its snapshot, so a concurrent fetch in the
+# same clone that lands a scout's retire between the two reads makes one
+# read due. A scout spawned on it fetches and re-reads in its twin check
+# (`.claude/commands/scout.md`), sees the retire's not-due clock, and
+# retires — never two going on.
+#
 # When a scout last FINISHED on an unmerged branch: the committer time of
 # the newest deletion of a scout file there, empty when none. Loop step 7
 # retires the workstream file as the last commit before the pull request
@@ -5748,7 +5798,6 @@ cmd_scout() {
   printf 'evidence a scout reads (each proposal cites what it rests on):\n'
   printf '  ./joharness.sh upstream     what merged edges found about the harness\n'
   printf '  ./joharness.sh scorecard    the fleet'"'"'s own numbers\n'
-  printf '  ./joharness.sh review       review churn on the queue\n'
   printf '  ./joharness.sh feedback     findings ready to graduate\n'
   printf '  open issues on the canonical repository\n'
   printf '  the control plane'"'"'s cost reader: get_session usage.cost_usd,\n'
@@ -7401,7 +7450,7 @@ drain_scout_block() {
   printf 'scout     : DUE — %s\n' "$reason"
   printf '  The queue is drained and nothing has looked for what to do better.\n'
   printf '  A scout only PROPOSES, and nothing it writes enters the queue until\n'
-  printf '  a human merges it (docs/product/scout-role.md).\n'
+  printf '  a human merges it (.agents/docs/orchestrated.md, Bounds).\n'
   # Never THIS session's item, in any mode: a session reaching here was told
   # to stop and ask, or to exit, and open issues it cannot read outrank
   # anything it would start (step 2). Only an orchestrator spawns a scout —

@@ -183,8 +183,9 @@ harness did not say:
 - **Context is the bill, not output.** Every turn re-reads the whole
   context; cached, at a fraction of input price (opus 5.5: 0.20 against
   4 /MTok, claude-api skill cache 2026-10-06). One orchestrator: 1.21B
-  cache-read tokens against 1.74M output (`docs/product/scout-role.md`
-  Evidence, `get_session` 2026-10-07). Two managers of that fleet: 712K
+  cache-read tokens against 1.74M output (`get_session` 2026-10-07, in the
+  retired `docs/product/scout-role.md` Evidence: `git log --diff-filter=D --
+  docs/product/scout-role.md`). Two managers of that fleet: 712K
   context, 46.76 USD; 126K, 0.88 USD. Research sweeps go to a subagent that
   returns the conclusion (`subagents.md`); the parent keeps no file dumps.
 - **Cache expires on idle.** A wake after expiry pays full input price on

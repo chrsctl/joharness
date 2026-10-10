@@ -58,6 +58,7 @@ the rows below.
 | analyst | low; the judgement is its command file's gate, not its tier | a session, spawned from a health pass on a row marked `ANALYSE?` — only where `JOHARNESS_IDLE_ANALYSIS=on` | nothing | one condition on one branch, explained and never ended | it files one issue on the canonical, or none, and exits |
 | curator | sonnet; the judgement is which declaration is wrong, not what any plan is for | a session, spawned on the `curate DUE` tail line | nothing | the plan queue's declarations for ONE pass | its pull request merges, or `NOTHING TO CURATE` and it exits without a branch |
 | surveyor | sonnet; the judgement is which `scope:` path is a shared registry, not the plan's own tier | a session, spawned on the `OVERLAP-BOUND` verdict | nothing (it edits declarations, not code) | the held plans' and holders' `scope:` lines for one holder key | its pull request merges, or `done` with nothing to change |
+| scout | fable; the judgement is which counted number is largest, never what to build | a session, spawned on the `scout DUE` tail line, only under `DRAINED — nothing free, nothing in flight` | nothing | one proposal pull request, a `docs/product/<stem>.md` | the human merges or closes its pull request — or `JOHARNESS_SCOUT_AUTOMERGE=on` and it merges by step 7 — or `NOTHING TO PROPOSE` and it exits |
 
 ### What each role reads
 
@@ -76,6 +77,7 @@ handover hook, which skips the walk over every remote ref — and no queue.
 | curator | `./joharness.sh curate` and the plans it names | a held plan, the queue order, product code, this doc |
 | janitor | `./joharness.sh janitor`, the control plane per candidate, and the workstream files it names | a plan, the queue order, product code, another branch's code, this doc |
 | analyst | `./joharness.sh analysis <branch>`, that branch's workstream file, the conf delta the command prints | the queue, a plan, product code, another branch, this doc |
+| scout | `./joharness.sh scout` and the evidence it lists — `upstream`, `scorecard`, `review`, `feedback`, canonical issues, session cost, a dated release-note or Models API read | a plan, the queue order, product code, another branch's code |
 | worker | its sub-task prompt and the files it names | everything else |
 
 Two spawn levels, never three. A worker that needs a branch of its own is
@@ -459,6 +461,20 @@ spawns it and authors none of that.
 `JOHARNESS_IDLE_ANALYSIS` loosens none of them either: an analyst is a spawn,
 it merges nothing, ends no condition, writes no file in this repo, and the
 orchestrator authors no issue.
+
+The scout is the one role that writes a file no node asked for, and nothing
+being invented still holds because of who authors it: a proposal is a
+requirement DRAFT, and the human authors it by merging its pull request, or
+by closing it declines it, with the record in history either way. It writes
+no plan and no research file, edits no core path, spawns nothing and merges
+nothing — except under `JOHARNESS_SCOUT_AUTOMERGE=on`, the one exception, and
+that exception is a conf line: money and product direction in one key, set
+by a human, like `JOHARNESS_UPSTREAM_FEEDBACK`. The scout never sets it, and
+reads it from the base branch's conf, so its own branch cannot grant it. It
+spawns only under `DRAINED — nothing free, nothing in flight`: new work
+competes with real work. Every proposal number carries its command and date;
+one without is a written number, and the proposal fails
+(`.claude/commands/scout.md`).
 
 `joharness.conf` joined `protocol_paths` with this mode. It holds the
 mode line `authority` verifies and the cap: a session that may rewrite

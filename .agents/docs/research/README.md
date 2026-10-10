@@ -193,7 +193,9 @@ alone loses it, and then the question comes back.
   anything but itself and its graduation target is a plan with the wrong
   frontmatter, and the review should say so.
 - **Not a requirement.** Sessions file questions, never requirements
-  ([`../product/README.md`](../product/README.md)).
+  ([`../product/README.md`](../product/README.md)) — save a scout's
+  proposal, the one requirement draft a session writes, which a human
+  authors by merging it ([`../orchestrated.md`](../orchestrated.md), Bounds).
 - **Not an index.** There is no `./joharness.sh research`, no dashboard, no
   status field. The queue hook already lists these nodes; a second view is
   the stored-copy failure [`../graph.md`](../graph.md) forbids.

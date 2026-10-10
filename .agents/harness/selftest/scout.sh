@@ -4,7 +4,7 @@
 # Not runnable alone and not meant to be: the runner defines the assertion
 # helpers, the counters and the shared fixtures, and sourcing is inlining.
 #
-# The scout cycle (docs/product/scout-role.md): when a scout is due, which one
+# The scout cycle (.agents/docs/orchestrated.md, Bounds): when a scout is due, which one
 # is in flight, and the two places the cycle differs from the janitor one it
 # copies. It fires only at DRAINED, so `drain` and `dispatch` print the block
 # and the spawn line under that verdict and nowhere else. And a proposal the
@@ -196,6 +196,18 @@ expect "and a user's grep.patternType does not hide it" \
   "scout-stub  scout-2026-02-06  ?" "$out"
 git -C "$scout_work" push -q origin --delete scout-stub
 git -C "$scout_work" branch -q -D scout-stub
+# A NON-ASCII scout file name: git grep quotes it by default, the quoted
+# path failed every read, and the identical-to-base skip took the failure
+# for "identical" — a live scout hidden (pass 3, r17).
+git -C "$scout_work" checkout -qb scout-u main
+mkdir -p "${scout_work}/docs/handover"
+printf -- '---\nstatus: in-progress\n---\n' >"${scout_work}/docs/handover/scout-2026-02-08-é.md"
+scommit "a scout file with a non-ASCII name" '2026-02-08T00:00:00Z'
+git -C "$scout_work" push -qu origin scout-u
+git -C "$scout_work" checkout -q main
+expect "a non-ASCII scout file name is in flight" "scout-u  " "$(sct)"
+git -C "$scout_work" push -q origin --delete scout-u
+git -C "$scout_work" branch -q -D scout-u
 # An EMPTY scout file: listed only by `-L`, so this is the case that keeps
 # the second listing honest (pass 6).
 git -C "$scout_work" checkout -qb scout-empty main
@@ -441,12 +453,92 @@ refute "a scout file inherited from the base is not the branch's" "cut-after" "$
 sws scout-2026-04-01 scout-2026-04-01 in-progress main
 scommit "main's scout file reads in progress"
 git -C "$scout_work" push -q origin main
+# A plan branch cut AFTER it: it inherits the identical file (pass 2, r15).
+git -C "$scout_work" checkout -qb cut-later main
+printf 'plan work\n' >"${scout_work}/later.txt"
+scommit "unrelated plan work"
+git -C "$scout_work" push -qu origin cut-later
+git -C "$scout_work" checkout -q main
 out="$(sct)"
 expect "a scout file on the base tip is in flight" "main  scout-2026-04-01  in-progress" "$out"
+refute "and a branch that merely inherited it prints no row of its own" \
+  "cut-later  scout-2026-04-01" "$out"
 refute "and dispatch spawns none" "scout DUE: spawn" "$(sdsp)"
 sws scout-2026-04-01 scout-2026-04-01 abandoned main
 scommit "released again"
 git -C "$scout_work" push -q origin main
+git -C "$scout_work" push -q origin --delete cut-later
+git -C "$scout_work" branch -q -D cut-later
+
+# TWINS: two scouts that claimed the same day write the same path on two
+# branches. They are two rows — the twin check in scout.md counts them, and
+# a row keyed on the path alone read them as one (scout-command review).
+for scout_twin in twin-a twin-b; do
+  git -C "$scout_work" checkout -qb "$scout_twin" main
+  sws scout-2026-04-10 scout-2026-04-10 in-progress "$scout_twin"
+  scommit "a scout claims" '2026-04-10T00:00:00Z'
+  git -C "$scout_work" push -qu origin "$scout_twin"
+done
+git -C "$scout_work" checkout -q main
+out="$(sct)"
+expect "twin scouts read as two rows: the first" "twin-a  scout-2026-04-10  in-progress" "$out"
+expect "and the second" "twin-b  scout-2026-04-10  in-progress" "$out"
+git -C "$scout_work" push -q origin --delete twin-a twin-b
+git -C "$scout_work" branch -q -D twin-a twin-b
+
+# Two branches on ONE commit are two rows: a branch stacked on a scout
+# with no commit of its own must not borrow the scout's name (pass 5, r25).
+git -C "$scout_work" checkout -qb scout-race main
+sws scout-2026-04-20 scout-2026-04-20 in-progress scout-race
+scommit "a scout at work" '2026-04-20T00:00:00Z'
+git -C "$scout_work" push -qu origin scout-race
+git -C "$scout_work" push -q origin scout-race:aaa-stacked
+git -C "$scout_work" checkout -q main
+out="$(sct)"
+expect "two branches on one commit: the scout's own row" "scout-race  scout-2026-04-20  in-progress" "$out"
+expect "and the stacked branch's" "aaa-stacked  scout-2026-04-20  in-progress" "$out"
+git -C "$scout_work" push -q origin --delete aaa-stacked
+
+# A concurrent fetch moving origin/main MID-WALK, onto a commit that carries
+# the scout's file byte-identically (an early merge). Read by name, the
+# branch's copy then read as inherited from a base row the listing never
+# saw, and the live scout vanished (pass 4, r22). A git wrapper moves the
+# ref after the N-th git call; at EVERY N the scout must read in flight.
+scout_real_git="$(command -v git)"
+scout_base0="$(git -C "$scout_work" rev-parse refs/remotes/origin/main)"
+git -C "$scout_work" checkout -qb race-merge main
+git -C "$scout_work" merge -q --no-ff -m "an early merge" scout-race
+scout_moved="$(git -C "$scout_work" rev-parse HEAD)"
+git -C "$scout_work" checkout -q main
+git -C "$scout_work" branch -q -D race-merge
+mkdir -p "${TMP}/scout-gitwrap"
+cat >"${TMP}/scout-gitwrap/git" <<EOF2
+#!/usr/bin/env bash
+n=\$(( \$(cat "${TMP}/scout-gitwrap/count" 2>/dev/null || echo 0) + 1 ))
+printf '%s' "\$n" >"${TMP}/scout-gitwrap/count"
+if [ "\$n" = "\$(cat "${TMP}/scout-gitwrap/at")" ]; then
+  "${scout_real_git}" -C "${scout_work}" update-ref refs/remotes/origin/main "${scout_moved}"
+fi
+exec "${scout_real_git}" "\$@"
+EOF2
+chmod +x "${TMP}/scout-gitwrap/git"
+scout_race_open=""
+for scout_n in $(seq 1 20); do
+  git -C "$scout_work" update-ref refs/remotes/origin/main "$scout_base0"
+  printf '0' >"${TMP}/scout-gitwrap/count"
+  printf '%s' "$scout_n" >"${TMP}/scout-gitwrap/at"
+  out="$(sct PATH="${TMP}/scout-gitwrap:${PATH}")"
+  case "$out" in *"IN FLIGHT"*) ;; *) scout_race_open="${scout_race_open} ${scout_n}" ;; esac
+done
+git -C "$scout_work" update-ref refs/remotes/origin/main "$scout_base0"
+if [ -z "$scout_race_open" ]; then
+  pass "a ref moved mid-walk never hides a live scout (N = 1..20)"
+else
+  fail "a ref moved mid-walk never hides a live scout (N = 1..20)"
+  printf '    hidden at N =%s\n' "$scout_race_open"
+fi
+git -C "$scout_work" push -q origin --delete scout-race
+git -C "$scout_work" branch -q -D scout-race
 
 # --- automerge: exactly `on`, from the BASE branch's conf --------------------
 expect "automerge unset reads off" "automerge: off" "$(sct)"
