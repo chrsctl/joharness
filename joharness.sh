@@ -4329,7 +4329,13 @@ fb_cache_save() {
 # cases this predicate puts IN, flagged "named in this finding's own text".
 upstream_harness_path() {
   local p="${1%/}" t hit=0
-  while [ "${p#./}" != "$p" ]; do p="${p#./}"; done
+  while :; do
+    case "$p" in
+      ./*) p="${p#./}" ;;
+      /*) p="${p#/}" ;;
+      *) break ;;
+    esac
+  done
   case "$p" in
     joharness.sh | CLAUDE.md | .gitattributes) return 0 ;;
     AGENTS.md) return 0 ;;
