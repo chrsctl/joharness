@@ -145,11 +145,11 @@ consumer `gx`, 21 merges, 442 USD; readings and commands:
   the main thread, not the workers, is the bill.
 - **Sonnet verifier on opus plans — no.** `gx`: verifiers are 16% of cost
   at most, under 20% even if free. This repo (37%): cost clears, findings
-  do not. Paired runs on the same 10 merged opus-tier diffs at their
-  round-1 heads: sonnet cost a median 0.21 of opus, and missed a recorded
-  `(fixed)` finding on all 10 — on 9 the fresh opus run re-found one
-  (readings and commands: `git log --diff-filter=D --
-  docs/research/sonnet-verifier-on-opus-plans.md`). Sonnet ran 5-27 tool
+  do not. Paired runs on 10 merged opus-tier diffs at their round-1
+  heads: sonnet cost a median 0.21 of opus, and on all 9 valid diffs
+  missed a recorded `(fixed)` finding the fresh opus run found (one head
+  already held its fixes; readings and script: `git log --diff-filter=D
+  -- docs/research/sonnet-verifier-on-opus-plans.md`). Sonnet ran 7-27 tool
   calls to opus's 9-63 and quit before its checks finished: the price cut
   is the work skipped. Review depth's independence argument does not make
   the reader's tier free — a miss is a defect on `main` or another round.
