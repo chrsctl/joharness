@@ -149,9 +149,9 @@ commit "Orchestrator hands off after <N> respawns", push, report.
 
 ## 3. Spawn
 
-Managers up to `slots`, dispatch's order, rows under `spawn` only. Role
-sessions below hold no slot: each is one session beyond the cap — the
-human's money, say so in the report. A line that says nothing to do spawns
+Up to `slots`, dispatch's order, rows under `spawn` only. Managers and role
+sessions count against `JOHARNESS_MAX_MANAGERS` together: every session
+below takes a slot. A line or command that says nothing to do spawns
 nothing.
 
 - Edge work whose session is gone first. An item already in your ledger
@@ -174,9 +174,8 @@ nothing.
   | `OVERLAP-BOUND`, `rescope :` says `in flight: none` | sonnet | `surveyor: <key>` | `/manage rescope <key>` + the block verbatim | `rescope-<key>@new`, `rescoped=<key>` |
 
   A ledger `rescoped=<K>` covers later keys whose holders are all in K.
-Issues
-  reach the queue only through the clerk. Never nudge or respawn
-  a scout waiting on its proposal pull request.
+  Issues reach the queue only through the clerk. Never nudge or respawn a
+  scout waiting on its proposal pull request.
 - Manager: `create_session` with `source_url` = `git remote get-url origin`,
   `model` = item's `agent:` via the Lineup, `title` = `manager: <stem>`,
   `prompt`:

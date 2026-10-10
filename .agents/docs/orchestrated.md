@@ -39,9 +39,9 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | clerk | sonnet, opus verifier | a session, on the `clerk DUE` tail line | nothing | one plan-only pull request, no workstream file; never closes or opens an issue, never writes code, never a core-path-only plan | its pull request merges, no plan to write, or `TWIN: deferred` |
 | scout | fable | a session, on `scout DUE`, only under `DRAINED — nothing free, nothing in flight` | nothing | one proposal pull request, a `docs/product/<stem>.md` | the human merges or closes it — or `JOHARNESS_SCOUT_AUTOMERGE=on` and it merges itself — or `NOTHING TO PROPOSE` |
 
-Curator, surveyor, clerk and scout hold no
-manager slot: each is one session beyond the cap — the human's money, reported.
-A role command that says nothing to do spawns nothing.
+Managers and role sessions (curator, surveyor, clerk, scout) count against
+`JOHARNESS_MAX_MANAGERS` together. A role command that says nothing to do
+spawns nothing.
 
 ### What each role reads
 
@@ -203,11 +203,11 @@ hook's: urgent first, then oldest, in waves of disjoint scope. On top:
   the health pass runs until in-flight managers end.
 - Every free plan held with slots idle = `OVERLAP-BOUND`. Most such
   collisions are a plan that only appends to a shared registry, or claims a
-  whole directory, declared exclusive. ONE surveyor per holder key per run
+  whole directory, declared exclusive. ONE surveyor (it takes a slot) per holder key per run
   (`manage.md`, R) marks registries `shared:` and narrows directory claims;
   genuine collisions settle in one pass.
 - The curate cycle is the one spawn not driven by the queue's state: due on
-  plan churn or the clock, under any verdict, one at a time, state in git so a
+  plan churn or the clock, under any verdict, one at a time, taking a slot, state in git so a
   re-seeded orchestrator does not re-spawn one already paid for. Repairs
   never need a session: `curate --apply`.
 

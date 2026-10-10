@@ -49,7 +49,7 @@ the LAST COMMIT BEFORE the pull request opens, merge (merge-commit), exit.
 The retire commit dates the cycle; the net diff is empty on purpose — the
 proposals are in the body.
 
-Report: proposals written, and that this session cost one beyond the cap.
+Report: proposals written, and that this session took a manager slot.
 
 ## Never
 
