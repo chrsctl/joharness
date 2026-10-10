@@ -117,16 +117,14 @@ registry `shared:` in the first place is what spares the fleet that pass, so
 name a bare directory (`docs/adr`) as the specific file you touch and mark a
 true registry `shared:` when you write the plan.
 
-A plan's declarations rot the way its anchors do, and a role checks them on a
-cadence in EVERY mode — `drain` names it, so `/start` reaches it: `./joharness.sh curate` reports whether each
-plan's `scope:` still covers what its `## Scope` section names, whether it
-claims a whole directory it should narrow, and whether a path enough plans
-declare is a registry nobody marked `shared:`. A curator REPAIRS those and
-deletes a plan whose work it can find in merged history; it only PROPOSES a
-decomposition or an ordering, and it never touches `urgency:` or a plan a
-manager holds (`.agents/docs/orchestrated.md`, Roles). None of that moves the
-duty: the author owns getting a plan right, and a curator is the backstop that
-says so out loud rather than a reason to declare less carefully.
+A plan's declarations rot the way its anchors do. `./joharness.sh curate`
+reports whether each plan's `scope:` still covers what its `## Scope` names,
+whether it claims a whole directory it should narrow, and whether a path
+enough plans declare is a registry nobody marked `shared:`;
+`./joharness.sh curate --apply` makes those repairs, and `ci` fails a branch
+whose own added or edited plans still need one. A curator session only
+PROPOSES decomposition or ordering and never edits a plan
+(`.claude/commands/curate.md`). The author still owns getting a plan right.
 
 ## Does this plan reach consumers
 
@@ -172,9 +170,8 @@ What each existing reconciler reaches, and what it does not. Re-take it:
   not a retirement — a merged branch has no claim row (`ref_merged`), so the
   held duplicate goes free again, describing work already on `main`.
 - **`./joharness.sh curate`** (`cmd_curate`) lists a plan as a DECLUTTER
-  candidate when NO path in its `scope:` exists any more. A candidate a
-  curator judges, on a pass that runs only when `dispatch_curate_due` says
-  churn or time made one due. A defect fixed inside a file that still exists
+  candidate when NO path in its `scope:` exists any more — a signal, never
+  a deletion. A defect fixed inside a file that still exists
   trips nothing.
 - **`issue:`** — the one key that names where the work CAME FROM.
   `./joharness.sh clerk` lists an issue a plan on the base or any unmerged

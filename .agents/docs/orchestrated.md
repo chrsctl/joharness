@@ -20,7 +20,7 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | Queue hook | Marks a plan with ANY core path (`./joharness.sh protocol-paths`) in `scope:` and ranks it out of the free list. Prints `in flight: <free> overlaps <claimed> on <path>` per collision with a held plan. |
 | `./joharness.sh dispatch` | The orchestrator's one read: the human's numbers, managers in flight with push age and marks (`STALL?`, `LOOP?`, `CEILING?`), slots under the cap, the spawn order with waves and `HOLD`s, the cycle lines, one verdict. Reports only. |
 | `dispatch` verdict `OVERLAP-BOUND` | Slots free but every free plan HELD behind work in flight. A `rescope :` block names the holder key and the held paths; the verdict spawns ONE surveyor to correct the `scope:` declarations. |
-| `./joharness.sh curate` + `curate :` line | Whether the plan queue's declarations are still true — REPAIR and DECLUTTER findings a curator acts on, PROPOSE findings it only writes down. Due on plan churn (`JOHARNESS_CURATE_PLANS`) or the clock; state read from git. Orthogonal to the verdict. |
+| `./joharness.sh curate` + `curate :` line | Whether the plan queue's declarations are still true. Mechanical repairs: `./joharness.sh curate --apply`, and `ci` fails a branch whose added or edited plans still need one. A curator session is offered only for PROPOSE findings (decompose, order). Due on plan churn (`JOHARNESS_CURATE_PLANS`) or the clock; state read from git. Orthogonal to the verdict. |
 | `./joharness.sh janitor` + `janitor :` line | Claims whose session is gone. Mechanical: `./joharness.sh janitor --apply` writes `status: abandoned` into the claim's own file — only where the session is ARCHIVED or not found, never a claim with `pr:` — and deletes nothing. No session, no pull request. Clock-driven (`JOHARNESS_JANITOR_HOURS`). |
 | `./joharness.sh clerk` + `clerk :` line | Open issues become plans only through the clerk (`dispatch` reads `docs/plans/` only). Clock-driven, batch `JOHARNESS_CLERK_BATCH`, dated from git. Orthogonal to the verdict. |
 | `./joharness.sh upstream` | What a merged edge found about the harness. With `JOHARNESS_UPSTREAM_FEEDBACK=on` the health pass's `done` row spawns ONE reporter per merged edge, which files the findings as a report pull request on the canonical ([`feedback.md`](feedback.md)). |
@@ -37,7 +37,7 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | worker | at or below the plan's tier, lower by default | a subagent in the manager's container | nothing | the files its sub-task names | it returns |
 | reporter | low | a session, after a manager MERGES — only where `JOHARNESS_UPSTREAM_FEEDBACK=on` | nothing | one merged edge's harness findings | it files one report on the canonical, or none |
 | analyst | low | a session, on a row marked `ANALYSE?` — only where `JOHARNESS_IDLE_ANALYSIS=on` | nothing | one condition on one branch, explained and never ended | it files one issue on the canonical, or none |
-| curator | sonnet | a session, on the `curate DUE` tail line | nothing | the plan queue's declarations for ONE pass | its pull request merges, or `NOTHING TO CURATE` |
+| curator | sonnet | a session, on `curate DUE` with proposals to make | nothing | decompose/order proposals for ONE pass, changing no plan | its pull request merges |
 | surveyor | sonnet | a session, on the `OVERLAP-BOUND` verdict | nothing (declarations, not code) | the held plans' and holders' `scope:` lines for one holder key | its pull request merges, or `done` with nothing to change |
 | clerk | opus | a session, on the `clerk DUE` tail line | nothing | one plan-only pull request; never closes or opens an issue, never writes code | its pull request merges, a retire-only one, or `TWIN: deferred` |
 | scout | fable | a session, on `scout DUE`, only under `DRAINED — nothing free, nothing in flight` | nothing | one proposal pull request, a `docs/product/<stem>.md` | the human merges or closes it — or `JOHARNESS_SCOUT_AUTOMERGE=on` and it merges itself — or `NOTHING TO PROPOSE` |
@@ -212,7 +212,8 @@ hook's: urgent first, then oldest, in waves of disjoint scope. On top:
   genuine collisions settle in one pass.
 - The curate cycle is the one spawn not driven by the queue's state: due on
   plan churn or the clock, under any verdict, one at a time, state in git so a
-  re-seeded orchestrator does not re-spawn one already paid for.
+  re-seeded orchestrator does not re-spawn one already paid for. Repairs
+  never need a session: `curate --apply`.
 
 ### A plan the queue cannot see
 
