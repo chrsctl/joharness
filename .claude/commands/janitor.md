@@ -50,12 +50,15 @@ For each candidate, read the session its workstream file names (`get_session`,
 | Reading | Verdict |
 | --- | --- |
 | `ARCHIVED`, or no session found | **gone.** Release it. |
-| a FAILED bucket while the session is not RUNNING, confirmed by a SECOND read with `updated_at` and the branch head both unchanged, unless the bucket reads throttled (field table, orchestrate.md step 2): then leave it and report it | **gone.** Release it. |
+| a FAILED bucket while the session is not RUNNING, confirmed by a SECOND read with `updated_at` and the branch head both unchanged | **gone.** Release it, unless the next row applies. |
+| a FAILED bucket that reads throttled (field table, `orchestrate.md` step 2) | **throttled, not dead.** Leave it and report it. |
 | `RUNNING` | working. Leave it, whatever its push age. |
 | `IDLE` or `PENDING` alone | **between turns, not gone.** Leave it. A session that arms its own check-in reads IDLE for the whole interval. |
 | no session URL in the file, or the record cannot be read | **undecidable.** Leave it, and report it — a claim nobody can resolve is the human's. |
 
-A release is undoable: a returning session may set its status back (step 3 writes that sentence into the note). That is why the throttled hedge withholds a verdict and adds no waiting period.
+A release is undoable: a returning session may set its status back (step 3
+writes that sentence into the note). That is why the throttled hedge
+withholds a verdict and adds no waiting period.
 
 The field rules are the health table's and are stated once, there
 (`.claude/commands/orchestrate.md`, step 2). Never judge from one signal;
@@ -127,7 +130,8 @@ were read on this date. Merge-commit method, like every other edge.
 
 Report, one line per class: claims released with the reading that proved each
 gone and what each held, in the `holds:` line's own words — a count of plans
-freed is a claim about the queue, and only the case that says "out of the queue while this claim stands" is one — copy whichever line the sweep printed;
+freed is a claim about the queue, and only the case that says "out of the
+queue while this claim stands" is one — copy whichever line the sweep printed;
 candidates left alone and why (RUNNING, IDLE,
 undecidable, or a pull request waiting); leftovers swept; branches merged and
 standing for the human to delete; and, under orchestrated, that this session
