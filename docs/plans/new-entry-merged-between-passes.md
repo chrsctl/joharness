@@ -17,7 +17,9 @@ ledger entry `new`: no pass ever recorded a head. Since
 never reads "done". IDLE afterwards it reaches UNCLAIMED, then "It RAN and
 stopped without claiming": a false report, and the entry is kept forever,
 holding a slot through `JOHARNESS_PENDING_SPAWNS`. RUNNING (not BLOCKED)
-it matches no row. ARCHIVED it reads `gone before claim`: a report, entry
+it matches no row. RUNNING+BLOCKED it reaches BLOCKED BEFORE CLAIM, whose
+confirm row now only REPORTS when the item is gone — no spawn, but a false
+report. ARCHIVED it reads `gone before claim`: a report, entry
 kept. The IDLE half predates that plan. Give this case one correct route.
 
 ## Scope
@@ -39,7 +41,7 @@ kept. The IDLE half predates that plan. Give this case one correct route.
 
 - Each case below routes to one row, written in the workstream file's
   Decisions as a row-by-row reading: plan item merged with the session
-  IDLE, RUNNING, FAILED, ARCHIVED; requirement item (`docs/product/`)
+  IDLE, RUNNING, RUNNING+BLOCKED, FAILED, ARCHIVED; requirement item (`docs/product/`)
   planned and merged; surveyor `rescope-<key>@new`; item deleted by
   `/curate` while its manager is prompt-held.
 - `./joharness.sh ci` — `ci: pass`.

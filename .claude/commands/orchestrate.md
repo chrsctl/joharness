@@ -114,7 +114,9 @@ one slot short, the same safe direction.
 ## 2. Health pass — before any spawn
 
 For every manager in flight: `get_session` on its `session:` URL (no URL =
-find it by title `manager: <stem>` in `list_sessions`; none = gone). No
+find it by title `manager: <stem>` in `list_sessions` — several under one
+title: the newest not `ARCHIVED`, which a STILLBORN or BLOCKED BEFORE CLAIM
+respawn leaves behind; none = gone). No
 `get_session` at all: run the whole pass off `list_sessions` rows, which
 carry the same status; no `list_sessions` either and you have neither
 liveness read, which is the required one — stop. The
@@ -131,9 +133,9 @@ an old push are both real.
 Read the URL as where to look first. A control-plane record that disagrees
 with it wins.
 
-**And every stem your ledger names that dispatch does NOT list in flight.** A manager with no claim is one of FOUR things, not two: minutes
-old, never born, blocked before its first push, or it ran and stopped without claiming. The ledger is the only place
-any of the four exists; that is what its `@new` entry is for.
+**And every stem your ledger names that dispatch does NOT list in flight.** A manager with no claim is one of FIVE things, not two: minutes
+old, never born, blocked before its first push, archived before it claimed, or it ran and stopped without claiming. The ledger is the only place
+any of the five exists; that is what its `@new` entry is for.
 
 **GONE is ARCHIVED, not found on the control plane, a FAILED bucket
 confirmed by a second look, or a session that did not move across a nudge
@@ -175,7 +177,7 @@ not one either.
 | the same, still FAILED | any | `seen=` recorded, and `updated_at` or head moved | it came back. Working. Drop the record. |
 | ARCHIVED, or no session found by title | any | branch unmerged, and the item is claimed — status in-progress / review / done, or an edge row that NAMES an item | gone. RESPAWN on that branch, below — no nudge, there is nobody to ask. |
 | `status_bucket` BLOCKED, and `session_status` NOT IDLE, PENDING or ARCHIVED — RUNNING, or a status this table does not name | any | entry still reads `new` from a PREVIOUS pass, no `held=` recorded | BLOCKED BEFORE CLAIM, first look: likely a permission prompt on its first commands — no branch, no push age, so no stall row can reach it. Ledger `held=<updated_at>`. Nothing else this pass. |
-| the same, still BLOCKED | any | `held=` recorded, entry still `new`, `updated_at` unchanged since it | BLOCKED BEFORE CLAIM, confirmed. NO nudge — the prompt holds the turn, nothing reads a message. `respawns=` already at `JOHARNESS_RESPAWN_LIMIT`: REPORT, touch nothing — a human may still answer the prompt. Else `interrupt_session`, `archive_session`, then spawn the ITEM again — a plain spawn, as the STILLBORN row does: nothing was claimed, there is no branch to name. The new entry is `@new` with no `held=`, `respawns=` plus one; the ledger entry and the report ARE the hand-off. No `interrupt_session`: REPORT, spawn nothing (Tools table). |
+| the same, still BLOCKED | any | `held=` recorded, entry still `new`, `updated_at` unchanged since it | BLOCKED BEFORE CLAIM, confirmed. NO nudge — the prompt holds the turn, nothing reads a message. The item's file gone from fresh `origin/main` (it may have claimed and merged between passes), or `respawns=` already at `JOHARNESS_RESPAWN_LIMIT`: REPORT, touch nothing — a human may still answer the prompt. Else `interrupt_session`, `archive_session`, then spawn the ITEM again — a plain spawn, as the STILLBORN row does: nothing was claimed, there is no branch to name. The new entry is `@new` with no `held=`, `respawns=` plus one; the ledger entry and the report ARE the hand-off. No `interrupt_session`: REPORT, spawn nothing (Tools table). |
 | any, `held=` recorded for the entry | any | entry still `new`, and `updated_at` moved since `held=`, or the record no longer reads BLOCKED | BLOCKED BEFORE CLAIM, cleared: someone answered the prompt or the turn moved on. Drop `held=`. Nothing else this pass. |
 | ARCHIVED, or no session found by title | any | entry still reads `new` from a PREVIOUS pass | gone before claim: a human archived it, or a row above did and stopped at the limit. No branch, nothing to respawn on. REPORT the stem and that the item is unclaimed; leave the entry so no later pass spawns it — the human decides. |
 | IDLE or PENDING | any | entry still reads `new` from a PREVIOUS pass — spawned, never claimed — and no `seen=` recorded | UNCLAIMED, FIRST look. Ledger `seen=<updated_at>` and whether the record carries `last_served_model` and `sources`. Nothing else this pass. The ledger write made when `create_session` returned is NOT an observation of the session record; the two that decide here are two READS of it, exactly as the crash rows above. |
@@ -459,8 +461,9 @@ Up to `slots`, in dispatch's order, only rows under `spawn`:
   Nothing else: no "no human is watching", no "never ask", no "keep
   going". The prompt routes; the repository authorises.
 
-Ledger every spawn the moment it returns, as `<stem>@new`. Step 2's UNCLAIMED and BLOCKED BEFORE CLAIM first-look rows admit it
-once it is a pass old; every row after those keys on `seen=` or `held=`. It is also what the next pass counts into step 1's
+Ledger every spawn the moment it returns, as `<stem>@new`. Step 2's UNCLAIMED and BLOCKED BEFORE CLAIM first-look rows and its
+`gone before claim` row admit it once it is a pass old; the verdict rows
+after the first looks key on `seen=` or `held=`. It is also what the next pass counts into step 1's
 `JOHARNESS_PENDING_SPAWNS`: the slot is owned, and only this entry says so.
 
 ## 4. Schedule the next pass, then end the turn

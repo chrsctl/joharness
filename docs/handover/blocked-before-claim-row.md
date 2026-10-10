@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_012J8LutqGHqhZDE49agfS81
 agent: opus
 updated: 2026-10-10
-next: final verifier pass on the r12-r20 commit, then retire, PR, merge
+next: retire workstream + plan file, PR, merge
 ---
 
 ## Goal
@@ -36,12 +36,12 @@ matching a ledger entry still `new`.
 ## Review
 
 - r1: (verifier) ARCHIVED or not-found with entry still `new` matched no row once the merged row needed a head. (fixed — new `gone before claim` row: report, keep the entry)
-- r2: (verifier) the item-gone clause on the merged row sat below the UNCLAIMED rows, so an IDLE claim-and-merge still reported as unclaimed. (fixed — merged-between-passes row moved ABOVE every `new` row; merged row back to the plan's head-only condition)
-- r3: (verifier) BLOCKED BEFORE CLAIM confirm could respawn an item already merged. (fixed — same row as r2 reads first)
+- r2: (verifier) the item-gone clause on the merged row sat below the UNCLAIMED rows, so an IDLE claim-and-merge still reported as unclaimed. (wontfix — superseded by r16: the row that answered it was removed; the gap is follow-up plan `new-entry-merged-between-passes`)
+- r3: (verifier) BLOCKED BEFORE CLAIM confirm could respawn an item already merged. (fixed — reopened by r16, closed again by r21)
 - r4: (verifier) confirm row interrupted and archived before checking the respawn limit. (fixed — at the limit: report, touch nothing)
 - r5: (verifier) pre-action guard demanded a branch match a `new` entry cannot have. (fixed — title alone, session created after this run's `@new` write)
 - r6: (verifier) `status_bucket` field row read RUNNING+BLOCKED as recovered. (fixed — BLOCKED decides the reverse way, RUNNING is the stuck reading)
-- r7: (verifier) orchestrated.md `done` row and paragraph disagreed with the command row. (fixed — both name the merged-between-passes row)
+- r7: (verifier) orchestrated.md `done` row and paragraph disagreed with the command row. (fixed — superseded by r16/r18: both say a `new` entry never matches the merged row)
 - r8: (verifier) doc row said read before unclaimed but sat below it. (fixed — moved above)
 - r9: (verifier) Tools row for missing `status_bucket` did not name the new rows. (fixed)
 - r10: (verifier) "THREE things" and the first-look admission sentence were stale. (fixed — four things; both first-look rows, `seen=` or `held=`)
@@ -55,6 +55,10 @@ matching a ledger entry still `new`.
 - r18: (verifier, pass 2) orchestrated.md `done` row folded the merged-between-passes case into the reporter path the command forbade. (fixed — moot with r16; `done` says a `new` entry never matches)
 - r19: (verifier, pass 2) orchestrated.md table had no row for ARCHIVED with a `new` entry. (fixed — `gone before claim` row)
 - r20: (verifier, pass 2) step 4's "Entry age gates ENTRY ... decides nothing else" was stale. (fixed — names both first looks and the `gone before claim` report)
+- r21: (verifier, pass 3) r3 reopened by r16: RUNNING+BLOCKED after a claim-and-merge inside one pass reaches the confirm row and respawns a merged item; follow-up plan omitted that reading. (fixed — confirm row reports and touches nothing when the item is gone from fresh `origin/main`, both files; follow-up plan names RUNNING+BLOCKED)
+- r22: (verifier, pass 3) step 3's first-look sentence still said every later row keys on `seen=`/`held=`. (fixed — names `gone before claim`)
+- r23: (verifier, pass 3) title lookup with several sessions under one title could read the archived one and freeze the entry via `gone before claim`. (fixed — newest not `ARCHIVED`)
+- r24: (verifier, pass 3) "one of FOUR things" missed archived-before-claim. (fixed — five)
 
 ## Blockers
 
