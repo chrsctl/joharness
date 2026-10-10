@@ -548,6 +548,7 @@ SELFTEST_TOPICS=(
   cleanup
   orchestrated
   dispatch
+  analysis
   janitor
   scout
   ci-canonical-only-selftest
