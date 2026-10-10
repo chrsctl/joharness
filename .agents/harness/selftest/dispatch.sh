@@ -2599,7 +2599,7 @@ git -C "$sfwork" push -qu origin main
 # <stem> <commit epoch>: one manager's claim, on its own branch.
 sfclaim() {
   git -C "$sfwork" checkout -qb "mgr-$1" main
-  # main tracks no handover file, so checking it out removed the directory.
+  # main tracks no workstream file, so checking it out removed the directory.
   mkdir -p "${sfwork}/docs/handover"
   printf -- '---\nworkstream: %s\nstatus: in-progress\nbranch: mgr-%s\nplan: %s\nsession: https://example.invalid/session_%s\nagent: sonnet\nupdated: 2026-01-01\n---\n\n## Goal\nFixture.\n' \
     "$1" "$1" "$1" "$1" >"${sfwork}/docs/handover/${1}.md"
