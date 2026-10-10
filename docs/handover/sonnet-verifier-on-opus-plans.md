@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01JHoYs9T8QCVotn1UTAeo6B
 agent: opus
 updated: 2026-10-10
-next: Run settle step 1 - paired sonnet/opus verifier runs on merged opus-tier diffs
+next: 20 paired verifier runs launched; read cost per run, compare to round-1 records
 ---
 
 ## Goal
