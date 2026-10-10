@@ -404,6 +404,29 @@ cadence spread on it, and graduated a sentence licensing a kill verdict on a
 reading did not survive them. Read the node in history before adding a knob
 here: `git log --diff-filter=D -p -- docs/research/liveness-in-a-long-turn.md`.
 
+**And push age is not death either.** "PUSH age" above is the tip COMMIT
+date (`dispatch_age_min`), and nothing in the git view tells a stopped
+manager from a stopped fleet: both freeze it. Issue #283 is the run — an
+orchestrator back from an 18-day suspension read three `RUNNING` managers,
+all mid-step-7, as 434h stalled, and `dispatch` printed a respawn on two of
+them. So a row built on that age may ask for a control-plane read and may
+order nothing: no git row carries a respawn, and the one fleet-wide reading
+git has — the base branch still for 24 windows while every manager is
+silent — prints a suspicion, never a verdict (`cmd_dispatch`, PR #362).
+
+`cost_usd` is the obvious next discriminator, and it is NOT a rule yet. The
+same issue reports it as the one field that separated the dead from the
+suspended, and also reports a live `IDLE` manager with cost frozen across
+four windows of 19 to 31 minutes (2026-10-07: 28.058789 20:19:50Z–20:38:09Z,
+32.2565868 21:15:04Z–21:34:19Z, 36.8669214 22:11:07Z–22:30:41Z, 42.1354032
+22:55:14Z–23:26:01Z), each meeting a two-reads-plus-IDLE-plus-unmoved-head
+test at 13–15 minute spacing. Against the 172.273s all-fields freeze above,
+the readings disagree on what frozen cost proves, and every one is WEAK —
+issue numbers no reviewer here can re-sample (#267). A cost test written
+without a floor past 31 minutes is the 13-minute withdrawal one step larger.
+Read the node first:
+`git log --diff-filter=D -p -- docs/research/push-age-is-not-death.md`.
+
 Read by `dispatch`: the environment for one command, `joharness.conf` for
 the repo, else the default. Digits only; a word reads as the default. The
 two churn knobs go through the same reader in `ci`, so a value set in the
