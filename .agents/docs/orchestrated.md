@@ -330,6 +330,81 @@ The reconcile rate measured earlier — about one merge in four
 (`.agents/docs/product/README.md`, Orchestration) — is the number a run of
 this mode should move. If it does not, the hold rule bought nothing.
 
+### A plan the queue cannot see
+
+Queue ITEMS come from the base branch only (`queue-context.sh`, the ref
+loop under "The queue lives on the base branch"). A plan filed on an
+unmerged branch has no row: not free, not held, not in flight. Issue #297
+paid twice, reported from a consumer and not re-measured here: an urgent
+plan-only pull request sat 6h09m with no manager, and a plan riding a
+product branch whose check failed on a base it did not break drew a
+duplicate spawn: the orchestrator spawned at 00:55Z, the filer commented at
+00:58:33Z that it had filed it already.
+
+Answer: the base branch stays the only queue. Three shapes, three answers.
+
+| Shape | Answer | Where |
+|---|---|---|
+| plan-only pull request | filer drives it to merged before exit | `manage.md`, Finish |
+| plan riding a product pull request | row in dispatch's `plans on a branch` block — visible, counted nowhere | `joharness.sh:dispatch_branch_plans` |
+| author gone | NOT answered — accepted gap, below | — |
+
+Why the filer's last step alone is a half-fix: of 110 plans added to
+`main` through a merge (README and template excluded), 34 rode a pull
+request that also carried files outside
+`docs/{plans,handover,research,product}/`. Counted 2026-10-10 on
+`origin/main` at `9abf04f`: for each `git rev-list --first-parent --merges`
+commit `m`, plans from `git diff --name-only --diff-filter=A m^1 m --
+docs/plans`, mixed when `git diff --name-only m^1 m` lists any path outside
+those four directories. About one plan in three had its release gated on a
+product pull request — a check it did not break could hold it.
+
+Why the row carries no instruction. Two reasons, both bounds:
+
+- **Nothing can see a pull request.** The scheduler makes no GitHub call, so
+  the row names a BRANCH with a plan the base lacks. Whether a pull request
+  is open is not in it.
+- **A branch plan has not been reviewed into the queue.** Spawning on it
+  acts on somebody else's branch, more authority than any other row carries.
+  So it is the human's call (`orchestrate.md`, "Report, every pass"): `URGENT` leads the
+  report, the human merges or orders the spawn.
+
+Wrong rows, the opposite failure. The reader shares
+`dispatch_rescope_branches`' ref walk (merged refs dropped, files read AT the
+branch, diff against the merge base) and lives in `dispatch`, not the hook's
+own branch walk in `queue-context.sh`: the hook feeds every session start,
+and a row nobody may spawn on is the orchestrator's business only. It drops
+the plan the branch's own workstream file claims — a manager writing its own
+plan is in flight, not hidden — and every plan on an `abandoned` branch. A
+branch stacked on another carries the same plan: one row per stem.
+
+**Accepted gap: the abandoned branch's plan.** The janitor names it once, in
+the cycle that releases the claim (`janitor.md`, plan and claim on the same
+unmerged branch), and after that nothing does. On 2026-10-10 the unmerged
+refs carried 3 plans the base lacks, all three their branch's own plan on an
+abandoned claim, and `./joharness.sh dispatch`, `drain`, `janitor` and the
+queue hook named none of them (verifier, `grep` of each output for the three
+stems: 0). Dropping them is right for the queue — nobody reviewed them in —
+and wrong for the record: a human reading the report never learns they
+exist. Not fixed here.
+
+**A spawn the human orders carries the plan, never takes the branch.** The
+manager cuts its own branch from the base and copies the plan file across;
+it pushes nothing to the owner's branch (never another session's pull
+request). `source_revision` on the spawn, if used, only puts that branch in
+hand to copy from. This bound lives here only: `orchestrate.md` offers the
+spawn without it. Carrying it into the role commands is
+`docs/plans/branch-plan-spawn-bound.md`.
+
+Hazard of that route, measured in a scratch repo 2026-10-10 (and re-run by
+the verifier): the carrier merges and retires the plan, then the owner's
+branch merges — and the plan comes BACK, no conflict, because the owner's
+side still adds it against a merge base that never had it. No guard found
+for it (`grep`, not a `finish` run). The curator does not catch it either:
+its declutter fires on a gone `requirement:` or gone `scope:` paths, and a
+plan whose work just landed has both. The resurrected plan reads free and
+draws a spawn for done work. Same follow-up plan.
+
 ## The numbers are the human's
 
 | Knob | Default | Means | Where the default comes from |
