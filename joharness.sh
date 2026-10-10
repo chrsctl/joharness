@@ -4602,7 +4602,7 @@ dispatch_rescope_branches() {
 # carry.
 dispatch_branch_plans() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}"
-  local refs r name base plans wfs wf doc own wplan wstat abandoned p stem urg agt
+  local refs r name base plans wfs wf doc own wplan wstat abandoned p stem urg agt retired rc
   refs="$(git -C "$ROOT" for-each-ref --format='%(refname)' \
     refs/remotes/origin </dev/null 2>/dev/null)"
   while IFS= read -r r; do
@@ -4641,12 +4641,27 @@ dispatch_branch_plans() {
       # Already on the base under the same path: the queue has its row.
       git -C "$ROOT" cat-file -e "refs/remotes/origin/${base_branch}:${p}" \
         </dev/null 2>/dev/null && continue
+      # Absent on the base, but the base ADDED and RETIRED it after this
+      # branch left it: carried by another branch. `--full-history -m` is what
+      # sees the retire (a merge commit is treesame for the path). A retire
+      # already in the merge base's history is an older plan of that name.
+      retired=0
+      while IFS= read -r rc; do
+        [ -n "$rc" ] || continue
+        git -C "$ROOT" merge-base --is-ancestor "$rc" "$base" \
+          </dev/null 2>/dev/null || { retired=1; break; }
+      done <<<"$(git -C "$ROOT" log --full-history -m --diff-filter=D \
+        --format=%h "refs/remotes/origin/${base_branch}" -- "$p" \
+        </dev/null 2>/dev/null)"
       { read -r urg; read -r agt; } <<<"$(git -C "$ROOT" show "${r}:${p}" \
         </dev/null 2>/dev/null | gr_fields urgency agent)"
       urg="$(printf '%s' "$urg" | tr -cd 'A-Za-z0-9._-')"
       agt="$(printf '%s' "$agt" | tr -cd 'A-Za-z0-9._-')"
-      printf '%s\t%s\t%s\t%s\n' "$(printf '%s' "$name" | tr -cd 'A-Za-z0-9._/-')" \
+      printf '%s\t%s\t%s\t%s' "$(printf '%s' "$name" | tr -cd 'A-Za-z0-9._/-')" \
         "$stem" "${urg:-?}" "${agt:-?}"
+      # A fifth field marks the leftover; the plans-on-a-branch reader keeps
+      # to four-field rows.
+      if [ "$retired" -eq 1 ]; then printf '\tleftover\n'; else printf '\n'; fi
     done <<<"$plans"
   done <<<"$refs"
 }
@@ -4923,6 +4938,14 @@ cmd_dispatch() {
       done
     fi
   done <<<"$(dispatch_retired_edges)"
+
+  # A plan another branch carried to the base and retired: this branch's copy
+  # is a leftover, not a plan waiting to land (dispatch_branch_plans).
+  while IFS=$'\t' read -r ebranch estem _ _ _; do
+    [ -n "$ebranch" ] || continue
+    n_leftover=$((n_leftover + 1))
+    leftover_rows="${leftover_rows}  docs/plans/${estem}.md  ${ebranch}  leftover  its plan ${estem} landed and was retired by another branch: it commits NOTHING and holds no slot. Never respawn on it. The human closes its pull request and deletes the branch."$'\n'
+  done <<<"$(dispatch_branch_plans | awk -F'\t' 'NF == 5')"
 
   DISPATCH_WITHHELD="$edge_items"
 

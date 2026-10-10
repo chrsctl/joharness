@@ -3026,6 +3026,41 @@ out="$(bp)"
 expect "a non-ASCII plan name still has its row" "on nonascii" \
   "$(sed -n '/^plans on a branch/,/^$/p' <<<"$out")"
 
+# A plan another branch carried to the base and retired (carried-plan-leftover):
+# absent on the base, yet not a plan waiting to land. The merge is by merge
+# commit, so only `--full-history -m` sees the retire.
+git -C "$bpwork" checkout -qb carry-src main
+bpplan "${bpwork}/docs/plans/carried.md" carried urgent
+commit_all "$bpwork" "source branch files carried"
+git -C "$bpwork" push -qu origin carry-src
+git -C "$bpwork" checkout -qb carrier main
+bpplan "${bpwork}/docs/plans/carried.md" carried urgent
+commit_all "$bpwork" "carrier takes the plan"
+git -C "$bpwork" rm -q docs/plans/carried.md
+git -C "$bpwork" commit -qm "carrier retires the plan"
+git -C "$bpwork" checkout -q main
+git -C "$bpwork" merge -q --no-ff -m "merge carrier" carrier
+git -C "$bpwork" push -q origin main
+# A plan retired on the base BEFORE the branch was cut: a different plan of the
+# same name, which must still show.
+bpplan "${bpwork}/docs/plans/reused.md" reused normal
+commit_all "$bpwork" "base files reused"
+git -C "$bpwork" rm -q docs/plans/reused.md
+git -C "$bpwork" commit -qm "base retires reused"
+git -C "$bpwork" push -q origin main
+git -C "$bpwork" checkout -qb reuse-src main
+bpplan "${bpwork}/docs/plans/reused.md" reused normal
+commit_all "$bpwork" "branch files reused again"
+git -C "$bpwork" push -qu origin reuse-src
+git -C "$bpwork" checkout -q main
+out="$(bp)"
+bpblock="$(sed -n '/^plans on a branch/,/^$/p' <<<"$out")"
+refute "a carried-and-retired plan is not a plan on a branch" "carried (urgency" "$bpblock"
+expect "it is a leftover row naming its branch" \
+  "docs/plans/carried.md  carry-src  leftover" "$out"
+expect "a plan of a retired stem's name filed AFTER the retire still shows" \
+  "  reused (urgency: normal, agent: sonnet)  on reuse-src" "$bpblock"
+
 # --- time against the item: CEILING? (issue #298) ---------------------------
 # A manager that pushes inside the stall window and under the churn limit read
 # healthy for 5.5h and $48 with no pull request. The row now carries hours
