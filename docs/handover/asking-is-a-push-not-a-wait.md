@@ -1,6 +1,6 @@
 ---
 workstream: asking-is-a-push-not-a-wait
-status: in-progress
+status: done
 branch: manage/asking-is-a-push-not-a-wait
 pr: none
 plan: asking-is-a-push-not-a-wait
@@ -26,6 +26,10 @@ Settle where "a human decision is a push, not a wait" is written. Research file:
 - Duplicating the clause into more files: root + manage Never already cover both readers.
 
 ## Review
+
+- r1: (verifier) `plan:` names a research stem with no docs/plans file (fixed: wontfix — TEMPLATE says a research file is claimed through `plan:` by its stem).
+- r2: (verifier) new paragraph is prose-heavy and partly restates the sentence above it (wontfix — the why must outlive the file; trimmed none, ci glossary green).
+- r3: (verifier) 10h-hold instance is control-plane, unverifiable here (wontfix — paragraph does not cite it).
 
 ## Blockers
 
