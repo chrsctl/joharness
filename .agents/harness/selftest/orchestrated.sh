@@ -196,6 +196,13 @@ expect "and the manager sends on the transport its prompt names" \
 orcfold="$(tr '\n' ' ' <"$orcmd" | tr -s ' ')"
 refute "orchestrate.md no longer says +send_message finds nothing" \
   "Searching \`+send_message\` finds" "$orcfold"
+# A block names its reason (issue #392): the spellings every writer shares.
+for pair in 'manage.md|github: GitHub MCP lost' 'manage.md|<reason>: <question>' \
+  'orchestrate.md|stalled: Stalled' 'orchestrate.md|respawns: Respawned' \
+  'orchestrate.md|INVALID BLOCK?' 'orchestrate.md|notified='; do
+  f="${ROOT}/.claude/commands/${pair%%|*}"
+  expect "${pair%%|*} spells ${pair#*|}" "${pair#*|}" "$(cat "$f")"
+done
 orcdocfold="$(tr '\n' ' ' <"${ROOT}/.agents/docs/orchestrated.md" | tr -s ' ')"
 refute "orchestrated.md no longer says send_message was never in the server" \
   "never in the Claude Code Remote MCP" "$orcdocfold"
