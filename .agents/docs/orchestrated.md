@@ -566,6 +566,12 @@ Same Routine as unsupervised, same operator action, same connector trap;
 the prompt is `/orchestrate`. Firing over a live orchestrator is safe —
 the new one finds the title `RUNNING` and exits. Firing over a dead one
 is the point.
+Firing over a third kind — a title `RUNNING` frozen — also exits: a
+firing keeps no ledger, cannot take two looks, and must not replace a
+session it cannot stop. It reports the record and the human decides
+(`last_run` reports delivery, never execution). The chain is cadence;
+only the Routine survives the container stopping, so step 0 reports
+its absence every pass and never creates it (money).
 
 ## What was read before this was designed
 
