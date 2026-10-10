@@ -6,7 +6,7 @@ effort: high
 needs: none
 requirement: none
 issue: 390
-scope: .agents/harness/AGENTS.md, shared:joharness.sh, shared:.agents/docs/consumer-repos.md, shared:.agents/harness/selftest/orchestrated.sh
+scope: shared:.agents/harness/AGENTS.md, shared:joharness.sh, shared:.agents/docs/consumer-repos.md, shared:.agents/harness/selftest/orchestrated.sh
 ---
 
 ## Goal
@@ -56,8 +56,11 @@ why. Write the rule down where every session reads it.
   revert the `joharness.sh` change, the consumer-conf assertion FAILS.
 - `./joharness.sh ci` — `ci: pass`.
 - `./joharness.sh verify` — `0 failed`.
-- Plan SHIPS: rule lands in consumer AGENTS.md and banner at next sync;
-  the orchestrated selftest runs there too.
+- Plan SHIPS. Selftest does not ship (`sync-to-consumer.sh`
+  `CANONICAL_ONLY` / `CANONICAL_ONLY_DIRS`). Consumer check: in a consumer
+  after sync, orchestrated mode, `./joharness.sh session-start </dev/null`
+  — banner prints the new line; `grep -c '\.agents/scripts/'
+  .agents/harness/AGENTS.md` — `2`.
 
 ## Where to look
 

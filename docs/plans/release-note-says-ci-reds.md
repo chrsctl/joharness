@@ -3,10 +3,10 @@ plan: release-note-says-ci-reds
 urgency: normal
 agent: sonnet
 effort: high
-needs: none
+needs: janitor-apply-skips-a-deleted-branch
 requirement: none
 issue: 279
-scope: shared:joharness.sh, .agents/harness/selftest/janitor.sh
+scope: shared:joharness.sh, shared:.agents/harness/selftest/janitor.sh
 ---
 
 ## Goal
@@ -56,10 +56,10 @@ Acceptance).
   FAIL; restore.
 - `./joharness.sh ci` — `ci: pass`.
 - `./joharness.sh verify` — `0 failed`.
-- Ships: `ci` prints it under `== ship scope`. In a consumer after sync,
-  `./joharness.sh janitor --apply <stale branch>` then
-  `git show origin/<stale branch>:<its workstream file> | grep -c 'reconciles with its base'`
-  — `1`. No consumer reachable: say so, bar unmet.
+- Ships: `ci` prints it under `== ship scope`. Consumer check, no claim
+  released: in a consumer after sync, `grep -c 'reconciles with its base'
+  joharness.sh` — non-zero (the synced `janitor_apply` carries the note).
+  No consumer reachable: say so, bar unmet.
 
 ## Where to look
 
@@ -74,3 +74,6 @@ Acceptance).
 - Test for a fix must FAIL without it: revert, run, restore.
 - Never skip or quarantine a test to get green.
 - Count named with its command and date, never a written number.
+- No commit under `./joharness.sh protocol-paths`.
+- `janitor_apply` is rewritten by `janitor-apply-skips-a-deleted-branch`
+  (`needs:`): build on its merged version, never a copy from before it.

@@ -49,6 +49,9 @@ improvises. Give it one.
 - `git grep -n -i "refused" -- .claude/commands/orchestrate.md` — hit in
   Tools section.
 - New selftest case FAILS with the orchestrate.md sentence removed.
+- Plan SHIPS: in a consumer after sync, `grep -n -i 'refused'
+  .claude/commands/orchestrate.md` — hit in Tools section (the selftest
+  does not ship: `sync-to-consumer.sh` `CANONICAL_ONLY_DIRS`).
 
 ## Where to look
 

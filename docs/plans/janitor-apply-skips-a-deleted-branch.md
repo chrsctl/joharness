@@ -6,16 +6,27 @@ effort: high
 needs: none
 requirement: none
 issue: 397
-scope: shared:joharness.sh, .agents/harness/selftest/janitor.sh, .agents/harness/selftest/dispatch.sh, shared:.claude/commands/orchestrate.md
+scope: shared:joharness.sh, shared:.agents/harness/selftest/janitor.sh, shared:.agents/harness/selftest/dispatch.sh, shared:.claude/commands/orchestrate.md
 ---
 
 ## Goal
 
 `janitor --apply` re-created a branch human had deleted on GitHub (gx,
-2026-10-10, commit `4c31d894`). `janitor_apply` fetches with no `--prune`,
-so `refs/remotes/origin/<branch>` survives the deletion; it then pushes
-`<commit>:refs/heads/<branch>`, which creates the ref when origin has none.
-Deleted branch = strongest form of released. Never push to it.
+2026-10-10, commit `4c31d894`). `janitor_apply` trusts
+`refs/remotes/origin/<branch>`, then pushes `<commit>:refs/heads/<branch>`,
+which creates the ref when origin has none. With the default refspec
+(`+refs/heads/*:refs/remotes/origin/*`) that ref does not survive: dispatch
+runs first and fetches `--prune` (already so at `298b9ac`), so the deleted
+branch has no ref and `janitor_apply` takes its existing `skip … no such
+branch on origin` path. The ref survives only under a narrow refspec (e.g.
+`remote.origin.fetch=+refs/heads/main:refs/remotes/origin/main`): `--prune`
+prunes only refs its refspec maps, so a stale `refs/remotes/origin/<branch>`
+outlives the deletion. That is the gx case — a ref surviving a pruning
+dispatch means its refspec did not reach the branch. Fix: ask origin itself
+(`ls-remote`), not the local ref. `--prune` on janitor's own fetch is
+secondary: covers the default refspec when `--apply` runs without a
+dispatch first. Deleted branch = strongest form of released. Never push to
+it.
 
 ## Scope
 
@@ -32,9 +43,12 @@ Deleted branch = strongest form of released. Never push to it.
   same wording as the fleet-age line.
 - `.claude/commands/orchestrate.md` — step 0.1: `git fetch --prune origin`
   instead of `git fetch origin main` (still ff to `origin/main`).
-- `.agents/harness/selftest/janitor.sh` — case: candidate branch deleted on
-  the bare origin after local fetch; `--apply` prints `gone`, and
-  `git ls-remote --heads <origin> <branch>` stays empty afterwards.
+- `.agents/harness/selftest/janitor.sh` — case: candidate branch fetched,
+  then `git config remote.origin.fetch +refs/heads/main:refs/remotes/origin/main`
+  in the work clone, then branch deleted on the bare origin; `--apply`
+  prints `gone`, and `git ls-remote --heads <origin> <branch>` stays empty
+  afterwards. Second case, default refspec, same deletion: `--apply` prints
+  `skip … no such branch on origin` (the prune path; must not regress).
 - `.agents/harness/selftest/dispatch.sh` — `DISPATCH_FETCH=0` with a janitor
   candidate: row carries the caveat.
 
@@ -48,12 +62,18 @@ Deleted branch = strongest form of released. Never push to it.
 ## Acceptance
 
 - `bash .agents/harness/selftest.sh` — new janitor and dispatch cases pass.
-- Revert `janitor_apply` change, rerun — deleted-branch case FAILS (branch
-  re-created on fixture origin).
+- Revert `janitor_apply` change, rerun — narrow-refspec case FAILS (branch
+  re-created on fixture origin). A fixture on the default refspec would pass
+  unreverted: the prune already hides the ref.
 - `./joharness.sh ci` — `ci: pass`.
 - `./joharness.sh verify` — `0 failed`.
-- Plan SHIPS: consumers run `janitor --apply` from the orchestrator; selftest
-  runs in their `verify`.
+- Plan SHIPS. No consumer command reaches the `gone` path without a real
+  deleted branch under a narrow refspec, and the selftest does not ship
+  (`sync-to-consumer.sh` `CANONICAL_ONLY` lists `.agents/harness/selftest.sh`,
+  `CANONICAL_ONLY_DIRS` lists `.agents/harness/selftest`). Consumer check is
+  the synced text: in a consumer after sync, `grep -c 'gone on origin'
+  joharness.sh` — non-zero; `./joharness.sh janitor --apply no-such-branch`
+  — `skip`, nothing pushed.
 
 ## Where to look
 
