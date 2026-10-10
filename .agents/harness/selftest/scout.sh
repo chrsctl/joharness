@@ -354,8 +354,9 @@ git -C "$scout_work" rm -q docs/plans/free-one.md
 scommit "queue empty" '2026-03-06T00:00:00Z'
 git -C "$scout_work" push -q origin main
 out="$(sdsp JOHARNESS_CURATE_HOURS=1)"
-refute "dispatch spawns no scout in a pass that spawns a curator" "scout DUE: spawn" "$out"
-expect "and says the curate goes first" "a curate or clerk goes first" "$out"
+expect "a due curate with nothing to judge spawns no curator" \
+  "curate due, nothing needs judgement" "$out"
+expect "so it does not hold the scout" "scout DUE: spawn" "$out"
 out="$(sdsp)"
 expect "at DRAINED dispatch prints the spawn line" \
   "scout DUE: spawn ONE scout (agent: fable) on /scout" "$out"

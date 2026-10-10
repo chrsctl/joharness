@@ -362,6 +362,9 @@ cmd_ci() {
   printf '\n== graph lint\n'
   lint_graph || rc=1
 
+  printf '\n== plans on this branch\n'
+  lint_plans_in_diff || rc=1
+
   # Findings recorded on this branch that the fix map cannot key on, so
   # nothing ever serves them back. Report only, never rc — lint_finding_ids
   # carries why, and why it is not review_count's question.
@@ -4257,7 +4260,6 @@ cmd_scout() {
   # reads, by name, so the command's reader never has to rediscover them.
   printf 'evidence a scout reads (each proposal cites what it rests on):\n'
   printf '  ./joharness.sh upstream     what merged edges found about the harness\n'
-  printf '  ./joharness.sh scorecard    the fleet'"'"'s own numbers\n'
   printf '  ./joharness.sh feedback     findings ready to graduate\n'
   printf '  open issues on the canonical repository\n'
   printf '  the control plane'"'"'s cost reader: get_session usage.cost_usd,\n'
@@ -6302,52 +6304,159 @@ curate_covered() {
   return 1
 }
 
-cmd_curate() {
-  local qout rows rel stem label scope seclist p s hit scoped claimed prel
-  local regthr splitthr bullets reqstem
-  local n_plans=0 n_held=0 n_repair=0 n_declutter=0 n_propose=0
-  local repair="" declutter="" propose="" held_rows="" counts="" line plans_for
+# Registry threshold: this many plans declaring one path make it a registry
+# to mark `shared:`. Floor of 2 — the PROPOSE window is `>= 2 && < regthr`.
+curate_regthr() {
+  local r; r="$(num_knob JOHARNESS_CURATE_REGISTRY 3)"
+  [ "$r" -ge 2 ] || r=2
+  printf '%s' "$r"
+}
 
-  # Both the human's, both report-only here: how many plans declaring one path
-  # make it a REGISTRY rather than a collision (at or past this, the repair is
-  # `shared:`; below it, two plans on one path is an ordering question), and how
-  # many Scope bullets make a plan a decompose candidate. No measured default
-  # for either yet — written numbers until a run counts one, and said so.
-  regthr="$(num_knob JOHARNESS_CURATE_REGISTRY 3)"
-  # Floor of 2, because one plan declaring a path is not a registry and because
-  # the PROPOSE window below is `>= 2 && < regthr`: at 0 or 1 every exclusive
-  # declaration became a registry repair AND the overlap class silently
-  # disappeared (verifier r15).
-  [ "$regthr" -ge 2 ] || regthr=2
-  splitthr="$(num_knob JOHARNESS_CURATE_SPLIT 8)"
-
-  printf '== curate (report only — REPAIR and DECLUTTER are the curator'"'"'s, PROPOSE is not)\n\n'
-  printf 'registry  : %s+ plans declaring one path = a registry to mark shared: (JOHARNESS_CURATE_REGISTRY)\n' "$regthr"
-  printf 'split     : %s+ Scope bullets = a decompose candidate, PROPOSED never done (JOHARNESS_CURATE_SPLIT)\n\n' "$splitthr"
-
-  # The claims view, from the hook that owns it. A plan a manager HOLDS draws
-  # no finding at all: its declarations are that manager's to change, and a
-  # curator editing them races the branch rewriting the same frontmatter.
-  qout="$(drain_hook queue-context.sh)"
-  rows="$(printf '%s\n' "$qout" |
-    sed -n 's#^  \(docs/plans/[^ ]*\.md\)  \(\[.*\]\)$#\1|\2#p')"
-
-  # Every path ANY plan declares — held included — counted once per plan, so one
-  # pass answers both "is this a registry" and "which plans share it". Held
-  # counts too: a held plan's declaration is still a declaration, and keying the
-  # count to free plans only removed the registry repair exactly when a branch
-  # was in flight on that registry, which is the overlap it exists to pre-empt
-  # (verifier r4). Findings are still EMITTED for free plans only.
+# Every unmarked scope: entry across the queue, held plans included:
+# `<path>\t<stem>`, one per plan per path.
+curate_counts() {
+  local rel stem s
   while IFS= read -r rel; do
     [ -n "$rel" ] || continue
     stem="$(lint_stem "$rel")"
     while IFS= read -r s; do
       [ -n "$s" ] || continue
       case "$s" in shared:*) continue ;; esac
-      counts="${counts}${s}	${stem}
-"
+      printf '%s\t%s\n' "$s" "$stem"
     done < <(curate_scope_list "$rel")
   done < <(lint_nodes docs/plans)
+}
+
+# How many plans declare <path> unmarked, from curate_counts output.
+curate_hits() {
+  printf '%s' "$2" | awk -F'\t' -v p="$1" '$1 == p { print $2 }' | sort -u | grep -c . || :
+}
+
+# Scope-section paths under directory <dir>, one per line.
+curate_under() { printf '%s\n' "$2" | awk -v d="$1" 'index($0, d "/") == 1'; }
+
+# Repairs one plan needs, one per line, `M\t<text>` when `curate --apply`
+# fixes it mechanically, `J\t<text>` when it needs a reader.
+curate_repairs() {
+  local rel="$1" counts="$2" regthr="$3" stem scope seclist="" p s hit
+  stem="$(lint_stem "$rel")"
+  scope="$(curate_scope_list "$rel")"
+  while IFS= read -r p; do
+    [ -n "$p" ] || continue
+    [ -e "${ROOT}/${p}" ] && continue
+    printf 'J\t%s: anchor '"'"'%s'"'"' not in the tree — re-locate it by name, or cut the line\n' "$stem" "$p"
+  done < <(anchor_paths "$rel")
+  [ -z "$scope" ] || seclist="$(curate_section_paths "$rel" Scope)"
+  while IFS= read -r p; do
+    [ -n "$p" ] || continue
+    curate_covered "$p" "$scope" && continue
+    printf 'M\t%s: Scope names '"'"'%s'"'"', scope: does not cover it — add it\n' "$stem" "$p"
+  done <<<"$seclist"
+  while IFS= read -r s; do
+    [ -n "$s" ] || continue
+    s="${s#shared:}"
+    [ -d "${ROOT}/${s}" ] || continue
+    if [ -n "$(curate_under "$s" "$seclist")" ]; then
+      printf 'M\t%s: scope: claims the whole directory '"'"'%s'"'"' — narrow it to the files Scope names\n' "$stem" "$s"
+    else
+      printf 'J\t%s: scope: claims the whole directory '"'"'%s'"'"' and Scope names no file under it — narrow it by hand\n' "$stem" "$s"
+    fi
+  done <<<"$scope"
+  while IFS= read -r s; do
+    [ -n "$s" ] || continue
+    case "$s" in shared:*) continue ;; esac
+    hit="$(curate_hits "$s" "$counts")"
+    [ "$hit" -ge "$regthr" ] || continue
+    printf 'M\t%s: '"'"'%s'"'"' is declared by %s plans and unmarked — shared: it\n' "$stem" "$s" "$hit"
+  done <<<"$scope"
+}
+
+# The scope: value curate_repairs' mechanical fixes produce, comma-joined.
+curate_fixed_scope() {
+  local rel="$1" counts="$2" regthr="$3" scope seclist="" s bare marked u p out=""
+  scope="$(curate_scope_list "$rel")"
+  [ -n "$scope" ] || return 0
+  seclist="$(curate_section_paths "$rel" Scope)"
+  while IFS= read -r s; do
+    [ -n "$s" ] || continue
+    bare="${s#shared:}"; marked=""; [ "$bare" = "$s" ] || marked="shared:"
+    if [ -d "${ROOT}/${bare}" ] && [ -n "$(curate_under "$bare" "$seclist")" ]; then
+      while IFS= read -r u; do
+        [ -n "$u" ] && out="${out}${marked}${u}"$'\n'
+      done <<<"$(curate_under "$bare" "$seclist")"
+      continue
+    fi
+    if [ -z "$marked" ] && [ "$(curate_hits "$bare" "$counts")" -ge "$regthr" ]; then
+      out="${out}shared:${bare}"$'\n'; continue
+    fi
+    out="${out}${s}"$'\n'
+  done <<<"$scope"
+  while IFS= read -r p; do
+    [ -n "$p" ] || continue
+    curate_covered "$p" "$scope" || out="${out}${p}"$'\n'
+  done <<<"$seclist"
+  printf '%s' "$out" | awk 'NF && !seen[$0]++' | paste -sd, - | sed 's/,/, /g'
+}
+
+# Rewrite <rel>'s frontmatter scope: line to <value>.
+curate_write_scope() {
+  local f="${ROOT}/$1" tmp
+  tmp="$(mktemp)" || return 1
+  awk -v v="$2" '
+    NR == 1 && $0 == "---" { fm = 1; print; next }
+    fm && $0 == "---" { fm = 0 }
+    fm && /^scope:/ { print "scope: " v; next }
+    { print }' "$f" >"$tmp" && mv "$tmp" "$f"
+}
+
+cmd_curate() {
+  local qout rows rel stem label scope claimed prel apply=0 old new
+  local regthr splitthr bullets reqstem hit s p
+  local n_plans=0 n_held=0 n_repair=0 n_mech=0 n_declutter=0 n_propose=0 n_fixed=0
+  local pass n_pass
+  local repair="" declutter="" propose="" held_rows="" counts="" line plans_for kind text
+
+  case "${1:-}" in
+    '') ;;
+    --apply) apply=1 ;;
+    *) die "usage: $0 curate [--apply]" ;;
+  esac
+  regthr="$(curate_regthr)"
+  splitthr="$(num_knob JOHARNESS_CURATE_SPLIT 8)"
+
+  printf '== curate (REPAIR marked [apply] is mechanical: ./joharness.sh curate --apply)\n\n'
+  printf 'registry  : %s+ plans declaring one path = a registry to mark shared: (JOHARNESS_CURATE_REGISTRY)\n' "$regthr"
+  printf 'split     : %s+ Scope bullets = a decompose candidate, PROPOSED never done (JOHARNESS_CURATE_SPLIT)\n\n' "$splitthr"
+
+  # A plan a manager HOLDS draws no finding: its declarations are that manager's.
+  qout="$(drain_hook queue-context.sh)"
+  rows="$(printf '%s\n' "$qout" |
+    sed -n 's#^  \(docs/plans/[^ ]*\.md\)  \(\[.*\]\)$#\1|\2#p')"
+  counts="$(curate_counts)"
+
+  if [ "$apply" -eq 1 ]; then
+    # Until nothing changes: narrowing a directory can make a new registry.
+    for pass in 1 2 3 4 5; do
+      n_pass=0
+      while IFS= read -r rel; do
+        [ -n "$rel" ] || continue
+        label="$(printf '%s\n' "$rows" | awk -F'|' -v r="$rel" '$1 == r { print $2; exit }')"
+        case "$label" in *'claimed on '*) continue ;; esac
+        old="$(curate_scope_list "$rel" | paste -sd, - | sed 's/,/, /g')"
+        [ -n "$old" ] || continue
+        new="$(curate_fixed_scope "$rel" "$counts" "$regthr")"
+        { [ -n "$new" ] && [ "$new" != "$old" ]; } || continue
+        curate_write_scope "$rel" "$new" || continue
+        n_pass=$((n_pass + 1))
+        printf 'applied   : %s  scope: %s (pass %s)\n' "$rel" "$new" "$pass"
+      done < <(lint_nodes docs/plans)
+      counts="$(curate_counts)"
+      n_fixed=$((n_fixed + n_pass))
+      [ "$n_pass" -gt 0 ] || break
+    done
+    [ "$n_fixed" -gt 0 ] || printf 'applied   : nothing — no mechanical repair\n'
+    printf '\n'
+  fi
 
   while IFS= read -r rel; do
     [ -n "$rel" ] || continue
@@ -6362,72 +6471,23 @@ cmd_curate() {
     esac
     n_plans=$((n_plans + 1))
     scope="$(curate_scope_list "$rel")"
-    # `scope: none`, or absent, is a DELIBERATE declaration: the plan joins no
-    # wave and its independence stays unprovable (.agents/docs/plans/TEMPLATE.md).
-    # Every scope-derived repair below would read that as "add these paths",
-    # which inverts the author's choice — and REPAIR is the curator's to act on
-    # (verifier r9). The anchor repair still applies; it is about the body.
-    scoped=1
-    [ -n "$scope" ] || scoped=0
 
-    # REPAIR 1: an anchor path gone from the tree. Same reader the lint warns
-    # from, so the two cannot disagree about what an anchor is.
-    while IFS= read -r p; do
-      [ -n "$p" ] || continue
-      [ -e "${ROOT}/${p}" ] && continue
+    while IFS=$'\t' read -r kind text; do
+      [ -n "$kind" ] || continue
       n_repair=$((n_repair + 1))
-      repair="${repair}  ${stem}: anchor '${p}' not in the tree — re-locate it by name, or cut the line"$'\n'
-    done < <(anchor_paths "$rel")
+      if [ "$kind" = M ]; then
+        n_mech=$((n_mech + 1))
+        repair="${repair}  [apply] ${text}"$'\n'
+      else
+        repair="${repair}  ${text}"$'\n'
+      fi
+    done < <(curate_repairs "$rel" "$counts" "$regthr")
 
-    # REPAIR 2: a path the Scope section names that no `scope:` entry covers.
-    # The measured failure this is for: "scope is only as true as it is
-    # complete, and the file plans forget is the shared one"
-    # (.agents/docs/plans/README.md).
-    seclist=""
-    [ "$scoped" -eq 0 ] || seclist="$(curate_section_paths "$rel" Scope)"
-    while IFS= read -r p; do
-      [ -n "$p" ] || continue
-      curate_covered "$p" "$scope" && continue
-      n_repair=$((n_repair + 1))
-      repair="${repair}  ${stem}: Scope names '${p}', scope: does not cover it — add it, or the wave partition asserts a safety this plan does not have"$'\n'
-    done <<<"$seclist"
-
-    # REPAIR 3: a `scope:` entry that is a DIRECTORY in the tree. It swallows
-    # every file under it, so it collides with every plan touching the
-    # directory for no reason (the shape that held 14 of one consumer's 38 plans).
-    while IFS= read -r s; do
-      [ -n "$s" ] || continue
-      s="${s#shared:}"
-      [ -d "${ROOT}/${s}" ] || continue
-      n_repair=$((n_repair + 1))
-      repair="${repair}  ${stem}: scope: claims the whole directory '${s}' — narrow it to the file the Scope section names"$'\n'
-    done < <(curate_scope_list "$rel")
-
-    # REPAIR 4: a path this many plans declare exclusively is a registry they
-    # append to, not a file they fight over. Unmarked, one branch in flight
-    # holds every other plan (OVERLAP-BOUND, .agents/docs/orchestrated.md).
-    while IFS= read -r s; do
-      [ -n "$s" ] || continue
-      case "$s" in shared:*) continue ;; esac
-      hit="$(printf '%s' "$counts" | awk -F'\t' -v p="$s" '$1 == p { print $2 }' | sort -u | grep -c .)"
-      [ "$hit" -ge "$regthr" ] || continue
-      n_repair=$((n_repair + 1))
-      repair="${repair}  ${stem}: '${s}' is declared by ${hit} plans and unmarked — shared: it on BOTH sides, or one branch holds the rest"$'\n'
-    done < <(curate_scope_list "$rel")
-
-    # DECLUTTER: two signals, neither sufficient on its own. The curator
-    # confirms in MERGED HISTORY before deleting anything — a plan is not
-    # obsolete because its paths moved.
+    # DECLUTTER: evidence in merged history first; a plan is not obsolete
+    # because its paths moved.
     reqstem="$(lint_stem "$(gr_field requirement <"${ROOT}/${rel}")")"
     if [ -n "$reqstem" ] && [ "$reqstem" != "none" ] &&
        [ ! -f "${ROOT}/docs/product/${reqstem}.md" ]; then
-      # Counted through the SAME reader and the same normalization, never a
-      # grep of the raw field: a plan may name its requirement by path
-      # (`docs/product/gone.md`) or by stem (`gone`), and the grep matched
-      # neither reliably — two plans serving one requirement were each reported
-      # as the last one serving it, both offered for deletion. `lint_stem`
-      # collapses both spellings, which is what the edge reader already does
-      # (verifier r5).
       plans_for=0
       while IFS= read -r prel; do
         [ -n "$prel" ] || continue
@@ -6453,9 +6513,6 @@ cmd_curate() {
       fi
     fi
 
-    # PROPOSE: never acted on. A bullet count is a SIGNAL, and the bound the
-    # curator cannot cross is that a split may only follow separable
-    # deliverables the Scope section ALREADY names.
     bullets="$(awk '/^## Scope/ { s = 1; next } /^## / { s = 0 } s && /^- / { n++ } END { print n + 0 }' "${ROOT}/${rel}")"
     if [ "$bullets" -ge "$splitthr" ]; then
       n_propose=$((n_propose + 1))
@@ -6463,9 +6520,7 @@ cmd_curate() {
     fi
   done < <(lint_nodes docs/plans)
 
-  # PROPOSE, across plans: one path two plans claim exclusively, below the
-  # registry threshold, is an ordering question — which goes first, or are they
-  # one plan. Never the curator's to answer: that is queue priority.
+  # ORDER: two to (regthr-1) plans claiming one path exclusively.
   while IFS= read -r line; do
     [ -n "$line" ] || continue
     p="${line%%	*}"
@@ -6484,16 +6539,6 @@ cmd_curate() {
   if [ -n "$propose" ]; then printf 'PROPOSE (write these down; never act):\n%s\n' "$propose"; fi
 
   if [ "$n_plans" -eq 0 ]; then
-    # It read NOTHING, which is not the same as finding nothing wrong. Saying
-    # "every declaration reads true" over an all-held queue is a verdict
-    # asserting a property it never checked, and curate.md reads it as "stop"
-    # (verifier r13).
-    #
-    # Two ways to read nothing, and the earlier spelling stated the wrong one as
-    # fact: over an EMPTY queue it said "every one held by a manager" with no
-    # plans and no manager anywhere. A curator then had a verdict its role file
-    # did not name (verifier r32). Reachable now in a way it was not before,
-    # because the deletion filter makes a queue that just emptied a real trigger.
     if [ "$n_held" -eq 0 ]; then
       printf 'verdict   : NOTHING READ — the queue is EMPTY: no plan to check, which is not the same as every plan reading true. Still land the date (curate.md 0.4)\n'
     else
@@ -6503,10 +6548,88 @@ cmd_curate() {
   elif [ $((n_repair + n_declutter + n_propose)) -eq 0 ]; then
     printf 'verdict   : NOTHING TO CURATE — %s free plan(s), every declaration reads true\n' "$n_plans"
   else
-    printf 'verdict   : CURATE — %s repair(s), %s declutter candidate(s), %s proposal(s)\n' \
-      "$n_repair" "$n_declutter" "$n_propose"
+    printf 'verdict   : CURATE — %s repair(s) (%s mechanical), %s declutter candidate(s), %s proposal(s)\n' \
+      "$n_repair" "$n_mech" "$n_declutter" "$n_propose"
   fi
+  printf 'judgement : %s\n' "$((n_repair - n_mech + n_declutter + n_propose))"
   return 0
+}
+
+# Plans this branch adds or edits (diff against the merge base, working tree
+# included), one per line.
+plans_in_diff() {
+  local base="$1"
+  {
+    git -C "$ROOT" diff --name-only --diff-filter=AM "$base" -- docs/plans 2>/dev/null
+    git -C "$ROOT" ls-files --others --exclude-standard -- docs/plans 2>/dev/null
+  } | awk '/^docs\/plans\/[^\/]+\.md$/ && !/\/(README|TEMPLATE)\.md$/' | sort -u |
+    while IFS= read -r f; do [ -f "${ROOT}/${f}" ] && printf '%s\n' "$f"; done
+}
+
+# A scope: made only of core paths (protocol_paths): no session may build it.
+plan_core_only() {
+  local scope s c core any=0
+  scope="$(curate_scope_list "$1")"
+  [ -n "$scope" ] || return 1
+  core="$(protocol_paths)"
+  while IFS= read -r s; do
+    [ -n "$s" ] || continue
+    s="${s#shared:}"; any=0
+    while IFS= read -r c; do
+      case "$s" in "$c" | "$c"/*) any=1 ;; esac
+    done <<<"$core"
+    [ "$any" -eq 1 ] || return 1
+  done <<<"$scope"
+  return 0
+}
+
+# ci stage: plans this branch adds or edits must carry no curate repair and
+# must be buildable (scope: not core paths only).
+lint_plans_in_diff() {
+  local over="origin/${HANDOVER_BASE_BRANCH:-main}" base rel counts regthr bad=0 kind text n=0
+  local ws held=""
+  base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
+  if [ -z "$base" ]; then
+    printf '  not measurable here (no merge-base with %s)\n' "$over"
+    return 0
+  fi
+  counts="$(curate_counts)"
+  regthr="$(curate_regthr)"
+  # The plan this branch's own workstream file claims is held: its
+  # declarations are this branch's to change, as in `curate`.
+  while IFS= read -r ws; do
+    [ -n "$ws" ] || continue
+    held="${held} $(lint_stem "$(lint_ws_content "$ws" | gr_field plan)") "
+  done <<<"$(fin_own_ws "$base")"
+  while IFS= read -r rel; do
+    [ -n "$rel" ] || continue
+    n=$((n + 1))
+    while IFS=$'\t' read -r kind text; do
+      [ -n "$kind" ] || continue
+      bad=$((bad + 1))
+      if [ "$kind" = M ]; then
+        printf '  %s  (fix: ./joharness.sh curate --apply)\n' "$text"
+      else
+        printf '  %s\n' "$text"
+      fi
+    done < <(case "$held" in *" $(lint_stem "$rel") "*) ;;
+               *) curate_repairs "$rel" "$counts" "$regthr" ;; esac)
+    if plan_core_only "$rel"; then
+      bad=$((bad + 1))
+      printf '  %s: scope: names core paths only (%s) — no session may build it; mark the issue for a human instead\n' \
+        "$(lint_stem "$rel")" "$(protocol_paths | paste -sd, - | sed 's/,/, /g')"
+    fi
+  done < <(plans_in_diff "$base")
+  if [ "$n" -eq 0 ]; then
+    printf '  no plan added or edited on this branch\n'
+    return 0
+  fi
+  if [ "$bad" -eq 0 ]; then
+    printf '  %s plan(s) added or edited, every declaration reads true\n' "$n"
+    return 0
+  fi
+  printf '\n  %s problem(s) in plans this branch adds or edits.\n' "$bad"
+  return 1
 }
 
 # Rescope branches in flight: the surveyor, a manager working the `rescope`
@@ -6703,7 +6826,7 @@ cmd_dispatch() {
   local n_edge=0 n_edge_stall=0 n_leftover=0 n_leftover_noitem=0
   local leftover_rows="" estate="" fleet_age stall_young=""
   local curate_due=0 curate_inflight="" n_curate_inflight=0 cdue cstate creason
-  local jcands
+  local jcands cjudge n_roles role_slots
   local scout_due=0 scout_inflight="" n_scout=0 sdue sstate sreason sb sw ss scout_gate=0 srows
   local clerk_due=0 clerk_inflight="" n_clerk=0 kdue kstate kreason kb kw ks
   local fetch_failed=0
@@ -6803,7 +6926,12 @@ cmd_dispatch() {
     printf 'curate    : IN FLIGHT, so none is due. What made it due: %s\n' "$creason"
     printf '%b' "$curate_inflight"
   elif [ "$cstate" = due ]; then
+    # A session only for what needs judgement (decompose, order, declutter,
+    # a repair no script can make); mechanical repairs are `curate --apply`.
+    cjudge="$(cmd_curate 2>/dev/null | sed -n 's/^judgement : //p')"
+    case "$cjudge" in '' | *[!0-9]*) cjudge=1 ;; esac
     curate_due=1
+    [ "$cjudge" -gt 0 ] || curate_due=2
     printf 'curate    : DUE — %s\n' "$creason"
   else
     printf 'curate    : not due — %s\n' "$creason"
@@ -7201,9 +7329,14 @@ cmd_dispatch() {
   # the spawn count, the OVERLAP-BOUND gate and the DRAINED reading follow.
   # It can only LOWER — an input able to raise the count would spend the cap
   # by arithmetic, which is the failure being closed.
-  n_slots=$((cap - (n_inflight - n_blocked) - pending_used))
+  # Role sessions (curator, clerk) share the cap with managers.
+  n_roles=$((n_curate_inflight + n_clerk))
+  n_slots=$((cap - (n_inflight - n_blocked) - pending_used - n_roles))
   [ "$n_slots" -ge 0 ] || n_slots=0
-  if [ "$pending" != 0 ]; then
+  if [ "$n_roles" -gt 0 ]; then
+    printf 'slots     : %s of %s free (%s role session(s) in flight count against JOHARNESS_MAX_MANAGERS)\n\n' \
+      "$n_slots" "$cap" "$n_roles"
+  elif [ "$pending" != 0 ]; then
     # Said on the line, because a silently lowered count is indistinguishable
     # from a busy fleet and the next reader debugs the wrong thing.
     printf 'slots     : %s of %s free (%s spawned, not pushed yet: JOHARNESS_PENDING_SPAWNS)\n\n' \
@@ -7573,15 +7706,25 @@ cmd_dispatch() {
   # curator printed only as standing config is a pass that never spawns one.
   # Orthogonal to the verdict itself — a curate is due, or not, whatever the
   # queue says — which is why it is a tail line and not a verdict of its own.
-  [ "$curate_due" -eq 0 ] ||
-    printf '            curate DUE: spawn ONE curator (agent: sonnet) on ./joharness.sh curate — beyond the cap, holds no slot, at most one in flight (JOHARNESS_CURATE_PLANS, JOHARNESS_CURATE_HOURS)\n'
+  # Roles take the slots free items leave: managers first.
+  role_slots=$((n_slots - (n_free < n_slots ? n_free : n_slots)))
+  if [ "$curate_due" -eq 1 ] && [ "$role_slots" -gt 0 ]; then
+    role_slots=$((role_slots - 1))
+    printf '            curate DUE: spawn ONE curator (agent: sonnet) on ./joharness.sh curate — takes one slot (roles share JOHARNESS_MAX_MANAGERS), at most one in flight (JOHARNESS_CURATE_PLANS, JOHARNESS_CURATE_HOURS)\n'
+  elif [ "$curate_due" -eq 1 ]; then
+    printf '            curate due, held — no free slot: roles share JOHARNESS_MAX_MANAGERS with managers\n'
+  elif [ "$curate_due" -eq 2 ]; then
+    printf '            curate due, nothing needs judgement: spawn no curator. Mechanical repairs: ./joharness.sh curate --apply (the next clerk pass runs it)\n'
+  fi
   # The clerk's read of every branch is the scout's (scout_walk), so it takes
   # the scout's hold too: on a stale view a clerk pushed since the last fetch
   # is invisible, and a second clerk plans the same issues twice.
   if [ "$clerk_due" -eq 1 ] && [ "$fetch_failed" -eq 1 ]; then
     printf '            clerk due, held — no fresh view of every branch this pass (fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*), so a clerk in flight might not show: spawn none this pass\n'
+  elif [ "$clerk_due" -eq 1 ] && [ "$role_slots" -le 0 ]; then
+    printf '            clerk due, held — no free slot: roles share JOHARNESS_MAX_MANAGERS with managers\n'
   elif [ "$clerk_due" -eq 1 ]; then
-    printf '            clerk DUE: spawn ONE clerk (agent: opus) on /clerk — beyond the cap, holds no slot, at most one in flight. It turns open issues into plans and merges that plan-only pull request itself (JOHARNESS_CLERK_HOURS, JOHARNESS_CLERK_BATCH)\n'
+    printf '            clerk DUE: spawn ONE clerk (agent: opus) on /clerk — takes one slot (roles share JOHARNESS_MAX_MANAGERS), at most one in flight. It turns open issues into plans and merges that plan-only pull request itself (JOHARNESS_CLERK_HOURS, JOHARNESS_CLERK_BATCH)\n'
   fi
   # And no curate, janitor or clerk due OR in flight this pass: a released claim
   # frees a plan for the NEXT pass, so the queue is about to stop being
@@ -7591,7 +7734,7 @@ cmd_dispatch() {
   if [ "$scout_due" -eq 1 ] && [ "$fetch_failed" -eq 1 ]; then
     printf '            scout due, held — no fresh view of every branch this pass (fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*), so a scout in flight might not show: spawn none this pass\n'
   elif [ "$scout_due" -eq 1 ] && [ "$scout_gate" -eq 1 ] &&
-     [ "$curate_due" -eq 0 ] && [ "$clerk_due" -eq 0 ] &&
+     [ "$curate_due" -ne 1 ] && [ "$clerk_due" -eq 0 ] &&
      [ "$n_curate_inflight" -eq 0 ] && [ "$n_clerk" -eq 0 ]; then
     printf '            scout DUE: spawn ONE scout (agent: fable) on /scout — beyond the cap, holds no slot, at most one in flight, only at DRAINED. It proposes; a human merges unless JOHARNESS_SCOUT_AUTOMERGE=on (JOHARNESS_SCOUT_HOURS)\n'
   elif [ "$scout_due" -eq 1 ] && [ "$scout_gate" -eq 1 ]; then
@@ -7863,7 +8006,7 @@ main() {
     scout)          cmd_scout "$@" ;;
     clerk)          cmd_clerk "$@" ;;
     cleanup)        cmd_cleanup "$@" ;;
-    curate)         cmd_curate ;;
+    curate)         cmd_curate "$@" ;;
     finish)         cmd_finish ;;
     dispatch)       cmd_dispatch ;;
     start)          [ -z "${1:-}" ] ||

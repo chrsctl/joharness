@@ -548,6 +548,7 @@ SELFTEST_TOPICS=(
   cleanup
   orchestrated
   dispatch
+  curate-apply
   analysis
   janitor
   scout
