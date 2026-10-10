@@ -488,3 +488,25 @@ refute "and the message names no hard-coded main" \
 out="$(jan)"
 expect "while under the default base that same claim is held" \
   "holds: docs/plans/latecomer.md, out of the queue while this claim stands" "$out"
+
+# --- the release note explains the red it causes -----------------------------
+# A released branch carries an older joharness.sh whose status enum predates
+# `abandoned`, so `ci` reds on the file the janitor just wrote (#279). The note
+# must say the reconcile with base clears it. Not a bare grep of the role doc:
+# the required clause is lifted out of the doc's §3 as the file HOLDS it —
+# wrapped across lines, so joined first — and a note is checked against the
+# clause's own anchors. A note written without the clause must miss them in the
+# same case, and the anchor quoting the red must be the wording lint_enum
+# really emits, or the note would explain a message nobody sees.
+jdoc="${ROOT}/.claude/commands/janitor.md"
+jclause="$(awk '/^   - in that same note, why/{f=1} f&&/^   - a `blocked`/{exit} f' "$jdoc" \
+  | sed 's/^ *- *//; s/^ *//' | tr '\n' ' ')"
+jnote_ok="2026-10-10, session ARCHIVED, holds: none. ${jclause}"
+jnote_bad="2026-10-10, session ARCHIVED, holds: none. A returning session may set the status back."
+jred="$(grep -o "'\${v}' not one of" "${ROOT}/joharness.sh" | head -1)"
+expect "lint_enum still emits the wording the clause quotes" "not one of" "$jred"
+for janchor in "ci" "reds" "abandoned" "not one of" "reconciles with its base"; do
+  expect "a note written per the role doc carries '${janchor}'" "$janchor" "$jnote_ok"
+done
+refute "a note written without the clause misses the reconcile" "reconciles with its base" "$jnote_bad"
+refute "and does not say why ci reds" "not one of" "$jnote_bad"
