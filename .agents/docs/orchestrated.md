@@ -1364,6 +1364,79 @@ age: the first-look row's condition — an entry a PREVIOUS pass wrote — is
 what keeps a session spawned this pass out of them, because `seen=` is
 recorded only when that row matches.
 
+**Blocked before its first push.** A manager stopped by a permission prompt
+on its first commands has pushed nothing, so it has no ref, no `dispatch`
+row and no push age (`dispatch_age_min`, `joharness.sh`, says unknown, never
+zero), and `JOHARNESS_STALL_MINUTES` can never apply to it: this is a row
+question, not a threshold one. #304's fix — asking is a push, not a wait —
+cannot reach it: a prompt fires INSIDE the tool call, and the session has no
+turn left in which to push anything. No instruction in `manage.md` converts
+it. The one lever that could PREVENT it is outside every harness file:
+`create_session` takes a `permission_mode`, `orchestrate.md`'s spawn step
+names none, `.claude/settings.json` carries no `permissions` block, so a
+manager's exposure is whatever the runtime defaults to. Setting it is a
+permissions decision and a human's; until one is made, recovery is the
+orchestrator's. One instance, REPORTED from `chrsctl/gx` (2026-10-08, not
+re-measured here): created 04:21:54Z, 56 seconds later a status string
+`REQUIRES_ACTION` ("Waiting on permission: Bash") and `status_bucket`
+BLOCKED, under `permission_mode` auto, nothing pushed, freed at 04:37Z only
+because the orchestrator interrupted it outside any row. Which FIELD carried
+`REQUIRES_ACTION` the report does not say — `session_status` or a summary
+string — and that is the one reading the verdict turns on.
+
+Read in the order the table prescribes, per `session_status`:
+
+- **RUNNING, or a status the table does not name** (`REQUIRES_ACTION`, if
+  that was `session_status`): no RUNNING row matches — four need a push age,
+  the fifth (`retired, no claim file`) needs a dispatch row, and there is
+  neither; no idle row matches; the first that does is the merged row, whose
+  test *"dispatch no longer lists it"* is literally true of a branch that
+  never existed. Verdict: **"done. Nothing."** — confidently wrong, every
+  pass, for as long as the session lives.
+- **IDLE or PENDING:** the unclaimed first-look row, then *"It RAN and
+  stopped without claiming. A respawn repeats it, so do not."* —
+  `last_served_model` is present, so the stillborn row does not match.
+  Report, never respawn: right for the authority exit that row was written
+  for (a property of the repository, identical for every successor). Wrong
+  for a prompt IF a prompt reads IDLE — a respawn's first commands may not
+  prompt — but an inference; no command here measures it. At least it
+  REPORTS: a human sees the stem.
+
+The research node that asked this (deleted with this graduation; history
+holds it) claimed the merged row matches first on BOTH readings. Re-read on
+`main` at `44de683b`, and at the node's own `832f5fdd`: the unclaimed rows
+sit ABOVE the merged row, so on IDLE the merged row is never reached.
+
+BLOCKED alone does not mean "stuck in a tool call". `list_sessions` (limit
+100, mine, 2026-10-10 ~10:20Z, one call) carried 100 records with a bucket;
+exactly one read `SESSION_STATUS_BUCKET_BLOCKED`, beside
+`SESSION_STATUS_IDLE` and `post_turn_summary.status_category: need_input`.
+Its `list_events` (kinds `control_request`, `result`, `other`, same minute)
+ends on a `result` with `stop_reason: end_turn`, `terminal_reason:
+completed`, and a closing question in prose: a turn that ENDED asking, the
+#304 shape, no tool call pending. So the bucket covers a session that chose
+to ask; a row keyed on BLOCKED alone would respawn that kind too, including
+an authority exit that ends on a question — the loop the unclaimed row
+exists to prevent. What the sample does NOT show is what a prompt-suspended
+session's `session_status` reads; `need_input` alone would not tell the two
+apart.
+
+So the fix, carried by the plan `blocked-before-claim-row`, is built to be
+right on the reading that is wrong today and safe on the one not measured:
+narrow the merged row to a stem whose ledger entry carries a head (never
+`new`) — that alone turns "done. Nothing." into a reachable row; add, ABOVE
+the unclaimed rows, a first-look/confirm pair for an entry still `new` whose
+record reads BLOCKED and NOT IDLE, PENDING or ARCHIVED — interrupt, archive,
+plain spawn of the item, counted against `JOHARNESS_RESPAWN_LIMIT` as the
+stillborn row counts; and amend the `status_bucket` field row, which today
+lets only `..._FAILED` decide liveness, in the same diff. IDLE beside
+BLOCKED keeps the unclaimed row — report, never respawn — because the one
+measured IDLE+BLOCKED record was a turn that ended, and a wrong report is
+cheaper than a respawn loop. The report names the bucket, so the first
+prompt-blocked manager that reads IDLE is seen and measured. Pinned for the
+next reader because "treat it as dead after the stall window" is the
+natural shape to reach for, and with no branch it changes nothing.
+
 **Edge rows paragraph, after "holds nothing, and is only reported".** Counting the second kind is what stopped a fleet (the run and its numbers:
 `orchestrated.md`, Runs).
 
