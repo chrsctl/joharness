@@ -73,7 +73,7 @@ and leave it untouched.
    `docs/research/<stem>.md`) still exists on `origin/main`
    (`git cat-file -e origin/main:<path>`) — a merged manager left IDLE has
    no item file, so it is never rebuilt. Each stem kept is a manager that
-   may not have claimed: add `<stem>@new` to the ledger with
+   may not have claimed: add `<stem>@new sid=<that row's session id>` to the ledger with
    `respawns=<RESPAWN_LIMIT>`, on purpose. Say `rebuilt <stem>@new from its title` in the report.
 3. Read `.agents/docs/agent-selection.md` Lineup once: tier to model ID.
 4. The ledger. Your wake message (step 4 below) carries it: per item in
@@ -166,7 +166,7 @@ not one either.
 
 | control plane | push age | last pass | do |
 | --- | --- | --- | --- |
-| any — ARCHIVED and not found included | any | entry still reads `new`; dispatch lists the stem NOWHERE — not in flight, not under spawn, not held (a surveyor: no `rescope :` block names the key in flight); and that session's claim is on fresh `origin/main`: `git log origin/main --full-history --diff-filter=A -S'<session_id>' --format=%h --name-only -- docs/handover` prints a commit and a file, and `git show <commit>:<file>` carries a `session:` line ending in `<session_id>` and `plan: <stem>` (a surveyor: `workstream: rescope-<key>`) | MERGED BETWEEN PASSES: it claimed and merged inside one interval, so no pass saw a head. Rewrite the entry `<stem>@<commit>` — the FIRST matching commit printed — and read the `done` row for it, this pass; its REPORT takes `<branch>` from that file's `branch:` line. No nudge, interrupt, archive or spawn, whatever the status: FAILED, BLOCKED or ARCHIVED after the merge loses nothing. `<session_id>` is the session the title lookup above resolved (a surveyor's title: `surveyor: <key>`); only ARCHIVED ones under the title: the newest of them; none at all: this row cannot match. The id comes from the control plane; the file it is matched against is repo text, so the dispatch clause is what makes a forged or stale claim harmless: an item still on the queue — re-queued under an old stem, or a claim another session wrote naming this id — fails it, and the rows below decide. `--full-history` is not optional: the claim was added and retired on the side branch, and merge simplification prunes that branch — without the flag the command printed nothing for #386's claim `ac87c5f` (measured 2026-10-10). `SHALLOW CLONE` on the verdict: `git fetch --unshallow` first. Prints nothing = not merged, the rows below decide. **Read this row FIRST for every `new` entry**: the crash, BLOCKED BEFORE CLAIM, `gone before claim` and UNCLAIMED rows all match the same reading. |
+| any — ARCHIVED and not found included | any | entry still reads `new` and carries `sid=<session_id>`; its item is off fresh `origin/main` — a plan or research item: its file gone; a requirement: its file gone, or a plan there names it in `requirement:`; a surveyor: no item, no clause (it holds no slot, and `rescoped=` still bars a second); and that session's claim is on fresh `origin/main`: `git log origin/main --full-history --diff-filter=A -S'<session_id>' --format=%h --name-only -- docs/handover` prints a commit and a file, and `git show <commit>:<file>` carries a `session:` line ending in `<session_id>` and `plan: <stem>` (a surveyor: `workstream: rescope-<key>`) | MERGED BETWEEN PASSES: it claimed and merged inside one interval, so no pass saw a head. Rewrite the entry `<stem>@<commit>` — the FIRST matching commit printed — and read the `done` row for it, this pass. No nudge, interrupt, archive or spawn, whatever the status: FAILED, BLOCKED or ARCHIVED after the merge loses nothing. Its REPORT needs `<branch>`: that file's `branch:` line, used ONLY when it matches `^[A-Za-z0-9._/-]+$` and, after `git fetch origin <branch>`, `git merge-base --is-ancestor origin/<branch> origin/main` holds — else no `upstream`, report the stem and write `reported=<stem>`. `sid=` is the id `create_session` returned for THIS spawn, never a title lookup: an earlier run's archived session under the same title carries an earlier claim. No `sid=` on the entry: this row cannot match. The id is the control plane's (`get_session` `id`, the same `session_...` string a manager writes in its `session:` URL — read 2026-10-10 on this repo's manager `session_01MQpQFb9hmdy2KySGiVC4mD`); the claim file is repo text, so the item clause is what keeps a forged claim from spawning anything twice — the item it names must already be off the queue. `--full-history` is not optional: the claim was added and retired on the side branch, and merge simplification prunes that branch — without the flag the command printed nothing for #386's claim `ac87c5f` (measured 2026-10-10). `SHALLOW CLONE` on the verdict: `git fetch --unshallow` first. Prints nothing = not merged, the rows below decide. **Read this row FIRST for every `new` entry**: the crash, BLOCKED BEFORE CLAIM, `gone before claim` and UNCLAIMED rows all match the same reading. |
 | RUNNING | under stall | any | working. Nothing. |
 | RUNNING | STALL? | not in the ledger | NUDGE: Claude Code Remote `send_message` to the manager's `session_id` (transport 1), or `SendMessage`, `to` = its row in `ListAgents` (transport 2): "Orchestrator health pass: no push on <branch> for <N>m. Now: /handover, commit, push. Then continue, or set status blocked and stop." The delivery result is the evidence a route exists — `delivered` is a nudge sent, a refusal is none. Transport 1 refused: transport 2 only when `ListAgents` shows the manager's row. Ledger: stem, branch head now, `status_detail`. No transport reaches it: send nothing and still write the ledger entry — the next pass then reads the row below and kills, on the same two observations, without the ask. Never kill on this first one; two passes is the rule, and the missing tool removes the message, not the second look. With no nudge `JOHARNESS_STALL_MINUTES` is a kill threshold and not a warning one; say so in the report, the operator may want it higher. |
 | RUNNING | STALL? | in the ledger, head unchanged, `status_detail` unchanged | KILL, below. |
@@ -407,7 +407,7 @@ Up to `slots`, in dispatch's order, only rows under `spawn`:
   below with `title` = `surveyor: <key>`, `model` = the Lineup's sonnet, and
   `prompt` = `/manage rescope <key>` followed by the `rescope :` block
   verbatim, then the same three lines every manager gets. Ledger
-  `rescope-<key>@new` AND `rescoped=<key>`; the health rows read the branch
+  `rescope-<key>@new sid=<session_id>` AND `rescoped=<key>`; the health rows read the branch
   (`workstream: rescope-<key>`, `plan: none`) like any manager. A block that
   says a rescope is already in flight, or `done or blocked` for the key,
   spawns nothing — the holds are being worked or are genuine.
@@ -462,7 +462,7 @@ Up to `slots`, in dispatch's order, only rows under `spawn`:
   Nothing else: no "no human is watching", no "never ask", no "keep
   going". The prompt routes; the repository authorises.
 
-Ledger every spawn the moment it returns, as `<stem>@new`. Step 2's UNCLAIMED and BLOCKED BEFORE CLAIM first-look rows and its
+Ledger every spawn the moment it returns, as `<stem>@new sid=<session_id>` — the id `create_session` returned. Step 2's UNCLAIMED and BLOCKED BEFORE CLAIM first-look rows and its
 `gone before claim` row admit it once it is a pass old; the verdict rows
 after the first looks key on `seen=` or `held=`. It is also what the next pass counts into step 1's
 `JOHARNESS_PENDING_SPAWNS`: the slot is owned, and only this entry says so.
@@ -473,7 +473,7 @@ after the first looks key on `seen=` or `held=`. It is also what the next pass c
 
 ```
 /orchestrate pass
-ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] respawns=<n> [reported=<stem>] [rescoped=<key>] [curated=<stamp>] [analysed=<stem>:<condition>] [swept=<stamp>] [clerked=<stamp>] [scouted=<stamp>]; ...
+ledger: <stem>@<head|new> [sid=<session_id>] next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] respawns=<n> [reported=<stem>] [rescoped=<key>] [curated=<stamp>] [analysed=<stem>:<condition>] [swept=<stamp>] [clerked=<stamp>] [scouted=<stamp>]; ...
 lead <stem>: <40 chars, to the end of this line>
 ```
 
@@ -533,6 +533,7 @@ Loss cost, one line per ledger field — a compacted pass guesses none of
 the ones marked NOT rebuildable:
 
 - `@<head>`: rebuilt from dispatch's in-flight rows. Loss costs nothing.
+- `sid=`: rebuilt with `@new` from the same title row (step 0.2); a surveyor's is not. Loss: the MERGED BETWEEN PASSES row cannot match that entry — its old false report returns, nothing is spawned.
 - `@new`: rebuilt from titles for managers only (step 0.2) — existence and
   count, never age; a surveyor's `rescope-<key>@new` is NOT. Loss: the cap is passed or the run exits on a live manager.
 - `respawns=`: NOT rebuildable, and no cross-check: a file's digit is the

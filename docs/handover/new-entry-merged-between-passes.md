@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01MQpQFb9hmdy2KySGiVC4mD
 agent: opus
 updated: 2026-10-10
-next: Second verifier pass on r1-r9 fixes
+next: Third verifier pass on r10-r13 fixes
 ---
 
 ## Goal
@@ -29,10 +29,16 @@ rows instead of false "never claimed" / "gone before claim" reports.
   and printed nothing for #386's claim `ac87c5f` (measured 2026-10-10,
   `git log origin/main --diff-filter=A -S'session_012J8LutqGHqhZDE49agfS81' -- docs/handover`
   empty; with `--full-history` prints `ac87c5f`).
-- Guard: dispatch lists the stem nowhere (in flight, spawn, held). The
-  session-id match alone was forgeable and stale-able (r1, r2); a merge
-  that really finished the item takes it off the queue — plan retired,
-  requirement planned, rescope key resolved.
+- Identity: `sid=` on the `@new` entry, written from `create_session`'s
+  return (rebuilt from the title row in step 0.2). Not a timestamp; ties
+  the claim to THIS spawn, so an earlier run's claim under a reused stem
+  or key cannot match (r1, r10). Control-plane id == URL suffix: read
+  2026-10-10, `get_session` on this session returned
+  `session_01MQpQFb9hmdy2KySGiVC4mD`, the string in this file's `session:`.
+- Guard: item off `origin/main` (plan/research file gone; requirement:
+  a plan names it in `requirement:`). Replaces "dispatch lists it
+  nowhere", which drain's `head -1` on requirements made false (r10).
+  Surveyor has no item and holds no slot; `rescoped=` bars a second.
 - Row sits FIRST in the decision table: every row keying on a `new` entry
   (crash, BLOCKED BEFORE CLAIM, gone before claim, UNCLAIMED, STILLBORN)
   then reads after it. It writes the claim commit as the head, so the
@@ -45,19 +51,19 @@ rows instead of false "never claimed" / "gone before claim" reports.
     `done`; no interrupt, no report.
   - plan merged, FAILED: new row before the crash rows -> `done`; no
     archive, no respawn of a merged item.
-  - plan merged, ARCHIVED: lookup takes the newest archived session under
-    the title -> new row -> `done` (not `gone before claim`).
+  - plan merged, ARCHIVED: `sid=` names the session whatever its status
+    -> new row -> `done` (not `gone before claim`).
   - requirement planned and merged: claim file names the requirement in
     `plan:` (`.agents/docs/product/README.md`); keyed on session, so the
     requirement file still on main does not matter -> `done`.
-  - surveyor `rescope-<key>@new`: title `surveyor: <key>`, claim file
-    `workstream: rescope-<key>` -> `done`.
+  - surveyor `rescope-<key>@new sid=`: claim file
+    `workstream: rescope-<key>`, no item clause -> `done`.
   - item deleted by `/curate`, manager prompt-held: no merged file carries
     its session id -> new row prints nothing -> BLOCKED BEFORE CLAIM first
     look, then confirm: item gone -> REPORT, touch nothing. Correct: it
     never claimed.
-  - no session found at all: no id, row cannot match -> `gone before
-    claim` as before.
+  - entry with no `sid=` (surveyor rebuilt, pre-change ledger): row
+    cannot match -> rows below decide, as before this row existed.
 
 ## Rejected
 
@@ -77,6 +83,10 @@ rows instead of false "never claimed" / "gone before claim" reports.
 - r6: (verifier) orchestrated.md worked readings said "the first row" meaning the RUNNING under-stall row. (fixed — named)
 - r7: (verifier) orchestrated.md anchor "or it ran and stopped without claiming" no longer in orchestrate.md. (fixed — sentence reordered, phrase restored)
 - r8: (verifier) BLOCKED BEFORE CLAIM confirm parenthetical gave merged-between-passes as the reason. (fixed — reason now curated or another branch's merge; row behaviour kept)
+- r10: (verifier, pass 2) "dispatch lists the stem nowhere" is true for every requirement but the first unplanned one (drain_requirement `head -1`), so a stale or forged claim drops a live planner. (fixed — guard is the item off origin/main: a requirement needs a plan naming it in `requirement:`)
+- r11: (verifier, pass 2) surveyor: an earlier run's archived surveyor under the same key resolves through the archived fallback and its merged claim matches. (fixed — `sid=` from create_session ties the entry to this spawn; title-lookup fallback removed)
+- r12: (verifier, pass 2) `branch:` from repo text flows unchecked into `upstream` and a reporter prompt. (fixed — used only when it matches a plain ref charset and is merged into origin/main; else report without upstream)
+- r13: (verifier, pass 2) control-plane id vs `session:` URL suffix unverified (`cse_` form exists). (fixed — measured equal: get_session id `session_01MQpQFb9hmdy2KySGiVC4mD` = this file's `session:` suffix, 2026-10-10)
 - r9: (verifier) several commits may print; which is the head unspecified. (fixed — the first printed)
 
 ## Blockers
