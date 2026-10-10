@@ -181,6 +181,11 @@ session; search canonical's open issues for the same finding first. It
 carries the command and output that produced it. Canonical out of the
 session's GitHub scope? Hand the human the issue text — never drop it silent.
 
+The clerk's UPSTREAM verdict (`.claude/commands/clerk.md`) is the issue-shaped
+twin of this route, for an issue filed in a consumer. The cap above binds
+findings; a clerk files at most one issue per routed issue (its batch already
+caps the pass).
+
 ### The manual report
 
 Steps 1 to 4 end with the session, and a merged manager's findings are gone

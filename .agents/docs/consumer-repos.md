@@ -7,7 +7,8 @@ updating one starts here.
 Direction rule (doctrine + why:
 [`product/README.md`](product/README.md) Reconciliation): a fix born
 ANYWHERE lands in joharness `main` first, then syncs out. Never
-consumer-to-consumer, never consumer-only.
+consumer-to-consumer, never consumer-only. An issue filed in a consumer
+about harness behaviour goes there through the clerk's UPSTREAM verdict (`.claude/commands/clerk.md`).
 
 That is where a fix goes. How a consumer session gets it there — deciding
 whether the harness is actually wrong, carrying the measurement canonical
