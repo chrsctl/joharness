@@ -282,59 +282,105 @@ timeout_re='(^|[^[:alnum:]_-])timeout[[:space:]]'
 # The payload is read ESCAPED: a quote reaches these patterns as `\"`, so
 # the bracket exemption matches `\"[`, and `"` in `rpos` is the quote's
 # own character after its backslash.
-rpos='(^|[;&|(){}`'"'"'"!]|[^[:alnum:]_](do|then|else|if|elif|while|until|time)[[:space:]])[[:space:]]*'
+#
+# Command position also reaches THROUGH a prefix word that runs the next
+# one — `sudo`, `env`, `command`, `exec`, `nice`, `nohup`, `timeout N` —
+# and through a path (`/usr/bin/pgrep`). The tool-keyed check took any
+# non-word character before the tool, so each of these was denied before
+# this reader existed; without them it allowed all five (verifier,
+# 2026-10-10).
+rpos='(^|[;&|(){}`'"'"'"!]|[^[:alnum:]_](do|then|else|if|elif|while|until|time)[[:space:]])[[:space:]]*(((sudo|env|command|exec|nice|nohup|timeout[[:space:]]+[0-9.]+[smhd]?)[[:space:]]+)*)([^[:space:];&|()<>]*/)?'
 # Args stop at the simple command's end; a `|` or `)` inside a quoted
 # pattern cuts them early, after the flag and the pattern's opening.
+# rpos holds captures 1-6.
 pg_re="${rpos}(pgrep|pkill)([[:space:]][^;&|)]*)"
 pgfull_re='(^|[[:space:]])(-[[:alnum:]]*f|--full([[:space:]=]|$))'
 ps_re="${rpos}ps(([[:space:]][^;&|)]*)?)[|][[:space:]]*e?grep([[:space:]][^;&|)]*)"
-onepid_re='(^|[[:space:]])(-[[:alnum:]]*p|--pid)'
+# `-p` ends the cluster or meets the pid: `-eopid,args` is not `-p`.
+onepid_re='(^|[[:space:]])(-[[:alnum:]]*p([[:space:]]|[0-9]|$)|--pid)'
 dropgrep_re='e?grep[[:space:]]+-[[:alnum:]]*v[[:alnum:]]*[[:space:]]+(\\"|'"'"')?e?grep'
 cmdline_re='/proc/[^/[:space:]]*[*][^/[:space:]]*/cmdline'
 grepcmd_re='(^|[[:space:]!])e?grep([[:space:]].*)$'
 bracket_re='(^|[[:space:]]|-[[:alnum:]]*)(\\"|'"'"')[[][^]\\][]]'
 fixed_re='(^|[[:space:]])(-[[:alnum:]]*F|--fixed-strings)'
 
-# Does `span` read full command lines? Sets `tool` for the reason. Each
-# capture is taken before the next `=~`, which would unset it (set -u: exit
-# 1, read as ALLOW). `s` loses at least the tool's name every pass.
-selfmatch() {
-  local s m a p pre
-  s="$span"
+# Every self-matching reader in $1: `hpos` its offset (just past the tool's
+# name, or the glob's start), `htool` its name for the reason. Each capture
+# is taken before the next `=~`, which would unset it (set -u: exit 1, read
+# as ALLOW). `s` loses at least the tool's name every pass.
+#
+# Reader B scans the WHOLE command once and asks each loop which offsets
+# fall inside it. Scanning each loop's span instead re-read every nested
+# loop's text once per loop around it: 238 nested `for`s in 7.9 KB took
+# 8.15 s against the hook's 10 s timeout (verifier, 2026-10-10).
+selfscan() {
+  local s="$1" m t a p pre base=0
+  hpos=()
+  htool=()
   while [[ $s =~ $pg_re ]]; do
     m="${BASH_REMATCH[0]}"
-    tool="${BASH_REMATCH[3]} -f"
-    a="${BASH_REMATCH[4]}"
-    s="${s#*"$m"}"
+    t="${BASH_REMATCH[7]}"
+    a="${BASH_REMATCH[8]}"
+    pre="${s%%"$m"*}"
+    s="${s:${#pre}+${#m}}"
+    base=$((base + ${#pre} + ${#m}))
     [[ $a =~ $pgfull_re ]] || continue
     [[ $a =~ $bracket_re ]] && continue
-    return 0
+    hpos+=($((base - ${#a})))
+    htool+=("$t -f")
   done
-  s="$span"
+  s="$1"
+  base=0
   while [[ $s =~ $ps_re ]]; do
     m="${BASH_REMATCH[0]}"
-    p="${BASH_REMATCH[3]}"
-    a="${BASH_REMATCH[5]}"
-    s="${s#*"$m"}"
+    p="${BASH_REMATCH[7]}"
+    a="${BASH_REMATCH[9]}"
+    pre="${s%%"$m"*}"
+    s="${s:${#pre}+${#m}}"
+    base=$((base + ${#pre} + ${#m}))
     [[ $p =~ $onepid_re ]] && continue
-    # The rest of the pipeline, for a `grep -v grep` stage after this one.
-    [[ grep${a}${s%%[;&]*} =~ $dropgrep_re ]] && continue
+    # The rest of this pipeline, for a `grep -v grep` stage after this one.
+    # A `)` ends it: past one is another command's pipeline.
+    [[ grep${a}${s%%[;&)]*} =~ $dropgrep_re ]] && continue
     [[ $a =~ $bracket_re ]] && ! [[ $a =~ $fixed_re ]] && continue
-    tool="ps | grep"
-    return 0
+    hpos+=($((base - ${#a})))
+    htool+=("ps | grep")
   done
-  s="$span"
+  s="$1"
+  base=0
   while [[ $s =~ $cmdline_re ]]; do
     m="${BASH_REMATCH[0]}"
     pre="${s%%"$m"*}"
-    s="${s#*"$m"}"
+    s="${s:${#pre}+${#m}}"
+    base=$((base + ${#pre} + ${#m}))
     pre="${pre##*[;&|(]}"
     if [[ $pre =~ $grepcmd_re ]]; then
       a="${BASH_REMATCH[2]}"
       [[ $a =~ $bracket_re ]] && ! [[ $a =~ $fixed_re ]] && continue
     fi
-    tool="/proc/*/cmdline"
-    return 0
+    hpos+=($((base - ${#m})))
+    htool+=("/proc/*/cmdline")
+  done
+}
+
+# Does this loop read full command lines? Sets `tool`. Reader A scans its
+# own span; reader B (`inb`) looks its range up in the one whole-command
+# scan, between the opener's end and its `done`.
+selfmatch() {
+  local h lo hi
+  if ((inb)); then
+    lo=${tend[i]}
+    hi=${tbeg[j]}
+  else
+    selfscan "$span"
+    lo=0
+    hi=${#span}
+  fi
+  for ((h = 0; h < ${#hpos[@]}; h++)); do
+    if ((hpos[h] >= lo && hpos[h] < hi)); then
+      tool="${htool[h]}"
+      return 0
+    fi
   done
   return 1
 }
@@ -434,6 +480,7 @@ a human notices."
 # needs.
 small=0
 ((${#cmd} <= 8192)) && small=1
+inb=0
 walked=""
 rest="$cmd"
 while [[ $rest =~ $start_re ]]; do
@@ -545,6 +592,9 @@ for ((t = 0; t < ntok; t++)); do
   fi
 done
 
+# One self-match scan for every loop B judges (selfscan).
+selfscan "$cmd"
+inb=1
 for ((i = 0; i < ntok; i++)); do
   kwname="${tkw[i]}"
   [ -n "$kwname" ] || continue

@@ -576,6 +576,42 @@ pbg_allowed "ps | grep outside any loop is allowed"
 pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"i=0; while [ $i -lt 5 ]; do pgrep -l bash; sleep 1; i=$((i+1)); done"}}'
 pbg_allowed "a counter-bounded loop running pgrep -l is allowed"
 
+# Verifier rows (2026-10-10): command position reaches through a prefix
+# word and a path, as the tool-keyed check did; `-p` must end its cluster;
+# a `grep -v grep` belongs to its own pipeline.
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"timeout 300 bash -c '"'"'while sudo pgrep -f \"python3 x\"; do sleep 5; done'"'"'"}}'
+pbg_denied "pgrep -f through sudo is still in command position"
+expect "and the reason is self-matching" "matches ITSELF" "$pbg_msg"
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"timeout 300 bash -c '"'"'while /usr/bin/pgrep -f \"python3 x\"; do sleep 5; done'"'"'"}}'
+pbg_denied "pgrep -f by its full path is still the reader"
+expect "and the reason is self-matching" "matches ITSELF" "$pbg_msg"
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"timeout 300 bash -c '"'"'while timeout 5 pgrep -f \"python3 x\"; do sleep 5; done'"'"'"}}'
+pbg_denied "pgrep -f under an inner timeout still matches itself"
+expect "and the reason is self-matching" "matches ITSELF" "$pbg_msg"
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"timeout 300 bash -c '"'"'while ps -eopid,args | grep -q \"python3 x\"; do sleep 5; done'"'"'"}}'
+pbg_denied "-eopid is not ps -p: it prints every command line"
+expect "and the reason is self-matching" "matches ITSELF" "$pbg_msg"
+# shellcheck disable=SC2016  # a JSON payload; the $ is text the guard reads
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"timeout 300 bash -c '"'"'while [ \"$(ps aux | grep -c \"python3 x\")\" -gt \"$(echo 1 | grep -v grep -c)\" ]; do sleep 5; done'"'"'"}}'
+pbg_denied "another pipeline's grep -v grep exempts nothing"
+expect "and the reason is self-matching" "matches ITSELF" "$pbg_msg"
+
+# Nested `for` loops each reading the process table: scanning every loop's
+# own span re-read the nested text once per enclosing loop — 8.15 s at
+# 7.9 KB against the hook's 10 s timeout. One scan, then lookups.
+pbg_big=""
+for ((pbg_i = 0; pbg_i < 238; pbg_i++)); do pbg_big+='for i in a; do pgrep -l x; '; done
+pbg_big+='sle''ep 1; '
+for ((pbg_i = 0; pbg_i < 238; pbg_i++)); do pbg_big+='do''ne; '; done
+pbg_t0=$SECONDS
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"'"$pbg_big"'"}}'
+pbg_secs=$((SECONDS - pbg_t0))
+if [ "$pbg_rc" -eq 0 ] && [ "$pbg_secs" -le 4 ]; then
+  pass "238 nested for loops reading the process table read in ${pbg_secs}s"
+else
+  fail "238 nested for loops reading the process table: exit ${pbg_rc}, ${pbg_secs}s (wanted 0, <= 4s)"
+fi
+
 # --- sleep the command, not the word ---------------------------------------
 # `sleep` always takes an argument. Without that, an ordinary log line is
 # denied for a word in it, and that is the miss that teaches a session to
