@@ -1,68 +1,103 @@
 # joharness
 
-Canonical harness home. Consumer repos copy the harness
-from here; sync = plain copy commit, no workstream file. House style:
-[`.agents/docs/caveman.md`](.agents/docs/caveman.md).
+Harness for long-running Claude Code work: sessions claim items from a queue,
+build them on their own branch, hand over through git, and merge their own
+pull requests. This repo is the canonical copy; consumer repos sync from it.
 
-Creating a consumer, or bringing one current — every route, one entry
-point: [`.agents/docs/consumer-repos.md`](.agents/docs/consumer-repos.md).
+```mermaid
+%%{init: {'theme': 'neutral'}}%%
+flowchart TB
+    accTitle: Repo layout
+    accDescr: A repo running joharness has its own files on top and the synced harness below.
 
-## Two layers
-
-`joharness.sh` is the entrypoint. It runs the harness, and one environment —
-whichever `joharness.conf` names.
-
-- **[`.agents/harness/`](.agents/harness/README.md) — agent protocol.** Always on. One
-  workstream file per work under `docs/handover/`, on that work's branch.
-  Session start prints the state — this branch's file, what is in flight
-  elsewhere — before the first prompt. `/handover` writes the file; `/who`
-  reports genuinely running sessions. Protocol + reasoning:
-  [`.agents/docs/handover/README.md`](.agents/docs/handover/README.md). Backlog beyond
-  issues: plan queue under [`docs/plans/`](.agents/docs/plans/README.md), each plan
-  naming the agent tier that implements it — lineup + rules:
-  [`.agents/docs/agent-selection.md`](.agents/docs/agent-selection.md).
-  `./joharness.sh review` prints the review depth a branch's tier asks for
-  and whether its findings are recorded; `JOHARNESS_REVIEW=on` turns that
-  into a `ci` gate at the edge — off by default, silent while off.
-  `./joharness.sh feedback` scores that loop from merged history — coverage,
-  recurrence, and the files that keep drawing findings — and
-  `feedback <path>` reads what earlier branches found there. How a loop gets
-  scored, and what this repo's history says:
-  [`.agents/docs/feedback.md`](.agents/docs/feedback.md).
-- **[`.agents/env/<name>/`](.agents/env/README.md) — sandbox environment.** Selected, not
-  assumed. [`.agents/env/k8s`](.agents/env/k8s/README.md) is Docker + a k3d Kubernetes
-  cluster, and what it costs, and the four sandbox constraints its scripts
-  work around. [`.agents/env/docker`](.agents/env/docker/README.md) is plain Docker +
-  Compose — the simple workflow when no cluster is needed.
-  [`.agents/env/none`](.agents/env/none/) is the empty layer.
-
-```bash
-./joharness.sh env          # what is selected, what else exists
-./joharness.sh env k8s      # select
-./joharness.sh setup        # provision it now
-./joharness.sh verify       # provision, then smoke test end to end
-./joharness.sh review       # review depth for this branch, and its record
-./joharness.sh feedback     # score the review loop; <path> = what it cost there
+    subgraph yours["Yours: never synced"]
+        direction LR
+        docs["docs/<br/>requirements, plans, workstream files"]
+        conf["joharness.conf<br/>environment, checks, manager cap"]
+    end
+    subgraph harness["Harness: synced"]
+        direction LR
+        claude[".claude/<br/>role commands, session hook, verifier"]
+        protocol[".agents/harness/ + .agents/docs/<br/>the Loop and its reasons"]
+        env[".agents/env/#lt;name#gt;/<br/>docker, k8s or none, provisioned lazily"]
+        sh["joharness.sh<br/>entrypoint for every command and hook"]
+    end
+    docs ~~~ conf
+    claude ~~~ protocol ~~~ env ~~~ sh
+    yours ~~~ harness
 ```
 
-Provisioning is lazy: session start reads the layer's rules and stops. No
-download, no daemon, no cluster until something asks. A session that never
-touches Kubernetes never pays for it.
+## How it works
 
-## Working in this repo
+Each session takes one item through the Loop in
+[`.agents/harness/AGENTS.md`](.agents/harness/AGENTS.md):
 
-Agent guidance: [`AGENTS.md`](AGENTS.md), which imports
-[`.agents/harness/AGENTS.md`](.agents/harness/AGENTS.md). `CLAUDE.md` imports the root file —
-Claude Code loads it every session.
+```mermaid
+%%{init: {'theme': 'neutral'}}%%
+flowchart LR
+    accTitle: Session loop
+    accDescr: Seven steps from orient to finish; git is the only memory between sessions.
+
+    orient[Orient] --> pick[Pick] --> claim[Claim] --> build[Build]
+    build --> verify["Verify<br/>ci + verify green"] --> handover[Hand over] --> finish["Finish<br/>PR, merge"]
+    finish -. next session .-> orient
+    git[("Git + GitHub")]
+    claim -. branch, push .-> git
+    handover -. workstream file .-> git
+    finish -. merge .-> git
+    git -. state .-> orient
+```
+
+How work moves through the roles. The bounds are in
+[`.agents/docs/orchestrated.md`](.agents/docs/orchestrated.md):
+
+```mermaid
+%%{init: {'theme': 'neutral'}}%%
+flowchart LR
+    accTitle: Work flow
+    accDescr: Issues become plans; the orchestrator spawns a manager per plan, which opens and merges a pull request.
+
+    issue[GitHub issue] -- triages --> clerk[Clerk]
+    clerk -- writes plan --> queue[("Plan queue<br/>docs/plans/")]
+    queue -- claimed by --> manager[Manager]
+    orch[Orchestrator] -- spawns --> manager
+    manager -- delegates --> workers[Workers<br/>subagents]
+    manager -- opens --> pr[Pull request]
+    pr -- merges itself --> main[(main)]
+    you([You]) -. requirements, veto .-> queue
+```
+
+## Usage
+
+```bash
+./joharness.sh help       # commands, config keys
+./joharness.sh ci         # checks
+./joharness.sh verify     # provision + smoke test
+./joharness.sh dispatch   # queue, sessions in flight
+```
+
+## Add to a repo
+
+```mermaid
+%%{init: {'theme': 'neutral'}}%%
+flowchart LR
+    accTitle: Distribution
+    accDescr: joharness bootstraps a repo once, syncs it weekly, and receives harness fixes first.
+
+    canon["joharness<br/>canonical"] -- once --> boot[bootstrap-consumer.sh] --> repo[Your repo]
+    canon -- weekly --> sync["update.yml PR<br/>or upgrade"] --> repo
+    repo -. findings .-> report[Upstream report] -. fix first .-> canon
+```
+
+```bash
+git clone https://github.com/chrsctl/joharness.git
+joharness/.agents/scripts/bootstrap-consumer.sh --env docker ../my-project
+```
+
+Then follow the steps it prints. To update, merge the weekly `update.yml` PR
+or run `./joharness.sh upgrade`. Details:
+[`.agents/docs/consumer-repos.md`](.agents/docs/consumer-repos.md).
 
 ## License
 
-MIT — [`LICENSE`](LICENSE). The grant travels with the harness: the sync
-ships [`.agents/LICENSE`](.agents/LICENSE), byte-identical to the root file
-(`selftest.sh` asserts it), and [`.agents/NOTICE`](.agents/NOTICE), which
-says what the grant covers in a consumer and names the third-party material
-distilled into `.agents/docs/`. No per-file headers for this repo's own grant: a consumer repo's own tree,
-its root `LICENSE` included, is licensed by that repo, not by this one. A
-file distilled from someone else's MIT-licensed work is the one exception
-and carries that upstream's notice in full — `.agents/docs/caveman.md`, last
-section.
+MIT.

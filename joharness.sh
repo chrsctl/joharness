@@ -5482,6 +5482,10 @@ cmd_session_start() {
   printf 'printed here. Orchestrator: dispatch is the whole read — open no\n'
   printf 'plan, requirement or other branch. Manager: your item, this\n'
   printf 'branch'"'"'s workstream file, the item'"'"'s own anchors.\n'
+  if ! grep -q '^JOHARNESS_CANONICAL=1' "$CONF" 2>/dev/null; then
+    printf 'Harness source is read through its .md docs and command output,\n'
+    printf 'never by opening joharness.sh or the scripts.\n'
+  fi
   printf 'Protocol text is yours to edit and merge. NEVER edit the core\n'
   printf 'paths — money, permissions, the merge gate; a human changes them:\n'
   # Derived, never restated. A banner naming its own list is the second

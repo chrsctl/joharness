@@ -90,6 +90,13 @@ filled on the next pass.
 The wake message carries the ledger — in-flight items only; git holds what
 merged. It survives compaction because the message arrives fresh.
 
+The wake also carries `harness=` (hash of `orchestrate.md` on `origin/main`
+when it was armed) and `pass=` (a counter). A wake armed before a harness
+resync can fire after it and run the old rules; `harness=` against fresh
+`origin/main` makes that visible. Two passes armed across the resync would
+both run; a wake with a higher `pass=` in this session's `list_triggers`
+supersedes the lower one, which does nothing.
+
 ## Health: two signals, one verdict
 
 Push time is not liveness in either direction, so a verdict needs both
@@ -193,6 +200,11 @@ A killed session with no handover strands a branch the successor cannot read.
    `JOHARNESS_RESPAWN_LIMIT` the branch stays claimed and the human is told.
 
 The branch is the claim and the claim survives the kill.
+
+A refused stop reads as absent: the permission classifier refused
+`archive_session` and a plain `kill` in a consumer run (issue #249, two
+refusals), and a refusal says nothing about whether the
+session is live, so it never licenses a replacement.
 
 ## Concurrency
 
