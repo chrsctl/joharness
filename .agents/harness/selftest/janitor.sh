@@ -548,7 +548,7 @@ out="$(jdsp)"
 expect "dispatch reads the same row" "janitor-retired  janitor-2026-10-09" "$out"
 
 # The same sweep, which then reconciled with a base that moved: `main` deleted
-# a handover file the branch still carried. The merge result matches `main` on
+# a workstream file the branch still carried. The merge result matches `main` on
 # the path, so a log without --full-history follows `main` only and `--not`
 # hides the delete. On git 2.43 `-m` alone also turns that simplification off
 # here, so this case pins the PAIR: drop both and it reds, drop either and it
@@ -557,13 +557,13 @@ git -C "$jwork" checkout -q main
 mkdir -p "${jwork}/docs/handover"
 printf -- '---\nworkstream: janitor-notes\nstatus: done\nbranch: main\nplan: none\nagent: sonnet\nupdated: 2026-10-10\nnext: none\n---\n\n## Goal\nFixture.\n' \
   >"${jwork}/docs/handover/janitor-notes.md"
-jcommit "a handover file on the base" "$(jago 5)"
+jcommit "a workstream file on the base" "$(jago 5)"
 git -C "$jwork" push -q origin main
 jretired janitor-reconciled janitor-2026-10-08 2
 git -C "$jwork" checkout -q main
 git -C "$jwork" rm -q "docs/handover/janitor-notes.md"
 mkdir -p "${jwork}/docs/handover"
-jcommit "the base retires its handover file" "$(jago 1)"
+jcommit "the base retires its workstream file" "$(jago 1)"
 git -C "$jwork" push -q origin main
 git -C "$jwork" checkout -q janitor-reconciled
 GIT_COMMITTER_DATE="$(jago 1)" GIT_AUTHOR_DATE="$(jago 1)" \
@@ -586,3 +586,65 @@ git -C "$jwork" checkout -q main
 out="$(jan)"
 refute "a retire older than the window holds nothing" "janitor-stale" "$out"
 expect "while the younger ones still do" "janitor-retired  janitor-2026-10-09" "$out"
+
+# A real stamp the BASE carried is no sweep of the branch that deletes it:
+# not of one tidying leftovers (what `cleanup --apply` tells a branch to do),
+# not of one whose reconcile merge carries the base's own delete under `-m`.
+# Only a file ADDED off the base can be this branch's sweep (verifier).
+git -C "$jwork" checkout -q main
+mkdir -p "${jwork}/docs/handover"
+printf -- '---\nworkstream: janitor-2026-09-01\nstatus: done\nbranch: main\nplan: none\nagent: sonnet\nupdated: 2026-09-01\nnext: none\n---\n\n## Goal\nFixture.\n' \
+  >"${jwork}/docs/handover/janitor-2026-09-01.md"
+jcommit "a sweep's workstream file left on the base" "$(jago 30)"
+git -C "$jwork" push -q origin main
+git -C "$jwork" checkout -qb tidy-leftovers main
+git -C "$jwork" rm -q "docs/handover/janitor-2026-09-01.md"
+mkdir -p "${jwork}/docs/handover"
+jcommit "tidy the leftover" "$(jago 3)"
+git -C "$jwork" push -qu origin tidy-leftovers
+git -C "$jwork" checkout -qb feat-reconciles main
+printf 'more\n' >>"${jwork}/code.txt"
+jcommit "ordinary work" "$(jago 25)"
+git -C "$jwork" push -qu origin feat-reconciles
+git -C "$jwork" checkout -q main
+git -C "$jwork" rm -q "docs/handover/janitor-2026-09-01.md"
+mkdir -p "${jwork}/docs/handover"
+jcommit "the base retires the leftover" "$(jago 20)"
+git -C "$jwork" push -q origin main
+git -C "$jwork" checkout -q feat-reconciles
+GIT_COMMITTER_DATE="$(jago 1)" GIT_AUTHOR_DATE="$(jago 1)" \
+  git -C "$jwork" merge -q --no-edit main
+git -C "$jwork" push -q origin feat-reconciles
+git -C "$jwork" checkout -q main
+out="$(jan)"
+refute "a branch deleting the base's leftover is no sweep" "tidy-leftovers" "$out"
+refute "nor one whose reconcile carries the base's delete" "feat-reconciles" "$out"
+expect "while the real retired sweep still holds" "janitor-retired  janitor-2026-10-09" "$out"
+
+# The tree walk finds a sweep's file whatever its case; so must the history.
+git -C "$jwork" checkout -qb janitor-upper main
+mkdir -p "${jwork}/docs/handover"
+printf -- '---\nworkstream: janitor-2026-10-07\nstatus: done\nbranch: janitor-upper\nplan: none\nagent: sonnet\nupdated: 2026-10-10\nnext: none\n---\n\n## Goal\nFixture.\n' \
+  >"${jwork}/docs/handover/Janitor-2026-10-07.md"
+jcommit "a sweep whose filename is capitalised" "$(jago 2)"
+git -C "$jwork" rm -q "docs/handover/Janitor-2026-10-07.md"
+jcommit "retire it" "$(jago 1)"
+git -C "$jwork" push -qu origin janitor-upper
+git -C "$jwork" checkout -q main
+out="$(jan)"
+expect "a retired sweep is seen whatever its filename's case" \
+  "janitor-upper  janitor-2026-10-07  retired" "$out"
+
+# A retire dated past one cycle ahead is no clock skew. Read as now, it would
+# hold the cycle for as long as its branch stands (verifier).
+git -C "$jwork" checkout -qb janitor-future main
+mkdir -p "${jwork}/docs/handover"
+printf -- '---\nworkstream: janitor-2026-10-06\nstatus: done\nbranch: janitor-future\nplan: none\nagent: sonnet\nupdated: 2026-10-10\nnext: none\n---\n\n## Goal\nFixture.\n' \
+  >"${jwork}/docs/handover/janitor-2026-10-06.md"
+jcommit "a sweep claims" "$(jago 2)"
+git -C "$jwork" rm -q "docs/handover/janitor-2026-10-06.md"
+jcommit "a retire dated in 2100" '@4102444800 +0000'
+git -C "$jwork" push -qu origin janitor-future
+git -C "$jwork" checkout -q main
+out="$(jan)"
+refute "a retire far in the future holds nothing" "janitor-future" "$out"

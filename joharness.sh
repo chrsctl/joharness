@@ -5331,7 +5331,7 @@ janitor_retired_branches() {
   log="$(GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 git -C "$ROOT" log \
     --full-history -m --diff-filter=D --name-only --format='C %H %ct' \
     "${refs[@]}" --not "refs/remotes/origin/${base_branch}" \
-    -- 'docs/handover/*janitor*' </dev/null 2>/dev/null)"; rc=$?
+    -- ':(icase)docs/handover/*janitor*' </dev/null 2>/dev/null)"; rc=$?
   if [ "$rc" -ne 0 ]; then
     printf 'unreadable\tgit-log-failed\tretired\n'
     return 0
@@ -5344,8 +5344,19 @@ janitor_retired_branches() {
     esac
     wf="$line"
     case "$ct" in '' | *[!0-9]*) continue ;; esac
+    # Ahead of now by more than one cycle is no skew, it is a date that would
+    # hold the cycle for as long as the branch stands (verifier r6).
+    [ "$ct" -le $((now + hours * 3600)) ] || continue
     [ "$ct" -le "$now" ] || ct="$now"
     [ "$ct" -ge "$cutoff" ] || continue
+    # ADDED off the base too, or it is no sweep of this branch's: a file the
+    # base carried, deleted by a branch tidying leftovers or carried out by
+    # `-m` in a reconcile merge, read as one (verifier r3, r4).
+    # No `-m`: a merge off the base would read as adding whatever its other
+    # parent lacked.
+    [ -n "$(GIT_LITERAL_PATHSPECS=1 git -C "$ROOT" log -1 --full-history \
+      --diff-filter=A --format=%H "$h" --not "refs/remotes/origin/${base_branch}" -- "$wf" \
+      </dev/null 2>/dev/null)" ] || continue
     # `-m` prints a merge once per parent and %H does not say which; the file
     # stood in at least one, and the first that carries it is read.
     doc=""
