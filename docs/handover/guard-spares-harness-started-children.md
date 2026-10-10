@@ -8,7 +8,7 @@ issue: 338
 session: https://claude.ai/code/session_018JNyVFgb7drBGd8kEKiDNj
 agent: opus
 updated: 2026-10-10
-next: Run perf, ci, verify; then verifier review
+next: Re-run ci and verify on merged head, retire, open PR, merge
 ---
 
 ## Goal
@@ -26,6 +26,11 @@ every stop. Count only subtrees under the agent's shell children.
 - None yet beyond the plan's own Out of scope.
 
 ## Review
+
+- r1: (verifier) leftover case needs `pkill -P`, unchecked; without it `kill` reaps only `bash` and orphans `sleep 300` (fixed: case skips when `pkill` is absent, the suite's existing skip-for-missing-tool shape)
+- r2: (verifier) `sleep` forked between `pkill -P` and `kill` would orphan it (wontfix: gap is microseconds after the whole guard ran; verifier ran the fixture 5 times, 2 counted, 0 `sleep 300` left by `ps -eo args= | grep -c '^sleep 300'`)
+- r3: (verifier) branch 9 behind origin/main (fixed: merged origin/main, `git merge-tree` clean)
+- r4: (verifier) plan step 1 code reuses `n`, the loop bound; implementation uses `sh` instead (no change: plan file retires in this PR)
 
 ## Blockers
 

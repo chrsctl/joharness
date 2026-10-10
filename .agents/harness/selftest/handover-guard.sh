@@ -707,37 +707,43 @@ ln -sf /bin/bash "${sgbg}/claude-fixture"
 printf '%s' "$JSON_STOP" >"${sgbg}/in.json"
 
 if [ -x "${sgbg}/claude-fixture" ]; then
-  # The leftover is a SHELL with a child, the shape a real background tool
-  # command has (`bash` -> `timeout` -> `sleep`, measured 2026-10-10). The
-  # trailing `; :` keeps `bash` a shell: one command in `-c` exec-optimises
-  # into `sleep`. Kill the child first — `kill` on `bash` first orphans the
-  # `sleep` before `pkill -P` can find it. Not a group kill: a
-  # non-interactive job shares the suite's group.
-  PATH="$SG_REAL_PATH" "${sgbg}/claude-fixture" -c "
-    bash -c 'sleep 300; :' &
-    bg=\$!
-    bash '${ROOT}/.agents/harness/handover-guard.sh' \
-      <'${sgbg}/in.json' >'${sgbg}/left.json' 2>&1
-    pkill -P \$bg 2>/dev/null
-    kill \$bg 2>/dev/null
-  " >/dev/null 2>&1
-  # 2 (`bash` + `sleep`), or 1 when the guard's `ps` ran before `bash`
-  # forked. Anchored: a bare substring also matches 11 and 21.
-  if grep -qE '(^|[^0-9])[12] background process\(es\) this session started' \
-    "${sgbg}/left.json" 2>/dev/null; then
-    pass "a process the session leaves running is reported"
+  # Without `pkill` the leftover's `sleep` cannot be reaped, and a leftover
+  # from the suite is the thing this fact reports: skip, never leak.
+  if command -v pkill >/dev/null 2>&1; then
+    # The leftover is a SHELL with a child, the shape a real background tool
+    # command has (`bash` -> `timeout` -> `sleep`, measured 2026-10-10). The
+    # trailing `; :` keeps `bash` a shell: one command in `-c` exec-optimises
+    # into `sleep`. Kill the child first — `kill` on `bash` first orphans the
+    # `sleep` before `pkill -P` can find it. Not a group kill: a
+    # non-interactive job shares the suite's group.
+    PATH="$SG_REAL_PATH" "${sgbg}/claude-fixture" -c "
+      bash -c 'sleep 300; :' &
+      bg=\$!
+      bash '${ROOT}/.agents/harness/handover-guard.sh' \
+        <'${sgbg}/in.json' >'${sgbg}/left.json' 2>&1
+      pkill -P \$bg 2>/dev/null
+      kill \$bg 2>/dev/null
+    " >/dev/null 2>&1
+    # 2 (`bash` + `sleep`), or 1 when the guard's `ps` ran before `bash`
+    # forked. Anchored: a bare substring also matches 11 and 21.
+    if grep -qE '(^|[^0-9])[12] background process\(es\) this session started' \
+      "${sgbg}/left.json" 2>/dev/null; then
+      pass "a process the session leaves running is reported"
+    else
+      fail "a process the session leaves running is reported"
+      printf '    got:\n%s\n' "$(indent "$(cat "${sgbg}/left.json" 2>/dev/null)")"
+    fi
+    expect "and the fact says what makes one unable to finish" \
+      "a wait loop whose own line matches its own pattern" \
+      "$(cat "${sgbg}/left.json" 2>/dev/null)"
+    # A command line is input this session does not control and the reason
+    # string embeds in JSON unescaped, so the fact carries digits and nothing
+    # else — the same rule the boundary fact above keeps.
+    refute "and never the command line" "sleep 300" \
+      "$(cat "${sgbg}/left.json" 2>/dev/null)"
   else
-    fail "a process the session leaves running is reported"
-    printf '    got:\n%s\n' "$(indent "$(cat "${sgbg}/left.json" 2>/dev/null)")"
+    skip "a process the session leaves running is reported" "no pkill"
   fi
-  expect "and the fact says what makes one unable to finish" \
-    "a wait loop whose own line matches its own pattern" \
-    "$(cat "${sgbg}/left.json" 2>/dev/null)"
-  # A command line is input this session does not control and the reason
-  # string embeds in JSON unescaped, so the fact carries digits and nothing
-  # else — the same rule the boundary fact above keeps.
-  refute "and never the command line" "sleep 300" \
-    "$(cat "${sgbg}/left.json" 2>/dev/null)"
 
   # The trailing `:` is load-bearing. A `-c` string holding ONE command is
   # exec-optimised: the fixture REPLACES itself with the guard, the fake
