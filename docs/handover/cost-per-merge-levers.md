@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01PKRtVz3i86StN45K3yZ7nE
 agent: opus
 updated: 2026-10-10
-next: Take the baseline readings the research file's Method names, then decide whether the trial half needs a human
+next: Parse scratchpad turns-gx/turns-jo.jsonl into per-lever ceilings; a lever whose touched cost share x max cut < 20% is NO without a trial
 ---
 
 ## Goal
@@ -18,7 +18,17 @@ cost per merged edge by >=20% without raising respawns, kills or reverts.
 
 ## Decisions
 
-- None yet.
+- Settle by CEILING before trial: a lever can cut cost per merge by at most
+  (share of fleet cost it touches) x (its largest price cut). Under 20% =
+  NO with no trial, which needs no human. Only a lever whose ceiling
+  clears 20% needs the human-switched trial the file's Method planned.
+- Denominator = manager cost only (orchestrator left out): it raises every
+  ceiling, so a NO under it is safe.
+- Lever 2: 0 of 200 sessions since 2026-10-07 with a parent ran Fable
+  (list_sessions, 2 pages) — touched share 0.
+- Measured rates, Qnp3Vu sonnet-5-5 modelUsage: read 0.10, 5m write 2.50,
+  out 10 reproduce 8.188 USD exactly; the claude-api skill table's 0.20
+  sonnet cache read does not.
 
 ## Rejected
 
