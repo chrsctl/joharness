@@ -330,6 +330,8 @@ if [ -n "$mine" ]; then
     # workstream file claims an issue" six lines below, in one run, on the
     # branch that added the field. A reader trusts the summary; a summary
     # that contradicts the detail above it is worse than no summary.
+    # A RELEASED claim holds no issue (same test as the others-row below).
+    [ "$status" = abandoned ] && issue=""
     [ -z "$issue" ] ||
       claimed_issues="${claimed_issues}  #${issue} — this branch (${f})"$'\n'
     add "  ${f}  [${status:-?}, updated ${updated:-?}${agent:+, wants ${agent}}${issue:+, claims issue #${issue}}]"
