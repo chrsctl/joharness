@@ -392,9 +392,8 @@ exist. Not fixed here.
 manager cuts its own branch from the base and copies the plan file across;
 it pushes nothing to the owner's branch (never another session's pull
 request). `source_revision` on the spawn, if used, only puts that branch in
-hand to copy from. This bound lives here only: `orchestrate.md` offers the
-spawn without it. Carrying it into the role commands is
-`docs/plans/branch-plan-spawn-bound.md`.
+hand to copy from. The role commands carry it: `orchestrate.md`, "Report, every
+pass", and `manage.md`, step 0.2.
 
 Hazard of that route, measured in a scratch repo 2026-10-10 (and re-run by
 the verifier): the carrier merges and retires the plan, then the owner's

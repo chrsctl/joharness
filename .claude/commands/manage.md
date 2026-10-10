@@ -31,8 +31,9 @@ the orchestrator already decided what runs beside you.
    satisfy, find the conflicting pair, resolve it, fix once
    (`.agents/docs/agent-selection.md`, review churn). Patching again is
    the loop continuing under a new session id.
-   Prompt names a plan on ANOTHER branch (a `plans on a branch` row)?
-   Carry the plan, never take the branch: cut your own branch from `main`,
+   Prompt names a plan on ANOTHER branch (a `plans on a branch` row)? Not a
+   resume, whatever the prompt calls the branch: carry the plan, never take
+   the branch: cut your own branch from `main`,
    copy that plan file only, push nothing to the owner's branch, build as
    usual. PR body names the owner branch and says its later merge re-adds the
    retired plan unless the owner drops it at reconcile (measured,
