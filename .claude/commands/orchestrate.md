@@ -19,11 +19,26 @@ prefix — find each with `ToolSearch("+<name>")`, which matches the tool's
 NAME, so search the name as spelled below.
 
 Claude Code Remote MCP: `list_sessions`, `list_triggers`, `get_session`, `create_session`,
-`interrupt_session`, `archive_session`, `set_session_title`, `send_later`.
-Messaging is NOT in that server: it is a harness tool, `SendMessage`, and
-its targets come from `ListAgents`. Searching `+send_message` finds
-nothing on a runtime that has `SendMessage` — measured 2026-09-06, the
-run this file's Never list now ends with.
+`interrupt_session`, `archive_session`, `set_session_title`, `send_later`,
+`send_message` (transport 1 below).
+Messaging has TWO transports, one per kind of target:
+
+1. Claude Code Remote MCP `send_message`, addressed by `session_id` —
+   `ToolSearch("+send_message")`. Reaches a manager session.
+2. Harness `SendMessage`, addressed by a `ListAgents` row —
+   `ToolSearch("+SendMessage")`. Reaches a `ListAgents` peer.
+
+Claude Code Remote send_message takes the session_id create_session returned.
+After an orchestrator restart, read it from the control plane by title
+(`list_sessions`, `manager: <stem>`). Never from a workstream file's
+`session:` line — that names a writer, not a worker (#249, health pass
+below). Measured 2026-09-06 in a consumer: that runtime had `SendMessage`
+and no `send_message` in the Claude Code Remote server — true for that
+runtime, the run this file's Never list ends with. Measured 2026-10-10 on
+this repo: `send_message` to a manager by its `session_id` came back
+`delivered`, the manager went RUNNING that minute, and its two replies by
+the orchestrator's `session_id` both arrived, while `ListAgents` returned
+"No reachable agents" (issue #347).
 
 REQUIRED — absent, say so and stop, the loop cannot run: `create_session`
 (spawn), `send_later` (the next pass), and one liveness read
@@ -37,7 +52,7 @@ in the report, and carry on:
 
 | absent | what changes |
 | --- | --- |
-| `SendMessage` / `ListAgents` | no nudge: the stall still takes the two passes below, the first one just sends nothing, and the KILL's own step 1 interrupts. No early wake on a merge: the freed slot waits one pass. Drop the merge line from the spawn prompt — not "the last line", which on a RESPAWN is the resume line. Same drop when `ListAgents` lists no session but you. |
+| a messaging transport that reaches the target — NEITHER `send_message` by `session_id` NOR `SendMessage` by a `ListAgents` row | no nudge: the stall still takes the two passes below, the first one just sends nothing, and the KILL's own step 1 interrupts. No early wake on a merge: the freed slot waits one pass. Drop the merge line from the spawn prompt — not "the last line", which on a RESPAWN is the resume line. `ListAgents` listing no session but you closes transport 2 only, never both. Which gate reads "reaches": at the spawn, tool presence (the merge line paragraph, step 3 — no send has happened yet); everywhere else, the delivery result. |
 | `interrupt_session` | a kill cannot stop the session first. Write the handover from the branch, report that the session is still live, do not archive. |
 | `archive_session` | the killed session is left in place. Report it. An UNCLAIMED session is the exception and the rule reverses: report it and spawn NOTHING. A killed session was interrupted first and its branch carries the claim, so a successor cannot be a second live manager on it; an unclaimed one was never stopped and has no branch, so claim by push cannot resolve the pair. |
 | the canonical repository, from a spawned session | no upstream report: say which edge went unreported and carry on. The manager's merge still stands, and the findings are still recoverable with `./joharness.sh upstream <branch>` by whoever asks. Same for an analyst: say which condition went unexplained; `./joharness.sh analysis <branch>` still reads it for whoever asks. |
@@ -193,7 +208,7 @@ rule on.
 | control plane | push age | last pass | do |
 | --- | --- | --- | --- |
 | RUNNING | under stall | any | working. Nothing. |
-| RUNNING | STALL? | not in the ledger | NUDGE: `SendMessage`, `to` = its row in `ListAgents`: "Orchestrator health pass: no push on <branch> for <N>m. Now: /handover, commit, push. Then continue, or set status blocked and stop." Ledger: stem, branch head now, `status_detail`. NO messaging tool, or no row for it: send nothing and still write the ledger entry — the next pass then reads the row below and kills, on the same two observations, without the ask. Never kill on this first one; two passes is the rule, and the missing tool removes the message, not the second look. With no nudge `JOHARNESS_STALL_MINUTES` is a kill threshold and not a warning one; say so in the report, the operator may want it higher. |
+| RUNNING | STALL? | not in the ledger | NUDGE: Claude Code Remote `send_message` to the manager's `session_id` (transport 1), or `SendMessage`, `to` = its row in `ListAgents` (transport 2): "Orchestrator health pass: no push on <branch> for <N>m. Now: /handover, commit, push. Then continue, or set status blocked and stop." The delivery result is the evidence a route exists — `delivered` is a nudge sent, a refusal is none. Transport 1 refused: transport 2 only when `ListAgents` shows the manager's row. Ledger: stem, branch head now, `status_detail`. No transport reaches it: send nothing and still write the ledger entry — the next pass then reads the row below and kills, on the same two observations, without the ask. Never kill on this first one; two passes is the rule, and the missing tool removes the message, not the second look. With no nudge `JOHARNESS_STALL_MINUTES` is a kill threshold and not a warning one; say so in the report, the operator may want it higher. |
 | RUNNING | STALL? | in the ledger, head unchanged, `status_detail` unchanged | KILL, below. |
 | RUNNING | STALL? | in the ledger, head moved or `status_detail` changed | working. Drop the nudge. |
 | any | `LOOP?` on the line (churn past `JOHARNESS_CHURN_LIMIT`), or THIS pass's head moved and `next:` still unchanged, with `same=2` already in the ledger (this pass makes 3) | any | LOOP: kill with progress recorded, below. No nudge — a nudge asks for a push, and a loop is pushing. STALL? beside it changes nothing: a loop that went quiet still needs the record. Head NOT moved this pass: this row does not match, whatever `same` last read — that reading is the STALL rows' business instead. |
@@ -571,19 +586,29 @@ Up to `slots`, in dispatch's order, only rows under `spawn`:
   milestone. One item, then exit.
   ```
 
-  plus the merge line only when a manager could reach you. Find both
-  tools as the Tools paragraph says, then call `ListAgents` once before
-  the spawn: the one check about YOUR container that also yields an
-  address. Either tool missing, or `ListAgents` listing no session but
-  you = no line — no peer row means this runtime routes nothing between
-  sessions, and the manager `create_session` puts in its own container
-  is who that costs. (A first spawn with no manager up yet reads that
-  way too: one pass of latency, never a wrong address.) The address is
-  the name `ListAgents` gives its caller, never a session id —
-  `SendMessage`'s `to` is a `ListAgents` row, as its own refusal says,
-  "Use ListAgents to see everyone you can message", and as the NUDGE row
-  above already has it.
-  `When your pull request merges, message "<your ListAgents name>":
+  plus the merge line only when a manager could reach you. The gate here
+  is TOOL PRESENCE, and on purpose: no message has gone out before the
+  spawn, so no delivery result can exist yet to read. Safe, because a
+  manager's failed send costs nothing (`.claude/commands/manage.md`: one
+  refusal, exit, the next pass finds the merge); the NUDGE row's gate is
+  different — there the delivery result is the evidence. Before the
+  spawn, find both tools as the Tools paragraph says and read your own
+  session id with `get_session` called with no `session_id` — measured
+  2026-10-10 in a cloud manager: it returned the caller's own
+  `session_...` id, the one in its session URL.
+  `CLAUDE_CODE_REMOTE_SESSION_ID` in the same container held a `cse_...`
+  id, a different string — not the address. Then call `ListAgents` once.
+  Transport 1 (`send_message` present, and the id read) = the line names
+  `Claude Code Remote send_message` and your `session_id`. Else transport
+  2 (`SendMessage` present, and `ListAgents` lists a session other than
+  you) = the line names `SendMessage` and the name `ListAgents` gives its
+  caller — `SendMessage`'s `to` is a `ListAgents` row, as its own refusal
+  says, "Use ListAgents to see everyone you can message". Neither = no
+  line. In the line, `<transport>` is
+  `the Claude Code Remote send_message tool, session_id`
+  or `SendMessage, to`, and `<address>` the id or name it takes. (A first spawn with no manager up yet reads transport 2 as closed:
+  one pass of latency, never a wrong address.)
+  `When your pull request merges, message the orchestrator with <transport> "<address>":
   "merged <stem>". Learned something about an item you do NOT own? Add
   one more line, lead <stem>: <what>, at most 40 characters, no quotes
   and no newlines.` Asked at the spawn, not discovered at the merge: a
@@ -594,7 +619,8 @@ Up to `slots`, in dispatch's order, only rows under `spawn`:
   Whether the manager reaches you BACK is its own
   check (`.claude/commands/manage.md`, Finish) and costs nothing when it
   cannot: the next scheduled pass finds the merge.
-  Measured 2026-09-06 in a consumer — a manager spawned by
+  Measured 2026-09-06 in a consumer, on a runtime with no Claude Code
+  Remote `send_message` — true for that runtime — a manager spawned by
   `create_session` ran where `ListAgents` listed no peers, and both the
   session id it was handed and the orchestrator's title returned the
   identical refusal: two faults behind one string, neither naming itself.
