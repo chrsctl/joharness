@@ -229,50 +229,115 @@ count_re='(\\"\$\{?[A-Za-z_][A-Za-z0-9_]*\}?\\"|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?"?
 arith_re='\(\([^)]*[<>][^)]*\)\)'
 timeout_re='(^|[^[:alnum:]_-])timeout[[:space:]]'
 
-# SELF-MATCH: DECIDED, NOT YET BUILT (plan guard-self-match-keyed-on-the-
-# reader). The two patterns below key the deny on a TOOL, `pgrep`/`pkill`
+# SELF-MATCH, keyed on the READER (plan guard-self-match-keyed-on-the-
+# reader, 2026-10-10). The deny was once keyed on a TOOL, `pgrep`/`pkill`
 # with `-f`. The trap is a PROPERTY: the condition reads full command lines,
 # and the shell running the loop carries the pattern in its own. A consumer
 # reported it under a `for i in $(seq 1 N)` loop, spelled `ps -e -o args |
 # grep -c PAT` (the opener is in its record; the full line is not, so the
 # fixture is a reconstruction). Measured against 26 fixtures (research node
-# a-self-match-the-guard-cannot-see, 2026-10-10), it is missed three ways:
-#   - THE READER. `ps ... | grep` never reaches this branch, so bounded it is
-#     ALLOWED and unbounded it is denied as UNBOUNDED, whose remedy — wrap it
-#     in `timeout` — is the allowed spelling of the same trap. `/proc/*/
-#     cmdline` the same. And `full_re` wants `f` LAST in its cluster: `-fl`
-#     and `-f"pat"` are allowed.
-#   - THE POSITION. `proc_re` wants a character before the tool, and both
-#     readers start `span` right after the keyword's space, so `while pgrep
-#     -f PAT; do sleep 5; done` is the reader trap again: ALLOWED under
-#     `timeout`, UNBOUNDED without (verifier, 2026-10-10). Every pinned case
-#     is `until ! pgrep`, where the `!` supplies the character.
-#   - THE OPENER. Neither reader judges a `for` or `select` loop (start_re
-#     and `tkw` are `while`/`until` only), so even `pgrep -f` under
-#     `for i in $(seq 1 100000)` with `sleep 60` is allowed.
-# Any one fix alone leaves the reported command allowed.
-# Decided: key the deny on the readers of full command lines, each in
-# command position — `pgrep`/`pkill` with `f` anywhere in a cluster or
-# `--full`; `ps` piped to `grep`, unless `ps -p` (one pid) or a `grep -v
-# grep` stage (the line holds "grep", so the stage drops it); a
-# `/proc/*/cmdline` glob, never one pid's path. Exempt the reader's OWN
-# pattern opening with a one-character bracket class (`"[b]ash x"` cannot
-# match its own text; the deny names it as the remedy), unless `grep -F`
-# makes the brackets literal. Run THIS branch, not the bound check, for
-# `for` and `select` openers, with a reason that does not say "never
-# exits": a `for` ends, but what it reads always holds its own shell. A
-# list of readers, said as one: text cannot test the property, and an
-# unlisted reader is an allow, as everything here fails.
-# Priced on a scratch copy, this session (2026-10-10), narrower than the
-# above (no position fix, no `-p`/`-v grep`/`-F`, an exemption anywhere in
-# the span): regex only, no fork; `bash .agents/harness/selftest.sh` on it
-# printed 2454 passed, 0 failed, this topic's 80 pinned cases among them.
-# The copy is gone; the plan's acceptance re-counts. Rejected, measured:
-# judging `for` with the WHOLE of judge() flips seven pinned allows, five
-# of them the prose cases above; `< /dev/null` around the condition is no
-# signal this text reader has.
-proc_re='[^[:alnum:]_](pgrep|pkill)[[:space:]]'
-full_re='[[:space:]](-[[:alnum:]]*f([[:space:]]|$)|--full)'
+# a-self-match-the-guard-cannot-see, 2026-10-10), the tool-keyed check
+# missed it three ways, and any one fix alone left the report allowed:
+#   - THE READER. `ps ... | grep` never reached this branch, so bounded it
+#     was ALLOWED and unbounded it was denied as UNBOUNDED, whose remedy —
+#     wrap it in `timeout` — is the allowed spelling of the same trap.
+#     `/proc/*/cmdline` the same. And the flag test wanted `f` LAST in its
+#     cluster: `-fl` and `-f"pat"` were allowed.
+#   - THE POSITION. It wanted a character before the tool, and both readers
+#     start `span` right after the keyword's space, so `while pgrep -f PAT;
+#     do sleep 5; done` was the reader trap again: ALLOWED under `timeout`,
+#     UNBOUNDED without (verifier, 2026-10-10). Every pinned case was
+#     `until ! pgrep`, where the `!` supplied the character.
+#   - THE OPENER. Neither reader judged a `for` or `select` loop, so even
+#     `pgrep -f` under `for i in $(seq 1 100000)` with `sleep 60` passed.
+# Built: the readers of full command lines, each in COMMAND POSITION
+# (`rpos`, which the start of `span` satisfies) —
+#   - `pgrep`/`pkill` with `f` anywhere in a short-option cluster, or
+#     `--full`, in the same simple command;
+#   - `ps` piped to `grep`/`egrep`, unless `ps -p` (one pid) or a `grep -v
+#     grep` stage (the line holds "grep", so that stage drops it); `docker
+#     ps` is not `ps` in command position;
+#   - a `/proc/*/cmdline` glob, never one pid's path (`/proc/4242/cmdline`
+#     is the classic wait for one pid to end).
+# Exempt: the reader's OWN pattern argument, quoted, opening with a
+# one-character bracket class — `"[b]ash x"` cannot match its own text, and
+# the deny names it as the remedy — unless `grep -F` makes the brackets
+# literal. A bracket elsewhere in the span exempts nothing. A list of
+# readers, said as one: text cannot test the property, and an unlisted
+# reader (`pidof`, `pgrep` without `-f`, `awk` over `ps`) is an allow, as
+# everything here fails.
+# Reach: this branch runs for `for NAME in`, `for ((` and `select` too, with
+# a reason that does not say "never exits" — a `for` ends, but what it reads
+# always holds its own shell. ONLY through reader B: above 8 KB B does not
+# run and a `for` self-match stays allowed; reader A is `while`/`until`.
+# The BOUND check stays `while`/`until`: judging `for` with the WHOLE of
+# judge() flips seven pinned allows, five of them the prose cases above.
+# Rejected, measured: `< /dev/null` around the condition is no signal this
+# text reader has.
+# Priced first on a scratch copy narrower than this (no position fix, no
+# `-p`/`-v grep`/`-F`, an exemption anywhere in the span): regex only, no
+# fork; `bash .agents/harness/selftest.sh` on it printed 2454 passed, 0
+# failed, this topic's 80 pinned cases among them.
+#
+# The payload is read ESCAPED: a quote reaches these patterns as `\"`, so
+# the bracket exemption matches `\"[`, and `"` in `rpos` is the quote's
+# own character after its backslash.
+rpos='(^|[;&|(){}`'"'"'"!]|[^[:alnum:]_](do|then|else|if|elif|while|until|time)[[:space:]])[[:space:]]*'
+# Args stop at the simple command's end; a `|` or `)` inside a quoted
+# pattern cuts them early, after the flag and the pattern's opening.
+pg_re="${rpos}(pgrep|pkill)([[:space:]][^;&|)]*)"
+pgfull_re='(^|[[:space:]])(-[[:alnum:]]*f|--full([[:space:]=]|$))'
+ps_re="${rpos}ps(([[:space:]][^;&|)]*)?)[|][[:space:]]*e?grep([[:space:]][^;&|)]*)"
+onepid_re='(^|[[:space:]])(-[[:alnum:]]*p|--pid)'
+dropgrep_re='e?grep[[:space:]]+-[[:alnum:]]*v[[:alnum:]]*[[:space:]]+(\\"|'"'"')?e?grep'
+cmdline_re='/proc/[^/[:space:]]*[*][^/[:space:]]*/cmdline'
+grepcmd_re='(^|[[:space:]!])e?grep([[:space:]].*)$'
+bracket_re='(^|[[:space:]]|-[[:alnum:]]*)(\\"|'"'"')[[][^]\\][]]'
+fixed_re='(^|[[:space:]])(-[[:alnum:]]*F|--fixed-strings)'
+
+# Does `span` read full command lines? Sets `tool` for the reason. Each
+# capture is taken before the next `=~`, which would unset it (set -u: exit
+# 1, read as ALLOW). `s` loses at least the tool's name every pass.
+selfmatch() {
+  local s m a p pre
+  s="$span"
+  while [[ $s =~ $pg_re ]]; do
+    m="${BASH_REMATCH[0]}"
+    tool="${BASH_REMATCH[3]} -f"
+    a="${BASH_REMATCH[4]}"
+    s="${s#*"$m"}"
+    [[ $a =~ $pgfull_re ]] || continue
+    [[ $a =~ $bracket_re ]] && continue
+    return 0
+  done
+  s="$span"
+  while [[ $s =~ $ps_re ]]; do
+    m="${BASH_REMATCH[0]}"
+    p="${BASH_REMATCH[3]}"
+    a="${BASH_REMATCH[5]}"
+    s="${s#*"$m"}"
+    [[ $p =~ $onepid_re ]] && continue
+    # The rest of the pipeline, for a `grep -v grep` stage after this one.
+    [[ grep${a}${s%%[;&]*} =~ $dropgrep_re ]] && continue
+    [[ $a =~ $bracket_re ]] && ! [[ $a =~ $fixed_re ]] && continue
+    tool="ps | grep"
+    return 0
+  done
+  s="$span"
+  while [[ $s =~ $cmdline_re ]]; do
+    m="${BASH_REMATCH[0]}"
+    pre="${s%%"$m"*}"
+    s="${s#*"$m"}"
+    pre="${pre##*[;&|(]}"
+    if [[ $pre =~ $grepcmd_re ]]; then
+      a="${BASH_REMATCH[2]}"
+      [[ $a =~ $bracket_re ]] && ! [[ $a =~ $fixed_re ]] && continue
+    fi
+    tool="/proc/*/cmdline"
+    return 0
+  done
+  return 1
+}
 
 deny() {
   printf '%s\n' "$1" >&2
@@ -303,25 +368,36 @@ deny() {
 judge() {
   local tool
   [ -n "$own" ] || own="$span"
-  # No sleep, no wait. `while read` over input and every `for` stop here.
+  # No sleep, no wait. `while read` over input stops here.
   [[ $span =~ $sleep_re ]] || return 0
 
-  # pgrep FIRST, and bounded or not. A `timeout` around this one turns an
-  # endless wait into a wait that always runs the clock out, which is not the
-  # same bug getting fixed — and reporting it as "unbounded" would send the
-  # session to add the bound it already has. Self-matching is not obvious, so
-  # the reason says it. The flag is looked for separately from the command
-  # because `pgrep -l -f` and `pgrep --full` are the same trap spelled apart.
-  if [[ $span =~ $proc_re ]]; then
-    tool="${BASH_REMATCH[1]}"
-    if [[ $span =~ $full_re ]]; then
-      deny "DENIED: this loop waits on \`${tool}\` with the full-command-line flag, which matches ITSELF.
-\`${tool} -f\` tests full command lines, and the command line running this
-loop carries the pattern as its own argument — so the process it is
-waiting for is always found and the loop never exits. Match the
-process another way, or wait on something the loop does not create."
-    fi
+  # Self-match FIRST, and bounded or not. A `timeout` around this one turns
+  # an endless wait into a wait that always runs the clock out, which is not
+  # the same bug getting fixed — and reporting it as "unbounded" would send
+  # the session to add the bound it already has. Self-matching is not
+  # obvious, so the reason says it, and names the remedy.
+  if selfmatch; then
+    case $kwname in
+      while | until)
+        deny "DENIED: this \`${kwname}\` loop waits on \`${tool}\`, which reads full command
+lines and so matches ITSELF: the command line running this loop carries
+the pattern as its own argument, so the process it is waiting for is
+always found and the loop never exits.
+Open the pattern with a one-character bracket class — \"[p]ython3 x\" —
+which matches the process and not its own text (not under grep -F), or
+wait on something the loop does not create." ;;
+      *)
+        deny "DENIED: this \`${kwname}\` loop reads \`${tool}\`, which reads full command
+lines and so matches ITSELF: the command line running this loop carries
+the pattern as its own argument, so the result always includes this
+command's own shell. A count is never 0, and a pid list includes the
+caller — a loop that kills each pid it reads can kill its own shell.
+Open the pattern with a one-character bracket class — \"[p]ython3 x\" —
+which matches the process and not its own text (not under grep -F)." ;;
+    esac
   fi
+  # The bound check reads `while`/`until` only (header, SELF-MATCH).
+  case $kwname in while | until) ;; *) return 0 ;; esac
 
   [[ $prefix =~ $timeout_re ]] && return 0
   [[ $own =~ $count_re ]] && return 0
@@ -417,16 +493,18 @@ done
 tbeg=()   # where the token starts
 tend=()   # where the text after it starts
 tdir=()   # +1 opener, -1 `done`
-tkw=()    # `while`/`until` for a loop to judge, else empty
+tkw=()    # the opener's keyword for a loop to judge, else empty
 s="$cmd"
 off=0
 while :; do
   # One match finds the EARLIER of an opener and a `done`: leftmost wins.
   [[ $s =~ $token_re ]] || break
   tok="${BASH_REMATCH[0]}"
-  # Capture 7 is `while`/`until` in the opener half (pos_re holds 2-5); a
-  # `done` fills capture 11, the whole close half.
+  # Capture 7 is `while`/`until` in the opener half (pos_re holds 2-5), 6
+  # the whole keyword, `for`/`select` included; a `done` fills capture 11,
+  # the whole close half.
   kwn="${BASH_REMATCH[7]}"
+  opn="${BASH_REMATCH[6]}"
   dn="${BASH_REMATCH[11]}"
   pre="${s%%"$tok"*}"
   at=${#pre}
@@ -437,6 +515,12 @@ while :; do
     tkw+=("")
   else
     tdir+=(1)
+    # `for`/`select` reach judge() for the self-match test only (header,
+    # SELF-MATCH); the bound check stays `while`/`until`.
+    case $opn in
+      for*) kwn=for ;;
+      select*) kwn=select ;;
+    esac
     tkw+=("$kwn")
   fi
   s="${s:at+${#tok}}"

@@ -500,6 +500,82 @@ expect "and it says so" "matches ITSELF" "$pbg_msg"
 pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"until ! pgrep --full xyz; do sleep 3; done"}}'
 pbg_denied "pgrep --full is the same trap under another spelling"
 
+# --- self-match, keyed on the reader -------------------------------------
+# The trap is a property — the condition reads full command lines, and the
+# loop's own shell carries the pattern — not the tool `pgrep -f`. A consumer
+# met it under a `for` loop spelled `ps -e -o args | grep -c PAT`, and the
+# tool-keyed check allowed it three ways: the reader, the reader straight
+# after the keyword, and the opener. One row per acceptance row of the plan
+# that built it; on the guard before it, 15 of these 24 read wrong.
+# shellcheck disable=SC2016  # a JSON payload; the $ is text the guard reads
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"for i in $(seq 1 20); do n=$(ps -e -o args | grep -cE \"python3 (svc|jobs)/\"); if [ \"$n\" -gt 0 ]; then sleep 15; else break; fi; done"}}'
+pbg_denied "a for loop counting ps | grep matches itself"
+expect "and the reason is self-matching" "matches ITSELF" "$pbg_msg"
+# shellcheck disable=SC2016  # a JSON payload; the $ is text the guard reads
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"timeout 600 bash -c '"'"'until [ \"$(ps -e -o args | grep -c \"python3 svc/\")\" -eq 0 ]; do sleep 15; done'"'"'"}}'
+pbg_denied "an until over a ps | grep count matches itself, bounded or not"
+expect "and the reason is self-matching" "matches ITSELF" "$pbg_msg"
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"timeout 600 bash -c '"'"'while ps aux | grep -q \"python3 svc/tests\"; do sleep 10; done'"'"'"}}'
+pbg_denied "a while on ps aux | grep -q matches itself"
+expect "and the reason is self-matching" "matches ITSELF" "$pbg_msg"
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"timeout 300 bash -c '"'"'while pgrep -f \"python3 x\"; do sleep 5; done'"'"'"}}'
+pbg_denied "pgrep -f straight after the keyword is in command position"
+expect "and the reason is self-matching" "matches ITSELF" "$pbg_msg"
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"while pgrep -f \"python3 x\" > /dev/null; do sleep 5; done"}}'
+pbg_denied "an unbounded while pgrep -f is denied as self-match, not unbounded"
+expect "and the reason is self-matching" "matches ITSELF" "$pbg_msg"
+refute "not the unbounded one" "no bound on how long it waits" "$pbg_msg"
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"timeout 300 bash -c '"'"'while pkill -0 -f \"python3 x\"; do sleep 5; done'"'"'"}}'
+pbg_denied "pkill -0 -f matches itself"
+expect "and the reason is self-matching" "matches ITSELF" "$pbg_msg"
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"timeout 300 bash -c '"'"'until ! pgrep -fl \"bash selftest.sh\"; do sleep 3; done'"'"'"}}'
+pbg_denied "pgrep -fl: f anywhere in the cluster"
+expect "and the reason is self-matching" "matches ITSELF" "$pbg_msg"
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"timeout 300 bash -c '"'"'until ! pgrep -f\"bash selftest.sh\"; do sleep 3; done'"'"'"}}'
+pbg_denied "pgrep -f\"pat\": the pattern glued to the flag"
+expect "and the reason is self-matching" "matches ITSELF" "$pbg_msg"
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"timeout 300 bash -c '"'"'until ! grep -l \"python3 svc/\" /proc/*/cmdline; do sleep 3; done'"'"'"}}'
+pbg_denied "a grep over the /proc/*/cmdline glob matches itself"
+expect "and the reason is self-matching" "matches ITSELF" "$pbg_msg"
+# shellcheck disable=SC2016  # a JSON payload; the $ is text the guard reads
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"for i in $(seq 1 20); do pgrep -f \"python3 svc/\" || break; sleep 5; done"}}'
+pbg_denied "a for loop polling pgrep -f matches itself"
+expect "and the reason is self-matching" "matches ITSELF" "$pbg_msg"
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"for ((i=0; i<20; i++)); do ps -e -o args | grep -c \"python3 x\"; sleep 15; done"}}'
+pbg_denied "a for (( )) loop counting ps | grep matches itself"
+expect "and the reason is self-matching" "matches ITSELF" "$pbg_msg"
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"select x in a b; do pgrep -f \"python3 svc/\"; sleep 5; done"}}'
+pbg_denied "a select loop polling pgrep -f matches itself"
+expect "and the reason is self-matching" "matches ITSELF" "$pbg_msg"
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"timeout 300 bash -c '"'"'while ps aux | grep -F -q \"[p]ython3 x\"; do sleep 5; done'"'"'"}}'
+pbg_denied "grep -F makes the bracket literal: no exemption"
+expect "and the reason is self-matching" "matches ITSELF" "$pbg_msg"
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"timeout 300 bash -c '"'"'while pgrep -f \"python3 x\" && grep -q \"[a]\" /tmp/f; do sleep 5; done'"'"'"}}'
+pbg_denied "a bracket in another command exempts nothing"
+expect "and the reason is self-matching" "matches ITSELF" "$pbg_msg"
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"timeout 300 bash -c '"'"'until ! pgrep -f \"[b]ash selftest.sh\"; do sleep 3; done'"'"'"}}'
+pbg_allowed "a bracketed pgrep pattern does not match itself"
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"timeout 600 bash -c '"'"'while ps aux | grep -q \"[p]ython3 svc/tests\"; do sleep 10; done'"'"'"}}'
+pbg_allowed "a bracketed grep pattern after ps does not match itself"
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"timeout 300 bash -c '"'"'while ps -ef | grep -v grep | grep -q \"python3 x\"; do sleep 5; done'"'"'"}}'
+pbg_allowed "a grep -v grep stage drops the reader's own line"
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"timeout 300 bash -c '"'"'while ps -p 4242 | grep -q 4242; do sleep 5; done'"'"'"}}'
+pbg_allowed "ps -p reads one pid, not every command line"
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"timeout 300 bash -c '"'"'while docker ps | grep -q myjob; do sleep 5; done'"'"'"}}'
+pbg_allowed "docker ps is not ps in command position"
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"timeout 300 bash -c '"'"'while [ -e /proc/4242/cmdline ]; do sleep 5; done'"'"'"}}'
+pbg_allowed "one pid's /proc path is not the glob"
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"timeout 300 bash -c '"'"'until ! pgrep bash; do sleep 3; done'"'"'"}}'
+pbg_allowed "pgrep without -f tests names"
+# shellcheck disable=SC2016  # a JSON payload; the $ is text the guard reads
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"for f in a b c; do echo $f; sleep 1; done"}}'
+pbg_allowed "a for loop with no reader is still allowed"
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"ps aux | grep python3"}}'
+pbg_allowed "ps | grep outside any loop is allowed"
+# shellcheck disable=SC2016  # a JSON payload; the $ is text the guard reads
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"i=0; while [ $i -lt 5 ]; do pgrep -l bash; sleep 1; i=$((i+1)); done"}}'
+pbg_allowed "a counter-bounded loop running pgrep -l is allowed"
+
 # --- sleep the command, not the word ---------------------------------------
 # `sleep` always takes an argument. Without that, an ordinary log line is
 # denied for a word in it, and that is the miss that teaches a session to
