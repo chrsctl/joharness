@@ -439,25 +439,30 @@ of the evidence.
 **`CEILING?` is a report, and no refresh rule rides on it.** Issue #298 asked
 for both: the mark (`JOHARNESS_MANAGER_HOURS`, PR #357) and a rule that
 archives a manager past it and respawns on the branch to finish. The mark
-landed; the rule has no precondition the orchestrator can read, and the
-issue's own run is why.
+landed; the rule has no precondition the orchestrator can read, in git or
+on the plane, and the issue's own run is why.
 
-- **The cheap refreshes already have rows.** Both items it reports finished
-  by a fresh session ($46.08 then $0.88; $18.96 then $1.89, the issue's
+- **The quiet case already has rows.** Both items it reports finished by
+  a fresh session ($46.08 then $0.88; $18.96 then $1.89, the issue's
   numbers, WEAK for #267's reason) were managers gone QUIET at the finish.
   Quiet is what the STALL? and IDLE rows of `.claude/commands/orchestrate.md`
-  read: nudge, two passes unchanged, then RESPAWN on the branch — a
-  successor that reads `next:` does the last mile and nothing else. A new
-  row would fire on the same sessions those do, sooner and on less evidence.
-- **The expensive side has no git-readable "at the finish".** The issue's
-  rule is "past the ceiling and at its finish steps, with branch and
-  workstream file current". A manager past the ceiling that still pushes
-  is, by the table, either `status: review` — step 5, where the verifier
-  subagent is the run in flight — or `retired, no claim file`, which the
-  table already reads as merging and leaves alone. Neither tells
-  between-runs from mid-run, and archiving ends the container: the issue's
-  counter-case is a 5.5h, $48 manager whose in-flight test run would have
-  died with it. A rule keyed on hours fires there.
+  read. IDLE: nudge, two passes unchanged, RESPAWN on the branch. STALL?:
+  nudge, then KILL — interrupt, a pass, check the handover, archive — then
+  RESPAWN. Either way a successor reads `next:` and does the last mile. Not
+  the same saving every time: a manager that ANSWERS the nudge is working
+  and finishes with its own large context, and whether the issue's two
+  would have answered is not knowable from it.
+- **What `CEILING?` marks is never at the finish.** `cmd_dispatch` sets it
+  only on `status: in-progress` with `pr:` empty or `none`; review, done, a
+  `pr:` value and `retired, no claim file` rows never carry it. So a refresh
+  keyed on the mark is a refresh of a mid-build manager — the issue's own
+  counter-case, a 5.5h, $48 manager whose in-flight test run would have
+  died with its container. Widening the mark to the finish states buys no
+  precondition either: a manager at `status: done` or with `pr:` set is
+  still waiting on checks or running `finish`, and git has no field for
+  "between runs". Nor does the plane: `IDLE` is "between turns", and the
+  paragraph above records a live `IDLE` manager whose cost stayed frozen
+  across four windows while a background run kept going.
 - **Asking first does not make it safe.** The KILL path already interrupts
   before it archives and checks whether the handover landed; it cannot
   compel the push, because `handover-guard.sh` is advisory and one-shot by
