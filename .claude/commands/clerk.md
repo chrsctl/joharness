@@ -89,6 +89,24 @@ recorded in the pull request body with the evidence, one line each:
   (`.agents/harness/AGENTS.md`, Decide alone), or its author failed the
   gate in §2. Comment naming the question. Write no plan.
 - **DUPLICATE** — comment naming the issue or plan it duplicates.
+- **UPSTREAM** — CONSUMER only (`JOHARNESS_CANONICAL=1` absent from
+  `joharness.conf`; in canonical the verdict does not exist). The issue is
+  about harness behaviour: it asks a change to a path the sync ships, or to a
+  rule in `.agents/harness/AGENTS.md`, `.agents/docs/` or `.claude/commands/`.
+  The author gate (§2) still applies first, and so does the check above: a
+  claim that does not hold is DOES NOT HOLD, never UPSTREAM. Write no plan; the direction rule
+  (`.agents/docs/consumer-repos.md`) already says where it goes. Read
+  `CANONICAL_REPO` from `.github/workflows/update.yml` (read only), then:
+  1. Canonical already covers it: comment `clerk: UPSTREAM` citing the
+     canonical file and section, close the consumer issue.
+  2. Not covered: search canonical's open issues first (same finding = link
+     it); else open ONE issue on `CANONICAL_REPO` carrying the command and
+     output that established it, and nothing private from the consumer. Comment `clerk: UPSTREAM` with its link, close the consumer
+     issue. At most one issue filed per routed issue.
+  3. Canonical outside this session's GitHub scope: comment `clerk: UPSTREAM`
+     with ready-to-file issue text and leave the issue open
+     (`.agents/docs/feedback.md` §4). Not HUMAN: the next move is a filing,
+     not a product call.
 
 One plan per issue, unless the issue names asks that are separable on its
 own words. A plan's `issue:` is how the issue closes later: the manager's
@@ -101,7 +119,7 @@ session's system prompt names. One comment per issue per pass.
 
 ## 4. Pull request
 
-No plans written = no pull request; report and exit. Otherwise the diff adds
+No plans written = no pull request (an UPSTREAM-only pass opens none); report and exit. Otherwise the diff adds
 `docs/plans/*.md` and nothing else. Before opening it, run `./joharness.sh
 curate --apply`, then `./joharness.sh curate` and fix by hand what it
 still names on your new plans, then `./joharness.sh ci`. Spawn `.claude/agents/verifier.md` at opus on the diff;
@@ -118,7 +136,7 @@ Re-run `./joharness.sh clerk` after the merge: each issue you planned is
 under `planned`. Missing = an `issue:` the reader dropped; fix it before you
 exit.
 
-Report, one line each: issues read by verdict, plans written, comments
+Report, one line each: issues read by verdict (UPSTREAM counted), plans written, comments
 posted, and that this session took a manager slot.
 
 ## Never
@@ -126,10 +144,13 @@ posted, and that this session took a manager slot.
 - Write code, a requirement, or a research file. Plans only.
 - Edit anything under `./joharness.sh protocol-paths`, or any plan you did
   not write this pass.
-- Close an issue, open an issue, or edit an issue's labels or body.
+- Close an issue, open an issue, or edit an issue's labels or body. One
+  carve-out, the UPSTREAM route only: close the consumer issue it routed, and
+  open or read issues on `CANONICAL_REPO`.
 - Take an issue that is PLANNED, CLAIMED, carries your verdict as its
   newest comment, or whose author failed the gate.
-- Read or write issues on any repository other than this one.
+- Read or write issues on any repository other than this one, except
+  `CANONICAL_REPO` on the UPSTREAM route.
 - Take a queue item, spawn a session, or run a second pass. One pass, exit.
 
 $ARGUMENTS
