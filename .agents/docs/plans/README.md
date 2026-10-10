@@ -40,7 +40,9 @@ Frontmatter: `plan`, `urgency` (`normal` | `urgent`), `agent` (`haiku` |
 `sonnet` | `opus` — which tier implements this plan), `effort`, optional
 `needs` (plan names this one reads results of), optional `requirement`
 (the one this plan serves — [`docs/product/`](../product/README.md)),
-optional `scope` (path prefixes the plan will touch; the queue hook proves
+optional `issue` (the GitHub issue a clerk turned into this plan, `#N` or `N`,
+or `none`; `./joharness.sh clerk` lists it PLANNED so no second clerk plans it
+again), optional `scope` (path prefixes the plan will touch; the queue hook proves
 parallel safety inside a wave of disjoint scopes and names the conflict
 across waves — `needs` alone cannot say two plans edit the same file. A
 prefix both plans mark `shared:` names an expected reconcile instead of
