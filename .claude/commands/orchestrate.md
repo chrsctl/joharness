@@ -26,6 +26,12 @@ REQUIRED — absent, say so and stop: `create_session`, `send_later`, one
 liveness read (`get_session` or `list_sessions`). OPTIONAL — absent, one path
 degrades, never the loop; say which once:
 
+A call REFUSED or erroring at run time (a permission denial, issue #249) is
+that tool ABSENT for that target this pass: take its row below, name the
+refused call in the report, never retry it. Respawn-after-archive rows then
+follow the `archive_session` row; interrupt-before-KILL follows the
+`interrupt_session` row (no replace, `status: blocked`).
+
 | absent | what changes |
 | --- | --- |
 | any transport that delivers | no nudge: still two passes, the first sends nothing; the KILL's interrupt does the asking. `JOHARNESS_STALL_MINUTES` becomes a kill threshold — say so. |

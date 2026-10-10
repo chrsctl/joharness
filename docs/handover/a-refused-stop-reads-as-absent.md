@@ -8,7 +8,7 @@ issue: 249
 session: https://claude.ai/code/session_01ScNihrtaDVHdffQMpf9Qhq
 agent: sonnet
 updated: 2026-10-10
-next: Edit orchestrate.md Tools, orchestrated.md kill section, selftest; run ci + verify
+next: Await verifier review, record in ## Review, retire plan+workstream, open PR, merge
 ---
 
 ## Goal
@@ -18,7 +18,7 @@ written outcome. Make refused = absent for that target this pass.
 
 ## Review
 
-None yet.
+- r0: verifier pending (no findings recorded yet) (no change)
 
 ## Blockers
 
