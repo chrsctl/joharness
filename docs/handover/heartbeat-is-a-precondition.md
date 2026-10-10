@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_017wdZSYpjKWnZwmXDVRzDq7
 agent: sonnet
 updated: 2026-10-10
-next: Read orchestrate.md step 0, section 4, orchestrated.md Heartbeat; make the three edits
+next: Await verifier; record findings in Review; retire plan+workstream; PR; merge
 ---
 
 ## Goal

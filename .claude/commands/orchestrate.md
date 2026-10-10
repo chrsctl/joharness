@@ -60,7 +60,12 @@ and leave it untouched.
    Bounds).
 2. One orchestrator per repo. `list_sessions` (every session you can see,
    not only yours): one titled `orchestrator: <owner/repo>` with
-   `session_status: RUNNING` that is not you = exit, say so. Else
+   `session_status: RUNNING` that is not you = exit, say so, and arm ONE
+   `send_later` (`JOHARNESS_HEALTH_MINUTES`) carrying `seen=<updated_at>
+   detail=<status_detail>` of it. Next firing finds it RUNNING with both
+   unchanged: frozen, the `stalled` row's own test, never one signal. Then
+   `set_session_title` it `orchestrator-frozen: <owner/repo>`,
+   `interrupt_session` it if you can, and go on as the orchestrator. Else
    `set_session_title` yours to that (absent: Tools, above — report and
    go on). Two firing in the same minute can
    both pass this; the collision is two managers on one item, which claim
@@ -77,6 +82,10 @@ and leave it untouched.
    nudge if one was sent, respawns so far. First start = an empty ledger.
    Read "last pass" in the table below from it, never from memory — a
    compaction between passes leaves memory and keeps the message.
+5. Heartbeat. `list_triggers`: an enabled Routine with a `cron_expression`
+   firing a fresh session for this repo? None, or no tool: put "no
+   heartbeat: this fleet dies with this session." first in the report,
+   every pass. Never create one — recurring spend is the human's.
 
 ## 1. Read
 
@@ -578,6 +587,10 @@ entry being a pass old. It is also what the next pass counts into step 1's
 `JOHARNESS_PENDING_SPAWNS`: the slot is owned, and only this entry says so.
 
 ## 4. Schedule the next pass, then end the turn
+
+The chain is the CADENCE, not durability: a link delivered but never
+executed ends the fleet and records `SUCCEEDED`, so no later pass can tell.
+Durability is the heartbeat Routine (step 0.5; `orchestrated.md`, Heartbeat).
 
 `send_later` with `delay_minutes` = `JOHARNESS_HEALTH_MINUTES`, message:
 
