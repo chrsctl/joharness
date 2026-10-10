@@ -33,6 +33,11 @@ Issue #292: after a janitor sweep's retire commit and before its PR merges,
   `time JOHARNESS_JANITOR_HOURS=1 DISPATCH_FETCH=0 ./joharness.sh janitor`
   8.161s before, 8.187s after. `time ./joharness.sh drain` 2.829s/2.871s
   before (janitor not due under conf; no walk either way).
+- `cmd_drain` was deleted on main (orchestrated-only) before this merged, so
+  the readers are `cmd_janitor` and `dispatch`, and the timing fallback is
+  `time DISPATCH_FETCH=0 JOHARNESS_JANITOR_HOURS=1 ./joharness.sh dispatch`
+  after merging main, 2026-10-10: origin/main's joharness.sh 5.953s/6.024s,
+  this branch's 6.179s/5.843s — within noise.
 
 ## Rejected
 
