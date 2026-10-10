@@ -8,7 +8,7 @@ issue: 297
 session: https://claude.ai/code/session_01JZpYjgSiiDozz5VU1FWpm8
 agent: opus
 updated: 2026-10-10
-next: Verifier pass on the graduation diff, record findings, retire this file, open PR
+next: Retire this file in the last commit, open PR, merge, message @parent
 ---
 
 ## Goal
@@ -38,6 +38,14 @@ answer to `.agents/docs/orchestrated.md`, delete the node.
   and its graduation target.
 
 ## Review
+
+- r1: (verifier) "author gone" row read as solved; 3 abandoned-branch plans named by no dispatch/drain/janitor/hook output (grep of each, 0 hits) (fixed: table says NOT answered, accepted-gap paragraph with the measurement)
+- r2: (verifier) carry-don't-take spawn bound lives only in orchestrated.md; orchestrate.md offers the spawn unbounded (fixed: follow-up plan docs/plans/branch-plan-spawn-bound.md, section points at it)
+- r3: (verifier) "curator's obsolete pass" catches a resurrected plan — false; declutter fires on gone requirement/scope only (fixed: text says curator misses it, gap folded into follow-up plan)
+- r4: (verifier) instance-two "three minutes after the filer had it" misanchored; 3 min is spawn to comment (fixed: both timestamps stated)
+- r5: (verifier) "cannot be released" overclaims; 112/36 include README+TEMPLATE (fixed: 110/34, "release gated on a product pull request")
+- r6: (verifier) the 36 had no command that re-counts it (fixed: mixed test spelled out)
+- r7: (verifier) lost from node: which walk the reader joins, why dispatch not hook, stacked-branch dedupe (fixed: wrong-rows paragraph names all three)
 
 ## Blockers
 
