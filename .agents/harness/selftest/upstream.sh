@@ -257,6 +257,37 @@ expect "and does not flip the verdict on its own" \
 expect "the count is said rather than swallowed" \
   "1 unplaceable finding(s) above" "$out"
 
+# --- placement forms: `./`, bare basenames, prose-only paths -----------------
+# Each case below fails without its fix (checked by reverting it).
+mkdir -p "${upwork}/.agents/a" "${upwork}/.agents/b" "${upwork}/docs/handover"
+printf 'x\n' >"${upwork}/.agents/a/dup.sh"; printf 'x\n' >"${upwork}/.agents/b/dup.sh"
+printf 'x\n' >"${upwork}/.agents/a/README.md"; printf 'x\n' >"${upwork}/README.md"
+printf 'x\n' >"${upwork}/docs/handover/README.md"
+printf 'x\n' >"${upwork}/.agents/a/only.sh"
+commit_all "$upwork" "placement fixtures"
+git -C "$upwork" push -q origin main
+hp() { ( cd "$upwork" && ROOT="$upwork" bash -c '. <(sed -n "/^upstream_harness_path() {/,/^}/p" ./joharness.sh); upstream_harness_path "$1"' _ "$1" ); }
+for ok in .//joharness.sh ././joharness.sh ./joharness.sh joharness.sh only.sh dup.sh; do
+  if hp "$ok"; then pass "$ok is canonical's"; else fail "$ok should be canonical's"; fi
+done
+for no in ./docs/handover/README.md docs/handover/README.md README.md nothere.sh src/app.py; do
+  if hp "$no"; then fail "$no must not be canonical's"; else pass "$no is not canonical's"; fi
+done
+git -C "$upwork" checkout -q -b prose-edge main
+{ printf -- '---\nworkstream: prose-edge\nstatus: in-progress\n---\n\n'
+  printf '## Review\n\n- r1: compare with before/after in docs/other.md (wontfix)\n'
+} >"${upwork}/docs/handover/prose-edge.md"
+commit_all "$upwork" "record prose-only"
+git -C "$upwork" rm -q docs/handover/prose-edge.md
+git -C "$upwork" commit -qm "Retire"
+git -C "$upwork" checkout -q main
+git -C "$upwork" merge -q --no-ff -m "Merge pull request #14 from x/prose-edge" prose-edge
+git -C "$upwork" push -q origin main prose-edge
+out="$(upa prose-edge)"
+expect "prose-only non-canonical paths get their own heading" \
+  "named paths in prose, none of them canonical's" "$out"
+refute "and are not called pathless" "no path token" "$out"
+
 # --- a branch whose TIP is a merge commit -----------------------------------
 # Every branch that reconciled at step 7 has one ("Conflict at finish",
 # .agents/docs/product/README.md). Resolving the branch NAME as a merge commit
