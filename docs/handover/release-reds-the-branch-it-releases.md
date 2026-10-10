@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01F26SmuC5nB62uKrzGEMG72
 agent: sonnet
 updated: 2026-10-10
-next: Add the reconcile sentence to janitor.md §3, add behaviour case to selftest/janitor.sh.
+next: Await ci + verifier; record acceptance 5; retire files; PR; merge.
 ---
 
 ## Goal
