@@ -4,11 +4,11 @@ status: in-progress
 branch: claude/issues-338-339-to-plans
 pr: none
 plan: none
-issue: 338, 339
+issue: 338
 session: https://claude.ai/code/session_018Bhrz7Uhy2ypK1sVw779nP
 agent: opus
 updated: 2026-10-10
-next: Research anchors for #338 and #339, write one plan each under docs/plans/
+next: Spawn verifier on the two plans, record findings, retire, PR
 ---
 
 ## Goal
@@ -22,6 +22,12 @@ surfaces after the retire commit) have none. Decompose each into a plan.
 ## Decisions
 
 - One plan per issue: different files, different readers, no shared result.
+- `issue:` holds one number (ci rejects a list), so it claims #338; #339 is
+  claimed by its plan `late-finding-has-an-issue-route` once that lands.
+- #338 discriminator: process start time against the agent (`etimes`), not
+  `.mcp.json` matching — `comm` is the bare binary, so matching needs full
+  command lines plus JSON parsing in shell. Message reworded too.
+- #339: docs-only floor; the optional `upstream --issue` command left out.
 
 ## Rejected
 
