@@ -330,6 +330,59 @@ The reconcile rate measured earlier — about one merge in four
 (`.agents/docs/product/README.md`, Orchestration) — is the number a run of
 this mode should move. If it does not, the hold rule bought nothing.
 
+### A plan the queue cannot see
+
+Queue ITEMS come from the base branch only (`queue-context.sh`, the ref
+loop under "The queue lives on the base branch"). A plan filed on an
+unmerged branch has no row: not free, not held, not in flight. Issue #297
+paid twice, reported from a consumer and not re-measured here: an urgent
+plan-only pull request sat 6h09m with no manager, and a plan riding a
+product branch whose check failed on a base it did not break drew a
+duplicate spawn three minutes after the filer had it.
+
+Answer: the base branch stays the only queue. Three shapes, three answers.
+
+| Shape | Answer | Where |
+|---|---|---|
+| plan-only pull request | filer drives it to merged before exit | `manage.md`, Finish |
+| plan riding a product pull request | row in dispatch's `plans on a branch` block — visible, counted nowhere | `joharness.sh:dispatch_branch_plans` |
+| author gone | `abandoned` branch: row dropped, janitor reports the claim | `janitor.md` |
+
+Why the filer's last step alone is a half-fix: of 112 plan files added to
+`main` through a merge, 36 rode a pull request carrying more than
+`docs/{plans,handover,research,product}` — 2 of them the README and template.
+Counted 2026-10-10 on `origin/main` at `9abf04f`: `git rev-list
+--first-parent --merges`, each merge's `--diff-filter=A` against its first
+parent. About one plan in three cannot be released by merging its own
+pull request.
+
+Why the row carries no instruction. Two reasons, both bounds:
+
+- **Nothing can see a pull request.** The scheduler makes no GitHub call, so
+  the row names a BRANCH with a plan the base lacks. Whether a pull request
+  is open is not in it.
+- **A branch plan has not been reviewed into the queue.** Spawning on it
+  acts on somebody else's branch, more authority than any other row carries.
+  So it is the human's call (`orchestrate.md`, "Report, every pass"): `URGENT` leads the
+  report, the human merges or orders the spawn.
+
+Wrong rows, the opposite failure. The reader drops the plan the branch's own
+workstream file claims — a manager writing its own plan is in flight, not
+hidden — and every plan on an `abandoned` branch. On 2026-10-10 the unmerged
+refs carried 3 plans the base lacks, all three their branch's own plan on an
+abandoned claim, and `./joharness.sh dispatch` printed no block: 0 rows.
+
+**A spawn the human orders carries the plan, never takes the branch.** The
+manager cuts its own branch from the base and copies the plan file across;
+it pushes nothing to the owner's branch (never another session's pull
+request). `source_revision` on the spawn, if used, only puts that branch in
+hand to copy from. Accepted gap, measured in a scratch repo 2026-10-10: the
+carrier merges and retires the plan, then the owner's branch merges — and
+the plan comes BACK, no conflict, because the owner's side still adds it
+against a merge base that never had it. Nothing reds it. The owner removes
+it at its own reconcile if it reads this; otherwise the plan reappears free
+and the curator's obsolete pass is where it surfaces.
+
 ## The numbers are the human's
 
 | Knob | Default | Means | Where the default comes from |
