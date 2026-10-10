@@ -89,6 +89,8 @@ confirming pass. Never IDLE on its own. Never PENDING on its own.**
 | merge state | git: `git merge-base --is-ancestor <head> origin/main` — never a summary |
 
 `post_turn_summary`, `context_usage.used_tokens`,
+`external_metadata.usage.cost_usd` (frozen or absent on live sessions,
+running, idle or suspended, at any window),
 `external_metadata.current_branches`, `connection_status` decide nothing.
 
 Act on the FIRST row that matches:

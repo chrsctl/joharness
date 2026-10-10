@@ -124,6 +124,33 @@ on the record.
 
 None of these is a tier downgrade; downgrades stay money, humans only.
 
+**Levers that cannot pay.** A lever cuts cost per merged edge by at most
+(share of fleet cost it touches) x (its largest price cut); under 20% it is
+not worth a human's money decision, and no trial is needed to say so.
+Measured 2026-10-10 over 24 manager sessions in two fleets (this repo and
+consumer `gx`, 21 merges, 442 USD; readings and commands:
+`git log --diff-filter=D -- docs/research/cost-per-merge-levers.md`):
+
+- **Fresh session for long waits — no.** 0 of 110 idle gaps between turns
+  passed the 1-hour cache TTL (longest 25 minutes), and the two turns
+  longer than an hour wrote 2.2% of the cost in cache at most. Managers
+  wake on task notifications well inside the TTL, so the expiry bullet
+  above prices a wait the fleet does not have. Re-check if a queue starts
+  parking managers on human review.
+- **Fable planning manager at `high` instead of `xhigh` — no.** No child of
+  either orchestrator ran Fable, and effort cannot cross a spawn anyway.
+- **Haiku worker share — no.** Workers ran in 2 of 24 sessions (13 spawns,
+  0 haiku); all subagent cost in those two sessions is 11.6% of the sample,
+  so even a free worker cannot reach 20%. Managers mostly do not fan out:
+  the main thread, not the workers, is the bill.
+- **Sonnet verifier on opus plans — no in `gx`, open here.** Verifiers in
+  opus-tier sessions cost 37% of all sampled manager cost in this repo,
+  16% at most in `gx`. Open question:
+  `docs/research/sonnet-verifier-on-opus-plans.md`.
+
+Price a lever from a session's billed `modelUsage`, not from a table: the
+sample's sonnet 5 sessions bill ~1.7x what the sonnet 5.5 rates give.
+
 ## Behavior findings (default worker)
 
 From Anthropic migration notes, each with its harness consequence:
