@@ -101,7 +101,7 @@ it must not guess.
 ## Traps
 
 - `role-files-say-it-first`, `plan-on-a-branch-visible`, the dispatch
-  plans, `orchestrated-only` and `issue-triager-role` edit
+  plans, `orchestrated-only` and `clerk-role` edit
   `orchestrate.md`. All `shared:`. Reconcile at step 7.
 - A rebuilt `@new` for a manager another orchestrator run spawned is still
   a slot in use. Count it. Do not filter by "mine".
