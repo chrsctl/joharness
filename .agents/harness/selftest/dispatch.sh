@@ -1105,6 +1105,18 @@ expect "and the done branch is still shown in the block it points at" \
 refute "and no new rescope is recommended" "spawn ONE surveyor" "$out"
 refute "nor is it read as still actively running" \
   "a surveyor is already in flight" "$out"
+# A done rescope whose key COVERS the current one settles it too: a co-holder
+# merged and the set shrank (issue #300). Equality alone left this unsettled.
+git -C "$rbwork" checkout -q claude/rescope-keeper
+sed -i 's/^workstream: rescope-keeper/workstream: rescope-gone+keeper/' \
+  "${rbwork}/docs/handover/rescope-keeper.md"
+commit_all "$rbwork" "a co-holder merged under the done rescope"
+git -C "$rbwork" push -q origin claude/rescope-keeper
+git -C "$rbwork" checkout -q main
+out="$(rb)"
+expect "a done rescope on a superset key settles the shrunk key" \
+  "a rescope for this key is done or blocked" "$out"
+refute "so no surveyor is spawned onto the subset" "spawn ONE surveyor" "$out"
 
 # 0 slots (cap = 1, keeper fills it): the fleet is working, not stalled, so
 # the held plans stay DRAINED-in-flight and no rescope is offered.
@@ -1162,8 +1174,7 @@ ms_rescope() {
   printf -- '---\nworkstream: rescope-%s\nstatus: done\nbranch: claude/rescope-%s\nplan: none\nagent: sonnet\nupdated: 2026-01-02\nnext: The rest is genuine\n---\n\n## Goal\nFixture.\n' \
     "$1" "$2" >"${mswork}/docs/handover/rescope-$2.md"
   commit_all "$mswork" "rescope $1: the rest is genuine"
-  git -C "$mswork" rm -q "docs/handover/rescope-$2.md"
-  git -C "$mswork" commit -qm "retire rescope $1"
+  fixture_rm "$mswork" "retire rescope $1" "docs/handover/rescope-$2.md"
   git -C "$mswork" push -qu origin "claude/rescope-$2"
   git -C "$mswork" checkout -q main
   git -C "$mswork" merge -q --no-ff -m "Merge rescope $1" "claude/rescope-$2"
@@ -1198,6 +1209,18 @@ refute "and the stale record is not named as settling" \
 ms_rescope 'a+b' ab
 out="$(ms)"
 expect "a fresh record on a+b settles the key b" \
+  "(key a+b): holds genuine" "$out"
+# A HOLDER's plan file changed since the record is new information too
+# (verifier r2): b's scope widens on main.
+sed -i 's#^scope: src/shared$#scope: src/shared src/other#' "${mswork}/docs/plans/b.md"
+commit_all "$mswork" "widen the holder's scope after the rescope"
+git -C "$mswork" push -q origin main
+out="$(ms)"
+expect "a holder edited since the record re-earns a rescope" \
+  "spawn ONE surveyor (agent: sonnet) on key b" "$out"
+ms_rescope 'a+b' ab2
+out="$(ms)"
+expect "and a fresh record after the edit settles it again" \
   "(key a+b): holds genuine" "$out"
 { printf -- '---\nplan: d\nurgency: normal\nagent: sonnet\neffort: high\n'
   printf 'scope: src/shared\n---\n\n## Goal\nFixture.\n'

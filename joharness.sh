@@ -8284,20 +8284,20 @@ dispatch_rescope_branches() {
 # per retire commit on the base that deletes a rescope workstream file whose
 # last state (at the commit's parent) was done: sha, key. Newest first.
 #
-# `--full-history` is REQUIRED: the file is added and deleted on the
-# rescope's own branch, the merge commit is treesame for it, and default
-# simplification drops that branch (measured 2026-10-09: 0 hits without it,
-# 12 with). `-m` catches a retire made inside a merge commit. Same shape as
-# `scout_retired_ts`. Identity is the in-flight scan's: `workstream:
+# `--full-history -m`, `scout_retired_ts`'s shape: the file is added and
+# deleted on the rescope's own branch and the merge commit is treesame for it,
+# so default simplification drops that branch. Measured 2026-10-10 on this
+# repo's origin/main (1738 commits), counting `rescope-*` deletes: no flag 0,
+# `-m` 1, `--full-history` 1, both 1. Either flag alone finds it; both are
+# kept because each covers a retire shape the other might not. A retire made
+# inside a merge commit is listed once per parent; the file is read at
+# whichever parent carried it. Identity is the in-flight scan's: `workstream:
 # rescope-<key>`, `plan: none`. A `blocked` record is a human's, already
-# reported — not read here.
+# reported — not read here. Process substitution throughout, never a
+# "$(...)" capture read back through "<<<" — the race cmd_dispatch records.
 dispatch_rescope_merged() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}"
-  local log line h="" seen="" doc rws rplan rstat
-  log="$(GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 git -C "$ROOT" log \
-    --full-history -m --diff-filter=D --name-only --format='C %H' \
-    "refs/remotes/origin/${base_branch}" -- 'docs/handover/rescope-*' \
-    </dev/null 2>/dev/null)" || return 0
+  local line h="" seen="" doc rws rplan rstat
   while IFS= read -r line; do
     case "$line" in
       '') continue ;;
@@ -8307,14 +8307,19 @@ dispatch_rescope_merged() {
     # `-m` lists a merge once per parent: one row per (commit, file).
     case "$seen" in *" ${h}:${line} "*) continue ;; esac
     seen="${seen} ${h}:${line} "
-    doc="$(git -C "$ROOT" show "${h}^:${line}" </dev/null 2>/dev/null)" || continue
+    doc="$(git -C "$ROOT" show "${h}^1:${line}" </dev/null 2>/dev/null ||
+      git -C "$ROOT" show "${h}^2:${line}" </dev/null 2>/dev/null)" || continue
+    rws=""; rplan=""; rstat=""
     { read -r rws; read -r rplan; read -r rstat; } \
-      <<<"$(printf '%s\n' "$doc" | gr_fields workstream plan status)"
+      < <(printf '%s\n' "$doc" | gr_fields workstream plan status)
     case "$rws" in rescope-?*) ;; *) continue ;; esac
     [ "$rplan" = none ] || continue
-    [ "$rstat" = done ] || continue
+    [ "$rstat" = "done" ] || continue
     printf '%s\t%s\n' "$h" "${rws#rescope-}"
-  done <<<"$log"
+  done < <(GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 git -C "$ROOT" log \
+    --full-history -m --diff-filter=D --name-only --format='C %H' \
+    "refs/remotes/origin/${base_branch}" -- 'docs/handover/rescope-*' \
+    </dev/null 2>/dev/null)
 }
 
 # Does a rescope record on key <K> cover the current key <C>? Yes when every
@@ -9071,12 +9076,15 @@ cmd_dispatch() {
     # Merged `done` rescopes settle too — the in-flight scan skips merged refs,
     # so before this a surveyor's conclusion on `main` settled nothing and the
     # next pass asked for a second one (issue #300). A record settles only
-    # while no held plan's file changed on the base since its retire: a
+    # while no held or holder plan's file changed on the base since its retire: a
     # changed `scope:` line is new information and re-earns a rescope. Run
     # here only — this block runs only when slots are free and nothing else
     # is spawnable, so a normal pass pays nothing for the log walk.
     if [ "$rescope_settled" -eq 0 ]; then
-      rescope_held="$(printf '%s\n' "$holdmap" | awk -F'\t' 'NF > 1 { print $1 }' | sort -u)"
+      # Held plans AND current holders: a holder whose `scope:` moved is the
+      # same new information as a held plan's (verifier r2).
+      rescope_held="$( { printf '%s\n' "$holdmap" | awk -F'\t' 'NF > 1 { print $1 }'
+        printf '%s\n' "$rescope_holders"; } | grep -v '^$' | sort -u)"
       while IFS=$'\t' read -r msha mkey; do
         [ -n "$msha" ] || continue
         dispatch_rescope_covers "$mkey" "$rescope_key" || continue
@@ -9085,7 +9093,8 @@ cmd_dispatch() {
           [ -n "$mheld" ] || continue
           mchanged="$(git -C "$ROOT" log --format=%H -1 \
             "${msha}..refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" \
-            -- "docs/plans/${mheld}.md" </dev/null 2>/dev/null)"
+            -- "docs/plans/${mheld}.md" </dev/null 2>/dev/null)" ||
+            mchanged=unreadable  # an unread history settles nothing
           [ -z "$mchanged" ] || break
         done < <(printf '%s\n' "$rescope_held")
         [ -z "$mchanged" ] || continue
