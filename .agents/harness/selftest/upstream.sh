@@ -7,9 +7,8 @@
 # The consumer-side half of the feedback loop (.agents/docs/feedback.md, When
 # the consumer is the detector). What it must say: nothing at all in the
 # canonical repo; which of a merged edge's findings landed on a file canonical
-# owns and which did not; the canonical address it would report to; and a
-# verdict that changes with JOHARNESS_UPSTREAM_FEEDBACK without the FILTER
-# changing with it — the switch decides who acts, never what is true.
+# owns and which did not; the canonical address it would report to; and the
+# verdict, with the manual /upstream-report step that files it.
 #
 # Its own scratch repo, like dispatch and drain: every assertion is a property
 # of a merged edge, and the shared fixture has none of the right shape.
@@ -38,12 +37,9 @@ git -C "$upwork" push -qu origin main
 
 # The edge to read defaults to the newest merge on origin/main, so the fixture
 # needs a real origin — a bare one here, pushed after every merge.
-#
 # `env`, not a bare `"$@"` prefix: an assignment that arrives by expansion is
-# not an assignment, it is a command name, and bash reports
-# `JOHARNESS_UPSTREAM_FEEDBACK=on: command not found` — quietly enough that
-# every assertion under it fails on the same wrong output.
-up()  { ( cd "$upwork" && env JOHARNESS_CONF="$upconf" "$@" ./joharness.sh upstream 2>&1 ); }
+# a command name, not an assignment.
+up()  { ( cd "$upwork" && env JOHARNESS_CONF="$upconf" ./joharness.sh upstream 2>&1 ); }
 # Same, with the edge named. Separate function rather than an optional first
 # argument: `upstream ""` and `upstream` are different calls, and passing an
 # empty string here would test neither of the two things this command takes.
@@ -78,16 +74,9 @@ upedge() {
 # --- canonical says nothing, and that is the first thing it says ------------
 printf 'JOHARNESS_CANONICAL=1\n' >>"$upconf"
 out="$(up)"
-expect "in canonical the command names the switch anyway" \
-  "== upstream (JOHARNESS_UPSTREAM_FEEDBACK: off)" "$out"
+expect "in canonical the command prints its banner" "== upstream" "$out"
 expect "and stops on the direction rule" "CANONICAL — this repo IS the harness" "$out"
 refute "reading no edge at all" "edge      :" "$out"
-# The one that matters: canonical must not report even with the switch ON,
-# because the switch decides who ACTS on a report and canonical has nobody to
-# report to. A guard placed after the edge lookup would pass every assertion
-# above and still route joharness's findings to joharness.
-out="$(up JOHARNESS_UPSTREAM_FEEDBACK=on)"
-expect "and stops with the switch on too" "CANONICAL — this repo IS the harness" "$out"
 sed -i.bak '/^JOHARNESS_CANONICAL=1$/d' "$upconf" && rm -f "${upconf}.bak"
 
 # --- a consumer edge whose fix landed on a harness file ---------------------
@@ -102,21 +91,10 @@ expect "the finding is kept" "the guard says code and means queue documents" "$o
 expect "with its disposition" "[fixed]" "$out"
 expect "and the harness path its fix landed on" ".agents/harness/thing.sh" "$out"
 expect "the verdict is a report" "verdict   : REPORT — 1 harness finding(s) on PR7" "$out"
-expect "off says nothing will file it" "JOHARNESS_UPSTREAM_FEEDBACK is off" "$out"
-refute "and names no role" "/upstream-report" "$out"
+expect "and names the manual step that files it" "File it by hand: /upstream-report PR7" "$out"
+expect "and where it goes" "as ONE research node" "$out"
+expect "on the canonical" "on someone/joharness" "$out"
 
-# The switch moves who acts and NOTHING else. Same edge, same finding, same
-# verdict line — only the sentence under it changes. A switch that also
-# changed the filter would make `off` a different measurement from `on`, and
-# then nobody could read the off output to decide whether to turn it on.
-out="$(up JOHARNESS_UPSTREAM_FEEDBACK=on)"
-expect "on reports the same verdict" "verdict   : REPORT — 1 harness finding(s) on PR7" "$out"
-expect "and names the role that files it" "/upstream-report PR7 files it" "$out"
-expect "and where it goes" "as ONE research node on someone/joharness" "$out"
-out="$(up JOHARNESS_UPSTREAM_FEEDBACK=yes)"
-expect "an unrecognised value is named" "ignoring JOHARNESS_UPSTREAM_FEEDBACK='yes'" "$out"
-expect "and reads as off in the banner, not echoed back" \
-  "== upstream (JOHARNESS_UPSTREAM_FEEDBACK: off)" "$out"
 
 # --- an edge whose fix landed on the consumer's own files -------------------
 # The filter is the whole point: a consumer's own defects are not canonical's

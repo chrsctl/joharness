@@ -35,7 +35,7 @@
 #                   workstream-file deletions (never branches)
 #   upstream [<branch>]
 #                   what a merged edge found ABOUT THE HARNESS (report-only;
-#                   /upstream-report files it where JOHARNESS_UPSTREAM_FEEDBACK=on)
+#                   /upstream-report files it, by hand)
 #   analysis [<branch> [<claim>]]
 #                   why a manager is parked (report-only; /analyst files it
 #                   where JOHARNESS_IDLE_ANALYSIS=on)
@@ -57,9 +57,8 @@
 #   JOHARNESS_CLERK_HOURS=24, JOHARNESS_CLERK_BATCH=3,
 #   JOHARNESS_SCOUT_AUTOMERGE=off
 #                               role cycles; 0 hours = off
-#   JOHARNESS_UPSTREAM_FEEDBACK=off, JOHARNESS_IDLE_ANALYSIS=off
-#                               consumer repos: on = the orchestrator files
-#                               upstream reports / idle analyses
+#   JOHARNESS_IDLE_ANALYSIS=off consumer repos: on = the orchestrator files
+#                               idle analyses
 #   JOHARNESS_SELFTEST=always   run the selftest even on a docs-only diff
 #   JOHARNESS_VERBOSE=1         ci/finish print passing checks too
 
@@ -142,27 +141,8 @@ checks_local() {
   esac
 }
 
-# Where a child repo's harness findings go, and whether anything acts on them.
-# Same off/on shape as JOHARNESS_REVIEW directly above, and for the same
-# reason: `upstream` reports either way, so a human can always read what an
-# edge found about the harness; `on` is what makes the orchestrator spend a
-# session filing it (.agents/docs/feedback.md, When the consumer is the
-# detector). Off by default because on it opens pull requests in a repository
-# this one does not own, and pays for a session beyond the manager cap.
-upstream_mode() { printf '%s' "${JOHARNESS_UPSTREAM_FEEDBACK:-$(conf_get JOHARNESS_UPSTREAM_FEEDBACK)}"; }
-
-upstream_on() {
-  local v; v="$(upstream_mode)"
-  case "$v" in
-    on) return 0 ;;
-    '' | off) return 1 ;;
-    *) warn "ignoring JOHARNESS_UPSTREAM_FEEDBACK='${v}' (want 'on' or 'off'); stays off"
-       return 1 ;;
-  esac
-}
-
 # Why a manager is parked, and whether anything says so out loud. Second
-# switch of the same shape as JOHARNESS_UPSTREAM_FEEDBACK directly above, for
+# switch of the same shape as JOHARNESS_REVIEW, for
 # the same reason: `analysis` reports either way, so a human can always read
 # why a branch sits blocked, stalled or looping; `on` is what makes the
 # orchestrator spend a session filing it as an issue on the canonical
@@ -2851,7 +2831,7 @@ fb_cache_save() {
 # findings whose fix landed on a harness-owned path, and says whether there is
 # a report to file. REPORT ONLY. Nothing here clones, pushes, opens a pull
 # request or edits a file — the filing is .claude/commands/upstream-report.md's,
-# and only when JOHARNESS_UPSTREAM_FEEDBACK is on. That split is what lets a
+# run by hand. That split is what lets a
 # human run this in any repo at any time without it doing anything.
 # ---------------------------------------------------------------------------
 
@@ -3104,17 +3084,13 @@ upstream_text_paths() {
 }
 
 cmd_upstream() {
-  local want="${1:-}" edge label base tip doc repo canon mode
+  local want="${1:-}" edge label base tip doc repo canon
   local ids multi paths from_text p f id marker note flag kept keep="" noid=""
   local n_keep=0 n_drop=0 n_noid=0 n_prose=0 prose=""
 
   [ "$#" -le 1 ] || die "usage: $0 upstream [<branch>|<merge>]"
 
-  # The resolved word, not the raw one: an unrecognised value reads as off
-  # everywhere else in this file and must read as off in the banner too, or
-  # a repo that typed 'true' sees its own typo echoed back as a setting.
-  mode=off; upstream_on && mode=on
-  printf '== upstream (JOHARNESS_UPSTREAM_FEEDBACK: %s)\n\n' "$mode"
+  printf '== upstream\n\n'
 
   # Canonical stops here, and it is not a courtesy. A finding made in this
   # repo is already in the repo that owns the fix; routing it anywhere would
@@ -3264,14 +3240,8 @@ cmd_upstream() {
   printf 'verdict   : REPORT — %d harness finding(s)%s on %s\n' \
     "$n_keep" \
     "$([ "$n_noid" -eq 0 ] || printf ' (+%d unplaceable)' "$n_noid")" "$label"
-  if upstream_on; then
-    printf '            JOHARNESS_UPSTREAM_FEEDBACK=on: /upstream-report %s files it\n' "$label"
-    printf '            as ONE research node on %s. It gates each finding first\n' "${repo:-the canonical}"
-    printf '            (.agents/docs/feedback.md, When the consumer is the detector).\n'
-  else
-    printf '            JOHARNESS_UPSTREAM_FEEDBACK is off: nothing files this. Read\n'
-    printf '            it, or set the key to on in %s.\n' "$(basename "$CONF")"
-  fi
+  printf '            File it by hand: /upstream-report %s, as ONE research node\n' "$label"
+  printf '            on %s (.agents/docs/feedback.md).\n' "${repo:-the canonical}"
   return 0
 }
 
@@ -7020,21 +6990,6 @@ cmd_dispatch() {
     printf 'ceiling   : lifted, no time against a claim (JOHARNESS_MANAGER_HOURS=0)\n'
   fi
   printf 'loop      : one file rewritten %s+ times on a branch = LOOP? (JOHARNESS_CHURN_LIMIT; 0 lifts it); %s+ = a warning on the work line (JOHARNESS_CHURN_THRESHOLD)\n' "$churnl" "$churnt"
-  # Printed both ways, because off is the state a reader most needs told: the
-  # health table's `done` row does nothing here unless this says on, and an
-  # orchestrator that cannot see the switch cannot report why it filed
-  # nothing. Never a count — what a merged edge found is `upstream`'s read,
-  # per edge, and dispatch keeps no memory across passes to know which edges
-  # it has already handed over.
-  if upstream_on; then
-    printf 'upstream  : ON — after a manager MERGES, spawn ONE reporter on its branch:\n'
-    printf '            /upstream-report <branch>. Costs one session beyond the cap,\n'
-    printf '            once per merged edge — the ledger is what makes it once\n'
-    printf '            (JOHARNESS_UPSTREAM_FEEDBACK)\n'
-  else
-    printf 'upstream  : off — a merged manager is done; nothing is reported to the\n'
-    printf '            canonical (JOHARNESS_UPSTREAM_FEEDBACK)\n'
-  fi
   # The second switch, printed both ways for the reason the first one is: off
   # is the state a reader most needs told, because an orchestrator that cannot
   # see the switch cannot report why it explained nothing. Never a count —

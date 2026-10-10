@@ -128,13 +128,9 @@ ENV_MD="$(conf_key_default JOHARNESS_ENV_MD)"
 ENV_MD_GIVEN=0
 REVIEW="$(conf_key_default JOHARNESS_REVIEW)"
 REVIEW_GIVEN=0
-# No flag and no interview question, deliberately. Every other key here is
-# asked because a human at first contact has an opinion about it; a sixth
-# question about an off-by-default mechanism is the cost
-# .agents/docs/orchestrated.md already refused for its own knobs. The channel
-# that reaches a child is the sync naming the key it does not answer, which
-# is what declaring it in conf-keys.sh buys.
-UPSTREAM="$(conf_key_default JOHARNESS_UPSTREAM_FEEDBACK)"
+# No flag and no interview question, deliberately: a question about an
+# off-by-default mechanism is paid by every new consumer. The sync names a
+# key the conf does not answer, which is what declaring it in conf-keys.sh buys.
 # Same decision again, one switch over: whether a parked manager is explained
 # is a question a repo has after its first stuck run, not at first contact.
 IDLE_ANALYSIS="$(conf_key_default JOHARNESS_IDLE_ANALYSIS)"
@@ -728,16 +724,6 @@ JOHARNESS_CHECKS=${CHECKS}
 # 0 on HOURS switches the WHOLE cycle off; 0 on PLANS leaves only the clock.
 JOHARNESS_CURATE_HOURS=${CURATE_HOURS}
 JOHARNESS_CURATE_PLANS=${CURATE_PLANS}
-
-# off = ./joharness.sh upstream reports what a merged edge found about the
-#       harness — which findings landed on a file canonical owns, and the
-#       canonical they would go to. Nothing acts on it.
-# on  = the orchestrator spends ONE session
-#       per merged edge, beyond the manager cap, filing those findings as a
-#       report pull request on the canonical (.agents/docs/feedback.md, When
-#       the consumer is the detector). Off by default: it costs money and it
-#       opens pull requests in a repository this one does not own.
-JOHARNESS_UPSTREAM_FEEDBACK=${UPSTREAM}
 
 # off = ./joharness.sh analysis reports why a manager is blocked, stalled or
 #       looping: the mark it carries, and whether joharness.conf has moved
