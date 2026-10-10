@@ -68,6 +68,31 @@ nothing. Never read a full queue and leave it untouched.
 The ledger comes from your wake message (step 4), never from memory. First
 start = empty.
 
+## Pass entry (every pass, before "## 1. Read")
+
+`git fetch origin main`, then read two fields off the wake message, like the
+ledger — never from memory: `harness=` and `pass=`. Missing (a wake armed by
+an older harness) = `harness` mismatch (report `<old>` as `none`), `pass=1`.
+First start = `pass=1`. Run the superseded check first: a superseded pass
+does nothing, so it re-reads and fast-forwards nothing.
+
+- **Harness.** `harness=` vs the first 12 characters of `git show
+  origin/main:.claude/commands/orchestrate.md | git hash-object --stdin`.
+  Fresh-fetched `origin/main`, not the checkout: the checkout fast-forwards
+  only at "## 0. Start", so a resync inside one session never shows there.
+  They differ = re-read `git show origin/main:.claude/commands/orchestrate.md`
+  whole before acting, fast-forward the checkout as "## 0. Start" step 1
+  does, drop ledger keys the new text no longer defines, report `harness
+  moved: <old> to <new>`.
+- **Superseded.** `list_triggers` with `include_completed` lists this
+  session's `send_later` wakes with their stored prompts. Another one
+  carrying a higher `pass=` than yours = report `superseded by pass <m>`, do
+  nothing, schedule nothing.
+- Limit: the check sees only this session's wakes. A second orchestrator
+  session (or a heartbeat-fired one) arms its own; two orchestrators running
+  is "## 0. Start" step 3's job, not this field's. No `list_triggers` = say so
+  once, skip the superseded check, keep the `harness=` check.
+
 ## 1. Read
 
 `JOHARNESS_PENDING_SPAWNS=<n> ./joharness.sh dispatch`, `<n>` = `@new`
@@ -225,6 +250,7 @@ Ledger every spawn the moment it returns as `<stem>@new`.
 
 ```
 /orchestrate pass
+harness=<first 12 chars of git hash-object of origin/main:.claude/commands/orchestrate.md> pass=<this pass's number plus one>
 ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] [notified=<stem>] respawns=<n> [rescoped=<key>] [curated=<stamp>] [clerked=<stamp>] [scouted=<stamp>]; ...
 lead <stem>: <40 chars, to the end of this line>
 ```
@@ -244,6 +270,9 @@ the lead and say so in the report. Keep at most five, newest first, one per
 `<stem>`. Drop a lead when its stem merges — AFTER this pass's report,
 so a lead arriving in the same pass its subject merges is still printed once.
 Drop it at once, unprinted, when dispatch marks that stem `CORE ONLY`.
+
+Recompute `harness=` at every arm from fresh `origin/main`; never copy it from
+the wake you received.
 
 Never sleep, never poll. A manager's lead message wakes you: note the lead,
 end the turn; the next scheduled pass writes it into the ledger. Merges are
