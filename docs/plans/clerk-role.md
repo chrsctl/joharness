@@ -171,7 +171,7 @@ that need a human decision, get a comment instead. After the merge,
   no core path (`joharness.conf`, `.claude/settings.json`) in scope.
 - Nothing invented: the clerk turns EXISTING issues into plans. It never
   files an issue or writes a requirement. A role that fills its own queue
-  has no edge to stop at (`.agents/docs/unsupervised.md`, Bounds).
+  has no edge to stop at (`.agents/docs/orchestrated.md`, Bounds).
 - Glossary: the role is `clerk`, and so are the command and the subcommand.
   Do not introduce a second spelling (`triager` was the old one).
 - `scout-command` also edits `orchestrate.md` and `orchestrated.md`.

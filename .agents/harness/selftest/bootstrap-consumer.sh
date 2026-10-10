@@ -119,7 +119,7 @@ refute "and does not warn about a flag nobody passed" "--mode is obsolete" "$out
 expect "the closing message carries the heartbeat note" \
   "still needs a heartbeat to fire each next orchestrator session" "$out"
 expect "and points at the doc that carries the Routine" \
-  ".agents/docs/unsupervised.md" "$out"
+  ".agents/docs/orchestrated.md" "$out"
 expect "a run with no terminal says why it did not ask" \
   "not a terminal" "$out"
 expect "ci workflow seeded from canonical" "BOOT-CI-STUB" \

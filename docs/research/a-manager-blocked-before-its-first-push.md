@@ -322,5 +322,5 @@ beneath it.
 
 Named, not written: the rows themselves live in
 `.claude/commands/orchestrate.md`, which is protocol text
-(`./joharness.sh protocol-paths`). A plan touching it is supervised only, and
+(`./joharness.sh protocol-paths`). A plan touching it is CORE ONLY, and
 this node does not propose it.

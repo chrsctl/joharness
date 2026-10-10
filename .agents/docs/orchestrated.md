@@ -1,49 +1,37 @@
-# Orchestrated mode
+# How the harness runs
 
-Switch: `JOHARNESS_MODE=orchestrated` in `joharness.conf` (per repo, never
-synced), or exported for one command. Third value beside `supervised` and
-`unsupervised`; anything else reads as supervised. Requested 2026-09-05,
-after four unsupervised runs never got past one generation
-([`unsupervised.md`](unsupervised.md), Runs).
+`JOHARNESS_MODE=orchestrated` in `joharness.conf` (per repo, never synced),
+or exported for one command. It is the only mode; any other value is
+obsolete and `session-start` warns. Requested 2026-09-05, after four peer
+runs never got past one generation (Runs, below).
 
-Same question as unsupervised — is a human present — same answer, same
-bounds. ONE new distinction: who dispatches. Unsupervised is a peer fleet:
-each session picks its own item, and the fleet lives only while the
-heartbeat fires the next one. Orchestrated puts a controller above the
-queue: one low-tier session reads it, spawns a manager per item under a
-cap, watches them, and kills a stuck one after its handover is written.
-`.agents/docs/product/README.md` records the peer position and what it
-costs; this mode is the measured alternative. Run 1 — 2026-09-06, counted
-in Runs below — is the counted run, and counting it is what discharged the
-beta label, 2026-09-11. The condition this file used to set was a different
-one, which design empties a queue faster, and it could never be discharged:
-neither side has drained a stocked queue. Run 1 did not, and the nearest
-peer number is 2026-08-30, two items in one generation
-([`unsupervised.md`](unsupervised.md), Runs). That comparison is still
-open, and it is not what the label meant.
+No human is present. ONE controller sits above the queue: a low-tier
+session reads it, spawns a manager per item under a cap, watches them, and
+kills a stuck one after its handover is written. `.agents/docs/product/README.md`
+records the peer position and what it costs. Run 1 — 2026-09-06, counted in
+Runs below — is the counted run, and counting it discharged the beta label,
+2026-09-11. Every bound in Bounds, below, holds, through `joharness.sh:unattended`.
 
-## What the mode changes
+## How the harness runs
 
-One row per reader. Supervised sees none of it. Unsupervised sees none of
-it either — the two unattended modes share every bound and differ only in
-the rows below.
+One row per reader.
 
-| Where | Change |
+| Where | What it does |
 | --- | --- |
-| `joharness.sh:run_mode` | Third value. `unattended()` is true for both unattended modes and is the ONE predicate the boundary, the requirement lint, the marking and `authority` read. A `= unsupervised` test anywhere is a bound this mode escapes. |
+| `joharness.sh:run_mode` | The one mode. `unattended()` is the ONE predicate the boundary, the marking and `authority` read. |
 | `session-start` banner | Names the mode and routes by role: prompt names `/manage <item>` = manager; nothing named = orchestrator, run `/orchestrate`. Same boundary list. |
-| Queue hook | Same `SUPERVISED ONLY` marking. Plus, this mode only: `in flight: <free> overlaps <claimed> on <path>` lines, one per free plan whose scope collides with a plan a manager holds now. |
-| `./joharness.sh dispatch` | New. The orchestrator's one read: the human's numbers, managers in flight with push age and a `STALL?` mark, slots under the cap, the spawn order with waves and `HOLD`s, one verdict line. Reports only. |
-| `./joharness.sh curate` | New, and NOT orchestrated-only: reports whether the live plan queue's declarations are still true — REPAIR and DECLUTTER findings a curator acts on, PROPOSE findings it only writes down. `ci` already walks every plan mechanically; this adds the questions a lint cannot answer. |
-| `dispatch` `curate :` line + `curate DUE` tail | New, and NOT this mode's alone: `drain` prints the same line from the same reader, so a human's `/start` reaches the curator too. The cycle's state, both halves from GIT rather than a ledger: the last curate is the newest base-branch commit deleting a `docs/handover/curate-*.md`, and an in-flight one is a branch whose workstream file reads `workstream: curate-<stamp>`, `plan: none`. Due and none in flight = spawn ONE curator, beyond the cap. ORTHOGONAL to the verdict, so it rides the tail. |
-| `dispatch` verdict `OVERLAP-BOUND` | New, this mode only. Slots free but every free plan HELD behind work in flight, so nothing is spawnable and yet the work is not done — the holds are `scope:` declarations, not the plans themselves. A `rescope :` block names the holder key and the held paths, and the verdict spawns ONE surveyor to correct the declarations. The state run 1 mislabelled DRAINED. |
-| `./joharness.sh drain` | Same verdict; tells a manager it works the item its prompt named, and names the orchestrator's exit as dispatch's verdict. |
-| `./joharness.sh upstream` | New, and NOT orchestrated-only: reports what a merged edge found about the harness in any consumer, at any time. What this mode adds is a role that acts on it. |
-| `./joharness.sh janitor` + the `janitor :` line | New, and NOT orchestrated-only: `drain` reads the same cadence from the same reader, so a human's `/start` reaches the sweep too (each renders it for its own reader, as the curate line does). A claim whose session is gone holds its plan out of the queue for ever; the janitor releases it by writing `status: abandoned` into that claim's own file, never by deleting anything. Clock-driven (`JOHARNESS_JANITOR_HOURS`, 12 by default), dated from git like the curate cycle, ORTHOGONAL to the verdict so it rides the tail. |
-| `./joharness.sh scout` + the `scout :` line | New, and NOT orchestrated-only, as janitor: `drain` and `dispatch` ask the same reader. Unlike curate and janitor it is GATED on the verdict, not orthogonal to it: a scout proposes new work, and new work competes with real work, so `dispatch` spawns one only under `DRAINED — nothing free, nothing in flight` and `drain` prints the block only under `DRAINED`; due under any other verdict prints as suppressed. Clock-driven (`JOHARNESS_SCOUT_HOURS`, 168 by default), dated from git — the newest scout RETIRE, merged or on an unmerged branch, because a proposal the human CLOSED leaves nothing on the base branch. Every misread fails closed: it holds the cycle off, never spawns a second scout — the path names a scout, nothing in the file; a scout file on any tip, the base's included, is in flight unless it says `abandoned`; and no fresh fetch holds the spawn. Tier fable, beyond the cap, at most one in flight. What it does when spawned: `.claude/commands/scout.md`. |
-| `./joharness.sh analysis` | New, and NOT orchestrated-only: one unmerged branch's claim — the BLOCKED / STALL? / LOOP? mark it carries, the base branch's current conf answers beside the cause it stated, and what has changed since. No argument sweeps every claim, printing the ones carrying a condition and counting the rest. It reads claims from the handover diff, so it also reads a claim whose plan file is gone — one `dispatch` cannot mark. Reports only. |
-| `JOHARNESS_UPSTREAM_FEEDBACK` | New, `off` by default. On, the health pass's `done` row spawns ONE reporter per merged edge, which files the findings as a report pull request on the canonical ([`feedback.md`](feedback.md), When the consumer is the detector). A reporter holds no manager slot and is one session beyond the cap. |
-| `JOHARNESS_IDLE_ANALYSIS` | New, `off` by default. On, a row `dispatch` marks `ANALYSE?` — blocked, stalled or looping — spawns ONE analyst, which says why, re-reads the stated cause against this repo's own conf, and files what survives its gate as an issue on the canonical. BESIDE that row's verdict, never instead of it. An analyst holds no manager slot and is one session beyond the cap. Issue #266 is the run that bought it. |
+| Queue hook | Marks a plan with ANY core path (`./joharness.sh protocol-paths`) in `scope:` and ranks it out of the free list. Plus `in flight: <free> overlaps <claimed> on <path>` lines, one per free plan whose scope collides with a plan a manager holds now. |
+| `./joharness.sh dispatch` | The orchestrator's one read: the human's numbers, managers in flight with push age and a `STALL?` mark, slots under the cap, the spawn order with waves and `HOLD`s, one verdict line. Reports only. |
+| `./joharness.sh curate` | reports whether the live plan queue's declarations are still true — REPAIR and DECLUTTER findings a curator acts on, PROPOSE findings it only writes down. `ci` already walks every plan mechanically; this adds the questions a lint cannot answer. |
+| `dispatch` `curate :` line + `curate DUE` tail | `drain` prints the same line from the same reader, so a human's `/start` reaches the curator too. The cycle's state, both halves from GIT rather than a ledger: the last curate is the newest base-branch commit deleting a `docs/handover/curate-*.md`, and an in-flight one is a branch whose workstream file reads `workstream: curate-<stamp>`, `plan: none`. Due and none in flight = spawn ONE curator, beyond the cap. ORTHOGONAL to the verdict, so it rides the tail. |
+| `dispatch` verdict `OVERLAP-BOUND` | Slots free but every free plan HELD behind work in flight, so nothing is spawnable and yet the work is not done — the holds are `scope:` declarations, not the plans themselves. A `rescope :` block names the holder key and the held paths, and the verdict spawns ONE surveyor to correct the declarations. The state run 1 mislabelled DRAINED. |
+| `./joharness.sh drain` | Tells a manager it works the item its prompt named, and names the orchestrator's exit as dispatch's verdict. |
+| `./joharness.sh upstream` | reports what a merged edge found about the harness in any consumer, at any time. What this mode adds is a role that acts on it. |
+| `./joharness.sh janitor` + the `janitor :` line | `drain` reads the same cadence from the same reader, so a human's `/start` reaches the sweep too (each renders it for its own reader, as the curate line does). A claim whose session is gone holds its plan out of the queue for ever; the janitor releases it by writing `status: abandoned` into that claim's own file, never by deleting anything. Clock-driven (`JOHARNESS_JANITOR_HOURS`, 12 by default), dated from git like the curate cycle, ORTHOGONAL to the verdict so it rides the tail. |
+| `./joharness.sh scout` + the `scout :` line | `drain` and `dispatch` ask the same reader. Unlike curate and janitor it is GATED on the verdict, not orthogonal to it: a scout proposes new work, and new work competes with real work, so `dispatch` spawns one only under `DRAINED — nothing free, nothing in flight` and `drain` prints the block only under `DRAINED`; due under any other verdict prints as suppressed. Clock-driven (`JOHARNESS_SCOUT_HOURS`, 168 by default), dated from git — the newest scout RETIRE, merged or on an unmerged branch, because a proposal the human CLOSED leaves nothing on the base branch. Every misread fails closed: it holds the cycle off, never spawns a second scout — the path names a scout, nothing in the file; a scout file on any tip, the base's included, is in flight unless it says `abandoned`; and no fresh fetch holds the spawn. Tier fable, beyond the cap, at most one in flight. What it does when spawned: `.claude/commands/scout.md`. |
+| `./joharness.sh analysis` | one unmerged branch's claim — the BLOCKED / STALL? / LOOP? mark it carries, the base branch's current conf answers beside the cause it stated, and what has changed since. No argument sweeps every claim, printing the ones carrying a condition and counting the rest. It reads claims from the handover diff, so it also reads a claim whose plan file is gone — one `dispatch` cannot mark. Reports only. |
+| `JOHARNESS_UPSTREAM_FEEDBACK` | `off` by default. On, the health pass's `done` row spawns ONE reporter per merged edge, which files the findings as a report pull request on the canonical ([`feedback.md`](feedback.md), When the consumer is the detector). A reporter holds no manager slot and is one session beyond the cap. |
+| `JOHARNESS_IDLE_ANALYSIS` | `off` by default. On, a row `dispatch` marks `ANALYSE?` — blocked, stalled or looping — spawns ONE analyst, which says why, re-reads the stated cause against this repo's own conf, and files what survives its gate as an issue on the canonical. BESIDE that row's verdict, never instead of it. An analyst holds no manager slot and is one session beyond the cap. Issue #266 is the run that bought it. |
 | `.claude/commands/orchestrate.md`, `manage.md`, `upstream-report.md`, `curate.md`, `analyst.md` | The roles, as commands. |
 
 ## Roles
@@ -62,8 +50,7 @@ the rows below.
 
 ### What each role reads
 
-Every line injected at session start is paid by every session, and under
-this mode most of the fleet-wide view is read by nobody: the orchestrator
+Every line injected at session start is paid by every session, and most of the fleet-wide view is read by nobody: the orchestrator
 gets the queue through `dispatch`, a manager works the one item its prompt
 names. So session start prints the mode banner, the environment pointer,
 and THIS branch's own workstream files — `HANDOVER_SCOPE=branch` in the
@@ -116,12 +103,12 @@ Spawn = `create_session` with the repository attached, the item's tier
 mapped to a model by [`agent-selection.md`](agent-selection.md) Lineup, a
 title `manager: <stem>`, and a prompt carrying `/manage <path>`,
 `./joharness.sh authority` and `./joharness.sh protocol-paths` — the three
-things [`unsupervised.md`](unsupervised.md) Authority says a spawn prompt
+things Authority, below, says a spawn prompt
 carries, and nothing that asserts its own legitimacy.
 
 ## Health: two signals, one verdict
 
-The monitor rule under Heartbeat in [`unsupervised.md`](unsupervised.md):
+The monitor rule under Heartbeat, below (making the fleet long):
 never judge a session from one signal, because push time is not liveness
 in either direction. So a verdict here needs both halves, and dispatch
 prints only the git half.
@@ -239,7 +226,7 @@ protocol is built on the file being written by the session that knows.
    out of the spawn list — and the human is told.
 
 The branch is the claim and the claim survives the kill. That is the
-property the peer fleet already had and this mode keeps: nothing is
+property the harness keeps: nothing is
 stored, the successor reads git.
 
 ## Concurrency
@@ -261,14 +248,14 @@ long as they stood (`docs/plans/orchestrator-edge-slot-leak.md`). The control
 plane says what to do about the session, never whether the slot is real.
 Within the cap the order is the
 queue hook's: urgent first, then oldest, partitioned into waves of
-disjoint scope. Two things this mode adds to the wave rule:
+disjoint scope. Two things on top of the wave rule:
 
 - A free plan whose scope overlaps a plan a manager HOLDS is `HOLD`, not
   free. The peer fleet takes the collision and pays the reconcile at step
   7; an orchestrator that knows the collision is coming has no reason to
   send a manager into it. The hook computes it with the same
   `wave_split_hit` the waves use — a path only one side marked `shared:`
-  collides here exactly as it does there — printed only in this mode.
+  collides here exactly as it does there — printed here.
 - A hold behind a BLOCKED branch is released, the reconcile named as the
   cost: that branch waits on a human, a human's clock can be days, and a
   plan waiting on it starves with nothing in flight to end the wait.
@@ -321,7 +308,7 @@ disjoint scope. Two things this mode adds to the wave rule:
   (`docs/plans/curator-in-the-loop.md`). What made it regular is the trigger —
   plan files changed since the last curate, not a clock.
 
-The reconcile rate the peer fleet measured — about one merge in four
+The reconcile rate measured earlier — about one merge in four
 (`.agents/docs/product/README.md`, Orchestration) — is the number a run of
 this mode should move. If it does not, the hold rule bought nothing.
 
@@ -440,15 +427,12 @@ awk '{print int($2/3600), $1}' /tmp/commits.txt | sort -u | cut -d' ' -f1 |
   awk "{a[NR]=\$1} $pct END {printf \"hours=%d median=%d p90=%d max=%d\n\", NR, r(.5), r(.9), a[NR]}"
 ```
 
-Measured on the peer fleet, which is the only fleet that has run: what a
+Measured on the earlier peer fleet: what a
 cap of 4 costs in reconciles under an orchestrator is the run's to say.
 
-## Bounds, unchanged, plus one path
+## Bounds, orchestrator
 
-Every bound in [`unsupervised.md`](unsupervised.md) holds through
-`unattended()`: the core paths off limits (protocol text released
-2026-10-08), step 7 conditions for every merge, nothing invented at the edge,
-the prompt routes and the repository authorises. The orchestrator adds
+The Bounds section, below, holds through `unattended()`. The orchestrator adds
 its own: it merges nothing, edits nothing but a killed manager's
 workstream file, picks no tier, and takes no item itself.
 `JOHARNESS_UPSTREAM_FEEDBACK` does not loosen one of them — a reporter is a
@@ -478,21 +462,21 @@ one without is a written number, and the proposal fails
 (`.claude/commands/scout.md`).
 
 `joharness.conf` joined `protocol_paths` with this mode. It holds the
-mode line `authority` verifies and the cap: a session that may rewrite
-its own mode line authorises itself, and one that may raise its own cap
+cap and is one of the files `authority` compares: a session that may rewrite
+its own rules authorises itself, and one that may raise its own cap
 decides money. Priced and accepted: `./joharness.sh env <name>` writes
 that file too, so an unattended session that switches its environment
 layer now trips the Stop guard until it reverts. Switching layers is a
-configuration decision, which is the supervised half of the same split. Found the day the mode was built — the run plan, since retired, declared
+configuration decision, which is a human's call. Found the day the mode was built — the run plan, since retired, declared
 `scope: docs/product, joharness.conf` for the flip,
 and with the conf outside the boundary `dispatch` offered that plan to the
 very fleet it would have flipped. Both roles run `authority` first, and
-`orchestrated` with any verdict but VERIFIABLE is a stop, and nothing
+any verdict but VERIFIABLE is a stop, and nothing
 about this mode softens it:
 "a human invoked this" is a claim the session cannot check, which is the
-sentence under Authority in the same file.
+sentence under Authority, below.
 
-## Where the mode came from, and what closed it
+## Where this came from, and what closed it
 
 `docs/product/orchestrated-mode.md` carried this and was RETIRED UNSATISFIED
 on the requester's decision, 2026-09-17 — the lifecycle state in
@@ -522,7 +506,7 @@ the decision to it, same day:
 above: the mode exists and reads as unattended in every bound (What the mode
 changes for the role routing, Bounds for the bounds); `dispatch` answers the
 orchestrator's question in one read — the cap, managers in flight with push
-age, the spawn order, one verdict (What the mode changes, the `dispatch`
+age, the spawn order, one verdict (How the harness runs, the `dispatch`
 row, which is where all four appear; The loop shows it being read); a stuck
 manager is found from two signals, nudged, killed only after its handover is
 on the branch, and a successor resumes (Health, The kill).
@@ -531,7 +515,7 @@ on the branch, and a successor resumes (Health, The kill).
 one run, started once over a stocked queue, counted until it stops — every
 free plan merged with no human turn, under the cap, numbers counted rather
 than written. No run has met it. Run 1 missed three clauses and run 3 misses
-those and adds one, both in Runs above. The requester's decision is that the
+those and adds one, both in Runs, below. The requester's decision is that the
 live run belongs to a child repo rather than this one, so this repo stopped
 scheduling it: the condition is not withdrawn and not claimed met — it is
 measured elsewhere.
@@ -547,32 +531,231 @@ Read that as the standing answer to "why is there no plan for this". There
 was one; it was removed on that decision, not abandoned.
 
 **Constraints the requirement set, still binding.** Three have their own
-home above: every bound in [`unsupervised.md`](unsupervised.md) holds
-unchanged (Bounds); the numbers are the human's and a session proposes with
+home above: every bound in Bounds, below, holds
+unchanged; the numbers are the human's and a session proposes with
 evidence rather than setting one (The numbers are the human's); two spawn
 levels only, orchestrator to manager session and manager to worker subagent
 (Roles).
 
 The fourth has no section of its own and is written out here because of it —
 **no state store and no status field: every view derives from git and the
-control plane at read time.** The nearest text above says the orchestrator
+control plane at read time.** The nearest text says the orchestrator
 stores nothing in the repo and that a successor reads git, and neither
 states the no-status-field half. That half is what makes a retirement a
 DELETION here rather than a flag on a file, so losing it would cost the
 reasoning for this very section.
 
-## Heartbeat
+## The one stop
 
-Same Routine as unsupervised, same operator action, same connector trap;
-the prompt is `/orchestrate`. Firing over a live orchestrator is safe —
-the new one finds the title `RUNNING` and exits. Firing over a dead one
-is the point.
-Firing over a third kind — a title `RUNNING` frozen — also exits: a
-firing keeps no ledger, cannot take two looks, and must not replace a
-session it cannot stop. It reports the record and the human decides
-(`last_run` reports delivery, never execution). The chain is cadence;
-only the Routine survives the container stopping, so step 0 reports
-its absence every pass and never creates it (money).
+DRAINED, at the queue edge, with nothing in flight. A manager takes one
+item, runs the Loop on it, exits; the orchestrator stops at DRAINED only
+when nothing is in flight. Nothing is invented at the edge: work enters the
+queue as an issue, a requirement, or a plan through a pull request, and only
+there. Anything else that ends a run — a rate limit, a session asking a
+question, a generation that failed to spawn — is a finding, not a stop.
+
+## Bounds
+
+The rules that bind every session. They outlive any spec that asked for
+the mode, which is why they are here rather than in a requirement that
+retires.
+
+- **The core paths are off limits to a session running**:
+  `joharness.conf` (mode line, cap — money), `.claude/settings.json` (hooks,
+  permissions) and `.github` (the merge gate's checks, and CODEOWNERS).
+  Protocol text is NOT: since the requester's decision of 2026-10-08 ("remove
+  most restrictions; joharness should be able to use its own framework") a
+  session edits and self-merges `joharness.sh`, `.agents/harness/` and
+  `.claude/` like any other diff, under the step 7 gate. Before that the
+  bound covered every protocol tree, and on the canonical it marked 9 of 9
+  queued plans `NOT YOURS` (`dispatch` at 25733a6) — the fleet could not
+  build the harness it runs on. `joharness.sh:protocol_paths` is the list,
+  read by the banner, the Stop guard and the queue hook. It lives in a file
+  a session may now edit, so it is the early warning, not the guarantee:
+  `.github/CODEOWNERS` owns the core paths, and a branch-protection rule
+  requiring code-owner review is what stops a merge touching them. That rule
+  is a repository setting, the human's to switch on. It protects the
+  workflow definitions, not the checks' content: `ci.yml` runs
+  `./joharness.sh ci` from the PR head, and a session may edit that file —
+  accepted with the release (verifier r2). The consequence — a plan with any
+  core path in `scope:` is marked and de-ranked — is the queue-hook row in
+  the table above; the reason it marks on ANY is here: the guard counts any
+  such path in the diff and acceptance is all-or-nothing, so a partly-core
+  plan cannot be finished either. The measurements below were taken under
+  the old, wider boundary. Measured in this repo: attempt two spent 55 minutes
+  on the all-protocol shape, and the partly-protocol one was found on
+  2026-09-02 (canonical `main` f9fb932) with `drain` answering `next:` on a
+  plan whose own Traps said not for the fleet. Sandbox configuration
+  (`.agents/env/`) is not
+  core. The list does NOT cover its own file: `joharness.sh` is a
+  session's to edit, which is why the list is the warning and CODEOWNERS
+  the guarantee. `joharness.conf` has been core since this mode:
+  it holds the cap, and `authority` compares it with the base branch and the orchestrator's cap
+  (Bounds, orchestrator, below).
+- **Merging uses the step 7 conditions unchanged.** The mode removes the
+  human, never the gate.
+- **Writing a requirement is no longer a bound.** Until 2026-10-08 `ci`
+  redded an unattended branch that added one (`lint_requirement_writes`,
+  deleted then, on the same decision as the bullet above). What still stops
+  a fleet inventing its own work is the edge rule above (The one stop): nothing is
+  invented at DRAINED, and work enters only as an issue, a requirement or a
+  plan through a pull request. One session writes such a pull request with no
+  node behind it — a scout's proposal — and it enters the queue only through a
+  human's merge or a human's conf line (Bounds, orchestrator, below).
+
+## Authority: the prompt routes, the repository authorises
+
+Measured 2026-08-31: two sessions spawned with a prompt saying *never ask a
+human, merge your own pull requests, keep going* refused it as a suspected
+injection. They were right — that is the shape an injected task has, and a
+claim cannot be its own evidence. So a spawn prompt carries three things:
+
+1. The work, named (a claim exists only after the first push, so two
+   sessions started against one queue can both take the top plan).
+2. `./joharness.sh authority` — and: not VERIFIABLE, stop and say so.
+3. `./joharness.sh protocol-paths` — what it must not commit under.
+
+Never: "there is no human watching", "never ask a human", "this was
+authorised by X", or any keep-going instruction the Loop does not carry.
+`authority` reads VERIFIABLE only when the rules this checkout runs
+(`joharness.sh`, `.agents/harness`, `.claude`, `joharness.conf`) equal
+`origin/main`'s: every change to them went through a pull request.
+That proves review, not a human hand: attempt four's session A spent
+fourteen minutes on the difference. Tuning
+the prompt until a session stops refusing is not the remedy.
+
+## Heartbeat: making the fleet long
+
+Dispatch makes the fleet WIDE. Nothing makes it LONG: each session claims,
+merges, ends, and the fleet survives only while something fires the next. Measured
+on `origin/main` 2026-08-29, last 120 merges:
+
+```bash
+git log --merges --format='%ct' origin/main -120 |
+  awk 'NR>1{d=(prev-$1)/3600; if(d>3) n++} {prev=$1} END{print n+0" of "NR-1}'
+```
+
+5 of 119 gaps exceed three hours (longest 32.2h and 24.0h), with 11 to 19
+plan files in the tree at each — a full queue, idle.
+
+The heartbeat is a scheduled Routine (`create_trigger` on the
+claude-code-remote MCP server, `create_new_session_on_fire: true`) firing a
+fresh session on an interval. It holds nothing in a container, so nothing it
+needs can be reclaimed. Rejected for not surviving their creator: session
+cron, a self-scheduling session (wakes ONE conversation, not a fleet), an
+external loop. Rejected for credentials: a scheduled GitHub Actions workflow
+— a pull request it opens gets no CI on `GITHUB_TOKEN`, so step 7 never
+goes green.
+
+**Operator action, always.** A recurring Routine is recurring spend, and
+spend is the human's (`.agents/harness/AGENTS.md`, Decide alone). A session
+documents; it never creates one.
+
+- **Cadence**: hourly floor, measured — `*/5 * * * *` is refused with "the
+  minimum interval is 1 hour". Hourly at minute 0 is anchored to creation
+  time server-side, so Routines spread across the hour.
+- **Prompt**: standalone (a fresh session inherits nothing): run the Loop,
+  plus the three things above. The hook prints queue, claims and tier before
+  the first prompt, so nothing else is needed.
+- **The connector trap**: a Routine created from a session stores NO
+  connectors, and the sessions it fires carry no `mcp__*` tools — with no
+  `gh` on the runner they cannot open or merge a pull request, so step 7 is
+  unreachable. Verified from two sessions for this organization. Create it
+  from the claude.ai Routines UI instead, then `fire_trigger` once and check
+  the fired session reached GitHub before trusting it. `create_trigger` now
+  carries a `connectors` parameter and warns when a Routine stores none, so
+  the trap is an argument's default rather than a property of the surface —
+  but every one of the 203 Routines sampled on this account still reads
+  `mcp_connections: []` (`list_triggers`, 2026-10-08; `has_more` still true,
+  so a large sample and not a census). UI route stands until somebody
+  measures that parameter; a parameter existing is not a measurement.
+- **Stop**: `update_trigger` with `enabled: false` pauses, `delete_trigger`
+  removes. Read `last_run` from `list_triggers`, never `next_run_at`: a
+  paused Routine keeps a stale `next_run_at` that reads like a missed
+  firing. Proved on a throwaway Routine. A human who cannot halt the fleet
+  has no veto.
+- **If a monitor is ever added**: never judge a session dead from one
+  signal. Push time is not liveness in either direction — the handover
+  protocol's own rule, and why `/who` exists — so a monitor built on a
+  single store reads healthy sessions as stuck and ended ones as working,
+  and acts on both. Cross-check a second signal before anything acts on the
+  verdict.
+- **Firing over a live fleet**: nothing special. The new session reads the
+  queue; claimed plans are not free. The gap that stays open is the handover
+  protocol's own: a claim not yet pushed is invisible, so push the
+  workstream file as soon as work has a name.
+
+### What ends the chain, and what a Routine does about it
+
+A `send_later` chain is the CADENCE. It was never the durability. Two
+measured ways a chain ends, and nothing re-arms after either:
+
+| shape | the last link reads | measured |
+| --- | --- | --- |
+| delivered, turn never ran | `SUCCEEDED`, `ended: run_once_fired`, 5 ms | issue 285, the 18-day idle: byte-identical to the 19 healthy links before it |
+| delivery failed, Routine retired | `ROUTINE_RUN_STATUS_FAILED`, `ended_reason: auto_disabled_session_gone`, 7.06 ms and 6.67 ms | `list_triggers enabled=false`, 2026-10-08: 3 of 3 auto-disabled, 2 of 3 carrying the failed run |
+
+The first is the dangerous one, and it is the one that has actually cost 18
+days. `last_run` reports DELIVERY, not execution — `list_triggers`' own
+contract — so a terminating link and a healthy link are the same record. The
+second at least leaves a disabled Routine carrying a reason. Neither leaves
+pending work anywhere: a dead chain has no next link to examine.
+
+So the check after creating a Routine is NEVER `last_run`. It is the
+connector bullet's check above: `fire_trigger` once, then confirm the fired
+session reached GitHub. Execution, not delivery.
+
+### Mode 3 is durability, not cadence
+
+`create_new_session_on_fire: true` holds no session reference — its target
+is created at firing — so neither shape above can end it. REASONING from the
+targeting contract plus that contrast, not a measurement: no mode-3 Routine
+exists on this account to observe, and creating one is spend.
+
+It cannot replace the chain. Its floor is 1 hour (`*/5 * * * *` refused,
+above): 60 minutes against `JOHARNESS_STALL_MINUTES` 45, and 6x
+`JOHARNESS_HEALTH_MINUTES` 10 (`joharness.sh:8012`), which is what
+`orchestrate.md` § 4 arms the chain at. The chain ran 19 consecutive passes
+at a median gap under 12 minutes (issue 285). The Routine BACKS the chain;
+it does not carry it.
+
+**A firing can still do nothing.** `orchestrate.md` step 0 precondition 2: a
+session finding another titled `orchestrator: <owner/repo>` with
+`session_status: RUNNING` that is not itself exits — before the health pass
+at step 2. An orchestrator frozen but still RUNNING makes every firing exit,
+forever, while the Routine's own record stays healthy. That state is not
+hypothetical: this file's `stalled` row is "`RUNNING`, `status_detail`
+unchanged across two passes", measured byte-identical across 172.273s.
+This file names the live case ("the new one finds
+the title `RUNNING` and exits") and the dead case ("firing over a dead one
+is the point"); frozen-but-`RUNNING` is neither, and nothing handles it.
+Unresolved, and noted because the precondition is itself a one-signal
+verdict on a control-plane field — the thing the monitor bullet above
+forbids.
+
+### The repository's own clock, for the record
+
+The scheduled workflow stays rejected on credentials, above. What it does
+prove is that a clock outside the fleet keeps time regardless:
+`origin/main`'s largest first-parent merge gap is 435.02h — `c96088a3`
+(`2026-09-17T19:55:00Z`) to `0d726e09` (`2026-10-05T22:56:30Z`), 18.1 days,
+the same outage issue 285 measures — and three consecutive weekly
+`update.yml` runs fired inside it (`2026-09-21T12:14:58Z`,
+`2026-09-28T13:11:10Z`, `2026-10-05T13:53:54Z`), every one on `head_sha
+c96088a3`, the frozen tip. Fired at all, NOT on time: those three were
+374.97, 431.17 and 473.90 minutes past their `0 6 * * 1` cron.
+
+It still cannot run the health pass: 7 of the 11 health-table rows key on
+control-plane fields a runner cannot read, and the table's rule binds — "a
+verdict here needs both halves, and dispatch prints only the git half"
+([`orchestrated.md`](orchestrated.md)). The 4 rows readable from git alone
+(`looping`, `leftover`, `blocked`, `done`) are not the staleness rows.
+
+One predicate IS inside its ceiling: "this repository merged nothing in N
+hours" — git view only, `issues: write`, and an open issue is a queue item
+(Loop step 2). The 435-hour gap is what it would have caught. Unbuilt, and
+product direction if ever proposed; it would die in any outage long enough
+for GitHub to disable a schedule for repository inactivity.
 
 ## What was read before this was designed
 
@@ -777,3 +960,36 @@ What run 3 has NOT shown: no DRAINED — that repo still queued 37 plans at
 2026-09-16 (`get_file_contents`, `docs/plans`); no kill and no nudge, for the
 reasons above; and `reconciles` is counted nowhere, still, which is now two
 runs owing the requirement's last bullet the same column.
+
+### Peer-fleet runs
+
+The harness once ran peer sessions with no controller. These runs, kept
+verbatim, are why it does not.
+
+| Run | Date | Wall-clock | Ended by |
+| --- | --- | --- | --- |
+| fan-out | 2026-08-30 | 53m | bounded work ran out; two sessions, two merges, one reconcile |
+| attempt one | 2026-08-31 | 48s | no repository attached; both sessions asked a human |
+| attempt two | 2026-08-31 | 57m | the only free plan was protocol text; the session reverted its own work (marked `SUPERVISED ONLY` from then until 2026-10-08, when protocol text was released) |
+| attempt four | 2026-09-02 | 60m | one generation: three pull requests merged, two plans generated from the sweep, then each session declared itself done and nothing spawned the next. Both generated plans were `SUPERVISED ONLY` and both sessions claimed and edited them anyway — the marking was printed, never read at claim time; one crossing reached `origin` before its revert (PR 195) |
+
+Every run measured how long ONE generation lasts. The bullet asks for hours,
+and hours need the heartbeat below, which no run has had.
+
+## Not constrained, by decision
+
+No cap on work per run, no halt on red `main`, no ban on sessions spawning
+sessions — the requester declined all three on 2026-08-24. Recorded so the
+argument stays visible without this file acting on it: a clock re-seeds
+whether or not the last generation converged, so a bug that makes
+generations fail fast becomes a firing every hour until the Routine is
+paused. The lever is the pause above, which is why it is proved and not
+merely written.
+
+**Propose them with evidence; never add them on a session's own judgment.**
+Declining them was the requester's call and re-taking it is theirs too — a
+session that adds a cap because a run looked expensive has decided a
+question of money, which the Loop reserves for the human
+(`.agents/harness/AGENTS.md`, Decide alone). This is why the budget in
+issue 165 is not a number a session may pick.
+

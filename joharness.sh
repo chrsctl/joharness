@@ -319,7 +319,7 @@ MODE_OBSOLETE_LINE='JOHARNESS_MODE is obsolete; orchestrated is the only mode'
 # The RULE: a session may not edit the CORE paths — the
 # files that decide money, permissions and the merge gate. Everything else,
 # protocol text included, it edits and self-merges like any other diff
-# (.agents/docs/unsupervised.md, Bounds).
+# (.agents/docs/orchestrated.md, Bounds).
 #
 # Narrowed on the requester's decision of 2026-10-08: "remove most
 # restrictions; joharness should be able to use its own framework". Until
@@ -6228,7 +6228,7 @@ cmd_authority() {
   printf '  them went through a pull request. This is the repository saying\n'
   printf '  it runs unattended, not your prompt saying so. It proves review,\n'
   printf '  not a human hand: attempt four paid fourteen minutes to that\n'
-  printf '  distinction (.agents/docs/unsupervised.md).\n'
+  printf '  distinction (.agents/docs/orchestrated.md).\n'
 }
 
 # ---------------------------------------------------------------------------
@@ -7233,7 +7233,7 @@ drain_core_only() {
 # control plane's to say (/who); this prints the git half — push age — and
 # marks where the orchestrator must cross-check, because push time is not
 # liveness in either direction (.agents/docs/handover/README.md, and the
-# monitor rule under Heartbeat in .agents/docs/unsupervised.md).
+# monitor rule under Heartbeat in .agents/docs/orchestrated.md).
 # ---------------------------------------------------------------------------
 
 # A knob the human sets: the environment for one command, the conf for the
@@ -7981,7 +7981,7 @@ dispatch_curate_branches() {
 # writes down. Ordering by priority is product direction and `urgency:` is
 # never the curator's (.agents/harness/AGENTS.md, Decide alone); splitting a
 # plan MULTIPLIES the queue, which is the circularity the no-inventing edge
-# exists to stop (.agents/docs/unsupervised.md, The one stop).
+# exists to stop (.agents/docs/orchestrated.md, The one stop).
 
 # Normalized `scope:` entries of a plan, one per line: comma to newline,
 # surrounding blanks and trailing slashes gone, `none` dropped, and the
@@ -9486,8 +9486,7 @@ cmd_session_start() {
   printf 'plan, requirement or other branch. Manager: your item, this\n'
   printf 'branch'"'"'s workstream file, the item'"'"'s own anchors.\n'
   printf 'Protocol text is yours to edit and merge. NEVER edit the core\n'
-  printf 'paths — money, permissions, the merge gate; a human changes them\n'
-  printf '(.agents/docs/unsupervised.md, Bounds):\n'
+  printf 'paths — money, permissions, the merge gate; a human changes them:\n'
   # Derived, never restated. A banner naming its own list is the second
   # copy, and the boundary is exactly what must not disagree with itself.
   while IFS= read -r t; do

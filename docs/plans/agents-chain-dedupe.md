@@ -48,7 +48,7 @@ once (`.agents/docs/caveman.md`); move the why out.
 
 ## Out of scope
 
-- Mode text in steps 2 and 7 (unsupervised/orchestrated). Plan
+- Mode text in steps 2 and 7 (orchestrated). Plan
   `orchestrated-only-docs` owns it; this plan reads its result.
 - Rewording kept rules. Moving, not editing.
 - Command files — plan `role-command-trim`.

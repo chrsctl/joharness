@@ -263,7 +263,7 @@ rstems="$(
 trap 'printf "\nORCHESTRATED: this hook reports; a manager works the item its prompt\nnames, the orchestrator reads ./joharness.sh dispatch and spawns.\n"' EXIT
 
 # The boundary, as the queue sees it: the core paths are off limits to
-# every session (.agents/docs/unsupervised.md, Bounds), so a plan whose
+# every session (.agents/docs/orchestrated.md, Bounds), so a plan whose
 # declared scope holds a core path AT ALL is a plan the fleet can never
 # finish. Protocol text is not core since 2026-10-08 — see the class list below for why any
 # rather than all.
@@ -308,7 +308,7 @@ qc_boundary=1
 #            session starting one of these finishes nothing and hands off
 #            — the queue would have offered an unattended fleet a plan it
 #            could never finish, which is what this marking exists to stop
-#            (.agents/docs/unsupervised.md, Bounds). The first rule drew the
+#            (.agents/docs/orchestrated.md, Bounds). The first rule drew the
 #            line at can-it-be-started; this one draws it at
 #            can-it-be-finished
 #   clear    a declaration, and no path in it is a core path. Free work

@@ -92,7 +92,7 @@ it), branch from its default branch, and add exactly ONE file:
 
 **A research node, and not any other kind of file, for three reasons.** A
 requirement (`docs/product/`) is the human's goal to set and an unattended
-session never writes one — the bound is in `.agents/docs/unsupervised.md`
+session never writes one — the bound is in `.agents/docs/orchestrated.md`
 and `ci` reds it. A plan asserts the fix, and asserting canonical's fix from
 a child is exactly the inversion step 1 forbids. A research node is a
 question canonical's own queue lists, a session claims, and the merge that
