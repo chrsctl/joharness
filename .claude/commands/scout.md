@@ -52,9 +52,9 @@ Cut from `main`. Write `docs/handover/scout-<YYYY-MM-DD>.md` — the UTC date,
 so the name starts with a DIGIT after the dash — with `workstream:
 scout-<YYYY-MM-DD>`, `plan: none`, `session:` your own URL, `agent:` your
 tier. Push NOW. No push, no claim. Push to a branch of your own that no
-other session holds: a claim push REJECTED (non-fast-forward, or any
-error) means another session is on that branch — stop and report it, never
-pull and push again. Two scouts on one branch share one file, and the twin
+other session holds. A claim push that FAILS = stop and report the error,
+never pull and push again; non-fast-forward means another session holds
+that branch. Two scouts on one branch share one file, and the twin
 check below cannot tell them apart.
 
 The PATH is the cycle's identity, and nothing in the file is

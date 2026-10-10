@@ -486,6 +486,60 @@ expect "and the second" "twin-b  scout-2026-04-10  in-progress" "$out"
 git -C "$scout_work" push -q origin --delete twin-a twin-b
 git -C "$scout_work" branch -q -D twin-a twin-b
 
+# Two branches on ONE commit are two rows: a branch stacked on a scout
+# with no commit of its own must not borrow the scout's name (pass 5, r25).
+git -C "$scout_work" checkout -qb scout-race main
+sws scout-2026-04-20 scout-2026-04-20 in-progress scout-race
+scommit "a scout at work" '2026-04-20T00:00:00Z'
+git -C "$scout_work" push -qu origin scout-race
+git -C "$scout_work" push -q origin scout-race:aaa-stacked
+git -C "$scout_work" checkout -q main
+out="$(sct)"
+expect "two branches on one commit: the scout's own row" "scout-race  scout-2026-04-20  in-progress" "$out"
+expect "and the stacked branch's" "aaa-stacked  scout-2026-04-20  in-progress" "$out"
+git -C "$scout_work" push -q origin --delete aaa-stacked
+
+# A concurrent fetch moving origin/main MID-WALK, onto a commit that carries
+# the scout's file byte-identically (an early merge). Read by name, the
+# branch's copy then read as inherited from a base row the listing never
+# saw, and the live scout vanished (pass 4, r22). A git wrapper moves the
+# ref after the N-th git call; at EVERY N the scout must read in flight.
+scout_real_git="$(command -v git)"
+scout_base0="$(git -C "$scout_work" rev-parse refs/remotes/origin/main)"
+git -C "$scout_work" checkout -qb race-merge main
+git -C "$scout_work" merge -q --no-ff -m "an early merge" scout-race
+scout_moved="$(git -C "$scout_work" rev-parse HEAD)"
+git -C "$scout_work" checkout -q main
+git -C "$scout_work" branch -q -D race-merge
+mkdir -p "${TMP}/scout-gitwrap"
+cat >"${TMP}/scout-gitwrap/git" <<EOF2
+#!/usr/bin/env bash
+n=\$(( \$(cat "${TMP}/scout-gitwrap/count" 2>/dev/null || echo 0) + 1 ))
+printf '%s' "\$n" >"${TMP}/scout-gitwrap/count"
+if [ "\$n" = "\$(cat "${TMP}/scout-gitwrap/at")" ]; then
+  "${scout_real_git}" -C "${scout_work}" update-ref refs/remotes/origin/main "${scout_moved}"
+fi
+exec "${scout_real_git}" "\$@"
+EOF2
+chmod +x "${TMP}/scout-gitwrap/git"
+scout_race_open=""
+for scout_n in $(seq 1 20); do
+  git -C "$scout_work" update-ref refs/remotes/origin/main "$scout_base0"
+  printf '0' >"${TMP}/scout-gitwrap/count"
+  printf '%s' "$scout_n" >"${TMP}/scout-gitwrap/at"
+  out="$(sct PATH="${TMP}/scout-gitwrap:${PATH}")"
+  case "$out" in *"IN FLIGHT"*) ;; *) scout_race_open="${scout_race_open} ${scout_n}" ;; esac
+done
+git -C "$scout_work" update-ref refs/remotes/origin/main "$scout_base0"
+if [ -z "$scout_race_open" ]; then
+  pass "a ref moved mid-walk never hides a live scout (N = 1..20)"
+else
+  fail "a ref moved mid-walk never hides a live scout (N = 1..20)"
+  printf '    hidden at N =%s\n' "$scout_race_open"
+fi
+git -C "$scout_work" push -q origin --delete scout-race
+git -C "$scout_work" branch -q -D scout-race
+
 # --- automerge: exactly `on`, from the BASE branch's conf --------------------
 expect "automerge unset reads off" "automerge: off" "$(sct)"
 expect "the environment's on reads on" "automerge: on" "$(sct JOHARNESS_SCOUT_AUTOMERGE=on)"

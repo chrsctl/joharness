@@ -5532,8 +5532,11 @@ scout_walk() {
     case "$r" in
       '' | refs/remotes/origin/HEAD | "refs/remotes/origin/${base_branch}") continue ;;
     esac
-    case "$names" in *$'\n'"${id}"$'\t'*) continue ;; esac
-    ids+=("$id"); names="${names}"$'\n'"${id}"$'\t'"${r#refs/remotes/origin/}"
+    # Every NAME kept, the id listed once: two branches on one commit are
+    # two rows, so a branch stacked on a scout cannot borrow its name and
+    # the scout's own row stays its own (pass 5).
+    case "$names" in *$'\n'"${id}"$'\t'*) ;; *) ids+=("$id") ;; esac
+    names="${names}"$'\n'"${id}"$'\t'"${r#refs/remotes/origin/}"
   done < <(git -C "$ROOT" for-each-ref --no-merged="$base_id" \
     --format='%(objectname)%09%(refname)' refs/remotes/origin </dev/null 2>/dev/null)
   ids+=("$base_id"); names="${names}"$'\n'"${base_id}"$'\t'"${base_branch}"$'\n'
@@ -5555,7 +5558,6 @@ scout_walk() {
   while IFS= read -r hit; do
     [ -n "$hit" ] || continue
     id="${hit%%:*}"; wf="${hit#*:}"
-    r="${names#*$'\n'"${id}"$'\t'}"; r="${r%%$'\n'*}"
     # A NON-base row whose file is byte-identical to the base's copy is the
     # base's file inherited, not this branch's: the base's own row (listed
     # last) carries it, so nothing hides, and every branch cut after it no
@@ -5588,10 +5590,20 @@ scout_walk() {
     seen="${seen}${key}"$'\n'
     sws="${wf##*/}"; sws="${sws%.md}"
     sws="$(printf '%s' "$sws" | tr -cd 'A-Za-z0-9._:-')"
-    printf '%s\t%s\t%s\n' "${r:-?}" "${sws:-?}" "${sstat:-?}"
+    while IFS=$'\t' read -r key r; do
+      [ "$key" = "$id" ] || continue
+      printf '%s\t%s\t%s\n' "${r:-?}" "${sws:-?}" "${sstat:-?}"
+    done <<<"$names"
   done <<<"$listing"
 }
 
+# Accepted, written down (scout-command pass 5): the clock below reads refs
+# by NAME before scout_walk takes its snapshot, so a concurrent fetch in the
+# same clone that lands a scout's retire between the two reads makes one
+# read due. A scout spawned on it fetches and re-reads in its twin check
+# (`.claude/commands/scout.md`), sees the retire's not-due clock, and
+# retires — never two going on.
+#
 # When a scout last FINISHED on an unmerged branch: the committer time of
 # the newest deletion of a scout file there, empty when none. Loop step 7
 # retires the workstream file as the last commit before the pull request

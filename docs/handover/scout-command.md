@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01JXryjCKHhwkN7Xrv1qXz55
 agent: opus
 updated: 2026-10-09
-next: ci, verify, retire with the requirement, PR — r22 changes the snapshot only, every case re-run
+next: Retire with the requirement, open the PR, merge on green
 ---
 
 ## Goal
@@ -33,7 +33,7 @@ Supervised session at the human's ask.
 - r1's fix needed one change in merged code: `scout_walk` keyed its rows on
   the path, so twin scouts (same day, same path, two branches) read as one
   row and the twin check could never see two. Now one row per branch and
-  file; a selftest case pins it. `joharness.sh` touched beyond the plan's
+  file (r25 keeps that true for two branches on one commit); a selftest case pins it. `joharness.sh` touched beyond the plan's
   "no change" — that row key and the r8/r9 text lines only.
 - The scout's own rules restated from what scout-cycle reads: the file
   path is the identity; `done` holds until the retire; `abandoned` is the
@@ -65,8 +65,13 @@ Supervised session at the human's ask.
 - r19: (verifier, pass 3) a failed fetch left stale refs, and two twins both failing would both go on. (fixed — fetch exits non-zero = retire)
 - r20: (verifier, pass 3) step 3 left zero rows, `UNREADABLE` or `off` unhandled. (fixed — anything but exactly your own row, with the clock still due, = retire. The clock check also closes r13's accepted gap: a twin that finished first has dated the window, so the re-read's clock reads not due)
 - r21: (verifier, pass 3) both twins deferring burns a window, and the not-due line then speaks of a proposal that never existed. (no change — the closed failure's stated price; the window is the human's knob)
-- r22: (verifier, pass 4) the walk read refs by NAME three times; a concurrent fetch moving `origin/main` between the grep and the blob compare made a branch's copy read as "inherited" from a base row the listing never saw — a live scout hidden, reproduced with a git wrapper. (fixed — one snapshot by commit id: the base's id first, the unmerged refs measured against that id, every later read names commits; an unreadable base is the `unreadable` in-flight row. Race not reproduced by a selftest — no fixture interleaves a fetch; the old 16 cases' names still read through the id map)
+- r22: (verifier, pass 4) the walk read refs by NAME three times; a concurrent fetch moving `origin/main` between the grep and the blob compare made a branch's copy read as "inherited" from a base row the listing never saw — a live scout hidden, reproduced with a git wrapper. (fixed — one snapshot by commit id: the base's id first, the unmerged refs measured against that id, every later read names commits; an unreadable base is the `unreadable` in-flight row. a selftest case interleaves the race with a git wrapper — r26)
 - r23: (verifier, pass 4) two same-day scouts on ONE branch name share one file and both read the row as theirs. (fixed — §1: a rejected claim push = stop and report, never pull-and-push; the branch must be the scout's own. How sessions name branches is outside this checkout — UNVERIFIED that two can collide)
+- r24: (verifier, pass 5) the same race one level up: `scout_due`'s clock reads refs by name before the walk's snapshot, so a retire landing between them reads due once. (wontfix — needs a concurrent fetch in the same clone mid-dispatch; a scout spawned on it fetches and re-reads in its twin check, sees the not-due clock, and retires — closed; written in the code)
+- r25: (verifier, pass 5) two refs on one commit collapsed to one row named for whichever sorted first — a stacked branch borrowed the scout's name. (fixed — every name kept, one row per branch again; selftest case)
+- r26: (verifier, pass 5) no test pinned r22. (fixed — a git wrapper moves `origin/main` onto a commit carrying the identical file after the N-th call, N = 1..20; the scout must read in flight at every N; fails on 903c638's walk)
+- r27: (verifier, pass 5) "the old 16 cases" was a number with no command. (fixed — dropped)
+- r28: (verifier, pass 5) "or any error means another session" misreports a network failure. (fixed — any failure stops; non-fast-forward is the one that means another session)
 
 ## Blockers
 
