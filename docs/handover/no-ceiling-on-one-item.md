@@ -8,7 +8,7 @@ issue: "#298"
 session: https://claude.ai/code/session_01VvHXon6n8wmdf5GBNCtBjb
 agent: opus
 updated: 2026-10-10
-next: Settle the node against what PR 357 landed, graduate into orchestrate.md + orchestrated.md, delete node
+next: Verifier running on the graduation diff; record findings in Review, fix, ci, retire, PR
 ---
 
 ## Goal
@@ -21,10 +21,18 @@ reads a steadily-billing manager as healthy? Settle it, graduate, delete.
 
 - Item 1 (detector) already landed: PR 357, `CEILING?` report row,
   `JOHARNESS_MANAGER_HOURS`. Checked: `git show --stat 5f4e4bd9`.
+- Item 2 (refresh rule): NO automatic rule. Cheap refreshes in #298 were
+  quiet-at-finish managers = STALL?/IDLE rows already respawn them. A
+  pushing manager past the ceiling has no readable between-runs sign;
+  archive kills the in-flight run (the issue's own counter-case).
+- Item 4: interrupt-then-check already in KILL path; guard cannot compel.
+- One conf knob, not per-plan: mark is a report, false positive = one line.
+- Item 3 (cost floor) is `frozen-cost-is-not-death-yet`'s, not this node's.
 
 ## Rejected
 
-None yet.
+- Refresh past ceiling AND `status: review`: review = verifier in flight,
+  same mid-run loss the counter-case names.
 
 ## Review
 

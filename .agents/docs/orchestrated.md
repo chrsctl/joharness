@@ -436,6 +436,45 @@ a floor past 31 minutes is the 13-minute withdrawal one step larger. Open
 as `docs/research/frozen-cost-is-not-death-yet.md`, which carries the rest
 of the evidence.
 
+**`CEILING?` is a report, and no refresh rule rides on it.** Issue #298 asked
+for both: the mark (`JOHARNESS_MANAGER_HOURS`, PR #357) and a rule that
+archives a manager past it and respawns on the branch to finish. The mark
+landed; the rule has no precondition the orchestrator can read, and the
+issue's own run is why.
+
+- **The cheap refreshes already have rows.** Both items it reports finished
+  by a fresh session ($46.08 then $0.88; $18.96 then $1.89, the issue's
+  numbers, WEAK for #267's reason) were managers gone QUIET at the finish.
+  Quiet is what the STALL? and IDLE rows of `.claude/commands/orchestrate.md`
+  read: nudge, two passes unchanged, then RESPAWN on the branch — a
+  successor that reads `next:` does the last mile and nothing else. A new
+  row would fire on the same sessions those do, sooner and on less evidence.
+- **The expensive side has no git-readable "at the finish".** The issue's
+  rule is "past the ceiling and at its finish steps, with branch and
+  workstream file current". A manager past the ceiling that still pushes
+  is, by the table, either `status: review` — step 5, where the verifier
+  subagent is the run in flight — or `retired, no claim file`, which the
+  table already reads as merging and leaves alone. Neither tells
+  between-runs from mid-run, and archiving ends the container: the issue's
+  counter-case is a 5.5h, $48 manager whose in-flight test run would have
+  died with it. A rule keyed on hours fires there.
+- **Asking first does not make it safe.** The KILL path already interrupts
+  before it archives and checks whether the handover landed; it cannot
+  compel the push, because `handover-guard.sh` is advisory and one-shot by
+  its own header. So the issue's item 4 is a channel that exists and a gate
+  that cannot.
+- **One knob, not one per plan.** The issue declines to claim one value for
+  a planning item and a three-line fix, and it is right — which is why the
+  mark is a REPORT. A false `CEILING?` costs one line and a `cost_usd`
+  read; a per-plan field costs every plan writer a guess with one run of
+  data behind it. Revisit with a run that counts the reports.
+
+What the orchestrator does with the mark is the `CEILING?` row: report the
+age and `cost_usd`, never act on it alone. A refresh of a live, pushing
+manager is the human's call, made with the cost in front of them. Read the
+node before adding a rule here:
+`git log --diff-filter=D -p -- docs/research/no-ceiling-on-one-item.md`.
+
 Read by `dispatch`: the environment for one command, `joharness.conf` for
 the repo, else the default. Digits only; a word reads as the default. The
 two churn knobs go through the same reader in `ci`, so a value set in the
