@@ -6,7 +6,7 @@ effort: medium
 needs: none
 requirement: none
 issue: none
-scope: shared:joharness.sh, shared:.agents/docs/orchestrated.md
+scope: shared:joharness.sh, shared:.agents/harness/selftest/dispatch.sh, shared:.agents/docs/orchestrated.md
 ---
 
 ## Goal
