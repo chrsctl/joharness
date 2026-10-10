@@ -295,10 +295,31 @@ small and specific, and the evidence is in that session's head and nowhere
 else. So:
 
 - **Capture always, immediately.** In the workstream file's `## Review` if the
-  branch has one, in the canonical pull request body otherwise.
+  branch has one, in the canonical pull request body otherwise. Neither
+  exists (the finding surfaced after the retire commit, and no open
+  CANONICAL pull request — the consumer's own carries no `## Review` and does
+  not count)? An issue on the repo `CANONICAL_REPO` names
+  (`.github/workflows/update.yml`).
 - **Fix inline when it is small** — a message, a comment, a guard's scope.
 - **Route it when it is not**, and carry the measurement into whatever picks
   it up.
+
+The issue route is available, never an order to file. It fits the default-off
+posture: an issue is a write to a repo the child does not own, but it carries
+no diff, merges nothing and asks canonical only to read; it is one API call
+from the session already running, not a session beyond `JOHARNESS_MAX_MANAGERS`.
+One bound, every mode: at most ONE such issue per session, and search
+canonical's open issues for the same finding first — a match gets nothing new
+filed. Unattended sessions are included because nobody reads their chat; the
+bound keeps a guard that fires at every stop from filing at every stop.
+Nothing lands in the consumer, so the direction rule holds. The gate holds
+too: stage 1's question ("does the fact it states match what it measures?")
+clears each finding first, and the issue carries the command and the output
+that produced it, the bar Loop step 5 sets for a measured number. Without it
+the issue is a preference; canonical closes it as one. Canonical out of the
+session's GitHub scope? Hand the human the issue text in the reply — never
+drop it silent. First instance: #338, which reached canonical only because the
+human read it in chat and said "file it" (`chrsctl/gx`, 2026-10-10).
 
 ### The switch that mechanizes 1 to 4
 

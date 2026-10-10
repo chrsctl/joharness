@@ -266,6 +266,24 @@ fi
 # a process command line is input this session does not control. Digits
 # cannot close a JSON string.
 #
+# Only SHELL subtrees count. A session's own background work reaches the
+# agent through a shell: measured 2026-10-10, one `run_in_background` command
+# live, the agent's direct children were `bash` only and the job was
+# `bash` -> `timeout` -> `sleep`. Any other direct child — `node`, `python`,
+# `uvx` — was started by the harness, not by a tool call. Issue #338: an MCP
+# server from a repo's `.mcp.json` sat under the agent as `node` from session
+# start, so every stop in that repo counted 1 and the guard fired whatever the
+# session did — and a guard that always fires teaches sessions to stop past
+# it, which passes the real case too.
+#
+# Costs this accepts, each one named:
+# - counted though not the session's: an MCP server declared as `bash …` or
+#   `sh -c …` in `.mcp.json`; a hook or `statusLine` command running beside
+#   the guard (counted before this rule too).
+# - missed though the session's: a background tool command that `exec`s
+#   (`exec node server.js` replaces the tool's `bash`, measured in review);
+#   a shell outside the list (`ksh`, `fish`, …).
+#
 # Reports, never kills. Every fact in this file reports.
 bg_running=0
 if command -v ps >/dev/null 2>&1; then
@@ -317,9 +335,16 @@ if command -v ps >/dev/null 2>&1; then
         for (i = 1; i <= m; i++) { queue[++tail] = r[i] }
       }
 
+      # Seed with the agent direct children that are SHELLS only. A tool
+      # call reaches the agent through a shell; any other direct child was
+      # started by the harness (see the section header). Reduce comm to a
+      # basename first: macOS ps prints /bin/zsh, a login shell prints -zsh.
       n = split(kids[agent], q2, " ")
       qh = 0; qt = 0
-      for (i = 1; i <= n; i++) { q3[++qt] = q2[i] }
+      for (i = 1; i <= n; i++) {
+        sh = comm[q2[i]]; sub(/.*\//, "", sh); sub(/^-/, "", sh)
+        if (sh ~ /^(bash|sh|dash|zsh)$/) q3[++qt] = q2[i]
+      }
       while (qh < qt) {
         cur = q3[++qh]
         if (cur in skip || cur in counted) continue
@@ -336,7 +361,7 @@ if command -v ps >/dev/null 2>&1; then
   case "$bg_running" in '' | *[!0-9]*) bg_running=0 ;; esac
 fi
 [ "$bg_running" -eq 0 ] ||
-  add_fact "${bg_running} background process(es) this session started are still running — a command that cannot finish (a wait loop whose own line matches its own pattern) runs until the container is reclaimed. Check them, and kill what is stuck"
+  add_fact "${bg_running} background process(es) this session started are still running — check whether each is yours and kill what is stuck, for example a wait loop whose own line matches its own pattern"
 
 [ -n "$facts" ] || exit 0
 

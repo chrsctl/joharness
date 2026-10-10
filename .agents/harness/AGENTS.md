@@ -167,7 +167,8 @@ the selected layer — as a read-first pointer by default, whole when md=eager
    sessions read as current; counted in
    [`.agents/docs/handover/README.md`](../../.agents/docs/handover/README.md).
    Do it as the LAST COMMIT BEFORE the pull request opens, never after the
-   merge. Merge not yours? Ready-for-HUMAN is the edge: review record and
+   merge. Finding after it, consumer repo: issue on canonical, with measurement
+   (`.agents/docs/feedback.md`, Inline or routed). Merge not yours? Ready-for-HUMAN is the edge: review record and
    retire commit land BEFORE you ask, because they merge on their clock and
    a deferred retire costs a follow-up pull request to undo.
    `./joharness.sh finish` says what merging now would leave and is red
