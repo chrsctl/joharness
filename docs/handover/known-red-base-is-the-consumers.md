@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01T1Uueeti8hGcm6dZTLnX2F
 agent: haiku
 updated: 2026-10-10
-next: Add the section "## A red base branch" to .agents/docs/consumer-repos.md before "## The sync pull request", then run ./joharness.sh ci.
+next: Spawn the verifier on the branch diff, record its findings under ## Review, then retire the plan and workstream files and open the pull request.
 ---
 
 ## Goal
