@@ -21,7 +21,7 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | `./joharness.sh dispatch` | The orchestrator's one read: the human's numbers, managers in flight with push age and marks (`STALL?`, `LOOP?`, `CEILING?`), slots under the cap, the spawn order with waves and `HOLD`s, the cycle lines, one verdict. Reports only. |
 | `dispatch` verdict `OVERLAP-BOUND` | Slots free but every free plan HELD behind work in flight. A `rescope :` block names the holder key and the held paths; the verdict spawns ONE surveyor to correct the `scope:` declarations. |
 | `./joharness.sh curate` + `curate :` line | Whether the plan queue's declarations are still true — REPAIR and DECLUTTER findings a curator acts on, PROPOSE findings it only writes down. Due on plan churn (`JOHARNESS_CURATE_PLANS`) or the clock; state read from git. Orthogonal to the verdict. |
-| `./joharness.sh janitor` + `janitor :` line | Claims whose session is gone; a janitor releases each by writing `status: abandoned` into the claim's own file, deleting nothing. Clock-driven (`JOHARNESS_JANITOR_HOURS`), dated from git. Orthogonal to the verdict. |
+| `./joharness.sh janitor` + `janitor :` line | Claims whose session is gone. Mechanical: `./joharness.sh janitor --apply` writes `status: abandoned` into the claim's own file — only where the session is ARCHIVED or not found, never a claim with `pr:` — and deletes nothing. No session, no pull request. Clock-driven (`JOHARNESS_JANITOR_HOURS`). |
 | `./joharness.sh clerk` + `clerk :` line | Open issues become plans only through the clerk (`dispatch` reads `docs/plans/` only). Clock-driven, batch `JOHARNESS_CLERK_BATCH`, dated from git. Orthogonal to the verdict. |
 | `./joharness.sh upstream` | What a merged edge found about the harness. With `JOHARNESS_UPSTREAM_FEEDBACK=on` the health pass's `done` row spawns ONE reporter per merged edge, which files the findings as a report pull request on the canonical ([`feedback.md`](feedback.md)). |
 | `./joharness.sh analysis` | One unmerged branch's condition (BLOCKED / STALL? / LOOP?) beside the base branch's current conf. With `JOHARNESS_IDLE_ANALYSIS=on` a row `dispatch` marks `ANALYSE?` spawns ONE analyst — BESIDE that row's verdict, never instead of it. |
@@ -36,14 +36,13 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | manager | the item's `agent:`; fable at xhigh for an unplanned requirement | a session with its own branch, claim and merge | worker subagents (`Agent`) | one item, until its file retires | its pull request merges, or it blocks on a human |
 | worker | at or below the plan's tier, lower by default | a subagent in the manager's container | nothing | the files its sub-task names | it returns |
 | reporter | low | a session, after a manager MERGES — only where `JOHARNESS_UPSTREAM_FEEDBACK=on` | nothing | one merged edge's harness findings | it files one report on the canonical, or none |
-| janitor | sonnet | a session, on the `janitor DUE` tail line | nothing | the claims, for ONE sweep | its pull request merges |
 | analyst | low | a session, on a row marked `ANALYSE?` — only where `JOHARNESS_IDLE_ANALYSIS=on` | nothing | one condition on one branch, explained and never ended | it files one issue on the canonical, or none |
 | curator | sonnet | a session, on the `curate DUE` tail line | nothing | the plan queue's declarations for ONE pass | its pull request merges, or `NOTHING TO CURATE` |
 | surveyor | sonnet | a session, on the `OVERLAP-BOUND` verdict | nothing (declarations, not code) | the held plans' and holders' `scope:` lines for one holder key | its pull request merges, or `done` with nothing to change |
 | clerk | opus | a session, on the `clerk DUE` tail line | nothing | one plan-only pull request; never closes or opens an issue, never writes code | its pull request merges, a retire-only one, or `TWIN: deferred` |
 | scout | fable | a session, on `scout DUE`, only under `DRAINED — nothing free, nothing in flight` | nothing | one proposal pull request, a `docs/product/<stem>.md` | the human merges or closes it — or `JOHARNESS_SCOUT_AUTOMERGE=on` and it merges itself — or `NOTHING TO PROPOSE` |
 
-Reporter, janitor, analyst, curator, surveyor, clerk and scout hold no
+Reporter, analyst, curator, surveyor, clerk and scout hold no
 manager slot: each is one session beyond the cap — the human's money, reported.
 A role command that says nothing to do spawns nothing.
 
@@ -59,7 +58,6 @@ paid by every session.
 | manager | its item, its own workstream file, the item's anchors, `feedback` on files it touches, the environment rules if it touches them | the queue, other plans, other branches, this doc |
 | surveyor | the `rescope :` block in its prompt, and the `## Scope` of each plan it renames | the queue, product code, this doc |
 | curator | `./joharness.sh curate` and the plans it names | a held plan, the queue order, product code, this doc |
-| janitor | `./joharness.sh janitor`, the control plane per candidate, the workstream files it names | a plan, the queue order, product code, another branch's code, this doc |
 | analyst | `./joharness.sh analysis <branch>`, that branch's workstream file, the conf delta the command prints | the queue, a plan, product code, another branch, this doc |
 | clerk | `./joharness.sh clerk`, the open issues, the source each issue cites | the queue order, another branch, product code beyond what an issue cites, this doc |
 | scout | `./joharness.sh scout` and the evidence it lists — `review`, `feedback`, canonical issues, session cost, a dated release-note or Models API read | a plan, the queue order, product code, another branch's code |
@@ -295,9 +293,9 @@ The rules that bind every session.
 It merges nothing, edits nothing but a killed manager's workstream file, picks
 no tier, and takes no item itself. A reporter or an analyst is a SPAWN; the
 orchestrator authors no report and no issue, and an analyst ends nothing. The
-janitor is the one role that writes to a branch it does not own: it releases
-a claim only where the control plane says the session is ARCHIVED, absent, or
-failed and confirmed — never on push age — and deletes nothing. The clerk turns EXISTING issues into plans and
+`janitor --apply` is the one writer to a branch it does not own: only where
+the session is ARCHIVED or not found, never on push age, never a claim with
+`pr:`, and it deletes nothing. The clerk turns EXISTING issues into plans and
 nothing else. The scout writes a requirement DRAFT the human authors by
 merging (or declines by closing); `JOHARNESS_SCOUT_AUTOMERGE=on` is the one
 exception, read from the base branch's conf so its own branch cannot grant it.

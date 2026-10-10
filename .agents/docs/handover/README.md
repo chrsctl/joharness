@@ -192,7 +192,8 @@ one definition and this is downstream of it:
 | 5 | branch pushed recently, no workstream file | somebody to `/who` |
 
 `abandoned` is the one status no session writes about its OWN work: the
-janitor writes it on a branch whose session the control plane proved gone.
+`./joharness.sh janitor --apply` writes it on a branch whose session is
+ARCHIVED or not found.
 It means the claim is released (the plan is free, its scope holds nothing) —
 not done, not merged, not deleted. The file stays; a returning session sets
 the word back. Not `blocked`: a block is owed an answer, an abandoned claim

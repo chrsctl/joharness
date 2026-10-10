@@ -168,6 +168,9 @@ nothing.
 - Skip `HOLD`, `WAIT`, `NOT YOURS`. `that branch is BLOCKED on a human:
   spawn` is free; add the reconcile line.
 - `UNPLANNED` requirement = ONE planning manager, fable, effort xhigh.
+- `janitor DUE`: run `./joharness.sh janitor --apply` yourself — no session.
+  It releases only claims whose session is ARCHIVED or not found, never a
+  claim with `pr:` set.
 - Role sessions, at most ONE of each per run and none while one is in flight
   (dispatch's header block says), `create_session` like a manager, prompt =
   the command + the standard lines:
@@ -175,7 +178,6 @@ nothing.
   | line | model (Lineup) | title | prompt | ledger |
   | --- | --- | --- | --- | --- |
   | `curate DUE` (any verdict) | sonnet | `curator: <UTC date>` | `/curate` | `curated=<stamp>` |
-  | `janitor DUE` (any verdict) | sonnet | `janitor: <UTC date>` | `/janitor` | `swept=<stamp>` |
   | `clerk DUE` (any verdict; `held` = nothing) | opus | `clerk: <UTC date>` | `/clerk` | `clerked=<stamp>` |
   | `scout DUE`, only under `DRAINED — nothing free, nothing in flight` | fable | `scout: <UTC date>` | `/scout` | `scouted=<stamp>` |
   | `OVERLAP-BOUND`, `rescope :` says `in flight: none` | sonnet | `surveyor: <key>` | `/manage rescope <key>` + the block verbatim | `rescope-<key>@new`, `rescoped=<key>` |
@@ -183,8 +185,7 @@ nothing.
 
   A ledger `rescoped=<K>` covers later keys whose holders are all in K. An
   analyst sits beside the row's own verdict, never instead of it. Issues
-  reach the queue only through the clerk. A janitor releasing a claim whose
-  session you see RUNNING is a finding for the human. Never nudge or respawn
+  reach the queue only through the clerk. Never nudge or respawn
   a scout waiting on its proposal pull request.
 - Manager: `create_session` with `source_url` = `git remote get-url origin`,
   `model` = item's `agent:` via the Lineup, `title` = `manager: <stem>`,
@@ -221,7 +222,7 @@ Ledger every spawn the moment it returns as `<stem>@new`.
 
 ```
 /orchestrate pass
-ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] respawns=<n> [reported=<stem>] [rescoped=<key>] [curated=<stamp>] [analysed=<stem>:<condition>] [swept=<stamp>] [clerked=<stamp>] [scouted=<stamp>]; ...
+ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] respawns=<n> [reported=<stem>] [rescoped=<key>] [curated=<stamp>] [analysed=<stem>:<condition>] [clerked=<stamp>] [scouted=<stamp>]; ...
 lead <stem>: <40 chars, to the end of this line>
 ```
 
