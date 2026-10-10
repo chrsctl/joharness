@@ -119,6 +119,7 @@ Summed `modelUsage` matches billed within 0.11 USD on 23 of 24 sessions;
    383.28 (workers included). Same tokens at sonnet 5.5 cut 50% vs opus 5.5
    and at most 80% vs opus 5 (cache read; 60% on the rest): ceiling 18.6%
    (this repo), 12.4% (gx). gx is under 20% even at a 100% cut (16.0%): NO.
+   gx NO: GROUNDED for 42.73 of its 61.49 USD (re-taken), WEAK for the rest.
    This repo clears 20% only if a sonnet verifier spends at most ~92% of the
    opus verifier's tokens (manager-only denominator) — no reading here can
    say that, and none says anything about the defects it would miss. OPEN:
@@ -158,7 +159,7 @@ Second context: a subagent that read none of the first readings re-took
   Method's rates. Main thread / subagent USD: 60.70 / 8.96, 125.96 / 42.45,
   7.99 / 6.12, 3.39 / 4.05 — the first reading to the cent. The two turns
   over an hour and their 1h writes (479,853, 474,177) re-read the same.
-  These four carry all of lever 4 and 51.41 of lever 3's gx 61.49 USD.
+  These four carry all of lever 4 and 42.73 of lever 3's gx 61.49 USD.
   GROUNDED.
 - Same re-take, `list_sessions` two pages: 0 Fable children among 168
   under the two orchestrators (window shifted by new sessions: 117 + 51).
