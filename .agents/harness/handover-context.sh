@@ -330,6 +330,8 @@ if [ -n "$mine" ]; then
     # workstream file claims an issue" six lines below, in one run, on the
     # branch that added the field. A reader trusts the summary; a summary
     # that contradicts the detail above it is worse than no summary.
+    # A RELEASED claim holds no issue (same test as the others-row below).
+    [ "$status" = abandoned ] && issue=""
     [ -z "$issue" ] ||
       claimed_issues="${claimed_issues}  #${issue} — this branch (${f})"$'\n'
     add "  ${f}  [${status:-?}, updated ${updated:-?}${agent:+, wants ${agent}}${issue:+, claims issue #${issue}}]"
@@ -661,7 +663,7 @@ while IFS="$US" read -r rank _ short f status pr updated agent issue \
   fi
 
   others="${others}  ${short}: ${f}"$'\n'
-  others="${others}    [${status:-?}, updated ${updated:-?}${agent:+, wants ${agent}}${pr:+, pr #${pr}}${issue:+, claims issue #${issue}}] pushed ${pushed_rel:-?}${claim}"$'\n'
+  others="${others}    [${status:-?}, updated ${updated:-?}${agent:+, wants ${agent}}${pr:+, pr #${pr}}${issue:+$([ "$status" = abandoned ] || printf ', claims issue #%s' "$issue")}] pushed ${pushed_rel:-?}${claim}"$'\n'
 
   # What "finish" would mean here, in the words of the step that does it.
   # Only for the three ranks at the edge: a line on every entry would make
