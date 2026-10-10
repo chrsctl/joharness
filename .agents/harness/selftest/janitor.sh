@@ -410,6 +410,10 @@ expect "the claim on origin now says abandoned" "status: abandoned" \
   "$(git -C "$jorigin" show mgr-gone:docs/handover/gone.md 2>&1)"
 expect "and says why in next:" "the claim was released" \
   "$(git -C "$jorigin" show mgr-gone:docs/handover/gone.md 2>&1)"
+expect "and says a reconcile with its base clears the ci red" "reconciles with its base" \
+  "$(git -C "$jorigin" show mgr-gone:docs/handover/gone.md 2>&1)"
+expect "the note quotes wording lint_enum still emits" "not one of" \
+  "$(grep -E 'lint_red .*not one of' "${ROOT}/joharness.sh" 2>&1)"
 if [ "$(git -C "$jwork" rev-parse HEAD)" = "$jmain_before" ] &&
    [ -z "$(git -C "$jwork" status --porcelain)" ]; then
   pass "and this checkout is untouched"

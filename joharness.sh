@@ -2676,7 +2676,7 @@ cmd_guard() {
 # Release named claims: write `status: abandoned` into each candidate claim on
 # its own branch and push.
 janitor_apply() {
-  local want b path tip blob newblob tree commit idx today rc=0 n=0 cands
+  local want b path tip blob newblob tree commit idx today why rc=0 n=0 cands
   [ "$#" -gt 0 ] || die "usage: $0 janitor --apply <branch>... (each session proven ARCHIVED or not found)"
   # --prune: under the default refspec a branch deleted on origin loses its
   # remote-tracking ref here and takes the `no such branch` skip below.
@@ -2691,6 +2691,9 @@ janitor_apply() {
   done
   cands="$(janitor_candidates)"
   today="$(date -u +%Y-%m-%d)"
+  # A branch whose own joharness.sh predates `abandoned` reds `ci` on the word
+  # (#279); say why on the line it reads first.
+  why="ci reds on status 'abandoned' (not one of: ...) until this branch reconciles with its base; that reconcile clears it"
   for want in "$@"; do
     tip="$(git -C "$ROOT" rev-parse -q --verify "refs/remotes/origin/${want}^{commit}" 2>/dev/null)" || {
       printf 'skip      : %s — no such branch on origin\n' "$want"; rc=1; continue; }
@@ -2713,12 +2716,12 @@ janitor_apply() {
     while IFS=$'\t' read -r b path; do
       [ "$b" = "$want" ] || continue
       blob="$(git -C "$ROOT" show "${tip}:${path}" 2>/dev/null)" || continue
-      newblob="$(printf '%s\n' "$blob" | awk -v d="$today" '
+      newblob="$(printf '%s\n' "$blob" | awk -v d="$today" -v w="$why" '
         NR == 1 && $0 == "---" { fm = 1; print; next }
-        fm && $0 == "---" { if (!ns) print "next: Pick this up from the plan; the claim was released " d
+        fm && $0 == "---" { if (!ns) print "next: Pick this up from the plan; the claim was released " d "; " w
                             fm = 0; print; next }
         fm && /^status:/ { print "status: abandoned"; next }
-        fm && /^next:/   { print "next: Pick this up from the plan; the claim was released " d; ns = 1; next }
+        fm && /^next:/   { print "next: Pick this up from the plan; the claim was released " d "; " w; ns = 1; next }
         { print }' | git -C "$ROOT" hash-object -w --stdin)" || continue
       GIT_INDEX_FILE="$idx" git -C "$ROOT" update-index --cacheinfo "100644,${newblob},${path}" || continue
       n=$((n + 1))
@@ -4740,7 +4743,7 @@ dispatch_rescope_branches() {
 # carry.
 dispatch_branch_plans() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}"
-  local refs r name base plans wfs wf doc own wplan wstat abandoned p stem urg agt
+  local refs r name base plans wfs wf doc own wplan wstat abandoned p stem urg agt retired rc
   refs="$(git -C "$ROOT" for-each-ref --format='%(refname)' \
     refs/remotes/origin </dev/null 2>/dev/null)"
   while IFS= read -r r; do
@@ -4779,12 +4782,27 @@ dispatch_branch_plans() {
       # Already on the base under the same path: the queue has its row.
       git -C "$ROOT" cat-file -e "refs/remotes/origin/${base_branch}:${p}" \
         </dev/null 2>/dev/null && continue
+      # Absent on the base, but the base ADDED and RETIRED it after this
+      # branch left it: carried by another branch. `--full-history -m` is what
+      # sees the retire (a merge commit is treesame for the path). A retire
+      # already in the merge base's history is an older plan of that name.
+      retired=0
+      while IFS= read -r rc; do
+        [ -n "$rc" ] || continue
+        git -C "$ROOT" merge-base --is-ancestor "$rc" "$base" \
+          </dev/null 2>/dev/null || { retired=1; break; }
+      done <<<"$(git -C "$ROOT" log --full-history -m --diff-filter=D \
+        --format=%H "refs/remotes/origin/${base_branch}" -- "$p" \
+        </dev/null 2>/dev/null)"
       { read -r urg; read -r agt; } <<<"$(git -C "$ROOT" show "${r}:${p}" \
         </dev/null 2>/dev/null | gr_fields urgency agent)"
       urg="$(printf '%s' "$urg" | tr -cd 'A-Za-z0-9._-')"
       agt="$(printf '%s' "$agt" | tr -cd 'A-Za-z0-9._-')"
-      printf '%s\t%s\t%s\t%s\n' "$(printf '%s' "$name" | tr -cd 'A-Za-z0-9._/-')" \
+      printf '%s\t%s\t%s\t%s' "$(printf '%s' "$name" | tr -cd 'A-Za-z0-9._/-')" \
         "$stem" "${urg:-?}" "${agt:-?}"
+      # A fifth field marks the leftover; the plans-on-a-branch reader keeps
+      # to four-field rows.
+      if [ "$retired" -eq 1 ]; then printf '\tleftover\n'; else printf '\n'; fi
     done <<<"$plans"
   done <<<"$refs"
 }
@@ -5065,6 +5083,17 @@ cmd_dispatch() {
       done
     fi
   done <<<"$(dispatch_retired_edges)"
+
+  # A plan another branch carried to the base and retired: this branch's copy
+  # is a leftover, not a plan waiting to land (dispatch_branch_plans).
+  while IFS=$'\t' read -r ebranch estem _ _ _; do
+    [ -n "$ebranch" ] || continue
+    # One row per branch: a second carried plan, or a branch the edge reader
+    # already listed, is not another leftover.
+    case "$leftover_rows" in *"  ${ebranch}  leftover  "*) continue ;; esac
+    n_leftover=$((n_leftover + 1))
+    leftover_rows="${leftover_rows}  docs/plans/${estem}.md  ${ebranch}  leftover  its plan ${estem} landed and was retired by another branch: it commits NOTHING and holds no slot. Never respawn on it. The human closes its pull request and deletes the branch."$'\n'
+  done <<<"$(dispatch_branch_plans | awk -F'\t' 'NF == 5')"
 
   DISPATCH_WITHHELD="$edge_items"
 
