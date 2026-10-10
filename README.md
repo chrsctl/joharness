@@ -18,7 +18,7 @@ flowchart TB
         direction LR
         claude[".claude/<br/>role commands, session hook, verifier"]
         protocol[".agents/harness/ + .agents/docs/<br/>the Loop and its reasons"]
-        env[".agents/env/&lt;name&gt;/<br/>docker, k8s or none, provisioned lazily"]
+        env[".agents/env/#lt;name#gt;/<br/>docker, k8s or none, provisioned lazily"]
         sh["joharness.sh<br/>entrypoint for every command and hook"]
     end
     docs ~~~ conf
