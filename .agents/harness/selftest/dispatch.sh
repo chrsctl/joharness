@@ -551,7 +551,8 @@ git -C "$dspwork" checkout -q main
 out="$(dsp env JOHARNESS_MAX_MANAGERS=8)"
 expect "past the retire commit the branch is still in flight, on its own row" \
   "docs/plans/eta.md  mgr-eta  retired  pushed" "$out"
-expect "which says what the row is" "PR in flight, no claim file" "$out"
+expect "which says what the row is, and that it cannot see the pull request" \
+  "retired, no claim file — a pull request is expected; this reader cannot see one" "$out"
 expect "it still holds its slot" "slots     : 3 of 8 free" "$out"
 refute "and its item is still not offered for spawning" \
   "  docs/plans/eta.md (agent" "$out"
@@ -560,15 +561,17 @@ expect "the verdict counts it and names who finishes the count" \
 
 # Distinguishable from a branch nobody came back to — the trade this fix must
 # not make. Push age is the only signal git has, so past the window the row
-# says so and names the respawn as step 7's, which is a merge to finish, not a
-# plan to restart.
+# says so and sends the verdict to the health table. It used to order the
+# respawn itself, and printed that over three RUNNING managers an 18-day
+# suspension had frozen (issue #283): git cannot tell those from dead ones.
 out="$(dsp env JOHARNESS_MAX_MANAGERS=8 JOHARNESS_STALL_MINUTES=0)"
 expect "past the stall window the row is marked" "STALL? no push for" \
   "$(printf '%s\n' "$out" | grep -A1 'mgr-eta')"
 expect "and sends the reader to the control plane, by the item's own stem" \
   "cross-check the control plane by TITLE (manager: eta)" "$out"
-expect "naming the respawn as the merge, not a restart" \
-  "respawn on the branch to FINISH it, never to restart the item" "$out"
+expect "and leaves the verdict to the health table" \
+  "the verdict is the health table's (.claude/commands/orchestrate.md, step 2), never this row's" "$out"
+refute "no edge row orders a respawn itself" "respawn on the branch" "$out"
 # The VERDICT's count, not just the row's token. Folding the edge rows into
 # n_stall and asserting only row text left the fold green both ways: four
 # claimed managers are past a zero window here, and the fifth is mgr-eta.
@@ -2830,3 +2833,113 @@ expect "a rebased claim keeps its age: the author date" \
   "CEILING? 10h since the claim" "$(printf '%s\n' "$out" | grep 'mgr-rebased')"
 expect "a claim dated in the future reads the committer date" \
   "CEILING? 10h since the claim" "$(printf '%s\n' "$out" | grep 'mgr-future')"
+
+# --- a stopped fleet: every manager silent AND the base branch still --------
+# Issue #283. An orchestrator back from an 18-day suspension read three
+# RUNNING managers as 434h stalled: push age froze for the fleet, not for
+# them. Own repo, because the condition is about EVERY row in flight and
+# about the base branch's own age, which a shared fixture decides elsewhere.
+sfwork="${TMP}/stoppedfleetwork"
+sforigin="${TMP}/stoppedfleetorigin.git"
+git init -q --bare "$sforigin"
+git init -q "$sfwork"
+git -C "$sfwork" symbolic-ref HEAD refs/heads/main
+mkdir -p "${sfwork}/docs/plans" "${sfwork}/docs/handover" \
+  "${sfwork}/.agents/harness" "${sfwork}/.agents/env/none"
+cp "${ROOT}/joharness.sh" "${sfwork}/joharness.sh"
+cp "${ROOT}/.agents/harness/queue-context.sh" \
+   "${ROOT}/.agents/harness/handover-context.sh" "${sfwork}/.agents/harness/"
+printf '# none\n' >"${sfwork}/.agents/env/none/AGENTS.md"
+sfconf="${sfwork}/joharness.conf"
+printf 'JOHARNESS_ENV=none\n' >"$sfconf"
+for p in frozen recent; do
+  printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: high\n---\n\n## Goal\nFixture.\n' \
+    "$p" >"${sfwork}/docs/plans/${p}.md"
+done
+git -C "$sfwork" add -A
+# Base AND claim both 100h old: past 24 windows of the 45m default (18h).
+# The date rides on each commit as a prefix, so it cannot leak.
+sft=$(( $(date +%s) - 100 * 3600 ))
+GIT_AUTHOR_DATE="@${sft} +0000" GIT_COMMITTER_DATE="@${sft} +0000" \
+  git -C "$sfwork" commit -qm "base, four days ago"
+git -C "$sfwork" remote add origin "$sforigin"
+git -C "$sfwork" push -qu origin main
+# <stem> <commit epoch>: one manager's claim, on its own branch.
+sfclaim() {
+  git -C "$sfwork" checkout -qb "mgr-$1" main
+  # main tracks no workstream file, so checking it out removed the directory.
+  mkdir -p "${sfwork}/docs/handover"
+  printf -- '---\nworkstream: %s\nstatus: in-progress\nbranch: mgr-%s\nplan: %s\nsession: https://example.invalid/session_%s\nagent: sonnet\nupdated: 2026-01-01\n---\n\n## Goal\nFixture.\n' \
+    "$1" "$1" "$1" "$1" >"${sfwork}/docs/handover/${1}.md"
+  git -C "$sfwork" add -A
+  GIT_AUTHOR_DATE="@${2} +0000" GIT_COMMITTER_DATE="@${2} +0000" \
+    git -C "$sfwork" commit -qm "claim $1"
+  git -C "$sfwork" push -qu origin "mgr-$1"
+  git -C "$sfwork" checkout -q main
+}
+sfclaim frozen "$sft"
+sf() { ( cd "$sfwork" && JOHARNESS_CONF="$sfconf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 "$@" ./joharness.sh dispatch 2>&1 ); }
+sfline="every manager in flight is silent and main has not moved in 100h: suspect a stopped fleet (a suspension), not 1 dead manager(s) — read the control plane for EACH before any respawn"
+out="$(sf)"
+expect "the silent manager is a stall row, so the line below has a row to speak for" \
+  "STALL? no push for 100h" "$out"
+expect "every row silent and the base still: the stopped-fleet line prints" \
+  "$sfline" "$out"
+expect "and it rides the verdict's tail, not the listing" \
+  "suspect a stopped fleet" "$(sed -n '/^verdict/,$p' <<<"$out")"
+# DISPATCH_FETCH=0 is a view this pass did not refresh, frozen exactly like a
+# stopped fleet: the line says so rather than naming one cause (verifier r4).
+expect "a view nobody fetched is named as the other cause" \
+  "${sfline} (or this clone is stale: fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*)" "$out"
+# And a pass that DID fetch, from the fixture's own bare origin, names one
+# cause only: the suffix is the stale view's, never every pass's (r9).
+out="$(sf env DISPATCH_FETCH=1)"
+expect "a fresh fetch still suspects the fleet" "$sfline" "$out"
+refute "and names no stale clone" "this clone is stale" "$out"
+# A window wider than the silence: 24 x 300m = 120h > 100h. The stall row
+# still fires (100h >= 300m), the multiple does not.
+out="$(sf env JOHARNESS_STALL_MINUTES=300)"
+expect "inside 24 windows the row still stalls" "STALL? no push for 100h" "$out"
+refute "but nothing has been still long enough to suspect the fleet" \
+  "suspect a stopped fleet" "$out"
+# A zero window is zero windows: every base would pass it (verifier r2).
+out="$(sf env JOHARNESS_STALL_MINUTES=0)"
+expect "a zero window still stalls the row" "STALL? no push for" "$out"
+refute "and suspects no fleet on a zero multiple" "suspect a stopped fleet" "$out"
+
+# A second manager, pushed an hour ago. At the default window it is a stall
+# too, so EVERY row stalls and the base is 100h still — and it is still no
+# suspension: a manager that pushed an hour ago was not frozen 100h (r1).
+sfclaim recent "$(( $(date +%s) - 3600 ))"
+out="$(sf)"
+expect "both rows stall at the default window" \
+  "2 manager(s) past the stall window" "$out"
+refute "a manager silent one hour is no frozen fleet, however still the base" \
+  "suspect a stopped fleet" "$out"
+# At 180m the recent one is NOT a stall: one row of two silent is not every
+# row, though the silent one and the base are both past 24 windows (72h) (r3).
+out="$(sf env JOHARNESS_STALL_MINUTES=180)"
+expect "one row of two stalls" "1 manager(s) past the stall window" "$out"
+refute "and one live row voids the suspicion" "suspect a stopped fleet" "$out"
+# Parked: a blocked row is the human's and out of the count, so the silent
+# one is every row again.
+git -C "$sfwork" checkout -q mgr-recent
+sed -i 's/^status: in-progress$/status: blocked/' "${sfwork}/docs/handover/recent.md"
+commit_all "$sfwork" "park recent"
+git -C "$sfwork" push -q origin mgr-recent
+git -C "$sfwork" checkout -q main
+out="$(sf)"
+expect "the parked row is blocked, so the line below reads a live case" \
+  "BLOCKED: the human's" "$out"
+expect "a blocked row does not void the suspicion" "$sfline" "$out"
+
+# The same fleet, the base branch moved this minute: the managers are silent
+# while somebody else merged, so it is not a suspension.
+printf 'moved\n' >"${sfwork}/moved.txt"
+commit_all "$sfwork" "base moves now"
+git -C "$sfwork" push -q origin main
+out="$(sf)"
+expect "the row still stalls, so the refute below reads a live case" \
+  "STALL? no push for 100h" "$out"
+refute "a base that moved prints no stopped-fleet line" "suspect a stopped fleet" "$out"
