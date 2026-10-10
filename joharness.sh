@@ -931,7 +931,8 @@ lint_graph() {
     lint_enum "$rel" agent "$agent" haiku sonnet opus fable
     p="$(lint_stem "$p")"
     if [ -n "$p" ] && [ "$p" != "none" ] &&
-       [ -f "${ROOT}/docs/research/${p}.md" ]; then
+       { [ -f "${ROOT}/docs/research/${p}.md" ] ||
+         [ -f "${ROOT}/docs/product/${p}.md" ]; }; then
       :
     elif [ -n "$p" ] && [ "$p" != "none" ] &&
        [ ! -f "${ROOT}/docs/plans/${p}.md" ]; then
@@ -939,10 +940,12 @@ lint_graph() {
         lint_warn "${rel}: claims research '${p}' gone from tree (answered?) — claim reads as none"
       elif lint_existed "docs/plans/${p}.md"; then
         lint_warn "${rel}: claims plan '${p}' gone from tree (merged?) — claim reads as none"
+      elif lint_existed "docs/product/${p}.md"; then
+        lint_warn "${rel}: claims requirement '${p}' gone from tree (served?) — claim reads as none"
       elif lint_shallow; then
         lint_warn "${rel}: plan '${p}' unknown here (shallow history) — typo or merged, cannot tell"
       else
-        lint_red "${rel}: plan '${p}' — no such plan or question, never existed. Claim invisible; typo?"
+        lint_red "${rel}: plan '${p}' — no such plan, question or requirement, never existed. Claim invisible; typo?"
       fi
     fi
     lint_issue "$rel" "$iss" "the hook drops it and the issue reads as unclaimed"
@@ -2653,12 +2656,12 @@ cmd_janitor() {
     # WHICH path, then WHERE it is.
     held="" onbranch=""
     if [ -n "$plan" ] && [ "$plan" != none ]; then
-      for cand in "docs/plans/${plan}.md" "docs/research/${plan}.md"; do
+      for cand in "docs/plans/${plan}.md" "docs/research/${plan}.md" "docs/product/${plan}.md"; do
         git -C "$ROOT" cat-file -e "refs/remotes/origin/${base_branch}:${cand}" \
           </dev/null 2>/dev/null || continue
         held="$cand"; break
       done
-      [ -n "$held" ] || for cand in "docs/plans/${plan}.md" "docs/research/${plan}.md"; do
+      [ -n "$held" ] || for cand in "docs/plans/${plan}.md" "docs/research/${plan}.md" "docs/product/${plan}.md"; do
         git -C "$ROOT" cat-file -e "refs/remotes/origin/${branch}:${cand}" \
           </dev/null 2>/dev/null || continue
         onbranch="$cand"; break
@@ -3774,10 +3777,17 @@ drain_hook() {
     "$h" 2>/dev/null
 }
 
+# The queue hook's first unplanned requirement no planning manager claims.
 drain_requirement() {
+  local line
   printf '%s\n' "$1" |
     sed -n '/^Requirements without plans/,/^$/p' |
-    sed -n 's#^  \(docs/product/[^ ]*\.md\)  \(.*\)$#\1 \2#p' | head -1
+    grep -v 'claimed on ' |
+    sed -n 's#^  \(docs/product/[^ ]*\.md\)  \(.*\)$#\1 \2#p' |
+    while IFS= read -r line; do
+      case "${2-}" in *" ${line%% *}@"*) continue ;; esac
+      printf '%s\n' "$line"
+    done | head -1
 }
 
 # Plans the queue hook marked CORE ONLY, one indented path per line.
@@ -3894,7 +3904,7 @@ dispatch_waves() {
 dispatch_retired_edges() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}"
   git -C "$ROOT" for-each-ref --format='%(refname)' refs/remotes/origin 2>/dev/null |
-    { local r name base items swept plan cand state unver=0
+    { local r name base items swept plan cand state own unver=0
       while IFS= read -r r; do
         name="${r#refs/remotes/origin/}"
         { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
@@ -3919,13 +3929,69 @@ dispatch_retired_edges() {
         # before this branch deleted it.
         swept="$(git -C "$ROOT" diff --name-only --diff-filter=D "$base" "$r" \
           -- docs/handover 2>/dev/null | gr_docs | head -1)"
-        if [ -z "$items" ] && [ -z "$swept" ]; then continue; fi
+        # A PLANNING pass retires nothing the base carries: its workstream
+        # file was born and retired on the branch, so it nets to absent, and
+        # it deletes no plan — it ADDS them. The record is still in the
+        # branch's own history: the commit that retired it. Its `plan:`
+        # naming a requirement the base carries is the item. Without this the
+        # planning branch vanished at step 7 and its requirement was offered
+        # to a second planner for the whole pull-request window (verifier
+        # r2). The retired FILE, never the plans the branch adds: a clerk or
+        # any plan-only branch adds plans that name requirements, claims
+        # nothing, and must hold no slot — reading the added plans gave it
+        # one under a title no live session carries (verifier r8).
+        if [ -z "$items" ] && [ -z "$swept" ]; then
+          # The branch's OWN record: a file this branch's own commits both
+          # ADDED and DELETED — first-parent, no merges, both halves. Each
+          # narrower spelling was a verifier round. Default walk: a reconcile
+          # merge TREESAME to the base pruned the retire commit (r10).
+          # First-parent alone: that merge's diff carries the BASE's
+          # deletions, so a branch that merged a cleanup of an inherited
+          # record borrowed its claim (r11). Without the ADDED half, a
+          # branch's own sweep of an inherited record the base later dropped
+          # read as its claim. A planning branch merged in lends nothing:
+          # its commits are not on this first-parent line.
+          own="$(git -C "$ROOT" log --first-parent --no-merges --format= \
+            --name-only --diff-filter=A "${base}..${r}" -- docs/handover \
+            2>/dev/null | gr_docs | sort -u)"
+          [ -n "$own" ] || continue
+          items="$(git -C "$ROOT" log --first-parent --no-merges \
+              --format='@%H' --name-only \
+              --diff-filter=D "${base}..${r}" -- docs/handover 2>/dev/null |
+            { c=""
+              while IFS= read -r cand; do
+                case "$cand" in
+                  '') continue ;;
+                  @*) c="${cand#@}"; continue ;;
+                esac
+                [ -n "$c" ] || continue
+                printf '%s\n' "$cand" | gr_docs | grep -q . || continue
+                printf '%s\n' "$own" | grep -qxF -- "$cand" || continue
+                plan="$(git -C "$ROOT" show "${c}^:${cand}" 2>/dev/null |
+                  gr_field plan)"
+                plan="${plan##*/}"; plan="${plan%.md}"
+                plan="$(printf '%s' "$plan" | tr -cd 'A-Za-z0-9._-')"
+                case "$plan" in '' | none) continue ;; esac
+                # A plan or question of the stem wins, as at every site.
+                git -C "$ROOT" cat-file -e \
+                  "refs/remotes/origin/${base_branch}:docs/plans/${plan}.md" \
+                  2>/dev/null && continue
+                git -C "$ROOT" cat-file -e \
+                  "refs/remotes/origin/${base_branch}:docs/research/${plan}.md" \
+                  2>/dev/null && continue
+                git -C "$ROOT" cat-file -e \
+                  "refs/remotes/origin/${base_branch}:docs/product/${plan}.md" \
+                  2>/dev/null && printf 'docs/product/%s.md\n' "$plan"
+              done; } | sort -u | tr '\n' ' ')"
+          items="${items% }"
+          [ -n "$items" ] || continue
+        fi
         plan=""
         [ -z "$swept" ] ||
           plan="$(git -C "$ROOT" show "${base}:${swept}" 2>/dev/null |
             gr_field plan)"
         case "$plan" in '' | none) ;; *)
-          for cand in "docs/plans/${plan}.md" "docs/research/${plan}.md"; do
+          for cand in "docs/plans/${plan}.md" "docs/research/${plan}.md" "docs/product/${plan}.md"; do
             git -C "$ROOT" cat-file -e "${base}:${cand}" 2>/dev/null || continue
             case " ${items} " in
               *" ${cand} "*)
@@ -3945,15 +4011,17 @@ dispatch_retired_edges() {
           done ;;
         esac
         # THE DISCRIMINATOR.
-        state=leftover
+        state=leftover askable=""
         while IFS= read -r cand; do
           [ -n "$cand" ] || continue
+          case "$cand" in docs/product/*) continue ;; esac
+          askable=1
           git -C "$ROOT" cat-file -e "refs/remotes/origin/${base_branch}:${cand}" \
             2>/dev/null || continue
           state=mid-merge
           break
         done <<<"$(printf '%s\n' "$items" | tr ' ' '\n')"
-        [ -n "$items" ] || state=unknown
+        [ -n "$askable" ] || state=unknown
         printf '%s\t%s\t%s\n' "$name" "${items:--}" "$state"
       done
       # Last line, and it is not a branch.
@@ -4848,9 +4916,12 @@ cmd_dispatch() {
   hout="$(drain_hook handover-context.sh)"
   qout="$(drain_hook queue-context.sh)"
 
-  # Every plan and research row as path|label, both directories, every row.
+  # Every plan, research and requirement row as path|label, every row. A
+  # requirement row matters here only CLAIMED — it is the planning manager's
+  # in-flight row; unclaimed, `drain_requirement` offers it, never the free
+  # walk below.
   rows="$(printf '%s\n' "$qout" |
-    sed -n 's#^  \(docs/\(plans\|research\)/[^ ]*\.md\)  \(\[.*\]\)$#\1|\3#p')"
+    sed -n 's#^  \(docs/\(plans\|research\|product\)/[^ ]*\.md\)  \(\[.*\]\)$#\1|\3#p')"
   wavemap="$(printf '%s\n' "$qout" | dispatch_waves)"
   # The hook's orchestrated-only lines: a free plan whose scope overlaps a
   # plan a manager holds now. Stem, then the rest of the line as the reason.
@@ -5024,6 +5095,7 @@ cmd_dispatch() {
     case "$label" in
       *'claimed on '* | *'blocked by'* | *'CORE ONLY'*) continue ;;
     esac
+    case "$path" in docs/product/*) continue ;; esac
     # An item whose branch is past the retire commit is not free either.
     case "$edge_items" in *" ${path}@"*) continue ;; esac
     tier="$(sed -n 's/.*agent: \([a-z]*\).*/\1/p' <<<"$label")"
@@ -5066,7 +5138,7 @@ cmd_dispatch() {
     esac
   done <<<"$rows"
 
-  req="$(drain_requirement "$qout")"
+  req="$(drain_requirement "$qout" "$edge_items")"
   printf 'spawn, in this order, one manager per item, model = its agent tier:\n'
   if [ -n "$req" ]; then
     # Planning outranks the plan queue (step 2), so it is first and it is ONE

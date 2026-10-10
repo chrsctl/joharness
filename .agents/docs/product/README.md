@@ -99,14 +99,24 @@ Rejected, so the question stays closed:
   per-manager ceiling never fires; the cost is the count of passes, not any
   one of them.
 
-**Gap still open, filed as plan `requirement-row-claim`:** a requirement
-cannot be CLAIMED. Claim resolution offers only `docs/plans/` and
-`docs/research/` (`joharness.sh`, `for cand in`; `lint_graph`), so a
-planning branch whose workstream file names the requirement in `plan:` — as
-`/manage` tells it to — appears in no dispatch row, holds no slot, and reds
-`ci` (`plan '<r>' — no such plan or question`). Exits 1–4 end the loop at
-the pass's merge; the claim is what stops a SECOND planner while one is in
-flight, and what keeps a blocked exit-4 pass from being respawned.
+**Claiming a requirement.** A planning manager claims the requirement it
+decomposes the way any manager claims its item: `plan: <requirement stem>`
+in its pushed workstream file. Claim resolution offers `docs/plans/`, then
+`docs/research/`, then `docs/product/` (`joharness.sh`, `for cand in`;
+`lint_graph`), so a stem naming a plan as well resolves to the plan. The
+claimed requirement prints `claimed on <branch>` under "Requirements without
+plans", `dispatch` gives the planning branch an in-flight row and its slot,
+and does not offer the requirement again — `blocked` included, so a parked
+exit-4 pass is never respawned. `abandoned` releases it, as on a plan. Past
+the retire commit (step 7, before the pull request opens) the claim file is
+gone from the branch's tree but not from its history: the commit that
+retired it still names the requirement, so until the merge the branch is a
+retired row, the slot held, the requirement withheld. Plans a branch adds
+claim nothing — a clerk's plan-only pull request holds no slot. A requirement's file
+outlives its planning merge, so such a row never reads as mid-merge; with no
+push for 24 stall windows it is a leftover and the requirement is offered
+again. Exits 1–4 end the loop at the pass's merge; the claim is what stops a
+SECOND planner while one is in flight.
 
 **Intake rejections** (from a sweep of a published `intent.md` practice):
 

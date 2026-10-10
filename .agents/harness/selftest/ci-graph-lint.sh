@@ -291,6 +291,17 @@ out="$(lint_section "$(lint_ci)")"
 refute "clearing them clears the lint" "not a number" "$out"
 rm -f "${lwork}/docs/handover/claim-ok.md" "${lwork}/docs/handover/claim-none.md"
 
+# A planning manager claims a REQUIREMENT by its stem (`/manage`, item kinds).
+# Before, `plan: <requirement>` reded here as a claim on nothing, so the
+# manager obeying its own instructions failed ci.
+printf -- '---\nrequirement: claim-goal\npriority: normal\n---\n\n## Goal\nFixture.\n' \
+  >"${lwork}/docs/product/claim-goal.md"
+printf -- '---\nworkstream: plan-goal\nstatus: in-progress\nplan: claim-goal\n---\n\n## Goal\nFixture.\n' \
+  >"${lwork}/docs/handover/plan-goal.md"
+out="$(lint_section "$(lint_ci)")"
+refute "a claim naming a requirement is not dead" "plan 'claim-goal'" "$out"
+rm -f "${lwork}/docs/product/claim-goal.md" "${lwork}/docs/handover/plan-goal.md"
+
 # Never-existed names and a bad enum: hard facts, red, ci fails.
 cat >"${lwork}/docs/plans/bad.md" <<'EOF'
 ---
@@ -323,7 +334,7 @@ expect "adjacent vocabulary words are not a value" \
 expect "dangling needs is red" \
   "needs 'never-was' — no such plan, never existed" "$out"
 expect "dangling claim is red" \
-  "plan 'never-was-plan' — no such plan or question, never existed" "$out"
+  "plan 'never-was-plan' — no such plan, question or requirement, never existed" "$out"
 if [ "$rc" -ne 0 ]; then
   pass "dead edges fail ci"
 else

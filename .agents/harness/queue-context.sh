@@ -332,18 +332,45 @@ qc_print_research() {
 served="$(awk -F'\t' '$5 != "" && $5 != "none" { print $5 }' <<<"$rows")"
 unplanned=""
 if [ -n "$reqs" ]; then
+  qc_item_stems="$(printf '%s\n%s\n' "$plans" "$research" |
+    while IFS= read -r qf; do [ -z "$qf" ] || { stem "$qf"; printf '\n'; }; done)"
   unplanned="$(
     while IFS= read -r rf; do
       [ -n "$rf" ] || continue
-      grep -qxF -- "$(stem "$rf")" <<<"$served" && continue
+      rs="$(stem "$rf")"
+      grep -qxF -- "$rs" <<<"$served" && continue
       rprio="$(git show "${ref}:${rf}" 2>/dev/null | field priority)"
+      # The graph's vocabulary, never passed through: this value lands in
+      # the label, and `claimed on <branch>` in a label is a claim to every
+      # reader downstream — a requirement written `priority: claimed on x`
+      # forged a planner in flight (verifier r6). Same rule as `pstatus`.
+      case "$rprio" in normal | urgent | '') ;; *) rprio="unreadable" ;; esac
       rrank=1
       [ "$rprio" = "urgent" ] && rrank=0
-      printf '%s\t%s\t[%s, UNPLANNED — decompose into plans]\n' \
-        "$rrank" "$rf" "${rprio:-normal}"
+      # A planning manager claims the requirement the way any manager claims
+      # its item: `plan: <stem>` in a pushed workstream file. Same claims map,
+      # same key, `abandoned` excluded, as plans at `claimed_on=`. Without it
+      # the planning branch was invisible — no in-flight row, no slot, the
+      # requirement offered again while its planner ran, and a planner that
+      # parked `blocked` respawned. A plan or question of the same stem wins:
+      # the claim resolves to it, in this order, at every resolution site
+      # (joharness.sh, `for cand in`).
+      rqclaimed=""
+      if ! grep -qxF -- "$rs" <<<"$qc_item_stems"; then
+        rqclaimed="$(awk -F'\t' -v s="$rs" \
+          '$1 == s && $3 != "abandoned" { print $2; exit }' <<<"$claims")"
+      fi
+      [ -z "$rqclaimed" ] || rrank=$((rrank + 2))
+      printf '%s\t%s\t[%s, UNPLANNED — decompose into plans%s]\n' \
+        "$rrank" "$rf" "${rprio:-normal}" "${rqclaimed:+, claimed on ${rqclaimed}}"
     done <<<"$reqs" | sort -t$'\t' -k1,1n -k2,2
   )"
 fi
+# The ones still free to plan. A claimed requirement is listed above — its
+# row is where `dispatch` finds the planner in flight — but every sentence
+# below that SENDS a session to planning reads this, or a second planner is
+# told to start on a requirement the first one holds (verifier r4).
+unplanned_free="$(grep -v 'claimed on ' <<<"$unplanned" || :)"
 if [ -n "$unplanned" ]; then
   printf 'Requirements without plans — planning outranks the plan queue:\n'
   rtotal=0
@@ -360,7 +387,8 @@ fi
 
 # Fan-out instruction.
 if [ -z "$plans" ]; then
-  if [ -n "$unplanned" ]; then
+  # Unplanned requirements first: planning outranks executing.
+  if [ -n "$unplanned_free" ]; then
     qc_print_research
     printf '\nNo plans on %s. Entrypoint: plan the requirements above (issues\n' "$ref"
     printf 'still outrank). Default agent tier: sonnet (.agents/docs/agent-selection.md).\n'
@@ -659,15 +687,15 @@ if [ "$free_count" -ge 2 ] && [ "$scoped_any" = "1" ]; then
   [ -z "$unscoped" ] ||
     printf '  unscoped, independence not provable: %s — declare scope: in\n  the plan file to join a wave.\n' \
       "$unscoped"
-  [ -z "$unplanned" ] ||
+  [ -z "$unplanned_free" ] ||
     printf 'Plus one planning session for the UNPLANNED requirements above.\n'
 elif [ "$free_count" -ge 2 ]; then
   printf '\n%d free plans = %d parallel sessions. Spawn one per plan, model = its\n' \
     "$free_count" "$free_count"
   printf 'tier: %s.\n' "$free_list"
-  [ -z "$unplanned" ] ||
+  [ -z "$unplanned_free" ] ||
     printf 'Plus one planning session for the UNPLANNED requirements above.\n'
-elif [ "$free_count" -eq 0 ] && [ -z "$unplanned" ] &&
+elif [ "$free_count" -eq 0 ] && [ -z "$unplanned_free" ] &&
      [ "$qc_unreadable" -eq 0 ] && [ "$research_count" -gt 0 ]; then
   # Every plan claimed or blocked, questions still open.
   printf '\nNo free plan, but %d open question(s) above — not the edge.\n' \
@@ -677,7 +705,7 @@ elif [ "$free_count" -eq 0 ] && [ -z "$unplanned" ] &&
   printf 'Agent field = tier to run it; escalate fine, downgrade never\n'
   printf '(.agents/docs/agent-selection.md). Claimed plan: /who before touching.\n'
   exit 0
-elif [ "$free_count" -eq 0 ] && [ -z "$unplanned" ] &&
+elif [ "$free_count" -eq 0 ] && [ -z "$unplanned_free" ] &&
      [ "$qc_unreadable" -eq 0 ]; then
   # The tail below ("top free plan above") would point at a plan that is not
   # free.
@@ -693,7 +721,7 @@ printf '\n'
 printf 'Finishing outranks starting: edge work in the in-flight block above\n'
 printf '(pull request open, or status review or done) comes before anything\n'
 printf 'here. Another session LIVE on it? Not yours — /who, then pick below.\n\n'
-if [ -n "$unplanned" ]; then
+if [ -n "$unplanned_free" ]; then
   printf 'Entrypoint: GitHub issues, then UNPLANNED requirements above (plan\n'
   printf 'first — outranks plans), then top free plan. Agent field = model\n'
 else
