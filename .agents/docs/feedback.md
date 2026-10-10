@@ -477,6 +477,12 @@ belongs in D. That is the same trap as mistaking `docs/handover/README.md` for
 `.agents/docs/handover/README.md` by suffix, which is how an earlier count of
 this got 45 instead of 44.
 
+**Re-counted after the fix** (2026-10-10, same sweep command, corpus grown
+since the table above, so totals are not comparable row to row): `harness
+findings` 1616, `named paths in prose, none canonical's` 104, `unplaceable`
+(no path token) 423, this repo's own 177. The 57 moved out of the bucket that
+claimed they carried no path; `unplaceable` now holds only the pathless.
+
 Of A's 8, every one names a node that retires (`docs/plans/`, `docs/handover/`,
 `docs/research/`, `docs/product/`), a queue-directory `README.md`, or a file in
 another repository — one cites gastown's. **None names a durable
