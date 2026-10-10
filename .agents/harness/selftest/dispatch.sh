@@ -1237,6 +1237,16 @@ refute "so the a+b record does not settle it" \
   "settled by merged rescope" "$out"
 expect "and a surveyor is earned for the new collision" \
   "spawn ONE surveyor (agent: sonnet) on key b+d" "$out"
+# The cases above pass on d.md landing AFTER the record, which the changed-since
+# test catches alone. A record made after d.md, with no plan changed since, must
+# still miss b+d: only the cover test can say so (research node
+# rescope-re-offered-after-merge, verifier r1).
+ms_rescope 'a+b' ab3
+out="$(ms)"
+refute "a fresh record that never saw holder d does not settle b+d" \
+  "settled by merged rescope" "$out"
+expect "so the new collision still earns its surveyor" \
+  "spawn ONE surveyor (agent: sonnet) on key b+d" "$out"
 
 # --- curate: is the live plan queue still fit? ------------------------------
 # The periodic reader. Its own fixture, because every finding is a property of

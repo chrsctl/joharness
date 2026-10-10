@@ -9448,6 +9448,30 @@ cmd_dispatch() {
     # changed `scope:` line is new information and re-earns a rescope. Run
     # here only — this block runs only when slots are free and nothing else
     # is spawnable, so a normal pass pays nothing for the log walk.
+    #
+    # Why THIS source and THIS test, not the issue's "key it on the held plan"
+    # (research node rescope-re-offered-after-merge, settled and retired here):
+    #   - Keying on the plan fixes the drift and not the merge: the scan above
+    #     never sees a merged surveyor at all, so any key read from it is still
+    #     blind. The retired workstream file in history is the one record that
+    #     outlives that merge, and it is a counted read, not a status field.
+    #   - Cover, not plan identity: a holder the record never saw is a NEW
+    #     collision and earns its own surveyor. Keyed on the plan, that
+    #     surveyor never comes: a wrong declaration on the new holder is never
+    #     repaired, on this plan or any later collision with it — every one
+    #     serialises. An over-spawn costs one session.
+    #   - "Holds genuine" is a JUDGEMENT, not a fact: a MERGED record stands
+    #     until a held or holder plan's file changes, which re-earns a
+    #     surveyor. Suppress-and-say, not report-and-respawn: the
+    #     `settled by merged rescope` line below names the record, a human who
+    #     disagrees spawns the surveyor, and a wrong suppression costs only
+    #     waiting for the holders — a respawn costs money every pass.
+    #   - Known limits, both from PR #359 (rescope-settled-by-merged-superset)
+    #     and its verifier rounds r1, r5. The record stores no held set, so a
+    #     plan that BECOMES held behind a covered holder set later, its file
+    #     unchanged, is settled unseen. An UNMERGED done rescope settles on
+    #     cover alone — no retire sha to measure "changed since" from. Cost of
+    #     each: the plan waits for the holders to merge, never lost.
     if [ "$rescope_settled" -eq 0 ]; then
       # Held plans AND current holders: a holder whose `scope:` moved is the
       # same new information as a held plan's (verifier r2).
