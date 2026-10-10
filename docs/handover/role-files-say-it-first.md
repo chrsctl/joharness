@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01JXRwsrjsYb46uP7faUNkBB
 agent: haiku
 updated: 2026-10-10
-next: Add the orcmd description expect and mgrmd Never expect to selftest/orchestrated.sh, then run selftest.
+next: Retire commit: git rm this file and docs/plans/role-files-say-it-first.md, then open the pull request.
 ---
 
 ## Goal
@@ -26,6 +26,10 @@ and the manage.md half of #304 (no "wait for a human" bullet in `## Never`).
 None yet.
 
 ## Review
+
+- r1: (verifier) `next:` said to add the two expects, both already in the branch; (fixed) `next:` rewritten to the retire step.
+- r2: (verifier) the Never expect pins the word `AskUserQuestion`, not the prohibition, so "Use AskUserQuestion freely" would pass; (wontfix) the plan's Acceptance names this needle exactly, and a tighter needle is a plan change, not this branch's fix. Recorded for a later plan.
+- r3: (verifier) `ci` not run in review; (fixed by evidence) `./joharness.sh ci` ran after the last edit and before the commit, printed `ci: pass`, same tree.
 
 ## Blockers
 
