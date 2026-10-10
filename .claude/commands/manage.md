@@ -73,6 +73,8 @@ the build into sub-tasks. Each sub-task, written for a literal reader:
 - tier: haiku when mechanical AND fully specified AND acceptance runnable;
   sonnet otherwise; never above the plan's `agent:`. Lower than you by
   default — the tier the plan named is for the judgement, not the typing.
+  A haiku sub-task stays small — past 100K prompt tokens haiku bills 5x (Lineup,
+  `.agents/docs/agent-selection.md`); a sub-task that cannot = sonnet.
 
 Worker = `Agent` tool, `subagent_type: general-purpose`, `model` = its
 tier, one per sub-task, parallel across disjoint file sets. Its prompt
@@ -161,6 +163,11 @@ request, exit. Did your prompt name a target to message on merge? Then
 "merged <stem>" to it — it fills your slot at once instead of on its
 clock. No such line in your prompt, no messaging tool, or the send comes
 back refused: just exit, the orchestrator's next pass sees the merge.
+A follow-up plan you filed as its own plan-only pull request is your own
+pull request too: drive it to merged before you exit, step 7 whole —
+checks green, 0 behind, `./joharness.sh finish` green, review recorded, no
+open human thread. A plan-only diff changes only the queue; unmerged, it is
+a row dispatch can show but never spawn.
 
 **And one thing more, when you have one: a LEAD.** You are the only party
 that read this item end to end, and everything you learned about YOUR files

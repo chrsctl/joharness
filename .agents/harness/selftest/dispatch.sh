@@ -1108,6 +1108,18 @@ expect "and the done branch is still shown in the block it points at" \
 refute "and no new rescope is recommended" "spawn ONE surveyor" "$out"
 refute "nor is it read as still actively running" \
   "a surveyor is already in flight" "$out"
+# A done rescope whose key COVERS the current one settles it too: a co-holder
+# merged and the set shrank (issue #300). Equality alone left this unsettled.
+git -C "$rbwork" checkout -q claude/rescope-keeper
+sed -i 's/^workstream: rescope-keeper/workstream: rescope-gone+keeper/' \
+  "${rbwork}/docs/handover/rescope-keeper.md"
+commit_all "$rbwork" "a co-holder merged under the done rescope"
+git -C "$rbwork" push -q origin claude/rescope-keeper
+git -C "$rbwork" checkout -q main
+out="$(rb)"
+expect "a done rescope on a superset key settles the shrunk key" \
+  "a rescope for this key is done or blocked" "$out"
+refute "so no surveyor is spawned onto the subset" "spawn ONE surveyor" "$out"
 
 # 0 slots (cap = 1, keeper fills it): the fleet is working, not stalled, so
 # the held plans stay DRAINED-in-flight and no rescope is offered.
@@ -1116,6 +1128,115 @@ refute "with no idle slot there is no OVERLAP-BOUND" \
   "verdict   : OVERLAP-BOUND" "$out"
 expect "the held plans wait on the holder merging, nothing to rescope now" \
   "verdict   : DRAINED — nothing free; 1 manager(s) in flight" "$out"
+
+# --- a MERGED done rescope settles a covered key (issue #300) ---------------
+# A surveyor concluded "the rest is genuine", retired and merged; two of its
+# three holders merged after. The key shrank from a+b+c to b, and the in-flight
+# scan skips merged refs, so the next pass asked for a second surveyor on a
+# conclusion already on main. Built as the real shape: the rescope branch adds
+# then deletes its workstream file and is merged with a merge commit.
+mswork="${TMP}/mergedrescopework"
+msorigin="${TMP}/mergedrescopeorigin.git"
+git init -q --bare "$msorigin"
+git init -q "$mswork"
+git -C "$mswork" symbolic-ref HEAD refs/heads/main
+mkdir -p "${mswork}/docs/plans" "${mswork}/docs/handover" \
+  "${mswork}/.agents/harness" "${mswork}/.agents/env/none"
+cp "${ROOT}/joharness.sh" "${mswork}/joharness.sh"
+cp "${ROOT}/.agents/harness/queue-context.sh" \
+   "${ROOT}/.agents/harness/handover-context.sh" "${mswork}/.agents/harness/"
+printf '# none\n' >"${mswork}/.agents/env/none/AGENTS.md"
+msconf="${mswork}/joharness.conf"
+printf 'JOHARNESS_ENV=none\n' >"$msconf"
+for n in h b; do
+  { printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: high\n' "$n"
+    printf 'scope: src/shared\n---\n\n## Goal\nFixture.\n'
+  } >"${mswork}/docs/plans/${n}.md"
+done
+commit_all "$mswork" "base"
+git -C "$mswork" remote add origin "$msorigin"
+git -C "$mswork" push -qu origin main
+# b claimed and live: h is held behind it on src/shared, the key is `b`.
+ms_claim() {
+  git -C "$mswork" checkout -q main
+  git -C "$mswork" checkout -qb "mgr-$1"
+  mkdir -p "${mswork}/docs/handover"
+  printf -- '---\nworkstream: %s\nstatus: in-progress\nbranch: mgr-%s\nplan: %s\nagent: sonnet\nupdated: 2026-01-01\nnext: Build\n---\n\n## Goal\nFixture.\n' \
+    "$1" "$1" "$1" >"${mswork}/docs/handover/$1.md"
+  commit_all "$mswork" "claim $1"
+  git -C "$mswork" push -qu origin "mgr-$1"
+  git -C "$mswork" checkout -q main
+}
+ms_claim b
+# A surveyor on key <$1> that finished `done`, retired its workstream file on
+# its own branch, and merged into main with a merge commit.
+ms_rescope() {
+  git -C "$mswork" checkout -q main
+  git -C "$mswork" checkout -qb "claude/rescope-$2"
+  mkdir -p "${mswork}/docs/handover"
+  printf -- '---\nworkstream: rescope-%s\nstatus: done\nbranch: claude/rescope-%s\nplan: none\nagent: sonnet\nupdated: 2026-01-02\nnext: The rest is genuine\n---\n\n## Goal\nFixture.\n' \
+    "$1" "$2" >"${mswork}/docs/handover/rescope-$2.md"
+  commit_all "$mswork" "rescope $1: the rest is genuine"
+  fixture_rm "$mswork" "retire rescope $1" "docs/handover/rescope-$2.md"
+  git -C "$mswork" push -qu origin "claude/rescope-$2"
+  git -C "$mswork" checkout -q main
+  git -C "$mswork" merge -q --no-ff -m "Merge rescope $1" "claude/rescope-$2"
+  git -C "$mswork" push -q origin main
+}
+ms_rescope 'a+b+c' abc
+ms() { ( cd "$mswork" && JOHARNESS_CONF="$msconf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 ./joharness.sh dispatch 2>&1 ); }
+out="$(ms)"
+expect "the shrunk key is OVERLAP-BOUND on holder b" "key: b" "$out"
+expect "a merged done rescope on a superset key settles it" \
+  "a rescope for this key is done or blocked" "$out"
+expect "and the rescope block names the merged record" \
+  "settled by merged rescope" "$out"
+expect "with the key it settled on" "(key a+b+c): holds genuine" "$out"
+refute "so no second surveyor is spawned" "spawn ONE surveyor" "$out"
+
+# A held plan's file changed on main after the record: new information, the
+# record no longer settles and the rescope is earned again (#300 fix 3).
+printf '\nEdited after the rescope.\n' >>"${mswork}/docs/plans/h.md"
+commit_all "$mswork" "edit the held plan after the rescope"
+git -C "$mswork" push -q origin main
+out="$(ms)"
+expect "a held plan edited since the record re-earns a rescope" \
+  "spawn ONE surveyor (agent: sonnet) on key b" "$out"
+refute "and the stale record is not named as settling" \
+  "settled by merged rescope" "$out"
+
+# A record whose key misses a CURRENT holder settles nothing: d is a holder
+# the a+b surveyor never saw, so b+d is a new collision (the Trap the
+# key-specific SETTLED comment names).
+ms_rescope 'a+b' ab
+out="$(ms)"
+expect "a fresh record on a+b settles the key b" \
+  "(key a+b): holds genuine" "$out"
+# A HOLDER's plan file changed since the record is new information too
+# (verifier r2): b's scope widens on main.
+sed -i 's#^scope: src/shared$#scope: src/shared src/other#' "${mswork}/docs/plans/b.md"
+commit_all "$mswork" "widen the holder's scope after the rescope"
+git -C "$mswork" push -q origin main
+out="$(ms)"
+expect "a holder edited since the record re-earns a rescope" \
+  "spawn ONE surveyor (agent: sonnet) on key b" "$out"
+ms_rescope 'a+b' ab2
+out="$(ms)"
+expect "and a fresh record after the edit settles it again" \
+  "(key a+b): holds genuine" "$out"
+{ printf -- '---\nplan: d\nurgency: normal\nagent: sonnet\neffort: high\n'
+  printf 'scope: src/shared\n---\n\n## Goal\nFixture.\n'
+} >"${mswork}/docs/plans/d.md"
+commit_all "$mswork" "plan d"
+git -C "$mswork" push -q origin main
+ms_claim d
+out="$(ms)"
+expect "the key grows a holder the record never saw" "key: b+d" "$out"
+refute "so the a+b record does not settle it" \
+  "settled by merged rescope" "$out"
+expect "and a surveyor is earned for the new collision" \
+  "spawn ONE surveyor (agent: sonnet) on key b+d" "$out"
 
 # --- curate: is the live plan queue still fit? ------------------------------
 # The periodic reader. Its own fixture, because every finding is a property of
@@ -1990,8 +2111,10 @@ else
   fail "the inherited curate file is not on the branch, so nothing below is tested"
 fi
 out="$(agd env JOHARNESS_CURATE_PLANS=1)"
+# Outside the `plans on a branch` block: the branch ADDED `inheritor`, so that
+# block names it by right — a plan row, not a curator row.
 refute "a branch that only inherits a curate file is not a curator" \
-  "claude/inherits-it" "$out"
+  "claude/inherits-it" "$(sed '/^plans on a branch/,/^$/d' <<<"$out")"
 expect "and the cycle is still due, with nobody in flight" "curate    : DUE" "$out"
 
 # --- the two states the cadence cannot be read in ---------------------------
@@ -2449,6 +2572,151 @@ if [ "$(grep -n '^edge work (finish' <<<"$out" | cut -d: -f1)" -lt \
 else
   fail "and it is printed before the spawn order"
 fi
+
+# --- plans on a branch: visible, never free (issue #297) --------------------
+# The queue reads `docs/plans/` on the base only, so a plan an unmerged branch
+# added had no row anywhere. Its own repo: the verdict and the free count are
+# compared with and without the branch, so nothing else may move between.
+bpwork="${TMP}/branchplanwork"
+bporigin="${TMP}/branchplanorigin.git"
+git init -q --bare "$bporigin"
+git init -q "$bpwork"
+git -C "$bpwork" symbolic-ref HEAD refs/heads/main
+mkdir -p "${bpwork}/docs/plans" "${bpwork}/docs/handover" \
+  "${bpwork}/.agents/harness" "${bpwork}/.agents/env/none"
+cp "${ROOT}/joharness.sh" "${bpwork}/joharness.sh"
+cp "${ROOT}/.agents/harness/queue-context.sh" \
+   "${ROOT}/.agents/harness/handover-context.sh" "${bpwork}/.agents/harness/"
+printf '# none\n' >"${bpwork}/.agents/env/none/AGENTS.md"
+bpconf="${bpwork}/joharness.conf"
+printf 'JOHARNESS_ENV=none\n' >"$bpconf"
+# <file> <name> <urgency>
+bpplan() {
+  printf -- '---\nplan: %s\nurgency: %s\nagent: sonnet\neffort: low\n---\n\n## Goal\nFixture.\n' \
+    "$2" "$3" >"$1"
+}
+bpplan "${bpwork}/docs/plans/onmain.md" onmain normal
+commit_all "$bpwork" "base"
+git -C "$bpwork" remote add origin "$bporigin"
+git -C "$bpwork" push -qu origin main
+bp() { ( cd "$bpwork" && JOHARNESS_CONF="$bpconf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 ./joharness.sh dispatch 2>&1 ); }
+bp_before="$(bp)"
+refute "no branch plan, no block" "plans on a branch" "$bp_before"
+
+# A plan-only branch: an urgent plan, no workstream file.
+git -C "$bpwork" checkout -qb plan-only
+bpplan "${bpwork}/docs/plans/x.md" x urgent
+commit_all "$bpwork" "file plan x"
+git -C "$bpwork" push -qu origin plan-only
+git -C "$bpwork" checkout -q main
+out="$(bp)"
+expect "a plan an unmerged branch added is listed, URGENT first, with its branch" \
+  "  URGENT x (urgency: urgent, agent: sonnet)  on plan-only" "$out"
+expect "under its own heading" \
+  "plans on a branch, not in the queue until it merges:" "$out"
+if [ "$(grep '^verdict' <<<"$out")" = "$(grep '^verdict' <<<"$bp_before")" ]; then
+  pass "and the verdict, free count included, is the one without the branch"
+else
+  fail "and the verdict, free count included, is the one without the branch"
+  printf '    without: %s\n    with:    %s\n' \
+    "$(grep '^verdict' <<<"$bp_before")" "$(grep '^verdict' <<<"$out")"
+fi
+refute "and it is never in the spawn list" "docs/plans/x.md" "$out"
+
+# A manager branch carrying its own same-session plan, `plan:` written as a
+# path: in flight, not hidden.
+git -C "$bpwork" checkout -qb mgr-y main
+mkdir -p "${bpwork}/docs/handover"
+bpplan "${bpwork}/docs/plans/y.md" y normal
+printf -- '---\nworkstream: y\nstatus: in-progress\nbranch: mgr-y\nplan: docs/plans/y.md\nagent: sonnet\nupdated: 2026-01-01\nnext: Build\n---\n\n## Goal\nFixture.\n' \
+  >"${bpwork}/docs/handover/y.md"
+commit_all "$bpwork" "manager with its own plan"
+git -C "$bpwork" push -qu origin mgr-y
+git -C "$bpwork" checkout -q main
+# An abandoned branch that added a plan of its own and another.
+git -C "$bpwork" checkout -qb gone-z main
+# git took the directory with mgr-y's file: put it back, then CHECK the file
+# landed, or the refute below passes over a fixture that was never built.
+mkdir -p "${bpwork}/docs/handover"
+bpplan "${bpwork}/docs/plans/z.md" z urgent
+printf -- '---\nworkstream: gone\nstatus: abandoned\nbranch: gone-z\nplan: none\nagent: sonnet\nupdated: 2026-01-01\nnext: Nothing\n---\n\n## Goal\nFixture.\n' \
+  >"${bpwork}/docs/handover/gone.md"
+commit_all "$bpwork" "abandoned branch with a plan"
+git -C "$bpwork" push -qu origin gone-z
+git -C "$bpwork" checkout -q main
+for bpf in y.md gone.md; do
+  bpref="mgr-y"; [ "$bpf" = y.md ] || bpref="gone-z"
+  if git -C "$bpwork" cat-file -e \
+       "refs/remotes/origin/${bpref}:docs/handover/${bpf}" 2>/dev/null; then
+    pass "the fixture built the state: ${bpref} carries its workstream file"
+  else
+    fail "${bpref} carries no workstream file, so its case below tests nothing"
+  fi
+done
+out="$(bp)"
+bpblock="$(sed -n '/^plans on a branch/,/^$/p' <<<"$out")"
+expect "the plan-only branch's plan is still listed" "URGENT x" "$bpblock"
+refute "a manager's own plan, named in plan: as a path, is not listed" \
+  " y (urgency" "$bpblock"
+refute "a plan on an abandoned branch is not listed" " z (urgency" "$bpblock"
+# Diff, never tree: every branch inherits onmain.md from the base.
+refute "an inherited base plan is never a branch plan" "onmain (urgency" "$bpblock"
+
+# The edge shape of any branch with a follow-up (verifier r3): it retires its
+# done plan and adds a new one from the same template. Rename detection read
+# the pair as an R, and `--diff-filter=A` dropped the follow-up.
+git -C "$bpwork" checkout -qb retire-and-follow main
+git -C "$bpwork" rm -q docs/plans/onmain.md
+mkdir -p "${bpwork}/docs/plans"
+bpplan "${bpwork}/docs/plans/followup.md" followup normal
+commit_all "$bpwork" "retire onmain, file followup"
+git -C "$bpwork" push -qu origin retire-and-follow
+# A branch stacked on the plan-only branch carries x too (verifier r5).
+git -C "$bpwork" checkout -qb stacked plan-only
+printf 'more\n' >"${bpwork}/stacked.txt"
+commit_all "$bpwork" "stacked on plan-only"
+git -C "$bpwork" push -qu origin stacked
+git -C "$bpwork" checkout -q main
+out="$(bp)"
+bpblock="$(sed -n '/^plans on a branch/,/^$/p' <<<"$out")"
+expect "a follow-up added beside a retired plan is listed, not lost to a rename" \
+  "  followup (urgency: normal, agent: sonnet)  on retire-and-follow" "$bpblock"
+expect "a plan two branches carry is one row naming both" \
+  "  URGENT x (urgency: urgent, agent: sonnet)  on plan-only, stacked" "$bpblock"
+if [ "$(grep -c 'URGENT x ' <<<"$bpblock")" = 1 ]; then
+  pass "and never two URGENT rows for one plan"
+else
+  fail "and never two URGENT rows for one plan"
+  printf '%s\n' "$(indent "$bpblock")"
+fi
+
+# A plan the base ALSO carries under the same path (verifier r6): the queue has
+# its row, so it is not a branch plan, though the branch's own diff adds it.
+git -C "$bpwork" checkout -qb twice main
+bpplan "${bpwork}/docs/plans/w.md" w urgent
+commit_all "$bpwork" "branch files w"
+git -C "$bpwork" push -qu origin twice
+git -C "$bpwork" checkout -q main
+bpplan "${bpwork}/docs/plans/w.md" w normal
+commit_all "$bpwork" "the base files w too"
+git -C "$bpwork" push -q origin main
+out="$(bp)"
+bpblock="$(sed -n '/^plans on a branch/,/^$/p' <<<"$out")"
+refute "a plan the base also carries is the queue's, not a branch plan" \
+  " w (urgency" "$bpblock"
+expect "while the block still lists the real branch plans" "URGENT x" "$bpblock"
+
+# A non-ASCII plan name (verifier r4): quoted by git, it failed the `.md` test
+# and vanished. The row's stem is the sanitised one; the row is what matters.
+git -C "$bpwork" checkout -qb nonascii main
+bpplan "${bpwork}/docs/plans/fixé.md" fixe urgent
+commit_all "$bpwork" "a plan with a non-ASCII name"
+git -C "$bpwork" push -qu origin nonascii
+git -C "$bpwork" checkout -q main
+out="$(bp)"
+expect "a non-ASCII plan name still has its row" "on nonascii" \
+  "$(sed -n '/^plans on a branch/,/^$/p' <<<"$out")"
 
 # --- time against the item: CEILING? (issue #298) ---------------------------
 # A manager that pushes inside the stall window and under the churn limit read

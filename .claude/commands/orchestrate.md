@@ -531,7 +531,11 @@ Up to `slots`, in dispatch's order, only rows under `spawn`:
   scout that is waiting on one.
 - Verdict `OVERLAP-BOUND` = ONE surveyor, tier sonnet, and ONLY when
   the `rescope :` block says `in flight: none` AND your ledger has no
-  `rescoped=<key>` for this key. Slots are idle only because held plans'
+  `rescoped=<key>` for this key. A ledger `rescoped=<K>` also covers any
+  later key whose holders are all in K — a smaller holder set is the same
+  collision with fewer holders — until that surveyor merged: after it,
+  a spawn line on a covered key means a held or holder plan changed since,
+  which earns ONE more (ledger the new key). Slots are idle only because held plans'
   `scope:` declarations are wrong; the surveyor corrects them and the
   next pass waves the plans in parallel. It holds no slot (beyond the cap,
   like a reporter — say so, it is the human's money), so spawn it even at a
@@ -723,6 +727,11 @@ scheduling; say which managers keep running (they own their pull
 requests).
 
 ## Report, every pass
+
+An `URGENT` row in dispatch's `plans on a branch` block is the report's
+FIRST line, with its branch: the human merges it, or tells you to spawn on
+it. Print the rest of that block too. Never spawn on a branch plan on your
+own: it has not been reviewed into the queue.
 
 One line per manager: item, session, state, action taken. Kept short —
 the workstream files are the record, not this.

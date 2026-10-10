@@ -8278,6 +8278,136 @@ dispatch_rescope_branches() {
   done <<<"$refs"
 }
 
+# Plans on a branch: a plan file an unmerged branch ADDED and the base does not
+# carry. The queue reads `docs/plans/` on the base only, so such a plan has no
+# row at all — not free, not held, not in flight (issue #297: an urgent fix for
+# a red `main` sat 6h on a plan-only pull request the orchestrator could not
+# see, and a second plan riding a product branch drew a duplicate spawn). This
+# walk makes it visible; it never makes it free — the plan has not been
+# reviewed into the queue, so `cmd_dispatch` prints it and counts nothing.
+#
+# Same ref walk as `dispatch_rescope_branches`, same stdin rule. Diff, never
+# tree: `--diff-filter=A` against the merge base, because a branch inherits
+# every plan its base carried. Two drops, both read AT THE BRANCH:
+#   - the plan the branch's own workstream file names in `plan:` — a manager
+#     carrying its own same-session plan is the normal shape, in flight, not
+#     hidden. `lint_stem` first: `plan:` may be written as a path.
+#   - every plan on a branch whose workstream file says `status: abandoned` —
+#     nobody drives it, and the janitor already reports it.
+# One row per plan: branch, stem, urgency, agent.
+dispatch_branch_plans() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}"
+  local refs r name base plans wfs wf doc own wplan wstat abandoned p stem urg agt
+  refs="$(git -C "$ROOT" for-each-ref --format='%(refname)' \
+    refs/remotes/origin </dev/null 2>/dev/null)"
+  while IFS= read -r r; do
+    [ -n "$r" ] || continue
+    name="${r#refs/remotes/origin/}"
+    { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
+    git -C "$ROOT" merge-base --is-ancestor "$r" \
+      "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null && continue
+    base="$(git -C "$ROOT" merge-base "$r" \
+      "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)"
+    [ -n "$base" ] || continue
+    # `--no-renames`: a branch retiring its done plan and adding a follow-up
+    # from the same template reads as an R otherwise, and the follow-up drops
+    # out of `A` — step 7's normal edge shape. Unquoted paths, or a non-ASCII
+    # name fails `gr_docs`'s `.md` test (same two fixes as `fin_own_ws`).
+    plans="$(git -c core.quotePath=false -C "$ROOT" diff --no-renames \
+      --name-only --diff-filter=A "$base" "$r" \
+      -- docs/plans </dev/null 2>/dev/null | gr_docs)"
+    [ -n "$plans" ] || continue
+    # The branch's own workstream files, the ones it introduced or changed.
+    own=" "; abandoned=0
+    wfs="$(git -c core.quotePath=false -C "$ROOT" diff --name-only \
+      --diff-filter=ACMRT "$base" "$r" \
+      -- docs/handover </dev/null 2>/dev/null | gr_docs)"
+    while IFS= read -r wf; do
+      [ -n "$wf" ] || continue
+      doc="$(git -C "$ROOT" show "${r}:${wf}" </dev/null 2>/dev/null)"
+      { read -r wplan; read -r wstat; } \
+        <<<"$(printf '%s\n' "$doc" | gr_fields plan status)"
+      [ "$wstat" = abandoned ] && abandoned=1
+      wplan="$(lint_stem "$wplan" | tr -cd 'A-Za-z0-9._-')"
+      [ -z "$wplan" ] || [ "$wplan" = none ] || own="${own}${wplan} "
+    done <<<"$wfs"
+    [ "$abandoned" -eq 0 ] || continue
+    while IFS= read -r p; do
+      [ -n "$p" ] || continue
+      stem="$(lint_stem "$p" | tr -cd 'A-Za-z0-9._-')"
+      [ -n "$stem" ] || continue
+      [ "${own#* "${stem}" }" = "$own" ] || continue
+      # Already on the base under the same path: the queue has its row.
+      git -C "$ROOT" cat-file -e "refs/remotes/origin/${base_branch}:${p}" \
+        </dev/null 2>/dev/null && continue
+      { read -r urg; read -r agt; } <<<"$(git -C "$ROOT" show "${r}:${p}" \
+        </dev/null 2>/dev/null | gr_fields urgency agent)"
+      urg="$(printf '%s' "$urg" | tr -cd 'A-Za-z0-9._-')"
+      agt="$(printf '%s' "$agt" | tr -cd 'A-Za-z0-9._-')"
+      printf '%s\t%s\t%s\t%s\n' "$(printf '%s' "$name" | tr -cd 'A-Za-z0-9._/-')" \
+        "$stem" "${urg:-?}" "${agt:-?}"
+    done <<<"$plans"
+  done <<<"$refs"
+}
+
+# Rescopes already MERGED with `status: done` — issue #300. The scan above
+# skips merged refs, so a surveyor that concluded "the rest is genuine" and
+# merged settled nothing, and the next pass asked for a second one. One row
+# per retire commit on the base that deletes a rescope workstream file whose
+# last state (at the commit's parent) was done: sha, key. Newest first.
+#
+# `--full-history -m`, `scout_retired_ts`'s shape: the file is added and
+# deleted on the rescope's own branch and the merge commit is treesame for it,
+# so default simplification drops that branch. Measured 2026-10-10 on this
+# repo's origin/main (1738 commits), counting `rescope-*` deletes: no flag 0,
+# `-m` 1, `--full-history` 1, both 1. Either flag alone finds it; both are
+# kept because each covers a retire shape the other might not. A retire made
+# inside a merge commit is listed once per parent; the file is read at
+# whichever parent carried it. Identity is the in-flight scan's: `workstream:
+# rescope-<key>`, `plan: none`. A `blocked` record is a human's, already
+# reported — not read here. Process substitution throughout, never a
+# "$(...)" capture read back through "<<<" — the race cmd_dispatch records.
+dispatch_rescope_merged() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}"
+  local line h="" seen="" doc rws rplan rstat
+  while IFS= read -r line; do
+    case "$line" in
+      '') continue ;;
+      'C '*) h="${line#C }"; continue ;;
+    esac
+    [ -n "$h" ] || continue
+    # `-m` lists a merge once per parent: one row per (commit, file).
+    case "$seen" in *" ${h}:${line} "*) continue ;; esac
+    seen="${seen} ${h}:${line} "
+    doc="$(git -C "$ROOT" show "${h}^1:${line}" </dev/null 2>/dev/null ||
+      git -C "$ROOT" show "${h}^2:${line}" </dev/null 2>/dev/null)" || continue
+    rws=""; rplan=""; rstat=""
+    { read -r rws; read -r rplan; read -r rstat; } \
+      < <(printf '%s\n' "$doc" | gr_fields workstream plan status)
+    case "$rws" in rescope-?*) ;; *) continue ;; esac
+    [ "$rplan" = none ] || continue
+    [ "$rstat" = "done" ] || continue
+    printf '%s\t%s\n' "$h" "${rws#rescope-}"
+  done < <(GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 git -C "$ROOT" log \
+    --full-history -m --diff-filter=D --name-only --format='C %H' \
+    "refs/remotes/origin/${base_branch}" -- 'docs/handover/rescope-*' \
+    </dev/null 2>/dev/null)
+}
+
+# Does a rescope record on key <K> cover the current key <C>? Yes when every
+# holder in C is in K: a smaller holder set is the same collision with fewer
+# holders (co-holders merged). A holder K never saw makes C a NEW collision,
+# which earns its own rescope. Both keys are holder stems joined with `+`.
+dispatch_rescope_covers() {
+  local k="+$1+" h
+  [ -n "$2" ] || return 1
+  while IFS= read -r h; do
+    [ -n "$h" ] || continue
+    case "$k" in *"+${h}+"*) ;; *) return 1 ;; esac
+  done < <(printf '%s\n' "$2" | tr '+' '\n')
+  return 0
+}
+
 cmd_dispatch() {
   local cap stall health respawn churnt churnl hout qout rows wavemap edge req sup
   local path label branch ws doc status session next age agetext flag tier
@@ -8295,9 +8425,10 @@ cmd_dispatch() {
   local janitor_due=0 janitor_inflight="" n_janitor=0 jdue jstate jreason jb jw
   local scout_due=0 scout_inflight="" n_scout=0 sdue sstate sreason sb sw ss scout_gate=0 srows
   local fetch_failed=0
-  local cb ck cstat csess cnext cage
+  local cb ck cstat csess cnext cage bplans
   local rescope_key="" rescope_paths="" rescope_inflight="" rescope_holders=""
   local n_rescope_inflight=0 n_rescope_holders=0 rescope_settled=0
+  local rescope_held="" rescope_merged="" msha mkey mheld mchanged
   local rb rk rstat rsess rnext rage
   local DISPATCH_WITHHELD=
   local inflight="" free="" questions=""
@@ -9009,10 +9140,43 @@ cmd_dispatch() {
       [ -z "$rsess" ] || rescope_inflight="${rescope_inflight}      session: ${rsess}"$'\n'
       [ -z "$rnext" ] || rescope_inflight="${rescope_inflight}      next: ${rnext}"$'\n'
       case "$rstat" in
-        done | blocked) [ "$rk" = "$rescope_key" ] && rescope_settled=1 ;;
+        # A key that COVERS the current one settles it: holders merging shrink
+        # the set, and the conclusion holds for what is left (issue #300).
+        done | blocked)
+          dispatch_rescope_covers "$rk" "$rescope_key" && rescope_settled=1 ;;
         *) n_rescope_inflight=$((n_rescope_inflight + 1)) ;;
       esac
     done < <(dispatch_rescope_branches)
+    # Merged `done` rescopes settle too — the in-flight scan skips merged refs,
+    # so before this a surveyor's conclusion on `main` settled nothing and the
+    # next pass asked for a second one (issue #300). A record settles only
+    # while no held or holder plan's file changed on the base since its retire: a
+    # changed `scope:` line is new information and re-earns a rescope. Run
+    # here only — this block runs only when slots are free and nothing else
+    # is spawnable, so a normal pass pays nothing for the log walk.
+    if [ "$rescope_settled" -eq 0 ]; then
+      # Held plans AND current holders: a holder whose `scope:` moved is the
+      # same new information as a held plan's (verifier r2).
+      rescope_held="$( { printf '%s\n' "$holdmap" | awk -F'\t' 'NF > 1 { print $1 }'
+        printf '%s\n' "$rescope_holders"; } | grep -v '^$' | sort -u)"
+      while IFS=$'\t' read -r msha mkey; do
+        [ -n "$msha" ] || continue
+        dispatch_rescope_covers "$mkey" "$rescope_key" || continue
+        mchanged=""
+        while IFS= read -r mheld; do
+          [ -n "$mheld" ] || continue
+          mchanged="$(git -C "$ROOT" log --format=%H -1 \
+            "${msha}..refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" \
+            -- "docs/plans/${mheld}.md" </dev/null 2>/dev/null)" ||
+            mchanged=unreadable  # an unread history settles nothing
+          [ -z "$mchanged" ] || break
+        done < <(printf '%s\n' "$rescope_held")
+        [ -z "$mchanged" ] || continue
+        rescope_settled=1
+        rescope_merged="            settled by merged rescope ${msha:0:7} (key ${mkey}): holds genuine"
+        break
+      done < <(dispatch_rescope_merged)
+    fi
 
     printf 'rescope   : %s plan(s) held behind %s branch(es) — the work is decomposed,\n' \
       "$n_hold" "$n_rescope_holders"
@@ -9027,7 +9191,26 @@ cmd_dispatch() {
     else
       printf '            rescope branch(es) in flight: none\n'
     fi
+    [ -z "$rescope_merged" ] || printf '%s\n' "$rescope_merged"
     printf '\n'
+  fi
+
+  # --- plans on a branch: visible, never free -------------------------------
+  # A plan an unmerged branch added has no queue row (dispatch_branch_plans).
+  # Printed so the orchestrator can SAY it — an URGENT one leads its report and
+  # goes to the human — and counted nowhere: not n_free, not the verdict. A
+  # branch plan has not been reviewed into the queue, and spawning on it is
+  # the human's call (.claude/commands/orchestrate.md, Report).
+  # One row per stem: a branch stacked on a plan-only branch carries the same
+  # plan, and two URGENT rows for one plan is the duplicate #297 complains of.
+  bplans="$(dispatch_branch_plans | awk -F'\t' 'NF == 4 {
+      if (!($2 in on)) { order[++n] = $2; urg[$2] = $3; agt[$2] = $4; on[$2] = $1 }
+      else on[$2] = on[$2] ", " $1 }
+    END { for (i = 1; i <= n; i++) { s = order[i]
+      printf "  %s%s (urgency: %s, agent: %s)  on %s\n",
+        (urg[s] == "urgent" ? "URGENT " : ""), s, urg[s], agt[s], on[s] } }')"
+  if [ -n "$bplans" ]; then
+    printf '\nplans on a branch, not in the queue until it merges:\n%s\n' "$bplans"
   fi
 
   # --- verdict --------------------------------------------------------------
