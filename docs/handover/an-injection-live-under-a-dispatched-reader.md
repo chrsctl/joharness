@@ -1,6 +1,6 @@
 ---
 workstream: an-injection-live-under-a-dispatched-reader
-status: in-progress
+status: review
 branch: claude/an-injection-live-under-a-dispatched-reader
 pr: none
 plan: an-injection-live-under-a-dispatched-reader
