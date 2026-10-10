@@ -5507,7 +5507,7 @@ cmd_janitor() {
     # WHICH path, then WHERE it is. `plan:` claims a research question by its
     # stem as well as a plan (`.agents/docs/handover/TEMPLATE.md`), so probing
     # only `docs/plans/` called a held question's release worthless — the same
-    # two-candidate loop is already spelled at `cycle_landed_sha`.
+    # candidate loop is already spelled at `cycle_landed_sha`.
     # Ownership is a DIFF, never a tree read — six merged edges bought that
     # rule (`.agents/docs/feedback.md`, "Worked example: tree or diff"), and
     # saying "on this branch only" without asking the branch sent an operator
@@ -7470,11 +7470,20 @@ drain_hook() {
 # (PR 157). Anchored to the hook's SECTION so only lines under
 # "Requirements without plans" can be offered — and not one a planning
 # manager already claims: the in-flight walk prints that one as its row.
+#
+# $2, optional: dispatch's withheld edge items (` <path>@<branch> ` each). A
+# planning branch past its retire commit names its requirement there, and
+# offering that requirement on the same pass is one fact rendered twice.
 drain_requirement() {
+  local line
   printf '%s\n' "$1" |
     sed -n '/^Requirements without plans/,/^$/p' |
     grep -v 'claimed on ' |
-    sed -n 's#^  \(docs/product/[^ ]*\.md\)  \(.*\)$#\1 \2#p' | head -1
+    sed -n 's#^  \(docs/product/[^ ]*\.md\)  \(.*\)$#\1 \2#p' |
+    while IFS= read -r line; do
+      case "${2-}" in *" ${line%% *}@"*) continue ;; esac
+      printf '%s\n' "$line"
+    done | head -1
 }
 
 # Plans the queue hook marked CORE ONLY, one indented path per line. The
@@ -7808,7 +7817,29 @@ dispatch_retired_edges() {
         # (verifier round 2, r2).
         swept="$(git -C "$ROOT" diff --name-only --diff-filter=D "$base" "$r" \
           -- docs/handover 2>/dev/null | gr_docs | head -1)"
-        if [ -z "$items" ] && [ -z "$swept" ]; then continue; fi
+        # A PLANNING pass retires nothing the base carries: its workstream
+        # file was born and retired on the branch (nets to absent) and it
+        # deletes no plan — it ADDS them. So the requirement it decomposed is
+        # read off the plans it adds, `requirement:` naming one the base
+        # carries. Without this the planning branch vanished at step 7 and
+        # its requirement was offered to a second planner for the whole
+        # pull-request window (verifier r2).
+        if [ -z "$items" ] && [ -z "$swept" ]; then
+          items="$(git -C "$ROOT" diff --name-only --diff-filter=A "$base" "$r" \
+            -- docs/plans 2>/dev/null | gr_docs | grep -v ' ' |
+            while IFS= read -r cand; do
+              plan="$(git -C "$ROOT" show "${r}:${cand}" 2>/dev/null |
+                gr_field requirement)"
+              plan="${plan##*/}"; plan="${plan%.md}"
+              plan="$(printf '%s' "$plan" | tr -cd 'A-Za-z0-9._-')"
+              case "$plan" in '' | none) continue ;; esac
+              git -C "$ROOT" cat-file -e \
+                "refs/remotes/origin/${base_branch}:docs/product/${plan}.md" \
+                2>/dev/null && printf 'docs/product/%s.md\n' "$plan"
+            done | sort -u | tr '\n' ' ')"
+          items="${items% }"
+          [ -n "$items" ] || continue
+        fi
         plan=""
         [ -z "$swept" ] ||
           plan="$(git -C "$ROOT" show "${base}:${swept}" 2>/dev/null |
@@ -7855,15 +7886,25 @@ dispatch_retired_edges() {
         # absent from the base matched a present `xy.md` and held its slot
         # forever, and an untracked `ab.md` beside the caller made a real
         # mid-merge read as a leftover. shellcheck does not flag a `for` list.
-        state=leftover
+        #
+        # A REQUIREMENT item cannot be asked. Its file stays on the base long
+        # after the planning pass merges — until its last plan is done — so
+        # present-on-the-base says nothing about this merge, and reading it as
+        # mid-merge held a sweep branch's slot for as long as the branch stood
+        # (verifier r3). Such an item names the row and nothing more: the
+        # state is `unknown`, which holds the slot while it could be live and
+        # ages out like any other branch with nothing to ask.
+        state=leftover askable=""
         while IFS= read -r cand; do
           [ -n "$cand" ] || continue
+          case "$cand" in docs/product/*) continue ;; esac
+          askable=1
           git -C "$ROOT" cat-file -e "refs/remotes/origin/${base_branch}:${cand}" \
             2>/dev/null || continue
           state=mid-merge
           break
         done <<<"$(printf '%s\n' "$items" | tr ' ' '\n')"
-        [ -n "$items" ] || state=unknown
+        [ -n "$askable" ] || state=unknown
         # `-` for no items, never an empty field: tab is IFS WHITESPACE, so a
         # reader's `IFS=$'\t' read -r a b c` collapses two adjacent tabs into
         # one delimiter and the state lands in the item variable. It printed
@@ -9352,7 +9393,7 @@ cmd_dispatch() {
     esac
   done <<<"$rows"
 
-  req="$(drain_requirement "$qout")"
+  req="$(drain_requirement "$qout" "$edge_items")"
   printf 'spawn, in this order, one manager per item, model = its agent tier:\n'
   if [ -n "$req" ]; then
     # Planning outranks the plan queue (step 2), so it is first and it is

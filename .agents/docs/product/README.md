@@ -116,9 +116,14 @@ in its pushed workstream file. Claim resolution offers `docs/plans/`, then
 claimed requirement prints `claimed on <branch>` under "Requirements without
 plans", `dispatch` gives the planning branch an in-flight row and its slot,
 and does not offer the requirement again — `blocked` included, so a parked
-exit-4 pass is never respawned. `abandoned` releases it, as on a plan. Exits
-1–4 end the loop at the pass's merge; the claim is what stops a SECOND
-planner while one is in flight.
+exit-4 pass is never respawned. `abandoned` releases it, as on a plan. Past
+the retire commit (step 7, before the pull request opens) the claim file is
+gone, so the plans the branch ADDS name the requirement until the merge: a
+retired row, the slot held, the requirement withheld. A requirement's file
+outlives its planning merge, so such a row never reads as mid-merge; with no
+push for 24 stall windows it is a leftover and the requirement is offered
+again. Exits 1–4 end the loop at the pass's merge; the claim is what stops a
+SECOND planner while one is in flight.
 
 **Intake was compared against a published `intent.md` practice, and two
 verdicts are rejections.** Research node `capture-intent` swept lesson 2 of
