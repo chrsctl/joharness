@@ -407,6 +407,35 @@ cadence spread on it, and graduated a sentence licensing a kill verdict on a
 reading did not survive them. Read the node in history before adding a knob
 here: `git log --diff-filter=D -p -- docs/research/liveness-in-a-long-turn.md`.
 
+**And push age is not death either.** "PUSH age" above is the tip COMMIT
+date (`dispatch_age_min`), and nothing in the git view tells a stopped
+manager from a stopped fleet: both freeze it. Issue #283 is the run — an
+orchestrator back from an 18-day suspension read three `RUNNING` managers
+as 434h stalled, and `dispatch` printed a respawn on two of them, both
+edge rows. So a row built on that AGE may ask for a control-plane read and
+may order nothing. The axis is what a reading is ABOUT, not git against the
+plane: the LOOP? row's churn count is git too, and is about the branch's own
+history, so it may still name a respawn. The one fleet-wide reading git has
+prints a suspicion, never a verdict: every non-blocked row stalled, the
+youngest past 24 windows, and the base branch still for 24 windows
+(`cmd_dispatch`, PR #362). The `PR in flight` phrase the same issue caught
+was softened to `a pull request is expected; this reader cannot see one`
+rather than adding dispatch's first GitHub call — the view stays git-only.
+
+`cost_usd` is the obvious next discriminator, and it is NOT a rule yet. The
+same issue reports it as the one field that separated the dead from the
+suspended, and also reports a live `IDLE` manager with cost frozen across
+four windows of 18 to 31 minutes (2026-10-07: 28.058789 20:19:50Z–20:38:09Z,
+32.2565868 21:15:04Z–21:34:19Z, 36.8669214 22:11:07Z–22:30:41Z, 42.1354032
+22:55:14Z–23:26:01Z), each meeting a two-reads-plus-IDLE-plus-unmoved-head
+test at 13–15 minute spacing. Against the 172.273s all-fields freeze above,
+the readings disagree on what frozen cost proves, and every one is WEAK:
+the issue's numbers no reviewer here can re-sample, the freeze's saved pages
+re-computable but never confirmed real (#267). A cost test written without
+a floor past 31 minutes is the 13-minute withdrawal one step larger. Open
+as `docs/research/frozen-cost-is-not-death-yet.md`, which carries the rest
+of the evidence.
+
 Read by `dispatch`: the environment for one command, `joharness.conf` for
 the repo, else the default. Digits only; a word reads as the default. The
 two churn knobs go through the same reader in `ci`, so a value set in the

@@ -7503,6 +7503,9 @@ num_knob() {
 # Minutes since the last commit on a remote branch; empty when the ref is not
 # here (never fetched, or already deleted), and empty is said as unknown by
 # the caller — never as zero, which would read as pushed this minute.
+# The tip's COMMIT date, printed as `pushed`: no push time is read. A stopped
+# fleet freezes it exactly as a dead manager does, so it may raise a STALL?
+# and never carry a verdict (issue #283, .agents/docs/orchestrated.md).
 dispatch_age_min() {
   local ts now
   # `</dev/null`: this runs inside `while read` loops fed by a here-string, and
