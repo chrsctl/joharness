@@ -184,6 +184,22 @@ mgrmd="${ROOT}/.claude/commands/manage.md"
 orctext="$(cat "$orcmd")"
 mgrtext="$(cat "$mgrmd")"
 
+# Two messaging transports, one per kind of target (issue #347). A cloud
+# fleet measured ListAgents empty while Claude Code Remote send_message by
+# session_id delivered both ways, so a file naming only SendMessage sends every
+# run down the no-messaging path. Folded text for the refutes: a reflowed line
+# must not hide the sentence that said the second route does not exist.
+expect "the orchestrator addresses send_message by create_session's id" \
+  "Claude Code Remote send_message takes the session_id create_session returned." "$orctext"
+expect "and the manager sends on the transport its prompt names" \
+  "A session id target: Claude Code Remote send_message. A name: SendMessage." "$mgrtext"
+orcfold="$(tr '\n' ' ' <"$orcmd" | tr -s ' ')"
+refute "orchestrate.md no longer says +send_message finds nothing" \
+  "Searching \`+send_message\` finds" "$orcfold"
+orcdocfold="$(tr '\n' ' ' <"${ROOT}/.agents/docs/orchestrated.md" | tr -s ' ')"
+refute "orchestrated.md no longer says send_message was never in the server" \
+  "never in the Claude Code Remote MCP" "$orcdocfold"
+
 orcfield="$(grep -oE "lead <stem>:" "$orcmd" | head -1)"
 expect "the orchestrator's grammar names the lead field" \
   "lead <stem>:" "$orcfield"
