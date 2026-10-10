@@ -118,7 +118,7 @@ prints only the git half.
 
 | Word | Git (dispatch) | Control plane | Orchestrator does |
 | --- | --- | --- | --- |
-| merged between passes | no branch in flight: the ledger entry still reads `new`, yet `git log origin/main --full-history --diff-filter=A -S'<session_id>' -- docs/handover` finds a claim file whose `session:` is that session and whose `plan:` (a surveyor: `workstream:`) is the stem | any — the session id is the one the title lookup resolved, the newest even when every one is `ARCHIVED` | write the claim commit as the entry's head and read `done`. Nothing else, whatever the status. **Read this row before every other `new` row**: crashed, stillborn, blocked before claim, unclaimed and gone before claim all match the same reading. Keyed on the session, not the item file: a requirement's planning merge keeps its item, a surveyor has none, and `/curate` deletes an item without any claim |
+| merged between passes | the ledger entry still reads `new`; dispatch lists the stem nowhere — not in flight, not under spawn, not held; and `git log origin/main --full-history --diff-filter=A -S'<session_id>' -- docs/handover` finds a claim file whose `session:` is that session and whose `plan:` (a surveyor: `workstream:`) is the stem | any. The session id is the one the title lookup resolved: the newest not `ARCHIVED`, and only when every one is `ARCHIVED`, the newest of those | write the claim commit as the entry's head and read `done`. Nothing else, whatever the status. **Read this row before every other `new` row**: crashed, stillborn, blocked before claim, unclaimed and gone before claim all match the same reading. Keyed on the session, not the item file: a requirement's planning merge keeps its item, a surveyor has none, and `/curate` deletes an item without any claim. The dispatch clause makes a forged or stale claim harmless: the item it would free is still on the queue |
 | working | any push age | `RUNNING`, or pushed inside the window | nothing |
 | stalled | `STALL?` — no push for `JOHARNESS_STALL_MINUTES` | `RUNNING`, `status_detail` unchanged across two passes | pass 1 nudge, or nothing where there is no messaging; pass 2 kill |
 | looping | `LOOP?` — one file rewritten `JOHARNESS_CHURN_LIMIT`+ times; or head moved on three passes with `next:` unchanged | any | kill with the record, respawn one tier up |
@@ -131,7 +131,7 @@ prints only the git half.
 | gone | branch unmerged, status in-progress / review / done, or an edge row IN FLIGHT that names an item | `ARCHIVED`, or no session found by title | respawn on the branch, no nudge. An edge row naming `?` is never respawned — no item, no successor's work |
 | leftover | the branch is under `leftovers`: its item is already gone from the base branch, so that merge happened | any | NOT a merge to finish and never respawned — a successor would land on merged work with no pull request and no item. Report it; the human deletes the branch |
 | blocked | status `blocked` | any | report to the human; never respawn |
-| done | branch merged, plan file gone, and the ledger entry carried a head — an entry still `new` reaches it only through merged between passes, which writes the head first | any | nothing — or, with `JOHARNESS_UPSTREAM_FEEDBACK=on` and no `reported=` for it in the ledger, spawn ONE reporter |
+| done | branch merged, item off the queue (plan file gone; a requirement or surveyor: dispatch lists it nowhere), and the ledger entry carried a head — an entry still `new` reaches it only through merged between passes, which writes the head first | any | nothing — or, with `JOHARNESS_UPSTREAM_FEEDBACK=on` and no `reported=` for it in the ledger, spawn ONE reporter |
 
 **Gone is ARCHIVED, not found on the control plane, a FAILED bucket confirmed
 by a second look, or a session that did not move across a nudge and a
@@ -1555,9 +1555,9 @@ is why: either field alone picks up sessions the pair does not.
 
 **Health table, ran-and-stopped row, after "It RAN and stopped without claiming.".** `./joharness.sh authority` is the first line of its own prompt and a verdict that is not VERIFIABLE ends the session there; a `NOT YOURS` exit reads the same.
 
-**Health table, merged row, after "read this row for that stem FIRST".** its session is usually still RUNNING and under the stall window, so the first row matches and the lead is dropped on the one pass it was sent.
+**Health table, merged row, after "read this row for that stem FIRST".** its session is usually still RUNNING and under the stall window, so the RUNNING under-stall row matches and the lead is dropped on the one pass it was sent.
 
-**Health table, `CEILING?` row, after "never instead of it".** the first row matches a RUNNING manager under the stall window, which is exactly the one this is about.
+**Health table, `CEILING?` row, after "never instead of it".** the RUNNING under-stall row matches a RUNNING manager under the stall window, which is exactly the one this is about.
 
 **`suspect a stopped fleet` paragraph, after "decides nothing".** It says the
 push age on every row is the fleet's, not the manager's: everyone silent and

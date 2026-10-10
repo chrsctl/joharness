@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01MQpQFb9hmdy2KySGiVC4mD
 agent: opus
 updated: 2026-10-10
-next: Spawn verifier on the diff, record findings in Review
+next: Second verifier pass on r1-r9 fixes
 ---
 
 ## Goal
@@ -29,6 +29,10 @@ rows instead of false "never claimed" / "gone before claim" reports.
   and printed nothing for #386's claim `ac87c5f` (measured 2026-10-10,
   `git log origin/main --diff-filter=A -S'session_012J8LutqGHqhZDE49agfS81' -- docs/handover`
   empty; with `--full-history` prints `ac87c5f`).
+- Guard: dispatch lists the stem nowhere (in flight, spawn, held). The
+  session-id match alone was forgeable and stale-able (r1, r2); a merge
+  that really finished the item takes it off the queue — plan retired,
+  requirement planned, rescope key resolved.
 - Row sits FIRST in the decision table: every row keying on a `new` entry
   (crash, BLOCKED BEFORE CLAIM, gone before claim, UNCLAIMED, STILLBORN)
   then reads after it. It writes the claim commit as the head, so the
@@ -64,6 +68,16 @@ rows instead of false "never claimed" / "gone before claim" reports.
 - Ledger timestamp for `@new`: not needed once the test keys on session id.
 
 ## Review
+
+- r1: (verifier) archived fallback can resolve an earlier run's session S1 whose claim for a re-queued stem is on main, marking a live entry done. (fixed — row also requires dispatch to list the stem nowhere; a re-queued item is listed, so the row fails)
+- r2: (verifier) any session can merge a file naming the victim's session id and `plan: <stem>`, dropping a live entry. (fixed in part — the dispatch clause: a forgery must also merge the item off the queue, and then nothing can be spawned twice; wontfix the residual one-slot-over-cap, no git reading is unforgeable by a session that can merge)
+- r3: (verifier) orchestrated.md row required "no branch in flight", command row did not; orchestrated.md done row's "plan file gone" never holds for requirement or surveyor. (fixed — both rows carry the same dispatch clause; done row says item off the queue)
+- r4: (verifier) REPORT needs `<branch>`, the rewritten entry carries none. (fixed — taken from the claim file's `branch:` line)
+- r5: (verifier) "any of the five exists" stale after SIX. (fixed)
+- r6: (verifier) orchestrated.md worked readings said "the first row" meaning the RUNNING under-stall row. (fixed — named)
+- r7: (verifier) orchestrated.md anchor "or it ran and stopped without claiming" no longer in orchestrate.md. (fixed — sentence reordered, phrase restored)
+- r8: (verifier) BLOCKED BEFORE CLAIM confirm parenthetical gave merged-between-passes as the reason. (fixed — reason now curated or another branch's merge; row behaviour kept)
+- r9: (verifier) several commits may print; which is the head unspecified. (fixed — the first printed)
 
 ## Blockers
 
