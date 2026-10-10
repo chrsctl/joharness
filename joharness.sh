@@ -7761,7 +7761,7 @@ dispatch_waves() {
 dispatch_retired_edges() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}"
   git -C "$ROOT" for-each-ref --format='%(refname)' refs/remotes/origin 2>/dev/null |
-    { local r name base items swept plan cand state unver=0
+    { local r name base items swept plan cand state own unver=0
       while IFS= read -r r; do
         name="${r#refs/remotes/origin/}"
         { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
@@ -7829,15 +7829,21 @@ dispatch_retired_edges() {
         # nothing, and must hold no slot — reading the added plans gave it
         # one under a title no live session carries (verifier r8).
         if [ -z "$items" ] && [ -z "$swept" ]; then
-          # `--first-parent`, for two reasons. The step 7 reconcile merges
-          # the base in, and a merge TREESAME to the base for this path sent
-          # default simplification down the base's side, pruning the retire
-          # commit (verifier r10). And a planning branch merged INTO another
-          # must not lend that branch its claim. Measured with the selftest's
-          # reconcile and merged-in cases: no flag fails the first, the
-          # first-parent walk passes both, `--full-history` alone fails the
-          # second and adds nothing beside it.
-          items="$(git -C "$ROOT" log --first-parent \
+          # The branch's OWN record: a file this branch's own commits both
+          # ADDED and DELETED — first-parent, no merges, both halves. Each
+          # narrower spelling was a verifier round. Default walk: a reconcile
+          # merge TREESAME to the base pruned the retire commit (r10).
+          # First-parent alone: that merge's diff carries the BASE's
+          # deletions, so a branch that merged a cleanup of an inherited
+          # record borrowed its claim (r11). Without the ADDED half, a
+          # branch's own sweep of an inherited record the base later dropped
+          # read as its claim. A planning branch merged in lends nothing:
+          # its commits are not on this first-parent line.
+          own="$(git -C "$ROOT" log --first-parent --no-merges --format= \
+            --name-only --diff-filter=A "${base}..${r}" -- docs/handover \
+            2>/dev/null | gr_docs | sort -u)"
+          [ -n "$own" ] || continue
+          items="$(git -C "$ROOT" log --first-parent --no-merges \
               --format='@%H' --name-only \
               --diff-filter=D "${base}..${r}" -- docs/handover 2>/dev/null |
             { c=""
@@ -7848,6 +7854,7 @@ dispatch_retired_edges() {
                 esac
                 [ -n "$c" ] || continue
                 printf '%s\n' "$cand" | gr_docs | grep -q . || continue
+                printf '%s\n' "$own" | grep -qxF -- "$cand" || continue
                 plan="$(git -C "$ROOT" show "${c}^:${cand}" 2>/dev/null |
                   gr_field plan)"
                 plan="${plan##*/}"; plan="${plan%.md}"

@@ -2648,6 +2648,53 @@ refute "a branch that merged a planning branch in borrows no row" \
 expect "so the planner's slot alone is held" "slots     : 3 of 4 free" "$out"
 git -C "$qowork" push -q origin --delete feat-on-retreq
 git -C "$qowork" branch -q -D feat-on-retreq
+# A branch with no record of its own reconciles with a base that just
+# cleaned an inherited planning record out: that merge's first-parent diff
+# carries the BASE's deletion, and read as the branch's own it lent the
+# branch a claim it never made (verifier r11).
+printf -- '---\nworkstream: plan-hfx\nstatus: done\nplan: retreq\nagent: fable\n---\n\n## Goal\nLeaked.\n' \
+  >"${qowork}/docs/handover/plan-hfx.md"
+qopush "a leaked planning record on the base"
+git -C "$qowork" checkout -q -b human-fix main
+printf 'fix\n' >"${qowork}/human-fix.txt"
+commit_all "$qowork" "a human's fix"
+git -C "$qowork" checkout -q main
+fixture_rm "$qowork" "the base cleans the leaked record" docs/handover/plan-hfx.md
+git -C "$qowork" push -q origin main
+git -C "$qowork" checkout -q human-fix
+git -C "$qowork" merge -q --no-edit main
+git -C "$qowork" push -q origin human-fix
+git -C "$qowork" checkout -q main
+out="$(qo)"
+refute "a reconcile that brings the base's cleanup lends no claim" \
+  "human-fix  retired" "$out"
+expect "and the planner's slot alone is held" "slots     : 3 of 4 free" "$out"
+git -C "$qowork" push -q origin --delete human-fix
+git -C "$qowork" branch -q -D human-fix
+# A branch's OWN commit sweeps an inherited planning record, the base drops
+# the same record, the branch reconciles: nets to absent, and the sweep
+# commit's deletion read as a retired claim. Only a record the branch also
+# ADDED is its own.
+printf -- '---\nworkstream: plan-swx\nstatus: done\nplan: retreq\nagent: fable\n---\n\n## Goal\nLeaked.\n' \
+  >"${qowork}/docs/handover/plan-swx.md"
+qopush "another leaked planning record"
+git -C "$qowork" checkout -q -b sweep-swx main
+git -C "$qowork" rm -q docs/handover/plan-swx.md
+printf 'swept\n' >"${qowork}/swept-swx.txt"
+commit_all "$qowork" "sweep the inherited record"
+git -C "$qowork" checkout -q main
+fixture_rm "$qowork" "the base drops it too" docs/handover/plan-swx.md
+git -C "$qowork" push -q origin main
+git -C "$qowork" checkout -q sweep-swx
+git -C "$qowork" merge -q --no-edit main
+git -C "$qowork" push -q origin sweep-swx
+git -C "$qowork" checkout -q main
+out="$(qo)"
+refute "a branch's own sweep of an inherited record is not its claim" \
+  "sweep-swx  retired" "$out"
+expect "so the planner's slot alone is held, again" "slots     : 3 of 4 free" "$out"
+git -C "$qowork" push -q origin --delete sweep-swx
+git -C "$qowork" branch -q -D sweep-swx
 fixture_rm "$qowork" "drop the leaked record" docs/handover/leak-r.md
 git -C "$qowork" push -q origin main
 git -C "$qowork" push -q origin --delete plan-retreq
