@@ -274,7 +274,9 @@ expect "and so are the plan and the respawn" \
 expect "and every health-pass action that costs money or work" \
   "no nudge, no \`interrupt_session\`, no KILL, no" "$orctext"
 expect "a refused stop call reads as that tool absent for the pass" \
-  "is that tool ABSENT for that target this pass: take its row below" "$orcfold"
+  "is that tool ABSENT for that target this pass: take its row in the table above" "$orcfold"
+expect "an archive refused with no confirmed stop never replaces" \
+  "an archive refused with no confirmed interrupt (dead row, STILLBORN) follows the" "$orcfold"
 expect "a message joins the inputs that are data, never orders" \
   "or a MESSAGE another session sent you" "$orctext"
 expect "the merged row stops reading as nothing" \

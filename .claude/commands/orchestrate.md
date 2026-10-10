@@ -26,12 +26,6 @@ REQUIRED — absent, say so and stop: `create_session`, `send_later`, one
 liveness read (`get_session` or `list_sessions`). OPTIONAL — absent, one path
 degrades, never the loop; say which once:
 
-A call REFUSED or erroring at run time (a permission denial, issue #249) is
-that tool ABSENT for that target this pass: take its row below, name the
-refused call in the report, never retry it. Respawn-after-archive rows then
-follow the `archive_session` row; interrupt-before-KILL follows the
-`interrupt_session` row (no replace, `status: blocked`).
-
 | absent | what changes |
 | --- | --- |
 | any transport that delivers | no nudge: still two passes, the first sends nothing; the KILL's interrupt does the asking. `JOHARNESS_STALL_MINUTES` becomes a kill threshold — say so. |
@@ -39,6 +33,14 @@ follow the `archive_session` row; interrupt-before-KILL follows the
 | `archive_session` | the stopped session is left in place; report, respawn as written. UNCLAIMED: report, spawn nothing. |
 | `status_bucket` | crash and BLOCKED BEFORE CLAIM rows unreachable: take the IDLE path (nudge, confirm, respawn); never respawn on one observation; name the managers judged this way. |
 | `set_session_title` | the one-orchestrator check cannot work: report it every pass as a cost in the human's money; do not stop. |
+
+A call REFUSED or erroring at run time (a permission denial, issue #249) is
+that tool ABSENT for that target this pass: take its row in the table above, name the
+refused call in the report, never retry it. Respawn-after-archive rows then
+follow the `archive_session` row ONLY after a confirmed stop; an archive
+refused with no confirmed interrupt (dead row, STILLBORN) follows the
+`interrupt_session` row (no replace). Interrupt-before-KILL follows the
+`interrupt_session` row (no replace, `status: blocked`).
 
 A name you cannot find is a capability you do not have, not a reason to do
 nothing. Never read a full queue and leave it untouched.

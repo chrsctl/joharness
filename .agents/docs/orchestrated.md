@@ -195,8 +195,8 @@ A killed session with no handover strands a branch the successor cannot read.
 The branch is the claim and the claim survives the kill.
 
 A refused stop reads as absent: the permission classifier refused
-`archive_session` and a plain `kill` on every attempt in a consumer run
-(issue #249, two refusals), and a refusal says nothing about whether the
+`archive_session` and a plain `kill` in a consumer run (issue #249, two
+refusals), and a refusal says nothing about whether the
 session is live, so it never licenses a replacement.
 
 ## Concurrency
