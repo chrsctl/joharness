@@ -22,11 +22,12 @@ defects reaching `main`?
 
 ## Echo
 
-Verifiers were 37.1% of opus-tier manager cost in this repo's fleet
-(21.93 of 59.04 USD, 10 opus sessions, 2026-10-10), every subagent a
-`verifier`. Sonnet 5.5 bills half of opus 5.5 per token. At equal tokens the
-cut is 18.6% — under the bar. It clears 20% only if the sonnet verifier also
-spends at most ~92% of the opus verifier's tokens. And the review-depth rule
+In the parent's sample, verifiers in this repo's 10 opus-tier manager
+sessions cost 21.93 USD, 37.1% of all 12 sampled managers (59.04 USD);
+every subagent there was a `verifier`. Sonnet 5.5 bills half of opus 5.5
+per token. At equal tokens the cut is 18.6% — under the bar. It clears
+20% only if the sonnet verifier also spends at most ~92% of the opus
+verifier's tokens. And the review-depth rule
 says the verifier exists for independence, so a cheaper verifier that
 misses defects costs reverts, which count against it. The gx fleet already
 answered NO (16.0% even at a 100% cut).
@@ -41,11 +42,17 @@ the ratio clears the bar.
 
 1. Token ratio: the same verifier prompt on the same 10 merged opus-tier
    diffs at sonnet 5.5 and at opus 5.5, cost read from each run. Median
-   sonnet/opus cost ratio > 0.46 = NO (cannot reach 20%), no step 2.
-2. Otherwise findings: same 10 pairs, each opus finding the sonnet run
-   missed counted. Any missed finding the opus run's author recorded
-   `(fixed)` = NO. None missed = YES pending a human-authorised fleet trial
-   (tier change = money).
+   sonnet/opus cost ratio > 0.46 = NO (cannot reach 20%), no step 2. The
+   0.46 uses the manager-only denominator, so it can only prove NO: at or
+   below it the lever MAY reach 20%, and only the fleet trial in step 3,
+   with orchestrator cost in, says whether it does.
+2. Findings: for each of the 10 diffs, the merged edge's own `## Review`
+   (the workstream file in git history) is the record. A finding the
+   sonnet run missed that the record marks `(fixed)` = NO. Misses the
+   record marks `wontfix` or `no change` do not count; neither does a
+   finding of the fresh opus run that the record lacks.
+3. No `(fixed)` miss = a fleet trial a human authorises (tier change =
+   money): 10 merged edges each way, the parent's settling rule.
 
 ## Method
 
@@ -58,7 +65,9 @@ None yet.
 ## Consequence for the queue
 
 A YES becomes a plan a human authorises: the verifier tier rule in
-`.claude/agents/verifier.md` and `./joharness.sh review`.
+`.claude/agents/verifier.md` and `./joharness.sh review`. Those govern
+every consumer, and gx already answered NO, so the plan scopes the change
+to fleets whose verifier share clears the bar — how is the human's call.
 
 ## Verification
 

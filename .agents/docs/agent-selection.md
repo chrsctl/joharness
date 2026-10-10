@@ -134,22 +134,22 @@ consumer `gx`, 21 merges, 442 USD; readings and commands:
 - **Fresh session for long waits — no.** 0 of 110 idle gaps between turns
   passed the 1-hour cache TTL (longest 25 minutes), and the two turns
   longer than an hour wrote 2.2% of the cost in cache at most. Managers
-  wake on task notifications well inside the TTL, so the expiry bullet above prices a
-  wait that the fleet does not have. Re-check if a queue starts parking
-  managers on human review.
-- **Fable planning manager at `high` instead of `xhigh` — no.** No fleet
-  child ran Fable in 175 spawns, and effort cannot cross a spawn anyway.
+  wake on task notifications well inside the TTL, so the expiry bullet
+  above prices a wait the fleet does not have. Re-check if a queue starts
+  parking managers on human review.
+- **Fable planning manager at `high` instead of `xhigh` — no.** No child of
+  either orchestrator ran Fable, and effort cannot cross a spawn anyway.
 - **Haiku worker share — no.** Workers ran in 2 of 24 sessions (13 spawns,
   0 haiku); all subagent cost in those two sessions is 11.6% of the sample,
   so even a free worker cannot reach 20%. Managers mostly do not fan out:
   the main thread, not the workers, is the bill.
-- **Sonnet verifier on opus plans — no in `gx`, open here.** Verifiers are
-  37% of opus-tier manager cost in this repo, 16% at most in `gx`. Open
-  question: `docs/research/sonnet-verifier-on-opus-plans.md`.
+- **Sonnet verifier on opus plans — no in `gx`, open here.** Verifiers in
+  opus-tier sessions cost 37% of all sampled manager cost in this repo,
+  16% at most in `gx`. Open question:
+  `docs/research/sonnet-verifier-on-opus-plans.md`.
 
-Sonnet 5.5 cache reads bill at 0.10 USD/MTok (a session's billed cost,
-priced back), not the 0.20 a cached pricing table shows: price a lever
-from `modelUsage`, not from a table.
+Price a lever from a session's billed `modelUsage`, not from a table: the
+sample's sonnet 5 sessions bill ~1.7x what the sonnet 5.5 rates give.
 
 ## Behavior findings (default worker)
 
