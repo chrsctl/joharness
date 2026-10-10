@@ -178,7 +178,7 @@ nothing.
   | line | model (Lineup) | title | prompt | ledger |
   | --- | --- | --- | --- | --- |
   | `curate DUE` naming proposals (any verdict) | sonnet | `curator: <UTC date>` | `/curate` | `curated=<stamp>` |
-  | `clerk DUE` (any verdict; `held` = nothing) | opus | `clerk: <UTC date>` | `/clerk` | `clerked=<stamp>` |
+  | `clerk DUE` (any verdict; `held` = nothing) | sonnet | `clerk: <UTC date>` | `/clerk` | `clerked=<stamp>` |
   | `scout DUE`, only under `DRAINED — nothing free, nothing in flight` | fable | `scout: <UTC date>` | `/scout` | `scouted=<stamp>` |
   | `OVERLAP-BOUND`, `rescope :` says `in flight: none` | sonnet | `surveyor: <key>` | `/manage rescope <key>` + the block verbatim | `rescope-<key>@new`, `rescoped=<key>` |
   | `ANALYSE?` on a row | haiku | `analyst: <stem>` | `/analyst <branch> (<condition>)` | `analysed=<stem>:<condition>` |
