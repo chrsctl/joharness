@@ -44,47 +44,86 @@ question NO.
 
 ## Method
 
-Not run yet. Planned, per lever, in one consumer:
+The trial the plan named needs a human to switch each lever on, and no
+trial is needed to call a lever NO when it CANNOT reach 20%. A lever cuts
+cost per merged edge by at most (share of fleet cost it touches) x (its
+largest price cut). Under 20% = NO under the settling rule above, with no
+trial run. Denominator = manager cost only: leaving the shared
+orchestrator out raises every ceiling, so a NO under it holds.
 
-- Baseline: the last 10 merged edges before the trial. Cost =
-  `get_session` `usage.cost_usd` summed over the orchestrator and every
-  session whose `parent_session_id` is it (`list_sessions`); merges =
-  `search_pull_requests` `is:merged` in the window; respawns and kills =
-  the orchestrator's ledger; reverts = `git log --grep '^Revert'` on main.
-- Trial: the lever switched on by a human for the next 10 merged edges,
-  same reads.
-- Lever 4 only: worker tiers counted from each manager's `Agent` calls
-  (`list_events`, `kinds: ["assistant"]`).
-- Priced prior (arithmetic, not a trial):
-  - Lever 3: the run-3 orchestrator's counted usage (1.21B cache-read,
-    1.74M output tokens, retired `docs/product/scout-role.md` Evidence:
-    `git log --diff-filter=D -- docs/product/scout-role.md`) priced at 5.5
-    rates (pricing page, fetched 2026-10-09) — opus 242 + 34.8 = ~277 USD,
-    sonnet 121 + 17.4 = ~138 USD. Cache reads plus output only; input and
-    cache writes excluded. Sanity check: same usage at opus 5 rates (0.50
-    cache read, 25 out) = ~649 against 710.70 billed.
-  - Lever 4: per cached token haiku 5.5 is 0.1x sonnet 5.5 at ≤100K prompt
-    and 0.5x above (pricing page, fetched 2026-10-09); the share of worker
-    turns above 100K decides which ratio a fleet pays, so the trial counts
-    it (`list_events` `usage` per worker turn).
+Readings (Claude Code Remote MCP, this session and its subagents,
+2026-10-10):
 
-Second context for the control-plane readings, named up front
-(`.agents/docs/research/README.md`): a session other than the one running
-the fleet re-reads `get_session` for the same session ids.
+- `list_sessions` limit 100, two pages (`after_id` = first page's
+  `last_id`): 200 sessions, oldest created 2026-10-07T23:23Z. Fleets =
+  children of orchestrator `session_01KKR8BgAx8M7LhScqXQbFSn` (consumer
+  `chrsctl/gx`) and `session_01LRrvSrFRZExrbQotmHKxQA` (this repo).
+- Sample = the 12 newest IDLE `manager:` children of each orchestrator.
+- Per sample session, every `result` event: `list_events` limit 100,
+  `kinds: ["result"]`, paged by `before_id` = `first_id` until
+  `has_more` false. A result carries per-turn main-thread `usage`,
+  cumulative per-model `modelUsage` (subagents included) and
+  `subagent_stats.by_type`.
+- Main-thread cost = per-turn `usage` priced at the session model's list
+  rates. Subagent cost = `modelUsage` total minus main thread. Idle gap =
+  next result's `created_at` minus its `duration_ms`, minus the previous
+  result's `created_at`.
+- Rates per MTok (input, output, cache read, 5m write, 1h write): opus 5
+  5/25/0.50/6.25/10; opus 5.5 4/20/0.20/5/8; sonnet 5 and 5.5
+  2/10/0.10/2.50/4; haiku 5.5 at <=100K 0.10/0.50/0.01. Checked against
+  billing, not taken from a table: `Qnp3Vu` sonnet-5-5 `modelUsage`
+  (21,882,198 read, 252,311 out, 1,390,425 5m write) prices to its billed
+  8.188 USD at 0.10 read; the claude-api skill's 0.20 sonnet read does not.
+  Two sessions with no subagent (`k3LQgH`, `R4vmZi`) price to their billed
+  cost from main-thread `usage` alone.
+
+Second context for the control-plane readings, named up front: a
+subagent that never saw the first readings re-takes `get_session` cost for
+all 24 sample ids and re-pages three sessions' `result` events.
 
 ## Findings
 
-None yet.
+Sample: 24 manager sessions, 21 merged, 442.32 USD billed (this repo 12
+sessions, 12 merged, 59.04 USD; gx 12 sessions, 9 merged, 383.28 USD).
+Summed `modelUsage` matches billed within 0.24 USD on 23 of 24 sessions
+(`7mYgHb` 8.01 vs 8.25). GROUNDED (counted, both fleets).
+
+1. **Fresh session for long waits — NO.** 110 idle gaps between turns
+   across 24 sessions; longest 25.3 minutes (gx), 15.2 (this repo); 0
+   over the 1-hour cache TTL. No session was in usage overage (5-minute
+   TTL). Touched share 0. GROUNDED for inter-turn waits; a wait inside one
+   turn is invisible to this reading, but a background wait ends its turn
+   (the next result's origin is `task-notification`), so it lands here.
+2. **Fable planning manager at `high` — NO.** 0 of 175 fleet children in
+   the 200-session window ran Fable; the three Fable sessions had no
+   parent (human-started). Touched share 0. And `create_session` takes no
+   effort: `xhigh` reaches the session as prompt prose only
+   (`.agents/docs/agent-selection.md`, Cost levers). GROUNDED.
+3. **Sonnet verifier on opus plans — NO in gx, OPEN in this repo.**
+   Subagent cost in opus-tier sessions: this repo 21.93 USD of 59.04
+   (37.1%; every subagent there was a `verifier`), gx 61.49 of 383.28
+   (16.0%, workers included). Same tokens at sonnet 5.5 cuts 50% vs opus
+   5.5 and 80% vs opus 5: ceiling 18.6% (this repo), 12.4% (gx). gx is
+   under 20% even at a 100% cut (16.0%): NO, GROUNDED. This repo clears 20%
+   only if a sonnet verifier spends at most ~92% of the opus verifier's
+   tokens (manager-only denominator) — no reading here can say that, and
+   none says anything about the defects it would miss. OPEN: split out as
+   `docs/research/sonnet-verifier-on-opus-plans.md`.
+4. **Haiku 5.5 worker share — NO.** Worker spawns (`general-purpose`): 13,
+   in 2 of 24 sessions, 0 of them haiku. All subagent cost in those two
+   sessions: 51.42 USD, 11.6% of the sample (13.4% of gx) — the ceiling at
+   a 100% cut, verifiers inside it. GROUNDED.
+
+Cost per merged edge, manager only: 21.06 USD (this repo 4.92, gx 42.59)
+against run 3's ~128 USD with the orchestrator. Not a lever's effect: the
+window, the queue and the models all differ.
 
 ## Consequence for the queue
 
-A YES becomes a plan a human authorises (tier or effort change = money).
-Lever 1 touches `.claude/commands/manage.md` and the orchestrator's health
-table — protocol paths, CORE ONLY.
+No plan: three levers cannot reach the bar in either fleet, so none
+earns a human's money decision. Lever 3 continues as its own question.
 
 ## Verification
-
-None yet.
 
 ## Graduates to
 

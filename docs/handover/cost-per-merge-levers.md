@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01PKRtVz3i86StN45K3yZ7nE
 agent: opus
 updated: 2026-10-10
-next: Parse scratchpad turns-gx/turns-jo.jsonl into per-lever ceilings; a lever whose touched cost share x max cut < 20% is NO without a trial
+next: Fold the second-context recheck into the research file Verification, run review + verifier, retire, PR
 ---
 
 ## Goal
@@ -32,7 +32,9 @@ cost per merged edge by >=20% without raising respawns, kills or reverts.
 
 ## Rejected
 
-- None yet.
+- Closing lever 3 NO on the equal-token ceiling (18.6% here): a sonnet
+  verifier spending <=92% of the opus tokens clears 20%, so that NO would
+  be a guess. Split out as `sonnet-verifier-on-opus-plans`.
 
 ## Review
 
