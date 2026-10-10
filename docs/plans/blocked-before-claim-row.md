@@ -28,13 +28,19 @@ row for it and remove the wrong one.
     for an entry still `new` whose record reads `status_bucket` BLOCKED and
     `session_status` is NOT IDLE, PENDING or ARCHIVED (RUNNING, or a status
     the table does not name):
-    1. no `seen=` → BLOCKED BEFORE CLAIM, first look: ledger
-       `seen=<updated_at>`, nothing else this pass.
-    2. `seen=` recorded, `updated_at` unchanged → `interrupt_session`,
+    1. no `held=` → BLOCKED BEFORE CLAIM, first look: ledger
+       `held=<updated_at>`, nothing else this pass.
+    2. `held=` recorded, `updated_at` unchanged → `interrupt_session`,
        `archive_session`, spawn the ITEM again — a plain spawn, as the
        STILLBORN row does. Count against `JOHARNESS_RESPAWN_LIMIT`; at the
        limit REPORT and stop, the ledger entry and report are the hand-off.
-    3. `seen=` recorded, `updated_at` moved → working, drop `seen=`.
+    3. `held=` recorded, `updated_at` moved, or the record no longer
+       reads BLOCKED → BLOCKED BEFORE CLAIM, cleared: drop `held=`.
+  - Step 4 ledger grammar: add `[held=<updated_at>]`. A key of its own, not
+    `seen=`: a session whose status flips between passes must not confirm
+    one kind of row on the other kind's first look.
+  - The `It RAN and stopped without claiming` row's REPORT names the
+    record's `status_bucket` and `session_status`.
   - `status_bucket` field row: name `..._BLOCKED` as deciding liveness in
     those rows only, beside `..._FAILED`. Same diff, or the field row and
     the new rows contradict.
@@ -50,8 +56,10 @@ row for it and remove the wrong one.
 
 - IDLE beside BLOCKED. It keeps the existing UNCLAIMED / "RAN and stopped"
   rows: a turn that ended chose to stop (authority exit, or a question —
-  #304's half). Measured: the one BLOCKED record on the account read IDLE
-  with `need_input`.
+  #304's half). Measured: `list_sessions` (limit 100, mine, 2026-10-10
+  ~10:20Z) held one BLOCKED record, IDLE, `need_input`, its last `result`
+  `terminal_reason: completed`. What a prompt-suspended session reads is
+  not measured; orchestrated.md says why IDLE stays report-only.
 - `permission_mode` on `create_session`. Setting a manager's permission
   posture is a permissions decision — name it in the PR body for the human,
   change nothing.
@@ -62,10 +70,11 @@ row for it and remove the wrong one.
 
 - `grep -c "BLOCKED BEFORE CLAIM" .claude/commands/orchestrate.md` — 3 or
   more.
-- `awk '/UNCLAIMED, FIRST look/{u=NR} /BLOCKED BEFORE CLAIM/ && !b{b=NR} END{print (b && b<u)?"above":"BELOW or absent"}' .claude/commands/orchestrate.md`
-  — `above`. Prints `BELOW or absent` on `main` before this plan lands.
-- `grep -n "branch merged" .claude/commands/orchestrate.md` — the row's
-  condition names the ledger entry carrying a head, not `new`.
+- `awk '/^## 2\. Health pass/{h=1} h&&/^\| /&&/UNCLAIMED, FIRST look/&&!u{u=NR} h&&/^\| /&&/BLOCKED BEFORE CLAIM/&&!b{b=NR} h&&/^\| /&&/branch merged/&&!m{m=NR} END{print (b&&b<u&&b<m)?"above":"misplaced or absent"}' .claude/commands/orchestrate.md`
+  — `above`. Health-table rows only; prints `misplaced or absent` on
+  `main` before this plan lands, and on rows placed below either anchor.
+- `grep -c "ledger entry carries a head" .claude/commands/orchestrate.md`
+  — `1` or more (the merged row's new condition; `0` on `main` today).
 - `./joharness.sh ci` — `ci: pass`.
 
 ## Where to look
