@@ -4651,7 +4651,7 @@ dispatch_branch_plans() {
         git -C "$ROOT" merge-base --is-ancestor "$rc" "$base" \
           </dev/null 2>/dev/null || { retired=1; break; }
       done <<<"$(git -C "$ROOT" log --full-history -m --diff-filter=D \
-        --format=%h "refs/remotes/origin/${base_branch}" -- "$p" \
+        --format=%H "refs/remotes/origin/${base_branch}" -- "$p" \
         </dev/null 2>/dev/null)"
       { read -r urg; read -r agt; } <<<"$(git -C "$ROOT" show "${r}:${p}" \
         </dev/null 2>/dev/null | gr_fields urgency agent)"
@@ -4943,6 +4943,9 @@ cmd_dispatch() {
   # is a leftover, not a plan waiting to land (dispatch_branch_plans).
   while IFS=$'\t' read -r ebranch estem _ _ _; do
     [ -n "$ebranch" ] || continue
+    # One row per branch: a second carried plan, or a branch the edge reader
+    # already listed, is not another leftover.
+    case "$leftover_rows" in *"  ${ebranch}  leftover  "*) continue ;; esac
     n_leftover=$((n_leftover + 1))
     leftover_rows="${leftover_rows}  docs/plans/${estem}.md  ${ebranch}  leftover  its plan ${estem} landed and was retired by another branch: it commits NOTHING and holds no slot. Never respawn on it. The human closes its pull request and deletes the branch."$'\n'
   done <<<"$(dispatch_branch_plans | awk -F'\t' 'NF == 5')"
