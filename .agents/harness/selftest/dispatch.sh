@@ -1145,6 +1145,7 @@ git -C "$mswork" push -qu origin main
 ms_claim() {
   git -C "$mswork" checkout -q main
   git -C "$mswork" checkout -qb "mgr-$1"
+  mkdir -p "${mswork}/docs/handover"
   printf -- '---\nworkstream: %s\nstatus: in-progress\nbranch: mgr-%s\nplan: %s\nagent: sonnet\nupdated: 2026-01-01\nnext: Build\n---\n\n## Goal\nFixture.\n' \
     "$1" "$1" "$1" >"${mswork}/docs/handover/$1.md"
   commit_all "$mswork" "claim $1"
@@ -1157,6 +1158,7 @@ ms_claim b
 ms_rescope() {
   git -C "$mswork" checkout -q main
   git -C "$mswork" checkout -qb "claude/rescope-$2"
+  mkdir -p "${mswork}/docs/handover"
   printf -- '---\nworkstream: rescope-%s\nstatus: done\nbranch: claude/rescope-%s\nplan: none\nagent: sonnet\nupdated: 2026-01-02\nnext: The rest is genuine\n---\n\n## Goal\nFixture.\n' \
     "$1" "$2" >"${mswork}/docs/handover/rescope-$2.md"
   commit_all "$mswork" "rescope $1: the rest is genuine"

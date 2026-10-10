@@ -8,7 +8,7 @@ issue: 300
 session: https://claude.ai/code/session_01G5BQQShzZLen4fbuJHnfNY
 agent: opus
 updated: 2026-10-10
-next: Run selftest + revert check, review with verifier, retire, PR
+next: Wait selftest + revert check + verifier; record findings in Review, fix, retire, PR
 ---
 
 ## Goal
