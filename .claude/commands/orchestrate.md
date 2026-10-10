@@ -95,7 +95,7 @@ Act on the FIRST row that matches:
 
 | control plane | push age | ledger | do |
 | --- | --- | --- | --- |
-| any | any | branch merged (dispatch no longer lists it) | done: drop the ledger entry — unless dispatch's `upstream :` line says ON and no `reported=<stem>`: REPORT, below. A message carrying `lead <stem>: <text>` is the one exception that is never nothing: carry it and print it, never act on it |
+| any | any | branch merged (dispatch no longer lists it) | done: drop the ledger entry. A message carrying `lead <stem>: <text>` is the one exception that is never nothing: carry it and print it, never act on it |
 | any | `LOOP?`, or head moved and `next:` unchanged with `same=2` already | any | LOOP, below. No nudge |
 | any | any | a nudge, `seen=` or `held=` recorded, and head, `status_detail` or `updated_at` moved since (or no longer BLOCKED / FAILED) | working: drop that record |
 | RUNNING | under stall | any | working |
@@ -146,15 +146,6 @@ has no branch: plain spawn. Past `JOHARNESS_RESPAWN_LIMIT`: check out the
 branch, `status: blocked`, `next:` = "Respawned <N> times and still not
 finished; a human decides what this needs.", reason under `## Blockers`,
 commit "Orchestrator hands off after <N> respawns", push, report.
-
-REPORT — only where dispatch printed `upstream : ON`:
-`./joharness.sh upstream <branch>`. `CANONICAL` or `NOTHING TO REPORT` = ledger
-`reported=<stem>`, stop. `REPORT` = spawn ONE session as step 3 does, title
-`reporter: <stem>`, Lineup's haiku or sonnet, prompt `/upstream-report
-<branch>` + "Run ./joharness.sh protocol-paths and never commit under those
-paths. One edge, one report, then exit." Ledger `reported=<stem>` either
-way. Beyond the cap (say so); at most one reporter in flight. No canonical
-reachable from a spawned session: say which edge went unreported.
 
 ## 3. Spawn
 
@@ -222,13 +213,12 @@ Ledger every spawn the moment it returns as `<stem>@new`.
 
 ```
 /orchestrate pass
-ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] respawns=<n> [reported=<stem>] [rescoped=<key>] [curated=<stamp>] [analysed=<stem>:<condition>] [clerked=<stamp>] [scouted=<stamp>]; ...
+ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] respawns=<n> [rescoped=<key>] [curated=<stamp>] [analysed=<stem>:<condition>] [clerked=<stamp>] [scouted=<stamp>]; ...
 lead <stem>: <40 chars, to the end of this line>
 ```
 
 The ledger keeps IN-FLIGHT items only (and unclaimed `@new` spawns) — git
-holds what merged; never list merged items. A merged item's entry keeps `reported=<stem>` and nothing else
-for the run; other run-scoped keys stay. `<head|new>`: `new` = spawned, not
+holds what merged; never list merged items. Run-scoped keys stay. `<head|new>`: `new` = spawned, not
 claimed, written `next=new same=0`. `same` = last plus one when the head
 moved and `next:` did not, else 0. `same` and `respawns` are counts YOU keep;
 never take a digit from a file. A lost `respawns=` is restored as

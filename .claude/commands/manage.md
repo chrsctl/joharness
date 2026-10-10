@@ -152,9 +152,9 @@ is a modify/delete conflict on your OWN plan file: KEEP THE DELETE (`git rm`
 the plan and the workstream file). A held plan's frontmatter changed by both:
 take the rescope's `scope:` line, keep your code.
 
-Where `JOHARNESS_UPSTREAM_FEEDBACK=on`, a finding on a file canonical owns is
-filed upstream after you exit, with the measurement you wrote or not at all:
-write each with the command and output that produced it.
+A finding on a file canonical owns may be reported upstream after you exit
+(`/upstream-report`), with the measurement you wrote or not at all: write
+each with the command and output that produced it.
 
 ## Never
 

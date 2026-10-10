@@ -23,7 +23,6 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | `./joharness.sh curate` + `curate :` line | Whether the plan queue's declarations are still true. Mechanical repairs: `./joharness.sh curate --apply`, and `ci` fails a branch whose added or edited plans still need one. A curator session is offered only for PROPOSE findings (decompose, order). Due on plan churn (`JOHARNESS_CURATE_PLANS`) or the clock; state read from git. Orthogonal to the verdict. |
 | `./joharness.sh janitor` + `janitor :` line | Claims whose session is gone. Mechanical: `./joharness.sh janitor --apply` writes `status: abandoned` into the claim's own file — only where the session is ARCHIVED or not found, never a claim with `pr:` — and deletes nothing. No session, no pull request. Clock-driven (`JOHARNESS_JANITOR_HOURS`). |
 | `./joharness.sh clerk` + `clerk :` line | Open issues become plans only through the clerk (`dispatch` reads `docs/plans/` only). Clock-driven, batch `JOHARNESS_CLERK_BATCH`, dated from git. Orthogonal to the verdict. |
-| `./joharness.sh upstream` | What a merged edge found about the harness. With `JOHARNESS_UPSTREAM_FEEDBACK=on` the health pass's `done` row spawns ONE reporter per merged edge, which files the findings as a report pull request on the canonical ([`feedback.md`](feedback.md)). |
 | `./joharness.sh analysis` | One unmerged branch's condition (BLOCKED / STALL? / LOOP?) beside the base branch's current conf. With `JOHARNESS_IDLE_ANALYSIS=on` a row `dispatch` marks `ANALYSE?` spawns ONE analyst — BESIDE that row's verdict, never instead of it. |
 | `./joharness.sh scout` + `scout :` line | GATED on `DRAINED — nothing free, nothing in flight`: new work competes with real work. Clock-driven (`JOHARNESS_SCOUT_HOURS`). Every misread fails closed — holds the cycle, never spawns a second scout. |
 | `.claude/commands/*.md` | The roles, as commands. |
@@ -35,14 +34,13 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | orchestrator | low, mechanical on purpose | a session; the heartbeat fires one | manager sessions (`create_session`) | the cap, the health pass, the kill handover | dispatch says DRAINED with nothing in flight |
 | manager | the item's `agent:`; fable at xhigh for an unplanned requirement | a session with its own branch, claim and merge | worker subagents (`Agent`) | one item, until its file retires | its pull request merges, or it blocks on a human |
 | worker | at or below the plan's tier, lower by default | a subagent in the manager's container | nothing | the files its sub-task names | it returns |
-| reporter | low | a session, after a manager MERGES — only where `JOHARNESS_UPSTREAM_FEEDBACK=on` | nothing | one merged edge's harness findings | it files one report on the canonical, or none |
 | analyst | low | a session, on a row marked `ANALYSE?` — only where `JOHARNESS_IDLE_ANALYSIS=on` | nothing | one condition on one branch, explained and never ended | it files one issue on the canonical, or none |
 | curator | sonnet | a session, on `curate DUE` with proposals to make | nothing | decompose/order proposals for ONE pass, changing no plan | its pull request merges |
 | surveyor | sonnet | a session, on the `OVERLAP-BOUND` verdict | nothing (declarations, not code) | the held plans' and holders' `scope:` lines for one holder key | its pull request merges, or `done` with nothing to change |
 | clerk | sonnet, opus verifier | a session, on the `clerk DUE` tail line | nothing | one plan-only pull request, no workstream file; never closes or opens an issue, never writes code, never a core-path-only plan | its pull request merges, no plan to write, or `TWIN: deferred` |
 | scout | fable | a session, on `scout DUE`, only under `DRAINED — nothing free, nothing in flight` | nothing | one proposal pull request, a `docs/product/<stem>.md` | the human merges or closes it — or `JOHARNESS_SCOUT_AUTOMERGE=on` and it merges itself — or `NOTHING TO PROPOSE` |
 
-Reporter, analyst, curator, surveyor, clerk and scout hold no
+Analyst, curator, surveyor, clerk and scout hold no
 manager slot: each is one session beyond the cap — the human's money, reported.
 A role command that says nothing to do spawns nothing.
 
@@ -113,7 +111,7 @@ halves: git (dispatch) and the control plane.
 | gone | branch unmerged, claimed, or an in-flight edge row naming an item | `ARCHIVED`, or no session by title | respawn on the branch, no nudge. An edge row naming `?` is never respawned |
 | leftover | under `leftovers`: its item already gone from the base branch | any | never respawned; report, the human deletes the branch |
 | blocked | status `blocked` | any | report; never respawn |
-| done | branch merged | any | drop the ledger entry — or, with `JOHARNESS_UPSTREAM_FEEDBACK=on` and no `reported=` for it, spawn ONE reporter |
+| done | branch merged | any | drop the ledger entry |
 
 **Gone is ARCHIVED, not found on the control plane, a FAILED bucket confirmed
 by a second look, or a session that did not move across a nudge and a
@@ -256,7 +254,6 @@ had it). The PR body says so; the owner drops it at reconcile.
 | `JOHARNESS_JANITOR_HOURS` | 12 | hours between claim sweeps; 0 = off | requester's number |
 | `JOHARNESS_SCOUT_HOURS` | 168 | hours between scouts, only at DRAINED; 0 = off | written number |
 | `JOHARNESS_SCOUT_AUTOMERGE` | off | exactly `on` lets a scout merge its own proposal | a switch: money and product direction in one conf line |
-| `JOHARNESS_UPSTREAM_FEEDBACK` | off | on = one reporter per merged edge, beyond the cap, filing on the canonical | a switch; declared in `.agents/scripts/conf-keys.sh` |
 | `JOHARNESS_IDLE_ANALYSIS` | off | on = one analyst per condition per item per run, beyond the cap, filing an issue on the canonical | a switch; declared in `.agents/scripts/conf-keys.sh` |
 
 None of these is an `updated_at` threshold — one cannot be written (Health,
@@ -292,8 +289,8 @@ The rules that bind every session.
 ### Bounds, orchestrator
 
 It merges nothing, edits nothing but a killed manager's workstream file, picks
-no tier, and takes no item itself. A reporter or an analyst is a SPAWN; the
-orchestrator authors no report and no issue, and an analyst ends nothing. The
+no tier, and takes no item itself. An analyst is a SPAWN; the orchestrator
+authors no issue, and an analyst ends nothing. The
 `janitor --apply` is the one writer to a branch it does not own: only where
 the session is ARCHIVED or not found, never on push age, never a claim with
 `pr:`, and it deletes nothing. The clerk turns EXISTING issues into plans and

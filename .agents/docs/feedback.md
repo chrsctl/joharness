@@ -181,21 +181,15 @@ session; search canonical's open issues for the same finding first. It
 carries the command and output that produced it. Canonical out of the
 session's GitHub scope? Hand the human the issue text — never drop it silent.
 
-### The switch that mechanizes 1 to 4
+### The manual report
 
 Steps 1 to 4 end with the session, and a merged manager's findings are gone
-from every tree.
-
-`JOHARNESS_UPSTREAM_FEEDBACK` (`off` | `on`, **off by default**, declared in
-`.agents/scripts/conf-keys.sh` so every sync names it to a consumer that has
-no line for it):
-
-| off | on |
-| --- | --- |
-| `./joharness.sh upstream [<edge>]` reports: which of that edge's findings landed on a file canonical owns, which are unattributable, and the `CANONICAL_REPO` they would go to. Nothing acts on it. | the same read, plus the orchestrator spawns ONE reporter per merged edge — `.claude/commands/upstream-report.md`, which walks steps 1 to 4 and files at most one pull request on the canonical. |
-
-Off by default: it opens pull requests in a repository the child does not
-own, and a reporter is one session beyond the cap (money).
+from every tree. `./joharness.sh upstream [<edge>]` reports which of an
+edge's findings landed on a file canonical owns, which are unattributable,
+and the `CANONICAL_REPO` they would go to. `/upstream-report <edge>`
+(`.claude/commands/upstream-report.md`) walks steps 1 to 4 on that read and
+files at most one pull request on the canonical. Run by hand; nothing spawns
+it.
 
 ### The second switch: a STUCK edge, not a merged one
 
