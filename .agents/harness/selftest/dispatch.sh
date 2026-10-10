@@ -551,7 +551,8 @@ git -C "$dspwork" checkout -q main
 out="$(dsp env JOHARNESS_MAX_MANAGERS=8)"
 expect "past the retire commit the branch is still in flight, on its own row" \
   "docs/plans/eta.md  mgr-eta  retired  pushed" "$out"
-expect "which says what the row is" "PR in flight, no claim file" "$out"
+expect "which says what the row is, and that it cannot see the pull request" \
+  "retired, no claim file — a pull request is expected; this reader cannot see one" "$out"
 expect "it still holds its slot" "slots     : 3 of 8 free" "$out"
 refute "and its item is still not offered for spawning" \
   "  docs/plans/eta.md (agent" "$out"
@@ -560,15 +561,17 @@ expect "the verdict counts it and names who finishes the count" \
 
 # Distinguishable from a branch nobody came back to — the trade this fix must
 # not make. Push age is the only signal git has, so past the window the row
-# says so and names the respawn as step 7's, which is a merge to finish, not a
-# plan to restart.
+# says so and sends the verdict to the health table. It used to order the
+# respawn itself, and printed that over three RUNNING managers an 18-day
+# suspension had frozen (issue #283): git cannot tell those from dead ones.
 out="$(dsp env JOHARNESS_MAX_MANAGERS=8 JOHARNESS_STALL_MINUTES=0)"
 expect "past the stall window the row is marked" "STALL? no push for" \
   "$(printf '%s\n' "$out" | grep -A1 'mgr-eta')"
 expect "and sends the reader to the control plane, by the item's own stem" \
   "cross-check the control plane by TITLE (manager: eta)" "$out"
-expect "naming the respawn as the merge, not a restart" \
-  "respawn on the branch to FINISH it, never to restart the item" "$out"
+expect "and leaves the verdict to the health table" \
+  "the verdict is the health table's (.claude/commands/orchestrate.md, step 2), never this row's" "$out"
+refute "no edge row orders a respawn itself" "respawn on the branch" "$out"
 # The VERDICT's count, not just the row's token. Folding the edge rows into
 # n_stall and asserting only row text left the fold green both ways: four
 # claimed managers are past a zero window here, and the fifth is mgr-eta.
@@ -2562,3 +2565,65 @@ expect "a rebased claim keeps its age: the author date" \
   "CEILING? 10h since the claim" "$(printf '%s\n' "$out" | grep 'mgr-rebased')"
 expect "a claim dated in the future reads the committer date" \
   "CEILING? 10h since the claim" "$(printf '%s\n' "$out" | grep 'mgr-future')"
+
+# --- a stopped fleet: every manager silent AND the base branch still --------
+# Issue #283. An orchestrator back from an 18-day suspension read three
+# RUNNING managers as 434h stalled: push age froze for the fleet, not for
+# them. Own repo, because the condition is about EVERY row in flight and
+# about the base branch's own age, which a shared fixture decides elsewhere.
+sfwork="${TMP}/stoppedfleetwork"
+sforigin="${TMP}/stoppedfleetorigin.git"
+git init -q --bare "$sforigin"
+git init -q "$sfwork"
+git -C "$sfwork" symbolic-ref HEAD refs/heads/main
+mkdir -p "${sfwork}/docs/plans" "${sfwork}/docs/handover" \
+  "${sfwork}/.agents/harness" "${sfwork}/.agents/env/none"
+cp "${ROOT}/joharness.sh" "${sfwork}/joharness.sh"
+cp "${ROOT}/.agents/harness/queue-context.sh" \
+   "${ROOT}/.agents/harness/handover-context.sh" "${sfwork}/.agents/harness/"
+printf '# none\n' >"${sfwork}/.agents/env/none/AGENTS.md"
+sfconf="${sfwork}/joharness.conf"
+printf 'JOHARNESS_ENV=none\n' >"$sfconf"
+printf -- '---\nplan: frozen\nurgency: normal\nagent: sonnet\neffort: high\n---\n\n## Goal\nFixture.\n' \
+  >"${sfwork}/docs/plans/frozen.md"
+git -C "$sfwork" add -A
+# Base AND claim both 48h old: past 24 windows of the 45m default (18h).
+# The date rides on each commit as a prefix, so it cannot leak.
+sft=$(( $(date +%s) - 48 * 3600 ))
+GIT_AUTHOR_DATE="@${sft} +0000" GIT_COMMITTER_DATE="@${sft} +0000" \
+  git -C "$sfwork" commit -qm "base, two days ago"
+git -C "$sfwork" remote add origin "$sforigin"
+git -C "$sfwork" push -qu origin main
+git -C "$sfwork" checkout -qb mgr-frozen
+printf -- '---\nworkstream: frozen\nstatus: in-progress\nbranch: mgr-frozen\nplan: frozen\nsession: https://example.invalid/session_frozen\nagent: sonnet\nupdated: 2026-01-01\n---\n\n## Goal\nFixture.\n' \
+  >"${sfwork}/docs/handover/frozen.md"
+git -C "$sfwork" add -A
+GIT_AUTHOR_DATE="@${sft} +0000" GIT_COMMITTER_DATE="@${sft} +0000" \
+  git -C "$sfwork" commit -qm "claim frozen, two days ago"
+git -C "$sfwork" push -qu origin mgr-frozen
+git -C "$sfwork" checkout -q main
+sf() { ( cd "$sfwork" && JOHARNESS_CONF="$sfconf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 "$@" ./joharness.sh dispatch 2>&1 ); }
+out="$(sf)"
+expect "the silent manager is a stall row, so the line below has a row to speak for" \
+  "STALL? no push for 48h" "$out"
+expect "every row silent and the base still: the stopped-fleet line prints" \
+  "every manager in flight is silent and main has not moved in 48h: suspect a stopped fleet (a suspension), not 1 dead managers — read the control plane for EACH before any respawn" "$out"
+expect "and it rides the verdict's tail, not the listing" \
+  "suspect a stopped fleet" "$(sed -n '/^verdict/,$p' <<<"$out")"
+# A window wider than the base's age: 24 x 180m = 72h > 48h. The stall row
+# still fires (48h >= 180m), the multiple does not.
+out="$(sf env JOHARNESS_STALL_MINUTES=180)"
+expect "inside 24 windows the row still stalls" "STALL? no push for 48h" "$out"
+refute "but the base has not been still long enough to suspect the fleet" \
+  "suspect a stopped fleet" "$out"
+
+# The same fleet, the base branch moved this minute: the managers are silent
+# while somebody else merged, so it is not a suspension.
+printf 'moved\n' >"${sfwork}/moved.txt"
+commit_all "$sfwork" "base moves now"
+git -C "$sfwork" push -q origin main
+out="$(sf)"
+expect "the row still stalls, so the refute below reads a live case" \
+  "STALL? no push for 48h" "$out"
+refute "a base that moved prints no stopped-fleet line" "suspect a stopped fleet" "$out"

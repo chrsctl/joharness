@@ -210,11 +210,16 @@ rule on.
 | IDLE or PENDING | any | a nudge recorded, and head AND `status_detail` both unchanged since it | it did not answer across two passes. NOW gone: RESPAWN on that branch, below. |
 | IDLE or PENDING | any | a nudge recorded, and head moved or `status_detail` changed | working. Drop the nudge. |
 | any | any | branch merged (dispatch no longer lists it) | done. Nothing — UNLESS dispatch's `upstream :` line says ON and the ledger has no `reported=<stem>` for it: then REPORT, below. A merge message carrying `lead <stem>: <text>` is the one exception that is never nothing: carry it (step 4) and print it (Report). Never act on it — see below. When a `merged <stem>` MESSAGE woke this pass, read this row for that stem FIRST: its session is usually still RUNNING and under the stall window, so the first row matches and the lead is dropped on the one pass it was sent. |
-| RUNNING | any | row says `PR in flight, no claim file` | at step 7, merging. Nothing. |
+| RUNNING | any | row says `retired, no claim file` | at step 7, merging. Nothing. |
 | gone by the definition above | any | that row, and it NAMES an item | gone at the edge. RESPAWN on that branch to FINISH the merge, never to restart the plan — the work is done and the record was retired with it. |
 | any status whatsoever | any | the branch is under `leftovers`, not in flight | NOT a merge to finish, and it holds no slot. Either its item is already gone from the base branch — that merge happened, by this branch or another — or the row names no item at all and has been silent for a day. REPORT it; the human deletes the branch. NEVER respawn: a successor would land on merged work with no pull request and, often, no item to name its task. Read this row BEFORE the `?` row below, which is about a row still in flight. |
 | any status whatsoever | any | an IN-FLIGHT row naming `?` | no item, so no title to look up and no successor to spawn. It holds a slot: it may be a manager that retired minutes ago. REPORT to the human; merging or retiring the branch is what frees it. NEVER respawn one of these, however dead the control plane looks — there is nothing to name the successor's work. |
 | any | any | `CEILING?` on the line | Read BESIDE whichever row above matched, never instead of it — the first row matches a RUNNING manager under the stall window, which is exactly the one this is about. REPORT the row's age and the session's `cost_usd` as read this pass. Nothing else. Never kill, nudge or respawn on `CEILING?` alone. The STALL and LOOP rows still decide their own cases on the same row. A refresh (archive and respawn on the branch) is the human's call. |
+
+Dispatch's `suspect a stopped fleet` tail line decides nothing. It says the
+push age on every row is the fleet's, not the manager's: everyone silent and
+the base branch still is what a suspension looks like from git. Read the
+control plane for EACH row, and let the rows above decide as written.
 
 Two readings from run 1, one keystroke apart in the record and opposite in
 what they need. These are the part to read when the rows blur:

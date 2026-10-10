@@ -8,7 +8,7 @@ issue: 283
 session: https://claude.ai/code/session_015AjcweMJ4sZHA4LAqqMhrM
 agent: opus
 updated: 2026-10-10
-next: Research cmd_dispatch edge rows + verdict tail, then build per plan Scope
+next: ci + verify green, verifier review, retire, PR, merge
 ---
 
 ## Goal
@@ -20,11 +20,20 @@ whole fleet is silent and `main` frozen (a suspension, not N dead managers).
 
 ## Decisions
 
-- None yet.
+- Base age read through `dispatch_age_min <base>`: the one `git log -1
+  --format=%ct` the plan allows, already `</dev/null`, already the unit
+  the stall test uses.
+- Stopped-fleet fixtures get their own repo: the condition is about EVERY
+  row in flight and the base's own age, both decided elsewhere in the
+  shared fixture. A third case (window 180m: row stalls, 24x does not)
+  pins the multiple, not just the 1x test.
+- Built without workers: three files, ~100 lines, and orchestrate.md must
+  change in the same commit as dispatch's row text (plan Traps).
 
 ## Rejected
 
-- None yet.
+- Printing the line on 1x stall window: with one manager in flight the base
+  only moves when it merges, so it fires on every ordinary stall (plan).
 
 ## Review
 

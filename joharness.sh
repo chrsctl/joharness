@@ -8290,7 +8290,7 @@ cmd_dispatch() {
   local n_inflight=0 n_slots n_free=0 n_stall=0 n_blocked=0 n_hold=0 n_wait=0 n_loop=0
   local pending pending_used
   local n_edge=0 n_edge_stall=0 n_leftover=0 n_leftover_noitem=0
-  local leftover_rows="" estate=""
+  local leftover_rows="" estate="" fleet_age
   local curate_due=0 curate_inflight="" n_curate_inflight=0 cdue cstate creason
   local janitor_due=0 janitor_inflight="" n_janitor=0 jdue jstate jreason jb jw
   local scout_due=0 scout_inflight="" n_scout=0 sdue sstate sreason sb sw ss scout_gate=0 srows
@@ -8544,7 +8544,7 @@ cmd_dispatch() {
     # arguments, and an unquoted expansion is the split this file lints for.
     espaces="${eitem//[! ]/}"
     if [ -z "$eitem" ]; then emore=0; else emore=$(( ${#espaces} + 1 )); fi
-    edge_rows="${edge_rows}  ${efirst:-?}  ${ebranch}  retired  pushed ${eagetext}  PR in flight, no claim file: step 7 retired the workstream file before the pull request opened, so this branch commits a slot and names no owner"
+    edge_rows="${edge_rows}  ${efirst:-?}  ${ebranch}  retired  pushed ${eagetext}  retired, no claim file — a pull request is expected; this reader cannot see one: step 7 retired the workstream file before the pull request opened, so this branch commits a slot and names no owner"
     [ "$emore" -le 1 ] ||
       edge_rows="${edge_rows} (and $((emore - 1)) more item(s) retired here: ${eitem#* })"
     edge_rows="${edge_rows}"$'\n'
@@ -8565,7 +8565,7 @@ cmd_dispatch() {
       n_edge_stall=$((n_edge_stall + 1))
       estem="${efirst##*/}"; estem="${estem%.md}"
       if [ -n "$efirst" ]; then
-        edge_rows="${edge_rows}    STALL? no push for ${eagetext} (>= ${stall}m): cross-check the control plane by TITLE (manager: ${estem}) — this row carries no session line to read. Gone — ARCHIVED, not found, or FAILED confirmed twice, never IDLE alone (.claude/commands/orchestrate.md) — means nobody is driving this merge: respawn on the branch to FINISH it, never to restart the item"$'\n'
+        edge_rows="${edge_rows}    STALL? no push for ${eagetext} (>= ${stall}m): cross-check the control plane by TITLE (manager: ${estem}) — this row carries no session line to read; the verdict is the health table's (.claude/commands/orchestrate.md, step 2), never this row's"$'\n'
       else
         # No item, no title to look up, so no respawn: a successor spawned
         # blind onto a branch nobody can name is two sessions on one branch.
@@ -9168,6 +9168,22 @@ cmd_dispatch() {
   # earns a line the orchestrator reads at its branch point, and this one is
   # the count that is wrong: it says the report cannot see edges at all, so
   # an item printed free may already be in flight (verifier r2).
+
+  # Push age is the FLEET's before it is any manager's. An orchestrator back
+  # from an 18-day suspension read three RUNNING managers as 434h stalled
+  # (issue #283): the git view is frozen the same way for a stopped fleet and
+  # for dead managers. Every non-blocked row silent AND the base branch still
+  # is the one shape git can tell apart. 24 windows, the leftovers rule's
+  # multiple above: with one manager in flight the base moves only when it
+  # merges, so 1x would fire on every ordinary stall. Decides nothing — the
+  # health table still does, row by row.
+  if [ "$n_stall" -gt 0 ] && [ "$n_stall" -eq $((n_inflight - n_blocked)) ]; then
+    fleet_age="$(dispatch_age_min "${HANDOVER_BASE_BRANCH:-main}")"
+    if [ -n "$fleet_age" ] && [ "$fleet_age" -ge $((stall * 24)) ]; then
+      printf '            every manager in flight is silent and %s has not moved in %s: suspect a stopped fleet (a suspension), not %s dead managers — read the control plane for EACH before any respawn\n' \
+        "${HANDOVER_BASE_BRANCH:-main}" "$(dispatch_age_text "$fleet_age")" "$n_stall"
+    fi
+  fi
 
   return 0
 }
