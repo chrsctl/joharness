@@ -38,7 +38,7 @@ expect "a clean fixture reads VERIFIABLE" "verdict   : VERIFIABLE" "$out"
 refute "and is not NOT VERIFIABLE" "NOT VERIFIABLE" "$out"
 expect "it states the only mode" "mode      : orchestrated (the only mode)" "$out"
 expect "and the rules it compares" \
-  "rules     : joharness.sh, .agents/harness, against origin/main" "$out"
+  "rules     : joharness.sh, .agents/harness, .claude, joharness.conf, against origin/main" "$out"
 # What VERIFIABLE does and does not prove: a merged commit authored by a
 # Claude session proves review, not a human's hand.
 expect "VERIFIABLE says what it proves" "It proves review" "$out"
@@ -62,6 +62,37 @@ expect "an untracked harness file reads NOT VERIFIABLE" \
   "verdict   : NOT VERIFIABLE" "$out"
 expect "and names the untracked path" "    .agents/harness/extra.sh" "$out"
 rm -f "${authwork}/.agents/harness/extra.sh"
+
+# --- the settings and the conf are rules too (verifier r2) -----------------
+# `{}` in .claude/settings.json unwires the Stop guard; the conf holds the cap.
+# Both read VERIFIABLE while only the entrypoint and the hooks were compared.
+mkdir -p "${authwork}/.claude"
+printf '{}\n' >"${authwork}/.claude/settings.json"
+out="$(auth)"
+expect "an unreviewed settings.json reads NOT VERIFIABLE" \
+  "verdict   : NOT VERIFIABLE" "$out"
+expect "and names it" "    .claude/settings.json" "$out"
+rm -rf "${authwork}/.claude"
+printf 'JOHARNESS_MAX_MANAGERS=99\n' >>"${authwork}/joharness.conf"
+out="$(auth)"
+expect "an uncommitted conf edit reads NOT VERIFIABLE" \
+  "verdict   : NOT VERIFIABLE" "$out"
+expect "and names the conf" "    joharness.conf" "$out"
+git -C "$authwork" checkout -q -- joharness.conf
+
+# --- behind the base is not drift (verifier r1) ------------------------------
+# A clean checkout merely BEHIND origin/main runs a merged commit's rules.
+# Diffing against the tip named a harness file this checkout never edited.
+authtip="$(git -C "$authwork" rev-parse HEAD)"
+printf '# merged elsewhere\n' >>"${authwork}/.agents/harness/hook.sh"
+commit_all "$authwork" "a harness change merged after this checkout"
+git -C "$authwork" update-ref refs/remotes/origin/main HEAD
+git -C "$authwork" reset -q --hard "$authtip"
+out="$(auth)"
+expect "a checkout behind origin/main still reads VERIFIABLE" \
+  "verdict   : VERIFIABLE" "$out"
+refute "and names no file it never edited" "    .agents/harness/hook.sh" "$out"
+git -C "$authwork" update-ref refs/remotes/origin/main "$authtip"
 
 # --- absent is not proven ---------------------------------------------------
 # No origin/main to compare against: UNVERIFIED, the way an uncountable thing

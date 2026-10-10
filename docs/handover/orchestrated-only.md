@@ -48,6 +48,34 @@ everywhere, consumers included, fail-closed default gone. One mode:
 
 ## Review
 
+- r1: (verifier) authority diffs the tree against the origin/<base> TIP, so a
+  clean checkout merely BEHIND it reads NOT VERIFIABLE naming files it never
+  edited (scratch clone, another clone pushes a harness edit, fetch). (fixed:
+  diff against `merge-base HEAD origin/<base>`; selftest case added)
+- r2: (verifier) VERIFIABLE ignores role files, .claude/settings.json and
+  joharness.conf — `{}` in settings.json unwires the Stop guard and still
+  reads VERIFIABLE. (fixed: AUTHORITY_PATHS adds .claude and joharness.conf —
+  every file a session's rules come from; selftest case added. Ignored files
+  stay excluded: .claude/settings.local.json is per-user and gitignored, and
+  counting it would make every human checkout NOT VERIFIABLE — wontfix)
+- r3: (verifier) role commands say "anything else = stop" but authority on a
+  branch carrying its own harness edits reads NOT VERIFIABLE — a respawn that
+  checks out first, or a compacted manager re-running step 0, stops. (fixed:
+  manage.md and orchestrate.md's respawn prompt order authority BEFORE the
+  checkout, once per session; a re-run after own edits is not a stop)
+- r4: (verifier) scout.md human-start keys on `scout     : DUE`, which
+  dispatch prints even when suppressed. (fixed: key on `scout DUE: spawn`)
+- r5: (verifier) perf comment's "36 now" is arithmetic, not a count; the
+  guard state table predates the deleted `mode` call. (fixed: wording says
+  what was and was not re-counted)
+- r6: (verifier) comments still describe `drain` as a live entrypoint and
+  budget (joharness.sh perf block, DRAIN_FETCH, curate/rot comments). (fixed)
+- r7: (verifier) sync names `JOHARNESS_MODE=orchestrated` obsolete while
+  joharness.sh is silent on it. (wontfix: the plan names the KEY obsolete in
+  any value; the entrypoint's silence on `orchestrated` exists so the
+  canonical's own conf line — a core path only a human deletes — does not
+  warn in every session. The sync tells the human to delete it; same answer.)
+
 ## Blockers
 
 None.

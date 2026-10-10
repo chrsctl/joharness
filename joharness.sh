@@ -1499,12 +1499,10 @@ perf_count() {
   printf '%s %s\n' "${n:-0}" "$secs"
 }
 
-# `drain` carries session-start's budget and for session-start's reason: it
-# runs the same two hooks. Measured 2026-08-29 with `JOHARNESS_PERF=always
-# ./joharness.sh perf drain` -> 465, against session-start's 468 the same
-# minute. It is budgeted at all because it is the first thing a heartbeat-
-# fired session reads, every generation, so a per-item fork inside it is
-# paid by every session the fleet ever starts.
+# `drain` carried session-start's budget until it was deleted (2026-10-10,
+# one mode): it ran the same two hooks, and it was the first thing a
+# heartbeat-fired session read. Its numbers below are history, kept for the
+# reasoning; the row is gone.
 #
 # Comments do not go INSIDE the row list below. Those lines are one command's
 # continued argument list, where a leading # is an argument and not a comment:
@@ -1840,7 +1838,10 @@ PERF_BASH_GUARD_PAYLOAD='{"session_id":"perf","tool_name":"Bash","tool_input":{"
 # `dispatch`, which runs both hooks, is not a row (it was not one before).
 # handover-guard lost the `joharness.sh mode` call — the boundary block now
 # runs unconditionally, which is the path the row always pinned — and its
-# 33 still sits under the documented cheapest regression (37 then, 36 now).
+# 33 is kept: the documented cheapest regression read 37 when counted, and
+# was NOT re-counted on this change. The state table above was counted with
+# the `mode` call included; the quiet state re-counts 21 (2026-10-10,
+# `./joharness.sh perf handover-guard`), one under its 22.
 perf_rows() {
   printf '%s\n' \
     "feedback|${JOHARNESS_PERF_BUDGET_FEEDBACK:-228}|live||${ROOT}/joharness.sh feedback" \
@@ -5210,7 +5211,8 @@ janitor_due() {
 # janitor was spawned onto branches the first was already writing to.
 #
 # `--no-merged` and the `ls-tree | grep` prefilter are not tidiness either:
-# `drain` runs this at every session start, and without them it paid a merge
+# `drain` (deleted 2026-10-10) ran this at every session start, and `dispatch`
+# runs it every health pass; without them it paid a merge
 # base, a diff and a frontmatter read for every unmerged ref. Measured on this
 # checkout (142 refs, verifier): `drain` 12.075s with the naive walk against
 # 5.521s with the cycle off. The DECISION stays frontmatter, so a false
@@ -5274,7 +5276,7 @@ cmd_janitor() {
 
   # Walked ONLY when a sweep could be due. A sweep in flight cannot make a
   # not-due pass due, so the walk would change no answer — and it is the
-  # expensive half of this command, which `drain` runs at every session start
+  # expensive half of this command, which `dispatch` runs every health pass
   # (the same gate, and the same reason, as the curate block).
   if [ "$state" = due ]; then
     while IFS=$'\t' read -r jb jw js; do
@@ -5382,7 +5384,7 @@ cmd_janitor() {
       printf '      branch: resolve it by hand\n'
     fi
     # The `pr:` field is a number in a file. This reader cannot see whether the
-    # pull request is open, closed or merged — `drain` says "state unverified"
+    # pull request is open, closed or merged — `drain` said "state unverified"
     # about the same field and this said "nearly done" (#288). The EXEMPTION
     # does not depend on the state: naming a `pr:` is what makes it Loop step
     # 2's, so say that and claim nothing else.
@@ -5505,8 +5507,8 @@ scout_refs() {
 # - So the listing reads no content: `git grep` with an EMPTY extended
 #   pattern lists every non-empty file (`-l`) and `-L` every empty one; `-E`
 #   on the command line outranks any `grep.patternType`, and colour is off.
-#   Two calls over all tips, never one per ref — drain pays this at every
-#   session start, and `perf` gates it.
+#   Two calls over all tips, never one per ref — dispatch pays this every
+#   health pass.
 # - The BASE tip is read too, and its row always counts: a scout whose file
 #   reached the base before its retire (a branch cut from it was merged, or
 #   a human merged early) once hid behind an inherited-copy skip that
@@ -6014,9 +6016,20 @@ cmd_cleanup() {
 # exit code carries the verdict, because a report something branches on is
 # a gate nobody reviewed.
 #
-# Working tree against the ref, untracked files included: an uncommitted
-# edit and a file nobody added are both rules nobody reviewed.
-AUTHORITY_PATHS="joharness.sh .agents/harness"
+# Working tree against the MERGE BASE with the ref, untracked files
+# included: an uncommitted edit and a file nobody added are both rules nobody
+# reviewed. The merge base and not the ref's tip, because a checkout merely
+# BEHIND the base branch runs a merged commit's rules — diffing against the
+# tip named files it never edited as drift (verifier r1).
+#
+# The paths are every file a session's rules come from: the entrypoint and
+# the hooks, the role commands and agents (the banner says the command IS
+# the rules for its role), the settings that wire the hooks at all, and the
+# conf that holds the cap. `{}` in .claude/settings.json unwires the Stop
+# guard and read VERIFIABLE while only the first two were checked (r2).
+# Gitignored files stay out: .claude/settings.local.json is per-user by
+# design, and counting it would make every human checkout drift.
+AUTHORITY_PATHS="joharness.sh .agents/harness .claude joharness.conf"
 authority_drift() {
   local base="$1" p
   local -a paths
@@ -6074,7 +6087,7 @@ cmd_start() {
 }
 
 cmd_authority() {
-  local base="origin/${HANDOVER_BASE_BRANCH:-main}" drift p
+  local base="origin/${HANDOVER_BASE_BRANCH:-main}" drift p mb
 
   printf '== authority (reports; grants nothing, gates nothing)\n\n'
   printf 'mode      : orchestrated (the only mode)\n'
@@ -6089,14 +6102,21 @@ cmd_authority() {
     printf '  repo runs unattended as unproven too.\n'
     return 0
   fi
-  drift="$(authority_drift "$base")"
+  if ! mb="$(git -C "$ROOT" merge-base HEAD "$base" 2>/dev/null)" || [ -z "$mb" ]; then
+    printf 'verdict   : UNVERIFIED\n'
+    printf '  This checkout shares no history with %s here — a shallow clone\n' "$base"
+    printf '  or an unrelated branch. Nothing reviewed to compare against.\n'
+    return 0
+  fi
+  drift="$(authority_drift "$mb")"
   if [ -n "$drift" ]; then
     printf 'verdict   : NOT VERIFIABLE\n'
     printf '  This checkout'"'"'s rules differ from %s, so they are not the\n' "$base"
     printf '  rules any review saw:\n'
     while IFS= read -r p; do printf '    %s\n' "$p"; done <<<"$drift"
     printf '  A branch that edits them reads this mid-build, and that is\n'
-    printf '  expected — run authority BEFORE the first edit, not after.\n'
+    printf '  expected: run authority ONCE, at the start, before checking out\n'
+    printf '  any branch and before the first edit — never as a re-check later.\n'
     return 0
   fi
   printf 'verdict   : VERIFIABLE\n'
@@ -7503,8 +7523,8 @@ dispatch_retired_edges() {
 # `not due — 2 plan file(s) changed (of 10) and 97h elapsed`, for a first commit
 # 495h old — wrong in both directions, and the landed-curate deletion is outside
 # the boundary too, so a shallow checkout can never leave the never-curated
-# branch (verifier r25). `drain` does not unshallow (DRAIN_FETCH defaults to 0)
-# while `dispatch` does, so this alone made the advertised one reader give two
+# branch (verifier r25). `drain` (deleted 2026-10-10) did not unshallow while
+# `dispatch` does, so this alone made the advertised one reader give two
 # answers on one checkout.
 #
 # Prints the reason it cannot be read, empty when it can.
@@ -7650,7 +7670,7 @@ dispatch_curate_plan_churn() {
   range="refs/remotes/origin/${base_branch}"
   [ -z "$from" ] || range="${from}..refs/remotes/origin/${base_branch}"
   # ONE git call. The first spelling forked `git diff-tree` PER COMMIT inside a
-  # read loop, and `drain` is the entrypoint every session runs: it went 47 over
+  # read loop, and `drain` was then the entrypoint every session ran: it went 47 over
   # its command-spawn budget (385 against 338), which is exactly the "per-item
   # fork put back inside a loop" the budget exists to catch. `--name-only` with
   # an empty `--format` prints the paths directly, so the walk and the listing
@@ -7776,8 +7796,9 @@ dispatch_curate_branches() {
     [ -n "$r" ] || continue
     name="${r#refs/remotes/origin/}"
     { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
-    # CHEAP PREFILTER, and it is what makes this affordable in `drain`, which
-    # every session runs: one `ls-tree` asks whether this ref carries a
+    # CHEAP PREFILTER, and it is what makes this affordable in `dispatch`,
+    # every health pass (and in `drain`, every session, until 2026-10-10):
+    # one `ls-tree` asks whether this ref carries a
     # curate-ish workstream file at all, and almost none do. Only a ref that
     # does pays for the merge base, the added-files diff and the frontmatter
     # read. Without it every unmerged ref paid all four and `drain` went 46

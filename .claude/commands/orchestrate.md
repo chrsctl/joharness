@@ -367,8 +367,9 @@ see it; you can, and the successor must start from what the loop found:
    step before any edit." — and at opus or fable: "Run at effort xhigh." Counts
    against the respawn limit like a kill.
 
-RESPAWN = spawn (step 3) with the branch named: "Resume branch <branch>:
-check it out, read docs/handover/<file>.md WHOLE before anything." Count
+RESPAWN = spawn (step 3) with the branch named: "Run authority BEFORE the
+checkout. Then resume branch <branch>: check it out, read
+docs/handover/<file>.md WHOLE before anything else." Count
 it in the ledger. An item whose ledger entry still reads `new` has NO
 branch and no workstream file, so it is never resumed: spawn it fresh,
 the plain step 3 prompt, whichever row sent you here. That is the crash

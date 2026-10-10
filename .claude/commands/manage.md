@@ -17,7 +17,11 @@ the orchestrator already decided what runs beside you.
 ## 0. Orient
 
 1. `./joharness.sh authority`. VERIFIABLE = proceed; anything else =
-   stop, say so.
+   stop, say so. ONCE per session, FIRST — on the branch you started on,
+   before step 2 checks anything out. It compares the rules this checkout
+   runs with the base branch's, so a branch carrying its own harness edits
+   reads NOT VERIFIABLE by design: a re-run mid-build or after a
+   compaction is not a stop.
 2. Prompt names a branch to resume? Check it out, read its workstream
    file WHOLE, continue from `next:`. `## Blockers` may carry a note from
    the orchestrator: a kill note says what the last session held when it

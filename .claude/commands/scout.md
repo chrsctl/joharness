@@ -42,8 +42,9 @@ another branch's code.
    what it could not read and stop.
 4. The gate held. Spawned by an orchestrator, its `dispatch` printed `scout
    DUE: spawn`. Started by a human, run `./joharness.sh dispatch`: it must print
-   `scout     : DUE` — not `due, suppressed`, and not merely the word
-   DRAINED. Edge work, a due curate or janitor, or real work in flight
+   that same `scout DUE: spawn` line — not `due, suppressed`, and not the
+   header's `scout     : DUE by the clock`, which prints even when the
+   spawn is suppressed. Edge work, a due curate or janitor, or real work in flight
    outranks a proposal; anything else = stop and say so.
 
 ## 1. Claim
