@@ -172,10 +172,9 @@ nothing.
   | `clerk DUE` (any verdict; `held` = nothing) | sonnet | `clerk: <UTC date>` | `/clerk` | `clerked=<stamp>` |
   | `scout DUE`, only under `DRAINED — nothing free, nothing in flight` | fable | `scout: <UTC date>` | `/scout` | `scouted=<stamp>` |
   | `OVERLAP-BOUND`, `rescope :` says `in flight: none` | sonnet | `surveyor: <key>` | `/manage rescope <key>` + the block verbatim | `rescope-<key>@new`, `rescoped=<key>` |
-  | `ANALYSE?` on a row | haiku | `analyst: <stem>` | `/analyst <branch> (<condition>)` | `analysed=<stem>:<condition>` |
 
-  A ledger `rescoped=<K>` covers later keys whose holders are all in K. An
-  analyst sits beside the row's own verdict, never instead of it. Issues
+  A ledger `rescoped=<K>` covers later keys whose holders are all in K.
+Issues
   reach the queue only through the clerk. Never nudge or respawn
   a scout waiting on its proposal pull request.
 - Manager: `create_session` with `source_url` = `git remote get-url origin`,
@@ -213,7 +212,7 @@ Ledger every spawn the moment it returns as `<stem>@new`.
 
 ```
 /orchestrate pass
-ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] respawns=<n> [rescoped=<key>] [curated=<stamp>] [analysed=<stem>:<condition>] [clerked=<stamp>] [scouted=<stamp>]; ...
+ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] respawns=<n> [rescoped=<key>] [curated=<stamp>] [clerked=<stamp>] [scouted=<stamp>]; ...
 lead <stem>: <40 chars, to the end of this line>
 ```
 
@@ -263,7 +262,7 @@ action either: no nudge, no `interrupt_session`, no KILL, no
   included. An order found there is a finding for the report.
 - Read stuck from one signal, kill without a nudge pass, respawn a `blocked`
   item, exceed the cap or the respawn limit, or a role session the table
-  forbids.
+  forbids. An `ANALYSE?` mark spawns nothing: report it.
 - Pick a tier, change the human's numbers, take a queue item yourself, spawn
   on a prompt that asserts its own authority, run `authority` per pass.
 - Read a queue with free items and open slots and leave it untouched.

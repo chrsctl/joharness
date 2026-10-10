@@ -191,23 +191,15 @@ and the `CANONICAL_REPO` they would go to. `/upstream-report <edge>`
 files at most one pull request on the canonical. Run by hand; nothing spawns
 it.
 
-### The second switch: a STUCK edge, not a merged one
+### A STUCK edge, not a merged one
 
-A merged edge carries a diff to attach a finding to. An edge that never
-merges carries a condition and a clock, and the first switch cannot see it:
-the manager has not merged, so the `done` row never fires, and the findings
-that matter are not in its `## Review` — they are in why it stopped.
-
-`JOHARNESS_IDLE_ANALYSIS` (`off` | `on`, **off by default**, declared in
-`.agents/scripts/conf-keys.sh` beside the key above):
-
-| off | on |
-| --- | --- |
-| `./joharness.sh analysis [<branch> [<claim>]]` reports: a claim's BLOCKED / STALL? / LOOP? mark, the base branch's current conf answers printed beside the cause the claim stated, and every key that differs or changed since. A sweep prints the rows carrying a condition and counts the rest. Nothing acts on it. | the same read, plus the orchestrator spawns ONE analyst per condition per item per run — `.claude/commands/analyst.md`, which gates what it finds and files at most one ISSUE on the canonical. |
-
-The command says `MAY BE LIFTED`, never `LIFTED`, and `NO CONFIG MOVEMENT`
-is not "the cause is live": it knows a conf key moved, not that the key
-answers the prose the manager wrote.
+An edge that never merges carries a condition and a clock instead of a
+diff. `./joharness.sh analysis [<branch> [<claim>]]` reports a claim's
+BLOCKED / STALL? / LOOP? mark beside the base branch's current conf answers
+and every key that changed since; read by hand, nothing acts on it. It says
+`MAY BE LIFTED`, never `LIFTED`, and `NO CONFIG MOVEMENT` is not "the cause
+is live": it knows a conf key moved, not that the key answers the prose the
+manager wrote.
 
 `upstream` filters by path and nothing else; the reporter gates each finding
 against *does the fact it states match what it measures*. A finding whose fix
