@@ -34,7 +34,8 @@ and the live orchestrators first; plan lists what goes.
 
 - Human: verify roles before removing. Verification done (per-role track
   record); ALL role changes (janitor/curate/clerk/scout/analyst/upstream)
-  on HOLD until the human decides. Workers told to keep any role commit
+  decided by human: janitor->script, curate->script+ci gate, clerk kept slim,
+  upstream-report kept manual (auto-spawn removed), analyst removed, scout KEPT. Workers told to keep any role commit
   separate. Proposal: janitor->script, curate->script+ci gate, clerk and
   upstream-report kept (slim), scout+analyst removed.
 
