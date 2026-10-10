@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_014kktjGnmDAnizgxxV3pnSm
 agent: opus
 updated: 2026-10-10
-next: Run verifier on the diff, record findings in Review, then retire and open the PR
+next: Retire this file, open the PR, merge when checks are green
 ---
 
 ## Goal
@@ -35,6 +35,39 @@ file the code change as a plan, delete the node.
 - Quoted-counter defect (fixtures U/V) filed as its own plan, not folded in.
 
 ## Review
+
+Depth opus (`./joharness.sh review`). One verifier pass at opus over
+`git diff origin/main...HEAD`; it re-ran the node's 26 fixtures on HEAD
+(all reproduce) and plan 1's rows on the scratch build (all 15 as wanted).
+
+- (verifier) HIGH: `while pgrep -f PAT` (no `!`) is allowed bounded and
+  UNBOUNDED unbounded on HEAD and the scratch build — `proc_re` needs a
+  char before the tool, span starts at it. Fixed: header names THE
+  POSITION as a third miss; plan requires command position incl. span
+  start, three DENY rows added.
+- (verifier) MED: design denied `docker ps | grep`, `ps -p N | grep`,
+  `[ -e /proc/N/cmdline ]`, `grep -v grep` idiom. Fixed: decision excludes
+  each; four ALLOW rows.
+- (verifier) MED: bracket exemption anywhere in span, and under `grep -F`,
+  lets real self-matches through. Fixed: exemption tied to the reader's
+  own pattern, none under `-F`; two DENY rows.
+- (verifier) MED: "never exits" false for `for`/`select`. Fixed: plan
+  asks a different reason text for those openers.
+- (verifier) LOW: consumer's exact line was UNGROUNDED, header stated it as
+  fact. Fixed: header says opener grounded, line reconstructed.
+- (verifier) LOW: 2454/0 is a number about a gone artifact. Fixed: header
+  dates it, says the copy was narrower than the decision and is gone, and
+  that the plan's acceptance re-counts. Not re-priced here: the build is
+  the plan's.
+- (verifier) LOW: consumer paths in plan rows would land in the selftest.
+  Fixed: rows abstracted (`svc/`, `jobs/`), trap extended to the selftest.
+- (verifier) LOW: escaped `\"` trap missing from plan 1. Fixed: added.
+- (verifier) LOW: both plans share paths without `shared:`. Fixed: both
+  marked `shared:`.
+- (verifier) LOW: diff adds plans beyond the graduation target. Kept:
+  /manage section 2 routes follow-up work to a plan file in this PR; the
+  guard edit is comment-only.
+- (verifier) nit: an 89-char comment line. Fixed in the rewrite.
 
 ## Blockers
 

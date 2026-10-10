@@ -6,7 +6,7 @@ effort: medium
 needs: none
 requirement: none
 issue: none
-scope: .agents/harness/pretool-bash-guard.sh, .agents/harness/selftest/pretool-bash-guard.sh
+scope: shared:.agents/harness/pretool-bash-guard.sh, shared:.agents/harness/selftest/pretool-bash-guard.sh
 ---
 
 ## Goal
@@ -62,4 +62,5 @@ own Bash):
 
 - NO FORKS: builtins only.
 - Never skip, disable or quarantine a pinned case.
-- Both plans touch the guard: whichever merges second reconciles.
+- Both plans touch the guard, marked `shared:` on both: whichever merges
+  second reconciles.
