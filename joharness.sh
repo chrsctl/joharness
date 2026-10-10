@@ -2681,6 +2681,14 @@ janitor_apply() {
   # --prune: under the default refspec a branch deleted on origin loses its
   # remote-tracking ref here and takes the `no such branch` skip below.
   git -C "$ROOT" fetch -q --prune origin 2>/dev/null || warn "fetch failed; using the last fetched refs"
+  # The decision read, per named branch, whatever the refspec maps: a narrow
+  # one leaves the tracking ref stale, and guard (which never moves it) would
+  # refuse a moved branch on every run. A gone branch fails this fetch and
+  # keeps its stale ref for guard to call gone.
+  for want in "$@"; do
+    git -C "$ROOT" fetch -q origin "+refs/heads/${want}:refs/remotes/origin/${want}" \
+      </dev/null 2>/dev/null || :
+  done
   cands="$(janitor_candidates)"
   today="$(date -u +%Y-%m-%d)"
   for want in "$@"; do

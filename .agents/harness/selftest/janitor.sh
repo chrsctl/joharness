@@ -497,6 +497,23 @@ else fail "and is no failure (rc ${rc})"; fi
 if git -C "$jwork" rev-parse -q --verify refs/remotes/origin/mgr-deletedpr >/dev/null; then
   fail "and its stale local ref is dropped"
 else pass "and its stale local ref is dropped"; fi
+# Moved on origin under the narrow refspec: --apply re-reads the named branch
+# itself, so a stale tracking ref is no permanent refusal.
+jgone mgr-movednarrow
+git -C "$jwork" update-ref refs/remotes/origin/mgr-movednarrow mgr-movednarrow
+jmv="${TMP}/janitormover"
+git clone -q "$jorigin" "$jmv"
+git -C "$jmv" checkout -q mgr-movednarrow
+printf 'moved\n' >>"${jmv}/code.txt"
+git -C "$jmv" add -A
+GIT_COMMITTER_DATE='2026-01-03T00:00:00Z' GIT_AUTHOR_DATE='2026-01-03T00:00:00Z' \
+  git -C "$jmv" commit -qm "manager moved"
+git -C "$jmv" push -q origin mgr-movednarrow
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-movednarrow 2>&1 )"; rc=$?
+expect "a branch moved under a narrow refspec is re-read, then released" \
+  "pushed    : mgr-movednarrow" "$out"
+if [ "$rc" -eq 0 ]; then pass "and exits 0"
+else fail "and exits 0 (rc ${rc})"; printf '%s\n' "$(indent "$out")"; fi
 git -C "$jwork" config --unset-all remote.origin.fetch
 while IFS= read -r l; do git -C "$jwork" config --add remote.origin.fetch "$l"; done <<<"$jrefspec"
 

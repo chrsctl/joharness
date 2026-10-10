@@ -130,6 +130,19 @@ out="$(grun janitor g-moved --expect "$gnew")"; rc=$?
 expect "unfetched --expect: refused at head" "head      : REFUSED — decision read ${gnew} is not a commit here" "$out"
 grefused "unfetched --expect" "$out" "$rc"
 
+# The r4 input: --expect = the LIVE sha, never fetched here, on a pr: claim.
+# Comparing raw text, head would match and the unreadable pr: read pass.
+gclaim g-prmoved 9
+git -C "$gother" fetch -q origin g-prmoved
+git -C "$gother" checkout -q -b g-prmoved origin/g-prmoved
+printf 'pr move\n' >>"${gother}/code.txt"
+git -C "$gother" commit -qam "manager pushed at the edge"
+git -C "$gother" push -q origin g-prmoved
+glive="$(git -C "$gorigin" rev-parse g-prmoved)"
+out="$(grun janitor g-prmoved --expect "$glive")"; rc=$?
+expect "live sha never fetched: refused at head" "head      : REFUSED — decision read ${glive} is not a commit here" "$out"
+grefused "live sha never fetched" "$out" "$rc"
+
 # --- re-claimed: a new session took the branch over -------------------------
 gclaim g-reclaim none
 git -C "$gother" fetch -q origin g-reclaim
@@ -172,7 +185,7 @@ else fail "an option as --expect is a usage error (rc ${rc})"; fi
 # Origin holds exactly the branches the fixture pushed: guard re-created none.
 gmoves="$(git -C "$gorigin" for-each-ref --format='%(refname)' | sort)"
 gwant="$( { printf '%s\n' "$gorig_refs" | awk '{ print $3 }'; \
-  printf 'refs/heads/%s\n' g-moved g-reclaim g-withpr; } | grep -v '^refs/heads/g-deleted$' | sort -u)"
+  printf 'refs/heads/%s\n' g-moved g-prmoved g-reclaim g-withpr; } | grep -v '^refs/heads/g-deleted$' | sort -u)"
 if [ "$gmoves" = "$gwant" ]; then pass "guard pushed no ref to origin"
 else fail "guard pushed no ref to origin"; printf '    got:\n%s\n    wanted:\n%s\n' "$(indent "$gmoves")" "$(indent "$gwant")"; fi
 if [ -z "$(git -C "$gwork" status --porcelain)" ]; then pass "guard left the tree clean"

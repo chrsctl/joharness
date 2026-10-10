@@ -187,9 +187,11 @@ commit "Orchestrator hands off after <N> respawns", GUARD `kill`, push, report.
 
 GUARD `<verb>` — every push onto a manager's branch, right before it:
 `./joharness.sh guard <verb> <branch> --expect <sha>` (`kill` for any write
-but LOOP's). `<sha>` = `git rev-parse origin/<branch>` taken right after the
-`git fetch origin <branch>` your decision read, before the checkout; never a
-fetch after it. Then push with the lease, never plain: `git push
+but LOOP's). Decision read = `git fetch origin
++refs/heads/<branch>:refs/remotes/origin/<branch>` (any refspec maps it)
+before you check the branch out to write — KILL's fetch, or this one run
+then for the relayed answer and the hand-off — and `<sha>` = `git rev-parse
+origin/<branch>` right after it. Never fetch again between it and guard. Then push with the lease, never plain: `git push
 --force-with-lease=refs/heads/<branch>:<sha> origin HEAD:<branch>`. Non-zero
 guard, or a refused push = no handover: report the lines, drop the local
 commit, re-decide next pass.
