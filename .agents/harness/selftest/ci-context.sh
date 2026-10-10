@@ -133,3 +133,27 @@ expect "and the delta reads negative against a base that had the chain" \
   "this branch, to the chain: -133 bytes, -16 words" "$out"
 expect "a cut is not scolded like a growth" "Saved for every session" "$out"
 refute "and is never asked to justify itself" "Worth it, or" "$out"
+
+# The role files are not imports, so the chain walk never counts them — and
+# the orchestrator's sits in its context for its whole life. One present,
+# one absent: the block lists what exists and omits the rest, rather than a
+# zero row that reads like a measurement. Committed on main first, then
+# grown, so the per-row delta has a merge base to read.
+mkdir -p "${xwork}/.claude/commands"
+printf 'manager rules here\n' >"${xwork}/.claude/commands/manage.md"
+commit_all "$xwork" "a role file"
+git -C "$xwork" push -q origin main
+# A branch one commit ahead, plus an uncommitted line: the delta must be
+# against the MERGE BASE, and a delta read against HEAD prints +8, not +17.
+git -C "$xwork" checkout -qb role-growing
+printf 'one more\n' >>"${xwork}/.claude/commands/manage.md"
+commit_all "$xwork" "grow the role file"
+printf 'and one\n' >>"${xwork}/.claude/commands/manage.md"
+out="$(ctx_run)"
+expect "role block is printed when a role file exists" \
+  "loaded when the role starts (orchestrated):" "$out"
+expect "a present role file gets a counted row and its merge-base delta" \
+  ".claude/commands/manage.md             36 bytes       7 words  (+17 bytes, +4 words vs merge base)" "$out"
+refute "an absent role file gets no row" ".claude/commands/orchestrate.md" "$out"
+out="$(ci_ctx)"
+refute "ci's chain print carries no role block" "loaded when the role starts" "$out"

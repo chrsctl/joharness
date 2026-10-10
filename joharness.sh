@@ -1093,6 +1093,7 @@ ctx_report() {
       printf '  The session-start row is a snapshot: it carries the in-flight\n'
       printf '  table, so it moves with the fleet, not only with this diff.\n'
     fi
+    ctx_roles
   fi
 
   # What THIS branch adds is the number with teeth: it is paid once per
@@ -1129,6 +1130,37 @@ ctx_report() {
   fi
   [ "$full" = "full" ] ||
     printf '  with the session-start injection: %s context\n' "$0"
+  return 0
+}
+
+# The role command files. Not imports, so the chain walk never sees them,
+# but a role reads its file whole at its first step and keeps it for its
+# whole life — the orchestrator's sat in a session that re-read 1.21B cache
+# tokens (.agents/docs/agent-selection.md, Cost levers). Listed so the next
+# growth is seen; a file this checkout lacks is omitted, not counted as zero.
+# Reports; never gates. `full` only: `ci`'s print stays the chain.
+CTX_ROLE_FILES='.claude/commands/orchestrate.md .claude/commands/manage.md'
+ctx_roles() {
+  local p b w bb bw base over delta any=""
+  over="origin/${HANDOVER_BASE_BRANCH:-main}"
+  base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)" || base=""
+  for p in $CTX_ROLE_FILES; do
+    ctx_read "" "$p" >/dev/null 2>&1 || continue
+    if [ -z "$any" ]; then
+      printf '  loaded when the role starts (orchestrated):\n'
+      any=1
+    fi
+    b="$(ctx_read "" "$p" | wc -c | tr -d '[:space:]')"
+    w="$(ctx_read "" "$p" | wc -w | tr -d '[:space:]')"
+    delta=""
+    if [ -n "$base" ] && ctx_read "$base" "$p" >/dev/null 2>&1; then
+      bb="$(ctx_read "$base" "$p" | wc -c | tr -d '[:space:]')"
+      bw="$(ctx_read "$base" "$p" | wc -w | tr -d '[:space:]')"
+      delta="$(printf '  (%+d bytes, %+d words vs merge base)' \
+        "$((b - bb))" "$((w - bw))")"
+    fi
+    printf '    %-32s %8s bytes %7s words%s\n' "$p" "$b" "$w" "$delta"
+  done
   return 0
 }
 
