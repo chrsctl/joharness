@@ -5,7 +5,7 @@ agent: opus
 effort: high
 needs: orchestrated-only-docs, issue-triager-role
 requirement: none
-scope: shared:.agents/harness/AGENTS.md, AGENTS.md, shared:.agents/docs/handover/README.md, shared:.agents/docs/product/README.md, shared:.agents/docs/agent-selection.md, shared:.agents/docs/feedback.md
+scope: shared:.agents/harness/AGENTS.md, AGENTS.md, shared:.agents/docs/handover/README.md, shared:.agents/docs/product/README.md, shared:.agents/docs/agent-selection.md, shared:.agents/docs/feedback.md, docs/handover/agents-chain-dedupe.md
 ---
 
 ## Goal

@@ -5,7 +5,7 @@ agent: sonnet
 effort: high
 needs: none
 requirement: none
-scope: .agents/docs/agent-selection.md, shared:.claude/commands/manage.md, docs/product/scout-role.md, docs/research/cost-per-merge-levers.md
+scope: .agents/docs/agent-selection.md, shared:.claude/commands/manage.md, docs/research/cost-per-merge-levers.md
 ---
 
 ## Goal
@@ -60,10 +60,6 @@ are money, humans only.
   workers`, the `tier:` bullet: append "A haiku sub-task stays small —
   past 100K prompt tokens haiku bills 5x (Lineup,
   `.agents/docs/agent-selection.md`); a sub-task that cannot = sonnet."
-- `docs/product/scout-role.md`, the Evidence bullet starting "Prices,
-  $/MTok in/out.": append one sentence — cache reads, pricing page
-  2026-10-09: haiku 5.5 0.01 (≤100K) / 0.05, sonnet 5.5 0.10 (halved
-  2026-10-07), opus 5.5 0.20, fable 5.1 0.25.
 - `docs/research/cost-per-merge-levers.md`, `## Method`: add a bullet
   `Priced prior (arithmetic, not a trial):` with exactly these two items,
   each naming its source:
@@ -105,7 +101,6 @@ are money, humans only.
   the same paragraph as `a tenth`.
 - `grep -n '100K' .claude/commands/manage.md` — one hit, in the `tier:`
   bullet.
-- `grep -n '0.10 (halved' docs/product/scout-role.md` — one hit.
 - `grep -n 'Priced prior' docs/research/cost-per-merge-levers.md` — one
   hit, under `## Method`; `grep -A1 '^## Findings' docs/research/cost-per-merge-levers.md`
   still shows `None yet.`
@@ -125,8 +120,6 @@ are money, humans only.
   bill" bullet; the numbers style to match.
 - `.claude/commands/manage.md:## 2. Decompose, then fan out to workers` —
   `tier:` bullet.
-- `docs/product/scout-role.md:Evidence` — the "Prices, $/MTok in/out."
-  bullet.
 - `docs/research/cost-per-merge-levers.md:## Method` — levers 3 and 4.
 - `.agents/docs/research/README.md:## Shape` — why a priced prior is
   Method, not Findings.
