@@ -501,7 +501,7 @@ refute "session start silent while the gate is off" "Review gate" "$out"
 # fb_fix_map attributes a finding by matching `^\+- r[0-9]+:` on the line the
 # fix commit ADDED. Nothing checked that the form was written, and a third of
 # the record was dark because of it. This stage names them on the branch's own
-# diff. WARN, never red — the plan that gates it comes after the number falls.
+# diff, and reds ci mid-build so the form is fixed before the retire commit.
 # To the NEXT section, not to the first blank line: the stage puts a blank
 # line before its summary, and a slice that stops there cuts off the count,
 # the valid form and the reason — the three things the plan asks it to print.
@@ -537,15 +537,15 @@ refute "a one-digit id is not named" "r1: a well-formed" "$out"
 refute "a two-digit id is not named" "r12: two digits" "$out"
 refute "a three-digit id is not named" "r101: and three" "$out"
 expect "the count is exact" "5 finding(s) nothing can key on" "$out"
-expect "and the stage says what the valid form is" "- r<N>: text" "$out"
+expect "and the stage prints an example of the valid form" \
+  "- r1: <finding> (fixed in <file or commit>)" "$out"
 expect "and why it matters, by name" "fb_fix_map" "$out"
 
-# Warn, never red. A gate that reds a working branch is a gate sessions route
-# around, and this one has no backtest behind it — churn and review both do.
+# Red mid-build: the branch's own file, fixed before the retire commit.
 if ci_rc_review; then
-  pass "malformed findings do not red ci"
+  fail "malformed findings red ci mid-build"
 else
-  fail "malformed findings do not red ci"
+  pass "malformed findings red ci mid-build"
 fi
 
 # A well-formed file produces nothing but the clean line.
@@ -751,14 +751,13 @@ refute "a fixed finding is not unmarked" "r1: this one was dealt with" "$out"
 refute "nor a wontfix one" "r2: this one was declined" "$out"
 refute "nor a no-change one" "r3: and this one needed nothing" "$out"
 
-# TWO STRENGTHS. Reporting mid-build and failing at done is the same split
-# fin_strength already carries: a gate that reds while the review is still
-# happening fights the review gate, which needs the findings recorded.
-expect "mid-build it reports rather than fails" "Reported, not failed" "$out"
+# Red mid-build, with the exact fix printed, so the error surfaces before
+# the retire commit rather than after it.
+expect "it prints an example verdict" "- r2: <finding> — wontfix: <why>" "$out"
 if jr ci >/dev/null 2>&1; then
-  pass "and ci stays green while the branch is still building"
+  fail "and ci is RED while the branch is still building"
 else
-  fail "and ci stays green while the branch is still building"
+  pass "and ci is RED while the branch is still building"
 fi
 
 write_ws marks.md "done" none "" \
@@ -766,8 +765,7 @@ write_ws marks.md "done" none "" \
   "- r4: nobody ever said what came of this one."
 commit_all "$rwork" "the same branch now says done"
 out="$(ci_marks)"
-expect "at done there is no later moment" "RED: this branch says status: done" "$out"
-refute "and it no longer offers one" "Reported, not failed" "$out"
+expect "at done the finding is still named" "r4: nobody ever said" "$out"
 if jr ci >/dev/null 2>&1; then
   fail "and ci is RED once the branch says done"
 else
@@ -834,12 +832,6 @@ out="$(ci_marks)"
 expect "a retired file's findings are still read" "r1: recorded, then the file was retired" "$out"
 refute "and the stage does not claim the branch touched none" \
   "no workstream file in this branch" "$out"
-# NOT status: done was never a contract this branch had to honour — the
-# tree at HEAD no longer carries the file either way, and fin_adds_at
-# (which reads the tree) is blind to that. This is the leak
-# docs/plans/marker-gate-needs-no-done.md names: PR 172 retired with
-# status: review and an unanswered finding, and nothing redded.
-expect "and the retire commit itself is named as the reason" "retired its own workstream file" "$out"
 if jr ci >/dev/null 2>&1; then
   fail "and ci is RED — the branch retired with an unmarked finding"
 else
@@ -864,10 +856,6 @@ git -C "$rwork" commit -qm "Finish ritual: delete the workstream file"
 out="$(ci_marks)"
 expect "the finding from a review-status retire is still read" \
   "r1: never dispositioned" "$out"
-expect "and the retire commit reds it despite no status: done anywhere" \
-  "RED: this branch retired" "$out"
-refute "not the status: done message — this branch never said it" \
-  "says status: done" "$out"
 if jr ci >/dev/null 2>&1; then
   fail "and ci is RED — review straight to retire, unmarked, must not slip through"
 else
@@ -916,14 +904,10 @@ commit_all "$rwork" "put it back — still mid-build"
 out="$(ci_marks)"
 expect "the finding is read as normal, from the present file" \
   "r1: still open" "$out"
-expect "and this is a mid-build report, not the retire trigger" \
-  "Reported, not failed" "$out"
-refute "never the retired message — the file is right there" \
-  "retired its own workstream file" "$out"
 if jr ci >/dev/null 2>&1; then
-  pass "and ci stays green — a re-added file is not a retirement"
+  fail "and ci is RED mid-build — the unmarked finding is still owed"
 else
-  fail "and ci stays green — a re-added file is not a retirement"
+  pass "and ci is RED mid-build — the unmarked finding is still owed"
 fi
 
 git -C "$rwork" checkout -q main

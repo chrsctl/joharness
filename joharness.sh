@@ -408,7 +408,7 @@ cmd_ci() {
   # nothing ever serves them back. Report only, never rc — lint_finding_ids
   # carries why, and why it is not review_count's question.
   printf '\n== finding ids\n'
-  lint_finding_ids
+  lint_finding_ids || rc=1
 
   # Which plans on this branch land in every consumer. Report only, never
   # rc — reasoning in lint_ship. Silent in a consumer, which carries neither
@@ -1719,38 +1719,12 @@ lint_review_bullets() {
     r && /^[ \t]+- /          { t = $0; sub(/^[ \t]+- /, "", t); print "1\t" t }'
 }
 
-# Findings recorded on this branch with no disposition. Step 5 already says
-# "Fix them or record why not — never drop silent", and nothing enforced it:
-# 155 findings across this repo's history are unmarked, 62 of them without an
-# id. Every one was a session that wrote a bullet and never said what came of
-# it.
-#
-# It matters beyond tidiness because an unmarked finding is a session's
-# silent drop made durable: `feedback` counts every one across merged
-# history, and the count only ever grows. This keeps the new count near
-# zero at the one moment it can still be changed.
-#
-# TWO RED TRIGGERS, mid-build stays a report either way: a gate that reds
-# mid-build fights the review gate, which needs findings recorded while the
-# review is still happening. A finding written this hour and dispositioned
-# next hour is the normal case, not an error. So: report always, red once
-# the branch says `status: done` (`fin_strength`) OR retires its own
-# workstream file (`fin_retired_own`, checked separately — see its comment
-# for why it is not folded into `fin_strength`). `status: done` is not a
-# contract a branch is bound to — a branch going straight from `review` to
-# the retire commit says done nowhere, and did exactly that in PR 172: its
-# r5 carried no verdict `fb_marker` recognises and merged unchecked,
-# `status: review` the whole way (docs/plans/marker-gate-needs-no-done.md).
-# The retire commit is the trigger that cannot be skipped by omission — it
-# is the same deletion step 7 already requires of every branch, field or
-# no field.
-#
-# Vocabulary is `fb_marker`'s, not a new one — wontfix, no change, (fixed.
-# A second spelling of the same verdict is how two counts drift apart.
-# `(recorded` stays out of it; `fb_marker`'s own comment says why.
+# Findings in this branch's OWN workstream files (fin_own_ws) with no verdict
+# (fb_marker). Red whenever one exists, mid-build included, so it surfaces
+# before the retire commit rather than after it.
 lint_finding_markers() {
   local over="origin/${HANDOVER_BASE_BRANCH:-main}" base ws content text
-  local unmarked=0 seen=0 here strength short
+  local unmarked=0 seen=0 here short
   base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
   if [ -z "$base" ]; then
     printf '  not measurable here (no merge-base with %s; unrelated history)\n' "$over"
@@ -1793,7 +1767,7 @@ lint_finding_markers() {
       if [ -n "$short" ]; then printf '    %s …\n' "$short"
       else printf '    %s\n' "$text"; fi
     done <<<"$(printf '%s\n' "$content" | fb_findings)"
-  done <<<"$(lint_ws_in_diff "$base")"
+  done <<<"$(fin_own_ws "$base")"
 
   if [ "$seen" -eq 0 ]; then
     printf '  no workstream file in this branch'"'"'s diff\n'
@@ -1803,31 +1777,11 @@ lint_finding_markers() {
     printf '  every finding on this branch says what came of it\n'
     return 0
   fi
-  printf '\n  %d finding(s) with no verdict. One of: (fixed, wontfix, no change\n' "$unmarked"
-  printf '  (joharness.sh:fb_marker). An unmarked finding is a silent drop made\n'
-  printf '  durable: feedback counts it across merged history for good, and\n'
-  printf '  this branch is the last place it can still be answered.\n'
-  strength="$(fin_strength)"
-  if [ "$strength" = "done" ]; then
-    printf '  RED: this branch says status: done, so there is no later moment.\n'
-    return 1
-  fi
-  # `fin_strength` only sees PRESENT files (it reads the tree), and the
-  # retire commit's whole point is that the tree no longer carries this
-  # one — the exact blind spot `fin_retired_own` reads the log to avoid.
-  # Read directly rather than through `fin_strength`: that function's
-  # return value also gates whether `ci` prints `== finish` at all, and a
-  # branch that retired with every finding dispositioned is meant to fall
-  # silent there. This gate's business is unmarked findings, not that.
-  if [ -n "$(fin_retired_own "$base")" ]; then
-    printf '  RED: this branch retired its own workstream file — deleted, not\n'
-    printf '  status: done, but the file is gone either way, so there is no\n'
-    printf '  later moment to disposition this in.\n'
-    return 1
-  fi
-  printf '  Reported, not failed: this branch has not said done yet, and a\n'
-  printf '  finding recorded now and dispositioned later is the normal case.\n'
-  return 0
+  printf '\n  %d finding(s) with no verdict. End each with one of (joharness.sh:fb_marker):\n' "$unmarked"
+  printf '    - r1: <finding> (fixed in <file or commit>)\n'
+  printf '    - r2: <finding> — wontfix: <why>\n'
+  printf '    - r3: <finding> — no change: <why>\n'
+  return 1
 }
 
 lint_finding_ids() {
@@ -1904,7 +1858,7 @@ lint_finding_ids() {
       fi
       [ "$flag" = "1" ] && printf '      ^ indented; the map keys a bullet at column 0 only\n'
     done <<<"$(lint_review_bullets "$content")"
-  done <<<"$(lint_ws_in_diff "$base")"
+  done <<<"$(fin_own_ws "$base")"
 
   if [ "$seen" -eq 0 ]; then
     printf '  no workstream file in this branch'"'"'s diff\n'
@@ -1914,13 +1868,10 @@ lint_finding_ids() {
     printf '  every finding on this branch carries an id the fix map can key on\n'
     return 0
   fi
-  printf '\n  %d finding(s) nothing can key on. The form is: - r<N>: text\n' "$bad"
-  printf '  (joharness.sh:fb_fix_map) — without the id and its colon a finding\n'
-  printf '  is counted and then never served back to the file it landed on\n'
-  printf '  (.agents/docs/feedback.md, stage 4).\n'
-  printf '  Warn, not red. Fix the form going forward; never rewrite a finding\n'
-  printf '  already recorded.\n'
-  return 0
+  printf '\n  %d finding(s) nothing can key on (joharness.sh:fb_fix_map). Write each\n' "$bad"
+  printf '  as a top-level bullet with an id and a colon, for example:\n'
+  printf '    - r1: <finding> (fixed in <file or commit>)\n'
+  return 1
 }
 
 # At the edge = this workstream is being handed to `main`: it has a pull
@@ -5171,52 +5122,6 @@ fin_adds_at() {
     printf '%s\n' "$base_docs" | grep -qxF -- "$f" && continue
     printf '%s\n' "$f"
   done <<<"$(fin_docs_at HEAD)"
-}
-
-# Own workstream files this branch has RETIRED — added and later deleted,
-# both within its own history, and still ABSENT from HEAD's tree — one per
-# line. `fin_adds_at` reads TREES, and the retire commit's whole point is
-# that the tree at HEAD no longer carries the file: a reader of the tree is
-# blind at exactly the moment retirement happens. The LOG is not blind
-# there, but the log alone over-reports: a file added, `rm`'d by mistake,
-# then re-added and still present at HEAD shows up in both an A and a D
-# filter, and is not retired at all — it is present, mid-build, exactly the
-# case this gate must stay silent on. The tree check at the end is what
-# tells the two apart.
-#
-# `--first-parent`, so a `git merge origin/main` done to reconcile a
-# conflict (`.agents/docs/product/README.md`, "Conflict at finish") cannot
-# smuggle in ANOTHER branch's already-finished add-then-delete lifecycle
-# for a file this branch never touched: first-parent walks this branch's
-# own commit sequence and treats the merge as one step, never descending
-# into the side brought in from main. Ownership stays this branch's own —
-# the same property `fin_adds_at` gets for free from being a tree diff
-# rather than a log walk, reached here by restricting the walk instead.
-#
-# KNOWN GAP, not fixed here: git >= 2.31 diffs a merge against its first
-# parent under `--first-parent`, so the reconcile merge ITSELF lists the
-# base's files. Reproduced 2026-10-05 (git 2.43): two reconciles across
-# another branch's add-then-retire put that file in both the A and the D
-# walk, and this reports it as this branch's retired file — which
-# `lint_finding_markers` reds on. `fin_own_ws` below answers ownership by
-# range minus the base tree instead; reading `added` from it is the likely
-# fix, and wants its own plan and test.
-fin_retired_own() {
-  local ref="$1" base added deleted present f
-  base="$(git -C "$ROOT" merge-base HEAD "$ref" 2>/dev/null)" || return 0
-  added="$(git -C "$ROOT" log --first-parent --format= --name-only \
-    --diff-filter=A "${base}..HEAD" -- docs/handover 2>/dev/null |
-    sort -u | gr_docs)"
-  deleted="$(git -C "$ROOT" log --first-parent --format= --name-only \
-    --diff-filter=D "${base}..HEAD" -- docs/handover 2>/dev/null |
-    sort -u | gr_docs)"
-  present="$(fin_docs_at HEAD)"
-  while IFS= read -r f; do
-    [ -n "$f" ] || continue
-    printf '%s\n' "$added" | grep -qxF -- "$f" || continue
-    printf '%s\n' "$present" | grep -qxF -- "$f" && continue
-    printf '%s\n' "$f"
-  done <<<"$deleted"
 }
 
 # Workstream files THIS branch added — present or already retired, one per
