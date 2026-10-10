@@ -471,7 +471,46 @@ if [ -z "$(git -C "$jorigin" ls-remote --heads "$jorigin" mgr-deleted)" ]; then
 else
   fail "and origin still has no such branch (re-created)"
 fi
-git -C "$jwork" config --replace-all remote.origin.fetch "$jrefspec"
+refute "and the stale local ref goes with it, so dispatch stops naming it" \
+  "mgr-deleted  docs/handover/mgr-deleted.md" "$(jan)"
+git -C "$jwork" config --unset-all remote.origin.fetch
+while IFS= read -r l; do git -C "$jwork" config --add remote.origin.fetch "$l"; done <<<"$jrefspec"
+
+# Deleted between the check and the push: the lease refuses, nothing is
+# re-created. A git wrapper deletes the branch on origin just before `push`.
+jgone mgr-raced
+jwrap="${TMP}/janitorwrap"
+mkdir -p "$jwrap"
+jgit="$(command -v git)"
+printf '#!/bin/sh
+case " $* " in *" push "*) "%s" --git-dir="%s" branch -qD mgr-raced ;; esac
+exec "%s" "$@"
+' \
+  "$jgit" "$jorigin" "$jgit" >"${jwrap}/git"
+chmod +x "${jwrap}/git"
+out="$( cd "$jwork" && env PATH="${jwrap}:${PATH}" JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-raced 2>&1 )"; rc=$?
+expect "a branch deleted after the check is refused at the push" \
+  "FAILED    : mgr-raced — push refused" "$out"
+if [ "$rc" -ne 0 ]; then pass "and exits non-zero"
+else fail "and exits non-zero"; fi
+if [ -z "$(git -C "$jorigin" ls-remote --heads "$jorigin" mgr-raced)" ]; then
+  pass "and the lease kept origin without it"
+else
+  fail "and the lease kept origin without it (re-created)"
+fi
+
+# Origin unreachable: an unanswered question releases nothing and is a failure.
+jgone mgr-unreach
+jurl="$(git -C "$jwork" config remote.origin.url)"
+git -C "$jwork" config remote.origin.url "${TMP}/no-such-origin.git"
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-unreach 2>&1 )"; rc=$?
+git -C "$jwork" config remote.origin.url "$jurl"
+expect "an origin that cannot answer is a skip" \
+  "skip      : mgr-unreach — cannot ask origin whether the branch exists" "$out"
+if [ "$rc" -ne 0 ]; then pass "and exits non-zero"
+else fail "and exits non-zero"; fi
+expect "and origin's claim is untouched" "status: in-progress" \
+  "$(git -C "$jorigin" show mgr-unreach:docs/handover/mgr-unreach.md 2>&1)"
 
 # The default refspec: --apply's own fetch prunes the ref, so the existing
 # no-such-branch skip answers, without a dispatch first.

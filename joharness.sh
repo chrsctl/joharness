@@ -2579,7 +2579,10 @@ janitor_apply() {
     git -C "$ROOT" ls-remote -q --exit-code --heads origin "refs/heads/${want}" >/dev/null 2>&1
     case $? in
       0) ;;
-      2) printf 'gone      : %s — gone on origin, nothing to release\n' "$want"; continue ;;
+      2) # Drop the local ref a narrow refspec never prunes, or every dispatch
+         # names the branch again. Local only: origin is not touched.
+         git -C "$ROOT" update-ref -d "refs/remotes/origin/${want}" 2>/dev/null || :
+         printf 'gone      : %s — gone on origin, nothing to release\n' "$want"; continue ;;
       *) printf 'skip      : %s — cannot ask origin whether the branch exists; nothing released\n' "$want"
          rc=1; continue ;;
     esac

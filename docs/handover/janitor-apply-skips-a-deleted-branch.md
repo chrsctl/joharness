@@ -8,7 +8,7 @@ issue: 397
 session: https://claude.ai/code/session_01VK36eqjgoWdgS5dZHGEedK
 agent: opus
 updated: 2026-10-10
-next: Run ci and verify, then verifier review at opus
+next: Open the pull request, retire plan and workstream file, merge
 ---
 
 ## Goal
@@ -31,6 +31,13 @@ ask origin (`ls-remote`), not the local ref.
 - None yet.
 
 ## Review
+
+- r1: (verifier) the --force-with-lease push had no test; dropping it stayed green. (fixed — git-wrapper fixture deletes the branch at push; `FAILED`, origin stays without it)
+- r2: (verifier) the unreachable-origin `*)` arm was untested. (fixed — fixture points origin.url at nothing; skip, rc 1, claim untouched)
+- r3: (verifier) `gone` left the stale local ref, so every dispatch re-listed the branch under a narrow refspec. (fixed — `update-ref -d refs/remotes/origin/<b>` on gone, local only; selftest refutes the re-listing)
+- r4: (verifier) ls-remote asks the fetch URL, push writes the push URL; a split pushurl can give a false gone or FAILED. (wontfix: never a re-creation, the lease guards the push; a split-URL origin is not a shape this harness provisions)
+- r5: (verifier) the refspec restore wrote multi-valued config as one value. (fixed — unset-all, then one --add per line)
+- r6: mutation, 2026-10-10: lease, update-ref and the `*)` arm removed in one run of `bash .agents/harness/selftest.sh` gave 2389 passed, 6 failed, exactly the new r1–r3 cases; restored, 2395 passed, 0 failed. (no change)
 
 ## Blockers
 
