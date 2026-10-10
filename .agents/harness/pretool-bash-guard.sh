@@ -89,15 +89,18 @@ hook_key() {
 cmd="$(hook_key command)" || exit 0
 [ -n "$cmd" ] || exit 0
 
-# A heredoc body a command WRITES to a file is data, not code: a script being
-# written may hold `while`, `sleep` and `pgrep -f` as text. Drop such bodies
-# (lines still JSON-escaped, so a newline is the two characters `\n`). A
-# heredoc fed to a shell (`bash <<EOF`) is code and stays.
+# A heredoc body a command only WRITES to a file is data, not code: a script
+# being written may hold `while`, `sleep` and `pgrep -f` as text. Strip a body
+# only when its line starts with `cat` or `tee`, has no pipe, and writes with a
+# plain `>`/`>>` (not `2>`) or tee; and strip nothing at all when the rest of
+# the command runs a shell or a script (write-then-run is code). Lines are
+# still JSON-escaped: a newline is the two characters `\n`.
 strip_heredocs() {
   local rest="$1" out="" line t term="" dash="" last=0 q="'"
   local hd_re='<<(-?)[[:space:]]*(\\?["'"$q"'])?([A-Za-z_][A-Za-z0-9_]*)'
-  local write_re='(>[^&>]|>>|(^|[^[:alnum:]_])tee[[:space:]])'
-  local shell_re='(^|[;&|[:space:]])(bash|sh|zsh|dash|ksh)([[:space:]]+-[[:alnum:]]+)*[[:space:]]*<<'
+  local write_re='(^|[^0-9&>])>>?[[:space:]]*[^&[:space:]]|^[[:space:]]*tee[[:space:]]'
+  local lead_re='^[[:space:]]*(cat|tee)[[:space:]]'
+  local exec_re='(^|[;&|({[:space:]]|\\n)(/[^[:space:]]*/)?(bash|sh|zsh|dash|ksh|source|exec|eval|xargs|python[0-9.]*|perl|node)([[:space:]]|$)|(^|[;&|[:space:]]|\\n)\.[[:space:]]|(^|[;&|(]|\\n)[[:space:]]*(\./|/[^[:space:]]*\.sh)'
   while [ "$last" -eq 0 ]; do
     if [[ $rest == *'\n'* ]]; then
       line="${rest%%\\n*}"
@@ -119,12 +122,13 @@ strip_heredocs() {
     if [[ $line =~ $hd_re ]]; then
       dash="${BASH_REMATCH[1]}"
       t="${BASH_REMATCH[3]}"
-      if [[ $line =~ $write_re ]] && ! [[ $line =~ $shell_re ]]; then
+      if [[ $line =~ $lead_re ]] && [[ $line != *'|'* ]] && [[ $line =~ $write_re ]]; then
         term="$t"
       fi
     fi
   done
-  printf '%s' "$out"
+  # Anything outside the stripped bodies runs code: keep the command whole.
+  if [[ $out =~ $exec_re ]]; then printf '%s' "$1"; else printf '%s' "$out"; fi
 }
 case "$cmd" in *'<<'*) cmd="$(strip_heredocs "$cmd")" ;; esac
 

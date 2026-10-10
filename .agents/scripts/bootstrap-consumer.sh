@@ -167,6 +167,8 @@ while [ $# -gt 0 ]; do
     --env-md=*) ENV_MD="${1#--env-md=}"; ENV_MD_GIVEN=1; shift ;;
     --review) [ $# -ge 2 ] || usage; REVIEW="$2"; REVIEW_GIVEN=1; shift 2 ;;
     --review=*) REVIEW="${1#--review=}"; REVIEW_GIVEN=1; shift ;;
+    --mode) [ $# -ge 2 ] || usage; warn "--mode is obsolete (orchestrated is the only mode); ignored"; shift 2 ;;
+    --mode=*) warn "--mode is obsolete (orchestrated is the only mode); ignored"; shift ;;
     --*) usage ;;
     *) break ;;
   esac

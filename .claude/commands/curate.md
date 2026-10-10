@@ -7,7 +7,7 @@ because `./joharness.sh dispatch` said `curate ... DUE` with proposals to
 make. You PROPOSE — decompose and order — and change no plan. Mechanical
 repairs (stale anchors, incomplete `scope:`, directory claims, unmarked
 registries) are `./joharness.sh curate --apply`, and `ci` fails a branch whose
-own added or edited plans still need one.
+own added plans still need one.
 
 You read: `./joharness.sh curate` and the plan files it names. Not the queue
 order, a requirement, another branch, or the design doc.

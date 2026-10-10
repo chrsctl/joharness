@@ -738,6 +738,7 @@ write_ws marks.md review none "" \
   "- r1: this one was dealt with. (fixed)" \
   "- r2: this one was declined. (wontfix — costs more than it catches)" \
   "- r3: and this one needed nothing. (no change needed)" \
+  "- r5: clean pass, deep, no findings (verifier)" \
   "- r4: nobody ever said what came of this one."
 printf 'code\n' >"${rwork}/marks.txt"
 commit_all "$rwork" "record four findings, one without a verdict"
@@ -750,6 +751,8 @@ expect "and counted" "1 finding(s) with no verdict" "$out"
 refute "a fixed finding is not unmarked" "r1: this one was dealt with" "$out"
 refute "nor a wontfix one" "r2: this one was declined" "$out"
 refute "nor a no-change one" "r3: and this one needed nothing" "$out"
+# The clean-pass line the handover README prescribes is itself a verdict.
+refute "nor the prescribed clean-pass line" "r5: clean pass" "$out"
 
 # Red mid-build, with the exact fix printed, so the error surfaces before
 # the retire commit rather than after it.

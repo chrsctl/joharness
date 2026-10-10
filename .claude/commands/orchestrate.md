@@ -95,7 +95,7 @@ Act on the FIRST row that matches:
 
 | control plane | push age | ledger | do |
 | --- | --- | --- | --- |
-| any | any | branch merged (dispatch no longer lists it), or entry still `new` and its item file is gone from fresh `origin/main` (merged between passes, or curated away) | done: drop the ledger entry. A message carrying `lead <stem>: <text>` is the one exception that is never nothing: carry it and print it, never act on it |
+| any | any | branch merged (dispatch no longer lists it), or a plan/research/requirement entry still `new` whose item file is gone from fresh `origin/main` (merged between passes, or curated away; never a `rescope-<key>` entry, which has no item file) | done: drop the ledger entry. A message carrying `lead <stem>: <text>` is the one exception that is never nothing: carry it and print it, never act on it |
 | any | `LOOP?`, or head moved and `next:` unchanged with `same=2` already | any | LOOP, below. No nudge |
 | any | any | a nudge, `seen=` or `held=` recorded, and head, `status_detail` or `updated_at` moved since (or no longer BLOCKED / FAILED) | working: drop that record |
 | RUNNING | under stall | any | working |
@@ -162,7 +162,8 @@ nothing.
 - `janitor : stale claim(s) on <branches>`: check each session
   (`get_session`); for those ARCHIVED or not found run
   `./joharness.sh janitor --apply <branch>...` yourself — no session. It
-  refuses a claim with `pr:` set.
+  refuses a claim with `pr:` set. Skip any branch the health pass
+  respawned this pass: it has a live manager now.
 - Role sessions, at most ONE of each per run and none while one is in flight
   (dispatch's header block says), `create_session` like a manager, prompt =
   the command + the standard lines:

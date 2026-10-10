@@ -290,7 +290,12 @@ run_check() {
   local name="$1" out rc
   shift
   out="$("$@" 2>&1)"; rc=$?
-  if { [ "$rc" -ne 0 ] && [ "$rc" -ne 3 ]; } || [ "$CHECK_VERBOSE" = 1 ]; then
+  # A pass that carries a report about THIS branch or checkout (not
+  # measurable, edge report, ships, not covered, shallow — incl. graph reds
+  # degraded to warnings — churn warning) still prints. Plain lint warnings
+  # about other plans stay quiet: measured noise managers mis-read.
+  if { [ "$rc" -ne 0 ] && [ "$rc" -ne 3 ]; } || [ "$CHECK_VERBOSE" = 1 ] ||
+     printf '%s' "$out" | grep -qE 'not measurable|Reported, not failed|SHIPS to consumers|Not covered here|SHALLOW|shallow history|commits on this branch$|Fix undoing'; then
     printf '== %s\n' "$name"
     [ -z "$out" ] || printf '%s\n' "$out"
     printf '\n'
@@ -1530,6 +1535,7 @@ fb_marker() {
     *wontfix*)                 printf 'wontfix' ;;
     *"no change"* | *"No change"*) printf 'no-change' ;;
     *'(fixed'*)                printf 'fixed' ;;
+    *"clean pass"* | *"Clean pass"*) printf 'no-change' ;;
     *)                         printf 'unmarked' ;;
   esac
 }
@@ -4411,12 +4417,12 @@ cmd_curate() {
   return 0
 }
 
-# Plans this branch adds or edits (diff against the merge base, working tree
+# Plans this branch adds (diff against the merge base, working tree
 # included), one per line.
 plans_in_diff() {
   local base="$1"
   {
-    git -C "$ROOT" diff --name-only --diff-filter=AM "$base" -- docs/plans 2>/dev/null
+    git -C "$ROOT" diff --name-only --diff-filter=A "$base" -- docs/plans 2>/dev/null
     git -C "$ROOT" ls-files --others --exclude-standard -- docs/plans 2>/dev/null
   } | awk '/^docs\/plans\/[^\/]+\.md$/ && !/\/(README|TEMPLATE)\.md$/' | sort -u |
     while IFS= read -r f; do [ -f "${ROOT}/${f}" ] && printf '%s\n' "$f"; done
@@ -4439,8 +4445,9 @@ plan_core_only() {
   return 0
 }
 
-# ci stage: plans this branch adds or edits must carry no curate repair and
-# must be buildable (scope: not core paths only).
+# ci stage: plans this branch ADDS must carry no curate repair and must be
+# buildable (scope: not core paths only). Edited plans are skipped: their
+# defects may predate the edit. The branch's own held plan is exempt.
 lint_plans_in_diff() {
   local over="origin/${HANDOVER_BASE_BRANCH:-main}" base rel counts regthr bad=0 kind text n=0
   local ws held=""
@@ -4470,6 +4477,7 @@ lint_plans_in_diff() {
       fi
     done < <(case "$held" in *" $(lint_stem "$rel") "*) ;;
                *) curate_repairs "$rel" "$counts" "$regthr" ;; esac)
+    case "$held" in *" $(lint_stem "$rel") "*) continue ;; esac
     if plan_core_only "$rel"; then
       bad=$((bad + 1))
       printf '  %s: scope: names core paths only (%s) — no session may build it; mark the issue for a human instead\n' \
@@ -4477,14 +4485,14 @@ lint_plans_in_diff() {
     fi
   done < <(plans_in_diff "$base")
   if [ "$n" -eq 0 ]; then
-    printf '  no plan added or edited on this branch\n'
+    printf '  no plan added on this branch\n'
     return 0
   fi
   if [ "$bad" -eq 0 ]; then
-    printf '  %s plan(s) added or edited, every declaration reads true\n' "$n"
+    printf '  %s plan(s) added, every declaration reads true\n' "$n"
     return 0
   fi
-  printf '\n  %s problem(s) in plans this branch adds or edits.\n' "$bad"
+  printf '\n  %s problem(s) in plans this branch adds.\n' "$bad"
   return 1
 }
 

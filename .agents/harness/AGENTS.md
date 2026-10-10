@@ -16,7 +16,8 @@ have ONE spelling: [`.agents/docs/glossary.md`](../../.agents/docs/glossary.md);
    `status:` review/done), oldest first; LIVE on another session (`/who`) =
    not yours. Then open GitHub issues (through `/clerk` into plans), then
    `docs/product/*.md`, then `docs/plans/*.md` and `docs/research/*.md`.
-   `dispatch` says `janitor : DUE`? Run `./joharness.sh janitor --apply`.
+   `dispatch` names stale claims? Prove each session gone (ARCHIVED or not
+   found), then `./joharness.sh janitor --apply <branch>...`.
    `curate : DUE`? `/curate` first. Plan naming an open `research:` is blocked.
    NOTHING builds unplanned — decompose into a plan first
    (`.agents/docs/plans/README.md`); copy or sync task is the one exception.

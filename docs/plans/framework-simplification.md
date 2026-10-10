@@ -27,9 +27,14 @@ text sessions load, and fix the measured ceremony costs.
 
 Dead code (remove with selftests, commands, docs, conf keys, conf-keys.sh
 rows, glossary/lint references):
-- subcommands `upstream`, `analysis`, `graph`, `scorecard`, `mutate`,
-  `perf`, `context`; roles `/upstream-report`, `/analyst`; conf keys
-  `JOHARNESS_UPSTREAM_FEEDBACK`, `JOHARNESS_IDLE_ANALYSIS`, `PERF_BUDGET_*`.
+- subcommands `graph`, `scorecard`, `mutate`, `perf`, `context`; conf keys
+  `PERF_BUDGET_*`.
+- roles (human decision after a per-role track-record check): janitor and
+  curate repairs become `janitor --apply` / `curate --apply`; `/analyst` and
+  `JOHARNESS_IDLE_ANALYSIS` removed (`analysis` stays a by-hand read);
+  `/upstream-report` kept as a manual procedure, its auto-spawn
+  (`JOHARNESS_UPSTREAM_FEEDBACK`) removed; clerk slimmed; scout kept.
+- `upgrade` kept: the consumer's fallback when `update.yml` cannot sync.
 - env layer `.agents/env/python-rust` (selected by no repo).
 - obsolete `JOHARNESS_MODE` block in `joharness.conf` and `mode_*` code.
 

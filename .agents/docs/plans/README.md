@@ -114,7 +114,7 @@ reports whether each plan's `scope:` still covers what its `## Scope` names,
 whether it claims a whole directory it should narrow, and whether a path
 enough plans declare is a registry nobody marked `shared:`;
 `./joharness.sh curate --apply` makes those repairs, and `ci` fails a branch
-whose own added or edited plans still need one. A curator session only
+whose own added plans still need one. A curator session only
 PROPOSES decomposition or ordering and never edits a plan
 (`.claude/commands/curate.md`). The author still owns getting a plan right.
 
