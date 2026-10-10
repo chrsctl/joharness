@@ -707,16 +707,29 @@ ln -sf /bin/bash "${sgbg}/claude-fixture"
 printf '%s' "$JSON_STOP" >"${sgbg}/in.json"
 
 if [ -x "${sgbg}/claude-fixture" ]; then
+  # The leftover is a SHELL with a child, the shape a real background tool
+  # command has (`bash` -> `timeout` -> `sleep`, measured 2026-10-10). The
+  # trailing `; :` keeps `bash` a shell: one command in `-c` exec-optimises
+  # into `sleep`. Kill the child first — `kill` on `bash` first orphans the
+  # `sleep` before `pkill -P` can find it. Not a group kill: a
+  # non-interactive job shares the suite's group.
   PATH="$SG_REAL_PATH" "${sgbg}/claude-fixture" -c "
-    sleep 300 &
+    bash -c 'sleep 300; :' &
     bg=\$!
     bash '${ROOT}/.agents/harness/handover-guard.sh' \
       <'${sgbg}/in.json' >'${sgbg}/left.json' 2>&1
+    pkill -P \$bg 2>/dev/null
     kill \$bg 2>/dev/null
   " >/dev/null 2>&1
-  expect "a process the session leaves running is reported" \
-    "1 background process(es) this session started are still running" \
-    "$(cat "${sgbg}/left.json" 2>/dev/null)"
+  # 2 (`bash` + `sleep`), or 1 when the guard's `ps` ran before `bash`
+  # forked. Anchored: a bare substring also matches 11 and 21.
+  if grep -qE '(^|[^0-9])[12] background process\(es\) this session started' \
+    "${sgbg}/left.json" 2>/dev/null; then
+    pass "a process the session leaves running is reported"
+  else
+    fail "a process the session leaves running is reported"
+    printf '    got:\n%s\n' "$(indent "$(cat "${sgbg}/left.json" 2>/dev/null)")"
+  fi
   expect "and the fact says what makes one unable to finish" \
     "a wait loop whose own line matches its own pattern" \
     "$(cat "${sgbg}/left.json" 2>/dev/null)"
@@ -748,6 +761,19 @@ if [ -x "${sgbg}/claude-fixture" ]; then
   " >/dev/null 2>&1
   refute "nor is a shell chain that reaches the guard through another shell" \
     "background process(es)" "$(cat "${sgbg}/nested.json" 2>/dev/null)"
+
+  # A non-shell direct child of the agent was started by the harness, not by
+  # a tool call: a repo's MCP server (`node mcp.mjs`, issue #338) runs there
+  # from session start. `sleep` stands in for it.
+  PATH="$SG_REAL_PATH" "${sgbg}/claude-fixture" -c "
+    sleep 300 &
+    bg=\$!
+    bash '${ROOT}/.agents/harness/handover-guard.sh' \
+      <'${sgbg}/in.json' >'${sgbg}/harness.json' 2>&1
+    kill \$bg 2>/dev/null
+  " >/dev/null 2>&1
+  refute "a non-shell child of the agent is the harness's, not leftover work" \
+    "background process(es)" "$(cat "${sgbg}/harness.json" 2>/dev/null)"
 else
   skip "background work a session leaves running" "no usable shell fixture"
 fi
@@ -796,6 +822,13 @@ case "${SG_PS_SHAPE:-}" in
     printf '900010 %s sh\n900010 900011 sh\n900011 900010 sh\n' "$p"
     printf '900020 900000 sh\n900020 900021 sh\n900021 900020 sh\n'
     ;;
+  # An MCP server and its worker under the agent beside one real leftover
+  # job. Only the shell's subtree is the session's: 2, not 4.
+  harness-child)
+    printf '900000 1 claude-fake\n%s 900000 bash\n' "$p"
+    printf '900030 900000 node\n900031 900030 node\n'
+    printf '900040 900000 bash\n900041 900040 sleep\n'
+    ;;
 esac
 PSEOF
 chmod +x "${sgps}/ps"
@@ -832,6 +865,18 @@ else
 fi
 expect "and counts each leftover once" \
   "2 background process(es)" "$sgdupes_out"
+
+# Issue #338: a harness-started child (an MCP server, `node`) and its own
+# children are not the session's. Only subtrees under a shell count.
+sghc_out="$(printf '%s' "$JSON_STOP" | PATH="${sgps}:${SG_REAL_PATH}" \
+  SG_PS_SHAPE=harness-child CLAUDE_PROJECT_DIR="$sgwork" \
+  timeout 10 bash "${ROOT}/.agents/harness/handover-guard.sh" 2>/dev/null)"
+if grep -qE '(^|[^0-9])2 background process' <<<"$sghc_out"; then
+  pass "a harness-started child is not counted, a shell's subtree is"
+else
+  fail "a harness-started child is not counted, a shell's subtree is"
+  printf '    wanted: 2 background process\n    got:\n%s\n' "$(indent "$sghc_out")"
+fi
 
 # No agent anywhere in the chain — run by hand, an unexpected tree — is
 # something this cannot make a claim about, and the guard never guesses.

@@ -8,7 +8,7 @@ issue: 338
 session: https://claude.ai/code/session_018JNyVFgb7drBGd8kEKiDNj
 agent: opus
 updated: 2026-10-10
-next: Change the counted pass in handover-guard.sh to seed only shell children, then the selftest cases
+next: Run perf, ci, verify; then verifier review
 ---
 
 ## Goal
