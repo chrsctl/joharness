@@ -8278,6 +8278,64 @@ dispatch_rescope_branches() {
   done <<<"$refs"
 }
 
+# Rescopes already MERGED with `status: done` — issue #300. The scan above
+# skips merged refs, so a surveyor that concluded "the rest is genuine" and
+# merged settled nothing, and the next pass asked for a second one. One row
+# per retire commit on the base that deletes a rescope workstream file whose
+# last state (at the commit's parent) was done: sha, key. Newest first.
+#
+# `--full-history -m`, `scout_retired_ts`'s shape: the file is added and
+# deleted on the rescope's own branch and the merge commit is treesame for it,
+# so default simplification drops that branch. Measured 2026-10-10 on this
+# repo's origin/main (1738 commits), counting `rescope-*` deletes: no flag 0,
+# `-m` 1, `--full-history` 1, both 1. Either flag alone finds it; both are
+# kept because each covers a retire shape the other might not. A retire made
+# inside a merge commit is listed once per parent; the file is read at
+# whichever parent carried it. Identity is the in-flight scan's: `workstream:
+# rescope-<key>`, `plan: none`. A `blocked` record is a human's, already
+# reported — not read here. Process substitution throughout, never a
+# "$(...)" capture read back through "<<<" — the race cmd_dispatch records.
+dispatch_rescope_merged() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}"
+  local line h="" seen="" doc rws rplan rstat
+  while IFS= read -r line; do
+    case "$line" in
+      '') continue ;;
+      'C '*) h="${line#C }"; continue ;;
+    esac
+    [ -n "$h" ] || continue
+    # `-m` lists a merge once per parent: one row per (commit, file).
+    case "$seen" in *" ${h}:${line} "*) continue ;; esac
+    seen="${seen} ${h}:${line} "
+    doc="$(git -C "$ROOT" show "${h}^1:${line}" </dev/null 2>/dev/null ||
+      git -C "$ROOT" show "${h}^2:${line}" </dev/null 2>/dev/null)" || continue
+    rws=""; rplan=""; rstat=""
+    { read -r rws; read -r rplan; read -r rstat; } \
+      < <(printf '%s\n' "$doc" | gr_fields workstream plan status)
+    case "$rws" in rescope-?*) ;; *) continue ;; esac
+    [ "$rplan" = none ] || continue
+    [ "$rstat" = "done" ] || continue
+    printf '%s\t%s\n' "$h" "${rws#rescope-}"
+  done < <(GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 git -C "$ROOT" log \
+    --full-history -m --diff-filter=D --name-only --format='C %H' \
+    "refs/remotes/origin/${base_branch}" -- 'docs/handover/rescope-*' \
+    </dev/null 2>/dev/null)
+}
+
+# Does a rescope record on key <K> cover the current key <C>? Yes when every
+# holder in C is in K: a smaller holder set is the same collision with fewer
+# holders (co-holders merged). A holder K never saw makes C a NEW collision,
+# which earns its own rescope. Both keys are holder stems joined with `+`.
+dispatch_rescope_covers() {
+  local k="+$1+" h
+  [ -n "$2" ] || return 1
+  while IFS= read -r h; do
+    [ -n "$h" ] || continue
+    case "$k" in *"+${h}+"*) ;; *) return 1 ;; esac
+  done < <(printf '%s\n' "$2" | tr '+' '\n')
+  return 0
+}
+
 cmd_dispatch() {
   local cap stall health respawn churnt churnl hout qout rows wavemap edge req sup
   local path label branch ws doc status session next age agetext flag tier
@@ -8298,6 +8356,7 @@ cmd_dispatch() {
   local cb ck cstat csess cnext cage
   local rescope_key="" rescope_paths="" rescope_inflight="" rescope_holders=""
   local n_rescope_inflight=0 n_rescope_holders=0 rescope_settled=0
+  local rescope_held="" rescope_merged="" msha mkey mheld mchanged
   local rb rk rstat rsess rnext rage
   local DISPATCH_WITHHELD=
   local inflight="" free="" questions=""
@@ -9007,10 +9066,43 @@ cmd_dispatch() {
       [ -z "$rsess" ] || rescope_inflight="${rescope_inflight}      session: ${rsess}"$'\n'
       [ -z "$rnext" ] || rescope_inflight="${rescope_inflight}      next: ${rnext}"$'\n'
       case "$rstat" in
-        done | blocked) [ "$rk" = "$rescope_key" ] && rescope_settled=1 ;;
+        # A key that COVERS the current one settles it: holders merging shrink
+        # the set, and the conclusion holds for what is left (issue #300).
+        done | blocked)
+          dispatch_rescope_covers "$rk" "$rescope_key" && rescope_settled=1 ;;
         *) n_rescope_inflight=$((n_rescope_inflight + 1)) ;;
       esac
     done < <(dispatch_rescope_branches)
+    # Merged `done` rescopes settle too — the in-flight scan skips merged refs,
+    # so before this a surveyor's conclusion on `main` settled nothing and the
+    # next pass asked for a second one (issue #300). A record settles only
+    # while no held or holder plan's file changed on the base since its retire: a
+    # changed `scope:` line is new information and re-earns a rescope. Run
+    # here only — this block runs only when slots are free and nothing else
+    # is spawnable, so a normal pass pays nothing for the log walk.
+    if [ "$rescope_settled" -eq 0 ]; then
+      # Held plans AND current holders: a holder whose `scope:` moved is the
+      # same new information as a held plan's (verifier r2).
+      rescope_held="$( { printf '%s\n' "$holdmap" | awk -F'\t' 'NF > 1 { print $1 }'
+        printf '%s\n' "$rescope_holders"; } | grep -v '^$' | sort -u)"
+      while IFS=$'\t' read -r msha mkey; do
+        [ -n "$msha" ] || continue
+        dispatch_rescope_covers "$mkey" "$rescope_key" || continue
+        mchanged=""
+        while IFS= read -r mheld; do
+          [ -n "$mheld" ] || continue
+          mchanged="$(git -C "$ROOT" log --format=%H -1 \
+            "${msha}..refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" \
+            -- "docs/plans/${mheld}.md" </dev/null 2>/dev/null)" ||
+            mchanged=unreadable  # an unread history settles nothing
+          [ -z "$mchanged" ] || break
+        done < <(printf '%s\n' "$rescope_held")
+        [ -z "$mchanged" ] || continue
+        rescope_settled=1
+        rescope_merged="            settled by merged rescope ${msha:0:7} (key ${mkey}): holds genuine"
+        break
+      done < <(dispatch_rescope_merged)
+    fi
 
     printf 'rescope   : %s plan(s) held behind %s branch(es) — the work is decomposed,\n' \
       "$n_hold" "$n_rescope_holders"
@@ -9025,6 +9117,7 @@ cmd_dispatch() {
     else
       printf '            rescope branch(es) in flight: none\n'
     fi
+    [ -z "$rescope_merged" ] || printf '%s\n' "$rescope_merged"
     printf '\n'
   fi
 
