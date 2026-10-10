@@ -135,7 +135,7 @@ are money, humans only.
   edit, do not recreate the file.
 - `docs/plans/orchestrated-only-docs.md` also edits `.agents/docs/agent-selection.md`;
   not parallel. Merging second: reconcile, keep both edits.
-- `.claude/commands/manage.md` is `shared:` with issue-triager-role,
+- `.claude/commands/manage.md` is `shared:` with clerk-role,
   orchestrated-only, plan-on-a-branch-visible, role-files-say-it-first —
   this plan's edit is one clause on the `tier:` bullet; a reconcile keeps it.
 - Core paths (`joharness.conf`, `.claude/settings.json`, `.github`) are
