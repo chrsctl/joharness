@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_015NtQ5zqgi5mjrZ9Xkofo2K
 agent: opus
 updated: 2026-10-10
-next: Collect 5 workers (scripts, 4 selftest sets), verify each acceptance, commit; then selftest.sh preamble, full ci+verify, review
+next: Read full ci + verify results and the opus verifier; record findings in ## Review, fix, then retire + PR
 ---
 
 ## Goal
