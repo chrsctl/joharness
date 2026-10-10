@@ -224,6 +224,49 @@ sleep_re='(^|[^[:alnum:]_])sleep[[:space:]]+[-0-9$"'"'"']'
 count_re='\$\{?[A-Za-z_][A-Za-z0-9_]*\}?"?[[:space:]]+-(lt|le|gt|ge)[[:space:]]'
 arith_re='\(\([^)]*[<>][^)]*\)\)'
 timeout_re='(^|[^[:alnum:]_-])timeout[[:space:]]'
+
+# SELF-MATCH: DECIDED, NOT YET BUILT (plan guard-self-match-keyed-on-the-
+# reader). The two patterns below key the deny on a TOOL, `pgrep`/`pkill`
+# with `-f`. The trap is a PROPERTY: the condition reads full command lines,
+# and the shell running the loop carries the pattern in its own. A consumer
+# reported it under a `for i in $(seq 1 N)` loop, spelled `ps -e -o args |
+# grep -c PAT` (the opener is in its record; the full line is not, so the
+# fixture is a reconstruction). Measured against 26 fixtures (research node
+# a-self-match-the-guard-cannot-see, 2026-10-10), it is missed three ways:
+#   - THE READER. `ps ... | grep` never reaches this branch, so bounded it is
+#     ALLOWED and unbounded it is denied as UNBOUNDED, whose remedy — wrap it
+#     in `timeout` — is the allowed spelling of the same trap. `/proc/*/
+#     cmdline` the same. And `full_re` wants `f` LAST in its cluster: `-fl`
+#     and `-f"pat"` are allowed.
+#   - THE POSITION. `proc_re` wants a character before the tool, and both
+#     readers start `span` right after the keyword's space, so `while pgrep
+#     -f PAT; do sleep 5; done` is the reader trap again: ALLOWED under
+#     `timeout`, UNBOUNDED without (verifier, 2026-10-10). Every pinned case
+#     is `until ! pgrep`, where the `!` supplies the character.
+#   - THE OPENER. Neither reader judges a `for` or `select` loop (start_re
+#     and `tkw` are `while`/`until` only), so even `pgrep -f` under
+#     `for i in $(seq 1 100000)` with `sleep 60` is allowed.
+# Any one fix alone leaves the reported command allowed.
+# Decided: key the deny on the readers of full command lines, each in
+# command position — `pgrep`/`pkill` with `f` anywhere in a cluster or
+# `--full`; `ps` piped to `grep`, unless `ps -p` (one pid) or a `grep -v
+# grep` stage (the line holds "grep", so the stage drops it); a
+# `/proc/*/cmdline` glob, never one pid's path. Exempt the reader's OWN
+# pattern opening with a one-character bracket class (`"[b]ash x"` cannot
+# match its own text; the deny names it as the remedy), unless `grep -F`
+# makes the brackets literal. Run THIS branch, not the bound check, for
+# `for` and `select` openers, with a reason that does not say "never
+# exits": a `for` ends, but what it reads always holds its own shell. A
+# list of readers, said as one: text cannot test the property, and an
+# unlisted reader is an allow, as everything here fails.
+# Priced on a scratch copy, this session (2026-10-10), narrower than the
+# above (no position fix, no `-p`/`-v grep`/`-F`, an exemption anywhere in
+# the span): regex only, no fork; `bash .agents/harness/selftest.sh` on it
+# printed 2454 passed, 0 failed, this topic's 80 pinned cases among them.
+# The copy is gone; the plan's acceptance re-counts. Rejected, measured:
+# judging `for` with the WHOLE of judge() flips seven pinned allows, five
+# of them the prose cases above; `< /dev/null` around the condition is no
+# signal this text reader has.
 proc_re='[^[:alnum:]_](pgrep|pkill)[[:space:]]'
 full_re='[[:space:]](-[[:alnum:]]*f([[:space:]]|$)|--full)'
 
