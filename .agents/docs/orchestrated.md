@@ -1107,47 +1107,64 @@ still says do not wait. `docs/research/a-merge-waiver-with-no-expiry.md`
 notice. None can, by construction. `checks_mode` is the value and nothing
 else; `checks_local` is a `case` on that string; its two callers — the
 `finish` checks gate and the session-start banner — branch on the result.
-`curl`, `wget` and `gh` appear nowhere in `joharness.sh`, so no harness code
-path reaches Actions or the network at all. The key's other home says the
-same of itself: the `lint` job in `.github/workflows/ci.yml` calls the
-variable *"a convention, not a mechanism … no gate reads it"*. The one reader
-that consults more than a value is `analysis_one`, built for #266 and this
-key — and it reads `joharness.conf` on two refs and its commit times. That
-answers "has the conf moved?", never "has the infrastructure moved?".
-Measured in `chrsctl/gx`, 2026-10-08: its conf carried `local` with its own
-revert test written beside it — *"one completed run with a green job is the
-whole test"* — the test was met twice that morning (runs 37738004391,
-37743221243), and the conf still said `local`. A consumer's conf never syncs
-and may carry no comment for the key at all, so a revert test written in
-prose is read by nobody.
+`curl`, `wget` and `gh` appear nowhere in `joharness.sh`; its only network
+reach is `git fetch`, so no harness code path reads Actions. The key's other
+home is no different: the workflow's one read of it, `vars.JOHARNESS_CHECKS
+!= 'local'` on the `lint` job in `.github/workflows/ci.yml`, is the same
+value-only branch, and the comment above it calls the switch *"a convention,
+not a mechanism"*. The one reader that consults more than a value is
+`analysis_one`, built for #266 and this key — and it reads `joharness.conf`
+on two refs and its commit times. That answers "has the conf moved?", never
+"has the infrastructure moved?". Measured in `chrsctl/gx`, 2026-10-08: its
+conf carried `local` with its own revert test written beside it — *"one
+completed run with a green job is the whole test"* — the test was met twice
+that morning (runs 37738004391, 37743221243), and the conf still said
+`local`. A consumer's conf never syncs and may carry no line for the key at
+all (`.agents/docs/consumer-repos.md`), so a revert test written in prose is
+read by nobody.
 
-Two fixes were filed with that finding, and both were refused by measurement,
-which is why they are recorded here and not carried:
+Two fixes were filed with that finding. Measurement refused one and a half of
+them, which is why they are recorded here and not carried:
 
-- **"Under `local`, never wait for an Actions run."** On gx #498 every job
-  `ci` and `verify` cover was green, and `crm` — the Postgres acceptance suite,
-  the one body of coverage gx's own conf says the local checks cannot reach —
-  concluded `failure`. The rule would have merged over it. Under `local` the
-  run is not step 7's gate; it is still information `finish` cannot produce.
-  A manager decides with both readings, not with the conf alone.
-- **A health row for "IDLE + disconnected after the PR opened".** Read in the
-  order the health table prescribes, every branch an IDLE manager with a
-  claimed, unmerged branch can take already fires at push age `any` —
-  nudge, respawn next pass, or the FAILED rows — so the
-  `JOHARNESS_STALL_MINUTES` window never applies, and at
-  `JOHARNESS_HEALTH_MINUTES` the response is 10 to 20 minutes out. A new row
-  would replace one that already fires sooner. The 67 minutes reported on gx
-  #495 measures an orchestrator not working its rows, not a table that waits.
+- **"Under `local`, never wait for an Actions run."** REFUSED. On gx #498
+  every job `ci` and `verify` cover was green, and `crm` — the Postgres
+  acceptance suite, the one body of coverage gx's own conf says the local
+  checks cannot reach — concluded `failure`. The rule would have merged over
+  it. Under `local` the run is not step 7's gate; it is still information
+  `finish` cannot produce. A manager decides with both readings, not with the
+  conf alone. The same fix's other half — never END THE TURN between opening
+  the pull request and merging — survives: nothing measured against it, and
+  it is the cheap, safe part (gx #495's manager, REPORTED, went IDLE 16 seconds before
+  the job it waited on went green).
+- **A health row for "IDLE + disconnected after the PR opened".** REFUSED.
+  Read in the order the health table prescribes, the rows an IDLE manager
+  with a claimed, unmerged branch at `status` review or done can reach — the
+  IDLE nudge, the respawn the pass after, the `status_bucket` FAILED rows
+  (a THROTTLED FAILED excepted, which no row acts on) —
+  all fire at push age `any`, so the `JOHARNESS_STALL_MINUTES` window never
+  applies. At the counted default (`num_knob JOHARNESS_HEALTH_MINUTES 10` in
+  `joharness.sh`; knob table above) that is 10 to 20 minutes: nudge one pass,
+  respawn the next. A new row would replace one that already fires sooner.
+  That is the table as written; whether its nudge and respawn EXECUTE on a
+  cloud fleet is the separate gap recorded in the paragraphs above. The 67
+  minutes reported on gx #495 measures an orchestrator not working its rows,
+  not a table that waits.
 
 What stays open is the human's: whether the waiver should expire. The shape
 that fits is #266's — explain, never decide; a session flipping the key itself
 would be a session rewriting a core path — and `analysis_one`'s `conf now :`
-line is where such an explanation would sit. One wording defect was found and
-left as a lead, not a rule: `/manage` §4 condenses step 7 to "green checks"
-FIRST and `finish` third, an unconditional noun phrase for a conf-dependent
-condition, in the file nearest the work, while the qualified copies (the
-banner, `AGENTS.md` step 7) load earlier. That the condensed copy is WHY two
-managers waited is a claim about sessions this repository cannot read (#267).
+line is where such an explanation would sit. Two wording leads were found and
+left as leads, not rules. `/manage` §4 condenses step 7 to "green checks"
+FIRST and `finish` after — twice now, in the step 7 line and again in the
+follow-up-plan line ("checks green, 0 behind, `./joharness.sh finish`
+green") — an unconditional noun phrase for a conf-dependent condition, in the
+file nearest the work, while the qualified copies (the banner, `AGENTS.md`
+step 7) load earlier. And the comment over `checks_mode` in `joharness.sh`
+says `local` means `finish` runs "the same checks here": in gx it does not —
+`ci` does not run `crm` — while the user-facing copies (`conf-keys.sh`, `AGENTS.md`
+step 7) say `ci` and `verify`, and `finish` names what it cannot cover. That
+either wording is WHY two managers waited is a claim about sessions this
+repository cannot read (#267).
 
 **This was not the first time this split happened, and the earlier instance
 sharpens what the split actually is.**
