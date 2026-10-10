@@ -73,6 +73,26 @@ pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"i=0; while [
 pbg_allowed "a counter-bounded loop is allowed"
 
 # shellcheck disable=SC2016  # a JSON payload; the $ is text the guard reads
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"n=1; while [ \"$n\" -gt 0 ]; do sleep 10; done"}}'
+pbg_allowed "a quoted counter, the shellcheck-correct spelling, is allowed"
+
+# shellcheck disable=SC2016  # a JSON payload; the $ is text the guard reads
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"n=1; while [ \"${n}\" -gt 0 ]; do sleep 10; done"}}'
+pbg_allowed "a quoted braced counter is allowed"
+
+# shellcheck disable=SC2016  # a JSON payload; the $ is text the guard reads
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"until [ \"$(grep -c x /tmp/f)\" -gt 0 ]; do sleep 5; done"}}'
+pbg_denied "a quoted test on the world is still denied"
+
+# shellcheck disable=SC2016  # a JSON payload; the $ is text the guard reads
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"while true; do echo \"retry $n\" -lt 10; sleep 1; done"}}'
+pbg_denied "an echoed quoted string ending in a variable is not a bound"
+
+# shellcheck disable=SC2016  # a JSON payload; the $ is text the guard reads
+pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"until [ \"$(cat /tmp/f)$n\" -gt 0 ]; do sleep 5; done"}}'
+pbg_denied "a substitution followed by a variable inside quotes is not a bound"
+
+# shellcheck disable=SC2016  # a JSON payload; the $ is text the guard reads
 pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"while ((i<10)); do sleep 1; i=$((i+1)); done"}}'
 pbg_allowed "an arithmetic counter is allowed"
 
