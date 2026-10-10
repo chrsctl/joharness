@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01JHoYs9T8QCVotn1UTAeo6B
 agent: opus
 updated: 2026-10-10
-next: 20 paired verifier runs launched; read cost per run, compare to round-1 records
+next: Spawn opus verifier: step-5 review plus blind re-take of the findings match from transcripts
 ---
 
 ## Goal
@@ -28,10 +28,14 @@ defects reaching `main`? Graduate to `.agents/docs/agent-selection.md`.
 - Both tiers get the identical prompt, one worktree each at that head
   (scratchpad/wt/<pr>{s,o}); cost read from the subagent transcript jsonl
   per-message usage, priced at the parent's rates.
+- Answer NO: cost median 0.209 (clears 0.46), but sonnet missed recorded
+  `(fixed)` findings on 10/10 diffs, opus re-found one on 9. Step 3 trial
+  not owed.
 
 ## Rejected
 
-None yet.
+- Reviewing the merged head: fixed defects are gone there, so no run at any
+  tier could find a `(fixed)` finding; step 2 would always pass.
 
 ## Review
 
