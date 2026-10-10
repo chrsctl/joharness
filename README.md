@@ -5,6 +5,7 @@ build them on their own branch, hand over through git, and merge their own
 pull requests. This repo is the canonical copy; consumer repos sync from it.
 
 ```mermaid
+%%{init: {'theme': 'neutral'}}%%
 flowchart TB
     accTitle: Repo layout
     accDescr: A repo running joharness has its own files on top and the synced harness below.
@@ -32,6 +33,7 @@ Each session takes one item through the Loop in
 [`.agents/harness/AGENTS.md`](.agents/harness/AGENTS.md):
 
 ```mermaid
+%%{init: {'theme': 'neutral'}}%%
 flowchart LR
     accTitle: Session loop
     accDescr: Seven steps from orient to finish; git is the only memory between sessions.
@@ -50,6 +52,7 @@ How work moves through the roles. The bounds are in
 [`.agents/docs/orchestrated.md`](.agents/docs/orchestrated.md):
 
 ```mermaid
+%%{init: {'theme': 'neutral'}}%%
 flowchart LR
     accTitle: Work flow
     accDescr: Issues become plans; the orchestrator spawns a manager per plan, which opens and merges a pull request.
@@ -76,6 +79,7 @@ flowchart LR
 ## Add to a repo
 
 ```mermaid
+%%{init: {'theme': 'neutral'}}%%
 flowchart LR
     accTitle: Distribution
     accDescr: joharness bootstraps a repo once, syncs it weekly, and receives harness fixes first.
