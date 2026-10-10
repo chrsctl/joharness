@@ -161,7 +161,9 @@ behind fresh `origin/main`, `./joharness.sh finish` green, retire the
 plan file and the workstream file in the last commit before the pull
 request, exit. Did your prompt name a target to message on merge? Then
 "merged <stem>" to it — it fills your slot at once instead of on its
-clock. No such line in your prompt, no messaging tool, or the send comes
+clock. Use the transport your prompt names:
+A session id target: Claude Code Remote send_message. A name: SendMessage.
+No such line in your prompt, no messaging tool, or the send comes
 back refused: just exit, the orchestrator's next pass sees the merge.
 Plan frontmatter names `issue: N`? Body carries `Closes #N` when no other
 plan on fresh `origin/main` names it
@@ -174,6 +176,21 @@ pull request too: drive it to merged before you exit, step 7 whole —
 checks green, 0 behind, `./joharness.sh finish` green, review recorded, no
 open human thread. A plan-only diff changes only the queue; unmerged, it is
 a row dispatch can show but never spawn.
+
+GitHub lost at step 7 — two sides of the retire commit:
+
+- **Before it:** one GitHub MCP read on this repo (`get_me`, or
+  `list_pull_requests` filtered to your head branch). Fails? Do not retire.
+  `status: blocked`, `next:` = `GitHub MCP lost before PR: <error, 40
+  chars>`, commit, push, exit. One failure is the answer: no retry, same as
+  the message rule below.
+- **After it,** a GitHub call (open, read or merge the PR) fails: do not
+  undo the retire, do not wait in the session. Make sure the retire commit
+  is pushed, end the turn with one line naming the failed call, exit. The
+  branch then reads as a retired edge and a successor finishes it
+  (`orchestrate.md`, "gone at the edge"). No undo because once a PR is open,
+  restoring the workstream file and the done plan puts them on a head a
+  human may merge.
 
 **And one thing more, when you have one: a LEAD.** You are the only party
 that read this item end to end, and everything you learned about YOUR files
@@ -204,10 +221,13 @@ characters it is a POINTER, and whoever follows it has your merged branch
 to read. Its own LINE, and nothing after the text: no quotes, no newlines
 inside it, and nothing that could read as a second field.
 One refusal is the answer — do not retry it, do not re-address it, do
-not hunt a second way to deliver it. The refusal does not say WHICH
-fault it is: no row for that target in `ListAgents`, the ordinary case
-when your orchestrator is another container, or an address form
-`SendMessage` rejects. One string covers both and from inside you
+not hunt a second way to deliver it, and do not retry on the other
+transport. The refusal does not say WHICH
+fault it is: no route to that target — for `SendMessage`, no row in
+`ListAgents`, the ordinary case when your orchestrator is another
+container — or an address form the tool rejects. That is measured
+for `SendMessage`; what a Claude Code Remote `send_message` refusal
+says is unmeasured, so read it the same way: one refusal, exit. One string covers both and from inside you
 cannot tell them apart; the notice saves the orchestrator one pass of
 latency and nothing else. Run no queue command; the next item is
 another manager's.
@@ -238,5 +258,6 @@ place a consumer's finding can still reach the repo that owns the fix.
 - Wait in the session for a human's answer — any ask tool included
   (AskUserQuestion). A question is a push: `status: blocked`, `next:` =
   the question, push, exit (§3).
+- Wait in the session for GitHub to come back at step 7.
 
 $ARGUMENTS
