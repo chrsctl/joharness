@@ -374,8 +374,9 @@ commit-level attribution named under *What this cannot see* above:
 - **A finding with no fix commit at all** — the normal shape of a `wontfix` or
   a no-change verdict, recorded in a commit that touches only the workstream
   file — is placed by the paths its own TEXT names, marked as read from prose.
-  One that names none is listed as unplaceable and never flips the verdict by
-  itself: a report built on an unplaced finding is a consumer's own defect
+  One whose text names paths, none canonical's, is listed under its own
+  heading saying so; one that names none is listed as unplaceable. Neither
+  flips the verdict by itself: a report built on an unplaced finding is a consumer's own defect
   carried verbatim onto somebody else's queue.
 
 A `wontfix` on a harness path is the strongest single signal the command has,
@@ -475,6 +476,12 @@ entering a filed report.** A bare `README.md` is in neither — the root
 belongs in D. That is the same trap as mistaking `docs/handover/README.md` for
 `.agents/docs/handover/README.md` by suffix, which is how an earlier count of
 this got 45 instead of 44.
+
+**Re-counted after the fix** (2026-10-10, same sweep command, corpus grown
+since the table above, so totals are not comparable row to row): `harness
+findings` 1616, `named paths in prose, none canonical's` 104, `unplaceable`
+(no path token) 423, this repo's own 177. The 57 moved out of the bucket that
+claimed they carried no path; `unplaceable` now holds only the pathless.
 
 Of A's 8, every one names a node that retires (`docs/plans/`, `docs/handover/`,
 `docs/research/`, `docs/product/`), a queue-directory `README.md`, or a file in
