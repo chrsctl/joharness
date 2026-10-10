@@ -2295,9 +2295,10 @@ analysis_one() {
     out="${out}            plan is free; the branch is the human's to delete"$'\n'
   elif [ "$status" = "blocked" ]; then
     cond="BLOCKED"
-    block_reason_ok "$next" || cond="BLOCKED+INVALID BLOCK?"
     out="${out}condition : BLOCKED — a human's. dispatch relays this row every pass and"$'\n'
     out="${out}            never asks whether its cause still holds"$'\n'
+    block_reason_ok "$next" ||
+      out="${out}condition : INVALID BLOCK? — next: opens with no reason word (manage.md §3); asks, orders nothing"$'\n'
   fi
   if [ "$status" != "blocked" ] && [ "$status" != "abandoned" ] &&
      [ -n "$age" ] && [ "$age" -ge "$stall" ]; then

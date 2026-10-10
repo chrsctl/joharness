@@ -97,7 +97,7 @@ out="$(ana mgr-parked)"
 expect "the claim is named with its branch" "branch    : mgr-parked" "$out"
 expect "and its file" "claim     : docs/handover/parked.md" "$out"
 expect "a blocked claim reads as the human's" "condition : BLOCKED" "$out"
-expect "analysis flags a block naming no reason, as dispatch does" "BLOCKED+INVALID BLOCK?" "$out"
+expect "analysis flags a block naming no reason, as dispatch does" "condition : INVALID BLOCK?" "$out"
 expect "with the sentence that nothing re-checks it" \
   "never asks whether its cause still holds" "$out"
 expect "the next: line is carried, because it states the cause" \
