@@ -104,6 +104,6 @@ plan, which kept supervised.
   it, and the plan does not need it.
 - Perf budgets are counted. Re-count them, never edit them to fit.
 - Never skip, disable or quarantine a test to get green.
-- `issue-triager-role` needs this plan. `scout-cycle` / `scout-command`
+- `clerk-role` needs this plan. `scout-cycle` / `scout-command`
   route through `/start` and `drain`, so reconcile them, or fix the plan
   text in the same PR.

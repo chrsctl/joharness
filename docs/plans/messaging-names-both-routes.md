@@ -167,10 +167,10 @@ both transports and say which one to use for which target.
     `role-files-say-it-first`, `ledger-losses-named`,
     `manager-ceiling-row`, `plan-on-a-branch-visible`,
     `rescope-settled-by-merged-superset`, `stall-rows-say-what-git-knows`,
-    `issue-triager-role`, `orchestrated-only`.
+    `clerk-role`, `orchestrated-only`.
   - manage.md only: `retire-survives-lost-github`.
   - `.agents/docs/orchestrated.md`: `orchestrated-only-docs`,
-    `manager-ceiling-row`, `role-command-trim`, `issue-triager-role`.
+    `manager-ceiling-row`, `role-command-trim`, `clerk-role`.
   - `selftest/orchestrated.sh`: `role-files-say-it-first`,
     `orchestrated-only`.
 - A test written for the fix must FAIL without it.
