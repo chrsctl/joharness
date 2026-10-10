@@ -2108,8 +2108,10 @@ else
   fail "the inherited curate file is not on the branch, so nothing below is tested"
 fi
 out="$(agd env JOHARNESS_CURATE_PLANS=1)"
+# Outside the `plans on a branch` block: the branch ADDED `inheritor`, so that
+# block names it by right — a plan row, not a curator row.
 refute "a branch that only inherits a curate file is not a curator" \
-  "claude/inherits-it" "$out"
+  "claude/inherits-it" "$(sed '/^plans on a branch/,/^$/d' <<<"$out")"
 expect "and the cycle is still due, with nobody in flight" "curate    : DUE" "$out"
 
 # --- the two states the cadence cannot be read in ---------------------------
@@ -2567,6 +2569,151 @@ if [ "$(grep -n '^edge work (finish' <<<"$out" | cut -d: -f1)" -lt \
 else
   fail "and it is printed before the spawn order"
 fi
+
+# --- plans on a branch: visible, never free (issue #297) --------------------
+# The queue reads `docs/plans/` on the base only, so a plan an unmerged branch
+# added had no row anywhere. Its own repo: the verdict and the free count are
+# compared with and without the branch, so nothing else may move between.
+bpwork="${TMP}/branchplanwork"
+bporigin="${TMP}/branchplanorigin.git"
+git init -q --bare "$bporigin"
+git init -q "$bpwork"
+git -C "$bpwork" symbolic-ref HEAD refs/heads/main
+mkdir -p "${bpwork}/docs/plans" "${bpwork}/docs/handover" \
+  "${bpwork}/.agents/harness" "${bpwork}/.agents/env/none"
+cp "${ROOT}/joharness.sh" "${bpwork}/joharness.sh"
+cp "${ROOT}/.agents/harness/queue-context.sh" \
+   "${ROOT}/.agents/harness/handover-context.sh" "${bpwork}/.agents/harness/"
+printf '# none\n' >"${bpwork}/.agents/env/none/AGENTS.md"
+bpconf="${bpwork}/joharness.conf"
+printf 'JOHARNESS_ENV=none\n' >"$bpconf"
+# <file> <name> <urgency>
+bpplan() {
+  printf -- '---\nplan: %s\nurgency: %s\nagent: sonnet\neffort: low\n---\n\n## Goal\nFixture.\n' \
+    "$2" "$3" >"$1"
+}
+bpplan "${bpwork}/docs/plans/onmain.md" onmain normal
+commit_all "$bpwork" "base"
+git -C "$bpwork" remote add origin "$bporigin"
+git -C "$bpwork" push -qu origin main
+bp() { ( cd "$bpwork" && JOHARNESS_CONF="$bpconf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 ./joharness.sh dispatch 2>&1 ); }
+bp_before="$(bp)"
+refute "no branch plan, no block" "plans on a branch" "$bp_before"
+
+# A plan-only branch: an urgent plan, no workstream file.
+git -C "$bpwork" checkout -qb plan-only
+bpplan "${bpwork}/docs/plans/x.md" x urgent
+commit_all "$bpwork" "file plan x"
+git -C "$bpwork" push -qu origin plan-only
+git -C "$bpwork" checkout -q main
+out="$(bp)"
+expect "a plan an unmerged branch added is listed, URGENT first, with its branch" \
+  "  URGENT x (urgency: urgent, agent: sonnet)  on plan-only" "$out"
+expect "under its own heading" \
+  "plans on a branch, not in the queue until it merges:" "$out"
+if [ "$(grep '^verdict' <<<"$out")" = "$(grep '^verdict' <<<"$bp_before")" ]; then
+  pass "and the verdict, free count included, is the one without the branch"
+else
+  fail "and the verdict, free count included, is the one without the branch"
+  printf '    without: %s\n    with:    %s\n' \
+    "$(grep '^verdict' <<<"$bp_before")" "$(grep '^verdict' <<<"$out")"
+fi
+refute "and it is never in the spawn list" "docs/plans/x.md" "$out"
+
+# A manager branch carrying its own same-session plan, `plan:` written as a
+# path: in flight, not hidden.
+git -C "$bpwork" checkout -qb mgr-y main
+mkdir -p "${bpwork}/docs/handover"
+bpplan "${bpwork}/docs/plans/y.md" y normal
+printf -- '---\nworkstream: y\nstatus: in-progress\nbranch: mgr-y\nplan: docs/plans/y.md\nagent: sonnet\nupdated: 2026-01-01\nnext: Build\n---\n\n## Goal\nFixture.\n' \
+  >"${bpwork}/docs/handover/y.md"
+commit_all "$bpwork" "manager with its own plan"
+git -C "$bpwork" push -qu origin mgr-y
+git -C "$bpwork" checkout -q main
+# An abandoned branch that added a plan of its own and another.
+git -C "$bpwork" checkout -qb gone-z main
+# git took the directory with mgr-y's file: put it back, then CHECK the file
+# landed, or the refute below passes over a fixture that was never built.
+mkdir -p "${bpwork}/docs/handover"
+bpplan "${bpwork}/docs/plans/z.md" z urgent
+printf -- '---\nworkstream: gone\nstatus: abandoned\nbranch: gone-z\nplan: none\nagent: sonnet\nupdated: 2026-01-01\nnext: Nothing\n---\n\n## Goal\nFixture.\n' \
+  >"${bpwork}/docs/handover/gone.md"
+commit_all "$bpwork" "abandoned branch with a plan"
+git -C "$bpwork" push -qu origin gone-z
+git -C "$bpwork" checkout -q main
+for bpf in y.md gone.md; do
+  bpref="mgr-y"; [ "$bpf" = y.md ] || bpref="gone-z"
+  if git -C "$bpwork" cat-file -e \
+       "refs/remotes/origin/${bpref}:docs/handover/${bpf}" 2>/dev/null; then
+    pass "the fixture built the state: ${bpref} carries its workstream file"
+  else
+    fail "${bpref} carries no workstream file, so its case below tests nothing"
+  fi
+done
+out="$(bp)"
+bpblock="$(sed -n '/^plans on a branch/,/^$/p' <<<"$out")"
+expect "the plan-only branch's plan is still listed" "URGENT x" "$bpblock"
+refute "a manager's own plan, named in plan: as a path, is not listed" \
+  " y (urgency" "$bpblock"
+refute "a plan on an abandoned branch is not listed" " z (urgency" "$bpblock"
+# Diff, never tree: every branch inherits onmain.md from the base.
+refute "an inherited base plan is never a branch plan" "onmain (urgency" "$bpblock"
+
+# The edge shape of any branch with a follow-up (verifier r3): it retires its
+# done plan and adds a new one from the same template. Rename detection read
+# the pair as an R, and `--diff-filter=A` dropped the follow-up.
+git -C "$bpwork" checkout -qb retire-and-follow main
+git -C "$bpwork" rm -q docs/plans/onmain.md
+mkdir -p "${bpwork}/docs/plans"
+bpplan "${bpwork}/docs/plans/followup.md" followup normal
+commit_all "$bpwork" "retire onmain, file followup"
+git -C "$bpwork" push -qu origin retire-and-follow
+# A branch stacked on the plan-only branch carries x too (verifier r5).
+git -C "$bpwork" checkout -qb stacked plan-only
+printf 'more\n' >"${bpwork}/stacked.txt"
+commit_all "$bpwork" "stacked on plan-only"
+git -C "$bpwork" push -qu origin stacked
+git -C "$bpwork" checkout -q main
+out="$(bp)"
+bpblock="$(sed -n '/^plans on a branch/,/^$/p' <<<"$out")"
+expect "a follow-up added beside a retired plan is listed, not lost to a rename" \
+  "  followup (urgency: normal, agent: sonnet)  on retire-and-follow" "$bpblock"
+expect "a plan two branches carry is one row naming both" \
+  "  URGENT x (urgency: urgent, agent: sonnet)  on plan-only, stacked" "$bpblock"
+if [ "$(grep -c 'URGENT x ' <<<"$bpblock")" = 1 ]; then
+  pass "and never two URGENT rows for one plan"
+else
+  fail "and never two URGENT rows for one plan"
+  printf '%s\n' "$(indent "$bpblock")"
+fi
+
+# A plan the base ALSO carries under the same path (verifier r6): the queue has
+# its row, so it is not a branch plan, though the branch's own diff adds it.
+git -C "$bpwork" checkout -qb twice main
+bpplan "${bpwork}/docs/plans/w.md" w urgent
+commit_all "$bpwork" "branch files w"
+git -C "$bpwork" push -qu origin twice
+git -C "$bpwork" checkout -q main
+bpplan "${bpwork}/docs/plans/w.md" w normal
+commit_all "$bpwork" "the base files w too"
+git -C "$bpwork" push -q origin main
+out="$(bp)"
+bpblock="$(sed -n '/^plans on a branch/,/^$/p' <<<"$out")"
+refute "a plan the base also carries is the queue's, not a branch plan" \
+  " w (urgency" "$bpblock"
+expect "while the block still lists the real branch plans" "URGENT x" "$bpblock"
+
+# A non-ASCII plan name (verifier r4): quoted by git, it failed the `.md` test
+# and vanished. The row's stem is the sanitised one; the row is what matters.
+git -C "$bpwork" checkout -qb nonascii main
+bpplan "${bpwork}/docs/plans/fixé.md" fixe urgent
+commit_all "$bpwork" "a plan with a non-ASCII name"
+git -C "$bpwork" push -qu origin nonascii
+git -C "$bpwork" checkout -q main
+out="$(bp)"
+expect "a non-ASCII plan name still has its row" "on nonascii" \
+  "$(sed -n '/^plans on a branch/,/^$/p' <<<"$out")"
 
 # --- time against the item: CEILING? (issue #298) ---------------------------
 # A manager that pushes inside the stall window and under the churn limit read
