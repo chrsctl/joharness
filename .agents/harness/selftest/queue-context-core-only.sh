@@ -1,4 +1,4 @@
-# queue-context.sh marks a plan an unsupervised fleet cannot finish — one
+# queue-context.sh marks a plan a fleet cannot finish — one
 # selftest topic, sourced by ../selftest.sh in the order that file lists.
 #
 # Not runnable alone and not meant to be: the runner defines the assertion
@@ -34,7 +34,7 @@ cp "${ROOT}/joharness.sh" "${sowork}/joharness.sh"
 # these cases are about.
 printf -- '---\nrequirement: g\npriority: normal\n---\n\n## Goal\nFixture.\n\n## Satisfied when\n\n- something observable.\n' \
   >"${sowork}/docs/product/g.md"
-commit_all "$sowork" "base, and a goal to keep the mode live"
+commit_all "$sowork" "base, and a goal to keep the queue live"
 git -C "$sowork" remote add origin "$soorigin"
 git -C "$sowork" push -qu origin main
 
@@ -49,7 +49,7 @@ soplan() {
 
 sopush() { commit_all "$sowork" "$1"; git -C "$sowork" push -q origin main; }
 
-soq() { CLAUDE_PROJECT_DIR="$sowork" JOHARNESS_RUN_MODE="${1-}" \
+soq() { CLAUDE_PROJECT_DIR="$sowork" \
   bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1; }
 
 # --- the plan that cost 55 minutes -----------------------------------------
@@ -60,9 +60,9 @@ soq() { CLAUDE_PROJECT_DIR="$sowork" JOHARNESS_RUN_MODE="${1-}" \
 soplan allprotocol 'joharness.conf, .github/workflows'
 sopush "a plan scoped entirely to protocol text"
 
-out="$(soq unsupervised)"
-expect "an all-protocol scope is marked SUPERVISED ONLY" \
-  "SUPERVISED ONLY" "$out"
+out="$(soq)"
+expect "an all-protocol scope is marked CORE ONLY" \
+  "CORE ONLY" "$out"
 expect "and the mark says why" "scope is all core paths" "$out"
 # The mark alone is not the fix. De-ranking is: this plan must stop being
 # free. With it as the only plan, that is exactly the endurance retry's
@@ -70,30 +70,14 @@ expect "and the mark says why" "scope is all core paths" "$out"
 # minutes of undoable work.
 expect "the edge is reached instead" "Edge reached: no free plan" "$out"
 expect "and the edge names the marking as a reason" \
-  "blocked or SUPERVISED ONLY" "$out"
+  "blocked or CORE ONLY" "$out"
 refute "and it is not offered as free work" "top free plan above" "$out"
 expect "and the plan is listed rather than hidden" \
   "docs/plans/allprotocol.md" "$out"
-expect "and the last word points at drain" "./joharness.sh drain orders" "$out"
-# What the edge MEANS under unsupervised — not a gap to fill, do not re-file
-# — is drain's to say, from this row (selftest/drain.sh, NOT YOURS).
-
-# Same tree, other mode. The marking is unsupervised-only, so a supervised
-# reader sees no label and no de-rank.
-out="$(soq supervised)"
-refute "supervised does not mark it" "SUPERVISED ONLY" "$out"
-refute "supervised says nothing about a protocol boundary" \
-  "protocol boundary" "$out"
-expect "and it is still the plan a supervised session is pointed at" \
-  "top free plan above" "$out"
-refute "supervised never reaches the edge over it" \
-  "Edge reached: no free plan" "$out"
-# An unset mode is a client that exports nothing, and it must read as
-# supervised — the direction that does not de-rank work on an unchecked
-# assumption about who is running.
-out="$(CLAUDE_PROJECT_DIR="$sowork" \
-  bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1)"
-refute "an unset mode marks nothing" "SUPERVISED ONLY" "$out"
+expect "and the last word points at dispatch" \
+  "./joharness.sh dispatch and spawns." "$out"
+# What the edge MEANS — not a gap to fill, do not re-file — is dispatch's to
+# say, from this row (selftest/dispatch.sh, NOT YOURS).
 
 # --- partial overlap disqualifies too, and that REVERSES the first rule ----
 # This block used to assert the opposite: a plan touching one protocol file
@@ -104,21 +88,20 @@ refute "an unset mode marks nothing" "SUPERVISED ONLY" "$out"
 # handover-guard.sh counts ANY protocol path in the diff — so a session that
 # starts one of these finishes nothing and hands off — the queue offering a
 # fleet a plan it could never finish, which is what the marking exists to
-# stop (.agents/docs/unsupervised.md, Bounds). The first rule drew the line
+# stop (the Bounds section of the unattended-work doc). The first rule drew the line
 # at can-it-be-STARTED; this one draws it at can-it-be-FINISHED.
 #
 # Measured 2026-09-02 on main f9fb932, which is what sent this looking:
-# docs/plans/unsupervised-drain-only.md declares one protocol path among
-# several, read `mixed`, went unmarked, and `JOHARNESS_MODE=unsupervised
-# ./joharness.sh drain` answered `next:` with it — a plan whose own Traps
-# say "Supervised session only".
+# a plan declared one protocol path among several, read `mixed`, went
+# unmarked, and the queue answered with it — a plan whose own Traps said a
+# human builds it.
 fixture_rm "$sowork" "drop the all-protocol plan" docs/plans/allprotocol.md
 soplan mixed 'joharness.conf, docs/product/thing.md'
 sopush "a plan with one protocol path and one other"
 
-out="$(soq unsupervised)"
-expect "a partly-protocol scope is marked too" "SUPERVISED ONLY" "$out"
-# The two labels stay distinct. An `only` plan is supervised work for good;
+out="$(soq)"
+expect "a partly-protocol scope is marked too" "CORE ONLY" "$out"
+# The two labels stay distinct. An `only` plan is a human's work for good;
 # a `some` plan may be splittable along the boundary, and a reader who
 # cannot tell them apart cannot tell which fix applies.
 expect "and the mark says it is only part of the scope" \
@@ -134,7 +117,7 @@ expect "so the edge is reached over it" "Edge reached: no free plan" "$out"
 soplan noscope ''
 sopush "a plan that declares no scope at all"
 
-out="$(soq unsupervised)"
+out="$(soq)"
 expect "an undeclared scope says the boundary went unchecked" \
   "scope undeclared: protocol boundary unchecked" "$out"
 # ROW-scoped, not output-scoped. The marked `mixed` plan from the block
@@ -144,22 +127,20 @@ expect "an undeclared scope says the boundary went unchecked" \
 noscope_row="$(printf '%s\n' "$out" | grep 'docs/plans/noscope\.md' || :)"
 expect "the undeclared plan has a row to read" "docs/plans/noscope.md" \
   "$noscope_row"
-refute "and is never marked SUPERVISED ONLY on a guess" \
-  "SUPERVISED ONLY" "$noscope_row"
+refute "and is never marked CORE ONLY on a guess" \
+  "CORE ONLY" "$noscope_row"
 # Not de-ranked: it is the one free plan here, so the queue points at it.
 # The count was 2 while a partly-protocol plan still counted as free; it is
 # 1 now, and the plan it names is this one.
 expect "and is not de-ranked out of the queue on one either" \
   "top free plan above" "$out"
-out="$(soq supervised)"
-refute "supervised sees no undeclared-scope note" "protocol boundary" "$out"
 
 # `scope: none` is the template's explicit no-paths value, and it is the same
 # answer as no key: nothing was declared about paths.
 fixture_rm "$sowork" "drop the scopeless plan" docs/plans/noscope.md
 soplan nonescope 'none'
 sopush "a plan whose scope is the literal none"
-out="$(soq unsupervised)"
+out="$(soq)"
 expect "scope: none reads as undeclared, not as clean" \
   "scope undeclared" "$out"
 
@@ -171,25 +152,25 @@ fixture_rm "$sowork" "drop the none-scope plan" \
 soplan nearmiss 'joharness.confX'
 sopush "a plan scoped to a near-miss of a protocol path"
 
-out="$(soq unsupervised)"
+out="$(soq)"
 # The row first: a hook that printed nothing would pass the refute below.
 expect "the near-miss plan has a row to read" "docs/plans/nearmiss.md" "$out"
 refute "a path that only shares a prefix is not protocol text" \
-  "SUPERVISED ONLY" "$out"
+  "CORE ONLY" "$out"
 # It IS a declaration, so it must not fall back to the undeclared wording
 # either — that would say "nobody checked" about a path this just checked.
 refute "and it is not reported as undeclared" "scope undeclared" "$out"
 
 # Released paths are not core. joharness.sh and .agents/harness were on the
 # boundary until 2026-10-08; a plan scoped entirely to them is free work now,
-# in every mode, and must not keep a mark the boundary no longer draws.
+# and must not keep a mark the boundary no longer draws.
 fixture_rm "$sowork" "drop the near-miss plan" docs/plans/nearmiss.md
 soplan released 'joharness.sh, .agents/harness/selftest'
 sopush "a plan scoped to paths the boundary released"
-out="$(soq unsupervised)"
+out="$(soq)"
 # The row first, for the same reason as the near-miss above.
 expect "the released plan has a row to read" "docs/plans/released.md" "$out"
-refute "a released path no longer marks the plan" "SUPERVISED ONLY" "$out"
+refute "a released path no longer marks the plan" "CORE ONLY" "$out"
 
 # A directory UNDER a protocol path is protocol text: the boundary is a tree,
 # and git's pathspec rule is the one the handover guard already applies to
@@ -197,10 +178,10 @@ refute "a released path no longer marks the plan" "SUPERVISED ONLY" "$out"
 fixture_rm "$sowork" "drop the released plan" docs/plans/released.md
 soplan undertree '.github/workflows/ci.yml'
 sopush "a plan scoped inside a protocol tree"
-out="$(soq unsupervised)"
+out="$(soq)"
 # The LABEL, not the bare marker. Since any protocol path marks, a parse bug
 # that fragments an all-protocol scope still marks — as `some` — and a case
-# asserting only "SUPERVISED ONLY" would pass through it. Measured: with the
+# asserting only "CORE ONLY" would pass through it. Measured: with the
 # split-on-space bug reintroduced, the marker assertion below stays green and
 # the label assertion reds. Every all-protocol fixture here asserts the label.
 expect "a file inside a protocol tree is protocol text" \
@@ -214,26 +195,26 @@ expect "a file inside a protocol tree is protocol text" \
 fixture_rm "$sowork" "drop the in-tree plan" docs/plans/undertree.md
 soplan overtree '.claude'
 sopush "a plan scoped to a directory that merely contains a protocol tree"
-out="$(soq unsupervised)"
+out="$(soq)"
 refute "a directory containing a protocol tree is not marked" \
-  "SUPERVISED ONLY" "$out"
+  "CORE ONLY" "$out"
 
 # --- shared: paths are still paths -----------------------------------------
 # The prefix says how a path is shared with other plans, not what kind of
 # file it is. A plan whose whole declaration is a shared protocol path is
-# still one this mode cannot finish. Both spellings, because the space is
+# still one a fleet cannot finish. Both spellings, because the space is
 # what splits the prefix into a field of its own.
 fixture_rm "$sowork" "drop the over-tree plan" docs/plans/overtree.md
 soplan sharedspace 'shared: joharness.conf'
 sopush "a plan sharing a protocol path, spelled with a space"
-out="$(soq unsupervised)"
+out="$(soq)"
 expect "a shared protocol path still marks the plan" \
   "scope is all core paths" "$out"
 
 fixture_rm "$sowork" "drop the shared-space plan" docs/plans/sharedspace.md
 soplan sharedtight 'shared:joharness.conf'
 sopush "a plan sharing a protocol path, spelled without one"
-out="$(soq unsupervised)"
+out="$(soq)"
 expect "the tight spelling marks it too" \
   "scope is all core paths" "$out"
 
@@ -242,7 +223,7 @@ expect "the tight spelling marks it too" \
 fixture_rm "$sowork" "drop the shared-tight plan" docs/plans/sharedtight.md
 soplan trailing '.github/'
 sopush "a plan scoped to a protocol tree with a trailing slash"
-out="$(soq unsupervised)"
+out="$(soq)"
 expect "a trailing slash does not hide a protocol tree" \
   "scope is all core paths" "$out"
 
@@ -263,20 +244,20 @@ fixture_rm "$sowork" "drop the trailing-slash plan" docs/plans/trailing.md
 printf '# fixture: a core file for a glob to reach\n' >"${sowork}/joharness.conf"
 soplan globscope 'joharness.*'
 sopush "a plan whose scope is a glob, beside a tracked core file"
-out="$(soq unsupervised)"
+out="$(soq)"
 globscope_row="$(printf '%s\n' "$out" | grep 'docs/plans/globscope\.md' || :)"
 expect "the glob plan has a row to read" "docs/plans/globscope.md" \
   "$globscope_row"
-refute "a glob is not expanded into protocol paths" "SUPERVISED ONLY" "$out"
+refute "a glob is not expanded into protocol paths" "CORE ONLY" "$out"
 # The checkout half of the same fault: the core file NOT committed, only on
 # disk. Untracked, it is exactly the file nobody committed that the answer
 # must not move with.
 fixture_rm "$sowork" "untrack the core file" joharness.conf
 git -C "$sowork" push -q origin main
 : >"${sowork}/joharness.conf"
-out="$(soq unsupervised)"
+out="$(soq)"
 refute "and an untracked file beside it changes nothing" \
-  "SUPERVISED ONLY" "$out"
+  "CORE ONLY" "$out"
 rm -f "${sowork}/joharness.conf"
 
 # A path with a space in it is ONE path. Splitting on whitespace turned an
@@ -286,7 +267,7 @@ rm -f "${sowork}/joharness.conf"
 fixture_rm "$sowork" "drop the glob plan" docs/plans/globscope.md
 soplan spacey '.github/two words.yml'
 sopush "a plan scoped to a protocol path with a space in it"
-out="$(soq unsupervised)"
+out="$(soq)"
 expect "a space in a path does not split it into two" \
   "scope is all core paths" "$out"
 
@@ -296,10 +277,10 @@ expect "a space in a path does not split it into two" \
 fixture_rm "$sowork" "drop the spacey plan" docs/plans/spacey.md
 soplan loudnone 'NONE'
 sopush "a plan whose scope is none, shouted"
-out="$(soq unsupervised)"
+out="$(soq)"
 expect "an uppercase none still reads as undeclared" "scope undeclared" "$out"
 refute "and is not treated as a path that was checked" \
-  "SUPERVISED ONLY" "$out"
+  "CORE ONLY" "$out"
 
 # --- a marked plan never leads, and never crowds out real work -------------
 # Two plans, one takeable. The fleet must be pointed at the one it can
@@ -307,14 +288,14 @@ refute "and is not treated as a path that was checked" \
 # Named to lose the alphabetical tie-break on purpose. The two plans are
 # committed a second apart at most, so their `added` epochs can be equal and
 # sort falls back to comparing the whole row — which puts `ztakeable` LAST.
-# Under supervised that leaves the marked plan leading, and the only thing
+# Without the rank that leaves the marked plan leading, and the only thing
 # that can move it below is the rank this change adds.
 fixture_rm "$sowork" "drop the shouted-none plan" docs/plans/loudnone.md
 soplan marked '.github'
 sopush "a marked plan, committed first"
 soplan ztakeable 'docs/product/elsewhere.md'
 sopush "a takeable plan beside the marked one"
-out="$(soq unsupervised)"
+out="$(soq)"
 expect "the marked plan is still listed" "docs/plans/marked.md" "$out"
 refute "the edge is not reached while real work is free" \
   "Edge reached: no free plan" "$out"
@@ -323,18 +304,12 @@ refute "the edge is not reached while real work is free" \
 # the first plan row is how that becomes an assertion rather than a hope.
 # The pair is built so age alone gives the OPPOSITE answer: the marked plan
 # was committed first, and rows sort by rank then oldest — so under
-# supervised it leads, and the only reason it stops leading below is the
+# unranked it leads, and the only reason it stops leading below is the
 # rank this change adds.
 lead="$(printf '%s\n' "$out" |
   sed -n 's#^  \(docs/plans/[^ ]*\.md\).*#\1#p' | head -1)"
 expect "the takeable plan leads the queue" "docs/plans/ztakeable.md" "$lead"
 refute "and the marked plan does not" "docs/plans/marked.md" "$lead"
-# Same tree, supervised: nothing de-ranks the marked plan there, so it leads
-# again. The mode is the whole difference, and this is the pair that says so
-# — the same two files, the same order in the tree, two answers.
-lead="$(printf '%s\n' "$(soq supervised)" |
-  sed -n 's#^  \(docs/plans/[^ ]*\.md\).*#\1#p' | head -1)"
-expect "supervised puts it back at the front" "docs/plans/marked.md" "$lead"
 
 # --- the boundary this checkout cannot read --------------------------------
 # A consumer carrying a joharness.sh older than the subcommand, or none at
@@ -356,7 +331,7 @@ commit_all "$nbwork" "a plan, a goal, and no entrypoint to check it against"
 git -C "$nbwork" remote add origin "$nborigin"
 git -C "$nbwork" push -qu origin main
 
-out="$(CLAUDE_PROJECT_DIR="$nbwork" JOHARNESS_RUN_MODE=unsupervised \
+out="$(CLAUDE_PROJECT_DIR="$nbwork" \
   bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1)"
 expect "an unreadable boundary is reported" "Protocol boundary NOT read" "$out"
 # One line of the needle, not two. expect is grep -F: a \n in the needle is a
@@ -365,16 +340,12 @@ expect "an unreadable boundary is reported" "Protocol boundary NOT read" "$out"
 expect "and blamed on the checkout, not the plan" \
   "this checkout, not the plans" "$out"
 # On the plan ROW, not on the whole output: the note above says the words
-# "marked SUPERVISED ONLY" itself, so a refute against everything would pass
+# "marked CORE ONLY" itself, so a refute against everything would pass
 # only by never being reached. Same shape as the vacuous assertion PR151
 # found guarding this hook.
 row="$(printf '%s\n' "$out" | sed -n 's#^  docs/plans/.*#&#p')"
 refute "no plan row is marked when nothing could be checked" \
-  "SUPERVISED ONLY" "$row"
+  "CORE ONLY" "$row"
 expect "and the row is there to have been marked" \
   "docs/plans/allprotocol.md" "$row"
 refute "and no plan is called undeclared for it" "scope undeclared" "$out"
-out="$(CLAUDE_PROJECT_DIR="$nbwork" JOHARNESS_RUN_MODE=supervised \
-  bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1)"
-refute "supervised pays nothing for a boundary it never reads" \
-  "Protocol boundary NOT read" "$out"

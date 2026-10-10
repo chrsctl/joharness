@@ -1,4 +1,4 @@
-# queue-context.sh reports in both modes — one selftest topic, sourced by
+# queue-context.sh reports the queue and orders nothing — one selftest topic, sourced by
 # ../selftest.sh in the order that file lists.
 #
 # Not runnable alone and not meant to be: the runner defines the
@@ -8,18 +8,14 @@
 # shellcheck shell=bash
 
 # --- entrypoint: the hook orders nothing -----------------------------------
-# The hook REPORTS the queue; what an unsupervised session does with the
-# report — take, fan out, or exit — is `joharness.sh drain`'s to say
-# (selftest/drain.sh). Two readers of one queue used to print two rules, and
-# each was reached in a repo state the other was not. So the property here
-# is IDENTITY: with nothing to mark (every plan declares a scope outside the
-# boundary), the two modes print the same bytes above the one pointer line
-# unsupervised appends, and an unset mode prints what supervised prints.
+# The hook REPORTS the queue; what a session does with the report is the
+# role's to say (`joharness.sh dispatch` for the orchestrator). The property
+# here is that the report never orders or stops, and that the last line on
+# every exit path is the pointer at the readers that do.
 #
-# The no-free-plan edge is the exception the marking owns, and it has its
-# own topic (queue-context-supervised-only.sh): there the supervised tail
-# would point at a plan this mode cannot take, so unsupervised stops short.
-step "queue-context.sh reports in both modes"
+# The no-free-plan edge has the CORE ONLY marking as one of its reasons; that
+# has its own topic (queue-context-core-only.sh).
+step "queue-context.sh reports the queue and orders nothing"
 
 ework="${TMP}/edgework"
 eorigin="${TMP}/edgeorigin.git"
@@ -29,55 +25,40 @@ git init -q "$ework"
 git -C "$ework" symbolic-ref HEAD refs/heads/main
 printf 'code\n' >"${ework}/code.txt"
 # The entrypoint, so the hook can read the boundary: without it the hook
-# says so under unsupervised (the one line that mode adds when nothing is
-# marked), and the identity below would be testing a missing reader.
+# says so, and the cases below would be testing a missing reader.
 cp "${ROOT}/joharness.sh" "${ework}/joharness.sh"
 commit_all "$ework" "base"
 git -C "$ework" remote add origin "$eorigin"
 git -C "$ework" push -qu origin main
 
-eq() { CLAUDE_PROJECT_DIR="$ework" JOHARNESS_RUN_MODE="${1-}" \
+eq() { CLAUDE_PROJECT_DIR="$ework" \
   bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1; }
 
-# <label>: the two modes agree byte for byte on the current fixture, and
-# neither orders or stops. Diffed on failure so the drift is named.
+# <label>: the report ends on the ORCHESTRATED pointer (an EXIT trap, so it is
+# the last line on every exit path) and orders nothing.
 eq_same() {
-  local sup uns bare
-  sup="$(eq supervised)"
-  uns="$(eq unsupervised)"
-  bare="$(CLAUDE_PROJECT_DIR="$ework" bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1)"
-  # The pointer is the one line unsupervised adds, and it is the LAST line
-  # on every exit path (an EXIT trap): the report above it is identical.
-  expect "$1: the last word under unsupervised is the pointer at drain" \
-    "./joharness.sh drain orders" "$(printf '%s\n' "$uns" | tail -2)"
-  uns="${uns%$'\n\n'UNSUPERVISED: this hook reports*}"
-  if [ "$sup" = "$uns" ]; then
-    pass "$1: unsupervised prints what supervised prints, above the pointer"
-  else
-    fail "$1: unsupervised prints what supervised prints, above the pointer"
-    diff <(printf '%s\n' "$sup") <(printf '%s\n' "$uns") | sed 's/^/    | /'
-  fi
-  if [ "$sup" = "$bare" ]; then
-    pass "$1: an unset mode reads as supervised"
-  else
-    fail "$1: an unset mode reads as supervised"
-  fi
-  refute "$1: no order in the output" "spawn NOW" "$uns"
+  local out
+  out="$(eq)"
+  expect "$1: the last word is the pointer at dispatch" \
+    "./joharness.sh dispatch and spawns." "$(printf '%s\n' "$out" | tail -2)"
+  expect "$1: the pointer names the hook as a report" \
+    "ORCHESTRATED: this hook reports" "$(printf '%s\n' "$out" | tail -3)"
+  refute "$1: no order in the output" "spawn NOW" "$out"
 }
 
 # No plans, no requirement.
-out="$(eq supervised)"
+out="$(eq)"
 expect "no plans keeps the edge wording" "plan-queue edge reached: done" "$out"
 expect "and still says ask human" "ask" "$out"
 eq_same "no plans, no goal"
 
-# An unplanned requirement: planning outranks executing, in both modes.
+# An unplanned requirement: planning outranks executing, .
 printf -- '---\nrequirement: r\npriority: normal\n---\n\n## Goal\nHuman wrote this.\n' \
   >"${ework}/docs/product/r.md"
 commit_all "$ework" "an unplanned requirement"
 git -C "$ework" push -q origin main
 expect "an unplanned requirement is planning work" \
-  "planning outranks the plan queue" "$(eq unsupervised)"
+  "planning outranks the plan queue" "$(eq)"
 eq_same "unplanned requirement"
 git -C "$ework" rm -q docs/product/r.md
 commit_all "$ework" "requirement planned"
@@ -89,7 +70,7 @@ git -C "$ework" push -q origin main
 : >"${ework}/docs/plans/unreadable.md"
 commit_all "$ework" "a plan nothing can read"
 git -C "$ework" push -q origin main
-out="$(eq unsupervised)"
+out="$(eq)"
 expect "an unreadable plan is reported, not swallowed" "could not be read" "$out"
 expect "and says a queue that cannot be read is not empty" \
   "not a queue that is" "$out"
@@ -119,7 +100,7 @@ Fixture.
 PLAN
 commit_all "$ework" "one plan, and the goal it serves"
 git -C "$ework" push -q origin main
-expect "a free plan is pointed at" "top free plan above" "$(eq unsupervised)"
+expect "a free plan is pointed at" "top free plan above" "$(eq)"
 eq_same "one free plan"
 
 git -C "$ework" checkout -qb claimer
@@ -128,23 +109,17 @@ printf -- '---\nworkstream: w\nstatus: in-progress\nplan: taken\n---\n\n## Goal\
 commit_all "$ework" "claim it"
 git -C "$ework" push -qu origin claimer
 git -C "$ework" checkout -q main
-out="$(eq unsupervised)"
-expect "no free plan is the edge, in both modes" "Edge reached: no free plan" "$out"
-# Claimed, not marked: nothing here is SUPERVISED ONLY, so the supervised
-# tail is not pointing at a plan this mode cannot take — but a claimed plan
-# is not free either, and the tail's "top free plan above" was never true at
-# the edge in any mode. Unsupervised stops short of it; supervised keeps
-# its wording. The two modes agreeing on one tree is what eq_same pins;
-# this fixture is the one place they are asserted to differ.
-refute "and unsupervised stops short of the tail" "top free plan above" "$out"
-expect "supervised keeps its tail" "top free plan above" "$(eq supervised)"
+out="$(eq)"
+expect "no free plan is the edge" "Edge reached: no free plan" "$out"
+# Claimed, not marked: a claimed plan is not free, so the tail's "top free
+# plan above" is never true at the edge.
+refute "and the edge stops short of the tail" "top free plan above" "$out"
 
-# A free plan with no requirement open. The hook lists and points at it in
-# both modes: a plan is a plan, whatever it serves.
+# A free plan with no requirement open. The hook lists and points at it: a plan is a plan, whatever it serves.
 git -C "$ework" push -q origin --delete claimer 2>/dev/null || true
 fixture_rm "$ework" "no goal, and a free plan recorded for a human" \
   docs/product/g.md
 git -C "$ework" push -q origin main
-out="$(eq unsupervised)"
+out="$(eq)"
 expect "the recorded plan is still listed" "docs/plans/taken.md" "$out"
 eq_same "free plan, no goal"

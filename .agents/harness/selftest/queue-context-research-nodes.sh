@@ -120,7 +120,7 @@ refute "a blocked plan is not offered as a parallel session" \
 
 # The edge. A question is queue work, so an empty PLAN queue with an open
 # question is not an empty queue — and saying "done" there is the false
-# negative that under unsupervised reads as an order to invent a backlog.
+# negative that reads as an order to invent a backlog.
 git -C "$rwork" rm -q docs/plans/free-plan.md docs/plans/waiting-plan.md
 commit_all "$rwork" "every plan gone, the question stays"
 git -C "$rwork" push -q origin main
