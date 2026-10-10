@@ -5,7 +5,7 @@ agent: opus
 effort: high
 needs: heartbeat-is-a-precondition, issue-triager-role, scout-command
 requirement: none
-scope: shared:.claude/commands/orchestrate.md, shared:.claude/commands/manage.md, shared:.agents/docs/orchestrated.md, shared:joharness.sh, .agents/harness/selftest/ci-context.sh
+scope: shared:.claude/commands/orchestrate.md, shared:.claude/commands/manage.md, shared:.agents/docs/orchestrated.md, shared:joharness.sh, .agents/harness/selftest/ci-context.sh, docs/handover/role-command-trim.md
 ---
 
 ## Goal
