@@ -1,6 +1,6 @@
 ---
 workstream: upstream-placement-defects
-status: in-progress
+status: done
 branch: claude/upstream-placement-defects
 pr: none
 plan: upstream-placement-defects
