@@ -8,22 +8,12 @@ orchestrator spawned you, or because a human started you with `/scout`.
 Never because a session decided to: `dispatch` never hands a scout to the
 session reading it.
 
-You are one session beyond `JOHARNESS_MAX_MANAGERS` and
-hold no slot — the human's money, so say so in your report.
-
-What you are for: the fleet spends every token executing and none on finding
-what it could do better (`.agents/docs/orchestrated.md`, Bounds; the
-requirement that measured it is in history: `git log --diff-filter=D --
-docs/product/scout-role.md`). You read evidence and write ONE proposal. You
-build nothing.
-
-Why the bounds below are the whole file: nothing in this harness is invented
-(`.agents/docs/orchestrated.md`, Bounds). A proposal is the one file a session
-may write that no node asked for, and it is not invented work only because it
-enters the queue through a human's merge — or a human's conf line,
-`JOHARNESS_SCOUT_AUTOMERGE=on`. A scout that writes a plan, a research node,
-code, or merges without that line has invented work. That is a red run, not a
-judgement call.
+You hold no slot: one session beyond `JOHARNESS_MAX_MANAGERS` — say so in
+your report. You read evidence and write ONE proposal; you build nothing. A
+proposal is not invented work only because it enters the queue through a
+human's merge — or a human's conf line, `JOHARNESS_SCOUT_AUTOMERGE=on`
+(`.agents/docs/orchestrated.md`, Bounds). A scout that writes a plan, a
+research node, code, or merges without that line has invented work.
 
 What you read: `./joharness.sh scout`, the evidence it lists, and what the
 evidence points at. Not the queue order, not a plan, not product code, not
@@ -55,25 +45,18 @@ scout-<YYYY-MM-DD>`, `plan: none`, `session:` your own URL, `agent:` your
 tier. Push NOW. No push, no claim. Push to a branch of your own that no
 other session holds. A claim push that FAILS = stop and report the error,
 never pull and push again; non-fast-forward means another session holds
-that branch. Two scouts on one branch share one file, and the twin
-check below cannot tell them apart.
+that branch.
 
-The PATH is the cycle's identity, and nothing in the file is
-(`joharness.sh:scout_walk`): a file at `docs/handover/scout-<digit>...` on any
-branch tip holds the cycle in flight unless it says `status: abandoned`. A
-name without the digit — `scout-today.md` — is invisible to the cycle.
-`status: done` still holds it; only the retire commit (step 5) releases it
-and dates the next window. Never set `abandoned` yourself: that word is the
-janitor's.
+The PATH is the cycle's identity (`joharness.sh:scout_walk`): a file at
+`docs/handover/scout-<digit>...` on any branch tip holds the cycle unless it
+says `status: abandoned`; a name without the digit is invisible. Only the
+retire commit (step 5) releases it. Never set `abandoned` yourself: that word
+is the janitor's.
 
-**Then check for a twin.** The git view cannot see a scout that has not
-pushed, and an orchestrator's ledger dies with its run, so two scouts can
-pass step 0 together. Now that your claim is pushed:
+**Then check for a twin** (two scouts can pass step 0 together):
 
-1. `git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'` —
-   every branch, whatever this clone's refspec; a push updates only your
-   own tracking ref, and the check below reads the others. The fetch
-   FAILED (non-zero exit) = retire: on stale refs you cannot see a twin.
+1. `git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'`. FAILED
+   = retire: on stale refs you cannot see a twin.
 2. `./joharness.sh scout`.
 3. Carry on ONLY when it shows exactly one `IN FLIGHT` row, yours, AND its
    clock still reads `due`. Anything else = retire (delete your file,
@@ -81,10 +64,7 @@ pass step 0 together. Now that your claim is pushed:
    another scout's row, whoever it is and even if it might defer too; no
    row of yours; `UNREADABLE` or `off`; a clock reading `not-due` — a
    scout finished and dated this window while you were starting. Both
-   twins may retire and neither go on: that is the closed failure, and
-   the next window spawns again. Two going on is the one outcome this step
-   exists to prevent, and a rule each scout applies alone is the only kind
-   that holds without the other's answer.
+   twins may retire; never both go on.
 
 ## 2. Read
 
@@ -92,7 +72,6 @@ The evidence, verbatim from the requirement. Each read is one line in your
 workstream file's `## Decisions`, with the command and the date it ran:
 
 - `./joharness.sh upstream` — what merged edges found about the harness.
-- `./joharness.sh scorecard` — the fleet's own numbers.
 - `./joharness.sh feedback` — findings ready to graduate, and the files that
   keep drawing them.
 - Open issues on the canonical repository.

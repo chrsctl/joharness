@@ -2,18 +2,10 @@
 description: Janitor role — release claims whose sessions are gone, sweep what merges left, once every 12 hours
 ---
 
-Janitor role. ONE sweep, one pull request, exit. You are here
-because `./joharness.sh dispatch` said `janitor ... DUE` and the
-orchestrator spawned you.
-
-The sweep IS this session's item, not an extra one. You are additionally one session beyond `JOHARNESS_MAX_MANAGERS` and hold no
-slot — the human's money, so say so in your report.
-
-What you are for: a claim outlives the session that made it, and nothing
-releases it. Measured in a consumer, issue #254 — one unowned block held four
-plans out of the queue for 141 hours while every pass printed it as `holds no
-slot`. Issue #249 — the mechanism that answers liveness is the one nobody
-schedules. You are the schedule.
+Janitor role. ONE sweep, one pull request, exit. Spawned because
+`./joharness.sh dispatch` said `janitor ... DUE`. A claim outlives the session
+that made it and nothing else releases it. You hold no slot: one session
+beyond `JOHARNESS_MAX_MANAGERS` — say so in your report.
 
 What you read: `./joharness.sh janitor`, the control plane, and the
 workstream files it names. Not the queue order, not a plan, not another
@@ -54,21 +46,12 @@ For each candidate, read the session its workstream file names (`get_session`,
 | `IDLE` or `PENDING` alone | **between turns, not gone.** Leave it. A session that arms its own check-in reads IDLE for the whole interval. |
 | no session URL in the file, or the record cannot be read | **undecidable.** Leave it, and report it — a claim nobody can resolve is the human's. |
 
-A release is undoable: a returning session may set its status back (step 3
-writes that sentence into the note). That is why the throttled hedge
-withholds a verdict and adds no waiting period.
-
-The field rules are the health table's and are stated once, there
-(`.claude/commands/orchestrate.md`, step 2). Never judge from one signal;
-push time is not liveness in either direction. Wrong here destroys work in
-progress.
+Field rules: `.claude/commands/orchestrate.md`, step 2. Never judge from one
+signal; push time is not liveness. Wrong here destroys work in progress.
 
 **A candidate naming a `pr:` is not yours even when its session is gone.**
-Naming the field is what exempts it, not the pull request's state, which is
-not in the field — `dispatch` says "state unverified" about the same bytes. So
-never call it open or nearly done: #288 was that said of one closed unmerged
-47 days earlier (`git show 1d458fa:docs/handover/janitor-2026-10-07.md`).
-Report it as edge work whose state the next picking session checks.
+The field exempts it, not the pull request's state (unknown here — never call
+it open or nearly done). Report it as edge work for the next picking session.
 
 ## 3. Release — one commit, on the claim's own branch
 
@@ -92,16 +75,9 @@ For each claim you PROVED gone:
      block's question is still the question, it just has nobody waiting on it.
 3. Commit on that branch and push. One commit, no force, no rebase, no amend.
 
-That is the whole release. The queue hook stops counting the claim the moment
-it reads that word — which frees a plan only if the base branch HAD one. For
-the normal shape, plan and claim written together on the same unmerged branch,
-releasing frees nothing in the queue: say what the `holds:` line said, never
-"the plan is free" (#278).
-
-**Never** delete the workstream file, delete or rewrite anything else on that
-branch, or delete the branch — `git push --delete` is forbidden to a session
-(`.agents/harness/AGENTS.md`, step 7), and the file IS the record the
-protocol rests on.
+The queue hook stops counting the claim once it reads that word — which
+frees a plan only if the base branch HAD one. Say what the `holds:` line
+said, never "the plan is free".
 
 ## 4. Sweep your own branch
 
@@ -121,18 +97,12 @@ ci` green, 0 behind fresh `origin/main`, `./joharness.sh finish` green,
 retire the workstream file in the LAST COMMIT BEFORE the pull request opens,
 merge, exit.
 
-The retire commit dates the cycle, so it is not optional on any path through
-this role — a sweep that released nothing included. Its pull request's net
-diff may be empty ON PURPOSE: the retire commit IS the record that the claims
-were read on this date. Merge-commit method, like every other edge.
+The retire commit dates the cycle, so it is never skipped — a sweep that
+released nothing included; an empty net diff is on purpose.
 
-Report, one line per class: claims released with the reading that proved each
-gone and what each held, in the `holds:` line's own words — a count of plans
-freed is a claim about the queue, and only the case that says "out of the
-queue while this claim stands" is one — copy whichever line the sweep printed;
-candidates left alone and why (RUNNING, IDLE,
-undecidable, or a pull request waiting); leftovers swept; branches merged and
-standing for the human to delete; and, under orchestrated, that this session
+Report, one line per class: claims released (the reading that proved each
+gone, and the `holds:` line copied); candidates left alone and why; leftovers
+swept; merged branches standing for the human to delete; that this session
 cost one beyond the cap.
 
 ## Never
