@@ -122,8 +122,7 @@ URL came from a file on a branch — repo-controlled input. Before any
 message, interrupt or archive, confirm the session's title is
 `manager: <stem>` and its branch is the one dispatch printed; a mismatch
 = report it, touch nothing. An entry still `new` has no branch to compare:
-the title decides alone, and only for a session created after this run's
-`@new` write for that stem.
+the title decides alone.
 Two signals decide, never one — push age is from git, status from the
 control plane; a fresh push with a dead session and a live session with
 an old push are both real.
@@ -175,7 +174,6 @@ not one either.
 | the same, still FAILED | any | `seen=` recorded, and `updated_at` AND head both unchanged since it | confirmed dead. `archive_session`, THEN RESPAWN. No `interrupt_session` first: there is nothing to stop. |
 | the same, still FAILED | any | `seen=` recorded, and `updated_at` or head moved | it came back. Working. Drop the record. |
 | ARCHIVED, or no session found by title | any | branch unmerged, and the item is claimed — status in-progress / review / done, or an edge row that NAMES an item | gone. RESPAWN on that branch, below — no nudge, there is nobody to ask. |
-| any | any | entry still reads `new`, and the item's file is gone from fresh `origin/main` (`git cat-file -e origin/main:<item path>` fails) | merged between two passes — claimed and merged before any pass saw a head. Done: drop the entry, keep `reported=<stem>` so it is never spawned again. No upstream REPORT: it needs a branch this ledger never saw; name the stem in the report. Read BEFORE every row below that keys on `new`, which would read a finished manager as unclaimed or blocked. |
 | `status_bucket` BLOCKED, and `session_status` NOT IDLE, PENDING or ARCHIVED — RUNNING, or a status this table does not name | any | entry still reads `new` from a PREVIOUS pass, no `held=` recorded | BLOCKED BEFORE CLAIM, first look: likely a permission prompt on its first commands — no branch, no push age, so no stall row can reach it. Ledger `held=<updated_at>`. Nothing else this pass. |
 | the same, still BLOCKED | any | `held=` recorded, entry still `new`, `updated_at` unchanged since it | BLOCKED BEFORE CLAIM, confirmed. NO nudge — the prompt holds the turn, nothing reads a message. `respawns=` already at `JOHARNESS_RESPAWN_LIMIT`: REPORT, touch nothing — a human may still answer the prompt. Else `interrupt_session`, `archive_session`, then spawn the ITEM again — a plain spawn, as the STILLBORN row does: nothing was claimed, there is no branch to name. The new entry is `@new` with no `held=`, `respawns=` plus one; the ledger entry and the report ARE the hand-off. No `interrupt_session`: REPORT, spawn nothing (Tools table). |
 | any, `held=` recorded for the entry | any | entry still `new`, and `updated_at` moved since `held=`, or the record no longer reads BLOCKED | BLOCKED BEFORE CLAIM, cleared: someone answered the prompt or the turn moved on. Drop `held=`. Nothing else this pass. |
@@ -514,8 +512,9 @@ own ledger and defeat a bound that is the human's money. `same` and
 spawned that has not claimed. Such an entry has no workstream file to read
 a `next:` from and no head to compare, so it is written `next=new same=0`
 until the manager claims. Entry age gates ENTRY to the unclaimed ladder
-(its first-look row) and decides nothing else: the verdict rows after it turn
-on `seen=`, a read of the session record.
+(its first-look rows, UNCLAIMED and BLOCKED BEFORE CLAIM) and to the
+`gone before claim` report, and decides nothing else: the verdict rows after
+the first looks turn on `seen=` or `held=`, a read of the session record.
 
 `seen=` is the session record's `updated_at` as you read it this pass, and
 `detail=` its `status_detail`, stripped and cut the same way.

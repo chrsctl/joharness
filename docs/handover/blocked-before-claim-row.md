@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_012J8LutqGHqhZDE49agfS81
 agent: opus
 updated: 2026-10-10
-next: ci, retire workstream + plan file, PR, merge
+next: final verifier pass on the r12-r20 commit, then retire, PR, merge
 ---
 
 ## Goal
@@ -19,9 +19,9 @@ matching a ledger entry still `new`.
 
 ## Decisions
 
-- Claim-and-merge inside one pass leaves the entry `new`: a row ABOVE every
-  `new` row reads item-gone-from-`origin/main` as done (r2). A never-born
-  branch cannot fake the item vanishing.
+- Claim-and-merge inside one pass (entry still `new` at merge) is NOT fixed
+  here: out of the plan's scope, two fix rounds each drew findings (r2,
+  r13-r16). Follow-up plan `new-entry-merged-between-passes` carries it.
 - Confirm row is labelled BLOCKED BEFORE CLAIM too, so all three rows read
   as one family; respawn resets the entry to `@new` with no `held=`.
 
@@ -29,6 +29,9 @@ matching a ledger entry still `new`.
 
 - Item-gone clause on the merged row itself: sits below the UNCLAIMED rows,
   never reached on IDLE (r2).
+- Item-gone row above the `new` rows: crash rows still precede it, surveyors
+  have no item path, a curate or another merge fakes it, requirements are
+  not deleted on merge (r13-r16).
 
 ## Review
 
@@ -43,6 +46,15 @@ matching a ledger entry still `new`.
 - r9: (verifier) Tools row for missing `status_bucket` did not name the new rows. (fixed)
 - r10: (verifier) "THREE things" and the first-look admission sentence were stale. (fixed — four things; both first-look rows, `seen=` or `held=`)
 - r11: (verifier) RUNNING+BLOCKED flipping to IDLE+BLOCKED with `updated_at` unchanged leaves `held=` stale. (wontfix — harmless: UNCLAIMED keys on `seen=`, and the key is overwritten or dropped on the next BLOCKED reading)
+- r12: (verifier, pass 2) r5's "created after the `@new` write" can never hold — the entry is written after `create_session` returns, and the ledger stores no time. (fixed — clause dropped: title decides alone for a `new` entry)
+- r13: (verifier, pass 2) merged-between-passes row sat below the crash rows, which also match `new`. (fixed — row removed, see r16)
+- r14: (verifier, pass 2) that row had no item path for a surveyor's `rescope-<key>@new`. (fixed — row removed, see r16)
+- r15: (verifier, pass 2) item gone from `origin/main` can be a curate or another merge while this manager is prompt-held. (fixed — row removed, see r16)
+- r16: (verifier, pass 2) a requirement's planning manager does not delete its item on merge, so r2's fix covered plans only. (fixed — the merged-between-passes row was out of the plan's scope and kept drawing findings: removed, merged row is the plan's head-only condition; the claim-and-merge-inside-one-pass gap goes to follow-up plan `new-entry-merged-between-passes` with r13-r16 as its traps)
+- r17: (verifier, pass 2) orchestrated.md still said the confirm row reports AT the limit after acting. (fixed — at the limit: report, touch nothing, both places)
+- r18: (verifier, pass 2) orchestrated.md `done` row folded the merged-between-passes case into the reporter path the command forbade. (fixed — moot with r16; `done` says a `new` entry never matches)
+- r19: (verifier, pass 2) orchestrated.md table had no row for ARCHIVED with a `new` entry. (fixed — `gone before claim` row)
+- r20: (verifier, pass 2) step 4's "Entry age gates ENTRY ... decides nothing else" was stale. (fixed — names both first looks and the `gone before claim` report)
 
 ## Blockers
 
