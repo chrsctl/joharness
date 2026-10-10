@@ -1560,6 +1560,28 @@ expect "a curate in flight is named rather than spawned again" \
   "IN FLIGHT on claude/curate-loop (curate-2026-09-11, in-progress), so not yours" "$out"
 refute "and drain does not call it this session's item" \
   "curate    : DUE —" "$out"
+# Plan abandoned-reaches-every-reader: the SAME claim, released, frees the
+# cycle; restored to in-progress it holds again. Both in one case, or the
+# first half passes for the wrong reason.
+git -C "$cuwork" checkout -q claude/curate-loop
+sed -i.bak 's/^status: in-progress/status: abandoned/' \
+  "${cuwork}/docs/handover/curate-2026-09-11.md"
+rm -f "${cuwork}/docs/handover/curate-2026-09-11.md.bak"
+commit_all "$cuwork" "release the curate claim"
+git -C "$cuwork" push -q origin claude/curate-loop
+git -C "$cuwork" checkout -q main
+out="$(cud env JOHARNESS_CURATE_PLANS=1)"
+refute "a RELEASED curate claim no longer holds the cycle" "curate    : IN FLIGHT" "$out"
+git -C "$cuwork" checkout -q claude/curate-loop
+sed -i.bak 's/^status: abandoned/status: in-progress/' \
+  "${cuwork}/docs/handover/curate-2026-09-11.md"
+rm -f "${cuwork}/docs/handover/curate-2026-09-11.md.bak"
+commit_all "$cuwork" "re-claim the curate"
+git -C "$cuwork" push -q origin claude/curate-loop
+git -C "$cuwork" checkout -q main
+out="$(cud env JOHARNESS_CURATE_PLANS=1)"
+expect "and the live shape still holds it (control)" \
+  "IN FLIGHT on claude/curate-loop (curate-2026-09-11, in-progress), so not yours" "$out"
 git -C "$cuwork" checkout -q claude/curate-loop
 fixture_rm "$cuwork" "retire it (step 7)" docs/handover/curate-2026-09-11.md
 git -C "$cuwork" push -q origin claude/curate-loop
