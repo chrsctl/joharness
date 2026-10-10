@@ -556,7 +556,7 @@ SELFTEST_TOPICS=(
   queue-context-research-nodes
   queue-context-scope-waves
   queue-context-edge
-  queue-context-supervised-only
+  queue-context-core-only
   queue-context-fanout
   graph
   session-start
