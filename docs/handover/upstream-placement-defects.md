@@ -23,6 +23,12 @@ Plan `upstream-placement-defects`: `upstream` mislabels canonical-owned findings
 
 ## Review
 
+- r1: (verifier) upstream_path_note got the raw `./AGENTS.md` and dropped its caution (fixed: stripped before the note)
+- r2: (verifier) `.//x` / `././x` rejected, only one `./` stripped (fixed: loop strip, cases added)
+- r3: (verifier) ownership read from current index, not the edge range (wontfix: doubtful cases are deliberately IN per the predicate's comment; comment now says so)
+- r4: (verifier) common canonical basename in prose (`settings.json`) claimed (wontfix: same; flagged "named in text" for the reporter)
+- r5: sweep 2026-10-10, upstream over all merge edges with JOHARNESS_CANONICAL line stripped: harness 1616, prose-nonCanonical 104, unplaceable 423, own 177; selftest 2447 passed 0 failed; old predicate rejects ./joharness.sh and selftest.sh, new accepts, docs/handover/README.md rejected by both
+
 ## Blockers
 
 None.

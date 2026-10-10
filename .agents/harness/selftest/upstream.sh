@@ -267,10 +267,10 @@ printf 'x\n' >"${upwork}/.agents/a/only.sh"
 commit_all "$upwork" "placement fixtures"
 git -C "$upwork" push -q origin main
 hp() { ( cd "$upwork" && ROOT="$upwork" bash -c '. <(sed -n "/^upstream_harness_path() {/,/^}/p" ./joharness.sh); upstream_harness_path "$1"' _ "$1" ); }
-for ok in ./joharness.sh joharness.sh only.sh dup.sh; do
+for ok in .//joharness.sh ././joharness.sh ./joharness.sh joharness.sh only.sh dup.sh; do
   if hp "$ok"; then pass "$ok is canonical's"; else fail "$ok should be canonical's"; fi
 done
-for no in docs/handover/README.md README.md nothere.sh src/app.py; do
+for no in ./docs/handover/README.md docs/handover/README.md README.md nothere.sh src/app.py; do
   if hp "$no"; then fail "$no must not be canonical's"; else pass "$no is not canonical's"; fi
 done
 git -C "$upwork" checkout -q -b prose-edge main

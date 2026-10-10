@@ -4322,10 +4322,14 @@ fb_cache_save() {
 # tracked file bearing it is canonical's. A MIXED set stays rejected — a bare
 # `README.md` is also the root README, which canonical does not own. A suffix
 # match is wrong in the other direction: `docs/handover/README.md` is the
-# consumer's own and must not be claimed (the `*/*` guard below).
+# consumer's own and must not be claimed (the `*/*` guard below). Ownership is
+# read from the CURRENT index, not the edge's range: a basename the consumer
+# has since deleted or added can shift the verdict, and a common canonical
+# basename (`settings.json`) named in prose is claimed. Both are the doubtful
+# cases this predicate puts IN, flagged "named in this finding's own text".
 upstream_harness_path() {
   local p="${1%/}" t hit=0
-  p="${p#./}"
+  while [ "${p#./}" != "$p" ]; do p="${p#./}"; done
   case "$p" in
     joharness.sh | CLAUDE.md | .gitattributes) return 0 ;;
     AGENTS.md) return 0 ;;
@@ -4638,7 +4642,7 @@ cmd_upstream() {
     while IFS= read -r p; do
       [ -n "$p" ] || continue
       upstream_harness_path "$p" || continue
-      note="$(upstream_path_note "$p")"
+      note="$(upstream_path_note "${p#./}")"
       kept="${kept}      ${p}$([ -z "$note" ] || printf ' (%s)' "$note")"$'\n'
     done <<<"$paths"
     if [ -n "$kept" ]; then
