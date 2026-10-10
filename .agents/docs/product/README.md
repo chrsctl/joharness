@@ -28,7 +28,8 @@ human work.
   never in "nothing left to plan" with the file standing. Four exits, below
   ("A requirement no plan can serve").
 - **Satisfied** = last plan's PR deletes the requirement file with the
-  plan file. Survives in history.
+  plan file — or, when no plan was ever needed, the planning PR does
+  (exit 3 below). Survives in history.
 - **Retired unsatisfied** = the REQUESTER decides a condition is no longer
   this repo's to schedule — the work moved elsewhere, the goal changed, the
   evidence will come from somewhere the queue does not reach. Same deletion,
@@ -68,7 +69,13 @@ requirement, ended only by a pass that happened to find a clause to plan.
 REPORTED, never re-counted here — the reason the question was asked, not
 the evidence for the answer.
 
-So a planning pass ends in exactly one of these, and each changes the tree:
+So a planning pass ends in these, and each changes the tree. They COMBINE
+per clause — one requirement can need a plan, a verify plan and a decline
+at once — and the requirement is deleted exactly ONCE, by the LAST PR: any
+plan or verify plan still names the stem → that plan's PR deletes it, and
+the satisfied and declined records ride in that plan's body until then.
+Deleted early, an open plan names a missing requirement and
+`lint_plans` warns `satisfied while this plan is open?`.
 
 1. **Plans** naming the stem — the normal case.
 2. **Verify plan.** A clause owned by a plan under another requirement: one
@@ -78,8 +85,9 @@ So a planning pass ends in exactly one of these, and each changes the tree:
    silences the row. Not invented work: checking satisfied-when is the work
    the deleting PR owes anyway.
 3. **Satisfied, measured.** Every clause reads true on `main` now: the
-   planning PR deletes the requirement and records, per clause, the command
-   or merged PR that shows it. Measuring is a session's job; the "never
+   planning PR deletes the requirement, and its deletion commit message
+   records, per clause, the command or merged PR that shows it — history is
+   the record, as for any satisfied requirement. Measuring is a session's job; the "never
    inferred from a stale file" clause above forbids inferring from quiet,
    not from a command's output.
 4. **Declined, recorded.** Every clause not covered by 1–3 carries a
@@ -102,9 +110,10 @@ Rejected, so the question stays closed:
 
 **Gap still open, filed as plan `requirement-row-claim`:** a requirement
 cannot be CLAIMED. Claim resolution offers only `docs/plans/` and
-`docs/research/` (`joharness.sh`, `for cand in`), so a planning branch whose
-workstream file names the requirement in `plan:` — as `/manage` tells it to
-— appears in no dispatch row and holds no slot. Exits 1–4 end the loop at
+`docs/research/` (`joharness.sh`, `for cand in`; `lint_graph`), so a
+planning branch whose workstream file names the requirement in `plan:` — as
+`/manage` tells it to — appears in no dispatch row, holds no slot, and reds
+`ci` (`plan '<r>' — no such plan or question`). Exits 1–4 end the loop at
 the pass's merge; the claim is what stops a SECOND planner while one is in
 flight, and what keeps a blocked exit-4 pass from being respawned.
 

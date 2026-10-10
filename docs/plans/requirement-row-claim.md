@@ -6,7 +6,7 @@ effort: high
 needs: none
 requirement: none
 issue: none
-scope: .agents/harness/queue-context.sh, joharness.sh, .agents/harness/selftest/dispatch.sh, shared:.claude/commands/manage.md
+scope: .agents/harness/queue-context.sh, joharness.sh, .agents/harness/selftest/dispatch.sh, shared:.claude/commands/manage.md, shared:.agents/docs/product/README.md, .agents/docs/handover/TEMPLATE.md
 ---
 
 ## Goal
@@ -28,9 +28,21 @@ stem.
   `docs/plans/${plan}.md` and `docs/research/${plan}.md` (grep
   `for cand in "docs/plans/\${plan}.md"`; three loops at the time this plan
   was written, in `cmd_janitor` and `dispatch_retired_edges`) offers
-  `docs/product/${plan}.md` as the third candidate. The in-flight walk must
-  then print the planning branch's row and count its slot, same as case E
-  in the retired research node (recovery: below).
+  `docs/product/${plan}.md` as the third candidate — plan and research
+  first, so a stem naming both a plan and a requirement (commit `0944070c`
+  held `orchestrated-mode` as both) resolves to the plan. Those loops alone
+  do NOT make the row (verifier, read against this plan's draft):
+  - `lint_graph` (grep `no such plan or question`) reds a workstream
+    `plan:` naming a requirement — accept `docs/product/` there too.
+  - the in-flight walk builds rows from a `sed` matching only
+    `docs/(plans|research)/` lines (grep `docs/\(plans\|research\)` in
+    `joharness.sh`) — extend it to `docs/product/`.
+  - `drain_requirement` offers the first line under "Requirements without
+    plans" whatever its label — skip a claimed one.
+  - `dispatch_retired_edges` skips any branch ADDING a workstream file
+    ("Owns one: it IS a claim") — true once the above holds; check it.
+  Acceptance is case E of the retired research node (recovery: below): the
+  planning branch's row printed, its slot counted.
 - `.agents/harness/queue-context.sh` — the requirements tier (`served=`):
   a requirement whose stem a claim names (the `claims` set, `abandoned`
   excluded, same as plans at `claimed_on=`) is printed with
@@ -40,9 +52,12 @@ stem.
   cases B and E: a pushed branch with `plan: <req stem>` shows an in-flight
   row, `slots : 3 of 4 free`, and no free `UNPLANNED` item for that
   requirement; with `status: blocked` it is still not offered.
-- `.claude/commands/manage.md` — the `docs/product/<r>.md` item kind names
-  the four exits of `.agents/docs/product/README.md`, "A requirement no plan
-  can serve", in one line.
+- `.claude/commands/manage.md` — the exits line already landed; touch only
+  if the claim needs wording there.
+- `.agents/docs/product/README.md` — "Gap still open" paragraph: rewrite
+  as closed, saying how a requirement is claimed.
+- `.agents/docs/handover/TEMPLATE.md` — `plan` comment: a requirement is
+  claimed through the same field, by its stem.
 
 ## Out of scope
 
