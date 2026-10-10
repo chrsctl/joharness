@@ -106,13 +106,13 @@ Summed `modelUsage` matches billed within 0.11 USD on 23 of 24 sessions;
    `Qnp3Vu` 60.3, both opened by a task notification). All their
    main-thread 1h writes (479,853 + 474,177 tokens at opus 5's 10 USD/MTok)
    = 9.54 USD, 2.2% of the sample. Ceiling 2.2%. Subagents write at 5
-   minutes whatever the lever does, so they are outside it.
+   minutes whatever the lever does, so they are outside it. GROUNDED.
 2. **Fable planning manager at `high` — NO.** 0 of 168 children of the two
    orchestrators ran Fable (0 of 7 children of an earlier joharness
    orchestrator either); the three Fable sessions in the window had no
    parent (human-started). Touched share 0. And `create_session` takes no
    effort: `xhigh` reaches the session as prompt prose only
-   (`.agents/docs/agent-selection.md`, Cost levers).
+   (`.agents/docs/agent-selection.md`, Cost levers). GROUNDED.
 3. **Sonnet verifier on opus plans — NO in gx, OPEN in this repo.**
    Subagent cost in opus-tier sessions: this repo 21.93 USD, 37.1% of the
    fleet's 59.04 (every subagent there a `verifier`); gx 61.49 USD, 16.0% of
@@ -126,7 +126,7 @@ Summed `modelUsage` matches billed within 0.11 USD on 23 of 24 sessions;
 4. **Haiku 5.5 worker share — NO.** Worker spawns (`general-purpose`): 13,
    in 2 of 24 sessions, 0 of them haiku. All subagent cost in those two
    sessions: 51.42 USD, 11.6% of the sample (13.4% of gx) — the ceiling at
-   a 100% cut, verifiers inside it.
+   a 100% cut, verifiers inside it. GROUNDED.
 
 Cost per merged edge, manager only: 21.06 USD (this repo 4.92, gx 42.59)
 against run 3's ~128 USD with the orchestrator. Not a lever's effect: the
@@ -153,12 +153,23 @@ Second context: a subagent that read none of the first readings re-took
 - `GbRy34`: `get_session` reads 14.0514868, its newest result 14.106534
   (session record one step behind). That is the 0.06 USD gap the first
   reading showed; no finding moves.
-- Not re-taken: the per-turn `usage` of the other 21 sessions (the
-  main/subagent split for levers 3 and 4) — the subagent split rests on
-  the first reading plus the two no-subagent sessions that price to their
-  billed cost exactly. WEAK for the split, GROUNDED for the totals.
-- Merged counts were read from each manager's own final text, not from
-  GitHub: WEAK. No finding needs them; the ceilings divide by cost.
+- Split re-take (a third context, also blind to the first readings):
+  per-turn `usage` of `YCcNvV`, `Qnp3Vu`, `GbRy34`, `iVC4mD`, priced at the
+  Method's rates. Main thread / subagent USD: 60.70 / 8.96, 125.96 / 42.45,
+  7.99 / 6.12, 3.39 / 4.05 — the first reading to the cent. The two turns
+  over an hour and their 1h writes (479,853, 474,177) re-read the same.
+  These four carry all of lever 4 and 51.41 of lever 3's gx 61.49 USD.
+  GROUNDED.
+- Same re-take, `list_sessions` two pages: 0 Fable children among 168
+  under the two orchestrators (window shifted by new sessions: 117 + 51).
+  GROUNDED.
+- `YCcNvV` has ONE result event for a 134.8-minute session, so turns
+  without a result would be missing from its main thread. That error
+  moves cost from main thread to subagent, raising lever 3 and 4
+  ceilings: a NO stays safe.
+- Not re-taken: the split of the other 20 sessions (WEAK), and merged
+  counts, read from each manager's own final text, not GitHub (WEAK; no
+  ceiling divides by them).
 
 ## Graduates to
 
