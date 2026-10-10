@@ -8,7 +8,7 @@ issue: 391
 session: https://claude.ai/code/session_01VNKBpW2jfjLQok3Ex41WGW
 agent: sonnet
 updated: 2026-10-10
-next: Edit clerk.md, consumer-repos.md, feedback.md per plan; run ci + verify; review; retire; PR
+next: Await verifier + ci + verify; record Review; retire plan+workstream; PR
 ---
 
 ## Goal
