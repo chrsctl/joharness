@@ -93,8 +93,8 @@ Source reads at `cb0028e`, each re-run rather than taken from the issue:
     grep -n "holds no slot" joharness.sh
     grep -n "re-asks the question" joharness.sh
     sed -n '8384,8392p' joharness.sh          # a blocked row releases its holds
-    sed -n '50,56p'   .agents/docs/orchestrated.md
-    sed -n '86,92p'   .agents/docs/orchestrated.md
+    git show 7f63a01a:.agents/docs/unsupervised.md | sed -n '50,56p'
+    git show 7f63a01a:.agents/docs/unsupervised.md | sed -n '86,92p'
     sed -n '547,552p' .claude/commands/orchestrate.md
 
 ## Findings
@@ -160,7 +160,7 @@ Source reads at `cb0028e`, each re-run rather than taken from the issue:
   claim cannot be its own evidence."*
 
 - **The mode has already classified the event, and has the measurement without
-  the rule.** `cb0028e`, `.agents/docs/orchestrated.md:54`: *"Anything else
+  the rule.** `cb0028e`, `.agents/docs/unsupervised.md:54` (at 7f63a01a; now orchestrated.md, The one stop): *"Anything else
   that ends a run — a rate limit, a session asking a question, a generation
   that failed to spawn — is a finding, not a stop."* Its run table records
   attempt one, 2026-08-31, 48s, ended with *"no repository attached; both

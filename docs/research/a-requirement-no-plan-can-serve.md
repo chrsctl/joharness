@@ -332,7 +332,7 @@ is noise from the local git version, not a failed setup.
   consumer-bootstrap message, four selftest files (`drain.sh`,
   `ci-graph-lint.sh`, `upstream.sh`, `sync-to-consumer.sh`), a review
   `wontfix` example, one record of a requester declining three proposals
-  (`.agents/docs/orchestrated.md:291`), and three the first draft of this
+  (`.agents/docs/unsupervised.md:291` (at 7f63a01a; now orchestrated.md, Bounds)), and three the first draft of this
   bullet left unaccounted — `joharness.sh:4507`, `joharness.sh:8047` and
   `.claude/commands/upstream-report.md:42`, each about a session declining to
   fix something, none about a requirement. The verifier counted the hits
