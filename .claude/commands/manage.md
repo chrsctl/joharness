@@ -73,6 +73,8 @@ the build into sub-tasks. Each sub-task, written for a literal reader:
 - tier: haiku when mechanical AND fully specified AND acceptance runnable;
   sonnet otherwise; never above the plan's `agent:`. Lower than you by
   default — the tier the plan named is for the judgement, not the typing.
+  A haiku sub-task stays small — past 100K prompt tokens haiku bills 5x (Lineup,
+  `.agents/docs/agent-selection.md`); a sub-task that cannot = sonnet.
 
 Worker = `Agent` tool, `subagent_type: general-purpose`, `model` = its
 tier, one per sub-task, parallel across disjoint file sets. Its prompt
