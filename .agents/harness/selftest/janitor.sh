@@ -503,10 +503,13 @@ jclause="$(awk '/^   - in that same note, why/{f=1} f&&/^   - a `blocked`/{exit}
   | sed 's/^ *- *//; s/^ *//' | tr '\n' ' ')"
 jnote_ok="2026-10-10, session ARCHIVED, holds: none. ${jclause}"
 jnote_bad="2026-10-10, session ARCHIVED, holds: none. A returning session may set the status back."
-jred="$(grep -o "'\${v}' not one of" "${ROOT}/joharness.sh" | head -1)"
-expect "lint_enum still emits the wording the clause quotes" "not one of" "$jred"
-for janchor in "ci" "reds" "abandoned" "not one of" "reconciles with its base"; do
+jred="$(grep -o "\${k} '\${v}' not one of:" "${ROOT}/joharness.sh" | head -1)"
+expect "lint_enum still emits the wording the clause quotes" "not one of:" "$jred"
+expect "the clause was extracted whole, ending before the next bullet" "is real, not spurious." "$jclause"
+refute "and stops there" "carried, never deleted" "$jclause"
+for janchor in "./joharness.sh ci" "reds" "abandoned" "not one of" "reconciles with its base"; do
   expect "a note written per the role doc carries '${janchor}'" "$janchor" "$jnote_ok"
 done
 refute "a note written without the clause misses the reconcile" "reconciles with its base" "$jnote_bad"
 refute "and does not say why ci reds" "not one of" "$jnote_bad"
+refute "nor name the word the enum lacks" "abandoned" "$jnote_bad"
