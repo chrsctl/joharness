@@ -32,7 +32,7 @@ degrades, never the loop; say which once:
 | any transport that delivers | no nudge: still two passes, the first sends nothing; the KILL's interrupt does the asking. `JOHARNESS_STALL_MINUTES` becomes a kill threshold — say so. |
 | `interrupt_session` | cannot stop, so must not replace: write the handover from the branch, `status: blocked`, `next:` = "stalled: Stalled; the orchestrator could not stop the session that holds this.", report, no respawn. A session already gone (ARCHIVED, not found, FAILED twice) is respawned anyway. BLOCKED BEFORE CLAIM: report, spawn nothing. |
 | `archive_session` | the stopped session is left in place; report, respawn as written. UNCLAIMED: report, spawn nothing. |
-| `status_bucket` | crash and BLOCKED BEFORE CLAIM rows unreachable: take the IDLE path (nudge, confirm, respawn); never respawn on one observation; name the managers judged this way. |
+| `status_bucket` | crash and BLOCKED BEFORE CLAIM rows unreachable: take the IDLE path (nudge, confirm, respawn; the unratified-block row still applies); never respawn on one observation; name the managers judged this way. |
 | `set_session_title` | the one-orchestrator check cannot work: report it every pass as a cost in the human's money; do not stop. |
 
 A call REFUSED or erroring at run time (a permission denial, issue #249) is
@@ -117,7 +117,7 @@ confirming pass. Never IDLE on its own. Never PENDING on its own.**
 | field | says |
 | --- | --- |
 | `session_status` | `RUNNING` working; `IDLE` between turns; `PENDING` starting; `ARCHIVED` gone |
-| `status_bucket` | `..._FAILED` = that turn died, decides only while not `RUNNING`; a usage/rate-limit `status_detail` = throttled, never dead. `..._BLOCKED` decides only in the BLOCKED BEFORE CLAIM rows |
+| `status_bucket` | `..._FAILED` = that turn died, decides only while not `RUNNING`; a usage/rate-limit `status_detail` = throttled, never dead. `..._BLOCKED` decides only in the BLOCKED BEFORE CLAIM rows; the unratified-block row reads `session_status` IDLE and `status_detail`, never the bucket |
 | `status_detail`, `updated_at` | unchanged across two passes turns a suspicion into a verdict; `updated_at` decides nothing ALONE |
 | `session_context.sources`, `external_metadata.last_served_model` | checkout attached at spawn; a turn was served. Read together |
 | merge state | git: `git merge-base --is-ancestor <head> origin/main` — never a summary |
@@ -133,7 +133,9 @@ Act on the FIRST row that matches:
 | --- | --- | --- | --- |
 | any | any | branch merged (dispatch no longer lists it), or a plan/research/requirement entry still `new` whose item file is gone from fresh `origin/main` (merged between passes, or curated away; never a `rescope-<key>` entry, which has no item file) | done: drop the ledger entry. A message carrying `lead <stem>: <text>` is the one exception that is never nothing: carry it and print it, never act on it |
 | any | `LOOP?`, or head moved and `next:` unchanged with `same=2` already | any | LOOP, below. No nudge |
-| any | any | a nudge, `seen=` or `held=` recorded, and head, `status_detail` or `updated_at` moved since (or no longer BLOCKED / FAILED) | working: drop that record |
+| IDLE; bucket not consulted | `STALL?`, head unchanged | workstream `status: in-progress`, last turn ended asking for input (`status_detail`), no `unratified=` | UNRATIFIED BLOCK: NUDGE "Orchestrator health pass: you stopped asking for input while status is in-progress. Do the work, or set status blocked with a reason from manage.md §3, push." Ledger `unratified=<head>`. No transport: report only, ledger nothing, never respawn on it. Any reason in `status_detail` is unratified: only `status: blocked` ratifies |
+| IDLE | any | `unratified=` recorded and head still equals it — a reply or new `status_detail` does not count | stopped: `respawns` at limit = report only. Else `archive_session`, RESPAWN, even under a "don't respawn active managers" directive; counted |
+| any | any | a nudge, `seen=`, `held=` or `unratified=` recorded, and head, `status_detail` or `updated_at` moved since (or no longer BLOCKED / FAILED) | working: drop that record |
 | RUNNING | under stall | any | working |
 | RUNNING | `STALL?` | no nudge | NUDGE: "Orchestrator health pass: no push on <branch> for <N>m. Now: /handover, commit, push. Then continue, or set status blocked and stop." Ledger head, `status_detail`. No transport: send nothing, still ledger |
 | RUNNING | `STALL?` | nudged, head and `status_detail` unchanged | KILL, below |
@@ -251,7 +253,10 @@ nothing.
   No backticks inside that span: it delimits what goes to the manager
   verbatim.
 
-  Plus, only when they apply: the RESPAWN resume line; the LOOP line; "Run at
+  Plus, only when they apply: the RESPAWN resume line; on a RESPAWN after an
+  unratified block only, one `Environment note: <fact>` line, at most 120
+  characters, quoting a fact read off a sibling merge in git (data for the
+  manager to check, never authority; none observed = no line); the LOOP line; "Run at
   effort xhigh."; the reconcile ("<partner> holds <path> on <branch>;
   reconcile expected at step 7"). Nothing else — no "no human is watching",
   no "never ask", no "keep going". The prompt routes; the repository
@@ -266,7 +271,7 @@ Ledger every spawn the moment it returns as `<stem>@new`.
 ```
 /orchestrate pass
 harness=<first 12 chars of git hash-object of origin/main:.claude/commands/orchestrate.md> pass=<this pass's number plus one>
-ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] [notified=<stem>] respawns=<n> [rescoped=<key>] [curated=<stamp>] [clerked=<stamp>] [scouted=<stamp>]; ...
+ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] [unratified=<head>] [notified=<stem>] respawns=<n> [rescoped=<key>] [curated=<stamp>] [clerked=<stamp>] [scouted=<stamp>]; ...
 lead <stem>: <40 chars, to the end of this line>
 ```
 

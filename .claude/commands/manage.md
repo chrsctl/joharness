@@ -107,6 +107,13 @@ request, merge, exit.
   `conflict:`); none applies = the work is yours, do it. `status: blocked`,
   `next:` = `<reason>: <question>`, push, exit. A blocked item is never
   respawned; dispatch flags a `next:` with no reason as `INVALID BLOCK?`.
+- "Cannot run X here" is a hypothesis. Before stopping, read
+  `.agents/env/<name>/` docs and the repo's setup notes. Still impossible =
+  `status: blocked` with a reason `block_reason_ok` accepts
+  (`joharness.sh:block_reason_ok`; `hardware:` fits an environment that
+  truly lacks the tool), push, exit. Never end a turn waiting for
+  input while `status: in-progress`; an interrupt or context exhaustion
+  after `/handover` is not that (Loop step 6).
 
 ## 4. Finish
 
