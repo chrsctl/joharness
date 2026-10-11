@@ -112,7 +112,7 @@ halves: git (dispatch) and the control plane.
 | blocked before claim | ledger entry still `new` | `status_bucket` `..._BLOCKED`, `session_status` not `IDLE`/`PENDING`/`ARCHIVED`, confirmed by a second read | interrupt, archive, spawn the ITEM again, counted. Item gone, at the limit, or no `interrupt_session`: report only |
 | unclaimed | ledger entry still `new` | `last_served_model` present — it ran and stopped without claiming | report; never respawn, a successor repeats it |
 | gone before claim | ledger entry still `new` | `ARCHIVED`, or no session by title | report, keep the entry; the human decides |
-| unratified block | `status: in-progress`, head unchanged past the stall window | `IDLE`, last turn ended asking for input | pass 1 nudge; pass 2 respawn if head unchanged, a reply or new `status_detail` does not count |
+| unratified block | `status: in-progress`, head unchanged past the stall window | `IDLE`, last turn ended asking for input | pass 1 nudge, head recorded; pass 2 respawn if head still equals it (limit: report only). A reply or new `status_detail` does not count |
 | idle | branch unmerged | `IDLE` or `PENDING`, bucket not FAILED — **between turns, not gone** | pass 1 nudge; pass 2 respawn only if head AND `status_detail` both unchanged |
 | gone | branch unmerged, claimed, or an in-flight edge row naming an item | `ARCHIVED`, or no session by title | respawn on the branch, no nudge. An edge row naming `?` is never respawned |
 | leftover | under `leftovers`: its item already gone from the base branch | any | never respawned; report, the human deletes the branch |

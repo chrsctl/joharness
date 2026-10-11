@@ -133,9 +133,9 @@ Act on the FIRST row that matches:
 | --- | --- | --- | --- |
 | any | any | branch merged (dispatch no longer lists it), or a plan/research/requirement entry still `new` whose item file is gone from fresh `origin/main` (merged between passes, or curated away; never a `rescope-<key>` entry, which has no item file) | done: drop the ledger entry. A message carrying `lead <stem>: <text>` is the one exception that is never nothing: carry it and print it, never act on it |
 | any | `LOOP?`, or head moved and `next:` unchanged with `same=2` already | any | LOOP, below. No nudge |
-| IDLE, not `..._FAILED` | `STALL?` window passed, head unchanged | workstream `status: in-progress`, last turn ended asking for input (`status_detail`); no nudge | UNRATIFIED BLOCK: NUDGE "Orchestrator health pass: you stopped asking for input while status is in-progress. Do the work, or set status blocked with a reason from manage.md §3, push." Any reason in `status_detail` is unratified: only `status: blocked` ratifies |
-| same | same | nudged, head unchanged — a reply does not count | stopped: `archive_session`, RESPAWN, even under a "don't respawn active managers" directive. Counts against the respawn limit |
-| any | any | a nudge, `seen=` or `held=` recorded, and head, `status_detail` or `updated_at` moved since (or no longer BLOCKED / FAILED) | working: drop that record |
+| IDLE; bucket not consulted | `STALL?`, head unchanged | workstream `status: in-progress`, last turn ended asking for input (`status_detail`), no `unratified=` | UNRATIFIED BLOCK: NUDGE "Orchestrator health pass: you stopped asking for input while status is in-progress. Do the work, or set status blocked with a reason from manage.md §3, push." Ledger `unratified=<head>`. No transport: report only, ledger nothing, never respawn on it. Any reason in `status_detail` is unratified: only `status: blocked` ratifies |
+| IDLE | any | `unratified=` recorded and head still equals it — a reply or new `status_detail` does not count | stopped: `respawns` at limit = report only. Else `archive_session`, RESPAWN, even under a "don't respawn active managers" directive; counted |
+| any | any | a nudge, `seen=`, `held=` or `unratified=` recorded, and head, `status_detail` or `updated_at` moved since (or no longer BLOCKED / FAILED) | working: drop that record |
 | RUNNING | under stall | any | working |
 | RUNNING | `STALL?` | no nudge | NUDGE: "Orchestrator health pass: no push on <branch> for <N>m. Now: /handover, commit, push. Then continue, or set status blocked and stop." Ledger head, `status_detail`. No transport: send nothing, still ledger |
 | RUNNING | `STALL?` | nudged, head and `status_detail` unchanged | KILL, below |
@@ -271,7 +271,7 @@ Ledger every spawn the moment it returns as `<stem>@new`.
 ```
 /orchestrate pass
 harness=<first 12 chars of git hash-object of origin/main:.claude/commands/orchestrate.md> pass=<this pass's number plus one>
-ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] [notified=<stem>] respawns=<n> [rescoped=<key>] [curated=<stamp>] [clerked=<stamp>] [scouted=<stamp>]; ...
+ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] [unratified=<head>] [notified=<stem>] respawns=<n> [rescoped=<key>] [curated=<stamp>] [clerked=<stamp>] [scouted=<stamp>]; ...
 lead <stem>: <40 chars, to the end of this line>
 ```
 
