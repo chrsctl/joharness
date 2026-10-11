@@ -8,7 +8,7 @@ issue: 416
 session: https://claude.ai/code/session_01KECCKpVfmSgyebTGcefjNq
 agent: sonnet
 updated: 2026-10-11
-next: Edit manage.md §3, orchestrate.md health table + spawn prompt, orchestrated.md; run ci and verify
+next: Read ci and verify output (run in background), run verifier, record Review, retire plan+workstream, PR Closes #416, merge
 ---
 
 ## Goal

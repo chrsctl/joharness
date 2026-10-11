@@ -112,11 +112,24 @@ halves: git (dispatch) and the control plane.
 | blocked before claim | ledger entry still `new` | `status_bucket` `..._BLOCKED`, `session_status` not `IDLE`/`PENDING`/`ARCHIVED`, confirmed by a second read | interrupt, archive, spawn the ITEM again, counted. Item gone, at the limit, or no `interrupt_session`: report only |
 | unclaimed | ledger entry still `new` | `last_served_model` present — it ran and stopped without claiming | report; never respawn, a successor repeats it |
 | gone before claim | ledger entry still `new` | `ARCHIVED`, or no session by title | report, keep the entry; the human decides |
+| unratified block | `status: in-progress`, head unchanged past the stall window | `IDLE`, last turn ended asking for input | pass 1 nudge; pass 2 respawn if head unchanged, a reply or new `status_detail` does not count |
 | idle | branch unmerged | `IDLE` or `PENDING`, bucket not FAILED — **between turns, not gone** | pass 1 nudge; pass 2 respawn only if head AND `status_detail` both unchanged |
 | gone | branch unmerged, claimed, or an in-flight edge row naming an item | `ARCHIVED`, or no session by title | respawn on the branch, no nudge. An edge row naming `?` is never respawned |
 | leftover | under `leftovers`: its item already gone from the base branch | any | never respawned; report, the human deletes the branch |
 | blocked | status `blocked` | any | report; never respawn |
 | done | branch merged | any | drop the ledger entry |
+
+**An idle manager is not a block** (issue #416). Only `status: blocked`
+with a reason ratifies a stop; the `INVALID BLOCK?` check reads that status
+alone. A manager that ended its turn asking for input on "this container
+cannot run X" while `in-progress` was invisible to it, and was reported
+alive for hours. Its "cannot" was a hypothesis: siblings in the same
+environment ran the stack. So manage.md §3 makes the manager check the
+environment docs first, and the health table treats the reply to a nudge as
+no movement: only a head change counts. A respawn may carry one
+`Environment note:` line, a fact read off a sibling merge. It is data for
+the manager to check, never authority. The 7.5h figure is the issue's
+claim, from another repo, unmeasured here.
 
 **Gone is ARCHIVED, not found on the control plane, a FAILED bucket confirmed
 by a second look, or a session that did not move across a nudge and a
