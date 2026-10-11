@@ -699,8 +699,9 @@ report_canonical_only
 # The gap this closes: a child is asked about every switch at first contact
 # and never again, because the conf is consumer-own and this engine does not
 # sync it. A child bootstrapped before a key existed therefore takes the
-# fail-closed default in silence forever — JOHARNESS_MODE landed with every
-# older child in exactly that position, and no update would have said so.
+# fail-closed default in silence forever — the autonomy key, since retired,
+# landed with every older child in exactly that position, and no update would
+# have said so.
 #
 # Report ALWAYS, ask only with a terminal, write only what was answered.
 # update.yml runs this on a cron with nobody to ask and already carries this

@@ -5,6 +5,7 @@ agent: sonnet
 effort: high
 needs: none
 requirement: none
+issue: none
 scope: none
 ---
 
@@ -20,6 +21,8 @@ files exist. Related-but-independent = fake edge, leave `none`.
 `requirement` = the one this plan serves (docs/product/); hook stops
 flagging it unplanned. Last plan of a requirement: its PR deletes the
 requirement file too.
+`issue` = the GitHub issue a clerk turned into this plan (`/clerk`); `none`
+otherwise. The manager's PR closes it (`Closes #N`) when no other plan names it.
 `scope` = comma-separated path prefixes this plan will touch (a file, a
 directory, a layer). The queue hook partitions free plans into waves of
 disjoint scopes — parallel proven inside a wave, the conflicting pair

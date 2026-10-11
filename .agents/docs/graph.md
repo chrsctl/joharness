@@ -53,20 +53,11 @@ discipline fails exactly when someone hurries.
   never justify a graph store.
 - No stored graph, no auto-extraction, no embeddings. Derived state =
   second copy, rots (derivability rule, `.agents/docs/handover/README.md`).
-  Measured elsewhere, 2026-08-28: basemode
-  (github.com/ChristopherKahler/base, at 22e8b8c) stores its graph, and its
-  own `docs/workspace-scoping.md` records that store stamping foreign
-  projects into the wrong named graph, every session-start re-polluting
-  what was cleaned by hand, ending in a planned full reset. Failure mode
-  derive-at-read-time cannot have.
 - No datastore for the work queue either. Storing every work item as a row
-  and every action with an actor buys queries — attribution, work histories,
-  audit trails — and costs a database, a daemon and a CLI as install
-  prerequisites in every repo that runs the harness. This is a shell script
-  plus markdown so that a clone, a runner or CI carries the whole thing with
-  nothing installed, which is also what lets its own gates run inside CI.
-  Re-open only if a question arrives that files cannot answer, never because
-  querying looks convenient.
+  and every action with an actor buys queries but costs a database, a daemon and
+  a CLI in every repo that runs the harness. Shell plus markdown travels with
+  a clone, a runner or CI, nothing installed. Re-open only for a question
+  files cannot answer.
 - A harness that lives in the repo has no long-running service, so it cannot
   watch, nudge, queue or schedule anything by itself; it travels everywhere
   instead, CI included. Neither side of that trade is more correct. Know
@@ -85,9 +76,3 @@ SessionStart hook = retrieval. Injects the 1-hop neighborhood — this
 branch's workstream, queue with `blocked by:` / `claimed on:` edges,
 overlap warnings — and prints `git show` commands as edge traversals.
 Instructions get skimmed; injected context is already in window.
-
-Whole graph as a picture: `./joharness.sh graph` prints fenced mermaid,
-derived at read time — paste into any GitHub comment, rendered natively.
-
-One branch as counts: `./joharness.sh scorecard` reads this branch's commits
-since its merge base. Reports. Nothing gates on it.

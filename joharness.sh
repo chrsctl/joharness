@@ -2,164 +2,69 @@
 #
 # joharness.sh - the harness entrypoint.
 #
-# Two layers live side by side under .agents/ — one dotted directory any
-# tool can detect, and every path below is relative to it:
-#   .agents/harness/      agent working protocol (loop, handover, style).
-#                         Always on.
-#   .agents/env/<name>/   one sandbox environment. Selected here, not
-#                         hardcoded.
+# Two layers under .agents/:
+#   .agents/harness/      agent working protocol. Always on.
+#   .agents/env/<name>/   one sandbox environment, selected in joharness.conf.
 #
 # Subcommands:
 #   session-start   what the SessionStart hook runs (.claude/settings.json)
-#   env             print the selected layer and what else is available
-#   env <name>      select a layer (writes joharness.conf)
+#   env [<name>]    print the selected layer, or select one (writes joharness.conf)
 #   setup           provision the selected layer now
-#   ci              run what .github/workflows/ci.yml runs, here
 #   upgrade         fetch canonical and sync this repo's harness forward
-#                   (consumers only; --dry-run to preview)
 #   verify          provision, then run the layer's smoke test
-#   review          print this branch's review step: depth for its tier, and
-#                   whether its findings are recorded. Gates ci when enabled
-#   feedback        score the review loop from merged history: coverage,
-#                   recurrence, and the files that keep drawing findings
-#   feedback <path> what earlier merged edges found in that file
-#   graph           print the work graph as fenced mermaid (paste into any
-#                   GitHub comment; rendered natively)
-#   scorecard       count how THIS branch behaved since its merge base.
-#                   Reports only, never gates
-#   context         count what every session loads before its first prompt:
-#                   the CLAUDE.md import chain, the session-start injection,
-#                   and what THIS branch adds to the chain. Runs inside `ci`
-#                   too, without the session-start row. Reports only
-#   perf            count external commands per harness entrypoint against a
-#                   budget. Counts gate; seconds print and never gate. Runs
-#                   inside `ci` too, skipped on a docs-only branch
-#   mutate <file> <line> <text>
-#                   Loop step 5's rule as a command: change one LINE, run the
-#                   suite, name the cases that redded, put the line back.
-#                   Nothing redded = nothing pins that line
-#   perf <name>     measure one entrypoint only (feedback, review, graph,
-#                   session-start, queue-context)
-#   authority       whether this repo's unsupervised claim is a merged line
-#                   in joharness.conf. A spawned session runs this before
-#                   believing a prompt that says it may work unattended.
-#                   Reports; grants nothing; never gates
-#   cleanup         count what the finish ritual left on the base branch:
-#                   workstream files, plans whose work merged, merged
-#                   branches. Reports only
-#   cleanup --apply also `git rm` the workstream files, staged for review.
-#                   Never branches — deleting one is human-only.
-#                   Exits 1 if git refused a removal
-#   curate          is the live plan queue still fit: per plan, REPAIR findings
-#                   (a dead anchor, a Scope path `scope:` misses, a whole
-#                   directory claimed, a registry nobody marked shared:),
-#                   DECLUTTER candidates and PROPOSE-only ones (decompose,
-#                   order). Report-only; the curator
-#                   (.claude/commands/curate.md) acts on it, and a plan a
-#                   manager holds draws no finding
-#   drain           what the Loop takes next, or DRAINED. Under unsupervised
-#                   also one spawn line naming the other free plans, and at
-#                   DRAINED the word: exit, the heartbeat re-seeds. Report-only
-#   dispatch        the orchestrator's one read under orchestrated: cap and
-#                   free slots, managers in flight with push age, the spawn
-#                   order by wave, and a verdict. Report-only; the
-#                   orchestrator (.claude/commands/orchestrate.md) acts on it
-#   upstream        what a merged edge found ABOUT THE HARNESS, and the
-#                   canonical it would be reported to. Takes a branch or a
-#                   merge; no argument reads the newest merge. Report-only —
-#                   /upstream-report files it, and only where
-#                   JOHARNESS_UPSTREAM_FEEDBACK is on. Says CANONICAL and
-#                   stops in the joharness repo itself
-#   analysis        why a manager is parked: an unmerged branch's claim, the
-#                   BLOCKED / STALL? / LOOP? mark it carries, the repo's
-#                   current conf answers beside the cause it stated, and what
-#                   has changed since. Takes a branch and an optional claim
-#                   stem; no argument sweeps every claim, printing the ones
-#                   carrying a condition and counting the rest. Report-only —
-#                   /analyst files it, and only where JOHARNESS_IDLE_ANALYSIS
-#                   is on. Says CANONICAL and stops in the joharness repo
-#                   itself
-#   janitor         the sweep, every JOHARNESS_JANITOR_HOURS (12 by default,
-#                   0 = off): claims whose session may be gone, with the push
-#                   age and the evidence to check — never a verdict about a
-#                   session, this command has no control plane — plus what
-#                   merges left on the base branch. Report-only; /janitor
-#                   proves liveness and releases
-#   finish          Loop step 7 gate: what merging this branch NOW would
-#                   leave on the base branch. Red when the merge would add a
-#                   workstream file. Run it before the merge, not after.
-#                   With JOHARNESS_CHECKS=local it also RUNS this head's
-#                   checks — `ci`, and `verify` when the diff touches the
-#                   non-*.md paths step 7 names — instead of a session
-#                   waiting for GitHub Actions, and is red on what they say
-#   start           the one command file this repo's mode calls for, for a
-#                   session that does not know which role to take. Routing
-#                   only: no queue read, no git. Report-only
-#   mode            print the resolved autonomy mode and exit
+#   ci [-v]         run what .github/workflows/ci.yml runs, here. Prints failing
+#                   checks and one verdict line; -v (or JOHARNESS_VERBOSE=1)
+#                   prints every check
+#   review          this branch's review depth and whether findings are recorded
+#   feedback [<path>]
+#                   score the review loop from merged history, or what earlier
+#                   merged edges found in one file
+#   finish [-v]     Loop step 7 gate: what merging this branch NOW would leave
+#                   on the base branch. With JOHARNESS_CHECKS=local it also runs
+#                   `ci` (and `verify` when needed) itself
+#   dispatch        the orchestrator's one read: cap, managers in flight, spawn
+#                   order, verdict. Report-only
+#   janitor [--apply <branch>...]
+#                   stale claims whose session may be gone; --apply releases
+#                   the named ones (session proven gone) on their own branch
+#   guard janitor|kill|loop <branch> [--expect <sha>]
+#                   re-read live state right before a harness push onto a
+#                   branch the session does not own. Report-only; non-zero =
+#                   refused, do not push
+#   curate [--apply]
+#                   is the plan queue still fit; --apply makes the mechanical
+#                   repairs
+#   scout           whether a scout is due. Report-only
+#   clerk           whether a clerk is due, issues already planned or claimed
+#   cleanup [--apply]
+#                   what merges left on the base branch; --apply stages the
+#                   workstream-file deletions (never branches)
+#   upstream [<branch>]
+#                   what a merged edge found ABOUT THE HARNESS (report-only;
+#                   /upstream-report files it, by hand)
+#   analysis [<branch> [<claim>]]
+#                   why a manager is parked: its mark, and whether the conf
+#                   moved under the cause it stated. Report-only
+#   authority       whether this checkout's rules match origin/<base>
+#   start           which command file a session without a role follows
 #   help            this text
 #
-# Selection lives in joharness.conf and is overridden by $JOHARNESS_ENV:
-#   JOHARNESS_ENV=k8s          layer under .agents/env/ ('none' = no
-#                              environment)
-#   JOHARNESS_ENV_SETUP=lazy   'lazy' (provision on demand) or 'eager'
-#                              (provision at session start)
-#   JOHARNESS_ENV_MD=lazy      'lazy' (inject a read-before-touching pointer
-#                              to the layer's AGENTS.md) or 'eager' (inject
-#                              the file whole)
-#   JOHARNESS_MODE=supervised  'supervised' (default), 'unsupervised' or
-#                              'orchestrated'. Anything else reads as
-#                              supervised (.agents/docs/unsupervised.md,
-#                              .agents/docs/orchestrated.md)
-#   JOHARNESS_MAX_MANAGERS=4   orchestrated only: managers in flight at once.
-#                              With JOHARNESS_STALL_MINUTES=45,
-#                              JOHARNESS_HEALTH_MINUTES=10 and
-#                              JOHARNESS_RESPAWN_LIMIT=2 these are the
-#                              human's numbers; `dispatch` prints them
-#   JOHARNESS_REVIEW=off       'off' (default) or 'on'. 'on' makes `ci` fail
-#                              when a workstream this branch wrote reaches the
-#                              edge (pull request open, or status review/done)
-#                              with no review recorded, or with findings none
-#                              of which carry the `(verifier)` tag, and
-#                              session-start say so
-#   JOHARNESS_CHECKS=github    'github' (default) or 'local'. Who answers step
-#                              7's first merge condition. 'github' = the checks
-#                              on this head, read on GitHub, so a session
-#                              pushes and waits for Actions. 'local' = no
-#                              wait: `finish` runs `ci` here, and `verify` on
-#                              the non-*.md paths step 7 names, and is red on
-#                              their result. It refuses to certify a head that
-#                              is not what merges — uncommitted or untracked
-#                              paths, a detached or unpushed tip, or a branch
-#                              behind the base branch
-#   JOHARNESS_UPSTREAM_FEEDBACK=off
-#                              'off' (default) or 'on'. Consumer repos only.
-#                              'on' lets the orchestrator spend one session,
-#                              beyond the manager cap, filing what a merged
-#                              edge found about the harness as a report pull
-#                              request on the canonical. `upstream` reports
-#                              either way (.agents/docs/feedback.md)
-#   JOHARNESS_IDLE_ANALYSIS=off
-#                              'off' (default) or 'on'. Consumer repos only.
-#                              'on' lets the orchestrator spend one session,
-#                              beyond the manager cap, saying why a manager is
-#                              blocked, stalled or looping and filing it as an
-#                              issue on the canonical. `analysis` reports
-#                              either way (.agents/docs/orchestrated.md)
-#   JOHARNESS_JANITOR_HOURS=12 hours between sweeps of the claims; 0 = off.
-#                              A claim whose session is gone holds its plan
-#                              out of the queue until something releases it,
-#                              and the release is /janitor's
-#                              (.agents/docs/handover/README.md, abandoned)
-#   JOHARNESS_SELFTEST=        unset (default) runs the harness selftest only
-#                              when the branch changes something outside
-#                              docs/ and README.md; 'always' runs it whatever
-#                              the diff. Canonical only - a consumer carries
-#                              no selftest to run
-#
-# Default is env 'none', setup 'lazy', md 'lazy', review 'off': a session that
-# never asks for an environment never pays for one — not in provisioning, not
-# in context — and a repo that has not opted into the review gate sees nothing
-# of it.
+# Keys (joharness.conf, overridden by the environment of the same name):
+#   JOHARNESS_ENV=none          layer under .agents/env/
+#   JOHARNESS_ENV_SETUP=lazy    lazy | eager provisioning at session start
+#   JOHARNESS_ENV_MD=lazy       lazy (pointer) | eager (whole file) layer rules
+#   JOHARNESS_REVIEW=off        on = ci fails at the edge with no review record
+#   JOHARNESS_CHECKS=github     local = finish runs ci/verify instead of waiting
+#                               for GitHub Actions
+#   JOHARNESS_MAX_MANAGERS=4, JOHARNESS_STALL_MINUTES=45,
+#   JOHARNESS_HEALTH_MINUTES=10, JOHARNESS_RESPAWN_LIMIT=2,
+#   JOHARNESS_MANAGER_HOURS=4   the orchestrator's numbers; dispatch prints them
+#   JOHARNESS_SCOUT_HOURS=168,
+#   JOHARNESS_CLERK_HOURS=24, JOHARNESS_CLERK_BATCH=3,
+#   JOHARNESS_SCOUT_AUTOMERGE=off
+#                               role cycles; 0 hours = off
+#   JOHARNESS_SELFTEST=always   run the selftest even on a docs-only diff
+#   JOHARNESS_VERBOSE=1         ci/finish print passing checks too
 
 set -uo pipefail
 
@@ -175,9 +80,7 @@ log()  { printf '[joharness] %s\n' "$*" >&2; }
 warn() { printf '[joharness] WARNING: %s\n' "$*" >&2; }
 die()  { printf '[joharness] ERROR: %s\n' "$*" >&2; exit 1; }
 
-# ---------------------------------------------------------------------------
-# Configuration
-# ---------------------------------------------------------------------------
+# --- Configuration
 
 # Last assignment of KEY in the conf file. Inline comments and surrounding
 # whitespace are ignored; values are single tokens.
@@ -205,9 +108,7 @@ md_mode()   { printf '%s' "${JOHARNESS_ENV_MD:-$(conf_get JOHARNESS_ENV_MD)}"; }
 review_mode() { printf '%s' "${JOHARNESS_REVIEW:-$(conf_get JOHARNESS_REVIEW)}"; }
 
 # Off unless a repo says otherwise, and only 'on' turns it on: an unreadable or
-# misspelled value must not silently arm a gate that fails ci. It must not
-# silently disarm one either — a repo that believes it opted in and typed
-# 'true' would otherwise get no gate and no signal, so the value is named.
+# misspelled value must not silently arm a gate that fails ci.
 review_on() {
   local v; v="$(review_mode)"
   case "$v" in
@@ -218,16 +119,7 @@ review_on() {
   esac
 }
 
-# Who answers step 7's first merge condition. 'github' (default) keeps it as
-# written — the checks on this head, read on GitHub, which means a session
-# pushes and then waits for Actions before it can merge. 'local' says a
-# session does not wait: `finish` runs the same checks here, on this head,
-# and is red unless they pass.
-#
-# Named values only, and it fails closed to 'github' like every other knob
-# here — 'off', 'true' or a typo must never be read as permission to merge
-# without waiting for anything at all, which is the one misreading of this
-# switch that loses a gate rather than gaining one.
+# Who answers step 7's first merge condition.
 checks_mode() { printf '%s' "${JOHARNESS_CHECKS:-$(conf_get JOHARNESS_CHECKS)}"; }
 
 checks_local() {
@@ -240,168 +132,12 @@ checks_local() {
   esac
 }
 
-# Where a child repo's harness findings go, and whether anything acts on them.
-# Same off/on shape as JOHARNESS_REVIEW directly above, and for the same
-# reason: `upstream` reports either way, so a human can always read what an
-# edge found about the harness; `on` is what makes the orchestrator spend a
-# session filing it (.agents/docs/feedback.md, When the consumer is the
-# detector). Off by default because on it opens pull requests in a repository
-# this one does not own, and pays for a session beyond the manager cap.
-upstream_mode() { printf '%s' "${JOHARNESS_UPSTREAM_FEEDBACK:-$(conf_get JOHARNESS_UPSTREAM_FEEDBACK)}"; }
-
-upstream_on() {
-  local v; v="$(upstream_mode)"
-  case "$v" in
-    on) return 0 ;;
-    '' | off) return 1 ;;
-    *) warn "ignoring JOHARNESS_UPSTREAM_FEEDBACK='${v}' (want 'on' or 'off'); stays off"
-       return 1 ;;
-  esac
-}
-
-# Why a manager is parked, and whether anything says so out loud. Second
-# switch of the same shape as JOHARNESS_UPSTREAM_FEEDBACK directly above, for
-# the same reason: `analysis` reports either way, so a human can always read
-# why a branch sits blocked, stalled or looping; `on` is what makes the
-# orchestrator spend a session filing it as an issue on the canonical
-# (.agents/docs/orchestrated.md, Roles: analyst). Off by default because on it
-# opens issues in a repository this one does not own, and pays for a session
-# beyond the manager cap. Fails closed: an unrecognised value is off, named
-# once.
-analysis_mode() { printf '%s' "${JOHARNESS_IDLE_ANALYSIS:-$(conf_get JOHARNESS_IDLE_ANALYSIS)}"; }
-
-analysis_on() {
-  local v; v="$(analysis_mode)"
-  case "$v" in
-    on) return 0 ;;
-    '' | off) return 1 ;;
-    *) warn "ignoring JOHARNESS_IDLE_ANALYSIS='${v}' (want 'on' or 'off'); stays off"
-       return 1 ;;
-  esac
-}
-
-# Raw autonomy mode, exactly as configured — empty when unset. Two sources,
-# most immediate first: the environment for one command, the tracked conf
-# for the repo. Only run_mode() and the banner read this; everything else
-# asks run_mode(), which normalises.
-mode_raw() {
-  if [ -n "${JOHARNESS_MODE:-}" ]; then
-    printf '%s' "$JOHARNESS_MODE"
-  else
-    conf_get JOHARNESS_MODE
-  fi
-}
-
-# Where the resolved mode came from. `authority` reads it: the conf is
-# evidence the repository makes, the environment is the caller's claim.
-mode_source() {
-  if [ -n "${JOHARNESS_MODE:-}" ]; then printf 'environment'
-  else                                printf 'conf'
-  fi
-}
-
-# ---------------------------------------------------------------------------
-# The unsupervised boundary
-# ---------------------------------------------------------------------------
-#
-# The RULE is a role, stated in .agents/docs/unsupervised.md (Bounds):
-# protocol text governing a session is off limits to that session while it
-# runs unattended. A session may not rewrite the rules it is being judged by.
-#
-# This is that rule's mechanical expression, and the two are not the same
-# thing. Issue #114 is what a path-shaped rule costs: the boundary named
-# `.agents/harness/` alone, `.claude/agents/verifier.md` became mandatory
-# Loop step 5 protocol outside it, and nothing detected an edit to the one
-# reader the merge gate leans on.
-#
-# One list, here, read by the session-start banner and by
-# .agents/harness/handover-guard.sh. A second copy is the copy that rots.
-#
-# Every .claude/ tree the sync ships is here, and that follows from the
-# role rather than from taste: a command writes the workstream file, a skill
-# carries a workflow the Loop names, an agent is the reader the merge gate
-# leans on. Each is a rule a session is judged by.
-#
-# Two entries are not trees, and both are here because a boundary that does
-# not cover its own machinery is decoration:
-#   joharness.sh          holds THIS list, plus ci, finish, review and mode.
-#                         Left out, a session edits the list and every other
-#                         entry stops meaning anything. The old hardcoded
-#                         boundary lived inside .agents/harness/ and was
-#                         self-protecting by accident; naming it is how that
-#                         property survives being moved out.
-#   .claude/settings.json wires the Stop hook that runs the guard at all.
-#                         Delete the Stop block and nothing fires — not
-#                         because the boundary passed, but because nothing
-#                         is running to fire.
-#   joharness.conf        holds the mode line `authority` verifies and the
-#                         orchestrator's cap. A session that may rewrite
-#                         its own mode line authorises itself; one that
-#                         may raise its own cap decides money. Added
-#                         2026-09-05, when a plan scoped to this file
-#                         (flip the mode, set the knobs) read as free work
-#                         for the fleet it would have flipped.
-#
-# NOT here, deliberately:
-#   .agents/env/    sandbox configuration, not protocol. A layer does not
-#                   govern behavior, and sweeping it in stops the mode
-#                   provisioning anything.
-#   .agents/docs/   the reasoning BEHIND rules rather than the rules a
-#                   session executes. Defensible to include, wider blast
-#                   radius, and not a decision to make silently.
+# --- The core boundary
 protocol_paths() {
-  printf '%s\n' \
-    .agents/harness .claude/agents .claude/commands .claude/skills \
-    joharness.sh .claude/settings.json joharness.conf
+  printf '%s\n' joharness.conf .claude/settings.json .github
 }
 
-# Resolved autonomy mode. TWO strings mean a session runs unattended —
-# unsupervised, and orchestrated (an orchestrator dispatches the queue
-# to manager sessions, .agents/docs/orchestrated.md); every other value — a
-# typo, an empty setting, an unreadable conf, a key that does not exist
-# because this harness copy predates the feature — resolves to supervised.
-# Fails closed on purpose: the failure mode of failing open is a fleet
-# working unattended in a repo that never asked for one.
-run_mode() {
-  case "$(mode_raw)" in
-    unsupervised) printf 'unsupervised' ;;
-    orchestrated) printf 'orchestrated' ;;
-    *)            printf 'supervised' ;;
-  esac
-}
-
-# The ONE predicate every unattended bound reads: the protocol boundary, the
-# requirement lint, the SUPERVISED ONLY marking, the banner. Both unattended
-# modes are bound identically; they differ only in who dispatches — each
-# session for itself (unsupervised) or an orchestrator (orchestrated). A
-# second `= unsupervised` test somewhere is a bound the new mode escapes.
-unattended() {
-  case "$(run_mode)" in
-    unsupervised | orchestrated) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
-# Name a value that was set and not understood. Silence here is how a repo
-# ends up believing it opted in. Callers decide the channel — stderr for
-# the subcommand, session context for the banner.
-mode_unrecognised() {
-  local raw; raw="$(mode_raw)"
-  case "$raw" in
-    ''|supervised|unsupervised|orchestrated) return 1 ;;
-    *) printf '%s' "$raw" ;;
-  esac
-}
-mode_warn_unrecognised() {
-  local raw
-  raw="$(mode_unrecognised)" || return 0
-  warn "JOHARNESS_MODE='${raw}' not recognised; running supervised"
-}
-
-# Layer names are directory names under .agents/env/. Reject anything that could walk
-# out of it before it reaches a path. A whole-string case test, not a grep -qE:
-# grep matches per line, so a value carrying a newline ($'k8s\n...') slipped
-# past the anchors when any single line matched. case sees the whole string.
+# Layer names are directory names under .agents/env/.
 valid_name() {
   case "$1" in
     ''|[!a-z0-9]*|*[!a-z0-9._-]*) return 1 ;;
@@ -420,9 +156,7 @@ layers() {
   done
 }
 
-# Selected layer, falling back to 'none'. No name is special here: 'none' is an
-# ordinary layer that happens to provision nothing. Complaints go to stderr so a
-# broken conf is loud without corrupting hook output.
+# Selected layer, falling back to 'none'.
 resolve_env() {
   local name; name="$(env_name)"
   [ -n "$name" ] || name="none"
@@ -441,11 +175,7 @@ resolve_env() {
 # is what any docs-only layer gets for free.
 has_setup() { [ -f "${ENV_ROOT}/$1/setup.sh" ]; }
 
-# ---------------------------------------------------------------------------
-# Layer contract: everything under .agents/env/<name>/ is optional. setup.sh
-# provisions, smoke-test.sh verifies, AGENTS.md is injected into context. See
-# .agents/env/README.md.
-# ---------------------------------------------------------------------------
+# --- Layer contract: everything under .agents/env/<name>/ is optional. setup.sh
 
 run_setup() {
   local name="$1" script="${ENV_ROOT}/$1/setup.sh"
@@ -467,51 +197,7 @@ cmd_setup() {
   run_setup "$name" || die "environment '${name}' failed to provision"
 }
 
-cmd_verify() {
-  local name smoke
-  name="$(resolve_env)" || die "no usable environment layer under ${ENV_ROOT}"
-  smoke="${ENV_ROOT}/${name}/smoke-test.sh"
-  # Layer contract: everything under .agents/env/<name>/ is optional, so a
-  # layer shipping no smoke-test.sh has nothing to verify rather than failing
-  # to verify. `none` is that case by definition, and it is a supported
-  # choice, not a misconfiguration — bootstrap-consumer.sh hands it out when
-  # --env is omitted. Reporting it as an error also made step 7 unsatisfiable
-  # for such a repo: the merge rule asks for `verify` green whenever the diff
-  # touches harness code, and a rule that cannot be satisfied teaches the
-  # override. Same doctrine churn, review and the finish gate already follow —
-  # say so and pass, never go red on what could not be proven. has_setup()
-  # does the symmetric thing for setup.sh one screen up.
-  #
-  # A smoke-test.sh that EXISTS but is not executable is the opposite case and
-  # stays fatal: somebody meant that file to run, and passing green over it
-  # would hide a broken layer behind the sentence above.
-  if [ ! -f "$smoke" ]; then
-    log "environment '${name}' ships no smoke-test.sh — nothing to verify"
-    return 0
-  fi
-  [ -x "$smoke" ] ||
-    die ".agents/env/${name}/smoke-test.sh is not executable (chmod +x it)"
-  run_setup "$name" || die "environment '${name}' failed to provision"
-  "$smoke"
-}
-
-# ---------------------------------------------------------------------------
-# Upgrade
-#
-# A consumer no longer carries the sync engine: it refuses to run outside
-# canonical anyway (.agents/docs/consumer-repos.md). What it carries instead is
-# this command — fetch canonical, run ITS engine against this repo. One
-# command, so a repo that received a minimal harness can still take an
-# update without a recipe.
-#
-# The canonical address is read from .github/workflows/update.yml, the
-# consumer's own single source of truth for it: a fork names its fork
-# there, and a second key in joharness.conf would be a second answer.
-# ---------------------------------------------------------------------------
-
-# Set by cmd_upgrade, reaped by its EXIT trap. A global, not a local: the
-# trap fires after the function has returned, when a local is out of scope
-# and `set -u` turns the cleanup itself into the error.
+# Consumer route when update.yml cannot sync: clone canonical, run ITS engine here.
 UPGRADE_CLONE=""
 
 cmd_upgrade() {
@@ -519,27 +205,8 @@ cmd_upgrade() {
   grep -q '^JOHARNESS_CANONICAL=1' "$CONF" 2>/dev/null &&
     die "this IS the canonical harness; upgrade is for consumers (sync out with .agents/scripts/sync-to-consumer.sh)"
 
-  # Harness upkeep does not run in a session holding product work
-  # (.agents/harness/AGENTS.md, Harness upkeep). Stated as a preference it stayed
-  # the convenient path; here it is a refusal, because the convenient path
-  # is the one that gets taken.
-  #
-  # A workstream file on this branch IS the claim — the same fact the
-  # handover guard and the queue read — so the refusal fires exactly when
-  # a session has work to dilute, and never on a sync branch, which
-  # carries no workstream file by protocol.
-  #
-  # Escape is deliberate and visible, like the churn ceiling's: a genuine
-  # mid-plan sync sets JOHARNESS_UPGRADE_IN_SESSION=1 and says so in the
-  # commit. Silence is what this exists to prevent, not the act.
   if [ "${JOHARNESS_UPGRADE_IN_SESSION:-0}" != "1" ]; then
     local ws base
-    # The claim is what THIS branch introduced, not what it inherited. A
-    # base branch that accreted a finished workstream file — the failure
-    # process-scorecard exists to count — would otherwise refuse every sync
-    # branch cut from it, while the refusal told the session to do exactly
-    # what it had already done. A rule that misfires teaches the override,
-    # and an override taken reflexively is no rule.
     base="$(git -C "$ROOT" merge-base HEAD "origin/${HANDOVER_BASE_BRANCH:-main}" 2>/dev/null)" || base=""
     if [ -n "$base" ]; then
       ws="$(
@@ -553,16 +220,13 @@ cmd_upgrade() {
       )"
       [ -z "$ws" ] || ws="${ROOT}/${ws}"
     else
-      # No merge-base to compare against, so introduced-vs-inherited cannot
-      # be told apart. Refuse on presence and let the message carry the
-      # override, rather than pass a session that may be mid-plan.
       ws="$(find "${ROOT}/docs/handover" -maxdepth 1 -name '*.md' \
         ! -name 'TEMPLATE.md' ! -name 'README.md' 2>/dev/null | head -1)"
     fi
     if [ -n "$ws" ]; then
       log "this branch carries ${ws#"${ROOT}/"} — it holds claimed work"
       log "cheaper routes, in order: update.yml in CI, a subagent, a session of its own"
-    log "see .agents/docs/consumer-repos.md"
+      log "see .agents/docs/consumer-repos.md"
       die "upgrade refused in a session holding product work; run it from a sync branch with no workstream file, or set JOHARNESS_UPGRADE_IN_SESSION=1 to override deliberately"
     fi
   fi
@@ -570,28 +234,13 @@ cmd_upgrade() {
   local wf="${ROOT}/.github/workflows/update.yml"
   [ -r "$wf" ] ||
     die "no ${wf#"${ROOT}/"} to read the canonical address from; add it (.agents/docs/consumer-repos.md) or sync by hand"
-  # ONE reader of the address, shared with `upstream`. It was spelled here and
-  # there, character for character, and two readers of one fact is how they
-  # start disagreeing — the shape conf-keys.sh exists to stop, three files up.
   repo="$(upstream_canonical_repo)" ||
     die "no usable CANONICAL_REPO in ${wf#"${ROOT}/"}; the update workflow names the canonical this repo follows, as owner/repo"
 
   have git || die "git is not installed"
-  # Outside the repo, or the clone lands in this tree and a later `git add
-  # -A` swallows it. Full clone, no --depth: stale-vs-AHEAD is decided by
-  # blob identity against canonical history, and a shallow clone reads
-  # honestly-synced files as AHEAD forever.
   UPGRADE_CLONE="$(mktemp -d)"
   trap '[ -z "${UPGRADE_CLONE:-}" ] || rm -rf "$UPGRADE_CLONE"' EXIT
   log "fetching canonical ${repo}"
-  # The sync engine compares working-tree bytes, so this checkout must carry
-  # the repository's bytes, not the host's line-ending taste. Git for Windows
-  # defaults to autocrlf=true; without the overrides every text file
-  # .gitattributes does not pin reads as changed on every upgrade — phantom
-  # updates that write CRLF into the consumer. Both flags, because they fail
-  # separately: autocrlf=false stops the smudge, and core.eol=lf covers a
-  # future attribute that says `text` without `eol` (autocrlf off falls back
-  # to core.eol, which is native = CRLF on Windows).
   git clone --quiet -c core.autocrlf=false -c core.eol=lf "https://github.com/${repo}.git" "${UPGRADE_CLONE}/canonical" ||
     die "could not clone https://github.com/${repo}.git"
 
@@ -614,246 +263,178 @@ cmd_upgrade() {
   return "$rc"
 }
 
-# ---------------------------------------------------------------------------
-# Checks
-#
-# ci.yml calls this rather than repeating the commands, so a green run here and
-# a green run on GitHub mean the same thing. Covers every layer, including the
-# ones this repo did not select — they still ship to consumers.
-# ---------------------------------------------------------------------------
-
-cmd_ci() {
-  local rc=0 f listing
-  local -a targets=()
-  if ! listing="$(check_targets)"; then
-    warn "could not enumerate all shell scripts; a partial list is no lint bar"
-    rc=1
+cmd_verify() {
+  local name smoke
+  name="$(resolve_env)" || die "no usable environment layer under ${ENV_ROOT}"
+  smoke="${ENV_ROOT}/${name}/smoke-test.sh"
+  # Layer contract: everything under .agents/env/<name>/ is optional, so a
+  # layer shipping no smoke-test.sh has nothing to verify rather than failing
+  # to verify.
+  if [ ! -f "$smoke" ]; then
+    log "environment '${name}' ships no smoke-test.sh — nothing to verify"
+    return 0
   fi
-  while IFS= read -r f; do
-    [ -n "$f" ] && targets+=("$f")
-  done <<<"$listing"
+  [ -x "$smoke" ] ||
+    die ".agents/env/${name}/smoke-test.sh is not executable (chmod +x it)"
+  run_setup "$name" || die "environment '${name}' failed to provision"
+  "$smoke"
+}
 
-  if [ "${#targets[@]}" -eq 0 ]; then
-    die "no shell scripts found under ${ROOT}"
+# --- Checks
+
+# Output of `ci` and `finish`: failing checks and one verdict line; every
+# check with -v or JOHARNESS_VERBOSE=1.
+CHECK_VERBOSE="${JOHARNESS_VERBOSE:-0}"
+CHECK_FAILS=0
+CHECK_SKIPPED=0
+
+# run_check <name> <function> [args]: run one check, print its output only
+# when it fails (or verbose). Status 3 = skipped, said in the verdict line.
+run_check() {
+  local name="$1" out rc
+  shift
+  out="$("$@" 2>&1)"; rc=$?
+  # A pass that carries a report about THIS branch or checkout (not
+  # measurable, edge report, ships, not covered, shallow — incl. graph reds
+  # degraded to warnings — churn warning) still prints. Plain lint warnings
+  # about other plans stay quiet: measured noise managers mis-read.
+  if { [ "$rc" -ne 0 ] && [ "$rc" -ne 3 ]; } || [ "$CHECK_VERBOSE" = 1 ] ||
+     printf '%s' "$out" | grep -qE 'not measurable|Reported, not failed|SHIPS to consumers|Not covered here|SHALLOW|shallow history|commits on this branch$|Fix undoing'; then
+    printf '== %s\n' "$name"
+    [ -z "$out" ] || printf '%s\n' "$out"
+    printf '\n'
   fi
+  case "$rc" in
+    0) ;;
+    3) CHECK_SKIPPED=1 ;;
+    *) CHECK_FAILS=$((CHECK_FAILS + 1)) ;;
+  esac
+  return 0
+}
 
-  printf '== shellcheck (%d files)\n' "${#targets[@]}"
-  local sc_skipped=0
+# -v / --verbose anywhere in a command's arguments.
+check_args() {
+  local a
+  for a in "$@"; do
+    case "$a" in
+      -v | --verbose) CHECK_VERBOSE=1 ;;
+      *) die "unknown argument '${a}' (try -v)" ;;
+    esac
+  done
+}
+
+ci_shellcheck() {
+  printf '%d files\n' "$#"
   if ensure_shellcheck; then
-    shellcheck -x "${targets[@]}" && printf '  zero findings\n' || rc=1
+    shellcheck -x "$@" || return 1
+    printf '  zero findings\n'
   elif [ "${GITHUB_ACTIONS:-}" = "true" ]; then
-    # The workflow is the gate; a gate that skips its own bar is no gate.
     warn "shellcheck not installed and not installable on the CI runner"
-    rc=1
+    return 1
   else
-    # A session's problem is the code, not the toolchain. Missing tool =
-    # loud skip, never a fake red. Human decides whether the skip stands.
-    sc_skipped=1
     warn "shellcheck unavailable, install failed. NOT checked. Install it"
     warn "(github.com/koalaman/shellcheck#installing) or ask human first."
     printf '  SKIPPED\n'
+    return 3
   fi
+}
 
-  printf '\n== bash syntax\n'
-  local syntax_rc=0
-  for f in "${targets[@]}"; do
-    bash -n "$f" || { rc=1; syntax_rc=1; }
-  done
-  [ "$syntax_rc" -eq 0 ] && printf '  clean\n'
+ci_syntax() {
+  local f rc=0
+  for f in "$@"; do bash -n "$f" || rc=1; done
+  [ "$rc" -eq 0 ] && printf '  clean\n'
+  return "$rc"
+}
 
-  # The harness's own regression tests: git-only, so they run on GitHub
-  # runners whatever the environment layer needs there. Canonical-only — a
-  # consumer does not receive them, because they cover harness code it
-  # does not edit. Absent is therefore normal in a consumer and said once;
-  # present but not executable is a broken copy and stays red.
-  printf '\n== harness selftest\n'
+# The harness's own regression tests. Canonical-only: absent in a consumer.
+ci_selftest() {
   if [ ! -e "${HARNESS_ROOT}/selftest.sh" ]; then
     printf '  not here (canonical-only; this repo does not carry the harness tests)\n'
   elif [ ! -x "${HARNESS_ROOT}/selftest.sh" ]; then
     warn ".agents/harness/selftest.sh is not executable"
-    rc=1
+    return 1
   elif [ "${JOHARNESS_SELFTEST:-}" != "always" ] &&
        selftest_inert_diff HEAD "origin/${HANDOVER_BASE_BRANCH:-main}"; then
-    # A skip that prints nothing is indistinguishable from a pass, so it says
-    # what it skipped and how to override it.
     printf '  skipped: nothing outside docs/ and README.md changed on this branch\n'
     printf '  Run it anyway: JOHARNESS_SELFTEST=always %s ci\n' "$0"
   else
-    "${HARNESS_ROOT}/selftest.sh" || rc=1
+    "${HARNESS_ROOT}/selftest.sh"
   fi
+}
 
-  # One node, two names, in files every session loads. Scope and reasoning:
-  # lint_glossary.
-  printf '\n== glossary\n'
-  lint_glossary || rc=1
-
-  # Graph edges, checked rather than trusted: a dangling frontmatter edge
-  # or out-of-vocabulary enum fails silent everywhere else — the hooks
-  # default it and the queue lies. Rules and the warn/red split: lint_graph.
-  printf '\n== graph lint\n'
-  lint_graph || rc=1
-
-  # Findings recorded on this branch that the fix map cannot key on, so
-  # nothing ever serves them back. Report only, never rc — lint_finding_ids
-  # carries why, and why it is not review_count's question.
-  printf '\n== finding ids\n'
-  lint_finding_ids
-
-  # Which plans on this branch land in every consumer. Report only, never
-  # rc — reasoning in lint_ship. Silent in a consumer, which carries neither
-  # the sync engine nor a reason to ask.
-  # Beside the ids stage, because both read this branch's own findings and a
-  # reader wants them together. Its own section: keyable and dispositioned are
-  # different questions, and one heading over two verdicts is how a reader
-  # stops telling them apart.
-  printf '\n== finding verdicts\n'
-  lint_finding_markers || rc=1
-
-  printf '\n== requirement authorship\n'
-  lint_requirement_writes || rc=1
-
-  printf '\n== ship scope\n'
-  lint_ship
-
-  # Review churn, measured rather than noticed. The rule
-  # (.agents/docs/agent-selection.md) asks a session to see that a fix undid an
-  # earlier fix — but the session inside the churn is the one least able to
-  # see it: the sync-tool branch ran twelve "harden per review round"
-  # commits over two hours, and ci ran every round without saying so. Git
-  # held the evidence the whole time; this prints it. Two tiers, because the
-  # honest answer changes with the number. From the threshold up it is a
-  # warning: whether the churn is real is the session's judgment call, and the
-  # rule's lever (raise tier or effort) is its to pull. From the ceiling up it
-  # is no longer a call — no honest single edit rewrites one file that many
-  # times on one branch (backtest: the runaway sync branch hit 13, every other
-  # merge in this repo's history <=4). The session inside the churn is the one
-  # that cannot see it, so the one gate it cannot skip fails for it.
-  # JOHARNESS_CHURN_LIMIT overrides the ceiling; =0 lifts the gate, the
-  # deliberate and visible escape for a genuine large rework.
-  # Read through num_knob, so the environment for one run and joharness.conf
-  # for the repo both work — and mean the same here as they do in `dispatch`,
-  # which reads the same two knobs. Environment-only was a trap the conf
-  # documented its way into: a human writing JOHARNESS_CHURN_LIMIT=0 in the
-  # conf for a genuine large rework got a still-red ci and a silently
-  # disabled LOOP?.
-  printf '\n== churn\n'
-  local churn threshold ceiling
+# Review churn: the session inside it is the one least able to see it.
+# Warning from the threshold, red from the ceiling (0 lifts both).
+ci_churn() {
+  local churn threshold ceiling churn_n churn_f
   threshold="$(num_knob JOHARNESS_CHURN_THRESHOLD 5)"
   ceiling="$(num_knob JOHARNESS_CHURN_LIMIT $((threshold * 2)))"
-  if churn="$(churn_top)"; then
-    if [ -n "$churn" ]; then
-      local churn_n="${churn%%	*}" churn_f="${churn#*	}"
-      if [ "$ceiling" -gt 0 ] && [ "$churn_n" -ge "$ceiling" ]; then
-        printf '  %s rewritten in %s commits on this branch (ceiling %s)\n' \
-          "$churn_f" "$churn_n" "$ceiling"
-        printf '  Past the ceiling this is churn, not a judgment call. Stop\n'
-        printf '  patching — take the research step at a raised tier or effort\n'
-        printf '  (.agents/docs/agent-selection.md, review churn). Genuine large rework?\n'
-        printf '  JOHARNESS_CHURN_LIMIT=0 lifts the gate, on the record.\n'
-        rc=1
-      elif [ "$churn_n" -ge "$threshold" ]; then
-        printf '  %s touched in %s commits on this branch\n' "$churn_f" "$churn_n"
-        printf '  Fix undoing an earlier fix? Stop patching — research step at raised\n'
-        printf '  tier or effort first (.agents/docs/agent-selection.md, review churn).\n'
-      else
-        printf '  quiet (max %s commits per file)\n' "${churn_n:-0}"
-      fi
-    else
-      printf '  quiet\n'
-    fi
-  else
+  if ! churn="$(churn_top)"; then
     printf '  not measurable here (no merge-base; shallow checkout or base branch)\n'
+    return 0
   fi
-
-  # Beside churn, and for the same reason: the session that grows a file
-  # every future session loads is the one holding no earlier number. Cheap
-  # enough to run on every diff — the chain is three files and a merge-base
-  # read, no session-start (`context` pays for that one).
-  printf '\n== context\n'
-  ctx_report
-
-  # Counts, not seconds. Registered here rather than in .github/workflows/ci.yml
-  # because the workflow already runs this command: the guard reaches GitHub
-  # with no workflow edit, and a session gets it BEFORE the pull request by
-  # running `ci` — which is the split ci.yml's own header asks for. A workflow
-  # could not do the second half anyway: GitHub registers a dispatchable
-  # workflow only from the default branch, so a new one cannot run before its
-  # own merge.
-  #
-  # Same skip as the selftest, for the same reason: the counts measure harness
-  # code, and a branch touching only docs/ cannot move them. Measured cost of
-  # running it, 2026-08-28 on this repo: `ci` 61s without, 66s with — the rows
-  # then were ~5s. That is the price of the gate on a harness branch and zero
-  # on a docs branch. Count of rows deliberately not written here: it went
-  # five to six on 2026-08-29 and this sentence did not, which is what a
-  # written number does.
-  printf '\n== perf budget\n'
-  if [ "${JOHARNESS_PERF:-}" = "off" ]; then
-    # Fixture runs of `ci` set this. Same reasoning as the shellcheck stub in
-    # .agents/harness/selftest.sh, and the same measurement behind it: without
-    # it the suite went 47s -> 70s, because ~20 fixture `ci` runs each
-    # re-measured every entrypoint for a verdict the real run reaches on the
-    # real tree one section later. That is the exact waste PR 54 removed,
-    # reintroduced by the guard built to notice it. The bar does not move —
-    # the real `ci` still measures, and perf has its own cases in the suite.
-    printf '  skipped: JOHARNESS_PERF=off\n'
-  elif [ "${JOHARNESS_PERF:-}" != "always" ] &&
-     selftest_inert_diff HEAD "origin/${HANDOVER_BASE_BRANCH:-main}"; then
-    printf '  skipped: nothing outside docs/ and README.md changed on this branch\n'
-    printf '  Run it anyway: JOHARNESS_PERF=always %s ci\n' "$0"
+  if [ -z "$churn" ]; then
+    printf '  quiet\n'
+    return 0
+  fi
+  churn_n="${churn%%	*}" churn_f="${churn#*	}"
+  if [ "$ceiling" -gt 0 ] && [ "$churn_n" -ge "$ceiling" ]; then
+    printf '  %s rewritten in %s commits on this branch (ceiling %s)\n' \
+      "$churn_f" "$churn_n" "$ceiling"
+    printf '  Past the ceiling this is churn, not a judgment call. Stop\n'
+    printf '  patching — take the research step at a raised tier or effort\n'
+    printf '  (.agents/docs/agent-selection.md, review churn). Genuine large rework?\n'
+    printf '  JOHARNESS_CHURN_LIMIT=0 lifts the gate, on the record.\n'
+    return 1
+  elif [ "$churn_n" -ge "$threshold" ]; then
+    printf '  %s touched in %s commits on this branch\n' "$churn_f" "$churn_n"
+    printf '  Fix undoing an earlier fix? Stop patching — research step at raised\n'
+    printf '  tier or effort first (.agents/docs/agent-selection.md, review churn).\n'
   else
-    perf_report || rc=1
+    printf '  quiet (max %s commits per file)\n' "${churn_n:-0}"
   fi
+}
 
-  # Off by default and silent while off, so a repo that never opted in gets
-  # the same ci output it got before this existed.
-  if review_on; then
-    printf '\n== review\n'
-    review_report || rc=1
+cmd_ci() {
+  local f listing fs
+  local -a targets=()
+  check_args "$@"
+  CHECK_FAILS=0; CHECK_SKIPPED=0
+  if ! listing="$(check_targets)"; then
+    warn "could not enumerate all shell scripts; a partial list is no lint bar"
+    CHECK_FAILS=$((CHECK_FAILS + 1))
   fi
+  while IFS= read -r f; do
+    [ -n "$f" ] && targets+=("$f")
+  done <<<"$listing"
+  [ "${#targets[@]}" -gt 0 ] || die "no shell scripts found under ${ROOT}"
 
-  # Loop step 7's gate, enforced rather than merely available. `finish` was
-  # a correct gate nobody had to run, and step 7 kept not happening:
-  # docs/handover/joharness-minify-optimize.md sat on main from 2026-08-24
-  # through 22 merges, named correctly by the gate every time anyone ran
-  # it. Detect, Record and Generalize had all happened — the step 7 wording
-  # was strengthened after a consumer measured 23 stale files — and it
-  # recurred because stage 4 was missing (.agents/docs/feedback.md).
-  #
-  # Reported at the edge, RED once the branch says done — see
-  # fin_strength for why one trigger could not serve both this and the
-  # review gate. Not behind a flag: whether a review is deep enough is a
-  # judgment, whether a branch that calls itself finished still carries
-  # its own workstream file is not.
-  local fin_strength_now
-  fin_strength_now="$(fin_strength)"
-  if [ -n "$fin_strength_now" ]; then
-    printf '\n== finish\n'
-    fin_gate "$fin_strength_now" || rc=1
-  fi
+  run_check shellcheck ci_shellcheck "${targets[@]}"
+  run_check "bash syntax" ci_syntax "${targets[@]}"
+  run_check "harness selftest" ci_selftest
+  run_check glossary lint_glossary
+  run_check "graph lint" lint_graph
+  run_check "plans on this branch" lint_plans_in_diff
+  run_check "finding ids" lint_finding_ids
+  run_check "finding verdicts" lint_finding_markers
+  run_check "ship scope" lint_ship
+  run_check churn ci_churn
+  if review_on; then run_check review review_report; fi
+  fs="$(fin_strength)"
+  [ -z "$fs" ] || run_check finish fin_gate "$fs"
 
-  printf '\n'
-  if [ "$rc" -ne 0 ]; then
-    printf 'ci: FAIL\n'
-  elif [ "$sc_skipped" -eq 1 ]; then
+  # The environment smoke test is not part of this: run `verify`.
+  if [ "$CHECK_FAILS" -ne 0 ]; then
+    printf 'ci: FAIL (%s)\n' "$CHECK_FAILS"
+    return 1
+  elif [ "$CHECK_SKIPPED" -eq 1 ]; then
     printf 'ci: pass (shellcheck SKIPPED — not the full bar)\n'
   else
     printf 'ci: pass\n'
   fi
-
-  # The environment smoke test is deliberately not part of this. A layer
-  # needing the sandbox has nothing a GitHub runner can prove; one that does
-  # not says so itself and the workflow verifies it separately
-  # (.agents/env/README.md). Either way this command does not: run `verify`.
-  return "$rc"
+  return 0
 }
 
-# Every shell script the harness owns, in a stable order. One find root:
-# everything harness-owned lives under .agents/ (harness, env, scripts),
-# so a script added anywhere in it must not ship unlinted behind a green
-# `ci: pass`. A missing root is fine (a stripped-down consumer); a find
-# FAILURE is not — an unreadable dir would silently drop scripts from
-# the lint list, so the caller sees it and goes red.
+# Every shell script the harness owns, in a stable order.
 check_targets() {
   local listing
   printf '%s\n' "${ROOT}/joharness.sh"
@@ -865,8 +446,7 @@ check_targets() {
 have() { command -v "$1" >/dev/null 2>&1; }
 
 # The ref that stands for merged state: the remote's base branch, else a local
-# branch of the same name, else HEAD. Three callers walk merged history and all
-# three must agree on where it is, or they disagree about what has landed.
+# branch of the same name, else HEAD.
 base_ref() {
   local b="${HANDOVER_BASE_BRANCH:-main}" c
   for c in "origin/${b}" "$b" HEAD; do
@@ -879,30 +459,7 @@ base_ref() {
 }
 
 # Most-touched file on a branch since it left the base branch, as
-# "count<TAB>path". Measures $1 (default HEAD) against $2 (default
-# origin/<base branch>) — cmd_ci reads the session's own branch, cmd_graph
-# every in-flight one, and both must be the same metric or they disagree
-# about what counts as churn. Empty when the branch has no non-merge
-# commits. Returns non-zero when there is no merge-base to measure against —
-# the base branch itself, or a shallow checkout. docs/(handover|plans|
-# product)/ are excluded: the protocol requires touching the workstream file
-# in the SAME commit as every change, so counting those paths reads
-# compliance as churn (the first unfiltered backtest flagged a branch for
-# exactly that). The tab is awk's, not sed's: BSD sed emits '\t' as a
-# literal 't', which on macOS glued count to path and disarmed the ci gate.
-# awk also keeps a path with spaces whole.
-#
-# One `git log --name-only`, not a diff-tree per commit: the old shape forked
-# once per commit plus a six-stage pipeline, so the cost grew with the branch
-# it was judging — the measure that exists to notice a long branch was the
-# thing that got slow on one. --no-renames keeps it the same metric diff-tree
-# reported (rename shown as its two paths, not one). `--format=` emits NO
-# separator line - this comment claimed a blank line per commit until it was
-# measured, 2026-08-28 on git 2.43.0, `git log --no-merges --no-renames
-# --format= --name-only HEAD~3..HEAD | cat -A` in this repo - and the awk's
-# `!NF` drops blanks either way, so the walk was never wrong, only the
-# comment. Ties on count go to the higher path name, as the old
-# `sort -rn | head -1` did.
+# "count<TAB>path".
 churn_top() {
   local rev="${1:-HEAD}" over="${2:-origin/${HANDOVER_BASE_BRANCH:-main}}" base
   base="$(git -C "$ROOT" merge-base "$rev" "$over" 2>/dev/null)" || return 1
@@ -916,310 +473,18 @@ churn_top() {
       END { if (max) printf "%d\t%s\n", max, best }'
 }
 
-
-# ---------------------------------------------------------------------------
-# Context tax
-#
-# Every session loads CLAUDE.md and whatever it imports before its first
-# prompt — every mode, every role, every tier. `.agents/harness/AGENTS.md`
-# opens by citing ETH AGENTbench for "long context file hurt agent, cost
-# more", and `.agents/docs/caveman.md` says instruction files "load every
-# session; every word is paid repeatedly". Neither number was ever counted.
-#
-# Counted 2026-09-06 on origin/main, walking that file's own history
-# (`git show <commit>:.agents/harness/AGENTS.md | wc -w` over
-# `git log --first-parent --format=%H -- .agents/harness/AGENTS.md`): 770
-# words on 2026-08-23, 2129 on 2026-09-06. 2.8x in 14 days, unnoticed,
-# because growth arrives one honest rule at a time and no reader holds the
-# earlier number. Orchestrated mode cut the session-start injection for
-# exactly this reason — it prints no queue and only this branch's handover
-# files — and the chain it CANNOT cut is the larger half. Deliberately no
-# byte pair written here: that injection carries the in-flight table, so it
-# moves with the number of live branches on the remote and a figure written
-# down today is wrong next week. `./joharness.sh context` under each mode is
-# the answer, counted when asked.
-#
-# So: count it, and print what THIS branch adds. Report, never gate — a
-# ceiling on prose size fires on the honest rule addition and buys deleted
-# rules. `scorecard` states that doctrine and `churn` is the precedent for
-# earning a gate later, on a backtest, rather than asserting one now.
-#
-# The chain is WALKED, never listed. A hardcoded triple rots the day an
-# import moves, and the walk is what keeps this layer-agnostic: the selected
-# environment's rules arrive through session-start, so nothing here names a
-# layer (.agents/harness/AGENTS.md Part 2, the one carve-out).
-CTX_ENTRY="CLAUDE.md"
-
-# One file, from the worktree (empty ref) or from a git ref. Non-zero when
-# the path is absent, so a chain walked at the merge base skips a file this
-# branch ADDED rather than counting it as zero bytes present.
-ctx_read() {
-  local ref="$1" path="$2"
-  if [ -z "$ref" ]; then
-    # `-L` before `-f`: `-f` follows the link and reads the TARGET's bytes,
-    # while `git show <ref>:<link>` prints the link's own path as its content.
-    # Nothing in this repo's chain is a symlink; if one ever is, both sides
-    # skip it rather than disagreeing by the length of a filename.
-    [ ! -L "${ROOT}/${path}" ] || return 1
-    [ -f "${ROOT}/${path}" ] || return 1
-    cat "${ROOT}/${path}"
-  else
-    # `git show <ref>:<dir>` prints a TREE LISTING and exits 0, so an import
-    # naming a directory would be skipped in the worktree (`-f` refuses it)
-    # and counted from a ref — and the branch delta is the difference of the
-    # two. Both sides answer the same question or the delta is noise.
-    [ "$(git -C "$ROOT" cat-file -t "${ref}:${path}" 2>/dev/null)" = blob ] ||
-      return 1
-    # 120000 is git's mode for a symlink blob; the worktree side skips those.
-    case "$(git -C "$ROOT" ls-tree "$ref" -- "$path" 2>/dev/null)" in
-      120000\ *) return 1 ;;
-    esac
-    git -C "$ROOT" show "${ref}:${path}" 2>/dev/null
-  fi
-}
-
-# `@path` alone on a line is the import; the same text inside a fenced block
-# is an example of one. caveman.md quotes import syntax and glossary.md may
-# yet, so the fence test is load bearing rather than defensive.
-#
-# LINE-ANCHORED, and that is the one limit: an `@path` written mid-sentence
-# is not followed, so a repo writing them that way is UNDER-counted. Read the
-# other way round the walker would have to guess which `@word` is a path, and
-# `@anthropic-ai/sdk` in a code fence's neighbour line is the kind of guess
-# that puts a wrong number in front of a reader who cannot check it. A number
-# too low is a floor; a number invented is neither.
-ctx_imports() {
-  awk '
-    /^```/ { fence = !fence; next }
-    !fence && /^@[^[:space:]]+[[:space:]]*$/ {
-      s = $0; sub(/^@/, "", s); sub(/[[:space:]]+$/, "", s); print s }'
-}
-
-# Two spellings of one path must count once, or a cycle guard keyed on the
-# string lets the same file in twice. Stack walk, so `a/../b` and `./b` both
-# land on `b`.
-#
-# A path that leaves the repository prints NOTHING and is dropped. The first
-# version clamped instead — `@../shared/RULES.md` became `<root>/shared/
-# RULES.md` and `@/etc/rules.md` became `<root>/etc/rules.md` — so a
-# different file's bytes were printed as what a session loads, on both sides
-# of the delta, with no diagnostic. Clamping is the shape that turns a bad
-# input into a confident wrong number, which is the one output this command
-# must never produce.
-ctx_norm() {
-  awk -F/ '{
-    n = 0
-    if ($1 == "") { print ""; next }
-    for (i = 1; i <= NF; i++) {
-      if ($i == "" || $i == ".") continue
-      if ($i == "..") { if (n > 0) { n--; continue } else { print ""; next } }
-      st[++n] = $i
-    }
-    out = ""
-    for (i = 1; i <= n; i++) out = out (i > 1 ? "/" : "") st[i]
-    print out
-  }'
-}
-
-# Load order, each path once. Cycle-safe by construction: a file importing
-# itself, or a pair importing each other, is walked once and counted once.
-# Imports resolve against the IMPORTING file's directory, which is where the
-# reader resolves them.
-ctx_chain() {
-  local ref="${1:-}" pending cur dir imp p seen nl
-  nl=$'\n'
-  pending="$CTX_ENTRY"
-  seen="$nl"
-  while [ -n "$pending" ]; do
-    cur="${pending%%$'\n'*}"
-    if [ "$cur" = "$pending" ]; then pending=""; else pending="${pending#*$'\n'}"; fi
-    [ -n "$cur" ] || continue
-    case "$seen" in *$'\n'"${cur}"$'\n'*) continue ;; esac
-    ctx_read "$ref" "$cur" >/dev/null 2>&1 || continue
-    seen="${seen}${cur}"$'\n'
-    printf '%s\n' "$cur"
-    dir="${cur%/*}"
-    [ "$dir" != "$cur" ] || dir=""
-    while IFS= read -r imp; do
-      [ -n "$imp" ] || continue
-      p="$(printf '%s\n' "${dir:+${dir}/}${imp}" | ctx_norm)"
-      [ -n "$p" ] || continue
-      pending="${pending:+${pending}${nl}}${p}"
-    done < <(ctx_read "$ref" "$cur" | ctx_imports)
-  done
-}
-
-# bytes<TAB>words<TAB>path, one row per file, load order. Counted from the
-# tree at read time; nothing stored, same doctrine as churn and scorecard.
-# `wc` twice rather than once with two flags: the combined form prints in a
-# fixed order this would have to assume, and a wrong column here is a wrong
-# number nobody can see is wrong.
-ctx_counts() {
-  local ref="${1:-}" p b w
-  while IFS= read -r p; do
-    [ -n "$p" ] || continue
-    b="$(ctx_read "$ref" "$p" | wc -c | tr -d '[:space:]')"
-    w="$(ctx_read "$ref" "$p" | wc -w | tr -d '[:space:]')"
-    printf '%s\t%s\t%s\n' "$b" "$w" "$p"
-  done < <(ctx_chain "$ref")
-}
-
-# bytes<TAB>words for the whole chain.
-ctx_total() {
-  local ref="${1:-}" b w rest tb=0 tw=0
-  while IFS=$'\t' read -r b w rest; do
-    [ -n "$b" ] || continue
-    tb=$((tb + b)); tw=$((tw + w))
-  done < <(ctx_counts "$ref")
-  printf '%s\t%s\n' "$tb" "$tw"
-}
-
-# The report. `full` adds the session-start injection, which only the
-# subcommand pays for. Measured 2026-09-06 on this container, with
-#
-#   s=$(date +%s%N); ./joharness.sh session-start >/dev/null 2>&1
-#   e=$(date +%s%N); echo $(( (e-s)/1000000 ))   # and the same around `ci`
-#
-# 3521ms against 14716ms: folding it into every `ci` run costs about a
-# quarter of the run for a number a diff rarely moves. Hardware-dependent,
-# so re-time it before quoting it; the ratio is the reason, not the ms.
-ctx_report() {
-  local full="${1:-}" b w p over base bb bw ss_b ss_w tmp mode
-  # An absent entry file is a real answer, not a reason to stop: the
-  # session-start injection is still paid, and the delta against a base that
-  # HAD the chain is exactly the number a reader wants to see.
-  if [ -z "$(ctx_chain "")" ]; then
-    printf '  no %s here; no import chain to count\n' "$CTX_ENTRY"
-    b=0; w=0
-  else
-    printf '  loaded before the first prompt, every mode, every tier:\n'
-    while IFS=$'\t' read -r b w p; do
-      printf '    %-32s %8s bytes %7s words\n' "$p" "$b" "$w"
-    done < <(ctx_counts "")
-    IFS=$'\t' read -r b w < <(ctx_total "")
-    printf '    %-32s %8s bytes %7s words\n' "instructions" "$b" "$w"
-  fi
-
-  if [ "$full" = "full" ]; then
-    mode="$(run_mode)"
-    # A command that says "reports; never gates" must not reach the network
-    # or provision anything, and `session-start` does both: the handover hook
-    # fetches (`.agents/harness/handover-context.sh`, HANDOVER_FETCH) and an
-    # eager layer in a remote sandbox runs `setup`. Both are suppressed here,
-    # so the row is the injection MINUS whatever provisioning would have
-    # printed — stated rather than silently included, because a report that
-    # provisions to measure itself has changed what it measured.
-    if ! tmp="$(mktemp 2>/dev/null)" || [ -z "$tmp" ]; then
-      printf '    session-start: not counted (mktemp failed)\n'
-    else
-      HANDOVER_FETCH=0 JOHARNESS_ENV_SETUP=lazy "$0" session-start \
-        >"$tmp" 2>/dev/null
-      ss_b="$(wc -c <"$tmp" | tr -d '[:space:]')"
-      ss_w="$(wc -w <"$tmp" | tr -d '[:space:]')"
-      rm -f "$tmp"
-      printf '    %-32s %8s bytes %7s words\n' "session-start (${mode})" \
-        "$ss_b" "$ss_w"
-      printf '    %-32s %8s bytes %7s words\n' "total" \
-        "$((b + ss_b))" "$((w + ss_w))"
-      # Not a constant, and reading it as one is how a number gets written
-      # down and then quoted after it stopped being true: the injection
-      # carries the in-flight table, so it grows with the number of live
-      # branches on the remote and shrinks as they merge.
-      printf '  The session-start row is a snapshot: it carries the in-flight\n'
-      printf '  table, so it moves with the fleet, not only with this diff.\n'
-    fi
-  fi
-
-  # What THIS branch adds is the number with teeth: it is paid once per
-  # future session, forever, and the session adding it is the one that
-  # cannot see the earlier total.
-  over="origin/${HANDOVER_BASE_BRANCH:-main}"
-  base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)" || base=""
-  if [ -z "$base" ]; then
-    printf '  branch delta not measurable here (no merge-base with %s)\n' "$over"
-  else
-    IFS=$'\t' read -r bb bw < <(ctx_total "$base")
-    # "to the chain", said every time. The delta covers the imported files
-    # ONLY, and it sits under a total that includes the session-start row —
-    # so a branch that adds forty lines of hook output would otherwise read
-    # "adds nothing" directly beneath a number those lines are inside of.
-    if [ "$b" -eq "$bb" ] && [ "$w" -eq "$bw" ]; then
-      printf '  this branch adds nothing to the chain (%s bytes at the merge base)\n' "$bb"
-    else
-      printf '  this branch, to the chain: %+d bytes, %+d words\n' \
-        "$((b - bb))" "$((w - bw))"
-      # A cut and a growth are not the same news, and one sentence for both
-      # reads as a scold on the branch doing the right thing.
-      # BOTH counts, because they disagree: -8 bytes and +7 words is a chain
-      # that got wordier, and words are the unit the growth this exists to
-      # watch was measured in (770 to 2129). Either one up is a growth.
-      if [ "$b" -gt "$bb" ] || [ "$w" -gt "$bw" ]; then
-        printf '  Paid by every session after it merges, in every mode, at every\n'
-        printf '  tier. Worth it, or is the rule already stated somewhere a session\n'
-        printf '  reads on demand? (.agents/docs/caveman.md)\n'
-      else
-        printf '  Saved for every session after it merges (.agents/docs/caveman.md)\n'
-      fi
-    fi
-  fi
-  [ "$full" = "full" ] ||
-    printf '  with the session-start injection: %s context\n' "$0"
-  return 0
-}
-
-cmd_context() {
-  printf '== context (what a session loads before its first prompt)\n'
-  printf '   reports; never gates\n\n'
-  ctx_report full
-}
-# ---------------------------------------------------------------------------
-# Selftest scope
-#
-# The selftest covers harness code, and `ci` ran all of it on every diff. It
-# is the dominant cost: `time .agents/harness/selftest.sh` against `time
-# ./joharness.sh ci` on this repo, and the suite is most of the run. What made
-# scoping it worth doing was measured in a consumer over one working day - 104
-# commits, 24 merged pull requests, not one touching a harness surface, every
-# run paying for the suite anyway. Step 7 already scopes `verify` by the same
-# question; this asks it for the suite.
-#
-# Canonical only, in practice: the suite is never synced to a consumer, so
-# there the stage takes the "not here" path before this is reached.
-#
-# An ALLOW-list, not a deny-list of harness surfaces. This gate is
-# single-sided - the `windows` job that also ran the suite is `if: false`, so a
-# skip here is a skip everywhere with no backstop, and re-enabling that job
-# runs the suite unconditionally on Git Bash because it calls `selftest.sh`
-# directly rather than through `ci`. A deny-list would skip for whatever path
-# gets added next; an allow-list runs the suite for anything it does not
-# recognise. Any doubt runs it: no merge base (a shallow checkout, or main
-# itself), an unreadable diff, or one unfamiliar path.
-#
-# --no-renames is load bearing, the same way it is for churn_top: git would
-# otherwise report a harness file moved under docs/ as the destination path
-# ALONE, and deleting a harness surface by moving it would read as inert.
-#
-# Uncommitted work counts, because a session that has edited harness code and
-# not committed yet is exactly the one that must not skip its own tests.
+# --- Selftest scope
 selftest_inert_diff() {
   local rev="${1:-HEAD}" over="${2:-origin/${HANDOVER_BASE_BRANCH:-main}}" base f entry seen=0
   base="$(git -C "$ROOT" merge-base "$rev" "$over" 2>/dev/null)" || return 1
   [ "$base" != "$(git -C "$ROOT" rev-parse "$rev" 2>/dev/null)" ] || return 1
 
-  # Two plain loops, not one `grep -q` pipeline: `grep -q` exits at its first
-  # match and SIGPIPEs the stage feeding it, which under `pipefail` flipped the
-  # verdict to "inert" once the diff was long enough to fill the pipe buffer -
-  # and a long diff is the one that most needs the suite.
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     seen=1
     case "$f" in docs/*|README.md) ;; *) return 1 ;; esac
   done < <(git -C "$ROOT" diff --no-renames --name-only "${base}..${rev}" 2>/dev/null)
 
-  # -z, and strip the fixed three-character status prefix, rather than taking
-  # the last whitespace field: porcelain QUOTES a path containing a space, so
-  # `.agents/harness/new docs/x.sh` arrived as `docs/x.sh"` and read as inert.
-  # --no-renames for the same reason it is on the diff above.
   while IFS= read -r -d '' entry; do
     f="${entry:3}"
     [ -n "$f" ] || continue
@@ -1231,856 +496,11 @@ selftest_inert_diff() {
   return 0
 }
 
-# ---------------------------------------------------------------------------
-# Perf budget
-#
-# PR 54 cut `ci` 61.7s -> 20.2s by removing work per run, and left the proof
-# in a workstream file that merged and was swept. Nothing re-counted it, so
-# the whole optimization was defended by a table no tree carried and no
-# command reproduced — a written number, which step 5 says never to trust.
-# This counts it instead.
-#
-# WHAT is counted: external commands spawned, not seconds. A count is
-# deterministic for a given code path; wall-clock on a shared runner is not,
-# and a gate that reddens for the weather is one sessions re-run instead of
-# read. Seconds are printed beside each count because they are what a human
-# feels, and they never gate.
-#
-# HOW: a directory of shims goes on PATH ahead of the real binaries, each
-# shim appending one line to a counter file before exec'ing the real thing.
-# Same trick as the shellcheck stub in .agents/harness/selftest.sh and the
-# same reason it is sound: the shim changes what is RECORDED, never what is
-# run — exec preserves argv, the streams and the exit status.
-#
-# mktemp -d, 0700: this prepends a directory to PATH and then runs `git` out
-# of it. A predictable path under a shared /tmp is an injection point, not a
-# style question. Real binaries are resolved BEFORE the shim dir goes on
-# PATH, or each shim would exec itself.
-# The pinned measurement SHAPE.
-#
-# Four rows count one fork per remote-tracking ref, so before this the number
-# described the operator's branch list rather than the code. Measured
-# 2026-09-02, same tree: a single-branch clone counts `graph` 19 and
-# `session-start` 62; this repo's session container, carrying 107 refs, counts
-# 406 and 1163 against budgets of 260 and 700 — re-counted, because the first
-# figures written here (422 and 1179) did not reproduce. `ci` was therefore red on a
-# clean `main` in every container, which is how a gate stops being read.
-#
-# PERF_EDGES below already made this decision for history. The ref shape and
-# the queue were the halves nobody pinned.
-#
-# BUILT FROM NOTHING, not cloned. A clone was the first attempt and it carried
-# the source's HEAD as `origin/main` — so every entrypoint that resolves the
-# base ref read the OPERATOR'S QUEUE, and the count still moved with it:
-# measured, +12 per plan file against the 14 of headroom every row then
-# carried (2026-09-02; today's pairs are at perf_rows), which re-created the
-# defect this exists to remove one dimension over. It also inherited the
-# source's shallowness, its detached HEAD in CI, and a refs/remotes list that
-# only converged after some row happened to fetch.
-#
-# What the shape holds, and why each part earns its place:
-#   this tree's harness   the child resolves HARNESS_ROOT from the project
-#                         directory it is pointed at, so without the copy the
-#                         rows would measure the shape's own files rather than
-#                         the code under test.
-#   a pinned queue        three plans, a question, a requirement. `graph` and
-#                         `queue-context` walk every node, so an unpinned tree
-#                         walks the count up as the repo fills.
-#   origin/main           the base ref every entrypoint resolves, pointing at
-#                         that pinned tree.
-#   merged refs           the cheap path in both session-start hooks: one
-#                         `for-each-ref --merged` per hook covers all of
-#                         them (the batch note above perf_rows). `graph`
-#                         still asks ancestry per ref (cmd_graph), inside
-#                         its own budget. A spawn per merged ref put back
-#                         into a hook is the regression in kind the ceilings
-#                         exist to catch.
-#   open branches         the DEAR path, each carrying a workstream file. The
-#                         claims loop and the ownership walk are what cost.
-#   a work branch         one commit ahead, no workstream file. A session's
-#                         checkout is never the base branch.
-PERF_SHAPE_MERGED=20
-PERF_SHAPE_OPEN=5
-
-# Build it in $1. Prints nothing; returns non-zero when the shape cannot be
-# built, and the caller REFUSES to measure rather than falling back to the
-# live repo — a fallback would silently restore the defect this exists to fix.
-# One commit, and every way the caller's git config can stop it turned off.
-# Pinning the identity was not enough: `commit.gpgsign = true` in a global
-# config, or a `core.hooksPath` holding a failing pre-commit, each made the
-# shape unbuildable and `perf` refuse — on a developer laptop, for a reason
-# nothing in the output named.
-perf_git_commit() {
-  git -C "$1" add -A >/dev/null 2>&1 || return 1
-  git -C "$1" -c user.name=perf -c user.email=perf@local \
-    -c commit.gpgsign=false \
-    commit -q --no-verify -m "$2" >/dev/null 2>&1
-}
-
-perf_shape() {
-  local d="$1" o="${1}/origin.git" w="${1}/work" i b refspecs=""
-  # An inherited GIT_DIR or GIT_WORK_TREE points every `git -C` below at the
-  # caller's repository instead of the shape — GIT_DIR wins over -C — and the
-  # shape then fails to build for a reason nothing in the output names.
-  #
-  # Unset, NOT declared local first: `local VAR=` on an exported variable
-  # keeps the export and hands the child an empty GIT_DIR, and unsetting a
-  # local can unshadow the outer one. This unsets them for the rest of the
-  # process, which nothing here reads.
-  unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY
-  git init -q --bare "$o" 2>/dev/null || return 1
-  git -C "$o" symbolic-ref HEAD refs/heads/main 2>/dev/null || return 1
-  git init -q "$w" 2>/dev/null || return 1
-  git -C "$w" symbolic-ref HEAD refs/heads/main 2>/dev/null || return 1
-  git -C "$w" remote add origin "$o" 2>/dev/null || return 1
-
-  # Copied only where there is something to copy. A project directory with no
-  # harness in it is a real state — the one the NOT FOUND row exists for,
-  # where every entrypoint comes back 127 — and a shape that refused to build
-  # there would replace a named verdict with a warning about the shape.
-  [ ! -f "${ROOT}/joharness.sh" ] ||
-    cp "${ROOT}/joharness.sh" "${w}/joharness.sh" 2>/dev/null || return 1
-  if [ -d "${ROOT}/.agents" ]; then
-    cp -R "${ROOT}/.agents" "${w}/.agents" 2>/dev/null || return 1
-  fi
-  [ ! -f "${ROOT}/joharness.conf" ] ||
-    cp "${ROOT}/joharness.conf" "${w}/joharness.conf" 2>/dev/null || return 1
-
-  mkdir -p "${w}/docs/plans" "${w}/docs/research" "${w}/docs/product" \
-    "${w}/docs/handover" || return 1
-  printf -- '---\nrequirement: shape-goal\npriority: normal\n---\n\n## Goal\nShape.\n\n## Satisfied when\n\n- something observable.\n' \
-    >"${w}/docs/product/shape-goal.md" || return 1
-  # THREE plans, not one: a per-item fork in a loop over a single item is
-  # invisible, and two scopes so the wave partition actually runs.
-  i=0
-  while [ "$i" -lt 3 ]; do
-    printf -- '---\nplan: shape-plan-%s\nurgency: normal\nagent: sonnet\neffort: low\nneeds: none\nrequirement: shape-goal\nscope: docs/shape-%s\n---\n\n## Goal\nShape.\n\n## Scope\n- nothing.\n\n## Out of scope\n- everything.\n\n## Acceptance\n- none.\n\n## Where to look\n- joharness.sh:perf_shape, which writes this file.\n' \
-      "$i" "$i" >"${w}/docs/plans/shape-plan-${i}.md" || return 1
-    i=$((i + 1))
-  done
-  printf -- '---\nresearch: shape-question\nurgency: normal\nagent: opus\neffort: low\ngraduates: .agents/docs/caveman.md\n---\n\n## Question\nShape.\n' \
-    >"${w}/docs/research/shape-question.md" || return 1
-
-  perf_git_commit "$w" "shape base" || return 1
-  git -C "$w" push -q origin main >/dev/null 2>&1 || return 1
-
-  # Open branches first, then ONE push carrying every ref this shape needs.
-  # Pushing from the work clone rather than writing into the bare repo is what
-  # keeps the two in step: a ref created directly in the origin does not reach
-  # the work clone until something fetches, and the first row that fetches is
-  # session-start — so rows before it saw 7 refs and rows after it saw 27, and
-  # the same row read 94 alone against 114 in the table.
-  i=0
-  while [ "$i" -lt "$PERF_SHAPE_OPEN" ]; do
-    b="perf-open-${i}"
-    git -C "$w" checkout -q -B "$b" main 2>/dev/null || return 1
-    # INSIDE the loop, after the checkout: git drops a directory the
-    # checked-out commit does not carry, so one mkdir before the loop survives
-    # exactly one iteration and every later write lands nowhere.
-    mkdir -p "${w}/docs/handover" || return 1
-    printf -- '---\nworkstream: %s\nstatus: in-progress\nplan: none\nagent: sonnet\nupdated: 2026-01-01\n---\n\n## Goal\nShape.\n' \
-      "$b" >"${w}/docs/handover/${b}.md" || return 1
-    perf_git_commit "$w" "shape ${b}" || return 1
-    refspecs="${refspecs} refs/heads/${b}:refs/heads/${b}"
-    i=$((i + 1))
-  done
-  i=0
-  while [ "$i" -lt "$PERF_SHAPE_MERGED" ]; do
-    # EXPLICIT names on both sides. A wildcard refspec substitutes the
-    # captured glob, so `+refs/heads/perf-open-*:refs/heads/*` named the
-    # origin's branches `0` through `4` — harmless to a count, and exactly the
-    # kind of thing a later filter keyed on the name reads as absent.
-    refspecs="${refspecs} refs/heads/main:refs/heads/perf-merged-${i}"
-    i=$((i + 1))
-  done
-  # shellcheck disable=SC2086
-  git -C "$w" push -q origin $refspecs >/dev/null 2>&1 || return 1
-
-  # A PINNED HISTORY, so `feedback` and `review` are measured here too.
-  #
-  # They walk merged edges rather than refs, so an earlier round left them on
-  # the operator's checkout with a floor beneath them. That was wrong three
-  # ways, each reproduced: a shallow clone counted 9 and 6 and went RED; a
-  # repo with fewer than four merges did the same, which is every consumer for
-  # its first four; and `review` went OVER at twelve workstream files on the
-  # branch, which is the very defect this change exists to remove, still
-  # driven by the operator's tree. On `main` it also measured an early exit at
-  # 207 — four times any floor worth setting — because its per-file loop never
-  # runs there.
-  #
-  # PERF_EDGES caps the walk at 20, so the shape carries 22: the cap binds,
-  # and the number stops moving as a repo merges. It costs about 5s a run,
-  # which `ci` does not pay — measuring the pinned shape instead of a 107-ref
-  # checkout took the whole subcommand from 23.6s to 8s.
-  i=0
-  while [ "$i" -lt 22 ]; do
-    b="perf-edge-${i}"
-    git -C "$w" checkout -q -B "$b" main 2>/dev/null || return 1
-    mkdir -p "${w}/docs/handover" || return 1
-    printf -- '---\nworkstream: %s\nstatus: done\nplan: shape-plan-0\nagent: sonnet\nupdated: 2026-01-01\n---\n\n## Goal\nShape.\n\n## Review\n\n- r1: a finding. (fixed)\n- r2: another finding. (wontfix — shape)\n' \
-      "$b" >"${w}/docs/handover/${b}.md" || return 1
-    perf_git_commit "$w" "shape edge ${b}" || return 1
-    git -C "$w" checkout -q main 2>/dev/null || return 1
-    git -C "$w" -c user.name=perf -c user.email=perf@local \
-      -c commit.gpgsign=false \
-      merge -q --no-ff --no-verify -m "Merge ${b}" "$b" >/dev/null 2>&1 ||
-      return 1
-    git -C "$w" branch -q -D "$b" >/dev/null 2>&1 || return 1
-    i=$((i + 1))
-  done
-  git -C "$w" push -q -f origin main >/dev/null 2>&1 || return 1
-
-  git -C "$w" checkout -q -B perf-work main 2>/dev/null || return 1
-  printf 'shape\n' >"${w}/perf-shape.txt" || return 1
-  perf_git_commit "$w" "shape work commit" || return 1
-  return 0
-}
-
-# Where the rows are measured. Set by perf_report per row: the pinned shape,
-# or this checkout for the rows whose number does not move with it.
-PERF_PROJECT=""
-PERF_STDIN=""
-
-# The floor a row is held to unless its own budget sits below it. Named
-# because the clamp below compares against this and not against whatever
-# JOHARNESS_PERF_FLOOR was set to.
-PERF_FLOOR_DEFAULT=15
-
-PERF_BINS="git awk sed grep sort wc"
-
-# Caps pinned during measurement, so the number describes the CODE and not
-# how much history this repo has accumulated since. feedback reads at most
-# FB_LIMIT edges (50 by default) and would otherwise drift with every merge.
-PERF_EDGES=20
-
-perf_shims() {
-  local dir="$1" b real
-  for b in $PERF_BINS; do
-    real="$(command -v "$b" 2>/dev/null)" || continue
-    [ -n "$real" ] || continue
-    [ -x "$real" ] || continue
-    # ${VAR:-/dev/null}: a shim that outlives its measurement (a stray PATH,
-    # a nested run) must stay a working binary, never a broken one.
-    cat >"${dir}/${b}" <<SHIM
-#!/bin/sh
-printf '%s\n' "${b}" >>"\${JOHARNESS_PERF_COUNTER:-/dev/null}"
-exec "${real}" "\$@"
-SHIM
-    chmod +x "${dir}/${b}" || return 1
-  done
-  return 0
-}
-
-# Count external commands spawned by one entrypoint. Echoes "<count> <secs>".
-perf_count() {
-  local dir counter n start end secs status
-  dir="$(mktemp -d 2>/dev/null)" || return 1
-  chmod 700 "$dir" || { rm -rf "$dir"; return 1; }
-  counter="${dir}/.count"
-  : >"$counter"
-  perf_shims "$dir" || { rm -rf "$dir"; return 1; }
-
-  start="$(date +%s)"
-  # Output discarded, status ignored: this measures how much work an
-  # entrypoint does, and an entrypoint that exits non-zero on this branch
-  # (review with a record owed, finish at the edge) still did the work.
-  #
-  # A FILE on stdin, never the loop's own. session-start is a hook and reads
-  # stdin; run from inside cmd_perf's `while read` loop it ate the remaining
-  # rows out of the loop's own stdin, and the queue-context row silently
-  # vanished from the table. A measure that quietly drops a metric is worse
-  # than no measure. An empty payload writes an empty file, which every reader
-  # sees exactly as it saw /dev/null, so that guarantee is unchanged.
-  #
-  # PERF_STDIN is why the file exists at all. A hook that reads its input and
-  # exits early on an empty one — pretool-bash-guard.sh does, and must — spawns
-  # nothing when fed /dev/null, and its row then measures the fail-open path
-  # and reports `ok` forever. The row supplies the payload that reaches the
-  # code the budget is about.
-  #
-  # Status ignored EXCEPT 127. An entrypoint that ran and failed still did the
-  # work; an entrypoint that was never found did none, and its 0 is a green
-  # tick over nothing. Reachable, not hypothetical: ROOT is
-  # ${CLAUDE_PROJECT_DIR:-<script dir>} and Claude Code exports that variable,
-  # so `perf` run with it aimed at another checkout printed `0 <budget> ok`
-  # for all six rows (counted 2026-08-29). Zero itself stays legitimate — a
-  # small enough repo really does spawn nothing, and a case pins that.
-  # CLAUDE_PROJECT_DIR aims the entrypoint at the measured tree; the
-  # entrypoint itself still comes from THIS one, so the number describes this
-  # code.
-  # Every environment input that moves a count is pinned here, or the number
-  # describes the operator's shell. Measured: HANDOVER_BASE_BRANCH=develop
-  # took session-start to 450 and review to 6 — a green tick over an
-  # entrypoint that exited early — and JOHARNESS_MODE=unsupervised moved
-  # session-start by 8 of its then-14 headroom (today's pairs are at
-  # perf_rows). A row that wants a mode says so in
-  # its own command, and that `env` prefix runs after these and wins.
-  printf '%s' "${PERF_STDIN:-}" >"${dir}/.stdin" 2>/dev/null || :
-  PATH="${dir}:${PATH}" \
-    JOHARNESS_PERF_COUNTER="$counter" \
-    CLAUDE_PROJECT_DIR="$PERF_PROJECT" \
-    JOHARNESS_FEEDBACK_EDGES="$PERF_EDGES" \
-    HANDOVER_BASE_BRANCH=main \
-    JOHARNESS_MODE=supervised \
-    JOHARNESS_RUN_MODE='' \
-    "$@" <"${dir}/.stdin" >/dev/null 2>&1
-  status=$?
-  end="$(date +%s)"
-  if [ "$status" -eq 127 ]; then rm -rf "$dir"; return 2; fi
-
-  # `grep -c` prints its count AND exits 1 when the count is zero, so a
-  # `|| printf 0` fallback fires ON TOP of the 0 grep already printed and the
-  # variable becomes two lines. That reached the table as an entrypoint with a
-  # two-line count and `[: integer expression expected` from the comparison.
-  n="$(grep -c . "$counter" 2>/dev/null || true)"
-  case "$n" in ''|*[!0-9]*) n=0 ;; esac
-  secs=$((end - start))
-  rm -rf "$dir"
-  printf '%s %s\n' "${n:-0}" "$secs"
-}
-
-# `drain` carries session-start's budget and for session-start's reason: it
-# runs the same two hooks. Measured 2026-08-29 with `JOHARNESS_PERF=always
-# ./joharness.sh perf drain` -> 465, against session-start's 468 the same
-# minute. It is budgeted at all because it is the first thing a heartbeat-
-# fired session reads, every generation, so a per-item fork inside it is
-# paid by every session the fleet ever starts.
-#
-# Comments do not go INSIDE the row list below. Those lines are one command's
-# continued argument list, where a leading # is an argument and not a comment:
-# putting this paragraph there fed printf five junk rows and emptied the table
-# for every name the filter looked up.
-# Two of these ceilings are sized against NOISE, not against code, and that is
-# a different thing from the rest of this table.
-#
-# `feedback` and `review` walk merged edges, and PERF_EDGES above already pins
-# that walk to 20 during measurement, so the number does NOT drift with repo
-# size. What it does track is the CONTENT of whichever 20 edges are newest,
-# because per-edge cost is not constant: an edge costs about 11 commands, and
-# edges differ (a merge base, a name-only walk, then a log and a show per
-# candidate workstream file — 0, 1 or 2 of those, measured 7/42/2 across 51
-# edges). Swap two edges' worth of content through the pinned window and the
-# total moves ~20.
-#
-#   for n in 5 10 20 30; do sed -i "s/^PERF_EDGES=.*/PERF_EDGES=$n/" joharness.sh
-#     JOHARNESS_PERF=always ./joharness.sh perf feedback; done
-#   5 -> 94   10 -> 164   20 -> 276   30 -> 380   (main fbae21d, 2026-08-30)
-#
-# An earlier version of this paragraph said the drift came from FB_LIMIT's
-# 50-edge window sliding with every merge. That is wrong twice over: the
-# measured path never sees FB_LIMIT, because perf_count overrides
-# JOHARNESS_FEEDBACK_EDGES with PERF_EDGES, and the window is pinned rather
-# than sliding. It read plausibly, which is why it survived a review — sweeping
-# JOHARNESS_FEEDBACK_EDGES from outside shows a flat line and looks like
-# confirmation, when it is the override.
-# Measured on six consecutive origin/main commits, 2026-08-30, each in a
-# detached worktree:
-#
-#   for c in $(git log --merges --format=%h origin/main -6 | tac); do
-#     git worktree add -q --detach "$W" "$c"
-#     (cd "$W" && JOHARNESS_PERF=always ./joharness.sh perf review)
-#   done
-#
-#   #133 253/250   #134 271/268   #135 271/268
-#   #136 250/247   #137 271/268            (review/feedback)
-#
-# joharness.sh and .agents/harness/ are byte-identical between #136 and #137 —
-# `git diff --name-only b52a800 3e45c5a` lists three markdown files and nothing
-# else — and the count moves 21. The old ceiling was 265, INSIDE both bands
-# (247-268 and 250-271). A ceiling inside the noise band does not detect
-# regressions; it flaps, and GitHub run 336 green against run 338 red is that
-# flap costing a red base branch.
-#
-# 300 clears the observed maximum plus the overhead a working branch adds for
-# its own workstream files (measured at +5 on one graduation branch the same
-# day). This is NOT the licence the paragraph below withholds: that one forbids
-# raising a ceiling to cover code that grew a fork, and here the code did not
-# change at all — the finding that the ceiling sat inside its own band
-# (247-276 observed, ceiling 265) survives the correction above unchanged; only
-# the mechanism was misnamed.
-#
-# Per-edge cost has since been cut from ~10.8 commands to ~8.8 by carrying the
-# merge subject through fb_edges instead of re-fetching it in fb_label (same
-# sweep, main 72dd911: 10/20/30 edges -> 164/276/380 before, 152/240/328
-# after). At the pinned 20 that is feedback 276 -> 240 and review 271 -> 243.
-#
-# The ceiling STAYS at 300 anyway, and that is the point of the number above.
-# One post-change measurement cannot size a band, and lowering a ceiling onto a
-# band nobody has sampled is precisely the mistake that made this flap in the
-# first place. Lower it only after several merges have been sampled the way the
-# six above were, and record them here when you do.
-#
-# Resampled 2026-08-30, five origin/main merges landed since the per-edge cut
-# above (#141-#145), each in a detached worktree, removed between runs so the
-# loop is re-runnable (reusing $W without removing it fails on the second
-# iteration with "already exists" — confirmed by running it without the
-# remove line first):
-#
-#   for c in 1a648c8 84638a9 81d0391 b8c1cd7 f88cd94; do
-#     git worktree add -q --detach "$W" "$c"
-#     (cd "$W" && JOHARNESS_PERF=always ./joharness.sh perf feedback)
-#     (cd "$W" && JOHARNESS_PERF=always ./joharness.sh perf review)
-#     git worktree remove --force "$W"
-#   done
-#
-#   #141 234/237   #142 234/237   #143 234/237
-#   #144 249/252   #145 249/252            (feedback/review)
-#
-# Band: feedback 234-249, review 237-252. feedback's walk is merged edges
-# only, so an unmerged branch commit does not move it — confirmed on this
-# workstream's own branch, one commit ahead of #145: feedback stayed 249.
-# review does see one: same branch measured review 257 against #145's 252,
-# the same +5 the paragraph above found on a different branch the same day.
-#
-# Headroom past the band is sized to the swing this file already derives
-# above, not to one sample's noise: two edges' worth of content at the
-# current ~8.8 commands each is ~18, the same order as the ~20 the pre-cut
-# paragraph measured at ~11 each. Ceiling = max + branch overhead (0 for
-# feedback, +5 for review) + that ~18: feedback 249 -> 267, review 257 -> 275.
-#
-# WHAT THE WORKTREE LOOP ABOVE ACTUALLY MEASURES — read this before adding a
-# row to any table above it.
-#
-# `git worktree add --detach <old-sha>` shares the repository's refs. The walk
-# reads `origin/main`, so a sample taken that way is that commit's CODE
-# against TODAY's history, not the state that commit's CI saw. The two differ
-# by more than the ceiling's headroom: #146 (`bfedce8`) counts `feedback` 270
-# in a worktree of a repo whose `origin/main` had moved on two merges, and
-# **255** in a clone with the ref pinned where it stood at that merge —
-# 2026-08-30, both:
-#
-#   git clone --no-local . "$C" && cd "$C"
-#   git checkout -q <sha> && git update-ref refs/remotes/origin/main <sha>
-#   JOHARNESS_PERF=always ./joharness.sh perf
-#
-# Holding history constant is right for comparing CODE, which is what the
-# bands above are for. It is wrong for "what did CI see", and it drifts: the
-# same worktree sample re-taken next week holds a different history constant.
-# Say which question a number answers, in the row.
-#
-# A retraction, because both claims reached `main` in PR 149 and PR 150 and
-# a wrong mechanism repeats until someone counts:
-#
-#   "#146's own merge counts 270, OVER by 3" — NO. 255, ok. Measured with the
-#   contaminated method above, and the runner agrees with the correction: the
-#   `lint` job for `bfedce8` (which runs `./joharness.sh ci`, `fetch-depth:
-#   0`) concluded SUCCESS.
-#
-#   "on `main` HEAD is origin/main, so `selftest_inert_diff` is true and `ci`
-#   skips this whole section" — NO. `selftest_inert_diff` returns 1 when the
-#   merge base EQUALS the rev, which is exactly the case on `main`, so the
-#   skip does not fire and `ci` measures. Checked by running `./joharness.sh
-#   ci` in a worktree standing on `main`: the perf table prints.
-#
-# Both were written from reading, and both read plausibly. This is the third
-# wrong perf mechanism in this file's history (see the FB_LIMIT paragraph
-# above, corrected in place for the same reason).
-#
-# The ceiling STAYS at 267/275 on the post-fix numbers below. `feedback` 202 /
-# `review` 208 is ONE sample of a band nobody has sized since the fork per
-# missing path came out, and lowering onto one sample is the mistake that made
-# this flap twice. Loose on purpose until several merges have been sampled —
-# and sampled saying which question the number answers.
-#
-# One row per entrypoint: name, budget literal, then the command.
-#
-# Budgets are CEILINGS with headroom, not targets, and they are literals here
-# beside the churn thresholds rather than in a data file — every other measure
-# in this harness counts from git at read time and stores nothing, and a
-# budget is a threshold (a decision) not a measurement (a fact).
-#
-# What a ceiling catches is a regression IN KIND: a per-item fork put back
-# into a loop, which is what PR 54 removed and what doubles a count. It does
-# not catch a 5% drift, and is not meant to — the counted number is printed
-# every run, so drift stays visible to a reader without a gate that cries.
-#
-# The guard row pins JOHARNESS_MODE=unsupervised in its own command, and that
-# is the row rather than decoration on it. The boundary block is where the loop over
-# protocol paths lives — the shape a ceiling exists to catch — and it does not
-# run at all under supervised. A row inheriting the repo's `joharness.conf`
-# would carry two different numbers for one unchanged script and would leave
-# that block unmeasured in every supervised repo, this one included.
-#
-# Counted 2026-08-29, `./joharness.sh perf handover-guard` on this repo, one
-# state per line:
-#   14  supervised (what the row does NOT measure)
-#   22  workstream file present
-#   23  no upstream configured (@{u} unset, origin/<branch> exists)
-#   29  no workstream file — the ritual block runs
-#   30  both: no upstream AND no workstream file
-# 30 is the max any branch state reaches, and it is not an exotic one: it is
-# every branch between step 3's cut and its claim that was pushed without -u.
-# A ceiling set at the quiet 22 reds all of them, which is a gate sessions
-# learn to route around.
-#
-# The budget is 33. Same day, same command, with the boundary block's single
-# `git diff` put back inside a `for path` loop — the regression in kind this
-# row is for — the count is 37 from the quiet state. So the ceiling has to
-# sit in 31-36, between the state swing and the cheapest regression, and 33
-# does. An earlier draft said 40, reasoning from the state swing alone; 40
-# printed `ok` for that loop.
-#
-# What this row does NOT cover, stated because "forced mode" invites the
-# opposite conclusion: pinning the mode in the ENVIRONMENT short-circuits
-# mode_raw before its conf branch, so the two conf reads a repo that opts in
-# through joharness.conf actually pays are outside this number — counted, 24
-# that way against 22 here. That branch is not unbudgeted: session-start
-# resolves the mode the same way and its row does not pin it.
-#
-# The queue-context row pins the mode for the same reason, added when the
-# hook grew a mode-gated read of protocol_paths. Unpinned it inherited this
-# repo's conf, so the dearer path was the one path no row measured: counted
-# 2026-09-02 on one tree, 494 supervised against 500 unsupervised. Six
-# commands is not the point — an unbudgeted branch is, and the fork it adds
-# sits where a later edit would be tempted to put it inside the row loop.
-# session-start covers the unpinned resolution, exactly as above.
-# RECALIBRATED 2026-09-02, and the old numbers are not comparable with these:
-# they were taken against whatever tree the operator had.
-#
-# Counted twice, identically, `./joharness.sh perf` on this branch:
-#   feedback 214   review 260   graph 104   session-start 322
-#   queue-context 127   drain 324   handover-guard 22
-#
-# Headroom WAS 14 on every row but two when those were counted, and it is
-# not any more. Not the batch's doing: the batch below took the same number
-# off both sides of every row it touched (49 from session-start and drain,
-# 24 from the queue rows) and so carried each headroom across as it stood.
-# The counts had drifted before it — session-start 322 on 2026-09-02, 325
-# on 2026-09-11, against an unchanged 336 — and the other rows by one or two
-# since. Counted 2026-09-16 with `./joharness.sh perf`, and identical on
-# GitHub's runner (run 567 on main, 2026-09-12, job `lint`),
-# counted/budget (headroom):
-#   feedback 212/228 (16)         review 261/274 (13)
-#   graph 103/118 (15)            session-start 276/287 (11)
-#   queue-context 104/117 (13)    queue-orchestrated 104/117 (13)
-#   drain 287/308 (21; 297 with JOHARNESS_CURATE_PLANS=1, so 11)
-#   handover-guard 21/33          bash-guard 0/0
-# Two rows are deliberate: `handover-guard` at 33 over a quiet 22, because
-# its documented cheapest regression is 37 and the ceiling still sits under
-# the thing it exists to catch; and `bash-guard` at 0, a ceiling of nothing
-# for a hook that must spawn nothing (the perf_count note). The rest sit at
-# 11 to 16 by drift, not by choice — read the table, never this paragraph,
-# for today's number. The `drain` row's gate reading is the 287: a +20 edge fork there
-# reads 307 and passes, since the budget was sized against the 297 curate
-# case that only JOHARNESS_CURATE_PLANS=1 exercises. Pre-batch the same row
-# read 336 against 357, so the batch kept that gap rather than made it.
-# Stated here rather than fixed, because pinning the switch in the row is a
-# change to what the gate measures, not prose.
-#
-# The headroom is sized from the regression it must catch, not from taste,
-# and the smallest above, 11, still is:
-#   per REF   the shape carries 26, so a fork in a ref loop adds up to 26.
-#             Measured, a `git rev-parse` in queue-context.sh's claims loop
-#             placed after the origin/main skip: queue-context, session-start
-#             and drain each +25. Placed before the skip it is +26; the
-#             difference is that one skipped ref, and 11 catches either.
-#   per EDGE  PERF_EDGES caps the walk at 20, so a fork in an edge loop adds
-#             20, and 11 sits under it.
-#
-# WHAT IT DOES NOT CATCH, said plainly rather than left to be discovered. The
-# shape pins some collections small, and a fork per item in one of those costs
-# less than the headroom: five open branches, three plans, one question, one
-# requirement. Measured: a `git rev-parse` inside cmd_graph's branch loop
-# moves graph 104 -> 109, and inside its plan loop 104 -> 107; both still read
-# ok. Fifteen open branches would catch the first and cost 17s a run against
-# 8s. The ceiling is for a regression in kind — a fork per REF or per EDGE,
-# where the collection is large — and five forks is not one. The counted
-# number is printed every run and nothing environmental moves it, so a row
-# that drifts is still visible to a reader who looks.
-#
-# EIGHT rows, and `queue-orchestrated` is the one whose budget bounds a path
-# the shape does not exercise: the per-claimed-plan fork in
-# queue-context.sh's `in flight:` block runs only where a claimed plan and a
-# free plan coexist, and `perf_shape` builds no claim, so both queue rows
-# count the same number today — 104 since the merged-ref batch below, 126
-# when this paragraph was written and 128 by the time that batch re-counted
-# it. Which is the argument for reading the table rather than this sentence. It is a floor against the mode's OTHER forks and a place
-# for the real number to land, not a measurement of that block — building a
-# claimed plan into the shape is a change to `perf_shape` and its own diff.
-# The payload the bash-guard row is measured on: a command it DENIES, so the
-# number covers the whole check and not the early exit. Denying is also the
-# dearest path — every test has run by then — so the budget bounds the worst
-# case rather than the quiet one.
-PERF_BASH_GUARD_PAYLOAD='{"session_id":"perf","tool_name":"Bash","tool_input":{"command":"until test -f /tmp/x; do sleep 5; done"}}'
-
-# FIVE fields: name, budget, context, the payload fed on stdin, the command.
-# The payload is empty for every row whose entrypoint does not read stdin, and
-# an empty one is written as an empty file — indistinguishable from the
-# /dev/null this used to redirect. It must not contain a `|`; the split below
-# is the field separator and there is no escape for it.
-# `drain`'s budget went 338 -> 357 with the curate cycle, which every session now
-# runs through this entrypoint. Counted on the built shape (26 refs, 3 plans, 22
-# edges) with `./joharness.sh perf drain`, 2026-09-11, and it takes TWO numbers
-# because the shape is not due by default: 336 as the gate measures it, 346 with
-# `JOHARNESS_CURATE_PLANS=1`, which is the state where `dispatch_curate_branches`
-# actually runs. The gated number alone is the cheaper half and would let the
-# expensive one grow unwatched — an earlier version of this comment claimed 344
-# from the command that prints 336, measured before the never-curated change made
-# the pinned shape not-due (verifier r29). `origin/main` before the cycle: 325.
-# The first spelling cost 46 rather than 10 — a `merge-base --is-ancestor` and a
-# three-call frontmatter read for EVERY unmerged ref — and the fix was the loop,
-# not the number: `--no-merged` filters in one call and an `ls-tree` prefilter
-# means only a ref that carries a curate-ish file pays for the rest. Live on this
-# 136-ref checkout the same day: 844, against 805 with `JOHARNESS_CURATE_HOURS=0`
-# — 39 spawns, which is what the shape's 10 understates and why the live number is
-# printed beside the gated one. Raise a literal here only with its counted number,
-# and only after the loop is right (`perf`'s own message).
-#
-# THAT PAIR IS THIS CHECKOUT ON THAT DAY and is kept as the reasoning it was
-# written for, not as a current reading. Re-counted 2026-09-11 after the
-# merged-ref batch below: live drain 428, against 418 with
-# `JOHARNESS_CURATE_HOURS=0` — a gap of 10, not 39. Two things moved it and
-# neither is the curate loop: the batch took ~270 spawns off every live drain,
-# and the checkout is not the one 844 was counted on. Which is the standing
-# rule in one example — trust counted numbers, never written ones, this
-# paragraph included.
-#
-# FOUR rows came DOWN on 2026-09-11, and by that same fix applied one loop over:
-# the per-ref `merge-base --is-ancestor` that BOTH session-start hooks ran to
-# skip already-merged refs is now one `for-each-ref --merged` per hook, banked
-# and tested with a `case` glob that forks nothing. Counted on the built shape
-# (26 refs, 3 plans, 22 edges) with `./joharness.sh perf <row>`, 2026-09-11:
-#
-#   session-start        325 -> 276      budget 336 -> 287
-#   queue-context        128 -> 104      budget 141 -> 117
-#   queue-orchestrated   128 -> 104      budget 141 -> 117
-#   drain                336 -> 287      budget 357 -> 308
-#
-# `drain` takes its two numbers as above: 287 as the gate measures it, 297 with
-# `JOHARNESS_CURATE_PLANS=1`, and the budget clears the larger by the same 11 it
-# cleared 346 by. Every row keeps the headroom it already had — the loop moved,
-# the gate's tolerance did not.
-#
-# The saving scales with the ref count, which is why the shape understates it.
-# Live on this 137-ref checkout the same day: session-start 685 -> 415, drain
-# 698 -> 428, queue-context 264 -> 129. Two spawns per ref, gone.
-#
-# LOWER a literal here on the same terms as raising one: its counted number,
-# after the loop is right. A budget left at the old number after the loop got
-# cheaper is a gate that has stopped measuring anything.
-perf_rows() {
-  printf '%s\n' \
-    "feedback|${JOHARNESS_PERF_BUDGET_FEEDBACK:-228}|live||${ROOT}/joharness.sh feedback" \
-    "review|${JOHARNESS_PERF_BUDGET_REVIEW:-274}|live||${ROOT}/joharness.sh review" \
-    "graph|${JOHARNESS_PERF_BUDGET_GRAPH:-118}|shape||${ROOT}/joharness.sh graph" \
-    "session-start|${JOHARNESS_PERF_BUDGET_SESSION_START:-287}|shape||${ROOT}/joharness.sh session-start" \
-    "queue-context|${JOHARNESS_PERF_BUDGET_QUEUE:-117}|shape||env JOHARNESS_RUN_MODE=unsupervised ${HARNESS_ROOT}/queue-context.sh" \
-    "queue-orchestrated|${JOHARNESS_PERF_BUDGET_QUEUE_ORCH:-117}|shape||env JOHARNESS_RUN_MODE=orchestrated ${HARNESS_ROOT}/queue-context.sh" \
-    "drain|${JOHARNESS_PERF_BUDGET_DRAIN:-308}|shape||${ROOT}/joharness.sh drain" \
-    "handover-guard|${JOHARNESS_PERF_BUDGET_GUARD:-33}|shape||env JOHARNESS_MODE=unsupervised ${HARNESS_ROOT}/handover-guard.sh" \
-    "bash-guard|${JOHARNESS_PERF_BUDGET_BASH_GUARD:-0}|shape|${PERF_BASH_GUARD_PAYLOAD}|${HARNESS_ROOT}/pretool-bash-guard.sh"
-}
-
-# The table itself, so `ci` can print its own section banner above it.
-# The shape path lives here rather than in a local, for the reason the upgrade
-# clone's trap records: a trap fires after the function has returned, when a
-# local is out of scope and `set -u` turns the cleanup itself into the error.
-PERF_SHAPE_DIR=""
-
-perf_cleanup() {
-  [ -z "$PERF_SHAPE_DIR" ] || rm -rf "$PERF_SHAPE_DIR"
-  PERF_SHAPE_DIR=""
-}
-
-perf_report() {
-  local only="${1:-}" live="${2:-0}" rc=0 seen=0 name budget ctx stdin cmd
-  local counted n secs floor
-  local live_refs
-
-  live_refs="$(git -C "$ROOT" for-each-ref refs/remotes 2>/dev/null |
-    grep -c . || :)"
-  case "$live_refs" in ''|*[!0-9]*) live_refs=0 ;; esac
-
-  # The name is checked BEFORE anything is built: `perf nosuchrow` used to
-  # build and throw away a 4MB shape before saying it did not know the name.
-  if [ -n "$only" ] && ! perf_rows | cut -d'|' -f1 | grep -qxF -- "$only"; then
-    warn "no entrypoint named '${only}' (try one of: $(perf_rows | cut -d'|' -f1 | tr '\n' ' '))"
-    return 1
-  fi
-
-  if [ "$live" -eq 1 ]; then
-    # `perf --live` measures THIS checkout for every row. The numbers are not
-    # comparable with anybody else's and the budgets do not fit them — it is
-    # how a session sees what its own container actually pays, which is the
-    # information the pinned shape deliberately drops. It REPORTS and never
-    # gates: a session reaching for a debugging flag must not be handed a red.
-    printf '   measured against THIS checkout (%s ref(s)) — reported, not gated\n' \
-      "$live_refs"
-  else
-    PERF_SHAPE_DIR="$(mktemp -d 2>/dev/null)" || {
-      warn "cannot measure: no temp dir for the pinned shape"
-      return 1
-    }
-    # The signal traps EXIT, because a trap that only cleans up lets bash
-    # resume the loop — and every remaining row was then measured against a
-    # project directory that had just been deleted. Counted, before this:
-    # `./joharness.sh perf & sleep 4; kill -INT $!` printed `queue-context 0
-    # ok`, `handover-guard 0 ok`, and exit 0. A gate that answers green to a
-    # signal is worse than one that is red for everybody.
-    trap 'perf_cleanup; exit 130' INT
-    trap 'perf_cleanup; exit 143' TERM
-    trap 'perf_cleanup' EXIT
-    if ! perf_shape "$PERF_SHAPE_DIR"; then
-      perf_cleanup
-      # No fallback to the live tree, on purpose. Measuring an unpinned
-      # checkout under these budgets is how this gate came to be red in every
-      # container in the first place.
-      warn "cannot build the pinned measurement shape; refusing to measure the live tree instead (\`perf --live\` asks for that on purpose)"
-      return 1
-    fi
-    printf '   measured against a built shape: %s ref(s), %s plan(s), %s edge(s)\n' \
-      "$(git -C "${PERF_SHAPE_DIR}/work" for-each-ref refs/remotes 2>/dev/null |
-         grep -c . || :)" \
-      "$(git -C "${PERF_SHAPE_DIR}/work" ls-tree -r --name-only origin/main \
-         -- docs/plans 2>/dev/null | grep -c . || :)" \
-      "$(git -C "${PERF_SHAPE_DIR}/work" rev-list --merges --count origin/main \
-         2>/dev/null || printf 0)"
-    printf '   Not this checkout, which carries %s ref(s) (perf --live)\n' \
-      "$live_refs"
-  fi
-
-  printf '   %-18s %8s %8s %6s  %s\n' \
-    "entrypoint" "counted" "budget" "tree" "verdict"
-
-  while IFS='|' read -r name budget ctx stdin cmd; do
-    [ -n "$name" ] || continue
-    [ -z "$only" ] || [ "$name" = "$only" ] || continue
-    seen=1
-    PERF_STDIN="$stdin"
-    if [ "$live" -eq 1 ]; then
-      PERF_PROJECT="$ROOT"
-      ctx="live"
-    else
-      PERF_PROJECT="${PERF_SHAPE_DIR}/work"
-      ctx="pinned"
-    fi
-    # shellcheck disable=SC2086
-    counted="$(perf_count $cmd)" || {
-      if [ "$?" -eq 2 ]; then
-        printf '   %-18s %8s %8s %6s  %s\n' "$name" "?" "$budget" "$ctx" "NOT FOUND"
-        warn "nothing to run for ${name} (\`${cmd}\` came back 127); a 0 here would not be a clean run"
-      else
-        printf '   %-18s %8s %8s %6s  %s\n' "$name" "?" "$budget" "$ctx" "NOT MEASURED"
-        warn "could not measure ${name} (mktemp or shim failed); a partial table is no budget"
-      fi
-      rc=1
-      continue
-    }
-    n="${counted%% *}"
-    secs="${counted##* }"
-    # A FLOOR under every gated row. 127 catches an entrypoint that is not
-    # there; nothing caught one that ran and did nothing, and a count near
-    # zero on a pinned shape means the measurement broke rather than that the
-    # code got fast. Deliberately far below the smallest real count (22) and
-    # far above what a broken run produces (0 to 7).
-    #
-    # CAPPED AT THE ROW'S OWN BUDGET, because the sentence above stopped being
-    # true the moment a row was budgeted under it. `bash-guard` is budgeted at
-    # 0 — no git, awk, sed, grep, sort or wc on a path that runs before every
-    # Bash call — and a fixed floor of 15 reds a row whose correct count is
-    # zero, which is a gate nobody can satisfy. A row cannot be under its own
-    # ceiling and under the floor at once; where the two meet, the ceiling is
-    # the one that was chosen deliberately for that entrypoint.
-    #
-    # What the row loses with it: nothing a count could have given. Whether
-    # this hook did its work is a question about which BRANCH ran, not about
-    # how many commands it spawned, and the selftest topic is what asks it.
-    #
-    # Compared against the DEFAULT floor, never the configured one. An
-    # operator who raises JOHARNESS_PERF_FLOOR is asking a deliberate question
-    # of every row, and clamping their number to each row's budget answers a
-    # different one — `JOHARNESS_PERF_FLOOR=100000 perf graph` has a case, and
-    # under a clamp it would pass on graph's count being under 118 rather than
-    # on the floor it set.
-    floor="${JOHARNESS_PERF_FLOOR:-$PERF_FLOOR_DEFAULT}"
-    [ "$budget" -ge "$PERF_FLOOR_DEFAULT" ] || floor="$budget"
-    if [ "$live" -ne 1 ] && [ "$n" -lt "$floor" ]; then
-      printf '   %-14s %8s %8s %6s  TOO LOW (floor %s)\n' \
-        "$name" "$n" "$budget" "$ctx" "$floor"
-      warn "${name} spawned ${n} commands against the pinned shape, under the floor: it did not do the work, and a count that low is a green tick over nothing"
-      rc=1
-      continue
-    fi
-    if [ "$live" -ne 1 ] && [ "$n" -gt "$budget" ]; then
-      printf '   %-14s %8s %8s %6s  OVER by %s (%ss)\n' "$name" "$n" "$budget" \
-        "$ctx" "$((n - budget))" "$secs"
-      rc=1
-    elif [ "$live" -eq 1 ]; then
-      printf '   %-14s %8s %8s %6s  reported (%ss)\n' "$name" "$n" "$budget" \
-        "$ctx" "$secs"
-    else
-      printf '   %-14s %8s %8s %6s  ok (%ss)\n' "$name" "$n" "$budget" "$ctx" "$secs"
-    fi
-  done < <(perf_rows)
-
-  perf_cleanup
-
-  if [ "$rc" -ne 0 ]; then
-    printf '\n  A budget is a ceiling for a regression in kind — a per-item fork\n'
-    printf '  put back inside a loop is what doubles one of these. Find the loop\n'
-    printf '  that grew a fork; do not raise the number to match the code.\n'
-    printf '  Genuine new work in an entrypoint: raise the literal in perf_rows,\n'
-    printf '  in the same commit as the work, with the counted number recorded.\n'
-  fi
-  return "$rc"
-}
-
-cmd_perf() {
-  local only="" live=0 a
-  # --live anywhere in the arguments, so `perf --live graph` and
-  # `perf graph --live` both work; a session reaching for it is debugging its
-  # own container and should not have to guess the order. A LOCAL, never an
-  # environment variable: an exported PERF_LIVE would silently switch the gate
-  # to the unpinned tree, which is the one thing this subcommand exists to
-  # prevent.
-  for a in "$@"; do
-    case "$a" in
-      --live) live=1 ;;
-      '') ;;
-      *) only="$a" ;;
-    esac
-  done
-  printf '== perf budget (external commands per entrypoint)\n'
-  printf '   counts gate; seconds are printed and never gate\n\n'
-  perf_report "$only" "$live"
-}
-
-# ---------------------------------------------------------------------------
-# Glossary lint
-#
-# The same node had two names in the files every session loads. Counted on
-# origin/main 2026-08-28, `git grep -Fni -- "<term>" -- '*.md' '*.sh' | wc -l`
-# over the whole tree: 205 against 14, eight files carrying both. Instruction
-# files are written for a literal reader, and a reader who meets two names for
-# one thing either asks or guesses.
-#
-# Adopt or build was a real question: Vale's accept.txt plus Vale.Terms does
-# exactly this and runs in production at Datadog and Elastic
-# (docs/research/glossary-enforcement.md). Built instead, deliberately - that
-# is a Go binary in a `ci` whose whole toolchain is shell and shellcheck, and
-# in a sandbox with an egress allowlist, for a table this small.
-#
-# The bans are READ FROM the glossary table, never restated here: a second
-# copy of the list would rot against the first, which is the defect this stage
-# exists to catch. The same reason keeps the SCOPE's rationale in the glossary
-# and not in this comment - what follows is the machine-readable half of it.
-# ---------------------------------------------------------------------------
+# --- Glossary lint
 GLOSSARY_REL=".agents/docs/glossary.md"
 
 # Canonical-owned paths ONLY, and every one of them synced
-# (.agents/scripts/sync-to-consumer.sh). A consumer cannot fix a hit in prose
-# the harness owns, and must never have to: editing the glossary locally makes
-# that file AHEAD on every future sync, so the fix would cost more than the
-# defect. Deliberately absent, because a consumer writes them and a harness
-# sync must not red their ci: README.md and the rest of root, docs/, and
-# .agents/env/<layer>/ - a consumer's own layer is never synced (the sync adds
-# .agents/env/<layer> to DIRS only for a layer canonical carries), so its prose
-# is theirs. AGENTS.md and CLAUDE.md ARE here: a consumer edits Part 2 freely
-# and can fix a hit in place, and they are the two files every session loads.
-#
-# Wildmatch, no `:(glob)` magic, so `*` crosses `/` and reaches any depth. No
-# extension filter either: `.MD`, `.Sh` and the extensionless markers under
-# .agents/ are all prose a session reads.
+# (.agents/scripts/sync-to-consumer.sh).
 GLOSSARY_PATHS=(
   '.agents/docs/*' '.agents/harness/*' '.agents/scripts/*'
   '.agents/env/README.md'
@@ -2107,19 +527,7 @@ lint_glossary() {
   fi
 
   # ONE table, the FIRST one under the expected header, every row exactly four
-  # cells, every cell filled. Each rule here is a way the parser silently
-  # changed what it enforced: a GFM alignment row (`|:--- | ---: |`) became a
-  # row banning "---" everywhere; a second table under a repeated header
-  # became a second ban list; an escaped pipe inside a cell shifted the
-  # columns so the real ban vanished and a fragment took its place; GFM makes
-  # the outer pipes optional, so a legal row written without them ended the
-  # table and killed every ban below it; a row with an empty `Not this`
-  # banned nothing and said nothing. Rows are normalised before splitting and
-  # anything left over is MALFORMED - loud, never quiet.
-  #
-  # NOHEADER/NOROWS are the fail-open case and the worst one: rename the
-  # header and every ban evaporates while the stage prints its green line.
-  # Reported and red.
+  # cells, every cell filled.
   rows="$(awk '
       function trim(s) { gsub(/^[`[:space:]]+|[`[:space:]]+$/, "", s); return s }
       {
@@ -2162,9 +570,8 @@ lint_glossary() {
     return 1
   fi
 
-  # A gate whose rc never escapes is a gate that is always green, and the
-  # ban loop below is a pipeline, so the failure travels as a file. Unchecked,
-  # mktemp returning empty on a full TMPDIR would fail this open too.
+  # A gate whose rc never escapes is a gate that is always green, and the ban
+  # loop below is a pipeline, so the failure travels as a file.
   gl_fail="$(mktemp)" || gl_fail=""
   if [ -z "$gl_fail" ]; then
     printf '  cannot create a temp file; refusing to report a scan that cannot fail\n'
@@ -2178,9 +585,7 @@ lint_glossary() {
     printf '%s\n' "$bads" | tr ',' '\n' | while IFS= read -r bad; do
       bad="$(printf '%s' "$bad" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
       [ -n "$bad" ] || continue
-      # -F: a banned wording is a literal, never a pattern. --untracked: a
-      # file written this turn is exactly when the author can still fix it.
-      # -I: never quote from a binary.
+      # -F: a banned wording is a literal, never a pattern.
       gg=0
       hits="$(git -C "$ROOT" grep -FniI --untracked -- "$bad" \
         -- "${GLOSSARY_PATHS[@]}" 2>&1)" || gg=$?
@@ -2209,23 +614,7 @@ EOF
   return "$rc"
 }
 
-# ---------------------------------------------------------------------------
-# Graph lint
-#
-# Edges live in frontmatter; a typo kills one silently — a dangling `needs:`
-# reads as free and runs before its input, a workstream `plan:` typo hides
-# the claim so two fresh sessions pick the same plan, an enum outside its
-# vocabulary silently defaults. All checkable from file existence plus
-# frontmatter at read time — no stored state — and the session that wrote
-# the typo is the one that cannot see it, so the gate it cannot skip checks
-# instead (same argument as the churn ceiling). Three-way resolution per
-# name: open file in the tree = live edge; name in HEAD's history = done
-# work, edge inert by design (delete-on-merge IS the state, so `needs` on a
-# merged plan is silent, a claim on one only warns); never existed = typo,
-# red. Hard facts red, judgment calls warn — a stale `Where to look` anchor
-# is the staleness rule's territory (verify-at-read), so it warns, never
-# fails.
-# ---------------------------------------------------------------------------
+# --- Graph lint
 
 LINT_RC=0
 LINT_WARNED=0
@@ -2233,17 +622,7 @@ LINT_WARNED=0
 lint_red()  { printf '  DEAD %s\n' "$*"; LINT_RC=1; }
 lint_warn() { printf '  warn %s\n' "$*"; LINT_WARNED=1; }
 
-# Working-tree nodes of one type, paths relative to ROOT. The tree, not a
-# ref: ci judges what this branch is about to push, uncommitted included.
-# The frontmatter-presence filter this function briefly carried (PR 184, a
-# second 'frontmatter' arg) is GONE, subsumed by routing in lint_graph:
-# "opens with ---" and "is a node" are not the same question, and the gap
-# between them was the escape hatch the plan named. Measured on that
-# implementation at 3144936, fixture identical to the selftest's
-# decayed-q.md: a real node rebuilt from its `## Question` heading onward —
-# the PR 140 shape — printed `edges sound (0 plans, 0 research, ...)`. No
-# red, not listed, not counted. Routing decides nodehood instead, and
-# history convicts a dropped block (lint_graph, "was a node").
+# Working-tree nodes of one type, paths relative to ROOT.
 lint_nodes() {
   [ -d "${ROOT}/$1" ] || return 0
   (cd "$ROOT" && find "$1" -maxdepth 1 -name '*.md' \
@@ -2251,21 +630,14 @@ lint_nodes() {
     2>/dev/null | sort)
 }
 
-# Did <rel-path> ever exist on HEAD's line? Literal pathspec: a stem
-# carrying a glob char must match itself, not a sibling (sync's lesson).
+# Did <rel-path> ever exist on HEAD's line?
 lint_existed() {
-  [ -n "$(GIT_LITERAL_PATHSPECS=1 git -C "$ROOT" log -1 --format=%H \
-    HEAD -- "$1" 2>/dev/null)" ]
+  [ -n "$(GIT_LITERAL_PATHSPECS=1 git -C "$ROOT" log -1 --full-history \
+    --format=%H HEAD -- "$1" 2>/dev/null)" ]
 }
 
-# A name neither in the tree nor in visible history is a typo only when
-# the history is whole. A shallow checkout (GitHub's default fetch-depth
-# is 1, and ci.yml on a consumer is consumer-own — no depth fix there can
-# be assumed) cannot tell a typo from a merged-and-deleted plan, and a red
-# it cannot prove would break the invariant that ci here and ci on GitHub
-# mean the same thing — in the bad direction, green locally and red
-# remotely. Degrade to a warning there; the full-history run stays the
-# gate. Same doctrine as churn's "not measurable here".
+# A name neither in the tree nor in visible history is a typo only when the
+# history is whole.
 lint_shallow() {
   [ "$(git -C "$ROOT" rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]
 }
@@ -2273,9 +645,7 @@ lint_shallow() {
 lint_stem() { local s="${1##*/}"; printf '%s' "${s%.md}"; }
 
 # <file> <field> <value> <allowed...>: empty passes (hooks default it),
-# anything else outside the vocabulary is red. Whole-word compare, not a
-# substring test: 'haiku sonnet' must not pass because the vocabulary
-# happens to list those words adjacently.
+# anything else outside the vocabulary is red.
 lint_enum() {
   local f="$1" k="$2" v="$3" w; shift 3
   [ -n "$v" ] || return 0
@@ -2285,21 +655,27 @@ lint_enum() {
   lint_red "${f}: ${k} '${v}' not one of: $*"
 }
 
-# A key the node type cannot be scheduled without. lint_enum above returns 0
-# on an EMPTY value — correct for an optional field, wrong for one the queue
-# reads — so a node carrying no frontmatter at all passed every check in
-# silence.
-#
-# Not hypothetical, and the cost was a whole plan: an edit merged in PR 140
-# rebuilt docs/plans/perf-window-fixed-cost.md from its `## Goal` heading
-# onward and dropped the frontmatter block with it. `ci` stayed green. The
-# queue hook then listed the plan as `unscoped, independence not provable`,
-# dropped it out of every wave and printed a defaulted tier — a plan the queue
-# could no longer schedule, with nothing red anywhere to say so. Repaired in
-# PR 141; this is the guard that would have caught it at the edge.
-#
-# `scope` is deliberately NOT here: the hook already reports an unscoped plan
-# and says what to do about it, which is a warning by design.
+# <file> <scope value>: red unless every entry sits under a prose directory.
+lint_fable_bound() {
+  local f="$1" p n=0
+  local prose=$'docs\n.agents/docs\n.claude/commands'
+  [ "$2" != "none" ] || return 0
+  while IFS= read -r p; do
+    p="${p#shared:}"; p="${p#./}"
+    [ -n "$p" ] || continue
+    n=$((n + 1))
+    case "/${p}/" in
+      */../*|//*) ;;
+      *) curate_covered "$p" "$prose" && continue ;;
+    esac
+    lint_red "${f}: fable is a judgement tier: this plan builds ('${p}' in scope:)"
+    return 0
+  done < <(printf '%s\n' "$2" | scope_norm | tr -s '[:blank:];' '\n')
+  [ "$n" -gt 0 ] ||
+    lint_red "${f}: fable is a judgement tier: scope: must show this plan builds nothing"
+}
+
+# A key the node type cannot be scheduled without.
 lint_required() {
   local f="$1" k="$2" v="$3"
   [ -n "$v" ] && return 0
@@ -2308,57 +684,18 @@ lint_required() {
 }
 
 # Stale anchors under '## Where to look': existence of the path half only —
-# symbols move too often to police, and the staleness rule already says
-# verify before relying. Only tokens that look like paths (a slash or a
-# dot) are anybody's business here: env vars, knobs and flags are natural
-# anchors too, and a false warning trains sessions to ignore the warn
-# channel the real findings ride on. URLs are skipped before the colon
-# strip (which would eat them); '=' marks an assignment, not a path.
-# The path half of the FIRST backticked token of every bullet under
-# '## <heading>', one per line, with the non-paths dropped: a URL, a `k=v`, a
-# glob, a `<placeholder>`, a bare `.`, and anything carrying neither a slash
-# nor a dot.
-#
-# ONE reader, parameterized by heading, because three things ask this question
-# of two sections — `lint_anchors` warns about a stale anchor under `## Where to
-# look`, and `cmd_curate` both repairs that and reads `## Scope` to ask whether
-# `scope:` covers what the prose says it touches. Two extractors would disagree
-# about what counts as a path, silently and in the worse direction: a curator
-# repairing something the lint never warned about.
-#
-# FIRST token of the bullet, and the bullet must START with one. That is what
-# makes a deliverable different from a citation: the template's shape is
-# `- `path` — what changes`, so prose naming another file mid-sentence is a
-# reference, not something this plan touches. Reading every backticked token on
-# the line instead reported a plan's own prose as an undeclared path — measured
-# on this repo 2026-09-11, `./joharness.sh curate` naming `. Before the verdict,
-# a ` as a path of `rescope-held-plans`.
+# symbols move too often to police, and the staleness rule already says verify
+# before relying.
 section_paths() {
   local a p
   while IFS= read -r a; do
     [ -n "$a" ] || continue
     case "$a" in *'://'* | *'='*) continue ;; esac
     p="${a%%:*}"; p="${p%% *}"; p="${p#./}"
-    # `.` and `..` rejected by name rather than by a `?*.?*` shape test: the
-    # shape would also reject a dotfile anchor (`.gitignore` has nothing before
-    # its dot), which `lint_anchors` has always checked. The explicit rejects
-    # keep that behaviour and still drop truncated prose.
-    #
-    # NO trailing-slash strip. It took the only slash off a single-component
-    # anchor — `missingdir/` became `missingdir`, which then failed the
-    # path-shape test below and was skipped, so `lint_anchors` stopped warning
-    # about a directory that is not there. `docs/gone/` kept warning, which is
-    # exactly why a fixture carrying only the two-component case measured this
-    # as neutral (verifier r8).
     case "$p" in '' | '.' | '..' | *'*'* | '<'*) continue ;; esac
     case "$p" in */* | *.*) ;; *) continue ;; esac
     printf '%s\n' "$p"
-    # PREFIX match on the heading, not equality. `$0 == want` turned a heading
-    # carrying a trailing space — or any suffix — into a section that silently
-    # yields nothing, so a plan with `## Where to look ` drew no anchor warning
-    # at all, in every consumer's `ci`. The original regex was a prefix test and
-    # this restores it (verifier r3). `## Out of scope` does not start with
-    # `## Scope`, so the two plan headings stay distinct.
+    # PREFIX match on the heading, not equality.
   done < <(awk -v want="## $2" '
     index($0, want) == 1 { s = 1; next }
     /^## / { s = 0 }
@@ -2378,46 +715,10 @@ lint_anchors() {
 }
 
 # Node files of a type the harness does not implement.
-#
-# lint_graph checks EDGES between nodes and had nothing to say about a
-# DIRECTORY of nodes whose type does not exist yet. Measured on `main`
-# 2026-08-25: four files under docs/research/, no .agents/docs/research/, no
-# listing, no lint, no shape — reachable only by a human who already knew to
-# look, which is one notch better than the "research evaporates" failure the
-# requirement was written to fix, and only because they were in git.
-#
-# Two questions, both answered from the tree at read time. There is no list
-# of known types anywhere, because a list is a second copy that goes stale
-# against the thing it describes (.agents/docs/graph.md, Rules).
-#
-#   Is this a directory of NODES?  Every node in this graph names itself in
-#     its first frontmatter key — `plan: <stem>`, `research: <stem>`,
-#     `requirement: <stem>`, `workstream: <stem>`. Counted 2026-08-29 with
-#     `git ls-tree -r --name-only <ref> | grep -E '^docs/.*\.md$'`: 12 node
-#     files on f806d5b, 11 on 287914e after the satisfied requirement was
-#     retired, every one of them self-naming. An earlier draft of this
-#     comment said 11 at f806d5b and added "and 4 templates"; the first was
-#     the wrong ref's count and the second is false — no TEMPLATE.md
-#     self-names, they are excluded by the filter below, not by the property.
-#     "Has frontmatter" would have fired on any docs/adr/ a consumer keeps,
-#     and a false warning trains sessions to ignore the channel the real
-#     findings ride on (lint_anchors carries that lesson already).
-#   Does the harness KNOW the type?  `.agents/docs/<type>/` exists. That is
-#     where every implemented type keeps its README and TEMPLATE, and it is
-#     true of all four.
-#
-# WARN, never red. The files are not wrong, they are early, and reding `ci`
-# would punish the session that did the research for doing it before anybody
-# had written down where research goes.
 lint_unknown_types() {
   local d name f l1 l2 k v stem n keys phrase
   [ -d "${ROOT}/docs" ] || return 0
-  # Only where the harness's own docs are present. `.agents/docs` is in the
-  # sync engine's DIRS, so every consumer carries it; a tree without it is
-  # not a repo whose research type is undefined, it is a repo with no harness
-  # docs at all — a sync problem this lint cannot tell apart from an early
-  # node type. Blind is not zero, and a check that cannot distinguish them
-  # says nothing rather than guessing.
+  # Only where the harness's own docs are present.
   [ -d "${ROOT}/.agents/docs" ] || return 0
   while IFS= read -r d; do
     [ -n "$d" ] || continue
@@ -2426,12 +727,7 @@ lint_unknown_types() {
     [ -d "${ROOT}/.agents/docs/${name}" ] && continue
     n=0
     keys=""
-    # Two builtin reads per file, no forks and no awk. The first version
-    # passed the file list to one awk as an unquoted word-split string, which
-    # made a filename with a space abort awk before END ran: no count, no
-    # warning, a raw awk error on stderr, and the directory the check exists
-    # to report silently skipped. A filename holding a glob character was
-    # counted twice by the same expansion.
+    # Two builtin reads per file, no forks and no awk.
     while IFS= read -r f; do
       [ -n "$f" ] || continue
       l1=""
@@ -2471,17 +767,42 @@ lint_unknown_types() {
   done < <(cd "$ROOT" && find docs -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort)
 }
 
+# One validator of the `issue:` format, for every reader in this file: the
+# workstream claim, the plan's `issue:` (the clerk's PLANNED edge) and the
+# clerk's two lists.
+issue_verdict() {
+  local iss="$1"
+  case "$iss" in
+    '' | none) printf 'none'; return 0 ;;
+    '#'[0-9]* | [0-9]*) ;;
+    *) printf 'bad not a number'; return 0 ;;
+  esac
+  case "${iss#\#}" in
+    *[!0-9]*) printf 'bad not a number' ;;
+    0) printf 'bad there is no issue #0' ;;
+    0*) printf 'bad leading zero; #%s is not #%s, so a reader scanning for their own number misses it' \
+          "${iss#\#}" "${iss##*0}" ;;
+    *) printf 'ok %s' "${iss#\#}" ;;
+  esac
+}
+
+# `issue_verdict` as a lint finding. `<consequence>` is what a dropped value
+# costs at that field's reader — the hook for a claim, the clerk for a plan.
+lint_issue() {
+  local rel="$1" iss="$2" consequence="$3" v
+  v="$(issue_verdict "$iss")"
+  case "$v" in
+    bad\ *) lint_red "${rel}: issue '${iss}' — ${v#bad }; ${consequence}" ;;
+  esac
+}
+
 lint_graph() {
   LINT_RC=0
   LINT_WARNED=0
-  local rel val n p r urgency agent effort iss rq grad pstem rstem fstem
+  local rel val n p r urgency agent effort iss rq grad pstem rstem fstem piss
   local -a need_list
   local plans=0 workstreams=0 reqs=0 research=0 rdocs=0
-  # Stems the open plans' `research:` edges name, one per line. Routing
-  # decides nodehood one loop down, and the referenced half of the answer
-  # is collected here, in the pass that already parses every plan — a
-  # second read per plan would be the per-item fork the perf budget exists
-  # to catch.
+  # Stems the open plans' `research:` edges name, one per line.
   local rrefs=""
 
   # One read of the file, one pass over its frontmatter. The older shape cost
@@ -2490,20 +811,25 @@ lint_graph() {
     [ -n "$rel" ] || continue
     plans=$((plans + 1))
     { read -r urgency; read -r agent; read -r effort; read -r val; read -r r
-      read -r rq; read -r pstem; } \
-      <<<"$(gr_fields urgency agent effort needs requirement research plan <"${ROOT}/${rel}")"
+      read -r rq; read -r pstem; read -r pscope; read -r piss; } \
+      <<<"$(gr_fields urgency agent effort needs requirement research plan scope issue <"${ROOT}/${rel}")"
     lint_required "$rel" plan "$pstem"
+    # Optional: the issue a clerk turned into this plan.
+    lint_issue "$rel" "$piss" "the clerk drops it and the issue reads as unplanned"
     lint_required "$rel" urgency "$urgency"
     lint_required "$rel" agent "$agent"
     lint_required "$rel" effort "$effort"
     lint_enum "$rel" urgency "$urgency" normal urgent
-    lint_enum "$rel" agent "$agent" haiku sonnet opus
+    lint_enum "$rel" agent "$agent" haiku sonnet opus fable
     lint_enum "$rel" effort "$effort" low medium high xhigh
+    # fable is a judgement tier, never a build (.agents/docs/agent-
+    # selection.md, Lineup).
+    [ "$agent" != "fable" ] || lint_fable_bound "$rel" "$pscope"
     if [ -n "$val" ] && [ "$val" != "none" ]; then
       read -ra need_list <<<"${val//,/ }"
-      # Guarded like cmd_ci's targets: a separators-only value leaves the
-      # array empty, and expanding an empty array under set -u is fatal on
-      # macOS system bash 3.2.
+      # Guarded like cmd_ci's targets: a separators-only value leaves the array
+      # empty, and expanding an empty array under set -u is fatal on macOS
+      # system bash 3.2.
       [ "${#need_list[@]}" -gt 0 ] || need_list=("")
       for n in "${need_list[@]}"; do
         n="$(lint_stem "$n")"
@@ -2517,11 +843,7 @@ lint_graph() {
         fi
       done
     fi
-    # The `research:` edge (.agents/docs/research/README.md). Same three-way
-    # answer as `needs`, because it is the same question about a different
-    # directory: in the tree = open, gone from a whole history = answered,
-    # never there = a typo. A typo here reads as "nothing blocks this plan",
-    # so it is red where the history can prove it.
+    # The `research:` edge (.agents/docs/research/README.md).
     if [ -n "$rq" ] && [ "$rq" != "none" ]; then
       while IFS= read -r n; do
         [ -n "$n" ] || continue
@@ -2550,28 +872,7 @@ lint_graph() {
     lint_anchors "$rel"
   done < <(lint_nodes docs/plans)
 
-  # Research nodes. Vocabulary like a plan's, plus the one edge only this
-  # type carries: `graduates` must name a file that exists. A question whose
-  # answer has nowhere to land is a question nobody will act on, and the
-  # whole point of the node is that the finding outlives the session
-  # (.agents/docs/research/README.md).
-  #
-  # ROUTING decides what is a node at all (.agents/docs/research/README.md,
-  # "Which files are nodes"): a file here is a node when it carries a
-  # `research:` key, or an open plan's `research:` edge names its stem.
-  # Neither = a DOCUMENT — consumers keep their own domain documents under
-  # docs/research/ from before this protocol existed, and reding 13 of them
-  # five keys each is how a sync turned a green consumer red (the plan this
-  # implements measured it against a consumer at 847f64e). Two guards keep the
-  # skip from becoming an escape hatch:
-  #   - a node a plan waits on cannot leave by dropping its frontmatter —
-  #     the reference alone makes it a node, and its missing keys red below;
-  #   - an unreferenced one cannot either, because history convicts it: a
-  #     file whose own line once carried its self-name and no longer does
-  #     was a node, and is red until restored or deleted. Shallow history
-  #     that finds no removal says NOTHING — same doctrine as
-  #     lint_unknown_types: blind is not zero, and a check that cannot
-  #     distinguish a document from a decayed node does not guess.
+  # Research nodes.
   while IFS= read -r rel; do
     [ -n "$rel" ] || continue
     { read -r urgency; read -r agent; read -r effort; read -r grad
@@ -2580,12 +881,6 @@ lint_graph() {
     fstem="$(lint_stem "$rel")"
     if [ -z "$rstem" ] &&
        ! printf '%s' "$rrefs" | grep -qxF -- "$fstem"; then
-      # Both halves anchored to the FRONTMATTER LINE, not to a substring
-      # (r5). `-S"research: <stem>"` missed a key written `research:x` with
-      # no space — gr_fields accepts it, so it was a green node that
-      # decayed silently — and the plain grep let unrelated prose reading
-      # `see research: qr-followup` contain `research: qr` and mask qr.md's
-      # own real decay. Optional space, end-anchored stem, both sides.
       if ! grep -qE "^research:[[:space:]]*${fstem//./\\.}[[:space:]]*(#.*)?$" \
            "${ROOT}/${rel}" 2>/dev/null &&
          [ -n "$(GIT_LITERAL_PATHSPECS=1 git -C "$ROOT" log -1 --format=%H \
@@ -2596,8 +891,6 @@ lint_graph() {
           "file; dropping the block is not how a node leaves the queue"
       elif grep -q '^JOHARNESS_CANONICAL=1' "$CONF" 2>/dev/null; then
         # Silent in a consumer, where the document is the legitimate case.
-        # In canonical the same silence is a new blind spot — before routing
-        # a stray file here was red, after it nothing would ever mention it.
         lint_warn "${rel}: a document, not a node — no research: key and no" \
           "plan routes to it. A consumer keeps documents here; canonical does not"
       else
@@ -2607,12 +900,8 @@ lint_graph() {
     fi
     research=$((research + 1))
     # Same gap, same fix, one type over: a research node the queue lists is
-    # scheduled on these too. `graduates` keeps its own red below — it carries
-    # a reason of its own, not just presence.
+    # scheduled on these too.
     lint_required "$rel" research "$rstem"
-    # A key that exists is intent to be a node, so a value that names some
-    # OTHER file is a typo, never a document: skipped instead, a mis-named
-    # node would leave the queue wearing a document's face.
     [ -z "$rstem" ] || [ "$(lint_stem "$rstem")" = "$fstem" ] ||
       lint_red "${rel}: research '${rstem}' — does not name this file. A node" \
         "names itself; the queue reads this one as '${fstem}' and nothing reads it as '${rstem}'"
@@ -2620,22 +909,12 @@ lint_graph() {
     lint_required "$rel" agent "$agent"
     lint_required "$rel" effort "$effort"
     lint_enum "$rel" urgency "$urgency" normal urgent
-    lint_enum "$rel" agent "$agent" haiku sonnet opus
+    lint_enum "$rel" agent "$agent" haiku sonnet opus fable
     lint_enum "$rel" effort "$effort" low medium high xhigh
     if [ -z "$grad" ] || [ "$grad" = "none" ]; then
       lint_red "${rel}: no graduates: — an answer with nowhere to land does not survive the session that found it"
     elif [ ! -d "${ROOT}/$(case "$grad" in */*) printf '%s' "${grad%/*}" ;; *) printf '.' ;; esac)" ]; then
-      # The DIRECTORY, not the file. The README tells a graduating session to
-      # write a new why-explanation under .agents/docs/, so requiring the
-      # target to exist already reds every question whose answer needs a new
-      # page — the shape this node is for. The plan said "names a file that
-      # exists"; that spelling and the README cannot both be right, and the
-      # one that reds honest repos loses. A wrong directory is still a typo
-      # this catches.
-      # `${grad%/*}` is the whole string when there is no slash, so a
-      # root-level target (AGENTS.md, joharness.sh) tested as a directory
-      # named after itself and reded. Legitimate: the answer to a question
-      # about the entrypoint graduates into the entrypoint.
+      # The DIRECTORY, not the file.
       lint_red "${rel}: graduates '${grad}' — its directory is not in this tree; typo?"
     elif [ ! -e "${ROOT}/${grad}" ]; then
       lint_warn "${rel}: graduates '${grad}' — not in the tree yet; the graduating pull request creates it"
@@ -2653,18 +932,11 @@ lint_graph() {
     else
       lint_enum "$rel" status "$val" in-progress blocked review "done" abandoned
     fi
-    lint_enum "$rel" agent "$agent" haiku sonnet opus
+    lint_enum "$rel" agent "$agent" haiku sonnet opus fable
     p="$(lint_stem "$p")"
-    # A research file is queue work a session picks (Loop step 2), so a
-    # session settling one has to be able to record the claim — and the
-    # workstream file's `plan:` is the only claim edge the hook reads. Before
-    # this, `plan: <question>` was DEAD and reded ci, `plan: none` left the
-    # question listed as free, and a second session was told to settle it:
-    # issue #119's duplicate-claim failure, rebuilt for the new node type.
-    # One field, two directories, because two claim fields would need the
-    # hook, the lint and the template to agree about which one is live.
     if [ -n "$p" ] && [ "$p" != "none" ] &&
-       [ -f "${ROOT}/docs/research/${p}.md" ]; then
+       { [ -f "${ROOT}/docs/research/${p}.md" ] ||
+         [ -f "${ROOT}/docs/product/${p}.md" ]; }; then
       :
     elif [ -n "$p" ] && [ "$p" != "none" ] &&
        [ ! -f "${ROOT}/docs/plans/${p}.md" ]; then
@@ -2672,30 +944,15 @@ lint_graph() {
         lint_warn "${rel}: claims research '${p}' gone from tree (answered?) — claim reads as none"
       elif lint_existed "docs/plans/${p}.md"; then
         lint_warn "${rel}: claims plan '${p}' gone from tree (merged?) — claim reads as none"
+      elif lint_existed "docs/product/${p}.md"; then
+        lint_warn "${rel}: claims requirement '${p}' gone from tree (served?) — claim reads as none"
       elif lint_shallow; then
         lint_warn "${rel}: plan '${p}' unknown here (shallow history) — typo or merged, cannot tell"
       else
-        lint_red "${rel}: plan '${p}' — no such plan or question, never existed. Claim invisible; typo?"
+        lint_red "${rel}: plan '${p}' — no such plan, question or requirement, never existed. Claim invisible; typo?"
       fi
     fi
-    # The issue claim (#119). Validated rather than tolerated: a value the
-    # hook cannot parse is DROPPED there, and a dropped claim reads as "this
-    # issue is free" — which is the exact failure this field exists to stop,
-    # so silence here would reproduce it. A leading # is fine; a word is not.
-    case "$iss" in
-      '' | none) ;;
-      '#'[0-9]* | [0-9]*)
-        # Kept in lockstep with handover-context.sh:issue_num. Two validators
-        # of one format is already one too many; letting them disagree means
-        # a value that lints clean and renders as nothing — a claim that
-        # looks accepted and silently is not.
-        case "${iss#\#}" in
-          *[!0-9]*) lint_red "${rel}: issue '${iss}' — not a number; the hook drops it and the issue reads as unclaimed" ;;
-          0) lint_red "${rel}: issue '${iss}' — there is no issue #0; the hook drops it and the issue reads as unclaimed" ;;
-          0*) lint_red "${rel}: issue '${iss}' — leading zero; #${iss#\#} is not #${iss##*0}, so a reader scanning for their own number misses it" ;;
-        esac ;;
-      *) lint_red "${rel}: issue '${iss}' — not a number; the hook drops it and the issue reads as unclaimed" ;;
-    esac
+    lint_issue "$rel" "$iss" "the hook drops it and the issue reads as unclaimed"
     lint_anchors "$rel"
   done < <(lint_nodes docs/handover)
 
@@ -2720,21 +977,7 @@ lint_graph() {
   return "$LINT_RC"
 }
 
-# ---------------------------------------------------------------------------
-# Ship scope: does a plan's work reach consumers?
-# ---------------------------------------------------------------------------
-#
-# This repo IS the harness, so a plan here mostly edits files the sync engine
-# copies into every consumer; a consumer's own plans reach nobody. The
-# difference decides whether a plan's Acceptance owes a consumer-side check,
-# and nothing was saying it — docs/plans/selftest-split.md and
-# docs/plans/moment-feedback-hooks.md each reasoned it out in prose, for their
-# own scope, independently. Same reasoning written twice is the graduation
-# rule (.agents/docs/feedback.md): it becomes a stage.
-#
-# Derived from the plan's own `scope:`, never a new frontmatter field. A field
-# is only as fresh as the last hurried session — the reason plans carry no
-# `status` either (.agents/docs/plans/README.md, Lifecycle).
+# --- Ship scope: does a plan's work reach consumers?
 SHIP_ENGINE=".agents/scripts/sync-to-consumer.sh"
 SHIP_FILES=()
 SHIP_DIRS=()
@@ -2742,16 +985,11 @@ SHIP_CANON=()
 SHIP_CANON_DIRS=()
 SHIP_LOADED=0
 
-# One array literal out of the engine. PARSED, never sourced: the engine dies
-# without the canonical marker, and a copy of these lists in this file would be
-# the second answer to "does it ship" that this stage exists so nobody needs.
-# index()==1 anchors the name without regex-escaping it.
+# One array literal out of the engine.
 ship_array() {
   awk -v name="$1" '
     index($0, name "=(") == 1 {
       # A one-line declaration closes on its own line — NAME=() most of all.
-      # Falling through to the multi-line branch here ran the scanner on into
-      # the NEXT array and returned its declaration as entries of this one.
       rest = substr($0, length(name) + 3)
       if (index(rest, ")") > 0) {
         sub(/\).*$/, "", rest)
@@ -2767,10 +1005,7 @@ ship_array() {
   ' "${ROOT}/${SHIP_ENGINE}" 2>/dev/null
 }
 
-# Non-zero = no verdict is available here. A consumer does not carry the engine
-# (it is CANONICAL_ONLY_DIRS), and a consumer needs no verdict anyway: its
-# plans ship nowhere. Silence, never an error — joharness.sh ships, so this
-# code runs in every consumer and must have nothing to say there.
+# Non-zero = no verdict is available here.
 ship_load() {
   [ "$SHIP_LOADED" -eq 0 ] || return 0
   [ -r "${ROOT}/${SHIP_ENGINE}" ] || return 1
@@ -2784,9 +1019,7 @@ ship_load() {
   # An engine whose lists this parser cannot see would label every path
   # canonical-only — confidently, and wrongly. Say nothing instead.
   { [ "${#SHIP_FILES[@]}" -gt 0 ] && [ "${#SHIP_DIRS[@]}" -gt 0 ]; } || return 1
-  # A path is a path. An entry carrying shell syntax means the parse ran past
-  # its array and scraped the next declaration — silent corruption otherwise,
-  # because a garbage exact-match string simply never matches anything.
+  # A path is a path.
   for x in ${SHIP_FILES[@]+"${SHIP_FILES[@]}"} ${SHIP_DIRS[@]+"${SHIP_DIRS[@]}"} \
     ${SHIP_CANON[@]+"${SHIP_CANON[@]}"} ${SHIP_CANON_DIRS[@]+"${SHIP_CANON_DIRS[@]}"}; do
     case "$x" in *'('* | *'='* | *')'*) return 1 ;; esac
@@ -2794,10 +1027,7 @@ ship_load() {
   SHIP_LOADED=1
 }
 
-# 0 = this path reaches consumers. CANONICAL_ONLY is tested FIRST and beats a
-# DIRS prefix: .agents/harness ships whole EXCEPT its exemptions, so the other
-# order labels every selftest.sh plan as shipping. `shared:` is a wave marker
-# (.agents/docs/plans/README.md), not part of the path.
+# 0 = this path reaches consumers.
 ship_path_ships() {
   local p="${1#shared:}" c
   p="${p%/}"
@@ -2813,18 +1043,8 @@ ship_path_ships() {
   for c in "${SHIP_DIRS[@]}"; do
     case "$p" in "$c" | "$c"/*) return 0 ;; esac
   done
-  # Two paths the engine ships by logic, not by array membership, so the
-  # arrays alone call them canonical-only — wrongly, and confidently. Placed
-  # AFTER the exemptions, not before: the rule this function states for itself
-  # is that CANONICAL_ONLY beats everything, and a fast path that returned
-  # first would quietly exempt these two from it the day a sub-path of either
-  # is marked canonical-only. Handled here rather than by widening the arrays:
-  # those are the engine's, and this file does not get to edit what they mean.
-  #
-  # A layer under .agents/env/ ships to every consumer that SELECTS it
-  # (sync-to-consumer.sh, LAYER_IN_CANONICAL). Which consumer that is, is not
-  # canonical's to know, so the verdict is "ships" — the plan owes the
-  # consumer-side check either way. .agents/env/README.md is already in FILES.
+  # Two paths the engine ships by logic, not by array membership, so the arrays
+  # alone call them canonical-only — wrongly, and confidently.
   case "$p" in .agents/env/*) return 0 ;; esac
   # AGENTS.md is spliced, not copied: everything above the Part 2 marker
   # reaches every consumer. It is absent from FILES on purpose.
@@ -2832,10 +1052,7 @@ ship_path_ships() {
   return 1
 }
 
-# Plans this branch adds or changes, working tree included. The verdict is
-# worth printing while someone is writing the plan, not on every ci for every
-# plan the queue holds. Same diff-plus-tree pair selftest_inert_diff uses, for
-# the same reason: ci judges what is about to be pushed, uncommitted included.
+# Plans this branch adds or changes, working tree included.
 ship_changed_plans() {
   local base entry f
   base="$(git -C "$ROOT" merge-base HEAD \
@@ -2849,15 +1066,8 @@ ship_changed_plans() {
   } | awk '/^docs\/plans\/[^\/]+\.md$/ { print }' | gr_docs | sort -u
 }
 
-# Report only. A gate here would fight the thing it is measuring: `scope` is
-# only as true as it is complete (.agents/docs/plans/README.md), so a red built
-# on it would fire on an honest plan whose author forgot a path. Same call
-# finding-id-lint makes for its own stage — report first, gate later if the
-# report proves out.
+# Report only.
 lint_ship() {
-  # ship_ prefixes, not `plans`/`paths`: shellcheck tracks a name across the
-  # whole file, and a local array here renames-by-collision every string
-  # called `plans` in another function into an array warning.
   local rel stem scope p shipping ships=0 seen=0
   local -a ship_plans=()
   local -a ship_paths=()
@@ -2914,8 +1124,7 @@ lint_ship() {
 }
 
 # The shellcheck binary is the acceptance bar, but its absence is an
-# environment problem, not a code problem. Best effort: install quietly,
-# succeed = have it.
+# environment problem, not a code problem.
 ensure_shellcheck() {
   have shellcheck && return 0
   if have apt-get; then
@@ -2930,39 +1139,10 @@ ensure_shellcheck() {
   have shellcheck
 }
 
-# ---------------------------------------------------------------------------
-# Review step
-#
-# The harness has ordered a review at every edge into main since the loop was
-# written (.agents/harness/AGENTS.md step 5, depth by tier in
-# .agents/docs/agent-selection.md). Nothing checked that one happened. The record
-# is the workstream file's `## Review` section, and only a human reading hook
-# output ever noticed it empty — "a branch visibly churning with an empty
-# Review section is the human's cue" (.agents/docs/handover/README.md,
-# Reviewing) is the whole of today's enforcement, and it needs a human looking.
-#
-# Off by default, and silent while off: a repo that has not opted in sees no
-# output and no gate, so `ci` here means exactly what it meant before. On, the
-# check rides in `ci` — the one gate a session cannot skip, same argument the
-# churn ceiling and the graph lint already rest on: the session that skipped
-# its own review is the one that cannot see it skipped.
-#
-# What it checks is the RECORD, never the finding count. Counts carry no
-# signal in either direction (.agents/docs/agent-selection.md, review churn:
-# "Finding counts no signal, false both ways"), so a gate on N>0 findings buys
-# invented findings and nothing else. A clean pass records one line saying it
-# was clean; an empty section is not a clean pass, it is no pass.
-# ---------------------------------------------------------------------------
+# --- Review step
 
 # Tier the review depth scales with: the workstream file's own `agent:`, else
 # the tier of the plan it claims, else the default from the selection rules.
-# One vocabulary, read where the protocol already writes it — no second field
-# to keep in sync.
-# The agent value comes in rather than being fetched here: review_report reads
-# `agent pr status` in ONE gr_fields pass per workstream file, which is the
-# defect gr_fields' own comment names — "a caller wanting five fields forked
-# five awks over the same five lines". The plan fallback below still forks,
-# and only for a file that named no tier.
 review_tier() {
   local doc="$1" tier="$2" plan
   if [ -z "$tier" ]; then
@@ -2981,7 +1161,7 @@ review_recipe() {
   case "$1" in
     haiku)
       printf 'one /code-review pass at default effort — one pass, never zero' ;;
-    opus)
+    opus|fable)
       printf 'adversarial: correctness, security, does-it-reproduce as separate passes' ;;
     *)
       printf '/code-review (high) on the full diff' ;;
@@ -2999,37 +1179,6 @@ review_count() {
 }
 
 # Findings this branch recorded that nothing can ever serve back.
-#
-# fb_fix_map keys attribution on `^\+- r[0-9]+:` and nothing checked that the
-# form was written. Measured on origin/main 2026-08-28, newest 50 of 107
-# edges: 343 findings, 122 with no id the map can key on — a third of the
-# record counted and then dark. Two shapes, both in that number: the colon
-# dropped from the prescribed `- r1:`, and prefixes invented per round (one
-# file carried 10 `vN` and 3 `cN`). .agents/docs/feedback.md scores stage 4,
-# Prevent, as the only stage that changes an outcome, and an unattributable
-# finding is exactly what cannot reach it.
-#
-# WARN, never red. `churn` and `review` each earned their gate on a backtest
-# and this has none; a gate that reds a working branch is a gate sessions
-# route around, and the plan that adds one comes after the number falls.
-#
-# TWO COUNTERS, TWO QUESTIONS. review_count asks whether a review happened
-# and matches a looser `^- ` on purpose; this asks whether what it counted can
-# be reached later. Conflating them turns a formatting slip into "no review
-# recorded" and reds a compliant branch.
-#
-# Never rewrite a recorded finding to satisfy this. The form is fixed going
-# forward; a record edited to match a later rule stops being a record.
-# The workstream files THIS branch touched, from the commits rather than the
-# endpoint diff. Step 7 puts the file's deletion in the last commit before the
-# pull request opens — exactly when `ci` runs for the record — and a file a
-# branch both added and deleted is absent from `git diff base HEAD` entirely.
-# `log --name-only` still carries it, which is also how fb_fix_map sees it.
-#
-# The DIFF, never the tree: a branch inherits every workstream file its base
-# carries, and reading the tree means naming somebody else's findings on every
-# run. Two stages read this now, so it is one function rather than two copies
-# that drift.
 lint_ws_in_diff() {
   git -C "$ROOT" log --format= --name-only --diff-filter=ACMRT \
     "${1}..HEAD" -- docs/handover 2>/dev/null | sort -u | gr_docs
@@ -3050,9 +1199,6 @@ lint_ws_content() {
 }
 
 # Every `## Review` bullet in one workstream file, as "<indented>\t<text>".
-# Indented bullets separately: fb_findings folds a continuation into the
-# bullet above it, which is right for READING a finding and wrong for
-# counting them.
 lint_review_bullets() {
   printf '%s\n' "$1" | awk '
     /^## Review[[:space:]]*$/ { r = 1; next }
@@ -3061,107 +1207,11 @@ lint_review_bullets() {
     r && /^[ \t]+- /          { t = $0; sub(/^[ \t]+- /, "", t); print "1\t" t }'
 }
 
-# Findings recorded on this branch with no disposition. Step 5 already says
-# "Fix them or record why not — never drop silent", and nothing enforced it:
-# 155 findings across this repo's history are unmarked, 62 of them without an
-# id. Every one was a session that wrote a bullet and never said what came of
-# it.
-#
-# It matters beyond tidiness because an unmarked finding is a session's
-# silent drop made durable: `feedback` counts every one across merged
-# history, and the count only ever grows. This keeps the new count near
-# zero at the one moment it can still be changed.
-#
-# TWO RED TRIGGERS, mid-build stays a report either way: a gate that reds
-# mid-build fights the review gate, which needs findings recorded while the
-# review is still happening. A finding written this hour and dispositioned
-# next hour is the normal case, not an error. So: report always, red once
-# the branch says `status: done` (`fin_strength`) OR retires its own
-# workstream file (`fin_retired_own`, checked separately — see its comment
-# for why it is not folded into `fin_strength`). `status: done` is not a
-# contract a branch is bound to — a branch going straight from `review` to
-# the retire commit says done nowhere, and did exactly that in PR 172: its
-# r5 carried no verdict `fb_marker` recognises and merged unchecked,
-# `status: review` the whole way (docs/plans/marker-gate-needs-no-done.md).
-# The retire commit is the trigger that cannot be skipped by omission — it
-# is the same deletion step 7 already requires of every branch, field or
-# no field.
-#
-# Vocabulary is `fb_marker`'s, not a new one — wontfix, no change, (fixed.
-# A second spelling of the same verdict is how two counts drift apart.
-# `(recorded` stays out of it; `fb_marker`'s own comment says why.
-# The goal is the human's to set. An unsupervised session that writes itself
-# a requirement writes its own finish line, and a fleet with a finish line it
-# authored has none — the circularity the goal bound closes
-# (.agents/docs/unsupervised.md, Bounds).
-#
-# Nothing enforced it. `protocol_paths` covers protocol TEXT and
-# `docs/product/` is not in it, correctly: a requirement is product, not
-# protocol, and the boundary's own Constraint says the rule is the role.
-# So this is a different guard with a different reason, not a widening of
-# that list.
-#
-# In `ci` rather than in handover-guard.sh, and the asymmetry is deliberate.
-# The guard reports facts at turn end and does not prevent — its documented
-# shape, and the Constraint keeps it that way. But a report does not stop a
-# merge, and a self-written goal reaching the base branch is where the damage
-# lands. Step 7 requires green checks, so `ci` is the gate that actually
-# holds. (Protocol text itself is still only reported, which is a gap this
-# diff does not close — it is out of this plan's scope and named in its
-# record.)
-#
-# ADDED, not edited. PR 163 annotated a `Satisfied when` bullet with a
-# measured result while unsupervised, and that is the mode reporting its own
-# results — useful, and a guard that caught it would stop exactly the
-# feedback the requirement asks for. Adding a NEW goal is the circularity.
-lint_requirement_writes() {
-  local over="origin/${HANDOVER_BASE_BRANCH:-main}" base added n
-  unattended || {
-    printf '  supervised — a requirement is a human'"'"'s to write, and this is
-'
-    printf '  the mode where a human is there to write it
-'
-    return 0
-  }
-  base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
-  if [ -z "$base" ]; then
-    printf '  not measurable here (no merge-base with %s; unrelated history)
-' "$over"
-    return 0
-  fi
-  # The DIFF from the COMMITS, and only additions. Same walk the finding
-  # stages use, for the same reason: a branch inherits every file its base
-  # carries, and the endpoint diff loses a file added and later removed.
-  added="$(git -C "$ROOT" log --format= --name-only --diff-filter=A \
-    "${base}..HEAD" -- docs/product 2>/dev/null | sort -u |
-    { grep -E '\.md$' || :; } |
-    { grep -vE '/(TEMPLATE|README|VISION)\.md$' || :; })"
-  n="$(printf '%s' "$added" | grep -c . || :)"
-  case "$n" in ''|*[!0-9]*) n=0 ;; esac
-  if [ "$n" -eq 0 ]; then
-    printf '  no requirement added on this branch
-'
-    return 0
-  fi
-  printf '%s
-' "$added" | sed 's/^/  /'
-  printf '
-  %d requirement(s) ADDED by an unattended branch. The goal is
-' "$n"
-  printf '  the human'"'"'s to set: a fleet that writes its own finish line has
-'
-  printf '  none (.agents/docs/unsupervised.md, Bounds).
-'
-  printf '  Editing one is fine — annotating a Satisfied when bullet with a
-'
-  printf '  measured result is the mode reporting its own results.
-'
-  return 1
-}
-
+# Findings in this branch's OWN workstream files (fin_own_ws) with no verdict
+# (fb_marker).
 lint_finding_markers() {
   local over="origin/${HANDOVER_BASE_BRANCH:-main}" base ws content text
-  local unmarked=0 seen=0 here strength short
+  local unmarked=0 seen=0 here short
   base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
   if [ -z "$base" ]; then
     printf '  not measurable here (no merge-base with %s; unrelated history)\n' "$over"
@@ -3173,26 +1223,16 @@ lint_finding_markers() {
     [ -n "$content" ] || continue
     seen=$((seen + 1))
     here=0
-    # fb_findings, which FOLDS continuation lines into the bullet above —
-    # not lint_review_bullets, which does not. The two are both right for
-    # their own question and this one needs the folded form: a verdict is
-    # usually the finding's LAST clause, and a multi-line finding carries it
-    # on a continuation. Reading first lines only, this stage flagged r1..r4
-    # of its own workstream file as unmarked while every one of them ends in
-    # "(fixed" or "(recorded".
-    #
-    # Deeper reason, and the one that settles it: `fb_collect` applies
-    # `fb_marker` to exactly this folded form to produce the count `sources`
-    # reports. A gate that extracted findings differently would enforce a
-    # different number from the one it cites.
+    # fb_findings, which FOLDS continuation lines into the bullet above — not
+    # lint_review_bullets, which does not.
     while IFS= read -r text; do
       [ -n "$text" ] || continue
       [ "$(fb_marker "$text")" = "unmarked" ] || continue
       unmarked=$((unmarked + 1))
       [ "$here" -eq 1 ] || { here=1; printf '  %s\n' "$ws"; }
-      # Cut at a SPACE, which is ASCII and so can never land inside a
-      # multibyte character — the same reason lint_finding_ids does, and
-      # findings here carry em dashes constantly.
+      # Cut at a SPACE, which is ASCII and so can never land inside a multibyte
+      # character — the same reason lint_finding_ids does, and findings here
+      # carry em dashes constantly.
       short=""
       if [ "${#text}" -gt 76 ]; then
         short="${text:0:72}"
@@ -3204,7 +1244,7 @@ lint_finding_markers() {
       if [ -n "$short" ]; then printf '    %s …\n' "$short"
       else printf '    %s\n' "$text"; fi
     done <<<"$(printf '%s\n' "$content" | fb_findings)"
-  done <<<"$(lint_ws_in_diff "$base")"
+  done <<<"$(fin_own_ws "$base")"
 
   if [ "$seen" -eq 0 ]; then
     printf '  no workstream file in this branch'"'"'s diff\n'
@@ -3214,31 +1254,11 @@ lint_finding_markers() {
     printf '  every finding on this branch says what came of it\n'
     return 0
   fi
-  printf '\n  %d finding(s) with no verdict. One of: (fixed, wontfix, no change\n' "$unmarked"
-  printf '  (joharness.sh:fb_marker). An unmarked finding is a silent drop made\n'
-  printf '  durable: feedback counts it across merged history for good, and\n'
-  printf '  this branch is the last place it can still be answered.\n'
-  strength="$(fin_strength)"
-  if [ "$strength" = "done" ]; then
-    printf '  RED: this branch says status: done, so there is no later moment.\n'
-    return 1
-  fi
-  # `fin_strength` only sees PRESENT files (it reads the tree), and the
-  # retire commit's whole point is that the tree no longer carries this
-  # one — the exact blind spot `fin_retired_own` reads the log to avoid.
-  # Read directly rather than through `fin_strength`: that function's
-  # return value also gates whether `ci` prints `== finish` at all, and a
-  # branch that retired with every finding dispositioned is meant to fall
-  # silent there. This gate's business is unmarked findings, not that.
-  if [ -n "$(fin_retired_own "$base")" ]; then
-    printf '  RED: this branch retired its own workstream file — deleted, not\n'
-    printf '  status: done, but the file is gone either way, so there is no\n'
-    printf '  later moment to disposition this in.\n'
-    return 1
-  fi
-  printf '  Reported, not failed: this branch has not said done yet, and a\n'
-  printf '  finding recorded now and dispositioned later is the normal case.\n'
-  return 0
+  printf '\n  %d finding(s) with no verdict. End each with one of (joharness.sh:fb_marker):\n' "$unmarked"
+  printf '    - r1: <finding> (fixed in <file or commit>)\n'
+  printf '    - r2: <finding> — wontfix: <why>\n'
+  printf '    - r3: <finding> — no change: <why>\n'
+  return 1
 }
 
 lint_finding_ids() {
@@ -3247,43 +1267,19 @@ lint_finding_ids() {
   base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
   if [ -z "$base" ]; then
     # Churn's doctrine: a check that cannot see the history it needs says so
-    # and passes, rather than going red on what it cannot prove. "No
-    # merge-base" is the only cause, and naming a wrong one is worse than
-    # naming none — on the base branch itself there IS a merge-base and this
-    # line never prints.
+    # and passes, rather than going red on what it cannot prove.
     printf '  not measurable here (no merge-base with %s; unrelated history)\n' "$over"
     return 0
   fi
-  # The DIFF, never the tree. A branch inherits every workstream file its base
-  # carries, and linting those means naming somebody else's findings on every
-  # ci run — noise a session learns to scroll past. review_report next door
-  # enumerates with a find over the tree; that is the pattern this must not
-  # copy, and not this function'"'"'s to change.
-  #
-  # From the COMMITS, not from the endpoint diff. Step 7 puts the workstream
-  # file'"'"'s deletion in the last commit before the pull request opens, which is
-  # exactly when `ci` runs for the record — and a file this branch both added
-  # and deleted is absent from `git diff base HEAD` entirely, so the stage
-  # printed "no workstream file in this branch'"'"'s diff" at that moment and
-  # linted the branch'"'"'s own findings never. `log --name-only` still carries
-  # it, which is also how fb_fix_map sees it.
+  # The DIFF, never the tree.
   while IFS= read -r ws; do
     [ -n "$ws" ] || continue
-    # From git, not from the working tree. A tree read inside a diff walk is
-    # the bug this stage was written to avoid, and it made the stage contradict
-    # git outright: an uncommitted `rm` of a file the diff names printed
-    # "no workstream file" while git listed it. HEAD first; for a file this
-    # branch retired, the commit before the one that removed it.
+    # From git, not from the working tree.
     content="$(lint_ws_content "$ws")"
     [ -n "$content" ] || continue
     seen=$((seen + 1))
     here=0
-    # Each bullet'"'"'s FIRST line, and indented bullets separately. fb_findings
-    # folds a continuation (`^  [^ ]`) into the bullet above it, so an indented
-    # `- v2:` reads as part of the previous finding and disappears — the stage
-    # then printed "clean" over bullets fb_fix_map keys no more than it keys a
-    # bare `- v2:`. Folding is right for reading a finding and wrong for
-    # counting them, so this does not reuse it.
+    # Each bullet'"'"'s FIRST line, and indented bullets separately.
     while IFS="$(printf '\t')" read -r flag text; do
       [ -n "$text" ] || continue
       if [ "$flag" = "0" ] && fb_keyable "$text"; then
@@ -3293,13 +1289,8 @@ lint_finding_ids() {
       # The file once, then its bullets. Repeating the path per finding is
       # what a reader skips, and this stage runs on every ci.
       [ "$here" -eq 1 ] || { here=1; printf '  %s\n' "$ws"; }
-      # Cut at a SPACE, which is ASCII and so can never land inside a
-      # multibyte character. `printf '%.72s'` counts bytes and left two of an
-      # em dash's three behind; `${text:0:72}` does the same, because bash
-      # slices by character only in a multibyte locale and `ci` does not set
-      # one. Findings here carry em dashes constantly. No space in the first
-      # 72 bytes means no sentence, and the line goes out whole rather than
-      # broken.
+      # Cut at a SPACE, which is ASCII and so can never land inside a multibyte
+      # character.
       short=""
       if [ "${#text}" -gt 76 ]; then
         short="${text:0:72}"
@@ -3315,7 +1306,7 @@ lint_finding_ids() {
       fi
       [ "$flag" = "1" ] && printf '      ^ indented; the map keys a bullet at column 0 only\n'
     done <<<"$(lint_review_bullets "$content")"
-  done <<<"$(lint_ws_in_diff "$base")"
+  done <<<"$(fin_own_ws "$base")"
 
   if [ "$seen" -eq 0 ]; then
     printf '  no workstream file in this branch'"'"'s diff\n'
@@ -3325,71 +1316,15 @@ lint_finding_ids() {
     printf '  every finding on this branch carries an id the fix map can key on\n'
     return 0
   fi
-  printf '\n  %d finding(s) nothing can key on. The form is: - r<N>: text\n' "$bad"
-  printf '  (joharness.sh:fb_fix_map) — without the id and its colon a finding\n'
-  printf '  is counted and then never served back to the file it landed on\n'
-  printf '  (.agents/docs/feedback.md, stage 4).\n'
-  printf '  Warn, not red. Fix the form going forward; never rewrite a finding\n'
-  printf '  already recorded.\n'
-  return 0
+  printf '\n  %d finding(s) nothing can key on (joharness.sh:fb_fix_map). Write each\n' "$bad"
+  printf '  as a top-level bullet with an id and a colon, for example:\n'
+  printf '    - r1: <finding> (fixed in <file or commit>)\n'
+  return 1
 }
 
 # At the edge = this workstream is being handed to `main`: it has a pull
-# request, or its own status says the work is over. Below the edge the review
-# has not come due yet — the loop puts it at step 5, after the build — so the
-# gate warns there and fails here. Two tiers for the same reason churn has
-# them: `ci` runs all through the build, and a check that reds from the claim
-# commit onward makes red the normal state of a working branch, which is how a
-# gate stops being read at all.
-# Step 5 spawns the independent reader at every depth and says to tag what it
-# returns `(verifier)`. The gate could only ever check that a review HAPPENED
-# — n>0 — so a branch that self-reviewed passed exactly as if the reader had
-# run. That gap is r6 of the unmarked-detector-baseline record in its own
-# words: six findings under one `Round 1, opus, self` heading, the gate
-# satisfied, the verifier never spawned, and the author calling it "the second
-# in a row". Nothing short of a human reading the diff caught it.
-#
-# ONE tag is the bar, never one per finding: a branch recording five of its own
-# findings and one the reader returned has run the step.
-#
-# ONE PASS, two answers, because this runs per workstream file inside
-# review_report's loop. The first cut asked the question with
-# `fb_findings | grep -qF` beside the existing review_count: two extra forks
-# per workstream file, and the `review` row went 260 to 348 against a 274
-# ceiling — the per-item fork inside a loop the perf budget exists to name,
-# put there by the change that added the check. Both numbers were counted with
-# `./joharness.sh perf` on 2026-09-02 at 84b492a, this branch's commit before
-# the change; the 348 tree was never committed, so only the 260 half of that
-# pair is re-countable, and at the base this file now sits on the same command
-# prints 259. The pair is kept for the SHAPE it records, not as a measurement
-# a reader can reproduce.
-#
-# Prints `<count> <0|1>`. The count keeps review_count's `^- ` rule exactly.
-# They agree today — 180 workstream-file versions from
-# `git rev-list origin/main -400`, 0 mismatches, counted 2026-09-02 — and
-# nothing enforces that they keep agreeing: this is a third literal copy of an
-# awk the handover hook also carries inline. Recorded rather than fixed here;
-# folding the three is its own change.
-#
-# The tag is read on a FINDING, never on a line. The bar the rule states is
-# "one finding carries it", and a line scan answers a different question: a
-# session that pastes this gate's own failure text into its `## Review`
-# section clears the gate, and so does a fenced block, a heading, or a
-# sentence of prose. Continuation lines still count, because a bullet is
-# folded before it is tested — the same `^  [^ ]` rule fb_findings uses, so a
-# tag written on the second line of a long finding counts.
-#
-# Reads what got WRITTEN, the same limit the n>0 check already has and not a
-# new one. Nothing here observes whether a session spawned the agent.
+# request, or its own status says the work is over.
 review_marks() {
-  # The tag is `(verifier` followed by `)` or `,`, never the bare literal. A
-  # finding written `(verifier, budget)` — the tag plus what class of thing it is,
-  # which is how every finding on the branch that found this was written — went
-  # unseen by an `index(buf, "(verifier)")`, so `review` reported 23 findings and
-  # none tagged, at the edge, with the independent reader having run. A gate that
-  # cannot see the thing it demands teaches sessions to route around it, and this
-  # one had no way to say what spelling it wanted. `(verifiers)` and
-  # `(verifier-ish)` still do not count.
   awk '
     function tagged(s) { return match(s, /\(verifier[,)]/) > 0 }
     /^## Review[[:space:]]*$/ { in_r = 1; next }
@@ -3402,9 +1337,6 @@ review_marks() {
                                 print (n + 0) " " (t + 0) }'
 }
 
-# Takes the two field VALUES, not the document: it was forking one awk per
-# field over the same frontmatter, and the gate now asks this question for
-# every workstream file rather than only the ones with an empty section.
 review_at_edge() {
   local pr="$1" status="$2"
   if [ -n "$pr" ] && [ "$pr" != "none" ]; then
@@ -3418,11 +1350,7 @@ review_at_edge() {
 }
 
 # Prints the step, two-space indented like every other `ci` section, and
-# returns non-zero only when this branch owes a review record. Reads the
-# working tree, not a ref: `ci` judges what the branch is about to push.
-# Every workstream file on the branch, not the first: a branch carrying two
-# workstreams owes two records, and checking one of them would pass the
-# branch on a review that never covered the other half of its diff.
+# returns non-zero only when this branch owes a review record.
 review_report() {
   local over="origin/${HANDOVER_BASE_BRANCH:-main}" base head ws doc tier n
   local edge rc=0 seen=0 marks tagged agent pr status own mine
@@ -3439,16 +1367,7 @@ review_report() {
     return 0
   fi
 
-  # Files THIS branch wrote, for the tag gate below. The loop still reports on
-  # every workstream file in the tree, because a branch that inherits one and
-  # leaves its ## Review empty is the case the n==0 red already covered. The
-  # TAG red cannot work that way: 44 of 70 workstream-file versions on
-  # origin/main carry findings and no tag (git rev-list origin/main -200 with
-  # this file's own review_marks, counted 2026-09-02) — every record written
-  # before the rule existed. Redding a branch for one it merely inherited is
-  # step 4's "DIFF against merge base, never read the tree", and it is the
-  # carve-out fin_gate already spells: a gate that fails for somebody else's
-  # omission is one sessions route around.
+  # Files THIS branch wrote, for the tag gate below.
   own="$(lint_ws_in_diff "$base")"
 
   while IFS= read -r ws; do
@@ -3460,8 +1379,7 @@ review_report() {
     esac
     doc="$(cat "${ROOT}/${ws}" 2>/dev/null)"
     # ONE frontmatter pass and ONE section pass per file, both feeding
-    # everything below. Two awks per file, which is what this loop cost
-    # before the verifier check existed.
+    # everything below.
     { read -r agent; read -r pr; read -r status; } < <(
       printf '%s\n' "$doc" | gr_fields agent pr status)
     tier="$(review_tier "$doc" "$agent")"
@@ -3470,18 +1388,6 @@ review_report() {
     edge="$(review_at_edge "$pr" "$status")" || edge=""
     printf '  %s [%s — %s]\n' "$ws" "$tier" "$(review_recipe "$tier")"
     # The independent reader, printed where the depth is already printed.
-    # No causal number here: the "0/19 -> 18/19" this comment first claimed
-    # does not reproduce, and belongs to the review LEDGER in
-    # .agents/docs/feedback.md, not to this print. Re-derived 2026-08-28 with
-    # this file's own fb_edges/fb_workstream/fb_findings over every
-    # first-parent merge on origin/main: 12/32 recorded before the print
-    # existed, 41/41 after — a real step, and not the one that was written.
-    # `JOHARNESS_FEEDBACK_EDGES=0 ./joharness.sh feedback` re-counts it.
-    # Printed beside the depth on every run, which is what the plan's Scope
-    # asks for — not gated on the edge. An earlier comment here claimed
-    # "at the moment it comes due", which the code never did: this sits
-    # above the review_at_edge test, so mid-build it prints three lines and
-    # then says the gate has not fired yet.
     printf '    verifier: spawn .claude/agents/verifier.md at %s — it did not\n' "$tier"
     printf '    write this diff, which is the whole property. Tag what it\n'
     printf '    returns (verifier).\n'
@@ -3494,8 +1400,7 @@ review_report() {
         continue
       fi
       # Mid-build stays exactly as silent as the zero-findings case: one line,
-      # the count, no gate output. The reader comes due at the edge, and a
-      # branch still writing its own findings is not owed the lecture yet.
+      # the count, no gate output.
       [ -n "$edge" ] || continue
       printf '    none of them tagged (verifier), and this is the edge (%s)\n' "$edge"
       printf '    The independent reader is step 5 at EVERY depth, and this gate\n'
@@ -3518,10 +1423,6 @@ review_report() {
   done < <(lint_nodes docs/handover)
 
   if [ "$seen" -eq 0 ]; then
-    # Not a hole to paper over: copy, sync and plan-queue branches carry no
-    # workstream file BY protocol (.agents/docs/handover/README.md, "When NOT to
-    # write one"), so a record the protocol forbids cannot be the bar. Says
-    # what it did not check instead of passing quietly.
     printf '  no workstream file on this branch — no record to check\n'
     printf '  (copy, sync and plan-queue branches carry none by protocol)\n'
   fi
@@ -3529,16 +1430,7 @@ review_report() {
 }
 
 # Standalone, the step runs whether or not the gate is armed — the recipe on
-# demand costs nothing, and a session may want it before ci ever runs. The
-# knob decides only whether `ci` fails for a missing record, so the header
-# says which of the two this run is.
-# What the files in this diff have already cost other branches. The review
-# step is the moment this pays: the reviewer is about to look at exactly these
-# files, and merged history knows which of them keep drawing findings.
-#
-# Standalone `review` only, never the `ci` gate: this walks all of merged
-# history (seconds, not milliseconds), and the gate runs on every ci. A
-# session that wants the whole picture runs `feedback`.
+# demand costs nothing, and a session may want it before ci ever runs.
 review_prior() {
   local over="origin/${HANDOVER_BASE_BRANCH:-main}" base hot f count shown=0
   base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
@@ -3546,17 +1438,7 @@ review_prior() {
   fb_collect || return 0
   hot="$(fb_hotspots)"
   [ -n "$hot" ] || return 0
-  # ONE awk over both lists, not one per changed file. The old shape forked
-  # an awk inside the loop, which is the regression the perf budget exists to
-  # name — and it went unnoticed because every branch measured so far changed
-  # a handful of files. The branch that split the selftest changed 41 and put
-  # `review` 13 over its ceiling: 278 against 265, counted 2026-08-29. The
-  # loop did not grow a fork, the diff grew items; the budget was right either
-  # way, and raising it to match would have been raising the number to match
-  # the code.
-  #
-  # \034 is the sentinel between the two lists — a file separator that cannot
-  # appear in a path.
+  # ONE awk over both lists, not one per changed file.
   local rows
   rows="$(
     {
@@ -3592,52 +1474,9 @@ cmd_review() {
   return "$rc"
 }
 
-# ---------------------------------------------------------------------------
-# Feedback
-#
-# The review step (above) makes a branch record what its review found. The
-# record then dies: the finish ritual deletes the workstream file, by design —
-# a file left on `main` reads as current (.agents/docs/handover/README.md,
-# Graduation). So every finding this repo ever recorded is in merge history and
-# nowhere a session looks, and the next branch re-finds it.
-#
-# Measured on this repo's own history at the time this was written: 41 findings
-# across 8 merged edges, and 9 of 24 file-level fixes (38%) landed on a file an
-# earlier merged branch had already recorded a finding against. `AGENTS.md`
-# under the harness drew findings on 5 of those 8 edges. A file that keeps
-# drawing findings is a rule nobody has written yet.
-#
-# So this is two things, and the second is why the first exists:
-#   feedback          the scorecard — does the loop run, does its output
-#                     survive, does the same file keep coming back
-#   feedback <path>   what earlier merged branches found in that file
-#
-# Nothing is stored. Every number is counted from git at read time, so it
-# cannot rot and cannot be written wrong (the doctrine the churn measure and
-# the graph lint already run on). What it cannot count, it says: finding
-# volume is NOT a quality signal here — the review-churn rule already
-# establishes counts are false in both directions — so the number to watch is
-# recurrence, and the direction to want is down.
-# ---------------------------------------------------------------------------
+# --- Feedback
 
-# Every edge into the base branch: "<merge-sha> <branch-tip-sha>". Any merge
-# with two parents, no subject parsing — GitHub's "Merge pull request" wording
-# is one host's, and a consumer merging by hand makes the same edge.
-#
-# --first-parent is load bearing: without it the walk also descends into the
-# branches themselves, and a branch that merged main in mid-flight (the
-# protocol tells long-running ones to) contributes its own merge as a second
-# edge carrying the same workstream file. Measured while writing this: 51
-# "edges" and 42 findings against a true 37 and 41.
-# Third field is the merge SUBJECT, carried here so fb_label does not spend a
-# `git log -1` per edge asking for what this walk already had in hand. Tab
-# separates it because a subject holds spaces and the parents do not; the
-# subject is taken as everything after the FIRST tab, so a subject containing
-# one survives whole rather than being cut at it.
-#
-# Callers read three fields. `read -r m tip` puts the remainder in `tip`, so a
-# caller that was not updated gets "<parent> <subject>" where it wants a sha
-# and computes a merge base against nothing — silently, on every edge.
+# Every edge into the base branch: "<merge-sha> <branch-tip-sha>".
 fb_edges() {
   git -C "$ROOT" log --first-parent --format='%H %P%x09%s' --merges "$1" 2>/dev/null |
     awk -F'\t' '{
@@ -3649,26 +1488,11 @@ fb_edges() {
 }
 
 # Every edge costs a git show per commit, so a repo with thousands of them
-# would make this measure something nobody runs twice. Newest first, bounded,
-# and the bound is printed when it bites — a window nobody was told about is
-# how a measure starts lying. 0 lifts it.
+# would make this measure something nobody runs twice.
 FB_LIMIT="${JOHARNESS_FEEDBACK_EDGES:-50}"
-# Recurrence is scored over a SLIDING window, not all of history. Cumulative
-# recurrence is 1 - D/N: N grows, D saturates on a finite repo, so the number
-# converges to 100% however well the loop works, and "want this falling"
-# describes something arithmetic forbids. A window lets a file that was read,
-# fixed and then left alone age out, so the score falls when rediscovery
-# stops — which is the question the measure is asked.
-# 8: measured on this repo's own gap distribution (2026-08-27, 26 fix-carrying
-# edges, 93 repeat events) — the gap between one fix on a path and the next is
-# median 2, and 86% of repeats fall within 8 edges. 8..12 is a plateau, adding
-# nothing; past it sits a separate far tail (17+) that is a file being central,
-# not a rediscovery. Widening this is fine; comparing two windows is not.
+# Recurrence is scored over a SLIDING window, not all of history.
 case "${JOHARNESS_RECURRENCE_WINDOW-8}" in
   '' | *[!0-9]*)
-    # Junk or negative falls back to the DEFAULT, never to 0: 0 means all of
-    # history, which is the one reading this window exists to replace, and a
-    # typo must not quietly restore it.
     FB_WINDOW=8 ;;
   *) FB_WINDOW="${JOHARNESS_RECURRENCE_WINDOW-8}" ;;
 esac
@@ -3677,13 +1501,6 @@ FB_CAPPED=0
 
 # Pull request number from a merge subject, else the short sha: the identifier
 # is for a human to go read the branch with, so any stable handle will do.
-# Takes the subject rather than fetching it: fb_edges already carried it. Two
-# forks per edge became none — a `git log -1` and a `sed`, paid once for every
-# edge that has a workstream file, which is most of them.
-#
-# `##` and not `#`, so the LAST occurrence wins. The sed this replaced anchored
-# on a greedy `.*`, which also takes the last; a subject quoting one merge
-# inside another would otherwise change label between the two versions.
 fb_label() {
   local subj="$2" n
   case "$subj" in
@@ -3696,14 +1513,7 @@ fb_label() {
   printf '%s' "${1:0:7}"
 }
 
-# Last surviving version of the branch's workstream file. The ritual deletes
-# it in the final commit, so the newest commit that still HAS it is the one
-# carrying everything the branch learned — and that is the newest commit that
-# ADDED or MODIFIED it, which git will name directly. Asking for it beats the
-# older walk (a diff-tree per commit to list the files, then a cat-file per
-# commit per file to find one that still resolves) by the length of the branch.
-# `while read`, not `for f in $(...)`: an unquoted expansion splits a path with
-# a space in it into two paths that resolve to nothing.
+# Last surviving version of the branch's workstream file.
 fb_workstream() {
   local base="$1" tip="$2" f c
   while IFS= read -r f; do
@@ -3718,9 +1528,6 @@ fb_workstream() {
   return 1
 }
 
-# One line per finding, wrapped continuations folded back in: a finding's
-# disposition usually sits at the end of its last line, so a reader that stops
-# at the first newline reads every finding as unmarked.
 fb_findings() {
   awk '
     /^## Review[[:space:]]*$/ { r = 1; next }
@@ -3730,40 +1537,18 @@ fb_findings() {
     END                       { if (r && buf != "") print buf }'
 }
 
-# wontfix and no-change are decisions, not defects, and they are decided in
-# the finding's own last clause — so the marker is read with wontfix first,
-# and a finding that says both "fixed" and "wontfix" is the compound one it
-# looks like, counted where the human put the verdict.
-#
-# `(recorded` is deliberately NOT here, though this session has written it
-# repeatedly (docs/plans/marker-gate-needs-no-done.md). Every finding under
-# ## Review is already recorded by being there — "(recorded" names no
-# OUTCOME the way fixed, wontfix and no-change do, and several uses in this
-# repo's own history are bare "(recorded)" with nothing after it: not "no
-# change", not a reason, just the fact that it was written down. Accepting
-# that as a fourth verdict would let a finding close itself by restating
-# what section it is already in, the exact silent drop step 5 forbids. Left
-# out on purpose: those findings keep counting as unmarked.
 fb_marker() {
   case "$1" in
     *wontfix*)                 printf 'wontfix' ;;
     *"no change"* | *"No change"*) printf 'no-change' ;;
     *'(fixed'*)                printf 'fixed' ;;
+    *"clean pass"* | *"Clean pass"*) printf 'no-change' ;;
     *)                         printf 'unmarked' ;;
   esac
 }
 
-# ONE definition of the form fb_fix_map can key on: an `r`, one or more
-# digits, then a COLON, read off a bullet fb_findings has already stripped.
-#
-# It is a function because the rule was spelled twice and drifted. The map
-# below matches `r[0-9]+:`; fb_collect's NOID classifier matched
-# `r[0-9] | r[0-9][0-9]` — one or two digits only. Counted 2026-08-29 over
-# every merged workstream file in this repo's history: 23 findings carry a
-# three-digit id, so they are attributed correctly by the map and reported as
-# unattributable by the counter that exists to measure exactly that. The
-# volume line's own number was wrong by those 23. A rule spelled twice drifts;
-# spelled once it cannot, and lint_finding_ids reads the same spelling.
+# ONE definition of the form fb_fix_map can key on: an `r`, one or more digits,
+# then a COLON, read off a bullet fb_findings has already stripped.
 fb_keyable() {
   local id="${1%%:*}" rest
   # No colon at all and `%%:*` hands the whole line back — the `- rN text`
@@ -3777,27 +1562,8 @@ fb_keyable() {
   return 0
 }
 
-# Commits that ADD a finding bullet to a workstream file, paired with the
-# other paths that same commit touched. The protocol puts a finding in the
-# same commit as its fix, so that commit's non-protocol paths are where the
-# finding landed — no parsing of prose, and no new field for a session to
-# fill in wrong.
-#
-# Per commit, not per branch: an edge that fixed nine findings across five
-# commits knows which of them touched which file, and rolling that up to the
-# branch would answer "what did this edge find" when the question a reader
-# asks is "what did anyone find HERE".
-#
-# Emits "<finding-id>\t<path>". The id, not the text: the bullet as committed
-# may predate its own disposition marker, so the text is taken later from the
-# file's final version and joined on the id, which is stable within an edge.
-#
-# One walk, not five processes per commit. `--raw -p` carries both halves in
-# one stream — the commit's changed paths as ':'-prefixed raw lines, then its
-# patch — and a marker line separates commits. Neither marker nor raw line can
-# collide with patch text: every line of a patch body carries a '+', '-' or
-# ' ' prefix. `tformat:` and not a bare string, which git reads as the name of
-# a built-in pretty format and rejects.
+# Commits that ADD a finding bullet to a workstream file, paired with the other
+# paths that same commit touched.
 fb_fix_map() {
   local base="$1" tip="$2"
   git -C "$ROOT" log --no-merges --format=tformat:'@@joharness-commit@@' \
@@ -3826,22 +1592,6 @@ fb_fix_map() {
     sort -u
 }
 
-# A path recorded before a directory move no longer resolves, and reading it
-# as a different file splits one hot spot into two cold ones (this repo's own
-# .agents/ move did exactly that: 3 branches at one spelling, 2 at the other).
-# Unique-suffix match repairs the prefixed-directory case and refuses to guess
-# anywhere else: no match or several, the path stands as recorded.
-# ONE `git ls-files` for the whole run, and no fork at all per path after it.
-# The index is read on first miss and kept; a run with no missing path never
-# reads it.
-#
-# The answer goes into FB_CUR and is printed as well, because the hot caller
-# is a loop and `$(fb_current_path ...)` would run it in a SUBSHELL — where
-# `FB_LS_READ=1` dies with the subshell and the next miss forks `git ls-files`
-# again. That is what the first version of this hoist did: measured 18 forks
-# on this repo, not the one its own comment claimed. A cache a command
-# substitution throws away is not a cache, and nothing in the counted budget
-# says which of the two you have.
 FB_LS=""
 FB_LS_READ=0
 FB_CUR=""
@@ -3850,35 +1600,10 @@ fb_current_path() {
   local p="$1" f hit="" n=0
   FB_CUR="$p"
   [ -e "${ROOT}/${p}" ] && { printf '%s' "$p"; return 0; }
-  # This used to fork `git ls-files`, an `awk` and a `grep -c` for every
-  # MISSING path, inside the loop over recorded pairs — and a path goes
-  # missing exactly when the finish ritual retires a file, so the fork count
-  # grew by one group for every workstream file and plan this repo has ever
-  # completed. Third instance of this shape after review_prior and
-  # fb_report_path, and the third time the budget named it rather than a
-  # reader.
-  #
-  # Counted on the merge base this landed on (f2e82af, 2026-08-30, a `git
-  # ls-files` shim logging argv): 18 missing recorded paths, and 18 forks
-  # under a comment that claimed one — see FB_CUR above. Both windows give
-  # 18, the default 50 and the budget's pinned 20, because the misses sit in
-  # the recent edges either way. `feedback` 255 -> 202 and `review` 258 ->
-  # 208 across the whole change (`./joharness.sh perf`, same commit).
-  #
-  # An earlier version of this paragraph said 86 paths in the default
-  # window and a budget breach of `feedback` 268 against 265. Neither
-  # reproduces here: the count is 18, and the ceiling has been 267/275 since
-  # PR 146. The saving is real and larger than the one first claimed; the
-  # numbers describing it were not re-counted after the branch sat 46
-  # commits behind.
   if [ "$FB_LS_READ" -eq 0 ]; then
     FB_LS="$(git -C "$ROOT" ls-files 2>/dev/null)"
     FB_LS_READ=1
   fi
-  # String suffix on a path boundary, not a regex: a path carrying `+`, `(`
-  # or `{` must match itself and not its siblings (the literal-pathspec
-  # lesson the sync engine already learned the hard way). `case` globs are
-  # the same literal match the awk did, and fork nothing.
   while IFS= read -r f; do
     case "$f" in
       "$p" | *"/$p") ;;
@@ -3893,9 +1618,6 @@ fb_current_path() {
   printf '%s' "$FB_CUR"
 }
 
-# One walk of merged history, into globals, because two callers need it and
-# it costs a couple of seconds: cmd_feedback prints it, and cmd_review asks
-# it what the files in this branch's diff have already cost other branches.
 FB_REF=""
 FB_PAIRS=""
 FB_HIST=""
@@ -3947,10 +1669,7 @@ fb_collect() {
         *) FB_UNMARKED=$((FB_UNMARKED + 1)) ;;
       esac
       # Keyed by the finding's own id so the commit-level map below can say
-      # which file this one landed on. A bullet written without the
-      # TEMPLATE's `r1:` id is still a finding — the handover hook counts it,
-      # and so does the volume above — but nothing can link it to a file, so
-      # it is counted as exactly that rather than quietly dropped.
+      # which file this one landed on.
       fb_keyable "$line" || FB_NOID=$((FB_NOID + 1))
       FB_HIST="${FB_HIST}${label}"$'\t'"${line%%:*}"$'\t'"${line}"$'\n'
     done <<<"$(printf '%s\n' "$doc" | fb_findings)"
@@ -3980,10 +1699,6 @@ fb_hotspots() {
 
 cmd_feedback() {
   local want="${1:-}" quiet=0 line
-  # Three or more arguments is a typo, and it used to be a SILENT one: the
-  # dispatch passed only "$1" "$2", so `feedback <path> --quiet extra` dropped
-  # `extra` on the floor while `feedback <path> bogus` died with the usage
-  # line. A guard the argument order decides is not a guard.
   [ "$#" -le 2 ] || die "usage: $0 feedback [<path>] [--quiet]"
   # --quiet in either position. `feedback --quiet` used to be read as a
   # request for a file named --quiet, which printed the full banner for it.
@@ -3995,11 +1710,6 @@ cmd_feedback() {
          *) die "usage: $0 feedback [<path>] [--quiet]" ;;
        esac ;;
   esac
-  # Quiet is for a caller that pastes this into someone's context, not for a
-  # reader: the PreToolUse hook fires before every edit, and a banner plus
-  # "no merged edge recorded a finding" ahead of every one of them is the
-  # noise that gets a hook turned off. No findings, no output, no exit code
-  # to distinguish it — silence is the whole answer.
   if [ "$quiet" -eq 1 ]; then
     [ -n "$want" ] || die "feedback --quiet needs a path"
     fb_collect || return 0
@@ -4041,20 +1751,10 @@ cmd_feedback() {
     printf '             but nothing links them to the files they landed on\n'
   fi
 
-  # Recurrence, the one number worth watching, and the only one whose
-  # direction is unambiguous: a file drawing a finding an earlier edge already
-  # drew one against is a rediscovery, and the loop's job is to make those
-  # stop. Volume is deliberately not scored (review-churn rule: counts false
-  # in both directions).
   local total_pairs repeat_pairs edge_paths counted win_edges
   edge_paths="$(printf '%s' "$pairs" | awk -F'\t' 'NF >= 2 { print $1 "\t" $2 }' | awk '!s[$0]++')"
   # Scored over the newest FB_WINDOW fix-carrying edges, both sides of the
-  # ratio. Cumulative it cannot fall (see FB_WINDOW); windowed it can, because
-  # a path stops counting once no edge inside the window has fixed it before.
-  # Oldest edge first, because "already fixed there" is a question about what
-  # came BEFORE. git log hands them newest first; awk reverses without tac,
-  # which is GNU-only and absent on the macOS machines the harness also runs
-  # on. Edge index is assigned on first sight, so pairs need not be contiguous.
+  # ratio.
   counted="$(printf '%s' "$edge_paths" | awk -F'\t' -v w="$FB_WINDOW" '
     NF >= 2 {
       if (!($1 in ei)) { nd++; ei[$1] = nd }
@@ -4097,9 +1797,6 @@ EOF
 }
 
 # Every finding from merged history whose own fix commit touched this path.
-# The point of the whole file: before editing a file that has cost other
-# branches, read what it cost them.
-# <path> <hist> <pairs> [quiet]
 fb_report_path() {
   local want="$1" hist="$2" pairs="$3" quiet="${4:-0}"
   local resolved keys line key n=0 edges
@@ -4115,11 +1812,7 @@ fb_report_path() {
     return 0
   fi
   [ "$quiet" -eq 1 ] || printf '== feedback: %s\n\n' "$resolved"
-  # ONE awk over both lists. The old shape forked a `grep -qxF` and two `cut`s
-  # for every line of history — around 750 forks on this repo — which is what
-  # made a cached call still cost 2.8s, and this report is now read by a hook
-  # that fires before every edit. Same regression shape as review_prior, found
-  # the same way: by measuring, once something started calling it often.
+  # ONE awk over both lists.
   local matched
   matched="$(
     { printf '%s\n' "$keys"; printf '\034\n'; printf '%s' "$hist"; } |
@@ -4132,11 +1825,7 @@ fb_report_path() {
           printf "%s\t%s\n", $1, rest
         }'
   )"
-  # The banner waits for a match. `keys` non-empty only says this path appears
-  # in some fix commit; whether any surviving bullet joins to it is the
-  # question the loop answers. Printing first produced an injection reading
-  # "This file has drawn review findings before:" followed by nothing but the
-  # summary — a claim with no evidence under it.
+  # The banner waits for a match.
   [ -n "$matched" ] || { [ "$quiet" -eq 1 ] && return 0; }
   if [ "$quiet" -eq 1 ]; then
     printf 'This file has drawn review findings before. They are attributed by\n'
@@ -4154,35 +1843,7 @@ fb_report_path() {
   printf '  it touched.\n'
 }
 
-# ---------------------------------------------------------------------------
-# fb_collect's cache
-#
-# Off unless JOHARNESS_FEEDBACK_CACHE names a directory, so every command-line
-# run walks history exactly as it did before. The PreToolUse hook sets it,
-# because the walk is what a hook cannot afford: measured on this repo,
-# 2026-08-29, `./joharness.sh feedback joharness.sh` took 4847 / 4507 / 4326 ms
-# over three runs at 123 edges with 50 read. Uncached that is a ~4.5s stall in
-# front of every Edit and Write — a harness nobody would keep switched on.
-# (An earlier revision of this comment said 6774 / 6648 / 6846 at 121 edges,
-# measured before the fb_report_path rewrite below and never re-run after it.
-# A number nobody re-counts is a written number, including in a comment that
-# names the command beside it.)
-#
-# Keyed by the base branch tip and the edge cap, because those are what the
-# walk reads. NOT by HEAD: a session commits often, and keying on HEAD would
-# pay the walk again after every commit, which is most of the cost back. The
-# cost of that choice is real and bounded — fb_current_path resolves a
-# recorded path against the CURRENT tree, so a file renamed mid-session keeps
-# being reported under its old name until the base branch moves. An advisory
-# injection naming a stale path is worth 4.5 seconds an edit.
-#
-# This is memoisation, not the stored graph .agents/docs/graph.md forbids.
-# That rule is about the REPO: no second copy of the graph committed anywhere,
-# every view derived at read time. This cache is off by default, lives in
-# session scratch that dies with the container, is keyed on the exact input
-# the walk reads (base tip + edge cap) so a moved base invalidates it, and is
-# never a source anything else reads. The rot it can carry is the one named
-# above and is bounded by that key.
+# --- fb_collect's cache
 fb_cache_key() {
   local tip
   tip="$(git -C "$ROOT" rev-parse --verify --quiet "$FB_REF" 2>/dev/null)" || return 1
@@ -4198,28 +1859,10 @@ fb_cache_load() {
   [ -n "$dir" ] && [ -d "$dir" ] || return 1
   key="$(fb_cache_key)" || return 1
   f="${dir}/fb-${key}"
-  # ALL THREE, not just .vars. The saver publishes .vars last for the same
-  # reason: with .vars alone present, this used to load the counters, read
-  # two empty blobs, and report a repo with 449 findings as having none —
-  # authoritatively, for the rest of the session, with the hook's own
-  # already-seen marker suppressing any second chance.
+  # ALL THREE, not just .vars.
   [ -f "${f}.vars" ] && [ -f "${f}.hist" ] && [ -f "${f}.pairs" ] || return 1
 
-  # NO eval, and no `case` glob standing in for validation. The first version
-  # of this ran `eval "$k=$v"` behind `case "$k" in FB_[A-Z_]*)`, which is
-  # `FB_`, one character, and then `*` — it matches anything. A cache file
-  # holding `FB_A$(command)=1` executed that command, and the cache directory
-  # is a predictable name under a shared /tmp. The comment above it said
-  # "digits and names only, never arbitrary text"; it was not true, and a
-  # comment asserting a property the code lacks is what stops the next reader
-  # checking. Assignment is now by an explicit case over the names this
-  # function is allowed to set, so an unknown name cannot become one.
-  #
-  # This list and FB_CACHE_VARS move TOGETHER. A name added to the saver and
-  # not here makes every cache load fail — silently, because a failed load is
-  # a full re-walk and the report is still correct, only slower. Caught by
-  # the case below that empties a cached blob and expects the report to
-  # change: with the cache never loading, it did not.
+  # NO eval, and no `case` glob standing in for validation.
   while IFS='=' read -r k v; do
     case "$v" in '' | *[!0-9]*) return 1 ;; esac
     ok=1
@@ -4261,86 +1904,51 @@ fb_cache_save() {
   printf '%s' "$FB_HIST" >"${f}.hist.$$" 2>/dev/null || return 0
   printf '%s' "$FB_PAIRS" >"${f}.pairs.$$" 2>/dev/null || return 0
   # .vars LAST, because the loader gates on all three and this is the one it
-  # checks first. Published first, a crash between renames left a cache that
-  # loaded clean and answered "no findings" for the rest of the session.
+  # checks first.
   mv -f "${f}.hist.$$" "${f}.hist" 2>/dev/null || return 0
   mv -f "${f}.pairs.$$" "${f}.pairs" 2>/dev/null || return 0
   mv -f "${f}.vars.$$" "${f}.vars" 2>/dev/null || :
   return 0
 }
 
+# --- Cleanup
 
-# ---------------------------------------------------------------------------
-# Cleanup
-#
-# Step 7 ends with the pull request's final state deleting the workstream file,
-# the done plan file, and the requirement file when its last plan lands. It is
-# the step that goes missing, and it goes missing structurally: the session
-# that merged is finished, and a leftover on `main` reads to it as somebody
-# else's. So the base branch accretes files a later session opens and believes
-# are current — measured at 23 in one consumer repo, thirteen merges adding six
-# and removing none.
-#
-# Counted from git at read time, nothing stored, same doctrine as the churn
-# measure and the graph lint. It removes exactly one kind of leftover, the one
-# the protocol already assigns to a session: the workstream file. Branches are
-# NOT its business — deleting one is human-only (.agents/docs/product/README.md,
-# Branch flow) and a session never pushes a delete — so they are counted and
-# named for a human to act on, never touched. Plans are a question it asks and
-# does not answer: only the reader knows whether a plan that outlived its merge
-# is finished or came back.
-# ---------------------------------------------------------------------------
+# --- upstream: what a merged edge found ABOUT THE HARNESS, and where it goes
 
-# ---------------------------------------------------------------------------
-# upstream: what a merged edge found ABOUT THE HARNESS, and where it goes
-#
-# `feedback` scores the loop inside one repo. This answers the question that
-# repo cannot: a child running this harness DETECTS harness defects and cannot
-# deliver them (.agents/docs/feedback.md, When the consumer is the detector).
-# Detect happens where the work is; Prevent only arrives on a sync; and the
-# hop between the two is walked by hand or not at all — measured three times
-# in one consumer session, mechanized never.
-#
-# Two things make the hop worse than it looks. The finish ritual DELETES the
-# workstream file, so by the time an edge has merged its findings live only in
-# merge history (`feedback`'s own Retention: zero row). And under orchestrated
-# mode nobody is left holding them: the manager exits at its merge, and the
-# orchestrator writes one file and reads no plan.
-#
-# So this reads a merged edge, recovers the retired workstream file, keeps the
-# findings whose fix landed on a harness-owned path, and says whether there is
-# a report to file. REPORT ONLY. Nothing here clones, pushes, opens a pull
-# request or edits a file — the filing is .claude/commands/upstream-report.md's,
-# and only when JOHARNESS_UPSTREAM_FEEDBACK is on. That split is what lets a
-# human run this in any repo at any time without it doing anything.
-# ---------------------------------------------------------------------------
-
-# Paths canonical owns in EVERY repo that runs this harness. Not
-# ship_path_ships: that reads the sync engine, which is canonical-only
-# (sync-to-consumer.sh:CANONICAL_ONLY_DIRS), so the one repo kind that needs
-# this verdict is the one that cannot compute it. Spelled here from the
-# harness-owned column of .agents/harness/README.md instead, and deliberately
-# WIDER than the ship list: `.agents/scripts` never reaches a child, but a
-# consumer that predates that rule still carries it, and a finding there is
-# still canonical's to hear.
-#
-# A false positive costs a reporter one dropped finding after it reads the
-# edge; a false negative loses the finding entirely. So the doubtful cases are
-# in, flagged, and the reader decides.
+# Paths canonical owns in EVERY repo that runs this harness.
 upstream_harness_path() {
-  case "${1%/}" in
+  local p="${1%/}" t hit=0
+  while :; do
+    case "$p" in
+      ./*) p="${p#./}" ;;
+      /*) p="${p#/}" ;;
+      *) break ;;
+    esac
+  done
+  case "$p" in
     joharness.sh | CLAUDE.md | .gitattributes) return 0 ;;
     AGENTS.md) return 0 ;;
     .agents | .agents/*) return 0 ;;
     .claude/commands | .claude/commands/* | .claude/skills | .claude/skills/*) return 0 ;;
     .claude/agents | .claude/agents/* | .claude/settings.json) return 0 ;;
+    */* | '') return 1 ;;
   esac
-  return 1
+  while IFS= read -r t; do
+    [ -n "$t" ] || continue
+    # A root file reaching here matched none of the owned names above, so it
+    # is not canonical's (the root README.md); a nested one recurses once.
+    case "$t" in
+      */*) upstream_harness_path "$t" || return 1 ;;
+      *) return 1 ;;
+    esac
+    hit=1
+  done <<<"$(git -C "$ROOT" ls-files </dev/null 2>/dev/null |
+    awk -F/ -v b="$p" '$NF == b')"
+  [ "$hit" -eq 1 ]
 }
 
-# One line of caution per path whose ownership is not clean, printed beside
-# the finding rather than resolved here. Both cases are real and neither is
-# decidable from the path alone.
+# One line of caution per path whose ownership is not clean, printed beside the
+# finding rather than resolved here.
 upstream_path_note() {
   case "${1%/}" in
     AGENTS.md)
@@ -4350,11 +1958,6 @@ upstream_path_note() {
   esac
 }
 
-# The canonical this repo follows, out of its own update workflow — the same
-# address cmd_upgrade clones from, read the same way (first token only, so a
-# trailing YAML comment cannot ride into it). Empty and a reason on stderr
-# when there is none: a consumer with no update.yml has no upstream to file
-# to, and that is a finding about its setup, not an error in this command.
 upstream_canonical_repo() {
   local wf="${ROOT}/.github/workflows/update.yml" repo
   [ -r "$wf" ] || return 1
@@ -4365,29 +1968,17 @@ upstream_canonical_repo() {
   esac
 }
 
-# A revision as a human reads it. The endpoints this command carries are
-# whatever resolved them — `<sha>^1`, a remote ref, a bare branch — and
-# printing those back reads as noise, or worse: `${sha:0:7}` on `<sha>^1`
-# prints the MERGE's abbreviation under the name of its parent.
+# A revision as a human reads it.
 upstream_short() {
   git -C "$ROOT" rev-parse --short "$1" 2>/dev/null || printf '%s' "${1##*/}"
 }
 
-# The edge to read: a merge commit and the branch tip it brought in. No
-# argument = the newest merge on the base branch, which is the one a manager
-# just finished. An argument may be a branch (the manager's, still unmerged or
-# already merged) or a merge sha.
-#
-# Prints "<label>\t<base>\t<tip>". Non-zero with a reason on stderr when the
-# ref names nothing — never a guess, because guessing here reports one
-# branch's findings under another branch's name.
+# The edge to read: a merge commit and the branch tip it brought in.
 upstream_edge() {
   local want="$1" base_branch="origin/${HANDOVER_BASE_BRANCH:-main}"
   local line sha tip subj ref merge mb above
 
-  # The base branch itself, before anything is read off it. Without this a
-  # repo with no origin at all and a repo whose origin simply has no merges
-  # get the same sentence, and the first is a setup problem the second is not.
+  # The base branch itself, before anything is read off it.
   git -C "$ROOT" rev-parse --verify -q "${base_branch}^{commit}" >/dev/null 2>&1 || {
     log "no ${base_branch} here: fetch it, or set HANDOVER_BASE_BRANCH to the branch this repo merges into"
     return 1
@@ -4397,12 +1988,7 @@ upstream_edge() {
     line="$(fb_edges "$base_branch" | head -1)"
     [ -n "$line" ] || { log "no merge on ${base_branch} to read"; return 1; }
     read -r sha tip subj <<<"$line"
-    # Commits sitting ABOVE the newest merge. `fb_edges` reads `--merges`
-    # only, so a SQUASH-merged edge is not a merge commit and is invisible
-    # here — and the newest merge below it is then reported as the newest
-    # edge, wrongly and with nothing to say so. Named rather than guessed at:
-    # the branch-argument form reads a squashed edge correctly, and that is
-    # the remedy to print.
+    # Commits sitting ABOVE the newest merge.
     above="$(git -C "$ROOT" rev-list --count "${sha}..${base_branch}" 2>/dev/null)"
     case "$above" in ''|*[!0-9]*) above=0 ;; esac
     [ "$above" -eq 0 ] ||
@@ -4411,25 +1997,13 @@ upstream_edge() {
     return 0
   fi
 
-  # A BRANCH first, and only real branch refs count as one. The other order
-  # was wrong for the commonest shape this protocol produces: a branch that
-  # reconciled at step 7 ("Conflict at finish", .agents/docs/product/README.md)
-  # carries a MERGE COMMIT at its tip, so the merge test below matched the
-  # branch NAME and read the base branch's own history under the branch's
-  # label — an edge reported as having found nothing, and its findings lost
-  # for good once the orchestrator records it as reported.
-  #
-  # Remote spelling first: the orchestrator names branches bare, and a stale
-  # local copy would report work the branch has since pushed past.
+  # A BRANCH first, and only real branch refs count as one.
   for ref in "refs/remotes/origin/${want#origin/}" "refs/heads/${want}"; do
     git -C "$ROOT" rev-parse --verify -q "${ref}^{commit}" >/dev/null 2>&1 || continue
     sha="$(git -C "$ROOT" rev-parse "$ref")"
     # ALREADY MERGED is the normal case here, not the exotic one: the
     # orchestrator names a branch precisely because its pull request just
-    # merged. And after that merge `merge-base <branch> <base>` IS the branch
-    # tip, so the merge-base walk below reads an empty range and reports a
-    # finished edge as having found nothing. So: find the merge that brought
-    # it in and read the edge from that.
+    # merged.
     merge="$(fb_edges "$base_branch" | awk -v t="$sha" '$2 == t { print $1; exit }')"
     if [ -n "$merge" ]; then
       printf '%s\t%s\t%s\n' "${want#origin/}" "${merge}^1" "${merge}^2"
@@ -4438,11 +2012,7 @@ upstream_edge() {
     mb="$(git -C "$ROOT" merge-base "$ref" "$base_branch" 2>/dev/null)"
     [ -n "$mb" ] || continue
     # Contained in the base branch with no first-parent merge naming it — a
-    # squash or a fast-forward. Said, never reported as an empty edge: the
-    # range is real, it is just empty, and NOTHING TO REPORT would read as
-    # "this branch found nothing" when the truth is that its history is not
-    # reachable this way (.agents/docs/product/README.md, Branch flow: the
-    # merge method is what the ancestry filter rests on).
+    # squash or a fast-forward.
     if [ "$mb" = "$sha" ]; then
       log "'${want}' is already contained in ${base_branch} with no merge commit naming it (squash or fast-forward): there is no edge to read"
       return 1
@@ -4465,23 +2035,6 @@ upstream_edge() {
 }
 
 # Finding ids whose fix commit carried MORE THAN ONE finding.
-#
-# `fb_fix_map` prints the cross-product of a commit's ids and its paths, which
-# is the commit-level attribution `.agents/docs/feedback.md` already names as
-# a blind spot: a commit carrying several findings attributes all of them to
-# every file it touched. Inside one repo that costs a hot-spot count. Here it
-# decides what LEAVES the repository — one commit fixing a harness defect and
-# a repo-private one makes each finding look like both, and the repo-private
-# one gets routed to somebody else's queue.
-#
-# Not fixed by narrowing the map, which is `feedback`'s and would change every
-# count it prints. Named instead: a finding from a shared fix commit is
-# reported with its attribution flagged, and the reporter's own gate reads the
-# edge before filing. A false negative here loses the finding for good; a
-# flagged false positive costs one read.
-#
-# Same walk as fb_fix_map minus `--raw`: only the patch is needed to see which
-# ids a commit added.
 upstream_multi_ids() {
   git -C "$ROOT" log --no-merges --format=tformat:'@@joharness-commit@@' \
     --unified=0 -p "${1}..${2}" 2>/dev/null |
@@ -4498,26 +2051,7 @@ upstream_multi_ids() {
 }
 
 # Path-shaped tokens in a finding's own prose.
-#
-# The last resort, and it has one job: a `wontfix` or `no change` finding is
-# recorded in a commit that touches ONLY the workstream file, so it has no fix
-# commit to attribute and no path at all. That is not a finding about this
-# repo's own files — it is a finding nothing placed — and a wontfix naming a
-# harness file is the strongest single signal this command has, because a
-# session declined to fix something it could not have fixed here anyway.
-#
-# Only tokens that look like paths, and the same predicate decides. Backticks,
-# quotes and sentence punctuation are stripped; a trailing colon or comma is
-# how a path is usually written into prose.
 upstream_text_paths() {
-  # \047 is a single quote: spelling it that way keeps the whole awk program
-  # inside one pair of shell quotes, where the alternative is four levels of
-  # escaping around a character that appears twice.
-  #
-  # A token is stripped of the punctuation prose wraps a path in, then of a
-  # `:symbol` suffix — the anchor form `lint_anchors` already reads the same
-  # way — and kept only if it still looks like a path. A URL is skipped before
-  # the colon strip, which would otherwise eat it.
   printf '%s\n' "$1" | tr -s ' \t' '\n' |
     awk '{
       t = $0
@@ -4531,22 +2065,15 @@ upstream_text_paths() {
 }
 
 cmd_upstream() {
-  local want="${1:-}" edge label base tip doc repo canon mode
+  local want="${1:-}" edge label base tip doc repo canon
   local ids multi paths from_text p f id marker note flag kept keep="" noid=""
-  local n_keep=0 n_drop=0 n_noid=0
+  local n_keep=0 n_drop=0 n_noid=0 n_prose=0 prose=""
 
   [ "$#" -le 1 ] || die "usage: $0 upstream [<branch>|<merge>]"
 
-  # The resolved word, not the raw one: an unrecognised value reads as off
-  # everywhere else in this file and must read as off in the banner too, or
-  # a repo that typed 'true' sees its own typo echoed back as a setting.
-  mode=off; upstream_on && mode=on
-  printf '== upstream (JOHARNESS_UPSTREAM_FEEDBACK: %s)\n\n' "$mode"
+  printf '== upstream\n\n'
 
-  # Canonical stops here, and it is not a courtesy. A finding made in this
-  # repo is already in the repo that owns the fix; routing it anywhere would
-  # mean canonical filing reports against itself, and `upgrade` refuses to run
-  # here for the same reason the direction rule exists.
+  # Canonical stops here, and it is not a courtesy.
   if grep -q '^JOHARNESS_CANONICAL=1' "$CONF" 2>/dev/null; then
     printf 'CANONICAL — this repo IS the harness. A finding here is already where\n'
     printf 'its fix lands (.agents/docs/consumer-repos.md, Direction rule): record it\n'
@@ -4585,17 +2112,6 @@ cmd_upstream() {
   ids="$(fb_fix_map "$base" "$tip")"
   multi="$(upstream_multi_ids "$base" "$tip")"
 
-  # THREE outcomes per finding, not two, and the third is the one an earlier
-  # round got wrong:
-  #   kept        a fix path canonical owns — the report;
-  #   this repo's a fix path, none of them canonical's — counted, never
-  #               quoted, because reprinting a consumer's own defect into a
-  #               report bound elsewhere is noise on somebody else's queue;
-  #   unplaceable NO fix path at all, or no id to key on. That is the normal
-  #               shape of a wontfix and of a no-change verdict — recorded in
-  #               a commit that touches only the workstream file — so folding
-  #               it into "this repo's own" both mislabels it and made the
-  #               wontfix line below unreachable.
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     marker="$(fb_marker "$f")"
@@ -4606,19 +2122,13 @@ cmd_upstream() {
     else
       id=""
     fi
-    # No fix path: fall back to the paths the finding's OWN TEXT names. Marked
-    # as such wherever it lands — a path read out of prose is a weaker claim
-    # than a path read out of the commit that fixed it, and the difference is
-    # the reporter's to weigh.
+    # No fix path: fall back to the paths the finding's OWN TEXT names.
     from_text=0
     if [ -z "$paths" ]; then
       paths="$(upstream_text_paths "$f")"
       from_text=1
     fi
-    # Two kinds of caveat, and they belong at two different levels. A doubt
-    # about the ATTRIBUTION is one fact about the finding, so it is said once
-    # under the bullet; repeating it beside each of six paths is the same
-    # sentence six times. A doubt about a PATH's ownership is per path.
+    # Two kinds of caveat, and they belong at two different levels.
     flag=""
     [ "$from_text" -eq 0 ] ||
       flag="named in this finding's own text, not by a fix commit"
@@ -4628,7 +2138,7 @@ cmd_upstream() {
     while IFS= read -r p; do
       [ -n "$p" ] || continue
       upstream_harness_path "$p" || continue
-      note="$(upstream_path_note "$p")"
+      note="$(upstream_path_note "${p#./}")"
       kept="${kept}      ${p}$([ -z "$note" ] || printf ' (%s)' "$note")"$'\n'
     done <<<"$paths"
     if [ -n "$kept" ]; then
@@ -4638,6 +2148,10 @@ cmd_upstream() {
       keep="${keep}${kept}"
     elif [ -n "$paths" ] && [ "$from_text" -eq 0 ]; then
       n_drop=$((n_drop + 1))
+    elif [ -n "$paths" ]; then
+      # Prose named paths, and none is canonical's: not "no path at all".
+      n_prose=$((n_prose + 1))
+      prose="${prose}  - [${marker}] ${f}"$'\n'
     else
       n_noid=$((n_noid + 1))
       noid="${noid}  - [${marker}] ${f}"$'\n'
@@ -4647,33 +2161,26 @@ cmd_upstream() {
   if [ "$n_keep" -gt 0 ]; then
     printf 'harness findings (on a path canonical owns):\n%s\n' "$keep"
   fi
+  if [ "$n_prose" -gt 0 ]; then
+    printf 'named paths in prose, none of them canonical'"'"'s (read from the text, not a fix commit):\n%s\n' "$prose"
+  fi
   if [ "$n_noid" -gt 0 ]; then
-    # No backticks in the literal: shellcheck reads one inside single quotes
-    # as a command substitution somebody meant to expand (SC2016), and the
-    # form is just as legible spelled out.
-    printf 'unplaceable (no fix path, and no path in the text — read the edge):\n%s\n' "$noid"
+    printf 'unplaceable (no fix path, and no path token in the text — read the edge):\n%s\n' "$noid"
   fi
   if [ "$n_drop" -gt 0 ]; then
     printf '%d finding(s) landed on this repo'"'"'s own files: not canonical'"'"'s.\n\n' "$n_drop"
   fi
 
-  # wontfix on a harness path is the strongest single signal this command has:
-  # a session decided not to fix something it could not fix HERE anyway,
-  # because the next sync overwrites every harness-owned file in this repo
-  # (.agents/docs/consumer-repos.md). Named rather than scored — one finding
-  # is not a rate.
   case "$keep" in
     *'[wontfix]'*) printf 'at least one is [wontfix] on a harness path: it could not have been\n'
                    printf 'fixed here — the next sync overwrites that file.\n\n' ;;
   esac
 
-  # An unplaceable finding NEVER flips this on its own. It has no path that
-  # anything placed, so a report built on it would carry a consumer's own
-  # defect verbatim into a pull request on somebody else's repository — the
-  # outcome the this-repo's-own branch above exists to prevent, arrived at
-  # through the one bucket that was printing text unfiltered.
+  # An unplaceable finding NEVER flips this on its own.
   if [ "$n_keep" -eq 0 ]; then
     printf 'verdict   : NOTHING TO REPORT — nothing on this edge is placed on a path canonical owns\n'
+    [ "$n_prose" -eq 0 ] ||
+      printf '            %d finding(s) named only non-canonical paths in prose: not guessed at\n' "$n_prose"
     [ "$n_noid" -eq 0 ] ||
       printf '            %d unplaceable finding(s) above: a human or a reporter reading\n            the edge can place them; this command will not guess\n' "$n_noid"
     return 0
@@ -4682,74 +2189,17 @@ cmd_upstream() {
   printf 'verdict   : REPORT — %d harness finding(s)%s on %s\n' \
     "$n_keep" \
     "$([ "$n_noid" -eq 0 ] || printf ' (+%d unplaceable)' "$n_noid")" "$label"
-  if upstream_on; then
-    printf '            JOHARNESS_UPSTREAM_FEEDBACK=on: /upstream-report %s files it\n' "$label"
-    printf '            as ONE research node on %s. It gates each finding first\n' "${repo:-the canonical}"
-    printf '            (.agents/docs/feedback.md, When the consumer is the detector).\n'
-  else
-    printf '            JOHARNESS_UPSTREAM_FEEDBACK is off: nothing files this. Read\n'
-    printf '            it, or set the key to on in %s.\n' "$(basename "$CONF")"
-  fi
+  printf '            File it by hand: /upstream-report %s, as ONE research node\n' "$label"
+  printf '            on %s (.agents/docs/feedback.md).\n' "${repo:-the canonical}"
   return 0
 }
 
-# ---------------------------------------------------------------------------
-# Idle analysis — why a manager is parked, read mechanically
-# ---------------------------------------------------------------------------
-#
-# Issue #266: a manager sat `blocked` 11h18m on a cause this repo's own conf
-# had lifted before that session was created, `dispatch` relayed its prose
-# every pass, and a human ended it by merging by hand. The state carrying the
-# answer was in front of the component doing the relaying. So the question —
-# is the condition it named still a condition? — is asked by a command, not by
-# attention.
-
-# Unmerged origin branches that OWN a workstream file: `<branch>\t<path>`.
-#
-# DIFF against the merge base, never the tree: a branch inherits every file
-# its base carried, so a tree read reports an inherited claim as this branch's
-# own and a retired one as still present — the bug in both directions at once
-# (.agents/docs/feedback.md, Worked example: tree or diff).
-#
-# `</dev/null` on every git call, not only the ones inside a `while read`:
-# this whole function feeds a loop the caller reads, and a git left to inherit
-# that stdin can consume the loop's own remaining lines. The guard is cheap and
-# half-applying it is how the next one is missed (verifier, r11).
-analysis_claims() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" r name base f
-  git -C "$ROOT" for-each-ref --format='%(refname)' refs/remotes/origin \
-    </dev/null 2>/dev/null |
-    while IFS= read -r r; do
-      name="${r#refs/remotes/origin/}"
-      { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
-      git -C "$ROOT" merge-base --is-ancestor "$r" \
-        "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null && continue
-      base="$(git -C "$ROOT" merge-base "$r" \
-        "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)" || continue
-      [ -n "$base" ] || continue
-      while IFS= read -r f; do
-        [ -n "$f" ] || continue
-        printf '%s\t%s\n' "$name" "$f"
-      done <<<"$(git -C "$ROOT" diff --name-only --diff-filter=ACMRT "$base" "$r" \
-        -- docs/handover </dev/null 2>/dev/null | gr_docs)"
-    done
-}
+# --- Idle analysis — why a manager is parked, read mechanically
 
 # Every JOHARNESS_ assignment a ref's conf carries: `<KEY>\t<VALUE>`, read the
 # way conf_get reads one — last assignment wins, inline comment dropped, value
-# a single token. Out of git, so a branch's answer and the base branch's are
-# comparable with no checkout. Empty when the ref carries no conf at all, which
-# the caller must tell apart from "carries one that answers nothing".
-#
-# EVERY key, never a declared list. `.agents/scripts/conf-keys.sh` holds the
-# declaration and is canonical-only, while THIS file ships to every consumer:
-# a reader keyed on that declaration would be reading a file that is not
-# there. A key a consumer added itself is also exactly the one worth catching.
+# a single token.
 analysis_conf_pairs() {
-  # One awk, not a sed into an awk: `\t` in a sed REPLACEMENT is a GNU
-  # extension and a literal `t` on BSD sed, so every pair would key on a
-  # mangled name on a macOS checkout while staying green on the runner.
-  # awk's printf spells a tab everywhere.
   git -C "$ROOT" show "${1}:joharness.conf" </dev/null 2>/dev/null |
     awk '{ line = $0
            sub(/#.*$/, "", line)
@@ -4765,10 +2215,6 @@ analysis_conf_pairs() {
 
 # Two pair lists compared, `<KEY>\t<LEFT>\t<RIGHT>` for every key whose value
 # differs, `(absent)` for a side that does not carry it.
-#
-# BOTH directions. Keyed on one side's list only, a key the branch carries and
-# the base branch lacks is never compared at all, and the verdict then asserts
-# that no key differs — a fact louder than what it measured (verifier, r2).
 analysis_conf_diff() {
   { printf '%s\n' "$1"; printf '%s\n' '--'; printf '%s\n' "$2"; } |
     awk -F'\t' '
@@ -4783,23 +2229,16 @@ analysis_conf_diff() {
               if (av != bv) printf "%s\t%s\t%s\n", key, av, bv } }'
 }
 
-# Keys whose value changed in one commit against its first parent, as
-# `<KEY> <before> to <after>`, comma separated. Empty when the commit touched
-# the file without changing an assignment.
+# Keys whose value changed in one commit against its first parent, as `<KEY>
+# <before> to <after>`, comma separated.
 analysis_conf_keys_changed() {
   analysis_conf_diff "$(analysis_conf_pairs "${1}^")" "$(analysis_conf_pairs "$1")" |
     awk -F'\t' '{ out = out (out == "" ? "" : ", ") $1 " " $2 " to " $3 }
                 END { print out }'
 }
 
-# Commits on <ref> newer than <since> that CHANGED a key, newest first:
-# `<date> <sha> <subject>\t<keys>`.
-#
-# Filtered by what changed, never by what was touched. Unfiltered, a comment
-# reword or a base-branch merge commit flips the verdict to MAY BE LIFTED with
-# no key under it for anyone to weigh — measured on this repo, where one merge
-# commit did exactly that on every row (verifier, r3). At most
-# ANALYSIS_CONF_SCAN commits are opened, because each costs two `git show`.
+# Commits on <ref> newer than <since> that CHANGED a key, newest first: `<date>
+# <sha> <subject>\t<keys>`.
 analysis_conf_moves() {
   local ref="$1" since="$2" scan="${ANALYSIS_CONF_SCAN:-20}" sha line keys
   git -C "$ROOT" log --format='%ct%x09%H%x09%cs %h %s' "$ref" -- joharness.conf \
@@ -4813,17 +2252,7 @@ analysis_conf_moves() {
     done
 }
 
-# One claim's reading. `<branch> <path> <stall minutes> <churn limit> <all>`.
-#
-# Every fact here is git's: the workstream file out of `git show`, the push age
-# out of the ref's own commit date, the churn out of the branch's log. Nothing
-# reads a session, because a session is the control plane's account and this
-# command runs where there is no control plane.
-#
-# Buffered, then printed, because the decision to print at all comes LAST: a
-# sweep prints the rows carrying a condition and counts the rest, and a
-# manager at work is not a row anybody needs read. `<all>`=1 (a branch was
-# named) prints it anyway. Returns 1 when it printed nothing.
+# One claim's reading.
 analysis_one() {
   local branch="$1" path="$2" stall="$3" churnl="$4" all="$5"
   local base_branch="${HANDOVER_BASE_BRANCH:-main}"
@@ -4845,9 +2274,6 @@ analysis_one() {
     return 0
   fi
 
-  # The same vocabulary check dispatch makes on the same field, for the same
-  # reason: a workstream file on another branch is repo-controlled input, and a
-  # status outside the graph's list is not a status (joharness.sh:lint_nodes).
   { read -r status; read -r next; } \
     <<<"$(printf '%s\n' "$doc" | gr_fields status next)"
   case "$status" in
@@ -4868,14 +2294,15 @@ analysis_one() {
   # nobody has counted is a written number (.agents/harness/AGENTS.md, step 5).
   if [ "$status" = "abandoned" ]; then
     # Released: its session is provably gone, so it will never push again and a
-    # stall mark on it is a clock nobody is watching. No condition, and nothing
-    # for an analyst to explain — the plan is already back in the queue.
+    # stall mark on it is a clock nobody is watching.
     out="${out}condition : none — this claim was RELEASED (status: abandoned). Its"$'\n'
     out="${out}            plan is free; the branch is the human's to delete"$'\n'
   elif [ "$status" = "blocked" ]; then
     cond="BLOCKED"
     out="${out}condition : BLOCKED — a human's. dispatch relays this row every pass and"$'\n'
     out="${out}            never asks whether its cause still holds"$'\n'
+    block_reason_ok "$next" ||
+      out="${out}condition : INVALID BLOCK? — next: opens with no reason word (manage.md §3); asks, orders nothing"$'\n'
   fi
   if [ "$status" != "blocked" ] && [ "$status" != "abandoned" ] &&
      [ -n "$age" ] && [ "$age" -ge "$stall" ]; then
@@ -4892,12 +2319,6 @@ analysis_one() {
     return 1
   fi
 
-  # The anchor, and it is NOT the age of the block: the question here is
-  # whether config moved since this branch last STATED its cause, and the
-  # commit that last changed the file is exactly that moment. Reading it this
-  # way needs no `git log -S`, which matches the park, the unpark AND the
-  # retire that deletes the file — neither end of that list is an age
-  # (docs/plans/unowned-block-age.md owns the age itself).
   restated="$(git -C "$ROOT" log -1 --format=%ct "refs/remotes/origin/${branch}" \
     -- "$path" </dev/null 2>/dev/null)"
   restated_text="$(git -C "$ROOT" log -1 --format=%ci "refs/remotes/origin/${branch}" \
@@ -4924,9 +2345,6 @@ analysis_one() {
   bpairs="$(analysis_conf_pairs "refs/remotes/origin/${branch}")"
   mpairs="$(analysis_conf_pairs "refs/remotes/origin/${base_branch}")"
   if [ -z "$bpairs" ] && [ -z "$mpairs" ]; then
-    # Read zero bytes of conf and said the cause stands is #266 one layer up
-    # (verifier, r1): the analyst reads a verdict, concludes the block is
-    # live, and files nothing.
     printf '%s' "$out"
     printf 'verdict   : NOT ANALYSABLE — neither origin/%s nor origin/%s carries a\n' \
       "$branch" "$base_branch"
@@ -4937,14 +2355,6 @@ analysis_one() {
 
   # The repo's CURRENT answers, in full, for every row carrying a condition —
   # not only the ones that differ.
-  #
-  # This is the line #266 needed and neither mechanical signal below would
-  # have produced. There, `JOHARNESS_CHECKS=local` landed on the base branch
-  # 8h47m BEFORE the session was created, and the branch carried the line: no
-  # key differed, and nothing changed after the claim was restated. The
-  # condition was lifted before it was ever written down. What was missing was
-  # the repo's answer sitting beside the manager's prose where a reader weighs
-  # the two, so it is printed whether or not anything moved.
   while IFS= read -r line; do
     [ -n "$line" ] || continue
     if [ "$first" = 1 ]; then out="${out}conf now  : ${line}"$'\n'; first=0
@@ -4971,9 +2381,7 @@ analysis_one() {
   fi
   case "$moves_n" in '' | *[!0-9]*) moves_n=0 ;; esac
   if [ "$moves_n" -gt 0 ]; then
-    # Newest three and a count, never the whole list. A branch parked for
-    # weeks buries the keys above it otherwise — 16 lines for one row on this
-    # repo, 2026-09-17.
+    # Newest three and a count, never the whole list.
     while IFS=$'\t' read -r line key; do
       [ -n "$line" ] || continue
       out="${out}conf moved: ${line} — ${key}"$'\n'
@@ -4983,10 +2391,7 @@ analysis_one() {
   fi
 
   printf '%s' "$out"
-  # MAY BE, never LIFTED. The command knows a key moved; it cannot know the
-  # key answers the prose in next:. Asserting that mapping would be #266's
-  # defect inverted — a fact stated louder than what it measures. The analyst
-  # reads both and closes the gap (.claude/commands/analyst.md).
+  # MAY BE, never LIFTED.
   if [ -n "$delta" ] || [ "$moves_n" -gt 0 ]; then
     printf 'verdict   : CAUSE MAY BE LIFTED — a key differs, or changed after this claim\n'
     printf '            was restated. Read the keys above against the next: line; one\n'
@@ -5004,21 +2409,13 @@ analysis_one() {
 }
 
 cmd_analysis() {
-  local want="${1:-}" stem="${2:-}" mode on=0 base_branch canon repo stall churnl
+  local want="${1:-}" stem="${2:-}" base_branch canon repo stall churnl
   local branch path claims n_rows=0 n_quiet=0
 
   [ "$#" -le 2 ] || die "usage: $0 analysis [<branch> [<claim stem>]]"
 
-  # Resolved ONCE. analysis_on warns by name on an unrecognised value, and two
-  # calls warn twice — the second landing between the verdict and the tail
-  # line, where it reads as a second fault (verifier, r8).
-  analysis_on && on=1
-  mode=off; [ "$on" = 0 ] || mode=on
-  printf '== analysis (JOHARNESS_IDLE_ANALYSIS: %s)\n\n' "$mode"
+  printf '== analysis (a read for a human; nothing files it)\n\n'
 
-  # Canonical stops here, same rule as `upstream` one screen up: this repo
-  # runs no fleet to explain, and a condition measured here is already in the
-  # repo that owns the fix.
   if grep -q '^JOHARNESS_CANONICAL=1' "$CONF" 2>/dev/null; then
     printf 'CANONICAL — this repo IS the harness. A condition measured here is already\n'
     printf 'where its fix lands (.agents/docs/consumer-repos.md, Direction rule):\n'
@@ -5031,9 +2428,8 @@ cmd_analysis() {
   churnl="$(num_knob JOHARNESS_CHURN_LIMIT "$(( $(num_knob JOHARNESS_CHURN_THRESHOLD 5) * 2 ))")"
 
   # A stale clone reads a manager that pushed as stalled, and this command is
-  # run by a session spawned into a fresh container minutes after the pass
-  # that named the branch. ANALYSIS_FETCH=0 for a fixture whose refs are
-  # already local, the same opt-out dispatch carries.
+  # run by a session spawned into a fresh container minutes after the pass that
+  # named the branch.
   if [ "${ANALYSIS_FETCH:-1}" != 0 ]; then
     git -C "$ROOT" fetch -q --prune origin 2>/dev/null ||
       warn "fetch failed; push ages below are from the last fetch"
@@ -5051,18 +2447,14 @@ cmd_analysis() {
   printf '            (JOHARNESS_STALL_MINUTES); LOOP? at %s rewrites of one file\n' "$churnl"
   printf '            (JOHARNESS_CHURN_LIMIT). No threshold of its own.\n\n'
 
-  claims="$(analysis_claims)"
+  claims="$(claim_branches)"
   while IFS=$'\t' read -r branch path; do
     [ -n "$branch" ] || continue
     [ -z "$want" ] || [ "$branch" = "$want" ] || [ "$branch" = "${want#origin/}" ] || continue
-    # The CLAIM, not the branch: one branch can carry two workstream files,
-    # and an analyst spawned against the branch alone is handed both and
-    # cannot say which it was sent for (verifier, r6).
     [ -z "$stem" ] || [ "$(basename "$path" .md)" = "$stem" ] || continue
     n_rows=$((n_rows + 1))
     # A named branch prints whatever it is; a sweep prints the rows carrying a
-    # condition and counts the rest. An analyst is spawned against one claim
-    # and a human reading a fleet wants the parked ones, not the working ones.
+    # condition and counts the rest.
     analysis_one "$branch" "$path" "$stall" "$churnl" \
       "$([ -n "$want" ] && printf 1 || printf 0)" || n_quiet=$((n_quiet + 1))
   done <<<"$claims"
@@ -5082,27 +2474,32 @@ cmd_analysis() {
     fi
   fi
 
-  if [ "$on" = 1 ]; then
-    printf 'JOHARNESS_IDLE_ANALYSIS=on: the orchestrator spawns /analyst <branch> <claim>\n'
-    printf 'for a row above carrying a condition — ONE per condition per item per run,\n'
-    printf 'the ledger is what makes it once, one session beyond the manager cap. It\n'
-    printf 'gates what it finds and files at most ONE issue on %s.\n' "${repo:-the canonical}"
-  else
-    printf 'JOHARNESS_IDLE_ANALYSIS is off: nothing files this. Read it, or set the key\n'
-    printf 'to on in %s.\n' "$(basename "$CONF")"
-  fi
   return 0
 }
 
+# Unmerged origin branches that OWN a workstream file: `<branch>\t<path>`.
+claim_branches() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" r name base f
+  git -C "$ROOT" for-each-ref --format='%(refname)' refs/remotes/origin \
+    </dev/null 2>/dev/null |
+    while IFS= read -r r; do
+      name="${r#refs/remotes/origin/}"
+      { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
+      git -C "$ROOT" merge-base --is-ancestor "$r" \
+        "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null && continue
+      base="$(git -C "$ROOT" merge-base "$r" \
+        "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)" || continue
+      [ -n "$base" ] || continue
+      while IFS= read -r f; do
+        [ -n "$f" ] || continue
+        printf '%s\t%s\n' "$name" "$f"
+      done <<<"$(git -C "$ROOT" diff --name-only --diff-filter=ACMRT "$base" "$r" \
+        -- docs/handover </dev/null 2>/dev/null | gr_docs)"
+    done
+}
+
 # Workstream paths an unmerged origin branch is WRITING: paths it changed since
-# it left the base branch, not paths its tree happens to hold. Work in flight —
-# its own step 7 has not come due, and removing its file from the base branch
-# would hand it a delete/modify conflict over a file it is still writing.
-#
-# Changed, not carried, because every branch cut from the base branch inherits
-# the base branch's leftovers. Reading the tree protected exactly the files
-# this command exists to remove: the first run here reported both of them as
-# in flight, on the strength of the branch running the command.
+# it left the base branch, not paths its tree happens to hold.
 cl_inflight() {
   local ref="$1" r base
   git -C "$ROOT" for-each-ref --format='%(refname)' refs/remotes/origin 2>/dev/null |
@@ -5111,21 +2508,14 @@ cl_inflight() {
       git -C "$ROOT" merge-base --is-ancestor "$r" "$ref" 2>/dev/null && continue
       base="$(git -C "$ROOT" merge-base "$r" "$ref" 2>/dev/null)" || continue
       [ -n "$base" ] || continue
-      # Files the branch still HAS, not files it touched. --name-only alone
-      # lists deletions too, so a branch that ran the finishing ritual —
-      # deleting its workstream file, the thing this command exists to
-      # complete — read as still carrying it, and the file was protected
-      # from removal forever. Exactly backwards for the one case cleanup is
-      # for.
+      # Files the branch still HAS, not files it touched.
       git -C "$ROOT" diff --name-only --diff-filter=ACMRT "$base" "$r" \
         -- docs/handover 2>/dev/null |
         gr_docs
     done | sort -u
 }
 
-# Origin branches already merged into $1, base branch itself excluded. Merged
-# and standing is cosmetic — the handover hook filters them out of its claims
-# view — so this is a list for a human with an idle minute, not a chore.
+# Origin branches already merged into $1, base branch itself excluded.
 cl_merged_branches() {
   local ref="$1" base_branch="${HANDOVER_BASE_BRANCH:-main}" r name
   git -C "$ROOT" for-each-ref --format='%(refname)' refs/remotes/origin 2>/dev/null |
@@ -5137,10 +2527,7 @@ cl_merged_branches() {
     done
 }
 
-# Plan stems claimed by a workstream file that has already merged. The claim is
-# the workstream's own `plan:` field, read from the last version the edge
-# carried — the same walk `feedback` makes, under the same edge cap, because an
-# unbounded walk is a measure nobody runs twice.
+# Plan stems claimed by a workstream file that has already merged.
 cl_merged_claims() {
   local ref="$1" all m tip base doc p
   all="$(fb_edges "$ref")"
@@ -5158,163 +2545,232 @@ cl_merged_claims() {
     done | sort -u
 }
 
-# ---------------------------------------------------------------------------
-# The janitor cycle — a claim outlives the session that made it
-# ---------------------------------------------------------------------------
-#
-# Issue #254: an unowned block held four plans for 141 hours and every pass
-# printed it as `holds no slot`. Issue #249: the mechanism that answers
-# liveness is the one nobody schedules. This is the schedule — a clock, not a
-# production trigger, because here the subject IS elapsed time.
-#
-# The reader NEVER judges liveness and never releases anything. It names
-# candidates and the evidence to check; the session does the control-plane
-# read and writes the release (.claude/commands/janitor.md). Push age is not
-# liveness in either direction, and a command with no control plane that
-# guessed would be the wrong-reason green this repo keeps paying for.
-
-# Is a sweep due. `due <why>` | `not-due <why>` | `off <why>` | `unreadable <why>`.
-# Same shape and the same git-dated cycle as the curate one, through the same
-# readers (cycle_landed_sha, cycle_age_h) with `janitor` as the kind.
-janitor_due() {
-  local hours age why
-  why="$(cycle_unreadable)"
-  if [ -n "$why" ]; then
-    printf 'unreadable %s' "$why"
-    return 0
-  fi
-  hours="$(num_knob JOHARNESS_JANITOR_HOURS 12)"
-  if [ "$hours" -eq 0 ]; then
-    printf 'off JOHARNESS_JANITOR_HOURS=0: no sweep is ever due'
-    return 0
-  fi
-  local base_word='the last sweep'
-  age="$(cycle_age_h janitor)"
-  if [ -z "$age" ]; then
-    # Never swept: measure from the repository's own beginning, so "never" is
-    # the longest interval rather than a special case that fires in every
-    # fresh fixture (the curate cycle paid for that one twice).
-    age="$(cycle_repo_age_h)"
-    [ -n "$age" ] || age=0
-    # Deliberately NOT the curate cycle's wording. Two cadence lines share one
-    # dispatch output, and the curate cases assert their own phrase is absent
-    # when a curate HAS landed — a second line spelling it the same way reds
-    # them for a true reason nobody could read.
-    base_word='the repository began, no sweep having landed'
-  fi
-  if [ "$age" -ge "$hours" ]; then
-    printf 'due %sh since %s (>= %sh)' "$age" "$base_word" "$hours"
-  else
-    printf 'not-due %sh since %s (of %sh)' "$age" "$base_word" "$hours"
-  fi
-}
-
-# A janitor already in flight, one line per branch: `<branch>\t<stamp>\t<status>`.
-#
-# FRONTMATTER decides, never the filename — `workstream: janitor-<stamp>` with a
-# DIGIT after the dash, and `plan: none`. Keyed on the filename it re-made the
-# curate cycle's own r4 twice over: a branch owning `janitor-role.md` (the one
-# building this cycle) suppressed the whole thing, and a real sweep whose file
-# is `janitor2026-09-18.md` went unseen, so `dispatch` said DUE and a second
-# janitor was spawned onto branches the first was already writing to.
-#
-# `--no-merged` and the `ls-tree | grep` prefilter are not tidiness either:
-# `drain` runs this at every session start, and without them it paid a merge
-# base, a diff and a frontmatter read for every unmerged ref. Measured on this
-# checkout (142 refs, verifier): `drain` 12.075s with the naive walk against
-# 5.521s with the cycle off. The DECISION stays frontmatter, so a false
-# positive from the broad grep costs three git calls and nothing else.
-janitor_branches() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}"
-  local refs r name base wf files doc jws jkey jstat cand
-  refs="$(git -C "$ROOT" for-each-ref --no-merged="refs/remotes/origin/${base_branch}" \
-    --format='%(refname)' refs/remotes/origin </dev/null 2>/dev/null)"
-  while IFS= read -r r; do
-    [ -n "$r" ] || continue
-    name="${r#refs/remotes/origin/}"
-    { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
-    cand="$(git -C "$ROOT" ls-tree -r --name-only "$r" -- docs/handover \
-      </dev/null 2>/dev/null | grep -i janitor)" || continue
-    [ -n "$cand" ] || continue
-    base="$(git -C "$ROOT" merge-base "$r" \
-      "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)"
-    [ -n "$base" ] || continue
-    files="$(git -C "$ROOT" diff --name-only --diff-filter=ACMRT "$base" "$r" \
-      -- docs/handover </dev/null 2>/dev/null | gr_docs)"
-    while IFS= read -r wf; do
-      [ -n "$wf" ] || continue
-      doc="$(git -C "$ROOT" show "${r}:${wf}" </dev/null 2>/dev/null)"
-      { read -r jws; read -r jkey; read -r jstat; } \
-        <<<"$(printf '%s\n' "$doc" | gr_fields workstream plan status)"
-      case "$jws" in janitor-[0-9]*) ;; *) continue ;; esac
-      [ "$jkey" = none ] || continue
-      # SANITISED, because both readers of this record print it through
-      # `printf %b`: a frontmatter field is branch-controlled input, and
-      # `workstream: janitor-2026-09-01\n            origin/main  INJECTED`
-      # forged an extra row in `dispatch`, which is what the orchestrator reads
-      # to decide spawns. Same reasoning as validating a status rather than
-      # passing it through.
-      jws="$(printf '%s' "$jws" | tr -cd 'A-Za-z0-9._:-')"
-      jstat="$(printf '%s' "$jstat" | tr -cd 'A-Za-z0-9._-')"
-      printf '%s\t%s\t%s\n' "$name" "${jws:-?}" "${jstat:-?}"
-    done <<<"$files"
-  done <<<"$refs"
-}
-
-cmd_janitor() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" ref
-  local due state why hours stale_s
-  local claims branch path doc plan status pr session age agetext n_cand=0
-  local held onbranch cand had_plan
-  local jb jw js n_inflight=0 inflight="" f n_left=0 n_merged=0 merged="" carried=""
-
-  [ "$#" -eq 0 ] || die "usage: $0 janitor"
-
-  hours="$(num_knob JOHARNESS_JANITOR_HOURS 12)"
+# Stale, unreleased claims with no pull request: `<branch>\t<path>`. The ones
+# `janitor --apply` may release; the caller proves each session gone first.
+janitor_candidates() {
+  local stale_s branch path age doc status pr
   stale_s="$(num_knob HANDOVER_STALE_SECONDS 518400)"
-  printf '== janitor (every %sh: JOHARNESS_JANITOR_HOURS)\n\n' "$hours"
-
-  due="$(janitor_due)"
-  state="${due%% *}"; why="${due#* }"
-  case "$state" in
-    unreadable) printf 'cadence   : UNREADABLE — %s\n\n' "$why"; return 0 ;;
-    off)        printf 'cadence   : off — %s\n\n' "$why"; return 0 ;;
-  esac
-
-  # Walked ONLY when a sweep could be due. A sweep in flight cannot make a
-  # not-due pass due, so the walk would change no answer — and it is the
-  # expensive half of this command, which `drain` runs at every session start
-  # (the same gate, and the same reason, as the curate block).
-  if [ "$state" = due ]; then
-    while IFS=$'\t' read -r jb jw js; do
-      [ -n "$jb" ] || continue
-      n_inflight=$((n_inflight + 1))
-      inflight="${inflight}            ${jb}  ${jw}  ${js}\n"
-    done < <(janitor_branches)
-  fi
-
-  if [ "$n_inflight" -gt 0 ]; then
-    printf 'cadence   : IN FLIGHT, so none is due. What made it due: %s\n' "$why"
-    printf '%b' "$inflight"
-  elif [ "$state" = due ]; then
-    printf 'cadence   : DUE — %s\n' "$why"
-  else
-    printf 'cadence   : not due — %s\n' "$why"
-  fi
-  printf '\n'
-
-  # --- candidates: a claim whose session MAY be gone ------------------------
-  #
-  # The threshold is HANDOVER_STALE_SECONDS, the one the handover hook already
-  # calls stale, not a knob of this cycle's own: two numbers for one idea are
-  # two answers about the same branch.
-  printf 'candidates (push age only — LIVENESS IS NOT IN THIS OUTPUT):\n'
-  claims="$(analysis_claims)"
   while IFS=$'\t' read -r branch path; do
     [ -n "$branch" ] || continue
     age="$(dispatch_age_min "$branch")"
     [ -n "$age" ] || continue
     [ $((age * 60)) -ge "$stale_s" ] || continue
+    doc="$(git -C "$ROOT" show "refs/remotes/origin/${branch}:${path}" \
+      </dev/null 2>/dev/null)" || continue
+    { read -r status; read -r pr; } <<<"$(printf '%s\n' "$doc" | gr_fields status pr)"
+    [ "$status" != abandoned ] || continue
+    case "$pr" in '' | none) ;; *) continue ;; esac
+    printf '%s\t%s\n' "$branch" "$path"
+  done <<<"$(claim_branches)"
+}
+
+# --- Guard: re-read live state right before a push onto a branch not ours
+
+# Workstream files <sha> wrote since it left the base branch (all of them
+# when there is no merge base to read from).
+guard_workstreams() {
+  local sha="$1" base
+  base="$(git -C "$ROOT" merge-base "$sha" \
+    "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" </dev/null 2>/dev/null)" || base=""
+  if [ -n "$base" ]; then
+    git -C "$ROOT" diff --name-only --diff-filter=ACMRT "$base" "$sha" \
+      -- docs/handover </dev/null 2>/dev/null | gr_docs
+  else
+    git -C "$ROOT" ls-tree -r --name-only "$sha" -- docs/handover 2>/dev/null | gr_docs
+  fi
+}
+
+# `guard <verb> <branch> [--expect <sha>]`: the checks a harness write onto a
+# branch it does not own must pass, read live, right before its push. Prints
+# one line per check run, first refusal stops. Exit 0 = all pass, 2 = gone on
+# origin (released already: nothing to write), 1 = any other refusal. Writes
+# nothing: the one fetch moves FETCH_HEAD only.
+cmd_guard() {
+  local verb="${1:-}" branch="${2:-}" expect="" base_branch="${HANDOVER_BASE_BRANCH:-main}"
+  local live rc f doc pr s_was t_was s_now t_now files raw=""
+  local usage="usage: $0 guard janitor|kill|loop <branch> [--expect <sha>]"
+  case "$verb" in janitor | kill | loop) ;; *) die "$usage" ;; esac
+  [ -n "$branch" ] || die "$usage"
+  shift 2
+  if [ "$#" -gt 0 ]; then
+    { [ "$1" = "--expect" ] && [ "$#" -eq 2 ] && [ -n "$2" ]; } || die "$usage"
+    case "$2" in -*) die "$usage" ;; esac
+    expect="$2"; raw="$2"
+  fi
+
+  # 1. Base branch by name, before any network read: no ref can move it.
+  if [ "$branch" = "$base_branch" ]; then
+    printf 'protected : REFUSED — %s is the base branch; never a harness write\n' "$branch"
+    return 1
+  fi
+  printf 'protected : pass — %s is not the base branch (%s)\n' "$branch" "$base_branch"
+
+  # 2. Live: origin itself, not the remote-tracking ref a narrow refspec keeps.
+  live="$(git -C "$ROOT" ls-remote -q --exit-code --heads origin "refs/heads/${branch}" \
+    </dev/null 2>/dev/null)"
+  rc=$?
+  live="$(printf '%s\n' "$live" | awk -v r="refs/heads/${branch}" '$2 == r { print $1; exit }')"
+  if [ "$rc" -eq 2 ] || { [ "$rc" -eq 0 ] && [ -z "$live" ]; }; then
+    printf 'live      : REFUSED — %s gone on origin: already released\n' "$branch"
+    return 2
+  elif [ "$rc" -ne 0 ]; then
+    printf 'live      : REFUSED — %s: cannot ask origin whether the branch exists\n' "$branch"
+    return 1
+  fi
+  printf 'live      : pass — origin has %s at %s\n' "$branch" "${live:0:12}"
+
+  # 3. Head: live vs the read the decision was made on.
+  if [ -z "$expect" ]; then
+    expect="$(git -C "$ROOT" rev-parse -q --verify "refs/remotes/origin/${branch}^{commit}" \
+      2>/dev/null)" || {
+      printf 'head      : REFUSED — no decision read: no --expect and no refs/remotes/origin/%s\n' "$branch"
+      return 1; }
+  else
+    # A read this checkout cannot open is no read: never compare or show it raw.
+    expect="$(git -C "$ROOT" rev-parse -q --verify "${expect}^{commit}" 2>/dev/null)" || {
+      printf 'head      : REFUSED — decision read %s is not a commit here: fetch, re-decide\n' "$raw"
+      return 1; }
+  fi
+  if [ "$live" != "$expect" ]; then
+    printf 'head      : REFUSED — live %s, decision read %s: re-decide\n' "${live:0:12}" "${expect:0:12}"
+    # 4. Claim: what moved, both sides. One ref fetched into FETCH_HEAD only
+    # (empty --refmap): moving the remote-tracking ref would make a bare re-run
+    # read the live head as its decision and pass without a re-decide.
+    git -C "$ROOT" fetch -q --refmap= origin "refs/heads/${branch}" \
+      </dev/null 2>/dev/null || :
+    files="$( { guard_workstreams "$live"; guard_workstreams "$expect"; } | sort -u)"
+    [ -n "$files" ] || printf 'claim     : no workstream file on either side\n'
+    while IFS= read -r f; do
+      [ -n "$f" ] || continue
+      { read -r s_was; read -r t_was; } < <(git -C "$ROOT" show "${expect}:${f}" \
+        </dev/null 2>/dev/null | gr_fields session status)
+      { read -r s_now; read -r t_now; } < <(git -C "$ROOT" show "${live}:${f}" \
+        </dev/null 2>/dev/null | gr_fields session status)
+      printf 'claim     : %s — read: session %s status %s; live: session %s status %s\n' \
+        "$f" "${s_was:--}" "${t_was:--}" "${s_now:--}" "${t_now:--}"
+    done < <(printf '%s\n' "$files")
+    return 1
+  fi
+  printf 'head      : pass — live %s = decision read\n' "${live:0:12}"
+
+  # 5. A claim at the edge (pr: set) is never released. kill/loop skip it: a
+  # stalled manager with an open pull request stays killable, and its record
+  # is a handover, not a release.
+  if [ "$verb" = janitor ]; then
+    while IFS= read -r f; do
+      [ -n "$f" ] || continue
+      doc="$(git -C "$ROOT" show "${live}:${f}" </dev/null 2>/dev/null)" || {
+        printf 'protected : REFUSED — cannot read %s at live head\n' "$f"; return 1; }
+      pr="$(printf '%s\n' "$doc" | gr_field pr)"
+      case "$pr" in '' | none) ;; *)
+        printf 'protected : REFUSED — %s names pr: %s at live head; never released\n' "$f" "$pr"
+        return 1 ;;
+      esac
+    done < <(guard_workstreams "$live")
+    printf 'protected : pass — no workstream file names a pr: at live head\n'
+  fi
+  printf 'guard     : pass — %s may push %s onto %s\n' "$verb" "${live:0:12}" "$branch"
+  return 0
+}
+
+# Release named claims: write `status: abandoned` into each candidate claim on
+# its own branch and push.
+janitor_apply() {
+  local want b path tip blob newblob tree commit idx today why rc=0 n=0 cands
+  [ "$#" -gt 0 ] || die "usage: $0 janitor --apply <branch>... (each session proven ARCHIVED or not found)"
+  # --prune: under the default refspec a branch deleted on origin loses its
+  # remote-tracking ref here and takes the `no such branch` skip below.
+  git -C "$ROOT" fetch -q --prune origin 2>/dev/null || warn "fetch failed; using the last fetched refs"
+  # The decision read, per named branch, whatever the refspec maps: a narrow
+  # one leaves the tracking ref stale, and guard (which never moves it) would
+  # refuse a moved branch on every run. A gone branch fails this fetch and
+  # keeps its stale ref for guard to call gone.
+  for want in "$@"; do
+    git -C "$ROOT" fetch -q origin "+refs/heads/${want}:refs/remotes/origin/${want}" \
+      </dev/null 2>/dev/null || :
+  done
+  cands="$(janitor_candidates)"
+  today="$(date -u +%Y-%m-%d)"
+  # A branch whose own joharness.sh predates `abandoned` reds `ci` on the word
+  # (#279); say why on the line it reads first.
+  why="ci reds on status 'abandoned' (not one of: ...) until this branch reconciles with its base; that reconcile clears it"
+  for want in "$@"; do
+    tip="$(git -C "$ROOT" rev-parse -q --verify "refs/remotes/origin/${want}^{commit}" 2>/dev/null)" || {
+      printf 'skip      : %s — no such branch on origin\n' "$want"; rc=1; continue; }
+    # Re-read live before anything is built (#397): a remote-tracking ref
+    # outlives a deletion whose refspec --prune does not map. Building is
+    # local; the lease below covers the rest of the window.
+    cmd_guard janitor "$want" --expect "$tip"
+    case $? in
+      0) ;;
+      2) # Released already. Drop the local ref a narrow refspec never prunes,
+         # or every dispatch names the branch again. Local only.
+         git -C "$ROOT" update-ref -d "refs/remotes/origin/${want}" 2>/dev/null || :
+         continue ;;
+      *) printf 'skip      : %s — guard refused; nothing released\n' "$want"
+         rc=1; continue ;;
+    esac
+    idx="$(mktemp)"
+    GIT_INDEX_FILE="$idx" git -C "$ROOT" read-tree "$tip" || { rm -f "$idx"; rc=1; continue; }
+    n=0
+    while IFS=$'\t' read -r b path; do
+      [ "$b" = "$want" ] || continue
+      blob="$(git -C "$ROOT" show "${tip}:${path}" 2>/dev/null)" || continue
+      newblob="$(printf '%s\n' "$blob" | awk -v d="$today" -v w="$why" '
+        NR == 1 && $0 == "---" { fm = 1; print; next }
+        fm && $0 == "---" { if (!ns) print "next: Pick this up from the plan; the claim was released " d "; " w
+                            fm = 0; print; next }
+        fm && /^status:/ { print "status: abandoned"; next }
+        fm && /^next:/   { print "next: Pick this up from the plan; the claim was released " d "; " w; ns = 1; next }
+        { print }' | git -C "$ROOT" hash-object -w --stdin)" || continue
+      GIT_INDEX_FILE="$idx" git -C "$ROOT" update-index --cacheinfo "100644,${newblob},${path}" || continue
+      n=$((n + 1))
+      printf 'release   : %s  %s\n' "$want" "$path"
+    done <<<"$cands"
+    if [ "$n" -eq 0 ]; then
+      printf 'skip      : %s — not a candidate (pushed recently, already released, or names a pr:)\n' "$want"
+      rm -f "$idx"; rc=1; continue
+    fi
+    tree="$(GIT_INDEX_FILE="$idx" git -C "$ROOT" write-tree)"
+    rm -f "$idx"
+    commit="$(git -C "$ROOT" commit-tree "$tree" -p "$tip" \
+      -m "janitor: release the claim, session gone (${today})")" || { rc=1; continue; }
+    # The lease refuses a branch deleted or moved since the guard read.
+    if git -C "$ROOT" push -q --force-with-lease="refs/heads/${want}:${tip}" \
+      origin "${commit}:refs/heads/${want}" 2>/dev/null; then
+      printf 'pushed    : %s %s\n' "$want" "${commit:0:12}"
+    else
+      printf 'FAILED    : %s — push refused (the branch moved?); nothing released\n' "$want"
+      rc=1
+    fi
+  done
+  return "$rc"
+}
+
+cmd_janitor() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" ref stale_s
+  local claims branch path doc plan status pr session age agetext n_cand=0
+  local n_young=0 n_released=0
+  local held onbranch cand had_plan
+  local f n_left=0 n_merged=0 merged="" carried="" cands=""
+
+  if [ "${1:-}" = "--apply" ]; then
+    shift
+    janitor_apply "$@"
+    return $?
+  fi
+  [ "$#" -eq 0 ] || die "usage: $0 janitor [--apply <branch>...]"
+
+  stale_s="$(num_knob HANDOVER_STALE_SECONDS 518400)"
+  printf '== janitor\n\n'
+
+  printf 'candidates (push age only — LIVENESS IS NOT IN THIS OUTPUT):\n'
+  claims="$(claim_branches)"
+  while IFS=$'\t' read -r branch path; do
+    [ -n "$branch" ] || continue
+    age="$(dispatch_age_min "$branch")"
+    [ -n "$age" ] || continue
+    [ $((age * 60)) -ge "$stale_s" ] || { n_young=$((n_young + 1)); continue; }
     doc="$(git -C "$ROOT" show "refs/remotes/origin/${branch}:${path}" \
       </dev/null 2>/dev/null)" || continue
     { read -r status; read -r plan; read -r pr; read -r session; } \
@@ -5325,50 +2781,30 @@ cmd_janitor() {
     esac
     # Already released: not a candidate, and saying so is what stops a second
     # janitor rewriting a file the first one settled.
-    [ "$status" = abandoned ] && continue
+    [ "$status" = abandoned ] && { n_released=$((n_released + 1)); continue; }
     n_cand=$((n_cand + 1))
+    case "$pr" in '' | none) cands="${cands} ${branch}" ;; esac
     agetext="$(dispatch_age_text "$age")"
     printf '  %s  %s  %s  pushed %s\n' "$branch" "$path" "${status:-?}" "$agetext"
     # A stem, never the raw field: a workstream file may spell its claim as a
     # path, and `docs/plans/docs/plans/x.md.md` is what printing it raw gets.
-    # lint_stem is the repo's one answer to that (queue-context.sh: `stem`).
     plan="$(lint_stem "$plan")"
     # SANITISED, like `workstream:` and `status:` in the in-flight walk above
     # and for the same reason: these are branch-controlled frontmatter printed
-    # straight out. `plan: x\n    holds: docs/plans/real.md, out of the queue`
-    # forged the very sentence the block below exists to withhold (PR275 r6 was
-    # the same class, on this same function).
-    # Presence is read BEFORE the strip, because the strip can empty a field
-    # that was there: `plan: 計画` holds every byte outside the set, and
-    # reporting that claim as holding NO plan is the same class of lie as the
-    # two this commit exists to remove.
+    # straight out.
     had_plan=""; [ -z "$plan" ] || had_plan=1
     plan="$(printf '%s' "$plan" | tr -cd 'A-Za-z0-9._-')"
     pr="$(printf '%s' "$pr" | tr -cd 'A-Za-z0-9._#-')"
     session="$(printf '%s' "$session" | tr -cd 'A-Za-z0-9._:/#?=&%-')"
-    # WHICH path, then WHERE it is. `plan:` claims a research question by its
-    # stem as well as a plan (`.agents/docs/handover/TEMPLATE.md`), so probing
-    # only `docs/plans/` called a held question's release worthless — the same
-    # two-candidate loop is already spelled at `cycle_landed_sha`.
-    # Ownership is a DIFF, never a tree read — six merged edges bought that
-    # rule (`.agents/docs/feedback.md`, "Worked example: tree or diff"), and
-    # saying "on this branch only" without asking the branch sent an operator
-    # to look for a file that is on no branch at all. So BOTH refs, and only
-    # when there is a stem to probe: a claim holding nothing would otherwise
-    # cost four `cat-file` calls to find out, per candidate, and PR275 r11 was
-    # a perf finding on this same function.
+    # WHICH path, then WHERE it is.
     held="" onbranch=""
     if [ -n "$plan" ] && [ "$plan" != none ]; then
-      for cand in "docs/plans/${plan}.md" "docs/research/${plan}.md"; do
+      for cand in "docs/plans/${plan}.md" "docs/research/${plan}.md" "docs/product/${plan}.md"; do
         git -C "$ROOT" cat-file -e "refs/remotes/origin/${base_branch}:${cand}" \
           </dev/null 2>/dev/null || continue
         held="$cand"; break
       done
-      # Only when the base branch did NOT have it: the case that reads
-      # `onbranch` is unreachable otherwise, and twenty candidates whose plans
-      # are all in the queue would pay forty `cat-file` calls for an answer
-      # that cannot change a character of the output.
-      [ -n "$held" ] || for cand in "docs/plans/${plan}.md" "docs/research/${plan}.md"; do
+      [ -n "$held" ] || for cand in "docs/plans/${plan}.md" "docs/research/${plan}.md" "docs/product/${plan}.md"; do
         git -C "$ROOT" cat-file -e "refs/remotes/origin/${branch}:${cand}" \
           </dev/null 2>/dev/null || continue
         onbranch="$cand"; break
@@ -5390,11 +2826,7 @@ cmd_janitor() {
       printf '      branch carries — a typo, a rename, or a plan on some other\n'
       printf '      branch: resolve it by hand\n'
     fi
-    # The `pr:` field is a number in a file. This reader cannot see whether the
-    # pull request is open, closed or merged — `drain` says "state unverified"
-    # about the same field and this said "nearly done" (#288). The EXEMPTION
-    # does not depend on the state: naming a `pr:` is what makes it Loop step
-    # 2's, so say that and claim nothing else.
+    # The `pr:` field is a number in a file.
     if [ -n "$pr" ] && [ "$pr" != none ]; then
       printf '    pull request %s — exempt whatever its state, which this\n' "$pr"
       printf '      reader cannot see: finishing it is Loop step 2, not a sweep\n'
@@ -5403,21 +2835,27 @@ cmd_janitor() {
       printf '    session: %s\n' "$session"
   done <<<"$claims"
   if [ "$n_cand" -eq 0 ]; then
-    printf '  none — every claim pushed inside %sh\n' "$((stale_s / 3600))"
+    if [ "$n_released" -eq 0 ]; then
+      printf '  none — every claim pushed inside %sh\n' "$((stale_s / 3600))"
+    elif [ "$n_young" -eq 0 ]; then
+      printf '  none — %d claim(s) older than %sh, every one already released (status: abandoned)\n' \
+        "$n_released" "$((stale_s / 3600))"
+    else
+      printf '  none — %d claim(s) pushed inside %sh; %d older, already released (status: abandoned)\n' \
+        "$n_young" "$((stale_s / 3600))" "$n_released"
+    fi
   else
     printf '\n  %d candidate(s). A candidate is NOT a verdict: read the control\n' "$n_cand"
-    printf '  plane per session — ARCHIVED, not found, or a FAILED bucket confirmed\n'
-    printf '  twice = gone; RUNNING or IDLE alone = leave it alone\n'
-    printf '  (.claude/commands/orchestrate.md, the field table).\n'
+    printf '  plane per session — ARCHIVED or not found = gone; anything else =\n'
+    printf '  leave it alone. Never a claim naming pr:.\n'
+    [ -z "$cands" ] ||
+      printf '  Release the gone ones: ./joharness.sh janitor --apply <branch>...\n  (candidates:%s)\n' "$cands"
   fi
   printf '\n'
 
   # --- what merges left behind ---------------------------------------------
   ref="$(decide_ref)" || ref=""
   if [ -n "$ref" ]; then
-    # ONE walk, hoisted out of the loop exactly as `cmd_cleanup` hoists it: it
-    # reads every unmerged ref, and inside the loop a base branch with six
-    # leftovers paid for six of them (~2s each on this checkout).
     carried="$(cl_inflight "$ref")"
     while IFS= read -r f; do
       [ -n "$f" ] || continue
@@ -5448,18 +2886,357 @@ cmd_janitor() {
   fi
   printf '\n'
 
-  if [ "$n_inflight" -gt 0 ]; then
-    printf 'A sweep is in flight. One at a time: read its branch, do not start a second.\n'
-  elif [ "$state" = due ]; then
-    printf 'DUE: /janitor takes this pass. It proves each candidate gone before it\n'
-    printf 'releases anything, writes status: abandoned into the claim on ITS OWN\n'
-    printf 'branch — never deleting the file, never deleting a branch — and lands a\n'
-    printf 'pull request whose retire commit dates the next cycle.\n'
-  else
-    printf 'Not due: nothing to do. The candidates above are a reader for a human,\n'
-    printf 'and a sweep that runs early clears nothing the next one would not.\n'
-  fi
   return 0
+}
+
+# --- The scout cycle — the fleet spends nothing on finding what it could do better
+
+# The unmerged remote refs, one per line, the base and HEAD dropped in the
+# shell — a `grep -v` there is a fork on every session start for two names.
+scout_refs() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" r
+  while IFS= read -r r; do
+    case "$r" in
+      '' | refs/remotes/origin/HEAD | "refs/remotes/origin/${base_branch}") ;;
+      *) printf '%s\n' "$r" ;;
+    esac
+  done < <(git -C "$ROOT" for-each-ref --no-merged="refs/remotes/origin/${base_branch}" \
+    --format='%(refname)' refs/remotes/origin </dev/null 2>/dev/null)
+}
+
+# Every scout file at a branch TIP — every unmerged ref and the base branch
+# itself — one line per file: `<branch>\t<scout stem>\t<status>`.
+scout_walk() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" kind="${1:-scout}"
+  local ids=() names="" base_id id r hit wf doc sws sstat seen=$'\n' key listing rc_l rc_u blobs
+  base_id="$(git -C "$ROOT" rev-parse --verify -q \
+    "refs/remotes/origin/${base_branch}^{commit}" </dev/null 2>/dev/null)"
+  if [ -z "$base_id" ]; then
+    printf '%s\t%s\t%s\n' '?' "${kind}-unreadable" 'unreadable'
+    return 0
+  fi
+  while IFS=$'\t' read -r id r; do
+    case "$r" in
+      '' | refs/remotes/origin/HEAD | "refs/remotes/origin/${base_branch}") continue ;;
+    esac
+    case "$names" in *$'\n'"${id}"$'\t'*) ;; *) ids+=("$id") ;; esac
+    names="${names}"$'\n'"${id}"$'\t'"${r#refs/remotes/origin/}"
+  done < <(git -C "$ROOT" for-each-ref --no-merged="$base_id" \
+    --format='%(objectname)%09%(refname)' refs/remotes/origin </dev/null 2>/dev/null)
+  ids+=("$base_id"); names="${names}"$'\n'"${base_id}"$'\t'"${base_branch}"$'\n'
+  listing="$(GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 git -C "$ROOT" -c core.quotePath=false grep \
+    --color=never -l -E -e '' "${ids[@]}" -- "docs/handover/${kind}-[0-9]*" \
+    </dev/null 2>/dev/null)"; rc_l=$?
+  listing="${listing}"$'\n'"$(GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 git -C "$ROOT" -c core.quotePath=false grep \
+    --color=never -L -E -e '' "${ids[@]}" -- "docs/handover/${kind}-[0-9]*" \
+    </dev/null 2>/dev/null)"; rc_u=$?
+  if [ "$rc_l" -gt 1 ] || [ "$rc_u" -gt 1 ]; then
+    printf '%s\t%s\t%s\n' '?' "${kind}-unreadable" 'unreadable'
+  fi
+  while IFS= read -r hit; do
+    [ -n "$hit" ] || continue
+    id="${hit%%:*}"; wf="${hit#*:}"
+    if [ "$id" != "$base_id" ]; then
+      blobs="$(git -C "$ROOT" rev-parse --verify -q "${id}:${wf}" </dev/null 2>/dev/null)"
+      if [ -n "$blobs" ] && [ "$blobs" = "$(git -C "$ROOT" rev-parse --verify -q \
+          "${base_id}:${wf}" </dev/null 2>/dev/null)" ]; then
+        continue
+      fi
+    fi
+    # CR stripped first: a CRLF file must not read as no frontmatter at all.
+    doc="$(git -C "$ROOT" show "${id}:${wf}" </dev/null 2>/dev/null | tr -d '\r')"
+    sstat="$(printf '%s\n' "$doc" | gr_field status |
+      tr 'A-Z ' 'a-z-' | tr -cd 'a-z0-9._-')"
+    key="${id}"$'\t'"${wf}"
+    case "$seen" in *$'\n'"${key}"$'\n'*) continue ;; esac
+    seen="${seen}${key}"$'\n'
+    sws="${wf##*/}"; sws="${sws%.md}"
+    sws="$(printf '%s' "$sws" | tr -cd 'A-Za-z0-9._:-')"
+    while IFS=$'\t' read -r key r; do
+      [ "$key" = "$id" ] || continue
+      printf '%s\t%s\t%s\n' "${r:-?}" "${sws:-?}" "${sstat:-?}"
+    done <<<"$names"
+  done <<<"$listing"
+}
+
+scout_retired_ts() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" kind="${1:-scout}"
+  local refs=() r line h ct wf best=0 now log rc
+  while IFS= read -r r; do refs+=("$r"); done < <(scout_refs)
+  [ "${#refs[@]}" -gt 0 ] || return 0
+  now="$(date +%s)"
+  # An error reads as a retire NOW — closed, as scout_walk's (pass 6).
+  log="$(GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 git -C "$ROOT" log \
+    --full-history -m --diff-filter=D --name-only --format='C %H %ct' \
+    "${refs[@]}" --not "refs/remotes/origin/${base_branch}" \
+    -- "docs/handover/${kind}-[0-9]*" </dev/null 2>/dev/null)"; rc=$?
+  if [ "$rc" -ne 0 ]; then
+    printf '%s' "$now"
+    return 0
+  fi
+  h=""; ct=""
+  while IFS= read -r line; do
+    case "$line" in
+      '') continue ;;
+      'C '*) line="${line#C }"; h="${line%% *}"; ct="${line#* }"; continue ;;
+    esac
+    wf="$line"
+    [ -n "$wf" ] || continue
+    case "$ct" in '' | *[!0-9]*) continue ;; esac
+    [ "$ct" -le "$now" ] || ct="$now"
+    [ "$ct" -gt "$best" ] && best="$ct"
+  done <<<"$log"
+  [ "$best" -eq 0 ] || printf '%s' "$best"
+}
+
+scout_branches() {
+  local b w s
+  while IFS=$'\t' read -r b w s; do
+    [ -n "$b" ] || continue
+    [ "$s" = abandoned ] && continue
+    printf '%s\t%s\t%s\n' "$b" "$w" "$s"
+  done
+}
+
+# Is a scout due.
+SCOUT_DUE=""
+SCOUT_ROWS=""
+scout_due() {
+  local want="${1:-}" hours age bts why base_word
+  SCOUT_ROWS=""
+  why="$(cycle_unreadable)"
+  if [ -n "$why" ]; then
+    SCOUT_DUE="unreadable ${why}"
+    return 0
+  fi
+  hours="$(num_knob JOHARNESS_SCOUT_HOURS 168)"
+  if [ "$hours" -eq 0 ]; then
+    SCOUT_DUE='off JOHARNESS_SCOUT_HOURS=0: no scout is ever due'
+    return 0
+  fi
+  if [ ! -f "${ROOT}/.claude/commands/scout.md" ]; then
+    SCOUT_DUE='off no .claude/commands/scout.md here: nothing for a scout to run'
+    return 0
+  fi
+  base_word='the last proposal merged'
+  age="$(cycle_age_h scout)"
+  if [ -z "$age" ] || [ "$age" -ge "$hours" ]; then
+    bts="$(scout_retired_ts)"
+    if [ -n "$bts" ]; then
+      bts=$(( ($(date +%s) - bts) / 3600 ))
+      if [ -z "$age" ] || [ "$bts" -lt "$age" ]; then
+        age="$bts"
+        base_word='a scout finished on an unmerged branch (its proposal open, or closed by a human)'
+      fi
+    fi
+  fi
+  if [ -z "$age" ]; then
+    # Never scouted: from the repository's own beginning, the janitor's rule.
+    age="$(cycle_repo_age_h)"
+    [ -n "$age" ] || age=0
+    base_word='the repository began, no scout having run'
+  fi
+  if [ "$age" -ge "$hours" ]; then
+    SCOUT_DUE="due ${age}h since ${base_word} (>= ${hours}h)"
+  else
+    SCOUT_DUE="not-due ${age}h since ${base_word} (of ${hours}h)"
+  fi
+  if [ "$want" = all ] || [ "${SCOUT_DUE%% *}" = due ]; then
+    SCOUT_ROWS="$(scout_walk)"
+  fi
+}
+
+scout_automerge() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" v="${JOHARNESS_SCOUT_AUTOMERGE:-}"
+  [ -n "$v" ] || v="$(git -C "$ROOT" show "refs/remotes/origin/${base_branch}:joharness.conf" \
+    </dev/null 2>/dev/null |
+    sed -n "s/^[[:space:]]*JOHARNESS_SCOUT_AUTOMERGE[[:space:]]*=[[:space:]]*\([^#[:space:]]*\).*/\1/p" |
+    tail -1)"
+  if [ "$v" = on ]; then printf 'on'; else printf 'off'; fi
+}
+
+cmd_scout() {
+  local hours due state why b w s n_inflight=0 rows
+  [ "$#" -eq 0 ] || die "usage: $0 scout"
+  hours="$(num_knob JOHARNESS_SCOUT_HOURS 168)"
+  printf '== scout (every %sh: JOHARNESS_SCOUT_HOURS; automerge: %s)\n\n' \
+    "$hours" "$(scout_automerge)"
+
+  scout_due all
+  due="$SCOUT_DUE"; rows="$SCOUT_ROWS"
+  state="${due%% *}"; why="${due#* }"
+  case "$state" in
+    unreadable) printf 'cadence   : UNREADABLE — %s\n\n' "$why"; return 0 ;;
+    off)        printf 'cadence   : off — %s\n\n' "$why"; return 0 ;;
+  esac
+  while IFS=$'\t' read -r b w s; do
+    [ -n "$b" ] || continue
+    n_inflight=$((n_inflight + 1))
+    [ "$n_inflight" -gt 1 ] || \
+      printf 'cadence   : IN FLIGHT, so none is due. Clock: %s %s\n' "$state" "$why"
+    printf '            %s  %s  %s\n' "$b" "$w" "$s"
+  done < <(printf '%s\n' "$rows" | scout_branches)
+  if [ "$n_inflight" -eq 0 ]; then
+    if [ "$state" = due ]; then
+      printf 'cadence   : DUE — %s. Fires only at DRAINED: dispatch gates it\n' "$why"
+    else
+      printf 'cadence   : not due — %s\n' "$why"
+    fi
+  fi
+  printf '\n'
+
+  # Pointers, never findings: this command proposes nothing. What a scout
+  # reads, by name, so the command's reader never has to rediscover them.
+  printf 'evidence a scout reads (each proposal cites what it rests on):\n'
+  printf '  ./joharness.sh upstream     what merged edges found about the harness\n'
+  printf '  ./joharness.sh feedback     findings ready to graduate\n'
+  printf '  open issues on the canonical repository\n'
+  printf '  the control plane'"'"'s cost reader: get_session usage.cost_usd,\n'
+  printf '    usage.cache_read_tokens, context_usage.used_tokens\n'
+  printf '  a dated Anthropic release note or Models API read\n\n'
+  if [ "$(scout_automerge)" = on ]; then
+    printf 'JOHARNESS_SCOUT_AUTOMERGE=on: the scout merges its own proposal. A conf\n'
+    printf 'line is a human act; that is why the bound still holds.\n'
+  else
+    printf 'JOHARNESS_SCOUT_AUTOMERGE=off: a proposal waits for a human to merge\n'
+    printf 'or close it. Nothing enters the queue until one does.\n'
+  fi
+}
+
+# --- The clerk cycle — open issues are the top rank and no role read them
+
+# Is a clerk due.
+CLERK_DUE=""
+CLERK_ROWS=""
+clerk_due() {
+  local want="${1:-}" hours age bts why base_word
+  CLERK_ROWS=""
+  why="$(cycle_unreadable)"
+  if [ -n "$why" ]; then
+    CLERK_DUE="unreadable ${why}"
+    return 0
+  fi
+  hours="$(num_knob JOHARNESS_CLERK_HOURS 24)"
+  if [ "$hours" -eq 0 ]; then
+    CLERK_DUE='off JOHARNESS_CLERK_HOURS=0: no clerk is ever due'
+    return 0
+  fi
+  if [ ! -f "${ROOT}/.claude/commands/clerk.md" ]; then
+    CLERK_DUE='off no .claude/commands/clerk.md here: nothing for a clerk to run'
+    return 0
+  fi
+  base_word='the last clerk landed'
+  age="$(cycle_age_h clerk)"
+  if [ -z "$age" ] || [ "$age" -ge "$hours" ]; then
+    bts="$(scout_retired_ts clerk)"
+    if [ -n "$bts" ]; then
+      bts=$(( ($(date +%s) - bts) / 3600 ))
+      if [ -z "$age" ] || [ "$bts" -lt "$age" ]; then
+        age="$bts"
+        base_word='a clerk retired on a branch not merged yet'
+      fi
+    fi
+  fi
+  if [ -z "$age" ]; then
+    age="$(cycle_repo_age_h)"
+    [ -n "$age" ] || age=0
+    base_word='the repository began, no clerk having run'
+  fi
+  if [ "$age" -ge "$hours" ]; then
+    CLERK_DUE="due ${age}h since ${base_word} (>= ${hours}h)"
+  else
+    CLERK_DUE="not-due ${age}h since ${base_word} (of ${hours}h)"
+  fi
+  if [ "$want" = all ] || [ "${CLERK_DUE%% *}" = due ]; then
+    CLERK_ROWS="$(scout_walk clerk)"
+  fi
+}
+
+# Issue numbers an `issue:` field names under one directory, one per line,
+# sorted, valid ones only (issue_verdict).
+clerk_issue_nums() {
+  local dir="$1" scope="$2" base_branch="${HANDOVER_BASE_BRANCH:-main}"
+  local ids=() id r out rc line v
+  id="$(git -C "$ROOT" rev-parse --verify -q \
+    "refs/remotes/origin/${base_branch}^{commit}" </dev/null 2>/dev/null)"
+  if [ -z "$id" ]; then
+    printf '?\n'
+    return 0
+  fi
+  ids+=("$id")
+  if [ "$scope" = all ]; then
+    while IFS=$'\t' read -r r line; do
+      case "$line" in
+        '' | refs/remotes/origin/HEAD | "refs/remotes/origin/${base_branch}") continue ;;
+      esac
+      case " ${ids[*]} " in *" ${r} "*) ;; *) ids+=("$r") ;; esac
+    done < <(git -C "$ROOT" for-each-ref --no-merged="$id" \
+      --format='%(objectname)%09%(refname)' refs/remotes/origin </dev/null 2>/dev/null)
+  fi
+  out="$(GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 git -C "$ROOT" \
+    -c core.quotePath=false -c grep.lineNumber=false -c grep.column=false \
+    -c grep.fullName=false grep --color=never --text -h -E -e '^issue:' \
+    "${ids[@]}" -- "${dir}/*.md" </dev/null 2>/dev/null)"; rc=$?
+  if [ "$rc" -gt 1 ]; then
+    printf '?\n'
+    return 0
+  fi
+  while IFS= read -r line; do
+    line="${line%$'\r'}"
+    line="${line#issue:}"
+    line="$(printf '%s' "$line" | sed 's/^[[:space:]]*//; s/[[:space:]][[:space:]]*#.*$//; s/[[:space:]]*$//')"
+    v="$(issue_verdict "$line")"
+    case "$v" in ok\ *) printf '%s\n' "${v#ok }" ;; esac
+  done <<<"$out" | sort -un
+}
+
+# One list as one line: `none`, the numbers, or UNREADABLE.
+clerk_issue_line() {
+  local nums
+  nums="$(cat)"
+  case "$nums" in
+    '') printf 'none' ;;
+    *'?'*) printf 'UNREADABLE — take no issue this pass: a list that could not be read is no empty list' ;;
+    *) printf '%s' "$(printf '%s\n' "$nums" | sed 's/^/#/' | tr '\n' ' ' | sed 's/ $//')" ;;
+  esac
+}
+
+cmd_clerk() {
+  local hours batch due rows state why b w st n_inflight=0
+  [ "$#" -eq 0 ] || die "usage: $0 clerk"
+  hours="$(num_knob JOHARNESS_CLERK_HOURS 24)"
+  batch="$(num_knob JOHARNESS_CLERK_BATCH 3)"
+  printf '== clerk (every %sh: JOHARNESS_CLERK_HOURS; at most %s issue(s) a pass: JOHARNESS_CLERK_BATCH)\n\n' \
+    "$hours" "$batch"
+  printf 'reads no GitHub: git only. The open issues are the clerk'"'"'s own read (.claude/commands/clerk.md)\n\n'
+
+  clerk_due all
+  due="$CLERK_DUE"; rows="$CLERK_ROWS"
+  state="${due%% *}"; why="${due#* }"
+  case "$state" in
+    unreadable) printf 'cadence   : UNREADABLE — %s\n' "$why"; return 0 ;;
+    off)        printf 'cadence   : off — %s\n' "$why" ;;
+  esac
+  while IFS=$'\t' read -r b w st; do
+    [ -n "$b" ] || continue
+    n_inflight=$((n_inflight + 1))
+    [ "$n_inflight" -gt 1 ] || \
+      printf 'cadence   : IN FLIGHT, so none is due. Clock: %s %s\n' "$state" "$why"
+    printf '            %s  %s  %s\n' "$b" "$w" "$st"
+  done < <(printf '%s\n' "$rows" | scout_branches)
+  if [ "$n_inflight" -eq 0 ] && [ "$state" != off ]; then
+    if [ "$state" = due ]; then
+      printf 'cadence   : DUE — %s\n' "$why"
+    else
+      printf 'cadence   : not due — %s\n' "$why"
+    fi
+  fi
+  printf '\n'
+  printf 'planned   : %s\n' "$(clerk_issue_nums docs/plans all | clerk_issue_line)"
+  printf '            (a plan'"'"'s issue: on %s or any unmerged branch)\n' "${HANDOVER_BASE_BRANCH:-main}"
+  printf 'claimed   : %s\n' "$(clerk_issue_nums docs/handover all | clerk_issue_line)"
+  printf '            (a workstream file'"'"'s issue: on %s or any unmerged branch)\n' \
+    "${HANDOVER_BASE_BRANCH:-main}"
 }
 
 cmd_cleanup() {
@@ -5478,20 +3255,7 @@ cmd_cleanup() {
 
   if [ "$apply" -eq 1 ]; then
     printf '== cleanup --apply (%s)\n\n' "$ref"
-    # The removal has to land somewhere a pull request can carry it. On the
-    # base branch there is no such pull request, and `git rm` there leaves the
-    # deletion loose in a working tree nobody is about to review. Loud, not
-    # fatal: `git checkout -- .` undoes it, and the human may know better.
-    #
-    # A NAMED branch that is not the base one, or the warning fires. The test
-    # used to be `rev-parse --abbrev-ref HEAD != main`, which prints the string
-    # `HEAD` on a detached checkout — so it read "not the base branch, carry
-    # on" wherever HEAD is detached, which is where there is no branch to land
-    # the deletion on at all. symbolic-ref prints nothing and fails there.
-    # Reachable by a human or a session in a detached checkout; an earlier
-    # version of this comment said "exactly the checkout CI produces", which
-    # sounds sharper and is not true — CI reaches cleanup only through
-    # selftest.sh, which never runs it detached outside its own case.
+    # The removal has to land somewhere a pull request can carry it.
     local cur
     cur="$(git -C "$ROOT" symbolic-ref --quiet --short HEAD 2>/dev/null)" || cur=""
     { [ -n "$cur" ] && [ "$cur" != "${HANDOVER_BASE_BRANCH:-main}" ]; } ||
@@ -5518,11 +3282,7 @@ cmd_cleanup() {
         removed=$((removed + 1))
         printf '  REMOVED  %s\n' "$f"
       else
-        # COUNTED. A failed removal used to increment nothing, so a run whose
-        # only file could not be removed fell through to "none — the ritual
-        # ran" and exited 0 — the command reporting success for work it did
-        # not do. Local modifications on the leftover are the ordinary way in,
-        # and they are the state this command's own advice invites.
+        # COUNTED.
         failed=$((failed + 1))
         printf '  FAILED   %s — git refused; see the error above\n' "$f"
       fi
@@ -5547,11 +3307,7 @@ cmd_cleanup() {
   claims="$(cl_merged_claims "$ref")"
   while IFS= read -r p; do
     [ -n "$p" ] || continue
-    # On the REF, not in the working tree. The heading says "plans on <ref>"
-    # and the test read `-f ${ROOT}/docs/plans/...`, so a plan this branch has
-    # already deleted vanished from a report about the base branch, and one
-    # this branch added appeared in it. Same tree-vs-diff class
-    # .agents/docs/feedback.md graduated.
+    # On the REF, not in the working tree.
     git -C "$ROOT" cat-file -e "${ref}:docs/plans/${p}.md" 2>/dev/null || continue
     plans_seen=$((plans_seen + 1))
     printf '  ask      docs/plans/%s.md\n' "$p"
@@ -5564,18 +3320,10 @@ cmd_cleanup() {
     printf '  request (and its requirement file when it was the last plan).\n'
   fi
 
-  # Files under docs/research the routing test reads as documents, not
-  # nodes (.agents/docs/research/README.md, "Which files are nodes"). The
-  # lint guards edges; what the base branch already carried before this
-  # feature never crosses an edge again until somebody touches it, so this
-  # is the one command that counts it. COUNTED, never staged by --apply:
-  # a consumer's documents are not the harness's to delete, and a decayed
-  # node needs a judgement — restore or delete — no batch flag should make.
+  # Files under docs/research the routing test reads as documents, not nodes
+  # (.agents/docs/research/README.md, "Which files are nodes").
   printf '\ndocs/research on %s — files routing reads as documents, not nodes\n' "$ref"
   local rf rq rstem cl_rrefs docs_n=0 decayed=0
-  # gr_edge_stems, not a local tr/sed pipeline: that one flattened
-  # `alpha beta` to `alphabeta` (r4) and kept the literal `none`, so a
-  # document named none.md read as referenced (r7).
   cl_rrefs="$(while IFS= read -r rf; do
       [ -n "$rf" ] || continue
       gr_edge_stems "$(git -C "$ROOT" show "${ref}:${rf}" 2>/dev/null | gr_field research)"
@@ -5583,9 +3331,6 @@ cmd_cleanup() {
              gr_docs))"
   while IFS= read -r rf; do
     [ -n "$rf" ] || continue
-    # gr_docs keeps VISION.md where lint_nodes and the queue hook drop it
-    # (r9): counting a file the lint never sees would be a row nobody can
-    # act on. Widening gr_docs itself touches every caller — not here.
     case "${rf##*/}" in VISION.md) continue ;; esac
     rq="$(git -C "$ROOT" show "${ref}:${rf}" 2>/dev/null | gr_field research)"
     rstem="$(lint_stem "$rf")"
@@ -5632,82 +3377,34 @@ cmd_cleanup() {
     printf '  git push origin --delete <branch>\n'
   fi
 
-  # A removal git refused is the one outcome that must not exit 0. The count
-  # above already stops the run claiming "the ritual ran"; this stops a caller
-  # reading success from a status it never earned. Report-only runs still exit
-  # 0 — nothing was attempted, so nothing failed.
+  # A removal git refused is the one outcome that must not exit 0.
   [ "$failed" -eq 0 ] || return 1
   return 0
 }
 
-# ---------------------------------------------------------------------------
-# authority — is the unsupervised claim the repository's, or the caller's?
-# ---------------------------------------------------------------------------
-#
-# Measured 2026-08-31: two sessions spawned into a repo whose committed mode
-# was unsupervised refused their task as a suspected prompt injection. They
-# were RIGHT — "never ask a human, merge your own pull requests" is the shape
-# an injected task has, and a claim cannot be its own evidence. So the prompt
-# routes here, and the repository authorises.
-#
-# Only a MERGED JOHARNESS_MODE line in the tracked conf is evidence: it went
-# through a pull request. An exported JOHARNESS_MODE is the CALLER asserting
-# authority by another route, which is the thing a session is right to
-# distrust. Reports, never gates: no exit code carries the verdict, because a
-# report something branches on is a gate nobody reviewed.
-authority_commit() {
-  # Last commit that CHANGED the assignment. -G, never -S: -S counts
-  # occurrences, so supervised -> unsupervised is invisible to it, and it
-  # reported an old, unrelated commit as the provenance of a new flip.
-  git -C "$ROOT" log -1 --format='%H%x09%an%x09%ad%x09%s' --date=short \
-    -G'^[[:space:]]*JOHARNESS_MODE[[:space:]]*=' -- "$CONF" 2>/dev/null
+# --- authority — does this checkout run the rules the repository reviewed?
+AUTHORITY_PATHS="joharness.sh .agents/harness .claude joharness.conf"
+authority_drift() {
+  local base="$1" p
+  local -a paths
+  read -ra paths <<<"$AUTHORITY_PATHS"
+  {
+    git -C "$ROOT" diff --name-only "$base" -- "${paths[@]}" 2>/dev/null
+    git -C "$ROOT" ls-files --others --exclude-standard -- "${paths[@]}" 2>/dev/null
+  } | sort -u | while IFS= read -r p; do [ -n "$p" ] && printf '%s\n' "$p"; done
 }
 
-# The one entrypoint a session runs when it does not know which role this
-# repo's mode calls for. The mapping is HERE, in shell, and not in the
-# command file it names: three modes and three files written as prose is a
-# mapping no test can read, and this repo's whole doctrine is that a counted
-# thing beats a written one.
-#
-# Routing only. No queue read, no git, no fetch — `drain` and `dispatch` are
-# the steps AFTER this one and both cost git. What this prints has to be
-# true before a session knows anything at all.
-#
-# It does not run `authority` either, though it names a mode. The routed
-# command owns its own preconditions — `orchestrate.md` runs `authority` in
-# its step 0 — and a check spelled in two files is the one that drifts.
+# The one entrypoint a session runs when it does not know which role to take.
 cmd_start() {
-  local mode file
-  mode_warn_unrecognised
-  mode="$(run_mode)"
+  local file='.claude/commands/orchestrate.md'
 
-  # run_mode() or nothing: it is the ONE resolver, it reads the environment
-  # and the conf in that order, and it normalises anything unrecognised to
-  # supervised. A `case` on $JOHARNESS_MODE here would be the second
-  # resolver, and it would miss every repo that sets the mode in its conf.
-  case "$mode" in
-    orchestrated) file='.claude/commands/orchestrate.md' ;;
-    *)            file='.claude/commands/drain.md' ;;
-  esac
+  # BEFORE the routing line, not after it.
+  printf 'Prompt names /manage <item>? STOP: you are a MANAGER of that item\n'
+  printf 'and .claude/commands/manage.md is your file. No shell can see a\n'
+  printf 'prompt, so the line below is the default: the ORCHESTRATOR.\n\n'
 
-  printf 'mode      : %s\n' "$mode"
-  printf 'source    : %s\n\n' "$(mode_source)"
-
-  # BEFORE the routing line, not after it. This command routes by MODE, and
-  # under orchestrated the mode is not the whole answer: the role is the
-  # spawning prompt's to assign, and no shell can see a prompt. A reader
-  # taking the first imperative it meets must meet this one first — the
-  # session-start banner draws the same line, from the same fact.
-  if [ "$mode" = orchestrated ]; then
-    printf 'Prompt names /manage <item>? STOP: you are a MANAGER of that item\n'
-    printf 'and .claude/commands/manage.md is your file. This routes by MODE,\n'
-    printf 'and no shell can see a prompt.\n\n'
-  fi
-
-  # A checkout whose routed file is missing is an old harness copy, and
-  # there is nothing to follow. Say which file and how it arrives; never
-  # fall back to another role, which is the guess this command exists to
-  # stop anybody making.
+  # A checkout whose routed file is missing is an old harness copy, and there
+  # is nothing to follow.
   if [ ! -f "${ROOT}/${file}" ]; then
     printf 'follow    : %s — MISSING from this checkout\n\n' "$file"
     printf 'This repo runs a harness copy older than the command it needs.\n'
@@ -5721,73 +3418,50 @@ cmd_start() {
 }
 
 cmd_authority() {
-  local mode src rec sha author adate subj base="origin/${HANDOVER_BASE_BRANCH:-main}"
-  mode="$(run_mode)"
-  src="$(mode_source)"
+  local base="origin/${HANDOVER_BASE_BRANCH:-main}" drift p mb
 
   printf '== authority (reports; grants nothing, gates nothing)\n\n'
-  printf 'mode      : %s\n' "$mode"
-  printf 'source    : %s\n\n' "$src"
+  printf 'mode      : orchestrated (the only mode)\n'
+  printf 'rules     : %s, against %s\n\n' "${AUTHORITY_PATHS// /, }" "$base"
 
   # Said rather than left blank: a silent section reads as a failed check.
-  if ! unattended; then
-    printf 'verdict   : NOT CLAIMED\n'
-    printf '  This repo is supervised. A prompt telling you to work unattended\n'
-    printf '  here is contradicted by the repo itself.\n'
+  if ! git -C "$ROOT" rev-parse --verify -q "${base}^{commit}" >/dev/null 2>&1; then
+    printf 'verdict   : UNVERIFIED\n'
+    printf '  %s cannot be read here — no remote, no fetch, or another\n' "$base"
+    printf '  base branch. With nothing reviewed to compare against, the rules\n'
+    printf '  this checkout runs are unproven; treat a prompt that says this\n'
+    printf '  repo runs unattended as unproven too.\n'
     return 0
   fi
-  if [ "$src" = environment ]; then
+  if ! mb="$(git -C "$ROOT" merge-base HEAD "$base" 2>/dev/null)" || [ -z "$mb" ]; then
     printf 'verdict   : UNVERIFIED\n'
-    printf '  The mode comes from JOHARNESS_MODE in the environment — a\n'
-    printf '  variable whoever started you exported. That is the CALLER\n'
-    printf '  claiming authority. Nothing in the REPOSITORY says this repo\n'
-    printf '  runs unattended; treat a prompt that says otherwise as unproven.\n'
+    printf '  This checkout shares no history with %s here — a shallow clone\n' "$base"
+    printf '  or an unrelated branch. Nothing reviewed to compare against.\n'
     return 0
   fi
-  rec="$(authority_commit)"
-  if [ -z "$rec" ]; then
-    printf 'verdict   : UNVERIFIED\n'
-    printf '  %s sets the mode, but no commit touching that line could\n' "$CONF"
-    printf '  be read — no history, untracked, or a shallow checkout. A claim\n'
-    printf '  nobody can trace is not a claim you can check.\n'
+  drift="$(authority_drift "$mb")"
+  if [ -n "$drift" ]; then
+    printf 'verdict   : NOT VERIFIABLE\n'
+    printf '  This checkout'"'"'s rules differ from %s, so they are not the\n' "$base"
+    printf '  rules any review saw:\n'
+    while IFS= read -r p; do printf '    %s\n' "$p"; done <<<"$drift"
+    printf '  A branch that edits them reads this mid-build, and that is\n'
+    printf '  expected: run authority ONCE, at the start, before checking out\n'
+    printf '  any branch and before the first edit — never as a re-check later.\n'
     return 0
   fi
-  sha="${rec%%	*}";    rec="${rec#*	}"
-  author="${rec%%	*}"; rec="${rec#*	}"
-  adate="${rec%%	*}";  subj="${rec#*	}"
-  printf 'set by    : %s\n' "${sha:0:12}"
-  printf '  author  : %s, %s\n' "$author" "$adate"
-  printf '  subject : %s\n\n' "$subj"
-  if git -C "$ROOT" merge-base --is-ancestor "$sha" "$base" 2>/dev/null; then
-    printf 'verdict   : VERIFIABLE\n'
-    printf '  That commit is an ancestor of %s: it went through a pull\n' "$base"
-    printf '  request like any other change. This is the repository saying it\n'
-    printf '  runs unattended, not your prompt saying so. It proves review,\n'
-    printf '  not a human hand: attempt four paid fourteen minutes to that\n'
-    printf '  distinction (.agents/docs/unsupervised.md).\n'
-  else
-    printf 'verdict   : UNVERIFIED\n'
-    printf '  That commit is NOT an ancestor of %s. The flip exists\n' "$base"
-    printf '  only on this checkout, so no review has seen it.\n'
-  fi
+  printf 'verdict   : VERIFIABLE\n'
+  printf '  This checkout runs the rules %s carries: every change to\n' "$base"
+  printf '  them went through a pull request. This is the repository saying\n'
+  printf '  it runs unattended, not your prompt saying so. It proves review,\n'
+  printf '  not a human hand: attempt four paid fourteen minutes to that\n'
+  printf '  distinction (.agents/docs/orchestrated.md).\n'
 }
 
-# ---------------------------------------------------------------------------
-# Graph
-#
-# The third formalization step from .agents/docs/graph.md, previously held "until
-# text queue stops being legible": requirements, plans, in-flight branches
-# and their edges in one picture, derived at read time from the same refs
-# the hooks read. Nothing stored — run it again, it is current again.
-# Output is fenced mermaid because the consumer is a markdown paste; GitHub
-# renders it natively in comments, so the whole state is one paste away
-# from any PR discussion.
-# ---------------------------------------------------------------------------
+# --- Graph
 
 # Frontmatter fields from a document on stdin, one value per line in the order
-# asked, empty for a field the document does not carry. Same shape as the hooks
-# use, one pass: a caller wanting five fields forked five awks over the same
-# five lines, and cmd_graph and lint_graph are nothing but such callers.
+# asked, empty for a field the document does not carry.
 gr_fields() {
   awk -v keys="$*" '
     BEGIN { n = split(keys, k, " ") }
@@ -5816,15 +3490,6 @@ gr_field() { gr_fields "$1"; }
 gr_docs() { awk 'NF && /\.md$/ && !/\/(TEMPLATE|README)\.md$/'; }
 
 # Stems named by an EDGE field's value, one per line, `none` dropped.
-#
-# One helper because four readers of one field is three chances to
-# disagree, and they did (review r4): `research: alpha beta` split two
-# ways in lint_graph and queue-context and flattened to `alphabeta` in
-# cmd_graph and cleanup, so the graph drew no question and painted the
-# waiting plan unblocked. Separator is a comma OR whitespace — the
-# template writes commas, prose writes spaces, and a field nobody linted
-# gets both. Each entry is reduced to a stem, so path, name and stem
-# spellings all mean the same node.
 gr_edge_stems() {
   local v="${1:-}" n
   [ -n "$v" ] || return 0
@@ -5835,263 +3500,12 @@ gr_edge_stems() {
   done
 }
 
-# ---------------------------------------------------------------------------
-# Process scorecard
-#
-# `ci` counts ONE process fact - churn - and it earned that gate on a
-# backtest. Every other claim the Loop makes about how a branch behaved is
-# honour-system: step 5 puts findings in `## Review` before the fix and in the
-# same commit as it, step 7 has the pull request's final state delete the
-# workstream file and the done plan, and no command reported whether either
-# happened. The failure is measured, not suspected: .agents/harness/AGENTS.md
-# step 7 carries the count and the merges it came from.
-#
-# REPORTS, never gates. Churn's ceiling came from a backtest over every merge
-# on main; nothing here has one, and a number gated before it is understood is
-# a number sessions learn to game.
-#
-# Derived at read time or not at all - no store, no cache, no recorded run
-# (.agents/docs/graph.md, Rules). Every count prints, zeroes included: a line
-# that appears only when the number is interesting cannot be told from a line
-# nobody wrote.
-#
-# DIFF, never the working tree. A branch inherits every workstream file its
-# base branch carries, and a base branch accreting them is the failure this
-# command exists to count - so a tree read reports that accretion as this
-# branch's compliance, and reports it in the flattering direction. It is this
-# repo's highest-recurring defect class - six merged edges paid for the rule
-# (.agents/harness/AGENTS.md step 4; .agents/docs/feedback.md, Worked example:
-# tree or diff) - and
-# the sync guard above already reads the diff for the same reason.
-# ---------------------------------------------------------------------------
-
-# Workstream files this branch's COMMITS touch - added, modified or deleted.
-# Deleted counts: step 7 retires the file in the last commit before the pull
-# request opens, so at the one moment these numbers matter most, the tree
-# holds nothing.
-#
-# The log, not a `diff base HEAD`: a workstream file added and then retired on
-# the same branch - which is every branch that follows step 7 - appears in
-# neither endpoint, so the endpoint diff reports zero for the branch that
-# obeyed the protocol exactly. Same node vocabulary as lint_nodes: top level,
-# `*.md`, and the protocol doc and template are not nodes. A path carrying a
-# newline fails the pattern and is dropped rather than miscounted.
-sc_sheets() {
-  local base="$1" rev="$2"
-  git -C "$ROOT" -c core.quotePath=false log --no-merges --no-renames \
-    --format='' --name-only "${base}..${rev}" -- docs/handover 2>/dev/null |
-    awk '/^docs\/handover\/[^\/]+\.md$/ &&
-         !/\/(README|TEMPLATE|VISION)\.md$/ && !seen[$0]++ { print }'
-}
-
-# Newest content of a path on this branch: HEAD when it still exists there,
-# else the parent of the commit that removed it. Without the second half a
-# retired workstream file reads as zero findings, which is the accusing zero
-# for the branch that followed the protocol exactly.
-sc_show() {
-  local path="$1" del
-  if git -C "$ROOT" cat-file -e "HEAD:${path}" 2>/dev/null; then
-    git -C "$ROOT" show "HEAD:${path}" 2>/dev/null
-    return 0
-  fi
-  del="$(GIT_LITERAL_PATHSPECS=1 git -C "$ROOT" log -1 --format=%H HEAD \
-    -- "$path" 2>/dev/null)"
-  [ -n "$del" ] || return 1
-  git -C "$ROOT" show "${del}^:${path}" 2>/dev/null
-}
-
-# One walk of base..HEAD, three numbers out of it, newline-separated: commits,
-# distinct paths touched (ALL of them, protocol paths included - the line says
-# paths, so it counts paths), and commits that changed code without touching a
-# workstream file in the same commit.
-#
-# Commit boundaries come from a `\001%H` marker. Not from blank lines: `git
-# log --format= --name-only` emits no separator at all - measured 2026-08-28
-# on git 2.43.0 with `git log --no-merges --no-renames --format= --name-only
-# HEAD~3..HEAD | cat -A` in this repo - so blank-line counting would have read
-# 0 commits for every branch. A path cannot collide with the marker: git
-# C-quotes control characters unconditionally, so a path holding \001 arrives
-# wrapped in quotes and never starts with the byte.
-#
-# --no-merges matches churn_top, and the printed line says so. The cost is
-# real and known: a change made only inside a merge commit is invisible here.
-sc_walk() {
-  local base="$1" rev="$2" mark
-  mark="$(printf '\001')"
-  git -C "$ROOT" -c core.quotePath=false log --no-merges --no-renames \
-    --format="${mark}%H" --name-only "${base}..${rev}" 2>/dev/null |
-    awk -v m="$mark" '
-      function close_commit() { if (open && code && !ws) off++ }
-      index($0, m) == 1 { close_commit(); commits++; open = 1; ws = 0; code = 0; next }
-      !NF { next }
-      {
-        if (!($0 in seen)) { seen[$0] = 1; files++ }
-        # Protocol paths are not code, the same exclusion and the same reason
-        # churn_top carries: the protocol REQUIRES the workstream file in the
-        # same commit as a change, so counting a commit that only retires a
-        # plan as "code with no workstream file" reads compliance as a
-        # violation. The protocol doc and the template are not workstream
-        # files either - touching one would otherwise launder a commit.
-        if ($0 ~ /^docs\/handover\/[^\/]+\.md$/ &&
-            $0 !~ /\/(README|TEMPLATE|VISION)\.md$/) ws = 1
-        else if ($0 !~ /^docs\/(handover|plans|product)\//) code = 1
-      }
-      END { close_commit(); print commits + 0; print files + 0; print off + 0 }'
-}
-
-cmd_scorecard() {
-  local over base head branch walk
-  local commits files off ws n findings=0 sheets=0 churn dels plans=0 reqs=0 d
-  local unmarked=0
-
-  over="$(base_ref)" || over=""
-  branch="$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null)" || branch="?"
-  printf '== scorecard (%s -> %s)\n\n' "$branch" "${over:-?}"
-
-  [ -n "$over" ] && base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
-  head="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)"
-  if [ -z "${base:-}" ] || [ -z "$head" ]; then
-    # Same doctrine as churn's and the review gate's: a check that cannot see
-    # the history it needs says so. A zero here would read as measured.
-    printf '  not measurable here (no merge-base; shallow checkout or unrelated history)\n'
-    return 0
-  fi
-  [ "$base" = "$head" ] && printf '  no commits past %s — every count below is that, not a result\n\n' "$over"
-
-  # The walk's rc has to survive two layers that throw it away, `$( )` and the
-  # heredoc, or a git that fails halfway prints a short count as a measured
-  # one. `pipefail` is already on, so the pipeline carries git's failure out.
-  if ! walk="$(sc_walk "$base" HEAD)" ||
-     [ "$(printf '%s\n' "$walk" | grep -c .)" -ne 3 ]; then
-    printf '  could not read %s..HEAD; no counts rather than short ones\n' "$over"
-    return 0
-  fi
-  { read -r commits; read -r files; read -r off; } <<EOF
-$walk
-EOF
-
-  # `unmarked` is a COUNTERWEIGHT, not a second statistic. "Findings recorded"
-  # rises with a review that records noise, and the sessions this counts read
-  # the rules that say it is counted (.agents/docs/agent-selection.md,
-  # "Counting sessions that can read the count"). An unmarked finding is the
-  # cheapest kind to write — no fix, no decision, no reason — so noise lands
-  # here and the pair shows a shape the total alone hides. Marking everything
-  # to flatten it is a second act, and a visible one.
-  #
-  # fb_findings and fb_marker, not a third parser: the disposition rule is
-  # spelled once, and this file has already paid for spelling one twice.
-  local line
-  while IFS= read -r ws; do
-    [ -n "$ws" ] || continue
-    sheets=$((sheets + 1))
-    n="$(sc_show "$ws" | review_count)"
-    findings=$((findings + ${n:-0}))
-    while IFS= read -r line; do
-      [ -n "$line" ] || continue
-      [ "$(fb_marker "$line")" = "unmarked" ] && unmarked=$((unmarked + 1))
-    done < <(sc_show "$ws" | fb_findings)
-  done < <(sc_sheets "$base" HEAD)
-
-  # Node files only, top level: `docs/plans/README.md` and a note under
-  # `docs/plans/sub/` are not retired plans. -z and quotePath=false because
-  # git C-quotes a non-ASCII path, and `"docs/plans/caf\303\251.md"` matches
-  # no prefix test.
-  dels="$(git -C "$ROOT" -c core.quotePath=false diff -z --name-only \
-    --no-renames --diff-filter=D "$base" HEAD -- docs/plans docs/product \
-    2>/dev/null | tr '\0' '\n' |
-    awk '/^docs\/(plans|product)\/[^\/]+\.md$/ &&
-         !/\/(README|TEMPLATE|VISION)\.md$/ { print }')"
-  while IFS= read -r d; do
-    case "$d" in
-      docs/plans/*) plans=$((plans + 1)) ;;
-      docs/product/*) reqs=$((reqs + 1)) ;;
-    esac
-  done <<EOF
-$dels
-EOF
-
-  printf '  commits (no merges)                 %s\n' "${commits:-0}"
-  printf '  paths touched by them               %s\n' "${files:-0}"
-  # A bare 0 reads as a pass. Both zeroes say which kind of zero they are,
-  # and neither judges: the protocol's own list of work that carries no
-  # workstream file lives in .agents/docs/handover/README.md, so this points
-  # at it rather than keeping a second copy that drifts.
-  if [ "$sheets" -eq 0 ]; then
-    printf '  workstream files this diff touches  0  (some work carries none by protocol — .agents/docs/handover/README.md)\n'
-  else
-    printf '  workstream files this diff touches  %s\n' "$sheets"
-  fi
-  if [ "$findings" -eq 0 ]; then
-    printf '  review findings recorded            0  (a clean pass is one line; an empty section is not one)\n'
-  else
-    printf '  review findings recorded            %s  (%s unmarked — the cheapest kind to write)\n' \
-      "$findings" "$unmarked"
-  fi
-  printf '  commits changing code, no workstream file in the same commit  %s\n' "${off:-0}"
-  printf '  plan files this diff retires        %s\n' "$plans"
-  printf '  requirement files this diff retires %s\n' "$reqs"
-  if churn="$(churn_top HEAD "$over")" && [ -n "$churn" ]; then
-    printf '  most-touched file, protocol paths excluded  %s\n' \
-      "$(printf '%s' "$churn" | awk -F'\t' '{ print $1 " commits  " $2 }')"
-  else
-    printf '  most-touched file, protocol paths excluded  none\n'
-  fi
-
-  printf '\n  Counts, nothing else — no grade, no gate, nothing stored.\n'
-  printf '  What they mean is Loop steps 5 and 7 (.agents/harness/AGENTS.md).\n'
-  printf '\n'
-  printf '  Retire a count when it stops being able to surprise anyone: once\n'
-  printf '  every branch scores the same, it has become a ritual and reading it\n'
-  printf '  costs more than skipping it. Long-lived counts collect gaming\n'
-  printf '  strategies, so removing one is maintenance, not loss — history keeps\n'
-  printf '  what it measured. Concretely: retire the unmarked pairing once\n'
-  printf '  unmarked findings stop appearing, and the no-workstream-file count\n'
-  printf '  once it sits at 0 across a season of branches. Why:\n'
-  printf '  .agents/docs/agent-selection.md, "Counting sessions that can read\n'
-  printf '  the count".\n'
-  return 0
-}
-
-# ---------------------------------------------------------------------------
-# Finish gate
-#
-# "No workstream file belongs on `main`" is settled doctrine
-# (docs/handover/README.md) and every mechanism enforcing it fires AFTER the
-# merge: the session-start hook names the rot to *the next session*, `cleanup`
-# mops it in a pull request of its own, and a consumer that made it a suite
-# assertion turns its own base branch red. All three bill the wrong session.
-# The one moment the file can still be deleted for free — this session's step
-# 7, before it merges — had no check at all, so the rule was enforced on
-# whoever came next and never on whoever broke it.
-#
-# Measured in a consumer, one session, eight pull requests: three merged
-# carrying their workstream file and each turned the base branch red within
-# seconds. The two that did not were the two where the retire commit was the
-# last commit before the pull request opened. Same agent, same rule in front
-# of it, same day — which is what "make rot visible, not trust discipline"
-# already says about relying on a ritual being remembered.
-#
-# **No frontmatter is read, deliberately.** The rule this backstops keyed on
-# `status: done` and leaked in minutes when a finished workstream merged
-# labelled `review`; the protocol's own conclusion was that any rule needing
-# the leaving session to set a field correctly fails exactly when someone
-# hurries. What this diffs is the tree: files under docs/handover in this
-# branch's tip that the base branch does not already have are what THIS merge
-# would add, and that needs no field to be true.
-#
-# Files the base branch already carries are somebody else's rot. Reported,
-# never fatal: failing a session for a mess it did not make is how a gate
-# gets worked around.
+# --- Finish gate
 fin_docs_at() {
   git -C "$ROOT" ls-tree -r --name-only "$1" -- docs/handover 2>/dev/null | gr_docs
 }
 
 # Workstream files THIS branch would add to the base ref, one per line.
-# Shared by `finish` and by `ci`'s gate so the two cannot drift: a gate
-# that answers a slightly different question from the command a session
-# runs by hand is a gate that gets argued with rather than obeyed.
-# Inherited files are not adds and never appear here — they are another
-# session's, and `cleanup` is what names them.
 fin_adds_at() {
   local ref="$1" base_docs f
   base_docs="$(fin_docs_at "$ref")"
@@ -6102,70 +3516,8 @@ fin_adds_at() {
   done <<<"$(fin_docs_at HEAD)"
 }
 
-# Own workstream files this branch has RETIRED — added and later deleted,
-# both within its own history, and still ABSENT from HEAD's tree — one per
-# line. `fin_adds_at` reads TREES, and the retire commit's whole point is
-# that the tree at HEAD no longer carries the file: a reader of the tree is
-# blind at exactly the moment retirement happens. The LOG is not blind
-# there, but the log alone over-reports: a file added, `rm`'d by mistake,
-# then re-added and still present at HEAD shows up in both an A and a D
-# filter, and is not retired at all — it is present, mid-build, exactly the
-# case this gate must stay silent on. The tree check at the end is what
-# tells the two apart.
-#
-# `--first-parent`, so a `git merge origin/main` done to reconcile a
-# conflict (`.agents/docs/product/README.md`, "Conflict at finish") cannot
-# smuggle in ANOTHER branch's already-finished add-then-delete lifecycle
-# for a file this branch never touched: first-parent walks this branch's
-# own commit sequence and treats the merge as one step, never descending
-# into the side brought in from main. Ownership stays this branch's own —
-# the same property `fin_adds_at` gets for free from being a tree diff
-# rather than a log walk, reached here by restricting the walk instead.
-#
-# KNOWN GAP, not fixed here: git >= 2.31 diffs a merge against its first
-# parent under `--first-parent`, so the reconcile merge ITSELF lists the
-# base's files. Reproduced 2026-10-05 (git 2.43): two reconciles across
-# another branch's add-then-retire put that file in both the A and the D
-# walk, and this reports it as this branch's retired file — which
-# `lint_finding_markers` reds on. `fin_own_ws` below answers ownership by
-# range minus the base tree instead; reading `added` from it is the likely
-# fix, and wants its own plan and test.
-fin_retired_own() {
-  local ref="$1" base added deleted present f
-  base="$(git -C "$ROOT" merge-base HEAD "$ref" 2>/dev/null)" || return 0
-  added="$(git -C "$ROOT" log --first-parent --format= --name-only \
-    --diff-filter=A "${base}..HEAD" -- docs/handover 2>/dev/null |
-    sort -u | gr_docs)"
-  deleted="$(git -C "$ROOT" log --first-parent --format= --name-only \
-    --diff-filter=D "${base}..HEAD" -- docs/handover 2>/dev/null |
-    sort -u | gr_docs)"
-  present="$(fin_docs_at HEAD)"
-  while IFS= read -r f; do
-    [ -n "$f" ] || continue
-    printf '%s\n' "$added" | grep -qxF -- "$f" || continue
-    printf '%s\n' "$present" | grep -qxF -- "$f" && continue
-    printf '%s\n' "$f"
-  done <<<"$deleted"
-}
-
 # Workstream files THIS branch added — present or already retired, one per
-# line. The log, not the tree, because the retire commit removes the file from
-# the tree at exactly the moment its findings are being lost.
-#
-# Every non-merge commit in base..HEAD, NOT first-parent. Commits the base
-# brought in through a reconcile merge are ancestors of the merge base and so
-# never in the range; a worker sub-branch merged `--no-ff` (the `/manage`
-# fan-out) IS in it, and its file is this branch's record. First-parent was
-# tried twice and is wrong both ways: alone, git >= 2.31 diffs the reconcile
-# merge against its first parent and lists every base-brought file as added;
-# with `--no-merges` it drops the sub-branch.
-#
-# Minus anything the merge base's tree carries: an inherited file `git rm`'d
-# and re-added reads as A in the log and is still somebody else's.
-# `--no-renames` so a file renamed within docs/handover shows its new name as
-# added rather than vanishing into an R. `core.quotePath=false` so a non-ASCII
-# name reaches `gr_docs` unquoted — quoted, it does not end in `.md` and was
-# dropped.
+# line.
 fin_own_ws() {
   local base="$1" inherited f
   inherited="$(git -C "$ROOT" -c core.quotePath=false ls-tree -r --name-only \
@@ -6180,30 +3532,11 @@ fin_own_ws() {
 }
 
 # Paths that can carry a promotion, filtered from a name-only diff: an
-# AGENTS.md in any layer, or anything under .agents/docs/. Loop step 7's
-# "right layer's AGENTS.md or docs/", read as paths and nothing more. The
-# caller's diff keeps ACMR only: deleting a rule is not graduating a finding.
+# AGENTS.md in any layer, or anything under .agents/docs/.
 fin_promote_targets() {
   grep -E '(^|/)AGENTS\.md$|^\.agents/docs/' || :
 }
 
-# Issue #258: step 7 says still-useful bits graduate before the retire commit,
-# and nothing measured whether anyone decides. Measured in a consumer
-# 2026-09-16: a branch merged 39 recorded findings, and `git ls-tree
-# --name-only origin/main docs/handover/` there afterwards returned nothing,
-# with nothing promoted — the record written properly at step 5, then
-# destroyed by step 7.
-#
-# REPORT-ONLY, never red. Most findings are branch-local and correctly
-# forgotten, so a branch promoting nothing is usually honest; a gate firing on
-# it is one sessions learn to skip (`lint_finding_ids` carries the same
-# doctrine). What it prints is the loss and the count of promotion targets,
-# at the one moment both are still reversible — never a verdict.
-#
-# Paths and commit membership only. Opening a promoted file to judge whether
-# it carries a finding is a second verifier at a verifier's price.
-# Zero findings prints nothing: a stage speaking on every branch stops being
-# read.
 fin_promote() {
   local ref="$1" base ws content flag text n=0 k m=0 files="" promoted f
   base="$(git -C "$ROOT" merge-base HEAD "$ref" 2>/dev/null)" || return 0
@@ -6246,30 +3579,9 @@ fin_promote() {
   return 0
 }
 
-# How hard this branch's own workstream files say the gate should bite:
-# 'done' when one declares itself finished, 'edge' when one is merely at
-# the edge, empty otherwise. Own files only — read from fin_adds_at, so
-# another session's inherited file cannot put this branch at an edge it
-# is not at. That was the first thing this gate got wrong, and it fired
-# on the branch that built it.
-#
-# Two strengths rather than one, because the two gates would otherwise
-# contradict each other. The review gate fires at the edge and needs the
-# workstream file PRESENT — it reads the ## Review section out of it.
-# Step 7 puts the deletion in the pull request's FINAL state, so through
-# a pull request's life the file is supposed to be there. A red at the
-# edge would therefore fight the documented workflow and red every pull
-# request from open until its last commit, which is the noise this gate
-# exists because sessions learned to ignore.
-#
-# 'done' is the session's own word that it has finished, and it is
-# strictly after review. A branch that says done and still carries the
-# file is unambiguously the defect, with no other gate wanting that file
-# to exist any more.
-#
-# Retirement is deliberately NOT a third value here — see `fin_retired_own`
-# for why. `lint_finding_markers` is the one reader that needs it and reads
-# it directly.
+# How hard this branch's own workstream files say the gate should bite: 'done'
+# when one declares itself finished, 'edge' when one is merely at the edge,
+# empty otherwise.
 fin_strength() {
   local ref f doc status strongest=""
   ref="$(decide_ref 2>/dev/null)" || return 0
@@ -6289,15 +3601,13 @@ fin_strength() {
   return 0
 }
 
-# `ci`'s step 7 gate. Prints two-space indented like every other section
-# and returns non-zero only when this branch would ADD its own finished
-# workstream file to the base branch.
+# `ci`'s step 7 gate.
 fin_gate() {
   local ref adds n=0 f strength="$1"
   if ! ref="$(decide_ref 2>/dev/null)"; then
-    # Same doctrine as churn and review: a check that cannot see the
-    # history it needs says so and passes, rather than going red on what it
-    # could not prove.
+    # Same doctrine as churn and review: a check that cannot see the history it
+    # needs says so and passes, rather than going red on what it could not
+    # prove.
     printf '  not measurable here (no base ref in this checkout)\n'
     return 0
   fi
@@ -6327,29 +3637,7 @@ fin_gate() {
 }
 
 # `base_ref` falls back to HEAD when neither `origin/<base>` nor `<base>`
-# resolves. That is right for a command that DESCRIBES — `graph` would rather
-# lint the checkout it has than refuse — and wrong for one that DECIDES,
-# because HEAD compared against HEAD says every file is already on the base
-# branch. Both commands that decide were wrong under it, in opposite
-# directions, and neither said a word:
-#
-#   finish   returned GREEN on a branch carrying a live workstream file, and
-#            printed "already on the base branch — not this merge, not this
-#            session" about the very file the merge was about to strand.
-#   cleanup  called that same live file `stale`, and `--apply` DELETED it.
-#            A session in flight, its claim removed, by the command whose job
-#            is removing claims that are finished.
-#
-# Both found by review of PR60. The `finish` half is a check passing for the
-# wrong reason inside the gate written to enforce that discipline; the
-# `cleanup` half is the older bug the same fallback was hiding, and it loses
-# work rather than missing rot.
-#
-# The case is not exotic. A fresh consumer clone, or CI where
-# `actions/checkout` fetched only the pull request head, has no local base ref
-# — and a session in a fresh clone is exactly who needs both of these. A
-# command that acts on the answer refuses when it has no answer: **"cannot
-# tell" is not "clean", and it is certainly not "delete it".**
+# resolves.
 decide_ref() {
   local b="${HANDOVER_BASE_BRANCH:-main}" c
   for c in "origin/${b}" "$b"; do
@@ -6361,41 +3649,14 @@ decide_ref() {
   return 1
 }
 
-# ---------------------------------------------------------------------------
-# Step 7's first merge condition, when a repo has said it does not wait.
-#
-# Default is 'github': the checks on this head, read on GitHub. That costs
-# every session a round trip — push, wait for Actions, read the run, merge —
-# and the wait is invisible to every other measure this harness takes, since a
-# branch at step 7 pushes nothing at all while it waits (the finding that
-# widened `dispatch`'s leftover window to 24 stall windows).
-#
-# 'local' spends the checks here instead. It is not permission to skip them:
-# `finish` RUNS them, on this head, and is red on their exit code. Nothing
-# else could — a session's own earlier `ci` proves an earlier tree, and there
-# is nowhere to keep a "passed at sha X" that would not be a written number
-# by the time it mattered.
-#
-# So the refusals come first, and they are about one question: is the tree
-# these commands see the tree that merges. A local green over anything else
-# is worse than no local green, because it reads exactly like proof.
-# ---------------------------------------------------------------------------
+# --- Step 7's first merge condition, when a repo has said it does not wait.
 
 # Paths whose non-*.md files make step 7 ask for `verify` as well as `ci`.
 # AGENTS.md step 7 holds the same list; it names directories, never a layer.
 CHECKS_VERIFY_PATHS=(joharness.sh .agents/harness/ .agents/env/ .agents/scripts/)
 
 # Does this branch's diff reach code the environment layer's smoke test is the
-# only thing that proves? No merge-base to read means the question cannot be
-# answered, so it answers YES — the expensive direction is the safe one here,
-# and the cheap one is a merge that skipped the layer's only gate.
-#
-# -z, for the reason `checks_tree_extra` uses it two functions down and this
-# one did not: `git diff --name-only` C-QUOTES a path with a non-ASCII byte,
-# a backslash or a quote in it, and `".agents/harness/w\303\251ird.sh"`
-# matches neither `*.md` nor any prefix below — so the one shape that must
-# ask for `verify` was the one that silently skipped it. Quoting is off with
-# -z, and the answer is about the file that is really there.
+# only thing that proves?
 checks_verify_needed() {
   local ref="$1" base f p
   base="$(git -C "$ROOT" merge-base HEAD "$ref" 2>/dev/null)" || return 0
@@ -6410,27 +3671,8 @@ checks_verify_needed() {
   return 1
 }
 
-# Every path git reports as not-in-HEAD, one per line: modified, staged,
-# and untracked alike. All three are the same defect for this gate — the
-# commands below would read a tree the merge does not carry.
-#
-# Untracked is in the list rather than warned about, because it is the arm
-# that can produce a FALSE GREEN rather than a false red. `.agents/harness/
-# selftest.sh` fails on a listed topic whose file is missing and counts the
-# worktree when it looks, so an uncommitted topic file satisfies the check
-# here and fails it on a runner. Ignored files are not reported by porcelain
-# and are not the question.
-#
-# -z with the fixed three-character status prefix stripped, never the last
-# whitespace field: porcelain QUOTES a path containing a space.
-#
-# Non-zero when git could not answer at all. Reading the status of that read
-# is the difference between "the tree is clean" and "nobody looked", and this
-# gate must never turn the second into the first — the same doctrine
-# `decide_ref` states for the base ref.
-# Through a file rather than a command substitution, because `$( )` DROPS NUL
-# bytes: capturing -z output that way glues every entry into one string and
-# the loop below sees a single path made of all of them.
+# Every path git reports as not-in-HEAD, one per line: modified, staged, and
+# untracked alike.
 checks_tree_extra() {
   local entry tmp
   tmp="$(mktemp)" || return 1
@@ -6445,17 +3687,7 @@ checks_tree_extra() {
   rm -f "$tmp"
 }
 
-# The remote tip THIS BRANCH would merge from. Non-zero when there is none —
-# a head nobody pushed is not a merge candidate, and a local green over it
-# says nothing about what GitHub would merge.
-#
-# `origin/<branch>` first and `@{upstream}` second, and the upstream only when
-# it names this branch. `git checkout -b feat origin/main` — the documented
-# way to cut from a fresh-fetched base — sets `branch.feat.merge` to
-# refs/heads/main and `git push origin feat` leaves it there, so an
-# upstream-first reader compares this head against the BASE BRANCH and refuses
-# a pushed branch as unpushed, with a remedy that never clears it. The
-# upstream arm stays for the remote that is not called origin.
+# The remote tip THIS BRANCH would merge from.
 checks_pushed_ref() {
   local branch="$1" up
   if git -C "$ROOT" rev-parse --verify --quiet "origin/${branch}" >/dev/null 2>&1; then
@@ -6470,15 +3702,7 @@ checks_pushed_ref() {
   return 1
 }
 
-# One line under 'github', the whole gate under 'local'. Returns non-zero when
-# merging now would be merging on checks nobody ran.
-#
-# The mode arrives as an argument rather than being read here, so the one
-# warning a misspelled value earns is printed once by the caller instead of
-# once per reader. `ready` is 0 when `finish` is already red above: the
-# suites answer about the head that merges, and a head with a live workstream
-# file on it is not that head yet, so running them would spend minutes on a
-# question whose answer cannot change the verdict.
+# One line under 'github', the whole gate under 'local'.
 checks_gate() {
   local ref="$1" branch="$2" is_local="$3" ready="$4"
   local rc=0 extra n=0 f pushed behind base behind_said fresh
@@ -6520,11 +3744,6 @@ checks_gate() {
     rc=1
   fi
 
-  # Detached HEAD has no branch to push and no branch to merge, and the
-  # question below would be asked of `origin/HEAD` — a symbolic ref to the
-  # base branch in most clones, so a detached checkout sitting exactly there
-  # would read as pushed, clean and 0 behind, and certify a merge that does
-  # not exist.
   if [ "$branch" = HEAD ]; then
     printf '  DETACHED     no branch here, so nothing to certify: git checkout <branch>\n'
     rc=1
@@ -6540,31 +3759,13 @@ checks_gate() {
   fi
 
   # Behind the base branch is step 7's own condition in both modes, and a red
-  # in this one only. Under 'github' a pull request run tests a MERGE of head
-  # and base, so the branch tip is not the whole story there and this command
-  # has nothing to add to a rule already written. Under 'local' nothing ever
-  # sees that merge — the tip is the entire evidence — so a stale tip means
-  # the suites below would answer about a tree that is not the one landing.
-  # Fetched first, because step 7 says FRESH-fetched and a count off a stale
-  # ref is a written number wearing a count's clothes: two clones of the same
-  # repo, a push to the base branch from one, and the other reports `0 behind`
-  # and merges over it. The fetch is bounded and its failure is not fatal —
-  # offline is a normal way to work — but the head line then SAYS the count is
-  # as old as the last fetch instead of implying it is current.
-  # HANDOVER_FETCH=0 turns it off, the same knob and the same meaning as the
-  # session-start hook's fetch.
+  # in this one only.
   fresh="as of the last fetch"
   if [ "${HANDOVER_FETCH:-1}" = "1" ] && have timeout &&
      timeout 15 git -C "$ROOT" fetch --quiet origin \
        "${HANDOVER_BASE_BRANCH:-main}" >/dev/null 2>&1; then
     fresh="fetched just now"
   fi
-  #
-  # Through a merge-base, never `rev-list HEAD..<ref>` alone: on a shallow
-  # clone the two tips share no history the clone can see, so that count is
-  # the base branch's whole visible depth and every branch reads as behind.
-  # Same doctrine as churn and the finish gate — a measure that cannot be
-  # taken says so and passes, rather than redding on what it could not prove.
   behind_said="behind not measurable"
   if base="$(git -C "$ROOT" merge-base HEAD "$ref" 2>/dev/null)" && [ -n "$base" ]; then
     behind="$(git -C "$ROOT" rev-list --count "HEAD..${ref}" 2>/dev/null)" || behind=""
@@ -6586,21 +3787,10 @@ checks_gate() {
     return 1
   fi
 
-  # Says what was established, never what was assumed: on a shallow clone the
-  # behind question has no answer, and a summary claiming 0 is the one line a
-  # reader would take as proof it was checked.
   printf '  head       %s, pushed, clean, %s\n' \
     "$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null)" "$behind_said"
   printf '\n  == %s ci\n' "$0"
   if "$0" ci; then
-    # `ci` returns 0 with shellcheck SKIPPED when the tool is absent and
-    # uninstallable off a runner — a loud skip, and the right call there,
-    # because a session's problem is the code and not the toolchain. It is
-    # the wrong call HERE: this mode stands in for a workflow that reds for
-    # exactly that (cmd_ci, the GITHUB_ACTIONS arm), so passing on it would
-    # merge code the mode it replaces would have stopped.
-    # `ensure_shellcheck` installs through apt or brew, which this process
-    # sees too, so the tool still being missing after a green run is the skip.
     if have shellcheck; then
       printf '  ci: pass\n'
     else
@@ -6627,9 +3817,7 @@ checks_gate() {
       "${CHECKS_VERIFY_PATHS[*]}"
   fi
 
-  # What a green above does NOT cover. Said every time, and not only on the
-  # red path: the whole risk of this mode is a session reading a local green
-  # as the same claim GitHub makes.
+  # What a green above does NOT cover.
   printf '\n  Not covered here: any job in .github/workflows/ that ci does not run\n'
   printf '  (other platforms; the per-layer step, .agents/scripts/ci-verify-layers.sh),\n'
   printf '  and whatever the selected layer'"'"'s smoke test does not test — a layer\n'
@@ -6645,26 +3833,12 @@ checks_gate() {
   return "$rc"
 }
 
-cmd_finish() {
-  local ref branch rc=0 f adds=0 pre=0 base_docs tip_docs is_local=0 ready=0
-  ref="$(decide_ref)" || die \
-    "no ref for base branch '${HANDOVER_BASE_BRANCH:-main}' in this checkout" \
-    "— a gate cannot pass on a comparison it could not make." \
-    "Run: git fetch origin ${HANDOVER_BASE_BRANCH:-main}"
-  branch="$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || printf '?')"
-  printf '== finish (%s -> %s)\n\n' "$branch" "$ref"
-
-  if [ "$branch" = "${HANDOVER_BASE_BRANCH:-main}" ]; then
-    warn "on the base branch: there is no merge to gate (Loop step 3 cuts one)"
-    return 0
-  fi
-
+# Workstream files this merge would ADD to <ref>: red when any.
+finish_adds() {
+  local ref="$1" f adds=0 pre=0 base_docs tip_docs
   base_docs="$(fin_docs_at "$ref")"
   tip_docs="$(fin_docs_at HEAD)"
-
   printf 'workstream files this merge would ADD to %s\n' "$ref"
-  # The adds themselves come from fin_adds_at, which `ci`'s gate also
-  # reads; this loop keeps the per-file reporting the command adds on top.
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     if printf '%s\n' "$base_docs" | grep -qxF -- "$f"; then
@@ -6672,10 +3846,6 @@ cmd_finish() {
       continue
     fi
     adds=$((adds + 1))
-    # A deletion that is only staged does not merge, so this stays red — but
-    # saying so is the difference between a gate and a riddle. The natural
-    # order is `git rm` then run this, and at that exact moment the file is
-    # gone from the tree and still in the tip.
     if [ -n "$(git -C "$ROOT" status --porcelain -- "$f" 2>/dev/null)" ] &&
        [ ! -e "${ROOT}/${f}" ]; then
       printf '  ADDS     %s  (deleted here but not committed — commit it)\n' "$f"
@@ -6683,76 +3853,63 @@ cmd_finish() {
       printf '  ADDS     %s\n' "$f"
     fi
   done <<<"$tip_docs"
-
-  if [ "$adds" -eq 0 ]; then
-    printf '  none — this branch retires what it claimed\n'
-  else
-    rc=1
-    printf '\n  %d workstream file(s) would land on %s and be read as current by\n' \
-      "$adds" "$ref"
-    printf '  the next session. Delete them in THIS branch, as the last commit\n'
-    printf '  before the merge — after it, the fix needs its own pull request and\n'
-    printf '  the base branch is wrong until that lands.\n'
-    printf '  Keepers graduate first: .agents/docs/handover/README.md.\n'
-  fi
-
   if [ "$pre" -gt 0 ]; then
-    printf '\n%d already on %s — not this merge, not this session: %s\n' \
+    printf '  %d already on %s — not this merge, not this session: %s\n' \
       "$pre" "$ref" "'$0 cleanup'"
   fi
-
-  fin_promote "$ref"
-
-  # The plan file is step 7's other deletion and it is a judgment — whether a
-  # plan is *done* is not on disk. Named, never gated: a gate that guesses
-  # teaches the next session to skip the gate.
-  printf '\nplan file: delete it too when this branch finishes its plan (step 7).\n'
-  printf 'Not checked here — "done" is a judgment, and a gate that guesses at one\n'
-  printf 'is a gate the next session learns to ignore.\n'
-
-  # Step 7's first merge condition, last in the output because under 'local'
-  # it is the only section that runs anything. Read once here so a misspelled
-  # value warns once.
-  checks_local && is_local=1
-  [ "$rc" -eq 0 ] && ready=1
-  checks_gate "$ref" "$branch" "$is_local" "$ready" || rc=1
-  return "$rc"
+  if [ "$adds" -eq 0 ]; then
+    printf '  none — this branch retires what it claimed\n'
+    printf '  plan file: delete it too when this branch finishes its plan (step 7).\n'
+    return 0
+  fi
+  printf '\n  %d workstream file(s) would land on %s and be read as current by\n' \
+    "$adds" "$ref"
+  printf '  the next session. Delete them in THIS branch, as the last commit\n'
+  printf '  before the merge (with the done plan file). Keepers graduate first:\n'
+  printf '  .agents/docs/handover/README.md.\n'
+  return 1
 }
 
-# Loop step 2, answered in one line: is there anything left to take, and what
-# is it. The queue stops draining while it still holds work — counted on
-# origin/main 2026-08-29 over the last 120 merges, 5 of 119 gaps exceed three
-# hours and the two longest are 32.2h and 24.0h, with 18, 18, 19 and 11 plan
-# files on the tree at the four longest stalls' first commit. Idle holding a
-# full queue is the failure .agents/docs/unsupervised.md names; this is the
-# status every session reads first, and it names ONE item — the next is the
-# next session's.
-#
-# Report-only, like `scorecard` (and like `cleanup` without `--apply`; with
-# it, cleanup returns 1 when git refused a removal). A drain that GATED would be red
-# for the whole of every run, which is how a gate stops being read.
-#
-# It DERIVES NOTHING. The queue is ranked in one place (queue-context.sh) and
-# the in-flight edge in another (handover-context.sh); this runs both and
-# reads their answers. A fourth ordering over the same files is how two
-# readers of one fact start disagreeing — the cost `owned_at` already paid.
-# The strings it keys on are pinned by those hooks' own selftests, so a
-# reword goes red there rather than silently emptying this.
-# The RESOLVED mode goes to the child, exactly as cmd_session_start passes it.
-# Without it the hook read `${JOHARNESS_RUN_MODE:-supervised}` and answered as
-# if supervised, so an unsupervised `drain` was reporting a queue nobody had
-# asked it about — and the two commands a session reads, the session banner
-# and this one, described different queues from the same tree. Caught by the
-# SUPERVISED ONLY cases: a plan the hook de-ranks for this mode still arrived
-# here ranked free, because the hook was never told which mode it was in.
-#
-# Resolved by run_mode() and passed, never re-derived in the hook: precedence
-# across the env var, the marker and the conf lives in one place.
-# QUEUE_MAX_ENTRIES is raised because this reader does not DISPLAY the table,
-# it parses it. The hook truncates its listing for a human at 10, and every
-# answer taken from that view was silently capped: the marked-plan list below
-# reported 10 of 11 with no count to notice it by, and `drain_plan` would miss
-# a free plan sitting at row 11 behind ten claimed ones.
+cmd_finish() {
+  local ref branch is_local=0
+  check_args "$@"
+  CHECK_FAILS=0; CHECK_SKIPPED=0
+  ref="$(decide_ref)" || die \
+    "no ref for base branch '${HANDOVER_BASE_BRANCH:-main}' in this checkout" \
+    "— a gate cannot pass on a comparison it could not make." \
+    "Run: git fetch origin ${HANDOVER_BASE_BRANCH:-main}"
+  branch="$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || printf '?')"
+  [ "$CHECK_VERBOSE" != 1 ] || printf '== finish (%s -> %s)\n\n' "$branch" "$ref"
+
+  if [ "$branch" = "${HANDOVER_BASE_BRANCH:-main}" ]; then
+    warn "on the base branch: there is no merge to gate (Loop step 3 cuts one)"
+    return 0
+  fi
+
+  run_check "workstream files" finish_adds "$ref"
+  [ "$CHECK_VERBOSE" != 1 ] || fin_promote "$ref"
+
+  checks_local && is_local=1
+  if [ "$is_local" = 1 ] && [ "$CHECK_FAILS" -eq 0 ]; then
+    run_check "checks (local)" checks_gate "$ref" "$branch" 1 1
+  elif [ "$is_local" = 1 ]; then
+    checks_gate "$ref" "$branch" 1 0
+    printf '\n'
+  elif [ "$CHECK_VERBOSE" = 1 ]; then
+    run_check checks checks_gate "$ref" "$branch" 0 1
+  fi
+
+  if [ "$CHECK_FAILS" -ne 0 ]; then
+    printf 'finish: FAIL (%s)\n' "$CHECK_FAILS"
+    return 1
+  elif [ "$is_local" = 1 ]; then
+    printf 'finish: pass (ci and verify ran here: JOHARNESS_CHECKS=local)\n'
+  else
+    printf 'finish: pass — step 7 still needs the GitHub checks on this head green (not read here)\n'
+  fi
+  return 0
+}
+
 drain_hook() {
   local h="${HARNESS_ROOT}/$1"
   [ -x "$h" ] || return 0
@@ -6760,365 +3917,108 @@ drain_hook() {
     QUEUE_MAX_ENTRIES="${DRAIN_MAX_ENTRIES:-10000}" \
     HANDOVER_MAX_ENTRIES="${DRAIN_MAX_ENTRIES:-10000}" \
     QUEUE_WITHHELD="${DISPATCH_WITHHELD:-}" \
-    JOHARNESS_RUN_MODE="$(run_mode)" "$h" 2>/dev/null
+    "$h" 2>/dev/null
 }
 
-# The queue hook's output, reduced to the ONE thing to do next. Requirements
-# first: step 2 ranks an unplanned requirement above every plan, and reading
-# `docs/plans` alone printed DRAINED over one (PR 157). Anchored to the hook's
-# SECTION so only lines under "Requirements without plans" can be offered.
+# The queue hook's first unplanned requirement no planning manager claims.
 drain_requirement() {
+  local line
   printf '%s\n' "$1" |
     sed -n '/^Requirements without plans/,/^$/p' |
-    sed -n 's#^  \(docs/product/[^ ]*\.md\)  \(.*\)$#\1 \2#p' | head -1
+    grep -v 'claimed on ' |
+    sed -n 's#^  \(docs/product/[^ ]*\.md\)  \(.*\)$#\1 \2#p' |
+    while IFS= read -r line; do
+      case "${2-}" in *" ${line%% *}@"*) continue ;; esac
+      printf '%s\n' "$line"
+    done | head -1
 }
 
-# First FREE row in the hook's own order. Claimed, blocked and SUPERVISED
-# ONLY rows are listed there but never lead. Delimiter is # and not |: with
-# s|...| the \| alternation reads as an escaped delimiter and the expression
-# silently matches nothing, which reports a full queue as drained.
-drain_plan() {
+# Plans the queue hook marked CORE ONLY, one indented path per line.
+drain_core_only() {
   printf '%s\n' "$1" |
-    sed -n 's#^  \(docs/\(plans\|research\)/[^ ]*\.md\)  \(.*\)$#\1 \3#p' |
-    { grep -v 'claimed on\|blocked by\|SUPERVISED ONLY' || :; } | head -1
+    sed -n 's#^  \(docs/plans/[^ ]*\.md\)  .*CORE ONLY.*#  \1#p'
 }
 
-# Plans the queue hook marked SUPERVISED ONLY, one indented path per line.
-# The marking belongs to queue-context.sh; this reads the row it printed,
-# anchored to the row shape so the hook's prose about the marking is not
-# counted as a plan.
-drain_supervised_only() {
-  printf '%s\n' "$1" |
-    sed -n 's#^  \(docs/plans/[^ ]*\.md\)  .*SUPERVISED ONLY.*#  \1#p'
-}
-
-drain_next() {
-  local req
-  req="$(drain_requirement "$1")"
-  [ -n "$req" ] && { printf '%s' "$req"; return 0; }
-  drain_plan "$1"
-}
-
-# Every other free plan row, for the spawn line under unsupervised. Same
-# filter as drain_plan — claimed, blocked and SUPERVISED ONLY rows are not
-# free, and "free" has to mean one thing — every match rather than the first,
-# PLAN rows only (a research row is a session's question, not a fan-out, and
-# carries no tier), minus the one drain named as next. `|` as the field
-# separator because a label never holds one and BSD sed reads no `\t`.
-drain_free_others() {
-  local next_path="${2%% *}"
-  printf '%s\n' "$1" |
-    sed -n 's#^  \(docs/plans/[^ ]*\.md\)  \(\[.*\]\)$#\1|\2#p' |
-    { grep -v 'claimed on\|blocked by\|SUPERVISED ONLY' || :; } |
-    awk -F'|' -v skip="$next_path" '
-      $1 != "" && $1 != skip {
-        # The declared tier, whatever it says; the row loop already filled
-        # in sonnet for an ABSENT one, so a default here would only hide a
-        # tier nobody wrote.
-        agent = "unreadable"
-        if (match($2, /agent: [^,\]]+/)) agent = substr($2, RSTART + 7, RLENGTH - 7)
-        out = out (out == "" ? "" : ", ") $1 " (agent: " agent ")"
-      }
-      END { printf "%s", out }'
-}
-
-cmd_drain() {
-  local mode qout hout edge next free sup="" others
-  local cdue cstate creason cinflight=0 cb ck cstat csess cnext
-  local jdue jstate jreason jb jw jinflight=0
-  mode="$(run_mode)"
-  printf '== drain (mode: %s)\n\n' "$mode"
-
-  hout="$(drain_hook handover-context.sh)"
-  qout="$(drain_hook queue-context.sh)"
-
-  # Finishing outranks starting, so the edge is reported FIRST — and reported,
-  # not returned on: a session that stopped here would spin forever on an
-  # edge branch belonging to a live session, which is not its to merge.
-  edge="$(printf '%s\n' "$hout" |
-    sed -n 's/^  FINISH BEFORE STARTING: \(.*\)$/\1/p' | head -1)"
-  if [ -n "$edge" ]; then
-    printf 'edge work in flight — outranks the queue (step 2):\n'
-    printf '  %s\n' "$edge"
-    printf '  Yours, or its session gone (/who)? Take it first. Another session\n'
-    printf '  LIVE on it: say so to the human and skip it.\n\n'
-  fi
-
-  # The curate cycle, in the cycle `/start` actually runs. `cmd_start` routes
-  # by mode to THIS file under supervised and unsupervised, so a curator
-  # printed only by `dispatch` is one a default repo can never reach — which is
-  # what shipped, and what this fixes.
-  #
-  # Placed after the edge block and before the queue: finishing outranks
-  # starting, and a due curate makes the queue truthful BEFORE a session picks
-  # from it rather than after. It is the item when due, never a second item —
-  # one item per session holds here as everywhere.
-  cdue="$(dispatch_curate_due)"
-  cstate="${cdue%% *}"; creason="${cdue#* }"
-  # Said here too, because silence over an unreadable cadence is the bug: before
-  # this the cycle was off for every repo not on `main` and for every shallow
-  # checkout, and nothing anywhere said so. Not the session's item — a fetch or a
-  # conf key is the human's, and inventing work is what this mode must not do.
-  if [ "$cstate" = unreadable ]; then
-    printf 'curate    : UNREADABLE — %s\n' "$creason"
-    printf '  Not your item; the cycle simply cannot be read here. Nothing below\n'
-    printf '  changes.\n\n'
-  fi
-  if [ "$cstate" = due ]; then
-    # THE SAME detector `dispatch` uses, and that is the whole point. An earlier
-    # spelling read the handover hook's output here instead, to stay inside
-    # `drain`'s command-spawn budget — and the two readers then disagreed in
-    # BOTH directions (verifier r4): the hook line carries only a FILENAME, so
-    # an ordinary branch owning `curate-cadence.md` with a real `plan:`
-    # suppressed the cycle for every supervised session, while a genuine curator
-    # named `curate2026-09-11.md` read as in flight to `dispatch` and as DUE
-    # here — two curators. The hook is the wrong source twice over besides: it
-    # falls back to listing the TREE in a shallow clone, so a curate file
-    # INHERITED on the base branch read as somebody's claim (r5), and it exits
-    # before its ref walk under `HANDOVER_SCOPE=branch`, which orchestrated
-    # session start exports, so `drain` saw nothing at all (r6).
-    #
-    # `dispatch_curate_branches` answers from refs and frontmatter, so it is
-    # immune to all three. It costs spawns, and the budget literal for `drain`
-    # was raised with the counted number rather than the design bent around it —
-    # which is what `perf`'s own message says to do for genuine new work.
-    while IFS=$'\t' read -r cb ck cstat csess cnext; do
-      [ -n "$cb" ] || continue
-      cinflight=$((cinflight + 1))
-      printf 'curate    : IN FLIGHT on %s (curate-%s, %s), so not yours. What made it due: %s\n' \
-        "$cb" "$ck" "$cstat" "$creason"
-    done < <(dispatch_curate_branches)
-    if [ "$cinflight" -eq 0 ]; then
-      printf 'curate    : DUE — %s\n' "$creason"
-      printf '  The plan queue has moved under its own declarations.\n'
-      # Mode-blind was a real defect, not a missing nicety: under orchestrated a
-      # manager reading this took the curate as its item, and under that mode a
-      # curator is the orchestrator's spawn BEYOND the cap — the human's money,
-      # decided by a session that was told to work one named item. The
-      # NOT-DRAINED block below already carried exactly this carve-out, which is
-      # what made the omission easy to miss (verifier r27).
-      if [ "$mode" = "orchestrated" ]; then
-        printf '  Queue work, and the ORCHESTRATOR'"'"'s to spawn — not this session'"'"'s:\n'
-        printf '  a manager works the item its prompt names. ./joharness.sh dispatch\n'
-        printf '  prints it, and a curator costs one session beyond the cap.\n'
-      else
-        printf '  This is queue work and it is THIS session'"'"'s item: read\n'
-        printf '  .claude/commands/curate.md and run ./joharness.sh curate.\n'
-      fi
-      printf '  Nothing is invented — every plan it touches already exists.\n'
-      printf '  Retune or silence it with JOHARNESS_CURATE_PLANS (plan files since\n'
-      printf '  the last curate) and JOHARNESS_CURATE_HOURS (0 = off entirely).\n'
-    fi
-    printf '\n'
-  fi
-
-  # The janitor cycle, same shape and the same one reader `dispatch` uses.
-  # Beside the curate line because they answer different questions about the
-  # same queue: curate asks whether the declarations are still true, janitor
-  # asks whether the CLAIMS still have owners. A claim whose session is gone
-  # holds its plan for ever, and #254 measured that at 141 hours.
-  jdue="$(janitor_due)"
-  jstate="${jdue%% *}"; jreason="${jdue#* }"
-  if [ "$jstate" = due ]; then
-    while IFS=$'\t' read -r jb jw _; do
-      [ -n "$jb" ] || continue
-      jinflight=$((jinflight + 1))
-      printf 'janitor   : IN FLIGHT on %s (%s), so not yours. What made it due: %s\n' \
-        "$jb" "$jw" "$jreason"
-    done < <(janitor_branches)
-    if [ "$jinflight" -eq 0 ]; then
-      printf 'janitor   : DUE — %s\n' "$jreason"
-      printf '  Claims may have outlived their sessions.\n'
-      # Mode-blind is the defect the curate block above carries its own
-      # post-mortem for (verifier r27), and this block re-made it ten lines
-      # later: under orchestrated a manager reading "run it" takes a sweep that
-      # is the ORCHESTRATOR's to spawn, beyond the cap — the human's money,
-      # decided by a session told to work one named item.
-      if [ "$mode" = "orchestrated" ]; then
-        printf '  Queue work, and the ORCHESTRATOR'"'"'s to spawn — not this session'"'"'s:\n'
-        printf '  a manager works the item its prompt names. ./joharness.sh dispatch\n'
-        printf '  prints it, and a janitor costs one session beyond the cap.\n'
-      else
-        printf '  This is queue work and it is THIS session'"'"'s item: read\n'
-        printf '  .claude/commands/janitor.md and run ./joharness.sh janitor.\n'
-      fi
-      printf '  It releases nothing it cannot prove gone, and deletes nothing.\n'
-      printf '  0 = off (JOHARNESS_JANITOR_HOURS).\n'
-    fi
-    printf '\n'
-  fi
-
-  next="$(drain_next "$qout")"
-
-  # The marked plans, read once here and printed only at the edge below:
-  # while there is a free plan they change nothing about the answer.
-  ! unattended || sup="$(drain_supervised_only "$qout")"
-
-  if [ -n "$next" ]; then
-    # A requirement has no plan count; the count is for the case it describes.
-    if [ -n "$(drain_requirement "$qout")" ]; then
-      printf 'NOT DRAINED — a requirement has no plans, and planning outranks the plan queue\n'
-      printf '  next: %s\n' "$next"
-      return 0
-    fi
-    free="$(printf '%s\n' "$qout" |
-      sed -n 's/^\([0-9][0-9]*\) free plans.*/\1/p' | head -1)"
-    printf 'NOT DRAINED%s\n' "${free:+ — ${free} free plan(s)}"
-    # Unsupervised: the same next, then ONE more line. Claim by push, detect
-    # at merge: every other free plan gets a session, every wave, and a
-    # collision between two of them is the reconcile step 7 already
-    # requires. The wave partition the hook prints stays a report — it
-    # ordered wave 1 only here once, and that gate was a second copy of the
-    # claim-and-reconcile guarantee the Loop already carries.
-    if unattended && [ -n "$edge" ]; then
-      printf '  Edge work above first — yours or abandoned; a live session'"'"'s you skip.\n'
-    fi
-    # With a curate due and unclaimed, `next:` is NOT this session's item — the
-    # curate is, and the precedence was stated only in the block above and in
-    # drain.md. A session reading `next:` as its answer gave that plan two
-    # sessions, because the spawn list below correctly keeps it (verifier r28).
-    if [ "$cstate" = due ] && [ "$cinflight" -eq 0 ] && \
-       [ "$mode" != "orchestrated" ]; then
-      printf '  next: %s — AFTER the curate above, which outranks it; this line\n' "$next"
-      printf '  is what the curate makes truthful, not what you take now.\n'
-    else
-      printf '  next: %s\n' "$next"
-    fi
-    if [ "$mode" = "unsupervised" ]; then
-      # When a curate is this session's item, `$next` is NOT taken by anybody
-      # here — so it must stay in the spawn list. Excluding it assumes this
-      # session takes it, and with a curate due that left the named plan with no
-      # session at all in the wave (verifier r12).
-      if [ "$cstate" = due ] && [ "$cinflight" -eq 0 ]; then
-        others="$(drain_free_others "$qout" '')"
-      else
-        others="$(drain_free_others "$qout" "$next")"
-      fi
-      [ -z "$others" ] ||
-        printf '  spawn one session per: %s; a collision is the reconcile\n  step 7 already requires.\n' "$others"
-    elif [ "$mode" = "orchestrated" ]; then
-      # A manager takes the item its prompt named, never this one — the
-      # orchestrator holds the cap and the spawn order (dispatch). Said here
-      # because a manager that reads `next:` as an order takes a second item.
-      printf '  orchestrated: a manager works the item its prompt names, not this\n'
-      printf '  line. Spawning is the orchestrator'"'"'s: ./joharness.sh dispatch.\n'
-    fi
-    return 0
-  fi
-
-  # Nothing free: the edge, in both modes.
-  # The marked plans, NAMED before the verdict, in the one mode that cannot
-  # take them. Silence here is a session reading DRAINED over a tree that
-  # still holds plans and concluding the plans are gone.
-  if unattended && [ -n "$sup" ]; then
-    printf 'NOT YOURS — the queue holds plan(s) marked SUPERVISED ONLY:\n'
-    printf '%s\n' "$sup"
-    printf '  Scope holds protocol text, which a session running\n'
-    printf '  unattended may not commit (.agents/docs/unsupervised.md,\n'
-    printf '  Bounds). Leave them for a supervised session, and do NOT\n'
-    printf '  re-file the same work as a new plan.\n\n'
-  fi
-
-  # One verdict line in both modes; the line under it is the mode's. The
-  # edge is the stop: supervised asks, unsupervised exits and the heartbeat
-  # fires the next session (.agents/docs/unsupervised.md). Neither invents
-  # work — the sentence under supervised used to say inventing was the other
-  # mode's business, and after this change no mode has that business.
-  printf 'DRAINED — no unplanned requirement, no free plan, no open question.\n'
-  if [ "$mode" = "unsupervised" ]; then
-    printf '  Exit — after open GitHub issues, which this cannot read (step 2).\n'
-    printf '  The heartbeat re-seeds; nothing is invented here.\n'
-  elif [ "$mode" = "orchestrated" ]; then
-    # Two readers, two exits. A manager is done with its one item and goes;
-    # the orchestrator's exit is dispatch's verdict, because DRAINED here
-    # says nothing about managers still in flight.
-    printf '  Manager: exit — the orchestrator re-reads the queue.\n'
-    printf '  Orchestrator: ./joharness.sh dispatch decides — managers still in\n'
-    printf '  flight keep the health pass going; none = exit, the heartbeat\n'
-    printf '  re-seeds. Nothing is invented here.\n'
-  else
-    printf '  Supervised stops here and asks (step 2). It does NOT invent work;\n'
-    printf '  neither does unsupervised — that mode exits here instead of asking.\n'
-  fi
-  # An idle queue is exactly the queue nothing was curating: the gap
-  # `curator-role` recorded and left open. Said again HERE because a reader that
-  # took the DRAINED line as its answer never scrolled back up.
-  if [ "$cstate" = due ] && [ "$cinflight" -eq 0 ]; then
-    if [ "$mode" = "orchestrated" ]; then
-      printf '  A curate is DUE (%s). The orchestrator spawns it, beyond the cap;\n' "$creason"
-      printf '  a manager does not take it: ./joharness.sh dispatch.\n'
-    else
-      printf '  A curate is DUE (%s). That is real work and it is yours before you\n' "$creason"
-      printf '  ask or exit: .claude/commands/curate.md.\n'
-    fi
-  fi
-  return 0
-}
-
-# ---------------------------------------------------------------------------
-# dispatch: the orchestrator's one read (.agents/docs/orchestrated.md)
-#
-# `drain` answers "what does THIS session take" and stops at one item. An
-# orchestrator asks a wider question — how many managers may run, which are
-# running, which has not pushed in a while, what to spawn next and in what
-# order — and asks it every health pass. Same two hooks, same rows, read
-# once here so the orchestrator never parses hook prose itself: a low-tier
-# reader acting on a report should get verdict lines, not a listing.
-#
-# Reports, never acts. Nothing here spawns, kills or writes. Liveness is the
-# control plane's to say (/who); this prints the git half — push age — and
-# marks where the orchestrator must cross-check, because push time is not
-# liveness in either direction (.agents/docs/handover/README.md, and the
-# monitor rule under Heartbeat in .agents/docs/unsupervised.md).
-# ---------------------------------------------------------------------------
+# --- dispatch: the orchestrator's one read (.agents/docs/orchestrated.md)
 
 # A knob the human sets: the environment for one command, the conf for the
-# repo, else the built-in default. Digits only — a word here is not a cap,
-# and a cap that fails open is a fleet nobody sized.
+# repo, else the built-in default.
 num_knob() {
   local v="${!1:-}"
   [ -n "$v" ] || v="$(conf_get "$1")"
   case "$v" in '' | *[!0-9]*) v="$2" ;; esac
   # Digits-only is not a number, and both ways it is wrong are SILENT.
-  # Leading zeros off, before any caller does arithmetic on this: bash reads
-  # `08` as octal and dies on it — inside a command substitution, where
-  # `set -e` is not in force, so the caller is handed the EMPTY string and
-  # carries on printing a confident wrong line. Measured 2026-09-17,
-  # `JOHARNESS_CHURN_THRESHOLD=08 ./joharness.sh dispatch`: exit 0, full
-  # output, and the loop line reading `one file rewritten + times` with the
-  # limit gone. The quieter half is `010`, which is valid octal and so is
-  # EIGHT to every comparison and ten to whoever wrote it — and that one is
-  # a cap, which is the human's money changed by a spelling (issue #260).
   v="${v#"${v%%[!0]*}"}"
   [ -n "$v" ] || v=0
-  # And a ceiling on what the ENVIRONMENT or the conf supplies, because
-  # there is no upper bound either: twenty digits wraps 64-bit arithmetic.
-  # Falls back to the caller's DEFAULT, which is the answer the digit filter
-  # already gives a non-digit — not a clamp. A knob has no natural maximum to
-  # clamp to and an invented one is a guess printed as a setting; `dispatch`
-  # prints every knob it reads, so a fallback is visible where a reader
-  # already looks.
-  #
-  # It does NOT bound the returned value in general, and the difference is
-  # reachable: `JOHARNESS_CHURN_LIMIT` defaults to twice the threshold, so a
-  # nine-digit threshold yields a ten-digit default that this line hands
-  # straight back. That is the repo's own arithmetic on an already-bounded
-  # number, it is nowhere near the wrap, and a case pins it
-  # (`.agents/harness/selftest/num-knob.sh`). Saying "never more than nine
-  # digits" here would be a comment the code contradicts.
+  # And a ceiling on what the ENVIRONMENT or the conf supplies, because there
+  # is no upper bound either: twenty digits wraps 64-bit arithmetic.
   [ "${#v}" -le 9 ] || v="$2"
   printf '%s' "$v"
 }
 
-# Minutes since the last commit on a remote branch; empty when the ref is not
-# here (never fetched, or already deleted), and empty is said as unknown by
-# the caller — never as zero, which would read as pushed this minute.
 dispatch_age_min() {
   local ts now
-  # `</dev/null`: this runs inside `while read` loops fed by a here-string, and
-  # git left to inherit that stdin can consume the loop's own remaining lines —
-  # a timing race that read a settled rescope as active on some passes.
   ts="$(git -C "$ROOT" log -1 --format=%ct "refs/remotes/origin/$1" </dev/null 2>/dev/null)"
+  [ -n "$ts" ] || return 0
+  now="$(date +%s)"
+  printf '%s' "$(( (now - ts) / 60 ))"
+}
+# Minutes since a workstream file was last PARKED on a remote branch: the
+# commit whose diff moved the frontmatter status from anything else to blocked,
+# not the last push.
+dispatch_block_age_min() {
+  local ts now range
+  range="refs/remotes/origin/$1"
+  [ -z "${3:-}" ] || range="${3}..${range}"
+  # `</dev/null`: same reason as dispatch_age_min above.
+  ts="$(git -C "$ROOT" log --follow --first-parent -m -p --unified=99999 \
+    --format='C %at %P' -G'^status:' "$range" -- "$2" \
+    </dev/null 2>/dev/null |
+    awk '
+      function val(line) {
+        # A comment needs whitespace before its `#`, as gr_fields reads it:
+        # two readers of one field must not disagree on its value.
+        sub(/^status:[[:space:]]*/, "", line); sub(/[[:space:]]+#.*$/, "", line)
+        sub(/[[:space:]]+$/, "", line); return line
+      }
+      function judge() {
+        if (!have) return
+        if (added == "blocked" && (created || (removed != "" && removed != "blocked"))) {
+          if (!orphan) print t
+          found = 1
+        }
+      }
+      /^C [0-9]+( |$)/ {
+        judge(); if (found) exit
+        t = $2; orphan = (NF == 2); have = 1; created = 0; added = ""; removed = ""
+        inhunk = 0; newdash = 0; olddash = 0
+        next
+      }
+      /^new file mode/ { created = 1; next }
+      /^@@/ { inhunk = 1; next }
+      !inhunk { next }
+      {
+        c = substr($0, 1, 1); line = substr($0, 2); sub(/\r$/, "", line)
+        if (c == " " || c == "+") {
+          if (line == "---") newdash++
+          else if (c == "+" && newdash == 1 && line ~ /^status:/ && added == "") added = val(line)
+        }
+        if (c == " " || c == "-") {
+          if (line == "---") olddash++
+          else if (c == "-" && olddash == 1 && line ~ /^status:/ && removed == "") removed = val(line)
+        }
+      }
+      END { if (!found) judge() }')"
+  [ -n "$ts" ] || return 0
+  now="$(date +%s)"
+  printf '%s' "$(( (now - ts) / 60 ))"
+}
+dispatch_claim_age_min() {
+  local ts now
+  [ -n "${2:-}" ] || return 0
+  # `</dev/null`: same reason as dispatch_age_min above.
+  ts="$(git -C "$ROOT" log --format='%at %ct' "${2}..refs/remotes/origin/$1" \
+    </dev/null 2>/dev/null | tail -1 | awk '{ print ($1 < $2 ? $1 : $2) }')"
   [ -n "$ts" ] || return 0
   now="$(date +%s)"
   printf '%s' "$(( (now - ts) / 60 ))"
@@ -7129,10 +4029,6 @@ dispatch_age_text() {
 }
 
 # The hook's wave partition, one line per member: stem, wave, overlap note.
-# Members are stems with a tier in parentheses; the em-dash separates the
-# overlap note, and a `;` starts the reconcile note this reader drops. sed
-# does the multibyte split — awk's substr counts characters or bytes
-# depending on the build, and the dash is three bytes.
 dispatch_waves() {
   sed -n 's/^  wave \([0-9][0-9]*\): \(.*\)$/\1\t\2/p' |
     sed 's/ — /\t/; s/;[^\t]*$//' |
@@ -7146,67 +4042,12 @@ dispatch_waves() {
     }'
 }
 
-# Branches holding a slot without holding a claim: unmerged, ahead of the
-# base branch, owning no workstream file — and carrying the DELETION of one.
-#
-# That deletion is the whole trigger and it is the retire ritual's
-# fingerprint. Loop step 7 deletes the workstream file as the LAST COMMIT
-# BEFORE the pull request opens, so from that commit until the merge a live
-# manager holds a branch, a pull request, CI and a container while holding no
-# claim. The claims view is right to drop it — a retired file is not a claim,
-# pinned in .agents/harness/selftest/handover-context-owns.sh:85. `slots`
-# answers a different question with that same value: a claim says who owns an
-# item, a slot says how much of the human's money is committed right now. The
-# two diverge for exactly this window, which is the window in which
-# duplicating a manager is most expensive. The run that found it, with its
-# numbers, is in .agents/docs/orchestrated.md (Runs) — stated there once.
-#
-# NOT "carries no workstream file", which is the same rule one word shorter
-# and catches every branch that never wrote one. Counted on this repo
-# 2026-09-06 with the loop below: 4 unmerged branches own no workstream file
-# and 1 of them carries the fingerprint. At the default cap of 4 the wider
-# test reports 0 of 4 free with nothing whatsoever in flight — a slot that
-# never frees, which is the trade the plan's second Scope bullet forbids.
-#
-#   for r in $(git for-each-ref --format='%(refname:short)' refs/remotes/origin); do
-#     git merge-base --is-ancestor "$r" origin/main && continue
-#     b=$(git merge-base "$r" origin/main) || continue
-#     git diff --name-only --diff-filter=ACMRT "$b" "$r" -- docs/handover | grep -q . && continue
-#     echo "$r $(git diff --name-only --diff-filter=D "$b" "$r" -- docs/handover docs/plans docs/research)"
-#   done
-#
-# The DELETED PLAN is the fingerprint that survives, and the deleted
-# workstream file mostly is not — which is not the obvious way round.
-# `git diff base..tip` compares two states, so a file BORN on the branch and
-# retired there appears in neither filter: added-then-deleted nets to absent,
-# and that is the ordinary claim, written after the branch was cut. The plan
-# file is the opposite — it lives on the base branch, because it is the queue
-# item, so step 7 deleting it is a real D in the net diff
-# (.agents/docs/plans/README.md, Lifecycle: "Done = implementing PR deletes
-# plan file, same PR as code"). Caught by the fixture, not by reading:
-# `mgr-eta` went red on all nine cases with the workstream deletion as the
-# only trigger (.agents/harness/selftest/dispatch.sh).
-#
-# A retired workstream file still counts where it IS visible — one the branch
-# INHERITED and deleted, which is the sweep half of the same ritual. Union of
-# the two, because either one alone leaves a slot uncounted, and both are
-# narrow: 1 branch of 4 on this repo today.
-#
-# DIFF, never the tree, on every half: a branch inherits every file its base
-# carried, so the tree reports an inherited workstream file as this branch's
-# own and a retired one as still present — the bug in both directions at once
-# (.agents/docs/feedback.md, tree or diff).
-#
-# One line per branch: <branch> TAB <items, `-` when none> TAB <state>, where
-# state is `mid-merge` (an item is still on the base branch, so that merge has
-# not landed — hold the slot), `leftover` (every item is gone, so the merge
-# already happened and nothing is committed) or `unknown` (no item to ask
-# about). `-` and not an empty field because tab is IFS whitespace and a
-# reader collapses two adjacent tabs into one.
+# Branches holding a slot without holding a claim: unmerged, ahead of the base
+# branch, owning no workstream file — and carrying the DELETION of one.
 dispatch_retired_edges() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}"
   git -C "$ROOT" for-each-ref --format='%(refname)' refs/remotes/origin 2>/dev/null |
-    { local r name base items swept plan cand state unver=0
+    { local r name base items swept plan cand state own unver=0
       while IFS= read -r r; do
         name="${r#refs/remotes/origin/}"
         { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
@@ -7216,59 +4057,84 @@ dispatch_retired_edges() {
           "refs/remotes/origin/${base_branch}" 2>/dev/null && continue
         # NO merge base = ownership cannot be computed here at all, and a
         # shallow clone is how that happens: grafted history, most refs
-        # unreachable from the base. `owned_at` hit 27 of them on one
-        # checkout (.agents/harness/handover-context.sh) and answers by
-        # over-reporting, because a missing claim costs two sessions on one
-        # branch. The same argument, one layer up and sharper: skipping a ref
-        # silently under-counts the slots, which is the defect this whole
-        # function exists to fix. Not skipped silently, then — counted, and
-        # the caller says the number is a floor. Never a ROW: no base means
-        # no evidence this ref is an edge at all, and inventing one holds a
-        # slot the fleet may need.
+        # unreachable from the base.
         base="$(git -C "$ROOT" merge-base "$r" \
           "refs/remotes/origin/${base_branch}" 2>/dev/null)"
         if [ -z "$base" ]; then unver=$((unver + 1)); continue; fi
-        # No `ahead` test, though the plan's Scope names one: not an
-        # ancestor of the base means the merge base is not this ref, which
-        # means at least one commit the base does not carry. A `rev-list
-        # --count` here can only ever print 1 or more, and a check that
-        # cannot fail reads as a guard while guarding nothing (verifier r7).
-        # Owns one: it IS a claim and the claims view already listed it. Two
-        # rows for one branch would double-count its slot.
         git -C "$ROOT" diff --name-only --diff-filter=ACMRT "$base" "$r" \
           -- docs/handover 2>/dev/null | gr_docs | grep -q . && continue
-        # EVERY item, not the first. A branch retiring two plans named one
-        # of them and the queue kept offering the other, so the fix left half
-        # the duplicate spawn standing — and the row named an item the branch
-        # had not finished, sending the by-title lookup after a manager that
-        # never existed (verifier r3).
-        # A path containing a SPACE is dropped, and it costs nothing: the
-        # queue hook's row pattern is `docs/plans/[^ ]*\.md`, so such a file
-        # is not an item this command can be holding. Kept, it split the
-        # space-joined field and printed one retired item as two, both naming
-        # paths that do not exist (verifier round 2, r3).
+        # EVERY item, not the first.
         items="$(git -C "$ROOT" diff --name-only --diff-filter=D "$base" "$r" \
           -- docs/plans docs/research 2>/dev/null | gr_docs | grep -v ' ' |
           tr '\n' ' ')"
         items="${items% }"
         # The branch's own retired record, read AT THE BASE — the version
-        # before this branch deleted it. It answers two different questions
-        # and both matter: with no deleted item it is the only thing that
-        # names one, and WITH deleted items it says WHICH of them this
-        # manager was spawned on. Without that second use the row named
-        # whichever item git listed first — alphabetical — so a manager on
-        # `theta` that also retired `iota` was looked up as `manager: iota`,
-        # missed, read as gone, and respawned onto its own live branch
-        # (verifier round 2, r2).
+        # before this branch deleted it.
         swept="$(git -C "$ROOT" diff --name-only --diff-filter=D "$base" "$r" \
           -- docs/handover 2>/dev/null | gr_docs | head -1)"
-        if [ -z "$items" ] && [ -z "$swept" ]; then continue; fi
+        # A PLANNING pass retires nothing the base carries: its workstream
+        # file was born and retired on the branch, so it nets to absent, and
+        # it deletes no plan — it ADDS them. The record is still in the
+        # branch's own history: the commit that retired it. Its `plan:`
+        # naming a requirement the base carries is the item. Without this the
+        # planning branch vanished at step 7 and its requirement was offered
+        # to a second planner for the whole pull-request window (verifier
+        # r2). The retired FILE, never the plans the branch adds: a clerk or
+        # any plan-only branch adds plans that name requirements, claims
+        # nothing, and must hold no slot — reading the added plans gave it
+        # one under a title no live session carries (verifier r8).
+        if [ -z "$items" ] && [ -z "$swept" ]; then
+          # The branch's OWN record: a file this branch's own commits both
+          # ADDED and DELETED — first-parent, no merges, both halves. Each
+          # narrower spelling was a verifier round. Default walk: a reconcile
+          # merge TREESAME to the base pruned the retire commit (r10).
+          # First-parent alone: that merge's diff carries the BASE's
+          # deletions, so a branch that merged a cleanup of an inherited
+          # record borrowed its claim (r11). Without the ADDED half, a
+          # branch's own sweep of an inherited record the base later dropped
+          # read as its claim. A planning branch merged in lends nothing:
+          # its commits are not on this first-parent line.
+          own="$(git -C "$ROOT" log --first-parent --no-merges --format= \
+            --name-only --diff-filter=A "${base}..${r}" -- docs/handover \
+            2>/dev/null | gr_docs | sort -u)"
+          [ -n "$own" ] || continue
+          items="$(git -C "$ROOT" log --first-parent --no-merges \
+              --format='@%H' --name-only \
+              --diff-filter=D "${base}..${r}" -- docs/handover 2>/dev/null |
+            { c=""
+              while IFS= read -r cand; do
+                case "$cand" in
+                  '') continue ;;
+                  @*) c="${cand#@}"; continue ;;
+                esac
+                [ -n "$c" ] || continue
+                printf '%s\n' "$cand" | gr_docs | grep -q . || continue
+                printf '%s\n' "$own" | grep -qxF -- "$cand" || continue
+                plan="$(git -C "$ROOT" show "${c}^:${cand}" 2>/dev/null |
+                  gr_field plan)"
+                plan="${plan##*/}"; plan="${plan%.md}"
+                plan="$(printf '%s' "$plan" | tr -cd 'A-Za-z0-9._-')"
+                case "$plan" in '' | none) continue ;; esac
+                # A plan or question of the stem wins, as at every site.
+                git -C "$ROOT" cat-file -e \
+                  "refs/remotes/origin/${base_branch}:docs/plans/${plan}.md" \
+                  2>/dev/null && continue
+                git -C "$ROOT" cat-file -e \
+                  "refs/remotes/origin/${base_branch}:docs/research/${plan}.md" \
+                  2>/dev/null && continue
+                git -C "$ROOT" cat-file -e \
+                  "refs/remotes/origin/${base_branch}:docs/product/${plan}.md" \
+                  2>/dev/null && printf 'docs/product/%s.md\n' "$plan"
+              done; } | sort -u | tr '\n' ' ')"
+          items="${items% }"
+          [ -n "$items" ] || continue
+        fi
         plan=""
         [ -z "$swept" ] ||
           plan="$(git -C "$ROOT" show "${base}:${swept}" 2>/dev/null |
             gr_field plan)"
         case "$plan" in '' | none) ;; *)
-          for cand in "docs/plans/${plan}.md" "docs/research/${plan}.md"; do
+          for cand in "docs/plans/${plan}.md" "docs/research/${plan}.md" "docs/product/${plan}.md"; do
             git -C "$ROOT" cat-file -e "${base}:${cand}" 2>/dev/null || continue
             case " ${items} " in
               *" ${cand} "*)
@@ -7279,104 +4145,34 @@ dispatch_retired_edges() {
                 items="$(printf '%s' "$items" | tr -s ' ')"
                 items="${items% }" ;;
               *) # Same space rule as the deleted-item scan above, which this
-                 # arm bypassed: a path with a space cannot survive the
-                 # space-joined field, and post-fix it would not mangle a row
-                 # but decide a slot from half a path.
+                 # arm bypassed: a path with a space cannot survive the space-
+                 # joined field, and post-fix it would not mangle a row but
+                 # decide a slot from half a path.
                  case "$cand" in *' '*) ;; *) [ -n "$items" ] || items="$cand" ;; esac ;;
             esac
             break
           done ;;
         esac
-        # THE DISCRIMINATOR. A retired workstream file says the branch ran
-        # step 7; it does not say the merge is still coming. The item does:
-        # step 7 deletes the plan file on the BRANCH, and the base keeps its
-        # copy until that merge lands.
-        #
-        #   present on the base  = mid-merge. Hold the slot. The true
-        #                          positive this count was built for.
-        #   absent               = the merge already happened, by this branch
-        #                          or another, and this is what is left over.
-        #                          It commits nothing.
-        #
-        # The measurement that produced this rule, and the reason it is not
-        # push age or the forge: docs/plans/orchestrator-edge-slot-leak.md.
-        #
-        # NEWLINE list, never `for cand in $items`. That is an unquoted
-        # expansion, so a plan path holding `*`, `?` or `[` — all legal in git
-        # and legal under the queue hook's own row pattern — globs against the
-        # process's working directory and the slot gets decided from a
-        # DIFFERENT file. Both directions were reproduced: `docs/plans/x[y].md`
-        # absent from the base matched a present `xy.md` and held its slot
-        # forever, and an untracked `ab.md` beside the caller made a real
-        # mid-merge read as a leftover. shellcheck does not flag a `for` list.
-        state=leftover
+        # THE DISCRIMINATOR.
+        state=leftover askable=""
         while IFS= read -r cand; do
           [ -n "$cand" ] || continue
+          case "$cand" in docs/product/*) continue ;; esac
+          askable=1
           git -C "$ROOT" cat-file -e "refs/remotes/origin/${base_branch}:${cand}" \
             2>/dev/null || continue
           state=mid-merge
           break
         done <<<"$(printf '%s\n' "$items" | tr ' ' '\n')"
-        [ -n "$items" ] || state=unknown
-        # `-` for no items, never an empty field: tab is IFS WHITESPACE, so a
-        # reader's `IFS=$'\t' read -r a b c` collapses two adjacent tabs into
-        # one delimiter and the state lands in the item variable. It printed
-        # `unknown` as the item's name and the `?` row's whole branch went
-        # unreached.
+        [ -n "$askable" ] || state=unknown
         printf '%s\t%s\t%s\n' "$name" "${items:--}" "$state"
       done
-      # Last line, and it is not a branch. `..` is the sentinel and the
-      # reason: git refuses a ref name containing two consecutive dots
-      # (`git check-ref-format`), so no branch can ever collide with it.
-      # `!unverified` could, and did — a branch by that name was swallowed,
-      # freed its own slot and printed its item as the caveat's count
-      # (verifier r1). Status cannot carry the number either: this runs
-      # inside a command substitution, where an assignment dies with the
-      # subshell — the trap `owned_at`'s own comment records falling into.
+      # Last line, and it is not a branch.
       [ "$unver" -eq 0 ] || printf '..unverified\t%s\t-\n' "$unver"
     }
 }
 
-# Four readers, one question each, all derived from git and none stored: the
-# orchestrator's ledger dies with its run and a heartbeat re-seeds a fresh one,
-# which is the same reason `dispatch_retired_edges` counts from refs rather than
-# from memory. The curator retires its workstream file as the last commit before
-# its pull request (Loop step 7), so the newest base-branch commit DELETING a
-# `docs/handover/curate-*.md` is when a curate last landed.
-#
-# `--full-history` is load-bearing in every one of them, not a flourish. The
-# curator ADDS its workstream file and DELETES it inside the same branch
-# (curate.md 1 and 5), so the merge commit is TREESAME to its first parent for
-# that path and default simplification never walks the branch — the retire is
-# invisible, so every pass keeps measuring from the repository's first commit
-# and the cycle fires forever. Measured on this repo 2026-09-11,
-# `docs/handover/*.md`: 13 deletions simplified against 195 with the flag,
-# newest 2026-08-26 against 2026-09-10 (verifier r1).
-
-# Can the cadence be read here AT ALL? Two states answer every question below
-# with a number that is not about this queue, and both were silently wrong.
-#
-# No `refs/remotes/origin/<base>`: every reader's `2>/dev/null` swallowed the
-# failure, so churn came back 0, age came back 0, and `dispatch` printed
-# `not due — 0 plan file(s) changed (of 10) and 0h elapsed (of 168h)` — a false
-# statement about a repository whose base branch is `master`, or whose `main` has
-# never been fetched. The whole cycle off, invisibly, for every repo not on
-# `main`. `lint_ws_in_diff` already refuses this case by name one screen up, so
-# the precedent was a function away (verifier r26).
-#
-# SHALLOW: a boundary commit has no parents, so its diff IS the whole tree.
-# `dispatch_curate_plan_churn` with no `from` then degenerates to "plan files
-# that exist" and `cycle_repo_age_h` reports the BOUNDARY's age as the
-# queue's beginning. Measured on this repo, same head and same knobs: a full
-# clone said `DUE — 110 plan file(s) changed`, a `--depth 1` clone of it said
-# `not due — 2 plan file(s) changed (of 10) and 97h elapsed`, for a first commit
-# 495h old — wrong in both directions, and the landed-curate deletion is outside
-# the boundary too, so a shallow checkout can never leave the never-curated
-# branch (verifier r25). `drain` does not unshallow (DRAIN_FETCH defaults to 0)
-# while `dispatch` does, so this alone made the advertised one reader give two
-# answers on one checkout.
-#
-# Prints the reason it cannot be read, empty when it can.
+# Can the cadence be read here AT ALL?
 cycle_unreadable() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}"
   if ! git -C "$ROOT" rev-parse --verify -q \
@@ -7403,51 +4199,30 @@ cycle_repo_age_h() {
   printf '%s' "$(( (now - ts) / 3600 ))"
 }
 
-# The COMMIT of the last curate that landed, empty when none has. A commit, not
-# a timestamp: the churn count below bounds its walk with `<sha>..<base>`, which
-# asks what the base branch GAINED after that point. `--since=<date>` asked when
-# each commit was authored instead — so a plan committed before the last curate
-# and merged after it counted 0 forever (measured here over 14 days: 48 of 82
-# plan additions landed more than 600s after their own commit, 19 more than an
-# hour, the longest 22.2h), and being inclusive it also counted the retire
-# commit's own plan deletions, so a curate that decluttered ten plans made
-# itself due again immediately (verifier r7, r8).
-#
-# `<kind>` is the cycle: `curate` (the default) or `janitor`. ONE reader for
-# both, parameterised rather than copied — a second copy of this walk is two
-# readers of one fact, and the `--full-history` reason below is exactly the
-# kind of subtlety the copy would lose.
+# The COMMIT of the last curate that landed, empty when none has.
 cycle_landed_sha() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" kind="${1:-curate}" glob
-  # The janitor cycle's identity carries a DIGIT after the dash, everywhere it
-  # is read — `janitor_branches` and `janitor.md` §1 both say so — and the
-  # dating glob has to agree or the two definitions disagree inside one diff.
-  # Measured: with `janitor-*.md` the branch that BUILT this cycle dated it,
-  # because its own workstream file is `janitor-role.md` and step 7 deletes it
-  # (verifier). `curate-*` is left exactly as it was: changing when the OTHER
-  # cycle believes it last ran is not this change's business.
   case "$kind" in
-    janitor) glob="docs/handover/janitor-[0-9]*.md" ;;
+    scout)   glob="docs/handover/scout-[0-9]*" ;;
+    # The clerk takes the scout's spelling whole — the digit, no `.md`, and
+    # `-m` below — because it is scout_walk's identity it is read by
+    # (clerk_due).
+    clerk)   glob="docs/handover/clerk-[0-9]*" ;;
     *)       glob="docs/handover/${kind}-*.md" ;;
   esac
+  if [ "$kind" = scout ] || [ "$kind" = clerk ]; then
+    GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 \
+    git -C "$ROOT" log -1 --format=%H -m --diff-filter=D --full-history \
+      "refs/remotes/origin/${base_branch}" -- "$glob" \
+      </dev/null 2>/dev/null
+    return 0
+  fi
   git -C "$ROOT" log -1 --format=%H --diff-filter=D --full-history \
     "refs/remotes/origin/${base_branch}" -- "$glob" \
     </dev/null 2>/dev/null
 }
 
-# When that curate LANDED, which is not when its retire was committed. The sha
-# above is branch-side — `--full-history` is what finds it — so its own `%ct` is
-# the moment the curator wrote the commit, and a branch that then sat open loses
-# that time off its next window. This is r7's lesson applied to the reader that
-# did not get it: the churn walk was moved to a commit range for exactly this
-# reason and the clock was left reading the author's clock. Measured on this
-# repo, merge `%ct` minus its second parent's over the last 200 merges on
-# `origin/main` (2026-09-11): median 5 min, p90 25 min, max 49.45h — so the worst
-# observed curate lands already 49h into a 168h window (verifier r30).
-#
-# So: walk from the retire commit FORWARD along first parents to the oldest
-# base-branch commit that descends from it — the merge — and take its time. One
-# extra git call, and only when a curate has landed at all.
+# When that curate LANDED, which is not when its retire was committed.
 cycle_landed_ts() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" kind="${1:-curate}" sha merge
   sha="$(cycle_landed_sha "$kind")"
@@ -7460,7 +4235,6 @@ cycle_landed_ts() {
   git -C "$ROOT" log -1 --format=%ct "$merge" </dev/null 2>/dev/null
 }
 
-
 # Hours since the last curate landed, empty when none ever has — which is the
 # signal `dispatch_curate_due` reads to switch to the repository baseline above.
 cycle_age_h() {
@@ -7471,47 +4245,13 @@ cycle_age_h() {
   printf '%s' "$(( (now - ts) / 3600 ))"
 }
 
-# Plan files ADDED or MODIFIED on the base branch since a given commit, or since
-# the beginning when none is given.
-#
-# NO `--full-history` here, and that is the opposite of the landing reader one
-# screen up — the two ask different questions and this is the reversal the record
-# carries the research step for (r24d, r31b). The landing reader asks *did a
-# retire ever happen*, and a curator's workstream file is added and deleted inside
-# one branch, so nothing but `--full-history` can see it. This reader asks *what
-# did the QUEUE gain*, which is a question about the base branch's own tree, and
-# `--full-history` answers a third question nobody asked: every plan file that
-# ever existed on any branch. Measured on this repo 2026-09-11, `--diff-filter=AM
-# ... -- docs/plans`, deduped: 111 with the flag against 78 without, and all 33 of
-# the difference are plans that NEVER existed on `main` — same-session plans,
-# written and retired inside one branch (`.agents/docs/plans/README.md`,
-# Lifecycle). No other session ever read their declarations, so they are not churn
-# a curate must answer for. Default simplification does not lose a real queue
-# entry: a merge that brings a plan in is treesame to the BRANCH for that path, so
-# the walk follows it and finds the add — checked against `git cat-file -e
-# <first-parent commit>:<path>` over 400 first-parent commits for three of the 33,
-# none of which ever appeared.
-#
-# `--diff-filter=AM` is the trigger's MEANING and not a tidy-up. Loop step 7
-# makes every finished plan a DELETION on the base branch, and a deleted plan has
-# no declaration left to check — so unfiltered, ten ordinary merges reach the
-# default of 10 with nothing having arrived, and the queue is called stale for
-# emptying. Measured on this repo over 14 days, 2026-09-11, this function's own
-# reader: 98 distinct plan paths touched, 96 of them deleted somewhere in the
-# window, 89 added or modified — and over a window of completions alone the
-# filtered count is 0, which is the answer a curate wants. The docstring, the
-# plan and `.agents/docs/orchestrated.md` all already said "added or changed";
-# the code was the one that disagreed (verifier r31).
+# Plan files ADDED or MODIFIED on the base branch since a given commit, or
+# since the beginning when none is given.
 dispatch_curate_plan_churn() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" from="${1:-}" range
   range="refs/remotes/origin/${base_branch}"
   [ -z "$from" ] || range="${from}..refs/remotes/origin/${base_branch}"
-  # ONE git call. The first spelling forked `git diff-tree` PER COMMIT inside a
-  # read loop, and `drain` is the entrypoint every session runs: it went 47 over
-  # its command-spawn budget (385 against 338), which is exactly the "per-item
-  # fork put back inside a loop" the budget exists to catch. `--name-only` with
-  # an empty `--format` prints the paths directly, so the walk and the listing
-  # are the same process.
+  # ONE git call.
   # shellcheck disable=SC2086
   git -C "$ROOT" log --diff-filter=AM --name-only --format='' \
     $range -- docs/plans \
@@ -7519,45 +4259,12 @@ dispatch_curate_plan_churn() {
     gr_docs | sort -u | awk 'END { print NR + 0 }'
 }
 
-# `awk END{print NR+0}`, never `grep -c . || printf 0`: grep PRINTS 0 and EXITS
-# 1 on no matches, so the fallback fired too and the count came back as two
-# lines, `0\n0` — which broke the integer test ("integer expression expected")
-# and spilled into the reason string a reader sees. awk always prints one
-# number and always exits 0.
+# `awk END{print NR+0}`, never `grep -c .
 
-# Is a curate due, and WHY. One reader, because `drain` and `dispatch` both ask
-# and two readers of one cadence is two answers — the orchestrator and a
-# supervised session acting on different ones.
-#
-# TWO triggers, and production is the primary. A plan arrives with declarations
-# nobody has checked, so the need is driven by how fast plans are produced, not
-# by a clock. Counted on this repo's `origin/main` 2026-09-11 with THIS
-# function's own reader — `git log --diff-filter=AM --name-only --format=''
-# --since/--until <week> refs/remotes/origin/main -- docs/plans`, deduped: 0 for
-# weeks -12 to -4, then 32, 47, 10. A 168h clock fires nine times over nothing in
-# the quiet stretch and about three times while 89 changes land in the busy one.
-# Wrong in both directions, which is why production leads.
-#
-# These numbers were counted three times and the middle count was the wrong one.
-# `--full-history` read 31, 71, 25 and the flag looked like the fix (r10); it is
-# the fix for the LANDING query and a third question here, so the count went back
-# to the default walk once the 33 paths it adds turned out never to have existed
-# on `main` — see `dispatch_curate_plan_churn`. A measurement and the code it
-# justifies have to be the same reader, and the way to keep them that way is to
-# write the command down beside the number.
-#
-# The clock is KEPT for the one thing production cannot see: code moving UNDER
-# a plan breaks its anchors with no plan file changing, which is the staleness
-# rule (.agents/docs/plans/README.md). Either knob at 0 disables its own
-# trigger; both at 0 disables the cycle.
-#
-# Prints one line: `<due|not-due|unreadable|off> <reason>`.
+# Is a curate due, and WHY.
 dispatch_curate_due() {
   local hours plans age churn why
-  # Before any knob: can this checkout answer the question at all. Said as its
-  # own state rather than folded into not-due, because `not due — 0 of 10` over a
-  # missing base branch is a sentence that is simply false, and a reader cannot
-  # tell it from a quiet queue (verifier r25, r26).
+  # Before any knob: can this checkout answer the question at all.
   why="$(cycle_unreadable)"
   if [ -n "$why" ]; then
     printf 'unreadable %s' "$why"
@@ -7566,26 +4273,12 @@ dispatch_curate_due() {
   hours="$(num_knob JOHARNESS_CURATE_HOURS 168)"
   plans="$(num_knob JOHARNESS_CURATE_PLANS 10)"
   # `JOHARNESS_CURATE_HOURS=0` alone is STILL the off switch, and that is a
-  # compatibility promise rather than a tidy rule. Before the production trigger
-  # existed it was the only way to switch curation off, and a consumer that set
-  # it would otherwise have woken up to a cycle running on a knob it had never
-  # heard of — the reversal was silent, and nothing pinned it (verifier r9). So
-  # the clock at 0 turns the whole cycle off; `JOHARNESS_CURATE_PLANS=0` narrows
-  # it to the clock alone. Both knobs are declared in
-  # `.agents/scripts/conf-keys.sh`, so every consumer's sync names them.
+  # compatibility promise rather than a tidy rule.
   if [ "$hours" -eq 0 ]; then
     printf 'off JOHARNESS_CURATE_HOURS=0: no curate is ever due (the whole cycle, for compatibility with the only off switch there used to be)'
     return 0
   fi
-  # No curate has ever landed? Then measure from the REPOSITORY's beginning
-  # rather than calling it due outright. "Never landed" as its own due-reason was
-  # wrong twice: it answered before either knob was read, so every case asserting
-  # the cycle passed with both triggers broken (verifier r13) — and it made a
-  # brand-new repo with two plans permanently overdue, which fired the block in
-  # every unrelated fixture and changed what `drain` said about spawning.
-  # Measuring from the first commit asks the same question the landed case asks,
-  # over the same thresholds: has enough been produced, or enough time passed,
-  # since the queue was last checked — and "never" is just the longest interval.
+  # No curate has ever landed?
   age="$(cycle_age_h)"
   if [ -z "$age" ]; then
     churn="$(dispatch_curate_plan_churn)"
@@ -7617,12 +4310,7 @@ dispatch_curate_due() {
 }
 
 # Curate branches in flight: unmerged, carrying a workstream file this branch
-# ADDED that reads `workstream: curate-<stamp>` and `plan: none`. Same shape and
-# same reasons as `dispatch_rescope_branches` — a curator claims no plan, so the
-# claims view cannot see it, and it deletes none, so the retired-edge scan
-# cannot either. Refs collected FIRST and every inner git reads `</dev/null`:
-# the pipe form lets git consume the loop's own ref lines (verifier r1 on the
-# rescope edge). One row per branch: branch, stamp, status, session, next.
+# ADDED that reads `workstream: curate-<stamp>` and `plan: none`.
 dispatch_curate_branches() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}"
   local refs r name base wf files doc cws ckey cstat csess cnext cand
@@ -7634,30 +4322,12 @@ dispatch_curate_branches() {
     [ -n "$r" ] || continue
     name="${r#refs/remotes/origin/}"
     { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
-    # CHEAP PREFILTER, and it is what makes this affordable in `drain`, which
-    # every session runs: one `ls-tree` asks whether this ref carries a
-    # curate-ish workstream file at all, and almost none do. Only a ref that
-    # does pays for the merge base, the added-files diff and the frontmatter
-    # read. Without it every unmerged ref paid all four and `drain` went 46
-    # spawns over budget; with it, 6.
-    #
-    # The match is a BROAD substring on purpose. Keyed on the `curate-` prefix
-    # it re-made r4's own mistake one layer down: a curator whose file is
-    # `curate2026-09-11.md` was skipped before its frontmatter was read. What it
-    # still cannot reach is a curate workstream file named nothing like one —
-    # `curate.md` § 1 makes `docs/handover/curate-<UTC date>.md` the contract,
-    # and this is the one place that contract is load-bearing rather than
-    # cosmetic. The DECISION is still frontmatter alone, so a false positive
-    # here costs three git calls and nothing else.
     cand="$(git -C "$ROOT" ls-tree -r --name-only "$r" -- docs/handover \
       </dev/null 2>/dev/null | grep -i curate)" || continue
     [ -n "$cand" ] || continue
     base="$(git -C "$ROOT" merge-base "$r" \
       "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)"
     [ -n "$base" ] || continue
-    # ADDED against the merge base, never the tree: a curate file INHERITED from
-    # the base branch is not this branch's claim, and reading the tree is what
-    # made an ordinary branch look like a curator (verifier r5).
     files="$(git -C "$ROOT" diff --name-only --diff-filter=ACMRT "$base" "$r" \
       -- docs/handover </dev/null 2>/dev/null | gr_docs)"
     while IFS= read -r wf; do
@@ -7666,45 +4336,25 @@ dispatch_curate_branches() {
       { read -r cws; read -r ckey; read -r cstat; read -r csess; read -r cnext; } \
         <<<"$(printf '%s\n' "$doc" | gr_fields workstream plan status session next)"
       # FRONTMATTER decides, never the filename: `workstream: curate-*` AND
-      # `plan: none`. Keying on the filename let an ordinary branch owning
-      # `curate-cadence.md` with a real `plan:` suppress the whole cycle, and let
-      # a genuine curator named `curate2026-09-11.md` go unseen (verifier r4).
+      # `plan: none`.
       case "$cws" in curate-*) ;; *) continue ;; esac
       [ "$ckey" = none ] || continue
+      # A RELEASED cycle claim holds nothing: cmd_janitor's test, same spelling.
+      [ "$cstat" = abandoned ] && continue
       printf '%s\t%s\t%s\t%s\t%s\n' \
         "$name" "${cws#curate-}" "${cstat:-?}" "${csess:-}" "${cnext:-}"
     done <<<"$files"
   done <<<"$refs"
 }
 
-# --- curate: is the live plan queue still fit? ----------------------------
-#
-# `cleanup` counts artifacts the finish ritual LEFT BEHIND; this asks whether
-# the plans still standing are still true, still wanted, right-sized and in
-# the right order. `ci` already walks every plan mechanically (`lint_nodes
-# docs/plans`) for anchor paths, edges and required keys, so this command
-# deliberately REPEATS some of that — the curator reads one output, not two —
-# while adding the questions a lint cannot answer.
-#
-# Three classes, and the split is the requester's call of 2026-09-11, not a
-# technical one: REPAIR and DECLUTTER the curator acts on, PROPOSE it only
-# writes down. Ordering by priority is product direction and `urgency:` is
-# never the curator's (.agents/harness/AGENTS.md, Decide alone); splitting a
-# plan MULTIPLIES the queue, which is the circularity the requirement ban
-# exists to stop (.agents/docs/unsupervised.md, Bounds).
+# --- curate: is the live plan queue still fit?
 
-# Normalized `scope:` entries of a plan, one per line: comma to newline,
-# surrounding blanks and trailing slashes gone, `none` dropped, and the
-# `shared:` prefix KEPT for the caller to read.
-#
-# The same normalization as .agents/harness/queue-context.sh:scope_lines, which
-# is the hook's one parser of this field. They have to agree about what a path
-# is: a curator's repair is read back by that hook to partition waves, so a
-# second normalization here would let a repair that looks right to this command
-# mean a different declaration to the reader it was made for.
-curate_scope_list() {
-  gr_field scope <"${ROOT}/$1" |
-    tr ',' '\n' |
+curate_scope_list() { gr_field scope <"${ROOT}/$1" | scope_norm; }
+
+# The normalization itself, on a raw `scope:` value from stdin. Shared with
+# lint_fable_bound, which already holds the value from its one frontmatter read.
+scope_norm() {
+  tr ',' '\n' |
     sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
         -e 's/^[Ss][Hh][Aa][Rr][Ee][Dd]:[[:space:]]*/shared:/' \
         -e 's|/*$||' |
@@ -7727,52 +4377,159 @@ curate_covered() {
   return 1
 }
 
-cmd_curate() {
-  local qout rows rel stem label scope seclist p s hit scoped claimed prel
-  local regthr splitthr bullets reqstem
-  local n_plans=0 n_held=0 n_repair=0 n_declutter=0 n_propose=0
-  local repair="" declutter="" propose="" held_rows="" counts="" line plans_for
+# Registry threshold: this many plans declaring one path make it a registry
+# to mark `shared:`. Floor of 2 — the PROPOSE window is `>= 2 && < regthr`.
+curate_regthr() {
+  local r; r="$(num_knob JOHARNESS_CURATE_REGISTRY 3)"
+  [ "$r" -ge 2 ] || r=2
+  printf '%s' "$r"
+}
 
-  # Both the human's, both report-only here: how many plans declaring one path
-  # make it a REGISTRY rather than a collision (at or past this, the repair is
-  # `shared:`; below it, two plans on one path is an ordering question), and how
-  # many Scope bullets make a plan a decompose candidate. No measured default
-  # for either yet — written numbers until a run counts one, and said so.
-  regthr="$(num_knob JOHARNESS_CURATE_REGISTRY 3)"
-  # Floor of 2, because one plan declaring a path is not a registry and because
-  # the PROPOSE window below is `>= 2 && < regthr`: at 0 or 1 every exclusive
-  # declaration became a registry repair AND the overlap class silently
-  # disappeared (verifier r15).
-  [ "$regthr" -ge 2 ] || regthr=2
-  splitthr="$(num_knob JOHARNESS_CURATE_SPLIT 8)"
-
-  printf '== curate (report only — REPAIR and DECLUTTER are the curator'"'"'s, PROPOSE is not)\n\n'
-  printf 'registry  : %s+ plans declaring one path = a registry to mark shared: (JOHARNESS_CURATE_REGISTRY)\n' "$regthr"
-  printf 'split     : %s+ Scope bullets = a decompose candidate, PROPOSED never done (JOHARNESS_CURATE_SPLIT)\n\n' "$splitthr"
-
-  # The claims view, from the hook that owns it. A plan a manager HOLDS draws
-  # no finding at all: its declarations are that manager's to change, and a
-  # curator editing them races the branch rewriting the same frontmatter.
-  qout="$(drain_hook queue-context.sh)"
-  rows="$(printf '%s\n' "$qout" |
-    sed -n 's#^  \(docs/plans/[^ ]*\.md\)  \(\[.*\]\)$#\1|\2#p')"
-
-  # Every path ANY plan declares — held included — counted once per plan, so one
-  # pass answers both "is this a registry" and "which plans share it". Held
-  # counts too: a held plan's declaration is still a declaration, and keying the
-  # count to free plans only removed the registry repair exactly when a branch
-  # was in flight on that registry, which is the overlap it exists to pre-empt
-  # (verifier r4). Findings are still EMITTED for free plans only.
+# Every unmarked scope: entry across the queue, held plans included:
+# `<path>\t<stem>`, one per plan per path.
+curate_counts() {
+  local rel stem s
   while IFS= read -r rel; do
     [ -n "$rel" ] || continue
     stem="$(lint_stem "$rel")"
     while IFS= read -r s; do
       [ -n "$s" ] || continue
       case "$s" in shared:*) continue ;; esac
-      counts="${counts}${s}	${stem}
-"
+      printf '%s\t%s\n' "$s" "$stem"
     done < <(curate_scope_list "$rel")
   done < <(lint_nodes docs/plans)
+}
+
+# How many plans declare <path> unmarked, from curate_counts output.
+curate_hits() {
+  printf '%s' "$2" | awk -F'\t' -v p="$1" '$1 == p { print $2 }' | sort -u | grep -c . || :
+}
+
+# Scope-section paths under directory <dir>, one per line.
+curate_under() { printf '%s\n' "$2" | awk -v d="$1" 'index($0, d "/") == 1'; }
+
+# Repairs one plan needs, one per line, `M\t<text>` when `curate --apply`
+# fixes it mechanically, `J\t<text>` when it needs a reader.
+curate_repairs() {
+  local rel="$1" counts="$2" regthr="$3" stem scope seclist="" p s hit
+  stem="$(lint_stem "$rel")"
+  scope="$(curate_scope_list "$rel")"
+  while IFS= read -r p; do
+    [ -n "$p" ] || continue
+    [ -e "${ROOT}/${p}" ] && continue
+    printf 'J\t%s: anchor '"'"'%s'"'"' not in the tree — re-locate it by name, or cut the line\n' "$stem" "$p"
+  done < <(anchor_paths "$rel")
+  [ -z "$scope" ] || seclist="$(curate_section_paths "$rel" Scope)"
+  while IFS= read -r p; do
+    [ -n "$p" ] || continue
+    curate_covered "$p" "$scope" && continue
+    printf 'M\t%s: Scope names '"'"'%s'"'"', scope: does not cover it — add it\n' "$stem" "$p"
+  done <<<"$seclist"
+  while IFS= read -r s; do
+    [ -n "$s" ] || continue
+    s="${s#shared:}"
+    [ -d "${ROOT}/${s}" ] || continue
+    if [ -n "$(curate_under "$s" "$seclist")" ]; then
+      printf 'M\t%s: scope: claims the whole directory '"'"'%s'"'"' — narrow it to the files Scope names\n' "$stem" "$s"
+    else
+      printf 'J\t%s: scope: claims the whole directory '"'"'%s'"'"' and Scope names no file under it — narrow it by hand\n' "$stem" "$s"
+    fi
+  done <<<"$scope"
+  while IFS= read -r s; do
+    [ -n "$s" ] || continue
+    case "$s" in shared:*) continue ;; esac
+    hit="$(curate_hits "$s" "$counts")"
+    [ "$hit" -ge "$regthr" ] || continue
+    printf 'M\t%s: '"'"'%s'"'"' is declared by %s plans and unmarked — shared: it\n' "$stem" "$s" "$hit"
+  done <<<"$scope"
+}
+
+# The scope: value curate_repairs' mechanical fixes produce, comma-joined.
+curate_fixed_scope() {
+  local rel="$1" counts="$2" regthr="$3" scope seclist="" s bare marked u p out=""
+  scope="$(curate_scope_list "$rel")"
+  [ -n "$scope" ] || return 0
+  seclist="$(curate_section_paths "$rel" Scope)"
+  while IFS= read -r s; do
+    [ -n "$s" ] || continue
+    bare="${s#shared:}"; marked=""; [ "$bare" = "$s" ] || marked="shared:"
+    if [ -d "${ROOT}/${bare}" ] && [ -n "$(curate_under "$bare" "$seclist")" ]; then
+      while IFS= read -r u; do
+        [ -n "$u" ] && out="${out}${marked}${u}"$'\n'
+      done <<<"$(curate_under "$bare" "$seclist")"
+      continue
+    fi
+    if [ -z "$marked" ] && [ "$(curate_hits "$bare" "$counts")" -ge "$regthr" ]; then
+      out="${out}shared:${bare}"$'\n'; continue
+    fi
+    out="${out}${s}"$'\n'
+  done <<<"$scope"
+  while IFS= read -r p; do
+    [ -n "$p" ] || continue
+    curate_covered "$p" "$scope" || out="${out}${p}"$'\n'
+  done <<<"$seclist"
+  printf '%s' "$out" | awk 'NF && !seen[$0]++' | paste -sd, - | sed 's/,/, /g'
+}
+
+# Rewrite <rel>'s frontmatter scope: line to <value>.
+curate_write_scope() {
+  local f="${ROOT}/$1" tmp
+  tmp="$(mktemp)" || return 1
+  awk -v v="$2" '
+    NR == 1 && $0 == "---" { fm = 1; print; next }
+    fm && $0 == "---" { fm = 0 }
+    fm && /^scope:/ { print "scope: " v; next }
+    { print }' "$f" >"$tmp" && mv "$tmp" "$f"
+}
+
+cmd_curate() {
+  local qout rows rel stem label scope claimed prel apply=0 old new
+  local regthr splitthr bullets reqstem hit s p
+  local n_plans=0 n_held=0 n_repair=0 n_mech=0 n_declutter=0 n_propose=0 n_fixed=0
+  local pass n_pass
+  local repair="" declutter="" propose="" held_rows="" counts="" line plans_for kind text
+
+  case "${1:-}" in
+    '') ;;
+    --apply) apply=1 ;;
+    *) die "usage: $0 curate [--apply]" ;;
+  esac
+  regthr="$(curate_regthr)"
+  splitthr="$(num_knob JOHARNESS_CURATE_SPLIT 8)"
+
+  printf '== curate (REPAIR marked [apply] is mechanical: ./joharness.sh curate --apply)\n\n'
+  printf 'registry  : %s+ plans declaring one path = a registry to mark shared: (JOHARNESS_CURATE_REGISTRY)\n' "$regthr"
+  printf 'split     : %s+ Scope bullets = a decompose candidate, PROPOSED never done (JOHARNESS_CURATE_SPLIT)\n\n' "$splitthr"
+
+  # A plan a manager HOLDS draws no finding: its declarations are that manager's.
+  qout="$(drain_hook queue-context.sh)"
+  rows="$(printf '%s\n' "$qout" |
+    sed -n 's#^  \(docs/plans/[^ ]*\.md\)  \(\[.*\]\)$#\1|\2#p')"
+  counts="$(curate_counts)"
+
+  if [ "$apply" -eq 1 ]; then
+    # Until nothing changes: narrowing a directory can make a new registry.
+    for pass in 1 2 3 4 5; do
+      n_pass=0
+      while IFS= read -r rel; do
+        [ -n "$rel" ] || continue
+        label="$(printf '%s\n' "$rows" | awk -F'|' -v r="$rel" '$1 == r { print $2; exit }')"
+        case "$label" in *'claimed on '*) continue ;; esac
+        old="$(curate_scope_list "$rel" | paste -sd, - | sed 's/,/, /g')"
+        [ -n "$old" ] || continue
+        new="$(curate_fixed_scope "$rel" "$counts" "$regthr")"
+        { [ -n "$new" ] && [ "$new" != "$old" ]; } || continue
+        curate_write_scope "$rel" "$new" || continue
+        n_pass=$((n_pass + 1))
+        printf 'applied   : %s  scope: %s (pass %s)\n' "$rel" "$new" "$pass"
+      done < <(lint_nodes docs/plans)
+      counts="$(curate_counts)"
+      n_fixed=$((n_fixed + n_pass))
+      [ "$n_pass" -gt 0 ] || break
+    done
+    [ "$n_fixed" -gt 0 ] || printf 'applied   : nothing — no mechanical repair\n'
+    printf '\n'
+  fi
 
   while IFS= read -r rel; do
     [ -n "$rel" ] || continue
@@ -7787,72 +4544,23 @@ cmd_curate() {
     esac
     n_plans=$((n_plans + 1))
     scope="$(curate_scope_list "$rel")"
-    # `scope: none`, or absent, is a DELIBERATE declaration: the plan joins no
-    # wave and its independence stays unprovable (.agents/docs/plans/TEMPLATE.md).
-    # Every scope-derived repair below would read that as "add these paths",
-    # which inverts the author's choice — and REPAIR is the curator's to act on
-    # (verifier r9). The anchor repair still applies; it is about the body.
-    scoped=1
-    [ -n "$scope" ] || scoped=0
 
-    # REPAIR 1: an anchor path gone from the tree. Same reader the lint warns
-    # from, so the two cannot disagree about what an anchor is.
-    while IFS= read -r p; do
-      [ -n "$p" ] || continue
-      [ -e "${ROOT}/${p}" ] && continue
+    while IFS=$'\t' read -r kind text; do
+      [ -n "$kind" ] || continue
       n_repair=$((n_repair + 1))
-      repair="${repair}  ${stem}: anchor '${p}' not in the tree — re-locate it by name, or cut the line"$'\n'
-    done < <(anchor_paths "$rel")
+      if [ "$kind" = M ]; then
+        n_mech=$((n_mech + 1))
+        repair="${repair}  [apply] ${text}"$'\n'
+      else
+        repair="${repair}  ${text}"$'\n'
+      fi
+    done < <(curate_repairs "$rel" "$counts" "$regthr")
 
-    # REPAIR 2: a path the Scope section names that no `scope:` entry covers.
-    # The measured failure this is for: "scope is only as true as it is
-    # complete, and the file plans forget is the shared one"
-    # (.agents/docs/plans/README.md).
-    seclist=""
-    [ "$scoped" -eq 0 ] || seclist="$(curate_section_paths "$rel" Scope)"
-    while IFS= read -r p; do
-      [ -n "$p" ] || continue
-      curate_covered "$p" "$scope" && continue
-      n_repair=$((n_repair + 1))
-      repair="${repair}  ${stem}: Scope names '${p}', scope: does not cover it — add it, or the wave partition asserts a safety this plan does not have"$'\n'
-    done <<<"$seclist"
-
-    # REPAIR 3: a `scope:` entry that is a DIRECTORY in the tree. It swallows
-    # every file under it, so it collides with every plan touching the
-    # directory for no reason (the shape that held 14 of one consumer's 38 plans).
-    while IFS= read -r s; do
-      [ -n "$s" ] || continue
-      s="${s#shared:}"
-      [ -d "${ROOT}/${s}" ] || continue
-      n_repair=$((n_repair + 1))
-      repair="${repair}  ${stem}: scope: claims the whole directory '${s}' — narrow it to the file the Scope section names"$'\n'
-    done < <(curate_scope_list "$rel")
-
-    # REPAIR 4: a path this many plans declare exclusively is a registry they
-    # append to, not a file they fight over. Unmarked, one branch in flight
-    # holds every other plan (OVERLAP-BOUND, .agents/docs/orchestrated.md).
-    while IFS= read -r s; do
-      [ -n "$s" ] || continue
-      case "$s" in shared:*) continue ;; esac
-      hit="$(printf '%s' "$counts" | awk -F'\t' -v p="$s" '$1 == p { print $2 }' | sort -u | grep -c .)"
-      [ "$hit" -ge "$regthr" ] || continue
-      n_repair=$((n_repair + 1))
-      repair="${repair}  ${stem}: '${s}' is declared by ${hit} plans and unmarked — shared: it on BOTH sides, or one branch holds the rest"$'\n'
-    done < <(curate_scope_list "$rel")
-
-    # DECLUTTER: two signals, neither sufficient on its own. The curator
-    # confirms in MERGED HISTORY before deleting anything — a plan is not
-    # obsolete because its paths moved.
+    # DECLUTTER: evidence in merged history first; a plan is not obsolete
+    # because its paths moved.
     reqstem="$(lint_stem "$(gr_field requirement <"${ROOT}/${rel}")")"
     if [ -n "$reqstem" ] && [ "$reqstem" != "none" ] &&
        [ ! -f "${ROOT}/docs/product/${reqstem}.md" ]; then
-      # Counted through the SAME reader and the same normalization, never a
-      # grep of the raw field: a plan may name its requirement by path
-      # (`docs/product/gone.md`) or by stem (`gone`), and the grep matched
-      # neither reliably — two plans serving one requirement were each reported
-      # as the last one serving it, both offered for deletion. `lint_stem`
-      # collapses both spellings, which is what the edge reader already does
-      # (verifier r5).
       plans_for=0
       while IFS= read -r prel; do
         [ -n "$prel" ] || continue
@@ -7878,9 +4586,6 @@ cmd_curate() {
       fi
     fi
 
-    # PROPOSE: never acted on. A bullet count is a SIGNAL, and the bound the
-    # curator cannot cross is that a split may only follow separable
-    # deliverables the Scope section ALREADY names.
     bullets="$(awk '/^## Scope/ { s = 1; next } /^## / { s = 0 } s && /^- / { n++ } END { print n + 0 }' "${ROOT}/${rel}")"
     if [ "$bullets" -ge "$splitthr" ]; then
       n_propose=$((n_propose + 1))
@@ -7888,9 +4593,7 @@ cmd_curate() {
     fi
   done < <(lint_nodes docs/plans)
 
-  # PROPOSE, across plans: one path two plans claim exclusively, below the
-  # registry threshold, is an ordering question — which goes first, or are they
-  # one plan. Never the curator's to answer: that is queue priority.
+  # ORDER: two to (regthr-1) plans claiming one path exclusively.
   while IFS= read -r line; do
     [ -n "$line" ] || continue
     p="${line%%	*}"
@@ -7909,16 +4612,6 @@ cmd_curate() {
   if [ -n "$propose" ]; then printf 'PROPOSE (write these down; never act):\n%s\n' "$propose"; fi
 
   if [ "$n_plans" -eq 0 ]; then
-    # It read NOTHING, which is not the same as finding nothing wrong. Saying
-    # "every declaration reads true" over an all-held queue is a verdict
-    # asserting a property it never checked, and curate.md reads it as "stop"
-    # (verifier r13).
-    #
-    # Two ways to read nothing, and the earlier spelling stated the wrong one as
-    # fact: over an EMPTY queue it said "every one held by a manager" with no
-    # plans and no manager anywhere. A curator then had a verdict its role file
-    # did not name (verifier r32). Reachable now in a way it was not before,
-    # because the deletion filter makes a queue that just emptied a real trigger.
     if [ "$n_held" -eq 0 ]; then
       printf 'verdict   : NOTHING READ — the queue is EMPTY: no plan to check, which is not the same as every plan reading true. Still land the date (curate.md 0.4)\n'
     else
@@ -7928,33 +4621,96 @@ cmd_curate() {
   elif [ $((n_repair + n_declutter + n_propose)) -eq 0 ]; then
     printf 'verdict   : NOTHING TO CURATE — %s free plan(s), every declaration reads true\n' "$n_plans"
   else
-    printf 'verdict   : CURATE — %s repair(s), %s declutter candidate(s), %s proposal(s)\n' \
-      "$n_repair" "$n_declutter" "$n_propose"
+    printf 'verdict   : CURATE — %s repair(s) (%s mechanical), %s declutter candidate(s), %s proposal(s)\n' \
+      "$n_repair" "$n_mech" "$n_declutter" "$n_propose"
   fi
+  printf 'judgement : %s\n' "$((n_repair - n_mech + n_declutter + n_propose))"
   return 0
 }
 
-# Rescope branches in flight: the surveyor, a manager working the `rescope`
-# kind (.claude/commands/manage.md), claims on a workstream file that names NO
-# plan — `plan: none`, `workstream: rescope-<key>` — because its whole job is
-# rewriting other plans' `scope:` lines, and a synthetic plan file would be a
-# session writing queue work from a detector. So it is invisible to the claims
-# view (that reads `plan:`) and to `dispatch_retired_edges` (it deletes no plan
-# file). This scan is the only reader that sees it, which is what keeps the
-# surveyor OFF the slot count while still letting `dispatch` say one is
-# already running. Same ref walk as `dispatch_retired_edges`: merged refs drop
-# out, no merge base = skip, and the workstream file is read AT THE BRANCH, not
-# inherited from the base. One row per rescope branch: branch, key, status,
-# session, next.
+# Plans this branch adds (diff against the merge base, working tree
+# included), one per line.
+plans_in_diff() {
+  local base="$1"
+  {
+    git -C "$ROOT" diff --name-only --diff-filter=A "$base" -- docs/plans 2>/dev/null
+    git -C "$ROOT" ls-files --others --exclude-standard -- docs/plans 2>/dev/null
+  } | awk '/^docs\/plans\/[^\/]+\.md$/ && !/\/(README|TEMPLATE)\.md$/' | sort -u |
+    while IFS= read -r f; do [ -f "${ROOT}/${f}" ] && printf '%s\n' "$f"; done
+}
+
+# A scope: made only of core paths (protocol_paths): no session may build it.
+plan_core_only() {
+  local scope s c core any=0
+  scope="$(curate_scope_list "$1")"
+  [ -n "$scope" ] || return 1
+  core="$(protocol_paths)"
+  while IFS= read -r s; do
+    [ -n "$s" ] || continue
+    s="${s#shared:}"; any=0
+    while IFS= read -r c; do
+      case "$s" in "$c" | "$c"/*) any=1 ;; esac
+    done <<<"$core"
+    [ "$any" -eq 1 ] || return 1
+  done <<<"$scope"
+  return 0
+}
+
+# ci stage: plans this branch ADDS must carry no curate repair and must be
+# buildable (scope: not core paths only). Edited plans are skipped: their
+# defects may predate the edit. The branch's own held plan is exempt.
+lint_plans_in_diff() {
+  local over="origin/${HANDOVER_BASE_BRANCH:-main}" base rel counts regthr bad=0 kind text n=0
+  local ws held=""
+  base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
+  if [ -z "$base" ]; then
+    printf '  not measurable here (no merge-base with %s)\n' "$over"
+    return 0
+  fi
+  counts="$(curate_counts)"
+  regthr="$(curate_regthr)"
+  # The plan this branch's own workstream file claims is held: its
+  # declarations are this branch's to change, as in `curate`.
+  while IFS= read -r ws; do
+    [ -n "$ws" ] || continue
+    held="${held} $(lint_stem "$(lint_ws_content "$ws" | gr_field plan)") "
+  done <<<"$(fin_own_ws "$base")"
+  while IFS= read -r rel; do
+    [ -n "$rel" ] || continue
+    n=$((n + 1))
+    while IFS=$'\t' read -r kind text; do
+      [ -n "$kind" ] || continue
+      bad=$((bad + 1))
+      if [ "$kind" = M ]; then
+        printf '  %s  (fix: ./joharness.sh curate --apply)\n' "$text"
+      else
+        printf '  %s\n' "$text"
+      fi
+    done < <(case "$held" in *" $(lint_stem "$rel") "*) ;;
+               *) curate_repairs "$rel" "$counts" "$regthr" ;; esac)
+    case "$held" in *" $(lint_stem "$rel") "*) continue ;; esac
+    if plan_core_only "$rel"; then
+      bad=$((bad + 1))
+      printf '  %s: scope: names core paths only (%s) — no session may build it; mark the issue for a human instead\n' \
+        "$(lint_stem "$rel")" "$(protocol_paths | paste -sd, - | sed 's/,/, /g')"
+    fi
+  done < <(plans_in_diff "$base")
+  if [ "$n" -eq 0 ]; then
+    printf '  no plan added on this branch\n'
+    return 0
+  fi
+  if [ "$bad" -eq 0 ]; then
+    printf '  %s plan(s) added, every declaration reads true\n' "$n"
+    return 0
+  fi
+  printf '\n  %s problem(s) in plans this branch adds.\n' "$bad"
+  return 1
+}
+
 dispatch_rescope_branches() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}"
   local refs r name base wf files doc rws rkey rstat rsess rnext
-  # Refs collected into a variable FIRST, then looped over a here-string. The
-  # pipe form (`for-each-ref | { while read r; do git …`) lets the inner git
-  # inherit the pipe as stdin and consume ref lines — a race that dropped or
-  # duplicated refs run to run. Every inner git also reads from `</dev/null`
-  # for the same reason at the next level down (`dispatch_retired_edges` runs
-  # the pipe form and has the latent version of this).
+  # Refs collected into a variable FIRST, then looped over a here-string.
   refs="$(git -C "$ROOT" for-each-ref --format='%(refname)' \
     refs/remotes/origin </dev/null 2>/dev/null)"
   while IFS= read -r r; do
@@ -7966,9 +4722,7 @@ dispatch_rescope_branches() {
     base="$(git -C "$ROOT" merge-base "$r" \
       "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)"
     [ -n "$base" ] || continue
-    # Workstream files this branch ADDED against the base, read there. A branch
-    # may carry an inherited workstream file it did not write; the diff filter
-    # keeps only the ones it introduced. Collected first, same reason.
+    # Workstream files this branch ADDED against the base, read there.
     files="$(git -C "$ROOT" diff --name-only --diff-filter=ACMRT "$base" "$r" \
       -- docs/handover </dev/null 2>/dev/null | gr_docs)"
     while IFS= read -r wf; do
@@ -7985,127 +4739,190 @@ dispatch_rescope_branches() {
   done <<<"$refs"
 }
 
+# Plans on a branch: a plan file an unmerged branch ADDED and the base does not
+# carry.
+dispatch_branch_plans() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}"
+  local refs r name base plans wfs wf doc own wplan wstat abandoned p stem urg agt retired rc
+  refs="$(git -C "$ROOT" for-each-ref --format='%(refname)' \
+    refs/remotes/origin </dev/null 2>/dev/null)"
+  while IFS= read -r r; do
+    [ -n "$r" ] || continue
+    name="${r#refs/remotes/origin/}"
+    { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
+    git -C "$ROOT" merge-base --is-ancestor "$r" \
+      "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null && continue
+    base="$(git -C "$ROOT" merge-base "$r" \
+      "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)"
+    [ -n "$base" ] || continue
+    plans="$(git -c core.quotePath=false -C "$ROOT" diff --no-renames \
+      --name-only --diff-filter=A "$base" "$r" \
+      -- docs/plans </dev/null 2>/dev/null | gr_docs)"
+    [ -n "$plans" ] || continue
+    # The branch's own workstream files, the ones it introduced or changed.
+    own=" "; abandoned=0
+    wfs="$(git -c core.quotePath=false -C "$ROOT" diff --name-only \
+      --diff-filter=ACMRT "$base" "$r" \
+      -- docs/handover </dev/null 2>/dev/null | gr_docs)"
+    while IFS= read -r wf; do
+      [ -n "$wf" ] || continue
+      doc="$(git -C "$ROOT" show "${r}:${wf}" </dev/null 2>/dev/null)"
+      { read -r wplan; read -r wstat; } \
+        <<<"$(printf '%s\n' "$doc" | gr_fields plan status)"
+      [ "$wstat" = abandoned ] && abandoned=1
+      wplan="$(lint_stem "$wplan" | tr -cd 'A-Za-z0-9._-')"
+      [ -z "$wplan" ] || [ "$wplan" = none ] || own="${own}${wplan} "
+    done <<<"$wfs"
+    [ "$abandoned" -eq 0 ] || continue
+    while IFS= read -r p; do
+      [ -n "$p" ] || continue
+      stem="$(lint_stem "$p" | tr -cd 'A-Za-z0-9._-')"
+      [ -n "$stem" ] || continue
+      [ "${own#* "${stem}" }" = "$own" ] || continue
+      # Already on the base under the same path: the queue has its row.
+      git -C "$ROOT" cat-file -e "refs/remotes/origin/${base_branch}:${p}" \
+        </dev/null 2>/dev/null && continue
+      # Absent on the base, but the base ADDED and RETIRED it after this
+      # branch left it: carried by another branch. `--full-history -m` is what
+      # sees the retire (a merge commit is treesame for the path). A retire
+      # already in the merge base's history is an older plan of that name.
+      retired=0
+      while IFS= read -r rc; do
+        [ -n "$rc" ] || continue
+        git -C "$ROOT" merge-base --is-ancestor "$rc" "$base" \
+          </dev/null 2>/dev/null || { retired=1; break; }
+      done <<<"$(git -C "$ROOT" log --full-history -m --diff-filter=D \
+        --format=%H "refs/remotes/origin/${base_branch}" -- "$p" \
+        </dev/null 2>/dev/null)"
+      { read -r urg; read -r agt; } <<<"$(git -C "$ROOT" show "${r}:${p}" \
+        </dev/null 2>/dev/null | gr_fields urgency agent)"
+      urg="$(printf '%s' "$urg" | tr -cd 'A-Za-z0-9._-')"
+      agt="$(printf '%s' "$agt" | tr -cd 'A-Za-z0-9._-')"
+      printf '%s\t%s\t%s\t%s' "$(printf '%s' "$name" | tr -cd 'A-Za-z0-9._/-')" \
+        "$stem" "${urg:-?}" "${agt:-?}"
+      # A fifth field marks the leftover; the plans-on-a-branch reader keeps
+      # to four-field rows.
+      if [ "$retired" -eq 1 ]; then printf '\tleftover\n'; else printf '\n'; fi
+    done <<<"$plans"
+  done <<<"$refs"
+}
+
+dispatch_rescope_merged() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}"
+  local line h="" seen="" doc rws rplan rstat
+  while IFS= read -r line; do
+    case "$line" in
+      '') continue ;;
+      'C '*) h="${line#C }"; continue ;;
+    esac
+    [ -n "$h" ] || continue
+    # `-m` lists a merge once per parent: one row per (commit, file).
+    case "$seen" in *" ${h}:${line} "*) continue ;; esac
+    seen="${seen} ${h}:${line} "
+    doc="$(git -C "$ROOT" show "${h}^1:${line}" </dev/null 2>/dev/null ||
+      git -C "$ROOT" show "${h}^2:${line}" </dev/null 2>/dev/null)" || continue
+    rws=""; rplan=""; rstat=""
+    { read -r rws; read -r rplan; read -r rstat; } \
+      < <(printf '%s\n' "$doc" | gr_fields workstream plan status)
+    case "$rws" in rescope-?*) ;; *) continue ;; esac
+    [ "$rplan" = none ] || continue
+    [ "$rstat" = "done" ] || continue
+    printf '%s\t%s\n' "$h" "${rws#rescope-}"
+  done < <(GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 git -C "$ROOT" log \
+    --full-history -m --diff-filter=D --name-only --format='C %H' \
+    "refs/remotes/origin/${base_branch}" -- 'docs/handover/rescope-*' \
+    </dev/null 2>/dev/null)
+}
+
+# Does a rescope record on key <K> cover the current key <C>?
+dispatch_rescope_covers() {
+  local k="+$1+" h
+  [ -n "$2" ] || return 1
+  while IFS= read -r h; do
+    [ -n "$h" ] || continue
+    case "$k" in *"+${h}+"*) ;; *) return 1 ;; esac
+  done < <(printf '%s\n' "$2" | tr '+' '\n')
+  return 0
+}
+
+# The closed list of reasons a `status: blocked` may name: `next:` opens with
+# `<reason>:`. One copy; dispatch is the only reader.
+block_reason_ok() {
+  local t="${1#[\"\']}"
+  case "$t" in
+    "money:"* | "credentials:"* | "product:"* | "interface:"* | "core path:"* | \
+    "conflict:"* | "hardware:"* | "github:"* | "stalled:"* | "respawns:"*) return 0 ;;
+  esac
+  return 1
+}
+
 cmd_dispatch() {
-  local mode cap stall health respawn churnt churnl hout qout rows wavemap edge req sup
+  local cap stall health respawn churnt churnl hout qout rows wavemap edge req sup
   local path label branch ws doc status session next age agetext flag tier
+  local pr hours cage_min n_ceiling=0
   local base commits churn churn_n churn_f marks rounds work
-  local analysis cond
   local st wave note hold holdmap hold_live hline hb hs holds_n blocked_claims=""
   local ebranch eitem efirst estem espaces emore epath eage eagetext
   local edge_rows="" edge_items="" edge_unver=""
   local n_inflight=0 n_slots n_free=0 n_stall=0 n_blocked=0 n_hold=0 n_wait=0 n_loop=0
   local pending pending_used
   local n_edge=0 n_edge_stall=0 n_leftover=0 n_leftover_noitem=0
-  local leftover_rows="" estate=""
+  local leftover_rows="" estate="" fleet_age stall_young=""
   local curate_due=0 curate_inflight="" n_curate_inflight=0 cdue cstate creason
-  local janitor_due=0 janitor_inflight="" n_janitor=0 jdue jstate jreason jb jw
-  local cb ck cstat csess cnext cage
+  local jcands cjudge n_roles role_slots
+  local scout_due=0 scout_inflight="" n_scout=0 sdue sstate sreason sb sw ss scout_gate=0 srows
+  local clerk_due=0 clerk_inflight="" n_clerk=0 kdue kstate kreason kb kw ks
+  local fetch_failed=0
+  local cb ck cstat csess cnext cage bplans
   local rescope_key="" rescope_paths="" rescope_inflight="" rescope_holders=""
   local n_rescope_inflight=0 n_rescope_holders=0 rescope_settled=0
+  local rescope_held="" rescope_merged="" msha mkey mheld mchanged
   local rb rk rstat rsess rnext rage
   local DISPATCH_WITHHELD=
   local inflight="" free="" questions=""
 
-  mode="$(run_mode)"
   cap="$(num_knob JOHARNESS_MAX_MANAGERS 4)"
   stall="$(num_knob JOHARNESS_STALL_MINUTES 45)"
   health="$(num_knob JOHARNESS_HEALTH_MINUTES 10)"
   respawn="$(num_knob JOHARNESS_RESPAWN_LIMIT 2)"
+  hours="$(num_knob JOHARNESS_MANAGER_HOURS 4)"
   # ci's two tiers, kept and read the same way ci reads them: from the
-  # threshold a warning the session judges, from the limit (default twice
-  # that) no longer a call. LOOP? is the kill line, so it sits on the
-  # limit; the warning band is named on the work line. 0 lifts it, here
-  # and in ci, because both go through num_knob.
+  # threshold a warning the session judges, from the limit (default twice that)
+  # no longer a call.
   churnt="$(num_knob JOHARNESS_CHURN_THRESHOLD 5)"
   churnl="$(num_knob JOHARNESS_CHURN_LIMIT $((churnt * 2)))"
-  # Resolved ONCE, before any row: analysis_on warns by name on an
-  # unrecognised value, and a resolver called per row warns per row — the
-  # same conf typo printed nine times in one pass.
-  analysis=0; analysis_on && analysis=1
 
-  printf '== dispatch (mode: %s)\n\n' "$mode"
-  if [ "$mode" != "orchestrated" ]; then
-    # Stops here. An earlier draft reported anyway, "for a human running
-    # the beta loop by hand" — and in a supervised repo that printed NOT
-    # YOURS over a plan `drain` was handing out on the same tree: two
-    # readers, two answers, the failure unsupervised.md records three
-    # pull requests fixing. The orchestrator's view exists only where the
-    # orchestrator does; a preview exports the mode for one command and
-    # `authority` says what that preview is worth.
-    printf 'NOT ORCHESTRATED (JOHARNESS_MODE=%s): nothing to dispatch. This mode'"'"'s\n' "$mode"
-    printf 'reader is ./joharness.sh drain. Preview the orchestrator'"'"'s view with\n'
-    printf 'JOHARNESS_MODE=orchestrated ./joharness.sh dispatch — a preview, which\n'
-    printf './joharness.sh authority reads as UNVERIFIED.\n'
-    return 0
-  fi
-  # A long-lived reader. The orchestrator runs for hours, and a stale clone
-  # reads a manager that pushed as stalled and a merged branch as in flight.
+  printf '== dispatch\n\n'
+  # A long-lived reader.
+  [ "${DISPATCH_FETCH:-1}" != 0 ] || fetch_failed=1
+  # A single-branch or depth-1 clone fetches `refs/heads/main` alone: the fetch
+  # succeeds and no scout branch is ever seen (pass 6).
+  case "$(git -C "$ROOT" config --get-all remote.origin.fetch 2>/dev/null)" in
+    *'refs/heads/*:'*) ;;
+    *) fetch_failed=1 ;;
+  esac
   if [ "${DISPATCH_FETCH:-1}" != 0 ]; then
-    # Shallow first, and it is not a nicety: a shallow clone has no merge
-    # base for most refs, so the retired-edge scan below cannot see an edge
-    # at all and the slots over-report free. Telling the reader to run
-    # `git fetch --unshallow` while declining to run it puts the fix on a
-    # human the sibling reader already spares — .agents/harness/handover-context.sh
-    # does exactly this, string-compared for git older than 2.15 where
-    # --is-shallow-repository echoes its own name, with the plain prune as
-    # the fallback when the unshallow fails or times out.
     if [ "$(git -C "$ROOT" rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
       timeout 15 git -C "$ROOT" fetch -q --prune --unshallow origin 2>/dev/null ||
         git -C "$ROOT" fetch -q --prune origin 2>/dev/null ||
-        warn "fetch failed; push ages below are from the last fetch"
+        { warn "fetch failed; push ages below are from the last fetch"; fetch_failed=1; }
     else
       git -C "$ROOT" fetch -q --prune origin 2>/dev/null ||
-        warn "fetch failed; push ages below are from the last fetch"
+        { warn "fetch failed; push ages below are from the last fetch"; fetch_failed=1; }
     fi
   fi
   printf 'cap       : %s manager(s) at once (JOHARNESS_MAX_MANAGERS)\n' "$cap"
   printf 'stall     : %s min without a push = cross-check the control plane (JOHARNESS_STALL_MINUTES)\n' "$stall"
   printf 'health    : one pass every %s min (JOHARNESS_HEALTH_MINUTES)\n' "$health"
   printf 'respawns  : %s per item per run (JOHARNESS_RESPAWN_LIMIT)\n' "$respawn"
+  # Lifted, the line names no mark: `grep CEILING?` over a lifted pass is 0.
+  if [ "$hours" -gt 0 ]; then
+    printf 'ceiling   : %sh since the claim with no pr: = CEILING? (JOHARNESS_MANAGER_HOURS; 0 lifts it)\n' "$hours"
+  else
+    printf 'ceiling   : lifted, no time against a claim (JOHARNESS_MANAGER_HOURS=0)\n'
+  fi
   printf 'loop      : one file rewritten %s+ times on a branch = LOOP? (JOHARNESS_CHURN_LIMIT; 0 lifts it); %s+ = a warning on the work line (JOHARNESS_CHURN_THRESHOLD)\n' "$churnl" "$churnt"
-  # Printed both ways, because off is the state a reader most needs told: the
-  # health table's `done` row does nothing here unless this says on, and an
-  # orchestrator that cannot see the switch cannot report why it filed
-  # nothing. Never a count — what a merged edge found is `upstream`'s read,
-  # per edge, and dispatch keeps no memory across passes to know which edges
-  # it has already handed over.
-  if upstream_on; then
-    printf 'upstream  : ON — after a manager MERGES, spawn ONE reporter on its branch:\n'
-    printf '            /upstream-report <branch>. Costs one session beyond the cap,\n'
-    printf '            once per merged edge — the ledger is what makes it once\n'
-    printf '            (JOHARNESS_UPSTREAM_FEEDBACK)\n'
-  else
-    printf 'upstream  : off — a merged manager is done; nothing is reported to the\n'
-    printf '            canonical (JOHARNESS_UPSTREAM_FEEDBACK)\n'
-  fi
-  # The second switch, printed both ways for the reason the first one is: off
-  # is the state a reader most needs told, because an orchestrator that cannot
-  # see the switch cannot report why it explained nothing. Never a count —
-  # which rows carry a condition is the in-flight block's answer, below, and
-  # dispatch keeps no memory across passes to know which were already
-  # analysed. The ledger does (.claude/commands/orchestrate.md, step 4).
-  if [ "$analysis" = 1 ]; then
-    printf 'analysis  : ON — a row marked BLOCKED, STALL? or LOOP? below gets ONE\n'
-    printf '            analyst: /analyst <branch>. It says WHY, re-reads the cause\n'
-    printf '            against this repo'"'"'s conf, and files at most one issue on the\n'
-    printf '            canonical. Costs one session beyond the cap, once per\n'
-    printf '            condition per item per run — the ledger is what makes it once\n'
-    printf '            (JOHARNESS_IDLE_ANALYSIS)\n'
-  else
-    printf 'analysis  : off — a parked manager is reprinted, never explained. Read it\n'
-    printf '            with ./joharness.sh analysis <branch> (JOHARNESS_IDLE_ANALYSIS)\n'
-  fi
-  # The curate cycle's standing state. Both halves from git (never a ledger:
-  # the orchestrator's dies with its run), and `0` is the human's off switch.
-  # ONE reader, shared with `drain`: two readers of one cadence is two answers
-  # to "is a curate due", and the orchestrator and a supervised session would
-  # act on different ones. The scan below still runs only when the answer can
-  # change — `dispatch_curate_branches` walks every remote ref a second time (4
-  # git calls per branch) and running it unconditionally cost +30% on this
-  # checkout's 132 refs (6749/6827/6753 ms against 5227/5197/5169, three runs
-  # each, 2026-09-11), which the off switch did not save because the loop sat
-  # above it. Off scans nothing; not-due scans nothing, because a curator in
-  # flight cannot make a not-due pass due (verifier r12).
+  # The curate cycle's standing state.
   cdue="$(dispatch_curate_due)"
   cstate="${cdue%% *}"; creason="${cdue#* }"
   if [ "$cstate" = due ]; then
@@ -8126,48 +4943,82 @@ cmd_dispatch() {
     printf 'curate    : IN FLIGHT, so none is due. What made it due: %s\n' "$creason"
     printf '%b' "$curate_inflight"
   elif [ "$cstate" = due ]; then
+    # A session only for what needs judgement (decompose, order, declutter,
+    # a repair no script can make); mechanical repairs are `curate --apply`.
+    cjudge="$(cmd_curate 2>/dev/null | sed -n 's/^judgement : //p')"
+    case "$cjudge" in '' | *[!0-9]*) cjudge=1 ;; esac
     curate_due=1
+    [ "$cjudge" -gt 0 ] || curate_due=2
     printf 'curate    : DUE — %s\n' "$creason"
   else
     printf 'curate    : not due — %s\n' "$creason"
   fi
-  # The second cycle, one reader shared with `drain`. Curate asks whether the
-  # queue's declarations are still true; janitor asks whether its CLAIMS still
-  # have owners. Both ride here rather than in the verdict: a claim released is
-  # a plan freed, which changes the spawn list the next pass reads.
-  jdue="$(janitor_due)"
-  jstate="${jdue%% *}"; jreason="${jdue#* }"
-  if [ "$jstate" = unreadable ]; then
-    printf 'janitor   : UNREADABLE — %s\n' "$jreason"
-  elif [ "$jstate" = off ]; then
-    printf 'janitor   : off — %s\n' "$jreason"
-  elif [ "$jstate" = due ]; then
-    while IFS=$'\t' read -r jb jw _; do
-      [ -n "$jb" ] || continue
-      n_janitor=$((n_janitor + 1))
-      janitor_inflight="${janitor_inflight}            ${jb}  ${jw}\n"
-    done < <(janitor_branches)
-    if [ "$n_janitor" -gt 0 ]; then
-      printf 'janitor   : IN FLIGHT, so none is due. What made it due: %s\n' "$jreason"
-      printf '%b' "$janitor_inflight"
+  # Stale claims with no pr: — no session, the orchestrator proves each
+  # session gone and runs the release itself. Silent when there are none.
+  jcands="$(janitor_candidates | cut -f1 | sort -u | tr '\n' ' ')"
+  jcands="${jcands% }"
+  if [ -n "$jcands" ]; then
+    printf 'janitor   : stale claim(s) on %s — check each session; ARCHIVED or not found: run ./joharness.sh janitor --apply <branch>...' "$jcands"
+    [ "$fetch_failed" -eq 0 ] ||
+      printf ' (or this clone is stale: fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*)'
+    printf '\n'
+  fi
+  # The clerk cycle, one reader (clerk_due) shared with `clerk`.
+  clerk_due
+  kdue="$CLERK_DUE"
+  kstate="${kdue%% *}"; kreason="${kdue#* }"
+  if [ "$kstate" = unreadable ]; then
+    printf 'clerk     : UNREADABLE — %s\n' "$kreason"
+  elif [ "$kstate" = off ]; then
+    printf 'clerk     : off — %s\n' "$kreason"
+  elif [ "$kstate" = due ]; then
+    while IFS=$'\t' read -r kb kw ks; do
+      [ -n "$kb" ] || continue
+      n_clerk=$((n_clerk + 1))
+      clerk_inflight="${clerk_inflight}            ${kb}  ${kw}  ${ks}\n"
+    done < <(printf '%s\n' "$CLERK_ROWS" | scout_branches)
+    if [ "$n_clerk" -gt 0 ]; then
+      printf 'clerk     : IN FLIGHT, so none is due. What made it due: %s\n' "$kreason"
+      printf '%b' "$clerk_inflight"
     else
-      janitor_due=1
-      printf 'janitor   : DUE — %s\n' "$jreason"
+      clerk_due=1
+      printf 'clerk     : DUE — %s\n' "$kreason"
     fi
   else
-    printf 'janitor   : not due — %s\n' "$jreason"
+    printf 'clerk     : not due — %s\n' "$kreason"
+  fi
+  # The third cycle, the same reader (scout_due) `scout` asks.
+  scout_due
+  sdue="$SCOUT_DUE"; srows="$SCOUT_ROWS"
+  sstate="${sdue%% *}"; sreason="${sdue#* }"
+  if [ "$sstate" = unreadable ]; then
+    printf 'scout     : UNREADABLE — %s\n' "$sreason"
+  elif [ "$sstate" = off ]; then
+    printf 'scout     : off — %s\n' "$sreason"
+  elif [ "$sstate" = due ]; then
+    while IFS=$'\t' read -r sb sw ss; do
+      [ -n "$sb" ] || continue
+      n_scout=$((n_scout + 1))
+      scout_inflight="${scout_inflight}            ${sb}  ${sw}  ${ss}\n"
+    done < <(printf '%s\n' "$srows" | scout_branches)
+    if [ "$n_scout" -gt 0 ]; then
+      printf 'scout     : IN FLIGHT, so none is due. What made it due: %s\n' "$sreason"
+      printf '%b' "$scout_inflight"
+    else
+      scout_due=1
+      printf 'scout     : DUE by the clock, spawned only at DRAINED — %s\n' "$sreason"
+    fi
+  else
+    printf 'scout     : not due — %s\n' "$sreason"
   fi
   printf '\n'
 
   # --- edges past the retire commit: a slot committed, no claim to read ----
-  # Counted into n_inflight, so the slot shrinks. Listed in the SAME block as
-  # the claims, because to an orchestrator counting money they are the same
-  # thing; the row says which kind it is and what would free it.
+  # Counted into n_inflight, so the slot shrinks.
   while IFS=$'\t' read -r ebranch eitem estate; do
     [ -n "$ebranch" ] || continue
     # The scan's own caveat, carried as a row because status cannot leave a
-    # command substitution. Reported, never swallowed: a reader who is not
-    # told cannot know the count is short.
+    # command substitution.
     if [ "$ebranch" = '..unverified' ]; then edge_unver="$eitem"; continue; fi
     [ "$eitem" != "-" ] || eitem=""
     eage="$(dispatch_age_min "$ebranch")"
@@ -8176,11 +5027,7 @@ cmd_dispatch() {
     # is one slot however many items it finished.
     efirst="${eitem%% *}"
     # A row whose item is gone from the base branch committed nothing: the
-    # merge it was mid-way through has already happened. Reported, because a
-    # branch nobody will ever merge is still the human's to clear, and NOT
-    # counted, because counting it is what stopped a fleet — five of these
-    # against a cap of 4 read `slots: 0 of 4 free` for as long as the
-    # branches stand.
+    # merge it was mid-way through has already happened.
     if [ "$estate" = leftover ]; then
       n_leftover=$((n_leftover + 1))
       espaces="${eitem//[! ]/}"
@@ -8191,18 +5038,7 @@ cmd_dispatch() {
       leftover_rows="${leftover_rows}"$'\n'
       continue
     fi
-    # No item at all, so the question cannot be asked. It keeps its slot
-    # while it could still be a manager that retired recently, and becomes
-    # litter long after that. One rule, said in the row, because the plan's
-    # objection to the old behaviour was that silence left the orchestrator
-    # reading 0 of 4 with no way to act.
-    #
-    # 24 windows, not one. `JOHARNESS_STALL_MINUTES` is p95 of the gap between
-    # commits on a LIVE branch (.agents/docs/orchestrated.md, The numbers) —
-    # a branch at step 7 pushes nothing at all while it waits for checks and a
-    # merge, so at 1x a legitimate sweep branch with an open pull request went
-    # to leftovers 46 minutes after its last push. A day is past anything that
-    # waiting explains, and the litter this is aimed at measured 613 hours.
+    # No item at all, so the question cannot be asked.
     if [ "$estate" = unknown ] && [ -n "$eage" ] &&
        [ "$eage" -ge $((stall * 24)) ]; then
       n_leftover=$((n_leftover + 1))
@@ -8213,37 +5049,29 @@ cmd_dispatch() {
     n_inflight=$((n_inflight + 1))
     n_edge=$((n_edge + 1))
     # Word count without splitting: the spaces left when everything else is
-    # stripped, plus one. `set --` here would clobber the caller's own
-    # arguments, and an unquoted expansion is the split this file lints for.
+    # stripped, plus one.
     espaces="${eitem//[! ]/}"
     if [ -z "$eitem" ]; then emore=0; else emore=$(( ${#espaces} + 1 )); fi
-    edge_rows="${edge_rows}  ${efirst:-?}  ${ebranch}  retired  pushed ${eagetext}  PR in flight, no claim file: step 7 retired the workstream file before the pull request opened, so this branch commits a slot and names no owner"
+    edge_rows="${edge_rows}  ${efirst:-?}  ${ebranch}  retired  pushed ${eagetext}  retired, no claim file — a pull request is expected; this reader cannot see one: step 7 retired the workstream file before the pull request opened, so this branch commits a slot and names no owner"
     [ "$emore" -le 1 ] ||
       edge_rows="${edge_rows} (and $((emore - 1)) more item(s) retired here: ${eitem#* })"
     edge_rows="${edge_rows}"$'\n'
     # A genuinely abandoned branch has already been separated out above, and
     # the difference IS in git — the item's presence on the base branch, not
-    # push age. What is left here is a branch whose merge has not landed, so
-    # age is what it always was: a question about the SESSION, not about
-    # whether money is committed. Past the window the row sends the reader to
-    # the control plane (.claude/commands/orchestrate.md, step 2).
+    # push age.
     if [ -z "$eage" ]; then
       edge_rows="${edge_rows}    push age unknown: ref not here — fetch, then cross-check the control plane"$'\n'
     elif [ "$eage" -ge "$stall" ]; then
-      # The SAME count the claimed rows feed. Two counters would print one
-      # STALL? token in the listing and a verdict that says none — one pass,
-      # two numbers, which is the disagreement this command exists to end
-      # (verifier r5).
+      # The SAME count the claimed rows feed.
       n_stall=$((n_stall + 1))
       n_edge_stall=$((n_edge_stall + 1))
+      [ -n "$stall_young" ] && [ "$stall_young" -le "$eage" ] || stall_young="$eage"
       estem="${efirst##*/}"; estem="${estem%.md}"
       if [ -n "$efirst" ]; then
-        edge_rows="${edge_rows}    STALL? no push for ${eagetext} (>= ${stall}m): cross-check the control plane by TITLE (manager: ${estem}) — this row carries no session line to read. Gone — ARCHIVED, not found, or FAILED confirmed twice, never IDLE alone (.claude/commands/orchestrate.md) — means nobody is driving this merge: respawn on the branch to FINISH it, never to restart the item"$'\n'
+        edge_rows="${edge_rows}    STALL? no push for ${eagetext} (>= ${stall}m): cross-check the control plane by TITLE (manager: ${estem}) — this row carries no session line to read; the verdict is the health table's (.claude/commands/orchestrate.md, step 2), never this row's"$'\n'
       else
         # No item, no title to look up, so no respawn: a successor spawned
         # blind onto a branch nobody can name is two sessions on one branch.
-        # The human merges it or retires it, and until then it holds the
-        # slot — say that, or the row is a slot with no way out (verifier r6).
         edge_rows="${edge_rows}    STALL? no push for ${eagetext} (>= ${stall}m): this row names no item, so there is no title to look up and no successor to spawn. REPORT it to the human — merging or retiring that branch is what frees the slot"$'\n'
       fi
     fi
@@ -8256,21 +5084,28 @@ cmd_dispatch() {
     fi
   done <<<"$(dispatch_retired_edges)"
 
-  # The hooks run AFTER the scan, and that ordering is the fix: the queue hook
-  # partitions the free plans into waves, and it cannot see an edge past its
-  # retire commit — the branch has no claim, so the plan reads free there. Told
-  # which items this command will withhold, it leaves them out of the partition
-  # exactly as it leaves out a held plan. Derived once, here, and passed; the
-  # hook deriving it again would be the second copy of the scan above.
+  # A plan another branch carried to the base and retired: this branch's copy
+  # is a leftover, not a plan waiting to land (dispatch_branch_plans).
+  while IFS=$'\t' read -r ebranch estem _ _ _; do
+    [ -n "$ebranch" ] || continue
+    # One row per branch: a second carried plan, or a branch the edge reader
+    # already listed, is not another leftover.
+    case "$leftover_rows" in *"  ${ebranch}  leftover  "*) continue ;; esac
+    n_leftover=$((n_leftover + 1))
+    leftover_rows="${leftover_rows}  docs/plans/${estem}.md  ${ebranch}  leftover  its plan ${estem} landed and was retired by another branch: it commits NOTHING and holds no slot. Never respawn on it. The human closes its pull request and deletes the branch."$'\n'
+  done <<<"$(dispatch_branch_plans | awk -F'\t' 'NF == 5')"
+
   DISPATCH_WITHHELD="$edge_items"
 
   hout="$(drain_hook handover-context.sh)"
   qout="$(drain_hook queue-context.sh)"
 
-  # Every plan and research row as path|label — drain_plan's own sed, both
-  # directories, every row rather than the first.
+  # Every plan, research and requirement row as path|label, every row. A
+  # requirement row matters here only CLAIMED — it is the planning manager's
+  # in-flight row; unclaimed, `drain_requirement` offers it, never the free
+  # walk below.
   rows="$(printf '%s\n' "$qout" |
-    sed -n 's#^  \(docs/\(plans\|research\)/[^ ]*\.md\)  \(\[.*\]\)$#\1|\3#p')"
+    sed -n 's#^  \(docs/\(plans\|research\|product\)/[^ ]*\.md\)  \(\[.*\]\)$#\1|\3#p')"
   wavemap="$(printf '%s\n' "$qout" | dispatch_waves)"
   # The hook's orchestrated-only lines: a free plan whose scope overlaps a
   # plan a manager holds now. Stem, then the rest of the line as the reason.
@@ -8278,10 +5113,6 @@ cmd_dispatch() {
     sed -n 's/^  in flight: \([^ ]*\) overlaps \(.*\)$/\1\t\2/p' |
     sed 's/(claimed on origin\//(claimed on /')"
 
-  # --- managers in flight: every claimed row, joined to its branch --------
-  # The claim is the workstream file's `plan:` on a pushed branch, which the
-  # queue hook already resolved to `claimed on <branch>`. Status, session and
-  # next come from that file, read with git show, never from a copy.
   while IFS='|' read -r path label; do
     [ -n "$path" ] || continue
     case "$label" in *'claimed on '*) ;; *) continue ;; esac
@@ -8290,23 +5121,16 @@ cmd_dispatch() {
     branch="${branch#origin/}"
     ws="$(printf '%s\n' "$hout" |
       sed -n "s#^  origin/${branch}: \(docs/handover/[^ ]*\.md\)\$#\1#p" | head -1)"
-    # Every per-row value reset here, `doc` included: a row whose file the
-    # hook did not list inherited the previous row's document and printed
-    # its neighbour's finding count as its own.
-    status=""; session=""; next=""; doc=""
+    status=""; session=""; next=""; doc=""; pr=""
     if [ -n "$ws" ]; then
       doc="$(git -C "$ROOT" show "origin/${branch}:${ws}" 2>/dev/null)"
-      { read -r status; read -r session; read -r next; } \
-        <<<"$(printf '%s\n' "$doc" | gr_fields status session next)"
+      { read -r status; read -r session; read -r next; read -r pr; } \
+        <<<"$(printf '%s\n' "$doc" | gr_fields status session next pr)"
     fi
+    # Branch-controlled text, tested below: the charset cmd_janitor keeps.
+    pr="$(printf '%s' "$pr" | tr -cd 'A-Za-z0-9._#-')"
     # A workstream file on another branch is repo-controlled input, and the
-    # orchestrator branches on the ROW this builds. Unvalidated, a manager
-    # that writes `status: in-progress  BLOCKED: the human's, holds no slot`
-    # gets a row reading as blocked — never nudged, never respawned — or
-    # forges STALL?/LOOP? to have a healthy peer killed. `ci` reds a status
-    # outside this list, but a manager claims by pushing BEFORE it runs ci,
-    # and dispatch reads that push on the next pass. The vocabulary is the
-    # graph's (joharness.sh:lint_nodes); anything else is not a status.
+    # orchestrator branches on the ROW this builds.
     case "$status" in
       in-progress | blocked | review | done | abandoned | '') ;;
       *) status="unreadable" ;;
@@ -8314,11 +5138,7 @@ cmd_dispatch() {
     age="$(dispatch_age_min "$branch")"
     agetext="$(dispatch_age_text "$age")"
     # Progress, from git: commits since the branch left the base, the most
-    # rewritten file, findings recorded. A stall is silence; a LOOP is the
-    # opposite — pushes keep coming and the same file keeps being rewritten,
-    # the churn `ci` warns the session about from the inside
-    # (.agents/docs/agent-selection.md, review churn). The session inside a
-    # loop is the one that cannot see it; the orchestrator can.
+    # rewritten file, findings recorded.
     work=""; churn_n=0
     base="$(git -C "$ROOT" merge-base "refs/remotes/origin/${branch}" \
       "origin/${HANDOVER_BASE_BRANCH:-main}" 2>/dev/null)"
@@ -8337,66 +5157,53 @@ cmd_dispatch() {
       [ "$churn_n" -lt "$churnt" ] || work="${work} (>= ${churnt}: past ci's warning, watch next:)"
       work="${work}, ${rounds:-0} finding(s) recorded"
     fi
-    flag=""; cond=""
+    flag=""
     n_inflight=$((n_inflight + 1))
     if [ "$status" = "blocked" ]; then
-      # Handed off to a human. Holds no slot: its session exited on purpose,
-      # and respawning it re-asks the question it stopped on. Nor does it
-      # hold a plan back (below): a human's clock can be days, and a plan
-      # waiting on it starves with nothing in flight to end the wait.
+      # Handed off to a human.
       n_blocked=$((n_blocked + 1))
       # The CLAIM, not the branch: one branch can carry two workstream files,
       # and a blocked claim on one must not speak for a live claim on the
-      # other. Same reasoning as reading every holder rather than the first,
-      # one field over.
+      # other.
       blocked_claims="${blocked_claims} $(basename "$path" .md)@${branch} "
       flag="  BLOCKED: the human's, holds no slot"
-      cond="BLOCKED"
+      block_reason_ok "$next" ||
+        flag="${flag}  INVALID BLOCK? next: opens with no reason word (manage.md §3): ask, order nothing"
+      # How long it has stood.
+      bage="$(dispatch_block_age_min "$branch" "$ws" "$base")"
+      if [ -n "$bage" ]; then
+        flag="${flag}, parked $(dispatch_age_text "$bage") ago"
+      else
+        flag="${flag}, parked for an unknown time: the commit that parked it is not in this clone's history"
+      fi
     elif [ -z "$age" ]; then
       flag="  push age unknown: ref not here — fetch, then cross-check"
     elif [ "$age" -ge "$stall" ]; then
       n_stall=$((n_stall + 1))
+      [ -n "$stall_young" ] && [ "$stall_young" -le "$age" ] || stall_young="$age"
       flag="  STALL? no push for ${agetext} (>= ${stall}m): cross-check the control plane"
-      cond="STALL?"
     fi
     # Independent of the stall mark: a loop that went quiet is still a
     # loop, and the successor needs the record either way.
     if [ "$status" != "blocked" ] && [ "$churnl" -gt 0 ] && [ "$churn_n" -ge "$churnl" ]; then
       n_loop=$((n_loop + 1))
       flag="${flag}  LOOP? ${churn_f} rewritten ${churn_n} times (>= ${churnl}): record its progress, respawn with the churn rule"
-      cond="${cond:+${cond}+}LOOP?"
     fi
-    # Where the switch is on, the row names its own explainer. Beside the
-    # nudge, the kill or the report — never instead of one: an analyst
-    # explains a condition, it never ends one, and a blocked row stays the
-    # human's and stays never-respawned.
-    if [ "$analysis" = 1 ] && [ -n "$cond" ]; then
-      # The CLAIM, not the branch: one branch can carry two workstream files,
-      # and two rows marked with the same branch spawn two analysts on one
-      # prompt that cannot tell them apart (verifier, r6). Same keying as
-      # `blocked_claims` above, and the ledger key is the stem.
-      flag="${flag}  ANALYSE? /analyst ${branch} $(basename "${ws:-$path}" .md) (${cond}), once per condition per run"
+    if [ "$status" = "in-progress" ] && [ "$hours" -gt 0 ]; then
+      case "$pr" in
+        '' | none)
+          cage_min="$(dispatch_claim_age_min "$branch" "$base")"
+          if [ -n "$cage_min" ] && [ "$cage_min" -ge $((hours * 60)) ]; then
+            n_ceiling=$((n_ceiling + 1))
+            flag="${flag}  CEILING? $(dispatch_age_text "$cage_min") since the claim, no pr: — REPORT it with the control plane's cost (.claude/commands/orchestrate.md)"
+          fi
+          ;;
+      esac
     fi
-    # The cost a branch's claims impose, on the branch's own row. dispatch
-    # printed it only under the HELD plans, so a broad claim read as free to
-    # anyone looking at the holder — one branch put nine plans on HOLD and its
-    # own row said nothing (issue #254). Presentation only: no count here
-    # moves, and `holdmap` is already read twice below.
-    # DISTINCT held stems, never holdmap lines: one holder can hold one plan
-    # through two declared paths, and counting lines reports two.
-    # A `blocked` row carries none, because its holds are RELEASED further
-    # down (`hold_live`) — attributing a hold nobody is waiting on would
-    # re-create this defect one direction over.
+    # The cost a branch's claims impose, on the branch's own row.
     if [ "$status" != "blocked" ] && [ -n "$holdmap" ]; then
-      # Keyed on the CLAIM, not the branch: one branch can carry two
-      # workstream files, and each claim holds what ITS scope holds. Keyed on
-      # the branch alone, both rows printed the same combined total and a
-      # reader summing them got double (verifier, r4). Same reasoning as
-      # `blocked_claims` one screen up, which keys `<stem>@<branch>` for it.
-      # Matched as a PREFIX and an exact SUFFIX rather than by cutting the
-      # branch out of the line: a branch name may contain `)`, and truncating
-      # at the first one silently dropped the whole annotation — the very
-      # "holder reads as free" defect this exists to fix (verifier, r5).
+      # Keyed on the CLAIM, not the branch: one branch can carry two workstream
+      # files, and each claim holds what ITS scope holds.
       holds_n="$(printf '%s\n' "$holdmap" |
         awk -F'\t' -v st="$(basename "$path" .md)" -v b="$branch" '
           { pre = st " on "
@@ -8414,7 +5221,6 @@ cmd_dispatch() {
     [ -z "$session" ] || inflight="${inflight}    session: ${session}"$'\n'
     [ -z "$next" ] || inflight="${inflight}    next: ${next}"$'\n'
   done <<<"$rows"
-
 
   printf 'managers in flight (git view; liveness is the control plane'"'"'s — read both):\n'
   if [ -n "${inflight}${edge_rows}" ]; then
@@ -8441,45 +5247,25 @@ cmd_dispatch() {
     printf '  %s\n' "$edge"
   fi
 
-  # A manager spawned this pass has cut no branch yet — minutes between
-  # create_session and the first push — so the git view above counts it as
-  # nothing and reports its slot free. Acting on that slot puts a fifth
-  # manager against a cap of four: the human's money spent by arithmetic
-  # rather than by decision. The orchestrator is the only reader that knows
-  # one happened, and its ledger already names it (.claude/commands/orchestrate.md
-  # step 1). ENVIRONMENT only — not num_knob, no conf key: this is a fact
-  # about ONE pass, and a conf value left behind would under-report slots for
-  # ever with nothing to notice it. Digits only, so a mistyped value loses
-  # the correction instead of erroring at the reader.
   pending="${JOHARNESS_PENDING_SPAWNS:-0}"
   case "$pending" in '' | *[!0-9]*) pending=0 ;; esac
-  # Leading zeros off. Digits-only is not enough: bash arithmetic reads `08`
-  # as octal and DIES on it — `value too great for base`, dispatch exits 1
-  # mid-output with no slots line and no verdict — and a zero-padded count is
-  # an ordinary thing for a caller to write. Stripping them also makes `0`
-  # the one spelling of none, which is what the guards below compare against
-  # (never `-gt`, which errors on a value past 64 bits).
+  # Leading zeros off.
   pending="${pending#"${pending%%[!0]*}"}"
   [ -n "$pending" ] || pending=0
-  # What the subtraction may safely take, kept apart from what the caller
-  # said so the line below can still report the caller's own number. Digits
-  # all the way and 20 of them wraps 64-bit arithmetic to a POSITIVE result:
-  # measured 2026-09-16, JOHARNESS_PENDING_SPAWNS=18446744073709551613 at
-  # cap 4 printed `slots : 7 of 4 free` and told the reader to spawn past the
-  # cap — this input doing the one thing it exists to prevent (verifier, r3).
-  # Clamped to the cap, which costs nothing true: more pending than the cap
-  # can only mean 0 free. Length first, because a numeric compare on the
-  # untrusted value is the same arithmetic being guarded.
+  # What the subtraction may safely take, kept apart from what the caller said
+  # so the line below can still report the caller's own number.
   pending_used="$pending"
   [ "${#pending_used}" -le "${#cap}" ] || pending_used="$cap"
   [ "$pending_used" -le "$cap" ] || pending_used="$cap"
-  # Subtracted here and nowhere else: every verdict below reads n_slots, so
-  # the spawn count, the OVERLAP-BOUND gate and the DRAINED reading follow.
-  # It can only LOWER — an input able to raise the count would spend the cap
-  # by arithmetic, which is the failure being closed.
-  n_slots=$((cap - (n_inflight - n_blocked) - pending_used))
+  # Subtracted here and nowhere else: every verdict below reads n_slots, so the
+  # spawn count, the OVERLAP-BOUND gate and the DRAINED reading follow.
+  n_roles=$((n_curate_inflight + n_clerk))
+  n_slots=$((cap - (n_inflight - n_blocked) - pending_used - n_roles))
   [ "$n_slots" -ge 0 ] || n_slots=0
-  if [ "$pending" != 0 ]; then
+  if [ "$n_roles" -gt 0 ]; then
+    printf 'slots     : %s of %s free (%s role session(s) in flight count against JOHARNESS_MAX_MANAGERS)\n\n' \
+      "$n_slots" "$cap" "$n_roles"
+  elif [ "$pending" != 0 ]; then
     # Said on the line, because a silently lowered count is indistinguishable
     # from a busy fleet and the next reader debugs the wrong thing.
     printf 'slots     : %s of %s free (%s spawned, not pushed yet: JOHARNESS_PENDING_SPAWNS)\n\n' \
@@ -8489,20 +5275,14 @@ cmd_dispatch() {
   fi
 
   # --- what to spawn, in the queue's order --------------------------------
-  # Free = neither claimed, blocked nor SUPERVISED ONLY: drain_plan's filter,
-  # every row. Wave and overlap ride along from the hook's partition so the
-  # orchestrator can hold a wave-2 item back while its partner is in flight.
+  # Free = neither claimed, blocked nor CORE ONLY, every row.
   while IFS='|' read -r path label; do
     [ -n "$path" ] || continue
     case "$label" in
-      *'claimed on '* | *'blocked by'* | *'SUPERVISED ONLY'*) continue ;;
+      *'claimed on '* | *'blocked by'* | *'CORE ONLY'*) continue ;;
     esac
-    # An item whose branch is past the retire commit is not free either. The
-    # queue hook cannot know: the file that said so was deleted, on purpose,
-    # one commit before the pull request opened. Skipped rather than
-    # annotated, exactly as a claimed row is — the in-flight block above
-    # already names this path and its branch, and one fact rendered twice is
-    # how two readers of it start disagreeing.
+    case "$path" in docs/product/*) continue ;; esac
+    # An item whose branch is past the retire commit is not free either.
     case "$edge_items" in *" ${path}@"*) continue ;; esac
     tier="$(sed -n 's/.*agent: \([a-z]*\).*/\1/p' <<<"$label")"
     st="${path##*/}"; st="${st%.md}"
@@ -8511,14 +5291,7 @@ cmd_dispatch() {
       awk -F'\t' -v s="$st" '$1 == s { print $2; print $3; exit }')"
     hold="$(printf '%s\n' "$holdmap" |
       awk -F'\t' -v s="$st" '$1 == s { print $2; exit }')"
-    # EVERY holder, not the first. A hold behind a BLOCKED branch is
-    # released with the reconcile named as the cost — but a plan two
-    # managers hold, one stopped on a human and one live, is held by the
-    # live one whichever line came first. Releasing on the first line
-    # spawned it into the live collision, and with the held plan left out
-    # of the wave partition it also spawned with nothing partitioned
-    # against it: one plan, two readers, two answers (found by the
-    # verifier; fixture in docs/handover).
+    # EVERY holder, not the first.
     hold_live=0
     while IFS= read -r hline; do
       [ -n "$hline" ] || continue
@@ -8535,14 +5308,6 @@ cmd_dispatch() {
       *)
         free="${free}  ${path} (agent: ${tier:-unreadable})"
         [ -z "$wave" ] || free="${free}  wave ${wave}"
-        # Three counts, because the verdict says what to spawn NOW and a
-        # row the same output tells the reader to wait on is not that:
-        # free now; waiting behind a partner in this pass (wave 2); held
-        # behind a branch in flight. A collision with work in flight is a
-        # reconcile the manager pays at step 7 — held, not free, spawned
-        # once the holder merges.
-        # WAIT first: a same-pass partner is the collision the waves exist
-        # to prevent, and a released hold does not lift it.
         if [ -n "$note" ]; then
           n_wait=$((n_wait + 1))
           free="${free}  WAIT — overlaps ${note} in this pass: spawn it only after that one"
@@ -8559,59 +5324,32 @@ cmd_dispatch() {
     esac
   done <<<"$rows"
 
-  req="$(drain_requirement "$qout")"
+  req="$(drain_requirement "$qout" "$edge_items")"
   printf 'spawn, in this order, one manager per item, model = its agent tier:\n'
   if [ -n "$req" ]; then
-    # Planning outranks the plan queue (step 2), so it is first and it is
-    # ONE manager: decomposition is one session's job, not a fleet's.
-    # opus at xhigh: decomposition is the judgement the whole build rests
-    # on, and wrong-but-plausible plans are the failure that picks opus
-    # (.agents/docs/agent-selection.md). The requester's diagram says so.
-    printf '  %s — UNPLANNED: one planning manager (agent: opus, effort xhigh) first\n' "${req%% *}"
+    # Planning outranks the plan queue (step 2), so it is first and it is ONE
+    # manager: decomposition is one session's job, not a fleet's.
+    printf '  %s — UNPLANNED: one planning manager (agent: fable, effort xhigh) first\n' "${req%% *}"
     n_free=$((n_free + 1))
   fi
   [ -z "$free" ] || printf '%s' "$free"
   [ -z "$questions" ] || printf '%s' "$questions"
   [ -n "$req$free$questions" ] || printf '  nothing free\n'
 
-  sup="$(drain_supervised_only "$qout")"
+  sup="$(drain_core_only "$qout")"
   if [ -n "$sup" ]; then
-    printf '\nNOT YOURS — SUPERVISED ONLY (scope holds protocol text; never spawn\n'
-    printf 'a manager on these, never re-file them):\n%s\n' "$sup"
+    printf '\nNOT YOURS — CORE ONLY (scope holds a core path; only a human builds\n'
+    printf 'it, by hand. Never spawn a manager on these, never re-file them):\n%s\n' "$sup"
   fi
 
-  # --- overlap-bound: slots free, nothing spawnable, work held --------------
-  # The state run 1 measured and nobody filed a plan for: every free plan is
-  # HELD behind a branch in flight, so `n_free` is 0, but slots sit idle and
-  # the work is not done — it is blocked on `scope:` DECLARATIONS, not on the
-  # work itself. Registries every plan appends to (a criteria index, an ADR
-  # directory, a phase spec) declared exclusive, and `wave_split_hit`'s
-  # asymmetry (one side's `shared:` voids nothing) holds even the careful
-  # plans. The fix is a surveyor (.claude/commands/manage.md) that
-  # corrects the declarations; computed here so the verdict can name its key.
-  #
-  # Gated on `n_slots > 0`: a fleet whose managers are all busy is working, not
-  # stalled, and every merge re-runs `dispatch`. The surveyor is beyond
-  # the cap (holds no slot, like a reporter), so it COULD run at 0 slots — but
-  # the value it buys is idle slots, and there are none then.
   if [ "$n_hold" -gt 0 ] && [ "$n_slots" -gt 0 ] &&
      [ "$n_free" -eq 0 ] && [ "$n_wait" -eq 0 ]; then
-    # The key is the HOLDER set — the plans in flight whose exclusive claims
-    # do the holding — sorted, joined with `+`, so the same collision reads as
-    # the same key on every pass and the ledger's `rescoped=<key>` bound holds.
-    # Read from `holdmap`, whose field 2 is `<holder> on <path> (claimed on
-    # <branch>)`; the holder is its first token.
     rescope_holders="$(printf '%s\n' "$holdmap" |
       awk -F'\t' 'NF > 1 { h = $2; sub(/ on .*/, "", h); print h }' | sort -u)"
     rescope_key="$(printf '%s\n' "$rescope_holders" | grep -v '^$' | paste -sd+ -)"
     n_rescope_holders="$(printf '%s\n' "$rescope_holders" | grep -c .)"
     # Every held path with its collision count, descending — what the rescope
-    # manager works through. Field 2's path is between ` on ` and ` (claimed`.
-    # Distinct held PLANS per path, not holdmap LINES: the queue hook prints one
-    # `in flight:` line per (held plan, holder branch) pair, so a plan held by
-    # two branches would otherwise count twice on its path and disagree with
-    # `n_hold`, which counts distinct plans (verifier r3). Field 1 is the held
-    # plan's stem; field 2's path is between ` on ` and ` (claimed`.
+    # manager works through.
     rescope_paths="$(printf '%s\n' "$holdmap" |
       awk -F'\t' 'NF > 1 { p = $2; sub(/^[^ ]* on /, "", p);
                            sub(/ \(claimed on .*/, "", p); print $1 "\t" p }' |
@@ -8620,33 +5358,7 @@ cmd_dispatch() {
       sort -rn |
       sed 's/^\([0-9][0-9]*\)\t\(.*\)/    \2  (\1 held)/')"
     # ONE pass, fed by process substitution rather than a "$(...)" capture read
-    # back through a "<<<" here-string. That pairing was a genuine Heisenbug: a
-    # blocked rescope read as active in flight on some passes and settled on
-    # others, and a bare ":" inserted between the two lines changed the answer
-    # — the here-string's temp file racing the preceding command substitution.
-    # "< <(...)" keeps the loop in THIS shell so the two flags below persist,
-    # and takes its input from a FIFO with no such interaction; the age git
-    # reads "</dev/null" so the FIFO is never its stdin.
-    #
-    # ANY active rescope holds off a spawn, whatever its key. Two rescope
-    # managers rewriting `scope:` across overlapping plan sets collide at
-    # finish, and the holder-set key DRIFTS — a new manager claiming an
-    # overlapping plan, or a co-holder merging, moves it while a rescope is in
-    # flight. Keying `n_rescope_inflight` to the current key let a stale-key
-    # rescope go uncounted, its row suppressed, and the orchestrator spawn a
-    # second onto the new key (verifier r1). So the ACTIVE count ignores the
-    # key; only SETTLED is key-specific — a done rescope on an OLD key must not
-    # settle a genuinely new holder set, or the new overlap never gets its own
-    # rescope. done = the pass found nothing to change, the holds are GENUINE
-    # (wait for the holder branches to merge); blocked = a human's.
-    #
-    # Every rescope branch is listed regardless of key, so the verdict's "see
-    # rescope block" always resolves to a real row — a done or blocked one
-    # included, which sets no active count (verifier r2). Process substitution,
-    # not a "$(...)" capture read back through "<<<": that pairing raced (a
-    # bare ":" between the lines changed the answer). "< <(...)" keeps the loop
-    # in THIS shell so the flags persist; the age git reads "</dev/null" so the
-    # FIFO is never its stdin.
+    # back through a "<<<" here-string.
     while IFS=$'\t' read -r rb rk rstat rsess rnext; do
       [ -n "$rb" ] || continue
       rage="$(dispatch_age_text "$(dispatch_age_min "$rb" </dev/null)")"
@@ -8654,10 +5366,32 @@ cmd_dispatch() {
       [ -z "$rsess" ] || rescope_inflight="${rescope_inflight}      session: ${rsess}"$'\n'
       [ -z "$rnext" ] || rescope_inflight="${rescope_inflight}      next: ${rnext}"$'\n'
       case "$rstat" in
-        done | blocked) [ "$rk" = "$rescope_key" ] && rescope_settled=1 ;;
+        done | blocked)
+          dispatch_rescope_covers "$rk" "$rescope_key" && rescope_settled=1 ;;
         *) n_rescope_inflight=$((n_rescope_inflight + 1)) ;;
       esac
     done < <(dispatch_rescope_branches)
+    if [ "$rescope_settled" -eq 0 ]; then
+      rescope_held="$( { printf '%s\n' "$holdmap" | awk -F'\t' 'NF > 1 { print $1 }'
+        printf '%s\n' "$rescope_holders"; } | grep -v '^$' | sort -u)"
+      while IFS=$'\t' read -r msha mkey; do
+        [ -n "$msha" ] || continue
+        dispatch_rescope_covers "$mkey" "$rescope_key" || continue
+        mchanged=""
+        while IFS= read -r mheld; do
+          [ -n "$mheld" ] || continue
+          mchanged="$(git -C "$ROOT" log --format=%H -1 \
+            "${msha}..refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" \
+            -- "docs/plans/${mheld}.md" </dev/null 2>/dev/null)" ||
+            mchanged=unreadable  # an unread history settles nothing
+          [ -z "$mchanged" ] || break
+        done < <(printf '%s\n' "$rescope_held")
+        [ -z "$mchanged" ] || continue
+        rescope_settled=1
+        rescope_merged="            settled by merged rescope ${msha:0:7} (key ${mkey}): holds genuine"
+        break
+      done < <(dispatch_rescope_merged)
+    fi
 
     printf 'rescope   : %s plan(s) held behind %s branch(es) — the work is decomposed,\n' \
       "$n_hold" "$n_rescope_holders"
@@ -8672,19 +5406,25 @@ cmd_dispatch() {
     else
       printf '            rescope branch(es) in flight: none\n'
     fi
+    [ -z "$rescope_merged" ] || printf '%s\n' "$rescope_merged"
     printf '\n'
   fi
 
+  # --- plans on a branch: visible, never free -------------------------------
+  # A plan an unmerged branch added has no queue row (dispatch_branch_plans).
+  bplans="$(dispatch_branch_plans | awk -F'\t' 'NF == 4 {
+      if (!($2 in on)) { order[++n] = $2; urg[$2] = $3; agt[$2] = $4; on[$2] = $1 }
+      else on[$2] = on[$2] ", " $1 }
+    END { for (i = 1; i <= n; i++) { s = order[i]
+      printf "  %s%s (urgency: %s, agent: %s)  on %s\n",
+        (urg[s] == "urgent" ? "URGENT " : ""), s, urg[s], agt[s], on[s] } }')"
+  if [ -n "$bplans" ]; then
+    printf '\nplans on a branch, not in the queue until it merges:\n%s\n' "$bplans"
+  fi
+
   # --- verdict --------------------------------------------------------------
-  # One line the orchestrator branches on. DRAINED with managers in flight is
-  # NOT the exit: the queue is empty, the work is not. A cap of 0 is the
-  # human's pause — the one lever beside the Routine — and reads as exit.
+  # One line the orchestrator branches on.
   printf '\n'
-  # FIRST, and on the verdict itself: the role is told to act on this output
-  # only and to branch on the verdict line, so a degradation printed as a tail
-  # under `spawn up to 1 now` is a warning the procedure steps over. The fetch
-  # above unshallows when it can; this is what is left when it could not
-  # (verifier round 2, r4).
   [ -z "$edge_unver" ] ||
     printf 'verdict   : DEGRADED — shallow clone, %s ref(s) unreadable: an edge among them is invisible here, so an item under spawn may already be in flight and the slots above may over-report free. git fetch --unshallow, or confirm each item on the control plane BEFORE spawning it. Then, on what this pass could read:\n' \
       "$edge_unver"
@@ -8701,11 +5441,7 @@ cmd_dispatch() {
       "$n_free" "$([ "$n_wait" -eq 0 ] || printf ' (+%s waiting behind them)' "$n_wait")" \
       "$n_slots" "$([ "$n_free" -lt "$n_slots" ] && printf '%s' "$n_free" || printf '%s' "$n_slots")"
   elif [ "$n_free" -gt 0 ]; then
-    # No STOPPED verdict here, deliberately. It was written and then removed:
-    # once a leftover holds no slot, `0 slots` can only mean managers, so the
-    # branch could never fire — and a branch that cannot fire reads as a guard
-    # while guarding nothing. The distinction the plan asks for is structural
-    # now, and the tail line below names the leftovers either way.
+    # No STOPPED verdict here, deliberately.
     printf 'verdict   : NOT DRAINED — %s free item(s), 0 slots: wait for a manager to finish\n' "$n_free"
   elif [ "$n_wait" -gt 0 ]; then
     # Unreachable while a partner is free and earlier in the order, and
@@ -8713,10 +5449,7 @@ cmd_dispatch() {
     printf 'verdict   : NOT DRAINED — %s item(s) waiting behind others: spawn nothing this pass\n' "$n_wait"
   elif [ "$n_hold" -gt 0 ] && [ "$n_slots" -gt 0 ]; then
     # n_free and n_wait are both 0 here — the earlier branches caught every
-    # spawnable item. NOT drained: the slots are idle only because the held
-    # plans' declarations are wrong. A surveyor is beyond the cap, so
-    # this fires even at a full spawn list; the rescope block above carries
-    # the key and the paths.
+    # spawnable item.
     if [ "$rescope_settled" -eq 1 ]; then
       printf 'verdict   : OVERLAP-BOUND — %s slot(s) free, %s plan(s) held; a rescope for this key is done or blocked (see rescope block): the holds are genuine or a human'"'"'s — spawn nothing, keep the health pass going until the holder branches merge\n' \
         "$n_slots" "$n_hold"
@@ -8731,23 +5464,17 @@ cmd_dispatch() {
     printf 'verdict   : DRAINED — nothing free; %s manager(s) in flight: keep the health pass going\n' \
       "$((n_inflight - n_blocked))"
   elif [ "$pending" != 0 ]; then
-    # EXIT is the one irreversible verdict on this line, and a manager
-    # spawned this pass is exactly what the git view cannot see. Exiting on
-    # it abandons a session the human is paying for with its item still
-    # unclaimed — the defect of issue #255 in its worst direction, and
-    # lowering the slot count alone does not reach it, because this branch
-    # and the PAUSED one above count managers, not slots. Counted
-    # SEPARATELY from the rows above, never folded into that number: it is
-    # a sentence true of every row it lists, and no row lists this one.
+    # EXIT is the one irreversible verdict on this line, and a manager spawned
+    # this pass is exactly what the git view cannot see.
     printf 'verdict   : DRAINED — nothing free, nothing in flight in the git view; %s spawned this pass has not pushed (JOHARNESS_PENDING_SPAWNS): keep the health pass going, never exit on a manager this view cannot see\n' \
       "$pending"
   else
+    # The one verdict a scout may spawn under: nothing free, nothing in flight,
+    # nothing pending.
+    [ "$n_inflight" -ne 0 ] || scout_gate=1
     printf 'verdict   : DRAINED — nothing free, nothing in flight: exit, the heartbeat re-seeds\n'
   fi
-  # ONE number, and a sentence true of every row it counts. Folding the edge
-  # rows in and leaving the sentence alone called a branch with no session a
-  # manager and ordered a health pass with nothing to pass over — on this
-  # repo, every pass, over a branch abandoned 307h ago (verifier round 2, r5).
+  # ONE number, and a sentence true of every row it counts.
   if [ "$n_stall" -gt 0 ]; then
     printf '            %s manager(s) past the stall window: health pass FIRST, spawn second' "$n_stall"
     [ "$n_edge_stall" -eq 0 ] ||
@@ -8757,23 +5484,39 @@ cmd_dispatch() {
   fi
   [ "$n_loop" -eq 0 ] ||
     printf '            %s manager(s) rewriting one file past the churn threshold: health pass FIRST\n' "$n_loop"
+  [ "$n_ceiling" -eq 0 ] ||
+    printf '            %s manager(s) past the ceiling with no pr: in the claim file: report, never kill on this alone\n' "$n_ceiling"
   [ "$n_blocked" -eq 0 ] ||
     printf '            %s manager(s) blocked: report to the human, never respawn\n' "$n_blocked"
   [ "$n_hold" -eq 0 ] ||
     printf '            %s plan(s) on HOLD behind work in flight: not counted as free\n' "$n_hold"
-  # On the VERDICT, not only in the header above: the role is told to act on
-  # this output and to branch on the verdict line with its tail, so a due
-  # curator printed only as standing config is a pass that never spawns one.
-  # Orthogonal to the verdict itself — a curate is due, or not, whatever the
-  # queue says — which is why it is a tail line and not a verdict of its own.
-  [ "$curate_due" -eq 0 ] ||
-    printf '            curate DUE: spawn ONE curator (agent: sonnet) on ./joharness.sh curate — beyond the cap, holds no slot, at most one in flight (JOHARNESS_CURATE_PLANS, JOHARNESS_CURATE_HOURS)\n'
-  [ "$janitor_due" -eq 0 ] ||
-    printf '            janitor DUE: spawn ONE janitor (agent: sonnet) on /janitor — beyond the cap, holds no slot, at most one in flight. It releases a claim only where the control plane proves the session gone, and a released claim frees its plan for the NEXT pass (JOHARNESS_JANITOR_HOURS)\n'
-  # Said on the verdict, because this is the count the orchestrator spends
-  # money against and it is the half of the count git cannot finish: these
-  # rows have no `session:` line to read. Never folded into the stall count —
-  # that one names a manager you can `get_session` straight away.
+  role_slots=$((n_slots - (n_free < n_slots ? n_free : n_slots)))
+  if [ "$curate_due" -eq 1 ] && [ "$role_slots" -gt 0 ]; then
+    role_slots=$((role_slots - 1))
+    printf '            curate DUE: spawn ONE curator (agent: sonnet) on ./joharness.sh curate — takes one slot (roles share JOHARNESS_MAX_MANAGERS), at most one in flight (JOHARNESS_CURATE_PLANS, JOHARNESS_CURATE_HOURS)\n'
+  elif [ "$curate_due" -eq 1 ]; then
+    printf '            curate due, held — no free slot: roles share JOHARNESS_MAX_MANAGERS with managers\n'
+  elif [ "$curate_due" -eq 2 ]; then
+    printf '            curate due, nothing needs judgement: spawn no curator. Mechanical repairs: ./joharness.sh curate --apply (the next clerk pass runs it)\n'
+  fi
+  if [ "$clerk_due" -eq 1 ] && [ "$fetch_failed" -eq 1 ]; then
+    printf '            clerk due, held — no fresh view of every branch this pass (fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*), so a clerk in flight might not show: spawn none this pass\n'
+  elif [ "$clerk_due" -eq 1 ] && [ "$role_slots" -le 0 ]; then
+    printf '            clerk due, held — no free slot: roles share JOHARNESS_MAX_MANAGERS with managers\n'
+  elif [ "$clerk_due" -eq 1 ]; then
+    printf '            clerk DUE: spawn ONE clerk (agent: sonnet) on /clerk — takes one slot (roles share JOHARNESS_MAX_MANAGERS), at most one in flight. It turns open issues into plans and merges that plan-only pull request itself (JOHARNESS_CLERK_HOURS, JOHARNESS_CLERK_BATCH)\n'
+  fi
+  if [ "$scout_due" -eq 1 ] && [ "$fetch_failed" -eq 1 ]; then
+    printf '            scout due, held — no fresh view of every branch this pass (fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*), so a scout in flight might not show: spawn none this pass\n'
+  elif [ "$scout_due" -eq 1 ] && [ "$scout_gate" -eq 1 ] &&
+     [ "$curate_due" -ne 1 ] && [ "$clerk_due" -eq 0 ] &&
+     [ "$n_curate_inflight" -eq 0 ] && [ "$n_clerk" -eq 0 ]; then
+    printf '            scout DUE: spawn ONE scout (agent: fable) on /scout — beyond the cap, holds no slot, at most one in flight, only at DRAINED. It proposes; a human merges unless JOHARNESS_SCOUT_AUTOMERGE=on (JOHARNESS_SCOUT_HOURS)\n'
+  elif [ "$scout_due" -eq 1 ] && [ "$scout_gate" -eq 1 ]; then
+    printf '            scout due, suppressed — a curate or clerk goes first: spawn none this pass\n'
+  elif [ "$scout_due" -eq 1 ]; then
+    printf '            scout due, suppressed — not DRAINED with nothing in flight: spawn none this pass\n'
+  fi
   [ "$n_edge" -eq 0 ] ||
     printf '            %s branch(es) at the edge with no claim file: each holds a slot because its item is STILL on %s, so that merge has not landed. The control plane says what to do about the session, never whether the slot is real\n' \
       "$n_edge" "${HANDOVER_BASE_BRANCH:-main}"
@@ -8787,214 +5530,23 @@ cmd_dispatch() {
         "$n_leftover_noitem"
     printf '. Nothing is committed on any of them. The human deletes them; never respawn on one\n'
   fi
-  # On the VERDICT, not only above the slots line. Every other count here
-  # earns a line the orchestrator reads at its branch point, and this one is
-  # the count that is wrong: it says the report cannot see edges at all, so
-  # an item printed free may already be in flight (verifier r2).
+  # On the VERDICT, not only above the slots line.
+
+  # Push age is the FLEET's before it is any manager's.
+  if [ "$stall" -gt 0 ] && [ "$n_stall" -gt 0 ] &&
+     [ "$n_stall" -eq $((n_inflight - n_blocked)) ] &&
+     [ "${stall_young:-0}" -ge $((stall * 24)) ]; then
+    fleet_age="$(dispatch_age_min "${HANDOVER_BASE_BRANCH:-main}")"
+    if [ -n "$fleet_age" ] && [ "$fleet_age" -ge $((stall * 24)) ]; then
+      printf '            every manager in flight is silent and %s has not moved in %s: suspect a stopped fleet (a suspension), not %s dead manager(s) — read the control plane for EACH before any respawn' \
+        "${HANDOVER_BASE_BRANCH:-main}" "$(dispatch_age_text "$fleet_age")" "$n_stall"
+      [ "$fetch_failed" -eq 0 ] ||
+        printf ' (or this clone is stale: fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*)'
+      printf '\n'
+    fi
+  fi
 
   return 0
-}
-
-# Mermaid node ids must be plain; labels keep the real names.
-gr_id() { printf '%s' "$1" | tr -c 'a-zA-Z0-9' '_'; }
-
-cmd_graph() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" ref
-  ref="$(base_ref)" || die "no base branch to read the graph from"
-
-  local threshold="${JOHARNESS_CHURN_THRESHOLD:-5}"
-
-  printf '```mermaid\n'
-  printf 'flowchart LR\n'
-  printf '  classDef req fill:#e8f0fe,stroke:#1a56b0,color:#1a3c6e\n'
-  printf '  classDef unplanned fill:#fff3cd,stroke:#b8860b,color:#6b5000\n'
-  printf '  classDef plan fill:#e6f4ea,stroke:#1e7e34,color:#14501f\n'
-  printf '  classDef blocked fill:#eceff1,stroke:#78909c,color:#455a64\n'
-  printf '  classDef branch fill:#f3e8fd,stroke:#6f42c1,color:#432874\n'
-  printf '  classDef churn fill:#fdecea,stroke:#c0392b,color:#7b241c\n'
-  printf '  classDef question fill:#fef3f8,stroke:#b0179c,color:#6e1a5c\n'
-  printf '  classDef graduates fill:#f7f7f7,stroke:#9e9e9e,color:#424242\n'
-
-  # --- requirements --------------------------------------------------------
-  # Which requirements a plan names, read once for the whole pass. The
-  # question each requirement asks is "does any plan name me", and asking it
-  # per requirement cost a `git show` per (requirement, plan) pair — the
-  # picture of the queue got quadratically slower as the queue grew.
-  local planned_reqs p
-  planned_reqs="$(while IFS= read -r p; do
-      [ -n "$p" ] || continue
-      git -C "$ROOT" show "${ref}:${p}" 2>/dev/null | gr_field requirement
-    done < <(git -C "$ROOT" ls-tree -r --name-only "$ref" -- docs/plans 2>/dev/null |
-             gr_docs))"
-
-  local f name prio
-  while IFS= read -r f; do
-    [ -n "$f" ] || continue
-    { read -r name; read -r prio; } <<<"$(git -C "$ROOT" show "${ref}:${f}" \
-      2>/dev/null | gr_fields requirement priority)"
-    [ -n "$name" ] || name="${f##*/}"; name="${name%.md}"
-    if printf '%s\n' "$planned_reqs" | grep -qxF -- "$name"; then
-      printf '  r_%s["req: %s%s"]:::req\n' "$(gr_id "$name")" "$name" "${prio:+ (${prio})}"
-    else
-      printf '  r_%s["req: %s%s — UNPLANNED"]:::unplanned\n' \
-        "$(gr_id "$name")" "$name" "${prio:+ (${prio})}"
-    fi
-  done < <(git -C "$ROOT" ls-tree -r --name-only "$ref" -- docs/product 2>/dev/null |
-           gr_docs)
-
-  # --- plans, with needs and serves edges ----------------------------------
-  # Before the research nodes, though the picture reads the other way: the
-  # `research:` stems collected here are the referenced half of the routing
-  # test that decides which files under docs/research are nodes at all.
-  # Mermaid does not care — an edge naming q_x first and a q_x declaration
-  # arriving later style the same node.
-  local plan agent effort req needs need blocked rneeds rneed graph_rrefs=""
-  while IFS= read -r f; do
-    [ -n "$f" ] || continue
-    { read -r plan; read -r agent; read -r effort; read -r req; read -r needs
-      read -r rneeds; } \
-      <<<"$(git -C "$ROOT" show "${ref}:${f}" 2>/dev/null |
-            gr_fields plan agent effort requirement needs research)"
-    [ -n "$plan" ] || { plan="${f##*/}"; plan="${plan%.md}"; }
-    blocked=0
-    if [ -n "$needs" ] && [ "$needs" != "none" ]; then
-      # A need blocks only while the needed plan file still exists there.
-      while IFS= read -r need; do
-        need="$(printf '%s' "$need" | tr -d ' ')"
-        if [ -z "$need" ] || [ "$need" = "none" ]; then continue; fi
-        if git -C "$ROOT" cat-file -e "${ref}:docs/plans/${need}.md" 2>/dev/null; then
-          blocked=1
-          printf '  p_%s -. needs .-> p_%s\n' "$(gr_id "$plan")" "$(gr_id "$need")"
-        fi
-      done < <(printf '%s\n' "$needs" | tr ',' '\n')
-    fi
-    # A plan waiting on an open question is blocked exactly as one waiting on
-    # a plan is; rendering it green said the opposite of the queue.
-    if [ -n "$rneeds" ] && [ "$rneeds" != "none" ]; then
-      # gr_edge_stems, like every other reader of this field: read raw, a
-      # path-form edge drew nothing (r1) and `alpha beta` flattened to one
-      # nonexistent `alphabeta` (r4) — both leaving the waiting plan
-      # painted green while the queue showed it blocked.
-      while IFS= read -r rneed; do
-        [ -n "$rneed" ] || continue
-        graph_rrefs="${graph_rrefs}${rneed}
-"
-        if git -C "$ROOT" cat-file -e "${ref}:docs/research/${rneed}.md" 2>/dev/null; then
-          blocked=1
-          printf '  p_%s -. research .-> q_%s\n' "$(gr_id "$plan")" "$(gr_id "$rneed")"
-        fi
-      done < <(gr_edge_stems "$rneeds")
-    fi
-    if [ "$blocked" = "1" ]; then
-      printf '  p_%s["plan: %s%s"]:::blocked\n' "$(gr_id "$plan")" "$plan" \
-        "${agent:+ [${agent}${effort:+ ${effort}}]}"
-    else
-      printf '  p_%s["plan: %s%s"]:::plan\n' "$(gr_id "$plan")" "$plan" \
-        "${agent:+ [${agent}${effort:+ ${effort}}]}"
-    fi
-    [ -n "$req" ] && [ "$req" != "none" ] &&
-      printf '  p_%s -- serves --> r_%s\n' "$(gr_id "$plan")" "$(gr_id "$req")"
-  done < <(git -C "$ROOT" ls-tree -r --name-only "$ref" -- docs/plans 2>/dev/null |
-           gr_docs)
-
-  # --- research nodes ------------------------------------------------------
-  # The picture is the whole graph or it is misleading, and .agents/docs/graph.md
-  # says so in its Serving section. A node type declared in that file's Nodes
-  # table and absent from the command the same file calls "whole graph as a
-  # picture" reads as "no open questions", which is the one wrong answer.
-  #
-  # Whole graph, not whole directory: routing decides which files here are
-  # nodes (a `research:` key, or a plan whose edge names the stem — the test
-  # lint_graph and queue-context.sh apply), and a consumer's own documents
-  # drawn as open questions would be the same wrong answer from the other
-  # side.
-  local q qagent qeffort qgrad qstem
-  while IFS= read -r f; do
-    [ -n "$f" ] || continue
-    { read -r q; read -r qagent; read -r qeffort; read -r qgrad; } \
-      <<<"$(git -C "$ROOT" show "${ref}:${f}" 2>/dev/null |
-            gr_fields research agent effort graduates)"
-    qstem="${f##*/}"; qstem="${qstem%.md}"
-    if [ -z "$q" ] &&
-       ! printf '%s' "$graph_rrefs" | grep -qxF -- "$qstem"; then
-      continue
-    fi
-    # The node's OWN key through the same stem: drawn raw, a path-form
-    # self-name made q_docs_research_foo_md while every edge pointed at
-    # q_foo — two mermaid nodes for one question (r8).
-    q="$(gr_edge_stems "$q" | head -1)"
-    [ -n "$q" ] || q="$qstem"
-    printf '  q_%s(["question: %s%s"]):::question\n' "$(gr_id "$q")" "$q" \
-      "${qagent:+ [${qagent}${qeffort:+ ${qeffort}}]}"
-    [ -n "$qgrad" ] && [ "$qgrad" != "none" ] &&
-      printf '  q_%s -. graduates .-> g_%s["%s"]:::graduates\n' \
-        "$(gr_id "$q")" "$(gr_id "$qgrad")" "$qgrad"
-  done < <(git -C "$ROOT" ls-tree -r --name-only "$ref" -- docs/research 2>/dev/null |
-           gr_docs)
-
-  # --- in-flight branches: claims and churn --------------------------------
-  # origin only: a fork mirrors every branch, and a mirrored workstream is
-  # the same node twice. One entry per workstream name — the protocol says
-  # one file per workstream, so a second ref carrying the same name is the
-  # same work, not a second node.
-  local r short bname ws mb wdoc wname claim churn churn_n churn_f seen=""
-  while IFS= read -r r; do
-    short="${r#refs/remotes/}"
-    bname="${short#*/}"
-    [ "$bname" = "HEAD" ] && continue
-    [ "$bname" = "$base_branch" ] && continue
-    git -C "$ROOT" merge-base --is-ancestor "$r" "$ref" 2>/dev/null && continue
-
-    # Ownership is a DIFF against the merge-base, never a tree read: a branch
-    # inherits every workstream file its base branch carries, so presence in
-    # the tree says nothing about whose work the branch is. Reading the tree
-    # labelled an in-flight branch with a leftover it had merely inherited,
-    # under someone else's workstream name (PR54 r13) — the same class
-    # `upgrade`, `cleanup` and the finish gate each hit separately, and which
-    # `.agents/docs/feedback.md` now carries as a rule.
-    #
-    # The merge-base is between the REMOTE ref and the base ref. This loop
-    # walks refs, not the checkout, so the `HEAD`-vs-base form the other
-    # callers use is the wrong one to copy here.
-    mb="$(git -C "$ROOT" merge-base "$r" "$ref" 2>/dev/null)" || mb=""
-    if [ -n "$mb" ]; then
-      ws="$(git -C "$ROOT" diff --name-only --diff-filter=A "$mb" "$r" \
-        -- docs/handover 2>/dev/null | gr_docs | head -1)"
-    else
-      # No merge-base: introduced and inherited cannot be told apart. `graph`
-      # DESCRIBES, so it shows the branch on presence rather than dropping it
-      # out of the view — the opposite call from `upgrade`, which DECIDES and
-      # therefore refuses on presence. Same split the base_ref comment makes.
-      ws="$(git -C "$ROOT" ls-tree -r --name-only "$r" -- docs/handover \
-        2>/dev/null | gr_docs | head -1)"
-    fi
-    [ -n "$ws" ] || continue
-    wdoc="$(git -C "$ROOT" show "${r}:${ws}" 2>/dev/null)"
-    wname="$(printf '%s\n' "$wdoc" | gr_field workstream)"
-    [ -n "$wname" ] || { wname="${ws##*/}"; wname="${wname%.md}"; }
-    case " $seen " in *" $wname "*) continue ;; esac
-    seen="$seen $wname"
-    claim="$(printf '%s\n' "$wdoc" | gr_field plan)"
-
-    # Same metric, same code as cmd_ci: churn_top splits count from path on
-    # a tab, so a hot file with a space in its name survives whole.
-    churn_n="" churn_f=""
-    if churn="$(churn_top "$r" "$ref")" && [ -n "$churn" ]; then
-      churn_n="${churn%%$'\t'*}"
-      churn_f="${churn#*$'\t'}"
-    fi
-    if [ -n "$churn_n" ] && [ "$churn_n" -ge "$threshold" ]; then
-      printf '  b_%s(["%s — CHURN: %s ×%s"]):::churn\n' \
-        "$(gr_id "$wname")" "$wname" "$churn_f" "$churn_n"
-    else
-      printf '  b_%s(["%s"]):::branch\n' "$(gr_id "$wname")" "$wname"
-    fi
-    [ -n "$claim" ] && [ "$claim" != "none" ] &&
-      printf '  b_%s -- claims --> p_%s\n' "$(gr_id "$wname")" "$(gr_id "$claim")"
-  done < <(git -C "$ROOT" for-each-ref --format='%(refname)' \
-    refs/remotes/origin 2>/dev/null)
-
-  printf '```\n'
 }
 
 cmd_env() {
@@ -9003,12 +5555,8 @@ cmd_env() {
   if [ -n "$want" ]; then
     valid_name "$want" || die "invalid layer name '${want}'"
     if [ ! -d "${ENV_ROOT}/${want}" ]; then
-      # Canonical carries every layer, so a name it does not have is a
-      # typo and dies here. A consumer carries the one layer it selected
-      # — the sync ships no others — so an absent name is a REQUEST, and
-      # refusing it would leave no way to ask for a different layer: the
-      # sync reads this file to decide what to ship. Written, then
-      # fetched on the next sync.
+      # Canonical carries every layer, so a name it does not have is a typo and
+      # dies here.
       if grep -q '^JOHARNESS_CANONICAL=1' "$CONF" 2>/dev/null; then
         die "no such layer .agents/env/${want} (try: $0 env)"
       fi
@@ -9032,8 +5580,7 @@ cmd_env() {
   printf 'environment : %s\n' "${current:-none (default)}"
   # An explicit selection that does not resolve is worth saying out loud;
   # silently running 'none' is how a repo ends up wondering where its cluster
-  # went. No selection at all is not that: the default resolving to 'none' is
-  # the design, not a fallback.
+  # went.
   if [ -n "$current" ] && [ "$current" != "$effective" ]; then
     printf '              ! not usable, falls back to: %s\n' "${effective:-nothing}"
   fi
@@ -9054,25 +5601,13 @@ cmd_env() {
   [ "$found" -eq 1 ] || printf '    (none found under %s)\n' "$ENV_ROOT"
 }
 
-# ---------------------------------------------------------------------------
-# SessionStart
-#
-# Everything printed on stdout lands in the session's context, so it stays
-# short and factual. Nothing here may fail a session: exit 0 regardless.
-# ---------------------------------------------------------------------------
+# --- SessionStart
 
 cmd_session_start() {
-  local name mode raw src
+  local name mode src
 
-  # Hook input is JSON on stdin, and `source` says which kind of start this
-  # is: startup, resume, clear, compact, fork. Only compaction changes what
-  # this command should SAY, so one field is read the same way the Stop guard
-  # reads its one field — a JSON parser for one string is a dependency, not a
-  # feature. Nothing here depends on stdin existing: run by hand, src is empty
-  # and every branch below takes its ordinary path.
-  # Bounded, and never from a terminal. A plain `cat` here blocks forever when
-  # nobody closes stdin, which is every human who runs this command by hand —
-  # the hook would have hung the very sessions it exists to orient.
+  # Hook input is JSON on stdin, and `source` says which kind of start this is:
+  # startup, resume, clear, compact, fork.
   src=""
   if [ ! -t 0 ]; then
     IFS= read -r -d '' -t 1 src 2>/dev/null || true
@@ -9083,69 +5618,38 @@ cmd_session_start() {
     sed -n 's/.*"source"[[:space:]]*:[[:space:]]*"\([a-z]*\)".*/\1/p')"
   export JOHARNESS_SESSION_SOURCE="${src:-}"
 
-  # The RESOLVED mode, for the hooks this command runs as children. They
-  # cannot re-derive it: precedence across $JOHARNESS_MODE, the marker file
-  # and the conf lives in run_mode() alone, and a second resolver in a hook
-  # is the second copy that rots against the first. Resolved once here,
-  # read as ${JOHARNESS_RUN_MODE:-supervised} there.
-  export JOHARNESS_RUN_MODE
-  JOHARNESS_RUN_MODE="$(run_mode)"
-
-  # Autonomy first: it governs the whole session, including the parts that
-  # run before an environment resolves. Supervised prints NOTHING — same
-  # bet as lazy env rules, a session that is not unattended does not pay
-  # context to be told so, and the rules it already loads are the
-  # supervised ones. Only the mode that widens what a session may do
-  # announces itself, and it announces the boundary in the same breath.
-  if [ "$JOHARNESS_RUN_MODE" = "orchestrated" ]; then
-    # The role comes from the prompt, and the default is the one the
-    # heartbeat needs: a fresh session nobody named is the orchestrator. A
-    # manager was told so by the orchestrator that spawned it, in a prompt
-    # naming /manage and ONE item.
-    printf '== Mode: orchestrated ==\n\n'
-    printf 'Two roles, one Loop. Your prompt names /manage <item>? You are a\n'
-    printf 'MANAGER: that ONE item, the full Loop on it, merge your own pull\n'
-    printf 'request, push at every milestone, exit. No item named? You are the\n'
-    printf 'ORCHESTRATOR: run /orchestrate — it reads ./joharness.sh dispatch,\n'
-    printf 'spawns one manager per free item under the cap, checks health, and\n'
-    printf 'exits at DRAINED with nothing in flight. The command IS the rules\n'
-    printf 'for its role (.claude/commands/orchestrate.md, manage.md).\n'
-    printf 'Each role reads its own documents and no others: the queue is NOT\n'
-    printf 'printed here. Orchestrator: dispatch is the whole read — open no\n'
-    printf 'plan, requirement or other branch. Manager: your item, this\n'
-    printf 'branch'"'"'s workstream file, the item'"'"'s own anchors.\n'
-    printf 'NEVER edit the protocol that governs you — protocol edits stay\n'
-    printf 'supervised (.agents/docs/unsupervised.md, Bounds). Here:\n'
-    while IFS= read -r t; do
-      [ -n "$t" ] && printf '  %s\n' "$t"
-    done < <(protocol_paths)
-    printf '\n'
-  elif [ "$JOHARNESS_RUN_MODE" = "unsupervised" ]; then
-    printf '== Mode: unsupervised ==\n\n'
-    printf 'The queue is the whole of the work. ./joharness.sh drain names the\n'
-    printf 'item: take it, run the full Loop, merge your own pull request, and\n'
-    printf 'at DRAINED exit — the heartbeat re-seeds. NEVER edit the\n'
-    printf 'protocol that governs you — protocol edits stay supervised\n'
-    printf '(.agents/docs/unsupervised.md, Bounds). Here:\n'
-    # Derived, never restated. A banner naming its own list is the second
-    # copy, and the boundary is exactly what must not disagree with itself.
-    while IFS= read -r t; do
-      [ -n "$t" ] && printf '  %s\n' "$t"
-    done < <(protocol_paths)
-    printf '\n'
-  elif raw="$(mode_unrecognised)"; then
-    # Into session context, not stderr: the session is the reader who has
-    # to know its mode is not what the conf appears to say.
-    printf 'JOHARNESS_MODE=%s not recognised; running supervised.\n\n' "$raw"
+  # One mode, so one banner, printed first: it governs the whole session,
+  # including the parts that run before an environment resolves.
+  printf '== Mode: orchestrated ==\n\n'
+  printf 'Two roles, one Loop. Your prompt names /manage <item>? You are a\n'
+  printf 'MANAGER: that ONE item, the full Loop on it, merge your own pull\n'
+  printf 'request, push at every milestone, exit. No item named? You are the\n'
+  printf 'ORCHESTRATOR: run /orchestrate — it reads ./joharness.sh dispatch,\n'
+  printf 'spawns one manager per free item under the cap, checks health, and\n'
+  printf 'exits at DRAINED with nothing in flight. The command IS the rules\n'
+  printf 'for its role (.claude/commands/orchestrate.md, manage.md).\n'
+  printf 'Each role reads its own documents and no others: the queue is NOT\n'
+  printf 'printed here. Orchestrator: dispatch is the whole read — open no\n'
+  printf 'plan, requirement or other branch. Manager: your item, this\n'
+  printf 'branch'"'"'s workstream file, the item'"'"'s own anchors.\n'
+  if ! grep -q '^JOHARNESS_CANONICAL=1' "$CONF" 2>/dev/null; then
+    printf 'Harness source is read through its .md docs and command output,\n'
+    printf 'never by opening joharness.sh or the scripts.\n'
   fi
+  printf 'Protocol text is yours to edit and merge. NEVER edit the core\n'
+  printf 'paths — money, permissions, the merge gate; a human changes them:\n'
+  # Derived, never restated. A banner naming its own list is the second
+  # copy, and the boundary is exactly what must not disagree with itself.
+  while IFS= read -r t; do
+    [ -n "$t" ] && printf '  %s\n' "$t"
+  done < <(protocol_paths)
+  printf '\n'
 
   if name="$(resolve_env)"; then
     mode="$(setup_mode)"
     [ -n "$mode" ] || mode="lazy"
 
-    # Eager provisioning is for the remote sandbox this harness builds. A local
-    # machine already has its own Docker and we should not fight it; set
-    # JOHARNESS_FORCE_SETUP=1 to provision anywhere.
+    # Eager provisioning is for the remote sandbox this harness builds.
     if has_setup "$name" && [ "$mode" = "eager" ] &&
        { [ "${CLAUDE_CODE_REMOTE:-}" = "true" ] ||
          [ "${JOHARNESS_FORCE_SETUP:-${DEVENV_FORCE:-0}}" = "1" ]; }; then
@@ -9155,8 +5659,6 @@ cmd_session_start() {
     printf '== Environment: %s (.agents/env/%s) ==\n\n' "$name" "$name"
     if [ -r "${ENV_ROOT}/${name}/AGENTS.md" ]; then
       # Default md=lazy: context stays cheap, a pointer replaces the rules.
-      # Same bet as lazy setup — a session that never touches the environment
-      # never pays for its rules either. eager injects the file whole.
       if [ "$(md_mode)" != "eager" ]; then
         printf 'Rules NOT loaded (md=lazy). Touching this environment — setup,\n'
         printf 'its scripts, anything it provisions? Read .agents/env/%s/AGENTS.md\n' "$name"
@@ -9172,18 +5674,11 @@ cmd_session_start() {
       printf 'Need it? Run: ./joharness.sh setup\n'
       printf 'Never need it? It cost nothing.\n'
       # Says "at session start" because that is the only claim it can make.
-      # A RESUMED session reads this as "nothing is running" and is right —
-      # but a session that provisioned earlier reads it as "still as I left
-      # it" and is wrong: the files survive, the daemons do not. Cost of not
-      # saying so, measured in one consumer run: two separate stalls, each
-      # found by a command failing rather than by the banner.
       printf 'Resumed session? Files survive, daemons do not — setup again.\n\n'
     fi
   fi
 
-  # Armed gates get announced. A session that learns about the review gate
-  # from a red ci has already written the commit it should have reviewed;
-  # off, this costs the context nothing, like every other knob here.
+  # Armed gates get announced.
   if review_on; then
     printf '== Review gate: ON (JOHARNESS_REVIEW=on) ==\n\n'
     printf 'Edge to main needs recorded review. Findings to workstream file\n'
@@ -9195,8 +5690,7 @@ cmd_session_start() {
   fi
 
   # Same bet, one knob over: a session that learns at step 7 that it did not
-  # have to wait for Actions has already waited once. Silent under the
-  # default, which is the mode the loaded rules already describe.
+  # have to wait for Actions has already waited once.
   if checks_local; then
     printf '== Checks: LOCAL (JOHARNESS_CHECKS=local) ==\n\n'
     printf 'Step 7 does NOT wait for GitHub Actions here. ./joharness.sh finish\n'
@@ -9206,131 +5700,13 @@ cmd_session_start() {
     printf 'or behind the base branch. Every other step 7 condition unchanged.\n\n'
   fi
 
-  # Orchestrated: this branch's own files, nothing fleet-wide, no queue.
-  # The orchestrator reads the queue through dispatch, which runs both hooks
-  # itself; a manager works the one item its prompt names. Both hooks'
-  # fleet views are context paid by every session in the mode and read by
-  # none of them.
-  if [ "$JOHARNESS_RUN_MODE" = "orchestrated" ]; then
-    [ -x "${HARNESS_ROOT}/handover-context.sh" ] &&
-      HANDOVER_SCOPE=branch "${HARNESS_ROOT}/handover-context.sh"
-    return 0
-  fi
-
+  # This branch's own files, nothing fleet-wide, no queue.
   [ -x "${HARNESS_ROOT}/handover-context.sh" ] &&
-    "${HARNESS_ROOT}/handover-context.sh"
-
-  # After handover state, so a resumed branch reads its own work first and a
-  # fresh session reads what to pick up and which agent tier it wants.
-  [ -x "${HARNESS_ROOT}/queue-context.sh" ] &&
-    "${HARNESS_ROOT}/queue-context.sh"
-
+    HANDOVER_SCOPE=branch "${HARNESS_ROOT}/handover-context.sh"
   return 0
 }
 
 # The comment header above is the help text; print it rather than repeating it.
-# ---------------------------------------------------------------------------
-# mutate: Loop step 5's rule, as a command.
-#
-#   Test written for a fix must FAIL without it: revert the fix, run the
-#   test, put it back. Green both ways = test pins nothing.
-#
-# Nothing enforced it and nothing made it cheap, and three assertions in
-# three days passed for the wrong reason (docs/plans/mutation-check-the-fix.md
-# names them). Worse, doing it by hand is easy to aim WRONG: `churn_top` and
-# `selftest_inert_diff` carry a byte-identical guard line, and a
-# replace-first-occurrence patch hit the wrong one — two correct cases stayed
-# green and were nearly reported as vacuous.
-#
-# So the target is a LINE, never a pattern. There is no way to ask this for
-# "the first occurrence of".
-#
-# Two runs, and the first is not optional: "green both ways" is a claim about
-# both, and a mutated run alone cannot tell a case this mutation redded from
-# one that was already red. The baseline must be green, or the question is
-# not answerable yet and the tool says so instead of guessing.
-MUTATE_SUITE_DEFAULT=".agents/harness/selftest.sh"
-
-# Restores the file whatever happens — a normal return, a failing suite, or
-# ^C midway. A mutation left in the tree is worse than no tool: the next
-# command reads a repo nobody edited on purpose.
-MUTATE_FILE=""
-MUTATE_SAVED=""
-mutate_restore() {
-  [ -n "$MUTATE_FILE" ] || return 0
-  printf '%s\n' "$MUTATE_SAVED" >"$MUTATE_FILE"
-  MUTATE_FILE=""
-}
-
-# Case labels the suite reported as failing, one per line.
-mutate_fails() { printf '%s\n' "$1" | sed -n 's/^  FAIL //p'; }
-
-cmd_mutate() {
-  local file="${1:-}" line="${2:-}" new="${3:-}" suite abs total out base_out
-  local base_fail mut_fail old n
-  [ "$#" -eq 3 ] || die "usage: $0 mutate <file> <line> <replacement>"
-  case "$line" in ''|*[!0-9]*) die "line must be a number, got '${line}'" ;; esac
-  [ "$line" -ge 1 ] || die "line must be 1 or greater"
-
-  abs="$file"
-  case "$abs" in /*) ;; *) abs="${ROOT}/${file}" ;; esac
-  [ -f "$abs" ] || die "no such file: ${file}"
-
-  suite="${JOHARNESS_MUTATE_SUITE:-${ROOT}/${MUTATE_SUITE_DEFAULT}}"
-  [ -f "$suite" ] || die "no suite to run: ${suite}"
-
-  MUTATE_SAVED="$(cat "$abs")"
-  total="$(printf '%s\n' "$MUTATE_SAVED" | wc -l)"
-  [ "$line" -le "$total" ] ||
-    die "${file} has ${total} line(s); asked for ${line}"
-
-  old="$(printf '%s\n' "$MUTATE_SAVED" | sed -n "${line}p")"
-  # A mutation that changes nothing runs a green suite and reads as "no case
-  # pins this line" — the wrong conclusion, reached faster and with a number
-  # behind it. An error, not a result.
-  [ "$old" != "$new" ] ||
-    die "line ${line} of ${file} is already that text — the mutation would change nothing"
-
-  printf '== mutate %s:%s\n' "$file" "$line"
-  printf '  before: %s\n' "$old"
-  printf '  after:  %s\n' "$new"
-  printf '  suite:  %s\n' "${suite#"${ROOT}/"}"
-
-  base_out="$(bash "$suite" 2>&1)" || true
-  base_fail="$(mutate_fails "$base_out")"
-  if [ -n "$base_fail" ]; then
-    printf '\n  BASELINE IS NOT GREEN — nothing can be attributed to a mutation\n'
-    printf '%s\n' "$base_fail" | sed 's/^/    already failing: /'
-    return 1
-  fi
-  printf '  baseline: green\n'
-
-  MUTATE_FILE="$abs"
-  trap mutate_restore EXIT INT TERM
-  printf '%s\n' "$MUTATE_SAVED" |
-    awk -v n="$line" -v r="$new" 'NR == n { print r; next } { print }' >"$abs"
-  out="$(bash "$suite" 2>&1)" || true
-  mutate_restore
-  trap - EXIT INT TERM
-
-  mut_fail="$(mutate_fails "$out")"
-  # Labels, not a count. The near miss that produced this tool was a wrong
-  # reading of "one case failed": the list would have shown a churn case
-  # where two hook cases were expected, and named the wrong target at once.
-  n="$(printf '%s' "$mut_fail" | grep -c . || true)"
-  case "$n" in ''|*[!0-9]*) n=0 ;; esac
-
-  printf '\n'
-  if [ "$n" -eq 0 ]; then
-    printf '  NOTHING REDDED — the suite is green with this line changed.\n'
-    printf '  Every case passes both ways, so none of them pins it.\n'
-    return 1
-  fi
-  printf '  %d case(s) redded by this mutation:\n' "$n"
-  printf '%s\n' "$mut_fail" | sed '/^$/d;s/^/    /'
-  return 0
-}
-
 usage() { awk 'NR > 1 && /^#/ { sub(/^#[[:space:]]?/, ""); print; next } NR > 1 { exit }' "$0"; }
 
 main() {
@@ -9340,7 +5716,7 @@ main() {
     session-start)  cmd_session_start ;;
     env)            cmd_env "${1:-}" ;;
     setup)          cmd_setup ;;
-    ci)             cmd_ci ;;
+    ci)             cmd_ci "$@" ;;
     upgrade)        cmd_upgrade "$@" ;;
     verify)         cmd_verify ;;
     review)         cmd_review ;;
@@ -9348,29 +5724,17 @@ main() {
     upstream)       cmd_upstream "$@" ;;
     analysis)       cmd_analysis "$@" ;;
     janitor)        cmd_janitor "$@" ;;
+    guard)          cmd_guard "$@" ;;
+    scout)          cmd_scout "$@" ;;
+    clerk)          cmd_clerk "$@" ;;
     cleanup)        cmd_cleanup "$@" ;;
-    curate)         cmd_curate ;;
-    finish)         cmd_finish ;;
-    drain)          cmd_drain ;;
+    curate)         cmd_curate "$@" ;;
+    finish)         cmd_finish "$@" ;;
     dispatch)       cmd_dispatch ;;
-    graph)          cmd_graph ;;
-    scorecard)      cmd_scorecard ;;
-    perf)           cmd_perf "$@" ;;
-    context)        cmd_context ;;
-    mutate)         cmd_mutate "$@" ;;
     start)          [ -z "${1:-}" ] ||
                       die "start takes no argument; the commands that take one are /manage <item> and /plan"
                     cmd_start ;;
-    # Warning on stderr, value on stdout: the guard captures stdout and must
-    # keep getting one clean word, while a human running this against a
-    # typo'd conf needs to hear about it (PR47 r4).
-    mode)           [ -z "${1:-}" ] ||
-                      die "mode takes no argument; set JOHARNESS_MODE in $(basename "$CONF") or the environment"
-                    mode_warn_unrecognised; run_mode; printf '\n' ;;
-    # Read by .agents/harness/handover-guard.sh, which cannot source this
-    # file. Not in `usage`: it is a seam between two harness files, not a
-    # thing a human runs, and a help entry invites a session to treat the
-    # list as an input rather than the rule's expression.
+    # Read by .agents/harness/handover-guard.sh, which cannot source this file.
     protocol-paths) protocol_paths ;;
     authority)      cmd_authority ;;
     -h|--help|help) usage ;;

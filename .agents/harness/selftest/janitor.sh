@@ -15,8 +15,8 @@
 # Its own scratch repo: every assertion is a property of a claim's age against
 # the base branch's sweep history, and the shared fixture has neither.
 #
-# Fixture commits carry EXPLICIT dates for the same reason the analysis topic's
-# do — the cadence is a comparison between two commit times.
+# Fixture commits carry EXPLICIT dates:
+# the cadence is a comparison between two commit times.
 #
 # shellcheck shell=bash disable=SC2154
 
@@ -35,7 +35,7 @@ cp "${ROOT}/.agents/harness/queue-context.sh" \
 printf '# none\n' >"${jwork}/.agents/env/none/AGENTS.md"
 printf 'code\n' >"${jwork}/code.txt"
 jconf="${jwork}/joharness.conf"
-printf 'JOHARNESS_ENV=none\nJOHARNESS_MODE=orchestrated\n' >"$jconf"
+printf 'JOHARNESS_ENV=none\n' >"$jconf"
 
 jcommit() {
   git -C "$jwork" add -A
@@ -52,24 +52,11 @@ git -C "$jwork" remote add origin "$jorigin"
 git -C "$jwork" push -qu origin main
 
 jan() { ( cd "$jwork" && env JOHARNESS_CONF="$jconf" "$@" ./joharness.sh janitor 2>&1 ); }
-jdsp() { ( cd "$jwork" && env JOHARNESS_CONF="$jconf" DISPATCH_FETCH=0 DRAIN_FETCH=0 \
-  "$@" ./joharness.sh dispatch 2>&1 ); }
+jdsp() { ( cd "$jwork" && env JOHARNESS_CONF="$jconf" DISPATCH_FETCH=0 \
+  ./joharness.sh dispatch 2>&1 ); }
 # shellcheck disable=SC2120  # knob overrides are passed by later cases
 jqueue() { ( cd "$jwork" && env JOHARNESS_CONF="$jconf" \
   "$@" .agents/harness/queue-context.sh 2>&1 ); }
-
-# --- the cadence, three ways ------------------------------------------------
-out="$(jan)"
-expect "the sweep names its own knob" "== janitor (every 12h: JOHARNESS_JANITOR_HOURS)" "$out"
-expect "never swept measures from the repository's beginning" \
-  "since the repository began, no sweep having landed" "$out"
-expect "and that is DUE, not a special case" "cadence   : DUE" "$out"
-out="$(jan JOHARNESS_JANITOR_HOURS=0)"
-expect "zero is the human's off switch" \
-  "cadence   : off — JOHARNESS_JANITOR_HOURS=0: no sweep is ever due" "$out"
-refute "and off walks no claims at all" "candidates" "$out"
-out="$(jan JOHARNESS_JANITOR_HOURS=99999)"
-expect "a window longer than the repo is not due" "cadence   : not due" "$out"
 
 # --- a claim old enough to be a candidate -----------------------------------
 git -C "$jwork" checkout -qb mgr-parked
@@ -92,7 +79,7 @@ expect "and the session to check" "session: https://example.invalid/session_park
 expect "the header says liveness is not in this output" \
   "candidates (push age only — LIVENESS IS NOT IN THIS OUTPUT)" "$out"
 expect "and the reading that decides is named, not made" \
-  "ARCHIVED, not found, or a FAILED bucket confirmed" "$out"
+  "ARCHIVED or not found = gone" "$out"
 # Both searched for strings no path produces. What the command must not do is
 # state an outcome for a session it never read.
 refute "no candidate is called gone" "is gone" "$out"
@@ -195,16 +182,26 @@ out="$(jan)"
 refute "and it is no longer a candidate for a second sweep" \
   "mgr-parked  docs/handover/parked.md" "$out"
 
-# A released claim will never push again, so a stall mark on it is a clock
-# nobody is watching — and an analyst spawned for it would have nothing to
-# explain.
-out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ANALYSIS_FETCH=0 \
-  ./joharness.sh analysis mgr-parked 2>&1 )"
-expect "a released claim carries no condition" \
-  "condition : none — this claim was RELEASED" "$out"
-refute "never a stall mark that can never clear" "condition : STALL?" "$out"
-expect "and the verdict does not call it a manager at work" \
-  "NO CONDITION — the claim was released" "$out"
+# Every claim past the window released: the list is empty because of the
+# `abandoned` skip, not the age gate, and the line must say so (#308).
+git -C "$jwork" checkout -q mgr-ownplan
+printf -- '---\nworkstream: ownplan\nstatus: abandoned\nbranch: mgr-ownplan\nplan: ownplan\npr: none\nsession: https://example.invalid/session_ownplan\nagent: sonnet\nupdated: 2026-02-01\nnext: Released\n---\n\n## Goal\nFixture.\n' \
+  >"${jwork}/docs/handover/ownplan.md"
+jcommit "release ownplan too" '2026-02-01T00:00:00Z'
+git -C "$jwork" push -q origin mgr-ownplan
+git -C "$jwork" checkout -q main
+out="$(jan)"
+expect "an empty list says the claims were released" \
+  "every one already released" "$out"
+refute "and never that they were all young" "every claim pushed inside" "$out"
+# Mixed: a window between the two release dates leaves one claim young.
+mid=$(( $(date +%s) - $(date -d 2026-01-15 +%s) ))
+out="$(jan HANDOVER_STALE_SECONDS="$mid")"
+expect "young and released claims are both counted" \
+  "1 claim(s) pushed inside" "$out"
+expect "and the released ones are named as such" \
+  "1 older, already released (status: abandoned)" "$out"
+
 
 # dispatch: a released claim is not a manager in flight at all. The row comes
 # from the hook's `claimed on` annotation and there is no longer one, which is
@@ -215,114 +212,6 @@ out="$(jdsp)"
 refute "a released claim is no manager in flight" "mgr-parked" "$out"
 expect "and the slot is back" "slots     : 4 of 4 free" "$out"
 refute "it is never counted as a blocked manager" "manager(s) blocked" "$out"
-
-# --- the cadence line, one reader, both readers -----------------------------
-out="$(jdsp)"
-expect "dispatch carries the cadence line" "janitor   : DUE" "$out"
-expect "and the tail says what a due sweep costs" \
-  "janitor DUE: spawn ONE janitor" "$out"
-out="$(jdsp env JOHARNESS_JANITOR_HOURS=0)"
-expect "off reaches dispatch too" "janitor   : off" "$out"
-refute "and nothing is spawned for it" "janitor DUE: spawn" "$out"
-
-# --- a sweep in flight holds the cycle --------------------------------------
-git -C "$jwork" checkout -qb janitor-branch main
-# The directory came back empty on this checkout and git does not track one
-# (../selftest.sh, fixture_rm) — without this the redirect below fails and the
-# case reads the PREVIOUS state's output.
-mkdir -p "${jwork}/docs/handover"
-printf -- '---\nworkstream: janitor-2026-01-04\nstatus: in-progress\nbranch: janitor-branch\nplan: none\nagent: sonnet\nupdated: 2026-01-04\nnext: Release what is proven gone\n---\n\n## Goal\nFixture.\n' \
-  >"${jwork}/docs/handover/janitor-2026-01-04.md"
-jcommit "a sweep claims the cycle" '2026-01-04T00:00:00Z'
-git -C "$jwork" push -qu origin janitor-branch
-git -C "$jwork" checkout -q main
-out="$(jan)"
-expect "a sweep in flight holds the cycle" "cadence   : IN FLIGHT" "$out"
-expect "and names the branch holding it" "janitor-branch  janitor-2026-01-04" "$out"
-expect "and says not to start a second" "One at a time" "$out"
-
-# The identity is the STAMP and `plan: none`, not the word. A branch whose
-# workstream file merely begins with `janitor` — the one building this cycle,
-# for instance — must not read as a sweep in flight, or the cycle can never
-# come due once somebody names a file after it.
-git -C "$jwork" checkout -qb janitor-work main
-mkdir -p "${jwork}/docs/handover"
-# `plan: none`, so ONLY the stamp rule can reject it. With a real `plan:` the
-# other half of the identity does the rejecting and the case pins nothing —
-# mutation-tested: deleting the stamp guard left it green (verifier).
-printf -- '---\nworkstream: janitor-role\nstatus: in-progress\nbranch: janitor-work\nplan: none\nagent: opus\nupdated: 2026-01-04\nnext: Build it\n---\n\n## Goal\nFixture.\n' \
-  >"${jwork}/docs/handover/janitor-role.md"
-jcommit "a branch named after the cycle, working on it" '2026-01-04T02:00:00Z'
-git -C "$jwork" push -qu origin janitor-work
-git -C "$jwork" checkout -q main
-out="$(jan)"
-refute "a workstream named janitor-<word> is not a sweep" \
-  "janitor-work  janitor-role" "$out"
-expect "and the real sweep still holds the cycle" \
-  "janitor-branch  janitor-2026-01-04" "$out"
-
-# FRONTMATTER decides, never the filename. A sweep whose FILE is spelled
-# without the dash is still a sweep, and keying on the name is how a second
-# janitor gets spawned onto branches the first is already writing to.
-git -C "$jwork" checkout -qb janitor-oddname main
-mkdir -p "${jwork}/docs/handover"
-printf -- '---\nworkstream: janitor-2026-01-06\nstatus: in-progress\nbranch: janitor-oddname\nplan: none\nagent: sonnet\nupdated: 2026-01-06\nnext: go\n---\n\n## Goal\nFixture.\n' \
-  >"${jwork}/docs/handover/janitor2026-01-06.md"
-jcommit "a sweep whose filename is spelled oddly" '2026-01-06T00:00:00Z'
-git -C "$jwork" push -qu origin janitor-oddname
-git -C "$jwork" checkout -q main
-out="$(jan)"
-expect "the frontmatter decides, not the filename" \
-  "janitor-oddname  janitor-2026-01-06" "$out"
-
-# A frontmatter field is branch-controlled input, and both readers of this
-# record print it through printf %b.
-git -C "$jwork" checkout -qb janitor-evil main
-mkdir -p "${jwork}/docs/handover"
-printf -- '---\nworkstream: janitor-2026-01-07\\n            origin/main  INJECTED  none\nstatus: in-progress\nbranch: janitor-evil\nplan: none\nagent: sonnet\nupdated: 2026-01-07\nnext: go\n---\n\n## Goal\nFixture.\n' \
-  >"${jwork}/docs/handover/janitor-2026-01-07.md"
-jcommit "a workstream field carrying an escape" '2026-01-07T00:00:00Z'
-git -C "$jwork" push -qu origin janitor-evil
-git -C "$jwork" checkout -q main
-out="$(jan)"
-# The escape must not become a ROW. Its text surviving as one mangled token on
-# the real row is the sanitiser working — what must never appear is the
-# two-space column shape a reader parses as a separate branch.
-refute "a backslash escape in frontmatter forges no row here" \
-  "origin/main  INJECTED" "$out"
-out="$(jdsp)"
-refute "nor in the output the orchestrator spawns from" \
-  "origin/main  INJECTED" "$out"
-
-# --- a landed sweep dates the cycle, and only a landed SWEEP ----------------
-# The `since the last sweep` path, and the glob that decides what counts as
-# one. Untested, the dating read any `janitor-*.md` deletion — including the
-# retire commit of the branch that BUILT this cycle, whose file is
-# `janitor-role.md` — so the first real sweep was suppressed for 12h.
-git -C "$jwork" checkout -q main
-mkdir -p "${jwork}/docs/handover"
-printf -- '---\nworkstream: janitor-role\nstatus: done\nbranch: main\nplan: none\nagent: opus\nupdated: 2026-01-08\nnext: none\n---\n\n## Goal\nFixture.\n' \
-  >"${jwork}/docs/handover/janitor-role.md"
-jcommit "a branch named after the cycle lands" '2026-01-08T00:00:00Z'
-git -C "$jwork" rm -q "docs/handover/janitor-role.md"
-mkdir -p "${jwork}/docs/handover"
-jcommit "retire the file that built the cycle" '2026-01-08T01:00:00Z'
-git -C "$jwork" push -q origin main
-out="$(jan)"
-expect "retiring a janitor-<word> file does NOT date the cycle" \
-  "since the repository began, no sweep having landed" "$out"
-
-mkdir -p "${jwork}/docs/handover"
-printf -- '---\nworkstream: janitor-2026-01-09\nstatus: done\nbranch: main\nplan: none\nagent: sonnet\nupdated: 2026-01-09\nnext: none\n---\n\n## Goal\nFixture.\n' \
-  >"${jwork}/docs/handover/janitor-2026-01-09.md"
-jcommit "a sweep claims" '2026-01-09T00:00:00Z'
-git -C "$jwork" rm -q "docs/handover/janitor-2026-01-09.md"
-mkdir -p "${jwork}/docs/handover"
-jcommit "retire the sweep, which dates the cycle" '2026-01-09T01:00:00Z'
-git -C "$jwork" push -q origin main
-out="$(jan)"
-expect "a retired sweep dates the cycle" "since the last sweep" "$out"
-refute "and the repository baseline is gone" "no sweep having landed" "$out"
 
 # --- the vocabulary still has a floor ---------------------------------------
 # A fifth word is not a free-for-all: anything outside the five is still not a
@@ -488,3 +377,196 @@ refute "and the message names no hard-coded main" \
 out="$(jan)"
 expect "while under the default base that same claim is held" \
   "holds: docs/plans/latecomer.md, out of the queue while this claim stands" "$out"
+
+
+# --- the banner, and --apply ------------------------------------------------
+out="$(jan)"
+expect "the report has no cadence" "== janitor" "$out"
+refute "and names no hours knob" "JOHARNESS_JANITOR_HOURS" "$out"
+expect "it names the release command for stale claims with no pr:" \
+  "./joharness.sh janitor --apply <branch>" "$out"
+
+git -C "$jwork" checkout -qb mgr-gone main
+mkdir -p "${jwork}/docs/handover"
+printf -- '---\nworkstream: gone\nstatus: in-progress\nbranch: mgr-gone\nplan: none\npr: none\nsession: https://example.invalid/session_gone\nagent: sonnet\nupdated: 2026-01-02\nnext: Build it\n---\n\n## Goal\nFixture.\n' \
+  >"${jwork}/docs/handover/gone.md"
+jcommit "claim, then the session dies" '2026-01-02T00:00:00Z'
+git -C "$jwork" push -qu origin mgr-gone
+git -C "$jwork" checkout -q main
+
+out="$(jdsp)"
+expect "dispatch names the stale claim and the command, no session" \
+  "janitor   : stale claim(s) on" "$out"
+expect "including this branch" "mgr-gone" "$(printf '%s\n' "$out" | grep '^janitor   :')"
+refute "and never offers a janitor session" "spawn ONE janitor" "$out"
+
+jmain_before="$(git -C "$jwork" rev-parse HEAD)"
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-gone 2>&1 )"; rc=$?
+expect "--apply releases the named claim" "release   : mgr-gone  docs/handover/gone.md" "$out"
+expect "and pushes it" "pushed    : mgr-gone" "$out"
+if [ "$rc" -eq 0 ]; then pass "--apply exits 0 on a release"
+else fail "--apply exits 0 on a release (rc ${rc})"; fi
+expect "the claim on origin now says abandoned" "status: abandoned" \
+  "$(git -C "$jorigin" show mgr-gone:docs/handover/gone.md 2>&1)"
+expect "and says why in next:" "the claim was released" \
+  "$(git -C "$jorigin" show mgr-gone:docs/handover/gone.md 2>&1)"
+expect "and says a reconcile with its base clears the ci red" "reconciles with its base" \
+  "$(git -C "$jorigin" show mgr-gone:docs/handover/gone.md 2>&1)"
+expect "the note quotes wording lint_enum still emits" "not one of" \
+  "$(grep -E 'lint_red .*not one of' "${ROOT}/joharness.sh" 2>&1)"
+if [ "$(git -C "$jwork" rev-parse HEAD)" = "$jmain_before" ] &&
+   [ -z "$(git -C "$jwork" status --porcelain)" ]; then
+  pass "and this checkout is untouched"
+else
+  fail "and this checkout is untouched"
+fi
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-gone 2>&1 )"; rc=$?
+expect "a second release is refused: not a candidate" "skip      : mgr-gone — not a candidate" "$out"
+if [ "$rc" -ne 0 ]; then pass "and exits non-zero"
+else fail "and exits non-zero"; fi
+out="$(jdsp)"
+refute "once released, dispatch is silent about it" "mgr-gone" \
+  "$(printf '%s\n' "$out" | grep '^janitor   :' || :)"
+
+# A claim naming a pull request is never released by the script.
+git -C "$jwork" checkout -qb mgr-withpr main
+mkdir -p "${jwork}/docs/handover"
+printf -- '---\nworkstream: withpr\nstatus: review\nbranch: mgr-withpr\nplan: none\npr: 77\nagent: sonnet\nupdated: 2026-01-02\nnext: Merge\n---\n\n## Goal\nFixture.\n' \
+  >"${jwork}/docs/handover/withpr.md"
+jcommit "claim at the edge" '2026-01-02T00:00:00Z'
+git -C "$jwork" push -qu origin mgr-withpr
+git -C "$jwork" checkout -q main
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-withpr 2>&1 )"
+expect "a claim naming pr: is refused by guard" \
+  "protected : REFUSED — docs/handover/withpr.md names pr: 77 at live head" "$out"
+expect "and skipped" "skip      : mgr-withpr — guard refused; nothing released" "$out"
+expect "and origin still carries it unreleased" "status: review" \
+  "$(git -C "$jorigin" show mgr-withpr:docs/handover/withpr.md 2>&1)"
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply 2>&1 )"; rc=$?
+if [ "$rc" -ne 0 ]; then pass "--apply with no branch is a usage error"
+else fail "--apply with no branch is a usage error"; fi
+
+# --- a branch deleted on origin is never re-created (#397) ------------------
+# <branch>: a stale claim with no pr:, pushed, so this clone holds its ref.
+jgone() {
+  git -C "$jwork" checkout -qb "$1" main
+  mkdir -p "${jwork}/docs/handover"
+  printf -- '---\nworkstream: %s\nstatus: in-progress\nbranch: %s\nplan: none\npr: none\nsession: https://example.invalid/session_%s\nagent: sonnet\nupdated: 2026-01-02\nnext: Build it\n---\n\n## Goal\nFixture.\n' \
+    "$1" "$1" "$1" >"${jwork}/docs/handover/${1}.md"
+  jcommit "claim $1" '2026-01-02T00:00:00Z'
+  git -C "$jwork" push -qu origin "$1"
+  git -C "$jwork" checkout -q main
+}
+# A narrow refspec: --prune prunes only what it maps, so the deleted branch's
+# remote-tracking ref survives and the clone still calls it a candidate.
+jgone mgr-deleted
+jrefspec="$(git -C "$jwork" config --get-all remote.origin.fetch)"
+git -C "$jwork" config --replace-all remote.origin.fetch \
+  '+refs/heads/main:refs/remotes/origin/main'
+git -C "$jorigin" branch -qD mgr-deleted
+expect "the stale ref outlives the deletion, so the case below is live" \
+  "mgr-deleted  docs/handover/mgr-deleted.md" "$(jan)"
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-deleted 2>&1 )"; rc=$?
+expect "--apply asks origin through guard and finds the branch gone" \
+  "live      : REFUSED — mgr-deleted gone on origin: already released" "$out"
+refute "and releases nothing" "release   :" "$out"
+refute "and pushes nothing" "pushed    :" "$out"
+if [ "$rc" -eq 0 ]; then pass "a gone branch is no failure"
+else fail "a gone branch is no failure (rc ${rc})"; fi
+if [ -z "$(git -C "$jorigin" ls-remote --heads "$jorigin" mgr-deleted)" ]; then
+  pass "and origin still has no such branch"
+else
+  fail "and origin still has no such branch (re-created)"
+fi
+refute "and the stale local ref goes with it, so dispatch stops naming it" \
+  "mgr-deleted  docs/handover/mgr-deleted.md" "$(jan)"
+# Gone and NOT a candidate (it names a pr:): still gone, rc 0, ref dropped;
+# the live read comes before the candidate filter, not after it.
+git -C "$jwork" checkout -qb mgr-deletedpr main
+mkdir -p "${jwork}/docs/handover"
+printf -- '---\nworkstream: deletedpr\nstatus: review\nbranch: mgr-deletedpr\nplan: none\npr: 55\nagent: sonnet\nupdated: 2026-01-02\nnext: Merge\n---\n\n## Goal\nFixture.\n' \
+  >"${jwork}/docs/handover/deletedpr.md"
+jcommit "claim deletedpr" '2026-01-02T00:00:00Z'
+git -C "$jwork" push -qu origin mgr-deletedpr
+# The narrow refspec maps no tracking ref for it: write the stale one by hand.
+git -C "$jwork" update-ref refs/remotes/origin/mgr-deletedpr mgr-deletedpr
+git -C "$jwork" checkout -q main
+git -C "$jorigin" branch -qD mgr-deletedpr
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-deletedpr 2>&1 )"; rc=$?
+expect "a gone non-candidate is gone, not skipped" \
+  "live      : REFUSED — mgr-deletedpr gone on origin: already released" "$out"
+refute "and is not called a non-candidate" "not a candidate" "$out"
+if [ "$rc" -eq 0 ]; then pass "and is no failure"
+else fail "and is no failure (rc ${rc})"; fi
+if git -C "$jwork" rev-parse -q --verify refs/remotes/origin/mgr-deletedpr >/dev/null; then
+  fail "and its stale local ref is dropped"
+else pass "and its stale local ref is dropped"; fi
+# Moved on origin under the narrow refspec: --apply re-reads the named branch
+# itself, so a stale tracking ref is no permanent refusal.
+jgone mgr-movednarrow
+git -C "$jwork" update-ref refs/remotes/origin/mgr-movednarrow mgr-movednarrow
+jmv="${TMP}/janitormover"
+git clone -q "$jorigin" "$jmv"
+git -C "$jmv" checkout -q mgr-movednarrow
+printf 'moved\n' >>"${jmv}/code.txt"
+git -C "$jmv" add -A
+GIT_COMMITTER_DATE='2026-01-03T00:00:00Z' GIT_AUTHOR_DATE='2026-01-03T00:00:00Z' \
+  git -C "$jmv" commit -qm "manager moved"
+git -C "$jmv" push -q origin mgr-movednarrow
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-movednarrow 2>&1 )"; rc=$?
+expect "a branch moved under a narrow refspec is re-read, then released" \
+  "pushed    : mgr-movednarrow" "$out"
+if [ "$rc" -eq 0 ]; then pass "and exits 0"
+else fail "and exits 0 (rc ${rc})"; printf '%s\n' "$(indent "$out")"; fi
+git -C "$jwork" config --unset-all remote.origin.fetch
+while IFS= read -r l; do git -C "$jwork" config --add remote.origin.fetch "$l"; done <<<"$jrefspec"
+
+# Deleted between the check and the push: the lease refuses, nothing is
+# re-created. A git wrapper deletes the branch on origin just before `push`.
+jgone mgr-raced
+jwrap="${TMP}/janitorwrap"
+mkdir -p "$jwrap"
+jgit="$(command -v git)"
+printf '#!/bin/sh
+case " $* " in *" push "*) "%s" --git-dir="%s" branch -qD mgr-raced ;; esac
+exec "%s" "$@"
+' \
+  "$jgit" "$jorigin" "$jgit" >"${jwrap}/git"
+chmod +x "${jwrap}/git"
+out="$( cd "$jwork" && env PATH="${jwrap}:${PATH}" JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-raced 2>&1 )"; rc=$?
+expect "a branch deleted after the check is refused at the push" \
+  "FAILED    : mgr-raced — push refused" "$out"
+if [ "$rc" -ne 0 ]; then pass "and exits non-zero"
+else fail "and exits non-zero"; fi
+if [ -z "$(git -C "$jorigin" ls-remote --heads "$jorigin" mgr-raced)" ]; then
+  pass "and the lease kept origin without it"
+else
+  fail "and the lease kept origin without it (re-created)"
+fi
+
+# Origin unreachable: an unanswered question releases nothing and is a failure.
+jgone mgr-unreach
+jurl="$(git -C "$jwork" config remote.origin.url)"
+git -C "$jwork" config remote.origin.url "${TMP}/no-such-origin.git"
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-unreach 2>&1 )"; rc=$?
+git -C "$jwork" config remote.origin.url "$jurl"
+expect "an origin that cannot answer is a guard refusal" \
+  "live      : REFUSED — mgr-unreach: cannot ask origin whether the branch exists" "$out"
+expect "and a skip" "skip      : mgr-unreach — guard refused; nothing released" "$out"
+if [ "$rc" -ne 0 ]; then pass "and exits non-zero"
+else fail "and exits non-zero"; fi
+expect "and origin's claim is untouched" "status: in-progress" \
+  "$(git -C "$jorigin" show mgr-unreach:docs/handover/mgr-unreach.md 2>&1)"
+
+# The default refspec: --apply's own fetch prunes the ref, so the existing
+# no-such-branch skip answers, without a dispatch first.
+jgone mgr-deleted2
+git -C "$jorigin" branch -qD mgr-deleted2
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-deleted2 2>&1 )"
+expect "under the default refspec the prune answers first" \
+  "skip      : mgr-deleted2 — no such branch on origin" "$out"
+if [ -z "$(git -C "$jorigin" ls-remote --heads "$jorigin" mgr-deleted2)" ]; then
+  pass "and origin still has no such branch either"
+else
+  fail "and origin still has no such branch either (re-created)"
+fi

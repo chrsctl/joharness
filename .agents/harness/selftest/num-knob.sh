@@ -36,21 +36,21 @@ cp "${ROOT}/.agents/harness/queue-context.sh" \
    "${ROOT}/.agents/harness/handover-context.sh" "${nkwork}/.agents/harness/"
 printf '# none\n' >"${nkwork}/.agents/env/none/AGENTS.md"
 nkconf="${nkwork}/joharness.conf"
-printf 'JOHARNESS_ENV=none\nJOHARNESS_MODE=orchestrated\n' >"$nkconf"
+printf 'JOHARNESS_ENV=none\n' >"$nkconf"
 commit_all "$nkwork" "base"
 git -C "$nkwork" remote add origin "$nkorigin"
 git -C "$nkwork" push -qu origin main
 
 # DISPATCH_FETCH=0: the fixture's refs are already here, and a fetch against a
 # bare origin proves nothing about what a knob reads.
-nk() { ( cd "$nkwork" && JOHARNESS_CONF="$nkconf" DRAIN_FETCH=0 \
+nk() { ( cd "$nkwork" && JOHARNESS_CONF="$nkconf" \
   DISPATCH_FETCH=0 env "$@" ./joharness.sh dispatch 2>&1 ); }
 # stdout only, so a case can assert that nothing reached stderr.
-nkout() { ( cd "$nkwork" && JOHARNESS_CONF="$nkconf" DRAIN_FETCH=0 \
+nkout() { ( cd "$nkwork" && JOHARNESS_CONF="$nkconf" \
   DISPATCH_FETCH=0 env "$@" ./joharness.sh dispatch 2>/dev/null ); }
 # `{ ...; } 2>&1` and not `2>&1 >/dev/null`: same effect, and the second
 # spelling is the one shellcheck reads as a mistake (SC2069).
-nkerr() { ( cd "$nkwork" && JOHARNESS_CONF="$nkconf" DRAIN_FETCH=0 \
+nkerr() { ( cd "$nkwork" && JOHARNESS_CONF="$nkconf" \
   DISPATCH_FETCH=0 env "$@" bash -c '{ ./joharness.sh dispatch >/dev/null; } 2>&1' ); }
 
 # --- a zero-padded value is decimal, and does not kill the command ----------

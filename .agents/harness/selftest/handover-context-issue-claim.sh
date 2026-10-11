@@ -100,4 +100,20 @@ expect "and the block still prints, saying none" \
 # the unqualified absolute that sends a session to duplicate work.
 expect "and the empty case is hedged, not absolute" \
   "Not proof an issue is free" "$out"
+# Plan abandoned-reaches-every-reader: the row label read the issue while the
+# summary skipped a RELEASED claim, so one output disagreed with itself. The
+# live shape above (in-progress, "claims issue #114") is the control; this is
+# the released one, on the same branch edited in place.
+git -C "$work" checkout -q claiming
+sed -i.bak -e 's/^status: .*/status: abandoned/' \
+  -e '/^updated: /a issue: 114' "${work}/docs/handover/claiming-ws.md"
+rm -f "${work}/docs/handover/claiming-ws.md.bak"
+commit_all "$work" "release the claim"
+git -C "$work" push -qf origin claiming
+git -C "$work" checkout -q feature
+out="$(ic)"
+expect "a released claim's row is still listed, with its status" \
+  "[abandoned, updated 2026-01-01" "$out"
+refute "but its row does not say it claims the issue" "claims issue #114" "$out"
+refute "and the summary agrees: no issue claimed" "— origin/claiming" "$out"
 git -C "$work" push -q origin --delete claiming 2>/dev/null || :

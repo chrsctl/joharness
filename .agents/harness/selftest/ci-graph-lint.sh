@@ -158,7 +158,7 @@ EOF
 commit_all "$lwork" "question on a tier that does not exist"
 out="$(lint_section "$(lint_ci)")"
 expect "a research file's agent tier is vocabulary-checked" \
-  "agent 'gpt' not one of: haiku sonnet opus" "$out"
+  "agent 'gpt' not one of: haiku sonnet opus fable" "$out"
 
 # A plain document in docs/research is NOT a node. docs/research is the one
 # queue dir that also holds prose a session wrote — reference material, not
@@ -291,6 +291,17 @@ out="$(lint_section "$(lint_ci)")"
 refute "clearing them clears the lint" "not a number" "$out"
 rm -f "${lwork}/docs/handover/claim-ok.md" "${lwork}/docs/handover/claim-none.md"
 
+# A planning manager claims a REQUIREMENT by its stem (`/manage`, item kinds).
+# Before, `plan: <requirement>` reded here as a claim on nothing, so the
+# manager obeying its own instructions failed ci.
+printf -- '---\nrequirement: claim-goal\npriority: normal\n---\n\n## Goal\nFixture.\n' \
+  >"${lwork}/docs/product/claim-goal.md"
+printf -- '---\nworkstream: plan-goal\nstatus: in-progress\nplan: claim-goal\n---\n\n## Goal\nFixture.\n' \
+  >"${lwork}/docs/handover/plan-goal.md"
+out="$(lint_section "$(lint_ci)")"
+refute "a claim naming a requirement is not dead" "plan 'claim-goal'" "$out"
+rm -f "${lwork}/docs/product/claim-goal.md" "${lwork}/docs/handover/plan-goal.md"
+
 # Never-existed names and a bad enum: hard facts, red, ci fails.
 cat >"${lwork}/docs/plans/bad.md" <<'EOF'
 ---
@@ -317,13 +328,13 @@ EOF
 full="$(lint_ci)"; rc=$?
 out="$(lint_section "$full")"
 expect "enum outside vocabulary is red" \
-  "agent 'gpt5' not one of: haiku sonnet opus" "$out"
+  "agent 'gpt5' not one of: haiku sonnet opus fable" "$out"
 expect "adjacent vocabulary words are not a value" \
   "effort 'low medium' not one of" "$out"
 expect "dangling needs is red" \
   "needs 'never-was' — no such plan, never existed" "$out"
 expect "dangling claim is red" \
-  "plan 'never-was-plan' — no such plan or question, never existed" "$out"
+  "plan 'never-was-plan' — no such plan, question or requirement, never existed" "$out"
 if [ "$rc" -ne 0 ]; then
   pass "dead edges fail ci"
 else
@@ -837,12 +848,6 @@ out="$(lint_section "$(lint_ci)")"
 expect "a whitespace-separated edge routes to the first file" \
   "alpha.md: no research:" "$out"
 expect "and to the second" "beta.md: no research:" "$out"
-gout="$(CLAUDE_PROJECT_DIR="$lwork" "${lwork}/joharness.sh" graph 2>&1)"
-expect "the graph draws both, not one flattened stem" \
-  "p_two_edges -. research .-> q_alpha" "$gout"
-expect "the graph draws the second too" \
-  "p_two_edges -. research .-> q_beta" "$gout"
-refute "and never the flattened spelling" "alphabeta" "$gout"
 fixture_rm "$lwork" "drop the two-edge fixture" \
   docs/plans/two-edges.md docs/research/alpha.md docs/research/beta.md
 
@@ -901,22 +906,118 @@ refute "and VISION.md is not counted at all" "VISION.md" "$out"
 fixture_rm "$lwork" "drop the none fixtures" \
   docs/plans/no-edges.md docs/research/none.md docs/research/VISION.md
 
-# A node whose OWN key is path form draws one mermaid node, not two (r8).
-mkdir -p "${lwork}/docs/research"
-cat >"${lwork}/docs/research/pathself.md" <<'EOF'
+# fable is a judgement tier, never a build (.agents/docs/agent-selection.md,
+# Lineup): the tier is vocabulary, and a plan naming it must scope only prose.
+cat >"${lwork}/docs/plans/fable-docs.md" <<'EOF2'
 ---
-research: docs/research/pathself.md
+plan: fable-docs
 urgency: normal
-agent: opus
+agent: fable
 effort: high
-graduates: joharness.sh
+scope: docs/x.md, shared: .agents/docs/y.md, .claude/commands/z.md
 ---
-EOF
-git -C "$lwork" add docs/research/pathself.md
-git -C "$lwork" commit -qm "a node naming itself by path"
-gout="$(CLAUDE_PROJECT_DIR="$lwork" "${lwork}/joharness.sh" graph 2>&1)"
-expect "a path-form self-name draws the stem node" \
-  'q_pathself(["question: pathself' "$gout"
-refute "and not a second node named after the path" \
-  "q_docs_research_pathself_md" "$gout"
-fixture_rm "$lwork" "drop the path-self node" docs/research/pathself.md
+EOF2
+cat >"${lwork}/docs/plans/fable-none.md" <<'EOF2'
+---
+plan: fable-none
+urgency: normal
+agent: fable
+effort: high
+scope: none
+---
+EOF2
+commit_all "$lwork" "fable plans scoped to prose, or to nothing"
+full="$(lint_ci)"; rc=$?
+out="$(lint_section "$full")"
+refute "fable is in the agent vocabulary" "agent 'fable' not one of" "$out"
+refute "a fable plan scoped to prose is green" "fable-docs.md" "$out"
+refute "a fable plan declaring scope: none is green" "fable-none.md" "$out"
+if [ "$rc" -eq 0 ]; then
+  pass "prose-scoped fable plans leave ci green"
+else
+  fail "prose-scoped fable plans leave ci green"
+fi
+
+cat >"${lwork}/docs/plans/fable-builds.md" <<'EOF2'
+---
+plan: fable-builds
+urgency: normal
+agent: fable
+effort: high
+scope: docs/x.md, joharness.sh
+---
+EOF2
+cat >"${lwork}/docs/plans/fable-blank.md" <<'EOF2'
+---
+plan: fable-blank
+urgency: normal
+agent: fable
+effort: high
+scope: docs/x.md joharness.sh
+---
+EOF2
+cat >"${lwork}/docs/plans/fable-dotdot.md" <<'EOF2'
+---
+plan: fable-dotdot
+urgency: normal
+agent: fable
+effort: high
+scope: docs/../joharness.sh
+---
+EOF2
+cat >"${lwork}/docs/plans/fable-unscoped.md" <<'EOF2'
+---
+plan: fable-unscoped
+urgency: normal
+agent: fable
+effort: high
+---
+EOF2
+commit_all "$lwork" "fable plans that build, or cannot show they do not"
+full="$(lint_ci)"; rc=$?
+out="$(lint_section "$full")"
+expect "a fable plan whose scope names code is red" \
+  "fable-builds.md: fable is a judgement tier: this plan builds ('joharness.sh' in scope:)" "$out"
+expect "a blank does not join two entries into one path under docs/" \
+  "fable-blank.md: fable is a judgement tier: this plan builds ('joharness.sh' in scope:)" "$out"
+expect "a .. segment does not escape the prose directories" \
+  "fable-dotdot.md: fable is a judgement tier: this plan builds ('docs/../joharness.sh' in scope:)" "$out"
+expect "a fable plan with no scope is red" \
+  "fable-unscoped.md: fable is a judgement tier: scope: must show this plan builds nothing" "$out"
+if [ "$rc" -ne 0 ]; then
+  pass "a building fable plan fails ci"
+else
+  fail "a building fable plan fails ci"
+fi
+fixture_rm "$lwork" "drop the fable plans" docs/plans/fable-docs.md \
+  docs/plans/fable-none.md docs/plans/fable-builds.md docs/plans/fable-blank.md \
+  docs/plans/fable-dotdot.md docs/plans/fable-unscoped.md
+
+# A `needs:` target that existed only on a side branch merged into main, read
+# from a branch that then merged main in — the reconcile step 7 asks for. The
+# branch is that merge's FIRST parent and both parents lack the file, so
+# default history simplification follows the branch and never sees the
+# side branch: the target read as "never existed", red, on every branch that
+# reconciled after the target retired. `--full-history` reads it.
+lint_main="$(git -C "$lwork" rev-parse --abbrev-ref HEAD)"
+git -C "$lwork" checkout -qb lint-reconcile
+printf 'x\n' >"${lwork}/reconcile.txt"
+commit_all "$lwork" "a branch's own work"
+git -C "$lwork" checkout -q "$lint_main"
+git -C "$lwork" checkout -qb lint-side
+printf -- '---\nplan: side-only\nurgency: normal\nagent: sonnet\neffort: high\n---\n' \
+  >"${lwork}/docs/plans/side-only.md"
+commit_all "$lwork" "a plan that lives only on a side branch"
+fixture_rm "$lwork" "and retires there" docs/plans/side-only.md
+git -C "$lwork" checkout -q "$lint_main"
+git -C "$lwork" merge -q --no-ff -m "merge the side branch" lint-side
+printf -- '---\nplan: needs-side\nurgency: normal\nagent: sonnet\neffort: high\nneeds: side-only\n---\n' \
+  >"${lwork}/docs/plans/needs-side.md"
+commit_all "$lwork" "a plan that needed it"
+git -C "$lwork" checkout -q lint-reconcile
+git -C "$lwork" merge -q --no-edit "$lint_main"
+out="$(lint_section "$(lint_ci)")"
+refute "a needs target retired on a merged side branch is not 'never existed' after a reconcile" \
+  "needs 'side-only' — no such plan, never existed" "$out"
+git -C "$lwork" checkout -q "$lint_main"
+fixture_rm "$lwork" "drop the needing plan" docs/plans/needs-side.md

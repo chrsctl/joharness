@@ -35,7 +35,7 @@
 #
 # EVERY switch the child runs under is put to whoever stands the child up:
 # the environment layer, when that layer is provisioned, how its rules are
-# injected, whether ci gates the review record, and the autonomy mode. Each
+# injected, and whether ci gates the review record. Each
 # has a flag, and the interview asks only the ones no flag answered. The two
 # layer-shaped questions are skipped when the selected layer is 'none', where
 # they configure nothing.
@@ -54,17 +54,12 @@
 # handover from whole-clone mode's purge, and this run has no purge to
 # protect them from. Without the flag the refusal is unchanged.
 #
-# --mode is the exception twice over: its default is always supervised rather
-# than the clone's inherited answer, and it is written whether or not anybody
-# decided it. Canonical is flipped for its own endurance runs and reverted
-# after, so a clone taken mid-attempt must not come up unattended because of
-# WHEN it was copied. Scripted and CI runs have nobody to ask, so they take
-# the defaults and say so.
+# Scripted and CI runs have nobody to ask, so they take the defaults and say
+# so.
 #
 # Usage: .agents/scripts/bootstrap-consumer.sh [--dry-run] [--reconfigure]
 #            [--env <layer>] [--env-setup <lazy|eager>] [--env-md <lazy|eager>]
-#            [--review <off|on>] [--mode <supervised|unsupervised|orchestrated>]
-#            <consumer-dir>
+#            [--review <off|on>] <consumer-dir>
 # Exit: 0 bootstrapped clean. 1 refused with nothing written (usage, ROOT
 # not canonical, an unknown layer or switch value, target already a consumer,
 # target is ROOT itself). A nonzero sync engine exit stops the run and is
@@ -118,16 +113,13 @@ TRAP_TMP=""
 trap 'rm -rf "$SCRATCH"; [ -z "$TRAP_TMP" ] || rm -f "$TRAP_TMP"' EXIT
 
 usage() {
-  die "usage: $0 [--dry-run] [--reconfigure] [--env <layer>] [--env-setup <lazy|eager>] [--env-md <lazy|eager>] [--review <off|on>] [--mode <supervised|unsupervised|orchestrated>] <consumer-dir>"
+  die "usage: $0 [--dry-run] [--reconfigure] [--env <layer>] [--env-setup <lazy|eager>] [--env-md <lazy|eager>] [--review <off|on>] <consumer-dir>"
 }
 
 DRY=0
 # One variable and one GIVEN flag per conf key the child runs under. The
 # defaults here are the values a repo has always been seeded with; the
 # interview moves who is ASKED, never what is assumed when nobody answers.
-#
-# AUTONOMY, not MODE: MODE already names fresh-vs-whole-clone in this script,
-# and one variable carrying two meanings is how the wrong one gets written.
 LAYER="$(conf_key_default JOHARNESS_ENV)"
 LAYER_GIVEN=0
 ENV_SETUP="$(conf_key_default JOHARNESS_ENV_SETUP)"
@@ -136,21 +128,18 @@ ENV_MD="$(conf_key_default JOHARNESS_ENV_MD)"
 ENV_MD_GIVEN=0
 REVIEW="$(conf_key_default JOHARNESS_REVIEW)"
 REVIEW_GIVEN=0
-AUTONOMY="$(conf_key_default JOHARNESS_MODE)"
-# No flag and no interview question, deliberately. Every other key here is
-# asked because a human at first contact has an opinion about it; a sixth
-# question about an off-by-default mechanism is the cost
-# .agents/docs/orchestrated.md already refused for its own knobs. The channel
-# that reaches a child is the sync naming the key it does not answer, which
-# is what declaring it in conf-keys.sh buys.
-UPSTREAM="$(conf_key_default JOHARNESS_UPSTREAM_FEEDBACK)"
-# Same decision again, one switch over: whether a parked manager is explained
-# is a question a repo has after its first stuck run, not at first contact.
-IDLE_ANALYSIS="$(conf_key_default JOHARNESS_IDLE_ANALYSIS)"
-# Not asked either, and this one is a NUMBER rather than a switch: 12 hours is
-# the requester's cadence and a repo with no fleet never notices it, because a
-# sweep with no dead claim releases nothing and costs one report.
-JANITOR_HOURS="$(conf_key_default JOHARNESS_JANITOR_HOURS)"
+# No flag and no interview question, deliberately: a question about an
+# off-by-default mechanism is paid by every new consumer. The sync names a
+# key the conf does not answer, which is what declaring it in conf-keys.sh buys.
+# Not asked either: how often issues are turned into plans, and how many a
+# pass takes, are numbers a repo tunes after its first clerk pass.
+CLERK_HOURS="$(conf_key_default JOHARNESS_CLERK_HOURS)"
+CLERK_BATCH="$(conf_key_default JOHARNESS_CLERK_BATCH)"
+# Not asked either, both of them: how often a repo wants proposals, and whether
+# it lets one merge itself, are questions a human answers after reading the
+# first proposal, not before the first session.
+SCOUT_HOURS="$(conf_key_default JOHARNESS_SCOUT_HOURS)"
+SCOUT_AUTOMERGE="$(conf_key_default JOHARNESS_SCOUT_AUTOMERGE)"
 # Same decision, same reason: whether step 7 waits for GitHub Actions or runs
 # the checks here is a question a repo answers once it has felt the wait, not
 # one a human has an opinion about before the first session.
@@ -162,7 +151,6 @@ CHECKS="$(conf_key_default JOHARNESS_CHECKS)"
 # find rather than a knob it has to be told exists.
 CURATE_HOURS="$(conf_key_default JOHARNESS_CURATE_HOURS)"
 CURATE_PLANS="$(conf_key_default JOHARNESS_CURATE_PLANS)"
-AUTONOMY_GIVEN=0
 # Re-ask every switch in a child that already runs the harness, and write
 # what changes. Off, this script's behaviour is byte-identical to before it
 # existed — the flag adds a mode, it does not alter the other two.
@@ -179,8 +167,8 @@ while [ $# -gt 0 ]; do
     --env-md=*) ENV_MD="${1#--env-md=}"; ENV_MD_GIVEN=1; shift ;;
     --review) [ $# -ge 2 ] || usage; REVIEW="$2"; REVIEW_GIVEN=1; shift 2 ;;
     --review=*) REVIEW="${1#--review=}"; REVIEW_GIVEN=1; shift ;;
-    --mode) [ $# -ge 2 ] || usage; AUTONOMY="$2"; AUTONOMY_GIVEN=1; shift 2 ;;
-    --mode=*) AUTONOMY="${1#--mode=}"; AUTONOMY_GIVEN=1; shift ;;
+    --mode) [ $# -ge 2 ] || usage; warn "--mode is obsolete (orchestrated is the only mode); ignored"; shift 2 ;;
+    --mode=*) warn "--mode is obsolete (orchestrated is the only mode); ignored"; shift ;;
     --*) usage ;;
     *) break ;;
   esac
@@ -225,11 +213,9 @@ layer_valid() {
 layer_valid "$LAYER"
 
 # Every explicit value is checked, never normalised. Each of these keys is
-# read by something that fails closed on an unrecognised value —
-# joharness.sh:run_mode resolves anything but 'unsupervised' or
-# 'orchestrated' to supervised, and the two-value keys behave the same way —
-# so a typo is silent for the life of the repo unless it is refused where a
-# human types it. Two or three accepted values; the third is optional.
+# read by something that fails closed on an unrecognised value, so a typo is
+# silent for the life of the repo unless it is refused where a human types
+# it. Two or three accepted values; the third is optional.
 check_choice() {
   local given="$1" name="$2" value="$3" a="$4" b="$5" c="${6:-}"
   [ "$given" -eq 1 ] || return 0
@@ -242,7 +228,6 @@ check_choice() {
 check_choice "$ENV_SETUP_GIVEN" env-setup "$ENV_SETUP" lazy eager
 check_choice "$ENV_MD_GIVEN" env-md "$ENV_MD" lazy eager
 check_choice "$REVIEW_GIVEN" review "$REVIEW" off on
-check_choice "$AUTONOMY_GIVEN" mode "$AUTONOMY" supervised unsupervised orchestrated
 
 # Defined before the target is even looked at, and called from both places
 # that can be the end of the run: the missing-target dry run exits early, and
@@ -286,7 +271,7 @@ ask_line() {
 #
 # Enter takes the value already in force. Either word takes itself. y and n
 # take the SECOND and FIRST option: the second is the more-doing one in every
-# pair here (on, eager, eager, unsupervised), and the question this interview
+# pair here (on, eager, eager), and the question this interview
 # grew out of was a [y/N] one whose habitual answers would otherwise now be
 # refused outright.
 #
@@ -320,12 +305,12 @@ interview() {
     if [ "$MODE" = reconfigure ]; then
       log "not a terminal; asking nothing. A reconfigure writes only what somebody decided, so with no flags this run changes nothing at all. Pass the switches as flags, or run this from a terminal to be asked."
     else
-      log "not a terminal; asking nothing. A conf seeded here gets the defaults (env ${LAYER}, setup ${ENV_SETUP}, md ${ENV_MD}, review ${REVIEW}); a conf that already exists keeps its own values, and only JOHARNESS_MODE is written, as ${AUTONOMY}. The flags decide either way."
+      log "not a terminal; asking nothing. A conf seeded here gets the defaults (env ${LAYER}, setup ${ENV_SETUP}, md ${ENV_MD}, review ${REVIEW}); a conf that already exists keeps its own values. The flags decide either way."
     fi
     return 0
   fi
   if [ "$DRY" -eq 1 ]; then
-    log "would ask for JOHARNESS_ENV, JOHARNESS_ENV_SETUP, JOHARNESS_ENV_MD, JOHARNESS_REVIEW and JOHARNESS_MODE"
+    log "would ask for JOHARNESS_ENV, JOHARNESS_ENV_SETUP, JOHARNESS_ENV_MD, and JOHARNESS_REVIEW"
     return 0
   fi
   printf '\n== the switches this repo will run under\n' >&2
@@ -408,36 +393,6 @@ interview() {
     [ "$ans" = "$cur" ] || REVIEW_GIVEN=1
   fi
 
-  if [ "$AUTONOMY_GIVEN" -eq 0 ]; then
-    # The one question whose default depends on WHICH run this is, because
-    # the value in the target's conf means two different things.
-    #
-    # At first contact it is not an answer: a whole clone carries canonical's
-    # own line, canonical is flipped for its endurance runs and reverted
-    # after, so offering it back would hand a child an autonomy it never
-    # chose because of WHEN it was copied. Supervised, always.
-    #
-    # Under --reconfigure the target already runs the harness, so that line
-    # was written by its own bootstrap and IS this repo's answer. Offering
-    # supervised there would make Enter a silent downgrade — JOHARNESS_MODE
-    # is written on every run (write_decided_keys), so Enter is not a no-op
-    # for this one key.
-    cur=supervised
-    if [ "$RECONFIGURE" -eq 1 ]; then
-      cur="$(conf_value_of "$conf" JOHARNESS_MODE)"
-      [ -n "$cur" ] || cur=supervised
-    fi
-    ans="$(ask_choice 'Unsupervised mode for this consumer?' \
-      "  A session takes one queue item, runs the Loop, merges its own pull
-  request, and at the queue edge exits instead of asking a human.
-  It automates nothing by itself: something has to fire the next
-  session (.agents/docs/unsupervised.md, Heartbeat). A third value,
-  orchestrated, is set by hand after reading
-  .agents/docs/orchestrated.md; the interview offers the two." \
-      supervised unsupervised "$cur")"
-    AUTONOMY="$ans"
-    [ "$ans" = "$cur" ] || AUTONOMY_GIVEN=1
-  fi
   printf '\n' >&2
 }
 
@@ -475,20 +430,6 @@ set_conf_key() {
 # consumer's own, which is what the cases carrying JOHARNESS_ENV=custom-own
 # through a bootstrap pin.
 #
-# JOHARNESS_MODE is the exception and is always written. A whole clone
-# carries canonical's own conf, canonical is flipped for its endurance runs
-# and reverted after, so a clone taken mid-attempt would come up unattended
-# because of WHEN it was copied. That is the failure joharness.sh:run_mode
-# already fails closed against.
-#
-# The exception does not extend to --reconfigure, and the same reasoning is
-# why: there the line is the child's OWN answer, not canonical's, so writing
-# it unasked would rewrite a decision on a run where nobody decided anything.
-# Headless, that is exactly what would happen — the interview asks nothing
-# without a terminal, and the mode would land as the parse-time default,
-# silently downgrading an unsupervised child on a run that printed no
-# question. So under reconfigure this key follows the same rule as the other
-# four: written when a flag gave it or the interview answered it.
 write_decided_keys() {
   local conf="$1"
   [ "$LAYER_GIVEN" -eq 0 ] ||
@@ -503,10 +444,6 @@ write_decided_keys() {
   [ "$REVIEW_GIVEN" -eq 0 ] ||
     set_conf_key "$conf" JOHARNESS_REVIEW "$REVIEW" \
       "off = review reports only; on = ci gates the record at the edge."
-  if [ "$MODE" != reconfigure ] || [ "$AUTONOMY_GIVEN" -eq 1 ]; then
-    set_conf_key "$conf" JOHARNESS_MODE "$AUTONOMY" \
-      "Autonomy. Any value but unsupervised or orchestrated reads as supervised."
-  fi
 }
 
 # Mode detection needs the target readable; a missing target is trivially
@@ -522,7 +459,7 @@ if [ ! -d "$DEST" ]; then
   if [ "$DRY" -eq 1 ]; then
     printf '== bootstrap %s -> %s (fresh; dry run, nothing written)\n' "$ROOT" "$DEST"
     interview
-    log "consumer dir '$DEST' does not exist; would create it, sync the harness in, and seed AGENTS.md Part 2 stub, joharness.conf (env ${LAYER}, setup ${ENV_SETUP}, md ${ENV_MD}, review ${REVIEW}, mode ${AUTONOMY}), ci.yml, update.yml, README.md"
+    log "consumer dir '$DEST' does not exist; would create it, sync the harness in, and seed AGENTS.md Part 2 stub, joharness.conf (env ${LAYER}, setup ${ENV_SETUP}, md ${ENV_MD}, review ${REVIEW}), ci.yml, update.yml, README.md"
     exit 0
   fi
 else
@@ -570,14 +507,16 @@ fi
 interview
 
 
-# Said once, whoever chose it and however: the switch is the smaller half of
-# what an unattended fleet needs, and a child whose conf says unsupervised
-# with nothing firing its sessions runs exactly as often as a human starts
-# one. Printed, never acted on — a Routine is recurring spend, which
+# Said at the close of every real run that stands a child up, never acted on:
+# the child runs orchestrated, and orchestrated is the switch, not the
+# automation. Without a heartbeat firing each next orchestrator session it runs
+# exactly as often as a human starts one. A Routine is recurring spend, which
 # .agents/harness/AGENTS.md reserves for the human.
-if [ "$AUTONOMY" = unsupervised ]; then
-  warn "unsupervised is the switch, not the automation: the child still needs a heartbeat to fire each next session. .agents/docs/unsupervised.md carries the Routine's prompt, its hourly floor, the connector trap and the pause. Creating one is the human's call."
-fi
+heartbeat_note() {
+  printf '\nheartbeat: the child runs orchestrated, and it still needs a heartbeat to fire each next orchestrator session.\n'
+  printf '  .agents/docs/orchestrated.md carries the Routine'\''s prompt, its hourly floor, the connector trap and the pause.\n'
+  printf '  Creating one is the human'\''s call.\n'
+}
 
 # Everything above the marker, CR-stripped — same one-definition rule as
 # the sync engine, so a CRLF checkout splices the same way there and here.
@@ -620,7 +559,6 @@ if [ "$MODE" = reconfigure ]; then
   [ "$ENV_SETUP_GIVEN" -eq 0 ] || reconfigured="${reconfigured} JOHARNESS_ENV_SETUP=${ENV_SETUP}"
   [ "$ENV_MD_GIVEN" -eq 0 ] || reconfigured="${reconfigured} JOHARNESS_ENV_MD=${ENV_MD}"
   [ "$REVIEW_GIVEN" -eq 0 ] || reconfigured="${reconfigured} JOHARNESS_REVIEW=${REVIEW}"
-  [ "$AUTONOMY_GIVEN" -eq 0 ] || reconfigured="${reconfigured} JOHARNESS_MODE=${AUTONOMY}"
   if [ -z "$reconfigured" ]; then
     log "nothing decided, so ${DEST}/joharness.conf is untouched"
   elif [ "$DRY" -eq 1 ]; then
@@ -637,9 +575,8 @@ if [ "$MODE" = reconfigure ]; then
      [ ! -d "${DEST}/.agents/env/${LAYER}" ]; then
     warn "'${DEST}' does not carry .agents/env/${LAYER} yet, and a reconfigure ships nothing: it will fall back to no environment until the sync brings that layer (.agents/scripts/sync-to-consumer.sh, and .agents/docs/consumer-repos.md, Layers)."
   fi
-  # No heartbeat warning here: the one above fires on the resolved value
-  # whichever run this is, and a second copy printed it twice for
-  # `--reconfigure --mode unsupervised` — against its own "said once".
+  # No heartbeat note here: it belongs to the closing message of a run that
+  # stands a child up, and this run stands nothing up.
   exit 0
 fi
 
@@ -759,14 +696,6 @@ JOHARNESS_ENV_MD=${ENV_MD}
 #       one of them from a reader that did not write the diff.
 JOHARNESS_REVIEW=${REVIEW}
 
-# Autonomy. 'supervised' (default) = a session stops at the queue edge and
-# asks. 'unsupervised' = it takes queue work, runs the full Loop, merges its
-# own pull requests, and at the edge exits instead of asking. Nothing is
-# invented in either mode, and the mode alone fires no sessions — see
-# .agents/docs/unsupervised.md. Any other value reads as supervised; the
-# switch fails closed on purpose.
-JOHARNESS_MODE=${AUTONOMY}
-
 # github = step 7's first merge condition is this head's checks, read on
 #          GitHub: a session pushes, waits for Actions, then merges.
 # local  = no wait. ./joharness.sh finish runs this head's checks itself — ci,
@@ -791,40 +720,33 @@ JOHARNESS_CHECKS=${CHECKS}
 JOHARNESS_CURATE_HOURS=${CURATE_HOURS}
 JOHARNESS_CURATE_PLANS=${CURATE_PLANS}
 
-# off = ./joharness.sh upstream reports what a merged edge found about the
-#       harness — which findings landed on a file canonical owns, and the
-#       canonical they would go to. Nothing acts on it.
-# on  = under JOHARNESS_MODE=orchestrated, the orchestrator spends ONE session
-#       per merged edge, beyond the manager cap, filing those findings as a
-#       report pull request on the canonical (.agents/docs/feedback.md, When
-#       the consumer is the detector). Off by default: it costs money and it
-#       opens pull requests in a repository this one does not own.
-JOHARNESS_UPSTREAM_FEEDBACK=${UPSTREAM}
+# Hours between clerk passes; 0 = off. Open issues are the queue's top rank,
+# but dispatch reads only docs/plans/: /clerk turns each issue that holds into
+# plans and merges that plan-only pull request itself (issue #311).
+JOHARNESS_CLERK_HOURS=${CLERK_HOURS}
 
-# off = ./joharness.sh analysis reports why a manager is blocked, stalled or
-#       looping: the mark it carries, and whether joharness.conf has moved
-#       since that claim last stated its cause. Nothing acts on it.
-# on  = under JOHARNESS_MODE=orchestrated, the orchestrator spends ONE session
-#       per condition per item per run, beyond the manager cap, saying why and
-#       filing it as an issue on the canonical. Off by default: it costs money
-#       and it opens issues in a repository this one does not own.
-JOHARNESS_IDLE_ANALYSIS=${IDLE_ANALYSIS}
+# Open issues one clerk pass takes at most.
+JOHARNESS_CLERK_BATCH=${CLERK_BATCH}
 
-# Hours between janitor sweeps; 0 = off. A claim whose session is gone holds
-# its plan out of the queue until something releases it, and nothing did
-# before this cycle: measured in a consumer, one unowned block held four plans
-# for 141 hours (issue #254). /janitor releases only what the control plane
-# proves gone, and never deletes a file or a branch.
-JOHARNESS_JANITOR_HOURS=${JANITOR_HOURS}
+# Hours since the last scout before one is due; 0 = off. Only at DRAINED: a
+# scout proposes NEW work, and new work competes with real work. Dated from
+# git, closed proposals included, so a declined one does not re-fire at once.
+JOHARNESS_SCOUT_HOURS=${SCOUT_HOURS}
+
+# off = a scout's proposal waits for a human to merge or close it. Exactly
+# 'on' = the scout merges its own. The ONE exception to "nothing is
+# invented": money and product direction in one key, and a conf line is a
+# human act, which is why the bound still holds.
+JOHARNESS_SCOUT_AUTOMERGE=${SCOUT_AUTOMERGE}
 EOF
   # Recorded BEFORE the seed, because seed() is the thing that makes the
   # difference invisible afterwards: it writes only when the file is absent.
   conf_existed=0
   if [ -f "${DEST}/joharness.conf" ]; then conf_existed=1; fi
   seed joharness.conf "${SCRATCH}/conf"
-  # The seeded conf already carries the answer, so this is for the other
+  # The seeded conf already carries the answers, so this is for the other
   # case only: a target that brought its own conf keeps it, and would
-  # otherwise keep an autonomy line this run was explicitly told to change.
+  # otherwise keep a line this run was explicitly told to change.
   [ "$conf_existed" -eq 0 ] || write_decided_keys "${DEST}/joharness.conf"
 
   # Canonical's workflow verbatim: it is generic (runs ./joharness.sh ci
@@ -868,6 +790,7 @@ EOF
   printf '  5. replace the stub README.md\n'
   printf '  6. root LICENSE is this repo'\''s own choice; the harness'\''s grant\n'
   printf '     arrived in .agents/LICENSE + .agents/NOTICE and covers only the synced set\n'
+  [ "$DRY" -eq 1 ] || heartbeat_note
 }
 
 bootstrap_whole_clone() {
@@ -898,21 +821,23 @@ bootstrap_whole_clone() {
   # Just the marker line, nothing clever: the comment block above it in a
   # real clone describes the canonical and goes stale, but guessing at
   # comment boundaries risks eating a consumer's own notes. Warned instead.
+  # The manager cap goes with it: canonical runs its own loop at cap 1 for
+  # itself, and no interview asks a child this key, so a clone would keep
+  # canonical's number in silence the day it turned orchestrated.
   tmp="${SCRATCH}/conf-stripped"
-  grep -v '^JOHARNESS_CANONICAL=' "$conf" >"$tmp" || :
+  grep -v -e '^JOHARNESS_CANONICAL=' -e '^JOHARNESS_MAX_MANAGERS=' "$conf" >"$tmp" || :
   place "$tmp" "$conf"
   if [ "$DRY" -eq 1 ]; then
-    printf '  would strip joharness.conf (JOHARNESS_CANONICAL line)\n'
+    printf '  would strip joharness.conf (JOHARNESS_CANONICAL, JOHARNESS_MAX_MANAGERS lines)\n'
   else
-    printf '  strip   joharness.conf (JOHARNESS_CANONICAL line removed)\n'
+    printf '  strip   joharness.conf (JOHARNESS_CANONICAL, JOHARNESS_MAX_MANAGERS lines removed)\n'
   fi
   warn "the conf comment block above the removed marker may still describe the canonical; tidy it by hand"
 
   # A whole clone carries joharness's own answers to every one of these,
   # which are joharness's and not this repo's. Each key is written only when
   # a flag gave it or the interview answered it, so a clone somebody already
-  # configured keeps what it was configured with; JOHARNESS_MODE is the one
-  # exception and is always written. Reasoning at write_decided_keys.
+  # configured keeps what it was configured with.
   write_decided_keys "$conf"
 
   # joharness's live work, meaningless in the child. Every .md goes:
@@ -959,6 +884,7 @@ bootstrap_whole_clone() {
   fi
   warn "git history is still joharness's — keep it or re-init; human call"
   log "ci.yml and env selection left as cloned; steady-state updates: .agents/scripts/sync-to-consumer.sh"
+  [ "$DRY" -eq 1 ] || heartbeat_note
 }
 
 if [ "$MODE" = "fresh" ]; then

@@ -89,11 +89,59 @@ hook_key() {
 cmd="$(hook_key command)" || exit 0
 [ -n "$cmd" ] || exit 0
 
+# A heredoc body a command only WRITES to a file is data, not code: a script
+# being written may hold `while`, `sleep` and `pgrep -f` as text. Strip a body
+# only when its line starts with `cat` or `tee`, has no pipe, and writes with a
+# plain `>`/`>>` (not `2>`) or tee; and strip nothing at all when the rest of
+# the command runs a shell or a script (write-then-run is code). Lines are
+# still JSON-escaped: a newline is the two characters `\n`.
+strip_heredocs() {
+  local rest="$1" out="" line t term="" dash="" last=0 q="'"
+  local hd_re='<<(-?)[[:space:]]*(\\?["'"$q"'])?([A-Za-z_][A-Za-z0-9_]*)'
+  local write_re='(^|[^0-9&>])>>?[[:space:]]*[^&[:space:]]|^[[:space:]]*tee[[:space:]]'
+  local lead_re='^[[:space:]]*(cat|tee)[[:space:]]'
+  local exec_re='(^|[;&|({[:space:]]|\\n)(/[^[:space:]]*/)?(bash|sh|zsh|dash|ksh|source|exec|eval|xargs|python[0-9.]*|perl|node)([[:space:]]|$)|(^|[;&|[:space:]]|\\n)\.[[:space:]]|(^|[;&|(]|\\n)[[:space:]]*(\./|/[^[:space:]]*\.sh)'
+  while [ "$last" -eq 0 ]; do
+    if [[ $rest == *'\n'* ]]; then
+      line="${rest%%\\n*}"
+      rest="${rest#*\\n}"
+    else
+      line="$rest"
+      last=1
+    fi
+    if [ -n "$term" ]; then
+      t="$line"
+      if [ -n "$dash" ]; then
+        while [[ $t == '\t'* ]]; do t="${t#\\t}"; done
+      fi
+      [ "$t" = "$term" ] && term=""
+      continue
+    fi
+    out+="$line"
+    [ "$last" -eq 1 ] || out+='\n'
+    if [[ $line =~ $hd_re ]]; then
+      dash="${BASH_REMATCH[1]}"
+      t="${BASH_REMATCH[3]}"
+      if [[ $line =~ $lead_re ]] && [[ $line != *'|'* ]] && [[ $line =~ $write_re ]]; then
+        term="$t"
+      fi
+    fi
+  done
+  # Anything outside the stripped bodies runs code: keep the command whole.
+  if [[ $out =~ $exec_re ]]; then printf '%s' "$1"; else printf '%s' "$out"; fi
+}
+case "$cmd" in *'<<'*) cmd="$(strip_heredocs "$cmd")" ;; esac
+
 # `\n` and `\t` arrive as two characters each, and a loop body spelled
 # "do\nsleep 3\ndone" then puts an alphanumeric immediately before `sleep`,
 # where the shape below needs a word boundary. Without this the guard passes
 # every multi-line command — which is most of the ones worth catching.
-cmd="${cmd//\\n/ }"
+#
+# A newline becomes ` ;`, not a bare space: it ENDS a command, and the depth
+# walk below only counts an opener in command position. As a space, the
+# `for` on the line after `foo` reads as a word in a sentence, its `done`
+# closes the loop around it early, and a `sleep` after it is never seen.
+cmd="${cmd//\\n/ ;}"
 cmd="${cmd//\\t/ }"
 
 # --- the patterns ----------------------------------------------------------
@@ -113,8 +161,97 @@ cmd="${cmd//\\t/ }"
 # denied like the loop it spells. That is the defensible side of the line:
 # what is being written is an unbounded wait either way, and the deny points
 # at the Write tool for the case where the text really is only text.
+
+# WHICH `done` closes the keyword just found. Both ends of one defect live
+# here (issue #271, the research node on prose read as a loop): take the
+# FIRST `done` and a nested `for` steals the outer loop's end, so a sleep
+# after it goes unseen; let a prose `while` own a real loop's `done` and the
+# `timeout` wrapping that loop goes unseen. A narrowing at either end, built
+# alone, opened a wider hole at the other — so one rule closes both.
+#
+# Count OPENERS up and `done` down, never a bare `do`. `do` is a separator,
+# not a nesting token: one `done` per opener, never per `do`, and a prose
+# keyword in front of an ordinary `for ...; do ... done` would otherwise
+# claim that `for`'s `do` and `done` — measured: the do/done count fixes
+# both false negatives and leaves both prose false positives denied. The
+# depth starts at 1, the keyword being its own opener, and the `done` that
+# returns it to 0 is this loop's.
+#
+# Two narrowings on the opener keep it from re-opening the hole that the
+# last attempt here was reverted for:
+#   - `for NAME in` and `for ((`, never a bare `for`. A bare `for` is what
+#     made "ready for connections" an opener and let the wait around it go.
+#   - COMMAND POSITION: the start, or after `; & | ( ) { }`, a quote, or
+#     `do` / `then` / `else` — optionally through a `!` or `time` that is
+#     itself in that position. A real opener begins a command; the `for` in
+#     "waiting for jobs in queue" does not, and counted it unbalances the
+#     loop around it. Nor does the `while` in "at the same time while".
+#
+# The KEYWORD is an opener too, held to the same position, and that — not
+# whether its count balances — is what tells prose from a loop: "wait while
+# the suite finishes" never becomes a token at all. Letting prose fall out
+# of an unbalanced count instead scanned to the end of the command once per
+# prose keyword, and 9 KB of them outran the hook's 10 s timeout.
+#
+# And `done` closes only after a separator, as shell requires: `.done` in a
+# sentinel path or "all done" in a message is a word, not this loop's end.
+#
+# What this replaced, measured, so nobody spends the same day on it again
+# (the research node bash-guard-reads-prose-as-a-loop, 2026-09-16/17, and
+# #314, 2026-10-08):
+#   - FIRST `done`: a commit-and-push retry whose message said "while", the
+#     deny's own `timeout 900 bash -c '...'` spelling after a prose "wait
+#     while", and a nested `for` ahead of the sleep all read wrong. The
+#     message then named a `timeout` the refused command carried.
+#   - "a keyword owns a loop only if its own `do` comes before any other
+#     opener", with a bare `for` as an opener: built and REVERTED. It let
+#     `until ... grep -q "ready for connections"; do sleep 5; done` through,
+#     and a prose "while we do the suite" still read as a loop.
+#   - `do` up / `done` down, the plan's prescription: fixes the nested-loop
+#     end and leaves both prose shapes denied. `do` is not a nesting token.
+#   - the opener-depth walk as the ONLY reader: built twice, and each
+#     verifier round found real waits it let through that the positional
+#     reader denied — a stray opener in a loop's body, a `done` after `}`
+#     or `fi`, a keyword after `coproc` or `if`. Every edge of a structural
+#     reader of shell-as-text is such a wait. So it is an OVERLAY that only
+#     ever adds denials (reader B below), and the positional reader stays.
+#
+# An opener that slips through anyway — a quoted "for x in list", a
+# `for line in ...:` of inline Python — leaves a REAL loop unpaired, and so
+# does a real `done` this cannot see. Neither is B's to judge: reader A
+# below reads every loop positionally, as this guard did before B existed,
+# so nothing B fails to pair is ever allowed on B's account.
+pos_re='(^|[;&|(){}'"'"'"`]|[^[:alnum:]_](do|then|else))[[:space:]]*((!|time)[[:space:]]+)?'
+open_re="${pos_re}"'((while|until)([^[:alnum:]_]|$)|(for[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[[:space:]]+in|select[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[[:space:]]+in)([^[:alnum:]_]|$)|for[[:space:]]*\(\()'
+close_re='(^|[;&|})]|[^[:alnum:]_](fi|esac|done)[[:space:]]|\]\][[:space:]])[[:space:]]*done([^[:alnum:]_]|$)'
+# One pattern for both, so one match finds whichever comes first.
+token_re="(${open_re})|(${close_re})"
+
+# Reader A's patterns: a keyword anywhere a word ends, and the first `done`.
 start_re='(^|[^[:alnum:]_])(while|until)[[:space:]]'
 end_re='[^[:alnum:]_]done([^[:alnum:]_]|$)'
+
+# PROSE: the keyword right after an ordinary word — "wait while", "moved
+# while", "Done! while" — unless what precedes it is a CHAIN of the words
+# shell lets precede a compound command, starting where a command starts:
+# `; do while`, `if until`, `else if until`, `if time until`, `coproc NAME
+# until`, `function f until`. One shell word was not enough: a verifier ran
+# `else if until ...` and `if time until ...` and found both still waiting,
+# read as prose by one reader and unseen by the other. A word after `-` is
+# an option (`time -p until`), not prose. "at the same time while" is prose:
+# that chain starts at "same", which begins no command.
+# `command eval` and `builtin eval` lead a chain too, and a function NAME
+# may hold `.` and `::` (`function lib::wait until`).
+#
+# WHAT THIS SKIP LETS THROUGH, measured by four verifier rounds and kept
+# on the human's decision (2026-10-08) because the prose false positive is
+# what the plan exists to fix: real waits whose keyword follows a word no
+# text rule tells from English — an argument a remote shell joins into a
+# command (`ssh host until ...`, `adb shell until ...`), `eval` reached
+# through a variable (`$e until ...`), and an alias. Each is denied by the
+# guard before this skip and by nothing here. Above 8 KB there is no skip.
+prose_re='(^|[^[:alnum:]_-])[[:alpha:]_][[:alnum:]_]*[.,!?]?[[:space:]]+$'
+shellword_re='(^|[;&|(){}!'"'"'"`])([[:space:]]*((do|then|else|elif|if|time|eval|while|until|command|builtin|!)|(coproc|function)([[:space:]]+[A-Za-z_][A-Za-z0-9_.:-]*)?)[[:space:]]+)+$'
 
 # `sleep` with an ARGUMENT, because `sleep` always takes one. Without the
 # argument, `do echo "sleep tight, still waiting"; done` is denied for a word
@@ -127,11 +264,169 @@ sleep_re='(^|[^[:alnum:]_])sleep[[:space:]]+[-0-9$"'"'"']'
 # command two respelled — a test on the world, which never bounds anything —
 # and an echoed `x -lt 10` in a body is not a bound at all. A rule that looked
 # only for the operator allowed both.
-count_re='\$\{?[A-Za-z_][A-Za-z0-9_]*\}?"?[[:space:]]+-(lt|le|gt|ge)[[:space:]]'
+# The payload is read ESCAPED (only \n and \t are replaced), so a quoted
+# counter reaches this pattern as `\"$n\"`. The escaped quote is accepted only
+# as a PAIR around the variable: a lone `\"` after it is the end of an echoed
+# string (`echo \"retry $n\" -lt 10`), which bounds nothing.
+count_re='(\\"\$\{?[A-Za-z_][A-Za-z0-9_]*\}?\\"|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?"?)[[:space:]]+-(lt|le|gt|ge)[[:space:]]'
 arith_re='\(\([^)]*[<>][^)]*\)\)'
 timeout_re='(^|[^[:alnum:]_-])timeout[[:space:]]'
-proc_re='[^[:alnum:]_](pgrep|pkill)[[:space:]]'
-full_re='[[:space:]](-[[:alnum:]]*f([[:space:]]|$)|--full)'
+
+# SELF-MATCH, keyed on the READER (plan guard-self-match-keyed-on-the-
+# reader, 2026-10-10). The deny was once keyed on a TOOL, `pgrep`/`pkill`
+# with `-f`. The trap is a PROPERTY: the condition reads full command lines,
+# and the shell running the loop carries the pattern in its own. A consumer
+# reported it under a `for i in $(seq 1 N)` loop, spelled `ps -e -o args |
+# grep -c PAT` (the opener is in its record; the full line is not, so the
+# fixture is a reconstruction). Measured against 26 fixtures (research node
+# a-self-match-the-guard-cannot-see, 2026-10-10), the tool-keyed check
+# missed it three ways, and any one fix alone left the report allowed:
+#   - THE READER. `ps ... | grep` never reached this branch, so bounded it
+#     was ALLOWED and unbounded it was denied as UNBOUNDED, whose remedy —
+#     wrap it in `timeout` — is the allowed spelling of the same trap.
+#     `/proc/*/cmdline` the same. And the flag test wanted `f` LAST in its
+#     cluster: `-fl` and `-f"pat"` were allowed.
+#   - THE POSITION. It wanted a character before the tool, and both readers
+#     start `span` right after the keyword's space, so `while pgrep -f PAT;
+#     do sleep 5; done` was the reader trap again: ALLOWED under `timeout`,
+#     UNBOUNDED without (verifier, 2026-10-10). Every pinned case was
+#     `until ! pgrep`, where the `!` supplied the character.
+#   - THE OPENER. Neither reader judged a `for` or `select` loop, so even
+#     `pgrep -f` under `for i in $(seq 1 100000)` with `sleep 60` passed.
+# Built: the readers of full command lines, each in COMMAND POSITION
+# (`rpos`, which the start of `span` satisfies) —
+#   - `pgrep`/`pkill` with `f` anywhere in a short-option cluster, or
+#     `--full`, in the same simple command;
+#   - `ps` piped to `grep`/`egrep`, unless `ps -p` (one pid) or a `grep -v
+#     grep` stage (the line holds "grep", so that stage drops it); `podman
+#     ps` is not `ps` in command position;
+#   - a `/proc/*/cmdline` glob, never one pid's path (`/proc/4242/cmdline`
+#     is the classic wait for one pid to end).
+# Exempt: the reader's OWN pattern argument, quoted, opening with a
+# one-character bracket class — `"[b]ash x"` cannot match its own text, and
+# the deny names it as the remedy — unless `grep -F` makes the brackets
+# literal. A bracket elsewhere in the span exempts nothing. A list of
+# readers, said as one: text cannot test the property, and an unlisted
+# reader (`pidof`, `pgrep` without `-f`, `awk` over `ps`) is an allow, as
+# everything here fails.
+# Reach: this branch runs for `for NAME in`, `for ((` and `select` too, with
+# a reason that does not say "never exits" — a `for` ends, but what it reads
+# always holds its own shell. ONLY through reader B: above 8 KB B does not
+# run and a `for` self-match stays allowed; reader A is `while`/`until`.
+# The BOUND check stays `while`/`until`: judging `for` with the WHOLE of
+# judge() flips seven pinned allows, five of them the prose cases above.
+# Rejected, measured: `< /dev/null` around the condition is no signal this
+# text reader has.
+# Priced first on a scratch copy narrower than this (no position fix, no
+# `-p`/`-v grep`/`-F`, an exemption anywhere in the span): regex only, no
+# fork; `bash .agents/harness/selftest.sh` on it printed 2454 passed, 0
+# failed, this topic's 80 pinned cases among them.
+#
+# The payload is read ESCAPED: a quote reaches these patterns as `\"`, so
+# the bracket exemption matches `\"[`, and `"` in `rpos` is the quote's
+# own character after its backslash.
+#
+# Command position also reaches THROUGH a prefix word that runs the next
+# one — `sudo`, `env`, `command`, `exec`, `nice`, `nohup`, `timeout N` —
+# and through a path (`/usr/bin/pgrep`). The tool-keyed check took any
+# non-word character before the tool, so each of these was denied before
+# this reader existed; without them it allowed all five (verifier,
+# 2026-10-10).
+rpos='(^|[;&|(){}`'"'"'"!]|[^[:alnum:]_](do|then|else|if|elif|while|until|time)[[:space:]])[[:space:]]*(((sudo|env|command|exec|nice|nohup|timeout[[:space:]]+[0-9.]+[smhd]?)[[:space:]]+)*)([^[:space:];&|()<>]*/)?'
+# Args stop at the simple command's end; a `|` or `)` inside a quoted
+# pattern cuts them early, after the flag and the pattern's opening.
+# rpos holds captures 1-6.
+pg_re="${rpos}(pgrep|pkill)([[:space:]][^;&|)]*)"
+pgfull_re='(^|[[:space:]])(-[[:alnum:]]*f|--full([[:space:]=]|$))'
+ps_re="${rpos}ps(([[:space:]][^;&|)]*)?)[|][[:space:]]*e?grep([[:space:]][^;&|)]*)"
+# `-p` ends the cluster or meets the pid: `-eopid,args` is not `-p`.
+onepid_re='(^|[[:space:]])(-[[:alnum:]]*p([[:space:]]|[0-9]|$)|--pid)'
+dropgrep_re='e?grep[[:space:]]+-[[:alnum:]]*v[[:alnum:]]*[[:space:]]+(\\"|'"'"')?e?grep'
+cmdline_re='/proc/[^/[:space:]]*[*][^/[:space:]]*/cmdline'
+grepcmd_re='(^|[[:space:]!])e?grep([[:space:]].*)$'
+bracket_re='(^|[[:space:]]|-[[:alnum:]]*)(\\"|'"'"')[[][^]\\][]]'
+fixed_re='(^|[[:space:]])(-[[:alnum:]]*F|--fixed-strings)'
+
+# Every self-matching reader in $1: `hpos` its offset (just past the tool's
+# name, or the glob's start), `htool` its name for the reason. Each capture
+# is taken before the next `=~`, which would unset it (set -u: exit 1, read
+# as ALLOW). `s` loses at least the tool's name every pass.
+#
+# Reader B scans the WHOLE command once and asks each loop which offsets
+# fall inside it. Scanning each loop's span instead re-read every nested
+# loop's text once per loop around it: 238 nested `for`s in 7.9 KB took
+# 8.15 s against the hook's 10 s timeout (verifier, 2026-10-10).
+selfscan() {
+  local s="$1" m t a p pre base=0
+  hpos=()
+  htool=()
+  while [[ $s =~ $pg_re ]]; do
+    m="${BASH_REMATCH[0]}"
+    t="${BASH_REMATCH[7]}"
+    a="${BASH_REMATCH[8]}"
+    pre="${s%%"$m"*}"
+    s="${s:${#pre}+${#m}}"
+    base=$((base + ${#pre} + ${#m}))
+    [[ $a =~ $pgfull_re ]] || continue
+    [[ $a =~ $bracket_re ]] && continue
+    hpos+=($((base - ${#a})))
+    htool+=("$t -f")
+  done
+  s="$1"
+  base=0
+  while [[ $s =~ $ps_re ]]; do
+    m="${BASH_REMATCH[0]}"
+    p="${BASH_REMATCH[7]}"
+    a="${BASH_REMATCH[9]}"
+    pre="${s%%"$m"*}"
+    s="${s:${#pre}+${#m}}"
+    base=$((base + ${#pre} + ${#m}))
+    [[ $p =~ $onepid_re ]] && continue
+    # The rest of this pipeline, for a `grep -v grep` stage after this one.
+    # A `)` ends it: past one is another command's pipeline.
+    [[ grep${a}${s%%[;&)]*} =~ $dropgrep_re ]] && continue
+    [[ $a =~ $bracket_re ]] && ! [[ $a =~ $fixed_re ]] && continue
+    hpos+=($((base - ${#a})))
+    htool+=("ps | grep")
+  done
+  s="$1"
+  base=0
+  while [[ $s =~ $cmdline_re ]]; do
+    m="${BASH_REMATCH[0]}"
+    pre="${s%%"$m"*}"
+    s="${s:${#pre}+${#m}}"
+    base=$((base + ${#pre} + ${#m}))
+    pre="${pre##*[;&|(]}"
+    if [[ $pre =~ $grepcmd_re ]]; then
+      a="${BASH_REMATCH[2]}"
+      [[ $a =~ $bracket_re ]] && ! [[ $a =~ $fixed_re ]] && continue
+    fi
+    hpos+=($((base - ${#m})))
+    htool+=("/proc/*/cmdline")
+  done
+}
+
+# Does this loop read full command lines? Sets `tool`. Reader A scans its
+# own span; reader B (`inb`) looks its range up in the one whole-command
+# scan, between the opener's end and its `done`.
+selfmatch() {
+  local h lo hi
+  if ((inb)); then
+    lo=${tend[i]}
+    hi=${tbeg[j]}
+  else
+    selfscan "$span"
+    lo=0
+    hi=${#span}
+  fi
+  for ((h = 0; h < ${#hpos[@]}; h++)); do
+    if ((hpos[h] >= lo && hpos[h] < hi)); then
+      tool="${htool[h]}"
+      return 0
+    fi
+  done
+  return 1
+}
 
 deny() {
   printf '%s\n' "$1" >&2
@@ -147,7 +442,67 @@ deny() {
   exit 2
 }
 
-# --- walk the command, one loop at a time ----------------------------------
+# --- judging one loop ------------------------------------------------------
+# `span` is what the loop runs each pass, `own` the text whose counters bound
+# THIS loop, `prefix` everything up to and including its keyword. `timeout`
+# is read from `prefix` and nowhere else: it WRAPS a loop, so it precedes it.
+# Inside the body it bounds one command in the loop and never the loop —
+# `while ! timeout 5 curl -sf http://host/health; do sleep 1; done` runs
+# until the host answers, and the host may never answer.
+#
+# The four are GLOBALS, set by the caller, not arguments: copying a loop's
+# body into a function's arguments on every keyword was a fifth of reader
+# A's cost on large commands, measured. `own` empty means "the same as
+# span" — reader A reads both from one text.
+judge() {
+  local tool
+  [ -n "$own" ] || own="$span"
+  # No sleep, no wait. `while read` over input stops here.
+  [[ $span =~ $sleep_re ]] || return 0
+
+  # Self-match FIRST, and bounded or not. A `timeout` around this one turns
+  # an endless wait into a wait that always runs the clock out, which is not
+  # the same bug getting fixed — and reporting it as "unbounded" would send
+  # the session to add the bound it already has. Self-matching is not
+  # obvious, so the reason says it, and names the remedy.
+  if selfmatch; then
+    case $kwname in
+      while | until)
+        deny "DENIED: this \`${kwname}\` loop waits on \`${tool}\`, which reads full command
+lines and so matches ITSELF: the command line running this loop carries
+the pattern as its own argument, so the process it is waiting for is
+always found and the loop never exits.
+Open the pattern with a one-character bracket class — \"[p]ython3 x\" —
+which matches the process and not its own text (not under grep -F), or
+wait on something the loop does not create." ;;
+      *)
+        deny "DENIED: this \`${kwname}\` loop reads \`${tool}\`, which reads full command
+lines and so matches ITSELF: the command line running this loop carries
+the pattern as its own argument, so the result always includes this
+command's own shell. A count is never 0, and a pid list includes the
+caller — a loop that kills each pid it reads can kill its own shell.
+Open the pattern with a one-character bracket class — \"[p]ython3 x\" —
+which matches the process and not its own text (not under grep -F)." ;;
+    esac
+  fi
+  # The bound check reads `while`/`until` only (header, SELF-MATCH).
+  case $kwname in while | until) ;; *) return 0 ;; esac
+
+  [[ $prefix =~ $timeout_re ]] && return 0
+  [[ $own =~ $count_re ]] && return 0
+  [[ $own =~ $arith_re ]] && return 0
+
+  # Say what is missing AROUND THE LOOP. The message once printed "no
+  # timeout" at a command carrying `timeout 900`; it now names the keyword
+  # it judged, and a `timeout` elsewhere in the command is not one that
+  # wraps this loop.
+  deny "DENIED: this \`${kwname}\` loop sleeps with no bound on how long it waits.
+No \`timeout\` wraps it, and no counter in its own condition or body stops
+it. If the condition it waits on never comes true, the command runs until
+a human notices."
+}
+
+# --- A: the positional reader ----------------------------------------------
 # ONE match cannot do this. The shape's `.*` groups are greedy and ERE
 # matching is leftmost-longest, so a command holding TWO loops matches as a
 # single span from the first keyword to the LAST `done` — and a counter in a
@@ -157,54 +512,154 @@ deny() {
 #   i=0; while [ $i -lt 3 ]; do sleep 1; i=$((i+1)); done; until grep -q x /tmp/f; do sleep 20; done
 #
 # whose tail is incident command two. So each loop is cut out and judged on
-# its own. `rest` loses at least the keyword every pass, so this walk ends —
-# which is the one property this file has no business getting wrong.
+# its own, from its keyword to the first `done`. `rest` loses at least the
+# keyword every pass, so this walk ends — which is the one property this
+# file has no business getting wrong.
+#
+# Unchanged from the reader this file had before B, but for one skip: a
+# keyword that is plainly PROSE is passed over (prose_re, shellword_re
+# above). That skip is the only place this guard allows what the old one
+# denied, and it is what "wait while the suite finishes; timeout 900 ..."
+# needs.
+small=0
+((${#cmd} <= 8192)) && small=1
+inb=0
 walked=""
 rest="$cmd"
 while [[ $rest =~ $start_re ]]; do
+  # Both captures NOW: every later `[[ =~ ]]` overwrites BASH_REMATCH, and a
+  # capture read after one is unset under `set -u` — exit 1, which this
+  # event reads as "allow, and log it".
   kw="${BASH_REMATCH[0]}"
-  # Everything up to and including this loop's keyword. `timeout` is read
-  # here and nowhere else: it WRAPS a loop, so it precedes it. Inside the
-  # body it bounds one command in the loop and never the loop —
-  # `while ! timeout 5 curl -sf http://host/health; do sleep 1; done` runs
-  # until the host answers, and the host may never answer.
-  prefix="${walked}${rest%%"$kw"*}${kw}"
+  kwname="${BASH_REMATCH[2]}"
+  head="${rest%%"$kw"*}"
+  prefix="${walked}${head}${kw}"
   rest="${rest#*"$kw"}"
+
+  # Prose: the keyword right after an ordinary word. Only on a command B
+  # also reads: each skip costs a cut over the whole command, and 80 KB of
+  # notes saying "waits while" took 11.5 s against origin/main's 0.06 s.
+  # Above the gate this is origin/main's walk exactly — its reading, prose
+  # false positive included, and its cost. Only the last stretch of text
+  # matters, and cutting it keeps the two matches cheap.
+  if ((small)); then
+    before="${walked}${head}${kw%"$kwname"*}"
+    # 1 KB, not less: a `coproc`/`function` NAME of 90 characters pushed the
+    # chain's anchor out of an 80-character window and read as prose.
+    ((${#before} > 1024)) && before="${before:${#before}-1024}"
+    if [[ $before =~ $prose_re ]] && ! [[ $before =~ $shellword_re ]]; then
+      walked="$prefix"
+      continue
+    fi
+  fi
 
   # No `done` left means no loop left, only the word.
   [[ $rest =~ $end_re ]] || break
   end="${BASH_REMATCH[0]}"
-  body="${rest%%"$end"*}"
-  walked="${prefix}${body}${end}"
+  span="${rest%%"$end"*}"
+  walked="${prefix}${span}${end}"
   rest="${rest#*"$end"}"
+  own=""
+  judge
+done
 
-  # No sleep, no wait. `while read` over input and every `for` stop here.
-  [[ $body =~ $sleep_re ]] || continue
+# --- B: the structural reader ----------------------------------------------
+# A cannot see two things: a nested `for` whose `done` it takes for the
+# outer loop's — so the sleep after it goes unseen — and a nested wait it
+# swallows whole under the outer loop's counter. B pairs each loop with its
+# OWN `done` and only ever DENIES: anything B cannot pair, A has already
+# read, so B's edges cost nothing. Built as the only reader first, those
+# edges each let a real wait through that A denied (verifier, 2026-10-08,
+# two rounds); as an overlay they cannot.
+#
+# ONE PASS, then lookups. Every opener and every `done` is found once, left
+# to right, with its offset; a stack pairs each opener with its own `done`.
+# Re-scanning the rest of the command per keyword cost 27.7 s on 7.8 KB.
+# Even one pass cuts a prefix per token, quadratic in length, so B reads
+# commands up to 8 KB and above that A alone decides — the old reader at
+# its old cost.
+((small)) || exit 0
 
-  # pgrep FIRST, and bounded or not. A `timeout` around this one turns an
-  # endless wait into a wait that always runs the clock out, which is not the
-  # same bug getting fixed — and reporting it as "unbounded" would send the
-  # session to add the bound it already has. Self-matching is not obvious, so
-  # the reason says it. The flag is looked for separately from the command
-  # because `pgrep -l -f` and `pgrep --full` are the same trap spelled apart.
-  if [[ $body =~ $proc_re ]]; then
-    tool="${BASH_REMATCH[1]}"
-    if [[ $body =~ $full_re ]]; then
-      deny "DENIED: this loop waits on \`${tool}\` with the full-command-line flag, which matches ITSELF.
-\`${tool} -f\` tests full command lines, and the command line running this
-loop carries the pattern as its own argument — so the process it is
-waiting for is always found and the loop never exits. Match the
-process another way, or wait on something the loop does not create."
-    fi
+tbeg=()   # where the token starts
+tend=()   # where the text after it starts
+tdir=()   # +1 opener, -1 `done`
+tkw=()    # the opener's keyword for a loop to judge, else empty
+s="$cmd"
+off=0
+while :; do
+  # One match finds the EARLIER of an opener and a `done`: leftmost wins.
+  [[ $s =~ $token_re ]] || break
+  tok="${BASH_REMATCH[0]}"
+  # Capture 7 is `while`/`until` in the opener half (pos_re holds 2-5), 6
+  # the whole keyword, `for`/`select` included; a `done` fills capture 11,
+  # the whole close half.
+  kwn="${BASH_REMATCH[7]}"
+  opn="${BASH_REMATCH[6]}"
+  dn="${BASH_REMATCH[11]}"
+  pre="${s%%"$tok"*}"
+  at=${#pre}
+  tbeg+=($((off + at)))
+  tend+=($((off + at + ${#tok})))
+  if [ -n "$dn" ]; then
+    tdir+=(-1)
+    tkw+=("")
+  else
+    tdir+=(1)
+    # `for`/`select` reach judge() for the self-match test only (header,
+    # SELF-MATCH); the bound check stays `while`/`until`.
+    case $opn in
+      for*) kwn=for ;;
+      select*) kwn=select ;;
+    esac
+    tkw+=("$kwn")
   fi
+  s="${s:at+${#tok}}"
+  off=$((off + at + ${#tok}))
+done
+ntok=${#tdir[@]}
 
-  [[ $prefix =~ $timeout_re ]] && continue
-  [[ $body =~ $count_re ]] && continue
-  [[ $body =~ $arith_re ]] && continue
+# Pair each opener with the `done` that brings the count back to where it
+# stood. An explicit stack pointer: `stack[-1]` needs bash 4.3, and a
+# consumer on macOS runs this under 3.2.
+tmatch=()
+stack=()
+sp=0
+for ((t = 0; t < ntok; t++)); do
+  tmatch[t]=-1
+  if ((tdir[t] > 0)); then
+    stack[sp]=$t
+    sp=$((sp + 1))
+  elif ((sp > 0)); then
+    sp=$((sp - 1))
+    tmatch[stack[sp]]=$t
+  fi
+done
 
-  deny "DENIED: this \`while\`/\`until\` loop sleeps with no bound on how long it waits.
-Nothing in it can stop it: no timeout, no iteration counter. If the
-condition it waits on never comes true, the command runs until a human
-notices."
+# One self-match scan for every loop B judges (selfscan).
+selfscan "$cmd"
+inb=1
+for ((i = 0; i < ntok; i++)); do
+  kwname="${tkw[i]}"
+  [ -n "$kwname" ] || continue
+  # Unpaired: not B's to judge. A read it.
+  j=${tmatch[i]}
+  ((j >= 0)) || continue
+  # `span` holds nested loops; `own` is only the text at this loop's own
+  # depth. A nested `while`/`until` is a token of its own, judged on its
+  # own turn. Between a paired opener and its `done` every opener is paired
+  # too — the stack guarantees it — so each step jumps forward; checked
+  # anyway, since a step that did not would never end.
+  span="${cmd:tend[i]:tbeg[j]-tend[i]}"
+  own=""
+  at=${tend[i]}
+  k=$((i + 1))
+  while ((k < j && tmatch[k] > k)); do
+    own+="${cmd:at:tbeg[k]-at}"
+    at=${tend[tmatch[k]]}
+    k=$((tmatch[k] + 1))
+  done
+  own+="${cmd:at:tbeg[j]-at}"
+  prefix="${cmd:0:tend[i]}"
+  judge
 done
 exit 0

@@ -237,11 +237,12 @@ printf 'JOHARNESS_ENV=none\nJOHARNESS_ENV_SETUP=lazy\n' >"${syncdst}/joharness.c
 confbefore="$(cat "${syncdst}/joharness.conf")"
 out="$(sync "$syncdst")"
 expect "the stage names itself" "settings this repo does not answer" "$out"
-for k in JOHARNESS_ENV_MD JOHARNESS_REVIEW JOHARNESS_MODE; do
+for k in JOHARNESS_ENV_MD JOHARNESS_REVIEW JOHARNESS_CHECKS; do
   expect "names the missing key ${k}" "$k" "$out"
 done
-expect "with the default it would take" "default supervised" "$out"
-expect "and what the key means" "a session asks at the queue edge" "$out"
+expect "with the default it would take" "JOHARNESS_CHECKS (default github)" "$out"
+expect "and what the key means" "step 7 waits for this head's GitHub checks" "$out"
+refute "the retired mode key is not offered as missing" "JOHARNESS_MODE (default" "$out"
 refute "a key the conf answers is not named" "JOHARNESS_ENV_SETUP (default" "$out"
 expect "a run with nobody to ask says nothing was written" \
   "not a terminal: nothing written" "$out"
@@ -282,6 +283,7 @@ bash -c ". '${ROOT}/.agents/scripts/conf-keys.sh'
 out="$(sync "$syncdst")"
 refute "a conf answering every key gets no stage" \
   "settings this repo does not answer" "$out"
+
 
 # A conf that is not a regular file is named and left alone. Appending with
 # `>>` through a symlink writes to whatever it points at, and a symlink in a
@@ -360,7 +362,7 @@ if command -v script >/dev/null 2>&1 &&
   confbefore="$(cat "${syncdst}/joharness.conf")"
   out="$(sync_tty "$syncdst" n n n n)" || :
   expect "the question is put when there is somebody to ask" \
-    "write JOHARNESS_MODE=supervised ? [y/N]" "$out"
+    "write JOHARNESS_CHECKS=github ? [y/N]" "$out"
   expect "declining says so" "nothing written" "$out"
   if [ "$confbefore" = "$(cat "${syncdst}/joharness.conf")" ]; then
     pass "and declining leaves the conf byte-identical"
@@ -375,7 +377,7 @@ if command -v script >/dev/null 2>&1 &&
     "JOHARNESS_SYNC_ROOT='${syncsrc}' bash '${ROOT}/.agents/scripts/sync-to-consumer.sh' --dry-run '${syncdst}'" \
     /dev/null 2>&1)" || :
   expect "a dry run with a terminal says it would ask" "would ask about these" "$out"
-  refute "and does not put the question" "write JOHARNESS_MODE" "$out"
+  refute "and does not put the question" "write JOHARNESS_CHECKS" "$out"
   if [ "$confbefore" = "$(cat "${syncdst}/joharness.conf")" ]; then
     pass "and writes nothing"
   else
@@ -404,8 +406,8 @@ if command -v script >/dev/null 2>&1 &&
   # Answering adopts that key and only that key.
   printf 'JOHARNESS_ENV=none\n' >"${syncdst}/joharness.conf"
   out="$(sync_tty "$syncdst" n n n y)" || :
-  expect "answering writes the key" "wrote   JOHARNESS_MODE=supervised" "$out"
-  expect "and it lands in the conf" "JOHARNESS_MODE=supervised" \
+  expect "answering writes the key" "wrote   JOHARNESS_CHECKS=github" "$out"
+  expect "and it lands in the conf" "JOHARNESS_CHECKS=github" \
     "$(cat "${syncdst}/joharness.conf")"
   refute "a key that was declined does not land" "JOHARNESS_REVIEW=" \
     "$(cat "${syncdst}/joharness.conf")"
@@ -414,7 +416,7 @@ if command -v script >/dev/null 2>&1 &&
   # Written with its meaning beside it, so the next reader of that file does
   # not have to come back here to learn what the line does.
   expect "the written line carries what the key means" \
-    "a session asks at the queue edge" "$(cat "${syncdst}/joharness.conf")"
+    "step 7 waits for this head" "$(cat "${syncdst}/joharness.conf")"
 else
   skip "the conf-key ask itself" "no usable script(1) to allocate a tty"
 fi

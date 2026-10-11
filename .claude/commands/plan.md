@@ -11,7 +11,7 @@ Inline — no subagent.
    `.agents/docs/plans/TEMPLATE.md` to `docs/plans/<plan>.md`.
 2. Frontmatter, exact vocabulary (`ci` lints it):
    - `urgency`: `normal` | `urgent`.
-   - `agent`: `haiku` | `sonnet` | `opus` — selection rules
+   - `agent`: `haiku` | `sonnet` | `opus` | `fable` — selection rules
      `.agents/docs/agent-selection.md`. haiku ONLY when mechanical AND fully
      specified AND every acceptance criterion runnable. One unclear
      edge = sonnet. opus when wrong-but-plausible code is the failure
@@ -23,6 +23,7 @@ Inline — no subagent.
    - `requirement`: the one this serves (`docs/product/`), else `none`.
      Last plan of a requirement: say in Acceptance that its PR deletes
      the requirement file too.
+   - `issue`: the GitHub issue this plan turns into work (`/clerk` writes it), else `none`. A number, `#` optional.
    - `scope`: comma-separated path prefixes this plan will touch. Queue
      hook proves parallel safety from disjoint scopes — undeclared scope
      joins no wave. `none` only when touch-set genuinely unknowable.

@@ -29,20 +29,6 @@ export GIT_COMMITTER_NAME=selftest GIT_COMMITTER_EMAIL=selftest@invalid
 # number nobody re-counts is a written number.
 unset CLAUDE_PROJECT_DIR
 
-# The same hole, one knob over. JOHARNESS_MODE steers the autonomy cases
-# the way CLAUDE_PROJECT_DIR steers the fixture path, and it is a documented
-# knob a session has reason to export — it is in joharness.conf and in the
-# entrypoint's own help. JOHARNESS_RUN_MODE joined it for the same reason.
-# No counts written here: they change with every case added, and shipped
-# stale inside the very commit that staled them, twice. Re-count instead,
-# whenever the claim matters:
-#   cp selftest.sh /tmp/leak.sh
-#   # cut JOHARNESS_RUN_MODE from the unset line below in the copy
-#   JOHARNESS_RUN_MODE=unsupervised bash /tmp/leak.sh | tail -1   # leaks
-#   JOHARNESS_RUN_MODE=unsupervised bash selftest.sh   | tail -1   # does not
-# The first fails; the second does not. The hook cases below invoke the hook
-# bare on purpose, to prove what an exporting-nothing client gets.
-unset JOHARNESS_MODE JOHARNESS_RUN_MODE
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 
 # Knobs exported in the invoking shell must not steer the fixtures; per-call
@@ -58,10 +44,11 @@ unset JOHARNESS_ENV JOHARNESS_ENV_SETUP JOHARNESS_ENV_MD JOHARNESS_REVIEW \
   JOHARNESS_CHECKS \
   JOHARNESS_CHURN_THRESHOLD JOHARNESS_CHURN_LIMIT \
   JOHARNESS_MAX_MANAGERS JOHARNESS_STALL_MINUTES JOHARNESS_HEALTH_MINUTES \
-  JOHARNESS_RESPAWN_LIMIT \
+  JOHARNESS_RESPAWN_LIMIT JOHARNESS_MANAGER_HOURS \
   JOHARNESS_CURATE_HOURS JOHARNESS_CURATE_PLANS JOHARNESS_CURATE_REGISTRY \
-  JOHARNESS_CURATE_SPLIT JOHARNESS_UPSTREAM_FEEDBACK JOHARNESS_IDLE_ANALYSIS \
-  JOHARNESS_JANITOR_HOURS HANDOVER_STALE_SECONDS \
+  JOHARNESS_CURATE_SPLIT \
+  JOHARNESS_SCOUT_HOURS JOHARNESS_SCOUT_AUTOMERGE \
+  HANDOVER_STALE_SECONDS \
   JOHARNESS_CONF JOHARNESS_FORCE_SETUP JOHARNESS_SYNC_ROOT DEVENV_FORCE \
   JOHARNESS_FEEDBACK_CACHE JOHARNESS_PRETOOL_SCRATCH
 
@@ -158,13 +145,10 @@ chmod +x "${TMP}/bin/shellcheck"
 PATH="${TMP}/bin:${PATH}"
 export PATH
 
-# Same argument as the stub above, one section later in `ci`: fixture runs
-# would each re-measure every entrypoint for a verdict the real run reaches on
-# the real tree. Measured 2026-08-28: without this the suite ran 70s, with it
-# 47s. The perf gate keeps its own cases below, and the real `ci` still
-# measures the real tree — nothing here lowers that bar.
-JOHARNESS_PERF=off
-export JOHARNESS_PERF
+# Fixture runs of `ci` and `finish` print every check, so cases can read a
+# passing stage's detail; the quiet default has its own cases (ci-output).
+JOHARNESS_VERBOSE=1
+export JOHARNESS_VERBOSE
 
 # A commit in the repo $1 with message $2, after staging everything.
 commit_all() { git -C "$1" add -A && git -C "$1" commit -qm "$2"; }
@@ -555,36 +539,38 @@ SELFTEST_TOPICS=(
   queue-context-research-nodes
   queue-context-scope-waves
   queue-context-edge
-  queue-context-supervised-only
+  queue-context-core-only
   queue-context-fanout
-  graph
   session-start
   ci-churn
-  ci-context
+  ci-output
   ci-selftest-scope
   checks
   ci-promote
   review
   upstream
-  scorecard
   feedback
   feedback-recurrence
   cleanup
-  drain
   orchestrated
   dispatch
+  curate-apply
   analysis
   janitor
+  guard
+  scout
   ci-canonical-only-selftest
   upgrade
   ci-glossary
   ci-graph-lint
+  clerk
   ci-ship-scope
   authority
   autonomy-mode
   start
   upgrade-holding-work
   handover-guard
+  protocol-boundary
   pretool-feedback
   pretool-bash-guard
   gitattributes
@@ -594,8 +580,6 @@ SELFTEST_TOPICS=(
   sync-layer-only
   bootstrap-consumer
   ci-verify-layers
-  perf
-  mutate
   num-knob
 )
 

@@ -59,22 +59,9 @@ and fixes that file properly increments the numerator for doing exactly what
 the harness told it to.
 
 So recurrence is scored over the newest `JOHARNESS_RECURRENCE_WINDOW`
-recorded edges (default 8), both sides of the ratio. A file that is read,
-fixed and then left alone leaves the window and stops counting; a file that
-keeps drawing findings stays. Now the printed advice and the printed score
-point the same way, and the number falls exactly when rediscovery stops.
-
-Why 8: measured on this repo, 2026-08-27, over 26 fix-carrying edges and 93
-repeat events. The gap between one fix on a path and the next is median 2,
-and 86% of repeats fall within 8 edges. 8 to 12 is a plateau that adds no
-repeats; past it sits a separate far tail at 17+, which is a file being
-central rather than a rediscovery. Widen it freely — but a number from one
-window never compares to a number from another, which is the mistake this
-section exists to stop.
-
-Counted under the definition that ships, 2026-08-27: **9/28 (32%)** at the
-default window, against **64/113 (56%)** cumulative over the same history.
-Those are two different questions, not a fall.
+recorded edges (default 8; 86% of repeats fall within 8 edges), both sides of
+the ratio. A file fixed and then left alone leaves the window and stops
+counting. Numbers from two windows never compare.
 
 ### Volume is not a score
 
@@ -85,90 +72,30 @@ findings can be one real defect found five ways, and zero can be a review
 nobody ran. A loop scored on volume optimizes for volume; the models under
 this harness are literal enough to deliver exactly that.
 
-Recurrence has the opposite property. It cannot be gamed by producing more
-output, because producing more output is not what makes it fall.
+Recurrence cannot be gamed by producing more output: output on a file
+nobody touched inside the window does not score.
 
-That defence was aimed at the wrong failure mode while the measure was
-cumulative: producing more output *on the files the harness points you at*
-was precisely what made it rise. The window is what makes the claim true —
-output on a file nobody has touched inside the window does not score.
+## Why `feedback` exists
 
-## Measured here (2026-08-24)
-
-39 merged edges, 28 carrying a workstream file, 46 recorded findings.
-
-- **Coverage: 9/9 since the ledger, 0/19 before it.** The review ledger
-  landed in PR #31. Every merged edge after it recorded findings; not one
-  before it did. A step change on the commit that added the mechanism —
-  the strongest evidence in this repo that a recording mechanism, not
-  exhortation, is what makes recording happen.
-- **Volume: 46 findings — 33 fixed, 6 wontfix, 2 verified-no-change, 5
-  unmarked.** 5.1 findings per reviewed edge. The 5 unmarked all arrived on
-  one edge, written without the TEMPLATE's `r1:` id: counted, but unlinkable
-  to any file. The measure says so rather than dropping them.
-- **Cost: 0.8 commits per finding, mean churn peak 1.7** against a threshold
-  of 5. Reviews here are not what drives rework.
-- **Recurrence: 7 of 19 file-level fixes (36%)** landed on a file an earlier
-  merged edge had already fixed a finding in.
-- **Hot spots:** `.agents/harness/AGENTS.md` drew findings on 4 separate
-  edges; `.agents/harness/selftest.sh` on 3. The harness's own rule file is
-  the most defect-prone file in the repo by this measure.
-- **Retention: zero.** The finish ritual deletes the workstream file, by
-  design — a file left on `main` reads as current. So all 41 findings live
-  in merge history and nowhere a session is told to look. Nothing in the
-  harness read them until `feedback` did.
-
-One exact repeat is visible in the record: PR #34's r1 and PR #35's r9 are
-the same defect one edge apart, and the second finding says so in its own
-text. The loop's stages 1 and 2 worked perfectly both times. Stages 3 and 4
-did not exist.
-
-## What the numbers picked
-
-Retention zero and recurrence 36% pick the same intervention: carry findings
-past the merge that deletes them, and put them in front of the next session
-that touches the same file. That is what `feedback` does — the scorecard, and
-`feedback <path>` for what a file has already cost. The review step prints the
-pointer for the files in the branch's own diff, which is the moment it pays.
-
-The alternatives were weighed against these numbers, not against taste:
-
-- **Running the review instead of recording it** (spawn reviewers per lens):
-  coverage is already 8/8. Buys nothing the numbers show missing.
-- **Gate self-measurement** (do the thresholds earn their keep): worth doing,
-  but churn's mean peak of 1.8 against a threshold of 5 says the gates are
-  quiet, not miscalibrated. Later.
-- **Feeding outcomes back into agent selection**: needs recurrence per tier,
-  which needs more edges than 4 days of history holds. Blocked on data this
-  measure now accumulates.
+Retention was zero: the finish ritual deletes the workstream file, so every
+recorded finding lived only in merge history, and the same defects came back
+one edge apart. `feedback` carries findings past the merge and puts them in
+front of the next session touching the same file — on demand, at `review`,
+and before every edit through the PreToolUse hook.
 
 ## Worked example: tree or diff
 
-Recurrence names classes; this is the first one it named loudly enough to
-graduate. Six merged edges, one question, and every fix local to the caller
-that had it:
-
-| Edge | Caller | What reading the tree cost |
-| --- | --- | --- |
-| PR54 r13 | `graph` | labelled a branch with work it merely inherited |
-| PR58 r8 | `upgrade` | refused every sync branch cut from a base that had accreted a workstream file |
-| PR60 | `cleanup`, `finish` | `--apply` DELETED an inherited live claim; `finish` returned green on a branch carrying one |
-| PR69 r2 | `finish` | fired on the branch that built it — another session's inherited file put it at an edge it was not at |
-| PR72 r1 | `finish` wiring | redded its own branch mid-build, naming its own live claim as the offence |
-| PR77 r2 | `graph` | the same tree read PR54 had already named, fixed at last |
-| PR290 r14, r15 | `janitor` | the rule GRADUATED and was broken anyway: two `cat-file` probes, then a sentence quantified over every branch — "on this branch only", "which no branch carries". Counted: one plan a claim named was on 20 origin refs and not on the base |
+The first class recurrence named loudly enough to graduate: seven edges, one
+question, every fix local to the caller that had it (`cleanup --apply`
+deleted an inherited live claim; `finish` redded its own branch over an
+inherited file; a sentence about "every branch" written after reading two).
 
 **The rule: a branch inherits every file its base branch carries, so presence
 in the tree says nothing about the branch. Ownership is a DIFF against the
 merge base.**
 
-The last row is the one worth re-reading, because it came after the rule was
-written and cites it. A reader can honour "ownership is a diff" and still lie,
-by reading two refs and then writing a sentence about all of them. So the rule
-generalises: **a reader may claim no more refs than it read, and the sentence
-names them.** `janitor`'s cases say "<base>" and "this branch" in the output
-for that reason — not for the operator's benefit alone, but because a sentence
-bounded by its evidence cannot rot when a third branch appears.
+**A reader may claim no more refs than it read, and the sentence names
+them.**
 
 Then pick the filter, because "owns" is three questions:
 
@@ -186,55 +113,18 @@ added, then retired — nets to absent from `D` and from `ACMRT` alike, so
 `--diff-filter=D` cannot see the ordinary workstream file, which is written
 after the branch is cut. The deletion `D` does see is of a file that existed
 at the BASE: an inherited one, or the plan file, which lives on the base
-branch because it is the queue item. `dispatch`'s retired-edge scan was built
-on the first reading and every one of its nine new cases went red at once
-(PR on `orchestrator-inflight-count`). Asking "did this branch delete X" and
+branch because it is the queue item. Asking "did this branch delete X" and
 meaning "at any point" is a history walk — `git log --diff-filter=D -- <path>`
 — and it is a different command.
 
-The class was named in PR54 and still bit at PR69 and PR72, on the very gates
-built to read ownership correctly. Stages 1 and 2 worked every time: each
-session detected it and recorded it. Stage 3 never ran, so the seventh caller
-would have paid again. That is this document's own thesis, tested on itself.
-
-Recount rather than trust the table: `./joharness.sh feedback joharness.sh`
-and `./joharness.sh feedback .agents/harness/selftest.sh` reach these
-findings, which is where they live.
-
+Recount: `./joharness.sh feedback joharness.sh`.
 
 ## Worked example: the hoist that did not hoist
 
-Second class the recurrence named. A fork put inside a loop, four times, each
-found by the perf budget rather than by a reader:
-
-| Edge | Caller | The loop it was in |
-| --- | --- | --- |
-| PR128 `07424a0` | `review_prior` | an `awk` per file in the diff |
-| PR132 `d3af200` | `fb_report_path` | once per reported path |
-| PR149 | `fb_current_path` | `git ls-files` + `awk` + `grep -c`, once per recorded path that no longer exists — and one goes missing every time the finish ritual retires a file, so the count grows with the repo's own history |
-| PR149 r5 | `fb_current_path` again | the hoist itself. The cache went into a global, and the hot caller was `$(fb_current_path ...)` — a SUBSHELL, so the global died before the next call and the fork came back once per miss |
-
-**The rule: a fork inside a loop over history costs one per unit of history,
-so it grows without bound. Hoist it — and then check the hoist ran, because a
-global assigned inside `$( )` is discarded when the substitution ends.**
-
-The fourth row is the one worth the table. The fix was correct, its comment
-said "ONE `git ls-files` for the whole run", the budget went down, and it was
-still forking 18 times. Everything agreed except the machine.
-
-Two things follow, and both are about what a measure can see:
-
-- **The budget counts binaries, not argv.** `perf_shims` logs `git`, so 18
-  `git ls-files` and 1 are the same number to it. It caught the class and
-  could not have caught the regression inside the fix. A case that shims
-  `git` and counts `ls-files` can (`.agents/harness/selftest/feedback.sh`).
-- **The count fell anyway**, because two of the three forks per miss really
-  did go. A number moving the right way is not evidence the stated mechanism
-  is the one that moved it — the same session had already published a wrong
-  mechanism behind a right number (`joharness.sh`, the FB_LIMIT paragraph the
-  perf block corrects in place).
-
-Recount rather than trust the table: `./joharness.sh feedback joharness.sh`.
+**A fork inside a loop over history costs one per unit of history, so it
+grows without bound. Hoist it — and check the hoist ran: a global assigned
+inside `$( )` is discarded when the substitution ends.** A number moving the
+right way is not evidence the stated mechanism moved it.
 
 ## When the consumer is the detector
 
@@ -244,8 +134,6 @@ That extra hop is where this loop dies, and the direction rule
 ([`consumer-repos.md`](consumer-repos.md)) says only where the fix goes, not how
 you get it there.
 
-Walked three times in one consumer session, 2026-08-25. What that cost:
-
 ### 1. Decide whether the harness is actually wrong
 
 The signal is that you fought it: a gate you argued with, a message you worked
@@ -254,32 +142,15 @@ wrong, and this is the stage that goes wrong.
 
 Ask one question: **does the fact it states match what it measures?**
 
-That session's handover guard said *"branch changes code but has no workstream
-file"* on a branch whose diff was two `.md` files. The session concluded the
-guard had misfired, stopped through it twice, and told its user the harness was
-at fault. The guard was right — the branch was changing the queue documents
-with no claim, which is exactly its job. What was wrong was one word in the
-message and a comment promising an exemption the filter never implemented.
-
-So the feedback was real and it was **about the wording, not the rule**. Had
-the session trusted its irritation, it would have relaxed a check that had just
-caught it — which is the reverse of a feedback loop.
+A guard that fired on a two-`.md` branch was right about the rule and wrong
+in one word of its message: the feedback was about the wording, not the rule.
 
 > **Never relax a guard that just caught you.** Fix what made you misread it.
 
 ### 2. Carry the measurement, because canonical cannot reproduce it
 
-Canonical has no consumers to measure on. The number is the whole contribution:
-
-| what canonical got | what it could not have found |
-| --- | --- |
-| `finish` gate | *three of eight pull requests merged carrying their workstream file, each turning `main` red within seconds; the two that did not were the two that retired first* |
-| guard wording | *a session read "code", saw two `.md` files, and stopped through a claim it owed — twice* |
-| `decide_ref` | *`cleanup --apply` deleted a live claim on a checkout with no base ref* |
-
-A defect report without its measurement is a preference. With it, the ADR or
-the comment writes itself, and the next reader gets the reason rather than the
-rule.
+Canonical has no consumers to measure on; the number is the whole
+contribution. A defect report without its measurement is a preference.
 
 ### 3. Land it in canonical, never in the consumer
 
@@ -296,105 +167,52 @@ small and specific, and the evidence is in that session's head and nowhere
 else. So:
 
 - **Capture always, immediately.** In the workstream file's `## Review` if the
-  branch has one, in the canonical pull request body otherwise.
+  branch has one, in the canonical pull request body otherwise. Neither
+  exists (the finding surfaced after the retire commit, and no open
+  CANONICAL pull request — the consumer's own carries no `## Review` and does
+  not count)? An issue on the repo `CANONICAL_REPO` names
+  (`.github/workflows/update.yml`).
 - **Fix inline when it is small** — a message, a comment, a guard's scope.
 - **Route it when it is not**, and carry the measurement into whatever picks
   it up.
 
-### The switch that mechanizes 1 to 4
+The issue route is available, never an order. At most ONE such issue per
+session; search canonical's open issues for the same finding first. It
+carries the command and output that produced it. Canonical out of the
+session's GitHub scope? Hand the human the issue text — never drop it silent.
 
-Steps 1 to 4 are a session's judgement and a session's memory, and both end
-when the session does. By the time a manager's pull request has merged its
-findings are gone from every tree — the finish ritual deletes the workstream
-file, which is the *Retention: zero* row above — and under orchestrated mode
-nobody is left holding them: the manager exits at its merge and the
-orchestrator writes one file and reads no plan.
+The clerk's UPSTREAM verdict (`.claude/commands/clerk.md`) is the issue-shaped
+twin of this route, for an issue filed in a consumer. The cap above binds
+findings; a clerk files at most one issue per routed issue (its batch already
+caps the pass).
 
-`JOHARNESS_UPSTREAM_FEEDBACK` (`off` | `on`, **off by default**, declared in
-`.agents/scripts/conf-keys.sh` so every sync names it to a consumer that has
-no line for it):
+### The manual report
 
-| off | on |
-| --- | --- |
-| `./joharness.sh upstream [<edge>]` reports: which of that edge's findings landed on a file canonical owns, which are unattributable, and the `CANONICAL_REPO` they would go to. Nothing acts on it. | the same read, plus the orchestrator spawns ONE reporter per merged edge — `.claude/commands/upstream-report.md`, which walks steps 1 to 4 and files at most one pull request on the canonical. |
+Steps 1 to 4 end with the session, and a merged manager's findings are gone
+from every tree. `./joharness.sh upstream [<edge>]` reports which of an
+edge's findings landed on a file canonical owns, which are unattributable,
+and the `CANONICAL_REPO` they would go to. `/upstream-report <edge>`
+(`.claude/commands/upstream-report.md`) walks steps 1 to 4 on that read and
+files at most one pull request on the canonical. Run by hand; nothing spawns
+it.
 
-Off is the default for two reasons, and neither is caution for its own sake:
-it opens pull requests in a repository the child does not own, and a reporter
-is one session beyond `JOHARNESS_MAX_MANAGERS`, which is the human's money
-(`.agents/harness/AGENTS.md`, Decide alone).
+### A STUCK edge, not a merged one
 
-### The second switch: a STUCK edge, not a merged one
+An edge that never merges carries a condition and a clock instead of a
+diff. `./joharness.sh analysis [<branch> [<claim>]]` reports a claim's
+BLOCKED / STALL? / LOOP? mark beside the base branch's current conf answers
+and every key that changed since; read by hand, nothing acts on it. It says
+`MAY BE LIFTED`, never `LIFTED`, and `NO CONFIG MOVEMENT` is not "the cause
+is live": it knows a conf key moved, not that the key answers the prose the
+manager wrote.
 
-A merged edge carries a diff to attach a finding to. An edge that never
-merges carries a condition and a clock, and the first switch cannot see it:
-the manager has not merged, so the `done` row never fires, and the findings
-that matter are not in its `## Review` — they are in why it stopped.
-
-`JOHARNESS_IDLE_ANALYSIS` (`off` | `on`, **off by default**, declared in
-`.agents/scripts/conf-keys.sh` beside the key above):
-
-| off | on |
-| --- | --- |
-| `./joharness.sh analysis [<branch> [<claim>]]` reports: a claim's BLOCKED / STALL? / LOOP? mark, the base branch's current conf answers printed beside the cause the claim stated, and every key that differs or changed since. A sweep prints the rows carrying a condition and counts the rest. Nothing acts on it. | the same read, plus the orchestrator spawns ONE analyst per condition per item per run — `.claude/commands/analyst.md`, which gates what it finds and files at most one ISSUE on the canonical. |
-
-An issue and not a research node, because the two carry different things. A
-reporter carries a finding about a harness file it can name, which is a
-question canonical's queue can hold. An analyst carries a fleet's behaviour
-over a clock — what parked, for how long, what it held up — which is the
-shape of the bug report a human files, and which issue #266 IS: a human wrote
-that one by hand after the fleet could not.
-
-The command says `MAY BE LIFTED`, never `LIFTED`. It knows a conf key moved;
-it cannot know the key answers the prose the manager wrote. Asserting that
-mapping would be #266's own defect inverted — a fact stated louder than what
-it measures — so the command states what moved and the analyst reads both.
-
-Its other verdict is `NO CONFIG MOVEMENT`, and it says in so many words that
-this is not "the cause is live". #266 is that shape exactly: the key landed on
-the base branch 8h47m BEFORE the session existed and the branch carried it, so
-nothing differed and nothing moved. Which is why the repo's CURRENT answers
-are printed for every row carrying a condition, movement or none — the gap was
-never a diff, it was the conf and the prose never being read side by side.
-
-What the mechanism does NOT do is decide. `upstream` filters by path and by
-nothing else — a filter, not a verdict — because step 1 is the step that goes
-wrong and it is not a filter a program can apply. The reporter gates each
-finding against *does the fact it states match what it measures*, drops what
-does not clear it, and says how many it dropped. A report that skipped that
-step is a preference with a diff.
-
-Two of its own limits are printed rather than papered over, both of them the
-commit-level attribution named under *What this cannot see* above:
-
-- **A finding whose fix commit carried other findings** is reported with its
-  paths flagged as the commit's rather than the finding's. Inside one repo
-  that ambiguity costs a hot-spot count; here it decides what leaves the
-  repository, and one commit fixing a harness defect beside a repo-private one
-  makes each look like both. Flagged, not dropped — a false negative loses the
-  finding for good, a flagged false positive costs the reporter one read.
-- **A finding with no fix commit at all** — the normal shape of a `wontfix` or
-  a no-change verdict, recorded in a commit that touches only the workstream
-  file — is placed by the paths its own TEXT names, marked as read from prose.
-  One that names none is listed as unplaceable and never flips the verdict by
-  itself: a report built on an unplaced finding is a consumer's own defect
-  carried verbatim onto somebody else's queue.
-
-A `wontfix` on a harness path is the strongest single signal the command has,
-and it is the one that has no fix commit by construction. It reaches the
-report through that second rule and through nothing else.
-
-The report lands as **one research node** in canonical, never a requirement
-and never a plan. A requirement is the human's goal to set and an unattended
-branch that adds one is red (`joharness.sh:lint_requirement_writes`); a plan
-asserts the fix, and a child asserting canonical's fix is the inversion step 1
-forbids. A research node is a question canonical's own queue lists, a session
-claims, and the merge that answers it deletes — so a consumer's finding enters
-by rules already written, with no new node type and no new lint.
-
-In canonical the command says `CANONICAL` and stops. A finding made here is
-already in the repository that owns its fix; routing it would mean canonical
-filing reports against itself, which is the same reason `upgrade` refuses to
-run here.
+`upstream` filters by path and nothing else; the reporter gates each finding
+against *does the fact it states match what it measures*. A finding whose fix
+commit carried other findings is reported with its paths flagged as the
+commit's; one with no fix commit (a `wontfix` or no-change) is placed by the
+paths its own text names. The report lands as one research node in
+canonical — never a requirement or a plan. In canonical the command says
+`CANONICAL` and stops.
 
 ### 5. Stage 4 is the sync, not the merge
 
@@ -406,6 +224,13 @@ and canonical never sees the consumer.
 Close the loop by name: when the sync lands, check the thing that bit you is
 gone. That session ran `./joharness.sh finish` on the very sync branch carrying
 `finish`, which is the cheapest possible version of it.
+
+### Where a consumer's OWN findings go
+
+Nowhere new — decided by counting (2026-10-08, 273 edges). A consumer's
+product finding either has a fix path, and `feedback` already serves it keyed
+on that path, or it has none (a `wontfix` or no-change), and no path-keyed
+destination can reach it. No third case, so no destination to build.
 
 ## What this cannot see
 
@@ -425,16 +250,8 @@ Named because a measure that hides its blind spots is worse than no measure:
   prescribes. A bullet written without one still counts in volume — the
   handover hook counts it too — but nothing links it to a file. One of the
   nine reviewed edges here wrote all five of its findings that way, which is
-  how the gap got noticed; the scorecard prints the count rather than
-  quietly reading those edges as clean.
-  This one is no longer only reported. `./joharness.sh ci` has a
-  `== finding ids` stage that names the unkeyable bullets on the branch's own
-  diff, by file and by their own text, while the branch can still fix the
-  form (`joharness.sh:lint_finding_ids`). It warns and never reds: the count
-  has no backtest behind it, and the plan that gates it comes after the number
-  falls. It does not close the blind spot for findings already merged, and
-  nothing rewrites those — a record edited to satisfy a later rule stops being
-  a record.
+  how the gap got noticed. `./joharness.sh ci`'s `== finding ids` stage names
+  unkeyable bullets on the branch's own diff while it can still fix the form.
 - **Disposition read from prose.** `(fixed)`, `wontfix` and "no change" are
   matched in the finding's text, so a finding saying "fixed; no change to the
   docs" reads as no-change. The alternative is a structured field per
@@ -446,8 +263,5 @@ Named because a measure that hides its blind spots is worse than no measure:
 - **The window is a choice, and a small one is noisy.** Recurrence scores
   only the newest `JOHARNESS_RECURRENCE_WINDOW` recorded edges, so a repo
   with few edges scores few pairs and one rediscovery moves it a long way.
-  The window is named in the output for that reason; two windows never
-  compare. This replaces the old "ask again at 30 edges" deferral, which the
-  cumulative definition could never have answered — a sliding window answers
-  it continuously instead, and there is nothing left to defer.
+  The window is named in the output; two windows never compare.
 - **Merged history only.** An open branch has recorded nothing yet.

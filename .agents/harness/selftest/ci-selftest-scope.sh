@@ -22,16 +22,8 @@ cp "${ROOT}/joharness.sh" "${swork}/joharness.sh"
 # rather than an inference from timing.
 printf '#!/usr/bin/env bash\nprintf "STUB SUITE RAN\\n"\nexit 0\n' \
   >"${swork}/.agents/harness/selftest.sh"
-# A REAL queue-context that spawns nothing, for the perf zero-count case
-# below. Before this the fixture had no such file at all, so its `0` came
-# from an entrypoint that never ran — the case read as pinning "zero counts
-# print as one number" while actually pinning a missing entrypoint reported
-# as a clean zero. perf_count treats 127 as NOT FOUND now, so the zero has
-# to be earned.
-printf '#!/usr/bin/env bash\nexit 0\n' \
-  >"${swork}/.agents/harness/queue-context.sh"
 chmod +x "${swork}/.agents/harness/selftest.sh" \
-  "${swork}/.agents/harness/queue-context.sh" "${swork}/joharness.sh"
+  "${swork}/joharness.sh"
 printf 'readme\n' >"${swork}/README.md"
 git init -q "$swork"
 git -C "$swork" symbolic-ref HEAD refs/heads/main

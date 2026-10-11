@@ -26,7 +26,8 @@ out="$(CLAUDE_PROJECT_DIR="$work" HANDOVER_FETCH=1 \
   bash "${ROOT}/.agents/harness/handover-context.sh" 2>&1)"
 
 expect "reports current branch" "Branch: feature" "$out"
-expect "prompts for missing workstream file" "No workstream file on this branch" "$out"
+refute "no longer prompts for a missing workstream file (the role says it)" \
+  "No workstream file on this branch" "$out"
 expect "lists rival branch's workstream file" "origin/rival: docs/handover/rival-ws.md" "$out"
 expect "surfaces wanted agent tier" "wants opus" "$out"
 expect "flags file overlap" "TOUCHES THE SAME FILES AS THIS BRANCH: shared.txt" "$out"
@@ -42,7 +43,8 @@ expect "rot check points at step 7" "step 7 not happening" "$out"
 out3="$(CLAUDE_PROJECT_DIR="$work" HANDOVER_FETCH=0 HANDOVER_SCOPE=branch \
   bash "${ROOT}/.agents/harness/handover-context.sh" 2>&1)"
 expect "branch scope reports the branch" "Branch: feature" "$out3"
-expect "and this branch's own state" "No workstream file on this branch" "$out3"
+refute "and does not prompt for a missing workstream file" \
+  "No workstream file on this branch" "$out3"
 refute "but walks no other branch" "origin/rival" "$out3"
 refute "flags no overlap" "TOUCHES THE SAME FILES" "$out3"
 refute "and runs no rot check" "workstream file(s) left" "$out3"

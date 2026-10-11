@@ -7,19 +7,28 @@ updating one starts here.
 Direction rule (doctrine + why:
 [`product/README.md`](product/README.md) Reconciliation): a fix born
 ANYWHERE lands in joharness `main` first, then syncs out. Never
-consumer-to-consumer, never consumer-only.
+consumer-to-consumer, never consumer-only. An issue filed in a consumer
+about harness behaviour goes there through the clerk's UPSTREAM verdict (`.claude/commands/clerk.md`).
 
 That is where a fix goes. How a consumer session gets it there — deciding
 whether the harness is actually wrong, carrying the measurement canonical
 cannot reproduce, and why the loop closes at the sync rather than the merge —
 is [`feedback.md`](feedback.md) § *When the consumer is the detector*.
 
-Context rule (ratified 2026-08-25): in a CONSUMER, harness upkeep never
-runs inside a session doing product work. A session's context belongs to
-the plan it claimed. Syncing the harness is upkeep of the tool, not the
-work the tool exists for, and a sync diff is large — the harness is
-thousands of lines of shell and docs — so reading one costs the claimed
-work exactly the context it needed.
+Context rule: in a CONSUMER, harness upkeep never runs inside a session doing
+product work — a sync diff is thousands of lines, and the context belongs to
+the claimed plan.
+
+Source rule: a product session learns the harness from its `.md` docs and
+`./joharness.sh <command>` output, never from `joharness.sh` (thousands of
+lines) or the scripts under `.agents/harness/`, `.agents/scripts/`,
+`.agents/env/`: opening them spends the item's context on internals, and
+commands print their own verdicts and remedies. A plan anchor pointing into
+those files is wrong; fix the anchor. Exempt: canonical
+(`JOHARNESS_CANONICAL=1`), a sync or upgrade task, a verifier reviewing a diff
+that touches them. A product diff touching those files is harness work,
+routed per the Direction rule, so the merge gate's `verify` clause never meets
+a product diff.
 
 Off-context first, cheapest first:
 
@@ -88,7 +97,6 @@ interview asks only what no flag answered:
 | provision it when | `--env-setup <lazy\|eager>` | `lazy` |
 | inject its rules when | `--env-md <lazy\|eager>` | `lazy` |
 | gate the review record | `--review <off\|on>` | `off` |
-| autonomy | `--mode <supervised\|unsupervised>` | `supervised` |
 
 The two layer-shaped questions are skipped when the selected layer is `none`,
 where they configure nothing. Enter takes the value in brackets, either word
@@ -98,18 +106,12 @@ than throwing away the answers already given.
 
 A run with no terminal — CI, a script, a session — asks nothing. What that
 means depends on the target: a conf seeded here gets the defaults above,
-while a conf that already exists keeps its own values and has only
-`JOHARNESS_MODE` written.
+while a conf that already exists keeps its own values.
 
 A question offers the value ALREADY IN FORCE as its default, read from the
 target's own conf, so pressing Enter never strips a selection somebody made
 for that repo. For the same reason a key is written into an existing conf
 only when a flag gave it or the interview answered it.
-
-`--mode` is the exception twice: its default is always `supervised` rather
-than an inherited answer, and it is written either way. Saying yes there
-configures a child; it starts nothing
-([`unsupervised.md`](unsupervised.md)).
 
 Never bootstrap onto a repo already running the harness — script refuses,
 because whole-clone mode's purge eats live `docs/plans|product|handover`.
@@ -136,11 +138,8 @@ Canonical-only, never shipped:
 | `.agents/scripts/` | both tools refuse to run outside canonical |
 | `.agents/harness/selftest.sh` | tests harness code a consumer does not edit |
 
-That is more than two fifths of what a consumer used to carry: code it could
-not execute. The fraction is the durable part — the absolute grows with the
-repo, so count it (`du` over the two rows above) rather than quoting one.
-`ci` in a consumer says `not here (canonical-only)` for the selftest and runs
-the rest.
+ `ci` in a consumer says `not here (canonical-only)` for the selftest and
+runs the rest.
 
 A consumer that predates this rule still carries them; every sync reports
 them, removals never travel, so the delete is a human's:
@@ -204,26 +203,17 @@ with a carve-out is one nobody remembers correctly.
 Cite the measurement, never the repository: the command, the commit, the
 counts, the date. "Measured 2026-09-06 in a consumer at `afdd11d`" is
 re-countable by whoever holds that repo and says nothing to anybody else,
-which is the correct amount. The same goes for a consumer's plan names, item
-names and pull request numbers — all of them are that repo's internal work
-wearing a citation's clothes.
+which is the correct amount. The same goes for a consumer's plan names and
+item names — both say what that repo is building, which is the internal
+work this section exists to keep out of every other operator's copy. An
+opaque pointer is a different case: on its own it resolves to nothing, and
+the one thing that would make it resolvable — the repository name — is
+already banned above.
 
-Requester's rule, 2026-09-16. Applied that day across 12 files, clearing 27
-lines that carried one (`git diff` on the branch that did it, counting removed
-lines matching the shapes above). The canonical repository's own name is not
-covered: a consumer has to be told where its harness comes from. Commit hashes
-and pull request numbers are not covered either — opaque to anyone without the
-repo, and they are what a counted number rests on.
-
-Not gated yet, and not because it cannot be. A list of names to match would
-have to live somewhere, and `.agents/harness/selftest/` is canonical-only: it
-reaches no consumer, which is where such a list would belong. What stops it
-here is that enumerating an operator's repositories, even in a file that never
-leaves, is their decision rather than a session's. The looser shape needs no
-list at all — flag any `owner/repo` in shipping text that is not this
-repository's own — and nobody has measured it against false positives. Until
-one of those is decided, this is prose, and the review at the edge is what
-catches it.
+Requester's rule, 2026-09-16. The canonical repository's own name, commit
+hashes and pull request numbers are not covered. Not gated: a list of names
+to match would enumerate an operator's repositories, which is their call. The
+edge review catches it.
 
 ## Settings a child wants to CHANGE
 
@@ -234,34 +224,12 @@ answered. Re-ask every switch instead, from canonical, naming the child:
 .agents/scripts/bootstrap-consumer.sh --reconfigure <consumer-dir>
 ```
 
-A key's COMMENT is answered once too, and that is the sharper edge. `joharness.conf`
-never syncs; the seed writes a key with the explanation of the day, and a
-consumer that already has the key keeps whatever text it was seeded with —
-forever, through every later sync. So an instruction file must not point at a
-conf comment for a fact a session NEEDS: canonical's copy may say more than
-the copy the reader has, or the reader may have NO copy — a consumer
-bootstrapped before a key was declared carries no line for it at all. The
-sync's key stage (`.agents/scripts/sync-to-consumer.sh:report_conf_keys`,
-reading the declarations in `conf-keys.sh`) names the key and its default
-in its report; from a terminal it offers to append `KEY=default` with the
-declaration's one-line meaning, headless it writes nothing. So the reader's
-copy carries that one line at most, and canonical's comment block never.
-Point at the command's own output instead, which ships. Found
-2026-09-11 cutting `.agents/harness/AGENTS.md`, where a
-`JOHARNESS_CHECKS=local` sentence was about to be replaced by exactly such a
-pointer; the wording was made true against the shorter seeded copy instead.
-The no-copy case arrived the next day from a consumer, which synced
-`c1a7257`: `grep -c 'JOHARNESS_CHECKS' joharness.conf` there is 0, while step 7's surviving clause sent a session to "the key that
-sets it, `joharness.conf`". That clause now points at the `lint` job in
-`.github/workflows/ci.yml`: the one copy of the key's two homes and their
-trap, and the file is seeded together with the `if:` that creates the trap,
-so a repo without the one has no need of the other.
-Record, in `chrsctl/joharness`'s own history only — this file ships, that
-path never existed in a consumer: `git log --all --full-history
---diff-filter=D --oneline -- docs/research/merged-ref-batch-prose-vs-code.md`,
-then `git show <commit>^:` that path.
+A key's COMMENT is answered once too: `joharness.conf` never syncs, so a
+consumer keeps the comment it was seeded with, or has no line at all. An
+instruction file must not point at a conf comment for a fact a session NEEDS;
+point at a command's own output, which ships.
 
-Same five questions as first contact, each offering the value in force in
+Same questions as first contact, each offering the value in force in
 THAT child's conf, and the answers written to its `joharness.conf`. Nothing
 else: no sync, no seeding, no purge. That is why it is allowed where a
 re-bootstrap is refused — the refusal exists to keep whole-clone mode's purge
@@ -271,12 +239,6 @@ away from a consumer's live plans and handover, and this run has no purge.
   scripted change is `--reconfigure --review on <dir>`.
 - **It writes only what somebody decided.** Enter keeps a value; a headless
   run with no flags changes nothing and says so.
-- **`JOHARNESS_MODE` is the one difference from first contact.** There the
-  question always offers `supervised`, because a whole clone carries
-  canonical's own line and autonomy should not be acquired by being copied.
-  Here the line is the child's own answer, so the question offers it back —
-  otherwise Enter would silently turn an unsupervised child supervised, since
-  a bootstrap writes that key on every run.
 - **Refused** on a target that does not exist, one that does not run the
   harness yet (bootstrap it first), and a copy of the canonical repository.
 
@@ -318,11 +280,42 @@ is private, when the update pull request must run `ci`, or when the org
 disables Actions creating pull requests. Without it the run uses
 `GITHUB_TOKEN` and hits all three limits.
 
+## A red base branch
+
+Base branch red before change. Five points:
+
+1. Harness keeps no record of which tests are red on base. `ci` and
+   `finish` read git and tree, never a check run.
+2. Consumer that wants one owns it, in its own `docs/`, never synced.
+3. Step 7 still binds every manager: "base green" is an infrastructure
+   reading, "re-derived at every check, never inherited". Record cannot
+   replace your own check. At most it tells you what to expect before you check.
+4. Attribution needs no record. Steps, in order:
+   1. List failing TESTS from your head's run, not failing checks: one
+      check can be whole suite, and same red check can hide one more
+      failing test.
+   2. Run only those tests on commit your PR run merged with. A
+      `pull_request` run checks out head merged into base TIP, not your
+      merge base; base tip may have broken test after you branched.
+   3. Run head and base side by side, same machine, same hour. Earlier
+      CI run against re-run now compares two environments.
+   4. Test failing on both with same message = not provably yours. Still
+      not proof: base failure stops test early and can hide a second
+      break from your diff. Re-run that test once base is green.
+   Cost = failing tests on two commits, not suite. That narrow run is
+   what full baseline worktree per manager was paying for.
+5. Record a consumer keeps, if any: base commit, command, time, result
+   — measured number carrying what produced it (step 5). Forecast only
+   (point 3). Harness prescribes no file and no shape.
+
+Why no harness record of red checks: a reading keyed to a commit still moves
+with the environment (runner, registry, clock), and a file of red checks is a
+written number and a shared registry every writer would collide on.
+
 ## The sync pull request: drive it to merged
 
-`update.yml` gets the branch pushed. Everything after that is a person or a
-session, and this is what that costs. Walked end to end on a consumer,
-2026-08-25; every failure below is one that happened, not one imagined.
+`update.yml` gets the branch pushed; everything after is a person or a
+session.
 
 **The branch is bot-owned.** Each run does `git checkout -B joharness-update`
 from the freshly checked-out default branch and `git push --force`. Two
@@ -353,11 +346,8 @@ The first is the common one and its cause is a repository setting: either
 enable *Allow GitHub Actions to create and approve pull requests*, or set
 `JOHARNESS_UPDATE_TOKEN`.
 
-**Prefer the token, and not as a matter of taste.** Enabling the setting alone
-fixes the error you can see and leaves the one you cannot: the pull request
-opens carrying no checks, for the reason the route table above states. Merging
-a sync on the strength of a tick nobody ran is the shape this harness exists to
-refuse. The PAT fixes both halves; the setting fixes the visible one.
+**Prefer the token**: the setting alone opens a pull request carrying no
+checks; the PAT fixes both halves.
 
 ### Before merging one
 
@@ -537,20 +527,8 @@ probes both spellings.
 ## Migration: the prior-art file
 
 A consumer that synced between 2026-09-02 and 2026-09-04 carries
-`.agents/docs/prior-art.md` — the days the file existed on `main`
-(`git log --diff-filter=A -- .agents/docs/prior-art.md`). Any other consumer
-never received it and has nothing to do here; the reliable tell is the sync
-naming it `consumer-only`, not the dates. Canonical deleted it — its arguments moved into the documents that own each
-decision (branch shape to [`product/README.md`](product/README.md), the
-no-datastore rule and the in-repo trade to [`graph.md`](graph.md), session
-interrogation to [`handover/README.md`](handover/README.md), liveness to
-[`unsupervised.md`](unsupervised.md)) — and removals do not travel, so the
-sync reports the leftover as `consumer-only` and leaves it.
-
-Remove it once. This one is worth doing rather than leaving as dead weight:
-the file quotes third-party documentation, and the `.agents/NOTICE` arriving
-with your next sync no longer carries the entry that covered those
-quotations.
+`.agents/docs/prior-art.md` (the sync names it `consumer-only`). Canonical
+deleted it and its NOTICE entry; remove it once:
 
 ```bash
 git rm .agents/docs/prior-art.md
@@ -558,21 +536,10 @@ git rm .agents/docs/prior-art.md
 
 ## Migration: research routing
 
-Nothing to run. A consumer whose `docs/research/` held its own documents
-before the research-node protocol existed syncs to a green `ci`: routing
-decides nodehood (`.agents/docs/research/README.md`, "Which files are
-nodes"), and a file with no `research:` key that no plan routes to is a
-document — never linted for node keys, never listed as an open question,
-never drawn in the graph. An earlier harness reded five keys per such
-file; this migration is the sync itself.
-
-Two things a consumer may still see, both correct:
-
-- **DEAD ... was a node** — a file here once carried `research: <stem>`
-  and no longer does. That is a real node that lost its frontmatter, not
-  a document; restore the block or delete the file.
-- `./joharness.sh cleanup` lists `doc` rows for the documents. A count,
-  not a warning — nothing to act on.
+Nothing to run. A file under `docs/research/` with no `research:` key that no
+plan routes to is a document, never linted as a node
+(`.agents/docs/research/README.md`, "Which files are nodes"). `DEAD ... was a
+node` means a real node lost its frontmatter: restore it or delete the file.
 
 ## What syncs
 

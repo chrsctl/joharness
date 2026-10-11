@@ -10,8 +10,7 @@
 # left under the cap; the spawn order the queue hook already ranked, with
 # a wave-2 item told to wait and a plan overlapping work in flight HELD;
 # and one verdict line the orchestrator branches on. Builds its OWN
-# scratch repo, as drain does, because every line is a property of the
-# whole queue.
+# scratch repo, because every line is a property of the whole queue.
 #
 # A case in a SHARED fixture sets every precondition it turns on — queue
 # content, branch position, and knob values — because what it inherits was
@@ -22,8 +21,8 @@
 #   queue content  two cases reused `reg/index.py` and the requirement
 #                  `vanished`, both already claimed upstream in the same
 #                  fixture, so they measured an earlier case's plans.
-#   branch position a case asked `drain` while still checked out ON the branch
-#                  it was asking about. `drain` sees another session's claim
+#   branch position a case asked the queue while still checked out ON the branch
+#                  it was asking about. The queue sees another session's claim
 #                  through the handover hook's `origin/<branch>:` lines, so
 #                  from the branch itself the answer is legitimately "nothing
 #                  in flight" — the wrong question, not a wrong answer.
@@ -53,7 +52,7 @@ cp "${ROOT}/.agents/harness/queue-context.sh" \
    "${ROOT}/.agents/harness/handover-context.sh" "${dspwork}/.agents/harness/"
 printf '# none\n' >"${dspwork}/.agents/env/none/AGENTS.md"
 dspconf="${dspwork}/joharness.conf"
-printf 'JOHARNESS_ENV=none\nJOHARNESS_MODE=orchestrated\n' >"$dspconf"
+printf 'JOHARNESS_ENV=none\n' >"$dspconf"
 commit_all "$dspwork" "base"
 git -C "$dspwork" remote add origin "$dsporigin"
 git -C "$dspwork" push -qu origin main
@@ -73,7 +72,8 @@ dsp() { ( cd "$dspwork" && JOHARNESS_CONF="$dspconf" DRAIN_FETCH=0 \
 
 # --- an empty queue, nobody in flight: the one exit -------------------------
 out="$(dsp)"
-expect "dispatch names the mode it is reading" "== dispatch (mode: orchestrated)" "$out"
+expect "dispatch opens on its own header" "== dispatch" "$out"
+refute "and names no mode, there being one" "(mode:" "$out"
 expect "the cap is printed with its knob" \
   "cap       : 4 manager(s) at once (JOHARNESS_MAX_MANAGERS)" "$out"
 expect "the stall window is printed with its knob" \
@@ -104,7 +104,7 @@ expect "and a pause over an unseen spawn keeps the health pass instead" \
 refute "never the pause's own exit" "spawn nothing, exit; the human unpauses" "$out"
 
 # --- the knobs are the human's: conf, then environment, digits only ---------
-printf 'JOHARNESS_ENV=none\nJOHARNESS_MODE=orchestrated\nJOHARNESS_MAX_MANAGERS=2\nJOHARNESS_STALL_MINUTES=30\n' >"$dspconf"
+printf 'JOHARNESS_ENV=none\nJOHARNESS_MAX_MANAGERS=2\nJOHARNESS_STALL_MINUTES=30\n' >"$dspconf"
 out="$(dsp)"
 expect "the conf sets the cap" "cap       : 2 manager(s)" "$out"
 expect "and the stall window" "30 min without a push" "$out"
@@ -112,7 +112,7 @@ out="$(dsp env JOHARNESS_MAX_MANAGERS=1)"
 expect "the environment overrides the conf for one command" "cap       : 1 manager(s)" "$out"
 out="$(dsp env JOHARNESS_MAX_MANAGERS=lots)"
 expect "a word is not a cap: the default stands" "cap       : 4 manager(s)" "$out"
-printf 'JOHARNESS_ENV=none\nJOHARNESS_MODE=orchestrated\n' >"$dspconf"
+printf 'JOHARNESS_ENV=none\n' >"$dspconf"
 
 # --- a queue: the hook's order, waves carried, questions listed -------------
 dspplan alpha 'src/a' haiku
@@ -279,7 +279,6 @@ expect "so the plan whose only collision is the held one is free" \
 # The hook's own wave block says what it left out, so a reader of the
 # session-start context is not left counting waves that do not add up.
 qcout="$(CLAUDE_PROJECT_DIR="$dspwork" JOHARNESS_CONF="$dspconf" \
-  JOHARNESS_RUN_MODE=orchestrated \
   bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1)"
 expect "the partition says how many it left out, and why" \
   "2 of them not partitioned: 2 held behind work in flight" "$qcout"
@@ -367,6 +366,54 @@ out="$(dsp)"
 expect "a blocked manager is listed as blocked" \
   "docs/plans/beta.md  mgr-beta  blocked  pushed" "$out"
 expect "and told to be the human's" "BLOCKED: the human's, holds no slot" "$out"
+
+# --- a block names its reason (issue #392) ----------------------------------
+# One branch per `next:`; the listed reasons print no INVALID BLOCK?, the old
+# unprefixed text does. Branches are removed so later cases read the same fleet.
+# The row exists only for a plan a branch claims, so one plan serves all cases.
+dspplan blk
+dsppush "a plan for the reason cases"
+blkcase() { # <tag> <next text> — leaves the dispatch output in $out
+  git -C "$dspwork" checkout -qb "mgr-blk${1}" main
+  mkdir -p "${dspwork}/docs/handover"
+  printf -- '---\nworkstream: blk%s\nstatus: blocked\nbranch: mgr-blk%s\nplan: blk\nsession: https://example.invalid/session_blk%s\nagent: sonnet\nupdated: 2026-01-02\nnext: %s\n---\n\n## Goal\nFixture.\n' \
+    "$1" "$1" "$1" "$2" >"${dspwork}/docs/handover/blk${1}.md"
+  commit_all "$dspwork" "block ${1}"
+  git -C "$dspwork" push -qu origin "mgr-blk${1}"
+  git -C "$dspwork" checkout -q main
+  out="$(dsp | grep -A4 "mgr-blk${1}")"
+  expect "the row for case ${1} is printed, so a refute below reads a live case" "mgr-blk${1}" "$out"
+  git -C "$dspwork" push -q origin --delete "mgr-blk${1}"
+}
+blkcase a 'money: the budget is spent'
+refute "a money block names its reason" "INVALID BLOCK?" "$out"
+blkcase b 'github: GitHub MCP lost before PR: 403'
+refute "a github block names its reason" "INVALID BLOCK?" "$out"
+blkcase c 'stalled: Stalled; the orchestrator could not stop the session that holds this.'
+refute "a stalled block names its reason" "INVALID BLOCK?" "$out"
+blkcase d 'respawns: Respawned 3 times and still not finished; a human decides what this needs.'
+refute "a respawns block names its reason" "INVALID BLOCK?" "$out"
+blkcase e 'core path: change joharness.conf'
+refute "a core path block names its reason" "INVALID BLOCK?" "$out"
+blkcase h 'credentials: the token expired'
+refute "a credentials block names its reason" "INVALID BLOCK?" "$out"
+blkcase i 'product: which of two designs'
+refute "a product block names its reason" "INVALID BLOCK?" "$out"
+blkcase j 'interface: rename the flag'
+refute "an interface block names its reason" "INVALID BLOCK?" "$out"
+blkcase k 'conflict: both sides rewrote one function'
+refute "a conflict block names its reason" "INVALID BLOCK?" "$out"
+blkcase l 'hardware: needs a gpu'
+refute "a hardware block names its reason" "INVALID BLOCK?" "$out"
+blkcase m '"money: a quoted reason still counts"'
+refute "a quoted reason is still a reason" "INVALID BLOCK?" "$out"
+blkcase f 'Human: run web.py'
+expect "a block with no reason word is flagged" "INVALID BLOCK?" "$out"
+expect "and still reads BLOCKED beside it" "BLOCKED" "$out"
+blkcase g 'Stalled; the orchestrator could not stop the session that holds this.'
+expect "the old unprefixed orchestrator text is flagged" "INVALID BLOCK?" "$out"
+fixture_rm "$dspwork" "drop the reason-case plan" docs/plans/blk.md
+git -C "$dspwork" push -q origin main
 # A blocked row carries NO hold count, because its holds are RELEASED
 # (hold_live): a plan behind it counts FREE with a reconcile expected. Count
 # it and the row would advertise a cost nobody is paying, which is the
@@ -378,8 +425,12 @@ expect "and told to be the human's" "BLOCKED: the human's, holds no slot" "$out"
 dspplan behindbeta 'src/b/deep'
 dsppush "a plan overlapping the BLOCKED manager's scope"
 out="$(dsp)"
+# Keyed on the ROW and the annotation's own words, not on what sits beside
+# them: the blocked flag gained a park age after `holds no slot`, and a
+# refute spelled `holds no slot  holds ` then passed whatever the code did
+# (/code-review, 2026-10-08).
 refute "a blocked row advertises no hold cost, its holds being released" \
-  "holds no slot  holds " "$out"
+  "plan(s) out of the queue" "$(printf '%s\n' "$out" | grep 'mgr-beta  blocked')"
 expect "and the plan behind it is FREE, with the reconcile named" \
   "behindbeta.md (agent: sonnet)  wave 1  overlaps beta on src/b (claimed on mgr-beta) — that branch is BLOCKED on a human" "$out"
 fixture_rm "$dspwork" "drop the plan behind beta" docs/plans/behindbeta.md
@@ -465,12 +516,12 @@ out="$(dsp)"
 expect "nothing free with a manager in flight is not the exit" \
   "DRAINED — nothing free; 3 manager(s) in flight: keep the health pass going" "$out"
 
-# --- the marked plan is NOT YOURS here too ----------------------------------
-dspplan protocol 'joharness.sh'
-dsppush "a plan scoped to protocol text"
+# --- the marked plan is NOT YOURS -------------------------------------------
+dspplan protocol '.github/workflows'
+dsppush "a plan scoped to a core path"
 out="$(dsp)"
-expect "a SUPERVISED ONLY plan is named as not yours" \
-  "NOT YOURS — SUPERVISED ONLY" "$out"
+expect "a CORE ONLY plan is named as not yours" \
+  "NOT YOURS — CORE ONLY" "$out"
 refute "and never spawned" "docs/plans/protocol.md (agent" "$out"
 
 # --- another branch's status field is repo-controlled input -------------------
@@ -548,7 +599,8 @@ git -C "$dspwork" checkout -q main
 out="$(dsp env JOHARNESS_MAX_MANAGERS=8)"
 expect "past the retire commit the branch is still in flight, on its own row" \
   "docs/plans/eta.md  mgr-eta  retired  pushed" "$out"
-expect "which says what the row is" "PR in flight, no claim file" "$out"
+expect "which says what the row is, and that it cannot see the pull request" \
+  "retired, no claim file — a pull request is expected; this reader cannot see one" "$out"
 expect "it still holds its slot" "slots     : 3 of 8 free" "$out"
 refute "and its item is still not offered for spawning" \
   "  docs/plans/eta.md (agent" "$out"
@@ -557,15 +609,17 @@ expect "the verdict counts it and names who finishes the count" \
 
 # Distinguishable from a branch nobody came back to — the trade this fix must
 # not make. Push age is the only signal git has, so past the window the row
-# says so and names the respawn as step 7's, which is a merge to finish, not a
-# plan to restart.
+# says so and sends the verdict to the health table. It used to order the
+# respawn itself, and printed that over three RUNNING managers an 18-day
+# suspension had frozen (issue #283): git cannot tell those from dead ones.
 out="$(dsp env JOHARNESS_MAX_MANAGERS=8 JOHARNESS_STALL_MINUTES=0)"
 expect "past the stall window the row is marked" "STALL? no push for" \
   "$(printf '%s\n' "$out" | grep -A1 'mgr-eta')"
 expect "and sends the reader to the control plane, by the item's own stem" \
   "cross-check the control plane by TITLE (manager: eta)" "$out"
-expect "naming the respawn as the merge, not a restart" \
-  "respawn on the branch to FINISH it, never to restart the item" "$out"
+expect "and leaves the verdict to the health table" \
+  "the verdict is the health table's (.claude/commands/orchestrate.md, step 2), never this row's" "$out"
+refute "no edge row orders a respawn itself" "respawn on the branch" "$out"
 # The VERDICT's count, not just the row's token. Folding the edge rows into
 # n_stall and asserting only row text left the fold green both ways: four
 # claimed managers are past a zero window here, and the fifth is mgr-eta.
@@ -784,7 +838,7 @@ expect "the peer is HELD behind the branch that is one merge from landing" \
 refute "and it takes no wave, being held" "zpeer.md (agent: sonnet)  wave" "$out"
 refute "the withheld item is not offered either" "docs/plans/aretired.md (agent" "$out"
 qcout="$(CLAUDE_PROJECT_DIR="$dspwork" JOHARNESS_CONF="$dspconf" \
-  JOHARNESS_RUN_MODE=orchestrated HANDOVER_FETCH=0 \
+  HANDOVER_FETCH=0 \
   QUEUE_WITHHELD="docs/plans/aretired.md@mgr-retired" \
   bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1)"
 expect "the hook says what it left out of the partition, and why" \
@@ -800,7 +854,7 @@ expect "and the note counts each reason separately" \
 # it is held behind `aretired` AND withheld itself, so two plans are out for
 # one reason, not three for two.
 qcout="$(CLAUDE_PROJECT_DIR="$dspwork" JOHARNESS_CONF="$dspconf" \
-  JOHARNESS_RUN_MODE=orchestrated HANDOVER_FETCH=0 \
+  HANDOVER_FETCH=0 \
   QUEUE_WITHHELD="docs/plans/aretired.md@mgr-retired docs/plans/zpeer.md@mgr-retired" \
   bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1)"
 expect "a plan that is both is counted once, under withheld" \
@@ -809,7 +863,7 @@ refute "never once under each" "3 of them not partitioned" "$qcout"
 # Nothing passed in, nothing withheld: every other caller of this hook, session
 # start included, partitions exactly as it always did.
 qcout="$(CLAUDE_PROJECT_DIR="$dspwork" JOHARNESS_CONF="$dspconf" \
-  JOHARNESS_RUN_MODE=orchestrated HANDOVER_FETCH=0 \
+  HANDOVER_FETCH=0 \
   bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1)"
 expect "with no withheld set the plan is partitioned as before" \
   "aretired (sonnet)" "$qcout"
@@ -928,20 +982,6 @@ expect "a name with a space names no item at all" \
   "?  mgr-spacey  retired  pushed" "$out"
 refute "and never half a path" "docs/plans/foo  mgr-spacey" "$out"
 
-# --- supervised: nothing to dispatch, said, and the preview named -------------
-# An earlier draft reported anyway "for a human running the beta loop", and
-# in a supervised repo printed NOT YOURS over a plan drain was handing out
-# on the same tree: two readers, two answers.
-printf 'JOHARNESS_ENV=none\n' >"$dspconf"
-out="$(dsp)"
-expect "supervised is named" "== dispatch (mode: supervised)" "$out"
-expect "and stops" "NOT ORCHESTRATED (JOHARNESS_MODE=supervised): nothing to dispatch" "$out"
-expect "pointing at this mode's reader" "./joharness.sh drain" "$out"
-refute "and prints no report to act on" "slots     :" "$out"
-refute "and no marking drain would contradict" "NOT YOURS" "$out"
-out="$(dsp env JOHARNESS_MODE=orchestrated)"
-expect "the preview is one exported variable away" "slots     :" "$out"
-
 # --- one plan, two holders: the live one decides ----------------------------
 # A plan held by two managers — one stopped on a human, one live — is held by
 # the live one whichever hold line comes first. `dispatch` read only the
@@ -966,7 +1006,7 @@ cp "${ROOT}/.agents/harness/queue-context.sh" \
    "${ROOT}/.agents/harness/handover-context.sh" "${twowork}/.agents/harness/"
 printf '# none\n' >"${twowork}/.agents/env/none/AGENTS.md"
 twoconf="${twowork}/joharness.conf"
-printf 'JOHARNESS_ENV=none\nJOHARNESS_MODE=orchestrated\n' >"$twoconf"
+printf 'JOHARNESS_ENV=none\n' >"$twoconf"
 # `aa` is claimed by the BLOCKED branch and `zz` by the live one, and the
 # claimed rows sort by add time then name — so `aa`'s hold line is printed
 # first, which is the input that broke it.
@@ -1000,7 +1040,6 @@ out="$(two)"
 expect "the blocked holder is printed first, which is the input" \
   "mid overlaps aa on src/aa (claimed on origin/mgr-aa)" \
   "$(CLAUDE_PROJECT_DIR="$twowork" JOHARNESS_CONF="$twoconf" \
-     JOHARNESS_RUN_MODE=orchestrated \
      bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1 | grep -m1 'in flight: mid')"
 expect "and the live holder still decides: HOLD" \
   "docs/plans/mid.md (agent: sonnet)  HOLD — overlaps" "$out"
@@ -1024,7 +1063,7 @@ cp "${ROOT}/.agents/harness/queue-context.sh" \
    "${ROOT}/.agents/harness/handover-context.sh" "${rbwork}/.agents/harness/"
 printf '# none\n' >"${rbwork}/.agents/env/none/AGENTS.md"
 rbconf="${rbwork}/joharness.conf"
-printf 'JOHARNESS_ENV=none\nJOHARNESS_MODE=orchestrated\n' >"$rbconf"
+printf 'JOHARNESS_ENV=none\n' >"$rbconf"
 for n in hold_a hold_b keeper; do
   { printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: high\n' "$n"
     printf 'scope: src/shared\n---\n\n## Goal\nFixture.\n'
@@ -1117,6 +1156,18 @@ expect "and the done branch is still shown in the block it points at" \
 refute "and no new rescope is recommended" "spawn ONE surveyor" "$out"
 refute "nor is it read as still actively running" \
   "a surveyor is already in flight" "$out"
+# A done rescope whose key COVERS the current one settles it too: a co-holder
+# merged and the set shrank (issue #300). Equality alone left this unsettled.
+git -C "$rbwork" checkout -q claude/rescope-keeper
+sed -i 's/^workstream: rescope-keeper/workstream: rescope-gone+keeper/' \
+  "${rbwork}/docs/handover/rescope-keeper.md"
+commit_all "$rbwork" "a co-holder merged under the done rescope"
+git -C "$rbwork" push -q origin claude/rescope-keeper
+git -C "$rbwork" checkout -q main
+out="$(rb)"
+expect "a done rescope on a superset key settles the shrunk key" \
+  "a rescope for this key is done or blocked" "$out"
+refute "so no surveyor is spawned onto the subset" "spawn ONE surveyor" "$out"
 
 # 0 slots (cap = 1, keeper fills it): the fleet is working, not stalled, so
 # the held plans stay DRAINED-in-flight and no rescope is offered.
@@ -1125,6 +1176,125 @@ refute "with no idle slot there is no OVERLAP-BOUND" \
   "verdict   : OVERLAP-BOUND" "$out"
 expect "the held plans wait on the holder merging, nothing to rescope now" \
   "verdict   : DRAINED — nothing free; 1 manager(s) in flight" "$out"
+
+# --- a MERGED done rescope settles a covered key (issue #300) ---------------
+# A surveyor concluded "the rest is genuine", retired and merged; two of its
+# three holders merged after. The key shrank from a+b+c to b, and the in-flight
+# scan skips merged refs, so the next pass asked for a second surveyor on a
+# conclusion already on main. Built as the real shape: the rescope branch adds
+# then deletes its workstream file and is merged with a merge commit.
+mswork="${TMP}/mergedrescopework"
+msorigin="${TMP}/mergedrescopeorigin.git"
+git init -q --bare "$msorigin"
+git init -q "$mswork"
+git -C "$mswork" symbolic-ref HEAD refs/heads/main
+mkdir -p "${mswork}/docs/plans" "${mswork}/docs/handover" \
+  "${mswork}/.agents/harness" "${mswork}/.agents/env/none"
+cp "${ROOT}/joharness.sh" "${mswork}/joharness.sh"
+cp "${ROOT}/.agents/harness/queue-context.sh" \
+   "${ROOT}/.agents/harness/handover-context.sh" "${mswork}/.agents/harness/"
+printf '# none\n' >"${mswork}/.agents/env/none/AGENTS.md"
+msconf="${mswork}/joharness.conf"
+printf 'JOHARNESS_ENV=none\n' >"$msconf"
+for n in h b; do
+  { printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: high\n' "$n"
+    printf 'scope: src/shared\n---\n\n## Goal\nFixture.\n'
+  } >"${mswork}/docs/plans/${n}.md"
+done
+commit_all "$mswork" "base"
+git -C "$mswork" remote add origin "$msorigin"
+git -C "$mswork" push -qu origin main
+# b claimed and live: h is held behind it on src/shared, the key is `b`.
+ms_claim() {
+  git -C "$mswork" checkout -q main
+  git -C "$mswork" checkout -qb "mgr-$1"
+  mkdir -p "${mswork}/docs/handover"
+  printf -- '---\nworkstream: %s\nstatus: in-progress\nbranch: mgr-%s\nplan: %s\nagent: sonnet\nupdated: 2026-01-01\nnext: Build\n---\n\n## Goal\nFixture.\n' \
+    "$1" "$1" "$1" >"${mswork}/docs/handover/$1.md"
+  commit_all "$mswork" "claim $1"
+  git -C "$mswork" push -qu origin "mgr-$1"
+  git -C "$mswork" checkout -q main
+}
+ms_claim b
+# A surveyor on key <$1> that finished `done`, retired its workstream file on
+# its own branch, and merged into main with a merge commit.
+ms_rescope() {
+  git -C "$mswork" checkout -q main
+  git -C "$mswork" checkout -qb "claude/rescope-$2"
+  mkdir -p "${mswork}/docs/handover"
+  printf -- '---\nworkstream: rescope-%s\nstatus: done\nbranch: claude/rescope-%s\nplan: none\nagent: sonnet\nupdated: 2026-01-02\nnext: The rest is genuine\n---\n\n## Goal\nFixture.\n' \
+    "$1" "$2" >"${mswork}/docs/handover/rescope-$2.md"
+  commit_all "$mswork" "rescope $1: the rest is genuine"
+  fixture_rm "$mswork" "retire rescope $1" "docs/handover/rescope-$2.md"
+  git -C "$mswork" push -qu origin "claude/rescope-$2"
+  git -C "$mswork" checkout -q main
+  git -C "$mswork" merge -q --no-ff -m "Merge rescope $1" "claude/rescope-$2"
+  git -C "$mswork" push -q origin main
+}
+ms_rescope 'a+b+c' abc
+ms() { ( cd "$mswork" && JOHARNESS_CONF="$msconf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 ./joharness.sh dispatch 2>&1 ); }
+out="$(ms)"
+expect "the shrunk key is OVERLAP-BOUND on holder b" "key: b" "$out"
+expect "a merged done rescope on a superset key settles it" \
+  "a rescope for this key is done or blocked" "$out"
+expect "and the rescope block names the merged record" \
+  "settled by merged rescope" "$out"
+expect "with the key it settled on" "(key a+b+c): holds genuine" "$out"
+refute "so no second surveyor is spawned" "spawn ONE surveyor" "$out"
+
+# A held plan's file changed on main after the record: new information, the
+# record no longer settles and the rescope is earned again (#300 fix 3).
+printf '\nEdited after the rescope.\n' >>"${mswork}/docs/plans/h.md"
+commit_all "$mswork" "edit the held plan after the rescope"
+git -C "$mswork" push -q origin main
+out="$(ms)"
+expect "a held plan edited since the record re-earns a rescope" \
+  "spawn ONE surveyor (agent: sonnet) on key b" "$out"
+refute "and the stale record is not named as settling" \
+  "settled by merged rescope" "$out"
+
+# A record whose key misses a CURRENT holder settles nothing: d is a holder
+# the a+b surveyor never saw, so b+d is a new collision (the Trap the
+# key-specific SETTLED comment names).
+ms_rescope 'a+b' ab
+out="$(ms)"
+expect "a fresh record on a+b settles the key b" \
+  "(key a+b): holds genuine" "$out"
+# A HOLDER's plan file changed since the record is new information too
+# (verifier r2): b's scope widens on main.
+sed -i 's#^scope: src/shared$#scope: src/shared src/other#' "${mswork}/docs/plans/b.md"
+commit_all "$mswork" "widen the holder's scope after the rescope"
+git -C "$mswork" push -q origin main
+out="$(ms)"
+expect "a holder edited since the record re-earns a rescope" \
+  "spawn ONE surveyor (agent: sonnet) on key b" "$out"
+ms_rescope 'a+b' ab2
+out="$(ms)"
+expect "and a fresh record after the edit settles it again" \
+  "(key a+b): holds genuine" "$out"
+{ printf -- '---\nplan: d\nurgency: normal\nagent: sonnet\neffort: high\n'
+  printf 'scope: src/shared\n---\n\n## Goal\nFixture.\n'
+} >"${mswork}/docs/plans/d.md"
+commit_all "$mswork" "plan d"
+git -C "$mswork" push -q origin main
+ms_claim d
+out="$(ms)"
+expect "the key grows a holder the record never saw" "key: b+d" "$out"
+refute "so the a+b record does not settle it" \
+  "settled by merged rescope" "$out"
+expect "and a surveyor is earned for the new collision" \
+  "spawn ONE surveyor (agent: sonnet) on key b+d" "$out"
+# The cases above pass on d.md landing AFTER the record, which the changed-since
+# test catches alone. A record made after d.md, with no plan changed since, must
+# still miss b+d: only the cover test can say so (research node
+# rescope-re-offered-after-merge, verifier r1).
+ms_rescope 'a+b' ab3
+out="$(ms)"
+refute "a fresh record that never saw holder d does not settle b+d" \
+  "settled by merged rescope" "$out"
+expect "so the new collision still earns its surveyor" \
+  "spawn ONE surveyor (agent: sonnet) on key b+d" "$out"
 
 # --- curate: is the live plan queue still fit? ------------------------------
 # The periodic reader. Its own fixture, because every finding is a property of
@@ -1145,7 +1315,7 @@ printf 'x\n' >"${cwwork}/src/real.py"
 printf 'x\n' >"${cwwork}/reg/index.py"
 printf 'x\n' >"${cwwork}/reg/trio.py"
 cwconf="${cwwork}/joharness.conf"
-printf 'JOHARNESS_ENV=none\nJOHARNESS_MODE=orchestrated\n' >"$cwconf"
+printf 'JOHARNESS_ENV=none\n' >"$cwconf"
 # A literal backtick, built once. Inside a single-quoted printf format, SC2016
 # reads one as an unexpanded command substitution -- and these fixtures need
 # real backticks, because that is the shape the parser under test reads.
@@ -1280,7 +1450,7 @@ expect "enough plan files changed since the queue began makes one due" \
   "curate    : DUE — 6 plan file(s) changed since the queue began, none having landed (>= 5)" "$out"
 expect "and the tail line under the verdict says to spawn one" \
   "curate DUE: spawn ONE curator (agent: sonnet)" "$out"
-expect "naming it as beyond the cap" "beyond the cap, holds no slot" "$out"
+expect "naming it as beyond the cap" "takes one slot (roles share JOHARNESS_MAX_MANAGERS)" "$out"
 # The clock at 0 is the off switch for the WHOLE cycle, which is a compatibility
 # promise and not a tidy rule: before the production trigger existed it was the
 # only switch there was, so a consumer that had set it must not wake up to a
@@ -1436,7 +1606,7 @@ cp "${ROOT}/.agents/harness/queue-context.sh" \
    "${ROOT}/.agents/harness/handover-context.sh" "${hldwork}/.agents/harness/"
 printf '# none\n' >"${hldwork}/.agents/env/none/AGENTS.md"
 printf 'x\n' >"${hldwork}/src/real.py"
-printf 'JOHARNESS_ENV=none\nJOHARNESS_MODE=orchestrated\n' >"${hldwork}/joharness.conf"
+printf 'JOHARNESS_ENV=none\n' >"${hldwork}/joharness.conf"
 { printf -- '---\nplan: onlyheld\nurgency: normal\nagent: sonnet\neffort: low\n'
   printf 'needs: none\nrequirement: none\nscope: src\n---\n\n## Goal\nFixture.\n\n'
   printf '## Where to look\n\n- %ssrc/gone.py:x%s -- not in the tree.\n' "$bt" "$bt"
@@ -1478,14 +1648,12 @@ refute "never a manager who is not there" "every one held by a manager" "$out"
 expect "and it names where the role is told what to do with that" \
   "curate.md 0.4" "$out"
 
-# --- the curate cycle is the cycle /start runs, on a production trigger ------
-# `cmd_start` routes by MODE: supervised and unsupervised reach drain.md, only
-# orchestrated reaches orchestrate.md. A cadence printed by `dispatch` alone is
-# one a default repo can never reach, which is what shipped. And the trigger is
-# production, not a clock: plan files touched per week on this repo's own main
-# over 12 weeks were 0 eight times, then 32, 55, 10 (2026-09-11), so a 168h
-# clock fires over nothing in the quiet stretch and misses 97 changes in the
-# busy one. Its own fixture, one plan at a time so the churn count is exact.
+# --- the curate cycle on a production trigger ------------------------------
+# The trigger is production, not a clock: plan files touched per week on this
+# repo's own main over 12 weeks were 0 eight times, then 32, 55, 10
+# (2026-09-11), so a 168h clock fires over nothing in the quiet stretch and
+# misses 97 changes in the busy one. Its own fixture, one plan at a time so
+# the churn count is exact.
 cuwork="${TMP}/curateloop"
 cuorigin="${TMP}/curateloop.git"
 git init -q --bare "$cuorigin"
@@ -1510,32 +1678,14 @@ cuplan one
 commit_all "$cuwork" "base"
 git -C "$cuwork" remote add origin "$cuorigin"
 git -C "$cuwork" push -qu origin main
-cud() { ( cd "$cuwork" && JOHARNESS_CONF="$cuconf" DRAIN_FETCH=0 \
-  DISPATCH_FETCH=0 "$@" ./joharness.sh drain 2>&1 ); }
+# Registry threshold raised: five plans on one path stay an ORDER proposal,
+# which needs a curator's judgement, rather than a mechanical shared: repair.
 cudis() { ( cd "$cuwork" && JOHARNESS_CONF="$cuconf" DRAIN_FETCH=0 \
-  DISPATCH_FETCH=0 JOHARNESS_MODE=orchestrated "$@" ./joharness.sh dispatch 2>&1 ); }
+  DISPATCH_FETCH=0 JOHARNESS_CURATE_REGISTRY=10 "$@" ./joharness.sh dispatch 2>&1 ); }
 
-# Supervised is the default mode, and this is the whole point: the curate line
-# must be in the output `/start` routes to.
-out="$(cud env JOHARNESS_CURATE_PLANS=1)"
-expect "drain names the mode it is reading" "== drain (mode: supervised)" "$out"
-expect "and prints the curate cycle, which only dispatch used to" \
+out="$(cudis env JOHARNESS_CURATE_PLANS=1)"
+expect "one plan file past a threshold of 1 makes a curate due" \
   "curate    : DUE" "$out"
-expect "naming curate.md as this session's item" \
-  ".claude/commands/curate.md" "$out"
-expect "and saying it invents nothing" \
-  "Nothing is invented — every plan it touches already exists" "$out"
-
-# ONE reader: drain and dispatch must give the same verdict over one fixture.
-dline="$(printf '%s\n' "$(cud env JOHARNESS_CURATE_PLANS=1)" \
-  | sed -n 's/^curate    : //p' | head -1)"
-xline="$(printf '%s\n' "$(cudis env JOHARNESS_CURATE_PLANS=1)" \
-  | sed -n 's/^curate    : //p' | head -1)"
-if [ -n "$dline" ] && [ "$dline" = "$xline" ]; then
-  pass "drain and dispatch answer 'is a curate due' identically"
-else
-  fail "drain and dispatch disagree: drain='${dline}' dispatch='${xline}'"
-fi
 
 # A landed curate settles it, and then the PRODUCTION trigger is what brings it
 # back — with the clock nowhere near.
@@ -1545,45 +1695,57 @@ printf -- '---\nworkstream: curate-2026-09-11\nstatus: in-progress\nbranch: clau
   >"${cuwork}/docs/handover/curate-2026-09-11.md"
 commit_all "$cuwork" "claim a curate"
 git -C "$cuwork" push -qu origin claude/curate-loop
-# BACK TO MAIN before asking. `drain` reads an in-flight curate out of the
-# handover hook's `origin/<branch>: docs/handover/...` lines, which is how one
-# session sees ANOTHER's claim; a session sitting on the curate branch is the
-# curator and needs no telling. Asking from the branch itself measured the
-# wrong question and read as "nothing in flight".
+# BACK TO MAIN before asking. An in-flight curate is read from the branch's
+# claim the way one session sees ANOTHER's; a session sitting on the curate
+# branch is the curator and needs no telling.
 git -C "$cuwork" checkout -q main
-out="$(cud env JOHARNESS_CURATE_PLANS=1)"
+out="$(cudis env JOHARNESS_CURATE_PLANS=1)"
 expect "a curate in flight is named rather than spawned again" \
-  "IN FLIGHT on claude/curate-loop (curate-2026-09-11, in-progress), so not yours" "$out"
-refute "and drain does not call it this session's item" \
-  "curate    : DUE —" "$out"
+  "curate    : IN FLIGHT, so none is due" "$out"
+refute "and no second curator is ordered" "curate DUE" "$out"
+# Plan abandoned-reaches-every-reader: the SAME claim, released, frees the
+# cycle; restored to in-progress it holds again. Both in one case, or the
+# first half passes for the wrong reason.
+git -C "$cuwork" checkout -q claude/curate-loop
+sed -i.bak 's/^status: in-progress/status: abandoned/' \
+  "${cuwork}/docs/handover/curate-2026-09-11.md"
+rm -f "${cuwork}/docs/handover/curate-2026-09-11.md.bak"
+commit_all "$cuwork" "release the curate claim"
+git -C "$cuwork" push -q origin claude/curate-loop
+git -C "$cuwork" checkout -q main
+out="$(cudis env JOHARNESS_CURATE_PLANS=1)"
+refute "a RELEASED curate claim no longer holds the cycle" "curate    : IN FLIGHT" "$out"
+git -C "$cuwork" checkout -q claude/curate-loop
+sed -i.bak 's/^status: abandoned/status: in-progress/' \
+  "${cuwork}/docs/handover/curate-2026-09-11.md"
+rm -f "${cuwork}/docs/handover/curate-2026-09-11.md.bak"
+commit_all "$cuwork" "re-claim the curate"
+git -C "$cuwork" push -q origin claude/curate-loop
+git -C "$cuwork" checkout -q main
+out="$(cudis env JOHARNESS_CURATE_PLANS=1)"
+expect "and the live shape still holds it (control)" \
+  "curate    : IN FLIGHT, so none is due" "$out"
 git -C "$cuwork" checkout -q claude/curate-loop
 fixture_rm "$cuwork" "retire it (step 7)" docs/handover/curate-2026-09-11.md
 git -C "$cuwork" push -q origin claude/curate-loop
 git -C "$cuwork" checkout -q main
 git -C "$cuwork" merge -q --no-ff --no-edit claude/curate-loop
 git -C "$cuwork" push -q origin main
-out="$(cud env JOHARNESS_CURATE_PLANS=1)"
-# drain is deliberately QUIET when nothing is due — it is an action list, not a
-# status report — so the state is asserted on dispatch and the silence here.
-refute "once it lands, drain claims nothing as the session's item" \
-  "curate    : DUE" "$out"
-refute "and says nothing at all about curating" "curate    :" "$out"
-expect "while dispatch, which reports state, says not due" \
+expect "once it lands, it is not due" \
   "curate    : not due" "$(cudis env JOHARNESS_CURATE_PLANS=1)"
 
 # Production: three plan files land, threshold 3 -> due, though ~0h elapsed.
 for n in two three four; do cuplan "$n"; done
 commit_all "$cuwork" "three plans land"
 git -C "$cuwork" push -q origin main
-out="$(cud env JOHARNESS_CURATE_PLANS=3)"
+out="$(cudis env JOHARNESS_CURATE_PLANS=3)"
 expect "three plan files since the last curate makes one due" \
   "3 plan file(s) changed since the last curate (>= 3)" "$out"
 expect "and the clock had nothing to do with it" "curate    : DUE" "$out"
-out="$(cud env JOHARNESS_CURATE_PLANS=99)"
-refute "under the threshold nothing is claimed as the item" \
-  "curate    : DUE" "$out"
+out="$(cudis env JOHARNESS_CURATE_PLANS=99)"
+refute "under the threshold it is not due" "curate    : DUE" "$out"
 expect "and dispatch says how far off it is, in both numbers" \
-  "plan file(s) changed (of 99)" "$(cudis env JOHARNESS_CURATE_PLANS=99)"
+  "plan file(s) changed (of 99)" "$out"
 
 # Time: the trigger production cannot see — code moves UNDER a plan and breaks
 # its anchors with no plan file changing. The clock at 0 switches the WHOLE
@@ -1596,14 +1758,13 @@ expect "hours 0 switches the whole cycle off, over a production trigger that wou
 refute "so nothing is spawned on the production count either" "curate DUE" "$out"
 expect "plans 0 disables production alone, and says so the other way" \
   "the production trigger is off" "$(cudis env JOHARNESS_CURATE_PLANS=0)"
-out="$(cud env JOHARNESS_CURATE_PLANS=0 JOHARNESS_CURATE_HOURS=0)"
-refute "both knobs 0 claims nothing as the item" "curate    : DUE" "$out"
+out="$(cudis env JOHARNESS_CURATE_PLANS=0 JOHARNESS_CURATE_HOURS=0)"
+refute "both knobs 0 is never due" "curate    : DUE" "$out"
 expect "and dispatch names it as the human's off switch" \
-  "no curate is ever due" "$(cudis env JOHARNESS_CURATE_PLANS=0 JOHARNESS_CURATE_HOURS=0)"
+  "no curate is ever due" "$out"
 
-# --- the same cycle, under ORCHESTRATED, end to end -------------------------
-# The requester asked for it to work in orchestrator mode, so the three states
-# an orchestrator branches on are asserted from `dispatch` directly: due with
+# --- the same cycle, end to end, as the orchestrator acts on it -------------
+# The three states an orchestrator branches on: due with
 # none in flight spawns, one in flight does not, and off does not. The tail is
 # what the role acts on (`.claude/commands/orchestrate.md` step 3), so each
 # case asserts the TAIL and not only the header line.
@@ -1611,10 +1772,10 @@ cuplan five
 commit_all "$cuwork" "one more plan so the queue is not empty"
 git -C "$cuwork" push -q origin main
 out="$(cudis env JOHARNESS_CURATE_PLANS=1)"
-expect "orchestrated: the cycle is due and the tail says to spawn" \
+expect "the cycle is due and the tail says to spawn" \
   "curate DUE: spawn ONE curator (agent: sonnet)" "$out"
 expect "naming it as beyond the cap, holding no slot" \
-  "beyond the cap, holds no slot" "$out"
+  "takes one slot (roles share JOHARNESS_MAX_MANAGERS)" "$out"
 expect "and both knobs are named on that line" \
   "(JOHARNESS_CURATE_PLANS, JOHARNESS_CURATE_HOURS)" "$out"
 
@@ -1622,24 +1783,18 @@ git -C "$cuwork" checkout -qb claude/curate-orch
 mkdir -p "${cuwork}/docs/handover"
 printf -- '---\nworkstream: curate-2026-09-12\nstatus: in-progress\nbranch: claude/curate-orch\nplan: none\nsession: https://example.invalid/session_orch\nagent: sonnet\nupdated: 2026-09-12\nnext: Repair the registries\n---\n\n## Goal\nFixture.\n' \
   >"${cuwork}/docs/handover/curate-2026-09-12.md"
-commit_all "$cuwork" "a curator claims under orchestrated"
+commit_all "$cuwork" "a curator claims"
 git -C "$cuwork" push -qu origin claude/curate-orch
 git -C "$cuwork" checkout -q main
 out="$(cudis env JOHARNESS_CURATE_PLANS=1)"
-expect "orchestrated: one in flight is named with its branch and stamp" \
+expect "one in flight is named with its branch and stamp" \
   "claude/curate-orch  curate-2026-09-12  in-progress  pushed" "$out"
 expect "its session rides under it, so the health pass can find it" \
   "session: https://example.invalid/session_orch" "$out"
 refute "and the orchestrator is told to spawn NOTHING" "curate DUE" "$out"
-# The same fact, from the other reader: drain must not hand it to a session
-# either, and both must name the same branch.
-out="$(cud env JOHARNESS_CURATE_PLANS=1)"
-expect "drain agrees it is not this session's, naming the same branch" \
-  "IN FLIGHT on claude/curate-orch (curate-2026-09-12, in-progress), so not yours" "$out"
-refute "and claims nothing" "curate    : DUE" "$out"
 
 out="$(cudis env JOHARNESS_CURATE_PLANS=0 JOHARNESS_CURATE_HOURS=0)"
-refute "orchestrated: both knobs 0 spawns nothing" "curate DUE" "$out"
+refute "both knobs 0 spawns nothing" "curate DUE" "$out"
 expect "and says the human switched it off" "curate    : off" "$out"
 
 # --- the triggers, asserted where they can actually fail --------------------
@@ -1675,8 +1830,9 @@ trplan seed
 commit_all "$trwork" "base"
 git -C "$trwork" remote add origin "$trorigin"
 git -C "$trwork" push -qu origin main
+# Registry raised so plans sharing a path are an ORDER proposal: judgement.
 tr_() { ( cd "$trwork" && JOHARNESS_CONF="$trconf" DRAIN_FETCH=0 \
-  DISPATCH_FETCH=0 JOHARNESS_MODE=orchestrated "$@" ./joharness.sh dispatch 2>&1 ); }
+  DISPATCH_FETCH=0 JOHARNESS_CURATE_REGISTRY=10 "$@" ./joharness.sh dispatch 2>&1 ); }
 # Land a curate, the way the protocol produces one: claim on a branch, retire on
 # the branch, merge. Nothing is due from here until a knob says so.
 git -C "$trwork" checkout -qb claude/curate-trig
@@ -1747,19 +1903,11 @@ refute "a curate's own retire commit is not churn it must answer for" \
 expect "the count starts after the commit that landed it, at zero" \
   "0 plan file(s) changed (of 1)" "$out"
 
-# --- the DRAINED repetition, which nothing reached -------------------------
-# `cmd_drain` returns at NOT DRAINED while any plan is free, so the block at the
-# DRAINED verdict was unreachable: deleting it left every case green (verifier
-# r14). An idle queue is exactly where a due curate is the work.
-#
-# The first version of this case asserted `DRAINED — no unplanned`, which the
-# verdict prints whether or not the curate block below it exists — so deleting
-# the block STILL left 1939/0 and r14 was recorded as fixed over a check that
-# could not see it (verifier r24a). Assert the block's own sentence, and assert
-# the off arm too, which is the control: one case, two states, and the
-# difference between them is the code under test.
-trdrain() { ( cd "$trwork" && JOHARNESS_CONF="$trconf" DRAIN_FETCH=0 "$@" \
-  ./joharness.sh drain 2>&1 ); }
+# --- a due curate at an EMPTY queue ----------------------------------------
+# An idle queue is exactly where a due curate is the work, so the spawn order
+# must survive the DRAINED verdict rather than being read only beside free
+# plans. The off arm is the control: one fixture, two states, the knob the
+# only thing that moves.
 # A plan ARRIVES after the last curate and is then finished, and seed.md goes
 # too: production counts 1 (the add) and the queue is empty, which is exactly the
 # state this block is for. The add is what makes it due — the two deletions are
@@ -1769,33 +1917,13 @@ commit_all "$trwork" "one more plan arrives after the curate"
 fixture_rm "$trwork" "empty the queue" \
   docs/plans/seed.md docs/plans/t_three.md
 git -C "$trwork" push -q origin main
-out="$(trdrain env JOHARNESS_CURATE_PLANS=1)"
-expect "a drained queue still reports the verdict" "DRAINED — no unplanned" "$out"
-expect "and repeats the due curate under it, where a reader who stopped at the verdict is" \
-  "A curate is DUE" "$out"
-expect "naming the role file rather than the knob" \
-  ".claude/commands/curate.md" "$out"
-out="$(trdrain env JOHARNESS_CURATE_HOURS=0)"
-expect "and with the cycle off it says nothing about curating" \
-  "DRAINED — no unplanned" "$out"
-refute "no curate line at all when the human switched it off" "curate" "$out"
-# The orchestrated carve-out, at the same place: a manager must not read the
-# repetition as its item either, because a curator is the ORCHESTRATOR's spawn
-# beyond the cap and that is the human's money (verifier r27).
-out="$(trdrain env JOHARNESS_MODE=orchestrated JOHARNESS_CURATE_PLANS=1)"
-expect "orchestrated: the repetition sends it to the orchestrator, not to this session" \
-  "The orchestrator spawns it, beyond the cap" "$out"
-refute "and never calls it this session's" "it is yours before you" "$out"
-# The DUE block above the verdict is a SECOND place the same thing is said, and
-# the carve-out has to be in both: disabling only this one left the suite green,
-# because the case above reads the repetition (verifier r24, found by injection).
-expect "orchestrated: the due block sends it to the orchestrator too" \
-  "Queue work, and the ORCHESTRATOR" "$out"
-refute "and the due block does not call it this one item either" \
-  "it is THIS session" "$out"
-out="$(trdrain env JOHARNESS_CURATE_PLANS=1)"
-expect "supervised: the due block DOES hand it to this session" \
-  "it is THIS session" "$out"
+out="$(tr_ env JOHARNESS_CURATE_PLANS=1)"
+expect "an empty queue still reports nothing free" "  nothing free" "$out"
+expect "and an empty queue needs no curator: nothing to judge" \
+  "curate due, nothing needs judgement: spawn no curator" "$out"
+out="$(tr_ env JOHARNESS_CURATE_HOURS=0)"
+expect "with the cycle off it says so" "curate    : off" "$out"
+refute "and orders no curator" "curate DUE" "$out"
 
 # --- the cadence, where every reader of it can actually fail -----------------
 # Six behaviours on the branch that introduced this cycle could be DELETED with
@@ -1850,7 +1978,7 @@ agcommit "$ag_400h" "base, 400h ago"
 git -C "$agwork" remote add origin "$agorigin"
 git -C "$agwork" push -qu origin main
 agd() { ( cd "$agwork" && JOHARNESS_CONF="$agconf" DRAIN_FETCH=0 \
-  DISPATCH_FETCH=0 JOHARNESS_MODE=orchestrated "$@" ./joharness.sh dispatch 2>&1 ); }
+  DISPATCH_FETCH=0 "$@" ./joharness.sh dispatch 2>&1 ); }
 
 # THE CLOCK, which no case reached. Production off, never curated, first commit
 # 400h old: only `dispatch_curate_repo_age_h` feeding the hours branch can make
@@ -1860,8 +1988,8 @@ agd() { ( cd "$agwork" && JOHARNESS_CONF="$agconf" DRAIN_FETCH=0 \
 out="$(agd env JOHARNESS_CURATE_PLANS=0)"
 expect "the clock fires on its own, with production switched off" \
   "curate    : DUE — 400h since the queue began, none having landed (>= 168h)" "$out"
-expect "and the orchestrator is told to spawn for it" \
-  "curate DUE: spawn ONE curator" "$out"
+expect "and with nothing to judge no curator is spawned for it" \
+  "curate due, nothing needs judgement: spawn no curator" "$out"
 out="$(agd env JOHARNESS_CURATE_PLANS=0 JOHARNESS_CURATE_HOURS=9999)"
 refute "a window wider than the repository's age does not fire" \
   "curate    : DUE" "$out"
@@ -2044,8 +2172,10 @@ else
   fail "the inherited curate file is not on the branch, so nothing below is tested"
 fi
 out="$(agd env JOHARNESS_CURATE_PLANS=1)"
+# Outside the `plans on a branch` block: the branch ADDED `inheritor`, so that
+# block names it by right — a plan row, not a curator row.
 refute "a branch that only inherits a curate file is not a curator" \
-  "claude/inherits-it" "$out"
+  "claude/inherits-it" "$(sed '/^plans on a branch/,/^$/d' <<<"$out")"
 expect "and the cycle is still due, with nobody in flight" "curate    : DUE" "$out"
 
 # --- the two states the cadence cannot be read in ---------------------------
@@ -2069,15 +2199,15 @@ commit_all "$agmaster" "base on master"
 git -C "$agmaster" remote add origin "$agmorigin"
 git -C "$agmaster" push -qu origin master
 out="$( cd "$agmaster" && JOHARNESS_CONF="${agmaster}/joharness.conf" \
-  DRAIN_FETCH=0 DISPATCH_FETCH=0 JOHARNESS_MODE=orchestrated \
+  DRAIN_FETCH=0 DISPATCH_FETCH=0 \
   ./joharness.sh dispatch 2>&1 )"
 expect "no origin/main to read: the cycle says so rather than answering" \
   "curate    : UNREADABLE — no refs/remotes/origin/main here" "$out"
 expect "and names both remedies" "set HANDOVER_BASE_BRANCH" "$out"
 refute "never a number about a branch it could not find" "(of 10)" "$out"
 out="$( cd "$agmaster" && JOHARNESS_CONF="${agmaster}/joharness.conf" \
-  DRAIN_FETCH=0 HANDOVER_BASE_BRANCH=master JOHARNESS_CURATE_PLANS=1 \
-  ./joharness.sh drain 2>&1 )"
+  DRAIN_FETCH=0 DISPATCH_FETCH=0 HANDOVER_BASE_BRANCH=master \
+  JOHARNESS_CURATE_PLANS=1 ./joharness.sh dispatch 2>&1 )"
 refute "told which branch it merges into, it reads the cycle normally" \
   "UNREADABLE" "$out"
 # SHALLOW: a boundary commit has no parents, so its diff is the whole tree —
@@ -2090,7 +2220,7 @@ if git clone -q --depth 1 --no-single-branch "file://${agorigin}" "$agshallow" \
   cp "${ROOT}/joharness.sh" "${agshallow}/joharness.sh"
   printf 'JOHARNESS_ENV=none\n' >"${agshallow}/joharness.conf"
   out="$( cd "$agshallow" && JOHARNESS_CONF="${agshallow}/joharness.conf" \
-    DRAIN_FETCH=0 DISPATCH_FETCH=0 JOHARNESS_MODE=orchestrated \
+    DRAIN_FETCH=0 DISPATCH_FETCH=0 \
     ./joharness.sh dispatch 2>&1 )"
   expect "a shallow clone says the cadence is not its to read" \
     "curate    : UNREADABLE — shallow clone" "$out"
@@ -2101,38 +2231,1070 @@ else
     "shallow clone of a file:// origin is not available here"
 fi
 
-# --- the spawn list when the curate is the item, which two cases contradicted -
-# `drain_free_others` is called with an EMPTY exclusion while a curate is due,
-# because `$next` is not taken by anybody then — excluding it left the named plan
-# with no session at all in the wave (verifier r12). Reverting that left 1939/0,
-# and worse: `selftest/drain.sh` asserts the OPPOSITE behaviour, and only stays
-# green because its helper switches the cycle off for the whole file. A blanket
-# switch-off hides a contradiction rather than deciding it, so the difference is
-# pinned HERE, one fixture, two states, the cycle the only thing that moves
-# (verifier r24b).
-# Two plans land first: every plan this fixture has built so far has since been
-# finished, and a spawn list over an empty queue asserts nothing. Straight onto
-# `main`, because what is under test here is `drain`'s two lines and not the walk.
-agplan s_one
-agplan s_two
-commit_all "$agwork" "two plans for the spawn list to argue about"
-git -C "$agwork" push -q origin main
-agu() { ( cd "$agwork" && JOHARNESS_CONF="$agconf" DRAIN_FETCH=0 \
-  JOHARNESS_MODE=unsupervised "$@" ./joharness.sh drain 2>&1 ); }
-agnext="$(agu env JOHARNESS_CURATE_HOURS=0 | sed -n 's/^  next: \([^ ]*\).*/\1/p' \
-  | head -1)"
-if [ -n "$agnext" ]; then
-  pass "the fixture has a next: plan to argue about (${agnext})"
-  out="$(agu env JOHARNESS_CURATE_PLANS=1)"
-  expect "with the curate as the item, next: stays in the spawn list" \
-    "spawn one session per: ${agnext}" "$out"
-  expect "and next: says the curate outranks it, so nobody takes it twice" \
-    "AFTER the curate above, which outranks it" "$out"
-  out="$(agu env JOHARNESS_CURATE_HOURS=0)"
-  refute "with the cycle off, this session takes next: and it leaves the list" \
-    "spawn one session per: ${agnext}" "$out"
-  refute "and nothing claims the curate outranks anything" \
-    "AFTER the curate above" "$out"
+# --- how long a block has stood (issue #254) --------------------------------
+# A parked row read `BLOCKED: the human's, holds no slot` at ten minutes and at
+# six days alike, and one sat 141h unseen. The row now carries the BLOCK's age
+# — the commit that last set the parked status in that workstream file on that
+# ref — not the push's. Its own fixture, so the branches and plans it adds move
+# no count the cases above assert. The commit messages never quote the status:
+# the age query is pinned to the one file, and prose must not be what it finds.
+blkwork="${TMP}/blockagework"
+blkorigin="${TMP}/blockageorigin.git"
+git init -q --bare "$blkorigin"
+git init -q "$blkwork"
+git -C "$blkwork" symbolic-ref HEAD refs/heads/main
+mkdir -p "${blkwork}/docs/plans" "${blkwork}/docs/handover" \
+  "${blkwork}/.agents/harness" "${blkwork}/.agents/env/none"
+cp "${ROOT}/joharness.sh" "${blkwork}/joharness.sh"
+cp "${ROOT}/.agents/harness/queue-context.sh" \
+   "${ROOT}/.agents/harness/handover-context.sh" "${blkwork}/.agents/harness/"
+printf '# none\n' >"${blkwork}/.agents/env/none/AGENTS.md"
+blkconf="${blkwork}/joharness.conf"
+printf 'JOHARNESS_ENV=none\n' >"$blkconf"
+for p in oldpark repark live replayed renamed respaced pasted noted born prose merged; do
+  printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: high\n---\n\n## Goal\nFixture.\n' \
+    "$p" >"${blkwork}/docs/plans/${p}.md"
+done
+commit_all "$blkwork" "base and three plans"
+git -C "$blkwork" remote add origin "$blkorigin"
+git -C "$blkwork" push -qu origin main
+blk() { ( cd "$blkwork" && JOHARNESS_CONF="$blkconf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 "$@" ./joharness.sh dispatch 2>&1 ); }
+# <stem> <status> <body line>: the workstream file a manager would write.
+blkws() {
+  mkdir -p "${blkwork}/docs/handover"
+  printf -- '---\nworkstream: %s\nstatus: %s\nbranch: mgr-%s\nplan: %s\nagent: sonnet\nupdated: 2026-01-01\n---\n\n## Goal\n%s\n' \
+    "$1" "$2" "$1" "$1" "$3" >"${blkwork}/docs/handover/${1}.md"
+}
+# <hours ago> <message>: a commit at that time. The dates ride on the one git
+# command as prefixes, so a backdated date cannot leak into the fixtures built
+# after it.
+blkat() {
+  local t=$(( $(date +%s) - $1 * 3600 ))
+  git -C "$blkwork" add -A
+  GIT_AUTHOR_DATE="@${t} +0000" GIT_COMMITTER_DATE="@${t} +0000" \
+    git -C "$blkwork" commit -qm "$2"
+}
+
+# Parked 200h ago, then pushed NOW: the block's age and the push's differ, and
+# the row must carry the block's. Printing the push age is the cheap wrong
+# answer, and it prints a plausible number.
+git -C "$blkwork" checkout -qb mgr-oldpark
+blkws oldpark in-progress "Claimed."
+blkat 300 "claim oldpark"
+blkws oldpark blocked "Claimed."
+blkat 200 "hand oldpark to a human"
+# The push after the hand-off adds PROSE that quotes the status. A pickaxe
+# counts it as a change; only the whole frontmatter line is a park, so this
+# must not move the age.
+blkws oldpark blocked "Claimed. The vendor's status: blocked until Friday."
+commit_all "$blkwork" "a push after the hand-off"
+git -C "$blkwork" push -qu origin mgr-oldpark
+git -C "$blkwork" checkout -q main
+
+# Parked, unparked, parked again. `-S` read at either end gets this wrong: its
+# newest match is the unpark, its oldest the first block. The answer is the
+# SECOND block, 100h.
+git -C "$blkwork" checkout -qb mgr-repark
+blkws repark in-progress "Claimed."
+blkat 300 "claim repark"
+blkws repark blocked "Claimed."
+blkat 250 "hand repark to a human"
+blkws repark in-progress "Claimed."
+blkat 200 "the human answered; back to work"
+blkws repark blocked "Claimed."
+blkat 100 "hand repark to a human again"
+blkws repark blocked "Claimed. A note added since."
+commit_all "$blkwork" "a push after the second hand-off"
+git -C "$blkwork" push -qu origin mgr-repark
+git -C "$blkwork" checkout -q main
+
+# Each history below printed a confident, too-young age on the first build
+# (verifier and /code-review, 2026-10-08). A park is a VALUE TRANSITION,
+# dated by its author: every one of these must still read 200h.
+# <branch-stem> parks 200h ago in a plain way, then the named thing happens.
+blkpark() {
+  git -C "$blkwork" checkout -qb "mgr-$1"
+  blkws "$1" in-progress "Claimed."
+  blkat 300 "claim $1"
+  blkws "$1" blocked "Claimed."
+  blkat 200 "hand $1 to a human"
+}
+blkdone() {
+  git -C "$blkwork" push -qu origin "mgr-$1"
+  git -C "$blkwork" checkout -q main
+}
+# A rebase or amend rewrites the COMMITTER date and keeps the author's.
+git -C "$blkwork" checkout -qb mgr-replayed
+blkws replayed in-progress "Claimed."
+blkat 300 "claim replayed"
+blkws replayed blocked "Claimed."
+git -C "$blkwork" add -A
+blkt=$(( $(date +%s) - 200 * 3600 ))
+GIT_AUTHOR_DATE="@${blkt} +0000" git -C "$blkwork" commit -qm "hand replayed over, replayed since"
+blkdone replayed
+# A rename: the new path's first commit CREATES every line.
+blkpark renamed
+git -C "$blkwork" mv docs/handover/renamed.md docs/handover/renamed-now.md
+blkat 10 "rename the record"
+blkdone renamed
+# A whitespace edit of a line that already held the parked value.
+blkpark respaced
+sed -i 's/^status: blocked$/status:blocked/' "${blkwork}/docs/handover/respaced.md"
+blkat 10 "tidy the frontmatter"
+blkdone respaced
+# A bare frontmatter-looking line pasted into the body.
+blkpark pasted
+printf 'status: blocked\n' >>"${blkwork}/docs/handover/pasted.md"
+blkat 10 "paste a line into the body"
+blkdone pasted
+# An inline comment, which the frontmatter reader strips: the park is read
+# from the value, so this one MUST be found — before, it read as unknown.
+git -C "$blkwork" checkout -qb mgr-noted
+blkws noted in-progress "Claimed."
+blkat 300 "claim noted"
+blkws noted "blocked  # waiting on the vendor" "Claimed."
+blkat 200 "hand noted to a human"
+blkdone noted
+# Born parked: the file is CREATED with the status, and that commit is the
+# oldest in range — the creation rule and the walk's last-commit judgement
+# both have to hold for this to read 200h rather than unknown.
+git -C "$blkwork" checkout -qb mgr-born
+blkws born blocked "Claimed."
+blkat 200 "claim born, already handed to a human"
+blkdone born
+# A status line in the BODY changes to the parked value on a file already
+# parked: prose, not a park (verifier round 2). Only frontmatter counts.
+git -C "$blkwork" checkout -qb mgr-prose
+blkws prose in-progress "status: draft"
+blkat 300 "claim prose"
+blkws prose blocked "status: draft"
+blkat 200 "hand prose to a human"
+blkws prose blocked "status: blocked"
+blkat 10 "reword a line of the body"
+blkdone prose
+# Parked on a side branch and MERGED in: dated by the merge, when the park
+# reached this branch. The merge's own diff carries the transition, which
+# only `-m` shows; without it the row reads unknown.
+git -C "$blkwork" checkout -qb mgr-merged
+blkws merged in-progress "Claimed."
+blkat 300 "claim merged"
+git -C "$blkwork" checkout -qb side-merged
+blkws merged blocked "Claimed."
+blkat 250 "hand merged to a human, on a side branch"
+git -C "$blkwork" checkout -q mgr-merged
+blkt=$(( $(date +%s) - 200 * 3600 ))
+GIT_AUTHOR_DATE="@${blkt} +0000" GIT_COMMITTER_DATE="@${blkt} +0000" \
+  git -C "$blkwork" merge -q --no-ff -m "bring the hand-off in" side-merged
+blkdone merged
+
+# A row that is not parked, as the control for the refute below.
+git -C "$blkwork" checkout -qb mgr-live
+blkws live in-progress "Working."
+commit_all "$blkwork" "claim live"
+git -C "$blkwork" push -qu origin mgr-live
+git -C "$blkwork" checkout -q main
+
+out="$(blk)"
+blkold="$(printf '%s\n' "$out" | grep 'mgr-oldpark')"
+expect "a parked row carries the block's age" "parked 200h ago" "$blkold"
+expect "and its push age beside it is the push's, not the block's" \
+  "pushed 0m" "$blkold"
+refute "so the age printed is not the push's" "parked 0m ago" "$blkold"
+blkre="$(printf '%s\n' "$out" | grep 'mgr-repark')"
+expect "parked, unparked and parked again reads the SECOND block" \
+  "parked 100h ago" "$blkre"
+refute "not the first block" "parked 250h ago" "$blkre"
+refute "nor the unpark" "parked 200h ago" "$blkre"
+for blkst in replayed renamed respaced pasted noted born prose merged; do
+  expect "${blkst}: still the 200h park" "parked 200h ago" \
+    "$(printf '%s\n' "$out" | grep "mgr-${blkst}  blocked")"
+done
+blklive="$(printf '%s\n' "$out" | grep 'mgr-live')"
+expect "the live row is in the output, so the refute below reads something" \
+  "docs/plans/live.md  mgr-live  in-progress" "$blklive"
+refute "a row that is not parked gains no age" "parked" "$blklive"
+
+# One git call per parked row, none for any other. `perf` does not track
+# dispatch, so the bound is counted here: a shim on PATH logs every git call
+# carrying the age query, and the count must equal the parked rows.
+blkshim="${TMP}/blockageshim"
+blklog="${TMP}/blockageshim.log"
+mkdir -p "$blkshim"
+: >"$blklog"
+blkgit="$(command -v git)"
+cat >"${blkshim}/git" <<SHIM
+#!/bin/sh
+case "\$*" in *"-G^status"*) printf '%s\n' "\$*" >>"${blklog}" ;; esac
+exec "${blkgit}" "\$@"
+SHIM
+chmod +x "${blkshim}/git"
+out="$(blk env PATH="${blkshim}:${PATH}")"
+blkrows="$(printf '%s\n' "$out" | grep -c "BLOCKED: the human's")"
+blkcalls="$(wc -l <"$blklog" | tr -d ' ')"
+if [ "$blkrows" -eq 10 ] && [ "$blkcalls" -eq "$blkrows" ]; then
+  pass "one age query per parked row (${blkcalls} for ${blkrows}), none for the live one"
 else
-  fail "the fixture has no free plan, so the spawn list cannot be asserted"
+  fail "age queries ${blkcalls} for ${blkrows} parked row(s) (wanted one each, ten rows)"
 fi
+
+# A shallow clone: the boundary commit has no parents, and a diff of it ADDS
+# every line — read naively, the push's date becomes the block's. Unreadable is
+# its own answer, in words, and never an age.
+blkshallow="${TMP}/blockageshallow"
+# `-b main`: the bare origin's HEAD names a branch it never had, and without
+# it the clone checks nothing out — no joharness.sh to run, and an empty
+# output that every refute below would pass over.
+git clone -q -b main --depth 1 --no-single-branch "file://${blkorigin}" "$blkshallow" 2>/dev/null
+out="$( cd "$blkshallow" && JOHARNESS_CONF="$blkconf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 ./joharness.sh dispatch 2>&1 )"
+blksh="$(printf '%s\n' "$out" | grep 'mgr-oldpark')"
+expect "the shallow clone ran dispatch and listed the parked row" \
+  "docs/plans/oldpark.md  mgr-oldpark  blocked" "$blksh"
+expect "a shallow history says it cannot tell" \
+  "parked for an unknown time: the commit that parked it is not in this clone's history" "$blksh"
+refute "and prints no age" "parked 0m ago" "$blksh"
+
+# And a shallow clone deep enough to hold the park reads it: the unknown is
+# for a park out of reach, never for shallowness as such. Depth 3 from the
+# tip of mgr-oldpark is push, park, claim — the park has its parent.
+blkdeep="${TMP}/blockagedeep"
+git clone -q -b main --depth 3 --no-single-branch "file://${blkorigin}" "$blkdeep" 2>/dev/null
+out="$( cd "$blkdeep" && JOHARNESS_CONF="$blkconf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 ./joharness.sh dispatch 2>&1 )"
+expect "a shallow clone that holds the park reads its age" \
+  "parked 200h ago" "$(printf '%s\n' "$out" | grep 'mgr-oldpark')"
+
+# --- the spawn order: rank, planning first, and what is never handed out ----
+# Moved from the `drain` topic when that command was deleted: these are the
+# queue-order behaviours it pinned that `dispatch` carries too and nothing
+# above asserted. Its own repo, because each verdict is a property of the
+# whole queue and the fixtures above carry managers and holds that would
+# decide them. The curate cycle is OFF throughout (`qo`): a case here that
+# grew the queue past the production threshold would turn the curate into
+# the spawn order's first line by accident.
+qowork="${TMP}/dispatchorder"
+qoorigin="${TMP}/dispatchorder.git"
+git init -q --bare "$qoorigin"
+git init -q "$qowork"
+git -C "$qowork" symbolic-ref HEAD refs/heads/main
+mkdir -p "${qowork}/docs/plans" "${qowork}/docs/handover" \
+  "${qowork}/docs/product" "${qowork}/.agents/harness" "${qowork}/.agents/env/none"
+printf 'code\n' >"${qowork}/code.txt"
+cp "${ROOT}/joharness.sh" "${qowork}/joharness.sh"
+cp "${ROOT}/.agents/harness/queue-context.sh" \
+   "${ROOT}/.agents/harness/handover-context.sh" "${qowork}/.agents/harness/"
+printf '# none\n' >"${qowork}/.agents/env/none/AGENTS.md"
+qoconf="${qowork}/joharness.conf"
+printf 'JOHARNESS_ENV=none\n' >"$qoconf"
+commit_all "$qowork" "base"
+git -C "$qowork" remote add origin "$qoorigin"
+git -C "$qowork" push -qu origin main
+# <name> [urgency] [agent] [scope] [requirement]
+qoplan() {
+  mkdir -p "${qowork}/docs/plans"
+  { printf -- '---\nplan: %s\nurgency: %s\nagent: %s\neffort: low\n' \
+      "$1" "${2:-normal}" "${3:-sonnet}"
+    [ -z "${4-}" ] || printf 'scope: %s\n' "$4"
+    [ -z "${5-}" ] || printf 'requirement: %s\n' "$5"
+    printf -- '---\n\n## Goal\nFixture.\n'
+  } >"${qowork}/docs/plans/${1}.md"
+}
+qoreq() {
+  mkdir -p "${qowork}/docs/product"
+  printf -- '---\nrequirement: %s\npriority: normal\n---\n\n## Goal\nFixture.\n\n## Satisfied when\n\n- something observable.\n' \
+    "$1" >"${qowork}/docs/product/${1}.md"
+}
+qopush() { commit_all "$qowork" "$1"; git -C "$qowork" push -q origin main; }
+qo() { ( cd "$qowork" && JOHARNESS_CONF="$qoconf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 JOHARNESS_CURATE_HOURS=0 ./joharness.sh dispatch 2>&1 ); }
+# The first row of the spawn order: what the orchestrator spawns first.
+qofirst() { sed -n '/^spawn, in this order/{n;p;q;}' <<<"$1"; }
+
+# Urgent jumps the queue, and dispatch must agree with the hook that ranks it
+# rather than order the files itself — one reader, not two. Committed apart,
+# so the order is the rank and not a tie broken by name.
+qoplan alpha
+qoplan beta
+qopush "two plans"
+qoplan zulu urgent opus
+qopush "an urgent plan, alphabetically last"
+out="$(qo)"
+expect "the spawn order follows the queue's rank, not the filename" \
+  "docs/plans/zulu.md (agent: opus)" "$(qofirst "$out")"
+fixture_rm "$qowork" "clear the rank plans" \
+  docs/plans/alpha.md docs/plans/beta.md docs/plans/zulu.md
+git -C "$qowork" push -q origin main
+
+# An UNPLANNED requirement is the top of the queue, not an extra (step 2:
+# planning outranks the plan queue). Invisible to a reader of docs/plans
+# alone, which once said DRAINED over one.
+qoreq needsplans
+qopush "a requirement with no plans"
+out="$(qo)"
+expect "an unplanned requirement is spawned as one planning manager" \
+  "docs/product/needsplans.md — UNPLANNED: one planning manager (agent: fable, effort xhigh) first" "$out"
+refute "and the queue is not called drained over it" "verdict   : DRAINED" "$out"
+# Both present: the requirement still wins. Ordering is the whole claim here —
+# a fixture with only one of the two cannot tell rank from availability.
+qoplan freeone
+qopush "a free plan beside the requirement"
+out="$(qo)"
+expect "a requirement outranks a free plan" \
+  "docs/product/needsplans.md — UNPLANNED" "$(qofirst "$out")"
+expect "and the plan is listed behind it" "docs/plans/freeone.md (agent: sonnet)" "$out"
+# Planned: the hook stops listing it as unplanned, so the order must stop
+# offering it and fall through to the plan queue — or it is handed out forever.
+qoplan forreq normal sonnet '' needsplans
+qopush "now the requirement has a plan"
+out="$(qo)"
+refute "a requirement WITH plans is no longer offered" \
+  "docs/product/needsplans.md — UNPLANNED" "$out"
+expect "and the plan queue is reached again" "docs/plans/" "$(qofirst "$out")"
+fixture_rm "$qowork" "clear the requirement cases" \
+  docs/plans/freeone.md docs/plans/forreq.md docs/product/needsplans.md
+git -C "$qowork" push -q origin main
+
+# A planning manager CLAIMS the requirement it decomposes: `plan: <stem>` in a
+# pushed workstream file, as `/manage` tells it to. Before, that branch was
+# invisible — no row, no slot, the requirement offered again while its
+# planner ran, and a planner parked `blocked` respawned (case B of the
+# retired research node a-requirement-no-plan-can-serve; case E, a plan
+# claim on the same branch, was the control that always showed a row).
+# <stem> <status>: the planning branch's workstream file, pushed.
+qoreqclaim() {
+  git -C "$qowork" checkout -q "plan-${1}" 2>/dev/null ||
+    git -C "$qowork" checkout -q -b "plan-${1}"
+  mkdir -p "${qowork}/docs/handover"
+  printf -- '---\nworkstream: plan-%s\nstatus: %s\nbranch: plan-%s\npr: none\nplan: %s\nissue: none\nsession: https://claude.ai/code/session_x\nagent: fable\nnext: Decompose %s into plans\n---\n\n## Goal\nPlanning pass.\n' \
+    "$1" "$2" "$1" "$1" "$1" >"${qowork}/docs/handover/plan-${1}.md"
+  commit_all "$qowork" "claim ${1}: ${2}"
+  git -C "$qowork" push -q origin "plan-${1}"
+  git -C "$qowork" checkout -q main
+}
+qoreq claimedreq
+qopush "a requirement a planner will claim"
+out="$(qo)"
+expect "unclaimed, the requirement is offered" \
+  "docs/product/claimedreq.md — UNPLANNED" "$out"
+refute "once, by the planning line — never again as a free plan row" \
+  "docs/product/claimedreq.md (agent:" "$out"
+expect "and counted as one item" "1 free item(s) now" "$out"
+qoreqclaim claimedreq in-progress
+out="$(qo)"
+# The session-start hook, read directly: a non-orchestrated session is sent
+# where its entrypoint line says, so that line must not name a claimed
+# requirement as planning work (verifier r4).
+qoq="$(CLAUDE_PROJECT_DIR="$qowork" bash "${qowork}/.agents/harness/queue-context.sh" 2>&1)"
+expect "the hook lists the claimed requirement with its claim" \
+  "docs/product/claimedreq.md  [normal, UNPLANNED — decompose into plans, claimed on origin/plan-claimedreq]" "$qoq"
+refute "and sends nobody to plan it" "plan the requirements above" "$qoq"
+expect "the planning branch has an in-flight row" \
+  "docs/product/claimedreq.md  plan-claimedreq  in-progress" "$out"
+expect "and costs its slot" "slots     : 3 of 4 free" "$out"
+refute "and the requirement it holds is not offered again" \
+  "docs/product/claimedreq.md — UNPLANNED" "$out"
+qoreqclaim claimedreq blocked
+out="$(qo)"
+expect "a planner parked on a human reads as blocked" \
+  "docs/product/claimedreq.md  plan-claimedreq  blocked" "$out"
+refute "and is never respawned onto its requirement" \
+  "docs/product/claimedreq.md — UNPLANNED" "$out"
+# A plan of the SAME stem wins the claim — every resolution site offers
+# plans first — so the requirement is still free, and offered.
+qoplan claimedreq
+qopush "a plan sharing the requirement's stem"
+qoreqclaim claimedreq in-progress
+out="$(qo)"
+expect "a stem naming plan and requirement claims the plan" \
+  "docs/plans/claimedreq.md  plan-claimedreq  in-progress" "$out"
+expect "and leaves the requirement offered" \
+  "docs/product/claimedreq.md — UNPLANNED" "$out"
+fixture_rm "$qowork" "drop the same-stem plan" docs/plans/claimedreq.md
+git -C "$qowork" push -q origin main
+# `abandoned` releases it, the same word's same effect as on a plan.
+qoreqclaim claimedreq abandoned
+out="$(qo)"
+expect "an abandoned planning claim frees the requirement" \
+  "docs/product/claimedreq.md — UNPLANNED" "$out"
+expect "and holds no slot" "slots     : 4 of 4 free" "$out"
+git -C "$qowork" push -q origin --delete plan-claimedreq
+git -C "$qowork" branch -q -D plan-claimedreq
+fixture_rm "$qowork" "clear the claimed requirement" docs/product/claimedreq.md
+git -C "$qowork" push -q origin main
+
+# Step 7 retires the workstream file BEFORE the pull request opens, and a
+# planning pass deletes no plan — it adds them. Born and retired on the
+# branch, the claim nets to nothing, so the plans it ADDS are what name its
+# requirement until the merge (verifier r2).
+qoreq retreq
+qopush "a requirement a planner will finish"
+git -C "$qowork" checkout -q -b plan-retreq
+qoreqclaim_file() {
+  mkdir -p "${qowork}/docs/handover"
+  printf -- '---\nworkstream: plan-%s\nstatus: in-progress\nplan: %s\nagent: fable\n---\n\n## Goal\nPlanning pass.\n' \
+    "$1" "$1" >"${qowork}/docs/handover/plan-${1}.md"
+}
+qoreqclaim_file retreq
+commit_all "$qowork" "claim retreq"
+qoplan retreq-a normal sonnet '' retreq
+git -C "$qowork" rm -q docs/handover/plan-retreq.md
+commit_all "$qowork" "plans for retreq, workstream retired"
+git -C "$qowork" push -q origin plan-retreq
+git -C "$qowork" checkout -q main
+out="$(qo)"
+expect "a retired planning branch keeps a row, named for its requirement" \
+  "docs/product/retreq.md  plan-retreq  retired" "$out"
+expect "and its slot" "slots     : 3 of 4 free" "$out"
+refute "and its requirement is not offered over its open pull request" \
+  "docs/product/retreq.md — UNPLANNED" "$out"
+# A clerk's plan-only branch adds a plan naming the same requirement, and its
+# own retired record says `plan: none`: it claims nothing and holds no slot.
+# Read off the added plans instead, it held one under a title no live session
+# carries (verifier r8).
+git -C "$qowork" checkout -q -b clerk-retreq main
+mkdir -p "${qowork}/docs/handover"
+printf -- '---\nworkstream: clerk-retreq\nstatus: in-progress\nplan: none\nagent: sonnet\n---\n\n## Goal\nClerk pass.\n' \
+  >"${qowork}/docs/handover/clerk-retreq.md"
+commit_all "$qowork" "clerk claims"
+qoplan retreq-b normal sonnet '' retreq
+git -C "$qowork" rm -q docs/handover/clerk-retreq.md
+commit_all "$qowork" "clerk plan, workstream retired"
+git -C "$qowork" push -q origin clerk-retreq
+git -C "$qowork" checkout -q main
+out="$(qo)"
+refute "a clerk's plan-only branch is no planning edge" "clerk-retreq  retired" "$out"
+expect "and only the planner's slot is held" "slots     : 3 of 4 free" "$out"
+git -C "$qowork" push -q origin --delete clerk-retreq
+git -C "$qowork" branch -q -D clerk-retreq
+# The step 7 reconcile: the base's `docs/handover` moves, the planning branch
+# merges it in. That merge is TREESAME to the base for the path, and default
+# history simplification pruned the retire commit with the rest (verifier r10).
+mkdir -p "${qowork}/docs/handover"
+printf -- '---\nworkstream: leak-r\nstatus: done\nplan: none\nagent: sonnet\n---\n\n## Goal\nLeaked.\n' \
+  >"${qowork}/docs/handover/leak-r.md"
+qopush "the base's handover tree moves"
+git -C "$qowork" checkout -q plan-retreq
+git -C "$qowork" merge -q --no-edit main
+git -C "$qowork" push -q origin plan-retreq
+git -C "$qowork" checkout -q main
+out="$(qo)"
+expect "a planning branch that reconciled with the base keeps its row" \
+  "docs/product/retreq.md  plan-retreq  retired" "$out"
+refute "and its requirement stays withheld" "docs/product/retreq.md — UNPLANNED" "$out"
+# A branch that merged the planning branch IN carries its retire commit on a
+# second parent: that claim is not this branch's, and lends it no row.
+# `--no-ff`, because a fast-forward makes this branch the planning branch
+# continued — a stacked branch, which shares the first-parent line and the
+# claim with it.
+git -C "$qowork" checkout -q -b feat-on-retreq main
+git -C "$qowork" merge -q --no-ff --no-edit plan-retreq
+printf 'feat\n' >"${qowork}/feat-retreq.txt"
+commit_all "$qowork" "feature work on top"
+git -C "$qowork" push -q origin feat-on-retreq
+git -C "$qowork" checkout -q main
+out="$(qo)"
+refute "a branch that merged a planning branch in borrows no row" \
+  "feat-on-retreq  retired" "$out"
+expect "so the planner's slot alone is held" "slots     : 3 of 4 free" "$out"
+git -C "$qowork" push -q origin --delete feat-on-retreq
+git -C "$qowork" branch -q -D feat-on-retreq
+# A branch with no record of its own reconciles with a base that just
+# cleaned an inherited planning record out: that merge's first-parent diff
+# carries the BASE's deletion, and read as the branch's own it lent the
+# branch a claim it never made (verifier r11).
+printf -- '---\nworkstream: plan-hfx\nstatus: done\nplan: retreq\nagent: fable\n---\n\n## Goal\nLeaked.\n' \
+  >"${qowork}/docs/handover/plan-hfx.md"
+qopush "a leaked planning record on the base"
+git -C "$qowork" checkout -q -b human-fix main
+printf 'fix\n' >"${qowork}/human-fix.txt"
+commit_all "$qowork" "a human's fix"
+git -C "$qowork" checkout -q main
+fixture_rm "$qowork" "the base cleans the leaked record" docs/handover/plan-hfx.md
+git -C "$qowork" push -q origin main
+git -C "$qowork" checkout -q human-fix
+git -C "$qowork" merge -q --no-edit main
+git -C "$qowork" push -q origin human-fix
+git -C "$qowork" checkout -q main
+out="$(qo)"
+refute "a reconcile that brings the base's cleanup lends no claim" \
+  "human-fix  retired" "$out"
+expect "and the planner's slot alone is held" "slots     : 3 of 4 free" "$out"
+git -C "$qowork" push -q origin --delete human-fix
+git -C "$qowork" branch -q -D human-fix
+# A branch's OWN commit sweeps an inherited planning record, the base drops
+# the same record, the branch reconciles: nets to absent, and the sweep
+# commit's deletion read as a retired claim. Only a record the branch also
+# ADDED is its own.
+printf -- '---\nworkstream: plan-swx\nstatus: done\nplan: retreq\nagent: fable\n---\n\n## Goal\nLeaked.\n' \
+  >"${qowork}/docs/handover/plan-swx.md"
+qopush "another leaked planning record"
+git -C "$qowork" checkout -q -b sweep-swx main
+git -C "$qowork" rm -q docs/handover/plan-swx.md
+printf 'swept\n' >"${qowork}/swept-swx.txt"
+commit_all "$qowork" "sweep the inherited record"
+git -C "$qowork" checkout -q main
+fixture_rm "$qowork" "the base drops it too" docs/handover/plan-swx.md
+git -C "$qowork" push -q origin main
+git -C "$qowork" checkout -q sweep-swx
+git -C "$qowork" merge -q --no-edit main
+git -C "$qowork" push -q origin sweep-swx
+git -C "$qowork" checkout -q main
+out="$(qo)"
+refute "a branch's own sweep of an inherited record is not its claim" \
+  "sweep-swx  retired" "$out"
+expect "so the planner's slot alone is held, again" "slots     : 3 of 4 free" "$out"
+git -C "$qowork" push -q origin --delete sweep-swx
+git -C "$qowork" branch -q -D sweep-swx
+fixture_rm "$qowork" "drop the leaked record" docs/handover/leak-r.md
+git -C "$qowork" push -q origin main
+git -C "$qowork" push -q origin --delete plan-retreq
+git -C "$qowork" branch -q -D plan-retreq
+fixture_rm "$qowork" "clear the retired planning case" docs/product/retreq.md
+git -C "$qowork" push -q origin main
+
+# A branch that sweeps an INHERITED planning record. The requirement stays on
+# the base long after any planning merge, so its presence proves nothing about
+# this branch: never mid-merge. Holds its slot while it could be live, ages out
+# like any branch with nothing to ask, and the requirement comes back with it
+# (verifier r3).
+qoreq sweq
+qoreqclaim_file sweq
+qopush "a requirement and a leaked planning record on main"
+git -C "$qowork" checkout -q -b sweep-sweq
+git -C "$qowork" rm -q docs/handover/plan-sweq.md
+commit_all "$qowork" "sweep the leaked record"
+git -C "$qowork" push -q origin sweep-sweq
+git -C "$qowork" checkout -q main
+out="$(qo)"
+expect "a fresh sweep holds its slot under the requirement's name" \
+  "docs/product/sweq.md  sweep-sweq  retired" "$out"
+refute "and the same pass does not also offer that requirement" \
+  "docs/product/sweq.md — UNPLANNED" "$out"
+git -C "$qowork" checkout -q sweep-sweq
+printf 'old\n' >"${qowork}/sweq-old.txt"
+git -C "$qowork" add -A
+qoold=$(( $(date +%s) - 30 * 3600 ))
+GIT_AUTHOR_DATE="@${qoold} +0000" GIT_COMMITTER_DATE="@${qoold} +0000" \
+  git -C "$qowork" -c user.email=f@x -c user.name=f commit -qm "a push 30h ago"
+git -C "$qowork" push -q origin sweep-sweq
+git -C "$qowork" checkout -q main
+out="$(qo)"
+expect "past 24 windows it is a leftover" "sweep-sweq  leftover" "$out"
+expect "holding no slot" "slots     : 4 of 4 free" "$out"
+expect "and the requirement is offered again" \
+  "docs/product/sweq.md — UNPLANNED" "$out"
+git -C "$qowork" push -q origin --delete sweep-sweq
+git -C "$qowork" branch -q -D sweep-sweq
+fixture_rm "$qowork" "clear the sweep case" docs/product/sweq.md docs/handover/plan-sweq.md
+git -C "$qowork" push -q origin main
+rm -f "${qowork}/sweq-old.txt"
+
+# A requirement's `priority:` lands in its label, and `claimed on <branch>` in
+# a label IS a claim downstream: unvalidated, it forged a planner in flight
+# and a slot (verifier r6).
+printf -- '---\nrequirement: forged\npriority: claimed on mgr-x\n---\n\n## Goal\nFixture.\n' \
+  >"${qowork}/docs/product/forged.md"
+qopush "a requirement whose priority forges a claim"
+out="$(qo)"
+refute "a priority value forges no in-flight row" "docs/product/forged.md  mgr-x" "$out"
+expect "and costs no slot" "slots     : 4 of 4 free" "$out"
+fixture_rm "$qowork" "drop the forged requirement" docs/product/forged.md
+git -C "$qowork" push -q origin main
+
+# A plan serving NO requirement is ordinary free work: the `none` arm of the
+# hook's served-requirement read.
+qoplan recorded-note normal sonnet '' none
+qopush "a plan serving no requirement"
+out="$(qo)"
+expect "a plan serving no requirement is spawned like any other" \
+  "docs/plans/recorded-note.md (agent: sonnet)" "$(qofirst "$out")"
+fixture_rm "$qowork" "drop the note" docs/plans/recorded-note.md
+git -C "$qowork" push -q origin main
+
+# CORE ONLY plans are never spawned, and every one is NAMED — a verdict that
+# went quiet over work sitting in the tree is the defect drain_requirement
+# fixed once already. Both scope shapes: a single file, and a core TREE
+# (`.github`) on a plan that serves a requirement.
+qoplan protocolonly normal sonnet 'joharness.conf, .github/workflows'
+qopush "a plan scoped entirely to core paths"
+qoreq boundarygoal
+qoplan servesit normal sonnet '.github' boundarygoal
+qopush "a goal, and a second plan inside the boundary"
+out="$(qo)"
+nyblock="$(sed -n '/^NOT YOURS — CORE ONLY/,/^$/p' <<<"$out")"
+expect "the plans no manager may take are named" "docs/plans/protocolonly.md" "$nyblock"
+expect "both of them, the core tree included" "docs/plans/servesit.md" "$nyblock"
+expect "and it says not to re-file the same work" "never re-file them" "$out"
+refute "neither is spawned" "docs/plans/protocolonly.md (agent" "$out"
+refute "nor the one serving a requirement" "docs/plans/servesit.md (agent" "$out"
+refute "and the requirement it serves is not offered for planning" \
+  "boundarygoal.md — UNPLANNED" "$out"
+expect "with only marked work the queue is drained, and says so" \
+  "DRAINED — nothing free, nothing in flight" "$out"
+
+# The queue hook TRUNCATES its listing for a human at QUEUE_MAX_ENTRIES, and
+# the marked list is parsed from the hook. Zero-padded, so the name order IS
+# the numeric order and the eleventh row is the one a cap of ten drops.
+i=0
+while [ "$i" -lt 11 ]; do
+  qoplan "$(printf 'bulk%02d' "$i")" normal sonnet 'joharness.conf'
+  i=$((i + 1))
+done
+qopush "eleven plans no manager may take"
+out="$(qo)"
+expect "the eleventh marked plan is named, not dropped at ten" \
+  "docs/plans/bulk10.md" "$(sed -n '/^NOT YOURS — CORE ONLY/,/^$/p' <<<"$out")"
+i=0
+while [ "$i" -lt 11 ]; do
+  git -C "$qowork" rm -q "docs/plans/$(printf 'bulk%02d' "$i").md"
+  i=$((i + 1))
+done
+qopush "drop the bulk plans"
+
+# A takeable plan beside the marked ones: de-ranked is not hidden, and the
+# marked rows must not stop the order before it.
+qoplan takeable
+qopush "a plan a manager can finish"
+out="$(qo)"
+expect "the takeable plan leads the order over the marked ones" \
+  "docs/plans/takeable.md (agent: sonnet)" "$(qofirst "$out")"
+expect "and the verdict spawns it" "NOT DRAINED — 1 free item(s) now" "$out"
+
+# Edge work in flight is named before the order: finishing outranks starting.
+git -C "$qowork" checkout -qb edger
+mkdir -p "${qowork}/docs/handover"
+printf -- '---\nworkstream: edger\nstatus: review\nplan: none\nagent: sonnet\nupdated: 2026-01-01\n---\n\n## Goal\nFixture.\n' \
+  >"${qowork}/docs/handover/edger.md"
+commit_all "$qowork" "a branch at the edge"
+git -C "$qowork" push -qu origin edger
+git -C "$qowork" checkout -q main
+out="$(qo)"
+expect "edge work in flight is named" \
+  "edge work (finish before starting; a live session's is not yours):" "$out"
+expect "naming the branch at the edge" "edger" \
+  "$(sed -n '/^edge work (finish before starting/{n;p;q;}' <<<"$out")"
+if [ "$(grep -n '^edge work (finish' <<<"$out" | cut -d: -f1)" -lt \
+     "$(grep -n '^spawn, in this order' <<<"$out" | cut -d: -f1)" ] 2>/dev/null; then
+  pass "and it is printed before the spawn order"
+else
+  fail "and it is printed before the spawn order"
+fi
+
+# --- plans on a branch: visible, never free (issue #297) --------------------
+# The queue reads `docs/plans/` on the base only, so a plan an unmerged branch
+# added had no row anywhere. Its own repo: the verdict and the free count are
+# compared with and without the branch, so nothing else may move between.
+bpwork="${TMP}/branchplanwork"
+bporigin="${TMP}/branchplanorigin.git"
+git init -q --bare "$bporigin"
+git init -q "$bpwork"
+git -C "$bpwork" symbolic-ref HEAD refs/heads/main
+mkdir -p "${bpwork}/docs/plans" "${bpwork}/docs/handover" \
+  "${bpwork}/.agents/harness" "${bpwork}/.agents/env/none"
+cp "${ROOT}/joharness.sh" "${bpwork}/joharness.sh"
+cp "${ROOT}/.agents/harness/queue-context.sh" \
+   "${ROOT}/.agents/harness/handover-context.sh" "${bpwork}/.agents/harness/"
+printf '# none\n' >"${bpwork}/.agents/env/none/AGENTS.md"
+bpconf="${bpwork}/joharness.conf"
+printf 'JOHARNESS_ENV=none\n' >"$bpconf"
+# <file> <name> <urgency>
+bpplan() {
+  printf -- '---\nplan: %s\nurgency: %s\nagent: sonnet\neffort: low\n---\n\n## Goal\nFixture.\n' \
+    "$2" "$3" >"$1"
+}
+bpplan "${bpwork}/docs/plans/onmain.md" onmain normal
+commit_all "$bpwork" "base"
+git -C "$bpwork" remote add origin "$bporigin"
+git -C "$bpwork" push -qu origin main
+bp() { ( cd "$bpwork" && JOHARNESS_CONF="$bpconf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 ./joharness.sh dispatch 2>&1 ); }
+bp_before="$(bp)"
+refute "no branch plan, no block" "plans on a branch" "$bp_before"
+
+# A plan-only branch: an urgent plan, no workstream file.
+git -C "$bpwork" checkout -qb plan-only
+bpplan "${bpwork}/docs/plans/x.md" x urgent
+commit_all "$bpwork" "file plan x"
+git -C "$bpwork" push -qu origin plan-only
+git -C "$bpwork" checkout -q main
+out="$(bp)"
+expect "a plan an unmerged branch added is listed, URGENT first, with its branch" \
+  "  URGENT x (urgency: urgent, agent: sonnet)  on plan-only" "$out"
+expect "under its own heading" \
+  "plans on a branch, not in the queue until it merges:" "$out"
+if [ "$(grep '^verdict' <<<"$out")" = "$(grep '^verdict' <<<"$bp_before")" ]; then
+  pass "and the verdict, free count included, is the one without the branch"
+else
+  fail "and the verdict, free count included, is the one without the branch"
+  printf '    without: %s\n    with:    %s\n' \
+    "$(grep '^verdict' <<<"$bp_before")" "$(grep '^verdict' <<<"$out")"
+fi
+refute "and it is never in the spawn list" "docs/plans/x.md" "$out"
+
+# A manager branch carrying its own same-session plan, `plan:` written as a
+# path: in flight, not hidden.
+git -C "$bpwork" checkout -qb mgr-y main
+mkdir -p "${bpwork}/docs/handover"
+bpplan "${bpwork}/docs/plans/y.md" y normal
+printf -- '---\nworkstream: y\nstatus: in-progress\nbranch: mgr-y\nplan: docs/plans/y.md\nagent: sonnet\nupdated: 2026-01-01\nnext: Build\n---\n\n## Goal\nFixture.\n' \
+  >"${bpwork}/docs/handover/y.md"
+commit_all "$bpwork" "manager with its own plan"
+git -C "$bpwork" push -qu origin mgr-y
+git -C "$bpwork" checkout -q main
+# An abandoned branch that added a plan of its own and another.
+git -C "$bpwork" checkout -qb gone-z main
+# git took the directory with mgr-y's file: put it back, then CHECK the file
+# landed, or the refute below passes over a fixture that was never built.
+mkdir -p "${bpwork}/docs/handover"
+bpplan "${bpwork}/docs/plans/z.md" z urgent
+printf -- '---\nworkstream: gone\nstatus: abandoned\nbranch: gone-z\nplan: none\nagent: sonnet\nupdated: 2026-01-01\nnext: Nothing\n---\n\n## Goal\nFixture.\n' \
+  >"${bpwork}/docs/handover/gone.md"
+commit_all "$bpwork" "abandoned branch with a plan"
+git -C "$bpwork" push -qu origin gone-z
+git -C "$bpwork" checkout -q main
+for bpf in y.md gone.md; do
+  bpref="mgr-y"; [ "$bpf" = y.md ] || bpref="gone-z"
+  if git -C "$bpwork" cat-file -e \
+       "refs/remotes/origin/${bpref}:docs/handover/${bpf}" 2>/dev/null; then
+    pass "the fixture built the state: ${bpref} carries its workstream file"
+  else
+    fail "${bpref} carries no workstream file, so its case below tests nothing"
+  fi
+done
+out="$(bp)"
+bpblock="$(sed -n '/^plans on a branch/,/^$/p' <<<"$out")"
+expect "the plan-only branch's plan is still listed" "URGENT x" "$bpblock"
+refute "a manager's own plan, named in plan: as a path, is not listed" \
+  " y (urgency" "$bpblock"
+refute "a plan on an abandoned branch is not listed" " z (urgency" "$bpblock"
+# Diff, never tree: every branch inherits onmain.md from the base.
+refute "an inherited base plan is never a branch plan" "onmain (urgency" "$bpblock"
+
+# The edge shape of any branch with a follow-up (verifier r3): it retires its
+# done plan and adds a new one from the same template. Rename detection read
+# the pair as an R, and `--diff-filter=A` dropped the follow-up.
+git -C "$bpwork" checkout -qb retire-and-follow main
+git -C "$bpwork" rm -q docs/plans/onmain.md
+mkdir -p "${bpwork}/docs/plans"
+bpplan "${bpwork}/docs/plans/followup.md" followup normal
+commit_all "$bpwork" "retire onmain, file followup"
+git -C "$bpwork" push -qu origin retire-and-follow
+# A branch stacked on the plan-only branch carries x too (verifier r5).
+git -C "$bpwork" checkout -qb stacked plan-only
+printf 'more\n' >"${bpwork}/stacked.txt"
+commit_all "$bpwork" "stacked on plan-only"
+git -C "$bpwork" push -qu origin stacked
+git -C "$bpwork" checkout -q main
+out="$(bp)"
+bpblock="$(sed -n '/^plans on a branch/,/^$/p' <<<"$out")"
+expect "a follow-up added beside a retired plan is listed, not lost to a rename" \
+  "  followup (urgency: normal, agent: sonnet)  on retire-and-follow" "$bpblock"
+expect "a plan two branches carry is one row naming both" \
+  "  URGENT x (urgency: urgent, agent: sonnet)  on plan-only, stacked" "$bpblock"
+if [ "$(grep -c 'URGENT x ' <<<"$bpblock")" = 1 ]; then
+  pass "and never two URGENT rows for one plan"
+else
+  fail "and never two URGENT rows for one plan"
+  printf '%s\n' "$(indent "$bpblock")"
+fi
+
+# A plan the base ALSO carries under the same path (verifier r6): the queue has
+# its row, so it is not a branch plan, though the branch's own diff adds it.
+git -C "$bpwork" checkout -qb twice main
+bpplan "${bpwork}/docs/plans/w.md" w urgent
+commit_all "$bpwork" "branch files w"
+git -C "$bpwork" push -qu origin twice
+git -C "$bpwork" checkout -q main
+bpplan "${bpwork}/docs/plans/w.md" w normal
+commit_all "$bpwork" "the base files w too"
+git -C "$bpwork" push -q origin main
+out="$(bp)"
+bpblock="$(sed -n '/^plans on a branch/,/^$/p' <<<"$out")"
+refute "a plan the base also carries is the queue's, not a branch plan" \
+  " w (urgency" "$bpblock"
+expect "while the block still lists the real branch plans" "URGENT x" "$bpblock"
+
+# A non-ASCII plan name (verifier r4): quoted by git, it failed the `.md` test
+# and vanished. The row's stem is the sanitised one; the row is what matters.
+git -C "$bpwork" checkout -qb nonascii main
+bpplan "${bpwork}/docs/plans/fixé.md" fixe urgent
+commit_all "$bpwork" "a plan with a non-ASCII name"
+git -C "$bpwork" push -qu origin nonascii
+git -C "$bpwork" checkout -q main
+out="$(bp)"
+expect "a non-ASCII plan name still has its row" "on nonascii" \
+  "$(sed -n '/^plans on a branch/,/^$/p' <<<"$out")"
+
+# A plan another branch carried to the base and retired (carried-plan-leftover):
+# absent on the base, yet not a plan waiting to land. The merge is by merge
+# commit, so only `--full-history -m` sees the retire.
+git -C "$bpwork" checkout -qb carry-src main
+bpplan "${bpwork}/docs/plans/carried.md" carried urgent
+commit_all "$bpwork" "source branch files carried"
+git -C "$bpwork" push -qu origin carry-src
+git -C "$bpwork" checkout -qb carrier main
+bpplan "${bpwork}/docs/plans/carried.md" carried urgent
+commit_all "$bpwork" "carrier takes the plan"
+git -C "$bpwork" rm -q docs/plans/carried.md
+git -C "$bpwork" commit -qm "carrier retires the plan"
+git -C "$bpwork" checkout -q main
+git -C "$bpwork" merge -q --no-ff -m "merge carrier" carrier
+git -C "$bpwork" push -q origin main
+# A plan retired on the base BEFORE the branch was cut: a different plan of the
+# same name, which must still show.
+bpplan "${bpwork}/docs/plans/reused.md" reused normal
+commit_all "$bpwork" "base files reused"
+git -C "$bpwork" rm -q docs/plans/reused.md
+git -C "$bpwork" commit -qm "base retires reused"
+git -C "$bpwork" push -q origin main
+git -C "$bpwork" checkout -qb reuse-src main
+bpplan "${bpwork}/docs/plans/reused.md" reused normal
+commit_all "$bpwork" "branch files reused again"
+git -C "$bpwork" push -qu origin reuse-src
+git -C "$bpwork" checkout -q main
+out="$(bp)"
+bpblock="$(sed -n '/^plans on a branch/,/^$/p' <<<"$out")"
+refute "a carried-and-retired plan is not a plan on a branch" "carried (urgency" "$bpblock"
+expect "it is a leftover row naming its branch" \
+  "docs/plans/carried.md  carry-src  leftover" "$out"
+expect "a plan of a retired stem's name filed AFTER the retire still shows" \
+  "  reused (urgency: normal, agent: sonnet)  on reuse-src" "$bpblock"
+
+# --- time against the item: CEILING? (issue #298) ---------------------------
+# A manager that pushes inside the stall window and under the churn limit read
+# healthy for 5.5h and $48 with no pull request. The row now carries hours
+# since the CLAIM when its workstream says `pr: none` — a report, never a
+# condition, so the verdict must be the one the same fixture gives with the
+# knob lifted. Its own fixture: the branches it adds move no count above.
+cewwork="${TMP}/ceilingwork"
+cewworigin="${TMP}/ceilingorigin.git"
+git init -q --bare "$cewworigin"
+git init -q "$cewwork"
+git -C "$cewwork" symbolic-ref HEAD refs/heads/main
+mkdir -p "${cewwork}/docs/plans" "${cewwork}/docs/handover" \
+  "${cewwork}/.agents/harness" "${cewwork}/.agents/env/none"
+cp "${ROOT}/joharness.sh" "${cewwork}/joharness.sh"
+cp "${ROOT}/.agents/harness/queue-context.sh" \
+   "${ROOT}/.agents/harness/handover-context.sh" "${cewwork}/.agents/harness/"
+printf '# none\n' >"${cewwork}/.agents/env/none/AGENTS.md"
+cewconf="${cewwork}/joharness.conf"
+printf 'JOHARNESS_ENV=none\n' >"$cewconf"
+for p in slow other; do
+  printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: high\n---\n\n## Goal\nFixture.\n' \
+    "$p" >"${cewwork}/docs/plans/${p}.md"
+done
+commit_all "$cewwork" "base and two plans"
+git -C "$cewwork" remote add origin "$cewworigin"
+git -C "$cewwork" push -qu origin main
+cew() { ( cd "$cewwork" && JOHARNESS_CONF="$cewconf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 "$@" ./joharness.sh dispatch 2>&1 ); }
+# <pr value>: the workstream file a manager on `slow` would write.
+cewws() {
+  printf -- '---\nworkstream: slow\nstatus: in-progress\nbranch: mgr-slow\npr: %s\nplan: slow\nagent: sonnet\nupdated: 2026-01-01\n---\n\n## Goal\nWorking.\n' \
+    "$1" >"${cewwork}/docs/handover/slow.md"
+}
+# Claimed 10h ago, pushed NOW: inside every stall window, past the ceiling.
+# The date rides on the one commit, so it cannot leak into the push after it.
+git -C "$cewwork" checkout -qb mgr-slow
+cewws none
+git -C "$cewwork" add -A
+cewt=$(( $(date +%s) - 10 * 3600 ))
+GIT_AUTHOR_DATE="@${cewt} +0000" GIT_COMMITTER_DATE="@${cewt} +0000" \
+  git -C "$cewwork" commit -qm "claim slow"
+printf 'code\n' >"${cewwork}/code.txt"
+commit_all "$cewwork" "a push this minute"
+git -C "$cewwork" push -qu origin mgr-slow
+git -C "$cewwork" checkout -q main
+
+# A claim past the ceiling with no pr:.
+out="$(cew)"
+cewrow="$(printf '%s\n' "$out" | grep 'mgr-slow')"
+expect "the header names the ceiling and its knob" \
+  "ceiling   : 4h since the claim with no pr: = CEILING? (JOHARNESS_MANAGER_HOURS; 0 lifts it)" "$out"
+expect "a claim past the ceiling with no pr: carries CEILING?" \
+  "CEILING? 10h since the claim, no pr:" "$cewrow"
+refute "aged from the claim, not the push" "CEILING? 0m" "$cewrow"
+refute "a recent push is no stall" "STALL?" "$cewrow"
+expect "the tail counts it as a report" \
+  "1 manager(s) past the ceiling with no pr: in the claim file: report, never kill on this alone" "$out"
+refute "and orders no health pass" "past the stall window" "$out"
+cewlifted="$(cew env JOHARNESS_MANAGER_HOURS=0)"
+refute "0 lifts it" "CEILING?" "$cewlifted"
+expect "and the header says so" "ceiling   : lifted" "$cewlifted"
+refute "and lifts the tail line with it" "past the ceiling" "$cewlifted"
+# Every line from the verdict on, less the one tail line CEILING? adds.
+if [ "$(sed -n '/^verdict/,$p' <<<"$out" | grep -v 'past the ceiling')" = \
+     "$(sed -n '/^verdict/,$p' <<<"$cewlifted")" ] &&
+   [ -n "$(sed -n '/^verdict/p' <<<"$out")" ]; then
+  pass "the verdict and the spawn list are the ones the lifted knob gives"
+else
+  fail "the verdict and the spawn list are the ones the lifted knob gives"
+fi
+
+# The same branch with a pull request open: the ceiling is a claim with NO pr.
+git -C "$cewwork" checkout -q mgr-slow
+cewws 12
+commit_all "$cewwork" "open the pull request"
+git -C "$cewwork" push -q origin mgr-slow
+git -C "$cewwork" checkout -q main
+cewrow="$(cew | grep 'mgr-slow')"
+expect "the row is still in flight, so the refute below reads something" \
+  "docs/plans/slow.md  mgr-slow  in-progress" "$cewrow"
+refute "a claim with a pr: carries no CEILING?" "CEILING?" "$cewrow"
+
+# The claim's age is the OLDER of its two dates (verifier, r2 and r3). A
+# rebase rewrites the committer date to now and keeps the author's; a branch
+# can write an author date in the future. Either one alone hides the mark.
+# <stem> <author offset s> <committer offset s>: a claim 10h-ish old by one
+# date and not by the other, then a push now.
+cewdated() {
+  git -C "$cewwork" checkout -qb "mgr-$1"
+  mkdir -p "${cewwork}/docs/handover"
+  printf -- '---\nworkstream: %s\nstatus: in-progress\nbranch: mgr-%s\npr: none\nplan: %s\nagent: sonnet\nupdated: 2026-01-01\n---\n\n## Goal\nWorking.\n' \
+    "$1" "$1" "$1" >"${cewwork}/docs/handover/${1}.md"
+  git -C "$cewwork" add -A
+  GIT_AUTHOR_DATE="@$(( $(date +%s) + $2 )) +0000" \
+    GIT_COMMITTER_DATE="@$(( $(date +%s) + $3 )) +0000" \
+    git -C "$cewwork" commit -qm "claim $1"
+  printf '%s\n' "$1" >"${cewwork}/code.txt"
+  commit_all "$cewwork" "a push this minute"
+  git -C "$cewwork" push -qu origin "mgr-$1"
+  git -C "$cewwork" checkout -q main
+}
+for p in rebased future; do
+  printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: high\n---\n\n## Goal\nFixture.\n' \
+    "$p" >"${cewwork}/docs/plans/${p}.md"
+done
+commit_all "$cewwork" "two more plans"
+git -C "$cewwork" push -q origin main
+cewdated rebased $(( -10 * 3600 )) 0
+cewdated future 99999999 $(( -10 * 3600 ))
+out="$(cew env JOHARNESS_STALL_MINUTES=9999 JOHARNESS_MAX_MANAGERS=8)"
+expect "a rebased claim keeps its age: the author date" \
+  "CEILING? 10h since the claim" "$(printf '%s\n' "$out" | grep 'mgr-rebased')"
+expect "a claim dated in the future reads the committer date" \
+  "CEILING? 10h since the claim" "$(printf '%s\n' "$out" | grep 'mgr-future')"
+
+# --- a stopped fleet: every manager silent AND the base branch still --------
+# Issue #283. An orchestrator back from an 18-day suspension read three
+# RUNNING managers as 434h stalled: push age froze for the fleet, not for
+# them. Own repo, because the condition is about EVERY row in flight and
+# about the base branch's own age, which a shared fixture decides elsewhere.
+sfwork="${TMP}/stoppedfleetwork"
+sforigin="${TMP}/stoppedfleetorigin.git"
+git init -q --bare "$sforigin"
+git init -q "$sfwork"
+git -C "$sfwork" symbolic-ref HEAD refs/heads/main
+mkdir -p "${sfwork}/docs/plans" "${sfwork}/docs/handover" \
+  "${sfwork}/.agents/harness" "${sfwork}/.agents/env/none"
+cp "${ROOT}/joharness.sh" "${sfwork}/joharness.sh"
+cp "${ROOT}/.agents/harness/queue-context.sh" \
+   "${ROOT}/.agents/harness/handover-context.sh" "${sfwork}/.agents/harness/"
+printf '# none\n' >"${sfwork}/.agents/env/none/AGENTS.md"
+sfconf="${sfwork}/joharness.conf"
+printf 'JOHARNESS_ENV=none\n' >"$sfconf"
+for p in frozen recent; do
+  printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: high\n---\n\n## Goal\nFixture.\n' \
+    "$p" >"${sfwork}/docs/plans/${p}.md"
+done
+git -C "$sfwork" add -A
+# Base AND claim both 100h old: past 24 windows of the 45m default (18h).
+# The date rides on each commit as a prefix, so it cannot leak.
+sft=$(( $(date +%s) - 100 * 3600 ))
+GIT_AUTHOR_DATE="@${sft} +0000" GIT_COMMITTER_DATE="@${sft} +0000" \
+  git -C "$sfwork" commit -qm "base, four days ago"
+git -C "$sfwork" remote add origin "$sforigin"
+git -C "$sfwork" push -qu origin main
+# <stem> <commit epoch>: one manager's claim, on its own branch.
+sfclaim() {
+  git -C "$sfwork" checkout -qb "mgr-$1" main
+  # main tracks no workstream file, so checking it out removed the directory.
+  mkdir -p "${sfwork}/docs/handover"
+  printf -- '---\nworkstream: %s\nstatus: in-progress\nbranch: mgr-%s\nplan: %s\nsession: https://example.invalid/session_%s\nagent: sonnet\nupdated: 2026-01-01\n---\n\n## Goal\nFixture.\n' \
+    "$1" "$1" "$1" "$1" >"${sfwork}/docs/handover/${1}.md"
+  git -C "$sfwork" add -A
+  GIT_AUTHOR_DATE="@${2} +0000" GIT_COMMITTER_DATE="@${2} +0000" \
+    git -C "$sfwork" commit -qm "claim $1"
+  git -C "$sfwork" push -qu origin "mgr-$1"
+  git -C "$sfwork" checkout -q main
+}
+sfclaim frozen "$sft"
+sf() { ( cd "$sfwork" && JOHARNESS_CONF="$sfconf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 "$@" ./joharness.sh dispatch 2>&1 ); }
+sfline="every manager in flight is silent and main has not moved in 100h: suspect a stopped fleet (a suspension), not 1 dead manager(s) — read the control plane for EACH before any respawn"
+out="$(sf)"
+expect "the silent manager is a stall row, so the line below has a row to speak for" \
+  "STALL? no push for 100h" "$out"
+expect "every row silent and the base still: the stopped-fleet line prints" \
+  "$sfline" "$out"
+expect "and it rides the verdict's tail, not the listing" \
+  "suspect a stopped fleet" "$(sed -n '/^verdict/,$p' <<<"$out")"
+# DISPATCH_FETCH=0 is a view this pass did not refresh, frozen exactly like a
+# stopped fleet: the line says so rather than naming one cause (verifier r4).
+expect "a view nobody fetched is named as the other cause" \
+  "${sfline} (or this clone is stale: fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*)" "$out"
+# And a pass that DID fetch, from the fixture's own bare origin, names one
+# cause only: the suffix is the stale view's, never every pass's (r9).
+out="$(sf env DISPATCH_FETCH=1)"
+expect "a fresh fetch still suspects the fleet" "$sfline" "$out"
+refute "and names no stale clone" "this clone is stale" "$out"
+# A window wider than the silence: 24 x 300m = 120h > 100h. The stall row
+# still fires (100h >= 300m), the multiple does not.
+out="$(sf env JOHARNESS_STALL_MINUTES=300)"
+expect "inside 24 windows the row still stalls" "STALL? no push for 100h" "$out"
+refute "but nothing has been still long enough to suspect the fleet" \
+  "suspect a stopped fleet" "$out"
+# A zero window is zero windows: every base would pass it (verifier r2).
+out="$(sf env JOHARNESS_STALL_MINUTES=0)"
+expect "a zero window still stalls the row" "STALL? no push for" "$out"
+refute "and suspects no fleet on a zero multiple" "suspect a stopped fleet" "$out"
+
+# A second manager, pushed an hour ago. At the default window it is a stall
+# too, so EVERY row stalls and the base is 100h still — and it is still no
+# suspension: a manager that pushed an hour ago was not frozen 100h (r1).
+sfclaim recent "$(( $(date +%s) - 3600 ))"
+out="$(sf)"
+expect "both rows stall at the default window" \
+  "2 manager(s) past the stall window" "$out"
+refute "a manager silent one hour is no frozen fleet, however still the base" \
+  "suspect a stopped fleet" "$out"
+# At 180m the recent one is NOT a stall: one row of two silent is not every
+# row, though the silent one and the base are both past 24 windows (72h) (r3).
+out="$(sf env JOHARNESS_STALL_MINUTES=180)"
+expect "one row of two stalls" "1 manager(s) past the stall window" "$out"
+refute "and one live row voids the suspicion" "suspect a stopped fleet" "$out"
+# Parked: a blocked row is the human's and out of the count, so the silent
+# one is every row again.
+git -C "$sfwork" checkout -q mgr-recent
+sed -i 's/^status: in-progress$/status: blocked/' "${sfwork}/docs/handover/recent.md"
+commit_all "$sfwork" "park recent"
+git -C "$sfwork" push -q origin mgr-recent
+git -C "$sfwork" checkout -q main
+out="$(sf)"
+expect "the parked row is blocked, so the line below reads a live case" \
+  "BLOCKED: the human's" "$out"
+expect "a blocked row does not void the suspicion" "$sfline" "$out"
+
+# The same fleet, the base branch moved this minute: the managers are silent
+# while somebody else merged, so it is not a suspension.
+printf 'moved\n' >"${sfwork}/moved.txt"
+commit_all "$sfwork" "base moves now"
+git -C "$sfwork" push -q origin main
+out="$(sf)"
+expect "the row still stalls, so the refute below reads a live case" \
+  "STALL? no push for 100h" "$out"
+refute "a base that moved prints no stopped-fleet line" "suspect a stopped fleet" "$out"
+
+# The janitor row on a view nobody refreshed: a stale remote-tracking ref can
+# name a branch already deleted on origin (#397), so the row carries the same
+# stale-clone caveat as the fleet line. A 1h window makes the 100h claim stale.
+sfjan="this clone is stale: fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*"
+out="$(sf env HANDOVER_STALE_SECONDS=3600)"
+expect "an old claim with no pr: is a janitor row" "janitor   : stale claim(s) on" "$out"
+expect "and an unrefreshed view says the clone may be stale on that row" \
+  "$sfjan" "$(grep '^janitor   :' <<<"$out" || :)"
+out="$(sf env HANDOVER_STALE_SECONDS=3600 DISPATCH_FETCH=1)"
+expect "a fetched view still names the stale claim" "janitor   : stale claim(s) on" "$out"
+refute "and carries no caveat on that row" "this clone is stale" \
+  "$(grep '^janitor   :' <<<"$out" || :)"
