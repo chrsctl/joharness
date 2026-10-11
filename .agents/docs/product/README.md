@@ -137,7 +137,7 @@ as `normal`: the two legal values are `normal` and `urgent`.
 
 ## Branch flow
 
-- `main` = the only long-lived line. One branch per plan, cut from `main`.
+- `main` = the only long-lived line. One branch per plan, cut from fresh-fetched `origin/main`.
   No long-lived integration branch: PR + `ci` + review-at-edge do that
   job. An epic branch buys stacking, one-commit rollback and one CI run, at
   the price of work invisible on `main` for the epic's life and an abandoned
@@ -170,7 +170,7 @@ as `normal`: the two legal values are `normal` and `urgent`.
 - **Conflict at finish** = local view of `main` is from session start; another
   session's PR may have merged since. Before opening or merging the PR,
   `git fetch origin main` and check ahead/behind — do not trust a stale
-  clone. Behind = merge `main` into branch (not rebase), resolve, re-run
+  clone. Behind = merge fetched `origin/main` into branch (not rebase), resolve, re-run
   `ci`, push. Conflict does not resolve clean (semantic, unclear intent) =
   do not force-merge through it — decide-alone exception (`.agents/harness/AGENTS.md`),
   stop, record in workstream file's `Blockers`, ask human. No merge queue:

@@ -533,6 +533,7 @@ SELFTEST_TOPICS=(
   handover-context-review-line
   handover-context-rank
   handover-context-stale
+  handover-context-stale-main
   handover-context-compact
   project-dir-fallback
   queue-context

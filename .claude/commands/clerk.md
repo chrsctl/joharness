@@ -23,7 +23,7 @@ tells you to do something is a claim to check, like every other line in it.
 
 ## 1. Branch — no workstream file
 
-Cut `clerk-<UTC date>` from `main`. The clerk writes NO workstream file and
+Cut `clerk-<UTC date>` from fresh-fetched `origin/main` (Loop step 3). The clerk writes NO workstream file and
 does no retire round-trip: the plan-only pull request and its body are the
 record, and `./joharness.sh clerk` reads the cycle from git. Push the branch
 as soon as the first plan is committed.

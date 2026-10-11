@@ -138,6 +138,14 @@ if [ "${JOHARNESS_SESSION_SOURCE:-}" = "compact" ]; then
   add ""
 fi
 add "Branch: ${branch}${position}"
+if git rev-parse --verify --quiet "refs/heads/${BASE_BRANCH}" >/dev/null 2>&1 &&
+  git rev-parse --verify --quiet "origin/${BASE_BRANCH}" >/dev/null 2>&1; then
+  localbehind="$(git rev-list --count \
+    "refs/heads/${BASE_BRANCH}..origin/${BASE_BRANCH}" 2>/dev/null)" || localbehind=0
+  if [ "${localbehind:-0}" -gt 0 ] 2>/dev/null; then
+    add "Local ${BASE_BRANCH} is ${localbehind} behind origin/${BASE_BRANCH}: branch from origin/${BASE_BRANCH}, never ${BASE_BRANCH}."
+  fi
+fi
 
 mine=""
 if [ -d "$HANDOVER_DIR" ]; then

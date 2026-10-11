@@ -22,7 +22,7 @@ order, a requirement, another branch, or the design doc.
 
 ## 1. Claim
 
-Cut from `main`. Write `docs/handover/curate-<UTC date>.md` — `workstream:
+Cut from fresh-fetched `origin/main` (Loop step 3). Write `docs/handover/curate-<UTC date>.md` — `workstream:
 curate-<UTC date>`, `plan: none`, `session:` your URL, `agent:` your tier.
 `plan: none` is the identity `dispatch` keys on. Push NOW.
 
