@@ -39,7 +39,7 @@ another branch's code.
 
 ## 1. Claim
 
-Cut from `main`. Write `docs/handover/scout-<YYYY-MM-DD>.md` — the UTC date,
+Cut from fresh-fetched `origin/main` (Loop step 3). Write `docs/handover/scout-<YYYY-MM-DD>.md` — the UTC date,
 so the name starts with a DIGIT after the dash — with `workstream:
 scout-<YYYY-MM-DD>`, `plan: none`, `session:` your own URL, `agent:` your
 tier. Push NOW. No push, no claim. Push to a branch of your own that no

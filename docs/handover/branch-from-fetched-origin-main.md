@@ -8,7 +8,7 @@ issue: 418
 session: https://claude.ai/code/session_018PhRSjdNwbJUif5hRktTJ4
 agent: sonnet
 updated: 2026-10-11
-next: Edit rule text, hook line, selftest topic per the plan; run ci and verify
+next: Await ci + verify green, run verifier review, record ## Review, retire files, open PR
 ---
 
 ## Goal

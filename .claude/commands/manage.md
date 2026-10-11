@@ -22,7 +22,7 @@ or requirements, other branches' files, or the design doc.
    file must satisfy, find the conflicting pair, resolve it, fix once
    (`.agents/docs/agent-selection.md`, review churn).
    Prompt names a plan on ANOTHER branch (a `plans on a branch` row)? Carry
-   the plan, never take the branch: cut your own branch from `main`, copy
+   the plan, never take the branch: cut your own branch from fresh-fetched `origin/main`, copy
    that plan file only, push nothing to the owner's branch. PR body names the
    owner branch and says its later merge re-adds the retired plan unless the
    owner drops it at reconcile.
@@ -40,7 +40,7 @@ or requirements, other branches' files, or the design doc.
 
 ## 1. Claim
 
-Cut from `main`, write `docs/handover/<workstream>.md` — `plan:` names the
+Cut from fresh-fetched `origin/main` (Loop step 3), write `docs/handover/<workstream>.md` — `plan:` names the
 item, `session:` your own session URL, `agent:` your tier. Push NOW. No
 claim, and the orchestrator spawns a second manager onto your item.
 
