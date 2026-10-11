@@ -27,10 +27,11 @@ have ONE spelling: [`.agents/docs/glossary.md`](../../.agents/docs/glossary.md);
    prompt names (`/manage`); otherwise `/start`. Nothing left: exit, say
    DRAINED, invent nothing. Boundary:
    no commit to a core path (`./joharness.sh protocol-paths`).
-3. **Claim.** Branch from fresh `origin/main` (`git fetch origin main && git
+3. **Claim.** Branch from fresh-fetched `origin/main` (`git fetch origin main && git
    checkout -b <branch> origin/main`), never local `main`. Pushed branch =
-   shared: behind or wrong base = merge `origin/main` in; never `push -f`,
-   never `checkout -B` over it. Write `docs/handover/<workstream>.md`. Push
+   shared: behind or wrong base = merge `origin/main` in; never `push -f`/`--force`
+   (`--force-with-lease` only in orchestrate GUARD, janitor), never
+   `checkout -B` over it. Write `docs/handover/<workstream>.md`. Push
    NOW — no push, no claim. Overlap? `/who`; only `RUNNING` = taken.
 4. **Build.** Research first: every plan or issue claim is a hypothesis until
    checked against code. `./joharness.sh feedback <path>` on files you will
