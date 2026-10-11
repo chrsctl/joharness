@@ -6,7 +6,7 @@ effort: high
 needs: none
 requirement: none
 issue: 418
-scope: .agents/harness/AGENTS.md, .claude/commands/clerk.md, .claude/commands/manage.md, .claude/commands/scout.md, .claude/commands/curate.md, .agents/harness/handover-context.sh, .agents/harness/selftest/handover-context-stale-main.sh, shared:.agents/harness/selftest.sh
+scope: .agents/harness/AGENTS.md, .agents/docs/product/README.md, .claude/commands/clerk.md, .claude/commands/manage.md, .claude/commands/scout.md, .claude/commands/curate.md, .agents/harness/handover-context.sh, .agents/harness/selftest/handover-context-stale-main.sh, shared:.agents/harness/selftest.sh
 ---
 
 ## Goal
@@ -32,20 +32,27 @@ that orients every session, and a pushed-branch rule.
   Add one rule line (step 3 or step 7, writer's choice, caveman style): a
   pushed branch is shared. A branch that is behind or on the wrong base
   gets `origin/main` merged in, never `git push -f`/`--force`, never
-  `git checkout -B` over the pushed name. `--force-with-lease` stays where
-  `orchestrate.md`'s GUARD already uses it, and nowhere else.
+  `git checkout -B` over the pushed name. `--force-with-lease` stays only
+  where the harness's own commands already use it: `orchestrate.md`'s GUARD
+  and `./joharness.sh janitor --apply` (`joharness.sh:janitor_apply`).
 - `.claude/commands/clerk.md` §1, `.claude/commands/manage.md` (both "cut
   ... from `main`" sites), `.claude/commands/scout.md`,
   `.claude/commands/curate.md` — "Cut from `main`" becomes "cut from
   fresh-fetched `origin/main`", pointing at Loop step 3. Do not restate the
   rule in full in each file.
+- `.agents/docs/product/README.md` "Branch flow" ("cut from `main`") and
+  "Conflict at finish" ("merge `main` into branch") — name `origin/main`
+  after a fetch, so the doc agrees with the new Loop text. Merging a stale
+  local `main` is the same trap.
 - `.agents/harness/handover-context.sh` — next to the existing `position`
   line, when a local `refs/heads/${BASE_BRANCH}` exists and is behind
   `origin/${BASE_BRANCH}`, print one line saying so and naming the remedy,
   e.g. `Local main is N behind origin/main: branch from origin/main, never
-  main.` Read local refs only: the hook fetches nothing, and adding a fetch
-  to session start is out of scope. Print nothing when local `main` is
-  missing, level, or ahead.
+  main.` The hook already runs `git fetch --prune origin` at its top
+  (unless `HANDOVER_FETCH=0`), so `origin/main` is fresh by then and local
+  `main` is the stale one — that is why the comparison works. Compare refs
+  after that fetch; add no fetch of your own, and never move the local
+  ref. Print nothing when local `main` is missing, level, or ahead.
 - `.agents/harness/selftest/handover-context-stale-main.sh` (new topic),
   registered in `SELFTEST_TOPICS` in `.agents/harness/selftest.sh`, after
   `handover-context-stale`. Assert: (a) local `main` behind `origin/main`
@@ -71,10 +78,18 @@ that orients every session, and a pushed-branch rule.
 
 ## Acceptance
 
-- `grep -n 'Branch from' .agents/harness/AGENTS.md` — the line names
-  `origin/main` and says "fetch".
-- `grep -niE 'cut [^.]*from .main.' .claude/commands/{clerk,manage,scout,curate}.md`
-  — no match is left that names bare `main` as the cut point.
+- `grep -niA2 'branch from' .agents/harness/AGENTS.md` — the Claim step's
+  output names `origin/main` and `fetch` (case-insensitive, wrap-tolerant).
+- `grep -niE 'cut [^.]*from .main.' .claude/commands/{clerk,manage,scout,curate}.md .agents/docs/product/README.md`
+  — no match. AND `grep -c 'origin/main' .claude/commands/{clerk,manage,scout,curate}.md`
+  — every file ≥ 1 (proves the new wording landed, not only that the old
+  string left).
+- Consumer-side check (the selftest is canonical-only,
+  `.agents/scripts/sync-to-consumer.sh:CANONICAL_ONLY`): in a scratch clone
+  of any repo carrying the harness, `git branch -f main origin/main~1 &&
+  git checkout -q --detach origin/main && HANDOVER_FETCH=0
+  ./joharness.sh session-start | grep -i 'local main is 1 behind'` — one
+  line. Record the command and output in the pull request body.
 - Selftest topic `handover-context-stale-main` — its three assertions pass,
   and assertion (a) FAILS with the `handover-context.sh` change reverted.
 - `./joharness.sh ci` — `ci: pass` (glossary, caveman and selftest
@@ -94,8 +109,8 @@ that orients every session, and a pushed-branch rule.
 - `.agents/docs/product/README.md` "Conflict at finish": behind = merge
   `main` into the branch, not rebase. The new pushed-branch line must agree
   with it.
-- `.claude/commands/orchestrate.md` GUARD — the one sanctioned
-  `--force-with-lease`.
+- `.claude/commands/orchestrate.md` GUARD and `joharness.sh:janitor_apply`
+  — the two sanctioned `--force-with-lease` pushes.
 
 ## Traps
 
@@ -105,6 +120,10 @@ that orients every session, and a pushed-branch rule.
   on the others.
 - A test for a fix must FAIL without it: run assertion (a) against the
   unpatched hook once.
+- The hook fetches by default: the new selftest topic sets
+  `HANDOVER_FETCH=0` (as `handover-context-stale.sh` does), or the
+  `--prune` fetch rewrites the fixture's `origin/main` and assertion (a)
+  measures the fixture, not the patch.
 - The hook FAILS OPEN: no `origin/main`, shallow clone, detached HEAD, or a
   missing local ref must never make it exit non-zero.
 - No commit to a core path (`./joharness.sh protocol-paths`).
