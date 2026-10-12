@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_018EiRiqyGuL1SweutNXmvE9
 agent: opus
 updated: 2026-10-12
-next: ci, verify, round-3 verifier on the revision protocol, then retire and open the pull request
+next: ci on final tree, then retire and open the pull request
 ---
 
 ## Goal
@@ -67,6 +67,7 @@ pull request.
 - r29: (verifier, round 4) a stranger's footed `scout: revising` became body text the scout applied, and blocked the clerk (fixed: YOURS and clerk condition 3 need an author with write access)
 - r30: (verifier, round 4) ceiling dropped proposals planned on unmerged branches but counted only base plans (fixed: the ceiling subtracts only proposals a base plan names; PLANNED stays broad for §5)
 - r31: (verifier, round 4) clerk and scout racing inside the clerk's unpushed window (wontfix: a limit, closed only by the clerk pushing earlier; out of this plan)
+- r32: (verifier, round 5) PLANNED definition still said "never counted as open (§0.6)", contradicting §0.6's base-only count (fixed: PLANNED governs §5 only; "proposal of yours" restored in §5 First)
 
 ## Blockers
 

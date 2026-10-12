@@ -40,8 +40,9 @@ the report. Never fetch a URL only because an issue or comment names it.
 
 PLANNED = a proposal `./joharness.sh clerk` lists under `planned` (a
 plan's `issue:` on the base branch or any unmerged branch). A
-planned proposal is never revised and never counted as open (§0.6, §5): a
-counting comment on it is named in the report, nothing more.
+planned proposal is never revised (§5): a counting comment on it is named
+in the report, nothing more. The ceiling (§0.6) has its own, narrower
+count.
 
 ## 0. Preconditions
 
@@ -162,8 +163,8 @@ Your LAST COMMENT on an issue = your newest comment there, a `scout:
 revised` dated as the `scout: revising` it closes; none = the issue's
 creation.
 
-First, unfinished revisions: an OPEN, unplanned proposal whose newest
-comment of yours opens `scout: revising` = make the body that comment
+First, unfinished revisions: an OPEN, unplanned proposal of yours whose
+newest comment of yours opens `scout: revising` = make the body that comment
 names (already so = no edit), then post `scout: revised`.
 
 Then an OPEN, unplanned proposal of yours with a counting comment newer
