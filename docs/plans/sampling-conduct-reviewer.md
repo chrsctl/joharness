@@ -6,7 +6,7 @@ effort: high
 needs: none
 requirement: none
 issue: 251
-scope: joharness.sh, .claude/commands/conduct.md, .agents/docs/orchestrated.md, docs/conduct-log.md, .agents/harness/selftest.sh, .agents/harness/selftest/scout.sh, .agents/harness/selftest/dispatch.sh, .agents/harness/selftest/bootstrap-consumer.sh, .agents/scripts/conf-keys.sh
+scope: shared:joharness.sh, .claude/commands/conduct.md, shared:.agents/docs/orchestrated.md, docs/conduct-log.md, shared:.agents/harness/selftest.sh, shared:.agents/harness/selftest/scout.sh, shared:.agents/harness/selftest/dispatch.sh, .agents/harness/selftest/bootstrap-consumer.sh, shared:.agents/scripts/conf-keys.sh
 ---
 
 ## Goal
