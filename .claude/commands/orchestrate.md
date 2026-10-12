@@ -297,7 +297,8 @@ the wake you received.
 Never sleep, never poll. A manager's lead message wakes you: note the lead,
 end the turn; the next scheduled pass writes it into the ledger. Merges are
 read from git. `DRAINED — nothing free, nothing in flight: exit` or `PAUSED
-— … exit` = final report, no next pass. `… in flight` = schedule, no spawn.
+— … exit` = final report, no next pass. `… a role is due` = spawn the role,
+schedule the next pass. `… in flight` = schedule, no spawn.
 Human says stop = stop scheduling; name the managers still running.
 
 ## Report, every pass

@@ -1451,6 +1451,10 @@ expect "enough plan files changed since the queue began makes one due" \
 expect "and the tail line under the verdict says to spawn one" \
   "curate DUE: spawn ONE curator (agent: sonnet)" "$out"
 expect "naming it as beyond the cap" "takes one slot (roles share JOHARNESS_MAX_MANAGERS)" "$out"
+# A due role under DRAINED: the verdict must not read as final (#428).
+expect "a due curate at DRAINED says a role is due" \
+  "DRAINED — nothing free, nothing in flight; a role is due: spawn it, then schedule the next pass" "$out"
+refute "and does not tell the orchestrator to exit" "nothing in flight: exit" "$out"
 # The clock at 0 is the off switch for the WHOLE cycle, which is a compatibility
 # promise and not a tidy rule: before the production trigger existed it was the
 # only switch there was, so a consumer that had set it must not wake up to a
