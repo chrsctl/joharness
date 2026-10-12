@@ -586,11 +586,14 @@ expect "dispatch: conduct due with nothing to sample is said" \
   "conduct   : due, nothing to sample" "$out"
 crefute "dispatch: and spawns no reviewer" "conduct DUE: spawn" "$out" "$dran"
 
-for cstem in alpha bravo charlie delta echo scout-command; do cretire "$cstem"; done
-# Role sessions: never sampled — by prefix, or by naming no plan.
-cretire curate-2026-02-10 none
-cretire clerk-2026-02-10 none
-cretire janitor-2026-02-10 none
+for cstem in alpha bravo charlie delta echo scout-command clerk-role; do cretire "$cstem"; done
+# A manager item worked off an issue names no plan: still sampled.
+cretire hotel none
+# Role sessions: never sampled. Each names a plan here, so the stem's shape
+# alone is what keeps it out (verifier round 2).
+cretire curate-2026-02-10
+cretire clerk-2026-02-10
+cretire janitor-2026-02-10
 # One still standing on main: not retired, never sampled.
 mkdir -p "${scout_work}/docs/handover"
 printf -- '---\nworkstream: foxtrot\nplan: foxtrot\n---\n' >"${scout_work}/docs/handover/foxtrot.md"
@@ -599,20 +602,21 @@ git -C "$scout_work" push -q origin main
 
 # The expected sample, computed here the way the plan states it.
 csha() { if command -v sha1sum >/dev/null; then sha1sum; else shasum -a 1; fi | cut -d' ' -f1; }
-cwant="$(for cstem in alpha bravo charlie delta echo scout-command; do
+cwant="$(for cstem in alpha bravo charlie delta echo scout-command clerk-role hotel; do
   printf '%s %s\n' "$(printf '%s' "$cstem" | csha)" "$cstem"; done |
   LC_ALL=C sort | head -3 | cut -d' ' -f2 | sed 's/^/            /')"
 out="$(cdt)"
 expect "conduct: retired manager files make it due" "cadence   : DUE" "$out"
 expect "conduct: the sample is the three lowest sha1(<stem>)" "$cwant" "$out"
 expect "conduct: the sample says how many" "sample    : 3 branch(es)" "$out"
-expect "conduct: every plan-working stem is eligible, scout-command included" \
-  "sample    : 6 branch(es)" "$(cdt JOHARNESS_CONDUCT_SAMPLE=99)"
 out99="$(cdt JOHARNESS_CONDUCT_SAMPLE=99)"
-crefute "conduct: a curate file is never sampled" "curate-2026-02-10" "$out99" "sample    : 6"
-crefute "conduct: a clerk file is never sampled" "clerk-2026-02-10" "$out99" "sample    : 6"
-crefute "conduct: a stem naming no plan is never sampled" "janitor-2026-02-10" "$out99" "sample    : 6"
-crefute "conduct: a file still standing is never sampled" "foxtrot" "$out99" "sample    : 6"
+expect "conduct: every manager stem is eligible" "sample    : 8 branch(es)" "$out99"
+expect "conduct: a manager item named like a role is sampled" "            clerk-role" "$out99"
+expect "conduct: a manager item with plan: none is sampled" "            hotel" "$out99"
+crefute "conduct: a curate session is never sampled" "curate-2026-02-10" "$out99" "sample    : "
+crefute "conduct: a clerk session is never sampled" "clerk-2026-02-10" "$out99" "sample    : "
+crefute "conduct: a janitor session is never sampled" "janitor-2026-02-10" "$out99" "sample    : "
+crefute "conduct: a file still standing is never sampled" "foxtrot" "$out99" "sample    : "
 out2="$(cdt)"
 csample1="$(printf '%s\n' "$out" | grep -A3 '^sample    : 3')"
 if [ -n "$csample1" ] && [ "$csample1" = "$(printf '%s\n' "$out2" | grep -A3 '^sample    : 3')" ]; then
@@ -630,6 +634,9 @@ printf '# clerk\n' >"${scout_work}/.claude/commands/clerk.md"
 out="$(sdsp)"
 expect "dispatch: a clerk due goes first" "conduct due, suppressed" "$out"
 crefute "dispatch: and no reviewer spawns beside it" "conduct DUE: spawn" "$out" "$dran"
+# A clerk HELD for a slot spawns nothing, and the reviewer needs no slot.
+out="$(sdsp JOHARNESS_MAX_MANAGERS=0)"
+expect "dispatch: a clerk held for a slot does not hold the reviewer" "conduct DUE: spawn" "$out"
 # A clerk IN FLIGHT holds it too (clerk_due is then 0, n_clerk is not).
 # The command file stays out of the branch commit: scommit adds everything.
 rm -f "${scout_work}/.claude/commands/clerk.md"
@@ -678,6 +685,15 @@ expect "dispatch: and says so" "conduct   : UNREADABLE" "$out"
 crefute "dispatch: and spawns no reviewer" "conduct DUE: spawn" "$out" "$dran"
 expect "conduct: no base branch reads UNREADABLE" "cadence   : UNREADABLE" \
   "$(cdt HANDOVER_BASE_BRANCH=nope)"
+# No sha1 tool: the sample cannot be drawn, so none is due (a reviewer
+# spawned onto it would exit and be respawned every pass).
+mkdir -p "${TMP}/conduct-nosha"
+printf '#!/bin/sh\ncat >/dev/null\n' >"${TMP}/conduct-nosha/sha1sum"
+cp "${TMP}/conduct-nosha/sha1sum" "${TMP}/conduct-nosha/shasum"
+chmod +x "${TMP}/conduct-nosha/sha1sum" "${TMP}/conduct-nosha/shasum"
+out="$(sdsp PATH="${TMP}/conduct-nosha:${PATH}")"
+expect "dispatch: no sha1 tool reads UNREADABLE" "conduct   : UNREADABLE — no sha1sum or shasum" "$out"
+crefute "dispatch: and spawns no reviewer" "conduct DUE: spawn" "$out" "$dran"
 
 # In flight: a fresh unmerged conduct-* branch, bare or under a prefix.
 for cbr in conduct-2026-03-01 claude/conduct-2026-03-01; do
@@ -707,6 +723,17 @@ crefute "conduct: a closed-unmerged old branch is not in flight" "IN FLIGHT" "$o
 expect "dispatch: and it spawns" "conduct DUE: spawn" "$(sdsp)"
 expect "conduct: a long window keeps that same branch in flight" "IN FLIGHT" \
   "$(cdt JOHARNESS_CONDUCT_HOURS=99999)"
+# A short clock does not shrink the drop below a day: a reviewer two hours
+# past its last push, waiting on checks, is still in flight.
+git -C "$scout_work" checkout -qb conduct-waiting main
+printf 'z\n' >>"${scout_work}/code.txt"
+scommit "a reviewer waiting on checks" "$(( $(date +%s) - 7200 )) +0000"
+git -C "$scout_work" push -qu origin conduct-waiting
+git -C "$scout_work" checkout -q main
+expect "conduct: a 6h clock still holds a 2h-old reviewer" "conduct-waiting  pushed 2h ago" \
+  "$(cdt JOHARNESS_CONDUCT_HOURS=6)"
+git -C "$scout_work" push -q origin --delete conduct-waiting
+git -C "$scout_work" branch -q -D conduct-waiting
 git -C "$scout_work" push -q origin --delete conduct-2026-02-11
 git -C "$scout_work" branch -q -D conduct-2026-02-11
 

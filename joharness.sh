@@ -3318,20 +3318,13 @@ conduct_candidates() {
     /^docs\/handover\/[A-Za-z0-9._-]+\.md$/ {
       if (skip[$0]) next
       s = $0; sub(/^docs\/handover\//, "", s); sub(/\.md$/, "", s)
-      if (s ~ /^(scout-[0-9]|curate-|clerk-)/ || s == "README" || s == "TEMPLATE") next
+      # Role sessions carry a date in the stem (scout-, curate-, clerk-,
+      # janitor-, findings passes); a manager item names its plan, never a day.
+      if (s ~ /-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/) next
+      if (s == "README" || s == "TEMPLATE") next
       if (done[s] || seen[s]++) next
       print s "\t" sha
     }'
-}
-
-# Did this retired stem work a plan? Its workstream file just before the
-# retire names one in `plan:`. A role session (janitor, findings) names
-# none, and sampling it buys only NO EVIDENCE.
-conduct_worked_plan() {
-  local plan
-  plan="$(git -C "$ROOT" show "${2}^:docs/handover/${1}.md" </dev/null 2>/dev/null |
-    tr -d '\r' | gr_field plan)"
-  [ -n "$plan" ] && [ "$plan" != none ]
 }
 
 # sha1 of stdin, 40 hex; empty when no tool here can say it.
@@ -3344,7 +3337,7 @@ conduct_sha1() {
   printf '%s' "${h%% *}"
 }
 
-# The sample: the N candidates that worked a plan, lowest sha1(<stem>) first.
+# The sample: the N candidates whose sha1(<stem>) sorts lowest.
 # Membership by stem, never by date, so a re-run picks the same set and a
 # test can assert it. N = 0 = any one, unordered (does one exist). `?` alone
 # = unreadable.
@@ -3363,7 +3356,6 @@ conduct_sample() {
   fi
   while IFS=$'\t' read -r s r; do
     [ -n "$s" ] || continue
-    conduct_worked_plan "$s" "$r" || continue
     printf '%s\n' "$s"
     got=$((got + 1))
     [ "$got" -lt "$limit" ] || break
@@ -3415,7 +3407,7 @@ conduct_due() {
   # In flight = an unmerged branch whose LAST path segment starts conduct-
   # (a session may push under a prefix: claude/conduct-...). Sessions never delete branches,
   # so one a human closed unmerged stands for ever: past a seventh of the
-  # window since its last push it is dropped, as scout_branches drops
+  # window (at least 24h) since its last push it is dropped, as scout_branches drops
   # `abandoned` rows.
   refs="$(git -C "$ROOT" for-each-ref --no-merged="refs/remotes/origin/${base_branch}" \
     --format='%(refname:lstrip=3)%09%(committerdate:unix)' refs/remotes/origin \
@@ -3426,6 +3418,8 @@ conduct_due() {
   fi
   now="$(date +%s)"
   drop=$(( (hours + 6) / 7 ))
+  # Floor: a short clock must not read a reviewer waiting on checks as gone.
+  [ "$drop" -ge 24 ] || drop=24
   while IFS=$'\t' read -r b ts; do
     [ -n "$b" ] || continue
     case "${b##*/}" in conduct-*) ;; *) continue ;; esac
@@ -3452,11 +3446,15 @@ conduct_due() {
     CONDUCT_DUE="not-due ${age}h since ${base_word} (of ${hours}h)"
     return 0
   fi
+  if [ -z "$(printf 'x' | conduct_sha1)" ]; then
+    CONDUCT_DUE='unreadable no sha1sum or shasum here: the sample cannot be drawn'
+    CONDUCT_ROWS=""; return 0
+  fi
   cands="$(conduct_sample 0)"
   case "$cands" in
     '?') CONDUCT_DUE='unreadable the retired workstream files or the ledger could not be read'
          CONDUCT_ROWS=""; return 0 ;;
-    '')  CONDUCT_DUE="empty ${age}h since ${base_word} (>= ${hours}h), but no retired item that worked a plan is left unsampled" ;;
+    '')  CONDUCT_DUE="empty ${age}h since ${base_word} (>= ${hours}h), but no retired manager workstream file is left unsampled" ;;
     *)   CONDUCT_DUE="due ${age}h since ${base_word} (>= ${hours}h)" ;;
   esac
 }
@@ -3524,7 +3522,7 @@ cmd_conduct() {
   s="$(conduct_sample "$sample")"
   case "$s" in
     '?') printf 'sample    : UNREADABLE — take no branch this run: a list that could not be read is no empty list\n' ;;
-    '')  printf 'sample    : none — no retired item that worked a plan is left unsampled\n' ;;
+    '')  printf 'sample    : none — no retired manager workstream file is left unsampled\n' ;;
     *)   printf 'sample    : %s branch(es), lowest sha1(<stem>) first — review exactly these\n' \
            "$(printf '%s\n' "$s" | awk 'END { print NR + 0 }')"
          printf '%s\n' "$s" | sed 's/^/            /' ;;
@@ -5166,7 +5164,7 @@ cmd_dispatch() {
   local jcands cjudge n_roles role_slots
   local scout_due=0 scout_inflight="" n_scout=0 sdue sstate sreason sb sw ss scout_gate=0 srows
   local clerk_due=0 clerk_inflight="" n_clerk=0 kdue kstate kreason kb kw ks
-  local conduct_due=0 n_conduct=0 odue ostate oreason ob oa conduct_inflight=""
+  local conduct_due=0 role_spawned=0 n_conduct=0 odue ostate oreason ob oa conduct_inflight=""
   local fetch_failed=0
   local cb ck cstat csess cnext cage bplans
   local rescope_key="" rescope_paths="" rescope_inflight="" rescope_holders=""
@@ -5812,7 +5810,7 @@ cmd_dispatch() {
     printf '            %s plan(s) on HOLD behind work in flight: not counted as free\n' "$n_hold"
   role_slots=$((n_slots - (n_free < n_slots ? n_free : n_slots)))
   if [ "$curate_due" -eq 1 ] && [ "$role_slots" -gt 0 ]; then
-    role_slots=$((role_slots - 1))
+    role_slots=$((role_slots - 1)); role_spawned=1
     printf '            curate DUE: spawn ONE curator (agent: sonnet) on ./joharness.sh curate — takes one slot (roles share JOHARNESS_MAX_MANAGERS), at most one in flight (JOHARNESS_CURATE_PLANS, JOHARNESS_CURATE_HOURS)\n'
   elif [ "$curate_due" -eq 1 ]; then
     printf '            curate due, held — no free slot: roles share JOHARNESS_MAX_MANAGERS with managers\n'
@@ -5824,6 +5822,7 @@ cmd_dispatch() {
   elif [ "$clerk_due" -eq 1 ] && [ "$role_slots" -le 0 ]; then
     printf '            clerk due, held — no free slot: roles share JOHARNESS_MAX_MANAGERS with managers\n'
   elif [ "$clerk_due" -eq 1 ]; then
+    role_spawned=1
     printf '            clerk DUE: spawn ONE clerk (agent: sonnet) on /clerk — takes one slot (roles share JOHARNESS_MAX_MANAGERS), at most one in flight. It turns open issues into plans and merges that plan-only pull request itself (JOHARNESS_CLERK_HOURS, JOHARNESS_CLERK_BATCH)\n'
   fi
   if [ "$scout_due" -eq 1 ] && [ "$fetch_failed" -eq 1 ]; then
@@ -5840,7 +5839,8 @@ cmd_dispatch() {
   # Not gated on DRAINED: sampling merged work competes with nothing.
   if [ "$conduct_due" -eq 1 ] && [ "$fetch_failed" -eq 1 ]; then
     printf '            conduct due, held — no fresh view of every branch this pass (fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*), so a reviewer in flight might not show: spawn none this pass\n'
-  elif [ "$conduct_due" -eq 1 ] && { [ "$curate_due" -eq 1 ] || [ "$clerk_due" -eq 1 ] ||
+  # A curate or clerk HELD for a slot does not hold it: the reviewer needs none.
+  elif [ "$conduct_due" -eq 1 ] && { [ "$role_spawned" -eq 1 ] ||
      [ "$n_curate_inflight" -gt 0 ] || [ "$n_clerk" -gt 0 ]; }; then
     printf '            conduct due, suppressed — a curate or clerk goes first: spawn none this pass\n'
   elif [ "$conduct_due" -eq 1 ]; then
