@@ -33,7 +33,7 @@ scout. Read what a clerk actually leaves in git (#424).
 - In flight = unmerged `origin/clerk-<digit>…` whose tip is younger than
   `JOHARNESS_CLERK_STALE_HOURS` (default 24, `num_knob`); older = `abandoned`
   row, dropped by `scout_branches`. Row shape kept: `branch  name  status`,
-  name = branch name.
+  name = `tip-<N>h` (the tip's age; a clerk has no workstream stem).
 - The clerk branches of `cycle_landed_sha` and `scout_walk`/`scout_retired_ts`
   calls go: `clerk_due` uses its own readers; scout and curate paths untouched.
 
@@ -51,7 +51,7 @@ scout. Read what a clerk actually leaves in git (#424).
 
 ## Review
 
-- Pending.
+- r1: failing-case proof, 2026-10-12: `git checkout origin/main -- joharness.sh`, `.agents/harness/selftest.sh` whole: 2475 passed, 15 failed, all in the clerk topic — (a) 2, (b) 5, (d) 2, (f) 2, (h) 2 (counted, slot), plus the stale-window knob case and the no-op-over-older-landing case. (c), (e), (g) pass on both, as regression guards. (h)'s scout-suppressed asserts pass on both: the old script read DUE and suppressed for the wrong reason. (no change)
 
 ## Blockers
 
