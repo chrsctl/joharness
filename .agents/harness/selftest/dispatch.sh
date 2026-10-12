@@ -3191,6 +3191,59 @@ GIT_COMMITTER_DATE="$(( $(date +%s) - 86400 )) +0000" \
 git -C "$bpwork" push -qu origin old-pi
 git -C "$bpwork" checkout -q main
 bdowner own-pi pi
+# (j) the same old record, and THEN its branch merges main up (Loop step 3):
+# the merge re-shows the done line with today's time (verifier r9).
+git -C "$bpwork" checkout -qb old-pj main
+bddone "${bpwork}/docs/handover/old-pj.md" pj
+git -C "$bpwork" add -A
+GIT_AUTHOR_DATE="$(( $(date +%s) - 86400 )) +0000" \
+GIT_COMMITTER_DATE="$(( $(date +%s) - 86400 )) +0000" \
+  git -C "$bpwork" commit -qm "old branch writes pj done, a day ago"
+git -C "$bpwork" push -qu origin old-pj
+git -C "$bpwork" checkout -q main
+bdowner own-pj pj
+printf 'moved\n' >"${bpwork}/moved-pj.txt"
+commit_all "$bpwork" "main moves"
+git -C "$bpwork" push -q origin main
+git -C "$bpwork" checkout -q old-pj
+git -C "$bpwork" merge -q --no-ff -m "merge main into old-pj" main
+git -C "$bpwork" push -q origin old-pj
+git -C "$bpwork" checkout -q main
+# (k) a done record in the owner's merge base, re-shown by a branch cut
+# BEFORE it that merges main up afterwards (verifier r10).
+git -C "$bpwork" checkout -qb side-pk main
+printf 'side\n' >"${bpwork}/side-pk.txt"
+commit_all "$bpwork" "side work"
+git -C "$bpwork" push -qu origin side-pk
+git -C "$bpwork" checkout -q main
+bddone "${bpwork}/docs/handover/old-pk.md" pk
+commit_all "$bpwork" "older pk done on main"
+git -C "$bpwork" push -q origin main
+bdowner own-pk pk
+git -C "$bpwork" checkout -q side-pk
+git -C "$bpwork" merge -q --no-ff -m "merge main into side-pk" main
+git -C "$bpwork" push -q origin side-pk
+git -C "$bpwork" checkout -q main
+# (l) a done record in the merge base that main retires AFTER the filing:
+# the retire deletes the line with today's time (verifier r11).
+bddone "${bpwork}/docs/handover/old-pl.md" pl
+commit_all "$bpwork" "older pl done on main"
+git -C "$bpwork" push -q origin main
+bdowner own-pl pl
+git -C "$bpwork" rm -q docs/handover/old-pl.md
+git -C "$bpwork" commit -qm "main retires the old pl record"
+git -C "$bpwork" push -q origin main
+# (m) a builder writes pm done, then renames the file and reopens it: the
+# old path is gone, which is no retire (verifier r12).
+bdowner own-pm pm
+git -C "$bpwork" checkout -qb build-pm main
+bddone "${bpwork}/docs/handover/a-pm.md" pm
+commit_all "$bpwork" "builder writes pm done"
+git -C "$bpwork" mv docs/handover/a-pm.md docs/handover/b-pm.md
+sed -i 's/^status: done$/status: in-progress/' "${bpwork}/docs/handover/b-pm.md"
+commit_all "$bpwork" "builder renames and reopens pm"
+git -C "$bpwork" push -qu origin build-pm
+git -C "$bpwork" checkout -q main
 out="$(bp)"
 bpblock="$(sed -n '/^plans on a branch/,/^$/p' <<<"$out")"
 expect "(a) a stem an unmerged carrier wrote done is DONE ON MAIN" \
@@ -3218,6 +3271,18 @@ refute "(h) and no marker" "DONE ON MAIN ph " "$bpblock"
 expect "(i) a done record older than the filing, on an unmerged branch, is live" \
   "  pi (urgency: normal, agent: sonnet)  on own-pi  held 0d" "$bpblock"
 refute "(i) and no marker" "DONE ON MAIN pi " "$bpblock"
+expect "(j) an old record its branch merged main up over is still older: live" \
+  "  pj (urgency: normal, agent: sonnet)  on own-pj  held 0d" "$bpblock"
+refute "(j), no marker" "DONE ON MAIN pj " "$bpblock"
+expect "(k) a merge-base record a later merge-up re-shows is still older: live" \
+  "  pk (urgency: normal, agent: sonnet)  on own-pk  held 0d" "$bpblock"
+refute "(k), no marker" "DONE ON MAIN pk " "$bpblock"
+expect "(l) a merge-base record main retires later is still older: live" \
+  "  pl (urgency: normal, agent: sonnet)  on own-pl  held 0d" "$bpblock"
+refute "(l), no marker" "DONE ON MAIN pl " "$bpblock"
+expect "(m) a done record renamed and reopened is live" \
+  "  pm (urgency: normal, agent: sonnet)  on own-pm  held 0d" "$bpblock"
+refute "(m), no marker" "DONE ON MAIN pm " "$bpblock"
 bdrows="$(grep -c '^  ' <<<"$bpblock")"
 bdheld="$(grep -c '  held [0-9][0-9]*d' <<<"$bpblock")"
 if [ "$bdrows" -gt 0 ] && [ "$bdrows" = "$bdheld" ]; then
@@ -3226,7 +3291,7 @@ else
   fail "every plans-on-a-branch row carries held (${bdheld} of ${bdrows})"
   printf '%s\n' "$(indent "$bpblock")"
 fi
-if grep -q '^verdict' <<<"$out" && ! grep -q 'docs/plans/p[a-i]\.md' \
+if grep -q '^verdict' <<<"$out" && ! grep -q 'docs/plans/p[a-m]\.md' \
      <<<"$(sed '/^plans on a branch/,/^$/d' <<<"$out")"; then
   pass "and no DONE ON MAIN or live branch plan reaches the spawn list"
 else

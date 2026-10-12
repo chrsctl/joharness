@@ -36,6 +36,17 @@ been held.
   commit's time AND still holds at some other ref's tip (`status: done`
   there, or the file deleted = retired). Time, not reachability, is what
   excludes an old unmerged branch (r3).
+- Review-churn stop after verifier round 2 (r9-r12 all one root cause in
+  the r3 fix). Requirements listed once: (a) unmerged carrier done → done;
+  (b) merged carrier → done, also after a later retire; (c) ledger → done;
+  (d) record in merge base → live, also after merge-ups or a retire; (h)
+  reopened → live, renamed or not; (i) record older than the filing on any
+  ref → live, also after merge-ups; (g) owner merged up after carry → done.
+  Conflict: the time/ancestry guard read the MATCHED commit (a merge or
+  retire) where (d)/(i) need the WRITER. Resolved once: evidence is the
+  non-merge commit that wrote `status: done` (`--no-merges --full-history`,
+  file as it left it); "holds" reads each containing ref's tip by stem, not
+  by path (none names it = retired; some name it = one must say done).
 - Block prints one line per (stem, kind); `held` is the oldest branch's age.
   A DONE row drops the `URGENT` prefix: it leads with `DONE ON MAIN`.
 
@@ -54,6 +65,13 @@ been held.
 - r6: (verifier) anyone with push access can suppress a branch-plan row with a forged done workstream file. Same trust boundary as push itself. (wontfix: push access is the boundary)
 - r7: (verifier) the two older-plan guards (`^since` bound, `--is-ancestor` on the add commit) and the `status` re-check each mask the other in case (d); not tested one by one. `^since` is the walk's cost bound; the ancestry check now overlaps the time check. (no change)
 - r8: (verifier) acceptance "every row carries held" is vacuous on this repo (no branch plans today); it holds in the selftest fixture. (no change)
+
+- r9: (verifier, round 2) old unmerged done record + its branch merging main up: the `-m` merge diff re-showed the line with today's time → DONE. Evidence is now the non-merge writer commit. Case (j). (fixed)
+- r10: (verifier, round 2) a merge-base done record re-shown by a branch cut before it that merges main up → DONE, breaking (d). Same fix. Case (k). (fixed)
+- r11: (verifier, round 2) a merge-base done record main retires after the filing → DONE (retire time, parent's doc). Evidence reads the file as the writer left it, no parent fallback. Case (l). (fixed)
+- r12: (verifier, round 2) rename + reopen read as a retire in `dispatch_done_holds`. Holds now greps each tip by stem, not by path. Case (m). Proof r9-r12: HEAD 29dc363d's `joharness.sh` + `bash .agents/harness/selftest.sh` 2026-10-12 → 2644 passed, 8 failed ((j)-(m), two each); fixed → 2652 passed, 0 failed. (fixed)
+- r13: (verifier, round 2, low) `addt` from the newest add: delete-and-restore moves the filing past a carrier's record. Now the oldest add in `base..tip`. Cherry-pick re-creation and container clock skew stay exposed. (fixed)
+- r14: (verifier, round 2, low) evidence walk ran without `core.quotePath=false`: a non-ASCII workstream path dropped silently. (fixed)
 
 ## Blockers
 

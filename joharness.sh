@@ -5312,11 +5312,13 @@ dispatch_rescope_branches() {
   done <<<"$refs"
 }
 
-# Done evidence for branch plans: `<commit>\t<commit time>\t<stem>\t<file>`
-# for every workstream file that says `status: done` in a commit reachable
-# from any origin ref but <own> and not from <since>. `-G` finds the commit that wrote, or the retire that
-# deleted, the `status: done` line; `--full-history -m` sees one a merge
-# brought in. Bounded by <since>, never by a merge count (cl_merged_claims).
+# Done evidence for branch plans: `<commit>\t<commit time>\t<stem>` for every
+# commit that WROTE a `status: done` workstream file, reachable from any
+# origin ref but <own> and not from <since>. The writer, never the commit a
+# diff matched: `-m` re-shows an old line in every merge-up, and a retire
+# deletes one, each with its own (new) time (verifier r9-r11). So no merges,
+# `--full-history` to walk past them, and the file as the commit LEFT it.
+# Bounded by <since>, never by a merge count (cl_merged_claims).
 dispatch_done_evidence() {
   local since="$1" own="$2" line h="" ht="" seen="" doc wplan wstat
   while IFS= read -r line; do
@@ -5327,35 +5329,43 @@ dispatch_done_evidence() {
     [ -n "$h" ] || continue
     case "$seen" in *" ${h}:${line} "*) continue ;; esac
     seen="${seen} ${h}:${line} "
-    # The file as the commit left it; a retire deleted it, so its parent's.
-    doc="$(git -C "$ROOT" show "${h}:${line}" </dev/null 2>/dev/null ||
-      git -C "$ROOT" show "${h}^1:${line}" </dev/null 2>/dev/null ||
-      git -C "$ROOT" show "${h}^2:${line}" </dev/null 2>/dev/null)" || continue
+    doc="$(git -C "$ROOT" show "${h}:${line}" </dev/null 2>/dev/null)" || continue
     { read -r wplan; read -r wstat; } \
       < <(printf '%s\n' "$doc" | gr_fields plan status)
     [ "$wstat" = "done" ] || continue
     wplan="$(lint_stem "$wplan" | tr -cd 'A-Za-z0-9._-')"
     [ -z "$wplan" ] || [ "$wplan" = none ] ||
-      printf '%s\t%s\t%s\t%s\n' "$h" "$ht" "$wplan" "$line"
+      printf '%s\t%s\t%s\n' "$h" "$ht" "$wplan"
   done < <(git -C "$ROOT" for-each-ref --format='%(refname)' refs/remotes/origin \
       </dev/null 2>/dev/null |
     awk -v own="$own" -v since="$since" '
       $0 != own && $0 != "refs/remotes/origin/HEAD" { print }
       END { print "^" since }' |
-    git -C "$ROOT" log --stdin --full-history -m -G'^status:[[:space:]]*done' \
+    git -c core.quotePath=false -C "$ROOT" log --stdin --full-history \
+      --no-merges -G'^status:[[:space:]]*done' \
       --name-only --format='C %H %ct' -- docs/handover 2>/dev/null)
 }
 
-# Does done evidence <commit> on <file> still hold? Some origin ref but <own>
-# that contains it must, at its tip, still say `status: done` there or have
-# deleted the file (a retire). A ref that reopened it says nothing.
+# Does the done record <commit> wrote for <stem> still hold? Some origin ref
+# but <own> that contains it must, at its tip, either name <stem> in no
+# workstream file (retired) or name it in one that says `status: done`. A tip
+# whose files all name it otherwise reopened it, renamed or not (r2, r12).
 dispatch_done_holds() {
-  local evh="$1" evf="$2" own="$3" ref doc
+  local evh="$1" stem="$2" own="$3" ref f named ok re
+  re="^plan:[[:space:]]*[\"']?(docs/plans/)?$(printf '%s' "$stem" |
+    sed 's/[.]/[.]/g')(\.md)?[\"']?[[:space:]]*(#.*)?$"
   while IFS= read -r ref; do
     [ -n "$ref" ] || continue
     { [ "$ref" = "$own" ] || [ "$ref" = refs/remotes/origin/HEAD ]; } && continue
-    doc="$(git -C "$ROOT" show "${ref}:${evf}" </dev/null 2>/dev/null)" || return 0
-    [ "$(printf '%s\n' "$doc" | gr_field status)" = "done" ] && return 0
+    named=0; ok=0
+    while IFS= read -r f; do
+      [ -n "$f" ] || continue
+      named=1
+      [ "$(git -C "$ROOT" show "${f}" </dev/null 2>/dev/null |
+        gr_field status)" = "done" ] && { ok=1; break; }
+    done < <(git -c core.quotePath=false -C "$ROOT" grep -l -E "$re" "$ref" \
+      -- docs/handover </dev/null 2>/dev/null)
+    { [ "$named" -eq 0 ] || [ "$ok" -eq 1 ]; } && return 0
   done < <(git -C "$ROOT" for-each-ref --contains "$evh" --format='%(refname)' \
     refs/remotes/origin </dev/null 2>/dev/null)
   return 1
@@ -5424,8 +5434,11 @@ dispatch_branch_plans() {
         </dev/null 2>/dev/null)"
       # The commit that ADDED the plan: the age reads from it, never from the
       # tip (a branch merged up from the base after filing would under-read).
-      read -r addh addt <<<"$(GIT_LITERAL_PATHSPECS=1 git -C "$ROOT" log -1 \
-        --diff-filter=A --format='%H %ct' "$r" -- "$p" </dev/null 2>/dev/null)"
+      # The OLDEST add past the merge base: a delete-and-restore on the
+      # branch must not move the filing past a carrier's done record (r13).
+      read -r addh addt <<<"$(GIT_LITERAL_PATHSPECS=1 git -C "$ROOT" log \
+        --diff-filter=A --format='%H %ct' "$base..$r" -- "$p" </dev/null \
+        2>/dev/null | tail -n 1)"
       [ -n "$addh" ] || { addh="$(git -C "$ROOT" rev-parse "$r" 2>/dev/null)"
         addt="$(git -C "$ROOT" log -1 --format=%ct "$r" 2>/dev/null)"; }
       days=$(( (now - ${addt:-$now}) / 86400 ))
@@ -5455,7 +5468,7 @@ dispatch_branch_plans() {
             *) evcache="<${abase} ${r}>"
                evs="$(dispatch_done_evidence "$abase" "$r")" ;;
           esac
-          while IFS=$'\t' read -r evh evt ev evf; do
+          while IFS=$'\t' read -r evh evt ev; do
             [ "$ev" = "$stem" ] || continue
             # Written before the plan was filed: an older plan of that name,
             # on whatever ref it sits (an unmerged branch is never in the
@@ -5464,7 +5477,7 @@ dispatch_branch_plans() {
             # The row branch's own history before the plan landed: older.
             git -C "$ROOT" merge-base --is-ancestor "$evh" "$addh" \
               </dev/null 2>/dev/null && continue
-            dispatch_done_holds "$evh" "$evf" "$r" || continue
+            dispatch_done_holds "$evh" "$stem" "$r" || continue
             kind="done"; break
           done <<<"$evs"
         fi
