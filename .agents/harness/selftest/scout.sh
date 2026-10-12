@@ -360,8 +360,10 @@ expect "so it does not hold the scout" "scout DUE: spawn" "$out"
 out="$(sdsp)"
 expect "at DRAINED dispatch prints the spawn line" \
   "scout DUE: spawn ONE scout (agent: fable) on /scout" "$out"
-expect "and says a scout proposes rather than invents work" \
-  "It proposes; a human merges" "$out"
+expect "and says a scout proposes on issues, a reviewer approving" \
+  "It proposes on issues; a reviewer approves (JOHARNESS_SCOUT_REVIEWER, JOHARNESS_SCOUT_HOURS)" "$out"
+refute "and the report no longer says a proposal waits for a merge" \
+  "waits for a human to merge" "$(sct | tail -2)"
 refute "and not the suppressed line" "scout due, suppressed" "$out"
 out="$(sdsp DISPATCH_FETCH=0)"
 refute "with no fetch at all no scout spawns" "scout DUE: spawn" "$out"
@@ -812,3 +814,136 @@ git -C "$scout_work" push -q origin main
 out="$(cdt)"
 expect "conduct: a ledger landed now is not due" "cadence   : not due — 0h since the ledger last landed" "$out"
 crefute "dispatch: not due spawns none" "conduct DUE: spawn" "$(sdsp)" "conduct   : not due"
+
+# --- the backlog trigger (scout-backlog-clock) -------------------------------
+# A second fixture, so the cases above stay as they are: fewer open plans on
+# the base branch than JOHARNESS_SCOUT_BACKLOG, a brief on the base branch,
+# and 24h since the last scout finished = due, NOT gated on DRAINED. The
+# helpers read scout_work and scout_conf by name, so pointing them here is
+# the whole switch.
+scout_work="${TMP}/scoutbacklog"
+scout_origin="${TMP}/scoutbacklogorigin.git"
+git init -q --bare "$scout_origin"
+git init -q "$scout_work"
+git -C "$scout_work" symbolic-ref HEAD refs/heads/main
+mkdir -p "${scout_work}/docs/handover" "${scout_work}/docs/plans" "${scout_work}/docs/product" \
+  "${scout_work}/.agents/harness" "${scout_work}/.agents/env/none" "${scout_work}/.claude/commands"
+cp "${ROOT}/joharness.sh" "${scout_work}/joharness.sh"
+cp "${ROOT}/.agents/harness/queue-context.sh" \
+   "${ROOT}/.agents/harness/handover-context.sh" "${scout_work}/.agents/harness/"
+printf '# none\n' >"${scout_work}/.agents/env/none/AGENTS.md"
+printf '# scout\n' >"${scout_work}/.claude/commands/scout.md"
+scout_conf="${scout_work}/joharness.conf"
+printf 'JOHARNESS_ENV=none\n' >"$scout_conf"
+printf -- '---\nplan: free-one\nurgency: normal\nagent: sonnet\neffort: high\n---\n\n## Goal\nFixture.\n' \
+  >"${scout_work}/docs/plans/free-one.md"
+# Not plans: the three names lint_nodes skips are not counted.
+printf '# plans\n' >"${scout_work}/docs/plans/README.md"
+printf '# t\n' >"${scout_work}/docs/plans/TEMPLATE.md"
+scommit "base" '2026-01-01T00:00:00Z'
+git -C "$scout_work" remote add origin "$scout_origin"
+git -C "$scout_work" push -qu origin main
+# One manager in flight, so the verdict is never DRAINED with nothing in flight.
+git -C "$scout_work" checkout -qb edge-b main
+printf -- '---\nworkstream: edge-b\nstatus: review\nbranch: edge-b\npr: 12\nplan: none\nagent: sonnet\n---\n\n## Goal\nFixture.\n' \
+  >"${scout_work}/docs/handover/edge-b.md"
+scommit "edge work"
+git -C "$scout_work" push -qu origin edge-b
+git -C "$scout_work" checkout -q main
+# The clock far off: every due below is the backlog's.
+scout_bk() { "$@" JOHARNESS_SCOUT_HOURS=99999 JOHARNESS_SCOUT_BACKLOG=3; }
+
+out="$(scout_bk sct)"
+expect "backlog: low with no brief on main is clock only" \
+  "backlog   : 1 open plan(s) on main, N=3 (JOHARNESS_SCOUT_BACKLOG): low, but NO BRIEF — clock only" "$out"
+expect "backlog: and the brief line says so" \
+  "brief     : NO BRIEF — no docs/product/SCOUT.md on main: no outside research, the pass proposes nothing" "$out"
+expect "backlog: the throughput line names its command" \
+  "merge(s)/day over 14 days (git log --merges --first-parent --since=14.days --format=%h origin/main | wc -l," "$out"
+out="$(scout_bk sdsp)"
+expect "backlog: no brief, dispatch reads not due" "scout     : not due" "$out"
+refute "backlog: and spawns no scout" "scout DUE: spawn" "$out"
+
+# A brief on the working tree alone is not a brief: the base branch's is.
+printf '# brief\n' >"${scout_work}/docs/product/SCOUT.md"
+expect "backlog: a brief not on main is no brief" "low, but NO BRIEF" "$(scout_bk sct)"
+scommit "the brief" '2026-01-02T00:00:00Z'
+git -C "$scout_work" push -q origin main
+out="$(scout_bk sct)"
+expect "backlog: low with a brief is due" \
+  "backlog   : 1 open plan(s) on main, N=3 (JOHARNESS_SCOUT_BACKLOG): low — a scout is due" "$out"
+expect "backlog: and the cadence says dispatch does not gate it" \
+  "cadence   : DUE — backlog 1 open plan(s) on main below N=3 (JOHARNESS_SCOUT_BACKLOG). Not gated on DRAINED" "$out"
+expect "backlog: the brief line reads present" "brief     : docs/product/SCOUT.md on main" "$out"
+out="$(scout_bk sdsp)"
+expect "backlog: dispatch reads the backlog as the trigger" "scout     : DUE by the backlog" "$out"
+refute "backlog: under a verdict that is not DRAINED" "verdict   : DRAINED" "$out"
+expect "backlog low spawns under NOT DRAINED" \
+  "scout DUE: spawn ONE scout (agent: fable) on /scout — backlog low (JOHARNESS_SCOUT_BACKLOG), beyond the cap, holds no slot, at most one in flight. It proposes on issues; a reviewer approves (JOHARNESS_SCOUT_REVIEWER)" "$out"
+out="$(scout_bk sdsp JOHARNESS_MAX_MANAGERS=0)"
+refute "backlog: the human's pause still holds it" "scout DUE: spawn" "$out"
+expect "backlog: and says so" "scout due, held — JOHARNESS_MAX_MANAGERS=0" "$out"
+refute "backlog: a stale view still holds it" "scout DUE: spawn" "$(scout_bk sdsp DISPATCH_FETCH=0)"
+out="$(sct JOHARNESS_SCOUT_HOURS=99999 JOHARNESS_SCOUT_BACKLOG=1)"
+expect "backlog: at N the backlog is enough" \
+  "backlog   : 1 open plan(s) on main, N=1 (JOHARNESS_SCOUT_BACKLOG): enough" "$out"
+expect "backlog: and nothing is due" "cadence   : not due" "$out"
+out="$(sct JOHARNESS_SCOUT_HOURS=99999 JOHARNESS_SCOUT_BACKLOG=0)"
+expect "JOHARNESS_SCOUT_BACKLOG=0 is clock only" \
+  "backlog   : off (JOHARNESS_SCOUT_BACKLOG=0): clock only, no ceiling" "$out"
+refute "JOHARNESS_SCOUT_BACKLOG=0: dispatch spawns none" "scout DUE: spawn" \
+  "$(sdsp JOHARNESS_SCOUT_HOURS=99999 JOHARNESS_SCOUT_BACKLOG=0)"
+out="$(sct JOHARNESS_SCOUT_HOURS=0 JOHARNESS_SCOUT_BACKLOG=3)"
+expect "backlog: the clock's off switch still switches the cycle off" "cadence   : off" "$out"
+
+# The re-arm: a scout that finished within 24h holds the trigger. A merged
+# retire 100h back alone leaves it due; an unmerged one 1h back holds it.
+scout_ago() { printf '%s +0000' "$(( $(date +%s) - $1 * 3600 ))"; }
+git -C "$scout_work" checkout -qb scout-old main
+sws scout-2026-09-01 scout-2026-09-01 review scout-old
+scommit "an old proposal" "$(scout_ago 101)"
+git -C "$scout_work" rm -q docs/handover/scout-2026-09-01.md
+scommit "retire" "$(scout_ago 101)"
+git -C "$scout_work" checkout -q main
+GIT_COMMITTER_DATE="$(scout_ago 100)" GIT_AUTHOR_DATE="$(scout_ago 100)" \
+  git -C "$scout_work" merge -q --no-ff -m "merge the old proposal" scout-old
+git -C "$scout_work" branch -q -D scout-old
+git -C "$scout_work" push -q origin main
+expect "backlog: a merged retire 100h back leaves it due" "scout DUE: spawn" "$(scout_bk sdsp)"
+git -C "$scout_work" checkout -qb scout-new main
+sws scout-2026-10-01 scout-2026-10-01 review scout-new
+scommit "a proposal on issues" "$(scout_ago 2)"
+git -C "$scout_work" rm -q docs/handover/scout-2026-10-01.md
+scommit "retire" "$(scout_ago 1)"
+git -C "$scout_work" push -qu origin scout-new
+git -C "$scout_work" checkout -q main
+out="$(scout_bk sdsp)"
+expect "backlog low within 24h of a retire is not due" "scout     : not due" "$out"
+refute "backlog: within 24h of a retire dispatch spawns none" "scout DUE: spawn" "$out"
+expect "backlog: and the report says why" \
+  "low, but 1h since the last scout finished (of 24h) — not yet" "$(scout_bk sct)"
+git -C "$scout_work" push -q origin --delete scout-new
+git -C "$scout_work" branch -q -D scout-new
+
+# --- reviewer, research, budget: what a pass reads from conf ------------------
+out="$(sct)"
+expect "reviewer unset reads none" \
+  "reviewer  : none (JOHARNESS_SCOUT_REVIEWER) — nothing can be approved" "$out"
+expect "research unset reads off, budget its default" \
+  "research  : off (JOHARNESS_SCOUT_RESEARCH); budget 10 USD a pass (JOHARNESS_SCOUT_BUDGET_USD)" "$out"
+out="$(sct JOHARNESS_SCOUT_REVIEWER=alice JOHARNESS_SCOUT_RESEARCH=on JOHARNESS_SCOUT_BUDGET_USD=25)"
+expect "reviewer set reads the login" "reviewer  : alice (JOHARNESS_SCOUT_REVIEWER)" "$out"
+expect "research on and a budget read through" \
+  "research  : on (JOHARNESS_SCOUT_RESEARCH); budget 25 USD a pass" "$out"
+expect "a login keeps login characters only" "reviewer  : alicex (JOHARNESS_SCOUT_REVIEWER)" \
+  "$(sct "JOHARNESS_SCOUT_REVIEWER=alice\$(x)")"
+printf 'JOHARNESS_SCOUT_REVIEWER=mallory\nJOHARNESS_SCOUT_RESEARCH=on\n' >>"$scout_conf"
+out="$(sct)"
+expect "JOHARNESS_SCOUT_REVIEWER on the branch's conf but not main's reads none" \
+  "reviewer  : none (JOHARNESS_SCOUT_REVIEWER)" "$out"
+expect "research on the branch's conf alone reads off" "research  : off" "$out"
+scommit "the human names a reviewer"
+git -C "$scout_work" push -q origin main
+out="$(sct)"
+expect "the reviewer in main's conf reads through" "reviewer  : mallory (JOHARNESS_SCOUT_REVIEWER) — their approved label is the gate" "$out"
+expect "research on in main's conf reads on" "research  : on (JOHARNESS_SCOUT_RESEARCH)" "$out"
