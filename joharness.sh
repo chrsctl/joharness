@@ -5346,29 +5346,44 @@ dispatch_done_evidence() {
       --name-only --format='C %H %ct' -- docs/handover 2>/dev/null)
 }
 
-# Does the done record <commit> wrote for <stem> still hold? Some origin ref
-# but <own> that contains it must, at its tip, either name <stem> in no
-# workstream file (retired) or name it in one that says `status: done`. A tip
-# whose files all name it otherwise reopened it, renamed or not (r2, r12).
+# Does the done record <commit> wrote for <stem> still hold? Read at a ref's
+# tip: no workstream file naming <stem> = retired, holds; files naming it =
+# one must say `status: done` (a reopen, renamed or not, does not: r2, r12).
+# The base branch decides alone once it contains the record: the carrier's
+# own ref still says done after the base reopened it (r15). Otherwise any
+# origin ref but <own> that contains it. `plan:` is read by the one reader
+# (gr_fields, lint_stem), never a second pattern (r16, r17).
 dispatch_done_holds() {
-  local evh="$1" stem="$2" own="$3" ref f named ok re
-  re="^plan:[[:space:]]*[\"']?(docs/plans/)?$(printf '%s' "$stem" |
-    sed 's/[.]/[.]/g')(\.md)?[\"']?[[:space:]]*(#.*)?$"
+  local evh="$1" stem="$2" own="$3" over ref refs
+  over="refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}"
+  if git -C "$ROOT" merge-base --is-ancestor "$evh" "$over" </dev/null 2>/dev/null; then
+    refs="$over"
+  else
+    refs="$(git -C "$ROOT" for-each-ref --contains "$evh" --format='%(refname)' \
+      refs/remotes/origin </dev/null 2>/dev/null)"
+  fi
   while IFS= read -r ref; do
     [ -n "$ref" ] || continue
     { [ "$ref" = "$own" ] || [ "$ref" = refs/remotes/origin/HEAD ]; } && continue
-    named=0; ok=0
-    while IFS= read -r f; do
-      [ -n "$f" ] || continue
-      named=1
-      [ "$(git -C "$ROOT" show "${f}" </dev/null 2>/dev/null |
-        gr_field status)" = "done" ] && { ok=1; break; }
-    done < <(git -c core.quotePath=false -C "$ROOT" grep -l -E "$re" "$ref" \
-      -- docs/handover </dev/null 2>/dev/null)
-    { [ "$named" -eq 0 ] || [ "$ok" -eq 1 ]; } && return 0
-  done < <(git -C "$ROOT" for-each-ref --contains "$evh" --format='%(refname)' \
-    refs/remotes/origin </dev/null 2>/dev/null)
+    dispatch_tip_holds "$ref" "$stem" && return 0
+  done <<<"$refs"
   return 1
+}
+
+# <ref> <stem>: the tip-read half of dispatch_done_holds.
+dispatch_tip_holds() {
+  local ref="$1" stem="$2" f doc wplan wstat named=0
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    doc="$(git -C "$ROOT" show "$f" </dev/null 2>/dev/null)" || continue
+    { read -r wplan; read -r wstat; } \
+      < <(printf '%s\n' "$doc" | gr_fields plan status)
+    [ "$(lint_stem "$wplan" | tr -cd 'A-Za-z0-9._-')" = "$stem" ] || continue
+    named=1
+    [ "$wstat" = "done" ] && return 0
+  done < <(git -c core.quotePath=false -C "$ROOT" grep -l -F -e "$stem" "$ref" \
+    -- docs/handover </dev/null 2>/dev/null)
+  [ "$named" -eq 0 ]
 }
 
 # Plans on a branch: a plan file an unmerged branch ADDED and the base does not

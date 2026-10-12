@@ -3244,6 +3244,29 @@ sed -i 's/^status: done$/status: in-progress/' "${bpwork}/docs/handover/b-pm.md"
 commit_all "$bpwork" "builder renames and reopens pm"
 git -C "$bpwork" push -qu origin build-pm
 git -C "$bpwork" checkout -q main
+# (n) a carrier merged pn done, then MAIN reopened it: the carrier's own ref
+# still says done, main decides (verifier r15).
+bdowner own-pn pn
+git -C "$bpwork" checkout -qb carry-pn main
+bddone "${bpwork}/docs/handover/carry-pn.md" pn
+commit_all "$bpwork" "carrier finds pn done"
+git -C "$bpwork" checkout -q main
+git -C "$bpwork" merge -q --no-ff -m "merge carry-pn" carry-pn
+git -C "$bpwork" push -q origin main carry-pn
+sed -i 's/^status: done$/status: in-progress/' "${bpwork}/docs/handover/carry-pn.md"
+commit_all "$bpwork" "main reopens pn"
+git -C "$bpwork" push -q origin main
+# (o) a builder writes po done, then reopens it naming the plan in backticks:
+# the reader every other `plan:` goes through still reads po (verifier r16).
+bdowner own-po po
+git -C "$bpwork" checkout -qb build-po main
+bddone "${bpwork}/docs/handover/build-po.md" po
+commit_all "$bpwork" "builder writes po done"
+sed -i 's/^status: done$/status: in-progress/; s/^plan: po$/plan: `po`/' \
+  "${bpwork}/docs/handover/build-po.md"
+commit_all "$bpwork" "builder reopens po, backticked"
+git -C "$bpwork" push -qu origin build-po
+git -C "$bpwork" checkout -q main
 out="$(bp)"
 bpblock="$(sed -n '/^plans on a branch/,/^$/p' <<<"$out")"
 expect "(a) a stem an unmerged carrier wrote done is DONE ON MAIN" \
@@ -3283,6 +3306,12 @@ refute "(l), no marker" "DONE ON MAIN pl " "$bpblock"
 expect "(m) a done record renamed and reopened is live" \
   "  pm (urgency: normal, agent: sonnet)  on own-pm  held 0d" "$bpblock"
 refute "(m), no marker" "DONE ON MAIN pm " "$bpblock"
+expect "(n) a merged carrier's record main reopened is live" \
+  "  pn (urgency: normal, agent: sonnet)  on own-pn  held 0d" "$bpblock"
+refute "(n), no marker" "DONE ON MAIN pn " "$bpblock"
+expect "(o) a record reopened with a backticked plan: is live" \
+  "  po (urgency: normal, agent: sonnet)  on own-po  held 0d" "$bpblock"
+refute "(o), no marker" "DONE ON MAIN po " "$bpblock"
 bdrows="$(grep -c '^  ' <<<"$bpblock")"
 bdheld="$(grep -c '  held [0-9][0-9]*d' <<<"$bpblock")"
 if [ "$bdrows" -gt 0 ] && [ "$bdrows" = "$bdheld" ]; then
@@ -3291,7 +3320,7 @@ else
   fail "every plans-on-a-branch row carries held (${bdheld} of ${bdrows})"
   printf '%s\n' "$(indent "$bpblock")"
 fi
-if grep -q '^verdict' <<<"$out" && ! grep -q 'docs/plans/p[a-m]\.md' \
+if grep -q '^verdict' <<<"$out" && ! grep -q 'docs/plans/p[a-o]\.md' \
      <<<"$(sed '/^plans on a branch/,/^$/d' <<<"$out")"; then
   pass "and no DONE ON MAIN or live branch plan reaches the spawn list"
 else

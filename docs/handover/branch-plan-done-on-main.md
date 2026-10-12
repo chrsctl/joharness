@@ -8,7 +8,7 @@ issue: 423
 session: https://claude.ai/code/session_01DBge7Ng2dPpNZwrYjn7XCX
 agent: opus
 updated: 2026-10-12
-next: Re-verify, then finish (step 7)
+next: Finish (step 7): PR, green checks, merge
 ---
 
 ## Goal
@@ -26,16 +26,9 @@ been held.
   tip: an owner that merged main up after a carry still reads DONE ON MAIN
   (case g). Evidence reachable from the add commit itself is the branch's own
   older history and counts for nothing.
-- Evidence walk: `git log --stdin --full-history -m -G'^status:[[:space:]]*done'`
-  over every origin ref but the row's own, `^<that merge base>`, under
-  `docs/handover`; the file as the commit left it, else its parent's (a retire).
 - Signal 2 (ledger) is UNGUARDED, deviating from the plan's text: `ci`
   (`lint_plans_in_diff`) refuses a re-add of any listed stem whatever its age,
   so a guarded row would print live a plan that can never merge (r4).
-- Signal 3 guard: evidence counts only if written at or after the filing
-  commit's time AND still holds at some other ref's tip (`status: done`
-  there, or the file deleted = retired). Time, not reachability, is what
-  excludes an old unmerged branch (r3).
 - Review-churn stop after verifier round 2 (r9-r12 all one root cause in
   the r3 fix). Requirements listed once: (a) unmerged carrier done → done;
   (b) merged carrier → done, also after a later retire; (c) ledger → done;
@@ -47,6 +40,10 @@ been held.
   non-merge commit that wrote `status: done` (`--no-merges --full-history`,
   file as it left it); "holds" reads each containing ref's tip by stem, not
   by path (none names it = retired; some name it = one must say done).
+- Holds: once the base branch contains the writer commit, the base's tip
+  decides alone (r15); before that, any other ref containing it. Tip files
+  are found loosely (`git grep -F <stem>`) and confirmed through
+  `gr_fields`/`lint_stem`, the one `plan:` reader (r16, r17).
 - Block prints one line per (stem, kind); `held` is the oldest branch's age.
   A DONE row drops the `URGENT` prefix: it leads with `DONE ON MAIN`.
 
@@ -72,6 +69,12 @@ been held.
 - r12: (verifier, round 2) rename + reopen read as a retire in `dispatch_done_holds`. Holds now greps each tip by stem, not by path. Case (m). Proof r9-r12: HEAD 29dc363d's `joharness.sh` + `bash .agents/harness/selftest.sh` 2026-10-12 → 2644 passed, 8 failed ((j)-(m), two each); fixed → 2652 passed, 0 failed. (fixed)
 - r13: (verifier, round 2, low) `addt` from the newest add: delete-and-restore moves the filing past a carrier's record. Now the oldest add in `base..tip`. Cherry-pick re-creation and container clock skew stay exposed. (fixed)
 - r14: (verifier, round 2, low) evidence walk ran without `core.quotePath=false`: a non-ASCII workstream path dropped silently. (fixed)
+
+- r15: (verifier, round 3) a carrier merged done, then main reopened it: the carrier ref still said done, so holds passed. The base's tip decides alone once it contains the record. Case (n). (fixed)
+- r16: (verifier, round 3) holds' own `plan:` regex missed forms the evidence reader accepts (backticks, `../plans/x.md`): a reopen read as a retire. Tip files now confirmed through `gr_fields`/`lint_stem`. Case (o). Proof r15-r16: HEAD 9a1154fd's `joharness.sh` + `bash .agents/harness/selftest.sh` 2026-10-12 → 2652 passed, 4 failed ((n), (o), two each); fixed → 2656 passed, 0 failed. (fixed)
+- r17: (verifier, round 3) `git grep` matched a `plan:` line in a file body. Same fix: frontmatter-only reader confirms each match. (fixed)
+- r18: (verifier, round 3) a done line written only by a merge's conflict resolution is never evidence (`--no-merges`), a regression against 29dc363d. The price of r9-r11; a merge that resolves a workstream file to done is not a carry shape the protocol produces. (wontfix: accepted trade)
+- r19: (verifier, round 3) two `## Decisions` bullets described the superseded walk and path-based holds. Removed. (fixed)
 
 ## Blockers
 
