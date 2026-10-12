@@ -837,9 +837,11 @@ scout_conf="${scout_work}/joharness.conf"
 printf 'JOHARNESS_ENV=none\n' >"$scout_conf"
 printf -- '---\nplan: free-one\nurgency: normal\nagent: sonnet\neffort: high\n---\n\n## Goal\nFixture.\n' \
   >"${scout_work}/docs/plans/free-one.md"
-# Not plans: the three names lint_nodes skips are not counted.
+# Not plans: the names lint_nodes skips are not counted.
 printf '# plans\n' >"${scout_work}/docs/plans/README.md"
 printf '# t\n' >"${scout_work}/docs/plans/TEMPLATE.md"
+printf '# v\n' >"${scout_work}/docs/plans/VISION.md"
+printf '# retired\n' >"${scout_work}/docs/plans/RETIRED.md"
 scommit "base" '2026-01-01T00:00:00Z'
 git -C "$scout_work" remote add origin "$scout_origin"
 git -C "$scout_work" push -qu origin main
@@ -884,6 +886,23 @@ out="$(scout_bk sdsp JOHARNESS_MAX_MANAGERS=0)"
 refute "backlog: the human's pause still holds it" "scout DUE: spawn" "$out"
 expect "backlog: and says so" "scout due, held — JOHARNESS_MAX_MANAGERS=0" "$out"
 refute "backlog: a stale view still holds it" "scout DUE: spawn" "$(scout_bk sdsp DISPATCH_FETCH=0)"
+# A spawn this pass cannot see may be a scout: the clock waits on it through
+# DRAINED, and the backlog must too (verifier r1).
+out="$(scout_bk sdsp JOHARNESS_PENDING_SPAWNS=1)"
+refute "backlog: a pending spawn holds it" "scout DUE: spawn" "$out"
+expect "backlog: and says so" "scout due, held — 1 spawned this pass has not pushed" "$out"
+# A scout in flight: none is due, and the backlog line does not say one is.
+git -C "$scout_work" checkout -qb scout-live main
+sws scout-2026-10-02 scout-2026-10-02 in-progress scout-live
+scommit "a scout at work"
+git -C "$scout_work" push -qu origin scout-live
+git -C "$scout_work" checkout -q main
+out="$(scout_bk sct)"
+expect "backlog: a scout in flight reads in flight" "cadence   : IN FLIGHT, so none is due" "$out"
+expect "backlog: and the backlog line agrees" "low — a scout is in flight" "$out"
+refute "backlog: a scout in flight, dispatch spawns none" "scout DUE: spawn" "$(scout_bk sdsp)"
+git -C "$scout_work" push -q origin --delete scout-live
+git -C "$scout_work" branch -q -D scout-live
 out="$(sct JOHARNESS_SCOUT_HOURS=99999 JOHARNESS_SCOUT_BACKLOG=1)"
 expect "backlog: at N the backlog is enough" \
   "backlog   : 1 open plan(s) on main, N=1 (JOHARNESS_SCOUT_BACKLOG): enough" "$out"
@@ -935,8 +954,13 @@ out="$(sct JOHARNESS_SCOUT_REVIEWER=alice JOHARNESS_SCOUT_RESEARCH=on JOHARNESS_
 expect "reviewer set reads the login" "reviewer  : alice (JOHARNESS_SCOUT_REVIEWER)" "$out"
 expect "research on and a budget read through" \
   "research  : on (JOHARNESS_SCOUT_RESEARCH); budget 25 USD a pass" "$out"
-expect "a login keeps login characters only" "reviewer  : alicex (JOHARNESS_SCOUT_REVIEWER)" \
-  "$(sct "JOHARNESS_SCOUT_REVIEWER=alice\$(x)")"
+# Rejected whole, never trimmed: a trimmed login is another account.
+for scout_bad in "alice\$(x)" alice_acme alice.smith -- -alice; do
+  expect "a value no login can be reads none: ${scout_bad}" "reviewer  : none (JOHARNESS_SCOUT_REVIEWER)" \
+    "$(sct "JOHARNESS_SCOUT_REVIEWER=${scout_bad}")"
+done
+expect "a hyphenated login reads through" "reviewer  : al-ice (JOHARNESS_SCOUT_REVIEWER)" \
+  "$(sct JOHARNESS_SCOUT_REVIEWER=al-ice)"
 printf 'JOHARNESS_SCOUT_REVIEWER=mallory\nJOHARNESS_SCOUT_RESEARCH=on\n' >>"$scout_conf"
 out="$(sct)"
 expect "JOHARNESS_SCOUT_REVIEWER on the branch's conf but not main's reads none" \

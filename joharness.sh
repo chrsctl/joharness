@@ -3003,19 +3003,19 @@ scout_branches() {
   done
 }
 
-# Plan files on the base branch, the three non-plan names lint_nodes skips
-# left out. Empty when the tree cannot be read: the caller holds the cycle.
+# Plan files on the base branch, the non-plan names lint_nodes skips left
+# out. Empty when the tree cannot be read: the caller holds the cycle.
 scout_n_plans() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" ls
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" entry ls
+  # The entry itself first: absent = zero plans; a read that FAILS is
+  # unreadable (empty output), never zero, the most-due reading.
+  entry="$(git -C "$ROOT" ls-tree "refs/remotes/origin/${base_branch}" -- docs/plans \
+    </dev/null 2>/dev/null)" || return 0
+  if [ -z "$entry" ]; then printf '0'; return 0; fi
   ls="$(git -C "$ROOT" ls-tree --name-only \
-    "refs/remotes/origin/${base_branch}:docs/plans" </dev/null 2>/dev/null)" || {
-    # No docs/plans on the base branch at all is zero plans, not a misread.
-    git -C "$ROOT" cat-file -e "refs/remotes/origin/${base_branch}:docs/plans" \
-      </dev/null 2>/dev/null || printf '0'
-    return 0
-  }
+    "refs/remotes/origin/${base_branch}:docs/plans" </dev/null 2>/dev/null)" || return 0
   printf '%s\n' "$ls" | grep -E '\.md$' |
-    grep -v -x -E 'README\.md|TEMPLATE\.md|VISION\.md' | awk 'END { print NR + 0 }'
+    grep -v -x -E 'README\.md|TEMPLATE\.md|VISION\.md|RETIRED\.md' | awk 'END { print NR + 0 }'
 }
 
 # The scout's brief on the base branch: a branch cannot brief itself.
@@ -3036,11 +3036,16 @@ scout_base_conf() {
   printf '%s' "$v"
 }
 
-# A GitHub login, or `none`: characters a login can hold, nothing else.
+# A GitHub login, or `none` for anything a login cannot be.
 scout_reviewer() {
   local v
-  v="$(scout_base_conf JOHARNESS_SCOUT_REVIEWER | tr -cd 'A-Za-z0-9-')"
-  printf '%s' "${v:-none}"
+  v="$(scout_base_conf JOHARNESS_SCOUT_REVIEWER)"
+  # Rejected whole, never trimmed: a trimmed name is another account.
+  if printf '%s' "$v" | grep -qx -E '[A-Za-z0-9](-?[A-Za-z0-9])*'; then
+    printf '%s' "$v"
+  else
+    printf 'none'
+  fi
 }
 
 scout_research() {
@@ -3171,7 +3176,7 @@ cmd_scout() {
         printf 'cadence   : not due — %s\n' "$why" ;;
     esac
   fi
-  scout_report_lines
+  scout_report_lines "$n_inflight"
   printf '\n'
 
   # Pointers, never findings: this command proposes nothing. What a scout
@@ -3189,7 +3194,7 @@ cmd_scout() {
 }
 
 # What a scout pass reads from conf, so the role reads this report and never
-# the conf file. Reads the globals scout_due set.
+# the conf file. Reads the globals scout_due set; $1 = scouts in flight.
 scout_report_lines() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" brief=0 n_merges per_day
   scout_brief_present && brief=1
@@ -3205,6 +3210,8 @@ scout_report_lines() {
     elif [ "$SCOUT_BACKLOG_AGE" -lt "$SCOUT_BACKLOG_REARM_H" ]; then
       printf 'low, but %sh since the last scout finished (of %sh) — not yet\n' \
         "$SCOUT_BACKLOG_AGE" "$SCOUT_BACKLOG_REARM_H"
+    elif [ "${1:-0}" -gt 0 ]; then
+      printf 'low — a scout is in flight\n'
     else
       printf 'low — a scout is due\n'
     fi
@@ -6122,10 +6129,13 @@ cmd_dispatch() {
     printf '            clerk DUE: spawn ONE clerk (agent: sonnet) on /clerk — takes one slot (roles share JOHARNESS_MAX_MANAGERS), at most one in flight. It turns open issues into plans and merges that plan-only pull request itself (JOHARNESS_CLERK_HOURS, JOHARNESS_CLERK_BATCH)\n'
   fi
   # The backlog trigger bypasses the DRAINED gate and nothing else: the
-  # human's pause still holds it.
-  [ "$scout_backlog" -eq 0 ] || [ "$cap" -eq 0 ] || scout_gate=1
+  # human's pause still holds it, and so does a spawn this pass cannot see
+  # (JOHARNESS_PENDING_SPAWNS): the clock waits on both through DRAINED.
+  [ "$scout_backlog" -eq 0 ] || [ "$pending" != 0 ] || scout_gate=1
   if [ "$scout_due" -eq 1 ] && [ "$scout_backlog" -eq 1 ] && [ "$cap" -eq 0 ]; then
     printf '            scout due, held — JOHARNESS_MAX_MANAGERS=0 is the human'"'"'s pause: spawn none\n'
+  elif [ "$scout_due" -eq 1 ] && [ "$scout_backlog" -eq 1 ] && [ "$pending" != 0 ]; then
+    printf '            scout due, held — %s spawned this pass has not pushed (JOHARNESS_PENDING_SPAWNS), and it may be a scout: spawn none this pass\n' "$pending"
   elif [ "$scout_due" -eq 1 ] && [ "$fetch_failed" -eq 1 ]; then
     printf '            scout due, held — no fresh view of every branch this pass (fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*), so a scout in flight might not show: spawn none this pass\n'
   elif [ "$scout_due" -eq 1 ] && [ "$scout_gate" -eq 1 ] &&

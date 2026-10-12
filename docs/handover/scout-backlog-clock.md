@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_015XZqoZowkJNj1BS7e66AuG
 agent: opus
 updated: 2026-10-12
-next: Finish selftest run, verifier review, ci+verify, then PR
+next: ci + verify after review fixes, then retire and PR
 ---
 
 ## Goal
@@ -37,6 +37,15 @@ scout without the DRAINED gate.
   cases read the same history; a second fixture at the file's end isolates them.
 
 ## Review
+
+- r1: (verifier) backlog spawn ignored JOHARNESS_PENDING_SPAWNS: an unpushed scout from last pass let every health pass spawn another (fixed)
+- r2: (verifier) scout_n_plans counted docs/plans/RETIRED.md once origin/main was merged in (fixed)
+- r3: (verifier) scout_reviewer trimmed bad characters, so alice_acme read as another account aliceacme; now any non-login value reads none (fixed)
+- r4: (verifier) the AUTOMERGE sentence says the key governs no merge while scout.md section 6 still merges by it (wontfix: the plan orders this wording; scout-proposes-on-issues rewrites scout.md)
+- r5: (verifier) JOHARNESS_SCOUT_HOURS=0 also switches the backlog off, undocumented (fixed: orchestrated.md row says so)
+- r6: (verifier) report said a scout is due while one is in flight (fixed)
+- r7: (verifier) a failed cat-file on docs/plans read as zero plans, failing open (fixed: entry read via ls-tree, a failed read is unreadable)
+- r8: (verifier) budget resolves from the working-tree conf, unlike reviewer and research (no change: plan names num_knob for numbers; recorded under Decisions)
 
 ## Blockers
 

@@ -339,7 +339,7 @@ is not an edge. `dispatch_branch_plans` now tests this and prints a leftover row
 | `JOHARNESS_CURATE_SPLIT` | 8 | `## Scope` bullets before `curate` proposes a decompose | written number |
 | `JOHARNESS_SCOUT_HOURS` | 168 | hours between scouts, only at DRAINED; 0 = off | written number |
 | `JOHARNESS_SCOUT_AUTOMERGE` | off | exactly `on` lets a scout merge its own proposal | a switch: money and product direction in one conf line |
-| `JOHARNESS_SCOUT_BACKLOG` | 24 | open plans (plus open scout proposal issues, counted by the scout) below this = a scout is due, not gated on DRAINED, at most one a 24h (written number); 0 = clock only, no ceiling | counted: 3 days x 8 merges/day, `git log --merges --first-parent --since=14.days --format=%h origin/main \| wc -l` = 118, 2026-10-12 |
+| `JOHARNESS_SCOUT_BACKLOG` | 24 | open plans (plus open scout proposal issues, counted by the scout) below this = a scout is due, not gated on DRAINED, at most one a 24h (written number); 0 = clock only, no ceiling; `JOHARNESS_SCOUT_HOURS=0` switches both triggers off | counted: 3 days x 8 merges/day, `git log --merges --first-parent --since=14.days --format=%h origin/main \| wc -l` = 118, 2026-10-12 |
 | `JOHARNESS_SCOUT_BUDGET_USD` | 10 | USD one scout pass spends before it stops researching (`get_session` `usage.cost_usd`) | written number, until a pass counts one |
 | `JOHARNESS_SCOUT_REVIEWER` | empty | GitHub login whose approved label gates a scout proposal issue; read from the base branch's conf; empty = nothing can be approved | a name the human gives |
 | `JOHARNESS_SCOUT_RESEARCH` | off | exactly `on` lets a scout pass read outside the repository; read from the base branch's conf | a switch: money in one conf line |
