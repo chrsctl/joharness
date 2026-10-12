@@ -323,8 +323,9 @@ a branch that deletes no plan or workstream file, and a branch that only adds
 is not an edge. `dispatch_branch_plans` now tests this and prints a leftover row.
 A carry that found the plan done deletes nothing on the base, so that test
 misses it (3 of 9 held plans in `chrsctl/gx`, issue #423): the row also reads
-the base's ledger and every other ref's `status: done` workstream files past
-the plan's filing commit, and carries `held Nd` from that commit.
+the base's ledger (any line, as `ci` does) and every other ref's `status:
+done` workstream files written after the plan's filing commit and still done,
+or retired, at a tip; it carries `held Nd` from that commit.
 
 ## The numbers are the human's
 

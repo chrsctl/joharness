@@ -8,7 +8,7 @@ issue: 423
 session: https://claude.ai/code/session_01DBge7Ng2dPpNZwrYjn7XCX
 agent: opus
 updated: 2026-10-12
-next: Verifier review at opus, then finish (step 7)
+next: Re-verify, then finish (step 7)
 ---
 
 ## Goal
@@ -29,6 +29,13 @@ been held.
 - Evidence walk: `git log --stdin --full-history -m -G'^status:[[:space:]]*done'`
   over every origin ref but the row's own, `^<that merge base>`, under
   `docs/handover`; the file as the commit left it, else its parent's (a retire).
+- Signal 2 (ledger) is UNGUARDED, deviating from the plan's text: `ci`
+  (`lint_plans_in_diff`) refuses a re-add of any listed stem whatever its age,
+  so a guarded row would print live a plan that can never merge (r4).
+- Signal 3 guard: evidence counts only if written at or after the filing
+  commit's time AND still holds at some other ref's tip (`status: done`
+  there, or the file deleted = retired). Time, not reachability, is what
+  excludes an old unmerged branch (r3).
 - Block prints one line per (stem, kind); `held` is the oldest branch's age.
   A DONE row drops the `URGENT` prefix: it leads with `DONE ON MAIN`.
 
@@ -39,6 +46,14 @@ been held.
 ## Review
 
 - r1: proof the new cases fail without the fix: `git checkout origin/main -- joharness.sh; bash .agents/harness/selftest.sh` 2026-10-12 → 2589 passed, 8 failed: (a), (b), (c), both (d) live rows, (f), (g), held-count — all new cases; restored script → 2597 passed, 0 failed. (no change)
+
+- r2: (verifier) a done workstream file later reopened on its unmerged ref still marked the plan done. `dispatch_done_holds`: some ref containing the evidence must still say done at its tip, or have deleted the file. Case (h) fails without it. (fixed)
+- r3: (verifier) an old unmerged branch's done record for a stem marked every later plan reusing the stem done, forever: never in any merge base. Evidence older than the filing commit's time counts for nothing. Case (i) fails without it. (fixed)
+- r4: (verifier) dispatch guarded the ledger by merge base while `ci` reads any line: a row printed live for a plan `ci` refuses. Ledger read unguarded, as `ci` does; (d)/`pe` rewritten as a (c) case that fails on the pre-fix script. Proof for r2-r4: pre-fix `HEAD:joharness.sh` + `bash .agents/harness/selftest.sh` 2026-10-12 → 2639 passed, 5 failed ((c)-ledger, (h)x2, (i)x2); fixed → 2644 passed, 0 failed. (fixed)
+- r5: (verifier) the step-7 builder whose `status: done` never merges still marks the row DONE ON MAIN. The plan names the unmerged retire-on-branch as the case to catch; the marker advises, it frees nothing. (wontfix: plan spec)
+- r6: (verifier) anyone with push access can suppress a branch-plan row with a forged done workstream file. Same trust boundary as push itself. (wontfix: push access is the boundary)
+- r7: (verifier) the two older-plan guards (`^since` bound, `--is-ancestor` on the add commit) and the `status` re-check each mask the other in case (d); not tested one by one. `^since` is the walk's cost bound; the ancestry check now overlaps the time check. (no change)
+- r8: (verifier) acceptance "every row carries held" is vacuous on this repo (no branch plans today); it holds in the selftest fixture. (no change)
 
 ## Blockers
 

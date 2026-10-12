@@ -3138,7 +3138,8 @@ printf '# Retired stems\n\n- pc carry-pc\n' >"${bpwork}/docs/plans/RETIRED.md"
 commit_all "$bpwork" "ledger retires pc"
 git -C "$bpwork" push -q origin main
 # (d) a done workstream file for pd already in the owner's merge base: an
-# older plan of that name, and so is a ledger line already there.
+# older plan of that name. A ledger line already there is NOT: `ci` refuses
+# the re-add whatever its age (lint_plans_in_diff), so the row reads done.
 bddone "${bpwork}/docs/handover/old-pd.md" pd
 printf -- '- pe old-carry\n' >>"${bpwork}/docs/plans/RETIRED.md"
 commit_all "$bpwork" "older pd done, older pe retired"
@@ -3169,6 +3170,27 @@ git -C "$bpwork" checkout -q own-pg
 git -C "$bpwork" merge -q --no-ff -m "merge main into own-pg" main
 git -C "$bpwork" push -q origin own-pg
 git -C "$bpwork" checkout -q main
+# (h) a builder wrote ph done, then reopened it, unmerged: its tip says
+# in-progress, so the history line counts for nothing (verifier r2).
+bdowner own-ph ph
+git -C "$bpwork" checkout -qb build-ph main
+bddone "${bpwork}/docs/handover/build-ph.md" ph
+commit_all "$bpwork" "builder writes ph done"
+sed -i 's/^status: done$/status: in-progress/' "${bpwork}/docs/handover/build-ph.md"
+commit_all "$bpwork" "builder reopens ph"
+git -C "$bpwork" push -qu origin build-ph
+git -C "$bpwork" checkout -q main
+# (i) an old unmerged branch wrote pi done a day before pi was filed again:
+# never in any merge base, still an older plan of that name (verifier r3).
+git -C "$bpwork" checkout -qb old-pi main
+bddone "${bpwork}/docs/handover/old-pi.md" pi
+git -C "$bpwork" add -A
+GIT_AUTHOR_DATE="$(( $(date +%s) - 86400 )) +0000" \
+GIT_COMMITTER_DATE="$(( $(date +%s) - 86400 )) +0000" \
+  git -C "$bpwork" commit -qm "old branch writes pi done, a day ago"
+git -C "$bpwork" push -qu origin old-pi
+git -C "$bpwork" checkout -q main
+bdowner own-pi pi
 out="$(bp)"
 bpblock="$(sed -n '/^plans on a branch/,/^$/p' <<<"$out")"
 expect "(a) a stem an unmerged carrier wrote done is DONE ON MAIN" \
@@ -3180,9 +3202,8 @@ expect "(c) a stem the base's ledger lists is DONE ON MAIN" \
 expect "(d) a done record already in the merge base is an older plan: live" \
   "  pd (urgency: normal, agent: sonnet)  on own-pd  held 0d" "$bpblock"
 refute "(d) and it carries no marker" "DONE ON MAIN pd " "$bpblock"
-expect "(d) a ledger line already in the merge base is an older plan: live" \
-  "  pe (urgency: normal, agent: sonnet)  on own-pe  held 0d" "$bpblock"
-refute "(d) and it carries no marker either" "DONE ON MAIN pe " "$bpblock"
+expect "(c) a ledger line older than the plan still reads done, as ci refuses it" \
+  "  DONE ON MAIN pe (urgency: normal, agent: sonnet)  on own-pe" "$bpblock"
 expect "(e) the base-added-and-retired leftover keeps its text" \
   "docs/plans/carried.md  carry-src  leftover  its plan carried landed and was retired by another branch" "$out"
 refute "(e) and it is no DONE ON MAIN row" "DONE ON MAIN carried" "$bpblock"
@@ -3191,6 +3212,12 @@ expect "(f) a live plan carries held Nd from its filing commit, not its tip" \
 refute "(f) and no marker" "DONE ON MAIN pf " "$bpblock"
 expect "(g) a carry the owner merged up after still reads DONE ON MAIN" \
   "  DONE ON MAIN pg (urgency: normal, agent: sonnet)  on own-pg" "$bpblock"
+expect "(h) a done record its ref reopened is live" \
+  "  ph (urgency: normal, agent: sonnet)  on own-ph  held 0d" "$bpblock"
+refute "(h) and no marker" "DONE ON MAIN ph " "$bpblock"
+expect "(i) a done record older than the filing, on an unmerged branch, is live" \
+  "  pi (urgency: normal, agent: sonnet)  on own-pi  held 0d" "$bpblock"
+refute "(i) and no marker" "DONE ON MAIN pi " "$bpblock"
 bdrows="$(grep -c '^  ' <<<"$bpblock")"
 bdheld="$(grep -c '  held [0-9][0-9]*d' <<<"$bpblock")"
 if [ "$bdrows" -gt 0 ] && [ "$bdrows" = "$bdheld" ]; then
@@ -3199,7 +3226,7 @@ else
   fail "every plans-on-a-branch row carries held (${bdheld} of ${bdrows})"
   printf '%s\n' "$(indent "$bpblock")"
 fi
-if grep -q '^verdict' <<<"$out" && ! grep -q 'docs/plans/p[a-g]\.md' \
+if grep -q '^verdict' <<<"$out" && ! grep -q 'docs/plans/p[a-i]\.md' \
      <<<"$(sed '/^plans on a branch/,/^$/d' <<<"$out")"; then
   pass "and no DONE ON MAIN or live branch plan reaches the spawn list"
 else

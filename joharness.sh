@@ -5312,17 +5312,17 @@ dispatch_rescope_branches() {
   done <<<"$refs"
 }
 
-# Done evidence for branch plans: `<commit>\t<stem>` for every workstream file
-# that says `status: done` in a commit reachable from any origin ref but <own>
-# and not from <since>. `-G` finds the commit that wrote, or the retire that
+# Done evidence for branch plans: `<commit>\t<commit time>\t<stem>\t<file>`
+# for every workstream file that says `status: done` in a commit reachable
+# from any origin ref but <own> and not from <since>. `-G` finds the commit that wrote, or the retire that
 # deleted, the `status: done` line; `--full-history -m` sees one a merge
 # brought in. Bounded by <since>, never by a merge count (cl_merged_claims).
 dispatch_done_evidence() {
-  local since="$1" own="$2" line h="" seen="" doc wplan wstat
+  local since="$1" own="$2" line h="" ht="" seen="" doc wplan wstat
   while IFS= read -r line; do
     case "$line" in
       '') continue ;;
-      'C '*) h="${line#C }"; continue ;;
+      'C '*) read -r h ht <<<"${line#C }"; continue ;;
     esac
     [ -n "$h" ] || continue
     case "$seen" in *" ${h}:${line} "*) continue ;; esac
@@ -5335,14 +5335,30 @@ dispatch_done_evidence() {
       < <(printf '%s\n' "$doc" | gr_fields plan status)
     [ "$wstat" = "done" ] || continue
     wplan="$(lint_stem "$wplan" | tr -cd 'A-Za-z0-9._-')"
-    [ -z "$wplan" ] || [ "$wplan" = none ] || printf '%s\t%s\n' "$h" "$wplan"
+    [ -z "$wplan" ] || [ "$wplan" = none ] ||
+      printf '%s\t%s\t%s\t%s\n' "$h" "$ht" "$wplan" "$line"
   done < <(git -C "$ROOT" for-each-ref --format='%(refname)' refs/remotes/origin \
       </dev/null 2>/dev/null |
     awk -v own="$own" -v since="$since" '
       $0 != own && $0 != "refs/remotes/origin/HEAD" { print }
       END { print "^" since }' |
     git -C "$ROOT" log --stdin --full-history -m -G'^status:[[:space:]]*done' \
-      --name-only --format='C %H' -- docs/handover 2>/dev/null)
+      --name-only --format='C %H %ct' -- docs/handover 2>/dev/null)
+}
+
+# Does done evidence <commit> on <file> still hold? Some origin ref but <own>
+# that contains it must, at its tip, still say `status: done` there or have
+# deleted the file (a retire). A ref that reopened it says nothing.
+dispatch_done_holds() {
+  local evh="$1" evf="$2" own="$3" ref doc
+  while IFS= read -r ref; do
+    [ -n "$ref" ] || continue
+    { [ "$ref" = "$own" ] || [ "$ref" = refs/remotes/origin/HEAD ]; } && continue
+    doc="$(git -C "$ROOT" show "${ref}:${evf}" </dev/null 2>/dev/null)" || return 0
+    [ "$(printf '%s\n' "$doc" | gr_field status)" = "done" ] && return 0
+  done < <(git -C "$ROOT" for-each-ref --contains "$evh" --format='%(refname)' \
+    refs/remotes/origin </dev/null 2>/dev/null)
+  return 1
 }
 
 # Plans on a branch: a plan file an unmerged branch ADDED and the base does not
@@ -5425,12 +5441,12 @@ dispatch_branch_plans() {
         abase="$(git -C "$ROOT" merge-base "$addh" \
           "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)"
         abase="${abase:-$base}"
+        # The ledger as `ci` reads it (lint_plans_in_diff): a listed stem
+        # stays retired whoever re-adds it, so its row is done, not live.
         ledger="$(git -C "$ROOT" show \
           "refs/remotes/origin/${base_branch}:docs/plans/RETIRED.md" \
           </dev/null 2>/dev/null | retired_ref "$stem")"
-        if [ -n "$ledger" ] && [ -z "$(git -C "$ROOT" show \
-             "${abase}:docs/plans/RETIRED.md" </dev/null 2>/dev/null |
-             retired_ref "$stem")" ]; then
+        if [ -n "$ledger" ]; then
           kind="done"
         else
           # One walk per (since, own) pair, cached across this branch's plans.
@@ -5439,11 +5455,16 @@ dispatch_branch_plans() {
             *) evcache="<${abase} ${r}>"
                evs="$(dispatch_done_evidence "$abase" "$r")" ;;
           esac
-          while IFS=$'\t' read -r evh ev; do
+          while IFS=$'\t' read -r evh evt ev evf; do
             [ "$ev" = "$stem" ] || continue
+            # Written before the plan was filed: an older plan of that name,
+            # on whatever ref it sits (an unmerged branch is never in the
+            # merge base, however old).
+            [ "${evt:-0}" -ge "${addt:-0}" ] || continue
             # The row branch's own history before the plan landed: older.
             git -C "$ROOT" merge-base --is-ancestor "$evh" "$addh" \
               </dev/null 2>/dev/null && continue
+            dispatch_done_holds "$evh" "$evf" "$r" || continue
             kind="done"; break
           done <<<"$evs"
         fi
