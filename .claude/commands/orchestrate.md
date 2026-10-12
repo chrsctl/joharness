@@ -235,8 +235,9 @@ nothing.
   | `free <branch> ... FREEABLE` under `spawn` (a slot, like a manager) | sonnet | `freer: <branch>` | `/manage free <branch>` | `free-<key>@new` |
 
   FREEABLE first: prove the owner's session not RUNNING (`/who`, as for
-  `janitor`); RUNNING = skip the row this pass. Dispatch drops the row once
-  the `free-<key>` claim is pushed.
+  `janitor`); RUNNING = skip the row this pass. Dispatch drops the row while
+  a `free-<key>` claim stands or another unmerged branch holds the owner's
+  tip; a released (`abandoned`) free claim offers it again.
 
   "the role lines", for clerk and conduct (they write no
   workstream file, so no claim line):

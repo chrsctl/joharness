@@ -2917,10 +2917,27 @@ free_path_ok() {
   return 1
 }
 
+# Does <ref> carry, since <base>, a workstream file a human or a pull request
+# still holds (status blocked or review, or a pr: set)? Prints the first.
+# Such a branch is waiting on someone: freeing it would erase the question or
+# merge past a label only a human removes.
+free_owner_held() {
+  local ref="$1" base="$2" f doc st pr
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    doc="$(git -C "$ROOT" show "${ref}:${f}" </dev/null 2>/dev/null)" || continue
+    { read -r st; read -r pr; } <<<"$(printf '%s\n' "$doc" | gr_fields status pr)"
+    case "$st" in blocked | review) printf '%s (status: %s)' "$f" "$st"; return 0 ;; esac
+    case "$pr" in '' | none) ;; *) printf '%s (pr: %s)' "$f" "$(printf '%s' "$pr" | tr -cd 'A-Za-z0-9._#-')"; return 0 ;; esac
+  done <<<"$(git -c core.quotePath=false -C "$ROOT" diff --name-only \
+    --diff-filter=ACMRT "$base" "$ref" -- docs/handover </dev/null 2>/dev/null | gr_docs)"
+  return 1
+}
+
 cmd_free() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" owner="${1:-}" usage
   local cur tip mb paths p bad="" n_bad=0 behind pre f kind stem
-  local added_wf added_plans rows dropped="" keep out rc applied
+  local added_wf added_plans rows dropped="" keep out rc applied held wplan wst
 
   usage="usage: $0 free <branch> — run on your own claimed branch, cut from fresh origin/${base_branch}"
   { [ "$#" -eq 1 ] && [ -n "$owner" ]; } || die "$usage"
@@ -2936,9 +2953,21 @@ cmd_free() {
     printf 'refused   : %s is the base branch or this branch — free takes another branch\n' "$owner"
     return 1
   fi
+  if [ "$cur" = "$base_branch" ]; then
+    printf 'refused   : on %s itself — free commits onto your own claimed branch only\n' "$base_branch"
+    return 1
+  fi
+  # The claim first (manage.md §0): a free nobody claimed is invisible to
+  # dispatch, and a second manager frees the same branch.
+  if ! git -C "$ROOT" cat-file -e "HEAD:docs/handover/free-$(free_key "$owner").md" 2>/dev/null; then
+    printf 'refused   : %s carries no docs/handover/free-%s.md — claim it and push the claim first\n' \
+      "$cur" "$(free_key "$owner")"
+    return 1
+  fi
+  # Untracked files too: one in the way of the merge reads as a conflict.
   if git -C "$ROOT" rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1 ||
-     ! git -C "$ROOT" diff --quiet HEAD -- 2>/dev/null; then
-    printf 'refused   : uncommitted changes or a merge in progress — commit or clean first\n'
+     [ -n "$(git -C "$ROOT" status --porcelain 2>/dev/null)" ]; then
+    printf 'refused   : uncommitted or untracked changes, or a merge in progress — commit or clean first\n'
     return 1
   fi
   # The two reads every refusal below stands on, fresh: a stale base would
@@ -2989,6 +3018,10 @@ cmd_free() {
       "$owner" "$n_bad" "$bad"
     return 1
   fi
+  if held="$(free_owner_held "$tip" "$mb")"; then
+    printf 'refused   : %s holds %s — someone still owes it an answer; never freed\n' "$owner" "$held"
+    return 1
+  fi
   printf 'owner     : %s at %s, %s path(s) since %s\n' "$owner" "${tip:0:12}" \
     "$(printf '%s\n' "$paths" | grep -c .)" "${mb:0:12}"
 
@@ -3015,9 +3048,22 @@ cmd_free() {
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     git -C "$ROOT" cat-file -e "${pre}:${f}" 2>/dev/null && continue
+    { read -r wst; read -r wplan; } <<<"$(git -C "$ROOT" show "${tip}:${f}" \
+      </dev/null 2>/dev/null | gr_fields status plan)"
     git -C "$ROOT" rm -q -f -- "$f" >/dev/null 2>&1 || continue
     dropped="${dropped}${f}"$'\n'
     printf 'drop      : %s — the owner'"'"'s workstream file\n' "$f"
+    # A done record the owner never retired: its item is finished, and
+    # deleting the record alone hands it back to the queue. Retire it here.
+    [ "$wst" = "done" ] || continue
+    wplan="$(lint_stem "$wplan" | tr -cd 'A-Za-z0-9._-')"
+    case "$wplan" in '' | none) continue ;; esac
+    for p in "docs/plans/${wplan}.md" "docs/research/${wplan}.md"; do
+      git -C "$ROOT" ls-files --error-unmatch -- "$p" >/dev/null 2>&1 || continue
+      git -C "$ROOT" rm -q -f -- "$p" >/dev/null 2>&1 || continue
+      printf 'retire    : %s — %s reads status: done\n' "$p" "$f"
+      dropped="${dropped}${p}"$'\n'
+    done
   done <<<"$added_wf"
 
   # 3. A stem retired elsewhere never re-enters the queue.
@@ -5720,19 +5766,35 @@ dispatch_branch_plans() {
 #     pr: and a `plan:` (a manager's "found it done"), no plan added. No age
 #     wait: its own status says the session ended. `plan: none` is a role's
 #     record (a surveyor's "holds genuine" stays unmerged by design): never.
-# A branch carrying a `free-*` claim is a free manager's, never freeable.
+# Never freeable: a branch carrying a `free-*` claim or a `free: merge`
+# commit (a free manager's); a branch whose workstream file a human or a pull
+# request holds (free_owner_held); a branch already merged into another live
+# unmerged branch (a free in flight past its retire commit). A branch whose
+# free claim was released (`abandoned`) lends none of that: offered again.
 dispatch_freeable() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" bprows="$1"
-  local refs r name base paths p ok wonly doc st pr ws wp claimed="" n_rows age stale_s cb ck
+  local refs r name base paths p ok wonly doc st pr ws wp claimed="" n_rows age stale_s cb ck cs
+  local gone=" " live="" r2 inside
   stale_s="$(num_knob HANDOVER_STALE_SECONDS 518400)"
-  # Keys a free claim covers, in flight or parked: a second manager onto the
-  # same owner is two merges of one branch.
-  while IFS=$'\t' read -r cb ck _; do
+  # Keys a live free claim covers: a second manager onto the same owner is
+  # two merges of one branch.
+  while IFS=$'\t' read -r cb ck cs _; do
     [ -n "$cb" ] || continue
+    if [ "$cs" = abandoned ]; then gone="${gone}${cb} "; continue; fi
     claimed="${claimed} ${ck} "
   done < <(dispatch_rescope_branches free-)
   refs="$(git -C "$ROOT" for-each-ref --format='%(refname)' \
     refs/remotes/origin </dev/null 2>/dev/null)"
+  # The unmerged refs a free could sit in.
+  while IFS= read -r r; do
+    [ -n "$r" ] || continue
+    name="${r#refs/remotes/origin/}"
+    { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
+    [ "${gone#* "${name}" }" = "$gone" ] || continue
+    git -C "$ROOT" merge-base --is-ancestor "$r" \
+      "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null && continue
+    live="${live}${r}"$'\n'
+  done <<<"$refs"
   while IFS= read -r r; do
     [ -n "$r" ] || continue
     name="${r#refs/remotes/origin/}"
@@ -5748,6 +5810,16 @@ dispatch_freeable() {
     paths="$(git -c core.quotePath=false -C "$ROOT" diff --no-renames \
       --name-only "$base" "$r" </dev/null 2>/dev/null)"
     [ -n "$paths" ] || continue
+    inside=0
+    while IFS= read -r r2; do
+      { [ -n "$r2" ] && [ "$r2" != "$r" ]; } || continue
+      git -C "$ROOT" merge-base --is-ancestor "$r" "$r2" </dev/null 2>/dev/null &&
+        { inside=1; break; }
+    done <<<"$live"
+    [ "$inside" -eq 0 ] || continue
+    git -C "$ROOT" log --format=%s "${base}..${r}" </dev/null 2>/dev/null |
+      grep -q '^free: merge ' && continue
+    free_owner_held "$r" "$base" >/dev/null && continue
     ok=1; wonly=1
     while IFS= read -r p; do
       [ -n "$p" ] || continue
@@ -6243,8 +6315,14 @@ cmd_dispatch() {
     [ "$rstat" != abandoned ] || continue
     age="$(dispatch_age_min "$rb")"
     agetext="$(dispatch_age_text "$age")"
-    n_inflight=$((n_inflight + 1))
     flag=""
+    # Done with no merge = `free` refused (manage.md §0): a record, no slot.
+    if [ "$rstat" = "done" ]; then
+      inflight="${inflight}  free-${rk}  ${rb}  done  pushed ${agetext}  refused, a record: holds no slot"$'\n'
+      [ -z "$rnext" ] || inflight="${inflight}    next: ${rnext}"$'\n'
+      continue
+    fi
+    n_inflight=$((n_inflight + 1))
     if [ "$rstat" = blocked ]; then
       n_blocked=$((n_blocked + 1))
       flag="  BLOCKED: the human's, holds no slot"

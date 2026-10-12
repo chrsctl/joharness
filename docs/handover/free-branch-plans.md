@@ -8,7 +8,7 @@ issue: 423
 session: https://claude.ai/code/session_01Nm4goRUANzvNDQdDAJ5Ubr
 agent: opus
 updated: 2026-10-12
-next: Get ci and verify green (dispatch rescope cases, shellcheck), then verifier review at opus
+next: Full selftest + ci + verify green on the round-1 fixes, then retire and open the pull request
 ---
 
 ## Goal
@@ -48,6 +48,16 @@ branch, and an empty done branch, a mechanical path to main via
   surveyor's settle record and broke 4 rescope cases in selftest/dispatch.sh.
 
 ## Review
+
+- r1: (verifier) freeing an empty done branch whose record names a plan the base carries deleted the record only: the finished plan went back to the spawn list. (fixed — `free` step 2 also retires the `docs/plans` or `docs/research` file a dropped `status: done` record names; selftest/free.sh carry-fin case)
+- r2: (verifier) a plan branch whose workstream file is `blocked` (or `review`, or names a `pr:`) was FREEABLE and `free` deleted the human's question. (fixed — `free_owner_held`, read by both `dispatch_freeable` and `free`; cases in free.sh and dispatch.sh)
+- r3: (verifier) once the free manager's retire commit deleted its claim, the owner was offered again while the pull request was open. (fixed — an owner whose tip sits in another live unmerged branch, or a branch carrying a `free: merge` commit, is never FREEABLE; dispatch.sh case)
+- r4: (verifier) a janitor-released (`abandoned`) free claim hid its owner for good. (fixed — an abandoned free claim neither covers a key nor holds the owner; dispatch.sh gone-w case)
+- r5: (verifier) `free` committed onto the base branch, and ran with no claim. (fixed — refuses `cur` = base and a branch lacking `docs/handover/free-<key>.md`; free.sh cases)
+- r6: (verifier) the selftest "counts as a free item" held with the count code removed. (fixed — pins the verdict's count at one more than before the stale branch)
+- r7: (verifier) an untracked file in the merge's way read as a conflict and pointed the manager at a `conflict:` block. (fixed — the clean-tree refusal reads `git status --porcelain`, untracked included; free.sh case)
+- r8: (verifier) owners `a/b` and `a-b` share key `a-b`: one claim hides both rows while it stands. (wontfix: two such branches both doc-only and stale at once is far-fetched; the cost is one pass's delay, and r3's containment check frees the other once the claim's merge lands)
+- r9: (verifier) the author's "610 passed" came from a scratch runner with a topic filter (`ONLY_TOPICS` copy of selftest.sh in the scratchpad), not a repo command. (no change — measured numbers in the PR body come from `bash .agents/harness/selftest.sh`)
 
 ## Blockers
 

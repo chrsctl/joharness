@@ -3334,6 +3334,9 @@ fi
 refute "a fresh plan branch is not FREEABLE" "free plan-only (agent" "$out"
 expect "an empty done branch is FREEABLE at once" \
   "  free carry-pa (agent: sonnet)  FREEABLE — its only diff is a status: done, pr: none workstream file" "$out"
+# The free count before the stale branch, to pin that it adds exactly one
+# (verifier r6: NOT DRAINED alone held with the count code removed).
+bpfree0="$(sed -n 's/^verdict   : NOT DRAINED — \([0-9][0-9]*\) free item.*/\1/p' <<<"$out")"
 git -C "$bpwork" checkout -qb gone-q main
 bpplan "${bpwork}/docs/plans/q.md" q normal
 git -C "$bpwork" add -A
@@ -3344,7 +3347,8 @@ git -C "$bpwork" checkout -q main
 out="$(bp)"
 expect "a plan branch past the stale window is FREEABLE" \
   "  free gone-q (agent: sonnet)  FREEABLE — 1 plan(s) on a doc-only branch" "$out"
-expect "and it counts as a free item" "verdict   : NOT DRAINED" "$out"
+expect "and it counts as one more free item" \
+  "verdict   : NOT DRAINED — $(( ${bpfree0:-0} + 1 )) free item(s)" "$out"
 refute "plan-only, still fresh, is still no row" "free plan-only (agent" "$out"
 # The manager's claim: the row goes, the claim holds a slot, and the claim's
 # own doc-only branch is never FREEABLE.
@@ -3359,6 +3363,61 @@ out="$(bp)"
 refute "a free claim on its key drops the row" "free gone-q (agent" "$out"
 expect "the claim is a manager in flight" "  free-gone-q  mgr-free-q  in-progress" "$out"
 refute "and the claim's own branch is never FREEABLE" "free mgr-free-q (agent" "$out"
+# Past its retire commit the claim file is gone, the pull request open: the
+# owner sits merged in the manager's branch, so neither is offered (r3).
+git -C "$bpwork" checkout -q mgr-free-q
+git -C "$bpwork" merge -q --no-ff -m "free: merge gone-q (fixture)" gone-q
+git -C "$bpwork" rm -q docs/handover/free-gone-q.md
+commit_all "$bpwork" "retire the free claim"
+git -C "$bpwork" push -q origin mgr-free-q
+git -C "$bpwork" checkout -q main
+out="$(bp)"
+refute "a freed owner past the retire commit is not offered again" "free gone-q (agent" "$out"
+refute "nor is the free manager's own branch" "free mgr-free-q (agent" "$out"
+# A released free claim lends nothing: its owner is offered again (r4).
+git -C "$bpwork" checkout -qb gone-w main
+bpplan "${bpwork}/docs/plans/fw.md" fw normal
+git -C "$bpwork" add -A
+GIT_COMMITTER_DATE='2026-01-01T00:00:00Z' GIT_AUTHOR_DATE='2026-01-01T00:00:00Z' \
+  git -C "$bpwork" commit -qm "file w, long ago"
+git -C "$bpwork" push -qu origin gone-w
+git -C "$bpwork" checkout -qb mgr-free-w main
+git -C "$bpwork" merge -q --no-ff -m "free: merge gone-w (fixture)" gone-w
+mkdir -p "${bpwork}/docs/handover"
+printf -- '---\nworkstream: free-gone-w\nstatus: abandoned\nbranch: mgr-free-w\npr: none\nplan: none\nagent: sonnet\nupdated: 2026-01-01\nnext: Released\n---\n\n## Goal\nFixture.\n' \
+  >"${bpwork}/docs/handover/free-gone-w.md"
+commit_all "$bpwork" "free claim released"
+git -C "$bpwork" push -qu origin mgr-free-w
+git -C "$bpwork" checkout -q main
+out="$(bp)"
+expect "a released free claim offers its owner again" "  free gone-w (agent: sonnet)  FREEABLE" "$out"
+# Parked on a human: never offered, however old (r2).
+git -C "$bpwork" checkout -qb held-h main
+bpplan "${bpwork}/docs/plans/fh.md" fh normal
+mkdir -p "${bpwork}/docs/handover"
+printf -- '---\nworkstream: held\nstatus: blocked\nbranch: held-h\npr: none\nplan: none\nagent: sonnet\nupdated: 2026-01-01\nnext: product: which one?\n---\n\n## Goal\nFixture.\n' \
+  >"${bpwork}/docs/handover/held.md"
+git -C "$bpwork" add -A
+GIT_COMMITTER_DATE='2026-01-01T00:00:00Z' GIT_AUTHOR_DATE='2026-01-01T00:00:00Z' \
+  git -C "$bpwork" commit -qm "park on a question, long ago"
+git -C "$bpwork" push -qu origin held-h
+git -C "$bpwork" checkout -q main
+out="$(bp)"
+refute "a branch parked on a human is never FREEABLE" "free held-h (agent" "$out"
+# A free manager that found nothing to free leaves a done record: listed,
+# no slot (manage.md §0).
+bpslots0="$(sed -n 's/^slots     : \([0-9][0-9]*\) of.*/\1/p' <<<"$out")"
+git -C "$bpwork" checkout -qb mgr-free-held main
+mkdir -p "${bpwork}/docs/handover"
+printf -- '---\nworkstream: free-held-h\nstatus: done\nbranch: mgr-free-held\npr: none\nplan: none\nagent: sonnet\nupdated: 2026-01-01\nnext: free refused: held-h is blocked\n---\n\n## Goal\nFixture.\n' \
+  >"${bpwork}/docs/handover/free-held-h.md"
+commit_all "$bpwork" "free refused"
+git -C "$bpwork" push -qu origin mgr-free-held
+git -C "$bpwork" checkout -q main
+out="$(bp)"
+expect "a refused free's record is listed" \
+  "  free-held-h  mgr-free-held  done  pushed 0m  refused, a record: holds no slot" "$out"
+expect "and holds no slot" "slots     : ${bpslots0:-x} of" "$out"
 
 # --- time against the item: CEILING? (issue #298) ---------------------------
 # A manager that pushes inside the stall window and under the churn limit read

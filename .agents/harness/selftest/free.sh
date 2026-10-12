@@ -48,6 +48,7 @@ fws() {
     "$2" "$3" "$4" >"$1"
 }
 fplan onmain
+fplan finished other.txt
 printf '# Retired stems\n\n- ledgered carry-ledgered\n' >"${fwork}/docs/plans/RETIRED.md"
 commit_all "$fwork" "base"
 git -C "$fwork" remote add origin "$forigin"
@@ -230,6 +231,37 @@ else
 fi
 expect "naming the count" "mgr-s is 1 behind origin/main" "$out"
 
+# Held: a branch parked on a human question is never freed — the question
+# would vanish with its workstream file (verifier r2).
+git -C "$fwork" checkout -q -b held-h origin/main
+fplan ph
+fws "${fwork}/docs/handover/held.md" held blocked none
+git -C "$fwork" add -A
+GIT_COMMITTER_DATE="$fold" GIT_AUTHOR_DATE="$fold" git -C "$fwork" commit -qm "park on a question"
+git -C "$fwork" push -qu origin held-h
+fclaim mgr-h held-h
+out="$(ffree held-h)"; rc=$?
+if [ "$rc" -ne 0 ]; then pass "a blocked owner is refused"; else fail "a blocked owner exited 0"; fi
+expect "naming the held file" "docs/handover/held.md (status: blocked)" "$out"
+# Untracked in the way of the merge is a dirty tree, never a conflict (r7).
+printf 'stray\n' >"${fwork}/docs/plans/ph.md"
+out="$(ffree held-h)"
+expect "an untracked file is a dirty tree" "uncommitted or untracked changes" "$out"
+rm -f "${fwork}/docs/plans/ph.md"
+# No claim, or the base itself: refused before anything is written (r5).
+git -C "$fwork" checkout -q -b unclaimed origin/main
+out="$(ffree filer-s)"
+expect "a branch with no free claim is refused" "carries no docs/handover/free-filer-s.md" "$out"
+git -C "$fwork" checkout -q main
+fpre="$(git -C "$fwork" rev-parse HEAD)"
+out="$(ffree filer-s)"
+expect "free on the base branch is refused" "on main itself" "$out"
+if [ "$(git -C "$fwork" rev-parse HEAD)" = "$fpre" ]; then
+  pass "and the base gains no commit"
+else
+  fail "free committed onto the base branch"
+fi
+
 # --- the empty done branch closes ---------------------------------------------
 fclaim mgr-d carry-donep
 fdtip="$(git -C "$fwork" rev-parse origin/carry-donep)"
@@ -248,6 +280,25 @@ if git -C "$fwork" merge-base --is-ancestor "$fdtip" HEAD; then
 else
   fail "the done branch is not merged"
 fi
+# A done record for a plan the base still carries: freeing the record alone
+# would hand the finished plan back to the queue (verifier r1).
+git -C "$fwork" checkout -q -b carry-fin origin/main
+fws "${fwork}/docs/handover/carry-fin.md" carry-fin "done" finished
+commit_all "$fwork" "carrier finds finished done"
+git -C "$fwork" push -qu origin carry-fin
+fclaim mgr-f carry-fin
+out="$(ffree carry-fin)"; rc=$?
+if [ "$rc" -eq 0 ]; then
+  pass "a done record for a base plan frees"
+else
+  fail "a done record for a base plan frees (rc ${rc})"
+  indent "$out"
+  printf '\n'
+fi
+expect "and retires the plan it reads done" \
+  "retire    : docs/plans/finished.md — docs/handover/carry-fin.md reads status: done" "$out"
+refute "the plan is gone from the free commit" "docs/plans/finished.md" \
+  "$(git -C "$fwork" ls-tree -r --name-only HEAD)"
 
 # --- a merge conflict leaves the tree as found --------------------------------
 git -C "$fwork" checkout -q -b conf-c origin/main

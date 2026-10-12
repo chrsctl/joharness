@@ -41,9 +41,11 @@ or requirements, other branches' files, or the design doc.
      key = the branch with every character outside `A-Za-z0-9._-` as `-`.
      Push the claim, then `./joharness.sh free <branch>`: it merges, drops
      the owner's workstream files and stems DONE ON MAIN, runs `curate
-     --apply` on the plans it brings in only, `ci`, commits. Non-zero = it
-     reset; fix by hand inside a plan-only diff or block `conflict:`. Then
-     §4 whole; its `recover` lines and the owner branch go in the body.
+     --apply` on the plans it brings in only, `ci`, commits. Refused =
+     nothing to free: no pull request, `status: done`, `next:` naming the
+     refusal, push, exit. Reset (conflict, red `ci`) = fix by hand inside a
+     plan-only diff or block `conflict:`. Then §4 whole; its `recover` lines
+     and the owner branch go in the body.
      Never push to the owner's branch.
    - `rescope <key>` — you are the SURVEYOR: section R. Claim on
      `docs/handover/rescope-<key>.md` with `workstream: rescope-<key>` and
