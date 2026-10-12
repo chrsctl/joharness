@@ -3098,6 +3098,114 @@ expect "it is a leftover row naming its branch" \
 expect "a plan of a retired stem's name filed AFTER the retire still shows" \
   "  reused (urgency: normal, agent: sonnet)  on reuse-src" "$bpblock"
 
+# --- plans on a branch: DONE ON MAIN and held Nd (issue #423) --------------
+# A carry that wrote `status: done, pr: none` deletes nothing on the base, so
+# the leftover test above never fires: in a consumer 3 of 9 held plans were
+# already done. Same fixture repo; each case its own stem.
+# <branch> <stem>: a plan-only owner branch cut from main.
+bdowner() {
+  git -C "$bpwork" checkout -qb "$1" main
+  mkdir -p "${bpwork}/docs/plans"
+  bpplan "${bpwork}/docs/plans/$2.md" "$2" normal
+  commit_all "$bpwork" "owner files $2"
+  git -C "$bpwork" push -qu origin "$1"
+  git -C "$bpwork" checkout -q main
+}
+# <file> <stem>: a carrier's workstream file, done, no pull request.
+bddone() {
+  mkdir -p "${bpwork}/docs/handover"
+  printf -- '---\nworkstream: carry-%s\nstatus: done\nbranch: x\npr: none\nplan: %s\nagent: sonnet\nupdated: 2026-01-01\nnext: Nothing\n---\n\n## Goal\nFixture.\n' \
+    "$2" "$2" >"$1"
+}
+# (a) an unmerged carrier retired the plan on its branch.
+bdowner own-pa pa
+git -C "$bpwork" checkout -qb carry-pa main
+bddone "${bpwork}/docs/handover/carry-pa.md" pa
+commit_all "$bpwork" "carrier finds pa done"
+git -C "$bpwork" push -qu origin carry-pa
+git -C "$bpwork" checkout -q main
+# (b) a carrier that MERGED, with no plan file.
+bdowner own-pb pb
+git -C "$bpwork" checkout -qb carry-pb main
+bddone "${bpwork}/docs/handover/carry-pb.md" pb
+commit_all "$bpwork" "carrier finds pb done"
+git -C "$bpwork" checkout -q main
+git -C "$bpwork" merge -q --no-ff -m "merge carry-pb" carry-pb
+git -C "$bpwork" push -q origin main carry-pb
+# (c) the base's ledger lists the stem.
+bdowner own-pc pc
+printf '# Retired stems\n\n- pc carry-pc\n' >"${bpwork}/docs/plans/RETIRED.md"
+commit_all "$bpwork" "ledger retires pc"
+git -C "$bpwork" push -q origin main
+# (d) a done workstream file for pd already in the owner's merge base: an
+# older plan of that name, and so is a ledger line already there.
+bddone "${bpwork}/docs/handover/old-pd.md" pd
+printf -- '- pe old-carry\n' >>"${bpwork}/docs/plans/RETIRED.md"
+commit_all "$bpwork" "older pd done, older pe retired"
+git -C "$bpwork" push -q origin main
+bdowner own-pd pd
+bdowner own-pe pe
+# (f) a live plan filed three days ago.
+git -C "$bpwork" checkout -qb own-pf main
+bpplan "${bpwork}/docs/plans/pf.md" pf normal
+git -C "$bpwork" add -A
+GIT_AUTHOR_DATE="$(( $(date +%s) - 3 * 86400 - 600 )) +0000" \
+GIT_COMMITTER_DATE="$(( $(date +%s) - 3 * 86400 - 600 )) +0000" \
+  git -C "$bpwork" commit -qm "owner files pf, three days ago"
+# merged up from the base today: the age still reads the filing commit.
+git -C "$bpwork" merge -q --no-ff -m "merge main into own-pf" main
+git -C "$bpwork" push -qu origin own-pf
+git -C "$bpwork" checkout -q main
+# (g) the owner merged the base up AFTER a carrier merged pg as done: the
+# carry is in the tip's merge base, never in the filing commit's.
+bdowner own-pg pg
+git -C "$bpwork" checkout -qb carry-pg main
+bddone "${bpwork}/docs/handover/carry-pg.md" pg
+commit_all "$bpwork" "carrier finds pg done"
+git -C "$bpwork" checkout -q main
+git -C "$bpwork" merge -q --no-ff -m "merge carry-pg" carry-pg
+git -C "$bpwork" push -q origin main carry-pg
+git -C "$bpwork" checkout -q own-pg
+git -C "$bpwork" merge -q --no-ff -m "merge main into own-pg" main
+git -C "$bpwork" push -q origin own-pg
+git -C "$bpwork" checkout -q main
+out="$(bp)"
+bpblock="$(sed -n '/^plans on a branch/,/^$/p' <<<"$out")"
+expect "(a) a stem an unmerged carrier wrote done is DONE ON MAIN" \
+  "  DONE ON MAIN pa (urgency: normal, agent: sonnet)  on own-pa  held 0d: retired elsewhere — drop it, never spawn on it" "$bpblock"
+expect "(b) a stem a merged carrier wrote done is DONE ON MAIN" \
+  "  DONE ON MAIN pb (urgency: normal, agent: sonnet)  on own-pb" "$bpblock"
+expect "(c) a stem the base's ledger lists is DONE ON MAIN" \
+  "  DONE ON MAIN pc (urgency: normal, agent: sonnet)  on own-pc" "$bpblock"
+expect "(d) a done record already in the merge base is an older plan: live" \
+  "  pd (urgency: normal, agent: sonnet)  on own-pd  held 0d" "$bpblock"
+refute "(d) and it carries no marker" "DONE ON MAIN pd " "$bpblock"
+expect "(d) a ledger line already in the merge base is an older plan: live" \
+  "  pe (urgency: normal, agent: sonnet)  on own-pe  held 0d" "$bpblock"
+refute "(d) and it carries no marker either" "DONE ON MAIN pe " "$bpblock"
+expect "(e) the base-added-and-retired leftover keeps its text" \
+  "docs/plans/carried.md  carry-src  leftover  its plan carried landed and was retired by another branch" "$out"
+refute "(e) and it is no DONE ON MAIN row" "DONE ON MAIN carried" "$bpblock"
+expect "(f) a live plan carries held Nd from its filing commit, not its tip" \
+  "  pf (urgency: normal, agent: sonnet)  on own-pf  held 3d" "$bpblock"
+refute "(f) and no marker" "DONE ON MAIN pf " "$bpblock"
+expect "(g) a carry the owner merged up after still reads DONE ON MAIN" \
+  "  DONE ON MAIN pg (urgency: normal, agent: sonnet)  on own-pg" "$bpblock"
+bdrows="$(grep -c '^  ' <<<"$bpblock")"
+bdheld="$(grep -c '  held [0-9][0-9]*d' <<<"$bpblock")"
+if [ "$bdrows" -gt 0 ] && [ "$bdrows" = "$bdheld" ]; then
+  pass "every plans-on-a-branch row carries held"
+else
+  fail "every plans-on-a-branch row carries held (${bdheld} of ${bdrows})"
+  printf '%s\n' "$(indent "$bpblock")"
+fi
+if grep -q '^verdict' <<<"$out" && ! grep -q 'docs/plans/p[a-g]\.md' \
+     <<<"$(sed '/^plans on a branch/,/^$/d' <<<"$out")"; then
+  pass "and no DONE ON MAIN or live branch plan reaches the spawn list"
+else
+  fail "and no DONE ON MAIN or live branch plan reaches the spawn list"
+fi
+
 # --- time against the item: CEILING? (issue #298) ---------------------------
 # A manager that pushes inside the stall window and under the churn limit read
 # healthy for 5.5h and $48 with no pull request. The row now carries hours
