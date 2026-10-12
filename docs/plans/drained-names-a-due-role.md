@@ -6,7 +6,7 @@ effort: high
 needs: none
 requirement: none
 issue: 428
-scope: shared:joharness.sh, shared:.claude/commands/orchestrate.md, .agents/harness/selftest/dispatch.sh
+scope: shared:joharness.sh, shared:.claude/commands/orchestrate.md, shared:.agents/harness/selftest/dispatch.sh
 ---
 
 ## Goal
