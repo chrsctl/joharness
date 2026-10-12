@@ -8,7 +8,7 @@ issue: 425
 session: https://claude.ai/code/session_01HQ4yhvTfCmrVxakjMcTnbq
 agent: sonnet
 updated: 2026-10-12
-next: Edit orchestrate.md §3 bullet, §4 re-arm, Never line; run ci and verify
+next: Wait for ci and verify green on the orchestrate.md edit; review; retire; PR
 ---
 
 ## Goal
