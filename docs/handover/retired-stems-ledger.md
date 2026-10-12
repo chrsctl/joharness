@@ -48,9 +48,10 @@ ledgered stem.
 - r1: (verifier) curate case passed without the fix: curate never prints a stem, only counts (fixed: asserts `— 1 free plan(s)`)
 - r2: (verifier) a branch adding a plan AND its own ledger line was ci-green; manage.md never named deleting the carried plan copy (fixed: ci also reads the branch's own ledger; manage.md names the copy's deletion)
 - r3: (verifier) a ledger line with no ref or a backticked stem guarded nothing (fixed: stem match strips backticks, missing ref prints `?`)
-- r4: (verifier) CRLF ledger line put a carriage return into the ci message (fixed: `tr -d '\\r'`)
+- r4: (verifier) CRLF ledger line put a carriage return into the ci message (fixed: `tr -d '\r'`)
 - r5: (verifier) override message misled when the line is removed in the re-adding branch itself (fixed: message and RETIRED.md say the removal lands on the base first)
 - r6: (verifier) guard fires only on a ci run after the retire lands; a human merging on an older green check passes (fixed: orchestrated.md says so and names branch protection's up-to-date rule; that rule is a core path, `.github`/settings, not this branch's)
+- r8: fail-without-fix, 2026-10-12, scratch runner sourcing only retired-ledger: branch scripts 53 passed 0 failed; `git checkout origin/main -- joharness.sh .agents/harness/queue-context.sh` 36 passed 17 failed (every case (a) and (c) check, curate count included); pre-verifier-fix commit 48 passed 5 failed (r2-r5 cases); restored with `git checkout HEAD --` (no change)
 - r7: (verifier) RETIRED also excluded from docs/handover walks, a workstream named RETIRED turns invisible (wontfix: plan says change every TEMPLATE site; workstream stems are lowercase kebab)
 
 ## Blockers
