@@ -8,7 +8,7 @@ issue: 424
 session: https://claude.ai/code/session_01TdyVr1vRDVyumkSVDrJCgi
 agent: opus
 updated: 2026-10-12
-next: Implement clerk readers in joharness.sh per Decisions, then selftest cases a-h
+next: Finish old-script proof run, apply clerk.md and orchestrated.md edits, ci, verify, verifier
 ---
 
 ## Goal
