@@ -59,7 +59,7 @@ stem() {
 
 queue_files() {
   git ls-tree -r --name-only "$ref" -- "$1" 2>/dev/null |
-    grep -E '\.md$' | grep -vE '/(TEMPLATE|README|VISION)\.md$'
+    grep -E '\.md$' | grep -vE '/(TEMPLATE|README|VISION|RETIRED)\.md$'
 }
 
 plans="$(queue_files "$PLANS_DIR")"
@@ -94,7 +94,7 @@ claims="$(
       case "$short" in "origin/HEAD" | "origin/${BASE_BRANCH}") continue ;; esac
       ref_merged "$short" && continue
       git ls-tree -r --name-only "$short" -- docs/handover 2>/dev/null |
-        grep -E '\.md$' | grep -vE '/(TEMPLATE|README)\.md$' |
+        grep -E '\.md$' | grep -vE '/(TEMPLATE|README|RETIRED)\.md$' |
         while IFS= read -r wf; do
           # Inherited unchanged from a rotted copy on the base branch = not
           # this branch's claim; counting it would let one rot event mark a
