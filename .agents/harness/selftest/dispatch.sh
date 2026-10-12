@@ -1321,7 +1321,7 @@ GIT_AUTHOR_DATE="2026-01-01T00:00:00" GIT_COMMITTER_DATE="2026-01-01T00:00:00" \
   commit_all "$drwork" "base"
 git -C "$drwork" remote add origin "$drorigin"
 git -C "$drwork" push -qu origin main
-dr() { ( cd "$drwork" && JOHARNESS_CONF="${drwork}/joharness.conf" DRAIN_FETCH=0 \
+dr() { ( cd "$drwork" && JOHARNESS_CONF="${drwork}/joharness.conf" \
   "$@" ./joharness.sh dispatch 2>&1 ); }
 out="$(dr env DISPATCH_FETCH=1)"
 expect "a due clerk at DRAINED is named on the verdict" \
