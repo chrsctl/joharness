@@ -405,6 +405,18 @@ reads VERIFIABLE only when the rules this checkout runs (`joharness.sh`,
 of review, not of a human hand. Tuning the prompt until a session stops
 refusing is not the remedy.
 
+## Start each run fresh
+
+Start each run in a new session at the Lineup's orchestrator tier; never
+resume the last one ("Can we continue"). One orchestrator session held three
+runs (2026-10-10 to 10-12): its first turn after 22h idle cost $5.12 (cache
+re-warm), later turns $0.28-$0.99 at about 638k context, session total
+$116.30. Figures are `total_cost_usd` from that session's `list_events`
+`result` events, read 2026-10-12. A resumed orchestrator prints `fresh session is cheaper: start a new
+orchestrator session for the next run` in its report. This is about the orchestrator; the "Fresh session
+for long waits - no" measurement in
+[`agent-selection.md`](agent-selection.md) covers managers.
+
 ## Heartbeat: making the fleet long
 
 Dispatch makes the fleet WIDE; nothing makes it LONG. Each session claims,
