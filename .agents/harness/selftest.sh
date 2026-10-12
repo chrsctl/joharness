@@ -559,6 +559,7 @@ SELFTEST_TOPICS=(
   orchestrated
   dispatch
   curate-apply
+  retired-ledger
   analysis
   janitor
   guard

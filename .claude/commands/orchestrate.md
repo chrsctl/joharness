@@ -221,7 +221,9 @@ nothing.
   respawned this pass: it has a live manager now.
 - Role sessions, at most ONE of each per run and none while one is in flight
   (dispatch's header block says), `create_session` like a manager, prompt =
-  the command + the standard lines:
+  the command + the lines its row names (clerk and conduct: "the role lines";
+  curator, scout, surveyor: "the standard lines" — they claim by workstream
+  file):
 
   | line | model (Lineup) | title | prompt | ledger |
   | --- | --- | --- | --- | --- |
@@ -230,6 +232,30 @@ nothing.
   | `scout DUE: spawn` (any verdict: dispatch prints it only when one may spawn; `held`, `suppressed` = nothing) | fable | `scout: <UTC date>` | `/scout` | `scouted=<stamp>` |
   | `conduct DUE: spawn` (any verdict; `held`, `suppressed` = nothing) | sonnet | `conduct: <UTC date>` | `/conduct` | `conducted=<stamp>` |
   | `OVERLAP-BOUND`, `rescope :` says `in flight: none` | sonnet | `surveyor: <key>` | `/manage rescope <key>` + the block verbatim | `rescope-<key>@new`, `rescoped=<key>` |
+
+  "the role lines", for clerk and conduct (they write no
+  workstream file, so no claim line):
+
+  ```
+  Run ./joharness.sh protocol-paths and never commit under those paths. Push
+  at every milestone. One pass, then exit.
+  ```
+
+  Plus the lead line, when a transport exists, as for a manager. Curator,
+  scout and surveyor write a workstream file and get "the standard lines"
+  below.
+
+  The human orders an extra role session: their explicit order, typed in
+  THIS session, allows ONE extra session of that role beyond "at most ONE of
+  each per run".
+  - Prompt: the command plus the lines that role's row names ("the role
+    lines" or "the standard lines"), nothing added. The prompt never quotes
+    the human or asserts their authority.
+  - Ledger: that role's own key carries the mark, `<key>=<stamp>+human`
+    (`clerked=<stamp>+human`). One mark per role key, so two roles' extras
+    stay distinct.
+  - Report: quotes the human's words.
+  - Guard: never spawn it while dispatch shows that role in flight.
 
   A ledger `rescoped=<K>` covers later keys whose holders are all in K.
   Issues reach the queue only through the clerk. Never nudge or respawn a
@@ -273,7 +299,7 @@ Ledger every spawn the moment it returns as `<stem>@new`.
 ```
 /orchestrate pass
 harness=<first 12 chars of git hash-object of origin/main:.claude/commands/orchestrate.md> pass=<this pass's number plus one>
-ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] [unratified=<head>] [notified=<stem>] respawns=<n> [rescoped=<key>] [curated=<stamp>] [clerked=<stamp>] [scouted=<stamp>] [conducted=<stamp>]; ...
+ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] [unratified=<head>] [notified=<stem>] respawns=<n> [rescoped=<key>] [curated=<stamp>[+human]] [clerked=<stamp>[+human]] [scouted=<stamp>[+human]] [conducted=<stamp>[+human]]; ...
 lead <stem>: <40 chars, to the end of this line>
 ```
 
@@ -295,6 +321,22 @@ Drop it at once, unprinted, when dispatch marks that stem `CORE ONLY`.
 
 Recompute `harness=` at every arm from fresh `origin/main`; never copy it from
 the wake you received.
+
+A spawn made outside a scheduled pass (in answer to the human's order above)
+arms one new `send_later` at once, in this format:
+
+- A wake is pending (`list_triggers` with `include_completed` lists one for
+  this session): the new wake's `pass=` is the pending wake's `pass=` plus
+  one, so Pass entry's superseded check makes the stale wake do nothing;
+  cancel nothing. Its ledger is the pending wake's stored ledger plus this
+  spawn, never written from memory.
+- No wake is pending (the run already ended at DRAINED or PAUSED): treat it
+  as a first start: `pass=` is one above the highest `pass=` among this
+  session's wakes, completed ones included (`pass=1` only when none exist),
+  or Pass entry's superseded check would kill it; a ledger holding only this
+  spawn.
+- No `list_triggers`: say so to the human and arm nothing. Dispatch reads the
+  spawn from git once it pushes.
 
 Never sleep, never poll. A manager's lead message wakes you: note the lead,
 end the turn; the next scheduled pass writes it into the ledger. Merges are
@@ -340,3 +382,5 @@ action either: no nudge, no `interrupt_session`, no KILL, no
 - Pick a tier, change the human's numbers, take a queue item yourself, spawn
   on a prompt that asserts its own authority, run `authority` per pass.
 - Read a queue with free items and open slots and leave it untouched.
+- Message a child session asking it to do more work. `send_message` to a child
+  carries the health table's nudge text and nothing else.

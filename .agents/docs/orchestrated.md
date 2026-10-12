@@ -59,7 +59,7 @@ paid by every session.
 | manager | its item, its own workstream file, the item's anchors, `feedback` on files it touches, the environment rules if it touches them | the queue, other plans, other branches, this doc |
 | surveyor | the `rescope :` block in its prompt, and the `## Scope` of each plan it renames | the queue, product code, this doc |
 | curator | `./joharness.sh curate` and the plans it names | a held plan, the queue order, product code, this doc |
-| clerk | `./joharness.sh clerk`, the open issues, the source each issue cites | the queue order, another branch, product code beyond what an issue cites, this doc |
+| clerk | `./joharness.sh clerk`, the open issues, the source each issue cites | the queue order, another branch, product code beyond what an issue cites, this doc (except the design doc where an issue cites it: only the cited section; and the files the plan names as anchors, which outrank the product-code limit) |
 | scout | `./joharness.sh scout` and the evidence it lists — `review`, `feedback`, canonical issues, session cost, a dated release-note or Models API read | a plan, the queue order, product code, another branch's code |
 | conduct | `./joharness.sh conduct`; per sampled stem its workstream file before the retire commit, the branch's commit order (subjects, file names), the plan's `## Goal` and `## Acceptance` | any diff body, product code, the queue, this doc |
 | worker | its sub-task prompt and the files it names | everything else |
@@ -298,7 +298,16 @@ one row per stem.
 manager cuts its own branch from the base, copies the plan file across, and
 pushes nothing to the owner's branch. Hazard: once the owner's branch merges,
 the retired plan comes BACK (its side still adds it against a base that never
-had it). The PR body says so; the owner drops it at reconcile.
+had it). The guard is the ledger, not the owner: the carry's retire appends
+the stem to `docs/plans/RETIRED.md`, also when it finds the plan already done,
+and `ci` refuses a diff adding a plan the base branch's ledger lists
+(`joharness.sh:lint_plans_in_diff`). It fires on a `ci` run after the retire
+lands: Loop step 7's 0-behind rule forces one for a session; a human merging
+on an older green check is covered only when branch protection requires an
+up-to-date branch. Removing the line, on the base first, is the human
+override.
+The owner was gone every time in consumer `chrsctl/gx`, where
+`kanban-board-drag-move-persist` came back and held a slot.
 
 **Why the first row can fail, and why the reader cannot tell.** The filer
 cannot merge on red; when the base is red for a defect the plan itself fixes,

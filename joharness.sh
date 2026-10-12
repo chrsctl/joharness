@@ -221,12 +221,12 @@ cmd_upgrade() {
           git -C "$ROOT" ls-files --others --exclude-standard -- docs/handover
         } 2>/dev/null |
           { grep -E '^docs/handover/[^/]+\.md$' || :; } |
-          { grep -vE '/(TEMPLATE|README)\.md$' || :; } | sort -u | head -1
+          { grep -vE '/(TEMPLATE|README|RETIRED)\.md$' || :; } | sort -u | head -1
       )"
       [ -z "$ws" ] || ws="${ROOT}/${ws}"
     else
       ws="$(find "${ROOT}/docs/handover" -maxdepth 1 -name '*.md' \
-        ! -name 'TEMPLATE.md' ! -name 'README.md' 2>/dev/null | head -1)"
+        ! -name 'TEMPLATE.md' ! -name 'README.md' ! -name 'RETIRED.md' 2>/dev/null | head -1)"
     fi
     if [ -n "$ws" ]; then
       log "this branch carries ${ws#"${ROOT}/"} — it holds claimed work"
@@ -631,7 +631,7 @@ lint_warn() { printf '  warn %s\n' "$*"; LINT_WARNED=1; }
 lint_nodes() {
   [ -d "${ROOT}/$1" ] || return 0
   (cd "$ROOT" && find "$1" -maxdepth 1 -name '*.md' \
-    ! -name 'TEMPLATE.md' ! -name 'README.md' ! -name 'VISION.md' \
+    ! -name 'TEMPLATE.md' ! -name 'README.md' ! -name 'RETIRED.md' ! -name 'VISION.md' \
     2>/dev/null | sort)
 }
 
@@ -758,7 +758,7 @@ lint_unknown_types() {
       # -type f: a DIRECTORY named `something.md` was read as a file and took
       # the whole directory's answer down with it.
     done < <(cd "$ROOT" && find "docs/${name}" -maxdepth 1 -type f -name '*.md' \
-      ! -name 'TEMPLATE.md' ! -name 'README.md' ! -name 'VISION.md' \
+      ! -name 'TEMPLATE.md' ! -name 'README.md' ! -name 'RETIRED.md' ! -name 'VISION.md' \
       2>/dev/null | sort)
     [ "$n" -gt 0 ] || continue
     # Every key seen, not the last one. Naming one key over a count that
@@ -1529,7 +1529,7 @@ fb_workstream() {
     git -C "$ROOT" show "${c}:${f}" 2>/dev/null && return 0
   done <<<"$(git -C "$ROOT" log --format='' --name-only "${base}..${tip}" \
     -- docs/handover 2>/dev/null |
-    awk 'NF && /\.md$/ && !/\/(TEMPLATE|README)\.md$/' | sort -u)"
+    awk 'NF && /\.md$/ && !/\/(TEMPLATE|README|RETIRED)\.md$/' | sort -u)"
   return 1
 }
 
@@ -3561,7 +3561,7 @@ conduct_candidates() {
       # Role sessions carry a date in the stem (scout-, curate-, clerk-,
       # janitor-, findings passes); a manager item names its plan, never a day.
       if (s ~ /-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/) next
-      if (s == "README" || s == "TEMPLATE") next
+      if (s == "README" || s == "TEMPLATE" || s == "RETIRED") next
       if (done[s] || seen[s]++) next
       print s "\t" sha
     }'
@@ -4023,9 +4023,10 @@ gr_fields() {
 # of the same frontmatter is one of them drifting.
 gr_field() { gr_fields "$1"; }
 
-# Node files of one type from a path listing on stdin. The protocol doc and
-# the template are not nodes; four callers said so in two greps each.
-gr_docs() { awk 'NF && /\.md$/ && !/\/(TEMPLATE|README)\.md$/'; }
+# Node files of one type from a path listing on stdin. The protocol doc, the
+# template and the retired-stems ledger are not nodes; four callers said so in
+# two greps each.
+gr_docs() { awk 'NF && /\.md$/ && !/\/(TEMPLATE|README|RETIRED)\.md$/'; }
 
 # Stems named by an EDGE field's value, one per line, `none` dropped.
 gr_edge_stems() {
@@ -5169,7 +5170,7 @@ plans_in_diff() {
   {
     git -C "$ROOT" diff --name-only --diff-filter=A "$base" -- docs/plans 2>/dev/null
     git -C "$ROOT" ls-files --others --exclude-standard -- docs/plans 2>/dev/null
-  } | awk '/^docs\/plans\/[^\/]+\.md$/ && !/\/(README|TEMPLATE)\.md$/' | sort -u |
+  } | awk '/^docs\/plans\/[^\/]+\.md$/ && !/\/(README|TEMPLATE|RETIRED)\.md$/' | sort -u |
     while IFS= read -r f; do [ -f "${ROOT}/${f}" ] && printf '%s\n' "$f"; done
 }
 
@@ -5190,12 +5191,24 @@ plan_core_only() {
   return 0
 }
 
+# The ref that retired <stem>, from a ledger on stdin (docs/plans/RETIRED.md,
+# lines `- <stem> <ref>`); empty when not listed, `?` for a line with no ref.
+# Backticks round the stem and a CRLF ending are read through: a near-miss
+# line that silently guards nothing is the failure this exists to stop.
+retired_ref() {
+  tr -d '\r' | awk -v s="$1" '
+    $1 == "-" { t = $2; gsub(/`/, "", t)
+                if (t == s) { print (NF >= 3 ? $3 : "?"); exit } }'
+}
+
 # ci stage: plans this branch ADDS must carry no curate repair and must be
 # buildable (scope: not core paths only). Edited plans are skipped: their
-# defects may predate the edit. The branch's own held plan is exempt.
+# defects may predate the edit. The branch's own held plan is exempt from
+# those two, never from the ledger: a stem the base branch's ledger lists
+# stays retired, whoever re-adds it.
 lint_plans_in_diff() {
   local over="origin/${HANDOVER_BASE_BRANCH:-main}" base rel counts regthr bad=0 kind text n=0
-  local ws held=""
+  local ws held="" rref
   base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
   if [ -z "$base" ]; then
     printf '  not measurable here (no merge-base with %s)\n' "$over"
@@ -5212,6 +5225,25 @@ lint_plans_in_diff() {
   while IFS= read -r rel; do
     [ -n "$rel" ] || continue
     n=$((n + 1))
+    # The base BRANCH's ledger, not the merge base's: the branch that re-adds
+    # a retired plan is the one cut before the retire landed.
+    rref="$(git -C "$ROOT" show "${over}:docs/plans/RETIRED.md" 2>/dev/null |
+      retired_ref "$(lint_stem "$rel")")"
+    if [ -n "$rref" ]; then
+      bad=$((bad + 1))
+      printf '  %s: already retired by %s (docs/plans/RETIRED.md on %s); removing its ledger line is the human override, landed on %s before this branch\n' \
+        "$(lint_stem "$rel")" "$rref" "$over" "$over"
+    else
+      # The branch's own ledger too: a carry retire that appends the line
+      # but keeps the plan copy would land both, a retired plan in the queue.
+      rref="$(retired_ref "$(lint_stem "$rel")" \
+        <"${ROOT}/docs/plans/RETIRED.md" 2>/dev/null)"
+      if [ -n "$rref" ]; then
+        bad=$((bad + 1))
+        printf '  %s: already retired by %s in this branch'"'"'s own docs/plans/RETIRED.md; a retire deletes the plan file, never lands it beside its ledger line\n' \
+          "$(lint_stem "$rel")" "$rref"
+      fi
+    fi
     while IFS=$'\t' read -r kind text; do
       [ -n "$kind" ] || continue
       bad=$((bad + 1))

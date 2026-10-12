@@ -23,9 +23,10 @@ or requirements, other branches' files, or the design doc.
    (`.agents/docs/agent-selection.md`, review churn).
    Prompt names a plan on ANOTHER branch (a `plans on a branch` row)? Carry
    the plan, never take the branch: cut your own branch from fresh-fetched `origin/main`, copy
-   that plan file only, push nothing to the owner's branch. PR body names the
-   owner branch and says its later merge re-adds the retired plan unless the
-   owner drops it at reconcile.
+   that plan file only, push nothing to the owner's branch. Its retire
+   appends `- <stem> <your branch>` to `docs/plans/RETIRED.md` (built or
+   found done; §4): `ci` then refuses the owner's later merge re-adding it.
+   PR body names the owner branch.
 3. Item kind decides the work:
    - `docs/plans/<plan>.md` — Loop steps 3 to 7 on it.
    - `docs/research/<q>.md` — settle it, graduate the answer, delete the
@@ -122,6 +123,13 @@ Step 5 review at your tier with `.claude/agents/verifier.md` (findings tagged
 `./joharness.sh finish` green, retire the plan file and workstream file in
 the last commit before the pull request, merge, exit. The orchestrator reads
 your merge from git; you send nothing for it.
+
+Carried plan (§0 item 2)? The retire commit also appends `- <stem> <your
+branch>` to `docs/plans/RETIRED.md` (absent = create it, first line
+`# Retired stems`) and deletes your copy of the plan file. Found it already
+done? Still a pull request: the ledger line, the plan copy's and the
+workstream file's deletion, step 7 whole — never `pr: none` and exit, which
+leaves the retire on a branch only.
 
 Plan names `issue: N`? Body carries `Closes #N` when no other plan on fresh
 `origin/main` names it (`git grep -l -E '^issue: *#?N([^0-9]|$)' origin/main
