@@ -54,6 +54,8 @@ Take at most `JOHARNESS_CLERK_BATCH` (`./joharness.sh clerk` prints it; 3
 by default). First THE SCOUT GATE, below; then skip, and do not count
 toward the batch:
 
+- an issue that carries the label `human-review`; its report line says
+  `held: human-review`.
 - an issue `./joharness.sh clerk` lists under `planned` (a plan's `issue:`
   on the base branch or any unmerged branch — an open clerk pull request
   included — names it) or `claimed` (a workstream file's `issue:` on any
@@ -152,7 +154,8 @@ recorded in the pull request body with the evidence, one line each:
   the line read. Do not close the issue; a human closes it.
 - **HUMAN** — it needs product direction, money, credentials or hardware
   (`.agents/harness/AGENTS.md`, Decide alone), or its author failed the
-  gate in §2. Comment naming the question. Write no plan.
+  gate in §2. Comment naming the question. Write no plan. After the comment,
+  apply `human-review` to the issue.
 - **DUPLICATE** — comment naming the issue or plan it duplicates.
 - **UPSTREAM** — CONSUMER only (`JOHARNESS_CANONICAL=1` absent from
   `joharness.conf`; in canonical the verdict does not exist). The issue is
@@ -227,8 +230,9 @@ posted, and that this session took a manager slot.
 - Write code, a requirement, or a research file. Plans only.
 - Edit anything under `./joharness.sh protocol-paths`, or any plan you did
   not write this pass.
-- Close an issue, open an issue, or edit an issue's labels or body. Two
-  carve-outs: the UPSTREAM route closes the consumer issue it routed, and
+- Close an issue, open an issue, or edit an issue's labels or body. Three
+  carve-outs: `human-review` goes on after a HUMAN verdict, never off
+  (`.agents/docs/orchestrated.md`, Bounds); the UPSTREAM route closes the consumer issue it routed, and
   opens or reads issues on `CANONICAL_REPO`; the label `scout` goes on your
   own pull request (§4).
 - Apply, remove, or ask anyone to skip `approved` on any issue; close or
