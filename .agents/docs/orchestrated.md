@@ -378,6 +378,10 @@ The rules that bind every session.
   enters as an issue and becomes a plan only through the clerk, after the
   reviewer's `approved` label event, newer than its last revision; closing
   the issue declines it.
+- **`human-review` label.** An agent applies it when it blocks on a human; a
+  human applies it to hold an issue or pull request. It stops the clerk
+  planning that issue and any session merging that pull request. Only a human
+  removes it; no session does, ever.
 
 ### Bounds, orchestrator
 

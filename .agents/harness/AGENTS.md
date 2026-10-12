@@ -68,7 +68,8 @@ have ONE spelling: [`.agents/docs/glossary.md`](../../.agents/docs/glossary.md);
      `.agents/scripts/` — unless this head's checks verified the selected
      layer (read the run; a skipped layer proves nothing);
    - `./joharness.sh finish` green;
-   - edge review recorded; no unresolved human review thread.
+   - edge review recorded; no unresolved human review thread;
+   - PR lacks label `human-review` (read labels at merge time).
 
    Merge-commit method only. Human veto = revert. PR body carries the
    command that recovers its workstream file. LAST commit before the PR
@@ -86,7 +87,8 @@ have ONE spelling: [`.agents/docs/glossary.md`](../../.agents/docs/glossary.md);
 - Block ONLY for money, credentials, hardware, product direction, or a
   merge conflict into `main` that does not resolve clean. Block =
   `status: blocked`, `next:` = `<reason>: <question>`, push, exit. Never wait in
-  session.
+  session. Block also labels `human-review` on this branch's open PR and the
+  plan's `issue:`, if set; never remove it (`.agents/docs/orchestrated.md`, Bounds).
 - Consumer repo: no harness upkeep in a session holding product work; a sync
   opens its own pull request (`.agents/docs/consumer-repos.md`).
 

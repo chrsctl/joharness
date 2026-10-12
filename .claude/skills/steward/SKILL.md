@@ -35,6 +35,8 @@ conflict. Why-explanations: `.agents/docs/handover/README.md`,
 
 ## At merge
 
+- A pull request carrying `human-review` is not merged, even when every step 7
+  condition holds (`.agents/docs/orchestrated.md`, Bounds).
 - Session merges its OWN pull request itself (ratified 2026-08-23).
   Conditions, merge method, and what counts as own: `.agents/harness/AGENTS.md`
   step 7 — that file wins, one copy on purpose. Never merge any other
