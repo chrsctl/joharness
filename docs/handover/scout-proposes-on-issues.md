@@ -24,9 +24,10 @@ pull request.
 - Out-of-scope docs that contradicted the rewrite were fixed in place, one line each: orchestrated.md AUTOMERGE conf row, `.claude/commands/orchestrate.md` "scout waiting on its proposal pull request", `.agents/docs/research/README.md` "scout's proposal ... a human authors by merging". Leaving them would ship contradictions; too small for a follow-up plan.
 - "Yours" = carries the attribution footer, never the login: the scout may post as the reviewer. Comments drive §4/§5 only from write-access authors, unfooted, not `clerk:` (mirrors the clerk's author gate).
 - Revision = `scout: revising` comment (full change), body edit, `scout: revised` comment. Research step after r2 reopened (review churn): the clerk dates revisions by comments only and cannot see body edits, a pass can die anywhere, and the reviewer can approve at any moment. Edit-first lets a dead pass leave a changed body approved; one comment before the edit lets an approval land on the old body (r17) or the promised edit never happen (r16). The bracket closes both: an approval before `revised` is stale, and the next pass finishes a `revising` with no `revised`.
+- clerk.md gains one gate condition (`REVISION OPEN`): the clerk cannot see body edits, so only the clerk can refuse a half-made revision; scout.md alone cannot close r23. Outside the plan's scope, one numbered item; recorded here for the human.
 - Every scout comment opens `scout: `; yours = that prefix + footer (comments) or the `cost:` line + footer (issues): the footer alone also marks other Claude sessions' text.
 - Release-note / Models API read moved under §3's switch and budget: it is an outside read.
-- PLANNED (a base plan's `issue:` names it) proposals are neither counted in the ceiling nor revised; the read limit is a plan's frontmatter and `## Goal`.
+- PLANNED = `./joharness.sh clerk`'s `planned` line (base or any unmerged branch, the clerk's own definition) proposals are neither counted in the ceiling nor revised; the read limit is a plan's frontmatter and `## Goal`.
 - verify: first run 2026-10-12 right after dockerd start = 4 passed, 2 failed (container networking, compose); re-run `./joharness.sh verify` same day = 6 passed, 0 failed. Diff touches no environment file.
 
 ## Rejected
@@ -57,6 +58,11 @@ pull request.
 - r20: (verifier, round 2) §5 revised planned proposals and they defeated the WAITING ON REVIEW exit (fixed: PLANNED never revised)
 - r21: (verifier, round 2) "your last comment" undefined with none (fixed: the issue's creation)
 - r22: (verifier, round 2) `pull request` grep hit on the list_issues line matched neither allowed reading (fixed: names the pull requests other roles open)
+- r23: (verifier, round 3) pass dies after `scout: revising`; reviewer approves; clerk plans the old body before the next scout pass (fixed: clerk gate condition 3 skips a proposal whose newest scout comment opens `scout: revising`, `REVISION OPEN`; the revising comment tells the reviewer not to approve before `revised`)
+- r24: (verifier, round 3) counting comment arriving mid-bracket dropped once `revised` posts (fixed: `revised` dated as the `revising` it closes)
+- r25: (verifier, round 3) PLANNED read the base branch only; a clerk pull request in flight planned the pre-revision body (fixed: `./joharness.sh clerk` `planned` line)
+- r26: (verifier, round 3) "never made" rule said "and" for "or" (fixed)
+- r27: (verifier, round 3) finishing a bracket could apply a delta twice (fixed: target text; already so = no edit)
 
 ## Blockers
 
