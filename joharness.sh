@@ -5944,7 +5944,20 @@ cmd_dispatch() {
     # The one verdict a scout may spawn under: nothing free, nothing in flight,
     # nothing pending.
     [ "$n_inflight" -ne 0 ] || scout_gate=1
-    printf 'verdict   : DRAINED — nothing free, nothing in flight: exit, the heartbeat re-seeds\n'
+    # A curate or clerk spawn line follows below when it is due AND has a slot
+    # (same arithmetic as role_slots): the verdict must not say exit then.
+    local due_slots="$n_slots" role_will_spawn=0
+    if [ "$curate_due" -eq 1 ] && [ "$due_slots" -gt 0 ]; then
+      role_will_spawn=1
+      due_slots=$((due_slots - 1))
+    fi
+    [ "$clerk_due" -eq 1 ] && [ "$fetch_failed" -eq 0 ] && [ "$due_slots" -gt 0 ] &&
+      role_will_spawn=1
+    if [ "$role_will_spawn" -eq 1 ]; then
+      printf 'verdict   : DRAINED — nothing free, nothing in flight; a role is due: spawn it, then schedule the next pass\n'
+    else
+      printf 'verdict   : DRAINED — nothing free, nothing in flight: exit, the heartbeat re-seeds\n'
+    fi
   fi
   # ONE number, and a sentence true of every row it counts.
   if [ "$n_stall" -gt 0 ]; then
