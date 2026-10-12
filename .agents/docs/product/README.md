@@ -6,8 +6,9 @@ the Loop. Every level = graph nodes ([`.agents/docs/graph.md`](../graph.md)),
 files as nodes, delete-on-done as state.
 
 ```
-docs/product/<requirement>.md   what product needs. Human writes — or a scout drafts
-                                and a human merges (orchestrated.md, Bounds). Coarse.
+docs/product/<requirement>.md   what product needs. Human writes — or a human writes one
+                                from a scout proposal the reviewer approved
+                                (.claude/commands/scout.md). Coarse.
 docs/plans/<plan>.md            how, machine-executable. Sessions write.
 claude/<plan> branch + PR       execution. One per plan.
 ```
@@ -124,8 +125,9 @@ SECOND planner while one is in flight.
   commits ([`../graph.md`](../graph.md), Rules); neither node type carries a
   status field. A workstream file does carry `status:`, because a session
   claims with it.
-- **No detector writes the requirement.** The human writes it, or merges a
-  scout's draft ([`../orchestrated.md`](../orchestrated.md), Bounds).
+- **No detector writes the requirement.** The human writes it, or writes
+  one from a scout proposal the reviewer approved
+  ([`.claude/commands/scout.md`](../../../.claude/commands/scout.md)).
   Convention, not mechanism: nothing gates it.
 
 **The scout's brief.** Path `docs/product/SCOUT.md`, written by the reviewer
