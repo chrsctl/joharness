@@ -8,7 +8,7 @@ issue: 251
 session: https://claude.ai/code/session_01Qn8AF7S1z5UosETCFQcJpb
 agent: opus
 updated: 2026-10-12
-next: Research scout_due, cmd_scout, cmd_clerk, cmd_dispatch; then build conduct subcommand
+next: Docs (orchestrated.md), conf keys, selftest cases; then ci, verify, review
 ---
 
 ## Goal
@@ -24,6 +24,24 @@ spend.
 - Ledger columns `date | stem | C1 | note`: plan Scope lists a `C2` column
   but also says only ONE question is asked; an always-empty column would
   skew the tally. A later plan adding the worker-ownership question adds C2.
+  `conduct_rows` finds question columns by header name (`C<n>`), so that
+  plan adds a column and the tally follows.
+- Clock anchor = landing time of the newest base commit touching the ledger
+  (merge above it, as `cycle_landed_ts`), read with its own rc check: the
+  generic `cycle_age_h` reads a git error as "never", which is due — fail
+  open. The ledger this PR adds starts the clock at its merge.
+- Not the clerk's cycle reader: `cycle_landed_sha clerk` globs
+  `docs/handover/clerk-*`, a file the clerk no longer writes (an urgent plan
+  on another branch fixes that). In flight read straight from
+  `for-each-ref --no-merged refs/remotes/origin/conduct-*`, tip push age
+  past ceil(hours/7) = closed by a human, dropped.
+- State `empty` (due, no unsampled candidate): dispatch spawns none — a
+  reviewer with nothing to read is spend for nothing.
+- `curate_due=2` (nothing needs judgement, no curator spawned) does not
+  suppress, as the scout line reads `curate_due -ne 1`.
+- Plan said the seeded heredoc lives in the bootstrap selftest; it lives in
+  `.agents/scripts/bootstrap-consumer.sh` — edited there (one more file than
+  `scope:` names, same intent).
 
 ## Rejected
 
