@@ -229,7 +229,7 @@ nothing.
   | --- | --- | --- | --- | --- |
   | `curate DUE` naming proposals (any verdict) | sonnet | `curator: <UTC date>` | `/curate` | `curated=<stamp>` |
   | `clerk DUE` (any verdict; `held` = nothing) | sonnet | `clerk: <UTC date>` | `/clerk` | `clerked=<stamp>` |
-  | `scout DUE`, only under `DRAINED — nothing free, nothing in flight` | fable | `scout: <UTC date>` | `/scout` | `scouted=<stamp>` |
+  | `scout DUE: spawn` (any verdict: dispatch prints it only when one may spawn; `held`, `suppressed` = nothing) | fable | `scout: <UTC date>` | `/scout` | `scouted=<stamp>` |
   | `conduct DUE: spawn` (any verdict; `held`, `suppressed` = nothing) | sonnet | `conduct: <UTC date>` | `/conduct` | `conducted=<stamp>` |
   | `OVERLAP-BOUND`, `rescope :` says `in flight: none` | sonnet | `surveyor: <key>` | `/manage rescope <key>` + the block verbatim | `rescope-<key>@new`, `rescoped=<key>` |
 
