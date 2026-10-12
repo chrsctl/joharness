@@ -135,7 +135,7 @@ Plan names `issue: N`? Body carries `Closes #N` when no other plan on fresh
 `origin/main` names it (`git grep -l -E '^issue: *#?N([^0-9]|$)' origin/main
 -- docs/plans`, yours excluded), else `Refs #N`. That issue's labels
 (`issue_read`, `get_labels`, one read when you open the pull request)
-include `scout`? Title starts `scout: ` and the pull request carries the
+include `scout`, or its title starts `scout:`? Title starts `scout: ` and the pull request carries the
 label `scout` (`issue_write` update on its number, labels); a follow-up
 plan-only pull request for that work too. Nothing in the plan file marks
 it. A follow-up plan you filed as
