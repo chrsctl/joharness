@@ -31,8 +31,9 @@ does not already know, and it has no conversation with its reviewer.
 - **Distinguishable.** Everything that comes from a scout proposal is
   marked apart from normal work at a glance: its issue, the plan-only pull
   request that plans it, and every pull request that builds it carry the
-  label `scout` and the title prefix `scout:`. A reader of the pull request
-  list can filter scout work in or out without opening anything.
+  title prefix `scout:`. No label for this: `approved` is the one label,
+  and only on the issue. A reader of the pull request list can tell scout
+  work apart without opening anything.
 - **Approval gate.** A proposal reaches plans ONLY after a human applies
   the label `approved` to its issue. Without it no role plans it — not the clerk, not a
   planning manager — even when the issue's author has write access. Closing
