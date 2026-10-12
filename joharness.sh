@@ -3295,12 +3295,12 @@ conduct_rows() {
 
 # Stems a workstream-file retire deleted on the base branch, minus the
 # periodic roles', those still standing there, and those already in the
-# ledger. One per line; `?` alone = unreadable.
+# ledger. One `<stem>\t<retire sha>` per line; `?` alone = unreadable.
 conduct_candidates() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" ref log rc standing logged ledger lrc
   ref="refs/remotes/origin/${base_branch}"
   log="$(git -C "$ROOT" -c core.quotePath=false log --full-history --diff-filter=D \
-    --name-only --format= "$ref" -- docs/handover </dev/null 2>/dev/null)"; rc=$?
+    --name-only --format='C %H' "$ref" -- docs/handover </dev/null 2>/dev/null)"; rc=$?
   standing="$(git -C "$ROOT" -c core.quotePath=false ls-tree --name-only "$ref" \
     -- docs/handover/ </dev/null 2>/dev/null)" || rc=1
   ledger="$(conduct_ledger)"; lrc=$?
@@ -3314,13 +3314,24 @@ conduct_candidates() {
       n = split(standing, a, "\n"); for (i = 1; i <= n; i++) skip[a[i]] = 1
       n = split(logged, a, "\n");   for (i = 1; i <= n; i++) done[a[i]] = 1
     }
+    /^C [0-9a-f]+$/ { sha = substr($0, 3); next }
     /^docs\/handover\/[A-Za-z0-9._-]+\.md$/ {
       if (skip[$0]) next
       s = $0; sub(/^docs\/handover\//, "", s); sub(/\.md$/, "", s)
-      if (s ~ /^(scout|curate|clerk)-/ || s == "README" || s == "TEMPLATE") next
+      if (s ~ /^(scout-[0-9]|curate-|clerk-)/ || s == "README" || s == "TEMPLATE") next
       if (done[s] || seen[s]++) next
-      print s
+      print s "\t" sha
     }'
+}
+
+# Did this retired stem work a plan? Its workstream file just before the
+# retire names one in `plan:`. A role session (janitor, findings) names
+# none, and sampling it buys only NO EVIDENCE.
+conduct_worked_plan() {
+  local plan
+  plan="$(git -C "$ROOT" show "${2}^:docs/handover/${1}.md" </dev/null 2>/dev/null |
+    tr -d '\r' | gr_field plan)"
+  [ -n "$plan" ] && [ "$plan" != none ]
 }
 
 # sha1 of stdin, 40 hex; empty when no tool here can say it.
@@ -3333,35 +3344,43 @@ conduct_sha1() {
   printf '%s' "${h%% *}"
 }
 
-# The sample: the N candidates whose sha1(<stem>) sorts lowest. Membership by
-# stem, never by date, so a re-run picks the same set and a test can assert
-# it. `?` alone = unreadable.
+# The sample: the N candidates that worked a plan, lowest sha1(<stem>) first.
+# Membership by stem, never by date, so a re-run picks the same set and a
+# test can assert it. N = 0 = any one, unordered (does one exist). `?` alone
+# = unreadable.
 conduct_sample() {
-  local n="$1" cands s h
+  local n="$1" cands s r h got=0 limit=1
   cands="$(conduct_candidates)"
   case "$cands" in '?') printf '?\n'; return 0 ;; '') return 0 ;; esac
-  while IFS= read -r s; do
+  if [ "$n" -gt 0 ]; then
+    limit="$n"
+    [ -n "$(printf 'x' | conduct_sha1)" ] || { printf '?\n'; return 0; }
+    cands="$(while IFS=$'\t' read -r s r; do
+      [ -n "$s" ] || continue
+      h="$(printf '%s' "$s" | conduct_sha1)"
+      printf '%s\t%s\t%s\n' "$h" "$s" "$r"
+    done <<<"$cands" | LC_ALL=C sort | cut -f2-)"
+  fi
+  while IFS=$'\t' read -r s r; do
     [ -n "$s" ] || continue
-    h="$(printf '%s' "$s" | conduct_sha1)"
-    if [ -z "$h" ]; then printf '?\n'; return 0; fi
-    printf '%s %s\n' "$h" "$s"
-  done <<<"$cands" | LC_ALL=C sort | head -n "$n" | cut -d' ' -f2
+    conduct_worked_plan "$s" "$r" || continue
+    printf '%s\n' "$s"
+    got=$((got + 1))
+    [ "$got" -lt "$limit" ] || break
+  done <<<"$cands"
 }
 
 # Hours since the ledger last LANDED on the base branch, empty when it never
-# has; `?` = unreadable. A merge above the commit is its landing, as
-# cycle_landed_ts reads it.
+# has; `?` = unreadable. First-parent only: the commit there that changed the
+# ledger IS its landing (the merge, or a direct commit). A manager's merge-in
+# of the base branch sits off that line, so it never re-dates the clock.
 conduct_age_h() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" ref sha merge ts
-  ref="refs/remotes/origin/${base_branch}"
-  sha="$(git -C "$ROOT" log -1 --format=%H --full-history "$ref" -- "$CONDUCT_LEDGER" \
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" ts
+  ts="$(git -C "$ROOT" log -1 --first-parent --format=%ct \
+    "refs/remotes/origin/${base_branch}" -- "$CONDUCT_LEDGER" \
     </dev/null 2>/dev/null)" || { printf '?'; return 0; }
-  [ -n "$sha" ] || return 0
-  merge="$(git -C "$ROOT" rev-list --ancestry-path --first-parent "${sha}..${ref}" \
-    </dev/null 2>/dev/null | tail -1)"
-  [ -n "$merge" ] || merge="$sha"
-  ts="$(git -C "$ROOT" log -1 --format=%ct "$merge" </dev/null 2>/dev/null)"
-  case "$ts" in '' | *[!0-9]*) printf '?'; return 0 ;; esac
+  [ -n "$ts" ] || return 0
+  case "$ts" in *[!0-9]*) printf '?'; return 0 ;; esac
   printf '%s' "$(( ($(date +%s) - ts) / 3600 ))"
 }
 
@@ -3393,21 +3412,23 @@ conduct_due() {
     CONDUCT_DUE='off no .claude/commands/conduct.md here: nothing for a reviewer to run'
     return 0
   fi
-  # In flight = an unmerged conduct-* branch. Sessions never delete branches,
+  # In flight = an unmerged branch whose LAST path segment starts conduct-
+  # (a session may push under a prefix: claude/conduct-...). Sessions never delete branches,
   # so one a human closed unmerged stands for ever: past a seventh of the
   # window since its last push it is dropped, as scout_branches drops
   # `abandoned` rows.
   refs="$(git -C "$ROOT" for-each-ref --no-merged="refs/remotes/origin/${base_branch}" \
-    --format='%(refname:lstrip=3)%09%(committerdate:unix)' 'refs/remotes/origin/conduct-*' \
+    --format='%(refname:lstrip=3)%09%(committerdate:unix)' refs/remotes/origin \
     </dev/null 2>/dev/null)"; rc=$?
   if [ "$rc" -ne 0 ]; then
-    CONDUCT_DUE='unreadable the conduct-* branches could not be listed'
+    CONDUCT_DUE='unreadable the unmerged branches could not be listed'
     return 0
   fi
   now="$(date +%s)"
   drop=$(( (hours + 6) / 7 ))
   while IFS=$'\t' read -r b ts; do
     [ -n "$b" ] || continue
+    case "${b##*/}" in conduct-*) ;; *) continue ;; esac
     case "$ts" in '' | *[!0-9]*)
       CONDUCT_DUE="unreadable no push time for ${b}"; CONDUCT_ROWS=""; return 0 ;;
     esac
@@ -3431,11 +3452,11 @@ conduct_due() {
     CONDUCT_DUE="not-due ${age}h since ${base_word} (of ${hours}h)"
     return 0
   fi
-  cands="$(conduct_candidates)"
+  cands="$(conduct_sample 0)"
   case "$cands" in
     '?') CONDUCT_DUE='unreadable the retired workstream files or the ledger could not be read'
          CONDUCT_ROWS=""; return 0 ;;
-    '')  CONDUCT_DUE="empty ${age}h since ${base_word} (>= ${hours}h), but no retired workstream file is left unsampled" ;;
+    '')  CONDUCT_DUE="empty ${age}h since ${base_word} (>= ${hours}h), but no retired item that worked a plan is left unsampled" ;;
     *)   CONDUCT_DUE="due ${age}h since ${base_word} (>= ${hours}h)" ;;
   esac
 }
@@ -3503,7 +3524,7 @@ cmd_conduct() {
   s="$(conduct_sample "$sample")"
   case "$s" in
     '?') printf 'sample    : UNREADABLE — take no branch this run: a list that could not be read is no empty list\n' ;;
-    '')  printf 'sample    : none — no retired workstream file is left unsampled\n' ;;
+    '')  printf 'sample    : none — no retired item that worked a plan is left unsampled\n' ;;
     *)   printf 'sample    : %s branch(es), lowest sha1(<stem>) first — review exactly these\n' \
            "$(printf '%s\n' "$s" | awk 'END { print NR + 0 }')"
          printf '%s\n' "$s" | sed 's/^/            /' ;;
