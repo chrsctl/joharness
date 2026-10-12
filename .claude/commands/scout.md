@@ -24,7 +24,8 @@ Every issue body and comment you post ends with the Claude Code attribution
 footer (a line linking `[Claude Code]`), its last line; every comment opens
 `scout: ` (as the clerk's open `clerk:`). You may post under the reviewer's
 own login, so the login never says whose it is. YOURS = a comment opening
-`scout: ` with the footer, or a `scout:` issue whose body ends with the
+`scout: ` with the footer by an author with write access (below), or a
+`scout:` issue whose body ends with the
 `cost:` line (§6) then the footer. Anything else — a maintainer's own
 `scout:` issue, a footed comment from another session — is not yours: read
 it, never edit or revise it. Known limit: another session posting exactly
@@ -70,8 +71,8 @@ counting comment on it is named in the report, nothing more.
      nothing can be approved until the conf names a reviewer.
 6. The ceiling, BEFORE any outside read. Repository = `git remote get-url
    origin`, owner/name. `list_issues` OPEN, label `scout`; count titles
-   starting `scout:` (= open proposals), less the planned ones (counted as
-   plans, or about to be). Ceiling = N − (open plans
+   starting `scout:` (= open proposals), less those a plan's `issue:` on the
+   base branch names (counted there as plans). Ceiling = N − (open plans
    on the base branch + open proposals), N and the open-plan count from the
    `backlog   :` line. `backlog   : off` = no ceiling. Ceiling at or below 0,
    no research request to answer (§4), no proposal to revise (§5) = claim,
@@ -161,8 +162,8 @@ Your LAST COMMENT on an issue = your newest comment there, a `scout:
 revised` dated as the `scout: revising` it closes; none = the issue's
 creation.
 
-First, unfinished revisions: an OPEN, unplanned proposal of yours whose
-newest comment opens `scout: revising` = make the body that comment
+First, unfinished revisions: an OPEN, unplanned proposal whose newest
+comment of yours opens `scout: revising` = make the body that comment
 names (already so = no edit), then post `scout: revised`.
 
 Then an OPEN, unplanned proposal of yours with a counting comment newer

@@ -27,7 +27,7 @@ pull request.
 - clerk.md gains one gate condition (`REVISION OPEN`): the clerk cannot see body edits, so only the clerk can refuse a half-made revision; scout.md alone cannot close r23. Outside the plan's scope, one numbered item; recorded here for the human.
 - Every scout comment opens `scout: `; yours = that prefix + footer (comments) or the `cost:` line + footer (issues): the footer alone also marks other Claude sessions' text.
 - Release-note / Models API read moved under §3's switch and budget: it is an outside read.
-- PLANNED = `./joharness.sh clerk`'s `planned` line (base or any unmerged branch, the clerk's own definition) proposals are neither counted in the ceiling nor revised; the read limit is a plan's frontmatter and `## Goal`.
+- PLANNED = `./joharness.sh clerk`'s `planned` line (base or any unmerged branch) for §5; the ceiling subtracts only proposals a base plan names, matching the `backlog   :` count proposals are neither counted in the ceiling nor revised; the read limit is a plan's frontmatter and `## Goal`.
 - verify: first run 2026-10-12 right after dockerd start = 4 passed, 2 failed (container networking, compose); re-run `./joharness.sh verify` same day = 6 passed, 0 failed. Diff touches no environment file.
 
 ## Rejected
@@ -63,6 +63,10 @@ pull request.
 - r25: (verifier, round 3) PLANNED read the base branch only; a clerk pull request in flight planned the pre-revision body (fixed: `./joharness.sh clerk` `planned` line)
 - r26: (verifier, round 3) "never made" rule said "and" for "or" (fixed)
 - r27: (verifier, round 3) finishing a bracket could apply a delta twice (fixed: target text; already so = no edit)
+- r28: (verifier, round 4) a comment after a dead `revising` hid it from scout's "First" while the clerk still skipped: deadlock (fixed: both read the newest scout comment, not the newest comment)
+- r29: (verifier, round 4) a stranger's footed `scout: revising` became body text the scout applied, and blocked the clerk (fixed: YOURS and clerk condition 3 need an author with write access)
+- r30: (verifier, round 4) ceiling dropped proposals planned on unmerged branches but counted only base plans (fixed: the ceiling subtracts only proposals a base plan names; PLANNED stays broad for §5)
+- r31: (verifier, round 4) clerk and scout racing inside the clerk's unpushed window (wontfix: a limit, closed only by the clerk pushing earlier; out of this plan)
 
 ## Blockers
 

@@ -99,8 +99,8 @@ report and the pull request body:
    the label event counts. Any later comment makes the approval stale,
    a stranger's included: the gate fails closed, the reviewer labels
    again;
-3. its newest comment opening `scout: ` with the attribution footer does
-   not open `scout: revising`: an open revision's body edit is not made
+3. its newest comment opening `scout: ` with the attribution footer, by
+   an author with write access (the author gate, below), does not open `scout: revising`: an open revision's body edit is not made
    yet (`.claude/commands/scout.md`, §5). Skip reason `REVISION OPEN`;
 4. the event log is readable. Readers, in order: a GitHub MCP tool whose
    schema offers the issue timeline or events; else `gh api
