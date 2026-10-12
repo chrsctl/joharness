@@ -36,6 +36,8 @@
 #                   repairs
 #   scout           whether a scout is due. Report-only
 #   clerk           whether a clerk is due, issues already planned or claimed
+#   conduct         whether a conduct reviewer is due, its sample, the ledger
+#                   tally. Report-only
 #   cleanup [--apply]
 #                   what merges left on the base branch; --apply stages the
 #                   workstream-file deletions (never branches)
@@ -61,7 +63,10 @@
 #   JOHARNESS_MANAGER_HOURS=4   the orchestrator's numbers; dispatch prints them
 #   JOHARNESS_SCOUT_HOURS=168,
 #   JOHARNESS_CLERK_HOURS=24, JOHARNESS_CLERK_BATCH=3,
-#   JOHARNESS_SCOUT_AUTOMERGE=off
+#   JOHARNESS_CLERK_STALE_HOURS=24 an unmerged clerk branch older holds nothing
+#                               (0 = no window: every one holds),
+#   JOHARNESS_SCOUT_AUTOMERGE=off,
+#   JOHARNESS_CONDUCT_HOURS=168, JOHARNESS_CONDUCT_SAMPLE=3
 #                               role cycles; 0 hours = off
 #   JOHARNESS_SELFTEST=always   run the selftest even on a docs-only diff
 #   JOHARNESS_VERBOSE=1         ci/finish print passing checks too
@@ -2907,7 +2912,7 @@ scout_refs() {
 # Every scout file at a branch TIP — every unmerged ref and the base branch
 # itself — one line per file: `<branch>\t<scout stem>\t<status>`.
 scout_walk() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" kind="${1:-scout}"
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" kind=scout
   local ids=() names="" base_id id r hit wf doc sws sstat seen=$'\n' key listing rc_l rc_u blobs
   base_id="$(git -C "$ROOT" rev-parse --verify -q \
     "refs/remotes/origin/${base_branch}^{commit}" </dev/null 2>/dev/null)"
@@ -2960,7 +2965,7 @@ scout_walk() {
 }
 
 scout_retired_ts() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" kind="${1:-scout}"
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" kind=scout
   local refs=() r line h ct wf best=0 now log rc
   while IFS= read -r r; do refs+=("$r"); done < <(scout_refs)
   [ "${#refs[@]}" -gt 0 ] || return 0
@@ -3105,11 +3110,127 @@ cmd_scout() {
 
 # --- The clerk cycle — open issues are the top rank and no role read them
 
-# Is a clerk due.
+# A clerk writes NO workstream file (.claude/commands/clerk.md §1), so the
+# cycle reads what one does leave in git (#424): the merge of its plan-only
+# pull request, its unmerged `clerk-<digit>…` branch, or — a pass with no
+# plan to write — a `clerk-noop-<stamp>` branch at the base branch's head.
+
+# `YYYYMMDDTHHMMSSZ` (UTC) to epoch seconds, empty when malformed. Civil-day
+# arithmetic, because `date -d` and `date -j -f` split GNU from BSD.
+clerk_stamp_ts() {
+  local s="$1" y mo d h mi se era yoe doy doe
+  case "$s" in
+    [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]Z) ;;
+    *) return 0 ;;
+  esac
+  y=$((10#${s:0:4})); mo=$((10#${s:4:2})); d=$((10#${s:6:2}))
+  h=$((10#${s:9:2})); mi=$((10#${s:11:2})); se=$((10#${s:13:2}))
+  if [ "$mo" -lt 1 ] || [ "$mo" -gt 12 ] || [ "$d" -lt 1 ] || [ "$d" -gt 31 ] ||
+     [ "$h" -gt 23 ] || [ "$mi" -gt 59 ] || [ "$se" -gt 59 ]; then
+    return 0
+  fi
+  [ "$mo" -gt 2 ] || y=$((y - 1))
+  era=$((y / 400)); yoe=$((y - era * 400))
+  doy=$(( (153 * ((mo + 9) % 12) + 2) / 5 + d - 1 ))
+  doe=$(( yoe * 365 + yoe / 4 - yoe / 100 + doy ))
+  printf '%s' $(( (era * 146097 + doe - 719468) * 86400 + h * 3600 + mi * 60 + se ))
+}
+
+# The last clerk merge: `<committer time>\t<branch>\t#<N>`, empty when none.
+# Read from GitHub's DEFAULT merge subject ("Merge pull request #N from
+# <owner>/<branch>"): a repo set to title-only merge messages reads no landing.
+# FIRST-PARENT, so "Merge origin/main into clerk-…" — a merge made ON a clerk
+# branch and reachable from the base — is never read as one landing.
+clerk_landed() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" ct subj from n
+  while IFS=$'\t' read -r ct subj; do
+    from="${subj#Merge pull request \#}"
+    n="${from%% *}"
+    from="${from#* from }"
+    from="${from%% *}"
+    from="${from#*/}"
+    case "$from" in */*) continue ;; clerk-[0-9]*) ;; *) continue ;; esac
+    printf '%s\t%s\t#%s' "$ct" "$from" "$n"
+    return 0
+  done < <(git -C "$ROOT" log --first-parent --merges -E \
+    --grep='^Merge pull request #[0-9]+ from [^/ ]+/clerk-[0-9]' \
+    --format='%ct%x09%s' "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)
+}
+
+# The newest no-op record: `<stamp time>\t<branch>`, empty when none. Merged
+# ones only: the record IS the base branch's commit, named for its pass. A
+# stamp further ahead than the stale window is a broken clock and dates
+# nothing: clamped, it would pin the cycle until that date, and only a human
+# deletes the ref.
+clerk_noop() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" r ts best=0 bname="" lim
+  lim=$(( $(date +%s) + $(clerk_stale_s) ))
+  while IFS= read -r r; do
+    ts="$(clerk_stamp_ts "${r#refs/remotes/origin/clerk-noop-}")"
+    [ -n "$ts" ] || continue
+    [ "$ts" -le "$lim" ] || continue
+    if [ "$ts" -gt "$best" ]; then best="$ts"; bname="${r#refs/remotes/origin/}"; fi
+  done < <(git -C "$ROOT" for-each-ref --merged="refs/remotes/origin/${base_branch}" \
+    --format='%(refname)' 'refs/remotes/origin/clerk-noop-*' </dev/null 2>/dev/null)
+  [ "$best" -eq 0 ] || printf '%s\t%s' "$best" "$bname"
+}
+
+# JOHARNESS_CLERK_STALE_HOURS in seconds. 0 is no window, failing CLOSED:
+# every unmerged clerk branch holds, as a window of zero would have
+# dispatch spawn a second clerk beside a live one.
+clerk_stale_s() {
+  local h
+  h="$(num_knob JOHARNESS_CLERK_STALE_HOURS 24)"
+  [ "$h" -gt 0 ] || h=999999999
+  printf '%s' $((h * 3600))
+}
+
+# Every unmerged `clerk-<digit>…` branch, one row each in scout_walk's shape:
+# `<branch>\ttip-<N>h\t<in-flight|abandoned>`. A tip older than
+# JOHARNESS_CLERK_STALE_HOURS is abandoned and holds nothing (scout_branches
+# drops it): a `TWIN: deferred` exit or a pull request left open on a red gate
+# leaves its branch, and branches are never deleted. Never tied to
+# JOHARNESS_CLERK_HOURS: a live clerk may wait longer than the cadence on checks.
+clerk_walk() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" base_id stale now ct r age st refs rc
+  base_id="$(git -C "$ROOT" rev-parse --verify -q \
+    "refs/remotes/origin/${base_branch}^{commit}" </dev/null 2>/dev/null)"
+  if [ -z "$base_id" ]; then
+    printf '%s\t%s\t%s\n' '?' 'clerk-unreadable' 'unreadable'
+    return 0
+  fi
+  stale="$(clerk_stale_s)"
+  now="$(date +%s)"
+  # Read whole first: a failed read is UNREADABLE, never "nothing in flight".
+  refs="$(git -C "$ROOT" for-each-ref --no-merged="$base_id" \
+    --format='%(committerdate:unix)%09%(refname)' 'refs/remotes/origin/clerk-[0-9]*' \
+    </dev/null 2>/dev/null)"; rc=$?
+  if [ "$rc" -ne 0 ]; then
+    printf '%s\t%s\t%s\n' '?' 'clerk-unreadable' 'unreadable'
+    return 0
+  fi
+  while IFS=$'\t' read -r ct r; do
+    case "$ct" in '' | *[!0-9]*) continue ;; esac
+    r="${r#refs/remotes/origin/}"
+    age=$(( (now - ct) / 3600 ))
+    [ "$age" -ge 0 ] || age=0
+    # Either side of now: a tip dated ahead by more than the window is a
+    # broken clock, and holds nothing either.
+    if [ $((now - ct)) -lt "$stale" ] && [ $((ct - now)) -lt "$stale" ]; then
+      st=in-flight
+    else
+      st=abandoned
+    fi
+    printf '%s\t%s\t%s\n' "$r" "tip-${age}h" "$st"
+  done <<<"$refs"
+}
+
+# Is a clerk due. CLERK_ROWS is read whatever the clock says: a clerk in
+# flight takes a slot and holds the scout either way.
 CLERK_DUE=""
 CLERK_ROWS=""
 clerk_due() {
-  local want="${1:-}" hours age bts why base_word
+  local hours age why base_word landed noop ts=0 now
   CLERK_ROWS=""
   why="$(cycle_unreadable)"
   if [ -n "$why" ]; then
@@ -3125,19 +3246,21 @@ clerk_due() {
     CLERK_DUE='off no .claude/commands/clerk.md here: nothing for a clerk to run'
     return 0
   fi
-  base_word='the last clerk landed'
-  age="$(cycle_age_h clerk)"
-  if [ -z "$age" ] || [ "$age" -ge "$hours" ]; then
-    bts="$(scout_retired_ts clerk)"
-    if [ -n "$bts" ]; then
-      bts=$(( ($(date +%s) - bts) / 3600 ))
-      if [ -z "$age" ] || [ "$bts" -lt "$age" ]; then
-        age="$bts"
-        base_word='a clerk retired on a branch not merged yet'
-      fi
-    fi
+  landed="$(clerk_landed)"
+  noop="$(clerk_noop)"
+  if [ -n "$landed" ]; then
+    ts="${landed%%$'\t'*}"; landed="${landed#*$'\t'}"
+    base_word="the last clerk landed (${landed%%$'\t'*}, ${landed#*$'\t'})"
   fi
-  if [ -z "$age" ]; then
+  if [ -n "$noop" ] && [ "${noop%%$'\t'*}" -gt "$ts" ]; then
+    ts="${noop%%$'\t'*}"
+    base_word="the last clerk pass found nothing to plan (${noop#*$'\t'})"
+  fi
+  now="$(date +%s)"
+  if [ "$ts" -gt 0 ]; then
+    [ "$ts" -le "$now" ] || ts="$now"
+    age=$(( (now - ts) / 3600 ))
+  else
     age="$(cycle_repo_age_h)"
     [ -n "$age" ] || age=0
     base_word='the repository began, no clerk having run'
@@ -3147,9 +3270,7 @@ clerk_due() {
   else
     CLERK_DUE="not-due ${age}h since ${base_word} (of ${hours}h)"
   fi
-  if [ "$want" = all ] || [ "${CLERK_DUE%% *}" = due ]; then
-    CLERK_ROWS="$(scout_walk clerk)"
-  fi
+  CLERK_ROWS="$(clerk_walk)"
 }
 
 # Issue numbers an `issue:` field names under one directory, one per line,
@@ -3237,6 +3358,301 @@ cmd_clerk() {
   printf 'claimed   : %s\n' "$(clerk_issue_nums docs/handover all | clerk_issue_line)"
   printf '            (a workstream file'"'"'s issue: on %s or any unmerged branch)\n' \
     "${HANDOVER_BASE_BRANCH:-main}"
+}
+
+# --- The conduct cycle — a sample of merged managers' own artifacts, read for
+# how the work was done, never for what the diff does (issue #251)
+
+# The ledger: outside .agents/docs/ because that directory syncs to consumers
+# and would overwrite a consumer's ledger with canonical's.
+CONDUCT_LEDGER="docs/conduct-log.md"
+
+# The ledger as the base branch carries it. rc 0 = printed, 1 = absent,
+# 2 = unreadable — a misread is never an empty ledger.
+conduct_ledger() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" ls rc
+  ls="$(git -C "$ROOT" ls-tree --name-only "refs/remotes/origin/${base_branch}" \
+    -- "$CONDUCT_LEDGER" </dev/null 2>/dev/null)"; rc=$?
+  [ "$rc" -eq 0 ] || return 2
+  [ -n "$ls" ] || return 1
+  git -C "$ROOT" show "refs/remotes/origin/${base_branch}:${CONDUCT_LEDGER}" \
+    </dev/null 2>/dev/null | tr -d '\r' || return 2
+}
+
+# The ledger's table rows as `<date>\t<stem>\t<Cn>=<verdict>...`, columns
+# found by header name, so a question added later is one more column.
+conduct_rows() {
+  awk -F'|' '
+    function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
+    !/^[ \t]*\|/ { next }
+    !hdr {
+      for (i = 2; i < NF; i++) {
+        h = trim($i)
+        if (h == "date") cd = i
+        else if (h == "stem") cs = i
+        else if (h ~ /^C[0-9]+$/) { q[++nq] = i; qn[nq] = h }
+      }
+      if (cs) hdr = 1
+      next
+    }
+    trim($2) ~ /^:?-+:?$/ { next }
+    {
+      st = trim($cs); if (st == "") next
+      line = (cd ? trim($cd) : "?") "\t" st
+      for (k = 1; k <= nq; k++) {
+        v = toupper(trim($(q[k])))
+        if (v ~ /^FINE/) v = "FINE"
+        else if (v ~ /^CONCERN/) v = "CONCERN"
+        else if (v ~ /^NO EVIDENCE/) v = "NO-EVIDENCE"
+        else v = "?"
+        line = line "\t" qn[k] "=" v
+      }
+      print line
+    }'
+}
+
+# Stems a workstream-file retire deleted on the base branch, minus the
+# periodic roles', those still standing there, and those already in the
+# ledger. One `<stem>\t<retire sha>` per line; `?` alone = unreadable.
+conduct_candidates() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" ref log rc standing logged ledger lrc
+  ref="refs/remotes/origin/${base_branch}"
+  log="$(git -C "$ROOT" -c core.quotePath=false log --full-history --diff-filter=D \
+    --name-only --format='C %H' "$ref" -- docs/handover </dev/null 2>/dev/null)"; rc=$?
+  standing="$(git -C "$ROOT" -c core.quotePath=false ls-tree --name-only "$ref" \
+    -- docs/handover/ </dev/null 2>/dev/null)" || rc=1
+  ledger="$(conduct_ledger)"; lrc=$?
+  if [ "$rc" -ne 0 ] || [ "$lrc" -eq 2 ]; then
+    printf '?\n'
+    return 0
+  fi
+  logged="$(printf '%s\n' "$ledger" | conduct_rows | cut -f2)"
+  printf '%s\n' "$log" | awk -v standing="$standing" -v logged="$logged" '
+    BEGIN {
+      n = split(standing, a, "\n"); for (i = 1; i <= n; i++) skip[a[i]] = 1
+      n = split(logged, a, "\n");   for (i = 1; i <= n; i++) done[a[i]] = 1
+    }
+    /^C [0-9a-f]+$/ { sha = substr($0, 3); next }
+    /^docs\/handover\/[A-Za-z0-9._-]+\.md$/ {
+      if (skip[$0]) next
+      s = $0; sub(/^docs\/handover\//, "", s); sub(/\.md$/, "", s)
+      # Role sessions carry a date in the stem (scout-, curate-, clerk-,
+      # janitor-, findings passes); a manager item names its plan, never a day.
+      if (s ~ /-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/) next
+      if (s == "README" || s == "TEMPLATE") next
+      if (done[s] || seen[s]++) next
+      print s "\t" sha
+    }'
+}
+
+# sha1 of stdin, 40 hex; empty when no tool here can say it.
+conduct_sha1() {
+  local h
+  if command -v sha1sum >/dev/null 2>&1; then h="$(sha1sum)"
+  elif command -v shasum >/dev/null 2>&1; then h="$(shasum -a 1)"
+  else cat >/dev/null; return 0
+  fi
+  printf '%s' "${h%% *}"
+}
+
+# The sample: the N candidates whose sha1(<stem>) sorts lowest.
+# Membership by stem, never by date, so a re-run picks the same set and a
+# test can assert it. N = 0 = any one, unordered (does one exist). `?` alone
+# = unreadable.
+conduct_sample() {
+  local n="$1" cands s r h got=0 limit=1
+  cands="$(conduct_candidates)"
+  case "$cands" in '?') printf '?\n'; return 0 ;; '') return 0 ;; esac
+  if [ "$n" -gt 0 ]; then
+    limit="$n"
+    [ -n "$(printf 'x' | conduct_sha1)" ] || { printf '?\n'; return 0; }
+    cands="$(while IFS=$'\t' read -r s r; do
+      [ -n "$s" ] || continue
+      h="$(printf '%s' "$s" | conduct_sha1)"
+      printf '%s\t%s\t%s\n' "$h" "$s" "$r"
+    done <<<"$cands" | LC_ALL=C sort | cut -f2-)"
+  fi
+  while IFS=$'\t' read -r s r; do
+    [ -n "$s" ] || continue
+    printf '%s\n' "$s"
+    got=$((got + 1))
+    [ "$got" -lt "$limit" ] || break
+  done <<<"$cands"
+}
+
+# Hours since the ledger last LANDED on the base branch, empty when it never
+# has; `?` = unreadable. First-parent only: the commit there that changed the
+# ledger IS its landing (the merge, or a direct commit). A manager's merge-in
+# of the base branch sits off that line, so it never re-dates the clock.
+conduct_age_h() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" ts
+  ts="$(git -C "$ROOT" log -1 --first-parent --format=%ct \
+    "refs/remotes/origin/${base_branch}" -- "$CONDUCT_LEDGER" \
+    </dev/null 2>/dev/null)" || { printf '?'; return 0; }
+  [ -n "$ts" ] || return 0
+  case "$ts" in *[!0-9]*) printf '?'; return 0 ;; esac
+  printf '%s' "$(( ($(date +%s) - ts) / 3600 ))"
+}
+
+# Is a conduct reviewer due. CONDUCT_DUE = `<state> <why>`, state one of
+# unreadable off due not-due empty (due, nothing to sample). CONDUCT_ROWS =
+# the reviewer branches in flight, `<branch>\t<age>h`.
+CONDUCT_DUE=""
+CONDUCT_ROWS=""
+conduct_due() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" hours sample age why base_word
+  local refs rc b ts now drop cands
+  CONDUCT_ROWS=""
+  why="$(cycle_unreadable)"
+  if [ -n "$why" ]; then
+    CONDUCT_DUE="unreadable ${why}"
+    return 0
+  fi
+  hours="$(num_knob JOHARNESS_CONDUCT_HOURS 168)"
+  sample="$(num_knob JOHARNESS_CONDUCT_SAMPLE 3)"
+  if [ "$hours" -eq 0 ]; then
+    CONDUCT_DUE='off JOHARNESS_CONDUCT_HOURS=0: no conduct reviewer is ever due'
+    return 0
+  fi
+  if [ "$sample" -eq 0 ]; then
+    CONDUCT_DUE='off JOHARNESS_CONDUCT_SAMPLE=0: nothing is ever sampled'
+    return 0
+  fi
+  if [ ! -f "${ROOT}/.claude/commands/conduct.md" ]; then
+    CONDUCT_DUE='off no .claude/commands/conduct.md here: nothing for a reviewer to run'
+    return 0
+  fi
+  # In flight = an unmerged branch whose LAST path segment starts conduct-<digit>
+  # (a session may push under a prefix: claude/conduct-...). Sessions never delete branches,
+  # so one a human closed unmerged stands for ever: past a seventh of the
+  # window (at least 24h) since its last push it is dropped, as scout_branches drops
+  # `abandoned` rows.
+  refs="$(git -C "$ROOT" for-each-ref --no-merged="refs/remotes/origin/${base_branch}" \
+    --format='%(refname:lstrip=3)%09%(committerdate:unix)' refs/remotes/origin \
+    </dev/null 2>/dev/null)"; rc=$?
+  if [ "$rc" -ne 0 ]; then
+    CONDUCT_DUE='unreadable the unmerged branches could not be listed'
+    return 0
+  fi
+  now="$(date +%s)"
+  drop=$(( (hours + 6) / 7 ))
+  # Floor: a short clock must not read a reviewer waiting on checks as gone.
+  [ "$drop" -ge 24 ] || drop=24
+  while IFS=$'\t' read -r b ts; do
+    [ -n "$b" ] || continue
+    # conduct-<digit>: the reviewer's dated name, never a manager item's.
+    case "${b##*/}" in conduct-[0-9]*) ;; *) continue ;; esac
+    case "$ts" in '' | *[!0-9]*)
+      CONDUCT_DUE="unreadable no push time for ${b}"; CONDUCT_ROWS=""; return 0 ;;
+    esac
+    ts=$(( (now - ts) / 3600 ))
+    [ "$ts" -lt "$drop" ] || continue
+    CONDUCT_ROWS="${CONDUCT_ROWS}${b}"$'\t'"${ts}h"$'\n'
+  done <<<"$refs"
+  base_word='the ledger last landed'
+  age="$(conduct_age_h)"
+  if [ "$age" = '?' ]; then
+    CONDUCT_DUE="unreadable ${CONDUCT_LEDGER}'s history could not be read"
+    CONDUCT_ROWS=""
+    return 0
+  fi
+  if [ -z "$age" ]; then
+    age="$(cycle_repo_age_h)"
+    [ -n "$age" ] || age=0
+    base_word='the repository began, no conduct review having run'
+  fi
+  if [ "$age" -lt "$hours" ]; then
+    CONDUCT_DUE="not-due ${age}h since ${base_word} (of ${hours}h)"
+    return 0
+  fi
+  if [ -z "$(printf 'x' | conduct_sha1)" ]; then
+    CONDUCT_DUE='unreadable no sha1sum or shasum here: the sample cannot be drawn'
+    CONDUCT_ROWS=""; return 0
+  fi
+  cands="$(conduct_sample 0)"
+  case "$cands" in
+    '?') CONDUCT_DUE='unreadable the retired workstream files or the ledger could not be read'
+         CONDUCT_ROWS=""; return 0 ;;
+    '')  CONDUCT_DUE="empty ${age}h since ${base_word} (>= ${hours}h), but no retired manager workstream file is left unsampled" ;;
+    *)   CONDUCT_DUE="due ${age}h since ${base_word} (>= ${hours}h)" ;;
+  esac
+}
+
+# The tally, from the ledger: what the owner reads to judge the spend.
+conduct_tally() {
+  local ledger lrc
+  ledger="$(conduct_ledger)"; lrc=$?
+  if [ "$lrc" -eq 2 ]; then
+    printf 'tally     : UNREADABLE — %s could not be read on the base branch\n' "$CONDUCT_LEDGER"
+    return 0
+  fi
+  # Runs count every row's date; verdicts one per stem, the last row winning:
+  # two pull requests that appended the same sample must not count it twice.
+  printf '%s\n' "$ledger" | conduct_rows | awk -F'\t' '
+    { d[$1] = 1; last[$2] = NR; row[NR] = $0 }
+    END {
+      for (r = 1; r <= NR; r++) {
+        m = split(row[r], f, "\t")
+        if (last[f[2]] != r) continue
+        n++
+        for (i = 3; i <= m; i++) {
+          split(f[i], kv, "="); q = kv[1]; v = kv[2]
+          if (!(q in seen)) { seen[q] = 1; order[++nq] = q }
+          c[q, v]++; t[q]++
+        }
+      }
+      runs = 0; for (k in d) runs++
+      printf "tally     : %d run(s), %d branch(es) sampled (runs = distinct ledger dates)\n", runs, n
+      for (j = 1; j <= nq; j++) {
+        q = order[j]
+        printf "            %s  FINE %d  CONCERN %d  NO EVIDENCE %d", q, c[q, "FINE"], c[q, "CONCERN"], c[q, "NO-EVIDENCE"]
+        if (c[q, "?"]) printf "  unparsed %d", c[q, "?"]
+        printf "  CONCERN rate %d%%\n", (t[q] ? int(100 * c[q, "CONCERN"] / t[q] + 0.5) : 0)
+      }
+    }'
+}
+
+cmd_conduct() {
+  local hours sample due state why b a n_inflight=0 s
+  [ "$#" -eq 0 ] || die "usage: $0 conduct"
+  hours="$(num_knob JOHARNESS_CONDUCT_HOURS 168)"
+  sample="$(num_knob JOHARNESS_CONDUCT_SAMPLE 3)"
+  printf '== conduct (every %sh: JOHARNESS_CONDUCT_HOURS; %s branch(es) a run: JOHARNESS_CONDUCT_SAMPLE)\n\n' \
+    "$hours" "$sample"
+  printf 'reads no diff: a sampled branch'"'"'s workstream file, commit order and plan Acceptance only (.claude/commands/conduct.md)\n\n'
+
+  conduct_due
+  due="$CONDUCT_DUE"
+  state="${due%% *}"; why="${due#* }"
+  case "$state" in
+    unreadable) printf 'cadence   : UNREADABLE — %s\n' "$why"; return 0 ;;
+    off)        printf 'cadence   : off — %s\n\n' "$why"; conduct_tally; return 0 ;;
+  esac
+  while IFS=$'\t' read -r b a; do
+    [ -n "$b" ] || continue
+    n_inflight=$((n_inflight + 1))
+    [ "$n_inflight" -gt 1 ] || \
+      printf 'cadence   : IN FLIGHT, so none is due. Clock: %s %s\n' "$state" "$why"
+    printf '            %s  pushed %s ago\n' "$b" "$a"
+  done <<<"$CONDUCT_ROWS"
+  if [ "$n_inflight" -eq 0 ]; then
+    case "$state" in
+      due)   printf 'cadence   : DUE — %s\n' "$why" ;;
+      empty) printf 'cadence   : due, nothing to sample — %s\n' "$why" ;;
+      *)     printf 'cadence   : not due — %s\n' "$why" ;;
+    esac
+  fi
+  printf '\n'
+  s="$(conduct_sample "$sample")"
+  case "$s" in
+    '?') printf 'sample    : UNREADABLE — take no branch this run: a list that could not be read is no empty list\n' ;;
+    '')  printf 'sample    : none — no retired manager workstream file is left unsampled\n' ;;
+    *)   printf 'sample    : %s branch(es), lowest sha1(<stem>) first — review exactly these\n' \
+           "$(printf '%s\n' "$s" | awk 'END { print NR + 0 }')"
+         printf '%s\n' "$s" | sed 's/^/            /' ;;
+  esac
+  printf '\n'
+  conduct_tally
 }
 
 cmd_cleanup() {
@@ -4204,13 +4620,9 @@ cycle_landed_sha() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" kind="${1:-curate}" glob
   case "$kind" in
     scout)   glob="docs/handover/scout-[0-9]*" ;;
-    # The clerk takes the scout's spelling whole — the digit, no `.md`, and
-    # `-m` below — because it is scout_walk's identity it is read by
-    # (clerk_due).
-    clerk)   glob="docs/handover/clerk-[0-9]*" ;;
     *)       glob="docs/handover/${kind}-*.md" ;;
   esac
-  if [ "$kind" = scout ] || [ "$kind" = clerk ]; then
+  if [ "$kind" = scout ]; then
     GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 \
     git -C "$ROOT" log -1 --format=%H -m --diff-filter=D --full-history \
       "refs/remotes/origin/${base_branch}" -- "$glob" \
@@ -4872,6 +5284,7 @@ cmd_dispatch() {
   local jcands cjudge n_roles role_slots
   local scout_due=0 scout_inflight="" n_scout=0 sdue sstate sreason sb sw ss scout_gate=0 srows
   local clerk_due=0 clerk_inflight="" n_clerk=0 kdue kstate kreason kb kw ks
+  local conduct_due=0 role_spawned=0 n_conduct=0 odue ostate oreason ob oa conduct_inflight=""
   local fetch_failed=0
   local cb ck cstat csess cnext cage bplans
   local rescope_key="" rescope_paths="" rescope_inflight="" rescope_holders=""
@@ -4971,21 +5384,23 @@ cmd_dispatch() {
     printf 'clerk     : UNREADABLE — %s\n' "$kreason"
   elif [ "$kstate" = off ]; then
     printf 'clerk     : off — %s\n' "$kreason"
-  elif [ "$kstate" = due ]; then
+  else
+    # Counted whatever the clock reads: a clerk in flight holds a slot and
+    # the scout whether or not its cadence is due.
     while IFS=$'\t' read -r kb kw ks; do
       [ -n "$kb" ] || continue
       n_clerk=$((n_clerk + 1))
       clerk_inflight="${clerk_inflight}            ${kb}  ${kw}  ${ks}\n"
     done < <(printf '%s\n' "$CLERK_ROWS" | scout_branches)
     if [ "$n_clerk" -gt 0 ]; then
-      printf 'clerk     : IN FLIGHT, so none is due. What made it due: %s\n' "$kreason"
+      printf 'clerk     : IN FLIGHT, so none is due. Clock: %s %s\n' "$kstate" "$kreason"
       printf '%b' "$clerk_inflight"
-    else
+    elif [ "$kstate" = due ]; then
       clerk_due=1
       printf 'clerk     : DUE — %s\n' "$kreason"
+    else
+      printf 'clerk     : not due — %s\n' "$kreason"
     fi
-  else
-    printf 'clerk     : not due — %s\n' "$kreason"
   fi
   # The third cycle, the same reader (scout_due) `scout` asks.
   scout_due
@@ -5010,6 +5425,31 @@ cmd_dispatch() {
     fi
   else
     printf 'scout     : not due — %s\n' "$sreason"
+  fi
+  # The fourth cycle, the same reader (conduct_due) `conduct` asks.
+  conduct_due
+  odue="$CONDUCT_DUE"
+  ostate="${odue%% *}"; oreason="${odue#* }"
+  while IFS=$'\t' read -r ob oa; do
+    [ -n "$ob" ] || continue
+    n_conduct=$((n_conduct + 1))
+    conduct_inflight="${conduct_inflight}            ${ob}  pushed ${oa} ago\n"
+  done <<<"$CONDUCT_ROWS"
+  if [ "$ostate" = unreadable ]; then
+    printf 'conduct   : UNREADABLE — %s\n' "$oreason"
+  elif [ "$ostate" = off ]; then
+    printf 'conduct   : off — %s\n' "$oreason"
+  elif [ "$n_conduct" -gt 0 ]; then
+    printf 'conduct   : IN FLIGHT, so none is due. Clock: %s %s\n' "$ostate" "$oreason"
+    printf '%b' "$conduct_inflight"
+  elif [ "$ostate" = due ]; then
+    conduct_due=1
+    printf 'conduct   : DUE — %s\n' "$oreason"
+  elif [ "$ostate" = empty ]; then
+    conduct_due=2
+    printf 'conduct   : due, nothing to sample — %s\n' "$oreason"
+  else
+    printf 'conduct   : not due — %s\n' "$oreason"
   fi
   printf '\n'
 
@@ -5505,7 +5945,7 @@ cmd_dispatch() {
     printf '            %s plan(s) on HOLD behind work in flight: not counted as free\n' "$n_hold"
   role_slots=$((n_slots - (n_free < n_slots ? n_free : n_slots)))
   if [ "$curate_due" -eq 1 ] && [ "$role_slots" -gt 0 ]; then
-    role_slots=$((role_slots - 1))
+    role_slots=$((role_slots - 1)); role_spawned=1
     printf '            curate DUE: spawn ONE curator (agent: sonnet) on ./joharness.sh curate — takes one slot (roles share JOHARNESS_MAX_MANAGERS), at most one in flight (JOHARNESS_CURATE_PLANS, JOHARNESS_CURATE_HOURS)\n'
   elif [ "$curate_due" -eq 1 ]; then
     printf '            curate due, held — no free slot: roles share JOHARNESS_MAX_MANAGERS with managers\n'
@@ -5517,6 +5957,7 @@ cmd_dispatch() {
   elif [ "$clerk_due" -eq 1 ] && [ "$role_slots" -le 0 ]; then
     printf '            clerk due, held — no free slot: roles share JOHARNESS_MAX_MANAGERS with managers\n'
   elif [ "$clerk_due" -eq 1 ]; then
+    role_spawned=1
     printf '            clerk DUE: spawn ONE clerk (agent: sonnet) on /clerk — takes one slot (roles share JOHARNESS_MAX_MANAGERS), at most one in flight. It turns open issues into plans and merges that plan-only pull request itself (JOHARNESS_CLERK_HOURS, JOHARNESS_CLERK_BATCH)\n'
   fi
   if [ "$scout_due" -eq 1 ] && [ "$fetch_failed" -eq 1 ]; then
@@ -5529,6 +5970,18 @@ cmd_dispatch() {
     printf '            scout due, suppressed — a curate or clerk goes first: spawn none this pass\n'
   elif [ "$scout_due" -eq 1 ]; then
     printf '            scout due, suppressed — not DRAINED with nothing in flight: spawn none this pass\n'
+  fi
+  # Not gated on DRAINED: sampling merged work competes with nothing.
+  if [ "$conduct_due" -eq 1 ] && [ "$cap" -eq 0 ]; then
+    printf '            conduct due, held — JOHARNESS_MAX_MANAGERS=0 is the human'"'"'s pause: spawn none\n'
+  elif [ "$conduct_due" -eq 1 ] && [ "$fetch_failed" -eq 1 ]; then
+    printf '            conduct due, held — no fresh view of every branch this pass (fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*), so a reviewer in flight might not show: spawn none this pass\n'
+  # A curate or clerk HELD for a slot does not hold it: the reviewer needs none.
+  elif [ "$conduct_due" -eq 1 ] && { [ "$role_spawned" -eq 1 ] ||
+     [ "$n_curate_inflight" -gt 0 ] || [ "$n_clerk" -gt 0 ]; }; then
+    printf '            conduct due, suppressed — a curate or clerk goes first: spawn none this pass\n'
+  elif [ "$conduct_due" -eq 1 ]; then
+    printf '            conduct DUE: spawn ONE conduct reviewer (agent: sonnet) on /conduct — beyond the cap, holds no slot, at most one in flight. It records FINE/CONCERN/NO EVIDENCE per sampled branch in %s and merges that pull request itself (JOHARNESS_CONDUCT_HOURS, JOHARNESS_CONDUCT_SAMPLE)\n' "$CONDUCT_LEDGER"
   fi
   [ "$n_edge" -eq 0 ] ||
     printf '            %s branch(es) at the edge with no claim file: each holds a slot because its item is STILL on %s, so that merge has not landed. The control plane says what to do about the session, never whether the slot is real\n' \
@@ -5739,6 +6192,7 @@ main() {
     janitor)        cmd_janitor "$@" ;;
     guard)          cmd_guard "$@" ;;
     scout)          cmd_scout "$@" ;;
+    conduct)        cmd_conduct "$@" ;;
     clerk)          cmd_clerk "$@" ;;
     cleanup)        cmd_cleanup "$@" ;;
     curate)         cmd_curate "$@" ;;
