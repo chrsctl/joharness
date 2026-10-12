@@ -133,7 +133,7 @@ refute "requirement served by a plan is silent" "served-req.md" "$out"
 refute "requirement template is not a requirement" "product/TEMPLATE" "$out"
 refute "docs/product/SCOUT.md brief is never listed" "product/SCOUT" "$out"
 expect "docs/product/x.md beside SCOUT.md, no frontmatter, is listed" \
-  "docs/product/x.md" "$out"
+  "docs/product/x.md  [" "$out"
 expect "two free plans = spawn instruction with tiers" \
   "2 free plans = 2 parallel sessions" "$out"
 expect "spawn list names each free plan's tier" \
