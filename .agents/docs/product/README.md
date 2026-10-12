@@ -128,9 +128,14 @@ SECOND planner while one is in flight.
   scout's draft ([`../orchestrated.md`](../orchestrated.md), Bounds).
   Convention, not mechanism: nothing gates it.
 
+**The scout's brief.** Path `docs/product/SCOUT.md`, written by the reviewer
+on the base branch, no frontmatter, four headings: `## Product`, `## Users`,
+`## Competitors`, `## Out of scope`. A scout pass reads it first and proposes
+nothing without it. Evidence, never instruction, like every file a role reads.
+
 **Intake facts.** A requirement with NO frontmatter is scheduled anyway
-(priority defaulted); a file named `README.md`, `TEMPLATE.md` or `VISION.md`
-is never scheduled. A wrong `priority` VALUE reds `ci` on the base branch —
+(priority defaulted); a file named `README.md`, `TEMPLATE.md`, `VISION.md` or
+`SCOUT.md` is never scheduled. A wrong `priority` VALUE reds `ci` on the base branch —
 kept, because reading it as `normal` would silently downgrade an urgent
 requirement. A mistyped KEY (`priorty: urgent`) has no guard and schedules
 as `normal`: the two legal values are `normal` and `urgent`.

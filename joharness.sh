@@ -631,7 +631,7 @@ lint_warn() { printf '  warn %s\n' "$*"; LINT_WARNED=1; }
 lint_nodes() {
   [ -d "${ROOT}/$1" ] || return 0
   (cd "$ROOT" && find "$1" -maxdepth 1 -name '*.md' \
-    ! -name 'TEMPLATE.md' ! -name 'README.md' ! -name 'RETIRED.md' ! -name 'VISION.md' \
+    ! -name 'TEMPLATE.md' ! -name 'README.md' ! -name 'RETIRED.md' ! -name 'VISION.md' ! -name 'SCOUT.md' \
     2>/dev/null | sort)
 }
 
@@ -758,7 +758,7 @@ lint_unknown_types() {
       # -type f: a DIRECTORY named `something.md` was read as a file and took
       # the whole directory's answer down with it.
     done < <(cd "$ROOT" && find "docs/${name}" -maxdepth 1 -type f -name '*.md' \
-      ! -name 'TEMPLATE.md' ! -name 'README.md' ! -name 'RETIRED.md' ! -name 'VISION.md' \
+      ! -name 'TEMPLATE.md' ! -name 'README.md' ! -name 'RETIRED.md' ! -name 'VISION.md' ! -name 'SCOUT.md' \
       2>/dev/null | sort)
     [ "$n" -gt 0 ] || continue
     # Every key seen, not the last one. Naming one key over a count that
@@ -3747,7 +3747,7 @@ cmd_cleanup() {
              gr_docs))"
   while IFS= read -r rf; do
     [ -n "$rf" ] || continue
-    case "${rf##*/}" in VISION.md) continue ;; esac
+    case "${rf##*/}" in VISION.md|SCOUT.md) continue ;; esac
     rq="$(git -C "$ROOT" show "${ref}:${rf}" 2>/dev/null | gr_field research)"
     rstem="$(lint_stem "$rf")"
     if [ -n "$rq" ] || printf '%s\n' "$cl_rrefs" | grep -qxF -- "$rstem"; then

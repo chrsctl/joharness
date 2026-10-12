@@ -86,6 +86,8 @@ EOF
 cat >"${work}/docs/product/TEMPLATE.md" <<'EOF'
 not a requirement
 EOF
+printf '# Brief\n' >"${work}/docs/product/SCOUT.md"
+printf '# x\n' >"${work}/docs/product/x.md"
 GIT_COMMITTER_DATE="2026-01-02T00:00:00Z" \
   commit_all "$work" "queue newer urgent plan"
 git -C "$work" push -q origin main
@@ -129,6 +131,9 @@ expect "requirement without a plan is flagged for planning" \
   "docs/product/unplanned-req.md  [urgent, UNPLANNED" "$out"
 refute "requirement served by a plan is silent" "served-req.md" "$out"
 refute "requirement template is not a requirement" "product/TEMPLATE" "$out"
+refute "docs/product/SCOUT.md brief is never listed" "product/SCOUT" "$out"
+expect "docs/product/x.md beside SCOUT.md, no frontmatter, is listed" \
+  "docs/product/x.md" "$out"
 expect "two free plans = spawn instruction with tiers" \
   "2 free plans = 2 parallel sessions" "$out"
 expect "spawn list names each free plan's tier" \
