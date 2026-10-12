@@ -1,6 +1,6 @@
 ---
 workstream: scout-evaluated-on-gx
-status: blocked
+status: in-progress
 branch: manage-scout-evaluated-on-gx
 pr: none
 plan: scout-evaluated-on-gx
@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01PY8QHhhujX8mVvVzbwp2GK
 agent: sonnet
 updated: 2026-10-12
-next: product: gx needs docs/product/SCOUT.md, JOHARNESS_SCOUT_REVIEWER and JOHARNESS_SCOUT_RESEARCH=on from its reviewer before a scout pass can file; then its orchestrator spawns one
+next: Human answered 2026-10-12: run it. gx main now has docs/product/SCOUT.md, JOHARNESS_SCOUT_REVIEWER=chrsctl, JOHARNESS_SCOUT_RESEARCH=on. Re-check and continue the plan.
 ---
 
 ## Goal
