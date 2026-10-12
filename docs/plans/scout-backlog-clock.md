@@ -6,7 +6,7 @@ effort: xhigh
 needs: none
 requirement: scout-market-research
 issue: none
-scope: shared:joharness.sh, .agents/harness/selftest/scout.sh, .agents/scripts/conf-keys.sh, .agents/scripts/bootstrap-consumer.sh, shared:.agents/harness/selftest.sh, shared:.agents/docs/orchestrated.md
+scope: shared:joharness.sh, shared:.agents/harness/selftest/scout.sh, shared:.agents/scripts/conf-keys.sh, .agents/scripts/bootstrap-consumer.sh, shared:.agents/harness/selftest.sh, shared:.agents/docs/orchestrated.md
 ---
 
 ## Goal
