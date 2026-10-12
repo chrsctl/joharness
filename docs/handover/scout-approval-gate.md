@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01YYwcbvf34XMV2YVjh6fxBL
 agent: opus
 updated: 2026-10-12
-next: Edit clerk.md §2-4 + Never, manage.md §4, orchestrated.md Bounds/Roles per plan Scope
+next: Run ci + verify, verifier review, retire, PR
 ---
 
 ## Goal
@@ -19,7 +19,13 @@ carry the `scout:` title prefix and `scout` label.
 
 ## Decisions
 
-- None yet.
+- Edits written directly, no workers: three short prose edits whose wording
+  must agree with each other; splitting them costs more than it buys.
+- Last revision with no scout comment = the issue's creation; the newest
+  `approved` labeled event must be the reviewer's (a later relabel by
+  anyone else fails closed).
+- A proposal passing the scout gate still meets the skip list and author
+  gate: the plan adds a gate, never removes one.
 
 ## Rejected
 

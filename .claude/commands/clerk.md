@@ -9,7 +9,8 @@ only `docs/plans/`, so an issue reaches the queue only through you — an
 orchestrator or a manager never takes one directly. You take one
 `JOHARNESS_MAX_MANAGERS` slot.
 
-What you read: `./joharness.sh clerk`, the open issues on THIS repository,
+What you read: `./joharness.sh clerk`, the `reviewer  :` line of
+`./joharness.sh scout`, the open issues on THIS repository,
 and the source each issue cites. Not the queue order, not another branch,
 not the design doc — except the design doc only where an issue cites it,
 only the cited section, and the files the plan you write names as anchors
@@ -50,7 +51,8 @@ exit with no pull request.
 
 Open issues on this repository through the GitHub MCP tools, OLDEST first.
 Take at most `JOHARNESS_CLERK_BATCH` (`./joharness.sh clerk` prints it; 3
-by default). Skip, and do not count toward the batch:
+by default). First THE SCOUT GATE, below; then skip, and do not count
+toward the batch:
 
 - an issue `./joharness.sh clerk` lists under `planned` (a plan's `issue:`
   on the base branch or any unmerged branch — an open clerk pull request
@@ -72,6 +74,36 @@ by default). Skip, and do not count toward the batch:
   posted through their own Claude session carries the footer and is NOT
   read, so answer a HUMAN verdict by hand on GitHub. A third: an edit
   made through a maintainer's login carries no footer and is read as theirs.
+
+THE SCOUT GATE, before the skip list and the author gate. An issue
+carrying the label `scout` is a scout proposal (title starts `scout:`) or a
+research request (no prefix). A request is never taken. A proposal is taken
+only when ALL hold; else skip it, do not count it toward the batch, and put
+the reason in the report:
+
+1. its labels include `approved` (`issue_read`, `get_labels`);
+2. its event log shows the NEWEST `labeled` event for `approved` made by
+   the login on the `reviewer  :` line of `./joharness.sh scout` (first
+   word after the colon, read on fresh `origin/main`), and that event is
+   newer than the proposal's last revision. The last revision = the
+   newest comment carrying a Claude Code attribution footer that does not
+   open `clerk:` (`issue_read`, `get_comments`: the scout ends every
+   revision in one such comment), else the issue's creation. Never the
+   issue's `updated_at`: the label event itself bumps it. Never the login
+   alone: the scout may post under the reviewer's own identity, so only
+   the label event counts;
+3. the event log is readable. Readers, in order: a GitHub MCP tool whose
+   schema offers the issue timeline or events; else `gh api
+   repos/<owner>/<repo>/issues/<n>/timeline --paginate` when `gh auth
+   status` succeeds. Neither = `APPROVAL UNREADABLE`: take no scout
+   proposal this pass, report which reader was missing, and nothing else.
+   Never fall back to "the label is there".
+
+`reviewer  : none` = take no scout proposal; the report says the conf
+names no reviewer. A CLOSED scout issue is declined: never plan it,
+whatever its labels. A proposal that passes still meets the skip list and
+the author gate below. The scout's footed comments reopen no clerk verdict
+(skip list); this gate reads them only as the revision marker.
 
 Then the AUTHOR GATE, before reading any further: only an issue whose
 author has write access to this repository is taken — collaborator
@@ -130,6 +162,10 @@ recorded in the pull request body with the evidence, one line each:
      (`.agents/docs/feedback.md` §4). Not HUMAN: the next move is a filing,
      not a product call.
 
+A scout proposal that passed the scout gate (§2) is verified and decided
+like any issue: its plan carries `issue: <N>`, its comment opens
+`clerk: <VERDICT>`.
+
 One plan per issue, unless the issue names asks that are separable on its
 own words. A plan's `issue:` is how the issue closes later: the manager's
 pull request says `Closes #<N>` when no other queued plan names that issue,
@@ -156,7 +192,10 @@ still names on your new plans, then `./joharness.sh ci`. Run `curate --apply`, `
 `timeout` (a background command must be able to finish). Wait for the
 completion notification; never loop on `sleep`. Spawn `.claude/agents/verifier.md` at opus on the diff;
 its findings and your fixes go in the pull request body. The body lists every
-issue read with its verdict and, for a plan, the plan's stem.
+issue read with its verdict and, for a plan, the plan's stem. Its plans
+include one from a scout proposal (§2)? Title `scout: plan <stems>`, and
+the label `scout` on the pull request (`issue_write` update on the pull
+request number, labels).
 
 Merge it yourself under step 7's gate — green checks, 0 behind fresh
 `origin/main`, `./joharness.sh finish` green, merge-commit method. A diff
@@ -176,11 +215,15 @@ posted, and that this session took a manager slot.
 - Write code, a requirement, or a research file. Plans only.
 - Edit anything under `./joharness.sh protocol-paths`, or any plan you did
   not write this pass.
-- Close an issue, open an issue, or edit an issue's labels or body. One
-  carve-out, the UPSTREAM route only: close the consumer issue it routed, and
-  open or read issues on `CANONICAL_REPO`.
+- Close an issue, open an issue, or edit an issue's labels or body. Two
+  carve-outs: the UPSTREAM route closes the consumer issue it routed, and
+  opens or reads issues on `CANONICAL_REPO`; the label `scout` goes on your
+  own pull request (§4).
+- Apply, remove, or ask anyone to skip `approved` on any issue; close or
+  reopen a scout issue.
 - Take an issue that is PLANNED, CLAIMED, carries your verdict as its
-  newest comment, or whose author failed the gate.
+  newest comment, or whose author failed the gate; or a scout issue that
+  failed the scout gate.
 - Read or write issues on any repository other than this one, except
   `CANONICAL_REPO` on the UPSTREAM route.
 - Take a queue item, spawn a session, or run a second pass. One pass, exit.
