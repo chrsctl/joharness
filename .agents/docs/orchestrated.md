@@ -298,7 +298,16 @@ one row per stem.
 manager cuts its own branch from the base, copies the plan file across, and
 pushes nothing to the owner's branch. Hazard: once the owner's branch merges,
 the retired plan comes BACK (its side still adds it against a base that never
-had it). The PR body says so; the owner drops it at reconcile.
+had it). The guard is the ledger, not the owner: the carry's retire appends
+the stem to `docs/plans/RETIRED.md`, also when it finds the plan already done,
+and `ci` refuses a diff adding a plan the base branch's ledger lists
+(`joharness.sh:lint_plans_in_diff`). It fires on a `ci` run after the retire
+lands: Loop step 7's 0-behind rule forces one for a session; a human merging
+on an older green check is covered only when branch protection requires an
+up-to-date branch. Removing the line, on the base first, is the human
+override.
+The owner was gone every time in consumer `chrsctl/gx`, where
+`kanban-board-drag-move-persist` came back and held a slot.
 
 **Why the first row can fail, and why the reader cannot tell.** The filer
 cannot merge on red; when the base is red for a defect the plan itself fixes,
