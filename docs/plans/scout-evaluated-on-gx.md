@@ -42,7 +42,8 @@ the last plan naming the requirement, deletes the requirement file.
 
 ## Where to look
 
-- `.agents/docs/orchestrated.md` — the existing `chrsctl/gx` readings (search `gx`), the shape a counted record takes.
+- `.agents/docs/orchestrated.md` — the one existing `chrsctl/gx` reading (search `gx`): where the new subsection goes.
+- `.agents/docs/agent-selection.md` — "readings and commands" from consumer `gx`: the shape a counted record takes, command and date beside each number.
 - `.agents/docs/product/README.md` — "A requirement no plan can serve", exits 2 and 3: what the deleting commit owes.
 - `.agents/docs/consumer-repos.md` — routes that put merged role plans on gx.
 - `.claude/commands/scout.md` — the body sections and report lines the record quotes (as merged by `scout-proposes-on-issues`).

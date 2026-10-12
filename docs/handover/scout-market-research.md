@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01G96ZHwPamMESwrquuNoQxP
 agent: fable
 updated: 2026-10-12
-next: Verifier review at fable on the five plans; record; retire; plan-only pull request; merge
+next: Retire plan claim; plan-only pull request; merge
 ---
 
 ## Goal
@@ -43,7 +43,8 @@ writes plans only; it implements nothing.
 - Backlog trigger re-arms 24h after the last scout retire, a written number
   in code, so `NOTHING TO PROPOSE` does not respawn a scout every health
   pass. N default 24 = 3 days x 8 merges/day (`git log --merges
-  --first-parent --since=14.days origin/main | wc -l` = 117, 2026-10-12).
+  --first-parent --since=14.days --format=%h origin/main | wc -l` = 118,
+  2026-10-12 after merging origin/main at 10017ad1).
 - Approval event reader: the GitHub MCP `issue_read` has no timeline method
   (schema read 2026-10-12); `gh` here has an invalid token (`gh auth status`,
   2026-10-12). The clerk plan names both readers and fails closed
@@ -62,7 +63,20 @@ writes plans only; it implements nothing.
 
 ## Review
 
-Clean pass not yet recorded.
+- r1: throughput command quoted without `--format=%h` prints 1078 lines, not 118 (verifier) (fixed: command carries `--format=%h ... | wc -l` in the conf row, the report line and this file)
+- r2: N=0 "clock only" meets a ceiling of `0 - open`, so a clock pass proposes nothing (verifier) (fixed: `backlog : off` = no ceiling, in both plans)
+- r3: dispatch counts plans only, so an unreviewed pile re-spawns a fable scout each 24h (verifier) (fixed: ceiling computed in §0 before any outside read, `WAITING ON REVIEW` retire; cost named in scout-backlog-clock and accepted — dispatch stays git-only)
+- r4: the 24h re-arm reads the unmerged-branch retire only past 168h, so a consumer gets a second scout 1h after the first (verifier) (fixed: backlog trigger reads `scout_retired_ts` on every call, fixture case added to acceptance)
+- r5: "last revision" named the body's last edit, which no reader returns and `updated_at` conflates with the label event (verifier) (fixed: the scout's last comment is the marker; the scout never edits a body without one)
+- r6: freezing `cmd_scout`'s and dispatch's AUTOMERGE sentences leaves two triggers telling two stories (verifier) (fixed: the key stays, the printed sentences change; acceptance quotes both lines)
+- r7: `grep -c SCOUT joharness.sh` already reads 22 (verifier) (fixed: `SCOUT\.md` and the hook's alternation, counts given)
+- r8: `sampling-conduct-reviewer` in flight edits the same conf-row and selftest hunks, unnamed in Traps (verifier) (fixed: named; the hold is the right behaviour)
+- r9: branch 6 behind `origin/main`; `relayed-answer-is-quoted` merged, clerk.md §2 rewritten (verifier) (fixed: merged in, approval-gate Scope reads the merged §2, stale plan name dropped)
+- r10: acceptance grep for "never ... approved" was not in the clerk.md Scope (verifier) (fixed: `## Never` line added to Scope, grep reads that section)
+- r11: curate PROPOSEs product README claimed by two ordered plans (verifier) (fixed: `shared:` on both; `needs:` orders them)
+- r12: one-line gx anchor thin for "the shape a record takes" (verifier) (fixed: agent-selection.md gx readings anchored too)
+- r13: field spellings in the role plan (`brief :`) differ from the printed 10-char fields (verifier) (fixed: exact field names, acceptance counts them)
+- r14: `issue_read` method list, `list_issue_types` on gx, `add_repo` — UNVERIFIED by the verifier, outside its reach; the method list was read from the tool schema in this session on 2026-10-12 (no change)
 
 ## Blockers
 

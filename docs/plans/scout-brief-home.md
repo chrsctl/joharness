@@ -6,7 +6,7 @@ effort: high
 needs: none
 requirement: scout-market-research
 issue: none
-scope: shared:joharness.sh, shared:.agents/harness/queue-context.sh, .agents/harness/selftest/queue-context.sh, .agents/harness/selftest/ci-graph-lint.sh, .agents/docs/product/README.md
+scope: shared:joharness.sh, shared:.agents/harness/queue-context.sh, .agents/harness/selftest/queue-context.sh, .agents/harness/selftest/ci-graph-lint.sh, shared:.agents/docs/product/README.md
 ---
 
 ## Goal
@@ -41,7 +41,7 @@ and the product README says what the file holds.
 - Fixture: `docs/product/SCOUT.md` holding one line `# Brief` committed on the base ref. `HANDOVER_SCOPE=queue ./joharness.sh session-start` (or the hook's own runner, read `.agents/harness/selftest/queue-context.sh` for how it is driven) prints no `SCOUT` under "Requirements without plans" and no `UNPLANNED` row for it.
 - `./joharness.sh ci` on that fixture — `ci: pass`, and no line containing `SCOUT.md` in the graph lint output.
 - `bash .agents/harness/selftest.sh 2>&1 | tail -3` — `0 failed`; new cases grep-able by `SCOUT.md` in the two selftest topics named.
-- `grep -c "SCOUT" joharness.sh .agents/harness/queue-context.sh` — each at least 1; `git grep -n "VISION.md" -- joharness.sh .agents/harness/queue-context.sh` shows every hit with `SCOUT.md` on the same line or the line beside it.
+- `grep -c "SCOUT\.md" joharness.sh .agents/harness/queue-context.sh` — `joharness.sh:3` and `.agents/harness/queue-context.sh:0` (the hook spells it `SCOUT` inside the `(TEMPLATE|README|VISION|SCOUT)` alternation: `grep -c 'VISION|SCOUT' .agents/harness/queue-context.sh` — `1`); `git grep -n "VISION.md" -- joharness.sh .agents/harness/queue-context.sh` shows every hit with `SCOUT.md` on the same line or the line beside it.
 - `./joharness.sh ci` — `ci: pass`. `./joharness.sh verify` — `0 failed`.
 - SHIPS (`joharness.sh`, `.agents/harness/`, `.agents/docs/`): on a consumer after sync with a `docs/product/SCOUT.md` present, `./joharness.sh dispatch` lists no planning manager for it.
 
@@ -61,3 +61,4 @@ and the product README says what the file holds.
 - Never touch core paths (`./joharness.sh protocol-paths`).
 - `scout-backlog-clock` edits `joharness.sh` too (`scout_due`, `cmd_scout`, `cmd_dispatch`), never `lint_nodes`: a reconcile merge there is routine, `shared:`.
 - `retired-stems-ledger` declares `shared:.agents/harness/queue-context.sh`: expect a reconcile, not a conflict of intent.
+- `scout-proposes-on-issues` edits `.agents/docs/product/README.md` too, after this plan (`needs:`); `shared:` on both so no curator asks the pair to be ordered twice.

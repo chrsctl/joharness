@@ -24,10 +24,10 @@ such a plan.
 
 - `.claude/commands/clerk.md` — §2, a new gate before the author gate, "The scout gate": an issue carrying the label `scout` is a scout proposal (title `scout:`) or a research request (no prefix). A request is never taken. A proposal is taken only when ALL hold, else skipped and not counted toward the batch, with the reason in the report:
   1. its labels include `approved` (`issue_read`, `get_labels`);
-  2. the issue's event log shows `approved` applied by the login `./joharness.sh scout` prints on its `reviewer` line, and that event is newer than the proposal's last revision — the later of the issue body's last edit and the scout's last comment on it;
+  2. the issue's event log shows `approved` applied by the login `./joharness.sh scout` prints on its `reviewer  :` line, and that event is newer than the proposal's last revision — the scout's last comment on the issue (`issue_read`, `get_comments`; every revision ends in one comment, `scout-proposes-on-issues` §5). The issue's `updated_at` is never the marker: the label event itself bumps it;
   3. the event log is readable. Readers, in order: a GitHub MCP tool whose schema offers the issue timeline or events (none on 2026-10-12: `issue_read` methods are get, get_comments, get_sub_issues, get_parent, get_labels); else `gh api repos/<owner>/<repo>/issues/<n>/timeline --paginate` when `gh auth status` succeeds. Neither = `APPROVAL UNREADABLE`: take no scout proposal this pass, say which reader was missing, and nothing else; never fall back to "the label is there".
-  A `reviewer : none` line = no scout proposal is taken, the report says the conf names no reviewer.
-  §3: a taken proposal's plan carries `issue: <N>` as any plan; the clerk's verdict comment still opens `clerk: <VERDICT>`. §4: a pull request whose plans include one from a scout proposal has title `scout: plan <stems>` and the label `scout` (`issue_write` update on the pull request number, labels). A closed scout issue is declined: the clerk never plans it, whatever its labels.
+  A `reviewer  : none` line = no scout proposal is taken, the report says the conf names no reviewer. The gate sits before the footer rule and the author gate of §2 as merged on 2026-10-12 (footed comments do not count; a maintainer's own comment reopens): the scout's comments carry the attribution footer, so they never reopen a clerk verdict, and the gate reads them only as the revision marker above.
+  §3: a taken proposal's plan carries `issue: <N>` as any plan; the clerk's verdict comment still opens `clerk: <VERDICT>`. §4: a pull request whose plans include one from a scout proposal has title `scout: plan <stems>` and the label `scout` (`issue_write` update on the pull request number, labels). A closed scout issue is declined: the clerk never plans it, whatever its labels. `## Never` gains one line: apply, remove or ask to skip `approved` on any issue.
 - `.claude/commands/manage.md` — §4 Finish, beside the `Closes #N` rule: the plan names `issue: N` and that issue's labels (`issue_read`, `get_labels`) include `scout` = the pull request title starts `scout: ` and carries the label `scout`; a follow-up plan-only pull request for such work too. One read, at pull request time; nothing in the plan file marks it.
 - `.agents/docs/orchestrated.md` — "Bounds": "Nothing is invented at the edge" gains the sentence: a scout proposal enters as an issue and becomes a plan only through the clerk after the reviewer's `approved` label event; closing the issue declines it. The clerk row of Roles: "never plans a scout issue without the reviewer's approval event".
 
@@ -45,7 +45,7 @@ such a plan.
 - `grep -n -E 'timeline|event log' .claude/commands/clerk.md | wc -l` — at least `2`.
 - `grep -n 'scout: plan' .claude/commands/clerk.md | wc -l` — at least `1`.
 - `grep -n -E "scout: |label .scout." .claude/commands/manage.md | wc -l` — at least `2`.
-- `grep -n 'never' .claude/commands/clerk.md | grep -c -i 'approved'` — at least `1` (the clerk never applies the label).
+- `awk '/^## Never/,0' .claude/commands/clerk.md | grep -c 'approved'` — at least `1` (the Never list names the label).
 - `./joharness.sh ci` — `ci: pass`. `./joharness.sh verify` — `0 failed`.
 - SHIPS (`.claude/commands/`, `.agents/docs/`): on a consumer after sync, a clerk pass with a `scout`-labelled open issue and no timeline reader reports `APPROVAL UNREADABLE` and writes no plan for it; its report line is grep-able in the pull request body or the session's report.
 
@@ -63,5 +63,5 @@ such a plan.
 - Fail closed: unreadable event log = nothing planned, said once in the report. A silent pass invents nothing; a pass that plans on a label alone does.
 - Never apply, remove or ask to skip `approved`; never close or reopen a scout issue.
 - Core paths untouched (`./joharness.sh protocol-paths`); `JOHARNESS_SCOUT_REVIEWER` is set by the human in conf.
-- `.claude/commands/clerk.md` and `manage.md` are `shared:` with open plans (`clerk-cycle-reads-what-a-clerk-leaves`, `relayed-answer-is-quoted`, `role-session-standard-lines`, `retired-stems-ledger`, `free-branch-plans`): merge `origin/main` in before the pull request; keep their edits, add yours.
+- `.claude/commands/clerk.md` and `manage.md` are `shared:` with open plans (`clerk-cycle-reads-what-a-clerk-leaves`, `role-session-standard-lines`, `retired-stems-ledger`, `free-branch-plans`): merge `origin/main` in before the pull request; keep their edits, add yours.
 - Command files ship to consumers: no name of this repository, no `gx` in the rule text.

@@ -26,7 +26,7 @@ finishes the sum itself.
 ## Scope
 
 - `.agents/scripts/conf-keys.sh` — four rows, after `JOHARNESS_SCOUT_AUTOMERGE`:
-  - `JOHARNESS_SCOUT_BACKLOG|24|Open plans plus open scout proposal issues below this = a scout is due. Counted: 3 days x 8 merges/day, git log --merges --first-parent --since=14.days origin/main, 2026-10-12; 0 leaves only the clock.`
+  - `JOHARNESS_SCOUT_BACKLOG|24|Open plans plus open scout proposal issues below this = a scout is due. Counted: 3 days x 8 merges/day, git log --merges --first-parent --since=14.days --format=%h origin/main | wc -l = 118, 2026-10-12; 0 leaves only the clock, and the pass proposes without a ceiling.`
   - `JOHARNESS_SCOUT_BUDGET_USD|10|USD one scout pass may spend before it stops researching and proposes from what it has (get_session usage.cost_usd). A written number until a pass counts one.`
   - `JOHARNESS_SCOUT_REVIEWER||GitHub login whose approved label is the approval gate on a scout proposal issue. Empty = nothing can be approved.`
   - `JOHARNESS_SCOUT_RESEARCH|off|on = a scout pass reads outside the repository (web, competitor docs, market reports); off = inside evidence only.`
@@ -40,12 +40,19 @@ finishes the sum itself.
   `TEMPLATE.md`, `VISION.md`; `N` = `num_knob JOHARNESS_SCOUT_BACKLOG 24`.
   `N > 0 && n_plans < N && brief present && age >= 24` reads
   `due backlog <n_plans> open plan(s) on <base> below N=<N> (JOHARNESS_SCOUT_BACKLOG)`
-  where `age` is the hours since the last scout retire the clock already
-  computes (merged or on an unmerged branch; never scouted = repository age)
-  and `brief present` = `docs/product/SCOUT.md` exists on the base ref. The
-  24 is a written number, a one-line comment says so: one reviewer's day
-  between passes, so `NOTHING TO PROPOSE` or a pile waiting on review does
-  not respawn a scout every health pass. Clock trigger unchanged. Both
+  where `age` is the SMALLER of the hours since the last scout retire that
+  landed on the base branch and the hours since the last retire on any
+  unmerged branch (`scout_retired_ts`), read for this trigger on every call —
+  the clock consults `scout_retired_ts` only past `JOHARNESS_SCOUT_HOURS`,
+  and under the new role no scout branch merges, so the unmerged retire is
+  the one that exists; never scouted = repository age. `brief present` =
+  `docs/product/SCOUT.md` exists on the base ref. The 24 is a written
+  number, a one-line comment says so: one reviewer's day between passes.
+  Known cost, accepted: dispatch counts plans only, so a pile of unreviewed
+  proposals keeps the trigger due; the pass it spawns reads two reports,
+  finds its ceiling at or below 0, retires as `WAITING ON REVIEW` before
+  any outside read (`scout-proposes-on-issues`, §0), and the 24h re-arm
+  bounds it to one such pass a day. Clock trigger unchanged. Both
   `unreadable` and `off` states unchanged. `SCOUT_DUE` keeps its first word
   as the state (`due`, `not-due`, `off`, `unreadable`); the backlog reason
   starts with the word `backlog` so `dispatch` can tell the two apart.
@@ -55,7 +62,12 @@ finishes the sum itself.
   `cmd_scout`: five lines after `cadence`, exact shape in Acceptance.
   `cmd_dispatch`: a backlog-due scout spawns WITHOUT the `scout_gate`
   (`DRAINED`) condition; every other condition stays — fresh fetch, none in
-  flight, no curate or clerk due or in flight. Line text in Acceptance.
+  flight, no curate or clerk due or in flight. Line text in Acceptance. The
+  clock-case spawn line and `cmd_scout`'s closing `JOHARNESS_SCOUT_AUTOMERGE`
+  paragraph say the same new story: the scout proposes on issues, a reviewer
+  approves; the key no longer governs a merge. The key, `scout_automerge`
+  and the selftest cases that read the key's VALUE stay; only the printed
+  sentences change, with their selftest expectations.
 - `.agents/harness/selftest/scout.sh` — cases: backlog low spawns under `NOT
   DRAINED`; backlog low with no `docs/product/SCOUT.md` on main = clock only;
   backlog low within 24h of a retire = not due; `JOHARNESS_SCOUT_BACKLOG=0` =
@@ -75,8 +87,10 @@ finishes the sum itself.
   `scout-brief-home`. This plan only tests for the file's presence.
 - Reading GitHub from `joharness.sh`. Proposal issues are counted by the
   scout session, never by `dispatch` or `scout`.
-- `JOHARNESS_SCOUT_AUTOMERGE`, `scout_automerge`, their selftest cases and
-  conf lines: byte for byte as they are (requirement, Constraints).
+- `JOHARNESS_SCOUT_AUTOMERGE` the KEY: its conf line, `conf-keys.sh` row,
+  `scout_automerge` and how it resolves, byte for byte (requirement,
+  Constraints). The sentences `cmd_scout` and `dispatch` print about it are
+  not the key and do change (Scope).
 - `joharness.conf` of this repository — a core path. The pull request body
   asks the human for the four commented lines; the code reads the defaults
   until then.
@@ -88,7 +102,7 @@ finishes the sum itself.
 
   ```
   backlog   : 10 open plan(s) on main, N=24 (JOHARNESS_SCOUT_BACKLOG): low, but NO BRIEF — clock only
-  throughput: 8 merge(s)/day over 14 days (git log --merges --first-parent --since=14.days origin/main, 2026-10-12); 3 days = 24
+  throughput: 8 merge(s)/day over 14 days (git log --merges --first-parent --since=14.days --format=%h origin/main | wc -l, 2026-10-12); 3 days = 24
   brief     : NO BRIEF — no docs/product/SCOUT.md on main: no outside research, the pass proposes nothing
   reviewer  : none (JOHARNESS_SCOUT_REVIEWER) — nothing can be approved
   research  : off (JOHARNESS_SCOUT_RESEARCH); budget 10 USD a pass (JOHARNESS_SCOUT_BUDGET_USD)
@@ -96,9 +110,10 @@ finishes the sum itself.
 
   The plan count, the merge count and the date are live; the shape is fixed.
   With a brief and the backlog low: `backlog   : <n> open plan(s) on main, N=<N> (JOHARNESS_SCOUT_BACKLOG): low — a scout is due`.
-  Backlog not low: `: enough`. `N=0`: `backlog   : off (JOHARNESS_SCOUT_BACKLOG=0): clock only`.
+  Backlog not low: `: enough`. `N=0`: `backlog   : off (JOHARNESS_SCOUT_BACKLOG=0): clock only, no ceiling`.
 - `./joharness.sh dispatch` on a fixture with a brief, 1 open plan, `JOHARNESS_SCOUT_BACKLOG=3`, one manager in flight, last scout retire 48h back: tail line
-  `scout DUE: spawn ONE scout (agent: fable) on /scout — backlog low (JOHARNESS_SCOUT_BACKLOG), beyond the cap, holds no slot, at most one in flight. It proposes on issues; a reviewer approves (JOHARNESS_SCOUT_REVIEWER)` under a `NOT DRAINED` verdict. Same fixture, no brief: the `scout     :` line reads `not due` and the tail prints no scout line.
+  `scout DUE: spawn ONE scout (agent: fable) on /scout — backlog low (JOHARNESS_SCOUT_BACKLOG), beyond the cap, holds no slot, at most one in flight. It proposes on issues; a reviewer approves (JOHARNESS_SCOUT_REVIEWER)` under a `NOT DRAINED` verdict. Same fixture, no brief: the `scout     :` line reads `not due` and the tail prints no scout line. Same fixture, a retire on an unmerged branch 1h back and a merged one 100h back: `not due`.
+- `./joharness.sh dispatch` under `DRAINED` with the clock due: the tail line reads `scout DUE: spawn ONE scout (agent: fable) on /scout — beyond the cap, holds no slot, at most one in flight, only at DRAINED. It proposes on issues; a reviewer approves (JOHARNESS_SCOUT_REVIEWER, JOHARNESS_SCOUT_HOURS)`; `./joharness.sh scout | tail -2` no longer says a proposal waits for a merge.
 - `bash .agents/harness/selftest.sh 2>&1 | tail -3` — `0 failed`; the new cases named above grep-able in `.agents/harness/selftest/scout.sh`.
 - `./joharness.sh ci` — `ci: pass`. `./joharness.sh verify` — `0 failed`.
 - SHIPS (`joharness.sh`, `.agents/docs/`): on a consumer after sync, `./joharness.sh scout` prints the five lines with the consumer's own conf values; `.agents/scripts/bootstrap-consumer.sh --dry-run` on a fresh directory names the four keys.
@@ -119,8 +134,9 @@ finishes the sum itself.
 
 - Never read GitHub from `joharness.sh`: the harness is git-only by design; a GitHub call in `dispatch` is a new dependency every consumer pays.
 - Never touch `joharness.conf`, `.claude/settings.json`, `.github` (`./joharness.sh protocol-paths`).
-- `JOHARNESS_SCOUT_AUTOMERGE` stays exactly as it is — key, reader, printed lines, selftest.
+- `JOHARNESS_SCOUT_AUTOMERGE` the key stays exactly as it is — conf line, row, reader; a selftest asserting the old printed sentence is updated, never deleted.
 - A reviewer read from the branch's own conf would let a branch grant itself approval; read the base branch's, as `scout_automerge` does.
 - Fail closed: an unreadable base ref holds the cycle (`unreadable`), never spawns.
 - A number in a doc or conf comment names its command and date; the 24h re-arm and the 10 USD budget are written numbers and say so.
 - `scout-brief-home` edits `joharness.sh:lint_nodes` and the queue hook for `SCOUT.md`; this plan only stats the file. Both are `shared:` on `joharness.sh`.
+- `sampling-conduct-reviewer` (in flight on `origin/sampling-conduct-reviewer` on 2026-10-12) adds conf rows to `.agents/scripts/conf-keys.sh`, names in `.agents/harness/selftest.sh`'s key list and cases in `.agents/harness/selftest/scout.sh` — the same hunks this plan edits. The hook holds this plan until that branch merges; merge `origin/main` in first and add rows after its rows.
