@@ -5302,7 +5302,7 @@ dispatch_branch_plans() {
         if [ -n "$ledger" ] && [ -z "$(git -C "$ROOT" show \
              "${abase}:docs/plans/RETIRED.md" </dev/null 2>/dev/null |
              retired_ref "$stem")" ]; then
-          kind=done
+          kind="done"
         else
           # One walk per (since, own) pair, cached across this branch's plans.
           case "$evcache" in
@@ -5315,7 +5315,7 @@ dispatch_branch_plans() {
             # The row branch's own history before the plan landed: older.
             git -C "$ROOT" merge-base --is-ancestor "$evh" "$addh" \
               </dev/null 2>/dev/null && continue
-            kind=done; break
+            kind="done"; break
           done <<<"$evs"
         fi
       fi
