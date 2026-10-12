@@ -126,9 +126,10 @@ your merge from git; you send nothing for it.
 
 Carried plan (§0 item 2)? The retire commit also appends `- <stem> <your
 branch>` to `docs/plans/RETIRED.md` (absent = create it, first line
-`# Retired stems`). Found it already done? Still a pull request: the ledger
-line and the workstream file's deletion, step 7 whole — never `pr: none`
-and exit, which leaves the retire on a branch only.
+`# Retired stems`) and deletes your copy of the plan file. Found it already
+done? Still a pull request: the ledger line, the plan copy's and the
+workstream file's deletion, step 7 whole — never `pr: none` and exit, which
+leaves the retire on a branch only.
 
 Plan names `issue: N`? Body carries `Closes #N` when no other plan on fresh
 `origin/main` names it (`git grep -l -E '^issue: *#?N([^0-9]|$)' origin/main

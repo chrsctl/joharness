@@ -301,7 +301,11 @@ the retired plan comes BACK (its side still adds it against a base that never
 had it). The guard is the ledger, not the owner: the carry's retire appends
 the stem to `docs/plans/RETIRED.md`, also when it finds the plan already done,
 and `ci` refuses a diff adding a plan the base branch's ledger lists
-(`joharness.sh:lint_plans_in_diff`). Removing the line is the human override.
+(`joharness.sh:lint_plans_in_diff`). It fires on a `ci` run after the retire
+lands: Loop step 7's 0-behind rule forces one for a session; a human merging
+on an older green check is covered only when branch protection requires an
+up-to-date branch. Removing the line, on the base first, is the human
+override.
 The owner was gone every time in consumer `chrsctl/gx`, where
 `kanban-board-drag-move-persist` came back and held a slot.
 

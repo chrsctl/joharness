@@ -36,7 +36,11 @@ cat >"${rlwork}/docs/plans/RETIRED.md" <<'EOF'
 # Retired stems
 
 - gone-plan #77
+- noref-plan
+- `tick-plan` #79
 EOF
+# A line saved with a CRLF ending.
+printf -- '- crlf-plan #80\r\n' >>"${rlwork}/docs/plans/RETIRED.md"
 commit_all "$rlwork" "a retire lands: one ledgered stem"
 git -C "$rlwork" remote add origin "$rlorigin"
 git -C "$rlwork" push -qu origin main
@@ -55,7 +59,7 @@ out="$(CLAUDE_PROJECT_DIR="$rlwork" JOHARNESS_CONF="$rlconf" \
 expect "the queue hook lists the live plan" "live-plan" "$out"
 refute "the queue hook lists the ledger as no plan" "RETIRED" "$out"
 out="$( cd "$rlwork" && JOHARNESS_CONF="$rlconf" ./joharness.sh curate 2>&1 )"
-refute "curate reads the ledger as no plan" "RETIRED" "$out"
+expect "curate counts the live plan alone, not the ledger" "— 1 free plan(s)" "$out"
 out="$(rlci)"
 refute "the plan lint (graph lint) reads the ledger as no plan" "RETIRED" \
   "$(rlsect "graph lint" "$out")"
@@ -93,6 +97,38 @@ commit_all "$rlwork" "and its claim"
 rlout="$(rlsect "plans on this branch" "$(rlci)")"
 expect "a held stem is still retired" "gone-plan: already retired by #77" "$rlout"
 expect "and the plan stage stays red" "1 problem(s) in plans this branch adds" "$rlout"
+git -C "$rlwork" checkout -q main
+
+# --- ledger lines a hand might write still guard --------------------------
+git -C "$rlwork" checkout -qb odd-lines main
+rlplan noref-plan; rlplan tick-plan; rlplan crlf-plan
+commit_all "$rlwork" "re-add three stems ledgered in odd shapes"
+rlout="$(rlsect "plans on this branch" "$(rlci)")"
+expect "a ledger line with no ref still guards" "noref-plan: already retired by ? (" "$rlout"
+expect "a backticked stem still guards" "tick-plan: already retired by #79 (" "$rlout"
+expect "a CRLF line guards, its ref read clean" "crlf-plan: already retired by #80 (" "$rlout"
+git -C "$rlwork" checkout -q main
+
+# --- a retire that lands its ledger line beside the plan copy is red -------
+# The carry found done, the plan copy left in: both would land on main.
+git -C "$rlwork" checkout -qb carry-keeps-copy main
+rlplan carried-x
+printf -- '- carried-x claude/carry\n' >>"${rlwork}/docs/plans/RETIRED.md"
+commit_all "$rlwork" "a carry retire that forgot to delete its plan copy"
+expect "the branch's own ledger guards too" \
+  "carried-x: already retired by claude/carry in this branch's own docs/plans/RETIRED.md" \
+  "$(rlsect "plans on this branch" "$(rlci)")"
+git -C "$rlwork" checkout -q main
+
+# --- the override inside the re-adding branch is not yet the override ------
+git -C "$rlwork" checkout -qb lift-in-place main
+grep -v 'gone-plan' "${rlwork}/docs/plans/RETIRED.md" >"${rlwork}/rl.tmp"
+mv "${rlwork}/rl.tmp" "${rlwork}/docs/plans/RETIRED.md"
+rlplan gone-plan
+commit_all "$rlwork" "drop the line and re-add the plan in one branch"
+expect "the message says the removal lands on the base first" \
+  "landed on origin/main before this branch" \
+  "$(rlsect "plans on this branch" "$(rlci)")"
 git -C "$rlwork" checkout -q main
 
 # --- (b) a branch adding an unledgered stem draws no ledger finding --------

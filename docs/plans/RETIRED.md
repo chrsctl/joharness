@@ -8,5 +8,6 @@ one line per stem:
 
 `<ref>` names the retire: the retiring branch, its pull request (`#N`) or
 commit. `ci` refuses a diff that adds `docs/plans/<stem>.md` for a stem listed
-here. Removing the line is the human override. Protocol:
+here. Removing the line, merged to the base branch first, is the human
+override. Protocol:
 `.agents/docs/orchestrated.md`, "A spawn the human orders carries the plan".

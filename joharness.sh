@@ -5069,11 +5069,14 @@ plan_core_only() {
   return 0
 }
 
-# The ref that retired <stem>, from the ledger on <ref>
-# (docs/plans/RETIRED.md, lines `- <stem> <ref>`); empty when not listed.
+# The ref that retired <stem>, from a ledger on stdin (docs/plans/RETIRED.md,
+# lines `- <stem> <ref>`); empty when not listed, `?` for a line with no ref.
+# Backticks round the stem and a CRLF ending are read through: a near-miss
+# line that silently guards nothing is the failure this exists to stop.
 retired_ref() {
-  git -C "$ROOT" show "${1}:docs/plans/RETIRED.md" 2>/dev/null |
-    awk -v s="$2" '$1 == "-" && $2 == s && NF >= 3 { print $3; exit }'
+  tr -d '\r' | awk -v s="$1" '
+    $1 == "-" { t = $2; gsub(/`/, "", t)
+                if (t == s) { print (NF >= 3 ? $3 : "?"); exit } }'
 }
 
 # ci stage: plans this branch ADDS must carry no curate repair and must be
@@ -5102,11 +5105,22 @@ lint_plans_in_diff() {
     n=$((n + 1))
     # The base BRANCH's ledger, not the merge base's: the branch that re-adds
     # a retired plan is the one cut before the retire landed.
-    rref="$(retired_ref "$over" "$(lint_stem "$rel")")"
+    rref="$(git -C "$ROOT" show "${over}:docs/plans/RETIRED.md" 2>/dev/null |
+      retired_ref "$(lint_stem "$rel")")"
     if [ -n "$rref" ]; then
       bad=$((bad + 1))
-      printf '  %s: already retired by %s (docs/plans/RETIRED.md on %s); removing its ledger line is the human override\n' \
-        "$(lint_stem "$rel")" "$rref" "$over"
+      printf '  %s: already retired by %s (docs/plans/RETIRED.md on %s); removing its ledger line is the human override, landed on %s before this branch\n' \
+        "$(lint_stem "$rel")" "$rref" "$over" "$over"
+    else
+      # The branch's own ledger too: a carry retire that appends the line
+      # but keeps the plan copy would land both, a retired plan in the queue.
+      rref="$(retired_ref "$(lint_stem "$rel")" \
+        <"${ROOT}/docs/plans/RETIRED.md" 2>/dev/null)"
+      if [ -n "$rref" ]; then
+        bad=$((bad + 1))
+        printf '  %s: already retired by %s in this branch'"'"'s own docs/plans/RETIRED.md; a retire deletes the plan file, never lands it beside its ledger line\n' \
+          "$(lint_stem "$rel")" "$rref"
+      fi
     fi
     while IFS=$'\t' read -r kind text; do
       [ -n "$kind" ] || continue
