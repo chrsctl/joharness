@@ -285,7 +285,7 @@ branch has no row: not free, not held, not in flight.
 |---|---|---|
 | plan-only pull request | filer drives it to merged before exit | `manage.md`, Finish |
 | plan riding a product pull request | row in dispatch's `plans on a branch` block — visible, counted nowhere | `joharness.sh:dispatch_branch_plans` |
-| plan-only pull request whose plan was carried to the base by another branch, built and retired | the carrying session closes or comments on the source pull request at its own step 7 (its carry commit names the number); the reader prints the branch as a leftover (the human closes the pull request and deletes the branch) | `joharness.sh:dispatch_branch_plans` |
+| plan-only pull request whose plan was carried to the base by another branch, built and retired | the carrying session closes or comments on the source pull request at its own step 7 (its carry commit names the number); the reader prints the branch as a leftover (the human closes the pull request and deletes the branch); a carry that retired it with `status: done, pr: none` (ledger line, or a done workstream file on any other ref, merged or not) prints the row `DONE ON MAIN` — drop it, never spawn on it | `joharness.sh:dispatch_branch_plans` |
 | author gone | not answered — accepted gap | — |
 
 The row carries no instruction: the scheduler cannot see a pull request, and
@@ -321,6 +321,11 @@ the retire (the merge commit is treesame for that path; plain `--diff-filter=D`
 finds nothing). `dispatch_retired_edges` does not catch it either: it skips
 a branch that deletes no plan or workstream file, and a branch that only adds
 is not an edge. `dispatch_branch_plans` now tests this and prints a leftover row.
+A carry that found the plan done deletes nothing on the base, so that test
+misses it (3 of 9 held plans in `chrsctl/gx`, issue #423): the row also reads
+the base's ledger (any line, as `ci` does) and every other ref's `status:
+done` workstream files written after the plan's filing commit and still done,
+or retired, at a tip; it carries `held Nd` from that commit.
 
 ## The numbers are the human's
 

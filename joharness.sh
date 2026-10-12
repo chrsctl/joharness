@@ -5312,11 +5312,91 @@ dispatch_rescope_branches() {
   done <<<"$refs"
 }
 
+# Done evidence for branch plans: `<commit>\t<commit time>\t<stem>` for every
+# commit that WROTE a `status: done` workstream file, reachable from any
+# origin ref but <own> and not from <since>. The writer, never the commit a
+# diff matched: `-m` re-shows an old line in every merge-up, and a retire
+# deletes one, each with its own (new) time (verifier r9-r11). So no merges,
+# `--full-history` to walk past them, and the file as the commit LEFT it.
+# Bounded by <since>, never by a merge count (cl_merged_claims).
+dispatch_done_evidence() {
+  local since="$1" own="$2" line h="" ht="" seen="" doc wplan wstat
+  while IFS= read -r line; do
+    case "$line" in
+      '') continue ;;
+      'C '*) read -r h ht <<<"${line#C }"; continue ;;
+    esac
+    [ -n "$h" ] || continue
+    case "$seen" in *" ${h}:${line} "*) continue ;; esac
+    seen="${seen} ${h}:${line} "
+    doc="$(git -C "$ROOT" show "${h}:${line}" </dev/null 2>/dev/null)" || continue
+    { read -r wplan; read -r wstat; } \
+      < <(printf '%s\n' "$doc" | gr_fields plan status)
+    [ "$wstat" = "done" ] || continue
+    wplan="$(lint_stem "$wplan" | tr -cd 'A-Za-z0-9._-')"
+    [ -z "$wplan" ] || [ "$wplan" = none ] ||
+      printf '%s\t%s\t%s\n' "$h" "$ht" "$wplan"
+  done < <(git -C "$ROOT" for-each-ref --format='%(refname)' refs/remotes/origin \
+      </dev/null 2>/dev/null |
+    awk -v own="$own" -v since="$since" '
+      $0 != own && $0 != "refs/remotes/origin/HEAD" { print }
+      END { print "^" since }' |
+    git -c core.quotePath=false -C "$ROOT" log --stdin --full-history \
+      --no-merges -G'^status:[[:space:]]*done' \
+      --name-only --format='C %H %ct' -- docs/handover 2>/dev/null)
+}
+
+# Does the done record <commit> wrote for <stem> still hold? Read at a ref's
+# tip: no workstream file naming <stem> = retired, holds; files naming it =
+# one must say `status: done` (a reopen, renamed or not, does not: r2, r12).
+# The base branch decides alone once it contains the record: the carrier's
+# own ref still says done after the base reopened it (r15). Otherwise any
+# origin ref but <own> that contains it. `plan:` is read by the one reader
+# (gr_fields, lint_stem), never a second pattern (r16, r17).
+dispatch_done_holds() {
+  local evh="$1" stem="$2" own="$3" over ref refs
+  over="refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}"
+  if git -C "$ROOT" merge-base --is-ancestor "$evh" "$over" </dev/null 2>/dev/null; then
+    refs="$over"
+  else
+    refs="$(git -C "$ROOT" for-each-ref --contains "$evh" --format='%(refname)' \
+      refs/remotes/origin </dev/null 2>/dev/null)"
+  fi
+  while IFS= read -r ref; do
+    [ -n "$ref" ] || continue
+    { [ "$ref" = "$own" ] || [ "$ref" = refs/remotes/origin/HEAD ]; } && continue
+    dispatch_tip_holds "$ref" "$stem" && return 0
+  done <<<"$refs"
+  return 1
+}
+
+# <ref> <stem>: the tip-read half of dispatch_done_holds.
+dispatch_tip_holds() {
+  local ref="$1" stem="$2" f doc wplan wstat named=0
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    doc="$(git -C "$ROOT" show "$f" </dev/null 2>/dev/null)" || continue
+    { read -r wplan; read -r wstat; } \
+      < <(printf '%s\n' "$doc" | gr_fields plan status)
+    [ "$(lint_stem "$wplan" | tr -cd 'A-Za-z0-9._-')" = "$stem" ] || continue
+    named=1
+    [ "$wstat" = "done" ] && return 0
+  done < <(git -c core.quotePath=false -C "$ROOT" grep -l -F -e "$stem" "$ref" \
+    -- docs/handover </dev/null 2>/dev/null)
+  [ "$named" -eq 0 ]
+}
+
 # Plans on a branch: a plan file an unmerged branch ADDED and the base does not
-# carry.
+# carry. One row per (branch, plan), six tab-separated fields:
+#   <kind> <branch> <stem> <urgency> <agent> <held days>
+# kind `leftover`: the base added and retired the path; `done`: DONE ON MAIN,
+# the stem retired elsewhere (the base's ledger, or a `status: done`
+# workstream file on any other ref); `live`: neither.
 dispatch_branch_plans() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}"
   local refs r name base plans wfs wf doc own wplan wstat abandoned p stem urg agt retired rc
+  local addh addt abase kind days now ev evh evs ledger evcache=""
+  now="$(date +%s)"
   refs="$(git -C "$ROOT" for-each-ref --format='%(refname)' \
     refs/remotes/origin </dev/null 2>/dev/null)"
   while IFS= read -r r; do
@@ -5367,15 +5447,63 @@ dispatch_branch_plans() {
       done <<<"$(git -C "$ROOT" log --full-history -m --diff-filter=D \
         --format=%H "refs/remotes/origin/${base_branch}" -- "$p" \
         </dev/null 2>/dev/null)"
+      # The commit that ADDED the plan: the age reads from it, never from the
+      # tip (a branch merged up from the base after filing would under-read).
+      # The OLDEST add past the merge base: a delete-and-restore on the
+      # branch must not move the filing past a carrier's done record (r13).
+      read -r addh addt <<<"$(GIT_LITERAL_PATHSPECS=1 git -C "$ROOT" log \
+        --diff-filter=A --format='%H %ct' "$base..$r" -- "$p" </dev/null \
+        2>/dev/null | tail -n 1)"
+      [ -n "$addh" ] || { addh="$(git -C "$ROOT" rev-parse "$r" 2>/dev/null)"
+        addt="$(git -C "$ROOT" log -1 --format=%ct "$r" 2>/dev/null)"; }
+      days=$(( (now - ${addt:-$now}) / 86400 ))
+      [ "$days" -ge 0 ] || days=0
+      kind=live
+      if [ "$retired" -eq 1 ]; then
+        kind=leftover
+      else
+        # DONE ON MAIN. Evidence is bounded by where the plan's own history
+        # left the base: anything reachable from there is an older plan that
+        # reused the stem. The add commit's merge base, not the tip's, so a
+        # branch merged up from the base after a carry still reads it.
+        abase="$(git -C "$ROOT" merge-base "$addh" \
+          "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)"
+        abase="${abase:-$base}"
+        # The ledger as `ci` reads it (lint_plans_in_diff): a listed stem
+        # stays retired whoever re-adds it, so its row is done, not live.
+        ledger="$(git -C "$ROOT" show \
+          "refs/remotes/origin/${base_branch}:docs/plans/RETIRED.md" \
+          </dev/null 2>/dev/null | retired_ref "$stem")"
+        if [ -n "$ledger" ]; then
+          kind="done"
+        else
+          # One walk per (since, own) pair, cached across this branch's plans.
+          case "$evcache" in
+            *"<${abase} ${r}>"*) ;;
+            *) evcache="<${abase} ${r}>"
+               evs="$(dispatch_done_evidence "$abase" "$r")" ;;
+          esac
+          while IFS=$'\t' read -r evh evt ev; do
+            [ "$ev" = "$stem" ] || continue
+            # Written before the plan was filed: an older plan of that name,
+            # on whatever ref it sits (an unmerged branch is never in the
+            # merge base, however old).
+            [ "${evt:-0}" -ge "${addt:-0}" ] || continue
+            # The row branch's own history before the plan landed: older.
+            git -C "$ROOT" merge-base --is-ancestor "$evh" "$addh" \
+              </dev/null 2>/dev/null && continue
+            dispatch_done_holds "$evh" "$stem" "$r" || continue
+            kind="done"; break
+          done <<<"$evs"
+        fi
+      fi
       { read -r urg; read -r agt; } <<<"$(git -C "$ROOT" show "${r}:${p}" \
         </dev/null 2>/dev/null | gr_fields urgency agent)"
       urg="$(printf '%s' "$urg" | tr -cd 'A-Za-z0-9._-')"
       agt="$(printf '%s' "$agt" | tr -cd 'A-Za-z0-9._-')"
-      printf '%s\t%s\t%s\t%s' "$(printf '%s' "$name" | tr -cd 'A-Za-z0-9._/-')" \
-        "$stem" "${urg:-?}" "${agt:-?}"
-      # A fifth field marks the leftover; the plans-on-a-branch reader keeps
-      # to four-field rows.
-      if [ "$retired" -eq 1 ]; then printf '\tleftover\n'; else printf '\n'; fi
+      printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$kind" \
+        "$(printf '%s' "$name" | tr -cd 'A-Za-z0-9._/-')" \
+        "$stem" "${urg:-?}" "${agt:-?}" "$days"
     done <<<"$plans"
   done <<<"$refs"
 }
@@ -5694,14 +5822,14 @@ cmd_dispatch() {
 
   # A plan another branch carried to the base and retired: this branch's copy
   # is a leftover, not a plan waiting to land (dispatch_branch_plans).
-  while IFS=$'\t' read -r ebranch estem _ _ _; do
+  while IFS=$'\t' read -r _ ebranch estem _; do
     [ -n "$ebranch" ] || continue
     # One row per branch: a second carried plan, or a branch the edge reader
     # already listed, is not another leftover.
     case "$leftover_rows" in *"  ${ebranch}  leftover  "*) continue ;; esac
     n_leftover=$((n_leftover + 1))
     leftover_rows="${leftover_rows}  docs/plans/${estem}.md  ${ebranch}  leftover  its plan ${estem} landed and was retired by another branch: it commits NOTHING and holds no slot. Never respawn on it. The human closes its pull request and deletes the branch."$'\n'
-  done <<<"$(dispatch_branch_plans | awk -F'\t' 'NF == 5')"
+  done <<<"$(dispatch_branch_plans | awk -F'\t' '$1 == "leftover"')"
 
   DISPATCH_WITHHELD="$edge_items"
 
@@ -6020,12 +6148,21 @@ cmd_dispatch() {
 
   # --- plans on a branch: visible, never free -------------------------------
   # A plan an unmerged branch added has no queue row (dispatch_branch_plans).
-  bplans="$(dispatch_branch_plans | awk -F'\t' 'NF == 4 {
-      if (!($2 in on)) { order[++n] = $2; urg[$2] = $3; agt[$2] = $4; on[$2] = $1 }
-      else on[$2] = on[$2] ", " $1 }
-    END { for (i = 1; i <= n; i++) { s = order[i]
-      printf "  %s%s (urgency: %s, agent: %s)  on %s\n",
-        (urg[s] == "urgent" ? "URGENT " : ""), s, urg[s], agt[s], on[s] } }')"
+  # One line per (plan, kind): a stem done for one branch and live on a
+  # branch cut after the retire is two plans of one name. `held` is the
+  # oldest of its branches.
+  bplans="$(dispatch_branch_plans | awk -F'\t' '$1 == "live" || $1 == "done" {
+      k = $3 SUBSEP $1
+      if (!(k in on)) { order[++n] = k; st[k] = $3; kd[k] = $1; urg[k] = $4
+                        agt[k] = $5; on[k] = $2; held[k] = $6 }
+      else { on[k] = on[k] ", " $2; if ($6 + 0 > held[k] + 0) held[k] = $6 } }
+    END { for (i = 1; i <= n; i++) { k = order[i]
+      if (kd[k] == "done")
+        printf "  DONE ON MAIN %s (urgency: %s, agent: %s)  on %s  held %sd: retired elsewhere — drop it, never spawn on it\n",
+          st[k], urg[k], agt[k], on[k], held[k]
+      else
+        printf "  %s%s (urgency: %s, agent: %s)  on %s  held %sd\n",
+          (urg[k] == "urgent" ? "URGENT " : ""), st[k], urg[k], agt[k], on[k], held[k] } }')"
   if [ -n "$bplans" ]; then
     printf '\nplans on a branch, not in the queue until it merges:\n%s\n' "$bplans"
   fi
