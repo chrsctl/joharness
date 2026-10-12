@@ -62,8 +62,9 @@ nothing. Never read a full queue and leave it untouched.
    from its title`.
 4. Read the Lineup once.
 5. Heartbeat: `list_triggers` — an enabled cron Routine firing a fresh
-   session for this repo? None: first report line every pass is "no
-   heartbeat: this fleet dies with this session." Never create one.
+   session for this repo? None: the report carries "no
+   heartbeat: this fleet dies with this session." (order: "Report, every
+   pass"). Never create one.
 
 The ledger comes from your wake message (step 4), never from memory. First
 start = empty.
@@ -317,8 +318,15 @@ Human says stop = stop scheduling; name the managers still running.
 
 ## Report, every pass
 
-An `URGENT` row in dispatch's `plans on a branch` block is the FIRST line,
-with its branch; print the rest of that block. Never spawn on a branch plan
+Opening lines, in this order: the `URGENT` row (if any), the "no heartbeat"
+line (if any), then, on the first pass of a run a human message started (not
+a wake), when this session already wrote a final report (DRAINED exit or
+PAUSED) more than one hour earlier: `fresh session is cheaper: start a new
+orchestrator session for the next run`. It only informs; the pass still runs.
+(Why: `.agents/docs/orchestrated.md`, "Start each run fresh".)
+
+The `URGENT` row of dispatch's `plans on a branch` block carries its branch;
+print the rest of that block. Never spawn on a branch plan
 on your own; if the human orders it, the prompt names the row's branch and
 stem: carry the plan, never take the branch (`.agents/docs/orchestrated.md`,
 "A plan the queue cannot see"). Then one line per manager (item, session,
