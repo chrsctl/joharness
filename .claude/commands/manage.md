@@ -35,6 +35,25 @@ or requirements, other branches' files, or the design doc.
      request carrying the plans only, merge, exit. Never implement. Nothing
      left to plan? One of the exits in `.agents/docs/product/README.md`, "A
      requirement no plan can serve".
+   - `free <branch>` — a doc-only branch whose author is gone (dispatch
+     `FREEABLE`). A copy task, never a build. Claim on
+     `docs/handover/free-<key>.md`, `workstream: free-<key>`, `plan: none`,
+     key = the branch with every character outside `A-Za-z0-9._-` as `-`.
+     Push the claim, then `./joharness.sh free <branch>`: it merges, drops
+     the owner's workstream files and stems DONE ON MAIN, runs `curate
+     --apply` on the plans it brings in only, `ci`, commits. Refused:
+     `already merged into <your branch>` after `free` committed = done,
+     push and §4; `holds`, `already merged into <base>`, `outside docs/`,
+     `no such branch`, `shares no history`, `free takes another branch` =
+     nothing to free: delete your workstream file, push, exit, no pull
+     request; anything else is your own branch's state: fix it, run again.
+     Reset (conflict, red `ci`) = do by hand, inside a plan-only diff, what
+     `free` does: merge, delete the owner's workstream files, drop stems
+     DONE ON MAIN, retire a done record's plan, `curate --apply` (keep only
+     the plans you bring in), `ci`, recover lines from the owner's tip. Or
+     block `conflict:`. Then §4 whole; its `recover` lines
+     and the owner branch go in the body.
+     Never push to the owner's branch.
    - `rescope <key>` — you are the SURVEYOR: section R. Claim on
      `docs/handover/rescope-<key>.md` with `workstream: rescope-<key>` and
      `plan: none`. One pull request rewriting `scope:` lines, merge, exit.
@@ -75,6 +94,9 @@ per sub-task, workstream file in the same commit. Follow-up work that must
 outlive this session = a plan file in your pull request. Never a second item.
 
 ## R. Surveyor: the one kind that edits OTHER plans
+
+(A `free` manager's `curate --apply` writes only the plans it brings in:
+`free` restores every other file curate touched.)
 
 `dispatch` printed OVERLAP-BOUND: every plan HELD because plans that only
 APPEND to a shared registry or CLAIM a whole directory declared it exclusive.

@@ -562,6 +562,7 @@ SELFTEST_TOPICS=(
   retired-ledger
   analysis
   janitor
+  free
   guard
   scout
   ci-canonical-only-selftest

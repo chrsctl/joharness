@@ -286,11 +286,13 @@ branch has no row: not free, not held, not in flight.
 | plan-only pull request | filer drives it to merged before exit | `manage.md`, Finish |
 | plan riding a product pull request | row in dispatch's `plans on a branch` block — visible, counted nowhere | `joharness.sh:dispatch_branch_plans` |
 | plan-only pull request whose plan was carried to the base by another branch, built and retired | the carrying session closes or comments on the source pull request at its own step 7 (its carry commit names the number); the reader prints the branch as a leftover (the human closes the pull request and deletes the branch); a carry that retired it with `status: done, pr: none` (ledger line, or a done workstream file on any other ref, merged or not) prints the row `DONE ON MAIN` — drop it, never spawn on it | `joharness.sh:dispatch_branch_plans` |
-| author gone | not answered — accepted gap | — |
+| author gone: doc-only branch (`docs/plans`, `docs/product`, `docs/research`, `docs/handover`), every plan live or DONE ON MAIN, no workstream file blocked, in review or naming a `pr:`, last push older than `HANDOVER_STALE_SECONDS`; or its only diff a `status: done, pr: none` workstream file naming a `plan:` (no wait; `free` retires that plan too) | dispatch prints `free <branch> ... FREEABLE` under spawn; the orchestrator proves the owner's session not RUNNING and spawns one sonnet manager; `free` merges the branch into the manager's claim, drops the owner's workstream files and retired stems, `curate --apply`, `ci`, commits; the manager's pull request closes the owner branch by merging it. A janitor-released (`status: abandoned`) branch is not offered: dispatch hides its plans | `joharness.sh:cmd_free`, `joharness.sh:dispatch_freeable`, `manage.md` §0 |
 
 The row carries no instruction: the scheduler cannot see a pull request, and
 a branch plan has not been reviewed into the queue, so spawning on it is the
-human's call (`URGENT` leads the report). The reader drops the plan the
+human's call (`URGENT` leads the report) — to BUILD it. Bringing a
+FREEABLE branch in whole (author-gone row) builds nothing: that spawn is
+the orchestrator's. The reader drops the plan the
 branch's own workstream file claims and every plan on an `abandoned` branch;
 one row per stem.
 
