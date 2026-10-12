@@ -259,7 +259,7 @@ nothing.
 
   A ledger `rescoped=<K>` covers later keys whose holders are all in K.
   Issues reach the queue only through the clerk. Never nudge or respawn a
-  scout waiting on its proposal pull request.
+  scout: it ends at its claim's retire, with no pull request to wait on.
 - Manager: `create_session` with `source_url` = `git remote get-url origin`,
   `model` = item's `agent:` via the Lineup, `title` = `manager: <stem>`,
   `prompt`:

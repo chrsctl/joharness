@@ -60,7 +60,7 @@ paid by every session.
 | surveyor | the `rescope :` block in its prompt, and the `## Scope` of each plan it renames | the queue, product code, this doc |
 | curator | `./joharness.sh curate` and the plans it names | a held plan, the queue order, product code, this doc |
 | clerk | `./joharness.sh clerk`, the open issues, the source each issue cites | the queue order, another branch, product code beyond what an issue cites, this doc (except the design doc where an issue cites it: only the cited section; and the files the plan names as anchors, which outrank the product-code limit) |
-| scout | `./joharness.sh scout` and the evidence it lists — `upstream`, `feedback`, canonical issues, session cost, a dated release-note or Models API read; the brief `docs/product/SCOUT.md`; the open and closed `scout` issues; under `research  : on`, the web | a plan, the queue order, product code, another branch's code |
+| scout | `./joharness.sh scout` and the evidence it lists — `upstream`, `feedback`, canonical issues, session cost, a dated release-note or Models API read; the brief `docs/product/SCOUT.md`; the open and closed `scout` issues; under `research  : on`, the web | a plan beyond its name and `## Goal`, the queue order, product code, another branch's code |
 | conduct | `./joharness.sh conduct`; per sampled stem its workstream file before the retire commit, the branch's commit order (subjects, file names), the plan's `## Goal` and `## Acceptance` | any diff body, product code, the queue, this doc |
 | worker | its sub-task prompt and the files it names | everything else |
 
@@ -338,7 +338,7 @@ is not an edge. `dispatch_branch_plans` now tests this and prints a leftover row
 | `JOHARNESS_CURATE_REGISTRY` | 3 | plans declaring one path before `curate` calls it a registry | written number |
 | `JOHARNESS_CURATE_SPLIT` | 8 | `## Scope` bullets before `curate` proposes a decompose | written number |
 | `JOHARNESS_SCOUT_HOURS` | 168 | hours between scouts, only at DRAINED; 0 = off | written number |
-| `JOHARNESS_SCOUT_AUTOMERGE` | off | exactly `on` lets a scout merge its own proposal | a switch: money and product direction in one conf line |
+| `JOHARNESS_SCOUT_AUTOMERGE` | off | governs nothing: a scout proposes on issues and opens no pull request; exactly `on` was its self-merge | a switch: money and product direction in one conf line |
 | `JOHARNESS_SCOUT_BACKLOG` | 24 | open plans (plus open scout proposal issues, counted by the scout) below this = a scout is due, not gated on DRAINED, at most one a 24h (written number); 0 = clock only, no ceiling; `JOHARNESS_SCOUT_HOURS=0` switches both triggers off | counted: 3 days x 8 merges/day, `git log --merges --first-parent --since=14.days --format=%h origin/main \| wc -l` = 118, 2026-10-12 |
 | `JOHARNESS_SCOUT_BUDGET_USD` | 10 | USD one scout pass spends before it stops researching (`get_session` `usage.cost_usd`) | written number, until a pass counts one |
 | `JOHARNESS_SCOUT_REVIEWER` | empty | GitHub login whose approved label gates a scout proposal issue; read from the base branch's conf; empty = nothing can be approved | a name the human gives |
