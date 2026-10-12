@@ -38,7 +38,7 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | curator | sonnet | a session, on `curate DUE` with proposals to make | nothing | decompose/order proposals for ONE pass, changing no plan | its pull request merges |
 | surveyor | sonnet | a session, on the `OVERLAP-BOUND` verdict | nothing (declarations, not code) | the held plans' and holders' `scope:` lines for one holder key | its pull request merges, or `done` with nothing to change |
 | clerk | sonnet, opus verifier | a session, on the `clerk DUE` tail line | nothing | one plan-only pull request, no workstream file; never closes or opens an issue, never writes code, never a core-path-only plan, never plans a scout issue without the reviewer's approval event newer than its last revision | its pull request merges, no plan to write (pushes `clerk-noop-<UTC stamp>` at `origin/main`), or `TWIN: deferred` |
-| scout | fable | a session, on `scout DUE: spawn` — by the clock only under `DRAINED — nothing free, nothing in flight`, by the backlog under any verdict but `PAUSED` | nothing | one proposal pull request, a `docs/product/<stem>.md` | the human merges or closes it — or `JOHARNESS_SCOUT_AUTOMERGE=on` and it merges itself — or `NOTHING TO PROPOSE` |
+| scout | fable | a session, on `scout DUE: spawn` — by the clock only under `DRAINED — nothing free, nothing in flight`, by the backlog under any verdict but `PAUSED` | nothing | proposal issues on this repository, typed Feature, labelled scout; a research request's answer | its claim retires: NO BRIEF, NOTHING TO PROPOSE, or the pass's issues filed |
 | conduct | sonnet | a session on `conduct DUE`, beyond the cap | nothing | one pull request appending ledger rows to `docs/conduct-log.md`, no workstream file; never acts on a CONCERN | its pull request merges, or `TWIN: deferred` |
 
 Managers and role sessions (curator, surveyor, clerk) count against
@@ -60,7 +60,7 @@ paid by every session.
 | surveyor | the `rescope :` block in its prompt, and the `## Scope` of each plan it renames | the queue, product code, this doc |
 | curator | `./joharness.sh curate` and the plans it names | a held plan, the queue order, product code, this doc |
 | clerk | `./joharness.sh clerk`, the open issues, the source each issue cites | the queue order, another branch, product code beyond what an issue cites, this doc (except the design doc where an issue cites it: only the cited section; and the files the plan names as anchors, which outrank the product-code limit) |
-| scout | `./joharness.sh scout` and the evidence it lists — `review`, `feedback`, canonical issues, session cost, a dated release-note or Models API read | a plan, the queue order, product code, another branch's code |
+| scout | `./joharness.sh scout` and the evidence it lists — `upstream`, `feedback`, canonical issues, session cost, a dated release-note or Models API read; the brief `docs/product/SCOUT.md`; the open and closed `scout` issues; under `research  : on`, the web | a plan beyond its frontmatter and `## Goal`, the queue order, product code, another branch's code |
 | conduct | `./joharness.sh conduct`; per sampled stem its workstream file before the retire commit, the branch's commit order (subjects, file names), the plan's `## Goal` and `## Acceptance` | any diff body, product code, the queue, this doc |
 | worker | its sub-task prompt and the files it names | everything else |
 
@@ -338,7 +338,7 @@ is not an edge. `dispatch_branch_plans` now tests this and prints a leftover row
 | `JOHARNESS_CURATE_REGISTRY` | 3 | plans declaring one path before `curate` calls it a registry | written number |
 | `JOHARNESS_CURATE_SPLIT` | 8 | `## Scope` bullets before `curate` proposes a decompose | written number |
 | `JOHARNESS_SCOUT_HOURS` | 168 | hours between scouts, only at DRAINED; 0 = off | written number |
-| `JOHARNESS_SCOUT_AUTOMERGE` | off | exactly `on` lets a scout merge its own proposal | a switch: money and product direction in one conf line |
+| `JOHARNESS_SCOUT_AUTOMERGE` | off | governs nothing: a scout proposes on issues and opens no pull request; exactly `on` was its self-merge | a switch: money and product direction in one conf line |
 | `JOHARNESS_SCOUT_BACKLOG` | 24 | open plans (plus open scout proposal issues, counted by the scout) below this = a scout is due, not gated on DRAINED, at most one a 24h (written number); 0 = clock only, no ceiling; `JOHARNESS_SCOUT_HOURS=0` switches both triggers off | counted: 3 days x 8 merges/day, `git log --merges --first-parent --since=14.days --format=%h origin/main \| wc -l` = 118, 2026-10-12 |
 | `JOHARNESS_SCOUT_BUDGET_USD` | 10 | USD one scout pass spends before it stops researching (`get_session` `usage.cost_usd`) | written number, until a pass counts one |
 | `JOHARNESS_SCOUT_REVIEWER` | empty | GitHub login whose approved label gates a scout proposal issue; read from the base branch's conf; empty = nothing can be approved | a name the human gives |
@@ -390,9 +390,10 @@ no tier, and takes no item itself. The
 `janitor --apply` is the one writer to a branch it does not own: only where
 the session is ARCHIVED or not found, never on push age, never a claim with
 `pr:`, and it deletes nothing. The clerk turns EXISTING issues into plans and
-nothing else. The scout writes a requirement DRAFT the human authors by
-merging (or declines by closing); `JOHARNESS_SCOUT_AUTOMERGE=on` is the one
-exception, read from the base branch's conf so its own branch cannot grant it.
+nothing else. The scout proposes on issues and opens no pull request; the
+reviewer's `approved` label is the gate (`.claude/commands/clerk.md`), and
+closing the issue declines it. `JOHARNESS_SCOUT_AUTOMERGE` is unchanged and
+governs nothing: no scout pull request exists to merge.
 
 `joharness.conf` is a core path: a session that may raise its own cap decides
 money. `./joharness.sh env <name>` writes it too, so switching layers is a

@@ -91,14 +91,18 @@ report and the pull request body:
    proposal's last revision. The last revision = the newest of: any
    comment on the issue, footed or not, whoever posted it, except a clerk
    verdict (§3) posted by the identity you comment as (`issue_read`,
-   `get_comments`; the scout ends every revision in one comment); a
+   `get_comments`; the scout ends every revision in a `scout: revised`
+   comment); a
    `renamed` event in the event log; the issue's creation. Never the
    issue's `updated_at`: the label event itself bumps it. Never the login
    alone: the scout may post under the reviewer's own identity, so only
    the label event counts. Any later comment makes the approval stale,
    a stranger's included: the gate fails closed, the reviewer labels
    again;
-3. the event log is readable. Readers, in order: a GitHub MCP tool whose
+3. its newest comment opening `scout: ` with the attribution footer, by
+   an author with write access (the author gate, below), does not open `scout: revising`: an open revision's body edit is not made
+   yet (`.claude/commands/scout.md`, §5). Skip reason `REVISION OPEN`;
+4. the event log is readable. Readers, in order: a GitHub MCP tool whose
    schema offers the issue timeline or events; else `gh api
    repos/<owner>/<repo>/issues/<n>/timeline --paginate` when `gh auth
    status` succeeds (this repository's own issues: §3's fetch rule covers
