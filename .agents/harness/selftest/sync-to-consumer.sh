@@ -346,12 +346,14 @@ if command -v script >/dev/null 2>&1 &&
   script -qec true /dev/null >/dev/null 2>&1; then
   # One line per question plus a tail of blanks: a pty reports no end of file
   # while its master is open, so a read with nothing left to consume blocks
-  # rather than defaulting. timeout is the belt.
+  # rather than defaulting. timeout is the belt. The tail is one blank per
+  # conf key, so a key added to conf-keys.sh never outgrows it.
   sync_tty() {
-    local dest="$1" a
+    local dest="$1" a n
     shift
+    n="$(grep -c '^JOHARNESS_[A-Z_]*|' "${ROOT}/.agents/scripts/conf-keys.sh")"
     { for a in "$@"; do printf '%s\n' "$a"; done
-      printf '\n\n\n\n\n\n\n\n'
+      for _ in $(seq 1 "$n"); do printf '\n'; done
     } | timeout 60 script -qec \
       "JOHARNESS_SYNC_ROOT='${syncsrc}' bash '${ROOT}/.agents/scripts/sync-to-consumer.sh' '${dest}'" \
       /dev/null 2>&1

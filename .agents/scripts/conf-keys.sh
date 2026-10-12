@@ -51,6 +51,10 @@ JOHARNESS_CLERK_HOURS|24|Hours between clerk passes over the open issues: an iss
 JOHARNESS_CLERK_BATCH|3|Open issues one clerk pass takes at most.
 JOHARNESS_SCOUT_HOURS|168|Hours since the last scout before one is due, and only at DRAINED; 0 switches the cycle off.
 JOHARNESS_SCOUT_AUTOMERGE|off|off = a scout's proposal pull request waits for a human; on = the scout merges it itself. Money and product direction in one key.
+JOHARNESS_SCOUT_BACKLOG|24|Open plans plus open scout proposal issues below this = a scout is due. Counted: 3 days x 8 merges/day, git log --merges --first-parent --since=14.days --format=%h origin/main | wc -l = 118, 2026-10-12; 0 leaves only the clock, and the pass proposes without a ceiling.
+JOHARNESS_SCOUT_BUDGET_USD|10|USD one scout pass may spend before it stops researching and proposes from what it has (get_session usage.cost_usd). A written number until a pass counts one.
+JOHARNESS_SCOUT_REVIEWER||GitHub login whose approved label is the approval gate on a scout proposal issue. Empty = nothing can be approved.
+JOHARNESS_SCOUT_RESEARCH|off|on = a scout pass reads outside the repository (web, competitor docs, market reports); off = inside evidence only.
 JOHARNESS_CONDUCT_HOURS|168|Hours since the conduct ledger last landed before a sampling conduct reviewer is due, beyond the cap; 0 switches the cycle off.
 JOHARNESS_CONDUCT_SAMPLE|3|Retired branches one conduct reviewer run samples; 0 switches the cycle off.
 ROWS

@@ -140,6 +140,10 @@ CLERK_BATCH="$(conf_key_default JOHARNESS_CLERK_BATCH)"
 # first proposal, not before the first session.
 SCOUT_HOURS="$(conf_key_default JOHARNESS_SCOUT_HOURS)"
 SCOUT_AUTOMERGE="$(conf_key_default JOHARNESS_SCOUT_AUTOMERGE)"
+SCOUT_BACKLOG="$(conf_key_default JOHARNESS_SCOUT_BACKLOG)"
+SCOUT_BUDGET_USD="$(conf_key_default JOHARNESS_SCOUT_BUDGET_USD)"
+SCOUT_REVIEWER="$(conf_key_default JOHARNESS_SCOUT_REVIEWER)"
+SCOUT_RESEARCH="$(conf_key_default JOHARNESS_SCOUT_RESEARCH)"
 # Not asked either: whether a sampling conduct review is worth its money is
 # something the owner judges from the tally after a few runs.
 CONDUCT_HOURS="$(conf_key_default JOHARNESS_CONDUCT_HOURS)"
@@ -742,6 +746,20 @@ JOHARNESS_SCOUT_HOURS=${SCOUT_HOURS}
 # invented": money and product direction in one key, and a conf line is a
 # human act, which is why the bound still holds.
 JOHARNESS_SCOUT_AUTOMERGE=${SCOUT_AUTOMERGE}
+
+# Open plans plus open scout proposal issues below this = a scout is due; 0 =
+# only the clock decides.
+JOHARNESS_SCOUT_BACKLOG=${SCOUT_BACKLOG}
+
+# USD one scout pass may spend before it proposes from what it has.
+JOHARNESS_SCOUT_BUDGET_USD=${SCOUT_BUDGET_USD}
+
+# GitHub login whose approved label gates a scout proposal issue. Empty =
+# nothing can be approved.
+JOHARNESS_SCOUT_REVIEWER=${SCOUT_REVIEWER}
+
+# on = a scout pass reads outside the repository; off = inside evidence only.
+JOHARNESS_SCOUT_RESEARCH=${SCOUT_RESEARCH}
 
 # Hours since the conduct ledger (docs/conduct-log.md) last landed before a
 # sampling conduct reviewer is due; 0 = off. Beyond the cap: each run is the
