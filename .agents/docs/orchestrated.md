@@ -37,7 +37,7 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | worker | at or below the plan's tier, lower by default | a subagent in the manager's container | nothing | the files its sub-task names | it returns |
 | curator | sonnet | a session, on `curate DUE` with proposals to make | nothing | decompose/order proposals for ONE pass, changing no plan | its pull request merges |
 | surveyor | sonnet | a session, on the `OVERLAP-BOUND` verdict | nothing (declarations, not code) | the held plans' and holders' `scope:` lines for one holder key | its pull request merges, or `done` with nothing to change |
-| clerk | sonnet, opus verifier | a session, on the `clerk DUE` tail line | nothing | one plan-only pull request, no workstream file; never closes or opens an issue, never writes code, never a core-path-only plan | its pull request merges, no plan to write (pushes `clerk-noop-<UTC stamp>` at `origin/main`), or `TWIN: deferred` |
+| clerk | sonnet, opus verifier | a session, on the `clerk DUE` tail line | nothing | one plan-only pull request, no workstream file; never closes or opens an issue, never writes code, never a core-path-only plan, never plans a scout issue without the reviewer's approval event newer than its last revision | its pull request merges, no plan to write (pushes `clerk-noop-<UTC stamp>` at `origin/main`), or `TWIN: deferred` |
 | scout | fable | a session, on `scout DUE: spawn` — by the clock only under `DRAINED — nothing free, nothing in flight`, by the backlog under any verdict but `PAUSED` | nothing | one proposal pull request, a `docs/product/<stem>.md` | the human merges or closes it — or `JOHARNESS_SCOUT_AUTOMERGE=on` and it merges itself — or `NOTHING TO PROPOSE` |
 | conduct | sonnet | a session on `conduct DUE`, beyond the cap | nothing | one pull request appending ledger rows to `docs/conduct-log.md`, no workstream file; never acts on a CONCERN | its pull request merges, or `TWIN: deferred` |
 
@@ -374,7 +374,10 @@ The rules that bind every session.
   control plane at read time; that is why a retirement is a deletion, not a
   flag.
 - **Nothing is invented at the edge** (The one stop). Work enters only as an
-  issue, a requirement or a plan through a pull request.
+  issue, a requirement or a plan through a pull request. A scout proposal
+  enters as an issue and becomes a plan only through the clerk, after the
+  reviewer's `approved` label event, newer than its last revision; closing
+  the issue declines it.
 
 ### Bounds, orchestrator
 
