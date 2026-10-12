@@ -3028,7 +3028,7 @@ cmd_free() {
     git -C "$ROOT" ls-files --error-unmatch -- "$f" >/dev/null 2>&1 || continue
     git -C "$ROOT" rm -q -f -- "$f" >/dev/null 2>&1 || continue
     dropped="${dropped}${f}"$'\n'
-    if [ "$kind" = done ]; then
+    if [ "$kind" = "done" ]; then
       printf 'drop      : %s — DONE ON MAIN\n' "$f"
     else
       printf 'drop      : %s — leftover: %s added and retired it\n' "$f" "$base_branch"
@@ -5717,11 +5717,13 @@ dispatch_branch_plans() {
 #   kind `plans`: its rows in <branch-plan rows> (dispatch_branch_plans) all
 #     live or done, none leftover, last push older than HANDOVER_STALE_SECONDS;
 #   kind `done`: every path a workstream file reading `status: done` with no
-#     pr:, no plan added. No age wait: its own status says the session ended.
+#     pr: and a `plan:` (a manager's "found it done"), no plan added. No age
+#     wait: its own status says the session ended. `plan: none` is a role's
+#     record (a surveyor's "holds genuine" stays unmerged by design): never.
 # A branch carrying a `free-*` claim is a free manager's, never freeable.
 dispatch_freeable() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" bprows="$1"
-  local refs r name base paths p ok wonly doc st pr ws claimed="" n_rows age stale_s cb ck
+  local refs r name base paths p ok wonly doc st pr ws wp claimed="" n_rows age stale_s cb ck
   stale_s="$(num_knob HANDOVER_STALE_SECONDS 518400)"
   # Keys a free claim covers, in flight or parked: a second manager onto the
   # same owner is two merges of one branch.
@@ -5753,11 +5755,12 @@ dispatch_freeable() {
       case "$p" in
         docs/handover/*)
           doc="$(git -C "$ROOT" show "${r}:${p}" </dev/null 2>/dev/null)" || { wonly=0; continue; }
-          { read -r ws; read -r st; read -r pr; } \
-            <<<"$(printf '%s\n' "$doc" | gr_fields workstream status pr)"
+          { read -r ws; read -r st; read -r pr; read -r wp; } \
+            <<<"$(printf '%s\n' "$doc" | gr_fields workstream status pr plan)"
           # A free manager's own branch.
           case "$ws" in free-*) ok=0; break ;; esac
           [ "$st" = "done" ] || wonly=0
+          case "$wp" in '' | none) wonly=0 ;; esac
           case "$pr" in '' | none) ;; *) wonly=0 ;; esac ;;
         *) wonly=0 ;;
       esac
@@ -5772,7 +5775,7 @@ dispatch_freeable() {
     [ "$n_rows" -gt 0 ] || continue
     printf '%s\n' "$bprows" |
       awk -F'\t' -v b="$name" '$2 == b && $1 == "leftover" { f = 1 } END { exit !f }' && continue
-    [ -n "$age" ] && [ $((age * 60)) -ge "$stale_s" ] || continue
+    { [ -n "$age" ] && [ $((age * 60)) -ge "$stale_s" ]; } || continue
     printf 'plans\t%s\t%s\t%s\n' "$name" "$n_rows" "$age"
   done <<<"$refs"
 }
@@ -6365,7 +6368,7 @@ cmd_dispatch() {
   while IFS=$'\t' read -r fkind fb fn fage; do
     [ -n "$fb" ] || continue
     n_freeable=$((n_freeable + 1))
-    if [ "$fkind" = done ]; then
+    if [ "$fkind" = "done" ]; then
       freeable="${freeable}  free ${fb} (agent: sonnet)  FREEABLE — its only diff is a status: done, pr: none workstream file: merging it closes the branch. /who first: the owner's session RUNNING = not yours"$'\n'
     else
       freeable="${freeable}  free ${fb} (agent: sonnet)  FREEABLE — ${fn} plan(s) on a doc-only branch, last push $(dispatch_age_text "$fage") ago: merging it lands them in the queue. /who first: the owner's session RUNNING = not yours"$'\n'

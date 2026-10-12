@@ -35,6 +35,16 @@ or requirements, other branches' files, or the design doc.
      request carrying the plans only, merge, exit. Never implement. Nothing
      left to plan? One of the exits in `.agents/docs/product/README.md`, "A
      requirement no plan can serve".
+   - `free <branch>` — a doc-only branch whose author is gone (dispatch
+     `FREEABLE`). A copy task, never a build. Claim on
+     `docs/handover/free-<key>.md`, `workstream: free-<key>`, `plan: none`,
+     key = the branch with every character outside `A-Za-z0-9._-` as `-`.
+     Push the claim, then `./joharness.sh free <branch>`: it merges, drops
+     the owner's workstream files and stems DONE ON MAIN, runs `curate
+     --apply` on the plans it brings in only, `ci`, commits. Non-zero = it
+     reset; fix by hand inside a plan-only diff or block `conflict:`. Then
+     §4 whole; its `recover` lines and the owner branch go in the body.
+     Never push to the owner's branch.
    - `rescope <key>` — you are the SURVEYOR: section R. Claim on
      `docs/handover/rescope-<key>.md` with `workstream: rescope-<key>` and
      `plan: none`. One pull request rewriting `scope:` lines, merge, exit.
@@ -75,6 +85,9 @@ per sub-task, workstream file in the same commit. Follow-up work that must
 outlive this session = a plan file in your pull request. Never a second item.
 
 ## R. Surveyor: the one kind that edits OTHER plans
+
+(A `free` manager's `curate --apply` writes only the plans it brings in:
+`free` restores every other file curate touched.)
 
 `dispatch` printed OVERLAP-BOUND: every plan HELD because plans that only
 APPEND to a shared registry or CLAIM a whole directory declared it exclusive.

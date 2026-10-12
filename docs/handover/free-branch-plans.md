@@ -8,7 +8,7 @@ issue: 423
 session: https://claude.ai/code/session_01Nm4goRUANzvNDQdDAJ5Ubr
 agent: opus
 updated: 2026-10-12
-next: Write .agents/harness/selftest/free.sh and the two dispatch.sh cases, then the three .md edits
+next: Get ci and verify green (dispatch rescope cases, shellcheck), then verifier review at opus
 ---
 
 ## Goal
@@ -38,10 +38,14 @@ branch, and an empty done branch, a mechanical path to main via
 - Dispatch still hides a janitor-released (`status: abandoned`) branch's
   plans, as #297 chose, so such a branch is never FREEABLE; `free` works on
   it when a human orders it. Gap noted in the PR body.
+- The empty-done kind needs a real `plan:` in the workstream file: a
+  `plan: none` done record is a role's (a surveyor's "holds genuine" stays
+  unmerged by design, and dispatch reads it there).
 
 ## Rejected
 
-- None yet.
+- Empty-done FREEABLE on any `status: done, pr: none` file: freed the
+  surveyor's settle record and broke 4 rescope cases in selftest/dispatch.sh.
 
 ## Review
 

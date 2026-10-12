@@ -3327,6 +3327,39 @@ else
   fail "and no DONE ON MAIN or live branch plan reaches the spawn list"
 fi
 
+# --- FREEABLE: a doc-only branch nobody will merge (issue #423) -------------
+# Same fixture. A fresh plan branch is no row: its author may be mid-pull-
+# request. A plan branch past HANDOVER_STALE_SECONDS is `free <branch>`, a
+# spawnable item. An empty done branch needs no wait.
+refute "a fresh plan branch is not FREEABLE" "free plan-only (agent" "$out"
+expect "an empty done branch is FREEABLE at once" \
+  "  free carry-pa (agent: sonnet)  FREEABLE — its only diff is a status: done, pr: none workstream file" "$out"
+git -C "$bpwork" checkout -qb gone-q main
+bpplan "${bpwork}/docs/plans/q.md" q normal
+git -C "$bpwork" add -A
+GIT_COMMITTER_DATE='2026-01-01T00:00:00Z' GIT_AUTHOR_DATE='2026-01-01T00:00:00Z' \
+  git -C "$bpwork" commit -qm "file q, long ago"
+git -C "$bpwork" push -qu origin gone-q
+git -C "$bpwork" checkout -q main
+out="$(bp)"
+expect "a plan branch past the stale window is FREEABLE" \
+  "  free gone-q (agent: sonnet)  FREEABLE — 1 plan(s) on a doc-only branch" "$out"
+expect "and it counts as a free item" "verdict   : NOT DRAINED" "$out"
+refute "plan-only, still fresh, is still no row" "free plan-only (agent" "$out"
+# The manager's claim: the row goes, the claim holds a slot, and the claim's
+# own doc-only branch is never FREEABLE.
+git -C "$bpwork" checkout -qb mgr-free-q main
+mkdir -p "${bpwork}/docs/handover"
+printf -- '---\nworkstream: free-gone-q\nstatus: in-progress\nbranch: mgr-free-q\npr: none\nplan: none\nagent: sonnet\nupdated: 2026-01-01\nnext: Run free\n---\n\n## Goal\nFixture.\n' \
+  >"${bpwork}/docs/handover/free-gone-q.md"
+commit_all "$bpwork" "claim free gone-q"
+git -C "$bpwork" push -qu origin mgr-free-q
+git -C "$bpwork" checkout -q main
+out="$(bp)"
+refute "a free claim on its key drops the row" "free gone-q (agent" "$out"
+expect "the claim is a manager in flight" "  free-gone-q  mgr-free-q  in-progress" "$out"
+refute "and the claim's own branch is never FREEABLE" "free mgr-free-q (agent" "$out"
+
 # --- time against the item: CEILING? (issue #298) ---------------------------
 # A manager that pushes inside the stall window and under the churn limit read
 # healthy for 5.5h and $48 with no pull request. The row now carries hours
