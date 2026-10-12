@@ -140,6 +140,10 @@ CLERK_BATCH="$(conf_key_default JOHARNESS_CLERK_BATCH)"
 # first proposal, not before the first session.
 SCOUT_HOURS="$(conf_key_default JOHARNESS_SCOUT_HOURS)"
 SCOUT_AUTOMERGE="$(conf_key_default JOHARNESS_SCOUT_AUTOMERGE)"
+# Not asked either: whether a sampling conduct review is worth its money is
+# something the owner judges from the tally after a few runs.
+CONDUCT_HOURS="$(conf_key_default JOHARNESS_CONDUCT_HOURS)"
+CONDUCT_SAMPLE="$(conf_key_default JOHARNESS_CONDUCT_SAMPLE)"
 # Same decision, same reason: whether step 7 waits for GitHub Actions or runs
 # the checks here is a question a repo answers once it has felt the wait, not
 # one a human has an opinion about before the first session.
@@ -738,6 +742,14 @@ JOHARNESS_SCOUT_HOURS=${SCOUT_HOURS}
 # invented": money and product direction in one key, and a conf line is a
 # human act, which is why the bound still holds.
 JOHARNESS_SCOUT_AUTOMERGE=${SCOUT_AUTOMERGE}
+
+# Hours since the conduct ledger (docs/conduct-log.md) last landed before a
+# sampling conduct reviewer is due; 0 = off. Beyond the cap: each run is the
+# owner's money, and ./joharness.sh conduct prints the tally to judge it by.
+JOHARNESS_CONDUCT_HOURS=${CONDUCT_HOURS}
+
+# Retired branches one conduct run samples; 0 = off.
+JOHARNESS_CONDUCT_SAMPLE=${CONDUCT_SAMPLE}
 EOF
   # Recorded BEFORE the seed, because seed() is the thing that makes the
   # difference invisible afterwards: it writes only when the file is absent.
