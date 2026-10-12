@@ -220,7 +220,8 @@ nothing.
   respawned this pass: it has a live manager now.
 - Role sessions, at most ONE of each per run and none while one is in flight
   (dispatch's header block says), `create_session` like a manager, prompt =
-  the command + the standard lines:
+  the command + the lines its row names (surveyor: "the standard lines";
+  every other row: "the role lines"):
 
   | line | model (Lineup) | title | prompt | ledger |
   | --- | --- | --- | --- | --- |
@@ -229,6 +230,17 @@ nothing.
   | `scout DUE`, only under `DRAINED — nothing free, nothing in flight` | fable | `scout: <UTC date>` | `/scout` | `scouted=<stamp>` |
   | `conduct DUE: spawn` (any verdict; `held`, `suppressed` = nothing) | sonnet | `conduct: <UTC date>` | `/conduct` | `conducted=<stamp>` |
   | `OVERLAP-BOUND`, `rescope :` says `in flight: none` | sonnet | `surveyor: <key>` | `/manage rescope <key>` + the block verbatim | `rescope-<key>@new`, `rescoped=<key>` |
+
+  "the role lines", for curator, clerk, scout and conduct (they write no
+  workstream file, so no claim line):
+
+  ```
+  Run ./joharness.sh protocol-paths and never commit under those paths. Push
+  at every milestone. One pass, then exit.
+  ```
+
+  Plus the lead line, when a transport exists, as for a manager. The
+  surveyor runs the manager command and gets "the standard lines" below.
 
   A ledger `rescoped=<K>` covers later keys whose holders are all in K.
   Issues reach the queue only through the clerk. Never nudge or respawn a
