@@ -26,6 +26,8 @@ Surveyor pass: 7 plans held behind sampling-conduct-reviewer on shared files.
 
 ## Review
 
+- r1: (verifier) clean pass: only scope: lines changed, both sides of each collision marked (no change)
+
 ## Blockers
 
 None.
