@@ -63,6 +63,8 @@
 #   JOHARNESS_MANAGER_HOURS=4   the orchestrator's numbers; dispatch prints them
 #   JOHARNESS_SCOUT_HOURS=168,
 #   JOHARNESS_CLERK_HOURS=24, JOHARNESS_CLERK_BATCH=3,
+#   JOHARNESS_CLERK_STALE_HOURS=24 an unmerged clerk branch older holds nothing
+#                               (0 = no window: every one holds),
 #   JOHARNESS_SCOUT_AUTOMERGE=off,
 #   JOHARNESS_CONDUCT_HOURS=168, JOHARNESS_CONDUCT_SAMPLE=3
 #                               role cycles; 0 hours = off
@@ -2910,7 +2912,7 @@ scout_refs() {
 # Every scout file at a branch TIP — every unmerged ref and the base branch
 # itself — one line per file: `<branch>\t<scout stem>\t<status>`.
 scout_walk() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" kind="${1:-scout}"
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" kind=scout
   local ids=() names="" base_id id r hit wf doc sws sstat seen=$'\n' key listing rc_l rc_u blobs
   base_id="$(git -C "$ROOT" rev-parse --verify -q \
     "refs/remotes/origin/${base_branch}^{commit}" </dev/null 2>/dev/null)"
@@ -2963,7 +2965,7 @@ scout_walk() {
 }
 
 scout_retired_ts() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" kind="${1:-scout}"
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" kind=scout
   local refs=() r line h ct wf best=0 now log rc
   while IFS= read -r r; do refs+=("$r"); done < <(scout_refs)
   [ "${#refs[@]}" -gt 0 ] || return 0
@@ -3108,11 +3110,127 @@ cmd_scout() {
 
 # --- The clerk cycle — open issues are the top rank and no role read them
 
-# Is a clerk due.
+# A clerk writes NO workstream file (.claude/commands/clerk.md §1), so the
+# cycle reads what one does leave in git (#424): the merge of its plan-only
+# pull request, its unmerged `clerk-<digit>…` branch, or — a pass with no
+# plan to write — a `clerk-noop-<stamp>` branch at the base branch's head.
+
+# `YYYYMMDDTHHMMSSZ` (UTC) to epoch seconds, empty when malformed. Civil-day
+# arithmetic, because `date -d` and `date -j -f` split GNU from BSD.
+clerk_stamp_ts() {
+  local s="$1" y mo d h mi se era yoe doy doe
+  case "$s" in
+    [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]Z) ;;
+    *) return 0 ;;
+  esac
+  y=$((10#${s:0:4})); mo=$((10#${s:4:2})); d=$((10#${s:6:2}))
+  h=$((10#${s:9:2})); mi=$((10#${s:11:2})); se=$((10#${s:13:2}))
+  if [ "$mo" -lt 1 ] || [ "$mo" -gt 12 ] || [ "$d" -lt 1 ] || [ "$d" -gt 31 ] ||
+     [ "$h" -gt 23 ] || [ "$mi" -gt 59 ] || [ "$se" -gt 59 ]; then
+    return 0
+  fi
+  [ "$mo" -gt 2 ] || y=$((y - 1))
+  era=$((y / 400)); yoe=$((y - era * 400))
+  doy=$(( (153 * ((mo + 9) % 12) + 2) / 5 + d - 1 ))
+  doe=$(( yoe * 365 + yoe / 4 - yoe / 100 + doy ))
+  printf '%s' $(( (era * 146097 + doe - 719468) * 86400 + h * 3600 + mi * 60 + se ))
+}
+
+# The last clerk merge: `<committer time>\t<branch>\t#<N>`, empty when none.
+# Read from GitHub's DEFAULT merge subject ("Merge pull request #N from
+# <owner>/<branch>"): a repo set to title-only merge messages reads no landing.
+# FIRST-PARENT, so "Merge origin/main into clerk-…" — a merge made ON a clerk
+# branch and reachable from the base — is never read as one landing.
+clerk_landed() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" ct subj from n
+  while IFS=$'\t' read -r ct subj; do
+    from="${subj#Merge pull request \#}"
+    n="${from%% *}"
+    from="${from#* from }"
+    from="${from%% *}"
+    from="${from#*/}"
+    case "$from" in */*) continue ;; clerk-[0-9]*) ;; *) continue ;; esac
+    printf '%s\t%s\t#%s' "$ct" "$from" "$n"
+    return 0
+  done < <(git -C "$ROOT" log --first-parent --merges -E \
+    --grep='^Merge pull request #[0-9]+ from [^/ ]+/clerk-[0-9]' \
+    --format='%ct%x09%s' "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)
+}
+
+# The newest no-op record: `<stamp time>\t<branch>`, empty when none. Merged
+# ones only: the record IS the base branch's commit, named for its pass. A
+# stamp further ahead than the stale window is a broken clock and dates
+# nothing: clamped, it would pin the cycle until that date, and only a human
+# deletes the ref.
+clerk_noop() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" r ts best=0 bname="" lim
+  lim=$(( $(date +%s) + $(clerk_stale_s) ))
+  while IFS= read -r r; do
+    ts="$(clerk_stamp_ts "${r#refs/remotes/origin/clerk-noop-}")"
+    [ -n "$ts" ] || continue
+    [ "$ts" -le "$lim" ] || continue
+    if [ "$ts" -gt "$best" ]; then best="$ts"; bname="${r#refs/remotes/origin/}"; fi
+  done < <(git -C "$ROOT" for-each-ref --merged="refs/remotes/origin/${base_branch}" \
+    --format='%(refname)' 'refs/remotes/origin/clerk-noop-*' </dev/null 2>/dev/null)
+  [ "$best" -eq 0 ] || printf '%s\t%s' "$best" "$bname"
+}
+
+# JOHARNESS_CLERK_STALE_HOURS in seconds. 0 is no window, failing CLOSED:
+# every unmerged clerk branch holds, as a window of zero would have
+# dispatch spawn a second clerk beside a live one.
+clerk_stale_s() {
+  local h
+  h="$(num_knob JOHARNESS_CLERK_STALE_HOURS 24)"
+  [ "$h" -gt 0 ] || h=999999999
+  printf '%s' $((h * 3600))
+}
+
+# Every unmerged `clerk-<digit>…` branch, one row each in scout_walk's shape:
+# `<branch>\ttip-<N>h\t<in-flight|abandoned>`. A tip older than
+# JOHARNESS_CLERK_STALE_HOURS is abandoned and holds nothing (scout_branches
+# drops it): a `TWIN: deferred` exit or a pull request left open on a red gate
+# leaves its branch, and branches are never deleted. Never tied to
+# JOHARNESS_CLERK_HOURS: a live clerk may wait longer than the cadence on checks.
+clerk_walk() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" base_id stale now ct r age st refs rc
+  base_id="$(git -C "$ROOT" rev-parse --verify -q \
+    "refs/remotes/origin/${base_branch}^{commit}" </dev/null 2>/dev/null)"
+  if [ -z "$base_id" ]; then
+    printf '%s\t%s\t%s\n' '?' 'clerk-unreadable' 'unreadable'
+    return 0
+  fi
+  stale="$(clerk_stale_s)"
+  now="$(date +%s)"
+  # Read whole first: a failed read is UNREADABLE, never "nothing in flight".
+  refs="$(git -C "$ROOT" for-each-ref --no-merged="$base_id" \
+    --format='%(committerdate:unix)%09%(refname)' 'refs/remotes/origin/clerk-[0-9]*' \
+    </dev/null 2>/dev/null)"; rc=$?
+  if [ "$rc" -ne 0 ]; then
+    printf '%s\t%s\t%s\n' '?' 'clerk-unreadable' 'unreadable'
+    return 0
+  fi
+  while IFS=$'\t' read -r ct r; do
+    case "$ct" in '' | *[!0-9]*) continue ;; esac
+    r="${r#refs/remotes/origin/}"
+    age=$(( (now - ct) / 3600 ))
+    [ "$age" -ge 0 ] || age=0
+    # Either side of now: a tip dated ahead by more than the window is a
+    # broken clock, and holds nothing either.
+    if [ $((now - ct)) -lt "$stale" ] && [ $((ct - now)) -lt "$stale" ]; then
+      st=in-flight
+    else
+      st=abandoned
+    fi
+    printf '%s\t%s\t%s\n' "$r" "tip-${age}h" "$st"
+  done <<<"$refs"
+}
+
+# Is a clerk due. CLERK_ROWS is read whatever the clock says: a clerk in
+# flight takes a slot and holds the scout either way.
 CLERK_DUE=""
 CLERK_ROWS=""
 clerk_due() {
-  local want="${1:-}" hours age bts why base_word
+  local hours age why base_word landed noop ts=0 now
   CLERK_ROWS=""
   why="$(cycle_unreadable)"
   if [ -n "$why" ]; then
@@ -3128,19 +3246,21 @@ clerk_due() {
     CLERK_DUE='off no .claude/commands/clerk.md here: nothing for a clerk to run'
     return 0
   fi
-  base_word='the last clerk landed'
-  age="$(cycle_age_h clerk)"
-  if [ -z "$age" ] || [ "$age" -ge "$hours" ]; then
-    bts="$(scout_retired_ts clerk)"
-    if [ -n "$bts" ]; then
-      bts=$(( ($(date +%s) - bts) / 3600 ))
-      if [ -z "$age" ] || [ "$bts" -lt "$age" ]; then
-        age="$bts"
-        base_word='a clerk retired on a branch not merged yet'
-      fi
-    fi
+  landed="$(clerk_landed)"
+  noop="$(clerk_noop)"
+  if [ -n "$landed" ]; then
+    ts="${landed%%$'\t'*}"; landed="${landed#*$'\t'}"
+    base_word="the last clerk landed (${landed%%$'\t'*}, ${landed#*$'\t'})"
   fi
-  if [ -z "$age" ]; then
+  if [ -n "$noop" ] && [ "${noop%%$'\t'*}" -gt "$ts" ]; then
+    ts="${noop%%$'\t'*}"
+    base_word="the last clerk pass found nothing to plan (${noop#*$'\t'})"
+  fi
+  now="$(date +%s)"
+  if [ "$ts" -gt 0 ]; then
+    [ "$ts" -le "$now" ] || ts="$now"
+    age=$(( (now - ts) / 3600 ))
+  else
     age="$(cycle_repo_age_h)"
     [ -n "$age" ] || age=0
     base_word='the repository began, no clerk having run'
@@ -3150,9 +3270,7 @@ clerk_due() {
   else
     CLERK_DUE="not-due ${age}h since ${base_word} (of ${hours}h)"
   fi
-  if [ "$want" = all ] || [ "${CLERK_DUE%% *}" = due ]; then
-    CLERK_ROWS="$(scout_walk clerk)"
-  fi
+  CLERK_ROWS="$(clerk_walk)"
 }
 
 # Issue numbers an `issue:` field names under one directory, one per line,
@@ -4502,13 +4620,9 @@ cycle_landed_sha() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" kind="${1:-curate}" glob
   case "$kind" in
     scout)   glob="docs/handover/scout-[0-9]*" ;;
-    # The clerk takes the scout's spelling whole — the digit, no `.md`, and
-    # `-m` below — because it is scout_walk's identity it is read by
-    # (clerk_due).
-    clerk)   glob="docs/handover/clerk-[0-9]*" ;;
     *)       glob="docs/handover/${kind}-*.md" ;;
   esac
-  if [ "$kind" = scout ] || [ "$kind" = clerk ]; then
+  if [ "$kind" = scout ]; then
     GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 \
     git -C "$ROOT" log -1 --format=%H -m --diff-filter=D --full-history \
       "refs/remotes/origin/${base_branch}" -- "$glob" \
@@ -5270,21 +5384,23 @@ cmd_dispatch() {
     printf 'clerk     : UNREADABLE — %s\n' "$kreason"
   elif [ "$kstate" = off ]; then
     printf 'clerk     : off — %s\n' "$kreason"
-  elif [ "$kstate" = due ]; then
+  else
+    # Counted whatever the clock reads: a clerk in flight holds a slot and
+    # the scout whether or not its cadence is due.
     while IFS=$'\t' read -r kb kw ks; do
       [ -n "$kb" ] || continue
       n_clerk=$((n_clerk + 1))
       clerk_inflight="${clerk_inflight}            ${kb}  ${kw}  ${ks}\n"
     done < <(printf '%s\n' "$CLERK_ROWS" | scout_branches)
     if [ "$n_clerk" -gt 0 ]; then
-      printf 'clerk     : IN FLIGHT, so none is due. What made it due: %s\n' "$kreason"
+      printf 'clerk     : IN FLIGHT, so none is due. Clock: %s %s\n' "$kstate" "$kreason"
       printf '%b' "$clerk_inflight"
-    else
+    elif [ "$kstate" = due ]; then
       clerk_due=1
       printf 'clerk     : DUE — %s\n' "$kreason"
+    else
+      printf 'clerk     : not due — %s\n' "$kreason"
     fi
-  else
-    printf 'clerk     : not due — %s\n' "$kreason"
   fi
   # The third cycle, the same reader (scout_due) `scout` asks.
   scout_due

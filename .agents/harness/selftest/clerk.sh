@@ -4,13 +4,15 @@
 # Not runnable alone and not meant to be: the runner defines the assertion
 # helpers, the counters and the shared fixtures, and sourcing is inlining.
 #
-# The clerk cycle (.claude/commands/clerk.md; issue #311): when a clerk is due,
-# which one is in flight, and the issue numbers a clerk must skip — PLANNED (a
-# plan's `issue:` on the base branch) and CLAIMED (a workstream file's
-# `issue:` on any branch). It reads the scout's identity by kind, so the cases
-# that matter here are the ones where the KIND is the difference: a scout file
-# is no clerk, a `clerk-role.md` with no digit dates nothing, and the clerk
-# spawns under any verdict where the scout waits for DRAINED.
+# The clerk cycle (.claude/commands/clerk.md; issues #311, #424): when a clerk
+# is due, which one is in flight, and the issue numbers a clerk must skip —
+# PLANNED (a plan's `issue:` on the base branch) and CLAIMED (a workstream
+# file's `issue:` on any branch). The cycle reads what a clerk leaves in git —
+# a merge, a branch, a no-op record — never a workstream file, so the cases
+# that matter are the shapes real clerks leave, and the ones that only look
+# like them: a scout branch, `clerk-role` with no digit, a clerk-named merge
+# off the first parent. The clerk spawns under any verdict where the scout
+# waits for DRAINED.
 #
 # Fixture commits carry EXPLICIT dates where the cadence must read old, and
 # the real clock where it must read new. Names carry a `clerk_` prefix:
@@ -19,6 +21,9 @@
 # shellcheck shell=bash disable=SC2154
 
 step "joharness.sh clerk"
+
+# The runner unsets the knobs it knew of; the clerk's came later.
+unset JOHARNESS_CLERK_HOURS JOHARNESS_CLERK_BATCH JOHARNESS_CLERK_STALE_HOURS
 
 clerk_work="${TMP}/clerkwork"
 clerk_origin="${TMP}/clerkorigin.git"
@@ -163,60 +168,227 @@ else
   fail "the broken-tree fixture found no loose object to remove: ${clerk_obj}"
 fi
 
-# --- in flight --------------------------------------------------------------
-# A scout is no clerk: the kind is the prefix.
+# --- what a clerk leaves in git (#424) ---------------------------------------
+# A clerk writes NO workstream file (clerk.md §1). What it leaves: the merge of
+# its plan-only pull request (first parent of the base, GitHub's subject), its
+# unmerged `clerk-<digit>…` branch, or a `clerk-noop-<stamp>` branch at the
+# base's head. A fixture seeding `docs/handover/clerk-*.md` hid the bug: real
+# clerks never write one. Dates: git's raw `<epoch> +0000`, off the real clock
+# — no `date -d`, which BSD lacks.
+clerk_now="$(date +%s)"
+clerk_ago() { printf '%s +0000' "$((clerk_now - $1 * 3600))"; }
+# <hours-ago> -> the no-op record's `YYYYMMDDTHHMMSSZ`, formatted by git off a
+# throwaway commit object (portable where `date -d` is not).
+clerk_stamp() {
+  TZ=UTC git -C "$clerk_work" log -1 --date=format-local:%Y%m%dT%H%M%SZ --format=%cd \
+    "$(GIT_COMMITTER_DATE="$(clerk_ago "$1")" git -C "$clerk_work" commit-tree \
+      -m stamp "main^{tree}" </dev/null)"
+}
+# <branch> <file> <date> — a clerk branch cut from main, one commit.
+clerk_branch() {
+  git -C "$clerk_work" checkout -qb "$1" main
+  printf 'x\n' >"${clerk_work}/$2"
+  clerk_commit "$1 adds $2" "$3"
+  git -C "$clerk_work" push -qu origin "$1"
+  git -C "$clerk_work" checkout -q main
+}
+
+# A scout's file is no clerk, and neither is a scout branch.
 git -C "$clerk_work" checkout -qb scout-open
 clerk_ws scout-2026-02-01 scout-2026-02-01 in-progress scout-open
-clerk_commit "scout at work" '2026-02-01T00:00:00Z'
+clerk_commit "scout at work"
 git -C "$clerk_work" push -qu origin scout-open
 git -C "$clerk_work" checkout -q main
 out="$(clerk_run)"
-refute "a scout's file holds no clerk in flight" "IN FLIGHT" "$out"
-git -C "$clerk_work" checkout -qb clerk-open main
-clerk_ws clerk-2026-02-02 clerk-2026-02-02 in-progress clerk-open
-clerk_commit "clerk at work" '2026-02-02T00:00:00Z'
-git -C "$clerk_work" push -qu origin clerk-open
+refute "a scout's branch holds no clerk in flight" "IN FLIGHT" "$out"
+
+# (g) A merge made ON a clerk branch, reachable from the base, is no landing:
+# "Merge origin/main into clerk-…", and even a pull-request subject naming a
+# clerk when it is not on the base's first parent. Fresh dates, so a reader
+# that saw either would read not due.
+printf 'moved\n' >"${clerk_work}/code.txt"
+clerk_commit "main moves" "$(clerk_ago 3)"
+git -C "$clerk_work" push -q origin main
+git -C "$clerk_work" checkout -qb side 'main~1'
+printf 'side\n' >"${clerk_work}/side.txt"
+clerk_commit "side work" "$(clerk_ago 3)"
+GIT_COMMITTER_DATE="$(clerk_ago 2)" GIT_AUTHOR_DATE="$(clerk_ago 2)" \
+  git -C "$clerk_work" merge -q --no-ff -m "Merge origin/main into clerk-2026-02-01" main
+git -C "$clerk_work" checkout -qb inner 'main~1'
+printf 'inner\n' >"${clerk_work}/inner.txt"
+clerk_commit "inner work" "$(clerk_ago 3)"
+git -C "$clerk_work" checkout -q side
+GIT_COMMITTER_DATE="$(clerk_ago 2)" GIT_AUTHOR_DATE="$(clerk_ago 2)" \
+  git -C "$clerk_work" merge -q --no-ff -m "Merge pull request #7 from owner/clerk-2026-02-01" inner
+git -C "$clerk_work" checkout -q main
+GIT_COMMITTER_DATE="$(clerk_ago 2)" GIT_AUTHOR_DATE="$(clerk_ago 2)" \
+  git -C "$clerk_work" merge -q --no-ff -m "Merge pull request #8 from owner/side-work" side
+git -C "$clerk_work" push -q origin main
+out="$(clerk_run)"
+expect "(g) a clerk-named merge off the first parent is no landing: still DUE" \
+  "cadence   : DUE — " "$out"
+expect "(g) and still measured from the beginning" "no clerk having run" "$out"
+# The digit: the branch that BUILT the cycle is `clerk-role`, no clerk pass.
+git -C "$clerk_work" checkout -qb clerk-role main
+printf 'role\n' >"${clerk_work}/role.txt"
+clerk_commit "builder work"
+git -C "$clerk_work" push -qu origin clerk-role
 git -C "$clerk_work" checkout -q main
 out="$(clerk_run)"
-expect "a clerk branch in flight is named" "clerk-open  clerk-2026-02-02  in-progress" "$out"
-expect "and DUE is suppressed" "cadence   : IN FLIGHT, so none is due" "$out"
-refute "no DUE line beside it" "cadence   : DUE" "$out"
+refute "an unmerged clerk-role branch is no clerk in flight" "IN FLIGHT" "$out"
+GIT_COMMITTER_DATE="$(clerk_ago 1)" GIT_AUTHOR_DATE="$(clerk_ago 1)" \
+  git -C "$clerk_work" merge -q --no-ff -m "Merge pull request #9 from owner/clerk-role" clerk-role
+git -C "$clerk_work" push -q origin main
+out="$(clerk_run)"
+expect "and its merge dates nothing" "no clerk having run" "$out"
+
+# (c) An unmerged clerk branch whose tip is older than the window: abandoned.
+clerk_branch clerk-2026-02-03 docs/plans/abandoned.md "$(clerk_ago 25)"
+out="$(clerk_run)"
+refute "(c) a clerk branch older than JOHARNESS_CLERK_STALE_HOURS holds nothing" "IN FLIGHT" "$out"
+expect "(c) and the clock reads DUE again" "cadence   : DUE — " "$out"
+out="$(clerk_run JOHARNESS_CLERK_STALE_HOURS=48)"
+expect "the window is the knob's" "clerk-2026-02-03  tip-25h  in-flight" "$out"
+out="$(clerk_run JOHARNESS_CLERK_STALE_HOURS=0)"
+expect "a window of 0 fails closed: every unmerged clerk branch holds" \
+  "clerk-2026-02-03  tip-25h  in-flight" "$out"
+
+# (b) A fresh unmerged clerk branch is IN FLIGHT.
+clerk_branch clerk-2026-02-04 docs/plans/clerk-made.md "$(clerk_ago 0)"
+out="$(clerk_run)"
+expect "(b) a fresh unmerged clerk branch is IN FLIGHT" \
+  "cadence   : IN FLIGHT, so none is due. Clock: due" "$out"
+expect "(b) and is named, in scout_walk's row shape" "clerk-2026-02-04  tip-0h  in-flight" "$out"
+refute "(b) no DUE line beside it" "cadence   : DUE" "$out"
+refute "(b) the abandoned one is not listed" "clerk-2026-02-03" "$out"
+# A cadence shorter than the tip's age must not abandon it (verifier r6).
+clerk_branch clerk-2026-02-04-b docs/plans/slow-checks.md "$(clerk_ago 2)"
+out="$(clerk_run JOHARNESS_CLERK_HOURS=1)"
+expect "the window is never JOHARNESS_CLERK_HOURS: a 2h tip under a 1h cadence holds" \
+  "clerk-2026-02-04-b  tip-2h  in-flight" "$out"
+# A fixture ref only: gone again so the cases below read one clerk.
+git -C "$clerk_work" push -q origin --delete clerk-2026-02-04-b
+git -C "$clerk_work" fetch -q --prune origin
+# A tip dated years ahead is a broken clock: it holds nothing.
+git -C "$clerk_work" checkout -qb clerk-2026-02-04-c main
+printf 'x\n' >"${clerk_work}/ahead.txt"
+clerk_commit "clock ahead" '2099-01-01T00:00:00Z'
+git -C "$clerk_work" push -qu origin clerk-2026-02-04-c
+git -C "$clerk_work" checkout -q main
+out="$(clerk_run)"
+refute "a tip dated far ahead holds nothing (verifier r2)" "clerk-2026-02-04-c" "$out"
+out="$(clerk_run JOHARNESS_CLERK_STALE_HOURS=0)"
+expect "while the same ref with no window does: the reader saw it" \
+  "clerk-2026-02-04-c  tip-0h  in-flight" "$out"
 out="$(clerk_dsp)"
-expect "dispatch says the same" "clerk     : IN FLIGHT, so none is due" "$out"
-refute "and spawns none" "clerk DUE: spawn" "$out"
+expect "(b) dispatch says IN FLIGHT" "clerk     : IN FLIGHT, so none is due" "$out"
+refute "(b) and spawns no clerk" "clerk DUE: spawn" "$out"
 
-# It retires — the last commit before its pull request. Unmerged, the retire
-# still holds the cycle: the plans are on their way to the base (#292's shape).
-git -C "$clerk_work" checkout -q clerk-open
-git -C "$clerk_work" rm -q docs/handover/clerk-2026-02-02.md
-clerk_commit "retire"
-git -C "$clerk_work" push -q origin clerk-open
+# (a) It merges: GitHub's subject, on the first parent, dates the cycle.
+GIT_COMMITTER_DATE="$(clerk_ago 2)" GIT_AUTHOR_DATE="$(clerk_ago 2)" \
+  git -C "$clerk_work" merge -q --no-ff \
+  -m "Merge pull request #12 from owner/clerk-2026-02-04" clerk-2026-02-04
+# A nested name is no clerk branch to the in-flight reader, so none to the
+# landed reader either (verifier r9): merged after #12, it must not
+# take its place.
+git -C "$clerk_work" checkout -qb clerk-9/sub main
+printf 'n\n' >"${clerk_work}/nested.txt"
+clerk_commit "nested"
 git -C "$clerk_work" checkout -q main
-out="$(clerk_run)"
-expect "a retire on an unmerged branch is not due" "cadence   : not due" "$out"
-expect "and says which retire dated it" "a clerk retired on a branch not merged yet" "$out"
-
-# Merged: the retire on the base dates the cycle.
-GIT_COMMITTER_DATE='2026-02-02T02:00:00Z' GIT_AUTHOR_DATE='2026-02-02T02:00:00Z' \
-  git -C "$clerk_work" merge -q --no-ff -m "merge clerk" clerk-open
-git -C "$clerk_work" push -q origin main
-out="$(clerk_run JOHARNESS_CLERK_HOURS=99999)"
-expect "a merged retire dates the cycle" "since the last clerk landed" "$out"
-out="$(clerk_run)"
-expect "and one older than the window is due again" "cadence   : DUE" "$out"
-
-# The digit: the branch that BUILT the cycle owns `clerk-role.md`, and its
-# retire must date nothing — the janitor cycle's measured trap.
-git -C "$clerk_work" checkout -qb builder main
-clerk_ws clerk-role clerk-role in-progress builder
-clerk_commit "builder claim"
-git -C "$clerk_work" rm -q docs/handover/clerk-role.md
-clerk_commit "builder retire"
-git -C "$clerk_work" checkout -q main
-git -C "$clerk_work" merge -q --no-ff -m "merge builder" builder
+GIT_COMMITTER_DATE="$(clerk_ago 1)" GIT_AUTHOR_DATE="$(clerk_ago 1)" \
+  git -C "$clerk_work" merge -q --no-ff -m "Merge pull request #11 from owner/clerk-9/sub" clerk-9/sub
 git -C "$clerk_work" push -q origin main
 out="$(clerk_run)"
-expect "a clerk-role.md retire dates nothing" "cadence   : DUE" "$out"
+expect "(a) a clerk merged two hours ago is not due, and names the merge" \
+  "cadence   : not due — 2h since the last clerk landed (clerk-2026-02-04, #12) (of 24h)" "$out"
+refute "(a) a merged clerk branch is no longer in flight" "IN FLIGHT" "$out"
+out="$(clerk_run JOHARNESS_CLERK_HOURS=1)"
+expect "(a) and one older than the window is due again" \
+  "cadence   : DUE — 2h since the last clerk landed" "$out"
+
+# The dispatch side, in a fixture of its own: the scout gate needs a DRAINED
+# queue with nothing in flight, which the one above no longer is.
+clerk_work="${TMP}/clerkdwork"
+clerk_origin="${TMP}/clerkdorigin.git"
+git init -q --bare "$clerk_origin"
+git init -q "$clerk_work"
+git -C "$clerk_work" symbolic-ref HEAD refs/heads/main
+mkdir -p "${clerk_work}/docs/handover" "${clerk_work}/docs/plans" "${clerk_work}/.agents/harness" \
+  "${clerk_work}/.agents/env/none" "${clerk_work}/.claude/commands"
+cp "${ROOT}/joharness.sh" "${clerk_work}/joharness.sh"
+cp "${ROOT}/.agents/harness/queue-context.sh" \
+   "${ROOT}/.agents/harness/handover-context.sh" "${clerk_work}/.agents/harness/"
+printf '# none\n' >"${clerk_work}/.agents/env/none/AGENTS.md"
+printf '# clerk\n' >"${clerk_work}/.claude/commands/clerk.md"
+printf '# scout\n' >"${clerk_work}/.claude/commands/scout.md"
+clerk_conf="${clerk_work}/joharness.conf"
+printf 'JOHARNESS_ENV=none\n' >"$clerk_conf"
+clerk_commit "base" '2026-01-01T00:00:00Z'
+git -C "$clerk_work" remote add origin "$clerk_origin"
+git -C "$clerk_work" push -qu origin main
+out="$(clerk_dsp JOHARNESS_SCOUT_HOURS=1)"
+expect "(e) no clerk ever: dispatch reads DUE from the beginning" \
+  "since the repository began, no clerk having run" "$out"
+
+# (d) A pass with no plan pushes `clerk-noop-<UTC stamp>` at the base's head.
+# Dated by its NAME, not the commit (2026-01-01 here): a stamp 30h old is
+# read as 30h, and is due.
+clerk_main="$(git -C "$clerk_work" rev-parse main)"
+clerk_s30="$(clerk_stamp 30)"
+git -C "$clerk_work" push -q origin "${clerk_main}:refs/heads/clerk-noop-${clerk_s30}"
+git -C "$clerk_work" push -q origin "${clerk_main}:refs/heads/clerk-noop-20269999T999999Z"
+git -C "$clerk_work" fetch -q origin
+out="$(clerk_run)"
+expect "(d) a no-op record is dated by its name" \
+  "cadence   : DUE — 30h since the last clerk pass found nothing to plan (clerk-noop-${clerk_s30})" "$out"
+refute "(d) a malformed stamp dates nothing" "20269999T999999Z" "$out"
+git -C "$clerk_work" push -q origin "${clerk_main}:refs/heads/clerk-noop-20991231T000000Z"
+git -C "$clerk_work" fetch -q origin
+out="$(clerk_run)"
+refute "(d) a stamp far ahead dates nothing: it would pin the cycle (verifier r2)" \
+  "20991231T000000Z" "$out"
+expect "(d) and the clock still reads the real record" "cadence   : DUE — 30h" "$out"
+clerk_s1="$(clerk_stamp 1)"
+git -C "$clerk_work" push -q origin "${clerk_main}:refs/heads/clerk-noop-${clerk_s1}"
+git -C "$clerk_work" fetch -q origin
+out="$(clerk_run)"
+expect "(d) this pass's no-op record reads not due" \
+  "cadence   : not due — 1h since the last clerk pass found nothing to plan (clerk-noop-${clerk_s1})" "$out"
+refute "(d) and never reads as in flight" "IN FLIGHT" "$out"
+
+# (f) Clerk not due, nothing else pending, DRAINED: the scout is no longer
+# starved. A landing older than the no-op record does not move the clock back.
+clerk_branch clerk-2026-02-05 notes.txt "$(clerk_ago 3)"
+GIT_COMMITTER_DATE="$(clerk_ago 2)" GIT_AUTHOR_DATE="$(clerk_ago 2)" \
+  git -C "$clerk_work" merge -q --no-ff \
+  -m "Merge pull request #3 from owner/clerk-2026-02-05" clerk-2026-02-05
+git -C "$clerk_work" push -q origin main
+out="$(clerk_run)"
+expect "an older landing does not move the clock back past the no-op record" \
+  "1h since the last clerk pass found nothing to plan" "$out"
+out="$(clerk_dsp JOHARNESS_SCOUT_HOURS=1)"
+expect "(f) dispatch reads the clerk not due" "clerk     : not due — " "$out"
+expect "(f) and a due scout spawns at DRAINED" "scout DUE: spawn" "$out"
+
+# (h) A clerk in flight while the clock reads NOT due still holds its slot
+# and the scout.
+clerk_branch clerk-2026-02-05-b notes-b.txt "$(clerk_ago 0)"
+out="$(clerk_dsp JOHARNESS_SCOUT_HOURS=1)"
+expect "(h) a clerk in flight under a not-due clock is counted" \
+  "clerk     : IN FLIGHT, so none is due. Clock: not-due" "$out"
+expect "(h) it takes a slot" "slots     : 3 of 4 free (1 role session(s) in flight" "$out"
+refute "(h) and the scout spawns none" "scout DUE: spawn" "$out"
+expect "(h) the scout waits on the clerk" \
+  "scout due, suppressed — a curate or clerk goes first" "$out"
+
+# A landing NEWER than the no-op record dates the clock (verifier r7).
+GIT_COMMITTER_DATE="$(clerk_ago 0)" GIT_AUTHOR_DATE="$(clerk_ago 0)" \
+  git -C "$clerk_work" merge -q --no-ff \
+  -m "Merge pull request #4 from owner/clerk-2026-02-05-b" clerk-2026-02-05-b
+git -C "$clerk_work" push -q origin main
+out="$(clerk_run)"
+expect "a landing newer than the no-op record dates the clock" \
+  "0h since the last clerk landed (clerk-2026-02-05-b, #4)" "$out"
 
 # --- the plan's issue: is linted --------------------------------------------
 # Through the graph-lint topic's own fixture and helpers (listed just before
