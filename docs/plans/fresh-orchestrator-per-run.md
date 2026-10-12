@@ -24,7 +24,7 @@ All figures are `total_cost_usd` from the session's `list_events` `result` event
 
 - **`.claude/commands/orchestrate.md` "Report, every pass".** Add a rule that fires on the first pass of a run started by a human message, not by a wake.
   - When this session already wrote a final report (DRAINED exit or PAUSED) more than one hour earlier, the report carries the line `fresh session is cheaper: start a new orchestrator session for the next run`.
-  - It goes after the URGENT row and the "no heartbeat" line, which keep their places.
+  - Order of the opening lines, stated in the section: the URGENT row (if any), then the "no heartbeat" line (if any), then this line. This also settles the existing clash between §0 step 5's "first report line every pass" and this section's "the FIRST line". Reword §0 step 5 to point here.
   - The pass still runs. The line only informs, and never refuses or exits.
   - It must NOT live in "## 0. Start", which runs once per session and so never on a second run.
 - **`.agents/docs/orchestrated.md`, where it describes starting a run.** Add one or two lines for the human:

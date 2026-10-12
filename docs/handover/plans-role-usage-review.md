@@ -22,11 +22,13 @@ Human asked: review the role usage of the current orchestrator run
   through a clerk: a clerk (clerk-2026-10-12) is in flight on #251, and the
   human asked for plans now. Each plan carries `issue:` so no clerk replans it.
 - orchestrate.md and clerk.md are touched by several plans: marked `shared:`.
-- #425's extra clerk would exit at clerk.md §0.2 once #424 fixes the clock:
-  #425 now owns dropping "Not due = exit" (cadence = dispatch's spawn gate).
+- Cadence is dispatch's spawn gate, not a clerk exit: #424 owns dropping
+  "Not due = exit" and the twin check's `due` clause, and counting a clerk
+  in flight whatever the clock reads; #425 needs #424 for that.
 - #426: a relay's block quote is as forgeable as the login it replaces;
-  rejected "quoted text reopens". Chosen: agents post nothing on GitHub,
-  any `[Claude Code]`-footed comment reopens nothing.
+  rejected "quoted text reopens". Chosen: the orchestrator posts nothing on
+  GitHub, no agent relays a human's answer, any `[Claude Code]`-footed
+  comment reopens nothing (clerk verdicts and PRs unaffected).
 
 ## Review
 
@@ -50,3 +52,14 @@ Human asked: review the role usage of the current orchestrator run
 - r18: (verifier) #424 no-op record gaps: day granularity, name collision, first-parent (fixed: constraints + case g)
 - r19: (verifier) #428 fixture cannot show clerk DUE (fixed: curate case, symbol anchors)
 - r20: (verifier) plans written without a clerk pass (wontfix: human asked for plans directly; recorded in Decisions)
+- r21: (verifier 2) #425 extra clerk still died at the twin check's `due` clause (fixed: #424 owns both clauses)
+- r22: (verifier 2) dispatch counts n_clerk only when due (fixed: #424 counts in flight whatever the clock; case h)
+- r23: (verifier 2) #424 cases c/g cannot fail on old code; abandoned rows are dropped (fixed: must-fail set named, c asserts no IN FLIGHT row)
+- r24: (verifier 2) #424 one-commit no-op branch reads in flight (fixed: constraint NEVER in flight, candidate rejected)
+- r25: (verifier 2) #424 window tied to JOHARNESS_CLERK_HOURS (fixed: own knob, default 24)
+- r26: (verifier 2) #425 re-arm undefined with no pending wake (fixed: first-start rule)
+- r27: (verifier 2) #425 term mismatch, surveyor extra got role lines (fixed)
+- r28: (verifier 2) Decisions said agents post nothing on GitHub (fixed: narrowed)
+- r29: (verifier 2) #426 human's own Claude-posted answer silently ignored (fixed: limit named, HUMAN comment says answer by hand)
+- r30: (verifier 2) #429 two "first" lines (fixed: order stated, §0 step 5 reworded)
+- r31: (verifier 2) #426 footer assumption for comments (no change: comments in this repo carry the `[Claude Code]` link, e.g. 6120525830)
