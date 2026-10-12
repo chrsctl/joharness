@@ -8,7 +8,7 @@ issue: 251
 session: https://claude.ai/code/session_01Qn8AF7S1z5UosETCFQcJpb
 agent: opus
 updated: 2026-10-12
-next: ci, full selftest, retire, PR (Refs #251? check), merge on green checks
+next: full selftest, retire, PR (Closes or Refs #251), merge on green checks
 ---
 
 ## Goal
@@ -80,6 +80,7 @@ None yet.
 - r8: (verifier) role silent on a missing ledger (consumer first run) (fixed: conduct.md gives the exact header to create)
 - r9: (verifier) landing read could take the next merge when the sha was itself the merge (fixed: same change as r1)
 - r10: (verifier) runs = distinct ledger dates, two runs one day count once (wontfix: the clock spaces runs 168h by default; the output names the definition)
+- r11: mutation re-run 2026-10-12, scratch scout-only runner: unmutated 149 passed, 0 failed; no `--first-parent` 1 failed, no prefix strip 4, no plan filter 5, no `n_clerk` 1, no `n_curate_inflight` 1, no closed-branch drop 2 (no change)
 - r12: (verifier r2) conduct.md commit-order command died (`bad revision '^1'`) on a branch that reconciled after its retire, e.g. retire-survives-lost-github (fixed: walk `claim^..retire` first-parent; ran on that stem)
 - r13: (verifier r2) `curate-|clerk-` prefix dropped real items (clerk-role), and no test failed without it (fixed: ONE rule, below r15)
 - r14: (verifier r2) r7's plan filter excluded 103 real manager items (`plan: none` issue work) and made conduct.md's plan-less fallback dead — r7 fix undoing the plan's candidate rule (fixed: research step, see Decisions "candidate rule"; filter removed)
@@ -90,7 +91,12 @@ None yet.
 - r19: (verifier r2) HOURS/7 drop gave a 1h window at HOURS=6, a reviewer waiting on checks read gone (fixed: floor 24h; 2h-old case at HOURS=6)
 - r20: (verifier r2) no sha1 tool still read due: spawn, exit, respawn each pass (fixed: UNREADABLE; stub-PATH case)
 - r21: mutation re-run 2026-10-12, scout-only runner: unmutated 155/0; no date rule 8 failed, held-suppresses 1, no floor 1, no sha check 2, no first-parent 1, no prefix strip 4, no n_clerk 1, no n_curate_inflight 1, no drop 2; pre-change joharness.sh 99 passed 56 failed (every new case) (no change)
-- r11: mutation re-run 2026-10-12, scratch scout-only runner: unmutated 149 passed, 0 failed; no `--first-parent` 1 failed, no prefix strip 4, no plan filter 5, no `n_clerk` 1, no `n_curate_inflight` 1, no closed-branch drop 2 (no change)
+
+- r22: (verifier r3) the conduct spawn line printed under `PAUSED` (JOHARNESS_MAX_MANAGERS=0), and r16's case locked it in (fixed: cap 0 = `conduct due, held`; r16's case now fills the one slot with a free plan at cap 1)
+- r23: (verifier r3) a manager branch `conduct-<word>` read as a reviewer in flight, stalling the cycle (fixed: `conduct-<digit>`, the reviewer's dated name; case)
+- r24: (verifier r3) a reviewer that leaves its pull request open at §5 reads closed after 24h; the next draws the same sample and appends it twice (fixed: conduct.md step 0.3 exits on an open `conduct-*` pull request; tally counts a stem once, last row winning; case)
+- r25: (verifier r3) surveyor `rescope-<key>` stems are undated and `plan: none`, so sampleable (wontfix: no instance in history — every retired rescope-* stem names a plan; a `rescope-` prefix rule would repeat r13 on real items; cost is one NO EVIDENCE row)
+- r26: mutation re-run 2026-10-12, scout-only runner: unmutated 158/0; no pause guard 2 failed, `conduct-*` match 1, no dedupe 2, held-suppresses 1; pre-change joharness.sh 99 passed 59 failed (every new case) (no change)
 
 ## Blockers
 

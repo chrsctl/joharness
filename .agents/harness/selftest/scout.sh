@@ -634,9 +634,25 @@ printf '# clerk\n' >"${scout_work}/.claude/commands/clerk.md"
 out="$(sdsp)"
 expect "dispatch: a clerk due goes first" "conduct due, suppressed" "$out"
 crefute "dispatch: and no reviewer spawns beside it" "conduct DUE: spawn" "$out" "$dran"
-# A clerk HELD for a slot spawns nothing, and the reviewer needs no slot.
-out="$(sdsp JOHARNESS_MAX_MANAGERS=0)"
+# A clerk HELD for a slot spawns nothing, and the reviewer needs no slot:
+# one free plan fills the one slot.
+mkdir -p "${scout_work}/docs/plans"
+printf -- '---\nplan: zz-free\nagent: sonnet\nneeds: none\nscope: zz.txt\n---\n\n## Goal\nFixture.\n' \
+  >"${scout_work}/docs/plans/zz-free.md"
+# The plan alone: scommit adds everything, and clerk.md must stay untracked.
+git -C "$scout_work" add docs/plans/zz-free.md
+git -C "$scout_work" commit -qm "a free plan"
+git -C "$scout_work" push -q origin main
+out="$(sdsp JOHARNESS_MAX_MANAGERS=1)"
+grep -qF "clerk due, held — no free slot" <<<"$out" || fail "fixture: the clerk is not held for a slot"
 expect "dispatch: a clerk held for a slot does not hold the reviewer" "conduct DUE: spawn" "$out"
+git -C "$scout_work" rm -q docs/plans/zz-free.md
+git -C "$scout_work" commit -qm "the free plan gone"
+git -C "$scout_work" push -q origin main
+# The human's pause stops the reviewer too: PAUSED spawns nothing.
+out="$(sdsp JOHARNESS_MAX_MANAGERS=0)"
+expect "dispatch: the pause holds the reviewer" "conduct due, held — JOHARNESS_MAX_MANAGERS=0" "$out"
+crefute "dispatch: and spawns none under PAUSED" "conduct DUE: spawn" "$out" "$dran"
 # A clerk IN FLIGHT holds it too (clerk_due is then 0, n_clerk is not).
 # The command file stays out of the branch commit: scommit adds everything.
 rm -f "${scout_work}/.claude/commands/clerk.md"
@@ -711,6 +727,15 @@ for cbr in conduct-2026-03-01 claude/conduct-2026-03-01; do
   git -C "$scout_work" push -q origin --delete "$cbr"
   git -C "$scout_work" branch -q -D "$cbr"
 done
+# A MANAGER branch named for a conduct item is no reviewer (verifier r3).
+git -C "$scout_work" checkout -qb conduct-worker-ownership main
+printf 'w\n' >>"${scout_work}/code.txt"
+scommit "a manager on a conduct plan"
+git -C "$scout_work" push -qu origin conduct-worker-ownership
+git -C "$scout_work" checkout -q main
+crefute "conduct: a manager branch named conduct-<word> is not in flight" "IN FLIGHT" "$(cdt)" "cadence   : DUE"
+git -C "$scout_work" push -q origin --delete conduct-worker-ownership
+git -C "$scout_work" branch -q -D conduct-worker-ownership
 # Closed by a human, unmerged, standing for ever: past a seventh of the
 # window it holds nothing.
 git -C "$scout_work" checkout -qb conduct-2026-02-11 main
@@ -725,15 +750,15 @@ expect "conduct: a long window keeps that same branch in flight" "IN FLIGHT" \
   "$(cdt JOHARNESS_CONDUCT_HOURS=99999)"
 # A short clock does not shrink the drop below a day: a reviewer two hours
 # past its last push, waiting on checks, is still in flight.
-git -C "$scout_work" checkout -qb conduct-waiting main
+git -C "$scout_work" checkout -qb conduct-2026-03-05-0900 main
 printf 'z\n' >>"${scout_work}/code.txt"
 scommit "a reviewer waiting on checks" "$(( $(date +%s) - 7200 )) +0000"
-git -C "$scout_work" push -qu origin conduct-waiting
+git -C "$scout_work" push -qu origin conduct-2026-03-05-0900
 git -C "$scout_work" checkout -q main
-expect "conduct: a 6h clock still holds a 2h-old reviewer" "conduct-waiting  pushed 2h ago" \
+expect "conduct: a 6h clock still holds a 2h-old reviewer" "conduct-2026-03-05-0900  pushed 2h ago" \
   "$(cdt JOHARNESS_CONDUCT_HOURS=6)"
-git -C "$scout_work" push -q origin --delete conduct-waiting
-git -C "$scout_work" branch -q -D conduct-waiting
+git -C "$scout_work" push -q origin --delete conduct-2026-03-05-0900
+git -C "$scout_work" branch -q -D conduct-2026-03-05-0900
 git -C "$scout_work" push -q origin --delete conduct-2026-02-11
 git -C "$scout_work" branch -q -D conduct-2026-02-11
 
@@ -753,6 +778,7 @@ cat >"${scout_work}/docs/conduct-log.md" <<EOF2
 | 2026-02-12 | ${cfirst} | FINE | - |
 | 2026-02-13 | zulu | CONCERN | Acceptance: \`grant x\` prints OK |
 | 2026-02-13 | yankee | NO EVIDENCE | plan file missing |
+| 2026-02-13 | ${cfirst} | FINE | - |
 EOF2
 scommit "a reviewer's ledger, long ago" '2026-02-13T00:00:00Z'
 git -C "$scout_work" checkout -q main
@@ -761,7 +787,8 @@ GIT_COMMITTER_DATE='2026-02-13T01:00:00Z' GIT_AUTHOR_DATE='2026-02-13T01:00:00Z'
 git -C "$scout_work" branch -q -D conduct-2026-02-13
 git -C "$scout_work" push -q origin main
 out="$(cdt)"
-expect "conduct: the tally counts runs and branches" \
+# cfirst appears twice (two pull requests on one sample): counted once.
+expect "conduct: the tally counts runs and branches, a stem once" \
   "tally     : 2 run(s), 3 branch(es) sampled" "$out"
 expect "conduct: and each verdict per question" \
   "C1  FINE 1  CONCERN 1  NO EVIDENCE 1  CONCERN rate 33%" "$out"

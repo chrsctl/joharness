@@ -3404,7 +3404,7 @@ conduct_due() {
     CONDUCT_DUE='off no .claude/commands/conduct.md here: nothing for a reviewer to run'
     return 0
   fi
-  # In flight = an unmerged branch whose LAST path segment starts conduct-
+  # In flight = an unmerged branch whose LAST path segment starts conduct-<digit>
   # (a session may push under a prefix: claude/conduct-...). Sessions never delete branches,
   # so one a human closed unmerged stands for ever: past a seventh of the
   # window (at least 24h) since its last push it is dropped, as scout_branches drops
@@ -3422,7 +3422,8 @@ conduct_due() {
   [ "$drop" -ge 24 ] || drop=24
   while IFS=$'\t' read -r b ts; do
     [ -n "$b" ] || continue
-    case "${b##*/}" in conduct-*) ;; *) continue ;; esac
+    # conduct-<digit>: the reviewer's dated name, never a manager item's.
+    case "${b##*/}" in conduct-[0-9]*) ;; *) continue ;; esac
     case "$ts" in '' | *[!0-9]*)
       CONDUCT_DUE="unreadable no push time for ${b}"; CONDUCT_ROWS=""; return 0 ;;
     esac
@@ -3467,16 +3468,21 @@ conduct_tally() {
     printf 'tally     : UNREADABLE — %s could not be read on the base branch\n' "$CONDUCT_LEDGER"
     return 0
   fi
+  # Runs count every row's date; verdicts one per stem, the last row winning:
+  # two pull requests that appended the same sample must not count it twice.
   printf '%s\n' "$ledger" | conduct_rows | awk -F'\t' '
-    {
-      d[$1] = 1; n++
-      for (i = 3; i <= NF; i++) {
-        split($i, kv, "="); q = kv[1]; v = kv[2]
-        if (!(q in seen)) { seen[q] = 1; order[++nq] = q }
-        c[q, v]++; t[q]++
-      }
-    }
+    { d[$1] = 1; last[$2] = NR; row[NR] = $0 }
     END {
+      for (r = 1; r <= NR; r++) {
+        m = split(row[r], f, "\t")
+        if (last[f[2]] != r) continue
+        n++
+        for (i = 3; i <= m; i++) {
+          split(f[i], kv, "="); q = kv[1]; v = kv[2]
+          if (!(q in seen)) { seen[q] = 1; order[++nq] = q }
+          c[q, v]++; t[q]++
+        }
+      }
       runs = 0; for (k in d) runs++
       printf "tally     : %d run(s), %d branch(es) sampled (runs = distinct ledger dates)\n", runs, n
       for (j = 1; j <= nq; j++) {
@@ -5837,7 +5843,9 @@ cmd_dispatch() {
     printf '            scout due, suppressed — not DRAINED with nothing in flight: spawn none this pass\n'
   fi
   # Not gated on DRAINED: sampling merged work competes with nothing.
-  if [ "$conduct_due" -eq 1 ] && [ "$fetch_failed" -eq 1 ]; then
+  if [ "$conduct_due" -eq 1 ] && [ "$cap" -eq 0 ]; then
+    printf '            conduct due, held — JOHARNESS_MAX_MANAGERS=0 is the human'"'"'s pause: spawn none\n'
+  elif [ "$conduct_due" -eq 1 ] && [ "$fetch_failed" -eq 1 ]; then
     printf '            conduct due, held — no fresh view of every branch this pass (fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*), so a reviewer in flight might not show: spawn none this pass\n'
   # A curate or clerk HELD for a slot does not hold it: the reviewer needs none.
   elif [ "$conduct_due" -eq 1 ] && { [ "$role_spawned" -eq 1 ] ||
