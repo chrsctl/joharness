@@ -8,7 +8,7 @@ issue: 428
 session: https://claude.ai/code/session_01H4q91vzkXyaN3EyQQyq8mU
 agent: sonnet
 updated: 2026-10-12
-next: Run selftest whole, prove new case fails on origin/main joharness.sh, record in Review, verify, retire, PR
+next: Selftest rerun (clerk-fixture case in dispatch.sh) then prove it fails on origin/main joharness.sh, record in Review, ci+verify, retire, PR
 ---
 
 ## Goal
@@ -20,3 +20,4 @@ DRAINED verdict must name a due curate/clerk role (plan drained-names-a-due-role
 Predicate mirrors role_slots arithmetic inside the DRAINED branch of cmd_dispatch.
 
 ## Review
+- Deviation: plan said use a curate case; a curate cannot be due at DRAINED (findings need a free/held plan). Used a clerk in its own fixture with real fetch (DISPATCH_FETCH=1), plus the fetch=0 side keeps the exit verdict.

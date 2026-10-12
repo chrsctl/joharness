@@ -1296,6 +1296,43 @@ refute "a fresh record that never saw holder d does not settle b+d" \
 expect "so the new collision still earns its surveyor" \
   "spawn ONE surveyor (agent: sonnet) on key b+d" "$out"
 
+# --- a due role at DRAINED: the verdict must not read as final (#428) -------
+# Its own fixture: an empty queue whose root commit is old enough that a clerk
+# is due, with the real fetch a clerk needs (the shared fixture runs
+# DISPATCH_FETCH=0, where a clerk is held). A curate cannot stand in: it spawns
+# only for findings, and a plan that draws findings is free or held, so the
+# verdict is never DRAINED over one.
+drwork="${TMP}/duework"
+drorigin="${TMP}/dueorigin.git"
+git init -q --bare "$drorigin"
+git init -q "$drwork"
+git -C "$drwork" symbolic-ref HEAD refs/heads/main
+mkdir -p "${drwork}/docs/plans" "${drwork}/docs/handover" \
+  "${drwork}/docs/research" "${drwork}/docs/product" \
+  "${drwork}/.agents/harness" "${drwork}/.agents/env/none" \
+  "${drwork}/.claude/commands"
+cp "${ROOT}/joharness.sh" "${drwork}/joharness.sh"
+cp "${ROOT}/.agents/harness/queue-context.sh" \
+   "${ROOT}/.agents/harness/handover-context.sh" "${drwork}/.agents/harness/"
+printf '# none\n' >"${drwork}/.agents/env/none/AGENTS.md"
+printf 'x\n' >"${drwork}/.claude/commands/clerk.md"
+printf 'JOHARNESS_ENV=none\n' >"${drwork}/joharness.conf"
+GIT_AUTHOR_DATE="2026-01-01T00:00:00" GIT_COMMITTER_DATE="2026-01-01T00:00:00" \
+  commit_all "$drwork" "base"
+git -C "$drwork" remote add origin "$drorigin"
+git -C "$drwork" push -qu origin main
+dr() { ( cd "$drwork" && JOHARNESS_CONF="${drwork}/joharness.conf" DRAIN_FETCH=0 \
+  "$@" ./joharness.sh dispatch 2>&1 ); }
+out="$(dr env DISPATCH_FETCH=1)"
+expect "a due clerk at DRAINED is named on the verdict" \
+  "DRAINED — nothing free, nothing in flight; a role is due: spawn it, then schedule the next pass" "$out"
+refute "and the verdict does not say exit" "nothing in flight: exit" "$out"
+expect "the spawn line follows" "clerk DUE: spawn ONE clerk" "$out"
+out="$(dr env DISPATCH_FETCH=0)"
+expect "a clerk held for want of a fetch leaves the exit verdict" \
+  "DRAINED — nothing free, nothing in flight: exit, the heartbeat re-seeds" "$out"
+refute "and does not name a due role" "a role is due" "$out"
+
 # --- curate: is the live plan queue still fit? ------------------------------
 # The periodic reader. Its own fixture, because every finding is a property of
 # the WHOLE queue and a plan another topic wrote would decide the counts.
@@ -1451,10 +1488,6 @@ expect "enough plan files changed since the queue began makes one due" \
 expect "and the tail line under the verdict says to spawn one" \
   "curate DUE: spawn ONE curator (agent: sonnet)" "$out"
 expect "naming it as beyond the cap" "takes one slot (roles share JOHARNESS_MAX_MANAGERS)" "$out"
-# A due role under DRAINED: the verdict must not read as final (#428).
-expect "a due curate at DRAINED says a role is due" \
-  "DRAINED — nothing free, nothing in flight; a role is due: spawn it, then schedule the next pass" "$out"
-refute "and does not tell the orchestrator to exit" "nothing in flight: exit" "$out"
 # The clock at 0 is the off switch for the WHOLE cycle, which is a compatibility
 # promise and not a tidy rule: before the production trigger existed it was the
 # only switch there was, so a consumer that had set it must not wake up to a
