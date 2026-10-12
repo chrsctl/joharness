@@ -206,7 +206,7 @@ no handover, and no handover is no replace. Why:
 
 Up to `slots`, dispatch's order, rows under `spawn` only. Managers and role
 sessions count against `JOHARNESS_MAX_MANAGERS` together: curator and
-clerk take a slot; scout holds none. A line or command that says nothing to do spawns
+clerk take a slot; scout and conduct reviewer hold none. A line or command that says nothing to do spawns
 nothing.
 
 - Edge work whose session is gone first. An item already in your ledger
@@ -228,6 +228,7 @@ nothing.
   | `curate DUE` naming proposals (any verdict) | sonnet | `curator: <UTC date>` | `/curate` | `curated=<stamp>` |
   | `clerk DUE` (any verdict; `held` = nothing) | sonnet | `clerk: <UTC date>` | `/clerk` | `clerked=<stamp>` |
   | `scout DUE`, only under `DRAINED — nothing free, nothing in flight` | fable | `scout: <UTC date>` | `/scout` | `scouted=<stamp>` |
+  | `conduct DUE: spawn` (any verdict; `held`, `suppressed` = nothing) | sonnet | `conduct: <UTC date>` | `/conduct` | `conducted=<stamp>` |
   | `OVERLAP-BOUND`, `rescope :` says `in flight: none` | sonnet | `surveyor: <key>` | `/manage rescope <key>` + the block verbatim | `rescope-<key>@new`, `rescoped=<key>` |
 
   A ledger `rescoped=<K>` covers later keys whose holders are all in K.
@@ -272,7 +273,7 @@ Ledger every spawn the moment it returns as `<stem>@new`.
 ```
 /orchestrate pass
 harness=<first 12 chars of git hash-object of origin/main:.claude/commands/orchestrate.md> pass=<this pass's number plus one>
-ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] [unratified=<head>] [notified=<stem>] respawns=<n> [rescoped=<key>] [curated=<stamp>] [clerked=<stamp>] [scouted=<stamp>]; ...
+ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] [unratified=<head>] [notified=<stem>] respawns=<n> [rescoped=<key>] [curated=<stamp>] [clerked=<stamp>] [scouted=<stamp>] [conducted=<stamp>]; ...
 lead <stem>: <40 chars, to the end of this line>
 ```
 
