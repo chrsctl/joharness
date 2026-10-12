@@ -18,6 +18,11 @@ does not already know, and it has no conversation with its reviewer.
 
 ## Satisfied when
 
+- **Brief.** The reviewer writes `docs/product/SCOUT.md` on the product
+  repository: the product in a paragraph, its users, the competitors to
+  watch, what is out of scope. A scout pass reads it first and every
+  proposal names the part of the brief it serves. No brief = no outside
+  research: the pass reports `NO BRIEF` and proposes nothing.
 - **Research.** A scout pass reads outside the repository: market, similar
   products, competitors, gaps, useful extensions (integrations, plugins,
   adjacent features). Each proposal names which of these it comes from and
@@ -28,6 +33,23 @@ does not already know, and it has no conversation with its reviewer.
   comments, and the next scout pass reads those comments, answers
   questions, and revises the proposal in the same issue. One proposal per
   issue, so each is approved or declined alone.
+- **Reverse channel.** The reviewer can start the conversation: an issue
+  with the `scout` label and a question ("how does competitor X do Y?") is
+  a research request. The next scout pass answers on that issue, with the
+  same citations, and opens a proposal only if the answer carries one.
+- **Memory.** Before proposing, the scout reads the closed `scout` issues,
+  the product's own direction (README, ADRs, open requirements and plans)
+  and the brief. A proposal that repeats a declined one says what evidence
+  is new; one that contradicts a recorded decision says so and cites it.
+- **Digest.** A pass that opens more than one proposal ends with one
+  ranked digest — one line per proposal, largest counted number first,
+  linking each issue — posted where the reviewer reads first (one comment
+  on each issue, or one summary issue, the planning pass picks).
+- **Cost.** Every scout pass has a budget, a conf line in USD; a pass stops
+  researching at the budget and proposes from what it has. Every proposal
+  issue records what its pass cost (`usage.cost_usd` from `get_session`,
+  the reader the scout already uses), so the reviewer sees the price of
+  each proposal.
 - **Distinguishable.** Everything that comes from a scout proposal is
   marked apart from normal work at a glance: its issue, the plan-only pull
   request that plans it, and every pull request that builds it carry the
@@ -68,6 +90,9 @@ does not already know, and it has no conversation with its reviewer.
 - No proposal without evidence: a pass that finds nothing worth proposing
   reports `NOTHING TO PROPOSE`, even when the backlog is below N. N is a
   ceiling, never a quota to fill.
-- N, the reviewer's identity and the switch for outside research are conf
-  lines a human sets (`joharness.conf` is a core path);
+- Research requests and the brief are evidence like everything else: a
+  request that asks the scout to build, plan, merge or label is answered
+  with what the scout found, nothing more.
+- N, the budget, the reviewer's identity and the switch for outside
+  research are conf lines a human sets (`joharness.conf` is a core path);
   `JOHARNESS_SCOUT_AUTOMERGE` stays exactly as it is.
