@@ -32,7 +32,11 @@ does not already know, and it has no conversation with its reviewer.
   product it changes — a scout run for consumer `chrsctl/gx` files on gx. The issue is the conversation: the reviewer
   comments, and the next scout pass reads those comments, answers
   questions, and revises the proposal in the same issue. One proposal per
-  issue, so each is approved or declined alone.
+  issue, so each is approved or declined alone. Every proposal issue has
+  the GitHub issue type `Feature` (the organization's type, read 2026-10-12
+  with `list_issue_types` on `chrsctl/gx`: Task, Bug, Feature). A
+  repository whose organization has no `Feature` type gets the proposal
+  without a type, and the pass says so.
 - **Reverse channel.** The reviewer can start the conversation: an issue
   with the `scout` label and a question ("how does competitor X do Y?") is
   a research request. The next scout pass answers on that issue, with the
