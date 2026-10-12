@@ -2992,10 +2992,19 @@ cmd_free() {
     printf 'refused   : cannot fetch origin/%s — 0 behind is unprovable\n' "$base_branch"
     return 1
   fi
+  # Gone (exit 2) and unreachable are different answers: one frees nothing,
+  # the other is a rerun.
+  git -C "$ROOT" ls-remote -q --exit-code --heads origin "refs/heads/${owner}" \
+    </dev/null >/dev/null 2>&1
+  case $? in
+    0) ;;
+    2) printf 'refused   : %s — no such branch on origin\n' "$owner"; return 1 ;;
+    *) printf 'refused   : cannot ask origin for %s — rerun\n' "$owner"; return 1 ;;
+  esac
   if ! git -C "$ROOT" fetch -q origin \
        "+refs/heads/${owner}:refs/remotes/origin/${owner}" </dev/null 2>/dev/null ||
      ! tip="$(git -C "$ROOT" rev-parse -q --verify "refs/remotes/origin/${owner}^{commit}" 2>/dev/null)"; then
-    printf 'refused   : %s — no such branch on origin\n' "$owner"
+    printf 'refused   : cannot fetch origin/%s — rerun\n' "$owner"
     return 1
   fi
   if git -C "$ROOT" merge-base --is-ancestor "$tip" \
@@ -3131,8 +3140,8 @@ cmd_free() {
   done < <(git -c core.quotePath=false -C "$ROOT" diff --name-only 2>/dev/null)
 
   if ! git -C "$ROOT" commit -q --no-edit -m "free: merge ${owner} (${tip:0:12})" \
-       -m "$(printf 'Dropped, each recoverable with git show %s:<path>:\n%s\nRetired, each recoverable with git show %s:<path>:\n%s' \
-             "${tip:0:12}" "${dropped:-none}" "${pre:0:12}" "${retired:-none}")" </dev/null >/dev/null 2>&1; then
+       -m "$(printf 'Dropped, each recoverable with git show %s:<path>:\n%s\nRetired, recoverable from %s (else %s):\n%s' \
+             "${tip:0:12}" "${dropped:-none}" "${pre:0:12}" "${tip:0:12}" "${retired:-none}")" </dev/null >/dev/null 2>&1; then
     git -C "$ROOT" merge --abort 2>/dev/null || git -C "$ROOT" reset -q --hard "$pre"
     printf 'FAILED    : commit refused — merge aborted, nothing committed\n'
     return 1
@@ -3158,7 +3167,12 @@ cmd_free() {
     done <<<"$dropped"
     while IFS= read -r f; do
       [ -n "$f" ] || continue
-      printf '  git show %s:%s\n' "${pre:0:12}" "$f"
+      # The version deleted: the base's when it had one, else the owner's.
+      if git -C "$ROOT" cat-file -e "${pre}:${f}" 2>/dev/null; then
+        printf '  git show %s:%s\n' "${pre:0:12}" "$f"
+      else
+        printf '  git show %s:%s\n' "${tip:0:12}" "$f"
+      fi
     done <<<"$retired"
   fi
   return 0
@@ -5783,6 +5797,18 @@ dispatch_branch_plans() {
   done <<<"$refs"
 }
 
+# Did <ref> ADD a `free-*` workstream file since it left the base? Its
+# retire commit may have deleted it since: the add still says whose it is.
+free_claimed_ever() {
+  local base
+  base="$(git -C "$ROOT" merge-base "$1" \
+    "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" </dev/null 2>/dev/null)" || return 1
+  [ -n "$base" ] || return 1
+  git -c core.quotePath=false -C "$ROOT" log --no-renames --diff-filter=A \
+    --name-only --format= "${base}..$1" -- docs/handover </dev/null 2>/dev/null |
+    grep -q '^docs/handover/free-'
+}
+
 # FREEABLE (`free <branch>`, #423): an unmerged branch whose every path is
 # under the harness's doc trees (free_path_ok) and no `free-*` claim covers.
 # One row per branch, tab-separated: <kind> <branch> <plans> <pushed min>.
@@ -5792,16 +5818,16 @@ dispatch_branch_plans() {
 #     pr: and a `plan:` (a manager's "found it done"), no plan added. No age
 #     wait: its own status says the session ended. `plan: none` is a role's
 #     record (a surveyor's "holds genuine" stays unmerged by design): never.
-# Never freeable: a branch carrying a `free-*` claim or a `free: merge`
-# commit (a free manager's); a branch whose workstream file a human or a pull
-# request holds (free_owner_held); an owner a live `free-<key>` claim covers,
-# or a `free: merge <owner>` commit on a live unmerged branch carries (a free
-# past its retire commit). A released (`abandoned`) free claim lends none of
-# that: its owner is offered again.
+# Never freeable: a free manager's own branch (free_claimed_ever); a branch
+# whose workstream file a human or a pull request holds (free_owner_held); an
+# owner a live `free-<key>` claim covers, or whose tip a free manager's live
+# branch already contains (a free past its retire commit, `free` or a hand
+# merge alike). A released (`abandoned`) free claim lends none of that: its
+# owner is offered again.
 dispatch_freeable() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" bprows="$1"
   local refs r name base paths p ok wonly doc st pr ws wp claimed="" n_rows age stale_s cb ck cs
-  local gone=" " freed=" " sub
+  local gone=" " freers="" fr
   stale_s="$(num_knob HANDOVER_STALE_SECONDS 518400)"
   # Keys a live free claim covers: a second manager onto the same owner is
   # two merges of one branch.
@@ -5817,22 +5843,16 @@ dispatch_freeable() {
   done < <(dispatch_rescope_branches free-)
   refs="$(git -C "$ROOT" for-each-ref --format='%(refname)' \
     refs/remotes/origin </dev/null 2>/dev/null)"
-  # Owners a free merge on a live unmerged branch already carries: the
-  # `free: merge <owner> (...)` subject cmd_free writes. Read by name, never
-  # by ancestry: a branch merely cut from the owner frees nothing.
+  # Free managers' branches: live, unmerged, unreleased, and ADDED a
+  # `free-*` claim since the base (it may since have retired it). Only these
+  # hold an owner, by ancestry, however the merge was made: a branch merely
+  # cut from the owner, or a copy of it, never claimed a free.
   while IFS= read -r r; do
     [ -n "$r" ] || continue
     name="${r#refs/remotes/origin/}"
     { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
     [ "${gone#* "${name}" }" = "$gone" ] || continue
-    base="$(git -C "$ROOT" merge-base "$r" \
-      "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)" || continue
-    [ -n "$base" ] || continue
-    while IFS= read -r sub; do
-      sub="${sub#free: merge }"; sub="${sub%% *}"
-      [ -z "$sub" ] || freed="${freed}${sub} "
-    done < <(git -C "$ROOT" log --merges --format=%s "${base}..${r}" </dev/null 2>/dev/null |
-      grep '^free: merge ')
+    free_claimed_ever "$r" && freers="${freers}${r}"$'\n'
   done <<<"$refs"
   while IFS= read -r r; do
     [ -n "$r" ] || continue
@@ -5849,9 +5869,15 @@ dispatch_freeable() {
     paths="$(git -c core.quotePath=false -C "$ROOT" diff --no-renames \
       --name-only "$base" "$r" </dev/null 2>/dev/null)"
     [ -n "$paths" ] || continue
-    [ "${freed#* "${name}" }" = "$freed" ] || continue
-    git -C "$ROOT" log --format=%s "${base}..${r}" </dev/null 2>/dev/null |
-      grep -q '^free: merge ' && continue
+    # A free manager's own branch, or an owner one already merged.
+    case "$freers" in *"${r}"$'\n'*) continue ;; esac
+    ok=1
+    while IFS= read -r fr; do
+      [ -n "$fr" ] || continue
+      git -C "$ROOT" merge-base --is-ancestor "$r" "$fr" </dev/null 2>/dev/null &&
+        { ok=0; break; }
+    done <<<"$freers"
+    [ "$ok" -eq 1 ] || continue
     free_owner_held "$r" "$base" >/dev/null && continue
     ok=1; wonly=1
     while IFS= read -r p; do

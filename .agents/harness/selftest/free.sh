@@ -304,6 +304,33 @@ refute "the plan is gone from the free commit" "docs/plans/finished.md" \
 # owner's tip (round 2, v6).
 expect "a retired plan recovers from the pre-free head" \
   "git show ${fpre:0:12}:docs/plans/finished.md" "$out"
+# A retired file the owner added recovers from the owner's tip; a stem in
+# both plans and research retires the plan only (round 3).
+git -C "$fwork" checkout -q main
+# <stem>: a research file that reads true to the graph lint.
+fresearch() {
+  mkdir -p "${fwork}/docs/research"
+  printf -- '---\nresearch: %s\nurgency: normal\nagent: sonnet\neffort: low\ngraduates: docs/answer.md\n---\n\n## Question\nFixture.\n' \
+    "$1" >"${fwork}/docs/research/${1}.md"
+}
+fresearch col
+fplan col other.txt
+commit_all "$fwork" "plan and research col"
+git -C "$fwork" push -q origin main
+git -C "$fwork" checkout -q -b own-q1 origin/main
+fresearch q1
+fws "${fwork}/docs/handover/q1.md" q1 "done" q1
+fws "${fwork}/docs/handover/col.md" col "done" col
+commit_all "$fwork" "q1 research added and done; col done"
+git -C "$fwork" push -qu origin own-q1
+fq1tip="$(git -C "$fwork" rev-parse HEAD)"
+fclaim mgr-q1 own-q1
+out="$(ffree own-q1)"
+expect "an owner-added retired file recovers from the owner's tip" \
+  "git show ${fq1tip:0:12}:docs/research/q1.md" "$out"
+ftree="$(git -C "$fwork" ls-tree -r --name-only HEAD)"
+refute "a stem in plans and research retires the plan" "docs/plans/col.md" "$ftree"
+expect "and keeps the research file" "docs/research/col.md" "$ftree"
 # A live claim elsewhere holds the plan: the free keeps it (round 2, v3).
 git -C "$fwork" checkout -q main
 fplan built other.txt

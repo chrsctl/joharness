@@ -8,7 +8,7 @@ issue: 423
 session: https://claude.ai/code/session_01Nm4goRUANzvNDQdDAJ5Ubr
 agent: opus
 updated: 2026-10-12
-next: ci + verify green on the round-2 fixes, then retire and open the pull request
+next: ci + verify green on the round-3 fixes, then retire and open the pull request
 ---
 
 ## Goal
@@ -44,6 +44,9 @@ branch, and an empty done branch, a mechanical path to main via
 
 ## Rejected
 
+- Holding an owner by ancestry into ANY unmerged branch (r3 fix): a copy or
+  a product branch cut from the owner hid it forever (r12). Holding by the
+  `free: merge` subject (r12 fix): lost hand merges, trusted spoofs (r16).
 - Empty-done FREEABLE on any `status: done, pr: none` file: freed the
   surveyor's settle record and broke 4 rescope cases in selftest/dispatch.sh.
 
@@ -63,6 +66,11 @@ branch, and an empty done branch, a mechanical path to main via
 - r13: (verifier, round 2) the `free: merge` self-exclusion had no failing test: the manager's branch was too young to be offered anyway. (fixed — the fixture's merge and retire commits are dated past the stale window)
 - r14: (verifier, round 2) a retired plan's recover line read the owner's tip, an older version than the one deleted. (fixed — retired paths recover from the pre-free head, which the push publishes)
 - r15: (verifier, round 2) any `pr:` on the owner's workstream file holds it, so a gone author's open plan-only pull request is never FREEABLE; a stem in both docs/plans and docs/research deleted both. (fixed for the second — first match only; the first: wontfix, an open pull request is the human's to close or merge, and orchestrated.md's row names it)
+- r16: (verifier, round 3) r12's subject reading lost a hand merge (git's own subject), the path manage.md gives after a conflict: owner offered again. Churn stop — requirements listed once: hold on any merge however made; never on a mere copy or a branch cut from the owner; nothing through a released claim; no trust in subjects. (fixed — an owner is held when a live, unreleased branch that ever ADDED a `free-*` claim (`free_claimed_ever`) contains its tip; that branch itself is never offered; dispatch.sh gone-hm case)
+- r17: (verifier, round 3) a retired file the owner added printed a `git show <pre>:` that does not exist there. (fixed — recover from pre when it has the path, else the owner's tip; free.sh own-q1 case)
+- r18: (verifier, round 3) manage.md filed "already merged into <your branch>" as nothing-to-free, stranding a pushed merge with no claim or pull request; several refusals were unclassified; a fetch failure read "no such branch". (fixed — manage.md names each refusal's class; `free` asks `ls-remote` first: gone vs unreachable)
+- r19: (verifier, round 3) any merge subject `free: merge <x>` hid owner x. (fixed by r16 — subjects are no longer read; dispatch.sh spoof-d case)
+- r20: (verifier, round 3) r15's first-match-only had no failing test. (fixed — free.sh col case)
 - r9: (verifier) the author's "610 passed" came from a scratch runner with a topic filter (`ONLY_TOPICS` copy of selftest.sh in the scratchpad), not a repo command. (no change — measured numbers in the PR body come from `bash .agents/harness/selftest.sh`)
 
 ## Blockers

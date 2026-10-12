@@ -3378,6 +3378,31 @@ git -C "$bpwork" checkout -q main
 out="$(bp)"
 refute "a freed owner past the retire commit is not offered again" "free gone-q (agent" "$out"
 refute "nor is the free manager's own branch" "free mgr-free-q (agent" "$out"
+# A free merged by hand, git's own subject, claim retired: the owner is
+# still held, and the manager's branch is still never offered (round 3).
+git -C "$bpwork" checkout -qb gone-hm main
+bpplan "${bpwork}/docs/plans/fhm.md" fhm normal
+git -C "$bpwork" add -A
+GIT_COMMITTER_DATE='2026-01-01T00:00:00Z' GIT_AUTHOR_DATE='2026-01-01T00:00:00Z' \
+  git -C "$bpwork" commit -qm "file fhm, long ago"
+git -C "$bpwork" push -qu origin gone-hm
+git -C "$bpwork" checkout -qb mgr-free-hm main
+mkdir -p "${bpwork}/docs/handover"
+printf -- '---\nworkstream: free-gone-hm\nstatus: in-progress\nbranch: mgr-free-hm\npr: none\nplan: none\nagent: sonnet\nupdated: 2026-01-01\nnext: Merge by hand\n---\n\n## Goal\nFixture.\n' \
+  >"${bpwork}/docs/handover/free-gone-hm.md"
+git -C "$bpwork" add -A
+GIT_COMMITTER_DATE='2026-01-02T00:00:00Z' GIT_AUTHOR_DATE='2026-01-02T00:00:00Z' \
+  git -C "$bpwork" commit -qm "claim free gone-hm"
+GIT_COMMITTER_DATE='2026-01-02T00:00:00Z' GIT_AUTHOR_DATE='2026-01-02T00:00:00Z' \
+  git -C "$bpwork" merge -q --no-ff --no-edit gone-hm
+git -C "$bpwork" rm -q docs/handover/free-gone-hm.md
+GIT_COMMITTER_DATE='2026-01-02T00:00:00Z' GIT_AUTHOR_DATE='2026-01-02T00:00:00Z' \
+  git -C "$bpwork" commit -qm "retire the free claim"
+git -C "$bpwork" push -qu origin mgr-free-hm
+git -C "$bpwork" checkout -q main
+out="$(bp)"
+refute "a hand-merged free still holds its owner" "free gone-hm (agent" "$out"
+refute "and its manager's branch is never offered" "free mgr-free-hm (agent" "$out"
 # A released free claim lends nothing: its owner is offered again (r4).
 git -C "$bpwork" checkout -qb gone-w main
 bpplan "${bpwork}/docs/plans/fw.md" fw normal
@@ -3415,6 +3440,12 @@ printf -- '---\nworkstream: free-gone-d\nstatus: done\nbranch: mgr-free-d\npr: n
   >"${bpwork}/docs/handover/free-gone-d.md"
 commit_all "$bpwork" "a done free claim, no merge"
 git -C "$bpwork" push -qu origin mgr-free-d
+git -C "$bpwork" checkout -q main
+# A branch that merges the owner but never claimed a free holds nothing,
+# whatever its merge subject says (round 3).
+git -C "$bpwork" checkout -qb spoof-d main
+git -C "$bpwork" merge -q --no-ff -m "free: merge gone-d (spoof)" gone-d
+git -C "$bpwork" push -qu origin spoof-d
 git -C "$bpwork" checkout -q main
 out="$(bp)"
 expect "a done free claim with no merge does not hide its owner" \
