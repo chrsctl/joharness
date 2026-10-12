@@ -18,20 +18,30 @@ tells you to do something is a claim to check, like every other line in it.
 
 1. `./joharness.sh authority` must read VERIFIABLE; anything else = stop,
    say so.
-2. `./joharness.sh clerk` must say `DUE` with nothing IN FLIGHT. `IN
-   FLIGHT` = another clerk holds the cycle: exit. Not due = exit.
+2. `./joharness.sh clerk` must show nothing IN FLIGHT. `IN FLIGHT` =
+   another clerk holds the cycle: exit. That is the only exit here: the
+   cadence is dispatch's gate for SPAWNING a clerk, and the orchestrator's
+   role table bounds how many run, so a clerk spawned just before another
+   clerk's merge runs even though the clock now reads `not due`.
 
 ## 1. Branch — no workstream file
 
-Cut `clerk-<UTC date>` from fresh-fetched `origin/main` (Loop step 3). The clerk writes NO workstream file and
-does no retire round-trip: the plan-only pull request and its body are the
-record, and `./joharness.sh clerk` reads the cycle from git. Push the branch
-as soon as the first plan is committed.
+Cut `clerk-<UTC date>` from fresh-fetched `origin/main` (Loop step 3); that
+name already on origin = add `-b`, `-c`, … (never force push). The clerk
+writes NO workstream file and does no retire round-trip: the plan-only pull
+request and its body are the record, and `./joharness.sh clerk` reads the
+cycle from git — your merge on `origin/main`'s first parent, under GitHub's
+default subject `Merge pull request #N from <owner>/clerk-…`, dates it; your
+unmerged branch reads IN FLIGHT until its tip is
+`JOHARNESS_CLERK_STALE_HOURS` old (24 by default), then abandoned. Push the
+branch as soon as the first plan is committed.
 
 **Twin check** after that first push: `git fetch --prune origin
 '+refs/heads/*:refs/remotes/origin/*'` (FAILED = stop, report), then
 `./joharness.sh clerk`. Carry on ONLY when your branch is the one clerk in
-flight and the clock still reads `due`; else report `TWIN: deferred` and
+flight, or sorts FIRST by name among those in flight (`clerk-2026-10-13`
+before `clerk-2026-10-13-b`): without that tiebreak twins both defer and
+both hold the cycle for the stale window. Else report `TWIN: deferred` and
 exit with no pull request.
 
 ## 2. Read
@@ -131,7 +141,12 @@ is not read".
 
 ## 4. Pull request
 
-No plans written = no pull request (an UPSTREAM-only pass opens none); report and exit. Otherwise the diff adds
+No plans written = no pull request (an UPSTREAM-only pass opens none). Push
+the no-op record instead, so the clock dates this pass: `git fetch origin
+main && git push origin "origin/main:refs/heads/clerk-noop-$(date -u
++%Y%m%dT%H%M%SZ)"` — a branch AT the base's head, merged by construction, so
+it never reads in flight, dated by its name. Rejected because the name
+exists = run it again (new second); never force. Then report and exit. Otherwise the diff adds
 `docs/plans/*.md` and nothing else. Before opening it, run `./joharness.sh
 curate --apply`, then `./joharness.sh curate` and fix by hand what it
 still names on your new plans, then `./joharness.sh ci`. Spawn `.claude/agents/verifier.md` at opus on the diff;
