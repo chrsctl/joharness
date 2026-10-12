@@ -287,6 +287,7 @@ fws "${fwork}/docs/handover/carry-fin.md" carry-fin "done" finished
 commit_all "$fwork" "carrier finds finished done"
 git -C "$fwork" push -qu origin carry-fin
 fclaim mgr-f carry-fin
+fpre="$(git -C "$fwork" rev-parse HEAD)"
 out="$(ffree carry-fin)"; rc=$?
 if [ "$rc" -eq 0 ]; then
   pass "a done record for a base plan frees"
@@ -298,6 +299,29 @@ fi
 expect "and retires the plan it reads done" \
   "retire    : docs/plans/finished.md — docs/handover/carry-fin.md reads status: done" "$out"
 refute "the plan is gone from the free commit" "docs/plans/finished.md" \
+  "$(git -C "$fwork" ls-tree -r --name-only HEAD)"
+# The version deleted is the base's: recover it from the claim, not the
+# owner's tip (round 2, v6).
+expect "a retired plan recovers from the pre-free head" \
+  "git show ${fpre:0:12}:docs/plans/finished.md" "$out"
+# A live claim elsewhere holds the plan: the free keeps it (round 2, v3).
+git -C "$fwork" checkout -q main
+fplan built other.txt
+commit_all "$fwork" "plan built"
+git -C "$fwork" push -q origin main
+git -C "$fwork" checkout -q -b build-b origin/main
+fws "${fwork}/docs/handover/build-b.md" build-b in-progress built
+commit_all "$fwork" "builder claims built"
+git -C "$fwork" push -qu origin build-b
+git -C "$fwork" checkout -q -b carry-b origin/main
+fws "${fwork}/docs/handover/carry-b.md" carry-b "done" built
+commit_all "$fwork" "carrier writes built done"
+git -C "$fwork" push -qu origin carry-b
+fclaim mgr-bb carry-b
+out="$(ffree carry-b)"
+expect "a plan a live claim holds is kept" \
+  "keep      : built item — build-b holds a live claim on it" "$out"
+expect "and is still on the free commit" "docs/plans/built.md" \
   "$(git -C "$fwork" ls-tree -r --name-only HEAD)"
 
 # --- a merge conflict leaves the tree as found --------------------------------

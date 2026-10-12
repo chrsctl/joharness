@@ -3365,10 +3365,14 @@ expect "the claim is a manager in flight" "  free-gone-q  mgr-free-q  in-progres
 refute "and the claim's own branch is never FREEABLE" "free mgr-free-q (agent" "$out"
 # Past its retire commit the claim file is gone, the pull request open: the
 # owner sits merged in the manager's branch, so neither is offered (r3).
+# Both commits dated old: the manager's own branch is past the stale window,
+# so only the `free: merge` reading keeps it off the list (round 2, v5).
 git -C "$bpwork" checkout -q mgr-free-q
-git -C "$bpwork" merge -q --no-ff -m "free: merge gone-q (fixture)" gone-q
+GIT_COMMITTER_DATE='2026-01-02T00:00:00Z' GIT_AUTHOR_DATE='2026-01-02T00:00:00Z' \
+  git -C "$bpwork" merge -q --no-ff -m "free: merge gone-q (fixture)" gone-q
 git -C "$bpwork" rm -q docs/handover/free-gone-q.md
-commit_all "$bpwork" "retire the free claim"
+GIT_COMMITTER_DATE='2026-01-02T00:00:00Z' GIT_AUTHOR_DATE='2026-01-02T00:00:00Z' \
+  git -C "$bpwork" commit -qm "retire the free claim"
 git -C "$bpwork" push -q origin mgr-free-q
 git -C "$bpwork" checkout -q main
 out="$(bp)"
@@ -3389,8 +3393,32 @@ printf -- '---\nworkstream: free-gone-w\nstatus: abandoned\nbranch: mgr-free-w\n
 commit_all "$bpwork" "free claim released"
 git -C "$bpwork" push -qu origin mgr-free-w
 git -C "$bpwork" checkout -q main
+# A branch cut from the owner frees nothing: it never hides the owner (v4).
+git -C "$bpwork" checkout -qb prod-w gone-w
+printf 'product\n' >"${bpwork}/prod-w.txt"
+commit_all "$bpwork" "product work on top of gone-w"
+git -C "$bpwork" push -qu origin prod-w
+git -C "$bpwork" checkout -q main
 out="$(bp)"
 expect "a released free claim offers its owner again" "  free gone-w (agent: sonnet)  FREEABLE" "$out"
+# A done free claim with no merge pushed holds no key: the owner is offered
+# (round 2, v2: a refusal must not park it for the stale window).
+git -C "$bpwork" checkout -qb gone-d main
+bpplan "${bpwork}/docs/plans/fd.md" fd normal
+git -C "$bpwork" add -A
+GIT_COMMITTER_DATE='2026-01-01T00:00:00Z' GIT_AUTHOR_DATE='2026-01-01T00:00:00Z' \
+  git -C "$bpwork" commit -qm "file fd, long ago"
+git -C "$bpwork" push -qu origin gone-d
+git -C "$bpwork" checkout -qb mgr-free-d main
+mkdir -p "${bpwork}/docs/handover"
+printf -- '---\nworkstream: free-gone-d\nstatus: done\nbranch: mgr-free-d\npr: none\nplan: none\nagent: sonnet\nupdated: 2026-01-01\nnext: Nothing\n---\n\n## Goal\nFixture.\n' \
+  >"${bpwork}/docs/handover/free-gone-d.md"
+commit_all "$bpwork" "a done free claim, no merge"
+git -C "$bpwork" push -qu origin mgr-free-d
+git -C "$bpwork" checkout -q main
+out="$(bp)"
+expect "a done free claim with no merge does not hide its owner" \
+  "  free gone-d (agent: sonnet)  FREEABLE" "$out"
 # Parked on a human: never offered, however old (r2).
 git -C "$bpwork" checkout -qb held-h main
 bpplan "${bpwork}/docs/plans/fh.md" fh normal
@@ -3404,8 +3432,7 @@ git -C "$bpwork" push -qu origin held-h
 git -C "$bpwork" checkout -q main
 out="$(bp)"
 refute "a branch parked on a human is never FREEABLE" "free held-h (agent" "$out"
-# A free manager that found nothing to free leaves a done record: listed,
-# no slot (manage.md §0).
+# A free claim at done is mid-retire: listed, no slot.
 bpslots0="$(sed -n 's/^slots     : \([0-9][0-9]*\) of.*/\1/p' <<<"$out")"
 git -C "$bpwork" checkout -qb mgr-free-held main
 mkdir -p "${bpwork}/docs/handover"
@@ -3415,8 +3442,8 @@ commit_all "$bpwork" "free refused"
 git -C "$bpwork" push -qu origin mgr-free-held
 git -C "$bpwork" checkout -q main
 out="$(bp)"
-expect "a refused free's record is listed" \
-  "  free-held-h  mgr-free-held  done  pushed 0m  refused, a record: holds no slot" "$out"
+expect "a done free claim is listed" \
+  "  free-held-h  mgr-free-held  done  pushed 0m  done: holds no slot" "$out"
 expect "and holds no slot" "slots     : ${bpslots0:-x} of" "$out"
 
 # --- time against the item: CEILING? (issue #298) ---------------------------

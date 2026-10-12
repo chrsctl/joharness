@@ -2934,10 +2934,25 @@ free_owner_held() {
   return 1
 }
 
+# Is <stem> held by a live claim (not done, not abandoned) on an unmerged
+# branch other than <owner>? Prints that branch.
+free_plan_claimed() {
+  local stem="$1" owner="$2" b f doc wp st
+  while IFS=$'\t' read -r b f; do
+    { [ -n "$b" ] && [ "$b" != "$owner" ]; } || continue
+    doc="$(git -C "$ROOT" show "refs/remotes/origin/${b}:${f}" </dev/null 2>/dev/null)" || continue
+    { read -r wp; read -r st; } <<<"$(printf '%s\n' "$doc" | gr_fields plan status)"
+    [ "$(lint_stem "$wp" | tr -cd 'A-Za-z0-9._-')" = "$stem" ] || continue
+    case "$st" in done | abandoned) continue ;; esac
+    printf '%s' "$b"; return 0
+  done <<<"$(claim_branches)"
+  return 1
+}
+
 cmd_free() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" owner="${1:-}" usage
   local cur tip mb paths p bad="" n_bad=0 behind pre f kind stem
-  local added_wf added_plans rows dropped="" keep out rc applied held wplan wst
+  local added_wf added_plans rows dropped="" retired="" keep out rc applied held wplan wst hb
 
   usage="usage: $0 free <branch> — run on your own claimed branch, cut from fresh origin/${base_branch}"
   { [ "$#" -eq 1 ] && [ -n "$owner" ]; } || die "$usage"
@@ -3058,11 +3073,18 @@ cmd_free() {
     [ "$wst" = "done" ] || continue
     wplan="$(lint_stem "$wplan" | tr -cd 'A-Za-z0-9._-')"
     case "$wplan" in '' | none) continue ;; esac
+    # A live claim on another branch is building it: that manager retires it.
+    if hb="$(free_plan_claimed "$wplan" "$owner")"; then
+      printf 'keep      : %s item — %s holds a live claim on it\n' "$wplan" "$hb"
+      continue
+    fi
     for p in "docs/plans/${wplan}.md" "docs/research/${wplan}.md"; do
       git -C "$ROOT" ls-files --error-unmatch -- "$p" >/dev/null 2>&1 || continue
       git -C "$ROOT" rm -q -f -- "$p" >/dev/null 2>&1 || continue
       printf 'retire    : %s — %s reads status: done\n' "$p" "$f"
-      dropped="${dropped}${p}"$'\n'
+      # The version deleted is the base's, not the owner's: recover from pre.
+      retired="${retired}${p}"$'\n'
+      break
     done
   done <<<"$added_wf"
 
@@ -3109,8 +3131,8 @@ cmd_free() {
   done < <(git -c core.quotePath=false -C "$ROOT" diff --name-only 2>/dev/null)
 
   if ! git -C "$ROOT" commit -q --no-edit -m "free: merge ${owner} (${tip:0:12})" \
-       -m "$(printf 'Dropped, each recoverable with git show %s:<path>:\n%s' \
-             "${tip:0:12}" "${dropped:-none}")" </dev/null >/dev/null 2>&1; then
+       -m "$(printf 'Dropped, each recoverable with git show %s:<path>:\n%s\nRetired, each recoverable with git show %s:<path>:\n%s' \
+             "${tip:0:12}" "${dropped:-none}" "${pre:0:12}" "${retired:-none}")" </dev/null >/dev/null 2>&1; then
     git -C "$ROOT" merge --abort 2>/dev/null || git -C "$ROOT" reset -q --hard "$pre"
     printf 'FAILED    : commit refused — merge aborted, nothing committed\n'
     return 1
@@ -3128,12 +3150,16 @@ cmd_free() {
   printf 'ci        : %s\n' "$(printf '%s\n' "$out" | tail -n 1)"
   printf 'committed : %s on %s — push it; the pull request is yours (Loop step 7)\n' \
     "$(git -C "$ROOT" rev-parse --short=12 HEAD)" "$cur"
-  if [ -n "$dropped" ]; then
+  if [ -n "${dropped}${retired}" ]; then
     printf 'recover (paste into the pull request body):\n'
     while IFS= read -r f; do
       [ -n "$f" ] || continue
       printf '  git show %s:%s\n' "${tip:0:12}" "$f"
     done <<<"$dropped"
+    while IFS= read -r f; do
+      [ -n "$f" ] || continue
+      printf '  git show %s:%s\n' "${pre:0:12}" "$f"
+    done <<<"$retired"
   fi
   return 0
 }
@@ -5768,32 +5794,45 @@ dispatch_branch_plans() {
 #     record (a surveyor's "holds genuine" stays unmerged by design): never.
 # Never freeable: a branch carrying a `free-*` claim or a `free: merge`
 # commit (a free manager's); a branch whose workstream file a human or a pull
-# request holds (free_owner_held); a branch already merged into another live
-# unmerged branch (a free in flight past its retire commit). A branch whose
-# free claim was released (`abandoned`) lends none of that: offered again.
+# request holds (free_owner_held); an owner a live `free-<key>` claim covers,
+# or a `free: merge <owner>` commit on a live unmerged branch carries (a free
+# past its retire commit). A released (`abandoned`) free claim lends none of
+# that: its owner is offered again.
 dispatch_freeable() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" bprows="$1"
   local refs r name base paths p ok wonly doc st pr ws wp claimed="" n_rows age stale_s cb ck cs
-  local gone=" " live="" r2 inside
+  local gone=" " freed=" " sub
   stale_s="$(num_knob HANDOVER_STALE_SECONDS 518400)"
   # Keys a live free claim covers: a second manager onto the same owner is
   # two merges of one branch.
   while IFS=$'\t' read -r cb ck cs _; do
     [ -n "$cb" ] || continue
-    if [ "$cs" = abandoned ]; then gone="${gone}${cb} "; continue; fi
+    # A released claim holds nothing, its merge included. A done one
+    # holds no key; its merge, if pushed, still holds the owner below.
+    case "$cs" in
+      abandoned) gone="${gone}${cb} "; continue ;;
+      done) continue ;;
+    esac
     claimed="${claimed} ${ck} "
   done < <(dispatch_rescope_branches free-)
   refs="$(git -C "$ROOT" for-each-ref --format='%(refname)' \
     refs/remotes/origin </dev/null 2>/dev/null)"
-  # The unmerged refs a free could sit in.
+  # Owners a free merge on a live unmerged branch already carries: the
+  # `free: merge <owner> (...)` subject cmd_free writes. Read by name, never
+  # by ancestry: a branch merely cut from the owner frees nothing.
   while IFS= read -r r; do
     [ -n "$r" ] || continue
     name="${r#refs/remotes/origin/}"
     { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
     [ "${gone#* "${name}" }" = "$gone" ] || continue
-    git -C "$ROOT" merge-base --is-ancestor "$r" \
-      "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null && continue
-    live="${live}${r}"$'\n'
+    base="$(git -C "$ROOT" merge-base "$r" \
+      "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)" || continue
+    [ -n "$base" ] || continue
+    while IFS= read -r sub; do
+      sub="${sub#free: merge }"; sub="${sub%% *}"
+      [ -z "$sub" ] || freed="${freed}${sub} "
+    done < <(git -C "$ROOT" log --merges --format=%s "${base}..${r}" </dev/null 2>/dev/null |
+      grep '^free: merge ')
   done <<<"$refs"
   while IFS= read -r r; do
     [ -n "$r" ] || continue
@@ -5810,13 +5849,7 @@ dispatch_freeable() {
     paths="$(git -c core.quotePath=false -C "$ROOT" diff --no-renames \
       --name-only "$base" "$r" </dev/null 2>/dev/null)"
     [ -n "$paths" ] || continue
-    inside=0
-    while IFS= read -r r2; do
-      { [ -n "$r2" ] && [ "$r2" != "$r" ]; } || continue
-      git -C "$ROOT" merge-base --is-ancestor "$r" "$r2" </dev/null 2>/dev/null &&
-        { inside=1; break; }
-    done <<<"$live"
-    [ "$inside" -eq 0 ] || continue
+    [ "${freed#* "${name}" }" = "$freed" ] || continue
     git -C "$ROOT" log --format=%s "${base}..${r}" </dev/null 2>/dev/null |
       grep -q '^free: merge ' && continue
     free_owner_held "$r" "$base" >/dev/null && continue
@@ -6316,9 +6349,10 @@ cmd_dispatch() {
     age="$(dispatch_age_min "$rb")"
     agetext="$(dispatch_age_text "$age")"
     flag=""
-    # Done with no merge = `free` refused (manage.md §0): a record, no slot.
+    # Done = past the build, mid-retire (a refused free deletes its claim,
+    # manage.md §0): no slot.
     if [ "$rstat" = "done" ]; then
-      inflight="${inflight}  free-${rk}  ${rb}  done  pushed ${agetext}  refused, a record: holds no slot"$'\n'
+      inflight="${inflight}  free-${rk}  ${rb}  done  pushed ${agetext}  done: holds no slot"$'\n'
       [ -z "$rnext" ] || inflight="${inflight}    next: ${rnext}"$'\n'
       continue
     fi

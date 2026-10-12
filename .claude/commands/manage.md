@@ -41,10 +41,12 @@ or requirements, other branches' files, or the design doc.
      key = the branch with every character outside `A-Za-z0-9._-` as `-`.
      Push the claim, then `./joharness.sh free <branch>`: it merges, drops
      the owner's workstream files and stems DONE ON MAIN, runs `curate
-     --apply` on the plans it brings in only, `ci`, commits. Refused =
-     nothing to free: no pull request, `status: done`, `next:` naming the
-     refusal, push, exit. Reset (conflict, red `ci`) = fix by hand inside a
-     plan-only diff or block `conflict:`. Then §4 whole; its `recover` lines
+     --apply` on the plans it brings in only, `ci`, commits. Refused for
+     your own branch's state (behind, dirty, no claim, fetch) = fix it, run
+     again. Refused for the owner's (held, merged, non-doc path) = nothing
+     to free: delete your workstream file, push, exit, no pull request.
+     Reset (conflict, red `ci`) = fix by hand inside a plan-only diff or
+     block `conflict:`. Then §4 whole; its `recover` lines
      and the owner branch go in the body.
      Never push to the owner's branch.
    - `rescope <key>` — you are the SURVEYOR: section R. Claim on

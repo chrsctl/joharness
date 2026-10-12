@@ -8,7 +8,7 @@ issue: 423
 session: https://claude.ai/code/session_01Nm4goRUANzvNDQdDAJ5Ubr
 agent: opus
 updated: 2026-10-12
-next: Full selftest + ci + verify green on the round-1 fixes, then retire and open the pull request
+next: ci + verify green on the round-2 fixes, then retire and open the pull request
 ---
 
 ## Goal
@@ -57,6 +57,12 @@ branch, and an empty done branch, a mechanical path to main via
 - r6: (verifier) the selftest "counts as a free item" held with the count code removed. (fixed — pins the verdict's count at one more than before the stale branch)
 - r7: (verifier) an untracked file in the merge's way read as a conflict and pointed the manager at a `conflict:` block. (fixed — the clean-tree refusal reads `git status --porcelain`, untracked included; free.sh case)
 - r8: (verifier) owners `a/b` and `a-b` share key `a-b`: one claim hides both rows while it stands. (wontfix: two such branches both doc-only and stale at once is far-fetched; the cost is one pass's delay, and r3's containment check frees the other once the claim's merge lands)
+- r10: (verifier, round 2) a refused free ended `status: done` per manage.md, an unclosable done record dispatch calls edge work, and its key hid the owner for the stale window. (fixed — a refusal for the owner's state deletes the claim, one for the manager's own state is fixed and rerun; a `done` free claim holds no key; dispatch.sh gone-d case)
+- r11: (verifier, round 2) `free` step 2 retired a plan a live builder claim held. (fixed — `free_plan_claimed` keeps it; free.sh build-b case)
+- r12: (verifier, round 2) the ancestry containment hid an owner forever behind a same-commit copy or a branch cut from it, and cost one merge-base per ref pair. (fixed — an owner is held only by a `free: merge <owner>` merge commit on a live, unreleased branch, read once per ref; dispatch.sh prod-w case)
+- r13: (verifier, round 2) the `free: merge` self-exclusion had no failing test: the manager's branch was too young to be offered anyway. (fixed — the fixture's merge and retire commits are dated past the stale window)
+- r14: (verifier, round 2) a retired plan's recover line read the owner's tip, an older version than the one deleted. (fixed — retired paths recover from the pre-free head, which the push publishes)
+- r15: (verifier, round 2) any `pr:` on the owner's workstream file holds it, so a gone author's open plan-only pull request is never FREEABLE; a stem in both docs/plans and docs/research deleted both. (fixed for the second — first match only; the first: wontfix, an open pull request is the human's to close or merge, and orchestrated.md's row names it)
 - r9: (verifier) the author's "610 passed" came from a scratch runner with a topic filter (`ONLY_TOPICS` copy of selftest.sh in the scratchpad), not a repo command. (no change — measured numbers in the PR body come from `bash .agents/harness/selftest.sh`)
 
 ## Blockers
