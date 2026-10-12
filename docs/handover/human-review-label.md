@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_016i8T8r7viQifvrmJ2g2rbz
 agent: sonnet
 updated: 2026-10-12
-next: Edit the five files named in the plan, run ci and verify, review, retire, PR
+next: Record review, retire plan and workstream files, open PR, merge
 ---
 
 ## Goal
@@ -21,7 +21,11 @@ Label `human-review` marks an issue or PR as waiting on a human; only a human re
 
 ## Review
 
-Pending.
+- r1: (verifier) clerk Never line comma/semicolon tangle (no change: carve-outs read clearly; sentence kept)
+- r2: (verifier) manage.md path split across a line (fixed)
+- r3: (verifier) manage.md finish rule lacked how to read labels (fixed: names `pull_request_read` `get`)
+- r4: (verifier) AGENTS.md Block bullet lacked "if set" for issue (fixed)
+- r5: (verifier) other findings minor/style (no change)
 
 ## Blockers
 

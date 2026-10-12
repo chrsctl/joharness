@@ -108,8 +108,8 @@ request, merge, exit.
   `conflict:`); none applies = the work is yours, do it. `status: blocked`,
   `next:` = `<reason>: <question>`, push, exit. A blocked item is never
   respawned; dispatch flags a `next:` with no reason as `INVALID BLOCK?`.
-  Before pushing `status: blocked`, apply `human-review` (label: `.agents/docs/
-  orchestrated.md`, Bounds) with `issue_write` (method `update`, labels =
+  Before pushing `status: blocked`, apply `human-review` (label:
+  `.agents/docs/orchestrated.md`, Bounds) with `issue_write` (method `update`, labels =
   existing plus `human-review`) to the branch's open pull request, if any, and
   the plan's `issue: N`, if set. `issue_write` fails = say so in `next:` after
   the question, still push, still exit.
@@ -129,9 +129,9 @@ Step 5 review at your tier with `.claude/agents/verifier.md` (findings tagged
 the last commit before the pull request, merge, exit. The orchestrator reads
 your merge from git; you send nothing for it.
 
-The pull request carries `human-review` = do not merge. Set `status: blocked`,
+At merge, read the pull request's labels (`pull_request_read` `get`). It
+carries `human-review` = do not merge. Set `status: blocked`,
 `next:` = `product: human-review label on PR #<n>`, push, exit.
-
 
 Carried plan (§0 item 2)? The retire commit also appends `- <stem> <your
 branch>` to `docs/plans/RETIRED.md` (absent = create it, first line

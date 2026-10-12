@@ -88,7 +88,7 @@ have ONE spelling: [`.agents/docs/glossary.md`](../../.agents/docs/glossary.md);
   merge conflict into `main` that does not resolve clean. Block =
   `status: blocked`, `next:` = `<reason>: <question>`, push, exit. Never wait in
   session. Block also labels `human-review` on this branch's open PR and the
-  plan's `issue:`; never remove it (`.agents/docs/orchestrated.md`, Bounds).
+  plan's `issue:`, if set; never remove it (`.agents/docs/orchestrated.md`, Bounds).
 - Consumer repo: no harness upkeep in a session holding product work; a sync
   opens its own pull request (`.agents/docs/consumer-repos.md`).
 
