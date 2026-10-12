@@ -61,7 +61,8 @@
 #   JOHARNESS_MANAGER_HOURS=4   the orchestrator's numbers; dispatch prints them
 #   JOHARNESS_SCOUT_HOURS=168,
 #   JOHARNESS_CLERK_HOURS=24, JOHARNESS_CLERK_BATCH=3,
-#   JOHARNESS_CLERK_STALE_HOURS=24 (an unmerged clerk branch older holds nothing),
+#   JOHARNESS_CLERK_STALE_HOURS=24 an unmerged clerk branch older holds nothing
+#                               (0 = no window: every one holds),
 #   JOHARNESS_SCOUT_AUTOMERGE=off
 #                               role cycles; 0 hours = off
 #   JOHARNESS_SELFTEST=always   run the selftest even on a docs-only diff
@@ -2908,7 +2909,7 @@ scout_refs() {
 # Every scout file at a branch TIP — every unmerged ref and the base branch
 # itself — one line per file: `<branch>\t<scout stem>\t<status>`.
 scout_walk() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" kind="${1:-scout}"
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" kind=scout
   local ids=() names="" base_id id r hit wf doc sws sstat seen=$'\n' key listing rc_l rc_u blobs
   base_id="$(git -C "$ROOT" rev-parse --verify -q \
     "refs/remotes/origin/${base_branch}^{commit}" </dev/null 2>/dev/null)"
@@ -2961,7 +2962,7 @@ scout_walk() {
 }
 
 scout_retired_ts() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" kind="${1:-scout}"
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" kind=scout
   local refs=() r line h ct wf best=0 now log rc
   while IFS= read -r r; do refs+=("$r"); done < <(scout_refs)
   [ "${#refs[@]}" -gt 0 ] || return 0
@@ -3133,6 +3134,8 @@ clerk_stamp_ts() {
 }
 
 # The last clerk merge: `<committer time>\t<branch>\t#<N>`, empty when none.
+# Read from GitHub's DEFAULT merge subject ("Merge pull request #N from
+# <owner>/<branch>"): a repo set to title-only merge messages reads no landing.
 # FIRST-PARENT, so "Merge origin/main into clerk-…" — a merge made ON a clerk
 # branch and reachable from the base — is never read as one landing.
 clerk_landed() {
@@ -3143,7 +3146,7 @@ clerk_landed() {
     from="${from#* from }"
     from="${from%% *}"
     from="${from#*/}"
-    case "$from" in clerk-[0-9]*) ;; *) continue ;; esac
+    case "$from" in */*) continue ;; clerk-[0-9]*) ;; *) continue ;; esac
     printf '%s\t%s\t#%s' "$ct" "$from" "$n"
     return 0
   done < <(git -C "$ROOT" log --first-parent --merges -E \
@@ -3152,16 +3155,31 @@ clerk_landed() {
 }
 
 # The newest no-op record: `<stamp time>\t<branch>`, empty when none. Merged
-# ones only: the record IS the base branch's commit, named for its pass.
+# ones only: the record IS the base branch's commit, named for its pass. A
+# stamp further ahead than the stale window is a broken clock and dates
+# nothing: clamped, it would pin the cycle until that date, and only a human
+# deletes the ref.
 clerk_noop() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" r ts best=0 bname=""
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" r ts best=0 bname="" lim
+  lim=$(( $(date +%s) + $(clerk_stale_s) ))
   while IFS= read -r r; do
     ts="$(clerk_stamp_ts "${r#refs/remotes/origin/clerk-noop-}")"
     [ -n "$ts" ] || continue
+    [ "$ts" -le "$lim" ] || continue
     if [ "$ts" -gt "$best" ]; then best="$ts"; bname="${r#refs/remotes/origin/}"; fi
   done < <(git -C "$ROOT" for-each-ref --merged="refs/remotes/origin/${base_branch}" \
     --format='%(refname)' 'refs/remotes/origin/clerk-noop-*' </dev/null 2>/dev/null)
   [ "$best" -eq 0 ] || printf '%s\t%s' "$best" "$bname"
+}
+
+# JOHARNESS_CLERK_STALE_HOURS in seconds. 0 is no window, failing CLOSED:
+# every unmerged clerk branch holds, as a window of zero would have
+# dispatch spawn a second clerk beside a live one.
+clerk_stale_s() {
+  local h
+  h="$(num_knob JOHARNESS_CLERK_STALE_HOURS 24)"
+  [ "$h" -gt 0 ] || h=999999999
+  printf '%s' $((h * 3600))
 }
 
 # Every unmerged `clerk-<digit>…` branch, one row each in scout_walk's shape:
@@ -3171,25 +3189,37 @@ clerk_noop() {
 # leaves its branch, and branches are never deleted. Never tied to
 # JOHARNESS_CLERK_HOURS: a live clerk may wait longer than the cadence on checks.
 clerk_walk() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" base_id stale now ct r age st
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" base_id stale now ct r age st refs rc
   base_id="$(git -C "$ROOT" rev-parse --verify -q \
     "refs/remotes/origin/${base_branch}^{commit}" </dev/null 2>/dev/null)"
   if [ -z "$base_id" ]; then
     printf '%s\t%s\t%s\n' '?' 'clerk-unreadable' 'unreadable'
     return 0
   fi
-  stale="$(num_knob JOHARNESS_CLERK_STALE_HOURS 24)"
+  stale="$(clerk_stale_s)"
   now="$(date +%s)"
+  # Read whole first: a failed read is UNREADABLE, never "nothing in flight".
+  refs="$(git -C "$ROOT" for-each-ref --no-merged="$base_id" \
+    --format='%(committerdate:unix)%09%(refname)' 'refs/remotes/origin/clerk-[0-9]*' \
+    </dev/null 2>/dev/null)"; rc=$?
+  if [ "$rc" -ne 0 ]; then
+    printf '%s\t%s\t%s\n' '?' 'clerk-unreadable' 'unreadable'
+    return 0
+  fi
   while IFS=$'\t' read -r ct r; do
     case "$ct" in '' | *[!0-9]*) continue ;; esac
     r="${r#refs/remotes/origin/}"
     age=$(( (now - ct) / 3600 ))
     [ "$age" -ge 0 ] || age=0
-    if [ $((now - ct)) -lt $((stale * 3600)) ]; then st=in-flight; else st=abandoned; fi
+    # Either side of now: a tip dated ahead by more than the window is a
+    # broken clock, and holds nothing either.
+    if [ $((now - ct)) -lt "$stale" ] && [ $((ct - now)) -lt "$stale" ]; then
+      st=in-flight
+    else
+      st=abandoned
+    fi
     printf '%s\t%s\t%s\n' "$r" "tip-${age}h" "$st"
-  done < <(git -C "$ROOT" for-each-ref --no-merged="$base_id" \
-    --format='%(committerdate:unix)%09%(refname)' 'refs/remotes/origin/clerk-[0-9]*' \
-    </dev/null 2>/dev/null)
+  done <<<"$refs"
 }
 
 # Is a clerk due. CLERK_ROWS is read whatever the clock says: a clerk in

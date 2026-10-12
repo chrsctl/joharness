@@ -30,7 +30,8 @@ Cut `clerk-<UTC date>` from fresh-fetched `origin/main` (Loop step 3); that
 name already on origin = add `-b`, `-c`, … (never force push). The clerk
 writes NO workstream file and does no retire round-trip: the plan-only pull
 request and its body are the record, and `./joharness.sh clerk` reads the
-cycle from git — your merge on `origin/main`'s first parent dates it; your
+cycle from git — your merge on `origin/main`'s first parent, under GitHub's
+default subject `Merge pull request #N from <owner>/clerk-…`, dates it; your
 unmerged branch reads IN FLIGHT until its tip is
 `JOHARNESS_CLERK_STALE_HOURS` old (24 by default), then abandoned. Push the
 branch as soon as the first plan is committed.
@@ -38,7 +39,10 @@ branch as soon as the first plan is committed.
 **Twin check** after that first push: `git fetch --prune origin
 '+refs/heads/*:refs/remotes/origin/*'` (FAILED = stop, report), then
 `./joharness.sh clerk`. Carry on ONLY when your branch is the one clerk in
-flight; else report `TWIN: deferred` and exit with no pull request.
+flight, or sorts FIRST by name among those in flight (`clerk-2026-10-13`
+before `clerk-2026-10-13-b`): without that tiebreak twins both defer and
+both hold the cycle for the stale window. Else report `TWIN: deferred` and
+exit with no pull request.
 
 ## 2. Read
 

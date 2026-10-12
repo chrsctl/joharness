@@ -249,8 +249,9 @@ refute "(c) a clerk branch older than JOHARNESS_CLERK_STALE_HOURS holds nothing"
 expect "(c) and the clock reads DUE again" "cadence   : DUE — " "$out"
 out="$(clerk_run JOHARNESS_CLERK_STALE_HOURS=48)"
 expect "the window is the knob's" "clerk-2026-02-03  tip-25h  in-flight" "$out"
-out="$(clerk_run JOHARNESS_CLERK_HOURS=1)"
-refute "never tied to JOHARNESS_CLERK_HOURS" "IN FLIGHT" "$out"
+out="$(clerk_run JOHARNESS_CLERK_STALE_HOURS=0)"
+expect "a window of 0 fails closed: every unmerged clerk branch holds" \
+  "clerk-2026-02-03  tip-25h  in-flight" "$out"
 
 # (b) A fresh unmerged clerk branch is IN FLIGHT.
 clerk_branch clerk-2026-02-04 docs/plans/clerk-made.md "$(clerk_ago 0)"
@@ -260,6 +261,25 @@ expect "(b) a fresh unmerged clerk branch is IN FLIGHT" \
 expect "(b) and is named, in scout_walk's row shape" "clerk-2026-02-04  tip-0h  in-flight" "$out"
 refute "(b) no DUE line beside it" "cadence   : DUE" "$out"
 refute "(b) the abandoned one is not listed" "clerk-2026-02-03" "$out"
+# A cadence shorter than the tip's age must not abandon it (verifier r6).
+clerk_branch clerk-2026-02-04-b docs/plans/slow-checks.md "$(clerk_ago 2)"
+out="$(clerk_run JOHARNESS_CLERK_HOURS=1)"
+expect "the window is never JOHARNESS_CLERK_HOURS: a 2h tip under a 1h cadence holds" \
+  "clerk-2026-02-04-b  tip-2h  in-flight" "$out"
+# A fixture ref only: gone again so the cases below read one clerk.
+git -C "$clerk_work" push -q origin --delete clerk-2026-02-04-b
+git -C "$clerk_work" fetch -q --prune origin
+# A tip dated years ahead is a broken clock: it holds nothing.
+git -C "$clerk_work" checkout -qb clerk-2026-02-04-c main
+printf 'x\n' >"${clerk_work}/ahead.txt"
+clerk_commit "clock ahead" '2099-01-01T00:00:00Z'
+git -C "$clerk_work" push -qu origin clerk-2026-02-04-c
+git -C "$clerk_work" checkout -q main
+out="$(clerk_run)"
+refute "a tip dated far ahead holds nothing (verifier r2)" "clerk-2026-02-04-c" "$out"
+out="$(clerk_run JOHARNESS_CLERK_STALE_HOURS=0)"
+expect "while the same ref with no window does: the reader saw it" \
+  "clerk-2026-02-04-c  tip-0h  in-flight" "$out"
 out="$(clerk_dsp)"
 expect "(b) dispatch says IN FLIGHT" "clerk     : IN FLIGHT, so none is due" "$out"
 refute "(b) and spawns no clerk" "clerk DUE: spawn" "$out"
@@ -268,6 +288,15 @@ refute "(b) and spawns no clerk" "clerk DUE: spawn" "$out"
 GIT_COMMITTER_DATE="$(clerk_ago 2)" GIT_AUTHOR_DATE="$(clerk_ago 2)" \
   git -C "$clerk_work" merge -q --no-ff \
   -m "Merge pull request #12 from owner/clerk-2026-02-04" clerk-2026-02-04
+# A nested name is no clerk branch to the in-flight reader, so none to the
+# landed reader either (verifier r9): merged after #12, it must not
+# take its place.
+git -C "$clerk_work" checkout -qb clerk-9/sub main
+printf 'n\n' >"${clerk_work}/nested.txt"
+clerk_commit "nested"
+git -C "$clerk_work" checkout -q main
+GIT_COMMITTER_DATE="$(clerk_ago 1)" GIT_AUTHOR_DATE="$(clerk_ago 1)" \
+  git -C "$clerk_work" merge -q --no-ff -m "Merge pull request #11 from owner/clerk-9/sub" clerk-9/sub
 git -C "$clerk_work" push -q origin main
 out="$(clerk_run)"
 expect "(a) a clerk merged two hours ago is not due, and names the merge" \
@@ -313,6 +342,12 @@ out="$(clerk_run)"
 expect "(d) a no-op record is dated by its name" \
   "cadence   : DUE — 30h since the last clerk pass found nothing to plan (clerk-noop-${clerk_s30})" "$out"
 refute "(d) a malformed stamp dates nothing" "20269999T999999Z" "$out"
+git -C "$clerk_work" push -q origin "${clerk_main}:refs/heads/clerk-noop-20991231T000000Z"
+git -C "$clerk_work" fetch -q origin
+out="$(clerk_run)"
+refute "(d) a stamp far ahead dates nothing: it would pin the cycle (verifier r2)" \
+  "20991231T000000Z" "$out"
+expect "(d) and the clock still reads the real record" "cadence   : DUE — 30h" "$out"
 clerk_s1="$(clerk_stamp 1)"
 git -C "$clerk_work" push -q origin "${clerk_main}:refs/heads/clerk-noop-${clerk_s1}"
 git -C "$clerk_work" fetch -q origin
@@ -343,7 +378,17 @@ expect "(h) a clerk in flight under a not-due clock is counted" \
   "clerk     : IN FLIGHT, so none is due. Clock: not-due" "$out"
 expect "(h) it takes a slot" "slots     : 3 of 4 free (1 role session(s) in flight" "$out"
 refute "(h) and the scout spawns none" "scout DUE: spawn" "$out"
-expect "(h) the scout waits on the clerk" "scout due, suppressed" "$out"
+expect "(h) the scout waits on the clerk" \
+  "scout due, suppressed — a curate or clerk goes first" "$out"
+
+# A landing NEWER than the no-op record dates the clock (verifier r7).
+GIT_COMMITTER_DATE="$(clerk_ago 0)" GIT_AUTHOR_DATE="$(clerk_ago 0)" \
+  git -C "$clerk_work" merge -q --no-ff \
+  -m "Merge pull request #4 from owner/clerk-2026-02-05-b" clerk-2026-02-05-b
+git -C "$clerk_work" push -q origin main
+out="$(clerk_run)"
+expect "a landing newer than the no-op record dates the clock" \
+  "0h since the last clerk landed (clerk-2026-02-05-b, #4)" "$out"
 
 # --- the plan's issue: is linted --------------------------------------------
 # Through the graph-lint topic's own fixture and helpers (listed just before
