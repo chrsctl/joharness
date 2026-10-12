@@ -8,7 +8,7 @@ issue: 426
 session: https://claude.ai/code/session_01BrGNHzCYCmJpsPdgCmgSmJ
 agent: sonnet
 updated: 2026-10-12
-next: Edit clerk.md §2/§3 and orchestrate.md Never, run ci + verify, review, retire, PR
+next: Await verifier (a7f471098ef8d6f72), record ## Review, retire plan+workstream, PR, merge
 ---
 
 ## Goal
