@@ -1,6 +1,6 @@
 ---
 workstream: scout-backlog-clock
-status: in-progress
+status: done
 branch: manage/scout-backlog-clock
 pr: none
 plan: scout-backlog-clock
