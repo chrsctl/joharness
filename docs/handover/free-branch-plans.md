@@ -8,7 +8,7 @@ issue: 423
 session: https://claude.ai/code/session_01Nm4goRUANzvNDQdDAJ5Ubr
 agent: opus
 updated: 2026-10-12
-next: ci + verify green on the round-3 fixes, then retire and open the pull request
+next: ci + verify green on the round-4 fixes, then retire and open the pull request
 ---
 
 ## Goal
@@ -71,6 +71,12 @@ branch, and an empty done branch, a mechanical path to main via
 - r18: (verifier, round 3) manage.md filed "already merged into <your branch>" as nothing-to-free, stranding a pushed merge with no claim or pull request; several refusals were unclassified; a fetch failure read "no such branch". (fixed — manage.md names each refusal's class; `free` asks `ls-remote` first: gone vs unreachable)
 - r19: (verifier, round 3) any merge subject `free: merge <x>` hid owner x. (fixed by r16 — subjects are no longer read; dispatch.sh spoof-d case)
 - r20: (verifier, round 3) r15's first-match-only had no failing test. (fixed — free.sh col case)
+- r21: (verifier, round 4) `free_claimed_ever` read the path only: a builder file `free-text.md` (plan `free-text`) — this branch's own file included — made its branch a freer that hid any owner it contains. (fixed — the added file's content must read `workstream: free-*`, `plan: none`, as dispatch_rescope_branches reads a claim; dispatch.sh gone-ft case)
+- r22: (verifier, round 4) a free branch whose claim was retired but whose pull request never opened (or closed) held its owner forever: no workstream file for janitor to release. (fixed — a retired claim whose last push is past HANDOVER_STALE_SECONDS is no freer; a pull request open that long may see the owner offered twice, accepted; dispatch.sh gone-st case)
+- r23: (verifier, round 4) after a reset, manage.md's hand-merge path then hit "already merged into <your branch>" = §4 with free's steps 2–4 never run. (fixed — manage.md lists the steps to do by hand; that refusal means done only after `free` committed)
+- r24: (verifier, round 4) an owner-edited plan retired by a done record recovered from pre, the base's version. (fixed — the recover source is whichever commit holds the blob the merge produced; free.sh own-ed case)
+- r25: (verifier, round 4) r18's gone/unreachable split had no test. (fixed for gone — free.sh nope case; the unreachable arm needs a base fetch that succeeds and an ls-remote that fails, not built: wontfix, a plain `rerun` message)
+- r26: (verifier, round 4) "free takes another branch" had no manage.md class, so the manager looped. (fixed — nothing-to-free class)
 - r9: (verifier) the author's "610 passed" came from a scratch runner with a topic filter (`ONLY_TOPICS` copy of selftest.sh in the scratchpad), not a repo command. (no change — measured numbers in the PR body come from `bash .agents/harness/selftest.sh`)
 
 ## Blockers

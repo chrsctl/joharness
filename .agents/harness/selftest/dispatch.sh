@@ -3365,14 +3365,10 @@ expect "the claim is a manager in flight" "  free-gone-q  mgr-free-q  in-progres
 refute "and the claim's own branch is never FREEABLE" "free mgr-free-q (agent" "$out"
 # Past its retire commit the claim file is gone, the pull request open: the
 # owner sits merged in the manager's branch, so neither is offered (r3).
-# Both commits dated old: the manager's own branch is past the stale window,
-# so only the `free: merge` reading keeps it off the list (round 2, v5).
 git -C "$bpwork" checkout -q mgr-free-q
-GIT_COMMITTER_DATE='2026-01-02T00:00:00Z' GIT_AUTHOR_DATE='2026-01-02T00:00:00Z' \
-  git -C "$bpwork" merge -q --no-ff -m "free: merge gone-q (fixture)" gone-q
+git -C "$bpwork" merge -q --no-ff -m "free: merge gone-q (fixture)" gone-q
 git -C "$bpwork" rm -q docs/handover/free-gone-q.md
-GIT_COMMITTER_DATE='2026-01-02T00:00:00Z' GIT_AUTHOR_DATE='2026-01-02T00:00:00Z' \
-  git -C "$bpwork" commit -qm "retire the free claim"
+commit_all "$bpwork" "retire the free claim"
 git -C "$bpwork" push -q origin mgr-free-q
 git -C "$bpwork" checkout -q main
 out="$(bp)"
@@ -3396,13 +3392,53 @@ GIT_COMMITTER_DATE='2026-01-02T00:00:00Z' GIT_AUTHOR_DATE='2026-01-02T00:00:00Z'
 GIT_COMMITTER_DATE='2026-01-02T00:00:00Z' GIT_AUTHOR_DATE='2026-01-02T00:00:00Z' \
   git -C "$bpwork" merge -q --no-ff --no-edit gone-hm
 git -C "$bpwork" rm -q docs/handover/free-gone-hm.md
-GIT_COMMITTER_DATE='2026-01-02T00:00:00Z' GIT_AUTHOR_DATE='2026-01-02T00:00:00Z' \
-  git -C "$bpwork" commit -qm "retire the free claim"
+commit_all "$bpwork" "retire the free claim"
 git -C "$bpwork" push -qu origin mgr-free-hm
 git -C "$bpwork" checkout -q main
 out="$(bp)"
 refute "a hand-merged free still holds its owner" "free gone-hm (agent" "$out"
 refute "and its manager's branch is never offered" "free mgr-free-hm (agent" "$out"
+# A retired claim past the stale window: its session is gone and no pull
+# request merged it; nothing else can release it, so it holds nothing (round 4).
+git -C "$bpwork" checkout -qb gone-st main
+bpplan "${bpwork}/docs/plans/fst.md" fst normal
+git -C "$bpwork" add -A
+GIT_COMMITTER_DATE='2026-01-01T00:00:00Z' GIT_AUTHOR_DATE='2026-01-01T00:00:00Z' \
+  git -C "$bpwork" commit -qm "file fst, long ago"
+git -C "$bpwork" push -qu origin gone-st
+git -C "$bpwork" checkout -qb mgr-free-st main
+mkdir -p "${bpwork}/docs/handover"
+printf -- '---\nworkstream: free-gone-st\nstatus: in-progress\nbranch: mgr-free-st\npr: none\nplan: none\nagent: sonnet\nupdated: 2026-01-01\nnext: Free\n---\n\n## Goal\nFixture.\n' \
+  >"${bpwork}/docs/handover/free-gone-st.md"
+git -C "$bpwork" add -A
+GIT_COMMITTER_DATE='2026-01-02T00:00:00Z' GIT_AUTHOR_DATE='2026-01-02T00:00:00Z' \
+  git -C "$bpwork" commit -qm "claim free gone-st"
+GIT_COMMITTER_DATE='2026-01-02T00:00:00Z' GIT_AUTHOR_DATE='2026-01-02T00:00:00Z' \
+  git -C "$bpwork" merge -q --no-ff -m "free: merge gone-st (fixture)" gone-st
+git -C "$bpwork" rm -q docs/handover/free-gone-st.md
+GIT_COMMITTER_DATE='2026-01-02T00:00:00Z' GIT_AUTHOR_DATE='2026-01-02T00:00:00Z' \
+  git -C "$bpwork" commit -qm "retire the free claim, then the session died"
+git -C "$bpwork" push -qu origin mgr-free-st
+git -C "$bpwork" checkout -q main
+# A builder file named free-* for a plan of that name is no free claim
+# (round 4): its branch, cut from an owner, never holds it.
+git -C "$bpwork" checkout -qb gone-ft main
+bpplan "${bpwork}/docs/plans/fft.md" fft normal
+git -C "$bpwork" add -A
+GIT_COMMITTER_DATE='2026-01-01T00:00:00Z' GIT_AUTHOR_DATE='2026-01-01T00:00:00Z' \
+  git -C "$bpwork" commit -qm "file fft, long ago"
+git -C "$bpwork" push -qu origin gone-ft
+git -C "$bpwork" checkout -qb build-ft gone-ft
+mkdir -p "${bpwork}/docs/handover"
+printf -- '---\nworkstream: free-text\nstatus: in-progress\nbranch: build-ft\npr: none\nplan: free-text\nagent: sonnet\nupdated: 2026-01-01\nnext: Build\n---\n\n## Goal\nFixture.\n' \
+  >"${bpwork}/docs/handover/free-text.md"
+commit_all "$bpwork" "builder of plan free-text"
+git -C "$bpwork" push -qu origin build-ft
+git -C "$bpwork" checkout -q main
+out="$(bp)"
+expect "a stale retired free claim no longer holds its owner" "  free gone-st (agent: sonnet)  FREEABLE" "$out"
+expect "a free-* file that is a builder's, not a claim, holds nothing" \
+  "  free gone-ft (agent: sonnet)  FREEABLE" "$out"
 # A released free claim lends nothing: its owner is offered again (r4).
 git -C "$bpwork" checkout -qb gone-w main
 bpplan "${bpwork}/docs/plans/fw.md" fw normal

@@ -190,6 +190,10 @@ else
   fail "a refused free committed"
 fi
 
+fclaim mgr-nope nope
+out="$(ffree nope)"
+git -C "$fwork" checkout -q mgr-b
+expect "a branch origin lacks is gone, not unreachable" "nope — no such branch on origin" "$out"
 out="$(ffree main)"; rc=$?
 if [ "$rc" -ne 0 ]; then
   pass "the base branch is refused"
@@ -331,6 +335,22 @@ expect "an owner-added retired file recovers from the owner's tip" \
 ftree="$(git -C "$fwork" ls-tree -r --name-only HEAD)"
 refute "a stem in plans and research retires the plan" "docs/plans/col.md" "$ftree"
 expect "and keeps the research file" "docs/research/col.md" "$ftree"
+# An owner that EDITED the base's plan, then wrote it done: the version
+# deleted is the owner's, so it recovers from the owner's tip (round 4).
+git -C "$fwork" checkout -q main
+fplan edited other.txt
+commit_all "$fwork" "plan edited"
+git -C "$fwork" push -q origin main
+git -C "$fwork" checkout -q -b own-ed origin/main
+printf 'Owner note.\n' >>"${fwork}/docs/plans/edited.md"
+fws "${fwork}/docs/handover/ed.md" ed "done" edited
+commit_all "$fwork" "owner edits edited and writes it done"
+git -C "$fwork" push -qu origin own-ed
+fedtip="$(git -C "$fwork" rev-parse HEAD)"
+fclaim mgr-ed own-ed
+out="$(ffree own-ed)"
+expect "an owner-edited retired plan recovers from the owner's tip" \
+  "git show ${fedtip:0:12}:docs/plans/edited.md" "$out"
 # A live claim elsewhere holds the plan: the free keeps it (round 2, v3).
 git -C "$fwork" checkout -q main
 fplan built other.txt

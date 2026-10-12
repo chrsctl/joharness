@@ -3089,10 +3089,17 @@ cmd_free() {
     fi
     for p in "docs/plans/${wplan}.md" "docs/research/${wplan}.md"; do
       git -C "$ROOT" ls-files --error-unmatch -- "$p" >/dev/null 2>&1 || continue
+      # The version deleted is the merge's: the base's when the merge kept
+      # it, else the owner's.
+      if [ "$(git -C "$ROOT" rev-parse -q --verify ":${p}" 2>/dev/null)" = \
+           "$(git -C "$ROOT" rev-parse -q --verify "${pre}:${p}" 2>/dev/null)" ]; then
+        hb="$pre"
+      else
+        hb="$tip"
+      fi
       git -C "$ROOT" rm -q -f -- "$p" >/dev/null 2>&1 || continue
       printf 'retire    : %s — %s reads status: done\n' "$p" "$f"
-      # The version deleted is the base's, not the owner's: recover from pre.
-      retired="${retired}${p}"$'\n'
+      retired="${retired}${hb:0:12}:${p}"$'\n'
       break
     done
   done <<<"$added_wf"
@@ -3140,8 +3147,8 @@ cmd_free() {
   done < <(git -c core.quotePath=false -C "$ROOT" diff --name-only 2>/dev/null)
 
   if ! git -C "$ROOT" commit -q --no-edit -m "free: merge ${owner} (${tip:0:12})" \
-       -m "$(printf 'Dropped, each recoverable with git show %s:<path>:\n%s\nRetired, recoverable from %s (else %s):\n%s' \
-             "${tip:0:12}" "${dropped:-none}" "${pre:0:12}" "${tip:0:12}" "${retired:-none}")" </dev/null >/dev/null 2>&1; then
+       -m "$(printf 'Dropped, each recoverable with git show %s:<path>:\n%s\nRetired, each recoverable with git show <line>:\n%s' \
+             "${tip:0:12}" "${dropped:-none}" "${retired:-none}")" </dev/null >/dev/null 2>&1; then
     git -C "$ROOT" merge --abort 2>/dev/null || git -C "$ROOT" reset -q --hard "$pre"
     printf 'FAILED    : commit refused — merge aborted, nothing committed\n'
     return 1
@@ -3167,12 +3174,7 @@ cmd_free() {
     done <<<"$dropped"
     while IFS= read -r f; do
       [ -n "$f" ] || continue
-      # The version deleted: the base's when it had one, else the owner's.
-      if git -C "$ROOT" cat-file -e "${pre}:${f}" 2>/dev/null; then
-        printf '  git show %s:%s\n' "${pre:0:12}" "$f"
-      else
-        printf '  git show %s:%s\n' "${tip:0:12}" "$f"
-      fi
+      printf '  git show %s\n' "$f"
     done <<<"$retired"
   fi
   return 0
@@ -5799,14 +5801,37 @@ dispatch_branch_plans() {
 
 # Did <ref> ADD a `free-*` workstream file since it left the base? Its
 # retire commit may have deleted it since: the add still says whose it is.
+# The claim's identity is its content, as dispatch_rescope_branches reads it
+# (`workstream: free-*`, `plan: none`), never its path: a plan named free-x
+# has a builder file of that name. Read at the commit that added it. A
+# branch whose claim is retired and whose last push is past
+# HANDOVER_STALE_SECONDS is no freer: its session is gone, its pull request
+# never opened or was closed, and nothing else can release it.
 free_claimed_ever() {
-  local base
+  local base line h="" doc ws wp age
   base="$(git -C "$ROOT" merge-base "$1" \
     "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" </dev/null 2>/dev/null)" || return 1
   [ -n "$base" ] || return 1
-  git -c core.quotePath=false -C "$ROOT" log --no-renames --diff-filter=A \
-    --name-only --format= "${base}..$1" -- docs/handover </dev/null 2>/dev/null |
-    grep -q '^docs/handover/free-'
+  while IFS= read -r line; do
+    case "$line" in
+      '') continue ;;
+      'C '*) h="${line#C }"; continue ;;
+      docs/handover/free-*) ;;
+      *) continue ;;
+    esac
+    doc="$(git -C "$ROOT" show "${h}:${line}" </dev/null 2>/dev/null)" || continue
+    { read -r ws; read -r wp; } <<<"$(printf '%s\n' "$doc" | gr_fields workstream plan)"
+    case "$ws" in free-?*) ;; *) continue ;; esac
+    [ "$wp" = none ] || continue
+    if ! git -C "$ROOT" cat-file -e "${1}:${line}" 2>/dev/null; then
+      age="$(dispatch_age_min "${1#refs/remotes/origin/}")"
+      [ -z "$age" ] ||
+        [ $((age * 60)) -lt "$(num_knob HANDOVER_STALE_SECONDS 518400)" ] || continue
+    fi
+    return 0
+  done < <(git -c core.quotePath=false -C "$ROOT" log --no-renames --diff-filter=A \
+    --name-only --format='C %H' "${base}..$1" -- docs/handover </dev/null 2>/dev/null)
+  return 1
 }
 
 # FREEABLE (`free <branch>`, #423): an unmerged branch whose every path is
