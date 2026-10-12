@@ -903,6 +903,15 @@ out="$(CLAUDE_PROJECT_DIR="$lwork" JOHARNESS_CONF="${lwork}/joharness.conf" \
 expect "a document named none is still a document" \
   "doc      docs/research/none.md" "$out"
 refute "and VISION.md is not counted at all" "VISION.md" "$out"
+before="$(lint_section "$(lint_ci)" | grep -o '[0-9]* requirements')"
+mkdir -p "${lwork}/docs/product"
+printf '# Brief\n' >"${lwork}/docs/product/SCOUT.md"
+git -C "$lwork" add docs/product/SCOUT.md
+git -C "$lwork" commit -qm "a scout brief"
+out="$(lint_section "$(lint_ci)")"
+refute "docs/product/SCOUT.md draws no lint line" "SCOUT.md" "$out"
+expect "docs/product/SCOUT.md is not counted as a requirement" "$before" "$out"
+fixture_rm "$lwork" "drop the scout brief" docs/product/SCOUT.md
 fixture_rm "$lwork" "drop the none fixtures" \
   docs/plans/no-edges.md docs/research/none.md docs/research/VISION.md
 

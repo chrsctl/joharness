@@ -108,6 +108,11 @@ request, merge, exit.
   `conflict:`); none applies = the work is yours, do it. `status: blocked`,
   `next:` = `<reason>: <question>`, push, exit. A blocked item is never
   respawned; dispatch flags a `next:` with no reason as `INVALID BLOCK?`.
+  Before pushing `status: blocked`, apply `human-review` (label:
+  `.agents/docs/orchestrated.md`, Bounds) with `issue_write` (method `update`, labels =
+  existing plus `human-review`) to the branch's open pull request, if any, and
+  the plan's `issue: N`, if set. `issue_write` fails = say so in `next:` after
+  the question, still push, still exit.
 - "Cannot run X here" is a hypothesis. Before stopping, read
   `.agents/env/<name>/` docs and the repo's setup notes. Still impossible =
   `status: blocked` with a reason `block_reason_ok` accepts
@@ -124,6 +129,10 @@ Step 5 review at your tier with `.claude/agents/verifier.md` (findings tagged
 the last commit before the pull request, merge, exit. The orchestrator reads
 your merge from git; you send nothing for it.
 
+At merge, read the pull request's labels (`pull_request_read` `get`). It
+carries `human-review` = do not merge. Set `status: blocked`,
+`next:` = `product: human-review label on PR #<n>`, push, exit.
+
 Carried plan (§0 item 2)? The retire commit also appends `- <stem> <your
 branch>` to `docs/plans/RETIRED.md` (absent = create it, first line
 `# Retired stems`) and deletes your copy of the plan file. Found it already
@@ -133,7 +142,12 @@ leaves the retire on a branch only.
 
 Plan names `issue: N`? Body carries `Closes #N` when no other plan on fresh
 `origin/main` names it (`git grep -l -E '^issue: *#?N([^0-9]|$)' origin/main
--- docs/plans`, yours excluded), else `Refs #N`. A follow-up plan you filed as
+-- docs/plans`, yours excluded), else `Refs #N`. That issue's labels
+(`issue_read`, `get_labels`, one read when you open the pull request)
+include `scout`, or its title starts `scout:`? Title starts `scout: ` and the pull request carries the
+label `scout` (`issue_write` update on its number, labels); a follow-up
+plan-only pull request for that work too. Nothing in the plan file marks
+it. A follow-up plan you filed as
 its own plan-only pull request is yours too: drive it to merged, step 7
 whole, before you exit.
 
@@ -184,5 +198,6 @@ each with the command and output that produced it.
 - Wait in the session for a human's answer — any ask tool included
   (AskUserQuestion). A question is a push: `status: blocked`, `next:` = `<reason>: <question>`, push, exit (§3).
 - Wait in the session for GitHub to come back at step 7.
+- Remove `human-review` from any issue or pull request.
 
 $ARGUMENTS

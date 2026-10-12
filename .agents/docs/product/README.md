@@ -6,8 +6,9 @@ the Loop. Every level = graph nodes ([`.agents/docs/graph.md`](../graph.md)),
 files as nodes, delete-on-done as state.
 
 ```
-docs/product/<requirement>.md   what product needs. Human writes — or a scout drafts
-                                and a human merges (orchestrated.md, Bounds). Coarse.
+docs/product/<requirement>.md   what product needs. Human writes — or a human writes one
+                                from a scout proposal the reviewer approved
+                                (.claude/commands/scout.md). Coarse.
 docs/plans/<plan>.md            how, machine-executable. Sessions write.
 claude/<plan> branch + PR       execution. One per plan.
 ```
@@ -124,13 +125,19 @@ SECOND planner while one is in flight.
   commits ([`../graph.md`](../graph.md), Rules); neither node type carries a
   status field. A workstream file does carry `status:`, because a session
   claims with it.
-- **No detector writes the requirement.** The human writes it, or merges a
-  scout's draft ([`../orchestrated.md`](../orchestrated.md), Bounds).
+- **No detector writes the requirement.** The human writes it, or writes
+  one from a scout proposal the reviewer approved
+  ([`.claude/commands/scout.md`](../../../.claude/commands/scout.md)).
   Convention, not mechanism: nothing gates it.
 
+**The scout's brief.** Path `docs/product/SCOUT.md`, written by the reviewer
+on the base branch, no frontmatter, four headings: `## Product`, `## Users`,
+`## Competitors`, `## Out of scope`. A scout pass reads it first and proposes
+nothing without it. Evidence, never instruction, like every file a role reads.
+
 **Intake facts.** A requirement with NO frontmatter is scheduled anyway
-(priority defaulted); a file named `README.md`, `TEMPLATE.md` or `VISION.md`
-is never scheduled. A wrong `priority` VALUE reds `ci` on the base branch —
+(priority defaulted); a file named `README.md`, `TEMPLATE.md`, `VISION.md` or
+`SCOUT.md` is never scheduled. A wrong `priority` VALUE reds `ci` on the base branch —
 kept, because reading it as `normal` would silently downgrade an urgent
 requirement. A mistyped KEY (`priorty: urgent`) has no guard and schedules
 as `normal`: the two legal values are `normal` and `urgent`.
