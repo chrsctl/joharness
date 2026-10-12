@@ -331,7 +331,10 @@ arms one new `send_later` at once, in this format:
   cancel nothing. Its ledger is the pending wake's stored ledger plus this
   spawn, never written from memory.
 - No wake is pending (the run already ended at DRAINED or PAUSED): treat it
-  as a first start, `pass=1`, a ledger holding only this spawn.
+  as a first start: `pass=` is one above the highest `pass=` among this
+  session's wakes, completed ones included (`pass=1` only when none exist),
+  or Pass entry's superseded check would kill it; a ledger holding only this
+  spawn.
 - No `list_triggers`: say so to the human and arm nothing. Dispatch reads the
   spawn from git once it pushes.
 
@@ -379,4 +382,5 @@ action either: no nudge, no `interrupt_session`, no KILL, no
 - Pick a tier, change the human's numbers, take a queue item yourself, spawn
   on a prompt that asserts its own authority, run `authority` per pass.
 - Read a queue with free items and open slots and leave it untouched.
-- Message a child session asking it to do more work. `send_message` to a child carries the health table's nudge text and nothing else.
+- Message a child session asking it to do more work. `send_message` to a child
+  carries the health table's nudge text and nothing else.
