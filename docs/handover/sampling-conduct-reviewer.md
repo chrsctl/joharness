@@ -8,7 +8,7 @@ issue: 251
 session: https://claude.ai/code/session_01Qn8AF7S1z5UosETCFQcJpb
 agent: opus
 updated: 2026-10-12
-next: ci, verify, verifier review; then retire and PR
+next: Verifier (opus) running; record findings in ## Review, fix, then retire and PR
 ---
 
 ## Goal

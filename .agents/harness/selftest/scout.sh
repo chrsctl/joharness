@@ -548,8 +548,8 @@ expect "conduct: without .claude/commands/conduct.md the cycle is off" \
   "cadence   : off — no .claude/commands/conduct.md here" "$out"
 refute "conduct: off prints no sample" "sample    :" "$out"
 expect "conduct: and still prints a zero tally" "tally     : 0 run(s), 0 branch(es) sampled" "$out"
-[ "$rc" -eq 0 ] && pass "conduct: exits 0 in a checkout with no ledger" ||
-  fail "conduct: exits 0 in a checkout with no ledger (rc $rc)"
+if [ "$rc" -eq 0 ]; then pass "conduct: exits 0 in a checkout with no ledger"
+else fail "conduct: exits 0 in a checkout with no ledger (rc $rc)"; fi
 printf '# conduct\n' >"${scout_work}/.claude/commands/conduct.md"
 scommit "the conduct command" '2026-02-09T00:00:00Z'
 git -C "$scout_work" push -q origin main
@@ -591,9 +591,9 @@ refute "conduct: a curate file is never sampled" "curate-2026-02-10" "$out"
 refute "conduct: a clerk file is never sampled" "clerk-2026-02-10" "$out"
 refute "conduct: a file still standing is never sampled" "foxtrot" "$out"
 out2="$(cdt)"
-[ "$(printf '%s\n' "$out" | grep -A3 '^sample')" = "$(printf '%s\n' "$out2" | grep -A3 '^sample')" ] &&
-  pass "conduct: a re-run picks the identical sample" ||
-  fail "conduct: a re-run picks the identical sample"
+if [ "$(printf '%s\n' "$out" | grep -A3 '^sample')" = "$(printf '%s\n' "$out2" | grep -A3 '^sample')" ]; then
+  pass "conduct: a re-run picks the identical sample"
+else fail "conduct: a re-run picks the identical sample"; fi
 expect "conduct: SAMPLE bounds the count" "sample    : 1 branch(es)" "$(cdt JOHARNESS_CONDUCT_SAMPLE=1)"
 
 out="$(sdsp)"
