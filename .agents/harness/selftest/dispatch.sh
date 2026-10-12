@@ -3262,7 +3262,7 @@ bdowner own-po po
 git -C "$bpwork" checkout -qb build-po main
 bddone "${bpwork}/docs/handover/build-po.md" po
 commit_all "$bpwork" "builder writes po done"
-sed -i 's/^status: done$/status: in-progress/; s/^plan: po$/plan: `po`/' \
+sed -i "s/^status: done\$/status: in-progress/; s/^plan: po\$/plan: \`po\`/" \
   "${bpwork}/docs/handover/build-po.md"
 commit_all "$bpwork" "builder reopens po, backticked"
 git -C "$bpwork" push -qu origin build-po
