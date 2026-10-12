@@ -45,6 +45,13 @@ record, and `./joharness.sh conduct` reads the cycle from git (an unmerged
 `conduct-*` branch = in flight). The sample is the one `./joharness.sh
 conduct` printed at step 0; never choose one, never add or drop a stem.
 
+**Twin check** after your first push: `git fetch --prune origin
+'+refs/heads/*:refs/remotes/origin/*'` (FAILED = stop, report), then
+`./joharness.sh conduct`. Carry on ONLY when your branch is the one row IN
+FLIGHT and the clock still reads `due`; else report `TWIN: deferred` and
+exit with no pull request. Push the branch before the twin check: cut it,
+push it, then read.
+
 ## 2. Read, per sampled stem
 
 ```bash

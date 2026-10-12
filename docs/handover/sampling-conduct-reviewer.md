@@ -8,7 +8,7 @@ issue: 251
 session: https://claude.ai/code/session_01Qn8AF7S1z5UosETCFQcJpb
 agent: opus
 updated: 2026-10-12
-next: Docs (orchestrated.md), conf keys, selftest cases; then ci, verify, review
+next: ci, verify, verifier review; then retire and PR
 ---
 
 ## Goal
@@ -42,6 +42,9 @@ spend.
 - Plan said the seeded heredoc lives in the bootstrap selftest; it lives in
   `.agents/scripts/bootstrap-consumer.sh` — edited there (one more file than
   `scope:` names, same intent).
+- Dispatch spawn-line cases live in `selftest/scout.sh`, not `dispatch.sh`:
+  they need the conduct fixture (retired stems, ledger, conduct-* branches)
+  that topic builds; a second fixture in `dispatch.sh` is a copy for nothing.
 
 ## Rejected
 

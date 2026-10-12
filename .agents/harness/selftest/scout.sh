@@ -520,3 +520,165 @@ printf '  JOHARNESS_SCOUT_AUTOMERGE=off\n' >>"$scout_conf"
 scommit "an indented later line turns it off"
 git -C "$scout_work" push -q origin main
 expect "an indented later line wins, as conf_get reads every key" "automerge: off" "$(sct)"
+
+# --- the conduct cycle (issue #251) ------------------------------------------
+# A sampling conduct reviewer: clock dated from the ledger, in flight = an
+# unmerged conduct-* branch (a closed one past a seventh of the window is
+# dropped), a sample picked by sha1(<stem>), never by date, and a tally the
+# owner reads. Same fixture as the scout: its history already holds a retired
+# scout file, which the sample must never offer.
+cdt() { ( cd "$scout_work" && env JOHARNESS_CONF="$scout_conf" "$@" ./joharness.sh conduct 2>&1 ); }
+# <stem> — a manager branch that claimed, retired its file, and merged.
+cretire() {
+  git -C "$scout_work" checkout -qb "m-$1" main
+  mkdir -p "${scout_work}/docs/handover"
+  printf -- '---\nworkstream: %s\nstatus: done\nplan: none\n---\n' "$1" \
+    >"${scout_work}/docs/handover/${1}.md"
+  scommit "claim $1" '2026-02-10T00:00:00Z'
+  git -C "$scout_work" rm -q "docs/handover/${1}.md"
+  scommit "retire $1" '2026-02-10T01:00:00Z'
+  git -C "$scout_work" checkout -q main
+  GIT_COMMITTER_DATE='2026-02-10T02:00:00Z' GIT_AUTHOR_DATE='2026-02-10T02:00:00Z' \
+    git -C "$scout_work" merge -q --no-ff -m "merge $1" "m-$1"
+  git -C "$scout_work" branch -q -D "m-$1"
+}
+
+out="$(cdt)"; rc=$?
+expect "conduct: without .claude/commands/conduct.md the cycle is off" \
+  "cadence   : off — no .claude/commands/conduct.md here" "$out"
+refute "conduct: off prints no sample" "sample    :" "$out"
+expect "conduct: and still prints a zero tally" "tally     : 0 run(s), 0 branch(es) sampled" "$out"
+[ "$rc" -eq 0 ] && pass "conduct: exits 0 in a checkout with no ledger" ||
+  fail "conduct: exits 0 in a checkout with no ledger (rc $rc)"
+printf '# conduct\n' >"${scout_work}/.claude/commands/conduct.md"
+scommit "the conduct command" '2026-02-09T00:00:00Z'
+git -C "$scout_work" push -q origin main
+
+out="$(cdt JOHARNESS_CONDUCT_HOURS=0)"
+expect "conduct: HOURS=0 is the off switch" \
+  "cadence   : off — JOHARNESS_CONDUCT_HOURS=0" "$out"
+refute "conduct: HOURS=0 prints no sample" "sample    :" "$out"
+expect "conduct: SAMPLE=0 is an off switch too" \
+  "cadence   : off — JOHARNESS_CONDUCT_SAMPLE=0" "$(cdt JOHARNESS_CONDUCT_SAMPLE=0)"
+out="$(cdt)"
+expect "conduct: only a retired scout file = due, nothing to sample" \
+  "cadence   : due, nothing to sample" "$out"
+expect "conduct: the scout's retired file is never offered" "sample    : none" "$out"
+out="$(sdsp)"
+expect "dispatch: conduct due with nothing to sample is said" \
+  "conduct   : due, nothing to sample" "$out"
+refute "dispatch: and spawns no reviewer" "conduct DUE: spawn" "$out"
+
+for cstem in alpha bravo charlie delta echo curate-2026-02-10 clerk-2026-02-10; do
+  cretire "$cstem"
+done
+# One still standing on main: not retired, never sampled.
+mkdir -p "${scout_work}/docs/handover"
+printf -- '---\nworkstream: foxtrot\n---\n' >"${scout_work}/docs/handover/foxtrot.md"
+scommit "foxtrot claimed straight on main" '2026-02-10T03:00:00Z'
+git -C "$scout_work" push -q origin main
+
+# The expected sample, computed here the way the plan states it.
+csha() { if command -v sha1sum >/dev/null; then sha1sum; else shasum -a 1; fi | cut -d' ' -f1; }
+cwant="$(for cstem in alpha bravo charlie delta echo; do
+  printf '%s %s\n' "$(printf '%s' "$cstem" | csha)" "$cstem"; done |
+  LC_ALL=C sort | head -3 | cut -d' ' -f2 | sed 's/^/            /')"
+out="$(cdt)"
+expect "conduct: retired manager files make it due" "cadence   : DUE" "$out"
+expect "conduct: the sample is the three lowest sha1(<stem>)" "$cwant" "$out"
+expect "conduct: the sample says how many" "sample    : 3 branch(es)" "$out"
+refute "conduct: a curate file is never sampled" "curate-2026-02-10" "$out"
+refute "conduct: a clerk file is never sampled" "clerk-2026-02-10" "$out"
+refute "conduct: a file still standing is never sampled" "foxtrot" "$out"
+out2="$(cdt)"
+[ "$(printf '%s\n' "$out" | grep -A3 '^sample')" = "$(printf '%s\n' "$out2" | grep -A3 '^sample')" ] &&
+  pass "conduct: a re-run picks the identical sample" ||
+  fail "conduct: a re-run picks the identical sample"
+expect "conduct: SAMPLE bounds the count" "sample    : 1 branch(es)" "$(cdt JOHARNESS_CONDUCT_SAMPLE=1)"
+
+out="$(sdsp)"
+expect "dispatch: due prints the spawn line" \
+  "conduct DUE: spawn ONE conduct reviewer (agent: sonnet) on /conduct — beyond the cap, holds no slot, at most one in flight" "$out"
+out="$(sdsp DISPATCH_FETCH=0)"
+expect "dispatch: no fetch holds the reviewer" "conduct due, held" "$out"
+refute "dispatch: and spawns none" "conduct DUE: spawn" "$out"
+printf '# clerk\n' >"${scout_work}/.claude/commands/clerk.md"
+out="$(sdsp)"
+rm -f "${scout_work}/.claude/commands/clerk.md"
+expect "dispatch: a clerk due goes first" "conduct due, suppressed" "$out"
+refute "dispatch: and no reviewer spawns beside it" "conduct DUE: spawn" "$out"
+
+# Fail closed: a branch listing that errors is UNREADABLE, never due.
+mkdir -p "${TMP}/conduct-gitwrap"
+cat >"${TMP}/conduct-gitwrap/git" <<EOF2
+#!/usr/bin/env bash
+for a in "\$@"; do case "\$a" in refs/remotes/origin/conduct-\*) exit 1 ;; esac; done
+exec "$(command -v git)" "\$@"
+EOF2
+chmod +x "${TMP}/conduct-gitwrap/git"
+out="$(cdt PATH="${TMP}/conduct-gitwrap:${PATH}")"
+expect "conduct: a failed branch listing reads UNREADABLE" "cadence   : UNREADABLE" "$out"
+out="$(sdsp PATH="${TMP}/conduct-gitwrap:${PATH}")"
+expect "dispatch: and says so" "conduct   : UNREADABLE" "$out"
+refute "dispatch: and spawns no reviewer" "conduct DUE: spawn" "$out"
+expect "conduct: no base branch reads UNREADABLE" "cadence   : UNREADABLE" \
+  "$(cdt HANDOVER_BASE_BRANCH=nope)"
+
+# In flight: a fresh unmerged conduct-* branch.
+git -C "$scout_work" checkout -qb conduct-2026-03-01 main
+printf 'x\n' >>"${scout_work}/code.txt"
+scommit "reviewer at work"
+git -C "$scout_work" push -qu origin conduct-2026-03-01
+git -C "$scout_work" checkout -q main
+out="$(cdt)"
+expect "conduct: an open reviewer branch is in flight" "cadence   : IN FLIGHT, so none is due" "$out"
+expect "conduct: the row names it" "conduct-2026-03-01  pushed 0h ago" "$out"
+out="$(sdsp)"
+expect "dispatch: in flight" "conduct   : IN FLIGHT" "$out"
+refute "dispatch: in flight spawns none" "conduct DUE: spawn" "$out"
+git -C "$scout_work" push -q origin --delete conduct-2026-03-01
+git -C "$scout_work" branch -q -D conduct-2026-03-01
+# Closed by a human, unmerged, standing for ever: past a seventh of the
+# window it holds nothing.
+git -C "$scout_work" checkout -qb conduct-2026-02-11 main
+printf 'y\n' >>"${scout_work}/code.txt"
+scommit "a reviewer a human closed" '2026-02-11T00:00:00Z'
+git -C "$scout_work" push -qu origin conduct-2026-02-11
+git -C "$scout_work" checkout -q main
+out="$(cdt)"
+refute "conduct: a closed-unmerged old branch is not in flight" "IN FLIGHT" "$out"
+expect "conduct: and the cycle is due again" "cadence   : DUE" "$out"
+expect "dispatch: and it spawns" "conduct DUE: spawn" "$(sdsp)"
+expect "conduct: a long window keeps that same branch in flight" "IN FLIGHT" \
+  "$(cdt JOHARNESS_CONDUCT_HOURS=99999)"
+
+# The ledger: rows leave the sample, the tally counts them, and its landing
+# dates the clock.
+cfirst="$(printf '%s\n' "$cwant" | head -1 | tr -d ' ')"
+cat >"${scout_work}/docs/conduct-log.md" <<EOF2
+# Conduct log
+
+| date | stem | C1 | note |
+|------|------|----|------|
+| 2026-02-12 | ${cfirst} | FINE | - |
+| 2026-02-13 | zulu | CONCERN | Acceptance: \`grant x\` prints OK |
+| 2026-02-13 | yankee | NO EVIDENCE | plan file missing |
+EOF2
+scommit "a reviewer's ledger, long ago" '2026-02-13T00:00:00Z'
+git -C "$scout_work" push -q origin main
+out="$(cdt)"
+expect "conduct: the tally counts runs and branches" \
+  "tally     : 2 run(s), 3 branch(es) sampled" "$out"
+expect "conduct: and each verdict per question" \
+  "C1  FINE 1  CONCERN 1  NO EVIDENCE 1  CONCERN rate 33%" "$out"
+refute "conduct: a stem already in the ledger is not sampled again" "            ${cfirst}" "$out"
+expect "conduct: an old ledger leaves the clock due" "since the ledger last landed" "$out"
+printf '| 2026-10-01 | %s | FINE | - |\n' "$(printf '%s\n' "$cwant" | sed -n 2p | tr -d ' ')" \
+  >>"${scout_work}/docs/conduct-log.md"
+scommit "a reviewer's ledger, now"
+git -C "$scout_work" push -q origin main
+out="$(cdt)"
+expect "conduct: a ledger landed now is not due" "cadence   : not due — 0h since the ledger last landed" "$out"
+refute "dispatch: not due spawns none" "conduct DUE: spawn" "$(sdsp)"
+git -C "$scout_work" push -q origin --delete conduct-2026-02-11
+git -C "$scout_work" branch -q -D conduct-2026-02-11
