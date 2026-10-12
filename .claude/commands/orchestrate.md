@@ -310,8 +310,8 @@ PAUSED) more than one hour earlier: `fresh session is cheaper: start a new
 orchestrator session for the next run`. It only informs; the pass still runs.
 (Why: `.agents/docs/orchestrated.md`, "Start each run fresh".)
 
-An `URGENT` row in dispatch's `plans on a branch` block is the first line,
-with its branch; print the rest of that block. Never spawn on a branch plan
+The `URGENT` row of dispatch's `plans on a branch` block carries its branch;
+print the rest of that block. Never spawn on a branch plan
 on your own; if the human orders it, the prompt names the row's branch and
 stem: carry the plan, never take the branch (`.agents/docs/orchestrated.md`,
 "A plan the queue cannot see"). Then one line per manager (item, session,
