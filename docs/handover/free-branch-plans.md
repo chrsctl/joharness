@@ -8,7 +8,7 @@ issue: 423
 session: https://claude.ai/code/session_01Nm4goRUANzvNDQdDAJ5Ubr
 agent: opus
 updated: 2026-10-12
-next: ci + verify green on the round-4 fixes, then retire and open the pull request
+next: Read the round-4 gates (ci, verify, full selftest running); green = retire commit, PR, merge (step 7)
 ---
 
 ## Goal
