@@ -59,7 +59,7 @@ stem() {
 
 queue_files() {
   git ls-tree -r --name-only "$ref" -- "$1" 2>/dev/null |
-    grep -E '\.md$' | grep -vE '/(TEMPLATE|README|VISION|RETIRED)\.md$'
+    grep -E '\.md$' | grep -vE '/(TEMPLATE|README|VISION|SCOUT|RETIRED)\.md$'
 }
 
 plans="$(queue_files "$PLANS_DIR")"
