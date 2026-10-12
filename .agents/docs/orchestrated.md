@@ -60,7 +60,7 @@ paid by every session.
 | surveyor | the `rescope :` block in its prompt, and the `## Scope` of each plan it renames | the queue, product code, this doc |
 | curator | `./joharness.sh curate` and the plans it names | a held plan, the queue order, product code, this doc |
 | clerk | `./joharness.sh clerk`, the open issues, the source each issue cites | the queue order, another branch, product code beyond what an issue cites, this doc (except the design doc where an issue cites it: only the cited section; and the files the plan names as anchors, which outrank the product-code limit) |
-| scout | `./joharness.sh scout` and the evidence it lists — `upstream`, `feedback`, canonical issues, session cost, a dated release-note or Models API read; the brief `docs/product/SCOUT.md`; the open and closed `scout` issues; under `research  : on`, the web | a plan beyond its name and `## Goal`, the queue order, product code, another branch's code |
+| scout | `./joharness.sh scout` and the evidence it lists — `upstream`, `feedback`, canonical issues, session cost, a dated release-note or Models API read; the brief `docs/product/SCOUT.md`; the open and closed `scout` issues; under `research  : on`, the web | a plan beyond its frontmatter and `## Goal`, the queue order, product code, another branch's code |
 | conduct | `./joharness.sh conduct`; per sampled stem its workstream file before the retire commit, the branch's commit order (subjects, file names), the plan's `## Goal` and `## Acceptance` | any diff body, product code, the queue, this doc |
 | worker | its sub-task prompt and the files it names | everything else |
 
