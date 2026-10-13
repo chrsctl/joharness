@@ -21,8 +21,8 @@ so every reader pays for every past measurement. The caveman discipline keeps
 the same split one level down for the two documents no other open plan is
 editing: `handover/README.md` (22,234 bytes) and `consumer-repos.md`
 (26,506 bytes). `orchestrated.md` (39,424 bytes) is the third candidate and
-is left for a later plan: three plans on `origin/main` and three on this
-branch name it in `scope:` today.
+is left for a later plan: other open plans, on `origin/main` and on this
+branch, name it in `scope:`.
 
 ## Scope
 
@@ -81,8 +81,8 @@ branch name it in `scope:` today.
 - `.agents/harness/AGENTS.md` — "Why lives in `.agents/docs/`".
 - `.agents/docs/handover/README.md:## Graduation` — mostly measurement; a
   worked example of what moves and what stays.
-- `.agents/docs/consumer-repos.md:## Migration: pre-\`.agents\` consumers` — an
-  incident-shaped section; and the "Pick route" list, which is procedure
+- `.agents/docs/consumer-repos.md` — the "Migration: pre-.agents consumers"
+  section (its heading carries backticks), incident-shaped; and the "Pick route" list, which is procedure
   and stays.
 - `joharness.sh:lint_glossary` — what the moved text must still satisfy.
 - `.agents/harness/selftest.sh` — `SELFTEST_TOPICS`.

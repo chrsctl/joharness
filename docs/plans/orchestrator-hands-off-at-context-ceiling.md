@@ -64,7 +64,14 @@ live sessions.
   message (managers spawned before the hand-off carry its id as their lead
   address) forwards the message verbatim with `send_message` to the
   successor id its hand-off report named, arms nothing, and ends. A human
-  message wakes it as any session; it answers and arms nothing.
+  message wakes it as any session; it answers by naming the successor,
+  spawns nothing and arms nothing — an order to spawn is the successor's,
+  since a manager spawned here would carry this retired id as its lead
+  address.
+- `.claude/commands/orchestrate.md` — the `Never` line "`send_message` to a
+  child carries the health table's nudge text and nothing else" gains its
+  one exception: to the successor orchestrator, a lead line verbatim (step
+  4 above and the forward). Nothing else changes in that list.
 - `.claude/commands/orchestrate.md` — "Report, every pass": `context:
   <used_tokens>` from the same `get_session` read, reported never decided
   on, so the pass number can be re-tuned from reports; and on the FIRST

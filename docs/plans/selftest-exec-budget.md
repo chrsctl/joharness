@@ -3,7 +3,7 @@ plan: selftest-exec-budget
 urgency: normal
 agent: opus
 effort: high
-needs: dispatch-no-merged-walks
+needs: none
 requirement: none
 issue: none
 scope: shared:joharness.sh, shared:.agents/harness/selftest.sh, shared:.agents/harness/selftest/dispatch.sh, shared:.agents/harness/selftest/clerk.sh, shared:.agents/harness/selftest/scout.sh
@@ -23,8 +23,8 @@ exit 0, 5s (wanted <= 4s)`, in `pretool-bash-guard.sh`, which holds no git
 call and is not this plan's). Where they go, from a partial
 `strace -f -e trace=execve` of `./joharness.sh ci` the same day: the topics
 invoke `joharness.sh` 366 times against fixture repositories, 140 of them
-`dispatch`. `dispatch-no-merged-walks` makes each `dispatch` cheap; this
-plan bounds the total so it cannot grow back unnoticed, and removes the
+`dispatch`. `dispatch-no-merged-walks` (merged as #472, 2026-10-13) made each
+`dispatch` cheaper after those counts were taken; this plan bounds the total so it cannot grow back unnoticed, and removes the
 invocations that only re-run a command already run on the same state.
 
 A fixture build cache was considered and rejected (verifier, 2026-10-13):
@@ -41,20 +41,25 @@ into the original. There is no "build" a per-case copy could restore.
   (a script that appends one line to a file under the run's temp dir and
   `exec`s the real git — the method that counted 87,871 and 87,914), then
   prints `selftest git execs: <n> (budget <JOHARNESS_SELFTEST_GIT_BUDGET>)`
-  and reds the stage above the budget. Default `90000`: a written number
-  just above today's count, so the stage is green on `origin/main` and red
-  once the count grows by about two percent; the pull request that lands
-  this plan replaces it with the counted number after the merges below plus
-  a tenth. The knob is `session`-scoped (a canonical-only stage), joins the
+  and reds the stage above the budget. Default: the plan's FIRST commit re-takes the full count on
+  `origin/main` of that day with the wrapper (the 87,914 above predates
+  #472) and writes that count plus a tenth as the default, so the stage is
+  green on main and red once the count grows by a tenth; the pull request's
+  last commit lowers it to the count after the merges below plus a tenth.
+  Both counts are quoted in the pull request. The knob is `session`-scoped (a canonical-only stage), joins the
   env scrub list in `selftest.sh`, and gets its `KNOBS` row if
   `knobs-declared-once` has landed.
 - `.agents/harness/selftest/dispatch.sh`, `clerk.sh`, `scout.sh` — the
-  three topics with the most `joharness.sh` invocations: where consecutive
+  three topics the trace attributed the `dispatch` runs to (140 of 366
+  invocations): where consecutive
   cases run the same command on the same fixture state to assert different
   lines, one invocation feeds several `expect`s. Assertions are kept one for
   one; a case that changes the fixture between two runs keeps both runs.
-  Count the invocations before and after (`grep -c 'joharness.sh' <topic>`)
-  and quote them.
+  Count the invocations before and after as direct `joharness.sh` calls
+  PLUS calls of each topic's wrappers (`clerk_run`, `clerk_dsp` in clerk.sh;
+  `sct`, `sdsp`, `cdt` in scout.sh; the wrappers dispatch.sh defines), and
+  quote them: a bare `grep -c 'joharness.sh'` sees 7 and 8 in clerk.sh and
+  scout.sh against 37 and 103 wrapper calls.
 
 ## Out of scope
 

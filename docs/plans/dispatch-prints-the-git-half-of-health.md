@@ -3,7 +3,7 @@ plan: dispatch-prints-the-git-half-of-health
 urgency: normal
 agent: sonnet
 effort: medium
-needs: dispatch-no-merged-walks
+needs: none
 requirement: none
 issue: none
 scope: shared:joharness.sh, shared:.claude/commands/orchestrate.md, shared:.agents/harness/selftest/dispatch.sh
@@ -15,8 +15,8 @@ scope: shared:joharness.sh, shared:.claude/commands/orchestrate.md, shared:.agen
 state itself: "git: `git merge-base --is-ancestor <head> origin/main` — never
 a summary". For a manager `dispatch` lists as in flight the answer is already
 known: `queue-context.sh` gives a merged branch no claim (`ref_merged … &&
-continue`), so an in-flight row is unmerged by construction, and after
-`dispatch-no-merged-walks` the listing says so from one call. What the row
+continue`), so an in-flight row is unmerged by construction, and since
+`dispatch-no-merged-walks` (merged as #472) the listing says so from one call. What the row
 does not say is the head it was read at and whether a merge-base with
 `origin/main` exists at all (a shallow clone or an unrelated branch, which
 `dispatch_retired_edges` already names as "NO merge base"). Print those two,
@@ -78,6 +78,7 @@ queue files from the base ref — so `gone` could never print.)
 - Don't answer "did this land?" with two values when there are three: an
   unreadable base is its own value, never `no`.
 - Never read a summary for merge state; git says it.
-- `dispatch-no-merged-walks` edits the same functions: build on its result.
+- `dispatch-no-merged-walks` (merged) rewrote the same functions: build on
+  what `origin/main` has, never on the pre-#472 shape.
 - `orchestrator-hands-off-at-context-ceiling` edits `cmd_dispatch`'s header
   and §2's field table too: name it at reconcile.

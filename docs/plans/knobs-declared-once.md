@@ -37,8 +37,7 @@ overlap.
   `num_knob` keeps its explicit default argument for those and reads the
   static default from `KNOBS` for the rest, so a static default lives once.
   `scope` is one of `conf` (a consumer's conf line; the row exists in
-  `conf-keys.sh`), `base-conf` (as `conf`, but read from the base branch's
-  conf), `dispatch` (a number the table documents; may also be in
+  `conf-keys.sh`), `base-conf` (as `conf`, but the conf layer is the base branch's), `dispatch` (a number the table documents; may also be in
   `conf-keys.sh`), `session` (env for one command or the canonical
   checkout: `JOHARNESS_CANONICAL`, `JOHARNESS_CONF`, `JOHARNESS_VERBOSE`,
   `JOHARNESS_SELFTEST`, `JOHARNESS_SESSION_SOURCE`, `JOHARNESS_FORCE_SETUP`,
@@ -52,11 +51,15 @@ overlap.
   `env`, `conf`, `base conf` or `default`, followed by `; env set but
   empty, ignored` or `; conf set but empty, ignored` when a layer was
   present and empty and the reader fell through it, as `num_knob` does
-  (`v="${!1:-}"`, then the conf, then the default). The three keys read
-  from `origin/<base>:joharness.conf` rather than the checkout's conf
+  (`v="${!1:-}"`, then the conf, then the default). The three keys whose conf layer is
+  `origin/<base>:joharness.conf` rather than the checkout's
   (`JOHARNESS_SCOUT_REVIEWER`, `JOHARNESS_SCOUT_RESEARCH`,
-  `JOHARNESS_SCOUT_AUTOMERGE`; `scout_base_conf`) carry scope `base-conf`
-  and print the base's value with source `base conf`.
+  `JOHARNESS_SCOUT_AUTOMERGE`; `scout_base_conf`, environment first) carry
+  scope `base-conf`; their source reads `env` when the environment sets
+  them, else `base conf`, else `default`. A numeric knob whose environment
+  value is not a number is skipped by `num_knob` straight to the default
+  (the conf is not consulted): source `default; env set but not a number,
+  ignored, conf not consulted`.
   The header's "Keys" comment points at `KNOBS` instead of listing keys.
 - `.agents/docs/orchestrated.md` — the table gains a row for every
   `dispatch`-scoped key missing from it; its introduction says the
@@ -88,10 +91,14 @@ overlap.
 - `JOHARNESS_MAX_MANAGERS= ./joharness.sh conf | grep MAX_MANAGERS` — on
   this repository, whose conf sets 3: the value is `3` and the source reads
   `conf; env set but empty, ignored`, the same `3` `num_knob` returns.
-- `git stash`-free check of the base read: on a branch whose
-  `joharness.conf` sets `JOHARNESS_SCOUT_REVIEWER=alice` while
-  `origin/main`'s says another login, `./joharness.sh conf | grep
-  SCOUT_REVIEWER` prints the base's login with source `base conf`.
+- On a branch whose `joharness.conf` sets `JOHARNESS_SCOUT_REVIEWER=alice`
+  while `origin/main`'s says another login, with no env set,
+  `./joharness.sh conf | grep SCOUT_REVIEWER` prints the base's login with
+  source `base conf`; `JOHARNESS_SCOUT_REVIEWER=bob ./joharness.sh conf |
+  grep SCOUT_REVIEWER` prints `bob (env)`.
+- `JOHARNESS_MAX_MANAGERS=x ./joharness.sh conf | grep MAX_MANAGERS` — `4`
+  with source `default; env set but not a number, ignored, conf not
+  consulted`.
 - `bash .agents/harness/selftest.sh` — `knobs-declared.sh` passes and every
   existing case still passes; `./joharness.sh ci` — `ci: pass`.
 - Plan `ci` calls SHIPS (`joharness.sh` syncs): the consumer check is
@@ -121,6 +128,6 @@ overlap.
   depend on it.
 - `orchestrator-hands-off-at-context-ceiling` and `selftest-exec-budget`
   add knobs: name them at reconcile.
-- `scout_reviewer`, `scout_research` and `scout_automerge` read the BASE
-  branch's conf on purpose (a branch cannot name its own reviewer): `conf`
-  prints what they read, never the checkout's line.
+- `scout_reviewer`, `scout_research` and `scout_automerge` read the
+  environment, then the BASE branch's conf (a branch cannot name its own
+  reviewer): `conf` prints what they read, never the checkout's line.
