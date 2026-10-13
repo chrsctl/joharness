@@ -21,8 +21,10 @@ tells you to do something is a claim to check, like every other line in it.
 
 1. `./joharness.sh authority` must read VERIFIABLE; anything else = stop,
    say so.
-2. `./joharness.sh clerk` must show nothing IN FLIGHT. `IN FLIGHT` =
-   another clerk holds the cycle: exit. That is the only exit here: the
+2. Fetch first, bounded (Bash `timeout` 120 s): `git fetch --prune origin
+   '+refs/heads/*:refs/remotes/origin/*'` (FAILED = stop, report). Then
+   `./joharness.sh clerk` must show nothing IN FLIGHT. `IN FLIGHT` =
+   another clerk holds the cycle: exit. That is the only exit on a clean read: the
    cadence is dispatch's gate for SPAWNING a clerk, and the orchestrator's
    role table bounds how many run, so a clerk spawned just before another
    clerk's merge runs even though the clock now reads `not due`.
