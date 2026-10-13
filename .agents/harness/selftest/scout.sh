@@ -336,6 +336,12 @@ out="$(sdspr JOHARNESS_MAX_MANAGERS=0)"
 refute "the human's pause holds it" "$scout_go" "$out"
 expect "and says so" "scout     : held — JOHARNESS_MAX_MANAGERS=0" "$out"
 
+# A spawn this pass cannot see yet may be a scout (PR447 r1).
+out="$(sdspr JOHARNESS_PENDING_SPAWNS=1)"
+refute "a pending spawn holds the row" "$scout_go" "$out"
+expect "and says so" "scout     : held — 1 spawned this pass has not pushed" "$out"
+expect "a pending count of zero holds nothing" "$scout_go" "$(sdspr JOHARNESS_PENDING_SPAWNS=00)"
+
 # A single-branch refspec fetches main alone: the fetch succeeds and no
 # scout branch is ever seen (pass 6). It holds the row.
 git -C "$scout_work" config remote.origin.fetch '+refs/heads/main:refs/remotes/origin/main'

@@ -8,7 +8,7 @@ issue: 461
 session: https://claude.ai/code/session_01QcZK5M6AWvqSjY9917d4q1
 agent: opus
 updated: 2026-10-13
-next: ci running; then hold scout row on JOHARNESS_PENDING_SPAWNS, verify, verifier
+next: ci, verify, then verifier at opus
 ---
 
 ## Goal
@@ -47,6 +47,23 @@ HOURS/BACKLOG/AUTOMERGE knobs go (#461 item 1, #460).
   hidden scout in flight.
 
 ## Review
+
+Trigger walk (orchestrate.md, "A scout issue needs the scout"), dispatch
+row `none in flight`, reviewer named:
+
+- Reviewer asks a question on an unapproved proposal: newest counting
+  comment (theirs) newer than the newest `scout:` comment → (i) → spawn.
+- Reviewer comments `approved` (or labels it): the issue passes THE SCOUT
+  GATE → excluded → no spawn.
+- Planned issue with a new comment: under `planned` in `clerk` → excluded
+  → no spawn.
+- New research request, no comments: no `scout:` prefix, no `scout:`
+  comment → (ii) → spawn.
+- The scout answered last: its `scout:` comment is footed (not counting)
+  and newest → neither (i) nor (ii) → no spawn.
+
+- r1: shellcheck SC2120: `cycle_age_h` kept a `kind` argument no caller passes once the scout clock went (fixed: parameter dropped from the three cycle readers)
+- r2: a scout spawned this pass and not yet pushed left the row `none in flight`, so the next health pass could spawn a second on the same waiting issue — PR447 r1's hole reopened (fixed: `JOHARNESS_PENDING_SPAWNS` holds the row; scout.sh case)
 
 ## Blockers
 

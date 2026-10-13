@@ -4871,16 +4871,16 @@ cycle_repo_age_h() {
 
 # The COMMIT of the last curate that landed, empty when none has.
 cycle_landed_sha() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" kind="${1:-curate}"
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}"
   git -C "$ROOT" log -1 --format=%H --diff-filter=D --full-history \
-    "refs/remotes/origin/${base_branch}" -- "docs/handover/${kind}-*.md" \
+    "refs/remotes/origin/${base_branch}" -- "docs/handover/curate-*.md" \
     </dev/null 2>/dev/null
 }
 
 # When that curate LANDED, which is not when its retire was committed.
 cycle_landed_ts() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" kind="${1:-curate}" sha merge
-  sha="$(cycle_landed_sha "$kind")"
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" sha merge
+  sha="$(cycle_landed_sha)"
   [ -n "$sha" ] || return 0
   merge="$(git -C "$ROOT" rev-list --ancestry-path --first-parent \
     "${sha}..refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null | tail -1)"
@@ -4893,8 +4893,8 @@ cycle_landed_ts() {
 # Hours since the last curate landed, empty when none ever has — which is the
 # signal `dispatch_curate_due` reads to switch to the repository baseline above.
 cycle_age_h() {
-  local ts now kind="${1:-curate}"
-  ts="$(cycle_landed_ts "$kind")"
+  local ts now
+  ts="$(cycle_landed_ts)"
   [ -n "$ts" ] || return 0
   now="$(date +%s)"
   printf '%s' "$(( (now - ts) / 3600 ))"
@@ -5819,7 +5819,7 @@ cmd_dispatch() {
   local leftover_rows="" estate="" fleet_age stall_young=""
   local curate_due=0 curate_inflight="" n_curate_inflight=0 cdue cstate creason
   local jcands cjudge n_roles role_slots
-  local scout_inflight="" n_scout=0 sstate sreason sb sw ss
+  local scout_inflight="" n_scout=0 sstate sreason sb sw ss spend
   local clerk_due=0 clerk_inflight="" n_clerk=0 kdue kstate kreason kb kw ks
   local conduct_due=0 role_spawned=0 n_conduct=0 odue ostate oreason ob oa conduct_inflight=""
   local fetch_failed=0
@@ -5944,6 +5944,10 @@ cmd_dispatch() {
   # the orchestrator spawns on the reviewer's order or a waiting scout issue.
   scout_state
   sstate="${SCOUT_STATE%% *}"; sreason="${SCOUT_STATE#* }"
+  # Read here: `pending` is parsed further down. Not a number = none.
+  spend="${JOHARNESS_PENDING_SPAWNS:-0}"
+  case "$spend" in '' | *[!0-9]*) spend=0 ;; esac
+  spend="${spend#"${spend%%[!0]*}"}"
   while IFS=$'\t' read -r sb sw ss; do
     [ -n "$sb" ] || continue
     n_scout=$((n_scout + 1))
@@ -5957,6 +5961,8 @@ cmd_dispatch() {
     printf 'scout     : IN FLIGHT — spawn none\n%b' "$scout_inflight"
   elif [ "$cap" -eq 0 ]; then
     printf 'scout     : held — JOHARNESS_MAX_MANAGERS=0 is the human'"'"'s pause: spawn none\n'
+  elif [ -n "$spend" ]; then
+    printf 'scout     : held — %s spawned this pass has not pushed (JOHARNESS_PENDING_SPAWNS), and it may be a scout: spawn none this pass\n' "$spend"
   elif [ "$fetch_failed" -eq 1 ]; then
     printf 'scout     : held — no fresh view of every branch this pass (fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*), so a scout in flight might not show: spawn none this pass\n'
   else
