@@ -88,10 +88,9 @@ else skip it, uncounted, reason in the report and pull request body:
    Claude Code attribution footer (§2's rule), has first word `approved`,
    any case, trailing punctuation ignored;
 2. it is newer than the newest footed comment opening `scout:` by an author
-   with write access (the author gate); the scout posts `scout: revised`
-   BEFORE every body edit;
-3. the body holds the target text that `scout: revised` names; else skip
-   `REVISION OPEN` (the edit after it is not made yet).
+   with write access (the author gate: the SCOUT COMMENT);
+3. the scout comment does not open `scout: revised`: its body edit is not
+   made yet (the scout ends it with `scout: edited`). Else `REVISION OPEN`.
 
 No other comment approves or stales it. Read every page with `issue_read`
 `get_comments`; any page failing = skip, `APPROVAL UNREADABLE: <error>`.

@@ -170,14 +170,14 @@ what the scout found and nothing more.
 Your LAST COMMENT on an issue = your newest comment there; none = the
 issue's creation.
 
-The gate is the reviewer's `approved` comment newer than the newest comment
-opening `scout:` (`.claude/commands/clerk.md`, the scout gate); the label
-`approved` is a marker only. So every `scout:` comment of yours stales an
-approval, and no other comment does.
+The gate is the reviewer's `approved` comment newer than the newest footed
+`scout:` comment by a write-access author (`.claude/commands/clerk.md`, the
+scout gate); the label `approved` is a marker only. So every `scout:`
+comment of yours stales an approval, and no other comment does.
 
 First, unfinished revisions: an OPEN, unplanned proposal of yours whose
-newest comment of yours opens `scout: revised` and whose body is not yet the
-target text that comment names = make that edit.
+newest `scout:` comment of yours opens `scout: revised` = make the body that
+comment names (already so = no edit), then post `scout: edited`.
 
 Then an OPEN, unplanned proposal of yours with a counting comment newer
 than your last comment that asks a question or a change. Nothing asked = no
@@ -187,11 +187,13 @@ comment. Else, in this order:
    body change as target text, and "approve once the body shows it". It is
    newer than any `approved`, so approval is needed again.
 2. THEN the body edit, exactly that change. An update passes no `labels`.
+3. ONE comment `scout: edited` — the edit is made. It stales an approval
+   that landed between 1 and 3; the reviewer approves after it.
 
-A pass that dies between 1 and 2 fails closed: the clerk skips the
-proposal (`REVISION OPEN`) until a pass makes the edit. No body change =
-1 alone, as `scout: answer` (it stales an approval too). A body edit with
-no `scout: revised` before it is never made.
+A pass that dies before 3 fails closed: the clerk skips the proposal
+(`REVISION OPEN`) until a pass finishes it. No body change = 1 alone, as
+`scout: answer` (it stales an approval too). A body edit outside 1 to 3
+is never made.
 
 ## 6. Propose
 

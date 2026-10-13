@@ -37,7 +37,7 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | worker | at or below the plan's tier, lower by default | a subagent in the manager's container | nothing | the files its sub-task names | it returns |
 | curator | sonnet | a session, on `curate DUE` with proposals to make | nothing | decompose/order proposals for ONE pass, changing no plan | its pull request merges |
 | surveyor | sonnet | a session, on the `OVERLAP-BOUND` verdict | nothing (declarations, not code) | the held plans' and holders' `scope:` lines for one holder key | its pull request merges, or `done` with nothing to change |
-| clerk | sonnet, opus verifier | a session, on the `clerk DUE` tail line | nothing | one plan-only pull request, no workstream file; never closes or opens an issue, never writes code, never a core-path-only plan, never plans a scout issue without the reviewer's `approved` comment newer than its newest `scout:` comment | its pull request merges, no plan to write (pushes `clerk-noop-<UTC stamp>` at `origin/main`), or `TWIN: deferred` |
+| clerk | sonnet, opus verifier | a session, on the `clerk DUE` tail line | nothing | one plan-only pull request, no workstream file; never closes or opens an issue, never writes code, never a core-path-only plan, never plans a scout issue without the reviewer's `approved` comment newer than the scout's newest footed `scout:` comment | its pull request merges, no plan to write (pushes `clerk-noop-<UTC stamp>` at `origin/main`), or `TWIN: deferred` |
 | scout | fable | a session, on `scout DUE: spawn` — by the clock only under `DRAINED — nothing free, nothing in flight`, by the backlog under any verdict but `PAUSED` | nothing | proposal issues on this repository, typed Feature, labelled scout; a research request's answer | its claim retires: NO BRIEF, NOTHING TO PROPOSE, or the pass's issues filed |
 | conduct | sonnet | a session on `conduct DUE`, beyond the cap | nothing | one pull request appending ledger rows to `docs/conduct-log.md`, no workstream file; never acts on a CONCERN | its pull request merges, or `TWIN: deferred` |
 
@@ -410,8 +410,8 @@ The rules that bind every session.
 - **Nothing is invented at the edge** (The one stop). Work enters only as an
   issue, a requirement or a plan through a pull request. A scout proposal
   enters as an issue and becomes a plan only through the clerk, after the
-  reviewer's `approved` comment, newer than its newest `scout:` comment;
-  closing the issue declines it.
+  reviewer's `approved` comment, newer than the scout's newest footed
+  `scout:` comment; closing the issue declines it.
 - **`human-review` label.** An agent applies it when it blocks on a human; a
   human applies it to hold an issue or pull request. It stops the clerk
   planning that issue and any session merging that pull request. Only a human
