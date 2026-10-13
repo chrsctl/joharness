@@ -1,6 +1,6 @@
 ---
 workstream: shallow-clone-reaches-authority
-status: in-progress
+status: review
 branch: claude/shallow-clone-reaches-authority
 pr: none
 plan: shallow-clone-reaches-authority
@@ -8,7 +8,7 @@ issue: 439
 session: https://claude.ai/code/session_01RXca2ZFK5BrCwuBp3oKkUV
 agent: opus
 updated: 2026-10-13
-next: ci, verify, merge origin/main, finish, retire, pull request, merge
+next: open the pull request and merge it
 ---
 
 ## Goal
