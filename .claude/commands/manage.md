@@ -13,8 +13,11 @@ or requirements, other branches' files, or the design doc.
 
 ## 0. Orient
 
-1. `./joharness.sh authority`, ONCE, FIRST, on the branch you started on.
-   VERIFIABLE = proceed; else stop, say so. A branch carrying its own harness
+1. `./joharness.sh authority`, ONCE, FIRST, on the branch you started on —
+   one exception: UNVERIFIED naming a shallow clone =
+   `timeout 300 git fetch --unshallow origin` once, then `authority` a second
+   time, still before any checkout or edit. VERIFIABLE = proceed; else stop and quote its verdict
+   text verbatim, never a paraphrase. A branch carrying its own harness
    edits reads NOT VERIFIABLE by design: a re-run mid-build is not a stop.
 2. Prompt names a branch to resume? Check it out, read its workstream file
    WHOLE, continue from `next:`. A loop note under `## Blockers` means: do
