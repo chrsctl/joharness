@@ -173,8 +173,10 @@ What each existing reconciler reaches, and what it does not. Re-take it:
 - **`dispatch_branch_plans`** (issue #297, `.agents/docs/orchestrated.md`, "A
   plan the queue cannot see") prints a plan an unmerged branch added, so the
   orchestrator SEES a pushed plan before it reaches `main`. Visibility, not
-  pairing: the row is one more stem, compared against nothing, and a plan the
-  branch's own workstream file names is dropped from it as in flight.
+  pairing: the row is one more stem, compared only against retirements of
+  that stem (base's ledger, a `status: done` workstream file elsewhere: the
+  row reads `DONE ON MAIN`), and a plan the branch's own workstream file
+  names is dropped from it as in flight.
 
 So the duplicate that gets through is a plan filed from something with no
 issue number — a red CI step a merging session saw — while a second session

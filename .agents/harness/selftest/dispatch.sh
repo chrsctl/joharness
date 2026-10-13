@@ -3098,6 +3098,421 @@ expect "it is a leftover row naming its branch" \
 expect "a plan of a retired stem's name filed AFTER the retire still shows" \
   "  reused (urgency: normal, agent: sonnet)  on reuse-src" "$bpblock"
 
+# --- plans on a branch: DONE ON MAIN and held Nd (issue #423) --------------
+# A carry that wrote `status: done, pr: none` deletes nothing on the base, so
+# the leftover test above never fires: in a consumer 3 of 9 held plans were
+# already done. Same fixture repo; each case its own stem.
+# <branch> <stem>: a plan-only owner branch cut from main.
+bdowner() {
+  git -C "$bpwork" checkout -qb "$1" main
+  mkdir -p "${bpwork}/docs/plans"
+  bpplan "${bpwork}/docs/plans/$2.md" "$2" normal
+  commit_all "$bpwork" "owner files $2"
+  git -C "$bpwork" push -qu origin "$1"
+  git -C "$bpwork" checkout -q main
+}
+# <file> <stem>: a carrier's workstream file, done, no pull request.
+bddone() {
+  mkdir -p "${bpwork}/docs/handover"
+  printf -- '---\nworkstream: carry-%s\nstatus: done\nbranch: x\npr: none\nplan: %s\nagent: sonnet\nupdated: 2026-01-01\nnext: Nothing\n---\n\n## Goal\nFixture.\n' \
+    "$2" "$2" >"$1"
+}
+# (a) an unmerged carrier retired the plan on its branch.
+bdowner own-pa pa
+git -C "$bpwork" checkout -qb carry-pa main
+bddone "${bpwork}/docs/handover/carry-pa.md" pa
+commit_all "$bpwork" "carrier finds pa done"
+git -C "$bpwork" push -qu origin carry-pa
+git -C "$bpwork" checkout -q main
+# (b) a carrier that MERGED, with no plan file.
+bdowner own-pb pb
+git -C "$bpwork" checkout -qb carry-pb main
+bddone "${bpwork}/docs/handover/carry-pb.md" pb
+commit_all "$bpwork" "carrier finds pb done"
+git -C "$bpwork" checkout -q main
+git -C "$bpwork" merge -q --no-ff -m "merge carry-pb" carry-pb
+git -C "$bpwork" push -q origin main carry-pb
+# (c) the base's ledger lists the stem.
+bdowner own-pc pc
+printf '# Retired stems\n\n- pc carry-pc\n' >"${bpwork}/docs/plans/RETIRED.md"
+commit_all "$bpwork" "ledger retires pc"
+git -C "$bpwork" push -q origin main
+# (d) a done workstream file for pd already in the owner's merge base: an
+# older plan of that name. A ledger line already there is NOT: `ci` refuses
+# the re-add whatever its age (lint_plans_in_diff), so the row reads done.
+bddone "${bpwork}/docs/handover/old-pd.md" pd
+printf -- '- pe old-carry\n' >>"${bpwork}/docs/plans/RETIRED.md"
+commit_all "$bpwork" "older pd done, older pe retired"
+git -C "$bpwork" push -q origin main
+bdowner own-pd pd
+bdowner own-pe pe
+# (f) a live plan filed three days ago.
+git -C "$bpwork" checkout -qb own-pf main
+bpplan "${bpwork}/docs/plans/pf.md" pf normal
+git -C "$bpwork" add -A
+GIT_AUTHOR_DATE="$(( $(date +%s) - 3 * 86400 - 600 )) +0000" \
+GIT_COMMITTER_DATE="$(( $(date +%s) - 3 * 86400 - 600 )) +0000" \
+  git -C "$bpwork" commit -qm "owner files pf, three days ago"
+# merged up from the base today: the age still reads the filing commit.
+git -C "$bpwork" merge -q --no-ff -m "merge main into own-pf" main
+git -C "$bpwork" push -qu origin own-pf
+git -C "$bpwork" checkout -q main
+# (g) the owner merged the base up AFTER a carrier merged pg as done: the
+# carry is in the tip's merge base, never in the filing commit's.
+bdowner own-pg pg
+git -C "$bpwork" checkout -qb carry-pg main
+bddone "${bpwork}/docs/handover/carry-pg.md" pg
+commit_all "$bpwork" "carrier finds pg done"
+git -C "$bpwork" checkout -q main
+git -C "$bpwork" merge -q --no-ff -m "merge carry-pg" carry-pg
+git -C "$bpwork" push -q origin main carry-pg
+git -C "$bpwork" checkout -q own-pg
+git -C "$bpwork" merge -q --no-ff -m "merge main into own-pg" main
+git -C "$bpwork" push -q origin own-pg
+git -C "$bpwork" checkout -q main
+# (h) a builder wrote ph done, then reopened it, unmerged: its tip says
+# in-progress, so the history line counts for nothing (verifier r2).
+bdowner own-ph ph
+git -C "$bpwork" checkout -qb build-ph main
+bddone "${bpwork}/docs/handover/build-ph.md" ph
+commit_all "$bpwork" "builder writes ph done"
+sed -i 's/^status: done$/status: in-progress/' "${bpwork}/docs/handover/build-ph.md"
+commit_all "$bpwork" "builder reopens ph"
+git -C "$bpwork" push -qu origin build-ph
+git -C "$bpwork" checkout -q main
+# (i) an old unmerged branch wrote pi done a day before pi was filed again:
+# never in any merge base, still an older plan of that name (verifier r3).
+git -C "$bpwork" checkout -qb old-pi main
+bddone "${bpwork}/docs/handover/old-pi.md" pi
+git -C "$bpwork" add -A
+GIT_AUTHOR_DATE="$(( $(date +%s) - 86400 )) +0000" \
+GIT_COMMITTER_DATE="$(( $(date +%s) - 86400 )) +0000" \
+  git -C "$bpwork" commit -qm "old branch writes pi done, a day ago"
+git -C "$bpwork" push -qu origin old-pi
+git -C "$bpwork" checkout -q main
+bdowner own-pi pi
+# (j) the same old record, and THEN its branch merges main up (Loop step 3):
+# the merge re-shows the done line with today's time (verifier r9).
+git -C "$bpwork" checkout -qb old-pj main
+bddone "${bpwork}/docs/handover/old-pj.md" pj
+git -C "$bpwork" add -A
+GIT_AUTHOR_DATE="$(( $(date +%s) - 86400 )) +0000" \
+GIT_COMMITTER_DATE="$(( $(date +%s) - 86400 )) +0000" \
+  git -C "$bpwork" commit -qm "old branch writes pj done, a day ago"
+git -C "$bpwork" push -qu origin old-pj
+git -C "$bpwork" checkout -q main
+bdowner own-pj pj
+printf 'moved\n' >"${bpwork}/moved-pj.txt"
+commit_all "$bpwork" "main moves"
+git -C "$bpwork" push -q origin main
+git -C "$bpwork" checkout -q old-pj
+git -C "$bpwork" merge -q --no-ff -m "merge main into old-pj" main
+git -C "$bpwork" push -q origin old-pj
+git -C "$bpwork" checkout -q main
+# (k) a done record in the owner's merge base, re-shown by a branch cut
+# BEFORE it that merges main up afterwards (verifier r10).
+git -C "$bpwork" checkout -qb side-pk main
+printf 'side\n' >"${bpwork}/side-pk.txt"
+commit_all "$bpwork" "side work"
+git -C "$bpwork" push -qu origin side-pk
+git -C "$bpwork" checkout -q main
+bddone "${bpwork}/docs/handover/old-pk.md" pk
+commit_all "$bpwork" "older pk done on main"
+git -C "$bpwork" push -q origin main
+bdowner own-pk pk
+git -C "$bpwork" checkout -q side-pk
+git -C "$bpwork" merge -q --no-ff -m "merge main into side-pk" main
+git -C "$bpwork" push -q origin side-pk
+git -C "$bpwork" checkout -q main
+# (l) a done record in the merge base that main retires AFTER the filing:
+# the retire deletes the line with today's time (verifier r11).
+bddone "${bpwork}/docs/handover/old-pl.md" pl
+commit_all "$bpwork" "older pl done on main"
+git -C "$bpwork" push -q origin main
+bdowner own-pl pl
+git -C "$bpwork" rm -q docs/handover/old-pl.md
+git -C "$bpwork" commit -qm "main retires the old pl record"
+git -C "$bpwork" push -q origin main
+# (m) a builder writes pm done, then renames the file and reopens it: the
+# old path is gone, which is no retire (verifier r12).
+bdowner own-pm pm
+git -C "$bpwork" checkout -qb build-pm main
+bddone "${bpwork}/docs/handover/a-pm.md" pm
+commit_all "$bpwork" "builder writes pm done"
+git -C "$bpwork" mv docs/handover/a-pm.md docs/handover/b-pm.md
+sed -i 's/^status: done$/status: in-progress/' "${bpwork}/docs/handover/b-pm.md"
+commit_all "$bpwork" "builder renames and reopens pm"
+git -C "$bpwork" push -qu origin build-pm
+git -C "$bpwork" checkout -q main
+# (n) a carrier merged pn done, then MAIN reopened it: the carrier's own ref
+# still says done, main decides (verifier r15).
+bdowner own-pn pn
+git -C "$bpwork" checkout -qb carry-pn main
+bddone "${bpwork}/docs/handover/carry-pn.md" pn
+commit_all "$bpwork" "carrier finds pn done"
+git -C "$bpwork" checkout -q main
+git -C "$bpwork" merge -q --no-ff -m "merge carry-pn" carry-pn
+git -C "$bpwork" push -q origin main carry-pn
+sed -i 's/^status: done$/status: in-progress/' "${bpwork}/docs/handover/carry-pn.md"
+commit_all "$bpwork" "main reopens pn"
+git -C "$bpwork" push -q origin main
+# (o) a builder writes po done, then reopens it naming the plan in backticks:
+# the reader every other `plan:` goes through still reads po (verifier r16).
+bdowner own-po po
+git -C "$bpwork" checkout -qb build-po main
+bddone "${bpwork}/docs/handover/build-po.md" po
+commit_all "$bpwork" "builder writes po done"
+sed -i "s/^status: done\$/status: in-progress/; s/^plan: po\$/plan: \`po\`/" \
+  "${bpwork}/docs/handover/build-po.md"
+commit_all "$bpwork" "builder reopens po, backticked"
+git -C "$bpwork" push -qu origin build-po
+git -C "$bpwork" checkout -q main
+out="$(bp)"
+bpblock="$(sed -n '/^plans on a branch/,/^$/p' <<<"$out")"
+expect "(a) a stem an unmerged carrier wrote done is DONE ON MAIN" \
+  "  DONE ON MAIN pa (urgency: normal, agent: sonnet)  on own-pa  held 0d: retired elsewhere — drop it, never spawn on it" "$bpblock"
+expect "(b) a stem a merged carrier wrote done is DONE ON MAIN" \
+  "  DONE ON MAIN pb (urgency: normal, agent: sonnet)  on own-pb" "$bpblock"
+expect "(c) a stem the base's ledger lists is DONE ON MAIN" \
+  "  DONE ON MAIN pc (urgency: normal, agent: sonnet)  on own-pc" "$bpblock"
+expect "(d) a done record already in the merge base is an older plan: live" \
+  "  pd (urgency: normal, agent: sonnet)  on own-pd  held 0d" "$bpblock"
+refute "(d) and it carries no marker" "DONE ON MAIN pd " "$bpblock"
+expect "(c) a ledger line older than the plan still reads done, as ci refuses it" \
+  "  DONE ON MAIN pe (urgency: normal, agent: sonnet)  on own-pe" "$bpblock"
+expect "(e) the base-added-and-retired leftover keeps its text" \
+  "docs/plans/carried.md  carry-src  leftover  its plan carried landed and was retired by another branch" "$out"
+refute "(e) and it is no DONE ON MAIN row" "DONE ON MAIN carried" "$bpblock"
+expect "(f) a live plan carries held Nd from its filing commit, not its tip" \
+  "  pf (urgency: normal, agent: sonnet)  on own-pf  held 3d" "$bpblock"
+refute "(f) and no marker" "DONE ON MAIN pf " "$bpblock"
+expect "(g) a carry the owner merged up after still reads DONE ON MAIN" \
+  "  DONE ON MAIN pg (urgency: normal, agent: sonnet)  on own-pg" "$bpblock"
+expect "(h) a done record its ref reopened is live" \
+  "  ph (urgency: normal, agent: sonnet)  on own-ph  held 0d" "$bpblock"
+refute "(h) and no marker" "DONE ON MAIN ph " "$bpblock"
+expect "(i) a done record older than the filing, on an unmerged branch, is live" \
+  "  pi (urgency: normal, agent: sonnet)  on own-pi  held 0d" "$bpblock"
+refute "(i) and no marker" "DONE ON MAIN pi " "$bpblock"
+expect "(j) an old record its branch merged main up over is still older: live" \
+  "  pj (urgency: normal, agent: sonnet)  on own-pj  held 0d" "$bpblock"
+refute "(j), no marker" "DONE ON MAIN pj " "$bpblock"
+expect "(k) a merge-base record a later merge-up re-shows is still older: live" \
+  "  pk (urgency: normal, agent: sonnet)  on own-pk  held 0d" "$bpblock"
+refute "(k), no marker" "DONE ON MAIN pk " "$bpblock"
+expect "(l) a merge-base record main retires later is still older: live" \
+  "  pl (urgency: normal, agent: sonnet)  on own-pl  held 0d" "$bpblock"
+refute "(l), no marker" "DONE ON MAIN pl " "$bpblock"
+expect "(m) a done record renamed and reopened is live" \
+  "  pm (urgency: normal, agent: sonnet)  on own-pm  held 0d" "$bpblock"
+refute "(m), no marker" "DONE ON MAIN pm " "$bpblock"
+expect "(n) a merged carrier's record main reopened is live" \
+  "  pn (urgency: normal, agent: sonnet)  on own-pn  held 0d" "$bpblock"
+refute "(n), no marker" "DONE ON MAIN pn " "$bpblock"
+expect "(o) a record reopened with a backticked plan: is live" \
+  "  po (urgency: normal, agent: sonnet)  on own-po  held 0d" "$bpblock"
+refute "(o), no marker" "DONE ON MAIN po " "$bpblock"
+bdrows="$(grep -c '^  ' <<<"$bpblock")"
+bdheld="$(grep -c '  held [0-9][0-9]*d' <<<"$bpblock")"
+if [ "$bdrows" -gt 0 ] && [ "$bdrows" = "$bdheld" ]; then
+  pass "every plans-on-a-branch row carries held"
+else
+  fail "every plans-on-a-branch row carries held (${bdheld} of ${bdrows})"
+  printf '%s\n' "$(indent "$bpblock")"
+fi
+if grep -q '^verdict' <<<"$out" && ! grep -q 'docs/plans/p[a-o]\.md' \
+     <<<"$(sed '/^plans on a branch/,/^$/d' <<<"$out")"; then
+  pass "and no DONE ON MAIN or live branch plan reaches the spawn list"
+else
+  fail "and no DONE ON MAIN or live branch plan reaches the spawn list"
+fi
+
+# --- FREEABLE: a doc-only branch nobody will merge (issue #423) -------------
+# Same fixture. A fresh plan branch is no row: its author may be mid-pull-
+# request. A plan branch past HANDOVER_STALE_SECONDS is `free <branch>`, a
+# spawnable item. An empty done branch needs no wait.
+refute "a fresh plan branch is not FREEABLE" "free plan-only (agent" "$out"
+expect "an empty done branch is FREEABLE at once" \
+  "  free carry-pa (agent: sonnet)  FREEABLE — its only diff is a status: done, pr: none workstream file" "$out"
+# The free count before the stale branch, to pin that it adds exactly one
+# (verifier r6: NOT DRAINED alone held with the count code removed).
+bpfree0="$(sed -n 's/^verdict   : NOT DRAINED — \([0-9][0-9]*\) free item.*/\1/p' <<<"$out")"
+git -C "$bpwork" checkout -qb gone-q main
+bpplan "${bpwork}/docs/plans/q.md" q normal
+git -C "$bpwork" add -A
+GIT_COMMITTER_DATE='2026-01-01T00:00:00Z' GIT_AUTHOR_DATE='2026-01-01T00:00:00Z' \
+  git -C "$bpwork" commit -qm "file q, long ago"
+git -C "$bpwork" push -qu origin gone-q
+git -C "$bpwork" checkout -q main
+out="$(bp)"
+expect "a plan branch past the stale window is FREEABLE" \
+  "  free gone-q (agent: sonnet)  FREEABLE — 1 plan(s) on a doc-only branch" "$out"
+expect "and it counts as one more free item" \
+  "verdict   : NOT DRAINED — $(( ${bpfree0:-0} + 1 )) free item(s)" "$out"
+refute "plan-only, still fresh, is still no row" "free plan-only (agent" "$out"
+# The manager's claim: the row goes, the claim holds a slot, and the claim's
+# own doc-only branch is never FREEABLE.
+git -C "$bpwork" checkout -qb mgr-free-q main
+mkdir -p "${bpwork}/docs/handover"
+printf -- '---\nworkstream: free-gone-q\nstatus: in-progress\nbranch: mgr-free-q\npr: none\nplan: none\nagent: sonnet\nupdated: 2026-01-01\nnext: Run free\n---\n\n## Goal\nFixture.\n' \
+  >"${bpwork}/docs/handover/free-gone-q.md"
+commit_all "$bpwork" "claim free gone-q"
+git -C "$bpwork" push -qu origin mgr-free-q
+git -C "$bpwork" checkout -q main
+out="$(bp)"
+refute "a free claim on its key drops the row" "free gone-q (agent" "$out"
+expect "the claim is a manager in flight" "  free-gone-q  mgr-free-q  in-progress" "$out"
+refute "and the claim's own branch is never FREEABLE" "free mgr-free-q (agent" "$out"
+# Past its retire commit the claim file is gone, the pull request open: the
+# owner sits merged in the manager's branch, so neither is offered (r3).
+git -C "$bpwork" checkout -q mgr-free-q
+git -C "$bpwork" merge -q --no-ff -m "free: merge gone-q (fixture)" gone-q
+git -C "$bpwork" rm -q docs/handover/free-gone-q.md
+commit_all "$bpwork" "retire the free claim"
+git -C "$bpwork" push -q origin mgr-free-q
+git -C "$bpwork" checkout -q main
+out="$(bp)"
+refute "a freed owner past the retire commit is not offered again" "free gone-q (agent" "$out"
+refute "nor is the free manager's own branch" "free mgr-free-q (agent" "$out"
+# A free merged by hand, git's own subject, claim retired: the owner is
+# still held, and the manager's branch is still never offered (round 3).
+git -C "$bpwork" checkout -qb gone-hm main
+bpplan "${bpwork}/docs/plans/fhm.md" fhm normal
+git -C "$bpwork" add -A
+GIT_COMMITTER_DATE='2026-01-01T00:00:00Z' GIT_AUTHOR_DATE='2026-01-01T00:00:00Z' \
+  git -C "$bpwork" commit -qm "file fhm, long ago"
+git -C "$bpwork" push -qu origin gone-hm
+git -C "$bpwork" checkout -qb mgr-free-hm main
+mkdir -p "${bpwork}/docs/handover"
+printf -- '---\nworkstream: free-gone-hm\nstatus: in-progress\nbranch: mgr-free-hm\npr: none\nplan: none\nagent: sonnet\nupdated: 2026-01-01\nnext: Merge by hand\n---\n\n## Goal\nFixture.\n' \
+  >"${bpwork}/docs/handover/free-gone-hm.md"
+git -C "$bpwork" add -A
+GIT_COMMITTER_DATE='2026-01-02T00:00:00Z' GIT_AUTHOR_DATE='2026-01-02T00:00:00Z' \
+  git -C "$bpwork" commit -qm "claim free gone-hm"
+GIT_COMMITTER_DATE='2026-01-02T00:00:00Z' GIT_AUTHOR_DATE='2026-01-02T00:00:00Z' \
+  git -C "$bpwork" merge -q --no-ff --no-edit gone-hm
+git -C "$bpwork" rm -q docs/handover/free-gone-hm.md
+commit_all "$bpwork" "retire the free claim"
+git -C "$bpwork" push -qu origin mgr-free-hm
+git -C "$bpwork" checkout -q main
+out="$(bp)"
+refute "a hand-merged free still holds its owner" "free gone-hm (agent" "$out"
+refute "and its manager's branch is never offered" "free mgr-free-hm (agent" "$out"
+# A retired claim past the stale window: its session is gone and no pull
+# request merged it; nothing else can release it, so it holds nothing (round 4).
+git -C "$bpwork" checkout -qb gone-st main
+bpplan "${bpwork}/docs/plans/fst.md" fst normal
+git -C "$bpwork" add -A
+GIT_COMMITTER_DATE='2026-01-01T00:00:00Z' GIT_AUTHOR_DATE='2026-01-01T00:00:00Z' \
+  git -C "$bpwork" commit -qm "file fst, long ago"
+git -C "$bpwork" push -qu origin gone-st
+git -C "$bpwork" checkout -qb mgr-free-st main
+mkdir -p "${bpwork}/docs/handover"
+printf -- '---\nworkstream: free-gone-st\nstatus: in-progress\nbranch: mgr-free-st\npr: none\nplan: none\nagent: sonnet\nupdated: 2026-01-01\nnext: Free\n---\n\n## Goal\nFixture.\n' \
+  >"${bpwork}/docs/handover/free-gone-st.md"
+git -C "$bpwork" add -A
+GIT_COMMITTER_DATE='2026-01-02T00:00:00Z' GIT_AUTHOR_DATE='2026-01-02T00:00:00Z' \
+  git -C "$bpwork" commit -qm "claim free gone-st"
+GIT_COMMITTER_DATE='2026-01-02T00:00:00Z' GIT_AUTHOR_DATE='2026-01-02T00:00:00Z' \
+  git -C "$bpwork" merge -q --no-ff -m "free: merge gone-st (fixture)" gone-st
+git -C "$bpwork" rm -q docs/handover/free-gone-st.md
+GIT_COMMITTER_DATE='2026-01-02T00:00:00Z' GIT_AUTHOR_DATE='2026-01-02T00:00:00Z' \
+  git -C "$bpwork" commit -qm "retire the free claim, then the session died"
+git -C "$bpwork" push -qu origin mgr-free-st
+git -C "$bpwork" checkout -q main
+# A builder file named free-* for a plan of that name is no free claim
+# (round 4): its branch, cut from an owner, never holds it.
+git -C "$bpwork" checkout -qb gone-ft main
+bpplan "${bpwork}/docs/plans/fft.md" fft normal
+git -C "$bpwork" add -A
+GIT_COMMITTER_DATE='2026-01-01T00:00:00Z' GIT_AUTHOR_DATE='2026-01-01T00:00:00Z' \
+  git -C "$bpwork" commit -qm "file fft, long ago"
+git -C "$bpwork" push -qu origin gone-ft
+git -C "$bpwork" checkout -qb build-ft gone-ft
+mkdir -p "${bpwork}/docs/handover"
+printf -- '---\nworkstream: free-text\nstatus: in-progress\nbranch: build-ft\npr: none\nplan: free-text\nagent: sonnet\nupdated: 2026-01-01\nnext: Build\n---\n\n## Goal\nFixture.\n' \
+  >"${bpwork}/docs/handover/free-text.md"
+commit_all "$bpwork" "builder of plan free-text"
+git -C "$bpwork" push -qu origin build-ft
+git -C "$bpwork" checkout -q main
+out="$(bp)"
+expect "a stale retired free claim no longer holds its owner" "  free gone-st (agent: sonnet)  FREEABLE" "$out"
+expect "a free-* file that is a builder's, not a claim, holds nothing" \
+  "  free gone-ft (agent: sonnet)  FREEABLE" "$out"
+# A released free claim lends nothing: its owner is offered again (r4).
+git -C "$bpwork" checkout -qb gone-w main
+bpplan "${bpwork}/docs/plans/fw.md" fw normal
+git -C "$bpwork" add -A
+GIT_COMMITTER_DATE='2026-01-01T00:00:00Z' GIT_AUTHOR_DATE='2026-01-01T00:00:00Z' \
+  git -C "$bpwork" commit -qm "file w, long ago"
+git -C "$bpwork" push -qu origin gone-w
+git -C "$bpwork" checkout -qb mgr-free-w main
+git -C "$bpwork" merge -q --no-ff -m "free: merge gone-w (fixture)" gone-w
+mkdir -p "${bpwork}/docs/handover"
+printf -- '---\nworkstream: free-gone-w\nstatus: abandoned\nbranch: mgr-free-w\npr: none\nplan: none\nagent: sonnet\nupdated: 2026-01-01\nnext: Released\n---\n\n## Goal\nFixture.\n' \
+  >"${bpwork}/docs/handover/free-gone-w.md"
+commit_all "$bpwork" "free claim released"
+git -C "$bpwork" push -qu origin mgr-free-w
+git -C "$bpwork" checkout -q main
+# A branch cut from the owner frees nothing: it never hides the owner (v4).
+git -C "$bpwork" checkout -qb prod-w gone-w
+printf 'product\n' >"${bpwork}/prod-w.txt"
+commit_all "$bpwork" "product work on top of gone-w"
+git -C "$bpwork" push -qu origin prod-w
+git -C "$bpwork" checkout -q main
+out="$(bp)"
+expect "a released free claim offers its owner again" "  free gone-w (agent: sonnet)  FREEABLE" "$out"
+# A done free claim with no merge pushed holds no key: the owner is offered
+# (round 2, v2: a refusal must not park it for the stale window).
+git -C "$bpwork" checkout -qb gone-d main
+bpplan "${bpwork}/docs/plans/fd.md" fd normal
+git -C "$bpwork" add -A
+GIT_COMMITTER_DATE='2026-01-01T00:00:00Z' GIT_AUTHOR_DATE='2026-01-01T00:00:00Z' \
+  git -C "$bpwork" commit -qm "file fd, long ago"
+git -C "$bpwork" push -qu origin gone-d
+git -C "$bpwork" checkout -qb mgr-free-d main
+mkdir -p "${bpwork}/docs/handover"
+printf -- '---\nworkstream: free-gone-d\nstatus: done\nbranch: mgr-free-d\npr: none\nplan: none\nagent: sonnet\nupdated: 2026-01-01\nnext: Nothing\n---\n\n## Goal\nFixture.\n' \
+  >"${bpwork}/docs/handover/free-gone-d.md"
+commit_all "$bpwork" "a done free claim, no merge"
+git -C "$bpwork" push -qu origin mgr-free-d
+git -C "$bpwork" checkout -q main
+# A branch that merges the owner but never claimed a free holds nothing,
+# whatever its merge subject says (round 3).
+git -C "$bpwork" checkout -qb spoof-d main
+git -C "$bpwork" merge -q --no-ff -m "free: merge gone-d (spoof)" gone-d
+git -C "$bpwork" push -qu origin spoof-d
+git -C "$bpwork" checkout -q main
+out="$(bp)"
+expect "a done free claim with no merge does not hide its owner" \
+  "  free gone-d (agent: sonnet)  FREEABLE" "$out"
+# Parked on a human: never offered, however old (r2).
+git -C "$bpwork" checkout -qb held-h main
+bpplan "${bpwork}/docs/plans/fh.md" fh normal
+mkdir -p "${bpwork}/docs/handover"
+printf -- '---\nworkstream: held\nstatus: blocked\nbranch: held-h\npr: none\nplan: none\nagent: sonnet\nupdated: 2026-01-01\nnext: product: which one?\n---\n\n## Goal\nFixture.\n' \
+  >"${bpwork}/docs/handover/held.md"
+git -C "$bpwork" add -A
+GIT_COMMITTER_DATE='2026-01-01T00:00:00Z' GIT_AUTHOR_DATE='2026-01-01T00:00:00Z' \
+  git -C "$bpwork" commit -qm "park on a question, long ago"
+git -C "$bpwork" push -qu origin held-h
+git -C "$bpwork" checkout -q main
+out="$(bp)"
+refute "a branch parked on a human is never FREEABLE" "free held-h (agent" "$out"
+# A free claim at done is mid-retire: listed, no slot.
+bpslots0="$(sed -n 's/^slots     : \([0-9][0-9]*\) of.*/\1/p' <<<"$out")"
+git -C "$bpwork" checkout -qb mgr-free-held main
+mkdir -p "${bpwork}/docs/handover"
+printf -- '---\nworkstream: free-held-h\nstatus: done\nbranch: mgr-free-held\npr: none\nplan: none\nagent: sonnet\nupdated: 2026-01-01\nnext: free refused: held-h is blocked\n---\n\n## Goal\nFixture.\n' \
+  >"${bpwork}/docs/handover/free-held-h.md"
+commit_all "$bpwork" "free refused"
+git -C "$bpwork" push -qu origin mgr-free-held
+git -C "$bpwork" checkout -q main
+out="$(bp)"
+expect "a done free claim is listed" \
+  "  free-held-h  mgr-free-held  done  pushed 0m  done: holds no slot" "$out"
+expect "and holds no slot" "slots     : ${bpslots0:-x} of" "$out"
+
 # --- time against the item: CEILING? (issue #298) ---------------------------
 # A manager that pushes inside the stall window and under the churn limit read
 # healthy for 5.5h and $48 with no pull request. The row now carries hours

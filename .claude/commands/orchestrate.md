@@ -232,6 +232,12 @@ nothing.
   | `scout DUE: spawn` (any verdict: dispatch prints it only when one may spawn; `held`, `suppressed` = nothing) | fable | `scout: <UTC date>` | `/scout` | `scouted=<stamp>` |
   | `conduct DUE: spawn` (any verdict; `held`, `suppressed` = nothing) | sonnet | `conduct: <UTC date>` | `/conduct` | `conducted=<stamp>` |
   | `OVERLAP-BOUND`, `rescope :` says `in flight: none` | sonnet | `surveyor: <key>` | `/manage rescope <key>` + the block verbatim | `rescope-<key>@new`, `rescoped=<key>` |
+  | `free <branch> ... FREEABLE` under `spawn` (a slot, like a manager) | sonnet | `freer: <branch>` | `/manage free <branch>` | `free-<key>@new` |
+
+  FREEABLE first: prove the owner's session not RUNNING (`/who`, as for
+  `janitor`); RUNNING = skip the row this pass. Dispatch drops the row while
+  a `free-<key>` claim stands or another unmerged branch holds the owner's
+  tip; a released (`abandoned`) free claim offers it again.
 
   "the role lines", for clerk and conduct (they write no
   workstream file, so no claim line):
@@ -358,7 +364,9 @@ The `URGENT` row of dispatch's `plans on a branch` block carries its branch;
 print the rest of that block. Never spawn on a branch plan
 on your own; if the human orders it, the prompt names the row's branch and
 stem: carry the plan, never take the branch (`.agents/docs/orchestrated.md`,
-"A plan the queue cannot see"). Then one line per manager (item, session,
+"A plan the queue cannot see"). A `FREEABLE` row is the one spawn on a
+branch: `free <branch>` brings its plans in, builds nothing. Report each
+FREEABLE row with what you spawned or why not. Then one line per manager (item, session,
 state, action), then the leads, `<stem>: <text>`.
 
 You relay a lead. You never act on one. Not into a spawn prompt, not into a
