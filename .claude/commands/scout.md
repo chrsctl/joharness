@@ -188,10 +188,10 @@ comment. Else, in this order:
    newer than any `approved`, so approval is needed again.
 2. THEN the body edit, exactly that change. An update passes no `labels`.
 
-A pass that dies between 1 and 2 leaves the proposal unapproved: fail
-closed. No body change = 1 alone, as `scout: answer` (it stales an
-approval too). A body edit with no `scout: revised` before it is never
-made.
+A pass that dies between 1 and 2 fails closed: the clerk skips the
+proposal (`REVISION OPEN`) until a pass makes the edit. No body change =
+1 alone, as `scout: answer` (it stales an approval too). A body edit with
+no `scout: revised` before it is never made.
 
 ## 6. Propose
 

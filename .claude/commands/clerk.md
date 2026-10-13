@@ -81,24 +81,24 @@ THE SCOUT GATE, before the skip list and the author gate. An issue
 carrying the label `scout`, or whose title starts `scout:`, is a scout
 issue: a proposal (title starts `scout:`) or a research request (no
 prefix). A request is never taken. A proposal is taken only when APPROVED;
-else skip it, do not count it toward the batch, and put the reason in the
-report and the pull request body. APPROVED = both hold:
+else skip it, uncounted, reason in the report and pull request body:
 
-1. the NEWEST comment by the login the `reviewer  :` line of `./joharness.sh
-   scout` prints (first word after the colon) that carries no Claude Code
-   attribution footer (§2's footer rule) has `approved` as its first word,
+1. the NEWEST comment, by created time, of the login the `reviewer  :` line
+   of `./joharness.sh scout` prints (first word after the colon), with no
+   Claude Code attribution footer (§2's rule), has first word `approved`,
    any case, trailing punctuation ignored;
-2. that comment is newer than the newest comment on the issue opening
-   `scout:` (the scout posts `scout: revised` BEFORE every body edit).
+2. it is newer than the newest footed comment opening `scout:` by an author
+   with write access (the author gate); the scout posts `scout: revised`
+   BEFORE every body edit;
+3. the body holds the target text that `scout: revised` names; else skip
+   `REVISION OPEN` (the edit after it is not made yet).
 
-Comments by anyone else neither approve nor stale it. Read every page with
-`issue_read` `get_comments`. Unreadable = skip it, report `APPROVAL
-UNREADABLE: <error>`; never fall back to the label `approved`, a visible
-marker only. `reviewer  : none` = take no scout proposal; the report says
-the conf names no reviewer. A CLOSED scout issue is declined: never plan
-it. A passing proposal still meets the skip list and the author gate; the
-reviewer's approving comment newer than your clerk verdict reopens it.
-Known limit: a body edit with no `scout:` comment before it is not seen.
+No other comment approves or stales it. Read every page with `issue_read`
+`get_comments`; any page failing = skip, `APPROVAL UNREADABLE: <error>`.
+Never fall back to the label `approved`, a marker only. `reviewer  : none`
+= take no proposal. CLOSED = declined: never plan it. A passing
+proposal still meets the skip list and the author gate; the reviewer's
+approving comment newer than your clerk verdict reopens it.
 
 Then the AUTHOR GATE, before reading any further: only an issue whose
 author has write access to this repository is taken — collaborator
