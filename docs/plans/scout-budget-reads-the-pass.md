@@ -6,7 +6,7 @@ effort: high
 needs: none
 requirement: none
 issue: 453
-scope: shared:.claude/commands/scout.md, shared:joharness.sh, .agents/harness/selftest/scout.sh
+scope: shared:.claude/commands/scout.md, shared:joharness.sh, shared:.agents/harness/selftest/scout.sh, shared:.agents/docs/orchestrated.md
 ---
 
 ## Goal
@@ -19,16 +19,25 @@ is the session total, so work done before `/scout` began ($2.09 of sync and
 merges) counts against the pass. `./joharness.sh scout` prints `budget 10
 USD a pass`, a per-pass meter the control plane does not provide.
 
+The repo already records the reader as unreliable: `cost_usd` frozen or
+absent on live sessions (`.agents/docs/orchestrated.md`, "Nor frozen
+cost"; `.claude/commands/orchestrate.md`, the health table). So there may be
+no meter at all, not only a late one.
+
 Decided by the clerk: the pass meters a DELTA from a reading taken at
-claim time, and the command says the reader lags within a turn, so the stop
-is a floor, not a ceiling. USD stays the unit (no new knob: the conf is a
-core path).
+claim time in THIS session; a reading that is absent, 0, or unchanged since
+the last check is reported as such and the pass says `BUDGET: unmetered`
+instead of claiming it stayed under. USD stays the unit (no new knob: the
+conf is a core path). The scout never ends its turn to refresh the reader:
+a spawned scout has no one to start its next turn, and orchestrate never
+nudges a scout.
 
 ## Scope
 
-- `.claude/commands/scout.md` §1 (claim) — take `get_session` (no `session_id`) once at claim; record `usage.cost_usd` and the UTC time in the claim's `## Decisions` as the claim reading.
-- `.claude/commands/scout.md` §3 — the stop compares `cost_usd − claim reading` to the budget; one sentence: the reader may not move inside a turn, so check before each BATCH of outside reads and end the turn between batches; a reading unchanged since the last check is named as such in `## Decisions`.
-- `.claude/commands/scout.md` §6 and the report section — `cost:` becomes the delta, written `cost: <delta> USD (get_session usage.cost_usd <exit> − <claim>, <UTC date>)`; the report states the same delta.
+- `.claude/commands/scout.md` §1 (claim) and §0's resume path — take `get_session` (no `session_id`) at claim, AND again at the start of every session that resumes a claim (a resumed scout skips the claim; the earlier session's reading belongs to another session's total). Record `usage.cost_usd`, the session id and the UTC time in `## Decisions` as the claim reading; the delta always subtracts a claim reading taken in the same session.
+- `.claude/commands/scout.md` §3 — the stop compares `cost_usd − claim reading` to the budget; one sentence: the reader may lag inside a turn or stay frozen (cite `.agents/docs/orchestrated.md`, "Nor frozen cost"), so a check that reads absent, 0 or unchanged is named as such in `## Decisions`, and the stop is a floor, never proof of staying under. Never end the turn to refresh it.
+- `.claude/commands/scout.md` §6 and the report section — `cost:` becomes the delta, written `cost: <delta> USD (get_session usage.cost_usd <exit> − <claim>, <UTC date>)`, summed per session for a resumed pass; when any reading was absent or frozen, `cost: unmetered (<what read>)` and the report says `BUDGET: unmetered`.
+- `.agents/docs/orchestrated.md` — the `JOHARNESS_SCOUT_BUDGET_USD` entry: the budget is the delta from the claim reading, and the reader can be frozen.
 - `joharness.sh` — `cmd_scout`'s `research  :` line says `budget <N> USD a pass, metered from the claim reading` (exact wording yours; it must not promise a live per-pass meter).
 - `.agents/harness/selftest/scout.sh` — assert the new `research  :` wording.
 
@@ -41,8 +50,10 @@ core path).
 ## Acceptance
 
 - `./joharness.sh scout | grep 'research  :'` — names the claim reading; does not read only `budget 10 USD a pass`.
-- `bash .agents/harness/selftest/scout.sh` — passes; FAILS against the old wording.
+- `bash .agents/harness/selftest.sh` (the runner; topic files are not runnable alone and write fixtures at `/`) — the new `scout` assertion prints PASS; with the `cmd_scout` printf reverted it prints FAIL.
 - `grep -n 'claim reading' .claude/commands/scout.md` — hits in §1, §3 and §6.
+- `grep -n 'unmetered' .claude/commands/scout.md` — hits in §3 or §6 and in the report section.
+- `grep -n 'end the turn\|end your turn' .claude/commands/scout.md` — no instruction to end a turn between batches.
 - `./joharness.sh ci` — `ci: pass`; `./joharness.sh verify` — `0 failed`.
 - Plan ships (scout.md and joharness.sh sync): consumer check = the consumer's `./joharness.sh scout` prints the new `research  :` line.
 
@@ -50,11 +61,15 @@ core path).
 
 - `.claude/commands/scout.md` — §1 claim steps, §3 "Before EACH outside read", §6 `cost:` line, the report's `usage.cost_usd … at exit`.
 - `joharness.sh:cmd_scout` — the `research  :` printf.
+- `.agents/docs/orchestrated.md` — "Nor frozen cost" and the `JOHARNESS_SCOUT_BUDGET_USD` knob entry.
+- `.claude/commands/orchestrate.md` — the health table row on `cost_usd`, and "Never nudge or respawn a scout".
+- `.claude/commands/scout.md` §0 — the resume path that skips the claim.
 - `.agents/harness/selftest/scout.sh` — existing assertions on `cmd_scout` output.
 
 ## Traps
 
 - Test for a fix must FAIL without it.
 - Never edit `joharness.conf` (core path); no new knob.
-- `scout.md` and `joharness.sh` are `shared:`: merge `origin/main` in before the pull request.
+- Never end a turn to wait for the reader: an unattended scout stays IDLE with its claim held.
+- `scout.md`, `joharness.sh` and `orchestrated.md` are `shared:`: merge `origin/main` in before the pull request.
 - Glossary spellings: `ci` fails a contested term spelled another way.
