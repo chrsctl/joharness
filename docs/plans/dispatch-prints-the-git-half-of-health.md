@@ -13,48 +13,49 @@ scope: shared:joharness.sh, shared:.claude/commands/orchestrate.md, shared:.agen
 
 `orchestrate.md` §2 tells the orchestrator to establish each manager's merge
 state itself: "git: `git merge-base --is-ancestor <head> origin/main` — never
-a summary". `dispatch` already knows it — a merged branch "drops out
-entirely" in `dispatch_retired_edges` — and after `dispatch-no-merged-walks`
-it knows it from one listing. Printing the git facts the health pass reads
-(head, merge state, whether the item file is still on `origin/main`) on the
-in-flight row saves the orchestrator one git call per manager per pass and
-one prose rule, and gives every reader of the report the same three-valued
-answer instead of a yes/no the model computes.
+a summary". For a manager `dispatch` lists as in flight the answer is already
+known: `queue-context.sh` gives a merged branch no claim (`ref_merged … &&
+continue`), so an in-flight row is unmerged by construction, and after
+`dispatch-no-merged-walks` the listing says so from one call. What the row
+does not say is the head it was read at, whether a merge-base with
+`origin/main` exists at all (a shallow clone or an unrelated branch, which
+`dispatch_retired_edges` already names as "NO merge base"), and whether the
+item file the claim names is still on `origin/main`. Print those three, so
+the orchestrator reads them instead of running git per manager per pass,
+and so an unreadable base is reported rather than folded into "no".
 
 ## Scope
 
 - `joharness.sh` — `cmd_dispatch`'s "managers in flight" rows gain three
-  fields: `head <sha12>`; `merged yes|no|unreadable` (`unreadable` when no
-  merge-base with `origin/main` exists — a shallow clone or an unrelated
-  branch — never folded into `no`); `item present|gone` (the plan, research
-  or requirement file the claim names, on `refs/remotes/origin/main`). The
-  existing `pushed <age>` stays. No new block: a merged branch keeps dropping
-  out of the in-flight list as today, and the ledger's `@new` entries are
-  the orchestrator's to drop, as §2's first row says.
-- `.claude/commands/orchestrate.md` — §2's field table: the `merge state`
-  row reads "dispatch's `merged` column — never a summary; `unreadable` =
-  report, decide nothing". No row is removed and the first row's lead
-  exception stays word for word.
+  fields: `head <sha12>`; `base ok|unreadable` (a merge-base with
+  `refs/remotes/origin/main` exists, or not); `item present|gone` (the plan,
+  research or requirement file the claim's frontmatter names, on
+  `refs/remotes/origin/main`). `pushed <age>` stays. No new block.
+- `.claude/commands/orchestrate.md` — §2's field table, the `merge state`
+  row: "a manager on dispatch's in-flight list is unmerged by construction
+  (`queue-context.sh`, `ref_merged`); `base unreadable` on its row = report,
+  decide nothing; a ledger stem dispatch does NOT list keeps today's check,
+  `git merge-base --is-ancestor <head> origin/main`, never a summary". No
+  row is removed; the first row's lead exception stays word for word.
 - `.agents/harness/selftest/dispatch.sh` — one fixture with a manager in
-  flight: its row carries `head`, `merged no`, `item present`; delete the
-  plan file on the fixture's main: the row reads `item gone`; a fixture
-  whose `origin/main` shares no history with the branch: `merged unreadable`.
+  flight: its row carries `head`, `base ok`, `item present`; delete the plan
+  file on the fixture's main: `item gone`; a fixture whose `origin/main`
+  shares no history with the branch: `base unreadable`.
 
 ## Out of scope
 
 - Any control-plane read in `joharness.sh`: git-only by design.
 - Deleting or rewording any §2 row but the `merge state` field line.
-- Listing merged branches: `janitor` and `cleanup` already do.
+- Stems dispatch does not list (`@new` entries, merged branches): the
+  orchestrator's, as today.
 - The `leftovers` block: unchanged.
 
 ## Acceptance
 
 - `./joharness.sh dispatch` on a checkout with a manager in flight: its row
-  contains `head `, `merged no` and `item present` (quote the row in the
-  pull request).
+  contains `head `, `base ok` and `item present` (quote the row).
 - `bash .agents/harness/selftest.sh` — the three new assertions pass;
   `./joharness.sh ci` — `ci: pass`.
-- `grep -c 'merge-base --is-ancestor' .claude/commands/orchestrate.md` — `0`.
 - Plan `ci` calls SHIPS (`joharness.sh` and `.claude/commands` sync): the
   consumer check is one gx orchestrator report quoting a row with the three
   fields.
@@ -62,8 +63,10 @@ answer instead of a yes/no the model computes.
 ## Where to look
 
 - `joharness.sh:cmd_dispatch` — the `managers in flight` rows.
-- `joharness.sh:dispatch_retired_edges` — where a merged branch drops out
-  and where "NO merge base" is already a named case.
+- `joharness.sh:dispatch_retired_edges` — "NO merge base = ownership cannot
+  be computed here at all", the case `base unreadable` prints.
+- `.agents/harness/queue-context.sh:ref_merged` — why an in-flight row is
+  unmerged by construction.
 - `.claude/commands/orchestrate.md:## 2. Health pass` — the field table's
   `merge state` row.
 - `.agents/harness/selftest/dispatch.sh` — fixture helpers the new case
@@ -71,8 +74,9 @@ answer instead of a yes/no the model computes.
 
 ## Traps
 
-- Don't answer "did this land?" with two values when there are three:
-  `merged`, `unmerged`, `unreadable`.
+- Don't answer "did this land?" with two values when there are three: an
+  unreadable base is its own value, never `no`.
 - Never read a summary for merge state; git says it.
-- `dispatch-no-merged-walks` edits the same functions: build on its result,
-  never beside it.
+- `dispatch-no-merged-walks` edits the same functions: build on its result.
+- `orchestrator-hands-off-at-context-ceiling` edits `cmd_dispatch`'s header
+  and §2's field table too: name it at reconcile.

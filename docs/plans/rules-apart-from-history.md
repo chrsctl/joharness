@@ -18,10 +18,11 @@ A manager reads about 69 KB of rules before opening its plan (counted
 documents interleave rule lines with the dated incidents that produced them,
 so every reader pays for every past measurement. The caveman discipline keeps
 `AGENTS.md` small so that a rule's "why" lives elsewhere; this plan applies
-the same split one level down for the two documents nothing else in flight
-is editing: `handover/README.md` (22,234 bytes) and `consumer-repos.md`
+the same split one level down for the two documents no other open plan is
+editing: `handover/README.md` (22,234 bytes) and `consumer-repos.md`
 (26,506 bytes). `orchestrated.md` (39,424 bytes) is the third candidate and
-is left for a later plan: seven open plans edit it today.
+is left for a later plan: three plans on `origin/main` and three on this
+branch name it in `scope:` today.
 
 ## Scope
 
@@ -32,36 +33,42 @@ is left for a later plan: seven open plans edit it today.
 - `.agents/docs/handover/README.md`, `.agents/docs/consumer-repos.md` — each
   rule keeps its one-line statement and gains `(why: history/<name>.md §
   <heading>)`, naming one of the two files above; paragraphs that are
-  measurement, incident narrative or rejected alternatives move.
+  measurement, incident narrative or rejected alternatives move. A heading
+  cited from `AGENTS.md`, a role command, `joharness.sh` or the selftest
+  stays in the README (`grep -rn` each before moving its paragraph).
 - `.agents/harness/AGENTS.md` — the line "Why lives in `.agents/docs/`"
   names `.agents/docs/history/` as where.
 - `.agents/harness/selftest/reading-budget.sh`, registered in
-  `SELFTEST_TOPICS` — counts the bytes of a listed set per role and compares
-  to a written bound, printing both. The manager set is the six files
-  above; bound 60,000 (68,773 today less half of `handover/README.md`,
-  rounded up, so the case is red until this plan's split lands and green
-  after). The sync set is `consumer-repos.md` alone; bound 14,000 (half of
-  26,506). Over the bound = red, naming the largest file.
+  `SELFTEST_TOPICS` — bounds the two split files only: `handover/README.md`
+  and `consumer-repos.md` each at most their COUNTED size after the split
+  plus a tenth (the plan writes the bound from the count it measures; it is
+  not written here), and prints, unbounded, the manager set's six-file total
+  (`manage.md`, `plans/README.md`, `handover/README.md`,
+  `agent-selection.md`, `subagents.md`, `verifier.md`) beside the 68,773 of
+  2026-10-13 so growth is visible without coupling the case to files
+  outside this plan's scope.
 
 ## Out of scope
 
 - Rewording any rule. A rule line moves nowhere and changes nothing.
 - `orchestrated.md`, `agent-selection.md`, `feedback.md`, `plans/README.md`:
-  a later plan each, once the plans editing them have landed.
+  a later plan each.
 - The role commands (`role-prelude-command` shortens those).
 - Deleting history: append-only means append-only.
 
 ## Acceptance
 
 - `wc -c .agents/docs/handover/README.md .agents/docs/consumer-repos.md` —
-  each at most half its byte count on `origin/main` at the plan's start;
-  quote both counts.
-- `bash .agents/harness/selftest.sh` — `reading-budget.sh` passes with both
-  sets under their bounds, printing the counted bytes; `./joharness.sh ci` —
-  `ci: pass` (glossary lint over the moved text included).
-- Test for the fix must FAIL without it: on `origin/main` with only the new
-  selftest part applied, `reading-budget.sh` is red (68,773 > 60,000);
-  quote the line.
+  each at least a third smaller than on `origin/main` at the plan's start
+  (22,234 and 26,506 that day); quote both pairs. If rule text alone leaves
+  a file above that, say so with the count and stop there: the split is
+  the deliverable, not the number.
+- `bash .agents/harness/selftest.sh` — `reading-budget.sh` passes, printing
+  the two counted sizes, their bounds, and the manager set's total;
+  `./joharness.sh ci` — `ci: pass` (glossary lint over the moved text).
+- Test for the fix must FAIL without it: the new case with its bounds, run
+  on `origin/main`'s two files, is red (22,234 and 26,506 exceed any bound
+  set from the post-split counts); quote the line.
 - For three rules the verifier picks, `grep -n` the rule line in the README
   and the quoted paragraph in `history/`: both present, pointer resolves.
 - Plan `ci` calls SHIPS (`.agents/docs` syncs; the selftest does not): the
@@ -72,10 +79,11 @@ is left for a later plan: seven open plans edit it today.
 
 - `.agents/docs/caveman.md` — the style rule this plan extends downward.
 - `.agents/harness/AGENTS.md` — "Why lives in `.agents/docs/`".
-- `.agents/docs/handover/README.md:## Graduation` — a section that is mostly
-  measurement; a worked example of what moves and what stays.
-- `.agents/docs/consumer-repos.md` — "Conflict at finish" and the migration
-  section, incident-shaped.
+- `.agents/docs/handover/README.md:## Graduation` — mostly measurement; a
+  worked example of what moves and what stays.
+- `.agents/docs/consumer-repos.md:## Migration: pre-.agents consumers` — an
+  incident-shaped section; and the "Pick route" list, which is procedure
+  and stays.
 - `joharness.sh:lint_glossary` — what the moved text must still satisfy.
 - `.agents/harness/selftest.sh` — `SELFTEST_TOPICS`.
 
@@ -83,7 +91,7 @@ is left for a later plan: seven open plans edit it today.
 
 - Never blanket find-and-replace: move paragraphs by hand, re-read every
   pointer, and check each `(why: …)` resolves.
-- A `.agents/docs/*.md` heading is cited from `AGENTS.md`, role commands,
-  `joharness.sh` and the selftest: `grep -rn` every heading before moving
-  its paragraph; cited headings stay in the README.
+- Cited headings stay: `grep -rn` every heading before moving its paragraph.
 - Contested terms have one spelling: the history files are linted too.
+- Trust counted numbers: the bounds in the selftest are written from the
+  post-split count in the same commit, never estimated here.
