@@ -2489,13 +2489,17 @@ cmd_analysis() {
 # `merge-base --is-ancestor` per ref cost a walk per merged branch, and merged
 # branches are never deleted. A ref that does not resolve judges nothing
 # merged (what the per-ref test did: it failed), and `--no-merged=<missing>` is
-# fatal, so that case lists every origin ref. No ref given lists them all.
+# fatal, so a missing FIRST ref lists every origin ref; a later one is skipped.
+# No ref given lists them all.
 refs_unmerged() {
-  local ref flags=()
+  local ref first=1 flags=()
   for ref in "$@"; do
-    git -C "$ROOT" rev-parse --verify -q "${ref}^{commit}" </dev/null >/dev/null 2>&1 ||
-      { flags=(); break; }
-    flags+=("--no-merged=${ref}")
+    if git -C "$ROOT" rev-parse --verify -q "${ref}^{commit}" </dev/null >/dev/null 2>&1; then
+      flags+=("--no-merged=${ref}")
+    elif [ "$first" -eq 1 ]; then
+      flags=(); break      # the base is missing: nothing is merged
+    fi                     # a later ref that is missing filters nothing
+    first=0
   done
   git -C "$ROOT" for-each-ref ${flags[@]+"${flags[@]}"} --format='%(refname)' \
     refs/remotes/origin </dev/null 2>/dev/null
