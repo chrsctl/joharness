@@ -37,7 +37,8 @@ overlap.
   `num_knob` keeps its explicit default argument for those and reads the
   static default from `KNOBS` for the rest, so a static default lives once.
   `scope` is one of `conf` (a consumer's conf line; the row exists in
-  `conf-keys.sh`), `dispatch` (a number the table documents; may also be in
+  `conf-keys.sh`), `base-conf` (as `conf`, but read from the base branch's
+  conf), `dispatch` (a number the table documents; may also be in
   `conf-keys.sh`), `session` (env for one command or the canonical
   checkout: `JOHARNESS_CANONICAL`, `JOHARNESS_CONF`, `JOHARNESS_VERBOSE`,
   `JOHARNESS_SELFTEST`, `JOHARNESS_SESSION_SOURCE`, `JOHARNESS_FORCE_SETUP`,
@@ -46,9 +47,16 @@ overlap.
   `JOHARNESS_PENDING_SPAWNS`, `HANDOVER_STALE_SECONDS`, and whichever others
   the implementing session finds are so). `cmd_conf`, added to the
   subcommand table and the usage text, prints every row: `KEY = <value>
-  (<source>)  <scope>  <meaning>`, where source is `env`, `conf`,
-  `default`, or `conf, empty: default <d>` / `env, empty: default <d>` when
-  the line or variable is present and empty (what `num_knob` then uses).
+  (<source>)  <scope>  <meaning>`. The value is what `num_knob` (or the
+  reader the key has) returns; the source is where that value came from,
+  `env`, `conf`, `base conf` or `default`, followed by `; env set but
+  empty, ignored` or `; conf set but empty, ignored` when a layer was
+  present and empty and the reader fell through it, as `num_knob` does
+  (`v="${!1:-}"`, then the conf, then the default). The three keys read
+  from `origin/<base>:joharness.conf` rather than the checkout's conf
+  (`JOHARNESS_SCOUT_REVIEWER`, `JOHARNESS_SCOUT_RESEARCH`,
+  `JOHARNESS_SCOUT_AUTOMERGE`; `scout_base_conf`) carry scope `base-conf`
+  and print the base's value with source `base conf`.
   The header's "Keys" comment points at `KNOBS` instead of listing keys.
 - `.agents/docs/orchestrated.md` — the table gains a row for every
   `dispatch`-scoped key missing from it; its introduction says the
@@ -68,17 +76,22 @@ overlap.
   reads them; `JOHARNESS_CANONICAL` stays out of `conf-keys.sh` as its
   header says.
 - The bootstrap interview.
-- Knobs other open plans add (`JOHARNESS_ORCHESTRATOR_PASSES`,
-  `JOHARNESS_SELFTEST_GIT_BUDGET`): whichever plan lands second adds the
-  row.
+- Knobs other open plans add (`JOHARNESS_ORCHESTRATOR_PASSES` from
+  `orchestrator-hands-off-at-context-ceiling`, `JOHARNESS_SELFTEST_GIT_BUDGET`
+  from `selftest-exec-budget`): whichever plan lands second adds the row.
 
 ## Acceptance
 
 - `./joharness.sh conf | wc -l` — equals the number of `KNOBS` rows (quote
   both); every line carries a source in parentheses and a scope.
 - `comm -23 <(grep -ohE 'JOHARNESS_[A-Z0-9_]+' joharness.sh | sort -u) <(./joharness.sh conf | awk '{print $1}' | sort -u) | wc -l` — `0`.
-- `JOHARNESS_MAX_MANAGERS= ./joharness.sh conf | grep MAX_MANAGERS` — the
-  line reads `env, empty: default 4`.
+- `JOHARNESS_MAX_MANAGERS= ./joharness.sh conf | grep MAX_MANAGERS` — on
+  this repository, whose conf sets 3: the value is `3` and the source reads
+  `conf; env set but empty, ignored`, the same `3` `num_knob` returns.
+- `git stash`-free check of the base read: on a branch whose
+  `joharness.conf` sets `JOHARNESS_SCOUT_REVIEWER=alice` while
+  `origin/main`'s says another login, `./joharness.sh conf | grep
+  SCOUT_REVIEWER` prints the base's login with source `base conf`.
 - `bash .agents/harness/selftest.sh` — `knobs-declared.sh` passes and every
   existing case still passes; `./joharness.sh ci` — `ci: pass`.
 - Plan `ci` calls SHIPS (`joharness.sh` syncs): the consumer check is
@@ -106,5 +119,8 @@ overlap.
 - Contested terms have one spelling (glossary lint).
 - `conf-keys.sh` is canonical-only: never make a consumer's `joharness.sh`
   depend on it.
-- `orchestrator-hands-off-at-context-ceiling` and `selftest-fixtures-once`
+- `orchestrator-hands-off-at-context-ceiling` and `selftest-exec-budget`
   add knobs: name them at reconcile.
+- `scout_reviewer`, `scout_research` and `scout_automerge` read the BASE
+  branch's conf on purpose (a branch cannot name its own reviewer): `conf`
+  prints what they read, never the checkout's line.
