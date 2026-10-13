@@ -49,6 +49,7 @@ Scout proposals are approved by the reviewer's `approved` comment, read with
 - r16: (verifier) recovery blocked by the ceiling exit or NO BRIEF (fixed for the ceiling: unfinished revisions run at any ceiling; wontfix for NO BRIEF: fails closed, and a missing brief is the human's to fix)
 - r17: (verifier) item 2 undefined with no scout comment; item 1 "newest ... with no footer" readable two ways (fixed: "none = any"; "newest of the unfooted comments")
 - r18: (verifier) plan text still says one-comment bracket (no change: the plan file retires in this PR; the deviation is in Decisions and the PR body)
+- r19: (verifier) third pass at e66c8bec: clean, every earlier finding closed or recorded (no change)
 - r8: gate walk, six cases against clerk.md items 1-3: reviewer `approved` after `scout: revision` + `scout: revised` → taken (after `scout: revision` alone → skipped, item 3; never revised → taken, item 2 none = any); `scout: revised` after `approved` → skipped (item 2); stranger's `approved` → skipped (item 1, login); footed `approved` by reviewer login → skipped (item 1, footer); maintainer comment after reviewer `approved` → taken (stales only via footed `scout:`); `Approved.` → taken (case, punctuation) (no change)
 
 ## Blockers
