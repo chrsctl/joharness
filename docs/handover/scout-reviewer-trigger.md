@@ -8,7 +8,7 @@ issue: 461
 session: https://claude.ai/code/session_01QcZK5M6AWvqSjY9917d4q1
 agent: opus
 updated: 2026-10-13
-next: Run ci and verify, then edge review with the verifier at opus
+next: ci running; then hold scout row on JOHARNESS_PENDING_SPAWNS, verify, verifier
 ---
 
 ## Goal
