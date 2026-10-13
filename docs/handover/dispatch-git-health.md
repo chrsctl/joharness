@@ -17,6 +17,10 @@ Plan dispatch-prints-the-git-half-of-health: in-flight rows print head sha and b
 
 ## Review
 
+- r1: (verifier) orphan-fixture teardown `out=` was never read (fixed: now refutes a leaked `base unreadable`)
+- r2: (verifier) LOOP? assertion lost its row binding (fixed: now matches `base ok  LOOP? ...`)
+- r3: (verifier) `base unreadable` also covers an absent branch ref; orchestrate.md row says report, decide nothing (no change)
+
 ## Blockers
 
 None.

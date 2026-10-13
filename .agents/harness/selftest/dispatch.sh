@@ -176,6 +176,7 @@ git -C "$dspwork" push -q origin --delete mgr-orphan
 git -C "$dspwork" branch -qD mgr-orphan
 git -C "$dspwork" fetch -qp origin
 out="$(dsp)"
+refute "and the torn-down fixture leaks no unreadable row" "base unreadable" "$out"
 # No wave on the line, and that is the point: a held plan is not spawned this
 # pass, so it is not in the partition of what runs concurrently. It used to
 # carry `wave 1` and make every plan meeting its scope WAIT for a pass it sat
@@ -341,7 +342,7 @@ expect "past the threshold the work line names the warning" \
 refute "but the threshold alone is no LOOP?" "LOOP? code.txt" "$out"
 out="$(dsp env JOHARNESS_CHURN_LIMIT=6)"
 expect "past the limit a manager is marked" \
-  "  LOOP? code.txt rewritten 6 times (>= 6): record its progress, respawn with the churn rule" "$out"
+  "base ok  LOOP? code.txt rewritten 6 times (>= 6): record its progress, respawn with the churn rule" "$out"
 expect "and the verdict says health pass first" \
   "1 manager(s) rewriting one file past the churn threshold: health pass FIRST" "$out"
 out="$(dsp env JOHARNESS_CHURN_LIMIT=0)"
