@@ -113,7 +113,8 @@ refute "and is never VERIFIABLE" "verdict   : VERIFIABLE" "$out"
 # unrelated branch" left the role guessing. The shallow case must name its
 # cause and the command that fixes it; a complete history must not offer a
 # fetch that cannot help. `file://` on purpose: a plain-path clone ignores
-# --depth. Guarded like handover-context-owns.sh: no shallow clone, skip.
+# --depth. Guarded like handover-context-owns.sh: the clone failing skips;
+# a clone that is not shallow, or still has a merge base, is a red fixture.
 authorigin="${TMP}/authorigin.git"
 git clone -q --bare "$authwork" "$authorigin"
 git -C "$authorigin" symbolic-ref HEAD refs/heads/main
@@ -126,10 +127,11 @@ git -C "$authwork" branch -q -D side
 authshallow="${TMP}/authshallow"
 authin() { CLAUDE_PROJECT_DIR="$1" JOHARNESS_CONF="${1}/joharness.conf" \
   "${1}/joharness.sh" authority 2>&1; }
-if git clone -q --depth=1 --no-single-branch -b side "file://${authorigin}" "$authshallow" 2>/dev/null &&
-  [ "$(git -C "$authshallow" rev-parse --is-shallow-repository 2>/dev/null)" = "true" ] &&
-  ! git -C "$authshallow" merge-base HEAD origin/main >/dev/null 2>&1
-then
+if git clone -q --depth=1 --no-single-branch -b side "file://${authorigin}" "$authshallow" 2>/dev/null; then
+  expect "fixture: the clone really is shallow" "true" \
+    "$(git -C "$authshallow" rev-parse --is-shallow-repository 2>/dev/null)"
+  expect "fixture: and its boundary hides the merge base" "none" \
+    "$(git -C "$authshallow" merge-base HEAD origin/main 2>/dev/null || echo none)"
   out="$(authin "$authshallow")"
   expect "a shallow clone hiding the merge base reads UNVERIFIED" \
     "verdict   : UNVERIFIED" "$out"
@@ -155,6 +157,42 @@ expect "an unrelated complete history reads UNVERIFIED" \
 expect "and says unshallowing cannot help" "unshallowing cannot" "$out"
 refute "and prints no run: line" "run: git fetch --unshallow" "$out"
 refute "and does not name a shallow clone" "shallow clone," "$out"
+
+# --- the hook's unshallow: no second bound after a timeout ------------------
+# Worst case of the hook's fetch block is its bounds summed. After the
+# unshallow TIMED OUT (124) the plain fetch would add its own; after a fast
+# failure it is the only fetch that runs. A PATH `timeout` stands in for the
+# network: it logs each call and answers the unshallow with the code given.
+fakebin="${TMP}/authfakebin"
+mkdir -p "$fakebin"
+cat >"${fakebin}/timeout" <<'FAKE'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$FAKE_TIMEOUT_LOG"
+case "$*" in *--unshallow*) exit "$FAKE_UNSHALLOW_RC" ;; esac
+exit 0
+FAKE
+chmod +x "${fakebin}/timeout"
+authhook="${TMP}/authhook"
+if git clone -q --depth=1 --no-single-branch -b side "file://${authorigin}" "$authhook" 2>/dev/null; then
+  for rc in 124 128; do
+    : >"${TMP}/authtimeout.log"
+    CLAUDE_PROJECT_DIR="$authhook" HANDOVER_FETCH=1 PATH="${fakebin}:${PATH}" \
+      FAKE_TIMEOUT_LOG="${TMP}/authtimeout.log" FAKE_UNSHALLOW_RC="$rc" \
+      bash "${ROOT}/.agents/harness/handover-context.sh" >/dev/null 2>&1
+    tlog="$(cat "${TMP}/authtimeout.log")"
+    expect "hook, unshallow rc=${rc}: the unshallow ran under a bound" \
+      "fetch --quiet --prune --unshallow origin" "$tlog"
+    if [ "$rc" = 124 ]; then
+      refute "hook, unshallow timed out: no plain fetch adds a second bound" \
+        "fetch --quiet --prune origin" "$tlog"
+    else
+      expect "hook, unshallow failed fast: the plain fetch still runs" \
+        "fetch --quiet --prune origin" "$tlog"
+    fi
+  done
+else
+  skip "hook unshallow bound" "file:// shallow clone unavailable here"
+fi
 
 # --- it reports, it does not gate -------------------------------------------
 # No exit code carries the verdict. An exit status invites a caller to branch
