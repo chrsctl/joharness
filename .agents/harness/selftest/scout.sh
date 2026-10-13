@@ -951,11 +951,11 @@ out="$(sct)"
 expect "reviewer unset reads none" \
   "reviewer  : none (JOHARNESS_SCOUT_REVIEWER) — nothing can be approved" "$out"
 expect "research unset reads off, budget its default" \
-  "research  : off (JOHARNESS_SCOUT_RESEARCH); budget 10 USD a pass (JOHARNESS_SCOUT_BUDGET_USD)" "$out"
-out="$(sct JOHARNESS_SCOUT_REVIEWER=alice JOHARNESS_SCOUT_RESEARCH=on JOHARNESS_SCOUT_BUDGET_USD=25)"
+  "research  : off (JOHARNESS_SCOUT_RESEARCH); budget 12 outside reads a pass (JOHARNESS_SCOUT_READS)" "$out"
+out="$(sct JOHARNESS_SCOUT_REVIEWER=alice JOHARNESS_SCOUT_RESEARCH=on JOHARNESS_SCOUT_READS=25)"
 expect "reviewer set reads the login" "reviewer  : alice (JOHARNESS_SCOUT_REVIEWER)" "$out"
 expect "research on and a budget read through" \
-  "research  : on (JOHARNESS_SCOUT_RESEARCH); budget 25 USD a pass" "$out"
+  "research  : on (JOHARNESS_SCOUT_RESEARCH); budget 25 outside reads a pass (JOHARNESS_SCOUT_READS)" "$out"
 # Rejected whole, never trimmed: a trimmed login is another account.
 for scout_bad in "alice\$(x)" alice_acme alice.smith -- -alice; do
   expect "a value no login can be reads none: ${scout_bad}" "reviewer  : none (JOHARNESS_SCOUT_REVIEWER)" \

@@ -8,7 +8,7 @@ issue: 461
 session: https://claude.ai/code/session_013pNMC2B5wdaHeWY6FFnpcJ
 agent: sonnet
 updated: 2026-10-13
-next: Edit scout.md §3/§6/§7/§8, joharness.sh, knob files, selftest; run ci + verify
+next: Await ci result; run verify; verifier review; record wc -l scout.md; retire plan+workstream; PR
 ---
 
 ## Goal
@@ -26,3 +26,7 @@ None.
 ## Where to look
 
 - `docs/plans/scout-budget-by-count.md`
+
+## Decisions
+
+- scout.md renumbered: §7 Digest removed, old §8 is now §7. wc -l scout.md = 263 on 2026-10-13 (was 265); target "near 144" not met, plan did not require cutting more.
