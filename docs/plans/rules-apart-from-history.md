@@ -81,7 +81,7 @@ branch name it in `scope:` today.
 - `.agents/harness/AGENTS.md` — "Why lives in `.agents/docs/`".
 - `.agents/docs/handover/README.md:## Graduation` — mostly measurement; a
   worked example of what moves and what stays.
-- `.agents/docs/consumer-repos.md:## Migration: pre-.agents consumers` — an
+- `.agents/docs/consumer-repos.md:## Migration: pre-\`.agents\` consumers` — an
   incident-shaped section; and the "Pick route" list, which is procedure
   and stays.
 - `joharness.sh:lint_glossary` — what the moved text must still satisfy.

@@ -38,19 +38,26 @@ the judgement: what to read, what to produce.
     one unshallow-and-retry `shallow-clone-reaches-authority` adds; not
     VERIFIABLE = `STOP: authority <verdict>`; (2) `git fetch --prune origin
     '+refs/heads/*:refs/remotes/origin/*'` (the fetch `clerk-fetch-before-inflight`
-    puts before the report; FAILED = `STOP: fetch failed`); (3) the role's
-    own report (`clerk`, `scout`, `curate`, `conduct`), and `STOP: <line>` on
-    every line that role's §0 treats as an exit — IN FLIGHT by another
-    branch for all four; `off`, `UNREADABLE`, `NO BRIEF` for the scout;
-    `not due` and `nothing to sample` for conduct; curate's "no PROPOSE
-    findings" exit — the command's list is the role's list, read from the
-    command text; (4) resume: the current branch already carries this role's
-    own claim file = `GO <branch> (resumed)`, nothing cut, nothing pushed
-    (scout §0.2's "Resumed on your OWN branch"); (5) `git fetch origin main`
+    puts before the report; FAILED = `STOP: fetch failed`); (3) resume,
+    BEFORE any cadence read: the current branch already carries this role's
+    own claim file = `GO <branch> (resumed)`, nothing cut, nothing pushed,
+    no report consulted (scout §0.2: a resumed scout skips §0.3–4, and
+    `cmd_scout` prints `off` or `UNREADABLE` before it lists rows); (4) the
+    role's own report (`clerk`, `scout`, `curate`, `conduct`), and
+    `STOP: <line>` on every line that role's §0 treats as a plain exit — IN
+    FLIGHT by another branch for all four; `off`, `UNREADABLE` for the
+    scout; `not due` and `nothing to sample` for conduct; curate's "no
+    PROPOSE findings" exit — the command's list is the role's list, read
+    from the command text. The scout's `NO BRIEF` is not a plain exit
+    (`scout.md` §0.5: claim, report, retire): the command claims as in (6),
+    retires at once, and prints `STOP: NO BRIEF (claimed and retired)`;
+    (5) `git fetch origin main`
     and the branch under the role's naming rule as its command states it
     (clerk `clerk-<UTC date>` with `-b`, `-c` suffixes on collision; scout
-    `scout-<UTC date>`; curate and conduct the stems their commands give,
-    `curate-<UTC date>`, `conduct-<UTC date>-<HHMM>`), `git checkout -b`;
+    `scout-<UTC date>`; conduct `conduct-<UTC date>-<HHMM>` as its command
+    gives; curate's command names only its workstream stem `curate-<UTC
+    date>` and no branch, so the command uses that stem as the branch name
+    too, and `curate.md` gains the sentence saying so), `git checkout -b`;
     (6) roles that claim by workstream file (scout, curate): write it from
     `.agents/docs/handover/TEMPLATE.md` with the role's frontmatter,
     `session:` and `agent:` from the flags (missing = `STOP: --session and
@@ -82,7 +89,10 @@ the judgement: what to read, what to produce.
   `STOP: authority`; scout with a twin in flight → `STOP: TWIN` and the
   claim file retired on the fixture remote; clean scout → `GO` with the
   claim pushed under the right name and frontmatter; scout re-run on its
-  own branch → `GO … (resumed)`; clerk `--twin` with a same-day sibling
+  own branch, with `JOHARNESS_SCOUT_HOURS=0` set so the report reads
+  `off` → `GO … (resumed)` all the same; scout with no brief on the fixture
+  main → `STOP: NO BRIEF (claimed and retired)` and the claim file created
+  then deleted on the fixture remote; clerk `--twin` with a same-day sibling
   sorting first → `STOP: TWIN`; conduct `not due` → `STOP: not due`;
   `--retire` deletes the file and pushes.
 
@@ -97,7 +107,7 @@ the judgement: what to read, what to produce.
 
 ## Acceptance
 
-- `bash .agents/harness/selftest.sh` — `role.sh`'s seven cases pass;
+- `bash .agents/harness/selftest.sh` — `role.sh`'s eight cases pass;
   `./joharness.sh ci` — `ci: pass`.
 - `wc -l .claude/commands/clerk.md .claude/commands/scout.md .claude/commands/curate.md .claude/commands/conduct.md`
   — each shorter than on `origin/main` at the plan's start; quote both.
