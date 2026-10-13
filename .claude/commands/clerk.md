@@ -83,14 +83,14 @@ issue: a proposal (title starts `scout:`) or a research request (no
 prefix). A request is never taken. A proposal is taken only when APPROVED;
 else skip it, uncounted, reason in the report and pull request body:
 
-1. the NEWEST comment, by created time, of the login the `reviewer  :` line
-   of `./joharness.sh scout` prints (first word after the colon), with no
-   Claude Code attribution footer (§2's rule), has first word `approved`,
-   any case, trailing punctuation ignored;
-2. it is newer than the newest footed comment opening `scout:` by an author
-   with write access (the author gate: the SCOUT COMMENT);
-3. the scout comment does not open `scout: revised`: its body edit is not
-   made yet (the scout ends it with `scout: edited`). Else `REVISION OPEN`.
+1. the NEWEST, by created time, of the unfooted comments (§2's footer rule)
+   of the login the `reviewer  :` line of `./joharness.sh scout` prints
+   (first word after the colon) has first word `approved`, any case,
+   trailing punctuation ignored;
+2. it is newer than the SCOUT COMMENT: the newest footed comment opening
+   `scout:` by an author with write access (the author gate); none = any;
+3. the scout comment does not open `scout: revision`: its body edit is not
+   made yet (`scout: revised` closes it). Else `REVISION OPEN`.
 
 No other comment approves or stales it. Read every page with `issue_read`
 `get_comments`; any page failing = skip, `APPROVAL UNREADABLE: <error>`.
