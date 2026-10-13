@@ -3544,8 +3544,8 @@ scout_report_lines() {
     printf 'reviewer  : %s (JOHARNESS_SCOUT_REVIEWER) — their approved label is the gate\n' \
       "$(scout_reviewer)"
   fi
-  printf 'research  : %s (JOHARNESS_SCOUT_RESEARCH); budget %s USD a pass (JOHARNESS_SCOUT_BUDGET_USD)\n' \
-    "$(scout_research)" "$(num_knob JOHARNESS_SCOUT_BUDGET_USD 10)"
+  printf 'research  : %s (JOHARNESS_SCOUT_RESEARCH); budget %s outside reads a pass (JOHARNESS_SCOUT_READS)\n' \
+    "$(scout_research)" "$(num_knob JOHARNESS_SCOUT_READS 12)"
 }
 
 # --- The clerk cycle — open issues are the top rank and no role read them
