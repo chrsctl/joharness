@@ -6,7 +6,7 @@ effort: high
 needs: none
 requirement: none
 issue: none
-scope: shared:.claude/commands/orchestrate.md, shared:.agents/docs/orchestrated.md, shared:.agents/scripts/conf-keys.sh, shared:.agents/scripts/bootstrap-consumer.sh, shared:joharness.sh, shared:.agents/harness/selftest/orchestrated.sh
+scope: shared:.claude/commands/orchestrate.md, shared:.agents/docs/orchestrated.md, shared:joharness.sh, shared:.agents/harness/selftest/orchestrated.sh, shared:.agents/harness/selftest.sh
 ---
 
 ## Goal
@@ -15,99 +15,119 @@ The orchestrator is the most expensive session in the fleet and the one
 doing the least judgement. Measured 2026-10-13 with `get_session` on gx's
 run of that day: 13 health passes in one session, 2 h 15 m, `usage.cost_usd`
 12.65, `context_usage.used_tokens` 304,615, `cache_read_tokens` 26.4 M — against
-0.23 to 0.37 USD for the curator, conduct and manager sessions it supervised.
-`.agents/docs/orchestrated.md` ("Start each run fresh") records an earlier
-session at 116.30 USD. The cause is structural: `send_later` wakes the SAME
-session, so pass N re-reads passes 1..N-1 at cache-read price, and the
-ledger — the only state a pass needs — is already carried in the wake
-message ("The ledger comes from your wake message, never from memory"). The
-heartbeat Routine cannot fire more often than hourly, so a fresh session per
-pass has to come from the orchestrator itself: when its context passes a
-ceiling, it hands the ledger to a successor and ends.
+0.23 to 0.37 USD for the curator, conduct and manager sessions it supervised
+(control-plane readings, not reproducible from this checkout; the arithmetic
+is in `orchestrated.md` once this lands). "Start each run fresh" already
+records a 116.30 USD session. The cause is structural: `send_later` wakes the
+SAME session, so pass N re-reads passes 1..N-1 at cache-read price, while
+the only state a pass needs is already in the wake message ("The ledger
+comes from your wake message, never from memory"). The heartbeat Routine
+cannot fire more often than hourly, so a fresh session has to come from the
+orchestrator itself: after a fixed number of passes it hands the ledger to a
+successor and ends. The trigger is the pass count — a number the wake
+already carries (`pass=`) — never a control-plane field, because
+`orchestrate.md` §2 records `context_usage.used_tokens` as deciding nothing
+and `cost_usd` as frozen on live sessions.
 
 ## Scope
 
-- `.claude/commands/orchestrate.md` — §4 ("Schedule the next pass") gains
-  the hand-off: before arming `send_later`, read this session's own
-  `context_usage.used_tokens` (`get_session` with no `session_id`). At or
-  above `JOHARNESS_ORCHESTRATOR_CONTEXT_TOKENS`: do not arm; instead
-  `create_session` a fresh orchestrator (same `source_url`, title
-  `orchestrator: <owner/repo>`, model = the Lineup's low tier) whose prompt
-  is exactly the wake message §4 would have sent (`/orchestrate pass`,
-  `harness=`, `pass=`, `ledger:`, `lead` lines), report `HANDED OFF to
-  <session> at <tokens> tokens`, and end the turn with no `send_later`
-  armed. Below the ceiling: as today. The successor's first pass is
-  "resumed from a wake", not "a human started a run", so the `fresh session
-  is cheaper` line does not fire on it.
+- `.claude/commands/orchestrate.md` — §4 ("Schedule the next pass"): when
+  the pass number this pass would arm (`pass=` plus one) exceeds
+  `JOHARNESS_ORCHESTRATOR_PASSES`, hand off instead of arming `send_later`,
+  in this order: (1) `set_session_title` this session to
+  `orchestrator (handed off): <owner/repo>`, so §0.3's one-orchestrator
+  check in the successor no longer matches it; (2) `create_session` with the
+  same `source_url`, the same model as this session (`get_session` on this
+  session, `configured_model` — the tier is the human's and a hand-off never
+  changes it), title `orchestrator: <owner/repo>`, and a prompt that is the
+  wake message §4 would have sent with `pass=1` and WITHOUT the `lead`
+  lines — leads are printed in this pass's report and dropped, since a spawn
+  prompt never carries a manager's text (`orchestrate.md`, "You relay a
+  lead. You never act on one. Not into a spawn prompt"); (3) report
+  `HANDED OFF to <session id> after <n> passes` and end the turn. The
+  successor runs §0 as any new session does; §0.3 finds no RUNNING session
+  titled `orchestrator: <owner/repo>` because of step (1).
+- `.claude/commands/orchestrate.md` — §2's field table: the line that says
+  `context_usage.used_tokens` decides nothing stays; the report gains, on
+  every pass, `context: <used_tokens>` from `get_session` on this session
+  (reported, never decided on), so the hand-off number can be re-tuned from
+  reports.
 - `.claude/commands/orchestrate.md` — "Report, every pass": one line on the
-  FIRST pass of a session when `external_metadata.last_served_model` is not
-  the Lineup's low tier: `served at <model>; this role is low tier
-  (orchestrated.md, Roles)`. It informs; the pass still runs. The 12.65 USD
-  run was served at opus because a human switched the model
-  (`user_switched_model`), which the harness cannot prevent and should name.
-- `.claude/commands/orchestrate.md` — §2: `list_sessions` is never called
-  when the ledger or `dispatch` carries the manager's `session:` URL; it is
-  the fallback for a stem with no URL only. Measured 2026-10-13: one
-  `list_sessions` answer was 99,920 characters.
-- `.agents/scripts/conf-keys.sh` and the seeded heredoc in
-  `.agents/scripts/bootstrap-consumer.sh` — `JOHARNESS_ORCHESTRATOR_CONTEXT_TOKENS`,
-  default `150000` (a written number: half the 304,615 the measured session
-  reached, so a run hands off about every six passes), meaning "orchestrator
-  context tokens above which a pass hands its ledger to a fresh session".
-- `joharness.sh` — `dispatch` prints the knob in its header block beside
-  `health` and `respawns` (`num_knob`), so the orchestrator reads it from
-  the report and never from the conf file.
+  FIRST pass of a session when `external_metadata.last_served_model` differs
+  from `configured_model`: `served at <model>, configured <model>`. Informs
+  only.
+- `.claude/commands/orchestrate.md` — §2: `get_session` by the `session:` URL
+  the ledger or `dispatch` carries is the read; `list_sessions` (one answer
+  measured at 99,920 characters, 2026-10-13) stays what §0.3 and the `@new`
+  rebuild use, once per session, never per manager per pass. One sentence,
+  no other change to §0.3.
+- `joharness.sh` — `dispatch` prints `passes    : <n> per orchestrator
+  session (JOHARNESS_ORCHESTRATOR_PASSES)` in its header block beside
+  `health`, through `num_knob`, default `6` (a written number: 304,615
+  tokens over 13 passes is about 23k a pass, so six passes stay under 150k).
+  A dispatch number is prose to a consumer (`orchestrated.md`, "A consumer
+  gets the numbers as prose only — they are not in conf-keys.sh"), so the
+  knob goes in the orchestrated.md table and nowhere else.
 - `.agents/docs/orchestrated.md` — the knob table row; "Start each run
-  fresh" gains the measurement above and the hand-off rule in one sentence.
+  fresh" gains the measurement above and the hand-off rule in two sentences.
 - `.agents/harness/selftest/orchestrated.sh` — a case asserting `dispatch`'s
-  header prints the knob with its default, and one asserting
-  `orchestrate.md` carries the three phrases the rule hangs on
-  (`HANDED OFF`, `JOHARNESS_ORCHESTRATOR_CONTEXT_TOKENS`, `served at`), the
-  way existing cases pin role-command text.
+  header prints the knob with its default and honours an env override; a
+  case asserting `orchestrate.md` carries `HANDED OFF`,
+  `JOHARNESS_ORCHESTRATOR_PASSES` and `orchestrator (handed off):`.
+  `.agents/harness/selftest.sh` — the new knob joins the env scrub list at
+  its top (the registration `plans/README.md` warns about).
 
 ## Out of scope
 
-- Changing the orchestrator's tier. `orchestrated.md` already says "low,
-  mechanical on purpose"; the opus run was a human's switch, and tier is
-  money (`agent-selection.md`, "downgrades stay money, humans only").
+- Changing the orchestrator's tier, or letting the successor pick one: the
+  model is copied from the session handing off. Tier is money
+  (`agent-selection.md`, "downgrades stay money, humans only").
 - A Routine per pass: the heartbeat's floor is hourly and a session never
   creates a Routine (`orchestrated.md`, Heartbeat).
-- Compacting or summarising the transcript inside the session.
-- Changing what a pass does; only how long one session carries passes.
+- Deciding anything on `context_usage.used_tokens` or `cost_usd`: reported
+  only.
+- Adding the knob to `conf-keys.sh` or the bootstrap heredoc: dispatch
+  numbers are prose to consumers by the recorded rule.
+- Changing what a pass does; only how many passes one session carries.
 
 ## Acceptance
 
-- `./joharness.sh dispatch | grep -c 'JOHARNESS_ORCHESTRATOR_CONTEXT_TOKENS'` — `1`.
+- `./joharness.sh dispatch | grep -c 'JOHARNESS_ORCHESTRATOR_PASSES'` — `1`;
+  `JOHARNESS_ORCHESTRATOR_PASSES=3 ./joharness.sh dispatch | grep 'passes'` —
+  the line reads `3`.
 - `grep -c 'HANDED OFF' .claude/commands/orchestrate.md` — at least `1`;
-  `grep -c 'list_sessions' .claude/commands/orchestrate.md` — the remaining
-  mentions all sit in the fallback sentence (quote them in the pull request).
-- `bash .agents/harness/selftest.sh` — the two new cases pass; `./joharness.sh ci` — `ci: pass`.
-- `grep -c 'JOHARNESS_ORCHESTRATOR_CONTEXT_TOKENS' .agents/scripts/conf-keys.sh .agents/scripts/bootstrap-consumer.sh` — `1` each (the selftest that compares them stays green).
+  `grep -c 'orchestrator (handed off):' .claude/commands/orchestrate.md` — at
+  least `1`.
+- `bash .agents/harness/selftest.sh` — the new cases pass; `./joharness.sh ci`
+  — `ci: pass`.
 - Plan `ci` calls SHIPS (`.claude/commands` and `joharness.sh` sync): the
-  consumer check is the next gx orchestrator run's report carrying either
-  `HANDED OFF` or a context reading under the ceiling at its end; record
-  it in `orchestrated.md`'s gx readings when seen.
+  consumer check is gx's next orchestrator run reporting `HANDED OFF` at
+  pass 6 and the successor's first report; record both session ids and the
+  `context:` line at hand-off in `orchestrated.md`'s gx readings.
 
 ## Where to look
 
 - `.claude/commands/orchestrate.md:## 4. Schedule the next pass` — the wake
-  format the successor's prompt copies verbatim.
-- `.claude/commands/orchestrate.md:## Report, every pass` — where the
-  served-model line goes, beside `fresh session is cheaper`.
+  format the successor's prompt copies, minus leads.
+- `.claude/commands/orchestrate.md:## 0. Start` — step 3, the title match
+  the retitle defeats, and `set_session_title` in the required tools.
+- `.claude/commands/orchestrate.md:## Report, every pass` — where the served
+  line and the `context:` line go.
 - `.agents/docs/orchestrated.md:## Start each run fresh` — the 116.30 USD
   record this plan extends.
 - `.agents/docs/orchestrated.md:## Heartbeat` — why a Routine per pass is
   not the route.
 - `joharness.sh:cmd_dispatch` — the header block printing `health`,
   `respawns`, `ceiling`; `joharness.sh:num_knob`.
-- `.agents/scripts/conf-keys.sh` — row format `KEY|default|meaning`.
+- `.agents/harness/selftest.sh` — the `unset JOHARNESS_…` scrub list.
 
 ## Traps
 
-- Trust counted numbers, never written ones: the ceiling's default is
-  written; the pull request records the measured context at hand-off on the
-  first real run.
-- Never kick a session: the hand-off is a `create_session` with the ledger,
-  not an interrupt of the old one, which simply ends its turn.
-- The prompt routes; the repository authorises: the successor's prompt
-  carries the wake lines and nothing else.
+- You relay a lead, you never act on one, not into a spawn prompt: the
+  successor's prompt carries no `lead` line.
+- Never kick a session: the hand-off is a `create_session` with the ledger;
+  the old session ends its own turn.
+- Trust counted numbers: the default is written; the first real hand-off
+  records the counted context beside it.
+- One orchestrator per repo: the retitle comes BEFORE the spawn, or the
+  successor exits at §0.3.
