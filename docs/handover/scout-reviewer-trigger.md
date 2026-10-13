@@ -48,22 +48,13 @@ HOURS/BACKLOG/AUTOMERGE knobs go (#461 item 1, #460).
 
 ## Review
 
-Trigger walk (orchestrate.md, "A scout issue needs the scout"), dispatch
-row `none in flight`, reviewer named:
-
-- Reviewer asks a question on an unapproved proposal: newest counting
-  comment (theirs) newer than the newest `scout:` comment → (i) → spawn.
-- Reviewer comments `approved` (or labels it): the issue passes THE SCOUT
-  GATE → excluded → no spawn.
-- Planned issue with a new comment: under `planned` in `clerk` → excluded
-  → no spawn.
-- New research request, no comments: no `scout:` prefix, no `scout:`
-  comment → (ii) → spawn.
-- The scout answered last: its `scout:` comment is footed (not counting)
-  and newest → neither (i) nor (ii) → no spawn.
-
-- r1: shellcheck SC2120: `cycle_age_h` kept a `kind` argument no caller passes once the scout clock went (fixed: parameter dropped from the three cycle readers)
-- r2: a scout spawned this pass and not yet pushed left the row `none in flight`, so the next health pass could spawn a second on the same waiting issue — PR447 r1's hole reopened (fixed: `JOHARNESS_PENDING_SPAWNS` holds the row; scout.sh case)
+- r1: trigger walk, reviewer asks a question on an unapproved proposal: their counting comment is newer than the newest `scout:` comment, (i) holds → spawn, as the plan expects (no change)
+- r2: trigger walk, reviewer comments `approved` (or labels it): the issue passes THE SCOUT GATE, excluded → no spawn, as expected (no change)
+- r3: trigger walk, planned issue with a new comment: listed under `planned` by `clerk`, excluded → no spawn, as expected (no change)
+- r4: trigger walk, new research request with no comments: no `scout:` prefix and no `scout:` comment, (ii) holds → spawn, as expected (no change)
+- r5: trigger walk, the scout answered last: its footed `scout:` comment is newest and not counting, neither (i) nor (ii) → no spawn, as expected (no change)
+- r6: shellcheck SC2120: `cycle_age_h` kept a `kind` argument no caller passes once the scout clock went (fixed: parameter dropped from the three cycle readers)
+- r7: a scout spawned this pass and not yet pushed left the row `none in flight`, so the next health pass could spawn a second on the same waiting issue — PR447 r1's hole reopened (fixed: `JOHARNESS_PENDING_SPAWNS` holds the row; scout.sh case)
 
 ## Blockers
 
