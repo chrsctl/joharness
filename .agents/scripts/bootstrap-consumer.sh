@@ -135,9 +135,9 @@ REVIEW_GIVEN=0
 # pass takes, are numbers a repo tunes after its first clerk pass.
 CLERK_HOURS="$(conf_key_default JOHARNESS_CLERK_HOURS)"
 CLERK_BATCH="$(conf_key_default JOHARNESS_CLERK_BATCH)"
-# Not asked either: who reviews proposals, and what a pass may spend, are
-# questions a human answers after reading the first proposal.
-SCOUT_BUDGET_USD="$(conf_key_default JOHARNESS_SCOUT_BUDGET_USD)"
+# Not asked either: who reviews proposals, and how many outside reads a
+# pass may make, are questions a human answers after reading the first one.
+SCOUT_READS="$(conf_key_default JOHARNESS_SCOUT_READS)"
 SCOUT_REVIEWER="$(conf_key_default JOHARNESS_SCOUT_REVIEWER)"
 SCOUT_RESEARCH="$(conf_key_default JOHARNESS_SCOUT_RESEARCH)"
 # Not asked either: whether a sampling conduct review is worth its money is
@@ -732,8 +732,8 @@ JOHARNESS_CLERK_HOURS=${CLERK_HOURS}
 # Open issues one clerk pass takes at most.
 JOHARNESS_CLERK_BATCH=${CLERK_BATCH}
 
-# USD one scout pass may spend before it proposes from what it has.
-JOHARNESS_SCOUT_BUDGET_USD=${SCOUT_BUDGET_USD}
+# Outside reads one scout pass may make before it proposes from what it has.
+JOHARNESS_SCOUT_READS=${SCOUT_READS}
 
 # GitHub login whose approved label gates a scout proposal issue. Empty =
 # nothing can be approved, so no scout is ever spawned.

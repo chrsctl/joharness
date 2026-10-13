@@ -371,7 +371,7 @@ or retired, at a tip; it carries `held Nd` from that commit.
 | `JOHARNESS_CURATE_HOURS` | 168 | hours since the last curate = due (anchors rot with no plan changing); 0 switches the cycle off | written number |
 | `JOHARNESS_CURATE_REGISTRY` | 3 | plans declaring one path before `curate` calls it a registry | written number |
 | `JOHARNESS_CURATE_SPLIT` | 8 | `## Scope` bullets before `curate` proposes a decompose | written number |
-| `JOHARNESS_SCOUT_BUDGET_USD` | 10 | USD one scout pass spends before it stops researching (`get_session` `usage.cost_usd`) | written number, until a pass counts one |
+| `JOHARNESS_SCOUT_READS` | 12 | outside reads one scout pass makes before it stops researching | counted by the scout in its claim's `## Decisions` |
 | `JOHARNESS_SCOUT_REVIEWER` | empty | GitHub login whose approved label gates a scout proposal issue; read from the base branch's conf; empty = nothing can be approved, so no scout is ever spawned (the scout cycle's off switch) | a name the human gives |
 | `JOHARNESS_SCOUT_RESEARCH` | off | exactly `on` lets a scout pass read outside the repository; read from the base branch's conf | a switch: money in one conf line |
 | `JOHARNESS_CONDUCT_HOURS` | 168 | hours since the ledger last landed before a conduct reviewer is due; 0 = off. An unmerged branch named `conduct-<digit>...` (any prefix) unpushed for a seventh of it, at least 24h, is read as closed by a human | written number: weekly; issue #251 has no baseline, the tally builds one |

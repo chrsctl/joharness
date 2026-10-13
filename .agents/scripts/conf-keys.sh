@@ -49,7 +49,7 @@ JOHARNESS_CURATE_HOURS|168|Hours since the last curate before one is due; 0 swit
 JOHARNESS_CURATE_PLANS|10|Plan files changed since the last curate before one is due (the primary trigger); 0 leaves only the clock.
 JOHARNESS_CLERK_HOURS|24|Hours between clerk passes over the open issues: an issue nobody turns into a plan is never built. 0 switches the cycle off.
 JOHARNESS_CLERK_BATCH|3|Open issues one clerk pass takes at most.
-JOHARNESS_SCOUT_BUDGET_USD|10|USD one scout pass may spend before it stops researching and proposes from what it has (get_session usage.cost_usd). A written number until a pass counts one.
+JOHARNESS_SCOUT_READS|12|Outside reads one scout pass may make before it stops researching and proposes from what it has; the scout counts them in its claim's Decisions.
 JOHARNESS_SCOUT_REVIEWER||GitHub login whose approved label is the approval gate on a scout proposal issue. Empty = nothing can be approved, so no scout is ever spawned.
 JOHARNESS_SCOUT_RESEARCH|off|on = a scout pass reads outside the repository (web, competitor docs, market reports); off = inside evidence only.
 JOHARNESS_CONDUCT_HOURS|168|Hours since the conduct ledger last landed before a sampling conduct reviewer is due, beyond the cap; 0 switches the cycle off.
