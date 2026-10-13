@@ -47,6 +47,33 @@ not: each runs as one session beyond the cap, at most one in flight, and
 each run is the owner's money. A role command that says nothing to do
 spawns nothing.
 
+### Scout, read on gx
+
+Read 2026-10-13 on `chrsctl/gx` with `list_issues` (label `scout`, OPEN and
+CLOSED) and `issue_read` `get_comments`; one pass, 2026-10-12, session
+`session_01EP5uDwJBroSNv9Qwr77mHE`. gx main carries `docs/product/SCOUT.md`,
+`JOHARNESS_SCOUT_REVIEWER=chrsctl`, `JOHARNESS_SCOUT_RESEARCH=on`.
+
+- Issues opened: 1, [gx#645](https://github.com/chrsctl/gx/issues/645), open,
+  labels `scout`, `approved`. Brief part: `## Competitors` (Attio), also
+  `## Users`. Source kind: gap with a competitor as the reason to act now.
+  Body has `## Brief`, `## Source`, `## Evidence`, `## Memory`.
+- Cost, as the issue recorded it: `cost: 2.09 USD (get_session
+  usage.cost_usd, 2026-10-12)`.
+- Approved: #645, by the label; the reviewer left no reason in writing.
+- Declined: none. Closed scout issues: 0.
+- Back-and-forth: NOT held. #645 has two comments, both the scout's
+  ([revising](https://github.com/chrsctl/gx/issues/645#issuecomment-6129890888),
+  [revised](https://github.com/chrsctl/gx/issues/645#issuecomment-6129894544)):
+  a self-revision after its verifier found four citation errors. No reviewer
+  comment, question or answer.
+- Not read: the `./joharness.sh scout` lines (`backlog`, `throughput`,
+  `brief`) on gx; running gx's script from this session was refused.
+- lead for the next plan: the requirement's "Evaluated on gx" clause wants a
+  reviewer question answered by the scout and a recorded decline; neither
+  happened. The human freed this plan anyway (2026-10-13), so the requirement
+  was retired with those two parts open.
+
 ### What each role reads
 
 Session start prints the banner, the environment pointer and THIS branch's
