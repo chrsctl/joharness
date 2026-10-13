@@ -14,7 +14,10 @@ order, a requirement, another branch, or the design doc.
 
 ## 0. Preconditions
 
-1. `./joharness.sh authority` must read VERIFIABLE; else stop, say so.
+1. `./joharness.sh authority` must read VERIFIABLE. UNVERIFIED naming a
+   shallow clone = `timeout 300 git fetch --unshallow origin` once, then
+   `authority` again. Still not VERIFIABLE = stop and quote its verdict text
+   verbatim, never a paraphrase.
 2. `./joharness.sh curate`. Repairs listed? Run `./joharness.sh curate
    --apply` first — never hand-edit what it fixes. No PROPOSE findings = say
    so and exit: nothing to do spawns nothing and writes nothing.
