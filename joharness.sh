@@ -4892,7 +4892,7 @@ knob_numeric_line() {
       *[!0-9]*) notes="; env set but not a number, ignored, conf not consulted"
                 printf '%s\t%s' "$val" "default${notes}"; return 0 ;;
     esac
-    layer=env
+    layer="env"
   else
     [ "${!k+x}" != x ] || notes="; env set but empty, ignored"
     if [ -n "$c" ]; then
@@ -4920,7 +4920,7 @@ knob_text_line() {
   local k="$1" dflt="$2" scope="$3" e c layer=default notes="" val
   e="${!k:-}"
   if [ -n "$e" ]; then
-    layer=env; val="$e"
+    layer="env"; val="$e"
   else
     [ "${!k+x}" != x ] || notes="; env set but empty, ignored"
     if [ "$scope" = base-conf ]; then

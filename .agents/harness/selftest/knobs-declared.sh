@@ -13,7 +13,7 @@
 # dispatch key with no table row and a conf key conf-keys.sh lacks. A key
 # present in both declarations is not a defect: ten are.
 #
-# shellcheck shell=bash disable=SC2154
+# shellcheck shell=bash disable=SC2154,SC2016
 
 step "knobs-declared"
 
