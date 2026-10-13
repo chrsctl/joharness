@@ -135,12 +135,8 @@ REVIEW_GIVEN=0
 # pass takes, are numbers a repo tunes after its first clerk pass.
 CLERK_HOURS="$(conf_key_default JOHARNESS_CLERK_HOURS)"
 CLERK_BATCH="$(conf_key_default JOHARNESS_CLERK_BATCH)"
-# Not asked either, both of them: how often a repo wants proposals, and whether
-# it lets one merge itself, are questions a human answers after reading the
-# first proposal, not before the first session.
-SCOUT_HOURS="$(conf_key_default JOHARNESS_SCOUT_HOURS)"
-SCOUT_AUTOMERGE="$(conf_key_default JOHARNESS_SCOUT_AUTOMERGE)"
-SCOUT_BACKLOG="$(conf_key_default JOHARNESS_SCOUT_BACKLOG)"
+# Not asked either: who reviews proposals, and what a pass may spend, are
+# questions a human answers after reading the first proposal.
 SCOUT_BUDGET_USD="$(conf_key_default JOHARNESS_SCOUT_BUDGET_USD)"
 SCOUT_REVIEWER="$(conf_key_default JOHARNESS_SCOUT_REVIEWER)"
 SCOUT_RESEARCH="$(conf_key_default JOHARNESS_SCOUT_RESEARCH)"
@@ -736,26 +732,11 @@ JOHARNESS_CLERK_HOURS=${CLERK_HOURS}
 # Open issues one clerk pass takes at most.
 JOHARNESS_CLERK_BATCH=${CLERK_BATCH}
 
-# Hours since the last scout before one is due; 0 = off. Only at DRAINED: a
-# scout proposes NEW work, and new work competes with real work. Dated from
-# git, closed proposals included, so a declined one does not re-fire at once.
-JOHARNESS_SCOUT_HOURS=${SCOUT_HOURS}
-
-# off = a scout's proposal waits for a human to merge or close it. Exactly
-# 'on' = the scout merges its own. The ONE exception to "nothing is
-# invented": money and product direction in one key, and a conf line is a
-# human act, which is why the bound still holds.
-JOHARNESS_SCOUT_AUTOMERGE=${SCOUT_AUTOMERGE}
-
-# Open plans plus open scout proposal issues below this = a scout is due; 0 =
-# only the clock decides.
-JOHARNESS_SCOUT_BACKLOG=${SCOUT_BACKLOG}
-
 # USD one scout pass may spend before it proposes from what it has.
 JOHARNESS_SCOUT_BUDGET_USD=${SCOUT_BUDGET_USD}
 
 # GitHub login whose approved label gates a scout proposal issue. Empty =
-# nothing can be approved.
+# nothing can be approved, so no scout is ever spawned.
 JOHARNESS_SCOUT_REVIEWER=${SCOUT_REVIEWER}
 
 # on = a scout pass reads outside the repository; off = inside evidence only.
