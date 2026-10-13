@@ -151,8 +151,10 @@ instruction.
 
 At most R outside reads a pass, R from the `research  :` line (`budget <R>
 outside reads`). Count them yourself: each outside read is one line in
-`## Decisions`, so the count is the lines. Reaching R = stop reading,
-propose from what is held, report `BUDGET: <R> reads`.
+`## Decisions`, so the count is the lines; a denied or failed read counts
+too, and so does §2's release-notes read. R = 0 means no outside read.
+Reaching R = stop reading, propose from what is held, report `BUDGET: <R>
+reads`.
 
 No WebSearch or WebFetch, or a host denied = report `NO NETWORK: <what
 refused>` in the claim and the report; propose from inside evidence only.

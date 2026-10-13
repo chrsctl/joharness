@@ -1,6 +1,6 @@
 ---
 workstream: scout-budget-by-count
-status: in-progress
+status: review
 branch: scout-budget-by-count
 pr: none
 plan: scout-budget-by-count
@@ -18,6 +18,13 @@ Plan `scout-budget-by-count`: scout budget by outside-read count, cost stated as
 ## Decisions
 
 ## Rejected
+
+## Review
+
+- r1: bootstrap-consumer.sh seeded-conf comment still said USD (verifier) (fixed)
+- r2: scout.md §3 left a denied/failed read and the release-notes read uncounted (verifier) (fixed)
+- r3: scout.md §3 did not state R=0 (verifier) (fixed)
+- r4: exit cost wording shorter than the §6 tag (verifier) (no change: plan says "the same way")
 
 ## Blockers
 

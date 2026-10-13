@@ -751,7 +751,7 @@ JOHARNESS_SCOUT_AUTOMERGE=${SCOUT_AUTOMERGE}
 # only the clock decides.
 JOHARNESS_SCOUT_BACKLOG=${SCOUT_BACKLOG}
 
-# USD one scout pass may spend before it proposes from what it has.
+# Outside reads one scout pass may make before it proposes from what it has.
 JOHARNESS_SCOUT_READS=${SCOUT_READS}
 
 # GitHub login whose approved label gates a scout proposal issue. Empty =
