@@ -2485,16 +2485,40 @@ cmd_analysis() {
   return 0
 }
 
+# Origin refs NOT merged into every ref given, in ONE call: a
+# `merge-base --is-ancestor` per ref cost a walk per merged branch, and merged
+# branches are never deleted. A ref that does not resolve judges nothing
+# merged (what the per-ref test did: it failed), and `--no-merged=<missing>` is
+# fatal, so a missing FIRST ref lists every origin ref; a later one is skipped.
+# No ref given lists them all.
+refs_unmerged() {
+  local ref first=1 flags=()
+  for ref in "$@"; do
+    if git -C "$ROOT" rev-parse --verify -q "${ref}^{commit}" </dev/null >/dev/null 2>&1; then
+      flags+=("--no-merged=${ref}")
+    elif [ "$first" -eq 1 ]; then
+      flags=(); break      # the base is missing: nothing is merged
+    fi                     # a later ref that is missing filters nothing
+    first=0
+  done
+  git -C "$ROOT" for-each-ref ${flags[@]+"${flags[@]}"} --format='%(refname)' \
+    refs/remotes/origin </dev/null 2>/dev/null
+}
+
+# Origin refs merged into $1, in ONE call. $1 unresolvable = none merged.
+refs_merged() {
+  git -C "$ROOT" rev-parse --verify -q "${1}^{commit}" </dev/null >/dev/null 2>&1 || return 0
+  git -C "$ROOT" for-each-ref --merged="$1" --format='%(refname)' \
+    refs/remotes/origin </dev/null 2>/dev/null
+}
+
 # Unmerged origin branches that OWN a workstream file: `<branch>\t<path>`.
 claim_branches() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" r name base f
-  git -C "$ROOT" for-each-ref --format='%(refname)' refs/remotes/origin \
-    </dev/null 2>/dev/null |
+  refs_unmerged "refs/remotes/origin/${base_branch}" |
     while IFS= read -r r; do
       name="${r#refs/remotes/origin/}"
       { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
-      git -C "$ROOT" merge-base --is-ancestor "$r" \
-        "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null && continue
       base="$(git -C "$ROOT" merge-base "$r" \
         "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)" || continue
       [ -n "$base" ] || continue
@@ -2510,10 +2534,9 @@ claim_branches() {
 # it left the base branch, not paths its tree happens to hold.
 cl_inflight() {
   local ref="$1" r base
-  git -C "$ROOT" for-each-ref --format='%(refname)' refs/remotes/origin 2>/dev/null |
+  refs_unmerged "$ref" |
     while IFS= read -r r; do
       [ "${r##*/}" = "HEAD" ] && continue
-      git -C "$ROOT" merge-base --is-ancestor "$r" "$ref" 2>/dev/null && continue
       base="$(git -C "$ROOT" merge-base "$r" "$ref" 2>/dev/null)" || continue
       [ -n "$base" ] || continue
       # Files the branch still HAS, not files it touched.
@@ -2526,11 +2549,10 @@ cl_inflight() {
 # Origin branches already merged into $1, base branch itself excluded.
 cl_merged_branches() {
   local ref="$1" base_branch="${HANDOVER_BASE_BRANCH:-main}" r name
-  git -C "$ROOT" for-each-ref --format='%(refname)' refs/remotes/origin 2>/dev/null |
+  refs_merged "$ref" |
     while IFS= read -r r; do
       name="${r#refs/remotes/origin/}"
       { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
-      git -C "$ROOT" merge-base --is-ancestor "$r" "$ref" 2>/dev/null || continue
       printf '%s\n' "$name"
     done
 }
@@ -4269,8 +4291,18 @@ cmd_authority() {
   fi
   if ! mb="$(git -C "$ROOT" merge-base HEAD "$base" 2>/dev/null)" || [ -z "$mb" ]; then
     printf 'verdict   : UNVERIFIED\n'
-    printf '  This checkout shares no history with %s here — a shallow clone\n' "$base"
-    printf '  or an unrelated branch. Nothing reviewed to compare against.\n'
+    # Which cause, said: a role reading "shallow or unrelated" stopped on a
+    # fetch it could run itself (issue #439).
+    if [ "$(git -C "$ROOT" rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
+      printf '  This checkout shares no history with %s here: shallow clone,\n' "$base"
+      printf '  whose boundary hides the merge base. Nothing reviewed to compare\n'
+      printf '  against until the history is whole.\n'
+      printf 'run: git fetch --unshallow origin, then authority again\n'
+    else
+      printf '  This checkout shares no ancestor with %s: the history is\n' "$base"
+      printf '  complete, so the branch is unrelated and unshallowing cannot\n'
+      printf '  help. Nothing reviewed to compare against.\n'
+    fi
     return 0
   fi
   drift="$(authority_drift "$mb")"
@@ -4881,15 +4913,14 @@ dispatch_waves() {
 # branch, owning no workstream file — and carrying the DELETION of one.
 dispatch_retired_edges() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}"
-  git -C "$ROOT" for-each-ref --format='%(refname)' refs/remotes/origin 2>/dev/null |
+  refs_unmerged "refs/remotes/origin/${base_branch}" |
     { local r name base items swept plan cand state own unver=0
       while IFS= read -r r; do
         name="${r#refs/remotes/origin/}"
         { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
-        # Merged drops out entirely — the one case that must NEVER hold a
-        # slot, because the money stopped being committed when it landed.
-        git -C "$ROOT" merge-base --is-ancestor "$r" \
-          "refs/remotes/origin/${base_branch}" 2>/dev/null && continue
+        # Merged drops out entirely (refs_unmerged) — the one case that must
+        # NEVER hold a slot, because the money stopped being committed when
+        # it landed.
         # NO merge base = ownership cannot be computed here at all, and a
         # shallow clone is how that happens: grafted history, most refs
         # unreachable from the base.
@@ -5575,14 +5606,11 @@ dispatch_rescope_branches() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" pre="${1:-rescope-}"
   local refs r name base wf files doc rws rkey rstat rsess rnext
   # Refs collected into a variable FIRST, then looped over a here-string.
-  refs="$(git -C "$ROOT" for-each-ref --format='%(refname)' \
-    refs/remotes/origin </dev/null 2>/dev/null)"
+  refs="$(refs_unmerged "refs/remotes/origin/${base_branch}")"
   while IFS= read -r r; do
     [ -n "$r" ] || continue
     name="${r#refs/remotes/origin/}"
     { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
-    git -C "$ROOT" merge-base --is-ancestor "$r" \
-      "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null && continue
     base="$(git -C "$ROOT" merge-base "$r" \
       "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)"
     [ -n "$base" ] || continue
@@ -5690,15 +5718,12 @@ dispatch_branch_plans() {
   local refs r name base plans wfs wf doc own wplan wstat abandoned p stem urg agt retired rc
   local addh addt abase kind days now ev evh evs ledger evcache=""
   now="$(date +%s)"
-  refs="$(git -C "$ROOT" for-each-ref --format='%(refname)' \
-    refs/remotes/origin </dev/null 2>/dev/null)"
+  refs="$(refs_unmerged "refs/remotes/origin/${base_branch}")"
   while IFS= read -r r; do
     [ -n "$r" ] || continue
     name="${r#refs/remotes/origin/}"
     { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
     [ -z "$only" ] || [ "$name" = "$only" ] || continue
-    git -C "$ROOT" merge-base --is-ancestor "$r" \
-      "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null && continue
     base="$(git -C "$ROOT" merge-base "$r" \
       "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)"
     [ -n "$base" ] || continue
@@ -5855,7 +5880,7 @@ free_claimed_ever() {
 dispatch_freeable() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" bprows="$1"
   local refs r name base paths p ok wonly doc st pr ws wp claimed="" n_rows age stale_s cb ck cs
-  local gone=" " freers="" fr
+  local gone=" " freers=""
   stale_s="$(num_knob HANDOVER_STALE_SECONDS 518400)"
   # Keys a live free claim covers: a second manager onto the same owner is
   # two merges of one branch.
@@ -5882,6 +5907,14 @@ dispatch_freeable() {
     [ "${gone#* "${name}" }" = "$gone" ] || continue
     free_claimed_ever "$r" && freers="${freers}${r}"$'\n'
   done <<<"$refs"
+  # Unmerged into the base AND into every free manager's branch (a flag per
+  # freer; they AND together). An owner a free manager already merged drops
+  # out here, as does the freer itself.
+  local -a gate=("refs/remotes/origin/${base_branch}")
+  while IFS= read -r r; do
+    [ -n "$r" ] && gate+=("$r")
+  done <<<"$freers"
+  refs="$(refs_unmerged "${gate[@]}")"
   while IFS= read -r r; do
     [ -n "$r" ] || continue
     name="${r#refs/remotes/origin/}"
@@ -5889,8 +5922,6 @@ dispatch_freeable() {
     # The same charset dispatch_branch_plans prints: one name for both reads.
     [ "$(printf '%s' "$name" | tr -cd 'A-Za-z0-9._/-')" = "$name" ] || continue
     case "$claimed" in *" $(free_key "$name") "*) continue ;; esac
-    git -C "$ROOT" merge-base --is-ancestor "$r" \
-      "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null && continue
     base="$(git -C "$ROOT" merge-base "$r" \
       "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)"
     [ -n "$base" ] || continue
@@ -5899,13 +5930,6 @@ dispatch_freeable() {
     [ -n "$paths" ] || continue
     # A free manager's own branch, or an owner one already merged.
     case "$freers" in *"${r}"$'\n'*) continue ;; esac
-    ok=1
-    while IFS= read -r fr; do
-      [ -n "$fr" ] || continue
-      git -C "$ROOT" merge-base --is-ancestor "$r" "$fr" </dev/null 2>/dev/null &&
-        { ok=0; break; }
-    done <<<"$freers"
-    [ "$ok" -eq 1 ] || continue
     free_owner_held "$r" "$base" >/dev/null && continue
     ok=1; wonly=1
     while IFS= read -r p; do
@@ -6038,7 +6062,7 @@ cmd_dispatch() {
   esac
   if [ "${DISPATCH_FETCH:-1}" != 0 ]; then
     if [ "$(git -C "$ROOT" rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
-      timeout 15 git -C "$ROOT" fetch -q --prune --unshallow origin 2>/dev/null ||
+      timeout 60 git -C "$ROOT" fetch -q --prune --unshallow origin 2>/dev/null ||
         git -C "$ROOT" fetch -q --prune origin 2>/dev/null ||
         { warn "fetch failed; push ages below are from the last fetch"; fetch_failed=1; }
     else
