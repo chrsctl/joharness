@@ -5955,6 +5955,8 @@ cmd_dispatch() {
     printf 'scout     : off — %s\n' "$sreason"
   elif [ "$n_scout" -gt 0 ]; then
     printf 'scout     : IN FLIGHT — spawn none\n%b' "$scout_inflight"
+  elif [ "$cap" -eq 0 ]; then
+    printf 'scout     : held — JOHARNESS_MAX_MANAGERS=0 is the human'"'"'s pause: spawn none\n'
   elif [ "$fetch_failed" -eq 1 ]; then
     printf 'scout     : held — no fresh view of every branch this pass (fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*), so a scout in flight might not show: spawn none this pass\n'
   else
