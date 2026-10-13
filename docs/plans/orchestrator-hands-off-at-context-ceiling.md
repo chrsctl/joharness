@@ -68,20 +68,20 @@ live sessions.
   spawns nothing and arms nothing — an order to spawn is the successor's,
   since a manager spawned here would carry this retired id as its lead
   address.
-- `.claude/commands/orchestrate.md` — the `Never` line "`send_message` to a
-  child carries the health table's nudge text and nothing else" gains its
-  one exception: to the successor orchestrator, a lead line verbatim (step
-  4 above and the forward). Nothing else changes in that list.
 - `.claude/commands/orchestrate.md` — "Report, every pass": `context:
   <used_tokens>` from the same `get_session` read, reported never decided
   on, so the pass number can be re-tuned from reports; and on the FIRST
   pass of a session, when `external_metadata.last_served_model` differs from
   the configured model, `served at <model>, configured <model>`. §2's line
   that `used_tokens` decides nothing stays as written.
-- `.claude/commands/orchestrate.md` — §2, one sentence: `get_session` by the
-  `session:` URL the ledger or `dispatch` carries is the per-manager read;
-  `list_sessions` (one answer read at 99,920 characters, 2026-10-13) stays
-  what §0.3 and the `@new` rebuild use, once per session.
+- `.claude/commands/orchestrate.md` — two one-sentence edits. §2: `get_session`
+  by the `session:` URL the ledger or `dispatch` carries is the per-manager
+  read; `list_sessions` (one answer read at 99,920 characters, 2026-10-13)
+  stays what §0.3 and the `@new` rebuild use, once per session. The `Never`
+  line "`send_message` to a child carries the health table's nudge text and
+  nothing else" gains its one exception: to the successor orchestrator, a
+  lead line verbatim (step 4 above and the forward). Nothing else changes in
+  that list.
 - `joharness.sh` — `dispatch` prints `passes    : <n> per orchestrator
   session (JOHARNESS_ORCHESTRATOR_PASSES)` in its header block beside
   `health`, through `num_knob`, default `6` (a written number: 304,615
