@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01LhNpou3t5necUED7S7hFeJ
 agent: opus
 updated: 2026-10-13
-next: Research anchors, then edit orchestrate.md, dispatch header, docs, selftest
+next: Run selftest and ci, then verifier review at opus, retire, PR, merge
 ---
 
 ## Goal
@@ -19,7 +19,17 @@ Orchestrator hands its ledger to a fresh successor session after
 
 ## Decisions
 
-- None yet.
+- Hand-off text lives in orchestrate.md §4 as a HAND-OFF block after the
+  `harness=` recompute rule: it replaces the arm, so it sits where the arm is.
+- Trigger: the `pass=` the arm would write exceeds dispatch's `passes :`
+  line. Default 6 hands off at pass 6 (it would arm 7).
+- One `get_session` self-read per pass feeds the `context:` line, §3's own
+  id and the hand-off model, so the report line costs no extra call.
+- DRAINED/PAUSED and the out-of-band arm never hand off: nothing is armed
+  there, and the pass the out-of-band wake fires decides.
+- `knobs-declared-once` not on main: no `KNOBS` row.
+- Selftest cases in `selftest/orchestrated.sh` (plan scope), not
+  `selftest/dispatch.sh` where other header cases live.
 
 ## Rejected
 

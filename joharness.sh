@@ -5810,7 +5810,7 @@ block_reason_ok() {
 }
 
 cmd_dispatch() {
-  local cap stall health respawn churnt churnl hout qout rows wavemap edge req sup
+  local cap stall health passes respawn churnt churnl hout qout rows wavemap edge req sup
   local path label branch ws doc status session next age agetext flag tier
   local pr hours cage_min n_ceiling=0
   local base commits churn churn_n churn_f marks rounds work
@@ -5839,6 +5839,7 @@ cmd_dispatch() {
   cap="$(num_knob JOHARNESS_MAX_MANAGERS 4)"
   stall="$(num_knob JOHARNESS_STALL_MINUTES 45)"
   health="$(num_knob JOHARNESS_HEALTH_MINUTES 10)"
+  passes="$(num_knob JOHARNESS_ORCHESTRATOR_PASSES 6)"
   respawn="$(num_knob JOHARNESS_RESPAWN_LIMIT 2)"
   hours="$(num_knob JOHARNESS_MANAGER_HOURS 4)"
   # ci's two tiers, kept and read the same way ci reads them: from the
@@ -5869,6 +5870,7 @@ cmd_dispatch() {
   printf 'cap       : %s manager(s) at once (JOHARNESS_MAX_MANAGERS)\n' "$cap"
   printf 'stall     : %s min without a push = cross-check the control plane (JOHARNESS_STALL_MINUTES)\n' "$stall"
   printf 'health    : one pass every %s min (JOHARNESS_HEALTH_MINUTES)\n' "$health"
+  printf 'passes    : %s per orchestrator session (JOHARNESS_ORCHESTRATOR_PASSES)\n' "$passes"
   printf 'respawns  : %s per item per run (JOHARNESS_RESPAWN_LIMIT)\n' "$respawn"
   # Lifted, the line names no mark: `grep CEILING?` over a lifted pass is 0.
   if [ "$hours" -gt 0 ]; then

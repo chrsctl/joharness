@@ -210,6 +210,19 @@ for pair in 'manage.md|github: GitHub MCP lost' 'manage.md|<reason>: <question>'
   f="${ROOT}/.claude/commands/${pair%%|*}"
   expect "${pair%%|*} spells ${pair#*|}" "${pair#*|}" "$(cat "$f")"
 done
+# The orchestrator hands off after a fixed pass count: the knob is the
+# human's number, read off dispatch's header like every other one, and the
+# command spells every outcome the pass report can carry.
+out="$(DISPATCH_FETCH=0 orcj dispatch)"
+expect "dispatch prints the hand-off pass count with its default" \
+  "passes    : 6 per orchestrator session (JOHARNESS_ORCHESTRATOR_PASSES)" "$out"
+out="$(DISPATCH_FETCH=0 JOHARNESS_ORCHESTRATOR_PASSES=3 orcj dispatch)"
+expect "and honours the environment for one command" \
+  "passes    : 3 per orchestrator session (JOHARNESS_ORCHESTRATOR_PASSES)" "$out"
+for needle in 'HANDED OFF' 'JOHARNESS_ORCHESTRATOR_PASSES' \
+  'orchestrator (handed off):' 'hand-off skipped' 'hand-off failed'; do
+  expect "orchestrate.md spells ${needle}" "$needle" "$orctext"
+done
 orcdocfold="$(tr '\n' ' ' <"${ROOT}/.agents/docs/orchestrated.md" | tr -s ' ')"
 refute "orchestrated.md no longer says send_message was never in the server" \
   "never in the Claude Code Remote MCP" "$orcdocfold"
