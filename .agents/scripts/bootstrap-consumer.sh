@@ -141,7 +141,7 @@ CLERK_BATCH="$(conf_key_default JOHARNESS_CLERK_BATCH)"
 SCOUT_HOURS="$(conf_key_default JOHARNESS_SCOUT_HOURS)"
 SCOUT_AUTOMERGE="$(conf_key_default JOHARNESS_SCOUT_AUTOMERGE)"
 SCOUT_BACKLOG="$(conf_key_default JOHARNESS_SCOUT_BACKLOG)"
-SCOUT_BUDGET_USD="$(conf_key_default JOHARNESS_SCOUT_BUDGET_USD)"
+SCOUT_READS="$(conf_key_default JOHARNESS_SCOUT_READS)"
 SCOUT_REVIEWER="$(conf_key_default JOHARNESS_SCOUT_REVIEWER)"
 SCOUT_RESEARCH="$(conf_key_default JOHARNESS_SCOUT_RESEARCH)"
 # Not asked either: whether a sampling conduct review is worth its money is
@@ -751,8 +751,8 @@ JOHARNESS_SCOUT_AUTOMERGE=${SCOUT_AUTOMERGE}
 # only the clock decides.
 JOHARNESS_SCOUT_BACKLOG=${SCOUT_BACKLOG}
 
-# USD one scout pass may spend before it proposes from what it has.
-JOHARNESS_SCOUT_BUDGET_USD=${SCOUT_BUDGET_USD}
+# Outside reads one scout pass may make before it proposes from what it has.
+JOHARNESS_SCOUT_READS=${SCOUT_READS}
 
 # GitHub login whose approved comment gates a scout proposal issue. Empty =
 # nothing can be approved.
