@@ -3473,6 +3473,9 @@ cmd_scout() {
   printf '  open issues on the canonical repository\n'
   printf '  the control plane'"'"'s cost reader: get_session usage.cost_usd,\n'
   printf '    usage.cache_read_tokens, context_usage.used_tokens\n'
+  printf '  records of what is built (not code): git log --first-parent\n'
+  printf '    --format=%%s origin/<base>, docs/plans/RETIRED.md, docs/research/*.md\n'
+  printf '    and docs/findings/*.md (names and ## Goal)\n'
   printf '  a dated Anthropic release note or Models API read\n\n'
   printf 'A scout proposes on issues; a reviewer approves (JOHARNESS_SCOUT_REVIEWER).\n'
   printf 'JOHARNESS_SCOUT_AUTOMERGE=%s governs no merge: nothing enters the queue unapproved.\n' \
