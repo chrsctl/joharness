@@ -375,7 +375,7 @@ or retired, at a tip; it carries `held Nd` from that commit.
 | `JOHARNESS_SCOUT_AUTOMERGE` | off | governs nothing: a scout proposes on issues and opens no pull request; exactly `on` was its self-merge | a switch: money and product direction in one conf line |
 | `JOHARNESS_SCOUT_BACKLOG` | 24 | open plans (plus open scout proposal issues, counted by the scout) below this = a scout is due, not gated on DRAINED, at most one a 24h (written number); 0 = clock only, no ceiling; `JOHARNESS_SCOUT_HOURS=0` switches both triggers off | counted: 3 days x 8 merges/day, `git log --merges --first-parent --since=14.days --format=%h origin/main \| wc -l` = 118, 2026-10-12 |
 | `JOHARNESS_SCOUT_BUDGET_USD` | 10 | USD one scout pass spends before it stops researching (`get_session` `usage.cost_usd`) | written number, until a pass counts one |
-| `JOHARNESS_SCOUT_REVIEWER` | empty | GitHub login whose approved label gates a scout proposal issue; read from the base branch's conf; empty = nothing can be approved | a name the human gives |
+| `JOHARNESS_SCOUT_REVIEWER` | empty | GitHub login whose approved comment gates a scout proposal issue; read from the base branch's conf; empty = nothing can be approved | a name the human gives |
 | `JOHARNESS_SCOUT_RESEARCH` | off | exactly `on` lets a scout pass read outside the repository; read from the base branch's conf | a switch: money in one conf line |
 | `JOHARNESS_CONDUCT_HOURS` | 168 | hours since the ledger last landed before a conduct reviewer is due; 0 = off. An unmerged branch named `conduct-<digit>...` (any prefix) unpushed for a seventh of it, at least 24h, is read as closed by a human | written number: weekly, as the scout; issue #251 has no baseline, the tally builds one |
 | `JOHARNESS_CONDUCT_SAMPLE` | 3 | retired branches one run samples, lowest `sha1(<stem>)` first; 0 = off | written number: few enough that one sonnet pass reads each whole |
@@ -410,8 +410,8 @@ The rules that bind every session.
 - **Nothing is invented at the edge** (The one stop). Work enters only as an
   issue, a requirement or a plan through a pull request. A scout proposal
   enters as an issue and becomes a plan only through the clerk, after the
-  reviewer's `approved` label event, newer than its last revision; closing
-  the issue declines it.
+  reviewer's `approved` comment, newer than its newest `scout:` comment;
+  closing the issue declines it.
 - **`human-review` label.** An agent applies it when it blocks on a human; a
   human applies it to hold an issue or pull request. It stops the clerk
   planning that issue and any session merging that pull request. Only a human
@@ -425,7 +425,7 @@ no tier, and takes no item itself. The
 the session is ARCHIVED or not found, never on push age, never a claim with
 `pr:`, and it deletes nothing. The clerk turns EXISTING issues into plans and
 nothing else. The scout proposes on issues and opens no pull request; the
-reviewer's `approved` label is the gate (`.claude/commands/clerk.md`), and
+reviewer's `approved` comment is the gate (`.claude/commands/clerk.md`), and
 closing the issue declines it. `JOHARNESS_SCOUT_AUTOMERGE` is unchanged and
 governs nothing: no scout pull request exists to merge.
 

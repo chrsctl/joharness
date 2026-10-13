@@ -8,7 +8,7 @@ issue: 461
 session: https://claude.ai/code/session_017cwAYs3qgKcSgStGZVWrDU
 agent: opus
 updated: 2026-10-13
-next: Rewrite clerk.md THE SCOUT GATE to the comment rule, then scout.md §5
+next: Run selftest revert check, ci, verify, verifier review, then retire and PR
 ---
 
 ## Goal
@@ -19,7 +19,11 @@ Scout proposals are approved by the reviewer's `approved` comment, read with
 
 ## Decisions
 
-- None yet.
+- Gate length: `awk '/^THE SCOUT GATE/,/^Then the AUTHOR GATE/' .claude/commands/clerk.md | wc -l` = 24 (2026-10-13; 46 on main).
+- Unreadable comments skip that proposal only (`APPROVAL UNREADABLE: <error>`): the read is per issue, so one failure says nothing about the next.
+- `scout: answer` also opens `scout:`, so it stales an approval too; accepted as fail-closed rather than adding an exception.
+- Scout §5 recovery: a newest own `scout: revised` whose target text is not in the body yet = make that edit next pass (the comment already stated it, so an approval after it covered that text).
+- `orchestrated.md` lines on the gx #645 run stay: they record history, not the rule.
 
 ## Rejected
 
