@@ -8,7 +8,7 @@ issue: 454
 session: https://claude.ai/code/session_011g3Fs8tSUZzE1qNhQLAtUB
 agent: sonnet
 updated: 2026-10-13
-next: Edit scout.md §2/§6/What you read, cmd_scout list, selftest; run ci
+next: await selftest+ci result (bu4lku1xj), then verifier review, retire, PR
 ---
 
 ## Goal
