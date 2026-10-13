@@ -3541,7 +3541,7 @@ scout_report_lines() {
   if [ "$(scout_reviewer)" = none ]; then
     printf 'reviewer  : none (JOHARNESS_SCOUT_REVIEWER) — nothing can be approved\n'
   else
-    printf 'reviewer  : %s (JOHARNESS_SCOUT_REVIEWER) — their approved label is the gate\n' \
+    printf 'reviewer  : %s (JOHARNESS_SCOUT_REVIEWER) — their approved comment is the gate\n' \
       "$(scout_reviewer)"
   fi
   printf 'research  : %s (JOHARNESS_SCOUT_RESEARCH); budget %s outside reads a pass (JOHARNESS_SCOUT_READS)\n' \

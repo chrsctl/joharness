@@ -754,7 +754,7 @@ JOHARNESS_SCOUT_BACKLOG=${SCOUT_BACKLOG}
 # Outside reads one scout pass may make before it proposes from what it has.
 JOHARNESS_SCOUT_READS=${SCOUT_READS}
 
-# GitHub login whose approved label gates a scout proposal issue. Empty =
+# GitHub login whose approved comment gates a scout proposal issue. Empty =
 # nothing can be approved.
 JOHARNESS_SCOUT_REVIEWER=${SCOUT_REVIEWER}
 
