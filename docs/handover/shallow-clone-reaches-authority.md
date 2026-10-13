@@ -8,7 +8,7 @@ issue: 439
 session: https://claude.ai/code/session_01RXca2ZFK5BrCwuBp3oKkUV
 agent: opus
 updated: 2026-10-13
-next: Research the anchors, then build the hook bound, authority verdict, selftest and role-command steps
+next: Run selftest, ci, verify; revert-check the shallow case; verifier review; finish
 ---
 
 ## Goal
@@ -18,7 +18,13 @@ run itself, and an orchestrator must not spawn into that race (issue #439).
 
 ## Decisions
 
-- None yet.
+- Hook unshallow bound 40 s: Claude Code's documented default command-hook
+  timeout is 600 s and SessionStart is not among the events it lowers
+  (code.claude.com/docs/en/hooks, Common fields, read 2026-10-13);
+  `.claude/settings.json` sets no `timeout`. Worst case of the block is now
+  40 s (timeout, 124, no fallback) or a fast failure plus 15 s.
+- Role-command unshallow bound: `timeout 300`, a Bash command, not a hook.
+- Shallow verdict prints `run:` at column 0 so a role can match it as a line.
 
 ## Rejected
 

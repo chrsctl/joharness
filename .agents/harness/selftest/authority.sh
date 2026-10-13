@@ -107,6 +107,55 @@ expect "a fixture with no origin/main is UNVERIFIED" "verdict   : UNVERIFIED" "$
 expect "and says the base cannot be read" "cannot be read here" "$out"
 refute "and is never VERIFIABLE" "verdict   : VERIFIABLE" "$out"
 
+# --- shallow vs unrelated: the cause is named (issue #439) -----------------
+# A depth-1 clone of a branch whose tip is not on main: the boundary cuts
+# both histories, merge-base finds nothing, and "a shallow clone or an
+# unrelated branch" left the role guessing. The shallow case must name its
+# cause and the command that fixes it; a complete history must not offer a
+# fetch that cannot help. `file://` on purpose: a plain-path clone ignores
+# --depth. Guarded like handover-context-owns.sh: no shallow clone, skip.
+authorigin="${TMP}/authorigin.git"
+git clone -q --bare "$authwork" "$authorigin"
+git -C "$authorigin" symbolic-ref HEAD refs/heads/main
+git -C "$authwork" checkout -q -b side
+printf 'side work\n' >"${authwork}/docs/product/side.md"
+commit_all "$authwork" "side branch tip, not on main"
+git -C "$authwork" push -q "$authorigin" side 2>/dev/null
+git -C "$authwork" checkout -q main
+git -C "$authwork" branch -q -D side
+authshallow="${TMP}/authshallow"
+authin() { CLAUDE_PROJECT_DIR="$1" JOHARNESS_CONF="${1}/joharness.conf" \
+  "${1}/joharness.sh" authority 2>&1; }
+if git clone -q --depth=1 --no-single-branch -b side "file://${authorigin}" "$authshallow" 2>/dev/null &&
+  [ "$(git -C "$authshallow" rev-parse --is-shallow-repository 2>/dev/null)" = "true" ] &&
+  ! git -C "$authshallow" merge-base HEAD origin/main >/dev/null 2>&1
+then
+  out="$(authin "$authshallow")"
+  expect "a shallow clone hiding the merge base reads UNVERIFIED" \
+    "verdict   : UNVERIFIED" "$out"
+  expect "and names the shallow cause" "shallow clone," "$out"
+  expect "and the command that fixes it" \
+    "run: git fetch --unshallow origin, then authority again" "$out"
+  refute "and does not offer the unrelated cause" "or an unrelated branch" "$out"
+  git -C "$authshallow" fetch -q --unshallow origin
+  expect "running that command reaches VERIFIABLE" \
+    "verdict   : VERIFIABLE" "$(authin "$authshallow")"
+else
+  skip "authority names a shallow clone" "file:// shallow clone unavailable here"
+fi
+
+# Complete history, unrelated branch: no fetch can find an ancestor.
+authorphan="${TMP}/authorphan"
+git clone -q "file://${authorigin}" "$authorphan"
+git -C "$authorphan" checkout -q --orphan unrelated
+commit_all "$authorphan" "an unrelated root"
+out="$(authin "$authorphan")"
+expect "an unrelated complete history reads UNVERIFIED" \
+  "verdict   : UNVERIFIED" "$out"
+expect "and says unshallowing cannot help" "unshallowing cannot" "$out"
+refute "and prints no run: line" "run: git fetch --unshallow" "$out"
+refute "and does not name a shallow clone" "shallow clone," "$out"
+
 # --- it reports, it does not gate -------------------------------------------
 # No exit code carries the verdict. An exit status invites a caller to branch
 # on it, and a report something branches on is a gate nobody reviewed.
