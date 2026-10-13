@@ -8,7 +8,7 @@ issue: 461
 session: https://claude.ai/code/session_01QcZK5M6AWvqSjY9917d4q1
 agent: opus
 updated: 2026-10-13
-next: Research joharness.sh scout cycle and dispatch scout terms, then cut
+next: Docs and conf-keys for the removed knobs, then rewrite selftest cases
 ---
 
 ## Goal
