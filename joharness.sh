@@ -63,7 +63,8 @@
 #                               for GitHub Actions
 #   JOHARNESS_MAX_MANAGERS=4, JOHARNESS_STALL_MINUTES=45,
 #   JOHARNESS_HEALTH_MINUTES=10, JOHARNESS_RESPAWN_LIMIT=2,
-#   JOHARNESS_MANAGER_HOURS=4   the orchestrator's numbers; dispatch prints them
+#   JOHARNESS_MANAGER_HOURS=4,
+#   JOHARNESS_ORCHESTRATOR_PASSES=6 the orchestrator's numbers; dispatch prints them
 #   JOHARNESS_CLERK_HOURS=24, JOHARNESS_CLERK_BATCH=3,
 #   JOHARNESS_CLERK_STALE_HOURS=24 an unmerged clerk branch older holds nothing
 #                               (0 = no window: every one holds),
@@ -5870,7 +5871,12 @@ cmd_dispatch() {
   printf 'cap       : %s manager(s) at once (JOHARNESS_MAX_MANAGERS)\n' "$cap"
   printf 'stall     : %s min without a push = cross-check the control plane (JOHARNESS_STALL_MINUTES)\n' "$stall"
   printf 'health    : one pass every %s min (JOHARNESS_HEALTH_MINUTES)\n' "$health"
-  printf 'passes    : %s per orchestrator session (JOHARNESS_ORCHESTRATOR_PASSES)\n' "$passes"
+  # Lifted like the ceiling: 0 would otherwise hand off on every pass.
+  if [ "$passes" -gt 0 ]; then
+    printf 'passes    : %s per orchestrator session (JOHARNESS_ORCHESTRATOR_PASSES)\n' "$passes"
+  else
+    printf 'passes    : lifted, one session carries every pass (JOHARNESS_ORCHESTRATOR_PASSES=0)\n'
+  fi
   printf 'respawns  : %s per item per run (JOHARNESS_RESPAWN_LIMIT)\n' "$respawn"
   # Lifted, the line names no mark: `grep CEILING?` over a lifted pass is 0.
   if [ "$hours" -gt 0 ]; then

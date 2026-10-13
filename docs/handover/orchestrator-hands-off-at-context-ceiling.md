@@ -37,6 +37,19 @@ Orchestrator hands its ledger to a fresh successor session after
 
 ## Review
 
+- r1: (verifier) a `set_session_title` refused at run time passed step 1 and the hand-off ran with the old title, so the successor could exit on its own title check. (fixed: step 2 refused = no hand-off, report `hand-off skipped: set_session_title refused`; a refused restore reports `title not restored`)
+- r2: (verifier) leads noted between wakes were in neither the successor's prompt nor a forward. (fixed: step 4 forwards the lead lines this arm would have written, not only the wake's)
+- r3: (verifier) no Claude Code Remote `send_message` still let the hand-off run with no lead channel, and an undelivered forward was silent. (fixed: no `send_message` = `hand-off skipped`; not delivered = `lead not forwarded: <stem>`)
+- r4: (verifier) GUARD's "the hand-off" meant the respawn-limit record, a second meaning of the term in one file. (fixed: GUARD says "the respawn-limit record")
+- r5: (verifier) `JOHARNESS_ORCHESTRATOR_PASSES=0` handed off every pass, undocumented. (fixed: 0 lifts it, dispatch prints `lifted`, knob row says so; selftest case)
+- r6: (verifier) `after <n> passes` overstates when an out-of-band arm advanced the counter. (wontfix: the trigger reads the same counter, so the report names what decided; text now says `pass=` is the wake counter)
+- r7: (verifier) "a spawn prompt never carries a manager's text" is untrue of a ledger carrying `next=`/`detail=`. (fixed: reason reworded to "never carries a lead"; the ledger fields are already stripped and cut as in every wake)
+- r8: (verifier) the forward covered only lead messages. (fixed: any message from another session is forwarded verbatim)
+- r9: (verifier) no `get_session` left the `context:` line undefined. (fixed: `context: unread`)
+- r10: (verifier) the help text's orchestrator-number list lacked the knob. (fixed)
+- r11: (verifier) retitle-before-spawn order was not pinned by any case. (fixed: selftest compares the two step lines' positions)
+- r12: (verifier) the dispatch case pins the line, not its position beside `health`. (wontfix: position carries no meaning for a reader that greps the line)
+
 ## Blockers
 
 None.

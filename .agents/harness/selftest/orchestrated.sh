@@ -219,6 +219,18 @@ expect "dispatch prints the hand-off pass count with its default" \
 out="$(DISPATCH_FETCH=0 JOHARNESS_ORCHESTRATOR_PASSES=3 orcj dispatch)"
 expect "and honours the environment for one command" \
   "passes    : 3 per orchestrator session (JOHARNESS_ORCHESTRATOR_PASSES)" "$out"
+out="$(DISPATCH_FETCH=0 JOHARNESS_ORCHESTRATOR_PASSES=0 orcj dispatch)"
+expect "and 0 lifts it rather than handing off every pass" \
+  "passes    : lifted, one session carries every pass (JOHARNESS_ORCHESTRATOR_PASSES=0)" "$out"
+# One orchestrator per repo: the retitle comes BEFORE the spawn, or the
+# successor's exact-title check finds the predecessor and exits.
+retitle_ln="$(grep -n '^2\. `set_session_title` this session to `orchestrator (handed off):' "$orcmd" | head -1 | cut -d: -f1)"
+spawn_ln="$(grep -n '^3\. `create_session`: `source_url`' "$orcmd" | head -1 | cut -d: -f1)"
+if [ -n "$retitle_ln" ] && [ -n "$spawn_ln" ] && [ "$retitle_ln" -lt "$spawn_ln" ]; then
+  pass "the hand-off retitles before it spawns the successor"
+else
+  fail "the hand-off retitles before it spawns the successor (retitle ${retitle_ln:-none}, spawn ${spawn_ln:-none})"
+fi
 for needle in 'HANDED OFF' 'JOHARNESS_ORCHESTRATOR_PASSES' \
   'orchestrator (handed off):' 'hand-off skipped' 'hand-off failed'; do
   expect "orchestrate.md spells ${needle}" "$needle" "$orctext"
