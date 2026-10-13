@@ -42,7 +42,7 @@ Scout proposals are approved by the reviewer's `approved` comment, read with
 - r9: (verifier) r1's item 3 "body holds the target text" deadlocks: no `scout: revised` at all, a stranger's `scout: revised`, an older revision's text, a deletion (fixed: replaced, not patched — a closing comment ends the revision; item 3 skips `REVISION OPEN` while the opener is newest (names final in r13))
 - r10: (verifier) scout §5 recovery keyed on the newest own comment of any kind (fixed: keyed on the newest own `scout:` comment, same comment the clerk's item 3 reads)
 - r11: (verifier) scout.md and orchestrated.md lines 40 and 413 still said any `scout:` comment stales (fixed: footed `scout:` comment by the scout / a write-access author)
-- r12: (verifier) an approval given before the edit (fixed by r9: `scout: edited` is newer, so it stales that approval)
+- r12: (verifier) an approval given before the edit (fixed by r9, r13: the closing `scout: revised` is newer, so it stales that approval)
 - r13: (verifier) opener named `scout: revised` makes every old finished revision (gx #645) read open, so the ship check fails (fixed: research step after churn — requirements a-h listed in session; opener `scout: revision`, closer stays `scout: revised`)
 - r14: (verifier) LAST COMMENT lost the "dated as its opener" clause, dropping a question posted mid-revision (fixed: clause restored for `scout: revision`)
 - r15: (verifier) opener told the reviewer to approve once the body shows the edit, before the closer stales it (fixed: "approve after `scout: revised`")
