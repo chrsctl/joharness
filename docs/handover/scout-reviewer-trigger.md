@@ -36,7 +36,7 @@ HOURS/BACKLOG/AUTOMERGE knobs go (#461 item 1, #460).
   (citation: §6/§7 verifier; outside reads: §3; file name: §1 walk; other
   repository: §6 `issue_write` on this repository).
 - Scout block line count: `awk '/^# --- The scout cycle/,/^# --- The clerk
-  cycle/' joharness.sh | wc -l` = 153, 2026-10-13 (347 on main before). The
+  cycle/' joharness.sh | wc -l` = 157, 2026-10-13 (153 before the no-brief off branch) (347 on main before). The
   plan's "under 130" is not met: `scout_walk` (54 lines, kept by the plan)
   plus the reviewer line the clerk needs. Flagged in the pull request body.
 
