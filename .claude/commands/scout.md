@@ -16,7 +16,8 @@ a plan, a research node, a requirement or code has invented work.
 
 What you read: `./joharness.sh scout`, the evidence it lists, the
 `planned   :` line of `./joharness.sh clerk`, memory (§2),
-the brief, and — research on — the web. Not the queue order, not a plan
+the brief, the repository's own records of what is built (§2), and —
+research on — the web. Not the queue order, not a plan
 beyond its frontmatter and `## Goal`, not product code, not another
 branch's code.
 
@@ -128,6 +129,13 @@ the UTC date it ran. The brief first:
   proposals waiting, research requests, comments to read.
 - `README.md`; `docs/adr/` where present; the names and `## Goal` of
   `docs/product/*.md` and `docs/plans/*.md` on the base branch.
+- Records of what is built, as records, not code: `git log --first-parent
+  --format=%s origin/<base>` (retired plan and merge subjects; shallow clone:
+  `git fetch --unshallow origin` first, bounded, else say the history ends at
+  the boundary and a "no hit" covers only that window);
+  `docs/plans/RETIRED.md`; the names and `## Goal` of `docs/research/*.md`
+  and, where present, `docs/findings/*.md`. Named paths only, never "anything
+  under `docs/`". Product code stays forbidden.
 
 A reading you cannot take here is named as such, with what would take it —
 never estimated (`.claude/agents/verifier.md`, What you cannot see).
@@ -203,7 +211,10 @@ One issue per proposal, `issue_write` on this repository:
     date + output for inside evidence. A number with no command or URL
     beside it is not evidence;
   - `## Memory` — what a declined twin lacked, or which recorded decision
-    it contradicts, cited; none = say so;
+    it contradicts, cited; none = say so. Also one line: the dedupe
+    commands run against §2's records and their result (`<command> → no hit`
+    or the hit), before the issue is filed. A hit = no proposal, or one that
+    says what the hit lacks;
   - `cost: <usd> USD (get_session usage.cost_usd, <UTC date>)`, the last
     line before the footer.
 
