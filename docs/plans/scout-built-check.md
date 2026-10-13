@@ -35,7 +35,7 @@ check and its gap.
 ## Out of scope
 
 - Allowing product-code reads, or a code-search tool.
-- The budget and cost lines — plan `scout-budget-reads-the-pass` owns them.
+- The budget and cost lines — issue #461 (scout simplification) decides them.
 - `joharness.sh` beyond `cmd_scout`'s "evidence a scout reads" list.
 
 ## Acceptance
@@ -59,6 +59,5 @@ check and its gap.
 
 - Never widen the rule to product code: the issue proposes records, not code.
 - Test for a fix must FAIL without it; run selftests through `.agents/harness/selftest.sh`, never a topic file alone.
-- In §6 the `## Memory` bullet sits next to the `cost:` bullet that plan `scout-budget-reads-the-pass` edits: expect a textual reconcile.
 - `scout.md` and `joharness.sh` are `shared:`: merge `origin/main` in before the pull request.
 - Glossary spellings: `ci` fails a contested term spelled another way.
