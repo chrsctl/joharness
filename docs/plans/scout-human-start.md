@@ -6,7 +6,7 @@ effort: medium
 needs: none
 requirement: none
 issue: 460
-scope: .claude/commands/scout.md
+scope: shared:.claude/commands/scout.md
 ---
 
 ## Goal
