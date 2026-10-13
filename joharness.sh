@@ -37,7 +37,7 @@
 #   curate [--apply]
 #                   is the plan queue still fit; --apply makes the mechanical
 #                   repairs
-#   scout           whether a scout is due. Report-only
+#   scout           whether a scout may run, which is in flight. Report-only
 #   clerk           whether a clerk is due, issues already planned or claimed
 #   conduct         whether a conduct reviewer is due, its sample, the ledger
 #                   tally. Report-only
@@ -3313,6 +3313,10 @@ scout_state() {
     SCOUT_STATE='off JOHARNESS_SCOUT_REVIEWER names no login: nothing can be approved, so no scout is ever spawned'
   elif [ ! -f "${ROOT}/.claude/commands/scout.md" ]; then
     SCOUT_STATE='off no .claude/commands/scout.md here: nothing for a scout to run'
+  elif ! scout_brief_present; then
+    # A pass with no brief answers nothing, so a waiting issue would
+    # respawn one every run.
+    SCOUT_STATE="off no docs/product/SCOUT.md on ${HANDOVER_BASE_BRANCH:-main}: a pass would answer nothing"
   else
     SCOUT_STATE=on
     SCOUT_ROWS="$(scout_walk)"
@@ -3341,13 +3345,13 @@ cmd_scout() {
   if scout_brief_present; then
     printf 'brief     : docs/product/SCOUT.md on %s — the pass researches against it\n' "$base_branch"
   else
-    printf 'brief     : NO BRIEF — no docs/product/SCOUT.md on %s: no outside research, the pass proposes nothing\n' \
+    printf 'brief     : NO BRIEF — no docs/product/SCOUT.md on %s: the cycle is off\n' \
       "$base_branch"
   fi
   # The clerk's scout gate reads this line: printed when off too.
   printf 'reviewer  : %s (JOHARNESS_SCOUT_REVIEWER) — ' "$(scout_reviewer)"
   if [ "$(scout_reviewer)" = none ]; then printf 'nothing can be approved\n'
-  else printf 'their approved label is the gate\n'; fi
+  else printf 'their approved comment is the gate\n'; fi
   printf 'research  : %s (JOHARNESS_SCOUT_RESEARCH); budget %s outside reads a pass (JOHARNESS_SCOUT_READS)\n\n' \
     "$(scout_research)" "$(num_knob JOHARNESS_SCOUT_READS 12)"
 }
@@ -3470,7 +3474,7 @@ clerk_walk() {
 }
 
 # Is a clerk due. CLERK_ROWS is read whatever the clock says: a clerk in
-# flight takes a slot and holds the scout either way.
+# flight takes a slot either way.
 CLERK_DUE=""
 CLERK_ROWS=""
 clerk_due() {

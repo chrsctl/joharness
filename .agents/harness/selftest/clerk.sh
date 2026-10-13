@@ -80,6 +80,7 @@ expect "dispatch prints the clerk line off too" "clerk     : off — no .claude/
 refute "and spawns no clerk" "clerk DUE" "$out"
 printf '# clerk\n' >"${clerk_work}/.claude/commands/clerk.md"
 printf '# scout\n' >"${clerk_work}/.claude/commands/scout.md"
+mkdir -p "${clerk_work}/docs/product" && printf '# brief\n' >"${clerk_work}/docs/product/SCOUT.md"
 clerk_commit "the commands" '2026-01-01T01:00:00Z'
 git -C "$clerk_work" push -q origin main
 
@@ -320,6 +321,7 @@ cp "${ROOT}/.agents/harness/queue-context.sh" \
 printf '# none\n' >"${clerk_work}/.agents/env/none/AGENTS.md"
 printf '# clerk\n' >"${clerk_work}/.claude/commands/clerk.md"
 printf '# scout\n' >"${clerk_work}/.claude/commands/scout.md"
+mkdir -p "${clerk_work}/docs/product" && printf '# brief\n' >"${clerk_work}/docs/product/SCOUT.md"
 clerk_conf="${clerk_work}/joharness.conf"
 printf 'JOHARNESS_ENV=none\n' >"$clerk_conf"
 clerk_commit "base" '2026-01-01T00:00:00Z'

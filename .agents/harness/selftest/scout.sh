@@ -82,7 +82,9 @@ out="$(sctr)"
 expect "without .claude/commands/scout.md the cycle is off, and says why" \
   "scout     : off — no .claude/commands/scout.md here" "$out"
 printf '# scout\n' >"${scout_work}/.claude/commands/scout.md"
-scommit "the command" '2026-01-01T01:00:00Z'
+# The brief with it: no brief is off too, a case of the second fixture.
+printf '# brief\n' >"${scout_work}/docs/product/SCOUT.md"
+scommit "the command and the brief" '2026-01-01T01:00:00Z'
 git -C "$scout_work" push -q origin main
 
 # --- no clock, no backlog, no ceiling --------------------------------------
@@ -98,8 +100,7 @@ out="$(sdspr)"
 expect "dispatch reads free" "$scout_go" "$out"
 refute "dispatch prints no scout DUE: spawn" "scout DUE: spawn" "$out"
 
-# A proposal that MERGED: its retire on the base branch dates the cycle, and
-# January is far more than 168h ago.
+# A proposal that MERGED: its retire on the base branch holds nothing.
 git -C "$scout_work" checkout -qb scout-merged
 sws scout-2026-01-05 scout-2026-01-05 review scout-merged
 scommit "proposal" '2026-01-05T00:00:00Z'
@@ -111,8 +112,8 @@ GIT_COMMITTER_DATE='2026-01-05T02:00:00Z' GIT_AUTHOR_DATE='2026-01-05T02:00:00Z'
 git -C "$scout_work" push -q origin main
 expect "a merged retire is nothing in flight" "$scout_go" "$(sctr)"
 
-# A scout IN FLIGHT: its file still at the tip, status in-progress. An old
-# tip leaves the clock due; the open branch is what says none is.
+# A scout IN FLIGHT: its file still at the tip, status in-progress, however
+# old the tip.
 git -C "$scout_work" checkout -qb scout-open main
 sws scout-2026-02-01 scout-2026-02-01 in-progress scout-open
 scommit "scout at work" '2026-02-01T00:00:00Z'
@@ -327,8 +328,6 @@ out="$(sdspr)"
 expect "free, the row names what spawns one" \
   "scout     : none in flight — on the reviewer's order or a scout issue waiting on the scout (orchestrate.md) spawn ONE (agent: fable) on /scout, beyond the cap" "$out"
 refute "and dispatch prints no scout DUE: spawn" "scout DUE: spawn" "$out"
-refute "and the report no longer says a proposal waits for a merge" \
-  "waits for a human to merge" "$(sctr | tail -2)"
 out="$(sdspr DISPATCH_FETCH=0)"
 refute "with no fetch at all the row is not free" "$scout_go" "$out"
 expect "and it says the view is not fresh" "scout     : held — no fresh view of every branch" "$out"
@@ -803,15 +802,22 @@ scommit "edge work"
 git -C "$scout_work" push -qu origin edge-b
 git -C "$scout_work" checkout -q main
 
+# No brief = off: a pass would answer nothing, so a waiting issue would
+# respawn one every run (verifier F1).
 out="$(sctr)"
-expect "brief: none on main says so" \
-  "brief     : NO BRIEF — no docs/product/SCOUT.md on main: no outside research, the pass proposes nothing" "$out"
+expect "brief: none on main is off" \
+  "scout     : off — no docs/product/SCOUT.md on main: a pass would answer nothing" "$out"
+expect "brief: and the brief line says so" \
+  "brief     : NO BRIEF — no docs/product/SCOUT.md on main: the cycle is off" "$out"
+refute "brief: dispatch offers no scout" "$scout_go" "$(sdspr)"
 # A brief on the working tree alone is not a brief: the base branch's is.
 printf '# brief\n' >"${scout_work}/docs/product/SCOUT.md"
-expect "brief: one not on main is no brief" "brief     : NO BRIEF" "$(sctr)"
+expect "brief: one not on main is no brief" "scout     : off — no docs/product/SCOUT.md" "$(sctr)"
 scommit "the brief" '2026-01-02T00:00:00Z'
 git -C "$scout_work" push -q origin main
-expect "brief: on main reads present" "brief     : docs/product/SCOUT.md on main" "$(sctr)"
+out="$(sctr)"
+expect "brief: on main reads present" "brief     : docs/product/SCOUT.md on main" "$out"
+expect "brief: and the cycle is on" "$scout_go" "$out"
 out="$(sdspr)"
 refute "free work and a manager in flight: not DRAINED" "verdict   : DRAINED — nothing free, nothing in flight" "$out"
 expect "and the scout row is free under it: no DRAINED gate" "$scout_go" "$out"
@@ -852,5 +858,5 @@ expect "research on the branch's conf alone reads off" "research  : off" "$out"
 scommit "the human names a reviewer"
 git -C "$scout_work" push -q origin main
 out="$(sct)"
-expect "the reviewer in main's conf reads through" "reviewer  : mallory (JOHARNESS_SCOUT_REVIEWER) — their approved label is the gate" "$out"
+expect "the reviewer in main's conf reads through" "reviewer  : mallory (JOHARNESS_SCOUT_REVIEWER) — their approved comment is the gate" "$out"
 expect "research on in main's conf reads on" "research  : on (JOHARNESS_SCOUT_RESEARCH)" "$out"

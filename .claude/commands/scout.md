@@ -11,7 +11,7 @@ clock makes a pass due. Never because a session decided to.
 
 You hold no slot: one session beyond `JOHARNESS_MAX_MANAGERS` — say so in
 your report. You read evidence and file proposal issues; you build nothing.
-A proposal enters plans only through the reviewer's `approved` label and
+A proposal enters plans only through the reviewer's `approved` comment and
 the clerk (`.claude/commands/clerk.md`, the scout gate). A scout that writes
 a plan, a research node, a requirement or code has invented work.
 
@@ -53,7 +53,8 @@ in the report, nothing more.
    is there: read it whole and carry on from its `next:`. Your own branch's
    row in `./joharness.sh scout` is yours, not another scout's. Skip 3.
 3. `./joharness.sh scout`. `off` = stop: `JOHARNESS_SCOUT_REVIEWER` is
-   empty (nothing can be approved), or this checkout has no command file.
+   empty (nothing can be approved), no `docs/product/SCOUT.md` brief on
+   the base branch, or this checkout has no command file.
    `IN FLIGHT` = another scout holds this cycle: stop, one at a time.
    `UNREADABLE` = say what it could not read and stop.
 4. The pass's conf = three lines of that `./joharness.sh scout`, as printed:
@@ -61,8 +62,6 @@ in the report, nothing more.
    `research  :` line). Copy them into your report.
    Resumed (step 2)? Run `./joharness.sh scout` here; the claim exists,
    so every "claim" below is already done.
-   - `brief     : NO BRIEF` = claim (§1), report `NO BRIEF`, retire (§7),
-     exit. No outside research, no proposal, no answer, no revision.
 
 ## 1. Claim
 
@@ -143,13 +142,15 @@ refused>` in the claim and the report; propose from inside evidence only.
 ## 4. Answer
 
 WAITING = every issue the orchestrator's trigger names
-(`.claude/commands/orchestrate.md`, "A scout issue needs the scout"): OPEN,
-label `scout`, not approved (`.claude/commands/clerk.md`, THE SCOUT GATE),
-not `planned`, and either its newest counting comment is newer than its
-newest `scout:` comment, or it is a research request with no `scout:`
-comment. Each WAITING issue gets exactly ONE reply this pass, and it
-quiets the trigger:
+(`.claude/commands/orchestrate.md`, "A scout issue needs the scout", (i) to
+(iii)): OPEN, label `scout`, not approved (`.claude/commands/clerk.md`, THE
+SCOUT GATE), not `planned`. Its SCOUT COMMENT is the gate's: the newest
+footed `scout:` comment by a write-access author. A reading that fails =
+not WAITING this pass, named in the report. Each WAITING issue gets
+exactly ONE reply this pass, and it quiets the trigger:
 
+- an unfinished revision of yours ((iii)): §5's "First", its `scout:
+  revised` the one reply;
 - a research request (title does NOT start `scout:`): one comment opening
   `scout: answer`, every claim cited as in §3 (or §2 for inside evidence);
 - a proposal of yours asking a question or a change: §5, its bracket the
@@ -165,34 +166,39 @@ and nothing more.
 ## 5. Revise
 
 Your LAST COMMENT on an issue = your newest comment there, a `scout:
-revised` dated as the `scout: revising` it closes; none = the issue's
+revised` dated as the `scout: revision` it closes; none = the issue's
 creation.
 
-First, unfinished revisions: an OPEN, unplanned proposal of yours whose
-newest comment of yours opens `scout: revising` = make the body that comment
-names (already so = no edit), then post `scout: revised`.
+The gate is the reviewer's `approved` comment newer than the newest footed
+`scout:` comment by a write-access author (`.claude/commands/clerk.md`, the
+scout gate); the label `approved` is a marker only. So every `scout:`
+comment of yours stales an approval, and no other comment does.
+
+First, unfinished revisions: an
+OPEN, unplanned proposal of yours whose newest `scout:` comment of yours
+opens `scout: revision` = make the body that comment names (already so = no
+edit), then post `scout: revised`.
 
 Then a WAITING (§4) proposal of yours whose newer counting comment asks a
 question or a change. Nothing asked = §4's `scout: noted`; an approved
-proposal is never WAITING, so no reply stales an approval
-(`.claude/commands/clerk.md`, the scout gate). Else, in this order:
+proposal is never WAITING (`.claude/commands/clerk.md`, the scout gate).
+Else, in this order:
 
-1. ONE comment `scout: revising` — the answer to each question, the body
-   change it makes as target text, and "do not approve before `scout:
-   revised`". It stales any approval before the edit; the clerk skips the
-   proposal while it is the newest (`REVISION OPEN`).
-2. The body edit, exactly that change. An update passes no `labels`.
-3. ONE comment `scout: revised` — the edit is made, and approval is needed
-   again (the reviewer approves only after it). An approval landing
-   between 1 and 3 is stale once 3 posts.
+1. FIRST, ONE comment `scout: revision` — the answer to each question, the
+   body change as target text, and "approve after `scout: revised`". It is
+   newer than any `approved`, so approval is needed again.
+2. THEN the body edit, exactly that change. An update passes no `labels`.
+3. ONE comment `scout: revised` — the edit is made. It stales an approval
+   that landed between 1 and 3; the reviewer approves after it.
 
-No body change = 1 alone, as `scout: answer`. A body edit outside
-that bracket — no `scout: revising` before it, or no `scout: revised`
-after it — is never made.
+A pass that dies before 3 fails closed: the clerk skips the proposal
+(`REVISION OPEN`) until a pass finishes it. No body change = 1 alone, as
+`scout: answer` (it stales an approval too). A body edit outside 1 to 3
+is never made.
 
 ## 6. Propose
 
-New issues: at most 3 proposals a pass. Never a quota: no evidence earns
+New issues: at most 3 proposals a pass (a written number, #461). Never a quota: no evidence earns
 one = report `NOTHING TO PROPOSE`, which is success, not a stall.
 
 One issue per proposal, `issue_write` on this repository:
@@ -231,7 +237,7 @@ diff nets to nothing, so this role opens no pull request.
 Report: issues opened, revised, answered, noted, with links, the proposals
 ranked (largest counted number first, one line each with its link and that
 number; a proposal citing no number after, in filing order); the three conf
-lines; `NO BRIEF`, `NO NETWORK`, `NOTHING TO PROPOSE`, `BUDGET: <R> reads`,
+lines; `NO NETWORK`, `NOTHING TO PROPOSE`, `BUDGET: <R> reads`,
 a missing `Feature` type, where they apply; `usage.cost_usd` from
 `get_session` at exit, written as the session's total at that moment (`<usd>
 USD, session total, <UTC date>`).
