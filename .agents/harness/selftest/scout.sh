@@ -90,6 +90,8 @@ expect "the command names its knob and the automerge value" \
   "== scout (every 168h: JOHARNESS_SCOUT_HOURS; automerge: off)" "$out"
 expect "no history and the default window is due" "cadence   : DUE" "$out"
 expect "it points at the evidence a scout reads" "./joharness.sh upstream" "$out"
+expect "it names the retired-plan ledger as built-record evidence" "RETIRED.md" "$out"
+expect "it names the first-parent log as built-record evidence" "--format=%s origin/<base>" "$out"
 
 # A proposal that MERGED: its retire on the base branch dates the cycle, and
 # January is far more than 168h ago.

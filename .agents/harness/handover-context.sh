@@ -24,8 +24,15 @@ branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null)"
 if [ "${HANDOVER_FETCH:-1}" = "1" ]; then
   # A shallow clone is unshallowed in the same call.
   if [ "$(git rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
-    timeout 15 git fetch --quiet --prune --unshallow origin >/dev/null 2>&1 ||
+    # 40s stays far under the SessionStart hook's 600s default (Claude Code
+    # hooks docs, read 2026-10-13). The plain fetch runs only after a failure
+    # that is not a timeout (124), so the worst case is 40s + 15s = 55s: an
+    # error at second 39 then a full plain fetch.
+    timeout 40 git fetch --quiet --prune --unshallow origin >/dev/null 2>&1
+    rc=$?
+    if [ "$rc" -ne 0 ] && [ "$rc" -ne 124 ]; then
       timeout 15 git fetch --quiet --prune origin >/dev/null 2>&1 || true
+    fi
   else
     timeout 15 git fetch --quiet --prune origin >/dev/null 2>&1 || true
   fi
@@ -449,7 +456,7 @@ if [ -n "$others" ]; then
     add "  Those entries may be inherited rather than claimed."
     if [ "$(git rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
       if [ "${HANDOVER_FETCH:-1}" = "1" ]; then
-        add "  This clone is shallow and the hook's unshallow did not finish in 15s:"
+        add "  This clone is shallow and the hook's unshallow failed or did not finish in 40s:"
       else
         add "  This clone is shallow and HANDOVER_FETCH=0 skipped the fetch that"
         add "  unshallows it:"

@@ -3495,6 +3495,9 @@ cmd_scout() {
   printf '  open issues on the canonical repository\n'
   printf '  the control plane'"'"'s cost reader: get_session usage.cost_usd,\n'
   printf '    usage.cache_read_tokens, context_usage.used_tokens\n'
+  printf '  records of what is built (not code): git log --first-parent\n'
+  printf '    --format=%%s origin/<base>, docs/plans/RETIRED.md, docs/research/*.md\n'
+  printf '    and docs/findings/*.md (names and ## Goal)\n'
   printf '  a dated Anthropic release note or Models API read\n\n'
   printf 'A scout proposes on issues; a reviewer approves (JOHARNESS_SCOUT_REVIEWER).\n'
   printf 'JOHARNESS_SCOUT_AUTOMERGE=%s governs no merge: nothing enters the queue unapproved.\n' \
@@ -4288,8 +4291,18 @@ cmd_authority() {
   fi
   if ! mb="$(git -C "$ROOT" merge-base HEAD "$base" 2>/dev/null)" || [ -z "$mb" ]; then
     printf 'verdict   : UNVERIFIED\n'
-    printf '  This checkout shares no history with %s here — a shallow clone\n' "$base"
-    printf '  or an unrelated branch. Nothing reviewed to compare against.\n'
+    # Which cause, said: a role reading "shallow or unrelated" stopped on a
+    # fetch it could run itself (issue #439).
+    if [ "$(git -C "$ROOT" rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
+      printf '  This checkout shares no history with %s here: shallow clone,\n' "$base"
+      printf '  whose boundary hides the merge base. Nothing reviewed to compare\n'
+      printf '  against until the history is whole.\n'
+      printf 'run: git fetch --unshallow origin, then authority again\n'
+    else
+      printf '  This checkout shares no ancestor with %s: the history is\n' "$base"
+      printf '  complete, so the branch is unrelated and unshallowing cannot\n'
+      printf '  help. Nothing reviewed to compare against.\n'
+    fi
     return 0
   fi
   drift="$(authority_drift "$mb")"
@@ -6049,7 +6062,7 @@ cmd_dispatch() {
   esac
   if [ "${DISPATCH_FETCH:-1}" != 0 ]; then
     if [ "$(git -C "$ROOT" rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
-      timeout 15 git -C "$ROOT" fetch -q --prune --unshallow origin 2>/dev/null ||
+      timeout 60 git -C "$ROOT" fetch -q --prune --unshallow origin 2>/dev/null ||
         git -C "$ROOT" fetch -q --prune origin 2>/dev/null ||
         { warn "fetch failed; push ages below are from the last fetch"; fetch_failed=1; }
     else

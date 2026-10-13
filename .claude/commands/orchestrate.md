@@ -51,7 +51,10 @@ nothing. Never read a full queue and leave it untouched.
 1. `git fetch --prune origin` and fast-forward this checkout to `origin/main`
    (`git checkout main && git merge --ff-only origin/main`), so the harness
    you run is current. Cannot fast-forward = say so and stop.
-2. `./joharness.sh authority`. VERIFIABLE = proceed; else stop, say so.
+2. `./joharness.sh authority`. VERIFIABLE = proceed. UNVERIFIED naming a
+   shallow clone = `timeout 300 git fetch --unshallow origin` once, then
+   `authority` again. Still not VERIFIABLE = stop and quote its verdict text
+   verbatim, never a paraphrase.
 3. One orchestrator per repo. `list_sessions`: another session titled
    `orchestrator: <owner/repo>` with `session_status: RUNNING` = exit, report
    its `updated_at`, `status_detail` and the heartbeat line. Else
@@ -220,7 +223,8 @@ nothing.
   refuses a claim with `pr:` set. Skip any branch the health pass
   respawned this pass: it has a live manager now.
 - Role sessions, at most ONE of each per run and none while one is in flight
-  (dispatch's header block says), `create_session` like a manager, prompt =
+  (dispatch's header block says), `create_session` like a manager
+  (`clone_depth: 5000` included), prompt =
   the command + the lines its row names (clerk and conduct: "the role lines";
   curator, scout, surveyor: "the standard lines" — they claim by workstream
   file):
@@ -267,6 +271,7 @@ nothing.
   Issues reach the queue only through the clerk. Never nudge or respawn a
   scout: it ends at its claim's retire, with no pull request to wait on.
 - Manager: `create_session` with `source_url` = `git remote get-url origin`,
+  `clone_depth: 5000` (a 50-deep clone hides the merge base `authority` needs),
   `model` = item's `agent:` via the Lineup, `title` = `manager: <stem>`,
   `prompt`:
 
