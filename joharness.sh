@@ -6020,7 +6020,7 @@ cmd_dispatch() {
   local st wave note hold holdmap hold_live hline hb hs holds_n blocked_claims=""
   local ebranch eitem efirst estem espaces emore epath eage eagetext
   local edge_rows="" edge_items="" edge_unver=""
-  local n_inflight=0 n_slots n_free=0 n_stall=0 n_blocked=0 n_hold=0 n_wait=0 n_loop=0
+  local gh_head gh_base n_inflight=0 n_slots n_free=0 n_stall=0 n_blocked=0 n_hold=0 n_wait=0 n_loop=0
   local pending pending_used
   local n_edge=0 n_edge_stall=0 n_leftover=0 n_leftover_noitem=0
   local leftover_rows="" estate="" fleet_age stall_young=""
@@ -6410,7 +6410,17 @@ cmd_dispatch() {
       [ "$holds_n" -eq 0 ] ||
         flag="${flag}  holds ${holds_n} plan(s) out of the queue"
     fi
-    inflight="${inflight}  ${path}  ${branch}  ${status:-?}  pushed ${agetext}${flag}"$'\n'
+    # The git half of "did this land": the head read, and whether a merge-base
+    # with the base ref exists at all (a shallow clone or an unrelated branch
+    # has none, and that is its own value, never "no").
+    gh_head="$(git -C "$ROOT" rev-parse --short=12 "refs/remotes/origin/${branch}" </dev/null 2>/dev/null)"
+    if git -C "$ROOT" merge-base "refs/remotes/origin/${branch}" \
+      "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" </dev/null >/dev/null 2>&1; then
+      gh_base="ok"
+    else
+      gh_base="unreadable"
+    fi
+    inflight="${inflight}  ${path}  ${branch}  ${status:-?}  pushed ${agetext}  head ${gh_head:-?}  base ${gh_base}${flag}"$'\n'
     [ -z "$work" ] || inflight="${inflight}${work}"$'\n'
     [ -z "$session" ] || inflight="${inflight}    session: ${session}"$'\n'
     [ -z "$next" ] || inflight="${inflight}    next: ${next}"$'\n'

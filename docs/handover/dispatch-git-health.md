@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_013egFD4ouUukESSjmymzftc
 agent: sonnet
 updated: 2026-10-13
-next: Add head/base fields to cmd_dispatch in-flight rows, update orchestrate.md §2 and selftest
+next: Verify (selftest, ci, verify) the uncommitted head/base edits, then verifier review, retire, PR
 ---
 
 ## Goal
