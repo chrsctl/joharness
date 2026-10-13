@@ -4949,9 +4949,16 @@ cmd_conf() {
         if [ -n "${JOHARNESS_CONF:-}" ]; then pair="${CONF}"$'\t'"env"
         else pair="${CONF}"$'\t'"default"; fi ;;
       JOHARNESS_CANONICAL)
+        # Every reader greps the conf for the line; the environment is never seen.
         if grep -q '^JOHARNESS_CANONICAL=1' "$CONF" 2>/dev/null; then
           pair="1"$'\t'"conf"
-        else pair="$(knob_text_line "$k" "$d" session)"; fi ;;
+        else pair="$d"$'\t'"default"; fi ;;
+      JOHARNESS_RECURRENCE_WINDOW)
+        # The reader drops anything but digits (and an empty one) to 8.
+        pair="$(knob_text_line "$k" "$d" session)"
+        case "${pair%%$'\t'*}" in
+          '' | *[!0-9]*) pair="$d"$'\t'"default; env set but not a number, ignored" ;;
+        esac ;;
       *)
         case "$scope" in
           conf | dispatch) case "$d" in
@@ -4963,11 +4970,15 @@ cmd_conf() {
     esac
     val="${pair%%$'\t'*}"; src="${pair#*$'\t'}"
     # The reader's own answer where it normalizes (a login, an on/off switch).
+    local raw="$val"
     case "$k" in
       JOHARNESS_SCOUT_REVIEWER) val="$(scout_reviewer)" ;;
       JOHARNESS_SCOUT_RESEARCH) val="$(scout_research)" ;;
       JOHARNESS_SCOUT_AUTOMERGE) val="$(scout_automerge)" ;;
     esac
+    if [ "$scope" = base-conf ] && [ -n "$raw" ] && [ "$raw" != "$val" ] && [ "${src%% *}" != default ]; then
+      src="${src}; value not accepted, read as ${val}"
+    fi
     [ -n "$val" ] || val='""'
     printf '%s = %s (%s)  %s  %s\n' "$k" "$val" "$src" "$scope" "$meaning"
   done <<<"$KNOBS"

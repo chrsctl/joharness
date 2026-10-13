@@ -19,7 +19,7 @@ step "knobs-declared"
 
 # kd_problems <script> <table-doc> <conf-keys>: one line per disagreement.
 kd_problems() {
-  local script="$1" doc="$2" keys="$3" rows reads k d scope _ ck
+  local script="$1" doc="$2" keys="$3" rows reads k d scope _ ck td
   rows="$(awk '/^# KNOBS-BEGIN/{f=1;next} /^# KNOBS-END/{f=0} f' "$script" |
     sed "1s/^KNOBS='//; \$s/'\$//")"
   # Outside the table (which names every key by being the table): every name
@@ -41,7 +41,12 @@ kd_problems() {
       printf 'conf-scoped key absent from conf-keys.sh: %s\n' "$k"
     fi
     if [ "$scope" = dispatch ]; then
-      grep -qF "| \`${k}\` |" "$doc" || printf 'dispatch key with no table row: %s\n' "$k"
+      if ! grep -qF "| \`${k}\` |" "$doc"; then
+        printf 'dispatch key with no table row: %s\n' "$k"
+      elif [ "$d" != computed ]; then
+        td="$(grep -F "| \`${k}\` |" "$doc" | head -1 | awk -F'|' '{gsub(/^ +| +$/, "", $4); print $4}')"
+        [ "$td" = "${d:-empty}" ] || printf 'table default differs from KNOBS: %s\n' "$k"
+      fi
     fi
   done <<<"$rows"
 }
@@ -78,6 +83,10 @@ if [ -r "$kd_keys" ] && [ -r "$kd_doc" ]; then
   expect "a dispatch key with no table row reds" \
     "dispatch key with no table row: JOHARNESS_CLERK_BATCH" \
     "$(kd_problems "$kd_script" "${kdw}/d.md" "$kd_keys")"
+  sed 's/| `JOHARNESS_CLERK_BATCH` | 3 |/| `JOHARNESS_CLERK_BATCH` | 9 |/' "$kd_doc" >"${kdw}/f.md"
+  expect "a table default that differs from KNOBS reds" \
+    "table default differs from KNOBS: JOHARNESS_CLERK_BATCH" \
+    "$(kd_problems "$kd_script" "${kdw}/f.md" "$kd_keys")"
   sed 's/^HANDOVER_STALE_SECONDS|/JOHARNESS_ONLY_HERE|1|conf|x\nHANDOVER_STALE_SECONDS|/' \
     "$kd_script" >"${kdw}/e.sh"
   expect "a conf-scoped key absent from conf-keys.sh reds" \
@@ -117,3 +126,17 @@ expect "an empty environment falls through to conf and says so" \
 expect "a non-number in the environment goes to the default, conf unread" \
   "JOHARNESS_MAX_MANAGERS = 4 (default; env set but not a number, ignored, conf not consulted)" \
   "$(kdconf JOHARNESS_MAX_MANAGERS=x)"
+expect "a conf value that is not a number goes to the default" \
+  "JOHARNESS_STALL_MINUTES = 45 (default; conf set but not a number, ignored)" \
+  "$(printf 'JOHARNESS_STALL_MINUTES=abc\n' >>"${kdfix}/joharness.conf"; kdconf)"
+expect "a value past nine digits goes to the default" \
+  "JOHARNESS_HEALTH_MINUTES = 10 (default; env value too long, ignored)" \
+  "$(kdconf JOHARNESS_HEALTH_MINUTES=12345678901)"
+expect "the canonical marker is the conf line, never the environment" \
+  "JOHARNESS_CANONICAL = \"\" (default)" "$(kdconf JOHARNESS_CANONICAL=1)"
+expect "a rejected login is read as none and says so" \
+  "JOHARNESS_SCOUT_REVIEWER = none (env; value not accepted, read as none)" \
+  "$(kdconf 'JOHARNESS_SCOUT_REVIEWER=bad name!')"
+expect "a non-number recurrence window is the reader's 8" \
+  "JOHARNESS_RECURRENCE_WINDOW = 8 (default; env set but not a number, ignored)" \
+  "$(kdconf JOHARNESS_RECURRENCE_WINDOW=abc)"
