@@ -3750,3 +3750,45 @@ out="$(sf env HANDOVER_STALE_SECONDS=3600 DISPATCH_FETCH=1)"
 expect "a fetched view still names the stale claim" "janitor   : stale claim(s) on" "$out"
 refute "and carries no caveat on that row" "this clone is stale" \
   "$(grep '^janitor   :' <<<"$out" || :)"
+
+# --- merged filters are one call, not a walk (issue #465) -------------------
+# The ms fixture holds merged branches (mgr-*, claude/rescope-*). A
+# `merge-base --is-ancestor` per merged ref made dispatch and janitor cost
+# grow with every branch ever merged; for-each-ref --no-merged does it in one.
+nm_real_git="$(command -v git)"
+nm_merged="$(git -C "$mswork" for-each-ref --merged=refs/remotes/origin/main \
+  --format='%(refname)' refs/remotes/origin | grep -vc -e '/HEAD$' -e '/main$' || :)"
+mkdir -p "${TMP}/nm-gitwrap"
+cat >"${TMP}/nm-gitwrap/git" <<EOF2
+#!/usr/bin/env bash
+case " \$* " in *" merge-base --is-ancestor "*) printf x >>"${TMP}/nm-gitwrap/count" ;; esac
+exec "${nm_real_git}" "\$@"
+EOF2
+chmod +x "${TMP}/nm-gitwrap/git"
+nm_count() { # <subcommand> — is-ancestor execs for one run
+  : >"${TMP}/nm-gitwrap/count"
+  ( cd "$mswork" && PATH="${TMP}/nm-gitwrap:${PATH}" JOHARNESS_CONF="$msconf" \
+    DRAIN_FETCH=0 DISPATCH_FETCH=0 ./joharness.sh "$1" >/dev/null 2>&1 || : )
+  wc -c <"${TMP}/nm-gitwrap/count" | tr -d ' '
+}
+if [ "$nm_merged" -ge 2 ]; then
+  pass "the merged-filter fixture holds ${nm_merged} merged refs"
+else
+  fail "the merged-filter fixture holds ${nm_merged} merged refs, wanted 2 or more"
+fi
+for nm_cmd in dispatch janitor; do
+  nm_n="$(nm_count "$nm_cmd")"
+  if [ "$nm_n" -lt "$nm_merged" ]; then
+    pass "$nm_cmd runs fewer is-ancestor calls (${nm_n}) than merged refs (${nm_merged})"
+  else
+    fail "$nm_cmd runs ${nm_n} is-ancestor calls for ${nm_merged} merged refs"
+  fi
+done
+# Base ref missing: for-each-ref --no-merged=<missing> is fatal; the unverified
+# row must survive.
+nm_main="$(git -C "$mswork" rev-parse refs/remotes/origin/main)"
+git -C "$mswork" update-ref -d refs/remotes/origin/main
+out="$(ms)"
+git -C "$mswork" update-ref refs/remotes/origin/main "$nm_main"
+expect "a missing base ref still prints the unverified row" \
+  "ref(s) have no merge base here" "$out"
