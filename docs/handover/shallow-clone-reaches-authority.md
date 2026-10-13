@@ -32,7 +32,7 @@ run itself, and an orchestrator must not spawn into that race (issue #439).
 
 ## Review
 
-- Not reviewed yet.
+<!-- review pending -->
 
 ## Blockers
 
