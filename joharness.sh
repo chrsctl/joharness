@@ -5867,7 +5867,7 @@ free_claimed_ever() {
 dispatch_freeable() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" bprows="$1"
   local refs r name base paths p ok wonly doc st pr ws wp claimed="" n_rows age stale_s cb ck cs
-  local gone=" " freers="" fr
+  local gone=" " freers=""
   stale_s="$(num_knob HANDOVER_STALE_SECONDS 518400)"
   # Keys a live free claim covers: a second manager onto the same owner is
   # two merges of one branch.

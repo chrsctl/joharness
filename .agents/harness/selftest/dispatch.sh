@@ -3767,8 +3767,8 @@ EOF2
 chmod +x "${TMP}/nm-gitwrap/git"
 nm_count() { # <subcommand> — is-ancestor execs for one run
   : >"${TMP}/nm-gitwrap/count"
-  ( cd "$mswork" && PATH="${TMP}/nm-gitwrap:${PATH}" JOHARNESS_CONF="$msconf" \
-    DRAIN_FETCH=0 DISPATCH_FETCH=0 ./joharness.sh "$1" >/dev/null 2>&1 || : )
+  ( cd "$mswork" && export PATH="${TMP}/nm-gitwrap:${PATH}" JOHARNESS_CONF="$msconf" \
+    DRAIN_FETCH=0 DISPATCH_FETCH=0; ./joharness.sh "$1" >/dev/null 2>&1 || : )
   wc -c <"${TMP}/nm-gitwrap/count" | tr -d ' '
 }
 if [ "$nm_merged" -ge 2 ]; then
