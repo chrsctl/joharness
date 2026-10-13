@@ -1,7 +1,7 @@
 ---
 plan: clerk-fetch-before-inflight
 urgency: normal
-agent: haiku
+agent: sonnet
 effort: medium
 needs: none
 requirement: none
@@ -22,7 +22,7 @@ The failure is safe (no twin ran) but costs a pass and a human.
 
 ## Scope
 
-- `.claude/commands/clerk.md` §0 item 2 — before `./joharness.sh clerk`, run `git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'` (bounded, Bash `timeout`). FAILED = stop and report, as §1 does. The rest of item 2 is unchanged.
+- `.claude/commands/clerk.md` §0 item 2 — before `./joharness.sh clerk`, run `git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'`, written on one line followed by `FAILED = stop, report` (the same words as §1). Run it bounded: Bash `timeout` 120 s. Reword "That is the only exit here" to "That is the only exit on a clean read"; the rest of item 2 is unchanged.
 
 ## Out of scope
 
@@ -33,7 +33,8 @@ The failure is safe (no twin ran) but costs a pass and a human.
 ## Acceptance
 
 - `sed -n '/^## 0/,/^## 1/p' .claude/commands/clerk.md | grep -c "git fetch --prune origin"` — `1` (`0` on main today).
-- `sed -n '/^## 0/,/^## 1/p' .claude/commands/clerk.md | grep -c -i 'FAILED'` — at least `1`.
+- `sed -n '/^## 0/,/^## 1/p' .claude/commands/clerk.md | grep -A1 'git fetch --prune origin' | grep -c 'FAILED = stop'` — `1`.
+- `grep -c 'the only exit here' .claude/commands/clerk.md` — `0` (`1` on main today).
 - `./joharness.sh ci` — `ci: pass`.
 - Plan ships (`clerk.md` syncs): consumer check = on `chrsctl/gx` after sync, the same `sed | grep` prints `1`.
 
