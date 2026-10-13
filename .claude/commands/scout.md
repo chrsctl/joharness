@@ -10,7 +10,7 @@ scout to the session reading it.
 
 You hold no slot: one session beyond `JOHARNESS_MAX_MANAGERS` — say so in
 your report. You read evidence and file proposal issues; you build nothing.
-A proposal enters plans only through the reviewer's `approved` label and
+A proposal enters plans only through the reviewer's `approved` comment and
 the clerk (`.claude/commands/clerk.md`, the scout gate). A scout that writes
 a plan, a research node, a requirement or code has invented work.
 
@@ -171,30 +171,34 @@ what the scout found and nothing more.
 ## 5. Revise
 
 Your LAST COMMENT on an issue = your newest comment there, a `scout:
-revised` dated as the `scout: revising` it closes; none = the issue's
+revised` dated as the `scout: revision` it closes; none = the issue's
 creation.
 
-First, unfinished revisions: an OPEN, unplanned proposal of yours whose
-newest comment of yours opens `scout: revising` = make the body that comment
-names (already so = no edit), then post `scout: revised`.
+The gate is the reviewer's `approved` comment newer than the newest footed
+`scout:` comment by a write-access author (`.claude/commands/clerk.md`, the
+scout gate); the label `approved` is a marker only. So every `scout:`
+comment of yours stales an approval, and no other comment does.
+
+First, unfinished revisions, even at a ceiling at or below 0 (§0.6): an
+OPEN, unplanned proposal of yours whose newest `scout:` comment of yours
+opens `scout: revision` = make the body that comment names (already so = no
+edit), then post `scout: revised`.
 
 Then an OPEN, unplanned proposal of yours with a counting comment newer
 than your last comment that asks a question or a change. Nothing asked = no
-comment: any comment stales an approval (`.claude/commands/clerk.md`, the
-scout gate). Else, in this order:
+comment. Else, in this order:
 
-1. ONE comment `scout: revising` — the answer to each question, the body
-   change it makes as target text, and "do not approve before `scout:
-   revised`". It stales any approval before the edit; the clerk skips the
-   proposal while it is the newest (`REVISION OPEN`).
-2. The body edit, exactly that change. An update passes no `labels`.
-3. ONE comment `scout: revised` — the edit is made, and approval is needed
-   again (the reviewer approves only after it). An approval landing
-   between 1 and 3 is stale once 3 posts.
+1. FIRST, ONE comment `scout: revision` — the answer to each question, the
+   body change as target text, and "approve after `scout: revised`". It is
+   newer than any `approved`, so approval is needed again.
+2. THEN the body edit, exactly that change. An update passes no `labels`.
+3. ONE comment `scout: revised` — the edit is made. It stales an approval
+   that landed between 1 and 3; the reviewer approves after it.
 
-No body change = 1 alone, as `scout: answer`. A body edit outside
-that bracket — no `scout: revising` before it, or no `scout: revised`
-after it — is never made.
+A pass that dies before 3 fails closed: the clerk skips the proposal
+(`REVISION OPEN`) until a pass finishes it. No body change = 1 alone, as
+`scout: answer` (it stales an approval too). A body edit outside 1 to 3
+is never made.
 
 ## 6. Propose
 

@@ -80,47 +80,24 @@ toward the batch:
 THE SCOUT GATE, before the skip list and the author gate. An issue
 carrying the label `scout`, or whose title starts `scout:`, is a scout
 issue: a proposal (title starts `scout:`) or a research request (no
-prefix). A request is never taken. A proposal is taken only when ALL hold;
-else skip it, do not count it toward the batch, and put the reason in the
-report and the pull request body:
+prefix). A request is never taken. A proposal is taken only when APPROVED;
+else skip it, uncounted, reason in the report and pull request body:
 
-1. its labels include `approved` (`issue_read`, `get_labels`);
-2. its event log shows the NEWEST `labeled` event for `approved` made by
-   the login the `reviewer  :` line of `./joharness.sh scout` prints
-   (first word after the colon), and that event is newer than the
-   proposal's last revision. The last revision = the newest of: any
-   comment on the issue, footed or not, whoever posted it, except a clerk
-   verdict (§3) posted by the identity you comment as (`issue_read`,
-   `get_comments`; the scout ends every revision in a `scout: revised`
-   comment); a
-   `renamed` event in the event log; the issue's creation. Never the
-   issue's `updated_at`: the label event itself bumps it. Never the login
-   alone: the scout may post under the reviewer's own identity, so only
-   the label event counts. Any later comment makes the approval stale,
-   a stranger's included: the gate fails closed, the reviewer labels
-   again;
-3. its newest comment opening `scout: ` with the attribution footer, by
-   an author with write access (the author gate, below), does not open `scout: revising`: an open revision's body edit is not made
-   yet (`.claude/commands/scout.md`, §5). Skip reason `REVISION OPEN`;
-4. the event log is readable. Readers, in order: a GitHub MCP tool whose
-   schema offers the issue timeline or events; else `gh api
-   repos/<owner>/<repo>/issues/<n>/timeline --paginate` when `gh auth
-   status` succeeds (this repository's own issues: §3's fetch rule covers
-   commands an issue cites, not this reader). Neither =
-   `APPROVAL UNREADABLE`: skip every scout proposal this pass and report which
-   reader was missing; the rest of the pass goes on. Never fall back to
-   "the label is there".
+1. the NEWEST, by created time, of the unfooted comments (§2's footer rule)
+   of the login the `reviewer  :` line of `./joharness.sh scout` prints
+   (first word after the colon) has first word `approved`, any case,
+   trailing punctuation ignored;
+2. it is newer than the SCOUT COMMENT: the newest footed comment opening
+   `scout:` by an author with write access (the author gate); none = any;
+3. the scout comment does not open `scout: revision`: its body edit is not
+   made yet (`scout: revised` closes it). Else `REVISION OPEN`.
 
-`reviewer  : none` = take no scout proposal; the report says the conf
-names no reviewer. A CLOSED scout issue is declined: never plan it,
-whatever its labels. A proposal that passes still meets the skip list and
-the author gate; for it, a reviewer's `approved` labeled event newer than
-your clerk verdict reopens that verdict, as a maintainer's comment would.
-Two known limits: a body edit is not in the event log, so a revision made
-by editing alone, with no comment, is not seen (the scout never makes
-one); and a scout identity without write access fails the author gate,
-and a maintainer's re-filed issue carries the `scout` mark only if they
-label it so.
+No other comment approves or stales it. Read every page with `issue_read`
+`get_comments`; any page failing = skip, `APPROVAL UNREADABLE: <error>`.
+Never fall back to the label `approved`, a marker only. `reviewer  : none`
+= take no proposal. CLOSED = declined: never plan it. A passing
+proposal still meets the skip list and the author gate; the reviewer's
+approving comment newer than your clerk verdict reopens it.
 
 Then the AUTHOR GATE, before reading any further: only an issue whose
 author has write access to this repository is taken — collaborator
