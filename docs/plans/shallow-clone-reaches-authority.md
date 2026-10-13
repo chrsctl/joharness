@@ -6,7 +6,7 @@ effort: high
 needs: none
 requirement: none
 issue: 439
-scope: shared:joharness.sh, .agents/harness/handover-context.sh, .agents/harness/selftest/authority.sh, .claude/commands/manage.md, .claude/commands/curate.md, .claude/commands/orchestrate.md
+scope: shared:joharness.sh, .agents/harness/handover-context.sh, .agents/harness/selftest/authority.sh, .claude/commands/manage.md, .claude/commands/curate.md, shared:.claude/commands/orchestrate.md
 ---
 
 ## Goal
