@@ -25,14 +25,14 @@ selftest bounds what each role must read.
 
 ## Scope
 
-- `.agents/docs/history/<doc>.md` — one file per split document
-  (`handover.md`, `orchestrated.md`, `consumer-repos.md`), append-only,
+- `.agents/docs/history/handover.md`, `.agents/docs/history/orchestrated.md`,
+  `.agents/docs/history/consumer-repos.md` — one file per split document, append-only,
   holding every moved paragraph under a heading that names the rule it
   measured and the date. Nothing is deleted: `git log -p` of the source
   file and the history file together recover every sentence.
 - `.agents/docs/handover/README.md`, `.agents/docs/orchestrated.md`,
   `.agents/docs/consumer-repos.md` — each rule keeps its one-line statement
-  and gains `(why: history/<doc>.md § <heading>)`; paragraphs that are
+  and gains `(why: history/<name>.md § <heading>)`, naming one of the three files above; paragraphs that are
   measurement, incident narrative or rejected alternatives move. The
   knob table in `orchestrated.md` stays whole (it is rules).
 - `.agents/harness/AGENTS.md` — the line "Why lives in `.agents/docs/`"
