@@ -371,6 +371,9 @@ or retired, at a tip; it carries `held Nd` from that commit.
 | `JOHARNESS_CURATE_HOURS` | 168 | hours since the last curate = due (anchors rot with no plan changing); 0 switches the cycle off | written number |
 | `JOHARNESS_CURATE_REGISTRY` | 3 | plans declaring one path before `curate` calls it a registry | written number |
 | `JOHARNESS_CURATE_SPLIT` | 8 | `## Scope` bullets before `curate` proposes a decompose | written number |
+| `JOHARNESS_CLERK_HOURS` | 24 | hours between clerk passes over the open issues; 0 = off | written number |
+| `JOHARNESS_CLERK_BATCH` | 3 | open issues one clerk pass takes at most | written number |
+| `JOHARNESS_CLERK_STALE_HOURS` | 24 | an unmerged clerk branch older than this holds nothing; 0 = every one holds | written number |
 | `JOHARNESS_SCOUT_HOURS` | 168 | hours between scouts, only at DRAINED; 0 = off | written number |
 | `JOHARNESS_SCOUT_AUTOMERGE` | off | governs nothing: a scout proposes on issues and opens no pull request; exactly `on` was its self-merge | a switch: money and product direction in one conf line |
 | `JOHARNESS_SCOUT_BACKLOG` | 24 | open plans (plus open scout proposal issues, counted by the scout) below this = a scout is due, not gated on DRAINED, at most one a 24h (written number); 0 = clock only, no ceiling; `JOHARNESS_SCOUT_HOURS=0` switches both triggers off | counted: 3 days x 8 merges/day, `git log --merges --first-parent --since=14.days --format=%h origin/main \| wc -l` = 118, 2026-10-12 |
@@ -379,6 +382,10 @@ or retired, at a tip; it carries `held Nd` from that commit.
 | `JOHARNESS_SCOUT_RESEARCH` | off | exactly `on` lets a scout pass read outside the repository; read from the base branch's conf | a switch: money in one conf line |
 | `JOHARNESS_CONDUCT_HOURS` | 168 | hours since the ledger last landed before a conduct reviewer is due; 0 = off. An unmerged branch named `conduct-<digit>...` (any prefix) unpushed for a seventh of it, at least 24h, is read as closed by a human | written number: weekly, as the scout; issue #251 has no baseline, the tally builds one |
 | `JOHARNESS_CONDUCT_SAMPLE` | 3 | retired branches one run samples, lowest `sha1(<stem>)` first; 0 = off | written number: few enough that one sonnet pass reads each whole |
+
+`./joharness.sh conf` prints every knob the script reads with its live value
+and source; the selftest `knobs-declared` keeps this table complete for the
+`dispatch`-scoped ones and in step with `KNOBS` and `conf-keys.sh`.
 
 None of these is an `updated_at` threshold — one cannot be written (Health,
 above). Read by `dispatch` (and the churn pair by `ci`) from the environment
