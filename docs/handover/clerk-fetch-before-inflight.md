@@ -15,6 +15,10 @@ next: Edit clerk.md §0 item 2 per plan, verify, review, PR
 
 Clerk reads IN FLIGHT from stale refs; fetch first (plan clerk-fetch-before-inflight, #467).
 
+## Review
+
+- r1: clean pass, no defects; plan greps re-run (verifier) (no change)
+
 ## Blockers
 
 None.
