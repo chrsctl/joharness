@@ -49,11 +49,10 @@ spawns nothing.
 
 ### The role prelude is a command
 
-Counted 2026-10-13 on `origin/main`: `authority` on 11 lines in 8 command
-files, the twin check written out in 3 roles, `fetch --prune` in 5 files;
-gx's copy of `scout.md` that day carried 14 lines matching `grep -c -i -E
-'= stop|stop,|stop and|and exit|= retire|exit\.|exit:'` and 10 `Never`
-bullets. Prelude prose is where that week's two harness defects sat (#459,
+Counted 2026-10-14 at `6edf9b2` (`git grep -c <word> 6edf9b2 --
+'.claude/commands/*.md'`): `authority` on 15 lines in 8 command files,
+`fetch --prune` on 6 lines in 5; the twin check written out in 3 roles
+(clerk, scout, conduct). Prelude prose is where that week's two harness defects sat (#459,
 #460). So the clerk, scout, curator and conduct reviewer open with
 `./joharness.sh role <name>`: authority, the pruned fetch, the role's own
 report and its plain exits, the branch under the role's name, the claim

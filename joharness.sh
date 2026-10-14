@@ -3943,14 +3943,22 @@ role_line() { printf '%s\n' "$ROLE_OUT" | grep -m1 -E -- "$1"; }
 
 # This branch's own claim files: `docs/handover/<role>-<digit>…` at HEAD and
 # not the base branch's copy. Scout and curate claim by one; clerk and conduct
-# never write one.
+# never write one. `--pushed`: only those origin's copy of this branch carries
+# too — a claim that never reached origin holds nothing, so it resumes nothing.
 role_own_claims() {
-  local role="$1" base="refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" f
+  local role="$1" base="refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" f cur=""
+  if [ "${2:-}" = --pushed ]; then
+    cur="$(role_branch)" || return 0
+    [ "$cur" != "${HANDOVER_BASE_BRANCH:-main}" ] || return 0
+  fi
   git -C "$ROOT" ls-tree --name-only HEAD -- docs/handover/ </dev/null 2>/dev/null |
     while IFS= read -r f; do
       case "${f#docs/handover/}" in "${role}"-[0-9]*.md) ;; *) continue ;; esac
       [ "$(git -C "$ROOT" rev-parse -q --verify "HEAD:${f}" 2>/dev/null)" = \
         "$(git -C "$ROOT" rev-parse -q --verify "${base}:${f}" 2>/dev/null)" ] && continue
+      if [ -n "$cur" ]; then
+        git -C "$ROOT" cat-file -e "refs/remotes/origin/${cur}:${f}" 2>/dev/null || continue
+      fi
       printf '%s\n' "$f"
     done
 }
@@ -3982,15 +3990,21 @@ role_push() {
 role_retire_run() {
   local role="$1" cur files f
   cur="$(role_branch)" || { printf 'STOP: retire: not on a branch\n'; return 1; }
+  if [ "$cur" = "${HANDOVER_BASE_BRANCH:-main}" ]; then
+    printf 'STOP: retire: on the base branch %s — a claim is never retired there\n' "$cur"
+    return 1
+  fi
   files="$(role_own_claims "$role")"
   if [ -z "$files" ]; then
     printf 'STOP: retire: no %s claim file on %s\n' "$role" "$cur"
     return 1
   fi
   while IFS= read -r f; do
-    git -C "$ROOT" rm -q -- "$f" || { printf 'STOP: retire: git rm %s failed\n' "$f"; return 1; }
+    git -C "$ROOT" rm -q -f -- "$f" || { printf 'STOP: retire: git rm %s failed\n' "$f"; return 1; }
   done <<<"$files"
-  git -C "$ROOT" commit -q -m "retire: ${role} claim on ${cur}" </dev/null ||
+  # Only the claim: nothing else staged rides in a commit called retire.
+  # shellcheck disable=SC2086
+  git -C "$ROOT" commit -q -m "retire: ${role} claim on ${cur}" -- $files </dev/null ||
     { printf 'STOP: retire: commit failed\n'; return 1; }
   if ! role_push "$cur" >/dev/null; then
     printf 'STOP: retire: push of %s failed — the claim still holds the cycle on origin\n' "$cur"
@@ -4007,7 +4021,10 @@ role_twin_run() {
   [ "$role" != curate ] || { printf 'STOP: curate has no twin rule\n'; return 1; }
   cur="$(role_branch)" || { printf 'STOP: TWIN check: not on a branch\n'; return 1; }
   if ! role_fetch_all; then
-    [ "$role" != scout ] || role_retire_run "$role"
+    if [ "$role" = scout ] && ! role_retire_run scout; then
+      printf 'STOP: fetch failed, and the retire FAILED: your claim still holds the cycle on origin\n'
+      return 1
+    fi
     printf 'STOP: fetch failed — on stale refs a twin is invisible\n'
     return 1
   fi
@@ -4026,7 +4043,10 @@ role_twin_run() {
         printf 'GO %s\n' "$cur"; return 0
       fi
       [ -n "$other" ] || other="${line:-no row of yours: ${cur}}"
-      role_retire_run scout
+      if ! role_retire_run scout; then
+        printf 'STOP: TWIN %s, and the retire FAILED: your claim still holds the cycle on origin\n' "$other"
+        return 1
+      fi
       ;;
     clerk)
       if [ -z "$line" ] && printf '%s\n' "$rows" | grep -qxF -- "$cur" &&
@@ -4138,7 +4158,7 @@ cmd_role() {
 
   # (3) resumed on its own branch: no report, nothing cut or pushed.
   cur="$(role_branch)" || cur=""
-  if [ -n "$cur" ] && [ -n "$(role_own_claims "$role")" ]; then
+  if [ -n "$cur" ] && [ -n "$(role_own_claims "$role" --pushed)" ]; then
     printf 'GO %s (resumed)\n' "$cur"
     return 0
   fi
@@ -4176,9 +4196,10 @@ cmd_role() {
   # (6) the claim file, pushed.
   stem="${role}-${today}"
   role_claim_write "$stem" "$name" "$session" "$agent"
-  git -C "$ROOT" add -- "docs/handover/${stem}.md" &&
-    git -C "$ROOT" commit -q -m "claim: ${stem}" </dev/null ||
-    { printf 'STOP: claim commit failed\n'; return 1; }
+  if ! git -C "$ROOT" add -- "docs/handover/${stem}.md" ||
+     ! git -C "$ROOT" commit -q -m "claim: ${stem}" -- "docs/handover/${stem}.md" </dev/null; then
+    printf 'STOP: claim commit failed\n'; return 1
+  fi
   if ! err="$(role_push "$name")"; then
     printf 'STOP: claim push failed: %s\n' "$(printf '%s' "$err" | tr '\n' ' ')"
     return 1

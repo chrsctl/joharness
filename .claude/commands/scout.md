@@ -60,8 +60,9 @@ the one your prompt names, checked out). Its LAST line decides:
   deferred` and exit. Both twins may retire; never both go on.
 - `GO <branch>` = claimed: `docs/handover/scout-<UTC date>.md` (`plan:
   none`) is pushed and you are the one scout in flight. `GO <branch>
-  (resumed)` = your own claim already stands: read it whole and carry on
-  from its `next:`.
+  (resumed)` = your own claim already stands on origin: read it whole,
+  run `./joharness.sh scout` for the conf lines below, and carry on from
+  its `next:`.
 
 The pass's conf = three lines of `./joharness.sh scout`, as printed:
 `brief     :`, `reviewer  :`, `research  :` (the budget rides the

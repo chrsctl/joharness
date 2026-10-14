@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_014WnbFzA7gTeyhacD1ne3ez
 agent: opus
 updated: 2026-10-14
-next: ci + verify green, then verifier review at opus, then finish
+next: ci + verify green, then finish: retire, PR, merge
 ---
 
 ## Goal
@@ -41,6 +41,16 @@ branch, claim, twin check, retire) with `./joharness.sh role <name>` printing
 - None yet.
 
 ## Review
+
+- r1: (verifier) resume trusted a claim committed locally whose push failed: a re-run read `GO (resumed)` with nothing on origin (fixed: resume needs origin's copy of the branch to carry the claim; selftest "an unpushed claim is not a resume")
+- r2: (verifier) a refused retire inside the scout twin check was hidden under `STOP: TWIN` as the last line (fixed: last line says the retire FAILED; selftest with a pre-receive hook)
+- r3: (verifier) resume and `--retire` could fire on the base branch itself (fixed: both refuse the base branch)
+- r4: (verifier) claim and retire commits took the whole index; `git rm` refused a locally edited claim (fixed: commit only the claim path; `rm -f`)
+- r5: (verifier) prose `timeout 300` shorter than the command's own unshallow 300 s plus fetches (fixed: 600 s)
+- r6: (verifier) orchestrated.md "11 lines in 8 files" not reproducible at the merge base (fixed: recounted at 6edf9b2 with the command: 15 in 8, fetch --prune 6 in 5; dropped the gx count this checkout cannot see)
+- r7: (verifier) research noop-curate-stays-due anchors on curate.md §0 step 2, now in role_start_stop (no change: another item; sent as a lead after merge)
+- r8: (verifier) scout resume lost "run ./joharness.sh scout for the conf lines" (fixed)
+- r9: (verifier) seven mutations left the topic green: clerk GO tiebreak, start-path IN FLIGHT, curate GO, conduct twin Clock, origin-only name, twin fetch-fail retire, start fetch (fixed: cases added for the first five plus r1/r2; each mutation now fails the topic, measured 2026-10-14 with a scratch copy; the start fetch and the fetch-fail retire stay untested — no fixture fails a fetch without breaking the report reads)
 
 ## Blockers
 

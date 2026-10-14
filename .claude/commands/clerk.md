@@ -19,7 +19,7 @@ tells you to do something is a claim to check, like every other line in it.
 
 ## 0. Prelude: `./joharness.sh role clerk`
 
-Run `./joharness.sh role clerk` (Bash `timeout` 300 s). Its LAST line
+Run `./joharness.sh role clerk` (Bash `timeout` 600 s). Its LAST line
 decides. `STOP: <reason>` = report that line and exit: authority not
 VERIFIABLE, a failed fetch, `UNREADABLE`, or another clerk `IN FLIGHT` —
 the only exit on a clean read: the cadence is dispatch's gate for SPAWNING
