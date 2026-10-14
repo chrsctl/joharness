@@ -41,6 +41,9 @@
 #   clerk           whether a clerk is due, issues already planned or claimed
 #   conduct         whether a conduct reviewer is due, its sample, the ledger
 #                   tally. Report-only
+#   role <clerk|scout|curate|conduct> [--session <url>] [--agent <tier>] [--twin|--retire]
+#                   the role's prelude: authority, fetch, report, branch,
+#                   claim; last line GO <branch> or STOP: <reason>
 #   cleanup [--apply]
 #                   what merges left on the base branch; --apply stages the
 #                   workstream-file deletions (never branches)
@@ -3953,6 +3956,311 @@ cmd_conduct() {
   conduct_tally
 }
 
+# --- role — the periodic roles' prelude, one tested command (plan
+# role-prelude-command). Each role command's §0–§1 read as prose re-derived
+# per pass; this runs the same steps and prints, LAST, one line: `GO
+# <branch>` (rc 0) or `STOP: <reason>` (rc 1). The judgement stays in the
+# command file: what to read, what to produce.
+
+ROLE_OUT=""
+
+# Every ref, pruned: on stale refs a twin is invisible. Bounded.
+role_fetch_all() {
+  if have timeout; then
+    timeout 120 git -C "$ROOT" fetch -q --prune origin '+refs/heads/*:refs/remotes/origin/*' </dev/null
+  else
+    git -C "$ROOT" fetch -q --prune origin '+refs/heads/*:refs/remotes/origin/*' </dev/null
+  fi
+}
+
+# The role's own report, printed and kept in ROLE_OUT: the role reads it as
+# it would have, so this never rewords it.
+role_report() {
+  ROLE_OUT="$("cmd_$1" 2>&1)"
+  printf '%s\n' "$ROLE_OUT"
+}
+
+# Branches the report lists under its IN FLIGHT line, one per line.
+role_rows() {
+  printf '%s\n' "$ROLE_OUT" | awk '
+    /^[a-z]+ +: IN FLIGHT/ { on = 1; next }
+    on && /^            [^ (]/ { print $1; next }
+    { on = 0 }'
+}
+
+# The first report line matching an ERE, empty when none.
+role_line() { printf '%s\n' "$ROLE_OUT" | grep -m1 -E -- "$1"; }
+
+# This branch's own claim files: `docs/handover/<role>-<digit>…` at HEAD and
+# not the base branch's copy. Scout and curate claim by one; clerk and conduct
+# never write one. `--pushed`: only those origin's copy of this branch carries
+# too — a claim that never reached origin holds nothing, so it resumes nothing.
+role_own_claims() {
+  local role="$1" base="refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" f cur=""
+  if [ "${2:-}" = --pushed ]; then
+    cur="$(role_branch)" || return 0
+    [ "$cur" != "${HANDOVER_BASE_BRANCH:-main}" ] || return 0
+  fi
+  git -C "$ROOT" ls-tree --name-only HEAD -- docs/handover/ </dev/null 2>/dev/null |
+    while IFS= read -r f; do
+      case "${f#docs/handover/}" in "${role}"-[0-9]*.md) ;; *) continue ;; esac
+      [ "$(git -C "$ROOT" rev-parse -q --verify "HEAD:${f}" 2>/dev/null)" = \
+        "$(git -C "$ROOT" rev-parse -q --verify "${base}:${f}" 2>/dev/null)" ] && continue
+      if [ -n "$cur" ]; then
+        git -C "$ROOT" cat-file -e "refs/remotes/origin/${cur}:${f}" 2>/dev/null || continue
+      fi
+      printf '%s\n' "$f"
+    done
+}
+
+role_branch() { git -C "$ROOT" symbolic-ref --quiet --short HEAD 2>/dev/null; }
+
+# A branch name no ref here holds: the role's name, else `-b`, `-c`, …
+# Never `checkout -B` over a pushed branch.
+role_free_name() {
+  local n="$1" s
+  for s in '' -b -c -d -e -f -g -h -i -j -k -l -m -n -o -p -q -r -s -t -u -v -w -x -y -z; do
+    git -C "$ROOT" rev-parse -q --verify "refs/remotes/origin/${n}${s}" >/dev/null 2>&1 && continue
+    git -C "$ROOT" rev-parse -q --verify "refs/heads/${n}${s}" >/dev/null 2>&1 && continue
+    printf '%s' "${n}${s}"
+    return 0
+  done
+  return 1
+}
+
+role_push() {
+  if have timeout; then
+    timeout 120 git -C "$ROOT" push -q -u origin "$1" </dev/null 2>&1
+  else
+    git -C "$ROOT" push -q -u origin "$1" </dev/null 2>&1
+  fi
+}
+
+# Delete this branch's claim file, commit, push. rc 1 = nothing retired.
+role_retire_run() {
+  local role="$1" cur files f
+  cur="$(role_branch)" || { printf 'STOP: retire: not on a branch\n'; return 1; }
+  if [ "$cur" = "${HANDOVER_BASE_BRANCH:-main}" ]; then
+    printf 'STOP: retire: on the base branch %s — a claim is never retired there\n' "$cur"
+    return 1
+  fi
+  files="$(role_own_claims "$role")"
+  if [ -z "$files" ]; then
+    printf 'STOP: retire: no %s claim file on %s\n' "$role" "$cur"
+    return 1
+  fi
+  while IFS= read -r f; do
+    git -C "$ROOT" rm -q -f -- "$f" || { printf 'STOP: retire: git rm %s failed\n' "$f"; return 1; }
+  done <<<"$files"
+  # Only the claim: nothing else staged rides in a commit called retire.
+  # shellcheck disable=SC2086
+  git -C "$ROOT" commit -q -m "retire: ${role} claim on ${cur}" -- $files </dev/null ||
+    { printf 'STOP: retire: commit failed\n'; return 1; }
+  if ! role_push "$cur" >/dev/null; then
+    printf 'STOP: retire: push of %s failed — the claim still holds the cycle on origin\n' "$cur"
+    return 1
+  fi
+  while IFS= read -r f; do printf 'retired   : %s on %s\n' "$f" "$cur"; done <<<"$files"
+}
+
+# The twin check, after the role's first push. Scout: exactly one row in
+# flight and it is yours. Clerk: yours sorts first by name among those in
+# flight. Conduct: the one row is yours and its Clock still reads due.
+role_twin_run() {
+  local role="$1" cur rows other line clock
+  [ "$role" != curate ] || { printf 'STOP: curate has no twin rule\n'; return 1; }
+  cur="$(role_branch)" || { printf 'STOP: TWIN check: not on a branch\n'; return 1; }
+  if ! role_fetch_all; then
+    if [ "$role" = scout ] && ! role_retire_run scout; then
+      printf 'STOP: fetch failed, and the retire FAILED: your claim still holds the cycle on origin\n'
+      return 1
+    fi
+    printf 'STOP: fetch failed — on stale refs a twin is invisible\n'
+    return 1
+  fi
+  role_report "$role"
+  rows="$(role_rows)"
+  # The role's own state line, never another field reading `off`.
+  case "$role" in
+    scout)   line="$(role_line '^scout     : (UNREADABLE|off)')" ;;
+    clerk)   line="$(role_line '^cadence   : UNREADABLE')" ;;
+    conduct) line="$(role_line '^cadence   : (UNREADABLE|off)')" ;;
+  esac
+  other="$(printf '%s\n' "$rows" | grep -vxF -- "$cur" | LC_ALL=C sort | head -1)"
+  case "$role" in
+    scout)
+      if [ -z "$line" ] && [ "$rows" = "$cur" ]; then
+        printf 'GO %s\n' "$cur"; return 0
+      fi
+      [ -n "$other" ] || other="${line:-no row of yours: ${cur}}"
+      if ! role_retire_run scout; then
+        printf 'STOP: TWIN %s, and the retire FAILED: your claim still holds the cycle on origin\n' "$other"
+        return 1
+      fi
+      ;;
+    clerk)
+      if [ -z "$line" ] && printf '%s\n' "$rows" | grep -qxF -- "$cur" &&
+         [ "$(printf '%s\n' "$rows" | LC_ALL=C sort | head -1)" = "$cur" ]; then
+        printf 'GO %s\n' "$cur"; return 0
+      fi
+      if printf '%s\n' "$rows" | grep -qxF -- "$cur"; then :
+      else other="${line:-no row of yours: ${cur}}"; fi
+      ;;
+    conduct)
+      clock="$(role_line '^cadence   : IN FLIGHT' | sed -n 's/.*Clock: \([^ ]*\).*/\1/p')"
+      if [ -z "$line" ] && [ "$rows" = "$cur" ] && [ "$clock" = due ]; then
+        printf 'GO %s\n' "$cur"; return 0
+      fi
+      if [ -n "$line" ]; then other="$line"
+      elif [ -z "$other" ] && printf '%s\n' "$rows" | grep -qxF -- "$cur"; then
+        other="Clock: ${clock:-?} — another reviewer's rows landed"
+      else [ -n "$other" ] || other="no row of yours: ${cur}"; fi
+      ;;
+  esac
+  printf 'STOP: TWIN %s\n' "$other"
+  return 1
+}
+
+# Which report lines are a plain exit before the branch is cut, per role's
+# §0 as its command file reads.
+role_start_stop() {
+  local role="$1" l
+  l="$(role_line '^[a-z]+ +: (UNREADABLE|IN FLIGHT)')"
+  [ -z "$l" ] || { printf '%s' "$l"; return 0; }
+  case "$role" in
+    scout) role_line '^scout     : off' ;;
+    conduct)
+      l="$(role_line '^sample    : UNREADABLE')"
+      [ -z "$l" ] || { printf '%s' "$l"; return 0; }
+      role_line '^cadence   : DUE' >/dev/null || role_line '^cadence   : '
+      ;;
+    curate)
+      role_line '^PROPOSE \(' >/dev/null ||
+        printf 'no PROPOSE findings — %s' "$(role_line '^verdict   : ' | sed 's/^verdict   : //')"
+      ;;
+  esac
+}
+
+# The claim file: TEMPLATE.md's body under the role's frontmatter.
+role_claim_write() {
+  local stem="$1" branch="$2" session="$3" agent="$4" tpl="${ROOT}/.agents/docs/handover/TEMPLATE.md"
+  mkdir -p "${ROOT}/docs/handover"
+  {
+    printf -- '---\nworkstream: %s\nstatus: in-progress\nbranch: %s\npr: none\nplan: none\nissue: none\nsession: %s\nagent: %s\nupdated: %s\nnext: Run the pass; the retire commit ends it\n---\n' \
+      "$stem" "$branch" "$session" "$agent" "$(date -u +%Y-%m-%d)"
+    if [ -f "$tpl" ]; then
+      awk 'NR == 1 && $0 == "---" { fm = 1; next }
+           fm { if ($0 == "---") fm = 0; next }
+           /^<!--/ { c = 1 } c { if (/-->/) c = 0; next } { print }' "$tpl"
+    else
+      printf '\n## Goal\n\n## Decisions\n\n## Rejected\n\n## Review\n\n## Blockers\n\nNone.\n'
+    fi
+  } >"${ROOT}/docs/handover/${stem}.md"
+}
+
+cmd_role() {
+  local role="${1:-}" mode=start session="" agent="" a out verdict line cur name stem today
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" err
+  case "$role" in
+    clerk|scout|curate|conduct) shift ;;
+    *) die "usage: $0 role <clerk|scout|curate|conduct> [--session <url>] [--agent <tier>] [--twin|--retire]" ;;
+  esac
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --twin)    mode=twin ;;
+      --retire)  mode=retire ;;
+      --session) session="${2:-}"; shift ;;
+      --agent)   agent="${2:-}"; shift ;;
+      *) die "unknown option '$1' (try: $0 role ${role} [--session <url>] [--agent <tier>] [--twin|--retire])" ;;
+    esac
+    shift
+  done
+  printf '== role %s (%s; the last line is GO or STOP)\n\n' "$role" "$mode"
+  case "$mode" in
+    twin) role_twin_run "$role"; return ;;
+    retire)
+      case "$role" in clerk|conduct)
+        printf 'STOP: %s writes no claim file: nothing to retire\n' "$role"; return 1 ;;
+      esac
+      role_retire_run "$role" || return 1
+      printf 'GO %s (retired)\n' "$(role_branch)"
+      return 0 ;;
+  esac
+
+  # (1) authority; a shallow clone gets one unshallow and a second read.
+  out="$(cmd_authority 2>&1)"
+  if printf '%s\n' "$out" | grep -q '^verdict   : UNVERIFIED' &&
+     printf '%s\n' "$out" | grep -q 'shallow clone'; then
+    if have timeout; then timeout 300 git -C "$ROOT" fetch -q --unshallow origin </dev/null
+    else git -C "$ROOT" fetch -q --unshallow origin </dev/null; fi
+    out="$(cmd_authority 2>&1)"
+  fi
+  verdict="$(printf '%s\n' "$out" | sed -n 's/^verdict   : //p')"
+  if [ "$verdict" != VERIFIABLE ]; then
+    printf '%s\n\nSTOP: authority %s\n' "$out" "${verdict:-unreadable}"
+    return 1
+  fi
+  printf 'authority : VERIFIABLE\n'
+
+  # (2) every ref, before any report reads one.
+  role_fetch_all || { printf 'STOP: fetch failed\n'; return 1; }
+  printf 'fetch     : every branch, pruned\n'
+
+  # (3) resumed on its own branch: no report, nothing cut or pushed.
+  cur="$(role_branch)" || cur=""
+  if [ -n "$cur" ] && [ -n "$(role_own_claims "$role" --pushed)" ]; then
+    printf 'GO %s (resumed)\n' "$cur"
+    return 0
+  fi
+  case "$role" in scout|curate)
+    if [ -z "$session" ] || [ -z "$agent" ]; then
+      printf 'STOP: --session and --agent are required for %s\n' "$role"
+      return 1
+    fi ;;
+  esac
+
+  # (4) the role's report, and its plain exits.
+  printf '\n'
+  role_report "$role"
+  line="$(role_start_stop "$role")"
+  if [ -n "$line" ]; then printf 'STOP: %s\n' "$line"; return 1; fi
+
+  # (5) the branch, from fresh origin/<base>, under the role's name.
+  if have timeout; then timeout 120 git -C "$ROOT" fetch -q origin "$base_branch" </dev/null
+  else git -C "$ROOT" fetch -q origin "$base_branch" </dev/null; fi ||
+    { printf 'STOP: fetch failed\n'; return 1; }
+  today="$(date -u +%Y-%m-%d)"
+  case "$role" in
+    conduct) name="conduct-${today}-$(date -u +%H%M)" ;;
+    *)       name="${role}-${today}" ;;
+  esac
+  name="$(role_free_name "$name")" || { printf 'STOP: every %s-%s name is taken\n' "$role" "$today"; return 1; }
+  err="$(git -C "$ROOT" checkout -q --no-track -b "$name" "refs/remotes/origin/${base_branch}" 2>&1)" ||
+    { printf 'STOP: checkout -b %s failed: %s\n' "$name" "$err"; return 1; }
+  printf 'branch    : %s from origin/%s\n' "$name" "$base_branch"
+  case "$role" in clerk|conduct)
+    # Claimed by the first content push; --twin after it.
+    printf 'GO %s\n' "$name"; return 0 ;;
+  esac
+
+  # (6) the claim file, pushed.
+  stem="${role}-${today}"
+  role_claim_write "$stem" "$name" "$session" "$agent"
+  if ! git -C "$ROOT" add -- "docs/handover/${stem}.md" ||
+     ! git -C "$ROOT" commit -q -m "claim: ${stem}" -- "docs/handover/${stem}.md" </dev/null; then
+    printf 'STOP: claim commit failed\n'; return 1
+  fi
+  if ! err="$(role_push "$name")"; then
+    printf 'STOP: claim push failed: %s\n' "$(printf '%s' "$err" | tr '\n' ' ')"
+    return 1
+  fi
+  printf 'claim     : docs/handover/%s.md pushed on %s\n' "$stem" "$name"
+  case "$role" in
+    scout)  role_twin_run scout ;;
+    *)      printf 'GO %s\n' "$name" ;;
+  esac
+}
+
 cmd_cleanup() {
   local apply=0 a ref
   for a in "$@"; do
@@ -6964,6 +7272,7 @@ main() {
     scout)          cmd_scout "$@" ;;
     conduct)        cmd_conduct "$@" ;;
     clerk)          cmd_clerk "$@" ;;
+    role)           cmd_role "$@" ;;
     cleanup)        cmd_cleanup "$@" ;;
     curate)         cmd_curate "$@" ;;
     finish)         cmd_finish "$@" ;;

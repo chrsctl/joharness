@@ -570,6 +570,7 @@ SELFTEST_TOPICS=(
   ci-glossary
   ci-graph-lint
   clerk
+  role
   ci-ship-scope
   authority
   autonomy-mode
