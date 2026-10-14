@@ -38,6 +38,9 @@ nudging it forever (issue #492).
 
 ## Review
 
+- r1: README rank table said `abandoned` ranks 4; `rank_of` prints 5. Fixed with the rank-6 row (fixed)
+- r2: fix reverted (hook and joharness.sh at origin/main, new tests kept), `.agents/harness/selftest.sh` 2026-10-14: `FAIL a finished rescope never leads FINISH BEFORE STARTING` (got `FINISH BEFORE STARTING: origin/rs-fin`), `FAIL and carries no EDGE line`, `FAIL the finished rescope's row says it holds nothing and is never nudged` (row had no such text), `FAIL and no edge work section names it` (got `origin/claude/rescope-keeper ... status done and unmerged.`); 8 failed. With the fix: 2838 passed, 1 failed — `80 KB of prose keywords: 5s (<= 4s)`, a timing case, two suites running at once (fixed)
+
 ## Blockers
 
 None.
