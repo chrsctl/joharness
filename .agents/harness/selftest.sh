@@ -570,6 +570,7 @@ SELFTEST_TOPICS=(
   ci-glossary
   ci-graph-lint
   clerk
+  role
   ci-ship-scope
   authority
   autonomy-mode
@@ -587,6 +588,7 @@ SELFTEST_TOPICS=(
   bootstrap-consumer
   ci-verify-layers
   num-knob
+  knobs-declared
   reading-budget
 )
 

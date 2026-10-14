@@ -41,6 +41,9 @@
 #   clerk           whether a clerk is due, issues already planned or claimed
 #   conduct         whether a conduct reviewer is due, its sample, the ledger
 #                   tally. Report-only
+#   role <clerk|scout|curate|conduct> [--session <url>] [--agent <tier>] [--twin|--retire]
+#                   the role's prelude: authority, fetch, report, branch,
+#                   claim; last line GO <branch> or STOP: <reason>
 #   cleanup [--apply]
 #                   what merges left on the base branch; --apply stages the
 #                   workstream-file deletions (never branches)
@@ -51,27 +54,14 @@
 #                   why a manager is parked: its mark, and whether the conf
 #                   moved under the cause it stated. Report-only
 #   authority       whether this checkout's rules match origin/<base>
+#   conf            every knob the script reads, its live value and where the
+#                   value came from. Report-only
 #   start           which command file a session without a role follows
 #   help            this text
 #
-# Keys (joharness.conf, overridden by the environment of the same name):
-#   JOHARNESS_ENV=none          layer under .agents/env/
-#   JOHARNESS_ENV_SETUP=lazy    lazy | eager provisioning at session start
-#   JOHARNESS_ENV_MD=lazy       lazy (pointer) | eager (whole file) layer rules
-#   JOHARNESS_REVIEW=off        on = ci fails at the edge with no review record
-#   JOHARNESS_CHECKS=github     local = finish runs ci/verify instead of waiting
-#                               for GitHub Actions
-#   JOHARNESS_MAX_MANAGERS=4, JOHARNESS_STALL_MINUTES=45,
-#   JOHARNESS_HEALTH_MINUTES=10, JOHARNESS_RESPAWN_LIMIT=2,
-#   JOHARNESS_MANAGER_HOURS=4,
-#   JOHARNESS_ORCHESTRATOR_PASSES=6 the orchestrator's numbers; dispatch prints them
-#   JOHARNESS_CLERK_HOURS=24, JOHARNESS_CLERK_BATCH=3,
-#   JOHARNESS_CLERK_STALE_HOURS=24 an unmerged clerk branch older holds nothing
-#                               (0 = no window: every one holds),
-#   JOHARNESS_CONDUCT_HOURS=168, JOHARNESS_CONDUCT_SAMPLE=3
-#                               role cycles; 0 hours = off
-#   JOHARNESS_SELFTEST=always   run the selftest even on a docs-only diff
-#   JOHARNESS_VERBOSE=1         ci/finish print passing checks too
+# Keys (joharness.conf, overridden by the environment of the same name): the
+# KNOBS table below holds every one the script reads, with its default, scope
+# and meaning; `conf` prints them with their live values.
 
 set -uo pipefail
 
@@ -95,6 +85,68 @@ conf_get() {
   [ -r "$CONF" ] || return 0
   sed -n "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*\([^#[:space:]]*\).*/\1/p" \
     "$CONF" | tail -1
+}
+
+# --- Knobs
+
+# Every key the script reads, declared once: KEY|default|scope|meaning.
+# default is the static default, or `computed` (JOHARNESS_CHURN_LIMIT: twice
+# the threshold; JOHARNESS_CONF: a path under the checkout). num_knob reads
+# the static default from here when its caller passes none. scope:
+#   conf       a consumer's conf line answers it (also in conf-keys.sh)
+#   base-conf  as conf, but the conf layer is origin/<base>:joharness.conf
+#   dispatch   a number the orchestrated.md table documents
+#   session    env for one command, or the canonical checkout
+# `conf` prints these; the selftest knobs-declared.sh keeps them in agreement
+# with conf-keys.sh and the table. No `|` inside a meaning.
+# KNOBS-BEGIN
+KNOBS='JOHARNESS_ENV|none|conf|Directory under .agents/env/ this repo provisions; none = harness only.
+JOHARNESS_ENV_SETUP|lazy|conf|lazy = provision on demand; eager = at session start.
+JOHARNESS_ENV_MD|lazy|conf|lazy = inject a pointer to the layer rules; eager = the file whole.
+JOHARNESS_REVIEW|off|conf|off = review reports only; on = ci gates the record at the edge.
+JOHARNESS_CHECKS|github|conf|github = step 7 waits for GitHub checks; local = finish runs ci and verify here.
+JOHARNESS_MAX_MANAGERS|4|dispatch|Managers in flight at once; 0 pauses spawning.
+JOHARNESS_STALL_MINUTES|45|dispatch|No push this long = cross-check, nudge.
+JOHARNESS_HEALTH_MINUTES|10|dispatch|One orchestrator pass every this many minutes.
+JOHARNESS_RESPAWN_LIMIT|2|dispatch|Respawns per item per orchestrator run.
+JOHARNESS_ORCHESTRATOR_PASSES|6|dispatch|Orchestrator passes a session makes before it hands off at its context ceiling.
+JOHARNESS_MANAGER_HOURS|4|dispatch|Claim older than this with no pull request = CEILING? report; 0 lifts it.
+JOHARNESS_CHURN_THRESHOLD|5|dispatch|One file rewritten this often = warning.
+JOHARNESS_CHURN_LIMIT|computed|dispatch|One file rewritten this often = LOOP? and ci red; default twice the threshold; 0 lifts it.
+JOHARNESS_CURATE_PLANS|10|dispatch|Plan files changed since the last curate before one is due.
+JOHARNESS_CURATE_HOURS|168|dispatch|Hours since the last curate before one is due; 0 switches the cycle off.
+JOHARNESS_CURATE_REGISTRY|3|dispatch|Plans declaring one path before curate calls it a registry.
+JOHARNESS_CURATE_SPLIT|8|dispatch|Scope bullets before curate proposes a decompose.
+JOHARNESS_CLERK_HOURS|24|dispatch|Hours between clerk passes over the open issues; 0 switches the cycle off.
+JOHARNESS_CLERK_BATCH|3|dispatch|Open issues one clerk pass takes at most.
+JOHARNESS_CLERK_STALE_HOURS|24|dispatch|An unmerged clerk branch older than this holds nothing; 0 = every one holds.
+JOHARNESS_SCOUT_READS|12|dispatch|Outside reads one scout pass makes before it proposes from what it has.
+JOHARNESS_CONDUCT_HOURS|168|dispatch|Hours since the conduct ledger last landed before a reviewer is due; 0 = off.
+JOHARNESS_CONDUCT_SAMPLE|3|dispatch|Retired branches one conduct run samples; 0 = off.
+JOHARNESS_SCOUT_REVIEWER||base-conf|GitHub login whose approved comment gates a scout proposal; empty = none. Read from the base branch conf.
+JOHARNESS_SCOUT_RESEARCH|off|base-conf|Exactly on = a scout pass may read outside the repository. Read from the base branch conf.
+JOHARNESS_CANONICAL||session|Conf line JOHARNESS_CANONICAL=1 marks the canonical checkout; never in a consumer.
+JOHARNESS_CONF|computed|session|Path of the conf file; default joharness.conf under the checkout.
+JOHARNESS_VERBOSE|0|session|1 = ci and finish print passing checks too.
+JOHARNESS_SELFTEST||session|always = run the selftest even on a docs-only diff.
+JOHARNESS_SESSION_SOURCE||session|The SessionStart hook source (startup, resume, clear, compact), set by session-start.
+JOHARNESS_FORCE_SETUP|0|session|1 = provision at session start outside the remote sandbox.
+JOHARNESS_SHIP||session|all = ci treats every harness file as shipping.
+JOHARNESS_UPGRADE_IN_SESSION|0|session|1 = allow upgrade in a session holding product work.
+JOHARNESS_FEEDBACK_CACHE||session|Directory feedback caches per-file scores in; empty = no cache.
+JOHARNESS_FEEDBACK_EDGES|50|session|Merged edges feedback reads; 0 reads all.
+JOHARNESS_RECURRENCE_WINDOW|8|session|Edges in feedback recurrence window; 0 = all history.
+JOHARNESS_PENDING_SPAWNS|0|session|Managers spawned this pass that have not pushed yet; dispatch counts them as slots taken.
+HANDOVER_STALE_SECONDS|518400|session|A branch idle longer than this is stale to dispatch and the hook.'
+# KNOBS-END
+
+# A key's static default, from KNOBS.
+knob_default() {
+  local k d rest
+  while IFS='|' read -r k d rest; do
+    if [ "$k" = "$1" ]; then printf '%s' "$d"; return 0; fi
+  done <<<"$KNOBS"
+  return 1
 }
 
 conf_set() {
@@ -373,7 +425,7 @@ ci_selftest() {
 # Warning from the threshold, red from the ceiling (0 lifts both).
 ci_churn() {
   local churn threshold ceiling churn_n churn_f
-  threshold="$(num_knob JOHARNESS_CHURN_THRESHOLD 5)"
+  threshold="$(num_knob JOHARNESS_CHURN_THRESHOLD)"
   ceiling="$(num_knob JOHARNESS_CHURN_LIMIT $((threshold * 2)))"
   if ! churn="$(churn_top)"; then
     printf '  not measurable here (no merge-base; shallow checkout or base branch)\n'
@@ -2431,8 +2483,8 @@ cmd_analysis() {
   fi
 
   base_branch="${HANDOVER_BASE_BRANCH:-main}"
-  stall="$(num_knob JOHARNESS_STALL_MINUTES 45)"
-  churnl="$(num_knob JOHARNESS_CHURN_LIMIT "$(( $(num_knob JOHARNESS_CHURN_THRESHOLD 5) * 2 ))")"
+  stall="$(num_knob JOHARNESS_STALL_MINUTES)"
+  churnl="$(num_knob JOHARNESS_CHURN_LIMIT "$(( $(num_knob JOHARNESS_CHURN_THRESHOLD) * 2 ))")"
 
   # A stale clone reads a manager that pushed as stalled, and this command is
   # run by a session spawned into a fresh container minutes after the pass that
@@ -2578,7 +2630,7 @@ cl_merged_claims() {
 # `janitor --apply` may release; the caller proves each session gone first.
 janitor_candidates() {
   local stale_s branch path age doc status pr
-  stale_s="$(num_knob HANDOVER_STALE_SECONDS 518400)"
+  stale_s="$(num_knob HANDOVER_STALE_SECONDS)"
   while IFS=$'\t' read -r branch path; do
     [ -n "$branch" ] || continue
     age="$(dispatch_age_min "$branch")"
@@ -2790,7 +2842,7 @@ cmd_janitor() {
   fi
   [ "$#" -eq 0 ] || die "usage: $0 janitor [--apply <branch>...]"
 
-  stale_s="$(num_knob HANDOVER_STALE_SECONDS 518400)"
+  stale_s="$(num_knob HANDOVER_STALE_SECONDS)"
   printf '== janitor\n\n'
 
   printf 'candidates (push age only — LIVENESS IS NOT IN THIS OUTPUT):\n'
@@ -3354,7 +3406,7 @@ cmd_scout() {
   if [ "$(scout_reviewer)" = none ]; then printf 'nothing can be approved\n'
   else printf 'their approved comment is the gate\n'; fi
   printf 'research  : %s (JOHARNESS_SCOUT_RESEARCH); budget %s outside reads a pass (JOHARNESS_SCOUT_READS)\n\n' \
-    "$(scout_research)" "$(num_knob JOHARNESS_SCOUT_READS 12)"
+    "$(scout_research)" "$(num_knob JOHARNESS_SCOUT_READS)"
 }
 
 # --- The clerk cycle — open issues are the top rank and no role read them
@@ -3429,7 +3481,7 @@ clerk_noop() {
 # dispatch spawn a second clerk beside a live one.
 clerk_stale_s() {
   local h
-  h="$(num_knob JOHARNESS_CLERK_STALE_HOURS 24)"
+  h="$(num_knob JOHARNESS_CLERK_STALE_HOURS)"
   [ "$h" -gt 0 ] || h=999999999
   printf '%s' $((h * 3600))
 }
@@ -3486,7 +3538,7 @@ clerk_due() {
     CLERK_DUE="unreadable ${why}"
     return 0
   fi
-  hours="$(num_knob JOHARNESS_CLERK_HOURS 24)"
+  hours="$(num_knob JOHARNESS_CLERK_HOURS)"
   if [ "$hours" -eq 0 ]; then
     CLERK_DUE='off JOHARNESS_CLERK_HOURS=0: no clerk is ever due'
     return 0
@@ -3574,8 +3626,8 @@ clerk_issue_line() {
 cmd_clerk() {
   local hours batch due rows state why b w st n_inflight=0
   [ "$#" -eq 0 ] || die "usage: $0 clerk"
-  hours="$(num_knob JOHARNESS_CLERK_HOURS 24)"
-  batch="$(num_knob JOHARNESS_CLERK_BATCH 3)"
+  hours="$(num_knob JOHARNESS_CLERK_HOURS)"
+  batch="$(num_knob JOHARNESS_CLERK_BATCH)"
   printf '== clerk (every %sh: JOHARNESS_CLERK_HOURS; at most %s issue(s) a pass: JOHARNESS_CLERK_BATCH)\n\n' \
     "$hours" "$batch"
   printf 'reads no GitHub: git only. The open issues are the clerk'"'"'s own read (.claude/commands/clerk.md)\n\n'
@@ -3757,8 +3809,8 @@ conduct_due() {
     CONDUCT_DUE="unreadable ${why}"
     return 0
   fi
-  hours="$(num_knob JOHARNESS_CONDUCT_HOURS 168)"
-  sample="$(num_knob JOHARNESS_CONDUCT_SAMPLE 3)"
+  hours="$(num_knob JOHARNESS_CONDUCT_HOURS)"
+  sample="$(num_knob JOHARNESS_CONDUCT_SAMPLE)"
   if [ "$hours" -eq 0 ]; then
     CONDUCT_DUE='off JOHARNESS_CONDUCT_HOURS=0: no conduct reviewer is ever due'
     return 0
@@ -3864,8 +3916,8 @@ conduct_tally() {
 cmd_conduct() {
   local hours sample due state why b a n_inflight=0 s
   [ "$#" -eq 0 ] || die "usage: $0 conduct"
-  hours="$(num_knob JOHARNESS_CONDUCT_HOURS 168)"
-  sample="$(num_knob JOHARNESS_CONDUCT_SAMPLE 3)"
+  hours="$(num_knob JOHARNESS_CONDUCT_HOURS)"
+  sample="$(num_knob JOHARNESS_CONDUCT_SAMPLE)"
   printf '== conduct (every %sh: JOHARNESS_CONDUCT_HOURS; %s branch(es) a run: JOHARNESS_CONDUCT_SAMPLE)\n\n' \
     "$hours" "$sample"
   printf 'reads no diff: a sampled branch'"'"'s workstream file, commit order and plan Acceptance only (.claude/commands/conduct.md)\n\n'
@@ -3902,6 +3954,311 @@ cmd_conduct() {
   esac
   printf '\n'
   conduct_tally
+}
+
+# --- role — the periodic roles' prelude, one tested command (plan
+# role-prelude-command). Each role command's §0–§1 read as prose re-derived
+# per pass; this runs the same steps and prints, LAST, one line: `GO
+# <branch>` (rc 0) or `STOP: <reason>` (rc 1). The judgement stays in the
+# command file: what to read, what to produce.
+
+ROLE_OUT=""
+
+# Every ref, pruned: on stale refs a twin is invisible. Bounded.
+role_fetch_all() {
+  if have timeout; then
+    timeout 120 git -C "$ROOT" fetch -q --prune origin '+refs/heads/*:refs/remotes/origin/*' </dev/null
+  else
+    git -C "$ROOT" fetch -q --prune origin '+refs/heads/*:refs/remotes/origin/*' </dev/null
+  fi
+}
+
+# The role's own report, printed and kept in ROLE_OUT: the role reads it as
+# it would have, so this never rewords it.
+role_report() {
+  ROLE_OUT="$("cmd_$1" 2>&1)"
+  printf '%s\n' "$ROLE_OUT"
+}
+
+# Branches the report lists under its IN FLIGHT line, one per line.
+role_rows() {
+  printf '%s\n' "$ROLE_OUT" | awk '
+    /^[a-z]+ +: IN FLIGHT/ { on = 1; next }
+    on && /^            [^ (]/ { print $1; next }
+    { on = 0 }'
+}
+
+# The first report line matching an ERE, empty when none.
+role_line() { printf '%s\n' "$ROLE_OUT" | grep -m1 -E -- "$1"; }
+
+# This branch's own claim files: `docs/handover/<role>-<digit>…` at HEAD and
+# not the base branch's copy. Scout and curate claim by one; clerk and conduct
+# never write one. `--pushed`: only those origin's copy of this branch carries
+# too — a claim that never reached origin holds nothing, so it resumes nothing.
+role_own_claims() {
+  local role="$1" base="refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" f cur=""
+  if [ "${2:-}" = --pushed ]; then
+    cur="$(role_branch)" || return 0
+    [ "$cur" != "${HANDOVER_BASE_BRANCH:-main}" ] || return 0
+  fi
+  git -C "$ROOT" ls-tree --name-only HEAD -- docs/handover/ </dev/null 2>/dev/null |
+    while IFS= read -r f; do
+      case "${f#docs/handover/}" in "${role}"-[0-9]*.md) ;; *) continue ;; esac
+      [ "$(git -C "$ROOT" rev-parse -q --verify "HEAD:${f}" 2>/dev/null)" = \
+        "$(git -C "$ROOT" rev-parse -q --verify "${base}:${f}" 2>/dev/null)" ] && continue
+      if [ -n "$cur" ]; then
+        git -C "$ROOT" cat-file -e "refs/remotes/origin/${cur}:${f}" 2>/dev/null || continue
+      fi
+      printf '%s\n' "$f"
+    done
+}
+
+role_branch() { git -C "$ROOT" symbolic-ref --quiet --short HEAD 2>/dev/null; }
+
+# A branch name no ref here holds: the role's name, else `-b`, `-c`, …
+# Never `checkout -B` over a pushed branch.
+role_free_name() {
+  local n="$1" s
+  for s in '' -b -c -d -e -f -g -h -i -j -k -l -m -n -o -p -q -r -s -t -u -v -w -x -y -z; do
+    git -C "$ROOT" rev-parse -q --verify "refs/remotes/origin/${n}${s}" >/dev/null 2>&1 && continue
+    git -C "$ROOT" rev-parse -q --verify "refs/heads/${n}${s}" >/dev/null 2>&1 && continue
+    printf '%s' "${n}${s}"
+    return 0
+  done
+  return 1
+}
+
+role_push() {
+  if have timeout; then
+    timeout 120 git -C "$ROOT" push -q -u origin "$1" </dev/null 2>&1
+  else
+    git -C "$ROOT" push -q -u origin "$1" </dev/null 2>&1
+  fi
+}
+
+# Delete this branch's claim file, commit, push. rc 1 = nothing retired.
+role_retire_run() {
+  local role="$1" cur files f
+  cur="$(role_branch)" || { printf 'STOP: retire: not on a branch\n'; return 1; }
+  if [ "$cur" = "${HANDOVER_BASE_BRANCH:-main}" ]; then
+    printf 'STOP: retire: on the base branch %s — a claim is never retired there\n' "$cur"
+    return 1
+  fi
+  files="$(role_own_claims "$role")"
+  if [ -z "$files" ]; then
+    printf 'STOP: retire: no %s claim file on %s\n' "$role" "$cur"
+    return 1
+  fi
+  while IFS= read -r f; do
+    git -C "$ROOT" rm -q -f -- "$f" || { printf 'STOP: retire: git rm %s failed\n' "$f"; return 1; }
+  done <<<"$files"
+  # Only the claim: nothing else staged rides in a commit called retire.
+  # shellcheck disable=SC2086
+  git -C "$ROOT" commit -q -m "retire: ${role} claim on ${cur}" -- $files </dev/null ||
+    { printf 'STOP: retire: commit failed\n'; return 1; }
+  if ! role_push "$cur" >/dev/null; then
+    printf 'STOP: retire: push of %s failed — the claim still holds the cycle on origin\n' "$cur"
+    return 1
+  fi
+  while IFS= read -r f; do printf 'retired   : %s on %s\n' "$f" "$cur"; done <<<"$files"
+}
+
+# The twin check, after the role's first push. Scout: exactly one row in
+# flight and it is yours. Clerk: yours sorts first by name among those in
+# flight. Conduct: the one row is yours and its Clock still reads due.
+role_twin_run() {
+  local role="$1" cur rows other line clock
+  [ "$role" != curate ] || { printf 'STOP: curate has no twin rule\n'; return 1; }
+  cur="$(role_branch)" || { printf 'STOP: TWIN check: not on a branch\n'; return 1; }
+  if ! role_fetch_all; then
+    if [ "$role" = scout ] && ! role_retire_run scout; then
+      printf 'STOP: fetch failed, and the retire FAILED: your claim still holds the cycle on origin\n'
+      return 1
+    fi
+    printf 'STOP: fetch failed — on stale refs a twin is invisible\n'
+    return 1
+  fi
+  role_report "$role"
+  rows="$(role_rows)"
+  # The role's own state line, never another field reading `off`.
+  case "$role" in
+    scout)   line="$(role_line '^scout     : (UNREADABLE|off)')" ;;
+    clerk)   line="$(role_line '^cadence   : UNREADABLE')" ;;
+    conduct) line="$(role_line '^cadence   : (UNREADABLE|off)')" ;;
+  esac
+  other="$(printf '%s\n' "$rows" | grep -vxF -- "$cur" | LC_ALL=C sort | head -1)"
+  case "$role" in
+    scout)
+      if [ -z "$line" ] && [ "$rows" = "$cur" ]; then
+        printf 'GO %s\n' "$cur"; return 0
+      fi
+      [ -n "$other" ] || other="${line:-no row of yours: ${cur}}"
+      if ! role_retire_run scout; then
+        printf 'STOP: TWIN %s, and the retire FAILED: your claim still holds the cycle on origin\n' "$other"
+        return 1
+      fi
+      ;;
+    clerk)
+      if [ -z "$line" ] && printf '%s\n' "$rows" | grep -qxF -- "$cur" &&
+         [ "$(printf '%s\n' "$rows" | LC_ALL=C sort | head -1)" = "$cur" ]; then
+        printf 'GO %s\n' "$cur"; return 0
+      fi
+      if printf '%s\n' "$rows" | grep -qxF -- "$cur"; then :
+      else other="${line:-no row of yours: ${cur}}"; fi
+      ;;
+    conduct)
+      clock="$(role_line '^cadence   : IN FLIGHT' | sed -n 's/.*Clock: \([^ ]*\).*/\1/p')"
+      if [ -z "$line" ] && [ "$rows" = "$cur" ] && [ "$clock" = due ]; then
+        printf 'GO %s\n' "$cur"; return 0
+      fi
+      if [ -n "$line" ]; then other="$line"
+      elif [ -z "$other" ] && printf '%s\n' "$rows" | grep -qxF -- "$cur"; then
+        other="Clock: ${clock:-?} — another reviewer's rows landed"
+      else [ -n "$other" ] || other="no row of yours: ${cur}"; fi
+      ;;
+  esac
+  printf 'STOP: TWIN %s\n' "$other"
+  return 1
+}
+
+# Which report lines are a plain exit before the branch is cut, per role's
+# §0 as its command file reads.
+role_start_stop() {
+  local role="$1" l
+  l="$(role_line '^[a-z]+ +: (UNREADABLE|IN FLIGHT)')"
+  [ -z "$l" ] || { printf '%s' "$l"; return 0; }
+  case "$role" in
+    scout) role_line '^scout     : off' ;;
+    conduct)
+      l="$(role_line '^sample    : UNREADABLE')"
+      [ -z "$l" ] || { printf '%s' "$l"; return 0; }
+      role_line '^cadence   : DUE' >/dev/null || role_line '^cadence   : '
+      ;;
+    curate)
+      role_line '^PROPOSE \(' >/dev/null ||
+        printf 'no PROPOSE findings — %s' "$(role_line '^verdict   : ' | sed 's/^verdict   : //')"
+      ;;
+  esac
+}
+
+# The claim file: TEMPLATE.md's body under the role's frontmatter.
+role_claim_write() {
+  local stem="$1" branch="$2" session="$3" agent="$4" tpl="${ROOT}/.agents/docs/handover/TEMPLATE.md"
+  mkdir -p "${ROOT}/docs/handover"
+  {
+    printf -- '---\nworkstream: %s\nstatus: in-progress\nbranch: %s\npr: none\nplan: none\nissue: none\nsession: %s\nagent: %s\nupdated: %s\nnext: Run the pass; the retire commit ends it\n---\n' \
+      "$stem" "$branch" "$session" "$agent" "$(date -u +%Y-%m-%d)"
+    if [ -f "$tpl" ]; then
+      awk 'NR == 1 && $0 == "---" { fm = 1; next }
+           fm { if ($0 == "---") fm = 0; next }
+           /^<!--/ { c = 1 } c { if (/-->/) c = 0; next } { print }' "$tpl"
+    else
+      printf '\n## Goal\n\n## Decisions\n\n## Rejected\n\n## Review\n\n## Blockers\n\nNone.\n'
+    fi
+  } >"${ROOT}/docs/handover/${stem}.md"
+}
+
+cmd_role() {
+  local role="${1:-}" mode=start session="" agent="" a out verdict line cur name stem today
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" err
+  case "$role" in
+    clerk|scout|curate|conduct) shift ;;
+    *) die "usage: $0 role <clerk|scout|curate|conduct> [--session <url>] [--agent <tier>] [--twin|--retire]" ;;
+  esac
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --twin)    mode=twin ;;
+      --retire)  mode=retire ;;
+      --session) session="${2:-}"; shift ;;
+      --agent)   agent="${2:-}"; shift ;;
+      *) die "unknown option '$1' (try: $0 role ${role} [--session <url>] [--agent <tier>] [--twin|--retire])" ;;
+    esac
+    shift
+  done
+  printf '== role %s (%s; the last line is GO or STOP)\n\n' "$role" "$mode"
+  case "$mode" in
+    twin) role_twin_run "$role"; return ;;
+    retire)
+      case "$role" in clerk|conduct)
+        printf 'STOP: %s writes no claim file: nothing to retire\n' "$role"; return 1 ;;
+      esac
+      role_retire_run "$role" || return 1
+      printf 'GO %s (retired)\n' "$(role_branch)"
+      return 0 ;;
+  esac
+
+  # (1) authority; a shallow clone gets one unshallow and a second read.
+  out="$(cmd_authority 2>&1)"
+  if printf '%s\n' "$out" | grep -q '^verdict   : UNVERIFIED' &&
+     printf '%s\n' "$out" | grep -q 'shallow clone'; then
+    if have timeout; then timeout 300 git -C "$ROOT" fetch -q --unshallow origin </dev/null
+    else git -C "$ROOT" fetch -q --unshallow origin </dev/null; fi
+    out="$(cmd_authority 2>&1)"
+  fi
+  verdict="$(printf '%s\n' "$out" | sed -n 's/^verdict   : //p')"
+  if [ "$verdict" != VERIFIABLE ]; then
+    printf '%s\n\nSTOP: authority %s\n' "$out" "${verdict:-unreadable}"
+    return 1
+  fi
+  printf 'authority : VERIFIABLE\n'
+
+  # (2) every ref, before any report reads one.
+  role_fetch_all || { printf 'STOP: fetch failed\n'; return 1; }
+  printf 'fetch     : every branch, pruned\n'
+
+  # (3) resumed on its own branch: no report, nothing cut or pushed.
+  cur="$(role_branch)" || cur=""
+  if [ -n "$cur" ] && [ -n "$(role_own_claims "$role" --pushed)" ]; then
+    printf 'GO %s (resumed)\n' "$cur"
+    return 0
+  fi
+  case "$role" in scout|curate)
+    if [ -z "$session" ] || [ -z "$agent" ]; then
+      printf 'STOP: --session and --agent are required for %s\n' "$role"
+      return 1
+    fi ;;
+  esac
+
+  # (4) the role's report, and its plain exits.
+  printf '\n'
+  role_report "$role"
+  line="$(role_start_stop "$role")"
+  if [ -n "$line" ]; then printf 'STOP: %s\n' "$line"; return 1; fi
+
+  # (5) the branch, from fresh origin/<base>, under the role's name.
+  if have timeout; then timeout 120 git -C "$ROOT" fetch -q origin "$base_branch" </dev/null
+  else git -C "$ROOT" fetch -q origin "$base_branch" </dev/null; fi ||
+    { printf 'STOP: fetch failed\n'; return 1; }
+  today="$(date -u +%Y-%m-%d)"
+  case "$role" in
+    conduct) name="conduct-${today}-$(date -u +%H%M)" ;;
+    *)       name="${role}-${today}" ;;
+  esac
+  name="$(role_free_name "$name")" || { printf 'STOP: every %s-%s name is taken\n' "$role" "$today"; return 1; }
+  err="$(git -C "$ROOT" checkout -q --no-track -b "$name" "refs/remotes/origin/${base_branch}" 2>&1)" ||
+    { printf 'STOP: checkout -b %s failed: %s\n' "$name" "$err"; return 1; }
+  printf 'branch    : %s from origin/%s\n' "$name" "$base_branch"
+  case "$role" in clerk|conduct)
+    # Claimed by the first content push; --twin after it.
+    printf 'GO %s\n' "$name"; return 0 ;;
+  esac
+
+  # (6) the claim file, pushed.
+  stem="${role}-${today}"
+  role_claim_write "$stem" "$name" "$session" "$agent"
+  if ! git -C "$ROOT" add -- "docs/handover/${stem}.md" ||
+     ! git -C "$ROOT" commit -q -m "claim: ${stem}" -- "docs/handover/${stem}.md" </dev/null; then
+    printf 'STOP: claim commit failed\n'; return 1
+  fi
+  if ! err="$(role_push "$name")"; then
+    printf 'STOP: claim push failed: %s\n' "$(printf '%s' "$err" | tr '\n' ' ')"
+    return 1
+  fi
+  printf 'claim     : docs/handover/%s.md pushed on %s\n' "$stem" "$name"
+  case "$role" in
+    scout)  role_twin_run scout ;;
+    *)      printf 'GO %s\n' "$name" ;;
+  esac
 }
 
 cmd_cleanup() {
@@ -4620,16 +4977,126 @@ drain_core_only() {
 # A knob the human sets: the environment for one command, the conf for the
 # repo, else the built-in default.
 num_knob() {
-  local v="${!1:-}"
+  local v="${!1:-}" d
+  # A computed default is passed; a static one lives in KNOBS.
+  if [ "$#" -ge 2 ]; then d="$2"; else d="$(knob_default "$1")"; fi
   [ -n "$v" ] || v="$(conf_get "$1")"
-  case "$v" in '' | *[!0-9]*) v="$2" ;; esac
+  case "$v" in '' | *[!0-9]*) v="$d" ;; esac
   # Digits-only is not a number, and both ways it is wrong are SILENT.
   v="${v#"${v%%[!0]*}"}"
   [ -n "$v" ] || v=0
   # And a ceiling on what the ENVIRONMENT or the conf supplies, because there
   # is no upper bound either: twenty digits wraps 64-bit arithmetic.
-  [ "${#v}" -le 9 ] || v="$2"
+  [ "${#v}" -le 9 ] || v="$d"
   printf '%s' "$v"
+}
+
+# --- conf: the knobs with their live values
+
+# True when KEY has a (possibly empty) assignment line in the checkout's conf.
+conf_present() { [ -r "$CONF" ] && grep -qE "^[[:space:]]*$1[[:space:]]*=" "$CONF"; }
+
+# One row's value and source. A numeric key goes the way num_knob goes:
+# environment, then conf, then default; a value that is not digits drops
+# straight to the default, and an environment one does so without the conf.
+knob_numeric_line() {
+  local k="$1" dflt="$2" e c layer="default" notes="" val
+  e="${!k:-}"; c="$(conf_get "$k")"
+  val="$(num_knob "$k" "$dflt")"
+  if [ -n "$e" ]; then
+    case "$e" in
+      *[!0-9]*) notes="; env set but not a number, ignored, conf not consulted"
+                printf '%s\t%s' "$val" "default${notes}"; return 0 ;;
+    esac
+    layer="env"
+  else
+    [ "${!k+x}" != x ] || notes="; env set but empty, ignored"
+    if [ -n "$c" ]; then
+      case "$c" in
+        *[!0-9]*) notes="${notes}; conf set but not a number, ignored" ;;
+        *) layer=conf ;;
+      esac
+    elif conf_present "$k"; then
+      notes="${notes}; conf set but empty, ignored"
+    fi
+  fi
+  # num_knob falls to the default for a value past nine digits, from either layer.
+  if [ "$layer" != default ]; then
+    local z; if [ "$layer" = env ]; then z="$e"; else z="$c"; fi
+    z="${z#"${z%%[!0]*}"}"
+    [ "${#z}" -le 9 ] || { notes="${notes}; ${layer} value too long, ignored"; layer=default; }
+  fi
+  printf '%s\t%s' "$val" "${layer}${notes}"
+}
+
+# Environment, then a conf (the checkout's, or the base branch's), then the
+# default: for a key whose reader does no validation. Present-and-empty is a
+# layer that was skipped, not a value.
+knob_text_line() {
+  local k="$1" dflt="$2" scope="$3" e c layer=default notes="" val
+  e="${!k:-}"
+  if [ -n "$e" ]; then
+    layer="env"; val="$e"
+  else
+    [ "${!k+x}" != x ] || notes="; env set but empty, ignored"
+    if [ "$scope" = base-conf ]; then
+      c="$(scout_base_conf "$k")"
+      if [ -n "$c" ]; then layer="base conf"; val="$c"; fi
+    elif [ "$scope" != session ]; then
+      c="$(conf_get "$k")"
+      if [ -n "$c" ]; then layer=conf; val="$c"
+      elif conf_present "$k"; then notes="${notes}; conf set but empty, ignored"; fi
+    fi
+    [ "$layer" != default ] || val="$dflt"
+  fi
+  printf '%s\t%s' "$val" "${layer}${notes}"
+}
+
+cmd_conf() {
+  local k d scope meaning pair val src
+  [ "$#" -eq 0 ] || die "usage: $0 conf"
+  while IFS='|' read -r k d scope meaning; do
+    [ -n "$k" ] || continue
+    case "$k" in
+      HANDOVER_STALE_SECONDS) pair="$(knob_numeric_line "$k" "$d")" ;;
+      JOHARNESS_CHURN_LIMIT)
+        pair="$(knob_numeric_line "$k" "$(( $(num_knob JOHARNESS_CHURN_THRESHOLD) * 2 ))")" ;;
+      JOHARNESS_CONF)
+        if [ -n "${JOHARNESS_CONF:-}" ]; then pair="${CONF}"$'\t'"env"
+        else pair="${CONF}"$'\t'"default"; fi ;;
+      JOHARNESS_CANONICAL)
+        # Every reader greps the conf for the line; the environment is never seen.
+        if grep -q '^JOHARNESS_CANONICAL=1' "$CONF" 2>/dev/null; then
+          pair="1"$'\t'"conf"
+        else pair="$d"$'\t'"default"; fi ;;
+      JOHARNESS_RECURRENCE_WINDOW)
+        # The reader drops anything but digits (and an empty one) to 8.
+        pair="$(knob_text_line "$k" "$d" session)"
+        case "${pair%%$'\t'*}" in
+          '' | *[!0-9]*) pair="$d"$'\t'"default; env set but not a number, ignored" ;;
+        esac ;;
+      *)
+        case "$scope" in
+          conf | dispatch) case "$d" in
+                             '' | *[!0-9]*) pair="$(knob_text_line "$k" "$d" "$scope")" ;;
+                             *) pair="$(knob_numeric_line "$k" "$d")" ;;
+                           esac ;;
+          *) pair="$(knob_text_line "$k" "$d" "$scope")" ;;
+        esac ;;
+    esac
+    val="${pair%%$'\t'*}"; src="${pair#*$'\t'}"
+    # The reader's own answer where it normalizes (a login, an on/off switch).
+    local raw="$val"
+    case "$k" in
+      JOHARNESS_SCOUT_REVIEWER) val="$(scout_reviewer)" ;;
+      JOHARNESS_SCOUT_RESEARCH) val="$(scout_research)" ;;
+    esac
+    if [ "$scope" = base-conf ] && [ -n "$raw" ] && [ "$raw" != "$val" ] && [ "${src%% *}" != default ]; then
+      src="${src}; value not accepted, read as ${val}"
+    fi
+    [ -n "$val" ] || val='""'
+    printf '%s = %s (%s)  %s  %s\n' "$k" "$val" "$src" "$scope" "$meaning"
+  done <<<"$KNOBS"
 }
 
 dispatch_age_min() {
@@ -4930,8 +5397,8 @@ dispatch_curate_due() {
     printf 'unreadable %s' "$why"
     return 0
   fi
-  hours="$(num_knob JOHARNESS_CURATE_HOURS 168)"
-  plans="$(num_knob JOHARNESS_CURATE_PLANS 10)"
+  hours="$(num_knob JOHARNESS_CURATE_HOURS)"
+  plans="$(num_knob JOHARNESS_CURATE_PLANS)"
   # `JOHARNESS_CURATE_HOURS=0` alone is STILL the off switch, and that is a
   # compatibility promise rather than a tidy rule.
   if [ "$hours" -eq 0 ]; then
@@ -5040,7 +5507,7 @@ curate_covered() {
 # Registry threshold: this many plans declaring one path make it a registry
 # to mark `shared:`. Floor of 2 — the PROPOSE window is `>= 2 && < regthr`.
 curate_regthr() {
-  local r; r="$(num_knob JOHARNESS_CURATE_REGISTRY 3)"
+  local r; r="$(num_knob JOHARNESS_CURATE_REGISTRY)"
   [ "$r" -ge 2 ] || r=2
   printf '%s' "$r"
 }
@@ -5155,7 +5622,7 @@ cmd_curate() {
     *) die "usage: $0 curate [--apply]" ;;
   esac
   regthr="$(curate_regthr)"
-  splitthr="$(num_knob JOHARNESS_CURATE_SPLIT 8)"
+  splitthr="$(num_knob JOHARNESS_CURATE_SPLIT)"
 
   printf '== curate (REPAIR marked [apply] is mechanical: ./joharness.sh curate --apply)\n\n'
   printf 'registry  : %s+ plans declaring one path = a registry to mark shared: (JOHARNESS_CURATE_REGISTRY)\n' "$regthr"
@@ -5652,7 +6119,7 @@ free_claimed_ever() {
     if ! git -C "$ROOT" cat-file -e "${1}:${line}" 2>/dev/null; then
       age="$(dispatch_age_min "${1#refs/remotes/origin/}")"
       [ -z "$age" ] ||
-        [ $((age * 60)) -lt "$(num_knob HANDOVER_STALE_SECONDS 518400)" ] || continue
+        [ $((age * 60)) -lt "$(num_knob HANDOVER_STALE_SECONDS)" ] || continue
     fi
     return 0
   done < <(git -c core.quotePath=false -C "$ROOT" log --no-renames --diff-filter=A \
@@ -5679,7 +6146,7 @@ dispatch_freeable() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" bprows="$1"
   local refs r name base paths p ok wonly doc st pr ws wp claimed="" n_rows age stale_s cb ck cs
   local gone=" " freers=""
-  stale_s="$(num_knob HANDOVER_STALE_SECONDS 518400)"
+  stale_s="$(num_knob HANDOVER_STALE_SECONDS)"
   # Keys a live free claim covers: a second manager onto the same owner is
   # two merges of one branch.
   while IFS=$'\t' read -r cb ck cs _; do
@@ -5837,16 +6304,16 @@ cmd_dispatch() {
   local DISPATCH_WITHHELD=
   local inflight="" free="" questions=""
 
-  cap="$(num_knob JOHARNESS_MAX_MANAGERS 4)"
-  stall="$(num_knob JOHARNESS_STALL_MINUTES 45)"
-  health="$(num_knob JOHARNESS_HEALTH_MINUTES 10)"
-  passes="$(num_knob JOHARNESS_ORCHESTRATOR_PASSES 6)"
-  respawn="$(num_knob JOHARNESS_RESPAWN_LIMIT 2)"
-  hours="$(num_knob JOHARNESS_MANAGER_HOURS 4)"
+  cap="$(num_knob JOHARNESS_MAX_MANAGERS)"
+  stall="$(num_knob JOHARNESS_STALL_MINUTES)"
+  health="$(num_knob JOHARNESS_HEALTH_MINUTES)"
+  passes="$(num_knob JOHARNESS_ORCHESTRATOR_PASSES)"
+  respawn="$(num_knob JOHARNESS_RESPAWN_LIMIT)"
+  hours="$(num_knob JOHARNESS_MANAGER_HOURS)"
   # ci's two tiers, kept and read the same way ci reads them: from the
   # threshold a warning the session judges, from the limit (default twice that)
   # no longer a call.
-  churnt="$(num_knob JOHARNESS_CHURN_THRESHOLD 5)"
+  churnt="$(num_knob JOHARNESS_CHURN_THRESHOLD)"
   churnl="$(num_knob JOHARNESS_CHURN_LIMIT $((churnt * 2)))"
 
   printf '== dispatch\n\n'
@@ -6805,6 +7272,7 @@ main() {
     scout)          cmd_scout "$@" ;;
     conduct)        cmd_conduct "$@" ;;
     clerk)          cmd_clerk "$@" ;;
+    role)           cmd_role "$@" ;;
     cleanup)        cmd_cleanup "$@" ;;
     curate)         cmd_curate "$@" ;;
     finish)         cmd_finish "$@" ;;
@@ -6815,6 +7283,7 @@ main() {
     # Read by .agents/harness/handover-guard.sh, which cannot source this file.
     protocol-paths) protocol_paths ;;
     authority)      cmd_authority ;;
+    conf)           cmd_conf "$@" ;;
     -h|--help|help) usage ;;
     *) die "unknown subcommand '$cmd' (try: $0 help)" ;;
   esac
