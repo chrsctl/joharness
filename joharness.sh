@@ -129,7 +129,7 @@ JOHARNESS_CANONICAL||session|Conf line JOHARNESS_CANONICAL=1 marks the canonical
 JOHARNESS_CONF|computed|session|Path of the conf file; default joharness.conf under the checkout.
 JOHARNESS_VERBOSE|0|session|1 = ci and finish print passing checks too.
 JOHARNESS_SELFTEST||session|always = run the selftest even on a docs-only diff.
-JOHARNESS_SELFTEST_GIT_BUDGET|89243|session|Git execs the selftest may make before the ci stage reds; canonical-only.
+JOHARNESS_SELFTEST_GIT_BUDGET|88960|session|Git execs the selftest may make before the ci stage reds; canonical-only.
 JOHARNESS_SESSION_SOURCE||session|The SessionStart hook source (startup, resume, clear, compact), set by session-start.
 JOHARNESS_FORCE_SETUP|0|session|1 = provision at session start outside the remote sandbox.
 JOHARNESS_SHIP||session|all = ci treats every harness file as shipping.

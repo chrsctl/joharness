@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01DbKVTgyQe9eSSKFCEcgi1Z
 agent: opus
 updated: 2026-10-14
-next: ci -v on the merged head is running; set the default to its count plus a tenth, verify, retire, PR, merge
+next: Retire the plan and this file, open the PR, read GitHub checks (verify layer) and merge
 ---
 
 ## Goal
@@ -32,7 +32,11 @@ command on the same fixture state.
 - Baseline 2026-10-14, origin/main fe6b55c, counting git first on PATH:
   `time bash .agents/harness/selftest.sh` = 897 s, 81130 git execs, 2764
   passed. Branch (before review fixes), `time ./joharness.sh ci`: 931 s,
-  80435 execs.
+  80435 execs. Merged head 9bcc663 (origin/main 13 merges later),
+  `time ./joharness.sh ci -v`: 981 s, 80873 execs, 2813 passed; default
+  set to 88960 (that plus a tenth).
+- Local `verify` red 2026-10-14: Docker Hub 429 on alpine:3 pull (rate
+  limit), not this diff; GitHub's verify run is the evidence.
 - Invocation counts (direct ./joharness.sh plus wrapper calls, comments and
   wrapper definitions excluded, one grep pipeline per file): dispatch.sh
   213 -> 211, clerk.sh 34 -> 34, scout.sh 83 -> 83.
