@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_013aNMACdT4a1yDoQneRNHN3
 agent: sonnet
 updated: 2026-10-14
-next: Wait for ci green on this head, retire commit (delete workstream file; plan curate-noop-record stays), open PR, merge via finish
+next: ci rerun after a timing-only red (pretool-bash-guard 80 KB check, 5s vs 4s, file untouched by this branch); green = retire commit, PR, merge via finish
 ---
 
 ## Goal
