@@ -175,7 +175,8 @@ expect "a branch with no merge-base reads base unreadable" \
 git -C "$dspwork" push -q origin --delete mgr-orphan
 git -C "$dspwork" branch -qD mgr-orphan
 git -C "$dspwork" fetch -qp origin
-out="$(dsp)"
+dsp_held="$(dsp)"
+out="$dsp_held"
 refute "and the torn-down fixture leaks no unreadable row" "base unreadable" "$out"
 # No wave on the line, and that is the point: a held plan is not spawned this
 # pass, so it is not in the partition of what runs concurrently. It used to
@@ -214,7 +215,8 @@ expect "and the line says where the lowered number came from" \
 # asserted too, not only the line that prints it.
 expect "and the spawn verdict follows the lowered count, not the git one" \
   "NOT DRAINED — 3 free item(s) now, 2 slot(s): spawn up to 2 now" "$out"
-out="$(dsp)"
+# Back to the state the run after the teardown read: its output, not a re-run.
+out="$dsp_held"
 expect "unset, the count is the git view and says nothing extra" \
   "slots     : 3 of 4 free" "$out"
 refute "no clause on a line nothing lowered" "JOHARNESS_PENDING_SPAWNS" "$out"
@@ -947,7 +949,8 @@ expect "the verdict counts them, and says never to respawn on one" \
 # its slot; long after, it is litter. The threshold is 24 stall windows, and
 # `JOHARNESS_STALL_MINUTES=0` walks the fixture across it without waiting a
 # day: at 0 every age is past it.
-out="$(dsp env JOHARNESS_MAX_MANAGERS=20)"
+# No commit since `after` above: that run is this state, so it feeds these too.
+out="$after"
 expect "a fresh row naming no item keeps its slot" \
   "?  mgr-sweep  retired  pushed" "$out"
 refute "and is not called litter yet" "?  mgr-sweep  leftover" "$out"
