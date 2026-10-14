@@ -7,8 +7,8 @@ plan: orchestrator-hands-off-at-context-ceiling
 issue: none
 session: https://claude.ai/code/session_01LhNpou3t5necUED7S7hFeJ
 agent: opus
-updated: 2026-10-13
-next: Run selftest and ci, then verifier review at opus, retire, PR, merge
+updated: 2026-10-14
+next: Fix ci shellcheck SC2016 in selftest/orchestrated.sh, merge origin/main, ci+verify, retire, PR, merge
 ---
 
 ## Goal
