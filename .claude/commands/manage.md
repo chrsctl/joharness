@@ -96,6 +96,19 @@ A worker's return is a claim: run the acceptance command yourself. Commit
 per sub-task, workstream file in the same commit. Follow-up work that must
 outlive this session = a plan file in your pull request. Never a second item.
 
+A remainder only a human can build — a core-path edit
+(`./joharness.sh protocol-paths`) the plan leaves to a human, under whatever
+heading — fits no plan and dies at retire (`.agents/docs/plans/README.md`,
+"A human remainder"). Home: ONE GitHub issue, filed before the retire
+commit (`issue_write` `create`): title `human: <stem>: <edit, one line>`,
+body = the edit verbatim and the plan's reason, labels `human-review`. Pull
+request body says `Refs #N` — never `Closes #N`, which closes it at your
+merge. The clerk lists it `held: human-review` every pass; the human's own
+core-path pull request closes it. The issue carries the plan's carve-out,
+nothing new. `issue_write` fails = `status: blocked`, `next:` = `github:
+remainder issue not filed: <error, 40 chars>`, push, exit — never retire
+with it unfiled.
+
 ## R. Surveyor: the one kind that edits OTHER plans
 
 (A `free` manager's `curate --apply` writes only the plans it brings in:
@@ -178,8 +191,9 @@ whole, before you exit.
 
 GitHub lost at step 7:
 
-- **Before the retire commit:** one GitHub MCP read (`get_me`, or
-  `list_pull_requests` on your head branch). Fails? Do not retire. `status:
+- **Before the retire commit:** a human remainder's issue filed (§2), then
+  one GitHub MCP read (`get_me`, or `list_pull_requests` on your head
+  branch). Fails? Do not retire. `status:
   blocked`, `next:` = `github: GitHub MCP lost before PR: <error, 40 chars>`, push,
   exit. No retry.
 - **After it:** a GitHub call fails — do not undo the retire, do not wait.
