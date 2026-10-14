@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01DbKVTgyQe9eSSKFCEcgi1Z
 agent: opus
 updated: 2026-10-14
-next: Take the baseline git-exec count on origin/main with a wrapper git, then add the budget to ci_selftest
+next: Baseline count running on origin/main; write count+10% as the KNOBS default, commit joharness.sh, then re-count
 ---
 
 ## Goal
@@ -19,7 +19,15 @@ command on the same fixture state.
 
 ## Decisions
 
-- None yet.
+- Re-runs on unchanged state, found by scanning every wrapper call pair with
+  only assertions between (scratch script, not kept): two in dispatch.sh
+  (the `dsp` after the PENDING_SPAWNS=1 case, the MAX_MANAGERS=20 run after
+  `after`), none in clerk.sh, one in scout.sh (`out2="$(cdt)"`) that IS the
+  assertion (a re-run picks the identical sample) and stays. The plan's
+  premise of many removable re-runs did not hold; the budget is the main lever.
+- Passing ci prints the selftest's last line plus the count, not its
+  thousands of PASS lines; verbose or red prints all (the selftest itself
+  sets JOHARNESS_VERBOSE=1, so ci-selftest-scope still sees its stub).
 
 ## Rejected
 
