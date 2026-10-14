@@ -1609,6 +1609,18 @@ out="$(cwd env JOHARNESS_CURATE_PLANS=1)"
 refute "a merged curate-noop record makes it not due" "curate DUE" "$out"
 expect "and the clock names the record" \
   "since the last curate pass found nothing to propose (curate-noop-" "$out"
+# The age resets too: with the churn trigger off, only the clock is left, and the
+# landing is months old in this fixture.
+out="$(cwd env JOHARNESS_CURATE_PLANS=0)"
+refute "the record resets the age as well" "curate DUE" "$out"
+# A stamp far ahead of now is a broken clock and dates nothing; one older than
+# the newest record changes nothing.
+git -C "$cwwork" push -q origin "main:refs/heads/curate-noop-29990101T000000Z"
+git -C "$cwwork" push -q origin "main:refs/heads/curate-noop-20200101T000000Z"
+out="$(cwd env JOHARNESS_CURATE_PLANS=0)"
+refute "a far-future stamp does not date the clock" "29990101" "$out"
+refute "nor an older record" "20200101" "$out"
+expect "the newest sane record still dates it" "curate-noop-2026" "$out"
 
 # --- the findings a green suite would otherwise not distinguish ---------------
 # Each of these was an uncovered branch or an assertion that passed with its

@@ -17,6 +17,11 @@ Make `curate :` clock honour merged `curate-noop-<stamp>` branches.
 
 ## Review
 
+- r1: branch 11 commits behind origin/main (verifier) (fixed: merged origin/main in)
+- r2: selftest covered only the churn trigger, not the age reset (verifier) (fixed: PLANS=0 case added)
+- r3: no case for a far-future stamp or an older record (verifier) (fixed: both cases added)
+- r4: `ci` red only on `80 KB of prose keywords` 5s vs 4s; guard unchanged here and the same input takes 5.99s on origin/main's guard, 5.34s on this branch (no change: environment speed, not this diff)
+
 ## Blockers
 
 None.
