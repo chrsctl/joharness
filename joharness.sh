@@ -126,6 +126,7 @@ JOHARNESS_CANONICAL||session|Conf line JOHARNESS_CANONICAL=1 marks the canonical
 JOHARNESS_CONF|computed|session|Path of the conf file; default joharness.conf under the checkout.
 JOHARNESS_VERBOSE|0|session|1 = ci and finish print passing checks too.
 JOHARNESS_SELFTEST||session|always = run the selftest even on a docs-only diff.
+JOHARNESS_SELFTEST_GIT_BUDGET|100000|session|Git execs the selftest may make before the ci stage reds; canonical-only.
 JOHARNESS_SESSION_SOURCE||session|The SessionStart hook source (startup, resume, clear, compact), set by session-start.
 JOHARNESS_FORCE_SETUP|0|session|1 = provision at session start outside the remote sandbox.
 JOHARNESS_SHIP||session|all = ci treats every harness file as shipping.
@@ -352,10 +353,11 @@ run_check() {
   out="$("$@" 2>&1)"; rc=$?
   # A pass that carries a report about THIS branch or checkout (not
   # measurable, edge report, ships, not covered, shallow — incl. graph reds
-  # degraded to warnings — churn warning) still prints. Plain lint warnings
-  # about other plans stay quiet: measured noise managers mis-read.
+  # degraded to warnings — churn warning, the selftest's git-exec count)
+  # still prints. Plain lint warnings about other plans stay quiet: measured
+  # noise managers mis-read.
   if { [ "$rc" -ne 0 ] && [ "$rc" -ne 3 ]; } || [ "$CHECK_VERBOSE" = 1 ] ||
-     printf '%s' "$out" | grep -qE 'not measurable|Reported, not failed|SHIPS to consumers|Not covered here|SHALLOW|shallow history|commits on this branch$|Fix undoing'; then
+     printf '%s' "$out" | grep -qE 'not measurable|Reported, not failed|SHIPS to consumers|Not covered here|SHALLOW|shallow history|commits on this branch$|Fix undoing|selftest git execs:'; then
     printf '== %s\n' "$name"
     [ -z "$out" ] || printf '%s\n' "$out"
     printf '\n'
@@ -414,8 +416,45 @@ ci_selftest() {
     printf '  skipped: nothing outside docs/ and README.md changed on this branch\n'
     printf '  Run it anyway: JOHARNESS_SELFTEST=always %s ci\n' "$0"
   else
-    "${HARNESS_ROOT}/selftest.sh"
+    selftest_counted
   fi
+}
+
+# The selftest under a counting `git` first on PATH: every exec appends one
+# line, so the count is taken from OUTSIDE the suite and no topic can hide
+# from it. Over JOHARNESS_SELFTEST_GIT_BUDGET = red, like a failed case: the
+# suite's cost grows one fixture at a time and nobody sees it grow.
+selftest_counted() {
+  local real dir rc n budget
+  budget="$(num_knob JOHARNESS_SELFTEST_GIT_BUDGET)"
+  real="$(command -v git)" || { warn "no git on PATH"; return 1; }
+  dir="$(mktemp -d)" || return 1
+  # Paths are baked in, never read from the environment: a nested ci (the
+  # suite runs ci in fixtures) must not point this wrapper at its own file.
+  { printf '#!/bin/sh\n'
+    printf 'echo . >>%q\n' "${dir}/count"
+    printf 'exec %q "$@"\n' "$real"
+  } >"${dir}/git"
+  chmod +x "${dir}/git"
+  : >"${dir}/count"
+  PATH="${dir}:${PATH}" "${HARNESS_ROOT}/selftest.sh" >"${dir}/out" 2>&1
+  rc=$?
+  n="$(wc -l <"${dir}/count")"; n="${n//[!0-9]/}"
+  # A passing suite is thousands of PASS lines: its summary is enough, unless
+  # the reader asked for everything.
+  if [ "$rc" -ne 0 ] || [ "$CHECK_VERBOSE" = 1 ]; then
+    cat "${dir}/out"
+  else
+    tail -1 "${dir}/out"
+  fi
+  rm -rf "$dir"
+  printf '  selftest git execs: %s (budget %s)\n' "${n:-0}" "$budget"
+  if [ "${n:-0}" -gt "$budget" ]; then
+    printf '  Over budget: a topic re-runs work, or a new one costs more than it\n'
+    printf '  should. Find it before raising JOHARNESS_SELFTEST_GIT_BUDGET.\n'
+    return 1
+  fi
+  return "$rc"
 }
 
 # Review churn: the session inside it is the one least able to see it.

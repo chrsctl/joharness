@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01DbKVTgyQe9eSSKFCEcgi1Z
 agent: opus
 updated: 2026-10-14
-next: Baseline count running on origin/main; write count+10% as the KNOBS default, commit joharness.sh, then re-count
+next: Baseline running; replace the placeholder 100000 default with origin/main count+10%, then run full selftest and ci on this branch
 ---
 
 ## Goal

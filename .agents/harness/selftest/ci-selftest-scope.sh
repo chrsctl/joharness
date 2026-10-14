@@ -139,3 +139,23 @@ commit_all "$swork" "harness change"
 out="$(ci_scope)"
 expect "a harness diff runs the suite" "STUB SUITE RAN" "$out"
 refute "a harness diff prints no skip line" "skipped: nothing outside" "$out"
+
+# The git-exec budget, counted from OUTSIDE the suite: a stub that execs git
+# exactly twice, so the number is known without trusting the suite to report
+# itself. Uncommitted, which also runs the suite (case above).
+printf '#!/usr/bin/env bash\ngit --version >/dev/null\ngit --version >/dev/null\nprintf "STUB FIRST LINE\\n"\nprintf "STUB SUITE RAN\\n"\nexit 0\n' \
+  >"${swork}/.agents/harness/selftest.sh"
+out="$(JOHARNESS_SELFTEST_GIT_BUDGET=2 ci_scope)"
+expect "the stage counts the suite's git execs against the budget" \
+  "selftest git execs: 2 (budget 2)" "$out"
+refute "at the budget is not over it" "Over budget" "$out"
+out="$(JOHARNESS_SELFTEST_GIT_BUDGET=1 ci_scope)"
+expect "one exec past the budget reds the stage" "Over budget" "$out"
+expect "and the red names the count and the budget" \
+  "selftest git execs: 2 (budget 1)" "$out"
+# A passing suite is thousands of PASS lines: not verbose, only its last line.
+out="$(JOHARNESS_VERBOSE=0 ci_scope)"
+expect "a quiet pass still prints the count" "selftest git execs: 2" "$out"
+expect "and the suite's last line" "STUB SUITE RAN" "$out"
+refute "but not the lines before it" "STUB FIRST LINE" "$out"
+git -C "$swork" checkout -q -- .agents/harness/selftest.sh
