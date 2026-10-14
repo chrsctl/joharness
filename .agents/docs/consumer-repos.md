@@ -173,9 +173,8 @@ answer, each with its default and what it means, and:
 - **reports always** — including from `update.yml`, which runs the sync on a
   cron. Where that run also changes files it opens a pull request and the
   report travels in the body; where the harness is already current it changes
-  nothing, opens no pull request, and the report stays in the Actions log.
-  That second case is the steady state this stage is aimed at, so a repo
-  waiting to be told in a pull request will wait a long time;
+  nothing, opens no pull request, and the report stays in the Actions log
+  (why: history/consumer-repos.md § Settings report, 2026-09-04);
 - **asks only with a terminal** — a human running the sync by hand is offered
   each missing key;
 - **writes only what was answered.** Enter or `n` leaves the file alone. A key
@@ -192,27 +191,19 @@ them.
 
 Harness text cites measurements constantly, and a citation wants a source, so
 the name of whatever repository produced the number is the obvious thing to
-write. Do not write it. `.agents/docs/`, `.claude/commands/`, `joharness.sh`
-and `.agents/harness/` all ship — the last minus its `selftest/` tree and
-`selftest.sh`, which are canonical-only — so a repository named in any of them
-rides into every consumer, and one operator's internal development becomes
-part of the harness every other operator reads. Write no name in the
-canonical-only files either: they are read by the same people, and a rule
-with a carve-out is one nobody remembers correctly.
+write. Do not write it
+(why: history/consumer-repos.md § Name no consumer, 2026-09-16). Write no
+name in the canonical-only files either.
 
 Cite the measurement, never the repository: the command, the commit, the
-counts, the date. "Measured 2026-09-06 in a consumer at `afdd11d`" is
-re-countable by whoever holds that repo and says nothing to anybody else,
-which is the correct amount. The same goes for a consumer's plan names and
-item names — both say what that repo is building, which is the internal
-work this section exists to keep out of every other operator's copy. An
+counts, the date. The same goes for a consumer's plan names and
+item names. An
 opaque pointer is a different case: on its own it resolves to nothing, and
 the one thing that would make it resolvable — the repository name — is
 already banned above.
 
 Requester's rule, 2026-09-16. The canonical repository's own name, commit
-hashes and pull request numbers are not covered. Not gated: a list of names
-to match would enumerate an operator's repositories, which is their call. The
+hashes and pull request numbers are not covered. Not gated. The
 edge review catches it.
 
 ## Settings a child wants to CHANGE
@@ -231,9 +222,8 @@ point at a command's own output, which ships.
 
 Same questions as first contact, each offering the value in force in
 THAT child's conf, and the answers written to its `joharness.conf`. Nothing
-else: no sync, no seeding, no purge. That is why it is allowed where a
-re-bootstrap is refused — the refusal exists to keep whole-clone mode's purge
-away from a consumer's live plans and handover, and this run has no purge.
+else: no sync, no seeding, no purge
+(why: history/consumer-repos.md § Reconfigure, 2026-09-05).
 
 - **Flags answer without asking**, the same ones first contact takes, so a
   scripted change is `--reconfigure --review on <dir>`.
@@ -254,9 +244,8 @@ already open.
 Dispatching it from a session needs no new machinery — `update.yml` already
 declares `workflow_dispatch`. Where the runtime offers a GitHub tool that
 runs a workflow (Claude Code: `mcp__github__actions_run_trigger`, method
-`run_workflow`), pass the workflow file name and a `ref`. Proven on canonical
-2026-08-28: HTTP 204, one run, green in 7s, the canonical guard matching and
-the three sync steps skipped.
+`run_workflow`), pass the workflow file name and a `ref`
+(why: history/consumer-repos.md § Dispatch from a session, 2026-08-28).
 
 Two things to know before relying on it:
 
@@ -302,15 +291,11 @@ Base branch red before change. Five points:
    4. Test failing on both with same message = not provably yours. Still
       not proof: base failure stops test early and can hide a second
       break from your diff. Re-run that test once base is green.
-   Cost = failing tests on two commits, not suite. That narrow run is
-   what full baseline worktree per manager was paying for.
+   Cost = failing tests on two commits, not suite.
 5. Record a consumer keeps, if any: base commit, command, time, result
    — measured number carrying what produced it (step 5). Forecast only
-   (point 3). Harness prescribes no file and no shape.
-
-Why no harness record of red checks: a reading keyed to a commit still moves
-with the environment (runner, registry, clock), and a file of red checks is a
-written number and a shared registry every writer would collide on.
+   (point 3). Harness prescribes no file and no shape
+   (why: history/consumer-repos.md § A red base branch, 2026-10-10).
 
 ## The sync pull request: drive it to merged
 
@@ -324,10 +309,9 @@ consequences, and the second is the one that bites:
 1. A stale sync branch does not need reconciling. **Re-run the workflow.** It
    rebuilds from the current default branch, so the result is by construction
    0 behind, and the open pull request is reused with a refreshed body.
-2. **Anything you commit onto that branch dies at the next run.** Merging the
-   default branch into it by hand works and fights the design — it survives
-   only until the Monday cron, and a sync pull request left open over a weekend
-   loses the merge silently. Do it the way above.
+2. **Anything you commit onto that branch dies at the next run.** Do it the
+   way above
+   (why: history/consumer-repos.md § Bot-owned sync branch, 2026-08-25).
 
 ### When the workflow ends red
 
@@ -363,9 +347,8 @@ thing that can break, and they are the thing to run:
   never synced, so a repo bootstrapped before the job existed does not have
   it. Read the run; otherwise it is yours to run.
 - The consumer's own loop (`run-all.sh` or whatever it calls its suites). The
-  sync can narrow an enum or tighten a guard that consumer files then fail —
-  one sync narrowed the handover `status` vocabulary and every in-flight
-  branch carrying the old value went red on `graph lint`.
+  sync can narrow an enum or tighten a guard that consumer files then fail
+  (why: history/consumer-repos.md § Consumer suites after a sync, 2026-08-25).
 - `./joharness.sh finish` — green by definition here, and worth a glance: a
   sync branch carries **no workstream file** by design (protocol § *When NOT
   to write one*), and this is the command that says so out loud.
@@ -487,9 +470,8 @@ again. Fetching a current canonical settles the stale case.
 Both layers moved from root `harness/` and `env/` to `.agents/harness/` and
 `.agents/env/` — one dotted root a tool can detect. A consumer synced across
 that move receives the new tree and keeps the old one: removals do not
-travel. Nothing reads the old tree afterwards — the entrypoint, the hook
-wiring in `.claude/settings.json` and the root `AGENTS.md` import all sync
-forward to `.agents/` — so it is dead weight, not a second harness.
+travel. Nothing reads the old tree afterwards
+(why: history/consumer-repos.md § Migration, 2026-08-23).
 
 Remove it once, after the first sync that brings `.agents/`:
 
