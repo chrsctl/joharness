@@ -5868,8 +5868,14 @@ lint_plans_in_diff() {
     else
       # The branch's own ledger too: a carry retire that appends the line
       # but keeps the plan copy would land both, a retired plan in the queue.
-      rref="$(retired_ref "$(lint_stem "$rel")" \
-        <"${ROOT}/docs/plans/RETIRED.md" 2>/dev/null)"
+      # No ledger on the branch is a normal state, so it is not read: a
+      # `<file 2>/dev/null` reports the missing file anyway, because the
+      # input redirect is applied before stderr is silenced.
+      rref=""
+      if [ -f "${ROOT}/docs/plans/RETIRED.md" ]; then
+        rref="$(retired_ref "$(lint_stem "$rel")" \
+          <"${ROOT}/docs/plans/RETIRED.md")"
+      fi
       if [ -n "$rref" ]; then
         bad=$((bad + 1))
         printf '  %s: already retired by %s in this branch'"'"'s own docs/plans/RETIRED.md; a retire deletes the plan file, never lands it beside its ledger line\n' \
