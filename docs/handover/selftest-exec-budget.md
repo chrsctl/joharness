@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01DbKVTgyQe9eSSKFCEcgi1Z
 agent: opus
 updated: 2026-10-14
-next: Run ./joharness.sh ci -v for the after count; set the default to it plus a tenth; then finish
+next: ci -v on the merged head is running; set the default to its count plus a tenth, verify, retire, PR, merge
 ---
 
 ## Goal
