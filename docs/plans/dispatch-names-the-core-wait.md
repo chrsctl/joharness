@@ -14,8 +14,8 @@ scope: joharness.sh, .agents/harness/selftest/dispatch.sh, .claude/commands/orch
 `dispatch` prints `DRAINED — nothing free` when every unclaimed plan is
 `CORE ONLY` and slots idle. The orchestrator opens no plan and pushes the
 human only on `status: blocked`, so nothing a human reads names the wait;
-in gx two slots idled three days and a requirement stood still behind a
-plan with one core path among fourteen. Why, and the decision to keep the
+in gx two slots idled while two plans waited two to three days, one of
+them the only plan of a requirement, with one core path among fourteen. Why, and the decision to keep the
 de-rank: `.agents/docs/orchestrated.md`, Bounds, "A `CORE ONLY` plan is a
 wait on a human". This plan makes the wait visible: one line under the
 verdict, one push to the human per run.
@@ -42,15 +42,21 @@ verdict, one push to the human per run.
 - `.claude/commands/orchestrate.md` — "Report, every pass": print the wait
   line verbatim after the verdict. Then, per stem on it: `PushNotification`
   once carrying the stem, the plan path and the text `waits on a human core
-  edit`; no ledger `notified=<stem>` yet = send and ledger it, else report
-  only — the `status: blocked` row's shape, same key. No `PushNotification`
-  = the report carries it, say so once (Tools table row). Never spawn on
-  it, never read it as work; the lead drop on `CORE ONLY` stays. The
-  ledger line format in "## 4." needs no new key.
+  edit` — the `status: blocked` row's shape. The record is a RUN-SCOPED
+  ledger key, since the plan has no in-flight entry to hang `notified=`
+  on: add `[corewait=<stem>[,<stem>]]` to the ledger line in "## 4." beside
+  `rescoped=`; a stem not yet listed = send and append it, else report
+  only; drop a stem when dispatch no longer lists it. A `DRAINED ... exit`
+  pass arms nothing, so each heartbeat run starts empty and pushes again:
+  say so in one line, as true of a block. No `PushNotification` = the
+  report carries it, say so once (Tools table row). Never spawn on it,
+  never read it as work; the lead drop on `CORE ONLY` stays.
 - `.agents/docs/orchestrated.md` — "How the harness runs": a row for the
-  wait line under the `dispatch` row. Bounds: delete the sentence `Plan
-  `dispatch-names-the-core-wait` builds that; until it merges the verdict
-  line is the whole reading.`
+  wait line under the `dispatch` row. Bounds, "A `CORE ONLY` plan is a
+  wait on a human": rewrite the sentence opening `Plan
+  `dispatch-names-the-core-wait` makes` to present tense (`dispatch`
+  prints ..., the orchestrator pushes ...) and delete its tail `until it
+  merges the verdict line is the whole reading`.
 
 ## Out of scope
 
@@ -77,11 +83,15 @@ verdict, one push to the human per run.
   `verdict   : DRAINED — nothing free, nothing in flight: exit, the heartbeat re-seeds`,
   `            1 plan(s) wait on a human core edit (oldest 0d): crm-write-document-prints-a-pdf`.
 - `./joharness.sh ci` — `ci: pass`.
+- SHIPS: a consumer's `./joharness.sh ci` runs the harness selftest, so
+  the new dispatch case is the check every consumer runs after its next
+  sync; a consumer whose queue holds a partly-core plan reads the wait
+  line under its own `dispatch` verdict.
 
 ## Where to look
 
 - `joharness.sh:drain_core_only` — the list the line counts.
-- `joharness.sh:dispatch` — the `past the stall window` line after the
+- `joharness.sh:cmd_dispatch` — the `past the stall window` line after the
   verdict: the shape and the indent to copy.
 - `.agents/harness/selftest/dispatch.sh:dspplan` — the fixture helper; the
   first DRAINED case shows the exit verdict's exact text.
