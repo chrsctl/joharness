@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_016spQNSNiq2i68P9xyAwCPe
 agent: fable
 updated: 2026-10-14
-next: Read the lone ci re-run's count (r9; running in this session, about 20 min), then retire the research and workstream files, open the pull request, merge
+next: Retire the research and workstream files, open the pull request, read GitHub's checks, merge
 ---
 
 ## Goal
@@ -53,6 +53,7 @@ research file.
 - r6: (verifier) §4 Finish did not point at the issue step a manager resuming from `next:` needs (fixed — §4 "Before the retire commit" names it)
 - r7: `./joharness.sh ci` 2026-10-14, first run: 2807 passed, 1 failed — the 80 KB prose-keyword timing case at 6s (wanted <= 4s) while `verify` and the verifier's own `ci` ran beside it; the verifier's run on the same tree: pass (no change — re-run alone after the fixes, r9)
 - r8: `./joharness.sh verify` 2026-10-14: 4 passed, 2 failed, both container egress through the sandbox proxy (alpine:3 pull, HTTPS from a container); this diff is `.md` only, so step 7 does not require it; GitHub's run of the layer is read at merge (no change)
+- r9: `./joharness.sh ci` re-run alone 2026-10-14 after the fixes: 2807 passed, 1 failed, the same timing case at 5s (wanted <= 4s); `.agents/harness/pretool-bash-guard.sh` is byte-identical to origin/main's and takes 5.2 to 6.2s on this container for that input outside `ci` (3 runs), against the 0.41s the bound was set from (no change — the base's speed on this container, not this diff; GitHub's `ci` on this head is the gate, `JOHARNESS_CHECKS=github`)
 
 ## Blockers
 
