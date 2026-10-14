@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01Ea62sjTaRhxvXCtPD1Q4g4
 agent: fable
 updated: 2026-10-14
-next: Re-run ci after the review fixes, retire, open the pull request, merge
+next: ci re-running on dfb97dc in the background (review fixes); green = retire commit (delete workstream file), open the pull request, finish, merge
 ---
 
 ## Goal
