@@ -6898,6 +6898,7 @@ cmd_dispatch() {
   [ -z "$freeable" ] || printf '%s' "$freeable"
   [ -n "$req$free$questions$freeable" ] || printf '  nothing free\n'
 
+  local drained=0
   sup="$(drain_core_only "$qout")"
   if [ -n "$sup" ]; then
     printf '\nNOT YOURS — CORE ONLY (scope holds a core path; only a human builds\n'
@@ -7032,14 +7033,17 @@ cmd_dispatch() {
         "$n_slots" "$n_hold" "${rescope_key:-none}"
     fi
   elif [ $((n_inflight - n_blocked)) -gt 0 ]; then
+    drained=1
     printf 'verdict   : DRAINED — nothing free; %s manager(s) in flight: keep the health pass going\n' \
       "$((n_inflight - n_blocked))"
   elif [ "$pending" != 0 ]; then
+    drained=1
     # EXIT is the one irreversible verdict on this line, and a manager spawned
     # this pass is exactly what the git view cannot see.
     printf 'verdict   : DRAINED — nothing free, nothing in flight in the git view; %s spawned this pass has not pushed (JOHARNESS_PENDING_SPAWNS): keep the health pass going, never exit on a manager this view cannot see\n' \
       "$pending"
   else
+    drained=1
     # A curate or clerk spawn line follows below when it is due AND has a slot
     # (same arithmetic as role_slots): the verdict must not say exit then.
     local due_slots="$n_slots" role_will_spawn=0
@@ -7054,6 +7058,31 @@ cmd_dispatch() {
     else
       printf 'verdict   : DRAINED — nothing free, nothing in flight: exit, the heartbeat re-seeds\n'
     fi
+  fi
+  if [ -n "$sup" ] && [ "$drained" -eq 1 ]; then
+    local cw_n cw_stems="" cw_oldest="" cw_unread=0 cw_p cw_t cw_base cw_d
+    cw_n="$(printf '%s\n' "$sup" | grep -c .)"
+    cw_base="refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}"
+    git -C "$ROOT" rev-parse -q --verify "$cw_base" >/dev/null 2>&1 || cw_base=HEAD
+    while IFS= read -r cw_p; do
+      cw_p="${cw_p#"${cw_p%%[! ]*}"}"
+      [ -n "$cw_p" ] || continue
+      cw_t="${cw_p##*/}"
+      cw_stems="${cw_stems:+$cw_stems }${cw_t%.md}"
+      cw_t="$(git -C "$ROOT" log --diff-filter=A --format=%ct "$cw_base" -- "$cw_p" 2>/dev/null | tail -1)"
+      case "$cw_t" in '' | *[!0-9]*) cw_unread=1; continue ;; esac
+      if [ -z "$cw_oldest" ] || [ "$cw_t" -lt "$cw_oldest" ]; then cw_oldest="$cw_t"; fi
+    done <<EOF_CW
+$sup
+EOF_CW
+    if [ -n "$cw_oldest" ] && [ "$cw_unread" -eq 0 ]; then
+      cw_d="$(( ($(date +%s) - cw_oldest) / 86400 ))"
+      [ "$cw_d" -ge 0 ] || cw_d=0
+    else
+      cw_d="?"
+    fi
+    printf '            %s plan(s) wait on a human core edit (oldest %sd): %s\n' \
+      "$cw_n" "$cw_d" "$cw_stems"
   fi
   # ONE number, and a sentence true of every row it counts.
   if [ "$n_stall" -gt 0 ]; then
