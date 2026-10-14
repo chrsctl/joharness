@@ -36,6 +36,7 @@ NOT recoverable from repo: the reasoning —
 - next concrete step
 
 **Workstream file contains only those six.** Rest, next session derives.
+(why: history/handover.md § Store only what cannot be derived, 2026-10-10)
 
 ## Layout
 
@@ -46,18 +47,13 @@ docs/handover/<workstream>.md    one file per workstream, live on its branch
 ```
 
 Everything under `docs/handover/`; protocol = directory's `README.md`, not
-`docs/handover.md` beside it. Deliberate: repo also carrying `docs/HANDOVER.md`
-(common name) collides on case-insensitive filesystem — macOS, Windows —
-where `docs/handover.md` and `docs/HANDOVER.md` are same path. Two branches
-carrying one each cannot check out on same machine. Directory form immune.
+`docs/handover.md` beside it (why: history/handover.md § Layout, 2026-08-21).
 
 One file per workstream, named after **workstream**, not branch. This property
 makes cross-branch work:
 
 - **No merge conflicts.** Two sessions, two branches, two files. Merge clean,
-  either order, forever. Shared `HANDOVER.md`/`TODO.md` conflicts near every
-  merge; usual agent resolution — rewrite — silently drops other workstream's
-  state.
+  either order, forever.
 - **Travels with code.** Updated *same commit* as the change, so rebases,
   cherry-picks, reverts along with it. Cannot describe diff that is gone.
 - **Survives PR — in history, not on `main`.** A branch that retires its file
@@ -107,10 +103,8 @@ depth, gate or no gate. Reviewed and found nothing? That is a finding line
 too — `- r1: clean pass, <depth>, no findings`. The section stays empty only
 when no review happened.
 
-The ORDER (finding before fix) is not gated: git records what landed in a
-commit, not the order it was typed, and a backtest found 2 violations in 535
-findings at the cost of flagging four honest branches. The cue stays a
-human's.
+The ORDER (finding before fix) is not gated
+(why: history/handover.md § Review order not gated, 2026-10-10).
 
 All cheap, no ceremony. `/handover` does the write.
 
@@ -199,10 +193,8 @@ not done, not merged, not deleted. The file stays; a returning session sets
 the word back. Not `blocked`: a block is owed an answer, an abandoned claim
 nothing.
 
-Ties break on push time ASCENDING — oldest first, the inverse of the ref
-order this replaced. Within one rank the oldest push is the entry closest to
-abandoned, and an abandoned branch at the edge reads as in-flight until a
-human triages it ([`../product/README.md`](../product/README.md), Branch flow).
+Ties break on push time ASCENDING — oldest first
+(why: history/handover.md § In-flight tie order, 2026-08-29).
 
 An entry whose last push is `HANDOVER_STALE_SECONDS` old or older (default
 518400 — 6 days) AND that sits `HANDOVER_STALE_BEHIND` commits or more behind
@@ -235,13 +227,8 @@ on it *right now*?" — different mechanism, because sessions share only the git
 remote. No shared filesystem, no messaging. Record must be pushed to be seen;
 any session can die without cleanup.
 
-Rules out the obvious: registry file on `main` fails like shared `HANDOVER.md`,
-worse — most-written file in repo, sessions race, dead session leaves claim
-nobody releases.
-
-Do not infer liveness from push time. Measured on one branch, one afternoon:
-pushed 5 minutes ago while the session was finished, pushed 3 hours ago while
-it was actively working. Wrong both directions.
+Do not infer liveness from push time
+(why: history/handover.md § Liveness looked up, 2026-08-21).
 
 **Liveness = fact you look up, not thing you infer.** Control plane knows:
 
@@ -282,7 +269,8 @@ Two sessions, same workstream = rare failure. Common one: two sessions,
 different workstreams, same files — nobody notices until second PR conflicts.
 Hook intersects each other branch's changed paths with yours, including
 uncommitted, prints `TOUCHES THE SAME FILES AS THIS BRANCH`. Merge conflict
-announcing itself while still cheap.
+announcing itself while still cheap. No lock
+(why: history/handover.md § Overlap warning instead of a lock, 2026-10-10).
 
 ### Coverage, and what is still not solved
 
@@ -290,21 +278,6 @@ announcing itself while still cheap.
 laptop checkout, CI. Git sees all those — why `/who` reads both and reports
 disagreement. Neither sees unpushed work — hour of uncommitted changes in
 another container invisible to everything, no protocol fixes that. Push early.
-
-### If you ever need real mutual exclusion
-
-Above prevents nothing; makes collision visible. Prevention needs lock. Git
-provides one, at remote, atomic — `git push` to a ref = compare-and-swap:
-
-```bash
-git push origin "HEAD:refs/claims/<workstream>"     # fails if someone holds it
-git push origin ":refs/claims/<workstream>"         # release
-```
-
-Verified to reject a second claimant, stale `--force-with-lease` included.
-Deliberately **not** implemented: the common collision is same files,
-different workstreams, which a lock does not prevent and the overlap warning
-catches.
 
 ## Pull requests: link, never duplicate
 
@@ -325,11 +298,10 @@ problem — subscribe to PR, stay in one session. Handover documents = the
 ## Compaction: task state survives, the rules decay
 
 The workstream file is memory ACROSS sessions; compaction is what one
-session loses WITHIN itself. A compaction summary keeps the task state and
-drops the "old" compliance preamble — 0% to 30% violation across 7 models,
-8.3x worse for soft organisational policy than for hard safety norms (arXiv
-2606.22528). The Loop is soft policy. So after a compaction the half lost is
-the Loop and the core-path boundary, not the task: re-read
+session loses WITHIN itself
+(why: history/handover.md § Compaction re-read, 2026-08-29). So after a
+compaction the half lost is the Loop and the core-path boundary, not the
+task: re-read
 `.agents/harness/AGENTS.md` and the role command, not only the workstream
 file. The hook re-injects that pointer on a compact start.
 
@@ -359,8 +331,8 @@ not stale at all.
 ## Claiming an issue
 
 `plan:` claims a plan; `issue:` claims a GitHub issue, so a session working
-an issue shows it as taken (two sessions once solved one issue in parallel
-because the link lived only in prose).
+an issue shows it as taken
+(why: history/handover.md § Claiming an issue, 2026-08-29).
 
 - Write it **when the work starts**, with the rest of the frontmatter, not
   when the pull request opens. A claim that arrives at the end claims
@@ -374,15 +346,11 @@ because the link lived only in prose).
   link on the issue. Two mechanisms, one handover between them, and the seam
   is worth knowing about rather than discovering.
 - `#114` and `114` both work. `none`, or no field at all, claims nothing.
-- Anything else is red in `ci`, including `#0` and a padded `#0114` — that
-  one renders fine and still gets duplicated, because a reader scanning for
-  `#114` does not match it. The hook itself is silent about a value it
-  cannot parse; the noise is `ci`'s, on the branch that owns the file. So a
-  malformed claim is loud to its author and invisible to everyone else,
-  which is the right way round but worth knowing.
+- Anything else is red in `ci`, including `#0` and a padded `#0114`. The
+  hook itself is silent about a value it cannot parse; the noise is `ci`'s,
+  on the branch that owns the file.
 - The hook reports what the TREE claims, never what GitHub says. It reads
-  refs and nothing else, in every consumer; one that needed a token to
-  answer would fail closed exactly where it matters most. Whether the issue
+  refs and nothing else, in every consumer. Whether the issue
   is still open is yours to check, and you check already.
 - An issue not listed may still be taken by a session that has not pushed.
   The hook says so. `/who` before starting, same as any other overlap.
@@ -392,22 +360,20 @@ because the link lived only in prose).
 Workstream file = scaffolding, not documentation. Work done:
 
 1. Anything mattering in six months moves to the right layer's `AGENTS.md`
-   (agent needs every session) or `docs/` (background). The "do not bump
-   `K3S_IMAGE` casually" note in `.agents/env/k8s/AGENTS.md` is exactly this:
-   rejected approach that graduated. Split rule, because `AGENTS.md` is
-   the byte budget every session pays: the trip-wire line (one line,
+   (agent needs every session) or `docs/` (background)
+   (why: history/handover.md § Graduation, 2026-08-21). Split rule, because
+   `AGENTS.md` is the byte budget every session pays: the trip-wire line (one line,
    unconditional, never the measurement) goes to `AGENTS.md`; the reasoning
    behind it goes to the layer's `docs/` — in a consumer's own section, the
-   topic file under `docs/rules/` its `AGENTS.md` points at. A rule's story
-   in `AGENTS.md` is paid by every session that never touches it (one
-   consumer's `AGENTS.md` reached 93 KB this way).
+   topic file under `docs/rules/` its `AGENTS.md` points at.
 2. Workstream file deleted in final commit.
 
 Files left after merge get read as current — worse than no file. Nothing worth
 graduating? Fine outcome — delete.
 
 **No workstream file belongs on `main`.** Hook checks, names any there: make
-rot visible, not trust discipline.
+rot visible, not trust discipline
+(why: history/handover.md § Placement, 2026-08-21).
 
 `./joharness.sh finish` asks the same one moment earlier — before the
 merge, while deleting the file is still a commit, not a pull request. Step 7
@@ -417,39 +383,11 @@ the BRANCH is the human's.
 
 Deleting the file deletes the findings with it; `./joharness.sh feedback`
 reads them back out of merge history ([`../feedback.md`](../feedback.md)).
-"None on `main`" needs no field, so it is checkable — a rule that depends on
-a leaving session setting a field correctly fails exactly when someone
-hurries.
-
-## Why these things live where they do
-
-Placement decisions that look arbitrary, recorded so not helpfully undone:
-
-- **Loop in `AGENTS.md`, not `docs/WORKFLOW.md`.** Needed every session;
-  `AGENTS.md` loads every session. Separate document read once, by the agent
-  least needing it.
-- **The `main` rot check in the hook, not a test suite.** Suite = one more
-  thing to keep in step with file list; hook already fetches and parses these
-  files every session start. Costs nothing extra there. `finish` is not a
-  second copy of it: the hook reports rot that exists, `finish` refuses rot
-  about to be created, and only one of those can still be fixed for free. A
-  consumer that made it a suite assertion instead got the third thing — a red
-  base branch, which names the problem to everyone and lets nobody fix it
-  without another pull request.
-
-## Why not the alternatives
-
-Auto memory (machine-local, empty in a fresh container); one shared
-`HANDOVER.md` (conflicts on every parallel branch); uncommitted files (gone
-with the container); an issue as ledger (drifts from the diff); a subagent
-reconstructing context (findings die with it); `git notes` or event logs
-(no human reads them, so none corrects them); interrogating the previous
-session (recovery for what the handover failed to carry). Re-open only if
-workstream files are found losing decisions in practice.
 
 ## How a session finds this without being told
 
-Three layers, each covering previous one's failure mode:
+Three layers, each covering previous one's failure mode
+(why: history/handover.md § Placement, 2026-08-21):
 
 1. **`CLAUDE.md`** imports `AGENTS.md`, which imports
    `.agents/harness/AGENTS.md` (the Loop, handover rules included).

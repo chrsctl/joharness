@@ -587,6 +587,7 @@ SELFTEST_TOPICS=(
   bootstrap-consumer
   ci-verify-layers
   num-knob
+  reading-budget
 )
 
 selftest_topics_dir="${ROOT}/.agents/harness/selftest"
