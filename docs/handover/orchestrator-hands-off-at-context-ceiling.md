@@ -1,6 +1,6 @@
 ---
 workstream: orchestrator-hands-off-at-context-ceiling
-status: in-progress
+status: review
 branch: claude/orchestrator-hands-off-at-context-ceiling
 pr: none
 plan: orchestrator-hands-off-at-context-ceiling
@@ -28,6 +28,8 @@ Orchestrator hands its ledger to a fresh successor session after
 - DRAINED/PAUSED and the out-of-band arm never hand off: nothing is armed
   there, and the pass the out-of-band wake fires decides.
 - `knobs-declared-once` not on main: no `KNOBS` row.
+- Selftest 2026-10-13 `bash .agents/harness/selftest.sh`: 2740 passed, 0
+  failed; `./joharness.sh ci` 2026-10-14 after merging origin/main: `ci: pass`.
 - Selftest cases in `selftest/orchestrated.sh` (plan scope), not
   `selftest/dispatch.sh` where other header cases live.
 
@@ -52,7 +54,9 @@ Orchestrator hands its ledger to a fresh successor session after
 
 ## Blockers
 
-None.
+None. Local `./joharness.sh verify` 2026-10-14: 2 passed, 4 failed, every
+failure a registry pull or container egress (alpine:3 pull refused), none in
+code this diff touches; the merge leans on GitHub's verify run of the head.
 
 ## Where to look
 
