@@ -28,7 +28,7 @@ degrades, never the loop; say which once:
 
 | absent | what changes |
 | --- | --- |
-| `PushNotification` (or the environment's equivalent) | a valid block is reported in the pass report only, no push to the human: say so once. |
+| `PushNotification` (or the environment's equivalent) | a valid block, and a `corewait` stem, are reported in the pass report only, no push to the human: say so once. |
 | any transport that delivers | no nudge: still two passes, the first sends nothing; the KILL's interrupt does the asking. `JOHARNESS_STALL_MINUTES` becomes a kill threshold — say so. |
 | `interrupt_session` | cannot stop, so must not replace: write the handover from the branch, `status: blocked`, `next:` = "stalled: Stalled; the orchestrator could not stop the session that holds this.", report, no respawn. A session already gone (ARCHIVED, not found, FAILED twice) is respawned anyway. BLOCKED BEFORE CLAIM: report, spawn nothing. |
 | `archive_session` | the stopped session is left in place; report, respawn as written. UNCLAIMED: report, spawn nothing. |
@@ -336,7 +336,7 @@ Ledger every spawn the moment it returns as `<stem>@new`.
 ```
 /orchestrate pass
 harness=<first 12 chars of git hash-object of origin/main:.claude/commands/orchestrate.md> pass=<this pass's number plus one>
-ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] [unratified=<head>] [notified=<stem>] respawns=<n> [rescoped=<key>] [curated=<stamp>[+human]] [clerked=<stamp>[+human]] [scouted=<stamp>[+human]] [conducted=<stamp>[+human]]; ...
+ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] [unratified=<head>] [notified=<stem>] respawns=<n> [rescoped=<key>] [corewait=<stem>[,<stem>]] [curated=<stamp>[+human]] [clerked=<stamp>[+human]] [scouted=<stamp>[+human]] [conducted=<stamp>[+human]]; ...
 lead <stem>: <40 chars, to the end of this line>
 ```
 
@@ -438,6 +438,15 @@ a wake), when this session already wrote a final report (DRAINED exit or
 PAUSED) more than one hour earlier: `fresh session is cheaper: start a new
 orchestrator session for the next run`. It only informs; the pass still runs.
 (Why: `.agents/docs/orchestrated.md`, "Start each run fresh".)
+
+The `dispatch` wait line (`<n> plan(s) wait on a human core edit ...`):
+print it verbatim after the verdict. Then, per stem on it, `PushNotification`
+once carrying the stem, the plan path and the text `waits on a human core
+edit`; the ledger key `corewait=<stem>[,<stem>]` is run-scoped: a stem not
+yet listed = send and append it, else report only; drop a stem when dispatch
+no longer lists it. A `DRAINED ... exit` pass arms nothing, so each heartbeat
+run starts empty and pushes again, as it does for a block. Never spawn on it,
+never read it as work; the lead drop on `CORE ONLY` stays.
 
 Every pass: `context: <used_tokens>`, `context_usage.used_tokens` from one
 `get_session` read of this session (no `session_id`; the same read gives
