@@ -8,7 +8,7 @@ issue: 492
 session: https://claude.ai/code/session_012aeEK469hHzaddGFthH93A
 agent: opus
 updated: 2026-10-14
-next: ci, verify, mutation-check r3-r5 tests, then finish
+next: selftest + mutation for r11, then retire, PR, merge
 ---
 
 ## Goal
@@ -48,6 +48,8 @@ nudging it forever (issue #492).
 - r8: r3-r5 tests fail without their fixes: joharness.sh at the commit before r3 and the hook prefix check replaced by `:`, `.agents/harness/selftest.sh` 2026-10-14: `FAIL a done free claim is still edge work: the prefix is a condition`, `FAIL the finished rescope ranks last, below live work`, `FAIL but is never a finished rescope`, `FAIL and its pr never leaks into next` (no change)
 - r9: `./joharness.sh ci` red here on one case, `80 KB of prose keywords: exit 0, 6s (wanted 0, <= 4s)` (2842 passed, 1 failed, 2026-10-14). `.agents/harness/pretool-bash-guard.sh` is not in this diff; origin/main's copy on the same input took 5.2 s in this container. GitHub's run on the head decides (no change)
 - r10: `./joharness.sh verify` red here on the docker layer: Docker Hub answers 429 for `alpine:3` from this container (1 passed, 5 failed), unrelated to the diff; GitHub's run verifies the head (no change)
+- r11: (verifier) a tab inside a frontmatter value (`status: done<TAB>none`, `pr: 12`) still split the row: dispatch printed finished, the hook EDGE (fixed: tabs in values become spaces in `dispatch_rescope_branches`; selftest case)
+- r12: (verifier) the empty-key guard never fired: an empty key collapsed under IFS before the check (fixed: an empty key is written `?`, dispatch and hook both refuse `rescope-?`)
 
 ## Blockers
 

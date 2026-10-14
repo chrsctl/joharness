@@ -5976,8 +5976,14 @@ dispatch_rescope_branches() {
       [ "$rkey" = none ] || continue
       rpr="${rpr#\#}"
       case "$rpr" in '' | none | NONE) rpr=none ;; esac
+      # A tab inside a value is a field boundary to `read`: one in `status:`
+      # read `done<TAB>none` as done with no pr (verifier r11). Tabs become
+      # spaces, and an empty key is `?`, so no field shifts (r12).
+      rws="${rws#"$pre"}"
+      rws="${rws//$'\t'/ }"; rstat="${rstat//$'\t'/ }"; rpr="${rpr//$'\t'/ }"
+      rsess="${rsess//$'\t'/ }"; rnext="${rnext//$'\t'/ }"
       printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
-        "$name" "${rws#"$pre"}" "${rstat:-?}" "$rpr" "${rsess:-}" "${rnext:-}"
+        "$name" "${rws:-?}" "${rstat:-?}" "$rpr" "${rsess:-}" "${rnext:-}"
     done <<<"$files"
   done <<<"$refs"
 }
@@ -6976,7 +6982,7 @@ cmd_dispatch() {
       # end, which merges nothing. The hook's finished_rescope, rank 6; the
       # orchestrator drops its ledger entry on this text (issue #492).
       rfin=""
-      [ "$rstat" != "done" ] || [ "$rpr" != none ] || [ -z "$rk" ] ||
+      [ "$rstat" != "done" ] || [ "$rpr" != none ] || [ "$rk" = "?" ] ||
         rfin="  done: finished rescope, holds no slot — never nudge"
       rescope_inflight="${rescope_inflight}    ${rb}  rescope-${rk}  ${rstat}  pushed ${rage}${rfin}"$'\n'
       [ -z "$rsess" ] || rescope_inflight="${rescope_inflight}      session: ${rsess}"$'\n'

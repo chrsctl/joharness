@@ -1220,8 +1220,21 @@ expect "a done rescope naming a pull request still lists" \
   "claude/rescope-keeper  rescope-keeper  done  pushed" "$out"
 refute "but is never a finished rescope" "finished rescope" "$out"
 refute "and its pr never leaks into next" "next: 12" "$out"
+# A tab inside `status:` is a field boundary to `read` (verifier r11):
+# `done<TAB>none` read as done with no pr. Repo-controlled text, so no shift.
 git -C "$rbwork" checkout -q claude/rescope-keeper
-sed -i -e '/^pr: 12$/d' -e 's/^agent: sonnet$/agent: sonnet\nnext: Mark the shared registries/' \
+sed -i 's/^status: done$/status: done\tnone/' \
+  "${rbwork}/docs/handover/rescope-keeper.md"
+commit_all "$rbwork" "a tab inside the status"
+git -C "$rbwork" push -q origin claude/rescope-keeper
+git -C "$rbwork" checkout -q main
+out="$(rb)"
+expect "the row still lists, its status read whole" \
+  "claude/rescope-keeper  rescope-keeper  done none  pushed" "$out"
+refute "a tab inside a value never shifts the pr out" "finished rescope" "$out"
+git -C "$rbwork" checkout -q claude/rescope-keeper
+sed -i -e '/^pr: 12$/d' -e 's/^status: done\tnone$/status: done/' \
+  -e 's/^agent: sonnet$/agent: sonnet\nnext: Mark the shared registries/' \
   "${rbwork}/docs/handover/rescope-keeper.md"
 commit_all "$rbwork" "back to the genuine end"
 git -C "$rbwork" push -q origin claude/rescope-keeper

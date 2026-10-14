@@ -245,7 +245,8 @@ rank_of() {
 # `plan: none`, `status: done`, no `pr:`. All four, compared as words: one
 # short and it is a live surveyor, still ranked as today.
 finished_rescope() {
-  case "$1" in rescope-?*) ;; *) return 1 ;; esac
+  # `rescope-?` is dispatch's spelling of an empty key: no key either.
+  case "$1" in 'rescope-?') return 1 ;; rescope-?*) ;; *) return 1 ;; esac
   [ "$2" = none ] && [ "$3" = "done" ] && [ -z "$4" ]
 }
 
