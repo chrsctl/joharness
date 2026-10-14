@@ -128,7 +128,7 @@ confirming pass. Never IDLE on its own. Never PENDING on its own.**
 | `status_bucket` | `..._FAILED` = that turn died, decides only while not `RUNNING`; a usage/rate-limit `status_detail` = throttled, never dead. `..._BLOCKED` decides only in the BLOCKED BEFORE CLAIM rows; the unratified-block row reads `session_status` IDLE and `status_detail`, never the bucket |
 | `status_detail`, `updated_at` | unchanged across two passes turns a suspicion into a verdict; `updated_at` decides nothing ALONE |
 | `session_context.sources`, `external_metadata.last_served_model` | checkout attached at spawn; a turn was served. Read together |
-| merge state | git: `git merge-base --is-ancestor <head> origin/main` — never a summary |
+| merge state | a manager on dispatch's in-flight list is unmerged by construction (`queue-context.sh`, `ref_merged`); `base unreadable` on its row = report, decide nothing; a ledger stem dispatch does NOT list keeps today's check, `git merge-base --is-ancestor <head> origin/main`, never a summary |
 
 `post_turn_summary`, `context_usage.used_tokens`,
 `external_metadata.usage.cost_usd` (frozen or absent on live sessions,
