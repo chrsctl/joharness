@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_013aNMACdT4a1yDoQneRNHN3
 agent: sonnet
 updated: 2026-10-14
-next: Verify the claim against joharness.sh curate clock, settle, graduate into curate.md, delete research file
+next: Wait for ci green on this head, retire commit (delete workstream file; plan curate-noop-record stays), open PR, merge via finish
 ---
 
 ## Goal
