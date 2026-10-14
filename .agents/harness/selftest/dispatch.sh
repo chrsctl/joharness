@@ -1198,6 +1198,47 @@ expect "and the done branch is still shown in the block it points at" \
 refute "and no new rescope is recommended" "spawn ONE surveyor" "$out"
 refute "nor is it read as still actively running" \
   "a surveyor is already in flight" "$out"
+# Issue #492: done, `plan: none`, no `pr:` is a FINISHED rescope. It merges
+# nothing, so a row reading like live work was nudged every pass, forever.
+expect "the finished rescope's row says it holds nothing and is never nudged" \
+  "done: finished rescope, holds no slot — never nudge" \
+  "$(printf '%s\n' "$out" | grep -F 'claude/rescope-keeper  rescope-keeper  done  pushed')"
+# The section dispatch prints from the hook's lead line, and only that.
+rbedge="$(printf '%s\n' "$out" | sed -n '/^edge work/,/^[^ e]/p')"
+refute "and no edge work section names it" "rescope-keeper" "$rbedge"
+# One condition short: a `pr:` keeps it edge work, never finished. No
+# `next:` here on purpose (verifier): tab is IFS whitespace, and an empty
+# field before `pr` once collapsed it into `next` and read as finished.
+git -C "$rbwork" checkout -q claude/rescope-keeper
+sed -i -e '/^next:/d' -e 's/^plan: none/plan: none\npr: 12/' \
+  "${rbwork}/docs/handover/rescope-keeper.md"
+commit_all "$rbwork" "the rescope opened a pull request"
+git -C "$rbwork" push -q origin claude/rescope-keeper
+git -C "$rbwork" checkout -q main
+out="$(rb)"
+expect "a done rescope naming a pull request still lists" \
+  "claude/rescope-keeper  rescope-keeper  done  pushed" "$out"
+refute "but is never a finished rescope" "finished rescope" "$out"
+refute "and its pr never leaks into next" "next: 12" "$out"
+# A tab inside `status:` is a field boundary to `read` (verifier r11):
+# `done<TAB>none` read as done with no pr. Repo-controlled text, so no shift.
+git -C "$rbwork" checkout -q claude/rescope-keeper
+sed -i 's/^status: done$/status: done\tnone/' \
+  "${rbwork}/docs/handover/rescope-keeper.md"
+commit_all "$rbwork" "a tab inside the status"
+git -C "$rbwork" push -q origin claude/rescope-keeper
+git -C "$rbwork" checkout -q main
+out="$(rb)"
+expect "the row still lists, its status read whole" \
+  "claude/rescope-keeper  rescope-keeper  done none  pushed" "$out"
+refute "a tab inside a value never shifts the pr out" "finished rescope" "$out"
+git -C "$rbwork" checkout -q claude/rescope-keeper
+sed -i -e '/^pr: 12$/d' -e 's/^status: done\tnone$/status: done/' \
+  -e 's/^agent: sonnet$/agent: sonnet\nnext: Mark the shared registries/' \
+  "${rbwork}/docs/handover/rescope-keeper.md"
+commit_all "$rbwork" "back to the genuine end"
+git -C "$rbwork" push -q origin claude/rescope-keeper
+git -C "$rbwork" checkout -q main
 # A done rescope whose key COVERS the current one settles it too: a co-holder
 # merged and the set shrank (issue #300). Equality alone left this unsettled.
 git -C "$rbwork" checkout -q claude/rescope-keeper

@@ -172,8 +172,13 @@ merge, no subagent.
 ## In-flight order: closest to merging first
 
 The listing is ranked, not chronological. Rank reads two frontmatter fields
-and nothing else — the same two `joharness.sh:at_edge` reads, so the edge has
-one definition and this is downstream of it:
+and nothing else — the same two `joharness.sh:review_at_edge` reads, so the
+edge has one definition and this is downstream of it. One exception reads two
+more: a FINISHED RESCOPE — `workstream: rescope-*`, `plan: none`,
+`status: done`, no `pr:` — is a surveyor that found the holds genuine and
+merges nothing (`.claude/commands/manage.md`, rescope). It ranks 6, never
+the edge, never the lead, and lists with a line saying it holds nothing
+(issue #492). All four or it ranks as its status says:
 
 | Rank | State | What is left |
 | --- | --- | --- |
@@ -182,8 +187,9 @@ one definition and this is downstream of it:
 | 2 | `pr:` set | drive the pull request green, then merge |
 | 3 | `status: in-progress`, no `pr:` | building |
 | 4 | `status: blocked` | lists, never leads |
-| 4 | `status: abandoned` | nothing — the claim is released |
+| 5 | `status: abandoned` | nothing — the claim is released |
 | 5 | branch pushed recently, no workstream file | somebody to `/who` |
+| 6 | finished rescope (above) | nothing — holds no slot, never nudged |
 
 `abandoned` is the one status no session writes about its OWN work: the
 `./joharness.sh janitor --apply` writes it on a branch whose session is
