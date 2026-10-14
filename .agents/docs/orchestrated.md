@@ -19,6 +19,7 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | `session-start` banner | Routes by role: prompt names `/manage <item>` = manager; nothing named = orchestrator, run `/orchestrate`. Prints the core-path boundary. |
 | Queue hook | Marks a plan with ANY core path (`./joharness.sh protocol-paths`) in `scope:` and ranks it out of the free list. Prints `in flight: <free> overlaps <claimed> on <path>` per collision with a held plan. |
 | `./joharness.sh dispatch` | The orchestrator's one read: the human's numbers, managers in flight with push age and marks (`STALL?`, `LOOP?`, `CEILING?`), slots under the cap, the spawn order with waves and `HOLD`s, the cycle lines, one verdict. Reports only. |
+| `dispatch` wait line | Under any `DRAINED` verdict, when `CORE ONLY` plans wait: `<n> plan(s) wait on a human core edit (oldest <d>d): <stems>`. The verdict word is unchanged; the orchestrator reports the line and pushes each stem to the human once per run. Never on `NOT DRAINED`, `OVERLAP-BOUND` or `PAUSED`. |
 | `dispatch` verdict `OVERLAP-BOUND` | Slots free but every free plan HELD behind work in flight. A `rescope :` block names the holder key and the held paths; the verdict spawns ONE surveyor to correct the `scope:` declarations. |
 | `./joharness.sh curate` + `curate :` line | Whether the plan queue's declarations are still true. Mechanical repairs: `./joharness.sh curate --apply`, and `ci` fails a branch whose added plans still need one. A curator session is offered only for PROPOSE findings (decompose, order). Due on plan churn (`JOHARNESS_CURATE_PLANS`) or the clock; state read from git. Orthogonal to the verdict. |
 | `./joharness.sh janitor` + `janitor :` line | Claims whose session is gone. Mechanical: `./joharness.sh janitor --apply` writes `status: abandoned` into the claim's own file — only where the session is ARCHIVED or not found, never a claim with `pr:` — and deletes nothing. No session, no pull request. Listed only when stale claims exist; the caller proves each session gone and passes the branches: `janitor --apply <branch>...`. |
@@ -443,11 +444,11 @@ The rules that bind every session.
   de-rank stays. A manager spawned on a partly-core plan spends a slot to
   end `core path:` blocked — the same human hand at the same place, paid
   for first — and a surveyor never splits a plan. What changes is the
-  silence. Plan `dispatch-names-the-core-wait` makes `dispatch` print the
+  silence. `dispatch` prints the
   wait under its verdict (count, oldest age, stems) and the orchestrator
-  push it to the human once per run, never spawning on it — a heartbeat
-  run included, so hourly while the plan waits, as a block already is;
-  until it merges the verdict line is the whole reading. The human's move
+  pushes it to the human once per run, never spawning on it — a heartbeat
+  run included, so hourly while the plan waits, as a block already is.
+  The human's move
   is a split by hand: the core edit on their own commit, then the plan
   without it in BOTH `scope:` and `## Scope` — dropping the path from one
   is hiding (`.agents/docs/plans/README.md`, "A core path in `scope:`").
