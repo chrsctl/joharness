@@ -148,6 +148,8 @@ git -C "$dspwork" checkout -q main
 out="$(dsp)"
 expect "the claimed plan is in flight with its branch and status" \
   "docs/plans/alpha.md  mgr-alpha  in-progress  pushed" "$out"
+expect "the row carries the head it was read at, and a readable base" \
+  "head $(git -C "$dspwork" rev-parse --short=12 mgr-alpha)  base ok" "$out"
 expect "and past the window it is marked, with the rule" \
   "STALL? no push for" "$out"
 expect "the mark says what to do" "cross-check the control plane" "$out"
@@ -156,6 +158,25 @@ expect "the session link rides under it" \
 expect "and the next step" "next: Wire the thing" "$out"
 expect "it holds a slot" "slots     : 3 of 4 free" "$out"
 refute "and is not offered for spawning" "  docs/plans/alpha.md (agent" "$out"
+# A branch sharing no history with origin/main has no merge-base: its row says
+# `base unreadable`, never an `ok` it could not know. Torn down after.
+git -C "$dspwork" checkout -q --orphan mgr-orphan
+git -C "$dspwork" rm -rfq . >/dev/null 2>&1
+mkdir -p "${dspwork}/docs/handover"
+printf -- '---\nworkstream: orphan\nstatus: in-progress\nbranch: mgr-orphan\nplan: delta\nsession: https://example.invalid/session_orphan\nagent: haiku\nupdated: 2026-01-01\nnext: Wire the thing\n---\n\n## Goal\nFixture.\n' \
+  >"${dspwork}/docs/handover/orphan.md"
+git -C "$dspwork" add -A
+git -C "$dspwork" commit -qm "claim orphan"
+git -C "$dspwork" push -qu origin mgr-orphan
+git -C "$dspwork" checkout -qf main
+out="$(dsp)"
+expect "a branch with no merge-base reads base unreadable" \
+  "base unreadable" "$out"
+git -C "$dspwork" push -q origin --delete mgr-orphan
+git -C "$dspwork" branch -qD mgr-orphan
+git -C "$dspwork" fetch -qp origin
+out="$(dsp)"
+refute "and the torn-down fixture leaks no unreadable row" "base unreadable" "$out"
 # No wave on the line, and that is the point: a held plan is not spawned this
 # pass, so it is not in the partition of what runs concurrently. It used to
 # carry `wave 1` and make every plan meeting its scope WAIT for a pass it sat
@@ -321,7 +342,7 @@ expect "past the threshold the work line names the warning" \
 refute "but the threshold alone is no LOOP?" "LOOP? code.txt" "$out"
 out="$(dsp env JOHARNESS_CHURN_LIMIT=6)"
 expect "past the limit a manager is marked" \
-  "docs/plans/delta.md  mgr-delta  in-progress  pushed 0m  LOOP? code.txt rewritten 6 times (>= 6): record its progress, respawn with the churn rule" "$out"
+  "base ok  LOOP? code.txt rewritten 6 times (>= 6): record its progress, respawn with the churn rule" "$out"
 expect "and the verdict says health pass first" \
   "1 manager(s) rewriting one file past the churn threshold: health pass FIRST" "$out"
 out="$(dsp env JOHARNESS_CHURN_LIMIT=0)"

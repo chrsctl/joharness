@@ -44,7 +44,7 @@ kd_problems() {
       if ! grep -qF "| \`${k}\` |" "$doc"; then
         printf 'dispatch key with no table row: %s\n' "$k"
       elif [ "$d" != computed ]; then
-        td="$(grep -F "| \`${k}\` |" "$doc" | head -1 | awk -F'|' '{gsub(/^ +| +$/, "", $4); print $4}')"
+        td="$(grep -F "| \`${k}\` |" "$doc" | head -1 | awk -F'|' '{gsub(/^ +| +$/, "", $3); print $3}')"
         [ "$td" = "${d:-empty}" ] || printf 'table default differs from KNOBS: %s\n' "$k"
       fi
     fi

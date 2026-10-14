@@ -4,17 +4,12 @@
 # Not runnable alone and not meant to be: the runner defines the assertion
 # helpers, the counters and the shared fixtures, and sourcing is inlining.
 #
-# The scout cycle (.agents/docs/orchestrated.md, Bounds): when a scout is due, which one
-# is in flight, and the two places the cycle differs from the janitor one it
-# copies. It fires only at DRAINED, so `dispatch` prints the spawn line under that
-# verdict and nowhere else. And a proposal the
-# human CLOSED leaves nothing on the base branch, so the closed branch itself
-# must date the cycle — in the shape a real scout leaves it: Loop step 7
-# retires the workstream file BEFORE the pull request opens, so the tip of an
-# open or closed proposal carries no scout file at all (review r1).
-#
-# Fixture commits carry EXPLICIT dates where the cadence must read old, and
-# the real clock where it must read new. Every explicit date is months back.
+# The scout cycle (.agents/docs/orchestrated.md): no clock, no backlog
+# trigger, no ceiling. A pass runs on the reviewer's order or a scout issue
+# waiting on the scout, which the orchestrator reads on GitHub; this cycle
+# reads git only: whether a reviewer is named (none = off), and which scout
+# is in flight. The walk cases below keep that last read honest: a scout
+# file at a branch tip holds the cycle unless it says `abandoned`.
 #
 # Fixture names carry a `scout_` prefix: topics are sourced into one shell,
 # and a bare `swork` here clobbered the perf topic's fixture of that name.
@@ -63,38 +58,49 @@ git -C "$scout_work" remote add origin "$scout_origin"
 git -C "$scout_work" push -qu origin main
 
 sct() { ( cd "$scout_work" && env JOHARNESS_CONF="$scout_conf" "$@" ./joharness.sh scout 2>&1 ); }
+# With a reviewer named: the cycle is off without one.
+sctr() { sct JOHARNESS_SCOUT_REVIEWER=rev "$@"; }
 # A real fetch, against the fixture's own bare origin: with none, dispatch
 # holds the scout spawn on a view of unknown age (R-g), which is a case of
 # its own below.
 sdsp() { ( cd "$scout_work" && env JOHARNESS_CONF="$scout_conf" DISPATCH_FETCH=1 \
   JOHARNESS_CURATE_HOURS=0 "$@" ./joharness.sh dispatch 2>&1 ); }
+sdspr() { sdsp JOHARNESS_SCOUT_REVIEWER=rev "$@"; }
+scout_go='scout     : none in flight'
+scout_off='scout     : off — JOHARNESS_SCOUT_REVIEWER names no login'
+
+# --- no reviewer, no cycle ---------------------------------------------------
+out="$(sct)"
+expect "an unset reviewer is the off switch" "$scout_off" "$out"
+refute "and nothing reads in flight or free" "$scout_go" "$out"
+expect "an empty reviewer is the off switch" "$scout_off" "$(sct JOHARNESS_SCOUT_REVIEWER=)"
+expect "and still prints the reviewer line the clerk reads" \
+  "reviewer  : none (JOHARNESS_SCOUT_REVIEWER) — nothing can be approved" "$out"
 
 # --- no command, no cycle ----------------------------------------------------
-out="$(sct)"
+out="$(sctr)"
 expect "without .claude/commands/scout.md the cycle is off, and says why" \
-  "cadence   : off — no .claude/commands/scout.md here" "$out"
+  "scout     : off — no .claude/commands/scout.md here" "$out"
 printf '# scout\n' >"${scout_work}/.claude/commands/scout.md"
-scommit "the command" '2026-01-01T01:00:00Z'
+# The brief with it: no brief is off too, a case of the second fixture.
+printf '# brief\n' >"${scout_work}/docs/product/SCOUT.md"
+scommit "the command and the brief" '2026-01-01T01:00:00Z'
 git -C "$scout_work" push -q origin main
 
-# --- the clock -------------------------------------------------------------
-out="$(sct JOHARNESS_SCOUT_HOURS=0)"
-expect "zero is the human's off switch" \
-  "cadence   : off — JOHARNESS_SCOUT_HOURS=0: no scout is ever due" "$out"
-out="$(sct JOHARNESS_SCOUT_HOURS=99999)"
-expect "no history and a long window is not due" "cadence   : not due" "$out"
-expect "and it says it measured from the repository's beginning" \
-  "since the repository began, no scout having run" "$out"
-out="$(sct)"
-expect "the command names its knob and the automerge value" \
-  "== scout (every 168h: JOHARNESS_SCOUT_HOURS; automerge: off)" "$out"
-expect "no history and the default window is due" "cadence   : DUE" "$out"
-expect "it points at the evidence a scout reads" "./joharness.sh upstream" "$out"
-expect "it names the retired-plan ledger as built-record evidence" "RETIRED.md" "$out"
-expect "it names the first-parent log as built-record evidence" "--format=%s origin/<base>" "$out"
+# --- no clock, no backlog, no ceiling --------------------------------------
+out="$(sctr)"
+expect "a reviewer and nothing in flight reads free" "$scout_go" "$out"
+expect "the header names what runs a pass" \
+  "== scout (runs on the reviewer's order or a scout issue waiting on the scout)" "$out"
+refute "no cadence line" "cadence" "$out"
+refute "no backlog line" "backlog" "$out"
+refute "no throughput line: the ceiling it sized is gone" "throughput" "$out"
+refute "no automerge" "automerge" "$out"
+out="$(sdspr)"
+expect "dispatch reads free" "$scout_go" "$out"
+refute "dispatch prints no scout DUE: spawn" "scout DUE: spawn" "$out"
 
-# A proposal that MERGED: its retire on the base branch dates the cycle, and
-# January is far more than 168h ago.
+# A proposal that MERGED: its retire on the base branch holds nothing.
 git -C "$scout_work" checkout -qb scout-merged
 sws scout-2026-01-05 scout-2026-01-05 review scout-merged
 scommit "proposal" '2026-01-05T00:00:00Z'
@@ -104,26 +110,24 @@ git -C "$scout_work" checkout -q main
 GIT_COMMITTER_DATE='2026-01-05T02:00:00Z' GIT_AUTHOR_DATE='2026-01-05T02:00:00Z' \
   git -C "$scout_work" merge -q --no-ff -m "merge proposal" scout-merged
 git -C "$scout_work" push -q origin main
-out="$(sct)"
-expect "a merged retire older than the window is due" "cadence   : DUE" "$out"
-expect "and it is dated from that merge" "since the last proposal merged" "$out"
+expect "a merged retire is nothing in flight" "$scout_go" "$(sctr)"
 
-# A scout IN FLIGHT: its file still at the tip, status in-progress. An old
-# tip leaves the clock due; the open branch is what says none is.
+# A scout IN FLIGHT: its file still at the tip, status in-progress, however
+# old the tip.
 git -C "$scout_work" checkout -qb scout-open main
 sws scout-2026-02-01 scout-2026-02-01 in-progress scout-open
 scommit "scout at work" '2026-02-01T00:00:00Z'
 git -C "$scout_work" push -qu origin scout-open
 git -C "$scout_work" checkout -q main
-out="$(sct)"
-expect "an open scout branch is in flight" "cadence   : IN FLIGHT, so none is due" "$out"
+out="$(sctr)"
+expect "an open scout branch is in flight" "scout     : IN FLIGHT — one at a time" "$out"
 expect "and the row names its branch and workstream" "scout-open  scout-2026-02-01  in-progress" "$out"
-out="$(sdsp)"
-expect "dispatch says the same" "scout     : IN FLIGHT, so none is due" "$out"
-refute "and spawns none" "scout DUE: spawn" "$out"
+out="$(sdspr)"
+expect "dispatch says the same" "scout     : IN FLIGHT — spawn none" "$out"
+refute "and offers none" "$scout_go" "$out"
 # A user's pathspec variables would turn the glob literal (pass 6).
 expect "GIT_LITERAL_PATHSPECS does not hide a scout in flight" \
-  "scout-open  scout-2026-02-01  in-progress" "$(sct GIT_LITERAL_PATHSPECS=1)"
+  "scout-open  scout-2026-02-01  in-progress" "$(sctr GIT_LITERAL_PATHSPECS=1)"
 # A branch-controlled PATH forging the seen-key: a decoy sorting first whose
 # file name contains the live copy's key (pass 6).
 git -C "$scout_work" checkout -qb a-decoy main
@@ -136,7 +140,7 @@ scommit "a decoy" '2026-02-01T06:00:00Z'
 git -C "$scout_work" push -qu origin a-decoy
 git -C "$scout_work" checkout -q main
 expect "a decoy file name does not hide the live scout" \
-  "scout-open  scout-2026-02-01  in-progress" "$(sct)"
+  "scout-open  scout-2026-02-01  in-progress" "$(sctr)"
 git -C "$scout_work" push -q origin --delete a-decoy
 git -C "$scout_work" branch -q -D a-decoy
 
@@ -149,7 +153,7 @@ scommit "marked done, not yet retired" '2026-02-01T12:00:00Z'
 git -C "$scout_work" push -q origin scout-open
 git -C "$scout_work" checkout -q main
 expect "a scout marked done but not retired is still in flight" \
-  "scout-open  scout-2026-02-01  done" "$(sct)"
+  "scout-open  scout-2026-02-01  done" "$(sctr)"
 
 # Released by /janitor: `abandoned` is not in flight, or one dead scout
 # holds the cycle for ever — and the release, committed NOW, re-dates
@@ -159,9 +163,9 @@ sws scout-2026-02-01 scout-2026-02-01 Abandoned scout-open
 scommit "janitor released it, today"
 git -C "$scout_work" push -q origin scout-open
 git -C "$scout_work" checkout -q main
-out="$(sct)"
+out="$(sctr)"
 refute "an abandoned scout is not in flight" "IN FLIGHT" "$out"
-expect "and a release committed today leaves the clock due" "cadence   : DUE" "$out"
+expect "and nothing else is in flight" "$scout_go" "$out"
 
 # The PATH decides, never frontmatter: CRLF line endings and a missing
 # `plan:` each dropped a scout in flight under a frontmatter filter (pass 4).
@@ -172,7 +176,7 @@ printf -- '---\r\nworkstream: scout-2026-02-05\r\nstatus: in-progress\r\n---\r\n
 scommit "a CRLF scout with no plan line" '2026-02-05T00:00:00Z'
 git -C "$scout_work" push -qu origin scout-crlf
 git -C "$scout_work" checkout -q main
-out="$(sct)"
+out="$(sctr)"
 expect "a CRLF scout with no plan: line is in flight" \
   "scout-crlf  scout-2026-02-05  in-progress" "$out"
 git -C "$scout_work" push -q origin --delete scout-crlf
@@ -186,11 +190,11 @@ printf '# scout stub\nWorkstream: scout-2026-02-06\n' \
 scommit "a stub as the first push" '2026-02-06T00:00:00Z'
 git -C "$scout_work" push -qu origin scout-stub
 git -C "$scout_work" checkout -q main
-out="$(sct)"
+out="$(sctr)"
 expect "a stub with no frontmatter is in flight, status unread" \
   "scout-stub  scout-2026-02-06  ?" "$out"
 git -C "$scout_work" config grep.patternType fixed
-out="$(sct)"
+out="$(sctr)"
 git -C "$scout_work" config --unset grep.patternType
 expect "and a user's grep.patternType does not hide it" \
   "scout-stub  scout-2026-02-06  ?" "$out"
@@ -205,7 +209,7 @@ printf -- '---\nstatus: in-progress\n---\n' >"${scout_work}/docs/handover/scout-
 scommit "a scout file with a non-ASCII name" '2026-02-08T00:00:00Z'
 git -C "$scout_work" push -qu origin scout-u
 git -C "$scout_work" checkout -q main
-expect "a non-ASCII scout file name is in flight" "scout-u  " "$(sct)"
+expect "a non-ASCII scout file name is in flight" "scout-u  " "$(sctr)"
 git -C "$scout_work" push -q origin --delete scout-u
 git -C "$scout_work" branch -q -D scout-u
 # An EMPTY scout file: listed only by `-L`, so this is the case that keeps
@@ -216,7 +220,7 @@ mkdir -p "${scout_work}/docs/handover"
 scommit "an empty scout file" '2026-02-07T00:00:00Z'
 git -C "$scout_work" push -qu origin scout-empty
 git -C "$scout_work" checkout -q main
-expect "an empty scout file is in flight" "scout-empty  scout-2026-02-07  ?" "$(sct)"
+expect "an empty scout file is in flight" "scout-empty  scout-2026-02-07  ?" "$(sctr)"
 git -C "$scout_work" push -q origin --delete scout-empty
 git -C "$scout_work" branch -q -D scout-empty
 
@@ -228,33 +232,16 @@ sws scout-2026-02-10 scout-2026-02-10 in-progress some-other-name
 scommit "a scout whose branch field is wrong" '2026-02-10T00:00:00Z'
 git -C "$scout_work" push -qu origin scout-misnamed
 git -C "$scout_work" checkout -q main
-out="$(sct)"
+out="$(sctr)"
 expect "a wrong branch: field does not hide a scout in flight" \
   "scout-misnamed  scout-2026-02-10  in-progress" "$out"
-out="$(sdsp)"
-refute "and dispatch spawns no second scout" "scout DUE: spawn" "$out"
+out="$(sdspr)"
+refute "and dispatch offers no second scout" "$scout_go" "$out"
 git -C "$scout_work" push -q origin --delete scout-misnamed
 git -C "$scout_work" branch -q -D scout-misnamed
 
-# A retire dated in the FUTURE reads as NOW: closed. Skipped, ordinary
-# clock skew between containers read as no retire at all and a second scout
-# spawned (pass 4).
-git -C "$scout_work" checkout -qb scout-future main
-sws scout-2026-02-20 scout-2026-02-20 review scout-future
-scommit "proposal" '2026-02-20T00:00:00Z'
-git -C "$scout_work" rm -q docs/handover/scout-2026-02-20.md
-scommit "a retire from the future" '2099-01-01T00:00:00Z'
-git -C "$scout_work" push -qu origin scout-future
-git -C "$scout_work" checkout -q main
-out="$(sct)"
-expect "a future-dated retire reads as now, so the cycle is not due" "cadence   : not due" "$out"
-git -C "$scout_work" push -q origin --delete scout-future
-git -C "$scout_work" branch -q -D scout-future
-
-# The REAL shape of a proposal at the human: the scout retired its file as
-# the last commit before the pull request opened. Open or closed, the tip
-# carries no scout file — and its retire must still date the cycle, and
-# hold nothing.
+# The REAL shape of a finished scout: it retired its file, and the branch
+# stays unmerged. Its tip carries no scout file, so it holds nothing.
 git -C "$scout_work" checkout -qb scout-closed main
 sws scout-2026-03-01 scout-2026-03-01 review scout-closed
 printf -- '---\nrequirement: p\n---\n' >"${scout_work}/docs/product/p.md"
@@ -263,20 +250,13 @@ git -C "$scout_work" rm -q docs/handover/scout-2026-03-01.md
 scommit "retire"
 git -C "$scout_work" push -qu origin scout-closed
 git -C "$scout_work" checkout -q main
-out="$(sct)"
-expect "a retired proposal on an unmerged branch makes the cycle not due" \
-  "cadence   : not due" "$out"
-expect "and that retire is what dated it" "a scout finished on an unmerged branch" "$out"
-refute "a retired proposal is not in flight" "IN FLIGHT" "$out"
-out="$(sdsp)"
-refute "dispatch spawns no second scout over an open proposal" "scout DUE: spawn" "$out"
+out="$(sctr)"
+refute "a retired scout is not in flight" "IN FLIGHT" "$out"
+expect "and the cycle reads free" "$scout_go" "$out"
 
-# The scout branch merges main in, as step 7's reconcile tells it to — and
-# main carries a scout-named file of its own (one that landed and was never
-# retired). The merge then differs from the scout parent for this pathspec
-# and matches main, so default history simplification follows main, which
-# `--not main` hides: the retire vanishes. --full-history keeps it (review
-# r15). The same file is what the inherited case below reads.
+# Main carries a released scout file of its own (one that landed and was
+# never retired), and the retired branch merges main in. The same file is
+# what the inherited case below reads.
 git -C "$scout_work" checkout -q main
 sws scout-2026-04-01 scout-2026-04-01 abandoned main
 scommit "a released scout file landed on main, never retired" '2026-03-02T00:00:00Z'
@@ -285,13 +265,11 @@ git -C "$scout_work" checkout -q scout-closed
 git -C "$scout_work" merge -q --no-edit main
 git -C "$scout_work" push -q origin scout-closed
 git -C "$scout_work" checkout -q main
-out="$(sct)"
-expect "a proposal that merged main in still dates the cycle" "cadence   : not due" "$out"
-refute "and the abandoned file main carries is nobody's scout in flight" "IN FLIGHT" "$out"
+out="$(sctr)"
+refute "the abandoned file main carries is nobody's scout in flight" "IN FLIGHT" "$out"
 
-# A scout that retires INSIDE its reconcile merge (`merge --no-commit`,
-# `git rm`, commit): the deletion lives in a merge commit, which plain `git
-# log` shows no diff for (pass 5). `-m` reads it.
+# A scout that retires INSIDE a reconcile merge (`merge --no-commit`,
+# `git rm`, commit): its tip carries no file, so it holds nothing.
 git -C "$scout_work" checkout -q main
 printf 'main moves\n' >"${scout_work}/moves.txt"
 scommit "main moves on" '2026-03-03T00:00:00Z'
@@ -305,22 +283,14 @@ git -C "$scout_work" commit -qm "reconcile, retiring inside the merge"
 git -C "$scout_work" push -qu origin scout-mretire
 git -C "$scout_work" checkout -q main
 git -C "$scout_work" push -q origin --delete scout-closed
-out="$(sct)"
-expect "a retire inside a merge commit dates the cycle" "cadence   : not due" "$out"
-refute "and that scout is not in flight" "IN FLIGHT" "$out"
-# Then MERGED: the main-side reader needs `-m` too, or the retire inside the
-# merge is lost once the branch is merged (pass 6).
+out="$(sctr)"
+refute "a retire inside a merge commit is not in flight" "IN FLIGHT" "$out"
 GIT_COMMITTER_DATE='2026-03-04T02:00:00Z' GIT_AUTHOR_DATE='2026-03-04T02:00:00Z' \
   git -C "$scout_work" merge -q --no-ff -m "merge the proposal" scout-mretire
 git -C "$scout_work" push -q origin main
 git -C "$scout_work" push -q origin --delete scout-mretire
 git -C "$scout_work" branch -q -D scout-mretire
-out="$(sct)"
-# The AGE pins it, not the wording: without `-m` the January proposal's
-# retire still reads "since the last proposal merged", just older.
-scout_mage=$(( ($(date +%s) - $(git -C "$scout_work" log -1 --format=%ct main)) / 3600 ))
-expect "a retire inside a merge, then merged, dates the cycle from that merge" \
-  "${scout_mage}h since the last proposal merged" "$out"
+expect "and merged, it is still nothing in flight" "$scout_go" "$(sctr)"
 git -C "$scout_work" push -q origin scout-closed
 
 # A branch STACKED on a scout's claim commit carries an unretired scout file
@@ -332,64 +302,64 @@ printf 'stacked work\n' >"${scout_work}/stacked.txt"
 scommit "work stacked on the scout's claim commit"
 git -C "$scout_work" push -qu origin stacked
 git -C "$scout_work" checkout -q main
-out="$(sct)"
+out="$(sctr)"
 expect "a branch stacked on an unretired scout reads in flight, named" \
   "stacked  scout-2026-03-01  review" "$out"
-# Gone again before the gate cases, and scout-closed with it, so the clock
-# reads due there: a scratch fixture's own remote, so deleting its branches
-# is the fixture's business.
+# Gone again before the gate cases, and scout-closed with it: a scratch
+# fixture's own remote, so deleting its branches is the fixture's business.
 git -C "$scout_work" push -q origin --delete stacked scout-closed
 git -C "$scout_work" branch -q -D stacked scout-closed
 
-# --- the verdict gate --------------------------------------------------------
+# --- no verdict gate -----------------------------------------------------------
 printf -- '---\nplan: free-one\nurgency: normal\nagent: sonnet\neffort: high\n---\n\n## Goal\nFixture.\n' \
   >"${scout_work}/docs/plans/free-one.md"
 scommit "a free plan" '2026-03-05T00:00:00Z'
 git -C "$scout_work" push -q origin main
 
-out="$(sdsp)"
-expect "dispatch reads the clock as due" "scout     : DUE by the clock" "$out"
-refute "with a free plan dispatch spawns no scout" "scout DUE: spawn" "$out"
-expect "and says why" "scout due, suppressed — not DRAINED" "$out"
+out="$(sdspr)"
+refute "with a free plan the verdict is not DRAINED" "verdict   : DRAINED" "$out"
+expect "and the scout row is free all the same: no DRAINED gate" "$scout_go" "$out"
+refute "and no suppression line" "scout due, suppressed" "$out"
 
 git -C "$scout_work" rm -q docs/plans/free-one.md
 scommit "queue empty" '2026-03-06T00:00:00Z'
 git -C "$scout_work" push -q origin main
-out="$(sdsp JOHARNESS_CURATE_HOURS=1)"
-expect "a due curate with nothing to judge spawns no curator" \
-  "curate due, nothing needs judgement" "$out"
-expect "so it does not hold the scout" "scout DUE: spawn" "$out"
-out="$(sdsp)"
-expect "at DRAINED dispatch prints the spawn line" \
-  "scout DUE: spawn ONE scout (agent: fable) on /scout" "$out"
-expect "and says a scout proposes on issues, a reviewer approving" \
-  "It proposes on issues; a reviewer approves (JOHARNESS_SCOUT_REVIEWER, JOHARNESS_SCOUT_HOURS)" "$out"
-refute "and the report no longer says a proposal waits for a merge" \
-  "waits for a human to merge" "$(sct | tail -2)"
-refute "and not the suppressed line" "scout due, suppressed" "$out"
-out="$(sdsp DISPATCH_FETCH=0)"
-refute "with no fetch at all no scout spawns" "scout DUE: spawn" "$out"
-expect "and it says the view is not fresh" "no fresh view of every branch" "$out"
+out="$(sdspr)"
+expect "free, the row names what spawns one" \
+  "scout     : none in flight — on the reviewer's order or a scout issue waiting on the scout (orchestrate.md) spawn ONE (agent: fable) on /scout, beyond the cap" "$out"
+refute "and dispatch prints no scout DUE: spawn" "scout DUE: spawn" "$out"
+out="$(sdspr DISPATCH_FETCH=0)"
+refute "with no fetch at all the row is not free" "$scout_go" "$out"
+expect "and it says the view is not fresh" "scout     : held — no fresh view of every branch" "$out"
+out="$(sdspr JOHARNESS_MAX_MANAGERS=0)"
+refute "the human's pause holds it" "$scout_go" "$out"
+expect "and says so" "scout     : held — JOHARNESS_MAX_MANAGERS=0" "$out"
+
+# A spawn this pass cannot see yet may be a scout (PR447 r1).
+out="$(sdspr JOHARNESS_PENDING_SPAWNS=1)"
+refute "a pending spawn holds the row" "$scout_go" "$out"
+expect "and says so" "scout     : held — 1 spawned this pass has not pushed" "$out"
+expect "a pending count of zero holds nothing" "$scout_go" "$(sdspr JOHARNESS_PENDING_SPAWNS=00)"
 
 # A single-branch refspec fetches main alone: the fetch succeeds and no
-# scout branch is ever seen (pass 6). It holds the spawn.
+# scout branch is ever seen (pass 6). It holds the row.
 git -C "$scout_work" config remote.origin.fetch '+refs/heads/main:refs/remotes/origin/main'
-out="$(sdsp)"
+out="$(sdspr)"
 git -C "$scout_work" config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'
-refute "a single-branch refspec spawns no scout" "scout DUE: spawn" "$out"
+refute "a single-branch refspec is not free" "$scout_go" "$out"
 expect "and says the view cannot reach every branch" "does not reach refs/heads/*" "$out"
 
-# A failed fetch holds the spawn: a scout pushed since the last fetch would
+# A failed fetch holds the row: a scout pushed since the last fetch would
 # not show (pass 4). The fixture's origin pointed at nothing for one pass.
 git -C "$scout_work" remote set-url origin "${TMP}/no-such-origin.git"
-out="$(sdsp DISPATCH_FETCH=1)"
+out="$(sdspr DISPATCH_FETCH=1)"
 git -C "$scout_work" remote set-url origin "$scout_origin"
-refute "with the fetch failed no scout spawns" "scout DUE: spawn" "$out"
-expect "and it says why" "scout due, held — no fresh view of every branch" "$out"
+refute "with the fetch failed the row is not free" "$scout_go" "$out"
+expect "and it says why" "scout     : held — no fresh view of every branch" "$out"
 
-out="$(sdsp JOHARNESS_SCOUT_HOURS=0)"
-refute "switched off, dispatch spawns no scout" "scout DUE: spawn" "$out"
-refute "and prints no due line for it" "scout     : DUE" "$out"
+out="$(sdsp)"
+expect "no reviewer, dispatch reads off" "$scout_off" "$out"
+refute "and not free" "$scout_go" "$out"
 
 # Edge work in flight, left for the cases below that read the branch list.
 git -C "$scout_work" checkout -qb edge-x main
@@ -412,7 +382,7 @@ printf 'x\n' >"${scout_work}/cut.txt"
 scommit "a branch cut after it"
 git -C "$scout_work" push -qu origin cut-after
 git -C "$scout_work" checkout -q main
-out="$(sct)"
+out="$(sctr)"
 refute "a workstream named scout-<word> is not a scout" "build-scout" "$out"
 refute "a scout file inherited from the base is not the branch's" "cut-after" "$out"
 
@@ -428,11 +398,11 @@ printf 'plan work\n' >"${scout_work}/later.txt"
 scommit "unrelated plan work"
 git -C "$scout_work" push -qu origin cut-later
 git -C "$scout_work" checkout -q main
-out="$(sct)"
+out="$(sctr)"
 expect "a scout file on the base tip is in flight" "main  scout-2026-04-01  in-progress" "$out"
 refute "and a branch that merely inherited it prints no row of its own" \
   "cut-later  scout-2026-04-01" "$out"
-refute "and dispatch spawns none" "scout DUE: spawn" "$(sdsp)"
+refute "and dispatch offers none" "$scout_go" "$(sdspr)"
 sws scout-2026-04-01 scout-2026-04-01 abandoned main
 scommit "released again"
 git -C "$scout_work" push -q origin main
@@ -449,7 +419,7 @@ for scout_twin in twin-a twin-b; do
   git -C "$scout_work" push -qu origin "$scout_twin"
 done
 git -C "$scout_work" checkout -q main
-out="$(sct)"
+out="$(sctr)"
 expect "twin scouts read as two rows: the first" "twin-a  scout-2026-04-10  in-progress" "$out"
 expect "and the second" "twin-b  scout-2026-04-10  in-progress" "$out"
 git -C "$scout_work" push -q origin --delete twin-a twin-b
@@ -463,7 +433,7 @@ scommit "a scout at work" '2026-04-20T00:00:00Z'
 git -C "$scout_work" push -qu origin scout-race
 git -C "$scout_work" push -q origin scout-race:aaa-stacked
 git -C "$scout_work" checkout -q main
-out="$(sct)"
+out="$(sctr)"
 expect "two branches on one commit: the scout's own row" "scout-race  scout-2026-04-20  in-progress" "$out"
 expect "and the stacked branch's" "aaa-stacked  scout-2026-04-20  in-progress" "$out"
 git -C "$scout_work" push -q origin --delete aaa-stacked
@@ -496,7 +466,7 @@ for scout_n in $(seq 1 20); do
   git -C "$scout_work" update-ref refs/remotes/origin/main "$scout_base0"
   printf '0' >"${TMP}/scout-gitwrap/count"
   printf '%s' "$scout_n" >"${TMP}/scout-gitwrap/at"
-  out="$(sct PATH="${TMP}/scout-gitwrap:${PATH}")"
+  out="$(sctr PATH="${TMP}/scout-gitwrap:${PATH}")"
   case "$out" in *"IN FLIGHT"*) ;; *) scout_race_open="${scout_race_open} ${scout_n}" ;; esac
 done
 git -C "$scout_work" update-ref refs/remotes/origin/main "$scout_base0"
@@ -508,22 +478,6 @@ else
 fi
 git -C "$scout_work" push -q origin --delete scout-race
 git -C "$scout_work" branch -q -D scout-race
-
-# --- automerge: exactly `on`, from the BASE branch's conf --------------------
-expect "automerge unset reads off" "automerge: off" "$(sct)"
-expect "the environment's on reads on" "automerge: on" "$(sct JOHARNESS_SCOUT_AUTOMERGE=on)"
-expect "ON is not on" "automerge: off" "$(sct JOHARNESS_SCOUT_AUTOMERGE=ON)"
-expect "yes is not on" "automerge: off" "$(sct JOHARNESS_SCOUT_AUTOMERGE=yes)"
-printf 'JOHARNESS_SCOUT_AUTOMERGE=on\n' >>"$scout_conf"
-expect "on in the working tree alone is not on — a branch cannot grant itself" \
-  "automerge: off" "$(sct)"
-scommit "the human turns automerge on"
-git -C "$scout_work" push -q origin main
-expect "on in the base branch's conf reads on" "automerge: on" "$(sct)"
-printf '  JOHARNESS_SCOUT_AUTOMERGE=off\n' >>"$scout_conf"
-scommit "an indented later line turns it off"
-git -C "$scout_work" push -q origin main
-expect "an indented later line wins, as conf_get reads every key" "automerge: off" "$(sct)"
 
 # --- the conduct cycle (issue #251) ------------------------------------------
 # A sampling conduct reviewer: clock dated from the ledger's landing, in
@@ -817,12 +771,10 @@ out="$(cdt)"
 expect "conduct: a ledger landed now is not due" "cadence   : not due — 0h since the ledger last landed" "$out"
 crefute "dispatch: not due spawns none" "conduct DUE: spawn" "$(sdsp)" "conduct   : not due"
 
-# --- the backlog trigger (scout-backlog-clock) -------------------------------
-# A second fixture, so the cases above stay as they are: fewer open plans on
-# the base branch than JOHARNESS_SCOUT_BACKLOG, a brief on the base branch,
-# and 24h since the last scout finished = due, NOT gated on DRAINED. The
-# helpers read scout_work and scout_conf by name, so pointing them here is
-# the whole switch.
+# --- the brief, and no gate on the verdict ----------------------------------
+# A second fixture, so the cases above stay as they are. The helpers read
+# scout_work and scout_conf by name, so pointing them here is the whole
+# switch.
 scout_work="${TMP}/scoutbacklog"
 scout_origin="${TMP}/scoutbacklogorigin.git"
 git init -q --bare "$scout_origin"
@@ -839,11 +791,6 @@ scout_conf="${scout_work}/joharness.conf"
 printf 'JOHARNESS_ENV=none\n' >"$scout_conf"
 printf -- '---\nplan: free-one\nurgency: normal\nagent: sonnet\neffort: high\n---\n\n## Goal\nFixture.\n' \
   >"${scout_work}/docs/plans/free-one.md"
-# Not plans: the names lint_nodes skips are not counted.
-printf '# plans\n' >"${scout_work}/docs/plans/README.md"
-printf '# t\n' >"${scout_work}/docs/plans/TEMPLATE.md"
-printf '# v\n' >"${scout_work}/docs/plans/VISION.md"
-printf '# retired\n' >"${scout_work}/docs/plans/RETIRED.md"
 scommit "base" '2026-01-01T00:00:00Z'
 git -C "$scout_work" remote add origin "$scout_origin"
 git -C "$scout_work" push -qu origin main
@@ -854,97 +801,37 @@ printf -- '---\nworkstream: edge-b\nstatus: review\nbranch: edge-b\npr: 12\nplan
 scommit "edge work"
 git -C "$scout_work" push -qu origin edge-b
 git -C "$scout_work" checkout -q main
-# The clock far off: every due below is the backlog's.
-scout_bk() { "$@" JOHARNESS_SCOUT_HOURS=99999 JOHARNESS_SCOUT_BACKLOG=3; }
 
-out="$(scout_bk sct)"
-expect "backlog: low with no brief on main is clock only" \
-  "backlog   : 1 open plan(s) on main, N=3 (JOHARNESS_SCOUT_BACKLOG): low, but NO BRIEF — clock only" "$out"
-expect "backlog: and the brief line says so" \
-  "brief     : NO BRIEF — no docs/product/SCOUT.md on main: no outside research, the pass proposes nothing" "$out"
-expect "backlog: the throughput line names its command" \
-  "merge(s)/day over 14 days (git log --merges --first-parent --since=14.days --format=%h origin/main | wc -l," "$out"
-out="$(scout_bk sdsp)"
-expect "backlog: no brief, dispatch reads not due" "scout     : not due" "$out"
-refute "backlog: and spawns no scout" "scout DUE: spawn" "$out"
-
+# No brief = off: a pass would answer nothing, so a waiting issue would
+# respawn one every run (verifier F1).
+out="$(sctr)"
+expect "brief: none on main is off" \
+  "scout     : off — no docs/product/SCOUT.md on main: a pass would answer nothing" "$out"
+expect "brief: and the brief line says so" \
+  "brief     : NO BRIEF — no docs/product/SCOUT.md on main: the cycle is off" "$out"
+refute "brief: dispatch offers no scout" "$scout_go" "$(sdspr)"
 # A brief on the working tree alone is not a brief: the base branch's is.
 printf '# brief\n' >"${scout_work}/docs/product/SCOUT.md"
-expect "backlog: a brief not on main is no brief" "low, but NO BRIEF" "$(scout_bk sct)"
+expect "brief: one not on main is no brief" "scout     : off — no docs/product/SCOUT.md" "$(sctr)"
 scommit "the brief" '2026-01-02T00:00:00Z'
 git -C "$scout_work" push -q origin main
-out="$(scout_bk sct)"
-expect "backlog: low with a brief is due" \
-  "backlog   : 1 open plan(s) on main, N=3 (JOHARNESS_SCOUT_BACKLOG): low — a scout is due" "$out"
-expect "backlog: and the cadence says dispatch does not gate it" \
-  "cadence   : DUE — backlog 1 open plan(s) on main below N=3 (JOHARNESS_SCOUT_BACKLOG). Not gated on DRAINED" "$out"
-expect "backlog: the brief line reads present" "brief     : docs/product/SCOUT.md on main" "$out"
-out="$(scout_bk sdsp)"
-expect "backlog: dispatch reads the backlog as the trigger" "scout     : DUE by the backlog" "$out"
-refute "backlog: under a verdict that is not DRAINED" "verdict   : DRAINED" "$out"
-expect "backlog low spawns under NOT DRAINED" \
-  "scout DUE: spawn ONE scout (agent: fable) on /scout — backlog low (JOHARNESS_SCOUT_BACKLOG), beyond the cap, holds no slot, at most one in flight. It proposes on issues; a reviewer approves (JOHARNESS_SCOUT_REVIEWER)" "$out"
-out="$(scout_bk sdsp JOHARNESS_MAX_MANAGERS=0)"
-refute "backlog: the human's pause still holds it" "scout DUE: spawn" "$out"
-expect "backlog: and says so" "scout due, held — JOHARNESS_MAX_MANAGERS=0" "$out"
-refute "backlog: a stale view still holds it" "scout DUE: spawn" "$(scout_bk sdsp DISPATCH_FETCH=0)"
-# A spawn this pass cannot see may be a scout: the clock waits on it through
-# DRAINED, and the backlog must too (verifier r1).
-out="$(scout_bk sdsp JOHARNESS_PENDING_SPAWNS=1)"
-refute "backlog: a pending spawn holds it" "scout DUE: spawn" "$out"
-expect "backlog: and says so" "scout due, held — 1 spawned this pass has not pushed" "$out"
-# A scout in flight: none is due, and the backlog line does not say one is.
+out="$(sctr)"
+expect "brief: on main reads present" "brief     : docs/product/SCOUT.md on main" "$out"
+expect "brief: and the cycle is on" "$scout_go" "$out"
+out="$(sdspr)"
+refute "free work and a manager in flight: not DRAINED" "verdict   : DRAINED — nothing free, nothing in flight" "$out"
+expect "and the scout row is free under it: no DRAINED gate" "$scout_go" "$out"
+refute "and no scout DUE: spawn" "scout DUE: spawn" "$out"
+# A scout in flight holds the row.
 git -C "$scout_work" checkout -qb scout-live main
 sws scout-2026-10-02 scout-2026-10-02 in-progress scout-live
 scommit "a scout at work"
 git -C "$scout_work" push -qu origin scout-live
 git -C "$scout_work" checkout -q main
-out="$(scout_bk sct)"
-expect "backlog: a scout in flight reads in flight" "cadence   : IN FLIGHT, so none is due" "$out"
-expect "backlog: and the backlog line agrees" "low — a scout is in flight" "$out"
-refute "backlog: a scout in flight, dispatch spawns none" "scout DUE: spawn" "$(scout_bk sdsp)"
+expect "a scout in flight reads in flight" "scout     : IN FLIGHT — one at a time" "$(sctr)"
+refute "and dispatch offers none" "$scout_go" "$(sdspr)"
 git -C "$scout_work" push -q origin --delete scout-live
 git -C "$scout_work" branch -q -D scout-live
-out="$(sct JOHARNESS_SCOUT_HOURS=99999 JOHARNESS_SCOUT_BACKLOG=1)"
-expect "backlog: at N the backlog is enough" \
-  "backlog   : 1 open plan(s) on main, N=1 (JOHARNESS_SCOUT_BACKLOG): enough" "$out"
-expect "backlog: and nothing is due" "cadence   : not due" "$out"
-out="$(sct JOHARNESS_SCOUT_HOURS=99999 JOHARNESS_SCOUT_BACKLOG=0)"
-expect "JOHARNESS_SCOUT_BACKLOG=0 is clock only" \
-  "backlog   : off (JOHARNESS_SCOUT_BACKLOG=0): clock only, no ceiling" "$out"
-refute "JOHARNESS_SCOUT_BACKLOG=0: dispatch spawns none" "scout DUE: spawn" \
-  "$(sdsp JOHARNESS_SCOUT_HOURS=99999 JOHARNESS_SCOUT_BACKLOG=0)"
-out="$(sct JOHARNESS_SCOUT_HOURS=0 JOHARNESS_SCOUT_BACKLOG=3)"
-expect "backlog: the clock's off switch still switches the cycle off" "cadence   : off" "$out"
-
-# The re-arm: a scout that finished within 24h holds the trigger. A merged
-# retire 100h back alone leaves it due; an unmerged one 1h back holds it.
-scout_ago() { printf '%s +0000' "$(( $(date +%s) - $1 * 3600 ))"; }
-git -C "$scout_work" checkout -qb scout-old main
-sws scout-2026-09-01 scout-2026-09-01 review scout-old
-scommit "an old proposal" "$(scout_ago 101)"
-git -C "$scout_work" rm -q docs/handover/scout-2026-09-01.md
-scommit "retire" "$(scout_ago 101)"
-git -C "$scout_work" checkout -q main
-GIT_COMMITTER_DATE="$(scout_ago 100)" GIT_AUTHOR_DATE="$(scout_ago 100)" \
-  git -C "$scout_work" merge -q --no-ff -m "merge the old proposal" scout-old
-git -C "$scout_work" branch -q -D scout-old
-git -C "$scout_work" push -q origin main
-expect "backlog: a merged retire 100h back leaves it due" "scout DUE: spawn" "$(scout_bk sdsp)"
-git -C "$scout_work" checkout -qb scout-new main
-sws scout-2026-10-01 scout-2026-10-01 review scout-new
-scommit "a proposal on issues" "$(scout_ago 2)"
-git -C "$scout_work" rm -q docs/handover/scout-2026-10-01.md
-scommit "retire" "$(scout_ago 1)"
-git -C "$scout_work" push -qu origin scout-new
-git -C "$scout_work" checkout -q main
-out="$(scout_bk sdsp)"
-expect "backlog low within 24h of a retire is not due" "scout     : not due" "$out"
-refute "backlog: within 24h of a retire dispatch spawns none" "scout DUE: spawn" "$out"
-expect "backlog: and the report says why" \
-  "low, but 1h since the last scout finished (of 24h) — not yet" "$(scout_bk sct)"
-git -C "$scout_work" push -q origin --delete scout-new
-git -C "$scout_work" branch -q -D scout-new
 
 # --- reviewer, research, budget: what a pass reads from conf ------------------
 out="$(sct)"

@@ -67,7 +67,7 @@ git -C "$clerk_work" push -qu origin main
 
 clerk_run() { ( cd "$clerk_work" && env JOHARNESS_CONF="$clerk_conf" "$@" ./joharness.sh clerk 2>&1 ); }
 clerk_dsp() { ( cd "$clerk_work" && env JOHARNESS_CONF="$clerk_conf" DISPATCH_FETCH=1 \
-  JOHARNESS_CURATE_HOURS=0 JOHARNESS_SCOUT_HOURS=0 \
+  JOHARNESS_CURATE_HOURS=0 \
   "$@" ./joharness.sh dispatch 2>&1 ); }
 
 # --- no command, no cycle ----------------------------------------------------
@@ -80,17 +80,17 @@ expect "dispatch prints the clerk line off too" "clerk     : off — no .claude/
 refute "and spawns no clerk" "clerk DUE" "$out"
 printf '# clerk\n' >"${clerk_work}/.claude/commands/clerk.md"
 printf '# scout\n' >"${clerk_work}/.claude/commands/scout.md"
+mkdir -p "${clerk_work}/docs/product" && printf '# brief\n' >"${clerk_work}/docs/product/SCOUT.md"
 clerk_commit "the commands" '2026-01-01T01:00:00Z'
 git -C "$clerk_work" push -q origin main
 
-# The scout gate, while the queue is empty and the verdict DRAINED — the one
-# verdict a scout may spawn under, so the clerk is the only thing holding it.
-out="$(clerk_dsp JOHARNESS_SCOUT_HOURS=1 JOHARNESS_CLERK_HOURS=0)"
-expect "with the clerk off, a due scout spawns at DRAINED" "scout DUE: spawn" "$out"
-out="$(clerk_dsp JOHARNESS_SCOUT_HOURS=1)"
-expect "a due clerk goes first" \
-  "scout due, suppressed — a curate or clerk goes first" "$out"
-refute "and the scout spawns none" "scout DUE: spawn" "$out"
+# The scout has no clock left for a clerk to go first of: a due clerk
+# suppresses nothing, and the scout row reads free beside it.
+out="$(clerk_dsp JOHARNESS_SCOUT_REVIEWER=rev)"
+expect "a due clerk beside a free scout row" "clerk     : DUE" "$out"
+expect "and the scout row is not held by it" "scout     : none in flight" "$out"
+refute "and no scout suppression line" "scout due, suppressed" "$out"
+refute "and no scout DUE: spawn" "scout DUE: spawn" "$out"
 
 # --- the clock -------------------------------------------------------------
 out="$(clerk_run JOHARNESS_CLERK_HOURS=0)"
@@ -321,12 +321,13 @@ cp "${ROOT}/.agents/harness/queue-context.sh" \
 printf '# none\n' >"${clerk_work}/.agents/env/none/AGENTS.md"
 printf '# clerk\n' >"${clerk_work}/.claude/commands/clerk.md"
 printf '# scout\n' >"${clerk_work}/.claude/commands/scout.md"
+mkdir -p "${clerk_work}/docs/product" && printf '# brief\n' >"${clerk_work}/docs/product/SCOUT.md"
 clerk_conf="${clerk_work}/joharness.conf"
 printf 'JOHARNESS_ENV=none\n' >"$clerk_conf"
 clerk_commit "base" '2026-01-01T00:00:00Z'
 git -C "$clerk_work" remote add origin "$clerk_origin"
 git -C "$clerk_work" push -qu origin main
-out="$(clerk_dsp JOHARNESS_SCOUT_HOURS=1)"
+out="$(clerk_dsp)"
 expect "(e) no clerk ever: dispatch reads DUE from the beginning" \
   "since the repository began, no clerk having run" "$out"
 
@@ -356,8 +357,7 @@ expect "(d) this pass's no-op record reads not due" \
   "cadence   : not due — 1h since the last clerk pass found nothing to plan (clerk-noop-${clerk_s1})" "$out"
 refute "(d) and never reads as in flight" "IN FLIGHT" "$out"
 
-# (f) Clerk not due, nothing else pending, DRAINED: the scout is no longer
-# starved. A landing older than the no-op record does not move the clock back.
+# (f) A landing older than the no-op record does not move the clock back.
 clerk_branch clerk-2026-02-05 notes.txt "$(clerk_ago 3)"
 GIT_COMMITTER_DATE="$(clerk_ago 2)" GIT_AUTHOR_DATE="$(clerk_ago 2)" \
   git -C "$clerk_work" merge -q --no-ff \
@@ -366,20 +366,16 @@ git -C "$clerk_work" push -q origin main
 out="$(clerk_run)"
 expect "an older landing does not move the clock back past the no-op record" \
   "1h since the last clerk pass found nothing to plan" "$out"
-out="$(clerk_dsp JOHARNESS_SCOUT_HOURS=1)"
+out="$(clerk_dsp)"
 expect "(f) dispatch reads the clerk not due" "clerk     : not due — " "$out"
-expect "(f) and a due scout spawns at DRAINED" "scout DUE: spawn" "$out"
 
-# (h) A clerk in flight while the clock reads NOT due still holds its slot
-# and the scout.
+# (h) A clerk in flight while the clock reads NOT due still holds its slot.
 clerk_branch clerk-2026-02-05-b notes-b.txt "$(clerk_ago 0)"
-out="$(clerk_dsp JOHARNESS_SCOUT_HOURS=1)"
+out="$(clerk_dsp JOHARNESS_SCOUT_REVIEWER=rev)"
 expect "(h) a clerk in flight under a not-due clock is counted" \
   "clerk     : IN FLIGHT, so none is due. Clock: not-due" "$out"
 expect "(h) it takes a slot" "slots     : 3 of 4 free (1 role session(s) in flight" "$out"
-refute "(h) and the scout spawns none" "scout DUE: spawn" "$out"
-expect "(h) the scout waits on the clerk" \
-  "scout due, suppressed — a curate or clerk goes first" "$out"
+expect "(h) and holds no scout: the scout row is free" "scout     : none in flight" "$out"
 
 # A landing NEWER than the no-op record dates the clock (verifier r7).
 GIT_COMMITTER_DATE="$(clerk_ago 0)" GIT_AUTHOR_DATE="$(clerk_ago 0)" \

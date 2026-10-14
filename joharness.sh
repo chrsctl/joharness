@@ -37,7 +37,7 @@
 #   curate [--apply]
 #                   is the plan queue still fit; --apply makes the mechanical
 #                   repairs
-#   scout           whether a scout is due. Report-only
+#   scout           whether a scout may run, which is in flight. Report-only
 #   clerk           whether a clerk is due, issues already planned or claimed
 #   conduct         whether a conduct reviewer is due, its sample, the ledger
 #                   tally. Report-only
@@ -116,12 +116,9 @@ JOHARNESS_CURATE_SPLIT|8|dispatch|Scope bullets before curate proposes a decompo
 JOHARNESS_CLERK_HOURS|24|dispatch|Hours between clerk passes over the open issues; 0 switches the cycle off.
 JOHARNESS_CLERK_BATCH|3|dispatch|Open issues one clerk pass takes at most.
 JOHARNESS_CLERK_STALE_HOURS|24|dispatch|An unmerged clerk branch older than this holds nothing; 0 = every one holds.
-JOHARNESS_SCOUT_HOURS|168|dispatch|Hours between scouts; 0 switches the cycle off.
-JOHARNESS_SCOUT_BACKLOG|24|dispatch|Open plans plus scout proposal issues below this = a scout is due; 0 = clock only.
 JOHARNESS_SCOUT_READS|12|dispatch|Outside reads one scout pass makes before it proposes from what it has.
 JOHARNESS_CONDUCT_HOURS|168|dispatch|Hours since the conduct ledger last landed before a reviewer is due; 0 = off.
 JOHARNESS_CONDUCT_SAMPLE|3|dispatch|Retired branches one conduct run samples; 0 = off.
-JOHARNESS_SCOUT_AUTOMERGE|off|base-conf|Exactly on = the old scout self-merge; governs nothing now. Read from the base branch conf.
 JOHARNESS_SCOUT_REVIEWER||base-conf|GitHub login whose approved comment gates a scout proposal; empty = none. Read from the base branch conf.
 JOHARNESS_SCOUT_RESEARCH|off|base-conf|Exactly on = a scout pass may read outside the repository. Read from the base branch conf.
 JOHARNESS_CANONICAL||session|Conf line JOHARNESS_CANONICAL=1 marks the canonical checkout; never in a consumer.
@@ -3254,19 +3251,8 @@ cmd_free() {
 
 # --- The scout cycle — the fleet spends nothing on finding what it could do better
 
-# The unmerged remote refs, one per line, the base and HEAD dropped in the
-# shell — a `grep -v` there is a fork on every session start for two names.
-scout_refs() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" r
-  while IFS= read -r r; do
-    case "$r" in
-      '' | refs/remotes/origin/HEAD | "refs/remotes/origin/${base_branch}") ;;
-      *) printf '%s\n' "$r" ;;
-    esac
-  done < <(git -C "$ROOT" for-each-ref --no-merged="refs/remotes/origin/${base_branch}" \
-    --format='%(refname)' refs/remotes/origin </dev/null 2>/dev/null)
-}
-
+# No clock: a pass runs on the reviewer's order or a scout issue waiting on
+# the scout, which the orchestrator reads on GitHub. This stays git-only.
 # Every scout file at a branch TIP — every unmerged ref and the base branch
 # itself — one line per file: `<branch>\t<scout stem>\t<status>`.
 scout_walk() {
@@ -3322,36 +3308,6 @@ scout_walk() {
   done <<<"$listing"
 }
 
-scout_retired_ts() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" kind=scout
-  local refs=() r line h ct wf best=0 now log rc
-  while IFS= read -r r; do refs+=("$r"); done < <(scout_refs)
-  [ "${#refs[@]}" -gt 0 ] || return 0
-  now="$(date +%s)"
-  # An error reads as a retire NOW — closed, as scout_walk's (pass 6).
-  log="$(GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 git -C "$ROOT" log \
-    --full-history -m --diff-filter=D --name-only --format='C %H %ct' \
-    "${refs[@]}" --not "refs/remotes/origin/${base_branch}" \
-    -- "docs/handover/${kind}-[0-9]*" </dev/null 2>/dev/null)"; rc=$?
-  if [ "$rc" -ne 0 ]; then
-    printf '%s' "$now"
-    return 0
-  fi
-  h=""; ct=""
-  while IFS= read -r line; do
-    case "$line" in
-      '') continue ;;
-      'C '*) line="${line#C }"; h="${line%% *}"; ct="${line#* }"; continue ;;
-    esac
-    wf="$line"
-    [ -n "$wf" ] || continue
-    case "$ct" in '' | *[!0-9]*) continue ;; esac
-    [ "$ct" -le "$now" ] || ct="$now"
-    [ "$ct" -gt "$best" ] && best="$ct"
-  done <<<"$log"
-  [ "$best" -eq 0 ] || printf '%s' "$best"
-}
-
 scout_branches() {
   local b w s
   while IFS=$'\t' read -r b w s; do
@@ -3361,21 +3317,6 @@ scout_branches() {
   done
 }
 
-# Plan files on the base branch, the non-plan names lint_nodes skips left
-# out. Empty when the tree cannot be read: the caller holds the cycle.
-scout_n_plans() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" entry ls
-  # The entry itself first: absent = zero plans; a read that FAILS is
-  # unreadable (empty output), never zero, the most-due reading.
-  entry="$(git -C "$ROOT" ls-tree "refs/remotes/origin/${base_branch}" -- docs/plans \
-    </dev/null 2>/dev/null)" || return 0
-  if [ -z "$entry" ]; then printf '0'; return 0; fi
-  ls="$(git -C "$ROOT" ls-tree --name-only \
-    "refs/remotes/origin/${base_branch}:docs/plans" </dev/null 2>/dev/null)" || return 0
-  printf '%s\n' "$ls" | grep -E '\.md$' |
-    grep -v -x -E 'README\.md|TEMPLATE\.md|VISION\.md|RETIRED\.md' | awk 'END { print NR + 0 }'
-}
-
 # The scout's brief on the base branch: a branch cannot brief itself.
 scout_brief_present() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}"
@@ -3383,8 +3324,8 @@ scout_brief_present() {
     "refs/remotes/origin/${base_branch}:docs/product/SCOUT.md" </dev/null 2>/dev/null
 }
 
-# A conf key read from the BASE branch's conf, environment first, as
-# scout_automerge reads its own: a branch cannot name its own reviewer.
+# A conf key read from the BASE branch's conf, environment first: a
+# branch cannot name its own reviewer.
 scout_base_conf() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" v="${!1:-}"
   [ -n "$v" ] || v="$(git -C "$ROOT" show "refs/remotes/origin/${base_branch}:joharness.conf" \
@@ -3399,202 +3340,68 @@ scout_reviewer() {
   local v
   v="$(scout_base_conf JOHARNESS_SCOUT_REVIEWER)"
   # Rejected whole, never trimmed: a trimmed name is another account.
-  if printf '%s' "$v" | grep -qx -E '[A-Za-z0-9](-?[A-Za-z0-9])*'; then
-    printf '%s' "$v"
-  else
-    printf 'none'
-  fi
+  printf '%s' "$v" | grep -qx -E '[A-Za-z0-9](-?[A-Za-z0-9])*' || v=none
+  printf '%s' "$v"
 }
 
 scout_research() {
   if [ "$(scout_base_conf JOHARNESS_SCOUT_RESEARCH)" = on ]; then printf 'on'; else printf 'off'; fi
 }
 
-# Is a scout due. Two triggers: the clock (JOHARNESS_SCOUT_HOURS, spawned only
-# at DRAINED) and the backlog (JOHARNESS_SCOUT_BACKLOG, not gated on DRAINED;
-# its reason starts with the word `backlog` so dispatch tells the two apart).
-SCOUT_DUE=""
+# Can a scout run here, and is one in flight. SCOUT_STATE = `unreadable
+# <why>`, `off <why>` or `on`; SCOUT_ROWS = scout_walk's rows when `on`.
+SCOUT_STATE=""
 SCOUT_ROWS=""
-SCOUT_NPLANS=""
-SCOUT_BACKLOG_N=""
-SCOUT_BACKLOG_AGE=""
-# Hours between two backlog-triggered passes: a written number, one
-# reviewer's day.
-SCOUT_BACKLOG_REARM_H=24
-scout_due() {
-  local want="${1:-}" hours age bts why base_word bage now
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}"
-  SCOUT_ROWS=""; SCOUT_NPLANS=""; SCOUT_BACKLOG_N=""; SCOUT_BACKLOG_AGE=""
+scout_state() {
+  local why
+  SCOUT_ROWS=""
   why="$(cycle_unreadable)"
   if [ -n "$why" ]; then
-    SCOUT_DUE="unreadable ${why}"
-    return 0
-  fi
-  hours="$(num_knob JOHARNESS_SCOUT_HOURS)"
-  if [ "$hours" -eq 0 ]; then
-    SCOUT_DUE='off JOHARNESS_SCOUT_HOURS=0: no scout is ever due'
-    return 0
-  fi
-  if [ ! -f "${ROOT}/.claude/commands/scout.md" ]; then
-    SCOUT_DUE='off no .claude/commands/scout.md here: nothing for a scout to run'
-    return 0
-  fi
-  base_word='the last proposal merged'
-  age="$(cycle_age_h scout)"
-  if [ -z "$age" ] || [ "$age" -ge "$hours" ]; then
-    bts="$(scout_retired_ts)"
-    if [ -n "$bts" ]; then
-      bts=$(( ($(date +%s) - bts) / 3600 ))
-      if [ -z "$age" ] || [ "$bts" -lt "$age" ]; then
-        age="$bts"
-        base_word='a scout finished on an unmerged branch (its proposal open, or closed by a human)'
-      fi
-    fi
-  fi
-  if [ -z "$age" ]; then
-    # Never scouted: from the repository's own beginning, the janitor's rule.
-    age="$(cycle_repo_age_h)"
-    [ -n "$age" ] || age=0
-    base_word='the repository began, no scout having run'
-  fi
-  if [ "$age" -ge "$hours" ]; then
-    SCOUT_DUE="due ${age}h since ${base_word} (>= ${hours}h)"
+    SCOUT_STATE="unreadable ${why}"
+  elif [ "$(scout_reviewer)" = none ]; then
+    SCOUT_STATE='off JOHARNESS_SCOUT_REVIEWER names no login: nothing can be approved, so no scout is ever spawned'
+  elif [ ! -f "${ROOT}/.claude/commands/scout.md" ]; then
+    SCOUT_STATE='off no .claude/commands/scout.md here: nothing for a scout to run'
+  elif ! scout_brief_present; then
+    # A pass with no brief answers nothing, so a waiting issue would
+    # respawn one every run.
+    SCOUT_STATE="off no docs/product/SCOUT.md on ${HANDOVER_BASE_BRANCH:-main}: a pass would answer nothing"
   else
-    SCOUT_DUE="not-due ${age}h since ${base_word} (of ${hours}h)"
-  fi
-  # The backlog trigger. Its age reads BOTH retires on every call: under the
-  # proposals-on-issues role no scout branch merges, so the unmerged retire
-  # is the one that exists.
-  SCOUT_BACKLOG_N="$(num_knob JOHARNESS_SCOUT_BACKLOG)"
-  if [ "$SCOUT_BACKLOG_N" -gt 0 ]; then
-    SCOUT_NPLANS="$(scout_n_plans)"
-    if [ -z "$SCOUT_NPLANS" ]; then
-      SCOUT_DUE="unreadable docs/plans on refs/remotes/origin/${base_branch} could not be listed"
-      return 0
-    fi
-    bage="$(cycle_age_h scout)"
-    bts="$(scout_retired_ts)"
-    if [ -n "$bts" ]; then
-      now="$(date +%s)"
-      bts=$(( (now - bts) / 3600 ))
-      { [ -z "$bage" ] || [ "$bts" -lt "$bage" ]; } && bage="$bts"
-    fi
-    if [ -z "$bage" ]; then
-      bage="$(cycle_repo_age_h)"
-      [ -n "$bage" ] || bage=0
-    fi
-    SCOUT_BACKLOG_AGE="$bage"
-    if [ "$SCOUT_NPLANS" -lt "$SCOUT_BACKLOG_N" ] && scout_brief_present &&
-       [ "$bage" -ge "$SCOUT_BACKLOG_REARM_H" ]; then
-      SCOUT_DUE="due backlog ${SCOUT_NPLANS} open plan(s) on ${base_branch} below N=${SCOUT_BACKLOG_N} (JOHARNESS_SCOUT_BACKLOG)"
-    fi
-  fi
-  if [ "$want" = all ] || [ "${SCOUT_DUE%% *}" = due ]; then
+    SCOUT_STATE=on
     SCOUT_ROWS="$(scout_walk)"
   fi
 }
 
-scout_automerge() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" v="${JOHARNESS_SCOUT_AUTOMERGE:-}"
-  [ -n "$v" ] || v="$(git -C "$ROOT" show "refs/remotes/origin/${base_branch}:joharness.conf" \
-    </dev/null 2>/dev/null |
-    sed -n "s/^[[:space:]]*JOHARNESS_SCOUT_AUTOMERGE[[:space:]]*=[[:space:]]*\([^#[:space:]]*\).*/\1/p" |
-    tail -1)"
-  if [ "$v" = on ]; then printf 'on'; else printf 'off'; fi
-}
-
 cmd_scout() {
-  local hours due state why b w s n_inflight=0 rows
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" state why b w s n_inflight=0
   [ "$#" -eq 0 ] || die "usage: $0 scout"
-  hours="$(num_knob JOHARNESS_SCOUT_HOURS)"
-  printf '== scout (every %sh: JOHARNESS_SCOUT_HOURS; automerge: %s)\n\n' \
-    "$hours" "$(scout_automerge)"
+  printf '== scout (runs on the reviewer'"'"'s order or a scout issue waiting on the scout)\n\n'
 
-  scout_due all
-  due="$SCOUT_DUE"; rows="$SCOUT_ROWS"
-  state="${due%% *}"; why="${due#* }"
+  scout_state
+  state="${SCOUT_STATE%% *}"; why="${SCOUT_STATE#* }"
   case "$state" in
-    unreadable) printf 'cadence   : UNREADABLE — %s\n\n' "$why"; return 0 ;;
-    off)        printf 'cadence   : off — %s\n\n' "$why"; return 0 ;;
+    unreadable) printf 'scout     : UNREADABLE — %s\n\n' "$why"; return 0 ;;
+    off)        printf 'scout     : off — %s\n' "$why" ;;
   esac
   while IFS=$'\t' read -r b w s; do
     [ -n "$b" ] || continue
     n_inflight=$((n_inflight + 1))
-    [ "$n_inflight" -gt 1 ] || \
-      printf 'cadence   : IN FLIGHT, so none is due. Clock: %s %s\n' "$state" "$why"
+    [ "$n_inflight" -gt 1 ] || printf 'scout     : IN FLIGHT — one at a time\n'
     printf '            %s  %s  %s\n' "$b" "$w" "$s"
-  done < <(printf '%s\n' "$rows" | scout_branches)
-  if [ "$n_inflight" -eq 0 ]; then
-    case "$state:$why" in
-      due:backlog\ *)
-        printf 'cadence   : DUE — %s. Not gated on DRAINED: dispatch spawns it beside managers\n' "$why" ;;
-      due:*)
-        printf 'cadence   : DUE — %s. Fires only at DRAINED: dispatch gates it\n' "$why" ;;
-      *)
-        printf 'cadence   : not due — %s\n' "$why" ;;
-    esac
-  fi
-  scout_report_lines "$n_inflight"
-  printf '\n'
-
-  # Pointers, never findings: this command proposes nothing. What a scout
-  # reads, by name, so the command's reader never has to rediscover them.
-  printf 'evidence a scout reads (each proposal cites what it rests on):\n'
-  printf '  ./joharness.sh upstream     what merged edges found about the harness\n'
-  printf '  ./joharness.sh feedback     findings ready to graduate\n'
-  printf '  open issues on the canonical repository\n'
-  printf '  the control plane'"'"'s cost reader: get_session usage.cost_usd,\n'
-  printf '    usage.cache_read_tokens, context_usage.used_tokens\n'
-  printf '  records of what is built (not code): git log --first-parent\n'
-  printf '    --format=%%s origin/<base>, docs/plans/RETIRED.md, docs/research/*.md\n'
-  printf '    and docs/findings/*.md (names and ## Goal)\n'
-  printf '  a dated Anthropic release note or Models API read\n\n'
-  printf 'A scout proposes on issues; a reviewer approves (JOHARNESS_SCOUT_REVIEWER).\n'
-  printf 'JOHARNESS_SCOUT_AUTOMERGE=%s governs no merge: nothing enters the queue unapproved.\n' \
-    "$(scout_automerge)"
-}
-
-# What a scout pass reads from conf, so the role reads this report and never
-# the conf file. Reads the globals scout_due set; $1 = scouts in flight.
-scout_report_lines() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" brief=0 n_merges per_day
-  scout_brief_present && brief=1
-  if [ "${SCOUT_BACKLOG_N:-0}" -eq 0 ]; then
-    printf 'backlog   : off (JOHARNESS_SCOUT_BACKLOG=0): clock only, no ceiling\n'
-  else
-    printf 'backlog   : %s open plan(s) on %s, N=%s (JOHARNESS_SCOUT_BACKLOG): ' \
-      "$SCOUT_NPLANS" "$base_branch" "$SCOUT_BACKLOG_N"
-    if [ "$SCOUT_NPLANS" -ge "$SCOUT_BACKLOG_N" ]; then
-      printf 'enough\n'
-    elif [ "$brief" -eq 0 ]; then
-      printf 'low, but NO BRIEF — clock only\n'
-    elif [ "$SCOUT_BACKLOG_AGE" -lt "$SCOUT_BACKLOG_REARM_H" ]; then
-      printf 'low, but %sh since the last scout finished (of %sh) — not yet\n' \
-        "$SCOUT_BACKLOG_AGE" "$SCOUT_BACKLOG_REARM_H"
-    elif [ "${1:-0}" -gt 0 ]; then
-      printf 'low — a scout is in flight\n'
-    else
-      printf 'low — a scout is due\n'
-    fi
-  fi
-  n_merges="$(git -C "$ROOT" log --merges --first-parent --since=14.days --format=%h \
-    "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null | awk 'END { print NR + 0 }')"
-  per_day=$((n_merges / 14))
-  printf 'throughput: %s merge(s)/day over 14 days (git log --merges --first-parent --since=14.days --format=%%h origin/%s | wc -l, %s); 3 days = %s\n' \
-    "$per_day" "$base_branch" "$(date -u +%Y-%m-%d)" "$((per_day * 3))"
-  if [ "$brief" -eq 1 ]; then
+  done < <(printf '%s\n' "$SCOUT_ROWS" | scout_branches)
+  [ "$state" = off ] || [ "$n_inflight" -gt 0 ] || printf 'scout     : none in flight\n'
+  # What a pass reads from conf, so the role never reads the conf file.
+  if scout_brief_present; then
     printf 'brief     : docs/product/SCOUT.md on %s — the pass researches against it\n' "$base_branch"
   else
-    printf 'brief     : NO BRIEF — no docs/product/SCOUT.md on %s: no outside research, the pass proposes nothing\n' \
+    printf 'brief     : NO BRIEF — no docs/product/SCOUT.md on %s: the cycle is off\n' \
       "$base_branch"
   fi
-  if [ "$(scout_reviewer)" = none ]; then
-    printf 'reviewer  : none (JOHARNESS_SCOUT_REVIEWER) — nothing can be approved\n'
-  else
-    printf 'reviewer  : %s (JOHARNESS_SCOUT_REVIEWER) — their approved comment is the gate\n' \
-      "$(scout_reviewer)"
-  fi
-  printf 'research  : %s (JOHARNESS_SCOUT_RESEARCH); budget %s outside reads a pass (JOHARNESS_SCOUT_READS)\n' \
+  # The clerk's scout gate reads this line: printed when off too.
+  printf 'reviewer  : %s (JOHARNESS_SCOUT_REVIEWER) — ' "$(scout_reviewer)"
+  if [ "$(scout_reviewer)" = none ]; then printf 'nothing can be approved\n'
+  else printf 'their approved comment is the gate\n'; fi
+  printf 'research  : %s (JOHARNESS_SCOUT_RESEARCH); budget %s outside reads a pass (JOHARNESS_SCOUT_READS)\n\n' \
     "$(scout_research)" "$(num_knob JOHARNESS_SCOUT_READS)"
 }
 
@@ -3716,7 +3523,7 @@ clerk_walk() {
 }
 
 # Is a clerk due. CLERK_ROWS is read whatever the clock says: a clerk in
-# flight takes a slot and holds the scout either way.
+# flight takes a slot either way.
 CLERK_DUE=""
 CLERK_ROWS=""
 clerk_due() {
@@ -4974,7 +4781,6 @@ cmd_conf() {
     case "$k" in
       JOHARNESS_SCOUT_REVIEWER) val="$(scout_reviewer)" ;;
       JOHARNESS_SCOUT_RESEARCH) val="$(scout_research)" ;;
-      JOHARNESS_SCOUT_AUTOMERGE) val="$(scout_automerge)" ;;
     esac
     if [ "$scope" = base-conf ] && [ -n "$raw" ] && [ "$raw" != "$val" ] && [ "${src%% *}" != default ]; then
       src="${src}; value not accepted, read as ${val}"
@@ -5228,27 +5034,16 @@ cycle_repo_age_h() {
 
 # The COMMIT of the last curate that landed, empty when none has.
 cycle_landed_sha() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" kind="${1:-curate}" glob
-  case "$kind" in
-    scout)   glob="docs/handover/scout-[0-9]*" ;;
-    *)       glob="docs/handover/${kind}-*.md" ;;
-  esac
-  if [ "$kind" = scout ]; then
-    GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 \
-    git -C "$ROOT" log -1 --format=%H -m --diff-filter=D --full-history \
-      "refs/remotes/origin/${base_branch}" -- "$glob" \
-      </dev/null 2>/dev/null
-    return 0
-  fi
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}"
   git -C "$ROOT" log -1 --format=%H --diff-filter=D --full-history \
-    "refs/remotes/origin/${base_branch}" -- "$glob" \
+    "refs/remotes/origin/${base_branch}" -- "docs/handover/curate-*.md" \
     </dev/null 2>/dev/null
 }
 
 # When that curate LANDED, which is not when its retire was committed.
 cycle_landed_ts() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" kind="${1:-curate}" sha merge
-  sha="$(cycle_landed_sha "$kind")"
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" sha merge
+  sha="$(cycle_landed_sha)"
   [ -n "$sha" ] || return 0
   merge="$(git -C "$ROOT" rev-list --ancestry-path --first-parent \
     "${sha}..refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null | tail -1)"
@@ -5261,8 +5056,8 @@ cycle_landed_ts() {
 # Hours since the last curate landed, empty when none ever has — which is the
 # signal `dispatch_curate_due` reads to switch to the repository baseline above.
 cycle_age_h() {
-  local ts now kind="${1:-curate}"
-  ts="$(cycle_landed_ts "$kind")"
+  local ts now
+  ts="$(cycle_landed_ts)"
   [ -n "$ts" ] || return 0
   now="$(date +%s)"
   printf '%s' "$(( (now - ts) / 3600 ))"
@@ -6181,14 +5976,13 @@ cmd_dispatch() {
   local st wave note hold holdmap hold_live hline hb hs holds_n blocked_claims=""
   local ebranch eitem efirst estem espaces emore epath eage eagetext
   local edge_rows="" edge_items="" edge_unver=""
-  local n_inflight=0 n_slots n_free=0 n_stall=0 n_blocked=0 n_hold=0 n_wait=0 n_loop=0
+  local gh_head gh_base n_inflight=0 n_slots n_free=0 n_stall=0 n_blocked=0 n_hold=0 n_wait=0 n_loop=0
   local pending pending_used
   local n_edge=0 n_edge_stall=0 n_leftover=0 n_leftover_noitem=0
   local leftover_rows="" estate="" fleet_age stall_young=""
   local curate_due=0 curate_inflight="" n_curate_inflight=0 cdue cstate creason
   local jcands cjudge n_roles role_slots
-  local scout_due=0 scout_inflight="" n_scout=0 sdue sstate sreason sb sw ss scout_gate=0 srows
-  local scout_backlog=0
+  local scout_inflight="" n_scout=0 sstate sreason sb sw ss spend
   local clerk_due=0 clerk_inflight="" n_clerk=0 kdue kstate kreason kb kw ks
   local conduct_due=0 role_spawned=0 n_conduct=0 odue ostate oreason ob oa conduct_inflight=""
   local fetch_failed=0
@@ -6292,8 +6086,8 @@ cmd_dispatch() {
   elif [ "$kstate" = off ]; then
     printf 'clerk     : off — %s\n' "$kreason"
   else
-    # Counted whatever the clock reads: a clerk in flight holds a slot and
-    # the scout whether or not its cadence is due.
+    # Counted whatever the clock reads: a clerk in flight holds a slot
+    # whether or not its cadence is due.
     while IFS=$'\t' read -r kb kw ks; do
       [ -n "$kb" ] || continue
       n_clerk=$((n_clerk + 1))
@@ -6309,35 +6103,33 @@ cmd_dispatch() {
       printf 'clerk     : not due — %s\n' "$kreason"
     fi
   fi
-  # The third cycle, the same reader (scout_due) `scout` asks.
-  scout_due
-  sdue="$SCOUT_DUE"; srows="$SCOUT_ROWS"
-  sstate="${sdue%% *}"; sreason="${sdue#* }"
+  # The third cycle, the same reader (scout_state) `scout` asks. No clock:
+  # the orchestrator spawns on the reviewer's order or a waiting scout issue.
+  scout_state
+  sstate="${SCOUT_STATE%% *}"; sreason="${SCOUT_STATE#* }"
+  # Read here: `pending` is parsed further down. Not a number = none.
+  spend="${JOHARNESS_PENDING_SPAWNS:-0}"
+  case "$spend" in '' | *[!0-9]*) spend=0 ;; esac
+  spend="${spend#"${spend%%[!0]*}"}"
+  while IFS=$'\t' read -r sb sw ss; do
+    [ -n "$sb" ] || continue
+    n_scout=$((n_scout + 1))
+    scout_inflight="${scout_inflight}            ${sb}  ${sw}  ${ss}\n"
+  done < <(printf '%s\n' "$SCOUT_ROWS" | scout_branches)
   if [ "$sstate" = unreadable ]; then
-    printf 'scout     : UNREADABLE — %s\n' "$sreason"
+    printf 'scout     : UNREADABLE — %s: spawn none\n' "$sreason"
   elif [ "$sstate" = off ]; then
     printf 'scout     : off — %s\n' "$sreason"
-  elif [ "$sstate" = due ]; then
-    while IFS=$'\t' read -r sb sw ss; do
-      [ -n "$sb" ] || continue
-      n_scout=$((n_scout + 1))
-      scout_inflight="${scout_inflight}            ${sb}  ${sw}  ${ss}\n"
-    done < <(printf '%s\n' "$srows" | scout_branches)
-    if [ "$n_scout" -gt 0 ]; then
-      printf 'scout     : IN FLIGHT, so none is due. What made it due: %s\n' "$sreason"
-      printf '%b' "$scout_inflight"
-    else
-      scout_due=1
-      case "$sreason" in
-        backlog\ *)
-          scout_backlog=1
-          printf 'scout     : DUE by the backlog, not gated on DRAINED — %s\n' "$sreason" ;;
-        *)
-          printf 'scout     : DUE by the clock, spawned only at DRAINED — %s\n' "$sreason" ;;
-      esac
-    fi
+  elif [ "$n_scout" -gt 0 ]; then
+    printf 'scout     : IN FLIGHT — spawn none\n%b' "$scout_inflight"
+  elif [ "$cap" -eq 0 ]; then
+    printf 'scout     : held — JOHARNESS_MAX_MANAGERS=0 is the human'"'"'s pause: spawn none\n'
+  elif [ -n "$spend" ]; then
+    printf 'scout     : held — %s spawned this pass has not pushed (JOHARNESS_PENDING_SPAWNS), and it may be a scout: spawn none this pass\n' "$spend"
+  elif [ "$fetch_failed" -eq 1 ]; then
+    printf 'scout     : held — no fresh view of every branch this pass (fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*), so a scout in flight might not show: spawn none this pass\n'
   else
-    printf 'scout     : not due — %s\n' "$sreason"
+    printf 'scout     : none in flight — on the reviewer'"'"'s order or a scout issue waiting on the scout (orchestrate.md) spawn ONE (agent: fable) on /scout, beyond the cap\n'
   fi
   # The fourth cycle, the same reader (conduct_due) `conduct` asks.
   conduct_due
@@ -6571,7 +6363,17 @@ cmd_dispatch() {
       [ "$holds_n" -eq 0 ] ||
         flag="${flag}  holds ${holds_n} plan(s) out of the queue"
     fi
-    inflight="${inflight}  ${path}  ${branch}  ${status:-?}  pushed ${agetext}${flag}"$'\n'
+    # The git half of "did this land": the head read, and whether a merge-base
+    # with the base ref exists at all (a shallow clone or an unrelated branch
+    # has none, and that is its own value, never "no").
+    gh_head="$(git -C "$ROOT" rev-parse --short=12 "refs/remotes/origin/${branch}" </dev/null 2>/dev/null)"
+    if git -C "$ROOT" merge-base "refs/remotes/origin/${branch}" \
+      "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" </dev/null >/dev/null 2>&1; then
+      gh_base="ok"
+    else
+      gh_base="unreadable"
+    fi
+    inflight="${inflight}  ${path}  ${branch}  ${status:-?}  pushed ${agetext}  head ${gh_head:-?}  base ${gh_base}${flag}"$'\n'
     [ -z "$work" ] || inflight="${inflight}${work}"$'\n'
     [ -z "$session" ] || inflight="${inflight}    session: ${session}"$'\n'
     [ -z "$next" ] || inflight="${inflight}    next: ${next}"$'\n'
@@ -6882,9 +6684,6 @@ cmd_dispatch() {
     printf 'verdict   : DRAINED — nothing free, nothing in flight in the git view; %s spawned this pass has not pushed (JOHARNESS_PENDING_SPAWNS): keep the health pass going, never exit on a manager this view cannot see\n' \
       "$pending"
   else
-    # The one verdict a scout may spawn under: nothing free, nothing in flight,
-    # nothing pending.
-    [ "$n_inflight" -ne 0 ] || scout_gate=1
     # A curate or clerk spawn line follows below when it is due AND has a slot
     # (same arithmetic as role_slots): the verdict must not say exit then.
     local due_slots="$n_slots" role_will_spawn=0
@@ -6932,29 +6731,6 @@ cmd_dispatch() {
   elif [ "$clerk_due" -eq 1 ]; then
     role_spawned=1
     printf '            clerk DUE: spawn ONE clerk (agent: sonnet) on /clerk — takes one slot (roles share JOHARNESS_MAX_MANAGERS), at most one in flight. It turns open issues into plans and merges that plan-only pull request itself (JOHARNESS_CLERK_HOURS, JOHARNESS_CLERK_BATCH)\n'
-  fi
-  # The backlog trigger bypasses the DRAINED gate and nothing else: the
-  # human's pause still holds it, and so does a spawn this pass cannot see
-  # (JOHARNESS_PENDING_SPAWNS): the clock waits on both through DRAINED.
-  [ "$scout_backlog" -eq 0 ] || [ "$pending" != 0 ] || scout_gate=1
-  if [ "$scout_due" -eq 1 ] && [ "$scout_backlog" -eq 1 ] && [ "$cap" -eq 0 ]; then
-    printf '            scout due, held — JOHARNESS_MAX_MANAGERS=0 is the human'"'"'s pause: spawn none\n'
-  elif [ "$scout_due" -eq 1 ] && [ "$scout_backlog" -eq 1 ] && [ "$pending" != 0 ]; then
-    printf '            scout due, held — %s spawned this pass has not pushed (JOHARNESS_PENDING_SPAWNS), and it may be a scout: spawn none this pass\n' "$pending"
-  elif [ "$scout_due" -eq 1 ] && [ "$fetch_failed" -eq 1 ]; then
-    printf '            scout due, held — no fresh view of every branch this pass (fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*), so a scout in flight might not show: spawn none this pass\n'
-  elif [ "$scout_due" -eq 1 ] && [ "$scout_gate" -eq 1 ] &&
-     [ "$curate_due" -ne 1 ] && [ "$clerk_due" -eq 0 ] &&
-     [ "$n_curate_inflight" -eq 0 ] && [ "$n_clerk" -eq 0 ]; then
-    if [ "$scout_backlog" -eq 1 ]; then
-      printf '            scout DUE: spawn ONE scout (agent: fable) on /scout — backlog low (JOHARNESS_SCOUT_BACKLOG), beyond the cap, holds no slot, at most one in flight. It proposes on issues; a reviewer approves (JOHARNESS_SCOUT_REVIEWER)\n'
-    else
-      printf '            scout DUE: spawn ONE scout (agent: fable) on /scout — beyond the cap, holds no slot, at most one in flight, only at DRAINED. It proposes on issues; a reviewer approves (JOHARNESS_SCOUT_REVIEWER, JOHARNESS_SCOUT_HOURS)\n'
-    fi
-  elif [ "$scout_due" -eq 1 ] && [ "$scout_gate" -eq 1 ]; then
-    printf '            scout due, suppressed — a curate or clerk goes first: spawn none this pass\n'
-  elif [ "$scout_due" -eq 1 ]; then
-    printf '            scout due, suppressed — not DRAINED with nothing in flight: spawn none this pass\n'
   fi
   # Not gated on DRAINED: sampling merged work competes with nothing.
   if [ "$conduct_due" -eq 1 ] && [ "$cap" -eq 0 ]; then

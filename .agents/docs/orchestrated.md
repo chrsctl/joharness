@@ -24,7 +24,7 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | `./joharness.sh janitor` + `janitor :` line | Claims whose session is gone. Mechanical: `./joharness.sh janitor --apply` writes `status: abandoned` into the claim's own file — only where the session is ARCHIVED or not found, never a claim with `pr:` — and deletes nothing. No session, no pull request. Listed only when stale claims exist; the caller proves each session gone and passes the branches: `janitor --apply <branch>...`. |
 | `./joharness.sh clerk` + `clerk :` line | Open issues become plans only through the clerk (`dispatch` reads `docs/plans/` only). Clock-driven, batch `JOHARNESS_CLERK_BATCH`, dated from git: the last `clerk-<digit>…` merge on the base's first parent (GitHub's default merge subject), or a newer `clerk-noop-<stamp>` branch. An unmerged `clerk-<digit>…` branch younger than `JOHARNESS_CLERK_STALE_HOURS` is in flight and takes a slot, due or not. Orthogonal to the verdict. |
 | `./joharness.sh analysis` | One unmerged branch's condition (BLOCKED / STALL? / LOOP?) beside the base branch's current conf. Read by hand; spawns nothing. |
-| `./joharness.sh scout` + `scout :` line | GATED on DRAINED by the clock; the backlog trigger (`JOHARNESS_SCOUT_BACKLOG`) is not. Clock (`JOHARNESS_SCOUT_HOURS`): new work competes with real work, so it waits for `DRAINED — nothing free, nothing in flight`. Backlog: fewer open plans on the base branch than N, a `docs/product/SCOUT.md` brief there, and 24h (a written number) since the last scout finished; held by `JOHARNESS_MAX_MANAGERS=0`. The report prints every conf value a pass reads: backlog, throughput, brief, reviewer, research and budget. Every misread fails closed — holds the cycle, never spawns a second scout. |
+| `./joharness.sh scout` + `scout :` line | No clock, no backlog trigger, no DRAINED gate. A pass runs on the reviewer's order (`/scout` typed by a human, or the orchestrator's `+human` extra session) or on a `scout` issue waiting on the scout, which the orchestrator reads on GitHub (`.claude/commands/orchestrate.md`): `joharness.sh` stays git-only: `scout` prints `off` (empty `JOHARNESS_SCOUT_REVIEWER`, or no `docs/product/SCOUT.md` brief on the base branch), `IN FLIGHT` or `none in flight`; dispatch adds `held` (stale view, a pending spawn, `JOHARNESS_MAX_MANAGERS=0`). The report prints every conf value a pass reads: brief, reviewer, research and budget. Every misread fails closed — never spawns a second scout. |
 | `./joharness.sh conduct` + `conduct :` line | A sample of retired managers' own artifacts, read for how the item was worked, never the diff. Clock-driven (`JOHARNESS_CONDUCT_HOURS`), dated from the ledger `docs/conduct-log.md`; the command prints the sample and the ledger tally. NOT gated on DRAINED; suppressed while a curate or clerk spawns this pass or is in flight (one held for a slot does not hold it: the reviewer needs none). Every misread fails closed. |
 | `.claude/commands/*.md` | The roles, as commands. |
 
@@ -38,7 +38,7 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | curator | sonnet | a session, on `curate DUE` with proposals to make | nothing | decompose/order proposals for ONE pass, changing no plan | its pull request merges |
 | surveyor | sonnet | a session, on the `OVERLAP-BOUND` verdict | nothing (declarations, not code) | the held plans' and holders' `scope:` lines for one holder key | its pull request merges, or `done` with nothing to change |
 | clerk | sonnet, opus verifier | a session, on the `clerk DUE` tail line | nothing | one plan-only pull request, no workstream file; never closes or opens an issue, never writes code, never a core-path-only plan, never plans a scout issue without the reviewer's `approved` comment newer than the scout's newest footed `scout:` comment | its pull request merges, no plan to write (pushes `clerk-noop-<UTC stamp>` at `origin/main`), or `TWIN: deferred` |
-| scout | fable | a session, on `scout DUE: spawn` — by the clock only under `DRAINED — nothing free, nothing in flight`, by the backlog under any verdict but `PAUSED` | nothing | proposal issues on this repository, typed Feature, labelled scout; a research request's answer | its claim retires: NO BRIEF, NOTHING TO PROPOSE, or the pass's issues filed |
+| scout | fable | a session, on the reviewer's order or a `scout` issue waiting on the scout, while `scout :` reads `none in flight` | nothing | proposal issues on this repository, typed Feature, labelled scout; a research request's answer | its claim retires: NOTHING TO PROPOSE, or the pass's issues filed and replies posted |
 | conduct | sonnet | a session on `conduct DUE`, beyond the cap | nothing | one pull request appending ledger rows to `docs/conduct-log.md`, no workstream file; never acts on a CONCERN | its pull request merges, or `TWIN: deferred` |
 
 Managers and role sessions (curator, surveyor, clerk) count against
@@ -374,13 +374,11 @@ or retired, at a tip; it carries `held Nd` from that commit.
 | `JOHARNESS_CLERK_HOURS` | 24 | hours between clerk passes over the open issues; 0 = off | written number |
 | `JOHARNESS_CLERK_BATCH` | 3 | open issues one clerk pass takes at most | written number |
 | `JOHARNESS_CLERK_STALE_HOURS` | 24 | an unmerged clerk branch older than this holds nothing; 0 = every one holds | written number |
-| `JOHARNESS_SCOUT_HOURS` | 168 | hours between scouts, only at DRAINED; 0 = off | written number |
-| `JOHARNESS_SCOUT_AUTOMERGE` | off | governs nothing: a scout proposes on issues and opens no pull request; exactly `on` was its self-merge | a switch: money and product direction in one conf line |
-| `JOHARNESS_SCOUT_BACKLOG` | 24 | open plans (plus open scout proposal issues, counted by the scout) below this = a scout is due, not gated on DRAINED, at most one a 24h (written number); 0 = clock only, no ceiling; `JOHARNESS_SCOUT_HOURS=0` switches both triggers off | counted: 3 days x 8 merges/day, `git log --merges --first-parent --since=14.days --format=%h origin/main \| wc -l` = 118, 2026-10-12 |
 | `JOHARNESS_SCOUT_READS` | 12 | outside reads one scout pass makes before it stops researching | counted by the scout in its claim's `## Decisions` |
 | `JOHARNESS_SCOUT_REVIEWER` | empty | GitHub login whose approved comment gates a scout proposal issue; read from the base branch's conf; empty = nothing can be approved | a name the human gives |
+
 | `JOHARNESS_SCOUT_RESEARCH` | off | exactly `on` lets a scout pass read outside the repository; read from the base branch's conf | a switch: money in one conf line |
-| `JOHARNESS_CONDUCT_HOURS` | 168 | hours since the ledger last landed before a conduct reviewer is due; 0 = off. An unmerged branch named `conduct-<digit>...` (any prefix) unpushed for a seventh of it, at least 24h, is read as closed by a human | written number: weekly, as the scout; issue #251 has no baseline, the tally builds one |
+| `JOHARNESS_CONDUCT_HOURS` | 168 | hours since the ledger last landed before a conduct reviewer is due; 0 = off. An unmerged branch named `conduct-<digit>...` (any prefix) unpushed for a seventh of it, at least 24h, is read as closed by a human | written number: weekly; issue #251 has no baseline, the tally builds one |
 | `JOHARNESS_CONDUCT_SAMPLE` | 3 | retired branches one run samples, lowest `sha1(<stem>)` first; 0 = off | written number: few enough that one sonnet pass reads each whole |
 
 `./joharness.sh conf` prints every knob the script reads with its live value
@@ -433,8 +431,7 @@ the session is ARCHIVED or not found, never on push age, never a claim with
 `pr:`, and it deletes nothing. The clerk turns EXISTING issues into plans and
 nothing else. The scout proposes on issues and opens no pull request; the
 reviewer's `approved` comment is the gate (`.claude/commands/clerk.md`), and
-closing the issue declines it. `JOHARNESS_SCOUT_AUTOMERGE` is unchanged and
-governs nothing: no scout pull request exists to merge.
+closing the issue declines it.
 
 `joharness.conf` is a core path: a session that may raise its own cap decides
 money. `./joharness.sh env <name>` writes it too, so switching layers is a
@@ -529,7 +526,7 @@ must the scheduler be a session that can freeze with the fleet — is settled
 in `e120a794`: firing and delivery are separate, and a
 `create_new_session_on_fire` Routine creates its target at firing, so
 nothing can be gone. The fresh session it starts is an orchestrator pass;
-that pass reads `dispatch`, and `conduct DUE` rides it like `scout DUE`.
+that pass reads `dispatch`, and `conduct DUE` rides it.
 
 ## Not constrained, by decision
 
