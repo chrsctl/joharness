@@ -35,17 +35,31 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | orchestrator | low, mechanical on purpose | a session; the heartbeat fires one | manager sessions (`create_session`) | the cap, the health pass, the kill handover | dispatch says DRAINED with nothing in flight |
 | manager | the item's `agent:`; fable at xhigh for an unplanned requirement | a session with its own branch, claim and merge | worker subagents (`Agent`) | one item, until its file retires | its pull request merges, or it blocks on a human |
 | worker | at or below the plan's tier, lower by default | a subagent in the manager's container | nothing | the files its sub-task names | it returns |
-| curator | sonnet | a session, on `curate DUE` with proposals to make | nothing | decompose/order proposals for ONE pass, changing no plan | its pull request merges |
+| curator | sonnet | a session, on `curate DUE` with proposals to make; prelude `./joharness.sh role curate` | nothing | decompose/order proposals for ONE pass, changing no plan | its pull request merges |
 | surveyor | sonnet | a session, on the `OVERLAP-BOUND` verdict | nothing (declarations, not code) | the held plans' and holders' `scope:` lines for one holder key | its pull request merges, or `done` with nothing to change |
-| clerk | sonnet, opus verifier | a session, on the `clerk DUE` tail line | nothing | one plan-only pull request, no workstream file; never closes or opens an issue, never writes code, never a core-path-only plan, never plans a scout issue without the reviewer's `approved` comment newer than the scout's newest footed `scout:` comment | its pull request merges, no plan to write (pushes `clerk-noop-<UTC stamp>` at `origin/main`), or `TWIN: deferred` |
-| scout | fable | a session, on the reviewer's order or a `scout` issue waiting on the scout, while `scout :` reads `none in flight` | nothing | proposal issues on this repository, typed Feature, labelled scout; a research request's answer | its claim retires: NOTHING TO PROPOSE, or the pass's issues filed and replies posted |
-| conduct | sonnet | a session on `conduct DUE`, beyond the cap | nothing | one pull request appending ledger rows to `docs/conduct-log.md`, no workstream file; never acts on a CONCERN | its pull request merges, or `TWIN: deferred` |
+| clerk | sonnet, opus verifier | a session, on the `clerk DUE` tail line; prelude `./joharness.sh role clerk` | nothing | one plan-only pull request, no workstream file; never closes or opens an issue, never writes code, never a core-path-only plan, never plans a scout issue without the reviewer's `approved` comment newer than the scout's newest footed `scout:` comment | its pull request merges, no plan to write (pushes `clerk-noop-<UTC stamp>` at `origin/main`), or `TWIN: deferred` |
+| scout | fable | a session, on the reviewer's order or a `scout` issue waiting on the scout, while `scout :` reads `none in flight`; prelude `./joharness.sh role scout` | nothing | proposal issues on this repository, typed Feature, labelled scout; a research request's answer | its claim retires: NOTHING TO PROPOSE, or the pass's issues filed and replies posted |
+| conduct | sonnet | a session on `conduct DUE`, beyond the cap; prelude `./joharness.sh role conduct` | nothing | one pull request appending ledger rows to `docs/conduct-log.md`, no workstream file; never acts on a CONCERN | its pull request merges, or `TWIN: deferred` |
 
 Managers and role sessions (curator, surveyor, clerk) count against
 `JOHARNESS_MAX_MANAGERS` together. The scout and the conduct reviewer do
 not: each runs as one session beyond the cap, at most one in flight, and
 each run is the owner's money. A role command that says nothing to do
 spawns nothing.
+
+### The role prelude is a command
+
+Counted 2026-10-13 on `origin/main`: `authority` on 11 lines in 8 command
+files, the twin check written out in 3 roles, `fetch --prune` in 5 files;
+gx's copy of `scout.md` that day carried 14 lines matching `grep -c -i -E
+'= stop|stop,|stop and|and exit|= retire|exit\.|exit:'` and 10 `Never`
+bullets. Prelude prose is where that week's two harness defects sat (#459,
+#460). So the clerk, scout, curator and conduct reviewer open with
+`./joharness.sh role <name>`: authority, the pruned fetch, the role's own
+report and its plain exits, the branch under the role's name, the claim
+file where the role writes one; `--twin` and `--retire` after. It prints
+`GO <branch>` or `STOP: <reason>` last; the command file keeps only the
+judgement. Selftest: `.agents/harness/selftest/role.sh`.
 
 ### Scout, read on gx
 

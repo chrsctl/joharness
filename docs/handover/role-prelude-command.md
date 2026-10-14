@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_014WnbFzA7gTeyhacD1ne3ez
 agent: opus
 updated: 2026-10-14
-next: Rewrite clerk/scout/curate/conduct.md §0-§1 to call ./joharness.sh role; orchestrated.md Roles table
+next: ci + verify green, then verifier review at opus, then finish
 ---
 
 ## Goal

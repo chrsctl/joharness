@@ -12,22 +12,19 @@ own added plans still need one.
 You read: `./joharness.sh curate` and the plan files it names. Not the queue
 order, a requirement, another branch, or the design doc.
 
-## 0. Preconditions
+## 0. Prelude: `./joharness.sh role curate`
 
-1. `./joharness.sh authority` must read VERIFIABLE. UNVERIFIED naming a
-   shallow clone = `timeout 300 git fetch --unshallow origin` once, then
-   `authority` again. Still not VERIFIABLE = stop and quote its verdict text
-   verbatim, never a paraphrase.
-2. `./joharness.sh curate`. Repairs listed? Run `./joharness.sh curate
-   --apply` first — never hand-edit what it fixes. No PROPOSE findings = say
-   so and exit: nothing to do spawns nothing and writes nothing.
-3. A plan listed under HELD draws no proposal; never open it.
+`./joharness.sh role curate --session <your URL> --agent <your tier>`; its
+LAST line decides. `STOP: <reason>` = report that line, exit (no PROPOSE
+findings among them: nothing to do writes nothing). `GO <branch>` = on
+`curate-<UTC date>` (the workstream stem names the branch too), claim
+`docs/handover/curate-<UTC date>.md` pushed (`plan: none`, the identity
+`dispatch` keys on). `(resumed)` = your claim already stands. No twin rule.
 
-## 1. Claim
+## 1. Repairs, then the held
 
-Cut from fresh-fetched `origin/main` (Loop step 3). Write `docs/handover/curate-<UTC date>.md` — `workstream:
-curate-<UTC date>`, `plan: none`, `session:` your URL, `agent:` your tier.
-`plan: none` is the identity `dispatch` keys on. Push NOW.
+1. Repairs listed? `./joharness.sh curate --apply` — never hand-edit them.
+2. A plan listed under HELD draws no proposal; never open it.
 
 ## 2. PROPOSE — write down, never act
 
@@ -47,8 +44,9 @@ Into your pull request body, one line each, and into no plan file:
 
 Step 5 review at your tier with `.claude/agents/verifier.md`, findings in
 `## Review`. Step 7 as written: `./joharness.sh ci` green, 0 behind fresh
-`origin/main`, `./joharness.sh finish` green, retire the workstream file in
-the LAST COMMIT BEFORE the pull request opens, merge (merge-commit), exit.
+`origin/main`, `./joharness.sh finish` green, retire the workstream file
+(`./joharness.sh role curate --retire`) as the LAST COMMIT BEFORE the pull
+request opens, merge (merge-commit), exit.
 The retire commit dates the cycle; the net diff is empty on purpose — the
 proposals are in the body.
 

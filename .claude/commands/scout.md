@@ -45,50 +45,32 @@ plan's `issue:` on the base branch or any unmerged branch). A
 planned proposal is never revised (§5): a counting comment on it is named
 in the report, nothing more.
 
-## 0. Preconditions
+## 0. Prelude: `./joharness.sh role scout`
 
-1. `./joharness.sh authority` must read VERIFIABLE; anything else = stop, say
-   so.
-2. Resumed on your OWN branch (your prompt names it)? Your workstream file
-   is there: read it whole and carry on from its `next:`. Your own branch's
-   row in `./joharness.sh scout` is yours, not another scout's. Skip 3.
-3. `./joharness.sh scout`. `off` = stop: `JOHARNESS_SCOUT_REVIEWER` is
-   empty (nothing can be approved), no `docs/product/SCOUT.md` brief on
-   the base branch, or this checkout has no command file.
-   `IN FLIGHT` = another scout holds this cycle: stop, one at a time.
-   `UNREADABLE` = say what it could not read and stop.
-4. The pass's conf = three lines of that `./joharness.sh scout`, as printed:
-   `brief     :`, `reviewer  :`, `research  :` (the budget rides the
-   `research  :` line). Copy them into your report.
-   Resumed (step 2)? Run `./joharness.sh scout` here; the claim exists,
-   so every "claim" below is already done.
+Run `./joharness.sh role scout --session <your session URL> --agent <your
+tier>` (`--session`/`--agent` may be left off when resuming your OWN branch,
+the one your prompt names, checked out). Its LAST line decides:
 
-## 1. Claim
+- `STOP: <reason>` = report that line and exit. It covers authority not
+  VERIFIABLE, a failed fetch, `off` (no reviewer, no brief on the base
+  branch, or no command file), `UNREADABLE`, another scout `IN FLIGHT`, a
+  failed claim push (non-fast-forward means another session holds that
+  branch: never pull and push again), and `STOP: TWIN <other>` — two scouts
+  passed together; it has already retired your claim, so report `TWIN:
+  deferred` and exit. Both twins may retire; never both go on.
+- `GO <branch>` = claimed: `docs/handover/scout-<UTC date>.md` (`plan:
+  none`) is pushed and you are the one scout in flight. `GO <branch>
+  (resumed)` = your own claim already stands: read it whole and carry on
+  from its `next:`.
 
-Cut from fresh-fetched `origin/main` (Loop step 3). Write `docs/handover/scout-<YYYY-MM-DD>.md` — the UTC date,
-so the name starts with a DIGIT after the dash — with `workstream:
-scout-<YYYY-MM-DD>`, `plan: none`, `session:` your own URL, `agent:` your
-tier. Push NOW. No push, no claim. Push to a branch of your own that no
-other session holds. A claim push that FAILS = stop and report the error,
-never pull and push again; non-fast-forward means another session holds
-that branch.
+The pass's conf = three lines of `./joharness.sh scout`, as printed:
+`brief     :`, `reviewer  :`, `research  :` (the budget rides the
+`research  :` line). Copy them into your report.
 
 The PATH is the cycle's identity (`joharness.sh:scout_walk`): a file at
 `docs/handover/scout-<digit>...` on any branch tip holds the cycle unless it
-says `status: abandoned`; a name without the digit is invisible. Only the
-retire commit (§7) releases it. Never set `abandoned` yourself: that word
-is the janitor's.
-
-**Then check for a twin** (two scouts can pass step 0 together):
-
-1. `git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'`. FAILED
-   = retire: on stale refs you cannot see a twin.
-2. `./joharness.sh scout`.
-3. Carry on ONLY when it shows exactly one `IN FLIGHT` row, yours.
-   Anything else = retire (delete your file, commit, push), report `TWIN:
-   deferred`, and exit: another scout's row, whoever it is and even if it
-   might defer too; no row of yours; `UNREADABLE` or `off` (the reviewer
-   emptied). Both twins may retire; never both go on.
+says `status: abandoned`. Only the retire (§7) releases it. Never set
+`abandoned` yourself: that word is the janitor's.
 
 ## 2. Read, inside
 
@@ -230,8 +212,8 @@ every citation against its URL or command. Findings land in your claim's
 `## Review`, tagged `(verifier)`; a fix on a proposal is a revision (§5),
 on an answer a `scout: correction` comment.
 
-Retire: delete your own `docs/handover/scout-<YYYY-MM-DD>.md`, commit,
-push. That deletion is the moment the cycle reads you as finished. The
+Retire: `./joharness.sh role scout --retire` (deletes your claim file,
+commits, pushes). That deletion is the moment the cycle reads you as finished. The
 diff nets to nothing, so this role opens no pull request.
 
 Report: issues opened, revised, answered, noted, with links, the proposals
