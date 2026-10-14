@@ -5946,7 +5946,10 @@ lint_plans_in_diff() {
 }
 
 # Branches carrying a `<prefix><key>` claim (default `rescope-`) with
-# `plan: none`, one row each: <branch> <key> <status> <session> <next> <pr>.
+# `plan: none`, one row each: <branch> <key> <status> <pr> <session> <next>.
+# Tab is IFS whitespace, so `read` collapses an empty field: <pr> rides before
+# the optional ones and is never empty (`none` for none of `''`, `none`,
+# `NONE`, the hook's pr_num).
 dispatch_rescope_branches() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" pre="${1:-rescope-}"
   local refs r name base wf files doc rws rkey rstat rsess rnext rpr
@@ -5971,8 +5974,10 @@ dispatch_rescope_branches() {
       case "$rws" in "$pre"*) ;; *) continue ;; esac
       # `plan: none` is the identity: a rescope (or free) branch claims no plan.
       [ "$rkey" = none ] || continue
+      rpr="${rpr#\#}"
+      case "$rpr" in '' | none | NONE) rpr=none ;; esac
       printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
-        "$name" "${rws#"$pre"}" "${rstat:-?}" "${rsess:-}" "${rnext:-}" "${rpr:-}"
+        "$name" "${rws#"$pre"}" "${rstat:-?}" "$rpr" "${rsess:-}" "${rnext:-}"
     done <<<"$files"
   done <<<"$refs"
 }
@@ -6777,7 +6782,7 @@ cmd_dispatch() {
   done <<<"$rows"
 
   # A `free <branch>` manager claims no queue item: its own row, its own slot.
-  while IFS=$'\t' read -r rb rk rstat rsess rnext _; do
+  while IFS=$'\t' read -r rb rk rstat _ rsess rnext; do
     [ -n "$rb" ] || continue
     case "$rstat" in
       in-progress | blocked | review | done | abandoned) ;;
@@ -6963,18 +6968,16 @@ cmd_dispatch() {
       sed 's/^\([0-9][0-9]*\)\t\(.*\)/    \2  (\1 held)/')"
     # ONE pass, fed by process substitution rather than a "$(...)" capture read
     # back through a "<<<" here-string.
-    while IFS=$'\t' read -r rb rk rstat rsess rnext rpr; do
+    while IFS=$'\t' read -r rb rk rstat rpr rsess rnext; do
       [ -n "$rb" ] || continue
       rage="$(dispatch_age_text "$(dispatch_age_min "$rb" </dev/null)")"
-      # A FINISHED rescope: `done` with no `pr:` (`plan: none` and the
+      # A FINISHED rescope: `done`, no `pr:`, a key (`plan: none` and the
       # `rescope-` prefix are the reader's own filter) — manage.md's genuine
-      # end, which merges nothing. The hook ranks it the same way (rank 6);
-      # the orchestrator drops its ledger entry on this text (issue #492).
+      # end, which merges nothing. The hook's finished_rescope, rank 6; the
+      # orchestrator drops its ledger entry on this text (issue #492).
       rfin=""
-      case "${rpr#\#}" in
-        '' | none | NONE) [ "$rstat" != "done" ] ||
-          rfin="  done: finished rescope, holds no slot — never nudge" ;;
-      esac
+      [ "$rstat" != "done" ] || [ "$rpr" != none ] || [ -z "$rk" ] ||
+        rfin="  done: finished rescope, holds no slot — never nudge"
       rescope_inflight="${rescope_inflight}    ${rb}  rescope-${rk}  ${rstat}  pushed ${rage}${rfin}"$'\n'
       [ -z "$rsess" ] || rescope_inflight="${rescope_inflight}      session: ${rsess}"$'\n'
       [ -z "$rnext" ] || rescope_inflight="${rescope_inflight}      next: ${rnext}"$'\n'

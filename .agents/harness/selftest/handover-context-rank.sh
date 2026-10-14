@@ -218,6 +218,8 @@ fsbranch rs-live  rescope-l   none  in-progress ""   "2026-01-02T00:00:00Z"
 fsbranch rs-pr    rescope-m   none  "done"      12   "2026-01-03T00:00:00Z"
 # One condition short: a plan of its own makes it a plan claim, still edge.
 fsbranch rs-plan  rescope-n   some  "done"      ""   "2026-01-04T00:00:00Z"
+# And the prefix: a done `free-` claim (plan: none, no pr) is not a rescope.
+fsbranch rs-free  free-o      none  "done"      ""   "2026-01-05T00:00:00Z"
 git -C "$fswork" checkout -q main
 
 fsout="$(CLAUDE_PROJECT_DIR="$fswork" HANDOVER_FETCH=0 \
@@ -246,7 +248,9 @@ expect "and it is the one that leads" \
   "FINISH BEFORE STARTING: origin/rs-pr (docs/handover/rescope-m.md)" "$fsout"
 expect "a done rescope claiming a plan is still edge work" \
   "EDGE: status done, unmerged" "$(fsblock rs-plan)"
+expect "a done free claim is still edge work: the prefix is a condition" \
+  "EDGE: status done, unmerged" "$(fsblock rs-free)"
 fsorder="$(printf '%s\n' "$fsout" |
   sed -n 's|^  origin/\([a-z-]*\): docs/handover/.*|\1|p' | paste -sd, -)"
 expect "the finished rescope ranks last, below live work" \
-  "rs-pr,rs-plan,rs-live,rs-fin" "$fsorder"
+  "rs-pr,rs-plan,rs-free,rs-live,rs-fin" "$fsorder"
