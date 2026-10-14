@@ -7,7 +7,8 @@ Moved here 2026-10-14; `git log -p` of both files recovers every sentence.
 
 ## Settings report, 2026-09-04
 
-That second case is the steady state this stage is aimed at, so a repo
+Sync with the harness already current, report only in the Actions log: that
+case is the steady state this stage is aimed at, so a repo
 waiting to be told in a pull request will wait a long time.
 
 ## Name no consumer, 2026-09-16
@@ -33,7 +34,7 @@ to match would enumerate an operator's repositories, which is their call.
 
 ## Reconfigure, 2026-09-05
 
-That is why it is allowed where a
+`--reconfigure` runs no sync, seeding or purge. That is why it is allowed where a
 re-bootstrap is refused — the refusal exists to keep whole-clone mode's purge
 away from a consumer's live plans and handover, and this run has no purge.
 
@@ -54,7 +55,7 @@ written number and a shared registry every writer would collide on.
 
 ## Bot-owned sync branch, 2026-08-25
 
-Merging the
+`joharness-update` is rebuilt every run. Merging the
 default branch into it by hand works and fights the design — it survives
 only until the Monday cron, and a sync pull request left open over a weekend
 loses the merge silently.

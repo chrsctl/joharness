@@ -7,6 +7,8 @@ Moved here 2026-10-14; `git log -p` of both files recovers every sentence.
 
 ## Store only what cannot be derived, 2026-10-10
 
+Section "Why not the alternatives", moved whole:
+
 Auto memory (machine-local, empty in a fresh container); one shared
 `HANDOVER.md` (conflicts on every parallel branch); uncommitted files (gone
 with the container); an issue as ledger (drifts from the diff); a subagent
@@ -28,14 +30,14 @@ state.
 
 ## Review order not gated, 2026-10-10
 
-git records what landed in a
+The ORDER (finding before fix) is not gated: git records what landed in a
 commit, not the order it was typed, and a backtest found 2 violations in 535
 findings at the cost of flagging four honest branches. The cue stays a
 human's.
 
 ## In-flight tie order, 2026-08-29
 
-the inverse of the ref
+Ties break oldest push first, the inverse of the ref
 order this replaced. Within one rank the oldest push is the entry closest to
 abandoned, and an abandoned branch at the edge reads as in-flight until a
 human triages it ([`../product/README.md`](../product/README.md), Branch flow).
@@ -72,21 +74,21 @@ catches.
 A compaction summary keeps the task state and
 drops the "old" compliance preamble — 0% to 30% violation across 7 models,
 8.3x worse for soft organisational policy than for hard safety norms (arXiv
-2606.22528). The Loop is soft policy.
+2606.22528).
 
 ## Claiming an issue, 2026-08-29
 
-(two sessions once solved one issue in parallel
-because the link lived only in prose)
+`issue:` exists because two sessions once solved one issue in parallel
+because the link lived only in prose.
 
 A padded `#0114` renders fine and still gets duplicated, because a reader
 scanning for `#114` does not match it.
 
-So a
+Hook silent, `ci` red, so a
 malformed claim is loud to its author and invisible to everyone else,
 which is the right way round but worth knowing.
 
-It reads
+The hook reads
 refs and nothing else, in every consumer; one that needed a token to
 answer would fail closed exactly where it matters most.
 
@@ -99,10 +101,6 @@ rejected approach that graduated.
 A rule's story
 in `AGENTS.md` is paid by every session that never touches it (one
 consumer's `AGENTS.md` reached 93 KB this way).
-
-"None on `main`" needs no field, so it is checkable — a rule that depends on
-a leaving session setting a field correctly fails exactly when someone
-hurries.
 
 ## Placement, 2026-08-21
 

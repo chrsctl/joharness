@@ -269,8 +269,9 @@ Two sessions, same workstream = rare failure. Common one: two sessions,
 different workstreams, same files — nobody notices until second PR conflicts.
 Hook intersects each other branch's changed paths with yours, including
 uncommitted, prints `TOUCHES THE SAME FILES AS THIS BRANCH`. Merge conflict
-announcing itself while still cheap. No lock
-(why: history/handover.md § Overlap warning instead of a lock, 2026-10-10).
+announcing itself while still cheap. A lock is deliberately **not**
+implemented (why: history/handover.md § Overlap warning instead of a lock,
+2026-10-10).
 
 ### Coverage, and what is still not solved
 
@@ -298,9 +299,10 @@ problem — subscribe to PR, stay in one session. Handover documents = the
 ## Compaction: task state survives, the rules decay
 
 The workstream file is memory ACROSS sessions; compaction is what one
-session loses WITHIN itself
-(why: history/handover.md § Compaction re-read, 2026-08-29). So after a
-compaction the half lost is the Loop and the core-path boundary, not the
+session loses WITHIN itself. A compaction summary keeps the task state and
+drops the "old" compliance preamble
+(why: history/handover.md § Compaction re-read, 2026-08-29). The Loop is soft
+policy. So after a compaction the half lost is the Loop and the core-path boundary, not the
 task: re-read
 `.agents/harness/AGENTS.md` and the role command, not only the workstream
 file. The hook re-injects that pointer on a compact start.
@@ -383,6 +385,9 @@ the BRANCH is the human's.
 
 Deleting the file deletes the findings with it; `./joharness.sh feedback`
 reads them back out of merge history ([`../feedback.md`](../feedback.md)).
+"None on `main`" needs no field, so it is checkable — a rule that depends on
+a leaving session setting a field correctly fails exactly when someone
+hurries.
 
 ## How a session finds this without being told
 

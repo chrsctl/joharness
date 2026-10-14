@@ -12,7 +12,7 @@
 # and every pointer naming a heading its history file carries.
 #
 # Bounds are counted, not estimated: `wc -c` on the split commit,
-# 2026-10-14 — handover/README.md 18677, consumer-repos.md 24986 (on
+# 2026-10-14 — handover/README.md 18979, consumer-repos.md 24986 (on
 # origin/main before the split: 22234 and 26506). Raise one only by moving
 # more text out, or by a rule that has to live there; say which in the
 # commit.
@@ -42,25 +42,35 @@ rb_bound() {
   fi
 }
 
-rb_bound handover/README.md 18677
+rb_bound handover/README.md 18979
 rb_bound consumer-repos.md 24986
 
 # Every `(why: history/<name>.md § <heading>)` names a `## <heading>` line
 # in that file. A pointer wraps across lines, so the file is read whole with
-# newlines folded to spaces before matching.
+# newlines folded to spaces before matching. A misspelt pointer would not
+# match the strict pattern and vanish from the count, so every `(why:` is
+# counted loosely too and the two must agree.
 rb_ptr_total=0
 rb_ptr_bad=""
 for rb_rel in handover/README.md consumer-repos.md; do
   [ -r "${rb_docs}/${rb_rel}" ] || continue
-  while IFS=$'\t' read -r rb_hist rb_head; do
+  rb_loose="$(tr '\n' ' ' <"${rb_docs}/${rb_rel}" | grep -o '(why:' | wc -l | tr -d ' ')"
+  rb_strict=0
+  # Space separator, not a tab: BSD sed writes `\t` as a literal t. The
+  # path holds no space, so read splits it off and the heading keeps the rest.
+  while read -r rb_hist rb_head; do
     [ -n "$rb_hist" ] || continue
     rb_ptr_total=$((rb_ptr_total + 1))
+    rb_strict=$((rb_strict + 1))
     if ! grep -qxF -- "## ${rb_head}" "${rb_docs}/history/${rb_hist}" 2>/dev/null; then
       rb_ptr_bad="${rb_ptr_bad}${rb_rel}: history/${rb_hist} § ${rb_head}"$'\n'
     fi
   done < <(tr '\n' ' ' <"${rb_docs}/${rb_rel}" | tr -s ' ' |
     grep -oE '\(why: history/[A-Za-z0-9._-]+\.md § [^)]+\)' |
-    sed -E 's/^\(why: history\/([^ ]+) § (.*)\)$/\1\t\2/')
+    sed -E 's/^\(why: history\/([^ ]+) § (.*)\)$/\1 \2/')
+  if [ "$rb_loose" -ne "$rb_strict" ]; then
+    rb_ptr_bad="${rb_ptr_bad}${rb_rel}: ${rb_loose} '(why:' but ${rb_strict} well-formed pointers"$'\n'
+  fi
 done
 if [ "$rb_ptr_total" -gt 0 ] && [ -z "$rb_ptr_bad" ]; then
   pass "every why pointer resolves (${rb_ptr_total} pointers)"
