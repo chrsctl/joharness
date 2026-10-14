@@ -7060,7 +7060,7 @@ cmd_dispatch() {
     fi
   fi
   if [ -n "$sup" ] && [ "$drained" -eq 1 ]; then
-    local cw_n cw_stems="" cw_oldest="" cw_p cw_t cw_base cw_d
+    local cw_n cw_stems="" cw_oldest="" cw_unread=0 cw_p cw_t cw_base cw_d
     cw_n="$(printf '%s\n' "$sup" | grep -c .)"
     cw_base="refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}"
     git -C "$ROOT" rev-parse -q --verify "$cw_base" >/dev/null 2>&1 || cw_base=HEAD
@@ -7070,12 +7070,12 @@ cmd_dispatch() {
       cw_t="${cw_p##*/}"
       cw_stems="${cw_stems:+$cw_stems }${cw_t%.md}"
       cw_t="$(git -C "$ROOT" log --diff-filter=A --format=%ct "$cw_base" -- "$cw_p" 2>/dev/null | tail -1)"
-      case "$cw_t" in '' | *[!0-9]*) continue ;; esac
+      case "$cw_t" in '' | *[!0-9]*) cw_unread=1; continue ;; esac
       if [ -z "$cw_oldest" ] || [ "$cw_t" -lt "$cw_oldest" ]; then cw_oldest="$cw_t"; fi
     done <<EOF_CW
 $sup
 EOF_CW
-    if [ -n "$cw_oldest" ]; then
+    if [ -n "$cw_oldest" ] && [ "$cw_unread" -eq 0 ]; then
       cw_d="$(( ($(date +%s) - cw_oldest) / 86400 ))"
       [ "$cw_d" -ge 0 ] || cw_d=0
     else
