@@ -589,6 +589,7 @@ SELFTEST_TOPICS=(
   ci-verify-layers
   num-knob
   knobs-declared
+  reading-budget
 )
 
 selftest_topics_dir="${ROOT}/.agents/harness/selftest"

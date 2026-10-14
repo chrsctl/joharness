@@ -16,8 +16,8 @@
 # Compaction records the task state faithfully and drops the compliance
 # preamble: 0% to 30% violation across 7 models and 1,323 episodes, 8.3x worse
 # for soft organisational policy than for hard safety norms (arXiv 2606.22528,
-# read in .agents/docs/handover/README.md, Compaction). This Loop is soft
-# organisational policy. Everything else this hook prints is the half that
+# read in .agents/docs/history/handover.md, Compaction re-read). This Loop is
+# soft organisational policy. Everything else this hook prints is the half that
 # already survives, so a compact start that names only the workstream file
 # restores what was never lost.
 step "handover-context.sh compact start carries the rules"

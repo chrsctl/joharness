@@ -1,7 +1,8 @@
 # Harness
 
 Caveman file: every line loads into every session, so rules only. Why lives in
-`.agents/docs/` — read there before fighting a rule. Style:
+`.agents/docs/`, measured past in `.agents/docs/history/` — read there before
+fighting a rule. Style:
 [`.agents/docs/caveman.md`](../../.agents/docs/caveman.md). Contested terms
 have ONE spelling: [`.agents/docs/glossary.md`](../../.agents/docs/glossary.md);
 `ci` fails on the others.
