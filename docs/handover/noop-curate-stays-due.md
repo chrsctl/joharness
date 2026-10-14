@@ -17,9 +17,13 @@ Settle whether a no-finding curator pass leaves `curate : DUE`, and graduate the
 
 ## Decisions
 
+- YES, from code: the clock (`cycle_landed_sha`) reads only a merged deletion of `docs/handover/curate-*.md`; a `role curate` STOP makes none. Graduated clerk-style record into curate.md; dispatch half filed as plan `curate-noop-record`.
+
 ## Rejected
 
 ## Review
+
+- r1: clean pass, docs-only diff plus one plan (no change)
 
 ## Blockers
 

@@ -15,8 +15,18 @@ order, a requirement, another branch, or the design doc.
 ## 0. Prelude: `./joharness.sh role curate`
 
 `./joharness.sh role curate --session <your URL> --agent <your tier>`; its
-LAST line decides. `STOP: <reason>` = report that line, exit (no PROPOSE
-findings among them: nothing to do writes nothing). `GO <branch>` = on
+LAST line decides. `STOP: <reason>` = report that line, exit. A STOP for
+`no PROPOSE findings` also pushes the no-op record, so the clock dates this
+pass: `git fetch origin main && git push origin
+"origin/main:refs/heads/curate-noop-$(date -u +%Y%m%dT%H%M%SZ)"` — a branch AT
+the base's head, merged by construction, dated by its name; name taken = run
+it again, never force. Why: the clock moves only on a merged
+`docs/handover/curate-*.md` deletion, which a STOP never makes, so without
+the record every later `dispatch` prints `curate : DUE` at the same count and
+spends a curator slot on the same empty answer (measured in `chrsctl/gx`: DUE
+before and after a pass that found nothing). The clerk's `clerk-noop-<stamp>`
+is the same record. Any other STOP writes nothing. `dispatch` reads the
+record only once plan `curate-noop-record` lands; until then it is harmless. `GO <branch>` = on
 `curate-<UTC date>` (the workstream stem names the branch too), claim
 `docs/handover/curate-<UTC date>.md` pushed (`plan: none`, the identity
 `dispatch` keys on). `(resumed)` = your claim already stands. No twin rule.
