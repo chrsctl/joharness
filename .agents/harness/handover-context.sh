@@ -241,6 +241,14 @@ rank_of() {
   esac
 }
 
+# A surveyor's genuine-holds end (manage.md, rescope): `workstream: rescope-*`,
+# `plan: none`, `status: done`, no `pr:`. All four, compared as words: one
+# short and it is a live surveyor, still ranked as today.
+finished_rescope() {
+  case "$1" in rescope-?*) ;; *) return 1 ;; esac
+  [ "$2" = none ] && [ "$3" = "done" ] && [ -z "$4" ]
+}
+
 # A `pr:` value a reader wrote by hand.
 pr_num() {
   local v="${1#\#}"
@@ -303,10 +311,15 @@ while IFS= read -r ref; do
     doc="$(git show "${ref}:${f}" 2>/dev/null)"
     [ -n "$doc" ] || continue
     { read -r status; read -r updated; read -r session; read -r agent
-      read -r issue; read -r pr; } \
-      <<<"$(printf '%s\n' "$doc" | fields status updated session agent issue pr)"
+      read -r issue; read -r pr; read -r wsname; read -r wplan; } \
+      <<<"$(printf '%s\n' "$doc" |
+        fields status updated session agent issue pr workstream plan)"
     issue="$(issue_num "$issue")"
     pr="$(pr_num "$pr")"
+    rank="$(rank_of "$status" "$pr")"
+    # Rank 6, below abandoned, set here and never from a status word: nothing
+    # to finish, nobody to nudge (issue #492).
+    finished_rescope "$wsname" "$wplan" "$status" "$pr" && rank=6
     # Claims are banked for EVERY ref, uncapped and unranked.
     { [ -z "$issue" ] || [ "$status" = abandoned ]; } ||
       claimed_issues="${claimed_issues}  #${issue} — ${short} (${f})"$'\n'
@@ -318,7 +331,7 @@ while IFS= read -r ref; do
       in_r && /^- /             { n++ }
       END { print n + 0 }')"
 
-    rows="${rows}$(rank_of "$status" "$pr")${US}${pushed_at:-9999999999}${US}${short}${US}${f}${US}${status}${US}${pr}${US}${updated}${US}${agent}${US}${issue}${US}${session}${US}${fresh}${US}${entry_stale}${US}${inherited_n}${US}${review_n}${US}${pushed_rel}"$'\n'
+    rows="${rows}${rank}${US}${pushed_at:-9999999999}${US}${short}${US}${f}${US}${status}${US}${pr}${US}${updated}${US}${agent}${US}${issue}${US}${session}${US}${fresh}${US}${entry_stale}${US}${inherited_n}${US}${review_n}${US}${pushed_rel}"$'\n'
   done <<<"$ws_files"
 done < <(git for-each-ref --format='%(refname)' refs/remotes 2>/dev/null)
 
@@ -361,6 +374,7 @@ while IFS="$US" read -r rank _ short f status pr updated agent issue \
     1 ) others="${others}    EDGE: at review — record findings, then merge (step 5, then 7)"$'\n' ;;
     2 ) others="${others}    EDGE: names pull request #${pr} — CHECK IT IS OPEN, then drive it green and merge (step 7)"$'\n'
         others="${others}         this hook reads git, never GitHub: closed, open and merged-elsewhere are the same bytes here"$'\n' ;;
+    6 ) others="${others}    FINISHED RESCOPE: holds genuine, nothing to merge — holds no slot, never edge work, never nudge"$'\n' ;;
   esac
 
   [ "$entry_stale" = "1" ] &&

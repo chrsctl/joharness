@@ -183,3 +183,70 @@ expect "a file-less branch carries its push time" "ago" "$nofline"
 expect "a file-less branch still counts as recent" \
   "'recent' = pushed in last" "$rnof"
 
+
+# --- a FINISHED rescope is not edge work (issue #492) -----------------------
+# A surveyor that finds the holds genuine ends `status: done`, `plan: none`,
+# no `pr:` and merges nothing (manage.md, rescope). Ranked 0, it printed EDGE
+# and led FINISH BEFORE STARTING, which dispatch turns into its edge section,
+# and the orchestrator nudged the idle surveyor every pass. Its own repo, so
+# none of these take the lead from bdone above. The finished one is the
+# OLDEST push: at rank 0 it would win the tie and lead.
+fswork="${TMP}/finishedrescopework"
+fsorigin="${TMP}/finishedrescopeorigin.git"
+git init -q --bare "$fsorigin"
+git init -q "$fswork"
+git -C "$fswork" symbolic-ref HEAD refs/heads/main
+printf 'code\n' >"${fswork}/code.txt"
+commit_all "$fswork" "base"
+git -C "$fswork" remote add origin "$fsorigin"
+git -C "$fswork" push -qu origin main
+
+# branch, workstream, plan, status, pr, date.
+fsbranch() {
+  git -C "$fswork" checkout -q main
+  git -C "$fswork" checkout -qb "$1"
+  mkdir -p "${fswork}/docs/handover"
+  printf -- '---\nworkstream: %s\nstatus: %s\npr: %s\nplan: %s\nagent: sonnet\nupdated: 2026-01-01\nnext: The holds are genuine\n---\n\n## Goal\nFixture.\n' \
+    "$2" "$4" "$5" "$3" >"${fswork}/docs/handover/${2}.md"
+  git -C "$fswork" add -A
+  GIT_AUTHOR_DATE="$6" GIT_COMMITTER_DATE="$6" \
+    git -C "$fswork" commit -qm "$1"
+  git -C "$fswork" push -qu origin "$1"
+}
+fsbranch rs-fin   rescope-k   none  "done"      ""   "2026-01-01T00:00:00Z"
+fsbranch rs-live  rescope-l   none  in-progress ""   "2026-01-02T00:00:00Z"
+fsbranch rs-pr    rescope-m   none  "done"      12   "2026-01-03T00:00:00Z"
+# One condition short: a plan of its own makes it a plan claim, still edge.
+fsbranch rs-plan  rescope-n   some  "done"      ""   "2026-01-04T00:00:00Z"
+git -C "$fswork" checkout -q main
+
+fsout="$(CLAUDE_PROJECT_DIR="$fswork" HANDOVER_FETCH=0 \
+  bash "${ROOT}/.agents/harness/handover-context.sh" 2>&1)"
+fsblock() { printf '%s\n' "$fsout" | awk -v r="  origin/$1: " '
+  index($0, r) == 1 { on = 1; next }
+  on && /^  origin\// { on = 0 }
+  on { print }'; }
+
+refute "a finished rescope never leads FINISH BEFORE STARTING" \
+  "FINISH BEFORE STARTING: origin/rs-fin" "$fsout"
+refute "and carries no EDGE line" "EDGE:" "$(fsblock rs-fin)"
+expect "it still lists, saying it holds nothing" \
+  "FINISHED RESCOPE: holds genuine, nothing to merge — holds no slot" \
+  "$(fsblock rs-fin)"
+expect "and it is in the branch list" \
+  "origin/rs-fin: docs/handover/rescope-k.md" "$fsout"
+expect "a live surveyor lists exactly as today" \
+  "[in-progress, updated 2026-01-01, wants sonnet] pushed" "$(fsblock rs-live)"
+refute "with no EDGE and no finished line" "EDGE:" "$(fsblock rs-live)"
+refute "and no finished line" "FINISHED RESCOPE" "$(fsblock rs-live)"
+expect "a done rescope naming a pull request is still edge work" \
+  "EDGE: status done, unmerged — merging is all that is left (step 7)" \
+  "$(fsblock rs-pr)"
+expect "and it is the one that leads" \
+  "FINISH BEFORE STARTING: origin/rs-pr (docs/handover/rescope-m.md)" "$fsout"
+expect "a done rescope claiming a plan is still edge work" \
+  "EDGE: status done, unmerged" "$(fsblock rs-plan)"
+fsorder="$(printf '%s\n' "$fsout" |
+  sed -n 's|^  origin/\([a-z-]*\): docs/handover/.*|\1|p' | paste -sd, -)"
+expect "the finished rescope ranks last, below live work" \
+  "rs-pr,rs-plan,rs-live,rs-fin" "$fsorder"

@@ -1198,6 +1198,14 @@ expect "and the done branch is still shown in the block it points at" \
 refute "and no new rescope is recommended" "spawn ONE surveyor" "$out"
 refute "nor is it read as still actively running" \
   "a surveyor is already in flight" "$out"
+# Issue #492: done, `plan: none`, no `pr:` is a FINISHED rescope. It merges
+# nothing, so a row reading like live work was nudged every pass, forever.
+expect "the finished rescope's row says it holds nothing and is never nudged" \
+  "done: finished rescope, holds no slot — never nudge" \
+  "$(printf '%s\n' "$out" | grep -F 'claude/rescope-keeper  rescope-keeper  done  pushed')"
+# The section dispatch prints from the hook's lead line, and only that.
+rbedge="$(printf '%s\n' "$out" | sed -n '/^edge work/,/^[^ e]/p')"
+refute "and no edge work section names it" "rescope-keeper" "$rbedge"
 # A done rescope whose key COVERS the current one settles it too: a co-holder
 # merged and the set shrank (issue #300). Equality alone left this unsettled.
 git -C "$rbwork" checkout -q claude/rescope-keeper

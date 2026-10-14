@@ -8,7 +8,7 @@ issue: 492
 session: https://claude.ai/code/session_012aeEK469hHzaddGFthH93A
 agent: opus
 updated: 2026-10-14
-next: Research anchors in handover-context.sh and cmd_dispatch, then build
+next: Run selftest, mutation-check both new assertions, ci, verify, verifier
 ---
 
 ## Goal
@@ -20,7 +20,17 @@ nudging it forever (issue #492).
 
 ## Decisions
 
-- None yet.
+- Finished rescope ranks 6 in the hook, below abandoned (5): nothing to
+  finish and nobody to nudge, so it sorts last and the cap hides it first.
+  Set by `finished_rescope` after `rank_of`, never from a status word, so a
+  file writing some status word cannot buy rank 6.
+- `dispatch_rescope_branches` gains a sixth field, `pr`; the `free-` loop
+  reads it into `_`. `pr:` empty, `none`, `NONE` or `#`-prefixed of those
+  counts as no pr, the same normalisation as the hook's `pr_num`.
+- Hook fixture is its own repo (`finishedrescopework`), so the existing
+  order and cap assertions stay byte-identical.
+- README rank table: `abandoned` row said 4, the code prints 5; fixed while
+  adding the rank-6 row (r1).
 
 ## Rejected
 

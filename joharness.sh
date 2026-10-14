@@ -5946,10 +5946,10 @@ lint_plans_in_diff() {
 }
 
 # Branches carrying a `<prefix><key>` claim (default `rescope-`) with
-# `plan: none`, one row each: <branch> <key> <status> <session> <next>.
+# `plan: none`, one row each: <branch> <key> <status> <session> <next> <pr>.
 dispatch_rescope_branches() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" pre="${1:-rescope-}"
-  local refs r name base wf files doc rws rkey rstat rsess rnext
+  local refs r name base wf files doc rws rkey rstat rsess rnext rpr
   # Refs collected into a variable FIRST, then looped over a here-string.
   refs="$(refs_unmerged "refs/remotes/origin/${base_branch}")"
   while IFS= read -r r; do
@@ -5965,13 +5965,14 @@ dispatch_rescope_branches() {
     while IFS= read -r wf; do
       [ -n "$wf" ] || continue
       doc="$(git -C "$ROOT" show "${r}:${wf}" </dev/null 2>/dev/null)"
-      { read -r rws; read -r rkey; read -r rstat; read -r rsess; read -r rnext; } \
-        <<<"$(printf '%s\n' "$doc" | gr_fields workstream plan status session next)"
+      { read -r rws; read -r rkey; read -r rstat; read -r rsess; read -r rnext
+        read -r rpr; } \
+        <<<"$(printf '%s\n' "$doc" | gr_fields workstream plan status session next pr)"
       case "$rws" in "$pre"*) ;; *) continue ;; esac
       # `plan: none` is the identity: a rescope (or free) branch claims no plan.
       [ "$rkey" = none ] || continue
-      printf '%s\t%s\t%s\t%s\t%s\n' \
-        "$name" "${rws#"$pre"}" "${rstat:-?}" "${rsess:-}" "${rnext:-}"
+      printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
+        "$name" "${rws#"$pre"}" "${rstat:-?}" "${rsess:-}" "${rnext:-}" "${rpr:-}"
     done <<<"$files"
   done <<<"$refs"
 }
@@ -6379,7 +6380,7 @@ cmd_dispatch() {
   local rescope_key="" rescope_paths="" rescope_inflight="" rescope_holders=""
   local n_rescope_inflight=0 n_rescope_holders=0 rescope_settled=0
   local rescope_held="" rescope_merged="" msha mkey mheld mchanged
-  local rb rk rstat rsess rnext rage
+  local rb rk rstat rsess rnext rage rpr rfin
   local bprows freeable="" fkind fb fn fage n_freeable=0
   local DISPATCH_WITHHELD=
   local inflight="" free="" questions=""
@@ -6776,7 +6777,7 @@ cmd_dispatch() {
   done <<<"$rows"
 
   # A `free <branch>` manager claims no queue item: its own row, its own slot.
-  while IFS=$'\t' read -r rb rk rstat rsess rnext; do
+  while IFS=$'\t' read -r rb rk rstat rsess rnext _; do
     [ -n "$rb" ] || continue
     case "$rstat" in
       in-progress | blocked | review | done | abandoned) ;;
@@ -6962,10 +6963,19 @@ cmd_dispatch() {
       sed 's/^\([0-9][0-9]*\)\t\(.*\)/    \2  (\1 held)/')"
     # ONE pass, fed by process substitution rather than a "$(...)" capture read
     # back through a "<<<" here-string.
-    while IFS=$'\t' read -r rb rk rstat rsess rnext; do
+    while IFS=$'\t' read -r rb rk rstat rsess rnext rpr; do
       [ -n "$rb" ] || continue
       rage="$(dispatch_age_text "$(dispatch_age_min "$rb" </dev/null)")"
-      rescope_inflight="${rescope_inflight}    ${rb}  rescope-${rk}  ${rstat}  pushed ${rage}"$'\n'
+      # A FINISHED rescope: `done` with no `pr:` (`plan: none` and the
+      # `rescope-` prefix are the reader's own filter) — manage.md's genuine
+      # end, which merges nothing. The hook ranks it the same way (rank 6);
+      # the orchestrator drops its ledger entry on this text (issue #492).
+      rfin=""
+      case "${rpr#\#}" in
+        '' | none | NONE) [ "$rstat" != "done" ] ||
+          rfin="  done: finished rescope, holds no slot — never nudge" ;;
+      esac
+      rescope_inflight="${rescope_inflight}    ${rb}  rescope-${rk}  ${rstat}  pushed ${rage}${rfin}"$'\n'
       [ -z "$rsess" ] || rescope_inflight="${rescope_inflight}      session: ${rsess}"$'\n'
       [ -z "$rnext" ] || rescope_inflight="${rescope_inflight}      next: ${rnext}"$'\n'
       case "$rstat" in
