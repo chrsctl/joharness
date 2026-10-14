@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_016spQNSNiq2i68P9xyAwCPe
 agent: fable
 updated: 2026-10-14
-next: Settle the research question against this repo's text; graduate the answer into .claude/commands/manage.md; file plans for the code changes
+next: Run ci and verify, spawn the verifier at fable, record the review, retire the research and workstream files, open the pull request, merge
 ---
 
 ## Goal
@@ -21,11 +21,27 @@ research file.
 
 ## Decisions
 
-- None yet.
+- Settled YES. Home for a human remainder = one GitHub issue labelled
+  `human-review`, filed by the manager before its retire commit. Chosen
+  because the clerk already holds and lists such issues every pass, the
+  human's merge closes it, and issues are the front door for human asks.
+- Graduation is text only: manage.md §2, a why-section in
+  `.agents/docs/plans/README.md`, one clause in orchestrated.md Bounds. No
+  plan filed: no code changes.
+- Second context taken in a fresh read-only clone of `chrsctl/gx`
+  (`add_repo`, `git clone --depth 1`, `fetch --depth=400`). One finding
+  corrected: instance 2 was closed by gx #656 before its plan merged.
 
 ## Rejected
 
-- None yet.
+- A ledger file on `main` (`docs/human-followups.md`): a row the human's
+  `.github` merge forgets to delete is stale state, and dispatch reading it
+  is the stored-copy failure graph.md forbids.
+- Lifting the core-only red so the remainder stays a plan: that is the
+  sibling research `partly-core-plans-strand-their-slots`'s ground, and a
+  plan nobody spawns on sits until a human notices (pull request #457).
+- A `dispatch` change counting `human-review` issues: dispatch reads git
+  only today; left open, named in the README section.
 
 ## Review
 

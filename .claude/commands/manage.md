@@ -96,6 +96,21 @@ A worker's return is a claim: run the acceptance command yourself. Commit
 per sub-task, workstream file in the same commit. Follow-up work that must
 outlive this session = a plan file in your pull request. Never a second item.
 
+A remainder only a human can build — a core-path edit
+(`./joharness.sh protocol-paths`) the plan carved out as `## Human
+follow-up` — fits no plan (`ci` reds a core-only one) and dies at retire: the
+plan and the workstream file are deleted, and nothing reads a pull request
+body again. Its home is ONE GitHub issue, opened before the retire commit
+(`issue_write` `create`): title `human: <stem>: <edit, one line>`, body = the
+edit verbatim and the plan's reason, labels `human-review`. The pull request
+body names its number. The clerk then lists it `held: human-review` every
+pass until the human's own merge closes it (`.agents/docs/plans/README.md`,
+"A human remainder"). The issue carries the plan's own carve-out and nothing
+new. A pull request heading, a plan section or a workstream line alone is no
+home: each is gone or unread after the merge. `issue_write` fails = `status:
+blocked`, `next:` = `github: remainder issue not filed: <error, 40 chars>`,
+push, exit — never retire with the remainder unfiled.
+
 ## R. Surveyor: the one kind that edits OTHER plans
 
 (A `free` manager's `curate --apply` writes only the plans it brings in:
