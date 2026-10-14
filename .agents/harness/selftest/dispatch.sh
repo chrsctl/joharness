@@ -103,6 +103,24 @@ expect "and a pause over an unseen spawn keeps the health pass instead" \
   "verdict   : PAUSED — JOHARNESS_MAX_MANAGERS=0: spawn nothing; 1 spawned this pass has not pushed (JOHARNESS_PENDING_SPAWNS): keep the health pass going" "$out"
 refute "never the pause's own exit" "spawn nothing, exit; the human unpauses" "$out"
 
+# --- a CORE ONLY plan is a wait on a human: the verdict names it -----------
+# Preconditions set here: the queue holds only this plan, nothing in flight.
+dspplan corewait '.github/workflows/ci.yml platform/web/src scripts'
+dsppush "a partly-core plan, alone"
+out="$(dsp)"
+expect "the core-only block names the plan" "NOT YOURS — CORE ONLY" "$out"
+expect "the exit verdict is unchanged" \
+  "verdict   : DRAINED — nothing free, nothing in flight: exit, the heartbeat re-seeds" "$out"
+expect "the wait line counts it, dates it and names the stem" \
+  "            1 plan(s) wait on a human core edit (oldest 0d): corewait" "$out"
+dspplan corefree 'src/free'
+dsppush "a free plan beside it"
+out="$(dsp)"
+refute "no wait line when slots are not idle" "wait on a human core edit" "$out"
+git -C "$dspwork" rm -q docs/plans/corewait.md docs/plans/corefree.md
+mkdir -p "${dspwork}/docs/plans"
+dsppush "drop the core-wait fixtures"
+
 # --- the knobs are the human's: conf, then environment, digits only ---------
 printf 'JOHARNESS_ENV=none\nJOHARNESS_MAX_MANAGERS=2\nJOHARNESS_STALL_MINUTES=30\n' >"$dspconf"
 out="$(dsp)"
