@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_016spQNSNiq2i68P9xyAwCPe
 agent: fable
 updated: 2026-10-14
-next: Re-run ci alone (r9), then retire the research and workstream files, open the pull request, merge
+next: Read the lone ci re-run's count (r9; running in this session, about 20 min), then retire the research and workstream files, open the pull request, merge
 ---
 
 ## Goal
