@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01VD1graig8FUQXFiaG9pELZ
 agent: sonnet
 updated: 2026-10-14
-next: Implement curate_noop reader in joharness.sh, doc row, selftest case
+next: Await verifier (r1), record Review, retire plan+workstream, open PR, merge. ci: only red is pretool-bash-guard 80KB timing (5s vs 4s, env load, unrelated); verify 0 failed
 ---
 
 ## Goal

@@ -5428,6 +5428,24 @@ dispatch_curate_plan_churn() {
 
 # `awk END{print NR+0}`, never `grep -c .
 
+# The newest curate no-op record: `<stamp time>\t<branch>\t<tip sha>`, empty
+# when none. Merged ones only, as `clerk_noop`: an unmerged branch is no pass
+# done. A stamp more than JOHARNESS_CURATE_HOURS ahead of now is a broken clock
+# and dates nothing.
+curate_noop() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" r ts best=0 bname="" bsha="" lim sha hours
+  hours="$(num_knob JOHARNESS_CURATE_HOURS)"
+  lim=$(( $(date +%s) + hours * 3600 ))
+  while IFS=$'\t' read -r r sha; do
+    ts="$(clerk_stamp_ts "${r#refs/remotes/origin/curate-noop-}")"
+    [ -n "$ts" ] || continue
+    [ "$ts" -le "$lim" ] || continue
+    if [ "$ts" -gt "$best" ]; then best="$ts"; bname="${r#refs/remotes/origin/}"; bsha="$sha"; fi
+  done < <(git -C "$ROOT" for-each-ref --merged="refs/remotes/origin/${base_branch}" \
+    --format='%(refname)%09%(objectname)' 'refs/remotes/origin/curate-noop-*' </dev/null 2>/dev/null)
+  [ "$best" -eq 0 ] || printf '%s\t%s\t%s' "$best" "$bname" "$bsha"
+}
+
 # Is a curate due, and WHY.
 dispatch_curate_due() {
   local hours plans age churn why
@@ -5456,6 +5474,22 @@ dispatch_curate_due() {
   fi
   local base_word='the last curate'
   [ -n "$(cycle_landed_sha)" ] || base_word='the queue began, none having landed'
+  # A pass that found nothing to propose leaves a merged `curate-noop-<stamp>`
+  # branch: when newer than the last landing it resets BOTH triggers.
+  local noop nts landed_ts now
+  noop="$(curate_noop)"
+  if [ -n "$noop" ]; then
+    nts="${noop%%$'\t'*}"
+    landed_ts="$(cycle_landed_ts)"
+    if [ -z "$landed_ts" ] || [ "$nts" -gt "$landed_ts" ]; then
+      now="$(date +%s)"
+      [ "$nts" -le "$now" ] || nts="$now"
+      age=$(( (now - nts) / 3600 ))
+      noop="${noop#*$'\t'}"
+      churn="$(dispatch_curate_plan_churn "${noop#*$'\t'}")"
+      base_word="the last curate pass found nothing to propose (${noop%%$'\t'*})"
+    fi
+  fi
   if [ "$plans" -gt 0 ] && [ "$churn" -ge "$plans" ]; then
     printf 'due %s plan file(s) changed since %s (>= %s)' "$churn" "$base_word" "$plans"
     return 0
