@@ -1,6 +1,6 @@
 ---
 workstream: retired-ledger-absent-stderr
-status: in-progress
+status: review
 branch: claude/retired-ledger-absent-stderr
 pr: none
 plan: retired-ledger-absent-stderr
@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01TqtiuCHRzVHgqz4DSRHHxd
 agent: sonnet
 updated: 2026-10-14
-next: Add the failing selftest arm, then guard the read in joharness.sh
+next: Retire, open PR, merge when GitHub checks are green
 ---
 
 ## Goal
@@ -32,10 +32,8 @@ None yet.
 
 ## Review
 
-One bullet per finding, written BEFORE its fix, committed WITH it, in exactly
-the form `- rN: text (fixed|wontfix: why|no change)` — `ci` checks it. Tag the
-verifier's findings `(verifier)`. Clean pass = one bullet saying so. Remove
-this paragraph when you add the first bullet.
+- r1: clean pass at sonnet, no findings; the whole-output refute is broader than the fix needs and still catches the regression (verifier) (no change)
+- r2: `./joharness.sh verify` red here on the docker layer: Docker Hub answers 429 for `alpine:3` from this container, unrelated to the diff; GitHub's ci runs `verify` on the head (self) (no change)
 
 ## Blockers
 

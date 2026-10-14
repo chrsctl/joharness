@@ -75,6 +75,19 @@ expect "a ledger added is no plan added" "no plan added on this branch" \
   "$(rlsect "plans on this branch" "$(rlci)")"
 git -C "$rlwork" checkout -q main
 
+# A branch whose OWN tree has no ledger adds a fresh plan: the base branch's
+# ledger is read (and does not list it), the branch's own is absent, and an
+# absent ledger is a normal state, not a read that fails out loud. Seen in a
+# consumer as one `RETIRED.md: No such file or directory` per added plan.
+git -C "$rlwork" checkout -qb no-own-ledger "$rlbase"
+rlplan fresh-before-ledger
+commit_all "$rlwork" "a plan added on a branch cut before any ledger"
+out="$(rlci)"
+refute "an absent ledger on the branch prints no read error" "No such file" "$out"
+refute "and draws no ledger finding" "already retired" \
+  "$(rlsect "plans on this branch" "$out")"
+git -C "$rlwork" checkout -q main
+
 # --- (a) a branch re-adding a ledgered stem is red -------------------------
 # Cut BEFORE the ledger line exists on main is the real hazard: the owner's
 # branch, merged after the retire. Its merge base carries no line for it.
