@@ -106,6 +106,7 @@ JOHARNESS_MAX_MANAGERS|4|dispatch|Managers in flight at once; 0 pauses spawning.
 JOHARNESS_STALL_MINUTES|45|dispatch|No push this long = cross-check, nudge.
 JOHARNESS_HEALTH_MINUTES|10|dispatch|One orchestrator pass every this many minutes.
 JOHARNESS_RESPAWN_LIMIT|2|dispatch|Respawns per item per orchestrator run.
+JOHARNESS_ORCHESTRATOR_PASSES|6|dispatch|Orchestrator passes a session makes before it hands off at its context ceiling.
 JOHARNESS_MANAGER_HOURS|4|dispatch|Claim older than this with no pull request = CEILING? report; 0 lifts it.
 JOHARNESS_CHURN_THRESHOLD|5|dispatch|One file rewritten this often = warning.
 JOHARNESS_CHURN_LIMIT|computed|dispatch|One file rewritten this often = LOOP? and ci red; default twice the threshold; 0 lifts it.
@@ -5969,7 +5970,7 @@ block_reason_ok() {
 }
 
 cmd_dispatch() {
-  local cap stall health respawn churnt churnl hout qout rows wavemap edge req sup
+  local cap stall health passes respawn churnt churnl hout qout rows wavemap edge req sup
   local path label branch ws doc status session next age agetext flag tier
   local pr hours cage_min n_ceiling=0
   local base commits churn churn_n churn_f marks rounds work
@@ -5998,6 +5999,7 @@ cmd_dispatch() {
   cap="$(num_knob JOHARNESS_MAX_MANAGERS)"
   stall="$(num_knob JOHARNESS_STALL_MINUTES)"
   health="$(num_knob JOHARNESS_HEALTH_MINUTES)"
+  passes="$(num_knob JOHARNESS_ORCHESTRATOR_PASSES)"
   respawn="$(num_knob JOHARNESS_RESPAWN_LIMIT)"
   hours="$(num_knob JOHARNESS_MANAGER_HOURS)"
   # ci's two tiers, kept and read the same way ci reads them: from the
@@ -6028,6 +6030,12 @@ cmd_dispatch() {
   printf 'cap       : %s manager(s) at once (JOHARNESS_MAX_MANAGERS)\n' "$cap"
   printf 'stall     : %s min without a push = cross-check the control plane (JOHARNESS_STALL_MINUTES)\n' "$stall"
   printf 'health    : one pass every %s min (JOHARNESS_HEALTH_MINUTES)\n' "$health"
+  # Lifted like the ceiling: 0 would otherwise hand off on every pass.
+  if [ "$passes" -gt 0 ]; then
+    printf 'passes    : %s per orchestrator session (JOHARNESS_ORCHESTRATOR_PASSES)\n' "$passes"
+  else
+    printf 'passes    : lifted, one session carries every pass (JOHARNESS_ORCHESTRATOR_PASSES=0)\n'
+  fi
   printf 'respawns  : %s per item per run (JOHARNESS_RESPAWN_LIMIT)\n' "$respawn"
   # Lifted, the line names no mark: `grep CEILING?` over a lifted pass is 0.
   if [ "$hours" -gt 0 ]; then
