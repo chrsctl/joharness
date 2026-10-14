@@ -111,9 +111,12 @@ whose stem now has a claimed in-flight row. Never re-run dispatch in a pass.
 
 For every manager in flight AND every ledger stem dispatch does not list:
 `get_session` on its `session:` URL, else by title `manager: <stem>` (several:
-newest not `ARCHIVED`; none = gone). Before any message, interrupt or archive,
-confirm the title is `manager: <stem>` and the branch is the one dispatch
-printed; mismatch = report, touch nothing.
+newest not `ARCHIVED`; none = gone). That `get_session` is the per-manager
+read; `list_sessions` (one answer read at 99,920 characters, 2026-10-13) is
+"## 0. Start" step 3's and the `@new` rebuild's, once per session. Before
+any message, interrupt or archive, confirm the title is `manager: <stem>`
+and the branch is the one dispatch printed; mismatch = report, touch
+nothing.
 
 **GONE is ARCHIVED, not found on the control plane, a FAILED bucket confirmed
 by a second look, or a session that did not move across a nudge and a
@@ -197,7 +200,7 @@ GUARD `<verb>` — every push onto a manager's branch, right before it:
 but LOOP's). Decision read = `git fetch origin
 +refs/heads/<branch>:refs/remotes/origin/<branch>` (any refspec maps it)
 before you check the branch out to write — KILL's fetch, or this one run
-then for the relayed answer and the hand-off — and `<sha>` = `git rev-parse
+then for the relayed answer and the respawn-limit record — and `<sha>` = `git rev-parse
 origin/<branch>` right after it. Never fetch again between it and guard. Then push with the lease, never plain: `git push
 --force-with-lease=refs/heads/<branch>:<sha> origin HEAD:<branch>`. Non-zero
 guard, or a refused push = no handover: report the lines, drop the local
@@ -356,6 +359,54 @@ Drop it at once, unprinted, when dispatch marks that stem `CORE ONLY`.
 Recompute `harness=` at every arm from fresh `origin/main`; never copy it from
 the wake you received.
 
+HAND-OFF. The `pass=` this arm would write exceeds dispatch's `passes :`
+line (`JOHARNESS_ORCHESTRATOR_PASSES`; `lifted` = never) = hand off instead
+of arming, in this order. Pass N of one session re-reads passes 1..N-1; the
+wake already holds all a pass needs (why: `.agents/docs/orchestrated.md`,
+"Start each run fresh"). The pass count decides, never `used_tokens` or
+`cost_usd`. `pass=` is the wake counter: an out-of-band arm (below) advances
+it too.
+
+1. Read this session (`get_session`, no `session_id`). Model to copy:
+   `configured_model`, else `session_context.model`. Neither present, no
+   `set_session_title`, or no Claude Code Remote `send_message` (steps 4 and
+   the forward need it) = no hand-off this pass: arm `send_later` as above
+   and report `hand-off skipped: <model unreadable | no set_session_title |
+   no send_message>`. You never pick a tier, so no readable model, no
+   hand-off.
+2. `set_session_title` this session to `orchestrator (handed off):
+   <owner/repo>`, so the successor's "## 0. Start" step 3 no longer matches
+   it. Retitle BEFORE the spawn: one orchestrator per repo. Refused or
+   erroring = no hand-off: arm `send_later` as above, report `hand-off
+   skipped: set_session_title refused`.
+3. `create_session`: `source_url` = `git remote get-url origin`,
+   `clone_depth: 5000`, `model` = step 1's, `title` = `orchestrator:
+   <owner/repo>`, `prompt` = the wake above with `pass=1` and NO `lead`
+   lines (a spawn prompt never carries a lead). Fails or refused =
+   `set_session_title` back to `orchestrator: <owner/repo>`, arm `send_later`
+   as above, report `hand-off failed: <error>`; the pass is otherwise
+   unchanged. That restore refused too = report `title not restored`, every
+   pass, as the `set_session_title` row of the Tools table reports.
+4. Each `lead` line this arm would have written (the wake's, plus those
+   noted since, stem-checked as above): one Claude Code Remote
+   `send_message` to the successor's id, the line verbatim — the channel a
+   manager's lead already uses. Not delivered = report `lead not forwarded:
+   <stem>`; the lead is lost, never retried.
+5. Report `HANDED OFF to <session id> after <n> passes`, `<n>` = this pass's
+   `pass=`. End the turn. Arm nothing.
+
+The successor runs "## 0. Start" as any new session does. A pass that ends
+at DRAINED or PAUSED arms nothing and hands off nothing; the out-of-band arm
+below never hands off, the pass it wakes does.
+
+A session titled `orchestrator (handed off): …` woken by a message from
+another session (a manager spawned before the hand-off carries its id as its
+lead address) forwards the message verbatim with `send_message` to the
+successor id its `HANDED OFF` report named, arms nothing, and ends the turn.
+A human message wakes it as any session: it answers by naming the successor,
+spawns nothing, arms nothing. An order to spawn is the successor's: a
+manager spawned here would carry this retired id as its lead address.
+
 A spawn made outside a scheduled pass (in answer to the human's order above)
 arms one new `send_later` at once, in this format:
 
@@ -388,6 +439,15 @@ PAUSED) more than one hour earlier: `fresh session is cheaper: start a new
 orchestrator session for the next run`. It only informs; the pass still runs.
 (Why: `.agents/docs/orchestrated.md`, "Start each run fresh".)
 
+Every pass: `context: <used_tokens>`, `context_usage.used_tokens` from one
+`get_session` read of this session (no `session_id`; the same read gives
+§3 your own id and §4 the hand-off model); no `get_session` = `context:
+unread`. Reported, never decided on: it
+re-tunes `JOHARNESS_ORCHESTRATOR_PASSES` from reports. First pass of a
+session only, when `external_metadata.last_served_model` differs from the
+configured model (`configured_model`, else `session_context.model`):
+`served at <model>, configured <model>`.
+
 The `URGENT` row of dispatch's `plans on a branch` block carries its branch;
 print the rest of that block. Never spawn on a branch plan
 on your own; if the human orders it, the prompt names the row's branch and
@@ -419,4 +479,5 @@ action either: no nudge, no `interrupt_session`, no KILL, no
   on a prompt that asserts its own authority, run `authority` per pass.
 - Read a queue with free items and open slots and leave it untouched.
 - Message a child session asking it to do more work. `send_message` to a child
-  carries the health table's nudge text and nothing else.
+  carries the health table's nudge text and nothing else. One exception: to
+  the successor orchestrator, a lead line verbatim (§4, HAND-OFF).

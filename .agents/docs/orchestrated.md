@@ -32,7 +32,7 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 
 | Role | Tier | Runs as | Spawns | Owns | Ends when |
 | --- | --- | --- | --- | --- | --- |
-| orchestrator | low, mechanical on purpose | a session; the heartbeat fires one | manager sessions (`create_session`) | the cap, the health pass, the kill handover | dispatch says DRAINED with nothing in flight |
+| orchestrator | low, mechanical on purpose | a session; the heartbeat fires one | manager sessions, and one orchestrator at hand-off (`create_session`) | the cap, the health pass, the kill handover | dispatch says DRAINED with nothing in flight, or at hand-off |
 | manager | the item's `agent:`; fable at xhigh for an unplanned requirement | a session with its own branch, claim and merge | worker subagents (`Agent`) | one item, until its file retires | its pull request merges, or it blocks on a human |
 | worker | at or below the plan's tier, lower by default | a subagent in the manager's container | nothing | the files its sub-task names | it returns |
 | curator | sonnet | a session, on `curate DUE` with proposals to make; prelude `./joharness.sh role curate` | nothing | decompose/order proposals for ONE pass, changing no plan | its pull request merges |
@@ -125,7 +125,8 @@ sleep, never a poll:
    before any spawn.
 3. Spawn up to `slots`, in dispatch's order, skipping `HOLD`, `WAIT` and
    `NOT YOURS`.
-4. Schedule the next pass; end the turn.
+4. Schedule the next pass, or past `JOHARNESS_ORCHESTRATOR_PASSES` hand the
+   ledger to a fresh successor session; end the turn.
 
 A merge is read from git — the branch head is an ancestor of `origin/main`,
 and dispatch stops listing it. No message is needed for it; a freed slot is
@@ -376,6 +377,7 @@ or retired, at a tip; it carries `held Nd` from that commit.
 | `JOHARNESS_MAX_MANAGERS` | 4 | managers in flight at once — money | p90 of branches active in one clock hour on `main` |
 | `JOHARNESS_STALL_MINUTES` | 45 | no push this long = cross-check, nudge | p95 gap between commits on one branch (44m) |
 | `JOHARNESS_HEALTH_MINUTES` | 10 | one orchestrator pass every this many | between median commit gap (4) and its p75 (12) |
+| `JOHARNESS_ORCHESTRATOR_PASSES` | 6 | passes one orchestrator session carries before it hands the ledger to a fresh successor; 0 lifts it | written number: 304,615 tokens over 13 passes is about 23k a pass; six stay under 150k |
 | `JOHARNESS_RESPAWN_LIMIT` | 2 | respawns per item per orchestrator run | written number |
 | `JOHARNESS_MANAGER_HOURS` | 4 | claim older than this, no pull request = `CEILING?` report; 0 lifts it | one consumer run (issue #298) |
 | `JOHARNESS_CHURN_THRESHOLD` | 5 | one file rewritten this often = warning | `ci`'s knob; honest branches peak at 4 |
@@ -384,12 +386,19 @@ or retired, at a tip; it carries `held Nd` from that commit.
 | `JOHARNESS_CURATE_HOURS` | 168 | hours since the last curate = due (anchors rot with no plan changing); 0 switches the cycle off | written number |
 | `JOHARNESS_CURATE_REGISTRY` | 3 | plans declaring one path before `curate` calls it a registry | written number |
 | `JOHARNESS_CURATE_SPLIT` | 8 | `## Scope` bullets before `curate` proposes a decompose | written number |
+| `JOHARNESS_CLERK_HOURS` | 24 | hours between clerk passes over the open issues; 0 = off | written number |
+| `JOHARNESS_CLERK_BATCH` | 3 | open issues one clerk pass takes at most | written number |
+| `JOHARNESS_CLERK_STALE_HOURS` | 24 | an unmerged clerk branch older than this holds nothing; 0 = every one holds | written number |
 | `JOHARNESS_SCOUT_READS` | 12 | outside reads one scout pass makes before it stops researching | counted by the scout in its claim's `## Decisions` |
 | `JOHARNESS_SCOUT_REVIEWER` | empty | GitHub login whose approved comment gates a scout proposal issue; read from the base branch's conf; empty = nothing can be approved | a name the human gives |
 
 | `JOHARNESS_SCOUT_RESEARCH` | off | exactly `on` lets a scout pass read outside the repository; read from the base branch's conf | a switch: money in one conf line |
 | `JOHARNESS_CONDUCT_HOURS` | 168 | hours since the ledger last landed before a conduct reviewer is due; 0 = off. An unmerged branch named `conduct-<digit>...` (any prefix) unpushed for a seventh of it, at least 24h, is read as closed by a human | written number: weekly; issue #251 has no baseline, the tally builds one |
 | `JOHARNESS_CONDUCT_SAMPLE` | 3 | retired branches one run samples, lowest `sha1(<stem>)` first; 0 = off | written number: few enough that one sonnet pass reads each whole |
+
+`./joharness.sh conf` prints every knob the script reads with its live value
+and source; the selftest `knobs-declared` keeps this table complete for the
+`dispatch`-scoped ones and in step with `KNOBS` and `conf-keys.sh`.
 
 None of these is an `updated_at` threshold — one cannot be written (Health,
 above). Read by `dispatch` (and the churn pair by `ci`) from the environment
@@ -486,7 +495,17 @@ re-warm), later turns $0.28-$0.99 at about 638k context, session total
 $116.30. Figures are `total_cost_usd` from that session's `list_events`
 `result` events, read 2026-10-12. A resumed orchestrator whose last final
 report is over an hour old says `fresh session is cheaper` on its first pass
-(`orchestrate.md`, "Report, every pass"). This is about the orchestrator; the
+(`orchestrate.md`, "Report, every pass"). Within one run the cost compounds
+too: `get_session` on gx's run of 2026-10-13 read 13 health passes in 2 h 15
+m, `usage.cost_usd` 12.65, `context_usage.used_tokens` 304,615,
+`cache_read_tokens` 26.4 M, against 0.23 to 0.37 USD for each session it
+supervised, because `send_later` wakes the SAME session and pass N re-reads
+passes 1..N-1. So after `JOHARNESS_ORCHESTRATOR_PASSES` passes the
+orchestrator spawns a successor at its own model with the ledger as its
+prompt and ends (`orchestrate.md` §4, HAND-OFF); the pass count decides,
+never a control-plane field. The first real hand-off's `context:` reading
+and both session ids are recorded here by the orchestrator's owner. This is
+about the orchestrator; the
 "Fresh session for long waits — no" measurement in
 [`agent-selection.md`](agent-selection.md) covers managers.
 
