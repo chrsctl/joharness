@@ -143,7 +143,7 @@ refute "a harness diff prints no skip line" "skipped: nothing outside" "$out"
 # The git-exec budget, counted from OUTSIDE the suite: a stub that execs git
 # exactly twice, so the number is known without trusting the suite to report
 # itself. Uncommitted, which also runs the suite (case above).
-printf '#!/usr/bin/env bash\ngit --version >/dev/null\ngit --version >/dev/null\nprintf "STUB FIRST LINE\\n"\nprintf "STUB SUITE RAN\\n"\nexit 0\n' \
+printf '#!/usr/bin/env bash\ngit --version >/dev/null\ngit --version >/dev/null\nprintf "STUB SUITE RAN\\n"\nexit 0\n' \
   >"${swork}/.agents/harness/selftest.sh"
 out="$(JOHARNESS_SELFTEST_GIT_BUDGET=2 ci_scope)"
 expect "the stage counts the suite's git execs against the budget" \
@@ -153,9 +153,15 @@ out="$(JOHARNESS_SELFTEST_GIT_BUDGET=1 ci_scope)"
 expect "one exec past the budget reds the stage" "Over budget" "$out"
 expect "and the red names the count and the budget" \
   "selftest git execs: 2 (budget 1)" "$out"
-# A passing suite is thousands of PASS lines: not verbose, only its last line.
-out="$(JOHARNESS_VERBOSE=0 ci_scope)"
-expect "a quiet pass still prints the count" "selftest git execs: 2" "$out"
-expect "and the suite's last line" "STUB SUITE RAN" "$out"
-refute "but not the lines before it" "STUB FIRST LINE" "$out"
+# An exported `git` function makes `command -v git` print `git`, and a
+# wrapper exec'ing that name finds itself on PATH and never stops. Bounded:
+# without the fix this case is a 60s timeout, not a hung suite (timeout
+# signals its whole process group, the looping wrapper included).
+# shellcheck disable=SC2317  # git() is called, through the export
+out="$( git() { command git "$@"; }; export -f git
+  CLAUDE_PROJECT_DIR="$swork" JOHARNESS_CONF="${swork}/joharness.conf" \
+  GITHUB_ACTIONS='' JOHARNESS_SELFTEST='' JOHARNESS_SELFTEST_GIT_BUDGET=2 \
+  timeout 60 "${swork}/joharness.sh" ci 2>&1 | sed -n '/== harness selftest/,/^$/p' )"
+expect "an exported git function does not loop the wrapper" \
+  "selftest git execs: 2 (budget 2)" "$out"
 git -C "$swork" checkout -q -- .agents/harness/selftest.sh

@@ -353,11 +353,10 @@ run_check() {
   out="$("$@" 2>&1)"; rc=$?
   # A pass that carries a report about THIS branch or checkout (not
   # measurable, edge report, ships, not covered, shallow — incl. graph reds
-  # degraded to warnings — churn warning, the selftest's git-exec count)
-  # still prints. Plain lint warnings about other plans stay quiet: measured
-  # noise managers mis-read.
+  # degraded to warnings — churn warning) still prints. Plain lint warnings
+  # about other plans stay quiet: measured noise managers mis-read.
   if { [ "$rc" -ne 0 ] && [ "$rc" -ne 3 ]; } || [ "$CHECK_VERBOSE" = 1 ] ||
-     printf '%s' "$out" | grep -qE 'not measurable|Reported, not failed|SHIPS to consumers|Not covered here|SHALLOW|shallow history|commits on this branch$|Fix undoing|selftest git execs:'; then
+     printf '%s' "$out" | grep -qE 'not measurable|Reported, not failed|SHIPS to consumers|Not covered here|SHALLOW|shallow history|commits on this branch$|Fix undoing'; then
     printf '== %s\n' "$name"
     [ -z "$out" ] || printf '%s\n' "$out"
     printf '\n'
@@ -423,30 +422,29 @@ ci_selftest() {
 # The selftest under a counting `git` first on PATH: every exec appends one
 # line, so the count is taken from OUTSIDE the suite and no topic can hide
 # from it. Over JOHARNESS_SELFTEST_GIT_BUDGET = red, like a failed case: the
-# suite's cost grows one fixture at a time and nobody sees it grow.
+# suite's cost grows one fixture at a time and nobody sees it grow. A green
+# stage stays quiet like every other; `ci -v` prints the count. The default
+# is a count plus a tenth: `ci -v` on this repository, 2026-10-14.
 selftest_counted() {
   local real dir rc n budget
   budget="$(num_knob JOHARNESS_SELFTEST_GIT_BUDGET)"
-  real="$(command -v git)" || { warn "no git on PATH"; return 1; }
+  # A path, never a name: an exported `git` function makes `command -v` say
+  # `git`, and a wrapper exec'ing that finds itself on PATH forever.
+  real="$(type -P git)"
+  case "$real" in /*) ;; *) warn "no git executable on PATH"; return 1 ;; esac
   dir="$(mktemp -d)" || return 1
   # Paths are baked in, never read from the environment: a nested ci (the
   # suite runs ci in fixtures) must not point this wrapper at its own file.
+  # POSIX single quotes, not %q: the interpreter is sh, and %q may write $'…'.
   { printf '#!/bin/sh\n'
-    printf 'echo . >>%q\n' "${dir}/count"
-    printf 'exec %q "$@"\n' "$real"
+    printf 'echo . >>%s\n' "$(sh_squote "${dir}/count")"
+    printf 'exec %s "$@"\n' "$(sh_squote "$real")"
   } >"${dir}/git"
   chmod +x "${dir}/git"
   : >"${dir}/count"
-  PATH="${dir}:${PATH}" "${HARNESS_ROOT}/selftest.sh" >"${dir}/out" 2>&1
+  PATH="${dir}:${PATH}" "${HARNESS_ROOT}/selftest.sh" 2>&1
   rc=$?
   n="$(wc -l <"${dir}/count")"; n="${n//[!0-9]/}"
-  # A passing suite is thousands of PASS lines: its summary is enough, unless
-  # the reader asked for everything.
-  if [ "$rc" -ne 0 ] || [ "$CHECK_VERBOSE" = 1 ]; then
-    cat "${dir}/out"
-  else
-    tail -1 "${dir}/out"
-  fi
   rm -rf "$dir"
   printf '  selftest git execs: %s (budget %s)\n' "${n:-0}" "$budget"
   if [ "${n:-0}" -gt "$budget" ]; then
@@ -456,6 +454,9 @@ selftest_counted() {
   fi
   return "$rc"
 }
+
+# One word in POSIX single quotes, safe for any sh.
+sh_squote() { printf "'%s'" "${1//\'/\'\\\'\'}"; }
 
 # Review churn: the session inside it is the one least able to see it.
 # Warning from the threshold, red from the ceiling (0 lifts both).
