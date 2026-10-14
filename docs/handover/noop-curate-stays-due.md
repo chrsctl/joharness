@@ -23,7 +23,7 @@ Settle whether a no-finding curator pass leaves `curate : DUE`, and graduate the
 
 ## Review
 
-- r1: clean pass, docs-only diff plus one plan (no change)
+- r1: clean pass: ci green, no verifier finding (no change)
 
 ## Blockers
 
