@@ -129,6 +129,7 @@ JOHARNESS_CANONICAL||session|Conf line JOHARNESS_CANONICAL=1 marks the canonical
 JOHARNESS_CONF|computed|session|Path of the conf file; default joharness.conf under the checkout.
 JOHARNESS_VERBOSE|0|session|1 = ci and finish print passing checks too.
 JOHARNESS_SELFTEST||session|always = run the selftest even on a docs-only diff.
+JOHARNESS_SELFTEST_GIT_BUDGET|88960|session|Git execs the selftest may make before the ci stage reds; canonical-only.
 JOHARNESS_SESSION_SOURCE||session|The SessionStart hook source (startup, resume, clear, compact), set by session-start.
 JOHARNESS_FORCE_SETUP|0|session|1 = provision at session start outside the remote sandbox.
 JOHARNESS_SHIP||session|all = ci treats every harness file as shipping.
@@ -417,9 +418,48 @@ ci_selftest() {
     printf '  skipped: nothing outside docs/ and README.md changed on this branch\n'
     printf '  Run it anyway: JOHARNESS_SELFTEST=always %s ci\n' "$0"
   else
-    "${HARNESS_ROOT}/selftest.sh"
+    selftest_counted
   fi
 }
+
+# The selftest under a counting `git` first on PATH: every exec appends one
+# line, so the count is taken from OUTSIDE the suite and no topic can hide
+# from it. Over JOHARNESS_SELFTEST_GIT_BUDGET = red, like a failed case: the
+# suite's cost grows one fixture at a time and nobody sees it grow. A green
+# stage stays quiet like every other; `ci -v` prints the count. The default
+# is a count plus a tenth: `ci -v` on this repository, 2026-10-14.
+selftest_counted() {
+  local real dir rc n budget
+  budget="$(num_knob JOHARNESS_SELFTEST_GIT_BUDGET)"
+  # A path, never a name: an exported `git` function makes `command -v` say
+  # `git`, and a wrapper exec'ing that finds itself on PATH forever.
+  real="$(type -P git)"
+  case "$real" in /*) ;; *) warn "no git executable on PATH"; return 1 ;; esac
+  dir="$(mktemp -d)" || return 1
+  # Paths are baked in, never read from the environment: a nested ci (the
+  # suite runs ci in fixtures) must not point this wrapper at its own file.
+  # POSIX single quotes, not %q: the interpreter is sh, and %q may write $'…'.
+  { printf '#!/bin/sh\n'
+    printf 'echo . >>%s\n' "$(sh_squote "${dir}/count")"
+    printf 'exec %s "$@"\n' "$(sh_squote "$real")"
+  } >"${dir}/git"
+  chmod +x "${dir}/git"
+  : >"${dir}/count"
+  PATH="${dir}:${PATH}" "${HARNESS_ROOT}/selftest.sh" 2>&1
+  rc=$?
+  n="$(wc -l <"${dir}/count")"; n="${n//[!0-9]/}"
+  rm -rf "$dir"
+  printf '  selftest git execs: %s (budget %s)\n' "${n:-0}" "$budget"
+  if [ "${n:-0}" -gt "$budget" ]; then
+    printf '  Over budget: a topic re-runs work, or a new one costs more than it\n'
+    printf '  should. Find it before raising JOHARNESS_SELFTEST_GIT_BUDGET.\n'
+    return 1
+  fi
+  return "$rc"
+}
+
+# One word in POSIX single quotes, safe for any sh.
+sh_squote() { printf "'%s'" "${1//\'/\'\\\'\'}"; }
 
 # Review churn: the session inside it is the one least able to see it.
 # Warning from the threshold, red from the ceiling (0 lifts both).
