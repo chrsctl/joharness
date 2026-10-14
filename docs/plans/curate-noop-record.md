@@ -6,7 +6,7 @@ effort: medium
 needs: none
 requirement: none
 issue: none
-scope: joharness.sh, .agents/docs/orchestrated.md, .agents/harness/selftest
+scope: joharness.sh, .agents/docs/orchestrated.md, .agents/harness/selftest/dispatch.sh
 ---
 
 ## Goal
@@ -27,7 +27,7 @@ as the `clerk :` clock does with `clerk-noop-<stamp>`.
   clerk's does.
 - `.agents/docs/orchestrated.md` — the `curate` row/knob text names the
   record beside the clerk's.
-- `.agents/harness/selftest/` — one case: a merged `curate-noop-<stamp>` ref makes
+- `.agents/harness/selftest/dispatch.sh` — one case: a merged `curate-noop-<stamp>` ref makes
   `dispatch_curate_due` print `not-due`; failing without the change.
 
 ## Out of scope
