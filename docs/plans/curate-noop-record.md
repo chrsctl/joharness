@@ -21,7 +21,7 @@ as the `clerk :` clock does with `clerk-noop-<stamp>`.
 
 - `joharness.sh` — `dispatch_curate_due`: take the newer of `cycle_landed_ts`
   and a `curate_noop` reader modelled on `clerk_noop` (merged refs only,
-  `clerk_stamp_ts` parsing, future stamps beyond the stale window ignored).
+  `clerk_stamp_ts` parsing, a stamp more than `JOHARNESS_CURATE_HOURS` ahead of now ignored, no clerk knob reused).
   A no-op record resets BOTH triggers: churn counts from the record's
   commit, age from its stamp; the reason text names the record like the
   clerk's does.
@@ -49,6 +49,6 @@ as the `clerk :` clock does with `clerk-noop-<stamp>`.
 
 ## Traps
 
-- Merged-only refs, else an unmerged branch reads as a pass done (AGENTS.md
-  Part 2).
+- Merged-only refs, else an unmerged branch reads as a pass done (`clerk_noop`'s
+  `--merged=` filter).
 - A dated-in-the-future stamp pins the clock; clamp as `clerk_noop` does.

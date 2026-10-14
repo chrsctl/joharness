@@ -23,7 +23,10 @@ Settle whether a no-finding curator pass leaves `curate : DUE`, and graduate the
 
 ## Review
 
-- r1: clean pass: ci green, no verifier finding (no change)
+- r1: curate.md carried a plan pointer, an unverifiable gx number and an over-long line (verifier) (fixed)
+- r2: plan Trap cited AGENTS.md Part 2 for the merged-only rule; source is clerk_noop (verifier) (fixed)
+- r3: plan named no stale bound for future stamps; now JOHARNESS_CURATE_HOURS (verifier) (fixed)
+- r4: no selftest covers dispatch_curate_due, so the one case needs a new fixture (verifier) (no change: plan says fixture is the builder's)
 
 ## Blockers
 
