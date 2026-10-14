@@ -104,8 +104,8 @@ JOHARNESS_PENDING_SPAWNS=0 ./joharness.sh dispatch
   `cmd_upstream` reads a retired workstream file for `## Review` findings,
   and in canonical stops at once. The orchestrator's report is `dispatch`
   plus control-plane state. The first context's "dispatch at
-  2026-10-13T02:06Z prints no line for it" is a session reading, UNVERIFIED
-  here and consistent with the code.
+  2026-10-13T02:06Z prints no line for it" is a session reading, WEAK: no
+  command here re-takes it, and it is consistent with the code.
 - **The one follow-up route the harness names cannot hold this.** GROUNDED.
   "Follow-up work that must outlive this session = a plan file in your pull
   request" (`.claude/commands/manage.md` §2) against "A plan whose `scope:`
@@ -113,8 +113,10 @@ JOHARNESS_PENDING_SPAWNS=0 ./joharness.sh dispatch
   clerk has the same wall from the other side: a core-only ask gets verdict
   HUMAN and the label `human-review`, never a plan (`clerk.md` §3).
 - **Side finding: both core diffs were agent-authored on the human's order
-  and human-merged.** GROUNDED. `88c820fd` and `600064e4` both say so in
-  their messages; both pull requests were merged by `chrsctl`.
+  and human-merged.** GROUNDED. `600064e4`'s message says so; for
+  `88c820fd` it is the body of gx #655 ("at the user's explicit request —
+  needs a human merge"), not the commit message. Both pull requests were
+  merged by `chrsctl`.
   `.agents/docs/orchestrated.md` Bounds already puts the guarantee on
   code-owner review, not authorship.
 
@@ -147,8 +149,10 @@ Settled YES. The answer graduates as text, no plan:
 Second context: this file's closing manager, in a fresh clone of
 `chrsctl/gx` and this checkout, commands under Method. Every commit id,
 timestamp, line count and pull request body re-read. One finding corrected
-(instance 2 was closed before its plan merged, not open). Two readings stay
-UNVERIFIED because no command re-takes a session record: that the human
+(instance 2 was closed before its plan merged, not open). The verifier at
+fable re-took the pull request bodies and timestamps through the GitHub REST
+API and found one source misattributed (fixed). Two readings stay WEAK
+because no command re-takes a session record: that the human
 "noticed" rather than being told, and the 02:06Z dispatch output. Neither
 changes the answer, which rests on the code reading of `dispatch` and
 `cmd_upstream` in this checkout.

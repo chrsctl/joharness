@@ -120,8 +120,10 @@ So the home is a GitHub issue, the one node a session may create that a
 human already reads: issues are the front door for human asks (below), the
 clerk skips one labelled `human-review` and says so on its report line
 every pass, the clerk's own verdict for a core-only ask is HUMAN with that
-label, and the human's merge closes it (`Closes #N`). The manager files it
-before the retire commit (`.claude/commands/manage.md` §2). Not invention at
+label, and the human's own core-path pull request closes it (`Closes #N`
+there; the manager's body says `Refs #N`, since its merge into `main` would
+close the issue first). The manager files it before the retire commit
+(`.claude/commands/manage.md` §2). Not invention at
 the edge: the issue carries the plan's own carve-out, never new scope. A
 ledger file on `main` was rejected: a row the human's `.github` merge forgets
 to delete is stale state, and `dispatch` reading it is the stored-copy

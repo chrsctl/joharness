@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_016spQNSNiq2i68P9xyAwCPe
 agent: fable
 updated: 2026-10-14
-next: Run ci and verify, spawn the verifier at fable, record the review, retire the research and workstream files, open the pull request, merge
+next: Re-run ci alone (r9), then retire the research and workstream files, open the pull request, merge
 ---
 
 ## Goal
@@ -45,10 +45,14 @@ research file.
 
 ## Review
 
-One bullet per finding, written BEFORE its fix, committed WITH it, in exactly
-the form `- rN: text (fixed|wontfix: why|no change)` — `ci` checks it. Tag the
-verifier's findings `(verifier)`. Clean pass = one bullet saying so. Remove
-this paragraph when you add the first bullet.
+- r1: (verifier) `Closes #N` in the manager's own body closes the remainder issue at that merge, before any human edit (fixed — `Refs #N` in manage.md §2 and the README section; `Closes` is the human's)
+- r2: (verifier) side finding cited `88c820fd`'s message, which says nothing of the human's order; gx #655's body does (fixed — pointer names the pull request body)
+- r3: (verifier) UNVERIFIED used as a node mark; the vocabulary is GROUNDED, WEAK, UNGROUNDED (fixed — WEAK)
+- r4: (verifier) manage.md paragraph stated the why twice, already in the README section (fixed — trimmed to the rule, README holds the why)
+- r5: (verifier) trigger named a `## Human follow-up` heading no template defines (fixed — any core-path edit the plan leaves to a human, under whatever heading)
+- r6: (verifier) §4 Finish did not point at the issue step a manager resuming from `next:` needs (fixed — §4 "Before the retire commit" names it)
+- r7: `./joharness.sh ci` 2026-10-14, first run: 2807 passed, 1 failed — the 80 KB prose-keyword timing case at 6s (wanted <= 4s) while `verify` and the verifier's own `ci` ran beside it; the verifier's run on the same tree: pass (no change — re-run alone after the fixes, r9)
+- r8: `./joharness.sh verify` 2026-10-14: 4 passed, 2 failed, both container egress through the sandbox proxy (alpine:3 pull, HTTPS from a container); this diff is `.md` only, so step 7 does not require it; GitHub's run of the layer is read at merge (no change)
 
 ## Blockers
 
