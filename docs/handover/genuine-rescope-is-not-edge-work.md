@@ -50,6 +50,7 @@ nudging it forever (issue #492).
 - r10: `./joharness.sh verify` red here on the docker layer: Docker Hub answers 429 for `alpine:3` from this container (1 passed, 5 failed), unrelated to the diff; GitHub's run verifies the head (no change)
 - r11: (verifier) a tab inside a frontmatter value (`status: done<TAB>none`, `pr: 12`) still split the row: dispatch printed finished, the hook EDGE (fixed: tabs in values become spaces in `dispatch_rescope_branches`; selftest case)
 - r12: (verifier) the empty-key guard never fired: an empty key collapsed under IFS before the check (fixed: an empty key is written `?`, dispatch and hook both refuse `rescope-?`)
+- r13: r11 test fails without its fix (joharness.sh before r11, 2026-10-14): `FAIL the row still lists, its status read whole`, `FAIL a tab inside a value never shifts the pr out`; with it `./joharness.sh ci` reads `ci: pass` (no change)
 
 ## Blockers
 
