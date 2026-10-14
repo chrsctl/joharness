@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01Ea62sjTaRhxvXCtPD1Q4g4
 agent: fable
 updated: 2026-10-14
-next: Re-measure (a)-(d) on a fixture in this checkout, then graduate the answer into .agents/docs/orchestrated.md Bounds and file the follow-up plan
+next: Run ci and verify, then the verifier at fable, record the review, retire, open the pull request, merge
 ---
 
 ## Goal
@@ -20,12 +20,31 @@ human's core edit? Graduate the answer into `.agents/docs/orchestrated.md`
 
 ## Decisions
 
-- Research file writes no code: the dispatch and orchestrate.md changes go
-  in a follow-up plan in this pull request, not in this diff.
+- Answer: YES. Re-measured 2026-10-14 on a scratch queue in this checkout
+  (one requirement, one plan serving it, one core path among three scope
+  entries): `slots : 4 of 4 free`, `nothing free`, plan under `NOT YOURS —
+  CORE ONLY`, requirement absent from `Requirements without plans`, verdict
+  `DRAINED — nothing free, nothing in flight: exit, the heartbeat re-seeds`.
+  The mechanism is GROUNDED here; gx's dates and counts stay that session's
+  reading (WEAK: this checkout cannot see gx).
+- Route: keep the de-rank; name the wait. A manager on a partly-core plan
+  spends a slot to end `core path:` blocked — same human hand, paid for
+  first. A surveyor never splits a plan. Written in orchestrated.md Bounds.
+- Research file writes no code: dispatch, selftest and orchestrate.md
+  changes are plan `dispatch-names-the-core-wait` in this pull request.
+- The wait is a line UNDER the verdict, the stall line's shape, never a
+  change to the verdict word: the orchestrator's exit branches on `DRAINED`
+  and the selftest matches the line whole.
 
 ## Rejected
 
-- None yet.
+- Manager builds the non-core part, leaves the core edit as a patch under
+  `human-review`: money before the human acts, and the pull request cannot
+  merge (all-or-nothing acceptance; label blocks merge). Flagged for the
+  human in the pull request body as the alternative if they prefer paid
+  slots over idle ones.
+- Surveyor splits the plan: `manage.md` R forbids a split, and the core
+  remainder has no plan-shaped home (core-only scope is red in `ci`).
 
 ## Review
 

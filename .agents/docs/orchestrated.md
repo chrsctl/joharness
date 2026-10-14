@@ -420,8 +420,31 @@ The rules that bind every session.
   guard and the queue hook — the early warning. `.github/CODEOWNERS` plus a
   branch-protection rule requiring code-owner review is the guarantee; that
   rule is a repository setting, the human's. A plan with ANY core path in
-  `scope:` is marked and de-ranked: acceptance is all-or-nothing, so a
-  partly-core plan cannot be finished either. `.agents/env/` is not core.
+  `scope:` is marked `CORE ONLY` and de-ranked: acceptance is all-or-nothing,
+  so a partly-core plan cannot be finished either. `.agents/env/` is not
+  core.
+- **A `CORE ONLY` plan is a wait on a human, and the verdict names it.**
+  With slots free and nothing left but `CORE ONLY` plans, `dispatch` reads
+  `DRAINED` — true of the fleet, false of the queue: the orchestrator opens
+  no plan, pushes the human only on `status: blocked`, and exits; the
+  heartbeat re-seeds and exits again. A requirement whose only plan is
+  `CORE ONLY` counts as planned, so no planning manager is offered either.
+  Measured 2026-10-14 on a scratch queue (one requirement, one plan serving
+  it, `scope: .github/workflows/ci.yml, platform/web/src, scripts`):
+  `slots : 4 of 4 free`, `nothing free`, the plan under `NOT YOURS — CORE
+  ONLY`, the requirement absent from `Requirements without plans`, verdict
+  `DRAINED — nothing free, nothing in flight: exit, the heartbeat re-seeds`.
+  In gx the human found that stall by asking, three days after the plans
+  landed (research `partly-core-plans-strand-their-slots`, one session's
+  reading of 2026-10-13). Decided: the de-rank stays. A manager spawned on
+  a partly-core plan spends a slot to end `core path:` blocked — the same
+  human hand at the same place, paid for first — and a surveyor never
+  splits a plan. What changes is the silence: `dispatch` prints the wait
+  under its verdict (count, oldest age, stems) and the orchestrator pushes
+  it to the human once per run, as it does a block, never spawning on it.
+  Plan `dispatch-names-the-core-wait` builds that; until it merges the
+  verdict line is the whole reading. The human's move is a split by hand:
+  the core edit on their own commit, the plan's `scope:` without it.
 - **Merging uses the step 7 conditions unchanged.** The mode removes the
   human, never the gate.
 - **No state store, no status field.** Every view derives from git and the
@@ -456,7 +479,9 @@ human's call.
 
 DRAINED, at the queue edge, with nothing in flight. Anything else that ends a
 run — a rate limit, a session asking a question, a failed spawn — is a
-finding, not a stop.
+finding, not a stop. A queue holding only `CORE ONLY` plans is DRAINED for
+the fleet and a wait for a human: the stop stands, the wait is named
+(Bounds, "A `CORE ONLY` plan is a wait on a human").
 
 A human decision is a PUSH, never a wait (issue #304). A manager that asks
 inside the session writes nothing: its slot stays held and the question
