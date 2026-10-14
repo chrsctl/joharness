@@ -1596,6 +1596,32 @@ fi
 out="$(cwd env JOHARNESS_CURATE_HOURS=0 JOHARNESS_CURATE_PLANS=1)"
 refute "off still spawns nothing once one has landed" "curate DUE" "$out"
 
+# A curate pass with nothing to propose pushes `curate-noop-<stamp>` at the base
+# head; once merged it resets the churn count and the age, as the clerk's does.
+cp "${cwwork}/docs/plans/clean.md" "${cwwork}/docs/plans/churned.md"
+sed -i 's/^plan: clean/plan: churned/' "${cwwork}/docs/plans/churned.md"
+commit_all "$cwwork" "a plan changes after the curate landed"
+git -C "$cwwork" push -q origin main
+out="$(cwd env JOHARNESS_CURATE_PLANS=1)"
+expect "a plan changed since the last curate is due" "curate DUE" "$out"
+git -C "$cwwork" push -q origin "main:refs/heads/curate-noop-$(date -u +%Y%m%dT%H%M%SZ)"
+out="$(cwd env JOHARNESS_CURATE_PLANS=1)"
+refute "a merged curate-noop record makes it not due" "curate DUE" "$out"
+expect "and the clock names the record" \
+  "since the last curate pass found nothing to propose (curate-noop-" "$out"
+# The age resets too: with the churn trigger off, only the clock is left, and the
+# landing is months old in this fixture.
+out="$(cwd env JOHARNESS_CURATE_PLANS=0)"
+refute "the record resets the age as well" "curate DUE" "$out"
+# A stamp far ahead of now is a broken clock and dates nothing; one older than
+# the newest record changes nothing.
+git -C "$cwwork" push -q origin "main:refs/heads/curate-noop-29990101T000000Z"
+git -C "$cwwork" push -q origin "main:refs/heads/curate-noop-20200101T000000Z"
+out="$(cwd env JOHARNESS_CURATE_PLANS=0)"
+refute "a far-future stamp does not date the clock" "29990101" "$out"
+refute "nor an older record" "20200101" "$out"
+expect "the newest sane record still dates it" "curate-noop-2026" "$out"
+
 # --- the findings a green suite would otherwise not distinguish ---------------
 # Each of these was an uncovered branch or an assertion that passed with its
 # feature removed (verifier r11). Their own fixture, one plan per question.
