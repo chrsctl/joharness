@@ -92,6 +92,44 @@ work. Declare core paths anyway — hiding one does not make the plan doable
 (the Stop guard blocks on the diff); it only costs the fleet a run. A plan
 whose `scope:` is core paths ONLY is red in `ci`: only a human builds it.
 
+### A human remainder
+
+A plan split so a session can build it leaves a core-path edit behind — a
+`## Human follow-up` section, the edit the acceptance makes the pull request
+body quote. That text has no life past the merge: the retire commit deletes
+the plan and the workstream file, a pull request body is read by nobody
+twice, and no harness read lists it — `dispatch` reads workstream files on
+live branches and plans in the queue, `upstream` reads a retired workstream
+file for findings, the orchestrator's report reads `dispatch`. A core-only
+plan would be the natural file, and it is red here by rule: a plan nobody
+spawns on sits in the queue until a human notices (pull request #457
+measured the cost: two plans held three days under `CORE ONLY`, `DRAINED`
+said nothing).
+
+Measured in consumer `chrsctl/gx`, 2026-10-13. Two plans were split by the
+human (gx #651). The first merged as gx #654; its retire commit (27c622aa)
+deleted the plan with the follow-up section, and the CI step existed only in
+the pull request body until the human noticed the gap and ordered gx #655.
+The second was applied the same way (gx #656, 600064e4) before its plan
+merged as gx #657. Both times the catch was the human reading, not the
+harness, and both core diffs were agent-authored on the human's order and
+human-merged — consistent with Bounds (`.agents/docs/orchestrated.md`): the
+guarantee is code-owner review, not who typed the diff.
+
+So the home is a GitHub issue, the one node a session may create that a
+human already reads: issues are the front door for human asks (below), the
+clerk skips one labelled `human-review` and says so on its report line
+every pass, the clerk's own verdict for a core-only ask is HUMAN with that
+label, and the human's own core-path pull request closes it (`Closes #N`
+there; the manager's body says `Refs #N`, since its merge into `main` would
+close the issue first). The manager files it before the retire commit
+(`.claude/commands/manage.md` §2). Not invention at
+the edge: the issue carries the plan's own carve-out, never new scope. A
+ledger file on `main` was rejected: a row the human's `.github` merge forgets
+to delete is stale state, and `dispatch` reading it is the stored-copy
+failure `.agents/docs/graph.md` names. `dispatch` still reads git only;
+counting open `human-review` issues there is a separate decision.
+
 `shared:` means "a reconcile merge is expected here", so the path stops
 splitting waves and the hook names it on the wave line instead. Everything
 unmarked keeps its meaning exactly: an undeclared or unmarked overlap still
