@@ -43,7 +43,36 @@ Consumer repo chrsctl/gx, orchestrator session_0132SwBkvDE4dAUiXcUdhaJF, 2026-10
 
 ## Verification
 
-Not yet verified from a second context.
+Second context: session_013Hfbv2DPtA1BtEFNKCcphY (joharness, a session tooled
+with the Claude Code Remote MCP, not the one that wrote the findings),
+re-taking the readings with `get_session` on all four sessions and
+`list_events` on session_019d3QvJ… and session_01JLic6G… (the latter read to
+its first event by a subagent).
+
+- Page says `source_url`, orchestrator omitted it: GROUNDED for the three
+  sessions read. session_01Pzr75M… shows no `sources` and tag
+  `config:no-git-repo`; session_01249wSr… (respawn 2) shows gx in `sources`
+  and no such tag.
+- "each omitted spawn tagged `config:no-git-repo`": WEAK as worded. At read
+  time session_019d3QvJ… and session_01JLic6G… carry gx in `sources` and NO
+  `config:no-git-repo` tag, although both started in an empty `/home/user`
+  (init `cwd: /home/user`; session_01JLic6G… `ls` at 18:18:56Z listed
+  nothing; env log "No sources configured"). The tag and `sources` reflect a
+  later `add_repo`, not the spawn: read them at creation or read the first
+  turn, never the record afterwards.
+- No checkout, no recovery on the page's terms: GROUNDED for
+  session_01Pzr75M… (`need_input`, "awaiting your OK to attach chrsctl/gx").
+- Self-attach unreliable: GROUNDED. session_019d3QvJ…: `add_repo` then
+  `git clone --depth 1 https://github.com/chrsctl/gx /home/user/gx` rejected
+  "[Permission Grant]". session_01JLic6G…: prompt said "if it is not already
+  in your working directory, attach it with the add_repo tool, clone it, and
+  call register_repo_root"; `add_repo` 18:18:58Z, clone 18:19:02Z accepted.
+- "claim visible 18:29Z" for session_01JLic6G…: WEAK. Its claim push was
+  issued 18:19:31Z; 18:29Z is respawn 2's creation. Cost figures for the
+  audio item (17:50Z to 18:29Z unclaimed, one respawn spent) stand: GROUNDED
+  from the two sessions' `created_at`.
+
+Corrections change no conclusion: the consequence sentence stands.
 
 ## Graduates to
 
