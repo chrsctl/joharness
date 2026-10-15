@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01USonUprubk5GGRXfwYMqJP
 agent: sonnet
 updated: 2026-10-15
-next: ci + verify running on the edited pages; then review, retire plan + this file, PR, merge
+next: ci rerun (full output to /tmp/claude-0/ci2.out) to find the 1 failure from first run; fix; verifier review; retire; PR
 ---
 
 ## Goal
