@@ -300,7 +300,11 @@ nothing.
 - Manager: `create_session` with `source_url` = `git remote get-url origin`,
   `clone_depth: 5000` (a 50-deep clone hides the merge base `authority` needs),
   `model` = item's `agent:` via the Lineup, `title` = `manager: <stem>`,
-  `prompt`:
+  `prompt`. Never omit `source_url`: without it the session starts in an
+  empty `/home/user`, no checkout, no `/manage` (repo skills load only once a
+  repo is attached), and the manager cannot be relied on to attach it itself
+  (measured: one self-attach worked, one was denied at `git clone`), so it may
+  never claim:
 
   ```
   /manage <path>
@@ -380,7 +384,8 @@ it too.
    it. Retitle BEFORE the spawn: one orchestrator per repo. Refused or
    erroring = no hand-off: arm `send_later` as above, report `hand-off
    skipped: set_session_title refused`.
-3. `create_session`: `source_url` = `git remote get-url origin`,
+3. `create_session`: `source_url` = `git remote get-url origin` (omit it and
+   the successor has no `/orchestrate`, same mechanism as the Manager bullet),
    `clone_depth: 5000`, `model` = step 1's, `title` = `orchestrator:
    <owner/repo>`, `prompt` = the wake above with `pass=1` and NO `lead`
    lines (a spawn prompt never carries a lead). Fails or refused =
