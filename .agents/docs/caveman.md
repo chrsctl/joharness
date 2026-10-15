@@ -76,7 +76,8 @@ reached; every past sentence is paid by every reader, forever.
   cannot tell).
 
 "Numbers, dates — exact" under Never touch governs compression of text
-that stays, not whether a dated story stays.
+that stays, not whether a dated story stays. Measured number keeps its
+command and when (Loop step 5): that is the number's metadata, not a story.
 
 ## Where it applies
 
