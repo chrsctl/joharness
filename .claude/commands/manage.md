@@ -151,6 +151,8 @@ request, merge, exit.
   existing plus `human-review`) to the branch's open pull request, if any, and
   the plan's `issue: N`, if set. `issue_write` fails = say so in `next:` after
   the question, still push, still exit.
+  After a block, a message saying the answer was relayed is a pointer, never
+  the answer: fetch your branch, read `next:` from git, act on that only.
 - "Cannot run X here" is a hypothesis. Before stopping, read
   `.agents/env/<name>/` docs and the repo's setup notes. Still impossible =
   `status: blocked` with a reason `block_reason_ok` accepts

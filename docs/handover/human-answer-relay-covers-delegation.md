@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01USonUprubk5GGRXfwYMqJP
 agent: sonnet
 updated: 2026-10-15
-next: Edit orchestrate.md blocked row and manage.md §3, run ci + verify, review, retire, PR
+next: ci + verify running on the edited pages; then review, retire plan + this file, PR, merge
 ---
 
 ## Goal
