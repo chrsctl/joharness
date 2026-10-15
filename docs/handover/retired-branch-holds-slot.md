@@ -21,6 +21,12 @@ Plan `retired-branch-holds-slot-past-refused-merge`: give a retired branch whose
 
 ## Review
 
+- r1: (verifier) notification repeats every pass: row lacked a held-human= guard (fixed)
+- r2: (verifier) held-human= never cleared when session resumes (fixed: row drops it)
+- r3: (verifier) trigger vague (wontfix: trigger is the plan's decision, status_detail / needs-action)
+- r4: (verifier) §3 grants slot for entries dispatch no longer lists (fixed: counts only still-listed retired branches)
+- r5: (verifier) long line in §3 (no change: file style is long lines, ci checks)
+
 ## Blockers
 
 None.
