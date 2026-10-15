@@ -6,7 +6,7 @@ effort: medium
 needs: none
 requirement: none
 issue: none
-scope: .claude/commands/orchestrate.md, joharness.sh, .agents/harness/selftest/dispatch.sh
+scope: shared:.claude/commands/orchestrate.md, joharness.sh, .agents/harness/selftest/dispatch.sh
 ---
 
 ## Goal
@@ -15,7 +15,8 @@ A consumer orchestrator (chrsctl/gx, 2026-10-14 to 15) carried a retired
 branch whose manager ran step 7, had its merge refused by its own permission
 policy, and went IDLE asking a human to merge (PR gx#714, open and ready). No
 health-table row covers that state, so the slot stayed counted for 29 passes
-(1 of 4, 25% of the fleet) while 32-37 items waited. Nothing the orchestrator
+(1 of 4, 25% of the fleet) while 32-37 items waited (orchestrator's
+readings, not re-taken; PR and session state re-taken). Nothing the orchestrator
 sends changes it: a nudge meets the same refusal, a respawn inherits the same
 policy. And `dispatch` says "a pull request is expected; this reader cannot
 see one" when the truth was "open, waiting on a human merge". Give the state
@@ -46,6 +47,12 @@ then `git show $c^:docs/research/retired-branch-holds-slot-past-refused-merge.md
   does", keeping the rest of the row. `.agents/harness/selftest/dispatch.sh`
   asserts the old string: update it to the new one.
 
+Plan decisions beyond the node's consequence, made here (planner, this
+plan's PR): the row's trigger (`status_detail` / needs-action asking for a
+merge); the ledger line and the §3 slot rule (where "stop counting the
+slot" can live, since `dispatch` reads git only); rewording the dispatch
+text instead of the node's optional "read the PR's state".
+
 ## Out of scope
 
 - `dispatch` reading GitHub pull request state, or changing its slot count.
@@ -60,22 +67,27 @@ then `git show $c^:docs/research/retired-branch-holds-slot-past-refused-merge.md
 - `grep -c 'held-human' .claude/commands/orchestrate.md` — 3 or more (row,
   ledger line, §3).
 - `grep -c 'cannot see one' joharness.sh` — 0.
-- `bash .agents/harness/selftest/dispatch.sh` — passes; and FAILS against the
-  old `joharness.sh` (the assertion moved with the string).
+- `grep -c 'cannot see one' .agents/harness/selftest/dispatch.sh` — 0, and
+  its `expect` line carries the new string (the selftest runs under
+  `verify`, not alone; red before the edit = old string expected).
 - `./joharness.sh ci` — `ci: pass`. Both files ship to every consumer.
 - `./joharness.sh verify` — `0 failed` (diff touches `joharness.sh`).
 
 ## Where to look
 
-- `.claude/commands/orchestrate.md:health` — the table; `retired, no claim
-  file` and the IDLE/PENDING rows.
-- `.claude/commands/orchestrate.md:ledger` — the ledger format line.
-- `.claude/commands/orchestrate.md:Spawn` — §3, who holds a slot.
+- `.claude/commands/orchestrate.md:## 2. Health pass` — the table;
+  `retired, no claim file` and the IDLE/PENDING rows.
+- `.claude/commands/orchestrate.md:## 4. Schedule` — the `ledger:` format
+  line.
+- `.claude/commands/orchestrate.md:## 3. Spawn` — who holds a slot.
 - `joharness.sh:dispatch` — the `edge_rows` line carrying
   `retired, no claim file`.
 - `.agents/harness/selftest/dispatch.sh` — the assertion on that row.
 
 ## Traps
+
+- `human-answer-relay-covers-delegation` also edits the health table
+  (`shared:`): reconcile at finish, keep both rows.
 
 - Row order matters: the first matching row wins; the new row must sit before
   the IDLE/PENDING nudge rows or a nudge-then-RESPAWN fires on it.

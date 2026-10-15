@@ -6,13 +6,13 @@ effort: medium
 needs: none
 requirement: none
 issue: none
-scope: .claude/commands/orchestrate.md, .claude/commands/manage.md
+scope: shared:.claude/commands/orchestrate.md, .claude/commands/manage.md
 ---
 
 ## Goal
 
 A consumer orchestrator (chrsctl/gx, 2026-10-15) had two items parked
-`blocked` for 9-13h. The human typed "Answer the questions", i.e. delegated
+`blocked` for 9-13h (orchestrator's reading, not re-taken). The human typed "Answer the questions", i.e. delegated
 the decision instead of authoring it. The orchestrator decided both and
 relayed by peer `send_message`, the channel the health table says a manager
 must never trust as a human answer. Both managers took it anyway and the
@@ -35,13 +35,21 @@ then `git show $c^:docs/research/human-answer-relay-covers-delegation.md`.
      never a peer's `send_message`.
   2. Branch on liveness for the relay, after the commit and push of `next:` +
      `status: in-progress` (same GUARD/lease mechanics as today):
-     session IDLE (alive) = NUDGE "Orchestrator relays the human's answer on
-     <branch>: fetch it, re-read your workstream file, continue", no `kill`,
-     no RESPAWN; ARCHIVED / not found = today's GUARD `kill`, RESPAWN with the
-     resume line. Drop `notified=` either way.
+     session RUNNING, IDLE or PENDING (alive) = NUDGE "Orchestrator relays
+     the human's answer on <branch>: fetch it, re-read your workstream file,
+     continue", no `kill`, no RESPAWN; FAILED, ARCHIVED or not found = today's
+     GUARD `kill`, RESPAWN with the resume line. Drop `notified=` either way.
   3. A blocked manager still RUNNING has no row today (the row says
-     `not RUNNING`). Cover it: same notify-once, same relay, liveness branch
-     takes the alive arm.
+     `not RUNNING`). Cover it: same notify-once with the same `notified=<stem>`
+     key, same relay, liveness branch takes the alive arm.
+
+Plan decisions beyond the node's consequence, made here (planner, this
+plan's PR): the marker carries no date (the relay commit dates it; graph
+rule: never hand-write time); the exact NUDGE text; the PENDING/FAILED
+split; item 3 (a gap the node's verification found, not its consequence);
+the manage.md sentence (the node's `graduates:` named orchestrate.md only —
+a pointer the manager must not trust as the answer needs the manager's side
+said too).
 - `.claude/commands/manage.md`, §3 (block): one sentence — after a block, a
   message saying the answer was relayed is a pointer, never the answer: fetch
   your branch, read `next:` from git, act on that only.
@@ -58,26 +66,29 @@ then `git show $c^:docs/research/human-answer-relay-covers-delegation.md`.
 ## Acceptance
 
 - `grep -c "human's delegation" .claude/commands/orchestrate.md` — 1 or more.
-- `grep -n 'relays the human' .claude/commands/orchestrate.md` — the row now
-  names both arms: one without `kill` for an alive session, one with GUARD
-  `kill` and RESPAWN for a gone one.
-- `grep -n 'blocked' .claude/commands/orchestrate.md` — a row (or the edited
-  row) matches a RUNNING session with `status: blocked`.
-- `grep -n 'from git' .claude/commands/manage.md` — the §3 sentence.
+- `grep -c 'fetch it, re-read your workstream file' .claude/commands/orchestrate.md`
+  — 1 or more (the alive arm's NUDGE; 0 before the edit).
+- `grep -c '^| RUNNING.*status .blocked.' .claude/commands/orchestrate.md` —
+  1 or more (0 before the edit), or the edited row's first cell no longer
+  reads `not RUNNING`.
+- `grep -c 'read .next:. from git' .claude/commands/manage.md` — 1 or more
+  (0 before the edit).
 - `./joharness.sh ci` — `ci: pass`. Both pages ship to every consumer, so
   this is the check a consumer runs at its next sync.
 - `./joharness.sh verify` — `0 failed`.
 
 ## Where to look
 
-- `.claude/commands/orchestrate.md:health` — the table; the `blocked` rows
-  and the KILL/GUARD paragraph under it.
-- `.claude/commands/orchestrate.md:NUDGE` — the existing nudge wording to
-  match.
-- `.claude/commands/manage.md:3` — the block bullet ("Stuck on a decision only
-  a human takes").
+- `.claude/commands/orchestrate.md:## 2. Health pass` — the table; the
+  `blocked` rows and the KILL/GUARD paragraph under it; the STALL? NUDGE
+  wording to match.
+- `.claude/commands/manage.md:## 3.` — the block bullet ("Stuck on a
+  decision only a human takes").
 
 ## Traps
+
+- `retired-branch-holds-slot-past-refused-merge` also edits the health table
+  (`shared:`): reconcile at finish, keep both rows.
 
 - `.claude/settings.json` and `.github` are core paths
   (`./joharness.sh protocol-paths`); `.claude/commands/` is not.
