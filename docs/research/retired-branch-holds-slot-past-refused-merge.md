@@ -79,4 +79,26 @@ could read the PR's state, if the runtime can see it, instead of printing
 
 ## Verification
 
-Not yet verified in canonical.
+Second context: session_01MExUnxiQsHtpQxj66zQfMQ (joharness, not the gx
+orchestrator that wrote the findings), re-taking readings with GitHub
+`pull_request_read` on chrsctl/gx and Claude Code Remote `get_session`.
+
+- PR open and ready: GROUNDED. gx #714 `state: open`, not draft, not merged,
+  last updated 2026-10-14T18:36Z.
+- Merge refused, session parked: GROUNDED. session_017Gkumd… (manage
+  canvas-builder-design) status IDLE, `status_bucket` BLOCKED,
+  `status_category` need_input, `status_detail` "PR #714 synced and green;
+  merge blocked by permission", `needs_action` "merge ... or grant merge
+  permission for this session". Exact refusal wording "Merge Without
+  Review": UNVERIFIED, transcript not re-read.
+- No row covers it: GROUNDED. Re-take: `grep -n 'retired, no claim file'
+  .claude/commands/orchestrate.md` names one RUNNING row; the `gone` edge row
+  needs ARCHIVED or not found. The IDLE/PENDING `branch unmerged` nudge rows
+  could also match; a nudge-then-RESPAWN there inherits the same policy.
+- Dispatch wording: GROUNDED, line moved. `grep -n 'cannot see one'
+  joharness.sh` now hits line 6608, not 6596; selftest
+  `.agents/harness/selftest/dispatch.sh` asserts the string.
+- 29 passes and 7h/15h figures: UNVERIFIED, orchestrator transcript not
+  re-read; consistent with PR #714 untouched since 18:36Z.
+
+Corrections change no conclusion: the consequence stands.

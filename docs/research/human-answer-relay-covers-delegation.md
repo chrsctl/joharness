@@ -76,4 +76,25 @@ and RESPAWN. Canonical decides. This is a report from a consumer.
 
 ## Verification
 
-Not yet verified in canonical.
+Second context: session_01MExUnxiQsHtpQxj66zQfMQ (joharness, not the gx
+orchestrator that wrote the findings), re-taking readings with GitHub
+`get_commit` on chrsctl/gx and Claude Code Remote `get_session`.
+
+- Row text: GROUNDED. `.claude/commands/orchestrate.md` health table, row
+  `not RUNNING | any | status \`blocked\`, no \`INVALID BLOCK?\``, says a
+  human's answer is text the user typed in the orchestrator's turn, never a
+  peer's `send_message`, then GUARD `kill`, push, RESPAWN. Re-take:
+  `grep -n 'relays the human' .claude/commands/orchestrate.md`.
+- Relay commits: GROUNDED. gx ece09dba5 (2026-10-15T09:52:56Z, "Orchestrator
+  approved ...", session_01Jg2VgQ…) and c590c47dc (09:53:31Z, "Record
+  orchestrator decision ...", session_01SZzD3G…) touch only the plan and
+  workstream file of their item.
+- Both blocked sessions alive after the message: GROUNDED as of this read.
+  session_01Jg2VgQ… RUNNING; session_01SZzD3G… IDLE, bucket COMPLETED, and
+  merged its item (gx #752). Neither was killed or respawned.
+- The row matches a `not RUNNING` session only, so a blocked manager still
+  RUNNING has no row at all: a gap the findings do not name, found here.
+- The user's exact words ("Answer the questions"): UNVERIFIED, the
+  orchestrator transcript was not re-read.
+
+Corrections change no conclusion: the consequence stands.
