@@ -5,7 +5,9 @@ Caveman file: every line loads into every session, so rules only. Why lives in
 fighting a rule. Style:
 [`.agents/docs/caveman.md`](../../.agents/docs/caveman.md). Contested terms
 have ONE spelling: [`.agents/docs/glossary.md`](../../.agents/docs/glossary.md);
-`ci` fails on the others.
+`ci` fails on the others. Docs state status quo: current rule, mechanism,
+number. Past (incidents, dates, superseded designs, rejected paths) = git
+log, not markdown ([`caveman.md`](../../.agents/docs/caveman.md), Status quo).
 
 ## Loop
 

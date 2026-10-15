@@ -59,6 +59,26 @@ Yes: "Bug in auth middleware. Token expiry check use `<` not `<=`. Fix:"
   use plain. Keep correct verb form when same cost.
 - State each fact once.
 
+## Status quo
+
+Markdown states what IS. Reader acts on present rule, not on how it was
+reached; every past sentence is paid by every reader, forever.
+
+- Keep: rule, mechanism in present tense, number that is the rule's
+  current basis, symptom that identifies the failure today, id of the
+  decision in force.
+- Drop: incident counts ("hit three times"), dated stories ("measured
+  2026-09-16"), "was / used to / no longer", superseded or rejected
+  designs, amendment chains, who found what.
+- Reversed decision: rewrite the rule in place; record keeps one line
+  naming the decision in force. Old text = `git log -p`.
+- Workstream and plan files: same rule (handover README: only what git
+  cannot tell).
+
+"Numbers, dates — exact" under Never touch governs compression of text
+that stays, not whether a dated story stays. Measured number keeps its
+command and when (Loop step 5): that is the number's metadata, not a story.
+
 ## Where it applies
 
 - **This repo's instruction files** (AGENTS.md, CLAUDE.md, command prompts,
