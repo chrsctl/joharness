@@ -6605,7 +6605,7 @@ cmd_dispatch() {
     # stripped, plus one.
     espaces="${eitem//[! ]/}"
     if [ -z "$eitem" ]; then emore=0; else emore=$(( ${#espaces} + 1 )); fi
-    edge_rows="${edge_rows}  ${efirst:-?}  ${ebranch}  retired  pushed ${eagetext}  retired, no claim file — a pull request is expected; this reader cannot see one: step 7 retired the workstream file before the pull request opened, so this branch commits a slot and names no owner"
+    edge_rows="${edge_rows}  ${efirst:-?}  ${ebranch}  retired  pushed ${eagetext}  retired, no claim file — a pull request is expected; this reader does not read pull request state — the health pass does: step 7 retired the workstream file before the pull request opened, so this branch commits a slot and names no owner"
     [ "$emore" -le 1 ] ||
       edge_rows="${edge_rows} (and $((emore - 1)) more item(s) retired here: ${eitem#* })"
     edge_rows="${edge_rows}"$'\n'

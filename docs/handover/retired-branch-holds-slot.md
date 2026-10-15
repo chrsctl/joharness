@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01GbfvXk3wpeVB31ypBtetEe
 agent: sonnet
 updated: 2026-10-15
-next: Edit orchestrate.md health row, ledger line, §3; reword dispatch text and selftest; run ci and verify
+next: Wait for ci+verify and verifier review; record Review, retire plan+workstream, open PR, merge
 ---
 
 ## Goal

@@ -640,8 +640,8 @@ git -C "$dspwork" checkout -q main
 out="$(dsp env JOHARNESS_MAX_MANAGERS=8)"
 expect "past the retire commit the branch is still in flight, on its own row" \
   "docs/plans/eta.md  mgr-eta  retired  pushed" "$out"
-expect "which says what the row is, and that it cannot see the pull request" \
-  "retired, no claim file — a pull request is expected; this reader cannot see one" "$out"
+expect "which says what the row is, and that it does not read pull request state" \
+  "retired, no claim file — a pull request is expected; this reader does not read pull request state — the health pass does" "$out"
 expect "it still holds its slot" "slots     : 3 of 8 free" "$out"
 refute "and its item is still not offered for spawning" \
   "  docs/plans/eta.md (agent" "$out"

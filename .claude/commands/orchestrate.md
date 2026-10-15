@@ -142,6 +142,7 @@ Act on the FIRST row that matches:
 | any | any | branch merged (dispatch no longer lists it), or a plan/research/requirement entry still `new` whose item file is gone from fresh `origin/main` (merged between passes, or curated away; never a `rescope-<key>` entry, which has no item file) | done: drop the ledger entry. A message carrying `lead <stem>: <text>` is the one exception that is never nothing: carry it and print it, never act on it |
 | any | any | a `rescope-<key>` entry whose dispatch row reads `done: finished rescope, holds no slot — never nudge` (genuine holds: it merges nothing, ever) | done: drop the entry, keep `rescoped=<key>`. Nudge nothing, respawn nothing |
 | any | `LOOP?`, or head moved and `next:` unchanged with `same=2` already | any | LOOP, below. No nudge |
+| IDLE | any | `retired, no claim file`, last turn asks a human to merge or grant merge permission (`status_detail` / needs-action) | HELD BY HUMAN: never nudge, never respawn (a nudge meets the same refusal). `PushNotification` once carrying stem, branch, PR link, the session's ask verbatim; ledger `held-human=<pr>`; report only after. The row frees its slot. Drop the entry when the branch merges (the `done` row) |
 | IDLE; bucket not consulted | `STALL?`, head unchanged | workstream `status: in-progress`, last turn ended asking for input (`status_detail`), no `unratified=` | UNRATIFIED BLOCK: NUDGE "Orchestrator health pass: you stopped asking for input while status is in-progress. Do the work, or set status blocked with a reason from manage.md §3, push." Ledger `unratified=<head>`. No transport: report only, ledger nothing, never respawn on it. Any reason in `status_detail` is unratified: only `status: blocked` ratifies |
 | IDLE | any | `unratified=` recorded and head still equals it — a reply or new `status_detail` does not count | stopped: `respawns` at limit = report only. Else `archive_session`, RESPAWN, even under a "don't respawn active managers" directive; counted |
 | any | any | a nudge, `seen=`, `held=` or `unratified=` recorded, and head, `status_detail` or `updated_at` moved since (or no longer BLOCKED / FAILED) | working: drop that record |
@@ -212,7 +213,7 @@ no handover, and no handover is no replace. Why:
 
 ## 3. Spawn
 
-Up to `slots`, dispatch's order, rows under `spawn` only. Managers and role
+Up to `slots`, dispatch's order, rows under `spawn` only. A ledger `held-human=<pr>` entry holds no slot (as scout and conduct hold none): spawn up to `slots` plus the number of such entries. Managers and role
 sessions count against `JOHARNESS_MAX_MANAGERS` together: curator and
 clerk take a slot; scout and conduct reviewer hold none. A line or command that says nothing to do spawns
 nothing.
@@ -341,7 +342,7 @@ Ledger every spawn the moment it returns as `<stem>@new`.
 ```
 /orchestrate pass
 harness=<first 12 chars of git hash-object of origin/main:.claude/commands/orchestrate.md> pass=<this pass's number plus one>
-ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] [unratified=<head>] [notified=<stem>] respawns=<n> [rescoped=<key>] [corewait=<stem>[,<stem>]] [curated=<stamp>[+human]] [clerked=<stamp>[+human]] [scouted=<stamp>[+human]] [conducted=<stamp>[+human]]; ...
+ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] [unratified=<head>] [notified=<stem>] [held-human=<pr>] respawns=<n> [rescoped=<key>] [corewait=<stem>[,<stem>]] [curated=<stamp>[+human]] [clerked=<stamp>[+human]] [scouted=<stamp>[+human]] [conducted=<stamp>[+human]]; ...
 lead <stem>: <40 chars, to the end of this line>
 ```
 
