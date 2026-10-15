@@ -32,7 +32,7 @@ fi
 # README, both filtered out) and reports the queue done. Guarded on there
 # being plans to find, so it cannot quietly go vacuous if the queue empties.
 if [ -n "$(git -C "$ROOT" ls-tree -r --name-only origin/main -- docs/plans 2>/dev/null |
-  grep -E '\.md$' | grep -vE '/(TEMPLATE|README)\.md$' | head -1)" ]; then
+  grep -E '\.md$' | grep -vE '/(TEMPLATE|README|RETIRED)\.md$' | head -1)" ]; then
   out="$(cd "$ROOT" && env -u CLAUDE_PROJECT_DIR \
     bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1)"
   refute "unset CLAUDE_PROJECT_DIR does not report an empty queue" \
