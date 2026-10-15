@@ -26,16 +26,18 @@ then `git show $c^:docs/research/spawn-without-checkout-strands-manager.md`.
 
 - `.claude/commands/orchestrate.md` — Manager spawn bullet (the one opening
   `- Manager: \`create_session\` with \`source_url\``): add ONE sentence
-  after the `clone_depth` clause stating the consequence, in substance:
+  inside the bullet, before its prompt block (restructure the run-on
+  first sentence as needed), stating the consequence, in substance:
   without `source_url` the session starts in an empty `/home/user` with no
   checkout and no `/manage` (repo skills load only once a repo is attached),
   and a manager cannot be relied on to attach the repo itself — measured,
   one self-attach succeeded and one was denied at `git clone`. So a spawn
   without it is a spawn that may never claim.
 - Same file, hand-off step 3 (`create_session`: `source_url` = ...): point
-  at the Manager bullet's sentence in at most one clause ("same cost as a
-  manager spawn without it") — the successor orchestrator strands the same
-  way. Not a second copy of the sentence.
+  at the Manager bullet's sentence in at most one clause — a successor
+  without a checkout has no `/orchestrate` for the same reason. Inferred,
+  not measured (only manager spawns were read): word it as the same
+  mechanism, not as a measured cost. Not a second copy of the sentence.
 
 ## Out of scope
 
@@ -49,8 +51,8 @@ then `git show $c^:docs/research/spawn-without-checkout-strands-manager.md`.
 
 ## Acceptance
 
-- `grep -c 'source_url' .claude/commands/orchestrate.md` — 2 or more, and
-  the Manager bullet's paragraph contains the words `empty` and `/manage`.
+- `sed -n '/^- Manager: .create_session/,/^  \`\`\`$/p' .claude/commands/orchestrate.md | grep -c empty`
+  — `1` or more (prints `0` on `origin/main` before the edit).
 - `./joharness.sh ci` — `ci: pass`. This is the check a consumer runs at its
   next sync: the page ships to every consumer.
 - `./joharness.sh verify` — `0 failed`.
@@ -61,7 +63,7 @@ then `git show $c^:docs/research/spawn-without-checkout-strands-manager.md`.
 
 - `.claude/commands/orchestrate.md:Manager` — the spawn bullet; `source_url`
   is its first clause.
-- `.claude/commands/orchestrate.md:hand-off` — step 3 spawns the successor
+- `.claude/commands/orchestrate.md:HAND-OFF` — step 3 spawns the successor
   with the same `source_url` clause.
 
 ## Traps
