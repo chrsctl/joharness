@@ -115,7 +115,6 @@ refute "seeded conf carries no canonical marker" "JOHARNESS_CANONICAL" \
 refute "fresh conf carries no JOHARNESS_MODE line" "JOHARNESS_MODE" \
   "$(cat "${bootdst1}/joharness.conf" 2>/dev/null)"
 refute "and the run asks no mode question" "Unsupervised mode" "$out"
-refute "and does not warn about a flag nobody passed" "--mode is obsolete" "$out"
 expect "the closing message carries the heartbeat note" \
   "still needs a heartbeat to fire each next orchestrator session" "$out"
 expect "and points at the doc that carries the Routine" \

@@ -465,64 +465,6 @@ overwrites it, and re-running changes nothing.
 Fix = the direction rule: land that change in joharness `main`, then sync
 again. Fetching a current canonical settles the stale case.
 
-## Migration: pre-`.agents` consumers
-
-Both layers moved from root `harness/` and `env/` to `.agents/harness/` and
-`.agents/env/` — one dotted root a tool can detect. A consumer synced across
-that move receives the new tree and keeps the old one: removals do not
-travel. Nothing reads the old tree afterwards
-(why: history/consumer-repos.md § Migration, 2026-08-23).
-
-Remove it once, after the first sync that brings `.agents/`:
-
-```bash
-git rm -r harness env
-```
-
-The sync warns on every run until that lands. Keep anything of the repo's
-own that lived in `env/<name>/` — a consumer's own layer moves to
-`.agents/env/<name>/` by hand, it is not canonical's to carry.
-
-Second wave: the protocol docs and sync tools moved too — `docs/` and
-`scripts/` in a consumer are now entirely its own. The stale copies are
-single files inside dirs that hold live work, so remove exactly the files
-the sync's warning names — NEVER `git rm -r` on `docs/`, that eats the
-repo's own plans and handover:
-
-```bash
-git rm docs/caveman.md docs/graph.md docs/agent-selection.md \
-  docs/consumer-repos.md docs/handover/README.md docs/handover/TEMPLATE.md \
-  docs/plans/README.md docs/plans/TEMPLATE.md docs/product/README.md \
-  docs/product/TEMPLATE.md scripts/sync-to-consumer.sh \
-  scripts/bootstrap-consumer.sh
-```
-
-(Only the ones actually present — the warning's own remedy line lists
-exactly those.)
-
-One more consumer-own edit: a pre-move `update.yml` calls canonical's
-`scripts/sync-to-consumer.sh`, which no longer exists — the weekly run
-goes red with file-not-found until the workflow's `run sync` step points
-at `.agents/scripts/sync-to-consumer.sh`. Newly seeded `update.yml`
-probes both spellings.
-
-## Migration: the prior-art file
-
-A consumer that synced between 2026-09-02 and 2026-09-04 carries
-`.agents/docs/prior-art.md` (the sync names it `consumer-only`). Canonical
-deleted it and its NOTICE entry; remove it once:
-
-```bash
-git rm .agents/docs/prior-art.md
-```
-
-## Migration: research routing
-
-Nothing to run. A file under `docs/research/` with no `research:` key that no
-plan routes to is a document, never linted as a node
-(`.agents/docs/research/README.md`, "Which files are nodes"). `DEAD ... was a
-node` means a real node lost its frontmatter: restore it or delete the file.
-
 ## What syncs
 
 Harness-owned vs consumer-own: table in

@@ -793,47 +793,6 @@ report_conf_keys() {
 }
 report_conf_keys
 
-# Two tiers. Dir tier: harness/ and env/ were wholly harness-owned, the
-# remedy is `git rm -r`. File tier: the protocol docs and sync tools that
-# moved OUT of docs/ and scripts/ sat inside dirs that still hold live
-# consumer work, so the remedy names each file — `git rm -r` on docs/
-# would eat the consumer's own plans and handover.
-LEGACY_FILES=(
-  docs/agent-selection.md
-  docs/caveman.md
-  docs/consumer-repos.md
-  docs/graph.md
-  docs/handover/README.md
-  docs/handover/TEMPLATE.md
-  docs/plans/README.md
-  docs/plans/TEMPLATE.md
-  docs/product/README.md
-  docs/product/TEMPLATE.md
-  scripts/sync-to-consumer.sh
-  scripts/bootstrap-consumer.sh
-)
-legacy="" legacy_files=""
-if [ -f "${DEST}/.agents/harness/AGENTS.md" ]; then
-  from_canonical harness/AGENTS.md && legacy="harness"
-  from_canonical env/README.md && legacy="${legacy}${legacy:+ }env"
-  for rel in "${LEGACY_FILES[@]}"; do
-    from_canonical "$rel" && legacy_files="${legacy_files}${legacy_files:+ }${rel}"
-  done
-fi
-if [ -n "$legacy" ]; then
-  # The remedy names the directories actually found, not both: `git rm -r`
-  # fails on a path that is not there, and a remedy that errors reads as
-  # advice to ignore.
-  warn "consumer still carries pre-.agents layout (${legacy}); the harness now" \
-    "runs from .agents/. Nothing reads the old tree — remove it once:" \
-    "git rm -r ${legacy} (.agents/docs/consumer-repos.md, Migration)."
-fi
-if [ -n "$legacy_files" ]; then
-  warn "consumer still carries pre-.agents protocol files (${legacy_files});" \
-    "these moved under .agents/. Remove them once — files only, never -r" \
-    "on docs/: git rm ${legacy_files} (.agents/docs/consumer-repos.md, Migration)."
-fi
-
 if [ "$AHEAD" -gt 0 ]; then
   log "consumer is ahead on ${AHEAD} file(s); reconcile canonical-first, then re-run"
 fi
