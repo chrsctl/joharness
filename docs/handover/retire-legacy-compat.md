@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01CdQa5qCUV3WTK7S9jSKFUf
 agent: sonnet
 updated: 2026-10-15
-next: Remove the legacy compat the plan's Scope names, then ci and verify
+next: Read ci and verify counts; green = retire workstream and plan, open PR, merge
 ---
 
 ## Goal
@@ -28,6 +28,8 @@ Owner: every consumer is upgraded; old-version support goes.
 - None yet.
 
 ## Review
+
+- r1: (verifier) clean pass at sonnet: acceptance greps empty, no dangling pointer, from_canonical still used, only removed-behaviour assertions dropped (no change)
 
 ## Blockers
 
