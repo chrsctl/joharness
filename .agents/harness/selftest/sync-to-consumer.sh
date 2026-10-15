@@ -16,19 +16,6 @@ step "sync-to-consumer.sh"
 
 syncsrc="${TMP}/syncsrc"
 git init -q "$syncsrc"
-# Pre-move history first: the legacy-layout warning vouches for a
-# consumer's old-path files by blob identity against canonical history,
-# so the scratch canonical must have carried harness/ and env/ at the
-# root once — deleted before v1, blobs stay reachable.
-mkdir -p "${syncsrc}/harness" "${syncsrc}/env" "${syncsrc}/docs/plans" \
-  "${syncsrc}/scripts"
-printf 'old loop\n' >"${syncsrc}/harness/AGENTS.md"
-printf 'old layers\n' >"${syncsrc}/env/README.md"
-printf 'old planq\n' >"${syncsrc}/docs/plans/README.md"
-printf 'old engine\n' >"${syncsrc}/scripts/sync-to-consumer.sh"
-commit_all "$syncsrc" "canonical v0, pre-.agents layout"
-git -C "$syncsrc" rm -rq harness env docs/plans/README.md scripts
-git -C "$syncsrc" commit -qm "move layers under .agents/"
 mkdir -p "${syncsrc}/.agents/harness" "${syncsrc}/.agents/scripts" \
   "${syncsrc}/.agents/env/none" \
   "${syncsrc}/.claude/commands" "${syncsrc}/.claude/skills/steward" \

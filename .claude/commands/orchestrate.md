@@ -76,8 +76,8 @@ start = empty.
 ## Pass entry (every pass, before "## 1. Read")
 
 `git fetch origin main`, then read two fields off the wake message, like the
-ledger — never from memory: `harness=` and `pass=`. Missing (a wake armed by
-an older harness) = `harness` mismatch (report `<old>` as `none`), `pass=1`.
+ledger — never from memory: `harness=` and `pass=`. Missing = `harness`
+mismatch (report `<old>` as `none`), `pass=1`.
 First start = `pass=1`. Run the superseded check first: a superseded pass
 does nothing, so it re-reads and fast-forwards nothing.
 
