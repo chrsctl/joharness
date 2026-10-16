@@ -59,6 +59,18 @@ the gap into plans.
 - r15: (verifier) consumer readings graduated as settled numbers (fixed: numbers dropped)
 - r16: (verifier) fixture reused a consumer job name (fixed)
 - r17: (verifier) shipped doc pointed at canonical-only plan files (fixed)
+- r18: (verifier) conf-keys.sh key needs the bootstrap seeded heredoc too; not in scope (fixed)
+- r19: (verifier) clerk.md Never forbids opening issues; no patrol carve-out (fixed)
+- r20: (verifier) patrol step bypassed §2 skips: duplicate plans, DOES NOT HOLD loops (fixed: §2 skips apply, no patrol verdict on green)
+- r21: (verifier) timeout or crash would mark open patrol issues DOES NOT HOLD (fixed: patrol gives no such verdict)
+- r22: (verifier) read-only exemption reason false: script lives in the merged tree (fixed: reason restated)
+- r23: (verifier) future marker stamp pins clerk IN FLIGHT (fixed: future stamps ignored)
+- r24: (verifier) PATROL_MINUTES=0 removes the bound (fixed: range 1-100)
+- r25: (verifier) in-flight window no margin; background Bash call unbounded (fixed: +30 min window, Bash timeout stated)
+- r26: (verifier) marker plus clerk branch could take two slots (fixed)
+- r27: (verifier) marker is merged by construction; clerk_walk never sees it (fixed: named)
+- r28: (verifier) bare FAIL lines from test runners, marker name collision, twins both patrol, conf_get wording, selftest git budget (fixed)
+- r29: plan tier back to opus: r18-r28 show wrong-but-plausible failure modes (no change)
 
 ## Blockers
 
