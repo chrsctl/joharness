@@ -582,16 +582,28 @@ outlive their creator), a scheduled GitHub Actions workflow (its pull
 requests get no CI on `GITHUB_TOKEN`, so step 7 never goes green).
 
 **Operator action, always.** Recurring spend is the human's. A session
-documents; it never creates one.
+documents and checks; it never creates, edits, pauses or fires one.
 
+The spec every orchestrator checks at start (`orchestrate.md`, "## 0.
+Start" step 5; a miss is a `heartbeat stale` line and a push):
+
+- **Name**: exactly `heartbeat: <owner/repo>` — how the check tells it from
+  another repo's heartbeat or a nightly `/curate`.
+- **Fires**: a fresh session each time, from the claude.ai Routines UI
+  with this repository attached.
 - **Cadence**: hourly floor (`*/5 * * * *` is refused). The Routine backs
   the `send_later` chain; it does not replace it.
-- **Prompt**: standalone — a fresh session inherits nothing. `/orchestrate`
-  plus the routing above; the hook prints the rest.
-- **The connector trap**: a Routine created from a session may store NO
-  connectors, and its sessions then cannot open or merge a pull request.
-  Create it from the claude.ai Routines UI (or pass `connectors`), then
-  `fire_trigger` once and check the fired session reached GitHub.
+- **Prompt**: standalone — a fresh session inherits nothing. Exactly
+  `/orchestrate`; the banner routes it, the hook prints the rest.
+- **Made in the UI, never from a session.** A Routine `create_trigger`
+  makes from a session reads `created_via: meta_mcp` and stores no
+  repository and no connectors. Measured 2026-10-16 (`create_trigger` then
+  `fire_trigger`, trigger `trig_01DoRGxgQGtL4emWGRSiVbMW`): the fired
+  session had `sources: []`, no `get_session`, `create_session`,
+  `send_message` or GitHub tools, and the auto mode classifier denied
+  `./joharness.sh dispatch` on its own clone as code from external. It
+  could not orchestrate. After creating one in the UI, `fire_trigger` once
+  and check the fired session reached GitHub.
 - **Stop**: `update_trigger` `enabled: false` pauses, `delete_trigger`
   removes. Read `last_run`, never `next_run_at` (a paused Routine keeps a
   stale one). A human who cannot halt the fleet has no veto.

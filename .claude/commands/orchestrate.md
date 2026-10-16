@@ -69,10 +69,25 @@ nothing. Never read a full queue and leave it untouched.
    ledger `<stem>@new respawns=<RESPAWN_LIMIT>`; report `rebuilt <stem>@new
    from its title`.
 4. Read the Lineup once.
-5. Heartbeat: `list_triggers` — an enabled cron Routine firing a fresh
-   session for this repo? None: the report carries "no
-   heartbeat: this fleet dies with this session." (order: "Report, every
-   pass"). Never create one.
+5. Heartbeat: `list_triggers` (`recurring: true`). The heartbeat is a
+   Routine named exactly `heartbeat: <owner/repo>` with a
+   `cron_expression`; any other Routine (a nightly `/curate`) never counts.
+   None: the report carries "no heartbeat: this fleet dies with this
+   session." Two or more: `heartbeat duplicated: <id>, <id>` (each firing
+   pays twice). One: up to date only when ALL hold, else `heartbeat stale:
+   <id>: <reason>[, <reason>]`, one reason per failing check, spelled:
+   - `disabled` — `enabled` is not true;
+   - `bound` — `persist_session` true: it wakes one old session, not a
+     fresh one;
+   - `session-made` — `created_via: meta_mcp`: made from a session, its
+     sessions get no repository and no session tools
+     (`.agents/docs/orchestrated.md`, Heartbeat);
+   - `failing` — `last_run.status` reads FAILED;
+   - `prompt` — stored prompt, trimmed, is not the heartbeat prompt
+     `.agents/docs/orchestrated.md` "Heartbeat" spells.
+   Any of these lines: report it (order: "Report, every pass") and
+   `PushNotification` it once per session. Never create, edit, pause or
+   fire one: the fix is the operator's, the line names it.
 
 The ledger comes from your wake message (step 4), never from memory. First
 start = empty.
@@ -452,8 +467,8 @@ Human says stop = stop scheduling; name the managers still running.
 
 ## Report, every pass
 
-Opening lines, in this order: the `URGENT` row (if any), the "no heartbeat"
-line (if any), then, on the first pass of a run a human message started (not
+Opening lines, in this order: the `URGENT` row (if any), the "no heartbeat",
+`heartbeat duplicated` or `heartbeat stale` line (if any), then, on the first pass of a run a human message started (not
 a wake), when this session already wrote a final report (DRAINED exit or
 PAUSED) more than one hour earlier: `fresh session is cheaper: start a new
 orchestrator session for the next run`. It only informs; the pass still runs.

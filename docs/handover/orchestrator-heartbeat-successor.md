@@ -1,6 +1,6 @@
 ---
 workstream: orchestrator-heartbeat-successor
-status: blocked
+status: in-progress
 branch: claude/orchestrator-heartbeat-successor
 pr: none
 plan: orchestrator-heartbeat-successor
@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01KyirxKSbmXU6prDj22WtaH
 agent: opus
 updated: 2026-10-16
-next: money: create the hourly /orchestrate heartbeat Routine in the claude.ai Routines UI with the joharness repo attached; a session-made one cannot orchestrate
+next: ci and verify green, verifier review, PR shipping the heartbeat check; plan stays queued for the successor
 ---
 
 ## Goal
@@ -18,6 +18,17 @@ durable piece, the orchestrator hand-off fires it instead of deepening
 lineage with create_session.
 
 ## Decisions
+
+- Human asked (2026-10-16): the protocol checks that the heartbeat Routine
+  exists and is up to date. Built here as the plan's "heartbeat test"
+  bullet, widened: orchestrate.md §0 step 5 names the Routine
+  `heartbeat: <owner/repo>` (list_triggers shows no repository, so the
+  name is the only per-repo key), and reports `disabled`, `bound`,
+  `session-made`, `failing`, `prompt` drift, or duplicates. Report and push
+  only: creating or editing stays the operator's (Out of scope).
+- This PR does NOT retire the plan: the fire_trigger successor and the
+  IDLE liveness rule still wait on the UI-created Routine's lineage
+  reading. The plan file loses the delivered bullet and keeps the rest.
 
 - Did not build ahead of the measurement: the plan makes depth d+1 a
   no-build outcome, so code before the reading may be thrown away.

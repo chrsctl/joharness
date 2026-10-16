@@ -30,9 +30,9 @@ leads or the one-orchestrator rule.
   `orchestrator: <owner/repo>`, created after the fire) and forward lead
   lines with `send_message`, as step 4 does; not found = report `lead not
   forwarded`.
-- Same file: the heartbeat test. A Routine counts only when enabled, its
-  stored prompt starts `/orchestrate`, and `last_run` is not FAILED. Any
-  other Routine (a nightly `/curate`) never counts.
+- The heartbeat test is "## 0. Start" step 5 (which Routine counts, and
+  whether it is up to date): §4 fires that Routine only when step 5 found
+  it up to date.
 - Same file, "## 0. Start" step 3: an `orchestrator: <owner/repo>` session
   counts as live when `RUNNING`, or `IDLE` with `updated_at` within `2 ×
   JOHARNESS_HEALTH_MINUTES`. An orchestrator between passes reads IDLE; a
@@ -43,9 +43,9 @@ leads or the one-orchestrator rule.
   the orchestrator always hands off by `create_session` (the loop list
   near "Schedule the next pass", "Start each run fresh", the
   `JOHARNESS_ORCHESTRATOR_PASSES` knob row).
-- `.agents/harness/selftest/orchestrated.sh`: needles pinning `enabled`,
-  the `/orchestrate` prompt test, the IDLE-with-`updated_at` rule, and the
-  `fire_trigger` successor; each must fail with its clause removed.
+- `.agents/harness/selftest/orchestrated.sh`: needles pinning the
+  IDLE-with-`updated_at` rule and the `fire_trigger` successor; each must
+  fail with its clause removed.
 
 ## Out of scope
 
@@ -69,7 +69,9 @@ claude.ai Routines UI:
 
 Depth 0 in both = build as scoped. `fire_trigger`-fired depth = d + 1 =
 the design fails (it deepens like the hand-off): do not build; record the
-reading in `orchestrated.md` and retire. No heartbeat Routine exists =
+reading in `orchestrated.md` and retire. A Routine made from a session
+cannot serve: its sessions get no repository and no session tools
+(`orchestrated.md`, Heartbeat). No heartbeat Routine exists =
 `status: blocked`, `next:` = `money: create an hourly /orchestrate
 heartbeat Routine in the claude.ai UI so its lineage can be read`.
 
@@ -89,7 +91,6 @@ heartbeat Routine in the claude.ai UI so its lineage can be read`.
 - Ending discards the ledger: respawn budget restored at the limit (false
   `respawns:` blocks), once-only pushes repeat hourly, KILL interrupt lost.
 - Leads to an ended session are lost.
-- Any enabled Routine for the repo counted as the heartbeat.
 - A daily cadence leaves managers unsupervised up to a day; firing the
   successor at once removes the gap.
 

@@ -246,6 +246,25 @@ for needle in 'present and NOT `depth + 1 < limit` = no hand-off' \
   expect "orchestrate.md lineage guard spells ${needle}" "$needle" "$orcfold"
 done
 orcdocfold="$(tr '\n' ' ' <"${ROOT}/.agents/docs/orchestrated.md" | tr -s ' ')"
+# The heartbeat check (step 5): which Routine counts, and every way one is
+# not up to date. Each needle is the clause that makes one reason fire; the
+# spec it compares against lives in orchestrated.md, so both are pinned.
+# shellcheck disable=SC2016 # literal backticks in the needles
+for needle in 'Routine named exactly `heartbeat: <owner/repo>` with a `cron_expression`' \
+  'heartbeat duplicated: <id>, <id>' 'heartbeat stale: <id>: <reason>[, <reason>]' \
+  '`disabled` — `enabled` is not true' '`bound` — `persist_session` true' \
+  '`session-made` — `created_via: meta_mcp`' \
+  '`failing` — `last_run.status` reads FAILED' \
+  '`prompt` — stored prompt, trimmed, is not the heartbeat prompt' \
+  'Never create, edit, pause or fire one'; do
+  expect "orchestrate.md heartbeat check spells ${needle}" "$needle" "$orcfold"
+done
+# shellcheck disable=SC2016 # literal backticks in the needles
+for needle in '**Name**: exactly `heartbeat: <owner/repo>`' \
+  '**Prompt**: standalone — a fresh session inherits nothing. Exactly `/orchestrate`' \
+  'reads `created_via: meta_mcp` and stores no repository'; do
+  expect "orchestrated.md heartbeat spec spells ${needle}" "$needle" "$orcdocfold"
+done
 refute "orchestrated.md no longer says send_message was never in the server" \
   "never in the Claude Code Remote MCP" "$orcdocfold"
 
