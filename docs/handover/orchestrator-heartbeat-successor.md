@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01KyirxKSbmXU6prDj22WtaH
 agent: opus
 updated: 2026-10-16
-next: money: create an hourly /orchestrate heartbeat Routine in the claude.ai UI so its lineage can be read
+next: money: create the hourly /orchestrate heartbeat Routine in the claude.ai Routines UI with the joharness repo attached; a session-made one cannot orchestrate
 ---
 
 ## Goal
@@ -24,7 +24,19 @@ lineage with create_session.
 
 ## Rejected
 
-- None yet.
+- Routine created from a session (human said go, 2026-10-16):
+  `create_trigger` cron `0 * * * *`, `create_new_session_on_fire`, prompt
+  `/orchestrate`, id `trig_01DoRGxgQGtL4emWGRSiVbMW`, now PAUSED
+  (`enabled: false`). `fire_trigger` once at 11:10Z returned the fired
+  session's id (`session_011K3RWr1Ypfqu4z8XiW5CyX`). That session:
+  `sources: []` (tag `config:no-git-repo`), no MCP connectors, no Claude
+  Code Remote session tools (no `get_session`, `create_session`,
+  `send_message`), no GitHub MCP, ran on the default model, and the auto
+  mode classifier denied `./joharness.sh dispatch` on its own clone as
+  "Code from External". It spawned nothing. Its record carries no
+  `parent_session_id` and tag `config:routine-lineage-none` (depth 0
+  likely, not read by `get_session` inside it). Cannot orchestrate: needs
+  a UI-created Routine with the repo source and the remote tools.
 
 ## Review
 
