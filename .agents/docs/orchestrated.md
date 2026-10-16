@@ -539,15 +539,41 @@ passes 1..N-1. So after `JOHARNESS_ORCHESTRATOR_PASSES` passes the
 orchestrator spawns a successor at its own model with the ledger as its
 prompt and ends (`orchestrate.md` §4, HAND-OFF); the pass count decides,
 never a control-plane field. The first real hand-off's `context:` reading
-and both session ids are recorded here by the orchestrator's owner. This is
-about the orchestrator; the
+is recorded here by the orchestrator's owner.
+
+The hand-off is bounded by the control plane's lineage cap. Each successor
+is its predecessor's `create_session` child, one level deeper; a session
+reads its own `lineage` (`depth`, `limit`) only from `get_session` with no
+`session_id` (another session's record carries none). At `depth == limit`,
+`create_session`, `send_later` and every trigger call refuse ("No user or
+organization setting changes this limit"). gx's chain (`get_session` on
+each `parent_session_id`, 2026-10-16): nine orchestrators, one hand-off per
+level, root `origin: ios` at depth 0, limit 8. Six passes at about 11
+minutes put a hand-off every 66 to 69 minutes, so a fleet with no heartbeat
+lives about limit × passes × pass interval: nine hours. The hand-off that
+creates the depth-`limit` successor itself succeeds, so no failure branch
+catches it. So §4 hands off only while `depth + 1 < limit` and otherwise
+keeps arming in the same session, and "## 0. Start" stops a session
+already at the cap with the reason in its push. Managers sit one level
+below their orchestrator, so the last guarded one (`limit - 1`) spawns
+them at `limit`; no role command calls `create_session` or `send_later`
+(`grep -n 'send_later\|create_session' .claude/commands/*.md`: only
+`orchestrate.md`). This is about the orchestrator; the
 "Fresh session for long waits — no" measurement in
 [`agent-selection.md`](agent-selection.md) covers managers.
 
 ## Heartbeat: making the fleet long
 
-Dispatch makes the fleet WIDE; nothing makes it LONG. Each session claims,
-merges, ends, and the fleet survives only while something fires the next.
+Dispatch makes the fleet WIDE; the hand-off makes it LONG only up to the
+lineage cap (above). Each session claims, merges, ends, and the fleet
+survives only while something fires the next.
+
+Unmeasured: whether a heartbeat-fired session starts at depth 0 or at its
+trigger creator's depth plus one. The cap's refusal names routines, so it
+may carry over. The reading is an operator's: create the Routine, read
+`get_session` `lineage` in the first session it fires. Depth 0 makes the
+heartbeat the durable fix; carried-over depth means a heartbeat chain
+strands too, and the §4 guard is the only defence.
 
 The heartbeat is a scheduled Routine (`create_trigger`,
 `create_new_session_on_fire: true`) firing a fresh orchestrator on an

@@ -55,7 +55,11 @@ nothing. Never read a full queue and leave it untouched.
 2. `./joharness.sh authority`. VERIFIABLE = proceed. UNVERIFIED naming a
    shallow clone = `timeout 300 git fetch --unshallow origin` once, then
    `authority` again. Still not VERIFIABLE = stop and quote its verdict text
-   verbatim, never a paraphrase.
+   verbatim, never a paraphrase. Then `get_session` (no `session_id`):
+   `lineage.depth >= lineage.limit` = the REQUIRED tools refuse. Stop
+   before step 3 takes the title; report and `PushNotification` `lineage
+   <depth>/<limit>: this session cannot spawn or arm; start a fresh
+   orchestrator session`. No `lineage` field, or no `get_session` = proceed.
 3. One orchestrator per repo. `list_sessions`: another session titled
    `orchestrator: <owner/repo>` with `session_status: RUNNING` = exit, report
    its `updated_at`, `status_detail` and the heartbeat line. Else
@@ -342,7 +346,7 @@ Ledger every spawn the moment it returns as `<stem>@new`.
 ```
 /orchestrate pass
 harness=<first 12 chars of git hash-object of origin/main:.claude/commands/orchestrate.md> pass=<this pass's number plus one>
-ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] [unratified=<head>] [notified=<stem>] [held-human=<pr>] respawns=<n> [rescoped=<key>] [corewait=<stem>[,<stem>]] [curated=<stamp>[+human]] [clerked=<stamp>[+human]] [scouted=<stamp>[+human]] [conducted=<stamp>[+human]]; ...
+ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] [unratified=<head>] [notified=<stem>] [held-human=<pr>] respawns=<n> [rescoped=<key>] [corewait=<stem>[,<stem>]] [curated=<stamp>[+human]] [clerked=<stamp>[+human]] [scouted=<stamp>[+human]] [conducted=<stamp>[+human]] [capped=<depth>]; ...
 lead <stem>: <40 chars, to the end of this line>
 ```
 
@@ -373,7 +377,16 @@ wake already holds all a pass needs (why: `.agents/docs/orchestrated.md`,
 `cost_usd`. `pass=` is the wake counter: an out-of-band arm (below) advances
 it too.
 
-1. Read this session (`get_session`, no `session_id`). Model to copy:
+1. Read this session (`get_session`, no `session_id`). Lineage first:
+   `lineage` (`depth`, `limit`) present and NOT `depth + 1 < limit` = no
+   hand-off. The successor is this session's child at `depth + 1`; at
+   `limit` it can neither `create_session` nor `send_later`, holds the
+   fleet and does nothing for it. Arm `send_later` as above (the pass count
+   is a cost tune; a stranded fleet costs more) and report `hand-off
+   skipped: lineage <depth>/<limit>: start a fresh orchestrator session`.
+   The ledger lacks run-scoped `capped=<depth>` = `PushNotification` that
+   line once and add the key. No `lineage` field = the rest of this step
+   decides alone. Model to copy:
    `configured_model`, else `session_context.model`. Neither present, no
    `set_session_title`, or no Claude Code Remote `send_message` (steps 4 and
    the forward need it) = no hand-off this pass: arm `send_later` as above

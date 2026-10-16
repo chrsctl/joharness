@@ -237,6 +237,14 @@ for needle in 'HANDED OFF' 'JOHARNESS_ORCHESTRATOR_PASSES' \
   'orchestrator (handed off):' 'hand-off skipped' 'hand-off failed'; do
   expect "orchestrate.md spells ${needle}" "$needle" "$orctext"
 done
+# The hand-off stops one level short of the control plane's lineage cap: a
+# successor AT the cap can neither spawn nor arm, and strands the fleet.
+# shellcheck disable=SC2016 # literal backticks in the needles
+for needle in 'present and NOT `depth + 1 < limit` = no hand-off' \
+  'hand-off skipped: lineage <depth>/<limit>' '[capped=<depth>]' \
+  '`lineage.depth >= lineage.limit` = the REQUIRED tools refuse. Stop before step 3'; do
+  expect "orchestrate.md lineage guard spells ${needle}" "$needle" "$orcfold"
+done
 orcdocfold="$(tr '\n' ' ' <"${ROOT}/.agents/docs/orchestrated.md" | tr -s ' ')"
 refute "orchestrated.md no longer says send_message was never in the server" \
   "never in the Claude Code Remote MCP" "$orcdocfold"
