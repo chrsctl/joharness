@@ -1,6 +1,6 @@
 ---
 plan: heartbeat-self-registers
-urgency: high
+urgency: normal
 agent: opus
 effort: high
 needs: none
@@ -41,3 +41,6 @@ each hourly wake, the keeper starts a fresh orchestrator when none is live.
 
 - `./joharness.sh ci` — `ci: pass`.
 - `./joharness.sh verify` — `0 failed`.
+- SHIPS: in gx after the sync, `/orchestrate` with no heartbeat prints
+  `heartbeat registered: <trigger id>, keeper <session id>`, and
+  `list_triggers` shows `heartbeat: chrsctl/gx` bound to that keeper.
