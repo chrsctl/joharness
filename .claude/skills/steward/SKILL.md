@@ -37,7 +37,7 @@ conflict. Why-explanations: `.agents/docs/handover/README.md`,
 
 - A pull request carrying `human-review` is not merged, even when every step 7
   condition holds (`.agents/docs/orchestrated.md`, Bounds).
-- Session merges its OWN pull request itself (ratified 2026-08-23).
+- Session merges its OWN pull request itself.
   Conditions, merge method, and what counts as own: `.agents/harness/AGENTS.md`
   step 7 — that file wins, one copy on purpose. Never merge any other
   PR.
@@ -50,8 +50,8 @@ conflict. Why-explanations: `.agents/docs/handover/README.md`,
 - PR's final state deletes: the plan file this branch implements, the
   requirement file when this was its last plan, the workstream file.
   As the LAST COMMIT BEFORE the pull request opens, never after the
-  merge (`.agents/harness/AGENTS.md` step 7 — the measured failure is
-  exactly the post-merge patch). Six-month-worthy learnings move to the
+  merge (`.agents/harness/AGENTS.md` step 7 — a post-merge patch is the
+  failure this prevents). Six-month-worthy learnings move to the
   right layer's `AGENTS.md` or `docs/` first.
 
 ## Never
