@@ -517,7 +517,7 @@ interview
 heartbeat_note() {
   printf '\nheartbeat: the child runs orchestrated, and it still needs a heartbeat to fire each next orchestrator session.\n'
   printf '  .agents/docs/orchestrated.md carries the Routine'\''s prompt, its hourly floor, the connector trap and the pause.\n'
-  printf '  Creating one is the human'\''s call.\n'
+  printf '  Name it heartbeat: <owner/repo>, prompt /orchestrate. Creating one is the human'\''s call.\n'
 }
 
 # Everything above the marker, CR-stripped — same one-definition rule as

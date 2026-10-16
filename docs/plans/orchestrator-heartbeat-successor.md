@@ -73,7 +73,9 @@ reading in `orchestrated.md` and retire. A Routine made from a session
 cannot serve: its sessions get no repository and no session tools
 (`orchestrated.md`, Heartbeat). No heartbeat Routine exists =
 `status: blocked`, `next:` = `money: create an hourly /orchestrate
-heartbeat Routine in the claude.ai UI so its lineage can be read`.
+heartbeat Routine named heartbeat: <owner/repo> in the claude.ai UI so its
+lineage can be read`. Also read that Routine's `created_via`: `meta_mcp`
+there too = drop the `session-made` reason from step 5.
 
 ## Acceptance
 

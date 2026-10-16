@@ -51,7 +51,19 @@ lineage with create_session.
 
 ## Review
 
-None yet.
+- r1: (verifier) "never fire" ban contradicted the queued plan's fire_trigger successor (fixed: ban is create, edit, pause)
+- r2: (verifier) orchestrated.md still said the heartbeat is made by create_trigger (fixed: made in the claude.ai UI)
+- r3: (verifier) bootstrap heartbeat note named a renamed bullet and no Routine name; plan next: gave no name (fixed: bullet keeps "connector trap", note and plan name heartbeat: <owner/repo>)
+- r4: (verifier) duplicates counted paused copies and hid the other checks (fixed: duplicated = two or more enabled; else check the enabled one)
+- r5: (verifier) prompt check made the orchestrator read a design doc (fixed: spelled inline, exactly /orchestrate)
+- r6: (verifier) failing and prompt checks used wrong field spellings (fixed: ends in FAILED, derived_state.prompt)
+- r7: (verifier) docs disagreed on which lines push (fixed: stale and duplicated push, no heartbeat reports only, both docs)
+- r8: (verifier) once per session pushes hourly, unsaid (fixed: said)
+- r9: (verifier) step 3 exit reported a heartbeat line step 5 had not computed (fixed: step 3 runs step 5 before exit)
+- r10: (verifier) UI-made created_via unread; recurring filter may hide paused ones (fixed: no filter; plan prerequisite reads created_via and drops session-made if meta_mcp)
+- r11: (verifier) measurement overclaimed "stores no repository" without passing connectors (fixed: says what was passed and seen)
+- r12: (verifier) measurement written as a dated story (fixed: cut to rule plus command and date)
+- r13: (verifier) new clauses unpinned, /orchestrate needle prefix-matched (fixed: needles added, each fails with its clause removed)
 
 ## Blockers
 
