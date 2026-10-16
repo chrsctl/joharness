@@ -575,23 +575,34 @@ may carry over. The reading is an operator's: create the Routine, read
 heartbeat the durable fix; carried-over depth means a heartbeat chain
 strands too, and the §4 guard is the only defence.
 
-The heartbeat is a scheduled Routine (`create_trigger`,
-`create_new_session_on_fire: true`) firing a fresh orchestrator on an
-interval. Rejected: session cron and a self-scheduling session (do not
+The heartbeat is a scheduled Routine, made in the claude.ai Routines UI,
+firing a fresh orchestrator on an interval. Rejected: session cron and a self-scheduling session (do not
 outlive their creator), a scheduled GitHub Actions workflow (its pull
 requests get no CI on `GITHUB_TOKEN`, so step 7 never goes green).
 
 **Operator action, always.** Recurring spend is the human's. A session
-documents; it never creates one.
+documents and checks; it never creates, edits or pauses one.
 
+The spec every orchestrator checks at start (`orchestrate.md`, "## 0.
+Start" step 5; a `heartbeat stale` or `heartbeat duplicated` line pushes,
+"no heartbeat" only reports):
+
+- **Name**: exactly `heartbeat: <owner/repo>` — how the check tells it from
+  another repo's heartbeat or a nightly `/curate`.
+- **Fires**: a fresh session each time, from the claude.ai Routines UI
+  with this repository attached.
 - **Cadence**: hourly floor (`*/5 * * * *` is refused). The Routine backs
   the `send_later` chain; it does not replace it.
-- **Prompt**: standalone — a fresh session inherits nothing. `/orchestrate`
-  plus the routing above; the hook prints the rest.
-- **The connector trap**: a Routine created from a session may store NO
-  connectors, and its sessions then cannot open or merge a pull request.
-  Create it from the claude.ai Routines UI (or pass `connectors`), then
-  `fire_trigger` once and check the fired session reached GitHub.
+- **Prompt**: standalone — a fresh session inherits nothing. Exactly
+  `/orchestrate`; the banner routes it, the hook prints the rest.
+- **The connector trap: made in the UI, never from a session.** A
+  Routine `create_trigger` makes from a session reads `created_via:
+  meta_mcp`; fired with no `connectors` or sources passed, its session
+  had `sources: []` and no Claude Code Remote session tools or GitHub
+  tools, so it cannot orchestrate (`create_trigger` + `fire_trigger`,
+  2026-10-16). Unmeasured: what a UI-made Routine's `created_via` reads.
+  After creating one, `fire_trigger` once and check the fired session
+  reached GitHub.
 - **Stop**: `update_trigger` `enabled: false` pauses, `delete_trigger`
   removes. Read `last_run`, never `next_run_at` (a paused Routine keeps a
   stale one). A human who cannot halt the fleet has no veto.

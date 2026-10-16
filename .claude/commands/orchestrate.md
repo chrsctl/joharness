@@ -61,18 +61,39 @@ nothing. Never read a full queue and leave it untouched.
    <depth>/<limit>: this session cannot spawn or arm; start a fresh
    orchestrator session`. No `lineage` field, or no `get_session` = proceed.
 3. One orchestrator per repo. `list_sessions`: another session titled
-   `orchestrator: <owner/repo>` with `session_status: RUNNING` = exit, report
-   its `updated_at`, `status_detail` and the heartbeat line. Else
+   `orchestrator: <owner/repo>` with `session_status: RUNNING` = run step 5,
+   then exit, report its `updated_at`, `status_detail` and step 5's line.
+   Else
    `set_session_title` yours to that. From the same result rebuild `@new`:
    each `manager: <stem>` not `ARCHIVED`, not in your ledger, whose item file
    still exists on `origin/main` (`git cat-file -e origin/main:<path>`) →
    ledger `<stem>@new respawns=<RESPAWN_LIMIT>`; report `rebuilt <stem>@new
    from its title`.
 4. Read the Lineup once.
-5. Heartbeat: `list_triggers` — an enabled cron Routine firing a fresh
-   session for this repo? None: the report carries "no
-   heartbeat: this fleet dies with this session." (order: "Report, every
-   pass"). Never create one.
+5. Heartbeat: `list_triggers` (no filter: a paused one must show). The
+   heartbeat is a Routine named exactly `heartbeat: <owner/repo>` with a
+   non-empty `cron_expression`; any other Routine (a nightly `/curate`)
+   never counts. None: the report carries "no heartbeat: this fleet dies
+   with this session." Two or more with `enabled` true: `heartbeat
+   duplicated: <id>, <id>` (each firing pays twice). Otherwise check the
+   enabled one (none enabled: the newest), up to date only when ALL hold,
+   else `heartbeat stale: <id>: <reason>[, <reason>]`, one reason per
+   failing check, spelled:
+   - `disabled` — `enabled` is not true;
+   - `bound` — `persist_session` true: it wakes one old session, not a
+     fresh one;
+   - `session-made` — `created_via: meta_mcp`: made from a session, its
+     sessions get no repository and no session tools
+     (`.agents/docs/orchestrated.md`, Heartbeat);
+   - `failing` — `last_run.status` ends in `FAILED`
+     (`ROUTINE_RUN_STATUS_FAILED`);
+   - `prompt` — `derived_state.prompt`, trimmed, is not exactly
+     `/orchestrate`.
+   A `duplicated` or `stale` line: report it and `PushNotification` it
+   once per session — every heartbeat firing is a fresh session, so a
+   stale heartbeat pushes hourly until the operator fixes it. "no
+   heartbeat": report only. Never create, edit or pause one: the fix is
+   the operator's, the line names it.
 
 The ledger comes from your wake message (step 4), never from memory. First
 start = empty.
@@ -452,8 +473,8 @@ Human says stop = stop scheduling; name the managers still running.
 
 ## Report, every pass
 
-Opening lines, in this order: the `URGENT` row (if any), the "no heartbeat"
-line (if any), then, on the first pass of a run a human message started (not
+Opening lines, in this order: the `URGENT` row (if any), the "no heartbeat",
+`heartbeat duplicated` or `heartbeat stale` line (if any), then, on the first pass of a run a human message started (not
 a wake), when this session already wrote a final report (DRAINED exit or
 PAUSED) more than one hour earlier: `fresh session is cheaper: start a new
 orchestrator session for the next run`. It only informs; the pass still runs.
