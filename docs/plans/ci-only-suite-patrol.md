@@ -1,12 +1,12 @@
 ---
 plan: ci-only-suite-patrol
 urgency: normal
-agent: opus
+agent: sonnet
 effort: high
 needs: local-checks-name-unrun-jobs
 requirement: none
 issue: none
-scope: joharness.sh, .agents/harness/selftest/patrol.sh, .agents/harness/selftest.sh, .agents/scripts/conf-keys.sh, .claude/commands/patrol.md, .claude/commands/orchestrate.md, .claude/commands/clerk.md, .agents/docs/orchestrated.md, .agents/harness/AGENTS.md, .agents/docs/consumer-repos.md
+scope: joharness.sh, .agents/harness/selftest/patrol.sh, .agents/harness/selftest.sh, .agents/scripts/conf-keys.sh, .claude/commands/clerk.md, .agents/docs/orchestrated.md, .agents/harness/AGENTS.md, .agents/docs/consumer-repos.md
 ---
 
 ## Goal
@@ -15,97 +15,105 @@ Under `JOHARNESS_CHECKS=local` the harness has a fixing half for broken
 suites (issue -> clerk -> plan -> manager) and no capturing half: a step
 only GitHub runs counts for nothing, so its regressions never become an
 issue (`.agents/docs/consumer-repos.md`, "Local checks"). Add the capturing
-half: a consumer declares ONE executable that runs its CI-only suites; a
-clock-driven role, the patrol, runs it on fresh `origin/main` and files one
-GitHub issue per newly failing criterion; the clerk turns those into plans.
-On a clock, not per merge: such suites cost the consumer's whole suite
-runtime, paid once a cycle instead of at every `finish`.
+half to the role that already runs on a clock and already turns issues into
+plans: the clerk. A consumer declares ONE executable that runs its CI-only
+suites; each clerk pass first runs it on fresh `origin/main` (the patrol),
+files one issue per failing criterion, and plans those issues in the same
+pass on its own reading. No new role, no new dispatch cycle: the clerk's
+clock, twin check, slot and ledger key stay as they are. On a clock, not
+per merge: such suites cost the consumer's whole suite runtime, paid once a
+clerk cycle instead of at every `finish`.
 
 ## Scope
 
 - `joharness.sh` knob table (`KEY|default|scope|meaning`), plus each knob's
-  registration: `conf` keys in `.agents/scripts/conf-keys.sh`, `dispatch`
-  keys as a row in `.agents/docs/orchestrated.md`'s knob table
-  (`.agents/harness/selftest/knobs-declared.sh` reds otherwise):
+  registration (`.agents/harness/selftest/knobs-declared.sh` reds
+  otherwise): `conf` keys in `.agents/scripts/conf-keys.sh`, `dispatch`
+  keys as a row in `.agents/docs/orchestrated.md`'s knob table:
   - `JOHARNESS_PATROL_CMD||conf|` — a path, relative to the worktree root
-    or absolute, to ONE executable taking no arguments; empty = patrol off. A single
-    token, as every conf value is (`joharness.sh:conf_get` keeps up to the
-    first blank): a consumer wraps its suites in a script. Exit 0 = green.
-    Each stdout line `FAIL <id>` names one failing criterion (`<id>` = no
-    whitespace). Non-zero exit with no `FAIL` line = one failure, id
-    `patrol-command`.
-  - `JOHARNESS_PATROL_HOURS|24|dispatch|` — hours between passes; 0 = off.
+    or absolute, to ONE executable taking no arguments; empty = no patrol.
+    A single token, as every conf value is (`joharness.sh:conf_get` keeps
+    up to the first blank): a consumer wraps its suites in a script. Exit 0
+    = green. Each stdout line `FAIL <id>` names one failing criterion
+    (`<id>` = no whitespace). Non-zero exit with no `FAIL` line = one
+    failure, id `patrol-command`.
   - `JOHARNESS_PATROL_MINUTES|90|dispatch|` — `timeout` bound on the
     executable; hitting it = one failure, id `patrol-timeout`. Also the
-    in-flight window below.
+    window a patrol marker reads in flight (below).
 - `joharness.sh` subcommand `patrol` (header usage line): fetch
   `origin/main`; `git worktree add --detach` it under a `mktemp -d`
   directory; run the executable there under `timeout`; remove the worktree
   on every exit path (`trap`); print `patrol: green (<short sha>)` or
-  `patrol: <n> failing (<short sha>)` then one `FAIL <id>` line each.
-  Report-only: no issue, no push. Exit 0 green, 1 failing, 2 off or
+  `patrol: <n> failing (<short sha>)`, then one `FAIL <id>` line each.
+  Report-only: no issue, no push. Exit 0 green, 1 failing, 2 no patrol or
   unrunnable (no command, not executable, no `timeout`, fetch failed) with
   the reason.
-- `joharness.sh:cmd_role` — accept `patrol` (usage line and `case`), with
-  `--twin` as for clerk.
-- `joharness.sh` dispatch: a `patrol    :` line beside `clerk`/`conduct`.
-  Marker = a `patrol-<YYYYMMDDTHHMMSSZ>` branch at the base head that the
-  role pushes FIRST, before running anything (parsed with
-  `joharness.sh:clerk_stamp_ts`). Newest marker younger than
-  `JOHARNESS_PATROL_MINUTES` = `IN FLIGHT`; else `DUE — <n>h since the last
-  patrol (of <hours>h)` or `not due — …`; no command or hours 0 = `off —
-  <reason>`. Command empty AND `JOHARNESS_CHECKS=local` AND
-  `checks_unrun_jobs 0` printing N > 0 rows: reason `N workflow job(s) with
-  a step not run here and JOHARNESS_PATROL_CMD is empty`.
-- `.claude/commands/patrol.md` — the role. Prelude `./joharness.sh role
-  patrol --twin` (`GO` / `STOP:` as `clerk.md` §1). Push the marker. Run
-  `./joharness.sh patrol` as a background command (a foreground call caps
-  at 600 s; `clerk.md` and `conduct.md` state that ceiling) and wait for
-  its completion notice; the `timeout` inside bounds it. For each `FAIL
-  <id>`: search open issues for title `patrol: <id> fails on main`; none =
-  file it, body = the sha, `JOHARNESS_PATROL_CMD`'s value, and the last 40
-  output lines; open = add nothing. Opens no pull request, writes no plan,
-  edits no file.
-- `.claude/commands/clerk.md` §3 "Verify, then decide" — an issue whose
-  title starts `patrol:` carries its own reading. The clerk re-runs
-  `./joharness.sh patrol` when it can; when it cannot (exit 2, or the
-  executable needs services the clerk lacks) the patrol's output stands as
-  the reading and the verdict is never DOES NOT HOLD. Re-running a
-  different, weaker suite is not a reading of this one.
-- `.claude/commands/orchestrate.md` — role table row `patrol DUE` |
-  sonnet | `patrol: <UTC date>` | `/patrol` | `patrolled=<stamp>`; ledger
-  line gains `[patrolled=<stamp>[+human]]`. Holds no slot, like conduct.
-- `.agents/docs/orchestrated.md` — the role table under "The role prelude
-  is a command" gains a patrol row; the patrol joins every list naming
-  clerk and conduct as clock-driven roles; the two knob rows above.
+- `joharness.sh:clerk_due` (and the dispatch `clerk     :` line it feeds) —
+  a clerk running a patrol pushes nothing for up to
+  `JOHARNESS_PATROL_MINUTES`, so it must not read as no clerk at all. A
+  `clerk-patrol-<YYYYMMDDTHHMMSSZ>` branch (parsed with
+  `joharness.sh:clerk_stamp_ts`) younger than `JOHARNESS_PATROL_MINUTES`
+  reads `IN FLIGHT`, as an unmerged `clerk-<digit>` branch does today. It
+  never dates the clock: only the merge or the `clerk-noop-` record does.
+  With `JOHARNESS_CHECKS=local`, `JOHARNESS_PATROL_CMD` empty and
+  `checks_unrun_jobs 0` printing N > 0 rows, the clerk line carries one
+  more clause: `no patrol: N workflow job(s) with a step not run here and
+  JOHARNESS_PATROL_CMD is empty`.
+- `.claude/commands/clerk.md` — new section between §1 Branch and §2 Read,
+  `## 1b. Patrol`, skipped when `./joharness.sh patrol` would exit 2 for no
+  command (`./joharness.sh clerk` prints whether the command is set):
+  1. Push the marker first: `git push origin
+     "origin/main:refs/heads/clerk-patrol-$(date -u +%Y%m%dT%H%M%SZ)"`.
+  2. Run `./joharness.sh patrol` in the Bash tool's background mode (a
+     foreground call caps at 600 s) and wait for its completion notice;
+     the `timeout` inside bounds it. This is the one command the clerk runs
+     that it has not read whole: the executable is the one a human named
+     in `joharness.conf`, a core path; §3's read-only rule does not cover
+     it, and the section says so.
+  3. Exit 2 = report the reason, go on to §2. For each `FAIL <id>`: an open
+     issue titled `patrol: <id> fails on main` = add nothing; none = file
+     it, body = the sha, the command, the last 40 output lines.
+  4. Every open `patrol:` issue whose id failed in THIS run is read first
+     in §2, ahead of oldest-first order and within `JOHARNESS_CLERK_BATCH`,
+     and its §3 reading is this run's output: HOLDS, plan `issue: <N>`. An
+     open `patrol:` issue whose id did not fail this run: DOES NOT HOLD
+     with this run's sha as evidence (a human closes it). Never re-run a
+     different or weaker suite as the reading of a `patrol:` issue.
+  The clerk's §4 (pull request or `clerk-noop-` record) is unchanged.
+- `joharness.sh:cmd_clerk` — print `patrol    : <command>` or `patrol    :
+  none (JOHARNESS_PATROL_CMD empty)` so §1b reads it without opening conf.
+- `.agents/docs/orchestrated.md` — wherever the clerk's cycle is described,
+  one sentence: a clerk pass runs the patrol first when the command is set;
+  the two knob rows above.
 - `.agents/harness/selftest/patrol.sh` — new topic, listed in
   `.agents/harness/selftest.sh:SELFTEST_TOPICS`. Fixtures: an executable
   printing `FAIL a`, exit 1 -> `patrol: 1 failing`, exit 1; one exiting 0
   -> exit 0, and `git worktree list` shows no patrol worktree after; one
   sleeping past the bound -> `FAIL patrol-timeout` (a fixture `timeout`
-  shim on `PATH`, so the topic waits no minute); empty command -> exit 2;
-  dispatch in a fixture repo with a fresh marker -> `IN FLIGHT`; local mode
-  with a `make slow-suite` workflow step and no command -> the off reason.
+  shim on `PATH`, so the topic waits no minute); empty command -> exit 2; a
+  conf fixture line `JOHARNESS_PATROL_CMD=scripts/ci-only.sh` reads back
+  whole; dispatch with a fresh `clerk-patrol-` marker -> clerk `IN
+  FLIGHT`, with a stale one -> not; local mode with a `make slow-suite`
+  workflow step and no command -> the `no patrol:` clause.
 - `.agents/harness/AGENTS.md` step 7 first bullet — those steps are the
-  patrol's (`JOHARNESS_PATROL_CMD`).
+  clerk's patrol (`JOHARNESS_PATROL_CMD`).
 - `.agents/docs/consumer-repos.md` "Local checks" — rewrite to the new
-  status quo: the second and fourth bullets become the patrol and the
-  clerk's rule; the closing paragraph names the knob.
+  status quo: the second and fourth bullets become the clerk's patrol and
+  its reading rule; the closing paragraph names the knob.
 
 ## Out of scope
 
+- A separate role, command file, `cmd_role` entry, dispatch line, ledger
+  key or role-table row for the patrol. The clerk's carry it.
 - Running the executable from `finish`, per merge. Rejected in Goal.
 - Mapping diff paths to suites. Same reason.
 - Provisioning any service: the consumer's executable provisions what it
   needs. `.agents/harness/` names no environment.
 - Setting the knob in this repo's `joharness.conf` (core path). Declared,
   unset.
-- Writing plans from a failure: the clerk plans issues
-  (`.agents/docs/plans/README.md`, Lifecycle: no session writes a plan from
-  a detector).
-- Closing an issue when its criterion turns green again: the fixing
-  manager's pull request closes it.
-- Deleting old `patrol-*` markers.
+- Closing an issue when its criterion turns green: the fixing manager's
+  pull request closes it; DOES NOT HOLD leaves it to a human.
+- Deleting old `clerk-patrol-*` markers.
 
 ## Acceptance
 
@@ -116,35 +124,33 @@ runtime, paid once a cycle instead of at every `finish`.
   does not carry it):
   `JOHARNESS_PATROL_CMD=/abs/s ./joharness.sh patrol; echo "rc=$?"` —
   `patrol: 1 failing (<sha>)`, `FAIL x`, `rc=1`.
-- `JOHARNESS_PATROL_CMD=` `./joharness.sh patrol; echo "rc=$?"` — names
-  the off reason, `rc=2`.
-- A conf fixture line `JOHARNESS_PATROL_CMD=scripts/ci-only.sh` reads back
-  whole (`conf_get`), proven in the selftest topic.
-- `./joharness.sh dispatch` in this repo — a `patrol    : off —` line.
+- `JOHARNESS_PATROL_CMD= ./joharness.sh patrol; echo "rc=$?"` — names the
+  reason, `rc=2`.
+- `./joharness.sh clerk` in this repo — `patrol    : none
+  (JOHARNESS_PATROL_CMD empty)`.
 - Mutation: drop the `timeout` wrapper in a scratch copy — the
-  `patrol-timeout` assertion FAILs. Restore.
+  `patrol-timeout` assertion FAILs; drop the marker age test in
+  `clerk_due` — the stale-marker assertion FAILs. Restore.
 - SHIPS: `joharness.sh` and `.claude/commands/` reach consumers; the
   selftest does not (`.agents/scripts/sync-to-consumer.sh:CANONICAL_ONLY_DIRS`).
-  Consumer-run checks: `./joharness.sh patrol` and `./joharness.sh
-  dispatch`, both run in a consumer; quote their output from the
-  acceptance above in the PR body.
+  Consumer-run checks: `./joharness.sh patrol` and `./joharness.sh clerk`;
+  quote their output from the acceptance above in the PR body.
 
 ## Where to look
 
 - `joharness.sh:conf_get` — single-token values.
-- `joharness.sh:clerk_stamp_ts`, `joharness.sh:clerk_noop` — the marker and
-  its parser.
-- `joharness.sh:clerk_due`, `joharness.sh:conduct_due` — due/off/in-flight
-  shapes; the dispatch block printing `clerk     :` and `conduct   :`.
-- `joharness.sh:cmd_role` — the role `case`.
+- `joharness.sh:clerk_stamp_ts`, `joharness.sh:clerk_noop` — marker shape
+  and parser.
+- `joharness.sh:clerk_due` — in-flight and due readings; the dispatch block
+  printing `clerk     :`.
+- `joharness.sh:cmd_clerk` — what a clerk reads first.
 - `joharness.sh:checks_unrun_jobs` — built by
   `local-checks-name-unrun-jobs`.
 - `.agents/harness/selftest/knobs-declared.sh` — which registration each
   knob scope needs.
 - `.agents/harness/selftest.sh:SELFTEST_TOPICS` — topic registration.
-- `.claude/commands/orchestrate.md` — role table (`| line | model
-  (Lineup) |`) and the ledger line.
-- `.claude/commands/clerk.md` — §1 twin check, §3 verify.
+- `.claude/commands/clerk.md` — §1 (twin check, push), §2 batch and order,
+  §3 the read-only rule and verdicts, §4 the noop record.
 
 ## Traps
 

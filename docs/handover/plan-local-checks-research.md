@@ -21,9 +21,14 @@ the gap into plans.
 
 - Two plans: `local-checks-name-unrun-jobs` (finish names each workflow job
   with a step it did not run; report, not red) then `ci-only-suite-patrol`
-  (clock-driven role runs a consumer-declared executable on base, files
-  issues for the clerk). `needs` edge real: patrol reads `checks_unrun_jobs`.
-- Role named patrol, not sweep: `## Sweep` is a research-file section.
+  (each clerk pass first runs a consumer-declared executable on base, files
+  issues, plans them on its own reading). `needs` edge real: patrol reads
+  `checks_unrun_jobs`.
+- Patrol is a clerk step, not a new role (human asked "is a new role really
+  needed"): the clerk already has the clock, twin check, slot, ledger key and
+  the issue-to-plan path; the clerk taking the reading itself removes the
+  weaker-suite DOES NOT HOLD failure. Name patrol, not sweep: `## Sweep` is a
+  research-file section.
 - Graduation: `.agents/harness/AGENTS.md` step 7 clause +
   `.agents/docs/consumer-repos.md` "Local checks". No consumer named.
 
@@ -32,6 +37,8 @@ the gap into plans.
 - Running CI-only suites from `finish` per merge: suite runtime at every
   merge.
 - Mapping diff paths to suites: same cost, plus a mapping to rot.
+- A separate patrol role: rebuilt the clerk's clock, in-flight, twin and
+  ledger machinery for one step.
 
 ## Review
 
