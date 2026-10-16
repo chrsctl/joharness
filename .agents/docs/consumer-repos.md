@@ -297,6 +297,36 @@ Base branch red before change. Five points:
    (point 3). Harness prescribes no file and no shape
    (why: history/consumer-repos.md § A red base branch, 2026-10-10).
 
+## Local checks
+
+`JOHARNESS_CHECKS=local` (the repo's own `joharness.conf`, or the
+environment) makes step 7's first condition `finish` running `ci`, and
+`verify` when `joharness.sh:checks_verify_needed` holds, on this head.
+`ci` runs the harness's own checks (`joharness.sh:cmd_ci`), never a
+consumer's suites. The key saves the wait, not the run: GitHub still runs
+the workflow when Actions can, except a job the repository VARIABLE of the
+same name gates off (`.github/workflows/ci.yml`, `lint`). So every job
+step that is not `./joharness.sh ci` or `verify` is read by nobody while
+the key holds, and run by nobody when Actions cannot allocate a runner,
+the outage local mode is usually set for. A suite a consumer gives to
+GitHub because it needs a database or a browser then stops counting,
+merges land under `finish: pass`, and no role queues its failures.
+
+Status quo:
+
+- `finish` names the gap only in general ("Not covered here: any job in
+  .github/workflows/ that ci does not run", plus the per-layer step); its
+  verdict line says `pass`. It names no consumer job.
+- No role runs those jobs on a clock or files their failures as issues.
+- A consumer index that counts a criterion established because the
+  workflow INVOKES its suite proves nothing while the key holds: invoking
+  is not passing.
+- A clerk that cannot provision a suite's services cannot re-run a report
+  about it; re-running a weaker suite instead says nothing about that one.
+
+Local mode is a posture for an outage, not for weeks: it gates merges on
+the harness's checks and nothing of the consumer's own.
+
 ## The sync pull request: drive it to merged
 
 `update.yml` gets the branch pushed; everything after is a person or a

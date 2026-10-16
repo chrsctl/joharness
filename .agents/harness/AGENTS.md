@@ -63,7 +63,8 @@ log, not markdown ([`caveman.md`](../../.agents/docs/caveman.md), Status quo).
 7. **Finish.** PR, merge to `main` yourself — own PR only (opened by this
    session, or handed to it). Merge when ALL hold:
    - GitHub checks green on head (`JOHARNESS_CHECKS=local`: `finish` runs
-     `ci` + `verify` instead);
+     `ci` + `verify` instead; every other workflow step then counts for
+     nothing — `.agents/docs/consumer-repos.md`, "Local checks");
    - branch 0 behind fresh-fetched `origin/main` — behind = reconcile first
      (`.agents/docs/product/README.md`, "Conflict at finish");
    - `./joharness.sh verify` green when the diff touches non-`*.md` files
