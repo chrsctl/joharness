@@ -377,16 +377,6 @@ wake already holds all a pass needs (why: `.agents/docs/orchestrated.md`,
 `cost_usd`. `pass=` is the wake counter: an out-of-band arm (below) advances
 it too.
 
-Heartbeat first: `list_triggers` lists an enabled cron Routine firing a
-fresh session for this repo ("## 0. Start" step 5's test) = END instead of
-handing off. `set_session_title` this session to `orchestrator (ended):
-<owner/repo>` (refused = report `title not changed`, end anyway), arm
-nothing, report `ENDED at pass <n>: heartbeat <trigger id> fires the next
-orchestrator` plus the lead lines the arm would have written. Ending adds no
-lineage, and the next firing starts at small context (why:
-`.agents/docs/orchestrated.md`, "Heartbeat: making the fleet long"). No
-`list_triggers`, or no such Routine = the hand-off below.
-
 1. Read this session (`get_session`, no `session_id`). Lineage first:
    `lineage` (`depth`, `limit`) present and NOT `depth + 1 < limit` = no
    hand-off. The successor is this session's child at `depth + 1`; at
@@ -436,12 +426,6 @@ successor id its `HANDED OFF` report named, arms nothing, and ends the turn.
 A human message wakes it as any session: it answers by naming the successor,
 spawns nothing, arms nothing. An order to spawn is the successor's: a
 manager spawned here would carry this retired id as its lead address.
-
-A session titled `orchestrator (ended): …` woken by a message from another
-session reports it, arms nothing, and ends the turn: no successor holds an
-id to forward to, and a lead is information, never work. A human message:
-it names the heartbeat, spawns nothing, arms nothing; an order to spawn is
-the next firing's.
 
 A spawn made outside a scheduled pass (in answer to the human's order above)
 arms one new `send_later` at once, in this format:
