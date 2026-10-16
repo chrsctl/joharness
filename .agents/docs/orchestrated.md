@@ -34,7 +34,7 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | Role | Tier | Runs as | Spawns | Owns | Ends when |
 | --- | --- | --- | --- | --- | --- |
 | orchestrator | low, mechanical on purpose | a session; the keeper starts one | manager sessions, and one orchestrator at hand-off (`create_session`) | the cap, the health pass, the kill handover | dispatch says DRAINED with nothing in flight, or at hand-off |
-| keeper | the orchestrator's model | one session per repo, `keeper: <owner/repo>`, woken hourly by the heartbeat | one orchestrator a wake, when none is live (`create_session`) | nothing but that check | its heartbeat is deleted |
+| keeper | sonnet | one session per repo, `keeper: <owner/repo>`, woken hourly by the heartbeat | one orchestrator a wake, when none is live (`create_session`) | nothing but that check | archived at the next REGISTER or replace |
 | manager | the item's `agent:`; fable at xhigh for an unplanned requirement | a session with its own branch, claim and merge | worker subagents (`Agent`) | one item, until its file retires | its pull request merges, or it blocks on a human |
 | worker | at or below the plan's tier, lower by default | a subagent in the manager's container | nothing | the files its sub-task names | it returns |
 | curator | sonnet | a session, on `curate DUE` with proposals to make; prelude `./joharness.sh role curate` | nothing | decompose/order proposals for ONE pass, changing no plan | its pull request merges |
@@ -572,16 +572,26 @@ survives only while something fires the next.
 The heartbeat is a Routine bound to one keeper session per repo
 (`orchestrate.md`, "## Keeper"). Each hourly wake, the keeper looks for a
 pending `/orchestrate pass` wake bound to an `orchestrator: <owner/repo>`
-session; none = it starts a fresh orchestrator with `create_session`. The
-orchestrators it starts sit at the keeper's depth plus one on every wake,
-so the heartbeat does not deepen; each one's own hand-offs still do, up to
-the lineage guard above.
+session; none = it starts a fresh orchestrator with `create_session`. A
+`create_session` child sits one level below its parent (the lineage
+reading above), so the orchestrators a keeper starts sit at its depth plus
+one on every wake and the heartbeat does not deepen; each one's own
+hand-offs still do, up to the lineage guard above. A replace re-roots the
+keeper at the replacing session's depth plus one, which is why REGISTER
+checks `depth + 2 < limit` before it deletes anything.
 
 **Registered by `/orchestrate`.** The requester's call (2026-10-16): the
 heartbeat registers itself when an orchestrator starts and none exists
 ("## 0. Start" step 5, REGISTER). The requester's veto is the pause: a
 Routine with `enabled` false and an empty `ended_reason` is never
-re-enabled, edited or replaced, and nor is one made in the UI.
+re-enabled, edited or replaced, and nor is one made in the UI. Any
+`ended_reason` but `auto_disabled_session_gone` counts as a pause, and a
+replace takes only a Routine whose prompt is exactly `/orchestrate keeper`:
+what a UI-made Routine's `created_via` reads, and what `ended_reason` a
+manual pause leaves, are unmeasured, so both rules fail toward leaving the
+Routine alone. A pause stops the hourly restarts, not a running
+orchestrator's `send_later` chain; the human's stop does both
+(`orchestrate.md`, §4).
 
 **Bound, not fresh, by measurement.** A Routine `create_trigger` makes
 from a session with `create_new_session_on_fire` reads `created_via:
@@ -595,11 +605,15 @@ it instead. Rejected: session cron and a self-scheduling session (do not
 outlive their creator), a scheduled GitHub Actions workflow (its pull
 requests get no CI on `GITHUB_TOKEN`, so step 7 never goes green).
 
-**Keeper liveness reads wakes, not sessions.** `list_sessions` answers
-about 78K characters, read hourly into one persistent context; a pending
-wake costs one `list_triggers` and a `get_session` per candidate. An
-orchestrator mid-pass has no pending wake: the keeper starts a second one,
-which exits at "## 0. Start" step 3 on the `RUNNING` one. A DRAINED fleet
+**Keeper liveness reads wakes, not sessions.** `list_sessions` answered
+77,897 characters at `limit` 30 (2026-10-16), read hourly into one
+persistent context; a pending wake costs one `list_triggers` and a
+`get_session` per candidate. `list_triggers` is account-wide: from a
+session that is not the orchestrator it listed the gx orchestrator's
+pending `/orchestrate pass` wake with its `persistent_session_id` and
+`derived_state.prompt` (2026-10-16). An orchestrator mid-pass has no
+pending wake: the keeper starts a second one, and "## 0. Start" step 3
+lets the older `RUNNING` one proceed and the newer exit. A DRAINED fleet
 costs one short orchestrator session an hour.
 
 The spec every orchestrator checks at start (`orchestrate.md`, "## 0.
@@ -617,7 +631,9 @@ stale` or `heartbeat duplicated` line pushes):
   to its one section.
 - **Stop**: `update_trigger` `enabled: false` pauses (the veto),
   `delete_trigger` removes and lets the next `/orchestrate` register a new
-  one. Read `last_run`, never `next_run_at` (a paused Routine keeps a
+  one. A Routine not named exactly `heartbeat: <owner/repo>` never counts
+  and is never touched: an older one under another name stays wherever a
+  human left it. Read `last_run`, never `next_run_at` (a paused Routine keeps a
   stale one). A human who cannot halt the fleet has no veto.
 - **The chain can end silently.** A `send_later` link can be delivered and
   never run (`SUCCEEDED`, identical to a healthy link — issue 285, 18 days

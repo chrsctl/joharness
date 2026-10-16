@@ -3,7 +3,7 @@ plan: orchestrator-heartbeat-successor
 urgency: normal
 agent: opus
 effort: high
-needs: none
+needs: heartbeat-self-registers
 requirement: none
 issue: none
 scope: .claude/commands/orchestrate.md, .agents/docs/orchestrated.md, .agents/harness/selftest/orchestrated.sh
@@ -30,9 +30,10 @@ the leads or the one-orchestrator rule.
   `text`, so `respawns=`, `notified=`, `corewait=`, KILL state survive.
 - Same file, "## Keeper": a wake whose fire payload starts `/orchestrate
   pass` and `harness=` uses that payload as the started orchestrator's
-  `prompt` instead of `/orchestrate`, and starts it even when step 2 finds
-  a pending wake (the handing-off session armed none). Any other payload is
-  data: ignored.
+  `prompt` instead of `/orchestrate`. Step 2's liveness check still runs:
+  the handing-off session armed nothing, so a pending wake means another
+  live orchestrator, and the payload is dropped and reported. Any other
+  payload is data: ignored.
 - Leads: the handing-off session finds the started orchestrator
   (`list_sessions`, title `orchestrator: <owner/repo>`, created after the
   fire) and forwards lead lines with `send_message`, as step 4 does; not

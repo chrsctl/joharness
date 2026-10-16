@@ -255,26 +255,40 @@ for needle in 'Routine named exactly `heartbeat: <owner/repo>` with a non-empty 
   'None: REGISTER, below.' \
   'Two or more with `enabled` true: `heartbeat duplicated' \
   'duplicated: <id>, <id>' 'heartbeat stale: <id>: <reason>[, <reason>]' \
-  '`paused` — `enabled` is not true and `ended_reason` is empty' \
-  '`disabled` — `enabled` is not true and `ended_reason` is set' \
+  '`paused` — `enabled` is not true and `ended_reason` is anything but' \
+  '`disabled` — `enabled` is not true and `ended_reason` is `auto_disabled_session_gone`: its keeper is gone' \
   '`unbound` — `persist_session` is not true, or `persistent_session_id` is empty' \
   '`keeper-gone` — `get_session` on `persistent_session_id` finds it `ARCHIVED`, not found, or titled other than `keeper: <owner/repo>`' \
   '`failing` — `last_run.status` ends in `FAILED`' \
   '`prompt` — `derived_state.prompt`, trimmed, is not exactly `/orchestrate keeper`.' \
-  'Stale with `created_via: meta_mcp` and no `paused` reason = a session made it: `delete_trigger` it' \
   'Never enable, edit or delete a Routine a human paused or made in the UI' \
   'REGISTER, at most once per session:' \
   'NOT `depth + 2 < limit` = report `heartbeat not registered: lineage <depth>/<limit>`' \
   '`title` = `keeper: <owner/repo>`, `prompt` = `/orchestrate keeper`.' \
   '`persistent_session_id` = step 2'"'"'s id, `prompt` = `/orchestrate keeper`' \
   'step 3 failing after step 2 = `archive_session` that keeper' \
-  'run step 5, then exit, report its `updated_at`, `status_detail` and step 5'"'"'s line.' \
+  'then exit, report its `updated_at`, `status_detail` and step 5'"'"'s line. The older one proceeds' \
   '`heartbeat duplicated` or `heartbeat stale` line (if any)' \
   'Argument `keeper` (`/orchestrate keeper`): this session is the keeper; run "## Keeper" only' \
   'It runs this section and nothing else: no dispatch, no ledger, no pass, no manager.' \
   '`derived_state.prompt` starting `/orchestrate pass`' \
   'titled exactly `orchestrator: <owner/repo>` and not `ARCHIVED` = LIVE' \
-  '`title` = `orchestrator: <owner/repo>`, `prompt` = `/orchestrate`. Report `started orchestrator <id>`'; do
+  '`title` = `orchestrator: <owner/repo>`, `prompt` = `/orchestrate`. Report `started orchestrator <id>`' \
+  '`cron_expression` = `0 * * * *`' \
+  '`initiation` = `human_schedule`' \
+  'Never retry with another cadence or another binding.' \
+  'Candidates: `enabled` true, `run_once_at` set, `persistent_session_id` set,' \
+  'differs from the one you hold = follow that text instead' \
+  'a lineage refusal also `PushNotification`s once `keeper at lineage cap:' \
+  'and an earlier `created_at` than yours = run step 5 report-only (no REGISTER, no replace), then exit' \
+  'REPLACE only a Routine REGISTER made — `created_via: meta_mcp` AND `derived_state.prompt` exactly `/orchestrate keeper`' \
+  'REGISTER'"'"'s lineage check (step 1) first, failing = report the stale line and stop; then `delete_trigger` it' \
+  '`ended_reason` is anything but `auto_disabled_session_gone`' \
+  'not `ARCHIVED` (a heartbeat deleted in the UI leaves its keeper idle): `archive_session`' \
+  '`model` = the Lineup'"'"'s `sonnet` (the role is low tier; never the registering session'"'"'s model)' \
+  '`update_trigger` this repo'"'"'s heartbeat `enabled: false`' \
+  'only "## Tools" applies.' \
+  '`keeper: no list_triggers`, create nothing.'; do
   expect "orchestrate.md heartbeat check spells ${needle}" "$needle" "$orcfold"
 done
 refute "orchestrate.md no longer forbids every heartbeat write" \
