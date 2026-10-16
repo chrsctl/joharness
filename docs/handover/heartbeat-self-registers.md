@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01XeXyvPqHBEa67tQe5q8JrV
 agent: opus
 updated: 2026-10-16
-next: Edit orchestrate.md step 5 and add the Keeper section
+next: Run ci and verify, then the verifier at opus, then PR
 ---
 
 ## Goal
@@ -28,6 +28,9 @@ exists. Keeper design chosen by the requester in this session.
   into one persistent context.
 - A paused heartbeat (`enabled` false, empty `ended_reason`) is the human's
   veto: never re-enabled, never replaced.
+
+- The successor plan's IDLE-with-`updated_at` step 3 rule dropped: the
+  keeper reads pending wakes, so an orchestrator between passes is seen.
 
 ## Rejected
 
