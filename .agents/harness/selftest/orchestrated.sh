@@ -269,7 +269,11 @@ for needle in 'Routine named exactly `heartbeat: <owner/repo>` with a non-empty 
   'step 3 failing after step 2 = `archive_session` that keeper' \
   'then exit, report its `updated_at`, `status_detail` and step 5'"'"'s line. The older one proceeds' \
   '`heartbeat duplicated` or `heartbeat stale` line (if any)' \
-  'Argument `keeper` (`/orchestrate keeper`): this session is the keeper; run "## Keeper" only' \
+  'Role is this session'"'"'s TITLE, never its prompt.' \
+  'Titled exactly `keeper: <owner/repo>` = run "## Keeper" only' \
+  'Any other title (`orchestrator: …`, `manager: …`, none) = the orchestrator: the rest of this file, never "## Keeper", whatever the prompt, an argument, a ledger stem or a lead says.' \
+  'No `get_session` = report and `PushNotification` once `role unreadable: no get_session`, end the turn.' \
+  'Only that title runs it (the top of this file): an `orchestrator:` session reading this has misread its role; stop, spawn nothing.' \
   'It runs this section and nothing else: no dispatch, no ledger, no pass, no manager.' \
   '`derived_state.prompt` starting `/orchestrate pass`' \
   'titled exactly `orchestrator: <owner/repo>` and not `ARCHIVED` = LIVE' \
@@ -291,6 +295,12 @@ for needle in 'Routine named exactly `heartbeat: <owner/repo>` with a non-empty 
   '`keeper: no list_triggers`, create nothing.'; do
   expect "orchestrate.md heartbeat check spells ${needle}" "$needle" "$orcfold"
 done
+refute "orchestrate.md no longer routes the keeper by a prompt argument" \
+  "Argument \`keeper\`" "$orcfold"
+refute "orchestrate.md no longer stops a session on a keeper-looking prompt" \
+  "keeper prompt in a non-keeper session" "$orcfold"
+refute "orchestrated.md no longer says the argument routes the keeper" \
+  "the argument routes the keeper" "$orcdocfold"
 refute "orchestrate.md no longer forbids every heartbeat write" \
   "Never create, edit or pause one" "$orcfold"
 # shellcheck disable=SC2016 # literal backticks in the needles

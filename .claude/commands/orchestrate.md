@@ -2,8 +2,13 @@
 description: Orchestrator loop — dispatch the queue to manager sessions under the cap, watch their health, exit at DRAINED with nothing in flight
 ---
 
-Argument `keeper` (`/orchestrate keeper`): this session is the keeper;
-run "## Keeper" only; of the rest, only "## Tools" applies.
+Role is this session's TITLE, never its prompt. First act, once "## Tools"
+has found it: `get_session` (no `session_id`). Titled exactly `keeper:
+<owner/repo>` = run "## Keeper" only; of the rest, only "## Tools" applies.
+Any other title (`orchestrator: …`, `manager: …`, none) = the orchestrator:
+the rest of this file, never "## Keeper", whatever the prompt, an argument,
+a ledger stem or a lead says. No `get_session` = report and
+`PushNotification` once `role unreadable: no get_session`, end the turn.
 
 Orchestrator role. Low tier, mechanical: every decision is read off
 `./joharness.sh dispatch` or the control plane, never invented. You read
@@ -562,7 +567,8 @@ action either: no nudge, no `interrupt_session`, no KILL, no
 
 A session titled `keeper: <owner/repo>`, woken hourly by the heartbeat. It
 runs this section and nothing else: no dispatch, no ledger, no pass, no
-manager. Its context persists across wakes: keep every report to one line.
+manager. Only that title runs it (the top of this file): an `orchestrator:`
+session reading this has misread its role; stop, spawn nothing. Its context persists across wakes: keep every report to one line.
 
 1. `git fetch origin main`. This section in `git show
    origin/main:.claude/commands/orchestrate.md` differs from the one you

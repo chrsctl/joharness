@@ -570,7 +570,10 @@ lineage cap (above). Each session claims, merges, ends, and the fleet
 survives only while something fires the next.
 
 The heartbeat is a Routine bound to one keeper session per repo
-(`orchestrate.md`, "## Keeper"). Each hourly wake, the keeper looks for a
+(`orchestrate.md`, "## Keeper"). The keeper role is read off the session's
+title, never its prompt: prompt text (an argument, a ledger stem, a lead)
+is read by a model as a role notice, and an orchestrator that runs the
+keeper check starts another orchestrator. Each hourly wake, the keeper looks for a
 pending `/orchestrate pass` wake bound to an `orchestrator: <owner/repo>`
 session; none = it starts a fresh orchestrator with `create_session`. A
 `create_session` child sits one level below its parent (the lineage
@@ -627,8 +630,8 @@ stale` or `heartbeat duplicated` line pushes):
   (`auto_disabled_session_gone`); the next `/orchestrate` replaces both.
 - **Cadence**: hourly floor (`*/5 * * * *` is refused). The Routine backs
   the `send_later` chain; it does not replace it.
-- **Prompt**: exactly `/orchestrate keeper`; the argument routes the keeper
-  to its one section.
+- **Prompt**: exactly `/orchestrate keeper`. It invokes the command; the
+  keeper's title, not this argument, routes it to its one section.
 - **Stop**: `update_trigger` `enabled: false` pauses (the veto),
   `delete_trigger` removes and lets the next `/orchestrate` register a new
   one. A Routine not named exactly `heartbeat: <owner/repo>` never counts
