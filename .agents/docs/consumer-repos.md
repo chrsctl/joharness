@@ -325,9 +325,7 @@ Status quo:
   about it; re-running a weaker suite instead says nothing about that one.
 
 Local mode is a posture for an outage, not for weeks: it gates merges on
-the harness's checks and nothing of the consumer's own. So it is to be
-switched on from the environment only, never a committed conf line
-(`docs/plans/local-checks-env-only.md`).
+the harness's checks and nothing of the consumer's own.
 
 ## The sync pull request: drive it to merged
 
