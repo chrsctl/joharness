@@ -30,10 +30,12 @@ session's own title, never by prompt text.
 ## Out of scope
 
 - Re-enabling gx's heartbeat (the human's).
+- The dropped ledger of that incident: an orchestrator routed right keeps
+  its own; nothing here rebuilds a lost one.
 
 ## Acceptance
 
 - `./joharness.sh ci` — `ci: pass`.
 - `./joharness.sh verify` — `0 failed`.
-- SHIPS: after the gx sync, an `orchestrator:` session's prompt never runs
-  the Keeper section.
+- SHIPS: after the gx sync, `./joharness.sh ci` in gx — `ci: pass`, its
+  selftest pinning the title routing.
