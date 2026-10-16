@@ -65,7 +65,11 @@ nothing. Never read a full queue and leave it untouched.
    ledger `<stem>@new respawns=<RESPAWN_LIMIT>`; report `rebuilt <stem>@new
    from its title`.
 4. Read the Lineup once.
-5. Heartbeat: `list_triggers` — an enabled cron Routine firing a fresh
+5. `get_session` (no `session_id`): `lineage.depth >= lineage.limit` =
+   the REQUIRED tools refuse. Stop; report and `PushNotification` `lineage
+   <depth>/<limit>: this session cannot spawn or arm; start a fresh
+   orchestrator session`. No `lineage` field = proceed.
+6. Heartbeat: `list_triggers` — an enabled cron Routine firing a fresh
    session for this repo? None: the report carries "no
    heartbeat: this fleet dies with this session." (order: "Report, every
    pass"). Never create one.
@@ -380,6 +384,14 @@ it too.
    and report `hand-off skipped: <model unreadable | no set_session_title |
    no send_message>`. You never pick a tier, so no readable model, no
    hand-off.
+   Same read, `lineage` (`depth`, `limit`): hand off only while `depth + 1 <
+   limit`. The successor is this session's child at `depth + 1`; at `limit`
+   it can neither `create_session` nor `send_later`, holds the fleet and
+   does nothing for it. Otherwise no hand-off: arm `send_later` as above (the
+   pass count is a cost tune; a stranded fleet costs more) and report
+   `hand-off skipped: lineage <depth>/<limit>: start a fresh orchestrator
+   session`. On the first such pass (`pass=` one above `passes :`)
+   `PushNotification` that line once. No `lineage` field = today's rule.
 2. `set_session_title` this session to `orchestrator (handed off):
    <owner/repo>`, so the successor's "## 0. Start" step 3 no longer matches
    it. Retitle BEFORE the spawn: one orchestrator per repo. Refused or

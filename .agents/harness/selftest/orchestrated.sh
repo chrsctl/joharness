@@ -234,7 +234,9 @@ else
   fail "the hand-off retitles before it spawns the successor (retitle ${retitle_ln:-none}, spawn ${spawn_ln:-none})"
 fi
 for needle in 'HANDED OFF' 'JOHARNESS_ORCHESTRATOR_PASSES' \
-  'orchestrator (handed off):' 'hand-off skipped' 'hand-off failed'; do
+  'orchestrator (handed off):' 'hand-off skipped' 'hand-off failed' \
+  'hand off only while `depth + 1 <' 'hand-off skipped: lineage <depth>/<limit>' \
+  '`lineage.depth >= lineage.limit`'; do
   expect "orchestrate.md spells ${needle}" "$needle" "$orctext"
 done
 orcdocfold="$(tr '\n' ' ' <"${ROOT}/.agents/docs/orchestrated.md" | tr -s ' ')"
