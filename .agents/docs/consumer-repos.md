@@ -299,24 +299,24 @@ Base branch red before change. Five points:
 
 ## Local checks
 
-`JOHARNESS_CHECKS=local` (the repo's own `joharness.conf`) makes step 7's
-first condition `finish` running `ci`, and `verify` when
-`joharness.sh:checks_verify_needed` holds, on this head. `ci` runs the
-harness's own checks (`joharness.sh:cmd_ci`), never a consumer's suites.
-The key saves the wait, not the run: GitHub still runs every workflow job
-when Actions can (`.agents/scripts/bootstrap-consumer.sh`, the seeded
-comment). So every job step that is not `./joharness.sh ci` or `verify`
-is read by nobody while the key holds, and run by nobody when Actions
-cannot allocate a runner, the outage local mode is usually set for. A
-suite a consumer gives to GitHub because it needs a database or a browser
-then stops counting, merges land under `finish: pass`, and no role queues
-its failures.
+`JOHARNESS_CHECKS=local` (the repo's own `joharness.conf`, or the
+environment) makes step 7's first condition `finish` running `ci`, and
+`verify` when `joharness.sh:checks_verify_needed` holds, on this head.
+`ci` runs the harness's own checks (`joharness.sh:cmd_ci`), never a
+consumer's suites. The key saves the wait, not the run: GitHub still runs
+the workflow when Actions can, except a job the repository VARIABLE of the
+same name gates off (`.github/workflows/ci.yml`, `lint`). So every job
+step that is not `./joharness.sh ci` or `verify` is read by nobody while
+the key holds, and run by nobody when Actions cannot allocate a runner,
+the outage local mode is usually set for. A suite a consumer gives to
+GitHub because it needs a database or a browser then stops counting,
+merges land under `finish: pass`, and no role queues its failures.
 
 Status quo:
 
-- `finish` prints the gap as one generic line ("Not covered here: any job
-  in .github/workflows/ that ci does not run"); its verdict line says
-  `pass`. It names no job.
+- `finish` names the gap only in general ("Not covered here: any job in
+  .github/workflows/ that ci does not run", plus the per-layer step); its
+  verdict line says `pass`. It names no consumer job.
 - No role runs those jobs on a clock or files their failures as issues.
 - A consumer index that counts a criterion established because the
   workflow INVOKES its suite proves nothing while the key holds: invoking
