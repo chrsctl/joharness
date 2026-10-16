@@ -570,7 +570,10 @@ lineage cap (above). Each session claims, merges, ends, and the fleet
 survives only while something fires the next.
 
 The heartbeat is a Routine bound to one keeper session per repo
-(`orchestrate.md`, "## Keeper"). Each hourly wake, the keeper looks for a
+(`orchestrate.md`, "## Keeper"). The keeper role is read off the session's
+title, never its prompt: an argument line was read as a notice by
+`orchestrator:` sessions, which then ran the keeper check and chained ten
+sessions to lineage 8/8 (gx, 2026-10-16). Each hourly wake, the keeper looks for a
 pending `/orchestrate pass` wake bound to an `orchestrator: <owner/repo>`
 session; none = it starts a fresh orchestrator with `create_session`. A
 `create_session` child sits one level below its parent (the lineage

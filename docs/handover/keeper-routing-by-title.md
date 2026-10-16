@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01XeXyvPqHBEa67tQe5q8JrV
 agent: opus
 updated: 2026-10-16
-next: Replace the argument routing with title routing, add needles
+next: ci, verify, verifier at opus, then PR and gx sync
 ---
 
 ## Goal
