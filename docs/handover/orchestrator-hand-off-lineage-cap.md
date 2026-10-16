@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01NAJQNsQCP5ob8fkWYjKsVg
 agent: opus
 updated: 2026-10-16
-next: verifier on the heartbeat END path, ci, verify, retire again, merge #506
+next: ci, verify, retire again, merge #506
 ---
 
 ## Goal
@@ -32,13 +32,15 @@ strand the fleet at the control plane's lineage cap; graduate the guard into
 - Heartbeat depth left as a stated unmeasured operator reading: creating a
   Routine is recurring spend, operator only.
 
-- Human asked (this session) for a cheap long-lived heartbeat: §4 ENDS
-  instead of handing off when an enabled heartbeat Routine exists; the
-  guarded hand-off stays for a fleet with none. Scope widened on the
-  human's order, same PR.
+- Human asked (this session) for a cheap long-lived heartbeat. First cut
+  (§4 ENDS when a heartbeat exists, 72141be) reverted after review r10-r16;
+  the design is plan `orchestrator-heartbeat-successor` in this PR, gated on
+  a measured Routine-fired depth.
 
 ## Rejected
 
+- END at the pass limit with the heartbeat as successor: loses the ledger,
+  leads and the one-orchestrator rule (r10-r13).
 - A long-lived keeper session: idle is free but every pass re-reads the
   session's history, so cost per pass grows; the scheduler is the durable
   piece, never a session.
@@ -55,6 +57,14 @@ strand the fleet at the control plane's lineage cap; graduate the guard into
 - r7: (verifier) §0 lineage stop ran after step 3 took the title; no `get_session` uncovered (fixed: moved into step 2, `no get_session = proceed`)
 - r8: (verifier) "today's rule" time-relative (fixed: text rewritten, `the rest of this step decides alone`)
 - r9: (verifier) §0 stop report carries no heartbeat line (no change: a stop at the cap runs nothing after it; the push names the fix)
+- r10: (verifier) END path: step 3 exits only on RUNNING, an orchestrator between passes reads IDLE, so hourly firings overlap a live one (fixed: END reverted; plan scopes an IDLE-with-updated_at rule)
+- r11: (verifier) END discards the ledger: respawns restored at the limit, once-only pushes repeat hourly, KILL interrupt lost (fixed: END reverted; plan carries the ledger via fire_trigger text)
+- r12: (verifier) leads to an ended session lost (fixed: END reverted; plan forwards to the fired session)
+- r13: (verifier) any enabled Routine for the repo counted as the heartbeat (fixed: END reverted; plan requires an /orchestrate prompt and a non-FAILED last_run)
+- r14: (verifier) a daily Routine leaves managers unsupervised up to a day (fixed: END reverted; plan fires the successor at once)
+- r15: (verifier) orchestrated.md still said the orchestrator always hands off (no change: true again after the revert; plan scopes it)
+- r16: (verifier) new needles pinned spelling only (fixed: END reverted with its needles; plan requires per-clause mutation)
+- r17: (verifier) @new rebuild counts claimed managers as pending on a first pass (wontfix: predates this diff; named in the plan's scope via step 3)
 
 ## Blockers
 
