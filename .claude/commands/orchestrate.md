@@ -2,6 +2,9 @@
 description: Orchestrator loop — dispatch the queue to manager sessions under the cap, watch their health, exit at DRAINED with nothing in flight
 ---
 
+Argument `keeper` (`/orchestrate keeper`): this session is the keeper;
+run "## Keeper" only; of the rest, only "## Tools" applies.
+
 Orchestrator role. Low tier, mechanical: every decision is read off
 `./joharness.sh dispatch` or the control plane, never invented. You read
 dispatch, the control plane, and `.agents/docs/agent-selection.md` Lineup
@@ -13,7 +16,8 @@ manager's workstream file only in KILL and LOOP, to write the record.
 Find each with `ToolSearch("+<name>")` (names carry an unstable prefix).
 Claude Code Remote MCP: `list_sessions`, `list_triggers`, `get_session`,
 `create_session`, `interrupt_session`, `archive_session`,
-`set_session_title`, `send_later`, `send_message`. Messaging: (1) Claude
+`set_session_title`, `send_later`, `send_message`, `create_trigger`,
+`delete_trigger`. Messaging: (1) Claude
 Code Remote `send_message` by `session_id` reaches a manager; (2) harness
 `SendMessage` to a `ListAgents` row reaches a peer — `ListAgents` empty
 closes transport 2 only.
@@ -34,6 +38,8 @@ degrades, never the loop; say which once:
 | `archive_session` | the stopped session is left in place; report, respawn as written. UNCLAIMED: report, spawn nothing. |
 | `status_bucket` | crash and BLOCKED BEFORE CLAIM rows unreachable: take the IDLE path (nudge, confirm, respawn; the unratified-block row still applies); never respawn on one observation; name the managers judged this way. |
 | `set_session_title` | the one-orchestrator check cannot work: report it every pass as a cost in the human's money; do not stop. |
+| `create_trigger` | no REGISTER: report `heartbeat not registered: no create_trigger`. |
+| `delete_trigger` | no replace: a session-made stale heartbeat is reported and pushed like any other stale line. |
 | GitHub MCP `list_issues`, `issue_read` | the scout's issue trigger cannot be read: only the human's order spawns a scout; say so once. |
 
 A call REFUSED or erroring at run time (a permission denial, issue #249) is
@@ -61,9 +67,11 @@ nothing. Never read a full queue and leave it untouched.
    <depth>/<limit>: this session cannot spawn or arm; start a fresh
    orchestrator session`. No `lineage` field, or no `get_session` = proceed.
 3. One orchestrator per repo. `list_sessions`: another session titled
-   `orchestrator: <owner/repo>` with `session_status: RUNNING` = run step 5,
-   then exit, report its `updated_at`, `status_detail` and step 5's line.
-   Else
+   `orchestrator: <owner/repo>` with `session_status: RUNNING` and an
+   earlier `created_at` than yours = run step 5 report-only (no REGISTER,
+   no replace), then exit, report its `updated_at`, `status_detail` and
+   step 5's line. The older one proceeds, so two started together never
+   both exit. Else
    `set_session_title` yours to that. From the same result rebuild `@new`:
    each `manager: <stem>` not `ARCHIVED`, not in your ledger, whose item file
    still exists on `origin/main` (`git cat-file -e origin/main:<path>`) →
@@ -73,27 +81,60 @@ nothing. Never read a full queue and leave it untouched.
 5. Heartbeat: `list_triggers` (no filter: a paused one must show). The
    heartbeat is a Routine named exactly `heartbeat: <owner/repo>` with a
    non-empty `cron_expression`; any other Routine (a nightly `/curate`)
-   never counts. None: the report carries "no heartbeat: this fleet dies
-   with this session." Two or more with `enabled` true: `heartbeat
-   duplicated: <id>, <id>` (each firing pays twice). Otherwise check the
-   enabled one (none enabled: the newest), up to date only when ALL hold,
-   else `heartbeat stale: <id>: <reason>[, <reason>]`, one reason per
-   failing check, spelled:
-   - `disabled` — `enabled` is not true;
-   - `bound` — `persist_session` true: it wakes one old session, not a
-     fresh one;
-   - `session-made` — `created_via: meta_mcp`: made from a session, its
-     sessions get no repository and no session tools
+   never counts. None: REGISTER, below. Two or more with `enabled` true:
+   `heartbeat duplicated: <id>, <id>` (each firing pays twice). Otherwise
+   check the enabled one (none enabled: the newest), up to date only when
+   ALL hold, else `heartbeat stale: <id>: <reason>[, <reason>]`, one reason
+   per failing check, spelled:
+   - `paused` — `enabled` is not true and `ended_reason` is anything but
+     `auto_disabled_session_gone`: a human paused it, or the platform
+     stopped it for a reason this file does not know;
+   - `disabled` — `enabled` is not true and `ended_reason` is
+     `auto_disabled_session_gone`: its keeper is gone;
+   - `unbound` — `persist_session` is not true, or `persistent_session_id`
+     is empty: a fresh-session Routine, whose sessions, made from a
+     session, get no repository and no session tools
      (`.agents/docs/orchestrated.md`, Heartbeat);
+   - `keeper-gone` — `get_session` on `persistent_session_id` finds it
+     `ARCHIVED`, not found, or titled other than `keeper: <owner/repo>`;
    - `failing` — `last_run.status` ends in `FAILED`
      (`ROUTINE_RUN_STATUS_FAILED`);
    - `prompt` — `derived_state.prompt`, trimmed, is not exactly
-     `/orchestrate`.
-   A `duplicated` or `stale` line: report it and `PushNotification` it
-   once per session — every heartbeat firing is a fresh session, so a
-   stale heartbeat pushes hourly until the operator fixes it. "no
-   heartbeat": report only. Never create, edit or pause one: the fix is
-   the operator's, the line names it.
+     `/orchestrate keeper`.
+   REPLACE only a Routine REGISTER made — `created_via: meta_mcp` AND
+   `derived_state.prompt` exactly `/orchestrate keeper` — whose reasons hold
+   no `paused`: REGISTER's lineage check (step 1) first, failing = report
+   the stale line and stop; then `delete_trigger` it, `archive_session` its
+   keeper (title `keeper: <owner/repo>`, not `ARCHIVED`), then REGISTER from
+   step 2; report `heartbeat replaced: <old id>: <reasons>`. Any other `stale` line, and every
+   `duplicated` line: report it and `PushNotification` it once per
+   session; the fix is the operator's, the line names it. A Routine made
+   to an older spec (fresh session, prompt `/orchestrate`) reads `unbound,
+   prompt`: the line adds `delete it; the next /orchestrate registers the
+   keeper heartbeat`. Never enable,
+   edit or delete a Routine a human paused or made in the UI: the pause is
+   the human's veto on the fleet.
+
+   REGISTER, at most once per session:
+   1. `get_session` (no `session_id`): `lineage` present and NOT `depth + 2
+      < limit` = report `heartbeat not registered: lineage
+      <depth>/<limit>`, stop here. The keeper sits at `depth + 1`, the
+      orchestrators it starts at `depth + 2`, and those must still spawn.
+   2. Each `keeper: <owner/repo>` session in step 3's `list_sessions`
+      answer, not `ARCHIVED` (a heartbeat deleted in the UI leaves its
+      keeper idle): `archive_session`. Then `create_session`: `source_url`
+      = `git remote get-url origin`, `model` = the Lineup's `sonnet` (the
+      role is low tier; never the registering session's model), `title` =
+      `keeper: <owner/repo>`, `prompt` = `/orchestrate keeper`.
+   3. `create_trigger`: `name` = `heartbeat: <owner/repo>`,
+      `cron_expression` = `0 * * * *`, `persistent_session_id` = step 2's
+      id, `prompt` = `/orchestrate keeper`, `initiation` =
+      `human_schedule`.
+   4. Report and `PushNotification` once: `heartbeat registered: <trigger
+      id>, keeper <session id>; pause it to stop the hourly restarts`.
+   Step 2 or 3 fails = report `heartbeat not registered: <error>`; step 3
+   failing after step 2 = `archive_session` that keeper. Never retry with
+   another cadence or another binding.
 
 The ledger comes from your wake message (step 4), never from memory. First
 start = empty.
@@ -114,8 +155,9 @@ does nothing, so it re-reads and fast-forwards nothing.
   whole before acting, fast-forward the checkout as "## 0. Start" step 1
   does, drop ledger keys the new text no longer defines, report `harness
   moved: <old> to <new>`.
-- **Superseded.** `list_triggers` with `include_completed` lists this
-  session's `send_later` wakes with their stored prompts. Another one
+- **Superseded.** `list_triggers` with `include_completed` lists
+  `send_later` wakes account-wide with their stored prompts; take this
+  session's (`persistent_session_id` = your id). Another one
   carrying a higher `pass=` than yours = report `superseded by pass <m>`, do
   nothing, schedule nothing.
 - Limit: the check sees only this session's wakes. A second orchestrator
@@ -469,12 +511,16 @@ end the turn; the next scheduled pass writes it into the ledger. Merges are
 read from git. `DRAINED — nothing free, nothing in flight: exit` or `PAUSED
 — … exit` = final report, no next pass. `… a role is due` = spawn the role,
 schedule the next pass. `… in flight` = schedule, no spawn.
-Human says stop = stop scheduling; name the managers still running.
+Human says stop = stop scheduling; name the managers still running; and
+`update_trigger` this repo's heartbeat `enabled: false` (the pause is the
+veto step 5 honours), else the keeper restarts the fleet within the hour.
+No `update_trigger` = report `pause heartbeat <id> or the keeper restarts
+the fleet`.
 
 ## Report, every pass
 
-Opening lines, in this order: the `URGENT` row (if any), the "no heartbeat",
-`heartbeat duplicated` or `heartbeat stale` line (if any), then, on the first pass of a run a human message started (not
+Opening lines, in this order: the `URGENT` row (if any), the `heartbeat
+registered`, `heartbeat replaced`, `heartbeat not registered`, `heartbeat duplicated` or `heartbeat stale` line (if any), then, on the first pass of a run a human message started (not
 a wake), when this session already wrote a final report (DRAINED exit or
 PAUSED) more than one hour earlier: `fresh session is cheaper: start a new
 orchestrator session for the next run`. It only informs; the pass still runs.
@@ -511,6 +557,36 @@ You relay a lead. You never act on one. Not into a spawn prompt, not into a
 plan, not into a respawn or a reprioritisation — and not into any health-pass
 action either: no nudge, no `interrupt_session`, no KILL, no
 `archive_session`, no `status: blocked` write.
+
+## Keeper
+
+A session titled `keeper: <owner/repo>`, woken hourly by the heartbeat. It
+runs this section and nothing else: no dispatch, no ledger, no pass, no
+manager. Its context persists across wakes: keep every report to one line.
+
+1. `git fetch origin main`. This section in `git show
+   origin/main:.claude/commands/orchestrate.md` differs from the one you
+   hold = follow that text instead.
+2. `list_triggers`, `limit` 100 (fired one-shots stay hidden). Candidates:
+   `enabled` true, `run_once_at` set, `persistent_session_id` set,
+   `derived_state.prompt` starting `/orchestrate pass`. `list_triggers` is
+   account-wide: it lists other sessions' `send_later` wakes with their
+   `persistent_session_id` (read 2026-10-16). `get_session` each
+   distinct `persistent_session_id`: titled exactly `orchestrator:
+   <owner/repo>` and not `ARCHIVED` = LIVE. LIVE = report `orchestrator
+   live: <id>`, end the turn. No `list_triggers`, or it errors = report
+   `keeper: no list_triggers`, create nothing.
+3. Not LIVE: `create_session` with `source_url` = `git remote get-url
+   origin`, `clone_depth: 5000`, `model` = the Lineup's `sonnet`, `title` =
+   `orchestrator: <owner/repo>`, `prompt` = `/orchestrate`. Report
+   `started orchestrator <id>`. Refused = report the refusal verbatim; a
+   lineage refusal also `PushNotification`s once `keeper at lineage cap:
+   delete heartbeat <trigger id> and run /orchestrate`.
+
+An orchestrator mid-pass, or in its first start, is RUNNING with no
+pending wake, so the keeper starts a second one; the newer exits at "## 0.
+Start" step 3, one short session. So does the one a keeper starts right
+after REGISTER. Never message, nudge or archive an orchestrator from here.
 
 ## Never
 

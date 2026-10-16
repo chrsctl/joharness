@@ -252,23 +252,53 @@ orcdocfold="$(tr '\n' ' ' <"${ROOT}/.agents/docs/orchestrated.md" | tr -s ' ')"
 # shellcheck disable=SC2016 # literal backticks in the needles
 for needle in 'Routine named exactly `heartbeat: <owner/repo>` with a non-empty `cron_expression`' \
   '`list_triggers` (no filter: a paused one must show)' \
+  'None: REGISTER, below.' \
   'Two or more with `enabled` true: `heartbeat duplicated' \
   'duplicated: <id>, <id>' 'heartbeat stale: <id>: <reason>[, <reason>]' \
-  '`disabled` — `enabled` is not true' '`bound` — `persist_session` true' \
-  '`session-made` — `created_via: meta_mcp`' \
+  '`paused` — `enabled` is not true and `ended_reason` is anything but' \
+  '`disabled` — `enabled` is not true and `ended_reason` is `auto_disabled_session_gone`: its keeper is gone' \
+  '`unbound` — `persist_session` is not true, or `persistent_session_id` is empty' \
+  '`keeper-gone` — `get_session` on `persistent_session_id` finds it `ARCHIVED`, not found, or titled other than `keeper: <owner/repo>`' \
   '`failing` — `last_run.status` ends in `FAILED`' \
-  '`prompt` — `derived_state.prompt`, trimmed, is not exactly `/orchestrate`.' \
-  'A `duplicated` or `stale` line: report it and `PushNotification` it once per session' \
-  '"no heartbeat": report only.' \
-  'run step 5, then exit, report its `updated_at`, `status_detail` and step 5'"'"'s line.' \
+  '`prompt` — `derived_state.prompt`, trimmed, is not exactly `/orchestrate keeper`.' \
+  'Never enable, edit or delete a Routine a human paused or made in the UI' \
+  'REGISTER, at most once per session:' \
+  'NOT `depth + 2 < limit` = report `heartbeat not registered: lineage <depth>/<limit>`' \
+  '`title` = `keeper: <owner/repo>`, `prompt` = `/orchestrate keeper`.' \
+  '`persistent_session_id` = step 2'"'"'s id, `prompt` = `/orchestrate keeper`' \
+  'step 3 failing after step 2 = `archive_session` that keeper' \
+  'then exit, report its `updated_at`, `status_detail` and step 5'"'"'s line. The older one proceeds' \
   '`heartbeat duplicated` or `heartbeat stale` line (if any)' \
-  'Never create, edit or pause one'; do
+  'Argument `keeper` (`/orchestrate keeper`): this session is the keeper; run "## Keeper" only' \
+  'It runs this section and nothing else: no dispatch, no ledger, no pass, no manager.' \
+  '`derived_state.prompt` starting `/orchestrate pass`' \
+  'titled exactly `orchestrator: <owner/repo>` and not `ARCHIVED` = LIVE' \
+  '`title` = `orchestrator: <owner/repo>`, `prompt` = `/orchestrate`. Report `started orchestrator <id>`' \
+  '`cron_expression` = `0 * * * *`' \
+  '`initiation` = `human_schedule`' \
+  'Never retry with another cadence or another binding.' \
+  'Candidates: `enabled` true, `run_once_at` set, `persistent_session_id` set,' \
+  'differs from the one you hold = follow that text instead' \
+  'a lineage refusal also `PushNotification`s once `keeper at lineage cap:' \
+  'and an earlier `created_at` than yours = run step 5 report-only (no REGISTER, no replace), then exit' \
+  'REPLACE only a Routine REGISTER made — `created_via: meta_mcp` AND `derived_state.prompt` exactly `/orchestrate keeper`' \
+  'REGISTER'"'"'s lineage check (step 1) first, failing = report the stale line and stop; then `delete_trigger` it' \
+  '`ended_reason` is anything but `auto_disabled_session_gone`' \
+  'not `ARCHIVED` (a heartbeat deleted in the UI leaves its keeper idle): `archive_session`' \
+  '`model` = the Lineup'"'"'s `sonnet` (the role is low tier; never the registering session'"'"'s model)' \
+  '`update_trigger` this repo'"'"'s heartbeat `enabled: false`' \
+  'only "## Tools" applies.' \
+  '`keeper: no list_triggers`, create nothing.'; do
   expect "orchestrate.md heartbeat check spells ${needle}" "$needle" "$orcfold"
 done
+refute "orchestrate.md no longer forbids every heartbeat write" \
+  "Never create, edit or pause one" "$orcfold"
 # shellcheck disable=SC2016 # literal backticks in the needles
 for needle in '**Name**: exactly `heartbeat: <owner/repo>`' \
-  '**Prompt**: standalone — a fresh session inherits nothing. Exactly `/orchestrate`;' \
-  'makes from a session reads `created_via: meta_mcp`'; do
+  '**Binding**: `persistent_session_id` = a session titled `keeper: <owner/repo>`' \
+  '**Prompt**: exactly `/orchestrate keeper`' \
+  'a Routine with `enabled` false and an empty `ended_reason` is never re-enabled, edited or replaced' \
+  'makes from a session with `create_new_session_on_fire` reads `created_via: meta_mcp`'; do
   expect "orchestrated.md heartbeat spec spells ${needle}" "$needle" "$orcdocfold"
 done
 refute "orchestrated.md no longer says send_message was never in the server" \
