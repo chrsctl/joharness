@@ -297,6 +297,38 @@ Base branch red before change. Five points:
    (point 3). Harness prescribes no file and no shape
    (why: history/consumer-repos.md § A red base branch, 2026-10-10).
 
+## Local checks
+
+`JOHARNESS_CHECKS=local` (the repo's own `joharness.conf`) makes step 7's
+first condition `finish` running `ci` and `verify` on this head. `ci` runs
+the harness's own checks (`joharness.sh:cmd_ci`), not a consumer's suites.
+So every workflow job that is not `./joharness.sh ci` or `verify` runs
+nowhere while the setting holds: a suite a consumer gives to GitHub because
+it needs a database or a browser stops being run, merges keep landing under
+`finish: pass`, and no role reads that suite or queues its failures.
+
+Status quo, stated:
+
+- `finish` prints the gap as one generic line ("Not covered here: any job
+  in .github/workflows/ that ci does not run") and its verdict line says
+  `pass`. It does not name the jobs.
+- Nothing runs those jobs on a clock or files their failures as issues.
+- A consumer criteria index that counts a criterion as established because
+  the workflow INVOKES its suite is false for as long as local mode holds:
+  invoking is not passing.
+
+Cost of closing it is bounded, measured once in a cloud container: one
+consumer's full database-and-browser job ran in about 35 minutes
+sequentially, everything but a PDF renderer and an object store installable
+without Docker. Per-merge that is too dear; once a day it is not.
+
+Local mode is a posture for an outage, not for weeks, until the queue
+carries both halves: `finish` naming each job it did not run
+(`docs/plans/local-checks-name-unrun-jobs.md`) and a clock-driven role
+running a consumer-declared command for those jobs on the base branch and
+filing each failure as an issue for the clerk
+(`docs/plans/ci-only-suite-patrol.md`).
+
 ## The sync pull request: drive it to merged
 
 `update.yml` gets the branch pushed; everything after is a person or a
