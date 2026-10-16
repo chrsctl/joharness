@@ -564,16 +564,29 @@ them at `limit`; no role command calls `create_session` or `send_later`
 
 ## Heartbeat: making the fleet long
 
-Dispatch makes the fleet WIDE; the hand-off makes it LONG only up to the
-lineage cap (above). Each session claims, merges, ends, and the fleet
-survives only while something fires the next.
+Dispatch makes the fleet WIDE; the heartbeat makes it LONG. Each session
+claims, merges, ends, and the fleet survives only while something fires the
+next.
 
-Unmeasured: whether a heartbeat-fired session starts at depth 0 or at its
-trigger creator's depth plus one. The cap's refusal names routines, so it
-may carry over. The reading is an operator's: create the Routine, read
-`get_session` `lineage` in the first session it fires. Depth 0 makes the
-heartbeat the durable fix; carried-over depth means a heartbeat chain
-strands too, and the §4 guard is the only defence.
+A session costs only while it runs a turn; an idle one costs nothing. So
+the durable piece is the scheduler, never a live session. A Routine costs
+nothing between firings, and each firing is a fresh session at small
+context: it exits at "## 0. Start" step 3 (another orchestrator RUNNING) or
+at DRAINED, or orchestrates up to `JOHARNESS_ORCHESTRATOR_PASSES` passes and
+ENDS (`orchestrate.md` §4). Both alternatives cost more. The hand-off chain
+deepens one lineage level per hand-off and strands at the cap (above). One
+long session re-reads its whole history every pass. Ending leaves at most
+one cadence interval with no orchestrator; managers build and merge without
+one, and the next firing rebuilds the ledger from dispatch and session
+titles.
+
+Unmeasured: the `lineage` depth a Routine-fired session starts at. A
+Routine created in the claude.ai UI has no creator session, so depth 0 is
+expected, not read. The cap's refusal names routines, so a Routine created
+from a session may carry its creator's depth. The reading is an operator's:
+fire the Routine once, read `get_session` (no `session_id`) `lineage` in the
+session it starts. A firing at the cap stops at "## 0. Start" step 2 and
+pushes the reason, so a wrong guess is loud, never silent.
 
 The heartbeat is a scheduled Routine (`create_trigger`,
 `create_new_session_on_fire: true`) firing a fresh orchestrator on an
@@ -584,8 +597,9 @@ requests get no CI on `GITHUB_TOKEN`, so step 7 never goes green).
 **Operator action, always.** Recurring spend is the human's. A session
 documents; it never creates one.
 
-- **Cadence**: hourly floor (`*/5 * * * *` is refused). The Routine backs
-  the `send_later` chain; it does not replace it.
+- **Cadence**: hourly floor (`*/5 * * * *` is refused). Inside a session
+  the `send_later` chain paces passes; across sessions the Routine replaces
+  the hand-off. Model: the Lineup's orchestrator tier.
 - **Prompt**: standalone — a fresh session inherits nothing. `/orchestrate`
   plus the routing above; the hook prints the rest.
 - **The connector trap**: a Routine created from a session may store NO

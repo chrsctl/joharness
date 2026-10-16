@@ -242,7 +242,9 @@ done
 # shellcheck disable=SC2016 # literal backticks in the needles
 for needle in 'present and NOT `depth + 1 < limit` = no hand-off' \
   'hand-off skipped: lineage <depth>/<limit>' '[capped=<depth>]' \
-  '`lineage.depth >= lineage.limit` = the REQUIRED tools refuse. Stop before step 3'; do
+  '`lineage.depth >= lineage.limit` = the REQUIRED tools refuse. Stop before step 3' \
+  'fresh session for this repo ("## 0. Start" step 5'"'"'s test) = END instead of handing off' \
+  'orchestrator (ended):' 'ENDED at pass <n>: heartbeat <trigger id>'; do
   expect "orchestrate.md lineage guard spells ${needle}" "$needle" "$orcfold"
 done
 orcdocfold="$(tr '\n' ' ' <"${ROOT}/.agents/docs/orchestrated.md" | tr -s ' ')"
