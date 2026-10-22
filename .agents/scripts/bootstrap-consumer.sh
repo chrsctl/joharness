@@ -62,8 +62,9 @@
 #            [--review <off|on>] <consumer-dir>
 # Exit: 0 bootstrapped clean. 1 refused with nothing written (usage, ROOT
 # not canonical, an unknown layer or switch value, target already a consumer,
-# target is ROOT itself). A nonzero sync engine exit stops the run and is
-# propagated as-is.
+# target is ROOT itself, a fresh target holding its own copy of a
+# harness-owned path the engine would call AHEAD). Any other nonzero sync
+# engine exit stops the run and is propagated as-is.
 
 set -euo pipefail
 
@@ -647,6 +648,26 @@ bootstrap_fresh() {
     JOHARNESS_SYNC_ENV="$LAYER" JOHARNESS_SYNC_CONF_KEYS=skip \
       bash "$SYNC_ENGINE" --dry-run "$DEST" </dev/null || exit
   else
+    # The engine's AHEAD check as a dry run FIRST. A target holding its own
+    # CLAUDE.md, settings or .gitattributes would otherwise get every other
+    # file placed before the engine stopped AHEAD on that one — and the rerun
+    # is refused as "already runs the harness": half set up, no way forward.
+    # Any nonzero dry run stops here, with nothing written.
+    local pre=0
+    JOHARNESS_SYNC_ENV="$LAYER" JOHARNESS_SYNC_CONF_KEYS=skip \
+      bash "$SYNC_ENGINE" --dry-run "$DEST" </dev/null \
+      >"${SCRATCH}/preflight" 2>&1 || pre=$?
+    if [ "$pre" -ne 0 ]; then
+      # The engine's notes ride along: "jq absent" is the fix for a
+      # settings.json AHEAD, and no advice below can stand in for it.
+      if awk '$1 == "AHEAD" || $1 == "UNREADABLE" { f = 1 }
+        $1 == "AHEAD" || $1 == "UNREADABLE" || $1 == "note" { print }
+        END { exit !f }' "${SCRATCH}/preflight" >&2; then
+        die "bootstrap refused, nothing written: the harness would overwrite the path(s) above. CLAUDE.md: move its content into AGENTS.md below '${MARKER}', the repo's own section (CLAUDE.md only imports AGENTS.md). Any other AHEAD file: move it aside, bootstrap, then merge your lines back by hand — later syncs report it AHEAD and keep it. UNREADABLE: make it readable. Then re-run."
+      fi
+      cat "${SCRATCH}/preflight" >&2
+      exit "$pre"
+    fi
     # Both: the engine's own conf-key stage would otherwise ask these five
     # questions again, seconds after the interview above, and an answer there
     # creates the conf that `seed` then declines as the consumer's own — so
