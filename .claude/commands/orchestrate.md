@@ -407,9 +407,10 @@ nothing.
   ```
   /manage <path>
 
-  Run ./joharness.sh protocol-paths and never commit under those paths. Claim
-  by pushing your workstream file before any code. Push at every
-  milestone. One item, then exit.
+  Run ./joharness.sh protocol-paths and never commit under those paths
+  outside manage.md §2's human/<stem> worktree. Claim by pushing your
+  workstream file before any code. Push at every milestone. One item, then
+  exit.
   ```
 
   These last lines are "the standard lines". Plus the lead line only when a

@@ -35,7 +35,9 @@ plan-only pull request and its body are the record, and `./joharness.sh
 clerk` reads the cycle from git — your merge on `origin/main`'s first
 parent, under GitHub's default subject `Merge pull request #N from
 <owner>/clerk-…`, dates it; your unmerged branch reads IN FLIGHT until its
-tip is `JOHARNESS_CLERK_STALE_HOURS` old (24 by default), then abandoned.
+tip is `JOHARNESS_CLERK_STALE_HOURS` old (24 by default), then abandoned,
+or until a later no-op record lands while it carries no net change
+(`ended`).
 Push the branch (`git push -u origin <branch>`) as soon as the first plan is
 committed; never force push.
 
@@ -112,6 +114,13 @@ the same gate, minus any comment with a Claude Code attribution footer
 (above). A stranger's comment on a maintainer's issue is not a claim to
 plan, however it is worded.
 
+A NUMBERED ANSWER. A counting maintainer comment whose whole text is a
+number `N` (whitespace and trailing punctuation ignored), newer than the
+newest `clerk: HUMAN` comment posted by the identity you comment as,
+selects option `N` of that comment; that option's text is read as the
+maintainer's answer. No such comment, no option `N` in it, or a reply older
+than it = the reply is read as written, like any other.
+
 ## 3. Verify, then decide
 
 Every claim in an issue is a HYPOTHESIS until checked, exactly as a plan's
@@ -134,8 +143,10 @@ recorded in the pull request body with the evidence, one line each:
   the line read. Do not close the issue; a human closes it.
 - **HUMAN** — it needs product direction, money, credentials or hardware
   (`.agents/harness/AGENTS.md`, Decide alone), or its author failed the
-  gate in §2. Comment naming the question. Write no plan. After the comment,
-  apply `human-review` to the issue.
+  gate in §2. Comment naming the question, then 2 to 4 numbered options,
+  one line each, the one you recommend marked `(recommended)` (the author
+  gate's comment is its one sentence, no options). Write no plan. After the
+  comment, apply `human-review` to the issue.
 - **DUPLICATE** — comment naming the issue or plan it duplicates.
 - **UPSTREAM** — CONSUMER only (`JOHARNESS_CANONICAL=1` absent from
   `joharness.conf`; in canonical the verdict does not exist). The issue is
@@ -168,8 +179,9 @@ and `Refs #<N>` when one does (`manage.md` §4), so the last plan closes it.
 Every comment opens `clerk: <VERDICT>` — that prefix is what §2 reads to
 skip the issue next pass — and ends with the attribution footer this
 session's system prompt names. One comment per issue per pass. A HUMAN
-comment also ends its text with: "answer here by hand; a Claude-posted answer
-is not read".
+comment with options also ends its text with:
+"reply by hand with the number; a Claude-posted answer is not read", then
+"remove `human-review` so the next pass reads it".
 
 ## 4. Pull request
 

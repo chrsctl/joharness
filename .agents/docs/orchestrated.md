@@ -23,7 +23,7 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | `dispatch` verdict `OVERLAP-BOUND` | Slots free but every free plan HELD behind work in flight. A `rescope :` block names the holder key and the held paths; the verdict spawns ONE surveyor to correct the `scope:` declarations. |
 | `./joharness.sh curate` + `curate :` line | Whether the plan queue's declarations are still true. Mechanical repairs: `./joharness.sh curate --apply`, and `ci` fails a branch whose added plans still need one. A curator session is offered only for PROPOSE findings (decompose, order). Due on plan churn (`JOHARNESS_CURATE_PLANS`) or the clock; state read from git: the last curate landing, or a newer merged `curate-noop-<stamp>` branch (a pass with nothing to propose), which resets both triggers. Orthogonal to the verdict. |
 | `./joharness.sh janitor` + `janitor :` line | Claims whose session is gone. Mechanical: `./joharness.sh janitor --apply` writes `status: abandoned` into the claim's own file — only where the session is ARCHIVED or not found, never a claim with `pr:` — and deletes nothing. No session, no pull request. Listed only when stale claims exist; the caller proves each session gone and passes the branches: `janitor --apply <branch>...`. |
-| `./joharness.sh clerk` + `clerk :` line | Open issues become plans only through the clerk (`dispatch` reads `docs/plans/` only). Clock-driven, batch `JOHARNESS_CLERK_BATCH`, dated from git: the last `clerk-<digit>…` merge on the base's first parent (GitHub's default merge subject), or a newer `clerk-noop-<stamp>` branch. An unmerged `clerk-<digit>…` branch younger than `JOHARNESS_CLERK_STALE_HOURS` is in flight and takes a slot, due or not. Orthogonal to the verdict. |
+| `./joharness.sh clerk` + `clerk :` line | Open issues become plans only through the clerk (`dispatch` reads `docs/plans/` only). Clock-driven, batch `JOHARNESS_CLERK_BATCH`, dated from git: the last `clerk-<digit>…` merge on the base's first parent (GitHub's default merge subject), or a newer `clerk-noop-<stamp>` branch. An unmerged `clerk-<digit>…` branch younger than `JOHARNESS_CLERK_STALE_HOURS` is in flight and takes a slot, due or not — unless it is `ended`: no net change, and a merged `clerk-noop-<stamp>` stamped at or after its tip and not in the future. Orthogonal to the verdict. |
 | `./joharness.sh analysis` | One unmerged branch's condition (BLOCKED / STALL? / LOOP?) beside the base branch's current conf. Read by hand; spawns nothing. |
 | `./joharness.sh scout` + `scout :` line | No clock, no backlog trigger, no DRAINED gate. A pass runs on the reviewer's order (`/scout` typed by a human, or the orchestrator's `+human` extra session) or on a `scout` issue waiting on the scout, which the orchestrator reads on GitHub (`.claude/commands/orchestrate.md`): `joharness.sh` stays git-only: `scout` prints `off` (empty `JOHARNESS_SCOUT_REVIEWER`, or no `docs/product/SCOUT.md` brief on the base branch), `IN FLIGHT` or `none in flight`; dispatch adds `held` (stale view, a pending spawn, `JOHARNESS_MAX_MANAGERS=0`). The report prints every conf value a pass reads: brief, reviewer, research and budget. Every misread fails closed — never spawns a second scout. |
 | `./joharness.sh conduct` + `conduct :` line | A sample of retired managers' own artifacts, read for how the item was worked, never the diff. Clock-driven (`JOHARNESS_CONDUCT_HOURS`), dated from the ledger `docs/conduct-log.md`; the command prints the sample and the ledger tally. NOT gated on DRAINED; suppressed while a curate or clerk spawns this pass or is in flight (one held for a slot does not hold it: the reviewer needs none). Every misread fails closed. |
@@ -424,7 +424,11 @@ The rules that bind every session.
   rule is a repository setting, the human's. A plan with ANY core path in
   `scope:` is marked `CORE ONLY` and de-ranked: acceptance is all-or-nothing,
   so a partly-core plan cannot be finished either. `.agents/env/` is not
-  core.
+  core. One exception, merged by a human: a manager's `human/<stem>`
+  pull request labelled `human-review`, carrying only the core-path edit its
+  plan leaves to a human, committed from a separate worktree, never on the
+  session's own branch, and never merged by a session
+  (`.claude/commands/manage.md` §2).
 - **A `CORE ONLY` plan is a wait on a human, and the verdict must say so.**
   With slots free and nothing left but `CORE ONLY` plans, `dispatch` reads
   `DRAINED` — true of the fleet, false of the queue: the orchestrator opens
@@ -464,7 +468,7 @@ The rules that bind every session.
   reviewer's `approved` comment, newer than the scout's newest footed
   `scout:` comment; closing the issue declines it.
 - **`human-review` label.** An agent applies it when it blocks on a human,
-  and to the issue holding its plan's human remainder
+  and to the `human/<stem>` pull request holding its plan's human remainder
   (`.agents/docs/plans/README.md`, "A human remainder"); a human applies it
   to hold an issue or pull request. It stops the clerk
   planning that issue and any session merging that pull request. Only a human
