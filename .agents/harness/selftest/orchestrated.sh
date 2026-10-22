@@ -234,6 +234,7 @@ if [ -n "$retitle_ln" ] && [ -n "$spawn_ln" ] && [ "$retitle_ln" -lt "$spawn_ln"
 else
   fail "the keeper's swap retitles before it starts the successor (retitle ${retitle_ln:-none}, spawn ${spawn_ln:-none})"
 fi
+# shellcheck disable=SC2016 # literal backticks in the needles
 for needle in 'JOHARNESS_ORCHESTRATOR_PASSES' 'retire ready <your session id>' \
   'keeper not rung' 'swap deferred' 'swap skipped' 'swap failed' \
   'retired <old id>, started orchestrator <new id>' \
