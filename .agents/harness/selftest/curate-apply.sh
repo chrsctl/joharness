@@ -150,3 +150,86 @@ if [ -z "$(git -C "$cawork" status --porcelain)" ]; then
 else
   fail "and no plan file changes: $(git -C "$cawork" status --porcelain | tr '\n' ' ')"
 fi
+
+# --- curate counts plans that already mark a path shared: -------------------
+git -C "$cawork" reset -q --hard origin/main
+printf 'x\n' >"${cawork}/reg/other.py"
+caplan mk-a shared:reg/other.py reg/other.py
+caplan mk-b reg/other.py reg/other.py
+caplan mk-c reg/other.py reg/other.py
+commit_all "$cawork" "one plan marks, two do not"
+out="$(cacur)"
+expect "an unmarked plan beside a marked one is told to mark it (b)" \
+  "[apply] mk-b: 'reg/other.py' is declared by 3 plans and unmarked" "$out"
+expect "and the other one too (c)" \
+  "[apply] mk-c: 'reg/other.py' is declared by 3 plans and unmarked" "$out"
+refute "a path a plan marks shared: draws no 'order them' proposal" \
+  "'reg/other.py': claimed exclusively" "$out"
+
+# One marked and one unmarked plan is below the registry threshold: the guard,
+# not the count, keeps the 'order them' proposal away.
+printf 'x\n' >"${cawork}/reg/two.py"
+caplan two-a shared:reg/two.py reg/two.py
+caplan two-b reg/two.py reg/two.py
+out="$(cacur)"
+refute "a marked plus an unmarked plan draws no 'order them' proposal" \
+  "'reg/two.py': claimed exclusively" "$out"
+
+# --- curate --apply keeps a plan's mode and leaves a symlink alone -----------
+printf 'real\n' >"${cawork}/target-plan.md"
+git -C "$cawork" checkout -q -- docs/plans 2>/dev/null
+chmod 640 "${cawork}/docs/plans/mk-b.md"
+out="$(cacur --apply)"
+expect "--apply rewrote the plan" "applied   : docs/plans/mk-b.md" "$out"
+if [ -n "$(find "${cawork}/docs/plans/mk-b.md" -perm 640)" ]; then
+  pass "a rewritten plan keeps its mode"
+else
+  fail "a rewritten plan keeps its mode (was 640)"
+fi
+git -C "$cawork" checkout -q -- docs/plans
+mv "${cawork}/docs/plans/mk-c.md" "${cawork}/real-mk-c.md"
+ln -s ../../real-mk-c.md "${cawork}/docs/plans/mk-c.md"
+out="$(cacur --apply)"
+expect "a symlinked plan is refused" "refused   : docs/plans/mk-c.md is a symlink" "$out"
+if [ -L "${cawork}/docs/plans/mk-c.md" ]; then pass "and stays a symlink"
+else fail "and stays a symlink"; fi
+rm -f "${cawork}/docs/plans/mk-c.md"
+git -C "$cawork" checkout -q -- docs/plans 2>/dev/null
+rm -f "${cawork}/real-mk-c.md" "${cawork}/target-plan.md"
+
+# --- a plan that creates its files draws no 'built already?' finding ---------
+cat >"${cawork}/docs/plans/maker.md" <<MK
+---
+plan: maker
+urgency: normal
+agent: sonnet
+effort: low
+needs: none
+requirement: none
+scope: nowhere/new.py
+---
+
+## Goal
+Fixture.
+
+## Scope
+
+- ${cabt}nowhere/new.py${cabt} -- create it.
+MK
+out="$(cacur)"
+refute "a path its Scope bullet marks create is not 'built already'" \
+  "maker: no path in its scope" "$out"
+sed -i 's/ -- create it\./ -- edits it./' "${cawork}/docs/plans/maker.md"
+out="$(cacur)"
+expect "an unmarked missing path still is" "maker: no path in its scope" "$out"
+rm -f "${cawork}/docs/plans/maker.md"
+
+# --- a renamed plan counts as added on the branch ----------------------------
+git -C "$cawork" reset -q --hard origin/main
+git -C "$cawork" checkout -qb rename-adds
+git -C "$cawork" mv docs/plans/third.md docs/plans/third-renamed.md
+sed -i 's/^plan: third/plan: third-renamed/' "${cawork}/docs/plans/third-renamed.md"
+commit_all "$cawork" "rename a plan"
+out="$(caci)"
+refute "a renamed plan is read as added (not 'no plan added')" \
+  "no plan added on this branch" "$(caplans "$out")"
