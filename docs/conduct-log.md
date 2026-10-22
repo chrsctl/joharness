@@ -14,3 +14,6 @@ artifact line) or `NO EVIDENCE` (artifact missing or unreadable).
 
 | date | stem | C1 | note |
 |------|------|----|------|
+| 2026-10-22 | unsupervised-finding-dedupe | FINE | - |
+| 2026-10-22 | retire-survives-lost-github | FINE | - |
+| 2026-10-22 | rules-apart-from-history | FINE | - |
