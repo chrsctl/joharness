@@ -48,7 +48,7 @@ for anp in parked working; do
     "$anp" >"${anwork}/docs/plans/${anp}.md"
 done
 anconf="${anwork}/joharness.conf"
-printf 'JOHARNESS_ENV=none\nJOHARNESS_CHECKS=github\n' >"$anconf"
+printf 'JOHARNESS_ENV=none\nJOHARNESS_REVIEW=off\n' >"$anconf"
 
 ancommit() {
   git -C "$anwork" add -A
@@ -119,17 +119,17 @@ refute "no conf key differs yet" "conf diff :" "$out"
 # --- the repo answers the question the claim is waiting on ------------------
 # Issue #266 in one commit: the conf lifts the condition eight hours before
 # the session that blocks on it exists, and nothing connects the two.
-printf 'JOHARNESS_ENV=none\nJOHARNESS_CHECKS=local\n' >"$anconf"
+printf 'JOHARNESS_ENV=none\nJOHARNESS_REVIEW=on\n' >"$anconf"
 ancommit "Answer step 7's first merge condition locally, not on GitHub" '2026-01-03T00:00:00Z'
 git -C "$anwork" push -q origin main
 
 out="$(ana mgr-parked)"
 expect "the key that moved is named with BOTH values" \
-  "conf diff : JOHARNESS_CHECKS — this branch github, origin/main local" "$out"
+  "conf diff : JOHARNESS_REVIEW — this branch off, origin/main on" "$out"
 expect "and the commit that moved it, after the claim was restated" \
   "conf moved: 2026-01-03" "$out"
 expect "with the key that commit actually changed" \
-  "JOHARNESS_CHECKS github to local" "$out"
+  "JOHARNESS_REVIEW off to on" "$out"
 expect "the verdict is the cautious one" "CAUSE MAY BE LIFTED" "$out"
 # The whole point of the wording. The command knows a key moved; it cannot
 # know the key answers the prose in next:, and a command that asserted that
@@ -206,7 +206,7 @@ git -C "$anwork" checkout -qb mgr-extra main
 mkdir -p "${anwork}/docs/handover"
 printf -- '---\nworkstream: extra\nstatus: blocked\nbranch: mgr-extra\nplan: extra\nagent: sonnet\nupdated: 2026-01-04\nnext: Waiting on a human\n---\n\n## Goal\nFixture.\n' \
   >"${anwork}/docs/handover/extra.md"
-printf 'JOHARNESS_ENV=none\nJOHARNESS_CHECKS=local\nJOHARNESS_EXTRA_KEY=1\n' >"$anconf"
+printf 'JOHARNESS_ENV=none\nJOHARNESS_REVIEW=on\nJOHARNESS_EXTRA_KEY=1\n' >"$anconf"
 ancommit "claim extra, with a key of its own" '2026-01-04T00:00:00Z'
 git -C "$anwork" push -qu origin mgr-extra
 git -C "$anwork" checkout -q main

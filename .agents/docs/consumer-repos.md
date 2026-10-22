@@ -299,8 +299,9 @@ Base branch red before change. Five points:
 
 ## Local checks
 
-`JOHARNESS_CHECKS=local` (the repo's own `joharness.conf`, or the
-environment) makes step 7's first condition `finish` running `ci`, and
+`JOHARNESS_CHECKS=local` in the environment only (a `joharness.conf` line is
+ignored; `finish` and session start print a warning while one stays) makes
+step 7's first condition `finish` running `ci`, and
 `verify` when `joharness.sh:checks_verify_needed` holds, on this head.
 `ci` runs the harness's own checks (`joharness.sh:cmd_ci`), never a
 consumer's suites. The key saves the wait, not the run: GitHub still runs
