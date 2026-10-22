@@ -175,7 +175,8 @@ edge has one definition and this is downstream of it. One exception reads two
 more: a FINISHED RESCOPE — `workstream: rescope-*`, `plan: none`,
 `status: done`, no `pr:` — is a surveyor that found the holds genuine and
 merges nothing (`.claude/commands/manage.md`, rescope). It ranks 6, never
-the edge, never the lead, and lists with a line saying it holds nothing. All four or it ranks as its status says:
+the edge, never the lead, and lists with a line saying it holds nothing.
+All four or it ranks as its status says:
 
 | Rank | State | What is left |
 | --- | --- | --- |
