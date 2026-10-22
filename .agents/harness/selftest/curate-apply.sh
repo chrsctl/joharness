@@ -166,6 +166,15 @@ expect "and the other one too (c)" \
 refute "a path a plan marks shared: draws no 'order them' proposal" \
   "'reg/other.py': claimed exclusively" "$out"
 
+# One marked and one unmarked plan is below the registry threshold: the guard,
+# not the count, keeps the 'order them' proposal away.
+printf 'x\n' >"${cawork}/reg/two.py"
+caplan two-a shared:reg/two.py reg/two.py
+caplan two-b reg/two.py reg/two.py
+out="$(cacur)"
+refute "a marked plus an unmarked plan draws no 'order them' proposal" \
+  "'reg/two.py': claimed exclusively" "$out"
+
 # --- curate --apply keeps a plan's mode and leaves a symlink alone -----------
 printf 'real\n' >"${cawork}/target-plan.md"
 git -C "$cawork" checkout -q -- docs/plans 2>/dev/null

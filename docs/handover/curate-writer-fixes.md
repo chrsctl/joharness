@@ -23,6 +23,13 @@ Fix four curate defects per `docs/plans/curate-writer-fixes.md`.
 
 ## Review
 
+- r1: (verifier) curate_write_scope returned rm's status, so a failed write reported success (fixed: cat failure returns 1)
+- r2: (verifier) the ORDER-suppression guard was untested at total 3 (fixed: added a marked-plus-unmarked case, total 2; reasoned red without the guard, not mutation-run)
+- r3: (verifier) ci-graph-lint.sh in scope: but untouched (no change: the rename case runs through caci in curate-apply.sh, same ci)
+- r4: (verifier) curate_marked_new substring match too loose (fixed: backticked path, word-start create)
+- r5: (verifier) marked-new path drops out of the declutter count (no change: intended, a new file is not gone)
+- r6: (verifier) symlink refusal repeats each --apply pass (no change: cosmetic)
+
 ## Blockers
 
 None.

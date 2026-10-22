@@ -5772,18 +5772,20 @@ curate_write_scope() {
     fm && $0 == "---" { fm = 0 }
     fm && /^scope:/ { print "scope: " v; next }
     { print }' "$f" >"$tmp"; then
-    cat "$tmp" >"$f"; rm -f "$tmp"
+    cat "$tmp" >"$f" || { rm -f "$tmp"; return 1; }
+    rm -f "$tmp"
   else
     rm -f "$tmp"; return 1
   fi
 }
 
-# Does a `## Scope` bullet of <rel> naming <path> say it is new
-# (`create` or `new file`)? A new file is not in the tree yet, by design.
+# Does a `## Scope` bullet of <rel> naming <path> in backticks say it is new
+# (a word starting `create`, or `new file`)? A new file is not in the tree
+# yet, by design. The rule: the bullet, not the parent directory.
 curate_marked_new() {
   awk -v p="$2" '
     /^## Scope/ { s = 1; next } /^## / { s = 0 }
-    s && /^- / && index($0, p) && tolower($0) ~ /create|new file/ { f = 1 }
+    s && /^- / && index($0, "`" p "`") && tolower($0) ~ /(^|[^a-z])(create|new file)/ { f = 1 }
     END { exit !f }' "${ROOT}/$1"
 }
 
