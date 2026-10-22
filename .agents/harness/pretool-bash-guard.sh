@@ -278,13 +278,20 @@ arith_re='\(\([^)]*[<>][^)]*\)\)'
 # names the word and bounds nothing. `rpos` is command position (through
 # `sudo`, `env`, a path); a quote counts only after `-c`, where the shell
 # in the quotes is what `timeout` wraps.
-timeout_re="(^|[;&|(){}\`!]|[^[:alnum:]_](do|then|else|if|elif|while|until)[[:space:]]|-c[[:space:]]+(\\\\\"|['\"]))[[:space:]]*(((sudo|env|command|exec|nice|nohup)[[:space:]]+)*)([^[:space:];&|()<>]*/)?timeout[[:space:]]"
+timeout_re="(^|[;&|(){}\`!]|[^[:alnum:]_](do|then|else|if|elif|while|until)[[:space:]]|-c[[:space:]]+(\\\\\"|['\"]))[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*(((sudo|env|command|exec|nice|nohup|time|setsid|stdbuf|ionice)([[:space:]]+(-[^[:space:]]+([[:space:]]+[^-[:space:]=][^[:space:]]*)?|[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*))*)[[:space:]]+)*([^[:space:];&|()<>]*/)?timeout[[:space:]]"
 # A date compared with a variable is a deadline: `$(date +%s)` moves on its own.
-deadline_re='\$\(date([[:space:]][^)]*)?\)(\\")?[[:space:]]+-(lt|le|gt|ge)[[:space:]]+(\\")?\$\{?[A-Za-z_]'
+deadline_while_re='\$\(date([[:space:]][^)]*)?\)(\\")?[[:space:]]+-(lt|le)[[:space:]]+(\\")?\$\{?[A-Za-z_]'
+deadline_until_re='\$\(date([[:space:]][^)]*)?\)(\\")?[[:space:]]+-(gt|ge)[[:space:]]+(\\")?\$\{?[A-Za-z_]'
 # `while read ... done < file` and `cmd | while read` end with their input,
 # unless the input is one that does not end.
 readloop_re='^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*read([[:space:]]|$)'
-endless_re='(^|[^[:alnum:]_])(tail[[:space:]]+(-[[:alnum:]]*[fF]|--follow)|inotifywait|fswatch|yes|journalctl[[:space:]]+(-[[:alnum:]]*f|--follow)|nc|ncat|socat|mkfifo)([^[:alnum:]_]|$)|/dev/(zero|u?random|tty|stdin)|/proc/|<\(|[0-9]*<>'
+endless_re='(^|[;&|(])[[:space:]]*(nc|ncat|socat|mkfifo)([^[:alnum:]_]|$)|(^|[^[:alnum:]_])(inotifywait|fswatch|yes|ping|watch)([^[:alnum:]_]|$)|[[:space:]]-[[:alnum:]]*[fFw]([[:space:]]|$)|--(follow|watch)|<\(|[0-9]*<>'
+# What a redirect can feed a `while read` that never ends.
+endless_in_re='done[[:space:]]*<[[:space:]]*(/dev/|/proc/|<)'
+# A `while read` is finite only with an input to finish: a pipe into it, or
+# `done < file`. Bare, it reads the tool's own stdin.
+readin_re='done[[:space:]]*<[[:space:]]*[^<(&[:space:]]'
+
 
 # SELF-MATCH, keyed on the READER (plan guard-self-match-keyed-on-the-
 # reader, 2026-10-10). The deny was once keyed on a TOOL, `pgrep`/`pkill`
@@ -472,22 +479,56 @@ deny() {
 # command may end between it and the loop outside a quote it opened:
 # `timeout 5 curl x; while ...` bounds the curl.
 wrapped() {
-  local p="$prefix" head
+  local p="$prefix" head n
   while [[ $p =~ $timeout_re ]]; do
     p="${p#*"${BASH_REMATCH[0]}"}"
-    head="${p%%[\'\"\`]*}"
+    head="$p"
+    # Whole quoted strings are arguments, so a `;` in one ends nothing; an
+    # unclosed quote is the shell the loop sits in, and the walk stops there.
+    n=0
+    while ((n++ < 64)) && [[ $head =~ ^([^\'\"]*)(\'[^\']*\'|\\\"([^\\]|\\[^\"])*\\\")(.*)$ ]]; do
+      head="${BASH_REMATCH[1]}${BASH_REMATCH[4]}"
+    done
+    head="${head%%[\'\"\`]*}"
     [[ $head == *[\;\&\|]* ]] || return 0
   done
   return 1
 }
 
+# The text between the keyword and its `do`.
+loopcond() {
+  cond="${own%%[;[:space:]]do[;[:space:]]*}"
+}
+
 # `while read` over a file or a pipe stops when the input does.
 finite_input() {
-  local cond="${own%%[;[:space:]]do[;[:space:]]*}"
+  local cond feeder
+  [ "$kwname" = while ] || return 1
+  loopcond
   [[ $cond =~ $readloop_re ]] || return 1
   [[ $cond == *'||'* ]] && return 1
-  [[ $cmd =~ $endless_re ]] && return 1
+  feeder="${prefix##*[;&]}"
+  if [[ $feeder == *'|'* ]]; then
+    [[ $feeder =~ $endless_re ]] && return 1
+  elif [[ $cmd =~ $readin_re ]]; then
+    [[ $cmd =~ $endless_in_re ]] && return 1
+  else
+    return 1
+  fi
   return 0
+}
+
+# A clock compared with a variable bounds the loop that waits on it, in the
+# direction the clock moves, and only if nothing else can keep it going.
+deadline_bound() {
+  local cond
+  loopcond
+  [[ $cond == *'||'* || $cond == *' -o '* ]] && return 1
+  case $kwname in
+    while) [[ $cond =~ $deadline_while_re ]] ;;
+    until) [[ $cond =~ $deadline_until_re ]] ;;
+    *) return 1 ;;
+  esac
 }
 
 judge() {
@@ -527,7 +568,7 @@ which matches the process and not its own text (not under grep -F)." ;;
   wrapped && return 0
   finite_input && return 0
   [[ $own =~ $count_re ]] && return 0
-  [[ $own =~ $deadline_re ]] && return 0
+  deadline_bound && return 0
   [[ $own =~ $arith_re ]] && return 0
 
   # Say what is missing AROUND THE LOOP. The message once printed "no

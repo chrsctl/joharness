@@ -732,6 +732,29 @@ pbg '{"tool_name":"Bash","tool_input":{"command":"while :; do \"sleep\" 1; done"
 pbg_denied "a quoted sleep waits like sleep"
 pbg '{"tool_name":"Bash","tool_input":{"command":"while :; do python3 -c \"import time; time.sleep(1)\"; done"}}'
 pbg_denied "time.sleep inside python -c waits like sleep"
+# Verifier r1: quoted arguments, other feeders, clock direction, wrappers.
+pbg '{"tool_name":"Bash","tool_input":{"command":"timeout 5 echo \"hi\"; while :; do sleep 1; done"}}'
+pbg_denied "a quoted argument does not hide the end of the timeout's command"
+pbg '{"tool_name":"Bash","tool_input":{"command":"FOO=1 timeout 60 bash -c '"'"'while :; do sleep 1; done'"'"'"}}'
+pbg_allowed "an env assignment before timeout still wraps the loop"
+pbg '{"tool_name":"Bash","tool_input":{"command":"sudo -u x timeout 60 bash -c '"'"'while :; do sleep 1; done'"'"'"}}'
+pbg_allowed "sudo with an option argument before timeout still wraps the loop"
+pbg '{"tool_name":"Bash","tool_input":{"command":"tail -n0 -f /tmp/f | while read l; do sleep 1; done"}}'
+pbg_denied "tail with another option before -f does not end"
+pbg '{"tool_name":"Bash","tool_input":{"command":"ping 1.1.1.1 | while read l; do sleep 1; done"}}'
+pbg_denied "a ping feeding while read does not end"
+pbg '{"tool_name":"Bash","tool_input":{"command":"while read l; do sleep 1; done"}}'
+pbg_denied "a bare while read reads the tool stdin, not a finite input"
+pbg '{"tool_name":"Bash","tool_input":{"command":"while read l; do sleep 1; done < /dev/console"}}'
+pbg_denied "while read from a device does not end"
+pbg '{"tool_name":"Bash","tool_input":{"command":"git log --grep nc | while read l; do sleep 1; done"}}'
+pbg_allowed "a word nc in a grep pattern is not the nc tool"
+# shellcheck disable=SC2016  # a JSON payload; the $ is text the guard reads
+pbg '{"tool_name":"Bash","tool_input":{"command":"while [ \"$(date +%s)\" -gt \"$d\" ]; do sleep 1; done"}}'
+pbg_denied "a clock compared the wrong way is no bound"
+# shellcheck disable=SC2016  # a JSON payload; the $ is text the guard reads
+pbg '{"tool_name":"Bash","tool_input":{"command":"while [ \"$(date +%s)\" -lt \"$d\" ] || true; do sleep 1; done"}}'
+pbg_denied "a deadline test with || true is no bound"
 # strip_heredocs is linear: 20,000 lines of body.
 pbg_big=""
 for _ in $(seq 1 20000); do pbg_big+='echo hello world line\n'; done
