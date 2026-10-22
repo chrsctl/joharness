@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01KjRsJjm6q7mKQCqKQLbwJZ
 agent: opus
 updated: 2026-10-22
-next: Take the prerequisite reading (fire_trigger on the keeper heartbeat with a text payload) before any edit
+next: Prerequisite failed (fire_trigger refused); reading recorded in orchestrated.md; review, retire, PR, merge
 ---
 
 ## Goal
@@ -19,11 +19,12 @@ payload instead of create_session, so lineage depth stays at keeper + 1.
 
 ## Decisions
 
-- None yet.
+- Prerequisite reading failed: auto-mode classifier refused fire_trigger on the keeper heartbeat; per the plan (either no = do not build) the reading goes in orchestrated.md Heartbeat and the plan retires unbuilt.
+- No retry of the keeper fire and no block: the refusal is itself the reading an orchestrator in auto mode would get.
 
 ## Rejected
 
-- None yet.
+- Self-bound probe Routine fired with text: the platform drops text for a Routine bound to the firing session, so it cannot stand in for the keeper reading.
 
 ## Review
 

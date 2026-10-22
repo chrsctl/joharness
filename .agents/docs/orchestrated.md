@@ -619,6 +619,22 @@ pending wake: the keeper starts a second one, and "## 0. Start" step 3
 lets the older `RUNNING` one proceed and the newer exit. A DRAINED fleet
 costs one short orchestrator session an hour.
 
+**Successor by `fire_trigger`: not built, by measurement.** The §4
+hand-off stays `create_session`, so each hand-off still deepens lineage one
+level and the lineage guard stays the fallback. The alternative, firing the
+keeper's heartbeat with the ledger as `text`, failed its prerequisite
+reading (2026-10-22, manager session `session_01KjRsJjm6q7mKQCqKQLbwJZ`,
+auto permission mode): `fire_trigger` on `heartbeat: chrsctl/joharness`
+with a `text` payload was refused before it ran — "Permission for this
+action was denied by the Claude Code auto mode classifier. Reason:
+[Interfere With Workloads]". The keeper turn's payload and its child's
+`lineage.depth` went unread. A poke-only Routine bound to the firing
+session itself, fired with `text`, answered "The text was not sent with it
+because it is already in this conversation": a self-bound fire carries no
+payload. Reopen only when a fire on the keeper from an orchestrator in auto
+mode goes through — an allow rule for `fire_trigger` lives in
+`.claude/settings.json`, a core path, the human's.
+
 The spec every orchestrator checks at start (`orchestrate.md`, "## 0.
 Start" step 5; a session-made stale one is replaced, any other `heartbeat
 stale` or `heartbeat duplicated` line pushes):
