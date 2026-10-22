@@ -4,10 +4,11 @@
 # itself provable on a stock CI runner.
 #
 # A layer opts in by carrying a `ci-verify` file (.agents/env/README.md). This
-# script globs for it and names no layer, which is what lets it — and the
-# workflow that calls it — be seeded verbatim into every consumer: a repo whose
-# layer does not declare it gets a run that says so and passes, never one
-# flailing at a layer it does not have.
+# script globs for it and names no layer: a repo whose layer does not declare
+# it gets a run that says so and passes, never one flailing at a layer it does
+# not have. It is canonical-only (.agents/scripts is in sync-to-consumer.sh's
+# CANONICAL_ONLY_DIRS); the workflow step that calls it is seeded into every
+# consumer and guards on the file being there.
 #
 # It lives here rather than inline in .github/workflows/ci.yml for one reason:
 # shell in a YAML block is shell nothing lints and nothing tests. Here `ci`
