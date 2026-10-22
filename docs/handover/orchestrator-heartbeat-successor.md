@@ -65,7 +65,7 @@ the successor with that wake as prompt.
 - r27: (verifier) keeper's last-started id lives in context (no change: one extra short session if compaction drops it; Start step 3 then exits the newer)
 - r28: (verifier) a forged doorbell starts an orchestrator when none is LIVE (no change: the hourly wake would start the same one; it changes timing, never the prompt)
 - r29: (verifier) incident narrative and gx chain in the doc (fixed: incident moved to git log; mechanism only)
-- r30: r19-r23 come from fixes to r9-r10: churn, so the research step was the redesign to SWAP, which removes inheritance, the doorbell payload and the LIVE window instead of patching them
+- r30: r19-r23 came from fixes to r9-r10, churn (no change: the research step was the redesign to SWAP, which removes inheritance, the doorbell payload and the LIVE window instead of patching them)
 - r31: (verifier) successor's first turn undefined; Start would empty the inherited ledger (fixed: successor runs Start, first-start ledger is the prompt's `ledger:` line)
 - r32: (verifier) Retired halted any orchestrator whose title set_session_title could not set (fixed: stops only on exactly the retired or duplicate title)
 - r33: (verifier) Pass entry ordered superseded first and Retired first at once (fixed: Retired bullet first, one order sentence, refute on the old one)
