@@ -206,6 +206,16 @@ it. A follow-up plan you filed as
 its own plan-only pull request is yours too: drive it to merged, step 7
 whole, before you exit.
 
+**Link the issue.** Right after the pull request opens, for EACH issue number
+its body names with `Closes #N` or `Refs #N` (the plan's issue, a
+human-remainder issue, any other):
+post ONE comment on that issue (`add_issue_comment`): `PR #<M> <what it does
+for this issue, one line>: <PR url>`, ending with the attribution footer the
+session's system prompt names. One comment per issue per pull request; never
+edit the issue's body or labels for it. A comment fails: name the failed call
+in your final report line, never block, never retry — the `Closes`/`Refs` line
+still links it.
+
 GitHub lost at step 7:
 
 - **Before the retire commit:** a human remainder's pull request opened (§2), then
