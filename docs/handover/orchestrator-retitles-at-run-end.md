@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01Ya7H7BbQxuskmRA1AdtA8f
 agent: opus
 updated: 2026-10-22
-next: Apply the plan's Scope edits to orchestrate.md, orchestrated.md, selftest
+next: Run ci, verify, negative needle checks, verifier review, then finish
 ---
 
 ## Goal

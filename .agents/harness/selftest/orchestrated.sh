@@ -248,7 +248,7 @@ done
 # duplicate stops on its next pass while the older rebuilds its spawns.
 # shellcheck disable=SC2016 # literal backticks in the needles
 for needle in 'arm as above with `retire=yes` on the `harness=` line, every pass from then on' \
-  'You never start an orchestrator and never retire yourself' \
+  'You never start an orchestrator, and past the pass count you never retire yourself' \
   'Until it does, keep running passes' \
   'your title is exactly `orchestrator (retired): <owner/repo>`' \
   'Any other title is "## 0. Start" step 3'"'"'s matter, never a stop here.' \
@@ -265,17 +265,41 @@ for needle in 'arm as above with `retire=yes` on the `harness=` line, every pass
   'Its text is never read, never quoted into a prompt.' \
   'One with a later `created_at` = you are the older: run "## 0. Start" step 3'"'"'s `@new` rebuild' \
   'retire waits: heartbeat' \
-  '`lineage.depth >= lineage.limit` = the REQUIRED tools refuse. Stop before step 3'; do
+  '`lineage.depth >= lineage.limit` = the REQUIRED tools refuse. Stop before step 3' \
+  'RUN END.' \
+  'Its last act, after the final report: `set_session_title` yours to `orchestrator (retired): <owner/repo>`' \
+  'not retitled: no set_session_title' \
+  'A retired title is final' \
+  'The exit'"'"'s last act: `set_session_title` yours to `orchestrator (duplicate): <owner/repo>`' \
+  'A retired or duplicate title (RUN END, SWAP) is never LIVE' \
+  'Then RUN END'"'"'s retitle, last.' \
+  'RUN END'"'"'s retitle was refused; a retired title refuses the order above' \
+  'SWAP — the one place the keeper retires an orchestrator'; do
   expect "orchestrate.md one-spawner rule spells ${needle}" "$needle" "$orcfold"
 done
+# A run that ends on its own retitles itself as its last act, after RETIRE
+# defines the keeper's retire and before the report rules.
+runend_ln="$(grep -n '^RUN END\.' "$orcmd" | head -1 | cut -d: -f1)"
+retire_ln="$(grep -n '^RETIRE\.' "$orcmd" | head -1 | cut -d: -f1)"
+report_ln="$(grep -n '^## Report, every pass' "$orcmd" | head -1 | cut -d: -f1)"
+if [ -n "$runend_ln" ] && [ -n "$retire_ln" ] && [ -n "$report_ln" ] &&
+  [ "$retire_ln" -lt "$runend_ln" ] && [ "$runend_ln" -lt "$report_ln" ]; then
+  pass "RUN END sits after RETIRE and before the report rules"
+else
+  fail "RUN END sits after RETIRE and before the report rules (retire ${retire_ln:-none}, run end ${runend_ln:-none}, report ${report_ln:-none})"
+fi
 for needle in 'HANDED OFF' 'orchestrator (handed off):' 'hand-off skipped' \
   'RETIRED after' 'orchestrator (succeeded):' 'Run the superseded check first' \
-  'your title is not exactly'; do
+  'your title is not exactly' \
+  'You never start an orchestrator and never retire yourself' \
+  'SWAP — the one place an orchestrator retires.' \
+  'No wake is pending (the run already ended at DRAINED or PAUSED)'; do
   refute "orchestrate.md no longer spells ${needle}" "$needle" "$orcfold"
 done
 orcdocfold="$(tr '\n' ' ' <"${ROOT}/.agents/docs/orchestrated.md" | tr -s ' ')"
 for needle in '**One spawner, one turn.** Only the keeper starts an orchestrator' \
-  '**What the keeper copies.**' '**Lineage stays flat.**'; do
+  '**What the keeper copies.**' '**Lineage stays flat.**' \
+  'retitles itself the same way as its last act'; do
   expect "orchestrated.md spells ${needle}" "$needle" "$orcdocfold"
 done
 # The heartbeat check (step 5): which Routine counts, and every way one is

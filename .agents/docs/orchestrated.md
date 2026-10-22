@@ -530,8 +530,9 @@ runs (2026-10-10 to 10-12): its first turn after 22h idle cost $5.12 (cache
 re-warm), later turns $0.28-$0.99 at about 638k context, session total
 $116.30. Figures are `total_cost_usd` from that session's `list_events`
 `result` events, read 2026-10-12. A resumed orchestrator whose last final
-report is over an hour old says `fresh session is cheaper` on its first pass
-(`orchestrate.md`, "Report, every pass"). Within one run the cost compounds
+report is over an hour old says `fresh session is cheaper`, when RUN END's
+retitle was refused, on its first pass (`orchestrate.md`, "Report, every
+pass"). Within one run the cost compounds
 too: `get_session` on gx's run of 2026-10-13 read 13 health passes in 2 h 15
 m, `usage.cost_usd` 12.65, `context_usage.used_tokens` 304,615,
 `cache_read_tokens` 26.4 M, against 0.23 to 0.37 USD for each session it
@@ -541,7 +542,11 @@ orchestrator's wake carries `retire=yes`, and it keeps running passes. The
 keeper, on its next wake or a doorbell, retitles it `orchestrator
 (retired): <owner/repo>` and starts the successor with that wake as its
 prompt, `pass=1`, no leads (`orchestrate.md` §4, RETIRE; "## Keeper",
-SWAP). The retired session's next wake does nothing. The pass count
+SWAP). The retired session's next wake does nothing. A run that ends on
+its own (DRAINED, a PAUSED exit, a human's stop) retitles itself the same
+way as its last act (`orchestrate.md` §4, RUN END): the session list reads
+it as done, a wake that still fires does nothing, and the keeper's LIVE
+test reads one more mismatch where it already read IDLE. The pass count
 decides, never a control-plane field.
 
 **One spawner, one turn.** Only the keeper starts an orchestrator, and it
