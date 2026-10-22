@@ -80,3 +80,15 @@ fi
 expect "which says the GitHub checks still decide" "finish: pass — step 7 still needs the GitHub checks" "$out"
 out="$(cofin -v)"
 expect "finish -v prints the passing checks" "== workstream files" "$out"
+
+# Portability lint: stock macOS has BSD sed and awk. `\t` and `\|` in a sed
+# expression and a multi-line value through `awk -v` silently misbehave there.
+# $ROOT is this repository; consumers run the same scan on their copy.
+sedhits="$(grep -nE "sed( -[nE]+)? ['\"].*(\\\\t|\\\\\\|)" \
+  "${ROOT}/joharness.sh" "${ROOT}"/.agents/harness/*.sh 2>/dev/null |
+  grep -vE '^[^:]*:[0-9]+:[[:space:]]*#' || :)"
+if [ -z "$sedhits" ]; then pass "no sed uses \\t or \\| (BSD sed)"
+else fail "no sed uses \\t or \\| (BSD sed)"; printf '%s\n' "$(indent "$sedhits")"; fi
+awkhits="$(grep -nE 'awk[^|]* -v (standing|logged)=' "${ROOT}/joharness.sh" || :)"
+if [ -z "$awkhits" ]; then pass "no awk -v carries a multi-line value (BSD awk)"
+else fail "no awk -v carries a multi-line value (BSD awk)"; printf '%s\n' "$(indent "$awkhits")"; fi

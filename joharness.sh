@@ -549,6 +549,9 @@ check_targets() {
 }
 
 have() { command -v "$1" >/dev/null 2>&1; }
+# Bounded when `timeout` exists (absent on stock macOS), unbounded otherwise.
+tmo() { local secs="$1"; shift; if have timeout; then timeout "$secs" "$@"; else "$@"; fi; }
+TAB="$(printf '\t')"
 
 # The ref that stands for merged state: the remote's base branch, else a local
 # branch of the same name, else HEAD.
@@ -666,7 +669,7 @@ lint_glossary() {
     return 1
   fi
   if printf '%s\n' "$rows" | grep -q '^MALFORMED'; then
-    printf '%s\n' "$rows" | sed -n 's/^MALFORMED\t/  malformed row: /p'
+    printf '%s\n' "$rows" | sed -n "s/^MALFORMED${TAB}/  malformed row: /p"
     printf '  ^ a glossary row is four filled cells; a pipe inside one shifts them\n'
     return 1
   fi
@@ -3819,10 +3822,11 @@ conduct_candidates() {
     return 0
   fi
   logged="$(printf '%s\n' "$ledger" | conduct_rows | cut -f2)"
-  printf '%s\n' "$log" | awk -v standing="$standing" -v logged="$logged" '
+  # Multi-line values travel in the environment: BSD awk rejects a newline in -v.
+  printf '%s\n' "$log" | standing="$standing" logged="$logged" awk '
     BEGIN {
-      n = split(standing, a, "\n"); for (i = 1; i <= n; i++) skip[a[i]] = 1
-      n = split(logged, a, "\n");   for (i = 1; i <= n; i++) done[a[i]] = 1
+      n = split(ENVIRON["standing"], a, "\n"); for (i = 1; i <= n; i++) skip[a[i]] = 1
+      n = split(ENVIRON["logged"], a, "\n");   for (i = 1; i <= n; i++) done[a[i]] = 1
     }
     /^C [0-9a-f]+$/ { sha = substr($0, 3); next }
     /^docs\/handover\/[A-Za-z0-9._-]+\.md$/ {
@@ -4886,8 +4890,8 @@ checks_gate() {
   # Behind the base branch is step 7's own condition in both modes, and a red
   # in this one only.
   fresh="as of the last fetch"
-  if [ "${HANDOVER_FETCH:-1}" = "1" ] && have timeout &&
-     timeout 15 git -C "$ROOT" fetch --quiet origin \
+  if [ "${HANDOVER_FETCH:-1}" = "1" ] &&
+     tmo 15 git -C "$ROOT" fetch --quiet origin \
        "${HANDOVER_BASE_BRANCH:-main}" >/dev/null 2>&1; then
     fresh="fetched just now"
   fi
@@ -5295,8 +5299,8 @@ dispatch_age_text() {
 
 # The hook's wave partition, one line per member: stem, wave, overlap note.
 dispatch_waves() {
-  sed -n 's/^  wave \([0-9][0-9]*\): \(.*\)$/\1\t\2/p' |
-    sed 's/ — /\t/; s/;[^\t]*$//' |
+  sed -n "s/^  wave \\([0-9][0-9]*\\): \\(.*\\)\$/\\1${TAB}\\2/p" |
+    sed "s/ — /${TAB}/; s/;[^${TAB}]*\$//" |
     awk -F'\t' '{
       note = $3; sub(/^overlaps /, "", note)
       m = split($2, parts, ", ")
@@ -6506,7 +6510,7 @@ cmd_dispatch() {
   esac
   if [ "${DISPATCH_FETCH:-1}" != 0 ]; then
     if [ "$(git -C "$ROOT" rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
-      timeout 60 git -C "$ROOT" fetch -q --prune --unshallow origin 2>/dev/null ||
+      tmo 60 git -C "$ROOT" fetch -q --prune --unshallow origin 2>/dev/null ||
         git -C "$ROOT" fetch -q --prune origin 2>/dev/null ||
         { warn "fetch failed; push ages below are from the last fetch"; fetch_failed=1; }
     else
@@ -6756,12 +6760,12 @@ cmd_dispatch() {
   # in-flight row; unclaimed, `drain_requirement` offers it, never the free
   # walk below.
   rows="$(printf '%s\n' "$qout" |
-    sed -n 's#^  \(docs/\(plans\|research\|product\)/[^ ]*\.md\)  \(\[.*\]\)$#\1|\3#p')"
+    sed -nE 's#^  (docs/(plans|research|product)/[^ ]*\.md)  (\[.*\])$#\1|\3#p')"
   wavemap="$(printf '%s\n' "$qout" | dispatch_waves)"
   # The hook's orchestrated-only lines: a free plan whose scope overlaps a
   # plan a manager holds now. Stem, then the rest of the line as the reason.
   holdmap="$(printf '%s\n' "$qout" |
-    sed -n 's/^  in flight: \([^ ]*\) overlaps \(.*\)$/\1\t\2/p' |
+    sed -n "s/^  in flight: \\([^ ]*\\) overlaps \\(.*\\)\$/\\1${TAB}\\2/p" |
     sed 's/(claimed on origin\//(claimed on /')"
 
   while IFS='|' read -r path label; do
@@ -7067,7 +7071,7 @@ cmd_dispatch() {
       sort -u |
       awk -F'\t' '{ c[$2]++ } END { for (p in c) print c[p] "\t" p }' |
       sort -rn |
-      sed 's/^\([0-9][0-9]*\)\t\(.*\)/    \2  (\1 held)/')"
+      sed "s/^\\([0-9][0-9]*\\)${TAB}\\(.*\\)/    \\2  (\\1 held)/")"
     # ONE pass, fed by process substitution rather than a "$(...)" capture read
     # back through a "<<<" here-string.
     while IFS=$'\t' read -r rb rk rstat rpr rsess rnext; do

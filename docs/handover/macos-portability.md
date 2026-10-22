@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01NoHtepXiUMXAm5Lx5tEt6Z
 agent: sonnet
 updated: 2026-10-22
-next: Replace GNU-only sed \t/\| in joharness.sh, then awk -v, timeout fallbacks, then lint.
+next: Run ./joharness.sh ci and verify; compare dispatch with origin/main (before file was /tmp, regenerate); verifier; retire; PR.
 ---
 
 ## Goal
