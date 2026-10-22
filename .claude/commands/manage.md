@@ -215,10 +215,33 @@ A session id target: Claude Code Remote send_message. A name: SendMessage.
 **The stem must be a QUEUE ITEM's name** — one you can name from your plan's
 `needs:`, its `scope:` collisions, or the reconcile your prompt named. A lead
 with no such stem (an issue, a merged item, the harness itself) goes in your pull request body
-instead. Nothing to say is the normal case: send nothing, just exit.
+instead; a stem-less lead that is a DEFECT goes where the next paragraph says. Nothing to say is the normal case: send nothing, just exit.
 Never send your own findings. One lead, its own line, nothing after the text,
 no quotes or newlines. No transport line in your prompt, or one refusal: just
 exit — no retry, no second transport. Run no queue command.
+
+**A DEFECT outside your item.** A failure that is not your item's:
+
+1. It reproduces on fresh-fetched `origin/main` (run the same command on a
+   checkout of it). No reproduction = it is your branch's: fix it in your item.
+2. Search this repository's open issues for the same failing command or test
+   name. Found = file nothing; pull request body says `Refs #N`.
+3. Otherwise ONE issue per session (`issue_write` `create`) on this
+   repository, before the retire commit: title
+   `defect: <test or command>: <symptom, one line>`; body = the command, at
+   most 20 lines of its output, the `origin/main` sha it reproduced on, and
+   your branch name; labels `human-review`. Pull request body says `Refs #N`,
+   never `Closes #N`.
+4. A second defect in the same session: pull request body only, one line each.
+5. `issue_write` fails: put the issue text in the pull request body under a
+   line `defect not filed: <error, 40 chars>`. Never block or delay the item
+   for it.
+6. Not for harness defects found in a consumer (those go to canonical,
+   `.agents/docs/feedback.md` §4) nor core-path edits (the human-remainder
+   paragraph, §2).
+
+The label holds the issue from the clerk until the owner removes it; no
+session removes it.
 
 A rescope may rewrite your plan's `scope:` while you hold it. At step 7 that
 is a modify/delete conflict on your OWN plan file: KEEP THE DELETE (`git rm`
