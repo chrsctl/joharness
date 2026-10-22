@@ -68,18 +68,19 @@ jobs:
     # `completed_at`, and it appears as a check run on the commit. Counted
     # 2026-09-11 from the Actions API.
     #
-    # SET THE SESSION ENVIRONMENT TOO, and this is the sharp edge. The
-    # variable stops GitHub checking; it makes nothing else check. Paired
-    # with `JOHARNESS_CHECKS=local` in the session's environment (a
-    # joharness.conf line is ignored), `./joharness.sh finish` runs `ci` and
-    # `verify` before the merge. Set HERE ALONE, with the session environment
-    # unset or `github`, no machine checks anything — and step 7's "GitHub
-    # checks green on head" is then satisfied by a run that checked nothing.
-    # Nothing external catches that: this repo has no protected branch and no
-    # required check (`branches/main` reports `"protected": false`, counted
-    # 2026-09-11), and whether a `skipped` check satisfies or blocks a
-    # required status check is GitHub behaviour this comment does not rely
-    # on, in either direction.
+    # THE VARIABLE ALONE SWITCHES BOTH MACHINES. It stops GitHub checking,
+    # and step 7 (.agents/harness/AGENTS.md) sends the session to the local
+    # gate: the head's latest `lint` check run, read through the GitHub MCP
+    # server, concluded `skipped` = run `JOHARNESS_CHECKS=local
+    # ./joharness.sh finish` and merge only on its pass line. A skipped
+    # `lint` check is never green. `joharness.sh` itself never calls the
+    # GitHub API. The sharp edge left: a session that skips that read
+    # merges on a run that checked nothing. Nothing external catches that:
+    # this repo has no protected branch and no required check
+    # (`branches/main` reports `"protected": false`, counted 2026-09-11),
+    # and whether a `skipped` check satisfies or blocks a required status
+    # check is GitHub behaviour this comment does not rely on, in either
+    # direction.
     #
     # What goes with the shellcheck bar when this job skips: the layer
     # verdict, because `.agents/scripts/ci-verify-layers.sh` is a STEP of
@@ -113,9 +114,8 @@ jobs:
     # the one that scales with the work.
     #
     # A convention, not a mechanism: nothing stops a session setting this
-    # variable — it is in no protocol path and no gate reads it. It is a
-    # human's switch because a session cannot see it, not because anything
-    # forbids one touching it.
+    # variable — it is in no protocol path and no gate reads it. A human's
+    # switch: a session reads only its effect, the skipped `lint`.
     #
     # Seeded verbatim into a consumer at bootstrap and never synced after
     # (.agents/scripts/bootstrap-consumer.sh), so a consumer older than this
