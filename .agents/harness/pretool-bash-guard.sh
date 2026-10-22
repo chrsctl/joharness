@@ -96,19 +96,18 @@ cmd="$(hook_key command)" || exit 0
 # the command runs a shell or a script (write-then-run is code). Lines are
 # still JSON-escaped: a newline is the two characters `\n`.
 strip_heredocs() {
-  local rest="$1" out="" line t term="" dash="" last=0 q="'"
+  local out="" line t term="" dash="" kept=0 q="'"
   local hd_re='<<(-?)[[:space:]]*(\\?["'"$q"'])?([A-Za-z_][A-Za-z0-9_]*)'
   local write_re='(^|[^0-9&>])>>?[[:space:]]*[^&[:space:]]|^[[:space:]]*tee[[:space:]]'
   local lead_re='^[[:space:]]*(cat|tee)[[:space:]]'
   local exec_re='(^|[;&|({[:space:]]|\\n)(/[^[:space:]]*/)?(bash|sh|zsh|dash|ksh|source|exec|eval|xargs|python[0-9.]*|perl|node)([[:space:]]|$)|(^|[;&|[:space:]]|\\n)\.[[:space:]]|(^|[;&|(]|\\n)[[:space:]]*(\./|/[^[:space:]]*\.sh)'
-  while [ "$last" -eq 0 ]; do
-    if [[ $rest == *'\n'* ]]; then
-      line="${rest%%\\n*}"
-      rest="${rest#*\\n}"
-    else
-      line="$rest"
-      last=1
-    fi
+  # One pass over the lines, never a shrinking `rest`: cutting a prefix off a
+  # long string once per line is quadratic (20,000 lines took 67 s, one 80 KB
+  # line 5 s). A raw newline cannot occur in the payload (stripped above), so
+  # it is free to be the line separator the two characters `\n` stand for.
+  local nl="${1//\\n/$'\n'}"
+  while IFS= read -r line; do
+    kept=0
     if [ -n "$term" ]; then
       t="$line"
       if [ -n "$dash" ]; then
@@ -117,8 +116,8 @@ strip_heredocs() {
       [ "$t" = "$term" ] && term=""
       continue
     fi
-    out+="$line"
-    [ "$last" -eq 1 ] || out+='\n'
+    out+="$line"'\n'
+    kept=1
     if [[ $line =~ $hd_re ]]; then
       dash="${BASH_REMATCH[1]}"
       t="${BASH_REMATCH[3]}"
@@ -126,7 +125,9 @@ strip_heredocs() {
         term="$t"
       fi
     fi
-  done
+  done <<<"$nl"
+  # The last line has no `\n` after it.
+  [ "$kept" -eq 1 ] && out="${out%\\n}"
   # Anything outside the stripped bodies runs code: keep the command whole.
   if [[ $out =~ $exec_re ]]; then printf '%s' "$1"; else printf '%s' "$out"; fi
 }
@@ -257,7 +258,10 @@ shellword_re='(^|[;&|(){}!'"'"'"`])([[:space:]]*((do|then|else|elif|if|time|eval
 # argument, `do echo "sleep tight, still waiting"; done` is denied for a word
 # in a log line — an ordinary shape, and the kind of miss that teaches a
 # session to route around the gate.
-sleep_re='(^|[^[:alnum:]_])sleep[[:space:]]+[-0-9$"'"'"']'
+sleep_re='(^|[^[:alnum:]_])sleep(\\"|["'"'"'])?[[:space:]]+[-0-9$"'"'"'\\]'
+# A quoted command name (`"sleep" 1`) is the same command, and so is the
+# interpreter's own sleep inside `python -c '...'`: the loop waits all the same.
+pysleep_re='(^|[^[:alnum:]_])(time|asyncio)\.sleep[[:space:]]*\('
 
 # A counter compares a VARIABLE, and that is the whole difference between a
 # bound and a coincidence. `until [ "$(grep -c x /tmp/f)" -gt 0 ]` is incident
@@ -270,7 +274,17 @@ sleep_re='(^|[^[:alnum:]_])sleep[[:space:]]+[-0-9$"'"'"']'
 # string (`echo \"retry $n\" -lt 10`), which bounds nothing.
 count_re='(\\"\$\{?[A-Za-z_][A-Za-z0-9_]*\}?\\"|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?"?)[[:space:]]+-(lt|le|gt|ge)[[:space:]]'
 arith_re='\(\([^)]*[<>][^)]*\)\)'
-timeout_re='(^|[^[:alnum:]_-])timeout[[:space:]]'
+# A `timeout` bounds the loop only as a COMMAND: `echo timeout 5; while ...`
+# names the word and bounds nothing. `rpos` is command position (through
+# `sudo`, `env`, a path); a quote counts only after `-c`, where the shell
+# in the quotes is what `timeout` wraps.
+timeout_re="(^|[;&|(){}\`!]|[^[:alnum:]_](do|then|else|if|elif|while|until)[[:space:]]|-c[[:space:]]+(\\\\\"|['\"]))[[:space:]]*(((sudo|env|command|exec|nice|nohup)[[:space:]]+)*)([^[:space:];&|()<>]*/)?timeout[[:space:]]"
+# A date compared with a variable is a deadline: `$(date +%s)` moves on its own.
+deadline_re='\$\(date([[:space:]][^)]*)?\)(\\")?[[:space:]]+-(lt|le|gt|ge)[[:space:]]+(\\")?\$\{?[A-Za-z_]'
+# `while read ... done < file` and `cmd | while read` end with their input,
+# unless the input is one that does not end.
+readloop_re='^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*read([[:space:]]|$)'
+endless_re='(^|[^[:alnum:]_])(tail[[:space:]]+(-[[:alnum:]]*[fF]|--follow)|inotifywait|fswatch|yes|journalctl[[:space:]]+(-[[:alnum:]]*f|--follow)|nc|ncat|socat|mkfifo)([^[:alnum:]_]|$)|/dev/(zero|u?random|tty|stdin)|/proc/|<\(|[0-9]*<>'
 
 # SELF-MATCH, keyed on the READER (plan guard-self-match-keyed-on-the-
 # reader, 2026-10-10). The deny was once keyed on a TOOL, `pgrep`/`pkill`
@@ -454,11 +468,33 @@ deny() {
 # body into a function's arguments on every keyword was a fifth of reader
 # A's cost on large commands, measured. `own` empty means "the same as
 # span" — reader A reads both from one text.
+# Does a `timeout` in `prefix` wrap THIS loop? It must be a command, and no
+# command may end between it and the loop outside a quote it opened:
+# `timeout 5 curl x; while ...` bounds the curl.
+wrapped() {
+  local p="$prefix" head
+  while [[ $p =~ $timeout_re ]]; do
+    p="${p#*"${BASH_REMATCH[0]}"}"
+    head="${p%%[\'\"\`]*}"
+    [[ $head == *[\;\&\|]* ]] || return 0
+  done
+  return 1
+}
+
+# `while read` over a file or a pipe stops when the input does.
+finite_input() {
+  local cond="${own%%[;[:space:]]do[;[:space:]]*}"
+  [[ $cond =~ $readloop_re ]] || return 1
+  [[ $cond == *'||'* ]] && return 1
+  [[ $cmd =~ $endless_re ]] && return 1
+  return 0
+}
+
 judge() {
   local tool
   [ -n "$own" ] || own="$span"
   # No sleep, no wait. `while read` over input stops here.
-  [[ $span =~ $sleep_re ]] || return 0
+  [[ $span =~ $sleep_re || $span =~ $pysleep_re ]] || return 0
 
   # Self-match FIRST, and bounded or not. A `timeout` around this one turns
   # an endless wait into a wait that always runs the clock out, which is not
@@ -488,8 +524,10 @@ which matches the process and not its own text (not under grep -F)." ;;
   # The bound check reads `while`/`until` only (header, SELF-MATCH).
   case $kwname in while | until) ;; *) return 0 ;; esac
 
-  [[ $prefix =~ $timeout_re ]] && return 0
+  wrapped && return 0
+  finite_input && return 0
   [[ $own =~ $count_re ]] && return 0
+  [[ $own =~ $deadline_re ]] && return 0
   [[ $own =~ $arith_re ]] && return 0
 
   # Say what is missing AROUND THE LOOP. The message once printed "no
