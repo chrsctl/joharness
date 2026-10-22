@@ -422,6 +422,31 @@ expect "own Part 2 kept" "MY-OWN-PART2-SENTINEL" \
 refute "stub does not replace own Part 2" "this section is the repo's own" \
   "$(cat "${bootdst7}/AGENTS.md")"
 
+# Fresh dir holding its own CLAUDE.md: the sync would place every other file,
+# then stop AHEAD on that one, and the rerun is refused as "already runs the
+# harness" — half set up, with no way forward. The AHEAD check runs as a dry
+# run first, so the refusal leaves the target exactly as it was.
+bootown="${TMP}/bootown"
+mkdir -p "$bootown"
+printf 'MY-OWN-CLAUDE-SENTINEL\n' >"${bootown}/CLAUDE.md"
+bootown_before="$(tree_sum "$bootown")"
+out="$(boot "$bootown")" && rc=0 || rc=$?
+if [ "$rc" -ne 0 ]; then
+  pass "fresh bootstrap over own CLAUDE.md refused"
+else
+  fail "fresh bootstrap over own CLAUDE.md refused (got 0)"
+fi
+expect "refusal names the AHEAD path" "AHEAD   CLAUDE.md" "$out"
+expect "refusal says how to fix it" "below '# Part 2 — project'" "$out"
+if [ "$bootown_before" = "$(tree_sum "$bootown")" ]; then
+  pass "refused bootstrap writes nothing"
+else
+  fail "refused bootstrap writes nothing"
+fi
+out="$(boot "$bootown")" && rc=0 || rc=$?
+refute "a rerun is not refused as already running the harness" \
+  "already runs the harness" "$out"
+
 # Whole-clone purge through symlinks: reproduced 2026-08-23 — a clone whose
 # docs/ was a symlink had the TARGET's files deleted, outside the clone.
 # Refusal must land before the first write, files outside must survive. A

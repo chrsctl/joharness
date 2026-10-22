@@ -23,6 +23,12 @@
 # risking a partial write. CLAUDE.md has no marker: synced whole,
 # protected only by the AHEAD check.
 #
+# .claude/settings.json is split by key instead: only `hooks` is
+# canonical's. The consumer's other keys (its permissions) are kept, and its
+# `hooks` value is replaced when it matches some historical canonical one —
+# AHEAD otherwise. Needs jq; without it the file is compared whole, as any
+# other, and the report says so.
+#
 # Not synced, consumer-own: README.md, joharness.conf, .gitignore,
 # .github/workflows/ci.yml and update.yml (both seeded by
 # bootstrap-consumer.sh), and ALL of docs/ — the work dirs
@@ -42,8 +48,8 @@
 # canonical, structural problem, marker absent) — consumer untouched. An
 # unexpected mid-write tool failure (disk full, permissions) also exits
 # 1 with that tool's error; the missing summary line is the tell that
-# writes may have landed. 2 consumer copies AHEAD — other updates
-# applied. 3 listed path missing from canonical — sync ran, fix the
+# writes may have landed. 2 consumer copies AHEAD or UNREADABLE — other
+# updates applied. 3 listed path missing from canonical — sync ran, fix the
 # FILES/DIRS list or the tree.
 
 set -euo pipefail
@@ -262,7 +268,7 @@ if [ -n "$dir_dirty" ] || [ -n "$listed_dirty" ]; then
   die "canonical has uncommitted changes under synced paths; commit first"
 fi
 
-UPDATED=0 NEW=0 SAME=0 AHEAD=0 ONLY=0 MISSING=0
+UPDATED=0 NEW=0 SAME=0 AHEAD=0 ONLY=0 MISSING=0 UNREADABLE=0
 
 # Consumer content that matches some historical canonical blob of the same
 # path is merely behind; no match means a consumer edit. --full-history:
@@ -331,6 +337,12 @@ preflight() {
     refuse_bad_src "$rel"
     refuse_bad_dst "$rel"
   done
+  # sync_settings reads canonical's hooks mid-run; a canonical that does
+  # not parse is a structural refusal, so it dies here, before any write.
+  if command -v jq >/dev/null 2>&1 && [ -f "${ROOT}/${SETTINGS}" ] &&
+    ! jq empty "${ROOT}/${SETTINGS}" 2>/dev/null; then
+    die "canonical ${SETTINGS} is not valid JSON"
+  fi
   for dir in "${DIRS[@]}"; do
     [ -d "${ROOT}/${dir}" ] || continue
     dir_tracked "$dir" >"$(tracked_file "$dir")"
@@ -348,6 +360,25 @@ preflight() {
 # or every Windows consumer reads AHEAD forever.
 consumer_blob() {
   git -C "$ROOT" hash-object --path="$1" --stdin <"$2"
+}
+
+# consumer_blob, or nonzero when the read failed or answered nothing. An
+# empty blob is no answer: in_history greps "^<blob>", which an empty one
+# turns into "^" — every object matches, and a consumer file nobody could
+# read would be called canonical's, overwritten, or its layer handed a
+# `git rm -r`. Callers report the path UNREADABLE and classify nothing.
+read_blob() {
+  local b
+  b="$(consumer_blob "$1" "$2")" || return 1
+  [ -n "$b" ] || return 1
+  printf '%s\n' "$b"
+}
+
+unreadable() {
+  printf '  UNREADABLE %s\n' "$1"
+  warn "${1}: consumer copy could not be hashed; NOT overwritten, NOT" \
+    "classified. Make it readable, then re-run."
+  UNREADABLE=$((UNREADABLE + 1))
 }
 
 # Everything above the marker, CR-stripped — every head extraction (both
@@ -417,7 +448,17 @@ sync_file() {
     fi
     return 0
   fi
-  blob="$(consumer_blob "$rel" "$dst")"
+  if [ "$rel" = "$SETTINGS" ]; then
+    if command -v jq >/dev/null 2>&1; then
+      sync_settings
+      return 0
+    fi
+    printf '  note    %s: jq absent; compared whole, so a key of the consumer'"'"'s own reads AHEAD\n' "$rel"
+  fi
+  if ! blob="$(read_blob "$rel" "$dst")"; then
+    unreadable "$rel"
+    return 0
+  fi
   if in_history "$rel" "$blob"; then
     place "$src" "$dst"
     printf '  update  %s\n' "$rel"
@@ -429,6 +470,62 @@ sync_file() {
       "Reconciliation) — or fetch a current canonical."
     AHEAD=$((AHEAD + 1))
   fi
+}
+
+# .claude/settings.json, file present on both sides and not byte-equal. The
+# hooks wire the harness in and are canonical's; every other key is the
+# consumer's — whole-file, one permission it added made the file AHEAD and
+# its hooks never moved again. Compared sorted and compact, so key order and
+# whitespace are no edit. A consumer with no hooks has nothing of its own
+# there to overwrite. Hooks matching no historical canonical value are an
+# edit that belongs in joharness: AHEAD, like any other harness byte.
+SETTINGS=.claude/settings.json
+sync_settings() {
+  local src="${ROOT}/${SETTINGS}" dst="${DEST}/${SETTINGS}" want have c known=0
+  # Canonical parses: preflight refused otherwise, before any write.
+  want="$(jq -S -c '.hooks' "$src")"
+  if [ ! -r "$dst" ]; then
+    unreadable "$SETTINGS"
+    return 0
+  fi
+  # Empty is not JSON either: jq reads no value and prints nothing.
+  if ! have="$(jq -S -c '.hooks' "$dst" 2>/dev/null)" || [ -z "$have" ]; then
+    printf '  AHEAD   %s (not valid JSON)\n' "$SETTINGS"
+    warn "${SETTINGS}: consumer copy is not valid JSON; NOT overwritten."
+    AHEAD=$((AHEAD + 1))
+    return 0
+  fi
+  if [ "$have" = "$want" ]; then
+    SAME=$((SAME + 1))
+    return 0
+  fi
+  if [ "$have" = null ]; then
+    known=1
+  else
+    while IFS= read -r c; do
+      if [ "$(git -C "$ROOT" show "${c}:${SETTINGS}" 2>/dev/null |
+        jq -S -c '.hooks' 2>/dev/null || true)" = "$have" ]; then
+        known=1
+        break
+      fi
+    done < <(git -C "$ROOT" rev-list --full-history HEAD -- "$SETTINGS")
+  fi
+  if [ "$known" -eq 0 ]; then
+    printf '  AHEAD   %s (hooks)\n' "$SETTINGS"
+    warn "${SETTINGS}: consumer hooks not in canonical history; NOT" \
+      "overwritten. Land the fix in joharness first, or fetch a current" \
+      "canonical. Keys other than hooks are the consumer's and never AHEAD."
+    AHEAD=$((AHEAD + 1))
+    return 0
+  fi
+  # Canonical's own value, unsorted, is what lands; a canonical without
+  # hooks takes the consumer's away rather than writing a null.
+  jq --argjson h "$(jq -c '.hooks' "$src")" \
+    'if $h == null then del(.hooks) else .hooks = $h end' "$dst" \
+    >"${SCRATCH}/settings.json"
+  place "${SCRATCH}/settings.json" "$dst"
+  printf '  update  %s (hooks; consumer keys kept)\n' "$SETTINGS"
+  UPDATED=$((UPDATED + 1))
 }
 
 sync_dir() {
@@ -615,10 +712,13 @@ printf '%d updated, %d new, %d ahead, %d consumer-only, %d same\n' \
 # historical canonical blob of that same path. A consumer's OWN file is
 # its own business, and pointing `git rm -r` at it would aim the delete
 # at consumer work. A shallow canonical vouches for nothing and so says
-# nothing: silence, the same safe direction AHEAD degrades in.
+# nothing: silence, the same safe direction AHEAD degrades in. Returns 2
+# when the file could not be hashed: neither answer, and the caller says so.
 from_canonical() {
+  local blob
   [ -f "${DEST}/$1" ] || return 1
-  in_history "$1" "$(consumer_blob "$1" "${DEST}/$1")"
+  blob="$(read_blob "$1" "${DEST}/$1")" || return 2
+  in_history "$1" "$blob"
 }
 
 # Layers the consumer carries but does not select. Since the sync ships
@@ -633,19 +733,28 @@ from_canonical() {
 # carried is the consumer's own — named, so the report is complete, but
 # never with advice to delete it.
 report_unused_layers() {
-  local d name vouched=""
+  local d name vouched="" rc
   [ -d "${DEST}/${ENV_REL}" ] || return 0
   for d in "${DEST}/${ENV_REL}"/*/; do
     [ -d "$d" ] || continue
     name="${d%/}"
     name="${name##*/}"
     [ "$name" = "$LAYER" ] && continue
-    if from_canonical "${ENV_REL}/${name}/AGENTS.md"; then
-      printf '  unused  %s/%s (canonical'"'"'s; nothing here reads it)\n' "$ENV_REL" "$name"
-      vouched="${vouched}${vouched:+ }${ENV_REL}/${name}"
-    else
-      printf '  unused  %s/%s (not canonical'"'"'s; left in place)\n' "$ENV_REL" "$name"
-    fi
+    rc=0
+    from_canonical "${ENV_REL}/${name}/AGENTS.md" || rc=$?
+    case "$rc" in
+      0)
+        printf '  unused  %s/%s (canonical'"'"'s; nothing here reads it)\n' "$ENV_REL" "$name"
+        vouched="${vouched}${vouched:+ }${ENV_REL}/${name}"
+        ;;
+      2)
+        printf '  unused  %s/%s (UNREADABLE AGENTS.md; not classified, left in place)\n' "$ENV_REL" "$name"
+        UNREADABLE=$((UNREADABLE + 1))
+        ;;
+      *)
+        printf '  unused  %s/%s (not canonical'"'"'s; left in place)\n' "$ENV_REL" "$name"
+        ;;
+    esac
   done
   [ -n "$vouched" ] || return 0
   warn "consumer carries environment layer(s) it does not select; only" \
@@ -660,26 +769,32 @@ report_unused_layers
 # these paths is named but never has a delete pointed at it, and a shallow
 # canonical says nothing at all.
 report_canonical_only() {
-  local rel dir f vouched="" found
+  local rel dir f vouched="" found rc
   for rel in "${CANONICAL_ONLY[@]}"; do
     [ -f "${DEST}/${rel}" ] || continue
-    if from_canonical "$rel"; then
-      printf '  canonical-only %s (nothing here runs it)\n' "$rel"
-      vouched="${vouched}${vouched:+ }${rel}"
-    else
-      printf '  canonical-only %s (not canonical'"'"'s; left in place)\n' "$rel"
-    fi
+    rc=0
+    from_canonical "$rel" || rc=$?
+    case "$rc" in
+      0)
+        printf '  canonical-only %s (nothing here runs it)\n' "$rel"
+        vouched="${vouched}${vouched:+ }${rel}"
+        ;;
+      2) unreadable "$rel" ;;
+      *) printf '  canonical-only %s (not canonical'"'"'s; left in place)\n' "$rel" ;;
+    esac
   done
   for dir in "${CANONICAL_ONLY_DIRS[@]}"; do
     [ -d "${DEST}/${dir}" ] || continue
     found=0
     while IFS= read -r f; do
       rel="${f#"$DEST"/}"
-      if from_canonical "$rel"; then
-        found=1
-      else
-        printf '  canonical-only %s (not canonical'"'"'s; left in place)\n' "$rel"
-      fi
+      rc=0
+      from_canonical "$rel" || rc=$?
+      case "$rc" in
+        0) found=1 ;;
+        2) unreadable "$rel" ;;
+        *) printf '  canonical-only %s (not canonical'"'"'s; left in place)\n' "$rel" ;;
+      esac
     done < <(find "${DEST}/${dir}" -type f | sort)
     if [ "$found" -eq 1 ]; then
       printf '  canonical-only %s/ (nothing here runs it)\n' "$dir"
@@ -796,6 +911,9 @@ report_conf_keys
 if [ "$AHEAD" -gt 0 ]; then
   log "consumer is ahead on ${AHEAD} file(s); reconcile canonical-first, then re-run"
 fi
+if [ "$UNREADABLE" -gt 0 ]; then
+  log "${UNREADABLE} consumer path(s) UNREADABLE: neither synced nor classified; make them readable, then re-run"
+fi
 # Exit 3, not die's 1: by now the sync has written. 1 is reserved for
 # refusals that leave the consumer untouched.
 if [ "$MISSING" -gt 0 ]; then
@@ -803,4 +921,6 @@ if [ "$MISSING" -gt 0 ]; then
     "${MISSING} listed path(s) missing from canonical; fix the FILES/DIRS list or the tree" >&2
   exit 3
 fi
-[ "$AHEAD" -eq 0 ] || exit 2
+if [ "$AHEAD" -gt 0 ] || [ "$UNREADABLE" -gt 0 ]; then
+  exit 2
+fi

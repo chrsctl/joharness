@@ -409,3 +409,118 @@ if command -v script >/dev/null 2>&1 &&
 else
   skip "the conf-key ask itself" "no usable script(1) to allocate a tty"
 fi
+
+# --- .claude/settings.json: only the hooks key ships ---------------------
+# The hooks wire the harness in; every other key is the consumer's. Shipped
+# whole, one permission a consumer added made the file AHEAD and its hooks
+# never moved again.
+step "sync-to-consumer.sh settings.json hooks"
+
+printf '{\n  "hooks": {\n    "Stop": ["HOOK-V1"]\n  }\n}\n' \
+  >"${syncsrc}/.claude/settings.json"
+commit_all "$syncsrc" "settings hooks v1"
+printf '{\n  "hooks": {\n    "Stop": ["HOOK-V2-SENTINEL"]\n  }\n}\n' \
+  >"${syncsrc}/.claude/settings.json"
+commit_all "$syncsrc" "settings hooks v2"
+
+syncset="${TMP}/syncset"
+mkdir -p "$syncset"
+sync "$syncset" >/dev/null || :
+if command -v jq >/dev/null 2>&1; then
+  # No hooks at all is nothing of the consumer's to overwrite: canonical's
+  # are inserted — the fresh-bootstrap case, a repo with its own permissions.
+  printf '{"permissions":{"allow":["Bash(ls)"]}}\n' \
+    >"${syncset}/.claude/settings.json"
+  out="$(sync "$syncset")" && rc=0 || rc=$?
+  expect "hooks are inserted where the consumer has none" "HOOK-V2-SENTINEL" \
+    "$(cat "${syncset}/.claude/settings.json")"
+  expect "beside the consumer's own key" "Bash(ls)" \
+    "$(cat "${syncset}/.claude/settings.json")"
+  # Empty is not JSON: AHEAD, kept, never read as "no hooks".
+  : >"${syncset}/.claude/settings.json"
+  out="$(sync "$syncset")" && rc=0 || rc=$?
+  expect "an empty settings.json is AHEAD as not JSON" \
+    "AHEAD   .claude/settings.json (not valid JSON)" "$out"
+fi
+printf '{"permissions":{"allow":["Bash(ls)"]},"hooks":{"Stop":["HOOK-V1"]}}\n' \
+  >"${syncset}/.claude/settings.json"
+out="$(sync "$syncset")" && rc=0 || rc=$?
+if command -v jq >/dev/null 2>&1; then
+  refute "a consumer key of its own is not AHEAD" \
+    "AHEAD   .claude/settings.json" "$out"
+  expect "the hooks are updated" "HOOK-V2-SENTINEL" \
+    "$(cat "${syncset}/.claude/settings.json")"
+  expect "the consumer's own key is kept" "Bash(ls)" \
+    "$(cat "${syncset}/.claude/settings.json")"
+  if [ "$rc" -eq 0 ]; then
+    pass "a hooks-only update exits 0"
+  else
+    fail "a hooks-only update exits 0 (got ${rc})"
+  fi
+  # Hooks the consumer edited are an edit that belongs in canonical: AHEAD,
+  # file untouched — the same rule as every other harness-owned byte.
+  printf '{"permissions":{"allow":["Bash(ls)"]},"hooks":{"Stop":["MY-OWN-HOOK"]}}\n' \
+    >"${syncset}/.claude/settings.json"
+  out="$(sync "$syncset")" && rc=0 || rc=$?
+  expect "consumer-edited hooks are AHEAD" "AHEAD   .claude/settings.json" "$out"
+  expect "and the file is kept" "MY-OWN-HOOK" \
+    "$(cat "${syncset}/.claude/settings.json")"
+else
+  # No jq: today's whole-file check, and the report says why.
+  expect "without jq the file is compared whole" \
+    "AHEAD   .claude/settings.json" "$out"
+  expect "and the report says jq is absent" "jq absent" "$out"
+fi
+
+# --- a consumer read that yields no blob is UNREADABLE --------------------
+# in_history greps "^<blob>": an empty blob matches every object, so a failed
+# read made any consumer file canonical's — overwritten, or its layer handed
+# a `git rm -r`. A git whose hash-object answers nothing stands in for the
+# failed read (the selftest runs as root, where chmod cannot make one).
+syncfake="${TMP}/syncfakegit"
+mkdir -p "$syncfake"
+cat >"${syncfake}/git" <<FAKE
+#!/usr/bin/env bash
+for a in "\$@"; do [ "\$a" = hash-object ] && exit 0; done
+exec "$(command -v git)" "\$@"
+FAKE
+chmod +x "${syncfake}/git"
+# Paths canonical HAS history for, since only those can be vouched: an
+# unselected layer named like canonical's, and a canonical-only script.
+cp "${syncsrc}/.claude/settings.json" "${syncset}/.claude/settings.json"
+mkdir -p "${syncset}/.agents/env/aaa" "${syncset}/.agents/scripts"
+printf 'my own aaa\n' >"${syncset}/.agents/env/aaa/AGENTS.md"
+printf 'my own boot\n' >"${syncset}/.agents/scripts/bootstrap-consumer.sh"
+printf 'MY-OWN-CLAUDE-UNREAD\n' >"${syncset}/CLAUDE.md"
+out="$(PATH="${syncfake}:${PATH}" sync "$syncset")" && rc=0 || rc=$?
+expect "an unhashable synced file is UNREADABLE" "UNREADABLE CLAUDE.md" "$out"
+expect "and it is not overwritten" "MY-OWN-CLAUDE-UNREAD" \
+  "$(cat "${syncset}/CLAUDE.md")"
+expect "an unhashable layer is UNREADABLE" \
+  "unused  .agents/env/aaa (UNREADABLE" "$out"
+refute "and is never advised for deletion" "git rm -r .agents/env/aaa" "$out"
+expect "an unhashable canonical-only file is UNREADABLE" \
+  "UNREADABLE .agents/scripts/bootstrap-consumer.sh" "$out"
+refute "and its directory is never advised for deletion" \
+  "git rm -r .agents/scripts" "$out"
+if [ "$rc" -eq 2 ]; then
+  pass "an UNREADABLE path exits 2"
+else
+  fail "an UNREADABLE path exits 2 (got ${rc})"
+fi
+
+# Back to the fixture's own settings.json: sync-layer-only.sh reads syncsrc
+# next and counts what moves in syncdst.
+printf '{}\n' >"${syncsrc}/.claude/settings.json"
+commit_all "$syncsrc" "settings back to the fixture's"
+
+# A canonical without hooks takes the consumer's away, never writes a null.
+if command -v jq >/dev/null 2>&1; then
+  printf '{"permissions":{"allow":["Bash(ls)"]},"hooks":{"Stop":["HOOK-V2-SENTINEL"]}}\n' \
+    >"${syncset}/.claude/settings.json"
+  out="$(sync "$syncset")" && rc=0 || rc=$?
+  refute "canonical without hooks removes them" "hooks" \
+    "$(cat "${syncset}/.claude/settings.json")"
+  expect "and keeps the consumer's key" "Bash(ls)" \
+    "$(cat "${syncset}/.claude/settings.json")"
+fi
