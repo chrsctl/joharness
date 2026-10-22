@@ -7384,8 +7384,9 @@ cmd_session_start() {
   while IFS= read -r t; do
     [ -n "$t" ] && printf '  %s\n' "$t"
   done < <(protocol_paths)
-  printf 'One exception: a human/<stem> pull request labelled human-review,\n'
-  printf 'which a human merges (.claude/commands/manage.md §2).\n'
+  printf 'One exception: a manager'"'"'s human/<stem> pull request, labelled\n'
+  printf 'human-review, carrying the core edit only; a human still merges it\n'
+  printf '(.claude/commands/manage.md §2).\n'
   printf '\n'
 
   if name="$(resolve_env)"; then

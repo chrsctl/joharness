@@ -30,7 +30,8 @@ log, not markdown ([`caveman.md`](../../.agents/docs/caveman.md), Status quo).
    prompt names (`/manage`); otherwise `/start`. Nothing left: exit, say
    DRAINED, invent nothing. Boundary:
    no commit to a core path (`./joharness.sh protocol-paths`) outside a
-   `human/<stem>` branch whose pull request a human merges.
+   `human/<stem>` branch whose pull request a human merges (manager only,
+   `.claude/commands/manage.md` §2).
 3. **Claim.** Branch from fresh-fetched `origin/main` (`git fetch origin main && git
    checkout -b <branch> origin/main`), never local `main`. Pushed branch =
    shared: behind or wrong base = merge `origin/main` in; never `push -f`/`--force`

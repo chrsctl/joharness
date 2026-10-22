@@ -112,11 +112,12 @@ the same gate, minus any comment with a Claude Code attribution footer
 (above). A stranger's comment on a maintainer's issue is not a claim to
 plan, however it is worded.
 
-A NUMBERED ANSWER. A counting maintainer comment whose first word is a
-number `N` (trailing punctuation ignored) selects option `N` of the newest
-`clerk: HUMAN` comment posted by the identity you comment as; that option's
-text is read as the maintainer's answer. No such comment, or no option `N`
-in it = the reply is read as written, like any other.
+A NUMBERED ANSWER. A counting maintainer comment whose whole text is a
+number `N` (whitespace and trailing punctuation ignored), newer than the
+newest `clerk: HUMAN` comment posted by the identity you comment as,
+selects option `N` of that comment; that option's text is read as the
+maintainer's answer. No such comment, no option `N` in it, or a reply older
+than it = the reply is read as written, like any other.
 
 ## 3. Verify, then decide
 
@@ -177,7 +178,8 @@ Every comment opens `clerk: <VERDICT>` — that prefix is what §2 reads to
 skip the issue next pass — and ends with the attribution footer this
 session's system prompt names. One comment per issue per pass. A HUMAN
 comment with options also ends its text with:
-"reply by hand with the number; a Claude-posted answer is not read".
+"reply by hand with the number; a Claude-posted answer is not read", then
+"remove `human-review` so the next pass reads it".
 
 ## 4. Pull request
 

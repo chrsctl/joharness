@@ -500,6 +500,15 @@ expect "a clerk HUMAN comment asks for a hand-typed number" \
 expect "and marks the recommended option" "(recommended)" "$clerktext"
 expect "and the clerk reads a numbered reply as that option" \
   "selects option" "$clerktext"
+expect "only a reply that is just the number" "whose whole text is a" "$clerktext"
+expect "and only one newer than the question" \
+  "number \`N\` (whitespace and trailing punctuation ignored), newer than the" "$clerktext"
+expect "and the comment says the label must come off" \
+  "so the next pass reads it" "$clerktext"
+expect "a remainder needing the branch's files waits for it" \
+  "merge after <your branch> lands on main" "$mgrtext"
+expect "and an unlabelled remainder pull request blocks the retire" \
+  "or unlabelled." "$mgrtext"
 
 # A skipped `lint` checked nothing: the repository variable switches it off,
 # and step 7 must send the session to the local gate.

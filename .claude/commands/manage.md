@@ -105,20 +105,24 @@ opened before the retire commit, ready for a human to merge:
 1. A separate worktree from fresh-fetched `origin/main`, never your own
    tree: `git worktree add -b human/<stem> ../<repo>-human origin/main`.
 2. There, commit ONLY the core-path edit, run `./joharness.sh ci`, push
-   `human/<stem>`. This commit is the one exception to the boundary (Loop
+   `human/<stem>`. `ci` red only because the edit needs a file your branch
+   adds = the body leads with `merge after <your branch> lands on main`;
+   red for any other reason = fix it there first. This commit is the one exception to the boundary (Loop
    step 2) and to a spawn prompt's "never commit under those paths": it
    never lands on your branch, and a human merges it.
 3. `create_pull_request` from `human/<stem>`: title `human: <stem>: <edit,
    one line>`, body = the plan's reason, the `ci` result, and "merge is the
-   human's"; then label it `human-review` (`issue_write` `update`). You
+   human's"; then label it `human-review` (`issue_write` `update`), and read
+   the label back (`pull_request_read` `get`). You
    never merge it, never approve it, never relabel it, and never push to it
    again unless the human asks.
 4. `git worktree remove ../<repo>-human`.
 
 Your own pull request body says `Refs #<core PR>`. The pull request carries
-the plan's carve-out, nothing new. `create_pull_request` fails =
-`status: blocked`, `next:` = `github: human PR not opened: <error, 40
-chars>`, push, exit — never retire with it unopened.
+the plan's carve-out, nothing new. The push, `create_pull_request` or the
+label fails = step 4, then `status: blocked`, `next:` = `github: human PR
+not opened: <error, 40 chars>`, push, exit — never retire with it unopened
+or unlabelled.
 
 ## R. Surveyor: the one kind that edits OTHER plans
 
