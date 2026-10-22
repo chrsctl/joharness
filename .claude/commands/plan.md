@@ -38,9 +38,12 @@ Inline — no subagent.
      anchor.
    - **Traps** — Part 2 prohibitions this plan can trip, one line each.
      Two plans touching one file: name each other here.
-4. `./joharness.sh ci` — graph lint green (edges resolve, vocabulary
+4. `./joharness.sh curate --apply`, then `./joharness.sh curate`: fix by
+   hand what it still names on your plan (a `PROPOSE` line is the human's
+   — say it in the pull request body).
+5. `./joharness.sh ci` — graph lint green (edges resolve, vocabulary
    holds).
-5. Plans land on the base branch: direct push or small PR, human's call
+6. Plans land on the base branch: direct push or small PR, human's call
    for requirements applies (`.agents/docs/product/README.md`).
 
 $ARGUMENTS

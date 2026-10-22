@@ -707,6 +707,67 @@ pbg_denied "write-then-run is code"
 pbg '{"tool_name":"Bash","tool_input":{"command":"cat > /tmp/w.sh <<EOF\nwhile true; do sleep 1; done\nEOF\nchmod +x /tmp/w.sh && /tmp/w.sh"}}'
 pbg_denied "write, chmod, run by path is code"
 
+# --- #535: the bypass, the false denies and the cost ------------------------
+# A `timeout` bounds a loop only as the command that wraps it.
+pbg '{"tool_name":"Bash","tool_input":{"command":"echo timeout 5; while :; do sleep 1; done"}}'
+pbg_denied "the word timeout in an echo bounds nothing"
+pbg '{"tool_name":"Bash","tool_input":{"command":"timeout 5 curl -s http://x; while :; do sleep 1; done"}}'
+pbg_denied "a timeout on an earlier command does not wrap the loop"
+pbg '{"tool_name":"Bash","tool_input":{"command":"echo \"timeout 5\"; while :; do sleep 1; done"}}'
+pbg_denied "a quoted timeout in an echo bounds nothing"
+pbg '{"tool_name":"Bash","tool_input":{"command":"sudo timeout 5 bash -c \"while :; do sleep 1; done\""}}'
+pbg_allowed "a timeout behind sudo still wraps the shell holding the loop"
+# Loops that read a finite input end with it.
+pbg '{"tool_name":"Bash","tool_input":{"command":"while read l; do sleep 1; done < /tmp/f"}}'
+pbg_allowed "while read over a file is finite"
+pbg '{"tool_name":"Bash","tool_input":{"command":"cat /tmp/f | while IFS= read -r l; do sleep 1; done"}}'
+pbg_allowed "a pipe into while read is finite"
+pbg '{"tool_name":"Bash","tool_input":{"command":"tail -f /tmp/f | while read l; do sleep 1; done"}}'
+pbg_denied "a pipe from tail -f into while read does not end"
+# shellcheck disable=SC2016  # a JSON payload; the $ is text the guard reads
+pbg '{"tool_name":"Bash","tool_input":{"command":"while [ \"$(date +%s)\" -lt \"$deadline\" ]; do sleep 1; done"}}'
+pbg_allowed "a date compared with a deadline variable is a bound"
+# The same sleep, spelled another way.
+pbg '{"tool_name":"Bash","tool_input":{"command":"while :; do \"sleep\" 1; done"}}'
+pbg_denied "a quoted sleep waits like sleep"
+pbg '{"tool_name":"Bash","tool_input":{"command":"while :; do python3 -c \"import time; time.sleep(1)\"; done"}}'
+pbg_denied "time.sleep inside python -c waits like sleep"
+# Verifier r1: quoted arguments, other feeders, clock direction, wrappers.
+pbg '{"tool_name":"Bash","tool_input":{"command":"timeout 5 echo \"hi\"; while :; do sleep 1; done"}}'
+pbg_denied "a quoted argument does not hide the end of the timeout's command"
+pbg '{"tool_name":"Bash","tool_input":{"command":"FOO=1 timeout 60 bash -c '"'"'while :; do sleep 1; done'"'"'"}}'
+pbg_allowed "an env assignment before timeout still wraps the loop"
+pbg '{"tool_name":"Bash","tool_input":{"command":"sudo -u x timeout 60 bash -c '"'"'while :; do sleep 1; done'"'"'"}}'
+pbg_allowed "sudo with an option argument before timeout still wraps the loop"
+pbg '{"tool_name":"Bash","tool_input":{"command":"tail -n0 -f /tmp/f | while read l; do sleep 1; done"}}'
+pbg_denied "tail with another option before -f does not end"
+pbg '{"tool_name":"Bash","tool_input":{"command":"ping 1.1.1.1 | while read l; do sleep 1; done"}}'
+pbg_denied "a ping feeding while read does not end"
+pbg '{"tool_name":"Bash","tool_input":{"command":"while read l; do sleep 1; done"}}'
+pbg_denied "a bare while read reads the tool stdin, not a finite input"
+pbg '{"tool_name":"Bash","tool_input":{"command":"while read l; do sleep 1; done < /dev/console"}}'
+pbg_denied "while read from a device does not end"
+pbg '{"tool_name":"Bash","tool_input":{"command":"git log --grep nc | while read l; do sleep 1; done"}}'
+pbg_allowed "a word nc in a grep pattern is not the nc tool"
+# shellcheck disable=SC2016  # a JSON payload; the $ is text the guard reads
+pbg '{"tool_name":"Bash","tool_input":{"command":"while [ \"$(date +%s)\" -gt \"$d\" ]; do sleep 1; done"}}'
+pbg_denied "a clock compared the wrong way is no bound"
+# shellcheck disable=SC2016  # a JSON payload; the $ is text the guard reads
+pbg '{"tool_name":"Bash","tool_input":{"command":"while [ \"$(date +%s)\" -lt \"$d\" ] || true; do sleep 1; done"}}'
+pbg_denied "a deadline test with || true is no bound"
+# strip_heredocs is linear: 20,000 lines of body. 0.8 s here, 6 s on the CI
+# runner; the quadratic version took 67 s here, so 15 s tells them apart.
+pbg_big=""
+for _ in $(seq 1 20000); do pbg_big+='echo hello world line\n'; done
+pbg_t0=$SECONDS
+pbg '{"tool_name":"Bash","tool_input":{"command":"cat > /tmp/w.sh <<EOF\n'"$pbg_big"'EOF"}}'
+pbg_secs=$((SECONDS - pbg_t0))
+if [ "$pbg_rc" -eq 0 ] && [ "$pbg_secs" -lt 15 ]; then
+  pass "a 20,000-line heredoc reads in ${pbg_secs}s"
+else
+  fail "a 20,000-line heredoc: exit ${pbg_rc}, ${pbg_secs}s (wanted 0, < 15s)"
+fi
+
 pbg_gone="${TMP}/pbg-gone"
 mkdir -p "$pbg_gone"
 CLAUDE_PROJECT_DIR="$pbg_gone" bash -c "$pbg_reg" <"$pbg_deny_payload" >/dev/null 2>&1
