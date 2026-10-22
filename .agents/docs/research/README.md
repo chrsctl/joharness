@@ -1,7 +1,7 @@
 # Research queue
 
 Open questions with the standing of a plan. One file per question, under
-`docs/research/`, on `main`. Loop step 2 lists them beside plans, same
+`docs/research/`, on `main`. `dispatch` lists them beside plans, same
 ordering — oldest actionable first, urgent first if marked. No special rank:
 a plan blocked on an open question already drops out of the entrypoint, and
 that is rank enough.
