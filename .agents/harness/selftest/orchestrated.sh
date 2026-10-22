@@ -483,6 +483,24 @@ expect "and only when it reproduces on origin/main" \
 expect "and a failed filing never blocks the item" \
   "defect not filed:" "$mgrtext"
 
+# A core-path remainder is a ready pull request on its own branch, labelled
+# for a human, never an issue describing the edit; the session never merges it.
+expect "a human remainder is a human/<stem> pull request" \
+  "ONE pull request on branch" "$mgrtext"
+expect "named human/<stem>, cut from a separate worktree" \
+  "git worktree add -b human/<stem>" "$mgrtext"
+expect "and the session never merges it" "never merge it" "$mgrtext"
+refute "and no longer files an issue describing the edit" \
+  "remainder issue not filed" "$mgrtext"
+# A clerk HUMAN question takes a number: options, a recommendation, and the
+# hand-typed reply rule. Read as manage.md is read.
+clerktext="$(cat "${ROOT}/.claude/commands/clerk.md")"
+expect "a clerk HUMAN comment asks for a hand-typed number" \
+  "reply by hand with the number" "$clerktext"
+expect "and marks the recommended option" "(recommended)" "$clerktext"
+expect "and the clerk reads a numbered reply as that option" \
+  "selects option" "$clerktext"
+
 # A skipped `lint` checked nothing: the repository variable switches it off,
 # and step 7 must send the session to the local gate.
 # `.` stands for each backtick, which a single-quoted needle cannot hold

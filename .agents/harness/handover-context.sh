@@ -132,7 +132,8 @@ if [ "${JOHARNESS_SESSION_SOURCE:-}" = "compact" ]; then
   add ""
   # THE BOUNDARY THE MODE KEEPS, not the layer-coupling one.
   add "  .agents/harness/AGENTS.md — the Loop, and the boundary step 2"
-  add "  keeps: no commit to a core path (./joharness.sh protocol-paths)."
+  add "  keeps: no commit to a core path (./joharness.sh protocol-paths)"
+  add "  outside a human/<stem> branch whose pull request a human merges."
   add ""
   # One mode, so nothing to resolve: the role's command is the rules.
   add "  Mode: orchestrated."

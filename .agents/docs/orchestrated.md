@@ -424,7 +424,11 @@ The rules that bind every session.
   rule is a repository setting, the human's. A plan with ANY core path in
   `scope:` is marked `CORE ONLY` and de-ranked: acceptance is all-or-nothing,
   so a partly-core plan cannot be finished either. `.agents/env/` is not
-  core.
+  core. One exception, merged by a human: a manager's `human/<stem>`
+  pull request labelled `human-review`, carrying only the core-path edit its
+  plan leaves to a human, committed from a separate worktree, never on the
+  session's own branch, and never merged by a session
+  (`.claude/commands/manage.md` §2).
 - **A `CORE ONLY` plan is a wait on a human, and the verdict must say so.**
   With slots free and nothing left but `CORE ONLY` plans, `dispatch` reads
   `DRAINED` — true of the fleet, false of the queue: the orchestrator opens
@@ -464,7 +468,7 @@ The rules that bind every session.
   reviewer's `approved` comment, newer than the scout's newest footed
   `scout:` comment; closing the issue declines it.
 - **`human-review` label.** An agent applies it when it blocks on a human,
-  and to the issue holding its plan's human remainder
+  and to the `human/<stem>` pull request holding its plan's human remainder
   (`.agents/docs/plans/README.md`, "A human remainder"); a human applies it
   to hold an issue or pull request. It stops the clerk
   planning that issue and any session merging that pull request. Only a human
