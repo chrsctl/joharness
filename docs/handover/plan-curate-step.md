@@ -1,6 +1,6 @@
 ---
 workstream: plan-curate-step
-status: in-progress
+status: review
 branch: claude/plan-curate-step-k3m9
 pr: none
 plan: plan-curate-step
@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01CCZ4fdZD5RpRj9muS4KcgD
 agent: haiku
 updated: 2026-10-22
-next: ci (bounded 1800s, scratchpad ci.out) and verify; then edge review, retire and PR.
+next: ./joharness.sh finish, then PR and merge.
 ---
 
 ## Goal
@@ -33,3 +33,7 @@ None.
 
 - `.claude/commands/plan.md:41` — step 4, the `ci` line the new step precedes.
 - `.claude/commands/clerk.md:195` — the wording to mirror.
+
+## Review
+
+- r1: verifier (haiku) clean pass on the plan.md diff; ci pass, verify 6 passed 0 failed (no change)
