@@ -28,7 +28,13 @@ None yet.
 
 ## Review
 
-None yet.
+- r1: (verifier) Start step 3's appended duplicate exit made `Else yours to that` read as the duplicate title, so every fresh orchestrator retired itself (fixed: Else names `orchestrator: <owner/repo>`; needle, and refute on the old wording)
+- r2: (verifier) RUN END fired on non-exit DRAINED or PAUSED verdicts (in flight, role due), retiring a session with managers to watch (fixed: Ends = the two exit verdicts only; needle)
+- r3: (verifier) `/orchestrate` typed into a retired session re-titled it LIVE through step 3, contradicting `A retired title is final` (fixed: step 3 stops on its own retired or duplicate title; needle)
+- r4: (verifier) a keeper SWAP racing a human stop can roll the title back and run one pass after the stop (wontfix: same race SWAP's rollback already had; needs a refused create_session in the same minute; plan scopes out keeper changes)
+- r5: (verifier) more retired sessions now forward other sessions' messages to the LIVE orchestrator (no change: the receiver checks the lead stem as before; forwarding paragraph unchanged per plan)
+- r6: (verifier) any session able to retitle another can stop it with the retired title (no change: Retired check predates this diff)
+- r7: (verifier) Retired gloss and `no retire in this sense` unpinned (fixed: needles added)
 
 ## Blockers
 

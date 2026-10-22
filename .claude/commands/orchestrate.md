@@ -77,14 +77,17 @@ nothing. Never read a full queue and leave it untouched.
    `/orchestrate pass` wake (`list_triggers`: `run_once_at` set,
    `persistent_session_id` = its id) — IDLE between passes is alive. A
    retired or duplicate title (RUN END, SWAP) is never LIVE, whatever its
-   `session_status`.
+   `session_status`. Your own title already `orchestrator (retired):
+   <owner/repo>` or `orchestrator (duplicate): <owner/repo>` = report
+   `retired: <title>`, answer as §4's forwarding paragraph does, stop; the
+   next run starts in a fresh session.
    `list_sessions`: another LIVE one with an earlier `created_at` than
    yours = run step 5 report-only (no REGISTER, no replace), then exit,
    report its `updated_at`, `status_detail` and step 5's line. The older
    one proceeds, so two started together never both exit. The exit's last
    act: `set_session_title` yours to `orchestrator (duplicate):
    <owner/repo>` (RUN END, §4). Else
-   `set_session_title` yours to that. From the same result rebuild `@new`:
+   `set_session_title` yours to `orchestrator: <owner/repo>`. From the same result rebuild `@new`:
    each `manager: <stem>` not `ARCHIVED`, not in your ledger, whose item file
    still exists on `origin/main` (`git cat-file -e origin/main:<path>`) →
    ledger `<stem>@new respawns=<RESPAWN_LIMIT>`; report `rebuilt <stem>@new
@@ -480,7 +483,9 @@ duplicated>` and keep arming. RUN END's retitle is no retire in this
 sense: a run's end has nothing in flight to hand over and starts no
 successor.
 
-RUN END. A pass that ends at DRAINED or PAUSED arms nothing. Its last act,
+RUN END. A pass that ends at DRAINED or PAUSED arms nothing. Ends = the
+verdict `DRAINED — nothing free, nothing in flight: exit` or `PAUSED — …
+spawn nothing, exit`; any other DRAINED or PAUSED verdict is no end. Its last act,
 after the final report: `set_session_title` yours to `orchestrator
 (retired): <owner/repo>`, so the session list reads it as done and a wake
 that still fires does nothing (Pass entry, Retired). The same last act

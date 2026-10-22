@@ -274,7 +274,12 @@ for needle in 'arm as above with `retire=yes` on the `harness=` line, every pass
   'A retired or duplicate title (RUN END, SWAP) is never LIVE' \
   'Then RUN END'"'"'s retitle, last.' \
   'RUN END'"'"'s retitle was refused; a retired title refuses the order above' \
-  'SWAP — the one place the keeper retires an orchestrator'; do
+  'SWAP — the one place the keeper retires an orchestrator' \
+  'Else `set_session_title` yours to `orchestrator: <owner/repo>`.' \
+  '`orchestrator (duplicate): <owner/repo>` = report `retired: <title>`, answer as §4'"'"'s forwarding paragraph does, stop' \
+  'any other DRAINED or PAUSED verdict is no end' \
+  '(the keeper retired you at SWAP, or your own run ended, §4 RUN END)' \
+  'RUN END'"'"'s retitle is no retire in this sense'; do
   expect "orchestrate.md one-spawner rule spells ${needle}" "$needle" "$orcfold"
 done
 # A run that ends on its own retitles itself as its last act, after RETIRE
@@ -293,7 +298,8 @@ for needle in 'HANDED OFF' 'orchestrator (handed off):' 'hand-off skipped' \
   'your title is not exactly' \
   'You never start an orchestrator and never retire yourself' \
   'SWAP — the one place an orchestrator retires.' \
-  'No wake is pending (the run already ended at DRAINED or PAUSED)'; do
+  'No wake is pending (the run already ended at DRAINED or PAUSED)' \
+  'Else `set_session_title` yours to that.'; do
   refute "orchestrate.md no longer spells ${needle}" "$needle" "$orcfold"
 done
 orcdocfold="$(tr '\n' ' ' <"${ROOT}/.agents/docs/orchestrated.md" | tr -s ' ')"
