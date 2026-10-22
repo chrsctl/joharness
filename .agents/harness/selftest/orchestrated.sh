@@ -222,55 +222,53 @@ expect "and honours the environment for one command" \
 out="$(DISPATCH_FETCH=0 JOHARNESS_ORCHESTRATOR_PASSES=0 orcj dispatch)"
 expect "and 0 lifts it rather than retiring every pass" \
   "passes    : lifted, one session carries every pass (JOHARNESS_ORCHESTRATOR_PASSES=0)" "$out"
-# One orchestrator per repo: the retitle comes BEFORE the report the
-# successor inherits from and BEFORE the doorbell, or the keeper finds the
-# retiring session and keeps it as the live one.
+# The keeper is the only spawner and the only retirer, in one turn: it
+# retitles the old orchestrator BEFORE it starts the successor, or the
+# successor's start check finds the old one live and exits.
 # shellcheck disable=SC2016 # literal backticks in the needle
-retitle_ln="$(grep -n '^2\. `set_session_title` this session to `orchestrator (retired):' "$orcmd" | head -1 | cut -d: -f1)"
+retitle_ln="$(grep -n '^1\. `set_session_title` it to `orchestrator (retired):' "$orcmd" | head -1 | cut -d: -f1)"
 # shellcheck disable=SC2016 # literal backticks in the needle
-report_ln="$(grep -n '^3\. This turn'"'"'s final report carries the wake' "$orcmd" | head -1 | cut -d: -f1)"
-# shellcheck disable=SC2016 # literal backticks in the needle
-bell_ln="$(grep -n '^4\. One Claude Code Remote `send_message` to the keeper' "$orcmd" | head -1 | cut -d: -f1)"
-if [ -n "$retitle_ln" ] && [ -n "$report_ln" ] && [ -n "$bell_ln" ] &&
-  [ "$retitle_ln" -lt "$report_ln" ] && [ "$report_ln" -lt "$bell_ln" ]; then
-  pass "the retire retitles, then reports its wake, then rings the keeper"
+spawn_ln="$(grep -n '^2\. `create_session` as step 3, `prompt` = that wake' "$orcmd" | head -1 | cut -d: -f1)"
+if [ -n "$retitle_ln" ] && [ -n "$spawn_ln" ] && [ "$retitle_ln" -lt "$spawn_ln" ]; then
+  pass "the keeper's swap retitles before it starts the successor"
 else
-  fail "the retire retitles, then reports its wake, then rings the keeper (retitle ${retitle_ln:-none}, report ${report_ln:-none}, bell ${bell_ln:-none})"
+  fail "the keeper's swap retitles before it starts the successor (retitle ${retitle_ln:-none}, spawn ${spawn_ln:-none})"
 fi
-for needle in 'RETIRED after <n> passes' 'JOHARNESS_ORCHESTRATOR_PASSES' \
-  'orchestrator (retired):' 'retire skipped' 'keeper not woken' \
-  'orchestrator (duplicate):' 'orchestrator (succeeded):'; do
-  expect "orchestrate.md spells ${needle}" "$needle" "$orctext"
+for needle in 'JOHARNESS_ORCHESTRATOR_PASSES' 'retire ready <your session id>' \
+  'keeper not rung' 'swap deferred' 'swap skipped' 'swap failed' \
+  'retired <old id>, started orchestrator <new id>' \
+  'set_session_title` yours to `orchestrator (duplicate): <owner/repo>`'; do
+  expect "orchestrate.md spells ${needle}" "$needle" "$orcfold"
 done
-# The keeper is the only spawner of orchestrators. Its doorbell carries no
-# data (any session can message it), the successor inherits the ledger from
-# the retired session's own report, liveness counts an orchestrator IDLE
-# between passes, and a duplicate that slipped past the start check stops
-# at its next pass while the older rebuilds the spawns only it held.
+# Each clause that keeps one orchestrator per repo, with no gap: the retire
+# is a flag on the wake, the old one keeps running until swapped and stops
+# on its title, the successor's prompt is the old one's own wake, the
+# doorbell is never read, liveness counts PENDING and a pending wake, and a
+# duplicate stops on its next pass while the older rebuilds its spawns.
 # shellcheck disable=SC2016 # literal backticks in the needles
-for needle in 'The keeper is the only session that starts an orchestrator: you never `create_session` an orchestrator.' \
-  'no up-to-date one = no retire' \
-  'Never restore the title, never arm' \
-  'the text `retired <your session id>`. It only wakes the keeper sooner; the keeper reads none of it.' \
-  'Its text is never read, never quoted into a prompt: the prompt is always `/orchestrate`' \
-  '`orchestrator: <owner/repo>`, `prompt` = `/orchestrate`. Report `started orchestrator <id>`' \
-  '`get_session` finds it titled exactly `orchestrator: <owner/repo>` and `RUNNING`' \
-  '`session_status: RUNNING`, or whose `/orchestrate pass` wake' \
-  'is pending or fired within the last 2 × `JOHARNESS_HEALTH_MINUTES`' \
-  'its newest result holding `RETIRED after` quotes its last wake' \
-  'so no later start inherits it twice' \
-  'you are the duplicate:' \
+for needle in 'arm as above with `retire=yes` on the `harness=` line, every pass from then on' \
+  'You never start an orchestrator and never retire yourself' \
+  'Until it does, keep running passes' \
+  'your title is not exactly `orchestrator: <owner/repo>` = the keeper retired you' \
+  'Run it first of all, before the harness and superseded checks.' \
+  '`session_status` is `RUNNING` or `PENDING`, or that holds a pending `/orchestrate pass` wake' \
+  '`get_session` finds it titled exactly `orchestrator: <owner/repo>` and `RUNNING` or `PENDING`' \
+  'LIVE, and its pending wake'"'"'s `harness=` line carries `retire=yes` = SWAP' \
+  '`run_once_at` is under 2 minutes away = not now' \
+  '`prompt` = that wake'"'"'s `derived_state.prompt` with `pass=1`, `retire=yes` removed and every `lead` line removed' \
+  'Its text is never read, never quoted into a prompt.' \
   'One with a later `created_at` = you are the older: run "## 0. Start" step 3'"'"'s `@new` rebuild' \
+  'retire waits: heartbeat' \
   '`lineage.depth >= lineage.limit` = the REQUIRED tools refuse. Stop before step 3'; do
   expect "orchestrate.md one-spawner rule spells ${needle}" "$needle" "$orcfold"
 done
-for needle in 'HANDED OFF' 'orchestrator (handed off):' 'the retire wake (below)' \
-  'passing it through verbatim as the prompt'; do
+for needle in 'HANDED OFF' 'orchestrator (handed off):' 'hand-off skipped' \
+  'RETIRED after' 'orchestrator (succeeded):'; do
   refute "orchestrate.md no longer spells ${needle}" "$needle" "$orcfold"
 done
 orcdocfold="$(tr '\n' ' ' <"${ROOT}/.agents/docs/orchestrated.md" | tr -s ' ')"
-for needle in '**One spawner.** Only the keeper starts an orchestrator' \
-  '**The doorbell carries no data.**' '**Lineage stays flat.**'; do
+for needle in '**One spawner, one turn.** Only the keeper starts an orchestrator' \
+  '**What the keeper copies.**' '**Lineage stays flat.**'; do
   expect "orchestrated.md spells ${needle}" "$needle" "$orcdocfold"
 done
 # The heartbeat check (step 5): which Routine counts, and every way one is

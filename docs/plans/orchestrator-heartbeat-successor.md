@@ -17,26 +17,22 @@ raced the keeper's hourly wake and ran two orchestrators on one fleet.
 
 ## Scope
 
-- `.claude/commands/orchestrate.md` §4: HAND-OFF becomes RETIRE. At the
-  pass limit, with an up-to-date heartbeat: retitle `orchestrator
-  (retired): <owner/repo>`, quote the next wake (ledger, leads, `pass=1`)
-  in the final report, `send_message` the keeper `retired <id>` as a
-  doorbell, end. No heartbeat = keep arming in the same session.
-- "## 0. Start" step 3: LIVE = `RUNNING`, or a wake pending or fired
-  within 2 × `JOHARNESS_HEALTH_MINUTES`. Inherit the ledger from the newest
-  `orchestrator (retired)` session's report (`list_events`), retitle it
-  `orchestrator (succeeded)`.
-- Pass entry: Duplicate check; the newer exits, the older rebuilds `@new`.
-- "## Keeper": any message is a doorbell, never read; prompt always
-  `/orchestrate`; its last-started orchestrator counts LIVE while
-  `RUNNING`.
+- `.claude/commands/orchestrate.md` §4: HAND-OFF becomes RETIRE. Past the
+  pass limit the orchestrator keeps arming, its wake flagged `retire=yes`,
+  and rings the keeper once (`send_message`, text never read).
+- "## Keeper": SWAP. A LIVE orchestrator whose pending wake carries
+  `retire=yes`: retitle it `orchestrator (retired)`, then `create_session`
+  the successor with that wake as prompt (`pass=1`, no flag, no leads).
+- Pass entry: Retired (title no longer `orchestrator:` = do nothing) and
+  Duplicate (newer exits, older rebuilds `@new`).
+- "## 0. Start" step 3 and the keeper count `PENDING` and a pending wake
+  as LIVE.
 - `.agents/docs/orchestrated.md`, `.agents/harness/selftest/orchestrated.sh`,
   knob help in `joharness.sh`.
 
 ## Out of scope
 
-- `fire_trigger` on the heartbeat: refused in auto mode; the doorbell
-  needs no new permission.
+- `fire_trigger` on the heartbeat: refused in auto mode.
 
 ## Acceptance
 

@@ -33,8 +33,8 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 
 | Role | Tier | Runs as | Spawns | Owns | Ends when |
 | --- | --- | --- | --- | --- | --- |
-| orchestrator | low, mechanical on purpose | a session; the keeper starts one | manager sessions; never an orchestrator | the cap, the health pass, the kill handover | dispatch says DRAINED with nothing in flight, or at retire |
-| keeper | sonnet | one session per repo, `keeper: <owner/repo>`, woken hourly by the heartbeat | the only spawner of orchestrators: one a wake, hourly or on a retire message, when none is live (`create_session`) | nothing but that check | archived at the next REGISTER or replace |
+| orchestrator | low, mechanical on purpose | a session; the keeper starts one | manager sessions; never an orchestrator | the cap, the health pass, the kill handover | dispatch says DRAINED with nothing in flight, or the keeper retires it |
+| keeper | sonnet | one session per repo, `keeper: <owner/repo>`, woken hourly by the heartbeat | the only spawner of orchestrators: one a wake when none is live, or a successor when the live one's wake asks to retire (`create_session`) | nothing but that check | archived at the next REGISTER or replace |
 | manager | the item's `agent:`; fable at xhigh for an unplanned requirement | a session with its own branch, claim and merge | worker subagents (`Agent`) | one item, until its file retires | its pull request merges, or it blocks on a human |
 | worker | at or below the plan's tier, lower by default | a subagent in the manager's container | nothing | the files its sub-task names | it returns |
 | curator | sonnet | a session, on `curate DUE` with proposals to make; prelude `./joharness.sh role curate` | nothing | decompose/order proposals for ONE pass, changing no plan | its pull request merges |
@@ -127,9 +127,8 @@ sleep, never a poll:
    before any spawn.
 3. Spawn up to `slots`, in dispatch's order, skipping `HOLD`, `WAIT` and
    `NOT YOURS`.
-4. Schedule the next pass, or past `JOHARNESS_ORCHESTRATOR_PASSES` retire:
-   retitle, hand the ledger to the keeper, which starts the successor; end
-   the turn.
+4. Schedule the next pass; past `JOHARNESS_ORCHESTRATOR_PASSES` the wake
+   carries `retire=yes` and the keeper swaps in a successor; end the turn.
 
 A merge is read from git — the branch head is an ancestor of `origin/main`,
 and dispatch stops listing it. No message is needed for it; a freed slot is
@@ -380,7 +379,7 @@ or retired, at a tip; it carries `held Nd` from that commit.
 | `JOHARNESS_MAX_MANAGERS` | 4 | managers in flight at once — money | p90 of branches active in one clock hour on `main` |
 | `JOHARNESS_STALL_MINUTES` | 45 | no push this long = cross-check, nudge | p95 gap between commits on one branch (44m) |
 | `JOHARNESS_HEALTH_MINUTES` | 10 | one orchestrator pass every this many | between median commit gap (4) and its p75 (12) |
-| `JOHARNESS_ORCHESTRATOR_PASSES` | 6 | passes one orchestrator session carries before it retires and the keeper starts a successor with its ledger; 0 lifts it | written number: 304,615 tokens over 13 passes is about 23k a pass; six stay under 150k |
+| `JOHARNESS_ORCHESTRATOR_PASSES` | 6 | passes one orchestrator session carries before its wake asks the keeper to swap in a successor; 0 lifts it | written number: 304,615 tokens over 13 passes is about 23k a pass; six stay under 150k |
 | `JOHARNESS_RESPAWN_LIMIT` | 2 | respawns per item per orchestrator run | written number |
 | `JOHARNESS_MANAGER_HOURS` | 4 | claim older than this, no pull request = `CEILING?` report; 0 lifts it | one consumer run (issue #298) |
 | `JOHARNESS_CHURN_THRESHOLD` | 5 | one file rewritten this often = warning | `ci`'s knob; honest branches peak at 4 |
@@ -538,49 +537,43 @@ m, `usage.cost_usd` 12.65, `context_usage.used_tokens` 304,615,
 `cache_read_tokens` 26.4 M, against 0.23 to 0.37 USD for each session it
 supervised, because `send_later` wakes the SAME session and pass N re-reads
 passes 1..N-1. So after `JOHARNESS_ORCHESTRATOR_PASSES` passes the
-orchestrator retires: it retitles itself `orchestrator (retired):
-<owner/repo>`, quotes its next wake (ledger and leads) in its final
-report, rings the keeper, and ends (`orchestrate.md` §4, RETIRE); the pass
-count decides, never a control-plane field. The keeper starts the
-successor, which inherits that wake from the retired session's report
-(`list_events`) and retitles it `orchestrator (succeeded): <owner/repo>`.
+orchestrator's wake carries `retire=yes`, and it keeps running passes. The
+keeper, on its next wake or a doorbell, retitles it `orchestrator
+(retired): <owner/repo>` and starts the successor with that wake as its
+prompt, `pass=1`, no leads (`orchestrate.md` §4, RETIRE; "## Keeper",
+SWAP). The retired session's next wake does nothing. The pass count
+decides, never a control-plane field.
 
-**One spawner.** Only the keeper starts an orchestrator, and its turns run
-one at a time, so its hourly wake and a doorbell never both start one. A
-LIVE orchestrator (`orchestrate.md`, "## 0. Start" step 3) is `RUNNING` or
-has a wake pending or fired within two pass intervals, so one IDLE between
-passes still counts. Pass entry's duplicate check stops any second one on
-its next pass; the older rebuilds `@new` from manager titles, since the
-duplicate's unclaimed spawns live only in its ledger.
+**One spawner, one turn.** Only the keeper starts an orchestrator, and it
+retires the old one in the same turn it starts the new one. The old one
+works until then, so there is no gap; it is retitled before the new one
+exists, so there is no second fleet. A successor an orchestrator started
+itself would race the keeper's hourly wake. The keeper's turns run one at a time,
+so a doorbell and an hourly wake never both start one. Pass entry's
+duplicate check stops any second one a human start makes, and the older
+rebuilds `@new` from manager titles, since the duplicate's unclaimed spawns
+live only in its ledger.
 
-**The doorbell carries no data.** The keeper's message is
-`retired <id>`, and the keeper never reads it: any session can message the
-keeper, so a message that became a spawn prompt would let any session
-write an orchestrator's instructions. The ledger travels in the retired
-session's own report, written by the orchestrator itself. A lost doorbell
-delays the successor to the next hourly wake; it never doubles it.
-`fire_trigger` on the heartbeat with the ledger as `text` is refused in
-auto mode: from a manager session, 2026-10-22,
-`session_01KjRsJjm6q7mKQCqKQLbwJZ`, on `trig_01DJHYZQSaqgRPN35sebJqF8`,
-"Permission for this action was denied by the Claude Code auto mode
-classifier. Reason: [Interfere With Workloads]".
+**What the keeper copies.** The successor's prompt is the retired
+session's own pending wake: the text that session would have run itself,
+so the swap trusts nothing new. A doorbell's text is never read, so a
+session that messages the keeper can make it check sooner, never write a
+prompt.
 
 **Lineage stays flat.** A `create_session` child sits one level below its
 parent; a session reads its own `lineage` (`depth`, `limit`) only from
 `get_session` with no `session_id`. At `depth == limit`, `create_session`,
 `send_later` and every trigger call refuse ("No user or organization
-setting changes this limit"). gx's self-spawned chain (`get_session` on each
-`parent_session_id`, 2026-10-16) reached nine orchestrators, one level
-each, root depth 0, limit 8. Every orchestrator the keeper starts sits at
+setting changes this limit"). Every orchestrator the keeper starts sits at
 the keeper's depth plus one, so retiring never deepens. Without an
-up-to-date heartbeat the orchestrator does not retire: it keeps arming in
-the same session, and "## 0. Start" stops a session already at the cap
-with the reason in its push. Managers sit one level below their
-orchestrator; no role command calls `create_session` or `send_later`
-(`grep -n 'send_later\|create_session' .claude/commands/*.md`: only
-`orchestrate.md`). This is about the orchestrator; the
-"Fresh session for long waits — no" measurement in
-[`agent-selection.md`](agent-selection.md) covers managers.
+up-to-date heartbeat nothing swaps: the orchestrator keeps arming in the
+same session, and "## 0. Start" stops a session already at the cap with
+the reason in its push. Managers sit one level below their orchestrator;
+no role command calls `create_session` or `send_later` (`grep -n
+'send_later\|create_session' .claude/commands/*.md`: only
+`orchestrate.md`). This is about the orchestrator; the "Fresh session for
+long waits — no" measurement in [`agent-selection.md`](agent-selection.md)
+covers managers.
 
 ## Heartbeat: making the fleet long
 
@@ -594,9 +587,9 @@ title, never its prompt: prompt text (an argument, a ledger stem, a lead)
 is read by a model as a role notice, and an orchestrator that runs the
 keeper check starts another orchestrator. Each hourly wake, the keeper looks for a
 pending `/orchestrate pass` wake bound to an `orchestrator: <owner/repo>`
-session, or a `RUNNING` orchestrator it started itself; none = it starts
-a fresh orchestrator with `create_session`, prompt always `/orchestrate`.
-A retiring orchestrator's doorbell wakes it sooner. The orchestrators a
+session, or a `RUNNING` or `PENDING` orchestrator it started itself;
+none = it starts a fresh orchestrator with `create_session`. A live one
+whose wake carries `retire=yes` is swapped (above). The orchestrators a
 keeper starts sit at its depth plus one on every wake, so the fleet does
 not deepen. A replace re-roots the
 keeper at the replacing session's depth plus one, which is why REGISTER
@@ -635,9 +628,9 @@ session that is not the orchestrator it listed the gx orchestrator's
 pending `/orchestrate pass` wake with its `persistent_session_id` and
 `derived_state.prompt` (2026-10-16). An orchestrator mid-pass has no
 pending wake, so the keeper also counts the one it last started while
-that reads `RUNNING` (one `get_session`). A human-started one in its first
-start is still missed: the keeper starts a second, and "## 0. Start" step
-3 lets the older proceed and the newer exit. A DRAINED fleet
+that reads `RUNNING` or `PENDING` (one `get_session`). A human-started one
+in its first start is still missed: the keeper starts a second, and "## 0.
+Start" step 3 lets the older proceed and the newer exit. A DRAINED fleet
 costs one short orchestrator session an hour.
 
 The spec every orchestrator checks at start (`orchestrate.md`, "## 0.
