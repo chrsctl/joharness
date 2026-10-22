@@ -232,6 +232,10 @@ product finding either has a fix path, and `feedback` already serves it keyed
 on that path, or it has none (a `wontfix` or no-change), and no path-keyed
 destination can reach it. No third case, so no destination to build.
 
+A defect found OUTSIDE the edge's own change has no fix path in that edge: it
+goes to a `defect:` issue on the consumer's repo (`.claude/commands/manage.md`,
+"A DEFECT"), held by `human-review` until the owner releases it to the clerk.
+
 ## What this cannot see
 
 Named because a measure that hides its blind spots is worse than no measure:
