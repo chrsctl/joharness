@@ -546,10 +546,11 @@ decides, never a control-plane field.
 
 **One spawner, one turn.** Only the keeper starts an orchestrator, and it
 retires the old one in the same turn it starts the new one. The old one
-works until then, so there is no gap; it is retitled before the new one
-exists, so there is no second fleet. A successor an orchestrator started
-itself would race the keeper's hourly wake. The keeper's turns run one at a time,
-so a doorbell and an hourly wake never both start one. Pass entry's
+works until then; it is retitled before the new one
+exists, so there is no second fleet; the swap waits while the old one's
+wake is under 5 minutes away. A refused `create_session` after the
+retitle can leave none until the next hourly wake. A session runs one
+turn at a time, so a doorbell and an hourly wake never both start one. Pass entry's
 duplicate check stops any second one a human start makes, and the older
 rebuilds `@new` from manager titles, since the duplicate's unclaimed spawns
 live only in its ledger.

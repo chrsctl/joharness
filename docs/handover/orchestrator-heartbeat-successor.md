@@ -66,6 +66,14 @@ the successor with that wake as prompt.
 - r28: (verifier) a forged doorbell starts an orchestrator when none is LIVE (no change: the hourly wake would start the same one; it changes timing, never the prompt)
 - r29: (verifier) incident narrative and gx chain in the doc (fixed: incident moved to git log; mechanism only)
 - r30: r19-r23 come from fixes to r9-r10: churn, so the research step was the redesign to SWAP, which removes inheritance, the doorbell payload and the LIVE window instead of patching them
+- r31: (verifier) successor's first turn undefined; Start would empty the inherited ledger (fixed: successor runs Start, first-start ledger is the prompt's `ledger:` line)
+- r32: (verifier) Retired halted any orchestrator whose title set_session_title could not set (fixed: stops only on exactly the retired or duplicate title)
+- r33: (verifier) Pass entry ordered superseded first and Retired first at once (fixed: Retired bullet first, one order sentence, refute on the old one)
+- r34: (verifier) two pending wakes after an out-of-band arm (fixed: SWAP takes the highest pass=; a retired session's human-ordered spawn reads its title first)
+- r35: (verifier) a foreign trigger bound to the orchestrator could put any lines into the spawn prompt (fixed: wake shape check, only /orchestrate pass, harness=, ledger:, lead lines)
+- r36: (verifier) refused create_session after retitle can leave none for an hour (fixed: guard 5 minutes read off date -u, failure pushes, doc states the gap)
+- r37: (verifier) rejected path sentence in the doc (fixed: removed)
+- r38: (verifier) serial keeper turns stated as fact, unmeasured (no change: one session runs one turn at a time; worded as that mechanism)
 
 ## Blockers
 

@@ -249,12 +249,17 @@ done
 for needle in 'arm as above with `retire=yes` on the `harness=` line, every pass from then on' \
   'You never start an orchestrator and never retire yourself' \
   'Until it does, keep running passes' \
-  'your title is not exactly `orchestrator: <owner/repo>` = the keeper retired you' \
-  'Run it first of all, before the harness and superseded checks.' \
+  'your title is exactly `orchestrator (retired): <owner/repo>`' \
+  'Any other title is "## 0. Start" step 3'"'"'s matter, never a stop here.' \
+  'Run Retired first, then the superseded check' \
+  'The successor runs "## 0. Start" as any new session does, its ledger from its prompt.' \
+  'First start = the `ledger:` line of your prompt' \
+  'Its wake is the pending one with the highest `pass=`.' \
+  'anything else = report `swap skipped: wake shape <id>`, start nothing.' \
   '`session_status` is `RUNNING` or `PENDING`, or that holds a pending `/orchestrate pass` wake' \
   '`get_session` finds it titled exactly `orchestrator: <owner/repo>` and `RUNNING` or `PENDING`' \
   'LIVE, and its pending wake'"'"'s `harness=` line carries `retire=yes` = SWAP' \
-  '`run_once_at` is under 2 minutes away = not now' \
+  '`run_once_at` under 5 minutes from now' \
   '`prompt` = that wake'"'"'s `derived_state.prompt` with `pass=1`, `retire=yes` removed and every `lead` line removed' \
   'Its text is never read, never quoted into a prompt.' \
   'One with a later `created_at` = you are the older: run "## 0. Start" step 3'"'"'s `@new` rebuild' \
@@ -263,7 +268,8 @@ for needle in 'arm as above with `retire=yes` on the `harness=` line, every pass
   expect "orchestrate.md one-spawner rule spells ${needle}" "$needle" "$orcfold"
 done
 for needle in 'HANDED OFF' 'orchestrator (handed off):' 'hand-off skipped' \
-  'RETIRED after' 'orchestrator (succeeded):'; do
+  'RETIRED after' 'orchestrator (succeeded):' 'Run the superseded check first' \
+  'your title is not exactly'; do
   refute "orchestrate.md no longer spells ${needle}" "$needle" "$orcfold"
 done
 orcdocfold="$(tr '\n' ' ' <"${ROOT}/.agents/docs/orchestrated.md" | tr -s ' ')"
