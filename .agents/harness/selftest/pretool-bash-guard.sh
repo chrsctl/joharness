@@ -755,16 +755,17 @@ pbg_denied "a clock compared the wrong way is no bound"
 # shellcheck disable=SC2016  # a JSON payload; the $ is text the guard reads
 pbg '{"tool_name":"Bash","tool_input":{"command":"while [ \"$(date +%s)\" -lt \"$d\" ] || true; do sleep 1; done"}}'
 pbg_denied "a deadline test with || true is no bound"
-# strip_heredocs is linear: 20,000 lines of body.
+# strip_heredocs is linear: 20,000 lines of body. 0.8 s here, 6 s on the CI
+# runner; the quadratic version took 67 s here, so 15 s tells them apart.
 pbg_big=""
 for _ in $(seq 1 20000); do pbg_big+='echo hello world line\n'; done
 pbg_t0=$SECONDS
 pbg '{"tool_name":"Bash","tool_input":{"command":"cat > /tmp/w.sh <<EOF\n'"$pbg_big"'EOF"}}'
 pbg_secs=$((SECONDS - pbg_t0))
-if [ "$pbg_rc" -eq 0 ] && [ "$pbg_secs" -lt 2 ]; then
+if [ "$pbg_rc" -eq 0 ] && [ "$pbg_secs" -lt 15 ]; then
   pass "a 20,000-line heredoc reads in ${pbg_secs}s"
 else
-  fail "a 20,000-line heredoc: exit ${pbg_rc}, ${pbg_secs}s (wanted 0, < 2s)"
+  fail "a 20,000-line heredoc: exit ${pbg_rc}, ${pbg_secs}s (wanted 0, < 15s)"
 fi
 
 pbg_gone="${TMP}/pbg-gone"
