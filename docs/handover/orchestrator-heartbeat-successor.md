@@ -1,23 +1,31 @@
 ---
 workstream: orchestrator-heartbeat-successor
-status: blocked
+status: review
 branch: claude/orchestrator-heartbeat-successor
 pr: none
 plan: orchestrator-heartbeat-successor
 issue: none
-session: https://claude.ai/code/session_01KjRsJjm6q7mKQCqKQLbwJZ
+session: https://claude.ai/code/session_01UWVRaAaL6vGZGpyJizh88u
 agent: opus
 updated: 2026-10-22
-next: core path: auto-mode classifier refused fire_trigger on the keeper; allow it in .claude/settings.json, or take the prerequisite reading from an orchestrator by hand?
+next: ci + verify green, verifier, PR, merge
 ---
 
 ## Goal
 
-Fleet lives indefinitely and stays cheap: when an up-to-date heartbeat
-exists, the orchestrator's §4 hand-off fires the keeper with the ledger as
-payload instead of create_session, so lineage depth stays at keeper + 1.
+Only the keeper starts orchestrators. At the pass limit the orchestrator
+retires (retitle, send the keeper its next wake with the ledger, end); the
+keeper starts the successor with that wake as prompt. Lineage stays at
+keeper + 1; no duplicate fleets.
 
 ## Decisions
+
+- Human's call (2026-10-22, session_01UWVRaAaL6vGZGpyJizh88u): only the heartbeat spawns an orchestrator and the old one retires. Taken over from the blocked manager session_01KjRsJjm6q7mKQCqKQLbwJZ.
+- Retire wake by send_message to the keeper, not fire_trigger: fire_trigger is refused in auto mode; send_message is the nudge transport already allowed. Undelivered = next hourly wake starts one, ledger lost, never doubled.
+- No heartbeat up to date = no retire, keep arming in the same session (the create_session hand-off is removed, not a fallback).
+- Keeper also counts its last-started orchestrator LIVE while RUNNING (one get_session; list_sessions hourly stays too costly).
+- Pass entry duplicate check: an older LIVE orchestrator: session with a pending wake = this one retitles `orchestrator (duplicate)` and exits. Start step 3 counts a pending wake as LIVE, not only RUNNING.
+- Leads at retire are reported, not forwarded: no successor exists yet; a spawn prompt never carries a lead.
 
 - Prerequisite unmeasured, not failed: the manager's fire_trigger on the keeper heartbeat was refused by the auto-mode classifier (Interfere With Workloads), which answers neither plan question. The plan's either-no exit is not met, so no retire; nothing builds without the reading.
 - Block reason core path: the remedy a session can name is a fire_trigger allow rule in .claude/settings.json (core path), or a human taking the reading from an orchestrator. Reading recorded in orchestrated.md, Heartbeat.
@@ -39,7 +47,7 @@ payload instead of create_session, so lineage depth stays at keeper + 1.
 
 ## Blockers
 
-Prerequisite reading refused by the auto-mode classifier from a manager session. Unblock: a human allows fire_trigger (core path .claude/settings.json) or fires the keeper with a text payload from an orchestrator and records both readings; then resume this branch from the plan's Scope.
+None. The fire_trigger prerequisite no longer gates the build: the retire wake uses send_message.
 
 ## Where to look
 

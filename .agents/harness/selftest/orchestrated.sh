@@ -210,41 +210,52 @@ for pair in 'manage.md|github: GitHub MCP lost' 'manage.md|<reason>: <question>'
   f="${ROOT}/.claude/commands/${pair%%|*}"
   expect "${pair%%|*} spells ${pair#*|}" "${pair#*|}" "$(cat "$f")"
 done
-# The orchestrator hands off after a fixed pass count: the knob is the
+# The orchestrator retires after a fixed pass count: the knob is the
 # human's number, read off dispatch's header like every other one, and the
 # command spells every outcome the pass report can carry.
 out="$(DISPATCH_FETCH=0 orcj dispatch)"
-expect "dispatch prints the hand-off pass count with its default" \
+expect "dispatch prints the retire pass count with its default" \
   "passes    : 6 per orchestrator session (JOHARNESS_ORCHESTRATOR_PASSES)" "$out"
 out="$(DISPATCH_FETCH=0 JOHARNESS_ORCHESTRATOR_PASSES=3 orcj dispatch)"
 expect "and honours the environment for one command" \
   "passes    : 3 per orchestrator session (JOHARNESS_ORCHESTRATOR_PASSES)" "$out"
 out="$(DISPATCH_FETCH=0 JOHARNESS_ORCHESTRATOR_PASSES=0 orcj dispatch)"
-expect "and 0 lifts it rather than handing off every pass" \
+expect "and 0 lifts it rather than retiring every pass" \
   "passes    : lifted, one session carries every pass (JOHARNESS_ORCHESTRATOR_PASSES=0)" "$out"
-# One orchestrator per repo: the retitle comes BEFORE the spawn, or the
-# successor's exact-title check finds the predecessor and exits.
+# One orchestrator per repo: the retitle comes BEFORE the keeper wakes, or
+# the keeper finds the retiring session and keeps it as the live one.
 # shellcheck disable=SC2016 # literal backticks in the needle
-retitle_ln="$(grep -n '^2\. `set_session_title` this session to `orchestrator (handed off):' "$orcmd" | head -1 | cut -d: -f1)"
+retitle_ln="$(grep -n '^2\. `set_session_title` this session to `orchestrator (retired):' "$orcmd" | head -1 | cut -d: -f1)"
 # shellcheck disable=SC2016 # literal backticks in the needle
-spawn_ln="$(grep -n '^3\. `create_session`: `source_url`' "$orcmd" | head -1 | cut -d: -f1)"
-if [ -n "$retitle_ln" ] && [ -n "$spawn_ln" ] && [ "$retitle_ln" -lt "$spawn_ln" ]; then
-  pass "the hand-off retitles before it spawns the successor"
+wake_ln="$(grep -n '^3\. One Claude Code Remote `send_message` to the keeper' "$orcmd" | head -1 | cut -d: -f1)"
+if [ -n "$retitle_ln" ] && [ -n "$wake_ln" ] && [ "$retitle_ln" -lt "$wake_ln" ]; then
+  pass "the retire retitles before it wakes the keeper"
 else
-  fail "the hand-off retitles before it spawns the successor (retitle ${retitle_ln:-none}, spawn ${spawn_ln:-none})"
+  fail "the retire retitles before it wakes the keeper (retitle ${retitle_ln:-none}, wake ${wake_ln:-none})"
 fi
-for needle in 'HANDED OFF' 'JOHARNESS_ORCHESTRATOR_PASSES' \
-  'orchestrator (handed off):' 'hand-off skipped' 'hand-off failed'; do
+for needle in 'RETIRED after <n> passes' 'JOHARNESS_ORCHESTRATOR_PASSES' \
+  'orchestrator (retired):' 'retire skipped' 'keeper not woken' \
+  'orchestrator (duplicate):'; do
   expect "orchestrate.md spells ${needle}" "$needle" "$orctext"
 done
-# The hand-off stops one level short of the control plane's lineage cap: a
-# successor AT the cap can neither spawn nor arm, and strands the fleet.
+# The keeper is the only spawner of orchestrators: the retire hands the
+# ledger to it, it passes the retire wake through as the prompt, it counts
+# the RUNNING orchestrator it started as live, and a duplicate that slipped
+# past the start check stops at its next pass.
 # shellcheck disable=SC2016 # literal backticks in the needles
-for needle in 'present and NOT `depth + 1 < limit` = no hand-off' \
-  'hand-off skipped: lineage <depth>/<limit>' '[capped=<depth>]' \
+for needle in 'The keeper is the only session that starts an orchestrator: you never `create_session` an orchestrator.' \
+  'no up-to-date one = no retire' \
+  '`prompt` = the retire wake (below) when this turn carries one, else `/orchestrate`' \
+  'whose text starts `/orchestrate pass` and whose next line starts `harness=`' \
+  'retire wake dropped: orchestrator live: <id>' \
+  'the orchestrator your last `started orchestrator <id>` report named' \
+  'it holds a pending `/orchestrate pass` wake' \
+  'you are the duplicate:' \
   '`lineage.depth >= lineage.limit` = the REQUIRED tools refuse. Stop before step 3'; do
-  expect "orchestrate.md lineage guard spells ${needle}" "$needle" "$orcfold"
+  expect "orchestrate.md one-spawner rule spells ${needle}" "$needle" "$orcfold"
 done
+refute "orchestrate.md no longer spawns an orchestrator successor itself" \
+  "HANDED OFF" "$orcfold"
 orcdocfold="$(tr '\n' ' ' <"${ROOT}/.agents/docs/orchestrated.md" | tr -s ' ')"
 # The heartbeat check (step 5): which Routine counts, and every way one is
 # not up to date. Each needle is the clause that makes one reason fire; the
