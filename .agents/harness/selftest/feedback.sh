@@ -304,3 +304,63 @@ expect "a numbered merge labels its finding with the pull request" \
 unl="$(jf feedback cold.sh | { grep -F 'carried by an unnumbered merge' || :; })"
 expect "an unnumbered merge still reports its finding" "r1:" "$unl"
 refute "an unnumbered merge invents no pull request number" "PR" "$unl"
+
+# --- parser edge fixes ------------------------------------------------------
+# Functions under test are cut out of joharness.sh and run alone, so a case
+# reads the function and nothing the CLI wraps around it.
+pe_fn() { # <fn>... -- <command>: run <command> with those functions defined
+  local fns=() f
+  while [ "$1" != "--" ]; do fns+=("$1"); shift; done; shift
+  for f in "${fns[@]}"; do
+    sed -n "/^${f}() {/,/^}/p" "${ROOT}/joharness.sh"
+  done >"${TMP}/pe_fns.sh"
+  # shellcheck disable=SC1091
+  ( set -o pipefail; export CONF="${PE_CONF:-/nonexistent}"
+    . "${TMP}/pe_fns.sh"; eval "$*" ) 2>&1
+}
+expect "a verdict word inside the text is not the verdict" "unmarked" \
+  "$(pe_fn fb_marker -- 'fb_marker "r1: a wontfix of the no change rule, then fixed (see below)"')"
+expect "a trailing (fixed) is the verdict" "fixed" \
+  "$(pe_fn fb_marker -- 'fb_marker "r1: a bug (fixed: in abc (really))"')"
+expect "a trailing (wontfix: why) is the verdict" "wontfix" \
+  "$(pe_fn fb_marker -- 'fb_marker "r1: x (wontfix: why)"')"
+expect "a trailing (no change) is the verdict" "no-change" \
+  "$(pe_fn fb_marker -- 'fb_marker "r1: x (no change)"')"
+refute "a mid-line (fixed) with prose after it is no verdict" "fixed" \
+  "$(pe_fn fb_marker -- 'fb_marker "r1: x (fixed) and then more"')"
+out="$(printf '## Review\n\n- r1: first\n    deeper (fixed)\n- r2: second\n\tcontinued (wontfix: z)\n' |
+  pe_fn fb_findings -- fb_findings)"
+expect "a 4-space continuation folds into its bullet" "r1: first deeper (fixed)" "$out"
+expect "a tab continuation folds into its bullet" "r2: second continued (wontfix: z)" "$out"
+out="$(JOHARNESS_FEEDBACK_EDGES=abc jf feedback)"
+refute "a non-number edge limit is not an arithmetic error" "integer expression" "$out"
+refute "a non-number edge limit does not abort" "syntax error" "$out"
+mkdir -p "${TMP}/fbcache"
+out="$(pe_fn fb_cache_save -- 'fb_cache_key() { echo k; }; FB_HIST=h FB_PAIRS=p FB_CACHE_VARS="FB_EDGES FB_FIXED" FB_EDGES=3 FB_FIXED=7 JOHARNESS_FEEDBACK_CACHE="'"${TMP}"'/fbcache" fb_cache_save; cat "'"${TMP}"'/fbcache/fb-k.vars"')"
+expect "cache save writes each variable as name=value" "FB_EDGES=3" "$out"
+
+# --- parser edge fixes: review, issue, config, churn ---------------------------
+out="$(printf '## Review\n\n- r1: long\n    tagged on a deep line (verifier)\n' | pe_fn review_marks -- review_marks)"
+expect "a verifier tag on a 4-space continuation counts" "1 1" "$out"
+out="$(printf '## Review\n\n- r1: long\n\ttagged on a tab line (verifier)\n' | pe_fn review_marks -- review_marks)"
+expect "a verifier tag on a tab continuation counts" "1 1" "$out"
+out="$(pe_fn issue_verdict -- 'issue_verdict "#0100"')"
+expect "leading zeros are stripped, not everything up to the last 0" "is not #100" "$out"
+out="$(pe_fn issue_verdict -- 'issue_verdict "0105"')"
+expect "a zero inside the number survives" "is not #105" "$out"
+printf 'JOHARNESS_CANONICAL=10\n' >"${TMP}/pe_canon10.conf"
+printf '  JOHARNESS_CANONICAL = 1  # yes\n' >"${TMP}/pe_canon1.conf"
+out="$(PE_CONF="${TMP}/pe_canon10.conf" pe_fn conf_get is_canonical -- 'is_canonical && echo canonical || echo consumer')"
+expect "=10 is not canonical" "consumer" "$out"
+out="$(PE_CONF="${TMP}/pe_canon1.conf" pe_fn conf_get is_canonical -- 'is_canonical && echo canonical || echo consumer')"
+expect "spaced =1 with a comment is canonical" "canonical" "$out"
+# shellcheck disable=SC2016
+out="$(pe_fn ci_churn -- 'num_knob() { case "$1" in JOHARNESS_CHURN_THRESHOLD) echo 0;; *) echo "${2:-0}";; esac; }; churn_top() { printf "9\thot.sh\n"; }; ci_churn')"
+refute "CHURN_THRESHOLD=0 lifts the warning" "touched in" "$out"
+expect "CHURN_THRESHOLD=0 reads quiet" "quiet" "$out"
+out="$(pe_fn issue_verdict -- 'issue_verdict "#000"')"
+expect "an all-zero number is no issue #0, not an empty one" "no issue #0" "$out"
+out="$(JOHARNESS_FEEDBACK_EDGES=99999999999999999999 jf feedback)"
+refute "an oversized edge limit does not wrap" "integer expression" "$out"
+expect "a trailing period after the verdict still counts" "fixed" \
+  "$(pe_fn fb_marker -- 'fb_marker "r1: x (fixed)."')"

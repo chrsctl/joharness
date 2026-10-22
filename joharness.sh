@@ -87,6 +87,8 @@ conf_get() {
     "$CONF" | tail -1
 }
 
+is_canonical() { [ "$(conf_get JOHARNESS_CANONICAL)" = 1 ]; }
+
 # --- Knobs
 
 # Every key the script reads, declared once: KEY|default|scope|meaning.
@@ -268,7 +270,7 @@ UPGRADE_CLONE=""
 
 cmd_upgrade() {
   local repo engine rc=0 dry=0 a
-  grep -q '^JOHARNESS_CANONICAL=1' "$CONF" 2>/dev/null &&
+  is_canonical &&
     die "this IS the canonical harness; upgrade is for consumers (sync out with .agents/scripts/sync-to-consumer.sh)"
 
   if [ "${JOHARNESS_UPGRADE_IN_SESSION:-0}" != "1" ]; then
@@ -490,7 +492,7 @@ ci_churn() {
     printf '  (.agents/docs/agent-selection.md, review churn). Genuine large rework?\n'
     printf '  JOHARNESS_CHURN_LIMIT=0 lifts the gate, on the record.\n'
     return 1
-  elif [ "$churn_n" -ge "$threshold" ]; then
+  elif [ "$threshold" -gt 0 ] && [ "$churn_n" -ge "$threshold" ]; then
     printf '  %s touched in %s commits on this branch\n' "$churn_f" "$churn_n"
     printf '  Fix undoing an earlier fix? Stop patching — research step at raised\n'
     printf '  tier or effort first (.agents/docs/agent-selection.md, review churn).\n'
@@ -876,7 +878,8 @@ lint_unknown_types() {
 # workstream claim, the plan's `issue:` (the clerk's PLANNED edge) and the
 # clerk's two lists.
 issue_verdict() {
-  local iss="$1"
+  local iss="$1" n
+  n="${iss#\#}"; n="${n#"${n%%[!0]*}"}"
   case "$iss" in
     '' | none) printf 'none'; return 0 ;;
     '#'[0-9]* | [0-9]*) ;;
@@ -884,9 +887,8 @@ issue_verdict() {
   esac
   case "${iss#\#}" in
     *[!0-9]*) printf 'bad not a number' ;;
-    0) printf 'bad there is no issue #0' ;;
-    0*) printf 'bad leading zero; #%s is not #%s, so a reader scanning for their own number misses it' \
-          "${iss#\#}" "${iss##*0}" ;;
+    0*) if [ -z "$n" ]; then printf 'bad there is no issue #0'; else printf 'bad leading zero; #%s is not #%s, so a reader scanning for their own number misses it' \
+          "${iss#\#}" "$n"; fi ;;
     *) printf 'ok %s' "${iss#\#}" ;;
   esac
 }
@@ -994,7 +996,7 @@ lint_graph() {
         lint_red "${rel}: was a node — this history carried 'research: ${fstem}'" \
           "and the file no longer does. Restore the frontmatter or delete the" \
           "file; dropping the block is not how a node leaves the queue"
-      elif grep -q '^JOHARNESS_CANONICAL=1' "$CONF" 2>/dev/null; then
+      elif is_canonical; then
         # Silent in a consumer, where the document is the legitimate case.
         lint_warn "${rel}: a document, not a node — no research: key and no" \
           "plan routes to it. A consumer keeps documents here; canonical does not"
@@ -1114,7 +1116,7 @@ ship_array() {
 ship_load() {
   [ "$SHIP_LOADED" -eq 0 ] || return 0
   [ -r "${ROOT}/${SHIP_ENGINE}" ] || return 1
-  grep -q '^JOHARNESS_CANONICAL=1' "$CONF" 2>/dev/null || return 1
+  is_canonical || return 1
   local x
   SHIP_FILES=(); SHIP_DIRS=(); SHIP_CANON=(); SHIP_CANON_DIRS=()
   while IFS= read -r x; do [ -n "$x" ] && SHIP_FILES+=("$x"); done < <(ship_array FILES)
@@ -1437,7 +1439,7 @@ review_marks() {
                                 buf = ""; in_r = 0 }
     in_r && /^- /             { if (tagged(buf)) t = 1
                                 buf = substr($0, 3); n++; next }
-    in_r && /^  [^ ]/         { buf = buf " " $0 }
+    in_r && /^(  |\t)[ \t]*[^ \t]/ { buf = buf " " $0 }
     END                       { if (in_r && tagged(buf)) t = 1
                                 print (n + 0) " " (t + 0) }'
 }
@@ -1594,7 +1596,10 @@ fb_edges() {
 
 # Every edge costs a git show per commit, so a repo with thousands of them
 # would make this measure something nobody runs twice.
-FB_LIMIT="${JOHARNESS_FEEDBACK_EDGES:-50}"
+case "${JOHARNESS_FEEDBACK_EDGES:-50}" in
+  '' | *[!0-9]* | ??????????*) FB_LIMIT=50 ;;
+  *) FB_LIMIT="${JOHARNESS_FEEDBACK_EDGES:-50}" ;;
+esac
 # Recurrence is scored over a SLIDING window, not all of history.
 case "${JOHARNESS_RECURRENCE_WINDOW-8}" in
   '' | *[!0-9]*)
@@ -1638,18 +1643,23 @@ fb_findings() {
     /^## Review[[:space:]]*$/ { r = 1; next }
     /^## /                    { if (r && buf != "") print buf; buf = ""; r = 0 }
     r && /^- /                { if (buf != "") print buf; buf = substr($0, 3); next }
-    r && /^  [^ ]/            { buf = buf " " $0; gsub(/  +/, " ", buf) }
+    r && /^(  |\t)[ \t]*[^ \t]/ { buf = buf " " $0; gsub(/[ \t][ \t]+/, " ", buf) }
     END                       { if (r && buf != "") print buf }'
 }
 
 fb_marker() {
-  case "$1" in
-    *wontfix*)                 printf 'wontfix' ;;
-    *"no change"* | *"No change"*) printf 'no-change' ;;
-    *'(fixed'*)                printf 'fixed' ;;
-    *"clean pass"* | *"Clean pass"*) printf 'no-change' ;;
-    *)                         printf 'unmarked' ;;
-  esac
+  local t="${1%"${1##*[![:space:]]}"}"
+  # Verdict = the line's trailing parenthetical; one nesting level allowed.
+  local body='([^()]|\([^()]*\))*\)\.?$'
+  if [[ "$t" =~ \(wontfix${body} ]]; then printf 'wontfix'
+  elif [[ "$t" =~ \([Nn]o\ change${body} ]]; then printf 'no-change'
+  elif [[ "$t" =~ \(fixed${body} ]]; then printf 'fixed'
+  else
+    case "$t" in
+      *"clean pass"* | *"Clean pass"*) printf 'no-change' ;;
+      *) printf 'unmarked' ;;
+    esac
+  fi
 }
 
 # ONE definition of the form fb_fix_map can key on: an `r`, one or more digits,
@@ -2003,7 +2013,7 @@ fb_cache_save() {
   # Write then rename: two hooks firing at once must never read half a cache.
   {
     for v in $FB_CACHE_VARS; do
-      eval "printf '%s=%s\n' \"\$v\" \"\${$v}\""
+      printf '%s=%s\n' "$v" "${!v}"
     done
   } >"${f}.vars.$$" 2>/dev/null || return 0
   printf '%s' "$FB_HIST" >"${f}.hist.$$" 2>/dev/null || return 0
@@ -2179,7 +2189,7 @@ cmd_upstream() {
   printf '== upstream\n\n'
 
   # Canonical stops here, and it is not a courtesy.
-  if grep -q '^JOHARNESS_CANONICAL=1' "$CONF" 2>/dev/null; then
+  if is_canonical; then
     printf 'CANONICAL — this repo IS the harness. A finding here is already where\n'
     printf 'its fix lands (.agents/docs/consumer-repos.md, Direction rule): record it\n'
     printf 'under ## Review and fix it on the branch. Nothing to route.\n'
@@ -2521,7 +2531,7 @@ cmd_analysis() {
 
   printf '== analysis (a read for a human; nothing files it)\n\n'
 
-  if grep -q '^JOHARNESS_CANONICAL=1' "$CONF" 2>/dev/null; then
+  if is_canonical; then
     printf 'CANONICAL — this repo IS the harness. A condition measured here is already\n'
     printf 'where its fix lands (.agents/docs/consumer-repos.md, Direction rule):\n'
     printf 'record it under ## Review and fix it on the branch. Nothing to route.\n'
@@ -4080,7 +4090,7 @@ role_rows() {
 }
 
 # The first report line matching an ERE, empty when none.
-role_line() { printf '%s\n' "$ROLE_OUT" | grep -m1 -E -- "$1"; }
+role_line() { grep -m1 -E -- "$1" <<<"$ROLE_OUT"; }
 
 # This branch's own claim files: `docs/handover/<role>-<digit>…` at HEAD and
 # not the base branch's copy. Scout and curate claim by one; clerk and conduct
@@ -4915,7 +4925,7 @@ checks_gate() {
   printf '  head       %s, pushed, clean, %s\n' \
     "$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null)" "$behind_said"
   printf '\n  == %s ci\n' "$0"
-  if "$0" ci; then
+  if "${ROOT}/joharness.sh" ci; then
     if have shellcheck; then
       printf '  ci: pass\n'
     else
@@ -4931,7 +4941,7 @@ checks_gate() {
 
   if checks_verify_needed "$ref"; then
     printf '\n  == %s verify (diff touches non-*.md harness code)\n' "$0"
-    if "$0" verify; then
+    if "${ROOT}/joharness.sh" verify; then
       printf '  verify: pass\n'
     else
       printf '  verify: FAILED — not mergeable\n'
@@ -5188,7 +5198,7 @@ cmd_conf() {
         else pair="${CONF}"$'\t'"default"; fi ;;
       JOHARNESS_CANONICAL)
         # Every reader greps the conf for the line; the environment is never seen.
-        if grep -q '^JOHARNESS_CANONICAL=1' "$CONF" 2>/dev/null; then
+        if is_canonical; then
           pair="1"$'\t'"conf"
         else pair="$d"$'\t'"default"; fi ;;
       JOHARNESS_RECURRENCE_WINDOW)
@@ -7324,7 +7334,7 @@ cmd_env() {
     if [ ! -d "${ENV_ROOT}/${want}" ]; then
       # Canonical carries every layer, so a name it does not have is a typo and
       # dies here.
-      if grep -q '^JOHARNESS_CANONICAL=1' "$CONF" 2>/dev/null; then
+      if is_canonical; then
         die "no such layer .agents/env/${want} (try: $0 env)"
       fi
       warn "no .agents/env/${want} here yet; selection written, the next harness" \
@@ -7399,7 +7409,7 @@ cmd_session_start() {
   printf 'printed here. Orchestrator: dispatch is the whole read — open no\n'
   printf 'plan, requirement or other branch. Manager: your item, this\n'
   printf 'branch'"'"'s workstream file, the item'"'"'s own anchors.\n'
-  if ! grep -q '^JOHARNESS_CANONICAL=1' "$CONF" 2>/dev/null; then
+  if ! is_canonical; then
     printf 'Harness source is read through its .md docs and command output,\n'
     printf 'never by opening joharness.sh or the scripts.\n'
   fi

@@ -232,3 +232,8 @@ commit_all "$role_twin" "sibling plan"
 git -C "$role_twin" push -q origin clerk-1999-01-01
 expect "a same-cycle sibling sorting first stops the clerk" "STOP: TWIN clerk-1999-01-01" \
   "$(role_last "$(role_run ./joharness.sh role clerk --twin)")"
+
+# --- role_line under pipefail -----------------------------------------------
+out="$(sed -n '/^role_line() /p' "${ROOT}/joharness.sh" >"${TMP}/pe_rl.sh"
+  bash -c 'set -o pipefail; . "$1"; ROLE_OUT="$(yes "GO a line" | head -n 200000)"; role_line "^GO"; echo "rc=$?"' _ "${TMP}/pe_rl.sh" 2>&1)"
+expect "role_line on a large report does not exit 141" "rc=0" "$out"

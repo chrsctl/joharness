@@ -391,3 +391,9 @@ expect "session start says what finish will do" \
   "does NOT wait for GitHub Actions" "$out"
 out="$(kc_session)"
 refute "session start is silent under the default" "== Checks: LOCAL" "$out"
+
+# --- finish runs ci by absolute path ----------------------------------------
+out="$(cd "$kcwork" && CLAUDE_PROJECT_DIR="$kcwork" JOHARNESS_CONF="${kcwork}/joharness.conf" \
+  JOHARNESS_CHECKS=local GITHUB_ACTIONS='' bash joharness.sh finish 2>&1)"
+refute "bash joharness.sh finish does not fail ci with 127" "ci: FAILED" "$out"
+expect "bash joharness.sh finish reaches ci and passes" "ci: pass" "$out"
