@@ -43,6 +43,16 @@ Core-path remainder (ci.yml `[ -f ]` guard) goes to a `human/` pull request.
 
 ## Review
 
+- r1: new selftest cases red on the tests-only commit: `bash .agents/harness/selftest.sh` 2026-10-22 = 3016 passed, 10 failed, all 10 the new cases (no change)
+- r2: (verifier) own-layer deletion refute passed without the fix: layer had no canonical history (fixed: cases use layer aaa and canonical-only .agents/scripts/bootstrap-consumer.sh, both with history)
+- r3: (verifier) bootstrap refusal advised moving .gitattributes/settings into AGENTS.md and dropped the jq-absent note (fixed: per-kind advice, engine note lines passed through)
+- r4: (verifier) unreadable settings.json read as AHEAD not JSON (fixed: unreadable checked first)
+- r5: (verifier) empty settings.json reported as hooks AHEAD (fixed: empty = AHEAD not valid JSON, case added)
+- r6: (verifier) canonical settings.json parse failure died mid-write with exit 1 (fixed: checked in preflight)
+- r7: (verifier) update.yml labels exit 2 as AHEAD, summary line omits UNREADABLE (wontfix: update.yml is a core path; the engine logs the UNREADABLE count on its own line)
+- r8: (verifier) hooks insert and canonical-without-hooks paths untested; only one jq branch runs per machine (fixed: both paths have cases; the branch split stays, jq cannot be hidden from PATH without rebuilding it)
+- r9: ci shellcheck SC2012 on a new test message (fixed: ls dropped)
+
 ## Blockers
 
 None.

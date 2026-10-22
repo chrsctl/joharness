@@ -441,7 +441,7 @@ expect "refusal says how to fix it" "below '# Part 2 — project'" "$out"
 if [ "$bootown_before" = "$(tree_sum "$bootown")" ]; then
   pass "refused bootstrap writes nothing"
 else
-  fail "refused bootstrap writes nothing ($(ls -A "$bootown" | tr '\n' ' '))"
+  fail "refused bootstrap writes nothing"
 fi
 out="$(boot "$bootown")" && rc=0 || rc=$?
 refute "a rerun is not refused as already running the harness" \

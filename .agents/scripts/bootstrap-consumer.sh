@@ -658,9 +658,12 @@ bootstrap_fresh() {
       bash "$SYNC_ENGINE" --dry-run "$DEST" </dev/null \
       >"${SCRATCH}/preflight" 2>&1 || pre=$?
     if [ "$pre" -ne 0 ]; then
-      if awk '$1 == "AHEAD" || $1 == "UNREADABLE" { f = 1; print } END { exit !f }' \
-        "${SCRATCH}/preflight" >&2; then
-        die "bootstrap refused, nothing written: '${DEST}' holds its own copy of the harness-owned path(s) above. Move that content into AGENTS.md below '${MARKER}' (the repo's own section; CLAUDE.md only imports AGENTS.md), or rename the file, then re-run."
+      # The engine's notes ride along: "jq absent" is the fix for a
+      # settings.json AHEAD, and no advice below can stand in for it.
+      if awk '$1 == "AHEAD" || $1 == "UNREADABLE" { f = 1 }
+        $1 == "AHEAD" || $1 == "UNREADABLE" || $1 == "note" { print }
+        END { exit !f }' "${SCRATCH}/preflight" >&2; then
+        die "bootstrap refused, nothing written: the harness would overwrite the path(s) above. CLAUDE.md: move its content into AGENTS.md below '${MARKER}', the repo's own section (CLAUDE.md only imports AGENTS.md). Any other AHEAD file: move it aside, bootstrap, then merge your lines back by hand — later syncs report it AHEAD and keep it. UNREADABLE: make it readable. Then re-run."
       fi
       cat "${SCRATCH}/preflight" >&2
       exit "$pre"

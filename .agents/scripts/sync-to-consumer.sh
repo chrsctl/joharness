@@ -337,6 +337,12 @@ preflight() {
     refuse_bad_src "$rel"
     refuse_bad_dst "$rel"
   done
+  # sync_settings reads canonical's hooks mid-run; a canonical that does
+  # not parse is a structural refusal, so it dies here, before any write.
+  if command -v jq >/dev/null 2>&1 && [ -f "${ROOT}/${SETTINGS}" ] &&
+    ! jq empty "${ROOT}/${SETTINGS}" 2>/dev/null; then
+    die "canonical ${SETTINGS} is not valid JSON"
+  fi
   for dir in "${DIRS[@]}"; do
     [ -d "${ROOT}/${dir}" ] || continue
     dir_tracked "$dir" >"$(tracked_file "$dir")"
@@ -476,9 +482,14 @@ sync_file() {
 SETTINGS=.claude/settings.json
 sync_settings() {
   local src="${ROOT}/${SETTINGS}" dst="${DEST}/${SETTINGS}" want have c known=0
-  want="$(jq -S -c '.hooks' "$src")" ||
-    die "canonical ${SETTINGS} is not valid JSON"
-  if ! have="$(jq -S -c '.hooks' "$dst" 2>/dev/null)"; then
+  # Canonical parses: preflight refused otherwise, before any write.
+  want="$(jq -S -c '.hooks' "$src")"
+  if [ ! -r "$dst" ]; then
+    unreadable "$SETTINGS"
+    return 0
+  fi
+  # Empty is not JSON either: jq reads no value and prints nothing.
+  if ! have="$(jq -S -c '.hooks' "$dst" 2>/dev/null)" || [ -z "$have" ]; then
     printf '  AHEAD   %s (not valid JSON)\n' "$SETTINGS"
     warn "${SETTINGS}: consumer copy is not valid JSON; NOT overwritten."
     AHEAD=$((AHEAD + 1))

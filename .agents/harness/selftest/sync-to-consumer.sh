@@ -426,6 +426,22 @@ commit_all "$syncsrc" "settings hooks v2"
 syncset="${TMP}/syncset"
 mkdir -p "$syncset"
 sync "$syncset" >/dev/null || :
+if command -v jq >/dev/null 2>&1; then
+  # No hooks at all is nothing of the consumer's to overwrite: canonical's
+  # are inserted — the fresh-bootstrap case, a repo with its own permissions.
+  printf '{"permissions":{"allow":["Bash(ls)"]}}\n' \
+    >"${syncset}/.claude/settings.json"
+  out="$(sync "$syncset")" && rc=0 || rc=$?
+  expect "hooks are inserted where the consumer has none" "HOOK-V2-SENTINEL" \
+    "$(cat "${syncset}/.claude/settings.json")"
+  expect "beside the consumer's own key" "Bash(ls)" \
+    "$(cat "${syncset}/.claude/settings.json")"
+  # Empty is not JSON: AHEAD, kept, never read as "no hooks".
+  : >"${syncset}/.claude/settings.json"
+  out="$(sync "$syncset")" && rc=0 || rc=$?
+  expect "an empty settings.json is AHEAD as not JSON" \
+    "AHEAD   .claude/settings.json (not valid JSON)" "$out"
+fi
 printf '{"permissions":{"allow":["Bash(ls)"]},"hooks":{"Stop":["HOOK-V1"]}}\n' \
   >"${syncset}/.claude/settings.json"
 out="$(sync "$syncset")" && rc=0 || rc=$?
@@ -469,17 +485,24 @@ for a in "\$@"; do [ "\$a" = hash-object ] && exit 0; done
 exec "$(command -v git)" "\$@"
 FAKE
 chmod +x "${syncfake}/git"
+# Paths canonical HAS history for, since only those can be vouched: an
+# unselected layer named like canonical's, and a canonical-only script.
 cp "${syncsrc}/.claude/settings.json" "${syncset}/.claude/settings.json"
-mkdir -p "${syncset}/.agents/env/own"
-printf 'own layer\n' >"${syncset}/.agents/env/own/AGENTS.md"
+mkdir -p "${syncset}/.agents/env/aaa" "${syncset}/.agents/scripts"
+printf 'my own aaa\n' >"${syncset}/.agents/env/aaa/AGENTS.md"
+printf 'my own boot\n' >"${syncset}/.agents/scripts/bootstrap-consumer.sh"
 printf 'MY-OWN-CLAUDE-UNREAD\n' >"${syncset}/CLAUDE.md"
 out="$(PATH="${syncfake}:${PATH}" sync "$syncset")" && rc=0 || rc=$?
 expect "an unhashable synced file is UNREADABLE" "UNREADABLE CLAUDE.md" "$out"
 expect "and it is not overwritten" "MY-OWN-CLAUDE-UNREAD" \
   "$(cat "${syncset}/CLAUDE.md")"
 expect "an unhashable layer is UNREADABLE" \
-  "unused  .agents/env/own (UNREADABLE" "$out"
-refute "and is never advised for deletion" "git rm -r .agents/env/own" "$out"
+  "unused  .agents/env/aaa (UNREADABLE" "$out"
+refute "and is never advised for deletion" "git rm -r .agents/env/aaa" "$out"
+expect "an unhashable canonical-only file is UNREADABLE" \
+  "UNREADABLE .agents/scripts/bootstrap-consumer.sh" "$out"
+refute "and its directory is never advised for deletion" \
+  "git rm -r .agents/scripts" "$out"
 if [ "$rc" -eq 2 ]; then
   pass "an UNREADABLE path exits 2"
 else
@@ -490,3 +513,14 @@ fi
 # next and counts what moves in syncdst.
 printf '{}\n' >"${syncsrc}/.claude/settings.json"
 commit_all "$syncsrc" "settings back to the fixture's"
+
+# A canonical without hooks takes the consumer's away, never writes a null.
+if command -v jq >/dev/null 2>&1; then
+  printf '{"permissions":{"allow":["Bash(ls)"]},"hooks":{"Stop":["HOOK-V2-SENTINEL"]}}\n' \
+    >"${syncset}/.claude/settings.json"
+  out="$(sync "$syncset")" && rc=0 || rc=$?
+  refute "canonical without hooks removes them" "hooks" \
+    "$(cat "${syncset}/.claude/settings.json")"
+  expect "and keeps the consumer's key" "Bash(ls)" \
+    "$(cat "${syncset}/.claude/settings.json")"
+fi
