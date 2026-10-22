@@ -104,7 +104,7 @@ KNOBS='JOHARNESS_ENV|none|conf|Directory under .agents/env/ this repo provisions
 JOHARNESS_ENV_SETUP|lazy|conf|lazy = provision on demand; eager = at session start.
 JOHARNESS_ENV_MD|lazy|conf|lazy = inject a pointer to the layer rules; eager = the file whole.
 JOHARNESS_REVIEW|off|conf|off = review reports only; on = ci gates the record at the edge.
-JOHARNESS_CHECKS|github|conf|github = step 7 waits for GitHub checks; local = finish runs ci and verify here.
+JOHARNESS_CHECKS|github|session|Environment only. github = step 7 waits for GitHub checks; local = finish runs ci and verify here; a conf line is ignored.
 JOHARNESS_MAX_MANAGERS|4|dispatch|Managers in flight at once; 0 pauses spawning.
 JOHARNESS_STALL_MINUTES|45|dispatch|No push this long = cross-check, nudge.
 JOHARNESS_HEALTH_MINUTES|10|dispatch|One orchestrator pass every this many minutes.
@@ -180,7 +180,13 @@ review_on() {
 }
 
 # Who answers step 7's first merge condition.
-checks_mode() { printf '%s' "${JOHARNESS_CHECKS:-$(conf_get JOHARNESS_CHECKS)}"; }
+# The environment only: a conf line never switches local mode on.
+checks_mode() { printf '%s' "${JOHARNESS_CHECKS:-}"; }
+
+# True when joharness.conf says local and the environment does not.
+checks_conf_ignored() {
+  [ "$(conf_get JOHARNESS_CHECKS)" = local ] && ! checks_local
+}
 
 checks_local() {
   local v; v="$(checks_mode)"
@@ -4788,9 +4794,10 @@ checks_gate() {
   if [ "$is_local" != 1 ]; then
     printf '\nchecks: github. The checks on this head, read on GitHub, are step 7'"'"'s\n'
     printf 'first merge condition — this command does not read them (no network, no\n'
-    printf 'token). Not waiting for Actions is a per-repo choice: JOHARNESS_CHECKS=local\n'
-    printf 'in joharness.conf, or in the environment for one command, makes this\n'
-    printf 'command run ci and verify here instead and be red on their result.\n'
+    printf 'token). Not waiting for Actions is a per-environment choice:\n'
+    printf 'JOHARNESS_CHECKS=local in the environment (never joharness.conf, which\n'
+    printf 'is ignored) makes this command run ci and verify here instead and be\n'
+    printf 'red on their result.\n'
     return 0
   fi
 
@@ -4972,6 +4979,9 @@ cmd_finish() {
     run_check checks checks_gate "$ref" "$branch" 0 1
   fi
 
+  if checks_conf_ignored; then
+    printf 'checks: joharness.conf sets JOHARNESS_CHECKS=local, which is ignored: only the environment switches local mode on. This finish is github mode.\n'
+  fi
   if [ "$CHECK_FAILS" -ne 0 ]; then
     printf 'finish: FAIL (%s)\n' "$CHECK_FAILS"
     return 1
@@ -5101,6 +5111,9 @@ cmd_conf() {
       HANDOVER_STALE_SECONDS) pair="$(knob_numeric_line "$k" "$d")" ;;
       JOHARNESS_CHURN_LIMIT)
         pair="$(knob_numeric_line "$k" "$(( $(num_knob JOHARNESS_CHURN_THRESHOLD) * 2 ))")" ;;
+      JOHARNESS_CHECKS)
+        pair="$(knob_text_line "$k" "$d" session)"
+        if checks_conf_ignored; then pair="${pair}; (joharness.conf says local: IGNORED)"; fi ;;
       JOHARNESS_CONF)
         if [ -n "${JOHARNESS_CONF:-}" ]; then pair="${CONF}"$'\t'"env"
         else pair="${CONF}"$'\t'"default"; fi ;;
@@ -7369,6 +7382,8 @@ cmd_session_start() {
     printf 'non-*.md harness code — and is red on what they say. It refuses a head\n'
     printf 'that is not what merges: uncommitted or untracked paths, unpushed tip,\n'
     printf 'or behind the base branch. Every other step 7 condition unchanged.\n\n'
+  elif checks_conf_ignored; then
+    printf '== Checks: github (joharness.conf JOHARNESS_CHECKS=local IGNORED: set it in the environment) ==\n\n'
   fi
 
   # This branch's own files, nothing fleet-wide, no queue.

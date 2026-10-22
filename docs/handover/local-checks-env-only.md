@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01XDfMcAZF772MxQSAvf5q9M
 agent: sonnet
 updated: 2026-10-22
-next: Build the plan's scope in joharness.sh, then selftests and docs
+next: Wait for ci+verify results (run in progress), fix reds, then review, issue for human remainder, retire, PR
 ---
 
 ## Goal

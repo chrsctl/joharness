@@ -361,3 +361,26 @@ expect "session start says what finish will do" \
   "does NOT wait for GitHub Actions" "$out"
 out="$(kc_session)"
 refute "session start is silent under the default" "== Checks: LOCAL" "$out"
+
+# --- a conf line never switches local mode on ------------------------------
+# The conf sits outside the worktree so it cannot make the tree dirty.
+kcconf="${TMP}/checks-local.conf"
+printf 'JOHARNESS_CHECKS=local\n' >"$kcconf"
+kc_finish_conf() {
+  CLAUDE_PROJECT_DIR="$kcwork" JOHARNESS_CONF="$kcconf" \
+    GITHUB_ACTIONS='' "${kcwork}/joharness.sh" finish 2>&1
+}
+out="$(env -u JOHARNESS_CHECKS bash -c "$(declare -f kc_finish_conf); kcwork='${kcwork}'; kcconf='${kcconf}'; kc_finish_conf")"
+expect "a conf-only local line is named as ignored" \
+  "joharness.conf sets JOHARNESS_CHECKS=local, which is ignored" "$out"
+expect "and the finish is github mode" "checks: github." "$out"
+refute "and nothing ran here" "ci: pass" "$out"
+out="$(JOHARNESS_CHECKS=local kc_finish_conf)"
+expect "the same conf with the environment value is local mode" \
+  "finish: pass (ci and verify ran here: JOHARNESS_CHECKS=local)" "$out"
+refute "and prints no ignored line" "which is ignored" "$out"
+out="$(env -u JOHARNESS_CHECKS CLAUDE_PROJECT_DIR="$kcwork" JOHARNESS_CONF="$kcconf" \
+  "${kcwork}/joharness.sh" session-start </dev/null 2>/dev/null)"
+expect "session start names the ignored conf line" \
+  "joharness.conf JOHARNESS_CHECKS=local IGNORED" "$out"
+refute "and does not announce local checks" "== Checks: LOCAL" "$out"
