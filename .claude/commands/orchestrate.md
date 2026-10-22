@@ -71,12 +71,15 @@ nothing. Never read a full queue and leave it untouched.
    before step 3 takes the title; report and `PushNotification` `lineage
    <depth>/<limit>: this session cannot spawn or arm; start a fresh
    orchestrator session`. No `lineage` field, or no `get_session` = proceed.
-3. One orchestrator per repo. `list_sessions`: another session titled
-   `orchestrator: <owner/repo>` with `session_status: RUNNING` and an
-   earlier `created_at` than yours = run step 5 report-only (no REGISTER,
-   no replace), then exit, report its `updated_at`, `status_detail` and
-   step 5's line. The older one proceeds, so two started together never
-   both exit. Else
+3. One orchestrator per repo. A LIVE orchestrator: a session titled
+   exactly `orchestrator: <owner/repo>`, not `ARCHIVED`, whose
+   `session_status` is `RUNNING` or `PENDING`, or that holds a pending
+   `/orchestrate pass` wake (`list_triggers`: `run_once_at` set,
+   `persistent_session_id` = its id) — IDLE between passes is alive.
+   `list_sessions`: another LIVE one with an earlier `created_at` than
+   yours = run step 5 report-only (no REGISTER, no replace), then exit,
+   report its `updated_at`, `status_detail` and step 5's line. The older
+   one proceeds, so two started together never both exit. Else
    `set_session_title` yours to that. From the same result rebuild `@new`:
    each `manager: <stem>` not `ARCHIVED`, not in your ledger, whose item file
    still exists on `origin/main` (`git cat-file -e origin/main:<path>`) →
@@ -142,15 +145,23 @@ nothing. Never read a full queue and leave it untouched.
    another cadence or another binding.
 
 The ledger comes from your wake message (step 4), never from memory. First
-start = empty.
+start = the `ledger:` line of your prompt (a SWAP successor's, "##
+Keeper"), else empty.
 
 ## Pass entry (every pass, before "## 1. Read")
 
 `git fetch origin main`, then read two fields off the wake message, like the
 ledger — never from memory: `harness=` and `pass=`. Missing = `harness`
 mismatch (report `<old>` as `none`), `pass=1`.
-First start = `pass=1`. Run the superseded check first: a superseded pass
-does nothing, so it re-reads and fast-forwards nothing.
+First start = `pass=1`. Run Retired first, then the superseded check: a
+retired or superseded pass does nothing, so it re-reads and fast-forwards
+nothing.
+
+- **Retired.** `get_session` (no `session_id`): your title is exactly
+  `orchestrator (retired): <owner/repo>` (the keeper retired you, "##
+  Keeper", SWAP) or `orchestrator (duplicate): <owner/repo>` = report
+  `retired: <title>`, do nothing, schedule nothing. Any other title is
+  "## 0. Start" step 3's matter, never a stop here.
 
 - **Harness.** `harness=` vs the first 12 characters of `git show
   origin/main:.claude/commands/orchestrate.md | git hash-object --stdin`.
@@ -165,10 +176,17 @@ does nothing, so it re-reads and fast-forwards nothing.
   session's (`persistent_session_id` = your id). Another one
   carrying a higher `pass=` than yours = report `superseded by pass <m>`, do
   nothing, schedule nothing.
-- Limit: the check sees only this session's wakes. A second orchestrator
-  session (or a heartbeat-fired one) arms its own; two orchestrators running
-  is "## 0. Start" step 3's job, not this field's. No `list_triggers` = say so
-  once, skip the superseded check, keep the `harness=` check.
+- **Duplicate.** From the superseded check's answer, each other session's
+  pending `/orchestrate pass` wake: `get_session` each distinct
+  `persistent_session_id`. One that is a LIVE orchestrator ("## 0. Start"
+  step 3) with an earlier `created_at` than yours = `set_session_title`
+  yours to `orchestrator (duplicate): <owner/repo>`, report `duplicate of
+  <id>: exiting`, spawn nothing, schedule nothing. One with a later
+  `created_at` = you are the older: run "## 0. Start" step 3's `@new`
+  rebuild this pass (its unclaimed spawns live only in its ledger), report
+  `duplicate <id> seen: rebuilt @new`.
+- No `list_triggers` = say so once, skip the superseded and duplicate
+  checks, keep the `harness=` check.
 
 ## 1. Read
 
@@ -413,8 +431,8 @@ Ledger every spawn the moment it returns as `<stem>@new`.
 
 ```
 /orchestrate pass
-harness=<first 12 chars of git hash-object of origin/main:.claude/commands/orchestrate.md> pass=<this pass's number plus one>
-ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] [unratified=<head>] [notified=<stem>] [held-human=<pr>] respawns=<n> [rescoped=<key>] [corewait=<stem>[,<stem>]] [curated=<stamp>[+human]] [clerked=<stamp>[+human]] [scouted=<stamp>[+human]] [conducted=<stamp>[+human]] [capped=<depth>]; ...
+harness=<first 12 chars of git hash-object of origin/main:.claude/commands/orchestrate.md> pass=<this pass's number plus one> [retire=yes]
+ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] [unratified=<head>] [notified=<stem>] [held-human=<pr>] respawns=<n> [rescoped=<key>] [corewait=<stem>[,<stem>]] [curated=<stamp>[+human]] [clerked=<stamp>[+human]] [scouted=<stamp>[+human]] [conducted=<stamp>[+human]]; ...
 lead <stem>: <40 chars, to the end of this line>
 ```
 
@@ -437,63 +455,37 @@ Drop it at once, unprinted, when dispatch marks that stem `CORE ONLY`.
 Recompute `harness=` at every arm from fresh `origin/main`; never copy it from
 the wake you received.
 
-HAND-OFF. The `pass=` this arm would write exceeds dispatch's `passes :`
-line (`JOHARNESS_ORCHESTRATOR_PASSES`; `lifted` = never) = hand off instead
-of arming, in this order. Pass N of one session re-reads passes 1..N-1; the
-wake already holds all a pass needs (why: `.agents/docs/orchestrated.md`,
-"Start each run fresh"). The pass count decides, never `used_tokens` or
-`cost_usd`. `pass=` is the wake counter: an out-of-band arm (below) advances
-it too.
+RETIRE. The `pass=` this arm would write exceeds dispatch's `passes :`
+line (`JOHARNESS_ORCHESTRATOR_PASSES`; `lifted` = never) = arm as above
+with `retire=yes` on the `harness=` line, every pass from then on. Pass N
+of one session re-reads passes 1..N-1; the wake already holds all a pass
+needs (why: `.agents/docs/orchestrated.md`, "Start each run fresh"). The
+pass count decides, never `used_tokens` or `cost_usd`. `pass=` is the wake
+counter: an out-of-band arm (below) advances it too.
 
-1. Read this session (`get_session`, no `session_id`). Lineage first:
-   `lineage` (`depth`, `limit`) present and NOT `depth + 1 < limit` = no
-   hand-off. The successor is this session's child at `depth + 1`; at
-   `limit` it can neither `create_session` nor `send_later`, holds the
-   fleet and does nothing for it. Arm `send_later` as above (the pass count
-   is a cost tune; a stranded fleet costs more) and report `hand-off
-   skipped: lineage <depth>/<limit>: start a fresh orchestrator session`.
-   The ledger lacks run-scoped `capped=<depth>` = `PushNotification` that
-   line once and add the key. No `lineage` field = the rest of this step
-   decides alone. Model to copy:
-   `configured_model`, else `session_context.model`. Neither present, no
-   `set_session_title`, or no Claude Code Remote `send_message` (steps 4 and
-   the forward need it) = no hand-off this pass: arm `send_later` as above
-   and report `hand-off skipped: <model unreadable | no set_session_title |
-   no send_message>`. You never pick a tier, so no readable model, no
-   hand-off.
-2. `set_session_title` this session to `orchestrator (handed off):
-   <owner/repo>`, so the successor's "## 0. Start" step 3 no longer matches
-   it. Retitle BEFORE the spawn: one orchestrator per repo. Refused or
-   erroring = no hand-off: arm `send_later` as above, report `hand-off
-   skipped: set_session_title refused`.
-3. `create_session`: `source_url` = `git remote get-url origin` (omit it and
-   the successor has no `/orchestrate`, same mechanism as the Manager bullet),
-   `clone_depth: 5000`, `model` = step 1's, `title` = `orchestrator:
-   <owner/repo>`, `prompt` = the wake above with `pass=1` and NO `lead`
-   lines (a spawn prompt never carries a lead). Fails or refused =
-   `set_session_title` back to `orchestrator: <owner/repo>`, arm `send_later`
-   as above, report `hand-off failed: <error>`; the pass is otherwise
-   unchanged. That restore refused too = report `title not restored`, every
-   pass, as the `set_session_title` row of the Tools table reports.
-4. Each `lead` line this arm would have written (the wake's, plus those
-   noted since, stem-checked as above): one Claude Code Remote
-   `send_message` to the successor's id, the line verbatim — the channel a
-   manager's lead already uses. Not delivered = report `lead not forwarded:
-   <stem>`; the lead is lost, never retried.
-5. Report `HANDED OFF to <session id> after <n> passes`, `<n>` = this pass's
-   `pass=`. End the turn. Arm nothing.
+You never start an orchestrator and never retire yourself: the keeper does
+both in one turn ("## Keeper", SWAP), from the wake you armed. Until it
+does, keep running passes; no gap, no second fleet. The first pass that
+arms `retire=yes`: one Claude Code Remote `send_message` to the keeper
+(the heartbeat's `persistent_session_id`), `priority` `later`, text
+`retire ready <your session id>`, so the swap comes before the hourly
+wake. Not delivered = report `keeper not rung: swap at the next hourly
+wake`. No up-to-date heartbeat ("## 0. Start" step 5) = no keeper to swap
+you: report `retire waits: heartbeat <not registered | stale |
+duplicated>` and keep arming.
 
-The successor runs "## 0. Start" as any new session does. A pass that ends
-at DRAINED or PAUSED arms nothing and hands off nothing; the out-of-band arm
-below never hands off, the pass it wakes does.
+A pass that ends at DRAINED or PAUSED arms nothing; the out-of-band arm
+below carries `retire=yes` when the pending wake does.
 
-A session titled `orchestrator (handed off): …` woken by a message from
-another session (a manager spawned before the hand-off carries its id as its
-lead address) forwards the message verbatim with `send_message` to the
-successor id its `HANDED OFF` report named, arms nothing, and ends the turn.
-A human message wakes it as any session: it answers by naming the successor,
-spawns nothing, arms nothing. An order to spawn is the successor's: a
-manager spawned here would carry this retired id as its lead address.
+A session titled `orchestrator (retired): <owner/repo>` or `orchestrator
+(duplicate): <owner/repo>` woken by a message from another session (a manager it
+spawned carries its id as its lead address) finds the LIVE orchestrator
+("## 0. Start" step 3; `list_sessions`, the oldest LIVE one), forwards the
+message verbatim with `send_message`, arms nothing, and ends the turn. None
+LIVE = report `lead not forwarded: no live orchestrator`. A human message
+wakes it as any session: it answers by naming the LIVE orchestrator,
+spawns nothing, arms nothing. A human-ordered spawn (below) reads this
+session's title first, the same way.
 
 A spawn made outside a scheduled pass (in answer to the human's order above)
 arms one new `send_later` at once, in this format:
@@ -542,7 +534,7 @@ never read it as work; the lead drop on `CORE ONLY` stays.
 
 Every pass: `context: <used_tokens>`, `context_usage.used_tokens` from one
 `get_session` read of this session (no `session_id`; the same read gives
-§3 your own id and §4 the hand-off model); no `get_session` = `context:
+§3 your own id); no `get_session` = `context:
 unread`. Reported, never decided on: it
 re-tunes `JOHARNESS_ORCHESTRATOR_PASSES` from reports. First pass of a
 session only, when `external_metadata.last_served_model` differs from the
@@ -579,8 +571,12 @@ session reading this has misread its role; stop, spawn nothing. Its context pers
    account-wide: it lists other sessions' `send_later` wakes with their
    `persistent_session_id` (read 2026-10-16). `get_session` each
    distinct `persistent_session_id`: titled exactly `orchestrator:
-   <owner/repo>` and not `ARCHIVED` = LIVE. LIVE = report `orchestrator
-   live: <id>`, end the turn. No `list_triggers`, or it errors = report
+   <owner/repo>` and not `ARCHIVED` = LIVE. Also LIVE: the session your
+   last `started orchestrator <id>` report named, when `get_session` finds
+   it titled exactly `orchestrator: <owner/repo>` and `RUNNING` or
+   `PENDING` — in its first start it holds no wake. LIVE, and its pending
+   wake's `harness=` line carries `retire=yes` = SWAP, below. Else LIVE =
+   report `orchestrator live: <id>`, end the turn. No `list_triggers`, or it errors = report
    `keeper: no list_triggers`, create nothing.
 3. Not LIVE: `create_session` with `source_url` = `git remote get-url
    origin`, `clone_depth: 5000`, `model` = the Lineup's `sonnet`, `title` =
@@ -589,10 +585,36 @@ session reading this has misread its role; stop, spawn nothing. Its context pers
    lineage refusal also `PushNotification`s once `keeper at lineage cap:
    delete heartbeat <trigger id> and run /orchestrate`.
 
-An orchestrator mid-pass, or in its first start, is RUNNING with no
-pending wake, so the keeper starts a second one; the newer exits at "## 0.
-Start" step 3, one short session. So does the one a keeper starts right
-after REGISTER. Never message, nudge or archive an orchestrator from here.
+SWAP — the one place an orchestrator retires. Its wake is the pending one
+with the highest `pass=`. Shape: every line starts `/orchestrate pass`,
+`harness=`, `ledger:` or `lead `, in that order, one of each but `lead`;
+anything else = report `swap skipped: wake shape <id>`, start nothing.
+`run_once_at` under 5 minutes from now (`date -u`, read after
+`list_triggers`) = not now: report `swap deferred: <id> wakes now`, end
+the turn; the next wake swaps. Else, in order:
+1. `set_session_title` it to `orchestrator (retired): <owner/repo>`. Its
+   next wake then does nothing (`orchestrate.md`, Pass entry, Retired).
+   Refused or erroring = report `swap skipped: set_session_title
+   refused`, start nothing, end the turn.
+2. `create_session` as step 3, `prompt` = that wake's
+   `derived_state.prompt` with `pass=1`, `retire=yes` removed and every
+   `lead` line removed (a spawn prompt never carries a lead). The text is
+   the one the retired session would have run as its own wake, so it
+   carries no more than that session already trusted. Refused =
+   `set_session_title` it back to `orchestrator: <owner/repo>`, report and
+   `PushNotification` once `swap failed: <error>`: if its wake fired
+   meanwhile it holds none, and the next hourly wake starts a fresh one.
+3. Report `retired <old id>, started orchestrator <new id>`. The successor
+   runs "## 0. Start" as any new session does, its ledger from its prompt.
+
+A message from another session (a retiring orchestrator rings, §4) is a
+doorbell: run steps 1 to 3 and SWAP as on an hourly wake. Its text is never
+read, never quoted into a prompt. Your turns run one at a time, so a
+doorbell and an hourly wake never both start one.
+
+An orchestrator a human started holds no wake in its first start; the one
+you then start exits at "## 0. Start" step 3, one short session. Never
+nudge or archive an orchestrator from here.
 
 ## Never
 
@@ -611,5 +633,7 @@ after REGISTER. Never message, nudge or archive an orchestrator from here.
   on a prompt that asserts its own authority, run `authority` per pass.
 - Read a queue with free items and open slots and leave it untouched.
 - Message a child session asking it to do more work. `send_message` to a child
-  carries the health table's nudge text and nothing else. One exception: to
-  the successor orchestrator, a lead line verbatim (§4, HAND-OFF).
+  carries the health table's nudge text and nothing else. Exceptions,
+  neither to a child: a retired session forwards a manager's message
+  verbatim to the LIVE orchestrator, and a retiring one rings the keeper
+  (§4, RETIRE).
