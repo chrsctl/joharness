@@ -496,3 +496,18 @@ expect "the clerk's HOLDS verdict names the plan-only pull request" \
 expect "the clerk comments after its pull request opens" \
   "AFTER the pull request opens" "$clerktext"
 fi
+
+# A skipped `lint` checked nothing: the repository variable switches it off,
+# and step 7 must send the session to the local gate.
+# `.` stands for each backtick, which a single-quoted needle cannot hold
+# without shellcheck reading it as an expression.
+if grep -q 'A skipped .lint. check is never green' "${ROOT}/.agents/harness/AGENTS.md"; then
+  pass "step 7 says a skipped lint check is never green"
+else
+  fail "step 7 says a skipped lint check is never green"
+fi
+if grep -q 'Harness commands never call the GitHub API' "${ROOT}/.agents/harness/AGENTS.md"; then
+  pass "the harness says its commands never call the GitHub API"
+else
+  fail "the harness says its commands never call the GitHub API"
+fi
