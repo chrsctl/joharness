@@ -78,12 +78,8 @@ expect "local mode names the head it certified" \
 # the base branch from the other, and an unfetched `0 behind` merges over it.
 expect "the behind count carries when it was taken" \
   "0 behind origin/main (" "$out"
-if command -v timeout >/dev/null 2>&1; then
-  expect "with the fetch on the count says it is current" \
-    "0 behind origin/main (fetched just now)" "$out"
-else
-  skip "with the fetch on the count says it is current" "no timeout(1) here"
-fi
+expect "with the fetch on the count says it is current" \
+  "0 behind origin/main (fetched just now)" "$out"
 out2="$(HANDOVER_FETCH=0 JOHARNESS_CHECKS=local kc_finish)"
 expect "with the fetch off the count says how old it is" \
   "0 behind origin/main (as of the last fetch)" "$out2"
