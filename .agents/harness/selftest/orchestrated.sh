@@ -472,15 +472,17 @@ expect "the sender is told the stem must be a queue item's name" \
 expect "and where a lead with no stem goes instead" \
   "goes in your pull request body" "$mgrtext"
 
-# A skipped `lint` reads green on GitHub and checked nothing: the repository
-# variable switches it off, and step 7 must send the session to the local gate.
-if grep -q 'A skipped check is never green' "${ROOT}/.agents/harness/AGENTS.md"; then
-  pass "step 7 says a skipped check is never green"
+# A skipped `lint` checked nothing: the repository variable switches it off,
+# and step 7 must send the session to the local gate.
+# `.` stands for each backtick, which a single-quoted needle cannot hold
+# without shellcheck reading it as an expression.
+if grep -q 'A skipped .lint. check is never green' "${ROOT}/.agents/harness/AGENTS.md"; then
+  pass "step 7 says a skipped lint check is never green"
 else
-  fail "step 7 says a skipped check is never green"
+  fail "step 7 says a skipped lint check is never green"
 fi
-if grep -q 'Harness commands never call GitHub' "${ROOT}/.agents/harness/AGENTS.md"; then
-  pass "the harness says its commands never call GitHub"
+if grep -q 'Harness commands never call the GitHub API' "${ROOT}/.agents/harness/AGENTS.md"; then
+  pass "the harness says its commands never call the GitHub API"
 else
-  fail "the harness says its commands never call GitHub"
+  fail "the harness says its commands never call the GitHub API"
 fi

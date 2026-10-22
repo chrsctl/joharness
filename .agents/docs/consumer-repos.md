@@ -314,11 +314,12 @@ GitHub because it needs a database or a browser then stops counting,
 merges land under `finish: pass`, and no role queues its failures.
 
 The repository variable alone is the out-of-credits switch. `joharness.sh`
-never calls GitHub: the session's step-7 read of the head's checks, through
+never calls the GitHub API: the session's step-7 read of the head's checks, through
 the GitHub MCP server, is what detects the skipped `lint`, and the session
 then runs `JOHARNESS_CHECKS=local ./joharness.sh finish` for that one call
-(`.agents/harness/AGENTS.md` step 7). The environment variable stays the
-switch for every `finish` in an environment set for an outage.
+(`.agents/harness/AGENTS.md` step 7). Both switches work: the repository
+variable needs that MCP read on every head, the environment variable needs
+none and switches every `finish` in that environment.
 
 Status quo:
 
