@@ -1,6 +1,6 @@
 ---
 workstream: orchestrator-heartbeat-successor
-status: in-progress
+status: blocked
 branch: claude/orchestrator-heartbeat-successor
 pr: none
 plan: orchestrator-heartbeat-successor
@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01KjRsJjm6q7mKQCqKQLbwJZ
 agent: opus
 updated: 2026-10-22
-next: Prerequisite failed (fire_trigger refused); reading recorded in orchestrated.md; review, retire, PR, merge
+next: core path: auto-mode classifier refused fire_trigger on the keeper; allow it in .claude/settings.json, or take the prerequisite reading from an orchestrator by hand?
 ---
 
 ## Goal
@@ -19,8 +19,9 @@ payload instead of create_session, so lineage depth stays at keeper + 1.
 
 ## Decisions
 
-- Prerequisite reading failed: auto-mode classifier refused fire_trigger on the keeper heartbeat; per the plan (either no = do not build) the reading goes in orchestrated.md Heartbeat and the plan retires unbuilt.
-- No retry of the keeper fire and no block: the refusal is itself the reading an orchestrator in auto mode would get.
+- Prerequisite unmeasured, not failed: the manager's fire_trigger on the keeper heartbeat was refused by the auto-mode classifier (Interfere With Workloads), which answers neither plan question. The plan's either-no exit is not met, so no retire; nothing builds without the reading.
+- Block reason core path: the remedy a session can name is a fire_trigger allow rule in .claude/settings.json (core path), or a human taking the reading from an orchestrator. Reading recorded in orchestrated.md, Heartbeat.
+- No retry of the keeper fire: a refused call is that tool absent for the target (orchestrate.md, Tools).
 
 ## Rejected
 
@@ -28,11 +29,17 @@ payload instead of create_session, so lineage depth stays at keeper + 1.
 
 ## Review
 
-Not reviewed yet.
+- r1: (verifier) paragraph called an unmeasured prerequisite a failed one (fixed: reworded as unmeasured, both readings named open)
+- r2: (verifier) a manager's refusal stands in for an orchestrator's (fixed: paragraph says the orchestrator path is unmeasured)
+- r3: (verifier) retire cites an either-no rule whose condition was not met (fixed: blocked core path instead of retiring)
+- r4: (verifier) claimed an allow rule lives in settings.json, none exists (fixed: says none exists today)
+- r5: (verifier) reopen condition unobservable and dropped the two readings (fixed: condition removed, readings named)
+- r6: (verifier) self-bound probe is a rejected path in harness docs (fixed: moved out of orchestrated.md, kept under Rejected)
+- r7: (verifier) reading named the trigger by title, not id, and omitted the text (fixed: id and text quoted)
 
 ## Blockers
 
-None.
+Prerequisite reading refused by the auto-mode classifier from a manager session. Unblock: a human allows fire_trigger (core path .claude/settings.json) or fires the keeper with a text payload from an orchestrator and records both readings; then resume this branch from the plan's Scope.
 
 ## Where to look
 
