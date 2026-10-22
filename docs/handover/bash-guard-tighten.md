@@ -29,7 +29,7 @@ Implement docs/plans/bash-guard-tighten.md.
 - r4: env/sudo-option/time wrappers before timeout denied (verifier) (fixed)
 - r5: `ssh host "timeout 60 ..."` quote after ssh not seen as wrapped (verifier) (wontfix: denies, the safe side)
 - r6: `from time import sleep` and a printed `time.sleep(` string (verifier) (wontfix: plan names time.sleep only)
-- New selftest cases fail on origin/main (10 red, incl. 20,000 lines at 73 s).
+The new selftest cases fail on origin/main: 10 red, 20,000 lines at 73 s.
 
 ## Blockers
 
