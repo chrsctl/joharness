@@ -313,6 +313,16 @@ the outage local mode is usually set for. A suite a consumer gives to
 GitHub because it needs a database or a browser then stops counting,
 merges land under `finish: pass`, and no role queues its failures.
 
+The repository variable alone is the out-of-credits switch. `finish`
+reads the head's `lint` check run on GitHub
+(`joharness.sh:checks_lint_skipped`: `gh api`, else unauthenticated
+`curl` to `api.github.com`, parsed with `jq`); concluded `skipped` = the
+same local gate, pass line `lint skipped on GitHub`. Anything else, or no
+answer, = github mode. Unauthenticated reads work on public repositories
+only and share GitHub's 60 requests/hour per address. The environment
+variable stays the switch when GitHub cannot be read: a private repository
+with no `gh` login, no network, no `jq`.
+
 Status quo:
 
 - `finish` names the gap only in general ("Not covered here: any job in

@@ -391,3 +391,126 @@ expect "session start says what finish will do" \
   "does NOT wait for GitHub Actions" "$out"
 out="$(kc_session)"
 refute "session start is silent under the default" "== Checks: LOCAL" "$out"
+
+# --- the repository variable alone: finish reads the head's lint check -----
+# The workflow skips `lint` under the repository variable JOHARNESS_CHECKS=local,
+# and a skipped run reads green on GitHub. Finish reads that run and, only when
+# it says `skipped`, runs the local gate. `gh` and `curl` are stubs first on
+# PATH; the origin URL is GitHub-shaped while pushes still go to the bare repo,
+# and HANDOVER_FETCH=0 keeps the behind count off the network. No network.
+git -C "$kcwork" checkout -q -b kcskip origin/main
+printf 'skip\n' >"${kcwork}/docs/skip.md"
+commit_all "$kcwork" "docs only, read against GitHub"
+git -C "$kcwork" push -qu origin kcskip 2>/dev/null
+git -C "$kcwork" config remote.origin.pushurl "$kcorigin"
+git -C "$kcwork" remote set-url origin https://github.com/kco/kcr.git
+kc_sha="$(git -C "$kcwork" rev-parse HEAD)"
+kcstub="${TMP}/kcstub"
+mkdir -p "$kcstub"
+# Each stub logs its arguments, then answers from KC_GH / KC_CURL: a JSON file
+# to print, or unset to exit 1.
+cat >"${kcstub}/gh" <<'STUB'
+#!/bin/sh
+printf 'gh %s\n' "$*" >>"${KC_STUB}/calls"
+[ -n "${KC_GH:-}" ] || exit 1
+cat "$KC_GH"
+STUB
+cat >"${kcstub}/curl" <<'STUB'
+#!/bin/sh
+printf 'curl %s\n' "$*" >>"${KC_STUB}/calls"
+[ -n "${KC_CURL:-}" ] || exit 1
+cat "$KC_CURL"
+STUB
+chmod +x "${kcstub}/gh" "${kcstub}/curl"
+export KC_STUB="$kcstub"
+kc_json() { printf '%s\n' "$2" >"${kcstub}/$1.json"; }
+kc_json skipped '{"check_runs":[{"id":3,"name":"lint","status":"completed","conclusion":"success"},{"id":7,"name":"lint","status":"completed","conclusion":"skipped"},{"id":9,"name":"windows","status":"completed","conclusion":"success"}]}'
+kc_json rerun '{"check_runs":[{"id":3,"name":"lint","status":"completed","conclusion":"skipped"},{"id":12,"name":"lint","status":"completed","conclusion":"success"}]}'
+kc_json running '{"check_runs":[{"id":4,"name":"lint","status":"in_progress","conclusion":null}]}'
+kc_json windows '{"check_runs":[{"id":5,"name":"windows","status":"completed","conclusion":"skipped"}]}'
+kc_gh() {
+  rm -f "${kcstub}/calls"
+  env -u JOHARNESS_CHECKS PATH="${kcstub}:${PATH}" HANDOVER_FETCH=0 "$@" \
+    bash -c "$(declare -f kc_finish); kcwork='${kcwork}'; kc_finish"
+}
+kc_github_kept() {
+  expect "$1: github mode" "checks: github." "$2"
+  refute "$1: no local gate" "ci: pass" "$2"
+  refute "$1: not read as skipped" "lint skipped on GitHub" "$2"
+}
+
+out="$(kc_gh KC_GH="${kcstub}/skipped.json")"
+expect "lint skipped on GitHub switches finish to the local gate" \
+  "finish: pass (ci and verify ran here: lint skipped on GitHub — repository variable JOHARNESS_CHECKS=local)" "$out"
+expect "and the local gate ran" "ci: pass" "$out"
+expect "gh read the head's lint check runs" \
+  "gh api repos/kco/kcr/commits/${kc_sha}/check-runs?check_name=lint" \
+  "$(cat "${kcstub}/calls" 2>/dev/null)"
+
+out="$(kc_gh KC_CURL="${kcstub}/skipped.json")"
+expect "gh failing, curl reads the same answer" "lint skipped on GitHub" "$out"
+expect "and the local gate ran from the curl answer" "ci: pass" "$out"
+expect "curl asked api.github.com, unauthenticated" \
+  "curl -fsS --max-time 20 https://api.github.com/repos/kco/kcr/commits/${kc_sha}/check-runs?check_name=lint" \
+  "$(cat "${kcstub}/calls" 2>/dev/null)"
+
+git -C "$kcwork" remote set-url origin git@github.com:kco/kcr.git
+out="$(kc_gh KC_GH="${kcstub}/skipped.json")"
+expect "an ssh GitHub origin is read too" "lint skipped on GitHub" "$out"
+git -C "$kcwork" remote set-url origin https://github.com/kco/kcr.git
+
+out="$(kc_gh KC_GH="${kcstub}/rerun.json")"
+kc_github_kept "a re-run after a skipped lint" "$out"
+out="$(kc_gh KC_GH="${kcstub}/running.json")"
+kc_github_kept "lint in progress" "$out"
+out="$(kc_gh KC_GH="${kcstub}/windows.json")"
+kc_github_kept "only windows skipped, no lint run" "$out"
+out="$(kc_gh)"
+kc_github_kept "gh and curl both failing" "$out"
+
+git -C "$kcwork" remote set-url origin https://gitlab.com/kco/kcr.git
+out="$(kc_gh KC_GH="${kcstub}/skipped.json")"
+kc_github_kept "a non-GitHub origin" "$out"
+refute "a non-GitHub origin asks nobody" "api" "$(cat "${kcstub}/calls" 2>/dev/null)"
+git -C "$kcwork" remote set-url origin https://github.com/kco/kcr.git
+
+# Without jq there is no parser, and none is hand-rolled: github mode.
+mkdir -p "${TMP}/jqfree"
+while IFS= read -r kc_dir; do
+  [ -d "$kc_dir" ] || continue
+  for kc_exe in "$kc_dir"/*; do
+    kc_base="${kc_exe##*/}"
+    [ "$kc_base" = jq ] && continue
+    [ -e "${TMP}/jqfree/${kc_base}" ] && continue
+    ln -s "$kc_exe" "${TMP}/jqfree/${kc_base}" 2>/dev/null
+  done
+done < <(printf '%s' "$PATH" | tr ':' '\n')
+if PATH="${TMP}/jqfree" command -v jq >/dev/null 2>&1; then
+  skip "jq absent: github mode" "no PATH without jq here"
+else
+  out="$(env -u JOHARNESS_CHECKS PATH="${kcstub}:${TMP}/jqfree" HANDOVER_FETCH=0 \
+    KC_GH="${kcstub}/skipped.json" \
+    bash -c "$(declare -f kc_finish); kcwork='${kcwork}'; kc_finish")"
+  kc_github_kept "jq absent" "$out"
+fi
+
+# The environment value keeps its own line, and asks GitHub nothing.
+rm -f "${kcstub}/calls"
+out="$(PATH="${kcstub}:${PATH}" HANDOVER_FETCH=0 KC_GH="${kcstub}/skipped.json" \
+  JOHARNESS_CHECKS=local kc_finish)"
+expect "the environment value keeps its pass line" \
+  "finish: pass (ci and verify ran here: JOHARNESS_CHECKS=local)" "$out"
+refute "the environment value does not read GitHub" "gh api" \
+  "$(cat "${kcstub}/calls" 2>/dev/null)"
+
+# A conf line is still ignored, but a skipped lint is not github mode.
+out="$(env -u JOHARNESS_CHECKS PATH="${kcstub}:${PATH}" HANDOVER_FETCH=0 \
+  KC_GH="${kcstub}/skipped.json" \
+  bash -c "$(declare -f kc_finish_conf); kcwork='${kcwork}'; kcconf='${kcconf}'; kc_finish_conf")"
+expect "a conf line beside a skipped lint still runs the local gate" \
+  "lint skipped on GitHub" "$out"
+refute "and does not claim github mode" "This finish is github mode" "$out"
+
+git -C "$kcwork" remote set-url origin "$kcorigin"
+git -C "$kcwork" config --unset remote.origin.pushurl
+unset KC_STUB

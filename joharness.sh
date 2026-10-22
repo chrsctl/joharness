@@ -198,6 +198,37 @@ checks_local() {
   esac
 }
 
+# True only when GitHub says the head's `lint` check run concluded `skipped`
+# — the workflow skips it under the repository variable JOHARNESS_CHECKS=local.
+# Fails closed: every unreadable, ambiguous or partial answer is false.
+checks_lint_skipped() {
+  local url slug sha path json t=()
+  url="$(git -C "$ROOT" remote get-url origin 2>/dev/null)" || return 1
+  case "$url" in
+    https://github.com/*) slug="${url#https://github.com/}" ;;
+    git@github.com:*) slug="${url#git@github.com:}" ;;
+    *) return 1 ;;
+  esac
+  slug="${slug%.git}"
+  case "$slug" in
+    */*/* | /* | */ | *[!A-Za-z0-9._/-]*) return 1 ;;
+    */*) ;;
+    *) return 1 ;;
+  esac
+  sha="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)" || return 1
+  have jq || return 1
+  path="repos/${slug}/commits/${sha}/check-runs?check_name=lint"
+  have timeout && t=(timeout 20)
+  if ! { have gh && json="$(${t[@]+"${t[@]}"} gh api "$path" 2>/dev/null)"; }; then
+    have curl || return 1
+    json="$(curl -fsS --max-time 20 "https://api.github.com/${path}" 2>/dev/null)" ||
+      return 1
+  fi
+  printf '%s' "$json" | jq -e '
+    [.check_runs[]? | select(.name == "lint")] | max_by(.id)
+    | .status == "completed" and .conclusion == "skipped"' >/dev/null 2>&1
+}
+
 # --- The core boundary
 protocol_paths() {
   printf '%s\n' joharness.conf .claude/settings.json .github
@@ -4798,6 +4829,8 @@ checks_gate() {
     printf 'JOHARNESS_CHECKS=local in the environment (never joharness.conf, which\n'
     printf 'is ignored) makes this command run ci and verify here instead and be\n'
     printf 'red on their result.\n'
+    printf 'The repository variable alone also switches it: finish reads the head'"'"'s\n'
+    printf 'lint check on GitHub, and lint skipped means the local gate runs.\n'
     return 0
   fi
 
@@ -4951,7 +4984,7 @@ finish_adds() {
 }
 
 cmd_finish() {
-  local ref branch is_local=0
+  local ref branch is_local=0 lint_skipped=0
   check_args "$@"
   CHECK_FAILS=0; CHECK_SKIPPED=0
   ref="$(decide_ref)" || die \
@@ -4969,7 +5002,11 @@ cmd_finish() {
   run_check "workstream files" finish_adds "$ref"
   [ "$CHECK_VERBOSE" != 1 ] || fin_promote "$ref"
 
-  checks_local && is_local=1
+  if checks_local; then
+    is_local=1
+  elif checks_lint_skipped; then
+    is_local=1; lint_skipped=1
+  fi
   if [ "$is_local" = 1 ] && [ "$CHECK_FAILS" -eq 0 ]; then
     run_check "checks (local)" checks_gate "$ref" "$branch" 1 1
   elif [ "$is_local" = 1 ]; then
@@ -4979,12 +5016,14 @@ cmd_finish() {
     run_check checks checks_gate "$ref" "$branch" 0 1
   fi
 
-  if checks_conf_ignored; then
+  if [ "$lint_skipped" != 1 ] && checks_conf_ignored; then
     printf 'checks: joharness.conf sets JOHARNESS_CHECKS=local, which is ignored: only the environment switches local mode on. This finish is github mode.\n'
   fi
   if [ "$CHECK_FAILS" -ne 0 ]; then
     printf 'finish: FAIL (%s)\n' "$CHECK_FAILS"
     return 1
+  elif [ "$lint_skipped" = 1 ]; then
+    printf 'finish: pass (ci and verify ran here: lint skipped on GitHub — repository variable JOHARNESS_CHECKS=local)\n'
   elif [ "$is_local" = 1 ]; then
     printf 'finish: pass (ci and verify ran here: JOHARNESS_CHECKS=local)\n'
   else
