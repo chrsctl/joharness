@@ -21,6 +21,15 @@ Implement docs/plans/parser-edge-fixes.md.
 
 ## Review
 
+- r1: finish test never reached checks_gate (no JOHARNESS_CHECKS=local) (verifier) (fixed)
+- r2: fb_cache_save test passes on old eval too; the refactor is behaviour-neutral, no red case possible (verifier) (no change)
+- r3: issue_verdict printed an empty number for #000 (verifier) (fixed)
+- r4: fb_marker rejected a verdict followed by a period (verifier) (fixed)
+- r5: FB_LIMIT wrapped past 9 digits (verifier) (fixed)
+- r6: branch behind origin/main (verifier) (fixed)
+- r7: duplicate section header in feedback.sh (verifier) (fixed)
+- r8: new cases red on origin/main: marker, zeros, continuation, churn, role_line 141 (no change)
+
 ## Blockers
 
 None.
