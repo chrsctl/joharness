@@ -6,7 +6,7 @@ effort: high
 needs: none
 requirement: none
 issue: none
-scope: joharness.sh, .agents/harness/selftest/clerk.sh, .claude/commands/clerk.md
+scope: shared:joharness.sh, .agents/harness/selftest/clerk.sh, shared:.claude/commands/clerk.md
 ---
 
 ## Goal

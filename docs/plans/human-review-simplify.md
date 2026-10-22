@@ -6,7 +6,7 @@ effort: xhigh
 needs: none
 requirement: none
 issue: none
-scope: .claude/commands/manage.md, .claude/commands/clerk.md, .agents/harness/AGENTS.md, .agents/harness/handover-context.sh, .agents/docs/plans/README.md, .agents/docs/orchestrated.md, joharness.sh, .agents/harness/selftest/orchestrated.sh
+scope: shared:.claude/commands/manage.md, shared:.claude/commands/clerk.md, shared:.agents/harness/AGENTS.md, .agents/harness/handover-context.sh, .agents/docs/plans/README.md, .agents/docs/orchestrated.md, shared:joharness.sh, shared:.agents/harness/selftest/orchestrated.sh
 ---
 
 ## Goal
