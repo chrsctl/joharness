@@ -570,3 +570,55 @@ if [ -z "$(git -C "$jorigin" ls-remote --heads "$jorigin" mgr-deleted2)" ]; then
 else
   fail "and origin still has no such branch either (re-created)"
 fi
+
+# --- blocked and done claims are never released ------------------------------
+# <branch> <frontmatter status line, or empty for none>: a stale claim, pr: none.
+jclaim() {
+  git -C "$jwork" checkout -qb "$1" main
+  mkdir -p "${jwork}/docs/handover"
+  { printf -- '---\nworkstream: %s\n' "$1"
+    [ -z "$2" ] || printf '%s\n' "$2"
+    printf 'branch: %s\nplan: none\npr: none\nagent: sonnet\nupdated: 2026-01-02\nnext: product: which way?\n---\n\n## Goal\nFixture.\n' "$1"
+  } >"${jwork}/docs/handover/${1}.md"
+  jcommit "claim $1" '2026-01-02T00:00:00Z'
+  git -C "$jwork" push -qu origin "$1"
+  git -C "$jwork" checkout -q main
+}
+# A blocked claim holds a human's question; releasing it loses the question.
+jclaim mgr-blocked 'status: blocked'
+jclaim mgr-done 'status: done'
+out="$(jdsp)"
+refute "dispatch never offers a blocked claim for release" "mgr-blocked" \
+  "$(printf '%s\n' "$out" | grep '^janitor   :' || :)"
+refute "nor a done one" "mgr-done" \
+  "$(printf '%s\n' "$out" | grep '^janitor   :' || :)"
+out="$(jan)"
+refute "the sweep's release list leaves a blocked claim out" "mgr-blocked" \
+  "$(printf '%s\n' "$out" | grep '(candidates:' || :)"
+refute "and a done one" "mgr-done" \
+  "$(printf '%s\n' "$out" | grep '(candidates:' || :)"
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-blocked 2>&1 )"; rc=$?
+expect "--apply refuses a blocked claim" "skip      : mgr-blocked — not a candidate" "$out"
+if [ "$rc" -ne 0 ]; then pass "and exits non-zero"
+else fail "and exits non-zero"; fi
+expect "and origin's claim still says blocked" "status: blocked" \
+  "$(git -C "$jorigin" show mgr-blocked:docs/handover/mgr-blocked.md 2>&1)"
+
+# --- a claim with no status: line is released all the same -------------------
+# The awk rewrote an existing status: line only: no line, no release, and the
+# claim kept its plan out of the queue after the "release" was pushed.
+jclaim mgr-nostatus ''
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-nostatus 2>&1 )"; rc=$?
+expect "--apply releases a claim with no status: line" \
+  "release   : mgr-nostatus  docs/handover/mgr-nostatus.md" "$out"
+if [ "$rc" -eq 0 ]; then pass "and exits 0"
+else fail "and exits 0 (rc ${rc})"; fi
+jns="$(git -C "$jorigin" show mgr-nostatus:docs/handover/mgr-nostatus.md 2>&1)"
+expect "and the claim now reads status: abandoned" "status: abandoned" "$jns"
+if [ "$(printf '%s\n' "$jns" | awk 'NR > 1 && $0 == "---" { exit } /^status:/' | wc -l)" -eq 1 ] &&
+   [ "$(printf '%s\n' "$jns" | sed -n '/^status:/=' | head -1)" -lt \
+     "$(printf '%s\n' "$jns" | sed -n '2,$ { /^---$/= }' | head -1)" ]; then
+  pass "inside the frontmatter, once"
+else
+  fail "inside the frontmatter, once"
+fi

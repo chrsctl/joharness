@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01MGeFxF7JmsWwnj5MiThqag
 agent: opus
 updated: 2026-10-22
-next: Write failing selftests for drain_hook, janitor_candidates, janitor_apply, then fix joharness.sh
+next: Run ./joharness.sh ci and verify, then edge review with the verifier
 ---
 
 ## Goal
@@ -19,7 +19,17 @@ claim with no `status:` line gets `status: abandoned` on release.
 
 ## Decisions
 
-- None yet.
+- `dispatch` checks both hooks (handover-context.sh too): either unread is no
+  picture of the queue. It returns at the hook read with `verdict : UNREADABLE`,
+  after the role lines are printed; the verdict says "no role either" because
+  moving the hook read above the role section would need the edge walk moved
+  too (DISPATCH_WITHHELD), a reorder out of this plan's scope.
+- `drain_hook_read` wraps drain_hook in the caller's shell so the reason line
+  reaches the verdict; drain_hook itself still prints it to stderr.
+- One predicate `janitor_releasable` (in-progress, review, empty) for
+  janitor_candidates and the sweep's `(candidates:` list; an unknown status
+  is not releasable either (fail closed). The report still prints the row,
+  with a `never released` line.
 
 ## Rejected
 
@@ -27,7 +37,7 @@ claim with no `status:` line gets `status: abandoned` on release.
 
 ## Review
 
-- r0: placeholder until review runs (no change)
+- r1: red on main before the fix (selftest, 2026-10-22): `FAIL a non-executable queue hook reads UNREADABLE`, `FAIL a hook exiting non-zero reads UNREADABLE with its exit code`, `FAIL and no plan file changes:  M docs/plans/base-a.md ... M docs/plans/widehold.md`, `FAIL dispatch never offers a blocked claim for release`, `FAIL --apply refuses a blocked claim`, `FAIL and the claim now reads status: abandoned` (fixed)
 
 ## Blockers
 
