@@ -471,3 +471,12 @@ expect "the sender is told the stem must be a queue item's name" \
   "The stem must be a QUEUE ITEM's name" "$mgrtext"
 expect "and where a lead with no stem goes instead" \
   "goes in your pull request body" "$mgrtext"
+# A defect outside the item has a home: one held issue per session.
+expect "a defect outside the item is filed as an issue" \
+  'defect: <test or command>' "$mgrtext"
+expect "and the issue is held from the clerk" \
+  'labels `human-review`' "$mgrtext"
+expect "and capped at one per session" \
+  "ONE issue per session" "$mgrtext"
+expect "and only when it reproduces on origin/main" \
+  "reproduces on" "$mgrtext"

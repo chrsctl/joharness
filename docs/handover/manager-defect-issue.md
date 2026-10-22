@@ -8,7 +8,7 @@ issue: 512
 session: https://claude.ai/code/session_01NjezWhNDCXqEyTaGcHVBRW
 agent: sonnet
 updated: 2026-10-22
-next: edit manage.md, selftest, feedback.md; ci + verify; review; retire; PR
+next: wait for ci + verify green; selftest red-check; review; retire; PR (Closes #512)
 ---
 
 ## Goal
