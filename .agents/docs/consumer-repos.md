@@ -274,7 +274,8 @@ disables Actions creating pull requests. Without it the run uses
 Base branch red before change. Five points:
 
 1. Harness keeps no record of which tests are red on base. `ci` and
-   `finish` read git and tree, never a check run.
+   `finish` read git and tree, never a test result: `finish` reads one
+   check run, the head's `lint`, and only for whether it skipped.
 2. Consumer that wants one owns it, in its own `docs/`, never synced.
 3. Step 7 still binds every manager: "base green" is an infrastructure
    reading, "re-derived at every check, never inherited". Record cannot
@@ -316,9 +317,10 @@ merges land under `finish: pass`, and no role queues its failures.
 The repository variable alone is the out-of-credits switch. `finish`
 reads the head's `lint` check run on GitHub
 (`joharness.sh:checks_lint_skipped`: `gh api`, else unauthenticated
-`curl` to `api.github.com`, parsed with `jq`); concluded `skipped` = the
-same local gate, pass line `lint skipped on GitHub`. Anything else, or no
-answer, = github mode. Unauthenticated reads work on public repositories
+`curl` to `api.github.com`, parsed with `jq`); every `lint` run on the head
+concluded `skipped` = the same local gate, pass line `lint skipped on
+GitHub`. Anything else = github mode; no answer, or no `lint` run yet, is
+said in one line, never read as skipped. Unauthenticated reads work on public repositories
 only and share GitHub's 60 requests/hour per address. The environment
 variable stays the switch when GitHub cannot be read: a private repository
 with no `gh` login, no network, no `jq`.

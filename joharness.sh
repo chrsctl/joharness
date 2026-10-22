@@ -198,11 +198,17 @@ checks_local() {
   esac
 }
 
-# True only when GitHub says the head's `lint` check run concluded `skipped`
+# True only when GitHub says the head's `lint` check runs concluded `skipped`
 # — the workflow skips it under the repository variable JOHARNESS_CHECKS=local.
-# Fails closed: every unreadable, ambiguous or partial answer is false.
+# Fails closed: every unreadable, ambiguous or partial answer is false. Every
+# `lint` run on the head must say skipped, not the newest: a consumer's own
+# job named `lint` shares the name, and one skipped run of it is no switch.
+# CHECKS_LINT_SAID keeps why for finish: skipped, other (a lint run that did
+# not skip), none (no lint run yet), unread, or empty (origin not on GitHub).
+CHECKS_LINT_SAID=""
 checks_lint_skipped() {
   local url slug sha path json t=()
+  CHECKS_LINT_SAID=""
   url="$(git -C "$ROOT" remote get-url origin 2>/dev/null)" || return 1
   case "$url" in
     https://github.com/*) slug="${url#https://github.com/}" ;;
@@ -215,6 +221,7 @@ checks_lint_skipped() {
     */*) ;;
     *) return 1 ;;
   esac
+  CHECKS_LINT_SAID=unread
   sha="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)" || return 1
   have jq || return 1
   path="repos/${slug}/commits/${sha}/check-runs?check_name=lint"
@@ -224,9 +231,18 @@ checks_lint_skipped() {
     json="$(curl -fsS --max-time 20 "https://api.github.com/${path}" 2>/dev/null)" ||
       return 1
   fi
-  printf '%s' "$json" | jq -e '
-    [.check_runs[]? | select(.name == "lint")] | max_by(.id)
-    | .status == "completed" and .conclusion == "skipped"' >/dev/null 2>&1
+  CHECKS_LINT_SAID="$(printf '%s' "$json" | jq -rs '
+    if length == 1 and (.[0].check_runs | type) == "array" then
+      [.[0].check_runs[] | select(type == "object" and .name == "lint")] as $l
+      | if ($l | length) == 0 then "none"
+        elif ($l | all(.status == "completed" and .conclusion == "skipped"))
+        then "skipped" else "other" end
+    else "unread" end' 2>/dev/null)" || CHECKS_LINT_SAID=unread
+  case "$CHECKS_LINT_SAID" in
+    skipped) return 0 ;;
+    other | none) return 1 ;;
+    *) CHECKS_LINT_SAID=unread; return 1 ;;
+  esac
 }
 
 # --- The core boundary
@@ -4812,20 +4828,30 @@ checks_pushed_ref() {
   return 1
 }
 
+# Which switch made this finish local: the environment, or a skipped lint.
+checks_local_why() {
+  if [ "$CHECKS_LINT_SAID" = skipped ]; then
+    printf 'lint skipped on GitHub'
+  else
+    printf 'JOHARNESS_CHECKS=local'
+  fi
+}
+
 # One line under 'github', the whole gate under 'local'.
 checks_gate() {
   local ref="$1" branch="$2" is_local="$3" ready="$4"
   local rc=0 extra n=0 f pushed behind base behind_said fresh
   if [ "$is_local" = 1 ] && [ "$ready" != 1 ]; then
-    printf '\nchecks: local (JOHARNESS_CHECKS=local) — NOT run. This merge is red\n'
+    printf '\nchecks: local (%s) — NOT run. This merge is red\n' "$(checks_local_why)"
     printf 'above, and no suite run changes that. Fix it and run this again; the\n'
     printf 'checks go last because they answer about the head that merges.\n'
     return 0
   fi
   if [ "$is_local" != 1 ]; then
     printf '\nchecks: github. The checks on this head, read on GitHub, are step 7'"'"'s\n'
-    printf 'first merge condition — this command does not read them (no network, no\n'
-    printf 'token). Not waiting for Actions is a per-environment choice:\n'
+    printf 'first merge condition — this command reads only the lint check, and\n'
+    printf 'only to see whether it skipped. Not waiting for Actions is a\n'
+    printf 'per-environment choice:\n'
     printf 'JOHARNESS_CHECKS=local in the environment (never joharness.conf, which\n'
     printf 'is ignored) makes this command run ci and verify here instead and be\n'
     printf 'red on their result.\n'
@@ -4834,7 +4860,7 @@ checks_gate() {
     return 0
   fi
 
-  printf '\nchecks: local (JOHARNESS_CHECKS=local). No wait for Actions — these run\n'
+  printf '\nchecks: local (%s). No wait for Actions — these run\n' "$(checks_local_why)"
   printf 'here, on this head, and this command is red on what they say.\n\n'
 
   # Refusals first, and none of them costs a suite run: a local green is
@@ -5016,9 +5042,17 @@ cmd_finish() {
     run_check checks checks_gate "$ref" "$branch" 0 1
   fi
 
-  if [ "$lint_skipped" != 1 ] && checks_conf_ignored; then
+  if checks_conf_ignored && [ "$lint_skipped" = 1 ]; then
+    printf 'checks: joharness.conf sets JOHARNESS_CHECKS=local, which is ignored: only the environment and a skipped lint switch local mode on.\n'
+  elif checks_conf_ignored; then
     printf 'checks: joharness.conf sets JOHARNESS_CHECKS=local, which is ignored: only the environment switches local mode on. This finish is github mode.\n'
   fi
+  # Could not read is not skipped, and must not look like a read: a lint
+  # that shows skipped on GitHub is then green with nothing checked.
+  case "$CHECKS_LINT_SAID" in
+    unread) printf 'checks: could not read the head'"'"'s lint check on GitHub. It shows skipped there? That is no green: set JOHARNESS_CHECKS=local in the environment and run this again.\n' ;;
+    none) printf 'checks: no lint check on GitHub for this head yet. It shows skipped there later? That is no green: run this again.\n' ;;
+  esac
   if [ "$CHECK_FAILS" -ne 0 ]; then
     printf 'finish: FAIL (%s)\n' "$CHECK_FAILS"
     return 1
@@ -5027,7 +5061,7 @@ cmd_finish() {
   elif [ "$is_local" = 1 ]; then
     printf 'finish: pass (ci and verify ran here: JOHARNESS_CHECKS=local)\n'
   else
-    printf 'finish: pass — step 7 still needs the GitHub checks on this head green (not read here)\n'
+    printf 'finish: pass — step 7 still needs the GitHub checks on this head green (read on GitHub, not here)\n'
   fi
   return 0
 }

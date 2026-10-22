@@ -52,7 +52,7 @@ git -C "$kcwork" push -qu origin kcdocs 2>/dev/null
 out="$(kc_finish)"
 expect "default mode names github as the answer" "checks: github." "$out"
 expect "default mode says it does not read the checks itself" \
-  "this command does not read them (no network, no" "$out"
+  "this command reads only the lint check, and" "$out"
 expect "default mode names the way out of the wait" \
   "JOHARNESS_CHECKS=local" "$out"
 refute "default mode runs nothing" "ci: pass" "$out"
@@ -425,7 +425,12 @@ STUB
 chmod +x "${kcstub}/gh" "${kcstub}/curl"
 export KC_STUB="$kcstub"
 kc_json() { printf '%s\n' "$2" >"${kcstub}/$1.json"; }
-kc_json skipped '{"check_runs":[{"id":3,"name":"lint","status":"completed","conclusion":"success"},{"id":7,"name":"lint","status":"completed","conclusion":"skipped"},{"id":9,"name":"windows","status":"completed","conclusion":"success"}]}'
+kc_json skipped '{"check_runs":[{"id":7,"name":"lint","status":"completed","conclusion":"skipped"},{"id":9,"name":"windows","status":"completed","conclusion":"success"}]}'
+kc_json collide '{"check_runs":[{"id":3,"name":"lint","status":"completed","conclusion":"success"},{"id":7,"name":"lint","status":"completed","conclusion":"skipped"}]}'
+kc_json queued '{"check_runs":[{"id":4,"name":"lint","status":"in_progress","conclusion":"skipped"}]}'
+kc_json twodocs '{"check_runs":[{"id":7,"name":"lint","status":"completed","conclusion":"skipped"}]}
+{"check_runs":[{"id":3,"name":"lint","status":"completed","conclusion":"success"}]}'
+kc_json object '{"check_runs":{"id":7,"name":"lint","status":"completed","conclusion":"skipped"}}'
 kc_json rerun '{"check_runs":[{"id":3,"name":"lint","status":"completed","conclusion":"skipped"},{"id":12,"name":"lint","status":"completed","conclusion":"success"}]}'
 kc_json running '{"check_runs":[{"id":4,"name":"lint","status":"in_progress","conclusion":null}]}'
 kc_json windows '{"check_runs":[{"id":5,"name":"windows","status":"completed","conclusion":"skipped"}]}'
@@ -444,6 +449,8 @@ out="$(kc_gh KC_GH="${kcstub}/skipped.json")"
 expect "lint skipped on GitHub switches finish to the local gate" \
   "finish: pass (ci and verify ran here: lint skipped on GitHub — repository variable JOHARNESS_CHECKS=local)" "$out"
 expect "and the local gate ran" "ci: pass" "$out"
+expect "and its header names the switch that fired" \
+  "checks: local (lint skipped on GitHub)" "$out"
 expect "gh read the head's lint check runs" \
   "gh api repos/kco/kcr/commits/${kc_sha}/check-runs?check_name=lint" \
   "$(cat "${kcstub}/calls" 2>/dev/null)"
@@ -462,17 +469,41 @@ git -C "$kcwork" remote set-url origin https://github.com/kco/kcr.git
 
 out="$(kc_gh KC_GH="${kcstub}/rerun.json")"
 kc_github_kept "a re-run after a skipped lint" "$out"
+# Another workflow's job named `lint` shares the check name: every lint run
+# must say skipped, so one that passed keeps github mode whatever its id.
+out="$(kc_gh KC_GH="${kcstub}/collide.json")"
+kc_github_kept "a newer skipped lint beside one that passed" "$out"
 out="$(kc_gh KC_GH="${kcstub}/running.json")"
 kc_github_kept "lint in progress" "$out"
+out="$(kc_gh KC_GH="${kcstub}/queued.json")"
+kc_github_kept "a skipped conclusion on a run not completed" "$out"
+out="$(kc_gh KC_GH="${kcstub}/twodocs.json")"
+kc_github_kept "two JSON documents" "$out"
+out="$(kc_gh KC_GH="${kcstub}/object.json")"
+kc_github_kept "check_runs not an array" "$out"
+expect "an answer that is no list is said unread" \
+  "could not read the head's lint check on GitHub" "$out"
 out="$(kc_gh KC_GH="${kcstub}/windows.json")"
 kc_github_kept "only windows skipped, no lint run" "$out"
+expect "no lint run yet is said, not read as green" \
+  "no lint check on GitHub for this head yet" "$out"
 out="$(kc_gh)"
 kc_github_kept "gh and curl both failing" "$out"
+expect "could not read is said, never silent" \
+  "could not read the head's lint check on GitHub" "$out"
+out="$(kc_gh KC_GH="${kcstub}/rerun.json")"
+refute "a lint run that did not skip draws no unread line" \
+  "could not read the head's lint check" "$out"
 
 git -C "$kcwork" remote set-url origin https://gitlab.com/kco/kcr.git
 out="$(kc_gh KC_GH="${kcstub}/skipped.json")"
 kc_github_kept "a non-GitHub origin" "$out"
 refute "a non-GitHub origin asks nobody" "api" "$(cat "${kcstub}/calls" 2>/dev/null)"
+refute "and is not said unread" "could not read the head's lint check" "$out"
+git -C "$kcwork" remote set-url origin https://github.com/kco/kcr/extra.git
+out="$(kc_gh KC_GH="${kcstub}/skipped.json")"
+kc_github_kept "a GitHub URL with a third path part" "$out"
+refute "a third path part asks nobody" "api" "$(cat "${kcstub}/calls" 2>/dev/null)"
 git -C "$kcwork" remote set-url origin https://github.com/kco/kcr.git
 
 # Without jq there is no parser, and none is hand-rolled: github mode.
@@ -511,6 +542,8 @@ out="$(env -u JOHARNESS_CHECKS PATH="${kcstub}:${PATH}" HANDOVER_FETCH=0 \
 expect "a conf line beside a skipped lint still runs the local gate" \
   "lint skipped on GitHub" "$out"
 refute "and does not claim github mode" "This finish is github mode" "$out"
+expect "and still names the conf line as ignored" \
+  "joharness.conf sets JOHARNESS_CHECKS=local, which is ignored" "$out"
 
 git -C "$kcwork" remote set-url origin "$kcorigin"
 git -C "$kcwork" config --unset remote.origin.pushurl
