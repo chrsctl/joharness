@@ -209,7 +209,14 @@ jobs:
       # invisible from either one alone.
       - name: verify each layer that declares itself CI-runnable
         if: ${{ !cancelled() }}
-        run: .agents/scripts/ci-verify-layers.sh
+        # .agents/scripts is canonical-only: a consumer seeded with this file
+        # has no such script, and the step says so instead of failing 127.
+        run: |
+          if [ -f ./.agents/scripts/ci-verify-layers.sh ]; then
+            ./.agents/scripts/ci-verify-layers.sh
+          else
+            echo "no .agents/scripts/ci-verify-layers.sh here (canonical-only); nothing to run"
+          fi
 
   # Windows is where the harness breaks silently. Two defects in two days were
   # invisible from macOS and Linux and fatal on a stock Git for Windows clone:
