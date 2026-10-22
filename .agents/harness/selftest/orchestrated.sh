@@ -222,41 +222,57 @@ expect "and honours the environment for one command" \
 out="$(DISPATCH_FETCH=0 JOHARNESS_ORCHESTRATOR_PASSES=0 orcj dispatch)"
 expect "and 0 lifts it rather than retiring every pass" \
   "passes    : lifted, one session carries every pass (JOHARNESS_ORCHESTRATOR_PASSES=0)" "$out"
-# One orchestrator per repo: the retitle comes BEFORE the keeper wakes, or
-# the keeper finds the retiring session and keeps it as the live one.
+# One orchestrator per repo: the retitle comes BEFORE the report the
+# successor inherits from and BEFORE the doorbell, or the keeper finds the
+# retiring session and keeps it as the live one.
 # shellcheck disable=SC2016 # literal backticks in the needle
 retitle_ln="$(grep -n '^2\. `set_session_title` this session to `orchestrator (retired):' "$orcmd" | head -1 | cut -d: -f1)"
 # shellcheck disable=SC2016 # literal backticks in the needle
-wake_ln="$(grep -n '^3\. One Claude Code Remote `send_message` to the keeper' "$orcmd" | head -1 | cut -d: -f1)"
-if [ -n "$retitle_ln" ] && [ -n "$wake_ln" ] && [ "$retitle_ln" -lt "$wake_ln" ]; then
-  pass "the retire retitles before it wakes the keeper"
+report_ln="$(grep -n '^3\. This turn'"'"'s final report carries the wake' "$orcmd" | head -1 | cut -d: -f1)"
+# shellcheck disable=SC2016 # literal backticks in the needle
+bell_ln="$(grep -n '^4\. One Claude Code Remote `send_message` to the keeper' "$orcmd" | head -1 | cut -d: -f1)"
+if [ -n "$retitle_ln" ] && [ -n "$report_ln" ] && [ -n "$bell_ln" ] &&
+  [ "$retitle_ln" -lt "$report_ln" ] && [ "$report_ln" -lt "$bell_ln" ]; then
+  pass "the retire retitles, then reports its wake, then rings the keeper"
 else
-  fail "the retire retitles before it wakes the keeper (retitle ${retitle_ln:-none}, wake ${wake_ln:-none})"
+  fail "the retire retitles, then reports its wake, then rings the keeper (retitle ${retitle_ln:-none}, report ${report_ln:-none}, bell ${bell_ln:-none})"
 fi
 for needle in 'RETIRED after <n> passes' 'JOHARNESS_ORCHESTRATOR_PASSES' \
   'orchestrator (retired):' 'retire skipped' 'keeper not woken' \
-  'orchestrator (duplicate):'; do
+  'orchestrator (duplicate):' 'orchestrator (succeeded):'; do
   expect "orchestrate.md spells ${needle}" "$needle" "$orctext"
 done
-# The keeper is the only spawner of orchestrators: the retire hands the
-# ledger to it, it passes the retire wake through as the prompt, it counts
-# the RUNNING orchestrator it started as live, and a duplicate that slipped
-# past the start check stops at its next pass.
+# The keeper is the only spawner of orchestrators. Its doorbell carries no
+# data (any session can message it), the successor inherits the ledger from
+# the retired session's own report, liveness counts an orchestrator IDLE
+# between passes, and a duplicate that slipped past the start check stops
+# at its next pass while the older rebuilds the spawns only it held.
 # shellcheck disable=SC2016 # literal backticks in the needles
 for needle in 'The keeper is the only session that starts an orchestrator: you never `create_session` an orchestrator.' \
   'no up-to-date one = no retire' \
-  '`prompt` = the retire wake (below) when this turn carries one, else `/orchestrate`' \
-  'whose text starts `/orchestrate pass` and whose next line starts `harness=`' \
-  'retire wake dropped: orchestrator live: <id>' \
-  'the orchestrator your last `started orchestrator <id>` report named' \
-  'it holds a pending `/orchestrate pass` wake' \
+  'Never restore the title, never arm' \
+  'the text `retired <your session id>`. It only wakes the keeper sooner; the keeper reads none of it.' \
+  'Its text is never read, never quoted into a prompt: the prompt is always `/orchestrate`' \
+  '`orchestrator: <owner/repo>`, `prompt` = `/orchestrate`. Report `started orchestrator <id>`' \
+  '`get_session` finds it titled exactly `orchestrator: <owner/repo>` and `RUNNING`' \
+  '`session_status: RUNNING`, or whose `/orchestrate pass` wake' \
+  'is pending or fired within the last 2 × `JOHARNESS_HEALTH_MINUTES`' \
+  'its newest result holding `RETIRED after` quotes its last wake' \
+  'so no later start inherits it twice' \
   'you are the duplicate:' \
+  'One with a later `created_at` = you are the older: run "## 0. Start" step 3'"'"'s `@new` rebuild' \
   '`lineage.depth >= lineage.limit` = the REQUIRED tools refuse. Stop before step 3'; do
   expect "orchestrate.md one-spawner rule spells ${needle}" "$needle" "$orcfold"
 done
-refute "orchestrate.md no longer spawns an orchestrator successor itself" \
-  "HANDED OFF" "$orcfold"
+for needle in 'HANDED OFF' 'orchestrator (handed off):' 'the retire wake (below)' \
+  'passing it through verbatim as the prompt'; do
+  refute "orchestrate.md no longer spells ${needle}" "$needle" "$orcfold"
+done
 orcdocfold="$(tr '\n' ' ' <"${ROOT}/.agents/docs/orchestrated.md" | tr -s ' ')"
+for needle in '**One spawner.** Only the keeper starts an orchestrator' \
+  '**The doorbell carries no data.**' '**Lineage stays flat.**'; do
+  expect "orchestrated.md spells ${needle}" "$needle" "$orcdocfold"
+done
 # The heartbeat check (step 5): which Routine counts, and every way one is
 # not up to date. Each needle is the clause that makes one reason fire; the
 # spec it compares against lives in orchestrated.md, so both are pinned.
@@ -295,7 +311,7 @@ for needle in 'Routine named exactly `heartbeat: <owner/repo>` with a non-empty 
   'Candidates: `enabled` true, `run_once_at` set, `persistent_session_id` set,' \
   'differs from the one you hold = follow that text instead' \
   'a lineage refusal also `PushNotification`s once `keeper at lineage cap:' \
-  'and an earlier `created_at` than yours = run step 5 report-only (no REGISTER, no replace), then exit' \
+  'another LIVE one with an earlier `created_at` than yours = run step 5 report-only (no REGISTER, no replace), then exit' \
   'REPLACE only a Routine REGISTER made — `created_via: meta_mcp` AND `derived_state.prompt` exactly `/orchestrate keeper`' \
   'REGISTER'"'"'s lineage check (step 1) first, failing = report the stale line and stop; then `delete_trigger` it' \
   '`ended_reason` is anything but `auto_disabled_session_gone`' \

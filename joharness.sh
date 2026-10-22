@@ -6443,7 +6443,7 @@ cmd_dispatch() {
   printf 'cap       : %s manager(s) at once (JOHARNESS_MAX_MANAGERS)\n' "$cap"
   printf 'stall     : %s min without a push = cross-check the control plane (JOHARNESS_STALL_MINUTES)\n' "$stall"
   printf 'health    : one pass every %s min (JOHARNESS_HEALTH_MINUTES)\n' "$health"
-  # Lifted like the ceiling: 0 would otherwise hand off on every pass.
+  # Lifted like the ceiling: 0 would otherwise retire on every pass.
   if [ "$passes" -gt 0 ]; then
     printf 'passes    : %s per orchestrator session (JOHARNESS_ORCHESTRATOR_PASSES)\n' "$passes"
   else

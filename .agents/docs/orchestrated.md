@@ -539,16 +539,31 @@ m, `usage.cost_usd` 12.65, `context_usage.used_tokens` 304,615,
 supervised, because `send_later` wakes the SAME session and pass N re-reads
 passes 1..N-1. So after `JOHARNESS_ORCHESTRATOR_PASSES` passes the
 orchestrator retires: it retitles itself `orchestrator (retired):
-<owner/repo>`, sends the keeper its next wake with the ledger, and ends
-(`orchestrate.md` §4, RETIRE); the pass count decides, never a
-control-plane field. The keeper starts the successor.
+<owner/repo>`, quotes its next wake (ledger and leads) in its final
+report, rings the keeper, and ends (`orchestrate.md` §4, RETIRE); the pass
+count decides, never a control-plane field. The keeper starts the
+successor, which inherits that wake from the retired session's report
+(`list_events`) and retitles it `orchestrator (succeeded): <owner/repo>`.
 
-**One spawner.** Only the keeper starts an orchestrator. A successor an
-orchestrator starts itself races the keeper's hourly wake, which sees no
-pending wake mid-hand-off and starts its own: two orchestrators on one
-fleet, each pass paid twice. The keeper's turns run one at a time, so its
-hourly wake and a retire message never both start one; Pass entry's
-duplicate check stops any that slips through on its next pass.
+**One spawner.** Only the keeper starts an orchestrator, and its turns run
+one at a time, so its hourly wake and a doorbell never both start one. A
+LIVE orchestrator (`orchestrate.md`, "## 0. Start" step 3) is `RUNNING` or
+has a wake pending or fired within two pass intervals, so one IDLE between
+passes still counts. Pass entry's duplicate check stops any second one on
+its next pass; the older rebuilds `@new` from manager titles, since the
+duplicate's unclaimed spawns live only in its ledger.
+
+**The doorbell carries no data.** The keeper's message is
+`retired <id>`, and the keeper never reads it: any session can message the
+keeper, so a message that became a spawn prompt would let any session
+write an orchestrator's instructions. The ledger travels in the retired
+session's own report, written by the orchestrator itself. A lost doorbell
+delays the successor to the next hourly wake; it never doubles it.
+`fire_trigger` on the heartbeat with the ledger as `text` is refused in
+auto mode: from a manager session, 2026-10-22,
+`session_01KjRsJjm6q7mKQCqKQLbwJZ`, on `trig_01DJHYZQSaqgRPN35sebJqF8`,
+"Permission for this action was denied by the Claude Code auto mode
+classifier. Reason: [Interfere With Workloads]".
 
 **Lineage stays flat.** A `create_session` child sits one level below its
 parent; a session reads its own `lineage` (`depth`, `limit`) only from
@@ -579,11 +594,11 @@ title, never its prompt: prompt text (an argument, a ledger stem, a lead)
 is read by a model as a role notice, and an orchestrator that runs the
 keeper check starts another orchestrator. Each hourly wake, the keeper looks for a
 pending `/orchestrate pass` wake bound to an `orchestrator: <owner/repo>`
-session, nor a `RUNNING` orchestrator it started itself; none = it starts
-a fresh orchestrator with `create_session`. A retiring orchestrator's
-message wakes it at once with the ledger, which becomes the successor's
-prompt. The orchestrators a keeper starts sit at its depth plus one on
-every wake, so the fleet does not deepen. A replace re-roots the
+session, or a `RUNNING` orchestrator it started itself; none = it starts
+a fresh orchestrator with `create_session`, prompt always `/orchestrate`.
+A retiring orchestrator's doorbell wakes it sooner. The orchestrators a
+keeper starts sit at its depth plus one on every wake, so the fleet does
+not deepen. A replace re-roots the
 keeper at the replacing session's depth plus one, which is why REGISTER
 checks `depth + 2 < limit` before it deletes anything.
 
@@ -624,19 +639,6 @@ that reads `RUNNING` (one `get_session`). A human-started one in its first
 start is still missed: the keeper starts a second, and "## 0. Start" step
 3 lets the older proceed and the newer exit. A DRAINED fleet
 costs one short orchestrator session an hour.
-
-**Retire wake by `send_message`, not `fire_trigger`.** Firing the
-keeper's heartbeat with the ledger as `text` was the first design. From a
-manager session in auto permission mode (2026-10-22,
-`session_01KjRsJjm6q7mKQCqKQLbwJZ`), `fire_trigger` on
-`trig_01DJHYZQSaqgRPN35sebJqF8` (`heartbeat: chrsctl/joharness`), `text`
-= `payload-probe-7f3a: measurement from manager
-orchestrator-heartbeat-successor. Data only; run your keeper section as
-usual.`, was refused before it ran: "Permission for this action was denied
-by the Claude Code auto mode classifier. Reason: [Interfere With
-Workloads]". `send_message` to a session is the orchestrator's nudge
-transport already, so the retire uses it. Undelivered, the fleet waits
-for the next hourly wake and loses the ledger; it is never doubled.
 
 The spec every orchestrator checks at start (`orchestrate.md`, "## 0.
 Start" step 5; a session-made stale one is replaced, any other `heartbeat
