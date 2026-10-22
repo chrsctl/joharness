@@ -170,13 +170,12 @@ refute "a path a plan marks shared: draws no 'order them' proposal" \
 printf 'real\n' >"${cawork}/target-plan.md"
 git -C "$cawork" checkout -q -- docs/plans 2>/dev/null
 chmod 640 "${cawork}/docs/plans/mk-b.md"
-mode0="$(ls -l "${cawork}/docs/plans/mk-b.md" | cut -c1-10)"
 out="$(cacur --apply)"
 expect "--apply rewrote the plan" "applied   : docs/plans/mk-b.md" "$out"
-if [ "$(ls -l "${cawork}/docs/plans/mk-b.md" | cut -c1-10)" = "$mode0" ]; then
+if [ -n "$(find "${cawork}/docs/plans/mk-b.md" -perm 640)" ]; then
   pass "a rewritten plan keeps its mode"
 else
-  fail "a rewritten plan keeps its mode: $mode0 -> $(ls -l "${cawork}/docs/plans/mk-b.md" | cut -c1-10)"
+  fail "a rewritten plan keeps its mode (was 640)"
 fi
 git -C "$cawork" checkout -q -- docs/plans
 mv "${cawork}/docs/plans/mk-c.md" "${cawork}/real-mk-c.md"
