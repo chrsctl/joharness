@@ -6,7 +6,7 @@ effort: xhigh
 needs: none
 requirement: none
 issue: none
-scope: joharness.sh, .agents/harness/selftest/checks.sh, .agents/harness/AGENTS.md, .agents/docs/consumer-repos.md
+scope: shared:joharness.sh, .agents/harness/selftest/checks.sh, shared:.agents/harness/AGENTS.md, .agents/docs/consumer-repos.md
 ---
 
 ## Goal
