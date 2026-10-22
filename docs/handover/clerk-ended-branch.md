@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01Ft341NtFw67fY7fCT5noKB
 agent: opus
 updated: 2026-10-22
-next: Run ci and verify, record the red-without-fix line, verifier review, retire, PR
+next: Retire, open the PR, merge on green GitHub checks
 ---
 
 ## Goal
@@ -38,6 +38,12 @@ failing closed.
 - r2: (verifier) any merged no-op after the tip proves the end, not this pass's own: a twin's no-op could end a live clerk mid-pass (wontfix: a no-op names no branch to tie it to, the twin check already stops a second clerk, and the cadence clock reads not due either way)
 - r3: (verifier) .agents/docs/orchestrated.md clerk row still said every young unmerged clerk branch takes a slot (fixed)
 - r4: (verifier) the live acceptance row and the red-without-fix line were not recorded (fixed: origin/clerk-2026-10-22 gone at 19:23 UTC 2026-10-22, said in the PR body; red line below)
+
+Red without the fix (`./joharness.sh ci` in a worktree with origin/main
+977c74e's joharness.sh and this branch's clerk.sh, 2026-10-22 ~20:00 UTC):
+`FAIL (i) ended: no net change and a later no-op record hold nothing`, and 5
+more (i) lines. With the fix: every clerk case passes; the one red is
+`80 KB of prose keywords: 5s (wanted <= 4s)`, red on main here too (#535).
 
 ## Blockers
 
