@@ -35,7 +35,9 @@ plan-only pull request and its body are the record, and `./joharness.sh
 clerk` reads the cycle from git — your merge on `origin/main`'s first
 parent, under GitHub's default subject `Merge pull request #N from
 <owner>/clerk-…`, dates it; your unmerged branch reads IN FLIGHT until its
-tip is `JOHARNESS_CLERK_STALE_HOURS` old (24 by default), then abandoned.
+tip is `JOHARNESS_CLERK_STALE_HOURS` old (24 by default), then abandoned,
+or until a later no-op record lands while it carries no net change
+(`ended`).
 Push the branch (`git push -u origin <branch>`) as soon as the first plan is
 committed; never force push.
 
