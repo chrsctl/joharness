@@ -319,11 +319,13 @@ expect "orchestrate.md points to keeper.md" \
   'The keeper'"'"'s rules are `.claude/commands/keeper.md`; this file holds none.' "$orcfold"
 refute "and holds no keeper rule itself" \
   'SWAP — the one place the keeper retires an orchestrator' "$orcfold"
+# shellcheck disable=SC2016 # literal backticks in the needle
 expect "and sends a keeper without the file to origin/main's" \
   'A keeper whose tree lacks that file reads `git show origin/main:.claude/commands/keeper.md`.' "$orcfold"
 # The Loop routes and points; the picking order and the block list live
 # once, in dispatch and block_reason_ok.
 agentsfold="$(tr '\n' ' ' <"${ROOT}/.agents/harness/AGENTS.md" | tr -s ' ')"
+# shellcheck disable=SC2016 # literal backticks in the needle
 expect "AGENTS.md names the one block-reason list" \
   'each is in the one list dispatch accepts, `joharness.sh:block_reason_ok`' "$agentsfold"
 refute "and restates no block list of its own" \
