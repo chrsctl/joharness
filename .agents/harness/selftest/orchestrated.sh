@@ -190,6 +190,8 @@ orcmd="${ROOT}/.claude/commands/orchestrate.md"
 mgrmd="${ROOT}/.claude/commands/manage.md"
 orctext="$(cat "$orcmd")"
 mgrtext="$(cat "$mgrmd")"
+clerktext=""
+[ -f "${ROOT}/.claude/commands/clerk.md" ] && clerktext="$(cat "${ROOT}/.claude/commands/clerk.md")"
 
 # Two messaging transports, one per kind of target (issue #347). A cloud
 # fleet measured ListAgents empty while Claude Code Remote send_message by
@@ -482,6 +484,45 @@ expect "and only when it reproduces on origin/main" \
   "reproduces on" "$mgrtext"
 expect "and a failed filing never blocks the item" \
   "defect not filed:" "$mgrtext"
+# Every issue a pull request body names gets the link as a comment.
+expect "the manager has a paragraph linking the issue" \
+  "Link the issue" "$mgrtext"
+expect "one comment per named issue" \
+  "post ONE comment on that issue" "$mgrtext"
+# A consumer with the clerk off carries no clerk.md; nothing to pin there.
+if [ -n "$clerktext" ]; then
+expect "the clerk's HOLDS verdict names the plan-only pull request" \
+  "clerk: HOLDS — plan" "$clerktext"
+expect "the clerk comments after its pull request opens" \
+  "AFTER the pull request opens" "$clerktext"
+fi
+
+# A core-path remainder is a ready pull request on its own branch, labelled
+# for a human, never an issue describing the edit; the session never merges it.
+expect "a human remainder is a human/<stem> pull request" \
+  "ONE pull request on branch" "$mgrtext"
+expect "named human/<stem>, cut from a separate worktree" \
+  "git worktree add -b human/<stem>" "$mgrtext"
+expect "and the session never merges it" "never merge it" "$mgrtext"
+refute "and no longer files an issue describing the edit" \
+  "remainder issue not filed" "$mgrtext"
+# A clerk HUMAN question takes a number: options, a recommendation, and the
+# hand-typed reply rule. Read as manage.md is read.
+clerktext="$(cat "${ROOT}/.claude/commands/clerk.md")"
+expect "a clerk HUMAN comment asks for a hand-typed number" \
+  "reply by hand with the number" "$clerktext"
+expect "and marks the recommended option" "(recommended)" "$clerktext"
+expect "and the clerk reads a numbered reply as that option" \
+  "selects option" "$clerktext"
+expect "only a reply that is just the number" "whose whole text is a" "$clerktext"
+expect "and only one newer than the question" \
+  "number \`N\` (whitespace and trailing punctuation ignored), newer than the" "$clerktext"
+expect "and the comment says the label must come off" \
+  "so the next pass reads it" "$clerktext"
+expect "a remainder needing the branch's files waits for it" \
+  "merge after <your branch> lands on main" "$mgrtext"
+expect "and an unlabelled remainder pull request blocks the retire" \
+  "or unlabelled." "$mgrtext"
 
 # A skipped `lint` checked nothing: the repository variable switches it off,
 # and step 7 must send the session to the local gate.

@@ -99,15 +99,30 @@ outlive this session = a plan file in your pull request. Never a second item.
 A remainder only a human can build — a core-path edit
 (`./joharness.sh protocol-paths`) the plan leaves to a human, under whatever
 heading — fits no plan and dies at retire (`.agents/docs/plans/README.md`,
-"A human remainder"). Home: ONE GitHub issue, filed before the retire
-commit (`issue_write` `create`): title `human: <stem>: <edit, one line>`,
-body = the edit verbatim and the plan's reason, labels `human-review`. Pull
-request body says `Refs #N` — never `Closes #N`, which closes it at your
-merge. The clerk lists it `held: human-review` every pass; the human's own
-core-path pull request closes it. The issue carries the plan's carve-out,
-nothing new. `issue_write` fails = `status: blocked`, `next:` = `github:
-remainder issue not filed: <error, 40 chars>`, push, exit — never retire
-with it unfiled.
+"A human remainder"). Home: ONE pull request on branch `human/<stem>`,
+opened before the retire commit, ready for a human to merge:
+
+1. A separate worktree from fresh-fetched `origin/main`, never your own
+   tree: `git worktree add -b human/<stem> ../<repo>-human origin/main`.
+2. There, commit ONLY the core-path edit, run `./joharness.sh ci`, push
+   `human/<stem>`. `ci` red only because the edit needs a file your branch
+   adds = the body leads with `merge after <your branch> lands on main`;
+   red for any other reason = fix it there first. This commit is the one exception to the boundary (Loop
+   step 2) and to a spawn prompt's "never commit under those paths": it
+   never lands on your branch, and a human merges it.
+3. `create_pull_request` from `human/<stem>`: title `human: <stem>: <edit,
+   one line>`, body = the plan's reason, the `ci` result, and "merge is the
+   human's"; then label it `human-review` (`issue_write` `update`), and read
+   the label back (`pull_request_read` `get`). You
+   never merge it, never approve it, never relabel it, and never push to it
+   again unless the human asks.
+4. `git worktree remove ../<repo>-human`.
+
+Your own pull request body says `Refs #<core PR>`. The pull request carries
+the plan's carve-out, nothing new. The push, `create_pull_request` or the
+label fails = step 4, then `status: blocked`, `next:` = `github: human PR
+not opened: <error, 40 chars>`, push, exit — never retire with it unopened
+or unlabelled.
 
 ## R. Surveyor: the one kind that edits OTHER plans
 
@@ -191,9 +206,19 @@ it. A follow-up plan you filed as
 its own plan-only pull request is yours too: drive it to merged, step 7
 whole, before you exit.
 
+**Link the issue.** Right after the pull request opens, for EACH issue number
+its body names with `Closes #N` or `Refs #N` (the plan's issue, a
+human-remainder issue, any other):
+post ONE comment on that issue (`add_issue_comment`): `PR #<M> <what it does
+for this issue, one line>: <PR url>`, ending with the attribution footer the
+session's system prompt names. One comment per issue per pull request; never
+edit the issue's body or labels for it. A comment fails: name the failed call
+in your final report line, never block, never retry — the `Closes`/`Refs` line
+still links it.
+
 GitHub lost at step 7:
 
-- **Before the retire commit:** a human remainder's issue filed (§2), then
+- **Before the retire commit:** a human remainder's pull request opened (§2), then
   one GitHub MCP read (`get_me`, or `list_pull_requests` on your head
   branch). Fails? Do not retire. `status:
   blocked`, `next:` = `github: GitHub MCP lost before PR: <error, 40 chars>`, push,
@@ -255,7 +280,8 @@ each with the command and output that produced it.
 ## Never
 
 - A second item, a session of your own (workers are subagents), a core path
-  (`./joharness.sh protocol-paths`), another session's pull request.
+  (`./joharness.sh protocol-paths`) outside §2's `human/<stem>` worktree,
+  another session's pull request.
 - Downgrade the plan's tier or effort; skip, disable or quarantine a test;
   kick CI.
 - Trust a worker's "done": count it.
