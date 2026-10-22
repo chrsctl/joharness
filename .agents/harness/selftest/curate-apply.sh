@@ -129,3 +129,24 @@ out="$( cd "$cawork" && JOHARNESS_CONF="$caconf" DISPATCH_FETCH=0 \
 expect "mechanical-only repairs are named as curate --apply work" \
   "curate due, nothing needs judgement: spawn no curator" "$out"
 refute "and no curator is spawned for them" "curate DUE: spawn" "$out"
+
+# --- an unreadable queue hook: --apply writes nothing ------------------------
+# The hook's claimed rows are what exempt a held plan from repair; read as
+# empty, --apply would rewrite plans a manager holds.
+git -C "$cawork" checkout -q main
+git -C "$cawork" reset -q --hard origin/main
+caplan widehold src src/pkg/a.py
+commit_all "$cawork" "a plan --apply would narrow"
+chmod -x "${cawork}/.agents/harness/queue-context.sh"
+out="$(cacur --apply)"; rc=$?
+chmod +x "${cawork}/.agents/harness/queue-context.sh"
+expect "curate --apply names the unreadable hook" \
+  "curate    : UNREADABLE — queue hook queue-context.sh: not executable" "$out"
+refute "and applies nothing" "applied   :" "$out"
+if [ "$rc" -ne 0 ]; then pass "and curate --apply exits non-zero"
+else fail "and curate --apply exits non-zero"; fi
+if [ -z "$(git -C "$cawork" status --porcelain)" ]; then
+  pass "and no plan file changes"
+else
+  fail "and no plan file changes: $(git -C "$cawork" status --porcelain | tr '\n' ' ')"
+fi
