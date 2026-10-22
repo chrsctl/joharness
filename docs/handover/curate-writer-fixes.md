@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01D4is7qg9UAwnXVgyFR9ZBy
 agent: sonnet
 updated: 2026-10-22
-next: Selftest run in flight (unverified); run .agents/harness/selftest.sh, confirm new curate-apply cases red on main then green, then ci+verify, review, retire
+next: Selftest green except timing flake (80 KB prose, 5s vs 4s under load); new cases verified red on main. Read ci and verify results, review, retire, PR
 ---
 
 ## Goal
