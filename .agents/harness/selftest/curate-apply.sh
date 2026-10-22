@@ -167,10 +167,10 @@ refute "a path a plan marks shared: draws no 'order them' proposal" \
   "'reg/other.py': claimed exclusively" "$out"
 
 # --- curate --apply keeps a plan's mode and leaves a symlink alone -----------
-chmod 640 "${cawork}/docs/plans/mk-b.md"
-mode0="$(ls -l "${cawork}/docs/plans/mk-b.md" | cut -c1-10)"
 printf 'real\n' >"${cawork}/target-plan.md"
 git -C "$cawork" checkout -q -- docs/plans 2>/dev/null
+chmod 640 "${cawork}/docs/plans/mk-b.md"
+mode0="$(ls -l "${cawork}/docs/plans/mk-b.md" | cut -c1-10)"
 out="$(cacur --apply)"
 expect "--apply rewrote the plan" "applied   : docs/plans/mk-b.md" "$out"
 if [ "$(ls -l "${cawork}/docs/plans/mk-b.md" | cut -c1-10)" = "$mode0" ]; then
