@@ -62,7 +62,7 @@ log, not markdown ([`caveman.md`](../../.agents/docs/caveman.md), Status quo).
    ending any unfinished turn. `/handover` writes it.
 7. **Finish.** PR, merge to `main` yourself — own PR only (opened by this
    session, or handed to it). Merge when ALL hold:
-   - GitHub checks green on head (`JOHARNESS_CHECKS=local`: `finish` runs
+   - GitHub checks green on head (`JOHARNESS_CHECKS=local` in the environment, never the conf: `finish` runs
      `ci` + `verify` instead; every other workflow step then counts for
      nothing — `.agents/docs/consumer-repos.md`, "Local checks");
    - branch 0 behind fresh-fetched `origin/main` — behind = reconcile first

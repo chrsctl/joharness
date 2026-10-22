@@ -147,7 +147,6 @@ CONDUCT_SAMPLE="$(conf_key_default JOHARNESS_CONDUCT_SAMPLE)"
 # Same decision, same reason: whether step 7 waits for GitHub Actions or runs
 # the checks here is a question a repo answers once it has felt the wait, not
 # one a human has an opinion about before the first session.
-CHECKS="$(conf_key_default JOHARNESS_CHECKS)"
 # Same again for the curate cycle's two triggers. Not asked: a human at first
 # contact has no opinion about how often a plan queue's declarations should be
 # re-read, and the defaults are the whole point — the key is seeded so the one
@@ -697,20 +696,6 @@ JOHARNESS_ENV_MD=${ENV_MD}
 #       Mid-build it only says the record is owed. Record, not count — and
 #       one of them from a reader that did not write the diff.
 JOHARNESS_REVIEW=${REVIEW}
-
-# github = step 7's first merge condition is this head's checks, read on
-#          GitHub: a session pushes, waits for Actions, then merges.
-# local  = no wait. ./joharness.sh finish runs this head's checks itself — ci,
-#          and verify when the diff touches the non-*.md paths step 7 names —
-#          and reds on their result. Not permission to skip them, and it
-#          refuses a head that is not what merges. Anything but 'local' reads
-#          as 'github'.
-# This key saves the WAIT, never Actions MINUTES: the workflow runs on every
-# pull request whatever this file says. The minutes are behind the SAME NAME
-# in its other home, a GitHub repository variable read by
-# .github/workflows/ci.yml, whose 'lint' job carries the one copy of how to
-# set it and what it costs — read it there before setting either.
-JOHARNESS_CHECKS=${CHECKS}
 
 # How often ./joharness.sh curate becomes a session's item: the queue's own
 # declarations rot, and a curator repairs them (.claude/commands/curate.md).
