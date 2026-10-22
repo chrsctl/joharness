@@ -52,6 +52,7 @@ Core-path remainder (ci.yml `[ -f ]` guard) goes to a `human/` pull request.
 - r7: (verifier) update.yml labels exit 2 as AHEAD, summary line omits UNREADABLE (wontfix: update.yml is a core path; the engine logs the UNREADABLE count on its own line)
 - r8: (verifier) hooks insert and canonical-without-hooks paths untested; only one jq branch runs per machine (fixed: both paths have cases; the branch split stays, jq cannot be hidden from PATH without rebuilding it)
 - r9: ci shellcheck SC2012 on a new test message (fixed: ls dropped)
+- r10: final selftest 2026-10-22: new tests on merge-base scripts 3017 passed, 16 failed (all new cases); on this branch 3033 passed, 0 failed (no change)
 
 ## Blockers
 
