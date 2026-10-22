@@ -293,6 +293,7 @@ if [ -n "$runend_ln" ] && [ -n "$retire_ln" ] && [ -n "$report_ln" ] &&
 else
   fail "RUN END sits after RETIRE and before the report rules (retire ${retire_ln:-none}, run end ${runend_ln:-none}, report ${report_ln:-none})"
 fi
+# shellcheck disable=SC2016 # literal backticks in the needles
 for needle in 'HANDED OFF' 'orchestrator (handed off):' 'hand-off skipped' \
   'RETIRED after' 'orchestrator (succeeded):' 'Run the superseded check first' \
   'your title is not exactly' \

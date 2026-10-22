@@ -35,6 +35,7 @@ None yet.
 - r5: (verifier) more retired sessions now forward other sessions' messages to the LIVE orchestrator (no change: the receiver checks the lead stem as before; forwarding paragraph unchanged per plan)
 - r6: (verifier) any session able to retitle another can stop it with the retired title (no change: Retired check predates this diff)
 - r7: (verifier) Retired gloss and `no retire in this sense` unpinned (fixed: needles added)
+- r8: refute loop gained a backtick needle without the SC2016 disable, ci red on shellcheck (fixed)
 
 ## Blockers
 
