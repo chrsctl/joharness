@@ -20,11 +20,10 @@ directly to fix it.
 ## Decisions
 
 - Cause is `strip_heredocs`: `rest="${rest#*\\n}"` matches a leading `*`
-  against every prefix, quadratic on one long heredoc line (2.5 s of the
-  2.3-6 s). Replaced with `${rest:${#line}+2}` after the `%%` cut, the
+  against every prefix, quadratic on one long heredoc line. Replaced with `${rest:${#line}+2}` after the `%%` cut, the
   idiom `selfscan` already uses. Guard behaviour unchanged.
-- Payload raised to 160 KB so the test fails without the fix on any
-  machine: old guard 9.2-10 s, new 0.19 s.
+- Payload raised to 160 KB so the test fails without the fix on a fast
+  machine; numbers in the selftest comment.
 
 ## Rejected
 
@@ -33,6 +32,12 @@ directly to fix it.
   gain (their match sits near the start of `rest`); left out.
 
 ## Review
+
+- r1: (verifier) guard comment gave a measured number with no command or date (fixed)
+- r2: (verifier) selftest comment told the rejected 80 KB story and the replaced code's number without its command (fixed)
+- r3: (verifier) selftest comment described the prose skip, a path this heredoc payload never reaches (fixed)
+- r4: (verifier) workstream file gave measured numbers with no command or date (fixed)
+- r5: (verifier) invalid UTF-8 makes `${rest%%\\n*}` misbehave under a UTF-8 locale, but hook_key fails open on such a payload before strip_heredocs runs; pre-existing (no change)
 
 ## Blockers
 

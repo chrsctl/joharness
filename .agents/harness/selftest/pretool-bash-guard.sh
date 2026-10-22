@@ -454,13 +454,12 @@ else
   fail "200 lines of quoted keywords before loops: exit ${pbg_rc}, ${pbg_secs}s (wanted 0, <= 4s)"
 fi
 
-# And 160 KB of plain notes in a heredoc, where every keyword is prose. Each
-# prose skip cuts over the whole command, so the skip runs only up to 8 KB.
-# strip_heredocs cuts each line off with `%%` and a substring: a `#*` cut is
-# quadratic and took 9.2 s on this payload, 0.19 s with the cut (2026-10-22,
-# the guard alone, idle 4-core container). 160 KB, not 80: at 80 the
-# quadratic cut took 2-6 s by machine and slipped under the bound on a fast
-# one.
+# And 160 KB of plain notes in a heredoc, where every keyword is prose.
+# strip_heredocs drops the body before any reader sees it, so this times
+# strip_heredocs alone: it cuts each line in time linear in its length. The
+# payload is large enough that a quadratic cut fails the bound on a fast
+# machine: `${rest#*\\n}` took 9.6 s, the cut 0.25 s (2026-10-22, this
+# payload piped to pretool-bash-guard.sh, LC_ALL=C, idle 4-core container).
 pbg_big=""
 for _ in $(seq 1 4400); do
   pbg_big+='The step waits wh''ile the build runs. '
