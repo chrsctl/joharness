@@ -475,7 +475,7 @@ expect "and where a lead with no stem goes instead" \
 expect "a defect outside the item is filed as an issue" \
   'defect: <test or command>' "$mgrtext"
 expect "and the issue is held from the clerk" \
-  'labels `human-review`' "$mgrtext"
+  "labels \`human-review\`" "$mgrtext"
 expect "and capped at one per session" \
   "ONE issue per session" "$mgrtext"
 expect "and only when it reproduces on origin/main" \
