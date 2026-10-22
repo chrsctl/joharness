@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_014wCvWi56XbqMaLKk8xdBds
 agent: opus
 updated: 2026-10-22
-next: Run ci + verify on the fixed head, re-verify the r-fixes, then file the ci.yml human-remainder issue and retire
+next: Run ci + verify on this head, file the ci.yml human-remainder issue, retire, open the PR
 ---
 
 ## Goal
@@ -51,7 +51,15 @@ the local gate: `finish` reads the head's `lint` check run; skipped = run
 - r10: (verifier) concatenated documents, object `check_runs` read as skipped (fixed: `jq -s`, one document, array; fixtures; mutants 3 and 1 failed)
 - r11: (verifier) no `timeout` binary leaves `gh api` unbounded (wontfix: plan bounds it "when `timeout` exists"; curl carries --max-time)
 - r12: (verifier) workstream file not updated with the code (fixed: this commit)
-- r13: mutants on the checks topic alone, scratch worktree 2026-10-22: base 142 passed; `return 1` 13 failed, `return 0` 29+ (46) failed, `any` 9, no status 3, no slug 4, no length 3, no type 1, no unread line 2, no none line 1 (no change)
+- r13: mutants on the checks topic alone, scratch worktree (`for _t in checks` in selftest.sh), 2026-10-22: base 142 passed; `checks_lint_skipped() { return 1;` 13 failed; `{ CHECKS_LINT_SAID=skipped; return 0;` 46; `all(...)` -> `any(.conclusion == "skipped")` 9 (drops the status clause too); `.status == "completed" and ` removed 3; slug-check line removed 4; `length == 1 and ` removed 3; type check -> `true` 1; unread line off 2; none line off 1 (no change)
+- r14: (verifier) ssh-origin case passed with the ssh branch deleted: the container's GIT_CONFIG_COUNT insteadOf rewrote `git@github.com:` to https (fixed: `kc_gh` unsets GIT_CONFIG_COUNT; mutant 2 failed)
+- r15: (verifier) r13's `any` count did not reproduce (fixed: r13 names each mutant's edit; `all(` -> `any(` alone, 2026-10-22, 7 failed)
+- r16: (verifier) origin with a token (`https://x-access-token:t@github.com/o/r`) or a trailing slash read as not GitHub, silently (fixed: both accepted, user part may hold no `/`; selftest; mutants 3 and 3 failed)
+- r17: (verifier) only a consumer job named `lint` exists yet and it skipped: gate goes local before the harness lint run exists (wontfix: the plan's highest-id rule shares it; telling the two apart needs the check suite or workflow, outside the plan's read)
+- r18: (verifier) unread line's remedy wrong when the head is not pushed (fixed: names "head not pushed? private repo with no gh login?")
+- r19: (verifier) lint-skip "NOT run" header untested (fixed: red-finish case on kcskip; reverting the header, 1 failed)
+- r20: (verifier) usage header and github-mode line did not name the repository variable (fixed; KNOBS row describes the environment knob and stays)
+- r21: (verifier) 60 requests/hour, unauthenticated 200, `filter=latest` and skipped-job check runs are GitHub behaviour unread here (no change: the plan measured the 200; the rest fail closed either way)
 
 ## Blockers
 

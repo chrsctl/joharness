@@ -20,8 +20,9 @@
 #                   score the review loop from merged history, or what earlier
 #                   merged edges found in one file
 #   finish [-v]     Loop step 7 gate: what merging this branch NOW would leave
-#                   on the base branch. With JOHARNESS_CHECKS=local it also runs
-#                   `ci` (and `verify` when needed) itself
+#                   on the base branch. With JOHARNESS_CHECKS=local, or the
+#                   head's lint check skipped on GitHub, it also runs `ci`
+#                   (and `verify` when needed) itself
 #   dispatch        the orchestrator's one read: cap, managers in flight, spawn
 #                   order, verdict. Report-only
 #   janitor [--apply <branch>...]
@@ -212,10 +213,11 @@ checks_lint_skipped() {
   url="$(git -C "$ROOT" remote get-url origin 2>/dev/null)" || return 1
   case "$url" in
     https://github.com/*) slug="${url#https://github.com/}" ;;
+    https://[!/]*@github.com/*) slug="${url#https://*@github.com/}" ;;
     git@github.com:*) slug="${url#git@github.com:}" ;;
     *) return 1 ;;
   esac
-  slug="${slug%.git}"
+  slug="${slug%/}"; slug="${slug%.git}"
   case "$slug" in
     */*/* | /* | */ | *[!A-Za-z0-9._/-]*) return 1 ;;
     */*) ;;
@@ -4855,8 +4857,8 @@ checks_gate() {
     printf 'JOHARNESS_CHECKS=local in the environment (never joharness.conf, which\n'
     printf 'is ignored) makes this command run ci and verify here instead and be\n'
     printf 'red on their result.\n'
-    printf 'The repository variable alone also switches it: finish reads the head'"'"'s\n'
-    printf 'lint check on GitHub, and lint skipped means the local gate runs.\n'
+    printf 'The repository variable JOHARNESS_CHECKS=local alone also switches it:\n'
+    printf 'finish reads the head'"'"'s lint check on GitHub; skipped = local gate.\n'
     return 0
   fi
 
@@ -5050,7 +5052,7 @@ cmd_finish() {
   # Could not read is not skipped, and must not look like a read: a lint
   # that shows skipped on GitHub is then green with nothing checked.
   case "$CHECKS_LINT_SAID" in
-    unread) printf 'checks: could not read the head'"'"'s lint check on GitHub. It shows skipped there? That is no green: set JOHARNESS_CHECKS=local in the environment and run this again.\n' ;;
+    unread) printf 'checks: could not read the head'"'"'s lint check on GitHub (head not pushed? private repo with no gh login?). It shows skipped there? That is no green: set JOHARNESS_CHECKS=local in the environment and run this again.\n' ;;
     none) printf 'checks: no lint check on GitHub for this head yet. It shows skipped there later? That is no green: run this again.\n' ;;
   esac
   if [ "$CHECK_FAILS" -ne 0 ]; then

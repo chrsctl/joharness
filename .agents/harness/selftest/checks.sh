@@ -436,7 +436,8 @@ kc_json running '{"check_runs":[{"id":4,"name":"lint","status":"in_progress","co
 kc_json windows '{"check_runs":[{"id":5,"name":"windows","status":"completed","conclusion":"skipped"}]}'
 kc_gh() {
   rm -f "${kcstub}/calls"
-  env -u JOHARNESS_CHECKS PATH="${kcstub}:${PATH}" HANDOVER_FETCH=0 "$@" \
+  env -u JOHARNESS_CHECKS -u GIT_CONFIG_COUNT PATH="${kcstub}:${PATH}" \
+    HANDOVER_FETCH=0 "$@" \
     bash -c "$(declare -f kc_finish); kcwork='${kcwork}'; kc_finish"
 }
 kc_github_kept() {
@@ -495,6 +496,13 @@ out="$(kc_gh KC_GH="${kcstub}/rerun.json")"
 refute "a lint run that did not skip draws no unread line" \
   "could not read the head's lint check" "$out"
 
+# A token in the URL, and a trailing slash, are still this GitHub repository.
+git -C "$kcwork" remote set-url origin https://x-access-token:t@github.com/kco/kcr/
+out="$(kc_gh KC_GH="${kcstub}/skipped.json")"
+expect "a token and a trailing slash in a GitHub origin are read" \
+  "lint skipped on GitHub" "$out"
+expect "and ask for the same repository" "gh api repos/kco/kcr/commits/" \
+  "$(cat "${kcstub}/calls" 2>/dev/null)"
 git -C "$kcwork" remote set-url origin https://gitlab.com/kco/kcr.git
 out="$(kc_gh KC_GH="${kcstub}/skipped.json")"
 kc_github_kept "a non-GitHub origin" "$out"
@@ -544,6 +552,16 @@ expect "a conf line beside a skipped lint still runs the local gate" \
 refute "and does not claim github mode" "This finish is github mode" "$out"
 expect "and still names the conf line as ignored" \
   "joharness.conf sets JOHARNESS_CHECKS=local, which is ignored" "$out"
+
+# Red above, under a skipped lint: the header names that switch too.
+mkdir -p "${kcwork}/docs/handover"
+printf -- '---\nworkstream: kcs\nstatus: in-progress\n---\n' \
+  >"${kcwork}/docs/handover/kcs.md"
+commit_all "$kcwork" "claim on the lint-skipped branch"
+git -C "$kcwork" push -q origin kcskip 2>/dev/null
+out="$(kc_gh KC_GH="${kcstub}/skipped.json")"
+expect "a red finish under a skipped lint names that switch" \
+  "checks: local (lint skipped on GitHub) — NOT run" "$out"
 
 git -C "$kcwork" remote set-url origin "$kcorigin"
 git -C "$kcwork" config --unset remote.origin.pushurl
