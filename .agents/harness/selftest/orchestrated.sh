@@ -471,3 +471,16 @@ expect "the sender is told the stem must be a queue item's name" \
   "The stem must be a QUEUE ITEM's name" "$mgrtext"
 expect "and where a lead with no stem goes instead" \
   "goes in your pull request body" "$mgrtext"
+
+# A skipped `lint` reads green on GitHub and checked nothing: the repository
+# variable switches it off, and step 7 must send the session to the local gate.
+if grep -q 'A skipped check is never green' "${ROOT}/.agents/harness/AGENTS.md"; then
+  pass "step 7 says a skipped check is never green"
+else
+  fail "step 7 says a skipped check is never green"
+fi
+if grep -q 'Harness commands never call GitHub' "${ROOT}/.agents/harness/AGENTS.md"; then
+  pass "the harness says its commands never call GitHub"
+else
+  fail "the harness says its commands never call GitHub"
+fi

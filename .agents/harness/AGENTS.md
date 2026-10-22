@@ -63,10 +63,12 @@ log, not markdown ([`caveman.md`](../../.agents/docs/caveman.md), Status quo).
 7. **Finish.** PR, merge to `main` yourself — own PR only (opened by this
    session, or handed to it). Merge when ALL hold:
    - GitHub checks green on head (`JOHARNESS_CHECKS=local` in the environment, never the conf: `finish` runs
-     `ci` + `verify` instead; or the head's `lint` check concluded `skipped`
-     (repository variable `JOHARNESS_CHECKS=local`): `finish` then runs
-     `ci` + `verify` the same way; every other workflow step then counts for
-     nothing — `.agents/docs/consumer-repos.md`, "Local checks");
+     `ci` + `verify` instead; every other workflow step then counts for
+     nothing — `.agents/docs/consumer-repos.md`, "Local checks"). Head's
+     latest `lint` check run concluded `skipped` (repository variable
+     `JOHARNESS_CHECKS=local`) → run `JOHARNESS_CHECKS=local ./joharness.sh
+     finish`; merge only on its `finish: pass (ci and verify ran here…)`
+     line. A skipped check is never green;
    - branch 0 behind fresh-fetched `origin/main` — behind = reconcile first
      (`.agents/docs/product/README.md`, "Conflict at finish");
    - `./joharness.sh verify` green when the diff touches non-`*.md` files
@@ -84,6 +86,8 @@ log, not markdown ([`caveman.md`](../../.agents/docs/caveman.md), Status quo).
    branches (`git push --delete` is human-only). Merge button not yours?
    Retire and record review BEFORE asking the human. Infrastructure state
    is re-checked every time, never inherited. One item per session.
+   Harness commands never call GitHub; sessions read and write GitHub
+   through the GitHub MCP server.
 
 ## Decide alone
 
