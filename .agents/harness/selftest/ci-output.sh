@@ -84,7 +84,7 @@ expect "finish -v prints the passing checks" "== workstream files" "$out"
 # Portability lint: stock macOS has BSD sed and awk. `\t` and `\|` in a sed
 # expression and a multi-line value through `awk -v` silently misbehave there.
 # $ROOT is this repository; consumers run the same scan on their copy.
-sedhits="$(grep -nE "sed( -[nE]+)? ['\"].*(\\\\t|\\\\\\|)" \
+sedhits="$(grep -nE "(^|[^A-Za-z])sed( -[A-Za-z]+)* ['\"][^'\"]*(\\\\t|\\\\\\|)" \
   "${ROOT}/joharness.sh" "${ROOT}"/.agents/harness/*.sh 2>/dev/null |
   grep -vE '^[^:]*:[0-9]+:[[:space:]]*#' || :)"
 if [ -z "$sedhits" ]; then pass "no sed uses \\t or \\| (BSD sed)"
