@@ -3901,3 +3901,35 @@ out="$(ms)"
 git -C "$mswork" update-ref refs/remotes/origin/main "$nm_main"
 expect "a missing base ref still prints the unverified row" \
   "ref(s) have no merge base here" "$out"
+
+# --- a queue hook that cannot be read is UNREADABLE, never DRAINED ----------
+# drain_hook read a missing or non-executable hook as an empty queue, and a
+# failing one as whatever it printed before it died: both are a picture of a
+# queue nobody read, and DRAINED on it tells the orchestrator to exit.
+chmod -x "${dspwork}/.agents/harness/queue-context.sh"
+out="$(dsp)"; rc=$?
+chmod +x "${dspwork}/.agents/harness/queue-context.sh"
+expect "a non-executable queue hook reads UNREADABLE" \
+  "verdict   : UNREADABLE — queue hook queue-context.sh: not executable" "$out"
+refute "and never DRAINED" "DRAINED" "$out"
+refute "and spawns nothing" "spawn up to" "$out"
+if [ "$rc" -ne 0 ]; then pass "and dispatch exits non-zero"
+else fail "and dispatch exits non-zero"; fi
+# A hook that runs and fails: its exit code is the reason, its stderr never
+# reaches the verdict line.
+cp "${dspwork}/.agents/harness/handover-context.sh" "${TMP}/dsp-handover-hook.sh"
+printf '#!/usr/bin/env bash\necho "partial row"\necho "broken pipe somewhere" >&2\nexit 3\n' \
+  >"${dspwork}/.agents/harness/handover-context.sh"
+out="$(dsp)"; rc=$?
+cp "${TMP}/dsp-handover-hook.sh" "${dspwork}/.agents/harness/handover-context.sh"
+expect "a hook exiting non-zero reads UNREADABLE with its exit code" \
+  "verdict   : UNREADABLE — queue hook handover-context.sh: exit 3: spawn nothing" "$out"
+refute "and the hook's stderr stays out of it" "broken pipe somewhere" "$out"
+refute "and never DRAINED" "DRAINED" "$out"
+if [ "$rc" -ne 0 ]; then pass "and dispatch exits non-zero"
+else fail "and dispatch exits non-zero"; fi
+if [ -z "$(git -C "$dspwork" status --porcelain -- .agents/harness)" ]; then
+  pass "the fixture's hooks are restored"
+else
+  fail "the fixture's hooks are restored"
+fi

@@ -2672,6 +2672,12 @@ cl_merged_claims() {
     done | sort -u
 }
 
+# A status the janitor may release: in-progress, review, or none written.
+janitor_releasable() {
+  case "$1" in in-progress | review | '') return 0 ;; esac
+  return 1
+}
+
 # Stale, unreleased claims with no pull request: `<branch>\t<path>`. The ones
 # `janitor --apply` may release; the caller proves each session gone first.
 janitor_candidates() {
@@ -2685,7 +2691,9 @@ janitor_candidates() {
     doc="$(git -C "$ROOT" show "refs/remotes/origin/${branch}:${path}" \
       </dev/null 2>/dev/null)" || continue
     { read -r status; read -r pr; } <<<"$(printf '%s\n' "$doc" | gr_fields status pr)"
-    [ "$status" != abandoned ] || continue
+    # Blocked holds a human's question, done a finished claim, anything else
+    # is unread: none is released.
+    janitor_releasable "$status" || continue
     case "$pr" in '' | none) ;; *) continue ;; esac
     printf '%s\t%s\n' "$branch" "$path"
   done <<<"$(claim_branches)"
@@ -2845,17 +2853,24 @@ janitor_apply() {
       blob="$(git -C "$ROOT" show "${tip}:${path}" 2>/dev/null)" || continue
       newblob="$(printf '%s\n' "$blob" | awk -v d="$today" -v w="$why" '
         NR == 1 && $0 == "---" { fm = 1; print; next }
-        fm && $0 == "---" { if (!ns) print "next: Pick this up from the plan; the claim was released " d "; " w
+        fm && $0 == "---" { if (!ss) print "status: abandoned"
+                            if (!ns) print "next: Pick this up from the plan; the claim was released " d "; " w
                             fm = 0; print; next }
-        fm && /^status:/ { print "status: abandoned"; next }
+        fm && /^status:/ { print "status: abandoned"; ss = 1; next }
         fm && /^next:/   { print "next: Pick this up from the plan; the claim was released " d "; " w; ns = 1; next }
         { print }' | git -C "$ROOT" hash-object -w --stdin)" || continue
+      # No frontmatter the awk can read (none, unterminated, CRLF): an
+      # identical blob would push a release that releases nothing.
+      if [ "$newblob" = "$(printf '%s\n' "$blob" | git -C "$ROOT" hash-object --stdin)" ]; then
+        printf 'skip      : %s  %s — no frontmatter to write status: abandoned into; release it by hand\n' "$want" "$path"
+        continue
+      fi
       GIT_INDEX_FILE="$idx" git -C "$ROOT" update-index --cacheinfo "100644,${newblob},${path}" || continue
       n=$((n + 1))
       printf 'release   : %s  %s\n' "$want" "$path"
     done <<<"$cands"
     if [ "$n" -eq 0 ]; then
-      printf 'skip      : %s — not a candidate (pushed recently, already released, or names a pr:)\n' "$want"
+      printf 'skip      : %s — not a candidate (pushed recently, already released, names a pr:, or status blocked, done or unreadable)\n' "$want"
       rm -f "$idx"; rc=1; continue
     fi
     tree="$(GIT_INDEX_FILE="$idx" git -C "$ROOT" write-tree)"
@@ -2910,7 +2925,9 @@ cmd_janitor() {
     # janitor rewriting a file the first one settled.
     [ "$status" = abandoned ] && { n_released=$((n_released + 1)); continue; }
     n_cand=$((n_cand + 1))
-    case "$pr" in '' | none) cands="${cands} ${branch}" ;; esac
+    if janitor_releasable "$status"; then
+      case "$pr" in '' | none) cands="${cands} ${branch}" ;; esac
+    fi
     agetext="$(dispatch_age_text "$age")"
     printf '  %s  %s  %s  pushed %s\n' "$branch" "$path" "${status:-?}" "$agetext"
     # A stem, never the raw field: a workstream file may spell its claim as a
@@ -2958,6 +2975,8 @@ cmd_janitor() {
       printf '    pull request %s — exempt whatever its state, which this\n' "$pr"
       printf '      reader cannot see: finishing it is Loop step 2, not a sweep\n'
     fi
+    janitor_releasable "$status" ||
+      printf '    status: %s — never released: --apply refuses it\n' "$status"
     [ -z "$session" ] || [ "$session" = none ] ||
       printf '    session: %s\n' "$session"
   done <<<"$claims"
@@ -4993,14 +5012,38 @@ cmd_finish() {
   return 0
 }
 
+# A hook that is absent, not executable or exits non-zero is no queue read:
+# non-zero, and one line on stderr, `queue hook <name>: <reason>`, that the
+# caller prints as UNREADABLE. Never an empty queue.
 drain_hook() {
-  local h="${HARNESS_ROOT}/$1"
-  [ -x "$h" ] || return 0
+  local h="${HARNESS_ROOT}/$1" rc last
+  if [ ! -x "$h" ]; then
+    if [ -e "$h" ]; then last="not executable"; else last="not found"; fi
+    printf 'queue hook %s: %s\n' "$1" "$last" >&2
+    return 1
+  fi
+  # The hook's own stderr stays out: it is repo-controlled text, and the
+  # reason line lands in the verdict the orchestrator branches on.
   CLAUDE_PROJECT_DIR="$ROOT" HANDOVER_FETCH="${DRAIN_FETCH:-0}" \
     QUEUE_MAX_ENTRIES="${DRAIN_MAX_ENTRIES:-10000}" \
     HANDOVER_MAX_ENTRIES="${DRAIN_MAX_ENTRIES:-10000}" \
     QUEUE_WITHHELD="${DISPATCH_WITHHELD:-}" \
     "$h" 2>/dev/null
+  rc=$?
+  [ "$rc" -eq 0 ] || printf 'queue hook %s: exit %s\n' "$1" "$rc" >&2
+  return "$rc"
+}
+
+# `drain_hook <name>` into DRAIN_OUT; on failure DRAIN_WHY holds its reason
+# line and the return is non-zero. Not a subshell: callers read both.
+drain_hook_read() {
+  local err rc
+  err="$(mktemp)"
+  DRAIN_OUT="$(drain_hook "$1" 2>"$err")"
+  rc=$?
+  DRAIN_WHY="$(tail -n 1 "$err")"
+  rm -f "$err"
+  return "$rc"
 }
 
 # The queue hook's first unplanned requirement no planning manager claims.
@@ -5716,7 +5759,12 @@ cmd_curate() {
   printf 'split     : %s+ Scope bullets = a decompose candidate, PROPOSED never done (JOHARNESS_CURATE_SPLIT)\n\n' "$splitthr"
 
   # A plan a manager HOLDS draws no finding: its declarations are that manager's.
-  qout="$(drain_hook queue-context.sh)"
+  # Unread, every held plan would read free and --apply would rewrite it.
+  if ! drain_hook_read queue-context.sh; then
+    printf 'curate    : UNREADABLE — %s: nothing applied, nothing proposed\n' "$DRAIN_WHY"
+    return 1
+  fi
+  qout="$DRAIN_OUT"
   rows="$(printf '%s\n' "$qout" |
     sed -n 's#^  \(docs/plans/[^ ]*\.md\)  \(\[.*\]\)$#\1|\2#p')"
   counts="$(curate_counts)"
@@ -6665,8 +6713,17 @@ cmd_dispatch() {
 
   DISPATCH_WITHHELD="$edge_items"
 
-  hout="$(drain_hook handover-context.sh)"
-  qout="$(drain_hook queue-context.sh)"
+  # Either hook unread = no picture of the queue: DRAINED on it would say exit.
+  if ! drain_hook_read handover-context.sh; then
+    printf '\nverdict   : UNREADABLE — %s: spawn nothing this pass, no role either\n' "$DRAIN_WHY"
+    return 1
+  fi
+  hout="$DRAIN_OUT"
+  if ! drain_hook_read queue-context.sh; then
+    printf '\nverdict   : UNREADABLE — %s: spawn nothing this pass, no role either\n' "$DRAIN_WHY"
+    return 1
+  fi
+  qout="$DRAIN_OUT"
 
   # Every plan, research and requirement row as path|label, every row. A
   # requirement row matters here only CLAIMED — it is the planning manager's
