@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01XDfMcAZF772MxQSAvf5q9M
 agent: sonnet
 updated: 2026-10-22
-next: Wait for ci+verify results (run in progress), fix reds, then review, issue for human remainder, retire, PR
+next: Rerun selftest (checks.sh case moved after green path), then verify, review, human issue, retire, PR
 ---
 
 ## Goal
