@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01Ft341NtFw67fY7fCT5noKB
 agent: opus
 updated: 2026-10-22
-next: Add the ended row state to joharness.sh:clerk_walk, then selftest cases (e)
+next: Run ci and verify, record the red-without-fix line, verifier review, retire, PR
 ---
 
 ## Goal
@@ -19,7 +19,14 @@ failing closed.
 
 ## Decisions
 
-- None yet.
+- The new cases are labelled (i): the dispatch fixture already has an (e).
+- No net change is read with `git diff-tree --quiet -r <merge base> <tip>`
+  (plumbing, no user diff config), not porcelain `git diff --quiet`.
+- `ended` rows are dropped by `scout_branches` (dispatch, the in-flight count)
+  but `cmd_clerk` names them under their own `ended     :` line, so the
+  acceptance row is visible.
+- `origin/clerk-2026-10-22` no longer exists on origin (ls-remote 2026-10-22
+  19:23 UTC): the live acceptance row cannot be seen; the fixture stands in.
 
 ## Rejected
 

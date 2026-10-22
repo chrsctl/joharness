@@ -3381,7 +3381,7 @@ scout_branches() {
   local b w s
   while IFS=$'\t' read -r b w s; do
     [ -n "$b" ] || continue
-    [ "$s" = abandoned ] && continue
+    case "$s" in abandoned | ended) continue ;; esac
     printf '%s\t%s\t%s\n' "$b" "$w" "$s"
   done
 }
@@ -3552,13 +3552,19 @@ clerk_stale_s() {
 }
 
 # Every unmerged `clerk-<digit>…` branch, one row each in scout_walk's shape:
-# `<branch>\ttip-<N>h\t<in-flight|abandoned>`. A tip older than
+# `<branch>\ttip-<N>h\t<in-flight|ended|abandoned>`. A tip older than
 # JOHARNESS_CLERK_STALE_HOURS is abandoned and holds nothing (scout_branches
 # drops it): a `TWIN: deferred` exit or a pull request left open on a red gate
 # leaves its branch, and branches are never deleted. Never tied to
 # JOHARNESS_CLERK_HOURS: a live clerk may wait longer than the cadence on checks.
+# A fresh tip is `ended`, holding nothing either, only on proof the pass is
+# over: no net change against its merge base AND a merged no-op record
+# (clerk_noop) stamped at or after the tip. A pass that drops its plan and may
+# write another has an empty diff too: the later record is the proof. Any
+# git error is no proof: in-flight.
 clerk_walk() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" base_id stale now ct r age st refs rc
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" base_id stale now ct oid r age st refs rc
+  local noop_ts="" mb
   base_id="$(git -C "$ROOT" rev-parse --verify -q \
     "refs/remotes/origin/${base_branch}^{commit}" </dev/null 2>/dev/null)"
   if [ -z "$base_id" ]; then
@@ -3569,13 +3575,13 @@ clerk_walk() {
   now="$(date +%s)"
   # Read whole first: a failed read is UNREADABLE, never "nothing in flight".
   refs="$(git -C "$ROOT" for-each-ref --no-merged="$base_id" \
-    --format='%(committerdate:unix)%09%(refname)' 'refs/remotes/origin/clerk-[0-9]*' \
+    --format='%(committerdate:unix)%09%(objectname)%09%(refname)' 'refs/remotes/origin/clerk-[0-9]*' \
     </dev/null 2>/dev/null)"; rc=$?
   if [ "$rc" -ne 0 ]; then
     printf '%s\t%s\t%s\n' '?' 'clerk-unreadable' 'unreadable'
     return 0
   fi
-  while IFS=$'\t' read -r ct r; do
+  while IFS=$'\t' read -r ct oid r; do
     case "$ct" in '' | *[!0-9]*) continue ;; esac
     r="${r#refs/remotes/origin/}"
     age=$(( (now - ct) / 3600 ))
@@ -3584,6 +3590,16 @@ clerk_walk() {
     # broken clock, and holds nothing either.
     if [ $((now - ct)) -lt "$stale" ] && [ $((ct - now)) -lt "$stale" ]; then
       st=in-flight
+      if [ -z "$noop_ts" ]; then
+        noop_ts="$(clerk_noop)"; noop_ts="${noop_ts%%$'\t'*}"; noop_ts="${noop_ts:-0}"
+      fi
+      if [ "$noop_ts" -gt 0 ] && [ "$noop_ts" -ge "$ct" ]; then
+        mb="$(git -C "$ROOT" merge-base "$base_id" "$oid" </dev/null 2>/dev/null)"
+        if [ -n "$mb" ] &&
+           git -C "$ROOT" diff-tree --quiet -r "$mb" "$oid" </dev/null >/dev/null 2>&1; then
+          st=ended
+        fi
+      fi
     else
       st=abandoned
     fi
@@ -3689,7 +3705,7 @@ clerk_issue_line() {
 }
 
 cmd_clerk() {
-  local hours batch due rows state why b w st n_inflight=0
+  local hours batch due rows state why b w st n_inflight=0 n_ended
   [ "$#" -eq 0 ] || die "usage: $0 clerk"
   hours="$(num_knob JOHARNESS_CLERK_HOURS)"
   batch="$(num_knob JOHARNESS_CLERK_BATCH)"
@@ -3718,6 +3734,15 @@ cmd_clerk() {
       printf 'cadence   : not due — %s\n' "$why"
     fi
   fi
+  # Named, never counted: no net change and a no-op record after its tip.
+  n_ended=0
+  while IFS=$'\t' read -r b w st; do
+    [ "$st" = ended ] || continue
+    n_ended=$((n_ended + 1))
+    [ "$n_ended" -gt 1 ] || \
+      printf 'ended     : holds nothing — no net change, and a no-op record landed at or after its tip\n'
+    printf '            %s  %s  %s\n' "$b" "$w" "$st"
+  done <<<"$rows"
   printf '\n'
   printf 'planned   : %s\n' "$(clerk_issue_nums docs/plans all | clerk_issue_line)"
   printf '            (a plan'"'"'s issue: on %s or any unmerged branch)\n' "${HANDOVER_BASE_BRANCH:-main}"

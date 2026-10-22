@@ -306,6 +306,47 @@ out="$(clerk_run JOHARNESS_CLERK_HOURS=1)"
 expect "(a) and one older than the window is due again" \
   "cadence   : DUE — 2h since the last clerk landed" "$out"
 
+# (i) A pass that pushed a plan, dropped it and landed a no-op record has
+# ENDED: no net change and a record at or after its tip. Either half alone
+# proves nothing — a live clerk may drop one plan and write another.
+git -C "$clerk_work" checkout -qb clerk-2026-02-06 main
+clerk_plan dropped '31'
+clerk_commit "clerk writes a plan" "$(clerk_ago 0)"
+git -C "$clerk_work" rm -q docs/plans/dropped.md
+clerk_commit "clerk drops it" "$(clerk_ago 0)"
+git -C "$clerk_work" push -qu origin clerk-2026-02-06
+git -C "$clerk_work" checkout -q main
+out="$(clerk_run)"
+expect "(i) no net change and no no-op record still holds" "clerk-2026-02-06  tip-0h  in-flight" "$out"
+expect "(i) and reads IN FLIGHT" "cadence   : IN FLIGHT, so none is due" "$out"
+clerk_main="$(git -C "$clerk_work" rev-parse main)"
+clerk_s1="$(clerk_stamp 1)"
+git -C "$clerk_work" push -q origin "${clerk_main}:refs/heads/clerk-noop-${clerk_s1}"
+git -C "$clerk_work" fetch -q origin
+out="$(clerk_run)"
+expect "(i) a no-op record stamped before the tip still holds" "clerk-2026-02-06  tip-0h  in-flight" "$out"
+clerk_s0="$(clerk_stamp 0)"
+git -C "$clerk_work" push -q origin "${clerk_main}:refs/heads/clerk-noop-${clerk_s0}"
+git -C "$clerk_work" fetch -q origin
+out="$(clerk_run)"
+refute "(i) ended: no net change and a later no-op record hold nothing" "IN FLIGHT" "$out"
+expect "(i) the cadence follows the no-op clock" \
+  "cadence   : not due — 0h since the last clerk pass found nothing to plan (clerk-noop-${clerk_s0})" "$out"
+expect "(i) and the row is named ended" "clerk-2026-02-06  tip-0h  ended" "$out"
+out="$(clerk_dsp)"
+refute "(i) dispatch counts no ended clerk in flight" "clerk     : IN FLIGHT" "$out"
+expect "(i) and reads the clock" "clerk     : not due — " "$out"
+# A net change is a pass with a plan to land: the later record proves nothing.
+clerk_branch clerk-2026-02-06-b docs/plans/kept.md "$(clerk_ago 1)"
+out="$(clerk_run)"
+expect "(i) a branch with a net change holds beside a later no-op record" \
+  "clerk-2026-02-06-b  tip-1h  in-flight" "$out"
+expect "(i) while the empty one still reads ended" "clerk-2026-02-06  tip-0h  ended" "$out"
+# Fixture refs only: gone again so the cases below read as before.
+git -C "$clerk_work" push -q origin --delete clerk-2026-02-06 clerk-2026-02-06-b \
+  "clerk-noop-${clerk_s1}" "clerk-noop-${clerk_s0}"
+git -C "$clerk_work" fetch -q --prune origin
+
 # The dispatch side, in a fixture of its own: the scout gate needs a DRAINED
 # queue with nothing in flight, which the one above no longer is.
 clerk_work="${TMP}/clerkdwork"
