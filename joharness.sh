@@ -4513,8 +4513,10 @@ cmd_start() {
 
   # BEFORE the routing line, not after it.
   printf 'Prompt names /manage <item>? STOP: you are a MANAGER of that item\n'
-  printf 'and .claude/commands/manage.md is your file. No shell can see a\n'
-  printf 'prompt, so the line below is the default: the ORCHESTRATOR.\n\n'
+  printf 'and .claude/commands/manage.md is your file. Prompt is /keeper?\n'
+  printf 'STOP: you are the KEEPER and .claude/commands/keeper.md is your file.\n'
+  printf 'No shell can see a prompt, so the line below is the default: the\n'
+  printf 'ORCHESTRATOR.\n\n'
 
   # A checkout whose routed file is missing is an old harness copy, and there
   # is nothing to follow.
@@ -7388,13 +7390,15 @@ cmd_session_start() {
   # One mode, so one banner, printed first: it governs the whole session,
   # including the parts that run before an environment resolves.
   printf '== Mode: orchestrated ==\n\n'
-  printf 'Two roles, one Loop. Your prompt names /manage <item>? You are a\n'
+  printf 'Three roles, one Loop. Your prompt names /manage <item>? You are a\n'
   printf 'MANAGER: that ONE item, the full Loop on it, merge your own pull\n'
   printf 'request, push at every milestone, exit. No item named? You are the\n'
   printf 'ORCHESTRATOR: run /orchestrate — it reads ./joharness.sh dispatch,\n'
   printf 'spawns one manager per free item under the cap, checks health, and\n'
-  printf 'exits at DRAINED with nothing in flight. The command IS the rules\n'
-  printf 'for its role (.claude/commands/orchestrate.md, manage.md).\n'
+  printf 'exits at DRAINED with nothing in flight. Prompt is /keeper? The\n'
+  printf 'heartbeat woke the KEEPER: keeper.md, that file only. The command IS\n'
+  printf 'the rules for its role (.claude/commands/orchestrate.md, manage.md,\n'
+  printf 'keeper.md).\n'
   printf 'Each role reads its own documents and no others: the queue is NOT\n'
   printf 'printed here. Orchestrator: dispatch is the whole read — open no\n'
   printf 'plan, requirement or other branch. Manager: your item, this\n'

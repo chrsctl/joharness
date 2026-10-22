@@ -1,8 +1,8 @@
 # Harness
 
 Caveman file: every line loads into every session, so rules only. Why lives in
-`.agents/docs/`, measured past in `.agents/docs/history/` — read there before
-fighting a rule. Style:
+`.agents/docs/` — read there before fighting a rule; past lives in git log.
+Style:
 [`.agents/docs/caveman.md`](../../.agents/docs/caveman.md). Contested terms
 have ONE spelling: [`.agents/docs/glossary.md`](../../.agents/docs/glossary.md);
 `ci` fails on the others. Docs state status quo: current rule, mechanism,
@@ -15,20 +15,13 @@ log, not markdown ([`caveman.md`](../../.agents/docs/caveman.md), Status quo).
    branch? That is your job: read it whole, go to 4. Compacted? Re-read THIS
    file and your role command, not only the workstream file. Before saying
    what is done, read the branch's merged pull requests.
-2. **Pick.** Finishing outranks starting: edge work in flight (`pr:` set, or
-   `status:` review/done), oldest first; LIVE on another session (`/who`) =
-   not yours. Then open GitHub issues (through `/clerk` into plans), then
-   `docs/product/*.md`, then `docs/plans/*.md` and `docs/research/*.md`.
-   `dispatch` names stale claims? Prove each session gone (ARCHIVED or not
-   found), then `./joharness.sh janitor --apply <branch>...`.
-   `curate : DUE`? `/curate` first. Plan naming an open `research:` is blocked.
-   NOTHING builds unplanned — decompose into a plan first
-   (`.agents/docs/plans/README.md`); copy or sync task is the one exception.
-   Plan's `agent` tier binds: below it, record wanted tier, push, hand off
-   (`.agents/docs/agent-selection.md`). Orchestrator reads `./joharness.sh
-   dispatch` and spawns (`/orchestrate`); manager works the ONE item its
-   prompt names (`/manage`); otherwise `/start`. Nothing left: exit, say
-   DRAINED, invent nothing. Boundary:
+2. **Pick.** Role routing only: prompt names `/manage <item>` = manager
+   of that ONE item (`.claude/commands/manage.md`); prompt is `/keeper` =
+   keeper (`.claude/commands/keeper.md`); otherwise `/start`. The role
+   command owns the picking. NOTHING builds unplanned — decompose into a
+   plan first (`.agents/docs/plans/README.md`); copy or sync task is the
+   one exception. Plan's `agent` tier binds: below it, record wanted tier,
+   push, hand off (`.agents/docs/agent-selection.md`). Boundary:
    no commit to a core path (`./joharness.sh protocol-paths`) outside a
    `human/<stem>` branch whose pull request a human merges (manager only,
    `.claude/commands/manage.md` §2).
@@ -96,8 +89,8 @@ log, not markdown ([`caveman.md`](../../.agents/docs/caveman.md), Status quo).
 - Implementation yours. Interface signatures not yours.
 - Scope change too big to ratify alone? Decide, write down, flag for human.
   Do not stop.
-- Block ONLY for money, credentials, hardware, product direction, or a
-  merge conflict into `main` that does not resolve clean. Block =
+- Block ONLY for a reason `joharness.sh:block_reason_ok` accepts (the one
+  list; `.claude/commands/manage.md` §3 says when each fits). Block =
   `status: blocked`, `next:` = `<reason>: <question>`, push, exit. Never wait in
   session. Block also labels `human-review` on this branch's open PR and the
   plan's `issue:`, if set; never remove it (`.agents/docs/orchestrated.md`, Bounds).

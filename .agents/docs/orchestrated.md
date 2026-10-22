@@ -545,7 +545,7 @@ passes 1..N-1. So after `JOHARNESS_ORCHESTRATOR_PASSES` passes the
 orchestrator's wake carries `retire=yes`, and it keeps running passes. The
 keeper, on its next wake or a doorbell, retitles it `orchestrator
 (retired): <owner/repo>` and starts the successor with that wake as its
-prompt, `pass=1`, no leads (`orchestrate.md` §4, RETIRE; "## Keeper",
+prompt, `pass=1`, no leads (`orchestrate.md` §4, RETIRE; `keeper.md`,
 SWAP). The retired session's next wake does nothing. A run that ends on
 its own (DRAINED, a PAUSED exit, a human's stop) retitles itself the same
 way as its last act (`orchestrate.md` §4, RUN END): the session list reads
@@ -592,10 +592,12 @@ claims, merges, ends, and the fleet survives only while something fires
 the next.
 
 The heartbeat is a Routine bound to one keeper session per repo
-(`orchestrate.md`, "## Keeper"). The keeper role is read off the session's
-title, never its prompt: prompt text (an argument, a ledger stem, a lead)
-is read by a model as a role notice, and an orchestrator that runs the
-keeper check starts another orchestrator. Each hourly wake, the keeper looks for a
+(`.claude/commands/keeper.md`). The prompt `/keeper` names the role, as
+every role is named (`.agents/harness/AGENTS.md` step 2); the title guards
+it: keeper.md runs only in a session titled `keeper: <owner/repo>`, and a
+keeper-titled session handed `orchestrate.md` runs keeper.md instead. The
+keeper rules live outside `orchestrate.md`, so an orchestrator never holds
+the keeper check, which would start another orchestrator. Each hourly wake, the keeper looks for a
 pending `/orchestrate pass` wake bound to an `orchestrator: <owner/repo>`
 session, or a `RUNNING` or `PENDING` orchestrator it started itself;
 none = it starts a fresh orchestrator with `create_session`. A live one
@@ -611,7 +613,8 @@ heartbeat registers itself when an orchestrator starts and none exists
 Routine with `enabled` false and an empty `ended_reason` is never
 re-enabled, edited or replaced, and nor is one made in the UI. Any
 `ended_reason` but `auto_disabled_session_gone` counts as a pause, and a
-replace takes only a Routine whose prompt is exactly `/orchestrate keeper`:
+replace takes only a Routine whose prompt is exactly `/keeper` (or the
+older spec's `/orchestrate keeper`):
 what a UI-made Routine's `created_via` reads, and what `ended_reason` a
 manual pause leaves, are unmeasured, so both rules fail toward leaving the
 Routine alone. A pause stops the hourly restarts, not a running
@@ -654,8 +657,10 @@ stale` or `heartbeat duplicated` line pushes):
   (`auto_disabled_session_gone`); the next `/orchestrate` replaces both.
 - **Cadence**: hourly floor (`*/5 * * * *` is refused). The Routine backs
   the `send_later` chain; it does not replace it.
-- **Prompt**: exactly `/orchestrate keeper`. It invokes the command; the
-  keeper's title, not this argument, routes it to its one section.
+- **Prompt**: exactly `/keeper`. It invokes the keeper command; the
+  keeper's title guards it. A Routine still on `/orchestrate keeper` reads
+  `prompt` stale; `orchestrate.md` sends a keeper-titled session to
+  `keeper.md`, so it keeps working until replaced.
 - **Stop**: `update_trigger` `enabled: false` pauses (the veto),
   `delete_trigger` removes and lets the next `/orchestrate` register a new
   one. A Routine not named exactly `heartbeat: <owner/repo>` never counts

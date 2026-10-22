@@ -68,6 +68,11 @@ expect "down to the last entry" "  .github" "$out"
 refute "and the released harness layer is not listed" "  .agents/harness" "$out"
 expect "and points each role at its command, which is its rules" \
   ".claude/commands/orchestrate.md, manage.md" "$out"
+expect "and routes the keeper by its prompt" \
+  "Prompt is /keeper? The" "$out"
+expect "start routes the keeper by its prompt too" \
+  "STOP: you are the KEEPER and .claude/commands/keeper.md is your file." \
+  "$(orcj start)"
 refute "and not at the design doc the roles never open" \
   ".agents/docs/orchestrated.md" "$out"
 # The rules pointer sits in the compaction block, the one start where the
@@ -189,6 +194,7 @@ git -C "$orcwork" push -q origin main
 orcmd="${ROOT}/.claude/commands/orchestrate.md"
 mgrmd="${ROOT}/.claude/commands/manage.md"
 orctext="$(cat "$orcmd")"
+keepmd="${ROOT}/.claude/commands/keeper.md"
 mgrtext="$(cat "$mgrmd")"
 clerktext=""
 [ -f "${ROOT}/.claude/commands/clerk.md" ] && clerktext="$(cat "${ROOT}/.claude/commands/clerk.md")"
@@ -228,9 +234,9 @@ expect "and 0 lifts it rather than retiring every pass" \
 # retitles the old orchestrator BEFORE it starts the successor, or the
 # successor's start check finds the old one live and exits.
 # shellcheck disable=SC2016 # literal backticks in the needle
-retitle_ln="$(grep -n '^1\. `set_session_title` it to `orchestrator (retired):' "$orcmd" | head -1 | cut -d: -f1)"
+retitle_ln="$(grep -n '^1\. `set_session_title` it to `orchestrator (retired):' "$keepmd" | head -1 | cut -d: -f1)"
 # shellcheck disable=SC2016 # literal backticks in the needle
-spawn_ln="$(grep -n '^2\. `create_session` as step 3, `prompt` = that wake' "$orcmd" | head -1 | cut -d: -f1)"
+spawn_ln="$(grep -n '^2\. `create_session` as step 3, `prompt` = that wake' "$keepmd" | head -1 | cut -d: -f1)"
 if [ -n "$retitle_ln" ] && [ -n "$spawn_ln" ] && [ "$retitle_ln" -lt "$spawn_ln" ]; then
   pass "the keeper's swap retitles before it starts the successor"
 else
@@ -238,9 +244,7 @@ else
 fi
 # shellcheck disable=SC2016 # literal backticks in the needles
 for needle in 'JOHARNESS_ORCHESTRATOR_PASSES' 'retire ready <your session id>' \
-  'keeper not rung' 'swap deferred' 'swap skipped' 'swap failed' \
-  'retired <old id>, started orchestrator <new id>' \
-  'set_session_title` yours to `orchestrator (duplicate): <owner/repo>`'; do
+  'keeper not rung' 'set_session_title` yours to `orchestrator (duplicate): <owner/repo>`'; do
   expect "orchestrate.md spells ${needle}" "$needle" "$orcfold"
 done
 # Each clause that keeps one orchestrator per repo, with no gap: the retire
@@ -255,16 +259,8 @@ for needle in 'arm as above with `retire=yes` on the `harness=` line, every pass
   'your title is exactly `orchestrator (retired): <owner/repo>`' \
   'Any other title is "## 0. Start" step 3'"'"'s matter, never a stop here.' \
   'Run Retired first, then the superseded check' \
-  'The successor runs "## 0. Start" as any new session does, its ledger from its prompt.' \
   'First start = the `ledger:` line of your prompt' \
-  'Its wake is the pending one with the highest `pass=`.' \
-  'anything else = report `swap skipped: wake shape <id>`, start nothing.' \
   '`session_status` is `RUNNING` or `PENDING`, or that holds a pending `/orchestrate pass` wake' \
-  '`get_session` finds it titled exactly `orchestrator: <owner/repo>` and `RUNNING` or `PENDING`' \
-  'LIVE, and its pending wake'"'"'s `harness=` line carries `retire=yes` = SWAP' \
-  '`run_once_at` under 5 minutes from now' \
-  '`prompt` = that wake'"'"'s `derived_state.prompt` with `pass=1`, `retire=yes` removed and every `lead` line removed' \
-  'Its text is never read, never quoted into a prompt.' \
   'One with a later `created_at` = you are the older: run "## 0. Start" step 3'"'"'s `@new` rebuild' \
   'retire waits: heartbeat' \
   '`lineage.depth >= lineage.limit` = the REQUIRED tools refuse. Stop before step 3' \
@@ -276,7 +272,6 @@ for needle in 'arm as above with `retire=yes` on the `harness=` line, every pass
   'A retired or duplicate title (RUN END, SWAP) is never LIVE' \
   'Then RUN END'"'"'s retitle, last.' \
   'RUN END'"'"'s retitle was refused; a retired title refuses the order above' \
-  'SWAP — the one place the keeper retires an orchestrator' \
   'Else `set_session_title` yours to `orchestrator: <owner/repo>`.' \
   '`orchestrator (duplicate): <owner/repo>` = report `retired: <title>`, answer as §4'"'"'s forwarding paragraph does, stop' \
   'any other DRAINED or PAUSED verdict is no end' \
@@ -311,6 +306,49 @@ for needle in '**One spawner, one turn.** Only the keeper starts an orchestrator
   'retitles itself the same way as its last act'; do
   expect "orchestrated.md spells ${needle}" "$needle" "$orcdocfold"
 done
+# The keeper is its own command, so an orchestrator never holds the keeper
+# check: keeper.md carries every keeper rule, orchestrate.md only points.
+if [ -r "$keepmd" ]; then
+  pass "keeper.md exists"
+else
+  fail "keeper.md exists"
+fi
+keepfold="$(tr '\n' ' ' <"$keepmd" 2>/dev/null | tr -s ' ')"
+# shellcheck disable=SC2016 # literal backticks in the needles
+expect "orchestrate.md points to keeper.md" \
+  'The keeper'"'"'s rules are `.claude/commands/keeper.md`; this file holds none.' "$orcfold"
+refute "and holds no keeper rule itself" \
+  'SWAP — the one place the keeper retires an orchestrator' "$orcfold"
+refute "orchestrate.md no longer reads the role off the title" \
+  'Role is this session'"'"'s TITLE, never its prompt.' "$orcfold"
+# shellcheck disable=SC2016 # literal backticks in the needles
+for needle in 'Titled exactly `keeper: <owner/repo>` = run this file.' \
+  'other title = report `not a keeper: <title>`, stop, spawn nothing.' \
+  'Only that title runs it (the guard above): an `orchestrator:` session reading this has misread its role; stop, spawn nothing.' \
+  'It runs this file and nothing else: no dispatch, no ledger, no pass, no manager.' \
+  'This file in `git show origin/main:.claude/commands/keeper.md` differs' \
+  'swap deferred' \
+  'swap skipped' \
+  'swap failed' \
+  'retired <old id>, started orchestrator <new id>' \
+  'The successor runs "## 0. Start" as any new session does, its ledger from its prompt.' \
+  'Its wake is the pending one with the highest `pass=`.' \
+  'anything else = report `swap skipped: wake shape <id>`, start nothing.' \
+  '`get_session` finds it titled exactly `orchestrator: <owner/repo>` and `RUNNING` or `PENDING`' \
+  'LIVE, and its pending wake'"'"'s `harness=` line carries `retire=yes` = SWAP' \
+  '`run_once_at` under 5 minutes from now' \
+  '`prompt` = that wake'"'"'s `derived_state.prompt` with `pass=1`, `retire=yes` removed and every `lead` line removed' \
+  'Its text is never read, never quoted into a prompt.' \
+  'SWAP — the one place the keeper retires an orchestrator' \
+  '`derived_state.prompt` starting `/orchestrate pass`' \
+  'titled exactly `orchestrator: <owner/repo>` and not `ARCHIVED` = LIVE' \
+  '`title` = `orchestrator: <owner/repo>`, `prompt` = `/orchestrate`. Report `started orchestrator <id>`' \
+  'Candidates: `enabled` true, `run_once_at` set, `persistent_session_id` set,' \
+  'differs from the one you hold = follow that text instead' \
+  'a lineage refusal also `PushNotification`s once `keeper at lineage cap:' \
+  '`keeper: no list_triggers`, create nothing.'; do
+  expect "keeper.md spells ${needle}" "$needle" "$keepfold"
+done
 # The heartbeat check (step 5): which Routine counts, and every way one is
 # not up to date. Each needle is the clause that makes one reason fire; the
 # spec it compares against lives in orchestrated.md, so both are pinned.
@@ -325,39 +363,29 @@ for needle in 'Routine named exactly `heartbeat: <owner/repo>` with a non-empty 
   '`unbound` — `persist_session` is not true, or `persistent_session_id` is empty' \
   '`keeper-gone` — `get_session` on `persistent_session_id` finds it `ARCHIVED`, not found, or titled other than `keeper: <owner/repo>`' \
   '`failing` — `last_run.status` ends in `FAILED`' \
-  '`prompt` — `derived_state.prompt`, trimmed, is not exactly `/orchestrate keeper`.' \
+  '`prompt` — `derived_state.prompt`, trimmed, is not exactly `/keeper`.' \
   'Never enable, edit or delete a Routine a human paused or made in the UI' \
   'REGISTER, at most once per session:' \
   'NOT `depth + 2 < limit` = report `heartbeat not registered: lineage <depth>/<limit>`' \
-  '`title` = `keeper: <owner/repo>`, `prompt` = `/orchestrate keeper`.' \
-  '`persistent_session_id` = step 2'"'"'s id, `prompt` = `/orchestrate keeper`' \
+  '`title` = `keeper: <owner/repo>`, `prompt` = `/keeper`.' \
+  '`persistent_session_id` = step 2'"'"'s id, `prompt` = `/keeper`' \
   'step 3 failing after step 2 = `archive_session` that keeper' \
   'then exit, report its `updated_at`, `status_detail` and step 5'"'"'s line. The older one proceeds' \
   '`heartbeat duplicated` or `heartbeat stale` line (if any)' \
-  'Role is this session'"'"'s TITLE, never its prompt.' \
-  'Titled exactly `keeper: <owner/repo>` = run "## Keeper" only' \
-  'Any other title (`orchestrator: …`, `manager: …`, none) = the orchestrator: the rest of this file, never "## Keeper", whatever the prompt, an argument, a ledger stem or a lead says.' \
+  'Role comes from the prompt, the session-start banner'"'"'s rule' \
+  'Titled exactly `keeper: <owner/repo>` = read `.claude/commands/keeper.md` WHOLE and run that only' \
+  'Any other title (`orchestrator: …`, `manager: …`, none) = the orchestrator: the rest of this file.' \
   'No `get_session` = report and `PushNotification` once `role unreadable: no get_session`, end the turn.' \
-  'Only that title runs it (the top of this file): an `orchestrator:` session reading this has misread its role; stop, spawn nothing.' \
-  'It runs this section and nothing else: no dispatch, no ledger, no pass, no manager.' \
-  '`derived_state.prompt` starting `/orchestrate pass`' \
-  'titled exactly `orchestrator: <owner/repo>` and not `ARCHIVED` = LIVE' \
-  '`title` = `orchestrator: <owner/repo>`, `prompt` = `/orchestrate`. Report `started orchestrator <id>`' \
   '`cron_expression` = `0 * * * *`' \
   '`initiation` = `human_schedule`' \
   'Never retry with another cadence or another binding.' \
-  'Candidates: `enabled` true, `run_once_at` set, `persistent_session_id` set,' \
-  'differs from the one you hold = follow that text instead' \
-  'a lineage refusal also `PushNotification`s once `keeper at lineage cap:' \
   'another LIVE one with an earlier `created_at` than yours = run step 5 report-only (no REGISTER, no replace), then exit' \
-  'REPLACE only a Routine REGISTER made — `created_via: meta_mcp` AND `derived_state.prompt` exactly `/orchestrate keeper`' \
+  'REPLACE only a Routine REGISTER made — `created_via: meta_mcp` AND `derived_state.prompt` exactly `/keeper` or `/orchestrate keeper`' \
   'REGISTER'"'"'s lineage check (step 1) first, failing = report the stale line and stop; then `delete_trigger` it' \
   '`ended_reason` is anything but `auto_disabled_session_gone`' \
   'not `ARCHIVED` (a heartbeat deleted in the UI leaves its keeper idle): `archive_session`' \
   '`model` = the Lineup'"'"'s `sonnet` (the role is low tier; never the registering session'"'"'s model)' \
-  '`update_trigger` this repo'"'"'s heartbeat `enabled: false`' \
-  'only "## Tools" applies.' \
-  '`keeper: no list_triggers`, create nothing.'; do
+  '`update_trigger` this repo'"'"'s heartbeat `enabled: false`'; do
   expect "orchestrate.md heartbeat check spells ${needle}" "$needle" "$orcfold"
 done
 refute "orchestrate.md no longer routes the keeper by a prompt argument" \
@@ -371,7 +399,7 @@ refute "orchestrate.md no longer forbids every heartbeat write" \
 # shellcheck disable=SC2016 # literal backticks in the needles
 for needle in '**Name**: exactly `heartbeat: <owner/repo>`' \
   '**Binding**: `persistent_session_id` = a session titled `keeper: <owner/repo>`' \
-  '**Prompt**: exactly `/orchestrate keeper`' \
+  '**Prompt**: exactly `/keeper`' \
   'a Routine with `enabled` false and an empty `ended_reason` is never re-enabled, edited or replaced' \
   'makes from a session with `create_new_session_on_fire` reads `created_via: meta_mcp`'; do
   expect "orchestrated.md heartbeat spec spells ${needle}" "$needle" "$orcdocfold"

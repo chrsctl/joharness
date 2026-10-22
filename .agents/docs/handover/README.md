@@ -36,7 +36,6 @@ NOT recoverable from repo: the reasoning —
 - next concrete step
 
 **Workstream file contains only those six.** Rest, next session derives.
-(why: history/handover.md § Store only what cannot be derived, 2026-10-10)
 
 ## Layout
 
@@ -47,7 +46,7 @@ docs/handover/<workstream>.md    one file per workstream, live on its branch
 ```
 
 Everything under `docs/handover/`; protocol = directory's `README.md`, not
-`docs/handover.md` beside it (why: history/handover.md § Layout, 2026-08-21).
+`docs/handover.md` beside it.
 
 One file per workstream, named after **workstream**, not branch. This property
 makes cross-branch work:
@@ -103,8 +102,7 @@ depth, gate or no gate. Reviewed and found nothing? That is a finding line
 too — `- r1: clean pass, <depth>, no findings`. The section stays empty only
 when no review happened.
 
-The ORDER (finding before fix) is not gated
-(why: history/handover.md § Review order not gated, 2026-10-10).
+The ORDER (finding before fix) is not gated.
 
 All cheap, no ceremony. `/handover` does the write.
 
@@ -177,8 +175,7 @@ edge has one definition and this is downstream of it. One exception reads two
 more: a FINISHED RESCOPE — `workstream: rescope-*`, `plan: none`,
 `status: done`, no `pr:` — is a surveyor that found the holds genuine and
 merges nothing (`.claude/commands/manage.md`, rescope). It ranks 6, never
-the edge, never the lead, and lists with a line saying it holds nothing
-(issue #492). All four or it ranks as its status says:
+the edge, never the lead, and lists with a line saying it holds nothing. All four or it ranks as its status says:
 
 | Rank | State | What is left |
 | --- | --- | --- |
@@ -199,8 +196,7 @@ not done, not merged, not deleted. The file stays; a returning session sets
 the word back. Not `blocked`: a block is owed an answer, an abandoned claim
 nothing.
 
-Ties break on push time ASCENDING — oldest first
-(why: history/handover.md § In-flight tie order, 2026-08-29).
+Ties break on push time ASCENDING — oldest first.
 
 An entry whose last push is `HANDOVER_STALE_SECONDS` old or older (default
 518400 — 6 days) AND that sits `HANDOVER_STALE_BEHIND` commits or more behind
@@ -233,8 +229,7 @@ on it *right now*?" — different mechanism, because sessions share only the git
 remote. No shared filesystem, no messaging. Record must be pushed to be seen;
 any session can die without cleanup.
 
-Do not infer liveness from push time
-(why: history/handover.md § Liveness looked up, 2026-08-21).
+Do not infer liveness from push time.
 
 **Liveness = fact you look up, not thing you infer.** Control plane knows:
 
@@ -276,8 +271,7 @@ different workstreams, same files — nobody notices until second PR conflicts.
 Hook intersects each other branch's changed paths with yours, including
 uncommitted, prints `TOUCHES THE SAME FILES AS THIS BRANCH`. Merge conflict
 announcing itself while still cheap. A lock is deliberately **not**
-implemented (why: history/handover.md § Overlap warning instead of a lock,
-2026-10-10).
+implemented.
 
 ### Coverage, and what is still not solved
 
@@ -306,8 +300,7 @@ problem — subscribe to PR, stay in one session. Handover documents = the
 
 The workstream file is memory ACROSS sessions; compaction is what one
 session loses WITHIN itself. A compaction summary keeps the task state and
-drops the "old" compliance preamble
-(why: history/handover.md § Compaction re-read, 2026-08-29). The Loop is soft
+drops the "old" compliance preamble. The Loop is soft
 policy. So after a compaction the half lost is the Loop and the core-path boundary, not the
 task: re-read
 `.agents/harness/AGENTS.md` and the role command, not only the workstream
@@ -339,8 +332,7 @@ not stale at all.
 ## Claiming an issue
 
 `plan:` claims a plan; `issue:` claims a GitHub issue, so a session working
-an issue shows it as taken
-(why: history/handover.md § Claiming an issue, 2026-08-29).
+an issue shows it as taken.
 
 - Write it **when the work starts**, with the rest of the frontmatter, not
   when the pull request opens. A claim that arrives at the end claims
@@ -368,8 +360,7 @@ an issue shows it as taken
 Workstream file = scaffolding, not documentation. Work done:
 
 1. Anything mattering in six months moves to the right layer's `AGENTS.md`
-   (agent needs every session) or `docs/` (background)
-   (why: history/handover.md § Graduation, 2026-08-21). Split rule, because
+   (agent needs every session) or `docs/` (background). Split rule, because
    `AGENTS.md` is the byte budget every session pays: the trip-wire line (one line,
    unconditional, never the measurement) goes to `AGENTS.md`; the reasoning
    behind it goes to the layer's `docs/` — in a consumer's own section, the
@@ -380,8 +371,7 @@ Files left after merge get read as current — worse than no file. Nothing worth
 graduating? Fine outcome — delete.
 
 **No workstream file belongs on `main`.** Hook checks, names any there: make
-rot visible, not trust discipline
-(why: history/handover.md § Placement, 2026-08-21).
+rot visible, not trust discipline.
 
 `./joharness.sh finish` asks the same one moment earlier — before the
 merge, while deleting the file is still a commit, not a pull request. Step 7
@@ -397,8 +387,7 @@ hurries.
 
 ## How a session finds this without being told
 
-Three layers, each covering previous one's failure mode
-(why: history/handover.md § Placement, 2026-08-21):
+Three layers, each covering previous one's failure mode:
 
 1. **`CLAUDE.md`** imports `AGENTS.md`, which imports
    `.agents/harness/AGENTS.md` (the Loop, handover rules included).
