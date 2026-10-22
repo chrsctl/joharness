@@ -75,12 +75,19 @@ nothing. Never read a full queue and leave it untouched.
    exactly `orchestrator: <owner/repo>`, not `ARCHIVED`, whose
    `session_status` is `RUNNING` or `PENDING`, or that holds a pending
    `/orchestrate pass` wake (`list_triggers`: `run_once_at` set,
-   `persistent_session_id` = its id) — IDLE between passes is alive.
+   `persistent_session_id` = its id) — IDLE between passes is alive. A
+   retired or duplicate title (RUN END, SWAP) is never LIVE, whatever its
+   `session_status`. Your own title already `orchestrator (retired):
+   <owner/repo>` or `orchestrator (duplicate): <owner/repo>` = report
+   `retired: <title>`, answer as §4's forwarding paragraph does, stop; the
+   next run starts in a fresh session.
    `list_sessions`: another LIVE one with an earlier `created_at` than
    yours = run step 5 report-only (no REGISTER, no replace), then exit,
    report its `updated_at`, `status_detail` and step 5's line. The older
-   one proceeds, so two started together never both exit. Else
-   `set_session_title` yours to that. From the same result rebuild `@new`:
+   one proceeds, so two started together never both exit. The exit's last
+   act: `set_session_title` yours to `orchestrator (duplicate):
+   <owner/repo>` (RUN END, §4). Else
+   `set_session_title` yours to `orchestrator: <owner/repo>`. From the same result rebuild `@new`:
    each `manager: <stem>` not `ARCHIVED`, not in your ledger, whose item file
    still exists on `origin/main` (`git cat-file -e origin/main:<path>`) →
    ledger `<stem>@new respawns=<RESPAWN_LIMIT>`; report `rebuilt <stem>@new
@@ -158,8 +165,8 @@ retired or superseded pass does nothing, so it re-reads and fast-forwards
 nothing.
 
 - **Retired.** `get_session` (no `session_id`): your title is exactly
-  `orchestrator (retired): <owner/repo>` (the keeper retired you, "##
-  Keeper", SWAP) or `orchestrator (duplicate): <owner/repo>` = report
+  `orchestrator (retired): <owner/repo>` (the keeper retired you at SWAP,
+  or your own run ended, §4 RUN END) or `orchestrator (duplicate): <owner/repo>` = report
   `retired: <title>`, do nothing, schedule nothing. Any other title is
   "## 0. Start" step 3's matter, never a stop here.
 
@@ -463,8 +470,8 @@ needs (why: `.agents/docs/orchestrated.md`, "Start each run fresh"). The
 pass count decides, never `used_tokens` or `cost_usd`. `pass=` is the wake
 counter: an out-of-band arm (below) advances it too.
 
-You never start an orchestrator and never retire yourself: the keeper does
-both in one turn ("## Keeper", SWAP), from the wake you armed. Until it
+You never start an orchestrator, and past the pass count you never retire
+yourself: the keeper does both in one turn ("## Keeper", SWAP), from the wake you armed. Until it
 does, keep running passes; no gap, no second fleet. The first pass that
 arms `retire=yes`: one Claude Code Remote `send_message` to the keeper
 (the heartbeat's `persistent_session_id`), `priority` `later`, text
@@ -472,10 +479,22 @@ arms `retire=yes`: one Claude Code Remote `send_message` to the keeper
 wake. Not delivered = report `keeper not rung: swap at the next hourly
 wake`. No up-to-date heartbeat ("## 0. Start" step 5) = no keeper to swap
 you: report `retire waits: heartbeat <not registered | stale |
-duplicated>` and keep arming.
+duplicated>` and keep arming. RUN END's retitle is no retire in this
+sense: a run's end has nothing in flight to hand over and starts no
+successor.
 
-A pass that ends at DRAINED or PAUSED arms nothing; the out-of-band arm
-below carries `retire=yes` when the pending wake does.
+RUN END. A pass that ends at DRAINED or PAUSED arms nothing. Ends = the
+verdict `DRAINED — nothing free, nothing in flight: exit` or `PAUSED — …
+spawn nothing, exit`; any other DRAINED or PAUSED verdict is no end. Its last act,
+after the final report: `set_session_title` yours to `orchestrator
+(retired): <owner/repo>`, so the session list reads it as done and a wake
+that still fires does nothing (Pass entry, Retired). The same last act
+closes a human's stop (below); "## 0. Start" step 3's exit spells it
+`orchestrator (duplicate): <owner/repo>`. No `set_session_title`, or it is
+refused = report `not retitled: no set_session_title`, end the turn.
+Retitling a session the keeper already retitled changes nothing. A retired
+title is final: nothing in this file sets `orchestrator: <owner/repo>` on
+it again but SWAP step 2's rollback.
 
 A session titled `orchestrator (retired): <owner/repo>` or `orchestrator
 (duplicate): <owner/repo>` woken by a message from another session (a manager it
@@ -493,10 +512,11 @@ arms one new `send_later` at once, in this format:
 - A wake is pending (`list_triggers` with `include_completed` lists one for
   this session): the new wake's `pass=` is the pending wake's `pass=` plus
   one, so Pass entry's superseded check makes the stale wake do nothing;
-  cancel nothing. Its ledger is the pending wake's stored ledger plus this
+  cancel nothing. The new wake's `harness=` line carries `retire=yes` when
+  the pending wake does. Its ledger is the pending wake's stored ledger plus this
   spawn, never written from memory.
-- No wake is pending (the run already ended at DRAINED or PAUSED): treat it
-  as a first start: `pass=` is one above the highest `pass=` among this
+- No wake is pending (the run ended and RUN END's retitle was refused; a
+  retired title refuses the order above): treat it as a first start: `pass=` is one above the highest `pass=` among this
   session's wakes, completed ones included (`pass=1` only when none exist),
   or Pass entry's superseded check would kill it; a ledger holding only this
   spawn.
@@ -512,14 +532,15 @@ Human says stop = stop scheduling; name the managers still running; and
 `update_trigger` this repo's heartbeat `enabled: false` (the pause is the
 veto step 5 honours), else the keeper restarts the fleet within the hour.
 No `update_trigger` = report `pause heartbeat <id> or the keeper restarts
-the fleet`.
+the fleet`. Then RUN END's retitle, last.
 
 ## Report, every pass
 
 Opening lines, in this order: the `URGENT` row (if any), the `heartbeat
 registered`, `heartbeat replaced`, `heartbeat not registered`, `heartbeat duplicated` or `heartbeat stale` line (if any), then, on the first pass of a run a human message started (not
 a wake), when this session already wrote a final report (DRAINED exit or
-PAUSED) more than one hour earlier: `fresh session is cheaper: start a new
+PAUSED) more than one hour earlier (RUN END's retitle refused; a retired
+title runs no pass): `fresh session is cheaper: start a new
 orchestrator session for the next run`. It only informs; the pass still runs.
 (Why: `.agents/docs/orchestrated.md`, "Start each run fresh".)
 
@@ -585,7 +606,8 @@ session reading this has misread its role; stop, spawn nothing. Its context pers
    lineage refusal also `PushNotification`s once `keeper at lineage cap:
    delete heartbeat <trigger id> and run /orchestrate`.
 
-SWAP — the one place an orchestrator retires. Its wake is the pending one
+SWAP — the one place the keeper retires an orchestrator; a run's own end
+retitles itself (§4, RUN END). Its wake is the pending one
 with the highest `pass=`. Shape: every line starts `/orchestrate pass`,
 `harness=`, `ledger:` or `lead `, in that order, one of each but `lead`;
 anything else = report `swap skipped: wake shape <id>`, start nothing.
