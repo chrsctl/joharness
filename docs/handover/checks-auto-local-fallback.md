@@ -1,6 +1,6 @@
 ---
 workstream: checks-auto-local-fallback
-status: in-progress
+status: review
 branch: claude/checks-auto-local-fallback
 pr: 532
 plan: checks-auto-local-fallback
@@ -56,6 +56,7 @@ step 7; skipped = run `JOHARNESS_CHECKS=local ./joharness.sh finish`.
 - r8: (verifier) pins check presence, not placement in step 7 (wontfix: the phrase is unique to that bullet; the pattern matches handover-context-compact.sh)
 - r9: (verifier) both plan files still present, retire pending (no change: retire is the last commit before merge)
 - r10: pins re-measured after r3/r4, same method as r2, 2026-10-22: main's AGENTS.md 217 passed, 2 failed; this branch 219 passed, 0 failed (no change)
+- r11: `./joharness.sh ci` and `./joharness.sh verify` on head after r10, 2026-10-22: `ci: pass`; verify 6 passed, 0 failed (no change)
 
 ## Blockers
 
