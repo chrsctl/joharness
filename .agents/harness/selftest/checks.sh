@@ -399,6 +399,7 @@ refute "session start is silent under the default" "== Checks: LOCAL" "$out"
 # PATH; the origin URL is GitHub-shaped while pushes still go to the bare repo,
 # and HANDOVER_FETCH=0 keeps the behind count off the network. No network.
 git -C "$kcwork" checkout -q -b kcskip origin/main
+mkdir -p "${kcwork}/docs"
 printf 'skip\n' >"${kcwork}/docs/skip.md"
 commit_all "$kcwork" "docs only, read against GitHub"
 git -C "$kcwork" push -qu origin kcskip 2>/dev/null
