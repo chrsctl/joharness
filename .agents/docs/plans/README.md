@@ -116,19 +116,18 @@ harness, and both core diffs were agent-authored on the human's order and
 human-merged — consistent with Bounds (`.agents/docs/orchestrated.md`): the
 guarantee is code-owner review, not who typed the diff.
 
-So the home is a GitHub issue, the one node a session may create that a
-human already reads: issues are the front door for human asks (below), the
-clerk skips one labelled `human-review` and says so on its report line
-every pass, the clerk's own verdict for a core-only ask is HUMAN with that
-label, and the human's own core-path pull request closes it (`Closes #N`
-there; the manager's body says `Refs #N`, since its merge into `main` would
-close the issue first). The manager files it before the retire commit
-(`.claude/commands/manage.md` §2). Not invention at
-the edge: the issue carries the plan's own carve-out, never new scope. A
-ledger file on `main` was rejected: a row the human's `.github` merge forgets
-to delete is stale state, and `dispatch` reading it is the stored-copy
-failure `.agents/docs/graph.md` names. `dispatch` still reads git only;
-counting open `human-review` issues there is a separate decision.
+So the home is a pull request on branch `human/<stem>`, labelled
+`human-review`, that the manager opens before the retire commit
+(`.claude/commands/manage.md` §2): the core-path edit alone, committed from
+a separate worktree so it never lands on the manager's own branch, `ci` run
+on it, ready to merge. The human reviews and merges it; no session merges,
+approves or relabels it (Bounds, `human-review` label). One object, one
+step: the human reads the diff that will land, not a description of one.
+Not invention at the edge: the pull request carries the plan's own
+carve-out, never new scope. A ledger file on `main` was rejected: a row the
+human's `.github` merge forgets to delete is stale state, and `dispatch`
+reading it is the stored-copy failure `.agents/docs/graph.md` names.
+`dispatch` still reads git only.
 
 `shared:` means "a reconcile merge is expected here", so the path stops
 splitting waves and the hook names it on the wave line instead. Everything
