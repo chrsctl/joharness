@@ -19,6 +19,12 @@ Manager files one `defect:` issue (label `human-review`) for a failure outside i
 
 - Small three-file doc edit; done directly, no workers.
 
+## Review
+
+- r1: (verifier) label pin `labels \`human-review\`` also matches the remainder paragraph, so it cannot tell new text from old (fixed: pin the label-hold sentence instead)
+- r2: (verifier) deleting items 4-6 leaves selftest green (fixed: added a `defect not filed:` pin; items 4 and the Refs rule stay prose-only, wontfix: plan asked four pins)
+- r3: (verifier) one long line in the edited LEAD sentence (no change: matches the file's existing wrap)
+
 ## Blockers
 
 None.

@@ -480,3 +480,5 @@ expect "and capped at one per session" \
   "ONE issue per session" "$mgrtext"
 expect "and only when it reproduces on origin/main" \
   "reproduces on" "$mgrtext"
+expect "and a failed filing never blocks the item" \
+  "defect not filed:" "$mgrtext"
