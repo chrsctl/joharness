@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01D4is7qg9UAwnXVgyFR9ZBy
 agent: sonnet
 updated: 2026-10-22
-next: Research the four curate fixes in joharness.sh, then build with selftests
+next: Selftest run in flight (unverified); run .agents/harness/selftest.sh, confirm new curate-apply cases red on main then green, then ci+verify, review, retire
 ---
 
 ## Goal
@@ -16,6 +16,8 @@ next: Research the four curate fixes in joharness.sh, then build with selftests
 Fix four curate defects per `docs/plans/curate-writer-fixes.md`.
 
 ## Decisions
+
+- curate_counts emits path, stem, S or - (marked); curate_hits counts any mark. Declutter skip rule: Scope bullet naming the path with create or new file. Mode kept via cat into file; symlink refused.
 
 ## Rejected
 

@@ -5668,8 +5668,9 @@ curate_regthr() {
   printf '%s' "$r"
 }
 
-# Every unmarked scope: entry across the queue, held plans included:
-# `<path>\t<stem>`, one per plan per path.
+# Every scope: entry across the queue, held plans included, marked or not:
+# `<path>\t<stem>\t<S|->`, one per plan per path, path without `shared:`,
+# third field `S` when that plan marks it shared.
 curate_counts() {
   local rel stem s
   while IFS= read -r rel; do
@@ -5677,13 +5678,15 @@ curate_counts() {
     stem="$(lint_stem "$rel")"
     while IFS= read -r s; do
       [ -n "$s" ] || continue
-      case "$s" in shared:*) continue ;; esac
-      printf '%s\t%s\n' "$s" "$stem"
+      case "$s" in
+        shared:*) printf '%s\t%s\tS\n' "${s#shared:}" "$stem" ;;
+        *)        printf '%s\t%s\t-\n' "$s" "$stem" ;;
+      esac
     done < <(curate_scope_list "$rel")
   done < <(lint_nodes docs/plans)
 }
 
-# How many plans declare <path> unmarked, from curate_counts output.
+# How many plans declare <path>, marked or not, from curate_counts output.
 curate_hits() {
   printf '%s' "$2" | awk -F'\t' -v p="$1" '$1 == p { print $2 }' | sort -u | grep -c . || :
 }
@@ -5754,15 +5757,34 @@ curate_fixed_scope() {
   printf '%s' "$out" | awk 'NF && !seen[$0]++' | paste -sd, - | sed 's/,/, /g'
 }
 
-# Rewrite <rel>'s frontmatter scope: line to <value>.
+# Rewrite <rel>'s frontmatter scope: line to <value>. In place (`cat >`), so
+# the file keeps its mode on every platform; a symlink is refused, never
+# replaced by a regular file.
 curate_write_scope() {
   local f="${ROOT}/$1" tmp
+  if [ -L "$f" ]; then
+    printf 'refused   : %s is a symlink — not rewritten\n' "$1"
+    return 1
+  fi
   tmp="$(mktemp)" || return 1
-  awk -v v="$2" '
+  if awk -v v="$2" '
     NR == 1 && $0 == "---" { fm = 1; print; next }
     fm && $0 == "---" { fm = 0 }
     fm && /^scope:/ { print "scope: " v; next }
-    { print }' "$f" >"$tmp" && mv "$tmp" "$f"
+    { print }' "$f" >"$tmp"; then
+    cat "$tmp" >"$f"; rm -f "$tmp"
+  else
+    rm -f "$tmp"; return 1
+  fi
+}
+
+# Does a `## Scope` bullet of <rel> naming <path> say it is new
+# (`create` or `new file`)? A new file is not in the tree yet, by design.
+curate_marked_new() {
+  awk -v p="$2" '
+    /^## Scope/ { s = 1; next } /^## / { s = 0 }
+    s && /^- / && index($0, p) && tolower($0) ~ /create|new file/ { f = 1 }
+    END { exit !f }' "${ROOT}/$1"
 }
 
 cmd_curate() {
@@ -5865,7 +5887,8 @@ cmd_curate() {
       while IFS= read -r s; do
         [ -n "$s" ] || continue
         s="${s#shared:}"
-        [ -e "${ROOT}/${s}" ] || hit=$((hit + 1))
+        # A path its Scope bullet marks new is not built yet, not gone.
+        [ -e "${ROOT}/${s}" ] || curate_marked_new "$rel" "$s" || hit=$((hit + 1))
       done <<<"$scope"
       if [ "$hit" -gt 0 ] &&
          [ "$hit" -eq "$(printf '%s\n' "$scope" | grep -c .)" ]; then
@@ -5888,9 +5911,9 @@ cmd_curate() {
     hit="$(printf '%s' "$counts" | awk -F'\t' -v q="$p" '$1 == q { print $2 }' | sort -u | paste -sd, -)"
     n_propose=$((n_propose + 1))
     propose="${propose}  '${p}': claimed exclusively by ${hit} — order them, or say they are one plan. The human decides"$'\n'
-  done < <(printf '%s' "$counts" | awk -F'\t' '{ seen[$1 "\t" $2] = 1 }
+  done < <(printf '%s' "$counts" | awk -F'\t' '{ seen[$1 "\t" $2] = 1; if ($3 == "S") m[$1] = 1 }
     END { for (k in seen) { split(k, a, "\t"); c[a[1]]++ }
-          for (q in c) if (c[q] >= 2 && c[q] < '"$regthr"') print q }' | sort)
+          for (q in c) if (c[q] >= 2 && c[q] < '"$regthr"' && !(q in m)) print q }' | sort)
 
   printf 'plans     : %s free, %s held by a manager (held draw no findings)\n\n' \
     "$n_plans" "$n_held"
@@ -5921,7 +5944,7 @@ cmd_curate() {
 plans_in_diff() {
   local base="$1"
   {
-    git -C "$ROOT" diff --name-only --diff-filter=A "$base" -- docs/plans 2>/dev/null
+    git -C "$ROOT" diff --no-renames --name-only --diff-filter=A "$base" -- docs/plans 2>/dev/null
     git -C "$ROOT" ls-files --others --exclude-standard -- docs/plans 2>/dev/null
   } | awk '/^docs\/plans\/[^\/]+\.md$/ && !/\/(README|TEMPLATE|RETIRED)\.md$/' | sort -u |
     while IFS= read -r f; do [ -f "${ROOT}/${f}" ] && printf '%s\n' "$f"; done
