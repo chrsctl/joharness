@@ -32,8 +32,8 @@ step 7; skipped = run `JOHARNESS_CHECKS=local ./joharness.sh finish`.
 - Pin lives in `selftest/orchestrated.sh` (the plan's shared scope), the
   `grep -q` on `${ROOT}/.agents/harness/AGENTS.md` pattern of
   handover-context-compact.sh.
-- Human remainder #530 (ci.yml `lint` comment) stands; its wording names
-  `checks_lint_skipped`, which no longer exists: commented on the issue.
+- Human remainder #530 (ci.yml `lint` comment) stands; its body is
+  reworded to the MCP route (it named the dropped reader).
 
 ## Rejected
 
