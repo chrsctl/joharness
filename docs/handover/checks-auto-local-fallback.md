@@ -1,6 +1,6 @@
 ---
 workstream: checks-auto-local-fallback
-status: in-progress
+status: review
 branch: claude/checks-auto-local-fallback
 pr: none
 plan: checks-auto-local-fallback
@@ -60,6 +60,7 @@ the local gate: `finish` reads the head's `lint` check run; skipped = run
 - r19: (verifier) lint-skip "NOT run" header untested (fixed: red-finish case on kcskip; reverting the header, 1 failed)
 - r20: (verifier) usage header and github-mode line did not name the repository variable (fixed; KNOBS row describes the environment knob and stays)
 - r21: (verifier) 60 requests/hour, unauthenticated 200, `filter=latest` and skipped-job check runs are GitHub behaviour unread here (no change: the plan measured the 200; the rest fail closed either way)
+- r22: `./joharness.sh ci` 2026-10-22 on head 4a0c85fd: `ci: pass`; `./joharness.sh verify` same run: 2 passed, 4 failed, every failure Docker Hub `429 Too Many Requests` for `alpine:3` from this container, unrelated to the diff; GitHub's ci runs `verify` on the head and is read before merge (self) (no change)
 
 ## Blockers
 
