@@ -117,7 +117,8 @@ nothing. Never read a full queue and leave it untouched.
    - `failing` — `last_run.status` ends in `FAILED`
      (`ROUTINE_RUN_STATUS_FAILED`);
    - `prompt` — `derived_state.prompt`, trimmed, is not exactly
-     `/keeper`.
+     `/keeper` or `/orchestrate keeper` (the older spec: the title guard
+     routes it, so it is never replaced for its prompt alone).
    REPLACE only a Routine REGISTER made — `created_via: meta_mcp` AND
    `derived_state.prompt` exactly `/keeper` or `/orchestrate keeper` — whose reasons hold
    no `paused`: REGISTER's lineage check (step 1) first, failing = report
@@ -582,6 +583,8 @@ action either: no nudge, no `interrupt_session`, no KILL, no
 ## Keeper
 
 The keeper's rules are `.claude/commands/keeper.md`; this file holds none.
+A keeper whose tree lacks that file reads `git show
+origin/main:.claude/commands/keeper.md`.
 
 ## Never
 

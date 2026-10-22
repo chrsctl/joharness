@@ -210,8 +210,8 @@ it is the only entry at its rank — hiding it is how deadwood becomes
 permanent.
 
 Ranks 0-2 are the edge. A branch there leads the block under FINISH BEFORE
-STARTING, because finishing outranks starting
-([`.agents/harness/AGENTS.md`](../../harness/AGENTS.md) step 2). The line names the
+STARTING, because finishing outranks starting (`dispatch` ranks the
+edge first). The line names the
 work and stops: step 7 gives a session its OWN pull request to merge and no
 other, so whether that branch is yours is `/who`'s answer, never a rank's.
 

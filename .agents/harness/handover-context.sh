@@ -138,7 +138,7 @@ if [ "${JOHARNESS_SESSION_SOURCE:-}" = "compact" ]; then
   add ""
   # One mode, so nothing to resolve: the role's command is the rules.
   add "  Mode: orchestrated."
-  add "  Its rules: your role's command — .claude/commands/orchestrate.md or manage.md."
+  add "  Its rules: your role's command — .claude/commands/orchestrate.md or manage.md (or keeper.md)."
   add ""
   add "Your own finished work may be missing from what you hold. Before"
   add "reporting anything done or outstanding, read this branch's merged"

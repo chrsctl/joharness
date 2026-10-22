@@ -89,8 +89,9 @@ log, not markdown ([`caveman.md`](../../.agents/docs/caveman.md), Status quo).
 - Implementation yours. Interface signatures not yours.
 - Scope change too big to ratify alone? Decide, write down, flag for human.
   Do not stop.
-- Block ONLY for a reason `joharness.sh:block_reason_ok` accepts (the one
-  list; `.claude/commands/manage.md` §3 says when each fits). Block =
+- Block ONLY for a reason your role command allows (a manager:
+  `.claude/commands/manage.md` §3); each is in the one list dispatch
+  accepts, `joharness.sh:block_reason_ok`. Block =
   `status: blocked`, `next:` = `<reason>: <question>`, push, exit. Never wait in
   session. Block also labels `human-review` on this branch's open PR and the
   plan's `issue:`, if set; never remove it (`.agents/docs/orchestrated.md`, Bounds).

@@ -58,17 +58,7 @@ file where the role writes one; `--twin` and `--retire` after. It prints
 `GO <branch>` or `STOP: <reason>` last; the command file keeps only the
 judgement. Selftest: `.agents/harness/selftest/role.sh`.
 
-### Scout, read on gx
-
-`chrsctl/gx` runs the scout with `docs/product/SCOUT.md`,
-`JOHARNESS_SCOUT_REVIEWER=chrsctl`, `JOHARNESS_SCOUT_RESEARCH=on`. Read its
-scout issues with `list_issues` (label `scout`, OPEN and CLOSED) and
-`issue_read` `get_comments`. A scout issue carries labels `scout` and, once
-the reviewer approves, `approved`; sections `## Brief`, `## Source`,
-`## Evidence`, `## Memory`; a cost line `cost: <usd> USD (get_session
-usage.cost_usd, <date>)`. The `./joharness.sh scout` lines (`backlog`,
-`throughput`, `brief`) of another repo cannot be run from this one.
-
+### What each role reads
 
 Session start prints the banner, the environment pointer and THIS branch's
 workstream files (`HANDOVER_SCOPE=branch`) — no queue. Every line injected is
@@ -77,6 +67,7 @@ paid by every session.
 | Role | Reads | Never opens |
 | --- | --- | --- |
 | orchestrator | `dispatch`, the control plane, the Lineup table | a plan, a requirement, a research file, another branch's workstream file, this doc |
+| keeper | `keeper.md`, its trigger list and the sessions it names, the Lineup table | dispatch, the queue, a plan, any workstream file, this doc |
 | manager | its item, its own workstream file, the item's anchors, `feedback` on files it touches, the environment rules if it touches them | the queue, other plans, other branches, this doc |
 | surveyor | the `rescope :` block in its prompt, and the `## Scope` of each plan it renames | the queue, product code, this doc |
 | curator | `./joharness.sh curate` and the plans it names | a held plan, the queue order, product code, this doc |
@@ -182,7 +173,8 @@ no write cadence a pass can lean on. A `RUNNING` manager, `updated_at` and
 minutes after its creation (research node `frozen-cost-is-not-death-yet`,
 recover with `git log --diff-filter=D -p -- docs/research/frozen-cost-is-not-death-yet.md`);
 other `RUNNING` rows move it a minute apart. On `IDLE` no turn runs, so it
-stays frozen as long as the gap lasts: 30m47s on a live manager, the whole interval for one that arms its own check-in. A suspended
+stays frozen as long as the gap lasts: 30m47s on a live manager
+(control-plane read, issue #283), the whole interval for one that arms its own check-in. A suspended
 fleet freezes it on every row. A death is told apart from a suspension
 only AFTER the resume, when the survivors' cost moves: hindsight, not a read
 a pass can make. A floor would have to sit above the longest live
@@ -404,7 +396,7 @@ The rules that bind every session.
   no plan, pushes the human only on `status: blocked`, and exits; the
   heartbeat re-seeds and exits again. A requirement whose only plan is
   `CORE ONLY` counts as planned, so no planning manager is offered either.
-  Output of `DRAIN_FETCH=0 DISPATCH_FETCH=0 ./joharness.sh
+  Measured 2026-10-14 with `DRAIN_FETCH=0 DISPATCH_FETCH=0 ./joharness.sh
   dispatch` on a scratch queue built as `selftest/dispatch.sh` builds its
   fixture (one requirement, one plan serving it, `scope:
   .github/workflows/ci.yml, platform/web/src, scripts`, nothing in flight):
@@ -619,9 +611,9 @@ stale` or `heartbeat duplicated` line pushes):
 - **Cadence**: hourly floor (`*/5 * * * *` is refused). The Routine backs
   the `send_later` chain; it does not replace it.
 - **Prompt**: exactly `/keeper`. It invokes the keeper command; the
-  keeper's title guards it. A Routine still on `/orchestrate keeper` reads
-  `prompt` stale; `orchestrate.md` sends a keeper-titled session to
-  `keeper.md`, so it keeps working until replaced.
+  keeper's title guards it. A Routine on the older spec's `/orchestrate keeper`
+  still counts as up to date: `orchestrate.md` sends a keeper-titled
+  session to `keeper.md`, so a rename never costs a replace.
 - **Stop**: `update_trigger` `enabled: false` pauses (the veto),
   `delete_trigger` removes and lets the next `/orchestrate` register a new
   one. A Routine not named exactly `heartbeat: <owner/repo>` never counts

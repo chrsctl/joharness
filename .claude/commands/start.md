@@ -1,5 +1,5 @@
 ---
-description: Start the role this session's prompt calls for: manager or orchestrator
+description: Start the role this session's prompt calls for: manager, keeper or orchestrator
 ---
 
 Run `./joharness.sh start`. Read the file it names WHOLE. Do what it says.

@@ -52,7 +52,7 @@ expect "the banner names the manager role by its command" "/manage" "$out"
 expect "and the orchestrator role by its command" "/orchestrate" "$out"
 expect "and the orchestrator's one read" "./joharness.sh dispatch" "$out"
 expect "the default role is the orchestrator" \
-  "No item named? You are the" "$out"
+  "Neither? You are the" "$out"
 expect "the banner names the boundary" "NEVER edit the core" "$out"
 expect "a consumer banner says harness source is read through .md" \
   "Harness source is read through its .md docs" "$out"
@@ -79,7 +79,7 @@ refute "and not at the design doc the roles never open" \
 # rules have decayed and the task state has not.
 out="$(printf '{"source":"compact"}' | orcj session-start 2>/dev/null)"
 expect "a compacted orchestrated session is pointed at its rules" \
-  "Its rules: your role's command — .claude/commands/orchestrate.md or manage.md" "$out"
+  "Its rules: your role's command — .claude/commands/orchestrate.md or manage.md (or keeper.md)" "$out"
 # Each role reads its own documents: the queue and the fleet-wide handover
 # view are not injected here. The orchestrator reads them through dispatch,
 # a manager works one item.
@@ -319,6 +319,17 @@ expect "orchestrate.md points to keeper.md" \
   'The keeper'"'"'s rules are `.claude/commands/keeper.md`; this file holds none.' "$orcfold"
 refute "and holds no keeper rule itself" \
   'SWAP — the one place the keeper retires an orchestrator' "$orcfold"
+expect "and sends a keeper without the file to origin/main's" \
+  'A keeper whose tree lacks that file reads `git show origin/main:.claude/commands/keeper.md`.' "$orcfold"
+# The Loop routes and points; the picking order and the block list live
+# once, in dispatch and block_reason_ok.
+agentsfold="$(tr '\n' ' ' <"${ROOT}/.agents/harness/AGENTS.md" | tr -s ' ')"
+expect "AGENTS.md names the one block-reason list" \
+  'each is in the one list dispatch accepts, `joharness.sh:block_reason_ok`' "$agentsfold"
+refute "and restates no block list of its own" \
+  'Block ONLY for money, credentials, hardware' "$agentsfold"
+expect "AGENTS.md step 2 is role routing" '2. **Pick.** Role routing only' "$agentsfold"
+refute "and no hand-run picking order" 'Finishing outranks starting' "$agentsfold"
 refute "orchestrate.md no longer reads the role off the title" \
   'Role is this session'"'"'s TITLE, never its prompt.' "$orcfold"
 # shellcheck disable=SC2016 # literal backticks in the needles
@@ -327,6 +338,8 @@ for needle in 'Titled exactly `keeper: <owner/repo>` = run this file.' \
   'Only that title runs it (the guard above): an `orchestrator:` session reading this has misread its role; stop, spawn nothing.' \
   'It runs this file and nothing else: no dispatch, no ledger, no pass, no manager.' \
   'This file in `git show origin/main:.claude/commands/keeper.md` differs' \
+  'No `get_session` = report and `PushNotification` once `role unreadable: no get_session`, end the turn.' \
+  'A call REFUSED or erroring is named in that wake'"'"'s one-line report, never retried.' \
   'swap deferred' \
   'swap skipped' \
   'swap failed' \
@@ -363,7 +376,7 @@ for needle in 'Routine named exactly `heartbeat: <owner/repo>` with a non-empty 
   '`unbound` — `persist_session` is not true, or `persistent_session_id` is empty' \
   '`keeper-gone` — `get_session` on `persistent_session_id` finds it `ARCHIVED`, not found, or titled other than `keeper: <owner/repo>`' \
   '`failing` — `last_run.status` ends in `FAILED`' \
-  '`prompt` — `derived_state.prompt`, trimmed, is not exactly `/keeper`.' \
+  '`prompt` — `derived_state.prompt`, trimmed, is not exactly `/keeper` or `/orchestrate keeper`' \
   'Never enable, edit or delete a Routine a human paused or made in the UI' \
   'REGISTER, at most once per session:' \
   'NOT `depth + 2 < limit` = report `heartbeat not registered: lineage <depth>/<limit>`' \

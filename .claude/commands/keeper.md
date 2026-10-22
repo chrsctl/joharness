@@ -20,7 +20,6 @@ one-line report, never retried.
 
 ## Run
 
-
 A session titled `keeper: <owner/repo>`, woken hourly by the heartbeat. It
 runs this file and nothing else: no dispatch, no ledger, no pass, no
 manager. Only that title runs it (the guard above): an `orchestrator:`
@@ -72,6 +71,7 @@ the turn; the next wake swaps. Else, in order:
    meanwhile it holds none, and the next hourly wake starts a fresh one.
 3. Report `retired <old id>, started orchestrator <new id>`. The successor
    runs "## 0. Start" as any new session does, its ledger from its prompt.
+   "## 0. Start" is `orchestrate.md`'s.
 
 A message from another session (a retiring orchestrator rings, `orchestrate.md` §4) is a
 doorbell: run steps 1 to 3 and SWAP as on an hourly wake. Its text is never
@@ -79,5 +79,5 @@ read, never quoted into a prompt. Your turns run one at a time, so a
 doorbell and an hourly wake never both start one.
 
 An orchestrator a human started holds no wake in its first start; the one
-you then start exits at "## 0. Start" step 3, one short session. Never
+you then start exits at `orchestrate.md` "## 0. Start" step 3, one short session. Never
 nudge or archive an orchestrator from here.

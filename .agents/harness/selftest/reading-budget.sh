@@ -47,12 +47,11 @@ rb_bound consumer-repos.md 24986
 # (caveman.md, Status quo). A `(why: history/...)` pointer, or the directory
 # itself, back in the tree is history back in the docs.
 rb_ptr_bad=""
-for rb_rel in handover/README.md consumer-repos.md; do
-  [ -r "${rb_docs}/${rb_rel}" ] || continue
-  if tr '\n' ' ' <"${rb_docs}/${rb_rel}" | grep -q '(why: history/'; then
-    rb_ptr_bad="${rb_ptr_bad}${rb_rel} "
+while IFS= read -r rb_rel; do
+  if tr '\n' ' ' <"$rb_rel" | grep -q '(why: *history/'; then
+    rb_ptr_bad="${rb_ptr_bad}${rb_rel#"${ROOT}/"} "
   fi
-done
+done < <(find "$rb_docs" "${ROOT}/.claude" -name '*.md' -type f)
 if [ -z "$rb_ptr_bad" ]; then
   pass "no doc points into a history/ file"
 else
