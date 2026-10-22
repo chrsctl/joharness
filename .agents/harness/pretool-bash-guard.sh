@@ -103,8 +103,10 @@ strip_heredocs() {
   local exec_re='(^|[;&|({[:space:]]|\\n)(/[^[:space:]]*/)?(bash|sh|zsh|dash|ksh|source|exec|eval|xargs|python[0-9.]*|perl|node)([[:space:]]|$)|(^|[;&|[:space:]]|\\n)\.[[:space:]]|(^|[;&|(]|\\n)[[:space:]]*(\./|/[^[:space:]]*\.sh)'
   while [ "$last" -eq 0 ]; do
     if [[ $rest == *'\n'* ]]; then
+      # A cut, not `${rest#*\\n}`: a leading `*` is matched against every
+      # prefix, quadratic — 2.5 s on one 80 KB heredoc line.
       line="${rest%%\\n*}"
-      rest="${rest#*\\n}"
+      rest="${rest:${#line}+2}"
     else
       line="$rest"
       last=1

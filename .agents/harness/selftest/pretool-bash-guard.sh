@@ -454,21 +454,24 @@ else
   fail "200 lines of quoted keywords before loops: exit ${pbg_rc}, ${pbg_secs}s (wanted 0, <= 4s)"
 fi
 
-# And 80 KB of plain notes, where every keyword is prose. Each prose skip
-# cuts over the whole command, so the skip runs only up to 8 KB; above it,
-# origin/main's reading at origin/main's cost. Measured 2026-10-08: 11.5 s
-# with the skip on everything, 0.06 s now.
+# And 160 KB of plain notes in a heredoc, where every keyword is prose. Each
+# prose skip cuts over the whole command, so the skip runs only up to 8 KB.
+# strip_heredocs cuts each line off with `%%` and a substring: a `#*` cut is
+# quadratic and took 9.2 s on this payload, 0.19 s with the cut (2026-10-22,
+# the guard alone, idle 4-core container). 160 KB, not 80: at 80 the
+# quadratic cut took 2-6 s by machine and slipped under the bound on a fast
+# one.
 pbg_big=""
-for _ in $(seq 1 2200); do
+for _ in $(seq 1 4400); do
   pbg_big+='The step waits wh''ile the build runs. '
 done
 pbg_t0=$SECONDS
 pbg '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"cat > /tmp/notes.md <<EOF\n'"$pbg_big"'\nEOF"}}'
 pbg_secs=$((SECONDS - pbg_t0))
 if [ "$pbg_rc" -eq 0 ] && [ "$pbg_secs" -le 4 ]; then
-  pass "80 KB of prose keywords read in ${pbg_secs}s"
+  pass "160 KB of prose keywords read in ${pbg_secs}s"
 else
-  fail "80 KB of prose keywords: exit ${pbg_rc}, ${pbg_secs}s (wanted 0, <= 4s)"
+  fail "160 KB of prose keywords: exit ${pbg_rc}, ${pbg_secs}s (wanted 0, <= 4s)"
 fi
 
 # --- what counts as a counter ----------------------------------------------
