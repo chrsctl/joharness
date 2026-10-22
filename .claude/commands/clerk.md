@@ -127,9 +127,9 @@ recorded in the pull request body with the evidence, one line each:
   and effort by `.agents/docs/agent-selection.md`. A plan whose `scope:`
   would be core paths only (`./joharness.sh protocol-paths`) is never
   written — `ci` fails it, and only a human can build it: verdict HUMAN
-  instead.
+  instead. A plan written: comment `clerk: HOLDS — plan <stem> in PR #<M>`.
 - **NARROWER** — a plan for only the part that holds, `issue: <N>`; comment
-  saying which parts did not hold and why.
+  saying which parts did not hold and why, and naming `PR #<M>`.
 - **DOES NOT HOLD** — comment with the evidence: the command, its output,
   the line read. Do not close the issue; a human closes it.
 - **HUMAN** — it needs product direction, money, credentials or hardware
@@ -171,6 +171,10 @@ session's system prompt names. One comment per issue per pass. A HUMAN
 comment also ends its text with: "answer here by hand; a Claude-posted answer
 is not read".
 
+A pass that writes any plan posts its HOLDS and NARROWER comments
+AFTER the pull request opens (§4), so they can name `PR #<M>`; every other
+verdict comment, and a pass with no plan, posts as decided.
+
 ## 4. Pull request
 
 No plans written = no pull request (an UPSTREAM-only pass opens none). Push
@@ -203,7 +207,7 @@ under `planned`. Missing = an `issue:` the reader dropped; fix it before you
 exit.
 
 Report, one line each: issues read by verdict (UPSTREAM counted), plans written, comments
-posted, and that this session took a manager slot.
+posted (link comments counted), and that this session took a manager slot.
 
 ## Never
 

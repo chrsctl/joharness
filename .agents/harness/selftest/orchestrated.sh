@@ -190,6 +190,8 @@ orcmd="${ROOT}/.claude/commands/orchestrate.md"
 mgrmd="${ROOT}/.claude/commands/manage.md"
 orctext="$(cat "$orcmd")"
 mgrtext="$(cat "$mgrmd")"
+clerktext=""
+[ -f "${ROOT}/.claude/commands/clerk.md" ] && clerktext="$(cat "${ROOT}/.claude/commands/clerk.md")"
 
 # Two messaging transports, one per kind of target (issue #347). A cloud
 # fleet measured ListAgents empty while Claude Code Remote send_message by
@@ -482,3 +484,15 @@ expect "and only when it reproduces on origin/main" \
   "reproduces on" "$mgrtext"
 expect "and a failed filing never blocks the item" \
   "defect not filed:" "$mgrtext"
+# Every issue a pull request body names gets the link as a comment.
+expect "the manager has a paragraph linking the issue" \
+  "Link the issue" "$mgrtext"
+expect "one comment per named issue" \
+  "post ONE comment on that issue" "$mgrtext"
+# A consumer with the clerk off carries no clerk.md; nothing to pin there.
+if [ -n "$clerktext" ]; then
+expect "the clerk's HOLDS verdict names the plan-only pull request" \
+  "clerk: HOLDS — plan" "$clerktext"
+expect "the clerk comments after its pull request opens" \
+  "AFTER the pull request opens" "$clerktext"
+fi
