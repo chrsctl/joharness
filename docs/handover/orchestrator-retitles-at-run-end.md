@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01Ya7H7BbQxuskmRA1AdtA8f
 agent: opus
 updated: 2026-10-22
-next: Run ci, verify, negative needle checks, verifier review, then finish
+next: Read ci and the 5 negative runs (needles r1-r3,r7), then verify, retire, PR, merge
 ---
 
 ## Goal
