@@ -38,6 +38,12 @@ claim with no `status:` line gets `status: abandoned` on release.
 ## Review
 
 - r1: red on main before the fix (selftest, 2026-10-22): `FAIL a non-executable queue hook reads UNREADABLE`, `FAIL a hook exiting non-zero reads UNREADABLE with its exit code`, `FAIL and no plan file changes:  M docs/plans/base-a.md ... M docs/plans/widehold.md`, `FAIL dispatch never offers a blocked claim for release`, `FAIL --apply refuses a blocked claim`, `FAIL and the claim now reads status: abandoned` (fixed)
+- r2: (verifier) janitor --apply pushed an identical tree and said `release` for a claim with no readable frontmatter (none, unterminated, CRLF) (fixed: unchanged blob = skip, nothing pushed, selftest mgr-nofm)
+- r3: (verifier) a quoted or unknown status now holds its plan with no janitor route (wontfix: fail closed is the plan; the sweep row names it `never released`, the human resolves it)
+- r4: (verifier) hook stderr reached the verdict line; `DRAINED` could ride inside it (fixed: reason is the exit code only, hook stderr discarded; selftest refutes the stderr text)
+- r5: (verifier) the --apply skip reason did not name blocked/done/unreadable status (fixed)
+- r6: (verifier) two janitor refutes vacuous if the line is absent (fixed: expects on the sweep's `never released` row added)
+- r7: (verifier) orchestrate.md has no rule for `verdict : UNREADABLE`; it reads as not-an-end, keeps passing, role spawn lines sit after the verdict and are never reached (no change: fails closed; .claude/commands wording is out of scope)
 
 ## Blockers
 

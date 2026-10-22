@@ -2859,12 +2859,18 @@ janitor_apply() {
         fm && /^status:/ { print "status: abandoned"; ss = 1; next }
         fm && /^next:/   { print "next: Pick this up from the plan; the claim was released " d "; " w; ns = 1; next }
         { print }' | git -C "$ROOT" hash-object -w --stdin)" || continue
+      # No frontmatter the awk can read (none, unterminated, CRLF): an
+      # identical blob would push a release that releases nothing.
+      if [ "$newblob" = "$(printf '%s\n' "$blob" | git -C "$ROOT" hash-object --stdin)" ]; then
+        printf 'skip      : %s  %s — no frontmatter to write status: abandoned into; release it by hand\n' "$want" "$path"
+        continue
+      fi
       GIT_INDEX_FILE="$idx" git -C "$ROOT" update-index --cacheinfo "100644,${newblob},${path}" || continue
       n=$((n + 1))
       printf 'release   : %s  %s\n' "$want" "$path"
     done <<<"$cands"
     if [ "$n" -eq 0 ]; then
-      printf 'skip      : %s — not a candidate (pushed recently, already released, or names a pr:)\n' "$want"
+      printf 'skip      : %s — not a candidate (pushed recently, already released, names a pr:, or status blocked, done or unreadable)\n' "$want"
       rm -f "$idx"; rc=1; continue
     fi
     tree="$(GIT_INDEX_FILE="$idx" git -C "$ROOT" write-tree)"
@@ -5010,24 +5016,21 @@ cmd_finish() {
 # non-zero, and one line on stderr, `queue hook <name>: <reason>`, that the
 # caller prints as UNREADABLE. Never an empty queue.
 drain_hook() {
-  local h="${HARNESS_ROOT}/$1" err rc last
+  local h="${HARNESS_ROOT}/$1" rc last
   if [ ! -x "$h" ]; then
     if [ -e "$h" ]; then last="not executable"; else last="not found"; fi
     printf 'queue hook %s: %s\n' "$1" "$last" >&2
     return 1
   fi
-  err="$(mktemp)"
+  # The hook's own stderr stays out: it is repo-controlled text, and the
+  # reason line lands in the verdict the orchestrator branches on.
   CLAUDE_PROJECT_DIR="$ROOT" HANDOVER_FETCH="${DRAIN_FETCH:-0}" \
     QUEUE_MAX_ENTRIES="${DRAIN_MAX_ENTRIES:-10000}" \
     HANDOVER_MAX_ENTRIES="${DRAIN_MAX_ENTRIES:-10000}" \
     QUEUE_WITHHELD="${DISPATCH_WITHHELD:-}" \
-    "$h" 2>"$err"
+    "$h" 2>/dev/null
   rc=$?
-  if [ "$rc" -ne 0 ]; then
-    last="$(grep . "$err" | tail -n 1 | tr -cd '[:print:]' | cut -c1-160)"
-    printf 'queue hook %s: exit %s%s\n' "$1" "$rc" "${last:+: $last}" >&2
-  fi
-  rm -f "$err"
+  [ "$rc" -eq 0 ] || printf 'queue hook %s: exit %s\n' "$1" "$rc" >&2
   return "$rc"
 }
 

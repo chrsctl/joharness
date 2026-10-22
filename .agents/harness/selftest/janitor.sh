@@ -593,6 +593,9 @@ refute "dispatch never offers a blocked claim for release" "mgr-blocked" \
 refute "nor a done one" "mgr-done" \
   "$(printf '%s\n' "$out" | grep '^janitor   :' || :)"
 out="$(jan)"
+expect "the sweep names a blocked claim as never released" \
+  "status: blocked — never released: --apply refuses it" "$out"
+expect "and a done one" "status: done — never released: --apply refuses it" "$out"
 refute "the sweep's release list leaves a blocked claim out" "mgr-blocked" \
   "$(printf '%s\n' "$out" | grep '(candidates:' || :)"
 refute "and a done one" "mgr-done" \
@@ -621,4 +624,22 @@ if [ "$(printf '%s\n' "$jns" | awk 'NR > 1 && $0 == "---" { exit } /^status:/' |
   pass "inside the frontmatter, once"
 else
   fail "inside the frontmatter, once"
+fi
+
+# --- no frontmatter to write into: no release is pushed ----------------------
+git -C "$jwork" checkout -qb mgr-nofm main
+mkdir -p "${jwork}/docs/handover"
+printf '# notes\n\nplan: none\n' >"${jwork}/docs/handover/mgr-nofm.md"
+jcommit "claim with no frontmatter" '2026-01-02T00:00:00Z'
+git -C "$jwork" push -qu origin mgr-nofm
+git -C "$jwork" checkout -q main
+jnofm_before="$(git -C "$jorigin" rev-parse mgr-nofm)"
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-nofm 2>&1 )"; rc=$?
+expect "--apply says it cannot write a status into it" \
+  "skip      : mgr-nofm  docs/handover/mgr-nofm.md — no frontmatter" "$out"
+refute "and pushes nothing" "pushed    : mgr-nofm" "$out"
+if [ "$rc" -ne 0 ] && [ "$(git -C "$jorigin" rev-parse mgr-nofm)" = "$jnofm_before" ]; then
+  pass "and exits non-zero with origin unmoved"
+else
+  fail "and exits non-zero with origin unmoved (rc ${rc})"
 fi

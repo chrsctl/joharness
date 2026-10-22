@@ -3915,14 +3915,16 @@ refute "and never DRAINED" "DRAINED" "$out"
 refute "and spawns nothing" "spawn up to" "$out"
 if [ "$rc" -ne 0 ]; then pass "and dispatch exits non-zero"
 else fail "and dispatch exits non-zero"; fi
-# A hook that runs and fails: its exit code and last stderr line are the reason.
+# A hook that runs and fails: its exit code is the reason, its stderr never
+# reaches the verdict line.
 cp "${dspwork}/.agents/harness/handover-context.sh" "${TMP}/dsp-handover-hook.sh"
 printf '#!/usr/bin/env bash\necho "partial row"\necho "broken pipe somewhere" >&2\nexit 3\n' \
   >"${dspwork}/.agents/harness/handover-context.sh"
 out="$(dsp)"; rc=$?
 cp "${TMP}/dsp-handover-hook.sh" "${dspwork}/.agents/harness/handover-context.sh"
 expect "a hook exiting non-zero reads UNREADABLE with its exit code" \
-  "verdict   : UNREADABLE — queue hook handover-context.sh: exit 3: broken pipe somewhere" "$out"
+  "verdict   : UNREADABLE — queue hook handover-context.sh: exit 3: spawn nothing" "$out"
+refute "and the hook's stderr stays out of it" "broken pipe somewhere" "$out"
 refute "and never DRAINED" "DRAINED" "$out"
 if [ "$rc" -ne 0 ]; then pass "and dispatch exits non-zero"
 else fail "and dispatch exits non-zero"; fi
