@@ -185,7 +185,7 @@ checks_mode() { printf '%s' "${JOHARNESS_CHECKS:-}"; }
 
 # True when joharness.conf says local and the environment does not.
 checks_conf_ignored() {
-  [ "$(conf_get JOHARNESS_CHECKS)" = local ] && ! checks_local
+  [ "$(conf_get JOHARNESS_CHECKS)" = local ] && [ "$(checks_mode)" != local ]
 }
 
 checks_local() {

@@ -116,6 +116,13 @@ out="$(env -u JOHARNESS_CHECKS CLAUDE_PROJECT_DIR="$kcwork" JOHARNESS_CONF="$kcc
 expect "session start names the ignored conf line" \
   "joharness.conf JOHARNESS_CHECKS=local IGNORED" "$out"
 refute "and does not announce local checks" "== Checks: LOCAL" "$out"
+out="$(env -u JOHARNESS_CHECKS CLAUDE_PROJECT_DIR="$kcwork" JOHARNESS_CONF="$kcconf" \
+  "${kcwork}/joharness.sh" conf 2>&1)"
+expect "conf marks the ignored conf line" "(joharness.conf says local: IGNORED)" "$out"
+out="$(JOHARNESS_CHECKS=bogus CLAUDE_PROJECT_DIR="$kcwork" JOHARNESS_CONF="$kcconf" \
+  "${kcwork}/joharness.sh" conf 2>&1)"
+refute "a bogus environment value draws no second warning from the conf check" \
+  "ignoring JOHARNESS_CHECKS" "$out"
 if JOHARNESS_CHECKS=local kc_rc; then
   pass "local mode is green when ci is"
 else
