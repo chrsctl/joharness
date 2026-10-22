@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01CCZ4fdZD5RpRj9muS4KcgD
 agent: haiku
 updated: 2026-10-22
-next: Insert the curate --apply step into .claude/commands/plan.md before step 4, renumber, run ci and verify.
+next: ci (bounded 1800s, scratchpad ci.out) and verify; then edge review, retire and PR.
 ---
 
 ## Goal
