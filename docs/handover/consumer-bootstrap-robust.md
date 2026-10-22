@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01QDNr7h9NRWwvLhFQipZRqU
 agent: opus
 updated: 2026-10-22
-next: Apply scratch fixes, run selftest green, ci, verify, verifier review
+next: Selftest green check, then ci, verify, verifier review, retire
 ---
 
 ## Goal
