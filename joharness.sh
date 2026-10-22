@@ -3559,7 +3559,7 @@ clerk_stale_s() {
 # JOHARNESS_CLERK_HOURS: a live clerk may wait longer than the cadence on checks.
 # A fresh tip is `ended`, holding nothing either, only on proof the pass is
 # over: no net change against its merge base AND a merged no-op record
-# (clerk_noop) stamped at or after the tip. A pass that drops its plan and may
+# (clerk_noop) stamped at or after the tip, and not ahead of now. A pass that drops its plan and may
 # write another has an empty diff too: the later record is the proof. Any
 # git error is no proof: in-flight.
 clerk_walk() {
@@ -3593,7 +3593,8 @@ clerk_walk() {
       if [ -z "$noop_ts" ]; then
         noop_ts="$(clerk_noop)"; noop_ts="${noop_ts%%$'\t'*}"; noop_ts="${noop_ts:-0}"
       fi
-      if [ "$noop_ts" -gt 0 ] && [ "$noop_ts" -ge "$ct" ]; then
+      # A stamp ahead of now is a broken clock: it proves nothing.
+      if [ "$noop_ts" -gt 0 ] && [ "$noop_ts" -ge "$ct" ] && [ "$noop_ts" -le "$now" ]; then
         mb="$(git -C "$ROOT" merge-base "$base_id" "$oid" </dev/null 2>/dev/null)"
         if [ -n "$mb" ] &&
            git -C "$ROOT" diff-tree --quiet -r "$mb" "$oid" </dev/null >/dev/null 2>&1; then

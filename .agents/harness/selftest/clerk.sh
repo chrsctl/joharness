@@ -325,6 +325,15 @@ git -C "$clerk_work" push -q origin "${clerk_main}:refs/heads/clerk-noop-${clerk
 git -C "$clerk_work" fetch -q origin
 out="$(clerk_run)"
 expect "(i) a no-op record stamped before the tip still holds" "clerk-2026-02-06  tip-0h  in-flight" "$out"
+# A stamp ahead of now, inside the window, is a broken clock: no proof
+# (verifier r1).
+clerk_sf="$(clerk_stamp -10)"
+git -C "$clerk_work" push -q origin "${clerk_main}:refs/heads/clerk-noop-${clerk_sf}"
+git -C "$clerk_work" fetch -q origin
+out="$(clerk_run)"
+expect "(i) a no-op record stamped ahead of now proves nothing" "clerk-2026-02-06  tip-0h  in-flight" "$out"
+git -C "$clerk_work" push -q origin --delete "clerk-noop-${clerk_sf}"
+git -C "$clerk_work" fetch -q --prune origin
 clerk_s0="$(clerk_stamp 0)"
 git -C "$clerk_work" push -q origin "${clerk_main}:refs/heads/clerk-noop-${clerk_s0}"
 git -C "$clerk_work" fetch -q origin

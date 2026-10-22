@@ -34,7 +34,10 @@ failing closed.
 
 ## Review
 
-- r0: not reviewed yet (no change)
+- r1: (verifier) a merged no-op stamped ahead of now but inside the window marked a live clerk ended (fixed: no proof when the stamp is ahead of now; case (i) "stamped ahead of now")
+- r2: (verifier) any merged no-op after the tip proves the end, not this pass's own: a twin's no-op could end a live clerk mid-pass (wontfix: a no-op names no branch to tie it to, the twin check already stops a second clerk, and the cadence clock reads not due either way)
+- r3: (verifier) .agents/docs/orchestrated.md clerk row still said every young unmerged clerk branch takes a slot (fixed)
+- r4: (verifier) the live acceptance row and the red-without-fix line were not recorded (fixed: origin/clerk-2026-10-22 gone at 19:23 UTC 2026-10-22, said in the PR body; red line below)
 
 ## Blockers
 
