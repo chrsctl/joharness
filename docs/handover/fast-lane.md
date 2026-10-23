@@ -65,6 +65,10 @@ file and keeps workstream file, verifier, ci, verify and finish.
 - r14: (verifier) a path both deleted in the diff and untracked on disk (`git rm --cached`) counted twice (fixed: the path stream is `sort -zu`)
 - r15: (verifier) the docs/plans/*/* arm had no test (fixed: a nested docs/plans/sub/x.md in the green state)
 - r16: (verifier) control characters in a path printed raw, and the newline display was unverified on bash 3.2 (fixed: display passes the path through `tr` to `?`, no bash replacement-string quoting)
+- r18: (verifier) a retired claim counted only if fin_own_ws listed it (added in a non-merge commit, not inherited), while the tree reader took any changed fast file: an inherited-then-edited or merge-added claim bound until the retire commit and nothing after, so finish passed unbounded work (fixed: retired claims read under the tree rule, from history: the last version a branch commit carried, if it says fast, differs from the base and is no symlink; selftest cases for both)
+- r19: (verifier) a symlink claim let a target outside the repo decide the lane (fixed: a symlink is never a claim, in the tree or in history; it counts as a path)
+- r20: (verifier) a planned branch editing a stale fast file on main becomes fast-lane (no change in code: an edit that leaves it saying fast is a claim by the rule; plans README says delete a stale one, never edit it)
+- r21: (verifier) sort -zu ran under the caller's locale, where collation may fold distinct paths (fixed: LC_ALL=C)
 - r17: (verifier) r4's record said one reader used by both while review kept its own tree read, and Decisions still named plans_in_diff (fixed: review_report now takes the set from fast_lane_ws; Decisions rewritten)
 
 ## Research: claim set (review churn, r4 then r12)
@@ -77,6 +81,8 @@ Conflicting pair: (1) read as "every tree file" vs (2). Resolution: the
 claim is a fast file THIS branch changed against the merge base (in the
 path stream the bound already walks) or added and retired. Covers (1) and
 (3), excludes (2) by construction; one function serves the stage and review.
+A retired claim is judged by the same rule on its last version in history
+(r18), never by a narrower one.
 
 ## Blockers
 

@@ -6398,15 +6398,16 @@ lint_plans_in_diff() {
 fast_lane_paths() {
   { git -C "$ROOT" diff -z --no-renames --name-only "$1"
     git -C "$ROOT" ls-files -z --others --exclude-standard
-  } 2>/dev/null | sort -zu
+  } 2>/dev/null | LC_ALL=C sort -zu
 }
 
 # The fast lane's claim files, one per line: a docs/handover/ file saying
-# `plan: fast` that this branch changed against <base>, or added and then
-# retired (read from git). Never one inherited untouched: a stale file on
-# the base branch binds nobody.
+# `plan: fast` that this branch changed against <base>. In the tree, read
+# there; retired, read as the last version a branch commit carried, merges
+# included. Never one inherited untouched (a stale file on the base branch
+# binds nobody), never a symlink (its target would decide).
 fast_lane_ws() {
-  local base="$1" ws
+  local base="$1" ws mode blob basemap
   while IFS= read -r -d '' ws; do
     case "$ws" in
       *$'\n'* | docs/handover/*/* | docs/handover/README.md | \
@@ -6414,15 +6415,27 @@ fast_lane_ws() {
       docs/handover/*.md) ;;
       *) continue ;;
     esac
-    [ -f "${ROOT}/${ws}" ] || continue
+    { [ -f "${ROOT}/${ws}" ] && [ ! -L "${ROOT}/${ws}" ]; } || continue
     [ "$(lint_stem "$(gr_field plan <"${ROOT}/${ws}")")" = "$FAST_LANE" ] &&
       printf '%s\n' "$ws"
   done < <(fast_lane_paths "$base")
-  while IFS= read -r ws; do
-    { [ -n "$ws" ] && [ ! -e "${ROOT}/${ws}" ]; } || continue
-    [ "$(lint_stem "$(lint_ws_content "$ws" | gr_field plan)")" = "$FAST_LANE" ] &&
-      printf '%s\n' "$ws"
-  done <<<"$(fin_own_ws "$base")"
+  # Retired: newest commit first, so the first entry per path is its last
+  # version. ls-tree, not log: a merge commit's own adds count too.
+  basemap="$(git -C "$ROOT" ls-tree "$base" docs/handover/ 2>/dev/null)"
+  while IFS=$'\t' read -r mode ws; do
+    [ -n "$ws" ] || continue
+    { [ -e "${ROOT}/${ws}" ] || [ -L "${ROOT}/${ws}" ]; } && continue
+    blob="${mode##* }"; mode="${mode%% *}"
+    [ "$mode" != 120000 ] || continue
+    printf '%s\n' "$basemap" | grep -qF -- "${blob}"$'\t'"${ws}" && continue
+    [ "$(lint_stem "$(git -C "$ROOT" cat-file blob "$blob" 2>/dev/null | gr_field plan)")" = \
+      "$FAST_LANE" ] && printf '%s\n' "$ws"
+  done < <(git -C "$ROOT" rev-list "${base}..HEAD" 2>/dev/null |
+    while IFS= read -r c; do
+      git -C "$ROOT" -c core.quotePath=false ls-tree "$c" docs/handover/ 2>/dev/null
+    done | awk -F'\t' '
+      $2 ~ /^docs\/handover\/[^\/]+\.md$/ &&
+      $2 !~ /\/(README|TEMPLATE|RETIRED)\.md$/ && !seen[$2]++')
 }
 
 # A path as ci prints it: control characters (a newline most of all) as `?`.

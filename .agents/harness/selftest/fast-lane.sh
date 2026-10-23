@@ -163,6 +163,40 @@ expect "two fast workstream files are a breach" \
   "2 workstream files say plan: fast — one lane, one file" "$out"
 expect "review reads the same file as fast" \
   "old.md [haiku" "$(fj review)"
+# Retired, it binds the same: the last version a branch commit carried.
+git -C "$fwork" rm -q docs/handover/old.md docs/handover/second.md
+commit_all "$fwork" "retire both claims"
+expect "an inherited claim, edited then retired, still binds" \
+  "4 files touched besides docs/handover/old.md" "$(fast_section "$(fj ci)")"
+
+# A claim added inside a merge commit, then retired: log skips a merge's
+# own adds, the history walk does not.
+git -C "$fwork" checkout -q main
+git -C "$fwork" checkout -qb side
+for _f in a b c d; do printf '%s\n' "$_f" >"${fwork}/${_f}.txt"; done
+commit_all "$fwork" "side: four files"
+git -C "$fwork" checkout -q main
+git -C "$fwork" checkout -qb viamerge
+git -C "$fwork" merge -q --no-ff --no-commit side
+fast_ws viamerge fast
+commit_all "$fwork" "merge side, claim the lane in the merge"
+git -C "$fwork" rm -q docs/handover/viamerge.md
+commit_all "$fwork" "retire"
+expect "a claim added in a merge, then retired, still binds" \
+  "4 files touched besides docs/handover/viamerge.md" "$(fast_section "$(fj ci)")"
+
+# A symlink is never a claim: its target, here or outside the repo, would
+# decide the lane.
+git -C "$fwork" checkout -q main
+git -C "$fwork" checkout -qb linked
+printf -- '---\nplan: fast\n---\n' >"${fwork}/target.txt"
+if ln -s ../../target.txt "${fwork}/docs/handover/link.md" 2>/dev/null; then
+  commit_all "$fwork" "a symlink saying fast"
+  expect "a symlinked fast file is no claim" \
+    "no plan: fast workstream file on this branch" "$(fast_section "$(fj ci -v)")"
+else
+  skip "a symlinked fast file is no claim" "no symlinks here"
+fi
 
 # Nothing committed: the claim and the files are untracked, and a tracked
 # file left on disk but removed from the index, which the diff and the

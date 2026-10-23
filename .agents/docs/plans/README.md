@@ -284,7 +284,8 @@ all stay.
 `ci` stage `fast lane` holds a branch that declares the lane to its bound,
 and reds each breach by name. Declares = a `docs/handover/` file saying
 `plan: fast` that the branch changed, or added and retired; one inherited
-untouched from `main` binds nobody. Against the merge base with
+untouched from `main` binds nobody (clean one up by deleting it: an edit
+that leaves it saying `fast` claims the lane). A symlink never claims. Against the merge base with
 `origin/main`, working tree and untracked files included:
 
 - exactly one such file;
