@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01UmhELGWH7NQD7X2oy1Db8D
 agent: opus
 updated: 2026-10-23
-next: Run ci, verify, verifier; then retire and open the pull request
+next: Run ci on head, then retire plan and workstream file and open the pull request
 ---
 
 ## Goal
@@ -45,7 +45,7 @@ simplify-orchestrated-docs).
 ## Review
 
 - r1: (plan-checker) the 840 line bound is reachable by rewrapping, against "no rewriting for style" (wontfix: the rewrap is whitespace only, about 13 lines; the rest is deleted history and duplicate copies)
-- r2: (plan-checker) acceptance regex misses other dated lines (2026-10-23, 2026-08-25, 2026-10-07, 30m47s, 117 minutes) (fixed: all removed; `git grep -nE '20[0-9]{2}-[0-9]{2}-[0-9]{2}'` on the three docs prints nothing)
+- r2: (plan-checker) acceptance regex misses other dated lines (2026-10-23, 2026-08-25, 2026-10-07, 30m47s, 117 minutes) (fixed: 2026-10-07, 30m47s and 117 minutes cut with their stories; dates on readings still current kept, r10)
 - r3: (plan-checker) Lineup source dates are ambiguous under "the dated lines" (fixed: kept as provenance, see Decisions and r10)
 - r4: (plan-checker) churn numbers live in agent-selection.md, not orchestrated.md (fixed: both copies point at the knob table; heading kept)
 - r5: (plan-checker) the first-row story holds live mechanism (fixed: mechanism kept as one paragraph)
@@ -53,6 +53,13 @@ simplify-orchestrated-docs).
 - r7: (plan-checker) selftest/dispatch.sh:602 cites a missing orchestrated.md "Runs" heading (wontfix: pre-existing, in a selftest this plan may not edit; reported as a lead)
 - r8: (plan-checker) incoming heading citations must keep resolving (no change: every cited heading kept)
 - r9: (plan-checker) A2 hash stale, A1 evidence command prints file names not phrases (no change: claims hold)
+- r10: (verifier) command and date stripped from readings still the current basis, against caveman.md (fixed: restored on Lineup sources, subagents.md, Run now and the fired-session command; 2026-10-16 wontfix: plan acceptance bans it)
+- r11: (verifier) subagents.md lost "plans and managers' prompts mean the second one" (fixed: restored above the table)
+- r12: (verifier) agent-selection.md lost "Ambiguity is executed literally or asked back to a human" (fixed: restored)
+- r13: (verifier) Fresh session bullet dropped the TTL condition and the manager re-check trigger (fixed: rewritten with both)
+- r14: (verifier) frozen-cost "nothing bounds that" reason lost (fixed: restored)
+- r15: (verifier) injection sentence lost "rightly" (fixed: restored)
+- r16: (verifier) Decisions claimed 78-column rewrap, false; churn pointer read as a bare heading (fixed: claim corrected, pointer says "knob table")
 
 ## Blockers
 
@@ -61,10 +68,3 @@ None.
 ## Where to look
 
 - `.agents/harness/selftest/orchestrated.sh` — phrases that must survive.
-- r10: (verifier) command and date stripped from readings still the current basis, against caveman.md (fixed: restored on Lineup sources, subagents.md, Run now and the fired-session command; 2026-10-16 wontfix: plan acceptance bans it)
-- r11: (verifier) subagents.md lost "plans and managers' prompts mean the second one" (fixed: restored above the table)
-- r12: (verifier) agent-selection.md lost "Ambiguity is executed literally or asked back to a human" (fixed: restored)
-- r13: (verifier) Fresh session bullet dropped the TTL condition and the manager re-check trigger (fixed: rewritten with both)
-- r14: (verifier) frozen-cost "nothing bounds that" reason lost (fixed: restored)
-- r15: (verifier) injection sentence lost "rightly" (fixed: restored)
-- r16: (verifier) Decisions claimed 78-column rewrap, false; churn pointer read as a bare heading (fixed: claim corrected, pointer says "knob table")
