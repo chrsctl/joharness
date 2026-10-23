@@ -49,6 +49,9 @@ effort: medium
 scope: $2
 ---
 
+## Assumptions
+None.
+
 ## Goal
 Fixture.
 EOF
