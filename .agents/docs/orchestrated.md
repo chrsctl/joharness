@@ -424,7 +424,7 @@ The rules that bind every session.
   enters as an issue and becomes a plan only through the clerk, after the
   reviewer's `approved` comment, newer than the scout's newest footed
   `scout:` comment; closing the issue declines it.
-- **`human-review` label.** An agent applies it when it blocks on a human,
+- **`human-review` label.** An agent applies it when it blocks on a human (never a `defect:` block),
   and to the `human/<stem>` pull request holding its plan's human remainder
   (`.agents/docs/plans/README.md`, "A human remainder"); a human applies it
   to hold an issue or pull request. It stops the clerk
@@ -462,7 +462,7 @@ prints the question in the report, and is never respawned.
 
 A block names its reason: `next:` = `<reason>: <question>`, the
 reason one word from a closed list (money, credentials, product, interface,
-core path, conflict, hardware, github, stalled, respawns). A free question
+core path, conflict, hardware, github, stalled, respawns, defect). A free question
 with no reason is usually work the manager should do; `dispatch` marks it
 `INVALID BLOCK?`, and the orchestrator asks instead of relaying it. A valid
 block is pushed to the human once (`PushNotification`, ledger `notified=`),
