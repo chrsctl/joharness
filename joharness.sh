@@ -132,6 +132,7 @@ JOHARNESS_CONF|computed|session|Path of the conf file; default joharness.conf un
 JOHARNESS_VERBOSE|0|session|1 = ci and finish print passing checks too.
 JOHARNESS_SELFTEST||session|always = run the selftest even on a docs-only diff.
 JOHARNESS_SELFTEST_GIT_BUDGET|88960|session|Git execs the selftest may make before the ci stage reds; canonical-only.
+JOHARNESS_SELFTEST_JOBS|computed|session|Parallel selftest workers; default the CPU count, at most 4; 1 = one topic after another; canonical-only.
 JOHARNESS_SESSION_SOURCE||session|The SessionStart hook source (startup, resume, clear, compact), set by session-start.
 JOHARNESS_FORCE_SETUP|0|session|1 = provision at session start outside the remote sandbox.
 JOHARNESS_SHIP||session|all = ci treats every harness file as shipping.
@@ -2600,9 +2601,14 @@ cmd_analysis() {
 # branches are never deleted. A ref that does not resolve judges nothing
 # merged (what the per-ref test did: it failed), and `--no-merged=<missing>` is
 # fatal, so a missing FIRST ref lists every origin ref; a later one is skipped.
-# No ref given lists them all.
+# No ref given lists them all. The base alone, once mb_prime has run, is read
+# from UNMERGED_MEMO.
 refs_unmerged() {
   local ref first=1 flags=()
+  if [ "$#" -eq 1 ] && [ -n "$UNMERGED_FOR" ] && [ "$1" = "$UNMERGED_FOR" ]; then
+    [ -z "$UNMERGED_MEMO" ] || printf '%s\n' "$UNMERGED_MEMO"
+    return 0
+  fi
   for ref in "$@"; do
     if git -C "$ROOT" rev-parse --verify -q "${ref}^{commit}" </dev/null >/dev/null 2>&1; then
       flags+=("--no-merged=${ref}")
@@ -2622,6 +2628,43 @@ refs_merged() {
     refs/remotes/origin </dev/null 2>/dev/null
 }
 
+# Merge bases with the base branch, primed (mb_prime) for every unmerged
+# origin ref before dispatch's readers fork: seven of them ask the same merge
+# base, each in its own subshell, so a memo filled later is lost to the rest.
+# `\n<ref>\t<sha>`; an empty sha = no merge base. The unmerged list itself,
+# asked of the base alone by as many readers, is kept beside it.
+MB_MEMO=""
+UNMERGED_MEMO=""
+UNMERGED_FOR=""
+mb_prime() {
+  local over="refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" r memo="" list
+  UNMERGED_FOR=""
+  list="$(refs_unmerged "$over")"
+  while IFS= read -r r; do
+    [ -n "$r" ] || continue
+    memo="${memo}"$'\n'"${r}"$'\t'"$(git -C "$ROOT" merge-base "$r" "$over" \
+      </dev/null 2>/dev/null)"
+  done <<<"$list"
+  MB_MEMO="$memo"
+  UNMERGED_MEMO="$list"
+  UNMERGED_FOR="$over"
+}
+
+# <ref>: `git merge-base <ref> <base>`, its output and its failure, from the
+# memo when mb_prime saw the ref.
+base_mb() {
+  local rest
+  case "$MB_MEMO" in
+    *$'\n'"${1}"$'\t'*)
+      rest="${MB_MEMO#*$'\n'"${1}"$'\t'}"
+      rest="${rest%%$'\n'*}"
+      [ -n "$rest" ] || return 1
+      printf '%s\n' "$rest" ;;
+    *) git -C "$ROOT" merge-base "$1" \
+         "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" </dev/null 2>/dev/null ;;
+  esac
+}
+
 # Unmerged origin branches that OWN a workstream file: `<branch>\t<path>`.
 claim_branches() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" r name base f
@@ -2629,8 +2672,7 @@ claim_branches() {
     while IFS= read -r r; do
       name="${r#refs/remotes/origin/}"
       { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
-      base="$(git -C "$ROOT" merge-base "$r" \
-        "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)" || continue
+      base="$(base_mb "$r")" || continue
       [ -n "$base" ] || continue
       while IFS= read -r f; do
         [ -n "$f" ] || continue
@@ -4627,7 +4669,17 @@ gr_field() { gr_fields "$1"; }
 # Node files of one type from a path listing on stdin. The protocol doc, the
 # template and the retired-stems ledger are not nodes; four callers said so in
 # two greps each.
-gr_docs() { awk 'NF && /\.md$/ && !/\/(TEMPLATE|README|RETIRED)\.md$/'; }
+# Builtins only: dispatch runs this once per branch per reader, and an awk exec
+# each time was its largest exec count after git.
+gr_docs() {
+  local l
+  while IFS= read -r l || [ -n "$l" ]; do
+    case "$l" in
+      */TEMPLATE.md | */README.md | */RETIRED.md) ;;
+      *.md) [ -z "${l//[[:space:]]/}" ] || printf '%s\n' "$l" ;;
+    esac
+  done
+}
 
 # Stems named by an EDGE field's value, one per line, `none` dropped.
 gr_edge_stems() {
@@ -5338,8 +5390,7 @@ dispatch_retired_edges() {
         # NO merge base = ownership cannot be computed here at all, and a
         # shallow clone is how that happens: grafted history, most refs
         # unreachable from the base.
-        base="$(git -C "$ROOT" merge-base "$r" \
-          "refs/remotes/origin/${base_branch}" 2>/dev/null)"
+        base="$(base_mb "$r")"
         if [ -z "$base" ]; then unver=$((unver + 1)); continue; fi
         git -C "$ROOT" diff --name-only --diff-filter=ACMRT "$base" "$r" \
           -- docs/handover 2>/dev/null | gr_docs | grep -q . && continue
@@ -5624,8 +5675,7 @@ dispatch_curate_branches() {
     cand="$(git -C "$ROOT" ls-tree -r --name-only "$r" -- docs/handover \
       </dev/null 2>/dev/null | grep -i curate)" || continue
     [ -n "$cand" ] || continue
-    base="$(git -C "$ROOT" merge-base "$r" \
-      "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)"
+    base="$(base_mb "$r")"
     [ -n "$base" ] || continue
     files="$(git -C "$ROOT" diff --name-only --diff-filter=ACMRT "$base" "$r" \
       -- docs/handover </dev/null 2>/dev/null | gr_docs)"
@@ -6087,8 +6137,7 @@ dispatch_rescope_branches() {
     [ -n "$r" ] || continue
     name="${r#refs/remotes/origin/}"
     { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
-    base="$(git -C "$ROOT" merge-base "$r" \
-      "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)"
+    base="$(base_mb "$r")"
     [ -n "$base" ] || continue
     # Workstream files this branch ADDED against the base, read there.
     files="$(git -C "$ROOT" diff --name-only --diff-filter=ACMRT "$base" "$r" \
@@ -6123,23 +6172,39 @@ dispatch_rescope_branches() {
 # deletes one, each with its own (new) time (verifier r9-r11). So no merges,
 # `--full-history` to walk past them, and the file as the commit LEFT it.
 # Bounded by <since>, never by a merge count (cl_merged_claims).
+# Rows land in DONE_EV, not on stdout: a blob's verdict never changes, so
+# DONE_EV_MEMO keeps it (`\n<commit>:<path>\t<stem or empty>`) for every later
+# walk in this process, and only a call outside `$(...)` can grow it.
+DONE_EV_MEMO=""
 dispatch_done_evidence() {
-  local since="$1" own="$2" line h="" ht="" seen="" doc wplan wstat
+  local since="$1" own="$2" line h="" ht="" seen="" doc wplan wstat key rest
+  DONE_EV=""
   while IFS= read -r line; do
     case "$line" in
       '') continue ;;
       'C '*) read -r h ht <<<"${line#C }"; continue ;;
     esac
     [ -n "$h" ] || continue
-    case "$seen" in *" ${h}:${line} "*) continue ;; esac
-    seen="${seen} ${h}:${line} "
-    doc="$(git -C "$ROOT" show "${h}:${line}" </dev/null 2>/dev/null)" || continue
-    { read -r wplan; read -r wstat; } \
-      < <(printf '%s\n' "$doc" | gr_fields plan status)
-    [ "$wstat" = "done" ] || continue
-    wplan="$(lint_stem "$wplan" | tr -cd 'A-Za-z0-9._-')"
-    [ -z "$wplan" ] || [ "$wplan" = none ] ||
-      printf '%s\t%s\t%s\n' "$h" "$ht" "$wplan"
+    key="${h}:${line}"
+    case "$seen" in *" ${key} "*) continue ;; esac
+    seen="${seen} ${key} "
+    case "$DONE_EV_MEMO" in
+      *$'\n'"${key}"$'\t'*)
+        rest="${DONE_EV_MEMO#*$'\n'"${key}"$'\t'}"
+        wplan="${rest%%$'\n'*}" ;;
+      *)
+        doc="$(git -C "$ROOT" show "${key}" </dev/null 2>/dev/null)" || continue
+        { read -r wplan; read -r wstat; } \
+          < <(printf '%s\n' "$doc" | gr_fields plan status)
+        if [ "$wstat" = "done" ]; then
+          wplan="$(lint_stem "$wplan" | tr -cd 'A-Za-z0-9._-')"
+          [ "$wplan" != none ] || wplan=""
+        else
+          wplan=""
+        fi
+        DONE_EV_MEMO="${DONE_EV_MEMO}"$'\n'"${key}"$'\t'"${wplan}" ;;
+    esac
+    [ -z "$wplan" ] || DONE_EV="${DONE_EV}${h}"$'\t'"${ht}"$'\t'"${wplan}"$'\n'
   done < <(git -C "$ROOT" for-each-ref --format='%(refname)' refs/remotes/origin \
       </dev/null 2>/dev/null |
     awk -v own="$own" -v since="$since" '
@@ -6209,8 +6274,7 @@ dispatch_branch_plans() {
     name="${r#refs/remotes/origin/}"
     { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
     [ -z "$only" ] || [ "$name" = "$only" ] || continue
-    base="$(git -C "$ROOT" merge-base "$r" \
-      "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)"
+    base="$(base_mb "$r")"
     [ -n "$base" ] || continue
     plans="$(git -c core.quotePath=false -C "$ROOT" diff --no-renames \
       --name-only --diff-filter=A "$base" "$r" \
@@ -6285,7 +6349,7 @@ dispatch_branch_plans() {
           case "$evcache" in
             *"<${abase} ${r}>"*) ;;
             *) evcache="<${abase} ${r}>"
-               evs="$(dispatch_done_evidence "$abase" "$r")" ;;
+               dispatch_done_evidence "$abase" "$r"; evs="$DONE_EV" ;;
           esac
           while IFS=$'\t' read -r evh evt ev; do
             [ "$ev" = "$stem" ] || continue
@@ -6322,8 +6386,7 @@ dispatch_branch_plans() {
 # never opened or was closed, and nothing else can release it.
 free_claimed_ever() {
   local base line h="" doc ws wp age
-  base="$(git -C "$ROOT" merge-base "$1" \
-    "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" </dev/null 2>/dev/null)" || return 1
+  base="$(base_mb "$1")" || return 1
   [ -n "$base" ] || return 1
   while IFS= read -r line; do
     case "$line" in
@@ -6379,12 +6442,13 @@ dispatch_freeable() {
     esac
     claimed="${claimed} ${ck} "
   done < <(dispatch_rescope_branches free-)
-  refs="$(git -C "$ROOT" for-each-ref --format='%(refname)' \
-    refs/remotes/origin </dev/null 2>/dev/null)"
   # Free managers' branches: live, unmerged, unreleased, and ADDED a
   # `free-*` claim since the base (it may since have retired it). Only these
   # hold an owner, by ancestry, however the merge was made: a branch merely
-  # cut from the owner, or a copy of it, never claimed a free.
+  # cut from the owner, or a copy of it, never claimed a free. A ref merged
+  # into the base has an empty `base..ref`, so free_claimed_ever is false for
+  # it: probing only the unmerged ones gives the same set for less work.
+  refs="$(refs_unmerged "refs/remotes/origin/${base_branch}")"
   while IFS= read -r r; do
     [ -n "$r" ] || continue
     name="${r#refs/remotes/origin/}"
@@ -6407,8 +6471,7 @@ dispatch_freeable() {
     # The same charset dispatch_branch_plans prints: one name for both reads.
     [ "$(printf '%s' "$name" | tr -cd 'A-Za-z0-9._/-')" = "$name" ] || continue
     case "$claimed" in *" $(free_key "$name") "*) continue ;; esac
-    base="$(git -C "$ROOT" merge-base "$r" \
-      "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)"
+    base="$(base_mb "$r")"
     [ -n "$base" ] || continue
     paths="$(git -c core.quotePath=false -C "$ROOT" diff --no-renames \
       --name-only "$base" "$r" </dev/null 2>/dev/null)"
@@ -6555,6 +6618,7 @@ cmd_dispatch() {
         { warn "fetch failed; push ages below are from the last fetch"; fetch_failed=1; }
     fi
   fi
+  mb_prime
   printf 'cap       : %s manager(s) at once (JOHARNESS_MAX_MANAGERS)\n' "$cap"
   printf 'stall     : %s min without a push = cross-check the control plane (JOHARNESS_STALL_MINUTES)\n' "$stall"
   printf 'health    : one pass every %s min (JOHARNESS_HEALTH_MINUTES)\n' "$health"
@@ -6791,6 +6855,8 @@ cmd_dispatch() {
     return 1
   fi
   qout="$DRAIN_OUT"
+  # A hook told to fetch may have moved the refs the memo read.
+  [ "${DRAIN_FETCH:-0}" = 0 ] || mb_prime
 
   # Every plan, research and requirement row as path|label, every row. A
   # requirement row matters here only CLAIMED — it is the planning manager's

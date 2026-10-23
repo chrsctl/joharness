@@ -24,15 +24,15 @@ step "reading budget"
 
 rb_docs="${ROOT}/.agents/docs"
 
-# <relative path> <counted size after the split>
+# <relative path> <counted size after the split> [<base dir>, default the docs]
 rb_bound() {
-  local rel="$1" counted="$2" size bound
+  local rel="$1" counted="$2" base="${3:-$rb_docs}" size bound
   bound=$((counted + counted / 10))
-  if [ ! -r "${rb_docs}/${rel}" ]; then
+  if [ ! -r "${base}/${rel}" ]; then
     fail "${rel} exists to be bounded"
     return
   fi
-  size="$(wc -c <"${rb_docs}/${rel}" | tr -d ' ')"
+  size="$(wc -c <"${base}/${rel}" | tr -d ' ')"
   if [ "$size" -le "$bound" ]; then
     pass "${rel}: ${size} bytes, bound ${bound} (counted ${counted})"
   else
@@ -45,7 +45,10 @@ rb_bound consumer-repos.md 24986
 # manage.md loads whole into every manager session; its rare branches
 # live in manage-reference.md. Counted `wc -c` on the diet commit,
 # 2026-10-23 (16234 before it).
-rb_bound ../../.claude/commands/manage.md 9248
+rb_bound manage.md 9248 "${ROOT}/.claude/commands"
+# The orchestrator's command file, counted 21480 on origin/main after the
+# split into orchestrate-reference.md: it stays a table of pointers.
+rb_bound orchestrate.md 21480 "${ROOT}/.claude/commands"
 
 # History lives in git log, not in a history/ directory beside the rules
 # (caveman.md, Status quo). A `(why: history/...)` pointer, or the directory
