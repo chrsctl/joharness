@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01DVY54ozjxdsGhxxFah71UL
 agent: sonnet
 updated: 2026-10-23
-next: ci rerun after verifier fixes; if pass: retire plan+workstream files, PR, merge
+next: read ci7 (/tmp/claude-0/ci7.out or rerun); if pass retire plan+workstream files, PR, merge
 ---
 
 ## Goal

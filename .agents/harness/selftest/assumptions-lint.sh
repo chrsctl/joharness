@@ -40,7 +40,8 @@ commit_all "$aswork" "add two plans"
 
 as_ci() { CLAUDE_PROJECT_DIR="$aswork" JOHARNESS_CONF="${aswork}/joharness.conf" \
   GITHUB_ACTIONS='' "${aswork}/joharness.sh" ci 2>&1; }
-as_out="$(sed -n '/plans on this branch/,/^$/p' <<<"$(as_ci)")"
+as_stage() { sed -n '/== plans on this branch/,/^== /p' <<<"$(as_ci)"; }
+as_out="$(as_stage)"
 
 expect "a plan added without the section is red, naming the file" \
   'docs/plans/new-bare.md: no "## Assumptions" heading' "$as_out"
@@ -51,5 +52,5 @@ expect "exactly one problem is counted" "1 problem(s) in plans this branch adds"
 # A near-miss heading is not the heading.
 printf '## Assumptionsx\n' >>"${aswork}/docs/plans/new-good.md"
 sed -i 's/^## Assumptions$/## Assumptions-draft/' "${aswork}/docs/plans/new-good.md"
-as_out2="$(sed -n '/plans on this branch/,/^$/p' <<<"$(as_ci)")"
+as_out2="$(as_stage)"
 expect "a near-miss heading is red" 'docs/plans/new-good.md: no "## Assumptions" heading' "$as_out2"
