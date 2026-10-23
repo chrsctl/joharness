@@ -398,7 +398,9 @@ The rules that bind every session.
   pull request labelled `human-review`, carrying only the core-path edit its
   plan leaves to a human, committed from a separate worktree, never on the
   session's own branch, and never merged by a session
-  (`.claude/commands/manage.md` §2).
+  (`.claude/commands/manage.md` §2). A hook `.claude/settings.json` registers
+  runs from the working tree: it is built unregistered, tested through
+  fixtures, and registered in that pull request, never edited in place.
 - **A `CORE ONLY` plan is a wait on a human, and the verdict must say so.**
   With slots free and nothing left but `CORE ONLY` plans, `dispatch` reads
   `DRAINED` — true of the fleet, false of the queue: the orchestrator opens
