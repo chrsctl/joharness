@@ -524,6 +524,7 @@ bw_waived() {
     while IFS="$TAB" read -r flag text; do
       [ -n "$text" ] || continue
       printf '%s' "$text" | grep -qE '\(wontfix:[[:space:]]*[^)[:space:]][^)]*\)' || continue
+      # shellcheck disable=SC2016  # the backticks are literal, for sed
       path="$(printf '%s' "$text" |
         sed -nE 's/.*window[[:space:]]+`?([^[:space:]`]+)`?.*/\1/p' | head -n 1)"
       [ -z "$path" ] || printf '%s\n' "$path"
