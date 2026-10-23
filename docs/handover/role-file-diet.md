@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_014pf1ZLsyT6Q6B8M2STqS9P
 agent: opus
 updated: 2026-10-23
-next: Run ci and verify, then edge review and verifier at opus
+next: Run ci and verify on the review fixes, then retire and open the pull request
 ---
 
 ## Goal
@@ -41,6 +41,17 @@ Cut what every orchestrator pass loads (`.claude/commands/orchestrate.md`,
 - RUN END, the RETIRE arm rule, the health table's match columns, spawn,
   schedule, report and Never stay: every normal pass runs them.
 
+- Moved section → pointer that reaches it (`orchestrate.md`): Optional
+  tools → Tools ("Any other tool or `status_bucket` absent"); 0. Start →
+  §0 ("First: ref § 0. Start"); Duplicate → Pass entry bullet; Held by
+  human → health row and §3 `held-human=` clause; Unratified block →
+  health row; Relay → `blocked` row; Unclaimed spawn rows → pointer row
+  in their old table position; KILL and LOOP, Respawn limit, GUARD →
+  lines after the table; Role sessions → §3 bullet; RETIRE → §4 RETIRE
+  arm; Retired session woken, Out-of-band arm, Human stop → §4; Fresh
+  session line → Report opening lines; Core wait → Report (wait line or a
+  `corewait=` stem). The selftest checks both directions by name.
+
 ## Rejected
 
 - Moving RUN END: an idle fleet ends every hourly run there, so it is the
@@ -50,6 +61,18 @@ Cut what every orchestrator pass loads (`.claude/commands/orchestrate.md`,
   total must stay within 5% of 41,573 bytes.
 
 ## Review
+
+- r1: Optional tools section got the health table's header prepended (fixed)
+- r2: (verifier) pointer-name check over-captured into the next sentence, 9 FAILs (fixed: longest section-name prefix match)
+- r3: (verifier) unclaimed-spawn pointer row said not RUNNING; RUNNING with a BLOCKED bucket never reached the moved held= rows (fixed: any)
+- r4: (verifier) corewait= drop rule read only while the wait line prints (fixed: pointer also fires on a corewait= stem)
+- r5: (verifier) held-human= drop rule read only while its row matches (fixed: §3 clause points to it)
+- r6: (verifier) status_bucket is a field, not a tool, so its degradation row was unreachable (fixed: pointer names it)
+- r7: (verifier) moved role text says the standard lines are below, they are in orchestrate.md (fixed: reference intro says its terms hold there)
+- r8: (verifier) section check was a substring test and checked no content (fixed: exact name, non-empty body; mutations tested)
+- r9: (verifier) scout trigger is read on scout-on passes yet moved (wontfix: its pointer fires on that same scout row; keeping it breaks the 22 KB cut)
+- r10: (verifier) harness= hashes only orchestrate.md (wontfix: pointers read origin/main fresh; the Pass entry rule is out of scope)
+- r11: (verifier) citations in keeper.md, scout.md, orchestrated.md land one hop away on a pointer (no change)
 
 ## Blockers
 

@@ -41,7 +41,7 @@ REQUIRED — absent, say so and stop: `create_session`, `send_later`, one
 liveness read (`get_session` or `list_sessions`). OPTIONAL — absent, one path
 degrades, never the loop; say which once:
 
-Any other tool absent, or a call REFUSED or erroring at run time → ref §
+Any other tool or `status_bucket` absent, or a call REFUSED or erroring at run time → ref §
 Optional tools.
 
 A name you cannot find is a capability you do not have, not a reason to do
@@ -49,7 +49,7 @@ nothing. Never read a full queue and leave it untouched.
 
 ## 0. Start (once per orchestrator session, never per pass)
 
-First, before Pass entry: ref § 0. Start, steps 1 to 5.
+First: ref § 0. Start, steps 1 to 5.
 
 The ledger comes from your wake message (step 4), never from memory. First
 start = the `ledger:` line of your prompt (a SWAP successor's,
@@ -144,7 +144,7 @@ Act on the FIRST row that matches:
 | not RUNNING, bucket FAILED | any | no `seen=` | CRASHED: no nudge; ledger `seen=<updated_at>` and head |
 | same | any | `seen=`, `updated_at` and head unchanged | dead: `archive_session`, RESPAWN |
 | ARCHIVED / not found | any | claimed, branch unmerged | gone: RESPAWN on the branch |
-| not RUNNING | any | `new` from a previous pass, or `seen=` | ref § Unclaimed spawn rows; none matches = next row |
+| any | any | `new` from a previous pass, or `seen=` | ref § Unclaimed spawn rows; none matches = next row |
 | IDLE/PENDING | any | branch unmerged, no nudge | NUDGE as above; spawn nothing for it |
 | IDLE/PENDING | any | nudged, head and `status_detail` unchanged | gone: RESPAWN on the branch |
 | RUNNING | any | `retired, no claim file` | merging; nothing |
@@ -166,7 +166,7 @@ GUARD `<verb>`, before every push onto a manager's branch → ref § GUARD.
 
 ## 3. Spawn
 
-Up to `slots`, dispatch's order, rows under `spawn` only. A ledger `held-human=<pr>` entry holds no slot (as scout and conduct hold none): spawn up to `slots` plus the number of such entries whose branch dispatch still lists as `retired, no claim file`. Managers and role
+Up to `slots`, dispatch's order, rows under `spawn` only. A ledger `held-human=<pr>` entry holds no slot (dropped per ref § Held by human) (as scout and conduct hold none): spawn up to `slots` plus the number of such entries whose branch dispatch still lists as `retired, no claim file`. Managers and role
 sessions count against `JOHARNESS_MAX_MANAGERS` together: curator and
 clerk take a slot; scout and conduct reviewer hold none. A line or command that says nothing to do spawns
 nothing.
@@ -183,7 +183,7 @@ nothing.
   respawned this pass: it has a live manager now.
 - Role sessions (`curate DUE`, `clerk DUE`, `scout     :`, `conduct DUE`,
   `OVERLAP-BOUND`, `FREEABLE`, the human's order) → ref § Role
-  sessions; "A scout issue needs the scout" is there.
+  sessions ("A scout issue needs the scout").
 
   A ledger `rescoped=<K>` covers later keys whose holders are all in K.
   Issues reach the queue only through the clerk. Never nudge or respawn a
@@ -292,8 +292,8 @@ Opening lines, in this order: the `URGENT` row (if any), the `heartbeat
 registered`, `heartbeat replaced`, `heartbeat not registered`, `heartbeat duplicated` or `heartbeat stale` line (if any), then, on the first pass of a run a human message
 started (not a wake), the line of ref § Fresh session line.
 
-The `dispatch` wait line (`<n> plan(s) wait on a human core edit ...`) →
-ref § Core wait.
+The `dispatch` wait line (`<n> plan(s) wait on a human core edit ...`), or a
+`corewait=` stem → ref § Core wait.
 
 Every pass: `context: <used_tokens>`, `context_usage.used_tokens` from one
 `get_session` read of this session (no `session_id`; the same read gives

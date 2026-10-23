@@ -345,23 +345,49 @@ fi
 # shellcheck disable=SC2016 # literal backticks in the needle
 expect "orchestrate.md says where a ref § pointer reads" \
   '`ref § <name>` = `## <name>` of `git show origin/main:.agents/docs/orchestrate-reference.md`: read it whole when its pointer fires.' "$orcfold"
-refsections=0
+# A pointer names the LONGEST section whose name it starts with, followed by
+# a character no name continues with: "Role" never stands in for "Role
+# sessions", and "0. Start" keeps its inner period.
+refsections=()
 while IFS= read -r sect; do
-  refsections=$((refsections + 1))
-  expect "orchestrate.md points to ref § ${sect}" "ref § ${sect}" "$orcfold"
+  [ -n "$sect" ] && refsections+=("$sect")
 done < <(sed -n 's/^## //p' "$refmd" 2>/dev/null)
-if [ "$refsections" -gt 0 ]; then
-  pass "the reference has sections to point to (${refsections})"
+if [ "${#refsections[@]}" -gt 0 ]; then
+  pass "the reference has sections to point to (${#refsections[@]})"
 else
   fail "the reference has sections to point to (none)"
 fi
-while IFS= read -r ptr; do
-  if grep -qxF "## ${ptr}" "$refmd"; then
-    pass "ref § ${ptr} names a reference section"
+pointed="|"
+rest="$orcfold"
+while [[ "$rest" == *"ref § "* ]]; do
+  rest="${rest#*"ref § "}"
+  case "$rest" in "<name>"*) continue ;; esac
+  hit=""
+  for sect in "${refsections[@]}"; do
+    case "$rest" in
+      "$sect" | "$sect"[!0-9A-Za-z-]*) [ "${#sect}" -gt "${#hit}" ] && hit="$sect" ;;
+    esac
+  done
+  if [ -n "$hit" ]; then
+    pass "ref § ${hit} names a reference section"
+    pointed="${pointed}${hit}|"
   else
-    fail "ref § ${ptr} names a reference section"
+    fail "ref § ${rest:0:40} names a reference section"
   fi
-done < <(printf '%s\n' "$orcfold" | grep -oE 'ref § [0-9A-Za-z][0-9A-Za-z .-]*[A-Za-z]' | sed 's/^ref § //' | grep -v '^<' | sort -u)
+done
+for sect in "${refsections[@]}"; do
+  if [[ "$pointed" == *"|${sect}|"* ]]; then
+    pass "orchestrate.md points to ref § ${sect}"
+  else
+    fail "orchestrate.md points to ref § ${sect}"
+  fi
+  body="$(awk -v h="## ${sect}" '$0 == h { on = 1; next } on && /^## / { exit } on && NF { n++ } END { print n + 0 }' "$refmd")"
+  if [ "$body" -gt 0 ]; then
+    pass "ref § ${sect} holds text"
+  else
+    fail "ref § ${sect} holds text"
+  fi
+done
 # The Loop routes and points; the picking order and the block list live
 # once, in dispatch and block_reason_ok.
 agentsfold="$(tr '\n' ' ' <"${ROOT}/.agents/harness/AGENTS.md" | tr -s ' ')"

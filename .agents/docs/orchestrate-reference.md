@@ -1,7 +1,7 @@
 # Orchestrator reference
 
 Rare branches of `.claude/commands/orchestrate.md`, verbatim; its `ref §`
-lines say when to read each.
+lines say when to read each; its terms hold here.
 
 ## Optional tools
 
