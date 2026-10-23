@@ -33,7 +33,7 @@ semantic, summary — convergent, not copied.
 | `needs` | plan → plan | plan frontmatter. Open target file = blocked. |
 | `research` | plan → research | plan frontmatter. Open target file = blocked. |
 | `graduates` | research → `AGENTS.md` / `docs/` file | research frontmatter. Declared target; the `graduated` edge below completes it. |
-| `requirement` | plan → requirement | plan frontmatter. Requirement nobody serves = unplanned, hook flags. |
+| `requirement` | plan → requirement | plan frontmatter. Requirement nobody serves = unplanned, `dispatch` flags. |
 | `plan` | workstream → plan | workstream frontmatter. The claim. |
 | `agent` | plan or workstream → tier | frontmatter. Model that runs it. |
 | `scope` | plan → paths | plan frontmatter. Declared touch-set; disjoint scopes = proven-parallel wave, overlap named at spawn. `touches` is the same edge measured after the fact. |
@@ -58,9 +58,9 @@ discipline fails exactly when someone hurries.
   a CLI in every repo that runs the harness. Shell plus markdown travels with
   a clone, a runner or CI, nothing installed. Re-open only for a question
   files cannot answer.
-- A harness that lives in the repo has no long-running service, so it cannot
-  watch, nudge, queue or schedule anything by itself; it travels everywhere
-  instead, CI included. Neither side of that trade is more correct. Know
+- A harness that lives in the repo has no long-running service of its own:
+  only the orchestrator and the heartbeat (`.agents/docs/orchestrated.md`)
+  watch, nudge and schedule. It travels everywhere instead, CI included. Neither side of that trade is more correct. Know
   which side a mechanism assumes before importing it from a system built on
   the other one.
 - Fusion manual: graduation ritual, human-reviewed. Wrong merge worse than
@@ -73,6 +73,7 @@ discipline fails exactly when someone hurries.
 ## Serving
 
 SessionStart hook = retrieval. Injects the 1-hop neighborhood — this
-branch's workstream, queue with `blocked by:` / `claimed on:` edges,
-overlap warnings — and prints `git show` commands as edge traversals.
-Instructions get skimmed; injected context is already in window.
+branch's workstream, overlap warnings — and prints `git show` commands as
+edge traversals. The queue is not printed: a manager gets its item in the
+prompt, the orchestrator reads `dispatch`. Instructions get skimmed;
+injected context is already in window.
