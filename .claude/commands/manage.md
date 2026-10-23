@@ -91,6 +91,10 @@ A remainder only a human can build — a core-path edit
 (`./joharness.sh protocol-paths`) the plan leaves to a human, under whatever
 heading — ref § Human remainder.
 
+Hook work: never edit a hook `.claude/settings.json` registers — it runs from
+the working tree on your own calls. Build a new hook unregistered, test it
+through fixtures, register it in the `human/<stem>` pull request.
+
 ## R. Surveyor: the one kind that edits OTHER plans
 
 (A `free` manager's `curate --apply` writes only the plans it brings in:

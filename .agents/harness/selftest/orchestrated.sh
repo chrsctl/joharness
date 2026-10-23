@@ -771,6 +771,15 @@ expect "a remainder needing the branch's files waits for it" \
 expect "and an unlabelled remainder pull request blocks the retire" \
   "or unlabelled." "$mgrreftext"
 
+# Hook work is built unregistered: a registered hook runs from the working tree.
+expect "manage.md: never edit a registered hook" \
+  "never edit a hook \`.claude/settings.json\` registers" "$(tr '\n' ' ' <"$mgrmd" | tr -s ' ')"
+expect "manage.md: build the new hook unregistered, test through fixtures" \
+  "Build a new hook unregistered, test it through fixtures, register it in the" "$(tr '\n' ' ' <"$mgrmd" | tr -s ' ')"
+expect "orchestrated.md: a hook is registered in the human pull request" \
+  "built unregistered, tested through fixtures, and registered in that pull request" \
+  "$(tr '\n' ' ' <"${ROOT}/.agents/docs/orchestrated.md" | tr -s ' ')"
+
 # A skipped `lint` checked nothing: the repository variable switches it off,
 # and step 7 must send the session to the local gate.
 # `.` stands for each backtick, which a single-quoted needle cannot hold
