@@ -54,8 +54,9 @@ rb_bound orchestrate.md 21480 "${ROOT}/.claude/commands"
 rb_bound .agents/harness/AGENTS.md 6571 "${ROOT}"
 # root AGENTS.md 862 bytes, 2026-10-23.
 rb_bound AGENTS.md 862 "${ROOT}"
-# verifier.md 5333 bytes, 2026-10-23.
-rb_bound verifier.md 5333 "${ROOT}/.claude/agents"
+# verifier.md 6211 bytes, 2026-10-23: the goal-backward lens is a rule that
+# has to live there (bcddf133).
+rb_bound verifier.md 6211 "${ROOT}/.claude/agents"
 # clerk.md 14415 bytes, 2026-10-23.
 rb_bound clerk.md 14415 "${ROOT}/.claude/commands"
 # scout.md 12432 bytes, 2026-10-23.
