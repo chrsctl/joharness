@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01DVY54ozjxdsGhxxFah71UL
 agent: sonnet
 updated: 2026-10-23
-next: Read second ci run (/tmp/claude-0/ci2.out or rerun), find the 2nd failing stage, then red-case check, verify, review, retire, PR, merge
+next: Read ci3 result (/tmp/claude-0/ci3.out or rerun ci), then red-case check, verify, review, retire, PR, merge
 ---
 
 ## Goal

@@ -6353,7 +6353,7 @@ lint_plans_in_diff() {
                *) curate_repairs "$rel" "$counts" "$regthr" ;; esac)
     if ! grep -q '^## Assumptions' "${ROOT}/${rel}"; then
       bad=$((bad + 1))
-      printf '  %s: no `## Assumptions` heading (list each guess with evidence and confidence, or say it rests on none)\n' "$rel"
+      printf '  %s: no %s heading (list each guess with evidence and confidence, or say it rests on none)\n' "$rel" '`## Assumptions`'
     fi
     case "$held" in *" $(lint_stem "$rel") "*) continue ;; esac
     if plan_core_only "$rel"; then
