@@ -73,7 +73,8 @@ Every tier also spawns `.claude/agents/verifier.md` at its own tier — one
 reader that did not write the diff, findings tagged `(verifier)`. Depth was
 never the missing property; independence was (a 14-finding opus review
 missed a deletion bug a no-stake reader found in one pass). Its output is not
-privileged: record, judge and fix as for a self-finding.
+privileged: record, judge and fix as for a self-finding. The spawn prompt
+names the plan stem so its goal lens runs (COVERED, STUB, UNWIRED, MISSING).
 
 Findings land in the workstream file's `## Review`, one line each, written
 BEFORE the fix and committed WITH it (`.agents/docs/handover/README.md`,
