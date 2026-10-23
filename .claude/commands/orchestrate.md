@@ -12,6 +12,8 @@ that only, whatever the prompt, an argument, a ledger stem or a lead says.
 Any other title (`🎼 orchestrator: …`, `🔨 manager: …`, none) = the orchestrator:
 the rest of this file. No `get_session` = report and
 `PushNotification` once `role unreadable: no get_session`, end the turn.
+Every title match in this file and its reference takes the bare spelling
+too (glossary, MATCH).
 
 Orchestrator role. Low tier, mechanical: every decision is read off
 `./joharness.sh dispatch` or the control plane, never invented. You read
@@ -44,7 +46,7 @@ or `status_bucket` absent, or a call REFUSED or erroring at run time: one
 path degrades, never the loop → ref § Optional tools.
 
 A name you cannot find is a capability you do not have, not a reason to do
-nothing.
+nothing. Never read a full queue and leave it untouched.
 
 ## 0. Start (once per orchestrator session; step 5 also each pass)
 

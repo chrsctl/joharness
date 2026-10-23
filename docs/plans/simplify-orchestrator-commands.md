@@ -52,9 +52,8 @@ one statement per rule with no change to the behaviour they describe.
 - `.agents/docs/orchestrate-reference.md`:
   - Keep the "older spec" compatibility and the `/orchestrate keeper` prompt
     form: they decide which Routines get REPLACE, so they are behaviour.
-  - Cut § Resume's restated § Relay mechanics to a pointer. Its `next:`
-    texts and commit messages stay (`joharness.sh` matches `Resume: the fix
-    for #<n> merged`).
+  - § Resume stays whole: it names the Relay steps it takes and skips
+    Relay's precondition, and `joharness.sh` matches its `next:` wording.
   - Define "BLOCKED BEFORE CLAIM", "UNCLAIMED" and "STILLBORN" in prose
     once, outside table cells.
   - Write the shared `create_session` parameters (`source_url`,
@@ -65,9 +64,9 @@ one statement per rule with no change to the behaviour they describe.
     finding (`wontfix: behaviour change, separate plan`). Do not add it.
   - Make the LIVE-orchestrator definition the single one (no code counts
     it: there is no `cmd_keeper`).
-  - Cut the SCOUT COMMENT definition (footer, write access) to a pointer at
-    `.claude/commands/clerk.md` THE SCOUT GATE. "A scout issue needs the
-    scout" and its (i) to (iii) stay: pinned, and cited by scout.md.
+  - The scout trigger stays whole: its SCOUT COMMENT sentence already
+    points at `.claude/commands/clerk.md` THE SCOUT GATE, and "A scout
+    issue needs the scout" with (i) to (iii) is pinned and cited.
 
 ## Assumptions
 
@@ -88,8 +87,8 @@ one statement per rule with no change to the behaviour they describe.
 
 - `git grep -nE '99,920|read 2026-10|SHALLOW CLONE|measured: one self-attach' .claude/commands .agents/docs/orchestrate-reference.md`: no output.
 - `wc -l < .claude/commands/orchestrate.md`: at most 330 (366 today). The
-  four-file total moves text, so it does not fall: at most 905 (889 today;
-  the moved text gains section headings).
+  four-file total moves text, so it does not fall: at most 910 (889 today;
+  the moved text gains section headings and pointers).
 - `git grep -c 'role title' .claude/commands/orchestrate.md`: at most 3, the three the selftest pins.
 - `./joharness.sh ci`: `ci: pass`.
 - Consumer-side check: the same `./joharness.sh ci` runs in every consumer after sync and lints these files (glossary, anchors).

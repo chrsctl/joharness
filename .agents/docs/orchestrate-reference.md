@@ -1,6 +1,6 @@
 # Orchestrator reference
 
-Rare branches of `.claude/commands/orchestrate.md`, verbatim; its `ref §`
+Branches and detail of `.claude/commands/orchestrate.md`; its `ref §`
 lines say when to read each; its terms hold here.
 
 ## Optional tools
@@ -42,7 +42,7 @@ running, idle or suspended, at any window),
 
 ## Create session
 
-Every `create_session` the orchestrator makes: `source_url` = `git remote
+A manager's or role session's `create_session`: `source_url` = `git remote
 get-url origin`, `clone_depth: 5000` (a 50-deep clone hides the merge base
 `authority` needs). Never omit `source_url`: without it the session starts
 in an empty `/home/user`, no checkout, no `/manage` (repo skills load only
@@ -93,8 +93,8 @@ with what you spawned or why not.
    exactly `🎼 orchestrator: <owner/repo>` (glossary, role title: a MATCH
    takes the bare spelling too), not `ARCHIVED`, whose
    `session_status` is `RUNNING` or `PENDING`, or that holds a pending
-   `/orchestrate pass` wake (`list_triggers`: `enabled` true, `run_once_at`
-   set, `persistent_session_id` = its id) — IDLE between passes is alive.
+   `/orchestrate pass` wake (`list_triggers`: `run_once_at` set,
+   `persistent_session_id` = its id) — IDLE between passes is alive.
    The keeper reads this definition on the sessions it can name
    (`keeper.md` step 2). A
    retired or duplicate title (RUN END, SWAP) is never LIVE, whatever its
@@ -175,7 +175,7 @@ with what you spawned or why not.
    2. Each `🔑 keeper: <owner/repo>` (glossary, role title) session in step 3's `list_sessions`
       answer (on a pass: none, REPLACE archived the bound one), not `ARCHIVED` (a heartbeat deleted in the UI leaves its
       keeper idle): `archive_session`. Then `create_session`: `source_url`
-      as § Create session, no `clone_depth`, `model` = the Lineup's `haiku` (the
+      = `git remote get-url origin`, `model` = the Lineup's `haiku` (the
       role is mechanical; never the registering session's model), `title` =
       `🔑 keeper: <owner/repo>`, `prompt` = `/keeper register`: its
       first turn takes the post and starts nothing (`keeper.md`,
@@ -221,10 +221,13 @@ A `PARKED #<n> RESUME` row: the plan naming issue #<n> retired on the base
 after the manager parked on it (`next:` = `defect: #<n>: …`), and no plan on
 the base or a live branch names #<n> now. Read from git; never an issue's
 state. dispatch printed it only for a slot it already counted, so it is one
-of this pass's spawns. § Relay mechanics, with `next:` = `Resume: the fix
-for #<n> merged (<retired plan>); re-run your Acceptance`, commit
-"Orchestrator resumes a parked item", NUDGE "Orchestrator resumes <branch>:
-fetch it, re-read your workstream file, continue"; a RESPAWN counts against
+of this pass's spawns. Exactly the § Relay mechanics: write `status:
+in-progress` and `next:` = `Resume: the fix for #<n> merged (<retired
+plan>); re-run your Acceptance`, commit "Orchestrator resumes a parked
+item", push (GUARD mechanics), drop `notified=`. Session RUNNING, IDLE or
+PENDING (alive): NUDGE "Orchestrator resumes <branch>: fetch it, re-read your
+workstream file, continue", no `kill`. FAILED, ARCHIVED or not found: GUARD
+`kill`, RESPAWN with the resume line, counted against
 `JOHARNESS_RESPAWN_LIMIT`. `PARKED #<n>: … resume waits for a slot` is no
 RESUME: next pass.
 
@@ -356,9 +359,9 @@ no handover, and no handover is no replace. Why:
   or no brief) reads nothing. `list_issues` on this repository, label
   `scout`, state OPEN, pull requests skipped; `issue_read` `get_comments`,
   every page. One issue that needs the scout = spawn ONE; never one per
-  issue. Approval, the SCOUT COMMENT and a counting comment are `clerk.md`'s
-  (THE SCOUT GATE); only a scout comment quiets the trigger. An issue needs
-  the scout when it is NOT approved
+  issue. The SCOUT COMMENT is `clerk.md`'s (THE SCOUT GATE, 2): the newest
+  footed comment opening `scout:` by an author with write access; nothing
+  else quiets the trigger. An issue needs the scout when it is NOT approved
   (THE SCOUT GATE), NOT under `planned` in `./joharness.sh clerk`, and
   either:
   - (i) its newest counting comment (`clerk.md` §2) is newer than its

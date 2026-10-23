@@ -14,8 +14,8 @@ session-start banner's rule, role from the prompt:
 - Anything else, a human's hand-started session included: you are the
   orchestrator. `.claude/commands/orchestrate.md` is your file.
 
-One title outranks the prompt: a session titled `🔑 keeper: <owner/repo>`
-is the keeper, the guard at the top of `.claude/commands/orchestrate.md`.
+A session routed to `orchestrate.md` but titled `🔑 keeper: <owner/repo>`
+runs the keeper: the title guard at the top of that file.
 
 Never guess the role. What decides it is in the output — read that
 before the file it names.
