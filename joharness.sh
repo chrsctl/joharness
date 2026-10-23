@@ -4905,21 +4905,23 @@ CHECKS_LOCAL_FILE=local-check
 # for whatever outlives TERM by 5 s. Returns cmd's status, or 124 when the
 # bound fired. One path everywhere: no timeout(1), which macOS lacks.
 checks_bounded() {
-  local secs="$1" log="$2" mark pid w="" rc
+  local secs="$1" log="$2" mark pid="" w="" rc
   shift 2
   mark="$(mktemp)" && rm -f "$mark" || return 1
+  # Its own group hides the check from the terminal's Ctrl-C: an abort of
+  # finish takes the group and the watcher down with it. Set before the
+  # start, so no Ctrl-C lands between them. It lives in run_check's
+  # subshell, so a signal to finish's pid alone does not reach it.
+  trap '[ -z "$pid" ] || kill -KILL -- "-${pid}" 2>/dev/null; [ -z "$w" ] || kill -TERM "$w" 2>/dev/null; rm -f "$mark" "$log"; exit 130' INT TERM HUP
   set -m
   (cd "$ROOT" && exec "$@") >"$log" 2>&1 </dev/null &
   pid=$!
   set +m
-  # Its own group hides the check from the terminal's Ctrl-C: an abort of
-  # finish takes the group and the watcher down with it.
-  trap 'kill -KILL -- "-${pid}" 2>/dev/null; [ -z "$w" ] || kill -TERM "$w" 2>/dev/null; rm -f "$mark" "$log"; exit 130' INT TERM HUP
   # The watcher's own output is /dev/null: an orphan holding run_check's
   # capture pipe would hold finish open for the whole bound.
   (
-    s=""
-    trap '[ -z "$s" ] || kill "$s" 2>/dev/null; exit 0' TERM
+    # jobs -p, not $s: a TERM between `sleep &` and `s=$!` would orphan it.
+    trap 'kill $(jobs -p) 2>/dev/null; exit 0' TERM
     sleep "$secs" & s=$!
     wait "$s"
     : >"$mark"

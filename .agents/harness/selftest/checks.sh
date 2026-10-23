@@ -508,12 +508,47 @@ else
 fi
 # Dead, not reaped: an orphan's zombie waits on a PID 1 that may never reap
 # it, and kill -0 answers yes for a zombie.
-kc_state="$( [ -s "$kc_child" ] && ps -o stat= -p "$(cat "$kc_child")" 2>/dev/null)"
-if [ -s "$kc_child" ] && case "$kc_state" in '' | Z*) true ;; *) false ;; esac; then
+# A ps that cannot answer for this shell would read every child as dead.
+kc_ps=0
+case "$(ps -o stat= -p "$$" 2>/dev/null)" in [A-Z]*) kc_ps=1 ;; esac
+kc_alive() {
+  case "$(ps -o stat= -p "$1" 2>/dev/null)" in '' | Z*) return 1 ;; esac
+}
+if [ "$kc_ps" != 1 ]; then
+  skip "a child ignoring TERM dies with the bound" "no ps -o stat= here"
+elif [ -s "$kc_child" ] && ! kc_alive "$(cat "$kc_child")"; then
   pass "a child ignoring TERM dies with the bound"
 else
   fail "a child ignoring TERM dies with the bound"
+fi
+[ ! -s "$kc_child" ] || kill -KILL "$(cat "$kc_child")" 2>/dev/null
+rm -f "$kc_child"
+
+# Ctrl-C on finish reaches the terminal's group only; the check sits in its
+# own, so without the trap it runs on for the whole bound. finish goes in a
+# group of its own here and the group gets the INT, as a terminal sends it.
+git -C "$kcwork" checkout -qb kclcint main
+printf 'sleep 30 &\necho $! >%q\nwait\n' "$kc_child" >"${kcwork}/local-check"
+commit_all "$kcwork" "a check that would outlive an abort"
+git -C "$kcwork" push -qu origin kclcint 2>/dev/null
+if [ "$kc_ps" = 1 ]; then
+  set -m
+  JOHARNESS_CHECKS=local kc_finish >/dev/null 2>&1 &
+  kc_fpid=$!
+  set +m
+  for _ in $(seq 1 600); do [ -s "$kc_child" ] && break; sleep 0.1; done
+  sleep 0.5
+  kill -INT -- "-${kc_fpid}" 2>/dev/null
+  wait "$kc_fpid" 2>/dev/null
+  sleep 1
+  if [ -s "$kc_child" ] && ! kc_alive "$(cat "$kc_child")"; then
+    pass "Ctrl-C on finish takes the check down with it"
+  else
+    fail "Ctrl-C on finish takes the check down with it"
+  fi
   [ ! -s "$kc_child" ] || kill -KILL "$(cat "$kc_child")" 2>/dev/null
+else
+  skip "Ctrl-C on finish takes the check down with it" "no ps -o stat= here"
 fi
 rm -f "$kc_child"
 if JOHARNESS_LOCAL_CHECK_MINUTES=0 JOHARNESS_CHECKS=local kc_rc; then

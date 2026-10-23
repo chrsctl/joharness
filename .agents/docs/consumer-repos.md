@@ -328,8 +328,9 @@ is outside `.agents/` and `.claude/`: canonical claims none of it
 pins nothing on it. So a Windows clone with `core.autocrlf=true` checks it
 out CRLF and bash fails on the `\r`: pin it per clone
 (`local-check text eol=lf` in `.git/info/attributes`), since a pin in the
-root `.gitattributes` marks that file AHEAD (below). The consumer scopes its cost: a check that does nothing
-for a branch that touches none of its suite costs 0 s.
+root `.gitattributes` marks that file AHEAD (below). The consumer scopes
+its cost: a check that does nothing for a branch that touches none of its
+suite costs 0 s.
 
 The head's copy runs because a pull request repairing a check broken on
 the base branch must be able to pass. So a branch can weaken it, as it can

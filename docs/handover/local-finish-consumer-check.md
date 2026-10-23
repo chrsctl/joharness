@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01473SJGCfbPForWe43xj3sc
 agent: opus
 updated: 2026-10-23
-next: Second verifier pass on the r1-r6 fixes, then retire and open the PR
+next: Retire plan and workstream file, open the PR, merge
 ---
 
 ## Goal
@@ -48,6 +48,12 @@ required checks gate the merge instead of prose (gx #785).
 - r5: (verifier) help, github-mode text, session-start banner and the pass line still said ci and verify only (fixed: all four name the declared check; pass line adds `local-check too` when one ran, keeping step 7's prefix)
 - r6: (verifier) eol advice pointed at the synced root `.gitattributes`, which marks it AHEAD (fixed: doc names the CRLF break and a per-clone `.git/info/attributes` pin)
 - r7: (verifier) N1-N3: conf line honoured for a session-scope knob, millisecond race at the bound, assume-unchanged hole shared with ci (no change: N1 recorded under Decisions; N2 not reproducible below the bound; N3 is ci's hole too)
+- r8: (verifier) r2's trap had no test; deleting it stayed green (fixed: `kclcint` sends INT to finish's group and asserts the check's child dead)
+- r9: (verifier) the trap's TERM/HUP does not cover a signal to finish's pid alone: run_check's subshell is reparented and waits out the bound (wontfix: the subshell is not reachable from finish's pid without a trap in finish itself; comment says so, Ctrl-C and group kills hold)
+- r10: (verifier) with no usable `ps`, the zombie-aware assertion passed whatever the code did (fixed: probes `ps -o stat=` on its own shell first, skips loudly without it)
+- r11: (verifier) a TERM between the watcher's `sleep &` and `s=$!` orphaned a `sleep <bound>` (about 3 in 100 fast runs) (fixed: trap kills `jobs -p`; 200 runs, 0 orphans)
+- r12: (verifier) mark race at the bound errs only toward red; group members of a check that exits on its own survive, as before (no change: the bound's claim is scoped to the bound)
+- r13: (verifier) Ctrl-C between the check's start and the trap left it unbounded (fixed: trap set before the start, guarded on an empty pid); long line at consumer-repos.md wrap (fixed)
 
 ## Blockers
 
