@@ -141,7 +141,13 @@ exit — no retry, no second transport. Run no queue command.
    most 20 lines of its output, the `origin/main` sha it reproduced on, and
    your branch name; labels `human-review`. Pull request body says `Refs #N`,
    never `Closes #N`.
-4. A second defect in the same session: pull request body only, one line each.
+4. A second defect in the same session: step 2 runs for EVERY defect. A
+   match = `Refs #N` in the pull request body, with the fresh reproduction
+   (command, count, `origin/main` sha) in one line beside it. Only an
+   unmatched second or later defect is pull request body only, one line each.
+   Why: a body is read by nobody after merge; the issue is where the owner
+   learns the defect still reproduces (a consumer manager filed one of three
+   and left two open issues uncited).
 5. `issue_write` fails: put the issue text in the pull request body under a
    line `defect not filed: <error, 40 chars>`. Never block or delay the item
    for it.

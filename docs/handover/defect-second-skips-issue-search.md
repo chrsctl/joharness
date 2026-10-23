@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01WJyTWyZyQAVYtcehqp6T97
 agent: sonnet
 updated: 2026-10-23
-next: Run ci and verify, record review, retire files, open PR, merge
+next: Await verifier; drop incident parenthetical in step 4 (status quo rule); record review; retire; PR; merge
 ---
 
 ## Goal
