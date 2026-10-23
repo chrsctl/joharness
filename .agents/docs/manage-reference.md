@@ -152,7 +152,7 @@ exit — no retry, no second transport. Run no queue command.
    your branch name; labels `human-review` (none when blocking, step 2). Pull request body says `Refs #N`,
    never `Closes #N`.
 4. A second defect in the same session: pull request body only, one line each.
-5. `issue_write` fails: put the issue text in the pull request body under a
+5. Non-blocking: `issue_write` fails: put the issue text in the pull request body under a
    line `defect not filed: <error, 40 chars>`. Never block or delay the item
    for it.
 6. Not for harness defects found in a consumer (those go to canonical,

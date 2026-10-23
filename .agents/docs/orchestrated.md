@@ -424,7 +424,7 @@ The rules that bind every session.
   enters as an issue and becomes a plan only through the clerk, after the
   reviewer's `approved` comment, newer than the scout's newest footed
   `scout:` comment; closing the issue declines it.
-- **`human-review` label.** An agent applies it when it blocks on a human,
+- **`human-review` label.** An agent applies it when it blocks on a human (never a `defect:` block),
   and to the `human/<stem>` pull request holding its plan's human remainder
   (`.agents/docs/plans/README.md`, "A human remainder"); a human applies it
   to hold an issue or pull request. It stops the clerk
