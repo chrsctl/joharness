@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01DVY54ozjxdsGhxxFah71UL
 agent: sonnet
 updated: 2026-10-23
-next: Research lint_plans_in_diff, then add Assumptions section, lint, selftest
+next: Read ci result, confirm red-case test fails without lint, run verify + verifier review, retire files, PR, merge
 ---
 
 ## Goal
@@ -16,6 +16,8 @@ next: Research lint_plans_in_diff, then add Assumptions section, lint, selftest
 Plans list assumptions with evidence and confidence; manager confirms them before build.
 
 ## Decisions
+
+- Assumptions check applies to every added plan, held plan included (it is deleted at retire, so never in the diff then).
 
 ## Review
 

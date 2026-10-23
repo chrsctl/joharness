@@ -600,6 +600,7 @@ SELFTEST_TOPICS=(
   clerk
   role
   ci-ship-scope
+  assumptions-lint
   authority
   autonomy-mode
   start
