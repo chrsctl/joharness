@@ -94,45 +94,21 @@ command and when (Loop step 5): that is the number's metadata, not a story.
 Every file a session loads before its first prompt — `CLAUDE.md` through its
 `@` imports, plus the `session-start` injection — is paid by every session,
 forever. Growth arrives one honest rule at a time, and the session adding the
-rule cannot see the total (`.agents/harness/AGENTS.md` went 770 to 2129 words
-in 14 days, 2026-08). So before adding a line there, ask: is the rule already
+rule cannot see the total. So before adding a line there, ask: is the rule already
 stated somewhere a session reads on demand? A why under `.agents/docs/` costs
 nothing until opened.
 
 ## Controlled vocabulary: built, not invented, and not adopted
 
 `.agents/docs/glossary.md` fixes contested terms; `ci` fails on the banned
-spellings (`joharness.sh:lint_glossary`). That mechanism is not this repo's
-invention, and knowing so is the point of this section — a session that thinks
-the harness invented it will either distrust it or rebuild it.
+spellings (`joharness.sh:lint_glossary`). Prior art: Vale `accept.txt`
+vocabularies ([docs.vale.sh/keys/vocabularies](https://docs.vale.sh/keys/vocabularies)),
+`textlint-rule-terminology`. This repo builds its own: `ci` is shell and
+shellcheck, and `joharness.sh` ships to every consumer, so adopting puts a Go
+or Node runtime in all of them. Re-open only if that trade changes.
 
-Prior art, named and in production. Vale: entries in `accept.txt` are
-"automatically added to a substitution rule (`Vale.Terms`), ensuring that any
-occurrences of these words or phrases exactly match their corresponding entry
-in `accept.txt`" ([docs.vale.sh/keys/vocabularies](https://docs.vale.sh/keys/vocabularies)).
-`textlint-rule-terminology` does the same for tech writing, `textlint --fix
---rule terminology`. Datadog lints its docs with Vale; Elastic publishes its
-house style AS a Vale ruleset ([elastic/vale-rules](https://github.com/elastic/vale-rules)).
-
-So the choice was adopt or build, and this repo **built**. Reason, kept
-because it is the part that decides whether to re-open: `ci` here is shell and
-shellcheck, and `.agents/scripts/sync-to-consumer.sh` ships `joharness.sh` to
-every consumer — so adopting puts a Go or Node runtime in all of them. One
-table parser paid once against a runtime paid forever. Re-open only if that
-trade changes, not because the mechanism looks home-made.
-
-**A term that means different things in two layers gets NO row.** That is
-settled in `.agents/docs/glossary.md`, "One meaning, or nothing", and the
-reason is mechanical: bans are substrings, so a zoned canonical
-(`retry (harness)`) contains the bare ban (`retry`) and could never be
-written. The table cannot express a zone split and must not fake one.
-Fowler's Bounded Context is the name for the underlying thing — contexts
-"each of which can have a unified model", and "Different contexts may have
-completely different models of common concepts with mechanisms to map between
-these polysemic concepts for integration"
-([martinfowler.com/bliki/BoundedContext.html](https://martinfowler.com/bliki/BoundedContext.html)).
-The glossary's answer to it is silence, not a zone label: the term is defined
-in the file owning the zone, and silence beats a wrong global answer.
+A term that means different things in two layers gets NO row: see
+`.agents/docs/glossary.md`, "One meaning, or nothing".
 
 ## Honest numbers (upstream's own warning)
 
