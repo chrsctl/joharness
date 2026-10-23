@@ -6,7 +6,7 @@ effort: medium
 needs: none
 requirement: none
 issue: none
-scope: .agents/docs/orchestrate-reference.md, .agents/docs/orchestrated.md
+scope: .agents/docs/orchestrate-reference.md, .agents/docs/orchestrated.md, .agents/harness/selftest/orchestrated.sh
 ---
 
 ## Goal
@@ -14,7 +14,9 @@ scope: .agents/docs/orchestrate-reference.md, .agents/docs/orchestrated.md
 The repo owner decided (chat, 2026-10-23) that the keeper role runs on the
 haiku tier instead of sonnet. The keeper's work is mechanical and fully
 specified (`.claude/commands/keeper.md`): one `list_triggers`, a few
-`get_session`, then a one-line report or one `create_session`. A tier
+`get_session`, then a one-line report or one `create_session`; its SWAP
+path (retitle, `create_session` with a prompt edited by fixed line rules,
+retitle back on refusal) is the one branchy part, accepted by the owner. A tier
 downgrade is a money decision, humans only
 (`.agents/docs/agent-selection.md`, Selection rules); this plan records
 the human's decision and changes the two places that name the keeper's tier.
@@ -26,8 +28,12 @@ the model it was created with until the next REGISTER or replace.
 - `.agents/docs/orchestrate-reference.md` — in REGISTER step 2, the
   sentence `` `model` = the Lineup's `sonnet` (the role is low tier; never
   the registering session's model) `` becomes `` `model` = the Lineup's
-  `haiku` (the role is mechanical; the human's tier decision; never the
-  registering session's model) ``. Nothing else in the file changes.
+  `haiku` (the role is mechanical; never the registering session's model) ``.
+  Nothing else in the file changes.
+- `.agents/harness/selftest/orchestrated.sh` — the heartbeat-check needle
+  that pins that sentence follows it: `sonnet` (the role is low tier; …)
+  becomes `haiku` (the role is mechanical; …). The pin stays; only its
+  text moves.
 - `.agents/docs/orchestrated.md` — in the `## Roles` table, the `keeper`
   row's Tier cell `sonnet` becomes `haiku`. Nothing else in the row or file
   changes.
@@ -44,7 +50,7 @@ the model it was created with until the next REGISTER or replace.
 - Archiving, replacing or re-registering the live keeper session or the
   heartbeat Routine. A human does that if they want the switch before the
   next replace.
-- `joharness.sh`, selftests, any core path (`./joharness.sh
+- `joharness.sh`, any selftest but the one pin above, any core path (`./joharness.sh
   protocol-paths`).
 
 ## Acceptance
@@ -57,9 +63,11 @@ the model it was created with until the next REGISTER or replace.
   one line.
 - `grep -n "Lineup's \`sonnet\`" .claude/commands/keeper.md` — still
   exactly one line (step 3, unchanged).
-- `git diff --stat origin/main...HEAD -- . ':!docs/'` — lists only the two
+- `git diff --stat origin/main...HEAD -- . ':!docs/'` — lists only the three
   scoped files.
-- `./joharness.sh ci` — prints `ci: pass`.
+- `./joharness.sh ci` — prints `ci: pass`. Consumer-side check: the
+  orchestrated selftest pins the REGISTER sentence and ships with the
+  harness, so a consumer's own `ci` reds if its synced copy drifts.
 - `./joharness.sh verify` — `0 failed`.
 
 ## Where to look
