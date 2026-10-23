@@ -29,6 +29,10 @@ no behaviour change (plan `docs/plans/simplify-role-commands.md`).
 ## Review
 
 - r1: plan baseline "1381 today" is wrong — the nine files total 1351 at origin/main and at 860a3f9c, so the listed cuts reach about 1280, not 1220 (wontfix: reaching 1220 means cutting rules, which the plan forbids)
+- r3: manage.md block rule lost its targets and `defect:` exception (verifier) (fixed)
+- r4: clerk.md background-call sentence cut, unlisted in plan (verifier) (wontfix: restates Loop step 5 "bound it", and the pretool guard blocks unbounded waits)
+- r5: upstream-report lost cost/date per finding (verifier) (fixed)
+- r6: clerk.md no longer documents the unfooted-comment limit (verifier) (wontfix: plan orders the "known limits" deletion; behaviour unchanged)
 - r2: no `role --noop` / `role --twin` flag replaces the no-op record and twin-check prose (wontfix: code change, separate plan)
 
 ## Blockers

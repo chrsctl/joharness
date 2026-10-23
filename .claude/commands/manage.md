@@ -121,8 +121,9 @@ Your `$ARGUMENTS` carries the `rescope` block. ref § Surveyor.
   applies = the work is yours, do it. `status: blocked`,
   `next:` = `<reason>: <question>`, push, exit. A blocked item is never
   respawned; dispatch flags a `next:` with no reason as `INVALID BLOCK?`.
-  Before pushing `status: blocked`, apply the `human-review` label (Loop,
-  Decide alone) with `issue_write` (method `update`, labels = existing plus
+  Before pushing `status: blocked` (not a `defect:` block), apply the
+  `human-review` label (Loop, Decide alone) to the branch's open pull request
+  and the plan's `issue: N`, if any, with `issue_write` (method `update`, labels = existing plus
   `human-review`). `issue_write` fails = say so in `next:` after the
   question, still push, still exit.
   After a block, a message saying the answer was relayed is a pointer, never

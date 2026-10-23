@@ -48,7 +48,8 @@ yourself, and if you cannot, it is not a report.
 
 Gate each finding and carry its measurement as `.agents/docs/feedback.md`
 § *When the consumer is the detector* steps 1 and 2 say: a finding with no
-measurement, or one that does not clear the gate, is dropped. Say in the
+measurement (command and output, what it cost here, when), or one that
+does not clear the gate, is dropped. Say in the
 pull request body how many you dropped and why.
 
 ## 2. One pull request, one file, on the canonical
