@@ -42,6 +42,10 @@ rb_bound() {
 
 rb_bound handover/README.md 18979
 rb_bound consumer-repos.md 24986
+# manage.md loads whole into every manager session; its rare branches
+# live in manage-reference.md. Counted `wc -c` on the diet commit,
+# 2026-10-23 (16234 before it).
+rb_bound manage.md 9248 "${ROOT}/.claude/commands"
 # The orchestrator's command file, counted 21480 on origin/main after the
 # split into orchestrate-reference.md: it stays a table of pointers.
 rb_bound orchestrate.md 21480 "${ROOT}/.claude/commands"

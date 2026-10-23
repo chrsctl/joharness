@@ -196,6 +196,10 @@ mgrmd="${ROOT}/.claude/commands/manage.md"
 orctext="$(cat "$orcmd")"
 keepmd="${ROOT}/.claude/commands/keeper.md"
 mgrtext="$(cat "$mgrmd")"
+# manage.md's rare branches live in its reference, moved verbatim; a pin on
+# moved text reads it there.
+mgrrefmd="${ROOT}/.agents/docs/manage-reference.md"
+mgrreftext="$(cat "$mgrrefmd" 2>/dev/null)"
 clerktext=""
 [ -f "${ROOT}/.claude/commands/clerk.md" ] && clerktext="$(cat "${ROOT}/.claude/commands/clerk.md")"
 
@@ -207,7 +211,7 @@ clerktext=""
 expect "the orchestrator addresses send_message by create_session's id" \
   "Claude Code Remote send_message takes the session_id create_session returned." "$orctext"
 expect "and the manager sends on the transport its prompt names" \
-  "A session id target: Claude Code Remote send_message. A name: SendMessage." "$mgrtext"
+  "A session id target: Claude Code Remote send_message. A name: SendMessage." "$mgrreftext"
 orcfold="$(tr '\n' ' ' <"$orcmd" | tr -s ' ')"
 # The rare branches live in the reference, moved verbatim; a pin on moved
 # text reads it there, and every section must be reachable from a pointer.
@@ -408,6 +412,58 @@ for sect in "${refsections[@]}"; do
     fail "ref § ${sect} holds text"
   fi
 done
+# The same both ways for manage.md and its reference.
+if [ -r "$mgrrefmd" ]; then
+  pass "manage-reference.md exists"
+else
+  fail "manage-reference.md exists"
+fi
+mgrfold="$(tr '\n' ' ' <"$mgrmd" | tr -s ' ')"
+# shellcheck disable=SC2016 # literal backticks in the needle
+expect "manage.md says where a ref § pointer reads" \
+  '`ref § <name>` = `## <name>` of `git show origin/main:.agents/docs/manage-reference.md`: read it whole when its pointer fires.' "$mgrfold"
+mgrsections=()
+while IFS= read -r sect; do
+  [ -n "$sect" ] && mgrsections+=("$sect")
+done < <(sed -n 's/^## //p' "$mgrrefmd" 2>/dev/null)
+if [ "${#mgrsections[@]}" -gt 0 ]; then
+  pass "the manager reference has sections to point to (${#mgrsections[@]})"
+else
+  fail "the manager reference has sections to point to (none)"
+fi
+pointed="|"
+rest="$mgrfold"
+while [[ "$rest" == *"ref § "* ]]; do
+  rest="${rest#*"ref § "}"
+  case "$rest" in "<name>"*) continue ;; esac
+  hit=""
+  # Every manage.md pointer ends its name with a period: a longer name the
+  # reference lost ("Carried plan at retire" read as "Carried plan") fails.
+  for sect in "${mgrsections[@]}"; do
+    case "$rest" in
+      "$sect." | "$sect".[!0-9A-Za-z-]*) [ "${#sect}" -gt "${#hit}" ] && hit="$sect" ;;
+    esac
+  done
+  if [ -n "$hit" ]; then
+    pass "manage.md ref § ${hit} names a reference section"
+    pointed="${pointed}${hit}|"
+  else
+    fail "manage.md ref § ${rest:0:40} names a reference section"
+  fi
+done
+for sect in "${mgrsections[@]}"; do
+  if [[ "$pointed" == *"|${sect}|"* ]]; then
+    pass "manage.md points to ref § ${sect}"
+  else
+    fail "manage.md points to ref § ${sect}"
+  fi
+  body="$(awk -v h="## ${sect}" '$0 == h { on = 1; next } on && /^## / { exit } on && NF { n++ } END { print n + 0 }' "$mgrrefmd")"
+  if [ "$body" -gt 0 ]; then
+    pass "manage.md ref § ${sect} holds text"
+  else
+    fail "manage.md ref § ${sect} holds text"
+  fi
+done
 # The Loop routes and points; the picking order and the block list live
 # once, in dispatch and block_reason_ok.
 agentsfold="$(tr '\n' ' ' <"${ROOT}/.agents/harness/AGENTS.md" | tr -s ' ')"
@@ -518,7 +574,7 @@ refute "orchestrated.md no longer says send_message was never in the server" \
 orcfield="$(grep -oE "lead <stem>:" "$orcmd" | head -1)"
 expect "the orchestrator's grammar names the lead field" \
   "lead <stem>:" "$orcfield"
-mgrfield="$(grep -oE "lead <stem>:" "$mgrmd" | head -1)"
+mgrfield="$(grep -oE "lead <stem>:" "$mgrrefmd" | head -1)"
 # Needle first, and the line above is what makes this non-vacuous: an empty
 # `mgrfield` fails against a non-empty `orcfield`, which is the drift this
 # case exists for. It pins the SPELLING in both files and nothing more —
@@ -598,33 +654,33 @@ expect "the merged row stops reading as nothing" \
   "is the one exception that is never nothing" "$orctext"
 
 expect "a literal reader gets a worked example, not just a field name" \
-  "lead seat-limits: its create path skips the same check" "$mgrtext"
+  "lead seat-limits: its create path skips the same check" "$mgrreftext"
 expect "and is told the normal case is having nothing to say" \
-  "Nothing to say is the normal case" "$mgrtext"
+  "Nothing to say is the normal case" "$mgrreftext"
 expect "and told not to resend its own findings" \
-  "Never send your own findings" "$mgrtext"
+  "Never send your own findings" "$mgrreftext"
 # The constraint the orchestrator added AFTER the field name, which the
 # sender cannot discover: it runs no queue command.
 expect "the sender is told the stem must be a queue item's name" \
-  "The stem must be a QUEUE ITEM's name" "$mgrtext"
+  "The stem must be a QUEUE ITEM's name" "$mgrreftext"
 expect "and where a lead with no stem goes instead" \
-  "goes in your pull request body" "$mgrtext"
+  "goes in your pull request body" "$mgrreftext"
 # A defect outside the item has a home: one held issue per session.
 expect "a defect outside the item is filed as an issue" \
-  'defect: <test or command>' "$mgrtext"
+  'defect: <test or command>' "$mgrreftext"
 expect "and the issue is held from the clerk" \
-  "label holds the issue from the clerk until the owner removes it" "$mgrtext"
+  "label holds the issue from the clerk until the owner removes it" "$mgrreftext"
 expect "and capped at one per session" \
-  "ONE issue per session" "$mgrtext"
+  "ONE issue per session" "$mgrreftext"
 expect "and only when it reproduces on origin/main" \
-  "reproduces on" "$mgrtext"
+  "reproduces on" "$mgrreftext"
 expect "and a failed filing never blocks the item" \
-  "defect not filed:" "$mgrtext"
+  "defect not filed:" "$mgrreftext"
 # Every issue a pull request body names gets the link as a comment.
 expect "the manager has a paragraph linking the issue" \
   "Link the issue" "$mgrtext"
 expect "one comment per named issue" \
-  "post ONE comment on that issue" "$mgrtext"
+  "post ONE comment on that issue" "$mgrreftext"
 # A consumer with the clerk off carries no clerk.md; nothing to pin there.
 if [ -n "$clerktext" ]; then
 expect "the clerk's HOLDS verdict names the plan-only pull request" \
@@ -636,12 +692,12 @@ fi
 # A core-path remainder is a ready pull request on its own branch, labelled
 # for a human, never an issue describing the edit; the session never merges it.
 expect "a human remainder is a human/<stem> pull request" \
-  "ONE pull request on branch" "$mgrtext"
+  "ONE pull request on branch" "$mgrreftext"
 expect "named human/<stem>, cut from a separate worktree" \
-  "git worktree add -b human/<stem>" "$mgrtext"
-expect "and the session never merges it" "never merge it" "$mgrtext"
+  "git worktree add -b human/<stem>" "$mgrreftext"
+expect "and the session never merges it" "never merge it" "$mgrreftext"
 refute "and no longer files an issue describing the edit" \
-  "remainder issue not filed" "$mgrtext"
+  "remainder issue not filed" "$mgrtext $mgrreftext"
 # A clerk HUMAN question takes a number: options, a recommendation, and the
 # hand-typed reply rule. Read as manage.md is read.
 clerktext="$(cat "${ROOT}/.claude/commands/clerk.md")"
@@ -656,9 +712,9 @@ expect "and only one newer than the question" \
 expect "and the comment says the label must come off" \
   "so the next pass reads it" "$clerktext"
 expect "a remainder needing the branch's files waits for it" \
-  "merge after <your branch> lands on main" "$mgrtext"
+  "merge after <your branch> lands on main" "$mgrreftext"
 expect "and an unlabelled remainder pull request blocks the retire" \
-  "or unlabelled." "$mgrtext"
+  "or unlabelled." "$mgrreftext"
 
 # A skipped `lint` checked nothing: the repository variable switches it off,
 # and step 7 must send the session to the local gate.
