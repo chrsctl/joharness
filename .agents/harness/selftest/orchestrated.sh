@@ -515,6 +515,8 @@ for needle in 'Titled exactly `🔑 keeper: <owner/repo>` (glossary, role title:
   'This file in `git show origin/main:.claude/commands/keeper.md` differs' \
   'No `get_session` = report and `PushNotification` once `role unreadable: no get_session`, end the turn.' \
   'A call REFUSED or erroring is named in that wake'"'"'s one-line report, never retried.' \
+  'Register: this turn'"'"'s prompt is `/keeper register`' \
+  '= run step 1 only, report `keeper registered: parent <parent_session_id>` (`none` if absent), end the turn. No LIVE check, no start, no SWAP' \
   'swap deferred' \
   'swap skipped' \
   'swap failed' \
@@ -577,7 +579,7 @@ for needle in 'Routine named exactly `heartbeat: <owner/repo>` with a non-empty 
   '(on a pass: none, REPLACE archived the bound one)' \
   'report the stale line and end step 5 (a pass carries on)' \
   'NOT `depth + 2 < limit` = report `heartbeat not registered: lineage <depth>/<limit>`' \
-  '`title` = `🔑 keeper: <owner/repo>`, `prompt` = `/keeper`.' \
+  '`title` = `🔑 keeper: <owner/repo>`, `prompt` = `/keeper register`: its first turn takes the post and starts nothing' \
   '`persistent_session_id` = step 2'"'"'s id, `prompt` = `/keeper`' \
   'step 3 failing after step 2 = `archive_session` that keeper' \
   'then exit, report its `updated_at`, `status_detail` and step 5'"'"'s line. The older one proceeds' \
@@ -593,6 +595,13 @@ for needle in 'Routine named exactly `heartbeat: <owner/repo>` with a non-empty 
   '`update_trigger` this repo'"'"'s heartbeat `enabled: false`'; do
   expect "orchestrate-reference.md heartbeat check spells ${needle}" "$needle" "$reffold"
 done
+# shellcheck disable=SC2016 # literal backticks in the needles
+refute "REGISTER no longer starts its keeper on the hourly prompt" \
+  '`title` = `🔑 keeper: <owner/repo>`, `prompt` = `/keeper`.' "$reffold"
+refute "keeper.md no longer says its first turn runs the LIVE check" \
+  "your first turn runs inside it" "$keepfold"
+refute "orchestrated.md no longer says the keeper's first turn runs the check" \
+  "the keeper's first turn runs at" "$orcdocfold"
 refute "orchestrate.md no longer skips only two checks without list_triggers" \
   "skip the superseded and duplicate checks" "$orcfold"
 refute "orchestrate.md Start heading no longer says never per pass" \
@@ -609,6 +618,7 @@ refute "orchestrate.md no longer forbids every heartbeat write" \
 for needle in '**Name**: exactly `heartbeat: <owner/repo>`' \
   '**Binding**: `persistent_session_id` = a session titled `🔑 keeper: <owner/repo>`' \
   '**Prompt**: exactly `/keeper`' \
+  'REGISTER starts the keeper with `/keeper register`: that first turn takes the post and starts nothing' \
   'a Routine with `enabled` false and an empty `ended_reason` is never re-enabled, edited or replaced' \
   'makes from a session with `create_new_session_on_fire` reads `created_via: meta_mcp`'; do
   expect "orchestrated.md heartbeat spec spells ${needle}" "$needle" "$orcdocfold"

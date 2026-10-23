@@ -588,7 +588,12 @@ keeper at the replacing session's depth plus one, which is why REGISTER
 checks `depth + 2 < limit` before it deletes anything.
 
 **Registered by `/orchestrate`.** The heartbeat registers itself when an orchestrator starts and none exists
-("## 0. Start" step 5, REGISTER). The requester's veto is the pause: a
+("## 0. Start" step 5, REGISTER). REGISTER starts the keeper with
+`/keeper register`: that first turn takes the post and starts nothing,
+because the registering orchestrator has just read dispatch and, when the
+run is DRAINED, retires in the same turn. A full check then would find it
+retired and start a second orchestrator onto the same DRAINED queue. The
+first hourly wake (`/keeper`) runs the check. The requester's veto is the pause: a
 Routine with `enabled` false and an empty `ended_reason` is never
 re-enabled, edited or replaced, and nor is one made in the UI. Any
 `ended_reason` but `auto_disabled_session_gone` counts as a pause, and a
@@ -631,8 +636,9 @@ pending `/orchestrate pass` wake with its `persistent_session_id` and
 pending wake, so the keeper also counts the one it last started, and its
 own `parent_session_id`, while that reads `RUNNING` or `PENDING` (one
 `get_session` each). The parent is the orchestrator whose REGISTER or
-replace made the keeper: the keeper's first turn runs at `create_session`,
-inside that orchestrator's first start, before it arms a wake. A
+replace made the keeper: an hourly wake can land inside that
+orchestrator's first start, before it arms a wake (the keeper's own first
+turn, `/keeper register`, checks nothing). A
 human-started orchestrator that is not the parent is missed only when an
 hourly wake lands in its first start: the keeper starts a second, and "##
 0. Start" step 3 lets the older proceed and the newer exit. A DRAINED

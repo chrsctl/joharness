@@ -124,7 +124,10 @@ refused with no confirmed interrupt (dead row, STILLBORN) follows the
       keeper idle): `archive_session`. Then `create_session`: `source_url`
       = `git remote get-url origin`, `model` = the Lineup's `haiku` (the
       role is mechanical; never the registering session's model), `title` =
-      `🔑 keeper: <owner/repo>`, `prompt` = `/keeper`.
+      `🔑 keeper: <owner/repo>`, `prompt` = `/keeper register`: its
+      first turn takes the post and starts nothing (`keeper.md`,
+      Register), since this session has just read dispatch; the first
+      hourly wake runs the LIVE check.
    3. `create_trigger`: `name` = `heartbeat: <owner/repo>`,
       `cron_expression` = `0 * * * *`, `persistent_session_id` = step 2's
       id, `prompt` = `/keeper`, `initiation` =

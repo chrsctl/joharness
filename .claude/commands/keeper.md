@@ -27,6 +27,13 @@ manager. Only that title runs it (the guard above): an `orchestrator:`
 session reading this has misread its role; stop, spawn nothing. Its context
 persists across wakes: keep every report to one line.
 
+Register: this turn's prompt is `/keeper register` (REGISTER's
+`create_session`, `orchestrate-reference.md` "## 0. Start" step 5; the
+Routine's prompt is `/keeper`) = run step 1 only, report `keeper
+registered: parent <parent_session_id>` (`none` if absent), end the turn. No LIVE check, no
+start, no SWAP: the session that made you has just read dispatch, and the
+first hourly wake runs the check.
+
 1. `git fetch origin main`. This file in `git show
    origin/main:.claude/commands/keeper.md` differs from the one you
    hold = follow that text instead.
@@ -43,7 +50,7 @@ persists across wakes: keep every report to one line.
    (read 2026-10-23); absent or empty = skip it. Each counts when
    `get_session` finds it titled exactly `🎼 orchestrator:
    <owner/repo>` (glossary, role title) and `RUNNING` or `PENDING` — in its first start it holds
-   no wake, and your first turn runs inside it. LIVE, and its pending
+   no wake. LIVE, and its pending
    wake's `harness=` line carries `retire=yes` = SWAP, below. Else LIVE =
    report `orchestrator live: <id>`, end the turn. No `list_triggers`, or it errors = report
    `keeper: no list_triggers`, create nothing.
