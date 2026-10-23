@@ -8,52 +8,42 @@ priority: normal
 Requester, 2026-10-23, after a consumer manager (gx `ui-adapt-verify`)
 blocked on a red suite on its base branch and a human had to ask: *"we only
 asked 'can we fix' and found a proper solution, can we [add] a role
-workflow etc to joharness that does this."*
+workflow etc to joharness that does this."* Then, asked for the optimal
+solution, the requester chose prevention first and a lean recovery loop.
 
-What the human's one question set off, by hand, in one session:
-
-1. The manager's blocker (an agent-fixable defect outside its plan's
-   scope) became a fix plan, built and merged.
-2. The fix asked how the defect reached the base branch: it bisected the
-   failure into the merging pull request and named the check that let it
-   through. A missing consumer gate became a second plan in the consumer;
-   a harness gap became a finding.
-3. The harness finding was checked against what canonical had already
-   decided, then filed as a report on canonical.
-4. The blocked manager was woken and finished.
-
-None of these steps needed a human decision. The harness should run that
-loop without the question.
+The incident: a consumer pull request merged under `finish: pass`
+(`JOHARNESS_CHECKS=local`) with the consumer's own required check red. A
+later manager could not meet its Acceptance and blocked for a human. The
+human's one question set off, by hand, everything below. None of it
+needed a human decision.
 
 ## Satisfied when
 
-- A manager blocked by an agent-fixable defect outside its plan's scope (it
-  cannot meet its own Acceptance while the defect stands: a red suite on the
-  base branch, a defect in code another plan owns) stops without a human.
-  The defect becomes an issue the clerk plans, and the manager's item
-  resumes on its own once the fix merges. That issue and that block carry
-  no `human-review` and push nothing to the human. Requester's decision,
-  2026-10-23: only BLOCKING defects skip the hold. Every other
-  agent-filed defect keeps today's `human-review` hold.
-- A plan born from such a defect carries, as acceptance, where the defect
-  entered (the merge, by bisection or reasoning from history) and which
-  check passed it. A check this repo owns is fixed or planned in the same
-  pull request; a harness-owned one is recorded as a finding that
-  `./joharness.sh upstream` reports.
-- In a consumer repo, a merged edge whose `upstream` verdict is REPORT is
-  filed on canonical without a human starting `/upstream-report`, at most
-  once per edge. Before filing, the reporter reads canonical's settled
-  research and pull requests on the same question: it files only what is
-  new, or files nothing and says why.
-- Every step above is visible in `./joharness.sh` output (`dispatch`, or
-  `review` for the escape answers) and leaves its record in git. Harness commands still never call the GitHub API.
+1. **Prevention.** Under `JOHARNESS_CHECKS=local`, `finish` runs one
+   check the consumer declares and is red on it, so a consumer's required
+   checks gate the merge rather than prose.
+2. **Recovery.** A manager blocked by an agent-fixable defect outside its
+   plan's scope (it cannot meet its own Acceptance while the defect stands)
+   stops without a human. The defect becomes an issue the clerk plans
+   urgent, and the item resumes on its own once the fix is retired. That
+   issue and that block carry no `human-review` and notify nobody, unless
+   nothing plans or fixes the defect within a bound. Requester's decision,
+   2026-10-23: only BLOCKING defects skip the hold. Every other
+   agent-filed defect keeps today's `human-review` hold.
+3. **Escape.** A plan born from a defect asks where it entered, which
+   check passed it, and routes the gate: this repo's is fixed or planned,
+   canonical's becomes a finding `./joharness.sh upstream` reports.
+4. Steps 1–2 are visible in `./joharness.sh` output (`finish`,
+   `dispatch`) and every step leaves its record in git. Harness commands
+   never call the GitHub API.
 
 ## Constraints
 
-- Blocks that do need a human (money, credentials, product, interface,
-  core path, conflict, hardware, github, stalled, respawns) keep today's
-  path unchanged.
+- Blocks that need a human (money, credentials, product, interface, core
+  path, conflict, hardware, github, stalled, respawns) keep today's path.
 - The clerk's gates (author gate, `human-review` skip, scout gate) are not
-  relaxed: a defect issue enters as an issue like any other.
+  relaxed.
 - No core path edit (`./joharness.sh protocol-paths`) without a
   `human/<stem>` pull request.
+- Out, by the requester's choice (2026-10-23): an automatic upstream
+  reporter. `/upstream-report` stays a manual procedure.
