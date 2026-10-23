@@ -5,7 +5,7 @@ branch: refusal-is-not-credentials
 pr: none
 plan: refusal-is-not-credentials
 issue: none
-session: none
+session: https://claude.ai/code/session_01GCgdvphDZPwKLGLRQsdZxt
 agent: sonnet
 updated: 2026-10-23
 next: Build the plan as rewritten on this branch: one hooks bullet in manage.md §2, one sentence in orchestrated.md, pins
