@@ -425,13 +425,14 @@ fi
 # --- FREEABLE: a doc-only branch nobody will merge (issue #423) -------------
 # Same fixture. A fresh plan branch is no row: its author may be mid-pull-
 # request. A plan branch past HANDOVER_STALE_SECONDS is `free <branch>`, a
-# spawnable item. An empty done branch needs no wait.
+# freer's row: a role beyond the cap, never a free manager item. An empty done
+# branch needs no wait.
 refute "a fresh plan branch is not FREEABLE" "free plan-only (agent" "$out"
 expect "an empty done branch is FREEABLE at once" \
   "  free carry-pa (agent: sonnet)  FREEABLE — its only diff is a status: done, pr: none workstream file" "$out"
-# The free count before the stale branch, to pin that it adds exactly one
-# (verifier r6: NOT DRAINED alone held with the count code removed).
-bpfree0="$(sed -n 's/^verdict   : NOT DRAINED — \([0-9][0-9]*\) free item.*/\1/p' <<<"$out")"
+# The verdict before the stale branch, to pin that a FREEABLE row adds no free
+# manager item: a freer runs beyond the cap.
+bpverd0="$(grep '^verdict   : ' <<<"$out")"
 git -C "$bpwork" checkout -qb gone-q main
 bpplan "${bpwork}/docs/plans/q.md" q normal
 git -C "$bpwork" add -A
@@ -442,9 +443,15 @@ git -C "$bpwork" checkout -q main
 out="$(bp)"
 expect "a plan branch past the stale window is FREEABLE" \
   "  free gone-q (agent: sonnet)  FREEABLE — 1 plan(s) on a doc-only branch" "$out"
-expect "and it counts as one more free item" \
-  "verdict   : NOT DRAINED — $(( ${bpfree0:-0} + 1 )) free item(s)" "$out"
+expect "and it spawns beyond the cap, one freer at a time" \
+  "Beyond the cap, holds no slot, ONE freer per pass" "$out"
+if [ -n "$bpverd0" ] && [ "$(grep '^verdict   : ' <<<"$out")" = "$bpverd0" ]; then
+  pass "and it adds no free manager item: the verdict does not move"
+else
+  fail "and it adds no free manager item: the verdict does not move"
+fi
 refute "plan-only, still fresh, is still no row" "free plan-only (agent" "$out"
+bpslotsf="$(sed -n 's/^slots     : \([0-9][0-9]*\) of.*/\1/p' <<<"$out")"
 # The manager's claim: the row goes, the claim holds a slot, and the claim's
 # own doc-only branch is never FREEABLE.
 git -C "$bpwork" checkout -qb mgr-free-q main
@@ -456,7 +463,10 @@ git -C "$bpwork" push -qu origin mgr-free-q
 git -C "$bpwork" checkout -q main
 out="$(bp)"
 refute "a free claim on its key drops the row" "free gone-q (agent" "$out"
-expect "the claim is a manager in flight" "  free-gone-q  mgr-free-q  in-progress" "$out"
+expect "the claim is a freer in flight" "  free-gone-q  mgr-free-q  in-progress" "$out"
+expect "and the other FREEABLE row waits: one freer at a time" \
+  "  free carry-pa (agent: sonnet)  HOLD — a freer is in flight" "$out"
+expect "and a freer in flight holds no manager slot" "slots     : ${bpslotsf:-x} of" "$out"
 refute "and the claim's own branch is never FREEABLE" "free mgr-free-q (agent" "$out"
 # Past its retire commit the claim file is gone, the pull request open: the
 # owner sits merged in the manager's branch, so neither is offered (r3).
@@ -607,6 +617,57 @@ out="$(bp)"
 expect "a done free claim is listed" \
   "  free-held-h  mgr-free-held  done  pushed 0m  done: holds no slot" "$out"
 expect "and holds no slot" "slots     : ${bpslots0:-x} of" "$out"
+
+# --- a freer is a role: beyond the cap, under any verdict but PAUSED --------
+# Own fixture: nothing on the queue but one FREEABLE row, so the verdict is the
+# DRAINED one that would otherwise say exit.
+frwork="${TMP}/freerwork"
+frorigin="${TMP}/freerorigin.git"
+git init -q --bare "$frorigin"
+git init -q "$frwork"
+git -C "$frwork" symbolic-ref HEAD refs/heads/main
+mkdir -p "${frwork}/docs/plans" "${frwork}/docs/handover" \
+  "${frwork}/.agents/harness" "${frwork}/.agents/env/none"
+cp "${ROOT}/joharness.sh" "${frwork}/joharness.sh"
+cp "${ROOT}/.agents/harness/queue-context.sh" \
+   "${ROOT}/.agents/harness/handover-context.sh" "${frwork}/.agents/harness/"
+printf '# none\n' >"${frwork}/.agents/env/none/AGENTS.md"
+frconf="${frwork}/joharness.conf"
+printf 'JOHARNESS_ENV=none\n' >"$frconf"
+commit_all "$frwork" "base"
+git -C "$frwork" remote add origin "$frorigin"
+git -C "$frwork" push -qu origin main
+fr() { ( cd "$frwork" && env JOHARNESS_CONF="$frconf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 "$@" ./joharness.sh dispatch 2>&1 ); }
+git -C "$frwork" checkout -qb carry-dr main
+printf -- '---\nworkstream: carry-dr\nstatus: done\nbranch: carry-dr\npr: none\nplan: dr\nagent: sonnet\nupdated: 2026-01-01\nnext: Nothing\n---\n\n## Goal\nFixture.\n' \
+  >"${frwork}/docs/handover/carry-dr.md"
+commit_all "$frwork" "carrier finds dr done"
+git -C "$frwork" push -qu origin carry-dr
+git -C "$frwork" checkout -q main
+out="$(fr)"
+expect "a lone FREEABLE row keeps the drained orchestrator from exiting" \
+  "verdict   : DRAINED — nothing free, nothing in flight; a role is due: spawn it" "$out"
+expect "and the tail line says to spawn the freer" \
+  "freer DUE: spawn ONE freer (agent: sonnet) on the first FREEABLE row above" "$out"
+out="$(fr JOHARNESS_MAX_MANAGERS=0)"
+expect "the human's pause holds the freer row" \
+  "  free carry-dr (agent: sonnet)  HOLD — JOHARNESS_MAX_MANAGERS=0 is the human's pause" "$out"
+refute "and prints no freer spawn under it" "freer DUE" "$out"
+# A BLOCKED freer is still in flight, as a blocked curator is: no second one
+# beside it. It holds no slot either way.
+git -C "$frwork" checkout -qb mgr-free-x main
+mkdir -p "${frwork}/docs/handover"
+printf -- '---\nworkstream: free-x\nstatus: blocked\nbranch: mgr-free-x\npr: none\nplan: none\nsession: https://example.invalid/session_fx\nagent: sonnet\nupdated: 2026-01-01\nnext: conflict: x does not merge clean\n---\n\n## Goal\nFixture.\n' \
+  >"${frwork}/docs/handover/free-x.md"
+commit_all "$frwork" "a freer blocks"
+git -C "$frwork" push -qu origin mgr-free-x
+git -C "$frwork" checkout -q main
+out="$(fr)"
+expect "a blocked freer holds the other FREEABLE row" \
+  "  free carry-dr (agent: sonnet)  HOLD — a freer is in flight" "$out"
+refute "so no second freer spawns" "freer DUE" "$out"
+expect "and it holds no slot" "slots     : 4 of 4 free" "$out"
 
 # --- time against the item: CEILING? (issue #298) ---------------------------
 # A manager that pushes inside the stall window and under the churn limit read

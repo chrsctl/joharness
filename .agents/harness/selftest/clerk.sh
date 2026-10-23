@@ -123,6 +123,27 @@ out="$(clerk_dsp DISPATCH_FETCH=0)"
 expect "a view of unknown age holds the spawn" "clerk due, held — no fresh view" "$out"
 refute "and holds it, not spawns it" "clerk DUE: spawn" "$out"
 
+# Every manager slot full: the clerk still spawns. JOHARNESS_MAX_MANAGERS caps
+# managers only; a role runs beyond it.
+git -C "$clerk_work" checkout -qb mgr-full main
+mkdir -p "${clerk_work}/docs/handover"
+printf -- '---\nworkstream: free-work\nstatus: in-progress\nbranch: mgr-full\nplan: free-work\nagent: sonnet\n---\n\n## Goal\nFixture.\n' \
+  >"${clerk_work}/docs/handover/free-work.md"
+clerk_commit "a manager claims the free plan"
+git -C "$clerk_work" push -qu origin mgr-full
+git -C "$clerk_work" checkout -q main
+out="$(clerk_dsp JOHARNESS_MAX_MANAGERS=1)"
+expect "the fixture really fills every slot" "slots     : 0 of 1 free" "$out"
+expect "a full fleet still spawns the clerk" \
+  "clerk DUE: spawn ONE clerk (agent: sonnet) on /clerk — beyond the cap, holds no slot" "$out"
+refute "and never holds it for a slot" "no free slot" "$out"
+out="$(clerk_dsp JOHARNESS_MAX_MANAGERS=0)"
+expect "the human's pause still holds the clerk" \
+  "clerk due, held — JOHARNESS_MAX_MANAGERS=0 is the human's pause" "$out"
+refute "and spawns none under it" "clerk DUE: spawn" "$out"
+git -C "$clerk_work" push -q origin --delete mgr-full
+git -C "$clerk_work" branch -qD mgr-full
+
 # --- PLANNED and CLAIMED ----------------------------------------------------
 clerk_plan from-issue '12'
 clerk_plan from-hash '#14   # a comment'
@@ -419,12 +440,12 @@ expect "an older landing does not move the clock back past the no-op record" \
 out="$(clerk_dsp)"
 expect "(f) dispatch reads the clerk not due" "clerk     : not due — " "$out"
 
-# (h) A clerk in flight while the clock reads NOT due still holds its slot.
+# (h) A clerk in flight while the clock reads NOT due is still in flight.
 clerk_branch clerk-2026-02-05-b notes-b.txt "$(clerk_ago 0)"
 out="$(clerk_dsp JOHARNESS_SCOUT_REVIEWER=rev)"
 expect "(h) a clerk in flight under a not-due clock is counted" \
   "clerk     : IN FLIGHT, so none is due. Clock: not-due" "$out"
-expect "(h) it takes a slot" "slots     : 3 of 4 free (1 role session(s) in flight" "$out"
+expect "(h) it takes no manager slot" "slots     : 4 of 4 free" "$out"
 expect "(h) and holds no scout: the scout row is free" "scout     : none in flight" "$out"
 
 # A landing NEWER than the no-op record dates the clock (verifier r7).

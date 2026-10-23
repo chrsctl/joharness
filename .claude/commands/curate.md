@@ -57,7 +57,7 @@ request opens, merge (merge-commit), exit.
 The retire commit dates the cycle; the net diff is empty on purpose — the
 proposals are in the body.
 
-Report: proposals written, and that this session took a manager slot.
+Report: proposals written, and that this session ran beyond the manager cap.
 
 ## Never
 

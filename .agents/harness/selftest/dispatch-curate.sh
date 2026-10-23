@@ -167,7 +167,7 @@ expect "enough plan files changed since the queue began makes one due" \
   "curate    : DUE — 6 plan file(s) changed since the queue began, none having landed (>= 5)" "$out"
 expect "and the tail line under the verdict says to spawn one" \
   "curate DUE: spawn ONE curator (agent: sonnet)" "$out"
-expect "naming it as beyond the cap" "takes one slot (roles share JOHARNESS_MAX_MANAGERS)" "$out"
+expect "naming it as beyond the cap" "beyond the cap, holds no slot" "$out"
 # The clock at 0 is the off switch for the WHOLE cycle, which is a compatibility
 # promise and not a tidy rule: before the production trigger existed it was the
 # only switch there was, so a consumer that had set it must not wake up to a
@@ -518,9 +518,30 @@ out="$(cudis env JOHARNESS_CURATE_PLANS=1)"
 expect "the cycle is due and the tail says to spawn" \
   "curate DUE: spawn ONE curator (agent: sonnet)" "$out"
 expect "naming it as beyond the cap, holding no slot" \
-  "takes one slot (roles share JOHARNESS_MAX_MANAGERS)" "$out"
+  "beyond the cap, holds no slot" "$out"
 expect "and both knobs are named on that line" \
   "(JOHARNESS_CURATE_PLANS, JOHARNESS_CURATE_HOURS)" "$out"
+
+# Every manager slot full: the curator still spawns. JOHARNESS_MAX_MANAGERS
+# caps managers only; a role runs beyond it.
+git -C "$cuwork" checkout -qb claude/mgr-full
+mkdir -p "${cuwork}/docs/handover"
+printf -- '---\nworkstream: five\nstatus: in-progress\nbranch: claude/mgr-full\nplan: five\nagent: sonnet\n---\n\n## Goal\nFixture.\n' \
+  >"${cuwork}/docs/handover/five.md"
+commit_all "$cuwork" "a manager claims plan five"
+git -C "$cuwork" push -qu origin claude/mgr-full
+git -C "$cuwork" checkout -q main
+out="$(cudis env JOHARNESS_CURATE_PLANS=1 JOHARNESS_MAX_MANAGERS=1)"
+expect "the fixture really fills every slot" "slots     : 0 of 1 free" "$out"
+expect "a full fleet still spawns the curator" \
+  "curate DUE: spawn ONE curator (agent: sonnet)" "$out"
+refute "and never holds it for a slot" "no free slot" "$out"
+out="$(cudis env JOHARNESS_CURATE_PLANS=1 JOHARNESS_MAX_MANAGERS=0)"
+expect "the human's pause still holds the curator" \
+  "curate due, held — JOHARNESS_MAX_MANAGERS=0 is the human's pause" "$out"
+refute "and spawns none under it" "curate DUE: spawn" "$out"
+git -C "$cuwork" push -q origin --delete claude/mgr-full
+git -C "$cuwork" branch -qD claude/mgr-full
 
 git -C "$cuwork" checkout -qb claude/curate-orch
 mkdir -p "${cuwork}/docs/handover"

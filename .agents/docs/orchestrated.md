@@ -23,10 +23,10 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | `dispatch` verdict `OVERLAP-BOUND` | Slots free but every free plan HELD behind work in flight. A `rescope :` block names the holder key and the held paths; the verdict spawns ONE surveyor to correct the `scope:` declarations. |
 | `./joharness.sh curate` + `curate :` line | Whether the plan queue's declarations are still true. Mechanical repairs: `./joharness.sh curate --apply`, and `ci` fails a branch whose added plans still need one. A curator session is offered only for PROPOSE findings (decompose, order). Due on plan churn (`JOHARNESS_CURATE_PLANS`) or the clock; state read from git: the last curate landing, or a newer merged `curate-noop-<stamp>` branch (a pass with nothing to propose), which resets both triggers. Orthogonal to the verdict. |
 | `./joharness.sh janitor` + `janitor :` line | Claims whose session is gone. Mechanical: `./joharness.sh janitor --apply` writes `status: abandoned` into the claim's own file — only where the session is ARCHIVED or not found, never a claim with `pr:` — and deletes nothing. No session, no pull request. Listed only when stale claims exist; the caller proves each session gone and passes the branches: `janitor --apply <branch>...`. |
-| `./joharness.sh clerk` + `clerk :` line | Open issues become plans only through the clerk (`dispatch` reads `docs/plans/` only). Clock-driven, batch `JOHARNESS_CLERK_BATCH`, dated from git: the last `clerk-<digit>…` merge on the base's first parent (GitHub's default merge subject), or a newer `clerk-noop-<stamp>` branch. An unmerged `clerk-<digit>…` branch younger than `JOHARNESS_CLERK_STALE_HOURS` is in flight and takes a slot, due or not — unless it is `ended`: no net change, and a merged `clerk-noop-<stamp>` stamped at or after its tip and not in the future. Orthogonal to the verdict. |
+| `./joharness.sh clerk` + `clerk :` line | Open issues become plans only through the clerk (`dispatch` reads `docs/plans/` only). Clock-driven, batch `JOHARNESS_CLERK_BATCH`, dated from git: the last `clerk-<digit>…` merge on the base's first parent (GitHub's default merge subject), or a newer `clerk-noop-<stamp>` branch. An unmerged `clerk-<digit>…` branch younger than `JOHARNESS_CLERK_STALE_HOURS` is in flight, due or not, and no second clerk spawns — unless it is `ended`: no net change, and a merged `clerk-noop-<stamp>` stamped at or after its tip and not in the future. Orthogonal to the verdict. |
 | `./joharness.sh analysis` | One unmerged branch's condition (BLOCKED / STALL? / LOOP?) beside the base branch's current conf. Read by hand; spawns nothing. |
 | `./joharness.sh scout` + `scout :` line | No clock, no backlog trigger, no DRAINED gate. A pass runs on the reviewer's order (`/scout` typed by a human, or the orchestrator's `+human` extra session) or on a `scout` issue waiting on the scout, which the orchestrator reads on GitHub (`orchestrate-reference.md`, "A scout issue needs the scout"): `joharness.sh` stays git-only: `scout` prints `off` (empty `JOHARNESS_SCOUT_REVIEWER`, or no `docs/product/SCOUT.md` brief on the base branch), `IN FLIGHT` or `none in flight`; dispatch adds `held` (stale view, a pending spawn, `JOHARNESS_MAX_MANAGERS=0`). The report prints every conf value a pass reads: brief, reviewer, research and budget. Every misread fails closed — never spawns a second scout. |
-| `./joharness.sh conduct` + `conduct :` line | A sample of retired managers' own artifacts, read for how the item was worked, never the diff. Clock-driven (`JOHARNESS_CONDUCT_HOURS`), dated from the ledger `docs/conduct-log.md`; the command prints the sample and the ledger tally. NOT gated on DRAINED; suppressed while a curate or clerk spawns this pass or is in flight (one held for a slot does not hold it: the reviewer needs none). Every misread fails closed. |
+| `./joharness.sh conduct` + `conduct :` line | A sample of retired managers' own artifacts, read for how the item was worked, never the diff. Clock-driven (`JOHARNESS_CONDUCT_HOURS`), dated from the ledger `docs/conduct-log.md`; the command prints the sample and the ledger tally. NOT gated on DRAINED; suppressed while a curate or clerk spawns this pass or is in flight (one held by a stale view or the pause does not hold it). Every misread fails closed. |
 | `.claude/commands/*.md` | The roles, as commands. |
 
 ## Roles
@@ -38,15 +38,19 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | manager | the item's `agent:`; fable at xhigh for an unplanned requirement | a session with its own branch, claim and merge | worker subagents (`Agent`) | one item, until its file retires | its pull request merges, or it blocks on a human |
 | worker | at or below the plan's tier, lower by default | a subagent in the manager's container | nothing | the files its sub-task names | it returns |
 | curator | sonnet | a session, on `curate DUE` with proposals to make; prelude `./joharness.sh role curate` | nothing | decompose/order proposals for ONE pass, changing no plan | its pull request merges |
+| freer | sonnet | a session, on the `freer DUE` tail line (a `FREEABLE` row) | nothing | one doc-only branch's plans brought onto the base, building nothing (`manage.md`, free) | its pull request merges, or `free` refuses: claim deleted, no pull request |
 | surveyor | sonnet | a session, on the `OVERLAP-BOUND` verdict | nothing (declarations, not code) | the held plans' and holders' `scope:` lines for one holder key | its pull request merges, or `done` with nothing to change |
 | clerk | sonnet, opus verifier | a session, on the `clerk DUE` tail line; prelude `./joharness.sh role clerk` | nothing | one plan-only pull request, no workstream file; never closes or opens an issue, never writes code, never a core-path-only plan, never plans a scout issue without the reviewer's `approved` comment newer than the scout's newest footed `scout:` comment | its pull request merges, no plan to write (pushes `clerk-noop-<UTC stamp>` at `origin/main`), or `TWIN: deferred` |
 | scout | fable | a session, on the reviewer's order or a `scout` issue waiting on the scout, while `scout :` reads `none in flight`; prelude `./joharness.sh role scout` | nothing | proposal issues on this repository, typed Feature, labelled scout; a research request's answer | its claim retires: NOTHING TO PROPOSE, or the pass's issues filed and replies posted |
 | conduct | sonnet | a session on `conduct DUE`, beyond the cap; prelude `./joharness.sh role conduct` | nothing | one pull request appending ledger rows to `docs/conduct-log.md`, no workstream file; never acts on a CONCERN | its pull request merges, or `TWIN: deferred` |
 
-Managers and role sessions (curator, surveyor, clerk) count against
-`JOHARNESS_MAX_MANAGERS` together. The scout and the conduct reviewer do
-not: each runs as one session beyond the cap, at most one in flight, and
-each run is the owner's money. A role command that says nothing to do
+`JOHARNESS_MAX_MANAGERS` caps managers only: the cap is for sessions that
+build a plan. Every role session — curator, clerk, scout, conduct reviewer,
+surveyor, freer — builds none, so it runs beyond the cap: one session of
+that role, at most one in flight (a blocked one included), on its own
+trigger, under any verdict but `PAUSED`, and each run is the owner's money.
+A full fleet of managers holds none of them. `JOHARNESS_MAX_MANAGERS=0` is
+the human's pause for every role. A role command that says nothing to do
 spawns nothing.
 
 ### The role prelude is a command
@@ -277,11 +281,12 @@ hook's: urgent first, then oldest, in waves of disjoint scope. On top:
   the health pass runs until in-flight managers end.
 - Every free plan held with slots idle = `OVERLAP-BOUND`. Most such
   collisions are a plan that only appends to a shared registry, or claims a
-  whole directory, declared exclusive. ONE surveyor (it takes a slot) per holder key per run
+  whole directory, declared exclusive. ONE surveyor (beyond the cap, no slot) per holder key per run
   (`manage.md`, R) marks registries `shared:` and narrows directory claims;
-  genuine collisions settle in one pass.
+  genuine collisions settle in one pass. The idle slot is the trigger, not
+  the surveyor's budget.
 - The curate cycle is the one spawn not driven by the queue's state: due on
-  plan churn or the clock, under any verdict, one at a time, taking a slot, state in git so a
+  plan churn or the clock, under any verdict, one at a time, beyond the cap, state in git so a
   re-seeded orchestrator does not re-spawn one already paid for. Repairs
   never need a session: `curate --apply`.
 
@@ -295,7 +300,7 @@ branch has no row: not free, not held, not in flight.
 | plan-only pull request | filer drives it to merged before exit | `manage.md`, Finish |
 | plan riding a product pull request | row in dispatch's `plans on a branch` block — visible, counted nowhere | `joharness.sh:dispatch_branch_plans` |
 | plan-only pull request whose plan was carried to the base by another branch, built and retired | the carrying session closes or comments on the source pull request at its own step 7 (its carry commit names the number); the reader prints the branch as a leftover (the human closes the pull request and deletes the branch); a carry that retired it with `status: done, pr: none` (ledger line, or a done workstream file on any other ref, merged or not) prints the row `DONE ON MAIN` — drop it, never spawn on it | `joharness.sh:dispatch_branch_plans` |
-| author gone: doc-only branch (`docs/plans`, `docs/product`, `docs/research`, `docs/handover`), every plan live or DONE ON MAIN, no workstream file blocked, in review or naming a `pr:`, last push older than `HANDOVER_STALE_SECONDS`; or its only diff a `status: done, pr: none` workstream file naming a `plan:` (no wait; `free` retires that plan too) | dispatch prints `free <branch> ... FREEABLE` under spawn; the orchestrator proves the owner's session not RUNNING and spawns one sonnet manager; `free` merges the branch into the manager's claim, drops the owner's workstream files and retired stems, `curate --apply`, `ci`, commits; the manager's pull request closes the owner branch by merging it. A janitor-released (`status: abandoned`) branch is not offered: dispatch hides its plans | `joharness.sh:cmd_free`, `joharness.sh:dispatch_freeable`, `manage.md` §0 |
+| author gone: doc-only branch (`docs/plans`, `docs/product`, `docs/research`, `docs/handover`), every plan live or DONE ON MAIN, no workstream file blocked, in review or naming a `pr:`, last push older than `HANDOVER_STALE_SECONDS`; or its only diff a `status: done, pr: none` workstream file naming a `plan:` (no wait; `free` retires that plan too) | dispatch prints `free <branch> ... FREEABLE` under spawn and a `freer DUE` tail line; the orchestrator proves the owner's session not RUNNING and spawns one sonnet freer (a role, beyond the cap); `free` merges the branch into the freer's claim, drops the owner's workstream files and retired stems, `curate --apply`, `ci`, commits; the freer's pull request closes the owner branch by merging it. A janitor-released (`status: abandoned`) branch is not offered: dispatch hides its plans | `joharness.sh:cmd_free`, `joharness.sh:dispatch_freeable`, `manage.md` §0 |
 
 The row carries no instruction: the scheduler cannot see a pull request, and
 a branch plan has not been reviewed into the queue, so spawning on it is the
