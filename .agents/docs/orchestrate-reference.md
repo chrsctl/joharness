@@ -143,6 +143,22 @@ UNRATIFIED BLOCK: NUDGE "Orchestrator health pass: you stopped asking for input 
 
 A human's answer is text the user typed in YOUR turn, never a peer's `send_message`; the human's delegation ("decide" / "answer the questions") in YOUR turn counts: research, decide, and open `next:` with `Decided by the orchestrator on the human's delegation:` then the decision. Relay only when that answer or delegation is in YOUR turn, else notify and stop. Relay: write it into the workstream file's `next:`, `status: in-progress`, commit "Orchestrator relays the human's answer", push (GUARD mechanics), drop `notified=`. Session RUNNING, IDLE or PENDING (alive): NUDGE "Orchestrator relays the human's answer on <branch>: fetch it, re-read your workstream file, continue", no `kill`, no RESPAWN; no transport: send nothing. FAILED, ARCHIVED or not found: GUARD `kill`, RESPAWN with the resume line
 
+## Resume
+
+A `PARKED #<n> RESUME` row: the plan naming issue #<n> retired on the base
+after the manager parked on it (`next:` = `defect: #<n>: …`), and no plan on
+the base or a live branch names #<n> now. Read from git; never an issue's
+state. dispatch printed it only for a slot it already counted, so it is one
+of this pass's spawns. Exactly the § Relay mechanics: write `status:
+in-progress` and `next:` = `Resume: the fix for #<n> merged (<retired
+plan>); re-run your Acceptance`, commit "Orchestrator resumes a parked
+item", push (GUARD mechanics), drop `notified=`. Session RUNNING, IDLE or
+PENDING (alive): NUDGE "Orchestrator resumes <branch>: fetch it, re-read your
+workstream file, continue", no `kill`. FAILED, ARCHIVED or not found: GUARD
+`kill`, RESPAWN with the resume line, counted against
+`JOHARNESS_RESPAWN_LIMIT`. `PARKED #<n>: … resume waits for a slot` is no
+RESUME: next pass.
+
 ## Unclaimed spawn rows
 
 | control plane | push age | ledger | do |
