@@ -50,6 +50,12 @@ character):
   `.agents/harness/selftest/orchestrated.sh` that pin them, follow.
 - `.agents/docs/glossary.md`: one row naming the emoji per role.
 
+## Assumptions
+
+- A1: the platform's `⚡` prefix lands only on sessions a Routine creates, never on a bound keeper's title — evidence: `get_session` on `cse_01SfCjvnKjH4hF6h1voc1ek8` (origin `force_run_trigger`, title `⚡ heartbeat: chrsctl/joharness`) vs `session_0156C8AxDDvM99AE2QiQKgs1` (titled `keeper: chrsctl/joharness` after hourly fires) — confidence: high
+- A2: `set_session_title` and `create_session` `title` store emoji verbatim — evidence: same `⚡` title read back by `get_session` — confidence: medium
+- A3: the nine emoji are single code points, no U+FE0F — evidence: the Acceptance `python3` command, run 2026-10-23 — confidence: high
+
 ## Out of scope
 
 - The Routine name `heartbeat: <owner/repo>`: the platform's `⚡` covers
