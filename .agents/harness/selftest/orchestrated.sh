@@ -301,6 +301,7 @@ for needle in 'HANDED OFF' 'orchestrator (handed off):' 'hand-off skipped' \
   refute "orchestrate.md no longer spells ${needle}" "$needle" "$orcfold"
 done
 orcdocfold="$(tr '\n' ' ' <"${ROOT}/.agents/docs/orchestrated.md" | tr -s ' ')"
+# shellcheck disable=SC2016 # literal backticks in the needles
 for needle in '**One spawner, one turn.** Only the keeper starts an orchestrator' \
   '**What the keeper copies.**' '**Lineage stays flat.**' \
   'retitles itself the same way as its last act' \
