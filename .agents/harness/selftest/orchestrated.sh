@@ -317,9 +317,12 @@ for needle in 'HANDED OFF' 'orchestrator (handed off):' 'hand-off skipped' \
   refute "orchestrate.md no longer spells ${needle}" "$needle" "$orcfold $reffold"
 done
 orcdocfold="$(tr '\n' ' ' <"${ROOT}/.agents/docs/orchestrated.md" | tr -s ' ')"
+# shellcheck disable=SC2016 # literal backticks in the needles
 for needle in '**One spawner, one turn.** Only the keeper starts an orchestrator' \
   '**What the keeper copies.**' '**Lineage stays flat.**' \
-  'retitles itself the same way as its last act'; do
+  'retitles itself the same way as its last act' \
+  'or a `RUNNING` or `PENDING` orchestrator it started itself or that started it' \
+  'and its own `parent_session_id`, while that reads `RUNNING` or `PENDING`'; do
   expect "orchestrated.md spells ${needle}" "$needle" "$orcdocfold"
 done
 # The keeper is its own command, so an orchestrator never holds the keeper
@@ -472,6 +475,9 @@ for needle in 'Titled exactly `keeper: <owner/repo>` = run this file.' \
   'Its wake is the pending one with the highest `pass=`.' \
   'anything else = report `swap skipped: wake shape <id>`, start nothing.' \
   '`get_session` finds it titled exactly `orchestrator: <owner/repo>` and `RUNNING` or `PENDING`' \
+  '`parent_session_id` of this wake'"'"'s guard `get_session` (no `session_id`): the orchestrator whose REGISTER or replace made you' \
+  'absent or empty = skip it.' \
+  'An orchestrator a human started, not your parent, holds no wake in its first start' \
   'LIVE, and its pending wake'"'"'s `harness=` line carries `retire=yes` = SWAP' \
   '`run_once_at` under 5 minutes from now' \
   '`prompt` = that wake'"'"'s `derived_state.prompt` with `pass=1`, `retire=yes` removed and every `lead` line removed' \
