@@ -755,17 +755,25 @@ pbg_denied "a clock compared the wrong way is no bound"
 # shellcheck disable=SC2016  # a JSON payload; the $ is text the guard reads
 pbg '{"tool_name":"Bash","tool_input":{"command":"while [ \"$(date +%s)\" -lt \"$d\" ] || true; do sleep 1; done"}}'
 pbg_denied "a deadline test with || true is no bound"
-# strip_heredocs is linear: 20,000 lines of body. 0.8 s here, 6 s on the CI
-# runner; the quadratic version took 67 s here, so 15 s tells them apart.
+# strip_heredocs is linear: 20,000 lines of body. 0.6 s of CPU here; the
+# quadratic version took 67 s here, so 15 s tells them apart. CPU time, user
+# plus sys, never the wall clock: this case asks which algorithm runs, and a
+# shared runner under four parallel selftest workers stretched a 0.6 s read
+# to 15 s of wall clock (issue #566). `time` on the call counts the guard's
+# own process, a child of pbg's command substitution.
 pbg_big=""
 for _ in $(seq 1 20000); do pbg_big+='echo hello world line\n'; done
-pbg_t0=$SECONDS
-pbg '{"tool_name":"Bash","tool_input":{"command":"cat > /tmp/w.sh <<EOF\n'"$pbg_big"'EOF"}}'
-pbg_secs=$((SECONDS - pbg_t0))
-if [ "$pbg_rc" -eq 0 ] && [ "$pbg_secs" -lt 15 ]; then
-  pass "a 20,000-line heredoc reads in ${pbg_secs}s"
+# TIMEFORMAT local to a function, so the topic leaves no global behind.
+pbg_cpu_time() { local TIMEFORMAT='%U %S'; time pbg "$1"; }
+pbg_cpu="$(mktemp)"
+pbg_cpu_time '{"tool_name":"Bash","tool_input":{"command":"cat > /tmp/w.sh <<EOF\n'"$pbg_big"'EOF"}}' 2>"$pbg_cpu"
+pbg_secs="$(awk 'NF == 2 { printf "%.1f", $1 + $2 }' "$pbg_cpu")"
+rm -f "$pbg_cpu"
+if [ "$pbg_rc" -eq 0 ] && [ -n "$pbg_secs" ] &&
+   awk -v s="$pbg_secs" 'BEGIN { exit !(s < 15) }'; then
+  pass "a 20,000-line heredoc reads in ${pbg_secs}s of CPU"
 else
-  fail "a 20,000-line heredoc: exit ${pbg_rc}, ${pbg_secs}s (wanted 0, < 15s)"
+  fail "a 20,000-line heredoc: exit ${pbg_rc}, ${pbg_secs:-unread}s of CPU (wanted 0, < 15s)"
 fi
 
 pbg_gone="${TMP}/pbg-gone"
