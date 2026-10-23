@@ -227,3 +227,55 @@ expect "a stale fast file inherited untouched binds no branch" \
 refute "review does not read the stale file as fast" "stale.md [haiku" \
   "$(fj review)"
 git -C "$fwork" checkout -q main
+
+# A claim renamed inside docs/handover/ is still one claim; renamed again to
+# a name git quotes and then retired, it still binds.
+git -C "$fwork" checkout -qb renamed
+fast_ws typo fast
+printf 'a\n' >"${fwork}/a.txt"
+commit_all "$fwork" "fast: one file"
+git -C "$fwork" mv docs/handover/typo.md docs/handover/typo2.md
+commit_all "$fwork" "rename the claim"
+out="$(fast_section "$(fj ci -v)")"
+refute "a renamed claim is one claim" "workstream files say plan: fast" "$out"
+expect "a renamed claim binds under its new name" "docs/handover/typo2.md: plan: fast" "$out"
+git -C "$fwork" mv docs/handover/typo2.md "docs/handover/q\"t.md"
+commit_all "$fwork" "rename to a quoted name"
+git -C "$fwork" rm -q "docs/handover/q\"t.md"
+for _f in b c d; do printf '%s\n' "$_f" >"${fwork}/${_f}.txt"; done
+commit_all "$fwork" "retire, three more files"
+expect "a retired claim under a quoted name still binds" \
+  "4 files touched besides docs/handover/q\"t.md" "$(fast_section "$(fj ci)")"
+
+# Planned work that deletes a stale non-ASCII fast file from main, merges a
+# branch that claimed the lane and retired it, and adds then retires a
+# symlink whose target string reads `plan: fast`: none of it is a claim.
+git -C "$fwork" checkout -q main
+fast_ws "é" fast
+commit_all "$fwork" "a stale non-ASCII fast claim lands on main"
+git -C "$fwork" push -q origin main
+git -C "$fwork" checkout -qb sub
+fast_ws subfast fast
+printf 's\n' >"${fwork}/s.txt"
+commit_all "$fwork" "sub: fast, one file"
+git -C "$fwork" rm -q docs/handover/subfast.md
+commit_all "$fwork" "sub: retire"
+git -C "$fwork" checkout -q main
+git -C "$fwork" checkout -qb cleanup
+fast_ws cleanup none
+for _f in a b c; do printf '%s\n' "$_f" >"${fwork}/${_f}.txt"; done
+commit_all "$fwork" "planned: three files"
+git -C "$fwork" rm -q "docs/handover/é.md"
+commit_all "$fwork" "planned: clean up the stale claim"
+git -C "$fwork" merge -q --no-ff -m "merge sub" sub
+if ln -s -- "$(printf -- '---\nplan: fast\n---')" "${fwork}/docs/handover/sl.md" 2>/dev/null; then
+  commit_all "$fwork" "planned: a symlink reading fast"
+  git -C "$fwork" rm -q docs/handover/sl.md
+  commit_all "$fwork" "planned: retire it"
+else
+  skip "a retired symlink reading fast is no claim" "no symlinks here"
+fi
+expect "cleanup, a merged retired fast branch, a retired symlink: no claim" \
+  "no plan: fast workstream file on this branch" "$(fast_section "$(fj ci -v)")"
+git -C "$fwork" checkout -q main
+

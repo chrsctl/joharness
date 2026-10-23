@@ -69,6 +69,13 @@ file and keeps workstream file, verifier, ci, verify and finish.
 - r19: (verifier) a symlink claim let a target outside the repo decide the lane (fixed: a symlink is never a claim, in the tree or in history; it counts as a path)
 - r20: (verifier) a planned branch editing a stale fast file on main becomes fast-lane (no change in code: an edit that leaves it saying fast is a claim by the rule; plans README says delete a stale one, never edit it)
 - r21: (verifier) sort -zu ran under the caller's locale, where collation may fold distinct paths (fixed: LC_ALL=C)
+- r22: (verifier) the retired walk read quoted ls-tree lines, so a retired claim named with a quote, tab or backslash escaped the bound (fixed: one `git log -z` over docs/handover, paths compared raw; selftest case)
+- r23: (verifier) basemap was read quoted, so deleting a stale non-ASCII fast file on main put a planned branch in the lane (fixed: base blob read by exact path, `rev-parse <base>:<path>`; selftest case)
+- r24: (verifier) renaming the claim inside docs/handover/ read as two claims (fixed: a retired claim counts only when the tree holds none, and only the newest; selftest case)
+- r25: (verifier) commits of a merged sub-branch counted, so merging a retired fast branch bound planned work (fixed: `--first-parent -m`, the branch's own line, whose merge commits still show their own adds; selftest case)
+- r26: (verifier) one ls-tree fork per commit: 4.4s at 1501 commits, paid on every branch (fixed: one log, a rev-parse per candidate path only)
+- r27: (verifier) "first entry = last version" held on linear history only (fixed: first-parent order is the branch's own line, newest first)
+- r28: (verifier) the retired-symlink check had no test (fixed: mode read by exact path; selftest case retires a symlink whose target string carries plan: fast)
 - r17: (verifier) r4's record said one reader used by both while review kept its own tree read, and Decisions still named plans_in_diff (fixed: review_report now takes the set from fast_lane_ws; Decisions rewritten)
 
 ## Research: claim set (review churn, r4 then r12)
@@ -82,7 +89,11 @@ claim is a fast file THIS branch changed against the merge base (in the
 path stream the bound already walks) or added and retired. Covers (1) and
 (3), excludes (2) by construction; one function serves the stage and review.
 A retired claim is judged by the same rule on its last version in history
-(r18), never by a narrower one.
+(r18), never by a narrower one. Second churn (r18 to r22-r28): the walk is
+the hazard, not the rule. Resolution: the tree decides when it holds a
+claim; otherwise one `git log --first-parent -m -z` over docs/handover/
+names the newest written file, judged by exact path. No ls-tree parsing, no
+merged branch's commits, one claim at most.
 
 ## Blockers
 

@@ -6402,40 +6402,54 @@ fast_lane_paths() {
 }
 
 # The fast lane's claim files, one per line: a docs/handover/ file saying
-# `plan: fast` that this branch changed against <base>. In the tree, read
-# there; retired, read as the last version a branch commit carried, merges
-# included. Never one inherited untouched (a stale file on the base branch
-# binds nobody), never a symlink (its target would decide).
+# `plan: fast` that this branch changed against <base>, never one inherited
+# untouched (a stale file on the base branch binds nobody) and never a
+# symlink (its target would decide). The tree decides when it holds one.
+# Otherwise the newest such file the branch's own line wrote and then
+# retired: first-parent, so a merged branch's commits are not this one's,
+# and `-m` so a merge commit's own adds are.
 fast_lane_ws() {
-  local base="$1" ws mode blob basemap
+  local base="$1" ws tok c="" first=0 seen=$'\n' blob mode found=0
   while IFS= read -r -d '' ws; do
-    case "$ws" in
-      *$'\n'* | docs/handover/*/* | docs/handover/README.md | \
-        docs/handover/TEMPLATE.md | docs/handover/RETIRED.md) continue ;;
-      docs/handover/*.md) ;;
-      *) continue ;;
-    esac
+    fast_lane_name "$ws" || continue
     { [ -f "${ROOT}/${ws}" ] && [ ! -L "${ROOT}/${ws}" ]; } || continue
-    [ "$(lint_stem "$(gr_field plan <"${ROOT}/${ws}")")" = "$FAST_LANE" ] &&
-      printf '%s\n' "$ws"
+    [ "$(lint_stem "$(gr_field plan <"${ROOT}/${ws}")")" = "$FAST_LANE" ] || continue
+    printf '%s\n' "$ws"; found=1
   done < <(fast_lane_paths "$base")
-  # Retired: newest commit first, so the first entry per path is its last
-  # version. ls-tree, not log: a merge commit's own adds count too.
-  basemap="$(git -C "$ROOT" ls-tree "$base" docs/handover/ 2>/dev/null)"
-  while IFS=$'\t' read -r mode ws; do
-    [ -n "$ws" ] || continue
-    { [ -e "${ROOT}/${ws}" ] || [ -L "${ROOT}/${ws}" ]; } && continue
-    blob="${mode##* }"; mode="${mode%% *}"
+  [ "$found" -eq 0 ] || return 0
+  while IFS= read -r -d '' tok; do
+    case "$tok" in
+      $'\001'*) c="${tok#$'\001'}"; first=1; continue ;;
+    esac
+    [ "$first" -eq 0 ] || tok="${tok#$'\n'}"
+    first=0
+    fast_lane_name "$tok" || continue
+    case "$seen" in *$'\n'"${tok}"$'\n'*) continue ;; esac
+    seen="${seen}${tok}"$'\n'
+    { [ -e "${ROOT}/${tok}" ] || [ -L "${ROOT}/${tok}" ]; } && continue
+    mode="$(git -C "$ROOT" ls-tree -z "$c" -- "$tok" 2>/dev/null | cut -d' ' -f1)"
     [ "$mode" != 120000 ] || continue
-    printf '%s\n' "$basemap" | grep -qF -- "${blob}"$'\t'"${ws}" && continue
-    [ "$(lint_stem "$(git -C "$ROOT" cat-file blob "$blob" 2>/dev/null | gr_field plan)")" = \
-      "$FAST_LANE" ] && printf '%s\n' "$ws"
-  done < <(git -C "$ROOT" rev-list "${base}..HEAD" 2>/dev/null |
-    while IFS= read -r c; do
-      git -C "$ROOT" -c core.quotePath=false ls-tree "$c" docs/handover/ 2>/dev/null
-    done | awk -F'\t' '
-      $2 ~ /^docs\/handover\/[^\/]+\.md$/ &&
-      $2 !~ /\/(README|TEMPLATE|RETIRED)\.md$/ && !seen[$2]++')
+    blob="$(git -C "$ROOT" rev-parse -q --verify "${c}:${tok}" 2>/dev/null)" || continue
+    [ "$blob" != "$(git -C "$ROOT" rev-parse -q --verify "${base}:${tok}" 2>/dev/null)" ] ||
+      continue
+    if [ "$(lint_stem "$(git -C "$ROOT" cat-file blob "$blob" 2>/dev/null | gr_field plan)")" = \
+       "$FAST_LANE" ]; then
+      printf '%s\n' "$tok"
+      return 0
+    fi
+  done < <(git -C "$ROOT" log --first-parent -m --no-renames --diff-filter=AM -z \
+    --format=%x01%H --name-only "${base}..HEAD" -- docs/handover/ 2>/dev/null)
+}
+
+# A path that can be a workstream file: directly under docs/handover/, .md,
+# no newline, not one of the directory's own documents.
+fast_lane_name() {
+  case "$1" in
+    *$'\n'* | docs/handover/*/* | docs/handover/README.md | \
+      docs/handover/TEMPLATE.md | docs/handover/RETIRED.md) return 1 ;;
+    docs/handover/*.md) return 0 ;;
+  esac
+  return 1
 }
 
 # A path as ci prints it: control characters (a newline most of all) as `?`.
