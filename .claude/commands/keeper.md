@@ -21,11 +21,11 @@ one-line report, never retried.
 
 ## Run
 
-A session titled `🔑 keeper: <owner/repo>`, woken hourly by the heartbeat. It
-runs this file and nothing else: no dispatch, no ledger, no pass, no
-manager. Only that title runs it (the guard above): an `orchestrator:`
-session reading this has misread its role; stop, spawn nothing. Its context
-persists across wakes: keep every report to one line.
+The heartbeat wakes this session hourly. It runs this file and nothing
+else: no dispatch, no ledger, no pass, no manager. Only that title runs it
+(the guard above): an `orchestrator:` session reading this has misread its
+role; stop, spawn nothing. Its context persists across wakes: keep every
+report to one line.
 
 Register: this turn's prompt is `/keeper register` (REGISTER's
 `create_session`, `orchestrate-reference.md` "## 0. Start" step 5; the
@@ -41,16 +41,17 @@ first hourly wake runs the check.
    `enabled` true, `run_once_at` set, `persistent_session_id` set,
    `derived_state.prompt` starting `/orchestrate pass`. `list_triggers` is
    account-wide: it lists other sessions' `send_later` wakes with their
-   `persistent_session_id` (read 2026-10-16). `get_session` each
+   `persistent_session_id`. `get_session` each
    distinct `persistent_session_id`: titled exactly `🎼 orchestrator:
    <owner/repo>` (glossary, role title) and not `ARCHIVED` = LIVE. Also LIVE: the session your
    last `started orchestrator <id>` report named, and the
    `parent_session_id` of this wake's guard `get_session` (no
-   `session_id`): the orchestrator whose REGISTER or replace made you
-   (read 2026-10-23); absent or empty = skip it. Each counts when
+   `session_id`): the orchestrator whose REGISTER or replace made you;
+   absent or empty = skip it. Each counts when
    `get_session` finds it titled exactly `🎼 orchestrator:
    <owner/repo>` (glossary, role title) and `RUNNING` or `PENDING` — in its first start it holds
-   no wake. LIVE, and its pending
+   no wake. Both are the reference's "## 0. Start" step 3 LIVE, on the
+   sessions you can name. LIVE, and its pending
    wake's `harness=` line carries `retire=yes` = SWAP, below. Else LIVE =
    report `orchestrator live: <id>`, end the turn. No `list_triggers`, or it errors = report
    `keeper: no list_triggers`, create nothing.
