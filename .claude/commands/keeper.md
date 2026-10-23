@@ -84,5 +84,5 @@ doorbell and an hourly wake never both start one.
 
 An orchestrator a human started, not your parent, holds no wake in its
 first start; an hourly wake inside that turn starts one that exits at
-`orchestrate.md` "## 0. Start" step 3, one short session. Never
+`orchestrate-reference.md` "## 0. Start" step 3, one short session. Never
 nudge or archive an orchestrator from here.

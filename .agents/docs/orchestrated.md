@@ -25,7 +25,7 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | `./joharness.sh janitor` + `janitor :` line | Claims whose session is gone. Mechanical: `./joharness.sh janitor --apply` writes `status: abandoned` into the claim's own file — only where the session is ARCHIVED or not found, never a claim with `pr:` — and deletes nothing. No session, no pull request. Listed only when stale claims exist; the caller proves each session gone and passes the branches: `janitor --apply <branch>...`. |
 | `./joharness.sh clerk` + `clerk :` line | Open issues become plans only through the clerk (`dispatch` reads `docs/plans/` only). Clock-driven, batch `JOHARNESS_CLERK_BATCH`, dated from git: the last `clerk-<digit>…` merge on the base's first parent (GitHub's default merge subject), or a newer `clerk-noop-<stamp>` branch. An unmerged `clerk-<digit>…` branch younger than `JOHARNESS_CLERK_STALE_HOURS` is in flight and takes a slot, due or not — unless it is `ended`: no net change, and a merged `clerk-noop-<stamp>` stamped at or after its tip and not in the future. Orthogonal to the verdict. |
 | `./joharness.sh analysis` | One unmerged branch's condition (BLOCKED / STALL? / LOOP?) beside the base branch's current conf. Read by hand; spawns nothing. |
-| `./joharness.sh scout` + `scout :` line | No clock, no backlog trigger, no DRAINED gate. A pass runs on the reviewer's order (`/scout` typed by a human, or the orchestrator's `+human` extra session) or on a `scout` issue waiting on the scout, which the orchestrator reads on GitHub (`.claude/commands/orchestrate.md`): `joharness.sh` stays git-only: `scout` prints `off` (empty `JOHARNESS_SCOUT_REVIEWER`, or no `docs/product/SCOUT.md` brief on the base branch), `IN FLIGHT` or `none in flight`; dispatch adds `held` (stale view, a pending spawn, `JOHARNESS_MAX_MANAGERS=0`). The report prints every conf value a pass reads: brief, reviewer, research and budget. Every misread fails closed — never spawns a second scout. |
+| `./joharness.sh scout` + `scout :` line | No clock, no backlog trigger, no DRAINED gate. A pass runs on the reviewer's order (`/scout` typed by a human, or the orchestrator's `+human` extra session) or on a `scout` issue waiting on the scout, which the orchestrator reads on GitHub (`orchestrate-reference.md`, "A scout issue needs the scout"): `joharness.sh` stays git-only: `scout` prints `off` (empty `JOHARNESS_SCOUT_REVIEWER`, or no `docs/product/SCOUT.md` brief on the base branch), `IN FLIGHT` or `none in flight`; dispatch adds `held` (stale view, a pending spawn, `JOHARNESS_MAX_MANAGERS=0`). The report prints every conf value a pass reads: brief, reviewer, research and budget. Every misread fails closed — never spawns a second scout. |
 | `./joharness.sh conduct` + `conduct :` line | A sample of retired managers' own artifacts, read for how the item was worked, never the diff. Clock-driven (`JOHARNESS_CONDUCT_HOURS`), dated from the ledger `docs/conduct-log.md`; the command prints the sample and the ledger tally. NOT gated on DRAINED; suppressed while a curate or clerk spawns this pass or is in flight (one held for a slot does not hold it: the reviewer needs none). Every misread fails closed. |
 | `.claude/commands/*.md` | The roles, as commands. |
 
@@ -245,7 +245,7 @@ and `status:` both sides), and for the janitor no `pr:` at live head — and
 refuses on the first that fails. It writes nothing. Its callers: `janitor
 --apply` before its leased push, and the orchestrator's KILL and LOOP
 records, a relayed human answer and the respawn-limit hand-off
-(`.claude/commands/orchestrate.md`, GUARD). `kill` and `loop` skip the `pr:`
+(`.agents/docs/orchestrate-reference.md`, GUARD). `kill` and `loop` skip the `pr:`
 check: a stalled manager with an open pull request stays killable, and its
 record is a handover, not a release. Every caller then pushes with
 `--force-with-lease` at the same sha, which covers the window after the
@@ -491,15 +491,15 @@ re-warm ($5.12 for a first turn after 22h idle, then $0.28-$0.99 a turn at
 about 638k context; `total_cost_usd` of `list_events` `result` events,
 2026-10-12). A resumed orchestrator whose last final
 report is over an hour old says `fresh session is cheaper`, when RUN END's
-retitle was refused, on its first pass (`orchestrate.md`, "Report, every
-pass"). Within one run the cost compounds
+retitle was refused, on its first pass (`orchestrate-reference.md`, "Fresh
+session line"). Within one run the cost compounds
 too (`context_usage.used_tokens` 304,615 over 13 health passes, `get_session`,
 2026-10-13), because `send_later` wakes the SAME session and pass N re-reads
 passes 1..N-1. So after `JOHARNESS_ORCHESTRATOR_PASSES` passes the
 orchestrator's wake carries `retire=yes`, and it keeps running passes. The
 keeper, on its next wake or a doorbell, retitles it `orchestrator
 (retired): <owner/repo>` and starts the successor with that wake as its
-prompt, `pass=1`, no leads (`orchestrate.md` §4, RETIRE; `keeper.md`,
+prompt, `pass=1`, no leads (`orchestrate-reference.md`, RETIRE; `keeper.md`,
 SWAP). The retired session's next wake does nothing. A run that ends on
 its own (DRAINED, a PAUSED exit, a human's stop) retitles itself the same
 way as its last act (`orchestrate.md` §4, RUN END): the session list reads
@@ -572,7 +572,7 @@ what a UI-made Routine's `created_via` reads, and what `ended_reason` a
 manual pause leaves, are unmeasured, so both rules fail toward leaving the
 Routine alone. A pause stops the hourly restarts, not a running
 orchestrator's `send_later` chain; the human's stop does both
-(`orchestrate.md`, §4).
+(`orchestrate-reference.md`, "Human stop").
 
 **Bound, not fresh, by measurement.** A Routine `create_trigger` makes
 from a session with `create_new_session_on_fire` reads `created_via:
@@ -603,7 +603,7 @@ hourly wake lands in its first start: the keeper starts a second, and "##
 0. Start" step 3 lets the older proceed and the newer exit. A DRAINED
 fleet costs one short orchestrator session an hour.
 
-The spec every orchestrator checks at start (`orchestrate.md`, "## 0.
+The spec every orchestrator checks at start (`orchestrate-reference.md`, "## 0.
 Start" step 5; a session-made stale one is replaced, any other `heartbeat
 stale` or `heartbeat duplicated` line pushes):
 

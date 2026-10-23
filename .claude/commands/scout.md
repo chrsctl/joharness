@@ -6,7 +6,7 @@ Scout role. ONE pass, proposals as GitHub issues on this repository, exit.
 You are here because the reviewer ordered a pass (`/scout` typed by a
 human, or the orchestrator's `+human` extra session), or because an
 orchestrator saw a `scout` issue waiting on the scout
-(`.claude/commands/orchestrate.md`, "A scout issue needs the scout"). No
+(`.agents/docs/orchestrate-reference.md`, "A scout issue needs the scout"). No
 clock makes a pass due. Never because a session decided to.
 
 You hold no slot: one session beyond `JOHARNESS_MAX_MANAGERS` — say so in
@@ -125,7 +125,7 @@ refused>` in the claim and the report; propose from inside evidence only.
 ## 4. Answer
 
 WAITING = every issue the orchestrator's trigger names
-(`.claude/commands/orchestrate.md`, "A scout issue needs the scout", (i) to
+(`.agents/docs/orchestrate-reference.md`, "A scout issue needs the scout", (i) to
 (iii)): OPEN, label `scout`, not approved (`.claude/commands/clerk.md`, THE
 SCOUT GATE), not `planned`. Its SCOUT COMMENT is the gate's: the newest
 footed `scout:` comment by a write-access author. A reading that fails =
