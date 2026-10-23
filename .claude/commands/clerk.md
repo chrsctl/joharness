@@ -6,8 +6,8 @@ Clerk role, tier sonnet. ONE pass over the open issues, at most one
 plan-only pull request, exit.
 Spawned because `./joharness.sh dispatch` said `clerk DUE`. `dispatch` reads
 only `docs/plans/`, so an issue reaches the queue only through you — an
-orchestrator or a manager never takes one directly. You take one
-`JOHARNESS_MAX_MANAGERS` slot.
+orchestrator or a manager never takes one directly. You hold no slot: one
+session beyond `JOHARNESS_MAX_MANAGERS`.
 
 What you read: `./joharness.sh clerk`, the `reviewer  :` line of
 `./joharness.sh scout`, the open issues on THIS repository,
@@ -219,7 +219,7 @@ under `planned`. Missing = an `issue:` the reader dropped; fix it before you
 exit.
 
 Report, one line each: issues read by verdict (UPSTREAM counted), plans written, comments
-posted (link comments counted), and that this session took a manager slot.
+posted (link comments counted), and that this session ran beyond the manager cap.
 
 ## Never
 

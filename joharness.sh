@@ -3664,7 +3664,7 @@ clerk_walk() {
 }
 
 # Is a clerk due. CLERK_ROWS is read whatever the clock says: a clerk in
-# flight takes a slot either way.
+# flight is in flight either way, and a second one is never due.
 CLERK_DUE=""
 CLERK_ROWS=""
 clerk_due() {
@@ -6573,7 +6573,7 @@ cmd_dispatch() {
   local n_edge=0 n_edge_stall=0 n_leftover=0 n_leftover_noitem=0
   local leftover_rows="" estate="" fleet_age stall_young=""
   local curate_due=0 curate_inflight="" n_curate_inflight=0 cdue cstate creason
-  local jcands cjudge n_roles role_slots
+  local jcands cjudge n_freer=0
   local scout_inflight="" n_scout=0 sstate sreason sb sw ss spend
   local clerk_due=0 clerk_inflight="" n_clerk=0 kdue kstate kreason kb kw ks
   local conduct_due=0 role_spawned=0 n_conduct=0 odue ostate oreason ob oa conduct_inflight=""
@@ -6583,7 +6583,7 @@ cmd_dispatch() {
   local n_rescope_inflight=0 n_rescope_holders=0 rescope_settled=0
   local rescope_held="" rescope_merged="" msha mkey mheld mchanged
   local rb rk rstat rsess rnext rage rpr rfin
-  local bprows freeable="" fkind fb fn fage n_freeable=0
+  local bprows freeable="" fkind fb fn fage fwhy n_freeable=0
   local DISPATCH_WITHHELD=
   local inflight="" free="" questions=""
 
@@ -6686,8 +6686,8 @@ cmd_dispatch() {
   elif [ "$kstate" = off ]; then
     printf 'clerk     : off — %s\n' "$kreason"
   else
-    # Counted whatever the clock reads: a clerk in flight holds a slot
-    # whether or not its cadence is due.
+    # Counted whatever the clock reads: a clerk in flight blocks a second one
+    # whether or not its cadence is due. It holds no manager slot.
     while IFS=$'\t' read -r kb kw ks; do
       [ -n "$kb" ] || continue
       n_clerk=$((n_clerk + 1))
@@ -6990,7 +6990,7 @@ cmd_dispatch() {
     [ -z "$next" ] || inflight="${inflight}    next: ${next}"$'\n'
   done <<<"$rows"
 
-  # A `free <branch>` manager claims no queue item: its own row, its own slot.
+  # A `free <branch>` manager claims no queue item: its own row, no slot.
   while IFS=$'\t' read -r rb rk rstat _ rsess rnext; do
     [ -n "$rb" ] || continue
     case "$rstat" in
@@ -7009,6 +7009,9 @@ cmd_dispatch() {
       continue
     fi
     n_inflight=$((n_inflight + 1))
+    # A freer is a role: beyond the cap, so it holds no manager slot. Still in
+    # flight: the health pass watches it, and a second one waits.
+    [ "$rstat" = blocked ] || n_freer=$((n_freer + 1))
     if [ "$rstat" = blocked ]; then
       n_blocked=$((n_blocked + 1))
       flag="  BLOCKED: the human's, holds no slot"
@@ -7063,13 +7066,11 @@ cmd_dispatch() {
   [ "$pending_used" -le "$cap" ] || pending_used="$cap"
   # Subtracted here and nowhere else: every verdict below reads n_slots, so the
   # spawn count, the OVERLAP-BOUND gate and the DRAINED reading follow.
-  n_roles=$((n_curate_inflight + n_clerk))
-  n_slots=$((cap - (n_inflight - n_blocked) - pending_used - n_roles))
+  # Managers only: a role session in flight (curator, clerk, freer, surveyor,
+  # scout, conduct) runs beyond the cap and subtracts nothing.
+  n_slots=$((cap - (n_inflight - n_blocked - n_freer) - pending_used))
   [ "$n_slots" -ge 0 ] || n_slots=0
-  if [ "$n_roles" -gt 0 ]; then
-    printf 'slots     : %s of %s free (%s role session(s) in flight count against JOHARNESS_MAX_MANAGERS)\n\n' \
-      "$n_slots" "$cap" "$n_roles"
-  elif [ "$pending" != 0 ]; then
+  if [ "$pending" != 0 ]; then
     # Said on the line, because a silently lowered count is indistinguishable
     # from a busy fleet and the next reader debugs the wrong thing.
     printf 'slots     : %s of %s free (%s spawned, not pushed yet: JOHARNESS_PENDING_SPAWNS)\n\n' \
@@ -7128,17 +7129,23 @@ cmd_dispatch() {
     esac
   done <<<"$rows"
 
-  # FREEABLE: a doc-only branch nobody will merge, brought in by one manager.
+  # FREEABLE: a doc-only branch nobody will merge, brought in by one freer.
+  # A role, not a manager item: beyond the cap, at most one in flight, so it
+  # never counts toward n_free.
   while IFS=$'\t' read -r fkind fb fn fage; do
     [ -n "$fb" ] || continue
-    n_freeable=$((n_freeable + 1))
     if [ "$fkind" = "done" ]; then
-      freeable="${freeable}  free ${fb} (agent: sonnet)  FREEABLE — its only diff is a status: done, pr: none workstream file: merging it closes the branch. /who first: the owner's session RUNNING = not yours"$'\n'
+      fwhy="its only diff is a status: done, pr: none workstream file: merging it closes the branch"
     else
-      freeable="${freeable}  free ${fb} (agent: sonnet)  FREEABLE — ${fn} plan(s) on a doc-only branch, last push $(dispatch_age_text "$fage") ago: merging it lands them in the queue. /who first: the owner's session RUNNING = not yours"$'\n'
+      fwhy="${fn} plan(s) on a doc-only branch, last push $(dispatch_age_text "$fage") ago: merging it lands them in the queue"
+    fi
+    if [ "$n_freer" -gt 0 ]; then
+      freeable="${freeable}  free ${fb} (agent: sonnet)  HOLD — a freer is in flight, one at a time: spawn once it ends. FREEABLE — ${fwhy}"$'\n'
+    else
+      n_freeable=$((n_freeable + 1))
+      freeable="${freeable}  free ${fb} (agent: sonnet)  FREEABLE — ${fwhy}. Beyond the cap, holds no slot, ONE freer per pass. /who first: the owner's session RUNNING = not yours"$'\n'
     fi
   done <<<"$(dispatch_freeable "$bprows")"
-  n_free=$((n_free + n_freeable))
 
   req="$(drain_requirement "$qout" "$edge_items")"
   printf 'spawn, in this order, one manager per item, model = its agent tier:\n'
@@ -7306,15 +7313,12 @@ cmd_dispatch() {
       "$pending"
   else
     drained=1
-    # A curate or clerk spawn line follows below when it is due AND has a slot
-    # (same arithmetic as role_slots): the verdict must not say exit then.
-    local due_slots="$n_slots" role_will_spawn=0
-    if [ "$curate_due" -eq 1 ] && [ "$due_slots" -gt 0 ]; then
-      role_will_spawn=1
-      due_slots=$((due_slots - 1))
-    fi
-    [ "$clerk_due" -eq 1 ] && [ "$fetch_failed" -eq 0 ] && [ "$due_slots" -gt 0 ] &&
-      role_will_spawn=1
+    # A curate, clerk or freer spawn line follows below when it is due (roles
+    # need no slot; cap is not 0 here): the verdict must not say exit then.
+    local role_will_spawn=0
+    [ "$curate_due" -eq 1 ] && role_will_spawn=1
+    [ "$clerk_due" -eq 1 ] && [ "$fetch_failed" -eq 0 ] && role_will_spawn=1
+    [ "$n_freeable" -gt 0 ] && role_will_spawn=1
     if [ "$role_will_spawn" -eq 1 ]; then
       printf 'verdict   : DRAINED — nothing free, nothing in flight; a role is due: spawn it, then schedule the next pass\n'
     else
@@ -7362,29 +7366,30 @@ EOF_CW
     printf '            %s manager(s) blocked: report to the human, never respawn\n' "$n_blocked"
   [ "$n_hold" -eq 0 ] ||
     printf '            %s plan(s) on HOLD behind work in flight: not counted as free\n' "$n_hold"
-  role_slots=$((n_slots - (n_free < n_slots ? n_free : n_slots)))
-  if [ "$curate_due" -eq 1 ] && [ "$role_slots" -gt 0 ]; then
-    role_slots=$((role_slots - 1)); role_spawned=1
-    printf '            curate DUE: spawn ONE curator (agent: sonnet) on ./joharness.sh curate — takes one slot (roles share JOHARNESS_MAX_MANAGERS), at most one in flight (JOHARNESS_CURATE_PLANS, JOHARNESS_CURATE_HOURS)\n'
+  # Roles run beyond the cap: a full fleet of managers holds none of them.
+  # JOHARNESS_MAX_MANAGERS=0 is the human's pause, and holds every one.
+  if [ "$curate_due" -eq 1 ] && [ "$cap" -eq 0 ]; then
+    printf '            curate due, held — JOHARNESS_MAX_MANAGERS=0 is the human'"'"'s pause: spawn none\n'
   elif [ "$curate_due" -eq 1 ]; then
-    printf '            curate due, held — no free slot: roles share JOHARNESS_MAX_MANAGERS with managers\n'
+    role_spawned=1
+    printf '            curate DUE: spawn ONE curator (agent: sonnet) on ./joharness.sh curate — beyond the cap, holds no slot, at most one in flight (JOHARNESS_CURATE_PLANS, JOHARNESS_CURATE_HOURS)\n'
   elif [ "$curate_due" -eq 2 ]; then
     printf '            curate due, nothing needs judgement: spawn no curator. Mechanical repairs: ./joharness.sh curate --apply (the next clerk pass runs it)\n'
   fi
   if [ "$clerk_due" -eq 1 ] && [ "$fetch_failed" -eq 1 ]; then
     printf '            clerk due, held — no fresh view of every branch this pass (fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*), so a clerk in flight might not show: spawn none this pass\n'
-  elif [ "$clerk_due" -eq 1 ] && [ "$role_slots" -le 0 ]; then
-    printf '            clerk due, held — no free slot: roles share JOHARNESS_MAX_MANAGERS with managers\n'
+  elif [ "$clerk_due" -eq 1 ] && [ "$cap" -eq 0 ]; then
+    printf '            clerk due, held — JOHARNESS_MAX_MANAGERS=0 is the human'"'"'s pause: spawn none\n'
   elif [ "$clerk_due" -eq 1 ]; then
     role_spawned=1
-    printf '            clerk DUE: spawn ONE clerk (agent: sonnet) on /clerk — takes one slot (roles share JOHARNESS_MAX_MANAGERS), at most one in flight. It turns open issues into plans and merges that plan-only pull request itself (JOHARNESS_CLERK_HOURS, JOHARNESS_CLERK_BATCH)\n'
+    printf '            clerk DUE: spawn ONE clerk (agent: sonnet) on /clerk — beyond the cap, holds no slot, at most one in flight. It turns open issues into plans and merges that plan-only pull request itself (JOHARNESS_CLERK_HOURS, JOHARNESS_CLERK_BATCH)\n'
   fi
   # Not gated on DRAINED: sampling merged work competes with nothing.
   if [ "$conduct_due" -eq 1 ] && [ "$cap" -eq 0 ]; then
     printf '            conduct due, held — JOHARNESS_MAX_MANAGERS=0 is the human'"'"'s pause: spawn none\n'
   elif [ "$conduct_due" -eq 1 ] && [ "$fetch_failed" -eq 1 ]; then
     printf '            conduct due, held — no fresh view of every branch this pass (fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*), so a reviewer in flight might not show: spawn none this pass\n'
-  # A curate or clerk HELD for a slot does not hold it: the reviewer needs none.
+  # A curate or clerk HELD (a stale view, the pause) does not hold it.
   elif [ "$conduct_due" -eq 1 ] && { [ "$role_spawned" -eq 1 ] ||
      [ "$n_curate_inflight" -gt 0 ] || [ "$n_clerk" -gt 0 ]; }; then
     printf '            conduct due, suppressed — a curate or clerk goes first: spawn none this pass\n'

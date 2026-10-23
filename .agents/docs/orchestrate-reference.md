@@ -201,7 +201,9 @@ no handover, and no handover is no replace. Why:
 
 ## Role sessions
 
-- Role sessions, at most ONE of each per run and none while one is in flight
+- Role sessions run beyond `JOHARNESS_MAX_MANAGERS` and hold no slot: spawn
+  a due line even with every manager slot full. `PAUSED` holds them all.
+  At most ONE of each per run and none while one is in flight
   (dispatch's header block says), `create_session` like a manager
   (`clone_depth: 5000` included), prompt =
   the command + the lines its row names (clerk and conduct: "the role lines";
@@ -215,7 +217,7 @@ no handover, and no handover is no replace. Why:
   | `scout     : none in flight`, AND the human's order (below) or a scout issue that needs the scout (below); any other `scout :` row = nothing | fable | `scout: <UTC date>` | `/scout` | `scouted=<stamp>` |
   | `conduct DUE: spawn` (any verdict; `held`, `suppressed` = nothing) | sonnet | `conduct: <UTC date>` | `/conduct` | `conducted=<stamp>` |
   | `OVERLAP-BOUND`, `rescope :` says `in flight: none` | sonnet | `surveyor: <key>` | `/manage rescope <key>` + the block verbatim | `rescope-<key>@new`, `rescoped=<key>` |
-  | `free <branch> ... FREEABLE` under `spawn` (a slot, like a manager) | sonnet | `freer: <branch>` | `/manage free <branch>` | `free-<key>@new` |
+  | `free <branch> ... FREEABLE` under `spawn` (beyond the cap, no slot; a `HOLD` row = nothing) | sonnet | `freer: <branch>` | `/manage free <branch>` | `free-<key>@new` |
 
   FREEABLE first: prove the owner's session not RUNNING (`/who`, as for
   `janitor`); RUNNING = skip the row this pass. Dispatch drops the row while

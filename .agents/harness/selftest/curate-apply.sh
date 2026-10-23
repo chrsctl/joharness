@@ -107,7 +107,7 @@ commit_all "$cawork" "decompose a direct ask into a plan, and claim it"
 out="$(caci)"
 refute "the branch's own held plan draws no repair" "ownplan: scope: claims" "$(caplans "$out")"
 
-# --- roles share the manager cap -------------------------------------------
+# --- a role runs beyond the manager cap ------------------------------------
 git -C "$cawork" checkout -q main
 git -C "$cawork" checkout -qb claude/curate-run
 mkdir -p "${cawork}/docs/handover"
@@ -118,9 +118,8 @@ git -C "$cawork" push -qu origin claude/curate-run
 git -C "$cawork" checkout -q main
 out="$( cd "$cawork" && JOHARNESS_CONF="$caconf" DISPATCH_FETCH=0 \
   JOHARNESS_MAX_MANAGERS=2 JOHARNESS_CURATE_PLANS=1 ./joharness.sh dispatch 2>&1 )"
-expect "a role in flight takes a slot" \
-  "slots     : 1 of 2 free (1 role session(s) in flight count against JOHARNESS_MAX_MANAGERS)" "$out"
-refute "and no role is ever beyond the cap" "beyond the cap" "$out"
+expect "a role in flight takes no manager slot" "slots     : 2 of 2 free" "$out"
+refute "and the slots line names no role" "role session(s) in flight" "$out"
 
 # --- a due curate with only mechanical repairs spawns no curator ------------
 git -C "$cawork" push -q origin --delete claude/curate-run

@@ -425,13 +425,14 @@ fi
 # --- FREEABLE: a doc-only branch nobody will merge (issue #423) -------------
 # Same fixture. A fresh plan branch is no row: its author may be mid-pull-
 # request. A plan branch past HANDOVER_STALE_SECONDS is `free <branch>`, a
-# spawnable item. An empty done branch needs no wait.
+# freer's row: a role beyond the cap, never a free manager item. An empty done
+# branch needs no wait.
 refute "a fresh plan branch is not FREEABLE" "free plan-only (agent" "$out"
 expect "an empty done branch is FREEABLE at once" \
   "  free carry-pa (agent: sonnet)  FREEABLE — its only diff is a status: done, pr: none workstream file" "$out"
-# The free count before the stale branch, to pin that it adds exactly one
-# (verifier r6: NOT DRAINED alone held with the count code removed).
-bpfree0="$(sed -n 's/^verdict   : NOT DRAINED — \([0-9][0-9]*\) free item.*/\1/p' <<<"$out")"
+# The verdict before the stale branch, to pin that a FREEABLE row adds no free
+# manager item: a freer runs beyond the cap.
+bpverd0="$(grep '^verdict   : ' <<<"$out")"
 git -C "$bpwork" checkout -qb gone-q main
 bpplan "${bpwork}/docs/plans/q.md" q normal
 git -C "$bpwork" add -A
@@ -442,9 +443,15 @@ git -C "$bpwork" checkout -q main
 out="$(bp)"
 expect "a plan branch past the stale window is FREEABLE" \
   "  free gone-q (agent: sonnet)  FREEABLE — 1 plan(s) on a doc-only branch" "$out"
-expect "and it counts as one more free item" \
-  "verdict   : NOT DRAINED — $(( ${bpfree0:-0} + 1 )) free item(s)" "$out"
+expect "and it spawns beyond the cap, one freer at a time" \
+  "Beyond the cap, holds no slot, ONE freer per pass" "$out"
+if [ -n "$bpverd0" ] && [ "$(grep '^verdict   : ' <<<"$out")" = "$bpverd0" ]; then
+  pass "and it adds no free manager item: the verdict does not move"
+else
+  fail "and it adds no free manager item: the verdict does not move"
+fi
 refute "plan-only, still fresh, is still no row" "free plan-only (agent" "$out"
+bpslotsf="$(sed -n 's/^slots     : \([0-9][0-9]*\) of.*/\1/p' <<<"$out")"
 # The manager's claim: the row goes, the claim holds a slot, and the claim's
 # own doc-only branch is never FREEABLE.
 git -C "$bpwork" checkout -qb mgr-free-q main
@@ -456,7 +463,10 @@ git -C "$bpwork" push -qu origin mgr-free-q
 git -C "$bpwork" checkout -q main
 out="$(bp)"
 refute "a free claim on its key drops the row" "free gone-q (agent" "$out"
-expect "the claim is a manager in flight" "  free-gone-q  mgr-free-q  in-progress" "$out"
+expect "the claim is a freer in flight" "  free-gone-q  mgr-free-q  in-progress" "$out"
+expect "and the other FREEABLE row waits: one freer at a time" \
+  "  free carry-pa (agent: sonnet)  HOLD — a freer is in flight" "$out"
+expect "and a freer in flight holds no manager slot" "slots     : ${bpslotsf:-x} of" "$out"
 refute "and the claim's own branch is never FREEABLE" "free mgr-free-q (agent" "$out"
 # Past its retire commit the claim file is gone, the pull request open: the
 # owner sits merged in the manager's branch, so neither is offered (r3).

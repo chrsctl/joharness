@@ -166,10 +166,12 @@ GUARD `<verb>`, before every push onto a manager's branch → ref § GUARD.
 
 ## 3. Spawn
 
-Up to `slots`, dispatch's order, rows under `spawn` only. A ledger `held-human=<pr>` entry holds no slot (dropped per ref § Held by human) (as scout and conduct hold none): spawn up to `slots` plus the number of such entries whose branch dispatch still lists as `retired, no claim file`. Managers and role
-sessions count against `JOHARNESS_MAX_MANAGERS` together: curator and
-clerk take a slot; scout and conduct reviewer hold none. A line or command that says nothing to do spawns
-nothing.
+Up to `slots`, dispatch's order, rows under `spawn` only. A ledger `held-human=<pr>` entry holds no slot (dropped per ref § Held by human): spawn up to `slots` plus the number of such entries whose branch dispatch still lists as `retired, no claim file`.
+`JOHARNESS_MAX_MANAGERS` caps managers only. Every role session (curator,
+clerk, scout, conduct reviewer, surveyor, freer) runs beyond it and holds no
+slot: spawn its line even with every slot full, at most one of each in
+flight. `JOHARNESS_MAX_MANAGERS=0` (`PAUSED`) holds every role too. A line
+or command that says nothing to do spawns nothing.
 
 - Edge work whose session is gone first. An item already in your ledger
   spawns only when this pass's health pass said so.

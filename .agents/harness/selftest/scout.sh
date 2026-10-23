@@ -592,8 +592,8 @@ printf '# clerk\n' >"${scout_work}/.claude/commands/clerk.md"
 out="$(sdsp)"
 expect "dispatch: a clerk due goes first" "conduct due, suppressed" "$out"
 crefute "dispatch: and no reviewer spawns beside it" "conduct DUE: spawn" "$out" "$dran"
-# A clerk HELD for a slot spawns nothing, and the reviewer needs no slot:
-# one free plan fills the one slot.
+# A clerk is never held for a slot: one free plan fills the one slot, the
+# clerk still spawns beyond the cap, and so it goes first.
 mkdir -p "${scout_work}/docs/plans"
 printf -- '---\nplan: zz-free\nagent: sonnet\nneeds: none\nscope: zz.txt\n---\n\n## Goal\nFixture.\n' \
   >"${scout_work}/docs/plans/zz-free.md"
@@ -602,8 +602,9 @@ git -C "$scout_work" add docs/plans/zz-free.md
 git -C "$scout_work" commit -qm "a free plan"
 git -C "$scout_work" push -q origin main
 out="$(sdsp JOHARNESS_MAX_MANAGERS=1)"
-grep -qF "clerk due, held — no free slot" <<<"$out" || fail "fixture: the clerk is not held for a slot"
-expect "dispatch: a clerk held for a slot does not hold the reviewer" "conduct DUE: spawn" "$out"
+grep -qF "slots     : 1 of 1 free" <<<"$out" || fail "fixture: the free plan's slot is not the only one"
+expect "dispatch: a clerk spawns beside a free plan filling the one slot" "clerk DUE: spawn" "$out"
+expect "dispatch: and the reviewer waits behind it" "conduct due, suppressed" "$out"
 git -C "$scout_work" rm -q docs/plans/zz-free.md
 git -C "$scout_work" commit -qm "the free plan gone"
 git -C "$scout_work" push -q origin main
