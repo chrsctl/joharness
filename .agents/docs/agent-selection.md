@@ -3,10 +3,9 @@
 Different plans, different agents. Each plan file under `docs/plans/` names
 in frontmatter which agent tier implements it (`agent`) and at what effort
 (`effort`). This document: the lineup, the selection rules, the model
-behavior they rest on. Developed in a consumer (its PR #3); Lineup facts
-from the claude-api skill's model table cached 2026-10-06 — verify against
-Models API when stale. Cache-read column from Anthropic's pricing page
-fetched 2026-10-09; it supersedes the skill cache's sonnet cache-read 0.20.
+behavior they rest on. Lineup facts: claude-api skill's model table
+(2026-10-06) — verify against Models API when stale. Cache-read column:
+Anthropic's pricing page (2026-10-09); it wins over the skill cache.
 
 ## Lineup
 

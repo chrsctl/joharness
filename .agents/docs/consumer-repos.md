@@ -173,8 +173,7 @@ answer, each with its default and what it means, and:
 - **reports always** — including from `update.yml`, which runs the sync on a
   cron. Where that run also changes files it opens a pull request and the
   report travels in the body; where the harness is already current it changes
-  nothing, opens no pull request, and the report stays in the Actions log
-  (why: history/consumer-repos.md § Settings report, 2026-09-04);
+  nothing, opens no pull request, and the report stays in the Actions log;
 - **asks only with a terminal** — a human running the sync by hand is offered
   each missing key;
 - **writes only what was answered.** Enter or `n` leaves the file alone. A key
@@ -191,8 +190,7 @@ them.
 
 Harness text cites measurements constantly, and a citation wants a source, so
 the name of whatever repository produced the number is the obvious thing to
-write. Do not write it
-(why: history/consumer-repos.md § Name no consumer, 2026-09-16). Write no
+write. Do not write it. Write no
 name in the canonical-only files either.
 
 Cite the measurement, never the repository: the command, the commit, the
@@ -202,7 +200,7 @@ opaque pointer is a different case: on its own it resolves to nothing, and
 the one thing that would make it resolvable — the repository name — is
 already banned above.
 
-Requester's rule, 2026-09-16. The canonical repository's own name, commit
+The canonical repository's own name, commit
 hashes and pull request numbers are not covered. Not gated. The
 edge review catches it.
 
@@ -222,8 +220,7 @@ point at a command's own output, which ships.
 
 Same questions as first contact, each offering the value in force in
 THAT child's conf, and the answers written to its `joharness.conf`. Nothing
-else: no sync, no seeding, no purge
-(why: history/consumer-repos.md § Reconfigure, 2026-09-05).
+else: no sync, no seeding, no purge.
 
 - **Flags answer without asking**, the same ones first contact takes, so a
   scripted change is `--reconfigure --review on <dir>`.
@@ -244,8 +241,7 @@ already open.
 Dispatching it from a session needs no new machinery — `update.yml` already
 declares `workflow_dispatch`. Where the runtime offers a GitHub tool that
 runs a workflow (Claude Code: `mcp__github__actions_run_trigger`, method
-`run_workflow`), pass the workflow file name and a `ref`
-(why: history/consumer-repos.md § Dispatch from a session, 2026-08-28).
+`run_workflow`), pass the workflow file name and a `ref`.
 
 Two things to know before relying on it:
 
@@ -294,8 +290,7 @@ Base branch red before change. Five points:
    Cost = failing tests on two commits, not suite.
 5. Record a consumer keeps, if any: base commit, command, time, result
    — measured number carrying what produced it (step 5). Forecast only
-   (point 3). Harness prescribes no file and no shape
-   (why: history/consumer-repos.md § A red base branch, 2026-10-10).
+   (point 3). Harness prescribes no file and no shape.
 
 ## Local checks
 
@@ -349,8 +344,7 @@ consequences, and the second is the one that bites:
    rebuilds from the current default branch, so the result is by construction
    0 behind, and the open pull request is reused with a refreshed body.
 2. **Anything you commit onto that branch dies at the next run.** Do it the
-   way above
-   (why: history/consumer-repos.md § Bot-owned sync branch, 2026-08-25).
+   way above.
 
 ### When the workflow ends red
 
@@ -386,8 +380,7 @@ thing that can break, and they are the thing to run:
   never synced, so a repo bootstrapped before the job existed does not have
   it. Read the run; otherwise it is yours to run.
 - The consumer's own loop (`run-all.sh` or whatever it calls its suites). The
-  sync can narrow an enum or tighten a guard that consumer files then fail
-  (why: history/consumer-repos.md § Consumer suites after a sync, 2026-08-25).
+  sync can narrow an enum or tighten a guard that consumer files then fail.
 - `./joharness.sh finish` — green by definition here, and worth a glance: a
   sync branch carries **no workstream file** by design (protocol § *When NOT
   to write one*), and this is the command that says so out loud.

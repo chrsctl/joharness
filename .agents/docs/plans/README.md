@@ -2,7 +2,7 @@
 
 Pre-scoped work agents execute without human in loop. One file per plan,
 under `docs/plans/`, on `main` (same-session plan: on its work branch —
-Lifecycle). Loop step 2 (.agents/harness/AGENTS.md): open
+Lifecycle). Queue order (`./joharness.sh dispatch` prints it): open
 GitHub issues first, then unplanned requirements
 ([`docs/product/`](../product/README.md) — decompose before executing),
 then oldest actionable plan here. Issues = human asks and bugs; plans

@@ -551,6 +551,9 @@ check_targets() {
 }
 
 have() { command -v "$1" >/dev/null 2>&1; }
+# Bounded when `timeout` exists (absent on stock macOS), unbounded otherwise.
+tmo() { local secs="$1"; shift; if have timeout; then timeout "$secs" "$@"; else "$@"; fi; }
+TAB="$(printf '\t')"
 
 # The ref that stands for merged state: the remote's base branch, else a local
 # branch of the same name, else HEAD.
@@ -668,7 +671,7 @@ lint_glossary() {
     return 1
   fi
   if printf '%s\n' "$rows" | grep -q '^MALFORMED'; then
-    printf '%s\n' "$rows" | sed -n 's/^MALFORMED\t/  malformed row: /p'
+    printf '%s\n' "$rows" | sed -n "s/^MALFORMED${TAB}/  malformed row: /p"
     printf '  ^ a glossary row is four filled cells; a pipe inside one shifts them\n'
     return 1
   fi
@@ -3829,10 +3832,11 @@ conduct_candidates() {
     return 0
   fi
   logged="$(printf '%s\n' "$ledger" | conduct_rows | cut -f2)"
-  printf '%s\n' "$log" | awk -v standing="$standing" -v logged="$logged" '
+  # Multi-line values travel in the environment: BSD awk rejects a newline in -v.
+  printf '%s\n' "$log" | standing="$standing" logged="$logged" awk '
     BEGIN {
-      n = split(standing, a, "\n"); for (i = 1; i <= n; i++) skip[a[i]] = 1
-      n = split(logged, a, "\n");   for (i = 1; i <= n; i++) done[a[i]] = 1
+      n = split(ENVIRON["standing"], a, "\n"); for (i = 1; i <= n; i++) skip[a[i]] = 1
+      n = split(ENVIRON["logged"], a, "\n");   for (i = 1; i <= n; i++) done[a[i]] = 1
     }
     /^C [0-9a-f]+$/ { sha = substr($0, 3); next }
     /^docs\/handover\/[A-Za-z0-9._-]+\.md$/ {
@@ -4523,8 +4527,10 @@ cmd_start() {
 
   # BEFORE the routing line, not after it.
   printf 'Prompt names /manage <item>? STOP: you are a MANAGER of that item\n'
-  printf 'and .claude/commands/manage.md is your file. No shell can see a\n'
-  printf 'prompt, so the line below is the default: the ORCHESTRATOR.\n\n'
+  printf 'and .claude/commands/manage.md is your file. Prompt is /keeper?\n'
+  printf 'STOP: you are the KEEPER and .claude/commands/keeper.md is your file.\n'
+  printf 'No shell can see a prompt, so the line below is the default: the\n'
+  printf 'ORCHESTRATOR.\n\n'
 
   # A checkout whose routed file is missing is an old harness copy, and there
   # is nothing to follow.
@@ -4896,8 +4902,8 @@ checks_gate() {
   # Behind the base branch is step 7's own condition in both modes, and a red
   # in this one only.
   fresh="as of the last fetch"
-  if [ "${HANDOVER_FETCH:-1}" = "1" ] && have timeout &&
-     timeout 15 git -C "$ROOT" fetch --quiet origin \
+  if [ "${HANDOVER_FETCH:-1}" = "1" ] &&
+     tmo 15 git -C "$ROOT" fetch --quiet origin \
        "${HANDOVER_BASE_BRANCH:-main}" >/dev/null 2>&1; then
     fresh="fetched just now"
   fi
@@ -5305,8 +5311,8 @@ dispatch_age_text() {
 
 # The hook's wave partition, one line per member: stem, wave, overlap note.
 dispatch_waves() {
-  sed -n 's/^  wave \([0-9][0-9]*\): \(.*\)$/\1\t\2/p' |
-    sed 's/ — /\t/; s/;[^\t]*$//' |
+  sed -n "s/^  wave \\([0-9][0-9]*\\): \\(.*\\)\$/\\1${TAB}\\2/p" |
+    sed "s/ — /${TAB}/; s/;[^${TAB}]*\$//" |
     awk -F'\t' '{
       note = $3; sub(/^overlaps /, "", note)
       m = split($2, parts, ", ")
@@ -5678,8 +5684,9 @@ curate_regthr() {
   printf '%s' "$r"
 }
 
-# Every unmarked scope: entry across the queue, held plans included:
-# `<path>\t<stem>`, one per plan per path.
+# Every scope: entry across the queue, held plans included, marked or not:
+# `<path>\t<stem>\t<S|->`, one per plan per path, path without `shared:`,
+# third field `S` when that plan marks it shared.
 curate_counts() {
   local rel stem s
   while IFS= read -r rel; do
@@ -5687,13 +5694,15 @@ curate_counts() {
     stem="$(lint_stem "$rel")"
     while IFS= read -r s; do
       [ -n "$s" ] || continue
-      case "$s" in shared:*) continue ;; esac
-      printf '%s\t%s\n' "$s" "$stem"
+      case "$s" in
+        shared:*) printf '%s\t%s\tS\n' "${s#shared:}" "$stem" ;;
+        *)        printf '%s\t%s\t-\n' "$s" "$stem" ;;
+      esac
     done < <(curate_scope_list "$rel")
   done < <(lint_nodes docs/plans)
 }
 
-# How many plans declare <path> unmarked, from curate_counts output.
+# How many plans declare <path>, marked or not, from curate_counts output.
 curate_hits() {
   printf '%s' "$2" | awk -F'\t' -v p="$1" '$1 == p { print $2 }' | sort -u | grep -c . || :
 }
@@ -5764,15 +5773,36 @@ curate_fixed_scope() {
   printf '%s' "$out" | awk 'NF && !seen[$0]++' | paste -sd, - | sed 's/,/, /g'
 }
 
-# Rewrite <rel>'s frontmatter scope: line to <value>.
+# Rewrite <rel>'s frontmatter scope: line to <value>. In place (`cat >`), so
+# the file keeps its mode on every platform; a symlink is refused, never
+# replaced by a regular file.
 curate_write_scope() {
   local f="${ROOT}/$1" tmp
+  if [ -L "$f" ]; then
+    printf 'refused   : %s is a symlink — not rewritten\n' "$1"
+    return 1
+  fi
   tmp="$(mktemp)" || return 1
-  awk -v v="$2" '
+  if awk -v v="$2" '
     NR == 1 && $0 == "---" { fm = 1; print; next }
     fm && $0 == "---" { fm = 0 }
     fm && /^scope:/ { print "scope: " v; next }
-    { print }' "$f" >"$tmp" && mv "$tmp" "$f"
+    { print }' "$f" >"$tmp"; then
+    cat "$tmp" >"$f" || { rm -f "$tmp"; return 1; }
+    rm -f "$tmp"
+  else
+    rm -f "$tmp"; return 1
+  fi
+}
+
+# Does a `## Scope` bullet of <rel> naming <path> in backticks say it is new
+# (a word starting `create`, or `new file`)? A new file is not in the tree
+# yet, by design. The rule: the bullet, not the parent directory.
+curate_marked_new() {
+  awk -v p="$2" '
+    /^## Scope/ { s = 1; next } /^## / { s = 0 }
+    s && /^- / && index($0, "`" p "`") && tolower($0) ~ /(^|[^a-z])(create|new file)/ { f = 1 }
+    END { exit !f }' "${ROOT}/$1"
 }
 
 cmd_curate() {
@@ -5875,7 +5905,8 @@ cmd_curate() {
       while IFS= read -r s; do
         [ -n "$s" ] || continue
         s="${s#shared:}"
-        [ -e "${ROOT}/${s}" ] || hit=$((hit + 1))
+        # A path its Scope bullet marks new is not built yet, not gone.
+        [ -e "${ROOT}/${s}" ] || curate_marked_new "$rel" "$s" || hit=$((hit + 1))
       done <<<"$scope"
       if [ "$hit" -gt 0 ] &&
          [ "$hit" -eq "$(printf '%s\n' "$scope" | grep -c .)" ]; then
@@ -5898,9 +5929,9 @@ cmd_curate() {
     hit="$(printf '%s' "$counts" | awk -F'\t' -v q="$p" '$1 == q { print $2 }' | sort -u | paste -sd, -)"
     n_propose=$((n_propose + 1))
     propose="${propose}  '${p}': claimed exclusively by ${hit} — order them, or say they are one plan. The human decides"$'\n'
-  done < <(printf '%s' "$counts" | awk -F'\t' '{ seen[$1 "\t" $2] = 1 }
+  done < <(printf '%s' "$counts" | awk -F'\t' '{ seen[$1 "\t" $2] = 1; if ($3 == "S") m[$1] = 1 }
     END { for (k in seen) { split(k, a, "\t"); c[a[1]]++ }
-          for (q in c) if (c[q] >= 2 && c[q] < '"$regthr"') print q }' | sort)
+          for (q in c) if (c[q] >= 2 && c[q] < '"$regthr"' && !(q in m)) print q }' | sort)
 
   printf 'plans     : %s free, %s held by a manager (held draw no findings)\n\n' \
     "$n_plans" "$n_held"
@@ -5931,7 +5962,7 @@ cmd_curate() {
 plans_in_diff() {
   local base="$1"
   {
-    git -C "$ROOT" diff --name-only --diff-filter=A "$base" -- docs/plans 2>/dev/null
+    git -C "$ROOT" diff --no-renames --name-only --diff-filter=A "$base" -- docs/plans 2>/dev/null
     git -C "$ROOT" ls-files --others --exclude-standard -- docs/plans 2>/dev/null
   } | awk '/^docs\/plans\/[^\/]+\.md$/ && !/\/(README|TEMPLATE|RETIRED)\.md$/' | sort -u |
     while IFS= read -r f; do [ -f "${ROOT}/${f}" ] && printf '%s\n' "$f"; done
@@ -6516,7 +6547,7 @@ cmd_dispatch() {
   esac
   if [ "${DISPATCH_FETCH:-1}" != 0 ]; then
     if [ "$(git -C "$ROOT" rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
-      timeout 60 git -C "$ROOT" fetch -q --prune --unshallow origin 2>/dev/null ||
+      tmo 60 git -C "$ROOT" fetch -q --prune --unshallow origin 2>/dev/null ||
         git -C "$ROOT" fetch -q --prune origin 2>/dev/null ||
         { warn "fetch failed; push ages below are from the last fetch"; fetch_failed=1; }
     else
@@ -6766,12 +6797,12 @@ cmd_dispatch() {
   # in-flight row; unclaimed, `drain_requirement` offers it, never the free
   # walk below.
   rows="$(printf '%s\n' "$qout" |
-    sed -n 's#^  \(docs/\(plans\|research\|product\)/[^ ]*\.md\)  \(\[.*\]\)$#\1|\3#p')"
+    sed -nE 's#^  (docs/(plans|research|product)/[^ ]*\.md)  (\[.*\])$#\1|\3#p')"
   wavemap="$(printf '%s\n' "$qout" | dispatch_waves)"
   # The hook's orchestrated-only lines: a free plan whose scope overlaps a
   # plan a manager holds now. Stem, then the rest of the line as the reason.
   holdmap="$(printf '%s\n' "$qout" |
-    sed -n 's/^  in flight: \([^ ]*\) overlaps \(.*\)$/\1\t\2/p' |
+    sed -n "s/^  in flight: \\([^ ]*\\) overlaps \\(.*\\)\$/\\1${TAB}\\2/p" |
     sed 's/(claimed on origin\//(claimed on /')"
 
   while IFS='|' read -r path label; do
@@ -7077,7 +7108,7 @@ cmd_dispatch() {
       sort -u |
       awk -F'\t' '{ c[$2]++ } END { for (p in c) print c[p] "\t" p }' |
       sort -rn |
-      sed 's/^\([0-9][0-9]*\)\t\(.*\)/    \2  (\1 held)/')"
+      sed "s/^\\([0-9][0-9]*\\)${TAB}\\(.*\\)/    \\2  (\\1 held)/")"
     # ONE pass, fed by process substitution rather than a "$(...)" capture read
     # back through a "<<<" here-string.
     while IFS=$'\t' read -r rb rk rstat rpr rsess rnext; do
@@ -7398,13 +7429,15 @@ cmd_session_start() {
   # One mode, so one banner, printed first: it governs the whole session,
   # including the parts that run before an environment resolves.
   printf '== Mode: orchestrated ==\n\n'
-  printf 'Two roles, one Loop. Your prompt names /manage <item>? You are a\n'
+  printf 'Three roles, one Loop. Your prompt names /manage <item>? You are a\n'
   printf 'MANAGER: that ONE item, the full Loop on it, merge your own pull\n'
-  printf 'request, push at every milestone, exit. No item named? You are the\n'
+  printf 'request, push at every milestone, exit. Prompt is /keeper? The\n'
+  printf 'heartbeat woke the KEEPER: keeper.md, that file only. Neither? You are the\n'
   printf 'ORCHESTRATOR: run /orchestrate — it reads ./joharness.sh dispatch,\n'
   printf 'spawns one manager per free item under the cap, checks health, and\n'
-  printf 'exits at DRAINED with nothing in flight. The command IS the rules\n'
-  printf 'for its role (.claude/commands/orchestrate.md, manage.md).\n'
+  printf 'exits at DRAINED with nothing in flight. The command IS\n'
+  printf 'the rules for its role (.claude/commands/orchestrate.md, manage.md,\n'
+  printf 'keeper.md).\n'
   printf 'Each role reads its own documents and no others: the queue is NOT\n'
   printf 'printed here. Orchestrator: dispatch is the whole read — open no\n'
   printf 'plan, requirement or other branch. Manager: your item, this\n'
