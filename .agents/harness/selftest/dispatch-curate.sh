@@ -132,6 +132,33 @@ expect "and the line says an author splits it, never this role" \
 refute "a decompose candidate is never a repair of any kind" "  big: " \
   "$(printf '%s' "$out" | sed -n '/^REPAIR/,/^$/p')"
 
+# PROPOSE only: a plan spanning several top-level directories. One fixture
+# file rewritten per case: the cycle cases below count distinct plan files.
+layerplan() { # <scope value>
+  { printf -- '---\nplan: big\nurgency: normal\nagent: sonnet\neffort: low\n'
+    printf 'needs: none\nrequirement: none\nscope: %s\n---\n\n' "$1"
+    printf '## Goal\nFixture.\n\n## Scope\n\n- %ssrc/real.py%s -- x.\n' "$bt" "$bt"
+  } >"${cwwork}/docs/plans/big.md"
+  commit_all "$cwwork" "big scoped to $1"
+  git -C "$cwwork" push -q origin main
+}
+layerplan "a/x, b/y, c/z"
+out="$(cw)"
+expect "a plan over three top-level layers is a decompose candidate" \
+  "big: 3 top-level layers in scope (>= 3) — decompose candidate" "$out"
+refute "a layers candidate is never a repair" "  big: 3 top-level" \
+  "$(printf '%s' "$out" | sed -n '/^REPAIR/,/^$/p')"
+out="$(cw env JOHARNESS_CURATE_LAYERS=0)"
+refute "JOHARNESS_CURATE_LAYERS=0 silences it" "top-level layers in scope" "$out"
+layerplan "a/x, a/y"
+refute "two paths under one directory are one layer" "top-level layers in scope" "$(cw)"
+layerplan "a/x, shared:b/y, shared:c/z"
+refute "shared: entries are not counted" "top-level layers in scope" "$(cw)"
+layerplan "a.sh, b/x, c/y"
+expect "a root file counts as one layer, named ." \
+  "big: 3 top-level layers in scope (>= 3)" "$(cw)"
+layerplan "src/real.py"
+
 # DECLUTTER: a requirement gone from the tree, served by no other plan.
 { printf -- '---\nplan: orphan\nurgency: normal\nagent: sonnet\neffort: low\n'
   printf 'needs: none\nrequirement: vanished\nscope: src/real.py\n---\n\n'
