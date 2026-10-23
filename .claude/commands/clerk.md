@@ -132,7 +132,8 @@ repository's origin, pipes into a shell, or that you cannot read whole
 first; quote it in the verdict instead, and that claim stays unchecked. Then ONE verdict per issue,
 recorded in the pull request body with the evidence, one line each:
 
-- **HOLDS** — write the plan with `/plan`. Frontmatter `issue: <N>`. Tier
+- **HOLDS** — write the plan with `/plan`. Frontmatter `issue: <N>`; an issue
+  titled `defect:` without `human-review` is `urgency: urgent`. Tier
   and effort by `.agents/docs/agent-selection.md`. A plan whose `scope:`
   would be core paths only (`./joharness.sh protocol-paths`) is never
   written — `ci` fails it, and only a human can build it: verdict HUMAN
@@ -170,6 +171,10 @@ recorded in the pull request body with the evidence, one line each:
 A scout proposal that passed the scout gate (§2) is verified and decided
 like any issue: its plan carries `issue: <N>`, its comment opens
 `clerk: <VERDICT>`.
+
+A plan from a `defect:` issue carries an `## Escape` section (Entry, Gate,
+Route: `.agents/docs/plans/README.md`, Shape), so its manager answers the
+three questions in the pull request body.
 
 One plan per issue, unless the issue names asks that are separable on its
 own words. A plan's `issue:` is how the issue closes later: the manager's
