@@ -64,6 +64,12 @@ build into sub-tasks, each written for a literal reader:
   (and small — past 100K prompt tokens haiku bills 5x); sonnet otherwise;
   never above the plan's `agent:`
 
+Plan `agent: opus` or `fable`? Before the first worker, spawn
+`.claude/agents/plan-checker.md` on the plan file. Record its findings in
+`## Review` as `(plan-checker)`; fix the plan on the branch or `wontfix:
+why`. At most 3 rounds; open count not falling between rounds = stop, take
+the review-churn route (`.agents/docs/agent-selection.md`).
+
 Worker = `Agent` tool, `subagent_type: general-purpose`, `model` = its tier,
 parallel across disjoint file sets. Its prompt carries the sub-task whole (a
 subagent gets no hook state, `.agents/docs/subagents.md`) plus:

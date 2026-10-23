@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01AkrfEEAVogEU2VPrEVsggC
 agent: sonnet
 updated: 2026-10-23
-next: Write .claude/agents/plan-checker.md, then manage.md §2 paragraph, then subagents.md bullet
+next: Record dry-run plan-checker result in ## Review, run ci+verifier, finish
 ---
 
 ## Goal
