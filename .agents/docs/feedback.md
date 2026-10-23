@@ -234,7 +234,9 @@ destination can reach it. No third case, so no destination to build.
 
 A defect found OUTSIDE the edge's own change has no fix path in that edge: it
 goes to a `defect:` issue on the consumer's repo (`.claude/commands/manage.md`,
-"A DEFECT"), held by `human-review` until the owner releases it to the clerk.
+"A DEFECT"), held by `human-review` until the owner releases it to the clerk. A BLOCKING
+defect (the edge cannot meet its Acceptance) is filed with no label, so the
+clerk plans it urgent.
 
 ## What this cannot see
 

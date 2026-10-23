@@ -446,6 +446,8 @@ blkcase k 'conflict: both sides rewrote one function'
 refute "a conflict block names its reason" "INVALID BLOCK?" "$out"
 blkcase l 'hardware: needs a gpu'
 refute "a hardware block names its reason" "INVALID BLOCK?" "$out"
+blkcase n 'defect: #9: ci red on origin/main'
+refute "a defect block names its reason" "INVALID BLOCK?" "$out"
 blkcase m '"money: a quoted reason still counts"'
 refute "a quoted reason is still a reason" "INVALID BLOCK?" "$out"
 blkcase f 'Human: run web.py'

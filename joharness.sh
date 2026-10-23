@@ -6555,7 +6555,8 @@ block_reason_ok() {
   local t="${1#[\"\']}"
   case "$t" in
     "money:"* | "credentials:"* | "product:"* | "interface:"* | "core path:"* | \
-    "conflict:"* | "hardware:"* | "github:"* | "stalled:"* | "respawns:"*) return 0 ;;
+    "conflict:"* | "hardware:"* | "github:"* | "stalled:"* | "respawns:"* | \
+    "defect:"*) return 0 ;;
   esac
   return 1
 }
