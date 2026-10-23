@@ -127,8 +127,9 @@ JOHARNESS_CLERK_STALE_HOURS|24|dispatch|An unmerged clerk branch older than this
 JOHARNESS_SCOUT_READS|12|dispatch|Outside reads one scout pass makes before it proposes from what it has.
 JOHARNESS_CONDUCT_HOURS|168|dispatch|Hours since the conduct ledger last landed before a reviewer is due; 0 = off.
 JOHARNESS_CONDUCT_SAMPLE|3|dispatch|Retired branches one conduct run samples; 0 = off.
-JOHARNESS_DEFECT_PLAN_HOURS|48|dispatch|Hours after a defect: block with no plan naming its issue = PARKED UNPLANNED; 0 lifts it.
-JOHARNESS_DEFECT_FIX_HOURS|72|dispatch|Hours after a defect: block with no RESUME = PARKED STUCK; 0 lifts it.
+JOHARNESS_DEFECT_PLAN_HOURS|48|dispatch|Hours after the first defect: park on an issue with no plan naming it = PARKED UNPLANNED; 0 lifts it.
+JOHARNESS_DEFECT_FIX_HOURS|72|dispatch|Hours after the first defect: park on an issue with no RESUME = PARKED STUCK; 0 lifts it.
+JOHARNESS_DEFECT_RECHECK_HOURS|2|dispatch|Hours after a defect: block, the base moved since and no plan naming its issue, before PARKED RECHECK; 0 lifts it.
 JOHARNESS_SCOUT_REVIEWER||base-conf|GitHub login whose approved comment gates a scout proposal; empty = none. Read from the base branch conf.
 JOHARNESS_SCOUT_RESEARCH|off|base-conf|Exactly on = a scout pass may read outside the repository. Read from the base branch conf.
 JOHARNESS_CANONICAL||session|Conf line JOHARNESS_CANONICAL=1 marks the canonical checkout; never in a consumer.
@@ -2542,7 +2543,8 @@ analysis_one() {
     dn="$(defect_issue "$(printf '%s\n' "$doc" | gr_field_raw next)")"
     cond="PARKED${dn:+ #${dn}}"
     out="${out}condition : ${cond} — a defect's, not a human's. dispatch resumes it once a"$'\n'
-    out="${out}            plan naming the issue retires on ${base_branch}"$'\n'
+    out="${out}            plan naming the issue retires on ${base_branch}, or rechecks it once"$'\n'
+    out="${out}            ${base_branch} moves and no plan names it"$'\n'
   elif [ "$status" = "blocked" ]; then
     cond="BLOCKED"
     out="${out}condition : BLOCKED — a human's. dispatch relays this row every pass and"$'\n'
@@ -5619,14 +5621,27 @@ defect_issue() {
 #   RESUME      a plan naming #<n> left the base's first parent after the
 #               block commit (renames are not a retire), and no plan on the
 #               base nor on a `live` branch row names #<n> now;
-#   STUCK       no RESUME, JOHARNESS_DEFECT_FIX_HOURS since the block commit;
+#   STUCK       no RESUME, JOHARNESS_DEFECT_FIX_HOURS since the first park;
 #   UNPLANNED   no plan names #<n> anywhere, JOHARNESS_DEFECT_PLAN_HOURS
-#               since the block commit;
+#               since the first park;
+#   RECHECK     no plan on the base nor on a `live` branch row names #<n>,
+#               JOHARNESS_DEFECT_RECHECK_HOURS since the block commit, and
+#               the base's first parent has a commit the block commit cannot
+#               reach, dated at or after it. A re-park writes a new block
+#               commit: once per base advance;
 #   PARKED      otherwise.
+# The first park: the oldest commit on the branch, newer than its last
+# orchestrator RESUME next: on #<n>, whose next: is a defect: on #<n>. A re-park
+# after a RECHECK restarts RECHECK's clock, never STUCK's nor UNPLANNED's,
+# and those two outrank RECHECK: rechecks end and the human hears, once,
+# however often the base moves.
+# The minutes column is since the block commit for RESUME and RECHECK, since
+# the first park otherwise.
 # args: <branch> <workstream path> <merge base> <next:> <branch-plan rows>
 dispatch_defect_state() {
   local branch="$1" ws="$2" base="$3" next="$4" bprows="$5"
-  local ref n h cur prev bh="" bt now age phours fhours retired="" named=0
+  local ref n h cur prev bh="" bt now age phours fhours rhours retired="" named=0
+  local ft fage
   local line rh rt p kind b st
   ref="refs/remotes/origin/${branch}"
   # The caller's next: went through gr_fields, which cut ` #<n>…` as a comment.
@@ -5660,6 +5675,22 @@ dispatch_defect_state() {
   now="$(date +%s)"
   age=$(( (now - bt) / 60 ))
   [ "$age" -ge 0 ] || age=0
+  # Newest first; the orchestrator's RESUME on #<n> closed every park before
+  # it (orchestrate-reference.md, Resume) — its wording only: a KILL
+  # handover's or a manager's own `Resume:` closes nothing.
+  ft="$bt"
+  while IFS= read -r h; do
+    [ -n "$h" ] || continue
+    p="$(git -C "$ROOT" show "${h}:${ws}" </dev/null 2>/dev/null | gr_field_raw next)"
+    case "${p#[\"\']}" in "Resume: the fix for #${n} merged"*) break ;; esac
+    [ "$(defect_issue "$p")" = "$n" ] || continue
+    h="$(git -C "$ROOT" log -1 --format=%ct "$h" </dev/null 2>/dev/null)"
+    case "$h" in '' | *[!0-9]*) continue ;; esac
+    [ "$h" -ge "$ft" ] || ft="$h"
+  done < <(git -C "$ROOT" log --first-parent --format=%H \
+    "${base:+${base}..}${ref}" -- "$ws" </dev/null 2>/dev/null)
+  fage=$(( (now - ft) / 60 ))
+  [ "$fage" -ge 0 ] || fage=0
   # A retire after the block: a plan file DELETED on the base's first parent,
   # renames detected over the whole tree (a pathspec would cut a rename out of
   # docs/plans into a delete), at or after the block commit's time. 90%: a
@@ -5702,14 +5733,26 @@ dispatch_defect_state() {
   fi
   fhours="$(num_knob JOHARNESS_DEFECT_FIX_HOURS)"
   phours="$(num_knob JOHARNESS_DEFECT_PLAN_HOURS)"
-  if [ "$fhours" -gt 0 ] && [ "$age" -ge $((fhours * 60)) ]; then
-    printf 'STUCK\t%s\t%s\t%s\n' "$n" "${retired:--}" "$age"
+  if [ "$fhours" -gt 0 ] && [ "$fage" -ge $((fhours * 60)) ]; then
+    printf 'STUCK\t%s\t%s\t%s\n' "$n" "${retired:--}" "$fage"; return 0
   elif [ "$phours" -gt 0 ] && [ -z "$retired" ] && [ "$named" -eq 0 ] &&
-       [ "$age" -ge $((phours * 60)) ]; then
-    printf 'UNPLANNED\t%s\t-\t%s\n' "$n" "$age"
-  else
-    printf 'PARKED\t%s\t%s\t%s\n' "$n" "${retired:--}" "$age"
+       [ "$fage" -ge $((phours * 60)) ]; then
+    printf 'UNPLANNED\t%s\t-\t%s\n' "$n" "$fage"; return 0
   fi
+  rhours="$(num_knob JOHARNESS_DEFECT_RECHECK_HOURS)"
+  if [ "$rhours" -gt 0 ] && [ -z "$retired" ] && [ "$named" -eq 0 ] &&
+     [ "$age" -ge $((rhours * 60)) ]; then
+    # The base moved: a first-parent commit the block commit cannot reach,
+    # dated at or after it (a commit merged in from before the block is not
+    # a move since it). Same walk as the retire above.
+    while IFS= read -r rt; do
+      case "$rt" in '' | *[!0-9]*) continue ;; esac
+      [ "$rt" -ge "$bt" ] || continue
+      printf 'RECHECK\t%s\t-\t%s\n' "$n" "$age"; return 0
+    done < <(git -C "$ROOT" log --first-parent --format=%ct \
+      "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" "^${bh}" </dev/null 2>/dev/null)
+  fi
+  printf 'PARKED\t%s\t%s\t%s\n' "$n" "${retired:--}" "$fage"
 }
 dispatch_claim_age_min() {
   local ts now
@@ -7102,8 +7145,9 @@ cmd_dispatch() {
   local bprows freeable="" fkind fb fn fage fwhy n_freeable=0
   local DISPATCH_WITHHELD=
   local inflight="" free="" questions=""
-  local n_parked=0 n_fixed=0 n_resume=0 parked_lines="" dst dn dplan dage di ri rtext dresume=0
-  local -a fx_rows=() fx_lines=() fx_n=() fx_plan=() fx_di=()
+  local n_parked=0 n_fixed=0 n_resume=0 n_recheck=0 parked_lines="" dst dn dplan dage di ri rtext dresume=0
+  local fx_label fx_wait fx_k fx_r fx_c fx_slot fx_lim
+  local -a fx_rows=() fx_lines=() fx_n=() fx_plan=() fx_di=() fx_kind=()
 
   cap="$(num_knob JOHARNESS_MAX_MANAGERS)"
   stall="$(num_knob JOHARNESS_STALL_MINUTES)"
@@ -7449,14 +7493,15 @@ cmd_dispatch() {
             <<<"$(dispatch_defect_state "$branch" "$ws" "$base" "$next" "$bprows")"
           di="$(basename "$path" .md) (${branch})"
           case "$dst" in
-            RESUME)
-              # Which RESUME rows get a slot is known only once every row is
-              # counted. The text so far is cut here and the row's mark is
-              # written below the loop — never a token in text a branch
-              # writes, which could carry it.
+            RESUME | RECHECK)
+              # Which RESUME and RECHECK rows get a slot is known only once
+              # every row is counted. The text so far is cut here and the
+              # row's mark is written below the loop — never a token in text
+              # a branch writes, which could carry it.
               n_fixed=$((n_fixed + 1)); dresume=1
+              [ "$dst" = RESUME ] || n_recheck=$((n_recheck + 1))
               fx_lines+=("$parked_lines"); parked_lines=""
-              fx_n+=("$dn"); fx_plan+=("$dplan"); fx_di+=("$di") ;;
+              fx_n+=("$dn"); fx_plan+=("$dplan"); fx_di+=("$di"); fx_kind+=("$dst") ;;
             UNREADABLE)
               flag="  PARKED UNREADABLE: the commit that wrote next: is not in this clone's history, or next: names no issue number — no RESUME, holds no slot: notify the human once"
               parked_lines="${parked_lines}            PARKED UNREADABLE ${di}: notify the human once"$'\n' ;;
@@ -7464,13 +7509,13 @@ cmd_dispatch() {
               flag="  PARKED #${dn} STUCK: no fix retired in $(dispatch_age_text "$dage") (>= JOHARNESS_DEFECT_FIX_HOURS), holds no slot: notify the human once"
               parked_lines="${parked_lines}            PARKED #${dn} STUCK ${di}: no fix retired in $(dispatch_age_text "$dage"): notify the human once"$'\n' ;;
             UNPLANNED)
-              flag="  PARKED #${dn} UNPLANNED: no plan names #${dn} $(dispatch_age_text "$dage") after the block (>= JOHARNESS_DEFECT_PLAN_HOURS), holds no slot: notify the human once"
+              flag="  PARKED #${dn} UNPLANNED: no plan names #${dn} $(dispatch_age_text "$dage") after the first park (>= JOHARNESS_DEFECT_PLAN_HOURS), holds no slot: notify the human once"
               parked_lines="${parked_lines}            PARKED #${dn} UNPLANNED ${di}: no plan names #${dn}: notify the human once"$'\n' ;;
             *)
-              flag="  PARKED #${dn}: a defect's, holds no slot, parked $(dispatch_age_text "$dage") ago: waits for a plan naming #${dn} to retire"
+              flag="  PARKED #${dn}: a defect's, holds no slot, parked $(dispatch_age_text "$dage") ago: waits for a plan naming #${dn} to retire, or the base to move"
               parked_lines="${parked_lines}            PARKED #${dn} ${di}: waits for the fix, report only"$'\n' ;;
           esac
-          # PARKED and RESUME keep their scope held: the item comes back,
+          # PARKED, RESUME and RECHECK keep their scope held: the item comes back,
           # and a manager spawned on its overlap now would race it. Once a
           # human is told, it is released as a human's block is.
           case "$dst" in
@@ -7610,15 +7655,45 @@ cmd_dispatch() {
   # scout, conduct) runs beyond the cap and subtracts nothing.
   n_slots=$((cap - (n_inflight - n_blocked - n_freer_live) - pending_used))
   [ "$n_slots" -ge 0 ] || n_slots=0
-  # A RESUME is a spawn of this pass: it takes a slot ahead of every free
-  # item, and only as many print as there are slots.
+  # A RESUME or RECHECK is a spawn of this pass: it takes a slot ahead of
+  # every free item, and only as many print as there are slots.
   n_resume=$n_fixed
   [ "$n_resume" -le "$n_slots" ] || n_resume=$n_slots
   n_slots=$((n_slots - n_resume))
+  # A fix that retired outranks a recheck: RESUME rows take the slots first.
+  # The label on the slots and verdict lines names the rows that got one;
+  # with no slot, the rows that wait.
+  # Rows print in their own order (each one carries the text before it);
+  # fx_k is a row's rank: RESUME rows first, then RECHECK rows.
+  fx_slot=$((n_fixed - n_recheck))
+  [ "$fx_slot" -le "$n_resume" ] || fx_slot=$n_resume
+  if [ "$n_resume" -eq 0 ]; then fx_slot=$((n_fixed - n_recheck)); fx_lim=$n_fixed
+  else fx_lim=$n_resume; fi
+  if [ "$fx_slot" -eq "$fx_lim" ]; then
+    fx_label=RESUME; fx_wait=fixed
+  elif [ "$fx_slot" -eq 0 ]; then
+    fx_label=RECHECK; fx_wait="due a recheck"
+  else
+    fx_label=RESUME/RECHECK; fx_wait="fixed or due a recheck"
+  fi
   rtext=""; dst=""
+  fx_r=0; fx_c=$((n_fixed - n_recheck))
   for ((ri = 0; ri < n_fixed; ri++)); do
+    if [ "${fx_kind[$ri]}" = RECHECK ]; then
+      fx_k=$fx_c; fx_c=$((fx_c + 1))
+    else
+      fx_k=$fx_r; fx_r=$((fx_r + 1))
+    fi
     dn="${fx_n[$ri]}"; dplan="${fx_plan[$ri]}"; di="${fx_di[$ri]}"
-    if [ "$ri" -lt "$n_resume" ]; then
+    if [ "${fx_kind[$ri]}" = RECHECK ]; then
+      if [ "$fx_k" -lt "$n_resume" ]; then
+        rtext="${rtext}${fx_rows[$ri]}  PARKED #${dn} RECHECK — the base moved since the block, no plan names #${dn}: write the recheck next:, then nudge or respawn (orchestrate.md), one slot"
+        dst="${dst}${fx_lines[$ri]}            PARKED #${dn} RECHECK ${di}: the base moved since the block, recheck it this pass"$'\n'
+      else
+        rtext="${rtext}${fx_rows[$ri]}  PARKED #${dn}: the base moved since the block, recheck waits for a slot"
+        dst="${dst}${fx_lines[$ri]}            PARKED #${dn} ${di}: the base moved since the block, recheck waits for a slot"$'\n'
+      fi
+    elif [ "$fx_k" -lt "$n_resume" ]; then
       rtext="${rtext}${fx_rows[$ri]}  PARKED #${dn} RESUME — the fix retired (${dplan}): write the resume next:, then nudge or respawn (orchestrate.md), one slot"
       dst="${dst}${fx_lines[$ri]}            PARKED #${dn} RESUME ${di}: the fix retired (${dplan}), resume it this pass"$'\n'
     else
@@ -7655,8 +7730,8 @@ cmd_dispatch() {
   fi
 
   if [ "$n_resume" -gt 0 ]; then
-    printf 'slots     : %s of %s free after %s RESUME row(s), each one spawn of this pass' \
-      "$n_slots" "$cap" "$n_resume"
+    printf 'slots     : %s of %s free after %s %s row(s), each one spawn of this pass' \
+      "$n_slots" "$cap" "$n_resume" "$fx_label"
     [ "$pending" = 0 ] ||
       printf ' (%s spawned, not pushed yet: JOHARNESS_PENDING_SPAWNS)' "$pending"
     printf '\n\n'
@@ -7870,12 +7945,13 @@ cmd_dispatch() {
   elif [ "$cap" -eq 0 ]; then
     printf 'verdict   : PAUSED — JOHARNESS_MAX_MANAGERS=0: spawn nothing, exit; the human unpauses\n'
   elif [ "$n_resume" -gt 0 ]; then
-    # A RESUME is work: never a DRAINED line, whatever else the pass holds.
-    printf 'verdict   : NOT DRAINED — %s RESUME row(s) first, then %s free item(s)%s, %s slot(s) left: resume them, then spawn up to %s\n' \
-      "$n_resume" "$n_free" "$([ "$n_wait" -eq 0 ] || printf ' (+%s waiting behind them)' "$n_wait")" \
+    # A RESUME or RECHECK is work: never a DRAINED line, whatever else the
+    # pass holds.
+    printf 'verdict   : NOT DRAINED — %s %s row(s) first, then %s free item(s)%s, %s slot(s) left: resume them, then spawn up to %s\n' \
+      "$n_resume" "$fx_label" "$n_free" "$([ "$n_wait" -eq 0 ] || printf ' (+%s waiting behind them)' "$n_wait")" \
       "$n_slots" "$([ "$n_free" -lt "$n_slots" ] && printf '%s' "$n_free" || printf '%s' "$n_slots")"
   elif [ "$n_fixed" -gt 0 ]; then
-    printf 'verdict   : NOT DRAINED — %s parked item(s) fixed, 0 slots: resume each once a slot frees\n' "$n_fixed"
+    printf 'verdict   : NOT DRAINED — %s parked item(s) %s, 0 slots: resume each once a slot frees\n' "$n_fixed" "$fx_wait"
   elif [ "$n_free" -gt 0 ] && [ "$n_slots" -gt 0 ]; then
     printf 'verdict   : NOT DRAINED — %s free item(s) now%s, %s slot(s): spawn up to %s now\n' \
       "$n_free" "$([ "$n_wait" -eq 0 ] || printf ' (+%s waiting behind them)' "$n_wait")" \

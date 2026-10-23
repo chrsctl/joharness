@@ -1219,7 +1219,9 @@ dfpark park-d own-d 'defect: #31: the parser breaks' 2
 git -C "$dfwork" mv docs/plans/fix31.md docs/plans/fix31-moved.md
 sed -i 's/^issue: 31$/issue: 32/' "${dfwork}/docs/plans/fix31-moved.md"
 dfpush 1 "move fix31 onto #32"
-out="$(dfx)"
+# The base moved after the block: RECHECK's, below. Lifted here, this case
+# reads the rename alone.
+out="$(dfx env JOHARNESS_DEFECT_RECHECK_HOURS=0)"
 refute "no RESUME for a rename" "PARKED #31 RESUME" "$out"
 expect "it stays parked" "PARKED #31: a defect's" "$out"
 
@@ -1314,6 +1316,122 @@ out="$(dfx)"
 refute "no RESUME while a stale live branch names the issue" "PARKED #81 RESUME" "$out"
 expect "STUCK at its hours instead" "PARKED #81 STUCK" "$out"
 for b in park-i clerk-i; do
+  git -C "$dfwork" push -q origin --delete "$b"
+  git -C "$dfwork" branch -qD "$b"
+done
+
+# RECHECK: no plan names #<n>, the block is JOHARNESS_DEFECT_RECHECK_HOURS
+# old, and the base's first parent moved since it.
+dfplan own-m none; dfplan own-n none
+dfpush 10 "own-m and own-n"
+dfpark park-m own-m 'defect: #101: the build breaks' 5
+dfpark park-n own-n 'defect: #102: the build breaks' 5
+out="$(dfx)"
+refute "no RECHECK while the base has not moved since the block" "PARKED #101 RECHECK" "$out"
+expect "it stays parked" "PARKED #101: a defect's" "$out"
+dfplan fix102 102
+dfpush 4 "fix102 names #102; the base moves"
+out="$(dfx)"
+expect "RECHECK once the base moved after a block older than the knob" \
+  "PARKED #101 RECHECK — the base moved since the block" "$out"
+expect "and lists it under the verdict" \
+  "            PARKED #101 RECHECK own-m (park-m): the base moved since the block, recheck it this pass" "$out"
+expect "a RECHECK takes a slot" "free after 1 RECHECK row(s)" "$out"
+expect "and the verdict says so" "verdict   : NOT DRAINED — 1 RECHECK row(s) first" "$out"
+refute "no RECHECK while a plan on the base names the issue" "PARKED #102 RECHECK" "$out"
+expect "that one stays parked" "PARKED #102: a defect's" "$out"
+out="$(dfx env JOHARNESS_DEFECT_RECHECK_HOURS=6)"
+refute "no RECHECK for a block younger than the knob" "PARKED #101 RECHECK" "$out"
+expect "it stays parked" "PARKED #101: a defect's" "$out"
+out="$(dfx env JOHARNESS_DEFECT_RECHECK_HOURS=0)"
+refute "JOHARNESS_DEFECT_RECHECK_HOURS=0 lifts RECHECK" "PARKED #101 RECHECK" "$out"
+# The orchestrator writes the recheck next:, the manager merges the base and
+# parks again on the same text: a new block commit, so RECHECK waits for the
+# base to move again. STUCK and UNPLANNED still count from the first park.
+git -C "$dfwork" checkout -q park-m
+sed -i 's/^status: blocked$/status: in-progress/; s/^next: .*$/next: Recheck: the base moved since you parked on #101/' \
+  "${dfwork}/docs/handover/own-m.md"
+dfcommit 3 "Orchestrator rechecks a parked item"
+GIT_AUTHOR_DATE="@$((dfnow - 3 * 3600)) +0000" GIT_COMMITTER_DATE="@$((dfnow - 3 * 3600)) +0000" \
+  git -C "$dfwork" merge -q --no-ff -m "Merge origin/main" origin/main
+sed -i 's/^status: in-progress$/status: blocked/; s/^next: .*$/next: defect: #101: the build breaks/' \
+  "${dfwork}/docs/handover/own-m.md"
+dfcommit 2 "park own-m again"
+git -C "$dfwork" push -q origin park-m
+git -C "$dfwork" checkout -q main
+out="$(dfx)"
+refute "a re-park restarts RECHECK's clock" "PARKED #101 RECHECK" "$out"
+out="$(dfx env JOHARNESS_DEFECT_PLAN_HOURS=4 JOHARNESS_DEFECT_RECHECK_HOURS=0)"
+expect "UNPLANNED counts from the first park, not the re-park" "PARKED #101 UNPLANNED" "$out"
+mkdir -p "${dfwork}/src"; printf 'moved\n' >"${dfwork}/src/moved.txt"
+dfpush 1 "the base moves again"
+out="$(dfx)"
+expect "RECHECK again once the base moves after the re-park" \
+  "PARKED #101 RECHECK — the base moved since the block" "$out"
+out="$(dfx env JOHARNESS_DEFECT_PLAN_HOURS=4)"
+expect "UNPLANNED from the first park outranks RECHECK" "PARKED #101 UNPLANNED" "$out"
+refute "and no RECHECK once the human is told" "PARKED #101 RECHECK" "$out"
+out="$(dfx env JOHARNESS_DEFECT_FIX_HOURS=4)"
+expect "STUCK counts from the first park and outranks RECHECK" "PARKED #101 STUCK" "$out"
+refute "and no RECHECK with it" "PARKED #101 RECHECK" "$out"
+git -C "$dfwork" checkout -qb clerk-m main
+dfplan fix101 101
+dfcommit 1 "a clerk's plan naming #101"
+git -C "$dfwork" push -qu origin clerk-m
+git -C "$dfwork" checkout -q main
+mkdir -p "${dfwork}/docs/plans"
+out="$(dfx)"
+refute "no RECHECK while a live branch plan names the issue" "PARKED #101 RECHECK" "$out"
+git -C "$dfwork" push -q origin --delete clerk-m
+git -C "$dfwork" branch -qD clerk-m
+git -C "$dfwork" update-ref -d refs/remotes/origin/clerk-m
+# A fix that retired outranks a recheck for the one slot, whatever the row
+# order: park-m (RECHECK) lists before park-n (RESUME).
+git -C "$dfwork" rm -q docs/plans/fix102.md
+dfpush 1 "retire fix102"
+mkdir -p "${dfwork}/docs/plans"
+out="$(dfx env JOHARNESS_MAX_MANAGERS=1)"
+expect "RESUME takes the one slot before RECHECK" "PARKED #102 RESUME — the fix retired (fix102)" "$out"
+expect "the RECHECK waits for a slot" "PARKED #101: the base moved since the block, recheck waits for a slot" "$out"
+expect "and the label names the row that got the slot" "slots     : 0 of 1 free after 1 RESUME row(s)" "$out"
+out="$(dfx)"
+expect "both get a slot, one label" "free after 2 RESUME/RECHECK row(s)" "$out"
+out="$(dfx env JOHARNESS_PENDING_SPAWNS=4)"
+expect "0 slots names both kinds on the verdict" \
+  "verdict   : NOT DRAINED — 2 parked item(s) fixed or due a recheck, 0 slots" "$out"
+# A RESUME closes a park: a later park on the same issue (the fix did not
+# hold) starts its own first-park clock.
+dfplan own-o none
+dfpush 10 "own-o"
+dfpark park-o own-o 'defect: #103: the build breaks' 9
+git -C "$dfwork" checkout -q park-o
+sed -i 's/^status: blocked$/status: in-progress/; s/^next: .*$/next: Resume: the fix for #103 merged (fix103); re-run your Acceptance/' \
+  "${dfwork}/docs/handover/own-o.md"
+dfcommit 8 "Orchestrator resumes a parked item"
+sed -i 's/^status: in-progress$/status: blocked/; s/^next: .*$/next: defect: #103: the build breaks/' \
+  "${dfwork}/docs/handover/own-o.md"
+dfcommit 1 "park own-o again"
+git -C "$dfwork" push -q origin park-o
+git -C "$dfwork" checkout -q main
+out="$(dfx env JOHARNESS_DEFECT_PLAN_HOURS=4)"
+refute "a park before a RESUME does not start the clock" "PARKED #103 UNPLANNED" "$out"
+expect "it stays parked" "PARKED #103: a defect's" "$out"
+# A KILL handover's `Resume:` is no RESUME: the first park stands.
+dfplan own-q none
+dfpush 10 "own-q"
+dfpark park-q own-q 'defect: #104: the build breaks' 9
+git -C "$dfwork" checkout -q park-q
+sed -i 's/^status: blocked$/status: in-progress/; s/^next: .*$/next: Resume: read Blockers, run ci, continue the plan/' \
+  "${dfwork}/docs/handover/own-q.md"
+dfcommit 8 "Orchestrator kills a stalled manager"
+sed -i 's/^status: in-progress$/status: blocked/; s/^next: .*$/next: defect: #104: the build breaks/' \
+  "${dfwork}/docs/handover/own-q.md"
+dfcommit 1 "park own-q again"
+git -C "$dfwork" push -q origin park-q
+git -C "$dfwork" checkout -q main
+out="$(dfx env JOHARNESS_DEFECT_PLAN_HOURS=4)"
+expect "a Resume: that is not the orchestrator's RESUME keeps the first park" "PARKED #104 UNPLANNED" "$out"
+for b in park-m park-n park-o park-q; do
   git -C "$dfwork" push -q origin --delete "$b"
   git -C "$dfwork" branch -qD "$b"
 done

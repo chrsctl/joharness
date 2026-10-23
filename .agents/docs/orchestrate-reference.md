@@ -178,6 +178,21 @@ workstream file, continue", no `kill`. FAILED, ARCHIVED or not found: GUARD
 `JOHARNESS_RESPAWN_LIMIT`. `PARKED #<n>: … resume waits for a slot` is no
 RESUME: next pass.
 
+A `PARKED #<n> RECHECK` row: no plan on the base or a live branch names #<n>,
+the block is `JOHARNESS_DEFECT_RECHECK_HOURS` old, and the base's first
+parent moved since it: the defect may be fixed with no plan. The same
+mechanics as RESUME, `next:` = `Recheck: the base moved since you parked on
+#<n>; merge origin/main, re-run the check that failed; still red = park
+again on #<n>, green = continue`, commit "Orchestrator rechecks a parked
+item". That commit is what makes a re-park a new block commit, so RECHECK
+waits for the base to move again. `STUCK` and `UNPLANNED` count from the
+first park (back to the last RESUME `next:` on #<n>, the wording above;
+any other `Resume:` counts for nothing) and outrank RECHECK: once either
+holds, rechecks end and the human is notified once. Both knobs at 0 lift
+that bound: RECHECK then repeats on every base move. Counted against `JOHARNESS_RESPAWN_LIMIT` only on a
+respawn. `PARKED #<n>: … recheck waits for a slot` is no RECHECK: next
+pass.
+
 ## Unclaimed spawn rows
 
 | control plane | push age | ledger | do |

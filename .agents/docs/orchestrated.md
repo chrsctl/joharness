@@ -364,8 +364,9 @@ or retired, at a tip; it carries `held Nd` from that commit.
 
 | `JOHARNESS_SCOUT_RESEARCH` | off | exactly `on` lets a scout pass read outside the repository; read from the base branch's conf | a switch: money in one conf line |
 | `JOHARNESS_CONDUCT_HOURS` | 168 | hours since the ledger last landed before a conduct reviewer is due; 0 = off. An unmerged branch named `conduct-<digit>...` (any prefix) unpushed for a seventh of it, at least 24h, is read as closed by a human | written number: weekly; no baseline, the tally builds one |
-| `JOHARNESS_DEFECT_PLAN_HOURS` | 48 | hours after a `defect:` block with no plan naming its issue = `PARKED #<n> UNPLANNED`, notified once; 0 lifts it | written number: two clerk cycles |
-| `JOHARNESS_DEFECT_FIX_HOURS` | 72 | hours after a `defect:` block with no RESUME = `PARKED #<n> STUCK`, notified once; 0 lifts it | written number: a plan cycle plus a day |
+| `JOHARNESS_DEFECT_PLAN_HOURS` | 48 | hours after the first `defect:` park on an issue with no plan naming it = `PARKED #<n> UNPLANNED`, notified once; 0 lifts it | written number: two clerk cycles |
+| `JOHARNESS_DEFECT_FIX_HOURS` | 72 | hours after the first `defect:` park on an issue with no RESUME = `PARKED #<n> STUCK`, notified once; 0 lifts it | written number: a plan cycle plus a day |
+| `JOHARNESS_DEFECT_RECHECK_HOURS` | 2 | hours after a `defect:` block, no plan naming its issue and the base moved since, before `PARKED #<n> RECHECK`; 0 lifts it | written number: a few merges on an active base |
 | `JOHARNESS_CONDUCT_SAMPLE` | 3 | retired branches one run samples, lowest `sha1(<stem>)` first; 0 = off | written number: few enough that one sonnet pass reads each whole |
 
 `./joharness.sh conf` prints every knob the script reads with its live value
@@ -477,9 +478,13 @@ Read from git alone: once a plan naming #<n> leaves the base's first parent
 after the block commit (a rename is no retire) and no plan on the base or a
 live branch names #<n>, the row reads `RESUME`, takes a slot, and the
 orchestrator resumes it (`orchestrate-reference.md`, Resume); a pass with a
-RESUME is never DRAINED. The human hears only when nothing is fixing it:
+RESUME is never DRAINED. Fixed with no plan: once no plan names #<n>, the
+block is `JOHARNESS_DEFECT_RECHECK_HOURS` old and the base moved since, the
+row reads `RECHECK` and is resumed the same way to re-run its check; a
+re-park restarts that clock only. The human hears only when nothing is
+fixing it, and those states outrank RECHECK:
 `UNPLANNED` (no plan names #<n> `JOHARNESS_DEFECT_PLAN_HOURS` after the
-block), `STUCK` (no RESUME `JOHARNESS_DEFECT_FIX_HOURS` after it, a stale
+first park), `STUCK` (no RESUME `JOHARNESS_DEFECT_FIX_HOURS` after it, a stale
 live branch naming #<n> included) or `UNREADABLE` (the block commit is not
 in the clone: no RESUME), each notified once.
 
