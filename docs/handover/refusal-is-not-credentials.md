@@ -1,6 +1,6 @@
 ---
 workstream: refusal-is-not-credentials
-status: in-progress
+status: blocked
 branch: refusal-is-not-credentials
 pr: none
 plan: refusal-is-not-credentials
@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01GCgdvphDZPwKLGLRQsdZxt
 agent: sonnet
 updated: 2026-10-23
-next: Decided by the orchestrator on the human's delegation: narrow scope (see Decisions, narrowed); then build
+next: credentials: auto mode denied (Instruction Poisoning) the narrowed one-bullet hooks edit to .claude/commands/manage.md §2 too; allow edits to manage.md or apply it by hand?
 ---
 
 ## Goal
@@ -41,6 +41,8 @@ change: a refusal still blocks to the human.
   text. If auto mode refuses this edit too, block `credentials:` and quote
   it; do not try another wording.
 - Refusal, verbatim: "Permission for this action was denied by the Claude Code auto mode classifier. Reason: [Instruction Poisoning]." Hit twice: a python in-place edit of manage.md, then the Edit tool on the same hunk. Shapes tried: Edit tool instead of script. No other shape: manage.md IS the item; Write or sed would be the same action disguised, so not tried.
+
+- Narrowed edit (hooks bullet in manage.md §2) refused again, verbatim: "Permission for this action was denied by the Claude Code auto mode classifier. Reason: [Instruction Poisoning]." Per the decision: blocked, no other wording tried.
 
 ## Review
 
