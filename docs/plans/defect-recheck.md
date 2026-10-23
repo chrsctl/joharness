@@ -45,9 +45,12 @@ resumes within hours, not days, and with no human.
 - `.agents/harness/selftest/dispatch.sh`: add the cases listed under
   Acceptance.
 
-A re-park writes a new block commit, so the clock restarts. That makes
-"once per base advance after the wait" the natural bound, and it needs no
-marker.
+A re-park writes a new block commit, so the RECHECK clock restarts: once
+per base advance after the wait, no marker. The orchestrator's commit
+writing the `Recheck:` `next:` is what breaks the run (A1). `STUCK` and
+`UNPLANNED` measure from the FIRST park on #<n> on the branch, not the
+latest block commit: else every re-park resets them and a never-fixed
+defect on a moving base never reaches the human.
 
 ## Assumptions
 
@@ -65,7 +68,8 @@ marker.
 
 - Reading issue state on GitHub. Dispatch reads git only.
 - Changing `RESUME`, `STUCK` or `UNPLANNED`, apart from ranking RECHECK
-  among them.
+  among them and measuring `STUCK` and `UNPLANNED` from the first park on
+  #<n>.
 - The clerk's cadence.
 
 ## Acceptance
@@ -78,8 +82,10 @@ marker.
   - the same branch with the block younger than the knob prints `PARKED`;
   - a plan naming #<n> on the base prints `PARKED`, not RECHECK;
   - `JOHARNESS_DEFECT_RECHECK_HOURS=0` never prints RECHECK;
-  - a re-park commit after a RECHECK resets the clock (A1).
-  Each case must FAIL on `origin/main`.
+  - a re-park commit after a RECHECK resets the clock (A1);
+  - after re-parks, `UNPLANNED` still fires from the first park.
+  Each case that expects `RECHECK` or the first-park clock must FAIL on
+  `origin/main`; the `PARKED`-only cases are guards and pass there.
 - `./joharness.sh verify` gives `0 failed`.
 - `./joharness.sh conf` lists `JOHARNESS_DEFECT_RECHECK_HOURS` with its
   default of 2.
