@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01D8rDGonCmGBgmUyRnLNe8F
 agent: sonnet
 updated: 2026-10-23
-next: Edit keeper.md, orchestrate-reference.md REGISTER step 2, orchestrated.md Heartbeat; add pins
+next: Verifier and edge review; record in ## Review; then ci, verify, PR, finish
 ---
 
 ## Goal

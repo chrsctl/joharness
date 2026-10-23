@@ -588,7 +588,12 @@ keeper at the replacing session's depth plus one, which is why REGISTER
 checks `depth + 2 < limit` before it deletes anything.
 
 **Registered by `/orchestrate`.** The heartbeat registers itself when an orchestrator starts and none exists
-("## 0. Start" step 5, REGISTER). The requester's veto is the pause: a
+("## 0. Start" step 5, REGISTER). REGISTER starts the keeper with
+`/keeper register`: that first turn takes the post and starts nothing,
+because the registering orchestrator has just read dispatch and, when the
+run is DRAINED, retires in the same turn. A full check then would find it
+retired and start a second orchestrator onto the same DRAINED queue. The
+first hourly wake (`/keeper`) runs the check. The requester's veto is the pause: a
 Routine with `enabled` false and an empty `ended_reason` is never
 re-enabled, edited or replaced, and nor is one made in the UI. Any
 `ended_reason` but `auto_disabled_session_gone` counts as a pause, and a

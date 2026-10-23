@@ -27,6 +27,13 @@ manager. Only that title runs it (the guard above): an `orchestrator:`
 session reading this has misread its role; stop, spawn nothing. Its context
 persists across wakes: keep every report to one line.
 
+Register: this turn's prompt is `/keeper register` (REGISTER's
+`create_session`, `orchestrate-reference.md` "## 0. Start" step 5; the
+Routine's prompt is `/keeper`) = run step 1 only, report `keeper
+registered: parent <parent_session_id>`, end the turn. No LIVE check, no
+start, no SWAP: the session that made you has just read dispatch, and the
+first hourly wake runs the check.
+
 1. `git fetch origin main`. This file in `git show
    origin/main:.claude/commands/keeper.md` differs from the one you
    hold = follow that text instead.
