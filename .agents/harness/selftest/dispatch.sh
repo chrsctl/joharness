@@ -1416,7 +1416,22 @@ git -C "$dfwork" checkout -q main
 out="$(dfx env JOHARNESS_DEFECT_PLAN_HOURS=4)"
 refute "a park before a RESUME does not start the clock" "PARKED #103 UNPLANNED" "$out"
 expect "it stays parked" "PARKED #103: a defect's" "$out"
-for b in park-m park-n park-o; do
+# A KILL handover's `Resume:` is no RESUME: the first park stands.
+dfplan own-q none
+dfpush 10 "own-q"
+dfpark park-q own-q 'defect: #104: the build breaks' 9
+git -C "$dfwork" checkout -q park-q
+sed -i 's/^status: blocked$/status: in-progress/; s/^next: .*$/next: Resume: read Blockers, run ci, continue the plan/' \
+  "${dfwork}/docs/handover/own-q.md"
+dfcommit 8 "Orchestrator kills a stalled manager"
+sed -i 's/^status: in-progress$/status: blocked/; s/^next: .*$/next: defect: #104: the build breaks/' \
+  "${dfwork}/docs/handover/own-q.md"
+dfcommit 1 "park own-q again"
+git -C "$dfwork" push -q origin park-q
+git -C "$dfwork" checkout -q main
+out="$(dfx env JOHARNESS_DEFECT_PLAN_HOURS=4)"
+expect "a Resume: that is not the orchestrator's RESUME keeps the first park" "PARKED #104 UNPLANNED" "$out"
+for b in park-m park-n park-o park-q; do
   git -C "$dfwork" push -q origin --delete "$b"
   git -C "$dfwork" branch -qD "$b"
 done

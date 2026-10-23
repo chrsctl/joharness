@@ -5628,7 +5628,7 @@ defect_issue() {
 #               commit: once per base advance;
 #   PARKED      otherwise.
 # The first park: the oldest commit on the branch, newer than its last
-# orchestrator `Resume:` next:, whose next: is a defect: on #<n>. A re-park
+# orchestrator RESUME next: on #<n>, whose next: is a defect: on #<n>. A re-park
 # after a RECHECK restarts RECHECK's clock, never STUCK's nor UNPLANNED's,
 # and those two outrank RECHECK: rechecks end and the human hears, once,
 # however often the base moves.
@@ -5672,12 +5672,14 @@ dispatch_defect_state() {
   now="$(date +%s)"
   age=$(( (now - bt) / 60 ))
   [ "$age" -ge 0 ] || age=0
-  # Newest first; a RESUME closed every park before it.
+  # Newest first; the orchestrator's RESUME on #<n> closed every park before
+  # it (orchestrate-reference.md, Resume) — its wording only: a KILL
+  # handover's or a manager's own `Resume:` closes nothing.
   ft="$bt"
   while IFS= read -r h; do
     [ -n "$h" ] || continue
     p="$(git -C "$ROOT" show "${h}:${ws}" </dev/null 2>/dev/null | gr_field_raw next)"
-    case "${p#[\"\']}" in Resume:*) break ;; esac
+    case "${p#[\"\']}" in "Resume: the fix for #${n} merged"*) break ;; esac
     [ "$(defect_issue "$p")" = "$n" ] || continue
     h="$(git -C "$ROOT" log -1 --format=%ct "$h" </dev/null 2>/dev/null)"
     case "$h" in '' | *[!0-9]*) continue ;; esac

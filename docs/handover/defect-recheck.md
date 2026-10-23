@@ -30,7 +30,8 @@ block, so a defect fixed with no plan resumes within hours, not after the
   DRAINED. Slots/verdict label reads `RESUME`, `RECHECK` or
   `RESUME/RECHECK` by what is present, so existing RESUME text is unchanged.
 - STUCK and UNPLANNED age from the FIRST park on #<n> on the branch, back
-  to the last orchestrator `Resume:` (plan-checker r1, verifier r12), and
+  to the orchestrator's last RESUME `next:` on #<n> (plan-checker r1,
+  verifier r12, r19), and
   OUTRANK RECHECK (verifier r9): rechecks run inside the first
   JOHARNESS_DEFECT_PLAN_HOURS, then the human hears once. Plan amended
   (it ranked RECHECK before them); flag for human in the PR.
@@ -60,6 +61,9 @@ block, so a defect fixed with no plan resumes within hours, not after the
 - r16: (verifier) live-branch plan, waits-for-slot, 0-slot verdict, mixed label untested (fixed: selftest cases; scope-held reuses RESUME's path, no new case)
 - r17: (verifier) re-park case decided by base, not age gate (no change: that is the A1 property)
 - r18: (verifier) a manager can self-schedule respawns via an unplanned defect: park (no change: bounded by r9 to JOHARNESS_DEFECT_PLAN_HOURS, then the human hears)
+- r19: (verifier) any `Resume:` next: (a KILL handover's, a manager's own) closed the first park and reset STUCK/UNPLANNED (fixed: only `Resume: the fix for #<n> merged`; selftest case)
+- r20: (verifier) both PLAN and FIX hours at 0 lift the r9 bound (fixed: orchestrate-reference.md says so)
+- r21: (verifier) plan scope bullet wrapped to column 0 (fixed)
 
 ## Blockers
 

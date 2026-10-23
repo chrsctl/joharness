@@ -186,8 +186,10 @@ mechanics as RESUME, `next:` = `Recheck: the base moved since you parked on
 again on #<n>, green = continue`, commit "Orchestrator rechecks a parked
 item". That commit is what makes a re-park a new block commit, so RECHECK
 waits for the base to move again. `STUCK` and `UNPLANNED` count from the
-first park (back to the last `Resume:`) and outrank RECHECK: once either
-holds, rechecks end and the human is notified once. Counted against `JOHARNESS_RESPAWN_LIMIT` only on a
+first park (back to the last RESUME `next:` on #<n>, the wording above;
+any other `Resume:` counts for nothing) and outrank RECHECK: once either
+holds, rechecks end and the human is notified once. Both knobs at 0 lift
+that bound: RECHECK then repeats on every base move. Counted against `JOHARNESS_RESPAWN_LIMIT` only on a
 respawn. `PARKED #<n>: … recheck waits for a slot` is no RECHECK: next
 pass.
 
