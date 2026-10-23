@@ -134,7 +134,8 @@ exit — no retry, no second transport. Run no queue command.
 1. It reproduces on fresh-fetched `origin/main` (run the same command on a
    checkout of it). No reproduction = it is your branch's: fix it in your item.
 2. Search this repository's open issues for the same failing command or test
-   name. Found = file nothing; pull request body says `Refs #N`.
+   name. Found = file nothing; pull request body says `Refs #N` with the fresh
+   reproduction (command, count, `origin/main` sha) in one line beside it.
 3. Otherwise ONE issue per session (`issue_write` `create`) on this
    repository, before the retire commit: title
    `defect: <test or command>: <symptom, one line>`; body = the command, at
@@ -142,12 +143,10 @@ exit — no retry, no second transport. Run no queue command.
    your branch name; labels `human-review`. Pull request body says `Refs #N`,
    never `Closes #N`.
 4. A second defect in the same session: step 2 runs for EVERY defect. A
-   match = `Refs #N` in the pull request body, with the fresh reproduction
-   (command, count, `origin/main` sha) in one line beside it. Only an
-   unmatched second or later defect is pull request body only, one line each.
-   Why: a body is read by nobody after merge; the issue is where the owner
-   learns the defect still reproduces (a consumer manager filed one of three
-   and left two open issues uncited).
+   match = step 2's `Refs #N` line. Only an unmatched second or later defect
+   is pull request body only, one line each. Why: a body is read by nobody
+   after merge; the issue is where the owner learns the defect still
+   reproduces.
 5. `issue_write` fails: put the issue text in the pull request body under a
    line `defect not filed: <error, 40 chars>`. Never block or delay the item
    for it.

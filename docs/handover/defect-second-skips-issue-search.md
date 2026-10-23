@@ -18,3 +18,5 @@ Settle research node: graduate answer (yes, step 4 skips the search) into
 
 ## Review
 
+- r1: step 4 carried a past-tense incident parenthetical (verifier) (fixed)
+- r2: step 2 lacked the reproduction line step 4 required, so first and later defects differed (verifier) (fixed: moved into step 2)
