@@ -134,7 +134,8 @@ exit — no retry, no second transport. Run no queue command.
 1. It reproduces on fresh-fetched `origin/main` (run the same command on a
    checkout of it). No reproduction = it is your branch's: fix it in your item.
 2. Search this repository's open issues for the same failing command or test
-   name. Found issue M = file nothing; pull request body says `Refs #N`.
+   name. Found issue M = file nothing; pull request body says `Refs #N` with the fresh
+   reproduction (command, count, `origin/main` sha) in one line beside it.
    Then ask: does this defect stop your item meeting its Acceptance?
    - **No:** steps 3–5 as written.
    - **Yes, and step 2 found M:** park on M. M carries `human-review`? Say so
@@ -151,7 +152,11 @@ exit — no retry, no second transport. Run no queue command.
    most 20 lines of its output, the `origin/main` sha it reproduced on, and
    your branch name; labels `human-review` (none when blocking, step 2). Pull request body says `Refs #N`,
    never `Closes #N`.
-4. A second defect in the same session: pull request body only, one line each.
+4. A second defect in the same session: step 2 runs for EVERY defect. A
+   match = step 2's `Refs #N` line. Only an unmatched second or later defect
+   is pull request body only, one line each. Why: a body is read by nobody
+   after merge; the issue is where the owner learns the defect still
+   reproduces.
 5. Non-blocking: `issue_write` fails: put the issue text in the pull request body under a
    line `defect not filed: <error, 40 chars>`. Never block or delay the item
    for it.
