@@ -659,7 +659,7 @@ out="$(dsp env JOHARNESS_MAX_MANAGERS=8 JOHARNESS_STALL_MINUTES=0)"
 expect "past the stall window the row is marked" "STALL? no push for" \
   "$(printf '%s\n' "$out" | grep -A1 'mgr-eta')"
 expect "and sends the reader to the control plane, by the item's own stem" \
-  "cross-check the control plane by TITLE (manager: eta)" "$out"
+  "cross-check the control plane by TITLE (🔨 manager: eta)" "$out"
 expect "and leaves the verdict to the health table" \
   "the verdict is the health table's (.claude/commands/orchestrate.md, step 2), never this row's" "$out"
 refute "no edge row orders a respawn itself" "respawn on the branch" "$out"
@@ -833,8 +833,8 @@ expect "the row names the item the retired record names" \
 expect "and the alphabetically first item rides behind it" \
   "more item(s) retired here: docs/plans/nu.md" "$out"
 expect "so the by-title lookup asks for the manager that exists" \
-  "(manager: xi)" "$out"
-refute "and never for the one that does not" "(manager: nu)" "$out"
+  "(🔨 manager: xi)" "$out"
+refute "and never for the one that does not" "(🔨 manager: nu)" "$out"
 
 # --- an item at the edge must not make the queue behind it wait ---------------
 # The serialisation the held-plan skip removes, reached through the other
