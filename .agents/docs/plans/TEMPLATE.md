@@ -45,6 +45,11 @@ Why this work exists, requester's terms. One paragraph.
 - `path/new_file.py` — what goes in it.
 - `path/existing.py` — what changes.
 
+## Assumptions
+
+- A1: <claim> — evidence: <path:symbol or command> — confidence: high|medium|low
+<!-- One bullet each. Plan rests on none? One line saying so. -->
+
 ## Out of scope
 
 - Thing a helpful agent would add. Reason it stays out.

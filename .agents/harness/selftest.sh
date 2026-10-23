@@ -571,6 +571,7 @@ SELFTEST_TOPICS=(
   queue-context-fanout
   session-start
   ci-churn
+  broken-windows
   ci-output
   ci-selftest-scope
   checks
@@ -600,6 +601,7 @@ SELFTEST_TOPICS=(
   clerk
   role
   ci-ship-scope
+  assumptions-lint
   authority
   autonomy-mode
   start
