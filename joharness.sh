@@ -132,6 +132,7 @@ JOHARNESS_CONF|computed|session|Path of the conf file; default joharness.conf un
 JOHARNESS_VERBOSE|0|session|1 = ci and finish print passing checks too.
 JOHARNESS_SELFTEST||session|always = run the selftest even on a docs-only diff.
 JOHARNESS_SELFTEST_GIT_BUDGET|88960|session|Git execs the selftest may make before the ci stage reds; canonical-only.
+JOHARNESS_SELFTEST_JOBS|computed|session|Parallel selftest workers; default the CPU count, at most 4; 1 = one topic after another; canonical-only.
 JOHARNESS_SESSION_SOURCE||session|The SessionStart hook source (startup, resume, clear, compact), set by session-start.
 JOHARNESS_FORCE_SETUP|0|session|1 = provision at session start outside the remote sandbox.
 JOHARNESS_SHIP||session|all = ci treats every harness file as shipping.
@@ -6123,23 +6124,39 @@ dispatch_rescope_branches() {
 # deletes one, each with its own (new) time (verifier r9-r11). So no merges,
 # `--full-history` to walk past them, and the file as the commit LEFT it.
 # Bounded by <since>, never by a merge count (cl_merged_claims).
+# Rows land in DONE_EV, not on stdout: a blob's verdict never changes, so
+# DONE_EV_MEMO keeps it (`\n<commit>:<path>\t<stem or empty>`) for every later
+# walk in this process, and only a call outside `$(...)` can grow it.
+DONE_EV_MEMO=""
 dispatch_done_evidence() {
-  local since="$1" own="$2" line h="" ht="" seen="" doc wplan wstat
+  local since="$1" own="$2" line h="" ht="" seen="" doc wplan wstat key rest
+  DONE_EV=""
   while IFS= read -r line; do
     case "$line" in
       '') continue ;;
       'C '*) read -r h ht <<<"${line#C }"; continue ;;
     esac
     [ -n "$h" ] || continue
-    case "$seen" in *" ${h}:${line} "*) continue ;; esac
-    seen="${seen} ${h}:${line} "
-    doc="$(git -C "$ROOT" show "${h}:${line}" </dev/null 2>/dev/null)" || continue
-    { read -r wplan; read -r wstat; } \
-      < <(printf '%s\n' "$doc" | gr_fields plan status)
-    [ "$wstat" = "done" ] || continue
-    wplan="$(lint_stem "$wplan" | tr -cd 'A-Za-z0-9._-')"
-    [ -z "$wplan" ] || [ "$wplan" = none ] ||
-      printf '%s\t%s\t%s\n' "$h" "$ht" "$wplan"
+    key="${h}:${line}"
+    case "$seen" in *" ${key} "*) continue ;; esac
+    seen="${seen} ${key} "
+    case "$DONE_EV_MEMO" in
+      *$'\n'"${key}"$'\t'*)
+        rest="${DONE_EV_MEMO#*$'\n'"${key}"$'\t'}"
+        wplan="${rest%%$'\n'*}" ;;
+      *)
+        doc="$(git -C "$ROOT" show "${key}" </dev/null 2>/dev/null)" || continue
+        { read -r wplan; read -r wstat; } \
+          < <(printf '%s\n' "$doc" | gr_fields plan status)
+        if [ "$wstat" = "done" ]; then
+          wplan="$(lint_stem "$wplan" | tr -cd 'A-Za-z0-9._-')"
+          [ "$wplan" != none ] || wplan=""
+        else
+          wplan=""
+        fi
+        DONE_EV_MEMO="${DONE_EV_MEMO}"$'\n'"${key}"$'\t'"${wplan}" ;;
+    esac
+    [ -z "$wplan" ] || DONE_EV="${DONE_EV}${h}"$'\t'"${ht}"$'\t'"${wplan}"$'\n'
   done < <(git -C "$ROOT" for-each-ref --format='%(refname)' refs/remotes/origin \
       </dev/null 2>/dev/null |
     awk -v own="$own" -v since="$since" '
@@ -6285,7 +6302,7 @@ dispatch_branch_plans() {
           case "$evcache" in
             *"<${abase} ${r}>"*) ;;
             *) evcache="<${abase} ${r}>"
-               evs="$(dispatch_done_evidence "$abase" "$r")" ;;
+               dispatch_done_evidence "$abase" "$r"; evs="$DONE_EV" ;;
           esac
           while IFS=$'\t' read -r evh evt ev; do
             [ "$ev" = "$stem" ] || continue
@@ -6379,12 +6396,13 @@ dispatch_freeable() {
     esac
     claimed="${claimed} ${ck} "
   done < <(dispatch_rescope_branches free-)
-  refs="$(git -C "$ROOT" for-each-ref --format='%(refname)' \
-    refs/remotes/origin </dev/null 2>/dev/null)"
   # Free managers' branches: live, unmerged, unreleased, and ADDED a
   # `free-*` claim since the base (it may since have retired it). Only these
   # hold an owner, by ancestry, however the merge was made: a branch merely
-  # cut from the owner, or a copy of it, never claimed a free.
+  # cut from the owner, or a copy of it, never claimed a free. A ref merged
+  # into the base has an empty `base..ref`, so free_claimed_ever is false for
+  # it: probing only the unmerged ones gives the same set for less work.
+  refs="$(refs_unmerged "refs/remotes/origin/${base_branch}")"
   while IFS= read -r r; do
     [ -n "$r" ] || continue
     name="${r#refs/remotes/origin/}"
