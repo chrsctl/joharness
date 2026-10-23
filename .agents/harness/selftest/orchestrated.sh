@@ -417,9 +417,11 @@ while [[ "$rest" == *"ref § "* ]]; do
   rest="${rest#*"ref § "}"
   case "$rest" in "<name>"*) continue ;; esac
   hit=""
+  # Every manage.md pointer ends its name with a period: a longer name the
+  # reference lost ("Carried plan at retire" read as "Carried plan") fails.
   for sect in "${mgrsections[@]}"; do
     case "$rest" in
-      "$sect" | "$sect"[!0-9A-Za-z-]*) [ "${#sect}" -gt "${#hit}" ] && hit="$sect" ;;
+      "$sect." | "$sect".[!0-9A-Za-z-]*) [ "${#sect}" -gt "${#hit}" ] && hit="$sect" ;;
     esac
   done
   if [ -n "$hit" ]; then

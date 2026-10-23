@@ -155,7 +155,7 @@ GitHub lost at step 7:
   call, exit.
 
 **A LEAD, when you have one.** Learned something about an item you do NOT
-own? ref § Lead.
+own, or about an issue, a merged item or the harness itself? ref § Lead.
 
 **A DEFECT outside your item.** A failure that is not your item's:
 

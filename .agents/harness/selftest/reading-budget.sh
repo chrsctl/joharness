@@ -45,7 +45,7 @@ rb_bound consumer-repos.md 24986
 # manage.md loads whole into every manager session; its rare branches
 # live in manage-reference.md. Counted `wc -c` on the diet commit,
 # 2026-10-23 (16234 before it).
-rb_bound ../../.claude/commands/manage.md 9192
+rb_bound ../../.claude/commands/manage.md 9248
 
 # History lives in git log, not in a history/ directory beside the rules
 # (caveman.md, Status quo). A `(why: history/...)` pointer, or the directory
