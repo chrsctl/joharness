@@ -120,6 +120,7 @@ JOHARNESS_CURATE_PLANS|10|dispatch|Plan files changed since the last curate befo
 JOHARNESS_CURATE_HOURS|168|dispatch|Hours since the last curate before one is due; 0 switches the cycle off.
 JOHARNESS_CURATE_REGISTRY|3|dispatch|Plans declaring one path before curate calls it a registry.
 JOHARNESS_CURATE_SPLIT|8|dispatch|Scope bullets before curate proposes a decompose.
+JOHARNESS_CURATE_LAYERS|3|dispatch|Distinct top-level directories in a plan scope: line before curate proposes a decompose; 0 = off.
 JOHARNESS_CLERK_HOURS|24|dispatch|Hours between clerk passes over the open issues; 0 switches the cycle off.
 JOHARNESS_CLERK_BATCH|3|dispatch|Open issues one clerk pass takes at most.
 JOHARNESS_CLERK_STALE_HOURS|24|dispatch|An unmerged clerk branch older than this holds nothing; 0 = every one holds.
@@ -6197,7 +6198,7 @@ curate_marked_new() {
 
 cmd_curate() {
   local qout rows rel stem label scope claimed prel apply=0 old new
-  local regthr splitthr bullets reqstem hit s p
+  local regthr splitthr layersthr layers bullets reqstem hit s p
   local n_plans=0 n_held=0 n_repair=0 n_mech=0 n_declutter=0 n_propose=0 n_fixed=0
   local pass n_pass
   local repair="" declutter="" propose="" held_rows="" counts="" line plans_for kind text
@@ -6209,10 +6210,12 @@ cmd_curate() {
   esac
   regthr="$(curate_regthr)"
   splitthr="$(num_knob JOHARNESS_CURATE_SPLIT)"
+  layersthr="$(num_knob JOHARNESS_CURATE_LAYERS)"
 
   printf '== curate (REPAIR marked [apply] is mechanical: ./joharness.sh curate --apply)\n\n'
   printf 'registry  : %s+ plans declaring one path = a registry to mark shared: (JOHARNESS_CURATE_REGISTRY)\n' "$regthr"
-  printf 'split     : %s+ Scope bullets = a decompose candidate, PROPOSED never done (JOHARNESS_CURATE_SPLIT)\n\n' "$splitthr"
+  printf 'split     : %s+ Scope bullets = a decompose candidate, PROPOSED never done (JOHARNESS_CURATE_SPLIT)\n' "$splitthr"
+  printf 'layers    : %s+ top-level directories in scope: = a decompose candidate, PROPOSED never done (JOHARNESS_CURATE_LAYERS; 0 = off)\n\n' "$layersthr"
 
   # A plan a manager HOLDS draws no finding: its declarations are that manager's.
   # Unread, every held plan would read free and --apply would rewrite it.
@@ -6309,6 +6312,14 @@ cmd_curate() {
     if [ "$bullets" -ge "$splitthr" ]; then
       n_propose=$((n_propose + 1))
       propose="${propose}  ${stem}: ${bullets} Scope bullets (>= ${splitthr}) — decompose candidate. PROPOSE it; a split needs an author, and only where Scope already names separable deliverables"$'\n'
+    fi
+    if [ "$layersthr" -gt 0 ]; then
+      layers="$({ printf '%s\n' "$scope" | grep -v '^shared:' | grep . || true; } |
+        awk '{ i = index($0, "/"); print (i ? substr($0, 1, i - 1) : ".") }' | sort -u | grep -c . || true)"
+      if [ "$layers" -ge "$layersthr" ]; then
+        n_propose=$((n_propose + 1))
+        propose="${propose}  ${stem}: ${layers} top-level layers in scope (>= ${layersthr}) — decompose candidate. PROPOSE it; report-only, a split needs an author"$'\n'
+      fi
     fi
   done < <(lint_nodes docs/plans)
 
