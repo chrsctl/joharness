@@ -26,8 +26,9 @@ stale pointers. Cut it to current rule, mechanism and number.
     story; "Measured 2026-10-14 … Decided: the de-rank stays" (keep the
     rule); "refused it as a suspected injection"; the dated costs; the dated
     Heartbeat measurements and "Rejected: session cron…"; "77,897 characters
-    (2026-10-16)" and "the gx orchestrator"; the "older spec"
-    compatibility; "has a partial answer".
+    (2026-10-16)" and "the gx orchestrator"; "has a partial answer".
+    The "older spec" compatibility stays: it decides which Routines get
+    REPLACE.
   - Fix the stale pointers: "`manage.md`, free" goes to
     `.agents/docs/manage-reference.md` § Free. The sentence saying manage.md
     §3 and AGENTS.md list different block reasons is stale; delete it.
@@ -63,7 +64,7 @@ stale pointers. Cut it to current rule, mechanism and number.
 
 ## Acceptance
 
-- `git grep -nE '172s|#283|77,897|2026-10-1[0-9]|\bgx\b|older spec' .agents/docs/orchestrated.md .agents/docs/agent-selection.md .agents/docs/subagents.md`: no output, except lines a selftest asserts. List those in the pull request body.
+- `git grep -nE '172s|#283|77,897|2026-10-1[0-9]|\bgx\b' .agents/docs/orchestrated.md .agents/docs/agent-selection.md .agents/docs/subagents.md`: no output, except lines a selftest asserts. List those in the pull request body.
 - `git grep -n 'review-verifier-subagent' .agents/docs`: no output.
 - `cat .agents/docs/orchestrated.md .agents/docs/agent-selection.md .agents/docs/subagents.md | wc -l`: at most 840 (978 today).
 - `./joharness.sh ci`: `ci: pass`.

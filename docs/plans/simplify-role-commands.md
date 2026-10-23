@@ -6,7 +6,7 @@ effort: high
 needs: none
 requirement: none
 issue: none
-scope: .agents/harness/AGENTS.md, .claude/commands/manage.md, .claude/commands/clerk.md, .claude/commands/scout.md, .claude/commands/conduct.md, .claude/commands/curate.md, .claude/commands/upstream-report.md, .claude/commands/handover.md, .claude/commands/plan.md, .agents/docs/manage-reference.md
+scope: .agents/harness/AGENTS.md, .claude/commands/manage.md, .claude/commands/clerk.md, .claude/commands/scout.md, .claude/commands/conduct.md, .claude/commands/curate.md, .claude/commands/upstream-report.md, .claude/commands/plan.md, .agents/docs/manage-reference.md
 ---
 
 ## Goal
@@ -22,15 +22,13 @@ one home and delete the copies, without changing behaviour.
 - `.agents/harness/AGENTS.md` (always loaded, so each line costs most here):
   - Step 7 exemption: name clerk and conduct beside copy and sync tasks as
     work with no workstream file, matching their role files.
-  - Leave the routing line and the step 7 gate as they are. Other files
-    point here.
+  - Leave the routing line and the step 7 gate as they are. The full
+    routing table lives in start.md (plan simplify-orchestrator-commands).
 - `.claude/commands/manage.md`, `clerk.md`, `conduct.md`, `curate.md`:
   - Replace each restated merge gate with "Loop step 7". curate.md's
     "`./joharness.sh ci` green" gate contradicts step 7 and goes.
   - Cut "holds no slot / beyond `JOHARNESS_MAX_MANAGERS`" to one clause.
 - `.claude/commands/clerk.md`:
-  - Fix the "(AGENTS.md, Decide alone)" pointer for block reasons to
-    `joharness.sh:block_reason_ok`.
   - Delete the "known limits" design argument.
   - Stays the single home of THE SCOUT GATE and comment counting.
 - `.claude/commands/scout.md`:
@@ -45,17 +43,16 @@ one home and delete the copies, without changing behaviour.
     pointer.
   - Delete the "three reasons" and "usually weeks later" rationale.
 - `.claude/commands/curate.md`: delete the "Why:" paragraph.
-- `.claude/commands/handover.md`: the "README.md, Reviewing" reference
-  points at no section. Point it at the `## Review` section of
-  `.agents/docs/handover/TEMPLATE.md`.
 - `.claude/commands/plan.md`: replace the haiku-tier rule with a pointer to
   `.agents/docs/agent-selection.md`.
 - `.agents/docs/manage-reference.md`: merge "Carried plan" and "Carried
-  plan at retire", which both describe the RETIRED.md append.
+  plan at retire", which both describe the RETIRED.md append. Keep the
+  heading "Carried plan at retire": manage.md cites it, and
+  `selftest/orchestrated.sh` checks the two-way pointers.
 
 ## Assumptions
 
-- A1: Quotes are from origin/main 860a3f9c. Find each by its text — evidence: `git grep -n '#251\|#461\|Reviewing\|known limits' .claude/commands` — confidence: high.
+- A1: Quotes are from origin/main 860a3f9c. Find each by its text — evidence: `git grep -n '#251\|#461\|known limits' .claude/commands` — confidence: high.
 - A2: The clerk and conduct role files already say they write no workstream file — evidence: `grep -n 'workstream file' .claude/commands/clerk.md .claude/commands/conduct.md` — confidence: medium. Confirm before editing AGENTS.md.
 - A3: Selftests may assert phrases in these files — evidence: `grep -rln 'clerk.md\|scout.md\|manage.md\|conduct.md' .agents/harness/selftest` — confidence: medium. Keep any phrase a hit asserts.
 
@@ -71,8 +68,8 @@ one home and delete the copies, without changing behaviour.
 
 ## Acceptance
 
-- `git grep -nE '#251|#461|Reviewing\)|known limits' .claude/commands`: no output.
-- `cat .agents/harness/AGENTS.md .claude/commands/{manage,clerk,scout,conduct,curate,upstream-report,handover,plan}.md .agents/docs/manage-reference.md | wc -l`: at most 1250 (1427 today).
+- `git grep -nE '#251|#461|known limits' .claude/commands`: no output.
+- `cat .agents/harness/AGENTS.md .claude/commands/{manage,clerk,scout,conduct,curate,upstream-report,plan}.md .agents/docs/manage-reference.md | wc -l`: at most 1220 (1381 today).
 - `wc -l < .agents/harness/AGENTS.md`: at most 110. The always-loaded file must not grow by more than the exemption clause.
 - `./joharness.sh ci`: `ci: pass`.
 - Consumer-side check: the same `./joharness.sh ci` runs in every consumer after sync and lints these files (glossary, anchors).
@@ -89,6 +86,7 @@ one home and delete the copies, without changing behaviour.
 
 ## Traps
 
+- `.agents/harness/selftest/orchestrated.sh` pins exact phrases in these files. Before cutting a sentence, `grep -n` it in that selftest. A pinned phrase stays byte-exact. Never edit the selftest to fit.
 - AGENTS.md is protocol text, not a core path, but every session loads it.
   Net growth is a regression.
 - `ci` lint_glossary bans `handover file`, `model tier`, `env layer`,

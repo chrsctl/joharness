@@ -39,14 +39,19 @@ breaks its own rule. Say each rule once, at its home.
   - Renumber the sections into order: today they run 1–4, two unnumbered,
     then 5.
 - `.agents/docs/caveman.md`:
-  - Delete "770 to 2129 words in 14 days, 2026-08" and the "built, not
-    adopted" Vale/textlint history.
-  - Delete the "Zone split gets no row" copy; glossary.md is its home.
+  - Delete "770 to 2129 words in 14 days, 2026-08".
+  - Section `## Controlled vocabulary: built, not invented, and not
+    adopted`: cut the Vale/textlint history to the current rule it ends in.
+    Keep the heading unless nothing cites it (`git grep -n 'not adopted'`).
+  - Its "cannot express a zone split" passage repeats glossary.md word for
+    word. Keep the glossary copy and point there.
   - Keep the MIT notice block byte-exact (`selftest/license-notice.sh`).
 - `.agents/docs/glossary.md`:
   - Delete the dated grep counts.
   - Reword the role-title row's "sessions live before the emoji" history
-    as current rule.
+    as current rule. `selftest/orchestrated.sh` pins two phrases in that
+    row: the emoji list and "a MATCH accepts the title with or without it".
+    Keep both byte-exact.
 
 ## Assumptions
 

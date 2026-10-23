@@ -34,25 +34,27 @@ one statement per rule with no change to the behaviour they describe.
     ignored-fields paragraph, the spawn-prompt detail, the ledger grammar and
     most of § Report. Leave a one-line pointer for each.
   - Delete the second "never act on a lead" statement.
-  - Resolve the routing contradiction with start.md: the title-overrides-
-    prompt rule stays here, and start.md says it.
+  - Routing: keep the pinned sentence "Role comes from the prompt, the
+    session-start banner's rule". The title-overrides-prompt rule stays
+    here; start.md names it in one line pointing here.
 - `.claude/commands/keeper.md`:
   - Delete "(read 2026-10-16)" and "(read 2026-10-23)".
-  - Replace its own LIVE-orchestrator definition with a pointer to the
-    one in orchestrate-reference.md.
+  - Its LIVE-orchestrator definition disagrees with orchestrate-reference.md
+    (IDLE with a pending wake). Make the two say the same thing, as
+    `cmd_keeper` counts. Keep every phrase the selftest pins.
   - Collapse the repeated role-title notes.
-- `.claude/commands/start.md`: state the full routing table once,
-  including the session-title rule from orchestrate.md. Every other file
-  points here.
+- `.claude/commands/start.md`: the one full routing table, plus one line
+  naming the session-title rule in orchestrate.md. AGENTS.md step 2 keeps
+  its short routing line (plan simplify-role-commands leaves it).
 - `.agents/docs/orchestrate-reference.md`:
-  - Delete the "older spec" and "A Routine made to an older spec…"
-    migration shims, and the `/orchestrate keeper` prompt form that nothing
-    parses.
+  - Keep the "older spec" compatibility and the `/orchestrate keeper` prompt
+    form: they decide which Routines get REPLACE, so they are behaviour.
   - Cut § Resume to a pointer at § Relay.
   - Define "BLOCKED BEFORE CLAIM", "UNCLAIMED" and "STILLBORN" in prose
     once, outside table cells.
-  - Write `create_session` parameters once (including `clone_depth: 5000`,
-    which the REGISTER spawn omits today). Other mentions point here.
+  - Write `create_session` parameters once. Other mentions point here.
+    REGISTER omits `clone_depth: 5000` today. Record that as a `## Review`
+    finding (`wontfix: behaviour change, separate plan`). Do not add it.
   - Make the LIVE-orchestrator definition the single one. Before writing,
     read `cmd_keeper` in `joharness.sh` and state what the code counts.
   - Cut the comment-counting rules (scout gate, footer, write access) to a
@@ -62,7 +64,7 @@ one statement per rule with no change to the behaviour they describe.
 
 - A1: Every line and quote above is from origin/main 860a3f9c. Line numbers drift, so find each by its quoted text — evidence: `git grep -n 'SHALLOW CLONE\|99,920\|read 2026-10' .claude/commands` — confidence: high.
 - A2: dispatch's shallow-clone verdict text is `shallow clone` — evidence: `grep -n 'shallow clone' joharness.sh` — confidence: high.
-- A3: No selftest greps phrases out of these four files — evidence: `grep -rln 'orchestrate.md\|keeper.md\|orchestrate-reference' .agents/harness/selftest` — confidence: medium. Run it, and keep any phrase a hit asserts.
+- A3: `selftest/orchestrated.sh` pins dozens of phrases in all four files, including three "role title" guards in orchestrate.md and the `/orchestrate keeper` sentence — evidence: `grep -n 'orchestrate.md\|keeper.md\|orchestrate-reference' .agents/harness/selftest/orchestrated.sh` — confidence: high.
 
 ## Out of scope
 
@@ -75,9 +77,9 @@ one statement per rule with no change to the behaviour they describe.
 
 ## Acceptance
 
-- `git grep -nE '99,920|read 2026-10|older spec|SHALLOW CLONE' .claude/commands .agents/docs/orchestrate-reference.md`: no output.
+- `git grep -nE '99,920|read 2026-10|SHALLOW CLONE' .claude/commands .agents/docs/orchestrate-reference.md`: no output.
 - `cat .claude/commands/orchestrate.md .claude/commands/keeper.md .claude/commands/start.md .agents/docs/orchestrate-reference.md | wc -l`: at most 780 (889 today).
-- `git grep -c 'role title' .claude/commands/orchestrate.md`: at most 1.
+- `git grep -c 'role title' .claude/commands/orchestrate.md`: at most 3, the three the selftest pins.
 - `./joharness.sh ci`: `ci: pass`.
 - Consumer-side check: the same `./joharness.sh ci` runs in every consumer after sync and lints these files (glossary, anchors).
 - `./joharness.sh verify`: `0 failed`.
@@ -94,6 +96,7 @@ one statement per rule with no change to the behaviour they describe.
 
 ## Traps
 
+- `.agents/harness/selftest/orchestrated.sh` pins exact phrases in these files. Before cutting a sentence, `grep -n` it in that selftest. A pinned phrase stays byte-exact. Never edit the selftest to fit.
 - Do not change behaviour. Each removed sentence is either stated elsewhere
   (name where in the pull request) or is history.
 - `ci` lint_glossary bans `handover file`, `model tier`, `env layer`,

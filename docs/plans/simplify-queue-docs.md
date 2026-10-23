@@ -38,16 +38,15 @@ them match the code and say each rule once.
       to `.agents/docs/agent-selection.md`.
   - `graph.md`: "cannot watch, nudge, queue or schedule" needs the qualifier
     that the orchestrator and heartbeat do.
-  - `research/README.md`: "`dispatch` lists them" goes to the queue hook
-    (`.agents/harness/queue-context.sh`).
   - `handover/README.md`: "`manage.md`, rescope" goes to "R. Surveyor".
 - History to delete:
   - `plans/README.md`: the pull request #457 and `chrsctl/gx` story (keep
     the `human/<stem>` rule); "A ledger file … was rejected"; "issue #297";
     "nobody has measured".
   - `research/README.md`: "An earlier draft"; "measured once: 13 documents";
-    "An earlier rule … PR 140 shape"; "Issue #267 is the instance"; the
-    "unrecorded method" story.
+    "An earlier rule … PR 140 shape"; "Issue #267 is the instance"; the story
+    under `## An unrecorded method is a failed file`. The heading and its
+    rule stay.
   - `product/README.md`: "Rejected, so the question stays closed"; "Intake
     rejections"; "51 of 201 merges, 2026-08-30".
   - `handover/README.md`: "GitHub's own agent-memory work converged…".
@@ -57,14 +56,14 @@ them match the code and say each rule once.
     step 7); the fast-lane paragraph (home: `plans/README.md` § Fast lane);
     the `JOHARNESS_REVIEW` gate (home: `agent-selection.md`).
   - `product/README.md`: the merge-commit, no-rebase and conflict-at-finish
-    text, except the "Conflict at finish" section AGENTS.md step 7 cites by
-    name. Keep that heading.
+    text, except the bold item **Conflict at finish**, which AGENTS.md step 7
+    cites by name. Keep that item and its bold term.
   - `product/README.md`: the direction rule becomes a one-line pointer to
     `consumer-repos.md`.
 
 ## Assumptions
 
-- A1: Session start prints no queue — evidence: `grep -n 'no queue' joharness.sh` — confidence: high.
+- A1: Session start prints no queue — evidence: run `./joharness.sh session-start` and read its output; `grep -n 'HANDOVER_SCOPE' joharness.sh` — confidence: medium. Confirm before editing any doc.
 - A2: dispatch reads no GitHub — evidence: `grep -n 'reads no GitHub' joharness.sh` — confidence: high.
 - A3: `selftest/reading-budget.sh` sets a byte ceiling, upper only, on `handover/README.md`. It also fails on `(why: history/` — evidence: `cat .agents/harness/selftest/reading-budget.sh` — confidence: high.
 - A4: `selftest/review.sh` needs `outside this checkout` in research/README.md — evidence: `grep -n 'outside this checkout' .agents/harness/selftest/review.sh` — confidence: high.
@@ -96,7 +95,8 @@ them match the code and say each rule once.
 ## Traps
 
 - AGENTS.md step 7 cites `.agents/docs/product/README.md`, "Conflict at
-  finish", by name. Keep that heading.
+  finish", by name. It is a bold item, not a heading. Keep it.
+- `.agents/harness/selftest/orchestrated.sh` pins exact phrases in these files. Before cutting a sentence, `grep -n` it in that selftest. A pinned phrase stays byte-exact. Never edit the selftest to fit.
 - `ci` lint_glossary bans `handover file`, `model tier`, `env layer`,
   `rescope manager` and `bare role title`. The handover docs are where this
   bites.
