@@ -2,12 +2,13 @@
 
 Pre-scoped work agents execute without human in loop. One file per plan,
 under `docs/plans/`, on `main` (same-session plan: on its work branch —
-Lifecycle). Queue order (`./joharness.sh dispatch` prints it): open
-GitHub issues first, then unplanned requirements
+Lifecycle). Queue order (`./joharness.sh dispatch` prints it, reading git
+only): unplanned requirements
 ([`docs/product/`](../product/README.md) — decompose before executing),
-then oldest actionable plan here. Issues = human asks and bugs; plans
-= scoped work with acceptance criteria, written once, executed by any
-session. Nothing builds unplanned: an issue or direct ask decomposes into
+then oldest actionable plan here. Issues are not in the queue: the clerk
+turns them into plans (`.agents/docs/orchestrated.md`). Plans = scoped work
+with acceptance criteria, written once, executed by any session. Nothing
+builds unplanned: an issue or direct ask decomposes into
 a plan before code, same as a requirement — the plan is where a model gets
 matched to the work. Two exceptions: copy and sync tasks get no plan — diff
 self-describing (`.agents/docs/handover/README.md`, "When NOT to write
@@ -16,10 +17,6 @@ one") — and the fast lane below.
 Written for agents — literal readers. Background:
 [`.agents/docs/agent-selection.md`](../agent-selection.md). A plan says scope AND
 out-of-scope explicitly; agent does what plan says, nothing else.
-
-Session-start hook prints the queue — urgent first, then oldest, each with
-its `agent`/`effort` — so a session (or a user starting one from a phone)
-picks entrypoint and agent tier without opening files.
 
 ## Shape
 
@@ -50,7 +47,7 @@ Copy [`TEMPLATE.md`](TEMPLATE.md). Sections:
   each.
 
 Frontmatter: `plan`, `urgency` (`normal` | `urgent`), `agent` (`haiku` |
-`sonnet` | `opus` — which tier implements this plan), `effort`, optional
+`sonnet` | `opus` | `fable` — which tier implements this plan), `effort`, optional
 `needs` (plan names this one reads results of), optional `requirement`
 (the one this plan serves — [`docs/product/`](../product/README.md)),
 optional `issue` (the GitHub issue a clerk turned into this plan, `#N` or `N`,
@@ -80,13 +77,10 @@ agents measured worse than not splitting (DeepMind × MIT scaling study, via
 codejunkie99/graph-engineering task-graph rules).
 
 `scope` is only as true as it is complete, and the file plans forget is the
-shared one. Three plans each adding a test suite: subjects disjoint, scopes
-disjoint, hook proves a parallel wave — and all three edit
-`.github/workflows/ci.yml`, which none of them declared. Registration is the
-shape to look for: a suite goes in the CI workflow, a doc goes in an index,
-a module goes in a runner list. Write the file the plan REGISTERS itself in
-into `scope`, not only the files it creates. Undeclared, the hook does not
-miss the conflict — it asserts the opposite.
+shared one: a suite goes in the CI workflow, a doc in an index, a module in a
+runner list. Write the file the plan REGISTERS itself in into `scope`, not
+only the files it creates. Undeclared, the hook asserts a parallel wave that
+is not one.
 
 Some files every plan touches. A repo whose plans all edit one test file or
 one index has no disjoint pair, so every wave holds one plan and the hook
@@ -107,40 +101,18 @@ whose `scope:` is core paths ONLY is red in `ci`: only a human builds it.
 
 ### A human remainder
 
-A plan split so a session can build it leaves a core-path edit behind — a
-`## Human follow-up` section, the edit the acceptance makes the pull request
-body quote. That text has no life past the merge: the retire commit deletes
-the plan and the workstream file, a pull request body is read by nobody
-twice, and no harness read lists it — `dispatch` reads workstream files on
-live branches and plans in the queue, `upstream` reads a retired workstream
-file for findings, the orchestrator's report reads `dispatch`. A core-only
-plan would be the natural file, and it is red here by rule: a plan nobody
-spawns on sits in the queue until a human notices (pull request #457
-measured the cost: two plans held three days under `CORE ONLY`, `DRAINED`
-said nothing).
-
-Measured in consumer `chrsctl/gx`, 2026-10-13. Two plans were split by the
-human (gx #651). The first merged as gx #654; its retire commit (27c622aa)
-deleted the plan with the follow-up section, and the CI step existed only in
-the pull request body until the human noticed the gap and ordered gx #655.
-The second was applied the same way (gx #656, 600064e4) before its plan
-merged as gx #657. Both times the catch was the human reading, not the
-harness, and both core diffs were agent-authored on the human's order and
-human-merged — consistent with Bounds (`.agents/docs/orchestrated.md`): the
-guarantee is code-owner review, not who typed the diff.
-
-So the home is a pull request on branch `human/<stem>`, labelled
-`human-review`, that the manager opens before the retire commit
-(`.claude/commands/manage.md` §2): the core-path edit alone, committed from
-a separate worktree so it never lands on the manager's own branch, `ci` run
-on it, ready to merge. The human reviews and merges it; no session merges,
-approves or relabels it (Bounds, `human-review` label). One object, one
-step: the human reads the diff that will land, not a description of one.
-Not invention at the edge: the pull request carries the plan's own
-carve-out, never new scope. A ledger file on `main` was rejected: a row the
-human's `.github` merge forgets to delete is stale state, and `dispatch`
-reading it is the stored-copy failure `.agents/docs/graph.md` names.
-`dispatch` still reads git only.
+A plan split so a session can build it leaves a core-path edit behind. A
+`## Human follow-up` section has no life past the merge (the retire commit
+deletes the plan, a pull request body is read once, no harness read lists
+it), and a core-only plan is red here by rule. So the home is a pull
+request on branch `human/<stem>`, labelled `human-review`, that the manager
+opens before the retire commit (`.claude/commands/manage.md` §2): the
+core-path edit alone, committed from a separate worktree so it never lands
+on the manager's own branch, `ci` run on it, ready to merge. The human
+reviews and merges it; no session merges, approves or relabels it (Bounds,
+`human-review` label, `.agents/docs/orchestrated.md`). The pull request
+carries the plan's own carve-out, never new scope. `dispatch` reads git
+only: no ledger file.
 
 `shared:` means "a reconcile merge is expected here", so the path stops
 splitting waves and the hook names it on the wave line instead. Everything
@@ -149,15 +121,11 @@ splits, and still says which plan it collided with. Mark only a path where a
 reconcile is genuinely routine — a wave that claims a parallel safety it does
 not have is worse than one that claims none.
 
-A registry left unmarked can stall the whole fleet: every plan appends to the
-same criteria index or ADR directory, so one branch in flight holds all the
-rest, and `dispatch` reads slots free with nothing to spawn. The repair — an
-`OVERLAP-BOUND` verdict spawns a surveyor that
-marks the registries `shared:` and narrows bare-directory claims across the
-held plans (`.agents/docs/orchestrated.md`, Concurrency). Declaring the
-registry `shared:` in the first place is what spares the fleet that pass, so
-name a bare directory (`docs/adr`) as the specific file you touch and mark a
-true registry `shared:` when you write the plan.
+A registry left unmarked can stall the fleet: every plan appends to the same
+index, so one branch in flight holds the rest. An `OVERLAP-BOUND` verdict
+spawns a surveyor that marks registries `shared:` and narrows bare-directory
+claims (`.agents/docs/orchestrated.md`, Concurrency). Spare the fleet that
+pass: name the specific file, and mark a true registry `shared:`.
 
 A plan's declarations rot the way its anchors do. `./joharness.sh curate`
 reports whether each plan's `scope:` still covers what its `## Scope` names,
@@ -171,26 +139,11 @@ PROPOSES decomposition or ordering and never edits a plan
 ## Does this plan reach consumers
 
 `ci`'s ship-scope stage reads a plan's `scope:` and says whether the work
-lands in every consumer at its next sync, or stays in this repo. It matches
-each path against the sync engine's own lists
-(`.agents/scripts/sync-to-consumer.sh`) rather than a list of its own — a
-second copy of that boundary would disagree with the first the day a path
-moves between `DIRS` and `CANONICAL_ONLY`.
-
-Derived, not declared. No `ships:` field, for the reason there is no
-`status:` field either (Lifecycle below): a field is only as fresh as the
-last hurried session, and `scope` is already read by the queue hook and
-already rots visibly in review.
-
-SHIPS changes what Acceptance owes: name a check a consumer runs, not only a
-local one. A bar met only here is met in the one repo that was never the
-risk. The stage reports and never reds — `scope` is only as true as it is
-complete, so a gate built on it fires on the honest plan whose author forgot
-a path.
-
-Canonical-only in a consumer: it carries no sync engine and its plans ship
-nowhere, so the stage has nothing to say and says nothing. Whole queue at
-once, rather than the plans this branch touches: `JOHARNESS_SHIP=all`.
+lands in every consumer at its next sync, matching each path against the sync
+engine's own lists (`.agents/scripts/sync-to-consumer.sh`). Derived, not
+declared: no `ships:` field. SHIPS changes what Acceptance owes: name a check
+a consumer runs, not only a local one. The stage reports and never reds.
+Whole queue at once: `JOHARNESS_SHIP=all`.
 
 ## What identifies a plan
 
@@ -201,51 +154,35 @@ equivalent copy the lint and `curate` use. So two plan files are two items
 at every reader that schedules, even when both describe ONE defect. Nothing
 has anything else to compare.
 
-What each existing reconciler reaches, and what it does not. Re-take it:
-`grep -n 'stem()\|wave_split_hit()\|ref_merged "\$short"' .agents/harness/queue-context.sh`,
-`grep -n 'no path in its scope\|^dispatch_branch_plans\|planned   :' joharness.sh`.
+Readers that compare plans, and what each reaches:
 
-- **`scope:`** — the in-flight loop in `queue-context.sh` holds a free plan
-  whose declared paths `wave_split_hit` finds overlapping a claimed one's.
-  Declared paths only: two plans for one defect that named different files
-  never meet, and a claim with no `scope:` holds nothing. A hit is a HOLD,
-  not a retirement — a merged branch has no claim row (`ref_merged`), so the
-  held duplicate goes free again, describing work already on `main`.
-- **`./joharness.sh curate`** (`cmd_curate`) lists a plan as a DECLUTTER
-  candidate when NO path in its `scope:` exists any more — a signal, never
-  a deletion. A defect fixed inside a file that still exists
-  trips nothing.
-- **`issue:`** — the one key that names where the work CAME FROM.
-  `./joharness.sh clerk` lists an issue a plan on the base or any unmerged
-  branch already names as PLANNED, so a second clerk skips it. A skip at
-  planning time, for issue-born plans only; no queue reader compares two
-  plans' `issue:`.
-- **`dispatch_branch_plans`** (issue #297, `.agents/docs/orchestrated.md`, "A
-  plan the queue cannot see") prints a plan an unmerged branch added, so the
-  orchestrator SEES a pushed plan before it reaches `main`. Visibility, not
-  pairing: the row is one more stem, compared only against retirements of
-  that stem (base's ledger, a `status: done` workstream file elsewhere: the
-  row reads `DONE ON MAIN`), and a plan the branch's own workstream file
-  names is dropped from it as in flight.
+- **`scope:`** — `queue-context.sh` holds a free plan whose declared paths
+  `wave_split_hit` finds overlapping a claimed one's. Declared paths only: two
+  plans for one defect naming different files never meet. A hit is a HOLD,
+  not a retirement.
+- **`./joharness.sh curate`** lists a plan as a DECLUTTER candidate when NO
+  path in its `scope:` exists any more — a signal, never a deletion.
+- **`issue:`** — `./joharness.sh clerk` lists an issue a plan on the base or
+  any unmerged branch already names as PLANNED, so a second clerk skips it.
+  Issue-born plans only.
+- **`dispatch_branch_plans`** (`.agents/docs/orchestrated.md`, "A plan the
+  queue cannot see") prints a plan an unmerged branch added: visibility, not
+  pairing.
 
 So the duplicate that gets through is a plan filed from something with no
 issue number — a red CI step a merging session saw — while a second session
-plans the same thing.
-
-Rule, until the harness carries an identity that is not the filename:
+plans the same thing. Rule:
 
 - **Before filing a plan for a failure, search for one.** `git grep` the
   failing step or test name across `docs/plans/` on fresh `origin/main` AND
   on every unmerged branch (`git for-each-ref refs/remotes/origin`), and read
   `./joharness.sh dispatch`'s `plans on a branch` block. Same defect found =
-  no second plan; a lead or a note instead. Limit, stated: a planner that has
-  not pushed is invisible to any search — the same pre-push gap Lifecycle's
-  "Spawning in parallel" names.
-- **A spawn prompt telling a manager to plan the NEXT failure it sees is the
-  case this rule exists for**; its caller owns the search above. The channel
-  the harness carries for it is a `lead` line, relayed and never acted on.
-- **No deduping key is proposed**: nobody has measured that two sessions
-  reading one red step would write the same value.
+  no second plan; a lead or a note instead. A planner that has not pushed is
+  invisible to any search (Lifecycle, "Spawning in parallel").
+- **A spawn prompt telling a manager to plan the NEXT failure it sees** is
+  the case this rule exists for; its caller owns the search. The channel is a
+  `lead` line, relayed and never acted on.
+- **No deduping key** exists beyond the filename.
 
 ## Lifecycle
 

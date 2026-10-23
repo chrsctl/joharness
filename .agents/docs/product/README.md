@@ -20,9 +20,9 @@ One file per requirement, shape: [`TEMPLATE.md`](TEMPLATE.md). Frontmatter
 requester's words. Coarse is fine — decomposition is session work, not
 human work.
 
-- **Add** = write file on `main` (direct or PR — human's call). Hook picks
-  it up next session start.
-- **Unplanned** (no open plan's `requirement:` names it) = hook flags it.
+- **Add** = write file on `main` (direct or PR — human's call). `dispatch`
+  offers it next.
+- **Unplanned** (no open plan's `requirement:` names it) = `dispatch` offers it.
   Planning = queue work: session decomposes into plans via PR, plans carry
   the `requirement:` edge. Plan queue rules: [`../plans/README.md`](../plans/README.md).
   A planning pass ENDS in a tree change that silences the row, or blocked —
@@ -88,18 +88,6 @@ Deleted early, an open plan names a missing requirement and
    link. No citable decline = it is the requester's question: `status:
    blocked`, `next:` = the question, push, exit.
 
-Rejected, so the question stays closed:
-
-- **A `planned-out` marker on the requirement.** A status field on a node
-  type that has none ([`../plans/README.md`](../plans/README.md), Lifecycle)
-  — a stored copy that goes stale the day a clause is un-declined.
-- **A clause-level decline vocabulary the test reads.** Largest change, and
-  exit 4 already makes the decline legible: in the deletion record, where
-  history keeps it.
-- **Leave the row, bound the spend.** Every pass terminates normally, so a
-  per-manager ceiling never fires; the cost is the count of passes, not any
-  one of them.
-
 **Claiming a requirement.** A planning manager claims the requirement it
 decomposes the way any manager claims its item: `plan: <requirement stem>`
 in its pushed workstream file. Claim resolution offers `docs/plans/`, then
@@ -119,16 +107,12 @@ push for 24 stall windows it is a leftover and the requirement is offered
 again. Exits 1–4 end the loop at the pass's merge; the claim is what stops a
 SECOND planner while one is in flight.
 
-**Intake rejections** (from a sweep of a published `intent.md` practice):
-
-- **No author or status line in a requirement or a plan.** Provenance is
-  commits ([`../graph.md`](../graph.md), Rules); neither node type carries a
-  status field. A workstream file does carry `status:`, because a session
-  claims with it.
-- **No detector writes the requirement.** The human writes it, or writes
-  one from a scout proposal the reviewer approved
-  ([`.claude/commands/scout.md`](../../../.claude/commands/scout.md)).
-  Convention, not mechanism: nothing gates it.
+**No author or status line in a requirement or a plan.** Provenance is
+commits ([`../graph.md`](../graph.md), Rules); neither node type carries a
+status field. A workstream file does carry `status:`, because a session
+claims with it. No detector writes the requirement: the human writes it, or
+writes one from a scout proposal the reviewer approved
+([`.claude/commands/scout.md`](../../../.claude/commands/scout.md)).
 
 **The scout's brief.** Path `docs/product/SCOUT.md`, written by the reviewer
 on the base branch, no frontmatter, four headings: `## Product`, `## Users`,
@@ -152,37 +136,19 @@ as `normal`: the two legal values are `normal` and `urgent`.
   a measurement.
 - **Start** = Claim (Loop step 3): cut `claude/<plan>`, workstream file,
   push.
-- **Finish** = PR green + reviewed, merge to `main`, PR deletes plan file
-  (+ requirement file when last plan). The merging click is the session's
-  own for its own PR (conditions in `.agents/harness/AGENTS.md` step 7),
-  merge-commit method only (why: the filter note below). Human veto = revert. Rule syncs to consumers with the
-  harness like every Loop rule; a consumer wanting human-click merges
-  overrides in its own `AGENTS.md` Part 2. Merged branch may stand: the
-  session-start hook filters branches merged into `main` out of the
-  claims view, so deadwood is `git branch -r` noise, not fake in-flight
-  work. Filter reads ancestry, so it rests on PRs merging by merge
-  commit — GitHub's "Squash and merge" / "Rebase and merge" buttons hide
-  ancestry, and branches merged that way would read as in-flight again.
-  Prose, not a gate: one squash breaks the filter for every later session.
-  The remedy is a forge setting — restrict the allowed merge methods.
-  Deleting = optional hygiene, human-only, anytime: Delete-branch button
-  on merged PR page, or repo setting "Automatically delete head
-  branches". Sessions never `git push --delete` — deletion is the
-  human's call. Abandoned UNMERGED branches are the deadwood the filter
-  cannot hide: they read as in-flight until a human triages — salvage
-  plans from their workstream files, then delete.
+- **Finish** = Loop step 7 (`.agents/harness/AGENTS.md`): the session merges
+  its own PR, merge-commit method only (the session-start filter reads
+  ancestry, so a squash makes a merged branch read as in-flight). Squash
+  breakage is fixed by a forge setting restricting merge methods. Branch
+  deletion is the human's, never a session's; abandoned UNMERGED branches
+  read as in-flight until a human triages them. A consumer wanting
+  human-click merges overrides in its own `AGENTS.md` Part 2.
 - `urgent` = same mechanics, jumps queue.
-- Merge commits on shared branches, never rebase — history rewrite breaks
-  other sessions' checkouts.
-- **Conflict at finish** = local view of `main` is from session start; another
-  session's PR may have merged since. Before opening or merging the PR,
-  `git fetch origin main` and check ahead/behind — do not trust a stale
-  clone. Behind = merge fetched `origin/main` into branch (not rebase), resolve, re-run
-  `ci`, push. Conflict does not resolve clean (semantic, unclear intent) =
-  do not force-merge through it — decide-alone exception (`.agents/harness/AGENTS.md`),
-  stop, record in workstream file's `Blockers`, ask human. No merge queue:
-  adopt one (the forge's own) only when a measurement shows sessions losing
-  time to reconciles.
+- **Conflict at finish** = `git fetch origin main` and check ahead/behind
+  before opening or merging the PR. Behind = merge fetched `origin/main`
+  into the branch (never rebase), resolve, re-run `ci`, push. Conflict does
+  not resolve clean = stop, record in the workstream file's `Blockers`, ask
+  human (decide-alone exception, `.agents/harness/AGENTS.md`).
 - **Long-running session** = re-check `git fetch origin main` ahead/behind
   periodically during Build too, not only at Finish — a conflict caught
   mid-build is cheap, one hit at finish after hours of work is not.
@@ -196,9 +162,8 @@ a stuck manager after its handover is written. Managers still merge their
 own pull requests 0 behind `main`.
 
 **The cost that scales with width is the reconcile.** About one merge in
-four arrives only after its branch pulled `main` in (51 of 201 merges,
-`origin/main` 2026-08-30). Count it by the reconcile merge's own subject,
-never `--grep=reconcile`:
+four arrives only after its branch pulled `main` in. Count it by the
+reconcile merge's own subject, never `--grep=reconcile`:
 
 ```bash
 git log --oneline origin/main --grep='^Merge origin/main\|^Merge remote-tracking branch' | wc -l
@@ -206,8 +171,6 @@ git log --oneline --merges origin/main | wc -l
 ```
 
 A plan that widens the fleet says what it expects to happen to that number.
-Worktrees would not move it: they isolate files but the conflict still lands
-at the pull request merge.
 
 **The gap: claim-by-push only covers work that enters through the queue.** A
 request typed at a running session enters nowhere. The mitigation is the
@@ -215,17 +178,9 @@ Loop's own rule: nothing builds unplanned, and a plan file is claimable.
 
 ## Reconciliation
 
-Consumer repos carry harness copies. One rule keeps them reconcilable: a
-fix born ANYWHERE lands in joharness `main` first, then syncs out to
-every consumer from there. Never consumer-to-consumer, never
-consumer-only — one canonical line reconciles all copies. The sync tool
-enforces it: a consumer copy whose content canonical history does not know
-is never overwritten.
-
-New consumer starts via `.agents/scripts/bootstrap-consumer.sh`, never by using a
-raw joharness clone as-is: a raw clone carries joharness's live plan
-queue, workstream files and canonical marker, so its sessions work
-joharness's workstream instead of the child's.
-
-Routes, tokens, exit codes, `AHEAD` handling:
+A fix born ANYWHERE lands in joharness `main` first, then syncs out; never
+consumer-to-consumer, never consumer-only. The sync tool never overwrites a
+consumer copy whose content canonical history does not know. A raw joharness
+clone is never a new consumer (it carries the live queue and canonical
+marker): start via `bootstrap-consumer.sh`. Routes, tokens, exit codes:
 [`../consumer-repos.md`](../consumer-repos.md).
