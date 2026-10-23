@@ -355,6 +355,7 @@ or retired, at a tip; it carries `held Nd` from that commit.
 | `JOHARNESS_CURATE_HOURS` | 168 | hours since the last curate (or merged `curate-noop-<stamp>` record) = due (anchors rot with no plan changing); 0 switches the cycle off | written number |
 | `JOHARNESS_CURATE_REGISTRY` | 3 | plans declaring one path before `curate` calls it a registry | written number |
 | `JOHARNESS_CURATE_SPLIT` | 8 | `## Scope` bullets before `curate` proposes a decompose | written number |
+| `JOHARNESS_CURATE_LAYERS` | 3 | distinct top-level directories in a plan's `scope:` before `curate` proposes a decompose; 0 = off | written number |
 | `JOHARNESS_CLERK_HOURS` | 24 | hours between clerk passes over the open issues; 0 = off | written number |
 | `JOHARNESS_CLERK_BATCH` | 3 | open issues one clerk pass takes at most | written number |
 | `JOHARNESS_CLERK_STALE_HOURS` | 24 | an unmerged clerk branch older than this holds nothing; 0 = every one holds | written number |

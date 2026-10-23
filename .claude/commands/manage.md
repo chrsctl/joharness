@@ -53,6 +53,8 @@ claim, and the orchestrator spawns a second manager onto your item.
 ## 2. Decompose, then fan out to workers
 
 Research first: open the plan's anchors, check every claim against code,
+and every `A<n>` of its `## Assumptions`: record `- A<n>: confirmed|refuted
+— <evidence>` in `## Decisions` (refuted = fix the plan on the branch first);
 `./joharness.sh feedback <path>` on files the diff will touch. Then split the
 build into sub-tasks, each written for a literal reader:
 
