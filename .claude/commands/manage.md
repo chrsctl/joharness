@@ -11,6 +11,10 @@ You read: your item; this branch's workstream file, if resuming; the item's
 touches; the environment rules if you touch it. Not the queue, other plans
 or requirements, other branches' files, or the design doc.
 
+`ref § <name>` = `## <name>` of `git show
+origin/main:.agents/docs/manage-reference.md`: read it whole when its
+pointer fires.
+
 ## 0. Orient
 
 1. `./joharness.sh authority`, ONCE, FIRST, on the branch you started on —
@@ -24,12 +28,8 @@ or requirements, other branches' files, or the design doc.
    the research step BEFORE any edit — list every requirement the churned
    file must satisfy, find the conflicting pair, resolve it, fix once
    (`.agents/docs/agent-selection.md`, review churn).
-   Prompt names a plan on ANOTHER branch (a `plans on a branch` row)? Carry
-   the plan, never take the branch: cut your own branch from fresh-fetched `origin/main`, copy
-   that plan file only, push nothing to the owner's branch. Its retire
-   appends `- <stem> <your branch>` to `docs/plans/RETIRED.md` (built or
-   found done; §4): `ci` then refuses the owner's later merge re-adding it.
-   PR body names the owner branch.
+   Prompt names a plan on ANOTHER branch (a `plans on a branch` row)? ref §
+   Carried plan.
 3. Item kind decides the work:
    - `docs/plans/<plan>.md` — Loop steps 3 to 7 on it.
    - `docs/research/<q>.md` — settle it, graduate the answer, delete the
@@ -39,24 +39,7 @@ or requirements, other branches' files, or the design doc.
      left to plan? One of the exits in `.agents/docs/product/README.md`, "A
      requirement no plan can serve".
    - `free <branch>` — a doc-only branch whose author is gone (dispatch
-     `FREEABLE`). A copy task, never a build. Claim on
-     `docs/handover/free-<key>.md`, `workstream: free-<key>`, `plan: none`,
-     key = the branch with every character outside `A-Za-z0-9._-` as `-`.
-     Push the claim, then `./joharness.sh free <branch>`: it merges, drops
-     the owner's workstream files and stems DONE ON MAIN, runs `curate
-     --apply` on the plans it brings in only, `ci`, commits. Refused:
-     `already merged into <your branch>` after `free` committed = done,
-     push and §4; `holds`, `already merged into <base>`, `outside docs/`,
-     `no such branch`, `shares no history`, `free takes another branch` =
-     nothing to free: delete your workstream file, push, exit, no pull
-     request; anything else is your own branch's state: fix it, run again.
-     Reset (conflict, red `ci`) = do by hand, inside a plan-only diff, what
-     `free` does: merge, delete the owner's workstream files, drop stems
-     DONE ON MAIN, retire a done record's plan, `curate --apply` (keep only
-     the plans you bring in), `ci`, recover lines from the owner's tip. Or
-     block `conflict:`. Then §4 whole; its `recover` lines
-     and the owner branch go in the body.
-     Never push to the owner's branch.
+     `FREEABLE`). ref § Free.
    - `rescope <key>` — you are the SURVEYOR: section R. Claim on
      `docs/handover/rescope-<key>.md` with `workstream: rescope-<key>` and
      `plan: none`. One pull request rewriting `scope:` lines, merge, exit.
@@ -98,31 +81,7 @@ outlive this session = a plan file in your pull request. Never a second item.
 
 A remainder only a human can build — a core-path edit
 (`./joharness.sh protocol-paths`) the plan leaves to a human, under whatever
-heading — fits no plan and dies at retire (`.agents/docs/plans/README.md`,
-"A human remainder"). Home: ONE pull request on branch `human/<stem>`,
-opened before the retire commit, ready for a human to merge:
-
-1. A separate worktree from fresh-fetched `origin/main`, never your own
-   tree: `git worktree add -b human/<stem> ../<repo>-human origin/main`.
-2. There, commit ONLY the core-path edit, run `./joharness.sh ci`, push
-   `human/<stem>`. `ci` red only because the edit needs a file your branch
-   adds = the body leads with `merge after <your branch> lands on main`;
-   red for any other reason = fix it there first. This commit is the one exception to the boundary (Loop
-   step 2) and to a spawn prompt's "never commit under those paths": it
-   never lands on your branch, and a human merges it.
-3. `create_pull_request` from `human/<stem>`: title `human: <stem>: <edit,
-   one line>`, body = the plan's reason, the `ci` result, and "merge is the
-   human's"; then label it `human-review` (`issue_write` `update`), and read
-   the label back (`pull_request_read` `get`). You
-   never merge it, never approve it, never relabel it, and never push to it
-   again unless the human asks.
-4. `git worktree remove ../<repo>-human`.
-
-Your own pull request body says `Refs #<core PR>`. The pull request carries
-the plan's carve-out, nothing new. The push, `create_pull_request` or the
-label fails = step 4, then `status: blocked`, `next:` = `github: human PR
-not opened: <error, 40 chars>`, push, exit — never retire with it unopened
-or unlabelled.
+heading — ref § Human remainder.
 
 ## R. Surveyor: the one kind that edits OTHER plans
 
@@ -131,20 +90,7 @@ or unlabelled.
 
 `dispatch` printed OVERLAP-BOUND: every plan HELD because plans that only
 APPEND to a shared registry or CLAIM a whole directory declared it exclusive.
-Your `$ARGUMENTS` carries the `rescope` block. For every held plan AND every
-holder, read its `## Scope`; then, in frontmatter `scope:` only:
-
-- a path the plan APPENDS to or REGISTERS in (criteria index, `docs/INDEX.md`,
-  an ADR or phase spec it adds an entry to) becomes `shared:<path>`;
-- a bare DIRECTORY claim the Scope narrows to one file becomes that file;
-- a path the plan EDITS IN PLACE stays as it is.
-
-Mark BOTH sides of a collision. NEVER split a plan, never touch anything
-below the frontmatter; a plan that needs splitting goes in the pull request
-body for the human. Nothing to change = the holds are GENUINE: no pull
-request, `status: done`, `next:` saying the overlap is real, exit. Otherwise
-one commit rewriting `scope:` lines, review at your tier, retire, pull
-request, merge, exit.
+Your `$ARGUMENTS` carries the `rescope` block. ref § Surveyor.
 
 ## 3. The contract with the orchestrator
 
@@ -188,33 +134,14 @@ At merge, read the pull request's labels (`pull_request_read` `get`). It
 carries `human-review` = do not merge. Set `status: blocked`,
 `next:` = `product: human-review label on PR #<n>`, push, exit.
 
-Carried plan (§0 item 2)? The retire commit also appends `- <stem> <your
-branch>` to `docs/plans/RETIRED.md` (absent = create it, first line
-`# Retired stems`) and deletes your copy of the plan file. Found it already
-done? Still a pull request: the ledger line, the plan copy's and the
-workstream file's deletion, step 7 whole — never `pr: none` and exit, which
-leaves the retire on a branch only.
+Carried plan (§0 item 2)? ref § Carried plan at retire.
 
-Plan names `issue: N`? Body carries `Closes #N` when no other plan on fresh
-`origin/main` names it (`git grep -l -E '^issue: *#?N([^0-9]|$)' origin/main
--- docs/plans`, yours excluded), else `Refs #N`. That issue's labels
-(`issue_read`, `get_labels`, one read when you open the pull request)
-include `scout`, or its title starts `scout:`? Title starts `scout: ` and the pull request carries the
-label `scout` (`issue_write` update on its number, labels); a follow-up
-plan-only pull request for that work too. Nothing in the plan file marks
-it. A follow-up plan you filed as
+Plan names `issue: N`? ref § Plan issue. A follow-up plan you filed as
 its own plan-only pull request is yours too: drive it to merged, step 7
 whole, before you exit.
 
-**Link the issue.** Right after the pull request opens, for EACH issue number
-its body names with `Closes #N` or `Refs #N` (the plan's issue, a
-human-remainder issue, any other):
-post ONE comment on that issue (`add_issue_comment`): `PR #<M> <what it does
-for this issue, one line>: <PR url>`, ending with the attribution footer the
-session's system prompt names. One comment per issue per pull request; never
-edit the issue's body or labels for it. A comment fails: name the failed call
-in your final report line, never block, never retry — the `Closes`/`Refs` line
-still links it.
+**Link the issue.** The body names `Closes #N` or `Refs #N`
+(any issue): ref § Link the issue.
 
 GitHub lost at step 7:
 
@@ -228,45 +155,11 @@ GitHub lost at step 7:
   call, exit.
 
 **A LEAD, when you have one.** Learned something about an item you do NOT
-own? After the merge, send it as one message on the transport your prompt
-names, in the orchestrator's grammar — `lead <stem>: <text>`, text at most
-40 characters:
-
-```
-lead seat-limits: its create path skips the same check
-```
-
-A session id target: Claude Code Remote send_message. A name: SendMessage.
-**The stem must be a QUEUE ITEM's name** — one you can name from your plan's
-`needs:`, its `scope:` collisions, or the reconcile your prompt named. A lead
-with no such stem (an issue, a merged item, the harness itself) goes in your pull request body
-instead; a stem-less lead that is a DEFECT goes where the next paragraph says. Nothing to say is the normal case: send nothing, just exit.
-Never send your own findings. One lead, its own line, nothing after the text,
-no quotes or newlines. No transport line in your prompt, or one refusal: just
-exit — no retry, no second transport. Run no queue command.
+own? ref § Lead.
 
 **A DEFECT outside your item.** A failure that is not your item's:
 
-1. It reproduces on fresh-fetched `origin/main` (run the same command on a
-   checkout of it). No reproduction = it is your branch's: fix it in your item.
-2. Search this repository's open issues for the same failing command or test
-   name. Found = file nothing; pull request body says `Refs #N`.
-3. Otherwise ONE issue per session (`issue_write` `create`) on this
-   repository, before the retire commit: title
-   `defect: <test or command>: <symptom, one line>`; body = the command, at
-   most 20 lines of its output, the `origin/main` sha it reproduced on, and
-   your branch name; labels `human-review`. Pull request body says `Refs #N`,
-   never `Closes #N`.
-4. A second defect in the same session: pull request body only, one line each.
-5. `issue_write` fails: put the issue text in the pull request body under a
-   line `defect not filed: <error, 40 chars>`. Never block or delay the item
-   for it.
-6. Not for harness defects found in a consumer (those go to canonical,
-   `.agents/docs/feedback.md` §4) nor core-path edits (the human-remainder
-   paragraph, §2).
-
-The label holds the issue from the clerk until the owner removes it; no
-session removes it.
+ref § Defect.
 
 A rescope may rewrite your plan's `scope:` while you hold it. At step 7 that
 is a modify/delete conflict on your OWN plan file: KEEP THE DELETE (`git rm`
