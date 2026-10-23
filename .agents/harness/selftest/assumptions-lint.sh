@@ -43,6 +43,6 @@ as_ci() { CLAUDE_PROJECT_DIR="$aswork" JOHARNESS_CONF="${aswork}/joharness.conf"
 as_out="$(sed -n '/plans on this branch/,/^$/p' <<<"$(as_ci)")"
 
 expect "a plan added without the section is red, naming the file" \
-  "docs/plans/new-bare.md: no \`## Assumptions\` heading" "$as_out"
+  'docs/plans/new-bare.md: no "## Assumptions" heading' "$as_out"
 refute "a plan already on the base is not red" "old-bare" "$as_out"
 refute "a plan with the section is green" "new-good" "$as_out"
