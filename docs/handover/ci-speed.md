@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01P1gU1UFZtCcF6w8ERTki4C
 agent: opus
 updated: 2026-10-23
-next: Measure JOBS=1 vs default counts and times; dispatch timing; review
+next: Record verifier findings in ## Review, fix, retire, open PR, merge
 ---
 
 ## Goal
