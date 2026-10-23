@@ -1,6 +1,6 @@
 ---
 workstream: fast-lane
-status: blocked
+status: in-progress
 branch: claude/fast-lane
 pr: 576
 plan: fast-lane
@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01PoyAytHA6a4PwcFm6XW6qK
 agent: opus
 updated: 2026-10-23
-next: defect: #578: verifier.md over its reading-budget bound on main reds ci
+next: Resume: the fix for #578 merged (#579, 914700db, no plan); re-run your Acceptance
 ---
 
 ## Goal
