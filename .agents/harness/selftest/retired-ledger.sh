@@ -27,7 +27,7 @@ printf 'JOHARNESS_ENV=none\n' >"$rlconf"
 # <stem>: a sound plan file.
 rlbt='`'
 rlplan() {
-  printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: low\nneeds: none\nrequirement: none\nscope: src/a.py\n---\n\n## Goal\nFixture.\n\n## Scope\n\n- %ssrc/a.py%s -- changes.\n' \
+  printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: low\nneeds: none\nrequirement: none\nscope: src/a.py\n---\n\n## Goal\nFixture.\n\n## Assumptions\nNone.\n\n## Scope\n\n- %ssrc/a.py%s -- changes.\n' \
     "$1" "$rlbt" "$rlbt" >"${rlwork}/docs/plans/${1}.md"
 }
 rlplan live-plan
