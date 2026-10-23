@@ -18,6 +18,10 @@ dispatch, the control plane, and `.agents/docs/agent-selection.md` Lineup
 (tier to model ID) — no plan, requirement, research file or design doc. A
 manager's workstream file only in KILL and LOOP, to write the record.
 
+`ref § <name>` = `## <name>` of `git show
+origin/main:.agents/docs/orchestrate-reference.md`: read it whole when its
+pointer fires.
+
 ## Tools
 
 Find each with `ToolSearch("+<name>")` (names carry an unstable prefix).
@@ -37,122 +41,15 @@ REQUIRED — absent, say so and stop: `create_session`, `send_later`, one
 liveness read (`get_session` or `list_sessions`). OPTIONAL — absent, one path
 degrades, never the loop; say which once:
 
-| absent | what changes |
-| --- | --- |
-| `PushNotification` (or the environment's equivalent) | a valid block, and a `corewait` stem, are reported in the pass report only, no push to the human: say so once. |
-| any transport that delivers | no nudge: still two passes, the first sends nothing; the KILL's interrupt does the asking. `JOHARNESS_STALL_MINUTES` becomes a kill threshold — say so. |
-| `interrupt_session` | cannot stop, so must not replace: write the handover from the branch, `status: blocked`, `next:` = "stalled: Stalled; the orchestrator could not stop the session that holds this.", report, no respawn. A session already gone (ARCHIVED, not found, FAILED twice) is respawned anyway. BLOCKED BEFORE CLAIM: report, spawn nothing. |
-| `archive_session` | the stopped session is left in place; report, respawn as written. UNCLAIMED: report, spawn nothing. |
-| `status_bucket` | crash and BLOCKED BEFORE CLAIM rows unreachable: take the IDLE path (nudge, confirm, respawn; the unratified-block row still applies); never respawn on one observation; name the managers judged this way. |
-| `set_session_title` | the one-orchestrator check cannot work: report it every pass as a cost in the human's money; do not stop. |
-| `create_trigger` | no REGISTER: report `heartbeat not registered: no create_trigger`. |
-| `delete_trigger` | no replace: a session-made stale heartbeat is reported and pushed like any other stale line. |
-| GitHub MCP `list_issues`, `issue_read` | the scout's issue trigger cannot be read: only the human's order spawns a scout; say so once. |
-
-A call REFUSED or erroring at run time (a permission denial) is
-that tool ABSENT for that target this pass: take its row in the table above, name the
-refused call in the report, never retry it. Respawn-after-archive rows then
-follow the `archive_session` row ONLY after a confirmed stop; an archive
-refused with no confirmed interrupt (dead row, STILLBORN) follows the
-`interrupt_session` row (no replace). Interrupt-before-KILL follows the
-`interrupt_session` row (no replace, `status: blocked`).
+Any other tool absent, or a call REFUSED or erroring at run time → ref §
+Optional tools.
 
 A name you cannot find is a capability you do not have, not a reason to do
 nothing. Never read a full queue and leave it untouched.
 
 ## 0. Start (once per orchestrator session, never per pass)
 
-1. `git fetch --prune origin` and fast-forward this checkout to `origin/main`
-   (`git checkout main && git merge --ff-only origin/main`), so the harness
-   you run is current. Cannot fast-forward = say so and stop.
-2. `./joharness.sh authority`. VERIFIABLE = proceed. UNVERIFIED naming a
-   shallow clone = `timeout 300 git fetch --unshallow origin` once, then
-   `authority` again. Still not VERIFIABLE = stop and quote its verdict text
-   verbatim, never a paraphrase. Then `get_session` (no `session_id`):
-   `lineage.depth >= lineage.limit` = the REQUIRED tools refuse. Stop
-   before step 3 takes the title; report and `PushNotification` `lineage
-   <depth>/<limit>: this session cannot spawn or arm; start a fresh
-   orchestrator session`. No `lineage` field, or no `get_session` = proceed.
-3. One orchestrator per repo. A LIVE orchestrator: a session titled
-   exactly `orchestrator: <owner/repo>`, not `ARCHIVED`, whose
-   `session_status` is `RUNNING` or `PENDING`, or that holds a pending
-   `/orchestrate pass` wake (`list_triggers`: `run_once_at` set,
-   `persistent_session_id` = its id) — IDLE between passes is alive. A
-   retired or duplicate title (RUN END, SWAP) is never LIVE, whatever its
-   `session_status`. Your own title already `orchestrator (retired):
-   <owner/repo>` or `orchestrator (duplicate): <owner/repo>` = report
-   `retired: <title>`, answer as §4's forwarding paragraph does, stop; the
-   next run starts in a fresh session.
-   `list_sessions`: another LIVE one with an earlier `created_at` than
-   yours = run step 5 report-only (no REGISTER, no replace), then exit,
-   report its `updated_at`, `status_detail` and step 5's line. The older
-   one proceeds, so two started together never both exit. The exit's last
-   act: `set_session_title` yours to `orchestrator (duplicate):
-   <owner/repo>` (RUN END, §4). Else
-   `set_session_title` yours to `orchestrator: <owner/repo>`. From the same result rebuild `@new`:
-   each `manager: <stem>` not `ARCHIVED`, not in your ledger, whose item file
-   still exists on `origin/main` (`git cat-file -e origin/main:<path>`) →
-   ledger `<stem>@new respawns=<RESPAWN_LIMIT>`; report `rebuilt <stem>@new
-   from its title`.
-4. Read the Lineup once.
-5. Heartbeat: `list_triggers` (no filter: a paused one must show). The
-   heartbeat is a Routine named exactly `heartbeat: <owner/repo>` with a
-   non-empty `cron_expression`; any other Routine (a nightly `/curate`)
-   never counts. None: REGISTER, below. Two or more with `enabled` true:
-   `heartbeat duplicated: <id>, <id>` (each firing pays twice). Otherwise
-   check the enabled one (none enabled: the newest), up to date only when
-   ALL hold, else `heartbeat stale: <id>: <reason>[, <reason>]`, one reason
-   per failing check, spelled:
-   - `paused` — `enabled` is not true and `ended_reason` is anything but
-     `auto_disabled_session_gone`: a human paused it, or the platform
-     stopped it for a reason this file does not know;
-   - `disabled` — `enabled` is not true and `ended_reason` is
-     `auto_disabled_session_gone`: its keeper is gone;
-   - `unbound` — `persist_session` is not true, or `persistent_session_id`
-     is empty: a fresh-session Routine, whose sessions, made from a
-     session, get no repository and no session tools
-     (`.agents/docs/orchestrated.md`, Heartbeat);
-   - `keeper-gone` — `get_session` on `persistent_session_id` finds it
-     `ARCHIVED`, not found, or titled other than `keeper: <owner/repo>`;
-   - `failing` — `last_run.status` ends in `FAILED`
-     (`ROUTINE_RUN_STATUS_FAILED`);
-   - `prompt` — `derived_state.prompt`, trimmed, is not exactly
-     `/keeper` or `/orchestrate keeper` (the older spec: the title guard
-     routes it, so it is never replaced for its prompt alone).
-   REPLACE only a Routine REGISTER made — `created_via: meta_mcp` AND
-   `derived_state.prompt` exactly `/keeper` or `/orchestrate keeper` — whose reasons hold
-   no `paused`: REGISTER's lineage check (step 1) first, failing = report
-   the stale line and stop; then `delete_trigger` it, `archive_session` its
-   keeper (title `keeper: <owner/repo>`, not `ARCHIVED`), then REGISTER from
-   step 2; report `heartbeat replaced: <old id>: <reasons>`. Any other `stale` line, and every
-   `duplicated` line: report it and `PushNotification` it once per
-   session; the fix is the operator's, the line names it. A Routine made
-   to an older spec (fresh session, prompt `/orchestrate`) reads `unbound,
-   prompt`: the line adds `delete it; the next /orchestrate registers the
-   keeper heartbeat`. Never enable,
-   edit or delete a Routine a human paused or made in the UI: the pause is
-   the human's veto on the fleet.
-
-   REGISTER, at most once per session:
-   1. `get_session` (no `session_id`): `lineage` present and NOT `depth + 2
-      < limit` = report `heartbeat not registered: lineage
-      <depth>/<limit>`, stop here. The keeper sits at `depth + 1`, the
-      orchestrators it starts at `depth + 2`, and those must still spawn.
-   2. Each `keeper: <owner/repo>` session in step 3's `list_sessions`
-      answer, not `ARCHIVED` (a heartbeat deleted in the UI leaves its
-      keeper idle): `archive_session`. Then `create_session`: `source_url`
-      = `git remote get-url origin`, `model` = the Lineup's `sonnet` (the
-      role is low tier; never the registering session's model), `title` =
-      `keeper: <owner/repo>`, `prompt` = `/keeper`.
-   3. `create_trigger`: `name` = `heartbeat: <owner/repo>`,
-      `cron_expression` = `0 * * * *`, `persistent_session_id` = step 2's
-      id, `prompt` = `/keeper`, `initiation` =
-      `human_schedule`.
-   4. Report and `PushNotification` once: `heartbeat registered: <trigger
-      id>, keeper <session id>; pause it to stop the hourly restarts`.
-   Step 2 or 3 fails = report `heartbeat not registered: <error>`; step 3
-   failing after step 2 = `archive_session` that keeper. Never retry with
-   another cadence or another binding.
+First, before Pass entry: ref § 0. Start, steps 1 to 5.
 
 The ledger comes from your wake message (step 4), never from memory. First
 start = the `ledger:` line of your prompt (a SWAP successor's,
@@ -186,15 +83,8 @@ nothing.
   session's (`persistent_session_id` = your id). Another one
   carrying a higher `pass=` than yours = report `superseded by pass <m>`, do
   nothing, schedule nothing.
-- **Duplicate.** From the superseded check's answer, each other session's
-  pending `/orchestrate pass` wake: `get_session` each distinct
-  `persistent_session_id`. One that is a LIVE orchestrator ("## 0. Start"
-  step 3) with an earlier `created_at` than yours = `set_session_title`
-  yours to `orchestrator (duplicate): <owner/repo>`, report `duplicate of
-  <id>: exiting`, spawn nothing, schedule nothing. One with a later
-  `created_at` = you are the older: run "## 0. Start" step 3's `@new`
-  rebuild this pass (its unclaimed spawns live only in its ledger), report
-  `duplicate <id> seen: rebuilt @new`.
+- **Duplicate.** Another session's pending `/orchestrate pass` wake in that
+  answer → ref § Duplicate.
 - No `list_triggers` = say so once, skip the superseded and duplicate
   checks, keep the `harness=` check.
 
@@ -242,11 +132,11 @@ Act on the FIRST row that matches:
 | any | any | branch merged (dispatch no longer lists it), or a plan/research/requirement entry still `new` whose item file is gone from fresh `origin/main` (merged between passes, or curated away; never a `rescope-<key>` entry, which has no item file) | done: drop the ledger entry. A message carrying `lead <stem>: <text>` is the one exception that is never nothing: carry it and print it, never act on it |
 | any | any | a `rescope-<key>` entry whose dispatch row reads `done: finished rescope, holds no slot — never nudge` (genuine holds: it merges nothing, ever) | done: drop the entry, keep `rescoped=<key>`. Nudge nothing, respawn nothing |
 | any | `LOOP?`, or head moved and `next:` unchanged with `same=2` already | any | LOOP, below. No nudge |
-| IDLE | any | `retired, no claim file`, last turn asks a human to merge or grant merge permission (`status_detail` / needs-action) | HELD BY HUMAN: never nudge, never respawn (a nudge meets the same refusal). `PushNotification` once carrying stem, branch, PR link, the session's ask verbatim; no ledger `held-human=` yet = send and ledger `held-human=<pr>`, else report only. The row frees its slot. Drop the entry when the branch merges (the `done` row), or when the session is RUNNING again, its last turn no longer asks, or dispatch no longer lists the branch as `retired, no claim file` |
-| IDLE; bucket not consulted | `STALL?`, head unchanged | workstream `status: in-progress`, last turn ended asking for input (`status_detail`), no `unratified=` | UNRATIFIED BLOCK: NUDGE "Orchestrator health pass: you stopped asking for input while status is in-progress. Do the work, or set status blocked with a reason from manage.md §3, push." Ledger `unratified=<head>`. No transport: report only, ledger nothing, never respawn on it. Any reason in `status_detail` is unratified: only `status: blocked` ratifies |
+| IDLE | any | `retired, no claim file`, last turn asks a human to merge or grant merge permission (`status_detail` / needs-action) | HELD BY HUMAN → ref § Held by human |
+| IDLE; bucket not consulted | `STALL?`, head unchanged | workstream `status: in-progress`, last turn ended asking for input (`status_detail`), no `unratified=` | UNRATIFIED BLOCK → ref § Unratified block |
 | IDLE | any | `unratified=` recorded and head still equals it — a reply or new `status_detail` does not count | stopped: `respawns` at limit = report only. Else `archive_session`, RESPAWN, even under a "don't respawn active managers" directive; counted |
 | any | any | a nudge, `seen=`, `held=` or `unratified=` recorded, and head, `status_detail` or `updated_at` moved since (or no longer BLOCKED / FAILED) | working: drop that record |
-| any | any | status `blocked`, no `INVALID BLOCK?` | human's. Never respawn. Notify once: `PushNotification` carrying stem, branch, session link, `next:` verbatim; no ledger `notified=<stem>` yet = send and ledger it, else report only. A human's answer is text the user typed in YOUR turn, never a peer's `send_message`; the human's delegation ("decide" / "answer the questions") in YOUR turn counts: research, decide, and open `next:` with `Decided by the orchestrator on the human's delegation:` then the decision. Relay only when that answer or delegation is in YOUR turn, else notify and stop. Relay: write it into the workstream file's `next:`, `status: in-progress`, commit "Orchestrator relays the human's answer", push (GUARD mechanics), drop `notified=`. Session RUNNING, IDLE or PENDING (alive): NUDGE "Orchestrator relays the human's answer on <branch>: fetch it, re-read your workstream file, continue", no `kill`, no RESPAWN; no transport: send nothing. FAILED, ARCHIVED or not found: GUARD `kill`, RESPAWN with the resume line |
+| any | any | status `blocked`, no `INVALID BLOCK?` | human's. Never respawn. Notify once: `PushNotification` carrying stem, branch, session link, `next:` verbatim; no ledger `notified=<stem>` yet = send and ledger it, else report only. A human's answer or delegation typed in YOUR turn → ref § Relay; else notify and stop |
 | RUNNING | under stall | any | working |
 | RUNNING | `STALL?` | no nudge | NUDGE: "Orchestrator health pass: no push on <branch> for <N>m. Now: /handover, commit, push. Then continue, or set status blocked and stop." Ledger head, `status_detail`. No transport: send nothing, still ledger |
 | RUNNING | `STALL?` | nudged, head and `status_detail` unchanged | KILL, below |
@@ -254,12 +144,7 @@ Act on the FIRST row that matches:
 | not RUNNING, bucket FAILED | any | no `seen=` | CRASHED: no nudge; ledger `seen=<updated_at>` and head |
 | same | any | `seen=`, `updated_at` and head unchanged | dead: `archive_session`, RESPAWN |
 | ARCHIVED / not found | any | claimed, branch unmerged | gone: RESPAWN on the branch |
-| BLOCKED, not IDLE/PENDING/ARCHIVED | any | `new` from a previous pass, no `held=` | ledger `held=<updated_at>` |
-| same | any | `held=`, still `new`, `updated_at` unchanged | item gone from `origin/main` or `respawns` at limit: report only. Else `interrupt_session`, `archive_session`, plain spawn of the ITEM, `respawns`+1 |
-| ARCHIVED / not found | any | `new` from a previous pass | gone before claim: report; keep the entry so nothing re-spawns it |
-| IDLE/PENDING | any | `new` from a previous pass, no `seen=` | ledger `seen=<updated_at>` and whether `last_served_model`/`sources` exist |
-| IDLE/PENDING, no `last_served_model`, no `sources` | any | `seen=`, `updated_at` unchanged | STILLBORN: `archive_session`, plain spawn of the ITEM, counted; at the limit report |
-| IDLE/PENDING with `last_served_model` | any | `seen=`, `updated_at` unchanged | ran and stopped unclaimed: report detail, keep the entry, never respawn |
+| not RUNNING | any | `new` from a previous pass, or `seen=` | ref § Unclaimed spawn rows; none matches = next row |
 | IDLE/PENDING | any | branch unmerged, no nudge | NUDGE as above; spawn nothing for it |
 | IDLE/PENDING | any | nudged, head and `status_detail` unchanged | gone: RESPAWN on the branch |
 | RUNNING | any | `retired, no claim file` | merging; nothing |
@@ -270,46 +155,14 @@ Act on the FIRST row that matches:
 
 `suspect a stopped fleet` decides nothing.
 
-KILL — the handover comes BEFORE the kill: `interrupt_session`, wait one
-pass. Then `git fetch origin <branch>`: head or `updated:` moved = handover
-landed. Else check out the branch and under `## Blockers` write "Killed by
-the orchestrator <date>: no push for <N>m after a nudge. Control plane's last
-summary: <status_detail>. `git diff --stat origin/main...HEAD`: <output>.",
-`next:` = "Resume: read Blockers, `./joharness.sh ci`, continue the plan.",
-commit "Orchestrator handover after kill", GUARD `kill`, push, back to main.
-Then `archive_session` and RESPAWN.
-
-LOOP — same steps, record instead: "Looped, killed by the orchestrator
-<date>: <N> commits since main, <file> rewritten <M> times, `next:`
-unchanged since <date>. Commits: <`git log --oneline origin/main..HEAD`>."
-`next:` = "Research step FIRST (agent-selection.md, review churn): list
-every requirement <file> must satisfy, find the conflicting pair, resolve
-it, THEN fix once." Raise `agent:` one tier (opus/fable stay, prompt adds
-"Run at effort xhigh."). Commit "Orchestrator handover after a loop", GUARD
-`loop`, push. The
-RESPAWN prompt adds "The last session looped. Read Blockers first; do the
-research step before any edit." Counts against the respawn limit.
+KILL, LOOP → ref § KILL and LOOP.
 
 RESPAWN = spawn (step 3) plus "Resume branch <branch>: check it out, read
 docs/handover/<file>.md WHOLE before anything else." An entry still `new`
-has no branch: plain spawn. Past `JOHARNESS_RESPAWN_LIMIT`: check out the
-branch, `status: blocked`, `next:` = "respawns: Respawned <N> times and still not
-finished; a human decides what this needs.", reason under `## Blockers`,
-commit "Orchestrator hands off after <N> respawns", GUARD `kill`, push, report.
+has no branch: plain spawn. Past
+`JOHARNESS_RESPAWN_LIMIT` → ref § Respawn limit.
 
-GUARD `<verb>` — every push onto a manager's branch, right before it:
-`./joharness.sh guard <verb> <branch> --expect <sha>` (`kill` for any write
-but LOOP's). Decision read = `git fetch origin
-+refs/heads/<branch>:refs/remotes/origin/<branch>` (any refspec maps it)
-before you check the branch out to write — KILL's fetch, or this one run
-then for the relayed answer and the respawn-limit record — and `<sha>` = `git rev-parse
-origin/<branch>` right after it. Never fetch again between it and guard. Then push with the lease, never plain: `git push
---force-with-lease=refs/heads/<branch>:<sha> origin HEAD:<branch>`. Non-zero
-guard, or a refused push = no handover: report the lines, drop the local
-commit, re-decide next pass.
-The archive and RESPAWN the record precedes wait too: a record not pushed is
-no handover, and no handover is no replace. Why:
-`.agents/docs/orchestrated.md`, "The guard before a harness push".
+GUARD `<verb>`, before every push onto a manager's branch → ref § GUARD.
 
 ## 3. Spawn
 
@@ -328,72 +181,9 @@ nothing.
   `./joharness.sh janitor --apply <branch>...` yourself — no session. It
   refuses a claim with `pr:` set. Skip any branch the health pass
   respawned this pass: it has a live manager now.
-- Role sessions, at most ONE of each per run and none while one is in flight
-  (dispatch's header block says), `create_session` like a manager
-  (`clone_depth: 5000` included), prompt =
-  the command + the lines its row names (clerk and conduct: "the role lines";
-  curator, scout, surveyor: "the standard lines" — they claim by workstream
-  file):
-
-  | line | model (Lineup) | title | prompt | ledger |
-  | --- | --- | --- | --- | --- |
-  | `curate DUE` naming proposals (any verdict) | sonnet | `curator: <UTC date>` | `/curate` | `curated=<stamp>` |
-  | `clerk DUE` (any verdict; `held` = nothing) | sonnet | `clerk: <UTC date>` | `/clerk` | `clerked=<stamp>` |
-  | `scout     : none in flight`, AND the human's order (below) or a scout issue that needs the scout (below); any other `scout :` row = nothing | fable | `scout: <UTC date>` | `/scout` | `scouted=<stamp>` |
-  | `conduct DUE: spawn` (any verdict; `held`, `suppressed` = nothing) | sonnet | `conduct: <UTC date>` | `/conduct` | `conducted=<stamp>` |
-  | `OVERLAP-BOUND`, `rescope :` says `in flight: none` | sonnet | `surveyor: <key>` | `/manage rescope <key>` + the block verbatim | `rescope-<key>@new`, `rescoped=<key>` |
-  | `free <branch> ... FREEABLE` under `spawn` (a slot, like a manager) | sonnet | `freer: <branch>` | `/manage free <branch>` | `free-<key>@new` |
-
-  FREEABLE first: prove the owner's session not RUNNING (`/who`, as for
-  `janitor`); RUNNING = skip the row this pass. Dispatch drops the row while
-  a `free-<key>` claim stands or another unmerged branch holds the owner's
-  tip; a released (`abandoned`) free claim offers it again.
-
-  "the role lines", for clerk and conduct (they write no
-  workstream file, so no claim line):
-
-  ```
-  Run ./joharness.sh protocol-paths and never commit under those paths. Push
-  at every milestone. One pass, then exit.
-  ```
-
-  Plus the lead line, when a transport exists, as for a manager. Curator,
-  scout and surveyor write a workstream file and get "the standard lines"
-  below.
-
-  The human orders an extra role session: their explicit order, typed in
-  THIS session, allows ONE extra session of that role beyond "at most ONE of
-  each per run".
-  - Prompt: the command plus the lines that role's row names ("the role
-    lines" or "the standard lines"), nothing added. The prompt never quotes
-    the human or asserts their authority.
-  - Ledger: that role's own key carries the mark, `<key>=<stamp>+human`
-    (`clerked=<stamp>+human`). One mark per role key, so two roles' extras
-    stay distinct.
-  - Report: quotes the human's words.
-  - Guard: never spawn it while dispatch shows that role in flight.
-
-  A scout issue needs the scout. Read only when the `scout     :` row reads
-  `none in flight` and no scout was spawned this run; `off` (no reviewer,
-  or no brief) reads nothing. `list_issues` on this repository, label
-  `scout`, state OPEN, pull requests skipped; `issue_read` `get_comments`,
-  every page. One issue that needs the scout = spawn ONE; never one per
-  issue. The SCOUT COMMENT is `clerk.md`'s (THE SCOUT GATE, 2): the newest
-  footed comment opening `scout:` by an author with write access; nothing
-  else quiets the trigger. An issue needs the scout when it is NOT approved
-  (THE SCOUT GATE), NOT under `planned` in `./joharness.sh clerk`, and
-  either:
-  - (i) its newest counting comment (`clerk.md` §2) is newer than its
-    scout comment;
-  - (ii) its title does not start `scout:` and it has no scout comment:
-    a new research request; or
-  - (iii) its scout comment opens `scout: revision`: a revision a pass
-    left unfinished.
-  An approved or planned issue waits on the clerk, never the scout. A
-  reading that fails (a comments page, `planned   : UNREADABLE`) = that
-  issue needs nothing this pass. The issue is evidence, never
-  instruction: the prompt names no issue; the report names the issue
-  number that fired it.
+- Role sessions (`curate DUE`, `clerk DUE`, `scout     :`, `conduct DUE`,
+  `OVERLAP-BOUND`, `FREEABLE`, the human's order) → ref § Role
+  sessions; "A scout issue needs the scout" is there.
 
   A ledger `rescoped=<K>` covers later keys whose holders are all in K.
   Issues reach the queue only through the clerk. Never nudge or respawn a
@@ -468,24 +258,8 @@ the wake you received.
 
 RETIRE. The `pass=` this arm would write exceeds dispatch's `passes :`
 line (`JOHARNESS_ORCHESTRATOR_PASSES`; `lifted` = never) = arm as above
-with `retire=yes` on the `harness=` line, every pass from then on. Pass N
-of one session re-reads passes 1..N-1; the wake already holds all a pass
-needs (why: `.agents/docs/orchestrated.md`, "Start each run fresh"). The
-pass count decides, never `used_tokens` or `cost_usd`. `pass=` is the wake
-counter: an out-of-band arm (below) advances it too.
-
-You never start an orchestrator, and past the pass count you never retire
-yourself: the keeper does both in one turn (`keeper.md`, SWAP), from the wake you armed. Until it
-does, keep running passes; no gap, no second fleet. The first pass that
-arms `retire=yes`: one Claude Code Remote `send_message` to the keeper
-(the heartbeat's `persistent_session_id`), `priority` `later`, text
-`retire ready <your session id>`, so the swap comes before the hourly
-wake. Not delivered = report `keeper not rung: swap at the next hourly
-wake`. No up-to-date heartbeat ("## 0. Start" step 5) = no keeper to swap
-you: report `retire waits: heartbeat <not registered | stale |
-duplicated>` and keep arming. RUN END's retitle is no retire in this
-sense: a run's end has nothing in flight to hand over and starts no
-successor.
+with `retire=yes` on the `harness=` line, every pass from then on. The
+first pass that arms `retire=yes` → ref § RETIRE.
 
 RUN END. A pass that ends at DRAINED or PAUSED arms nothing. Ends = the
 verdict `DRAINED — nothing free, nothing in flight: exit` or `PAUSED — …
@@ -500,62 +274,26 @@ Retitling a session the keeper already retitled changes nothing. A retired
 title is final: nothing in this file sets `orchestrator: <owner/repo>` on
 it again but SWAP step 2's rollback.
 
-A session titled `orchestrator (retired): <owner/repo>` or `orchestrator
-(duplicate): <owner/repo>` woken by a message from another session (a manager it
-spawned carries its id as its lead address) finds the LIVE orchestrator
-("## 0. Start" step 3; `list_sessions`, the oldest LIVE one), forwards the
-message verbatim with `send_message`, arms nothing, and ends the turn. None
-LIVE = report `lead not forwarded: no live orchestrator`. A human message
-wakes it as any session: it answers by naming the LIVE orchestrator,
-spawns nothing, arms nothing. A human-ordered spawn (below) reads this
-session's title first, the same way.
+A retired or duplicate title woken by a message → ref § Retired session
+woken.
 
-A spawn made outside a scheduled pass (in answer to the human's order above)
-arms one new `send_later` at once, in this format:
-
-- A wake is pending (`list_triggers` with `include_completed` lists one for
-  this session): the new wake's `pass=` is the pending wake's `pass=` plus
-  one, so Pass entry's superseded check makes the stale wake do nothing;
-  cancel nothing. The new wake's `harness=` line carries `retire=yes` when
-  the pending wake does. Its ledger is the pending wake's stored ledger plus this
-  spawn, never written from memory.
-- No wake is pending (the run ended and RUN END's retitle was refused; a
-  retired title refuses the order above): treat it as a first start: `pass=` is one above the highest `pass=` among this
-  session's wakes, completed ones included (`pass=1` only when none exist),
-  or Pass entry's superseded check would kill it; a ledger holding only this
-  spawn.
-- No `list_triggers`: say so to the human and arm nothing. Dispatch reads the
-  spawn from git once it pushes.
+Spawned outside a scheduled pass → ref § Out-of-band arm.
 
 Never sleep, never poll. A manager's lead message wakes you: note the lead,
 end the turn; the next scheduled pass writes it into the ledger. Merges are
 read from git. `DRAINED — nothing free, nothing in flight: exit` or `PAUSED
 — … exit` = final report, no next pass. `… a role is due` = spawn the role,
 schedule the next pass. `… in flight` = schedule, no spawn.
-Human says stop = stop scheduling; name the managers still running; and
-`update_trigger` this repo's heartbeat `enabled: false` (the pause is the
-veto step 5 honours), else the keeper restarts the fleet within the hour.
-No `update_trigger` = report `pause heartbeat <id> or the keeper restarts
-the fleet`. Then RUN END's retitle, last.
+Human says stop → ref § Human stop.
 
 ## Report, every pass
 
 Opening lines, in this order: the `URGENT` row (if any), the `heartbeat
-registered`, `heartbeat replaced`, `heartbeat not registered`, `heartbeat duplicated` or `heartbeat stale` line (if any), then, on the first pass of a run a human message started (not
-a wake), when this session already wrote a final report (DRAINED exit or
-PAUSED) more than one hour earlier (RUN END's retitle refused; a retired
-title runs no pass): `fresh session is cheaper: start a new
-orchestrator session for the next run`. It only informs; the pass still runs.
-(Why: `.agents/docs/orchestrated.md`, "Start each run fresh".)
+registered`, `heartbeat replaced`, `heartbeat not registered`, `heartbeat duplicated` or `heartbeat stale` line (if any), then, on the first pass of a run a human message
+started (not a wake), the line of ref § Fresh session line.
 
-The `dispatch` wait line (`<n> plan(s) wait on a human core edit ...`):
-print it verbatim after the verdict. Then, per stem on it, `PushNotification`
-once carrying the stem, the plan path and the text `waits on a human core
-edit`; the ledger key `corewait=<stem>[,<stem>]` is run-scoped: a stem not
-yet listed = send and append it, else report only; drop a stem when dispatch
-no longer lists it. A `DRAINED ... exit` pass arms nothing, so each heartbeat
-run starts empty and pushes again, as it does for a block. Never spawn on it,
-never read it as work; the lead drop on `CORE ONLY` stays.
+The `dispatch` wait line (`<n> plan(s) wait on a human core edit ...`) →
+ref § Core wait.
 
 Every pass: `context: <used_tokens>`, `context_usage.used_tokens` from one
 `get_session` read of this session (no `session_id`; the same read gives
