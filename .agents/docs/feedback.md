@@ -6,8 +6,7 @@ one, and what this repo's own history says when you count it.
 
 Measure it yourself: `./joharness.sh feedback`. Every number below is counted
 from git at read time, nothing stored. Trust counted numbers, never written
-numbers — including the ones on this page, which were true on 2026-08-24 and
-are re-derivable in two seconds.
+numbers.
 
 ## The four stages
 
@@ -77,18 +76,12 @@ nobody touched inside the window does not score.
 
 ## Why `feedback` exists
 
-Retention was zero: the finish ritual deletes the workstream file, so every
-recorded finding lived only in merge history, and the same defects came back
-one edge apart. `feedback` carries findings past the merge and puts them in
-front of the next session touching the same file — on demand, at `review`,
-and before every edit through the PreToolUse hook.
+The finish ritual deletes the workstream file, so a recorded finding lives
+only in merge history. `feedback` carries findings past the merge and puts
+them in front of the next session touching the same file — on demand, at
+`review`, and before every edit through the PreToolUse hook.
 
 ## Worked example: tree or diff
-
-The first class recurrence named loudly enough to graduate: seven edges, one
-question, every fix local to the caller that had it (`cleanup --apply`
-deleted an inherited live claim; `finish` redded its own branch over an
-inherited file; a sentence about "every branch" written after reading two).
 
 **The rule: a branch inherits every file its base branch carries, so presence
 in the tree says nothing about the branch. Ownership is a DIFF against the
@@ -130,9 +123,9 @@ right way is not evidence the stated mechanism moved it.
 
 The four stages assume one repo. A consumer running this harness splits them:
 **Detect** happens where the work is, **Prevent** only reaches it after a sync.
-That extra hop is where this loop dies, and the direction rule
-([`consumer-repos.md`](consumer-repos.md)) says only where the fix goes, not how
-you get it there.
+That extra hop is where this loop dies. The direction rule
+([`consumer-repos.md`](consumer-repos.md)) says where the fix goes; this
+section says how it gets there.
 
 ### 1. Decide whether the harness is actually wrong
 
@@ -154,17 +147,15 @@ contribution. A defect report without its measurement is a preference.
 
 ### 3. Land it in canonical, never in the consumer
 
-Not doctrine for its own sake. **The next sync overwrites every harness-owned
-file in the consumer**, so a harness fix made locally is deleted by the
-mechanism whose job is keeping it current — silently, and usually weeks later
-when nobody connects the two.
+The direction rule ([`consumer-repos.md`](consumer-repos.md)). The next sync
+overwrites every harness-owned file in the consumer, so a local harness fix
+is deleted silently.
 
 ### 4. Inline or routed
 
-The context rule keeps *sync* out of a session holding product work because a
-sync diff is thousands of lines. Feedback is the opposite shape: the diff is
-small and specific, and the evidence is in that session's head and nowhere
-else. So:
+The context rule ([`consumer-repos.md`](consumer-repos.md)) keeps *sync* out
+of a session holding product work. Feedback is the opposite shape: the diff is
+small and the evidence is in that session's head and nowhere else. So:
 
 - **Capture always, immediately.** In the workstream file's `## Review` if the
   branch has one, in the canonical pull request body otherwise. Neither
@@ -186,7 +177,7 @@ twin of this route, for an issue filed in a consumer. The cap above binds
 findings; a clerk files at most one issue per routed issue (its batch already
 caps the pass).
 
-### The manual report
+### 5. The manual report
 
 Steps 1 to 4 end with the session, and a merged manager's findings are gone
 from every tree. `./joharness.sh upstream [<edge>]` reports which of an
@@ -196,16 +187,6 @@ and the `CANONICAL_REPO` they would go to. `/upstream-report <edge>`
 files at most one pull request on the canonical. Run by hand; nothing spawns
 it.
 
-### A STUCK edge, not a merged one
-
-An edge that never merges carries a condition and a clock instead of a
-diff. `./joharness.sh analysis [<branch> [<claim>]]` reports a claim's
-BLOCKED / STALL? / LOOP? mark beside the base branch's current conf answers
-and every key that changed since; read by hand, nothing acts on it. It says
-`MAY BE LIFTED`, never `LIFTED`, and `NO CONFIG MOVEMENT` is not "the cause
-is live": it knows a conf key moved, not that the key answers the prose the
-manager wrote.
-
 `upstream` filters by path and nothing else; the reporter gates each finding
 against *does the fact it states match what it measures*. A finding whose fix
 commit carried other findings is reported with its paths flagged as the
@@ -214,21 +195,22 @@ paths its own text names. The report lands as one research node in
 canonical — never a requirement or a plan. In canonical the command says
 `CANONICAL` and stops.
 
-### 5. Stage 4 is the sync, not the merge
+### 6. A STUCK edge, not a merged one
 
-A fix merged in canonical has not prevented anything in the consumer that
-found it. It prevents on the sync that lands it, which is the one stage of the
-loop nobody in either repo is watching — the consumer's session has moved on
-and canonical never sees the consumer.
+An edge that never merges carries a condition and a clock instead of a
+diff: `./joharness.sh analysis [<branch> [<claim>]]`, read by hand
+(`.agents/docs/orchestrated.md`, `analysis` row). It says `MAY BE LIFTED`, never
+`LIFTED`; `NO CONFIG MOVEMENT` is not "the cause is live".
 
-Close the loop by name: when the sync lands, check the thing that bit you is
-gone. That session ran `./joharness.sh finish` on the very sync branch carrying
-`finish`, which is the cheapest possible version of it.
+### 7. Stage 4 is the sync, not the merge
 
-### Where a consumer's OWN findings go
+A fix merged in canonical prevents nothing in the consumer that found it
+until the sync lands it. When the sync lands, check the thing that bit you is
+gone.
 
-Nowhere new — decided by counting (2026-10-08, 273 edges). A consumer's
-product finding either has a fix path, and `feedback` already serves it keyed
+### 8. Where a consumer's OWN findings go
+
+Nowhere new. A consumer's product finding either has a fix path, and `feedback` already serves it keyed
 on that path, or it has none (a `wontfix` or no-change), and no path-keyed
 destination can reach it. No third case, so no destination to build.
 
@@ -254,9 +236,8 @@ Named because a measure that hides its blind spots is worse than no measure:
   touched.
 - **Findings without the `r1:` id.** Attribution keys on the id the TEMPLATE
   prescribes. A bullet written without one still counts in volume — the
-  handover hook counts it too — but nothing links it to a file. One of the
-  nine reviewed edges here wrote all five of its findings that way, which is
-  how the gap got noticed. `./joharness.sh ci`'s `== finding ids` stage names
+  handover hook counts it too — but nothing links it to a file.
+  `./joharness.sh ci`'s `== finding ids` stage names
   unkeyable bullets on the branch's own diff while it can still fix the form.
 - **Disposition read from prose.** `(fixed)`, `wontfix` and "no change" are
   matched in the finding's text, so a finding saying "fixed; no change to the
@@ -264,8 +245,7 @@ Named because a measure that hides its blind spots is worse than no measure:
   finding, and a field a hurried session fills in wrong is the failure mode
   delete-on-merge exists to avoid.
 - **Renames.** A path recorded before a move resolves by unique-suffix match
-  and otherwise stands as recorded. This repo's own `.agents/` move split one
-  hot spot into two cold ones until that was fixed.
+  and otherwise stands as recorded.
 - **The window is a choice, and a small one is noisy.** Recurrence scores
   only the newest `JOHARNESS_RECURRENCE_WINDOW` recorded edges, so a repo
   with few edges scores few pairs and one rediscovery moves it a long way.

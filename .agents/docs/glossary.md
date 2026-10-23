@@ -13,7 +13,7 @@ definition, rots against the first (`.agents/docs/caveman.md`).
 | agent tier | which of haiku, sonnet, opus, fable implements a plan | `.agents/docs/agent-selection.md` | model tier |
 | environment layer | one directory under `.agents/env/`, at most one selected per repo | `.agents/env/README.md` | env layer |
 | surveyor | the role that corrects held plans' `scope:` declarations on an `OVERLAP-BOUND` verdict | `.agents/docs/orchestrated.md` | rescope manager |
-| role title | `<emoji> <role>: <subject>`; emoji 🔑 keeper, 🎼 orchestrator, 💤 orchestrator (retired), 👯 orchestrator (duplicate), 🔨 manager, 📐 surveyor, 🧭 curator, 📋 clerk, 🧐 conduct. A SET writes the emoji; a MATCH accepts the title with or without it, so sessions live before the emoji keep counting | `.agents/docs/orchestrated.md` | bare role title |
+| role title | `<emoji> <role>: <subject>`; emoji 🔑 keeper, 🎼 orchestrator, 💤 orchestrator (retired), 👯 orchestrator (duplicate), 🔨 manager, 📐 surveyor, 🧭 curator, 📋 clerk, 🧐 conduct. A SET writes the emoji; a MATCH accepts the title with or without it | `.agents/docs/orchestrated.md` | bare role title |
 
 ## What ci checks
 
@@ -38,18 +38,10 @@ Two consequences worth knowing before you fight the gate:
 
 ## Where the code names the thing, the code wins
 
-Counts settle a spelling only when lopsided. Whole tree, `git grep -Fni --
-"<term>" -- '*.md' '*.sh' | wc -l` on `origin/main` 2026-08-28: 205 against
-14, eight files carrying both. Settles `workstream file`. Did NOT settle
-`agent tier` — 10 against 5, same command, 2026-08-24 — and the frontmatter
-field is `agent`, the stronger evidence, which is what decided that row.
-
-Re-count inside the gate's own scope and every losing spelling is 0. That is
-the lint working, not evidence:
-
-```bash
-git grep -Fnoi -- "<term>" -- '.agents/docs/*' '.agents/harness/*' 'AGENTS.md' | wc -l
-```
+Counts settle a spelling only when lopsided. `agent tier` was not lopsided;
+the frontmatter field is `agent`, the stronger evidence, which decided that
+row. Inside the gate's own scope every losing spelling counts 0: that is the
+lint working, not evidence.
 
 ## One meaning, or nothing
 
