@@ -26,7 +26,8 @@ resumes within hours, not days, and with no human.
   when there is no `RESUME`, no plan on the base or on a live branch names
   #<n>, at least `JOHARNESS_DEFECT_RECHECK_HOURS` have passed since the
   block commit, and the base's first parent has a commit after the block
-  commit. It ranks after `RESUME` and before `STUCK` and `UNPLANNED`. It
+  commit. It ranks after `RESUME`, `STUCK` and `UNPLANNED` (first-park
+clock), and a RESUME row takes a slot before it. It
   prints `PARKED #<n> RECHECK` on the dispatch row and under the verdict,
   in the same way `RESUME`'s row is printed.
 - `joharness.sh` knob table: `JOHARNESS_DEFECT_RECHECK_HOURS`, default 2,

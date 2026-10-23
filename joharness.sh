@@ -127,8 +127,8 @@ JOHARNESS_CLERK_STALE_HOURS|24|dispatch|An unmerged clerk branch older than this
 JOHARNESS_SCOUT_READS|12|dispatch|Outside reads one scout pass makes before it proposes from what it has.
 JOHARNESS_CONDUCT_HOURS|168|dispatch|Hours since the conduct ledger last landed before a reviewer is due; 0 = off.
 JOHARNESS_CONDUCT_SAMPLE|3|dispatch|Retired branches one conduct run samples; 0 = off.
-JOHARNESS_DEFECT_PLAN_HOURS|48|dispatch|Hours after a defect: block with no plan naming its issue = PARKED UNPLANNED; 0 lifts it.
-JOHARNESS_DEFECT_FIX_HOURS|72|dispatch|Hours after a defect: block with no RESUME = PARKED STUCK; 0 lifts it.
+JOHARNESS_DEFECT_PLAN_HOURS|48|dispatch|Hours after the first defect: park on an issue with no plan naming it = PARKED UNPLANNED; 0 lifts it.
+JOHARNESS_DEFECT_FIX_HOURS|72|dispatch|Hours after the first defect: park on an issue with no RESUME = PARKED STUCK; 0 lifts it.
 JOHARNESS_DEFECT_RECHECK_HOURS|2|dispatch|Hours after a defect: block, the base moved since and no plan naming its issue, before PARKED RECHECK; 0 lifts it.
 JOHARNESS_SCOUT_REVIEWER||base-conf|GitHub login whose approved comment gates a scout proposal; empty = none. Read from the base branch conf.
 JOHARNESS_SCOUT_RESEARCH|off|base-conf|Exactly on = a scout pass may read outside the repository. Read from the base branch conf.
@@ -5618,18 +5618,20 @@ defect_issue() {
 #   RESUME      a plan naming #<n> left the base's first parent after the
 #               block commit (renames are not a retire), and no plan on the
 #               base nor on a `live` branch row names #<n> now;
-#   RECHECK     no RESUME, no plan on the base nor on a `live` branch row
-#               names #<n>, JOHARNESS_DEFECT_RECHECK_HOURS since the block
-#               commit, and the base's first parent has a commit the block
-#               commit cannot reach, dated at or after it. A re-park writes
-#               a new block commit: once per base advance;
 #   STUCK       no RESUME, JOHARNESS_DEFECT_FIX_HOURS since the first park;
 #   UNPLANNED   no plan names #<n> anywhere, JOHARNESS_DEFECT_PLAN_HOURS
 #               since the first park;
+#   RECHECK     no plan on the base nor on a `live` branch row names #<n>,
+#               JOHARNESS_DEFECT_RECHECK_HOURS since the block commit, and
+#               the base's first parent has a commit the block commit cannot
+#               reach, dated at or after it. A re-park writes a new block
+#               commit: once per base advance;
 #   PARKED      otherwise.
-# The first park: the oldest commit on the branch whose next: is a defect:
-# on #<n>. A re-park after a RECHECK restarts RECHECK's clock, never these
-# two: else a defect nobody fixes, on a moving base, never reaches a human.
+# The first park: the oldest commit on the branch, newer than its last
+# orchestrator `Resume:` next:, whose next: is a defect: on #<n>. A re-park
+# after a RECHECK restarts RECHECK's clock, never STUCK's nor UNPLANNED's,
+# and those two outrank RECHECK: rechecks end and the human hears, once,
+# however often the base moves.
 # The minutes column is since the block commit for RESUME and RECHECK, since
 # the first park otherwise.
 # args: <branch> <workstream path> <merge base> <next:> <branch-plan rows>
@@ -5670,11 +5672,13 @@ dispatch_defect_state() {
   now="$(date +%s)"
   age=$(( (now - bt) / 60 ))
   [ "$age" -ge 0 ] || age=0
+  # Newest first; a RESUME closed every park before it.
   ft="$bt"
   while IFS= read -r h; do
     [ -n "$h" ] || continue
-    [ "$(defect_issue "$(git -C "$ROOT" show "${h}:${ws}" </dev/null 2>/dev/null |
-      gr_field_raw next)")" = "$n" ] || continue
+    p="$(git -C "$ROOT" show "${h}:${ws}" </dev/null 2>/dev/null | gr_field_raw next)"
+    case "${p#[\"\']}" in Resume:*) break ;; esac
+    [ "$(defect_issue "$p")" = "$n" ] || continue
     h="$(git -C "$ROOT" log -1 --format=%ct "$h" </dev/null 2>/dev/null)"
     case "$h" in '' | *[!0-9]*) continue ;; esac
     [ "$h" -ge "$ft" ] || ft="$h"
@@ -5722,6 +5726,14 @@ dispatch_defect_state() {
   if [ -n "$retired" ] && [ "$named" -eq 0 ]; then
     printf 'RESUME\t%s\t%s\t%s\n' "$n" "$retired" "$age"; return 0
   fi
+  fhours="$(num_knob JOHARNESS_DEFECT_FIX_HOURS)"
+  phours="$(num_knob JOHARNESS_DEFECT_PLAN_HOURS)"
+  if [ "$fhours" -gt 0 ] && [ "$fage" -ge $((fhours * 60)) ]; then
+    printf 'STUCK\t%s\t%s\t%s\n' "$n" "${retired:--}" "$fage"; return 0
+  elif [ "$phours" -gt 0 ] && [ -z "$retired" ] && [ "$named" -eq 0 ] &&
+       [ "$fage" -ge $((phours * 60)) ]; then
+    printf 'UNPLANNED\t%s\t-\t%s\n' "$n" "$fage"; return 0
+  fi
   rhours="$(num_knob JOHARNESS_DEFECT_RECHECK_HOURS)"
   if [ "$rhours" -gt 0 ] && [ -z "$retired" ] && [ "$named" -eq 0 ] &&
      [ "$age" -ge $((rhours * 60)) ]; then
@@ -5735,16 +5747,7 @@ dispatch_defect_state() {
     done < <(git -C "$ROOT" log --first-parent --format=%ct \
       "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" "^${bh}" </dev/null 2>/dev/null)
   fi
-  fhours="$(num_knob JOHARNESS_DEFECT_FIX_HOURS)"
-  phours="$(num_knob JOHARNESS_DEFECT_PLAN_HOURS)"
-  if [ "$fhours" -gt 0 ] && [ "$fage" -ge $((fhours * 60)) ]; then
-    printf 'STUCK\t%s\t%s\t%s\n' "$n" "${retired:--}" "$fage"
-  elif [ "$phours" -gt 0 ] && [ -z "$retired" ] && [ "$named" -eq 0 ] &&
-       [ "$fage" -ge $((phours * 60)) ]; then
-    printf 'UNPLANNED\t%s\t-\t%s\n' "$n" "$fage"
-  else
-    printf 'PARKED\t%s\t%s\t%s\n' "$n" "${retired:--}" "$fage"
-  fi
+  printf 'PARKED\t%s\t%s\t%s\n' "$n" "${retired:--}" "$fage"
 }
 dispatch_claim_age_min() {
   local ts now
@@ -7138,7 +7141,7 @@ cmd_dispatch() {
   local DISPATCH_WITHHELD=
   local inflight="" free="" questions=""
   local n_parked=0 n_fixed=0 n_resume=0 n_recheck=0 parked_lines="" dst dn dplan dage di ri rtext dresume=0
-  local fx_label fx_wait
+  local fx_label fx_wait fx_k fx_r fx_c fx_slot fx_lim
   local -a fx_rows=() fx_lines=() fx_n=() fx_plan=() fx_di=() fx_kind=()
 
   cap="$(num_knob JOHARNESS_MAX_MANAGERS)"
@@ -7652,26 +7655,40 @@ cmd_dispatch() {
   n_resume=$n_fixed
   [ "$n_resume" -le "$n_slots" ] || n_resume=$n_slots
   n_slots=$((n_slots - n_resume))
-  # Their one label on the slots and verdict lines.
-  if [ "$n_recheck" -eq 0 ]; then
+  # A fix that retired outranks a recheck: RESUME rows take the slots first.
+  # The label on the slots and verdict lines names the rows that got one;
+  # with no slot, the rows that wait.
+  # Rows print in their own order (each one carries the text before it);
+  # fx_k is a row's rank: RESUME rows first, then RECHECK rows.
+  fx_slot=$((n_fixed - n_recheck))
+  [ "$fx_slot" -le "$n_resume" ] || fx_slot=$n_resume
+  if [ "$n_resume" -eq 0 ]; then fx_slot=$((n_fixed - n_recheck)); fx_lim=$n_fixed
+  else fx_lim=$n_resume; fi
+  if [ "$fx_slot" -eq "$fx_lim" ]; then
     fx_label=RESUME; fx_wait=fixed
-  elif [ "$n_recheck" -eq "$n_fixed" ]; then
+  elif [ "$fx_slot" -eq 0 ]; then
     fx_label=RECHECK; fx_wait="due a recheck"
   else
     fx_label=RESUME/RECHECK; fx_wait="fixed or due a recheck"
   fi
   rtext=""; dst=""
+  fx_r=0; fx_c=$((n_fixed - n_recheck))
   for ((ri = 0; ri < n_fixed; ri++)); do
+    if [ "${fx_kind[$ri]}" = RECHECK ]; then
+      fx_k=$fx_c; fx_c=$((fx_c + 1))
+    else
+      fx_k=$fx_r; fx_r=$((fx_r + 1))
+    fi
     dn="${fx_n[$ri]}"; dplan="${fx_plan[$ri]}"; di="${fx_di[$ri]}"
     if [ "${fx_kind[$ri]}" = RECHECK ]; then
-      if [ "$ri" -lt "$n_resume" ]; then
+      if [ "$fx_k" -lt "$n_resume" ]; then
         rtext="${rtext}${fx_rows[$ri]}  PARKED #${dn} RECHECK — the base moved since the block, no plan names #${dn}: write the recheck next:, then nudge or respawn (orchestrate.md), one slot"
         dst="${dst}${fx_lines[$ri]}            PARKED #${dn} RECHECK ${di}: the base moved since the block, recheck it this pass"$'\n'
       else
         rtext="${rtext}${fx_rows[$ri]}  PARKED #${dn}: the base moved since the block, recheck waits for a slot"
         dst="${dst}${fx_lines[$ri]}            PARKED #${dn} ${di}: the base moved since the block, recheck waits for a slot"$'\n'
       fi
-    elif [ "$ri" -lt "$n_resume" ]; then
+    elif [ "$fx_k" -lt "$n_resume" ]; then
       rtext="${rtext}${fx_rows[$ri]}  PARKED #${dn} RESUME — the fix retired (${dplan}): write the resume next:, then nudge or respawn (orchestrate.md), one slot"
       dst="${dst}${fx_lines[$ri]}            PARKED #${dn} RESUME ${di}: the fix retired (${dplan}), resume it this pass"$'\n'
     else
