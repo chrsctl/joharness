@@ -256,6 +256,23 @@ for needle in 'retire ready <your session id>' \
   'set_session_title` yours to `orchestrator (duplicate): <owner/repo>`'; do
   expect "orchestrate-reference.md spells ${needle}" "$needle" "$reffold"
 done
+# Rules moved into the reference with no pin of their own: each needle is
+# grep-checked against the reference, so a silent edit there goes red.
+# shellcheck disable=SC2016 # literal backticks in the needles
+for needle in 'ledger `held-human=<pr>`' \
+  'Orchestrator health pass: you stopped asking for input while status is in-progress. Do the work, or set status blocked with a reason from manage.md §3, push.' \
+  'STILLBORN: `archive_session`, plain spawn of the ITEM, counted; at the limit report' \
+  'ledger `held=<updated_at>`' \
+  'the ledger key `corewait=<stem>[,<stem>]` is run-scoped' \
+  'drop a stem when dispatch no longer lists it' \
+  'Looped, killed by the orchestrator' \
+  '--force-with-lease=refs/heads/<branch>:<sha> origin HEAD:<branch>' \
+  'A scout issue needs the scout.' \
+  '(i) its newest counting comment' \
+  '(ii) its title does not start `scout:`' \
+  '(iii) its scout comment opens `scout: revision`'; do
+  expect "orchestrate-reference.md spells ${needle}" "$needle" "$reffold"
+done
 # Each clause that keeps one orchestrator per repo, with no gap: the retire
 # is a flag on the wake, the old one keeps running until swapped and stops
 # on its title, the successor's prompt is the old one's own wake, the
