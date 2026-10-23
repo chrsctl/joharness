@@ -12,10 +12,8 @@ Inline — no subagent.
 2. Frontmatter, exact vocabulary (`ci` lints it):
    - `urgency`: `normal` | `urgent`.
    - `agent`: `haiku` | `sonnet` | `opus` | `fable` — selection rules
-     `.agents/docs/agent-selection.md`. haiku ONLY when mechanical AND fully
-     specified AND every acceptance criterion runnable. One unclear
-     edge = sonnet. opus when wrong-but-plausible code is the failure
-     mode.
+     `.agents/docs/agent-selection.md` owns the
+     haiku, opus and fable rules.
    - `effort`: `low` | `medium` | `high` | `xhigh`. xhigh when plan
      touches a Part 2 prohibition's territory.
    - `needs`: plan names whose RESULT this plan reads. Related-but-

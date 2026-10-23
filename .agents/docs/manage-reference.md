@@ -3,15 +3,6 @@
 Rare branches of `.claude/commands/manage.md`, verbatim; its `ref §`
 lines say when to read each; its terms hold here.
 
-## Carried plan
-
-Carry
-   the plan, never take the branch: cut your own branch from fresh-fetched `origin/main`, copy
-   that plan file only, push nothing to the owner's branch. Its retire
-   appends `- <stem> <your branch>` to `docs/plans/RETIRED.md` (built or
-   found done; §4): `ci` then refuses the owner's later merge re-adding it.
-   PR body names the owner branch.
-
 ## Free
 
 A copy task, never a build. Claim on
@@ -80,10 +71,13 @@ request, merge, exit.
 
 ## Carried plan at retire
 
-Carried plan (§0 item 2)? The retire commit also appends `- <stem> <your
-branch>` to `docs/plans/RETIRED.md` (absent = create it, first line
-`# Retired stems`) and deletes your copy of the plan file. Found it already
-done? Still a pull request: the ledger line, the plan copy's and the
+Carry the plan, never take the branch: cut your own branch from
+fresh-fetched `origin/main`, copy that plan file only, push nothing to the
+owner's branch. The pull request body names the owner branch. The retire
+commit appends `- <stem> <your branch>` to `docs/plans/RETIRED.md` (absent =
+create it, first line `# Retired stems`) and deletes your copy of the plan
+file; `ci` then refuses the owner's later merge re-adding it. Found it
+already done? Still a pull request: the ledger line, the plan copy's and the
 workstream file's deletion, step 7 whole — never `pr: none` and exit, which
 leaves the retire on a branch only.
 
