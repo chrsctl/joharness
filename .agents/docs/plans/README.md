@@ -281,22 +281,24 @@ where a plan, its claim and its retire cost more than the change. Skips the
 plan file ONLY: workstream file, review, verifier, `ci`, `verify`, `finish`
 all stay.
 
-`ci` stage `fast lane` proves the branch qualifies, and reds each breach by
-name. Against the merge base with `origin/main`, working tree included:
+`ci` stage `fast lane` holds a branch that declares the lane to its bound,
+and reds each breach by name. Declares = a workstream file in the tree
+saying `plan: fast`, or one the branch added and retired. Against the merge
+base with `origin/main`, working tree and untracked files included:
 
-- at most 3 paths changed outside `docs/handover/` (deleted and renamed
-  paths count);
+- at most 3 paths changed besides that workstream file (deleted and
+  renamed paths count; other `docs/handover/` files count);
 - none at or under a core path (`./joharness.sh protocol-paths`) — no lane
   reaches one;
 - no plan added — the lane builds, it never queues.
 
-A workstream file the branch added and later retired still binds it.
 Review depth = haiku recipe, whatever `agent:` says, plus the verifier at
-haiku (`./joharness.sh review` prints it). `fast` is never an item stem:
-graph lint reds `docs/plans/fast.md` (and a research or requirement of that
-name). Dispatch reads the queue only, so it never spawns fast-lane work; a
-human or an issue starts it. Bound is 3 because a bigger change is one a
-plan pays for: raise it never to fit a case at hand.
+haiku (`./joharness.sh review` prints it, from the same files). `fast` is
+never an item stem: graph lint reds `docs/plans/fast.md` and a research or
+requirement of that name; a consumer carrying one renames it at sync.
+Dispatch reads the queue only, so it never spawns fast-lane work; a human
+or an issue starts it. Bound is 3 because a bigger change is one a plan
+pays for: raise it never to fit a case at hand.
 
 ## Why files, not issues
 
