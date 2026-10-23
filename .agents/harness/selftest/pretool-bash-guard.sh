@@ -755,16 +755,17 @@ pbg_denied "a clock compared the wrong way is no bound"
 # shellcheck disable=SC2016  # a JSON payload; the $ is text the guard reads
 pbg '{"tool_name":"Bash","tool_input":{"command":"while [ \"$(date +%s)\" -lt \"$d\" ] || true; do sleep 1; done"}}'
 pbg_denied "a deadline test with || true is no bound"
-# strip_heredocs is linear: 20,000 lines of body. 0.6 s of CPU here; the
+# strip_heredocs is linear: 20,000 lines of body. 0.7 s of CPU here; the
 # quadratic version took 67 s here, so 15 s tells them apart. CPU time, user
 # plus sys, never the wall clock: this case asks which algorithm runs, and a
-# shared runner under four parallel selftest workers stretched a 0.6 s read
+# shared runner under four parallel selftest workers stretched a 0.7 s read
 # to 15 s of wall clock (issue #566). `time` on the call counts the guard's
 # own process, a child of pbg's command substitution.
 pbg_big=""
 for _ in $(seq 1 20000); do pbg_big+='echo hello world line\n'; done
-# TIMEFORMAT local to a function, so the topic leaves no global behind.
-pbg_cpu_time() { local TIMEFORMAT='%U %S'; time pbg "$1"; }
+# TIMEFORMAT local to a function, so the topic leaves no global behind;
+# LC_ALL=C so `time` prints a decimal point awk reads, never `0,7` (= 0).
+pbg_cpu_time() { local TIMEFORMAT='%U %S' LC_ALL=C; time pbg "$1"; }
 pbg_cpu="$(mktemp)"
 pbg_cpu_time '{"tool_name":"Bash","tool_input":{"command":"cat > /tmp/w.sh <<EOF\n'"$pbg_big"'EOF"}}' 2>"$pbg_cpu"
 pbg_secs="$(awk 'NF == 2 { printf "%.1f", $1 + $2 }' "$pbg_cpu")"

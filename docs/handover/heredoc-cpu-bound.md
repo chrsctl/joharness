@@ -8,7 +8,7 @@ issue: 566
 session: https://claude.ai/code/session_018FNpTGRJapDHTuQhgkbGwR
 agent: sonnet
 updated: 2026-10-23
-next: Verifier review, then finish and merge; then resume PR #565 (retire its workstream file and plan, merge)
+next: Retire, PR, merge; then resume PR #565 (retire its workstream file and plan, merge)
 ---
 
 ## Goal
@@ -35,6 +35,10 @@ order: fix it, then merge PR #565 (parked on #566).
   runner load; any number is a guess at someone else's load.
 
 ## Review
+
+- r1: (verifier) a comma-decimal locale would make `time` print `0,6` and awk read 0.0, a vacuous pass (fixed: `local LC_ALL=C` in `pbg_cpu_time`)
+- r2: (verifier) comment numbers: 0.6 s vs measured 0.7 s; "four workers" and "15 s" unverifiable from the checkout (fixed: 0.7 s; 15 s is the #566 lint log, four = `JOHARNESS_SELFTEST_JOBS` default on a 4-CPU runner; no change)
+- r3: (verifier) its own full-suite and `ci` runs did not finish under load (no change: this session's runs on the branch read `3300 passed, 0 failed`, `ci: pass`, `6 passed, 0 failed`; re-run after r1)
 
 ## Blockers
 
