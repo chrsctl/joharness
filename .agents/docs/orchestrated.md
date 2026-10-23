@@ -553,8 +553,8 @@ keeper-titled session handed `orchestrate.md` runs keeper.md instead. The
 keeper rules live outside `orchestrate.md`, so an orchestrator never holds
 the keeper check, which would start another orchestrator. Each hourly wake, the keeper looks for a
 pending `/orchestrate pass` wake bound to an `orchestrator: <owner/repo>`
-session, or a `RUNNING` or `PENDING` orchestrator it started itself;
-none = it starts a fresh orchestrator with `create_session`. A live one
+session, or a `RUNNING` or `PENDING` orchestrator it started itself or
+that started it; none = it starts a fresh orchestrator with `create_session`. A live one
 whose wake carries `retire=yes` is swapped (above). The orchestrators a
 keeper starts sit at its depth plus one on every wake, so the fleet does
 not deepen. A replace re-roots the
@@ -593,11 +593,15 @@ persistent context; a pending wake costs one `list_triggers` and a
 session that is not the orchestrator it listed the gx orchestrator's
 pending `/orchestrate pass` wake with its `persistent_session_id` and
 `derived_state.prompt`. An orchestrator mid-pass has no
-pending wake, so the keeper also counts the one it last started while
-that reads `RUNNING` or `PENDING` (one `get_session`). A human-started one
-in its first start is still missed: the keeper starts a second, and "## 0.
-Start" step 3 lets the older proceed and the newer exit. A DRAINED fleet
-costs one short orchestrator session an hour.
+pending wake, so the keeper also counts the one it last started, and its
+own `parent_session_id`, while that reads `RUNNING` or `PENDING` (one
+`get_session` each). The parent is the orchestrator whose REGISTER or
+replace made the keeper: the keeper's first turn runs at `create_session`,
+inside that orchestrator's first start, before it arms a wake. A
+human-started orchestrator that is not the parent is missed only when an
+hourly wake lands in its first start: the keeper starts a second, and "##
+0. Start" step 3 lets the older proceed and the newer exit. A DRAINED
+fleet costs one short orchestrator session an hour.
 
 The spec every orchestrator checks at start (`orchestrate-reference.md`, "## 0.
 Start" step 5; a session-made stale one is replaced, any other `heartbeat
