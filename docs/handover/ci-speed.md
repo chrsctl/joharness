@@ -8,56 +8,24 @@ issue: none
 session: https://claude.ai/code/session_01P1gU1UFZtCcF6w8ERTki4C
 agent: opus
 updated: 2026-10-23
-next: Record verifier findings in ## Review, fix, retire, open PR, merge
----
+next: Record verifier findings in ## Review
 
-## Goal
+- r1: (verifier) clerk.sh's top-level unset of JOHARNESS_CLERK_* no longer protects later topics (role reds with them exported) (fixed: the runner unsets them; selftest-shards asserts every top-level topic unset is in the runner's list)
+- r2: (verifier) acceptance measurements unrecorded; dispatch 5.3-5.6 s on its clone (fixed: refs_unmerged <base> and gr_docs execs cut too; measurements below)
+- r3: (verifier) a fatal error in selftest.sh's inline cases printed nothing (exec capture deleted by the EXIT trap) (fixed: no capture; fail() also writes inline FAIL lines to a file the summary reads)
+- r4: (verifier) a chain printed whole at its first member's place, so output order differed from the serial run (fixed: each topic prints at its own list place; selftest-shards orders a non-contiguous chain)
+- r5: (verifier) the re-prime after a hook that may fetch was untested (fixed: dispatch-rescope counts merge-base execs with DRAIN_FETCH 0 and 1; red with the line deleted, measured)
+- r6: (verifier) no bound on a hung unit (fixed: selftest_unit_seconds, 1800; past it the unit is a FAIL and the workers are stopped; selftest-shards case)
+- r7: (verifier) missing counts file printed a shell error; orphaned unit after a worker kill may still count (fixed: redirect order; orphan counts are its real counts: no change)
+- r8: (verifier) numbers without their command, dated comment in code (fixed: comment states the mechanism; numbers below name their command)
+- r9: (verifier) the tree moved during review (no change: a docs-only workstream commit answering an orchestrator nudge)
+- r10: (verifier) 7 behind origin/main (fixed: merged; the new orchestrated.sh lines read no other topic's state)
+- r11: knobs-declared went red once in a parallel ci: printf | grep -q under pipefail dies of SIGPIPE on a >4 KB table (fixed: here-strings)
+- r12: measured, 2026-10-23, 4-core container (nproc 4): see `## Measurements`.
 
-Owner asked to speed up `ci`: full selftest under 300 s on a 4-core
-container (650 s at origin/main), real `dispatch` under 5 s, same pass count.
+## Measurements
 
-## Decisions
-
-- Cross-topic dependencies (static scan of every topic for variables,
-  functions and `${TMP}` paths another topic defines, then read by hand):
-  `$work` (runner fixture) read in order by handover-context,
-  -with-a-fork-remote, -churn-line, -issue-claim, -review-line, queue-context,
-  -scope-waves, -fanout, session-start; `$cwork`/`ci_rc` ci-churn ->
-  ci-canonical-only-selftest; `$lwork`/`lint_ci`/`lint_section`
-  ci-graph-lint -> clerk; `$syncsrc`/`$syncdst`/`sync` sync-to-consumer ->
-  sync-layer-only. No topic cds, exports, traps or writes under ROOT at top
-  level; no topic reads `$out`/`$rc` before setting it. These four are
-  `SELFTEST_CHAINS`; a fatal check keeps them listed and in list order.
-- Units (a chain, or one topic) each run in a subshell with its own TMP;
-  workers claim units in list order by `mkdir`; output printed in list
-  order, so JOBS=1 and JOBS=4 print the same text. A unit with no counts
-  file = FAIL (fail closed).
-- dispatch.sh (420 s of 773 s serial here) is one long topic: split at its
-  fixture boundaries into dispatch, -rescope, -curate, -order,
-  -branch-plans (pure line moves; merged-filter section rides with its ms
-  fixture, unreadable-hook section with dsp). Without it no sharding gets
-  under 300 s.
-- dispatch_done_evidence memoizes each blob's verdict per process: the
-  same `git show` + awk ran once per branch walk (441 shows on one fixture
-  dispatch).
-- Merge bases with the base branch primed once per `dispatch` (mb_prime,
-  base_mb): 107 merge-base execs for 16 distinct pairs were 2.2 s of 6.9 s.
-  Re-primed after the hooks when DRAIN_FETCH lets them fetch.
-- Plan item 3 (cp -a fixture reuse): nothing to reuse. Each of the 16
-  dispatch fixtures is built once (two `git init` each), never per case; the
-  topic's time is its ~95 `dispatch` calls (3.7 s each in the block-reason
-  cases), which the two memos above shrink.
-- Bash guard's time-bounded cases (pretool-bash-guard, bounds 4 s and 15 s)
-  stay in the pool: read 0-1 s in every parallel run (par1, par2, par3) vs
-  0-1 s serial.
-
-## Rejected
-
-- None yet.
-
-## Review
-
-- r0: placeholder until review runs (no change)
+- dispatch_freeable: `time DRAIN_FETCH=0 DISPATCH_FETCH=0 ./joharness.sh dispatch` on this repository (352 origin refs), idle, 02:42 UTC: origin/main 13.8, 14.4, 14.3 s; this branch 4.55, 4.55, 4.99 s; output `cmp` identical (two of three runs; the third differs only in one `pushed Nm` age across a minute boundary). Of the rest, 2.3 s is the two queue hooks (`drain_hook`), outside this plan.
 
 ## Blockers
 

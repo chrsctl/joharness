@@ -422,6 +422,7 @@ EOF2
 chmod +x "${TMP}/nm-gitwrap/git"
 nm_count() { # <subcommand> — is-ancestor execs for one run
   : >"${TMP}/nm-gitwrap/count"
+  # shellcheck disable=SC2030  # this run's PATH only; mb_count below reads its own
   ( cd "$mswork" && export PATH="${TMP}/nm-gitwrap:${PATH}" JOHARNESS_CONF="$msconf" \
     DRAIN_FETCH=0 DISPATCH_FETCH=0; ./joharness.sh "$1" >/dev/null 2>&1 || : )
   wc -c <"${TMP}/nm-gitwrap/count" | tr -d ' '
@@ -447,3 +448,32 @@ out="$(ms)"
 git -C "$mswork" update-ref refs/remotes/origin/main "$nm_main"
 expect "a missing base ref still prints the unverified row" \
   "ref(s) have no merge base here" "$out"
+
+# Merge bases are read once per run, before the readers fork, and read again
+# after the hooks when DRAIN_FETCH lets them fetch: a fetch can move the refs
+# the first read saw.
+mkdir -p "${TMP}/mb-gitwrap"
+cat >"${TMP}/mb-gitwrap/git" <<EOF2
+#!/usr/bin/env bash
+case " \$* " in
+  *" --is-ancestor "*) ;;
+  *" merge-base "*" refs/remotes/origin/main "*) printf x >>"${TMP}/mb-gitwrap/count" ;;
+esac
+exec "${nm_real_git}" "\$@"
+EOF2
+chmod +x "${TMP}/mb-gitwrap/git"
+mb_count() { # <DRAIN_FETCH> — merge-base execs against the base for one dispatch
+  : >"${TMP}/mb-gitwrap/count"
+  # shellcheck disable=SC2031  # PATH for this one command, as nm_count sets it
+  ( cd "$mswork" || exit 0
+    PATH="${TMP}/mb-gitwrap:${PATH}" JOHARNESS_CONF="$msconf" \
+      DRAIN_FETCH="$1" DISPATCH_FETCH=0 ./joharness.sh dispatch >/dev/null 2>&1 )
+  wc -c <"${TMP}/mb-gitwrap/count" | tr -d ' '
+}
+mb_quiet="$(mb_count 0)"
+mb_fetch="$(mb_count 1)"
+if [ "$mb_quiet" -gt 0 ] && [ "$mb_fetch" -gt "$mb_quiet" ]; then
+  pass "a hook that may fetch has the merge bases read again (${mb_quiet} then ${mb_fetch})"
+else
+  fail "a hook that may fetch has the merge bases read again (${mb_quiet} then ${mb_fetch})"
+fi

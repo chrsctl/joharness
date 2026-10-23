@@ -10,8 +10,8 @@
 # Usage: .agents/harness/selftest.sh
 #
 # Topics run in JOHARNESS_SELFTEST_JOBS parallel workers (default: the CPU
-# count, at most 4; 1 = one after another). Output and counts read the same
-# either way: printed in list order, summed at the end.
+# count, at most 4; 1 = one worker). Each topic's output prints at its place
+# in the list and the counts are summed, so any job count prints the same.
 
 set -uo pipefail
 
@@ -55,6 +55,7 @@ unset JOHARNESS_ENV JOHARNESS_ENV_SETUP JOHARNESS_ENV_MD JOHARNESS_REVIEW \
   JOHARNESS_RESPAWN_LIMIT JOHARNESS_MANAGER_HOURS \
   JOHARNESS_CURATE_HOURS JOHARNESS_CURATE_PLANS JOHARNESS_CURATE_REGISTRY \
   JOHARNESS_CURATE_SPLIT \
+  JOHARNESS_CLERK_HOURS JOHARNESS_CLERK_BATCH JOHARNESS_CLERK_STALE_HOURS \
   JOHARNESS_SCOUT_READS JOHARNESS_SCOUT_REVIEWER \
   JOHARNESS_SCOUT_RESEARCH \
   JOHARNESS_CONDUCT_HOURS JOHARNESS_CONDUCT_SAMPLE \
@@ -68,7 +69,13 @@ FAIL=0
 SKIP=0
 
 pass() { printf '  PASS %s\n' "$*"; PASS=$((PASS + 1)); }
-fail() { printf '  FAIL %s\n' "$*"; FAIL=$((FAIL + 1)); }
+# While SELFTEST_INLINE_FAILS names a file (this file's own cases), a FAIL
+# line is also kept there, so the summary can group it like a topic's.
+fail() {
+  printf '  FAIL %s\n' "$*"
+  FAIL=$((FAIL + 1))
+  [ -z "${SELFTEST_INLINE_FAILS:-}" ] || printf '  FAIL %s\n' "$*" >>"$SELFTEST_INLINE_FAILS"
+}
 
 indent() { printf '    | %s' "${1//$'\n'/$'\n    | '}"; }
 
@@ -227,11 +234,9 @@ layer_rule_scan() {
   done
 }
 
-# This file's own cases print to a file, so the summary can group their FAIL
-# lines like any topic's; it is printed whole right after them.
 selftest_out="${TMP}/shards"
 mkdir -p "$selftest_out"
-exec 3>&1 4>&2 >"${selftest_out}/selftest.sh.out" 2>&1
+SELFTEST_INLINE_FAILS="${selftest_out}/selftest.sh.out"
 
 step "structure: .agents/harness/ names no environment layer"
 
@@ -454,8 +459,7 @@ else
   skip ".agents/env/k8s/setup.sh env-file quoting" "cannot exec a stub script here"
 fi
 
-exec 1>&3 2>&4 3>&- 4>&-
-cat "${selftest_out}/selftest.sh.out"
+SELFTEST_INLINE_FAILS=""
 
 # --- fixture: origin with main, a rival branch, and this session's branch ---
 origin="${TMP}/origin.git"
@@ -777,6 +781,7 @@ selftest_worker() {
   shift
   for _st_unit in "$@"; do
     if mkdir "${_st_wout}/u${_st_wn}.claim" 2>/dev/null; then
+      date +%s >"${_st_wout}/u${_st_wn}.claim/start"
       # shellcheck disable=SC2086  # a unit is a space-separated topic list
       selftest_unit "$_st_wn" "$_st_wout" $_st_unit
     fi
@@ -790,37 +795,57 @@ selftest_live() {
   return 1
 }
 
+# Seconds a unit may run before the run calls it hung: the longest unit takes
+# a few minutes, so this only ever trips on a wait that never ends. A plain
+# variable, not a knob; the selftest-shards topic lowers it for its fixture.
+selftest_unit_seconds=1800
+
 # <jobs> <out dir>: run SELFTEST_TOPICS in <jobs> workers, print every
-# topic's output in list order as its unit ends, add the counts to PASS,
-# FAIL and SKIP. The wait for a unit is bounded by its workers: once every
-# one is gone, a unit with no counts is a FAIL, never a missing count.
+# topic's output at its own place in the list, add the counts to PASS, FAIL
+# and SKIP. A unit is settled once: its counts, or a FAIL when it has none —
+# every worker gone, or it ran past selftest_unit_seconds (the workers are
+# then stopped). Never a missing count.
 selftest_shards() {
-  local jobs="$1" out="$2" unit n w t p f k rc
+  local jobs="$1" out="$2" unit n w t p f k rc start settled=" " unit_of=" "
   local -a units=() pids=()
   while IFS= read -r unit; do
+    for t in $unit; do unit_of="${unit_of}${t}=${#units[@]} "; done
     units+=("$unit")
   done < <(selftest_units)
   for ((w = 0; w < jobs; w++)); do
     selftest_worker "$out" "${units[@]}" &
     pids+=("$!")
   done
-  for ((n = 0; n < ${#units[@]}; n++)); do
-    while [ ! -e "${out}/u${n}.done" ] && selftest_live "${pids[@]}"; do
-      sleep 1
-    done
-    for t in ${units[$n]}; do
-      [ ! -e "${out}/${t}.out" ] || cat "${out}/${t}.out"
-    done
-    [ ! -s "${out}/u${n}.log" ] || cat "${out}/u${n}.log"
-    if read -r p f k <"${out}/u${n}.counts" 2>/dev/null; then
-      # shellcheck disable=SC2031  # the totals; each unit counted its own
-      PASS=$((PASS + p)) FAIL=$((FAIL + f)) SKIP=$((SKIP + k))
-    else
-      rc="$(cat "${out}/u${n}.done" 2>/dev/null)"
-      printf '  FAIL unit ended without its counts (exit %s): %s\n' \
-        "${rc:-none, its worker is gone}" "${units[$n]}" | tee -a "${out}/units.fail"
-      FAIL=$((FAIL + 1))
-    fi
+  for t in "${SELFTEST_TOPICS[@]}"; do
+    n="${unit_of#* "${t}"=}"; n="${n%% *}"
+    case "$settled" in *" ${n} "*) ;; *)
+      settled="${settled}${n} "
+      rc=""
+      while [ ! -e "${out}/u${n}.done" ] && selftest_live "${pids[@]}"; do
+        start="$(cat "${out}/u${n}.claim/start" 2>/dev/null)"
+        if [ -n "$start" ] && [ $(($(date +%s) - start)) -gt "$selftest_unit_seconds" ]; then
+          rc="timed out after ${selftest_unit_seconds}s; workers stopped"
+          for p in "${pids[@]}"; do
+            pkill -P "$p" 2>/dev/null
+            kill "$p" 2>/dev/null
+          done
+          break
+        fi
+        sleep 1
+      done
+      [ ! -s "${out}/u${n}.log" ] || cat "${out}/u${n}.log"
+      if [ -z "$rc" ] && read -r p f k 2>/dev/null <"${out}/u${n}.counts"; then
+        # shellcheck disable=SC2031  # the totals; each unit counted its own
+        PASS=$((PASS + p)) FAIL=$((FAIL + f)) SKIP=$((SKIP + k))
+      else
+        [ -n "$rc" ] || rc="exit $(cat "${out}/u${n}.done" 2>/dev/null || echo 'none, its worker is gone')"
+        printf '  FAIL unit ended without its counts (%s): %s\n' "$rc" "${units[$n]}" |
+          tee -a "${out}/units.fail"
+        FAIL=$((FAIL + 1))
+      fi
+      ;;
+    esac
+    [ ! -e "${out}/${t}.out" ] || cat "${out}/${t}.out"
   done
   wait
 }

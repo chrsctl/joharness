@@ -2601,9 +2601,14 @@ cmd_analysis() {
 # branches are never deleted. A ref that does not resolve judges nothing
 # merged (what the per-ref test did: it failed), and `--no-merged=<missing>` is
 # fatal, so a missing FIRST ref lists every origin ref; a later one is skipped.
-# No ref given lists them all.
+# No ref given lists them all. The base alone, once mb_prime has run, is read
+# from UNMERGED_MEMO.
 refs_unmerged() {
   local ref first=1 flags=()
+  if [ "$#" -eq 1 ] && [ -n "$UNMERGED_FOR" ] && [ "$1" = "$UNMERGED_FOR" ]; then
+    [ -z "$UNMERGED_MEMO" ] || printf '%s\n' "$UNMERGED_MEMO"
+    return 0
+  fi
   for ref in "$@"; do
     if git -C "$ROOT" rev-parse --verify -q "${ref}^{commit}" </dev/null >/dev/null 2>&1; then
       flags+=("--no-merged=${ref}")
@@ -2624,18 +2629,25 @@ refs_merged() {
 }
 
 # Merge bases with the base branch, primed (mb_prime) for every unmerged
-# origin ref before dispatch's readers fork: seven of them asked git the same
-# 16 questions 107 times, 2.2 s of a 6.9 s `dispatch` on this repository
-# (2026-10-23). `\n<ref>\t<sha>`; an empty sha = no merge base.
+# origin ref before dispatch's readers fork: seven of them ask the same merge
+# base, each in its own subshell, so a memo filled later is lost to the rest.
+# `\n<ref>\t<sha>`; an empty sha = no merge base. The unmerged list itself,
+# asked of the base alone by as many readers, is kept beside it.
 MB_MEMO=""
+UNMERGED_MEMO=""
+UNMERGED_FOR=""
 mb_prime() {
-  local over="refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" r memo=""
+  local over="refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" r memo="" list
+  UNMERGED_FOR=""
+  list="$(refs_unmerged "$over")"
   while IFS= read -r r; do
     [ -n "$r" ] || continue
     memo="${memo}"$'\n'"${r}"$'\t'"$(git -C "$ROOT" merge-base "$r" "$over" \
       </dev/null 2>/dev/null)"
-  done <<<"$(refs_unmerged "$over")"
+  done <<<"$list"
   MB_MEMO="$memo"
+  UNMERGED_MEMO="$list"
+  UNMERGED_FOR="$over"
 }
 
 # <ref>: `git merge-base <ref> <base>`, its output and its failure, from the
@@ -4657,7 +4669,17 @@ gr_field() { gr_fields "$1"; }
 # Node files of one type from a path listing on stdin. The protocol doc, the
 # template and the retired-stems ledger are not nodes; four callers said so in
 # two greps each.
-gr_docs() { awk 'NF && /\.md$/ && !/\/(TEMPLATE|README|RETIRED)\.md$/'; }
+# Builtins only: dispatch runs this once per branch per reader, and an awk exec
+# each time was its largest exec count after git.
+gr_docs() {
+  local l
+  while IFS= read -r l || [ -n "$l" ]; do
+    case "$l" in
+      */TEMPLATE.md | */README.md | */RETIRED.md) ;;
+      *.md) [ -z "${l//[[:space:]]/}" ] || printf '%s\n' "$l" ;;
+    esac
+  done
+}
 
 # Stems named by an EDGE field's value, one per line, `none` dropped.
 gr_edge_stems() {
