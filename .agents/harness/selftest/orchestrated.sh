@@ -548,7 +548,7 @@ for needle in 'Routine named exactly `heartbeat: <owner/repo>` with a non-empty 
   'REGISTER'"'"'s lineage check (step 1) first, failing = report the stale line and stop; then `delete_trigger` it' \
   '`ended_reason` is anything but `auto_disabled_session_gone`' \
   'not `ARCHIVED` (a heartbeat deleted in the UI leaves its keeper idle): `archive_session`' \
-  '`model` = the Lineup'"'"'s `sonnet` (the role is low tier; never the registering session'"'"'s model)' \
+  '`model` = the Lineup'"'"'s `haiku` (the role is mechanical; never the registering session'"'"'s model)' \
   '`update_trigger` this repo'"'"'s heartbeat `enabled: false`'; do
   expect "orchestrate-reference.md heartbeat check spells ${needle}" "$needle" "$reffold"
 done
