@@ -10,10 +10,8 @@ ANYWHERE lands in joharness `main` first, then syncs out. Never
 consumer-to-consumer, never consumer-only. An issue filed in a consumer
 about harness behaviour goes there through the clerk's UPSTREAM verdict (`.claude/commands/clerk.md`).
 
-That is where a fix goes. How a consumer session gets it there — deciding
-whether the harness is actually wrong, carrying the measurement canonical
-cannot reproduce, and why the loop closes at the sync rather than the merge —
-is [`feedback.md`](feedback.md) § *When the consumer is the detector*.
+How a consumer session gets a fix there:
+[`feedback.md`](feedback.md) § *When the consumer is the detector*.
 
 Context rule and Source rule: `.agents/harness/AGENTS.md`, "Decide alone"
 (the "Consumer repo:" bullet) and step 4. A product diff touching the files
@@ -337,7 +335,6 @@ thing that can break, and they are the thing to run:
   (`handover/README.md`, "When NOT to write one").
 
 Read the diff against canonical: the report says what was copied, not what it means.
-
 ## Update: by hand
 
 From a clean canonical checkout:
@@ -376,6 +373,8 @@ git push -u origin HEAD
 - NO workstream file: the sync diff is self-describing
   ([`handover/README.md`](handover/README.md), "When NOT to write one").
   The commit message carries the source.
+- `JOHARNESS_SYNC_ROOT` is a selftest hook, not a way around the refusal
+  that stops a consumer syncing out.
 - Doing it by hand instead (a canonical checkout already on disk):
   [by hand](#update-by-hand). Clone it OUTSIDE the consumer tree, or
   `git add -A` swallows it, and never with `--depth` — stale-vs-`AHEAD` is

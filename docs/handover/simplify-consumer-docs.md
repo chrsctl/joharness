@@ -21,6 +21,11 @@ Simplify consumer-repos.md, feedback.md, caveman.md, glossary.md per the plan.
 
 ## Review
 
+- r1: (verifier) dropped `JOHARNESS_SYNC_ROOT` selftest-hook rule (fixed: bullet restored in consumer-repos.md)
+- r2: (verifier) `analysis` caveats (MAY BE LIFTED, NO CONFIG MOVEMENT) stated nowhere after the cut (fixed: two-line caveat kept in feedback.md section 6)
+- r3: (verifier) ci/verify unread by the verifier (no change: run by manager, ci: pass, verify 6 passed 0 failed; rerun after fixes)
+- r4: (verifier) `upstream` paragraph sat under the stuck-edge section (fixed: moved to section 5)
+
 ## Blockers
 
 None.

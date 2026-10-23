@@ -187,12 +187,6 @@ and the `CANONICAL_REPO` they would go to. `/upstream-report <edge>`
 files at most one pull request on the canonical. Run by hand; nothing spawns
 it.
 
-### 6. A STUCK edge, not a merged one
-
-An edge that never merges carries a condition and a clock instead of a
-diff: `./joharness.sh analysis [<branch> [<claim>]]`, read by hand
-(`.agents/docs/orchestrated.md`, `analysis` row).
-
 `upstream` filters by path and nothing else; the reporter gates each finding
 against *does the fact it states match what it measures*. A finding whose fix
 commit carried other findings is reported with its paths flagged as the
@@ -200,6 +194,13 @@ commit's; one with no fix commit (a `wontfix` or no-change) is placed by the
 paths its own text names. The report lands as one research node in
 canonical — never a requirement or a plan. In canonical the command says
 `CANONICAL` and stops.
+
+### 6. A STUCK edge, not a merged one
+
+An edge that never merges carries a condition and a clock instead of a
+diff: `./joharness.sh analysis [<branch> [<claim>]]`, read by hand
+(`.agents/docs/orchestrated.md`, `analysis` row). It says `MAY BE LIFTED`, never
+`LIFTED`; `NO CONFIG MOVEMENT` is not "the cause is live".
 
 ### 7. Stage 4 is the sync, not the merge
 
