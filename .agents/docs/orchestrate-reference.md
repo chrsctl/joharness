@@ -60,7 +60,8 @@ refused with no confirmed interrupt (dead row, STILLBORN) follows the
    ledger `<stem>@new respawns=<RESPAWN_LIMIT>`; report `rebuilt <stem>@new
    from its title`.
 4. Read the Lineup once.
-5. Heartbeat: `list_triggers` (no filter: a paused one must show). The
+5. Heartbeat, here and on every pass after the first (`orchestrate.md`,
+   Pass entry): `list_triggers` (no filter: a paused one must show). The
    heartbeat is a Routine named exactly `heartbeat: <owner/repo>` with a
    non-empty `cron_expression`; any other Routine (a nightly `/curate`)
    never counts. None: REGISTER, below. Two or more with `enabled` true:
@@ -87,7 +88,7 @@ refused with no confirmed interrupt (dead row, STILLBORN) follows the
    REPLACE only a Routine REGISTER made — `created_via: meta_mcp` AND
    `derived_state.prompt` exactly `/keeper` or `/orchestrate keeper` — whose reasons hold
    no `paused`: REGISTER's lineage check (step 1) first, failing = report
-   the stale line and stop; then `delete_trigger` it, `archive_session` its
+   the stale line and end step 5 (a pass carries on); then `delete_trigger` it, `archive_session` its
    keeper (title `keeper: <owner/repo>`, not `ARCHIVED`), then REGISTER from
    step 2; report `heartbeat replaced: <old id>: <reasons>`. Any other `stale` line, and every
    `duplicated` line: report it and `PushNotification` it once per
@@ -98,13 +99,14 @@ refused with no confirmed interrupt (dead row, STILLBORN) follows the
    edit or delete a Routine a human paused or made in the UI: the pause is
    the human's veto on the fleet.
 
-   REGISTER, at most once per session:
+   REGISTER, at most once per session, a REPLACE's included (a later
+   break in the same session is its `stale` line only):
    1. `get_session` (no `session_id`): `lineage` present and NOT `depth + 2
       < limit` = report `heartbeat not registered: lineage
       <depth>/<limit>`, stop here. The keeper sits at `depth + 1`, the
       orchestrators it starts at `depth + 2`, and those must still spawn.
    2. Each `keeper: <owner/repo>` session in step 3's `list_sessions`
-      answer, not `ARCHIVED` (a heartbeat deleted in the UI leaves its
+      answer (on a pass: none, REPLACE archived the bound one), not `ARCHIVED` (a heartbeat deleted in the UI leaves its
       keeper idle): `archive_session`. Then `create_session`: `source_url`
       = `git remote get-url origin`, `model` = the Lineup's `haiku` (the
       role is mechanical; never the registering session's model), `title` =

@@ -286,7 +286,7 @@ done
 for needle in 'arm as above with `retire=yes` on the `harness=` line, every pass from then on' \
   'your title is exactly `orchestrator (retired): <owner/repo>`' \
   'Any other title is "## 0. Start" step 3'"'"'s matter, never a stop here.' \
-  'Run Retired first, then the superseded check' \
+  'Run Retired first, then the superseded check, Duplicate, Heartbeat' \
   'First start = the `ledger:` line of your prompt' \
   'RUN END.' \
   'Its last act, after the final report: `set_session_title` yours to `orchestrator (retired): <owner/repo>`' \
@@ -339,7 +339,9 @@ for needle in '**One spawner, one turn.** Only the keeper starts an orchestrator
   '**What the keeper copies.**' '**Lineage stays flat.**' \
   'retitles itself the same way as its last act' \
   'or a `RUNNING` or `PENDING` orchestrator it started itself or that started it' \
-  'and its own `parent_session_id`, while that reads `RUNNING` or `PENDING`'; do
+  'and its own `parent_session_id`, while that reads `RUNNING` or `PENDING`' \
+  'the check reads `keeper-gone`, which is why it runs every pass' \
+  'The spec every orchestrator checks at start and on every pass after the first'; do
   expect "orchestrated.md spells ${needle}" "$needle" "$orcdocfold"
 done
 # The keeper is its own command, so an orchestrator never holds the keeper
@@ -517,12 +519,14 @@ for needle in '`heartbeat duplicated` or `heartbeat stale` line (if any)' \
   'Role comes from the prompt, the session-start banner'"'"'s rule' \
   'Titled exactly `keeper: <owner/repo>` = read `.claude/commands/keeper.md` WHOLE and run that only' \
   'Any other title (`orchestrator: …`, `manager: …`, none) = the orchestrator: the rest of this file.' \
-  'No `get_session` = report and `PushNotification` once `role unreadable: no get_session`, end the turn.'; do
+  'No `get_session` = report and `PushNotification` once `role unreadable: no get_session`, end the turn.' \
+  '**Heartbeat.** `pass=` above 1: ref § 0. Start step 5 on that same answer, REPLACE and REGISTER included' \
+  'skip the superseded, duplicate and heartbeat checks'; do
   expect "orchestrate.md heartbeat check spells ${needle}" "$needle" "$orcfold"
 done
 # shellcheck disable=SC2016 # literal backticks in the needles
 for needle in 'Routine named exactly `heartbeat: <owner/repo>` with a non-empty `cron_expression`' \
-  '`list_triggers` (no filter: a paused one must show)' \
+  'Heartbeat, here and on every pass after the first (`orchestrate.md`, Pass entry): `list_triggers` (no filter: a paused one must show)' \
   'None: REGISTER, below.' \
   'Two or more with `enabled` true: `heartbeat duplicated' \
   'duplicated: <id>, <id>' \
@@ -534,7 +538,9 @@ for needle in 'Routine named exactly `heartbeat: <owner/repo>` with a non-empty 
   '`failing` — `last_run.status` ends in `FAILED`' \
   '`prompt` — `derived_state.prompt`, trimmed, is not exactly `/keeper` or `/orchestrate keeper`' \
   'Never enable, edit or delete a Routine a human paused or made in the UI' \
-  'REGISTER, at most once per session:' \
+  'REGISTER, at most once per session, a REPLACE'"'"'s included (a later break in the same session is its `stale` line only):' \
+  '(on a pass: none, REPLACE archived the bound one)' \
+  'report the stale line and end step 5 (a pass carries on)' \
   'NOT `depth + 2 < limit` = report `heartbeat not registered: lineage <depth>/<limit>`' \
   '`title` = `keeper: <owner/repo>`, `prompt` = `/keeper`.' \
   '`persistent_session_id` = step 2'"'"'s id, `prompt` = `/keeper`' \
@@ -545,13 +551,17 @@ for needle in 'Routine named exactly `heartbeat: <owner/repo>` with a non-empty 
   'Never retry with another cadence or another binding.' \
   'another LIVE one with an earlier `created_at` than yours = run step 5 report-only (no REGISTER, no replace), then exit' \
   'REPLACE only a Routine REGISTER made — `created_via: meta_mcp` AND `derived_state.prompt` exactly `/keeper` or `/orchestrate keeper`' \
-  'REGISTER'"'"'s lineage check (step 1) first, failing = report the stale line and stop; then `delete_trigger` it' \
+  'REGISTER'"'"'s lineage check (step 1) first, failing = report the stale line and end step 5 (a pass carries on); then `delete_trigger` it' \
   '`ended_reason` is anything but `auto_disabled_session_gone`' \
   'not `ARCHIVED` (a heartbeat deleted in the UI leaves its keeper idle): `archive_session`' \
   '`model` = the Lineup'"'"'s `haiku` (the role is mechanical; never the registering session'"'"'s model)' \
   '`update_trigger` this repo'"'"'s heartbeat `enabled: false`'; do
   expect "orchestrate-reference.md heartbeat check spells ${needle}" "$needle" "$reffold"
 done
+refute "orchestrate.md no longer skips only two checks without list_triggers" \
+  "skip the superseded and duplicate checks" "$orcfold"
+refute "orchestrate.md Start heading no longer says never per pass" \
+  "once per orchestrator session, never per pass" "$orcfold"
 refute "orchestrate.md no longer routes the keeper by a prompt argument" \
   "Argument \`keeper\`" "$orcfold $reffold"
 refute "orchestrate.md no longer stops a session on a keeper-looking prompt" \
