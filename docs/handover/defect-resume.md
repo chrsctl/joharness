@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01ENEGqyRYxV6z71Z3DKMxfr
 agent: opus
 updated: 2026-10-23
-next: Re-run ci and verify on the fixes, then finish: retire plan and workstream file, PR, merge
+next: Retired; PR open, merge after finish passes
 ---
 
 ## Goal
