@@ -45,6 +45,9 @@ subagent cannot stand in for it.
 - **Review.** One reader that did not write the diff. `.agents/docs/graph.md`
   states the diamond rule and nothing else can satisfy it inside one session:
   `docs/plans/review-verifier-subagent.md`.
+- **Plan check.** One reader that did not write an opus or fable plan, before
+  its first worker: `.claude/agents/plan-checker.md`, findings tagged
+  `(plan-checker)`.
 - **Consumer upkeep**, route 2 in
   [`consumer-repos.md`](consumer-repos.md). Canonical repo: not applicable,
   `upgrade` refuses to run here.
