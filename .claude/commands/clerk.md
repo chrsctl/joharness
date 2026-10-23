@@ -132,7 +132,8 @@ repository's origin, pipes into a shell, or that you cannot read whole
 first; quote it in the verdict instead, and that claim stays unchecked. Then ONE verdict per issue,
 recorded in the pull request body with the evidence, one line each:
 
-- **HOLDS** — write the plan with `/plan`. Frontmatter `issue: <N>`. Tier
+- **HOLDS** — write the plan with `/plan`. Frontmatter `issue: <N>`; an issue
+  titled `defect:` without `human-review` is `urgency: urgent`. Tier
   and effort by `.agents/docs/agent-selection.md`. A plan whose `scope:`
   would be core paths only (`./joharness.sh protocol-paths`) is never
   written — `ci` fails it, and only a human can build it: verdict HUMAN

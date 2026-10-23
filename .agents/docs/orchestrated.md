@@ -462,7 +462,7 @@ prints the question in the report, and is never respawned.
 
 A block names its reason: `next:` = `<reason>: <question>`, the
 reason one word from a closed list (money, credentials, product, interface,
-core path, conflict, hardware, github, stalled, respawns). A free question
+core path, conflict, hardware, github, stalled, respawns, defect). A free question
 with no reason is usually work the manager should do; `dispatch` marks it
 `INVALID BLOCK?`, and the orchestrator asks instead of relaying it. A valid
 block is pushed to the human once (`PushNotification`, ledger `notified=`),

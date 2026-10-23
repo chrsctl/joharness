@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01D9STEvNGqhzHo5DjpfpyEZ
 agent: sonnet
 updated: 2026-10-23
-next: Edit manage-reference § Defect, manage.md §3, feedback.md, block_reason_ok, clerk.md, orchestrated.md, selftest per the plan
+next: Wait for ci and verify green, run verifier, retire plan and workstream file, PR, merge
 ---
 
 ## Goal

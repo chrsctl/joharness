@@ -134,12 +134,22 @@ exit — no retry, no second transport. Run no queue command.
 1. It reproduces on fresh-fetched `origin/main` (run the same command on a
    checkout of it). No reproduction = it is your branch's: fix it in your item.
 2. Search this repository's open issues for the same failing command or test
-   name. Found = file nothing; pull request body says `Refs #N`.
+   name. Found issue M = file nothing; pull request body says `Refs #N`.
+   Then ask: does this defect stop your item meeting its Acceptance?
+   - **No:** steps 3–5 as written.
+   - **Yes, and step 2 found M:** park on M. M carries `human-review`? Say so
+     in `next:`; `defect-resume`'s UNPLANNED row then reaches the human.
+   - **Yes, nothing found:** file the issue as step 3 does, with NO labels,
+     then park. The clerk plans it urgent (`.claude/commands/clerk.md` §3).
+   - **Park** = `status: blocked`, `next:` = `defect: #<n>: <one line>`, push,
+     exit. No `human-review` on the pull request or the plan's issue.
+   - `issue_write` fails: block `github: defect not filed: <error, 40 chars>`,
+     issue text under `## Blockers`.
 3. Otherwise ONE issue per session (`issue_write` `create`) on this
    repository, before the retire commit: title
    `defect: <test or command>: <symptom, one line>`; body = the command, at
    most 20 lines of its output, the `origin/main` sha it reproduced on, and
-   your branch name; labels `human-review`. Pull request body says `Refs #N`,
+   your branch name; labels `human-review` (none when blocking, step 2). Pull request body says `Refs #N`,
    never `Closes #N`.
 4. A second defect in the same session: pull request body only, one line each.
 5. `issue_write` fails: put the issue text in the pull request body under a
@@ -149,5 +159,5 @@ exit — no retry, no second transport. Run no queue command.
    `.agents/docs/feedback.md` §4) nor core-path edits (the human-remainder
    paragraph, §2).
 
-The label holds the issue from the clerk until the owner removes it; no
-session removes it.
+For a non-blocking defect the label holds the issue from the clerk until the
+owner removes it; no session removes it.

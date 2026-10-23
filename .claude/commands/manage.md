@@ -104,10 +104,11 @@ Your `$ARGUMENTS` carries the `rescope` block. ref § Surveyor.
   direction, interface, a core path (`./joharness.sh protocol-paths`), a
   conflict that does not resolve clean): re-read this list and name the
   reason (`money:` `credentials:` `product:` `interface:` `core path:`
-  `conflict:`); none applies = the work is yours, do it. `status: blocked`,
+  `conflict:`); a BLOCKING defect outside your item blocks `defect: #<n>:
+  <one line>`, the one reason that is not a human's (ref § Defect); none applies = the work is yours, do it. `status: blocked`,
   `next:` = `<reason>: <question>`, push, exit. A blocked item is never
   respawned; dispatch flags a `next:` with no reason as `INVALID BLOCK?`.
-  Before pushing `status: blocked`, apply `human-review` (label:
+  Before pushing `status: blocked` (not a `defect:` block: no label), apply `human-review` (label:
   `.agents/docs/orchestrated.md`, Bounds) with `issue_write` (method `update`, labels =
   existing plus `human-review`) to the branch's open pull request, if any, and
   the plan's `issue: N`, if set. `issue_write` fails = say so in `next:` after
