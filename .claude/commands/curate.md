@@ -20,10 +20,7 @@ LAST line decides. `STOP: <reason>` = report that line, exit. A STOP for
 pass: `git fetch origin main && git push origin
 "origin/main:refs/heads/curate-noop-$(date -u +%Y%m%dT%H%M%SZ)"` — a branch AT
 the base's head, merged by construction, dated by its name; name taken = run
-it again, never force. Why: a STOP makes no merged
-`docs/handover/curate-*.md` deletion, the only thing the clock reads, so
-`dispatch` would stay `DUE` and spend a curator on the same empty answer. The
-clerk's `clerk-noop-<stamp>` is the same record. Any other STOP writes
+it again, never force. Any other STOP writes
 nothing. `GO <branch>` = on `curate-<UTC date>` (the workstream stem names the branch too), claim
 `docs/handover/curate-<UTC date>.md` pushed (`plan: none`, the identity
 `dispatch` keys on). `(resumed)` = your claim already stands. No twin rule.
@@ -50,14 +47,13 @@ Into your pull request body, one line each, and into no plan file:
 ## 3. Finish
 
 Step 5 review at your tier with `.claude/agents/verifier.md`, findings in
-`## Review`. Step 7 as written: `./joharness.sh ci` green, 0 behind fresh
-`origin/main`, `./joharness.sh finish` green, retire the workstream file
+`## Review`. Loop step 7, retiring the workstream file
 (`./joharness.sh role curate --retire`) as the LAST COMMIT BEFORE the pull
-request opens, merge (merge-commit), exit.
+request opens.
 The retire commit dates the cycle; the net diff is empty on purpose — the
 proposals are in the body.
 
-Report: proposals written, and that this session ran beyond the manager cap.
+Report: proposals written.
 
 ## Never
 
