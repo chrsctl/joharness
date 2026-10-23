@@ -58,7 +58,7 @@ log, not markdown ([`caveman.md`](../../.agents/docs/caveman.md), Status quo).
 7. **Finish.** PR, merge to `main` yourself — own PR only (opened by this
    session, or handed to it). Merge when ALL hold:
    - GitHub checks green on head (`JOHARNESS_CHECKS=local` in the environment, never the conf: `finish` runs
-     `ci` + `verify` instead; every other workflow step then counts for
+     `ci` + `verify` + the repo's declared `local-check` instead; every other workflow step then counts for
      nothing — `.agents/docs/consumer-repos.md`, "Local checks"). Head's
      latest `lint` check run concluded `skipped` (repository variable
      `JOHARNESS_CHECKS=local`) = run `JOHARNESS_CHECKS=local ./joharness.sh
@@ -93,7 +93,7 @@ log, not markdown ([`caveman.md`](../../.agents/docs/caveman.md), Status quo).
   `.claude/commands/manage.md` §3); each is in the one list dispatch
   accepts, `joharness.sh:block_reason_ok`. Block =
   `status: blocked`, `next:` = `<reason>: <question>`, push, exit. Never wait in
-  session. Block also labels `human-review` on this branch's open PR and the
+  session. Block (not `defect:`) also labels `human-review` on this branch's open PR and the
   plan's `issue:`, if set; never remove it (`.agents/docs/orchestrated.md`, Bounds).
 - Consumer repo: no harness upkeep in a session holding product work; a sync
   opens its own pull request (`.agents/docs/consumer-repos.md`).
