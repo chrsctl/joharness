@@ -117,6 +117,11 @@ records everything, zero non-derivable reasoning. File would restate the
 diff — exactly what the rule above forbids. Same for any task whose whole
 content is "make X match Y". Commit message carries the source; done.
 
+Fast lane (`plan: fast`) is the opposite case: no plan file, but a
+workstream file it keeps. That file is what marks the branch, so `ci` can
+hold it to the bound (3 files, no core path, no plan added) and review can
+fix its depth at haiku. Rule: `.agents/docs/plans/README.md`, Fast lane.
+
 ## What a workstream file looks like
 
 ```markdown

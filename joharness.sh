@@ -618,6 +618,7 @@ cmd_ci() {
   run_check glossary lint_glossary
   run_check "graph lint" lint_graph
   run_check "plans on this branch" lint_plans_in_diff
+  run_check "fast lane" lint_fast_lane
   run_check "finding ids" lint_finding_ids
   run_check "finding verdicts" lint_finding_markers
   run_check "ship scope" lint_ship
@@ -1004,6 +1005,14 @@ lint_issue() {
   esac
 }
 
+# `plan: fast` is the fast lane, never a stem. A node of that name would make
+# every fast-lane workstream a claim on it.
+FAST_LANE="fast"
+lint_not_fast() {
+  [ "$(lint_stem "$1")" != "$FAST_LANE" ] ||
+    lint_red "${1}: '${FAST_LANE}' is the fast lane's plan: value, never an item stem; rename the file"
+}
+
 lint_graph() {
   LINT_RC=0
   LINT_WARNED=0
@@ -1022,6 +1031,7 @@ lint_graph() {
       read -r rq; read -r pstem; read -r pscope; read -r piss; } \
       <<<"$(gr_fields urgency agent effort needs requirement research plan scope issue <"${ROOT}/${rel}")"
     lint_required "$rel" plan "$pstem"
+    lint_not_fast "$rel"
     # Optional: the issue a clerk turned into this plan.
     lint_issue "$rel" "$piss" "the clerk drops it and the issue reads as unplanned"
     lint_required "$rel" urgency "$urgency"
@@ -1087,6 +1097,7 @@ lint_graph() {
       read -r rstem; } \
       <<<"$(gr_fields urgency agent effort graduates research <"${ROOT}/${rel}")"
     fstem="$(lint_stem "$rel")"
+    lint_not_fast "$rel"
     if [ -z "$rstem" ] &&
        ! printf '%s' "$rrefs" | grep -qxF -- "$fstem"; then
       if ! grep -qE "^research:[[:space:]]*${fstem//./\\.}[[:space:]]*(#.*)?$" \
@@ -1142,7 +1153,10 @@ lint_graph() {
     fi
     lint_enum "$rel" agent "$agent" haiku sonnet opus fable
     p="$(lint_stem "$p")"
-    if [ -n "$p" ] && [ "$p" != "none" ] &&
+    # The fast lane claims no item; `fast lane` in ci checks its bounds.
+    if [ "$p" = "$FAST_LANE" ]; then
+      :
+    elif [ -n "$p" ] && [ "$p" != "none" ] &&
        { [ -f "${ROOT}/docs/research/${p}.md" ] ||
          [ -f "${ROOT}/docs/product/${p}.md" ]; }; then
       :
@@ -1167,6 +1181,7 @@ lint_graph() {
   while IFS= read -r rel; do
     [ -n "$rel" ] || continue
     reqs=$((reqs + 1))
+    lint_not_fast "$rel"
     lint_enum "$rel" priority \
       "$(gr_field priority <"${ROOT}/${rel}")" normal urgent
   done < <(lint_nodes docs/product)
@@ -1561,7 +1576,7 @@ review_at_edge() {
 # returns non-zero only when this branch owes a review record.
 review_report() {
   local over="origin/${HANDOVER_BASE_BRANCH:-main}" base head ws doc tier n
-  local edge rc=0 seen=0 marks tagged agent pr status own mine
+  local edge rc=0 seen=0 marks tagged agent pr status own mine fast
   base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
   head="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)"
   if [ -z "$base" ]; then
@@ -1577,6 +1592,9 @@ review_report() {
 
   # Files THIS branch wrote, for the tag gate below.
   own="$(lint_ws_in_diff "$base")"
+  # The fast lane's claim, the one file `ci` bounds: its bound is what makes
+  # one pass enough, so its depth is haiku whatever `agent:` says.
+  fast="$(fast_lane_ws "$base")"
 
   while IFS= read -r ws; do
     [ -n "$ws" ] || continue
@@ -1591,6 +1609,7 @@ review_report() {
     { read -r agent; read -r pr; read -r status; } < <(
       printf '%s\n' "$doc" | gr_fields agent pr status)
     tier="$(review_tier "$doc" "$agent")"
+    case $'\n'"${fast}"$'\n' in *$'\n'"${ws}"$'\n'*) tier="haiku" ;; esac
     marks="$(review_marks <"${ROOT}/${ws}")"
     n="${marks%% *}"; tagged="${marks##* }"
     edge="$(review_at_edge "$pr" "$status")" || edge=""
@@ -3119,6 +3138,8 @@ cmd_janitor() {
       printf '      by hand, and do not read "no plan" into this line\n'
     elif [ -z "$plan" ] || [ "$plan" = none ]; then
       printf '    holds: no plan — this claim holds nothing but its branch\n'
+    elif [ "$plan" = "$FAST_LANE" ]; then
+      printf '    holds: no item — the fast lane, which claims nothing but its branch\n'
     elif [ -n "$held" ]; then
       printf '    holds: %s, out of the queue while this claim stands\n' "$held"
     elif [ -n "$onbranch" ]; then
@@ -6475,6 +6496,142 @@ lint_plans_in_diff() {
     return 0
   fi
   printf '\n  %s problem(s) in plans this branch adds.\n' "$bad"
+  return 1
+}
+
+# Every path this checkout changed against <base>, NUL-terminated, once
+# each: the working tree diff (deletes, both sides of a rename) plus
+# untracked files. NUL, because git quotes a path holding a quote, tab or
+# newline even with quotePath off, and a quoted path matches no pattern.
+fast_lane_paths() {
+  { git -C "$ROOT" diff -z --no-renames --name-only "$1"
+    git -C "$ROOT" ls-files -z --others --exclude-standard
+  } 2>/dev/null | LC_ALL=C sort -zu
+}
+
+# The fast lane's claim files, one per line: a docs/handover/ file saying
+# `plan: fast` that this branch changed against <base>, never one inherited
+# untouched (a stale file on the base branch binds nobody) and never a
+# symlink (its target would decide). The tree decides when it holds one.
+# Otherwise the newest such file the branch's own line wrote and then
+# retired: first-parent, so a merged branch's commits are not this one's,
+# and `-m` so a merge commit's own adds are.
+fast_lane_ws() {
+  local base="$1" ws tok c="" first=0 seen=$'\n' blob mode found=0
+  while IFS= read -r -d '' ws; do
+    fast_lane_name "$ws" || continue
+    { [ -f "${ROOT}/${ws}" ] && [ ! -L "${ROOT}/${ws}" ]; } || continue
+    [ "$(lint_stem "$(gr_field plan <"${ROOT}/${ws}")")" = "$FAST_LANE" ] || continue
+    printf '%s\n' "$ws"; found=1
+  done < <(fast_lane_paths "$base")
+  [ "$found" -eq 0 ] || return 0
+  while IFS= read -r -d '' tok; do
+    case "$tok" in
+      $'\001'*) c="${tok#$'\001'}"; first=1; continue ;;
+    esac
+    [ "$first" -eq 0 ] || tok="${tok#$'\n'}"
+    first=0
+    fast_lane_name "$tok" || continue
+    case "$seen" in *$'\n'"${tok}"$'\n'*) continue ;; esac
+    seen="${seen}${tok}"$'\n'
+    { [ -e "${ROOT}/${tok}" ] || [ -L "${ROOT}/${tok}" ]; } && continue
+    mode="$(git -C "$ROOT" ls-tree -z "$c" -- "$tok" 2>/dev/null | cut -d' ' -f1)"
+    [ "$mode" != 120000 ] || continue
+    blob="$(git -C "$ROOT" rev-parse -q --verify "${c}:${tok}" 2>/dev/null)" || continue
+    [ "$blob" != "$(git -C "$ROOT" rev-parse -q --verify "${base}:${tok}" 2>/dev/null)" ] ||
+      continue
+    if [ "$(lint_stem "$(git -C "$ROOT" cat-file blob "$blob" 2>/dev/null | gr_field plan)")" = \
+       "$FAST_LANE" ]; then
+      printf '%s\n' "$tok"
+      return 0
+    fi
+  # The config pins what `-m` means: a caller's log.diffMerges of combined or
+  # remerge would hide a merge's first-parent adds.
+  done < <(git -C "$ROOT" -c log.diffMerges=first-parent log --first-parent -m \
+    --no-renames --diff-filter=AM -z \
+    --format=%x01%H --name-only "${base}..HEAD" -- docs/handover/ 2>/dev/null)
+}
+
+# A path that can be a workstream file: directly under docs/handover/, .md,
+# no newline, not one of the directory's own documents.
+fast_lane_name() {
+  case "$1" in
+    *$'\n'* | docs/handover/*/* | docs/handover/README.md | \
+      docs/handover/TEMPLATE.md | docs/handover/RETIRED.md) return 1 ;;
+    docs/handover/*.md) return 0 ;;
+  esac
+  return 1
+}
+
+# A path as ci prints it: control characters (a newline most of all) as `?`.
+fast_lane_show() { printf '%s' "$1" | tr '\000-\037\177' '?'; }
+
+# A checkout in the fast lane skips the plan file and nothing else; this is
+# what proves it qualifies. Working tree against the merge base, untracked
+# files included, so ci catches a breach before the commit does.
+FAST_LANE_FILES=3
+lint_fast_lane() {
+  local over="origin/${HANDOVER_BASE_BRANCH:-main}" base fast f c w n=0 bad=0
+  local core nfast skip
+  base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
+  if [ -z "$base" ]; then
+    printf '  not measurable here (no merge-base with %s)\n' "$over"
+    return 0
+  fi
+  fast="$(fast_lane_ws "$base")"
+  if [ -z "$fast" ]; then
+    printf '  no plan: %s workstream file on this branch\n' "$FAST_LANE"
+    return 0
+  fi
+  nfast="$(printf '%s\n' "$fast" | grep -c .)"
+  if [ "$nfast" -gt 1 ]; then
+    bad=$((bad + 1))
+    printf '  %s workstream files say plan: %s — one lane, one file\n' \
+      "$nfast" "$FAST_LANE"
+  fi
+  core="$(protocol_paths)"
+  while IFS= read -r -d '' f; do
+    [ -n "$f" ] || continue
+    # The claim file is the lane's own cost and is retired before the merge.
+    # An exact string match: never a pattern, which a newline splits.
+    skip=0
+    while IFS= read -r w; do
+      [ "$f" = "$w" ] && skip=1
+    done <<<"$fast"
+    [ "$skip" -eq 0 ] || continue
+    n=$((n + 1))
+    while IFS= read -r c; do
+      case "$f" in
+        "$c" | "$c"/*)
+          bad=$((bad + 1))
+          printf '  %s: core path (./joharness.sh protocol-paths) — no lane reaches one\n' \
+            "$(fast_lane_show "$f")" ;;
+      esac
+    done <<<"$core"
+    case "$f" in
+      docs/plans/*/*) ;;
+      docs/plans/README.md | docs/plans/TEMPLATE.md | docs/plans/RETIRED.md) ;;
+      docs/plans/*.md)
+        if [ -e "${ROOT}/${f}" ] && ! git -C "$ROOT" cat-file -e "${base}:${f}" 2>/dev/null; then
+          bad=$((bad + 1))
+          printf '  %s: adds a plan — the fast lane builds, it never queues\n' \
+            "$(fast_lane_show "$f")"
+        fi ;;
+    esac
+  done < <(fast_lane_paths "$base")
+  fast="$(printf '%s\n' "$fast" | paste -sd, - | sed 's/,/, /g')"
+  if [ "$n" -gt "$FAST_LANE_FILES" ]; then
+    bad=$((bad + 1))
+    printf '  %s files touched besides %s, bound %s — write a plan\n' \
+      "$n" "$fast" "$FAST_LANE_FILES"
+  fi
+  if [ "$bad" -eq 0 ]; then
+    printf '  %s: plan: %s, %s of %s files, no core path, no plan added\n' \
+      "$fast" "$FAST_LANE" "$n" "$FAST_LANE_FILES"
+    return 0
+  fi
+  printf '\n  %s breach(es) of the fast lane (%s; .agents/docs/plans/README.md, Fast lane).\n' \
+    "$bad" "$fast"
   return 1
 }
 

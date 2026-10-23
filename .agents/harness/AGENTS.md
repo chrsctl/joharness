@@ -19,8 +19,9 @@ log, not markdown ([`caveman.md`](../../.agents/docs/caveman.md), Status quo).
    of that ONE item (`.claude/commands/manage.md`); prompt is `/keeper` =
    keeper (`.claude/commands/keeper.md`); otherwise `/start`. The role
    command owns the picking. NOTHING builds unplanned — decompose into a
-   plan first (`.agents/docs/plans/README.md`); copy or sync task is the
-   one exception. Plan's `agent` tier binds: below it, record wanted tier,
+   plan first (`.agents/docs/plans/README.md`); exceptions: copy or sync
+   task, and `plan: fast` (3 files, no core path, `ci`-bound; plans README,
+   Fast lane). Plan's `agent` tier binds: below it, record wanted tier,
    push, hand off (`.agents/docs/agent-selection.md`). Boundary:
    no commit to a core path (`./joharness.sh protocol-paths`) outside a
    `human/<stem>` branch whose pull request a human merges (manager only,
