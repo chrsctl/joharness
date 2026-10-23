@@ -36,13 +36,13 @@ persists across wakes: keep every report to one line.
    account-wide: it lists other sessions' `send_later` wakes with their
    `persistent_session_id` (read 2026-10-16). `get_session` each
    distinct `persistent_session_id`: titled exactly `🎼 orchestrator:
-   <owner/repo>` and not `ARCHIVED` = LIVE. Also LIVE: the session your
+   <owner/repo>` (glossary, role title) and not `ARCHIVED` = LIVE. Also LIVE: the session your
    last `started orchestrator <id>` report named, and the
    `parent_session_id` of this wake's guard `get_session` (no
    `session_id`): the orchestrator whose REGISTER or replace made you
    (read 2026-10-23); absent or empty = skip it. Each counts when
    `get_session` finds it titled exactly `🎼 orchestrator:
-   <owner/repo>` and `RUNNING` or `PENDING` — in its first start it holds
+   <owner/repo>` (glossary, role title) and `RUNNING` or `PENDING` — in its first start it holds
    no wake, and your first turn runs inside it. LIVE, and its pending
    wake's `harness=` line carries `retire=yes` = SWAP, below. Else LIVE =
    report `orchestrator live: <id>`, end the turn. No `list_triggers`, or it errors = report

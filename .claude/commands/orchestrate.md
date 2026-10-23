@@ -67,7 +67,8 @@ nothing.
 
 - **Retired.** `get_session` (no `session_id`): your title is exactly
   `💤 orchestrator (retired): <owner/repo>` (the keeper retired you at SWAP,
-  or your own run ended, §4 RUN END) or `👯 orchestrator (duplicate): <owner/repo>` = report
+  or your own run ended, §4 RUN END) or `👯 orchestrator (duplicate): <owner/repo>` (glossary, role title: the bare
+  spellings match too) = report
   `retired: <title>`, do nothing, schedule nothing. Any other title is
   "## 0. Start" step 3's matter, never a stop here.
 
@@ -110,7 +111,8 @@ For every manager in flight AND every ledger stem dispatch does not list:
 newest not `ARCHIVED`; none = gone). That `get_session` is the per-manager
 read; `list_sessions` (one answer read at 99,920 characters, 2026-10-13) is
 "## 0. Start" step 3's and the `@new` rebuild's, once per session. Before
-any message, interrupt or archive, confirm the title is `🔨 manager: <stem>`
+any message, interrupt or archive, confirm the title is `🔨 manager: <stem>` (glossary,
+role title)
 and the branch is the one dispatch printed; mismatch = report, touch
 nothing.
 

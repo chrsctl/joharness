@@ -89,7 +89,7 @@ cannot claim, get no hook state and die with the parent's turn
 The default role is the orchestrator: the keeper's spawn prompt is standalone,
 and a manager is told what it is by the orchestrator that spawned it. Two
 orchestrators are the collision to avoid: a `RUNNING` session titled
-`🎼 orchestrator: <repo>` that is not you = exit.
+`🎼 orchestrator: <repo>` (glossary, role title) that is not you = exit.
 
 ## The loop
 
@@ -579,7 +579,7 @@ keeper-titled session handed `orchestrate.md` runs keeper.md instead. The
 keeper rules live outside `orchestrate.md`, so an orchestrator never holds
 the keeper check, which would start another orchestrator. Each hourly wake, the keeper looks for a
 pending `/orchestrate pass` wake bound to an `🎼 orchestrator: <owner/repo>`
-session, or a `RUNNING` or `PENDING` orchestrator it started itself or
+(glossary, role title) session, or a `RUNNING` or `PENDING` orchestrator it started itself or
 that started it; none = it starts a fresh orchestrator with `create_session`. A live one
 whose wake carries `retire=yes` is swapped (above). The orchestrators a
 keeper starts sit at its depth plus one on every wake, so the fleet does
@@ -641,7 +641,7 @@ duplicated` line pushes):
 - **Name**: exactly `heartbeat: <owner/repo>` — how the check tells it from
   another repo's heartbeat or a nightly `/curate`.
 - **Binding**: `persistent_session_id` = a session titled `🔑 keeper:
-  <owner/repo>`, not `ARCHIVED`. An archived keeper disables the Routine
+  <owner/repo>` (glossary, role title), not `ARCHIVED`. An archived keeper disables the Routine
   (`auto_disabled_session_gone`); the next `/orchestrate` replaces both.
 - **Cadence**: hourly floor (`*/5 * * * *` is refused). The Routine backs
   the `send_later` chain; it does not replace it.

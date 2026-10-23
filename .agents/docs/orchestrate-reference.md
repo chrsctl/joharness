@@ -46,7 +46,8 @@ refused with no confirmed interrupt (dead row, STILLBORN) follows the
    `persistent_session_id` = its id) — IDLE between passes is alive. A
    retired or duplicate title (RUN END, SWAP) is never LIVE, whatever its
    `session_status`. Your own title already `💤 orchestrator (retired):
-   <owner/repo>` or `👯 orchestrator (duplicate): <owner/repo>` = report
+   <owner/repo>` or `👯 orchestrator (duplicate): <owner/repo>` (glossary, role title: the
+   bare spellings match too) = report
    `retired: <title>`, answer as §4's forwarding paragraph does, stop; the
    next run starts in a fresh session.
    `list_sessions`: another LIVE one with an earlier `created_at` than
@@ -90,7 +91,7 @@ refused with no confirmed interrupt (dead row, STILLBORN) follows the
    `derived_state.prompt` exactly `/keeper` or `/orchestrate keeper` — whose reasons hold
    no `paused`: REGISTER's lineage check (step 1) first, failing = report
    the stale line and end step 5 (a pass carries on); then `delete_trigger` it, `archive_session` its
-   keeper (title `🔑 keeper: <owner/repo>`, not `ARCHIVED`), then REGISTER from
+   keeper (title `🔑 keeper: <owner/repo>` (glossary, role title), not `ARCHIVED`), then REGISTER from
    step 2; report `heartbeat replaced: <old id>: <reasons>`. Any other `stale` line, and every
    `duplicated` line: report it and `PushNotification` it once per
    session; the fix is the operator's, the line names it. A Routine made
@@ -106,7 +107,7 @@ refused with no confirmed interrupt (dead row, STILLBORN) follows the
       < limit` = report `heartbeat not registered: lineage
       <depth>/<limit>`, stop here. The keeper sits at `depth + 1`, the
       orchestrators it starts at `depth + 2`, and those must still spawn.
-   2. Each `🔑 keeper: <owner/repo>` session in step 3's `list_sessions`
+   2. Each `🔑 keeper: <owner/repo>` (glossary, role title) session in step 3's `list_sessions`
       answer (on a pass: none, REPLACE archived the bound one), not `ARCHIVED` (a heartbeat deleted in the UI leaves its
       keeper idle): `archive_session`. Then `create_session`: `source_url`
       = `git remote get-url origin`, `model` = the Lineup's `haiku` (the
@@ -313,7 +314,7 @@ successor.
 ## Retired session woken
 
 A session titled `💤 orchestrator (retired): <owner/repo>` or `👯 orchestrator
-(duplicate): <owner/repo>` woken by a message from another session (a manager it
+(duplicate): <owner/repo>` woken by a message from another session (glossary, role title: the bare spellings match too) (a manager it
 spawned carries its id as its lead address) finds the LIVE orchestrator
 ("## 0. Start" step 3; `list_sessions`, the oldest LIVE one), forwards the
 message verbatim with `send_message`, arms nothing, and ends the turn. None

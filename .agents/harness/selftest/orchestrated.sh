@@ -308,7 +308,7 @@ for needle in 'You never start an orchestrator, and past the pass count you neve
   'Then RUN END'"'"'s retitle, last.' \
   'RUN END'"'"'s retitle was refused; a retired title refuses the order above' \
   'Else `set_session_title` yours to `🎼 orchestrator: <owner/repo>`.' \
-  '`👯 orchestrator (duplicate): <owner/repo>` = report `retired: <title>`, answer as §4'"'"'s forwarding paragraph does, stop' \
+  '`👯 orchestrator (duplicate): <owner/repo>` (glossary, role title: the bare spellings match too) = report `retired: <title>`, answer as §4'"'"'s forwarding paragraph does, stop' \
   'RUN END'"'"'s retitle is no retire in this sense'; do
   expect "orchestrate-reference.md one-spawner rule spells ${needle}" "$needle" "$reffold"
 done
@@ -492,6 +492,20 @@ expect "orchestrate.md titles a manager with its emoji" \
 # shellcheck disable=SC2016 # literal backticks in the needles
 expect "keeper-gone takes the bare keeper title through the glossary row" \
   'titled other than `🔑 keeper: <owner/repo>` (glossary, role title)' "$reffold"
+# Each MATCH site points at the glossary row, so a bare title live at merge
+# still counts: retired check, LIVE check, REGISTER archive, manager guard.
+# shellcheck disable=SC2016 # literal backticks in the needles
+expect "the Retired check takes the bare retired and duplicate titles" \
+  '`👯 orchestrator (duplicate): <owner/repo>` (glossary, role title: the bare spellings match too)' "$orcfold"
+# shellcheck disable=SC2016 # literal backticks in the needles
+expect "the manager guard takes the bare manager title" \
+  'confirm the title is `🔨 manager: <stem>` (glossary, role title)' "$orcfold"
+# shellcheck disable=SC2016 # literal backticks in the needles
+expect "REGISTER archives a bare keeper title" \
+  'Each `🔑 keeper: <owner/repo>` (glossary, role title) session' "$reffold"
+# shellcheck disable=SC2016 # literal backticks in the needles
+expect "the keeper's LIVE check takes the bare orchestrator title" \
+  'titled exactly `🎼 orchestrator: <owner/repo>` (glossary, role title) and not `ARCHIVED` = LIVE.' "$(tr '\n' ' ' <"$keepmd" | tr -s ' ')"
 # shellcheck disable=SC2016 # literal backticks in the needles
 for needle in 'Titled exactly `🔑 keeper: <owner/repo>` (glossary, role title: the bare spelling matches too) = run this file.' \
   'other title = report `not a keeper: <title>`, stop, spawn nothing.' \
@@ -507,7 +521,7 @@ for needle in 'Titled exactly `🔑 keeper: <owner/repo>` (glossary, role title:
   'The successor runs "## 0. Start" as any new session does, its ledger from its prompt.' \
   'Its wake is the pending one with the highest `pass=`.' \
   'anything else = report `swap skipped: wake shape <id>`, start nothing.' \
-  '`get_session` finds it titled exactly `🎼 orchestrator: <owner/repo>` and `RUNNING` or `PENDING`' \
+  '`get_session` finds it titled exactly `🎼 orchestrator: <owner/repo>` (glossary, role title) and `RUNNING` or `PENDING`' \
   '`parent_session_id` of this wake'"'"'s guard `get_session` (no `session_id`): the orchestrator whose REGISTER or replace made you' \
   'absent or empty = skip it.' \
   'An orchestrator a human started, not your parent, holds no wake in its first start' \
@@ -517,7 +531,7 @@ for needle in 'Titled exactly `🔑 keeper: <owner/repo>` (glossary, role title:
   'Its text is never read, never quoted into a prompt.' \
   'SWAP — the one place the keeper retires an orchestrator' \
   '`derived_state.prompt` starting `/orchestrate pass`' \
-  'titled exactly `🎼 orchestrator: <owner/repo>` and not `ARCHIVED` = LIVE' \
+  'titled exactly `🎼 orchestrator: <owner/repo>` (glossary, role title) and not `ARCHIVED` = LIVE' \
   '`title` = `🎼 orchestrator: <owner/repo>`, `prompt` = `/orchestrate`. Report `started orchestrator <id>`' \
   'Candidates: `enabled` true, `run_once_at` set, `persistent_session_id` set,' \
   'differs from the one you hold = follow that text instead' \
