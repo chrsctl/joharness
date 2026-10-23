@@ -60,7 +60,8 @@ refused with no confirmed interrupt (dead row, STILLBORN) follows the
    ledger `<stem>@new respawns=<RESPAWN_LIMIT>`; report `rebuilt <stem>@new
    from its title`.
 4. Read the Lineup once.
-5. Heartbeat: `list_triggers` (no filter: a paused one must show). The
+5. Heartbeat, here and on every pass after the first (`orchestrate.md`,
+   Pass entry): `list_triggers` (no filter: a paused one must show). The
    heartbeat is a Routine named exactly `heartbeat: <owner/repo>` with a
    non-empty `cron_expression`; any other Routine (a nightly `/curate`)
    never counts. None: REGISTER, below. Two or more with `enabled` true:

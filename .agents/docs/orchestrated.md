@@ -602,7 +602,10 @@ check refused `./joharness.sh` from the clone it made (`create_trigger` +
 `fire_trigger`, 2026-10-16).
 `create_trigger` takes no repository. A keeper made with `create_session`
 and a `source_url` has the repository and the tools, so the Routine wakes
-it instead. Rejected: session cron and a self-scheduling session (do not
+it instead. "Run now" on a Routine whose keeper is `ARCHIVED` rebinds
+`persistent_session_id` to a fresh session titled `⚡ <Routine name>` with
+no repository, and `last_run` still reads `SUCCEEDED` (2026-10-23): the
+check reads `keeper-gone`, which is why it runs every pass. Rejected: session cron and a self-scheduling session (do not
 outlive their creator), a scheduled GitHub Actions workflow (its pull
 requests get no CI on `GITHUB_TOKEN`, so step 7 never goes green).
 
@@ -623,9 +626,10 @@ hourly wake lands in its first start: the keeper starts a second, and "##
 0. Start" step 3 lets the older proceed and the newer exit. A DRAINED
 fleet costs one short orchestrator session an hour.
 
-The spec every orchestrator checks at start (`orchestrate-reference.md`, "## 0.
-Start" step 5; a session-made stale one is replaced, any other `heartbeat
-stale` or `heartbeat duplicated` line pushes):
+The spec every orchestrator checks at start and on every pass after the
+first (`orchestrate-reference.md`, "## 0. Start" step 5; a session-made
+stale one is replaced, any other `heartbeat stale` or `heartbeat
+duplicated` line pushes):
 
 - **Name**: exactly `heartbeat: <owner/repo>` — how the check tells it from
   another repo's heartbeat or a nightly `/curate`.

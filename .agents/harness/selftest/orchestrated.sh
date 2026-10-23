@@ -339,7 +339,9 @@ for needle in '**One spawner, one turn.** Only the keeper starts an orchestrator
   '**What the keeper copies.**' '**Lineage stays flat.**' \
   'retitles itself the same way as its last act' \
   'or a `RUNNING` or `PENDING` orchestrator it started itself or that started it' \
-  'and its own `parent_session_id`, while that reads `RUNNING` or `PENDING`'; do
+  'and its own `parent_session_id`, while that reads `RUNNING` or `PENDING`' \
+  'the check reads `keeper-gone`, which is why it runs every pass' \
+  'The spec every orchestrator checks at start and on every pass after the first'; do
   expect "orchestrated.md spells ${needle}" "$needle" "$orcdocfold"
 done
 # The keeper is its own command, so an orchestrator never holds the keeper
@@ -517,12 +519,14 @@ for needle in '`heartbeat duplicated` or `heartbeat stale` line (if any)' \
   'Role comes from the prompt, the session-start banner'"'"'s rule' \
   'Titled exactly `keeper: <owner/repo>` = read `.claude/commands/keeper.md` WHOLE and run that only' \
   'Any other title (`orchestrator: …`, `manager: …`, none) = the orchestrator: the rest of this file.' \
-  'No `get_session` = report and `PushNotification` once `role unreadable: no get_session`, end the turn.'; do
+  'No `get_session` = report and `PushNotification` once `role unreadable: no get_session`, end the turn.' \
+  '**Heartbeat.** `pass=` above 1: ref § 0. Start step 5 on that same answer, REPLACE and REGISTER included' \
+  'skip the superseded, duplicate and heartbeat checks'; do
   expect "orchestrate.md heartbeat check spells ${needle}" "$needle" "$orcfold"
 done
 # shellcheck disable=SC2016 # literal backticks in the needles
 for needle in 'Routine named exactly `heartbeat: <owner/repo>` with a non-empty `cron_expression`' \
-  '`list_triggers` (no filter: a paused one must show)' \
+  'Heartbeat, here and on every pass after the first (`orchestrate.md`, Pass entry): `list_triggers` (no filter: a paused one must show)' \
   'None: REGISTER, below.' \
   'Two or more with `enabled` true: `heartbeat duplicated' \
   'duplicated: <id>, <id>' \

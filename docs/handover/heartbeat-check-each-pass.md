@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_013WPACvxW5KcJsqRQBABnmC
 agent: sonnet
 updated: 2026-10-23
-next: Edit orchestrate.md Pass entry, ref step 5, orchestrated.md; pin; ci, verify, verifier
+next: Await verifier and orchestrated selftest; record ## Review; ci, verify, retire, PR, finish
 ---
 
 ## Goal

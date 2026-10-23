@@ -85,8 +85,12 @@ nothing.
   nothing, schedule nothing.
 - **Duplicate.** Another session's pending `/orchestrate pass` wake in that
   answer → ref § Duplicate.
-- No `list_triggers` = say so once, skip the superseded and duplicate
-  checks, keep the `harness=` check.
+- **Heartbeat.** `pass=` above 1: ref § 0. Start step 5 on that same
+  answer, REPLACE and REGISTER included, its line in the report. A keeper
+  gone mid-run otherwise surfaces only when the next orchestrator starts,
+  and that keeper is what starts it.
+- No `list_triggers` = say so once, skip the superseded, duplicate and
+  heartbeat checks, keep the `harness=` check.
 
 ## 1. Read
 
