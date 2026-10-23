@@ -124,8 +124,7 @@ expect "a view of unknown age holds the spawn" "clerk due, held — no fresh vie
 refute "and holds it, not spawns it" "clerk DUE: spawn" "$out"
 
 # Every manager slot full: the clerk still spawns. JOHARNESS_MAX_MANAGERS caps
-# managers only; a role runs beyond it (issue relayed from chrsctl/gx, where
-# a full fleet held the clerk for 246h).
+# managers only; a role runs beyond it.
 git -C "$clerk_work" checkout -qb mgr-full main
 mkdir -p "${clerk_work}/docs/handover"
 printf -- '---\nworkstream: free-work\nstatus: in-progress\nbranch: mgr-full\nplan: free-work\nagent: sonnet\n---\n\n## Goal\nFixture.\n' \

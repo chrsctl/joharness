@@ -217,7 +217,7 @@ no handover, and no handover is no replace. Why:
   | `scout     : none in flight`, AND the human's order (below) or a scout issue that needs the scout (below); any other `scout :` row = nothing | fable | `scout: <UTC date>` | `/scout` | `scouted=<stamp>` |
   | `conduct DUE: spawn` (any verdict; `held`, `suppressed` = nothing) | sonnet | `conduct: <UTC date>` | `/conduct` | `conducted=<stamp>` |
   | `OVERLAP-BOUND`, `rescope :` says `in flight: none` | sonnet | `surveyor: <key>` | `/manage rescope <key>` + the block verbatim | `rescope-<key>@new`, `rescoped=<key>` |
-  | `free <branch> ... FREEABLE` under `spawn` (beyond the cap, no slot; a `HOLD` row = nothing) | sonnet | `freer: <branch>` | `/manage free <branch>` | `free-<key>@new` |
+  | `freer DUE` (any verdict; PAUSED or a `HOLD` row = nothing): its first `free <branch> ... FREEABLE` row under `spawn` | sonnet | `freer: <branch>` | `/manage free <branch>` | `free-<key>@new` |
 
   FREEABLE first: prove the owner's session not RUNNING (`/who`, as for
   `janitor`); RUNNING = skip the row this pass. Dispatch drops the row while

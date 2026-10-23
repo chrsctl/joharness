@@ -6573,7 +6573,7 @@ cmd_dispatch() {
   local n_edge=0 n_edge_stall=0 n_leftover=0 n_leftover_noitem=0
   local leftover_rows="" estate="" fleet_age stall_young=""
   local curate_due=0 curate_inflight="" n_curate_inflight=0 cdue cstate creason
-  local jcands cjudge n_freer=0
+  local jcands cjudge n_freer=0 n_freer_live=0
   local scout_inflight="" n_scout=0 sstate sreason sb sw ss spend
   local clerk_due=0 clerk_inflight="" n_clerk=0 kdue kstate kreason kb kw ks
   local conduct_due=0 role_spawned=0 n_conduct=0 odue ostate oreason ob oa conduct_inflight=""
@@ -7010,8 +7010,10 @@ cmd_dispatch() {
     fi
     n_inflight=$((n_inflight + 1))
     # A freer is a role: beyond the cap, so it holds no manager slot. Still in
-    # flight: the health pass watches it, and a second one waits.
-    [ "$rstat" = blocked ] || n_freer=$((n_freer + 1))
+    # flight, blocked included (as a blocked curator is): the health pass
+    # watches it, and a second one waits.
+    n_freer=$((n_freer + 1))
+    [ "$rstat" = blocked ] || n_freer_live=$((n_freer_live + 1))
     if [ "$rstat" = blocked ]; then
       n_blocked=$((n_blocked + 1))
       flag="  BLOCKED: the human's, holds no slot"
@@ -7068,7 +7070,7 @@ cmd_dispatch() {
   # spawn count, the OVERLAP-BOUND gate and the DRAINED reading follow.
   # Managers only: a role session in flight (curator, clerk, freer, surveyor,
   # scout, conduct) runs beyond the cap and subtracts nothing.
-  n_slots=$((cap - (n_inflight - n_blocked - n_freer) - pending_used))
+  n_slots=$((cap - (n_inflight - n_blocked - n_freer_live) - pending_used))
   [ "$n_slots" -ge 0 ] || n_slots=0
   if [ "$pending" != 0 ]; then
     # Said on the line, because a silently lowered count is indistinguishable
@@ -7139,11 +7141,13 @@ cmd_dispatch() {
     else
       fwhy="${fn} plan(s) on a doc-only branch, last push $(dispatch_age_text "$fage") ago: merging it lands them in the queue"
     fi
-    if [ "$n_freer" -gt 0 ]; then
+    if [ "$cap" -eq 0 ]; then
+      freeable="${freeable}  free ${fb} (agent: sonnet)  HOLD — JOHARNESS_MAX_MANAGERS=0 is the human's pause: spawn none. FREEABLE — ${fwhy}"$'\n'
+    elif [ "$n_freer" -gt 0 ]; then
       freeable="${freeable}  free ${fb} (agent: sonnet)  HOLD — a freer is in flight, one at a time: spawn once it ends. FREEABLE — ${fwhy}"$'\n'
     else
       n_freeable=$((n_freeable + 1))
-      freeable="${freeable}  free ${fb} (agent: sonnet)  FREEABLE — ${fwhy}. Beyond the cap, holds no slot, ONE freer per pass. /who first: the owner's session RUNNING = not yours"$'\n'
+      freeable="${freeable}  free ${fb} (agent: sonnet)  FREEABLE — ${fwhy}. Beyond the cap, holds no slot, ONE freer per pass, under any verdict but PAUSED. /who first: the owner's session RUNNING = not yours"$'\n'
     fi
   done <<<"$(dispatch_freeable "$bprows")"
 
@@ -7384,6 +7388,10 @@ EOF_CW
     role_spawned=1
     printf '            clerk DUE: spawn ONE clerk (agent: sonnet) on /clerk — beyond the cap, holds no slot, at most one in flight. It turns open issues into plans and merges that plan-only pull request itself (JOHARNESS_CLERK_HOURS, JOHARNESS_CLERK_BATCH)\n'
   fi
+  # A freer, like the roles above, spawns under any verdict but PAUSED: a
+  # verdict that says "spawn nothing" or "wait" speaks for managers only.
+  [ "$n_freeable" -eq 0 ] ||
+    printf '            freer DUE: spawn ONE freer (agent: sonnet) on the first FREEABLE row above — beyond the cap, holds no slot, at most one in flight, under any verdict but PAUSED\n'
   # Not gated on DRAINED: sampling merged work competes with nothing.
   if [ "$conduct_due" -eq 1 ] && [ "$cap" -eq 0 ]; then
     printf '            conduct due, held — JOHARNESS_MAX_MANAGERS=0 is the human'"'"'s pause: spawn none\n'

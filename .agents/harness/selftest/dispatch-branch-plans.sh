@@ -618,6 +618,57 @@ expect "a done free claim is listed" \
   "  free-held-h  mgr-free-held  done  pushed 0m  done: holds no slot" "$out"
 expect "and holds no slot" "slots     : ${bpslots0:-x} of" "$out"
 
+# --- a freer is a role: beyond the cap, under any verdict but PAUSED --------
+# Own fixture: nothing on the queue but one FREEABLE row, so the verdict is the
+# DRAINED one that would otherwise say exit.
+frwork="${TMP}/freerwork"
+frorigin="${TMP}/freerorigin.git"
+git init -q --bare "$frorigin"
+git init -q "$frwork"
+git -C "$frwork" symbolic-ref HEAD refs/heads/main
+mkdir -p "${frwork}/docs/plans" "${frwork}/docs/handover" \
+  "${frwork}/.agents/harness" "${frwork}/.agents/env/none"
+cp "${ROOT}/joharness.sh" "${frwork}/joharness.sh"
+cp "${ROOT}/.agents/harness/queue-context.sh" \
+   "${ROOT}/.agents/harness/handover-context.sh" "${frwork}/.agents/harness/"
+printf '# none\n' >"${frwork}/.agents/env/none/AGENTS.md"
+frconf="${frwork}/joharness.conf"
+printf 'JOHARNESS_ENV=none\n' >"$frconf"
+commit_all "$frwork" "base"
+git -C "$frwork" remote add origin "$frorigin"
+git -C "$frwork" push -qu origin main
+fr() { ( cd "$frwork" && env JOHARNESS_CONF="$frconf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 "$@" ./joharness.sh dispatch 2>&1 ); }
+git -C "$frwork" checkout -qb carry-dr main
+printf -- '---\nworkstream: carry-dr\nstatus: done\nbranch: carry-dr\npr: none\nplan: dr\nagent: sonnet\nupdated: 2026-01-01\nnext: Nothing\n---\n\n## Goal\nFixture.\n' \
+  >"${frwork}/docs/handover/carry-dr.md"
+commit_all "$frwork" "carrier finds dr done"
+git -C "$frwork" push -qu origin carry-dr
+git -C "$frwork" checkout -q main
+out="$(fr)"
+expect "a lone FREEABLE row keeps the drained orchestrator from exiting" \
+  "verdict   : DRAINED — nothing free, nothing in flight; a role is due: spawn it" "$out"
+expect "and the tail line says to spawn the freer" \
+  "freer DUE: spawn ONE freer (agent: sonnet) on the first FREEABLE row above" "$out"
+out="$(fr JOHARNESS_MAX_MANAGERS=0)"
+expect "the human's pause holds the freer row" \
+  "  free carry-dr (agent: sonnet)  HOLD — JOHARNESS_MAX_MANAGERS=0 is the human's pause" "$out"
+refute "and prints no freer spawn under it" "freer DUE" "$out"
+# A BLOCKED freer is still in flight, as a blocked curator is: no second one
+# beside it. It holds no slot either way.
+git -C "$frwork" checkout -qb mgr-free-x main
+mkdir -p "${frwork}/docs/handover"
+printf -- '---\nworkstream: free-x\nstatus: blocked\nbranch: mgr-free-x\npr: none\nplan: none\nsession: https://example.invalid/session_fx\nagent: sonnet\nupdated: 2026-01-01\nnext: conflict: x does not merge clean\n---\n\n## Goal\nFixture.\n' \
+  >"${frwork}/docs/handover/free-x.md"
+commit_all "$frwork" "a freer blocks"
+git -C "$frwork" push -qu origin mgr-free-x
+git -C "$frwork" checkout -q main
+out="$(fr)"
+expect "a blocked freer holds the other FREEABLE row" \
+  "  free carry-dr (agent: sonnet)  HOLD — a freer is in flight" "$out"
+refute "so no second freer spawns" "freer DUE" "$out"
+expect "and it holds no slot" "slots     : 4 of 4 free" "$out"
+
 # --- time against the item: CEILING? (issue #298) ---------------------------
 # A manager that pushes inside the stall window and under the churn limit read
 # healthy for 5.5h and $48 with no pull request. The row now carries hours

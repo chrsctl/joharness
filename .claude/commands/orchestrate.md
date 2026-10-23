@@ -90,8 +90,9 @@ nothing.
 
 ## 1. Read
 
-`JOHARNESS_PENDING_SPAWNS=<n> ./joharness.sh dispatch`, `<n>` = `@new`
-entries in the ledger. Act on its output only. Then drop every rebuilt entry
+`JOHARNESS_PENDING_SPAWNS=<n> ./joharness.sh dispatch`, `<n>` = manager
+`@new` entries in the ledger (not `rescope-<key>@new` or `free-<key>@new`:
+roles hold no slot). Act on its output only. Then drop every rebuilt entry
 whose stem now has a claimed in-flight row. Never re-run dispatch in a pass.
 
 `SHALLOW CLONE` on the verdict: `git fetch --unshallow`, or confirm each
@@ -184,7 +185,7 @@ or command that says nothing to do spawns nothing.
   refuses a claim with `pr:` set. Skip any branch the health pass
   respawned this pass: it has a live manager now.
 - Role sessions (`curate DUE`, `clerk DUE`, `scout     :`, `conduct DUE`,
-  `OVERLAP-BOUND`, `FREEABLE`, the human's order) → ref § Role
+  `OVERLAP-BOUND`, `freer DUE`, the human's order) → ref § Role
   sessions ("A scout issue needs the scout").
 
   A ledger `rescoped=<K>` covers later keys whose holders are all in K.
