@@ -17,6 +17,9 @@ Plan `docs/plans/defect-escape-acceptance.md`: three-question `## Escape` sectio
 
 ## Review
 
+- r1: (verifier) Route finding shape names no path, so `upstream` cannot place it (fixed: shape carries the canonical path)
+- r2: (verifier) handover `pr: none`/empty Review mid-build (no change: filled at edge)
+
 ## Blockers
 
 None.

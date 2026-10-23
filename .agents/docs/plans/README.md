@@ -37,7 +37,7 @@ Copy [`TEMPLATE.md`](TEMPLATE.md). Sections:
   2. **Gate** — which check should have caught it, and why did it pass?
   3. **Route** — a gate this repo owns is fixed in this pull request or a
      plan it adds. A gate canonical owns gets a `## Review` finding
-     (`rN: … (wontfix: canonical's file)`) so `./joharness.sh upstream`
+     (`rN: <canonical path> … (wontfix: canonical's file)`, the path named) so `./joharness.sh upstream`
      reports it.
 - **Where to look** — `path:symbol` anchors into existing code. Symbol,
   never line number: `lint_anchors` splits an anchor at the first `:` and

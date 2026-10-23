@@ -64,7 +64,7 @@ Answer in the pull request body, each with its command:
 Entry: which merge introduced it? Bisect, or say why not.
 Gate: which check should have caught it, and why did it pass?
 Route: a gate this repo owns is fixed here or in a plan this adds; a gate
-canonical owns gets a `## Review` finding `rN: … (wontfix: canonical's file)`. -->
+canonical owns gets a `## Review` finding `rN: <canonical path> … (wontfix: canonical's file)`. -->
 
 ## Where to look
 
