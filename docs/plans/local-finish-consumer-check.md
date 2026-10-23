@@ -24,29 +24,40 @@ no `platform/web/` change. It answers the question research
 
 ## Scope
 
-- **The declaration**: one executable file at a consumer-owned path the
-  sync never writes. Proposed: `.agents/local-check`. Confirm it is absent
-  from `sync-to-consumer.sh`'s path list, and add it to that script's
-  never-synced note. Absent file = today's behaviour.
+- **The declaration**: one file, `local-check`, at the consumer's
+  repository root. That path is outside `.agents/` and `.claude/`, so
+  neither `upstream_harness_path` nor the synced `.gitattributes` claims it.
+  Confirm both, and confirm it is absent from `sync-to-consumer.sh`'s path
+  list. Absent file = today's behaviour.
 - **`checks_gate`** (local mode only), after `ci`/`verify`:
-  - runs the BASE branch's copy (`git show <base>:.agents/local-check` into
-    a temp file), so a branch cannot loosen its own gate. A branch that
-    adds or edits the file is gated by the base's copy, or by nothing when
-    the base has none.
-  - shows its last line, and is red on non-zero exit.
-  - when no file is declared, `Not covered here` says so.
+  - runs the HEAD's `local-check` with `bash`, from the repository root, so
+    its mode bit does not matter. The head's copy because a pull request
+    repairing a check broken on the base branch must be able to pass. The
+    guarantee is the one `ci` already has: the head tree under test.
+  - a branch that changes `local-check` against the merge base prints
+    `CHECK CHANGED on this branch` with the diff stat. Edge review reads
+    it: the gate's strength is review, not immutability.
+  - bounded by `JOHARNESS_LOCAL_CHECK_MINUTES` (new knob, default 30,
+    knob-table row). A timeout is red and says so, never a skip.
+  - prints its elapsed time and last line, and is red on non-zero exit.
+  - when no file is declared, `Not covered here` says
+    `no consumer check declared (local-check)`.
 - **`.agents/harness/AGENTS.md` step 7**: the local-mode clause names the
   declared check beside `ci` + `verify`.
 - **consumer-repos.md § Local checks**: the status-quo bullets change to
   say what the declared check covers and what it does not. Jobs only
   Actions runs still count for nothing.
-- **Selftest** (`.agents/harness/selftest/checks.sh`, or the existing home
-  of `checks_gate` tests), each failing without the change:
-  - a fixture whose base declares `exit 1` → `finish` red;
+- **Research `local-checks-consumer-command`** (canonical #557): if its
+  file is on the base branch when this merges, this plan's pull request
+  deletes it as its graduation.
+- **Selftest** (`.agents/harness/selftest/checks.sh`), each failing
+  without the change:
+  - `local-check` = `exit 1` → `finish` red;
   - `exit 0` → green, last line shown;
-  - a branch editing the file to `exit 0` while the base says `exit 1` →
-    still red;
-  - no file → today's output plus the "no consumer check declared" line.
+  - a non-executable file still runs;
+  - a branch changing the file prints `CHECK CHANGED`;
+  - a check over the bound → red with `timeout`;
+  - no file → the "no consumer check declared" line.
 
 ## Out of scope
 
@@ -60,9 +71,9 @@ no `platform/web/` change. It answers the question research
 - `./joharness.sh ci`: `ci: pass`, the selftests listed.
 - `./joharness.sh verify`: `0 failed`.
 - `JOHARNESS_CHECKS=local ./joharness.sh finish` in a fixture consumer:
-  red on a failing declared check, naming its last line.
+  red on a failing `local-check`, naming its last line.
 - Consumer side, after the sync reaches chrsctl/gx: the sync writes no
-  `.agents/local-check`, and gx's `finish` output says no consumer check is
+  `local-check`, and gx's `finish` output says no consumer check is
   declared until gx adds one.
 
 ## Where to look
@@ -73,7 +84,7 @@ no `platform/web/` change. It answers the question research
 
 ## Traps
 
-- Never run the head's copy. A gate the branch under test can edit is no
-  gate.
-- The declared command can be slow. `finish` prints its time, and never
-  bounds it silently: a timeout is red, never a skip.
+- Do not claim more than the head tree gives: a branch can edit the
+  scripts its check calls, as it can edit what `ci` runs. `CHECK CHANGED`
+  and review are the guard.
+- A path under `.agents/` would be reported upstream as canonical's.

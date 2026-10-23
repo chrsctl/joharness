@@ -34,8 +34,10 @@ needed a human decision.
    check passed it, and routes the gate: this repo's is fixed or planned,
    canonical's becomes a finding `./joharness.sh upstream` reports.
 4. Steps 1–2 are visible in `./joharness.sh` output (`finish`,
-   `dispatch`) and every step leaves its record in git. Harness commands
-   never call the GitHub API.
+   `dispatch`) and leave their record in git. Step 3's answers live in
+   the fix's pull request body; only a canonical-routed gate becomes a git
+   record, as a `## Review` finding. Harness commands never call the
+   GitHub API.
 
 ## Constraints
 

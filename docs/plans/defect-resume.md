@@ -29,8 +29,8 @@ things with that block:
     unchanged. Parked items are listed on their own lines under the
     verdict, as the core-only wait is.
   - is `RESUME` when all three hold. Live rows are the only branch rows
-    read (`dispatch_branch_plans` kind `live`), so a stale twin-clerk
-    branch never holds an item:
+    read (`dispatch_branch_plans` kind `live`). A stale branch that still
+    reads `live` is caught by STUCK below:
     1. the commit that wrote this `next:` line is found;
     2. a plan whose `issue:` is `<n>` was deleted on the base branch's
        first parent after that commit, read with renames detected;
@@ -39,22 +39,31 @@ things with that block:
   - is `PARKED #<n> UNPLANNED` when no plan has named `<n>` within
     `JOHARNESS_DEFECT_PLAN_HOURS` (new knob, default 48) of the block
     commit.
-  - is `PARKED #<n> STUCK` when a plan named `<n>` but none retired within
-    `JOHARNESS_DEFECT_FIX_HOURS` (new knob, default 72).
+  - is `PARKED #<n> STUCK` when no RESUME came within
+    `JOHARNESS_DEFECT_FIX_HOURS` (new knob, default 72) of the block
+    commit, whatever the reason. That includes a stale `live` branch
+    still naming `<n>` after the fix retired: a twin clerk's branch
+    with another stem stays `live` for good.
   - is `PARKED UNREADABLE` when the block commit is not found, and RESUME
     fails closed.
   - Both knobs get knob-table rows.
 - **The verdict with a RESUME row** is never `DRAINED … exit`. A RESUME
   is work, and the run continues while a resumed item is in flight.
+- **Slots**: dispatch counts each RESUME row as one spawn against
+  `slots` in the same pass, ahead of free items, and prints `RESUME` only
+  for as many as there are slots. So the orchestrator never exceeds
+  `JOHARNESS_MAX_MANAGERS`, and a RESUME is never plain-spawned as a free
+  item.
 - **orchestrate.md** role table and **orchestrate-reference.md**:
   - `PARKED` → report only.
   - `UNPLANNED`, `STUCK`, `UNREADABLE` → notify once, as for a human block
     today.
-  - `RESUME` → only when a slot is free under `JOHARNESS_MAX_MANAGERS`
-    (otherwise wait for the next pass). Then the § Relay mechanics: write
-    `status: in-progress` and `next:` = `Resume: the fix for #<n> merged
-    (<retired plan>); re-run your Acceptance`, commit, push, respawn as
-    Relay does (counted).
+  - `RESUME` → in the spawn step, as one of that pass's spawns. Exactly
+    the § Relay mechanics: write `status: in-progress` and `next:` =
+    `Resume: the fix for #<n> merged (<retired plan>); re-run your
+    Acceptance`, commit, push. Then a live session (RUNNING, IDLE,
+    PENDING) is nudged and a dead one (FAILED, ARCHIVED, not found) is
+    respawned, counted.
   - The "Never respawn a `blocked` item" line names RESUME as its one
     exception.
 - **orchestrated.md** "The one stop": PARKED described.
@@ -65,7 +74,9 @@ things with that block:
   - no RESUME for a rename;
   - no RESUME for a retirement older than the block commit;
   - RESUME after a fresh retirement;
-  - UNPLANNED and STUCK at their knob hours;
+  - UNPLANNED and STUCK at their knob hours, STUCK also with a stale
+    `live` branch naming the issue;
+  - RESUME rows reduce `slots` and are capped by them;
   - UNREADABLE fails closed;
   - a pass with a RESUME row does not print `DRAINED`.
 
