@@ -6,9 +6,10 @@ Role comes from the prompt, the session-start banner's rule
 (`./joharness.sh start`): `/manage <item>` = `manage.md`, `/keeper` =
 `keeper.md`, anything else = this file. One guard, first act once "##
 Tools" has found it: `get_session` (no `session_id`). Titled exactly
-`keeper: <owner/repo>` = read `.claude/commands/keeper.md` WHOLE and run
+`🔑 keeper: <owner/repo>` (glossary, role title: the bare spelling matches
+too) = read `.claude/commands/keeper.md` WHOLE and run
 that only, whatever the prompt, an argument, a ledger stem or a lead says.
-Any other title (`orchestrator: …`, `manager: …`, none) = the orchestrator:
+Any other title (`🎼 orchestrator: …`, `🔨 manager: …`, none) = the orchestrator:
 the rest of this file. No `get_session` = report and
 `PushNotification` once `role unreadable: no get_session`, end the turn.
 
@@ -33,7 +34,7 @@ Code Remote `send_message` by `session_id` reaches a manager; (2) harness
 `SendMessage` to a `ListAgents` row reaches a peer — `ListAgents` empty
 closes transport 2 only.
 Claude Code Remote send_message takes the session_id create_session returned.
-After a restart, find it by title (`manager: <stem>`), never from a
+After a restart, find it by title (`🔨 manager: <stem>`), never from a
 `session:` line (that names a writer, not a worker). A send counts only when
 the result reads delivered.
 
@@ -65,8 +66,8 @@ retired, superseded or duplicate pass does nothing, so it re-reads and fast-forw
 nothing.
 
 - **Retired.** `get_session` (no `session_id`): your title is exactly
-  `orchestrator (retired): <owner/repo>` (the keeper retired you at SWAP,
-  or your own run ended, §4 RUN END) or `orchestrator (duplicate): <owner/repo>` = report
+  `💤 orchestrator (retired): <owner/repo>` (the keeper retired you at SWAP,
+  or your own run ended, §4 RUN END) or `👯 orchestrator (duplicate): <owner/repo>` = report
   `retired: <title>`, do nothing, schedule nothing. Any other title is
   "## 0. Start" step 3's matter, never a stop here.
 
@@ -105,11 +106,11 @@ whose stem now has a claimed in-flight row. Never re-run dispatch in a pass.
 ## 2. Health pass — before any spawn
 
 For every manager in flight AND every ledger stem dispatch does not list:
-`get_session` on its `session:` URL, else by title `manager: <stem>` (several:
+`get_session` on its `session:` URL, else by title `🔨 manager: <stem>` (glossary, role title; several:
 newest not `ARCHIVED`; none = gone). That `get_session` is the per-manager
 read; `list_sessions` (one answer read at 99,920 characters, 2026-10-13) is
 "## 0. Start" step 3's and the `@new` rebuild's, once per session. Before
-any message, interrupt or archive, confirm the title is `manager: <stem>`
+any message, interrupt or archive, confirm the title is `🔨 manager: <stem>`
 and the branch is the one dispatch printed; mismatch = report, touch
 nothing.
 
@@ -202,7 +203,7 @@ or command that says nothing to do spawns nothing.
   scout: it ends at its claim's retire, with no pull request to wait on.
 - Manager: `create_session` with `source_url` = `git remote get-url origin`,
   `clone_depth: 5000` (a 50-deep clone hides the merge base `authority` needs),
-  `model` = item's `agent:` via the Lineup, `title` = `manager: <stem>`,
+  `model` = item's `agent:` via the Lineup, `title` = `🔨 manager: <stem>`,
   `prompt`. Never omit `source_url`: without it the session starts in an
   empty `/home/user`, no checkout, no `/manage` (repo skills load only once a
   repo is attached), and the manager cannot be relied on to attach it itself
@@ -276,14 +277,14 @@ first pass that arms `retire=yes` → ref § RETIRE.
 RUN END. A pass that ends at DRAINED or PAUSED arms nothing. Ends = the
 verdict `DRAINED — nothing free, nothing in flight: exit` or `PAUSED — …
 spawn nothing, exit`; any other DRAINED or PAUSED verdict is no end. Its last act,
-after the final report: `set_session_title` yours to `orchestrator
+after the final report: `set_session_title` yours to `💤 orchestrator
 (retired): <owner/repo>`, so the session list reads it as done and a wake
 that still fires does nothing (Pass entry, Retired). The same last act
 closes a human's stop (below); "## 0. Start" step 3's exit spells it
-`orchestrator (duplicate): <owner/repo>`. No `set_session_title`, or it is
+`👯 orchestrator (duplicate): <owner/repo>`. No `set_session_title`, or it is
 refused = report `not retitled: no set_session_title`, end the turn.
 Retitling a session the keeper already retitled changes nothing. A retired
-title is final: nothing in this file sets `orchestrator: <owner/repo>` on
+title is final: nothing in this file sets `🎼 orchestrator: <owner/repo>` on
 it again but SWAP step 2's rollback.
 
 A retired or duplicate title woken by a message → ref § Retired session
