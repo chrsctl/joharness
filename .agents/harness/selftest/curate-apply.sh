@@ -28,7 +28,7 @@ caplan() {
   local stem="$1" scope="$2" p
   shift 2
   { printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: low\n' "$stem"
-    printf 'needs: none\nrequirement: none\nscope: %s\n---\n\n## Goal\nFixture.\n\n## Scope\n\n' "$scope"
+    printf 'needs: none\nrequirement: none\nscope: %s\n---\n\n## Goal\nFixture.\n\n## Assumptions\nNone.\n\n## Scope\n\n' "$scope"
     for p in "$@"; do printf -- '- %s%s%s -- changes.\n' "$cabt" "$p" "$cabt"; done
   } >"${cawork}/docs/plans/${stem}.md"
 }
@@ -207,6 +207,9 @@ needs: none
 requirement: none
 scope: nowhere/new.py
 ---
+
+## Assumptions
+None.
 
 ## Goal
 Fixture.

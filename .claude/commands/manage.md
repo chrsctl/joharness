@@ -53,6 +53,8 @@ claim, and the orchestrator spawns a second manager onto your item.
 ## 2. Decompose, then fan out to workers
 
 Research first: open the plan's anchors, check every claim against code,
+and every `A<n>` of its `## Assumptions`: record `- A<n>: confirmed|refuted
+— <evidence>` in `## Decisions` (refuted = fix the plan on the branch first);
 `./joharness.sh feedback <path>` on files the diff will touch. Then split the
 build into sub-tasks, each written for a literal reader:
 
@@ -63,6 +65,12 @@ build into sub-tasks, each written for a literal reader:
 - tier: haiku when mechanical AND fully specified AND acceptance runnable
   (and small — past 100K prompt tokens haiku bills 5x); sonnet otherwise;
   never above the plan's `agent:`
+
+Plan `agent: opus` or `fable`? Before the first worker, spawn
+`.claude/agents/plan-checker.md` on the plan file. Record its findings in
+`## Review` as `(plan-checker)`; fix the plan on the branch or `wontfix:
+why`. At most 3 rounds; open count not falling between rounds = stop, take
+the review-churn route (`.agents/docs/agent-selection.md`).
 
 Worker = `Agent` tool, `subagent_type: general-purpose`, `model` = its tier,
 parallel across disjoint file sets. Its prompt carries the sub-task whole (a

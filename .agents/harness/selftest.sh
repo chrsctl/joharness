@@ -54,7 +54,7 @@ unset JOHARNESS_ENV JOHARNESS_ENV_SETUP JOHARNESS_ENV_MD JOHARNESS_REVIEW \
   JOHARNESS_ORCHESTRATOR_PASSES \
   JOHARNESS_RESPAWN_LIMIT JOHARNESS_MANAGER_HOURS \
   JOHARNESS_CURATE_HOURS JOHARNESS_CURATE_PLANS JOHARNESS_CURATE_REGISTRY \
-  JOHARNESS_CURATE_SPLIT \
+  JOHARNESS_CURATE_SPLIT JOHARNESS_CURATE_LAYERS \
   JOHARNESS_CLERK_HOURS JOHARNESS_CLERK_BATCH JOHARNESS_CLERK_STALE_HOURS \
   JOHARNESS_SCOUT_READS JOHARNESS_SCOUT_REVIEWER \
   JOHARNESS_SCOUT_RESEARCH \
@@ -571,11 +571,13 @@ SELFTEST_TOPICS=(
   queue-context-fanout
   session-start
   ci-churn
+  broken-windows
   ci-output
   ci-selftest-scope
   checks
   ci-promote
   review
+  fast-lane
   upstream
   feedback
   feedback-recurrence
@@ -600,6 +602,7 @@ SELFTEST_TOPICS=(
   clerk
   role
   ci-ship-scope
+  assumptions-lint
   authority
   autonomy-mode
   start

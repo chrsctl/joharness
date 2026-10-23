@@ -39,28 +39,31 @@ refused with no confirmed interrupt (dead row, STILLBORN) follows the
    <depth>/<limit>: this session cannot spawn or arm; start a fresh
    orchestrator session`. No `lineage` field, or no `get_session` = proceed.
 3. One orchestrator per repo. A LIVE orchestrator: a session titled
-   exactly `orchestrator: <owner/repo>`, not `ARCHIVED`, whose
+   exactly `🎼 orchestrator: <owner/repo>` (glossary, role title: a MATCH
+   takes the bare spelling too), not `ARCHIVED`, whose
    `session_status` is `RUNNING` or `PENDING`, or that holds a pending
    `/orchestrate pass` wake (`list_triggers`: `run_once_at` set,
    `persistent_session_id` = its id) — IDLE between passes is alive. A
    retired or duplicate title (RUN END, SWAP) is never LIVE, whatever its
-   `session_status`. Your own title already `orchestrator (retired):
-   <owner/repo>` or `orchestrator (duplicate): <owner/repo>` = report
+   `session_status`. Your own title already `💤 orchestrator (retired):
+   <owner/repo>` or `👯 orchestrator (duplicate): <owner/repo>` (glossary, role title: the
+   bare spellings match too) = report
    `retired: <title>`, answer as §4's forwarding paragraph does, stop; the
    next run starts in a fresh session.
    `list_sessions`: another LIVE one with an earlier `created_at` than
    yours = run step 5 report-only (no REGISTER, no replace), then exit,
    report its `updated_at`, `status_detail` and step 5's line. The older
    one proceeds, so two started together never both exit. The exit's last
-   act: `set_session_title` yours to `orchestrator (duplicate):
+   act: `set_session_title` yours to `👯 orchestrator (duplicate):
    <owner/repo>` (RUN END, §4). Else
-   `set_session_title` yours to `orchestrator: <owner/repo>`. From the same result rebuild `@new`:
-   each `manager: <stem>` not `ARCHIVED`, not in your ledger, whose item file
+   `set_session_title` yours to `🎼 orchestrator: <owner/repo>`. From the same result rebuild `@new`:
+   each `🔨 manager: <stem>` not `ARCHIVED`, not in your ledger, whose item file
    still exists on `origin/main` (`git cat-file -e origin/main:<path>`) →
    ledger `<stem>@new respawns=<RESPAWN_LIMIT>`; report `rebuilt <stem>@new
    from its title`.
 4. Read the Lineup once.
-5. Heartbeat: `list_triggers` (no filter: a paused one must show). The
+5. Heartbeat, here and on every pass after the first (`orchestrate.md`,
+   Pass entry): `list_triggers` (no filter: a paused one must show). The
    heartbeat is a Routine named exactly `heartbeat: <owner/repo>` with a
    non-empty `cron_expression`; any other Routine (a nightly `/curate`)
    never counts. None: REGISTER, below. Two or more with `enabled` true:
@@ -78,17 +81,27 @@ refused with no confirmed interrupt (dead row, STILLBORN) follows the
      session, get no repository and no session tools
      (`.agents/docs/orchestrated.md`, Heartbeat);
    - `keeper-gone` — `get_session` on `persistent_session_id` finds it
-     `ARCHIVED`, not found, or titled other than `keeper: <owner/repo>`;
+     `ARCHIVED`, not found, or titled other than `🔑 keeper: <owner/repo>` (glossary, role title)
+     (the platform's `⚡ heartbeat: <owner/repo>`, a session "Run now"
+     made with no repository, included). That `get_session` runs in THIS
+     step, every time; not run = not up to date. A keeper you archived is
+     this reason; REPLACE below restores it, once per session (REGISTER's
+     cap);
+   - `keeper-unread` — that `get_session` errored or was refused: report
+     and push the stale line, never REPLACE on it alone;
    - `failing` — `last_run.status` ends in `FAILED`
      (`ROUTINE_RUN_STATUS_FAILED`);
    - `prompt` — `derived_state.prompt`, trimmed, is not exactly
      `/keeper` or `/orchestrate keeper` (the older spec: the title guard
      routes it, so it is never replaced for its prompt alone).
+   Up to date = report `heartbeat ok: <id>, keeper <persistent_session_id>
+   <session_status> <updated_at>`, both read off that `get_session`
+   (`list_triggers` carries neither); no read, no `ok` line.
    REPLACE only a Routine REGISTER made — `created_via: meta_mcp` AND
    `derived_state.prompt` exactly `/keeper` or `/orchestrate keeper` — whose reasons hold
    no `paused`: REGISTER's lineage check (step 1) first, failing = report
-   the stale line and stop; then `delete_trigger` it, `archive_session` its
-   keeper (title `keeper: <owner/repo>`, not `ARCHIVED`), then REGISTER from
+   the stale line and end step 5 (a pass carries on); then `delete_trigger` it, `archive_session` its
+   bound session, not `ARCHIVED` (a `🔑 keeper: <owner/repo>` (glossary, role title) or a `⚡` one), then REGISTER from
    step 2; report `heartbeat replaced: <old id>: <reasons>`. Any other `stale` line, and every
    `duplicated` line: report it and `PushNotification` it once per
    session; the fix is the operator's, the line names it. A Routine made
@@ -98,17 +111,23 @@ refused with no confirmed interrupt (dead row, STILLBORN) follows the
    edit or delete a Routine a human paused or made in the UI: the pause is
    the human's veto on the fleet.
 
-   REGISTER, at most once per session:
+   REGISTER, at most once per session, a REPLACE's included (a later
+   break in the same session is its `stale` line only; no Routine to be
+   stale = `heartbeat not registered: once per session`; step 3's
+   report-only run = `heartbeat not registered: report-only`):
    1. `get_session` (no `session_id`): `lineage` present and NOT `depth + 2
       < limit` = report `heartbeat not registered: lineage
       <depth>/<limit>`, stop here. The keeper sits at `depth + 1`, the
       orchestrators it starts at `depth + 2`, and those must still spawn.
-   2. Each `keeper: <owner/repo>` session in step 3's `list_sessions`
-      answer, not `ARCHIVED` (a heartbeat deleted in the UI leaves its
+   2. Each `🔑 keeper: <owner/repo>` (glossary, role title) session in step 3's `list_sessions`
+      answer (on a pass: none, REPLACE archived the bound one), not `ARCHIVED` (a heartbeat deleted in the UI leaves its
       keeper idle): `archive_session`. Then `create_session`: `source_url`
       = `git remote get-url origin`, `model` = the Lineup's `haiku` (the
       role is mechanical; never the registering session's model), `title` =
-      `keeper: <owner/repo>`, `prompt` = `/keeper`.
+      `🔑 keeper: <owner/repo>`, `prompt` = `/keeper register`: its
+      first turn takes the post and starts nothing (`keeper.md`,
+      Register), since this session has just read dispatch; the first
+      hourly wake runs the LIVE check.
    3. `create_trigger`: `name` = `heartbeat: <owner/repo>`,
       `cron_expression` = `0 * * * *`, `persistent_session_id` = step 2's
       id, `prompt` = `/keeper`, `initiation` =
@@ -125,7 +144,7 @@ refused with no confirmed interrupt (dead row, STILLBORN) follows the
   pending `/orchestrate pass` wake: `get_session` each distinct
   `persistent_session_id`. One that is a LIVE orchestrator ("## 0. Start"
   step 3) with an earlier `created_at` than yours = `set_session_title`
-  yours to `orchestrator (duplicate): <owner/repo>`, report `duplicate of
+  yours to `👯 orchestrator (duplicate): <owner/repo>`, report `duplicate of
   <id>: exiting`, spawn nothing, schedule nothing. One with a later
   `created_at` = you are the older: run "## 0. Start" step 3's `@new`
   rebuild this pass (its unclaimed spawns live only in its ledger), report
@@ -228,11 +247,11 @@ no handover, and no handover is no replace. Why:
 
   | line | model (Lineup) | title | prompt | ledger |
   | --- | --- | --- | --- | --- |
-  | `curate DUE` naming proposals (any verdict) | sonnet | `curator: <UTC date>` | `/curate` | `curated=<stamp>` |
-  | `clerk DUE` (any verdict; `held` = nothing) | sonnet | `clerk: <UTC date>` | `/clerk` | `clerked=<stamp>` |
+  | `curate DUE` naming proposals (any verdict) | sonnet | `🧭 curator: <UTC date>` | `/curate` | `curated=<stamp>` |
+  | `clerk DUE` (any verdict; `held` = nothing) | sonnet | `📋 clerk: <UTC date>` | `/clerk` | `clerked=<stamp>` |
   | `scout     : none in flight`, AND the human's order (below) or a scout issue that needs the scout (below); any other `scout :` row = nothing | fable | `scout: <UTC date>` | `/scout` | `scouted=<stamp>` |
-  | `conduct DUE: spawn` (any verdict; `held`, `suppressed` = nothing) | sonnet | `conduct: <UTC date>` | `/conduct` | `conducted=<stamp>` |
-  | `OVERLAP-BOUND`, `rescope :` says `in flight: none` | sonnet | `surveyor: <key>` | `/manage rescope <key>` + the block verbatim | `rescope-<key>@new`, `rescoped=<key>` |
+  | `conduct DUE: spawn` (any verdict; `held`, `suppressed` = nothing) | sonnet | `🧐 conduct: <UTC date>` | `/conduct` | `conducted=<stamp>` |
+  | `OVERLAP-BOUND`, `rescope :` says `in flight: none` | sonnet | `📐 surveyor: <key>` | `/manage rescope <key>` + the block verbatim | `rescope-<key>@new`, `rescoped=<key>` |
   | `freer DUE` (any verdict; PAUSED or a `HOLD` row = nothing): its first `free <branch> ... FREEABLE` row under `spawn` | sonnet | `freer: <branch>` | `/manage free <branch>` | `free-<key>@new` |
 
   FREEABLE first: prove the owner's session not RUNNING (`/who`, as for
@@ -309,8 +328,8 @@ successor.
 
 ## Retired session woken
 
-A session titled `orchestrator (retired): <owner/repo>` or `orchestrator
-(duplicate): <owner/repo>` woken by a message from another session (a manager it
+A session titled `💤 orchestrator (retired): <owner/repo>` or `👯 orchestrator
+(duplicate): <owner/repo>` woken by a message from another session (glossary, role title: the bare spellings match too) (a manager it
 spawned carries its id as its lead address) finds the LIVE orchestrator
 ("## 0. Start" step 3; `list_sessions`, the oldest LIVE one), forwards the
 message verbatim with `send_message`, arms nothing, and ends the turn. None

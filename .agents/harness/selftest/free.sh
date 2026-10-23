@@ -37,7 +37,7 @@ fbt='`'
 fplan() {
   local scope="${2:-code.txt}"
   { printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: low\n' "$1"
-    printf 'needs: none\nrequirement: none\nscope: %s\n---\n\n## Goal\nFixture.\n\n## Scope\n\n' "$scope"
+    printf 'needs: none\nrequirement: none\nscope: %s\n---\n\n## Goal\nFixture.\n\n## Assumptions\nNone.\n\n## Scope\n\n' "$scope"
     printf -- '- %s%s%s -- changes.\n' "$fbt" "$scope" "$fbt"
   } >"${fwork}/docs/plans/${1}.md"
 }

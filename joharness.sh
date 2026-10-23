@@ -120,6 +120,7 @@ JOHARNESS_CURATE_PLANS|10|dispatch|Plan files changed since the last curate befo
 JOHARNESS_CURATE_HOURS|168|dispatch|Hours since the last curate before one is due; 0 switches the cycle off.
 JOHARNESS_CURATE_REGISTRY|3|dispatch|Plans declaring one path before curate calls it a registry.
 JOHARNESS_CURATE_SPLIT|8|dispatch|Scope bullets before curate proposes a decompose.
+JOHARNESS_CURATE_LAYERS|3|dispatch|Distinct top-level directories in a plan scope: line before curate proposes a decompose; 0 = off.
 JOHARNESS_CLERK_HOURS|24|dispatch|Hours between clerk passes over the open issues; 0 switches the cycle off.
 JOHARNESS_CLERK_BATCH|3|dispatch|Open issues one clerk pass takes at most.
 JOHARNESS_CLERK_STALE_HOURS|24|dispatch|An unmerged clerk branch older than this holds nothing; 0 = every one holds.
@@ -505,6 +506,98 @@ ci_churn() {
   fi
 }
 
+# Broken windows: a skip marker or an open-ended note ADDED to a non-markdown
+# file is a hole the prose rule ("never skip a test") cannot count. Added lines
+# only, so what the base already carries is nobody's here. Markers are built
+# from parts so this file, and the selftest, never trip their own lint.
+BW_WORDS=("TO""DO" "FIX""ME" "X""XX")
+BW_SUBSTR=("@sk""ip" "pytest.mark.sk""ip" "unittest.sk""ip" "it.sk""ip(" "describe.sk""ip("
+  "test.sk""ip(" "x""it(" "x""describe(" ".on""ly(" "t.Sk""ip(" "#[ig""nore]")
+
+# Paths this branch's own `## Review` waives: a bullet naming `window <path>`
+# and closing with `(wontfix: <reason>)`, reason non-empty.
+bw_waived() {
+  local base="$1" ws content flag text path
+  while IFS= read -r ws; do
+    [ -n "$ws" ] || continue
+    content="$(lint_ws_content "$ws")"
+    [ -n "$content" ] || continue
+    while IFS="$TAB" read -r flag text; do
+      [ -n "$text" ] || continue
+      printf '%s' "$text" | grep -qE '\(wontfix:[[:space:]]*[^)[:space:]][^)]*\)' || continue
+      # shellcheck disable=SC2016  # the backticks are literal, for sed
+      path="$(printf '%s' "$text" |
+        grep -oE '(^|[^[:alnum:]_])window[[:space:]]+`?[^[:space:]`]+' | head -n 1 |
+        sed -E 's/^.*window[[:space:]]+`?//; s/[,;.:]+$//')"
+      [ -z "$path" ] || printf '%s\n' "$path"
+    done <<<"$(lint_review_bullets "$content")"
+  done <<<"$(fin_own_ws "$base")"
+}
+
+# "path:line: marker" for every unwaived hit on an added line.
+bw_hits() {
+  local base="$1" waived
+  waived="$(bw_waived "$base")"
+  git -C "$ROOT" -c core.quotePath=false diff --no-renames -U0 \
+    --src-prefix=a/ --dst-prefix=b/ --diff-filter=ACMRT "${base}..HEAD" 2>/dev/null |
+    BW_WAIVED="$waived" awk -v words="$(printf '%s\n' "${BW_WORDS[@]}")" \
+        -v subs="$(printf '%s\n' "${BW_SUBSTR[@]}")" \
+        '
+      function wc(c) { return c ~ /[A-Za-z0-9_]/ }
+      function found(line, m, whole,   i, rest, off, b, a) {
+        off = 0; rest = line
+        while ((i = index(rest, m)) > 0) {
+          b = (off + i > 1) ? substr(line, off + i - 1, 1) : ""
+          a = substr(line, off + i + length(m), 1)
+          if (!(wc(substr(m, 1, 1)) && wc(b)) && !(whole && wc(a))) return 1
+          off += i; rest = substr(line, off + 1)
+        }
+        return 0
+      }
+      BEGIN {
+        nw = split(words, W, "\n"); ns = split(subs, S, "\n")
+        nx = split(ENVIRON["BW_WAIVED"], X, "\n"); for (k = 1; k <= nx; k++) if (X[k] != "") wv[X[k]] = 1
+      }
+      rem == 0 && /^\+\+\+ / {
+        path = substr($0, 5); sub(/\t.*$/, "", path)
+        if (path == "/dev/null") path = ""; else sub(/^b\//, "", path)
+        next
+      }
+      /^@@ / {
+        t = $0; sub(/^@@ -[^ ]+ \+/, "", t); sub(/ .*$/, "", t)
+        n = split(t, P, ","); ln = P[1] + 0; rem = (n > 1) ? P[2] + 0 : 1
+        next
+      }
+      /^\+/ && rem > 0 {
+        rem--
+        if (path != "" && path !~ /\.md$/ && !(path in wv)) {
+          line = substr($0, 2)
+          for (k = 1; k <= nw; k++) if (found(line, W[k], 1)) { print path ":" ln ": " W[k]; break }
+          for (k = 1; k <= ns; k++) if (found(line, S[k], 0)) { print path ":" ln ": " S[k]; break }
+        }
+        ln++
+      }'
+}
+
+ci_broken_windows() {
+  local over="origin/${HANDOVER_BASE_BRANCH:-main}" base hits
+  base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)" || base=""
+  if [ -z "$base" ]; then
+    printf '  not measurable here (no merge-base; shallow checkout or base branch)\n'
+    return 0
+  fi
+  hits="$(bw_hits "$base")"
+  if [ -z "$hits" ]; then
+    printf '  clean\n'
+    return 0
+  fi
+  printf '%s\n' "$hits"
+  printf '  Added line(s) above skip a test or leave an open-ended note. Remove\n'
+  printf '  them, or waive the path in this branch'"'"'s workstream file under\n'
+  printf '  ## Review: - rN: window <path> <why> (wontfix: <reason>)\n'
+  return 1
+}
+
 cmd_ci() {
   local f listing fs
   local -a targets=()
@@ -525,10 +618,12 @@ cmd_ci() {
   run_check glossary lint_glossary
   run_check "graph lint" lint_graph
   run_check "plans on this branch" lint_plans_in_diff
+  run_check "fast lane" lint_fast_lane
   run_check "finding ids" lint_finding_ids
   run_check "finding verdicts" lint_finding_markers
   run_check "ship scope" lint_ship
   run_check churn ci_churn
+  run_check "broken windows" ci_broken_windows
   if review_on; then run_check review review_report; fi
   fs="$(fin_strength)"
   [ -z "$fs" ] || run_check finish fin_gate "$fs"
@@ -910,6 +1005,14 @@ lint_issue() {
   esac
 }
 
+# `plan: fast` is the fast lane, never a stem. A node of that name would make
+# every fast-lane workstream a claim on it.
+FAST_LANE="fast"
+lint_not_fast() {
+  [ "$(lint_stem "$1")" != "$FAST_LANE" ] ||
+    lint_red "${1}: '${FAST_LANE}' is the fast lane's plan: value, never an item stem; rename the file"
+}
+
 lint_graph() {
   LINT_RC=0
   LINT_WARNED=0
@@ -928,6 +1031,7 @@ lint_graph() {
       read -r rq; read -r pstem; read -r pscope; read -r piss; } \
       <<<"$(gr_fields urgency agent effort needs requirement research plan scope issue <"${ROOT}/${rel}")"
     lint_required "$rel" plan "$pstem"
+    lint_not_fast "$rel"
     # Optional: the issue a clerk turned into this plan.
     lint_issue "$rel" "$piss" "the clerk drops it and the issue reads as unplanned"
     lint_required "$rel" urgency "$urgency"
@@ -993,6 +1097,7 @@ lint_graph() {
       read -r rstem; } \
       <<<"$(gr_fields urgency agent effort graduates research <"${ROOT}/${rel}")"
     fstem="$(lint_stem "$rel")"
+    lint_not_fast "$rel"
     if [ -z "$rstem" ] &&
        ! printf '%s' "$rrefs" | grep -qxF -- "$fstem"; then
       if ! grep -qE "^research:[[:space:]]*${fstem//./\\.}[[:space:]]*(#.*)?$" \
@@ -1048,7 +1153,10 @@ lint_graph() {
     fi
     lint_enum "$rel" agent "$agent" haiku sonnet opus fable
     p="$(lint_stem "$p")"
-    if [ -n "$p" ] && [ "$p" != "none" ] &&
+    # The fast lane claims no item; `fast lane` in ci checks its bounds.
+    if [ "$p" = "$FAST_LANE" ]; then
+      :
+    elif [ -n "$p" ] && [ "$p" != "none" ] &&
        { [ -f "${ROOT}/docs/research/${p}.md" ] ||
          [ -f "${ROOT}/docs/product/${p}.md" ]; }; then
       :
@@ -1073,6 +1181,7 @@ lint_graph() {
   while IFS= read -r rel; do
     [ -n "$rel" ] || continue
     reqs=$((reqs + 1))
+    lint_not_fast "$rel"
     lint_enum "$rel" priority \
       "$(gr_field priority <"${ROOT}/${rel}")" normal urgent
   done < <(lint_nodes docs/product)
@@ -1467,7 +1576,7 @@ review_at_edge() {
 # returns non-zero only when this branch owes a review record.
 review_report() {
   local over="origin/${HANDOVER_BASE_BRANCH:-main}" base head ws doc tier n
-  local edge rc=0 seen=0 marks tagged agent pr status own mine
+  local edge rc=0 seen=0 marks tagged agent pr status own mine fast
   base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
   head="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)"
   if [ -z "$base" ]; then
@@ -1483,6 +1592,9 @@ review_report() {
 
   # Files THIS branch wrote, for the tag gate below.
   own="$(lint_ws_in_diff "$base")"
+  # The fast lane's claim, the one file `ci` bounds: its bound is what makes
+  # one pass enough, so its depth is haiku whatever `agent:` says.
+  fast="$(fast_lane_ws "$base")"
 
   while IFS= read -r ws; do
     [ -n "$ws" ] || continue
@@ -1497,6 +1609,7 @@ review_report() {
     { read -r agent; read -r pr; read -r status; } < <(
       printf '%s\n' "$doc" | gr_fields agent pr status)
     tier="$(review_tier "$doc" "$agent")"
+    case $'\n'"${fast}"$'\n' in *$'\n'"${ws}"$'\n'*) tier="haiku" ;; esac
     marks="$(review_marks <"${ROOT}/${ws}")"
     n="${marks%% *}"; tagged="${marks##* }"
     edge="$(review_at_edge "$pr" "$status")" || edge=""
@@ -3025,6 +3138,8 @@ cmd_janitor() {
       printf '      by hand, and do not read "no plan" into this line\n'
     elif [ -z "$plan" ] || [ "$plan" = none ]; then
       printf '    holds: no plan — this claim holds nothing but its branch\n'
+    elif [ "$plan" = "$FAST_LANE" ]; then
+      printf '    holds: no item — the fast lane, which claims nothing but its branch\n'
     elif [ -n "$held" ]; then
       printf '    holds: %s, out of the queue while this claim stands\n' "$held"
     elif [ -n "$onbranch" ]; then
@@ -6104,7 +6219,7 @@ curate_marked_new() {
 
 cmd_curate() {
   local qout rows rel stem label scope claimed prel apply=0 old new
-  local regthr splitthr bullets reqstem hit s p
+  local regthr splitthr layersthr layers bullets reqstem hit s p
   local n_plans=0 n_held=0 n_repair=0 n_mech=0 n_declutter=0 n_propose=0 n_fixed=0
   local pass n_pass
   local repair="" declutter="" propose="" held_rows="" counts="" line plans_for kind text
@@ -6116,10 +6231,12 @@ cmd_curate() {
   esac
   regthr="$(curate_regthr)"
   splitthr="$(num_knob JOHARNESS_CURATE_SPLIT)"
+  layersthr="$(num_knob JOHARNESS_CURATE_LAYERS)"
 
   printf '== curate (REPAIR marked [apply] is mechanical: ./joharness.sh curate --apply)\n\n'
   printf 'registry  : %s+ plans declaring one path = a registry to mark shared: (JOHARNESS_CURATE_REGISTRY)\n' "$regthr"
-  printf 'split     : %s+ Scope bullets = a decompose candidate, PROPOSED never done (JOHARNESS_CURATE_SPLIT)\n\n' "$splitthr"
+  printf 'split     : %s+ Scope bullets = a decompose candidate, PROPOSED never done (JOHARNESS_CURATE_SPLIT)\n' "$splitthr"
+  printf 'layers    : %s+ top-level directories in scope: = a decompose candidate, PROPOSED never done (JOHARNESS_CURATE_LAYERS; 0 = off)\n\n' "$layersthr"
 
   # A plan a manager HOLDS draws no finding: its declarations are that manager's.
   # Unread, every held plan would read free and --apply would rewrite it.
@@ -6216,6 +6333,14 @@ cmd_curate() {
     if [ "$bullets" -ge "$splitthr" ]; then
       n_propose=$((n_propose + 1))
       propose="${propose}  ${stem}: ${bullets} Scope bullets (>= ${splitthr}) — decompose candidate. PROPOSE it; a split needs an author, and only where Scope already names separable deliverables"$'\n'
+    fi
+    if [ "$layersthr" -gt 0 ]; then
+      layers="$({ printf '%s\n' "$scope" | grep -v '^shared:' | grep . || true; } |
+        awk '{ i = index($0, "/"); print (i ? substr($0, 1, i - 1) : ".") }' | sort -u | grep -c . || true)"
+      if [ "$layers" -ge "$layersthr" ]; then
+        n_propose=$((n_propose + 1))
+        propose="${propose}  ${stem}: ${layers} top-level layers in scope (>= ${layersthr}) — decompose candidate. PROPOSE it; report-only, a split needs an author"$'\n'
+      fi
     fi
   done < <(lint_nodes docs/plans)
 
@@ -6351,6 +6476,10 @@ lint_plans_in_diff() {
       fi
     done < <(case "$held" in *" $(lint_stem "$rel") "*) ;;
                *) curate_repairs "$rel" "$counts" "$regthr" ;; esac)
+    if ! grep -q '^## Assumptions[[:space:]]*$' "${ROOT}/${rel}"; then
+      bad=$((bad + 1))
+      printf '  %s: no "## Assumptions" heading (list each guess with evidence and confidence, or say it rests on none)\n' "$rel"
+    fi
     case "$held" in *" $(lint_stem "$rel") "*) continue ;; esac
     if plan_core_only "$rel"; then
       bad=$((bad + 1))
@@ -6367,6 +6496,142 @@ lint_plans_in_diff() {
     return 0
   fi
   printf '\n  %s problem(s) in plans this branch adds.\n' "$bad"
+  return 1
+}
+
+# Every path this checkout changed against <base>, NUL-terminated, once
+# each: the working tree diff (deletes, both sides of a rename) plus
+# untracked files. NUL, because git quotes a path holding a quote, tab or
+# newline even with quotePath off, and a quoted path matches no pattern.
+fast_lane_paths() {
+  { git -C "$ROOT" diff -z --no-renames --name-only "$1"
+    git -C "$ROOT" ls-files -z --others --exclude-standard
+  } 2>/dev/null | LC_ALL=C sort -zu
+}
+
+# The fast lane's claim files, one per line: a docs/handover/ file saying
+# `plan: fast` that this branch changed against <base>, never one inherited
+# untouched (a stale file on the base branch binds nobody) and never a
+# symlink (its target would decide). The tree decides when it holds one.
+# Otherwise the newest such file the branch's own line wrote and then
+# retired: first-parent, so a merged branch's commits are not this one's,
+# and `-m` so a merge commit's own adds are.
+fast_lane_ws() {
+  local base="$1" ws tok c="" first=0 seen=$'\n' blob mode found=0
+  while IFS= read -r -d '' ws; do
+    fast_lane_name "$ws" || continue
+    { [ -f "${ROOT}/${ws}" ] && [ ! -L "${ROOT}/${ws}" ]; } || continue
+    [ "$(lint_stem "$(gr_field plan <"${ROOT}/${ws}")")" = "$FAST_LANE" ] || continue
+    printf '%s\n' "$ws"; found=1
+  done < <(fast_lane_paths "$base")
+  [ "$found" -eq 0 ] || return 0
+  while IFS= read -r -d '' tok; do
+    case "$tok" in
+      $'\001'*) c="${tok#$'\001'}"; first=1; continue ;;
+    esac
+    [ "$first" -eq 0 ] || tok="${tok#$'\n'}"
+    first=0
+    fast_lane_name "$tok" || continue
+    case "$seen" in *$'\n'"${tok}"$'\n'*) continue ;; esac
+    seen="${seen}${tok}"$'\n'
+    { [ -e "${ROOT}/${tok}" ] || [ -L "${ROOT}/${tok}" ]; } && continue
+    mode="$(git -C "$ROOT" ls-tree -z "$c" -- "$tok" 2>/dev/null | cut -d' ' -f1)"
+    [ "$mode" != 120000 ] || continue
+    blob="$(git -C "$ROOT" rev-parse -q --verify "${c}:${tok}" 2>/dev/null)" || continue
+    [ "$blob" != "$(git -C "$ROOT" rev-parse -q --verify "${base}:${tok}" 2>/dev/null)" ] ||
+      continue
+    if [ "$(lint_stem "$(git -C "$ROOT" cat-file blob "$blob" 2>/dev/null | gr_field plan)")" = \
+       "$FAST_LANE" ]; then
+      printf '%s\n' "$tok"
+      return 0
+    fi
+  # The config pins what `-m` means: a caller's log.diffMerges of combined or
+  # remerge would hide a merge's first-parent adds.
+  done < <(git -C "$ROOT" -c log.diffMerges=first-parent log --first-parent -m \
+    --no-renames --diff-filter=AM -z \
+    --format=%x01%H --name-only "${base}..HEAD" -- docs/handover/ 2>/dev/null)
+}
+
+# A path that can be a workstream file: directly under docs/handover/, .md,
+# no newline, not one of the directory's own documents.
+fast_lane_name() {
+  case "$1" in
+    *$'\n'* | docs/handover/*/* | docs/handover/README.md | \
+      docs/handover/TEMPLATE.md | docs/handover/RETIRED.md) return 1 ;;
+    docs/handover/*.md) return 0 ;;
+  esac
+  return 1
+}
+
+# A path as ci prints it: control characters (a newline most of all) as `?`.
+fast_lane_show() { printf '%s' "$1" | tr '\000-\037\177' '?'; }
+
+# A checkout in the fast lane skips the plan file and nothing else; this is
+# what proves it qualifies. Working tree against the merge base, untracked
+# files included, so ci catches a breach before the commit does.
+FAST_LANE_FILES=3
+lint_fast_lane() {
+  local over="origin/${HANDOVER_BASE_BRANCH:-main}" base fast f c w n=0 bad=0
+  local core nfast skip
+  base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
+  if [ -z "$base" ]; then
+    printf '  not measurable here (no merge-base with %s)\n' "$over"
+    return 0
+  fi
+  fast="$(fast_lane_ws "$base")"
+  if [ -z "$fast" ]; then
+    printf '  no plan: %s workstream file on this branch\n' "$FAST_LANE"
+    return 0
+  fi
+  nfast="$(printf '%s\n' "$fast" | grep -c .)"
+  if [ "$nfast" -gt 1 ]; then
+    bad=$((bad + 1))
+    printf '  %s workstream files say plan: %s — one lane, one file\n' \
+      "$nfast" "$FAST_LANE"
+  fi
+  core="$(protocol_paths)"
+  while IFS= read -r -d '' f; do
+    [ -n "$f" ] || continue
+    # The claim file is the lane's own cost and is retired before the merge.
+    # An exact string match: never a pattern, which a newline splits.
+    skip=0
+    while IFS= read -r w; do
+      [ "$f" = "$w" ] && skip=1
+    done <<<"$fast"
+    [ "$skip" -eq 0 ] || continue
+    n=$((n + 1))
+    while IFS= read -r c; do
+      case "$f" in
+        "$c" | "$c"/*)
+          bad=$((bad + 1))
+          printf '  %s: core path (./joharness.sh protocol-paths) — no lane reaches one\n' \
+            "$(fast_lane_show "$f")" ;;
+      esac
+    done <<<"$core"
+    case "$f" in
+      docs/plans/*/*) ;;
+      docs/plans/README.md | docs/plans/TEMPLATE.md | docs/plans/RETIRED.md) ;;
+      docs/plans/*.md)
+        if [ -e "${ROOT}/${f}" ] && ! git -C "$ROOT" cat-file -e "${base}:${f}" 2>/dev/null; then
+          bad=$((bad + 1))
+          printf '  %s: adds a plan — the fast lane builds, it never queues\n' \
+            "$(fast_lane_show "$f")"
+        fi ;;
+    esac
+  done < <(fast_lane_paths "$base")
+  fast="$(printf '%s\n' "$fast" | paste -sd, - | sed 's/,/, /g')"
+  if [ "$n" -gt "$FAST_LANE_FILES" ]; then
+    bad=$((bad + 1))
+    printf '  %s files touched besides %s, bound %s — write a plan\n' \
+      "$n" "$fast" "$FAST_LANE_FILES"
+  fi
+  if [ "$bad" -eq 0 ]; then
+    printf '  %s: plan: %s, %s of %s files, no core path, no plan added\n' \
+      "$fast" "$FAST_LANE" "$n" "$FAST_LANE_FILES"
+    return 0
+  fi
+  printf '\n  %s breach(es) of the fast lane (%s; .agents/docs/plans/README.md, Fast lane).\n' \
+    "$bad" "$fast"
   return 1
 }
 
@@ -7063,7 +7328,7 @@ cmd_dispatch() {
       [ -n "$stall_young" ] && [ "$stall_young" -le "$eage" ] || stall_young="$eage"
       estem="${efirst##*/}"; estem="${estem%.md}"
       if [ -n "$efirst" ]; then
-        edge_rows="${edge_rows}    STALL? no push for ${eagetext} (>= ${stall}m): cross-check the control plane by TITLE (manager: ${estem}) — this row carries no session line to read; the verdict is the health table's (.claude/commands/orchestrate.md, step 2), never this row's"$'\n'
+        edge_rows="${edge_rows}    STALL? no push for ${eagetext} (>= ${stall}m): cross-check the control plane by TITLE (🔨 manager: ${estem}) — this row carries no session line to read; the verdict is the health table's (.claude/commands/orchestrate.md, step 2), never this row's"$'\n'
       else
         # No item, no title to look up, so no respawn: a successor spawned
         # blind onto a branch nobody can name is two sessions on one branch.

@@ -34,7 +34,7 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | Role | Tier | Runs as | Spawns | Owns | Ends when |
 | --- | --- | --- | --- | --- | --- |
 | orchestrator | low, mechanical on purpose | a session; the keeper starts one | manager sessions; never an orchestrator | the cap, the health pass, the kill handover | dispatch says DRAINED with nothing in flight, or the keeper retires it |
-| keeper | haiku | one session per repo, `keeper: <owner/repo>`, woken hourly by the heartbeat | the only spawner of orchestrators: one a wake when none is live, or a successor when the live one's wake asks to retire (`create_session`) | nothing but that check | archived at the next REGISTER or replace |
+| keeper | haiku | one session per repo, `🔑 keeper: <owner/repo>`, woken hourly by the heartbeat | the only spawner of orchestrators: one a wake when none is live, or a successor when the live one's wake asks to retire (`create_session`) | nothing but that check | archived at the next REGISTER or replace |
 | manager | the item's `agent:`; fable at xhigh for an unplanned requirement | a session with its own branch, claim and merge | worker subagents (`Agent`) | one item, until its file retires | its pull request merges, or it blocks on a human |
 | worker | at or below the plan's tier, lower by default | a subagent in the manager's container | nothing | the files its sub-task names | it returns |
 | curator | sonnet | a session, on `curate DUE` with proposals to make; prelude `./joharness.sh role curate` | nothing | decompose/order proposals for ONE pass, changing no plan | its pull request merges |
@@ -89,7 +89,7 @@ cannot claim, get no hook state and die with the parent's turn
 The default role is the orchestrator: the keeper's spawn prompt is standalone,
 and a manager is told what it is by the orchestrator that spawned it. Two
 orchestrators are the collision to avoid: a `RUNNING` session titled
-`orchestrator: <repo>` that is not you = exit.
+`🎼 orchestrator: <repo>` (glossary, role title) that is not you = exit.
 
 ## The loop
 
@@ -355,6 +355,7 @@ or retired, at a tip; it carries `held Nd` from that commit.
 | `JOHARNESS_CURATE_HOURS` | 168 | hours since the last curate (or merged `curate-noop-<stamp>` record) = due (anchors rot with no plan changing); 0 switches the cycle off | written number |
 | `JOHARNESS_CURATE_REGISTRY` | 3 | plans declaring one path before `curate` calls it a registry | written number |
 | `JOHARNESS_CURATE_SPLIT` | 8 | `## Scope` bullets before `curate` proposes a decompose | written number |
+| `JOHARNESS_CURATE_LAYERS` | 3 | distinct top-level directories in a plan's `scope:` before `curate` proposes a decompose; 0 = off | written number |
 | `JOHARNESS_CLERK_HOURS` | 24 | hours between clerk passes over the open issues; 0 = off | written number |
 | `JOHARNESS_CLERK_BATCH` | 3 | open issues one clerk pass takes at most | written number |
 | `JOHARNESS_CLERK_STALE_HOURS` | 24 | an unmerged clerk branch older than this holds nothing; 0 = every one holds | written number |
@@ -517,7 +518,7 @@ too (`context_usage.used_tokens` 304,615 over 13 health passes, `get_session`,
 2026-10-13), because `send_later` wakes the SAME session and pass N re-reads
 passes 1..N-1. So after `JOHARNESS_ORCHESTRATOR_PASSES` passes the
 orchestrator's wake carries `retire=yes`, and it keeps running passes. The
-keeper, on its next wake or a doorbell, retitles it `orchestrator
+keeper, on its next wake or a doorbell, retitles it `💤 orchestrator
 (retired): <owner/repo>` and starts the successor with that wake as its
 prompt, `pass=1`, no leads (`orchestrate-reference.md`, RETIRE; `keeper.md`,
 SWAP). The retired session's next wake does nothing. A run that ends on
@@ -561,6 +562,11 @@ covers managers.
 
 ## Heartbeat: making the fleet long
 
+Role titles open with one emoji per role so the session list reads at a
+glance; the glossary row "role title" is the one spelling and the match rule.
+The Routine's own `heartbeat: <owner/repo>` is unchanged: the platform adds
+its `⚡`.
+
 Dispatch makes the fleet WIDE; the heartbeat makes it LONG. Each session
 claims, merges, ends, and the fleet survives only while something fires
 the next.
@@ -568,12 +574,12 @@ the next.
 The heartbeat is a Routine bound to one keeper session per repo
 (`.claude/commands/keeper.md`). The prompt `/keeper` names the role, as
 every role is named (`.agents/harness/AGENTS.md` step 2); the title guards
-it: keeper.md runs only in a session titled `keeper: <owner/repo>`, and a
+it: keeper.md runs only in a session titled `🔑 keeper: <owner/repo>`, and a
 keeper-titled session handed `orchestrate.md` runs keeper.md instead. The
 keeper rules live outside `orchestrate.md`, so an orchestrator never holds
 the keeper check, which would start another orchestrator. Each hourly wake, the keeper looks for a
-pending `/orchestrate pass` wake bound to an `orchestrator: <owner/repo>`
-session, or a `RUNNING` or `PENDING` orchestrator it started itself or
+pending `/orchestrate pass` wake bound to an `🎼 orchestrator: <owner/repo>`
+(glossary, role title) session, or a `RUNNING` or `PENDING` orchestrator it started itself or
 that started it; none = it starts a fresh orchestrator with `create_session`. A live one
 whose wake carries `retire=yes` is swapped (above). The orchestrators a
 keeper starts sit at its depth plus one on every wake, so the fleet does
@@ -582,7 +588,12 @@ keeper at the replacing session's depth plus one, which is why REGISTER
 checks `depth + 2 < limit` before it deletes anything.
 
 **Registered by `/orchestrate`.** The heartbeat registers itself when an orchestrator starts and none exists
-("## 0. Start" step 5, REGISTER). The requester's veto is the pause: a
+("## 0. Start" step 5, REGISTER). REGISTER starts the keeper with
+`/keeper register`: that first turn takes the post and starts nothing,
+because the registering orchestrator has just read dispatch and, when the
+run is DRAINED, retires in the same turn. A full check then would find it
+retired and start a second orchestrator onto the same DRAINED queue. The
+first hourly wake (`/keeper`) runs the check. The requester's veto is the pause: a
 Routine with `enabled` false and an empty `ended_reason` is never
 re-enabled, edited or replaced, and nor is one made in the UI. Any
 `ended_reason` but `auto_disabled_session_gone` counts as a pause, and a
@@ -602,9 +613,18 @@ check refused `./joharness.sh` from the clone it made (`create_trigger` +
 `fire_trigger`, 2026-10-16).
 `create_trigger` takes no repository. A keeper made with `create_session`
 and a `source_url` has the repository and the tools, so the Routine wakes
-it instead. Rejected: session cron and a self-scheduling session (do not
-outlive their creator), a scheduled GitHub Actions workflow (its pull
-requests get no CI on `GITHUB_TOKEN`, so step 7 never goes green).
+it instead. "Run now" fires a fresh session titled `⚡ <Routine name>`
+with no repository and no `/orchestrate`, live keeper or not; on a
+Routine whose keeper is `ARCHIVED` it also rebinds `persistent_session_id`
+to it, and `last_run` still reads `SUCCEEDED` (2026-10-23). So "Run now"
+never restarts the fleet; a new `/orchestrate` session does, keeper
+archived or not: the check reads `keeper-gone` and REPLACE restores the
+keeper. The check runs every pass and its `get_session` on the bound
+session is never skipped: its `ok` line carries `session_status` and
+`updated_at`, which only that read returns. Rejected:
+session cron and a self-scheduling session (do not outlive their
+creator), a scheduled GitHub Actions workflow (its pull requests get no
+CI on `GITHUB_TOKEN`, so step 7 never goes green).
 
 **Keeper liveness reads wakes, not sessions.** `list_sessions` answered
 77,897 characters at `limit` 30 (2026-10-16), read hourly into one
@@ -616,21 +636,23 @@ pending `/orchestrate pass` wake with its `persistent_session_id` and
 pending wake, so the keeper also counts the one it last started, and its
 own `parent_session_id`, while that reads `RUNNING` or `PENDING` (one
 `get_session` each). The parent is the orchestrator whose REGISTER or
-replace made the keeper: the keeper's first turn runs at `create_session`,
-inside that orchestrator's first start, before it arms a wake. A
+replace made the keeper: an hourly wake can land inside that
+orchestrator's first start, before it arms a wake (the keeper's own first
+turn, `/keeper register`, checks nothing). A
 human-started orchestrator that is not the parent is missed only when an
 hourly wake lands in its first start: the keeper starts a second, and "##
 0. Start" step 3 lets the older proceed and the newer exit. A DRAINED
 fleet costs one short orchestrator session an hour.
 
-The spec every orchestrator checks at start (`orchestrate-reference.md`, "## 0.
-Start" step 5; a session-made stale one is replaced, any other `heartbeat
-stale` or `heartbeat duplicated` line pushes):
+The spec every orchestrator checks at start and on every pass after the
+first (`orchestrate-reference.md`, "## 0. Start" step 5; a session-made
+stale one is replaced, any other `heartbeat stale` or `heartbeat
+duplicated` line pushes):
 
 - **Name**: exactly `heartbeat: <owner/repo>` — how the check tells it from
   another repo's heartbeat or a nightly `/curate`.
-- **Binding**: `persistent_session_id` = a session titled `keeper:
-  <owner/repo>`, not `ARCHIVED`. An archived keeper disables the Routine
+- **Binding**: `persistent_session_id` = a session titled `🔑 keeper:
+  <owner/repo>` (glossary, role title), not `ARCHIVED`. An archived keeper disables the Routine
   (`auto_disabled_session_gone`); the next `/orchestrate` replaces both.
 - **Cadence**: hourly floor (`*/5 * * * *` is refused). The Routine backs
   the `send_later` chain; it does not replace it.

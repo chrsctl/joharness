@@ -49,6 +49,26 @@ rb_bound manage.md 9248 "${ROOT}/.claude/commands"
 # The orchestrator's command file, counted 21480 on origin/main after the
 # split into orchestrate-reference.md: it stays a table of pointers.
 rb_bound orchestrate.md 21480 "${ROOT}/.claude/commands"
+# Always-loaded files with no bound before 2026-10-23; counted `wc -c` that day.
+# harness AGENTS.md 6571 bytes, 2026-10-23.
+rb_bound .agents/harness/AGENTS.md 6571 "${ROOT}"
+# root AGENTS.md 862 bytes, 2026-10-23.
+rb_bound AGENTS.md 862 "${ROOT}"
+# verifier.md 6211 bytes, 2026-10-23: the goal-backward lens is a rule that
+# has to live there (bcddf133).
+rb_bound verifier.md 6211 "${ROOT}/.claude/agents"
+# clerk.md 14415 bytes, 2026-10-23.
+rb_bound clerk.md 14415 "${ROOT}/.claude/commands"
+# scout.md 12432 bytes, 2026-10-23.
+rb_bound scout.md 12432 "${ROOT}/.claude/commands"
+# keeper.md 5134 bytes, 2026-10-23.
+rb_bound keeper.md 5134 "${ROOT}/.claude/commands"
+# conduct.md 6668 bytes, 2026-10-23.
+rb_bound conduct.md 6668 "${ROOT}/.claude/commands"
+# curate.md 3449 bytes, 2026-10-23.
+rb_bound curate.md 3449 "${ROOT}/.claude/commands"
+# upstream-report.md 5671 bytes, 2026-10-23.
+rb_bound upstream-report.md 5671 "${ROOT}/.claude/commands"
 
 # History lives in git log, not in a history/ directory beside the rules
 # (caveman.md, Status quo). A `(why: history/...)` pointer, or the directory

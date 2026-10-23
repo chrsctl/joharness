@@ -93,6 +93,9 @@ count for other branches — this branch's file it already orders read in
 full. A branch visibly churning with an empty *Review* section is the
 human's cue that rounds are running dark.
 
+Waiver: `ci` reds an added skip marker or note in a non-markdown file; a *Review*
+bullet `- rN: window <path> <why> (wontfix: <reason>)` waives every hit in that path.
+
 That cue needs a human looking, so a repo can arm a machine one instead:
 `JOHARNESS_REVIEW=on` in `joharness.conf` makes `./joharness.sh ci` fail
 when a workstream reaches the edge — `pr:` set, or `status:` review or done —
@@ -113,6 +116,11 @@ harness into repo, or sync repo from joharness: diff self-describing, git
 records everything, zero non-derivable reasoning. File would restate the
 diff — exactly what the rule above forbids. Same for any task whose whole
 content is "make X match Y". Commit message carries the source; done.
+
+Fast lane (`plan: fast`) is the opposite case: no plan file, but a
+workstream file it keeps. That file is what marks the branch, so `ci` can
+hold it to the bound (3 files, no core path, no plan added) and review can
+fix its depth at haiku. Rule: `.agents/docs/plans/README.md`, Fast lane.
 
 ## What a workstream file looks like
 

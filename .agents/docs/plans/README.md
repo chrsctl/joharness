@@ -9,9 +9,9 @@ then oldest actionable plan here. Issues = human asks and bugs; plans
 = scoped work with acceptance criteria, written once, executed by any
 session. Nothing builds unplanned: an issue or direct ask decomposes into
 a plan before code, same as a requirement — the plan is where a model gets
-matched to the work. One exception, same as workstream files: copy and
-sync tasks get no plan — diff self-describing
-(`.agents/docs/handover/README.md`, "When NOT to write one").
+matched to the work. Two exceptions: copy and sync tasks get no plan — diff
+self-describing (`.agents/docs/handover/README.md`, "When NOT to write
+one") — and the fast lane below.
 
 Written for agents — literal readers. Background:
 [`.agents/docs/agent-selection.md`](../agent-selection.md). A plan says scope AND
@@ -27,6 +27,10 @@ Copy [`TEMPLATE.md`](TEMPLATE.md). Sections:
 
 - **Goal** — why, one paragraph, requester's terms.
 - **Scope** — files to create or touch, named.
+- **Assumptions** — one bullet each: `A<n>: <claim> — evidence: <path:symbol
+  or command> — confidence: high|medium|low`; none = one line saying so. A plan
+  added on a branch without the heading reds `ci`. The manager confirms or
+  refutes each before the build, into `## Decisions`.
 - **Out of scope** — what a helpful agent would wrongly add. Named so it
   never happens.
 - **Acceptance** — commands with expected output. All pass or not done.
@@ -273,6 +277,35 @@ Rule, until the harness carries an identity that is not the filename:
 - **Stale plan** (code moved under it): fix plan in place on `main` via
   small PR, or delete if obsolete. Every claim in a plan = hypothesis until
   checked against code — same staleness rule as workstream files.
+
+## Fast lane
+
+`plan: fast` in a workstream file = no plan file. For a typo-sized fix,
+where a plan, its claim and its retire cost more than the change. Skips the
+plan file ONLY: workstream file, review, verifier, `ci`, `verify`, `finish`
+all stay.
+
+`ci` stage `fast lane` holds a branch that declares the lane to its bound,
+and reds each breach by name. Declares = a `docs/handover/` file saying
+`plan: fast` that the branch changed, or added and retired; one inherited
+untouched from `main` binds nobody (clean one up by deleting it: an edit
+that leaves it saying `fast` claims the lane). A symlink never claims. Against the merge base with
+`origin/main`, working tree and untracked files included:
+
+- exactly one such file;
+- at most 3 other paths changed (deleted and renamed paths count; other
+  `docs/handover/` files count);
+- none at or under a core path (`./joharness.sh protocol-paths`) — no lane
+  reaches one;
+- no plan added — the lane builds, it never queues.
+
+Review depth = haiku recipe, whatever `agent:` says, plus the verifier at
+haiku (`./joharness.sh review` prints it, from the same files). `fast` is
+never an item stem: graph lint reds `docs/plans/fast.md` and a research or
+requirement of that name; a consumer carrying one renames it at sync.
+Dispatch reads the queue only, so it never spawns fast-lane work; a human
+or an issue starts it. Bound is 3 because a bigger change is one a plan
+pays for: raise it never to fit a case at hand.
 
 ## Why files, not issues
 
