@@ -1,10 +1,10 @@
 # Subagents
 
 What a subagent is in this harness, what it can be handed, and what it must
-never be asked to do. Runtime facts: re-measure when the runtime changes,
-and trust the measurement over this page.
+never be asked to do. Runtime facts measured 2026-08-25: re-measure when the
+runtime changes, and trust the measurement over this page.
 
-Two mechanisms wear the name fan-out, and they are not interchangeable:
+Fan-out names two mechanisms; plans and managers' prompts mean the second:
 
 | | Subagent | Spawned session |
 | --- | --- | --- |

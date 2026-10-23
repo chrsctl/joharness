@@ -29,8 +29,14 @@ simplify-orchestrated-docs).
   Review churn) point at the knob table; the "review churn" heading stays.
 - "Why the first row can fail" kept as mechanism only ("A carried plan reads
   as a leftover"); copies of the Bounds and Roles text in later sections cut.
-- Paragraphs I edited, and long-line paragraphs, rejoined at 78 columns:
-  whitespace only; selftests fold whitespace.
+- A few edited paragraphs rewrapped where that saved a line: whitespace
+  only; selftests fold whitespace. Some lines stay over 80, as in the base.
+- caveman.md "Measured number keeps its command and when" outranks the plan
+  where a reading is still the current basis: dates kept on the Lineup
+  sources, subagents.md runtime facts and the "Run now" reading; the
+  2026-10-16 Bound-not-fresh date stays cut (the plan's acceptance regex
+  forbids it), its command kept. Supersedes PR548 r9/r14 only where the plan
+  names the cut.
 
 ## Rejected
 
@@ -40,7 +46,7 @@ simplify-orchestrated-docs).
 
 - r1: (plan-checker) the 840 line bound is reachable by rewrapping, against "no rewriting for style" (wontfix: the rewrap is whitespace only, about 13 lines; the rest is deleted history and duplicate copies)
 - r2: (plan-checker) acceptance regex misses other dated lines (2026-10-23, 2026-08-25, 2026-10-07, 30m47s, 117 minutes) (fixed: all removed; `git grep -nE '20[0-9]{2}-[0-9]{2}-[0-9]{2}'` on the three docs prints nothing)
-- r3: (plan-checker) Lineup source dates are ambiguous under "the dated lines" (fixed: dropped, rule kept; see Decisions)
+- r3: (plan-checker) Lineup source dates are ambiguous under "the dated lines" (fixed: kept as provenance, see Decisions and r10)
 - r4: (plan-checker) churn numbers live in agent-selection.md, not orchestrated.md (fixed: both copies point at the knob table; heading kept)
 - r5: (plan-checker) the first-row story holds live mechanism (fixed: mechanism kept as one paragraph)
 - r6: (plan-checker) consumer-side acceptance line is not runnable, and no item states failure (no change: same `ci` command already listed)
@@ -55,3 +61,10 @@ None.
 ## Where to look
 
 - `.agents/harness/selftest/orchestrated.sh` — phrases that must survive.
+- r10: (verifier) command and date stripped from readings still the current basis, against caveman.md (fixed: restored on Lineup sources, subagents.md, Run now and the fired-session command; 2026-10-16 wontfix: plan acceptance bans it)
+- r11: (verifier) subagents.md lost "plans and managers' prompts mean the second one" (fixed: restored above the table)
+- r12: (verifier) agent-selection.md lost "Ambiguity is executed literally or asked back to a human" (fixed: restored)
+- r13: (verifier) Fresh session bullet dropped the TTL condition and the manager re-check trigger (fixed: rewritten with both)
+- r14: (verifier) frozen-cost "nothing bounds that" reason lost (fixed: restored)
+- r15: (verifier) injection sentence lost "rightly" (fixed: restored)
+- r16: (verifier) Decisions claimed 78-column rewrap, false; churn pointer read as a bare heading (fixed: claim corrected, pointer says "knob table")

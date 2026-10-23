@@ -4,8 +4,8 @@ Different plans, different agents. Each plan file under `docs/plans/` names
 in frontmatter which agent tier implements it (`agent`) and at what effort
 (`effort`). This document: the lineup, the selection rules, the model
 behavior they rest on. Lineup facts: claude-api skill's model table —
-verify against Models API when stale. Cache-read column: Anthropic's pricing
-page; it wins over the skill cache.
+read 2026-10-06, verify against Models API when stale. Cache-read column:
+Anthropic's pricing page (2026-10-09); it wins over the skill cache.
 
 ## Lineup
 
@@ -69,13 +69,13 @@ Scales with the plan's tier:
 - fable plan: the opus recipe.
 
 Every tier also spawns `.claude/agents/verifier.md` at its own tier — one
-reader that did not write the diff, findings tagged `(verifier)`: depth is
-not the property it adds, independence is. Its output is not privileged: record, judge and fix as for a self-finding. The spawn prompt
-names the plan stem so its goal lens runs (COVERED, STUB, UNWIRED, MISSING).
+reader that did not write the diff, findings tagged `(verifier)`: depth is not
+the property it adds, independence is. Its output is not privileged: record,
+judge and fix as for a self-finding. The spawn prompt names the plan stem so
+its goal lens runs (COVERED, STUB, UNWIRED, MISSING).
 
-Findings land in the workstream file's `## Review`, one line each, written
-BEFORE the fix and committed WITH it (`.agents/docs/handover/README.md`,
-Reviewing). Escalating tier escalates review depth; neither ever downgrades.
+Findings land in `## Review` (`.agents/docs/handover/README.md`, Reviewing).
+Escalating tier escalates review depth; neither ever downgrades.
 
 `./joharness.sh review` prints the depth for this branch and whether the
 record exists. `JOHARNESS_REVIEW=on` arms the gate: mid-build it only says
@@ -97,10 +97,10 @@ own model: raise effort in place, or record the wanted tier and hand off.
 
 `ci` prints `== churn` — max commits touching one file since merge-base.
 Warning at `JOHARNESS_CHURN_THRESHOLD`, red at `JOHARNESS_CHURN_LIMIT`
-(defaults: [`orchestrated.md`](orchestrated.md), The numbers are the
-human's): past the limit no honest edit rewrites one file that often, and the session inside the churn cannot see
-it. A genuine large rework lifts the gate with `JOHARNESS_CHURN_LIMIT=0`,
-on the record.
+(defaults: [`orchestrated.md`](orchestrated.md), The numbers are the human's):
+past the limit no honest edit rewrites one file that often, and the session
+inside the churn cannot see it. A genuine large rework lifts the gate with
+`JOHARNESS_CHURN_LIMIT=0`, on the record.
 
 ## Cost levers
 
@@ -108,11 +108,12 @@ on the record.
   at cache-read price. Research sweeps go to a subagent that returns the
   conclusion (`subagents.md`).
 - **Fresh session.** Cache expires on idle (1 hour; 5 minutes in usage
-  overage); a wake after expiry pays full input price on the whole context.
-  An orchestrator run and any resumed session start fresh from what git
-  holds ([`orchestrated.md`](orchestrated.md), "Start each run fresh"). A
-  manager stays in its session: it wakes on task notifications well inside
-  the TTL. `JOHARNESS_HEALTH_MINUTES` under the TTL keeps passes warm.
+  overage); a wake after expiry pays full input price on the whole context, so
+  a wait past the TTL is cheaper as a fresh session reading what git holds. An
+  orchestrator starts each run fresh ([`orchestrated.md`](orchestrated.md),
+  "Start each run fresh"); a manager stays in its session, waking on task
+  notifications inside the TTL (re-check if a queue starts parking managers on
+  human review). `JOHARNESS_HEALTH_MINUTES` under the TTL keeps passes warm.
 - **Effort does not cross a spawn.** `Agent` and `create_session` take a
   model, not an effort; a plan's `effort:` reaches a spawned session only as
   prompt prose.
@@ -143,4 +144,5 @@ From Anthropic migration notes, each with its harness consequence:
 ## Writing plans for agents
 
 Rules in `.agents/docs/plans/README.md`. An agent executes what the plan
-says, precisely, and nothing else.
+says, precisely, and nothing else. Ambiguity is executed literally or asked
+back to a human.
