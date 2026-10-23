@@ -6351,7 +6351,7 @@ lint_plans_in_diff() {
       fi
     done < <(case "$held" in *" $(lint_stem "$rel") "*) ;;
                *) curate_repairs "$rel" "$counts" "$regthr" ;; esac)
-    if ! grep -q '^## Assumptions' "${ROOT}/${rel}"; then
+    if ! grep -q '^## Assumptions[[:space:]]*$' "${ROOT}/${rel}"; then
       bad=$((bad + 1))
       printf '  %s: no "## Assumptions" heading (list each guess with evidence and confidence, or say it rests on none)\n' "$rel"
     fi

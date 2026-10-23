@@ -46,3 +46,10 @@ expect "a plan added without the section is red, naming the file" \
   'docs/plans/new-bare.md: no "## Assumptions" heading' "$as_out"
 refute "a plan already on the base is not red" "old-bare" "$as_out"
 refute "a plan with the section is green" "new-good" "$as_out"
+# Positive control: both plans were read and only the bare one counted.
+expect "exactly one problem is counted" "1 problem(s) in plans this branch adds" "$as_out"
+# A near-miss heading is not the heading.
+printf '## Assumptionsx\n' >>"${aswork}/docs/plans/new-good.md"
+sed -i 's/^## Assumptions$/## Assumptions-draft/' "${aswork}/docs/plans/new-good.md"
+as_out2="$(sed -n '/plans on this branch/,/^$/p' <<<"$(as_ci)")"
+expect "a near-miss heading is red" 'docs/plans/new-good.md: no "## Assumptions" heading' "$as_out2"
