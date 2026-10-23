@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_016wCFDt9g2qENGCwidzk7v7
 agent: opus
 updated: 2026-10-23
-next: Run the verifier at the review tier, record findings, open the pull request
+next: Open the pull request once the requester has the UI-Routine measurement (fresh session, repo attached: create_session present?); merge if step 7 holds
 ---
 
 ## Goal
