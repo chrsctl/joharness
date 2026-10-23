@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_018FNpTGRJapDHTuQhgkbGwR
 agent: opus
 updated: 2026-10-23
-next: Re-run ci and verify on the review fixes, then finish: PR, merge
+next: Finish: retire commit, PR, merge
 ---
 
 ## Goal
@@ -47,6 +47,10 @@ only; curator and clerk must still spawn while every manager slot is full.
 - r7: (verifier) code commit did not update the workstream file (fixed: this commit carries it with the fixes)
 - r8: (verifier) new orchestrated.md paragraph narrated the change, mixed reasons, role table lacked a freer row (fixed: rule-only rewrite, freer row added)
 - r9: (verifier) 246h incident figure in a selftest comment (fixed: removed; it lives in the PR body)
+- r10: (verifier) second pass on the fix commit: five mutants all red, no defect in r1-r9 fixes (no change)
+- r11: (verifier) FREEABLE rows and `freer DUE` do not hold on a stale view (fetch failed, DISPATCH_FETCH=0), where clerk, conduct and scout do (wontfix: FREEABLE behaved so on main, not a regression; holding it re-plumbs every FREEABLE fixture, outside the cap change; flagged in the PR body)
+- r12: (verifier) orchestrated.md FREEABLE row called the freer a manager; orchestrate.md §3 opened with "up to slots" before the role exemption (fixed)
+- r13: (verifier) a live freer is counted in dispatch's "N manager(s) in flight" wording (wontfix: on main already, the printed action is right; wording only)
 
 ## Blockers
 
