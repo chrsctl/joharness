@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01JmCnCxUTGjht3FQwZJsY8d
 agent: sonnet
 updated: 2026-10-23
-next: Add layers PROPOSE to cmd_curate, knob, selftest cases
+next: Await verifier review, record in ## Review, retire plan+workstream, PR, finish
 ---
 
 ## Goal
