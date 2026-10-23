@@ -27,6 +27,9 @@ Add plan-checker agent: opus/fable plans get one outside reader before the first
 - r4: plan-assumptions also edits manage.md, no needs: link (plan-checker) (wontfix: shared: marker in scope is the mechanism; second merger reconciles)
 - r5: no sync manifest lists agents/verifier, so none needs plan-checker (plan-checker) (no change)
 - r6: dry run found no instruction-like text in plan; anchors all resolve (plan-checker) (no change)
+- r7: branch's own plan lacks failure forms its checker demands (verifier) (wontfix: plan retires at merge; checker applies to future plans)
+- r8: 18 behind origin/main; headroom changes after merge (verifier) (fixed: merged origin/main, wc -c manage.md 9913 vs bound 10172)
+- r9: no spawn tier named for plan-checker (verifier) (wontfix: manager picks, never above plan agent; minor)
 
 ## Blockers
 
