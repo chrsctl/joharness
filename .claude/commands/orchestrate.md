@@ -300,8 +300,10 @@ Human says stop → ref § Human stop.
 
 ## Report, every pass
 
-Opening lines, in this order: the `URGENT` row (if any), the `heartbeat
-registered`, `heartbeat replaced`, `heartbeat not registered`, `heartbeat duplicated` or `heartbeat stale` line (if any), then, on the first pass of a run a human message
+Opening lines, in this order: the `URGENT` row (if any), the heartbeat
+line of each pass that ran ref § 0. Start step 5 — one of `heartbeat ok`,
+`heartbeat registered`, `heartbeat replaced`, `heartbeat not registered`,
+`heartbeat duplicated` or `heartbeat stale`, never none — then, on the first pass of a run a human message
 started (not a wake), the line of ref § Fresh session line.
 
 The `dispatch` wait line (`<n> plan(s) wait on a human core edit ...`), or a

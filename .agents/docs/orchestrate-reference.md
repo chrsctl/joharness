@@ -79,12 +79,19 @@ refused with no confirmed interrupt (dead row, STILLBORN) follows the
      session, get no repository and no session tools
      (`.agents/docs/orchestrated.md`, Heartbeat);
    - `keeper-gone` — `get_session` on `persistent_session_id` finds it
-     `ARCHIVED`, not found, or titled other than `keeper: <owner/repo>`;
+     `ARCHIVED`, not found, or titled other than `keeper: <owner/repo>`
+     (the platform's `⚡ heartbeat: <owner/repo>`, a session "Run now"
+     made with no repository, included). That `get_session` runs in THIS
+     step, every time; not run = not up to date. A keeper you archived is
+     this reason, and REPLACE below restores it;
    - `failing` — `last_run.status` ends in `FAILED`
      (`ROUTINE_RUN_STATUS_FAILED`);
    - `prompt` — `derived_state.prompt`, trimmed, is not exactly
      `/keeper` or `/orchestrate keeper` (the older spec: the title guard
      routes it, so it is never replaced for its prompt alone).
+   Up to date = report `heartbeat ok: <id>, keeper <persistent_session_id>:
+   <title>`, the title as that `get_session` returned it; a title you did
+   not read is no `ok` line.
    REPLACE only a Routine REGISTER made — `created_via: meta_mcp` AND
    `derived_state.prompt` exactly `/keeper` or `/orchestrate keeper` — whose reasons hold
    no `paused`: REGISTER's lineage check (step 1) first, failing = report
