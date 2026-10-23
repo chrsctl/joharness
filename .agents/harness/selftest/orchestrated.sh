@@ -340,7 +340,8 @@ for needle in '**One spawner, one turn.** Only the keeper starts an orchestrator
   'retitles itself the same way as its last act' \
   'or a `RUNNING` or `PENDING` orchestrator it started itself or that started it' \
   'and its own `parent_session_id`, while that reads `RUNNING` or `PENDING`' \
-  'the check reads `keeper-gone`, which is why it runs every pass' \
+  'So "Run now" never restarts the fleet; a new `/orchestrate` session does, keeper archived or not' \
+  'its `ok` line carries `session_status` and `updated_at`, which only that read returns' \
   'The spec every orchestrator checks at start and on every pass after the first'; do
   expect "orchestrated.md spells ${needle}" "$needle" "$orcdocfold"
 done
@@ -543,7 +544,7 @@ done
 # not up to date. Each needle is the clause that makes one reason fire; the
 # spec it compares against lives in orchestrated.md, so both are pinned.
 # shellcheck disable=SC2016 # literal backticks in the needles
-for needle in '`heartbeat duplicated` or `heartbeat stale` line (if any)' \
+for needle in '`heartbeat duplicated` or `heartbeat stale`; none only without `list_triggers`, said once instead' \
   'Role comes from the prompt, the session-start banner'"'"'s rule' \
   'Titled exactly `🔑 keeper: <owner/repo>` (glossary, role title: the bare spelling matches too) = read `.claude/commands/keeper.md` WHOLE and run that only' \
   'Any other title (`🎼 orchestrator: …`, `🔨 manager: …`, none) = the orchestrator: the rest of this file.' \
@@ -563,10 +564,16 @@ for needle in 'Routine named exactly `heartbeat: <owner/repo>` with a non-empty 
   '`disabled` — `enabled` is not true and `ended_reason` is `auto_disabled_session_gone`: its keeper is gone' \
   '`unbound` — `persist_session` is not true, or `persistent_session_id` is empty' \
   '`keeper-gone` — `get_session` on `persistent_session_id` finds it `ARCHIVED`, not found, or titled other than `🔑 keeper: <owner/repo>`' \
+  'That `get_session` runs in THIS step, every time; not run = not up to date.' \
+  'A keeper you archived is this reason; REPLACE below restores it, once per session (REGISTER'"'"'s cap);' \
+  '`keeper-unread` — that `get_session` errored or was refused: report and push the stale line, never REPLACE on it alone' \
+  'bound session, not `ARCHIVED` (a `🔑 keeper: <owner/repo>` (glossary, role title) or a `⚡` one)' \
+  'no Routine to be stale = `heartbeat not registered: once per session`' \
+  'Up to date = report `heartbeat ok: <id>, keeper <persistent_session_id> <session_status> <updated_at>`, both read off that `get_session` (`list_triggers` carries neither); no read, no `ok` line.' \
   '`failing` — `last_run.status` ends in `FAILED`' \
   '`prompt` — `derived_state.prompt`, trimmed, is not exactly `/keeper` or `/orchestrate keeper`' \
   'Never enable, edit or delete a Routine a human paused or made in the UI' \
-  'REGISTER, at most once per session, a REPLACE'"'"'s included (a later break in the same session is its `stale` line only):' \
+  'REGISTER, at most once per session, a REPLACE'"'"'s included (a later break in the same session is its `stale` line only;' \
   '(on a pass: none, REPLACE archived the bound one)' \
   'report the stale line and end step 5 (a pass carries on)' \
   'NOT `depth + 2 < limit` = report `heartbeat not registered: lineage <depth>/<limit>`' \

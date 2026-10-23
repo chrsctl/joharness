@@ -608,10 +608,15 @@ check refused `./joharness.sh` from the clone it made (`create_trigger` +
 `fire_trigger`, 2026-10-16).
 `create_trigger` takes no repository. A keeper made with `create_session`
 and a `source_url` has the repository and the tools, so the Routine wakes
-it instead. "Run now" on a Routine whose keeper is `ARCHIVED` rebinds
-`persistent_session_id` to a fresh session titled `⚡ <Routine name>` with
-no repository, and `last_run` still reads `SUCCEEDED` (2026-10-23): the
-check reads `keeper-gone`, which is why it runs every pass. Rejected:
+it instead. "Run now" fires a fresh session titled `⚡ <Routine name>`
+with no repository and no `/orchestrate`, live keeper or not; on a
+Routine whose keeper is `ARCHIVED` it also rebinds `persistent_session_id`
+to it, and `last_run` still reads `SUCCEEDED` (2026-10-23). So "Run now"
+never restarts the fleet; a new `/orchestrate` session does, keeper
+archived or not: the check reads `keeper-gone` and REPLACE restores the
+keeper. The check runs every pass and its `get_session` on the bound
+session is never skipped: its `ok` line carries `session_status` and
+`updated_at`, which only that read returns. Rejected:
 session cron and a self-scheduling session (do not outlive their
 creator), a scheduled GitHub Actions workflow (its pull requests get no
 CI on `GITHUB_TOKEN`, so step 7 never goes green).
