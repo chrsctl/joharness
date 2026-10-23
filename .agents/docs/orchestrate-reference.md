@@ -83,20 +83,23 @@ refused with no confirmed interrupt (dead row, STILLBORN) follows the
      (the platform's `⚡ heartbeat: <owner/repo>`, a session "Run now"
      made with no repository, included). That `get_session` runs in THIS
      step, every time; not run = not up to date. A keeper you archived is
-     this reason, and REPLACE below restores it;
+     this reason; REPLACE below restores it, once per session (REGISTER's
+     cap);
+   - `keeper-unread` — that `get_session` errored or was refused: report
+     and push the stale line, never REPLACE on it alone;
    - `failing` — `last_run.status` ends in `FAILED`
      (`ROUTINE_RUN_STATUS_FAILED`);
    - `prompt` — `derived_state.prompt`, trimmed, is not exactly
      `/keeper` or `/orchestrate keeper` (the older spec: the title guard
      routes it, so it is never replaced for its prompt alone).
-   Up to date = report `heartbeat ok: <id>, keeper <persistent_session_id>:
-   <title>`, the title as that `get_session` returned it; a title you did
-   not read is no `ok` line.
+   Up to date = report `heartbeat ok: <id>, keeper <persistent_session_id>
+   <session_status> <updated_at>`, both read off that `get_session`
+   (`list_triggers` carries neither); no read, no `ok` line.
    REPLACE only a Routine REGISTER made — `created_via: meta_mcp` AND
    `derived_state.prompt` exactly `/keeper` or `/orchestrate keeper` — whose reasons hold
    no `paused`: REGISTER's lineage check (step 1) first, failing = report
    the stale line and end step 5 (a pass carries on); then `delete_trigger` it, `archive_session` its
-   keeper (title `keeper: <owner/repo>`, not `ARCHIVED`), then REGISTER from
+   bound session, not `ARCHIVED` (a `keeper: <owner/repo>` or a `⚡` one), then REGISTER from
    step 2; report `heartbeat replaced: <old id>: <reasons>`. Any other `stale` line, and every
    `duplicated` line: report it and `PushNotification` it once per
    session; the fix is the operator's, the line names it. A Routine made
@@ -107,7 +110,9 @@ refused with no confirmed interrupt (dead row, STILLBORN) follows the
    the human's veto on the fleet.
 
    REGISTER, at most once per session, a REPLACE's included (a later
-   break in the same session is its `stale` line only):
+   break in the same session is its `stale` line only; no Routine to be
+   stale = `heartbeat not registered: once per session`; step 3's
+   report-only run = `heartbeat not registered: report-only`):
    1. `get_session` (no `session_id`): `lineage` present and NOT `depth + 2
       < limit` = report `heartbeat not registered: lineage
       <depth>/<limit>`, stop here. The keeper sits at `depth + 1`, the

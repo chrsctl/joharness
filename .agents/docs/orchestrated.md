@@ -610,8 +610,8 @@ to it, and `last_run` still reads `SUCCEEDED` (2026-10-23). So "Run now"
 never restarts the fleet; a new `/orchestrate` session does, keeper
 archived or not: the check reads `keeper-gone` and REPLACE restores the
 keeper. The check runs every pass and its `get_session` on the bound
-session is never skipped: an `ok` with no title read let a `⚡`-bound
-heartbeat pass as up to date twice (2026-10-23). Rejected:
+session is never skipped: its `ok` line carries `session_status` and
+`updated_at`, which only that read returns. Rejected:
 session cron and a self-scheduling session (do not outlive their
 creator), a scheduled GitHub Actions workflow (its pull requests get no
 CI on `GITHUB_TOKEN`, so step 7 never goes green).
