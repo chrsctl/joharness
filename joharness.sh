@@ -21,7 +21,7 @@
 #                   merged edges found in one file
 #   finish [-v]     Loop step 7 gate: what merging this branch NOW would leave
 #                   on the base branch. With JOHARNESS_CHECKS=local it also runs
-#                   `ci` (and `verify` when needed) itself
+#                   `ci` (and `verify` when needed) and a declared `local-check`
 #   dispatch        the orchestrator's one read: cap, managers in flight, spawn
 #                   order, verdict. Report-only
 #   janitor [--apply <branch>...]
@@ -4901,33 +4901,43 @@ checks_pushed_ref() {
 CHECKS_LOCAL_FILE=local-check
 
 # checks_bounded <secs> <log> <cmd...>: runs cmd from ROOT, output to log, in
-# its own process group so a bound kills what it started too. Returns cmd's
-# status, or 124 when the bound fired. One path everywhere: no timeout(1),
-# which macOS lacks.
+# its own process group so a bound kills what it started too: TERM, then KILL
+# for whatever outlives TERM by 5 s. Returns cmd's status, or 124 when the
+# bound fired. One path everywhere: no timeout(1), which macOS lacks.
 checks_bounded() {
-  local secs="$1" log="$2" mark pid w rc
+  local secs="$1" log="$2" mark pid w="" rc
   shift 2
   mark="$(mktemp)" && rm -f "$mark" || return 1
   set -m
   (cd "$ROOT" && exec "$@") >"$log" 2>&1 </dev/null &
   pid=$!
   set +m
+  # Its own group hides the check from the terminal's Ctrl-C: an abort of
+  # finish takes the group and the watcher down with it.
+  trap 'kill -KILL -- "-${pid}" 2>/dev/null; [ -z "$w" ] || kill -TERM "$w" 2>/dev/null; rm -f "$mark" "$log"; exit 130' INT TERM HUP
   # The watcher's own output is /dev/null: an orphan holding run_check's
   # capture pipe would hold finish open for the whole bound.
   (
-    trap 'kill "$s" 2>/dev/null; exit 0' TERM
+    s=""
+    trap '[ -z "$s" ] || kill "$s" 2>/dev/null; exit 0' TERM
     sleep "$secs" & s=$!
     wait "$s"
     : >"$mark"
     kill -TERM -- "-${pid}" 2>/dev/null
-    sleep 5 & s=$!
-    wait "$s"
+    for _ in 1 2 3 4 5; do
+      kill -0 -- "-${pid}" 2>/dev/null || exit 0
+      sleep 1 & s=$!
+      wait "$s"
+    done
     kill -KILL -- "-${pid}" 2>/dev/null
   ) >/dev/null 2>&1 &
   w=$!
   wait "$pid"; rc=$?
-  kill -TERM "$w" 2>/dev/null
+  # The bound fired: the leader dying on TERM says nothing about its group,
+  # so the watcher finishes its KILL step. Otherwise it is stopped.
+  [ -e "$mark" ] || kill -TERM "$w" 2>/dev/null
   wait "$w" 2>/dev/null
+  trap - INT TERM HUP
   if [ -e "$mark" ]; then
     rm -f "$mark"
     return 124
@@ -4939,6 +4949,15 @@ checks_bounded() {
 # verdict; non-zero = red.
 checks_local_check() {
   local base="$1" f="$CHECKS_LOCAL_FILE" mins secs log rc t0 el last stat
+  # Review is the guard, not immutability: a branch repairing a check broken
+  # on the base branch must be able to pass, so the head's copy runs. A
+  # deletion is the strongest weakening, so this comes before the absence.
+  if [ -n "$base" ] &&
+     stat="$(git -C "$ROOT" diff --stat "${base}..HEAD" -- "$f" 2>/dev/null)" &&
+     [ -n "$stat" ]; then
+    printf '\n  CHECK CHANGED on this branch — edge review reads it:\n'
+    printf '%s\n' "$stat" | sed 's/^/    /'
+  fi
   if ! git -C "$ROOT" cat-file -e "HEAD:${f}" 2>/dev/null; then
     if [ -e "${ROOT}/${f}" ]; then
       printf '\n  %s: here but not in HEAD (ignored?) — NOT run: the merge does not carry it\n' "$f"
@@ -4946,14 +4965,8 @@ checks_local_check() {
     return 0
   fi
   printf '\n  == bash %s (the head'"'"'s copy: declared by this repository)\n' "$f"
-  # Review is the guard, not immutability: a branch repairing a check broken
-  # on the base branch must be able to pass, so the head's copy runs.
   if [ -z "$base" ]; then
     printf '  CHECK CHANGED not measurable here (no merge-base) — review the file itself\n'
-  elif stat="$(git -C "$ROOT" diff --stat "${base}..HEAD" -- "$f" 2>/dev/null)" &&
-       [ -n "$stat" ]; then
-    printf '  CHECK CHANGED on this branch — edge review reads it:\n'
-    printf '%s\n' "$stat" | sed 's/^/    /'
   fi
   mins="$(num_knob JOHARNESS_LOCAL_CHECK_MINUTES)"
   secs=$((mins * 60))
@@ -4994,8 +5007,8 @@ checks_gate() {
     printf 'first merge condition — this command does not read them (no network, no\n'
     printf 'token). Not waiting for Actions is a per-environment choice:\n'
     printf 'JOHARNESS_CHECKS=local in the environment (never joharness.conf, which\n'
-    printf 'is ignored) makes this command run ci and verify here instead and be\n'
-    printf 'red on their result.\n'
+    printf 'is ignored) makes this command run ci, verify and a declared\n'
+    printf 'local-check here instead and be red on their result.\n'
     return 0
   fi
 
@@ -5190,6 +5203,10 @@ cmd_finish() {
   if [ "$CHECK_FAILS" -ne 0 ]; then
     printf 'finish: FAIL (%s)\n' "$CHECK_FAILS"
     return 1
+  elif [ "$is_local" = 1 ] &&
+       git -C "$ROOT" cat-file -e "HEAD:${CHECKS_LOCAL_FILE}" 2>/dev/null; then
+    printf 'finish: pass (ci and verify ran here, %s too: JOHARNESS_CHECKS=local)\n' \
+      "$CHECKS_LOCAL_FILE"
   elif [ "$is_local" = 1 ]; then
     printf 'finish: pass (ci and verify ran here: JOHARNESS_CHECKS=local)\n'
   else
@@ -7665,8 +7682,9 @@ cmd_session_start() {
   if checks_local; then
     printf '== Checks: LOCAL (JOHARNESS_CHECKS=local) ==\n\n'
     printf 'Step 7 does NOT wait for GitHub Actions here. ./joharness.sh finish\n'
-    printf 'runs this head'"'"'s checks itself — ci, and verify when the diff touches\n'
-    printf 'non-*.md harness code — and is red on what they say. It refuses a head\n'
+    printf 'runs this head'"'"'s checks itself — ci, verify when the diff touches\n'
+    printf 'non-*.md harness code, and the repo'"'"'s local-check when it declares one —\n'
+    printf 'and is red on what they say. It refuses a head\n'
     printf 'that is not what merges: uncommitted or untracked paths, unpushed tip,\n'
     printf 'or behind the base branch. Every other step 7 condition unchanged.\n\n'
   elif checks_conf_ignored; then

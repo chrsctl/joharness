@@ -431,7 +431,13 @@ out="$(JOHARNESS_CHECKS=local kc_finish)"
 expect "a passing check is a pass" "local-check: pass" "$out"
 expect "its last non-empty line is shown" "last line: all good" "$out"
 expect "its elapsed time is shown" "elapsed " "$out"
-expect "a non-executable check still runs" "== bash local-check" "$out"
+if [ ! -x "${kcwork}/local-check" ]; then
+  expect "a non-executable check still runs" "local-check: pass" "$out"
+else
+  skip "a non-executable check still runs" "chmod 644 left the bit set here"
+fi
+expect "the pass line names the check it ran" \
+  "finish: pass (ci and verify ran here, local-check too" "$out"
 expect "a branch adding the check says so" "CHECK CHANGED on this branch" "$out"
 refute "a declared check is not reported missing" \
   "no consumer check declared" "$out"
@@ -469,10 +475,25 @@ out="$(JOHARNESS_CHECKS=local kc_finish)"
 expect "an unchanged check runs" "last line: base check ok" "$out"
 refute "an unchanged check is not CHECK CHANGED" "CHECK CHANGED" "$out"
 
+# Deleting it is the strongest weakening, and reads as "none declared" unless
+# the diff against the base is taken before the absence.
+git -C "$kcwork" checkout -qb kclcgone main
+git -C "$kcwork" rm -q local-check
+git -C "$kcwork" commit -qm "the check goes away"
+git -C "$kcwork" push -qu origin kclcgone 2>/dev/null
+out="$(JOHARNESS_CHECKS=local kc_finish)"
+expect "a branch deleting the check says CHECK CHANGED" \
+  "CHECK CHANGED on this branch" "$out"
+expect "and then that none is declared" \
+  "no consumer check declared (local-check)" "$out"
+
 # Over the bound is red and says timeout, never a skip. 0 minutes = one
-# second; the check's own child must die with it, or it outlives finish.
+# second; the check's own child must die with it, or it outlives finish —
+# one that ignores TERM too, which only the group KILL reaches.
+kc_child="${TMP}/kclc-child.pid"
 git -C "$kcwork" checkout -qb kclcslow main
-printf 'echo started\nsleep 30\necho finished\n' >"${kcwork}/local-check"
+printf 'echo started\nbash -c '"'"'trap "" TERM; sleep 30'"'"' &\necho $! >%q\nsleep 30\necho finished\n' \
+  "$kc_child" >"${kcwork}/local-check"
 commit_all "$kcwork" "a check that outlives its bound"
 git -C "$kcwork" push -qu origin kclcslow 2>/dev/null
 kc_t0=$SECONDS
@@ -485,6 +506,16 @@ if [ "$kc_el" -lt 25 ]; then
 else
   fail "the bound stops the check, not the check's end (${kc_el}s)"
 fi
+# Dead, not reaped: an orphan's zombie waits on a PID 1 that may never reap
+# it, and kill -0 answers yes for a zombie.
+kc_state="$( [ -s "$kc_child" ] && ps -o stat= -p "$(cat "$kc_child")" 2>/dev/null)"
+if [ -s "$kc_child" ] && case "$kc_state" in '' | Z*) true ;; *) false ;; esac; then
+  pass "a child ignoring TERM dies with the bound"
+else
+  fail "a child ignoring TERM dies with the bound"
+  [ ! -s "$kc_child" ] || kill -KILL "$(cat "$kc_child")" 2>/dev/null
+fi
+rm -f "$kc_child"
 if JOHARNESS_LOCAL_CHECK_MINUTES=0 JOHARNESS_CHECKS=local kc_rc; then
   fail "a timed-out check is a red finish"
 else
