@@ -47,7 +47,7 @@ Optional tools.
 A name you cannot find is a capability you do not have, not a reason to do
 nothing. Never read a full queue and leave it untouched.
 
-## 0. Start (once per orchestrator session, never per pass)
+## 0. Start (once per orchestrator session; step 5 also each pass)
 
 First: ref § 0. Start, steps 1 to 5.
 
@@ -60,8 +60,8 @@ start = the `ledger:` line of your prompt (a SWAP successor's,
 `git fetch origin main`, then read two fields off the wake message, like the
 ledger — never from memory: `harness=` and `pass=`. Missing = `harness`
 mismatch (report `<old>` as `none`), `pass=1`.
-First start = `pass=1`. Run Retired first, then the superseded check: a
-retired or superseded pass does nothing, so it re-reads and fast-forwards
+First start = `pass=1`. Run Retired first, then the superseded check, Duplicate, Heartbeat: a
+retired, superseded or duplicate pass does nothing, so it re-reads and fast-forwards
 nothing.
 
 - **Retired.** `get_session` (no `session_id`): your title is exactly

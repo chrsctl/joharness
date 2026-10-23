@@ -605,9 +605,10 @@ and a `source_url` has the repository and the tools, so the Routine wakes
 it instead. "Run now" on a Routine whose keeper is `ARCHIVED` rebinds
 `persistent_session_id` to a fresh session titled `⚡ <Routine name>` with
 no repository, and `last_run` still reads `SUCCEEDED` (2026-10-23): the
-check reads `keeper-gone`, which is why it runs every pass. Rejected: session cron and a self-scheduling session (do not
-outlive their creator), a scheduled GitHub Actions workflow (its pull
-requests get no CI on `GITHUB_TOKEN`, so step 7 never goes green).
+check reads `keeper-gone`, which is why it runs every pass. Rejected:
+session cron and a self-scheduling session (do not outlive their
+creator), a scheduled GitHub Actions workflow (its pull requests get no
+CI on `GITHUB_TOKEN`, so step 7 never goes green).
 
 **Keeper liveness reads wakes, not sessions.** `list_sessions` answered
 77,897 characters at `limit` 30 (2026-10-16), read hourly into one

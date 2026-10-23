@@ -286,7 +286,7 @@ done
 for needle in 'arm as above with `retire=yes` on the `harness=` line, every pass from then on' \
   'your title is exactly `orchestrator (retired): <owner/repo>`' \
   'Any other title is "## 0. Start" step 3'"'"'s matter, never a stop here.' \
-  'Run Retired first, then the superseded check' \
+  'Run Retired first, then the superseded check, Duplicate, Heartbeat' \
   'First start = the `ledger:` line of your prompt' \
   'RUN END.' \
   'Its last act, after the final report: `set_session_title` yours to `orchestrator (retired): <owner/repo>`' \
@@ -538,7 +538,9 @@ for needle in 'Routine named exactly `heartbeat: <owner/repo>` with a non-empty 
   '`failing` — `last_run.status` ends in `FAILED`' \
   '`prompt` — `derived_state.prompt`, trimmed, is not exactly `/keeper` or `/orchestrate keeper`' \
   'Never enable, edit or delete a Routine a human paused or made in the UI' \
-  'REGISTER, at most once per session:' \
+  'REGISTER, at most once per session, a REPLACE'"'"'s included (a later break in the same session is its `stale` line only):' \
+  '(on a pass: none, REPLACE archived the bound one)' \
+  'report the stale line and end step 5 (a pass carries on)' \
   'NOT `depth + 2 < limit` = report `heartbeat not registered: lineage <depth>/<limit>`' \
   '`title` = `keeper: <owner/repo>`, `prompt` = `/keeper`.' \
   '`persistent_session_id` = step 2'"'"'s id, `prompt` = `/keeper`' \
@@ -556,6 +558,10 @@ for needle in 'Routine named exactly `heartbeat: <owner/repo>` with a non-empty 
   '`update_trigger` this repo'"'"'s heartbeat `enabled: false`'; do
   expect "orchestrate-reference.md heartbeat check spells ${needle}" "$needle" "$reffold"
 done
+refute "orchestrate.md no longer skips only two checks without list_triggers" \
+  "skip the superseded and duplicate checks" "$orcfold"
+refute "orchestrate.md Start heading no longer says never per pass" \
+  "once per orchestrator session, never per pass" "$orcfold"
 refute "orchestrate.md no longer routes the keeper by a prompt argument" \
   "Argument \`keeper\`" "$orcfold $reffold"
 refute "orchestrate.md no longer stops a session on a keeper-looking prompt" \

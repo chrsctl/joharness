@@ -40,9 +40,12 @@ character):
 - Every place that MATCHES a title (one-orchestrator check, keeper title
   guard, `keeper-gone`, manager lookup by title, `@new` rebuild, REGISTER's
   keeper archive) accepts the new spelling AND the old one, so sessions
-  live at merge keep counting. Spell the rule once (glossary row or one
-  sentence in `orchestrated.md`) and point to it; do not repeat both
-  spellings at every site.
+  live at merge keep counting. Spell the rule once, in the glossary row
+  below, and point to it from each match site; do not repeat both
+  spellings at every site. The match sites: `orchestrate-reference.md`
+  "## 0. Start" step 3 (LIVE) and step 5 (`keeper-gone`, REGISTER step 2),
+  `orchestrate.md` Retired and the keeper routing line, `keeper.md` title
+  guard and SWAP, manager lookup by title.
 - `joharness.sh` strings that print a title, and the selftest needles in
   `.agents/harness/selftest/orchestrated.sh` that pin them, follow.
 - `.agents/docs/glossary.md`: one row naming the emoji per role.
@@ -58,8 +61,13 @@ character):
 
 ## Acceptance
 
-- `grep -rnE "title.{0,40}\`(keeper|orchestrator|manager|surveyor|curator|clerk|conduct): " .claude/commands .agents/docs`
-  — every hit is a match site that also names the emoji spelling, or none.
+- `grep -rnE '\`(keeper|orchestrator|manager|surveyor|curator|clerk|conduct)( \((retired|duplicate)\))?: <' .claude/commands .agents/docs joharness.sh`
+  — every hit carries its emoji, or is the old spelling inside the
+  glossary's both-spellings row. List the hits in the pull request body.
+- `python3 -c "print([hex(ord(c)) for c in '🔑🎼💤👯🔨📐🧭📋🧐'])"` — nine
+  code points, none `0xfe0f`.
+- Selftest: an old-spelling keeper title still passes the keeper title
+  guard and the `keeper-gone` check (needle on the rule's text).
 - `./joharness.sh ci` — `ci: pass`; selftest pins at least the keeper,
   orchestrator, retired and manager emoji titles.
 - `./joharness.sh verify` — 0 failed.
