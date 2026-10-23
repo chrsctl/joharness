@@ -289,7 +289,7 @@ Live PR work (CI failures, review comments): continuity not a document
 problem — subscribe to PR, stay in one session. Handover documents = the
 *cold* gap between sessions.
 
-## Compaction
+## Compaction: task state survives, the rules decay
 
 After a compaction re-read `.agents/harness/AGENTS.md` (Loop step 1) and the
 role command, not only the workstream file.

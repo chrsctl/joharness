@@ -138,8 +138,10 @@ as `normal`: the two legal values are `normal` and `urgent`.
   push.
 - **Finish** = Loop step 7 (`.agents/harness/AGENTS.md`): the session merges
   its own PR, merge-commit method only (the session-start filter reads
-  ancestry, so a squash makes a merged branch read as in-flight). Branch
-  deletion is the human's, never a session's. A consumer wanting
+  ancestry, so a squash makes a merged branch read as in-flight). Squash
+  breakage is fixed by a forge setting restricting merge methods. Branch
+  deletion is the human's, never a session's; abandoned UNMERGED branches
+  read as in-flight until a human triages them. A consumer wanting
   human-click merges overrides in its own `AGENTS.md` Part 2.
 - `urgent` = same mechanics, jumps queue.
 - **Conflict at finish** = `git fetch origin main` and check ahead/behind
@@ -176,6 +178,9 @@ Loop's own rule: nothing builds unplanned, and a plan file is claimable.
 
 ## Reconciliation
 
-A fix born anywhere lands in joharness `main` first, then syncs out; new
-consumers start via `bootstrap-consumer.sh`. Rule, routes, tokens:
+A fix born ANYWHERE lands in joharness `main` first, then syncs out; never
+consumer-to-consumer, never consumer-only. The sync tool never overwrites a
+consumer copy whose content canonical history does not know. A raw joharness
+clone is never a new consumer (it carries the live queue and canonical
+marker): start via `bootstrap-consumer.sh`. Routes, tokens, exit codes:
 [`../consumer-repos.md`](../consumer-repos.md).

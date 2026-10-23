@@ -24,3 +24,7 @@ Make the queue docs match the code and say each rule once (plan simplify-queue-d
 - Line count 1045 (bound 1050), `ci: pass`.
 
 ## Review
+- r1: dangling 'Compaction: task state survives' heading cited by context-watch.sh (fixed: heading restored) (verifier)
+- r2: circular direction-rule pointer product<->consumer-repos (fixed: product keeps the doctrine sentences) (verifier)
+- r3: Finish bullet lost squash remedy and unmerged-deadwood triage (fixed: restored one sentence) (verifier)
+- r4: reconciliation rationale and human-reads-diff sentence cut (no change: duplicate in consumer-repos.md / plan-sanctioned) (verifier)
