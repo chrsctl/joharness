@@ -29,12 +29,14 @@ kd_problems() {
     sed 's/^num_knob //' | sort -u)"
   while IFS= read -r k; do
     [ -n "$k" ] || continue
-    printf '%s\n' "$rows" | grep -q "^${k}|" || printf 'no KNOBS row: %s\n' "$k"
+    # A here-string, not a pipe: under pipefail, grep -q leaving after an
+    # early match kills printf mid-table with SIGPIPE, and the row reads absent.
+    grep -q "^${k}|" <<<"$rows" || printf 'no KNOBS row: %s\n' "$k"
   done <<<"$reads"
   ck="$(bash -c ". '${keys}'; conf_keys_rows")"
   while IFS='|' read -r k d scope _; do
     [ -n "$k" ] || continue
-    if printf '%s\n' "$ck" | grep -q "^${k}|"; then
+    if grep -q "^${k}|" <<<"$ck"; then
       [ "$(printf '%s\n' "$ck" | grep "^${k}|" | cut -d'|' -f2)" = "$d" ] ||
         printf 'default differs from conf-keys.sh: %s\n' "$k"
     elif [ "$scope" = conf ] || [ "$scope" = base-conf ]; then

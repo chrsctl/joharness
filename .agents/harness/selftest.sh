@@ -8,12 +8,19 @@
 # by `joharness.sh ci`.
 #
 # Usage: .agents/harness/selftest.sh
+#
+# Topics run in JOHARNESS_SELFTEST_JOBS parallel workers (default: the CPU
+# count, at most 4; 1 = one worker). Each topic's output prints at its place
+# in the list and the counts are summed, so any job count prints the same.
 
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
+
+# Read before the unset below: it steers this runner, never a fixture's ci.
+selftest_jobs="${JOHARNESS_SELFTEST_JOBS:-}"
 
 # Scratch commits only; never touches the user's git identity.
 export GIT_AUTHOR_NAME=selftest GIT_AUTHOR_EMAIL=selftest@invalid
@@ -48,19 +55,27 @@ unset JOHARNESS_ENV JOHARNESS_ENV_SETUP JOHARNESS_ENV_MD JOHARNESS_REVIEW \
   JOHARNESS_RESPAWN_LIMIT JOHARNESS_MANAGER_HOURS \
   JOHARNESS_CURATE_HOURS JOHARNESS_CURATE_PLANS JOHARNESS_CURATE_REGISTRY \
   JOHARNESS_CURATE_SPLIT \
+  JOHARNESS_CLERK_HOURS JOHARNESS_CLERK_BATCH JOHARNESS_CLERK_STALE_HOURS \
   JOHARNESS_SCOUT_READS JOHARNESS_SCOUT_REVIEWER \
   JOHARNESS_SCOUT_RESEARCH \
   JOHARNESS_CONDUCT_HOURS JOHARNESS_CONDUCT_SAMPLE \
   HANDOVER_STALE_SECONDS \
   JOHARNESS_CONF JOHARNESS_FORCE_SETUP JOHARNESS_SYNC_ROOT DEVENV_FORCE \
-  JOHARNESS_FEEDBACK_CACHE JOHARNESS_PRETOOL_SCRATCH JOHARNESS_SELFTEST_GIT_BUDGET
+  JOHARNESS_FEEDBACK_CACHE JOHARNESS_PRETOOL_SCRATCH JOHARNESS_SELFTEST_GIT_BUDGET \
+  JOHARNESS_SELFTEST_JOBS
 
 PASS=0
 FAIL=0
 SKIP=0
 
 pass() { printf '  PASS %s\n' "$*"; PASS=$((PASS + 1)); }
-fail() { printf '  FAIL %s\n' "$*"; FAIL=$((FAIL + 1)); }
+# While SELFTEST_INLINE_FAILS names a file (this file's own cases), a FAIL
+# line is also kept there, so the summary can group it like a topic's.
+fail() {
+  printf '  FAIL %s\n' "$*"
+  FAIL=$((FAIL + 1))
+  [ -z "${SELFTEST_INLINE_FAILS:-}" ] || printf '  FAIL %s\n' "$*" >>"$SELFTEST_INLINE_FAILS"
+}
 
 indent() { printf '    | %s' "${1//$'\n'/$'\n    | '}"; }
 
@@ -218,6 +233,10 @@ layer_rule_scan() {
     done <<<"$(grep -rlwE -- "$n" "$hroot" 2>/dev/null || :)"
   done
 }
+
+selftest_out="${TMP}/shards"
+mkdir -p "$selftest_out"
+SELFTEST_INLINE_FAILS="${selftest_out}/selftest.sh.out"
 
 step "structure: .agents/harness/ names no environment layer"
 
@@ -440,6 +459,8 @@ else
   skip ".agents/env/k8s/setup.sh env-file quoting" "cannot exec a stub script here"
 fi
 
+SELFTEST_INLINE_FAILS=""
+
 # --- fixture: origin with main, a rival branch, and this session's branch ---
 origin="${TMP}/origin.git"
 git init -q --bare "$origin"
@@ -509,8 +530,11 @@ echo local >>"${work}/shared.txt"
 
 # --- topics -----------------------------------------------------------------
 # One file per `step` topic under .agents/harness/selftest/, sourced here in
-# the order below. Sourcing is inlining: a topic that builds a fixture a later
-# topic reads keeps working exactly as it did when they shared this file.
+# the order below. Sourcing is inlining, but not across workers: a topic that
+# reads what another topic built (a variable, a function, a fixture such as
+# $work above) shares a chain with it in SELFTEST_CHAINS, and a chain runs in
+# one worker, in list order. Every other topic gets a subshell of its own,
+# with its own TMP.
 #
 # The three topics ABOVE stay in this file, and the layer rule is why. It
 # permits exactly one file under .agents/harness/ to name an environment
@@ -558,6 +582,10 @@ SELFTEST_TOPICS=(
   cleanup
   orchestrated
   dispatch
+  dispatch-rescope
+  dispatch-curate
+  dispatch-order
+  dispatch-branch-plans
   curate-apply
   retired-ledger
   analysis
@@ -590,6 +618,20 @@ SELFTEST_TOPICS=(
   num-knob
   knobs-declared
   reading-budget
+  selftest-shards
+)
+
+# Topics that read state another topic built, one chain per entry, in list
+# order. The four found when the runner went parallel: each topic's header
+# names what it reads ("Reads $work", "Reads $cwork, built by ci-churn.sh",
+# "Reads $syncsrc and $syncdst"), and clerk calls ci-graph-lint's lint_ci and
+# lint_section on its $lwork. A new reader of another topic's state joins
+# that topic's chain, or it reads nothing in a parallel run.
+SELFTEST_CHAINS=(
+  "handover-context handover-context-with-a-fork-remote handover-context-churn-line handover-context-issue-claim handover-context-review-line queue-context queue-context-scope-waves queue-context-fanout session-start"
+  "ci-churn ci-canonical-only-selftest"
+  "ci-graph-lint clerk"
+  "sync-to-consumer sync-layer-only"
 )
 
 selftest_topics_dir="${ROOT}/.agents/harness/selftest"
@@ -673,17 +715,180 @@ if [ -n "$selftest_dupes" ]; then
   exit 1
 fi
 
-for _t in "${SELFTEST_TOPICS[@]}"; do
-  # shellcheck source=/dev/null
-  . "${selftest_topics_dir}/${_t}.sh"
-done
+# A chain member that is not listed, or listed out of the chain's order, would
+# run a topic twice or before what it reads. FATAL, like the checks above.
+selftest_chain_problems() {
+  local c t at prev
+  for c in ${SELFTEST_CHAINS[@]+"${SELFTEST_CHAINS[@]}"}; do
+    prev=0
+    for t in $c; do
+      at="$(printf '%s\n' "${SELFTEST_TOPICS[@]}" | grep -nxF -- "$t" | cut -d: -f1)"
+      if [ -z "$at" ]; then
+        printf 'chain member not listed: %s\n' "$t"
+      elif [ "$at" -le "$prev" ]; then
+        printf 'chain out of list order: %s\n' "$c"
+      else
+        prev="$at"
+      fi
+    done
+  done
+  printf '%s\n' ${SELFTEST_CHAINS[@]+"${SELFTEST_CHAINS[@]}"} | tr ' ' '\n' |
+    sort | uniq -d | sed 's/^/topic in two chains: /'
+}
+
+# The units, one per line: a chain whole, at its first member's place in the
+# list; every other topic alone.
+selftest_units() {
+  local t c unit seen=" "
+  for t in "${SELFTEST_TOPICS[@]}"; do
+    case "$seen" in *" ${t} "*) continue ;; esac
+    unit="$t"
+    for c in ${SELFTEST_CHAINS[@]+"${SELFTEST_CHAINS[@]}"}; do
+      case " ${c} " in *" ${t} "*) unit="$c" ;; esac
+    done
+    seen="${seen}${unit} "
+    printf '%s\n' "$unit"
+  done
+}
+
+# <n> <out dir> <topic>...: one unit in a subshell with its own TMP. Each
+# topic's output goes to <out>/<topic>.out; the counts to u<n>.counts as the
+# subshell's LAST act, so a unit that dies (exit, unbound variable, a kill)
+# leaves none, and the reader counts that as a FAIL. u<n>.done marks the end.
+# The topics run inside these two functions and see their locals: hence the
+# _st_ names, which no topic reads or assigns (topics assign out, n, t).
+selftest_unit() {
+  local _st_n="$1" _st_out="$2" _st_t
+  shift 2
+  (
+    TMP="${_st_out}/u${_st_n}.tmp"
+    mkdir -p "$TMP" || exit 1
+    # shellcheck disable=SC2030  # the unit's own counts, written below
+    PASS=0 FAIL=0 SKIP=0
+    for _st_t in "$@"; do
+      # shellcheck source=/dev/null
+      . "${selftest_topics_dir}/${_st_t}.sh" >"${_st_out}/${_st_t}.out" 2>&1
+    done
+    printf '%s %s %s\n' "$PASS" "$FAIL" "$SKIP" >"${_st_out}/u${_st_n}.counts"
+  ) >"${_st_out}/u${_st_n}.log" 2>&1
+  printf '%s\n' "$?" >"${_st_out}/u${_st_n}.done"
+}
+
+# <out dir> <unit>...: claim units in list order until none is left. mkdir is
+# the claim, atomic across workers.
+selftest_worker() {
+  local _st_wout="$1" _st_wn=0 _st_unit
+  shift
+  for _st_unit in "$@"; do
+    if mkdir "${_st_wout}/u${_st_wn}.claim" 2>/dev/null; then
+      date +%s >"${_st_wout}/u${_st_wn}.claim/start"
+      # shellcheck disable=SC2086  # a unit is a space-separated topic list
+      selftest_unit "$_st_wn" "$_st_wout" $_st_unit
+    fi
+    _st_wn=$((_st_wn + 1))
+  done
+}
+
+selftest_live() {
+  local p
+  for p in "$@"; do kill -0 "$p" 2>/dev/null && return 0; done
+  return 1
+}
+
+# Seconds a unit may run before the run calls it hung: the longest unit takes
+# a few minutes, so this only ever trips on a wait that never ends. A plain
+# variable, not a knob; the selftest-shards topic lowers it for its fixture.
+selftest_unit_seconds=1800
+
+# <jobs> <out dir>: run SELFTEST_TOPICS in <jobs> workers, print every
+# topic's output at its own place in the list, add the counts to PASS, FAIL
+# and SKIP. A unit is settled once: its counts, or a FAIL when it has none —
+# every worker gone, or it ran past selftest_unit_seconds (the workers are
+# then stopped). Never a missing count.
+selftest_shards() {
+  local jobs="$1" out="$2" unit n w t p f k rc start settled=" " unit_of=" "
+  local -a units=() pids=()
+  while IFS= read -r unit; do
+    for t in $unit; do unit_of="${unit_of}${t}=${#units[@]} "; done
+    units+=("$unit")
+  done < <(selftest_units)
+  for ((w = 0; w < jobs; w++)); do
+    selftest_worker "$out" "${units[@]}" &
+    pids+=("$!")
+  done
+  for t in "${SELFTEST_TOPICS[@]}"; do
+    n="${unit_of#* "${t}"=}"; n="${n%% *}"
+    case "$settled" in *" ${n} "*) ;; *)
+      settled="${settled}${n} "
+      rc=""
+      while [ ! -e "${out}/u${n}.done" ] && selftest_live "${pids[@]}"; do
+        start="$(cat "${out}/u${n}.claim/start" 2>/dev/null)"
+        if [ -n "$start" ] && [ $(($(date +%s) - start)) -gt "$selftest_unit_seconds" ]; then
+          rc="timed out after ${selftest_unit_seconds}s; workers stopped"
+          for p in "${pids[@]}"; do
+            pkill -P "$p" 2>/dev/null
+            kill "$p" 2>/dev/null
+          done
+          break
+        fi
+        sleep 1
+      done
+      [ ! -s "${out}/u${n}.log" ] || cat "${out}/u${n}.log"
+      if [ -z "$rc" ] && read -r p f k 2>/dev/null <"${out}/u${n}.counts"; then
+        # shellcheck disable=SC2031  # the totals; each unit counted its own
+        PASS=$((PASS + p)) FAIL=$((FAIL + f)) SKIP=$((SKIP + k))
+      else
+        [ -n "$rc" ] || rc="exit $(cat "${out}/u${n}.done" 2>/dev/null || echo 'none, its worker is gone')"
+        printf '  FAIL unit ended without its counts (%s): %s\n' "$rc" "${units[$n]}" |
+          tee -a "${out}/units.fail"
+        FAIL=$((FAIL + 1))
+      fi
+      ;;
+    esac
+    [ ! -e "${out}/${t}.out" ] || cat "${out}/${t}.out"
+  done
+  wait
+}
+
+# <out dir>: the FAIL lines again, grouped by the topic that printed them,
+# then the counts. Exit status: 0 only when nothing failed.
+selftest_report() {
+  local out="$1" t lines
+  if [ "$FAIL" -gt 0 ]; then
+    printf '\nFAIL lines by topic:\n'
+    for t in selftest.sh "${SELFTEST_TOPICS[@]}"; do
+      lines="$(grep '^  FAIL ' "${out}/${t}.out" 2>/dev/null)"
+      [ -z "$lines" ] || printf '%s\n%s\n' "$t" "$lines"
+    done
+    [ ! -s "${out}/units.fail" ] || printf 'runner\n%s\n' "$(cat "${out}/units.fail")"
+  fi
+  # Skips are printed in the count, never folded into passed: a run that
+  # could not ask half its questions must not read like one that asked them all.
+  if [ "$SKIP" -gt 0 ]; then
+    printf '\n%d passed, %d failed, %d skipped\n' "$PASS" "$FAIL" "$SKIP"
+  else
+    printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
+  fi
+  [ "$FAIL" -eq 0 ]
+}
+
+selftest_chain_bad="$(selftest_chain_problems)"
+if [ -n "$selftest_chain_bad" ]; then
+  printf 'selftest: SELFTEST_CHAINS disagrees with the list:\n%s\n' \
+    "$selftest_chain_bad" >&2
+  exit 1
+fi
+
+# Digits only, as num_knob reads a knob; anything else is the default.
+case "$selftest_jobs" in
+  '' | *[!0-9]* | 0*)
+    selftest_jobs="$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null)"
+    case "$selftest_jobs" in '' | *[!0-9]* | 0*) selftest_jobs=1 ;; esac
+    [ "$selftest_jobs" -le 4 ] || selftest_jobs=4
+    ;;
+esac
+
+selftest_shards "$selftest_jobs" "$selftest_out"
 
 # --- summary ----------------------------------------------------------------
-# Skips are printed in the count, never folded into passed: a run that could
-# not ask half its questions must not read like one that asked them all.
-if [ "$SKIP" -gt 0 ]; then
-  printf '\n%d passed, %d failed, %d skipped\n' "$PASS" "$FAIL" "$SKIP"
-else
-  printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
-fi
-[ "$FAIL" -eq 0 ]
+selftest_report "$selftest_out"
