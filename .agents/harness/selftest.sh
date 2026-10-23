@@ -611,6 +611,7 @@ SELFTEST_TOPICS=(
   protocol-boundary
   pretool-feedback
   pretool-bash-guard
+  context-watch
   gitattributes
   sync-manifest-eol-pins
   license-notice

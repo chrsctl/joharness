@@ -144,6 +144,9 @@ JOHARNESS_UPGRADE_IN_SESSION|0|session|1 = allow upgrade in a session holding pr
 JOHARNESS_FEEDBACK_CACHE||session|Directory feedback caches per-file scores in; empty = no cache.
 JOHARNESS_FEEDBACK_EDGES|50|session|Merged edges feedback reads; 0 reads all.
 JOHARNESS_RECURRENCE_WINDOW|8|session|Edges in feedback recurrence window; 0 = all history.
+JOHARNESS_CONTEXT_WINDOW|1000000|session|Context window context-watch.sh measures a session's last usage against, in tokens; 0 = off.
+JOHARNESS_CONTEXT_WARN|65|session|Percent of the window at which context-watch.sh warns once a session: hand over now; 0 = off.
+JOHARNESS_CONTEXT_CRIT|80|session|Percent of the window at which context-watch.sh says stop and push, once a session; 0 = off.
 JOHARNESS_PENDING_SPAWNS|0|session|Managers spawned this pass that have not pushed yet; dispatch counts them as slots taken.
 HANDOVER_STALE_SECONDS|518400|session|A branch idle longer than this is stale to dispatch and the hook.'
 # KNOBS-END
