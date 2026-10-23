@@ -172,6 +172,10 @@ A scout proposal that passed the scout gate (§2) is verified and decided
 like any issue: its plan carries `issue: <N>`, its comment opens
 `clerk: <VERDICT>`.
 
+A plan from a `defect:` issue carries an `## Escape` section (Entry, Gate,
+Route: `.agents/docs/plans/README.md`, Shape), so its manager answers the
+three questions in the pull request body.
+
 One plan per issue, unless the issue names asks that are separable on its
 own words. A plan's `issue:` is how the issue closes later: the manager's
 pull request says `Closes #<N>` when no other queued plan names that issue,
