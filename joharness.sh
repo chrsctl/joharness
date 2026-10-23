@@ -2422,10 +2422,8 @@ analysis_one() {
        case "${next#[\"\']}" in defect:*) true ;; *) false ;; esac; then
     # A defect's, not a human's: dispatch reads the fix from git and resumes it.
     local dn
-    dn="$(printf '%s\n' "$doc" | gr_field_raw next)"
-    dn="${dn#[\"\']}"; dn="${dn#defect:}"; dn="${dn#"${dn%%[! ]*}"}"; dn="${dn%%:*}"
-    case "$(issue_verdict "$dn")" in "ok "*) dn="#${dn#\#}" ;; *) dn="" ;; esac
-    cond="PARKED${dn:+ ${dn}}"
+    dn="$(defect_issue "$(printf '%s\n' "$doc" | gr_field_raw next)")"
+    cond="PARKED${dn:+ #${dn}}"
     out="${out}condition : ${cond} — a defect's, not a human's. dispatch resumes it once a"$'\n'
     out="${out}            plan naming the issue retires on ${base_branch}"$'\n'
   elif [ "$status" = "blocked" ]; then
@@ -5375,6 +5373,14 @@ plan_names_issue() {
   iss="$(git -C "$ROOT" show "${1}:${2}" </dev/null 2>/dev/null | gr_field issue)"
   [ "$(issue_verdict "$iss")" = "ok $3" ]
 }
+# The issue number of a raw `defect: #<n>: …` next:, or nothing. One reader
+# for dispatch and analysis.
+defect_issue() {
+  local n="${1#[\"\']}"
+  case "$n" in defect:*) ;; *) return 0 ;; esac
+  n="${n#defect:}"; n="${n#"${n%%[! ]*}"}"; n="${n%%:*}"; n="${n%"${n##*[! ]}"}"
+  case "$(issue_verdict "$n")" in "ok "*) printf '%s' "${n#\#}" ;; esac
+}
 # A `defect: #<n>: …` block (manage.md §3), read from git alone — never an
 # issue's state. One line, tab-separated:
 #   <state> <n> <retired plan stem or -> <minutes since the block commit or ->
@@ -5396,12 +5402,8 @@ dispatch_defect_state() {
   ref="refs/remotes/origin/${branch}"
   # The caller's next: went through gr_fields, which cut ` #<n>…` as a comment.
   next="$(git -C "$ROOT" show "${ref}:${ws}" </dev/null 2>/dev/null | gr_field_raw next)"
-  n="${next#[\"\']}"; n="${n#defect:}"; n="${n#"${n%%[! ]*}"}"; n="${n%%:*}"
-  n="${n%"${n##*[! ]}"}"
-  case "$(issue_verdict "$n")" in
-    "ok "*) n="${n#\#}" ;;
-    *) printf 'UNREADABLE\t?\t-\t-\n'; return 0 ;;
-  esac
+  n="$(defect_issue "$next")"
+  [ -n "$n" ] || { printf 'UNREADABLE\t?\t-\t-\n'; return 0; }
   # The block commit: the oldest commit of the unbroken run, back from the
   # tip, whose file reads this next:. Its first parent must be readable and
   # read otherwise; a shallow boundary or a missing object proves nothing.
@@ -5431,7 +5433,9 @@ dispatch_defect_state() {
   [ "$age" -ge 0 ] || age=0
   # A retire after the block: a plan file DELETED on the base's first parent,
   # renames detected over the whole tree (a pathspec would cut a rename out of
-  # docs/plans into a delete), at or after the block commit's time. The walk
+  # docs/plans into a delete), at or after the block commit's time. 90%: a
+  # moved plan is nearly its old text, while git's default 50% pairs a
+  # deleted plan with any new one sharing the template frontmatter. The walk
   # stops at the block commit's history: no `--since`, which stops at the
   # first older-dated commit and skips what lies behind it.
   while IFS= read -r line; do
@@ -5446,7 +5450,7 @@ dispatch_defect_state() {
     p="${line##*/}"; retired="${p%.md}"
     break
   done < <(git -c core.quotePath=false -C "$ROOT" log --first-parent \
-    --diff-merges=first-parent -M --diff-filter=D --name-only \
+    --diff-merges=first-parent -M90% --diff-filter=D --name-only \
     --format='C %H %ct' "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" \
     "^${bh}" </dev/null 2>/dev/null)
   # Named now: on the base, or on a `live` branch row.
@@ -6719,7 +6723,8 @@ cmd_dispatch() {
   local bprows freeable="" fkind fb fn fage n_freeable=0
   local DISPATCH_WITHHELD=
   local inflight="" free="" questions=""
-  local n_parked=0 n_fixed=0 n_resume=0 parked_lines="" resume_rows="" dst dn dplan dage di ri rtext rline
+  local n_parked=0 n_fixed=0 n_resume=0 parked_lines="" dst dn dplan dage di ri rtext dresume=0
+  local -a fx_rows=() fx_lines=() fx_n=() fx_plan=() fx_di=()
 
   cap="$(num_knob JOHARNESS_MAX_MANAGERS)"
   stall="$(num_knob JOHARNESS_STALL_MINUTES)"
@@ -7057,7 +7062,6 @@ cmd_dispatch() {
       # The CLAIM, not the branch: one branch can carry two workstream files,
       # and a blocked claim on one must not speak for a live claim on the
       # other.
-      blocked_claims="${blocked_claims} $(basename "$path" .md)@${branch} "
       case "${next#[\"\']}" in
         defect:*)
           # A defect's, not the human's: parked until the fix retires.
@@ -7068,10 +7072,12 @@ cmd_dispatch() {
           case "$dst" in
             RESUME)
               # Which RESUME rows get a slot is known only once every row is
-              # counted: a token, replaced below the loop.
-              n_fixed=$((n_fixed + 1))
-              flag="  @@RESUME${n_fixed}@@"
-              parked_lines="${parked_lines}@@RESUMELINE${n_fixed}@@"$'\n' ;;
+              # counted. The text so far is cut here and the row's mark is
+              # written below the loop — never a token in text a branch
+              # writes, which could carry it.
+              n_fixed=$((n_fixed + 1)); dresume=1
+              fx_lines+=("$parked_lines"); parked_lines=""
+              fx_n+=("$dn"); fx_plan+=("$dplan"); fx_di+=("$di") ;;
             UNREADABLE)
               flag="  PARKED UNREADABLE: the commit that wrote next: is not in this clone's history, or next: names no issue number — no RESUME, holds no slot: notify the human once"
               parked_lines="${parked_lines}            PARKED UNREADABLE ${di}: notify the human once"$'\n' ;;
@@ -7085,9 +7091,16 @@ cmd_dispatch() {
               flag="  PARKED #${dn}: a defect's, holds no slot, parked $(dispatch_age_text "$dage") ago: waits for a plan naming #${dn} to retire"
               parked_lines="${parked_lines}            PARKED #${dn} ${di}: waits for the fix, report only"$'\n' ;;
           esac
-          [ "$dst" != RESUME ] || resume_rows="${resume_rows}${n_fixed}"$'\t'"${dn}"$'\t'"${dplan}"$'\t'"${di}"$'\n'
+          # PARKED and RESUME keep their scope held: the item comes back,
+          # and a manager spawned on its overlap now would race it. Once a
+          # human is told, it is released as a human's block is.
+          case "$dst" in
+            UNREADABLE | STUCK | UNPLANNED)
+              blocked_claims="${blocked_claims} $(basename "$path" .md)@${branch} " ;;
+          esac
           ;;
         *)
+          blocked_claims="${blocked_claims} $(basename "$path" .md)@${branch} "
           flag="  BLOCKED: the human's, holds no slot"
           block_reason_ok "$next" ||
             flag="${flag}  INVALID BLOCK? next: opens with no reason word (manage.md §3): ask, order nothing"
@@ -7150,7 +7163,12 @@ cmd_dispatch() {
     else
       gh_base="unreadable"
     fi
-    inflight="${inflight}  ${path}  ${branch}  ${status:-?}  pushed ${agetext}  head ${gh_head:-?}  base ${gh_base}${flag}"$'\n'
+    if [ "$dresume" -eq 1 ]; then
+      fx_rows+=("${inflight}  ${path}  ${branch}  ${status:-?}  pushed ${agetext}  head ${gh_head:-?}  base ${gh_base}${flag}")
+      inflight=$'\n'; dresume=0
+    else
+      inflight="${inflight}  ${path}  ${branch}  ${status:-?}  pushed ${agetext}  head ${gh_head:-?}  base ${gh_base}${flag}"$'\n'
+    fi
     [ -z "$work" ] || inflight="${inflight}${work}"$'\n'
     [ -z "$session" ] || inflight="${inflight}    session: ${session}"$'\n'
     [ -z "$next" ] || inflight="${inflight}    next: ${next}"$'\n'
@@ -7212,19 +7230,19 @@ cmd_dispatch() {
   n_resume=$n_fixed
   [ "$n_resume" -le "$n_slots" ] || n_resume=$n_slots
   n_slots=$((n_slots - n_resume))
-  while IFS=$'\t' read -r ri dn dplan di; do
-    [ -n "$ri" ] || continue
-    if [ "$ri" -le "$n_resume" ]; then
-      rtext="PARKED #${dn} RESUME — the fix retired (${dplan}): write the resume next:, then nudge or respawn (orchestrate.md), one slot"
-      rline="            PARKED #${dn} RESUME ${di}: the fix retired (${dplan}), resume it this pass"
+  rtext=""; dst=""
+  for ((ri = 0; ri < n_fixed; ri++)); do
+    dn="${fx_n[$ri]}"; dplan="${fx_plan[$ri]}"; di="${fx_di[$ri]}"
+    if [ "$ri" -lt "$n_resume" ]; then
+      rtext="${rtext}${fx_rows[$ri]}  PARKED #${dn} RESUME — the fix retired (${dplan}): write the resume next:, then nudge or respawn (orchestrate.md), one slot"
+      dst="${dst}${fx_lines[$ri]}            PARKED #${dn} RESUME ${di}: the fix retired (${dplan}), resume it this pass"$'\n'
     else
-      rtext="PARKED #${dn}: the fix retired (${dplan}), resume waits for a slot"
-      rline="            PARKED #${dn} ${di}: the fix retired (${dplan}), resume waits for a slot"
+      rtext="${rtext}${fx_rows[$ri]}  PARKED #${dn}: the fix retired (${dplan}), resume waits for a slot"
+      dst="${dst}${fx_lines[$ri]}            PARKED #${dn} ${di}: the fix retired (${dplan}), resume waits for a slot"$'\n'
     fi
-    # Quoted replacements: bash 5.2 reads an unquoted `&` as the match.
-    inflight="${inflight//"@@RESUME${ri}@@"/"$rtext"}"
-    parked_lines="${parked_lines//"@@RESUMELINE${ri}@@"/"$rline"}"
-  done <<<"$resume_rows"
+  done
+  inflight="${rtext}${inflight}"
+  parked_lines="${dst}${parked_lines}"
 
   printf 'managers in flight (git view; liveness is the control plane'"'"'s — read both):\n'
   if [ -n "${inflight}${edge_rows}" ]; then
@@ -7252,8 +7270,13 @@ cmd_dispatch() {
   fi
 
   if [ "$n_resume" -gt 0 ]; then
-    printf 'slots     : %s of %s free after %s RESUME row(s), each one spawn of this pass\n\n' \
+    printf 'slots     : %s of %s free after %s RESUME row(s), each one spawn of this pass' \
       "$n_slots" "$cap" "$n_resume"
+    [ "$n_roles" -eq 0 ] ||
+      printf ' (%s role session(s) in flight count against JOHARNESS_MAX_MANAGERS)' "$n_roles"
+    [ "$pending" = 0 ] ||
+      printf ' (%s spawned, not pushed yet: JOHARNESS_PENDING_SPAWNS)' "$pending"
+    printf '\n\n'
   elif [ "$n_roles" -gt 0 ]; then
     printf 'slots     : %s of %s free (%s role session(s) in flight count against JOHARNESS_MAX_MANAGERS)\n\n' \
       "$n_slots" "$cap" "$n_roles"
@@ -7460,8 +7483,9 @@ cmd_dispatch() {
     printf 'verdict   : PAUSED — JOHARNESS_MAX_MANAGERS=0: spawn nothing, exit; the human unpauses\n'
   elif [ "$n_resume" -gt 0 ]; then
     # A RESUME is work: never a DRAINED line, whatever else the pass holds.
-    printf 'verdict   : NOT DRAINED — %s RESUME row(s) first, then %s free item(s), %s slot(s) left: resume them, then spawn up to %s\n' \
-      "$n_resume" "$n_free" "$n_slots" "$([ "$n_free" -lt "$n_slots" ] && printf '%s' "$n_free" || printf '%s' "$n_slots")"
+    printf 'verdict   : NOT DRAINED — %s RESUME row(s) first, then %s free item(s)%s, %s slot(s) left: resume them, then spawn up to %s\n' \
+      "$n_resume" "$n_free" "$([ "$n_wait" -eq 0 ] || printf ' (+%s waiting behind them)' "$n_wait")" \
+      "$n_slots" "$([ "$n_free" -lt "$n_slots" ] && printf '%s' "$n_free" || printf '%s' "$n_slots")"
   elif [ "$n_fixed" -gt 0 ]; then
     printf 'verdict   : NOT DRAINED — %s parked item(s) fixed, 0 slots: resume each once a slot frees\n' "$n_fixed"
   elif [ "$n_free" -gt 0 ] && [ "$n_slots" -gt 0 ]; then

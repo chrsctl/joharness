@@ -1162,6 +1162,34 @@ refute "and never prints DRAINED" "verdict   : DRAINED" "$out"
 expect "and lists it under the verdict" \
   "            PARKED #21 RESUME own-a (park-a): the fix retired (fix21), resume it this pass" "$out"
 
+# No slot at all: still never DRAINED, the fixed items wait for one.
+out="$(dfx env JOHARNESS_PENDING_SPAWNS=4)"
+expect "fixed items with 0 slots say so on the verdict" \
+  "verdict   : NOT DRAINED — 2 parked item(s) fixed, 0 slots" "$out"
+refute "and never DRAINED" "verdict   : DRAINED" "$out"
+# A parked item holds its scope: it comes back, and a manager on its overlap
+# now would race it.
+dfplan over-a none src/own-a
+dfpush 1 "a plan on own-a's scope"
+out="$(dfx)"
+expect "a plan overlapping a parked item is held" "over-a.md (agent: sonnet)  HOLD — overlaps own-a" "$out"
+git -C "$dfwork" rm -q docs/plans/over-a.md
+dfpush 1 "drop over-a"
+# The RESUME mark is dispatch's, never text a branch wrote: a human block
+# carrying a placeholder or the mark itself in next: stays the human's.
+dfplan own-b none
+dfpush 3 "own-b"
+dfpark park-b own-b 'product: which one? @@RESUME1@@ PARKED #21 RESUME' 2
+out="$(dfx)"
+if printf '%s\n' "$out" | grep '^  docs/plans/own-b.md' | grep -q 'BLOCKED: the human'"'"'s' &&
+   ! printf '%s\n' "$out" | grep '^  docs/plans/own-b.md' | grep -q 'PARKED'; then
+  pass "a branch's own text cannot forge a RESUME row"
+else
+  fail "a branch's own text cannot forge a RESUME row"; printf '%s\n' "$out" | indent
+fi
+expect "and the real RESUME rows still print" "PARKED #21 RESUME — the fix retired (fix21)" "$out"
+git -C "$dfwork" push -q origin --delete park-b
+git -C "$dfwork" branch -qD park-b
 # Two fixed items, one slot: one RESUME, the other waits.
 out="$(dfx env JOHARNESS_MAX_MANAGERS=1)"
 if [ "$(printf '%s\n' "$out" | grep -c 'PARKED #21 RESUME —')" = 1 ]; then
@@ -1177,6 +1205,8 @@ if [ "$(printf '%s\n' "$out" | grep -c 'PARKED #21 RESUME —')" = 1 ]; then
 else
   fail "a slot a pending spawn holds is no RESUME's"; printf '%s\n' "$out" | indent
 fi
+( cd "$dfwork" && JOHARNESS_CONF="$dfconf" ANALYSIS_FETCH=0 ./joharness.sh analysis park-a 2>&1 ) >"${TMP}/dfx-analysis.out"
+expect "analysis reads the parked row with its issue" "condition : PARKED #21" "$(cat "${TMP}/dfx-analysis.out")"
 for b in park-a park-a2 twin-c; do
   git -C "$dfwork" push -q origin --delete "$b"
   git -C "$dfwork" branch -qD "$b"
@@ -1192,6 +1222,30 @@ dfpush 1 "move fix31 onto #32"
 out="$(dfx)"
 refute "no RESUME for a rename" "PARKED #31 RESUME" "$out"
 expect "it stays parked" "PARKED #31: a defect's" "$out"
+
+# Retired after the branch left the base but before the block: an earlier
+# fix that did not hold, which the branch's history alone does not show.
+dfplan fix45 45; dfplan own-l none
+dfpush 6 "fix45 and own-l"
+git -C "$dfwork" checkout -qb park-l origin/main
+mkdir -p "${dfwork}/docs/handover"
+printf -- '---\nworkstream: own-l\nstatus: in-progress\nbranch: park-l\nplan: own-l\nsession: https://example.invalid/session_own-l\nagent: sonnet\nupdated: 2026-01-02\nnext: Build it\n---\n\n## Goal\nFixture.\n' \
+  >"${dfwork}/docs/handover/own-l.md"
+dfcommit 5 "claim own-l"
+git -C "$dfwork" checkout -q main
+git -C "$dfwork" rm -q docs/plans/fix45.md
+dfpush 4 "retire fix45"
+git -C "$dfwork" checkout -q park-l
+sed -i 's/^status: in-progress$/status: blocked/; s/^next: Build it$/next: defect: #45: still breaks/' \
+  "${dfwork}/docs/handover/own-l.md"
+dfcommit 3 "park own-l"
+git -C "$dfwork" push -qu origin park-l
+git -C "$dfwork" checkout -q main
+out="$(dfx)"
+refute "no RESUME for a retire between the fork and the block" "PARKED #45 RESUME" "$out"
+expect "it stays parked" "PARKED #45: a defect's" "$out"
+git -C "$dfwork" push -q origin --delete park-l
+git -C "$dfwork" branch -qD park-l
 
 # A retire OLDER than the block commit is an earlier fix that did not hold.
 dfplan fix41 41; dfplan own-e none
@@ -1211,7 +1265,10 @@ dfpush 4 "fix51 and own-f"
 dfpark park-f own-f 'defect: #51: the build breaks' 2
 git -C "$dfwork" checkout -qb fixer-51 main
 git -C "$dfwork" rm -q docs/plans/fix51.md
-dfcommit 1 "retire fix51"
+# The same pull request files a follow-up from the template: git's default
+# rename detection would pair the two and hide the delete.
+dfplan fix51-followup none src/fix51
+dfcommit 1 "retire fix51, file a follow-up"
 git -C "$dfwork" checkout -q main
 mkdir -p "${dfwork}/docs/plans"
 GIT_AUTHOR_DATE="@${dfnow} +0000" GIT_COMMITTER_DATE="@${dfnow} +0000" \
