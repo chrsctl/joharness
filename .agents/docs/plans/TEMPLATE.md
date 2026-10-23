@@ -57,6 +57,15 @@ Why this work exists, requester's terms. One paragraph.
   The diff reaches every consumer at its next sync, so a bar met only here
   is met in the one repo that was never the risk.
 
+## Escape
+
+<!-- Optional; required in a plan made from a `defect:` issue. Delete otherwise.
+Answer in the pull request body, each with its command:
+Entry: which merge introduced it? Bisect, or say why not.
+Gate: which check should have caught it, and why did it pass?
+Route: a gate this repo owns is fixed here or in a plan this adds; a gate
+canonical owns gets a `## Review` finding `rN: … (wontfix: canonical's file)`. -->
+
 ## Where to look
 
 - `path/to/file.py:symbol` — why this spot matters.

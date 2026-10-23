@@ -30,6 +30,15 @@ Copy [`TEMPLATE.md`](TEMPLATE.md). Sections:
 - **Out of scope** — what a helpful agent would wrongly add. Named so it
   never happens.
 - **Acceptance** — commands with expected output. All pass or not done.
+- **`## Escape`** — optional; required in a plan the clerk makes from a
+  `defect:` issue. Three questions, answered in the pull request body with
+  the command behind each answer:
+  1. **Entry** — which merge introduced it? Bisect, or say why not.
+  2. **Gate** — which check should have caught it, and why did it pass?
+  3. **Route** — a gate this repo owns is fixed in this pull request or a
+     plan it adds. A gate canonical owns gets a `## Review` finding
+     (`rN: … (wontfix: canonical's file)`) so `./joharness.sh upstream`
+     reports it.
 - **Where to look** — `path:symbol` anchors into existing code. Symbol,
   never line number: `lint_anchors` splits an anchor at the first `:` and
   checks the path only, so a stale line number stays green forever.
