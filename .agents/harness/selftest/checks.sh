@@ -90,6 +90,12 @@ expect "the uncovered ground is named on the green path too" \
   "Not covered here" "$out"
 expect "branch protection is named" "Branch protection is untouched" "$out"
 
+# --- finish runs ci by absolute path ----------------------------------------
+out="$(cd "$kcwork" && CLAUDE_PROJECT_DIR="$kcwork" JOHARNESS_CONF="${kcwork}/joharness.conf" \
+  JOHARNESS_CHECKS=local GITHUB_ACTIONS='' bash joharness.sh finish 2>&1)"
+refute "bash joharness.sh finish does not fail ci with 127" "ci: FAILED" "$out"
+expect "bash joharness.sh finish reaches ci and passes" "ci: pass" "$out"
+
 # --- a conf line never switches local mode on ------------------------------
 # The conf sits outside the worktree so it cannot make the tree dirty.
 kcconf="${TMP}/checks-local.conf"
