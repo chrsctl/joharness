@@ -27,6 +27,10 @@ Copy [`TEMPLATE.md`](TEMPLATE.md). Sections:
 
 - **Goal** — why, one paragraph, requester's terms.
 - **Scope** — files to create or touch, named.
+- **Assumptions** — one bullet each: `A<n>: <claim> — evidence: <path:symbol
+  or command> — confidence: high|medium|low`; none = one line saying so. A plan
+  added on a branch without the heading reds `ci`. The manager confirms or
+  refutes each before the build, into `## Decisions`.
 - **Out of scope** — what a helpful agent would wrongly add. Named so it
   never happens.
 - **Acceptance** — commands with expected output. All pass or not done.

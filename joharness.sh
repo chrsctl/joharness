@@ -120,6 +120,7 @@ JOHARNESS_CURATE_PLANS|10|dispatch|Plan files changed since the last curate befo
 JOHARNESS_CURATE_HOURS|168|dispatch|Hours since the last curate before one is due; 0 switches the cycle off.
 JOHARNESS_CURATE_REGISTRY|3|dispatch|Plans declaring one path before curate calls it a registry.
 JOHARNESS_CURATE_SPLIT|8|dispatch|Scope bullets before curate proposes a decompose.
+JOHARNESS_CURATE_LAYERS|3|dispatch|Distinct top-level directories in a plan scope: line before curate proposes a decompose; 0 = off.
 JOHARNESS_CLERK_HOURS|24|dispatch|Hours between clerk passes over the open issues; 0 switches the cycle off.
 JOHARNESS_CLERK_BATCH|3|dispatch|Open issues one clerk pass takes at most.
 JOHARNESS_CLERK_STALE_HOURS|24|dispatch|An unmerged clerk branch older than this holds nothing; 0 = every one holds.
@@ -505,6 +506,98 @@ ci_churn() {
   fi
 }
 
+# Broken windows: a skip marker or an open-ended note ADDED to a non-markdown
+# file is a hole the prose rule ("never skip a test") cannot count. Added lines
+# only, so what the base already carries is nobody's here. Markers are built
+# from parts so this file, and the selftest, never trip their own lint.
+BW_WORDS=("TO""DO" "FIX""ME" "X""XX")
+BW_SUBSTR=("@sk""ip" "pytest.mark.sk""ip" "unittest.sk""ip" "it.sk""ip(" "describe.sk""ip("
+  "test.sk""ip(" "x""it(" "x""describe(" ".on""ly(" "t.Sk""ip(" "#[ig""nore]")
+
+# Paths this branch's own `## Review` waives: a bullet naming `window <path>`
+# and closing with `(wontfix: <reason>)`, reason non-empty.
+bw_waived() {
+  local base="$1" ws content flag text path
+  while IFS= read -r ws; do
+    [ -n "$ws" ] || continue
+    content="$(lint_ws_content "$ws")"
+    [ -n "$content" ] || continue
+    while IFS="$TAB" read -r flag text; do
+      [ -n "$text" ] || continue
+      printf '%s' "$text" | grep -qE '\(wontfix:[[:space:]]*[^)[:space:]][^)]*\)' || continue
+      # shellcheck disable=SC2016  # the backticks are literal, for sed
+      path="$(printf '%s' "$text" |
+        grep -oE '(^|[^[:alnum:]_])window[[:space:]]+`?[^[:space:]`]+' | head -n 1 |
+        sed -E 's/^.*window[[:space:]]+`?//; s/[,;.:]+$//')"
+      [ -z "$path" ] || printf '%s\n' "$path"
+    done <<<"$(lint_review_bullets "$content")"
+  done <<<"$(fin_own_ws "$base")"
+}
+
+# "path:line: marker" for every unwaived hit on an added line.
+bw_hits() {
+  local base="$1" waived
+  waived="$(bw_waived "$base")"
+  git -C "$ROOT" -c core.quotePath=false diff --no-renames -U0 \
+    --src-prefix=a/ --dst-prefix=b/ --diff-filter=ACMRT "${base}..HEAD" 2>/dev/null |
+    BW_WAIVED="$waived" awk -v words="$(printf '%s\n' "${BW_WORDS[@]}")" \
+        -v subs="$(printf '%s\n' "${BW_SUBSTR[@]}")" \
+        '
+      function wc(c) { return c ~ /[A-Za-z0-9_]/ }
+      function found(line, m, whole,   i, rest, off, b, a) {
+        off = 0; rest = line
+        while ((i = index(rest, m)) > 0) {
+          b = (off + i > 1) ? substr(line, off + i - 1, 1) : ""
+          a = substr(line, off + i + length(m), 1)
+          if (!(wc(substr(m, 1, 1)) && wc(b)) && !(whole && wc(a))) return 1
+          off += i; rest = substr(line, off + 1)
+        }
+        return 0
+      }
+      BEGIN {
+        nw = split(words, W, "\n"); ns = split(subs, S, "\n")
+        nx = split(ENVIRON["BW_WAIVED"], X, "\n"); for (k = 1; k <= nx; k++) if (X[k] != "") wv[X[k]] = 1
+      }
+      rem == 0 && /^\+\+\+ / {
+        path = substr($0, 5); sub(/\t.*$/, "", path)
+        if (path == "/dev/null") path = ""; else sub(/^b\//, "", path)
+        next
+      }
+      /^@@ / {
+        t = $0; sub(/^@@ -[^ ]+ \+/, "", t); sub(/ .*$/, "", t)
+        n = split(t, P, ","); ln = P[1] + 0; rem = (n > 1) ? P[2] + 0 : 1
+        next
+      }
+      /^\+/ && rem > 0 {
+        rem--
+        if (path != "" && path !~ /\.md$/ && !(path in wv)) {
+          line = substr($0, 2)
+          for (k = 1; k <= nw; k++) if (found(line, W[k], 1)) { print path ":" ln ": " W[k]; break }
+          for (k = 1; k <= ns; k++) if (found(line, S[k], 0)) { print path ":" ln ": " S[k]; break }
+        }
+        ln++
+      }'
+}
+
+ci_broken_windows() {
+  local over="origin/${HANDOVER_BASE_BRANCH:-main}" base hits
+  base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)" || base=""
+  if [ -z "$base" ]; then
+    printf '  not measurable here (no merge-base; shallow checkout or base branch)\n'
+    return 0
+  fi
+  hits="$(bw_hits "$base")"
+  if [ -z "$hits" ]; then
+    printf '  clean\n'
+    return 0
+  fi
+  printf '%s\n' "$hits"
+  printf '  Added line(s) above skip a test or leave an open-ended note. Remove\n'
+  printf '  them, or waive the path in this branch'"'"'s workstream file under\n'
+  printf '  ## Review: - rN: window <path> <why> (wontfix: <reason>)\n'
+  return 1
+}
+
 cmd_ci() {
   local f listing fs
   local -a targets=()
@@ -530,6 +623,7 @@ cmd_ci() {
   run_check "finding verdicts" lint_finding_markers
   run_check "ship scope" lint_ship
   run_check churn ci_churn
+  run_check "broken windows" ci_broken_windows
   if review_on; then run_check review review_report; fi
   fs="$(fin_strength)"
   [ -z "$fs" ] || run_check finish fin_gate "$fs"
@@ -6125,7 +6219,7 @@ curate_marked_new() {
 
 cmd_curate() {
   local qout rows rel stem label scope claimed prel apply=0 old new
-  local regthr splitthr bullets reqstem hit s p
+  local regthr splitthr layersthr layers bullets reqstem hit s p
   local n_plans=0 n_held=0 n_repair=0 n_mech=0 n_declutter=0 n_propose=0 n_fixed=0
   local pass n_pass
   local repair="" declutter="" propose="" held_rows="" counts="" line plans_for kind text
@@ -6137,10 +6231,12 @@ cmd_curate() {
   esac
   regthr="$(curate_regthr)"
   splitthr="$(num_knob JOHARNESS_CURATE_SPLIT)"
+  layersthr="$(num_knob JOHARNESS_CURATE_LAYERS)"
 
   printf '== curate (REPAIR marked [apply] is mechanical: ./joharness.sh curate --apply)\n\n'
   printf 'registry  : %s+ plans declaring one path = a registry to mark shared: (JOHARNESS_CURATE_REGISTRY)\n' "$regthr"
-  printf 'split     : %s+ Scope bullets = a decompose candidate, PROPOSED never done (JOHARNESS_CURATE_SPLIT)\n\n' "$splitthr"
+  printf 'split     : %s+ Scope bullets = a decompose candidate, PROPOSED never done (JOHARNESS_CURATE_SPLIT)\n' "$splitthr"
+  printf 'layers    : %s+ top-level directories in scope: = a decompose candidate, PROPOSED never done (JOHARNESS_CURATE_LAYERS; 0 = off)\n\n' "$layersthr"
 
   # A plan a manager HOLDS draws no finding: its declarations are that manager's.
   # Unread, every held plan would read free and --apply would rewrite it.
@@ -6237,6 +6333,14 @@ cmd_curate() {
     if [ "$bullets" -ge "$splitthr" ]; then
       n_propose=$((n_propose + 1))
       propose="${propose}  ${stem}: ${bullets} Scope bullets (>= ${splitthr}) — decompose candidate. PROPOSE it; a split needs an author, and only where Scope already names separable deliverables"$'\n'
+    fi
+    if [ "$layersthr" -gt 0 ]; then
+      layers="$({ printf '%s\n' "$scope" | grep -v '^shared:' | grep . || true; } |
+        awk '{ i = index($0, "/"); print (i ? substr($0, 1, i - 1) : ".") }' | sort -u | grep -c . || true)"
+      if [ "$layers" -ge "$layersthr" ]; then
+        n_propose=$((n_propose + 1))
+        propose="${propose}  ${stem}: ${layers} top-level layers in scope (>= ${layersthr}) — decompose candidate. PROPOSE it; report-only, a split needs an author"$'\n'
+      fi
     fi
   done < <(lint_nodes docs/plans)
 
@@ -6372,6 +6476,10 @@ lint_plans_in_diff() {
       fi
     done < <(case "$held" in *" $(lint_stem "$rel") "*) ;;
                *) curate_repairs "$rel" "$counts" "$regthr" ;; esac)
+    if ! grep -q '^## Assumptions[[:space:]]*$' "${ROOT}/${rel}"; then
+      bad=$((bad + 1))
+      printf '  %s: no "## Assumptions" heading (list each guess with evidence and confidence, or say it rests on none)\n' "$rel"
+    fi
     case "$held" in *" $(lint_stem "$rel") "*) continue ;; esac
     if plan_core_only "$rel"; then
       bad=$((bad + 1))

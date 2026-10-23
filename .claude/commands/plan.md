@@ -27,9 +27,11 @@ Inline — no subagent.
    - `scope`: comma-separated path prefixes this plan will touch. Queue
      hook proves parallel safety from disjoint scopes — undeclared scope
      joins no wave. `none` only when touch-set genuinely unknowable.
-3. Sections, all six:
+3. Sections, all seven:
    - **Goal** — why, requester's terms, one paragraph.
    - **Scope** — files to create or touch, named.
+   - **Assumptions** — one bullet each: `A<n>: <claim> — evidence: <path:symbol
+     or command> — confidence: high|medium|low`; none = one line saying so.
    - **Out of scope** — what a helpful agent would wrongly add. Named.
    - **Acceptance** — runnable commands WITH expected output. All pass
      or not done.
