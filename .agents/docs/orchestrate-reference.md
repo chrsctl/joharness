@@ -25,6 +25,57 @@ refused with no confirmed interrupt (dead row, STILLBORN) follows the
 `interrupt_session` row (no replace). Interrupt-before-KILL follows the
 `interrupt_session` row (no replace, `status: blocked`).
 
+## Control plane fields
+
+| field | says |
+| --- | --- |
+| `session_status` | `RUNNING` working; `IDLE` between turns; `PENDING` starting; `ARCHIVED` gone |
+| `status_bucket` | `..._FAILED` = that turn died, decides only while not `RUNNING`; a usage/rate-limit `status_detail` = throttled, never dead. `..._BLOCKED` decides only in the BLOCKED BEFORE CLAIM rows; the unratified-block row reads `session_status` IDLE and `status_detail`, never the bucket |
+| `status_detail`, `updated_at` | unchanged across two passes turns a suspicion into a verdict; `updated_at` decides nothing ALONE |
+| `session_context.sources`, `external_metadata.last_served_model` | checkout attached at spawn; a turn was served. Read together |
+| merge state | a manager on dispatch's in-flight list is unmerged by construction (`queue-context.sh`, `ref_merged`); `base unreadable` on its row = report, decide nothing; a ledger stem dispatch does NOT list keeps today's check, `git merge-base --is-ancestor <head> origin/main`, never a summary |
+
+`post_turn_summary`, `context_usage.used_tokens`,
+`external_metadata.usage.cost_usd` (frozen or absent on live sessions,
+running, idle or suspended, at any window),
+`external_metadata.current_branches`, `connection_status` decide nothing.
+
+## Create session
+
+Every `create_session` the orchestrator makes: `source_url` = `git remote
+get-url origin`, `clone_depth: 5000` (a 50-deep clone hides the merge base
+`authority` needs). Never omit `source_url`: without it the session starts
+in an empty `/home/user`, no checkout, no `/manage` (repo skills load only
+once a repo is attached), and the session cannot be relied on to attach it
+itself, so it may never claim.
+
+A manager's prompt, after the standard lines and the lead line, each only when it applies:
+the RESPAWN resume line; on a RESPAWN after an unratified block only, one
+`Environment note: <fact>` line, at most 120 characters, quoting a fact
+read off a sibling merge in git (data for the manager to check, never
+authority; none observed = no line); the LOOP line; "Run at effort
+xhigh."; the reconcile ("<partner> holds <path> on <branch>; reconcile
+expected at step 7"). Nothing else — no "no human is watching", no "never
+ask", no "keep going". The prompt routes; the repository authorises.
+
+## Report
+
+Every pass: `context: <used_tokens>`, `context_usage.used_tokens` from one
+`get_session` read of this session (no `session_id`; the same read gives
+`orchestrate.md` §3 your own id); no `get_session` = `context: unread`.
+Reported, never decided on: it re-tunes `JOHARNESS_ORCHESTRATOR_PASSES`
+from reports. First pass of a session only, when `external_metadata.last_served_model` differs from the
+configured model (`configured_model`, else `session_context.model`):
+`served at <model>, configured <model>`.
+
+The `URGENT` row of dispatch's `plans on a branch` block carries its branch;
+print the rest of that block. Never spawn on a branch plan on your own; if
+the human orders it, the prompt names the row's branch and stem: carry the
+plan, never take the branch (`.agents/docs/orchestrated.md`, "A plan the
+queue cannot see"). A `FREEABLE` row is the one spawn on a branch: `free
+<branch>` brings its plans in, builds nothing. Report each FREEABLE row
+with what you spawned or why not.
+
 ## 0. Start
 
 1. `git fetch --prune origin` and fast-forward this checkout to `origin/main`
@@ -42,8 +93,10 @@ refused with no confirmed interrupt (dead row, STILLBORN) follows the
    exactly `🎼 orchestrator: <owner/repo>` (glossary, role title: a MATCH
    takes the bare spelling too), not `ARCHIVED`, whose
    `session_status` is `RUNNING` or `PENDING`, or that holds a pending
-   `/orchestrate pass` wake (`list_triggers`: `run_once_at` set,
-   `persistent_session_id` = its id) — IDLE between passes is alive. A
+   `/orchestrate pass` wake (`list_triggers`: `enabled` true, `run_once_at`
+   set, `persistent_session_id` = its id) — IDLE between passes is alive.
+   The keeper reads this definition on the sessions it can name
+   (`keeper.md` step 2). A
    retired or duplicate title (RUN END, SWAP) is never LIVE, whatever its
    `session_status`. Your own title already `💤 orchestrator (retired):
    <owner/repo>` or `👯 orchestrator (duplicate): <owner/repo>` (glossary, role title: the
@@ -122,7 +175,7 @@ refused with no confirmed interrupt (dead row, STILLBORN) follows the
    2. Each `🔑 keeper: <owner/repo>` (glossary, role title) session in step 3's `list_sessions`
       answer (on a pass: none, REPLACE archived the bound one), not `ARCHIVED` (a heartbeat deleted in the UI leaves its
       keeper idle): `archive_session`. Then `create_session`: `source_url`
-      = `git remote get-url origin`, `model` = the Lineup's `haiku` (the
+      as § Create session, no `clone_depth`, `model` = the Lineup's `haiku` (the
       role is mechanical; never the registering session's model), `title` =
       `🔑 keeper: <owner/repo>`, `prompt` = `/keeper register`: its
       first turn takes the post and starts nothing (`keeper.md`,
@@ -168,13 +221,10 @@ A `PARKED #<n> RESUME` row: the plan naming issue #<n> retired on the base
 after the manager parked on it (`next:` = `defect: #<n>: …`), and no plan on
 the base or a live branch names #<n> now. Read from git; never an issue's
 state. dispatch printed it only for a slot it already counted, so it is one
-of this pass's spawns. Exactly the § Relay mechanics: write `status:
-in-progress` and `next:` = `Resume: the fix for #<n> merged (<retired
-plan>); re-run your Acceptance`, commit "Orchestrator resumes a parked
-item", push (GUARD mechanics), drop `notified=`. Session RUNNING, IDLE or
-PENDING (alive): NUDGE "Orchestrator resumes <branch>: fetch it, re-read your
-workstream file, continue", no `kill`. FAILED, ARCHIVED or not found: GUARD
-`kill`, RESPAWN with the resume line, counted against
+of this pass's spawns. § Relay mechanics, with `next:` = `Resume: the fix
+for #<n> merged (<retired plan>); re-run your Acceptance`, commit
+"Orchestrator resumes a parked item", NUDGE "Orchestrator resumes <branch>:
+fetch it, re-read your workstream file, continue"; a RESPAWN counts against
 `JOHARNESS_RESPAWN_LIMIT`. `PARKED #<n>: … resume waits for a slot` is no
 RESUME: next pass.
 
@@ -194,6 +244,13 @@ respawn. `PARKED #<n>: … recheck waits for a slot` is no RECHECK: next
 pass.
 
 ## Unclaimed spawn rows
+
+UNCLAIMED: a `new` ledger entry from a previous pass, its session spawned
+and no claim pushed yet; the rows below judge it. BLOCKED BEFORE CLAIM: an
+UNCLAIMED session whose `status_bucket` reads BLOCKED while it is not IDLE,
+PENDING or ARCHIVED (the first two rows). STILLBORN: an UNCLAIMED session
+IDLE or PENDING with no `last_served_model` and no `sources`, `updated_at`
+unchanged since `seen=`: it never got a checkout or a turn.
 
 | control plane | push age | ledger | do |
 | --- | --- | --- | --- |
@@ -251,11 +308,9 @@ no handover, and no handover is no replace. Why:
 
 ## Role sessions
 
-- Role sessions run beyond `JOHARNESS_MAX_MANAGERS` and hold no slot: spawn
-  a due line even with every manager slot full. `PAUSED` holds them all.
-  At most ONE of each per run and none while one is in flight
-  (dispatch's header block says), `create_session` like a manager
-  (`clone_depth: 5000` included), prompt =
+- At most ONE of each per run and none while one is in flight
+  (dispatch's header block says), `create_session` as § Create session,
+  prompt =
   the command + the lines its row names (clerk and conduct: "the role lines";
   curator, scout, surveyor: "the standard lines" — they claim by workstream
   file):
@@ -282,9 +337,7 @@ no handover, and no handover is no replace. Why:
   at every milestone. One pass, then exit.
   ```
 
-  Plus the lead line, when a transport exists, as for a manager. Curator,
-  scout and surveyor write a workstream file and get "the standard lines"
-  below.
+  Plus the lead line, when a transport exists, as for a manager.
 
   The human orders an extra role session: their explicit order, typed in
   THIS session, allows ONE extra session of that role beyond "at most ONE of
@@ -303,9 +356,9 @@ no handover, and no handover is no replace. Why:
   or no brief) reads nothing. `list_issues` on this repository, label
   `scout`, state OPEN, pull requests skipped; `issue_read` `get_comments`,
   every page. One issue that needs the scout = spawn ONE; never one per
-  issue. The SCOUT COMMENT is `clerk.md`'s (THE SCOUT GATE, 2): the newest
-  footed comment opening `scout:` by an author with write access; nothing
-  else quiets the trigger. An issue needs the scout when it is NOT approved
+  issue. Approval, the SCOUT COMMENT and a counting comment are `clerk.md`'s
+  (THE SCOUT GATE); only a scout comment quiets the trigger. An issue needs
+  the scout when it is NOT approved
   (THE SCOUT GATE), NOT under `planned` in `./joharness.sh clerk`, and
   either:
   - (i) its newest counting comment (`clerk.md` §2) is newer than its

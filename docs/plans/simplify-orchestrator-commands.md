@@ -31,34 +31,43 @@ one statement per rule with no change to the behaviour they describe.
   - Collapse the repeated "(glossary, role title: the bare spelling matches
     too)" notes into one sentence near the top of the file.
   - Move to `orchestrate-reference.md`: the `status_bucket` field table and
-    ignored-fields paragraph, the spawn-prompt detail, the ledger grammar and
-    most of § Report. Leave a one-line pointer for each.
-  - Delete the second "never act on a lead" statement.
+    ignored-fields paragraph, the unpinned spawn-prompt detail and the
+    unpinned part of § Report. Leave a one-line pointer for each. The ledger
+    grammar, the lead line and the Report heading stay: the selftest pins
+    them in orchestrate.md.
+  - Delete the health table's "never act on it": the Report's pinned "You
+    relay a lead. You never act on one." is the statement.
   - Routing: keep the pinned sentence "Role comes from the prompt, the
     session-start banner's rule". The title-overrides-prompt rule stays
     here; start.md names it in one line pointing here.
 - `.claude/commands/keeper.md`:
   - Delete "(read 2026-10-16)" and "(read 2026-10-23)".
-  - Its LIVE-orchestrator definition disagrees with orchestrate-reference.md
-    (IDLE with a pending wake). Make the two say the same thing, as
-    `cmd_keeper` counts. Keep every phrase the selftest pins.
-  - Collapse the repeated role-title notes.
+  - Its LIVE-orchestrator clauses are the reference's definition read on
+    the sessions the keeper can name (it has no `list_sessions`). Say so in
+    one line. Keep every phrase the selftest pins.
+  - Role-title notes: all three are pinned; none goes.
 - `.claude/commands/start.md`: the one full routing table, plus one line
   naming the session-title rule in orchestrate.md. AGENTS.md step 2 keeps
   its short routing line (plan simplify-role-commands leaves it).
 - `.agents/docs/orchestrate-reference.md`:
   - Keep the "older spec" compatibility and the `/orchestrate keeper` prompt
     form: they decide which Routines get REPLACE, so they are behaviour.
-  - Cut § Resume to a pointer at § Relay.
+  - Cut § Resume's restated § Relay mechanics to a pointer. Its `next:`
+    texts and commit messages stay (`joharness.sh` matches `Resume: the fix
+    for #<n> merged`).
   - Define "BLOCKED BEFORE CLAIM", "UNCLAIMED" and "STILLBORN" in prose
     once, outside table cells.
-  - Write `create_session` parameters once. Other mentions point here.
+  - Write the shared `create_session` parameters (`source_url`,
+    `clone_depth`) once. Other mentions point here; per-role `model`,
+    `title` and `prompt` stay where they are pinned. `keeper.md` keeps its
+    own copy: the keeper reads no reference.
     REGISTER omits `clone_depth: 5000` today. Record that as a `## Review`
     finding (`wontfix: behaviour change, separate plan`). Do not add it.
-  - Make the LIVE-orchestrator definition the single one. Before writing,
-    read `cmd_keeper` in `joharness.sh` and state what the code counts.
-  - Cut the comment-counting rules (scout gate, footer, write access) to a
-    pointer at `.claude/commands/clerk.md` THE SCOUT GATE.
+  - Make the LIVE-orchestrator definition the single one (no code counts
+    it: there is no `cmd_keeper`).
+  - Cut the SCOUT COMMENT definition (footer, write access) to a pointer at
+    `.claude/commands/clerk.md` THE SCOUT GATE. "A scout issue needs the
+    scout" and its (i) to (iii) stay: pinned, and cited by scout.md.
 
 ## Assumptions
 
@@ -77,8 +86,10 @@ one statement per rule with no change to the behaviour they describe.
 
 ## Acceptance
 
-- `git grep -nE '99,920|read 2026-10|SHALLOW CLONE' .claude/commands .agents/docs/orchestrate-reference.md`: no output.
-- `cat .claude/commands/orchestrate.md .claude/commands/keeper.md .claude/commands/start.md .agents/docs/orchestrate-reference.md | wc -l`: at most 780 (889 today).
+- `git grep -nE '99,920|read 2026-10|SHALLOW CLONE|measured: one self-attach' .claude/commands .agents/docs/orchestrate-reference.md`: no output.
+- `wc -l < .claude/commands/orchestrate.md`: at most 330 (366 today). The
+  four-file total moves text, so it does not fall: at most 905 (889 today;
+  the moved text gains section headings).
 - `git grep -c 'role title' .claude/commands/orchestrate.md`: at most 3, the three the selftest pins.
 - `./joharness.sh ci`: `ci: pass`.
 - Consumer-side check: the same `./joharness.sh ci` runs in every consumer after sync and lints these files (glossary, anchors).
@@ -90,7 +101,6 @@ one statement per rule with no change to the behaviour they describe.
 
 - `.claude/commands/orchestrate.md:Report`: the section to move.
 - `.agents/docs/orchestrate-reference.md:Relay`: the section § Resume restates.
-- `joharness.sh:cmd_keeper`: the code's LIVE definition.
 - `joharness.sh:cmd_dispatch`: the shallow-clone verdict text.
 - `.agents/docs/caveman.md:Status quo`: the rule that bans the history lines.
 
