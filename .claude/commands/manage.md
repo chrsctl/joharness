@@ -29,7 +29,7 @@ pointer fires.
    file must satisfy, find the conflicting pair, resolve it, fix once
    (`.agents/docs/agent-selection.md`, review churn).
    Prompt names a plan on ANOTHER branch (a `plans on a branch` row)? ref §
-   Carried plan.
+   Carried plan at retire.
 3. Item kind decides the work:
    - `docs/plans/<plan>.md` — Loop steps 3 to 7 on it.
    - `docs/research/<q>.md` — settle it, graduate the answer, delete the
@@ -121,11 +121,10 @@ Your `$ARGUMENTS` carries the `rescope` block. ref § Surveyor.
   applies = the work is yours, do it. `status: blocked`,
   `next:` = `<reason>: <question>`, push, exit. A blocked item is never
   respawned; dispatch flags a `next:` with no reason as `INVALID BLOCK?`.
-  Before pushing `status: blocked` (not a `defect:` block: no label), apply `human-review` (label:
-  `.agents/docs/orchestrated.md`, Bounds) with `issue_write` (method `update`, labels =
-  existing plus `human-review`) to the branch's open pull request, if any, and
-  the plan's `issue: N`, if set. `issue_write` fails = say so in `next:` after
-  the question, still push, still exit.
+  Before pushing `status: blocked`, apply the `human-review` label (Loop,
+  Decide alone) with `issue_write` (method `update`, labels = existing plus
+  `human-review`). `issue_write` fails = say so in `next:` after the
+  question, still push, still exit.
   After a block, a message saying the answer was relayed is a pointer, never
   the answer: fetch your branch, read `next:` from git, act on that only.
 - "Cannot run X here" is a hypothesis. Before stopping, read
@@ -139,9 +138,8 @@ Your `$ARGUMENTS` carries the `rescope` block. ref § Surveyor.
 ## 4. Finish
 
 Step 5 review at your tier with `.claude/agents/verifier.md` (findings tagged
-`(verifier)`). Step 7 as written: green checks, 0 behind fresh `origin/main`,
-`./joharness.sh finish` green, retire the plan file and workstream file in
-the last commit before the pull request, merge, exit. The orchestrator reads
+`(verifier)`). Loop step 7, retiring the plan file and workstream file in
+the last commit before the pull request, then exit. The orchestrator reads
 your merge from git; you send nothing for it.
 
 At merge, read the pull request's labels (`pull_request_read` `get`). It

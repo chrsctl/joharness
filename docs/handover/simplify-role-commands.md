@@ -18,9 +18,18 @@ no behaviour change (plan `docs/plans/simplify-role-commands.md`).
 
 ## Decisions
 
+- A1: confirmed — `#251`, `#461`, `known limits` found at origin/main by their text; all cut.
+- A2: confirmed — clerk.md §1 and conduct.md §1 both say "no workstream file"; AGENTS.md Handover line now names clerk and conduct.
+- A3: confirmed — orchestrated.sh pins `clerk: HOLDS — plan`, `AFTER the pull request opens`, the NUMBERED ANSWER phrases and `Link the issue`; none cut.
+- scout.md renumbered §2-7 to §1-6; no file outside scout.md cites a scout.md section number (`git grep`).
+- manage-reference.md: the two Carried plan sections merged under "Carried plan at retire"; manage.md's two pointers now cite it.
+
 ## Rejected
 
 ## Review
+
+- r1: plan baseline "1381 today" is wrong — the nine files total 1351 at origin/main and at 860a3f9c, so the listed cuts reach about 1280, not 1220 (wontfix: reaching 1220 means cutting rules, which the plan forbids)
+- r2: no `role --noop` / `role --twin` flag replaces the no-op record and twin-check prose (wontfix: code change, separate plan)
 
 ## Blockers
 
