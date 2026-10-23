@@ -282,12 +282,14 @@ plan file ONLY: workstream file, review, verifier, `ci`, `verify`, `finish`
 all stay.
 
 `ci` stage `fast lane` holds a branch that declares the lane to its bound,
-and reds each breach by name. Declares = a workstream file in the tree
-saying `plan: fast`, or one the branch added and retired. Against the merge
-base with `origin/main`, working tree and untracked files included:
+and reds each breach by name. Declares = a `docs/handover/` file saying
+`plan: fast` that the branch changed, or added and retired; one inherited
+untouched from `main` binds nobody. Against the merge base with
+`origin/main`, working tree and untracked files included:
 
-- at most 3 paths changed besides that workstream file (deleted and
-  renamed paths count; other `docs/handover/` files count);
+- exactly one such file;
+- at most 3 other paths changed (deleted and renamed paths count; other
+  `docs/handover/` files count);
 - none at or under a core path (`./joharness.sh protocol-paths`) — no lane
   reaches one;
 - no plan added — the lane builds, it never queues.

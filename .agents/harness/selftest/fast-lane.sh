@@ -75,16 +75,19 @@ expect "a research node named fast is red" \
 expect "a requirement named fast is red" \
   "docs/product/fast.md: 'fast' is the fast lane's plan: value" "$out"
 
-# Two files: green, and the stage names what it measured.
+# Three files: green, and the stage names what it measured. One is a plan
+# file nested under docs/plans/, which is no plan the queue reads.
 git -C "$fwork" checkout -q main
 git -C "$fwork" checkout -qb typo
 fast_ws typo fast
 printf 'a\n' >"${fwork}/a.txt"
 printf 'b\n' >"${fwork}/b.txt"
-commit_all "$fwork" "fast: two files"
+mkdir -p "${fwork}/docs/plans/sub"
+printf 'nested\n' >"${fwork}/docs/plans/sub/x.md"
+commit_all "$fwork" "fast: three files"
 full="$(fj ci -v)"
-expect "plan: fast with 2 files is green" "2 of 3 files, no core path" \
-  "$(fast_section "$full")"
+expect "plan: fast with 3 files is green, a nested docs/plans file no plan" \
+  "3 of 3 files, no core path" "$(fast_section "$full")"
 refute "plan: fast is no DEAD claim in graph lint" "plan 'fast'" \
   "$(graph_section "$full")"
 expect "ci passes on a qualifying fast branch" "ci: pass" "$full"
@@ -110,6 +113,7 @@ refute "janitor does not call the fast claim a typo" "docs/plans/fast.md" "$out"
 
 # Four files, one of them a docs/handover/ file that is not the workstream
 # file: only the fast workstream file itself is exempt.
+git -C "$fwork" rm -q -r docs/plans/sub
 printf 'c\n' >"${fwork}/c.txt"
 printf 'n\n' >"${fwork}/docs/handover/notes.sh"
 commit_all "$fwork" "fast: four files"
@@ -120,15 +124,17 @@ expect "plan: fast with 4 files is red, docs/handover/ counted" \
 expect "ci fails on the 4-file fast branch" "ci: FAIL" "$full"
 
 # Three files, inside the bound: a core path and an added plan are each red,
-# under names git quotes (a double quote, a non-ASCII byte).
+# under names git quotes (a double quote, a newline, a non-ASCII byte). The
+# core path's name ends in a newline and the claim's own path: an exemption
+# matched as a pattern would read that as the claim.
 git -C "$fwork" rm -q b.txt c.txt docs/handover/notes.sh
-mkdir -p "${fwork}/.github"
-printf 'x\n' >"${fwork}/.github/a\"b.yml"
+mkdir -p "${fwork}/.github/a\"b"$'\n'"docs/handover"
+printf 'x\n' >"${fwork}/.github/a\"b"$'\n'"docs/handover/typo.md"
 fast_plan "é"
 commit_all "$fwork" "fast: a core path and a plan, three files"
 out="$(fast_section "$(fj ci)")"
 expect "plan: fast with a core path is red, quoted name or not" \
-  ".github/a\"b.yml: core path" "$out"
+  ".github/a\"b?docs/handover/typo.md: core path" "$out"
 expect "plan: fast adding a plan file is red, quoted name or not" \
   "docs/plans/é.md: adds a plan" "$out"
 refute "three files is inside the bound" "bound 3" "$out"
@@ -141,28 +147,49 @@ commit_all "$fwork" "retire, delete one, rename one"
 expect "a retired fast workstream file still binds; deletes and renames count" \
   "4 files touched besides docs/handover/typo.md" "$(fast_section "$(fj ci)")"
 
-# An inherited workstream file edited to plan: fast binds the same.
+# An inherited workstream file edited to plan: fast binds the same. A
+# second fast file beside it is a breach: one lane, one file.
 git -C "$fwork" checkout -q main
 git -C "$fwork" checkout -qb inherit
 sed -i.bak 's/^plan: none$/plan: fast/' "${fwork}/docs/handover/old.md"
 rm -f "${fwork}/docs/handover/old.md.bak"
+fast_ws second fast
 for _f in a b c d; do printf '%s\n' "$_f" >"${fwork}/${_f}.txt"; done
 commit_all "$fwork" "inherited file turned fast, four files"
 out="$(fast_section "$(fj ci)")"
 expect "an inherited workstream file turned fast binds the branch" \
   "4 files touched besides docs/handover/old.md" "$out"
+expect "two fast workstream files are a breach" \
+  "2 workstream files say plan: fast — one lane, one file" "$out"
 expect "review reads the same file as fast" \
   "old.md [haiku" "$(fj review)"
 
-# Nothing committed: the claim and the files are untracked, one tracked file
-# edited. The working tree is what binds.
+# Nothing committed: the claim and the files are untracked, and a tracked
+# file left on disk but removed from the index, which the diff and the
+# untracked list both name: counted once.
 git -C "$fwork" checkout -q main
 git -C "$fwork" checkout -qb loose
 fast_ws loose fast
 for _f in a b c; do printf '%s\n' "$_f" >"${fwork}/${_f}.txt"; done
-printf 'edited\n' >>"${fwork}/base.txt"
-expect "an uncommitted fast claim binds untracked and edited files" \
+git -C "$fwork" rm -q --cached base.txt
+expect "an uncommitted fast claim binds untracked files, each path once" \
   "4 files touched besides docs/handover/loose.md" "$(fast_section "$(fj ci)")"
-git -C "$fwork" checkout -q -- base.txt
+git -C "$fwork" reset -q base.txt
 rm -f "${fwork}/a.txt" "${fwork}/b.txt" "${fwork}/c.txt" "${fwork}/docs/handover/loose.md"
+git -C "$fwork" checkout -q main
+
+# A fast file on main, untouched by the branch, binds nobody: planned work
+# past 3 files stays green, and review reads it at its own tier.
+git -C "$fwork" checkout -q main
+fast_ws stale fast
+commit_all "$fwork" "a stale fast claim lands on main"
+git -C "$fwork" push -q origin main
+git -C "$fwork" checkout -qb planned2
+fast_ws planned2 none
+for _f in a b c d; do printf '%s\n' "$_f" >"${fwork}/${_f}.txt"; done
+commit_all "$fwork" "planned work beside a stale fast claim"
+expect "a stale fast file inherited untouched binds no branch" \
+  "no plan: fast workstream file on this branch" "$(fast_section "$(fj ci -v)")"
+refute "review does not read the stale file as fast" "stale.md [haiku" \
+  "$(fj review)"
 git -C "$fwork" checkout -q main
