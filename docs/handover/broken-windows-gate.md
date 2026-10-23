@@ -23,6 +23,13 @@ Make "never skip/disable a test" a ci check: added skip marker or TODO/FIXME in 
 
 ## Review
 
+- r1: .only( / @skip( / XXX hit legitimate code (ORM, GraphQL, placeholders) (verifier) (wontfix: plan lists these markers; path waiver is the plan's answer)
+- r2: waiver sed takes the LAST "window" in a bullet, no word boundary, trailing comma kept (verifier) (fixed)
+- r3: git-quoted paths (quote or tab in name) never match a waiver (verifier) (wontfix: rare; git quoting only for such names, path waiver for them out of scope)
+- r4: noprefix config makes the b/ strip eat a real b/ directory (verifier) (fixed)
+- r5: awk -v expands backslashes in waived paths (verifier) (fixed)
+- r6: sync/copy tasks have no workstream file to waive in (verifier) (no change: no tracked non-md file carries a marker today)
+
 ## Blockers
 
 None.

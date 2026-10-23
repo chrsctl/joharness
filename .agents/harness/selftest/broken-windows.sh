@@ -77,3 +77,10 @@ printf -- '---\nworkstream: bw\n---\n\n## Review\n\n- r1: window words.js no rea
 commit_all "$bwwork" "waiver without a wontfix reason"
 out="$(ci_bw)"
 expect "a bullet without a wontfix reason waives nothing" "words.js:2: TO""DO" "$out"
+
+# The path is the word after the FIRST `window`, and later prose does not move it.
+printf -- '---\nworkstream: bw\n---\n\n## Review\n\n- r1: window words.js kept, window of time (wontfix: tracked upstream)\n' \
+  >"${bwwork}/docs/handover/bw.md"
+commit_all "$bwwork" "waiver with window in the prose after it"
+out="$(ci_bw)"
+expect "a later window in the prose does not move the path" "clean" "$out"

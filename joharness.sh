@@ -526,7 +526,8 @@ bw_waived() {
       printf '%s' "$text" | grep -qE '\(wontfix:[[:space:]]*[^)[:space:]][^)]*\)' || continue
       # shellcheck disable=SC2016  # the backticks are literal, for sed
       path="$(printf '%s' "$text" |
-        sed -nE 's/.*window[[:space:]]+`?([^[:space:]`]+)`?.*/\1/p' | head -n 1)"
+        grep -oE '(^|[^[:alnum:]_])window[[:space:]]+`?[^[:space:]`]+' | head -n 1 |
+        sed -E 's/^.*window[[:space:]]+`?//; s/[,;.:]+$//')"
       [ -z "$path" ] || printf '%s\n' "$path"
     done <<<"$(lint_review_bullets "$content")"
   done <<<"$(fin_own_ws "$base")"
@@ -537,10 +538,10 @@ bw_hits() {
   local base="$1" waived
   waived="$(bw_waived "$base")"
   git -C "$ROOT" -c core.quotePath=false diff --no-renames -U0 \
-    --diff-filter=ACMRT "${base}..HEAD" 2>/dev/null |
-    awk -v words="$(printf '%s\n' "${BW_WORDS[@]}")" \
+    --src-prefix=a/ --dst-prefix=b/ --diff-filter=ACMRT "${base}..HEAD" 2>/dev/null |
+    BW_WAIVED="$waived" awk -v words="$(printf '%s\n' "${BW_WORDS[@]}")" \
         -v subs="$(printf '%s\n' "${BW_SUBSTR[@]}")" \
-        -v waived="$waived" '
+        '
       function wc(c) { return c ~ /[A-Za-z0-9_]/ }
       function found(line, m, whole,   i, rest, off, b, a) {
         off = 0; rest = line
@@ -554,7 +555,7 @@ bw_hits() {
       }
       BEGIN {
         nw = split(words, W, "\n"); ns = split(subs, S, "\n")
-        nx = split(waived, X, "\n"); for (k = 1; k <= nx; k++) if (X[k] != "") wv[X[k]] = 1
+        nx = split(ENVIRON["BW_WAIVED"], X, "\n"); for (k = 1; k <= nx; k++) if (X[k] != "") wv[X[k]] = 1
       }
       rem == 0 && /^\+\+\+ / {
         path = substr($0, 5); sub(/\t.*$/, "", path)
