@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01473SJGCfbPForWe43xj3sc
 agent: opus
 updated: 2026-10-23
-next: Research checks_gate in joharness.sh, then add the local-check run and its selftests
+next: Run ci and verify, then verifier review at opus
 ---
 
 ## Goal
@@ -19,15 +19,26 @@ required checks gate the merge instead of prose (gx #785).
 
 ## Decisions
 
-- None yet.
+- Bound by a process-group watcher (`checks_bounded`, `set -m` + kill
+  `-pgid`), not timeout(1): one code path on Linux and macOS, and the
+  check's children die with it.
+- `JOHARNESS_LOCAL_CHECK_MINUTES` is `session` scope in KNOBS: `conf` scope
+  would need conf-keys.sh and the bootstrap heredoc, outside this plan.
+  0 = one second (no zero bound: a timeout is never a skip); the selftest
+  uses it.
+- Declared = tracked in HEAD (`git cat-file -e HEAD:local-check`); an
+  ignored worktree copy is named and not run. The clean-tree refusals make
+  the worktree copy the head's, so `bash local-check` keeps `$0` useful.
+- Research `local-checks-consumer-command` is not on the base branch:
+  nothing to graduate. `sync-to-consumer.sh` needs no edit (FILES/DIRS
+  never name the path).
 
 ## Rejected
 
-- None yet.
+- Running `git show HEAD:local-check` from a temp file: breaks a check that
+  locates itself via `$0`.
 
 ## Review
-
-- None yet.
 
 ## Blockers
 

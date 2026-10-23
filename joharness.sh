@@ -106,7 +106,8 @@ KNOBS='JOHARNESS_ENV|none|conf|Directory under .agents/env/ this repo provisions
 JOHARNESS_ENV_SETUP|lazy|conf|lazy = provision on demand; eager = at session start.
 JOHARNESS_ENV_MD|lazy|conf|lazy = inject a pointer to the layer rules; eager = the file whole.
 JOHARNESS_REVIEW|off|conf|off = review reports only; on = ci gates the record at the edge.
-JOHARNESS_CHECKS|github|session|Environment only. github = step 7 waits for GitHub checks; local = finish runs ci and verify here; a conf line is ignored.
+JOHARNESS_CHECKS|github|session|Environment only. github = step 7 waits for GitHub checks; local = finish runs ci, verify and a declared local-check here; a conf line is ignored.
+JOHARNESS_LOCAL_CHECK_MINUTES|30|session|Bound on a declared local-check under JOHARNESS_CHECKS=local; over it = red, never a skip; 0 = one second.
 JOHARNESS_MAX_MANAGERS|4|dispatch|Managers in flight at once; 0 pauses spawning.
 JOHARNESS_STALL_MINUTES|45|dispatch|No push this long = cross-check, nudge.
 JOHARNESS_HEALTH_MINUTES|10|dispatch|One orchestrator pass every this many minutes.
@@ -4894,6 +4895,90 @@ checks_pushed_ref() {
   return 1
 }
 
+# The consumer's ONE declared check: a file at its repository root, outside
+# every path canonical owns or the sync writes, so its content is the
+# consumer's alone (.agents/docs/consumer-repos.md, Local checks).
+CHECKS_LOCAL_FILE=local-check
+
+# checks_bounded <secs> <log> <cmd...>: runs cmd from ROOT, output to log, in
+# its own process group so a bound kills what it started too. Returns cmd's
+# status, or 124 when the bound fired. One path everywhere: no timeout(1),
+# which macOS lacks.
+checks_bounded() {
+  local secs="$1" log="$2" mark pid w rc
+  shift 2
+  mark="$(mktemp)" && rm -f "$mark" || return 1
+  set -m
+  (cd "$ROOT" && exec "$@") >"$log" 2>&1 </dev/null &
+  pid=$!
+  set +m
+  # The watcher's own output is /dev/null: an orphan holding run_check's
+  # capture pipe would hold finish open for the whole bound.
+  (
+    trap 'kill "$s" 2>/dev/null; exit 0' TERM
+    sleep "$secs" & s=$!
+    wait "$s"
+    : >"$mark"
+    kill -TERM -- "-${pid}" 2>/dev/null
+    sleep 5 & s=$!
+    wait "$s"
+    kill -KILL -- "-${pid}" 2>/dev/null
+  ) >/dev/null 2>&1 &
+  w=$!
+  wait "$pid"; rc=$?
+  kill -TERM "$w" 2>/dev/null
+  wait "$w" 2>/dev/null
+  if [ -e "$mark" ]; then
+    rm -f "$mark"
+    return 124
+  fi
+  return "$rc"
+}
+
+# checks_local_check <base>: runs the head's declared check, if any. Prints its
+# verdict; non-zero = red.
+checks_local_check() {
+  local base="$1" f="$CHECKS_LOCAL_FILE" mins secs log rc t0 el last stat
+  if ! git -C "$ROOT" cat-file -e "HEAD:${f}" 2>/dev/null; then
+    if [ -e "${ROOT}/${f}" ]; then
+      printf '\n  %s: here but not in HEAD (ignored?) — NOT run: the merge does not carry it\n' "$f"
+    fi
+    return 0
+  fi
+  printf '\n  == bash %s (the head'"'"'s copy: declared by this repository)\n' "$f"
+  # Review is the guard, not immutability: a branch repairing a check broken
+  # on the base branch must be able to pass, so the head's copy runs.
+  if [ -z "$base" ]; then
+    printf '  CHECK CHANGED not measurable here (no merge-base) — review the file itself\n'
+  elif stat="$(git -C "$ROOT" diff --stat "${base}..HEAD" -- "$f" 2>/dev/null)" &&
+       [ -n "$stat" ]; then
+    printf '  CHECK CHANGED on this branch — edge review reads it:\n'
+    printf '%s\n' "$stat" | sed 's/^/    /'
+  fi
+  mins="$(num_knob JOHARNESS_LOCAL_CHECK_MINUTES)"
+  secs=$((mins * 60))
+  [ "$secs" -gt 0 ] || secs=1
+  log="$(mktemp)" || return 1
+  t0=$SECONDS
+  checks_bounded "$secs" "$log" bash "$f"; rc=$?
+  el=$((SECONDS - t0))
+  last="$(grep -v '^[[:space:]]*$' "$log" | tail -n 1)"
+  printf '  elapsed %ss; last line: %s\n' "$el" "${last:-(no output)}"
+  if [ "$rc" -eq 124 ] && [ "$el" -ge "$secs" ]; then
+    printf '  %s: FAILED — timeout after %ss (JOHARNESS_LOCAL_CHECK_MINUTES=%s), not mergeable\n' \
+      "$f" "$secs" "$mins"
+    rc=1
+  elif [ "$rc" -ne 0 ]; then
+    printf '  last 20 lines:\n'
+    tail -n 20 "$log" | sed 's/^/    /'
+    printf '  %s: FAILED (exit %s) — not mergeable\n' "$f" "$rc"
+  else
+    printf '  %s: pass\n' "$f"
+  fi
+  rm -f "$log"
+  [ "$rc" -eq 0 ]
+}
+
 # One line under 'github', the whole gate under 'local'.
 checks_gate() {
   local ref="$1" branch="$2" is_local="$3" ready="$4"
@@ -5010,12 +5095,19 @@ checks_gate() {
       "${CHECKS_VERIFY_PATHS[*]}"
   fi
 
+  checks_local_check "$base" || rc=1
+
   # What a green above does NOT cover.
   printf '\n  Not covered here: any job in .github/workflows/ that ci does not run\n'
   printf '  (other platforms; the per-layer step, .agents/scripts/ci-verify-layers.sh),\n'
   printf '  and whatever the selected layer'"'"'s smoke test does not test — a layer\n'
   printf '  shipping none proves nothing here. ci SKIPS loudly rather than redding\n'
   printf '  for a tool it cannot install, so read its stages, not only its verdict.\n'
+  if ! git -C "$ROOT" cat-file -e "HEAD:${CHECKS_LOCAL_FILE}" 2>/dev/null; then
+    printf '  And no consumer check declared (%s): this repository'"'"'s own suites\n' \
+      "$CHECKS_LOCAL_FILE"
+    printf '  gate nothing here.\n'
+  fi
   if [ "$(git -C "$ROOT" rev-parse --is-shallow-repository 2>/dev/null)" = true ]; then
     printf '  This clone is SHALLOW, and the workflow checks out full history: the\n'
     printf '  graph lint degrades its reds to warnings here. Unshallow before\n'

@@ -58,7 +58,7 @@ log, not markdown ([`caveman.md`](../../.agents/docs/caveman.md), Status quo).
 7. **Finish.** PR, merge to `main` yourself — own PR only (opened by this
    session, or handed to it). Merge when ALL hold:
    - GitHub checks green on head (`JOHARNESS_CHECKS=local` in the environment, never the conf: `finish` runs
-     `ci` + `verify` instead; every other workflow step then counts for
+     `ci` + `verify` + the repo's declared `local-check` instead; every other workflow step then counts for
      nothing — `.agents/docs/consumer-repos.md`, "Local checks"). Head's
      latest `lint` check run concluded `skipped` (repository variable
      `JOHARNESS_CHECKS=local`) = run `JOHARNESS_CHECKS=local ./joharness.sh

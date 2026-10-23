@@ -89,6 +89,9 @@ expect "a docs-only diff does not ask for verify" \
 expect "the uncovered ground is named on the green path too" \
   "Not covered here" "$out"
 expect "branch protection is named" "Branch protection is untouched" "$out"
+expect "no declared check is named on the green path" \
+  "no consumer check declared (local-check)" "$out"
+refute "and nothing runs in its name" "== bash local-check" "$out"
 
 # --- finish runs ci by absolute path ----------------------------------------
 out="$(cd "$kcwork" && CLAUDE_PROJECT_DIR="$kcwork" JOHARNESS_CONF="${kcwork}/joharness.conf" \
@@ -393,3 +396,97 @@ expect "session start says what finish will do" \
   "does NOT wait for GitHub Actions" "$out"
 out="$(kc_session)"
 refute "session start is silent under the default" "== Checks: LOCAL" "$out"
+
+# --- local: the consumer's one declared check ------------------------------
+# gx merged under `finish: pass` with its own audit red, because nothing but
+# prose ran it. A `local-check` at the root is the one command a consumer puts
+# behind the verdict; each case below reds without the code that reads it.
+# Branches start from main before main carries a check, then main gets one.
+git -C "$kcwork" checkout -qb kclcnone main
+git -C "$kcwork" push -qu origin kclcnone 2>/dev/null
+# An ignored copy is not the head's: running it would gate on a file no
+# merge carries.
+printf 'local-check\n' >>"${kcwork}/.git/info/exclude"
+printf 'echo ignored copy\nexit 1\n' >"${kcwork}/local-check"
+out="$(JOHARNESS_CHECKS=local kc_finish)"
+expect "an ignored local-check is named and not run" \
+  "local-check: here but not in HEAD (ignored?)" "$out"
+refute "an ignored local-check gates nothing" "ignored copy" "$out"
+if JOHARNESS_CHECKS=local kc_rc; then
+  pass "an ignored local-check is not a red"
+else
+  fail "an ignored local-check is not a red"
+fi
+rm -f "${kcwork}/local-check"
+sed -i.bak '/^local-check$/d' "${kcwork}/.git/info/exclude"
+rm -f "${kcwork}/.git/info/exclude.bak"
+
+# Mode 644 on purpose: the gate runs it with bash, so the bit never matters.
+git -C "$kcwork" checkout -qb kclc main
+printf 'echo checking\necho all good\n\n' >"${kcwork}/local-check"
+chmod 644 "${kcwork}/local-check"
+commit_all "$kcwork" "declare the consumer check"
+git -C "$kcwork" push -qu origin kclc 2>/dev/null
+out="$(JOHARNESS_CHECKS=local kc_finish)"
+expect "a passing check is a pass" "local-check: pass" "$out"
+expect "its last non-empty line is shown" "last line: all good" "$out"
+expect "its elapsed time is shown" "elapsed " "$out"
+expect "a non-executable check still runs" "== bash local-check" "$out"
+expect "a branch adding the check says so" "CHECK CHANGED on this branch" "$out"
+refute "a declared check is not reported missing" \
+  "no consumer check declared" "$out"
+if JOHARNESS_CHECKS=local kc_rc; then
+  pass "a passing check is a green finish"
+else
+  fail "a passing check is a green finish"
+fi
+
+printf 'echo checking\necho audit broken\nexit 1\n' >"${kcwork}/local-check"
+commit_all "$kcwork" "the check goes red"
+git -C "$kcwork" push -q origin kclc 2>/dev/null
+out="$(JOHARNESS_CHECKS=local kc_finish)"
+expect "a failing check is named failed" "local-check: FAILED (exit 1)" "$out"
+expect "a failing check names its last line" "last line: audit broken" "$out"
+refute "a red check never reads as the pass line" \
+  "finish: pass" "$out"
+if JOHARNESS_CHECKS=local kc_rc; then
+  fail "a failing check is a red finish"
+else
+  pass "a failing check is a red finish"
+fi
+
+# The base branch carries the check; a branch that leaves it alone runs it
+# without the CHECK CHANGED line.
+git -C "$kcwork" checkout -q main
+printf 'echo base check ok\n' >"${kcwork}/local-check"
+commit_all "$kcwork" "the base branch declares a check"
+git -C "$kcwork" push -q origin main 2>/dev/null
+git -C "$kcwork" checkout -qb kclcsame main
+printf 'same\n' >"${kcwork}/kclcsame.txt"
+commit_all "$kcwork" "work that leaves the check alone"
+git -C "$kcwork" push -qu origin kclcsame 2>/dev/null
+out="$(JOHARNESS_CHECKS=local kc_finish)"
+expect "an unchanged check runs" "last line: base check ok" "$out"
+refute "an unchanged check is not CHECK CHANGED" "CHECK CHANGED" "$out"
+
+# Over the bound is red and says timeout, never a skip. 0 minutes = one
+# second; the check's own child must die with it, or it outlives finish.
+git -C "$kcwork" checkout -qb kclcslow main
+printf 'echo started\nsleep 30\necho finished\n' >"${kcwork}/local-check"
+commit_all "$kcwork" "a check that outlives its bound"
+git -C "$kcwork" push -qu origin kclcslow 2>/dev/null
+kc_t0=$SECONDS
+out="$(JOHARNESS_LOCAL_CHECK_MINUTES=0 JOHARNESS_CHECKS=local kc_finish)"
+kc_el=$((SECONDS - kc_t0))
+expect "a check over its bound is a timeout" "FAILED — timeout after 1s" "$out"
+refute "a timed-out check never finished" "last line: finished" "$out"
+if [ "$kc_el" -lt 25 ]; then
+  pass "the bound stops the check, not the check's end"
+else
+  fail "the bound stops the check, not the check's end (${kc_el}s)"
+fi
+if JOHARNESS_LOCAL_CHECK_MINUTES=0 JOHARNESS_CHECKS=local kc_rc; then
+  fail "a timed-out check is a red finish"
+else
+  pass "a timed-out check is a red finish"
+fi
