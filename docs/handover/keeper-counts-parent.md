@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01UKGbVMqwyJLsHC7REFXAkF
 agent: sonnet
 updated: 2026-10-23
-next: Run ci and verify, spawn the verifier, record Review, then retire files and open the PR
+next: Retire plan and workstream file, open the PR, merge on green
 ---
 
 ## Goal
@@ -30,6 +30,12 @@ registering orchestrator holds no wake, and starts a second orchestrator.
 - Keeper created with no prompt: no measurement of how such a session starts.
 
 ## Review
+
+- r1: (verifier) "the guard read" unanchored in keeper.md; a literal reader could reuse a stale read (fixed: "this wake's guard `get_session` (no `session_id`)")
+- r2: (verifier) no rule for an absent or empty `parent_session_id` (fixed: "absent or empty = skip it")
+- r3: (verifier) the parent_session_id fact carried no measurement date, unlike keeper.md's other platform read (fixed: "(read 2026-10-23)")
+- r4: (verifier) only the keeper.md step 2 clause was pinned; orchestrated.md and keeper.md's last paragraph could revert green (fixed: three needles added)
+- r5: edge review: a parent stuck RUNNING or PENDING suppresses restarts, same as the last-started session already does (no change: no new hazard class)
 
 ## Blockers
 
