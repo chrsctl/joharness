@@ -34,7 +34,7 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | Role | Tier | Runs as | Spawns | Owns | Ends when |
 | --- | --- | --- | --- | --- | --- |
 | orchestrator | low, mechanical on purpose | a session; the keeper starts one | manager sessions; never an orchestrator | the cap, the health pass, the kill handover | dispatch says DRAINED with nothing in flight, or the keeper retires it |
-| keeper | sonnet | one session per repo, `keeper: <owner/repo>`, woken hourly by the heartbeat | the only spawner of orchestrators: one a wake when none is live, or a successor when the live one's wake asks to retire (`create_session`) | nothing but that check | archived at the next REGISTER or replace |
+| keeper | haiku | one session per repo, `keeper: <owner/repo>`, woken hourly by the heartbeat | the only spawner of orchestrators: one a wake when none is live, or a successor when the live one's wake asks to retire (`create_session`) | nothing but that check | archived at the next REGISTER or replace |
 | manager | the item's `agent:`; fable at xhigh for an unplanned requirement | a session with its own branch, claim and merge | worker subagents (`Agent`) | one item, until its file retires | its pull request merges, or it blocks on a human |
 | worker | at or below the plan's tier, lower by default | a subagent in the manager's container | nothing | the files its sub-task names | it returns |
 | curator | sonnet | a session, on `curate DUE` with proposals to make; prelude `./joharness.sh role curate` | nothing | decompose/order proposals for ONE pass, changing no plan | its pull request merges |

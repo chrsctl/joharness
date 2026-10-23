@@ -106,8 +106,8 @@ refused with no confirmed interrupt (dead row, STILLBORN) follows the
    2. Each `keeper: <owner/repo>` session in step 3's `list_sessions`
       answer, not `ARCHIVED` (a heartbeat deleted in the UI leaves its
       keeper idle): `archive_session`. Then `create_session`: `source_url`
-      = `git remote get-url origin`, `model` = the Lineup's `sonnet` (the
-      role is low tier; never the registering session's model), `title` =
+      = `git remote get-url origin`, `model` = the Lineup's `haiku` (the
+      role is mechanical; never the registering session's model), `title` =
       `keeper: <owner/repo>`, `prompt` = `/keeper`.
    3. `create_trigger`: `name` = `heartbeat: <owner/repo>`,
       `cron_expression` = `0 * * * *`, `persistent_session_id` = step 2's
