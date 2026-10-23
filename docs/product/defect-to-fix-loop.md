@@ -27,11 +27,14 @@ loop without the question.
 
 ## Satisfied when
 
-- A manager that finds agent-fixable work outside its plan's scope (a red
-  suite on the base branch, a defect in code another plan owns) stops
-  without a human: the work becomes an issue the clerk plans. The manager's
-  item resumes on its own once the fix merges. No `human-review` label and
-  no push to the human for that block.
+- A manager blocked by an agent-fixable defect outside its plan's scope (it
+  cannot meet its own Acceptance while the defect stands: a red suite on the
+  base branch, a defect in code another plan owns) stops without a human.
+  The defect becomes an issue the clerk plans, and the manager's item
+  resumes on its own once the fix merges. That issue and that block carry
+  no `human-review` and push nothing to the human. Requester's decision,
+  2026-10-23: only BLOCKING defects skip the hold. Every other
+  agent-filed defect keeps today's `human-review` hold.
 - A plan born from such a defect carries, as acceptance, where the defect
   entered (the merge, by bisection or reasoning from history) and which
   check passed it. A check this repo owns is fixed or planned in the same
@@ -42,13 +45,14 @@ loop without the question.
   once per edge. Before filing, the reporter reads canonical's settled
   research and pull requests on the same question: it files only what is
   new, or files nothing and says why.
-- Every step above is visible in `./joharness.sh dispatch` and leaves its
-  record in git. Harness commands still never call the GitHub API.
+- Every step above is visible in `./joharness.sh` output (`dispatch`, or
+  `review` for the escape answers) and leaves its record in git. Harness commands still never call the GitHub API.
 
 ## Constraints
 
 - Blocks that do need a human (money, credentials, product, interface,
-  core path, conflict, hardware) keep today's path unchanged.
+  core path, conflict, hardware, github, stalled, respawns) keep today's
+  path unchanged.
 - The clerk's gates (author gate, `human-review` skip, scout gate) are not
   relaxed: a defect issue enters as an issue like any other.
 - No core path edit (`./joharness.sh protocol-paths`) without a
