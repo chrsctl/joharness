@@ -316,11 +316,40 @@ then runs `JOHARNESS_CHECKS=local ./joharness.sh finish` for that one call
 variable needs that MCP read on every head, the environment variable needs
 none and switches every `finish` in that environment.
 
+One command of the consumer's own can stand behind the verdict: a file
+`local-check` at the repository root (`joharness.sh:checks_local_check`).
+Under local mode `finish` runs the HEAD's copy with `bash`, from the root,
+after `ci` and `verify`, and is red on its non-zero exit or on
+`JOHARNESS_LOCAL_CHECK_MINUTES` (default 30) running out — a timeout is
+red, never a skip. It prints the elapsed time and the last line. The path
+is outside `.agents/` and `.claude/`: canonical claims none of it
+(`upstream_harness_path`), the sync never writes it
+(`sync-to-consumer.sh` FILES and DIRS), and the shipped `.gitattributes`
+pins nothing on it. So a Windows clone with `core.autocrlf=true` checks it
+out CRLF and bash fails on the `\r`: pin it per clone
+(`local-check text eol=lf` in `.git/info/attributes`), since a pin in the
+root `.gitattributes` marks that file AHEAD (below). The consumer scopes
+its cost: a check that does nothing for a branch that touches none of its
+suite costs 0 s.
+
+The head's copy runs because a pull request repairing a check broken on
+the base branch must be able to pass. So a branch can weaken it, as it can
+weaken what `ci` runs: a branch changing `local-check` against the merge
+base prints `CHECK CHANGED on this branch` with the diff stat, and edge
+review reads it. The gate's strength is review, not immutability. A copy
+present here but not in HEAD (ignored) is named and not run.
+
 Status quo:
 
-- `finish` names the gap only in general ("Not covered here: any job in
-  .github/workflows/ that ci does not run", plus the per-layer step); its
-  verdict line says `pass`. It names no consumer job.
+- With no `local-check`, `finish` says `no consumer check declared
+  (local-check)`: the consumer's own suites gate nothing.
+- With one, its verdict is the consumer's gate under local mode, and only
+  as strong as what the file runs: a suite it does not call, or one
+  needing a database or a browser this machine lacks, still counts for
+  nothing.
+- `finish` names the rest of the gap only in general ("Not covered here:
+  any job in .github/workflows/ that ci does not run", plus the per-layer
+  step). Jobs only Actions runs count for nothing while the key holds.
 - No role runs those jobs on a clock or files their failures as issues.
 - A consumer index that counts a criterion established because the
   workflow INVOKES its suite proves nothing while the key holds: invoking
@@ -329,7 +358,8 @@ Status quo:
   about it; re-running a weaker suite instead says nothing about that one.
 
 Local mode is a posture for an outage, not for weeks: it gates merges on
-the harness's checks and nothing of the consumer's own.
+the harness's checks and, of the consumer's own, only what `local-check`
+runs.
 
 ## The sync pull request: drive it to merged
 
