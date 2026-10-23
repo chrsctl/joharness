@@ -350,6 +350,7 @@ for needle in 'Titled exactly `keeper: <owner/repo>` = run this file.' \
   'Its wake is the pending one with the highest `pass=`.' \
   'anything else = report `swap skipped: wake shape <id>`, start nothing.' \
   '`get_session` finds it titled exactly `orchestrator: <owner/repo>` and `RUNNING` or `PENDING`' \
+  'and the guard read'"'"'s `parent_session_id` (the orchestrator whose REGISTER or replace made you)' \
   'LIVE, and its pending wake'"'"'s `harness=` line carries `retire=yes` = SWAP' \
   '`run_once_at` under 5 minutes from now' \
   '`prompt` = that wake'"'"'s `derived_state.prompt` with `pass=1`, `retire=yes` removed and every `lead` line removed' \

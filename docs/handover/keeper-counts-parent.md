@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01UKGbVMqwyJLsHC7REFXAkF
 agent: sonnet
 updated: 2026-10-23
-next: Edit keeper.md step 2 to count parent_session_id LIVE, pin it in the selftest
+next: Run ci and verify, spawn the verifier, record Review, then retire files and open the PR
 ---
 
 ## Goal

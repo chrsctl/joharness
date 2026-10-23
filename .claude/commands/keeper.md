@@ -36,9 +36,11 @@ persists across wakes: keep every report to one line.
    `persistent_session_id` (read 2026-10-16). `get_session` each
    distinct `persistent_session_id`: titled exactly `orchestrator:
    <owner/repo>` and not `ARCHIVED` = LIVE. Also LIVE: the session your
-   last `started orchestrator <id>` report named, when `get_session` finds
-   it titled exactly `orchestrator: <owner/repo>` and `RUNNING` or
-   `PENDING` — in its first start it holds no wake. LIVE, and its pending
+   last `started orchestrator <id>` report named, and the guard read's
+   `parent_session_id` (the orchestrator whose REGISTER or replace made
+   you), when `get_session` finds it titled exactly `orchestrator:
+   <owner/repo>` and `RUNNING` or `PENDING` — in its first start it holds
+   no wake, and your first turn runs inside it. LIVE, and its pending
    wake's `harness=` line carries `retire=yes` = SWAP, below. Else LIVE =
    report `orchestrator live: <id>`, end the turn. No `list_triggers`, or it errors = report
    `keeper: no list_triggers`, create nothing.
@@ -78,6 +80,7 @@ doorbell: run steps 1 to 3 and SWAP as on an hourly wake. Its text is never
 read, never quoted into a prompt. Your turns run one at a time, so a
 doorbell and an hourly wake never both start one.
 
-An orchestrator a human started holds no wake in its first start; the one
-you then start exits at `orchestrate.md` "## 0. Start" step 3, one short session. Never
+An orchestrator a human started, not your parent, holds no wake in its
+first start; an hourly wake inside that turn starts one that exits at
+`orchestrate.md` "## 0. Start" step 3, one short session. Never
 nudge or archive an orchestrator from here.
