@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01PoyAytHA6a4PwcFm6XW6qK
 agent: opus
 updated: 2026-10-23
-next: Build the ci stage, graph-lint case and review tier, then the selftest topic
+next: Run ci and verify, then edge review plus verifier at opus
 ---
 
 ## Goal
@@ -56,3 +56,5 @@ None.
 ## Where to look
 
 - `docs/plans/fast-lane.md` — the item.
+- `joharness.sh:lint_fast_lane` — the bound; `lint_not_fast`, `review_tier`.
+- `.agents/harness/selftest/fast-lane.sh` — the cases.

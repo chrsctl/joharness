@@ -576,6 +576,7 @@ SELFTEST_TOPICS=(
   checks
   ci-promote
   review
+  fast-lane
   upstream
   feedback
   feedback-recurrence

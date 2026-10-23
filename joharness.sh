@@ -525,6 +525,7 @@ cmd_ci() {
   run_check glossary lint_glossary
   run_check "graph lint" lint_graph
   run_check "plans on this branch" lint_plans_in_diff
+  run_check "fast lane" lint_fast_lane
   run_check "finding ids" lint_finding_ids
   run_check "finding verdicts" lint_finding_markers
   run_check "ship scope" lint_ship
@@ -910,6 +911,14 @@ lint_issue() {
   esac
 }
 
+# `plan: fast` is the fast lane, never a stem. A node of that name would make
+# every fast-lane workstream a claim on it.
+FAST_LANE="fast"
+lint_not_fast() {
+  [ "$(lint_stem "$1")" != "$FAST_LANE" ] ||
+    lint_red "${1}: '${FAST_LANE}' is the fast lane's plan: value, never an item stem; rename the file"
+}
+
 lint_graph() {
   LINT_RC=0
   LINT_WARNED=0
@@ -928,6 +937,7 @@ lint_graph() {
       read -r rq; read -r pstem; read -r pscope; read -r piss; } \
       <<<"$(gr_fields urgency agent effort needs requirement research plan scope issue <"${ROOT}/${rel}")"
     lint_required "$rel" plan "$pstem"
+    lint_not_fast "$rel"
     # Optional: the issue a clerk turned into this plan.
     lint_issue "$rel" "$piss" "the clerk drops it and the issue reads as unplanned"
     lint_required "$rel" urgency "$urgency"
@@ -993,6 +1003,7 @@ lint_graph() {
       read -r rstem; } \
       <<<"$(gr_fields urgency agent effort graduates research <"${ROOT}/${rel}")"
     fstem="$(lint_stem "$rel")"
+    lint_not_fast "$rel"
     if [ -z "$rstem" ] &&
        ! printf '%s' "$rrefs" | grep -qxF -- "$fstem"; then
       if ! grep -qE "^research:[[:space:]]*${fstem//./\\.}[[:space:]]*(#.*)?$" \
@@ -1048,7 +1059,10 @@ lint_graph() {
     fi
     lint_enum "$rel" agent "$agent" haiku sonnet opus fable
     p="$(lint_stem "$p")"
-    if [ -n "$p" ] && [ "$p" != "none" ] &&
+    # The fast lane claims no item; `fast lane` in ci checks its bounds.
+    if [ "$p" = "$FAST_LANE" ]; then
+      :
+    elif [ -n "$p" ] && [ "$p" != "none" ] &&
        { [ -f "${ROOT}/docs/research/${p}.md" ] ||
          [ -f "${ROOT}/docs/product/${p}.md" ]; }; then
       :
@@ -1073,6 +1087,7 @@ lint_graph() {
   while IFS= read -r rel; do
     [ -n "$rel" ] || continue
     reqs=$((reqs + 1))
+    lint_not_fast "$rel"
     lint_enum "$rel" priority \
       "$(gr_field priority <"${ROOT}/${rel}")" normal urgent
   done < <(lint_nodes docs/product)
@@ -1259,8 +1274,11 @@ ensure_shellcheck() {
 # the tier of the plan it claims, else the default from the selection rules.
 review_tier() {
   local doc="$1" tier="$2" plan
+  plan="$(lint_stem "$(printf '%s\n' "$doc" | gr_field plan)")"
+  # The fast lane's bound is what makes one pass enough, so its depth is
+  # fixed whatever `agent:` says (.agents/docs/plans/README.md, Fast lane).
+  [ "$plan" != "$FAST_LANE" ] || tier="haiku"
   if [ -z "$tier" ]; then
-    plan="$(lint_stem "$(printf '%s\n' "$doc" | gr_field plan)")"
     if [ -n "$plan" ] && [ "$plan" != "none" ] &&
        [ -f "${ROOT}/docs/plans/${plan}.md" ]; then
       tier="$(gr_field agent <"${ROOT}/docs/plans/${plan}.md")"
@@ -6367,6 +6385,67 @@ lint_plans_in_diff() {
     return 0
   fi
   printf '\n  %s problem(s) in plans this branch adds.\n' "$bad"
+  return 1
+}
+
+# A branch whose own workstream file says `plan: fast` skips the plan file
+# and nothing else; this is what proves it qualifies. Working tree against
+# the merge base, as plans_in_diff reads it, so ci catches a breach before
+# the commit does.
+FAST_LANE_FILES=3
+lint_fast_lane() {
+  local over="origin/${HANDOVER_BASE_BRANCH:-main}" base ws fast="" paths f c n=0 bad=0
+  local core
+  base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
+  if [ -z "$base" ]; then
+    printf '  not measurable here (no merge-base with %s)\n' "$over"
+    return 0
+  fi
+  while IFS= read -r ws; do
+    [ -n "$ws" ] || continue
+    [ "$(lint_stem "$(lint_ws_content "$ws" | gr_field plan)")" = "$FAST_LANE" ] &&
+      fast="${fast}${fast:+, }${ws}"
+  done <<<"$(fin_own_ws "$base")"
+  if [ -z "$fast" ]; then
+    printf '  no plan: %s workstream file on this branch\n' "$FAST_LANE"
+    return 0
+  fi
+  # The workstream file is the lane's own cost and is retired before the
+  # merge: it never counts toward the bound.
+  paths="$(
+    {
+      git -C "$ROOT" -c core.quotePath=false diff --no-renames --name-only "$base" 2>/dev/null
+      git -C "$ROOT" -c core.quotePath=false ls-files --others --exclude-standard 2>/dev/null
+    } | awk 'NF && !/^docs\/handover\//' | sort -u)"
+  core="$(protocol_paths)"
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    n=$((n + 1))
+    while IFS= read -r c; do
+      case "$f" in
+        "$c" | "$c"/*)
+          bad=$((bad + 1))
+          printf '  %s: core path (./joharness.sh protocol-paths) — no lane reaches one\n' "$f" ;;
+      esac
+    done <<<"$core"
+  done <<<"$paths"
+  if [ "$n" -gt "$FAST_LANE_FILES" ]; then
+    bad=$((bad + 1))
+    printf '  %s files touched outside docs/handover/, bound %s — write a plan\n' \
+      "$n" "$FAST_LANE_FILES"
+  fi
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    bad=$((bad + 1))
+    printf '  %s: adds a plan — the fast lane builds, it never queues\n' "$f"
+  done < <(plans_in_diff "$base")
+  if [ "$bad" -eq 0 ]; then
+    printf '  %s: plan: %s, %s of %s files, no core path, no plan added\n' \
+      "$fast" "$FAST_LANE" "$n" "$FAST_LANE_FILES"
+    return 0
+  fi
+  printf '\n  %s breach(es) of the fast lane (%s; .agents/docs/plans/README.md, Fast lane).\n' \
+    "$bad" "$fast"
   return 1
 }
 
