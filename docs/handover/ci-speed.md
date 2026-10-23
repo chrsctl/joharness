@@ -40,6 +40,16 @@ container (650 s at origin/main), real `dispatch` under 5 s, same pass count.
 - dispatch_done_evidence memoizes each blob's verdict per process: the
   same `git show` + awk ran once per branch walk (441 shows on one fixture
   dispatch).
+- Merge bases with the base branch primed once per `dispatch` (mb_prime,
+  base_mb): 107 merge-base execs for 16 distinct pairs were 2.2 s of 6.9 s.
+  Re-primed after the hooks when DRAIN_FETCH lets them fetch.
+- Plan item 3 (cp -a fixture reuse): nothing to reuse. Each of the 16
+  dispatch fixtures is built once (two `git init` each), never per case; the
+  topic's time is its ~95 `dispatch` calls (3.7 s each in the block-reason
+  cases), which the two memos above shrink.
+- Bash guard's time-bounded cases (pretool-bash-guard, bounds 4 s and 15 s)
+  stay in the pool: read 0-1 s in every parallel run (par1, par2, par3) vs
+  0-1 s serial.
 
 ## Rejected
 

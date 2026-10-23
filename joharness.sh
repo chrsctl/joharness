@@ -2623,6 +2623,36 @@ refs_merged() {
     refs/remotes/origin </dev/null 2>/dev/null
 }
 
+# Merge bases with the base branch, primed (mb_prime) for every unmerged
+# origin ref before dispatch's readers fork: seven of them asked git the same
+# 16 questions 107 times, 2.2 s of a 6.9 s `dispatch` on this repository
+# (2026-10-23). `\n<ref>\t<sha>`; an empty sha = no merge base.
+MB_MEMO=""
+mb_prime() {
+  local over="refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" r memo=""
+  while IFS= read -r r; do
+    [ -n "$r" ] || continue
+    memo="${memo}"$'\n'"${r}"$'\t'"$(git -C "$ROOT" merge-base "$r" "$over" \
+      </dev/null 2>/dev/null)"
+  done <<<"$(refs_unmerged "$over")"
+  MB_MEMO="$memo"
+}
+
+# <ref>: `git merge-base <ref> <base>`, its output and its failure, from the
+# memo when mb_prime saw the ref.
+base_mb() {
+  local rest
+  case "$MB_MEMO" in
+    *$'\n'"${1}"$'\t'*)
+      rest="${MB_MEMO#*$'\n'"${1}"$'\t'}"
+      rest="${rest%%$'\n'*}"
+      [ -n "$rest" ] || return 1
+      printf '%s\n' "$rest" ;;
+    *) git -C "$ROOT" merge-base "$1" \
+         "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" </dev/null 2>/dev/null ;;
+  esac
+}
+
 # Unmerged origin branches that OWN a workstream file: `<branch>\t<path>`.
 claim_branches() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" r name base f
@@ -2630,8 +2660,7 @@ claim_branches() {
     while IFS= read -r r; do
       name="${r#refs/remotes/origin/}"
       { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
-      base="$(git -C "$ROOT" merge-base "$r" \
-        "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)" || continue
+      base="$(base_mb "$r")" || continue
       [ -n "$base" ] || continue
       while IFS= read -r f; do
         [ -n "$f" ] || continue
@@ -5339,8 +5368,7 @@ dispatch_retired_edges() {
         # NO merge base = ownership cannot be computed here at all, and a
         # shallow clone is how that happens: grafted history, most refs
         # unreachable from the base.
-        base="$(git -C "$ROOT" merge-base "$r" \
-          "refs/remotes/origin/${base_branch}" 2>/dev/null)"
+        base="$(base_mb "$r")"
         if [ -z "$base" ]; then unver=$((unver + 1)); continue; fi
         git -C "$ROOT" diff --name-only --diff-filter=ACMRT "$base" "$r" \
           -- docs/handover 2>/dev/null | gr_docs | grep -q . && continue
@@ -5625,8 +5653,7 @@ dispatch_curate_branches() {
     cand="$(git -C "$ROOT" ls-tree -r --name-only "$r" -- docs/handover \
       </dev/null 2>/dev/null | grep -i curate)" || continue
     [ -n "$cand" ] || continue
-    base="$(git -C "$ROOT" merge-base "$r" \
-      "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)"
+    base="$(base_mb "$r")"
     [ -n "$base" ] || continue
     files="$(git -C "$ROOT" diff --name-only --diff-filter=ACMRT "$base" "$r" \
       -- docs/handover </dev/null 2>/dev/null | gr_docs)"
@@ -6088,8 +6115,7 @@ dispatch_rescope_branches() {
     [ -n "$r" ] || continue
     name="${r#refs/remotes/origin/}"
     { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
-    base="$(git -C "$ROOT" merge-base "$r" \
-      "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)"
+    base="$(base_mb "$r")"
     [ -n "$base" ] || continue
     # Workstream files this branch ADDED against the base, read there.
     files="$(git -C "$ROOT" diff --name-only --diff-filter=ACMRT "$base" "$r" \
@@ -6226,8 +6252,7 @@ dispatch_branch_plans() {
     name="${r#refs/remotes/origin/}"
     { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
     [ -z "$only" ] || [ "$name" = "$only" ] || continue
-    base="$(git -C "$ROOT" merge-base "$r" \
-      "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)"
+    base="$(base_mb "$r")"
     [ -n "$base" ] || continue
     plans="$(git -c core.quotePath=false -C "$ROOT" diff --no-renames \
       --name-only --diff-filter=A "$base" "$r" \
@@ -6339,8 +6364,7 @@ dispatch_branch_plans() {
 # never opened or was closed, and nothing else can release it.
 free_claimed_ever() {
   local base line h="" doc ws wp age
-  base="$(git -C "$ROOT" merge-base "$1" \
-    "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" </dev/null 2>/dev/null)" || return 1
+  base="$(base_mb "$1")" || return 1
   [ -n "$base" ] || return 1
   while IFS= read -r line; do
     case "$line" in
@@ -6425,8 +6449,7 @@ dispatch_freeable() {
     # The same charset dispatch_branch_plans prints: one name for both reads.
     [ "$(printf '%s' "$name" | tr -cd 'A-Za-z0-9._/-')" = "$name" ] || continue
     case "$claimed" in *" $(free_key "$name") "*) continue ;; esac
-    base="$(git -C "$ROOT" merge-base "$r" \
-      "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)"
+    base="$(base_mb "$r")"
     [ -n "$base" ] || continue
     paths="$(git -c core.quotePath=false -C "$ROOT" diff --no-renames \
       --name-only "$base" "$r" </dev/null 2>/dev/null)"
@@ -6573,6 +6596,7 @@ cmd_dispatch() {
         { warn "fetch failed; push ages below are from the last fetch"; fetch_failed=1; }
     fi
   fi
+  mb_prime
   printf 'cap       : %s manager(s) at once (JOHARNESS_MAX_MANAGERS)\n' "$cap"
   printf 'stall     : %s min without a push = cross-check the control plane (JOHARNESS_STALL_MINUTES)\n' "$stall"
   printf 'health    : one pass every %s min (JOHARNESS_HEALTH_MINUTES)\n' "$health"
@@ -6809,6 +6833,8 @@ cmd_dispatch() {
     return 1
   fi
   qout="$DRAIN_OUT"
+  # A hook told to fetch may have moved the refs the memo read.
+  [ "${DRAIN_FETCH:-0}" = 0 ] || mb_prime
 
   # Every plan, research and requirement row as path|label, every row. A
   # requirement row matters here only CLAIMED — it is the planning manager's
