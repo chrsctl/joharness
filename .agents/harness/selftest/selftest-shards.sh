@@ -11,7 +11,7 @@
 # exit; a chain sees what its earlier member built; a unit that dies is a
 # FAIL, never a missing count.
 #
-# shellcheck shell=bash disable=SC2154
+# shellcheck shell=bash disable=SC2154,SC2016,SC2034
 
 step "selftest runner: parallel shards"
 

@@ -759,6 +759,7 @@ selftest_unit() {
   (
     TMP="${_st_out}/u${_st_n}.tmp"
     mkdir -p "$TMP" || exit 1
+    # shellcheck disable=SC2030  # the unit's own counts, written below
     PASS=0 FAIL=0 SKIP=0
     for _st_t in "$@"; do
       # shellcheck source=/dev/null
@@ -812,6 +813,7 @@ selftest_shards() {
     done
     [ ! -s "${out}/u${n}.log" ] || cat "${out}/u${n}.log"
     if read -r p f k <"${out}/u${n}.counts" 2>/dev/null; then
+      # shellcheck disable=SC2031  # the totals; each unit counted its own
       PASS=$((PASS + p)) FAIL=$((FAIL + f)) SKIP=$((SKIP + k))
     else
       rc="$(cat "${out}/u${n}.done" 2>/dev/null)"
