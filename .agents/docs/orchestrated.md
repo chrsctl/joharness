@@ -491,8 +491,8 @@ re-warm ($5.12 for a first turn after 22h idle, then $0.28-$0.99 a turn at
 about 638k context; `total_cost_usd` of `list_events` `result` events,
 2026-10-12). A resumed orchestrator whose last final
 report is over an hour old says `fresh session is cheaper`, when RUN END's
-retitle was refused, on its first pass (`orchestrate.md`, "Report, every
-pass"). Within one run the cost compounds
+retitle was refused, on its first pass (`orchestrate-reference.md`, "Fresh
+session line"). Within one run the cost compounds
 too (`context_usage.used_tokens` 304,615 over 13 health passes, `get_session`,
 2026-10-13), because `send_later` wakes the SAME session and pass N re-reads
 passes 1..N-1. So after `JOHARNESS_ORCHESTRATOR_PASSES` passes the
