@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01HuuPifuctaMpBahDKhKV5b
 agent: opus
 updated: 2026-10-23
-next: Write simplification plans under docs/plans/ from the protocol audit
+next: Record verifier findings in ## Review, fix, open plans-only PR
 ---
 
 ## Goal
