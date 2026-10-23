@@ -154,6 +154,9 @@ layerplan "a/x, a/y"
 refute "two paths under one directory are one layer" "top-level layers in scope" "$(cw)"
 layerplan "a/x, shared:b/y, shared:c/z"
 refute "shared: entries are not counted" "top-level layers in scope" "$(cw)"
+layerplan "a.sh, b/x, c/y"
+expect "a root file counts as one layer, named ." \
+  "big: 3 top-level layers in scope (>= 3)" "$(cw)"
 layerplan "src/real.py"
 
 # DECLUTTER: a requirement gone from the tree, served by no other plan.

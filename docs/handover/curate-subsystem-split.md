@@ -19,6 +19,13 @@ Add a `JOHARNESS_CURATE_LAYERS` PROPOSE signal to `curate` (plan: curate-subsyst
 
 - Small shared-file edit: built directly, no worker fan-out.
 
+## Review
+
+- r1: first path component is coarse here (every `.agents/*` path is one layer); matches the plan wording, signal rarely fires on this repo (verifier) (wontfix: plan specifies first components)
+- r2: root-file-counts-as-`.` rule had no selftest case (verifier) (fixed: case `a.sh, b/x, c/y` added)
+- r3: output line appends text beyond the plan wording; selftest matches the prefix (verifier) (no change)
+- r4: `./joharness.sh curate` on this branch prints NOTHING TO CURATE; no queue plan trips it (no change)
+
 ## Blockers
 
 None.
