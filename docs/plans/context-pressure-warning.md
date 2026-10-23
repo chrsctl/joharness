@@ -22,9 +22,8 @@ compaction, not after.
 
 ## Scope
 
-Re-scoped on the branch (the orchestrator, on the human's delegation): every
-registered hook runs from the working tree, so editing one changes the hook on
-the building session's own calls, and auto mode refuses that.
+Every registered hook runs from the working tree, so the hook is built
+standalone and unregistered; registration is the one core edit.
 
 - `.agents/harness/context-watch.sh` (new), a standalone PreToolUse hook that
   prints its own `additionalContext` envelope. It reads the payload's
@@ -32,8 +31,9 @@ the building session's own calls, and auto mode refuses that.
   bounded tail (input + cache read + cache creation tokens), and computes a
   percentage of `JOHARNESS_CONTEXT_WINDOW`. At or above
   `JOHARNESS_CONTEXT_WARN` it prints a WARN line, at or above
-  `JOHARNESS_CONTEXT_CRIT` a CRIT line, each at most once per session (a
-  marker in the session's scratch directory). Nothing below the warning.
+  `JOHARNESS_CONTEXT_CRIT` a CRIT line, each at most once per climb (a
+  marker in the session's scratch directory, cleared when the context falls
+  back under the lowest live level). Nothing below the warning.
 - `joharness.sh` knob table: `JOHARNESS_CONTEXT_WINDOW` (1000000),
   `JOHARNESS_CONTEXT_WARN` (65), `JOHARNESS_CONTEXT_CRIT` (80), scope
   `session`; 0 switches a level off.
@@ -60,6 +60,8 @@ the building session's own calls, and auto mode refuses that.
   and exit 0.
 - `./joharness.sh verify`: 0 failed.
 - `./joharness.sh conf` lists the three knobs with their defaults.
+- A `human/context-pressure-warning` pull request carrying only the
+  `.claude/settings.json` registration is open and labelled `human-review`.
 
 ## Where to look
 

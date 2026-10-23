@@ -72,6 +72,19 @@ expect "a WARN at 70%" "WARN" "$ctxw_out"
 ctxw c "$(ctxw_payload s1 "$t85")" JOHARNESS_CONTEXT_WINDOW=1000
 expect "then 85% in the same session gives the CRIT" "${ctxw_envelope}CRIT" "$ctxw_out"
 
+# --- a compaction re-arms: back under the warning, the next climb warns ----
+ctxw s "$(ctxw_payload s1 "$t85")" JOHARNESS_CONTEXT_WINDOW=1000
+expect "CRIT before the compaction" "CRIT" "$ctxw_out"
+ctxw_entry 100 >"${ctxw_dir}/t10.jsonl"
+ctxw s "$(ctxw_payload s1 "${ctxw_dir}/t10.jsonl")" JOHARNESS_CONTEXT_WINDOW=1000
+ctxw_silent "10% after it prints nothing"
+ctxw s "$(ctxw_payload s1 "$t70")" JOHARNESS_CONTEXT_WINDOW=1000
+expect "and the climb back to 70% warns again" "${ctxw_envelope}WARN" "$ctxw_out"
+ctxw s "$(ctxw_payload s1 "$t70")" JOHARNESS_CONTEXT_WINDOW=1000
+ctxw_silent "once"
+ctxw s "$(ctxw_payload s1 "$t85")" JOHARNESS_CONTEXT_WINDOW=1000
+expect "and 85% says CRIT again" "${ctxw_envelope}CRIT" "$ctxw_out"
+
 # --- below the line, and the levels switched off ----------------------------
 t50="${ctxw_dir}/t50.jsonl"
 ctxw_entry 500 >"$t50"
@@ -86,8 +99,6 @@ ctxw f "$(ctxw_payload s1 "$t85")" JOHARNESS_CONTEXT_WINDOW=1000 \
 ctxw_silent "both levels 0 = off"
 ctxw f "$(ctxw_payload s1 "$t85")" JOHARNESS_CONTEXT_WINDOW=0
 ctxw_silent "a window of 0 is off, not a division by zero"
-ctxw f "$(ctxw_payload s1 "$t85")" JOHARNESS_CONTEXT_WINDOW=abc
-ctxw_silent "a non-number falls back to the default window (850 of 1000000)"
 ctxw g "$(ctxw_payload s1 "$t70")" JOHARNESS_CONTEXT_WINDOW=01000
 expect "a leading zero is decimal, not octal" "(700 of 1000 tokens)" "$ctxw_out"
 ctxw g2 "$(ctxw_payload s1 "$t70")" JOHARNESS_CONTEXT_WINDOW=1000 \
@@ -112,10 +123,16 @@ expect "conf lists the window with its default" "JOHARNESS_CONTEXT_WINDOW = 1000
 expect "conf lists the warning level with its default" "JOHARNESS_CONTEXT_WARN = 65 (default)" "$ctxw_conf"
 expect "conf lists the critical level with its default" "JOHARNESS_CONTEXT_CRIT = 80 (default)" "$ctxw_conf"
 
-# A conf line answers when the environment does not.
-printf '# fixture\n  JOHARNESS_CONTEXT_WINDOW = 1000 \n' >"${ctxw_dir}/k.conf"
+ctxw_entry 700000 >"$tdef"
+ctxw f "$(ctxw_payload s1 "$tdef")" JOHARNESS_CONTEXT_WINDOW=abc
+expect "a non-number falls back to the default window" \
+  "context 70% full (700000 of 1000000 tokens)" "$ctxw_out"
+
+# Scope session: the environment only, as conf reads it. A conf line that
+# would make 700 tokens 70% is not read.
+printf '# fixture\nJOHARNESS_CONTEXT_WINDOW=1000\n' >"${ctxw_dir}/k.conf"
 ctxw k "$(ctxw_payload s1 "$t70")" JOHARNESS_CONF="${ctxw_dir}/k.conf"
-expect "a conf line sets the window" "context 70% full (700 of 1000 tokens)" "$ctxw_out"
+ctxw_silent "a conf line is not a session knob: not read"
 
 # --- which usage counts -----------------------------------------------------
 tlast="${ctxw_dir}/tlast.jsonl"
@@ -182,3 +199,9 @@ else
   fail "and its marker stays inside the scratch directory"
   printf '%s\n' "$(indent "$(ls -la "${ctxw_dir}" "${ctxw_dir}/scratch-r" 2>&1)")"
 fi
+
+# The registration runs the file by path: committed without its exec bit, the
+# shell answers 126 and `|| exit 0` hides it. Every case above runs it through
+# `bash`, which ignores the bit, so this is the one that sees it.
+ctxw_mode="$(git -C "$ROOT" ls-files -s .agents/harness/context-watch.sh | cut -d' ' -f1)"
+expect "the hook is committed executable" "100755" "$ctxw_mode"

@@ -9,20 +9,18 @@
 # the transcript's tail, and sums input + cache read + cache creation tokens
 # against JOHARNESS_CONTEXT_WINDOW. At or above JOHARNESS_CONTEXT_WARN percent
 # it prints a WARN envelope, at or above JOHARNESS_CONTEXT_CRIT a CRIT one.
-# Each level fires once per session (a marker in the session's scratch
+# Each level fires once per climb (a marker in the session's scratch
 # directory, pretool-feedback.sh's precedent); CRIT also marks WARN, so a
-# session that jumps past both hears the louder one only. 0 switches a level
-# off.
+# session that jumps past both hears the louder one only. A compaction keeps
+# the session id and drops the context: back under the lowest live level, the
+# markers clear, and the next climb warns again. 0 switches a level off.
 #
 # FAILS OPEN, always: no transcript, an unreadable one, no usage, a payload it
 # cannot read — exit 0, say nothing. It never denies: exit 0 on every path.
 # It sits in front of every matching tool call, so it reads a bounded tail
-# (`tail -c`), never the whole file, and does no read at all once both levels
-# have fired.
+# (`tail -c`), never the whole file.
 
 set -uo pipefail
-
-PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd)}"
 
 input=""
 IFS= read -r -d '' input 2>/dev/null || true
@@ -44,21 +42,10 @@ transcript="${transcript//\\\//\/}"
 transcript="${transcript//\\\\/\\}"
 [ -n "$transcript" ] && [ -f "$transcript" ] && [ -r "$transcript" ] || exit 0
 
-# num_knob's rules without forking joharness.sh: environment, then the conf
-# line, then the default; digits only, leading zeros dropped, at most nine.
-conf="${JOHARNESS_CONF:-${PROJECT_DIR}/joharness.conf}"
+# num_knob's rules without forking joharness.sh. Scope `session`: the
+# environment only, as `./joharness.sh conf` reads it; a conf line is not one.
 knob() {
-  local v="${!1:-}" k line
-  if [ -z "$v" ] && [ -r "$conf" ]; then
-    while IFS= read -r line || [ -n "$line" ]; do
-      line="${line#"${line%%[![:space:]]*}"}"
-      k="${line%%=*}"
-      k="${k%"${k##*[![:space:]]}"}"
-      [ "$k" = "$1" ] && [ "$k" != "$line" ] && v="${line#*=}"
-    done <"$conf"
-    v="${v#"${v%%[![:space:]]*}"}"
-    v="${v%"${v##*[![:space:]]}"}"
-  fi
+  local v="${!1:-}"
   case "$v" in '' | *[!0-9]*) v="$2" ;; esac
   v="${v#"${v%%[!0]*}"}"
   [ -n "$v" ] || v=0
@@ -82,10 +69,6 @@ chmod 700 "$scratch" 2>/dev/null || exit 0
 warn_mark="${scratch}/warn"
 crit_mark="${scratch}/crit"
 
-# Every live level already fired: nothing left to say, so read nothing.
-{ [ "$warn" -eq 0 ] || [ -e "$warn_mark" ]; } &&
-  { [ "$crit" -eq 0 ] || [ -e "$crit_mark" ]; } && exit 0
-
 # The last main-thread assistant entry with a non-zero usage. Each key alone:
 # `usage` holds a nested object, so `{[^}]*}` would stop early.
 used="$(tail -c 262144 "$transcript" 2>/dev/null | awk '
@@ -104,6 +87,15 @@ case "$used" in '' | *[!0-9]*) exit 0 ;; esac
 [ "${#used}" -le 12 ] || exit 0
 
 pct=$((used * 100 / window))
+
+# Under the lowest live level: a compaction dropped the context, re-arm.
+low="$warn"
+{ [ "$low" -gt 0 ] && { [ "$crit" -eq 0 ] || [ "$low" -le "$crit" ]; }; } || low="$crit"
+if [ "$pct" -lt "$low" ]; then
+  [ -e "$warn_mark" ] || [ -e "$crit_mark" ] || exit 0
+  rm -f "$warn_mark" "$crit_mark" 2>/dev/null
+  exit 0
+fi
 
 # Noclobber makes the marker the lock: two calls racing past the checks above
 # create it once, and only the one that did prints.

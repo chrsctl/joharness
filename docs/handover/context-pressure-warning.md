@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01FmArP42iphRwRzXNj4HD4o
 agent: opus
 updated: 2026-10-23
-next: Decided by the orchestrator on the human's delegation: re-scope (see Decisions, re-scope) so no edit touches a live hook; then build
+next: ci + verify on the review fixes, then retire and open the PR (Refs #584)
 ---
 
 ## Goal
@@ -52,11 +52,16 @@ injected line telling it to write the workstream file, commit and push.
   `"usage":{[^}]*}`. `transcript_path` on PreToolUse: documented as a common
   hook input field, NOT captured live — the probe (tee stdin in the
   working-tree pretool-feedback.sh, then one Edit) was refused, see Blockers.
-- Bash guard: its header says NO FORKS per call. Plan to call
-  context-watch.sh only on the allow path (EXIT trap on status 0, so a
-  denied call never burns the once-per-session marker), and only when the
-  payload carries `transcript_path` and a level is still unfired (builtin
-  `[ -e ]` checks). Measure the cost before merging.
+- Once per CLIMB, not once per session: a compaction keeps the session id
+  and drops the context, so under the lowest live level the markers clear
+  and the next climb warns again (verifier r4). Hysteresis is the gap
+  between the post-compaction size and the warning level.
+- Knobs are scope `session`: the hook reads the environment only, the way
+  `./joharness.sh conf` prints them; a conf line is not read (r2, r3).
+- Registration: human PR #584 (`human/context-pressure-warning`), command
+  `bash <path> || exit 0` so a copy with no exec bit still runs.
+- Built by this manager alone: one script and its topic share every
+  decision, so no disjoint worker split existed.
 
 ## Rejected
 
@@ -65,15 +70,20 @@ injected line telling it to write the workstream file, commit and push.
 
 ## Review
 
-None yet.
+- r1: (verifier) context-watch.sh committed 100644; the registered path answers 126 and `|| exit 0` hides it; selftest ran it via bash so never saw it. (fixed)
+- r2: (verifier) hook read a conf line that `conf` does not show for a session knob; values disagreed. (fixed)
+- r3: (verifier) conf value with an inline comment fell back to the default where conf_get reads the number. (fixed)
+- r4: (verifier) markers never cleared: a session warned before its first compaction only. (fixed)
+- r5: (verifier) the non-number window case passed whether or not the fallback worked. (fixed)
+- r6: (verifier) noclobber claim has no concurrent case. (wontfix: a race test is timing-dependent; set -C create-exclusive is the whole mechanism)
+- r7: (verifier) handover still described the dropped bash-guard design. (fixed)
+- r8: (verifier) registration had no Acceptance item; Scope opened with history. (fixed)
 
 ## Blockers
 
-None. Auto mode refused the live-hook probe and edit as Self-Modification.
-The re-scope in Decisions removes every edit to a live hook. If it refuses
-again on the new shape, block with `credentials:` and quote the refusal.
+None.
 
 ## Where to look
 
-- `.agents/harness/pretool-feedback.sh:hook_key` — payload key reader, envelope.
-- `.agents/harness/pretool-bash-guard.sh` — DENY path must not change.
+- `.agents/harness/context-watch.sh` — the hook; markers and re-arm at the end.
+- `.agents/harness/selftest/context-watch.sh` — the only way it is exercised.
