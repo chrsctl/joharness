@@ -27,7 +27,7 @@ a plan, not another branch.
    `UNKNOWN` = stop: a report with nowhere to go is not a report, and the
    missing `CANONICAL_REPO` is what to tell the human instead.
 
-## 1. Gate every finding — this is the step that goes wrong
+## 1. Gate and measure every finding
 
 `upstream` hands you findings placed on a file canonical owns. That is a
 filter, not a verdict, and it prints its own two doubts beside the finding —
@@ -46,36 +46,13 @@ and says they came from prose. Neither enters a
 report on its own — placing it means reading the edge and finding the file
 yourself, and if you cannot, it is not a report.
 
-For each finding ask the question `.agents/docs/feedback.md` § 1 asks:
+Gate each finding and carry its measurement as `.agents/docs/feedback.md`
+§ *When the consumer is the detector* steps 1 and 2 say: a finding with no
+measurement (command and output, what it cost here, when), or one that
+does not clear the gate, is dropped. Say in the
+pull request body how many you dropped and why.
 
-**Does the fact the harness stated match what it measures?**
-
-The signal that a session fought the harness is NOT evidence the harness is
-wrong. A guard whose message misled while its rule was correct is feedback
-**about the wording, not the rule**.
-
-> **Never relax a guard that just caught you.** Report what made you misread
-> it.
-
-Drop a finding that does not clear the gate, and say in the pull request
-body how many you dropped and why. A report nobody filtered is a preference
-with a diff.
-
-## 2. Carry the measurement
-
-Canonical has no consumers and cannot reproduce what you saw. **The number
-is the whole contribution.** Every finding you keep carries, in one line
-each:
-
-- the command and its output, or the commit and what it did;
-- what it cost here — the pull request that went red, the ritual skipped
-  twice, the file rewritten five times;
-- when. A number nobody can re-count is a written number
-  (`.agents/harness/AGENTS.md`, step 5).
-
-A finding you cannot measure is dropped at this step, not filed unmeasured.
-
-## 3. One pull request, one file, on the canonical
+## 2. One pull request, one file, on the canonical
 
 Attach the canonical repository (`add_repo`, or whatever your runtime calls
 it), branch from its default branch, and add exactly ONE file:
@@ -85,12 +62,9 @@ it), branch from its default branch, and add exactly ONE file:
 `urgency: normal`, `agent:` and `effort:` your honest read of the work,
 `graduates:` = the harness file the answer lands in.
 
-**A research node, and not any other kind of file, for three reasons.** A
-requirement (`docs/product/`) is canonical's goal to set. A plan asserts the fix, and asserting canonical's fix from
-a child is exactly the inversion step 1 forbids. A research node is a
-question canonical's own queue lists, a session claims, and the merge that
-answers it deletes — so the report enters by rules already written, with no
-new node type and no new lint.
+A research node, and no other kind of file: canonical's own queue lists it,
+a session claims it, and the merge that answers it deletes it. A requirement
+is canonical's goal to set; a plan asserts canonical's fix from a child.
 
 `## Question` is one sentence and answerable: *does <guard> state a fact it
 does not measure*, not *should the harness be better*. `## Findings` carries
@@ -106,9 +80,8 @@ anything.
 
 ## Never
 
-- Fix the harness in THIS repo. The next sync overwrites every harness-owned
-  file here, so a local fix is deleted by the mechanism whose job is keeping
-  it current — silently, and usually weeks later.
+- Fix the harness in THIS repo: the next sync overwrites every
+  harness-owned file here.
 - Write `docs/product/` or `docs/plans/` in either repo, or touch anything
   under `./joharness.sh protocol-paths`.
 - File more than one pull request, file one with no measurement in it, or
